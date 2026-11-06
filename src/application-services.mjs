@@ -1,5 +1,5 @@
 import { TurnReports, judgeOwnerReport } from './turn-reports.mjs'
-import { createDirectReceiptAssembly } from './direct-receipt-assembly.mjs'
+import { createDirectReceiptAssembly, directFailureReport } from './direct-receipt-assembly.mjs'
 import { createSubmittedSecretApprovalBridge } from './submitted-secret-approval-bridge.mjs'
 import { createSubmittedSecretConsumer } from './usage/submitted-secret-consumer.mjs'
 import { createSubmittedSecretRabbitClient } from './usage/submitted-secret-rabbit-client.mjs'
@@ -200,7 +200,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     legacy: conversation.messenger, conversation: conversationAssembly, transport, aiControl, exchangeMutex,
     executionReady: () => !execution || execution.controller.snapshot().phase === 'running' && execution.controller.snapshot().available,
     onMessage: record => notifications.direct(record), onTurnEnd: turn => directTurnReports.afterTurn(turn),
-    onError: () => diagnostics.record({ code: 'DIRECT_RECEIPT_DISPATCH_UNCONFIRMED', module: 'integration' }) })
+    onError: (error, context) => diagnostics.record(directFailureReport(error, context)) })
   conversationPorts.directReceipts = directMessages.receipts
   const messenger = directMessages.messenger
   directTurnReports = new TurnReports({ bots, store: directMessages.receipts.store, transport,

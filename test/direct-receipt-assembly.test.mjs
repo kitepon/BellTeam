@@ -3,12 +3,13 @@ import assert from 'node:assert/strict'
 import { mkdtemp, rm, mkdir, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createDirectReceiptAssembly } from '../src/direct-receipt-assembly.mjs'
+import { createDirectReceiptAssembly, directFailureReport } from '../src/direct-receipt-assembly.mjs'
 import { createConversationAssembly } from '../src/conversation-assembly.mjs'
 import { createModuleExchangeMutex } from '../src/module-exchange-mutex.mjs'
 import { MembersAdmission } from '../src/members-admission.mjs'
 import { AitermTransport } from '../src/aiterm-transport.mjs'
 import { BellTeamMessenger } from '../src/messenger.mjs'
+import { Diagnostics } from '../src/diagnostics.mjs'
 import { validateConversationResult } from '../src/conversation/results.mjs'
 
 const tick = () => new Promise(resolve => setImmediate(resolve))
@@ -30,7 +31,7 @@ async function fixture(t, options = {}) {
   const transport = new AitermTransport({ membersAdmission, conversationAdmission: conversation.admission,
     requireMember: async () => {}, assertWorkAllowed: () => aiControl.assertEnabled(), handoffContext: async () => '',
     waitProcess: async () => ({ outcome: 'done', turn_id: 'fresh-turn' }), client: { async call(name, args) {
-      if (name === 'pty_send') { sends.push(args); if (options.nativeUnknown) throw Object.assign(Error('uncertain'), { code: 'BOT_SEND_OUTCOME_UNKNOWN' }); return { structuredContent: { mode: 'agent_dispatch', event_cursor: 1, wait_process: { executable: 'fixture', args: [] } } } }
+      if (name === 'pty_send') { sends.push(args); if (options.nativeError) throw options.nativeError; if (options.nativeUnknown) throw Object.assign(Error('uncertain'), { code: 'BOT_SEND_OUTCOME_UNKNOWN' }); return { structuredContent: { mode: 'agent_dispatch', event_cursor: 1, wait_process: { executable: 'fixture', args: [] } } } }
       if (name === 'pty_list') return { content: [{ type: 'text', text: 'quincy' }] }
       if (name === 'pty_read') return { structuredContent: { schema: 'aiterm.pty-read-result.v1', mode: 'agent_transcript', turn_id: 'fresh-turn', text: 'Owner answer' } }
       if (name === 'pty_observe') return {}
@@ -38,7 +39,7 @@ async function fixture(t, options = {}) {
     }, async close() {} } })
   const legacy = new BellTeamMessenger({ bots, transport, logPath: join(root, 'logs/direct-messages.jsonl') })
   const direct = createDirectReceiptAssembly({ root, bots, transport, conversation, aiControl, exchangeMutex,
-    assets: conversation.directAssets, legacy, onMessage: () => {}, onError: error => errors.push(error) })
+    assets: conversation.directAssets, legacy, onMessage: () => {}, onError: (error, context) => { errors.push(error); return options.onError?.(error, context) } })
   services.directReceipts = direct.receipts
   await conversation.initialize()
   t.after(async () => { await direct.close(); await transport.close(); await conversation.close(); await rm(root, { recursive: true, force: true }) })
@@ -146,4 +147,33 @@ test('application constructs sole receiver before child start and performs initi
   assert.equal(childStartReceiver, runtime.services.directMessages.receipts)
   await settled(async () => sends === 1 && !(await childStartReceiver.pending()).length)
   assert.equal((await childStartReceiver.store.records())[0].delivery_id, original.delivery_id)
+})
+
+
+test('direct first failure reaches registered diagnostics with bound safe fields and no private error data', async t => {
+  const secret = 'PRIVATE_MESSAGE_BODY_STACK_ENV_PATH'
+  const error = Object.assign(Error(secret), { code: 'BOT_SEND_OUTCOME_UNKNOWN',
+    cause: { code: secret }, aitermResponseReturned: true, effect: 'not_started',
+    mcp_request: { phase: 'call', tool: 'pty_send', outcome: 'unknown' },
+    executionError: { schema: 'invalid', effect: 'not_started' }, secret })
+  let diagnostics, reports = 0
+  const f = await fixture(t, { nativeError: error, onError: (failure, context) => {
+    reports++; return diagnostics.record(directFailureReport(failure, context))
+  } })
+  diagnostics = new Diagnostics(join(f.root, 'diagnostics.json')); await diagnostics.initialize()
+  f.direct.start(); f.aiControl.enable()
+  const receipt = await f.conversation.run({ kind: 'owner' }, () =>
+    f.direct.messenger.enqueueUserTurn({ target: 'bot-quincy', message: secret }))
+  await settled(async () => (await f.direct.receipts.store.durableReceipts())[0]?.delivery === 'unknown')
+  await diagnostics.pending
+  const rows = await diagnostics.list()
+  assert.equal(rows.length, 1); assert.equal(reports, 1)
+  assert.deepEqual(JSON.parse(rows[0].diagnostic_log), {
+    delivery_id: receipt.delivery_id, target: 'bot-quincy', stage: 'status',
+    code: 'BOT_SEND_OUTCOME_UNKNOWN', cause_code: null, returned: true,
+    tool: 'pty_send', request_phase: 'call', effect: null, outcome: 'unknown',
+  })
+  assert.ok(!JSON.stringify(rows).includes(secret))
+  assert.equal(JSON.parse(directFailureReport(error).diagnostic_log).effect, null)
+  f.direct.requestDrain(); await tick(); await tick(); assert.equal(f.sends.length, 1)
 })

@@ -1,13 +1,42 @@
 import { DurableMessageReceipts } from './durable-message-receipts.mjs'
 import { directEnvelope, userEnvelope } from './messenger.mjs'
 import { normalInputPending } from './conversation-channel.mjs'
+import { diagnosticCauseCodes } from './diagnostic-report-context.mjs'
+import { mcpRequestContext } from './mcp-request-context.mjs'
+import { returnedExecutionError } from './execution-error.mjs'
+
+const directFailureCodes = new Set([...diagnosticCauseCodes,
+  'BOT_SESSION_UNCONFIRMED', 'BOT_INPUT_NOT_READY', 'BOT_SEND_OUTCOME_UNKNOWN', 'AGENT_SESSION_REQUIRED',
+  'BOT_NOT_FOUND', 'AI_GLOBAL_PAUSED', 'MEMBERS_NOT_ACCEPTED', 'CONVERSATION_NOT_ACCEPTED',
+  'CONVERSATION_RECOVERY_UNAVAILABLE', 'DISPATCH_ACCEPTANCE_UNAVAILABLE', 'CONTINUATION_SUPERSEDED',
+  'CONFIGURATION_UNAVAILABLE', 'CONFIGURATION_PREPARATION_UNCONFIRMED', 'CONFIGURATION_NOT_APPLIED',
+  'EXECUTION_UNCONFIRMED', 'AGENT_RESUME_UNAVAILABLE', -32602, -32601, -32603,
+])
+const safeCode = value => directFailureCodes.has(value) ? value : null
+
+export function directFailureReport(error, context) {
+  const request = mcpRequestContext(error)
+  const pending = normalInputPending(error)
+  const execution = returnedExecutionError(error?.executionError)
+  const boundPending = pending && context && pending.deliveryId === context.delivery_id && pending.botId === context.target
+  return { code: 'SERVER_TURN_TRACKING_FAILED', module: 'conversation', diagnostic_log: JSON.stringify({
+    delivery_id: /^[a-f0-9-]{36}$/u.test(context?.delivery_id ?? '') ? context.delivery_id : null,
+    target: /^bot-[a-z0-9_-]{1,64}$/u.test(context?.target ?? '') ? context.target : null,
+    stage: ['status', 'preflight', 'acceptance', 'completion'].includes(context?.stage) ? context.stage : null,
+    code: safeCode(error?.code), cause_code: safeCode(error?.cause?.code),
+    returned: typeof error?.aitermResponseReturned === 'boolean' ? error.aitermResponseReturned : null,
+    tool: request?.tool ?? null, request_phase: request?.phase ?? null,
+    effect: boundPending ? 'not_started' : execution?.effect ?? null,
+    outcome: request?.outcome ?? null,
+  }) }
+}
 
 // Durable receive is independent of AI admission; only saved new IDs reach execution.
 export function createDirectReceiptAssembly({ root, bots, assets, legacy, conversation, transport, aiControl,
   exchangeMutex, executionReady = () => true, onMessage, onTurnEnd, onError = error => console.error(error) }) {
   let started = false, closed = false, requested = false, draining = null
   const completions = new Set()
-  const report = error => { try { Promise.resolve(onError(error)).catch(console.error) } catch (failure) { console.error(failure) } }
+  const report = (error, context) => { try { Promise.resolve(onError(error, context)).catch(console.error) } catch (failure) { console.error(failure) } }
   const ready = () => !closed && !aiControl.paused && executionReady()
   const requestDrain = () => {
     if (closed) return
@@ -20,7 +49,12 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
     }).catch(report).finally(() => { draining = null; if (requested) requestDrain() })
   }
   const dispatch = async ({ record, images, queue, callbacks, executionSource }) => {
-    let invoked = false
+    let invoked = false, reported = false
+    const reportOnce = (error, stage) => {
+      if (reported) return
+      reported = true
+      report(error, { delivery_id: record.delivery_id, target: record.target, stage })
+    }
     try {
       return await transport.membersAdmission.withLease(async membersLease => {
         const check = aiControl.admit()
@@ -30,14 +64,18 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
         if (!bot) throw Object.assign(new Error('BOT_NOT_FOUND'), { code: 'BOT_NOT_FOUND', status: 404 })
         check()
         const { onUserComplete, ...notificationCallbacks } = callbacks
-        const options = { images, queue, ...notificationCallbacks, membersLease, admissionCheck: check,
+        const options = { images, queue, ...notificationCallbacks,
+          onStatus(status, error, tracking) {
+            if (status === 'failed' && error) reportOnce(error, 'status')
+            return notificationCallbacks.onStatus(status, error, tracking)
+          }, membersLease, admissionCheck: check,
           ...(executionSource ? { executionSource } : {}) }
         if (record.from === 'user') {
           invoked = true
           const completion = transport.turn(bot, userEnvelope(record.from_identity ?? record.from, record.message), options)
           const saved = Promise.resolve(completion).then(onUserComplete)
           completions.add(saved)
-          saved.then(() => completions.delete(saved), error => { completions.delete(saved); report(error) })
+          saved.then(() => completions.delete(saved), error => { completions.delete(saved); reportOnce(error, 'completion') })
           if (!completion?.accepted) throw Object.assign(new Error('DISPATCH_ACCEPTANCE_UNAVAILABLE'), { code: 'DISPATCH_ACCEPTANCE_UNAVAILABLE' })
           return await completion.accepted
         }
@@ -52,6 +90,7 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
         return await transport.notify(bot, envelope, options)
       })
     } catch (error) {
+      reportOnce(error, invoked ? 'acceptance' : 'preflight')
       if (invoked) {
         const pending = normalInputPending(error)
         if (pending?.deliveryId === record.delivery_id && pending.botId === record.target) throw error
