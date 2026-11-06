@@ -88,26 +88,26 @@ test('an in-flight settings failure is ordering only; delivery checks the target
   assert.equal(f.calls.filter(c => c.name === 'pty_send').length, 1)
 })
 
-for (const cause of ['agent_launch', 'pty_close', 'members_session_save', 'close_launch']) test(`${cause} uncertainty still rejects ordinary delivery with no native input`, async t => {
+for (const cause of ['agent_launch', 'pty_close', 'members_session_save', 'close_launch']) test(`${cause} uncertainty preserves evidence while ordinary existing-session delivery proceeds`, async t => {
   const f = await fixture(t); f.transport.uncertainChanges.set(f.bot.id, cause)
   const version = f.transport.uncertainChanges.version(f.bot.id)
-  const completion = f.transport.submit(f.bot, 'synthetic rejected')
-  await assert.rejects(completion.accepted, { code: 'BOT_SESSION_UNCONFIRMED' })
-  await assert.rejects(completion, { code: 'BOT_SESSION_UNCONFIRMED' })
-  await assert.rejects(f.transport.ensure(f.bot), { code: 'BOT_SESSION_UNCONFIRMED' })
-  assert.equal(f.calls.filter(c => c.name === 'pty_send').length, 0)
+  const completion = f.transport.submit(f.bot, 'fresh independent input')
+  assert.deepEqual(await completion.accepted, { delivery: 'running' }); await completion
+  assert.equal(await f.transport.ensure(f.bot), 'existing')
+  assert.throws(() => f.transport.requireSessionKnown(f.bot.id), { code: 'BOT_SESSION_UNCONFIRMED' })
+  assert.equal(f.calls.filter(c => c.name === 'pty_send').length, 1)
   assert.equal(f.transport.uncertainChanges.version(f.bot.id), version)
 })
 
-test('a close uncertainty arriving while admission waits is rechecked before input', async t => {
+test('a peripheral close uncertainty while admission waits does not refuse fresh input', async t => {
   const f = await fixture(t), entered = deferred(), access = deferred()
   f.transport.requireAccess = async () => { entered.resolve(); await access.promise }
   const completion = f.transport.submit(f.bot, 'synthetic race')
   await entered.promise
   f.transport.uncertainChanges.set(f.bot.id, 'pty_close'); access.resolve()
-  await assert.rejects(completion.accepted, { code: 'BOT_SESSION_UNCONFIRMED' })
-  await assert.rejects(completion, { code: 'BOT_SESSION_UNCONFIRMED' })
-  assert.equal(f.calls.filter(c => c.name === 'pty_send').length, 0)
+  assert.deepEqual(await completion.accepted, { delivery: 'running' }); await completion
+  assert.equal(f.calls.filter(c => c.name === 'pty_send').length, 1)
+  assert.equal(f.transport.uncertainChanges.get(f.bot.id), 'pty_close')
 })
 
 test('ordinary global-stop and access denial still reject configuration-unknown delivery', async t => {
@@ -146,12 +146,13 @@ test('the existing execution bridge path keeps its native target and source meta
 })
 
 
-test('direct ordered dispatch uses the same delivery check and refuses a changed seat target', async t => {
+test('direct ordered dispatch preserves peripheral uncertainty without refusing fresh input', async t => {
   const f = await fixture(t)
   assert.equal((await f.transport.dispatchInOrder(f.bot, 'direct synthetic', [])).session, 'existing')
   f.transport.uncertainChanges.set(f.bot.id, 'agent_launch')
-  await assert.rejects(f.transport.dispatchInOrder(f.bot, 'blocked synthetic', []), { code: 'BOT_SESSION_UNCONFIRMED' })
-  assert.equal(f.calls.filter(c => c.name === 'pty_send').length, 1)
+  assert.equal((await f.transport.dispatchInOrder(f.bot, 'fresh synthetic', [])).session, 'existing')
+  assert.equal(f.calls.filter(c => c.name === 'pty_send').length, 2)
+  assert.equal(f.transport.uncertainChanges.get(f.bot.id), 'agent_launch')
 })
 
 test('individual stop while a rejected configuration wait settles still cancels the queued delivery', async t => {
