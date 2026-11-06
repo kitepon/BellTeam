@@ -12,3 +12,9 @@ Rootの初回単位はfresh公開builtin421dに対する3拒否修理だけ。Mo
 DFD: `fresh421d→backport98f5固定2file→profile+Epi7method runtime→同mainS←Centi既workflow→別sidecar package/check/公式OIDC署名/verify→Root固定actor/対象/UUID→元instanceへ限定採用`。MCP Room最小採用・新親receiver・59d全親供給は独立の次単位で、この最初の署名を待たせない。
 
 準備branchのworkflow単体はEpi完成source待ちの未完候補。恒久採用前にexact profile2file、workflow CLIとEpiのpackage/check/verify interface、作者の新完成結果だけを照合する。
+
+## Root実測に基づくstage接点
+
+Root正本message-receipt-contract-20261106.mdとruntime-policy-plan.jsonが配置契約を所有する。旧/run/bellteam-maintenanceは別RO volumeなので使わず、既RW /run tmpfs直下の `/run/bellteam-live-delivery-adoptions/<UUID>/` に固定する。新規root0:1001のdir0750/file0640、元ReadonlyRootfs/mount/既dir権限は維持。DFD: Root固定operation→新stageの検証済asset/operation.json→Epi固定client/adopter→既UID1001 state receipt。既receipt `/srv/bellteam/state/runtime-adoptions/<UUID>/` のRW実mountはBell追加確認中で、DACから推定しない。
+
+Epi完成sourceの図/DFD/READMEと固定adopter/clientがこのstageを使うことを、同mainSの実接続として照合する。対象7method/schema/元owner/別subjectは不変。初回sourceが古いstageを持つまま正常反映可能とは扱わない。本番配置/Signal/evalはこの差分から実行しない。
