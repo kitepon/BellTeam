@@ -76,3 +76,7 @@ DFD: saved direct receipt → existing normal transport → first original faile
 ## Coherent working-restart native supply
 
 Function: normal Dockerfile installs official npm aiterm-mcp0.63.9 (Owner-approved source eec2c9f5) with the existing parent resume-only caller and registered rejection diagnostics. The native flag/refusal wire contract is unchanged. DFD: official npm0.63.9 → ordinary Docker build → same isolated Compose/state → saved actual prior-active reference → existing promptless require_existing_resume caller → real same-conversation resume/once known-gap summary. Idle/no-reference receive no automatic input. This replaces0.63.8's unavailable killed-working branch; never downgrade restart-origin records to0.63.8. No private overlay, new store or task body replay.
+
+## Coherent retained-default resume supply (0.63.10)
+
+Function: ordinary Dockerfile installs official Owner-approved native0.63.10/sourcecbfa41dc. Existing flag/refusal/caller remain unchanged. DFD: official npm0.63.10 → normal image → same isolated Compose/state → two actual prior-working references (normal explicit model/effort and vendor-default effort) → existing promptless resume-only caller → each original conversation and one known-JST-gap summary. Native strict launch-correlated UUID/model recovery and recorded vendor_default effort preserve actual origin; no guessed setting, new store, replay or fresh fallback. Records require0.63.10+, no downgrade. Existing idle/no-reference remain unselected.
