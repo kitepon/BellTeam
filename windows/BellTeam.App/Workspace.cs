@@ -57,6 +57,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     public PlanningApi Planning => new(api ?? throw new BellApiException("接続先を設定してください。"));
     public event Action? ServerChanged;
     public event Action? UpdatesChanged;
+    public event Action? BackgroundAgentChanged;
     public event Action<MessageNotification>? MessageArrived;
     public ConversationEntry[] Conversations => all.ToArray();
     public Bot[] Bots => all.Where(entry => entry.Bot is not null).Select(entry => entry.Bot!).ToArray();
@@ -155,6 +156,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
             {
                 ConnectionStatus = "接続済み・新着を受信中";
                 if (item.TryGetProperty("type", out var type) && type.ValueKind == System.Text.Json.JsonValueKind.String && type.GetString() == "updates") UpdatesChanged?.Invoke();
+                if (item.TryGetProperty("type", out type) && type.ValueKind == System.Text.Json.JsonValueKind.String && type.GetString() == "settings" && item.TryGetProperty("featureId", out var feature) && feature.ValueKind == System.Text.Json.JsonValueKind.String && feature.GetString() == "backgroundAgent") BackgroundAgentChanged?.Invoke();
                 if (item.EnumerateObject().Any()) { await RefreshAsync(current, token, notify: true); ServerChanged?.Invoke(); }
             }
         }
@@ -175,8 +177,8 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
             OwnerName = owner.Owner.Name; Changed(nameof(OwnerName));
             queue = activity.Items; var working = queue.Where(item => item.Status == "running").Select(item => item.BotId).ToHashSet();
             var previous = all.ToDictionary(entry => entry.Target);
-            all = bots.Bots.Select(bot => new ConversationEntry(new(bot.Id, false), bot.DisplayName, bot.Recent?.Preview ?? bot.Position, bot.Recent?.At ?? DateTimeOffset.MinValue, bot, null, Server, working.Contains(bot.Id)))
-                .Concat(rooms.Rooms.Select(room => new ConversationEntry(new(room.Id, true), room.Name, room.Recent?.Preview ?? room.Purpose, room.Recent?.At ?? DateTimeOffset.MinValue, null, room, Server))).ToList();
+            all = bots.Bots.Select(bot => new ConversationEntry(new(bot.Id, false), bot.DisplayName, CurrentWorkText.Bot(bot.CurrentWork), bot.Recent?.At ?? DateTimeOffset.MinValue, bot, null, Server, working.Contains(bot.Id)))
+                .Concat(rooms.Rooms.Select(room => new ConversationEntry(new(room.Id, true), room.Name, CurrentWorkText.Room(room, bots.Bots), room.Recent?.At ?? DateTimeOffset.MinValue, null, room, Server))).ToList();
             if (notify)
                 foreach (var entry in all)
                     if (previous.TryGetValue(entry.Target, out var before) && MessageNotification.FromRecent(Server, entry.Target, entry.Bot?.Name ?? entry.Name, before.Bot?.Recent ?? before.Room?.Recent, entry.Bot?.Recent ?? entry.Room?.Recent) is { } notification) MessageArrived?.Invoke(notification);

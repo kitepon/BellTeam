@@ -6,9 +6,10 @@ using System.Text.Json;
 
 namespace BellTeam.Core;
 
-public sealed class BellApiException(string message, HttpStatusCode? status = null) : Exception(message)
+public sealed class BellApiException(string message, HttpStatusCode? status = null, string? code = null) : Exception(message)
 {
     public HttpStatusCode? Status { get; } = status;
+    public string? Code { get; } = code;
     public bool RequiresLogin => Status is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden || (int?)Status is >= 300 and < 400;
 }
 
@@ -133,12 +134,14 @@ public sealed class BellApi : IDisposable
         if (response.IsSuccessStatusCode) return;
         var body = await response.Content.ReadAsStringAsync(token);
         string detail = $"HTTP {status}";
+        string? code = null;
         if (response.Content.Headers.ContentType?.MediaType == "application/json")
         {
             try
             {
                 using var document = JsonDocument.Parse(body);
                 var root = document.RootElement;
+                if (root.TryGetProperty("error", out var errorCode) && errorCode.ValueKind == JsonValueKind.String) code = errorCode.GetString();
                 if (root.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.String)
                     detail = message.GetString()!;
                 else if (root.TryGetProperty("error", out var error) && error.ValueKind == JsonValueKind.String)
@@ -146,7 +149,7 @@ public sealed class BellApi : IDisposable
             }
             catch (JsonException) { detail += "（エラー応答のJSONを読み取れませんでした）"; }
         }
-        throw new BellApiException("BellTeam: " + detail, response.StatusCode);
+        throw new BellApiException("BellTeam: " + detail, response.StatusCode, code);
     }
 
     public async IAsyncEnumerable<JsonElement> EventsAsync([EnumeratorCancellation] CancellationToken token = default)

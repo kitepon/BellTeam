@@ -43,6 +43,7 @@ public sealed record Bot
     public string Avatar { get; init; } = "";
     public string AvatarVersion { get; init; } = "";
     public RecentMessage? Recent { get; init; }
+    public JsonElement CurrentWork { get; init; }
 }
 public sealed record Room
 {
@@ -54,6 +55,7 @@ public sealed record Room
     public string Avatar { get; init; } = "";
     public string AvatarVersion { get; init; } = "";
     public RecentMessage? Recent { get; init; }
+    public JsonElement CurrentWork { get; init; }
 }
 public sealed record TimelineMessage
 {
