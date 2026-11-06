@@ -68,3 +68,20 @@ test('existing update inventory includes only the supplied closed problem projec
   assert.deepEqual(value.problems, problems)
   validateUpdateResponse('inventory', value)
 })
+
+test('internal SSE keeps other topics and does not read Owner update records', async t => {
+  let reads = 0
+  const center = createUpdateCenter({ jobReader: { jobs: async () => { reads++; return { jobs: [job] } } } })
+  const server = createBellTeamServer({ internal: true, bots: new Map(), rooms: {}, store: { watch: () => () => {} },
+    transport: {}, authorize: async () => true, updateCenter: center, writeLog() {} })
+  await server.startMessageWatch(); server.listen(0, '127.0.0.1'); await once(server, 'listening')
+  t.after(() => { server.closeAllConnections(); return new Promise(resolve => server.close(resolve)) })
+  const base = `http://127.0.0.1:${server.address().port}`
+  assert.equal((await fetch(base + '/api/updates')).status, 403)
+  const reader = (await fetch(base + '/api/events')).body.getReader(); await reader.read()
+  center.notify(); server.notify({ type: 'settings' })
+  const event = JSON.parse(new TextDecoder().decode((await reader.read()).value).match(/data: (.+)/u)[1])
+  assert.equal(event.type, 'settings'); assert.equal(Object.hasOwn(event, 'jobs'), false)
+  await new Promise(resolve => setImmediate(resolve)); assert.equal(reads, 0)
+  await reader.cancel()
+})

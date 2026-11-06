@@ -66,6 +66,7 @@ export function createHostUpdateAdapter({ root, client }) {
   return {
     operation,
     job: id => client.job(id),
+    updateJob: input => client.updateJob(input),
     async admitJob({ planId, jobId, idempotencyKey }) {
       const saved = await load(planId, true)
       requireValue(/^[a-f0-9]{64}$/.test(saved.catalogSha256 ?? ''), 'UPDATE_JOB_BINDING_UNAVAILABLE')

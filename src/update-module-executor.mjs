@@ -28,9 +28,9 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
     if (entry.jobBindings) await flushJobReports(entry)
     const value = publicOperation(entry)
     if (entry.interrupted) {
-      for (const binding of entry.jobBindings.filter(binding => binding.admitted && binding.kind === 'module')) {
-        const job = await moduleHost.job(binding.jobId)
-        if (!['ready', 'failed'].includes(job.state)) await moduleHost.updateJob({ jobId: binding.jobId,
+      for (const binding of entry.jobBindings.filter(binding => binding.admitted && (binding.kind === 'module' || !entry.hostIssued))) {
+        const job = await jobClient(binding).job(binding.jobId)
+        if (!['ready', 'failed'].includes(job.state)) await jobClient(binding).updateJob({ jobId: binding.jobId,
           state: 'failed', reason: { code: 'UPDATE_PARENT_INTERRUPTED', message: '親が停止し、機能の切替を完了できませんでした。' } })
       }
       entry.interrupted = false; await save()
@@ -74,7 +74,7 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
       if (!report) continue
       const stored = await jobClient(binding).job(binding.jobId)
       const job = ['ready', 'failed'].includes(stored.state) ? stored
-        : await moduleHost.updateJob({ jobId: binding.jobId, ...report })
+        : await jobClient(binding).updateJob({ jobId: binding.jobId, ...report })
       if (report.state === 'ready' && job.state === 'ready') progress.phase = 'succeeded'
       delete progress.jobReport; changed = true
     }
@@ -299,7 +299,7 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
     } catch (error) {
       if (entry.jobBindings) {
         for (const [index, binding] of entry.jobBindings.entries()) {
-          if (binding.kind !== 'module' || !binding.admitted || entry.steps[index].phase === 'succeeded'
+          if (binding.kind === 'container' && entry.hostIssued || !binding.admitted || entry.steps[index].phase === 'succeeded'
             || entry.steps[index].jobReport?.state === 'ready') continue
           entry.steps[index].jobReport = { state: 'failed', reason: {
             code: error.code === 'UNREADABLE' ? 'UPDATE_MODULE_ABORTED' : safeCode(error), message: '機能の更新を中断しました。' } }

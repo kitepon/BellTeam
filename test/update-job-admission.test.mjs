@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { createModuleUpdateExecutor } from '../src/update-module-executor.mjs'
 
-async function fixture(t, { ids = ['web-gateway', 'notifications'] } = {}) {
+async function fixture(t, { ids = ['web-gateway', 'notifications'], container = false, failApply = false } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'job-admission-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const jobs = new Map(), calls = [], changes = [], applied = [], current = new Map()
@@ -36,17 +36,26 @@ async function fixture(t, { ids = ['web-gateway', 'notifications'] } = {}) {
   const adapters = Object.fromEntries(ids.map(id => [id, {
     current: () => current.get(id) ?? { version: 'a'.repeat(40), sourceCommit: 'a'.repeat(40), origin: 'builtin', digest: null },
     available: () => true, prepare: async () => {}, canRollback: () => true,
-    apply: async step => { applied.push(id); current.set(id, { ...step.target, origin: 'release' }) },
+    apply: async step => { applied.push(id); if (failApply) throw Object.assign(new Error('READY_PROBE_FAILED'), { code: 'READY_PROBE_FAILED' }); current.set(id, { ...step.target, origin: 'release' }) },
   }]))
   const catalog = { select: async id => ({ catalogSha256: 'c'.repeat(64), expiresAt: '2099-01-01T00:00:00Z',
     release: { componentId: id, versionId: 'b'.repeat(64), sourceCommit: 'b'.repeat(40), compatibility: {
       nodeMajor: 26, containerUpdate: null, parentProtocol: id === 'notifications' ? 2 : 1, stateSchema: id === 'notifications' ? 2 : 1,
     } } }) }
-  const executor = await createModuleUpdateExecutor({ root, adapters, catalog, moduleHost: host })
+  let containerStarts = 0
+  const containerPlan = { planId: randomUUID(), scope: 'component', componentId: 'container', expiresAt: '2099-01-01T00:00:00Z',
+    targets: [{ componentId: 'container', current: null, published: { version: 'sha256:' + 'b'.repeat(64), digest: 'sha256:' + 'b'.repeat(64), sourceCommit: 'b'.repeat(40), origin: 'published' } }],
+    compatibility: { compatible: true, reason: null }, impact: { containerRestart: true, description: 'Restart' }, capability: { supported: true, reason: null } }
+  const containerHost = { plan: async () => containerPlan, job: host.job, updateJob: host.updateJob,
+    admitJob: ({ jobId, idempotencyKey }) => host.admitJob({ jobId, idempotencyKey, kind: 'container',
+      target: { catalogSha256: 'c'.repeat(64), moduleId: 'container', versionId: containerPlan.targets[0].published.version } }),
+    start: async () => { containerStarts++; throw Error('container must not start') } }
+  const executor = await createModuleUpdateExecutor({ root, adapters, catalog, moduleHost: host, ...(container ? { host: containerHost } : {}) })
   t.after(() => executor.close())
-  const plan = await executor.plan({ scope: 'all' })
-  const input = { planId: plan.planId, requestId: randomUUID(), confirmContainerRestart: false, idempotencyKey: 'one-operation' }
-  return { root, executor, jobs, calls, changes, applied, input, failReady: (times = Infinity) => { failReady = times }, allowReady: () => { failReady = 0 }, gate: value => { admitGate = value }, fail: value => { failSecond = value } }
+  const plan = await executor.plan({ scope: 'all' }, container ? { components: [{ id: 'container',
+    publication: { catalog: { sha256: 'c'.repeat(64) } }, comparison: { state: 'update_available' }, capability: { supported: true } }] } : null)
+  const input = { planId: plan.planId, requestId: randomUUID(), confirmContainerRestart: container, idempotencyKey: 'one-operation' }
+  return { root, executor, jobs, calls, changes, applied, input, containerStarts: () => containerStarts, failReady: (times = Infinity) => { failReady = times }, allowReady: () => { failReady = 0 }, gate: value => { admitGate = value }, fail: value => { failSecond = value } }
 }
 
 test('all durable step receipts precede acceptance; same key/new request UUID reuses jobs and actual ready transitions', async t => {
@@ -106,4 +115,16 @@ test('a one-time ready receipt error completes after the saved report is acknowl
   const result = await f.executor.operation(f.input.requestId)
   assert.equal(result.phase, 'completed'); assert.equal(result.jobs[0].state, 'ready')
   assert.deepEqual(f.applied, ['web-gateway'])
+})
+
+
+test('an earlier failed module closes its preadmitted unclaimed container job without starting the container', async t => {
+  const f = await fixture(t, { ids: ['web-gateway'], container: true, failApply: true })
+  const accepted = await f.executor.start(f.input)
+  assert.deepEqual(accepted.jobs.map(job => job.kind), ['module', 'container'])
+  await f.executor.close()
+  const result = await f.executor.operation(f.input.requestId)
+  assert.deepEqual(result.jobs.map(job => job.state), ['failed', 'failed'])
+  assert.equal(result.jobs[1].reason.code, 'READY_PROBE_FAILED')
+  assert.equal(f.containerStarts(), 0)
 })
