@@ -22,14 +22,15 @@ export function normalInputPending(error) {
       || value.reason === 'session_not_ready' && typeof value.launchId === 'string' && /^[a-f0-9]{32}$/u.test(value.launchId))
     ? value : null
 }
-const safeError = error => {
+const safeError = (error, side) => {
   const candidate = error?.code ?? error?.message?.split(':')[0]
   const pending = normalInputPending(error)
   return { code: code(candidate) ? candidate : 'CONVERSATION_OPERATION_FAILED',
     outcome: error?.outcome === 'not_accepted' ? 'not_accepted' : 'unknown',
     status: Number.isInteger(error?.status) && error.status >= 400 && error.status <= 599 ? error.status : 503,
-    ...conversationCallbackFailureFields(normalizeConversationCallbackError(error)),
-    ...(pending ? { effect: 'not_started', normalInputPending: pending } : {}) }
+    // Retained v1 children accept only the original three error fields.
+    ...(side === 'child' ? conversationCallbackFailureFields(normalizeConversationCallbackError(error)) : {}),
+    ...(side === 'child' && pending ? { effect: 'not_started', normalInputPending: pending } : {}) }
 }
 const exitFailureCodes = new Set(['IPC_INVALID', 'IPC_DISCONNECTED', 'IPC_TIMEOUT', 'IPC_ACK_TIMEOUT', 'IPC_SEND_FAILED',
   'CHILD_EXITED', 'BACKGROUND_UNCONFIRMED', 'DELIVERY_RELEASE_UNCONFIRMED', 'PROTOCOL_UNCONFIRMED'].map(code => `CONVERSATION_${code}`))
@@ -155,7 +156,7 @@ export function createConversationPeer(endpoint, { side, accept, validateResult,
       await reply(entry, value)
       await afterResponse(entry, value)
     } catch (error) {
-      if (!dead) await control(entry.id, { type: 'error', kind: entry.kind, error: safeError(error) }).catch(fail)
+      if (!dead) await control(entry.id, { type: 'error', kind: entry.kind, error: safeError(error, side) }).catch(fail)
     } finally { finishEntry(entry) }
   }
   streams = createConversationStreams(endpoint, {
@@ -169,12 +170,12 @@ export function createConversationPeer(endpoint, { side, accept, validateResult,
           && kinds.has(value.kind) && typeof value.method === 'string' && value.method.length <= 128 && id > incoming)
         incoming = id
         if (inbound[value.kind] >= (['root', 'effect', 'callback', 'event'].includes(value.kind) ? MODULE_CONCURRENCY : 16)) {
-          await control(id, { type: 'error', kind: value.kind, error: safeError(conversationChannelError('CONVERSATION_IPC_CAPACITY', 'not_accepted')) }); return
+          await control(id, { type: 'error', kind: value.kind, error: safeError(conversationChannelError('CONVERSATION_IPC_CAPACITY', 'not_accepted'), side) }); return
         }
         const entry = { ...value, id, released: false }
         let operation
         try { operation = accept(entry) }
-        catch (error) { await control(id, { type: 'error', kind: value.kind, error: { ...safeError(error), outcome: 'not_accepted' } }); return }
+        catch (error) { await control(id, { type: 'error', kind: value.kind, error: { ...safeError(error, side), outcome: 'not_accepted' } }); return }
         entry.run = operation; entry.finish = operation.finish
         inbound[entry.kind]++; running.set(id, entry)
         await control(id, { type: 'accepted', kind: entry.kind })
@@ -227,7 +228,7 @@ export function createConversationPeer(endpoint, { side, accept, validateResult,
       if (entry && entry.stream === meta.lane && entry.length === meta.length && !entry.bodyStarted) {
         if (!budget.claim(meta)) {
           finishEntry(entry)
-          void control(entry.id, { type: 'error', kind: entry.kind, error: safeError(conversationChannelError('CONVERSATION_INPUT_BUSY', 'not_accepted')) }).catch(fail)
+          void control(entry.id, { type: 'error', kind: entry.kind, error: safeError(conversationChannelError('CONVERSATION_INPUT_BUSY', 'not_accepted'), side) }).catch(fail)
           return false
         }
         entry.bodyStarted = true; return true
