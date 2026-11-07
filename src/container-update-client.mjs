@@ -65,17 +65,20 @@ export function createContainerUpdateClient(path = socketPath) {
     capabilities: async () => { try { return await call('capabilities', {}) }
       catch { return { supported: false, reason: 'HOST_UPDATE_UNAVAILABLE', currentRequestId: null, previousRequestId: null } } },
     moduleInstallCapabilities: async () => {
-      try {
-        const value = await call('capabilities', {})
-        if (value?.moduleInstallerSource !== undefined) {
-          const distribution = JSON.parse(await readFile('/app/distribution.json', 'utf8'))
-          if (!/^[a-f0-9]{40}$/.test(value.moduleInstallerSource) || distribution.sourceCommit !== value.moduleInstallerSource)
-            return { supported: false, reason: 'HOST_MODULE_SOURCE_CHANGED' }
+      const value = await call('capabilities', {})
+      if (value?.moduleInstallerSource !== undefined) {
+        let distribution
+        try { distribution = JSON.parse(await readFile('/app/distribution.json', 'utf8')) }
+        catch (error) {
+          throw Object.assign(failure('UNREADABLE'), { path: '/app/distribution.json',
+            reason: /^[A-Z][A-Z0-9_]{0,63}$/.test(error?.code ?? '') ? error.code : 'DISTRIBUTION_INVALID' })
         }
-        const supported = typeof value?.moduleInstallSupported === 'boolean' ? value.moduleInstallSupported : value?.supported
-        return supported === true && value.moduleInstallProtocol === 1 ? { supported: true, reason: null }
-          : { supported: false, reason: /^[A-Z_0-9]{1,100}$/.test(value?.moduleInstallReason ?? value?.reason ?? '') ? (value.moduleInstallReason ?? value.reason) : 'HOST_MODULE_INSTALL_UNAVAILABLE' }
-      } catch { return { supported: false, reason: 'HOST_MODULE_INSTALL_UNAVAILABLE' } }
+        if (!/^[a-f0-9]{40}$/.test(value.moduleInstallerSource) || distribution?.sourceCommit !== value.moduleInstallerSource)
+          return { supported: false, reason: 'HOST_MODULE_SOURCE_CHANGED' }
+      }
+      const supported = typeof value?.moduleInstallSupported === 'boolean' ? value.moduleInstallSupported : value?.supported
+      return supported === true && value.moduleInstallProtocol === 1 ? { supported: true, reason: null }
+        : { supported: false, reason: /^[A-Z_0-9]{1,100}$/.test(value?.moduleInstallReason ?? value?.reason ?? '') ? (value.moduleInstallReason ?? value.reason) : 'HOST_MODULE_INSTALL_UNAVAILABLE' }
     },
     catalog: componentId => call('catalog', { componentId }),
     plan: params => call('plan', params),
