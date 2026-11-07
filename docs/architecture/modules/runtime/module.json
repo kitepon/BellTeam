@@ -153,6 +153,7 @@
     "src/module-ready-probe.mjs",
     "scripts/runtime_update.py",
     "src/runtime-selection.mjs",
+    "src/aiterm-generation-client.mjs",
     "scripts/verify-runtime.py",
     "scripts/runtime-exec.mjs"
   ]
