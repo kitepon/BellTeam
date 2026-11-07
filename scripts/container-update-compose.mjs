@@ -13,6 +13,8 @@ export function containerUpdaterModels(input) {
   if(hostSocket.length===1&&hostSocket[0].type==='bind'&&hostSocket[0].read_only===true
     &&hostSocket[0].source==='/srv/bellteam/shared/tools/bellteam-container-update-host/socket'
     &&hostSocket[0].bind?.create_host_path===false)return {normal,backend:null}
+  // The install wait (300s) is the only swap deadline; boot runs every Bot setup.sh first.
+  if(service.healthcheck)service.healthcheck.start_period='300s'
   const socketName=project+'-container-socket',stateName=project+'-container-updater'
   const mounts=service.volumes.filter(m=>m.target==='/run/bellteam-container-updater')
   if(mounts.length){

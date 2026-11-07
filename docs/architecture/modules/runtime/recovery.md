@@ -50,7 +50,7 @@ flowchart TD
 
 通常の本体更新は実行中AI/PTY/親メモリを停止して新実行世代を作る。会話・設定・予定・台帳session・署名adoptionとdata/home/Cursor/Throughlineを同保存先で引き継ぎ、旧AI原volumeと旧normalは削除・上書き・cleanup回収しない。通常resetの新AI volumeを同nativeの復元成功とは扱わない。元accepted/unknownや未保存ACKの結果を新親から補完せず、旧本文/applyを再送しない。必要な保存復元を明示要求する既H1とは分ける。
 
-起動の`compose up --wait`は最大300秒で打ち切る。healthcheckの起動猶予120秒と、その後の判定を待つ有限上限であり、起動時間の保証ではない。unhealthy・container終了・期限超過の非0はそのまま返し、保存世代を保持する。通常更新とrecoverに共通で、後発healthyによって元installerの失敗を成功へ書き換えない。
+起動の`compose up --wait`は最大300秒で打ち切る。bodyのhealthcheck起動猶予（start_period）も同じ300秒なので、起動中のbodyはこの期限より前にunhealthyにならない（[B-2](container-update-bundled.md#body-readiness-deadline-and-installer-restore-on-recovery-b-2-2026-11-08)）。有限上限であり、起動時間の保証ではない。unhealthy・container終了・期限超過の非0はそのまま返し、保存世代を保持する。通常更新とrecoverに共通で、後発healthyによって元installerの失敗を成功へ書き換えない。
 
 ## 状態移行の三つの責任
 
