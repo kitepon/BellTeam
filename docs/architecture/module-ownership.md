@@ -20,7 +20,7 @@ Owner 2026-11-02指示による本体分担。機能を分離し、担当が自�
 | ベロータ | メンバー・予定 | BotRegistry、ProjectFilesのメンバー構造と指示、Owner規範、アバター/設定画、Schedule定義・実行発行 |
 | ミカ | 利用設定・通知 | Onboarding、HarnessAuth、AuthUI、FeatureSettings、質問/秘密入力、PushNotifications、Subscriptions、Cloudflare利用認証 |
 | アドミ | Web | web全体の状態・操作・表示。サーバーの機能判定を画面へ複製しない |
-| エピネル | 実行環境・更新復旧 | 全module共通交換runner/controller・世代/close-drain、bootstrap/supervisor/lifecycle、SeatRuntime/短命runner、CLI/hook登録、状態移行、installer、backup/restore、更新実行の製品コード |
+| モリー（2026-11-08まではエピネル） | 実行環境・更新復旧 | 全module共通交換runner/controller・世代/close-drain、bootstrap/supervisor/lifecycle、SeatRuntime/短命runner、CLI/hook登録、状態移行、installer、backup/restore、更新実行の製品コード |
 | ビスケット | 記憶・知識 | MemoryService/Search、記憶形式と検索索引、短期記憶の方針。DB実行proxyはエピネル |
 | センチ | 商用配布 | Docker/Compose/profile、package、候補CI、image/source受入、公式版発行・promotion。installerの動作実装はエピネルと接続 |
 | モリー | 薄い親・共通入口 | 安定facade、共通HTTP/MCP dispatch、全module共通ledger/adapter組立、機能間接続・必要な結合試験と通常main統合 |
@@ -63,6 +63,10 @@ Apple/Windowsクライアントは各ベル、Aitermはエレグ、Throughline�
 ## 11/3 共通実装の正式移管
 
 Ownerの正式割当によりintegration moduleの実装ownerをモリーへ移す。通常main統合もモリーが作者成果照合・必要結合・図合成・競合解消・push・CI/source binding・採用SHA返却まで一貫して持ち、毎回Root採否を待つ条件にしない。Rootは全体設計/公開契約・診断方針裁定/優先順位/本番・Owner判断を持つ。runtime移管19fad7fの子起動停止・版交換/adoption/戻しと固定root記録writer/有限watch/取消/OS observerはエピネル、機能内部は各担当、配布はセンチ。共通callerは公開接点だけを使い、内部sourceの変更は所有者が持つ。既成功群の再走を新gateにせず、変更した直接境界を検証する。移管は本番・資格利用・OS権限の承認を追加しない。
+
+## 11/8 本体担当の一本化
+
+Owner承認・トロニー伝達（2026-11-08）により、本体コンテナ（親の組立・実行環境・部品の入れ替え・image）と「本体を止めずに更新できる」性質の唯一の担当をモリーにする。runtime module（上表の実行環境・更新復旧）の所有はエピネルからモリーへ移り、通常mainの採用gateはモリーからエピネルへ移る。部品の業務内部の担当、試験・供給センチ、全体判断・本番トロニーは変わらない。この文書の他の表・節にある旧割当（実行環境・更新復旧、DB実行proxy、installer動作実装、seat-runtime/共有CLI JSONのエピネル、通常main統合のモリー）は、この節が優先する。日付付きの履歴は書き換えない。
 
 ## モジュール更新の現在の受渡し
 

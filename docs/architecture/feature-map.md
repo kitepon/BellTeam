@@ -17,7 +17,7 @@ flowchart LR
   m_integration["共通入口・結合実装 / モリー"]
   m_members["メンバー・予定 / ベロータ"]
   m_memory["記憶・知識 / ビスケット"]
-  m_runtime["実行環境・更新復旧 / エピネル"]
+  m_runtime["実行環境・更新復旧 / モリー"]
   m_usage["利用設定・通知 / ミカ"]
   m_web["Webアプリ / アドミ"]
   m_conversation -->|"turn"| m_execution
@@ -88,7 +88,7 @@ flowchart LR
   m_mcp_lazy["mcp-lazy / レオナ"]
   m_memory["記憶・知識 / ビスケット"]
   m_rtk["RTK / ドリリー"]
-  m_runtime["実行環境・更新復旧 / エピネル"]
+  m_runtime["実行環境・更新復旧 / モリー"]
   m_testgate["testgate / シラツル"]
   m_throughline["Throughline / リヴァリン"]
   m_usage["利用設定・通知 / ミカ"]
@@ -130,7 +130,7 @@ flowchart LR
 | [メンバー・予定](modules/members/README.md) | ベロータ | registry / schedules / instructions |
 | [記憶・知識](modules/memory/README.md) | ビスケット | memory |
 | [RTK](modules/rtk/README.md) | ドリリー | hook |
-| [実行環境・更新復旧](modules/runtime/README.md) | エピネル | lifecycle / seat-process / project-files / cli-registration / module-runner / update / module-runner |
+| [実行環境・更新復旧](modules/runtime/README.md) | モリー | lifecycle / seat-process / project-files / cli-registration / module-runner / update / module-runner |
 | [testgate](modules/testgate/README.md) | シラツル | hook |
 | [Throughline](modules/throughline/README.md) | リヴァリン | context |
 | [利用設定・通知](modules/usage/README.md) | ミカ | settings / notify / auth |
