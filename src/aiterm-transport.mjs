@@ -37,6 +37,10 @@ const INTERIM_INTERVAL_MS = 3000
 // Aitermは、要求の_metaにこの印がある時だけ、BellTeamのための手がかりを結果へ足す（Aiterm ADR 0071・0122）。
 const CALLER_META = { 'aiterm/caller': 'BellTeam' }
 
+const configurationNeedsRestart = (current, next, reapply) => current.harness !== next.harness
+  || (current.model && !next.model) || (current.reasoningEffort && !next.reasoningEffort)
+  || (reapply && (!next.model || !next.reasoningEffort))
+
 async function writeLocalImage(path, bytes) {
   await mkdir(dirname(path), { recursive: true })
   await writeFile(path, bytes, { flag: 'wx', mode: 0o600 })
@@ -315,10 +319,24 @@ export class AitermTransport {
   }
 
   reconfigure(current, next, options = {}) {
-    return this.activity.configurationChanges.track(current.id, this.reconfigureNow(current, next, options))
+    if (configurationNeedsRestart(current, next, options.reapply))
+      return this.activity.configurationChanges.track(current.id, this.reconfigureNow(current, next, options))
+    const version = this.captureStopVersion(current)
+    const pending = (async () => {
+      await this.idle(current.id)
+      const run = () => {
+        this.requireStopVersion(current.id, version)
+        return this.reconfigureNow(current, next, options, false)
+      }
+      const applying = (this.activity.dispatches.get(current.id) ?? Promise.resolve()).then(run)
+      this.activity.dispatches.track(current.id, applying.then(() => {}, () => {}))
+      return applying
+    })()
+    pending.deferredSettings = true
+    return this.activity.configurationChanges.track(current.id, pending)
   }
 
-  async reconfigureNow(current, next, { reapply = false, admissionCheck, requestId } = {}) {
+  async reconfigureNow(current, next, { reapply = false, admissionCheck, requestId } = {}, waitForIdle = true) {
     const expected = this.membersAdmission.capture()
     this.membersAdmission.assertOpen(expected)
     this.assertWorkAllowed()
@@ -327,14 +345,11 @@ export class AitermTransport {
     await this.requireAccess({ setupTest: false, botId: next.id })
     const restarting = this.restarts.get(current.id)
     if (restarting) await restarting
-    await this.idle(current.id)
+    if (waitForIdle) await this.idle(current.id)
     return this.memberOperation(current, async membersLease => {
       admissionCheck?.()
       this.requireStopVersion(current.id, version)
-      const requiresRestart = current.harness !== next.harness
-        || (current.model && !next.model)
-        || (current.reasoningEffort && !next.reasoningEffort)
-        || (reapply && (!next.model || !next.reasoningEffort))
+      const requiresRestart = configurationNeedsRestart(current, next, reapply)
       if (requiresRestart) {
         const session = await this.restartNow(next, version, undefined, membersLease, admissionCheck)
         return { botId: next.id, session, mode: 'restart' }
@@ -645,7 +660,7 @@ export class AitermTransport {
         job.assertNotStopped()
         const configuration = this.activity.configurationChanges.get(bot.id)
         // Wait for ordering, then judge the target independently of setting failure.
-        if (configuration) await configuration.catch(() => {})
+        if (configuration && !configuration.deferredSettings) await configuration.catch(() => {})
         check()
         if (recoveredExecution) {
           if (recoveredExecution.reservation.request.kind !== 'delivery'
@@ -1071,7 +1086,7 @@ export class AitermTransport {
     if (observed?.schema !== 'aiterm.pty-observe-result.v1' || observed.session_id !== this.session(bot)
       || typeof observed.exists !== 'boolean' || (observed.exists ? !/^[a-f0-9]{32}$/u.test(observed.launch_id ?? '') : observed.launch_id !== null))
       throw Object.assign(new Error('BOT_OBSERVATION_FAILED'), { code: 'BOT_OBSERVATION_FAILED' })
-    if (!observed.exists) return observed
+    if (!observed.exists || this.activity.configurationChanges.get(bot.id)?.deferredSettings) return observed
     const desired = configurationSettings({ model: bot.model, reasoning_effort: bot.reasoningEffort, fast: bot.fastMode === true })
     const last = this.configurationRequests?.view(bot.id)
     if (last?.receipt_persisted && last.binding.session_id === observed.session_id && last.binding.launch_id === observed.launch_id

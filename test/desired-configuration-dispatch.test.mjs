@@ -23,19 +23,21 @@ async function fixture(t, exists) {
         exists: f.exists, launch_id: f.exists ? f.launch : null } }
     }
     if (name === 'agent_configure') {
+      await f.onConfigure?.(args)
       if (f.applyError) throw f.applyError
       return { structuredContent: { schema: 'aiterm.agent-configure-request-result.v1',
         binding: { ...args.request, session_id: args.session_id }, request_state: 'terminal', outcome: 'applied',
         later_effect: 'unconfirmed', terminal_at: '2026-11-06T15:00:00.000Z', observed_at: '2026-11-06T15:00:00.000Z',
         current: { availability: 'unsupported' }, result: { schema: 'aiterm.agent-configure-result.v1',
-          session_id: args.session_id, provider: 'codex', harness: 'codex-cli', model: args.model,
-          reasoning_effort: args.reasoning_effort, fast: args.fast } } }
+          session_id: args.session_id, provider: 'codex', harness: 'codex-cli', model: args.model ?? bot.model,
+          reasoning_effort: args.reasoning_effort ?? bot.reasoningEffort, fast: args.fast ?? bot.fastMode } } }
     }
     if (name === 'agent_launch') {
       f.exists = true
       return { structuredContent: { schema: 'aiterm.agent-launch-result.v1', session_id: args.session_name,
         launch_id: f.launch, fast: false, startup: { status: 'ready' }, initial_prompt: { status: 'not_requested' } } }
     }
+    if (name === 'pty_send' && f.onSend) return f.onSend(args)
     if (name === 'pty_send') return { structuredContent: { schema: 'aiterm.pty-send-result.v1', mode: 'agent_dispatch',
       session_id: bot.session ?? bot.id, launch_id: f.launch, event_cursor: 1, wait_process: { executable: 'fixture', args: [] } } }
     if (name === 'pty_read') return { structuredContent: { mode: 'agent_transcript', text: 'reply' } }
@@ -51,7 +53,7 @@ async function fixture(t, exists) {
       async invoke(name, args) { issued.add(name); return client.call(name, args) }, async finish() {} }
   } }
   const transport = createManagedTransport({ client, executionBridge: bridge, configurationRequests: requests,
-    handoffContext: async () => '', waitProcess: async () => ({ outcome: 'done' }), reportError: value => f.diagnostics.push(value) })
+    handoffContext: async () => '', waitProcess: async () => { await f.onWait?.(); return { outcome: 'done' } }, reportError: value => f.diagnostics.push(value) })
   const logPath = join(root, 'messages.jsonl')
   const messenger = new BellTeamMessenger({ bots: new Map([[bot.id, bot]]), transport, logPath })
   return Object.assign(f, { root, bot, client, intents, requests, transport, messenger, logPath })
@@ -128,4 +130,41 @@ test('missing managed launch starts with desired settings before one send despit
   await f.transport.restart(f.bot)
   assert.deepEqual(f.calls.slice(-2).map(c => c.name), ['pty_close', 'agent_launch'])
   assert.equal(f.transport.queueItems({ botId: f.bot.id }).length, 0)
+})
+
+
+test('deferred settings allow ordered steering before turn end and serialize actual apply with input', { timeout: 3000 }, async t => {
+  const f = await fixture(t, true)
+  const turnDone = Promise.withResolvers(), applyStarted = Promise.withResolvers(), applyDone = Promise.withResolvers()
+  f.onWait = () => turnDone.promise
+  let sends = 0
+  f.onSend = () => ({ structuredContent: { schema: 'aiterm.pty-send-result.v1',
+    mode: ++sends === 1 ? 'agent_dispatch' : 'agent_steer', event_cursor: 1,
+    ...(sends === 1 ? { wait_process: { executable: 'fixture', args: [] } } : {}) } })
+  const first = f.transport.turn(f.bot, 'original', { queue: { groupId: 'original-id' } })
+  await first.accepted
+  const current = { ...f.bot }
+  f.bot.reasoningEffort = 'medium'
+  f.onConfigure = async () => { applyStarted.resolve(); await applyDone.promise }
+  const change = f.transport.reconfigure(current, f.bot)
+  const second = f.transport.turn(f.bot, 'steer one', { queue: { groupId: 'steer-one-id' } })
+  assert.deepEqual(await second.accepted, { delivery: 'steered' })
+  const third = f.transport.turn(f.bot, 'steer two', { queue: { groupId: 'steer-two-id' } })
+  assert.deepEqual(await third.accepted, { delivery: 'steered' })
+  assert.deepEqual(f.transport.queueItems().map(item => item.groupId), ['original-id', 'steer-one-id', 'steer-two-id'])
+  assert.equal(sends, 3)
+  assert.equal(f.calls.filter(c => c.name === 'agent_configure').length, 1, 'no duplicate apply while current turn is active')
+  turnDone.resolve()
+  await Promise.all([first, second, third])
+  await applyStarted.promise
+  const fourth = f.transport.turn(f.bot, 'after turn', { queue: { groupId: 'after-id' } })
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(sends, 3, 'actual apply serializes against the next send')
+  applyDone.resolve()
+  await change
+  await fourth.accepted
+  await fourth
+  assert.equal(sends, 4, 'each original input is sent once')
+  assert.equal(f.calls.filter(c => c.name === 'agent_configure').length, 3, 'partial explicit apply is followed by the normal full desired-digest apply')
+  assert.equal(f.requests.view(f.bot.id).requested.reasoning_effort, 'medium')
 })
