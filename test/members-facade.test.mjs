@@ -118,7 +118,7 @@ test('display list restores full profiles with distinct method pins and no AI cr
     if (params.botId === pending.id && !params.includeDeleting) throw Object.assign(new Error('missing'), { code: 'BOT_NOT_FOUND', status: 404 })
     return { bot: params.botId === pending.id ? pending : { ...bot, avatar: '' } }
   } })
-  const listed = await f.bots.listForClient()
+  const listed = await f.bots.listForClient({ omitAvatars: false })
   assert.equal(entered, 0)
   assert.equal(calls[0].pin.method, 'profiles.read')
   assert.ok(calls.slice(1).every(call => call.pin === calls[1].pin && call.pin.method === 'profile.read'))

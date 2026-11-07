@@ -39,7 +39,7 @@ export function createMembersFacade({ request, callback, admission, projection }
     return result
   }
   const listForClient = (context = {}) => {
-    if (context.omitAvatars) return readProfiles(context).then(profiles =>
+    if (context.omitAvatars !== false) return readProfiles(context).then(profiles =>
       profiles.every(bot => ['avatarVersion', 'avatarLargeVersion', 'avatarSourceVersion', 'avatarLargeSourceVersion'].every(field => Object.hasOwn(bot, field)))
         ? profiles : listForClient({ ...context, omitAvatars: false }))
     if (context.membersLease) return admission.withLease(membersLease => {

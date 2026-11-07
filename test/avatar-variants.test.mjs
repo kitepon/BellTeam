@@ -46,7 +46,7 @@ test('avatar variants use authenticated versioned detail images and omit source 
   const list=await(await fetch(base+'/api/bots?avatar=omit',{headers})).json()
   assert.equal(list.bots[0].avatarLargeVersion,avatarVersion(large))
   assert.equal(list.bots[1].avatarLargeVersion,avatarVersion(small))
-  for(const field of ['avatar','avatarLarge','avatarSource','avatarLargeSource'])assert.equal(list.bots[0][field],'')
+  for(const field of ['avatar','avatarLarge','avatarSource','avatarLargeSource'])assert.equal(Object.hasOwn(list.bots[0],field),false)
   assert.deepEqual(list.bots[0].avatarCrop,crop)
   const detail=await(await fetch(base+'/api/bots/bot-a',{headers})).json()
   assert.equal(detail.bot.avatarSource,source);assert.equal(detail.bot.avatarLarge,large)
