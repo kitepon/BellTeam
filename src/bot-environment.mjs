@@ -116,6 +116,21 @@ export async function restoreBotEnvironments(bots, { report = message => process
   return results
 }
 
+// restoreBotEnvironmentsを背景で一席ずつ順に走らせ、席ごとの完了を返す。bootstrapはこれを待たない。
+// ready(project)は、そのBotのsetupが終わる（成功も失敗も）まで待つ。登録の無いBot（起動後の作成）はundefinedで待たない。
+export function restoreBotEnvironmentsInBackground(bots, { restore = restoreBotEnvironments, ...options } = {}) {
+  const entries = [...bots.values()]
+  const gates = new Map(entries.map(bot => [bot.project, Promise.withResolvers()]))
+  const finished = (async () => {
+    for (const bot of entries) {
+      try { await restore(new Map([[bot.id, bot]]), options) }
+      catch (error) { process.stderr.write(`BellTeam environment ${bot.id}: failed (${error.message})\n`) }
+      finally { gates.get(bot.project).resolve() }
+    }
+  })()
+  return { ready: project => gates.get(project)?.promise, finished }
+}
+
 async function exists(path) {
   try { await access(path); return true }
   catch (error) { if (error.code === 'ENOENT') return false; throw error }

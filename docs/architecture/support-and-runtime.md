@@ -72,7 +72,7 @@ PushNotificationsは保存後に通知を依頼し、本文/秘密値をpayload�
 
 ```mermaid
 flowchart TB
-  Supervisor["supervisor"] --> Bootstrap["bootstrap<br/>設置・設定・席実行の準備"]
+  Supervisor["supervisor"] --> Bootstrap["bootstrap<br/>設置・設定・席実行の準備<br/>Bot setup.shは背景で開始(待たない)"]
   Bootstrap --> Services["application-services<br/>同じサービス実体とcallbackを組む"]
   Services --> Runtime["application-runtime"]
   Runtime --> HTTP["公開HTTP・内部HTTP・MCP"]
@@ -81,6 +81,8 @@ flowchart TB
   Features --> External["Bridge・診断・公開接続など"]
   Runtime --> Close["close<br/>各終了処理を集めて結果を返す"]
 ```
+
+Bot setup.shのデータの流れ：`bootstrap → restoreBotEnvironmentsInBackground（背景、Bot順に一回ずつ）→ 各Botのready promise → AitermClient.launchOptions(project)（席のagent_launch前に待つ）`。listenと/healthzはsetupを待たない。登録の無いBotのpromiseは無く、待たない。
 
 factoryのimport/構築と通信口・監視のstartを分ける。HTTPとMCPへ同じサービス実体を渡す。機能handlerへ保存の別実装を足さない。共通失敗応答・認証・要求ログはHTTP入口の責任、業務の判断は各サービスの責任である。
 

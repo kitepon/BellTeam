@@ -115,7 +115,7 @@ flowchart TD
 
 | caller群（全体検索から分類） | 現接点 | 変更する境界 |
 | --- | --- | --- |
-| `bootstrap.mjs` | Registry/Owner/UserRulesの生成、initialize、全指示、configure、環境復元 | 起動時一回の移行と子attachを分離。交換でbootstrap全体を再実行しない |
+| `bootstrap.mjs` | Registry/Owner/UserRulesの生成、initialize、全指示、configure、環境復元（setupは背景開始、席起動だけ該当Botの完了を待つ） | 起動時一回の移行と子attachを分離。交換でbootstrap全体を再実行しない |
 | `members/{profiles-mcp,profiles-http,owner-http,schedules-mcp,schedules-http,deletion}.mjs`、`mcp-owner-tools.mjs` | public受付とRegistry直呼び | 既schema/HTTP wireを保ち専用操作へ。部屋資格は既room-accessを使う |
 | `mcp-owner-server.mjs` | 別processでOwnerProfile/UserRulesとglobal writerを生成 | 専用権限を保つproxyへ。**これを残すとOwner正本のwriterが二重になる**。通常MCPへ更新を公開しない |
 | `http-server.mjs`、`mcp-tools.mjs`、`seat-mcp.mjs`、`http-events.mjs` | refresh、caller資格、Map、watch | モリーの共通facade接続。SSE通知は再読込の契機で正本ではない |

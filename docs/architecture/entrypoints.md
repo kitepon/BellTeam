@@ -97,7 +97,7 @@ HTTPでは`healthz`だけ先に返し、`session`は認証判定を返す。そ�
 | call-bridge → Unix socket | `createCallBridgeServer` → `receiveCallBridge` | 橋が通話配送、本体が会話保存とBot受付 |
 | `/mcp/call-bridge` | `createSeatMcp` → `relayCallBridge` | 本体は席名と資格情報を付けてstream中継、橋がtool契約 |
 | 診断管理listener | `createDiagnosticsAdminServer` | 本体診断行の読取・注記・状態更新。公開Webとは別 |
-| supervisor起動/終了 | `bootstrap/createApplicationRuntime/start/close` | 組立て・serviceの開始終了。起動前のOS/UID状態検証は既存境界 |
+| supervisor起動/終了 | `bootstrap/createApplicationRuntime/start/close` | 組立て・serviceの開始終了。起動前のOS/UID状態検証は既存境界。Botのsetup.shは背景で順に走り、listenと/healthzは待たない。席の起動だけ該当Botのsetup終了を待つ（[CLI登録](modules/runtime/cli-registration.md)） |
 | scheduler tick | `runDue` | 期限の発行、command実行、既存maintenance |
 | 自主ターン・native進行・idle監視 | `SelfTurns/SeatTurns/IdleSessions` | 各観測sourceから会話・稼働表示・既存席整理へ |
 | install/deploy/backup/restore | scriptsとdistribution/server | 本体停止を含む別操作。許可と既存保全手順を維持 |

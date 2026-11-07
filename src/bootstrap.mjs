@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { BotRegistry } from './bot-registry.mjs'
-import { restoreBotEnvironments } from './bot-environment.mjs'
+import { restoreBotEnvironmentsInBackground } from './bot-environment.mjs'
 import { createGlobalInstructionsRefresher } from './global-instructions.mjs'
 import { OwnerProfile } from './owner-profile.mjs'
 import { UserRules } from './user-rules.mjs'
@@ -71,7 +71,8 @@ await Promise.all([
   mkdir(join(root, 'shared', 'tools'), { recursive: true }),
 ])
 await seatRuntime.removeClaudeCopies(bots)
-await restoreBotEnvironments(bots, { seatCommands: true })
+// setup.shは背景で走らせ、listenと/healthzを待たせない。席の起動だけがAitermClient.launchOptionsで待つ。
+export const botEnvironments = restoreBotEnvironmentsInBackground(bots, { seatCommands: true })
 await configure(bots)
 
 export const refreshGlobalInstructions = createGlobalInstructionsRefresher({ ownerProfile, userRules, home,
