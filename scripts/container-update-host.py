@@ -444,6 +444,11 @@ class HostUpdater:
                     for operation in read_json(pointer_path, self.uid).values():
                         if operation and (self.state / 'operations' / operation / 'operation.json').exists():
                             referenced.add(self.read_operation(operation)['planId'])
+            # Unresolved (unknown) operations keep their plan: reconciliation and the termination bridge read it.
+            for operation in (self.state / 'operations').iterdir():
+                if (operation / 'operation.json').exists():
+                    value = self.read_operation(operation.name)
+                    if value['phase'] not in TERMINAL: referenced.add(value['planId'])
             for candidate in (self.state / 'plans').glob('*.json'):
                 value = read_json(candidate, self.uid)
                 if value['planId'] not in referenced and parse_time(value['expiresAt']) <= time.time(): candidate.unlink()

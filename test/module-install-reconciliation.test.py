@@ -267,6 +267,22 @@ for (const mutate of [f=>f.force=true,f=>f.action='consume',f=>f.requestId='wron
 """
         subprocess.run(['node','--input-type=module','-e',script],input=json.dumps(result),cwd=ROOT,text=True,check=True,capture_output=True)
 
+    def test_unknown_operation_plan_survives_prune_and_fence_read_needs_no_plan(self):
+        self.updater.catalog = lambda _: {}
+        result = self.updater.finalize_install_reconciliation(self.close_params())
+        plan_path = self.updater.state / 'plans' / (self.plan_id + '.json')
+        # A later plan prunes expired plans, but not the expired plan of an unknown operation.
+        self.updater.module_target = lambda *_: (_ for _ in ()).throw(host.Failure('FIXTURE_STOP', 409))
+        with self.assertRaisesRegex(host.Failure, 'FIXTURE_STOP'):
+            self.updater.plan(dict(planId='b62229b1-b119-480b-b3f0-f1d439c02031', catalogSha256='a'*64,
+                componentId='execution', versionId='b'*64))
+        self.assertTrue(plan_path.exists())
+        # Production state of 2026-11-08: the plan was already pruned before this retention existed.
+        plan_path.unlink()
+        self.assertEqual(self.updater.read_install_reconciliation_fence(self.params), result)
+        self.assertFalse(self.updater.operation_pending(self.request))
+        self.assert_original_untouched()
+
     def test_fresh_close_rejects_expiry_changed_proofs_and_apply_already_issued(self):
         self.updater.catalog = lambda _: {}
         mutations = [lambda d:d.update(expiresAt=d['issuedAt']),lambda d:d.pop('ownerGrantRef'),
