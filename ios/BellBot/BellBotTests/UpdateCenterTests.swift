@@ -334,6 +334,36 @@ final class UpdateViewTests: XCTestCase {
         }
     }
 
+    func testJobsAndProblemsAreShownAsStoredAndMergedOncePerJob() async throws {
+        let job: (String, String, Any) -> [String: Any] = { id, state, reason in
+            ["schema": "bellteam.update-job.v1", "jobId": id, "idempotencyKey": id, "kind": "module",
+             "target": ["catalogSha256": NSNull(), "moduleId": "notifications", "versionId": "builtin"],
+             "state": state, "reason": reason, "transitions": [], "updatedAtNs": "1793974459000000000"]
+        }
+        let running = job("11111111-1111-4111-8111-111111111111", "swapping", NSNull())
+        let failed = job("22222222-2222-4222-8222-222222222222", "failed", ["code": "READY_TIMEOUT", "message": "ready probe timed out"])
+        var example = try XCTUnwrap(try UpdateFixtures.examples()["running"])
+        example["jobs"] = [running, failed]
+        example["problems"] = [["fingerprint": "fp-1", "status": "open", "kind": "module_restart_limit", "moduleId": "notifications",
+                                "count": 5, "windowSeconds": 1800, "lastExit": ["code": NSNull(), "signal": "SIGKILL"], "lastReason": "process_exit"]]
+        var operation = try XCTUnwrap(example["operation"] as? [String: Any])
+        operation["admission"] = "pending"; operation["jobs"] = [running]; example["operation"] = operation
+        let store = try await store(json: example)
+        let inventory = try XCTUnwrap(store.inventory, "jobs・problems・admission pendingを含む応答を読める")
+        XCTAssertEqual(inventory.operation?.admission, .pending)
+        XCTAssertEqual(inventory.jobs?.map(\.state), [.swapping, .failed])
+        XCTAssertEqual(inventory.problems?.first?.lastExit.signal, "SIGKILL")
+        let content = UpdateContent(updates: store)
+        XCTAssertEqual(content.jobRecords.map(\.jobId), [running["jobId"] as! String, failed["jobId"] as! String], "同じジョブは1回だけ")
+        XCTAssertEqual(content.jobRecords.last?.reason?.code, "READY_TIMEOUT")
+
+        var unknownState = example
+        unknownState["jobs"] = [job("33333333-3333-4333-8333-333333333333", "unknown", NSNull())]
+        let rejected = try await self.store(json: unknownState)
+        XCTAssertNil(rejected.inventory, "6つ以外の状態は作らず応答不正として扱う")
+        XCTAssertNotNil(rejected.failure)
+    }
+
     func testUnconfirmedRequestKeepsCheckingButOffersAnotherFormalCandidate() async throws {
         var interrupted = try XCTUnwrap(try UpdateFixtures.examples()["interrupted"])
         let plain = try await store(for: "interrupted")

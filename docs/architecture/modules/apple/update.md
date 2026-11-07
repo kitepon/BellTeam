@@ -6,7 +6,8 @@
 
 ```mermaid
 flowchart TD
-  SSE["SSE type=updates / ready"] --> Refresh["UpdateStore.refresh<br/>GET /api/updates と保存した要求IDのGET"]
+  SSE["SSE type=updates / ready"] --> Side["AppStore.requestSideRefresh<br/>受信と別の1本にまとめる"]
+  Side --> Refresh["UpdateStore.refresh<br/>GET /api/updates と保存した要求IDのGET"]
   Push["push kind=update<br/>BellUpdateRoute 3key完全一致"] -->|"タップ・接続先一致"| Open["AppStore.updatePresented=true<br/>refresh（POSTは送らない）"]
   Scene["画面表示・前面化・再接続"] --> Refresh
   Refresh --> Badge["UpdateBadge<br/>ロゴの右。update_availableだけ"]
@@ -52,9 +53,20 @@ flowchart TD
 - 技術情報（版・比較の理由・要求ID・計画ID・内部の符号・保持している操作結果）は、閉じた「詳細」の中だけに置く。操作の失敗やサーバーの説明（`UpdateStore.message`、`notice`、`operation.error`）も、標準面には短い案内（`heroNote`）だけを出し、元の文と符号は詳細で正確に見せる。
 - 幅は最大560ptの一枚にまとめ、広い画面でも横へ広げない。
 
+## 更新ジョブと機能の問題（共通契約 `docs/architecture/modules/integration/update-jobs.md`）
+
+| 項目 | Appleの扱い |
+| --- | --- |
+| `jobs[]`（inventory・operationの両方） | `UpdateJob`（`bellteam.update-job.v1`）。状態は queued/downloading/verifying/swapping/ready/failed の6つだけで、それ以外は応答不正として扱い、状態を作らない。`UpdateContent.jobRecords`が今回の操作・在庫の操作・最近のジョブを`kind:jobId`で重ねずに並べ、標準画面の「ジョブの状態」に機能名・`状態: <state>`・ジョブID・失敗時の`code / message`をWebと同じ文言でそのまま出す |
+| `problems[]` | `UpdateProblem`。「機能の問題」に機能名・再起動の繰り返し・open/resolved、回数・集計秒数、直近の終了コード/シグナル（nullは未観測）、直近の理由を出す |
+| `admission:"pending"` | 全stepの受付記録が揃う前の付帯情報。表示は「受付中」。ジョブの状態とは別で、確定扱いにしない |
+| 読めない時（503 `UNREADABLE`） | inventoryを持たず、詳細に「取得エラー: <理由>」を出す。状態は作らない。`code`・`path`はBellAPIが保持しないので表示しない |
+| SSE `type=updates` | 付いてくる`jobs`/`error`は読まず、既存どおりGETで読み直す（AppStoreの`requestSideRefresh`で1本にまとめる） |
+| 旧サーバー | `jobs`・`problems`の無い応答はこれまでどおり表示し、2つの欄を出さない |
+
 ## SSEとpush
 
-- SSE：`type=updates`（topics `["updates"]`、`all: true`）は`AppStore.startEvents`の`updates`分岐で`updates.refresh()`だけを呼ぶ（共通一覧は再取得しない）。`ready`（接続・再接続・前面化後の再接続）でも取り直す。`BellEventTopic.updates`は`messages`のtopicとして届いた場合の対応。
+- SSE：現在の本体は`type=updates`（topics `["updates"]`、`all:false`）をジョブまたは読取エラーが変わった時だけ送る。`AppStore.startEvents`は`requestSideRefresh([.updates])`へ積み、受信ループでGETを待たない（共通一覧は再取得しない）。旧本体の`all:true`も更新画面だけ取り直す。`ready`（接続・再接続・前面化後の再接続）でも同じ作業へ積む。`BellEventTopic.updates`は`messages`のtopicとして届いた場合の対応。
 - push：`userInfo["bellteam"]`が`server`・`kind == "update"`・`messageId`（64桁小文字hex）の3keyだけの時に`BellUpdateRoute`として受ける。余分なkey・型違い・kind違いは捨てる。`aps`は読まない。既存3種（reply/secret_request/owner_question）の解析は変えない。
 - タップ：`AppStore.openPendingUpdateNotification`。ready前は保留し、ready後にserverが認証済みの接続先と一致する時だけ画面を開いてGETで確認する。不一致では開かずに1件だけ保留し（`pendingUpdateNotification`、端末の再起動は跨がない）、利用者が明示的にその接続先へ切り替えて認証しreadyになった後で開いてGETする。受信やタップで自動の切替・認証・実行はしない（ミカの契約 `docs/architecture/modules/usage/update-push.md`、git 320f69d2）。タップでPOSTは送らない。前面で届いた一致する通知はbanner/list/soundで表示する。
 
