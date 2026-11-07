@@ -16,3 +16,4 @@ ios/BellBot/**/xcuserdata/
 
 # Local configuration of the optional independent Bridge installation.
 bridge.env
+__pycache__/

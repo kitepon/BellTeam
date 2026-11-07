@@ -89,6 +89,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
   const transport = createManagedTransport({
     ...ports.seat, ...Object.fromEntries(Object.entries(ports.storage ?? {}).filter(([key]) => key !== 'deliveryAnchor')), backgroundSummary,
     activityPath: join(dirname(root), 'execution-activity.json'),
+    runtimeLaunchesPath: join(dirname(root), 'execution-runtime-launches.json'),
     trackCompletion: track, client: native, membersAdmission: ports.membersAdmission, conversationAdmission: ports.conversationAdmission,
     resolveBot: id => ports.bots.get(id), configurationRequests: requests, requireMember: ports.access.requireMember,
     requireAccess: ports.access.requireAccess,

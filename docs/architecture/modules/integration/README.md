@@ -793,6 +793,26 @@ flowchart LR
 
 元operation DTO・installPhaseを変更せず、inspectionでbusyを解除しない。保存復元でも全receiptを同元stepとpublic operation hashへ束縛し、改竄を拒否する。初回はinspectionと以下のcloseだけで、recover/consumeは未提供。横断の意味はRootの同install-ID契約、runtimeの配置/排他/receiptは[module-installer](../runtime/module-installer.md)が所有する。
 
+## Executor-local turns for ledger reads and writes (2026-11-08)
+
+Production 2026-11-08 04:32 JST (body a74fe75c): the Update screen's `GET /api/updates` answered 409 `MODULE_EXCHANGE_BUSY` with no exchange running. Cause: `update-module-executor.mjs` `exclusive()` refused any second caller while one section was open. Inventory `snapshot()`, `operation(id)`, `plan`, `start` and inspection all use it, and the update center itself calls `snapshot()` every 60 s for notifications. The screen also reads `/api/updates` and each saved request result in parallel. Any overlap returned the busy code although no module was being exchanged.
+
+| Function | Rule |
+| --- | --- |
+| `exclusive(operation)` | Sections take turns in arrival order (promise chain). A waiting caller is never refused because another section is open. Protects: concurrent ledger mutation/readback. Exit: each section ends when its bounded socket/file work settles; a failed section does not block the next. |
+| Real exchange | Unchanged: `active` work, `hostPending` and `exchangeMutex` still answer `MODULE_EXCHANGE_BUSY` to plan/start, and inventory still projects it as `capability.reason`. |
+| Legacy synchronous `reserveExchange` / `installReconciliation` read | Unchanged (still refuse while a section is open); not on the Update screen's open path. |
+
+```mermaid
+flowchart LR
+  Timer[60 s notification snapshot] --> Turns[exclusive turns in arrival order]
+  Screen[Screen open: GET /api/updates + saved result reads] --> Turns
+  Plan[plan / start] --> Turns
+  Turns --> Ledger[executor ledger read / save]
+  Plan --> Active{active exchange or host pending?}
+  Active -- yes --> Busy[409 MODULE_EXCHANGE_BUSY]
+```
+
 ## Close-only original-ID ownership (K-PN97EU)
 
 The existing three-key close_without_activation request retains the original public/install IDs and v1 saved decision/proof/fence. This bookkeeping action does not activate code, restore placement or certify unrelated native/writer termination.
