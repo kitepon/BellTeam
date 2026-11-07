@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-07T19:08:49Z",
-  "expiresAt": "2026-11-14T19:08:49Z",
+  "publishedAt": "2026-11-07T20:19:47Z",
+  "expiresAt": "2026-11-14T20:19:47Z",
   "releases": [
     {
       "componentId": "usage",
@@ -635,15 +635,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "a74fe75c8c4486785c7faa6b92dff2314ceb9620",
-      "versionId": "sha256:ef4d679f9e1c94ef3ca9b18d306567e74f936b546a9a76581b9d2c4dbf4b5d50",
+      "sourceCommit": "09202bd10c9c4c895da2ee0b7f766e13ee86794a",
+      "versionId": "sha256:b779cc57bf4beb0c2a50fe9aa82f5277ca1d7a0dfe8f14d5a9062f738f101489",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ef4d679f9e1c94ef3ca9b18d306567e74f936b546a9a76581b9d2c4dbf4b5d50"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b779cc57bf4beb0c2a50fe9aa82f5277ca1d7a0dfe8f14d5a9062f738f101489"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -652,21 +652,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "本体の起動猶予を300秒に揃え、起動途中で更新が失敗する経路を修正します。",
-        "更新失敗からの復旧時に、旧本体のmodule-installerも起動し直します。"
+        "本体の更新機能を改善し、対応する部品を本体を停止せずに更新できるようにします。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "a74fe75c8c4486785c7faa6b92dff2314ceb9620",
-      "versionId": "sha256:ef4d679f9e1c94ef3ca9b18d306567e74f936b546a9a76581b9d2c4dbf4b5d50",
+      "sourceCommit": "09202bd10c9c4c895da2ee0b7f766e13ee86794a",
+      "versionId": "sha256:b779cc57bf4beb0c2a50fe9aa82f5277ca1d7a0dfe8f14d5a9062f738f101489",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ef4d679f9e1c94ef3ca9b18d306567e74f936b546a9a76581b9d2c4dbf4b5d50"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b779cc57bf4beb0c2a50fe9aa82f5277ca1d7a0dfe8f14d5a9062f738f101489"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -675,8 +674,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "本体の起動猶予を300秒に揃え、起動途中で更新が失敗する経路を修正します。",
-        "更新失敗からの復旧時に、旧本体のmodule-installerも起動し直します。"
+        "本体の更新機能を改善し、対応する部品を本体を停止せずに更新できるようにします。"
       ]
     }
   ],
