@@ -122,4 +122,28 @@ stateDiagram-v2
 
 The deadline is `now + 300 s`, capped at installer start + 1800 − 330 s so the stop grace and body start still fit the worker's budget; the helper ends at that deadline on its own, so the wait is bounded without a separate timer in sh. `stop_grace_period: 30s` is set on the body service in `compose.yaml`, `distribution/server/compose.yaml` and by `container-update-compose.mjs` on every bundled swap; `module-update-compose.mjs` leaves the body service as is. The legacy host-socket layout keeps its model unchanged, and the explicit `--time 30` covers its installer stop.
 
-Next runtime slices, not in this one: the durable execution hold/drain that replaces the default handler (Kiro); the `afterListenReady` recovery hook (Molly lifecycle, Kiro/N102 content); the same-backing preserve update mode (Molly installer); early signal registration so markers persist inside the 30 s grace (Molly lifecycle, Kiro markers).
+Next runtime slices, not in this one: the durable execution hold/drain that replaces the default handler (Kiro); the `afterListenReady` recovery hook and early signal registration (done in [slice 2](#lifecycle-contact-points-z-c-slice-2-2026-11-08)); the same-backing preserve update mode (Molly installer).
+
+## Lifecycle contact points (Z-c slice 2, 2026-11-08)
+
+Owner Molly; contract sections 2 and 3 above. Runtime supplies two contacts and their order only; their content is Kiro's (execution) and N102's (conversation). Behaviour is unchanged until the execution assembly returns `lifecycle`.
+
+```mermaid
+flowchart TD
+  Create[createApplicationRuntime] --> Register[supervisor: SIGTERM/SIGINT registered]
+  Register --> Start[start: features, watch, public Unix + loopback/MCP listen, quiesce socket, gateway ready]
+  Start --> Ready["afterListenReady() once, await ≤ 60 s"]
+  Ready --> Dispatch[updateCenter notifications, scheduler, selfTurns, seatTurns, idle]
+  Dispatch --> Wait[running]
+  Wait --> Stop
+  Start -. signal .-> Stop
+  Ready -. signal ends the wait .-> Stop
+  Stop["stop: no further startup step or dispatch → onShutdownSignal({phase}) ≤ 10 s"] --> Close[existing close sequence, unchanged]
+```
+
+| Contact | Supplied by | Called | Bound and exit |
+| --- | --- | --- | --- |
+| `afterListenReady()` | `execution.lifecycle.afterListenReady` → `services.lifecycle` | once per `start()`, after both listeners and gateway readiness, before ordinary dispatch | awaited ≤ 60 s. Throw → `LIFECYCLE_CONTACT_FAILED afterListenReady`; timeout → `LIFECYCLE_CONTACT_TIMEOUT afterListenReady`; both then start dispatch, so one unavailable seat never keeps listeners or other seats down. Kiro's hold self-release rule covers anything still held. A stop during the wait → `LIFECYCLE_CONTACT_INTERRUPTED`, no dispatch. |
+| `onShutdownSignal({phase})` | `execution.lifecycle.onShutdownSignal` → `services.lifecycle` | first step of `stop()` on SIGTERM/SIGINT, after the startup gate is closed and before any close step | awaited ≤ 10 s, leaving ~20 s of the 30 s grace to close. Throw/timeout logged, close runs anyway. `phase:'starting'` means startup/recovery did not finish: execution keeps the durable hold and original unknowns and nothing is reported as drained. `phase:'running'` is the normal stop. |
+
+Exits: a signal during startup makes `start()` reject `STARTUP_INTERRUPTED` after the step in flight (a step is not cancelled), the supervisor does not print `BellTeam ready`, and `stop()` runs the same `close()`. A signal before `createApplicationRuntime` returns keeps Node's default termination, as before. If close exceeds the grace Docker kills the body and the installer records the stop; restart recovery keeps uncertainty. Pending: Kiro's `lifecycle` handlers (hold, held redelivery, R-resume, gap summary, final markers) and the move of today's pre-listen `directMessages.start()` behind `afterListenReady`; Molly's remaining runtime slice is the same-backing preserve update mode.

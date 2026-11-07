@@ -333,6 +333,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, refreshGlobalInstructions, assets,
     scheduler, diagnostics, diagnosticsModule, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller, submittedSecretCaller,
+    lifecycle: execution?.lifecycle ?? {},
   }
   } catch (error) {
     const failures = []

@@ -260,3 +260,66 @@ test('任意機能の起動失敗を残して他を起動し、設定保存は�
   assert.equal(settings.configuration('callBridge').enabled, true)
   assert.deepEqual(notifications.map(value => value.featureId), ['notifications', 'callBridge', 'callBridge'])
 })
+
+test('Z-c起動/停止の接点: listen後・dispatch前に一度、失敗/期限でもdispatch、起動中signalはdrain主張なしで同じclose', { timeout: 10000 }, async t => {
+  const runtimes = []
+  const build = async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bellteam-lifecycle-'))
+    const seedPath = join(root, 'seed.json')
+    await writeFile(seedPath, JSON.stringify({ schema: 'bellteam.bots.v1', bots: [] }))
+    const bots = new BotRegistry({ seedPath, botsRoot: join(root, 'bots') })
+    const settings = new FeatureSettings({ root, environment: {} })
+    const ownerProfile = new OwnerProfile({ root }), userRules = new UserRules({ root })
+    for (const value of [bots, settings, ownerProfile, userRules]) await value.initialize()
+    const runtime = await createApplicationRuntime({ root, appRoot, home: join(root, 'home'),
+      environment: { BELLTEAM_WEB_PORT: '0', BELLTEAM_INTERNAL_PORT: '0' },
+      bootstrap: { createNotificationsProcess: createSyntheticNotificationsProcess, bots, settings, ownerProfile, userRules,
+        aiterm: { command: 'synthetic-aiterm', args: ['/synthetic/native.js', '--execution-interrupt'] }, refreshGlobalInstructions: async () => {} },
+      client: { async call() { return { content: [{ type: 'text', text: '(セッション無し)' }] } }, async close() {} },
+    })
+    runtimes.push([runtime, root])
+    const events = []
+    runtime.services.scheduler.start = () => events.push('dispatch')
+    const stop = runtime.services.scheduler.stop.bind(runtime.services.scheduler)
+    runtime.services.scheduler.stop = () => { events.push('close'); return stop() }
+    return { runtime, events }
+  }
+  t.after(async () => { for (const [runtime, root] of runtimes) { await runtime.close(); await rm(root, { recursive: true, force: true }) } })
+
+  const normal = await build()
+  normal.runtime.services.lifecycle = {
+    afterListenReady: () => normal.events.push(['ready', normal.runtime.server.listening, normal.runtime.internalServer.listening, normal.runtime.gateway.address.port > 0]),
+    onShutdownSignal: input => normal.events.push(['signal', input.phase]),
+  }
+  await normal.runtime.start()
+  await normal.runtime.stop()
+  assert.deepEqual(normal.events, [['ready', true, true, true], 'dispatch', ['signal', 'running'], 'close'])
+  assert.equal(normal.runtime.server.listening, false)
+
+  const failing = await build()
+  failing.runtime.services.lifecycle = { afterListenReady: async () => { failing.events.push('ready'); throw new Error('synthetic seat unavailable') } }
+  await failing.runtime.start()
+  assert.deepEqual(failing.events, ['ready', 'dispatch'])
+
+  const slow = await build()
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  slow.runtime.services.lifecycle = { afterListenReady: () => {
+    setImmediate(() => t.mock.timers.tick(60_000))
+    return new Promise(() => {})
+  } }
+  await slow.runtime.start()
+  t.mock.timers.reset()
+  assert.deepEqual(slow.events, ['dispatch'])
+
+  const early = await build()
+  early.runtime.services.lifecycle = {
+    afterListenReady: () => { early.events.push('recovery'); stopping = early.runtime.stop(); return new Promise(() => {}) },
+    onShutdownSignal: async input => { early.events.push(['signal', input.phase]) },
+  }
+  let stopping
+  await assert.rejects(early.runtime.start(), { code: 'STARTUP_INTERRUPTED' })
+  await stopping
+  assert.deepEqual(early.events, ['recovery', ['signal', 'starting'], 'close'])
+  assert.equal(early.runtime.server.listening, false)
+  assert.equal(early.runtime.internalServer.listening, false)
+})

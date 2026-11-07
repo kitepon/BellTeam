@@ -10,13 +10,18 @@ flowchart TD
   Bootstrap --> Setup["setupを順に実行<br/>CLI登録・指示を更新"]
   Setup --> Services["各機能とcallbackを組む"]
   Services --> Runtime["HTTPと内部MCPを組む"]
-  Runtime --> Features["任意機能を初期化<br/>履歴watchを登録"]
+  Runtime --> Signals["SIGINT/SIGTERMを先に登録<br/>以後のsignalはstopへ"]
+  Signals --> Features["任意機能を初期化<br/>履歴watchを登録"]
   Features --> Listen["private Unix業務HTTP・内部MCP listenを確認"]
   Listen --> Quiesce["本体quiesce socket<br/>/run/bellteam-server/quiesce 0700<br/>失敗は記録して継続"]
   Quiesce --> Gateway["公開Web受付子を起動・readyを確認"]
-  Gateway --> Loops["予定・観測のloop開始"]
+  Gateway --> Ready["afterListenReady一度<br/>上限60秒・失敗/期限は記録して継続"]
+  Ready --> Loops["予定・観測のloop開始"]
   Loops --> Shutdown["終了signalを待つ"]
-  Shutdown --> Close["公開受付子を停止・回収後<br/>loop・通信口・処理を閉じる"]
+  Shutdown --> Stop["stop: 起動step停止→onShutdownSignal<br/>上限10秒・失敗/期限は記録"]
+  Features -. 起動中signal .-> Stop
+  Ready -. 起動中signal .-> Stop
+  Stop --> Close["公開受付子を停止・回収後<br/>loop・通信口・処理を閉じる"]
   Close --> Result["終了失敗を集めて返す"]
 ```
 
@@ -27,9 +32,14 @@ flowchart TD
 | 組立て前 | `bootstrap.mjs` | top-levelで実処理を行う。席側でnative Aiterm登録を解決→settings/Owner/rules/Bot台帳→directory→旧CLI写し整理→setup→CLI登録→指示生成 |
 | service生成 | `createApplicationServices` | 台帳/会話/制御/記憶等の同じ実体を組む。詳細は各機能図へ。HTTPごとに別writerを作らない |
 | 入口の生成 | `createApplicationRuntime` | 同じserverOptionsで非公開Unixの公開API handlerとloopback内部HTTPを構築。公開Web受付子との境界は[integrationの正本](../integration/README.md#公開web受付の二プロセス化初回差分)。内部MCPは同じserviceと内部API中継を使う |
-| 開始 | `start` | features.initialize→公開serverのwatch→既停止意図のenforce→private0700一時directory/socket→両listenの準備完了→supervisorが渡した時だけ本体quiesce socket（[本体更新](container-update-bundled.md#pre-stop-quiesce-of-the-exact-old-body-z-c-slice-1-2026-11-08)。listen失敗は`BODY_QUIESCE_UNAVAILABLE`をstderrへ出して起動を続ける）→最小環境/stdio ignore,inherit,inherit,ipcの受付子ready→各loop.start。同期/awaitで捕えた失敗はcloseも試し、両方の例外を保持 |
-| 終了待ち | `waitForShutdown` | SIGINT/SIGTERMを待ち、keepaliveをfinallyで除く |
+| signal登録 | `supervisor.mjs`→`waitForShutdown().then(runtime.stop)` | `createApplicationRuntime`の後、`start`より前に登録。FD3/4検証・`adoptRuntimeResume`・bootstrapの順は不変。それより前のsignalは従来どおりNode既定の終了 |
+| 開始 | `start` | features.initialize→公開serverのwatch→既停止意図のenforce→private0700一時directory/socket→両listenの準備完了→supervisorが渡した時だけ本体quiesce socket（[本体更新](container-update-bundled.md#pre-stop-quiesce-of-the-exact-old-body-z-c-slice-1-2026-11-08)。listen失敗は`BODY_QUIESCE_UNAVAILABLE`をstderrへ出して起動を続ける）→最小環境/stdio ignore,inherit,inherit,ipcの受付子ready→`afterListenReady`→各loop.start。各await後にstop要求を確認し、要求済みなら`STARTUP_INTERRUPTED`で後段を開始しない（実行中のstepは取り消さない）。それ以外の同期/awaitで捕えた失敗はcloseも試し、両方の例外を保持 |
+| listen後の接点 | `services.lifecycle.afterListenReady()` | 公開Unix・内部loopback/MCP・受付子readyの後、updateCenter通知・scheduler/selfTurns/seatTurns/idleより前に一度だけawait。上限60秒。throwは`LIFECYCLE_CONTACT_FAILED`、期限は`LIFECYCLE_CONTACT_TIMEOUT`をstderrへ出し、どちらもdispatchを開始する（一席の不調で受付や他席を止めない）。待機中のstopは`LIFECYCLE_CONTACT_INTERRUPTED`で待機を抜け、dispatchは開始しない。未供給はno-op |
+| 終了待ち | `waitForShutdown` | SIGINT/SIGTERMを待ち、keepaliveをfinallyで除く。起動前に呼ぶ |
+| 停止 | `stop` | 一つのstopping Promise。①stop要求を立てて起動の後段とafterListenReady待機を止める（新規dispatchを開始しない）②`services.lifecycle.onShutdownSignal({phase})`を上限10秒でawait（phaseは起動完了後`running`、未完了`starting`。startingは回復・drainが済んでいないことを示し、executionは既holdと元のunknownを保持する。失敗/期限はstderrへ記録し続行）③実行中の起動stepの終了を待つ④下の`close`。supervisorは`STARTUP_INTERRUPTED`を正常終了として扱い`BellTeam ready`を出さない |
 | 終了 | `close` | 一つのclosing Promiseに集約。最初に本体quiesce socketの受付を止めsocketを消す（処理中の要求を待たない）→受付子のdrain（5秒でその子だけ強制終了、stdio回収後に失敗返却）→既終了群→private socket directory削除。各終了を順に試し、失敗しても次を閉じる。最後にAggregateError。受付子の単独終了からここへは到達しない |
+
+二つの接点はexecution組立てが`execution.lifecycle = {afterListenReady, onShutdownSignal}`として供給し、`createApplicationServices`が`services.lifecycle`として渡す（未供給は`{}`で両方no-op、挙動不変）。中身（R-resume・held行の再配送・gap summary・hold解放、終了markerの永続化）はKiro/N102が所有し、runtimeは呼ぶ順序と上限だけを持つ。既`close`の内部順序（drain後にlistener停止）は変えず、30秒のstop graceに対しては接点を先に置くだけで、close全体が30秒に収まる保証はしない。超過時はDockerが終了させ、installerは停止結果を記録する（[本体更新](container-update-bundled.md#lifecycle-contact-points-z-c-slice-2-2026-11-08)）。
 
 `createApplicationRuntime`のfactoryをimportしただけではportは開かないが、`bootstrap`のimportは設置や設定更新を行う。二つを同じ「読取り」と扱わない。`server.listen`の呼出しと、OSのlistener準備完了を確認することも同義ではない。この図では新しい起動・停止を実行していない。
 

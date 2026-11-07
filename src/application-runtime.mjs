@@ -14,6 +14,9 @@ import { runtimeHome } from './runtime-home.mjs'
 import { readServerSourceCommit } from './server-source.mjs'
 import { listenBodyQuiesce } from './body-quiesce.mjs'
 
+// Fixed bounds for the optional lifecycle contacts (Z-c slice 2); the shutdown one leaves most of the 30 s stop grace to close().
+const AFTER_LISTEN_READY_MS = 60_000, SHUTDOWN_SIGNAL_MS = 10_000
+
 // Importing this factory does not bootstrap the installation or bind any ports.
 export async function createApplicationRuntime({ root, appRoot, bootstrap, environment = process.env, home = runtimeHome(), client, quiesceSocket = null }) {
   let socketDirectory = null, gateway = null, quiesceEndpoint = null, server
@@ -103,30 +106,54 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     server.once('error', failed)
     server.listen(...args, () => { server.removeListener('error', failed); resolve() })
   })
-  const start = async () => {
+  let stopRequested = false, started = false, starting = null, interrupt
+  const interrupted = new Promise(resolve => { interrupt = resolve })
+  const proceed = () => {
+    if (stopRequested) throw Object.assign(new Error('STARTUP_INTERRUPTED'), { code: 'STARTUP_INTERRUPTED' })
+  }
+  // An optional contact supplied by the execution assembly; its failure or timeout is logged and never stops the body.
+  const contact = async (name, bound, input) => {
+    const handler = services.lifecycle?.[name]
+    if (!handler) return
+    let timer
     try {
-      await features.initialize()
-      await server.startMessageWatch()
+      const outcome = await Promise.race([Promise.resolve().then(() => handler(input)).then(() => 'done'),
+        new Promise(resolve => { timer = setTimeout(resolve, bound, 'timeout') }),
+        ...(name === 'afterListenReady' ? [interrupted.then(() => 'interrupted')] : [])])
+      if (outcome !== 'done') process.stderr.write(`LIFECYCLE_CONTACT_${outcome.toUpperCase()} ${name}\n`)
+    } catch (error) {
+      process.stderr.write(`LIFECYCLE_CONTACT_FAILED ${name} ${error?.code ?? ''}\n`)
+    } finally { clearTimeout(timer) }
+  }
+  const run = async () => {
+    try {
+      await features.initialize(); proceed()
+      await server.startMessageWatch(); proceed()
       if (aiControl.paused) void aiControl.enforce()
-      socketDirectory = await mkdtemp(join(tmpdir(), 'bellteam-http-'))
+      socketDirectory = await mkdtemp(join(tmpdir(), 'bellteam-http-')); proceed()
       const socketPath = join(socketDirectory, 'public.sock')
-      await listen(server, socketPath)
-      await listen(internalServer, internalPort, '127.0.0.1')
+      await listen(server, socketPath); proceed()
+      await listen(internalServer, internalPort, '127.0.0.1'); proceed()
       // Without this endpoint the installer records quiesce=unconfirmed and still stops; serving matters more.
       if (quiesceSocket) quiesceEndpoint = await listenBodyQuiesce({ path: quiesceSocket }).catch(error => {
         process.stderr.write(`BODY_QUIESCE_UNAVAILABLE ${error.code ?? ''}\n`)
         return null
       })
+      proceed()
       gateway = createHttpGatewayProcess({ onModuleChildExit: services.moduleChildExitReporter.observe, onModuleRestartLimit: services.moduleChildExitReporter.observeRestartLimit, socketPath, port: Number(environment.BELLTEAM_WEB_PORT ?? 4180), appRoot,
         prepareRelease: bootstrap.prepareGatewayRelease ?? prepareGatewayRelease,
         adoptionPath: join(root, 'state/web-gateway-release.json') })
-      await gateway.start()
+      await gateway.start(); proceed()
+      // Recovery is admitted before ordinary dispatch; one slow seat must not keep dispatch or the listeners down.
+      await contact('afterListenReady', AFTER_LISTEN_READY_MS); proceed()
       services.updateCenter.startNotifications()
       scheduler.start()
       selfTurns.start()
       seatTurns?.start()
       idleSessions?.start()
+      started = true
     } catch (error) {
+      if (error?.code === 'STARTUP_INTERRUPTED') throw error // stop() closes after its shutdown contact
       try { await close() }
       catch (cleanupError) { throw new AggregateError([error, cleanupError], 'APPLICATION_START_FAILED') }
       throw error
@@ -162,5 +189,18 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     })()
     return closing
   }
-  return { services, features, server, internalServer, get gateway() { return gateway }, start, close }
+  const start = () => (starting = run())
+  // Signal path: no further startup step or dispatch, the execution contact persists its markers, then the same close.
+  let stopping = null
+  const stop = () => {
+    stopping ??= (async () => {
+      stopRequested = true
+      interrupt()
+      await contact('onShutdownSignal', SHUTDOWN_SIGNAL_MS, { phase: started ? 'running' : 'starting' })
+      await starting?.catch(() => {})
+      await close()
+    })()
+    return stopping
+  }
+  return { services, features, server, internalServer, get gateway() { return gateway }, start, stop, close }
 }
