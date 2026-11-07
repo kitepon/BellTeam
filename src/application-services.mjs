@@ -338,9 +338,10 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, refreshGlobalInstructions, assets,
     scheduler, diagnostics, diagnosticsModule, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller, submittedSecretCaller,
-    // Saved direct input drains after listen (Z-c): the hold is released first, and the drain starts even if that contact fails.
+    // Saved direct input drains after listen (Z-c). Starting before the hold release is safe and needs no bound:
+    // executionReady is false while held, and the release's hold.watch → requestDrain drains it.
     lifecycle: { ...execution?.lifecycle,
-      afterListenReady: async () => { try { await execution?.lifecycle?.afterListenReady?.() } finally { directMessages.start() } } },
+      afterListenReady: async () => { directMessages.start(); await execution?.lifecycle?.afterListenReady?.() } },
   }
   } catch (error) {
     const failures = []
