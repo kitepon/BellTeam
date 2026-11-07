@@ -4,22 +4,27 @@ import test from 'node:test'
 import { AitermTransport } from '../src/aiterm-transport.mjs'
 import { createBellTeamServer } from '../src/http-server.mjs'
 
-test('履歴指定だけ実画面の履歴を返し、共有offsetを進めるfullを使わない', async () => {
+test('screen reads only its target and logs a failed tick as offline', async t => {
   const rows = Array.from({ length: 10030 }, (_, i) => `ROW_${i}`)
   const calls = []
+  let result = { content: [{ type: 'text', text: rows.join('\n') }] }
   const transport = new AitermTransport({ client: { async call(name, args) {
     calls.push({ name, args })
-    return { content: [{ type: 'text', text: rows.join('\n') }] }
+    assert.equal(name, 'pty_read')
+    if (result instanceof Error) throw result
+    return result
   } } })
-  transport.isRunning = async () => true
   const bot = { id: 'bot-a', session: 'fixture' }
   assert.equal((await transport.screen(bot)).screen, rows.slice(-25).join('\n'))
   assert.equal((await transport.screen(bot, { history: true })).screen, rows.slice(-10000).join('\n'))
   assert.deepEqual(calls.map(c => c.args.lines), [40, 10000])
   assert.ok(calls.every(c => c.name === 'pty_read' && c.args.screen && c.args.raw && !c.args.full && c.args.timeout === 0))
-  transport.isRunning = async () => false
-  assert.deepEqual(await transport.screen(bot, { history: true }), { online: false, screen: '' })
-  assert.equal(calls.length, 2)
+  assert.ok(calls.every(c => c.args.session_id === 'fixture'))
+  const failure = result = new Error('fixture connection failed')
+  const log = t.mock.method(console, 'error', () => {})
+  assert.deepEqual(await transport.screen(bot), { online: false, screen: '' })
+  assert.equal(calls.length, 3)
+  assert.deepEqual(log.mock.calls.map(call => call.arguments), [['Screen read failed', failure]])
 })
 
 test('認証付きscreen APIはhistory=1だけを履歴指定として渡す', async t => {
