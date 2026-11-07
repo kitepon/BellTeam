@@ -25,6 +25,7 @@ PLATFORMS = {
     'amd64': {'os': 'linux', 'arch': 'amd64', 'libc': 'glibc', 'nodeMajor': 26},
     'arm64': {'os': 'linux', 'arch': 'arm64', 'libc': 'glibc', 'nodeMajor': 26},
 }
+SUPPLY_COMPONENTS = ('runtime-codex', 'runtime-claude-code', 'runtime-throughline')
 THROUGHLINE_APPROVED = '0.16.56'
 MAX_ARCHIVE_BYTES = 512 * 1024 ** 2
 
@@ -174,16 +175,6 @@ def extract_and_probe(archive_path, manifest, source, platform, temp):
     probes = {'nodeVersion': node}
     if manifest['component'] == 'runtime-throughline':
         probes['throughlineObserverCheck'] = probe_throughline(installed / 'bin/throughline', temp, env)
-    elif manifest['component'] == 'runtime-aiterm-mcp':
-        package_json = installed / 'lib/node_modules/aiterm-mcp/package.json'
-        package_data = json.loads(package_json.read_text())
-        entry = package_data.get('bin', {}).get('aiterm-mcp') if isinstance(package_data.get('bin'), dict) else package_data.get('bin')
-        if not entry:
-            raise ValueError('aiterm-mcp has no declared CLI entry')
-        entry_path = package_json.parent / entry
-        run([NODE, '--check', str(entry_path)], env=env, cwd=temp)
-        probes['entrySyntax'] = str(entry)
-        probes['packageVersion'] = package_data.get('version')
     else:
         binary = runtime.COMPONENTS[manifest['component']]['bins'][0]
         result = run([str(installed / 'bin' / binary), '--version'], env=env, cwd=temp)
@@ -205,8 +196,8 @@ def extract_and_probe(archive_path, manifest, source, platform, temp):
 
 
 def build(component, output_path, source, arch):
-    if component not in runtime.COMPONENTS:
-        raise ValueError('component is not in runtime_update.COMPONENTS')
+    if component not in SUPPLY_COMPONENTS:
+        raise ValueError('component is not a runtime supply target')
     if not SOURCE.fullmatch(source):
         raise ValueError('--source must be a 40-character lowercase commit SHA')
     if arch not in PLATFORMS:
@@ -270,7 +261,7 @@ def build(component, output_path, source, arch):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('component', choices=sorted(runtime.COMPONENTS))
+    parser.add_argument('component', choices=SUPPLY_COMPONENTS)
     parser.add_argument('output', help='exact component-source-linux-architecture.tar.gz path')
     parser.add_argument('--source', required=True)
     parser.add_argument('--arch', required=True, choices=sorted(PLATFORMS))
