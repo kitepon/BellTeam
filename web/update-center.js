@@ -2,7 +2,7 @@ const comparisons = { up_to_date: '正式公開版と一致', update_available: 
 const legacyPhases = ['preparing', 'applying', 'reconnecting', 'verifying', 'completed', 'failed', 'unknown']
 const legacyOutcomes = ['pending', 'succeeded', 'failed', 'unknown']
 const jobStates = ['queued', 'downloading', 'verifying', 'swapping', 'ready', 'failed']
-const reasons = { MODULE_NOT_INDEPENDENT: 'この機能は、まだ個別更新に対応していません。', UPDATE_EXECUTOR_UNAVAILABLE: '更新の実行機構は未接続です。', PUBLISHED_RELEASE_UNAVAILABLE: '正式公開版の情報は未接続です。', PUSH_NOT_CONFIGURED: '端末への通知は設定されていません。', NOTIFICATIONS_UNAVAILABLE: '通知機能を利用できません。', WEB_GATEWAY_UNAVAILABLE: 'Web受付の稼働を確認できません。', AVAILABILITY_UNKNOWN: '利用状態を確認できません。', UPDATE_INCOMPATIBLE: 'この更新先との互換性を確認できません。' }
+const reasons = { MODULE_EXCHANGE_BUSY: 'ほかの更新を実行中です。完了後に状態を確認してください。', UPDATE_ALREADY_CURRENT: '正式公開版と一致しているため、更新は不要です。', MODULE_NOT_INDEPENDENT: 'この機能は、まだ個別更新に対応していません。', UPDATE_EXECUTOR_UNAVAILABLE: '更新の実行機構は未接続です。', PUBLISHED_RELEASE_UNAVAILABLE: '正式公開版の情報は未接続です。', PUSH_NOT_CONFIGURED: '端末への通知は設定されていません。', NOTIFICATIONS_UNAVAILABLE: '通知機能を利用できません。', WEB_GATEWAY_UNAVAILABLE: 'Web受付の稼働を確認できません。', AVAILABILITY_UNKNOWN: '利用状態を確認できません。', UPDATE_INCOMPATIBLE: 'この更新先との互換性を確認できません。' }
 const explanation = reason => reasons[reason] ?? '更新に必要な条件を確認できないため、実行できません。'
 const text = value => typeof value === 'string' && value.length > 0
 const nullableText = value => value === null || text(value)
@@ -24,6 +24,7 @@ const plan = value => value && uuid(value.planId) && ['all', 'component'].includ
   && value.impact && typeof value.impact.containerRestart === 'boolean' && text(value.impact.description) && capability(value.capability)
 const job = value => value && value.schema === 'bellteam.update-job.v1' && uuid(value.jobId)
   && ['module', 'container'].includes(value.kind) && value.target && text(value.target.moduleId)
+  && typeof value.updatedAtNs === 'string' && /^(0|[1-9][0-9]*)$/.test(value.updatedAtNs)
   && jobStates.includes(value.state) && (value.state === 'failed'
     ? value.reason && text(value.reason.code) && text(value.reason.message) : value.reason === null)
 const jobs = value => value === undefined || Array.isArray(value) && value.every(job)
@@ -78,6 +79,8 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
   let pending = null, ownResult = null, operationMessage = '', storageFailure = '', requestStorage = storage
   let operationReadError = ''
   let previousResults = []
+  const readers = new Map()
+  let eventRevision = 0
   try {
     requestStorage ??= globalThis.sessionStorage
     const saved = requestStorage?.getItem(requestKey)
@@ -320,8 +323,11 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     }
     renderProduct({ action, result, selectedPlan })
   }
+  const newerJob = (left, right) => !left || BigInt(right.updatedAtNs) > BigInt(left.updatedAtNs) ? right : left
   function renderJobs(parent, records) {
-    for (const record of records) {
+    for (let record of records) {
+      const recent = recentJobs.find(item => item.kind === record.kind && item.jobId === record.jobId)
+      if (recent) record = newerJob(record, recent)
       const row = element('article', 'update-job')
       row.dataset.jobId = record.jobId
       const name = inventory?.components.find(item => item.id === record.target.moduleId)?.name ?? record.target.moduleId
@@ -334,8 +340,12 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
   function renderProduct({ action, result, selectedPlan }) {
     const focus = document.activeElement?.dataset?.updateControl
     const candidates = (inventory?.components ?? []).filter(item => item.comparison.state === 'update_available' && item.capability.supported)
-    const records = [...new Map([...(ownResult?.jobs ?? []), ...(inventory?.operation?.jobs ?? []),
-      ...recentJobs].map(record => [`${record.kind}:${record.jobId}`, record])).values()]
+    const recordsById = new Map()
+    for (const record of [...(ownResult?.jobs ?? []), ...(inventory?.operation?.jobs ?? []), ...recentJobs]) {
+      const key = `${record.kind}:${record.jobId}`
+      recordsById.set(key, newerJob(recordsById.get(key), record))
+    }
+    const records = [...recordsById.values()]
     const latest = inventory?.components.length && inventory.components.every(item => item.comparison.state === 'up_to_date' && item.publication?.check.status === 'verified')
     let title = records.length ? '更新ジョブ' : candidates.length ? '更新があります' : latest ? '最新の状態です' : '更新情報'
     let description = records.length ? '各ジョブの状態と理由を表示しています。' : candidates.length ? '新しいバージョンを利用できます。' : latest ? '利用できる更新はありません。' : '更新の情報を取得してください。'
@@ -504,31 +514,51 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
       if (!disposed) { render(); await refresh() }
     }
   }
+  function readLatest(path, apply) {
+    const active = readers.get(path)
+    if (active) { active.again = true; active.apply = apply; return active.promise }
+    const entry = { again: false, apply, promise: null }
+    readers.set(path, entry)
+    entry.promise = (async () => {
+      do {
+        entry.again = false
+        const read = generation, revision = eventRevision
+        let response
+        try { response = { status: 'fulfilled', value: await api(path) } }
+        catch (reason) { response = { status: 'rejected', reason } }
+        if (!disposed && read === generation) { entry.apply(response, revision); render() }
+      } while (entry.again && !disposed)
+    })().finally(() => {
+      readers.delete(path)
+      loading = readers.has('/api/updates')
+      if (!disposed) render()
+    })
+    return entry.promise
+  }
   async function refresh(event) {
     if (!opened || disposed) return
-    const read = ++generation
     const updateEvent = event?.type === 'updates'
     const eventError = updateEvent && (event.error ? errorText(event.error)
       : !jobs(event.jobs) ? '更新ジョブの通知形式を確認できません。' : '')
-    if (updateEvent && Array.isArray(event.jobs) && jobs(event.jobs)) recentJobs = event.jobs
+    if (updateEvent && Array.isArray(event.jobs) && jobs(event.jobs)) { recentJobs = event.jobs; eventRevision++ }
+    if (eventError) operationReadError = eventError
+    else if (!pending) operationReadError = ''
     loading = true; render()
+    const reads = [readLatest('/api/updates', (result, revision) => {
+      inventory = result.status === 'fulfilled' && validUpdateInventory(result.value) ? result.value : null
+      if (inventory && revision === eventRevision) recentJobs = inventory.jobs ?? []
+      failure = inventory ? '' : result.status === 'fulfilled' ? '更新情報の応答形式を確認できません。' : errorText(result.reason)
+    })]
     const request = pending
-    const previous = [...previousResults]
-    const results = await Promise.allSettled([api('/api/updates'), ...(request ? [api(`/api/updates/operations/${request.requestId}`)] : []),
-      ...previous.map(entry => api(`/api/updates/operations/${entry.requestId}`))])
-    if (read !== generation || disposed) return
-    const result = results[0]
-    inventory = result.status === 'fulfilled' && validUpdateInventory(result.value) ? result.value : null
-    if (inventory) recentJobs = inventory.jobs ?? []
-    failure = inventory ? '' : result.status === 'fulfilled' ? '更新情報の応答形式を確認できません。' : errorText(result.reason)
-    if (request && pending?.requestId === request.requestId) {
+    if (request) reads.push(readLatest(`/api/updates/operations/${request.requestId}`, result => {
+      if (pending?.requestId !== request.requestId) return
       try {
-        if (results[1].status !== 'fulfilled') throw results[1].reason
-        applyOperation(results[1].value?.operation, request)
+        if (result.status !== 'fulfilled') throw result.reason
+        applyOperation(result.value?.operation, request)
       } catch (error) { operationReadError = errorText(error); operationMessage = '' }
-    }
-    for (const [index, entry] of previous.entries()) {
-      const response = results[index + (request ? 2 : 1)]
+      if (eventError) operationReadError = eventError
+    }))
+    for (const entry of previousResults) reads.push(readLatest(`/api/updates/operations/${entry.requestId}`, response => {
       try {
         if (response.status !== 'fulfilled') throw response.reason
         const value = response.value?.operation
@@ -536,11 +566,9 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
           || entry.result && (value.plan.action ?? 'update') !== (entry.result.plan.action ?? 'update')) throw Error('INVALID_OPERATION')
         entry.result = value; entry.error = ''
       } catch (error) { entry.error = errorText(error) }
-    }
-    if (eventError) operationReadError = eventError
-    else if (!request) operationReadError = ''
-    if (previous.length) try { saveRequests(pending) } catch { storageFailure = '保持した要求の結果を保存できません。新しい更新は開始できません。' }
-    loading = false; render()
+      try { saveRequests(pending) } catch { storageFailure = '保持した要求の結果を保存できません。新しい更新は開始できません。' }
+    }))
+    await Promise.allSettled(reads)
   }
   function open(button = buttons.find(item => item.getClientRects().length && window.getComputedStyle(item).visibility === 'visible') ?? buttons[0]) {
     if (disposed) return
