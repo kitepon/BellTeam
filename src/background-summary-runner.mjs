@@ -25,8 +25,9 @@ export function createBackgroundSummaryRunner({ project, models, runner = create
         ...(selection.reasoningEffort === '' ? [] : ['-c', `model_reasoning_effort="${selection.reasoningEffort}"`]),
         '-c', 'project_doc_max_bytes=0', instruction]
     // Z-b2 C5: each run is its own launch of the selected CLI closure (runtime-capture.md).
-    const runtime = await captureRuntime()
-    const executable = selection.harness === 'claude' ? runtime.components['runtime-claude-code'].bin.claude : runtime.components['runtime-codex'].bin.codex
+    // A builtin component keeps the previous resolution through the base PATH.
+    const component = (await captureRuntime()).components[selection.harness === 'claude' ? 'runtime-claude-code' : 'runtime-codex']
+    const executable = component.origin === 'release' ? component.bin[selection.harness] : selection.harness
     const stopped = AbortSignal.timeout(60_000)
     const result = await runner('flock', ['--nonblock', '--conflict-exit-code', '75', join(project, 'summary.lock'), executable, ...args],
       { input: prompt, signal: signal ? AbortSignal.any([signal, stopped]) : stopped, maxBuffer: 65_536 })
