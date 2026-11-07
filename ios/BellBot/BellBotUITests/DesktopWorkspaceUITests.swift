@@ -329,7 +329,7 @@ final class DesktopWorkspaceUITests: XCTestCase {
         XCTAssertTrue(restart.waitForExistence(timeout: 5))
         let windowCount = app.windows.count
         restart.click()
-        let failure = app.staticTexts["操作の結果を確認できませんでした。再操作する前に、現在の状態を更新して確認してください。\nBellTeam: RESTART_FIXTURE_FAILED"]
+        let failure = app.staticTexts["操作の結果を確認できませんでした。再操作する前に、現在の状態を更新して確認してください。\nBellTeamが一時的に受付を止めています。少し待つと自動で読み直します。"]
         XCTAssertTrue(failure.waitForExistence(timeout: 5))
 
         var failedProof = try await fixtureProof(base)
