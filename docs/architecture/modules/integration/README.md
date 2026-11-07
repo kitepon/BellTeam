@@ -282,7 +282,7 @@ Owner権限は公開HTTPの既authorize成功後だけ、PATCH ownerとPUT user-
 
 ## members投影の原子的採用（結合候補）
 
-HTTP一覧の`avatar=omit`は`listForClient({omitAvatars:true})`から同`profiles.read`のACK済みsnapshotを一回読む。4avatarVersionを画像空文字とともにそのまま返し、各profileの再読取を省く。旧子のversion未供給時だけ既完全profile経路へ戻し、省略以外は元の画像読取を維持する。facadeの`clientListingState`は表示投影のactive/pending/absentを返し、HTTPの全await後再確認で削除中を保持し退役済みを外す。認可は既fresh readMemberのまま。新子が送るversion fieldは旧親の閉schemaで拒否されるため、導入時は同source builtin親子を一緒に反映する。
+`GET /api/bots` uses the facade's default metadata snapshot and emits four avatar version fields without the four avatar body fields. `?avatar=omit` remains accepted as a no-op; no query enables inline images. A legacy child missing version fields still uses the existing full-profile fallback internally, but HTTP discards its image bodies. The exact list/single-profile contract and body activation boundary are canonical in [members profiles](../members/profiles.md#default-list-snapshot). `clientListingState` still supplies active/pending/absent for the final membership recheck, and authorization keeps fresh `readMember`.
 
 ```mermaid
 flowchart LR
@@ -314,7 +314,7 @@ flowchart LR
   Display[会話既受付の表示名] --> Projection[旧名簿stale投影を維持]
 ```
 
-`createMembersFacade({request,callback,admission,projection})`は親の同controller/channelを注入する。refreshは同leaseでfresh profiles.readのACK付き全件snapshotと小さいrevisionを受け、同generation/確定revision以上の投影を採用する。listForClientは同leaseの個別profile.read includeDeleting:trueを逐次呼んで画像を復元し、認可readMemberはactiveだけのprofile.readを使う。get/has/valuesは表示投影で認可ではない。既context.membersLeaseは新入場もfinish追加もせず、context無しだけ所有leaseを実終端でfinish要請する。channelが送信前登録する実completionはcaller unknown後もliveに残り、再送せず旧callbackを終端まで通す。session/fast保存はcallback専用、lease無し/偽object/終了済みを拒否する。
+`createMembersFacade({request,callback,admission,projection})`は親の同controller/channelを注入する。refreshは同leaseでfresh profiles.readのACK付き全件snapshotと小さいrevisionを受け、同generation/確定revision以上の投影を採用する。`listForClient` defaults to that metadata snapshot; only its internal legacy fallback restores full profiles with sequential `profile.read(includeDeleting:true)`. 認可readMemberはactiveだけのprofile.readを使う。get/has/valuesは表示投影で認可ではない。既context.membersLeaseは新入場もfinish追加もせず、context無しだけ所有leaseを実終端でfinish要請する。channelが送信前登録する実completionはcaller unknown後もliveに残り、再送せず旧callbackを終端まで通す。session/fast保存はcallback専用、lease無し/偽object/終了済みを拒否する。
 
 Owner/rules更新ではcapturedAuthorizationを同channelへ渡し、子に値は送らない。未公開profile.remove/run/prepareResumeを推測で公開しない。通常bootstrapの初回移行後、application-servicesは同controllerをfeatures前にstartして全callerへ一facadeを渡す。初回bootstrapの旧BotRegistry/OwnerProfile/UserRulesは以後参照せず、専用Owner MCPもwriterを作らない。実物の独立交換受入は配布工程で確認する。
 

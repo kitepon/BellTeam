@@ -7,8 +7,7 @@ export function createMemberProfileApi({ bots, transport, administration, memory
   const readMember = id => bots.readMember ? bots.readMember(id) : bots.get(id)
   return async (request, response, url) => {
     if (request.method === 'GET' && url.pathname === '/api/bots') {
-      const omitAvatars = url.searchParams.get('avatar') === 'omit'
-      const all = bots.listForClient ? await bots.listForClient({ omitAvatars }) : [...bots.values()]
+      const all = bots.listForClient ? await bots.listForClient() : [...bots.values()]
       const listingState = id => bots.clientListingState?.(id)
         ?? (bots.isDeleting?.(id) ? 'pending' : bots.has(id) ? 'active' : 'absent')
       const deleting = bot => bot.deleting || listingState(bot.id) === 'pending'
@@ -22,9 +21,8 @@ export function createMemberProfileApi({ bots, transport, administration, memory
         const application = view?.configurationApplication
         const avatars = {}
         for (const field of ['avatar', 'avatarLarge', 'avatarSource', 'avatarLargeSource']) {
-          avatars[field] = omitAvatars ? '' : bot[field] ?? ''
-          avatars[`${field}Version`] = omitAvatars && bot[`${field}Version`] !== undefined ? bot[`${field}Version`]
-            : avatarVersion(field === 'avatarLarge' ? bot[field] || bot.avatar : bot[field])
+          avatars[`${field}Version`] = bot[`${field}Version`]
+            ?? avatarVersion(field === 'avatarLarge' ? bot[field] || bot.avatar : bot[field])
         }
         return {
           id: bot.id,

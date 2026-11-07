@@ -29,7 +29,7 @@ function fixture({ legacy = false } = {}) {
     } })
   return { ...f, calls, full, metadata, current, view, admission }
 }
-async function listing(f, query = '?avatar=omit', sources = async () => []) {
+async function listing(f, query = '', sources = async () => []) {
   const api = createMemberProfileApi({ bots: f.bots, administration: {}, sources,
     transport: { runningBots: async () => new Set(['bot-a', 'bot-pending']) },
     store: { recentViews: async () => new Map() } })
@@ -39,26 +39,30 @@ async function listing(f, query = '?avatar=omit', sources = async () => []) {
   return response.body.bots
 }
 
-test('omitted HTTP roster uses one snapshot and preserves all versions, large fallback and pending', async () => {
-  const f = fixture(), bots = await listing(f)
-  assert.deepEqual(f.calls.map(call => call.method), ['profiles.read'])
-  for (let i = 0; i < bots.length; i++) for (const field of fields) {
-    assert.equal(bots[i][field], '')
-    assert.equal(bots[i][`${field}Version`], f.metadata[i][`${field}Version`])
+test('HTTP roster always omits avatar bodies and uses one snapshot with all versions and pending', async () => {
+  for (const query of ['', '?avatar=omit', '?avatar=inline']) {
+    const f = fixture(), bots = await listing(f, query)
+    assert.deepEqual(f.calls.map(call => call.method), ['profiles.read'])
+    assert.doesNotMatch(JSON.stringify(bots), /data:/u)
+    for (let i = 0; i < bots.length; i++) for (const field of fields) {
+      assert.equal(Object.hasOwn(bots[i], field), false)
+      assert.equal(bots[i][`${field}Version`], f.metadata[i][`${field}Version`])
+    }
+    assert.equal(bots[0].avatarLargeVersion, bots[0].avatarVersion)
+    assert.equal(bots[1].deleting, true); assert.equal(bots[1].online, false)
+    assert.equal(f.bots.get('bot-pending'), undefined)
   }
-  assert.equal(bots[0].avatarLargeVersion, bots[0].avatarVersion)
-  assert.equal(bots[1].deleting, true); assert.equal(bots[1].online, false)
-  assert.equal(f.bots.get('bot-pending'), undefined)
 })
 
-test('legacy snapshot falls back to full reads and full HTTP roster retains images', async () => {
-  for (const legacy of [false, true]) {
-    const f = fixture({ legacy }), bots = await listing(f, '')
-    assert.deepEqual(f.calls.map(call => call.method), ['profiles.read', 'profile.read', 'profile.read'])
-    assert.equal(bots[0].avatar, f.full[0].avatar)
-    const g = fixture({ legacy }), omitted = await listing(g)
-    assert.deepEqual(g.calls.map(call => call.method), legacy ? ['profiles.read', 'profiles.read', 'profile.read', 'profile.read'] : ['profiles.read'])
-    for (const field of fields) assert.equal(omitted[0][`${field}Version`], bots[0][`${field}Version`])
+test('legacy snapshots restore versions without exposing images in either HTTP query', async () => {
+  for (const query of ['', '?avatar=omit']) {
+    const f = fixture({ legacy: true }), bots = await listing(f, query)
+    assert.deepEqual(f.calls.map(call => call.method), ['profiles.read', 'profiles.read', 'profile.read', 'profile.read'])
+    assert.doesNotMatch(JSON.stringify(bots), /data:/u)
+    for (const field of fields) {
+      assert.equal(Object.hasOwn(bots[0], field), false)
+      assert.equal(bots[0][`${field}Version`], avatarVersion(field === 'avatarLarge' ? f.full[0][field] || f.full[0].avatar : f.full[0][field]))
+    }
   }
 })
 
