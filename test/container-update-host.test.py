@@ -326,6 +326,12 @@ touch "$BELLTEAM_INSTALL_DIR/applied"
         self.updater.start({'requestId':request,'planId':plan['planId'],'confirmContainerRestart':False});self.join()
         with self.assertRaises(module.Failure):self.updater.update_job({'jobId':request,'state':'failed','reason':reason})
 
+    def test_runtime_aiterm_mcp_is_refused_before_any_staging(self):
+        self.runtime_catalog()
+        with self.assertRaises(module.Failure) as refused:
+            self.updater.plan({'planId':str(uuid.uuid4()),'catalogSha256':self.digest,'componentId':'runtime-aiterm-mcp','versionId':'f'*64})
+        self.assertEqual((refused.exception.code,refused.exception.status),('RUNTIME_COHABITATION_UNSUPPORTED',409))
+
     def test_runtime_rows_need_the_exact_runtime_contract(self):
         self.runtime_catalog(dict(runtimeProtocol=2,nodeMajor=26,libc='glibc'))
         with self.assertRaises(module.Failure):

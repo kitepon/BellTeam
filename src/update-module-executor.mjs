@@ -182,6 +182,8 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
     // 知らせると端末が /api/updates を読み直し、その読取りがまた鳴らして洪水になる（2026-11-07）。
     try { return await operation() } finally { busy = false }
   }
+  // Elegg 2026-11-08: the body's lifetime Aiterm connection shares aiterm-mcp's state scope; it updates only with the body image.
+  const bodyImageOnly = id => id === 'runtime-aiterm-mcp'
   const findPlan = id => state.plans.find(entry => entry.plan.planId === id)
   const findOperation = id => state.operations.find(entry => entry.operation.requestId === id)
   const inspection = createInstallInspection({ findOperation, findPlan, moduleHost, adapters, catalog, save, now })
@@ -413,6 +415,7 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
         }
         if (jobKind(input.componentId) === 'runtime') {
           // Never part of an 'all' plan: one runtime target per plan, installed and selected by the updater worker.
+          requireValue(!bodyImageOnly(input.componentId), 'RUNTIME_COHABITATION_UNSUPPORTED', 409)
           requireValue(moduleHost?.admitJob, 'UPDATE_EXECUTOR_UNAVAILABLE')
           const from = inventory?.components.find(component => component.id === input.componentId)?.current
           requireValue(from, 'RUNTIME_BINDING_UNAVAILABLE')
@@ -553,6 +556,7 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
           if ((adapters[component.id] || runtime) && component.published && (current || component.comparison.state === 'update_available' || component.comparison.state === 'unknown' && adapters[component.id]?.capture?.()?.generation))
             component.capability = { supported: !current && !closed && !fault && !active && !blockedHost,
               reason: closed ? 'UPDATE_EXECUTOR_CLOSED' : fault ?? (active || blockedHost ? 'MODULE_EXCHANGE_BUSY' : current ? 'UPDATE_ALREADY_CURRENT' : null) }
+          if (bodyImageOnly(component.id)) component.capability = { supported: false, reason: 'RUNTIME_COHABITATION_UNSUPPORTED' }
         }
         // Inventory advertises what plan will accept: an unplaced archive needs the Host module installer, so its refusal reason is projected here.
         // shortcut: an archive already placed by an earlier install would still plan without the Host; plan stays the final arbiter.
