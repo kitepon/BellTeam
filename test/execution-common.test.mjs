@@ -13,6 +13,7 @@ import { OwnerProfile } from '../src/owner-profile.mjs'
 import { UserRules } from '../src/user-rules.mjs'
 import { FeatureSettings } from '../src/feature-settings.mjs'
 import { createSyntheticNotificationsProcess } from './helpers/notifications-process.mjs'
+import { AitermGenerationClient } from '../src/aiterm-generation-client.mjs'
 
 test('normal parent callers and durable Update use one execution engine without outer producers or shared-client closure', { timeout: 15000 }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'execution-common-'))
@@ -53,7 +54,7 @@ test('normal parent callers and durable Update use one execution engine without 
   t.after(() => runtime.close())
   assert.equal(runtime.services.execution, assembly)
   assert.equal(runtime.services.transport, assembly.transport); assert.equal(runtime.services.administration, assembly.administration)
-  assert.equal(runtime.services.goals, assembly.goals); assert.equal(runtime.services.transport.client, client)
+  assert.equal(runtime.services.goals, assembly.goals); assert.ok(runtime.services.transport.client instanceof AitermGenerationClient); assert.equal(runtime.services.transport.client.current.client, client)
   assert.equal(runtime.services.idleSessions, null); assert.equal(runtime.services.seatTurns, null)
   assert.deepEqual(runtime.services.transport.queueItems(), [])
   assert.equal(runtime.services.transport.queueItems() instanceof Promise, false)
