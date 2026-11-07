@@ -787,6 +787,8 @@ flowchart LR
   Read[Owner GET副資源] --> Ledger
 ```
 
+`POST /api/updates/catalog-check`（空body、他methodは405、Owner認証/internal 403は他の/api/updates経路と同じ）は`updateCenter.checkCatalog()`→module catalog→既module clientの`checkCatalog`で公式catalog取得を一回要求し、200 `{publication:{status,checkedAt,error}}`を返す。取得失敗もstatus:failedの200。GET `/api/updates`は変更しない。
+
 `GET /api/updates/operations/:requestId/reconciliation/:installRequestId`は共通ledgerの保存結果だけを返し、backend readやinspectionを発行しない。同URIの明示POSTは閉`{action:"inspect",originalOperationSha256}`だけを受ける。既Owner認証と同requestのfresh認可を通した私有grantが必要で、内部席/bodyのactorやgrant JSONでは発行できない。runtimeのinspection先行I/O v1と同validator/hashを使い、元UUID/plan/component/source/target/original unknown SHAへ束縛する。公開副資源は元phaseと閉inspection概要だけ、private target/storage/path/証明本文は出さない。
 
 元operation DTO・installPhaseを変更せず、inspectionでbusyを解除しない。保存復元でも全receiptを同元stepとpublic operation hashへ束縛し、改竄を拒否する。初回はinspectionと以下のcloseだけで、recover/consumeは未提供。横断の意味はRootの同install-ID契約、runtimeの配置/排他/receiptは[module-installer](../runtime/module-installer.md)が所有する。

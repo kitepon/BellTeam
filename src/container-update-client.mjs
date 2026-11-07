@@ -17,7 +17,7 @@ export async function createUpdateClients() {
 }
 
 export function createContainerUpdateClient(path = socketPath) {
-  const call = (operation, params) => new Promise((resolve, reject) => {
+  const call = (operation, params, timeout = 5000) => new Promise((resolve, reject) => {
     const raw = Buffer.from(JSON.stringify({ operation, params }) + '\n')
     if (raw.length > 65536) return reject(failure('HOST_UPDATE_MESSAGE_LIMIT', 'not_accepted', 400))
     let settled = false, response = Buffer.alloc(0)
@@ -29,7 +29,7 @@ export function createContainerUpdateClient(path = socketPath) {
     }
     const unreadable = reason => Object.assign(failure('UNREADABLE'), { path, reason })
     const unavailable = error => finish(unreadable(error?.code ?? 'CONNECTION_CLOSED'))
-    socket.setTimeout(5000, () => finish(unreadable('ETIMEDOUT')))
+    socket.setTimeout(timeout, () => finish(unreadable('ETIMEDOUT')))
     socket.once('error', unavailable)
     socket.once('connect', () => { socket.write(raw, error => { if (error) unavailable() }) })
     socket.on('data', chunk => {
@@ -81,6 +81,8 @@ export function createContainerUpdateClient(path = socketPath) {
         : { supported: false, reason: /^[A-Z_0-9]{1,100}$/.test(value?.moduleInstallReason ?? value?.reason ?? '') ? (value.moduleInstallReason ?? value.reason) : 'HOST_MODULE_INSTALL_UNAVAILABLE' }
     },
     catalog: componentId => call('catalog', { componentId }),
+    // Official fetch (3 x 15 s) + verification (120 s), possibly queued behind one running refresh.
+    checkCatalog: () => call('checkCatalog', {}, 360000),
     plan: params => call('plan', params),
     planModuleInstall: params => call('plan', params),
     startModuleInstall: ({ requestId, planId, idempotencyKey }) => call('start', { requestId, planId, confirmContainerRestart: false, ...(idempotencyKey === undefined ? {} : { idempotencyKey }) }),

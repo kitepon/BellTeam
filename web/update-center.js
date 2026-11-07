@@ -577,7 +577,14 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     return refresh()
   }
   for (const button of buttons) button.addEventListener('click', () => { void open(button) })
-  refreshButton.addEventListener('click', () => { if (!loading) void refresh() })
+  async function checkThenRefresh() {
+    if (!opened || disposed) return
+    loading = true; render()
+    // An older module-installer rejects the check; the cached catalog is still re-read below.
+    try { await api('/api/updates/catalog-check', { method: 'POST' }) } catch {}
+    return refresh()
+  }
+  refreshButton.addEventListener('click', () => { if (!loading) void checkThenRefresh() })
   get('[data-update-close]').addEventListener('click', () => root.close())
   root.addEventListener('close', () => { confirmed = false; opener?.focus() })
   render()

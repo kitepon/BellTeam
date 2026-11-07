@@ -41,8 +41,7 @@ test('実current/builtinと通知利用可否を分け、catalogも耐久受付�
   assert.equal(calls, 1)
 })
 
-async function serverFixture(t, { internal = false, authenticated = true } = {}) {
-  const center = createUpdateCenter()
+async function serverFixture(t, { internal = false, authenticated = true, center = createUpdateCenter() } = {}) {
   let refreshes = 0
   const bots = Object.assign(new Map(), { async refresh() { refreshes++ } })
   const server = createBellTeamServer({ bots, store: { async watch() { return () => {} } }, transport: {}, updateCenter: center,
@@ -72,6 +71,20 @@ test('Owner HTTPは厳密入力と未供給503、内部/認証拒否403を保つ
   assert.equal((await internal.request('/api/updates')).status, 403)
   const denied = await serverFixture(t, { authenticated: false })
   assert.equal((await denied.request('/api/updates')).status, 403)
+})
+
+test('POST catalog-checkは公式取得を一回要求し、記録を200で返し、他methodと内部/認証拒否を保つ', async t => {
+  const record = { status: 'failed', checkedAt: '2026-11-08T00:00:00Z', error: 'HOST_UPDATE_PUBLICATION_UNCONFIRMED' }
+  let checks = 0
+  const center = createUpdateCenter({ moduleCatalog: { checkCatalog: async () => { checks++; return record } } })
+  const { request } = await serverFixture(t, { center })
+  const response = await request('/api/updates/catalog-check', { method: 'POST' })
+  assert.equal(response.status, 200); assert.deepEqual(await response.json(), { publication: record }); assert.equal(checks, 1)
+  assert.equal((await request('/api/updates/catalog-check')).status, 405)
+  assert.equal((await (await serverFixture(t)).request('/api/updates/catalog-check', { method: 'POST' })).status, 503)
+  assert.equal((await (await serverFixture(t, { center, internal: true })).request('/api/updates/catalog-check', { method: 'POST' })).status, 403)
+  assert.equal((await (await serverFixture(t, { center, authenticated: false })).request('/api/updates/catalog-check', { method: 'POST' })).status, 403)
+  assert.equal(checks, 1)
 })
 
 test('Update変更は既SSEのmessages/type=updatesだけを使い、watch停止後は届かない', async t => {
