@@ -49,6 +49,12 @@ export function createExecutionNativeFixture({ root }) {
     assert.equal(assembly.controller.snapshot().available, false)
     assert.throws(() => assembly.transport.queueItems(), { code: 'EXECUTION_NOT_ACCEPTING' })
   }
+  // During a drain new work is refused, while reads keep answering from the previous engine.
+  const drainProjection = async () => {
+    assert.equal(assembly.controller.snapshot().available, false)
+    assert.ok(Array.isArray(assembly.transport.queueItems()))
+    await assert.rejects(assembly.transport.notify(bot, 'refused during drain', { admissionCheck() {} }), { code: 'EXECUTION_NOT_ACCEPTING' })
+  }
   assembly = createExecutionAssembly({ ports: { native: client, membersAdmission: members, bots, rooms: {},
     configurationStorage: { root: join(root, 'state/configuration-intents'), ownerUid: process.getuid() },
     access: { assertWorkAllowed() {} }, storage: { async prepareStartup() {}, async updateSession(id, session) {
@@ -58,10 +64,10 @@ export function createExecutionNativeFixture({ root }) {
     observer: { report() {}, emitQueue: value => { for (const listener of listeners) listener(value) } },
   }, requestStop, watchQueue, loadFactory: loadExecutionFactory,
     onAdopt: async selection => {
-      closedProjection(); counts.ackAdmissionClosed++
+      await drainProjection(); counts.ackAdmissionClosed++
       await store.save(selection)
       assert.deepEqual(await store.read(), selection)
-      closedProjection(); counts.adoptionAcks++
+      await drainProjection(); counts.adoptionAcks++
     }, onState: value => { if (value.phase === 'quiescing') gate?.draining.resolve() } })
   const { controller, transport, administration } = assembly
   const projection = administration.view, queue = transport.queueItems
@@ -113,9 +119,11 @@ export function createExecutionNativeFixture({ root }) {
         await Promise.race([current.entered.promise, read.then(() => assert.fail('EXECUTION_FIXTURE_READ_NOT_HELD'))])
         replacing = controller.replace(target); replacing.then(() => { settled = true }, () => { settled = true })
         await Promise.race([current.draining.promise, replacing.then(() => assert.fail('EXECUTION_FIXTURE_DRAIN_NOT_OBSERVED'))])
-        closedProjection(); counts.drainAdmissionClosed++
+        await drainProjection(); counts.drainAdmissionClosed++
         await tick(); assert.equal(settled, false)
         current.release.resolve(); await read; await replacing
+        // The previous engine retires in the background once its own work has settled.
+        for (let i = 0; i < 1000; i++) { try { oldGuard() } catch { break } await tick() }
         assert.throws(oldGuard, { code: 'EXECUTION_GENERATION_RETIRED' }); counts.retiredGuards++
         counts.exchanges++; targets.push(target); generations.add(controller.snapshot().generation)
         checks.generationsChanged = generations.size === counts.exchanges + 1

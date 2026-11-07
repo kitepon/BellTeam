@@ -20,6 +20,8 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
   let instance = null, phase = 'unavailable', available = false, closed = false, operation = null, closing = null
   let builtinSourceCommit = null, reservation = null, startingReservation = false, update = null
   let recoveryState = null
+  // The previous engine keeps serving reads while an exchange makes the generation unavailable.
+  let readable = null
   const recovery = createModuleChildRestart(async () => {
     await operation?.catch(() => {})
     if (closed || available) return
@@ -57,7 +59,7 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
     protocolVersion: 1, stateCompatibility: EXECUTION_STATE_COMPATIBILITY, update: update ? { ...update } : null })
   const state = (next, usable = false) => {
     phase = next; available = usable
-    if (usable) { recoveryState = null; recovery.running() }
+    if (usable) { recoveryState = null; readable = null; recovery.running() }
     else if (next === 'unavailable' && !closed) recovery.lost()
     try { onState(snapshot()) } catch {}
   }
@@ -92,12 +94,13 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
     await within(target.initializing, 45_000, 'INITIALIZE_TIMEOUT')
     await probeModuleReady(() => target.engine.project({ method: 'transport.queueItems', args: [] }))
   }
-  const quiesce = async target => {
+  const quiesce = async (target, { handover = false } = {}) => {
     const started = performance.now()
-    const stopping = target.engine.control('quiesce', { timeoutMs: 60_000 })
+    const stopping = target.engine.control('quiesce', { timeoutMs: 60_000, ...(handover ? { handover: true } : {}) })
     target.quiescing = stopping
     void Promise.resolve(stopping).finally(() => { if (target.quiescing === stopping) target.quiescing = null }).catch(() => {})
-    const [result] = await within(Promise.all([stopping, waitActive()]), 60_000, 'BUSY')
+    // Handover: accepted turns stay on the old engine, so their dispatch promises are not drained here.
+    const [result] = await within(Promise.all([stopping, handover ? null : waitActive()]), 60_000, 'BUSY')
     if (result?.quiesced !== true || performance.now() - started > 60_000) throw fail('QUIESCE_FAILED')
     target.quiesced = true
   }
@@ -166,11 +169,12 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
       if (closed) throw fail('CLOSED')
       if (currentVersionId === versionId) return snapshot()
       const old = instance, oldSelection = { currentVersionId, previousVersionId }
+      readable = old
       state('quiescing')
       let handoff
       try {
-        await quiesce(old)
-        handoff = old.engine.exportState()
+        await quiesce(old, { handover: true })
+        handoff = old.engine.exportState({ handover: true })
       } catch (error) {
         try {
           await resume(old)
@@ -179,42 +183,50 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
       }
       // From this point the retired instance is never resumed.
       recoveryState = { factory: old.factory, handoff, selection: oldSelection }
-      try { await dispose(old) } catch (error) { state('unavailable'); throw error }
-      if (closed) { state('closed'); throw fail('CLOSED') }
-      state('restoring')
-      let candidate = null, saving = false
+      if (!handoff?.released?.then) {
+        try { await dispose(old) } catch (error) { state('unavailable'); throw error }
+        readable = null
+      } else old.retiring = true
       try {
-        candidate = make(nextFactory, handoff); instance = candidate
-        await initialize(candidate)
-        if (closed) throw fail('CLOSED')
-        saving = true
-        await adopt({ currentVersionId: versionId, previousVersionId: oldSelection.currentVersionId })
-        if (closed) throw fail('CLOSED')
-        previousVersionId = oldSelection.currentVersionId; currentVersionId = versionId
-        state('running', true)
-        return snapshot()
-      } catch (error) {
-        if (['READY_TIMEOUT', 'READY_PROBE_FAILED'].includes(error?.code)) {
-          recoveryState = { factory: nextFactory, handoff, selection: { currentVersionId: versionId, previousVersionId: oldSelection.currentVersionId } }
-          candidate.retiring = true
-          state('unavailable'); recovery.lost(error)
-          await adopt(recoveryState.selection)
-          throw error
-        }
-        const errors = [error]
+        if (closed) { state('closed'); throw fail('CLOSED') }
+        state('restoring')
+        let candidate = null, saving = false
         try {
-          await dispose(candidate)
+          candidate = make(nextFactory, handoff); instance = candidate
+          await initialize(candidate)
           if (closed) throw fail('CLOSED')
-          const restored = make(old.factory, handoff); instance = restored
-          await initialize(restored)
-          await adopt(oldSelection)
-          currentVersionId = oldSelection.currentVersionId; previousVersionId = oldSelection.previousVersionId
+          saving = true
+          await adopt({ currentVersionId: versionId, previousVersionId: oldSelection.currentVersionId })
+          if (closed) throw fail('CLOSED')
+          previousVersionId = oldSelection.currentVersionId; currentVersionId = versionId
           state('running', true)
-        } catch (rollback) {
-          errors.push(rollback)
-          state(closed ? 'closed' : 'unavailable')
+          return snapshot()
+        } catch (error) {
+          if (['READY_TIMEOUT', 'READY_PROBE_FAILED'].includes(error?.code)) {
+            recoveryState = { factory: nextFactory, handoff, selection: { currentVersionId: versionId, previousVersionId: oldSelection.currentVersionId } }
+            candidate.retiring = true
+            state('unavailable'); recovery.lost(error)
+            await adopt(recoveryState.selection)
+            throw error
+          }
+          const errors = [error]
+          try {
+            await dispose(candidate)
+            if (closed) throw fail('CLOSED')
+            const restored = make(old.factory, handoff); instance = restored
+            await initialize(restored)
+            await adopt(oldSelection)
+            currentVersionId = oldSelection.currentVersionId; previousVersionId = oldSelection.previousVersionId
+            state('running', true)
+          } catch (rollback) {
+            errors.push(rollback)
+            state(closed ? 'closed' : 'unavailable')
+          }
+          throw new AggregateError(errors, saving ? 'EXECUTION_ADOPTION_ROLLBACK' : 'EXECUTION_REPLACE_ROLLBACK')
         }
-        throw new AggregateError(errors, saving ? 'EXECUTION_ADOPTION_ROLLBACK' : 'EXECUTION_REPLACE_ROLLBACK')
+      } finally {
+        // The old engine keeps serving reads during this exchange, finishes its own accepted turns, then retires.
+        if (handoff?.released?.then) void handoff.released.then(() => old.engine.disconnect()).catch(() => {})
       }
     })
   }
@@ -282,8 +294,11 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
   }
   return Object.freeze({ start, replace, reserve, snapshot, close, withInstallReconciliationProof,
     dispatch(request) {
-      try { return track(requireCurrent().engine.dispatch(request)) } catch (error) { return Promise.reject(error) }
+      try {
+        const target = !available && readable && !closed && request?.method === 'transport.runningBots' ? readable : requireCurrent()
+        return track(target.engine.dispatch(request))
+      } catch (error) { return Promise.reject(error) }
     },
-    project(request) { return requireCurrent().engine.project(request) },
+    project(request) { return (!available && readable && !closed ? readable : requireCurrent()).engine.project(request) },
   })
 }
