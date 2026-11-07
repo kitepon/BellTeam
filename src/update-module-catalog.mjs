@@ -5,6 +5,7 @@ import { USAGE_STATE_COMPATIBILITY } from './usage/state-compatibility.mjs'
 import { DIAGNOSTICS_STATE_COMPATIBILITY } from './diagnostics-protocol.mjs'
 import { MEMORY_STATE_COMPATIBILITY } from './memory/state-compatibility.mjs'
 import { MEMBERS_STATE_COMPATIBILITY } from './members/state-compatibility.mjs'
+import { runtimeComponentIds } from './update-center-contract.mjs'
 
 const ids = ['web-gateway', 'notifications', 'members', 'memory', 'diagnostics', 'usage', 'execution', 'conversation']
 const hex = (value, length) => typeof value === 'string' && new RegExp(`^[a-f0-9]{${length}}$`).test(value)
@@ -36,6 +37,11 @@ function selection(value, id) {
   requireValue(typeof artifact.archive.url === 'string' && new RegExp(`^${url.replace('github.com', 'github\\.com')}$`).test(artifact.archive.url)
     && artifact.archive.sha256 === release.versionId && artifact.bundle.url === artifact.archive.url + '.sigstore.json')
   const compatibility = release.compatibility
+  if (runtimeComponentIds.includes(id)) {
+    requireValue(exact(compatibility, 'runtimeProtocol,nodeMajor,libc') && Number.isInteger(compatibility.runtimeProtocol)
+      && Number.isInteger(compatibility.nodeMajor) && typeof compatibility.libc === 'string')
+    return value
+  }
   requireValue(exact(compatibility, ['members', 'memory', 'diagnostics', 'usage', 'execution', 'conversation'].includes(id) ? 'nodeMajor,parentProtocol,stateSchema,containerUpdate,stateCompatibility' : 'nodeMajor,parentProtocol,stateSchema,containerUpdate'))
   requireValue(['nodeMajor', 'parentProtocol', 'stateSchema', 'containerUpdate'].every(key => compatibility[key] === null || Number.isInteger(compatibility[key]) && compatibility[key] > 0 && compatibility[key] <= 65535))
   if (['members', 'memory', 'diagnostics', 'usage', 'execution', 'conversation'].includes(id)) requireValue(compatibility.nodeMajor === 26 && compatibility.parentProtocol === 1 && compatibility.stateSchema === null
@@ -45,6 +51,7 @@ function selection(value, id) {
 
 export function moduleReleaseCompatible(id, release) {
   const value = release?.compatibility
+  if (runtimeComponentIds.includes(id)) return value?.runtimeProtocol === 1 && value.nodeMajor === 26 && value.libc === 'glibc'
   return value?.nodeMajor === 26 && value.containerUpdate === null
     && value.parentProtocol === (id === 'notifications' ? 2 : 1)
     && (['members', 'memory', 'diagnostics', 'usage', 'execution', 'conversation'].includes(id) ? isDeepStrictEqual(value.stateCompatibility, id === 'members' ? MEMBERS_STATE_COMPATIBILITY : id === 'memory' ? MEMORY_STATE_COMPATIBILITY : id === 'diagnostics' ? DIAGNOSTICS_STATE_COMPATIBILITY : id === 'usage' ? USAGE_STATE_COMPATIBILITY : id === 'conversation' ? CONVERSATION_STATE_COMPATIBILITY : EXECUTION_STATE_COMPATIBILITY) && value.stateSchema === null
@@ -53,12 +60,13 @@ export function moduleReleaseCompatible(id, release) {
 
 // Trust and freshness belong to the Host catalog reader; this maps its closed selection only.
 export function createModuleUpdateCatalog({ client }) {
-  const select = async id => { requireValue(ids.includes(id)); return selection(await client.catalog(id), id) }
+  const select = async id => { requireValue(ids.includes(id) || runtimeComponentIds.includes(id)); return selection(await client.catalog(id), id) }
   return {
     select,
     checkCatalog: () => client.checkCatalog(),
     async snapshot(inventory) {
-      await Promise.all(ids.map(async id => {
+      // Runtime rows exist only in an opted-in inventory, so a released reader causes no runtime catalog read.
+      await Promise.all([...ids, ...runtimeComponentIds].map(async id => {
         const component = inventory.components.find(value => value.id === id)
         if (!component) return
         try {

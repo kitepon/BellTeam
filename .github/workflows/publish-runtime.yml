@@ -1,0 +1,129 @@
+{
+  "name": "Publish signed runtime closure",
+  "on": {
+    "workflow_dispatch": {
+      "inputs": {
+        "component": {
+          "description": "Runtime component",
+          "required": true,
+          "type": "choice",
+          "default": "runtime-codex",
+          "options": [
+            "runtime-aiterm-mcp",
+            "runtime-codex",
+            "runtime-claude-code",
+            "runtime-throughline"
+          ]
+        }
+      }
+    }
+  },
+  "permissions": {
+    "contents": "read",
+    "id-token": "write",
+    "attestations": "write"
+  },
+  "concurrency": {
+    "group": "runtime-artifact-${{ inputs.component }}",
+    "cancel-in-progress": false
+  },
+  "jobs": {
+    "package": {
+      "if": "github.repository == 'kitepon/BellTeam' && github.ref == 'refs/heads/main'",
+      "strategy": {
+        "fail-fast": false,
+        "matrix": {
+          "include": [
+            {
+              "arch": "amd64",
+              "runner": "ubuntu-24.04"
+            },
+            {
+              "arch": "arm64",
+              "runner": "ubuntu-24.04-arm"
+            }
+          ]
+        }
+      },
+      "runs-on": "${{ matrix.runner }}",
+      "timeout-minutes": 25,
+      "env": {
+        "COMPONENT": "${{ inputs.component }}",
+        "ARCH": "${{ matrix.arch }}",
+        "SOURCE": "${{ github.sha }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v7",
+          "with": {
+            "persist-credentials": false
+          }
+        },
+        {
+          "name": "Build exact latest closure in isolated Node26 glibc builder",
+          "run": "mkdir -p runtime/runtime\ndocker build --pull --no-cache -t runtime-builder - < scripts/runtime-builder.Dockerfile\ndocker run --rm --read-only --cap-drop ALL --tmpfs /tmp:rw,nosuid,mode=1777 \\\n  --mount \"type=bind,src=$PWD,dst=/src,readonly\" \\\n  --mount \"type=bind,src=$PWD/runtime/runtime,dst=/out\" \\\n  -e COMPONENT -e ARCH -e SOURCE --workdir /src runtime-builder \\\n  python3 scripts/package-runtime.py \"$COMPONENT\" \"/out/$COMPONENT-$SOURCE-linux-$ARCH.tar.gz\" --source \"$SOURCE\" --arch \"$ARCH\"\n"
+        },
+        {
+          "name": "Attest exact archive from main",
+          "id": "attest",
+          "uses": "actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8",
+          "with": {
+            "subject-path": "runtime/runtime/*.tar.gz",
+            "create-storage-record": false
+          }
+        },
+        {
+          "name": "Verify official identity and save bundle",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "BUNDLE": "${{ steps.attest.outputs.bundle-path }}"
+          },
+          "run": "archive=\"runtime/runtime/$COMPONENT-$SOURCE-linux-$ARCH.tar.gz\"\ncp \"$BUNDLE\" \"$archive.sigstore.json\"\ngh attestation verify \"$archive\" --repo kitepon/BellTeam --signer-workflow kitepon/BellTeam/.github/workflows/publish-runtime.yml --source-ref refs/heads/main --source-digest \"$SOURCE\" --signer-digest \"$SOURCE\" --deny-self-hosted-runners --bundle \"$archive.sigstore.json\" --custom-trusted-root config/web-gateway-trusted-root.jsonl --format json > \"$archive.verified.json\"\njq -e 'length > 0 and all(.[]; .verificationResult.signature.certificate.sourceRepositoryIdentifier == \"1404510084\")' \"$archive.verified.json\"\n"
+        },
+        {
+          "uses": "actions/upload-artifact@v7",
+          "with": {
+            "name": "${{ inputs.component }}-${{ matrix.arch }}-${{ github.run_attempt }}",
+            "path": "runtime/runtime/",
+            "if-no-files-found": "error"
+          }
+        }
+      ]
+    },
+    "release": {
+      "needs": "package",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 10,
+      "permissions": {
+        "contents": "write"
+      },
+      "env": {
+        "GH_TOKEN": "${{ github.token }}",
+        "SOURCE": "${{ github.sha }}",
+        "COMPONENT": "${{ inputs.component }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/download-artifact@v7",
+          "with": {
+            "pattern": "${{ inputs.component }}-*-${{ github.run_attempt }}",
+            "path": "runtime/runtime",
+            "merge-multiple": true
+          }
+        },
+        {
+          "name": "Publish both native archives and bundles once",
+          "run": "tag=\"updates-$(date -u +%Y%m%dT%H%M%SZ)\"\nfor arch in amd64 arm64; do\n  test -s \"runtime/runtime/$COMPONENT-$SOURCE-linux-$arch.tar.gz\"\n  test -s \"runtime/runtime/$COMPONENT-$SOURCE-linux-$arch.tar.gz.sigstore.json\"\ndone\ngh release create \"$tag\" --repo kitepon/BellTeam --target \"$SOURCE\" --title \"BellTeam runtime $COMPONENT $tag\" --notes \"Signed Node26/glibc runtime closures. Activation and runtime catalog adoption are separate.\" runtime/runtime/*.tar.gz runtime/runtime/*.tar.gz.sigstore.json\ngh api \"repos/kitepon/BellTeam/releases/tags/$tag\" > runtime/runtime/release.json\n"
+        },
+        {
+          "uses": "actions/upload-artifact@v7",
+          "with": {
+            "name": "${{ inputs.component }}-release-${{ github.run_attempt }}",
+            "path": "runtime/runtime/release.json",
+            "if-no-files-found": "error"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -36,7 +36,7 @@ try {
     'scripts/verify-update-catalog.py', 'scripts/update_catalog.py',
     'scripts/module-update-service.py', 'scripts/module-update-compose.mjs', 'scripts/module-worker-termination.py',
     'scripts/container-update-service.py', 'scripts/container-update-compose.mjs',
-    'scripts/read-container-update-normal.mjs',
+    'scripts/read-container-update-normal.mjs', 'scripts/body-quiesce-helper.mjs',
     'scripts/container-update-host.py', 'scripts/install-container-update-code.py', 'scripts/cleanup-deploy-images.py', 'scripts/save-deploy-restore-point.py',
   ], { cwd: root })
   await exec('tar', ['-xf', archive, '-C', output])

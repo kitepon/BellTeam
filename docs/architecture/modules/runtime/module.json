@@ -45,6 +45,10 @@
     {
       "module": "execution",
       "port": "members-admission"
+    },
+    {
+      "module": "distribution",
+      "port": "runtime-artifact"
     }
   ],
   "source": [
@@ -106,6 +110,8 @@
     "scripts/module-update-compose.mjs",
     "scripts/container-update-service.py",
     "scripts/container-update-compose.mjs",
+    "src/body-quiesce.mjs",
+    "scripts/body-quiesce-helper.mjs",
     "scripts/read-container-update-normal.mjs",
     "scripts/install-container-update-code.py",
     "distribution/server/updater",

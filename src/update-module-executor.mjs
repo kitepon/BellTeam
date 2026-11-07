@@ -4,7 +4,7 @@ import { constants } from 'node:fs'
 import { mkdir, open, rename, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import { isDeepStrictEqual } from 'node:util'
-import { validateUpdateRequest, validateUpdateResponse } from './update-center-contract.mjs'
+import { runtimeComponentIds, validateUpdateRequest, validateUpdateResponse } from './update-center-contract.mjs'
 import { moduleReleaseCompatible } from './update-module-catalog.mjs'
 import { validateModuleExchangeDiagnostic } from './module-exchange-diagnostic.mjs'
 import { createInstallInspection, validateSavedInstallInspection, installReconciliationClosed } from './update-install-inspection.mjs'
@@ -17,6 +17,9 @@ const copy = value => structuredClone(value)
 const terminal = value => ['completed', 'failed', 'unknown'].includes(value.phase)
 const publicOperation = entry => copy(entry.operation)
 const published = release => ({ version: release.versionId, sourceCommit: release.sourceCommit, digest: `sha256:${release.versionId}`, origin: 'published' })
+const jobKind = id => id === 'container' ? 'container' : runtimeComponentIds.includes(id) ? 'runtime' : 'module'
+// The updater worker owns an accepted runtime job; only one it never accepted can still be queued for the parent to close.
+const runtimeUnissued = step => !step.installIssued || step.installPhase === 'failed'
 const matches = (current, target) => current !== null && (target.origin === 'builtin'
   ? current.origin === 'builtin' && current.sourceCommit === target.sourceCommit : current.digest === target.digest)
 
@@ -31,7 +34,8 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
     if (!active && !closed && !fault && !hasCloseIntent(entry)) {
       if (entry.jobBindings) await flushJobReports(entry)
       if (entry.interrupted) {
-        for (const binding of entry.jobBindings.filter(binding => binding.admitted && (binding.kind === 'module' || !entry.hostIssued))) {
+        for (const binding of entry.jobBindings.filter((binding, index) => binding.admitted && (binding.kind === 'module'
+          || (binding.kind === 'runtime' ? runtimeUnissued(entry.steps[index]) : !entry.hostIssued)))) {
           const job = await jobClient(binding).job(binding.jobId)
           if (!['ready', 'failed'].includes(job.state)) await jobClient(binding).updateJob({ jobId: binding.jobId,
             state: 'failed', reason: { code: 'UPDATE_PARENT_INTERRUPTED', message: '親が停止し、機能の切替を完了できませんでした。' } })
@@ -107,7 +111,7 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
       validateUpdateResponse('plan', { plan: entry.plan })
       requireValue(!planIds.has(entry.plan.planId) && Array.isArray(entry.steps) && entry.steps.length === entry.plan.targets.length
         && entry.steps.every((step, index) => step.componentId === entry.plan.targets[index].componentId
-          && (step.componentId === 'container' ? entry.hostPlan?.planId : adapters[step.componentId])
+          && (step.componentId === 'container' ? entry.hostPlan?.planId : jobKind(step.componentId) === 'runtime' ? step.installPlan : adapters[step.componentId])
           && isDeepStrictEqual(step.target, entry.plan.targets[index].published)), 'UPDATE_LEDGER_INVALID')
       planIds.add(entry.plan.planId)
       for (const step of entry.steps) if (step.installPlan) {
@@ -131,7 +135,7 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
           && typeof entry.admissionComplete === 'boolean', 'UPDATE_LEDGER_INVALID')
         for (const [index, binding] of entry.jobBindings.entries()) {
           validateUpdateRequest('requestId', binding.jobId)
-          requireValue(binding.kind === (plan.steps[index].componentId === 'container' ? 'container' : 'module')
+          requireValue(binding.kind === jobKind(plan.steps[index].componentId)
             && /^[a-f0-9]{64}$/.test(binding.idempotencyKey) && typeof binding.admitted === 'boolean', 'UPDATE_LEDGER_INVALID')
         }
       }
@@ -178,27 +182,30 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
     // 知らせると端末が /api/updates を読み直し、その読取りがまた鳴らして洪水になる（2026-11-07）。
     try { return await operation() } finally { busy = false }
   }
+  // Elegg 2026-11-08: the body's lifetime Aiterm connection shares aiterm-mcp's state scope; it updates only with the body image.
+  const bodyImageOnly = id => id === 'runtime-aiterm-mcp'
   const findPlan = id => state.plans.find(entry => entry.plan.planId === id)
   const findOperation = id => state.operations.find(entry => entry.operation.requestId === id)
   const inspection = createInstallInspection({ findOperation, findPlan, moduleHost, adapters, catalog, save, now })
   const installPending = step => step.installIssued && !['completed', 'failed'].includes(step.installPhase) && !installReconciliationClosed(step)
-  const hostPending = entry => entry.hostIssued && !['completed', 'failed'].includes(entry.operation.phase)
-    || entry.steps.some(installPending)
+  const hostPending = entry => (entry.hostIssued || entry.jobBindings?.some((binding, index) => binding.kind === 'runtime' && entry.steps[index].installIssued))
+    && !['completed', 'failed'].includes(entry.operation.phase) || entry.steps.some(installPending)
+  const planInstall = async step => {
+    const capability = await moduleHost.moduleInstallCapabilities()
+    requireValue(capability?.supported === true, installReason(capability))
+    const planId = randomUUID()
+    const value = await moduleHost.planModuleInstall({ planId, catalogSha256: step.catalogSha256,
+      componentId: step.componentId, versionId: step.release.versionId })
+    requireValue(value?.schema === 'bellteam.host-update.plan.v1' && value.planId === planId
+      && value.catalogSha256 === step.catalogSha256 && isDeepStrictEqual(value.target, step.release)
+      && value.impact?.containerRestart === false && Date.parse(value.expiresAt) > now(), 'UPDATE_HOST_RESPONSE_INVALID')
+    step.installPlan = { planId, expiresAt: value.expiresAt }
+  }
   const prepareStep = async (step, planning = false) => {
     try { await adapters[step.componentId].prepare(step); return true }
     catch (error) {
       if (error.code !== 'ENOENT' || !moduleHost || !step.release || step.target.origin === 'builtin') throw error
-      if (planning) {
-        const capability = await moduleHost.moduleInstallCapabilities()
-        requireValue(capability?.supported === true, installReason(capability))
-        const planId = randomUUID()
-        const value = await moduleHost.planModuleInstall({ planId, catalogSha256: step.catalogSha256,
-          componentId: step.componentId, versionId: step.release.versionId })
-        requireValue(value?.schema === 'bellteam.host-update.plan.v1' && value.planId === planId
-          && value.catalogSha256 === step.catalogSha256 && isDeepStrictEqual(value.target, step.release)
-          && value.impact?.containerRestart === false && Date.parse(value.expiresAt) > now(), 'UPDATE_HOST_RESPONSE_INVALID')
-        step.installPlan = { planId, expiresAt: value.expiresAt }
-      }
+      if (planning) await planInstall(step)
       requireValue(step.installPlan && Date.parse(step.installPlan.expiresAt) > now(), 'UPDATE_INSTALL_PLAN_EXPIRED', 409)
       return false
     }
@@ -247,7 +254,7 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
     }
   }
   const checkCurrent = entry => {
-    for (const step of entry.steps.filter(step => step.componentId !== 'container')) {
+    for (const step of entry.steps.filter(step => jobKind(step.componentId) === 'module')) {
       requireValue(isDeepStrictEqual(adapters[step.componentId].current(), step.from) && adapters[step.componentId].available()
         && isDeepStrictEqual(adapters[step.componentId].capture?.() ?? null, step.guard), 'UPDATE_CURRENT_CHANGED', 409)
     }
@@ -277,6 +284,18 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
       await save()
     }
   }
+  // Like a Host-completed container step: the worker drives the runtime job; the parent only projects its terminal record.
+  const refreshRuntime = async entry => {
+    const index = entry.jobBindings?.findIndex(binding => binding.kind === 'runtime') ?? -1, progress = entry.steps[index]
+    if (index < 0 || !progress.installIssued || ['completed', 'failed'].includes(entry.operation.phase)) return
+    const job = await moduleHost.job(entry.jobBindings[index].jobId)
+    if (!['ready', 'failed'].includes(job.state)) return
+    Object.assign(progress, job.state === 'ready' ? { phase: 'succeeded', installPhase: 'completed' } : { phase: 'failed', installPhase: 'failed' })
+    if (job.state === 'ready') return finish(entry)
+    Object.assign(entry.operation, { phase: 'failed', execution: 'failed', verification: 'failed',
+      error: { code: safeCode(job.reason), message: '実行部品の更新を完了できませんでした。' } })
+    await save()
+  }
   const work = async entry => {
     const planned = findPlan(entry.operation.plan.planId)
     try {
@@ -290,6 +309,10 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
           const result = await host.start({ planId: planned.hostPlan.planId, requestId: entry.operation.requestId, confirmContainerRestart: true, ...(binding ? { idempotencyKey: binding.idempotencyKey } : {}) })
           requireValue(result.admission === 'accepted', 'UPDATE_ADMISSION_UNCONFIRMED')
           await refreshHost(entry); return
+        }
+        if (binding?.kind === 'runtime') {
+          try { await install(step, progress, binding) } catch (error) { if (!progress.installIssued || error.outcome === 'not_accepted') throw error }
+          await refreshRuntime(entry); return
         }
         const adapter = adapters[step.componentId]
         requireValue(isDeepStrictEqual(adapter.current(), step.from) && isDeepStrictEqual(adapter.capture?.() ?? null, step.guard), 'UPDATE_CURRENT_CHANGED', 409)
@@ -313,7 +336,7 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
     } catch (error) {
       if (entry.jobBindings) {
         for (const [index, binding] of entry.jobBindings.entries()) {
-          if (binding.kind === 'container' && entry.hostIssued || !binding.admitted || entry.steps[index].phase === 'succeeded'
+          if (binding.kind === 'container' && entry.hostIssued || binding.kind === 'runtime' && !runtimeUnissued(entry.steps[index]) || !binding.admitted || entry.steps[index].phase === 'succeeded'
             || entry.steps[index].jobReport?.state === 'ready') continue
           entry.steps[index].jobReport = { state: 'failed', reason: {
             code: error.code === 'UNREADABLE' ? 'UPDATE_MODULE_ABORTED' : safeCode(error), message: '機能の更新を中断しました。' } }
@@ -345,7 +368,7 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
       const step = planned.steps[index]
       const job = binding.kind === 'container' ? await host.admitJob({ planId: planned.hostPlan.planId, ...binding })
         : await moduleHost.admitJob({ jobId: binding.jobId, idempotencyKey: binding.idempotencyKey,
-          kind: 'module', target: { catalogSha256: step.catalogSha256 ?? null, moduleId: step.componentId,
+          kind: binding.kind, target: { catalogSha256: step.catalogSha256 ?? null, moduleId: step.componentId,
             versionId: step.target.origin === 'builtin' ? 'builtin' : step.target.version } })
       validateUpdateResponse('job', { job })
       requireValue(job.jobId === binding.jobId && job.idempotencyKey === binding.idempotencyKey && job.kind === binding.kind
@@ -383,12 +406,32 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
       return exclusive(async () => {
         requireValue(!active && !state.operations.some(hostPending), 'MODULE_EXCHANGE_BUSY', 409)
         const action = input.action ?? 'update'
-        requireValue(action !== 'rollback' || input.scope === 'component' && input.componentId !== 'container', 'UPDATE_ROLLBACK_UNSUPPORTED', 409)
+        requireValue(action !== 'rollback' || input.scope === 'component' && jobKind(input.componentId) === 'module', 'UPDATE_ROLLBACK_UNSUPPORTED', 409)
         if (input.componentId === 'container') {
           requireValue(host, 'UPDATE_EXECUTOR_UNAVAILABLE')
           const plan = await host.plan(input)
           state.plans.push({ plan, hostPlan: plan, steps: plan.targets.map(target => ({ componentId: 'container', target: target.published })) })
           await save(); return copy(plan)
+        }
+        if (jobKind(input.componentId) === 'runtime') {
+          // Never part of an 'all' plan: one runtime target per plan, installed and selected by the updater worker.
+          requireValue(!bodyImageOnly(input.componentId), 'RUNTIME_COHABITATION_UNSUPPORTED', 409)
+          requireValue(moduleHost?.admitJob, 'UPDATE_EXECUTOR_UNAVAILABLE')
+          const from = inventory?.components.find(component => component.id === input.componentId)?.current
+          requireValue(from, 'RUNTIME_BINDING_UNAVAILABLE')
+          const value = await catalog.select(input.componentId)
+          requireValue(value.release && Date.parse(value.expiresAt) > now(), 'PUBLISHED_RELEASE_UNAVAILABLE')
+          requireValue(moduleReleaseCompatible(input.componentId, value.release), 'UPDATE_INCOMPATIBLE', 409)
+          requireValue(!matches(from, published(value.release)), 'UPDATE_ALREADY_CURRENT', 409)
+          const step = { componentId: input.componentId, from, target: published(value.release), release: value.release, catalogSha256: value.catalogSha256 }
+          await planInstall(step)
+          const plan = { planId: randomUUID(), scope: 'component', componentId: input.componentId, action,
+            expiresAt: new Date(Math.min(now() + 10 * 60 * 1000, Date.parse(value.expiresAt), Date.parse(step.installPlan.expiresAt))).toISOString(),
+            targets: [{ componentId: input.componentId, current: from, published: step.target }], compatibility: { compatible: true, reason: null },
+            impact: { containerRestart: false, description: '次回起動から適用します。実行中の席は現在の版を継続し、本体は再起動しません。' }, capability: { supported: true, reason: null } }
+          validateUpdateResponse('plan', { plan })
+          requireValue(!closed && Date.parse(plan.expiresAt) > now(), 'UPDATE_PLAN_EXPIRED', 409)
+          state.plans.push({ plan, steps: [step], hostPlan: null }); await save(); return copy(plan)
         }
         const ids = input.scope === 'all' ? Object.keys(adapters) : [input.componentId]
         requireValue(ids.every(id => adapters[id]), 'UPDATE_EXECUTOR_UNAVAILABLE')
@@ -460,13 +503,13 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
         const release = exchangeMutex.reserve()
         try {
           checkCurrent(planned); await checkPublication(planned)
-          for (const step of planned.steps.filter(step => step.componentId !== 'container')) await prepareStep(step)
+          for (const step of planned.steps.filter(step => jobKind(step.componentId) === 'module')) await prepareStep(step)
           checkCurrent(planned)
           requireValue(!closed && Date.parse(planned.plan.expiresAt) > now(), 'UPDATE_PLAN_EXPIRED', 409)
           let entry = existing
           if (!entry) {
             const bindings = planned.steps.map(step => ({ jobId: step.componentId === 'container' ? input.requestId : randomUUID(),
-              kind: step.componentId === 'container' ? 'container' : 'module', admitted: false,
+              kind: jobKind(step.componentId), admitted: false,
               idempotencyKey: createHash('sha256').update(JSON.stringify([key, step.componentId])).digest('hex') }))
             entry = { idempotencyKey: key, admissionComplete: false, jobBindings: bindings,
               operation: { requestId: input.requestId, plan: copy(planned.plan), admission: 'pending', phase: 'preparing', execution: 'pending', verification: 'pending', error: null, reference: input.requestId },
@@ -487,6 +530,7 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
       return exclusive(async () => {
         const entry = findOperation(id); requireValue(entry, 'UPDATE_OPERATION_NOT_FOUND', 404)
         if (entry.hostIssued && !['completed', 'failed'].includes(entry.operation.phase) && !active && !closed && !fault) await refreshHost(entry)
+        if (!active && !closed && !fault) { try { await refreshRuntime(entry) } catch {} }
         if (entry.steps.some(installPending) && !active && !closed && !fault) {
           // A failed readback must not hide the already durable unknown result.
           try { await refreshInstalls(entry) } catch {}
@@ -497,21 +541,26 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
     async snapshot(inventory) {
       return exclusive(async () => {
         const pendingHost = state.operations.find(hostPending)
-        if (pendingHost && !active && !closed && !fault) { try { await refreshHost(pendingHost); await refreshInstalls(pendingHost) } catch {} }
-        const recent = state.operations.slice(-2).reverse()
+        if (pendingHost && !active && !closed && !fault) { try { await refreshHost(pendingHost); await refreshRuntime(pendingHost); await refreshInstalls(pendingHost) } catch {} }
+        // Runtime rows are present only for a runtime=1 reader; released readers never see a runtime plan or operation.
+        const runtimeShown = inventory.components.some(component => jobKind(component.id) === 'runtime')
+        const visible = plan => runtimeShown || plan.targets.every(target => jobKind(target.componentId) !== 'runtime')
+        const recent = state.operations.filter(entry => visible(entry.operation.plan)).slice(-2).reverse()
         const blockedHost = Boolean(pendingHost)
         if (recent[0]) inventory.operation = await publicJobs(recent[0])
         if (recent[1]) inventory.previousOperation = await publicJobs(recent[1])
-        inventory.plans = state.plans.filter(entry => Date.parse(entry.plan.expiresAt) > now()).slice(-16).map(entry => copy(entry.plan))
+        inventory.plans = state.plans.filter(entry => visible(entry.plan) && Date.parse(entry.plan.expiresAt) > now()).slice(-16).map(entry => copy(entry.plan))
         for (const component of inventory.components) {
           const current = component.comparison.state === 'up_to_date' && component.publication?.check.status === 'verified'
-          if (adapters[component.id] && component.published && (current || component.comparison.state === 'update_available' || component.comparison.state === 'unknown' && adapters[component.id].capture?.()?.generation))
+          const runtime = jobKind(component.id) === 'runtime' && component.availability.available === true && moduleHost?.admitJob
+          if ((adapters[component.id] || runtime) && component.published && (current || component.comparison.state === 'update_available' || component.comparison.state === 'unknown' && adapters[component.id]?.capture?.()?.generation))
             component.capability = { supported: !current && !closed && !fault && !active && !blockedHost,
               reason: closed ? 'UPDATE_EXECUTOR_CLOSED' : fault ?? (active || blockedHost ? 'MODULE_EXCHANGE_BUSY' : current ? 'UPDATE_ALREADY_CURRENT' : null) }
+          if (bodyImageOnly(component.id)) component.capability = { supported: false, reason: 'RUNTIME_COHABITATION_UNSUPPORTED' }
         }
         // Inventory advertises what plan will accept: an unplaced archive needs the Host module installer, so its refusal reason is projected here.
         // shortcut: an archive already placed by an earlier install would still plan without the Host; plan stays the final arbiter.
-        const offered = inventory.components.filter(component => adapters[component.id] && component.capability.supported)
+        const offered = inventory.components.filter(component => (adapters[component.id] || jobKind(component.id) === 'runtime') && component.capability.supported)
         if (offered.length && typeof moduleHost?.moduleInstallCapabilities === 'function') {
           const capability = await moduleHost.moduleInstallCapabilities()
           if (capability?.supported !== true) for (const component of offered) component.capability = { supported: false, reason: installReason(capability) }

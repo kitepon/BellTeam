@@ -315,10 +315,30 @@ touch "$BELLTEAM_INSTALL_DIR/applied"
         with self.assertRaises(module.Failure):
             self.updater.admit_job({'jobId':str(uuid.uuid4()),'idempotencyKey':'k','kind':'module','target':{'catalogSha256':self.digest,'moduleId':'runtime-codex','versionId':'f'*64}})
 
+    def test_parent_closes_only_a_runtime_job_the_worker_never_accepted(self):
+        self.runtime_catalog()
+        reason={'code':'UPDATE_PARENT_INTERRUPTED','message':'m'}
+        job=str(uuid.uuid4())
+        self.updater.admit_job({'jobId':job,'idempotencyKey':'k','kind':'runtime','target':{'catalogSha256':self.digest,'moduleId':'runtime-codex','versionId':'f'*64}})
+        self.assertEqual(self.updater.update_job({'jobId':job,'state':'failed','reason':reason})['state'],'failed')
+        plan=self.updater.plan({'planId':str(uuid.uuid4()),'catalogSha256':self.digest,'componentId':'runtime-codex','versionId':'f'*64})
+        request=str(uuid.uuid4())
+        self.updater.start({'requestId':request,'planId':plan['planId'],'confirmContainerRestart':False});self.join()
+        with self.assertRaises(module.Failure):self.updater.update_job({'jobId':request,'state':'failed','reason':reason})
+
+    def test_runtime_aiterm_mcp_is_refused_before_any_staging(self):
+        self.runtime_catalog()
+        with self.assertRaises(module.Failure) as refused:
+            self.updater.plan({'planId':str(uuid.uuid4()),'catalogSha256':self.digest,'componentId':'runtime-aiterm-mcp','versionId':'f'*64})
+        self.assertEqual((refused.exception.code,refused.exception.status),('RUNTIME_COHABITATION_UNSUPPORTED',409))
+
     def test_runtime_rows_need_the_exact_runtime_contract(self):
         self.runtime_catalog(dict(runtimeProtocol=2,nodeMajor=26,libc='glibc'))
         with self.assertRaises(module.Failure):
             self.updater.plan({'planId':str(uuid.uuid4()),'catalogSha256':self.digest,'componentId':'runtime-codex','versionId':'f'*64})
+        module.atomic(self.prefix/'catalog/runtime'/(self.digest+'.json'),{'schema':'bellteam.runtime-catalog.verification.v1'})
+        with self.assertRaises(module.Failure) as error:module.runtime_rows(self.updater,self.digest)
+        self.assertEqual(error.exception.code,'HOST_UPDATE_CATALOG_UNTRUSTED')
 
     def test_lost_runtime_worker_in_swapping_completes_only_if_its_generation_was_committed(self):
         self.runtime_catalog()

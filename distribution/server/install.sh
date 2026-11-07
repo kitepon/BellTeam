@@ -87,6 +87,8 @@ if "$recovery"; then
   export COMPOSE_FILE
 fi
 if "$pull"; then docker compose pull; fi
+# The worker's 1800 s installer budget must still cover the 30 s stop grace and 300 s body start after the drain.
+quiesce_limit=$(( $(date +%s) + 1800 - 330 ))
 docker compose config --format json > "$staging/normal.raw.json"
 # config --images also includes dependency images; select the server from canonical YAML.
 image=$(docker compose -f "$staging/normal.raw.json" config --format yaml | awk '
@@ -407,7 +409,24 @@ if [ -f "$saved/module-installer.json" ]; then
   esac
 fi
 if [ -n "$stopped_container" ]; then
-  docker stop "$stopped_container"
+  if ! "$recovery"; then
+    # One bounded drain request to this exact body; every outcome continues to the already approved stop.
+    quiesce_deadline=$(( $(date +%s) + 300 ))
+    [ "$quiesce_deadline" -le "$quiesce_limit" ] || quiesce_deadline=$quiesce_limit
+    quiesce=unconfirmed
+    # The helper's own deadline bounds a live body; timeout also bounds an exec that never returns (frozen body/daemon).
+    quiesce_wait=$(( quiesce_deadline - $(date +%s) + 5 ))
+    if [ "$quiesce_wait" -gt 5 ] && answer=$(printf '{"requestId":"%s","containerId":"%s","deadline":%s000}\n' "$(basename "$saved")" "$stopped_container" "$quiesce_deadline" \
+      | timeout --kill-after=5 "$quiesce_wait" docker exec -i --user 1001:1001 "$stopped_container" /usr/local/bin/node /app/scripts/body-quiesce-helper.mjs); then
+      case "$answer" in
+        *'"result":"drained"'*) quiesce=drained;;
+        *'"result":"deadline"'*) quiesce=deadline;;
+        *'"result":"unsupported"'*) quiesce=unsupported;;
+      esac
+    fi
+    printf 'quiesce=%s\n' "$quiesce"
+  fi
+  docker stop --time 30 "$stopped_container"
   state=$(docker container inspect --format '{{.State.Running}} {{.State.Restarting}}' "$stopped_container")
   [ "$state" = 'false false' ] || { echo SERVER_STATE_STOP_UNCONFIRMED >&2; exit 1; }
   if ! "$recovery" || [ "$direction" = to-legacy ]; then

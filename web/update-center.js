@@ -2,8 +2,12 @@ const comparisons = { up_to_date: '正式公開版と一致', update_available: 
 const legacyPhases = ['preparing', 'applying', 'reconnecting', 'verifying', 'completed', 'failed', 'unknown']
 const legacyOutcomes = ['pending', 'succeeded', 'failed', 'unknown']
 const jobStates = ['queued', 'downloading', 'verifying', 'swapping', 'ready', 'failed']
+const inventoryPath = '/api/updates?runtime=1'
+const runtimeComponents = ['runtime-aiterm-mcp', 'runtime-codex', 'runtime-claude-code', 'runtime-throughline']
+const isRuntime = id => runtimeComponents.includes(id)
+const runtimeApplicationText = '次回起動から適用。実行中の席は現在の版を継続'
 const reasons = { MODULE_EXCHANGE_BUSY: 'ほかの更新を実行中です。完了後に状態を確認してください。', UPDATE_ALREADY_CURRENT: '正式公開版と一致しているため、更新は不要です。', MODULE_NOT_INDEPENDENT: 'この機能は、まだ個別更新に対応していません。', UPDATE_EXECUTOR_UNAVAILABLE: '更新の実行機構は未接続です。', PUBLISHED_RELEASE_UNAVAILABLE: '正式公開版の情報は未接続です。', PUSH_NOT_CONFIGURED: '端末への通知は設定されていません。', NOTIFICATIONS_UNAVAILABLE: '通知機能を利用できません。', WEB_GATEWAY_UNAVAILABLE: 'Web受付の稼働を確認できません。', AVAILABILITY_UNKNOWN: '利用状態を確認できません。', UPDATE_INCOMPATIBLE: 'この更新先との互換性を確認できません。' }
-const explanation = reason => reasons[reason] ?? '更新に必要な条件を確認できないため、実行できません。'
+const explanation = (reason, runtime = false) => reasons[reason] ?? (runtime ? `更新を実行できません（${reason}）。` : '更新に必要な条件を確認できないため、実行できません。')
 const text = value => typeof value === 'string' && value.length > 0
 const nullableText = value => value === null || text(value)
 const uuid = value => typeof value === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(value)
@@ -23,7 +27,7 @@ const plan = value => value && uuid(value.planId) && ['all', 'component'].includ
   && value.compatibility && typeof value.compatibility.compatible === 'boolean' && nullableText(value.compatibility.reason)
   && value.impact && typeof value.impact.containerRestart === 'boolean' && text(value.impact.description) && capability(value.capability)
 const job = value => value && value.schema === 'bellteam.update-job.v1' && uuid(value.jobId)
-  && ['module', 'container'].includes(value.kind) && value.target && text(value.target.moduleId)
+  && ['module', 'container', 'runtime'].includes(value.kind) && value.target && text(value.target.moduleId)
   && typeof value.updatedAtNs === 'string' && /^(0|[1-9][0-9]*)$/.test(value.updatedAtNs)
   && jobStates.includes(value.state) && (value.state === 'failed'
     ? value.reason && text(value.reason.code) && text(value.reason.message) : value.reason === null)
@@ -57,7 +61,9 @@ export function validUpdateInventory(value) {
     && value.components.every(item => item && text(item.id) && text(item.name) && text(item.description) && version(item.current) && version(item.published)
       && item.comparison && Object.hasOwn(comparisons, item.comparison.state) && nullableText(item.comparison.reason)
       && publication(item.publication) && Array.isArray(item.changes) && item.changes.every(text) && capability(item.capability) && item.availability
-      && [true, false, null].includes(item.availability.available) && nullableText(item.availability.reason))
+      && [true, false, null].includes(item.availability.available) && nullableText(item.availability.reason)
+      && (!isRuntime(item.id) || item.runtimeApplication?.policy === 'next_launch'
+        && (item.runtimeApplication.generationId === null || /^[a-f0-9]{64}$/.test(item.runtimeApplication.generationId))))
     && Array.isArray(value.plans) && value.plans.every(plan) && operation(value.operation) && operation(value.previousOperation)
     && jobs(value.jobs)
     && (value.problems === undefined || Array.isArray(value.problems) && value.problems.every(problem)))
@@ -135,7 +141,8 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
       copy.append(current)
       if (component.id !== 'all') {
         copy.append(element('span', 'update-component-status', comparisonLabel(component)))
-        if (!component.capability.supported) copy.append(element('span', 'update-component-reason', explanation(component.capability.reason)))
+        if (isRuntime(component.id)) copy.append(element('span', 'update-description', runtimeApplicationText))
+        if (!component.capability.supported) copy.append(element('span', 'update-component-reason', explanation(component.capability.reason, isRuntime(component.id))))
       }
       button.append(mark, copy, element('span', 'update-component-arrow', '›'))
       button.addEventListener('click', () => {
@@ -158,7 +165,7 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
   function canPlan(action = 'update') {
     if (!canRequest()) return false
     const component = inventory.components.find(item => item.id === selected)
-    if (action === 'rollback') return selected !== 'all' && selected !== 'container' && component
+    if (action === 'rollback') return selected !== 'all' && selected !== 'container' && !isRuntime(selected) && component
       && component.capability.reason !== 'MODULE_NOT_INDEPENDENT'
     return selected === 'all' ? inventory.components.some(item => item.capability.supported) : component?.capability.supported
   }
@@ -184,6 +191,7 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     detail.append(element('p', 'update-kicker', selected === 'all' ? 'PRODUCT UPDATE' : selected === 'container' ? 'CONTAINER' : 'MODULE UPDATE'))
     detail.append(element('h3', 'update-detail-title', component?.name ?? '製品全体のアップデート'))
     detail.append(element('p', 'update-detail-description', component?.description ?? '各機能の状態を確認し、互換性のある更新計画を選びます。'))
+    if (isRuntime(selected)) detail.append(element('p', 'update-detail-description', runtimeApplicationText))
     const versions = element('div', 'update-versions')
     const multiple = selectedPlan?.targets.length > 1
     for (const [label, value] of [[selectedPlan ? '計画時の稼働版' : '現在稼働', selectedPlan ? multiple ? `${selectedPlan.targets.length}項目の固定対象を下で確認` : versionLabel(selectedPlan.targets[0].current) : component ? versionLabel(component.current) : '一覧で各機能を確認'], [selectedPlan?.action === 'rollback' ? '固定した戻し先' : selectedPlan ? '固定した更新先' : '正式公開版', selectedPlan ? multiple ? '対象と実行順は計画に固定されています' : versionLabel(selectedPlan.targets[0].published) : component?.published ? versionLabel(component.published) : '情報を取得できません']]) {
@@ -260,15 +268,15 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     action.disabled = selectedPlan ? !canExecute() : !canPlan()
     action.addEventListener('click', () => { if (selectedPlan) void execute(); else void requestPlan() })
     let reasonText = '対象版と影響を計画で確認してから、明示的に実行します。'
-    if (component && !component.capability.supported && !selectedPlan) reasonText = explanation(component.capability.reason)
+    if (component && !component.capability.supported && !selectedPlan) reasonText = explanation(component.capability.reason, isRuntime(component.id))
     if (selectedPlan && !selectedPlan.compatibility.compatible) reasonText = '計画の互換性を確認できないため、実行できません。'
-    if (selectedPlan && !selectedPlan.capability.supported) reasonText = explanation(selectedPlan.capability.reason)
+    if (selectedPlan && !selectedPlan.capability.supported) reasonText = explanation(selectedPlan.capability.reason, isRuntime(selectedPlan.componentId))
     if (selectedPlan && Date.parse(selectedPlan.expiresAt) <= Date.now()) reasonText = '計画の有効期限が切れました。計画を再取得してください。'
     if (pending) reasonText = '前の要求の照会用IDを保持しています。新しい更新は、計画の版と影響を確認してから実行します。'
     const reason = element('p', 'update-action-reason', storageFailure || reasonText)
     reason.id = 'update-action-reason'; action.setAttribute('aria-describedby', reason.id)
     detail.append(action, reason)
-    if (selected !== 'all' && selected !== 'container' && component && component.capability.reason !== 'MODULE_NOT_INDEPENDENT') {
+    if (selected !== 'all' && selected !== 'container' && !isRuntime(selected) && component && component.capability.reason !== 'MODULE_NOT_INDEPENDENT') {
       const rollback = element('button', 'update-replan', '戻しの可否を確認')
       rollback.type = 'button'; rollback.disabled = !canPlan('rollback'); rollback.dataset.updateControl = 'rollback'
       rollback.addEventListener('click', () => { void requestPlan('rollback') }); detail.append(rollback)
@@ -387,7 +395,7 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
         const review = element('section', 'update-plan-review')
         review.append(element('h4', '', selectedPlan.action === 'rollback' ? '戻す項目' : '更新する項目'))
         for (const target of selectedPlan.targets) review.append(element('p', '', inventory?.components.find(item => item.id === target.componentId)?.name ?? '選択した項目'))
-        review.append(element('p', '', selectedPlan.impact.containerRestart ? '更新中は会話と処理が一時中断します。再接続後に結果を確認します。' : '本体の再起動はありません。'))
+        review.append(element('p', '', selectedPlan.impact.containerRestart ? '更新中は会話と処理が一時中断します。再接続後に結果を確認します。' : isRuntime(selectedPlan.componentId) ? runtimeApplicationText : '本体の再起動はありません。'))
         product.append(review)
         const check = Array.from(detail.children).find(node => node.className === 'update-restart-confirm')
         if (check) product.append(check)
@@ -530,7 +538,7 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
       } while (entry.again && !disposed)
     })().finally(() => {
       readers.delete(path)
-      loading = readers.has('/api/updates')
+      loading = readers.has(inventoryPath)
       if (!disposed) render()
     })
     return entry.promise
@@ -544,7 +552,7 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     if (eventError) operationReadError = eventError
     else if (!pending) operationReadError = ''
     loading = true; render()
-    const reads = [readLatest('/api/updates', (result, revision) => {
+    const reads = [readLatest(inventoryPath, (result, revision) => {
       inventory = result.status === 'fulfilled' && validUpdateInventory(result.value) ? result.value : null
       if (inventory && revision === eventRevision) recentJobs = inventory.jobs ?? []
       failure = inventory ? '' : result.status === 'fulfilled' ? '更新情報の応答形式を確認できません。' : errorText(result.reason)
