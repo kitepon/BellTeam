@@ -97,7 +97,7 @@ test('Web APIはCloudflare Access認証を必須にし、一覧・会話取得�
   assert.equal(botsResponse.status, 200)
   assert.deepEqual(await botsResponse.json(), { bots: [{
     id: bot.id, displayName: bot.displayName, harness: 'grok', color: 'rose', online: true,
-    name: bot.name, model: '', reasoningEffort: '', fastMode: false, profileText: '', personality: '', speechStyle: '', position: bot.position, role: '', avatarVersion: '',
+    name: bot.name, model: '', reasoningEffort: '', fastMode: false, profileText: '', personality: '', speechStyle: '', position: bot.position, role: '', avatar: '', avatarLarge: '', avatarSource: '', avatarLargeSource: '', avatarVersion: '',
     avatarLargeVersion: '', avatarSourceVersion: '',
     avatarLargeSourceVersion: '', avatarCrop: null, avatarLargeCrop: null,
     currentWork: { state: 'unknown', summary: null, summaryStatus: 'missing', summaryUpdatedAt: null, observedAt: null, source: null },
@@ -827,7 +827,7 @@ test('画像を何枚も持つ発言は、全部のURLと1枚目のURLを渡す'
   assert.equal(item.imageAssets, undefined)
 })
 
-test('Bot lists always omit avatars and keep versioned image routes; room and owner opt-out stays compatible', async (t) => {
+test('Bot lists keep avatar keys empty and keep versioned image routes; room and owner opt-out stays compatible', async (t) => {
   const image = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46])
   const avatar = `data:image/jpeg;base64,${image.toString('base64')}`
   const version = avatarVersion(avatar)
@@ -851,12 +851,12 @@ test('Bot lists always omit avatars and keep versioned image routes; room and ow
 
   assert.match(version, /^[a-f0-9]{16}$/u)
   const full = await get('/api/bots')
-  assert.deepEqual(full.bots.map(bot => [Object.hasOwn(bot, 'avatar'), bot.avatarVersion]), [[false, version], [false, '']])
+  assert.deepEqual(full.bots.map(bot => [bot.avatar, bot.avatarVersion]), [['', version], ['', '']])
   assert.equal((await get('/api/rooms')).rooms[0].avatar, avatar)
   assert.equal((await get('/api/owner')).owner.avatar, avatar)
 
   const light = await get('/api/bots?avatar=omit')
-  assert.deepEqual(light.bots.map(bot => [Object.hasOwn(bot, 'avatar'), bot.avatarVersion]), [[false, version], [false, '']])
+  assert.deepEqual(light.bots.map(bot => [bot.avatar, bot.avatarVersion]), [['', version], ['', '']])
   assert.deepEqual((await get('/api/rooms?avatar=omit')).rooms.map(room => [room.avatar, room.avatarVersion]), [['', version], ['', '']])
   const owner = (await get('/api/owner?avatar=omit')).owner
   assert.deepEqual([owner.name, owner.avatar, owner.avatarVersion], ['利用者', '', version])

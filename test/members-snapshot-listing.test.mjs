@@ -39,13 +39,14 @@ async function listing(f, query = '', sources = async () => []) {
   return response.body.bots
 }
 
-test('HTTP roster always omits avatar bodies and uses one snapshot with all versions and pending', async () => {
+test('HTTP roster keeps required avatar keys empty and uses one snapshot with all versions and pending', async () => {
   for (const query of ['', '?avatar=omit', '?avatar=inline']) {
     const f = fixture(), bots = await listing(f, query)
     assert.deepEqual(f.calls.map(call => call.method), ['profiles.read'])
     assert.doesNotMatch(JSON.stringify(bots), /data:/u)
     for (let i = 0; i < bots.length; i++) for (const field of fields) {
-      assert.equal(Object.hasOwn(bots[i], field), false)
+      assert.equal(Object.hasOwn(bots[i], field), true)
+      assert.equal(bots[i][field], '')
       assert.equal(bots[i][`${field}Version`], f.metadata[i][`${field}Version`])
     }
     assert.equal(bots[0].avatarLargeVersion, bots[0].avatarVersion)
@@ -60,7 +61,8 @@ test('legacy snapshots restore versions without exposing images in either HTTP q
     assert.deepEqual(f.calls.map(call => call.method), ['profiles.read', 'profiles.read', 'profile.read', 'profile.read'])
     assert.doesNotMatch(JSON.stringify(bots), /data:/u)
     for (const field of fields) {
-      assert.equal(Object.hasOwn(bots[0], field), false)
+      assert.equal(Object.hasOwn(bots[0], field), true)
+      assert.equal(bots[0][field], '')
       assert.equal(bots[0][`${field}Version`], avatarVersion(field === 'avatarLarge' ? f.full[0][field] || f.full[0].avatar : f.full[0][field]))
     }
   }

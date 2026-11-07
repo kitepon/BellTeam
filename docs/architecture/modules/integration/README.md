@@ -297,7 +297,7 @@ Owner権限は公開HTTPの既authorize成功後だけ、PATCH ownerとPUT user-
 
 ## members投影の原子的採用（結合候補）
 
-`GET /api/bots` uses the facade's default metadata snapshot and emits four avatar version fields without the four avatar body fields. `?avatar=omit` remains accepted as a no-op; no query enables inline images. A legacy child missing version fields still uses the existing full-profile fallback internally, but HTTP discards its image bodies. The exact list/single-profile contract and body activation boundary are canonical in [members profiles](../members/profiles.md#default-list-snapshot). `clientListingState` still supplies active/pending/absent for the final membership recheck, and authorization keeps fresh `readMember`.
+`GET /api/bots` uses the facade's default metadata snapshot and emits four avatar version fields and all four avatar keys as empty strings for required-string client decoders; image bodies are never sent. `?avatar=omit` remains accepted as a no-op; no query enables inline images. A legacy child missing version fields still uses the existing full-profile fallback internally, but HTTP discards its image bodies. The exact list/single-profile contract and body activation boundary are canonical in [members profiles](../members/profiles.md#default-list-snapshot). `clientListingState` still supplies active/pending/absent for the final membership recheck, and authorization keeps fresh `readMember`.
 
 ```mermaid
 flowchart LR
