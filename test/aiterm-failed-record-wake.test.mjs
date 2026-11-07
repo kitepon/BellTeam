@@ -19,7 +19,9 @@ function seatClient(reason, state, { notReadySends = 0 } = {}) {
   const client = { call: (name, args) => classifier.call(name, args) }
   classifier.client = { async callTool({ name, arguments: args }) {
     calls.push([name, args])
-    if (name === 'pty_send' && calls.filter(([tool]) => tool === 'pty_send').length <= notReadySends)
+    if (name === 'pty_send' && reason === 'agent_failed' && state !== 'busy' && !calls.some(([tool]) => tool === 'agent_launch'))
+      return { isError: true, content: [{ type: 'text', text: notReady }] }
+    if (name === 'pty_send' && calls.slice(calls.findIndex(([tool]) => tool === 'agent_launch') + 1).filter(([tool]) => tool === 'pty_send').length <= notReadySends)
       return { isError: true, content: [{ type: 'text', text: notReady }] }
     if (name === 'pty_observe') return { structuredContent: observation(reason, state) }
     if (name === 'pty_list') return { content: [{ type: 'text', text: 'bot-a\tcodex' }] }
@@ -46,11 +48,11 @@ test('復帰に失敗した記録の席は、設定を当てずに記録ごと�
 
   await transport.turn(bot, '再現用の本文')
 
-  assert.deepEqual(calls.map(([name]) => name), ['pty_observe', 'pty_close', 'agent_launch', 'pty_send', 'pty_read'])
-  assert.deepEqual(calls[1][1], { session_id: 'bot-a' })
+  assert.deepEqual(calls.map(([name]) => name), ['pty_send', 'pty_observe', 'pty_close', 'agent_launch', 'pty_send', 'pty_read'])
+  assert.deepEqual(calls[2][1], { session_id: 'bot-a' })
   assert.deepEqual(calls.filter(([name]) => name === 'pty_send').map(([, args]) => args),
-    [{ session_id: 'bot-a', text: '再現用の本文', require_agent: true }])
-  assert.equal(written.filter(text => text.includes('resume record failed')).length, 1)
+    Array(2).fill({ session_id: 'bot-a', text: '再現用の本文', require_agent: true }))
+  assert.equal(written.filter(text => text.includes('agent registration unavailable')).length, 1)
 })
 
 for (const [label, reason, state] of [['休止して再開待ちの席', 'idle_timeout'], ['失敗記録でも動くターンが観測される席', 'agent_failed', 'busy']]) test(`${label}は閉じず、従来どおりそのまま送る`, async t => {
@@ -77,7 +79,7 @@ test('起こした直後の席が入力受付の確認に通らなかった時�
 
   await transport.turn(bot, '再現用の本文')
 
-  assert.deepEqual(calls.map(([name]) => name), ['pty_observe', 'pty_close', 'agent_launch', 'pty_send', 'pty_send', 'pty_send', 'pty_read'])
+  assert.deepEqual(calls.map(([name]) => name), ['pty_send', 'pty_observe', 'pty_close', 'agent_launch', 'pty_send', 'pty_send', 'pty_send', 'pty_read'])
   assert.equal(new Set(calls.filter(([name]) => name === 'pty_send').map(([, args]) => JSON.stringify(args))).size, 1)
   assert.equal(written.filter(text => text.includes('woken seat not ready')).length, 2)
 })
@@ -92,7 +94,7 @@ test('起こした席でも上限まで断られたら、起こし直さずそ�
 
   await assert.rejects(transport.turn(bot, '再現用の本文'), error => error.code === 'BOT_INPUT_NOT_READY')
 
-  assert.equal(calls.filter(([name]) => name === 'pty_send').length, 3)
+  assert.equal(calls.filter(([name]) => name === 'pty_send').length, 4)
   assert.equal(calls.filter(([name]) => name === 'agent_launch').length, 1)
 })
 

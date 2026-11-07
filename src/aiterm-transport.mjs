@@ -1,7 +1,7 @@
 import { CurrentWork } from './current-work.mjs'
 import { randomUUID } from 'node:crypto'
 import { MembersAdmission } from './members-admission.mjs'
-import { configurationDigest, configurationSettings, configurationError } from './configuration-request.mjs'
+import { configurationError } from './configuration-request.mjs'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -329,17 +329,22 @@ export class AitermTransport {
     if (configurationNeedsRestart(current, next, options.reapply))
       return this.activity.configurationChanges.track(current.id, this.reconfigureNow(current, next, options))
     const version = this.captureStopVersion(current)
+    const turns = this.activity.of(current.id)
+    let applying
+    const apply = () => applying ??= Promise.resolve().then(() => {
+      this.requireStopVersion(current.id, version)
+      return this.reconfigureNow(current, next, options, false)
+    })
     const pending = (async () => {
-      await this.idle(current.id)
-      const run = () => {
-        this.requireStopVersion(current.id, version)
-        return this.reconfigureNow(current, next, options, false)
-      }
-      const applying = (this.activity.dispatches.get(current.id) ?? Promise.resolve()).then(run)
-      this.activity.dispatches.track(current.id, applying.then(() => {}, () => {}))
-      return applying
+      await Promise.all(turns.map(turn => (turn.nativeCompletion ?? turn.completion).catch(() => {})))
+      pending.boundaryReady = true
+      const ordered = (this.activity.dispatches.get(current.id) ?? Promise.resolve()).then(apply)
+      this.activity.dispatches.track(current.id, ordered.then(() => {}, () => {}))
+      return ordered
     })()
     pending.deferredSettings = true
+    pending.atBoundary = () => pending.boundaryReady || turns.every(turn => turn.nativeTerminal)
+    pending.applyAtBoundary = apply
     return this.activity.configurationChanges.track(current.id, pending)
   }
 
@@ -691,7 +696,7 @@ export class AitermTransport {
         const tracking = this.followAcceptedDelivery(job, delivery)
         const { steered, follower } = tracking
         followed = tracking.followed
-        if (conversationDelivery && followed) {
+        if (followed) {
           job.nativeCompletion = this.waitUntilDone(delivery.receipt, job.controller.signal).then(async native => {
             job.nativeTerminal = true
             await job.finishExecution('completion')
@@ -702,9 +707,12 @@ export class AitermTransport {
             if (!job.nativeTerminal) job.nativeUnconfirmed = error
             throw error
           })
-          this.conversationAdmission.trackNativeContinuation(conversationDelivery, delivery.receipt, job.nativeCompletion, delivery.session)
-          if (job.nativeClosure)
-            this.conversationAdmission.confirmNativeClosure(conversationDelivery, delivery.receipt, { structuredContent: job.nativeClosure })
+          job.nativeCompletion.catch(() => {})
+          if (conversationDelivery) {
+            this.conversationAdmission.trackNativeContinuation(conversationDelivery, delivery.receipt, job.nativeCompletion, delivery.session)
+            if (job.nativeClosure)
+              this.conversationAdmission.confirmNativeClosure(conversationDelivery, delivery.receipt, { structuredContent: job.nativeClosure })
+          }
         }
         await job.applyStopResult(job.executionStopResult)
         await job.checkpoint()
@@ -1076,7 +1084,15 @@ export class AitermTransport {
   // Aitermは両方を新しいターンとして入力受付を待たせ、後の方を「未解決のturnがある」と断る（Aiterm 0.52.0）。
   // 受け付けた後なら、次の文は実行中のターンへの差し込みになる。
   dispatchInOrder(bot, message, images, options) {
-    const run = () => { options?.check?.(); return this.dispatch(bot, message, images, options) }
+    const run = async () => {
+      options?.check?.()
+      const configuration = this.activity.configurationChanges.get(bot.id)
+      // A ready configuration may be queued behind this slot; apply it here, never wait on ourselves.
+      if (configuration?.deferredSettings && configuration.atBoundary?.())
+        await configuration.applyAtBoundary().catch(() => {})
+      options?.check?.()
+      return this.dispatch(bot, message, images, options)
+    }
     const delivery = (this.activity.dispatches.get(bot.id) ?? Promise.resolve()).then(run)
     this.activity.dispatches.track(bot.id, delivery.then(() => {}, () => {}))
     return delivery
@@ -1089,38 +1105,23 @@ export class AitermTransport {
     } catch { /* Diagnostic failure never changes admission. */ }
   }
 
-  async prepareDesiredConfiguration(bot, check, job) {
-    if (job) job.deliveryStage = 'BOT_OBSERVATION_FAILED'
-    const observed = await this.observe(bot)
+  async observeForDispatch(bot, check) {
+    let observed
+    try { observed = await this.observe(bot) }
+    catch { check(); return null }
     check()
     if (observed?.schema !== 'aiterm.pty-observe-result.v1' || observed.session_id !== this.session(bot)
       || typeof observed.exists !== 'boolean' || (observed.exists ? !/^[a-f0-9]{32}$/u.test(observed.launch_id ?? '') : observed.launch_id !== null))
-      throw Object.assign(new Error('BOT_OBSERVATION_FAILED'), { code: 'BOT_OBSERVATION_FAILED' })
-    if (!observed.exists || (observed.reason === 'agent_failed' && observed.state === 'unknown') || this.activity.configurationChanges.get(bot.id)?.deferredSettings) return observed
-    const desired = configurationSettings({ model: bot.model, reasoning_effort: bot.reasoningEffort, fast: bot.fastMode === true })
-    const last = this.configurationRequests?.view(bot.id)
-    if (last?.receipt_persisted && last.binding.session_id === observed.session_id && last.binding.launch_id === observed.launch_id
-      && last.binding.digest === configurationDigest(desired) && last.receipt?.request_state === 'terminal' && last.receipt.outcome === 'applied') return observed
-    if (job) job.deliveryStage = 'BOT_CONFIGURATION_FAILED'
-    try {
-      if (this.configurationRequests) {
-        await this.applyConfigurationRequest(bot, { session_id: observed.session_id, ...desired }, this.captureStopVersion(bot), undefined, observed.launch_id)
-      } else await this.changeSession(bot, 'agent_configure', { session_id: observed.session_id,
-        ...Object.fromEntries(Object.entries(desired).filter(([, value]) => value !== null)) })
-    } catch (error) {
-      check()
-      if (['not_started', 'not_issued'].includes(error?.effect) && !String(error?.code).includes('UNCONFIRMED')) throw error
-      await this.recordDeliveryFailure(bot.id, job?.info.groupId ?? job?.id, 'BOT_CONFIGURATION_FAILED')
-    }
-    check()
+      return null
     return observed
   }
 
   async dispatch(bot, message, images, { setupTest = false, check: checkAdmission = () => {}, executionJob, membersLease } = {}) {
     const check = checkAdmission
     bot = this.resolveBot?.(bot.id) ?? bot
-    const observed = await this.prepareDesiredConfiguration(bot, check, executionJob)
     if (this.executionBridge) {
+      const observed = await this.observeForDispatch(bot, check)
+      if (!observed) throw Object.assign(new Error('BOT_OBSERVATION_FAILED'), { code: 'BOT_OBSERVATION_FAILED' })
       if (!executionJob.execution) await reserveExecution(this.seat, executionJob, observed)
       if (executionJob) executionJob.deliveryStage = observed.exists ? 'BOT_SEND_FAILED' : 'BOT_LAUNCH_FAILED'
       const delivery = await dispatchExecution(this.seat, executionJob, bot, message, images, { setupTest, check, membersLease })
@@ -1131,46 +1132,29 @@ export class AitermTransport {
     try {
       check()
       let session = this.session(bot)
-      // Aiterm 0.63.xは復帰に失敗した席の記録を残し、観測はexists=true/reason=agent_failedになる。その席への送信は
-      // 休止・復帰中として断られ続け、「席が在る」と見て起こさない分岐では二度と届かない（2026-11-07、23席）。
-      // Aitermの復帰は失敗で終わっているので、死んだ記録として閉じ、起こし直してから同じ文を送る。休止・復帰中・不明は起こさない。
-      // 閉じるのは、Aitermがその席を入力を受けない記録として観測している時だけ（state=unknown、動いているターンや子配送の観測なし）。
-      const failedRecord = observed.exists && observed.reason === 'agent_failed' && observed.state === 'unknown'
-        && !(observed.pending_child_deliveries > 0)
-      let woken = false
-      if (!observed.exists || failedRecord) {
-        if (executionJob) executionJob.deliveryStage = 'BOT_LAUNCH_FAILED'
-        woken = true
-        session = failedRecord
-          ? await this.memberOperation(bot, async lease => {
-            process.stderr.write(`BellTeam Aiterm agent resume record failed, restarting: ${bot.id}\n`)
-            await this.changeSession(bot, 'pty_close', { session_id: session })
-            await this.removeRetainedImages(bot.id)
-            check()
-            return this.wake(bot, { setupTest, membersLease: lease })
-          }, { membersLease })
-          : await this.wake(bot, { setupTest, membersLease })
-        check()
-      }
       let result
       try {
         if (executionJob) executionJob.deliveryStage = 'BOT_SEND_FAILED'
         if (executionJob) executionJob.nativeSession = session
-        result = woken ? await this.sendToWokenSession(bot, session, message, imageFiles, check)
-          : await this.sendToSession(session, message, imageFiles, check)
+        result = await this.sendToSession(session, message, imageFiles, check)
       } catch (error) {
         check()
-        // 入力後の不明や復帰確認の要求は、席が消えて見えても起こし直して再送しない。
-        if (error.code === 'BOT_SEND_OUTCOME_UNKNOWN' || error.agentResumeResult
-          || mcpRequestContext(error)?.outcome === 'unknown') throw error
-        const running = await this.isRunning(bot)
-        check()
-        if (running && error.code !== 'AGENT_SESSION_REQUIRED') throw error
+        // Recover only an explicit pre-input refusal; a missing seat cannot prove an uncertain send was unsent.
+        if (error.code === 'BOT_SEND_OUTCOME_UNKNOWN' || mcpRequestContext(error)?.outcome === 'unknown'
+          || !['AGENT_SESSION_REQUIRED', 'BOT_INPUT_NOT_READY'].includes(error.code)) throw error
+        const observed = await this.observeForDispatch(bot, check)
+        if (!observed) throw error
+        const failedRecord = observed.exists && observed.reason === 'agent_failed' && observed.state === 'unknown'
+          && !(observed.pending_child_deliveries > 0)
+        if (error.agentResumeResult && (!failedRecord || error.agentResumeResult.launch_id !== observed.launch_id)) throw error
+        const running = observed.exists
+        if (running && error.code !== 'AGENT_SESSION_REQUIRED' && !failedRecord) throw error
+        if (executionJob) executionJob.deliveryStage = 'BOT_LAUNCH_FAILED'
         // Aitermは画面が無い席も同じ符号で断る（0.52.0）。画面が残っている時だけが登録の消失。
         // 画面は残り登録だけ消えた席は、起動もできない。閉じてから起こし直し、同じ文を1回だけ送る。
         session = await this.memberOperation(bot, async lease => {
           if (running) {
-            process.stderr.write(`BellTeam Aiterm agent registration lost, restarting: ${bot.id}\n`)
+            process.stderr.write(`BellTeam Aiterm agent registration unavailable, restarting: ${bot.id}\n`)
             await this.changeSession(bot, 'pty_close', { session_id: session })
             await this.removeRetainedImages(bot.id)
           }
