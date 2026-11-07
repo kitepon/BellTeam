@@ -27,7 +27,13 @@ fi
 git push -q origin HEAD:main
 head="$(git rev-parse HEAD)"
 
+# 本番repoのgitは所有者kiteで動かす。rootが書いたref/object/作業ファイルはkiteが更新できず、次のfetchごと止まる（共通規範 SECTION git）。
 # 本番の作業ツリーに手直しがあれば取り込まずに止める（本番のBot台帳config/bots.jsonを含む）。
+if ! ssh "$host" "cd $dir && git fetch -q origin && test -z \"\$(git status --porcelain --untracked-files=no)\""; then
+  echo '本番に未commitの変更があるか、取り込みに失敗した。GitHubへ取り込んでから反映する。' >&2
+  exit 1
+fi
+# root側はgitを読むだけ（控えのsource記録のrev-parse）。safe.directoryは別ユーザー所有repoを読むために要る。
 previous=$(ssh "$host" "cd $dir && sudo -n /usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/root LANG=C.UTF-8 GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0=$dir /bin/sh -s $head" <<'REMOTE'
 set -eu
 umask 077
@@ -36,12 +42,6 @@ trap 'rm -rf "$docker_config"' 0
 DOCKER_HOST=unix:///var/run/docker.sock
 DOCKER_CONFIG=$docker_config
 export DOCKER_HOST DOCKER_CONFIG
-(umask 022; git fetch -q origin)
-if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
-  git status -s --untracked-files=no >&2
-  echo '本番に未commitの変更がある。GitHubへ取り込んでから反映する。' >&2
-  exit 1
-fi
 previous=$(node --input-type=module <<'NODE'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -104,14 +104,12 @@ try {
 }catch{console.error('BELLTEAM_ORIGINAL_CONFIG_UNAVAILABLE',saved??'');process.exitCode=1}
 NODE
 )
-(umask 022; git merge -q --ff-only origin/main >&2)
-test "$(git rev-parse HEAD)" = "$1"
-git log --oneline -1 >&2
 printf '%s\n' "$previous"
 REMOTE
 )
 case "$previous" in "$dir"/.bellteam-compose.*/previous-normal.json) ;; *) echo BELLTEAM_ORIGINAL_CONFIG_UNAVAILABLE >&2; exit 1;; esac
 case "$previous" in *[!a-zA-Z0-9/._-]*) echo BELLTEAM_ORIGINAL_CONFIG_UNAVAILABLE >&2; exit 1;; esac
+ssh "$host" "cd $dir && git merge -q --ff-only origin/main && test \"\$(git rev-parse HEAD)\" = $head && git log --oneline -1 >&2"
 
 # 反映で止まるBotを控える（処理待ち一覧も保存する）。再開の声かけは送らない（オーナー裁定 2026-09-03）。
 if ! busy="$(ssh "$host" "cd $dir && mkdir -p runtime/backups && queue=runtime/backups/queue-before-deploy-\$(date +%Y%m%dT%H%M).json && docker exec bellteam curl -fsS http://127.0.0.1:4181/api/queue > \"\$queue\" && node -e 'const d=JSON.parse(require(\"fs\").readFileSync(process.argv[1],\"utf8\"));console.log([...new Set(d.items.map(i=>i.botId||i.target))].join(\" \"))' \"\$queue\"" 2>/dev/null)"; then
