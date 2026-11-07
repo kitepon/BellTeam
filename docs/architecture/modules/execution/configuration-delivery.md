@@ -13,3 +13,9 @@ Explicit restart/stop retain ordinary stop/member ordering, close/launch mechani
 ## Restart rejection diagnostic caller
 
 Function: cold initialize's existing reconnect rejection → existing SERVER_TURN_TRACKING_FAILED/conversation sink. Closed diagnostic JSON contains stage=restart_resume, fixed RESTART_RESUME_UNAVAILABLE, selected botId/sessionId and only allowlisted exception code; no message/stack/body/config. Existing activity selection/resume-only flag/admission remain unchanged. DFD: consumed actual prior-active reference → same resume caller → rejected promise → supported diagnostics.record → existing retained diagnostic. Recording failure stays best-effort; it never enables replay/fresh launch. This corrects an unregistered diagnostic code/module, not the native killed-working admission contract.
+
+## Deferred settings and active-turn input
+
+Function map: same-harness non-reset reconfigure waits for existing activity outside the input ordering barrier. Its tracked Promise carries `deferredSettings=true`; ordinary submit does not await that Promise. Once activity completes, the actual configuration joins the same per-Bot dispatch acceptance chain as input. Restart/reset/stop operations retain the existing full barrier.
+
+DFD: desired settings → deferred tracked operation → activity completion → per-Bot dispatch chain → bound configuration apply. Original input → registered job → skip deferred-settings barrier → same dispatch chain → presence observation → existing launch input. While that deferred operation exists, a present launch receives input without a duplicate desired-setting apply; absent launch still uses normal desired launch. The chain serializes actual apply against send, including a turn completing while send is in flight. The full configure Promise remains tracked for shutdown/exchange and application completion. No ID replacement, replay, early completion or new public queue projection.
