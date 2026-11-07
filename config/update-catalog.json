@@ -1,12 +1,12 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-06T22:05:02Z",
-  "expiresAt": "2026-11-13T22:05:02Z",
+  "publishedAt": "2026-11-07T13:19:24Z",
+  "expiresAt": "2026-11-14T13:19:24Z",
   "releases": [
     {
       "componentId": "usage",
-      "sourceCommit": "576e21f255284db8041a5ff045f98a874f20fbfc",
-      "versionId": "0e3fccfc016c726714669622484d22d5509612e85bfea405a61b1913463b69bc",
+      "sourceCommit": "69cfac918836cb3f8f73fdce38804d6c0fba6450",
+      "versionId": "e92ff3d2b3285b6f3771cc986abfc4c03a488824fcfa30a29346c8873df925f0",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -14,16 +14,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T043439Z/usage-576e21f255284db8041a5ff045f98a874f20fbfc-linux-amd64.tar.gz",
-          "sha256": "0e3fccfc016c726714669622484d22d5509612e85bfea405a61b1913463b69bc",
-          "bytes": 65797
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T131813Z/usage-69cfac918836cb3f8f73fdce38804d6c0fba6450-linux-amd64.tar.gz",
+          "bytes": 65835,
+          "sha256": "e92ff3d2b3285b6f3771cc986abfc4c03a488824fcfa30a29346c8873df925f0"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T043439Z/usage-576e21f255284db8041a5ff045f98a874f20fbfc-linux-amd64.tar.gz.sigstore.json",
-          "sha256": "d743aebf36f2e9823f184dd83ed240c58117828dac3bf437ccd2dda94ca6de72",
-          "bytes": 11003
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T131813Z/usage-69cfac918836cb3f8f73fdce38804d6c0fba6450-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10999,
+          "sha256": "b1b34b897746ad00f7a5a965cff2e738b7b44da0d8f7fb6d6513b18b03eb07b0"
         },
-        "signerCommit": "576e21f255284db8041a5ff045f98a874f20fbfc"
+        "signerCommit": "69cfac918836cb3f8f73fdce38804d6c0fba6450"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -52,8 +52,8 @@
     },
     {
       "componentId": "usage",
-      "sourceCommit": "576e21f255284db8041a5ff045f98a874f20fbfc",
-      "versionId": "5ad95301ca3e66d602e779ffc0deb64da1379beaee1a80177a4c2d0a1972a006",
+      "sourceCommit": "69cfac918836cb3f8f73fdce38804d6c0fba6450",
+      "versionId": "0ff073bfad89120c2b89e9910d76d3e6b1e373e81c84a1686c1df18df9e8badd",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -61,16 +61,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T043439Z/usage-576e21f255284db8041a5ff045f98a874f20fbfc-linux-arm64.tar.gz",
-          "sha256": "5ad95301ca3e66d602e779ffc0deb64da1379beaee1a80177a4c2d0a1972a006",
-          "bytes": 65797
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T131813Z/usage-69cfac918836cb3f8f73fdce38804d6c0fba6450-linux-arm64.tar.gz",
+          "bytes": 65835,
+          "sha256": "0ff073bfad89120c2b89e9910d76d3e6b1e373e81c84a1686c1df18df9e8badd"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T043439Z/usage-576e21f255284db8041a5ff045f98a874f20fbfc-linux-arm64.tar.gz.sigstore.json",
-          "sha256": "6239ccd10d162e8d289d3ddc5b42947939a8fd0c1c666e4ca8410388a67c914b",
-          "bytes": 10952
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T131813Z/usage-69cfac918836cb3f8f73fdce38804d6c0fba6450-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11093,
+          "sha256": "ad974e7af1d126be2523a9578f07ad159bf4d2e9e6c2c80bf3b5626449017a6b"
         },
-        "signerCommit": "576e21f255284db8041a5ff045f98a874f20fbfc"
+        "signerCommit": "69cfac918836cb3f8f73fdce38804d6c0fba6450"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -181,8 +181,8 @@
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "5ee0bb2a62ba6baea01fbcdff3c36a4f2185142f",
-      "versionId": "30b46b57921e8c2c7ed2165c65c0de59c8068d2d8d9541584ead218c3d89187f",
+      "sourceCommit": "69cfac918836cb3f8f73fdce38804d6c0fba6450",
+      "versionId": "a48e36655f72a23172b44828cbd0ae9edbcf2306e9e9a297391612e772056cf4",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -190,16 +190,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T010348Z/conversation-5ee0bb2a62ba6baea01fbcdff3c36a4f2185142f-linux-amd64.tar.gz",
-          "sha256": "30b46b57921e8c2c7ed2165c65c0de59c8068d2d8d9541584ead218c3d89187f",
-          "bytes": 3895009
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T131813Z/conversation-69cfac918836cb3f8f73fdce38804d6c0fba6450-linux-amd64.tar.gz",
+          "bytes": 3897292,
+          "sha256": "a48e36655f72a23172b44828cbd0ae9edbcf2306e9e9a297391612e772056cf4"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T010348Z/conversation-5ee0bb2a62ba6baea01fbcdff3c36a4f2185142f-linux-amd64.tar.gz.sigstore.json",
-          "sha256": "87aee773c17243cd5812d02119909d1aa29d3a57b02cf04227dc8b609d7880d1",
-          "bytes": 11280
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T131813Z/conversation-69cfac918836cb3f8f73fdce38804d6c0fba6450-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11233,
+          "sha256": "65c6c671c81cbbcf38bc18be9a53d380b11c19188a39326e5ccddddb2ff131fd"
         },
-        "signerCommit": "5ee0bb2a62ba6baea01fbcdff3c36a4f2185142f"
+        "signerCommit": "69cfac918836cb3f8f73fdce38804d6c0fba6450"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -235,8 +235,8 @@
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "5ee0bb2a62ba6baea01fbcdff3c36a4f2185142f",
-      "versionId": "f9d8e81714c74966bae1c40115cbde4970cadcbacfcd1aa8ba05aceee38d1bc7",
+      "sourceCommit": "69cfac918836cb3f8f73fdce38804d6c0fba6450",
+      "versionId": "0e90c634260f21d8b2c341230b40f33b7da9dfc3816d3742b2ecd3a97ff4a25b",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -244,16 +244,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T010348Z/conversation-5ee0bb2a62ba6baea01fbcdff3c36a4f2185142f-linux-arm64.tar.gz",
-          "sha256": "f9d8e81714c74966bae1c40115cbde4970cadcbacfcd1aa8ba05aceee38d1bc7",
-          "bytes": 3895010
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T131813Z/conversation-69cfac918836cb3f8f73fdce38804d6c0fba6450-linux-arm64.tar.gz",
+          "bytes": 3897293,
+          "sha256": "0e90c634260f21d8b2c341230b40f33b7da9dfc3816d3742b2ecd3a97ff4a25b"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T010348Z/conversation-5ee0bb2a62ba6baea01fbcdff3c36a4f2185142f-linux-arm64.tar.gz.sigstore.json",
-          "sha256": "95b90b8f279e3b6e347191a8ed61327011e8e989d100bb2c1ca53c14c9d6a4e0",
-          "bytes": 11233
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T131813Z/conversation-69cfac918836cb3f8f73fdce38804d6c0fba6450-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11174,
+          "sha256": "b66c84adccc9bd365afb0e403e50c9656a785d7ee06794e673aae55f8663f3e6"
         },
-        "signerCommit": "5ee0bb2a62ba6baea01fbcdff3c36a4f2185142f"
+        "signerCommit": "69cfac918836cb3f8f73fdce38804d6c0fba6450"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -289,8 +289,8 @@
     },
     {
       "componentId": "notifications",
-      "sourceCommit": "6ad776ab6328154b4e7826834fefec2043c336e5",
-      "versionId": "86beda25b0ffee43ac64afe0dea82eed23e1bedeb60531a96b81a80634a9e96a",
+      "sourceCommit": "69cfac918836cb3f8f73fdce38804d6c0fba6450",
+      "versionId": "bd341b881b6c9f1ce964a6568b39aedd57a9bb58e8658f1d6b779f90ae5b3e87",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -298,16 +298,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T232849Z/notifications-6ad776ab6328154b4e7826834fefec2043c336e5-linux-amd64.tar.gz",
-          "sha256": "86beda25b0ffee43ac64afe0dea82eed23e1bedeb60531a96b81a80634a9e96a",
-          "bytes": 4281326
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T131813Z/notifications-69cfac918836cb3f8f73fdce38804d6c0fba6450-linux-amd64.tar.gz",
+          "bytes": 4300355,
+          "sha256": "bd341b881b6c9f1ce964a6568b39aedd57a9bb58e8658f1d6b779f90ae5b3e87"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T232849Z/notifications-6ad776ab6328154b4e7826834fefec2043c336e5-linux-amd64.tar.gz.sigstore.json",
-          "sha256": "7f0397d00f941b577bd020fd09a954f2692c0d965c1d719d36c8a14d849f60be",
-          "bytes": 11182
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T131813Z/notifications-69cfac918836cb3f8f73fdce38804d6c0fba6450-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11213,
+          "sha256": "2563c50cd1556f0e74cbacd1097dfc1caafe932ff582f320c81e574ed245b949"
         },
-        "signerCommit": "6ad776ab6328154b4e7826834fefec2043c336e5"
+        "signerCommit": "69cfac918836cb3f8f73fdce38804d6c0fba6450"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -321,8 +321,8 @@
     },
     {
       "componentId": "notifications",
-      "sourceCommit": "6ad776ab6328154b4e7826834fefec2043c336e5",
-      "versionId": "17424215e322b4e6e138950df6d07a64173e49cdd89b64d0044d9ed246ade553",
+      "sourceCommit": "69cfac918836cb3f8f73fdce38804d6c0fba6450",
+      "versionId": "39b6d8bc744a96b40c3b8e58a9e48aab34d051dc92e2f77c67fbc68280d540f7",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -330,16 +330,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T232849Z/notifications-6ad776ab6328154b4e7826834fefec2043c336e5-linux-arm64.tar.gz",
-          "sha256": "17424215e322b4e6e138950df6d07a64173e49cdd89b64d0044d9ed246ade553",
-          "bytes": 4281324
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T131813Z/notifications-69cfac918836cb3f8f73fdce38804d6c0fba6450-linux-arm64.tar.gz",
+          "bytes": 4300356,
+          "sha256": "39b6d8bc744a96b40c3b8e58a9e48aab34d051dc92e2f77c67fbc68280d540f7"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T232849Z/notifications-6ad776ab6328154b4e7826834fefec2043c336e5-linux-arm64.tar.gz.sigstore.json",
-          "sha256": "6d7c9bd82528c3bcaf56bf5ff27e3657fa22bac1de7b1de14ab5b7793fd10979",
-          "bytes": 11135
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T131813Z/notifications-69cfac918836cb3f8f73fdce38804d6c0fba6450-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11131,
+          "sha256": "6d83bbf960491fc7001b46b51a963029a9747f5ae0a57266a5c4381599aa8197"
         },
-        "signerCommit": "6ad776ab6328154b4e7826834fefec2043c336e5"
+        "signerCommit": "69cfac918836cb3f8f73fdce38804d6c0fba6450"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -489,8 +489,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "4a884d2e581197611470a27a23e30f631ef597ff",
-      "versionId": "3607aa5f8b1f0c7804ffdcbbc97b6ef0b856f17c379bb68dee80e2dc510449fc",
+      "sourceCommit": "69cfac918836cb3f8f73fdce38804d6c0fba6450",
+      "versionId": "d16b34d849bf61ec20391daab0110a773f8ef7807f956a338a6775c5b8aff271",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -498,16 +498,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T232833Z/execution-4a884d2e581197611470a27a23e30f631ef597ff-linux-amd64.tar.gz",
-          "sha256": "3607aa5f8b1f0c7804ffdcbbc97b6ef0b856f17c379bb68dee80e2dc510449fc",
-          "bytes": 3912320
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T131813Z/execution-69cfac918836cb3f8f73fdce38804d6c0fba6450-linux-amd64.tar.gz",
+          "bytes": 3913952,
+          "sha256": "d16b34d849bf61ec20391daab0110a773f8ef7807f956a338a6775c5b8aff271"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T232833Z/execution-4a884d2e581197611470a27a23e30f631ef597ff-linux-amd64.tar.gz.sigstore.json",
-          "sha256": "81193f6baf0527e248f18ced2641d0aa8e14d653c985576e4a96c20bcf47eb45",
-          "bytes": 11181
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T131813Z/execution-69cfac918836cb3f8f73fdce38804d6c0fba6450-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11114,
+          "sha256": "6adb61ad1d2de00886742d96c7b814c046bda25fd90be7fb4bcbaa1a748787cc"
         },
-        "signerCommit": "4a884d2e581197611470a27a23e30f631ef597ff"
+        "signerCommit": "69cfac918836cb3f8f73fdce38804d6c0fba6450"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -522,8 +522,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "4a884d2e581197611470a27a23e30f631ef597ff",
-      "versionId": "b18b7622628aeed14f8e5151f0e3cc4e527adf326de16081b43be0dc4adde430",
+      "sourceCommit": "69cfac918836cb3f8f73fdce38804d6c0fba6450",
+      "versionId": "e93f8da1ce0076921363f56c9c670c6fd78eed1ade6afd75f85a759e8034143b",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -531,16 +531,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T232833Z/execution-4a884d2e581197611470a27a23e30f631ef597ff-linux-arm64.tar.gz",
-          "sha256": "b18b7622628aeed14f8e5151f0e3cc4e527adf326de16081b43be0dc4adde430",
-          "bytes": 3912318
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T131813Z/execution-69cfac918836cb3f8f73fdce38804d6c0fba6450-linux-arm64.tar.gz",
+          "bytes": 3913952,
+          "sha256": "e93f8da1ce0076921363f56c9c670c6fd78eed1ade6afd75f85a759e8034143b"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261105T232833Z/execution-4a884d2e581197611470a27a23e30f631ef597ff-linux-arm64.tar.gz.sigstore.json",
-          "sha256": "174559c7c52057aa9e7d75cc58e13374b2e30cfa6e202cf509e26cd5e7793ebc",
-          "bytes": 11177
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T131813Z/execution-69cfac918836cb3f8f73fdce38804d6c0fba6450-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11036,
+          "sha256": "1f4bd0fb1b1f32066115d860f017397ab76a90177fa99cc1352a64fe672499bb"
         },
-        "signerCommit": "4a884d2e581197611470a27a23e30f631ef597ff"
+        "signerCommit": "69cfac918836cb3f8f73fdce38804d6c0fba6450"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -555,8 +555,8 @@
     },
     {
       "componentId": "members",
-      "sourceCommit": "13e302cb1489749ca84bc459f33ce7877a3e906b",
-      "versionId": "0c48e598f2b25d77e4fe444dd24faf8d544de3411d7824252ac1876311119813",
+      "sourceCommit": "69cfac918836cb3f8f73fdce38804d6c0fba6450",
+      "versionId": "8e2c5f238025db40011619c011efc8a0b960a3d4f6aa23239d3bfe013b4bb1f5",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -564,16 +564,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "bytes": 4267535,
-          "sha256": "0c48e598f2b25d77e4fe444dd24faf8d544de3411d7824252ac1876311119813",
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T234203Z/members-13e302cb1489749ca84bc459f33ce7877a3e906b-linux-amd64.tar.gz"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T131813Z/members-69cfac918836cb3f8f73fdce38804d6c0fba6450-linux-amd64.tar.gz",
+          "bytes": 4306915,
+          "sha256": "8e2c5f238025db40011619c011efc8a0b960a3d4f6aa23239d3bfe013b4bb1f5"
         },
         "bundle": {
-          "bytes": 10902,
-          "sha256": "e41bfd85232f24c9a91b914ca9f3f853458bcc65f35daab1c73482646ca32e0a",
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T234203Z/members-13e302cb1489749ca84bc459f33ce7877a3e906b-linux-amd64.tar.gz.sigstore.json"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T131813Z/members-69cfac918836cb3f8f73fdce38804d6c0fba6450-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11137,
+          "sha256": "ac805a0fc5d2c880d7969fc39aa675bb04fb1cf3be2c238f30f2b6a35ad15f4e"
         },
-        "signerCommit": "13e302cb1489749ca84bc459f33ce7877a3e906b"
+        "signerCommit": "69cfac918836cb3f8f73fdce38804d6c0fba6450"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -595,8 +595,8 @@
     },
     {
       "componentId": "members",
-      "sourceCommit": "13e302cb1489749ca84bc459f33ce7877a3e906b",
-      "versionId": "098f0bcf0225945231bf54ba9fcba61f69821b027d14903c2dbb72e63d7ebb01",
+      "sourceCommit": "69cfac918836cb3f8f73fdce38804d6c0fba6450",
+      "versionId": "6c26a49adbd4990c1f50bc2f44aa5f338a12d3bd1c040cb87787d1b5d516eca1",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -604,16 +604,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "bytes": 4267539,
-          "sha256": "098f0bcf0225945231bf54ba9fcba61f69821b027d14903c2dbb72e63d7ebb01",
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T234203Z/members-13e302cb1489749ca84bc459f33ce7877a3e906b-linux-arm64.tar.gz"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T131813Z/members-69cfac918836cb3f8f73fdce38804d6c0fba6450-linux-arm64.tar.gz",
+          "bytes": 4306920,
+          "sha256": "6c26a49adbd4990c1f50bc2f44aa5f338a12d3bd1c040cb87787d1b5d516eca1"
         },
         "bundle": {
-          "bytes": 10714,
-          "sha256": "2f51491092e6bc389d35e43d0a294e61073224ee0b9d1be47493e7db8987c391",
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T234203Z/members-13e302cb1489749ca84bc459f33ce7877a3e906b-linux-arm64.tar.gz.sigstore.json"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T131813Z/members-69cfac918836cb3f8f73fdce38804d6c0fba6450-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11137,
+          "sha256": "729f72e67f8254c828aac44506b567329922cc05212806a8dc019c0ab3b1b232"
         },
-        "signerCommit": "13e302cb1489749ca84bc459f33ce7877a3e906b"
+        "signerCommit": "69cfac918836cb3f8f73fdce38804d6c0fba6450"
       },
       "compatibility": {
         "nodeMajor": 26,

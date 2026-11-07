@@ -1,5 +1,11 @@
 # 正式Update catalogの信頼境界
 
+## Z-a3: uniform five-module supply, 2026-11-07
+
+Within the existing formal-input → catalog → fixed-main publisher → runtime acceptance contract, replace only the members/conversation/execution/usage/notifications records for both Linux architectures with formal Release `updates-20261107T131813Z`. All ten records bind archive source and signer to `69cfac918836cb3f8f73fdce38804d6c0fba6450`. Centi's successful dedicated runs are members `42376107569`, conversation `42376110818`, execution `42376114224`, usage `42376117513` and notifications `42376120490`; official signature, native/package checks and anonymous archive/bundle bytes are inherited from the supply owner.
+
+Preserve the other eight records, container target, all compatibility values and revocations; refresh publication time and its seven-day expiry. Molly adopts this supplied catalog through normal main; Centi alone publishes it once from that adopted main and performs separately authorized public-UI activation. This input change adds no API, state owner or failure path. Catalog publication and component activation do not activate PR484's parent-resident image GET repair: its handler and `createConversationAssetReader` require a separately approved body replacement, even with a signed conversation child. No image build/promotion or body replacement is part of this catalog diff.
+
 配布が非実行JSONのschema/固定publisher公式検証/正式発行、runtimeがroot受入と鮮度/失効state、integrationがread-only providerとUpdate APIを持つ。CI候補・単なるarchive署名を一般Updateへ昇格しない。公開発行と本番設置の成立は別の具体原本で確認する。
 
 ```mermaid
