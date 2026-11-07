@@ -283,7 +283,22 @@ touch "$BELLTEAM_INSTALL_DIR/applied"
         release=dict(componentId='runtime-codex',sourceCommit='b'*40,versionId='f'*64,platform=self.config['platform'],changes=[],
           compatibility=compatibility or dict(runtimeProtocol=1,nodeMajor=26,libc='glibc'),
           artifact=dict(kind='archive',archive=dict(url=url,sha256='f'*64,bytes=42),bundle=dict(url=url+'.sigstore.json',sha256='a'*64,bytes=24),signerCommit='c'*40))
-        catalog['releases'].append(release);self.install_catalog(catalog);return release
+        self.install_catalog(catalog)
+        runtime={'schema':'bellteam.runtime-catalog.v1','catalogSha256':self.digest,'releases':[release]}
+        raw=json.dumps(runtime).encode()
+        receipt={'schema':'bellteam.runtime-catalog.verification.v1','runtimeCatalogSha256':hashlib.sha256(raw).hexdigest(),'runtimeCatalog':runtime,
+         'verification':{'method':'github-oidc-attestation','repositoryId':'1404510084','sourceCommit':'f'*40,'signerCommit':'f'*40,
+          'signerWorkflow':'kitepon/BellTeam/.github/workflows/publish-update-catalog.yml'}}
+        module.accept_runtime_catalog(self.updater,raw,receipt,self.digest);return release
+
+    def test_runtime_catalog_is_bound_to_its_main_catalog_and_released_readers_never_see_runtime_rows(self):
+        release=self.runtime_catalog()
+        self.assertNotIn('runtime-codex',[row['componentId'] for row in self.updater.catalog(self.digest)['releases']])
+        self.assertEqual(self.updater.dispatch(dict(operation='catalog',params=dict(componentId='runtime-codex')))['release'],release)
+        raw=json.dumps({'schema':'bellteam.runtime-catalog.v1','catalogSha256':'0'*64,'releases':[]}).encode()
+        with self.assertRaises(module.Failure):
+            module.accept_runtime_catalog(self.updater,raw,{'schema':'bellteam.runtime-catalog.verification.v1','runtimeCatalogSha256':hashlib.sha256(raw).hexdigest(),
+              'runtimeCatalog':json.loads(raw),'verification':{}},self.digest)
 
     def test_runtime_job_is_restart_free_and_ready_after_its_own_commit(self):
         release=self.runtime_catalog()

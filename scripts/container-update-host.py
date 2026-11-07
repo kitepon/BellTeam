@@ -408,7 +408,8 @@ class HostUpdater:
     def module_target(self, catalog_id, component, version):
         check(type(component) is str and component in MODULES | RUNTIMES)
         digest(version)
-        found = [row for row in self.catalog(catalog_id)['releases'] if row.get('componentId') == component
+        rows = self.catalog(catalog_id)['releases'] if component in MODULES else runtime_rows(self, catalog_id)
+        found = [row for row in rows if row.get('componentId') == component
                  and row.get('versionId') == version and row.get('platform') == self.config['platform']]
         check(len(found) == 1, 'HOST_MODULE_TARGET_UNAVAILABLE')
         value = found[0]
@@ -673,7 +674,8 @@ class HostUpdater:
                   and params['componentId'] in MODULES | RUNTIMES | {'container'})
             pointer = read_json(self.prefix / 'catalog/state.json', self.uid, CATALOG_LIMIT)
             catalog = self.catalog(pointer['catalogSha256'])
-            selected = [row for row in catalog['releases'] if row['componentId'] == params['componentId'] and row['platform'] == self.config['platform']]
+            rows = runtime_rows(self, pointer['catalogSha256']) if params['componentId'] in RUNTIMES else catalog['releases']
+            selected = [row for row in rows if row['componentId'] == params['componentId'] and row['platform'] == self.config['platform']]
             check(len(selected) <= 1, 'HOST_UPDATE_CATALOG_UNTRUSTED')
             return {'schema':'bellteam.update-catalog.selection.v1','catalogSha256':pointer['catalogSha256'],
                     'publishedAt':catalog['publishedAt'],'expiresAt':catalog['expiresAt'],'release':selected[0] if selected else None,
@@ -1169,7 +1171,7 @@ def accept_catalog(updater, raw, receipt):
         atomic(state_path, state, CATALOG_LIMIT)
         return identifier
 
-def verify_and_install_catalog(updater, catalog_path, bundle_path, expectation=None):
+def verify_and_install_catalog(updater, catalog_path, bundle_path, expectation=None, *, runtime_for=None):
     release = updater.code_root
     verifier = release / 'scripts/verify-update-catalog.py'; trusted(verifier, updater.uid)
     if expectation:
@@ -1195,10 +1197,32 @@ def verify_and_install_catalog(updater, catalog_path, bundle_path, expectation=N
         if expectation:
             target = Path(staging) / 'expectation.json'; atomic(target, expected)
             args += [str(paths[0]), str(paths[1]), str(target)]
-        else: args += ['--publisher', str(paths[0]), str(paths[1])]
+        else: args += ['--publisher', *(['--runtime'] if runtime_for else []), str(paths[0]), str(paths[1])]
         output = updater.command(args, timeout=120)
         check(len(output) <= 4 * CATALOG_LIMIT, 'HOST_UPDATE_CATALOG_RECEIPT_LIMIT')
+        if runtime_for: return accept_runtime_catalog(updater, paths[0].read_bytes(), decode(output), runtime_for)
         return accept_catalog(updater, paths[0].read_bytes(), decode(output))
+
+def accept_runtime_catalog(updater, raw, receipt, catalog_id):
+    # Z-b2: runtime rows ride a separate signed asset bound to one accepted main catalog, so released readers never see them.
+    check(exact(receipt, 'schema,runtimeCatalogSha256,runtimeCatalog,verification')
+          and receipt['schema'] == 'bellteam.runtime-catalog.verification.v1'
+          and receipt['runtimeCatalogSha256'] == hashlib.sha256(raw).hexdigest() and receipt['runtimeCatalog'] == decode(raw)
+          and receipt['runtimeCatalog'].get('catalogSha256') == catalog_id
+          and valid_catalog_verification(receipt['verification']), 'HOST_UPDATE_CATALOG_UNTRUSTED')
+    store = updater.prefix / 'catalog' / 'runtime'
+    store.mkdir(mode=0o755, exist_ok=True); trusted(store, updater.uid, directory=True)
+    atomic(store / (catalog_id + '.json'), receipt, CATALOG_LIMIT)
+    return catalog_id
+
+def runtime_rows(updater, catalog_id):
+    path = updater.prefix / 'catalog' / 'runtime' / (catalog_id + '.json')
+    if not path.exists(): return []
+    receipt = read_json(path, updater.uid, CATALOG_LIMIT)
+    check(receipt.get('schema') == 'bellteam.runtime-catalog.verification.v1'
+          and receipt['runtimeCatalog']['catalogSha256'] == catalog_id and valid_catalog_verification(receipt['verification']),
+          'HOST_UPDATE_CATALOG_UNTRUSTED')
+    return receipt['runtimeCatalog']['releases']
 
 def _refresh_catalog(updater):
     import urllib.request
@@ -1221,7 +1245,15 @@ def _refresh_catalog(updater):
         for name, limit in [('catalog.json', CATALOG_LIMIT), ('catalog.json.sigstore.json', 16 * CATALOG_LIMIT)]:
             raw = fetch('https://github.com/kitepon/BellTeam/releases/download/' + tag + '/' + name, limit)
             (Path(staging) / name).write_bytes(raw)
-        return verify_and_install_catalog(updater, Path(staging)/'catalog.json', Path(staging)/'catalog.json.sigstore.json')
+        identifier = verify_and_install_catalog(updater, Path(staging)/'catalog.json', Path(staging)/'catalog.json.sigstore.json')
+        try:
+            for name, limit in [('runtime-catalog.json', CATALOG_LIMIT), ('runtime-catalog.json.sigstore.json', 16 * CATALOG_LIMIT)]:
+                raw = fetch('https://github.com/kitepon/BellTeam/releases/download/' + tag + '/' + name, limit)
+                (Path(staging) / name).write_bytes(raw)
+            verify_and_install_catalog(updater, Path(staging)/'runtime-catalog.json', Path(staging)/'runtime-catalog.json.sigstore.json', runtime_for=identifier)
+        except Exception:
+            pass # Optional asset: absent or invalid leaves runtime targets unavailable; the accepted main catalog stands.
+        return identifier
 REFRESH_LOCK = threading.Lock() # Serializes the background thread and on-demand checks so two catalog installs never overwrite each other.
 def refresh_catalog(updater):
     path = updater.prefix/'catalog/refresh.json'

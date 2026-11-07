@@ -103,7 +103,8 @@ A new update is a new job. A previous generation is never re-selected by a plan;
 
 | Item | Contract |
 | --- | --- |
-| Catalog row | `componentId` in the four IDs; `versionId` = archive SHA-256; `artifact` = the module archive shape (`archive`/`bundle` URL `…/updates-<stamp>/<componentId>-<sourceCommit>-linux-<arch>.tar.gz` + `.sigstore.json`, `signerCommit`); `compatibility` exactly `{runtimeProtocol:1,nodeMajor:26,libc:"glibc"}`. Checked by `update_catalog.validate_catalog` and `HostUpdater.module_target`. |
+| Runtime catalog | Separate asset `runtime-catalog.json` + `runtime-catalog.json.sigstore.json` in the same `updates-<stamp>` release, signed by the same `publish-update-catalog.yml` publisher: `{schema:"bellteam.runtime-catalog.v1",catalogSha256:<main catalog.json sha>,releases:[row…]}` (≤16 rows). The main `catalog.json` never carries runtime rows, so released installers read it unchanged. Checked by `update_catalog.validate_runtime_catalog`, `verify-update-catalog.py --runtime`, `accept_runtime_catalog` (must name the just-accepted main catalog) and stored at `catalog/runtime/<catalogSha>.json`. Freshness and revocation are the main catalog's. Absent or invalid → runtime targets unavailable; the main refresh still succeeds. |
+| Runtime row | `componentId` in the four IDs; `versionId` = archive SHA-256; `artifact` = the module archive shape (`archive`/`bundle` URL `…/updates-<stamp>/<componentId>-<sourceCommit>-linux-<arch>.tar.gz` + `.sigstore.json`, `signerCommit`); `compatibility` exactly `{runtimeProtocol:1,nodeMajor:26,libc:"glibc"}`. |
 | Archive | tar.gz; first member `manifest.json` `{schema:"bellteam.runtime.artifact.v1",component,package,upstreamVersion,sourceCommit,platform:{os,arch,libc,nodeMajor},files:[{path,type:"file",bytes,sha256,mode:292\|365}\|{path,type:"symlink",target}]}`, then `prefix/…` (npm global prefix). Links are relative leaves inside `prefix/`. |
 | Signature | `scripts/verify-runtime.py` + `config/runtime-verification.json`: `gh attestation verify` bound to `.github/workflows/publish-runtime.yml` on `refs/heads/main`, source and signer digests from the row. |
 | Job | `kind:"runtime"`, `target.moduleId` = componentId, pointer `state/runtime-current.json`; any non-terminal container/module/runtime operation refuses a new start (`HOST_UPDATE_IN_PROGRESS`), and the termination bridge refuses a body swap while one is running (`HOST_UPDATE_BUSY`). Plan impact `containerRestart:false`. |
@@ -111,7 +112,7 @@ A new update is a new job. A previous generation is never re-selected by a plan;
 | Volume | `<project>-runtime-code`, added by `module-update-compose.mjs`: body read-only at `RUNTIME_ROOT`, module-installer read-write at the same path, never in the termination helper. |
 | Body contract | `update-center-contract.mjs` job kind accepts `runtime`. Web/app readers accept it only with slice D; until then no UI path plans a runtime target. |
 
-**Supply order (protects every installation's catalog acceptance):** installers older than the enabling image reject a whole catalog that contains an unknown componentId. Publish runtime rows only in catalogs issued after the enabling body swap; the enabling container row goes in a catalog without runtime rows.
+**Released installers are unaffected by construction:** they read only `catalog.json`, which keeps its closed component set. Old installers never fetch `runtime-catalog.json`, so they can still plan the container row that brings the enabling image; no publication order is required.
 
 ## Delivery slices
 
