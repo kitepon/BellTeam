@@ -7,7 +7,7 @@ import { runtimeEnvironment, runtimeHome } from './runtime-home.mjs'
 import { defaultCallBridgeMcpUrl } from './distribution-profile.mjs'
 import { BELLTEAM_MCP_PATH, CALL_BRIDGE_MCP_PATH, SEAT_HEADER, SEAT_VARIABLE, LAUNCH_HEADER, LAUNCH_VARIABLE } from './seat-mcp.mjs'
 import { configureRtk } from './rtk-hooks.mjs'
-import { aitermRegistration, aitermRelay, configureAitermHooks, AITERM_ADAPTER_DIST, RUNTIME_EXEC } from './aiterm-hooks.mjs'
+import { aitermRegistration, aitermRelay, configureAitermHooks } from './aiterm-hooks.mjs'
 import { configureCursorInstructions } from './cursor-instructions.mjs'
 import { writeAtomic } from './json-file.mjs'
 import { fixedResumeBase } from './resume-policy.mjs'
@@ -139,10 +139,8 @@ function relayedAiterm(relay, server, harness, home) {
   const native = server.args.includes('--execution-interrupt')
   // Native MCP uses the same lazy relay, but not its old static-profile worker
   // or 18-tool cache. Once invoked it stays connected for the session lifetime.
-  const wakeEntry = server.args[0] === RUNTIME_EXEC ? join(AITERM_ADAPTER_DIST, 'delivery-wake-cli.js')
-    : join(dirname(server.args[0]), 'delivery-wake-cli.js')
   const wake = !native && AITERM_WAKE_PARENTS.includes(harness)
-    ? { MCP_LAZY_WAKE_COMMAND: JSON.stringify([server.command, wakeEntry, '--parent', harness]), MCP_LAZY_WAKE_INTERVAL: '30s' }
+    ? { MCP_LAZY_WAKE_COMMAND: JSON.stringify([server.command, join(dirname(server.args[0]), 'delivery-wake-cli.js'), '--parent', harness]), MCP_LAZY_WAKE_INTERVAL: '30s' }
     : {}
   return {
     command: relay,
