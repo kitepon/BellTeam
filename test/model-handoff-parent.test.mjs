@@ -18,6 +18,7 @@ import { OwnerProfile } from '../src/owner-profile.mjs'
 import { UserRules } from '../src/user-rules.mjs'
 import { SEAT_HEADER, LAUNCH_HEADER } from '../src/seat-mcp.mjs'
 import { createSyntheticNotificationsProcess } from './helpers/notifications-process.mjs'
+import { AitermGenerationClient } from '../src/aiterm-generation-client.mjs'
 
 test('original parent MCP keeps per-call context/meta and anchor actor/actual completion on the same graph', { timeout: 15000 }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'handoff-parent-'))
@@ -56,7 +57,8 @@ test('original parent MCP keeps per-call context/meta and anchor actor/actual co
       createNotificationsProcess: createSyntheticNotificationsProcess,
       loadExecutionFactory: createExecutionFactoryLoader({ builtinIdentity: async () => 'f'.repeat(40), importFactory: async () => engine }),
       createExecutionAssembly: options => {
-        assert.equal(options.ports.native, client)
+        // The native port is the generation facade; its single current generation is the original client.
+        assert.ok(options.ports.native instanceof AitermGenerationClient); assert.equal(options.ports.native.current.client, client)
         options.ports.configurationStorage.ownerUid = process.getuid()
         readAnchor = options.ports.storage.deliveryAnchor
         return createExecutionAssembly(options)
