@@ -79,7 +79,9 @@ final class UpdateStore: ObservableObject {
         } catch {
             guard sequence == readSequence else { return }
             inventory = nil
-            failure = error is DecodingError ? "更新情報の応答形式を確認できません。" : "更新情報を確認できません。\(error.localizedDescription)"
+            // 詳細には読めない理由（503 UNREADABLEのreason等）をそのまま出す。
+            let detail = if case .httpStatus(let status, let message, _)? = error as? BellAPIError { message ?? "HTTP \(status)" } else { error.localizedDescription }
+            failure = error is DecodingError ? "更新情報の応答形式を確認できません。" : "更新情報を確認できません。\(detail)"
             api.diagnostics.report(error, path: "/api/updates", method: "GET", observation: .read(error, retainedData: false))
         }
         for entry in history where historyResults[entry.requestId]?.isSettled != true {

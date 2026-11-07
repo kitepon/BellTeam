@@ -38,3 +38,9 @@ flowchart TD
 確認済み（ソースと直接試験）：対象の再取得の成功は、自分が立てた赤字だけを消す。失敗した資源を含まない成功では消えない。全件取得が立てた赤字は部分の成功で消えない。
 
 未確認：Owner画面 2026-11-03 22:30 JST の赤字が、その時点の本体の拒否か、残留かは確定していない（当時の本体ログとApple診断の照合はMollyへ依頼）。現物画像は取得できなかった。Mac・iPhone・iPadの実画面。
+
+## 赤字の文言（サーバーの符号を出さない）
+
+会話の上（`AppStore.connectionError`）と下（`ConversationView.errorText`）の赤字は、どちらも`BellAPIError.errorDescription`の文を使う。サーバーが固定の符号だけ（`MEMBERS_NOT_ACCEPTED`のような英大文字・数字・`_`だけの文字列）を返した時は、符号の代わりに`BellAPIError.guidance(status)`の文を出す。503は「BellTeamが一時的に受付を止めています。少し待つと自動で読み直します。」。人向けの文が返った時は「BellTeam: <文>」のまま出す。符号は診断（`http_error_code`）に残る。
+
+赤字が出たり消えたりするのは、サーバーが受付と拒否を交互に返している間の実際の状態をそのまま映しているため。Appleは時間で赤字を引き延ばしたり隠したりしない。拒否の連続はサーバー側（members・conversationの受付）で直す。

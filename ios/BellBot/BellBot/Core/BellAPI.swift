@@ -49,7 +49,19 @@ enum BellAPIError: LocalizedError {
         case .backgroundSendExpired: "背景で送信を確認できる時間が終了しました。送信済みの場合があるため、会話を確認してください。"
         case .server(let message): "BellTeam: \(message)"
         case .httpStatus(423, "AI_GLOBAL_PAUSED", _): "BellTeamは全体停止中です。設定でOFFにしてから操作してください。"
-        case .httpStatus(let status, let message, _): "BellTeam: \(message ?? "HTTP \(status)")"
+        case .httpStatus(let status, let message, _):
+            if let message, message.wholeMatch(of: /[A-Z0-9_]+/) == nil { "BellTeam: \(message)" } else { Self.guidance(status) }
+        }
+    }
+
+    /// サーバーが固定の符号だけを返した時の利用者向けの文。符号そのものは診断に残し、画面には出さない。
+    static func guidance(_ status: Int) -> String {
+        switch status {
+        case 503: "BellTeamが一時的に受付を止めています。少し待つと自動で読み直します。"
+        case 500...: "BellTeamで問題が起きています。時間をおいてもう一度お試しください。"
+        case 404: "対象が見つかりませんでした。"
+        case 409: "状態が変わりました。読み直してからもう一度お試しください。"
+        default: "BellTeamがこの操作を受け付けませんでした。"
         }
     }
 }

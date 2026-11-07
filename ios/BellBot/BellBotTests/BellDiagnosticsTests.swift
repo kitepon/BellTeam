@@ -2,6 +2,16 @@ import XCTest
 @testable import BellBot
 
 final class BellDiagnosticsTests: XCTestCase {
+    func testServerCodesAreNotShownToTheOwner() {
+        XCTAssertEqual(BellAPIError.httpStatus(503, "MEMBERS_NOT_ACCEPTED").errorDescription,
+                       "BellTeamが一時的に受付を止めています。少し待つと自動で読み直します。")
+        XCTAssertEqual(BellAPIError.httpStatus(500, nil).errorDescription, "BellTeamで問題が起きています。時間をおいてもう一度お試しください。")
+        XCTAssertEqual(BellAPIError.httpStatus(503, "メンバーの受付を一時停止しています").errorDescription,
+                       "BellTeam: メンバーの受付を一時停止しています", "人向けの文はそのまま")
+        XCTAssertEqual(BellAPIError.httpStatus(423, "AI_GLOBAL_PAUSED").errorDescription,
+                       "BellTeamは全体停止中です。設定でOFFにしてから操作してください。")
+    }
+
     func testAppStateRevisionChangesOnlyWhenScenePhaseChanges() {
         let diagnostics = BellDiagnostics { _, _, _, _ in }
         let initial = diagnostics.requestAppStateSnapshot()
