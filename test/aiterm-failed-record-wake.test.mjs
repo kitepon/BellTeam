@@ -12,13 +12,19 @@ import { AitermClient, AitermTransport } from '../src/aiterm-transport.mjs'
 const observation = (reason, state = reason === 'agent_failed' ? 'unknown' : 'idle') => ({ schema: 'aiterm.pty-observe-result.v1',
   session_id: 'bot-a', exists: true, harness: 'codex-cli', launch_id: 'a'.repeat(32), state, reason })
 
-function seatClient(reason, state) {
+// 起こした直後の席がAitermの入力受付確認（30秒）に通らなかった時の断り。本文は送られていない。
+const notReady = "aiterm: AGENT_INPUT_NOT_READY: agent session 'bot-a' の Codex TUI が入力受付状態になりません。文字列は送信していません。少し後で pty_read(screen:true) を確認し、TUI が起動済みなら再度 pty_send してください。\nstate=idle reason=composer_ready"
+
+function seatClient(reason, state, { notReadySends = 0 } = {}) {
   const calls = []
   const classifier = new AitermClient()
   const client = { call: (name, args) => classifier.call(name, args) }
   classifier.client = { async callTool({ name, arguments: args }) {
     calls.push([name, args])
+    if (name === 'pty_send' && calls.filter(([tool]) => tool === 'pty_send').length <= notReadySends)
+      return { isError: true, content: [{ type: 'text', text: notReady }] }
     if (name === 'pty_observe') return { structuredContent: observation(reason, state) }
+    if (name === 'pty_list') return { content: [{ type: 'text', text: 'bot-a\tcodex' }] }
     if (name === 'agent_configure') return { structuredContent: { schema: 'aiterm.agent-configure-result.v1', session_id: 'bot-a' } }
     if (name === 'pty_close') return { content: [{ type: 'text', text: 'closed' }] }
     if (name === 'agent_launch') return { structuredContent: { session_id: 'bot-a' } }
@@ -60,4 +66,46 @@ for (const [label, reason, state] of [['休止して再開待ちの席', 'idle_t
 
   assert.equal(calls.some(([name]) => ['pty_close', 'agent_launch'].includes(name)), false)
   assert.deepEqual(calls.filter(([name]) => name === 'pty_send').length, 1)
+})
+
+test('起こした直後の席が入力受付の確認に通らなかった時は、同じ文を送り直す', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-failed-record-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const { client, calls } = seatClient('agent_failed', undefined, { notReadySends: 2 })
+  const transport = new AitermTransport({ client, handoffContext: async () => '', waitProcess: async () => ({ outcome: 'done' }) })
+  const bot = { id: 'bot-a', session: 'bot-a', harness: 'codex', project: root }
+  const written = []
+  t.mock.method(process.stderr, 'write', text => { written.push(String(text)); return true })
+
+  await transport.turn(bot, '再現用の本文')
+
+  assert.deepEqual(calls.map(([name]) => name), ['pty_observe', 'pty_close', 'agent_launch', 'pty_send', 'pty_send', 'pty_send', 'pty_read'])
+  assert.equal(new Set(calls.filter(([name]) => name === 'pty_send').map(([, args]) => JSON.stringify(args))).size, 1)
+  assert.equal(written.filter(text => text.includes('woken seat not ready')).length, 2)
+})
+
+test('起こした席でも上限まで断られたら、起こし直さずその失敗を返す', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-failed-record-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const { client, calls } = seatClient('agent_failed', undefined, { notReadySends: 9 })
+  const transport = new AitermTransport({ client, handoffContext: async () => '', waitProcess: async () => ({ outcome: 'done' }) })
+  const bot = { id: 'bot-a', session: 'bot-a', harness: 'codex', project: root }
+  t.mock.method(process.stderr, 'write', () => true)
+
+  await assert.rejects(transport.turn(bot, '再現用の本文'), error => error.code === 'BOT_INPUT_NOT_READY')
+
+  assert.equal(calls.filter(([name]) => name === 'pty_send').length, 3)
+  assert.equal(calls.filter(([name]) => name === 'agent_launch').length, 1)
+})
+
+test('元から居る席の未入力拒否は、従来どおり送り直さない', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-failed-record-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const { client, calls } = seatClient('idle_timeout', undefined, { notReadySends: 9 })
+  const transport = new AitermTransport({ client, handoffContext: async () => '', waitProcess: async () => ({ outcome: 'done' }) })
+  const bot = { id: 'bot-a', session: 'bot-a', harness: 'codex', project: root }
+
+  await assert.rejects(transport.turn(bot, '再現用の本文'), error => error.code === 'BOT_INPUT_NOT_READY')
+
+  assert.equal(calls.filter(([name]) => name === 'pty_send').length, 1)
 })
