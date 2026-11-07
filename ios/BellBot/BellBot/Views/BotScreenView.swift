@@ -106,6 +106,7 @@ struct BotScreenView: View {
     private func refreshScreen(botID: String) async {
         let path = "/api/bots/\(botID)/screen"
         while !Task.isCancelled {
+            let started = ContinuousClock.now
             do {
                 let result: ScreenResponse = try await store.api.get(path + "?history=1")
                 try Task.checkCancellation()
@@ -122,7 +123,8 @@ struct BotScreenView: View {
                 store.api.diagnostics.report(error, path: path, method: "GET", observation: .read(error, retainedData: !screen.isEmpty))
                 break
             }
-            do { try await Task.sleep(for: .seconds(1)) }
+            // 取得は重ねず、前の取得の開始から1秒たったら次を始める。遅い応答の後は待たずに続ける。
+            do { try await Task.sleep(until: started + .seconds(1), clock: .continuous) }
             catch { return }
         }
     }

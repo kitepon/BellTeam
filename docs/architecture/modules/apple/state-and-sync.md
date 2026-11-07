@@ -48,7 +48,7 @@ flowchart TD
 flowchart TD
   Wire["BellAPI.events<br/>GET /api/events・byte列"] --> Parser["SSEParser.feed<br/>空行でJSONを確定、コメントは無視"]
   Parser --> Event["BellEvent<br/>typeと対象範囲を解釈"]
-  Event --> Simple["settings / setup / ai-control<br/>対応GETを実行"]
+  Event --> Simple["settings / setup / ai-control / updates<br/>requestSideRefreshへ積むだけ（受信は待たない）"]
   Event --> All["ready / bots / 非対象messages / その他<br/>共通一覧再取得"]
   All --> Revision["ready / 非対象messages / その他は<br/>eventRevisionも増加"]
   Event --> Target["messagesの対象topicとID<br/>applyTargetedEvent"]
@@ -61,14 +61,14 @@ flowchart TD
 | 入力 | 適用先とHTTP再取得 |
 | --- | --- |
 | `ready` | eventRevision増加、共通一覧の全取得。SSE開始までの変化を再取得する |
-| イベント名/type `settings`・`setup`・`ai-control` | `refreshSettings`・`refreshSetup`・`refreshAIControl`。この分岐でeventRevisionは増やさない |
-| イベント名/type `updates` | `UpdateStore.refresh`（`GET /api/updates`と保存requestIdの照会）だけ。共通一覧とeventRevisionは動かさない。`ready`でも同じ取り直しを追加で行う。詳細は[Update画面](update.md) |
+| イベント名/type `settings`・`setup`・`ai-control` | `requestSideRefresh`へ積み、受信ループは取得を待たない。別の1本の作業が`refreshSettings`・`refreshSetup`・`refreshAIControl`を順に行い、実行中に届いた分は終了後の1回にまとめる。settings/setupの失敗は診断へ報告し、認証失敗はrequireLogin。この分岐でeventRevisionは増やさない |
+| イベント名/type `updates` | `requestSideRefresh([.updates])`で`UpdateStore.refresh`（`GET /api/updates`と保存requestIdの照会）を積むだけ。`all:true`でも共通一覧とeventRevisionは動かさない。通知が毎秒何件届いても、取得は実行中の1本と次の1回だけ。会話の`messages`は受信ループで先に処理される。`ready`でも同じ取り直しを積む。詳細は[Update画面](update.md) |
 | イベント名/type `bots` | 共通一覧全取得。この分岐でeventRevisionは増やさない |
 | `messages`の`.all`、その他イベント | eventRevision増加と共通一覧全取得 |
 | topic `timeline`・`queue`・`requests`・`questions` | botIds/roomIdsの全宛先へconversationChanges。timeline/requests/questionsは該当種別の名簿も再取得 |
 | topic `schedules` | IDからChatTarget集合を作りscheduleChangesへ。予定画面が対象分を取得 |
 | topic `bots`・`rooms`・`owner`・`queue` | 対応する共通資源を再取得。queueはworkingBotIDsへ。現在の仕事の変化はbotIds付きqueueで届くため、botIdsがあればbotsも再取得する |
-| topic `settings`・`setup`・`ai-control` | 対応する状態をGET。上のイベント単体の分岐と同じ関数 |
+| topic `settings`・`setup`・`ai-control`・`updates` | 上のイベント単体の分岐と同じく`requestSideRefresh`へ積む |
 | 対象指定messagesを受けた時にrefreshErrorが残っている | 対象更新に進まずeventRevision増加と全取得 |
 | type不正、allがfalseでない、未知/空topic、ID配列不正、宛先が必要なのに無い | BellEvent.scopeをallにする。型列挙はBellEventTopicの11値 |
 

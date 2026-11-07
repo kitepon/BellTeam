@@ -120,6 +120,10 @@ final class AppStore: ObservableObject {
     private var eventsTask: Task<Void, Never>?
     private var eventRefreshTask: Task<Void, Never>?
     private var eventRefreshResources: Set<EventResource> = []
+    /// 一覧以外の読み直し。イベントの受信を止めないよう、受信とは別の1本にまとめる。
+    enum SideRefresh: Hashable { case updates, settings, setup, aiControl }
+    private var sideRefreshTask: Task<Void, Never>?
+    private var sideRefreshPending: Set<SideRefresh> = []
     private var foregroundTask: Task<Void, Never>?
     private var scenePhase: ScenePhase = .inactive
     private var checkingLogin = false
@@ -736,11 +740,11 @@ final class AppStore: ObservableObject {
                         case "ready":
                             self.eventRevision += 1
                             self.requestRefreshFromEvent()
-                            await self.updates.refresh()
-                        case "updates": await self.updates.refresh()
-                        case "settings": try await self.refreshSettings()
-                        case "setup": try await self.refreshSetup()
-                        case "ai-control": await self.refreshAIControl()
+                            self.requestSideRefresh([.updates])
+                        case "updates": self.requestSideRefresh([.updates])
+                        case "settings": self.requestSideRefresh([.settings])
+                        case "setup": self.requestSideRefresh([.setup])
+                        case "ai-control": self.requestSideRefresh([.aiControl])
                         case "bots": self.requestRefreshFromEvent()
                         case "messages":
                             switch event.scope {
@@ -801,10 +805,8 @@ final class AppStore: ObservableObject {
         if topics.contains(.schedules) {
             scheduleChanges.send(Set(botIDs.map(ChatTarget.bot) + roomIDs.map(ChatTarget.room)))
         }
-        if topics.contains(.settings) { try await refreshSettings() }
-        if topics.contains(.setup) { try await refreshSetup() }
-        if topics.contains(.aiControl) { await refreshAIControl() }
-        if topics.contains(.updates) { await updates.refresh() }
+        let side: [(BellEventTopic, SideRefresh)] = [(.settings, .settings), (.setup, .setup), (.aiControl, .aiControl), (.updates, .updates)]
+        requestSideRefresh(Set(side.filter { topics.contains($0.0) }.map(\.1)))
         var resources: Set<EventResource> = []
         if !topics.isDisjoint(with: [.timeline, .requests, .questions]) {
             if !botIDs.isEmpty { resources.insert(.bots) }
@@ -827,6 +829,30 @@ final class AppStore: ObservableObject {
         eventRefreshTask?.cancel()
         eventRefreshTask = nil
         eventRefreshResources.removeAll()
+        sideRefreshTask?.cancel()
+        sideRefreshTask = nil
+        sideRefreshPending.removeAll()
+    }
+
+    /// 通知が続けて届いても、読み直しは実行中の1本と次の1回だけにまとめる。
+    func requestSideRefresh(_ kinds: Set<SideRefresh>) {
+        sideRefreshPending.formUnion(kinds)
+        guard sideRefreshTask == nil, !sideRefreshPending.isEmpty else { return }
+        sideRefreshTask = Task { [weak self] in
+            guard let self else { return }
+            defer { if !Task.isCancelled { sideRefreshTask = nil } }
+            while !sideRefreshPending.isEmpty && !Task.isCancelled {
+                let kinds = sideRefreshPending
+                sideRefreshPending.removeAll()
+                if kinds.contains(.updates) { await updates.refresh() }
+                if kinds.contains(.aiControl) { await refreshAIControl() }
+                for (kind, path) in [(SideRefresh.settings, "/api/settings"), (.setup, "/api/setup")] where kinds.contains(kind) {
+                    do { if kind == .settings { try await refreshSettings() } else { try await refreshSetup() } }
+                    catch let error where BellAPIError.isAuthenticationError(error) { requireLogin(for: error); return }
+                    catch { api.diagnostics.report(error, path: path, method: "GET", observation: .read(error, retainedData: true)) }
+                }
+            }
+        }
     }
 
     func requireLogin() {
