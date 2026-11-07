@@ -60,7 +60,7 @@
         },
         {
           "name": "Build exact latest closure in isolated Node26 glibc builder",
-          "run": "mkdir -p runtime/runtime\ndocker build --pull --no-cache -t runtime-builder - < scripts/runtime-builder.Dockerfile\ndocker run --rm --read-only --cap-drop ALL --user \"$(id -u):$(id -g)\" --tmpfs /tmp:rw,nosuid,mode=1777 \\\n  --mount \"type=bind,src=$PWD,dst=/src,readonly\" \\\n  --mount \"type=bind,src=$PWD/runtime/runtime,dst=/out\" \\\n  -e COMPONENT -e ARCH -e SOURCE --workdir /src runtime-builder \\\n  python3 scripts/package-runtime.py \"$COMPONENT\" \"/out/$COMPONENT-$SOURCE-linux-$ARCH.tar.gz\" --source \"$SOURCE\" --arch \"$ARCH\"\n"
+          "run": "mkdir -p runtime/runtime\ndocker build --pull --no-cache -t runtime-builder - < scripts/runtime-builder.Dockerfile\ndocker run --rm --read-only --cap-drop ALL --user \"$(id -u):$(id -g)\" --tmpfs /tmp:rw,exec,nosuid,mode=1777 \\\n  --mount \"type=bind,src=$PWD,dst=/src,readonly\" \\\n  --mount \"type=bind,src=$PWD/runtime/runtime,dst=/out\" \\\n  -e COMPONENT -e ARCH -e SOURCE --workdir /src runtime-builder \\\n  python3 scripts/package-runtime.py \"$COMPONENT\" \"/out/$COMPONENT-$SOURCE-linux-$ARCH.tar.gz\" --source \"$SOURCE\" --arch \"$ARCH\"\n"
         },
         {
           "name": "Attest exact archive from main",
