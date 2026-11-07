@@ -449,6 +449,25 @@ if ! "$recovery" && [ -f "$saved/module-installer.json" ]; then
     echo MODULE_INSTALLER_START_FAILED >&2; exit 1
   fi
 fi
+if "$recovery" && [ "$direction" = to-server ] && [ -f "$saved/module-installer.json" ]; then
+  # The forward run removed the previous installer; start it again from the previous image.
+  restore=0
+  docker run --pull never --rm --network none --read-only --entrypoint /usr/local/bin/node "$old_image" \
+    -e 'process.exit(require("fs").existsSync("/app/scripts/module-update-compose.mjs")?0:75)' || restore=$?
+  case "$restore" in
+    0)
+      docker run --pull never --rm -i --network none --read-only --entrypoint /usr/local/bin/node "$old_image" \
+        /app/scripts/module-update-compose.mjs < "$saved/previous-normal.json" > "$staging/previous-module-models.jsonl" \
+        || { echo MODULE_INSTALLER_RESTORE_FAILED >&2; exit 1; }
+      sed -n '2p' "$staging/previous-module-models.jsonl" > "$saved/previous-module-installer.json"
+      if [ "$(cat "$saved/previous-module-installer.json")" != null ] && ! docker compose --project-directory "$PWD" \
+        -f "$saved/previous-module-installer.json" up -d --wait --wait-timeout 300 --pull never; then
+        echo MODULE_INSTALLER_RESTORE_FAILED >&2; exit 1
+      fi;;
+    75) ;;
+    *) echo MODULE_INSTALLER_RESTORE_FAILED >&2; exit 1;;
+  esac
+fi
 if ! "$recovery" && [ -f "$saved/container-updater.json" ]; then
   if ! docker compose --project-directory "$PWD" -f "$saved/container-updater.json" \
     run --pull never --rm --no-deps -T container-updater --configure < "$saved/normal.json" \

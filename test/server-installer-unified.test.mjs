@@ -620,6 +620,15 @@ test('bundled installer freezes the socket and starts the same image service aft
  await assert.rejects(failed.run([],{TEST_MODULE_UP_FAIL:'1'}),e=>e.code===1&&/MODULE_INSTALLER_START_FAILED/.test(e.stderr)&&!/BellTeamを起動しました/.test(e.stdout))
 })
 
+test('recover starts the previous module-installer that the forward run removed',async t=>{
+ const f=await fixture(t,{server:true});await f.run();const saved=await f.saved(),before=(await f.calls()).length
+ await f.run(['--recover',saved]);const ups=(await f.calls()).slice(before).filter(c=>c.args.includes('up'))
+ assert.equal(ups.length,2)
+ assert.equal(ups[0].compose,saved+'/previous-normal.json')
+ assert.equal(ups[1].args[ups[1].args.indexOf('-f')+1],saved+'/previous-module-installer.json')
+ assert.equal(JSON.parse(await readFile(saved+'/previous-module-installer.json')).services['module-installer'].image,oldImage)
+})
+
 test('container updater configures the final normal after health and survives independently; startup failure remains nonzero',async t=>{
  const f=await fixture(t);await f.run([],{TEST_CONTAINER_UPDATER:'1'})
  const saved=await f.saved(),normal=JSON.parse(await readFile(saved+'/normal.json'))

@@ -55,3 +55,20 @@ workerは固定image/entry/元UUIDの別Docker containerとして起動し、res
 ## 確認範囲
 
 生成modelの権限分離/追加設定非転送、既writer検査を通る専用stateと拒否されるdata mount、固定Docker launcher/worker identity・一回claim/ACK/同ID照会・新受付imageと旧worker・喪失unknown、image code_rootでの追加service保持、公開installerのconfigure順序/失敗非0・専用volume旧normal取得・workerのdaemon path接続を局所確認。公式署名/各module内部・旧成功群は継承し再走しない。実Dockerでの公開導入→本体Update一回→再接続同ID/実稼働の確認はCentiの正式供給後の担当工程。
+
+## Body readiness deadline and installer restore on recovery (B-2, 2026-11-08)
+
+```mermaid
+stateDiagram-v2
+  [*] --> Terminated: termination helper removes old module-installer
+  Terminated --> Starting: compose up --wait (target body, deadline 300s)
+  Starting --> Healthy: /healthz 200 (boot = Bot setup.sh restore + parent start)
+  Starting --> Failed: still starting at 300s (healthcheck start_period covers the same 300s)
+  Healthy --> Serving: new module-installer + container-updater started
+  Failed --> Recovered: --recover restores previous body
+  Recovered --> Serving: (server layout) previous module-installer regenerated from previous-normal with the previous image and started
+```
+
+One deadline judges the swap: install.sh's `--wait-timeout 300`. `container-update-compose.mjs` (run from the target image on every bundled swap, and bound by `--configure`) sets the body healthcheck `start_period` to 300s, so a body that is still booting stays `starting` and cannot turn `unhealthy` before that deadline. `distribution/server/compose.yaml` and `compose.yaml` carry the same value for new installs. Cause: the body runs every Bot's `setup.sh` in order before it listens (about 150s for 67 Bots on 2026-11-08), so boot took about 170s, while the bound healthcheck (`start_period` 120s + 5 × 10s) marked it unhealthy at about 163s and `compose up --wait` failed at once. Production request 804be36d: target dcebdf56 turned unhealthy at 02:44:35 JST, became healthy 11s later, and had already been rolled back.
+
+Recovery returns the module-installer that the forward run removed. When the saved generation has `module-installer.json` and recovery returns to the server layout, `--recover` regenerates the installer model from `previous-normal.json` with the previous image's own `module-update-compose.mjs`, saves it as `previous-module-installer.json` and starts it with the same wait. A legacy-layout or generator-less previous generation had no installer, so nothing starts. A start failure exits non-zero with `MODULE_INSTALLER_RESTORE_FAILED`, and the body stays recovered. No guard is added. `install.sh` runs from the worker (current) image, so this recovery step applies to swaps started from an image that contains it. Older generations need the host to start the installer once from its saved model.
