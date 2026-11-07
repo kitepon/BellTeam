@@ -85,6 +85,20 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     return track(ports.native.call(name, ...args))
   }
   native.connect = (...args) => { alive(); return track(ports.native.connect(...args)) }
+  // An operation lease keeps the same restrictions on every pinned call (aiterm-generation-pin.md).
+  if (typeof ports.native.pin === 'function') native.pin = () => {
+    alive()
+    const pinned = ports.native.pin()
+    // The facade lease is frozen with live getters; define over it instead of assigning or copying.
+    return Object.create(pinned, {
+      call: { value: (name, ...args) => {
+        alive()
+        if (!nativeMethods.has(name)) throw failure('EXECUTION_REQUEST_INVALID')
+        return track(pinned.call(name, ...args))
+      } },
+      connect: { value: (...args) => { alive(); return track(pinned.connect(...args)) } },
+    })
+  }
   native.close = async () => {} // The host owns the shared SDK and native PTYs.
   const { root, ...storageOptions } = ports.configurationStorage
   const requests = new ConfigurationRequests({ client: native, intents: new ConfigurationIntents(root,

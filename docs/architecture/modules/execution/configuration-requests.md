@@ -11,6 +11,7 @@ Owner: Kiro. Owner/Trony D-steer contract, 2026-11-07. Preserve saved model/effo
 | Applied receipt | Only a terminal applied native receipt, persisted by ConfigurationIntents, proves application. Saved desired settings and a skipped busy apply are never promoted to applied. Existing storage validation stays; audit I/O failure is visible and is not a global seat lock. |
 | Delivery | Saved original input does not require an applied audit record or a new configuration request. It steers while explicit settings are deferred. New launch receives desired settings through the launch contract. |
 | Reconcile | Explicit same-ID historical inspection only; does not replay apply or original message. Failed/unknown records do not block new input. |
+| Aiterm generation | apply and reconcile are single `agent_configure` RPCs on the current generation; not pinned across requests ([aiterm-generation-pin.md](aiterm-generation-pin.md)). |
 
 ```mermaid
 stateDiagram-v2

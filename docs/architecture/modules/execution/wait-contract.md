@@ -4,6 +4,8 @@
 
 ## 席と非席で同じ待機結果を返す
 
+`wait_process`はreceiptを返したAiterm世代のもの。待つ間、その配送jobか席ターンのwatchがその世代をpinする（[aiterm-generation-pin.md](aiterm-generation-pin.md)）。
+
 ```mermaid
 flowchart TD
   Descriptor["nativeが返したwait_process"] --> Caller["runWaitProcess"]

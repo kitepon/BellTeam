@@ -15,7 +15,7 @@ function setup(observations, { busy = false, pending = 0 } = {}) {
   let time = 0
   const transport = {
     isIdle: () => !busy,
-    async observe(bot, cursor) { cursors.push(cursor); return observations.shift() },
+    async observeChain(bot, previous) { cursors.push(previous?.cursor); return { observation: observations.shift(), generation: null } },
     async closeIdle(bot) { if (busy) return false; closed.push(bot.id); return true },
   }
   const idle = new IdleSessions({
@@ -101,7 +101,7 @@ test('観測に失敗した席は数え直し、ほかの席の観測を止め�
   let time = 0
   const transport = {
     isIdle: () => true,
-    async observe(bot) { if (bot.id === 'bot-a') throw new Error('AITERM_DOWN'); return quiet() },
+    async observeChain(bot) { if (bot.id === 'bot-a') throw new Error('AITERM_DOWN'); return { observation: quiet(), generation: null } },
     async closeIdle(bot) { closed.push(bot.id); return true },
   }
   const reports = []
@@ -126,7 +126,7 @@ test('module quiesce after the pending-decision await prevents an idle native cl
   let allowed = true, time = 0, finishDecision
   const closed = []
   const idle = new IdleSessions({ bots: new Map([['bot-a', { id: 'bot-a' }]]),
-    transport: { observe: async () => quiet(), isIdle: () => true, closeIdle: async id => { closed.push(id); return true } },
+    transport: { observeChain: async () => ({ observation: quiet(), generation: null }), isIdle: () => true, closeIdle: async id => { closed.push(id); return true } },
     pendingDecisions: () => new Promise(resolve => { finishDecision = resolve }),
     allowClose: () => allowed, idleMs: 10, now: () => time,
   })
