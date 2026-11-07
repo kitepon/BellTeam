@@ -77,7 +77,7 @@ Root: `RUNTIME_ROOT` = `/srv/bellteam/shared/tools/bellteam-runtime` inside the 
 
 | Form | Behaviour |
 | --- | --- |
-| `<componentId> <binName> [args…]` | Resolve the generation from `BELLTEAM_RUNTIME_GENERATION` (sha → that generation, `''` → builtin, unset → current), spawn that absolute bin with the original args/env/stdio, set `BELLTEAM_RUNTIME_GENERATION` for its descendants, forward SIGINT/SIGTERM/SIGHUP, propagate exit code/signal. |
+| `<componentId> <binName> [args…]` | Resolve the generation from `BELLTEAM_RUNTIME_GENERATION` (sha → that generation, `''` → builtin, unset → current), spawn that bin with the original args/env/stdio (release generation: its absolute path; builtin: the bin name through the unchanged PATH, so today's precedence such as a Bot's `.local/bin` is kept), set `BELLTEAM_RUNTIME_GENERATION` for its descendants, forward SIGINT/SIGTERM/SIGHUP, propagate exit code/signal. |
 | `--resolve <componentId> <binName\|dist>` | Print only the absolute path and a newline (Elegg's native helper entries resolve the captured dist, then exec the real helper themselves). |
 | Failure | Exit 1 with one line on stderr: `RUNTIME_COMPONENT_INVALID`, `RUNTIME_ENTRY_INVALID` (unknown bin, `dist` in exec mode, extra args to `--resolve`), `RUNTIME_BINDING_UNAVAILABLE` (never a fall-back to other code), `RUNTIME_EXEC_FAILED`. |
 

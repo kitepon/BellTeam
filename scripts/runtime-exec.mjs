@@ -19,8 +19,9 @@ const component = capture.components[componentId]
 const path = entry === 'dist' ? component.dist : Object.hasOwn(component.bin, entry ?? '') ? component.bin[entry] : undefined
 if (typeof path !== 'string' || resolveOnly && rest.length || !resolveOnly && entry === 'dist') fail('RUNTIME_ENTRY_INVALID')
 if (resolveOnly) { process.stdout.write(`${path}\n`); process.exit(0) }
+// Builtin keeps today's PATH lookup (a Bot's .local/bin may shadow the image CLI); only a release capture pins an absolute path.
 // Descendants (late hooks, lazy MCP) resolve the same generation as this process.
-const child = spawn(path, rest, { stdio: 'inherit', env: { ...process.env, BELLTEAM_RUNTIME_GENERATION: capture.generation ?? '' } })
+const child = spawn(component.origin === 'release' ? path : entry, rest, { stdio: 'inherit', env: { ...process.env, BELLTEAM_RUNTIME_GENERATION: capture.generation ?? '' } })
 for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(signal, () => child.kill(signal))
 child.once('error', () => fail('RUNTIME_EXEC_FAILED'))
 child.once('exit', (code, signal) => {
