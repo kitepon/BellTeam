@@ -77,6 +77,108 @@ class ReconciliationInspection(unittest.TestCase):
         self.assertEqual(path.stat().st_mtime_ns, self.original_stat.st_mtime_ns)
         self.assertFalse((self.directory / 'claimed').exists())
 
+    def test_current_successor_preserves_predecessor_and_finalize_only_reads(self):
+        self.loader.stop()
+        bridge = service.load_module('successor_fixture_bridge', 'module-worker-termination.py')
+        loader = patch.object(service, 'load_module', side_effect=lambda name, filename:
+            bridge if filename == 'module-worker-termination.py' else self.installer)
+        loader.start(); self.addCleanup(loader.stop)
+        self.operation['worker']['pidNamespace'] = '111'
+        host.atomic(self.directory / 'operation.json', self.operation)
+        self.original = (self.directory / 'operation.json').read_bytes()
+        self.original_stat = (self.directory / 'operation.json').stat()
+        self.params['originalOperationSha256'] = hashlib.sha256(self.original).hexdigest()
+        plan_path = self.updater.state / 'plans' / (self.plan_id + '.json')
+        plan_sha = hashlib.sha256(plan_path.read_bytes()).hexdigest()
+        prepare = dict(schema='bellteam.module-worker-prepare.v1', requestId=self.request, planId=self.plan_id,
+            originalOperationSha256=self.params['originalOperationSha256'], planSha256=plan_sha,
+            targetSha256=bridge.digest(self.target), storageBindingSha256=bridge.digest(self.volume),
+            ledgerBinding=bridge.binding(self.prefix), worker=self.operation['worker'],
+            oldService=dict(containerId='d'*64, imageId='sha256:'+'f'*64, sourceCommit='a'*40,
+                startedAt='2026-11-04T10:00:00Z', pidNamespace='111', modelSha256='e'*64, project='fixture'),
+            target=dict(sourceCommit='b'*40, imageId='sha256:'+'e'*64), preparedAt='2026-11-04T10:01:00Z')
+        termination = dict(schema='bellteam.module-worker-termination.v1', requestId=self.request,
+            originalOperationSha256=prepare['originalOperationSha256'], prepareSha256=bridge.digest(prepare),
+            oldContainerId='d'*64, status='stopped', running=False, restarting=False, pid=0, exitCode=0,
+            finishedAt='2026-11-04T10:02:00Z', stoppedAt='2026-11-04T10:03:00Z')
+        record = dict(prepareSha256=bridge.digest(prepare), prepare=prepare,
+            terminationSha256=bridge.digest(termination), termination=termination)
+        prepare_path = self.directory / 'worker-termination-prepare.json'
+        record_path = self.directory / 'worker-termination.json'
+        host.atomic(prepare_path, prepare); host.atomic(record_path, record)
+        originals = {path: path.read_bytes() for path in [plan_path, prepare_path, record_path]}
+        self.updater.config['release'] = 'b'*40; self.current['sourceCommit'] = 'b'*40
+        self.assertEqual(bridge.read_termination(self.updater, host, self.directory, self.operation,
+            host.read_json(plan_path, os.getuid()), plan_sha), bridge.digest(record))
+        self.updater.config['release'] = 'c'*40; self.current['sourceCommit'] = 'c'*40
+        self.updater.catalog = lambda _: {}
+        successor = self.directory / ('worker-termination-successor-' + 'c'*40 + '.json')
+        pending = successor.with_suffix('.pending')
+        with self.assertRaises(host.Failure):
+            bridge.read_termination(self.updater, host, self.directory, self.operation,
+                host.read_json(plan_path, os.getuid()), plan_sha)
+        # A caller deadline after publication leaves a complete fact, never a second claim.
+        with patch.object(bridge, 'sync_directory', side_effect=OSError('lost publication acknowledgement')):
+            self.assertEqual(self.updater.inspect_module_install(self.params)['receipt']['quiescence'], 'unconfirmed')
+        published = successor.read_bytes()
+        self.assertFalse(pending.exists())
+        inspected = self.updater.inspect_module_install(self.params)
+        self.assertEqual((inspected['receipt']['quiescence'], inspected['receipt']['placement']), ('confirmed', 'absent'))
+        self.assertEqual(len(inspected['receipt']), 20)
+        envelope = host.read_json(successor, os.getuid())
+        self.assertEqual(set(envelope), {'successorSha256', 'successor'})
+        self.assertEqual(len(envelope['successor']), 15)
+        self.assertEqual(envelope['successor']['predecessorSha256'], bridge.digest(record))
+        self.assertEqual(envelope['successor']['predecessorSourceCommit'], 'b'*40)
+        self.assertEqual(envelope['successor']['currentSourceCommit'], 'c'*40)
+        self.assertEqual(envelope['successorSha256'], bridge.digest(envelope['successor']))
+        commitment = bridge.digest(dict(predecessorSha256=bridge.digest(record), successorSha256=envelope['successorSha256']))
+        expected_evidence = service.reconciliation_hash(dict(current=self.current, target=self.target, planSha256=plan_sha,
+            placement='absent', manifestSha256=None, stageState='clear', recoveryState='not_issued', fence='open',
+            workerTerminationSha256=commitment))
+        self.assertEqual(inspected['receipt']['evidenceSha256'], expected_evidence)
+        self.updater.inspect_module_install(self.params)
+        self.assertEqual(successor.read_bytes(), published)
+        # Simulate death after exclusive link but before removing the owned staging alias.
+        os.link(successor, pending)
+        self.assertEqual(successor.stat().st_nlink, 2)
+        self.assertEqual(self.updater.inspect_module_install(self.params)['receipt']['quiescence'], 'confirmed')
+        self.assertFalse(pending.exists()); self.assertEqual(successor.stat().st_nlink, 1)
+        self.assertEqual(successor.read_bytes(), published)
+        params = self.close_params(self.decision(inspected))
+        successor.unlink()
+        with patch.object(bridge, 'issue_termination_successor', side_effect=AssertionError('finalize minted successor')):
+            self.updater.read_install_reconciliation(self.params)
+            with self.assertRaises(host.Failure): self.updater.finalize_install_reconciliation(params)
+        self.assertFalse(successor.exists()); self.assertFalse((self.directory / 'reconciliation-fence.json').exists())
+        # An interrupted prepublication temp is owned metadata; inspect can recover it.
+        pending.write_bytes(b'{'); pending.chmod(0o600)
+        inspected = self.updater.inspect_module_install(self.params)
+        self.assertEqual(inspected['receipt']['quiescence'], 'confirmed'); self.assertFalse(pending.exists())
+        valid = successor.read_bytes()
+        params = self.close_params(self.decision(inspected))
+        for field in ['originalOperationSha256', 'storageBindingSha256', 'ledgerBindingSha256', 'currentSourceCommit']:
+            with self.subTest(field=field):
+                altered = json.loads(valid); altered['successor'][field] = '0'*(40 if field.endswith('Commit') else 64)
+                altered['successorSha256'] = bridge.digest(altered['successor'])
+                host.atomic(successor, altered)
+                with self.assertRaises(host.Failure): self.updater.finalize_install_reconciliation(params)
+                self.assertFalse((self.directory / 'reconciliation-fence.json').exists())
+        successor.write_bytes(valid)
+        with self.assertRaises(host.Failure):
+            self.updater.inspect_module_install({**self.params, 'originalOperationSha256': '0'*64})
+        self.current['privateVolume'] = dict(device='0', inode='0')
+        with self.assertRaises(host.Failure): self.updater.inspect_module_install(self.params)
+        self.current['privateVolume'] = self.volume
+        with patch.object(bridge, 'issue_termination_successor', side_effect=AssertionError('finalize minted successor')):
+            result = self.updater.finalize_install_reconciliation(params)
+        self.assertEqual(result['fence']['action'], 'close_without_activation')
+        with patch.object(bridge, 'issue_termination_successor', side_effect=AssertionError('closed intent minted successor')):
+            self.assertEqual(self.updater.inspect_module_install(self.params)['receipt']['fence'], 'closed')
+        self.assertEqual(successor.read_bytes(), valid)
+        for path, original in originals.items(): self.assertEqual(path.read_bytes(), original)
+        self.assert_original_untouched()
+
     def test_absent_inspection_and_pure_read_preserve_original_unknown(self):
         result = self.updater.dispatch(dict(operation='inspectModuleInstall', params=self.params))
         self.assertEqual(result['receipt']['placement'], 'absent')

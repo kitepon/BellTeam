@@ -48,7 +48,7 @@ Root横断契約 `same-install-id-reconciliation-contract-20261104.md`の意味�
 
 ```mermaid
 flowchart LR
-  Common[共通Owner認可と同public-ID decision] --> Inspect[元IDと原unknown SHA / 既排他下のreadonly inspect]
+  Common[共通Owner認可と同public-ID decision] --> Inspect[元IDと原unknown SHA / 既排他下の検査と追補保存]
   Inspect --> Receipt[root追補receipt / content hash / 原本不変]
   Receipt --> Read[readInstallReconciliation / 既receipt読取だけ]
   Read --> Common
@@ -77,7 +77,54 @@ decisionは`{decisionSha256,decision}`、本体は閉key `schema,publicRequestId
 
 共通の既Owner fresh認可・私有grant・原apply未発行/同ID close claim/current検証を、信頼済peer1001の同source私有clientから受ける。runtimeは公開body/hashから権限を作らない。受付から最大600秒、原target/storage/runtime current/inspection/現有効catalogと元IDへ束縛し、最終排他内でも期限/本人性を再確認する。旧targetが現catalogに無くてもcloseは復活配置をしないため検証済現catalog自体を要求し、旧targetの許可を捏造しない。
 
-worker/ledger/private保守/component installerの排他内で、実元worker終端・未所有stage無し・回復claim無し・現在配置absent又は固定inventory検証済みを再確認する。元workerのPID namespaceが現在と違う/本人情報不足/proc読取不能ならunconfirmedで拒否し、process世代変更を終端証拠にしない。元workerと同namespaceで元PID出生が既に存在しない場合だけ実終端の候補とする。全body/current/旧native・writerの終端は共通担当のproof側でも別に要求される。
+worker/ledger/private保守/component installerの排他内で、実元worker終端・未所有stage無し・回復claim無し・現在配置absent又は固定inventory検証済みを再確認する。元workerのPID namespaceが現在と違う/本人情報不足/proc読取不能なら、以下の検証済み終端bridge又はそのcurrent-bound successorが必要であり、process世代変更を終端証拠にしない。元workerと同namespaceで元PID出生が既に存在しない場合だけ実終端の候補とする。
+
+Root's Nov7 close-only contract replaces the old all-native/writer drain requirement for `close_without_activation`: common owns the original operation/claim and apply-not-issued boundary; runtime owns the actual original worker/storage/fence locks. This bookkeeping action does not require quiescing unrelated Bot/native/conversation work. Normal actual module exchange/lifecycle is unchanged. Parent local ownership and its public ledger projection are integration-owned.
+
+### Current-bound successor of an immutable termination record
+
+The strict same-source termination reader retains its original receiver-source equality. A different current official installer may accept that stopped-worker fact only through a distinct root-private successor; original operation/plan/prepare/termination bytes, hashes and original target source/image remain unchanged. No new stop, namespace inference or public receipt input is allowed.
+
+Only existing Owner-authorized `inspectModuleInstall` through the trusted peer1001 service can mint the successor. It holds worker -> ledger -> private(shared) -> execution .install locks, verifies original raw hash/plan/target/storage/ledger/worker/CID/namespace/source/time bindings, and rejects transactions, unowned stages or recovery claims first. Current source/platform/private binding come from the running official image's validated distribution/config and `inspect_current`. Finalize's internal reinspection and final check read an existing successor only; startup, GET/readFence/read/--read do not mint it.
+
+Fixed file: `state/operations/<original UUID>/worker-termination-successor-<current40hexSource>.json`; its envelope is exactly `{successorSha256,successor}`. Canonical hashing uses the existing sorted compact UTF-8/one-LF rule. Body has exactly15 keys:
+
+| Keys | Binding |
+| --- | --- |
+| schema, action | `bellteam.module-worker-termination-successor.v1`, `close_without_activation` |
+| requestId, planId, originalOperationSha256 | Same original UUIDs and exact raw operation SHA |
+| predecessorSha256, predecessorSourceCommit | Complete immutable termination envelope canonical SHA and original prepare.target source |
+| currentSourceCommit, runtimeCurrentSha256 | Actual official installer source and canonical current source/platform/private-volume object |
+| planSha256, targetSha256 | Exact saved plan raw SHA and canonical original target SHA |
+| storageBindingSha256, ledgerBindingSha256, workerSha256 | Original private volume/updater-prefix identity/worker, each equal to fresh actual or original verified binding |
+| issuedAt | Local timezone-bearing publication time >= stoppedAt; not authorization or historical install completion |
+
+The source-specific filename and its `.pending` staging alias are owned solely by this issuer. Write/fsync0600 complete pending bytes, link exclusively to final, remove pending and fsync the directory. Under the same locks, a later explicit inspect can remove only this reserved trusted pending alias: if linked to final both must identify the same inode with exactly two links; otherwise pending has one link. This recovers an interrupted publication without partial final bytes or overwriting any immutable record. Read/finalize paths never perform that recovery or write. Existing final records are validated/reused with their original issuedAt and directory fsynced by inspect.
+
+```mermaid
+flowchart LR
+  Inspect[Fresh authorized inspect / original locks] --> Original[Validate complete immutable predecessor]
+  Current[Trusted official source / actual storage] --> Original
+  Original --> Successor[Separate immutable current-bound successor]
+  Successor --> Evidence[Existing20-key receipt / predecessor+successor commitment]
+  Evidence --> Claim[Common original-ID close ownership / one claim]
+  Claim --> Final[Runtime final locks / existing successor read only]
+  Final --> Fence[Original-ID durable fence]
+  Fence --> Save[Common matching completion / history stays unknown]
+```
+
+The existing receipt's evidenceSha256 commits `workerTerminationSha256 = hash({predecessorSha256,successorSha256})` on the successor path; same-source evidence remains unchanged. Public20-key receipts and exact2-/3-key POST bodies do not change. Final checks revalidate existing successor, original/current/storage/placement, decision/catalog/recovery absence and one fence. These Python files require a new formal server image and matching module-installer adoption; no live source patch or implicit full-install termination-helper replay is part of this contact.
+
+```mermaid
+stateDiagram-v2
+  [*] --> NoSuccessor
+  NoSuccessor --> Pending: authorized inspect / full original+current checks
+  Pending --> Published: complete file fsync / exclusive final link
+  Pending --> NoSuccessor: explicit inspect recovers owned unlinked pending
+  Published --> Valid: remove owned pending alias / directory fsync
+  Published --> Valid: next explicit inspect validates linked alias and final
+  Valid --> Valid: inspect reuses or finalize reads / no new successor
+```
 
 成功時は元operationと別のroot-owned一回fenceをO_EXCL/file fsync/directory fsyncで保存する。閉返値は`{fenceSha256,fence}`、fence本体は`schema,requestId,planId,originalOperationSha256,decisionSha256,commonProofSha256,action,closedAt`、schema=`bellteam.module-install-fence.v1`/action=close_without_activation。`validateInstallReconciliationFence`を共通へexportする。応答不明/再起動後は同ID readだけで、別decisionでも再発行しない。
 
