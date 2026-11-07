@@ -42,6 +42,24 @@ final class MemberActivityTests: XCTestCase {
         XCTAssertEqual(CurrentWork.label(nil), "仕事状況を未取得", "currentWorkを返さない旧サーバー")
     }
 
+    func testListsWithoutInlineAvatarStillDecode() throws {
+        let bots = try JSONDecoder().decode(BotsResponse.self, from: Data("""
+        {"bots":[{"id":"bot-one","name":"ユキ","displayName":"ユキ","harness":"codex","model":"","reasoningEffort":"","fastMode":false,
+         "color":"indigo","profileText":"","personality":"","speechStyle":"","position":"","role":"","avatarVersion":"v1",
+         "avatarLargeVersion":"v2","avatarSourceVersion":"v3","avatarLargeSourceVersion":"v4","online":true,"recent":null}]}
+        """.utf8))
+        XCTAssertEqual(bots.bots.first?.avatar, "")
+        XCTAssertEqual(bots.bots.first?.avatarVersion, "v1")
+        let room = try JSONDecoder().decode(Room.self, from: Data("""
+        {"id":"room-one","name":"部屋","purpose":"","representativeId":null,"memberIds":["bot-one"],"avatarVersion":"r1","recent":null}
+        """.utf8))
+        XCTAssertEqual(room.avatar, "")
+        let owner = try JSONDecoder().decode(Owner.self, from: Data("""
+        {"name":"クオ","profile":"","avatarVersion":"o1","xUrl":"","githubUrl":"","links":[]}
+        """.utf8))
+        XCTAssertEqual(owner.avatar, "")
+    }
+
     func testSteeredDeliveryJoinsTheRunningTurnInsteadOfAddingARow() throws {
         let response = try JSONDecoder().decode(QueueResponse.self, from: Data("""
         {"items":[
