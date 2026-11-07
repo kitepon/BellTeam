@@ -9,16 +9,16 @@ import test from 'node:test'
 import { AitermClient, AitermTransport } from '../src/aiterm-transport.mjs'
 
 // Aiterm 0.63.xは復帰に失敗した席を一覧と観測に残す（exists=true, state=unknown, reason=agent_failed）。
-const observation = reason => ({ schema: 'aiterm.pty-observe-result.v1', session_id: 'bot-a', exists: true,
-  harness: 'codex-cli', launch_id: 'a'.repeat(32), state: reason === 'agent_failed' ? 'unknown' : 'idle', reason })
+const observation = (reason, state = reason === 'agent_failed' ? 'unknown' : 'idle') => ({ schema: 'aiterm.pty-observe-result.v1',
+  session_id: 'bot-a', exists: true, harness: 'codex-cli', launch_id: 'a'.repeat(32), state, reason })
 
-function seatClient(reason) {
+function seatClient(reason, state) {
   const calls = []
   const classifier = new AitermClient()
   const client = { call: (name, args) => classifier.call(name, args) }
   classifier.client = { async callTool({ name, arguments: args }) {
     calls.push([name, args])
-    if (name === 'pty_observe') return { structuredContent: observation(reason) }
+    if (name === 'pty_observe') return { structuredContent: observation(reason, state) }
     if (name === 'agent_configure') return { structuredContent: { schema: 'aiterm.agent-configure-result.v1', session_id: 'bot-a' } }
     if (name === 'pty_close') return { content: [{ type: 'text', text: 'closed' }] }
     if (name === 'agent_launch') return { structuredContent: { session_id: 'bot-a' } }
@@ -49,10 +49,10 @@ test('復帰に失敗した記録の席は、設定を当てずに記録ごと�
   assert.equal(written.filter(text => text.includes('resume record failed')).length, 1)
 })
 
-test('休止して再開待ちの席は閉じず、従来どおりそのまま送る', async t => {
+for (const [label, reason, state] of [['休止して再開待ちの席', 'idle_timeout'], ['失敗記録でも動くターンが観測される席', 'agent_failed', 'busy']]) test(`${label}は閉じず、従来どおりそのまま送る`, async t => {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-failed-record-'))
   t.after(() => rm(root, { recursive: true, force: true }))
-  const { client, calls } = seatClient('idle_timeout')
+  const { client, calls } = seatClient(reason, state)
   const transport = new AitermTransport({ client, handoffContext: async () => '', waitProcess: async () => ({ outcome: 'done' }) })
   const bot = { id: 'bot-a', session: 'bot-a', harness: 'codex', project: root }
 

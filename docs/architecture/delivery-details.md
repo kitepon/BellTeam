@@ -49,7 +49,7 @@ flowchart TD
 flowchart TD
   Observe["送信前の席観測 pty_observe"] -->|"exists=true<br/>reason≠agent_failed"| Send["通常の送信"]
   Observe -->|"exists=false"| Launch
-  Observe -->|"exists=true<br/>reason=agent_failed（復帰失敗の記録）"| CloseFailed["記録ごと旧席close<br/>設定適用はしない"] --> Launch
+  Observe -->|"exists=true<br/>reason=agent_failed・state=unknown<br/>（復帰失敗の記録、動くターンの観測なし）"| CloseFailed["記録ごと旧席close<br/>設定適用はしない"] --> Launch
   Send --> Reply{"送信結果"}
   Reply -->|"受付あり"| Accepted["そのreceiptを追う"]
   Reply -->|"typed unknown"| Unknown["不明を返す<br/>起こし直しも再送もしない"]
@@ -65,7 +65,7 @@ flowchart TD
   Adapter -->|"接続された構成のみ"| Reconcile["元登録の照合 または世代指定close"]
 ```
 
-送信前の観測で`reason=agent_failed`の席は、Aitermの復帰（休止席の`codex resume`）が失敗として記録された席。Aitermはその記録を一覧と観測に残し、入力は休止・復帰中として断り続ける（2026-11-07、23席、全件readiness期限超過）。`dispatch`はこれを「不存在」と同じ起動経路へ送り、先に`pty_close`で記録ごと閉じる。`prepareDesiredConfiguration`も設定適用を行わない。`agent_hibernated`/`agent_resuming`/`agent_unknown`/`resume_unconfirmed`は起こさず従来どおり送信して結果を受ける。
+送信前の観測で`reason=agent_failed`の席は、Aitermの復帰（休止席の`codex resume`）が失敗として記録された席。Aitermはその記録を一覧と観測に残し、入力は休止・復帰中として断り続ける（2026-11-07、23席、全件readiness期限超過）。`dispatch`はこれを「不存在」と同じ起動経路へ送り、先に`pty_close`で記録ごと閉じる。閉じる条件は`state=unknown`かつ子配送の観測なし、つまりAitermがその席を入力を受けない記録として観測している時だけで、動いているターンが観測される席は閉じない（トロニー裁定 2026-11-07）。`prepareDesiredConfiguration`も設定適用を行わない。`agent_hibernated`/`agent_resuming`/`agent_unknown`/`resume_unconfirmed`は起こさず従来どおり送信して結果を受ける。
 
 型付き復帰拒否は`pty_send`の`aiterm.agent-resume-error.v1`を同session・固定enum・ID型・未送信/席確認の契約で検証する。本文や旧版の文言から推測せず、相反するexecution errorを優先する。この分岐は新契約を返すAitermの正式供給が必要であり、席のlive世代や復旧成功の証明にはしない。
 
