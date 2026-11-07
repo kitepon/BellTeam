@@ -60,6 +60,8 @@ struct UpdateContent: View {
             if let plan = updates.plan { confirmation(plan) }
             else if choosing, candidates.count > 1 { chooser }
             if !changes.isEmpty, updates.plan == nil, showsChanges { changeList }
+            if !jobRecords.isEmpty { jobList }
+            if let problems = updates.inventory?.problems, !problems.isEmpty { problemList(problems) }
             details
         }
         .frame(maxWidth: 560, alignment: .leading)
@@ -244,12 +246,64 @@ struct UpdateContent: View {
         .padding(22).bellCard()
     }
 
+    // MARK: 更新ジョブと機能の問題（Webと同じ表示。値は作り替えない）
+
+    /// 今回の操作・在庫の操作・最近のジョブを、kindとjobIdで重ねずに並べる。
+    var jobRecords: [UpdateJob] {
+        var seen = Set<String>()
+        return ((updates.operation?.jobs ?? []) + (updates.inventory?.operation?.jobs ?? []) + (updates.inventory?.jobs ?? []))
+            .filter { seen.insert($0.id).inserted }
+    }
+
+    private func componentName(_ moduleId: String) -> String {
+        updates.inventory?.components.first { $0.id == moduleId }?.name ?? moduleId
+    }
+
+    private var jobList: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("ジョブの状態").font(.headline)
+            ForEach(jobRecords) { job in
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(componentName(job.target.moduleId)).font(.subheadline.weight(.semibold))
+                    Text("状態: \(job.state.rawValue)")
+                    Text("ジョブID: \(job.jobId)").font(.caption.monospaced()).foregroundStyle(BellTheme.muted).textSelection(.enabled)
+                    if let reason = job.reason { Text("\(reason.code) / \(reason.message)").foregroundStyle(.red) }
+                }
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("update-job-\(job.jobId)")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(18).bellCard()
+    }
+
+    private func problemList(_ problems: [UpdateProblem]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("機能の問題").font(.headline)
+            ForEach(problems) { problem in
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(componentName(problem.moduleId)) · 再起動の繰り返し · \(problem.status == .resolved ? "解決済み" : "問題あり")")
+                        .font(.subheadline.weight(.semibold))
+                    Text("再起動回数: \(problem.count) / 集計期間（秒）: \(problem.windowSeconds)")
+                    Text("直近の終了コード: \(problem.lastExit.code.map(String.init) ?? "未観測") / シグナル: \(problem.lastExit.signal ?? "未観測")")
+                    Text("直近の理由: \(problem.lastReason)")
+                }
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("update-problem-\(problem.fingerprint)")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(18).bellCard()
+    }
+
     // MARK: 詳細（技術情報）
 
     private var details: some View {
         DisclosureGroup("詳細") {
             VStack(alignment: .leading, spacing: 14) {
                 if let message = updates.message { Text("お知らせ: \(message)").accessibilityIdentifier("update-message") }
+                // 読めない時（503 UNREADABLE等）は理由をそのまま出す。状態は作らない。
+                if let failure = updates.failure { Text("取得エラー: \(failure)").accessibilityIdentifier("update-read-error") }
                 if let notice = updates.inventory?.notice { Text("サーバー: \(notice.message)\(Self.reason(notice.code))") }
                 ForEach(updates.inventory?.components ?? []) { component in
                     VStack(alignment: .leading, spacing: 3) {
@@ -324,6 +378,6 @@ struct UpdateContent: View {
         .preparing: "準備しています", .applying: "新しい版に切り替えています", .reconnecting: "再接続しています", .verifying: "動作を確かめています",
         .completed: "更新完了", .failed: "失敗", .unknown: "結果確認中",
     ]
-    private static let admission: [UpdateOperation.Admission: String] = [.accepted: "受付済み", .rejected: "未受付", .unknown: "確認不能"]
+    private static let admission: [UpdateOperation.Admission: String] = [.pending: "受付中", .accepted: "受付済み", .rejected: "未受付", .unknown: "確認不能"]
     private static let outcome: [UpdateOperation.Outcome: String] = [.pending: "未確認", .succeeded: "成功", .failed: "失敗", .unknown: "確認不能"]
 }

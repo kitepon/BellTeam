@@ -30,6 +30,9 @@ struct UpdateInventory: Decodable, Equatable {
     let plans: [UpdatePlan]
     @NullableField var operation: UpdateOperation?
     @NullableField var previousOperation: UpdateOperation?
+    /// 新しいサーバーだけが返す。旧サーバーでは無い。
+    let jobs: [UpdateJob]?
+    let problems: [UpdateProblem]?
 
     var hasAvailableUpdate: Bool { components.contains { $0.comparison.state == .updateAvailable } }
 }
@@ -110,7 +113,8 @@ struct UpdatePlan: Decodable, Equatable {
 }
 
 struct UpdateOperation: Decodable, Equatable {
-    enum Admission: String, Decodable { case accepted, rejected, unknown }
+    /// pendingは全stepの受付記録が揃う前の付帯情報で、ジョブの状態ではない。
+    enum Admission: String, Decodable { case pending, accepted, rejected, unknown }
     enum Phase: String, Decodable { case preparing, applying, reconnecting, verifying, completed, failed, unknown }
     enum Outcome: String, Decodable { case pending, succeeded, failed, unknown }
     struct Failure: Decodable, Equatable { let code: String; let message: String }
@@ -123,10 +127,46 @@ struct UpdateOperation: Decodable, Equatable {
     let verification: Outcome
     @NullableField var error: Failure?
     @NullableField var reference: String?
+    let jobs: [UpdateJob]?
 
     var isCompleted: Bool { phase == .completed && admission == .accepted && execution == .succeeded && verification == .succeeded }
     /// 結果が確定し、同じ要求を照会し続ける必要がない状態。unknownは確定ではない。
     var isSettled: Bool { admission == .rejected || isCompleted || (phase == .failed && execution == .failed) }
+}
+
+/// runtimeの`bellteam.update-job.v1`。値は作り替えず、そのまま表示する。
+struct UpdateJob: Decodable, Equatable, Identifiable {
+    enum Schema: String, Decodable { case v1 = "bellteam.update-job.v1" }
+    enum Kind: String, Decodable { case module, container }
+    enum State: String, Decodable { case queued, downloading, verifying, swapping, ready, failed }
+    struct Target: Decodable, Equatable { let moduleId: String }
+    struct Reason: Decodable, Equatable { let code: String; let message: String }
+
+    let schema: Schema
+    let jobId: String
+    let kind: Kind
+    let target: Target
+    let state: State
+    @NullableField var reason: Reason?
+    var id: String { "\(kind.rawValue):\(jobId)" }
+}
+
+/// 機能の再起動が続いた時の問題。statusは解決後もresolvedとして残る。
+struct UpdateProblem: Decodable, Equatable, Identifiable {
+    enum Status: String, Decodable { case open, resolved }
+    struct LastExit: Decodable, Equatable {
+        @NullableField var code: Int?
+        @NullableField var signal: String?
+    }
+    let fingerprint: String
+    let status: Status
+    let kind: String
+    let moduleId: String
+    let count: Int
+    let windowSeconds: Int
+    let lastExit: LastExit
+    let lastReason: String
+    var id: String { fingerprint }
 }
 
 /// 端末に保存した要求。サーバーの値を作り替えない。
