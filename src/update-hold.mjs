@@ -76,8 +76,9 @@ export class UpdateHold {
   async release(reason) {
     if (!this.state) return false
     this.clearExpiry()
-    await rm(this.path, { force: true })
+    // Clear first so the exit is unconditional; a file that cannot be removed only re-holds until the next startup release.
     this.state = null
+    await rm(this.path, { force: true }).catch(error => this.report(error))
     // Listeners hear the release only after input is admitted again; an earlier wake would only be held again.
     for (const listener of [...this.listeners]) { try { listener({ released: true, reason }) } catch (error) { this.report(error) } }
     return true
