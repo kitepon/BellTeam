@@ -183,10 +183,12 @@ export class AitermTransport {
   wake(bot, options = {}) {
     this.assertWorkAllowed()
     const version = this.captureStopVersion(bot)
-    return this.memberOperation(bot, async membersLease => {
+    // setup.sh待ちはmembers leaseを取る前に行う。起動直後の一斉wakeでlease枠を埋めない。
+    const ready = options.membersLease ? null : this.client.environmentReady?.(bot.project)
+    return Promise.resolve(ready).then(() => this.memberOperation(bot, async membersLease => {
       this.requireStopVersion(bot.id, version)
       return this.activity.waking.track(bot.id, this.wakeNow(bot, { ...options, membersLease }))
-    }, options)
+    }, options))
   }
 
   async wakeNow(bot, { setupTest = false, execution = null, membersLease, admissionCheck } = {}) {
@@ -259,6 +261,7 @@ export class AitermTransport {
   async resumePreviouslyActive(bot, reference) {
     if (!['claude-code', 'codex-cli'].includes(reference.harness) || HARNESS.get(bot.harness) !== reference.harness
       || this.session(bot) !== reference.sessionId) return null
+    await this.client.environmentReady?.(bot.project)
     return this.memberOperation(bot, async membersLease => {
         const version = this.captureStopVersion(bot)
       await this.requireAccess({ setupTest: false, botId: bot.id })
