@@ -5,26 +5,22 @@ import { randomUUID } from 'node:crypto'
 import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { EventEmitter, once } from 'node:events'
+import { once } from 'node:events'
 import { createModuleUpdateExecutor } from '../src/update-module-executor.mjs'
 import { createUpdateCenter } from '../src/update-center.mjs'
 import { createBellTeamServer } from '../src/http-server.mjs'
-import { captureInstallInspectionOwner, createInstallReconciliationProof } from '../src/update-install-inspection.mjs'
+import { captureInstallInspectionOwner } from '../src/update-install-inspection.mjs'
 import { installReconciliationHash as hash } from '../src/container-update-client.mjs'
 import { EXECUTION_STATE_COMPATIBILITY } from '../src/execution-dispatcher.mjs'
 import { createModuleExchangeMutex } from '../src/module-exchange-mutex.mjs'
-import { createExecutionGeneration } from '../src/execution-generation.mjs'
-import { createExecutionDispatcher } from '../src/execution-dispatcher.mjs'
-import { createModuleProcess } from '../src/module-process.mjs'
-import { ConversationLifetimes } from '../src/conversation-lifetimes.mjs'
-import { MembersAdmission } from '../src/members-admission.mjs'
 
-async function fixture(t, { missingProof = false } = {}) {
+async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'install-reconciliation-common-'))
   const path = join(root, 'state/update-ledger/ledger.json')
   const read = async () => JSON.parse(await readFile(path, 'utf8'))
-  const calls = { starts: 0, inspections: 0, finalizes: 0, reads: 0, applies: 0 }
-  let clock = Date.parse('2026-11-04T14:00:00Z'), available = true, owner = true, proof = true, fence = null, lose = false
+  const shared = createModuleExchangeMutex()
+  const calls = { starts: 0, inspections: 0, finalizes: 0, reads: 0, applies: 0, drains: 0 }
+  let clock = Date.parse('2026-11-04T14:00:00Z'), available = true, owner = true, fence = null, lose = false
   let generation = 'builtin:actual-parent-generation'
   const release = { componentId: 'execution', sourceCommit: 'b'.repeat(40), versionId: 'c'.repeat(64),
     platform: { os: 'linux', arch: 'amd64' }, changes: [], artifact: { kind: 'archive' },
@@ -55,8 +51,8 @@ async function fixture(t, { missingProof = false } = {}) {
       assert.deepEqual(saved.decision, input.decision)
       assert.deepEqual(saved.commonProof, input.commonProof)
       assert.equal(saved.fence, null)
-      assert.equal(available, false)
-      assert.equal(saved.current.available, false)
+      assert.equal(available, true)
+      assert.equal(saved.current.available, true)
       const value = { schema: 'bellteam.module-install-fence.v1', requestId: input.requestId, planId: installPlan.planId,
         originalOperationSha256: input.originalOperationSha256, decisionSha256: input.decision.decisionSha256,
         commonProofSha256: input.commonProof.proofSha256, action: 'close_without_activation', closedAt: new Date(clock).toISOString() }
@@ -70,10 +66,10 @@ async function fixture(t, { missingProof = false } = {}) {
     adapters: { execution: { current: () => ({ version: 'a'.repeat(40), sourceCommit: 'a'.repeat(40), digest: null, origin: 'builtin' }),
       capture: () => ({ generation, pid: null }), available: () => available, canRollback: () => true,
       async prepare() { throw Object.assign(new Error(), { code: 'ENOENT' }) }, async apply() { calls.applies++ } } },
-    withInstallReconciliationProof: missingProof ? null : async (component, operation) => {
-      assert.equal(component, 'execution'); available = false
-      try { return await operation(() => proof) } finally { available = true }
-    } }
+    withInstallReconciliationProof: (component, operation) => shared.runExclusive(async () => {
+      calls.drains++; available = false
+      try { return await operation(() => true) } finally { available = true }
+    }) }
   let executor = await createModuleUpdateExecutor(options)
   t.after(async () => { await executor.close(); await rm(root, { recursive: true, force: true }) })
   const plan = await executor.plan({ scope: 'component', componentId: 'execution' })
@@ -92,10 +88,10 @@ async function fixture(t, { missingProof = false } = {}) {
   const closeInput = () => ({ action: 'close_without_activation', originalOperationSha256: input.originalOperationSha256,
     inspectionSha256: executor.installReconciliation(request.requestId, installId).inspection.receiptSha256 })
   return { root, path, read, calls, options, moduleHost, original, request, installId, grant, input, selection,
-    executor: () => executor, inspect, closeInput,
+    executor: () => executor, inspect, closeInput, normalDispatch: operation => shared.runExclusive(operation),
     close: () => executor.inspectModuleInstall(request.requestId, installId, closeInput(), grant()),
     async reload() { await executor.close(); executor = await createModuleUpdateExecutor(options) },
-    lose: () => { lose = true }, revoke: () => { owner = false }, unconfirm: () => { proof = false },
+    lose: () => { lose = true }, revoke: () => { owner = false },
     changeGeneration: () => { generation = 'different-instance' }, advance: () => { clock += 600001 } }
 }
 
@@ -141,26 +137,23 @@ test('same-ID close persists proof before RPC and fence before excluding busy, k
   assert.throws(() => f.executor().reserveExchange(), { code: 'MODULE_EXCHANGE_BUSY' })
 })
 
-test('a lost close response survives reload and only reads its fence, even without a live proof provider', async t => {
+test('a lost close response survives reload and only reads its fence', async t => {
   const f = await fixture(t); await f.inspect(); f.lose()
   await assert.rejects(f.close(), { code: 'HOST_UPDATE_UNAVAILABLE' })
   assert.equal(f.executor().installReconciliation(f.request.requestId, f.installId).resolution.state, 'unknown')
   assert.throws(() => f.executor().reserveExchange(), { code: 'MODULE_EXCHANGE_BUSY' })
-  f.options.withInstallReconciliationProof = null
   await f.reload(); assert.equal((await f.close()).resolution.state, 'closed')
   assert.equal(f.calls.finalizes, 1); assert.equal(f.calls.reads, 1); assert.equal(f.calls.starts, 1)
 })
 
-test('forged grants, missing proof, stale catalog, and unconfirmed live proof cannot issue close', async t => {
-  const f = await fixture(t, { missingProof: true })
+test('forged grants and stale catalog cannot issue close', async t => {
+  const f = await fixture(t)
   await assert.rejects(f.executor().inspectModuleInstall(f.request.requestId, f.installId, f.input, {}), { code: 'UPDATE_OWNER_REQUIRED' })
-  await f.inspect(); await assert.rejects(f.close(), { code: 'UPDATE_RECONCILIATION_PROOF_UNAVAILABLE' })
-  const g = await fixture(t); await g.inspect(); g.unconfirm()
-  await assert.rejects(g.close(), { code: 'UPDATE_RECONCILIATION_PROOF_CHANGED' })
-  g.selection.publication.status = 'unconfirmed'
-  await assert.rejects(g.close(), { code: 'UPDATE_RECONCILIATION_CATALOG_UNCONFIRMED' })
-  g.revoke(); await assert.rejects(g.close(), { code: 'UPDATE_OWNER_REQUIRED' })
-  assert.equal(f.calls.finalizes + g.calls.finalizes, 0)
+  await f.inspect()
+  f.selection.publication.status = 'unconfirmed'
+  await assert.rejects(f.close(), { code: 'UPDATE_RECONCILIATION_CATALOG_UNCONFIRMED' })
+  f.revoke(); await assert.rejects(f.close(), { code: 'UPDATE_OWNER_REQUIRED' })
+  assert.equal(f.calls.finalizes, 0)
 })
 
 test('revocation after the durable claim keeps busy and never reissues, and changed saved fence is refused', async t => {
@@ -204,65 +197,126 @@ test('fresh Owner revocation during fence read cannot complete or unblock the cl
   assert.equal(f.calls.finalizes, 1); assert.equal(f.calls.reads, 1)
 })
 
-test('the composed private provider holds the shared mutex once and both live assertions for full completion', async () => {
-  const mutex = createModuleExchangeMutex(), completion = Promise.withResolvers(), entered = Promise.withResolvers(), order = []
-  let held = null
-  const provider = name => ({ async withInstallReconciliationProof(operation) {
-    let valid = true; order.push(name + ':hold')
-    const assertHeld = () => { assert(valid); return true }
-    try { return await operation(assertHeld) } finally { valid = false; order.push(name + ':resume') }
-  } })
-  const run = createInstallReconciliationProof({ execution: provider('engine'), conversation: provider('writer'), exchangeMutex: mutex })
-  const attempt = run('execution', check => {
-    held = check; assert.equal(check(), true); entered.resolve()
-    return Object.assign(Promise.resolve('saved'), { completion: completion.promise })
+test('close-only original-ID ownership and same-claim convergence', async t => {
+  await t.test('paused finalize leaves normal dispatch mutex and availability free', async t => {
+    const f = await fixture(t)
+    await f.inspect()
+    const entered = Promise.withResolvers(), resume = Promise.withResolvers()
+    const finalize = f.moduleHost.finalizeInstallReconciliation
+    f.moduleHost.finalizeInstallReconciliation = async input => {
+      entered.resolve(); await resume.promise
+      return finalize(input)
+    }
+    const input = f.closeInput(), closing = f.close()
+    await entered.promise
+    try {
+      assert.equal(await f.normalDispatch(async () => f.options.adapters.execution.available()), true)
+      assert.equal(f.calls.drains, 0)
+      assert.throws(() => f.executor().reserveExchange(), { code: 'MODULE_EXCHANGE_BUSY' })
+      await assert.rejects(f.executor().inspectModuleInstall(f.request.requestId, f.installId, input, f.grant()), { code: 'MODULE_EXCHANGE_BUSY' })
+      await assert.rejects(f.executor().operation(f.request.requestId), { code: 'MODULE_EXCHANGE_BUSY' })
+      await assert.rejects(f.executor().snapshot({ components: [] }), { code: 'MODULE_EXCHANGE_BUSY' })
+    } finally { resume.resolve() }
+    assert.equal((await closing).resolution.state, 'closed')
+    assert.deepEqual(await f.executor().operation(f.request.requestId), f.original)
+    const release = f.executor().reserveExchange(); release()
+    assert.equal(f.calls.starts, 1); assert.equal(f.calls.applies, 0)
   })
-  await entered.promise
-  assert.throws(() => mutex.reserve(), { code: 'MODULE_EXCHANGE_BUSY' })
-  assert.deepEqual(order, ['engine:hold', 'writer:hold']); assert.equal(held(), true)
-  completion.resolve(); assert.equal(await attempt, 'saved')
-  assert.deepEqual(order, ['engine:hold', 'writer:hold', 'writer:resume', 'engine:resume'])
-  assert.throws(held)
-})
 
-test('real engine and writer providers compose without reacquiring their shared mutex', async t => {
-  const root = await mkdtemp(join(tmpdir(), 'install-proof-composition-')); await mkdir(join(root, 'state'))
-  const mutex = createModuleExchangeMutex(), admission = new ConversationLifetimes(), resume = [], done = Promise.withResolvers(), entered = Promise.withResolvers()
-  const execution = createExecutionGeneration({ exchangeMutex: mutex, onAdopt: async () => {},
-    ports: { bots: new Map(), rooms: {}, configurationStorage: { root: join(root, 'intents'), ownerUid: process.getuid() },
-      membersAdmission: new MembersAdmission(), access: { assertWorkAllowed() {} }, observer: { report() {} },
-      native: { async call() { return {} }, async close() { assert.fail('shared native close') } } },
-    loadFactory: async versionId => Object.freeze({ versionId, sourceCommit: 'a'.repeat(40), createExecutionDispatcher }) })
-  const end = child => {
-    child.exitCode = 0; child.connected = false; child.stdout.closed = child.stderr.closed = true
-    child.stdout.emit('close'); child.stderr.emit('close'); child.emit('exit', 0, null); child.emit('close', 0, null)
-  }
-  const conversation = createModuleProcess({ component: 'conversation', root, admission, exchangeMutex: mutex,
-    prepareRelease: async () => {}, validateReady() {}, spawnProcess: () => {
-      const child = Object.assign(new EventEmitter(), { connected: true, exitCode: null, signalCode: null,
-        stdout: Object.assign(new EventEmitter(), { closed: false, resume() {} }),
-        stderr: Object.assign(new EventEmitter(), { closed: false, resume() {} }) })
-      child.disconnect = () => end(child); child.kill = () => { end(child); return true }; return child
-    }, createChannel: child => ({ ready: Promise.resolve({ versionId: null, protocolVersion: 1 }),
-      control(method) {
-        if (method === 'exit') queueMicrotask(() => end(child))
-        if (method === 'resume') resume.push(method)
-        return Promise.resolve({ resumed: true, quiesced: true })
-      }, request: async () => null, callback: async () => null, drainIncoming: async () => {}, reaped: async () => {} }) })
-  t.after(async () => { done.resolve(); await conversation.close(); await execution.close(); await rm(root, { recursive: true, force: true }) })
-  await execution.start(); await conversation.start()
-  const run = createInstallReconciliationProof({ execution, conversation, exchangeMutex: mutex })
-  let held, callbacks = 0
-  const attempt = run('execution', check => {
-    callbacks++; held = check; assert.equal(check(), true); entered.resolve()
-    return Object.assign(Promise.resolve('fence persisted'), { completion: done.promise })
+  await t.test('unsafe original bindings refuse without suspending reception', async t => {
+    for (const mode of ['applyIssued', 'hostIssued', 'original', 'claim']) {
+      const f = await fixture(t); await f.inspect()
+      if (mode === 'applyIssued' || mode === 'hostIssued') {
+        const ledger = await f.read(), entry = ledger.operations[0]
+        if (mode === 'applyIssued') entry.steps[0].applyIssued = true
+        else entry.hostIssued = true
+        await writeFile(f.path, JSON.stringify(ledger)); await f.reload()
+        await assert.rejects(f.close(), { code: 'UPDATE_RECONCILIATION_APPLY_UNCONFIRMED' })
+      } else if (mode === 'original') {
+        await assert.rejects(f.executor().inspectModuleInstall(f.request.requestId, f.installId,
+          { ...f.closeInput(), originalOperationSha256: 'f'.repeat(64) }, f.grant()), { code: 'UPDATE_RECONCILIATION_ORIGINAL_CHANGED' })
+      } else {
+        f.lose(); await assert.rejects(f.close(), { code: 'HOST_UPDATE_UNAVAILABLE' })
+        await assert.rejects(f.executor().inspectModuleInstall(f.request.requestId, f.installId,
+          { ...f.closeInput(), inspectionSha256: 'f'.repeat(64) }, f.grant()), { code: 'UPDATE_RECONCILIATION_REQUEST_CONFLICT' })
+        assert.equal(f.calls.finalizes, 1); assert.equal(f.calls.reads, 0)
+      }
+      assert.equal(await f.normalDispatch(async () => f.options.adapters.execution.available()), true)
+      assert.equal(f.calls.drains, 0); assert.equal(f.calls.applies, 0)
+    }
   })
-  await entered.promise
-  assert.equal(callbacks, 1); assert.equal(execution.snapshot().available, false); assert.equal(conversation.snapshot().available, false)
-  assert.throws(() => mutex.reserve(), { code: 'MODULE_EXCHANGE_BUSY' })
-  await assert.rejects(execution.dispatch({ method: 'transport.observe', args: [{}] }), { code: 'EXECUTION_NOT_ACCEPTING' })
-  assert.throws(() => admission.enter())
-  done.resolve(); assert.equal(await attempt, 'fence persisted')
-  assert.equal(execution.snapshot().available, true); assert.equal(conversation.snapshot().available, true)
-  assert.throws(held); assert.equal(resume.length, 2)
+
+  await t.test('mutating job read owns the ledger before it awaits', async t => {
+    const f = await fixture(t); await f.inspect()
+    const ledger = await f.read(), entry = ledger.operations[0]
+    entry.steps[0].jobReport = { state: 'failed', reason: { code: 'UPDATE_PARENT_INTERRUPTED', message: 'interrupted' } }
+    entry.interrupted = true
+    await writeFile(f.path, JSON.stringify(ledger)); await f.reload()
+    const input = f.closeInput(), entered = Promise.withResolvers(), resume = Promise.withResolvers()
+    const job = f.moduleHost.job; let first = true
+    f.moduleHost.job = async id => {
+      if (first) { first = false; entered.resolve(); await resume.promise }
+      return job(id)
+    }
+    const reading = f.executor().operation(f.request.requestId)
+    await entered.promise
+    try {
+      await assert.rejects(f.executor().inspectModuleInstall(f.request.requestId, f.installId, input, f.grant()), { code: 'MODULE_EXCHANGE_BUSY' })
+      assert.equal(f.calls.finalizes, 0)
+    } finally { resume.resolve() }
+    await reading
+    const saved = (await f.read()).operations[0]
+    assert.equal(saved.interrupted, false)
+    assert.equal(saved.steps[0].jobReport, undefined)
+    assert.equal((await f.close()).resolution.state, 'closed')
+  })
+
+  await t.test('retained close cannot readmit work or flush late reports', async t => {
+    const f = await fixture(t); await f.inspect(); await f.close()
+    const ledger = await f.read(), entry = ledger.operations[0]
+    entry.admissionComplete = false; entry.interrupted = true
+    entry.steps[0].jobReport = { state: 'ready', reason: null }
+    await writeFile(f.path, JSON.stringify(ledger)); await f.reload()
+    const before = await readFile(f.path, 'utf8'), calls = { ...f.calls }
+    assert.deepEqual(await f.executor().start(f.request), f.original)
+    assert.deepEqual(await f.executor().operation(f.request.requestId), f.original)
+    await f.executor().snapshot({ components: [], notice: { code: 'UPDATE_PROVIDERS_UNAVAILABLE' } })
+    assert.equal(await readFile(f.path, 'utf8'), before)
+    assert.deepEqual(f.calls, calls)
+  })
+
+  await t.test('current change after runtime fence retains the claim and only converges', async t => {
+    const f = await fixture(t); await f.inspect()
+    const finalize = f.moduleHost.finalizeInstallReconciliation
+    f.moduleHost.finalizeInstallReconciliation = async input => {
+      const fence = await finalize(input); f.changeGeneration(); return fence
+    }
+    await assert.rejects(f.close(), { code: 'UPDATE_RECONCILIATION_PROOF_CHANGED' })
+    assert.equal(f.executor().installReconciliation(f.request.requestId, f.installId).resolution.state, 'unknown')
+    assert.throws(() => f.executor().reserveExchange(), { code: 'MODULE_EXCHANGE_BUSY' })
+    assert.equal((await f.close()).resolution.state, 'closed')
+    assert.equal(f.calls.finalizes, 1); assert.equal(f.calls.reads, 1)
+    assert.equal(f.calls.drains, 0)
+  })
+
+  await t.test('post-fence save uncertainty reloads and reads the same fence only', async t => {
+    const f = await fixture(t); await f.inspect()
+    const finalize = f.moduleHost.finalizeInstallReconciliation
+    let durable
+    f.moduleHost.finalizeInstallReconciliation = async input => {
+      const fence = await finalize(input)
+      durable = await readFile(f.path, 'utf8')
+      await rm(f.path); await mkdir(f.path)
+      return fence
+    }
+    await assert.rejects(f.close(), { code: 'UPDATE_LEDGER_WRITE_FAILED' })
+    assert.equal(f.executor().installReconciliation(f.request.requestId, f.installId).resolution.state, 'unknown')
+    assert.throws(() => f.executor().reserveExchange(), { code: 'UPDATE_LEDGER_WRITE_FAILED' })
+    assert.equal((await f.executor().operation(f.request.requestId)).phase, 'unknown')
+    await rm(f.path, { recursive: true }); await writeFile(f.path, durable, { mode: 0o600 })
+    await f.reload()
+    assert.equal((await f.close()).resolution.state, 'closed')
+    assert.equal(f.calls.finalizes, 1); assert.equal(f.calls.reads, 1)
+    assert.equal(f.calls.starts, 1); assert.equal(f.calls.applies, 0)
+  })
 })

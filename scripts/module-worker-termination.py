@@ -8,8 +8,10 @@ import os
 import platform
 from pathlib import Path
 import re
+import stat
 import subprocess
 import sys
+import time
 
 
 def canonical(value):
@@ -29,6 +31,7 @@ def load(name, filename):
 PREPARE_KEYS = 'schema,requestId,planId,originalOperationSha256,planSha256,targetSha256,storageBindingSha256,ledgerBinding,worker,oldService,target,preparedAt'
 SERVICE_KEYS = 'containerId,imageId,sourceCommit,startedAt,pidNamespace,modelSha256,project'
 TERMINATION_KEYS = 'schema,requestId,originalOperationSha256,prepareSha256,oldContainerId,status,running,restarting,pid,finishedAt,exitCode,stoppedAt'
+SUCCESSOR_KEYS = 'schema,requestId,planId,originalOperationSha256,predecessorSha256,predecessorSourceCommit,currentSourceCommit,planSha256,targetSha256,storageBindingSha256,ledgerBindingSha256,workerSha256,runtimeCurrentSha256,issuedAt,action'
 
 
 def binding(path):
@@ -36,7 +39,7 @@ def binding(path):
     return dict(device=str(info.st_dev), inode=str(info.st_ino))
 
 
-def read_termination(updater, host, directory, value, plan, plan_sha):
+def termination_record(updater, host, directory, value, plan, plan_sha):
     """Called with worker/ledger/private/component locks already held by the backend."""
     record = host.read_json(directory / 'worker-termination.json', updater.uid)
     host.check(host.exact(record, 'prepareSha256,prepare,terminationSha256,termination'), 'HOST_MODULE_TERMINATION_UNCONFIRMED', 409)
@@ -57,7 +60,6 @@ def read_termination(updater, host, directory, value, plan, plan_sha):
         and p['ledgerBinding'] == binding(updater.prefix) and p['worker'] == value['worker']
         and p['oldService']['pidNamespace'] == value['worker']['pidNamespace']
         and p['oldService']['sourceCommit'] == plan['expected']['sourceCommit']
-        and p['target']['sourceCommit'] == updater.config['release']
         and updater.inspect_current()['privateVolume'] == plan['expected']['privateVolume'],
         'HOST_MODULE_TERMINATION_UNCONFIRMED', 409)
     worker=value['worker']
@@ -68,6 +70,7 @@ def read_termination(updater, host, directory, value, plan, plan_sha):
     host.check(all(isinstance(old[k], str) and re.fullmatch('[a-f0-9]{64}', old[k]) for k in ['containerId', 'modelSha256'])
         and re.fullmatch('sha256:[a-f0-9]{64}', old['imageId'])
         and re.fullmatch('[a-f0-9]{40}', old['sourceCommit'])
+        and isinstance(p['target']['sourceCommit'], str) and re.fullmatch('[a-f0-9]{40}', p['target']['sourceCommit'])
         and re.fullmatch('sha256:[a-f0-9]{64}', p['target']['imageId'])
         and re.fullmatch('[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}', old['project']), 'HOST_MODULE_TERMINATION_UNCONFIRMED', 409)
     host.check(t['prepareSha256'] == record['prepareSha256'] and t['oldContainerId'] == old['containerId']
@@ -77,7 +80,107 @@ def read_termination(updater, host, directory, value, plan, plan_sha):
     host.check(host.parse_time(old['startedAt']) <= host.parse_time(p['preparedAt'])
         <= host.parse_time(t['finishedAt']) <= host.parse_time(t['stoppedAt']),
         'HOST_MODULE_TERMINATION_UNCONFIRMED', 409)
+    return record
+
+
+def read_termination(updater, host, directory, value, plan, plan_sha):
+    record = termination_record(updater, host, directory, value, plan, plan_sha)
+    host.check(record['prepare']['target']['sourceCommit'] == updater.config['release'],
+               'HOST_MODULE_TERMINATION_UNCONFIRMED', 409)
     return digest(record)
+
+
+def successor_binding(updater, host, record, plan_sha):
+    p = record['prepare']
+    current = updater.inspect_current()
+    source = updater.config['release']
+    host.check(isinstance(source, str) and re.fullmatch('[a-f0-9]{40}', source)
+        and current['sourceCommit'] == source and current['platform'] == updater.config['platform'],
+        'HOST_MODULE_TERMINATION_UNCONFIRMED', 409)
+    return dict(schema='bellteam.module-worker-termination-successor.v1', requestId=p['requestId'], planId=p['planId'],
+        originalOperationSha256=p['originalOperationSha256'], predecessorSha256=digest(record),
+        predecessorSourceCommit=p['target']['sourceCommit'], currentSourceCommit=source, planSha256=plan_sha,
+        targetSha256=p['targetSha256'], storageBindingSha256=p['storageBindingSha256'],
+        ledgerBindingSha256=digest(p['ledgerBinding']), workerSha256=digest(p['worker']),
+        runtimeCurrentSha256=digest(current), action='close_without_activation')
+
+
+def successor_path(directory, expected):
+    return directory / ('worker-termination-successor-' + expected['currentSourceCommit'] + '.json')
+
+
+def read_successor(host, updater, path, expected, record):
+    info = host.trusted(path, updater.uid)
+    host.check(stat.S_IMODE(info.st_mode) == 0o600, 'HOST_MODULE_TERMINATION_UNCONFIRMED', 409)
+    result = host.read_json(path, updater.uid)
+    host.check(host.exact(result, 'successorSha256,successor') and host.exact(result['successor'], SUCCESSOR_KEYS),
+               'HOST_MODULE_TERMINATION_UNCONFIRMED', 409)
+    body = result['successor']
+    host.check(all(body[key] == item for key, item in expected.items())
+        and host.digest(result['successorSha256']) == digest(body)
+        and host.parse_time(record['termination']['stoppedAt']) <= host.parse_time(body['issuedAt']) <= time.time(),
+        'HOST_MODULE_TERMINATION_UNCONFIRMED', 409)
+    return digest(dict(predecessorSha256=expected['predecessorSha256'], successorSha256=result['successorSha256']))
+
+
+def sync_directory(directory):
+    fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try: os.fsync(fd)
+    finally: os.close(fd)
+
+
+def recover_successor_pending(host, updater, path):
+    pending = path.with_suffix('.pending')
+    if not os.path.lexists(pending): return
+    host.trusted(path.parent, updater.uid, directory=True)
+    info = pending.lstat()
+    host.check(stat.S_ISREG(info.st_mode) and info.st_uid in {0, updater.uid}
+        and stat.S_IMODE(info.st_mode) == 0o600 and info.st_nlink in {1, 2},
+        'HOST_MODULE_TERMINATION_UNCONFIRMED', 409)
+    if info.st_nlink == 2:
+        final = path.lstat()
+        host.check(stat.S_ISREG(final.st_mode) and final.st_nlink == 2
+            and (info.st_dev, info.st_ino) == (final.st_dev, final.st_ino),
+            'HOST_MODULE_TERMINATION_UNCONFIRMED', 409)
+    # This reserved metadata alias belongs to this issuer, never an install stage or original record.
+    pending.unlink()
+    sync_directory(path.parent)
+
+
+def issue_termination_successor(updater, host, directory, value, plan, plan_sha):
+    """Inspect-only issuer; caller holds original worker/ledger/private/component locks."""
+    record = termination_record(updater, host, directory, value, plan, plan_sha)
+    if record['prepare']['target']['sourceCommit'] == updater.config['release']: return
+    expected = successor_binding(updater, host, record, plan_sha)
+    path = successor_path(directory, expected)
+    recover_successor_pending(host, updater, path)
+    if path.exists():
+        read_successor(host, updater, path, expected, record)
+        sync_directory(path.parent)
+        return
+    body = dict(expected, issuedAt=host.stamp())
+    host.check(host.parse_time(record['termination']['stoppedAt']) <= host.parse_time(body['issuedAt']),
+               'HOST_MODULE_TERMINATION_UNCONFIRMED', 409)
+    result = dict(successorSha256=digest(body), successor=body)
+    pending = path.with_suffix('.pending')
+    fd = os.open(pending, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    try:
+        with os.fdopen(fd, 'wb') as stream:
+            stream.write(canonical(result)); stream.flush(); os.fsync(stream.fileno())
+        os.link(pending, path, follow_symlinks=False)
+        sync_directory(path.parent)
+    finally:
+        pending.unlink()
+        sync_directory(path.parent)
+
+
+def read_current_termination(updater, host, directory, value, plan, plan_sha):
+    """Read-only proof; a missing current-source successor is never issued here."""
+    record = termination_record(updater, host, directory, value, plan, plan_sha)
+    if record['prepare']['target']['sourceCommit'] == updater.config['release']:
+        return digest(record)
+    expected = successor_binding(updater, host, record, plan_sha)
+    return read_successor(host, updater, successor_path(directory, expected), expected, record)
 
 
 PROBE = '''import json,os,pathlib,sys

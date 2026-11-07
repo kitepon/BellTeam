@@ -98,27 +98,7 @@ export function validateSavedInstallInspection(value, step, progress, operation)
 
 export function installReconciliationClosed(progress) { return closed(progress.installReconciliation) }
 
-export function createInstallReconciliationProof({ execution, conversation, exchangeMutex }) {
-  return (componentId, operation) => {
-    if (componentId !== 'execution' || typeof operation !== 'function'
-      || typeof execution?.withInstallReconciliationProof !== 'function'
-      || typeof conversation?.withInstallReconciliationProof !== 'function') fail('UPDATE_RECONCILIATION_PROOF_UNAVAILABLE', 503)
-    return exchangeMutex.runExclusive(() => execution.withInstallReconciliationProof(assertEngine =>
-      conversation.withInstallReconciliationProof(async assertWriter => {
-        const assertQuiescent = () => {
-          if (typeof assertEngine !== 'function' || typeof assertWriter !== 'function'
-            || assertEngine() !== true || assertWriter() !== true) fail('UPDATE_RECONCILIATION_PROOF_CHANGED')
-          return true
-        }
-        assertQuiescent()
-        const result = operation(assertQuiescent)
-        try { return await result }
-        finally { await (result?.completion ?? result); assertQuiescent() }
-      })))
-  }
-}
-
-export function createInstallInspection({ findOperation, findPlan, moduleHost, adapters, catalog, save, now, withCloseProof, isOpen }) {
+export function createInstallInspection({ findOperation, findPlan, moduleHost, adapters, catalog, save, now }) {
   const context = (requestId, installRequestId) => {
     validateUpdateRequest('requestId', requestId)
     validateUpdateRequest('requestId', installRequestId)
@@ -150,11 +130,13 @@ export function createInstallInspection({ findOperation, findPlan, moduleHost, a
   }
   return {
     read(requestId, installRequestId) { return structuredClone(project(context(requestId, installRequestId))) },
-    async inspect(requestId, installRequestId, input, grant) {
+    async inspect(requestId, installRequestId, input, grant, assertOwned) {
       if (!(exact(input, 'action,originalOperationSha256') && input.action === 'inspect'
           || exact(input, 'action,originalOperationSha256,inspectionSha256') && input.action === 'close_without_activation' && sha(input.inspectionSha256))
         || !sha(input.originalOperationSha256)) fail('UPDATE_RECONCILIATION_INPUT_INVALID', 400)
+      if (typeof assertOwned !== 'function') fail('UPDATE_RECONCILIATION_PROOF_UNAVAILABLE', 503)
       await assertOwner(grant)
+      assertOwned()
       const state = context(requestId, installRequestId), { entry, progress, step } = state
       if (entry.operation.phase !== 'unknown' || !progress.installIssued
         || progress.installPhase !== 'unknown' || step.componentId !== 'execution')
@@ -164,15 +146,41 @@ export function createInstallInspection({ findOperation, findPlan, moduleHost, a
         fail('UPDATE_RECONCILIATION_ORIGINAL_CHANGED')
       if (input.action === 'close_without_activation') {
         if (!previous) fail('UPDATE_RECONCILIATION_INSPECTION_REQUIRED')
-        if (previous.close) {
-          if (previous.close.decision.decision.inspectionSha256 !== input.inspectionSha256)
+        let claim = previous.close
+        const originalBinding = () => installReconciliationHash([entry.operation, step,
+          entry.steps.map(({ installReconciliation, ...progress }) => progress),
+          entry.jobBindings, entry.admissionComplete, entry.idempotencyKey, entry.hostIssued, previous.receipts])
+        const binding = originalBinding()
+        const assertOriginal = () => {
+          assertOwned()
+          const current = context(requestId, installRequestId)
+          if (current.entry !== entry || current.progress !== progress || current.step !== step
+            || progress.installReconciliation !== previous || previous.close !== claim
+            || previous.originalOperationSha256 !== input.originalOperationSha256
+            || previous.publicOperationSha256 !== installReconciliationHash(entry.operation)
+            || binding !== originalBinding()
+            || entry.operation.phase !== 'unknown' || !progress.installIssued || progress.installPhase !== 'unknown')
+            fail('UPDATE_RECONCILIATION_PROOF_CHANGED')
+          // This intent never crossed the durable completed-install / apply boundary.
+          if (progress.applyIssued === true || entry.hostIssued || entry.steps.some(item => item !== progress
+            && !['pending', 'succeeded'].includes(item.phase) || item.installIssued && item !== progress
+            && !['completed', 'failed'].includes(item.installPhase))) fail('UPDATE_RECONCILIATION_APPLY_UNCONFIRMED')
+          return true
+        }
+        const assertAuthorized = async () => {
+          assertOriginal()
+          await assertOwner(grant)
+          assertOriginal()
+        }
+        assertOriginal()
+        if (claim) {
+          if (claim.decision.decision.inspectionSha256 !== input.inspectionSha256)
             fail('UPDATE_RECONCILIATION_REQUEST_CONFLICT')
           if (!closed(previous)) {
             if (typeof moduleHost?.readInstallReconciliationFence !== 'function') fail('UPDATE_RECONCILIATION_UNAVAILABLE', 503)
             const fence = structuredClone(await moduleHost.readInstallReconciliationFence({ requestId: installRequestId,
               originalOperationSha256: previous.originalOperationSha256 }))
-            await assertOwner(grant)
-            await completeClose(previous, fence)
+            await completeClose(previous, fence, assertAuthorized)
           }
           return structuredClone(project(state))
         }
@@ -180,56 +188,49 @@ export function createInstallInspection({ findOperation, findPlan, moduleHost, a
         if (!receipt || receipt.quiescence !== 'confirmed' || receipt.stageState !== 'clear'
           || receipt.recoveryState !== 'not_issued' || receipt.fence !== 'open'
           || !['verified_present', 'absent'].includes(receipt.placement)) fail('UPDATE_RECONCILIATION_UNCONFIRMED')
-        // Legacy install unknown is before the durable completed-install barrier and cannot reach apply.
-        if (progress.applyIssued === true || entry.hostIssued || entry.steps.some(item => item !== progress
-          && !['pending', 'succeeded'].includes(item.phase) || item.installIssued && item !== progress
-          && !['completed', 'failed'].includes(item.installPhase))) fail('UPDATE_RECONCILIATION_APPLY_UNCONFIRMED')
-        if (typeof withCloseProof !== 'function' || typeof moduleHost?.finalizeInstallReconciliation !== 'function')
-          fail('UPDATE_RECONCILIATION_PROOF_UNAVAILABLE', 503)
+        if (typeof moduleHost?.finalizeInstallReconciliation !== 'function') fail('UPDATE_RECONCILIATION_PROOF_UNAVAILABLE', 503)
         const issuedAt = now()
-        return withCloseProof(step.componentId, async assertQuiescent => {
-          if (typeof assertQuiescent !== 'function') fail('UPDATE_RECONCILIATION_PROOF_UNAVAILABLE', 503)
-          const capture = () => ({ current: structuredClone(adapters[step.componentId].current()),
-            capture: structuredClone(adapters[step.componentId].capture?.() ?? null), available: adapters[step.componentId].available() })
-          const current = capture(), currentSha256 = installReconciliationHash(current)
-          if (typeof current.available !== 'boolean' || !current.current || typeof current.capture?.generation !== 'string'
-            || !current.capture.generation.length) fail('UPDATE_CURRENT_UNAVAILABLE')
-          const selected = await catalog.select(step.componentId)
-          if (!sha(selected.catalogSha256) || selected.publication?.status !== 'verified' || Date.parse(selected.expiresAt) <= now())
-            fail('UPDATE_RECONCILIATION_CATALOG_UNCONFIRMED')
-          const assertFresh = async () => {
-            const freshCatalog = await catalog.select(step.componentId)
-            if (freshCatalog.catalogSha256 !== selected.catalogSha256 || freshCatalog.publication?.status !== 'verified'
-              || Date.parse(freshCatalog.expiresAt) <= now()) fail('UPDATE_RECONCILIATION_CATALOG_UNCONFIRMED')
-            await assertOwner(grant)
-            if (!isOpen() || assertQuiescent() !== true || now() >= issuedAt + 600000
-              || currentSha256 !== installReconciliationHash(capture())
-              || previous.publicOperationSha256 !== installReconciliationHash(entry.operation)) fail('UPDATE_RECONCILIATION_PROOF_CHANGED')
-          }
-          await assertFresh()
-          const d = { schema: 'bellteam.module-install-decision.v1', publicRequestId: requestId,
-            publicPlanId: entry.operation.plan.planId, requestId: installRequestId, planId: step.installPlan.planId,
-            originalOperationSha256: previous.originalOperationSha256, publicOperationSha256: previous.publicOperationSha256,
-            inspectionSha256: input.inspectionSha256, targetSha256: receipt.targetSha256,
-            storageBindingSha256: receipt.storageBindingSha256, runtimeCurrentSha256: receipt.runtimeCurrentSha256,
-            currentSha256, catalogSha256: selected.catalogSha256, action: 'close_without_activation',
-            issuedAt: new Date(issuedAt).toISOString(), expiresAt: new Date(issuedAt + 600000).toISOString(), ownerGrantRef: randomBytes(32).toString('hex') }
-          const decision = envelope('decision', d), claimedAt = new Date(now()).toISOString()
-          const commonProof = envelope('proof', { schema: 'bellteam.module-install-common-proof.v1', publicRequestId: requestId,
-            publicPlanId: d.publicPlanId, requestId: installRequestId, planId: d.planId, originalOperationSha256: d.originalOperationSha256,
-            publicOperationSha256: d.publicOperationSha256, decisionSha256: decision.decisionSha256, currentSha256,
-            applyState: 'not_issued', applyClaimSha256: null, resultSha256: null, claimedAt, verifiedAt: claimedAt, ownerGrantRef: d.ownerGrantRef })
-          const claim = { decision, commonProof, current, fence: null, completedAt: null }
-          if (!savedClose(claim, previous, step, progress, entry.operation)) fail('UPDATE_RECONCILIATION_PROOF_CHANGED')
-          previous.close = claim
-          await save()
-          await assertFresh()
-          const fence = structuredClone(await moduleHost.finalizeInstallReconciliation({ requestId: installRequestId,
-            originalOperationSha256: previous.originalOperationSha256, decision, commonProof }))
-          await assertFresh()
-          await completeClose(previous, fence)
-          return structuredClone(project(state))
-        })
+        const capture = () => ({ current: structuredClone(adapters[step.componentId].current()),
+          capture: structuredClone(adapters[step.componentId].capture?.() ?? null), available: adapters[step.componentId].available() })
+        const current = capture(), currentSha256 = installReconciliationHash(current)
+        if (typeof current.available !== 'boolean' || !current.current || typeof current.capture?.generation !== 'string'
+          || !current.capture.generation.length) fail('UPDATE_CURRENT_UNAVAILABLE')
+        const selected = await catalog.select(step.componentId)
+        assertOriginal()
+        if (!sha(selected.catalogSha256) || selected.publication?.status !== 'verified' || Date.parse(selected.expiresAt) <= now())
+          fail('UPDATE_RECONCILIATION_CATALOG_UNCONFIRMED')
+        const assertFresh = async () => {
+          assertOriginal()
+          const freshCatalog = await catalog.select(step.componentId)
+          await assertAuthorized()
+          if (freshCatalog.catalogSha256 !== selected.catalogSha256 || freshCatalog.publication?.status !== 'verified'
+            || Date.parse(freshCatalog.expiresAt) <= now()) fail('UPDATE_RECONCILIATION_CATALOG_UNCONFIRMED')
+          if (now() >= issuedAt + 600000 || currentSha256 !== installReconciliationHash(capture()))
+            fail('UPDATE_RECONCILIATION_PROOF_CHANGED')
+        }
+        await assertFresh()
+        const d = { schema: 'bellteam.module-install-decision.v1', publicRequestId: requestId,
+          publicPlanId: entry.operation.plan.planId, requestId: installRequestId, planId: step.installPlan.planId,
+          originalOperationSha256: previous.originalOperationSha256, publicOperationSha256: previous.publicOperationSha256,
+          inspectionSha256: input.inspectionSha256, targetSha256: receipt.targetSha256,
+          storageBindingSha256: receipt.storageBindingSha256, runtimeCurrentSha256: receipt.runtimeCurrentSha256,
+          currentSha256, catalogSha256: selected.catalogSha256, action: 'close_without_activation',
+          issuedAt: new Date(issuedAt).toISOString(), expiresAt: new Date(issuedAt + 600000).toISOString(), ownerGrantRef: randomBytes(32).toString('hex') }
+        const decision = envelope('decision', d), claimedAt = new Date(now()).toISOString()
+        const commonProof = envelope('proof', { schema: 'bellteam.module-install-common-proof.v1', publicRequestId: requestId,
+          publicPlanId: d.publicPlanId, requestId: installRequestId, planId: d.planId, originalOperationSha256: d.originalOperationSha256,
+          publicOperationSha256: d.publicOperationSha256, decisionSha256: decision.decisionSha256, currentSha256,
+          applyState: 'not_issued', applyClaimSha256: null, resultSha256: null, claimedAt, verifiedAt: claimedAt, ownerGrantRef: d.ownerGrantRef })
+        claim = { decision, commonProof, current, fence: null, completedAt: null }
+        if (!savedClose(claim, previous, step, progress, entry.operation)) fail('UPDATE_RECONCILIATION_PROOF_CHANGED')
+        previous.close = claim
+        assertOriginal()
+        await save()
+        await assertFresh()
+        const fence = structuredClone(await moduleHost.finalizeInstallReconciliation({ requestId: installRequestId,
+          originalOperationSha256: previous.originalOperationSha256, decision, commonProof }))
+        await completeClose(previous, fence, assertFresh)
+        return structuredClone(project(state))
       }
       if (previous?.close) fail('UPDATE_RECONCILIATION_INTENT_CLAIMED')
       if (typeof moduleHost?.inspectModuleInstall !== 'function') fail('UPDATE_RECONCILIATION_UNAVAILABLE', 503)
@@ -237,7 +238,9 @@ export function createInstallInspection({ findOperation, findPlan, moduleHost, a
       const receipt = structuredClone(await moduleHost.inspectModuleInstall({
         requestId: installRequestId, originalOperationSha256: input.originalOperationSha256,
       }))
+      assertOwned()
       await assertOwner(grant)
+      assertOwned()
       if (!boundReceipt(receipt, step, progress, input.originalOperationSha256)
         || Date.parse(receipt.receipt.inspectionTime) > now() + 300000
         || publicHash !== installReconciliationHash(entry.operation))
@@ -250,7 +253,7 @@ export function createInstallInspection({ findOperation, findPlan, moduleHost, a
           originalOperationSha256: input.originalOperationSha256,
           publicOperationSha256: publicHash, receipts: [...receipts, receipt],
         }
-        try { await save() } catch (error) {
+        try { await save(); assertOwned() } catch (error) {
           if (previous) progress.installReconciliation = previous
           else delete progress.installReconciliation
           throw error
@@ -260,7 +263,8 @@ export function createInstallInspection({ findOperation, findPlan, moduleHost, a
     },
   }
 
-  async function completeClose(state, fence) {
+  async function completeClose(state, fence, assertFresh) {
+    await assertFresh()
     if (!boundFence(fence, state.close) || Date.parse(fence.fence.closedAt) > now()) fail('UPDATE_RECONCILIATION_FENCE_INVALID', 503)
     state.close.fence = fence
     state.close.completedAt = new Date(now()).toISOString()
@@ -268,5 +272,6 @@ export function createInstallInspection({ findOperation, findPlan, moduleHost, a
       state.close.fence = null; state.close.completedAt = null
       throw error
     }
+    await assertFresh()
   }
 }

@@ -45,7 +45,6 @@ import { createUpdateClients } from './container-update-client.mjs'
 import { createHostUpdateAdapter } from './update-host-adapter.mjs'
 import { createModuleUpdateCatalog } from './update-module-catalog.mjs'
 import { createModuleUpdateExecutor } from './update-module-executor.mjs'
-import { createInstallReconciliationProof } from './update-install-inspection.mjs'
 import { createModuleUpdateAdapters } from './update-module-adapters.mjs'
 import { createUpdateCenter } from './update-center.mjs'
 import { createUpdateJobReader } from './update-job-reader.mjs'
@@ -287,8 +286,6 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   const hostUpdate = createHostUpdateAdapter({ root, client: updateClients.container })
   const moduleCatalog = createModuleUpdateCatalog({ client: updateClients.module })
   const moduleExecutor = await createModuleUpdateExecutor({ root, catalog: moduleCatalog, host: hostUpdate, moduleHost: updateClients.module,
-    withInstallReconciliationProof: createInstallReconciliationProof({ execution: execution?.controller,
-      conversation: conversationAssembly?.controller, exchangeMutex }),
     adapters: createModuleUpdateAdapters({ gateway, builtinSourceCommit, notifications, members, memory: seatRuntime?.memoryModule, diagnostics: diagnosticsModule,
       prepareDiagnostics, usage: usageAssembly?.controller, prepareUsage, conversation: conversationAssembly?.controller, prepareConversation: (versionId, options) => prepareModuleRelease('conversation', versionId, options), execution: execution?.controller, prepareExecution }), notify: () => updateCenter?.notify() })
   updateCenter = createUpdateCenter({ gateway, builtinSourceCommit, notifications, members, host: hostUpdate, moduleCatalog, moduleExecutor, jobReader: createUpdateJobReader(updateClients), problemReader: async () => moduleRestartLimitProblems(await diagnostics.list('all', 1000)), memory: seatRuntime?.memoryModule, diagnostics: diagnosticsModule, usage: usageAssembly?.controller, conversation: conversationAssembly?.controller, execution: execution?.controller })

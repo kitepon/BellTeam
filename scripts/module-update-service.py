@@ -164,7 +164,7 @@ class ModuleUpdater(host.HostUpdater):
         host.check(volume == plan['expected']['privateVolume'], 'HOST_MODULE_STORAGE_BINDING')
         return directory, value, plan, plan_sha, installer
 
-    def reconciliation_worker_quiescent(self, value, directory=None, plan=None, plan_sha=None):
+    def reconciliation_worker_quiescent(self, value, directory=None, plan=None, plan_sha=None, *, issue_successor=False):
         worker = value.get('worker')
         host.check(host.exact(worker, 'pid,birth,pidNamespace') and type(worker['pid']) is int and worker['pid'] > 0
             and isinstance(worker['birth'], str) and re.fullmatch('[0-9]+', worker['birth'])
@@ -175,7 +175,9 @@ class ModuleUpdater(host.HostUpdater):
         if bridge_record or worker['pidNamespace'] != str(os.stat('/proc/self/ns/pid').st_ino):
             host.check(directory is not None and plan is not None and plan_sha is not None, 'HOST_MODULE_WORKER_UNCONFIRMED',409)
             bridge=load_module('module_worker_termination','module-worker-termination.py')
-            return bridge.read_termination(self,host,directory,value,plan,plan_sha)
+            if issue_successor:
+                bridge.issue_termination_successor(self,host,directory,value,plan,plan_sha)
+            return bridge.read_current_termination(self,host,directory,value,plan,plan_sha)
         try:
             birth = Path(f"/proc/{worker['pid']}/stat").read_text().rsplit(')', 1)[1].split()[19]
         except FileNotFoundError:
@@ -198,7 +200,7 @@ class ModuleUpdater(host.HostUpdater):
                    'HOST_MODULE_RECONCILIATION_CHANGED')
         return {'receiptSha256': receipt_sha, 'receipt': receipt}
 
-    def inspect_module_install(self, params):
+    def inspect_module_install(self, params, *, issue_successor=True):
         directory, value, plan, plan_sha, installer = self.reconciliation_origin(params)
         target = plan['target']
         placement, quiescence, stages, manifest_sha, reason = 'unconfirmed', 'unconfirmed', 'unconfirmed', None, None
@@ -215,7 +217,6 @@ class ModuleUpdater(host.HostUpdater):
                 component = self.private / 'execution'
                 locks.enter_context(reconciliation_lock(component / '.install.lock', self.uid))
                 self.assert_model_binding(current)
-                termination_sha = self.reconciliation_worker_quiescent(value,directory,plan,plan_sha)
                 host.check(not any(path.name.startswith('.staging-') for path in component.iterdir()),
                            'HOST_MODULE_UNOWNED_STAGE', 409)
                 stages = 'clear'
@@ -227,6 +228,8 @@ class ModuleUpdater(host.HostUpdater):
                 if os.path.lexists(fence_path):
                     self.read_install_reconciliation_fence(params)
                     fence = 'closed'
+                termination_sha = self.reconciliation_worker_quiescent(value,directory,plan,plan_sha,
+                    issue_successor=issue_successor and fence == 'open')
                 quiescence = 'confirmed'
                 expected = installer.expectation(target['versionId'], target['sourceCommit'], target['artifact']['signerCommit'])
                 manifest_sha = installer.inspect_execution_release(self.private, expected, self.config['platform']['arch'])
@@ -320,7 +323,7 @@ class ModuleUpdater(host.HostUpdater):
             and claim_time <= verified_time <= time.time(), 'HOST_MODULE_COMMON_PROOF_CHANGED', 409)
         host.check(proof['applyState'] == 'not_issued' and proof['applyClaimSha256'] is None
             and proof['resultSha256'] is None, 'HOST_MODULE_COMMON_PROOF_CHANGED', 409)
-        observed = self.inspect_module_install(origin)['receipt']
+        observed = self.inspect_module_install(origin, issue_successor=False)['receipt']
         host.check(observed['quiescence'] == 'confirmed' and observed['stageState'] == 'clear' and observed['fence'] == 'open'
             and observed['placement'] in {'verified_present', 'absent'}, 'HOST_MODULE_PROOF_UNCONFIRMED', 409)
         with reconciliation_lock(self.state / 'worker.lock', self.uid), host.locked(self.state / 'ledger.lock', wait=True), contextlib.ExitStack() as locks:
