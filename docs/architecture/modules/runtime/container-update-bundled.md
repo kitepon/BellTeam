@@ -162,7 +162,7 @@ flowchart TD
   Plan --> Exists["volume exists, local, no options, project + aiterm-state labels, never created"]
   Exists --> Bind["old body inspect: one /srv/bellteam-aiterm mount, volume, same Name, local, RW, Source = volume Mountpoint"]
   Bind --> Only["docker ps -a --filter volume = exactly the old CID"]
-  Only --> Reader[aiterm-mcp tree SHA-256 in old body image = target image]
+  Only --> Reader["reader closure SHA-256 in old body image = target image: aiterm-mcp tree incl. node_modules + resolved aiterm-steer-delivery package"]
   Reader --> Record[record Name Driver Mountpoint CreatedAt]
   Record --> Stop[quiesce, stop exact CID, restart no, rm, writer check]
   Stop --> Recheck["resume_initialize: same Name Driver Mountpoint CreatedAt, no empty check, chmod or chown"]
@@ -171,7 +171,7 @@ flowchart TD
   Exists -->|missing or foreign| Reset
   Bind -->|mismatch| Reset
   Only -->|another container| Reset
-  Reader -->|different tree| ResetReader["same reset; reason=RESUME_STATE_READER_UNCONFIRMED"]
+  Reader -->|different or unresolvable| ResetReader["same reset; reason=RESUME_STATE_READER_UNCONFIRMED"]
   Record --> Preserved["print aiterm=preserved"]
   Reset --> Stop
   ResetReader --> Stop
@@ -182,10 +182,10 @@ flowchart TD
 | --- | --- | --- |
 | `planResumeInstall(..., preserve)` | new normal, previous normal, previous runtime, targets null → plan with `state_volume = source_volume`, normal with no `BELLTEAM_RESUME_GENERATION` | Wrong target backing. A throw (stderr suppressed) makes `resume_prepare` rerun the planner in reset mode from the saved input normal, before any Docker mutation. |
 | `resume_preserve_bind` | `current-runtime.json` (old body inspect), `docker volume inspect`, `docker ps -a --filter volume` → `aiterm-backing` identity line | Dual writers / wrong backing. Failure → reset path with `reason=RESUME_PRESERVE_UNCONFIRMED`. Volume identity is Name + Driver + Mountpoint + CreatedAt; Docker refuses to remove a volume while any container references it, and a recreate changes CreatedAt. Device/inode is not read: it needs a privileged mount and adds nothing over CreatedAt for local volumes. |
-| `resume_reader` | each image → SHA-256 over the sorted `aiterm-mcp` tree (path, mode, symlink target, bytes) | A different Aiterm state reader opening retained records. Aiterm publishes no reader-compatibility range (Elegg), so only an identical tree preserves; anything else resets with `reason=RESUME_STATE_READER_UNCONFIRMED` until Elegg decides reader compatibility. This also makes `--recover` safe: the previous body reads records written by the same reader. |
+| `resume_reader` | each image → SHA-256 over the sorted `aiterm-mcp` tree including `node_modules` (path, mode, symlink target, bytes), plus `aiterm-steer-delivery` resolved by Node's resolver from `aiterm-mcp/dist` (Elegg 2026-11-08: it reads/writes retained Codex/Cursor hook/delivery HOME state). Its location relative to the tree is hashed, and its package directory is hashed again when it lies outside the tree. Unresolvable in either image → reset with `RESUME_STATE_READER_UNCONFIRMED`. | A different Aiterm state reader opening retained records. Aiterm publishes no reader-compatibility range (Elegg), so only an identical tree preserves; anything else resets with `reason=RESUME_STATE_READER_UNCONFIRMED` until Elegg decides reader compatibility. This also makes `--recover` safe: the previous body reads records written by the same reader. |
 | `resume_initialize` (preserve) | recorded identity → recheck only | Recreated volume between `rm` and `up`. Still refuses: after the stop a reset would mount something nobody validated. The install exits non-zero with the old body removed; the worker's existing `--recover` restarts the previous image from `previous-normal.json` on that volume name. |
 
-Recovery: `--recover <generation>` is unchanged. Its `previous-normal.json` names the same volume, so it remounts the retained backing with no create or initialization, after the existing writer check that includes that volume. Unchanged: `resume_stopped`/`resume_capture` (no targets), the writer check, the stop proof, HOME/data/Cursor/private-state handling, and H1 checkpoint/restore. Residual: between the recheck and `compose up` a Host root actor could still swap the volume; not covered.
+Recovery: `--recover <generation>` is unchanged. After a preserved swap its `previous-normal.json` names the same volume, so it remounts the retained backing with no create or initialization, after the existing writer check that includes that volume. After a reset swap the old volume is retained under the existing previous-normal policy (never deleted, overwritten or cleaned up), and `--recover` mounts that recorded previous backing, not the new one. Unchanged: `resume_stopped`/`resume_capture` (no targets), the writer check, the stop proof, HOME/data/Cursor/private-state handling, and H1 checkpoint/restore. Residual: between the recheck and `compose up` a Host root actor could still swap the volume; not covered.
 
 ```mermaid
 stateDiagram-v2

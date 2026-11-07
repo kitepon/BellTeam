@@ -104,7 +104,7 @@ else if(a[0]==='run'){
   }
   if(e.TEST_H1&&j>=0&&a[j+1].includes('resume-state-cli.js'))process.exit(0);
   if(e.TEST_H1&&j>=0&&a[j+1].includes('r="/usr/local/lib/node_modules/aiterm-mcp"')){
-   const code=a[j+1].replace('r="/usr/local/lib/node_modules/aiterm-mcp"','r='+JSON.stringify(root+'/reader/'+a[j-1].slice(7)));
+   const code=a[j+1].replace('r="/usr/local/lib/node_modules/aiterm-mcp"','r='+JSON.stringify(root+'/reader/'+a[j-1].slice(7)+'/aiterm-mcp'));
    const r=spawnSync(process.execPath,['-e',code],{stdio:'inherit'});process.exit(r.status??98);
   }
   if(e.TEST_H1&&j>=0&&a[j+1].includes('fs.chownSync')){
@@ -637,13 +637,18 @@ test('bundled updater body swap keeps the exact Aiterm backing without initializ
   await writeFile(handoff+'/previous-runtime.json',JSON.stringify({Id:'d'.repeat(64),Image:currentImage}))
   normal.services.bellteam.image=targetImage;await writeFile(handoff+'/input-normal.json',JSON.stringify(normal))
   for(const image of [currentImage,targetImage]){
-   await mkdir(f.root+'/reader/'+image.slice(7)+'/dist',{recursive:true});await writeFile(f.root+'/reader/'+image.slice(7)+'/dist/index.js','reader')
+   const mcp=f.root+'/reader/'+image.slice(7)+'/aiterm-mcp';await mkdir(mcp+'/dist',{recursive:true});await writeFile(mcp+'/dist/index.js','reader')
+   await steer(mcp+'/node_modules/aiterm-steer-delivery','steer')
   }
   const worker={BELLTEAM_CONTAINER_UPDATE_WORKER:'1',BELLTEAM_PREVIOUS_COMPOSE:handoff+'/previous-normal.json',
    COMPOSE_FILE:handoff+'/input-normal.json',COMPOSE_PROJECT_NAME:'selected-project'}
   return {f,volume,worker,offset:(await f.calls()).length}
  }
  const initialized=c=>c.args.some(v=>String(v).includes('fs.chownSync'))
+ async function steer(dir,content){
+  await mkdir(dir+'/dist',{recursive:true});await writeFile(dir+'/dist/index.js',content)
+  await writeFile(dir+'/package.json',JSON.stringify({name:'aiterm-steer-delivery',main:'./dist/index.js'}))
+ }
  const {f,volume,worker,offset}=await setup()
  const kept=await f.run(['--no-pull'],worker),saved=kept.stdout.match(/^saved-compose=(.*)$/m)[1],calls=(await f.calls()).slice(offset)
  assert.match(kept.stdout,/^aiterm=preserved$/m)
@@ -659,13 +664,18 @@ test('bundled updater body swap keeps the exact Aiterm backing without initializ
  assert.equal(recovery.some(c=>c.args[0]==='volume'&&c.args[1]==='create'||initialized(c)),false)
  assert.equal(await readFile(f.root+'/'+volume+'/retained','utf8'),'native-state')
  // Before the stop any mismatch takes today's reset: new generation, normal initialization, old backing untouched.
- for(const failure of ['reader','writer','mount']){
+ // steer: aiterm-mcp trees identical, the resolved aiterm-steer-delivery lies outside them and differs; unresolved: absent in the target.
+ for(const failure of ['reader','writer','mount','steer','unresolved']){
   const {f,volume,worker,offset}=await setup(),extra={...worker}
-  if(failure==='reader')await writeFile(f.root+'/reader/'+targetImage.slice(7)+'/dist/index.js','changed reader')
+  if(failure==='reader')await writeFile(f.root+'/reader/'+targetImage.slice(7)+'/aiterm-mcp/dist/index.js','changed reader')
   if(failure==='writer')extra.TEST_OTHER_VOLUME_USER='1'
+  if(failure==='steer'||failure==='unresolved')for(const image of [currentImage,targetImage]){
+   await rm(f.root+'/reader/'+image.slice(7)+'/aiterm-mcp/node_modules',{recursive:true})
+   if(failure==='steer'||image===currentImage)await steer(f.root+'/reader/'+image.slice(7)+'/node_modules/aiterm-steer-delivery',image===targetImage?'changed steer':'steer')
+  }
   if(failure==='mount'){const r=JSON.parse(await readFile(f.root+'/runtime.json'));r.Mounts[0].Source='/vm/other/_data';await writeFile(f.root+'/runtime.json',JSON.stringify(r))}
   const {stdout}=await f.run(['--no-pull'],extra),saved=stdout.match(/^saved-compose=(.*)$/m)[1]
-  assert.match(stdout,new RegExp('^aiterm=reset reason='+(failure==='reader'?'RESUME_STATE_READER_UNCONFIRMED':'RESUME_PRESERVE_UNCONFIRMED')+'$','m'),failure)
+  assert.match(stdout,new RegExp('^aiterm=reset reason='+(['reader','steer','unresolved'].includes(failure)?'RESUME_STATE_READER_UNCONFIRMED':'RESUME_PRESERVE_UNCONFIRMED')+'$','m'),failure)
   const plan=JSON.parse(await readFile(saved+'/resume-plan.json')),calls=(await f.calls()).slice(offset)
   assert.equal(plan.source_volume,volume);assert.notEqual(plan.state_volume,volume)
   assert.equal(JSON.parse(await readFile(saved+'/normal.json')).volumes['aiterm-state'].name,plan.state_volume)

@@ -80,18 +80,25 @@ try{const [[c],[v]]=JSON.parse(require("fs").readFileSync(0,"utf8")),[name,id]=p
   ||v.Name!==name||v.Driver!=="local"||typeof v.Mountpoint!=="string"||m[0].Source!==v.Mountpoint)throw Error();
  console.log(c.Image)}catch{process.exitCode=1}' "$resume_volume" "$stopped_container" > "$staging/aiterm-source-image" || return 1
   docker volume inspect --format '{{.Name}} {{.Driver}} {{.Mountpoint}} {{.CreatedAt}}' "$resume_volume" > "$staging/aiterm-backing" || return 1
-  source_reader=$(resume_reader "$(cat "$staging/aiterm-source-image")") || return 1
-  target_reader=$(resume_reader "$image") || return 1
+  source_reader=$(resume_reader "$(cat "$staging/aiterm-source-image")") || { resume_reason=RESUME_STATE_READER_UNCONFIRMED;return 1; }
+  target_reader=$(resume_reader "$image") || { resume_reason=RESUME_STATE_READER_UNCONFIRMED;return 1; }
   [ "${#source_reader}" -eq 64 ] && [ "$source_reader" = "$target_reader" ] || { resume_reason=RESUME_STATE_READER_UNCONFIRMED;return 1; }
 }
 
 resume_reader() {
+  # The state-owning closure: the whole aiterm-mcp tree (node_modules included) plus aiterm-steer-delivery as Node
+  # resolves it from aiterm-mcp/dist, hashed again when its package directory lies outside that tree.
   docker run --pull never --rm --network none --read-only --entrypoint /usr/local/bin/node "$1" -e '
 const fs=require("fs"),path=require("path"),h=require("crypto").createHash("sha256"),r="/usr/local/lib/node_modules/aiterm-mcp";
-const walk=d=>{for(const n of fs.readdirSync(d).sort()){const p=path.join(d,n),s=fs.lstatSync(p),k=path.relative(r,p)+"\0"+(s.mode&0o7777)+"\0";
- if(s.isSymbolicLink())h.update("l\0"+k+fs.readlinkSync(p)+"\0");else if(s.isDirectory()){h.update("d\0"+k);walk(p)}
+const walk=(base,d)=>{for(const n of fs.readdirSync(d).sort()){const p=path.join(d,n),s=fs.lstatSync(p),k=path.relative(base,p)+"\0"+(s.mode&0o7777)+"\0";
+ if(s.isSymbolicLink())h.update("l\0"+k+fs.readlinkSync(p)+"\0");else if(s.isDirectory()){h.update("d\0"+k);walk(base,p)}
  else if(s.isFile())h.update("f\0"+k+s.size+"\0").update(fs.readFileSync(p));else throw Error()}};
-walk(r);console.log(h.digest("hex"))'
+walk(r,r);
+let d=path.dirname(require("module").createRequire(r+"/dist/index.js").resolve("aiterm-steer-delivery"));
+while(!(fs.existsSync(d+"/package.json")&&JSON.parse(fs.readFileSync(d+"/package.json","utf8")).name==="aiterm-steer-delivery")){if(d==="/")throw Error();d=path.dirname(d)}
+const root=fs.realpathSync(r),steer=fs.realpathSync(d),inside=steer.startsWith(root+"/");
+h.update("s\0"+path.relative(root,steer)+"\0");if(!inside)walk(steer,steer);
+console.log(h.digest("hex"))'
 }
 
 resume_initialize() {
