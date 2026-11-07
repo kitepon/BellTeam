@@ -754,22 +754,36 @@ flowchart LR
 
 元operation DTO・installPhaseを変更せず、inspectionでbusyを解除しない。保存復元でも全receiptを同元stepとpublic operation hashへ束縛し、改竄を拒否する。初回はinspectionと以下のcloseだけで、recover/consumeは未提供。横断の意味はRootの同install-ID契約、runtimeの配置/排他/receiptは[module-installer](../runtime/module-installer.md)が所有する。
 
-初回close接続は同POSTの閉`{action:"close_without_activation",originalOperationSha256,inspectionSha256}`を使う。親のprivate grant再検査、元install unknownによるapply未到達の証明、現current/capture/availableと正式catalog、execution所有の実native/writer終端証明が必要。証明provider未供給ならcloseを拒否する。親再作成やavailableだけを終端証明にしない。
+## Close-only original-ID ownership (K-PN97EU)
+
+The existing three-key close_without_activation request retains the original public/install IDs and v1 saved decision/proof/fence. This bookkeeping action does not activate code, restore placement or certify unrelated native/writer termination.
+
+| Function | Owner and failure |
+| --- | --- |
+| Reconciliation entry | Executor-local exclusive/exchange and no active updater work remain held through completion. A private assertion binds the original entry/progress/plan, apply-not-issued and claim identity across awaits |
+| Mutating operation/inventory read | publicJobs/flush/interrupted reconciliation uses that same local owner; active work keeps its own writes. Existing busy refusal affects updates only, never Bot reception |
+| Retained close | Same-ID start cannot admit/work/flush original reports. Matching incomplete claim only reads its recorded runtime fence, never creates another decision/finalize |
+| Fresh close | Recheck Owner/current/catalog/local binding, save one claim, runtime final locks/fence, then matching common completion fsync. Preclaim refusal has no claim; uncertainty retains the same original intent |
+| Normal lifecycle | No application-global mutex, execution quiesce or conversation drain is acquired here. Real module exchange and ordinary lifecycle retain their existing contracts |
 
 ```mermaid
 flowchart LR
-  Owner[既Owner認証とfresh再認可] --> Proof[元ID/原apply未発行/現世代/実終端]
-  Proof --> Claim[同IDのclose decision/commonProofをfsync]
-  Claim --> Fence[runtime finalize一回 / 耐久fence]
-  Fence --> Complete[親のfenceと共通終端をfsync]
-  Complete --> Busy[同元IDだけbusyから除外]
-  Unknown[claim後の応答不明] --> Read[同POSTは同ID readFenceだけ]
-  Read --> Complete
+  Auth[Authorized same-ID close] --> Local[Executor-local owner / no active original work]
+  Reads[Mutating jobs / flush / interrupted read] --> Local
+  Local --> Claim[Exact original and apply-not-issued / one durable claim]
+  Claim --> Runtime[Runtime A worker / storage final locks]
+  Runtime --> Fence[Matching durable fence]
+  Fence --> Save[Common completion fsync / original history unknown]
+  Retained[Matching retained claim] --> Local
+  Local -->|retained only| ReadFence[Read existing fence / no new finalize]
+  ReadFence --> Save
+  Live[Unrelated Bot/native work] --> Normal[Normal reception and lifecycle]
 ```
 
-一回claim後はdecisionを作り直さず、再POSTも同ID readFenceだけ。GETは親の保存済み射影だけでruntime読取も発行しない。fenceと共通終端の両方を閉validatorで元ID・decision/proof・public原本hashへ照合する。保存失敗・不明はbusyを保持し、復元後も新しいclaim/finalizeを発行しない。別要求のbusy、元operation/unknown、旧Startの冪等応答、通常guardを維持する。restore/consume/回復workerは未提供で初回範囲外。
+The local owner releases after its actual operation settles; a later explicit request can acquire it. An uncertain claim leaves blocking state only by matching same-ID fence readback and durable completion. GET projects saved reconciliation only. Runtime A owns worker/storage/predecessor-current attestation and its separate supply; no new public schema, native proof API, persistent lock store or recovery timer is introduced. Production actions require their own Root entry.
 
-親は同application-servicesが保持する共有exchangeMutexを外側で一回だけ取り、実execution.controller→実conversation.controllerのwithInstallReconciliationProofを固定順で呼ぶ。両assertは同期関数のままcallback前後・claim前・runtime発行前後で再検査する。各providerはlocal排他だけを使い、共有mutex再入や利用者bypass引数を持たない。proof中の実available=falseもcurrent/captureと同hashに保存し、通常plan/applyのavailable guardは保持する。新しいapplyはapplyIssuedを先にfsyncし、旧installPhase=unknownは既completed-install耐久barrierの手前なのでapply未到達の限定証拠とする。親close/期限切れ/認可失効後は新発行しない。保存中は公開read/更新能力をbusyとし、fsync前の閉鎖を表示しない。
+
+A new apply still fsyncs applyIssued first; legacy installPhase=unknown is before the durable completed-install barrier and cannot reach apply. Close records the actual current/capture/available value without changing availability. Parent close, expiry or Owner revocation prevents new finalization. Closed or ledger-faulted executors keep saved read projection available without further reconciliation writes; common completion is exposed only after its durable save.
 
 
 ## 全体の背景agent設定と独立した仕事要約投影

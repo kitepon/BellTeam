@@ -23,6 +23,31 @@ The caller idempotency key defaults to parent requestId. Same retained key + sam
 
 Installed/builtin steps call admitJob without an installer launch, then downloading/verifying around existing prepare, swapping before replace, and ready only after the runtime replace Promise includes a real candidate public probe. Failures persist a fixed failed reason. If an earlier module aborts, the parent reports failed for an admitted queued/unclaimed container step through the container client; runtime rejects this after an operation/claim exists. No container worker or activation is issued to close that record. Installer-backed steps use their preadmitted jobId/key with the signed installer plan. Historical operations are not replayed or rewritten. Parent restart reconciliation records concrete parent interruption for admitted parent-owned module jobs; it never guesses successful completion.
 
+## Close-only function and data-flow delta
+
+This accepted B delta changes the common executor contract for `close_without_activation`; the public DTOs, v1 persisted envelopes and existing routes remain unchanged. It does not assert that runtime A is implemented or deployed. Runtime/Epinel owns the original worker, storage, predecessor/successor validation and durable fence. A and B require a matched formal source/image S for subsequent adoption; the separately deployed companion remains ecfc until that adoption.
+
+| Function / connection | Scoped contract and state transition |
+| --- | --- |
+| Close entry and local owner | The executor acquires its local ledger/exchange owner only with no active original work. Before a new claim it checks the exact original and plan, install unknown and apply not issued, other-step/host guards, claim identity, fresh Owner authorization, current and catalog bindings. Busy or invalid state refuses without changing normal Bot reception. No application-global mutex, native drain or conversation/writer drain is added. |
+| All mutating read reconciliation | `publicJobs`, terminal-report flush and interrupted-job read reconciliation acquire the same local owner before their first await and hold it through every shared-ledger save. Already-owned callers use a private owned path; read-only projections need no extra writer. A close facing a prior owner refuses busy; operation finish releases ownership. Closed or ledger-faulted executors keep saved read-only projection available and perform no reconciliation writes. |
+| New close claim | The local owner saves one existing-v1 decision/claim, invokes the runtime boundary, validates its matching fence and saves common completion. Assertions and fresh bindings remain checked around awaits. Uncertain outcomes preserve the same claim and original unknown; timeout is not cancellation or proof that work was unissued. |
+| Retained close intent | Matching retained intent, including partial admission, is a no-admit/no-work/no-read-reconciliation barrier for the original. A later explicit authorized request takes the same owner and only reads the same claim's fence; it never creates a new claim or calls finalize again. Matching fence plus durable common completion converges the claim; otherwise the original remains unknown and intent retained. |
+| Guard exit and ownership | Active work or a mutating reader exits by actual operation finish and owner release; a competing request receives busy and can make a new explicit request. A retained uncertain claim exits through matching-claim fence convergence and saved completion. No periodic retry, old-worker replay or inferred success is introduced. |
+
+```mermaid
+flowchart LR
+  Request[Explicit authorized same-ID close] --> Owner[Executor-local ledger / exchange owner; no active original work]
+  MutatingRead[publicJobs / flush / interrupted-read ledger mutation] -->|same owner or busy refusal| Owner
+  Owner -->|new exact claim; fresh auth / current / catalog| Claim[Durable common claim]
+  Claim --> Runtime[Runtime-owned worker / storage / predecessor-successor checks and fence]
+  Runtime -->|matching fence| Complete[Durable common completion]
+  Retained[Retained exact claim] -->|new explicit request under same owner| ReadFence[Read matching fence only]
+  ReadFence --> Complete
+  Owner -->|actual operation finishes| Released[Local owner released]
+  Normal[Unrelated Bot reception] --> Existing[Existing normal reception and lifecycle]
+```
+
 ## Functions and data flow
 
 | Function | Input | Output and owner |

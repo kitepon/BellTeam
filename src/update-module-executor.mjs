@@ -20,21 +20,25 @@ const matches = (current, target) => current !== null && (target.origin === 'bui
   ? current.origin === 'builtin' && current.sourceCommit === target.sourceCommit : current.digest === target.digest)
 
 // The server state lock owns this ledger. Controllers retain their own writer/drain locks.
-export async function createModuleUpdateExecutor({ root, catalog, adapters, host = null, moduleHost = null, withInstallReconciliationProof = null, notify = () => {}, now = Date.now }) {
+export async function createModuleUpdateExecutor({ root, catalog, adapters, host = null, moduleHost = null, notify = () => {}, now = Date.now }) {
   const directory = join(root, 'state/update-ledger'), path = join(directory, 'ledger.json')
   let state = { schema: 'bellteam.module-update.ledger.v1', plans: [], operations: [] }
   const jobClient = binding => binding.kind === 'container' ? host : moduleHost
+  const hasCloseIntent = entry => entry.steps.some(step => step.installReconciliation?.close)
   const publicJobs = async entry => {
-    if (entry.jobBindings) await flushJobReports(entry)
-    const value = publicOperation(entry)
-    if (entry.interrupted) {
-      for (const binding of entry.jobBindings.filter(binding => binding.admitted && (binding.kind === 'module' || !entry.hostIssued))) {
-        const job = await jobClient(binding).job(binding.jobId)
-        if (!['ready', 'failed'].includes(job.state)) await jobClient(binding).updateJob({ jobId: binding.jobId,
-          state: 'failed', reason: { code: 'UPDATE_PARENT_INTERRUPTED', message: '親が停止し、機能の切替を完了できませんでした。' } })
+    // Active work owns its writes; a retained close intent can only converge its fence.
+    if (!active && !closed && !fault && !hasCloseIntent(entry)) {
+      if (entry.jobBindings) await flushJobReports(entry)
+      if (entry.interrupted) {
+        for (const binding of entry.jobBindings.filter(binding => binding.admitted && (binding.kind === 'module' || !entry.hostIssued))) {
+          const job = await jobClient(binding).job(binding.jobId)
+          if (!['ready', 'failed'].includes(job.state)) await jobClient(binding).updateJob({ jobId: binding.jobId,
+            state: 'failed', reason: { code: 'UPDATE_PARENT_INTERRUPTED', message: '親が停止し、機能の切替を完了できませんでした。' } })
+        }
+        entry.interrupted = false; await save()
       }
-      entry.interrupted = false; await save()
     }
+    const value = publicOperation(entry)
     if (entry.jobBindings) value.jobs = await Promise.all(entry.jobBindings.filter(binding => binding.admitted)
       .map(async binding => {
         const job = await jobClient(binding).job(binding.jobId)
@@ -157,8 +161,8 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
     if (changed) await save()
   } catch (error) { if (error.code !== 'ENOENT') throw failure('UPDATE_LEDGER_INVALID') }
 
-  const exclusive = async operation => {
-    requireValue(!closed && !fault, fault ?? 'UPDATE_EXECUTOR_CLOSED')
+  const exclusive = async (operation, allowStopped = false) => {
+    if (!allowStopped) requireValue(!closed && !fault, fault ?? 'UPDATE_EXECUTOR_CLOSED')
     requireValue(!busy, 'MODULE_EXCHANGE_BUSY', 409)
     busy = true
     // save() が状態の変化を知らせる。読取りだけの排他（snapshotのhost/install再読）は知らせない。
@@ -167,8 +171,7 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
   }
   const findPlan = id => state.plans.find(entry => entry.plan.planId === id)
   const findOperation = id => state.operations.find(entry => entry.operation.requestId === id)
-  const inspection = createInstallInspection({ findOperation, findPlan, moduleHost, adapters, catalog, save, now,
-    withCloseProof: withInstallReconciliationProof, isOpen: () => !closed && !fault })
+  const inspection = createInstallInspection({ findOperation, findPlan, moduleHost, adapters, catalog, save, now })
   const installPending = step => step.installIssued && !['completed', 'failed'].includes(step.installPhase) && !installReconciliationClosed(step)
   const hostPending = entry => entry.hostIssued && !['completed', 'failed'].includes(entry.operation.phase)
     || entry.steps.some(installPending)
@@ -355,9 +358,15 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
       return inspection.read(requestId, installRequestId)
     },
     inspectModuleInstall(requestId, installRequestId, input, grant) {
-      return exclusive(() => exchangeMutex.runExclusive(() => {
+      return exclusive(() => exchangeMutex.runExclusive(async () => {
         requireValue(!active, 'MODULE_EXCHANGE_BUSY', 409)
-        return inspection.inspect(requestId, installRequestId, input, grant)
+        let owned = true
+        try {
+          return await inspection.inspect(requestId, installRequestId, input, grant, () => {
+            requireValue(owned && busy && !active && !closed && !fault, 'UPDATE_RECONCILIATION_PROOF_CHANGED', 409)
+            return true
+          })
+        } finally { owned = false }
       }))
     },
     async plan(input, inventory = null) {
@@ -431,7 +440,7 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
         if (existing) {
           requireValue(existing.operation.plan.planId === input.planId
             && (existing.idempotencyKey ?? existing.operation.requestId) === key, 'UPDATE_REQUEST_CONFLICT', 409)
-          if (existing.admissionComplete !== false) return publicJobs(existing)
+          if (existing.admissionComplete !== false || hasCloseIntent(existing)) return publicJobs(existing)
         }
         requireValue(!active && !state.operations.some(hostPending), 'MODULE_EXCHANGE_BUSY', 409)
         const planned = findPlan(input.planId)
@@ -466,35 +475,39 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
     },
     async operation(id) {
       validateUpdateRequest('requestId', id)
-      const entry = findOperation(id); requireValue(entry, 'UPDATE_OPERATION_NOT_FOUND', 404)
-      if (entry.hostIssued && !['completed', 'failed'].includes(entry.operation.phase) && !active) await exclusive(() => refreshHost(entry))
-      if (entry.steps.some(installPending) && !active) {
-        // A failed readback must not hide the already durable unknown result.
-        try { await exclusive(() => refreshInstalls(entry)) } catch {}
-      }
-      return publicJobs(entry)
+      return exclusive(async () => {
+        const entry = findOperation(id); requireValue(entry, 'UPDATE_OPERATION_NOT_FOUND', 404)
+        if (entry.hostIssued && !['completed', 'failed'].includes(entry.operation.phase) && !active && !closed && !fault) await refreshHost(entry)
+        if (entry.steps.some(installPending) && !active && !closed && !fault) {
+          // A failed readback must not hide the already durable unknown result.
+          try { await refreshInstalls(entry) } catch {}
+        }
+        return publicJobs(entry)
+      }, true)
     },
     async snapshot(inventory) {
-      const pendingHost = state.operations.find(hostPending)
-      if (pendingHost && !active && !closed && !fault) { try { await exclusive(async () => { await refreshHost(pendingHost); await refreshInstalls(pendingHost) }) } catch {} }
-      const recent = state.operations.slice(-2).reverse()
-      const blockedHost = Boolean(pendingHost) || busy
-      if (recent[0]) inventory.operation = await publicJobs(recent[0])
-      if (recent[1]) inventory.previousOperation = await publicJobs(recent[1])
-      inventory.plans = state.plans.filter(entry => Date.parse(entry.plan.expiresAt) > now()).slice(-16).map(entry => copy(entry.plan))
-      for (const component of inventory.components) {
-        const current = component.comparison.state === 'up_to_date' && component.publication?.check.status === 'verified'
-        if (adapters[component.id] && component.published && (current || component.comparison.state === 'update_available' || component.comparison.state === 'unknown' && adapters[component.id].capture?.()?.generation))
-          component.capability = { supported: !current && !closed && !fault && !active && !blockedHost,
-            reason: closed ? 'UPDATE_EXECUTOR_CLOSED' : fault ?? (active || blockedHost ? 'MODULE_EXCHANGE_BUSY' : current ? 'UPDATE_ALREADY_CURRENT' : null) }
-      }
-      if (fault || recent[0] && ['unknown', 'failed'].includes(recent[0].operation.phase)) inventory.notice = { state: 'attention', code: fault ?? recent[0].operation.error?.code ?? 'UPDATE_RESULT_UNKNOWN', message: '保存された更新結果を確認してください。同じ要求を自動で再実行しません。' }
-      else if (recent[0] && !terminal(recent[0].operation)) inventory.notice = { state: 'updating', code: null, message: '更新処理の結果を保存しています。' }
-      else if (inventory.components.some(component => component.capability.supported)) inventory.notice = { state: 'ready', code: null, message: '固定計画を作成して更新対象を確認できます。' }
-      else if (!closed && !fault && !active && !blockedHost && inventory.notice.code === 'UPDATE_PROVIDERS_UNAVAILABLE'
-        && inventory.components.some(component => adapters[component.id] && component.capability.reason === 'UPDATE_ALREADY_CURRENT'))
-        inventory.notice = { state: 'ready', code: null, message: '確認できた機能の稼働版は、正式公開版と一致しています。' }
-      return inventory
+      return exclusive(async () => {
+        const pendingHost = state.operations.find(hostPending)
+        if (pendingHost && !active && !closed && !fault) { try { await refreshHost(pendingHost); await refreshInstalls(pendingHost) } catch {} }
+        const recent = state.operations.slice(-2).reverse()
+        const blockedHost = Boolean(pendingHost)
+        if (recent[0]) inventory.operation = await publicJobs(recent[0])
+        if (recent[1]) inventory.previousOperation = await publicJobs(recent[1])
+        inventory.plans = state.plans.filter(entry => Date.parse(entry.plan.expiresAt) > now()).slice(-16).map(entry => copy(entry.plan))
+        for (const component of inventory.components) {
+          const current = component.comparison.state === 'up_to_date' && component.publication?.check.status === 'verified'
+          if (adapters[component.id] && component.published && (current || component.comparison.state === 'update_available' || component.comparison.state === 'unknown' && adapters[component.id].capture?.()?.generation))
+            component.capability = { supported: !current && !closed && !fault && !active && !blockedHost,
+              reason: closed ? 'UPDATE_EXECUTOR_CLOSED' : fault ?? (active || blockedHost ? 'MODULE_EXCHANGE_BUSY' : current ? 'UPDATE_ALREADY_CURRENT' : null) }
+        }
+        if (fault || recent[0] && ['unknown', 'failed'].includes(recent[0].operation.phase)) inventory.notice = { state: 'attention', code: fault ?? recent[0].operation.error?.code ?? 'UPDATE_RESULT_UNKNOWN', message: '保存された更新結果を確認してください。同じ要求を自動で再実行しません。' }
+        else if (recent[0] && !terminal(recent[0].operation)) inventory.notice = { state: 'updating', code: null, message: '更新処理の結果を保存しています。' }
+        else if (inventory.components.some(component => component.capability.supported)) inventory.notice = { state: 'ready', code: null, message: '固定計画を作成して更新対象を確認できます。' }
+        else if (!closed && !fault && !active && !blockedHost && inventory.notice.code === 'UPDATE_PROVIDERS_UNAVAILABLE'
+          && inventory.components.some(component => adapters[component.id] && component.capability.reason === 'UPDATE_ALREADY_CURRENT'))
+          inventory.notice = { state: 'ready', code: null, message: '確認できた機能の稼働版は、正式公開版と一致しています。' }
+        return inventory
+      }, true)
     },
     async close() { closed = true; await active; await exchangeMutex.waitForIdle() },
   }
