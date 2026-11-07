@@ -669,7 +669,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
     state.stopEvents?.()
     state.stopEvents = watchEvents(refreshFromEvent, error => {
       conversationComposer.showError(`更新の接続が止まりました: ${error.message}。ページを再読み込みして確認してください。`)
-    })
+    }, payload => { void updateCenter.refresh(payload) })
   }
 
   function conversationKey(type, id) { return `${type}:${id}` }

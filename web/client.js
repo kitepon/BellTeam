@@ -10,9 +10,9 @@ export function createWebClient({ fetch = globalThis.fetch, setTimeout = globalT
     return readApiResponse(response)
   }
 
-  function watchEvents(onEvent, onError) {
+  function watchEvents(onEvent, onError, onUpdates) {
     const abort = new AbortController()
-    let timer = null
+    let timer = null, notifications = Promise.resolve()
     async function connect() {
       if (abort.signal.aborted) return
       let reader
@@ -31,7 +31,16 @@ export function createWebClient({ fetch = globalThis.fetch, setTimeout = globalT
             const block = buffer.slice(0, boundary)
             buffer = buffer.slice(boundary + 2)
             const data = block.split('\n').filter(line => line.startsWith('data:')).map(line => line.slice(5)).join('\n')
-            if (data) await onEvent(JSON.parse(data))
+            if (data) {
+              const payload = JSON.parse(data)
+              if (!onUpdates) await onEvent(payload)
+              else if (payload.type === 'updates') await onUpdates(payload)
+              else {
+                // Keep ordinary notifications ordered without holding up update invalidations.
+                notifications = notifications.then(() => { if (!abort.signal.aborted) return onEvent(payload) })
+                void notifications.catch(error => { if (!abort.signal.aborted) { abort.abort(); onError(error) } })
+              }
+            }
           }
         }
       } catch (error) {

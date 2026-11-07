@@ -50,6 +50,44 @@ The shared client error reader retains its string result for existing callers an
 
 SSE updates.jobs[] is also a validated stored-record input to the in-memory recent display, so it remains visible if the subsequent inventory GET fails. A successful inventory GET replaces that display with its own jobs[]. The records remain separate from the reader error; no browser persistence or state transition is inferred. The source function map is createUpdateCenter -> display validation / same-ID GET / renderJobs shared by main and details/history; application.refreshFromEvent -> updateCenter.refresh(payload); client.api -> readApiError(details). Only this changed display/error boundary needs new tests. Peer runtime, diagnostics and common tests are inherited.
 
+## Update invalidation and independent readers (2026-11-07 repair)
+
+Overall connections remain [feature map](../../feature-map.md) Web -> integration.HTTP/SSE and [overall DFD](../../data-flow.md) U14/U16. This delta changes only Web scheduling/display. Common owns the completion-to-idle invalidation contract; that separate owner correction must preserve scoped events without inventory-read notifications.
+
+| Function / edge | Maintained or changed; reason |
+| --- | --- |
+| client.watchEvents -> application.refreshFromEvent | Change: an optional independent updates callback receives updates while the existing ordered ordinary-event callback is awaiting roster/history. Ordinary notifications remain ordered; update GETs cannot wait behind another view's read. Parsing, authentication, retry classification, abort and EOF behavior remain unchanged. |
+| application update callback -> updateCenter.refresh | Change scheduling only; pass the same updates payload, preserve all:false isolation. Existing startup/open/visible/manual triggers remain. No roster/timeline request for an updates event. |
+| U14 inventory GET -> components/current/comparison/capability | Change: apply this read independently of active/history reads. Coalesce concurrent invalidations per existing URL and retain a final requested read. A slow past operation cannot block current versions. Existing schema/HTTP route and server comparison/capability judgments remain. |
+| U14 same-UUID operation GET -> own/history display | Change: independently apply each response under retained request/plan identity and disposal/generation checks. Keep one in-flight read per URL with a trailing invalidation. Errors remain visible per reader; no POST retry or fabricated job state. |
+| U16 jobs[] and U14 jobs[] -> main/detail/history | Change: for the same kind/jobId choose the supplied record with the greatest decimal updatedAtNs. This is record freshness only, never an inferred state transition. Main and details share the same latest supplied records. |
+| capability.reason -> card/detail text | Change: MODULE_EXCHANGE_BUSY explains an update in progress; UPDATE_ALREADY_CURRENT explains that no update is needed. Preserve supported=false and all backend plan/start judgments. Unknown reasons retain the existing explicit failure explanation/code. |
+| Explicit plan/start -> sessionStorage -> POST / same-ID GET | Maintain fixed target, confirmation, existing storage key/UUIDs, double-click suppression and one explicit start. Background GETs never issue a new plan/start. |
+| Web source -> assets -> module archive | Maintain module.json source=[web/,src/web-gateway-update-adapter.mjs]; changed JS is already in web/, registered names/imports unchanged. No source deletion, adapter or other module asset changes. |
+| Other UI / backend state | Maintain ordered ordinary SSE handlers, drafts/focus, conversation/history/list readers and runtime/diagnostics/ledger writers. Only update invalidations bypass the ordinary display queue. |
+
+```mermaid
+flowchart LR
+  SSE[Existing authenticated SSE parser] -->|ordinary event, existing order| Ordered[Ordered ordinary callback queue]
+  Ordered --> Other[Roster / conversation / settings display]
+  SSE -->|updates, independent callback| Invalidate[Update invalidation]
+  Trigger[Open / start / visible / manual] --> Invalidate
+  Invalidate --> Inventory[One inventory GET with retained trailing invalidation]
+  Invalidate --> Current[One GET per retained operation URL with trailing invalidation]
+  Inventory --> Version[Current / published / comparison / capability from server]
+  Current --> Identity[Validate retained request and plan identity]
+  SSE --> Records[Validated exact jobs / latest updatedAtNs per kind and jobId]
+  Inventory --> Records
+  Identity --> Records
+  Version --> Screen[Update main / detail / history]
+  Records --> Screen
+  Inventory --> Errors[Independent explicit reader errors]
+  Identity --> Errors
+  Errors --> Screen
+```
+
+No browser timer, repeated polling, new API, persistent job cache, backend success inference or production action. Regression scope is the existing public SSE -> application -> independent update reads -> real update renderer boundary, including a blocked ordinary read and a blocked historical request.
+
 ## 現行の製品画面（2026-11-04工程S）
 
 Rootのupdate-page-product-design-20261104.mdに従い、標準は「アップデート」と状態一つ・利用者向け変更点・主操作一つ。以下の旧管理一覧layoutは閉じた詳細として保持し、標準画面にはしない。API/保存/実行可否の正本は既共通契約のまま。

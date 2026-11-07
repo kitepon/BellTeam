@@ -132,15 +132,15 @@ test('stored update jobs display all six exact records without a parent aggregat
   assert.match(text(restored.get('[data-update-detail]')), /HISTORICAL_READ_FAILED/)
 })
 
-test('latest failure clears stale versions, older responses and disposed reads do not overwrite, and auth/404 differ', async t => {
+test('coalesced refresh applies the trailing read, latest failure clears versions, and disposal and auth/404 differ', async t => {
   const first = deferred(); let reads = 0, status = null
   const f = fixture(t, async () => {
     if (status) throw Object.assign(Error(), { status })
     if (++reads === 1) return first.promise
     return inventory()
   })
-  f.open(); await f.center.refresh()
-  first.resolve({}); await settle()
+  const opened = f.center.open(f.opener), refreshed = f.center.refresh()
+  first.resolve({}); await opened; await refreshed
   assert.equal(f.get('[data-update-components]').children.length, 2)
   status = 403; await f.center.refresh()
   assert.match(f.get('[data-update-notice]').textContent, /権限がありません/)
@@ -373,4 +373,89 @@ test('body explains effects once while codes and complete fixed values stay in e
   assert.match(text(support), new RegExp(fixedPlan.planId))
   support.open = true; await f.center.refresh()
   assert.equal(f.get('[data-update-detail]').children.find(node => node.className === 'update-support').open, true)
+})
+
+test('update SSE bypasses a blocked ordinary view and refreshes current jobs independently of history', async t => {
+  const { createWebClient } = await import('../web/client.js')
+  const { readFile } = await import('node:fs/promises')
+  const vm = await import('node:vm')
+  const source = await readFile(new URL('../web/application.js', import.meta.url), 'utf8')
+  const eventFunctions = source.slice(source.indexOf('function eventAffectsTimeline('), source.indexOf('function conversationKey('))
+  const { value, fixedPlan } = executable(), storage = storeFixture()
+  const requestId = '10000000-0000-4000-8000-000000000000', oldId = '20000000-0000-4000-8000-000000000000'
+  const jobId = '30000000-0000-4000-8000-000000000000'
+  const initial = receipt(fixedPlan, requestId)
+  initial.jobs = [storedJob(jobId, 'queued')]
+  value.operation = initial; value.jobs = initial.jobs
+  storage.setItem(requestKey, JSON.stringify({ requestId, planId: fixedPlan.planId,
+    previous: [{ requestId: oldId, planId: fixedPlan.planId }] }))
+  const historical = deferred(), slowInventory = deferred(), ordinary = deferred()
+  let blockInventory = false, eventStream, inventoryReads = 0, oldReads = 0
+  let inventoryActive = 0, maxInventoryActive = 0, blocked = false
+  const calls = [], ordered = [], errors = []
+  const f = fixture(t, async path => {
+    calls.push(path)
+    if (path === '/api/updates') {
+      inventoryReads++; inventoryActive++; maxInventoryActive = Math.max(maxInventoryActive, inventoryActive)
+      try { return structuredClone(blockInventory ? await slowInventory.promise : value) }
+      finally { inventoryActive-- }
+    }
+    if (path.endsWith(oldId)) { oldReads++; return historical.promise }
+    if (path.endsWith(requestId)) return { operation: structuredClone(value.operation) }
+    assert.fail(`Unexpected API ${path}`)
+  }, storage)
+  const started = f.center.start()
+  await settle()
+  f.select('container')
+  assert.match(text(f.get('[data-update-product]')), /状態: queued/)
+  const client = createWebClient({ fetch: async () => new Response(new ReadableStream({ start(controller) { eventStream = controller } })) })
+  const context = vm.createContext({ state: {}, watchEvents: client.watchEvents, updateCenter: f.center,
+    ownerDialog: { open: false }, goals: { refreshOnEvent() {} },
+    loadBots: async () => { ordered.push('begin'); blocked = true; await ordinary.promise; ordered.push('end') },
+    loadMessages: async () => {}, allSchedules: { refresh() {} }, scheduleEditor: { refresh() {} },
+    conversationComposer: { showError: message => errors.push(message) },
+  })
+  vm.runInContext(eventFunctions, context)
+  await context.connectEvents()
+  const emit = payload => eventStream.enqueue(new TextEncoder().encode(`data:${JSON.stringify(payload)}\n\n`))
+  const rows = () => text(f.get('[data-update-components]'))
+  emit({ type: 'timeline', all: false, topics: ['timeline'], botIds: ['other'], roomIds: [] })
+  await settle(); assert.equal(blocked, true)
+  emit({ type: 'timeline', all: false, topics: ['timeline'], botIds: ['other'], roomIds: [] })
+  blockInventory = true
+  const downloading = { ...initial.jobs[0], state: 'downloading', updatedAtNs: '1794000000000000000' }
+  emit({ type: 'updates', all: false, jobs: [downloading] })
+  await settle()
+  assert.match(text(f.get('[data-update-product]')), /状態: downloading/)
+  assert.match(text(f.get('[data-update-detail]')), /状態: downloading/)
+  const ready = { ...downloading, state: 'ready', updatedAtNs: '1794000000000000001' }
+  value.operation = { ...initial, phase: 'completed', execution: 'succeeded', verification: 'succeeded', jobs: [ready] }
+  value.jobs = [ready]
+  value.components[0].current = structuredClone(value.components[0].published)
+  value.components[0].comparison = { state: 'up_to_date', reason: null }
+  value.components[0].capability = { supported: false, reason: 'UPDATE_ALREADY_CURRENT' }
+  for (let i = 0; i < 4; i++) emit({ type: 'updates', all: false, jobs: [ready] })
+  await settle()
+  assert.match(text(f.get('[data-update-product]')), /状態: ready/)
+  assert.match(text(f.get('[data-update-detail]')), /状態: ready/)
+  assert.deepEqual(ordered, ['begin'], 'ordinary view is still waiting')
+  assert.equal(oldReads, 1, 'blocked history is not fetched concurrently')
+  blockInventory = false; slowInventory.resolve(structuredClone(value))
+  await settle(); await settle()
+  assert.match(rows(), /正式公開版と一致.*更新は不要/)
+  assert.match(text(f.get('[data-update-detail]')), /現在稼働.*bbbbbbbbbbbb/)
+  assert.doesNotMatch(text(f.get('[data-update-product]')), /状態: queued|状態: downloading/)
+  assert.ok(inventoryReads <= 3, 'invalidations coalesce into a trailing inventory read')
+  assert.equal(maxInventoryActive, 1)
+  value.components[0].capability = { supported: false, reason: 'MODULE_EXCHANGE_BUSY' }
+  const refreshing = f.center.refresh()
+  await settle()
+  assert.match(rows(), /ほかの更新を実行中/)
+  assert.doesNotMatch(rows(), /更新に必要な条件を確認できない/)
+  assert.ok(calls.every(path => path === '/api/updates' || path.startsWith('/api/updates/operations/')))
+  ordinary.resolve(); historical.resolve({ operation: receipt(fixedPlan, oldId, 'completed') })
+  await started; await refreshing; await settle()
+  assert.deepEqual(ordered, ['begin', 'end', 'begin', 'end'], 'ordinary notifications retain their order')
+  assert.deepEqual(errors, [])
+  context.state.stopEvents()
 })
