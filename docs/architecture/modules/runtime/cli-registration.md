@@ -51,7 +51,7 @@ flowchart TD
 | 段階 | 関数 | 差分と保持範囲 |
 | --- | --- | --- |
 | 起動準備 | `restoreBotEnvironmentsInBackground/restoreBotEnvironments/removeSeatClaudeCopies` | CLI写しの除去後、setupを背景で各Bot順に一回ずつ実行（bootstrapは待たず、先にlistenして/healthzへ答える）。一席の失敗・例外は報告して続行。除くCLI写しは既知packageとそれを指す入口に限定 |
-| 席起動の待ち | `AitermClient.launchOptions` → `ready(project)` | 席のagent_launch（wake・再起動・起動時resume）は全てtransportがlaunchOptionsを先に呼ぶ。ここでそのBotのsetup終了（成功も失敗も）まで待つ。`AitermTransport.wake`と`resumePreviouslyActive`はmembers leaseを取る前に同じ`environmentReady(project)`を先に待ち、起動直後の一斉wakeがlease枠（64）を埋めない。登録の無いBot（起動後のcreate_bot等）は即時。timeoutは置かず、出口はsetup実行の終了だけ |
+| 席起動の待ち | `AitermClient.launchOptions` → `ready(project)` | 席のagent_launch（wake・再起動・起動時resume）は全てtransportがlaunchOptionsを先に呼ぶ。ここでそのBotのsetup終了（成功も失敗も）まで待つ。`AitermTransport.wake`と`resumePreviouslyActive`はmembers leaseを取る前に同じ`environmentReady(project)`を先に待ち、起動直後の一斉wakeがlease枠（64）を埋めない。登録の無いBot（起動後のcreate_bot等）は即時。出口はそのBotのsetup実行の終了。各setupは`SETUP_DEADLINE_MS`（600秒）の期限付きで、超えたら既存のseat runner signal → run-seat-setupのSIGTERM→SIGKILL回収で止め、`failed (deadline 600s)`として報告し、gateをfinallyで解く。固まったsetup.shが自分と後続Botの席を無期限に止めることはない |
 | setup結果 | `run-seat-setup` | base環境でsetup.sh、本人setup.logへ出力。親へpresent/codeだけ返す。取消時の直子終了は150ms、外側group停止と役割が別 |
 | MCP登録 | `writeHarnessConfig` | BellTeam/bridge/Aitermの管理項目。Codex/GrokはTOML、Claude/Cursor/AGYはJSON |
 | CLI差異 | `tomlSeat/jsonSeat/aitermFor`等の局所関数 | Codex env_http_headers、Grok/Claude展開header、Cursor env参照、AGYはstdio中継。形式差を各機能serviceへ広げない |

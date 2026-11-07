@@ -68,7 +68,10 @@ export async function loadBotEnvironment(project, inherited = process.env, { run
 
 // コンテナ起動ごとに一度、順番に復元する。aptなどの共有インストーラを並走させない。
 // 一席の失敗で全員の会話を止めない。本人がログを読んで修正し、同じスクリプトを手動実行する。
-export async function restoreBotEnvironments(bots, { report = message => process.stderr.write(`${message}\n`), seatCommands = false } = {}) {
+// 背景化後は一つのsetup.shが固まると、そのBotと後続Botの席がhealthyのまま起動しない。一席ごとに期限を置き、既存のSIGTERM→SIGKILL回収で止めて失敗扱いにする。
+export const SETUP_DEADLINE_MS = 600_000
+
+export async function restoreBotEnvironments(bots, { report = message => process.stderr.write(`${message}\n`), seatCommands = false, deadlineMs = SETUP_DEADLINE_MS } = {}) {
   if (typeof seatCommands !== 'boolean') throw Object.assign(new Error('SEAT_COMMAND_MODE_INVALID'), { code: 'SEAT_COMMAND_MODE_INVALID' })
   const results = []
   for (const bot of bots.values()) {
@@ -77,15 +80,15 @@ export async function restoreBotEnvironments(bots, { report = message => process
       let result
       try {
         const { stdout } = await createSeatProcessRunner(bot.project, { environment: 'base' })(process.execPath,
-          [fileURLToPath(new URL('./run-seat-setup.mjs', import.meta.url)), bot.project])
+          [fileURLToPath(new URL('./run-seat-setup.mjs', import.meta.url)), bot.project], { signal: AbortSignal.timeout(deadlineMs) })
         result = JSON.parse(stdout)
         if (result.present === false) continue
         if (result.present !== true || !(result.code === null || Number.isInteger(result.code))) throw Error('SETUP_RESULT_INVALID')
-      } catch {
-        result = { code: null }
+      } catch (error) {
+        result = { code: null, deadline: error?.name === 'TimeoutError' || error?.name === 'AbortError' }
       }
       results.push({ botId: bot.id, code: result.code })
-      report(`BellTeam environment ${bot.id}: ${result.code === 0 ? 'restored' : `failed (${result.code}); ${join(directory, 'setup.log')}`}`)
+      report(`BellTeam environment ${bot.id}: ${result.code === 0 ? 'restored' : `failed (${result.deadline ? `deadline ${deadlineMs / 1000}s` : result.code}); ${join(directory, 'setup.log')}`}`)
       continue
     }
     await mkdir(directory, { recursive: true })
