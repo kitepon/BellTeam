@@ -12,7 +12,7 @@
 | `ConversationContent` | timeline、queue、読取task、hasMore、送信待ち、停止結果、添付の表示用配列、選択宛先、エラー、sheet/gallery、書出し、末尾/新着を所有。名簿・routing設定・API・draftはAppStoreから取得 |
 | `AppStore.draft(for:)` → `ConversationDraft` | 宛先別の同じ参照を返す。本文、添付、宛先集合をメモリ保持。画面復帰時に添付と宛先を画面へ複製。添付代入と宛先変更は辞書内draftへ返す |
 | `ConversationTimelineState` | 受信履歴とローカル送信を別に保持。可視行は受信履歴＋未照合送信。受付IDが履歴に現れるとローカル送信を除去。本文の一致では照合しない |
-| `ConversationList.Coordinator` | 行ID、前回本文/queue、実高、既に表示した行、Markdown先読済みsource、読書位置、過去取得要求の状態。表から親へ更新・過去取得・末尾状態をcallback |
+| `ConversationList.Coordinator` | 行ID、前回本文/queue/行素材（Botの名前・色・画像版）、実高、既に表示した行、Markdown先読済みsource、読書位置、過去取得要求の状態。表から親へ更新・過去取得・末尾状態をcallback |
 | `ConversationCardStates` | message ID別の質問/秘密カード状態を保持。UITableViewの行が画面外になっても保持。会話画面終了後まで保存する処理はない |
 
 主な根拠：[ConversationContent](../../../../ios/BellBot/BellBot/Views/ConversationView.swift#L49)、[draft](../../../../ios/BellBot/BellBot/Core/ConversationDraft.swift#L6)、[timeline](../../../../ios/BellBot/BellBot/Core/ConversationTimelineState.swift#L4)、[表](../../../../ios/BellBot/BellBot/Views/ConversationList.swift#L17)。共通一覧・SSEからの通知の生成は[状態と同期](state-and-sync.md#sseの適用)を参照。
@@ -54,7 +54,7 @@ flowchart TD
 flowchart LR
   Model["TimelineMessage / queue"] --> Prepare["Coordinator.present<br/>未先読sourceをMessageText.prerender"]
   Prepare --> Latest["先読中の更新は最新の組だけ保持"]
-  Latest --> Apply["Diffable snapshot<br/>変わった行・可視行を再構成"]
+  Latest --> Apply["Diffable snapshot<br/>本文・queue・行素材が変わった行だけ再構成<br/>変化なしは表に触らない"]
   Apply --> Position["末尾追従 / 過去追加の高さ補正<br/>幅変更は先頭可視行の位置を保持"]
   Position --> Callback["末尾48pt以内かを親へ通知"]
 ```

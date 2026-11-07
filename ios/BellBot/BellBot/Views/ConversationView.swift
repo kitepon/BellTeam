@@ -108,6 +108,8 @@ private struct ConversationContent: View {
             : [:]
         let messagesByID = Dictionary(messages.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let selectedBot = bot
+        let rowContext = (target.isRoom ? (room?.memberIds ?? []).compactMap { botsByID[$0] } : [selectedBot].compactMap { $0 })
+            .map(ConversationRowContext.init)
         return ZStack {
             if loading && messages.isEmpty {
                 ProgressView().padding(.top, 90)
@@ -116,7 +118,8 @@ private struct ConversationContent: View {
                 Group { if initialLoadFailed { failedConversation } else { emptyConversation } }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             } else {
-                ConversationList(messages: messages, queue: queue, hasMore: hasMore, loading: loading, loadingOlder: loadingOlder,
+                ConversationList(messages: messages, queue: queue, rowContext: rowContext,
+                                 hasMore: hasMore, loading: loading, loadingOlder: loadingOlder,
                                  bottomInset: 18 + (attachments.isEmpty ? 0 : attachmentStripHeight),
                                  opening: opening, scrollToBottomRevision: scrollToBottomRevision,
                                  onLoadOlder: { olderTask = Task { await loadOlder() } },
