@@ -259,6 +259,21 @@ flowchart LR
   Common --> SSE[既updates通知 / GET再取得]
 ```
 
+### Module inventory truth and plan refusal reason (Z-a3, 2026-11-07)
+
+Saved evidence: inventory advertised `notifications.capability.supported=true` while the single `POST /api/updates/plans` returned 503 `HOST_MODULE_INSTALL_UNAVAILABLE`. Source contact in the common parent at `13ae9e89`: `snapshot()` in `src/update-module-executor.mjs` projected module capability from ledger state only (not current, not closed/fault/active/blocked Host), never reading the Host module installer, while `prepareStep(planning)` read `moduleHost.moduleInstallCapabilities()` only for an unplaced archive and replaced any `supported:false` reason with `HOST_MODULE_INSTALL_UNAVAILABLE`. The runtime client's own reason (for example `HOST_MODULE_SOURCE_CHANGED` when the Host installer source differs from `/app/distribution.json`) was therefore unobservable through the public plan.
+
+Repair within the existing public schema: the plan refusal keeps the Host capability reason as the 503 error code when it is a bounded code, else `HOST_MODULE_INSTALL_UNAVAILABLE`; `snapshot()` reads the Host module-install capability once per inventory only when at least one module component would otherwise be offered, and projects `{supported:false, reason}` onto those components so the notice does not say ready for a plan the Host will refuse. Current, closed, busy and faulted projections are unchanged, and no new field, state owner or retry is added. Known limit: an archive already placed by an earlier install step could still plan without the Host; the plan remains the final arbiter. The runtime client keeps bounded acquisition/read failure reasons on its side (runtime canonical).
+
+```mermaid
+flowchart LR
+  Inv[GET /api/updates snapshot] --> Cap[moduleHost.moduleInstallCapabilities 一回]
+  Cap -->|supported:false reason| Proj[module capability false + Host reason]
+  Cap -->|supported:true| Ready[capability true / notice ready]
+  Plan[POST /api/updates/plans] --> Prep[prepareStep ENOENT → 同capability]
+  Prep -->|false| Err[503 error = Host reason]
+```
+
 本段階ではcontainer個別plan/start/getだけがHost durable受付へ接続する。全体step計画と独立moduleの耐久操作ledgerはまだ未接続で、scope=allと各moduleの共通実行は理由付き503/無効を維持する。既個別module APIのcontrollerは複製しない。publicplanはHostのcurrent/target/期限をそのまま保存し、再構築した共通serviceでも同requestId結果へ結ぶ。publication.catalogは検証済catalogの識別/期限、publication.checkは直近feed確認であり、取得失敗を更新無しへ変えない。
 
 ## membersの親Owner権限と初回画像gate（結合候補）
