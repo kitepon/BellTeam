@@ -104,7 +104,7 @@ test('unconfigured/invalid input and unsupported harness never start a process o
   assert.equal(f.calls.length, 0); assert.equal(f.view('bot-a').summaryStatus, 'missing')
   let processes = 0
   const run = createBackgroundSummaryRunner({ project: '/unused', models: { forHarness: async () => ({ models: [{ id: 'chosen', efforts: ['high'] }] }) }, runner: async () => { processes++ } })
-  await assert.rejects(run({ ...first.selection, harness: 'codex' }, '{}'), { code: 'BACKGROUND_SUMMARY_HARNESS_UNSUPPORTED' })
+  await assert.rejects(run({ ...first.selection, harness: 'grok' }, '{}'), { code: 'BACKGROUND_SUMMARY_HARNESS_UNSUPPORTED' })
   await assert.rejects(run({ ...first.selection, model: 'missing' }, '{}'), { code: 'BACKGROUND_SUMMARY_MODEL_INVALID' })
   assert.equal(processes, 0)
 })
@@ -120,6 +120,27 @@ test('runner pins selected model/effort, disables tools and MCP, uses bounded st
   assert.equal(args[args.indexOf('--model') + 1], 'chosen'); assert.equal(args[args.indexOf('--effort') + 1], 'high')
   assert.equal(options.input, '{"text":"限定本文"}'); assert.equal(options.maxBuffer, 65_536)
   response = { stdout: 'bad json' }; await assert.rejects(run(first.selection, '{}'), { code: 'BACKGROUND_SUMMARY_RESULT_INVALID' })
+})
+test('codex runner uses exec JSONL without user config/MCP/rules, read-only sandbox, stdin input, and only a completed agent message', async () => {
+  const lines = events => ({ stdout: events.map(event => JSON.stringify(event)).join('\n') + '\n' })
+  const message = { type: 'item.completed', item: { id: 'item_0', type: 'agent_message', text: '修正を実装中' } }
+  let captured, response = lines([{ type: 'thread.started', thread_id: 't' }, { type: 'turn.started' }, message, { type: 'turn.completed', usage: {} }])
+  const run = createBackgroundSummaryRunner({ project: '/unused', models: { forHarness: async harness => {
+    assert.equal(harness, 'codex'); return { models: [{ id: 'gpt-6-luna', efforts: ['low'] }] } } },
+    runner: async (...args) => { captured = args; return response } })
+  const selection = { harness: 'codex', model: 'gpt-6-luna', reasoningEffort: 'low' }
+  assert.equal(await run(selection, '{"text":"限定本文"}'), '修正を実装中')
+  const [command, args, options] = captured
+  assert.equal(command, 'flock'); assert.deepEqual(args.slice(0, 6), ['--nonblock', '--conflict-exit-code', '75', '/unused/summary.lock', 'codex', 'exec'])
+  for (const flag of ['--json', '--ephemeral', '--ignore-user-config', '--ignore-rules', '--skip-git-repo-check']) assert.ok(args.includes(flag), flag)
+  assert.equal(args[args.indexOf('--sandbox') + 1], 'read-only'); assert.equal(args[args.indexOf('-C') + 1], '/unused')
+  assert.equal(args[args.indexOf('-m') + 1], 'gpt-6-luna'); assert.ok(args.includes('model_reasoning_effort="low"'))
+  assert.equal(options.input, '{"text":"限定本文"}'); assert.equal(options.maxBuffer, 65_536)
+  for (const bad of [lines([message]), lines([message, { type: 'turn.failed', error: {} }, { type: 'turn.completed' }]),
+    lines([{ type: 'turn.completed' }]), { stdout: 'not jsonl' }]) {
+    response = bad; await assert.rejects(run(selection, '{}'), { code: 'BACKGROUND_SUMMARY_RESULT_INVALID' })
+  }
+  await assert.rejects(run({ ...selection, reasoningEffort: 'high' }, '{}'), { code: 'BACKGROUND_SUMMARY_MODEL_INVALID' })
 })
 test('transport accepts real launch receipt only, shares parent worker and rejects old self writer', async t => {
   const accepted = [], invalidated = []
