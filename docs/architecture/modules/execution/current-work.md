@@ -13,8 +13,8 @@ flowchart TD
   Reader --> Runner[既seat process / tools無しCLI / 実run一件]
   Runner --> Check[設定revision / 元job・停止世代 / 同session-launch再照合]
   Check --> Memory[一行160Unicode / 10分TTL]
-  Job --> State[親の実行状態 / 要約と独立]
-  Native[既SeatTurns / Codex15秒観測] --> State
+  Native[Existing SeatTurns / all five live observations] --> State[Parent activity / independent of summary]
+  Native --> Legacy[Codex-only legacy watch and wait]
   Memory --> DTO[既currentWork 6key / source background_agent]
   State --> DTO
   DTO --> Public[Molly API・既SSE / Web・Apple・Windows]
@@ -48,3 +48,26 @@ runへ渡すのは選択済み設定と限定JSONだけ。出力はplain string�
 当差分はworker/runner、transportのsubmit/accepted/stop/close、conversation親effectのauthority capture、assembly/generation/factoryの別引数backgroundSummary、直接fixtureを持つ。Mollyはapplication-services/runtimeへ親一実体・限定read・usage record getter/callback・SSE notify・shutdown closeを配線する。N102はStore/RoomHistory/専用read/子dispatcherとfacade、Mikaは設定writer、Centiは正式資材/producerを所有する。
 
 worker/runnerは親imageの所有sourceで、実engineの相対importは追加しない。execution署名はtransport/dispatcher変更が必要。親のworker/runner→seat-process→seat-command/run-seat-command等の既依存は同imageへ収録し、runtimeの内部試験は継承する。会話/usageは各新read・設定sourceに対応した必要署名だけを同mainから供給する。実module交換/正式資材/実表示/本番は作者fixture成功から補完しない。
+
+## Shared activity observation (A-1)
+
+The existing single `SeatTurns.poll -> transport.seatTurns -> pty_list` read supplies original `aiterm.seat-turns.v1` rows to CurrentWork. Capture each registered target's expected native harness together with its session/stop generation; recheck the same selection after the read. The supported scope is codex-cli, claude-code, grok-cli, cursor-cli and antigravity-cli. A missing harness on an internal legacy CurrentWork target retains its Codex-only interpretation.
+
+Codex running/tracking types and validation remain unchanged. Observation-only non-Codex running has exactly state, turn_id, started_at, event_cursor, interim_from and wait_process. Its tracking trio is explicitly null. The opaque ID and start identify an actual Aiterm-managed observed parent-work span first captured by a positive LIVE native occupancy read; they do not certify historical vendor invocation birth. Preserve them across absorbed steer and attached waits. Non-Codex malformed branches, wrong target harness, ambiguous/duplicate rows and missing live evidence produce unknown.
+
+```text
+Registered session + expected harness + stop generation
+ -> one existing native metadata read
+ -> CurrentWork.endRead(original all-five rows)
+      unique matching session, valid launch, expected harness/current selection
+      contracted positive running -> working, refresh observation age
+      positive parent idle -> idle, clear active binding
+      null/malformed/ambiguous/mismatch -> unknown
+ -> existing transport.currentWork + independent background summary
+ -> unchanged public DTO / SSE
+Same original rows -> Codex-only Map -> existing watch/wait/interim
+```
+
+The observation clock starts at successful valid current-read completion, not span start/file mtime; existing15s expiry is unchanged. A12-minute parent wait remains working while fresh positive reads arrive. Positive whole-parent terminal ends activity despite detached children; a child or late/vetoed Stop cannot beat current parent occupancy. This precedence and actual live evidence are native producer responsibilities; CurrentWork never reconstructs activity from input, queue, summary or cached flags. Existing unknown/idle/error and summary meanings remain unchanged.
+
+The legacy watcher receives Codex rows only, retaining Codex null/idle/running behavior and real tracking. Observation-only rows never issue a waiter or interim call. No new native call, wire key/state, self-summary writer or background agent is introduced. One focused transport/CurrentWork fixture checks all five contracted rows, stable long parent waits, positive terminal with detached-child fixture data, stale/ambiguous/malformed/mismatched observations and no non-Codex wait issuance. Synthetic native-row fixtures are consumer evidence, not live native acceptance. Elegg supplies actual producers; normal main/supply/runtime acceptance follow that real handoff.

@@ -912,12 +912,12 @@ export class AitermTransport {
   }
 
   // 席の今のターン（Aiterm 0.60.0、ADR 0122）。席のsessionごとに、動いているターン・{ state: 'idle' }・null（分からない）。
-  // まずCodexの席だけが返り、ほかのハーネスはnull。返さない版のAitermではnullを返す。画面は読まない。
+  // All supported activity rows feed CurrentWork; only Codex supplies the legacy watch/wait contract.
   async seatTurns(bots = []) {
     const read = this.workState.beginRead(bots.map(bot => {
-      const session = this.session(bot), version = this.stopVersions.get(bot.id)
-      return { botId: bot.id, sessionId: session, current: () => this.session(bot) === session
-        && this.stopVersions.get(bot.id) === version && !this.sessionChanges.has(bot.id) }
+      const session = this.session(bot), version = this.stopVersions.get(bot.id), harness = HARNESS.get(bot.harness)
+      return { botId: bot.id, sessionId: session, harness, current: () => this.session(bot) === session
+        && HARNESS.get(bot.harness) === harness && this.stopVersions.get(bot.id) === version && !this.sessionChanges.has(bot.id) }
     }))
     let result
     try { result = await this.client.call('pty_list', {}, { meta: CALLER_META })
@@ -927,7 +927,7 @@ export class AitermTransport {
     if (!data) return null
     if (data.schema !== 'aiterm.seat-turns.v1' || data.error || !Array.isArray(data.seats))
       throw new Error(`AITERM_SEAT_TURNS_INVALID: ${data.error ?? data.schema}`)
-    return new Map(data.seats.map(seat => [seat.session_id, seat.turn]))
+    return new Map(data.seats.filter(seat => seat?.harness === 'codex-cli').map(seat => [seat.session_id, seat.turn]))
   }
 
   // BellTeamが始めていないターン（Aitermの子の結果で始まったターンなど）を見つけて追う。
