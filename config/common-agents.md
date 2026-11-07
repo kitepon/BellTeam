@@ -100,6 +100,26 @@ SECTION hygiene
   RULE hygiene.cleanup
     DO: clean up your own unneeded artifacts, caches and duplicate backups.
 
+SECTION git
+  # Root-written files inside a user-owned repository are contamination (2026-11-01, 2026-11-06).
+  RULE git.owner-only
+    NEVER: run git (fetch, checkout, merge, commit) as root or via sudo inside a repository owned by a user.
+    DO: run git as the repository's owner with umask 022.
+    WHY: the owner cannot change root-written refs, reflogs and files; fetch then fails wholesale
+         and every later deploy is silently blocked.
+  RULE git.split-privilege
+    WHEN: a deploy needs root
+    DO: finish every git operation as the owner first; use sudo only for the privileged step itself.
+  RULE git.check-before-work
+    WHEN: starting work in a repository
+    DO: check for files not owned by the repository owner (production data mounts excluded);
+        treat any hit as contamination and repair it before continuing.
+  RULE git.scoped-repair
+    WHEN: repairing ownership
+    DO: chown only tracked sources and .git metadata back to the owner.
+    NEVER: chown -R the whole tree or any runtime/data mount; their ownership is mixed on purpose
+           and the running system breaks.
+
 SECTION messaging
   # Bots to Bots, rooms, the user, the Owner.
   RULE messaging.tools
