@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-07T13:19:24Z",
-  "expiresAt": "2026-11-14T13:19:24Z",
+  "publishedAt": "2026-11-07T13:48:09Z",
+  "expiresAt": "2026-11-14T13:48:09Z",
   "releases": [
     {
       "componentId": "usage",
@@ -635,15 +635,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "9fccf85c59a528838f6e442c28ad8e32f9698515",
-      "versionId": "sha256:00fe86497500def7fbbf918ff271ab9ad1b77e6943f6b4a84ecba25b19425991",
+      "sourceCommit": "b1fe56582f1ac8d35755cac764f22f19f8a20a4c",
+      "versionId": "sha256:f17cb80ce3dc38dc5672fdb8204dc9c2b798e40b6d8efa2e1dace693305397bc",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:00fe86497500def7fbbf918ff271ab9ad1b77e6943f6b4a84ecba25b19425991"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:f17cb80ce3dc38dc5672fdb8204dc9c2b798e40b6d8efa2e1dace693305397bc"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -652,21 +652,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "旧版の実行部品を選択したままでも、本体更新後に起動できます。",
-        "モデル変更に対応する実行部品への接続を本体に含めます。"
+        "画像配信中断時の読み取りを終了させ、メンバー一覧への画像本体の転送を除きます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "9fccf85c59a528838f6e442c28ad8e32f9698515",
-      "versionId": "sha256:00fe86497500def7fbbf918ff271ab9ad1b77e6943f6b4a84ecba25b19425991",
+      "sourceCommit": "b1fe56582f1ac8d35755cac764f22f19f8a20a4c",
+      "versionId": "sha256:f17cb80ce3dc38dc5672fdb8204dc9c2b798e40b6d8efa2e1dace693305397bc",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:00fe86497500def7fbbf918ff271ab9ad1b77e6943f6b4a84ecba25b19425991"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:f17cb80ce3dc38dc5672fdb8204dc9c2b798e40b6d8efa2e1dace693305397bc"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -675,8 +674,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "旧版の実行部品を選択したままでも、本体更新後に起動できます。",
-        "モデル変更に対応する実行部品への接続を本体に含めます。"
+        "画像配信中断時の読み取りを終了させ、メンバー一覧への画像本体の転送を除きます。"
       ]
     }
   ],
