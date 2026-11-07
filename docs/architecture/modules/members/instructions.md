@@ -13,8 +13,6 @@ flowchart TD
   Save --> Data
   Save --> Refresh["refreshGlobalInstructions"]
   Common["integration所有<br/>common-agents.md"] --> Refresh
-  Common -->|"主agentの要約記述・呼出義務なし"| Reminder["execution: taskSettingsReminder<br/>SECTION models block"]
-  Reminder --> Dispatch["通常dispatch / steer<br/>bellteam_task_settings付記"]
   Data --> Refresh
   Refresh --> Write["Owner情報→個別規範→製品規範<br/>runtime公開writerへ"]
   Write --> Globals["home下5CLIのAGENTS<br/>次の通常指示読込から"]
@@ -45,13 +43,13 @@ CLI固有のAGENTS.overrideやCLAUDE.localに依存しない。個別指示は�
 
 `OwnerProfile.get/update`が`owner/profile.json`、`UserRules.get/update`が`owner/user-rules.md`を所有する。HTTPの更新と別owner MCPは、保存後に`refreshGlobalInstructions`を呼ぶ。`createGlobalInstructionsRefresher`はOwner情報→ユーザー規範→製品規範の順に生成して、`writeGlobalInstructions`または席proxyに渡す。Bot個別のAGENTS生成とは別責任である。全製品共通テンプレート`config/common-agents.md`は統合担当が所有し、membersは生成経路へ渡された本文を使う。
 
-### 全文と配送付記の有効template
+### 全文共通指示の有効template
 
-共通規範の正本は`config/common-agents.md`一か所。`taskSettingsReminder` reads the canonical `SECTION models` heading and body through the next blank line on every dispatch.Owner最新指示「メインagentには要約を書かせない」に従い、旧186Bの本人要約記述・`update_work_summary`呼出義務を撤去する。The full global instructions and delivery reminder carry the same canonical models block.別段落やUserRulesに複製して付記の代用にしない。通常Ownerchat/sendmessage/返信対象room/prompt予定は同dispatchへ到達し、setupTestは付記除外、command予定はAI配送なし。背景agentの実行・入力束縛・要約投影はexecution、設定保存はusage、共通組立はintegrationが所有する。その完成を本撤去の条件にせず、既API/handler/DTO/TTLはこの差分では変えない。
+共通規範の正本は`config/common-agents.md`一か所。全文を`renderGlobalInstructions`が各CLIのglobal指示へ組み立て、`writeGlobalInstructions`が既存5つの指示ファイルへ保存する。`SECTION models`を含む全文はそのまま保持し、通常dispatch/steer本文へ同じ節を再付記しない。通常配送は元の入力本文を維持する。別段落やUserRulesに規範を複製しない。背景agentの実行・入力束縛・要約投影はexecution、設定保存はusage、共通組立はintegrationが所有する。既API/handler/DTO/TTLはこの差分では変えない。
 
-供給にはbuiltinの`package-server.mjs`収録config、members artifactの本文生成用config、executionの`EXECUTION_FILES`収録configの有効世代を同じSHAへ合わせる。前者のglobal helperとmembers dispatcherは各配置内のtemplateを読み、後者も自分の配置内のtemplateを読む。stateのUserRules更新だけではこのtemplateは変わらない。採用mainからの通常image又は既公開moduleの反映単位・供給順はintegration/distribution/runtimeの既条件に従う。
+供給にはbuiltinの`package-server.mjs`収録config、members artifactの本文生成用config、executionの`EXECUTION_FILES`収録configを従来どおり同じSHAへ揃える。前者のglobal helperとmembers dispatcherは各配置内のtemplateを読み、execution artifactは既署名版との互換性のためassetを保持するが、新しいdispatchでは読み込まない。stateのUserRules更新だけではこのtemplateは変わらない。採用mainからの通常image又は既公開moduleの反映単位・供給順はintegration/distribution/runtimeの既条件に従う。
 
-全文の正規生成契機はbootstrapのglobal refresher、又は正規Owner/UserRules保存後のmembers `writeGlobal`→`global.writeInstructions`→runtime writer。members initializeのrestore/projection、個別profileやAGENTS.local再生成だけをglobal生成と扱わない。生成した全文は各CLIの次の通常指示読込から、付記は有効template反映後の次dispatchから使う。既配送本文/既読込contextの遡及更新や、nativeによる初回tool順序強制はこの規範変更に含めない。
+全文の正規生成契機はbootstrapのglobal refresher、又は正規Owner/UserRules保存後のmembers `writeGlobal`→`global.writeInstructions`→runtime writer。members initializeのrestore/projection、個別profileやAGENTS.local再生成だけをglobal生成と扱わない。生成した全文は各CLIの次の通常指示読込から使う。配送本文は呼出元の原文を維持し、既配送本文/既読込contextの遡及更新や、nativeによる初回tool順序強制は行わない。
 
 Webの`createOwnerEditor.save`はprofile PATCH→rules PUTの順であり、一括transactionではない。後段に失敗した時にも前段の保存は残り得る。指示生成失敗も、正本保存の失敗と同じ意味にはしない。[owner-profile.mjs](../../../../src/owner-profile.mjs)、[user-rules.mjs](../../../../src/user-rules.mjs)、[global-instructions.mjs](../../../../src/global-instructions.mjs)を参照。
 
@@ -71,6 +69,6 @@ Webの`createOwnerEditor.save`はprofile PATCH→rules PUTの順であり、一�
 
 ## Common-rules DSL prefix (Owner 2026-11-07)
 
-Function: integration owns the verbatim DSL prefix in config/common-agents.md; taskSettingsReminder selects SECTION models through its next blank line. DFD: unchanged rendered Owner/user prefix + full common template → existing five CLI global writers; canonical models block → existing bellteam_task_settings delivery suffix. members/dispatcher and members/instructions pass the template through without heading parsing. Root’s fixed communication-through-Japanese-preamble DSL is copied verbatim; the original English Ponytail body remains byte-identical. No new endpoint, write location or runtime policy parser is introduced.
+Function: integration owns the verbatim DSL prefix in config/common-agents.md. DFD: unchanged rendered Owner/user prefix + full common template → existing five CLI global writers. `SECTION models` stays in those full global instructions; execution forwards the caller's original message text without a `bellteam_task_settings` suffix. members/dispatcher and members/instructions pass the template through without heading parsing. Root’s fixed communication-through-Japanese-preamble DSL is copied verbatim; the original English Ponytail body remains byte-identical. No endpoint, write location or runtime policy parser is introduced.
 
-Root final content decision supersedes the initial prefix-only constraint: the two canonical fenced DSL blocks form the common policy, followed by the original English Ponytail text. The same SECTION models reminder and pass-through renderer/writers are unchanged; no runtime-code change is needed for this content-only revision.
+Root final content decision supersedes the initial prefix-only constraint: the two canonical fenced DSL blocks form the common policy, followed by the original English Ponytail text. Both fenced blocks and the pass-through renderer/writers are unchanged; only execution's duplicate per-delivery suffix is removed.

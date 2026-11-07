@@ -7,7 +7,6 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
 import { loadBotEnvironment } from './bot-environment.mjs'
-import { taskSettingsReminder } from './global-instructions.mjs'
 import { reserveExecution, dispatchExecution, interruptExecutions, sendStopOperations } from './execution-transport.mjs'
 import { sendSessionStop, confirmedSessionClosure } from './session-interruption.mjs'
 import { mcpRequestContext } from './mcp-request-context.mjs'
@@ -1121,8 +1120,6 @@ export class AitermTransport {
     const check = checkAdmission
     bot = this.resolveBot?.(bot.id) ?? bot
     const observed = await this.prepareDesiredConfiguration(bot, check, executionJob)
-    const reminder = setupTest ? '' : await taskSettingsReminder()
-    if (reminder) message += `\n\n<bellteam_task_settings>\n${reminder}\n</bellteam_task_settings>`
     if (this.executionBridge) {
       if (!executionJob.execution) await reserveExecution(this.seat, executionJob, observed)
       if (executionJob) executionJob.deliveryStage = observed.exists ? 'BOT_SEND_FAILED' : 'BOT_LAUNCH_FAILED'

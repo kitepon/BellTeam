@@ -17,7 +17,7 @@ export function createExecutionNativeFixture({ root }) {
   const sourceSession = 'synthetic-execution-session', launch = 'a'.repeat(32)
   const bots = new Map([[bot.id, bot]]), members = new MembersAdmission(), store = createExecutionAdoptionStore({ root })
   let assembly, started = false, closed = false, failed = false, gate = null
-  const generations = new Set(), targets = [], listeners = new Set()
+  const generations = new Set(), targets = [], listeners = new Set(), sentBodies = []
   const counts = { exchanges: 0, attempts: 0, failedExchanges: 0, nativeReads: 0, syntheticLaunches: 0,
     syntheticSends: 0, sdkCloses: 0, ptyCloses: 0, adoptionAcks: 0, ackAdmissionClosed: 0,
     drainAdmissionClosed: 0, retiredGuards: 0, reminderSeen: 0, sessionSaves: 0 }
@@ -29,8 +29,9 @@ export function createExecutionNativeFixture({ root }) {
       if (name === 'agent_launch') { counts.syntheticLaunches++; return { structuredContent: { session_id: sourceSession } } }
       if (name === 'pty_send') {
         counts.syntheticSends++; assert.equal(args.session_id, sourceSession)
-        capturedGuard = options.admissionCheck; capturedGuard()
+        sentBodies.push(args.text)
         if (typeof args.text === 'string' && args.text.includes('<bellteam_task_settings>')) counts.reminderSeen++
+        capturedGuard = options.admissionCheck; capturedGuard()
         return { structuredContent: { mode: 'agent_dispatch', session_id: sourceSession, launch_id: launch,
           vendor: 'codex', event_cursor: 1, wait_process: { executable: 'synthetic-only', args: [] } } }
       }
@@ -129,7 +130,8 @@ export function createExecutionNativeFixture({ root }) {
       assert.match(targets[0], /^[a-f0-9]{64}$/); assert.equal(targets[1], 'builtin')
       assert.equal(controller.snapshot().currentVersionId, null); assert.equal(counts.failedExchanges, 0)
       assert.equal(counts.adoptionAcks, 2); assert.equal(counts.retiredGuards, 2)
-      assert.equal(counts.syntheticLaunches, 1); assert.equal(counts.syntheticSends, 2); assert.equal(counts.reminderSeen, 2)
+      assert.equal(counts.syntheticLaunches, 1); assert.equal(counts.syntheticSends, 2)
+      assert.equal(sentBodies.length, 2); assert.equal(counts.reminderSeen, 0)
       return inspect()
     },
     async close() {
