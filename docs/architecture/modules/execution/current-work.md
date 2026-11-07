@@ -10,7 +10,7 @@ flowchart TD
   Job --> Latest[Botごと最新入力 / 旧結果失効]
   Latest --> Worker
   Worker --> Reader[N102: 一件read / 最大4000字と固定status1000字]
-  Reader --> Runner[既seat process / tools無しCLI / 実run一件]
+  Reader --> Runner[既seat process / tools無しCLI: claude print・codex exec --json / 実run一件]
   Runner --> Check[設定revision / 元job・停止世代 / 同session-launch再照合]
   Check --> Memory[一行160Unicode / 10分TTL]
   Native[Existing SeatTurns / all five live observations] --> State[Parent activity / independent of summary]
@@ -33,7 +33,7 @@ flowchart TD
 
 入力変更は実配送イベントから発行し、GET/描画や全席周期AIから発行しない。inputRevisionは既DeliveryJob.idを使い、session/launchは同Aiterm pty-send receiptの正規fieldを使う。native turnを作らず全主harnessの通常配送へ使える。受理前queue/onlineを実行証明にしない。次入力は元jobを失効、Botごと最新一件を保持する。actual runは全体一件で、取消後もrun Promiseの実終端まで次を開始しない。
 
-`createBackgroundSummaryRunner({project,models,runner})` は既createSeatProcessRunnerのbase環境/取消・group終端を再利用。専用projectは親が `shared/tools/bellteam-background-agent` に用意し、Bot席として登録しない。所有はexecutionキロ、READMEへ目的と保持する空lock fileを記す。既authを使い、CLIのtools/MCP/hooks/自動指示読取を無効にした非対話面だけを許可する。現在供給するadapterはClaudeのprint/safe-mode/tools空/strict-mcp-config空/settings-source空/no-session-persistence。その他harnessはBACKGROUND_SUMMARY_HARNESS_UNSUPPORTED、無断代替0。vendor CLI自体に対応不能と断定せず、他adapterは実契約確定後に供給する。60秒期限・64KiB出力上限、失敗後同入力の再発行0。
+`createBackgroundSummaryRunner({project,models,runner})` は既createSeatProcessRunnerのbase環境/取消・group終端を再利用。専用projectは親が `shared/tools/bellteam-background-agent` に用意し、Bot席として登録しない。所有はexecutionキロ、READMEへ目的と保持する空lock fileを記す。既authを使い、CLIのtools/MCP/hooks/自動指示読取を無効にした非対話面だけを許可する。現在供給するadapterは2つで、どちらもこのrunnerが直接argvと結果parseを持つ（Aiterm adapterへの依存は無い）。Claudeはprint/safe-mode/tools空/strict-mcp-config空/settings-source空/no-session-persistence、結果は単一JSON `type=result,subtype=success,is_error=false,result:string`。Codexは `codex exec --json --ephemeral --skip-git-repo-check --ignore-user-config --ignore-rules --sandbox read-only -C <project> -m <model> [-c model_reasoning_effort="<effort>"] -c project_doc_max_bytes=0 <instruction>`、入力JSONはstdin（CLIが`<stdin>`blockとして付加）。結果はJSONLで、`turn.completed`があり`turn.failed`/`error`が無く、最後の`item.completed`の`agent_message.text`が文字列の時だけ成功。user config（MCP/hooks/profile）と規則・AGENTS読取を外し、shellはread-only sandbox。grok/cursor/antigravityはBACKGROUND_SUMMARY_HARNESS_UNSUPPORTED、無断代替0。60秒期限・64KiB出力上限、失敗後同入力の再発行0。
 
 runへ渡すのは選択済み設定と限定JSONだけ。出力はplain stringで親がtrim後1〜160Unicode/制御文字無しを検証し、元run closureの対象・入力/設定revisionと現recordを保存直前に照合する。AIに対象や状態の本人性を選ばせない。空・不正・取消・未知はmissing、主仕事を待たせない。
 
