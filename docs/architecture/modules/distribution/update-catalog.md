@@ -1,5 +1,12 @@
 # 正式Update catalogの信頼境界
 
+## Fixed213d handover-body catalog, 2026-11-08 JST
+
+Within the existing formal-image -> catalog -> fixed-main publisher -> runtime.update -> P7a/P7b plan/job flow, replace only the two container records with source `213d99fa4acc9fbb37212e5194d0fe4826175bc6`, official stable index `sha256:8c9eba2a77d3e655e9e19aaa64b25937d83bf790d6387a997bb8014c4b7df467`. Natural image run `42388593023` and same-index promotion `42389401765` succeeded; the normal body, module-installer and container-updater derive from that one image. Inherit Centi's source/platform/native receipts (Aiterm MCP 0.63.16), scoped preservation assertions and formal promotion without retest or rebuild. Preserve all sixteen module records, compatibility values and revocations; refresh catalog publication/expiry metadata.
+
+Only the OCI source/index and release descriptions change. Public fields, callers, state writers, module source inventories, failure paths and guards remain unchanged. Existing released clients consume the same schema. The Owner ordered catalog publication before the fresh ordinary PLAN; internal first use of this exact image remains pending. No body Start is authorized here: Trony/Bell must release the exact target after the fresh PLAN. Module catalog/UI activation waits for the matched healthy body swap. Staged fixed213d conversation/execution/web-gateway signers are not published or activated by this change. Centi owns ONE publisher run from the adopted main, with a brief main reservation only until its binding is confirmed.
+
+
 ## Three-module unit51e514e2, 2026-11-08 JST
 
 Replace only the six members/conversation/execution records (Linux amd64/arm64) with formal Release `updates-20261107T145836Z`, payload/source/signer `96c07d20298f28ce5ddddb7ce216ebc45f3a048a`. Centi's same three dedicated signer runs `42383513152` / `42383516861` / `42383521044` succeeded on attempt2 after Trony explicitly authorized failed-job reruns; inherit official native/OIDC and anonymous12asset acceptance without rerun. Preserve the other twelve records, container target, all compatibility fields and revocations. Current main's catalog matches Centi's92fd88c3 baseline; later Web/common source repairs do not change this fixed payload.
