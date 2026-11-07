@@ -1,5 +1,11 @@
 # 正式Update catalogの信頼境界
 
+## Three-module unit51e514e2, 2026-11-08 JST
+
+Replace only the six members/conversation/execution records (Linux amd64/arm64) with formal Release `updates-20261107T145836Z`, payload/source/signer `96c07d20298f28ce5ddddb7ce216ebc45f3a048a`. Centi's same three dedicated signer runs `42383513152` / `42383516861` / `42383521044` succeeded on attempt2 after Trony explicitly authorized failed-job reruns; inherit official native/OIDC and anonymous12asset acceptance without rerun. Preserve the other twelve records, container target, all compatibility fields and revocations. Current main's catalog matches Centi's92fd88c3 baseline; later Web/common source repairs do not change this fixed payload.
+
+The existing function/data-flow remains formal assets -> catalog -> fixed-main publisher -> runtime.update -> common P7a/P7b plan/current/published bindings. Only signed asset/source/version/descriptions change. Public API field shape, state ownership, module source inventories, common rules and failure behavior stay unchanged. Trony compared the selected payload against runningb1fe: members profiles HTTP addition is body-resident, conversation has no delta, execution removes the duplicated dispatch suffix; existing fixes are preserved. No body update, promotion or body plan is authorized by this catalog; cancelled avatar-body work remains cancelled. Centi owns one catalog publication after normal adoption, then the separately authorized UI order members -> conversation -> execution. Stale UI observation alone is not backend failure or an instruction to repeat a public operation.
+
 ## Body-first stable container supply (K-HDMABP), 2026-11-07
 
 Under the Owner-authorized body-first reorder relayed by Trony, replace only the two `container` records (Linux amd64/arm64) with the official stable image of source `b1fe56582f1ac8d35755cac764f22f19f8a20a4c`, index `sha256:f17cb80ce3dc38dc5672fdb8204dc9c2b798e40b6d8efa2e1dace693305397bc`. Centi's official promotion run `42378523439` succeeded after natural run `42377778743`; its CI product evidence is inherited from the supply owner without rerun. All sixteen module records, including the five `69cfac91` assets, every compatibility value and the revocation list are unchanged; publication time and seven-day expiry are refreshed.
