@@ -146,10 +146,15 @@ export class AitermTransport {
 
   // 履歴表示もscreen captureを使い、配送の共有読取位置を進めない。
   async screen(bot, { history = false } = {}) {
-    if (!await this.isRunning(bot)) return { online: false, screen: '' }
-    const result = await this.client.call('pty_read', {
-      session_id: this.session(bot), screen: true, raw: true, timeout: 0, lines: history ? 10000 : 40,
-    })
+    let result
+    try {
+      result = await this.client.call('pty_read', {
+        session_id: this.session(bot), screen: true, raw: true, timeout: 0, lines: history ? 10000 : 40,
+      })
+    } catch (error) {
+      console.error('Screen read failed', error)
+      return { online: false, screen: '' }
+    }
     return { online: true, screen: cleanScreen(textResult(result), history ? 10000 : 25) }
   }
 
