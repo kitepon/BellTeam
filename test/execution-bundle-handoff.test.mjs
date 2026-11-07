@@ -47,7 +47,7 @@ async function fixture(t) {
   return { root, bot, ports, create, stop, nativeCalls, nativeCloses: () => nativeCloses }
 }
 
-test('different source bundles replace the actual administration engine and keep stop/uncertainty state through public handoff', async t => {
+test('different source bundles replace the actual administration engine and keep stop state through public handoff', async t => {
   const f = await fixture(t)
   const original = await bundle(f.root, 'original')
   const updated = await bundle(f.root, 'updated', [['bot-administration.mjs', 'return { ...bot,', "return { engineFixtureVersion: 'updated', ...bot,"]])
@@ -68,7 +68,9 @@ test('different source bundles replace the actual administration engine and keep
   assert.throws(() => captured(request('administration.view', f.bot)), { code: 'EXECUTION_NOT_ACCEPTING' })
   const after = await f.stop(next)
   assert.equal(after.metadata.stopVersions.get(f.bot.id), 5)
-  assert.equal(after.metadata.uncertainty.get(f.bot.id), 'agent_configure')
+  // Since 02e7f51a uncertainty is not admission state: the legacy fields are exported empty and never imported.
+  assert.equal(after.metadata.uncertainty.size, 0)
+  assert.equal(after.metadata.uncertaintyVersions.size, 0)
   assert.equal(f.nativeCloses(), 0)
   assert.ok(f.nativeCalls.every(name => name === 'pty_list'))
 })
