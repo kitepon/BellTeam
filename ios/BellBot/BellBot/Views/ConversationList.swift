@@ -6,6 +6,22 @@ enum ConversationRow: Hashable {
     case queue
 }
 
+/// 行の見た目に効く、本文以外の素材。これが変わった時だけ、本文の変わらない可視行も作り直す。
+struct ConversationRowContext: Hashable {
+    let id: String
+    let name: String
+    let color: String
+    let avatar: String
+
+    init(_ bot: Bot) {
+        id = bot.id
+        name = bot.displayName
+        color = bot.color
+        // 画像本体の比較は重いので版で比べる。版を持たない旧サーバーだけ本体で比べる。
+        avatar = bot.avatarVersion ?? bot.avatar
+    }
+}
+
 /// 会話を開いた時の見せ方。比較のための切替で、決まったら片方だけ残す。
 enum ConversationOpening: String, CaseIterable {
     case rise, fade
@@ -17,6 +33,7 @@ enum ConversationOpening: String, CaseIterable {
 struct ConversationList<RowContent: View>: UIViewRepresentable {
     let messages: [TimelineMessage]
     let queue: [QueueItem]
+    let rowContext: [ConversationRowContext]
     let hasMore: Bool
     let loading: Bool
     let loadingOlder: Bool
@@ -68,7 +85,8 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         coordinator.loading = loading
         coordinator.loadingOlder = loadingOlder
         if table.contentInset.bottom != bottomInset { table.contentInset.bottom = bottomInset }
-        coordinator.present(rows: rows, messages: messages, queue: queue, environment: context.environment)
+        coordinator.present(rows: rows, messages: messages, queue: queue, rowContext: rowContext,
+                            environment: context.environment)
         coordinator.fillIfShort()
         if coordinator.scrollToBottomRevision != scrollToBottomRevision {
             coordinator.scrollToBottomRevision = scrollToBottomRevision
@@ -91,6 +109,7 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         private var dataSource: UITableViewDiffableDataSource<Int, ConversationRow>?
         private var messagesByID: [String: TimelineMessage] = [:]
         private var queue: [QueueItem] = []
+        private var rowContext: [ConversationRowContext] = []
         private var heights: [String: CGFloat] = [:]
         private var lastOffset: CGFloat = 0
         private var armed = true
@@ -98,7 +117,8 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         private var shown: Set<ConversationRow> = []
         private var prepared: Set<String> = []
         private var preparing = false
-        private var latest: (rows: [ConversationRow], messages: [TimelineMessage], queue: [QueueItem])?
+        private var latest: (rows: [ConversationRow], messages: [TimelineMessage], queue: [QueueItem],
+                             rowContext: [ConversationRowContext])?
         #if targetEnvironment(macCatalyst)
         private var wheel: WheelScrollSmoother?
         #endif
@@ -130,12 +150,13 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         }
 
         /// 本文の素材が揃ってから行を表へ入れる。組み立て中に届いた更新は、最新の状態だけを次に渡す。
-        func present(rows: [ConversationRow], messages: [TimelineMessage], queue: [QueueItem], environment: EnvironmentValues) {
-            latest = (rows, messages, queue)
+        func present(rows: [ConversationRow], messages: [TimelineMessage], queue: [QueueItem],
+                     rowContext: [ConversationRowContext], environment: EnvironmentValues) {
+            latest = (rows, messages, queue, rowContext)
             guard !preparing else { return }
             let sources = Array(Set(messages.compactMap(\.message)).subtracting(prepared))
             if sources.isEmpty {
-                apply(rows: rows, messages: messages, queue: queue)
+                apply(rows: rows, messages: messages, queue: queue, rowContext: rowContext)
                 return
             }
             preparing = true
@@ -144,27 +165,40 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
                 guard let self else { return }
                 preparing = false
                 prepared.formUnion(sources)
-                if let latest { present(rows: latest.rows, messages: latest.messages, queue: latest.queue, environment: environment) }
+                if let latest {
+                    present(rows: latest.rows, messages: latest.messages, queue: latest.queue,
+                            rowContext: latest.rowContext, environment: environment)
+                }
             }
         }
 
-        private func apply(rows: [ConversationRow], messages: [TimelineMessage], queue: [QueueItem]) {
+        /// 作り直すのは中身の変わった行だけ。可視行を毎回作り直すと、Macの縦長の表では
+        /// 親の更新のたびに主スレッドが行の再配置で埋まり、文字入力まで待たされた。
+        private func apply(rows: [ConversationRow], messages: [TimelineMessage], queue: [QueueItem],
+                           rowContext: [ConversationRowContext]) {
             guard let table, let dataSource else { return }
             let previous = dataSource.snapshot().itemIdentifiers
-            var snapshot = NSDiffableDataSourceSnapshot<Int, ConversationRow>()
-            snapshot.appendSections([0])
-            snapshot.appendItems(rows)
             let updated = Dictionary(messages.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-            var changed = Set(table.indexPathsForVisibleRows?.compactMap { dataSource.itemIdentifier(for: $0) } ?? [])
+            var changed = Set<ConversationRow>()
+            if self.rowContext != rowContext {
+                changed.formUnion(table.indexPathsForVisibleRows?.compactMap { dataSource.itemIdentifier(for: $0) } ?? [])
+            }
             for message in messages where messagesByID[message.id] != nil && messagesByID[message.id] != message {
                 changed.insert(.message(message.id))
             }
             if self.queue != queue { changed.insert(.queue) }
             // 先頭が変わった時だけ行の順番が動く。その行は保持済みの設定をそのまま使えない。
             if let first = previous.first, let index = rows.firstIndex(of: first), index > 0 { changed.insert(first) }
-            snapshot.reconfigureItems(Array(changed.intersection(rows)))
+            changed.formIntersection(rows)
+            // 行も中身も変わらない親の更新では表に触らない。
+            if rows == previous && changed.isEmpty { return }
+            var snapshot = NSDiffableDataSourceSnapshot<Int, ConversationRow>()
+            snapshot.appendSections([0])
+            snapshot.appendItems(rows)
+            snapshot.reconfigureItems(Array(changed))
             messagesByID = updated
             self.queue = queue
+            self.rowContext = rowContext
             let prepended = previous.first.flatMap { rows.firstIndex(of: $0) }.map { $0 > 0 } ?? false
             if prepended && !table.followsBottom {
                 let height = table.contentSize.height, y = table.contentOffset.y
