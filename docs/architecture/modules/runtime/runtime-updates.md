@@ -15,7 +15,7 @@ Four fixed component IDs remain in the resolver/generation schema. Hot updates s
 | `runtime-claude-code` | `@anthropic-ai/claude-code` | `bin/claude` | Supported |
 | `runtime-throughline` | `throughline` | `bin/throughline` | Supported |
 
-`builtin` paths (the image's `/usr/local` prefix) are what P6 returns while no selection has ever been established on this installation. Once `current.json` exists, the builtin prefix is never used again for managed launches.
+P6 returns `builtin` paths (the image's `/usr/local` prefix) before a selection exists and for each component absent from an established generation vector, including Aiterm on the supported hot-update path. An unreadable/invalid established selection fails; it never falls back to builtin. Builtin CLI execution preserves the caller's PATH precedence.
 
 ## Functions
 
@@ -71,7 +71,7 @@ Adapters live at `scripts/runtime-aiterm/{index,execution-native-server,claude-p
 | AitermClient → handoff/schema loader | immutable captured dist; configuration assemblies pass runtime() of that exact client, never a global current import base |
 | SeatRuntime → HOME → delayed hook adapter | stable node/script path, existing scope/config args; inherited launch generation selects the retained closure when invoked |
 | startup capture → restore child | real immutable resume-state-cli path; checkpoint payload/state ownership unchanged |
-| code store retention → readers | D5 launch retention remains Kiro's. No collection is introduced here; long-lived MCPs/helpers must retain their closure too before collection can be enabled |
+| code store retention → readers | D5 launch retention remains Kiro's and over-retains at close. Long-lived MCP/helper references have no separate persisted record yet; no collection is enabled or introduced here |
 
 Mixed Aiterm closure sharing is unsupported for the shared state/tmux scope. The body's permanent MCP reference makes a release-at-close exclusive check unsuitable for hot replacement. The adopted channel exclusion above replaces the earlier proposed `stateCompatibility` declaration/exclusive check; no such signed-row field is added by this slice. Staging executes no package code; aiterm-mcp has no inert --version handler.
 
@@ -96,7 +96,7 @@ Root: `RUNTIME_ROOT` = `/srv/bellteam/shared/tools/bellteam-runtime` inside the 
 | F4 | D2 + D3 → P5 → D3: replace exactly one component in the expected vector; expected ≠ actual → `RUNTIME_SELECTION_CHANGED` |
 | F5 | D3 → P6 → caller: `{generation, components:{<id>:{origin:"release"\|"builtin", prefix, bin, dist?}}}` |
 | F6 | D3 + D4 + D5 → P8 → UI: current/published per runtime row + `runtimeApplication:{generationId,policy:"next_launch"}` (slice D); `retainedGenerations:[{generationId,referenceCount}]` is added with D5 in slice C |
-| F7 | D5 → P8 cleanup: remove only unselected, unreferenced closures; never D6 |
+| F7 | Future D5 → P8 cleanup contract: remove only unselected, unreferenced closures; never D6. No collector is enabled; current per-session D5 alone does not cover long-lived MCP/helper references |
 
 ## runtime-aiterm-mcp updates only with the body image (Elegg decision, 2026-11-08)
 
