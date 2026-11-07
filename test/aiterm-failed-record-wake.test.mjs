@@ -1,5 +1,3 @@
-import { taskSettingsReminder } from '../src/global-instructions.mjs'
-const reminderSuffix = `\n\n<bellteam_task_settings>\n${await taskSettingsReminder()}\n</bellteam_task_settings>`
 import assert from 'node:assert/strict'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -51,7 +49,7 @@ test('復帰に失敗した記録の席は、設定を当てずに記録ごと�
   assert.deepEqual(calls.map(([name]) => name), ['pty_observe', 'pty_close', 'agent_launch', 'pty_send', 'pty_read'])
   assert.deepEqual(calls[1][1], { session_id: 'bot-a' })
   assert.deepEqual(calls.filter(([name]) => name === 'pty_send').map(([, args]) => args),
-    [{ session_id: 'bot-a', text: '再現用の本文' + reminderSuffix, require_agent: true }])
+    [{ session_id: 'bot-a', text: '再現用の本文', require_agent: true }])
   assert.equal(written.filter(text => text.includes('resume record failed')).length, 1)
 })
 

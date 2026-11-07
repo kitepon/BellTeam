@@ -8,7 +8,6 @@ const root = resolve(process.env.MODEL_POLICY_SOURCE_ROOT || new URL('..', impor
 const { AitermTransport } = await import(pathToFileURL(join(root,'src/aiterm-transport.mjs')))
 const { BellTeamMessenger, directEnvelope } = await import(pathToFileURL(join(root,'src/messenger.mjs')))
 const globalInstructions = await import(pathToFileURL(join(root,'src/global-instructions.mjs')))
-const reminder = text => text.split('\n\n<bellteam_task_settings>\n')[1]?.split('\n</bellteam_task_settings>')[0]
 const receipt = mode => mode === 'agent_steer' ? {mode} : {mode,event_cursor:1,wait_process:{executable:'/node',args:[]}}
 const clientFor = (calls,mode='agent_dispatch') => ({async call(name,args){
  calls.push({name,args})
@@ -38,33 +37,34 @@ test('task settings: one canonical rule reaches all five CLI globals with owner 
  assert.match(common,/command schedule when no AI is needed; prompt schedule when judgment or repair is/)
 })
 
-test('task settings: live sessions receive the reminder on dispatch and steering across all harnesses, setup stays unchanged',async()=>{
+test('dispatch and steering preserve the caller text across all harnesses, setup stays unchanged',async()=>{
  for(const harness of ['codex','claude','grok','cursor'])for(const mode of ['agent_dispatch','agent_steer']){
-  const calls=[],transport=new AitermTransport({client:clientFor(calls,mode)}),bot={id:'bot-a',session:'live-session',harness}
+  const calls=[],transport=new AitermTransport({client:clientFor(calls,mode),waitProcess:async()=>({outcome:'done'})}),bot={id:'bot-a',session:'live-session',harness}
+  transport.prepareDesiredConfiguration=async()=>({schema:'aiterm.pty-observe-result.v1',session_id:'live-session',exists:true,launch_id:'b'.repeat(32)})
   await transport.dispatch(bot,'元の依頼',[])
   const sent=calls.find(c=>c.name==='pty_send').args.text
-  assert.ok(sent.startsWith('元の依頼\n\n<bellteam_task_settings>'))
-  assert.equal(reminder(sent),await globalInstructions.taskSettingsReminder())
-  assert.equal(sent.split('<bellteam_task_settings>').length,2)
+  assert.equal(sent,'元の依頼')
   assert.ok(!calls.some(c=>['agent_launch','agent_configure','pty_close'].includes(c.name)))
   await transport.dispatch(bot,'セットアップ確認',[],{setupTest:true})
   assert.equal(calls.filter(c=>c.name==='pty_send').at(-1).args.text,'セットアップ確認')
+  await transport.close()
  }
 })
 
-test('task settings: execution bridge delivery carries the same rule without changing execution arguments',async()=>{
- const calls=[],transport=new AitermTransport({executionBridge:{}}),bot={id:'bot-a',session:'live-session',harness:'codex'}
+test('execution bridge dispatch preserves the caller text',async()=>{
+ const calls=[],transport=new AitermTransport({executionBridge:{},waitProcess:async()=>({outcome:'done'})}),bot={id:'bot-a',session:'live-session',harness:'codex'}
  const job={executionWasPresent:true,execution:{invoke:async(name,args,options)=>{calls.push({name,args,options});return{structuredContent:receipt('agent_dispatch')}}}}
  await transport.dispatch(bot,'元のbridge依頼',[],{executionJob:job})
  assert.equal(calls.length,1);assert.equal(calls[0].name,'pty_send');assert.equal(calls[0].args.session_id,'live-session')
- assert.equal(reminder(calls[0].args.text),await globalInstructions.taskSettingsReminder())
- assert.ok(calls[0].args.text.startsWith('元のbridge依頼\n\n'))
+ assert.equal(calls[0].args.text,'元のbridge依頼')
  assert.equal(calls[0].args.require_agent,true)
+ await transport.close()
 })
 
-test('task settings: messenger stores the original statement while only AI input gains the review rule',async t=>{
+test('messenger persists and sends the same original statement',async t=>{
  const dir=await mkdtemp(join(tmpdir(),'model-policy-message-'));t.after(()=>rm(dir,{recursive:true,force:true}))
- const calls=[],transport=new AitermTransport({client:clientFor(calls),waitProcess:async()=>({outcome:'done'}),interimInterval:60000})
+ const calls=[],transport=new AitermTransport({client:clientFor(calls),waitProcess:async()=>({outcome:'done'}),interimInterval:1})
+ transport.prepareDesiredConfiguration=async()=>({schema:'aiterm.pty-observe-result.v1',session_id:'live-session',exists:true,launch_id:'b'.repeat(32)})
  const rows=new Map([['bot-a',{id:'bot-a',name:'Sender'}],['bot-b',{id:'bot-b',name:'Receiver',harness:'codex',session:'live-session'}]])
  const bots={refresh:async()=>{},has:id=>rows.has(id),get:id=>rows.get(id)}
  const messenger=new BellTeamMessenger({bots,transport,logPath:join(dir,'messages.jsonl')})
@@ -74,6 +74,6 @@ test('task settings: messenger stores the original statement while only AI input
  const original=events.find(r=>r.message==='保存する元の発言')
  assert.ok(original);assert.ok(!JSON.stringify(original).includes('bellteam_task_settings'))
  const sent=calls.find(c=>c.name==='pty_send').args.text
- assert.ok(sent.startsWith(directEnvelope(rows.get('bot-a'),'保存する元の発言')))
- assert.equal(reminder(sent),await globalInstructions.taskSettingsReminder())
+ assert.equal(sent,directEnvelope(rows.get('bot-a'),'保存する元の発言'))
+ await transport.close()
 })

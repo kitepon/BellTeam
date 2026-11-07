@@ -1,5 +1,3 @@
-import { taskSettingsReminder } from '../src/global-instructions.mjs'
-const reminderSuffix = `\n\n<bellteam_task_settings>\n${await taskSettingsReminder()}\n</bellteam_task_settings>`
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtemp, rm } from 'node:fs/promises'
@@ -81,7 +79,7 @@ test('旧配送をclose後に終了させ、再起動中の新配送は新個体
   f.closeResolve(); await restart
   assert.equal((await oldResult).code, 'BOT_STOPPED')
   assert.equal(await next, 'new reply')
-  assert.deepEqual(f.calls.filter(c => c.name === 'pty_send').map(c => [c.args.session_id, c.args.text]), [['old-session', 'old already accepted' + reminderSuffix], ['new-session', 'new owner request' + reminderSuffix]])
+  assert.deepEqual(f.calls.filter(c => c.name === 'pty_send').map(c => [c.args.session_id, c.args.text]), [['old-session', 'old already accepted'], ['new-session', 'new owner request']])
   assert.equal(f.transport.activity.active.size, 0)
 })
 
