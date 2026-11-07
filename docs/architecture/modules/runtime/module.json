@@ -148,6 +148,13 @@
     "scripts/runtime_update.py",
     "src/runtime-selection.mjs",
     "scripts/verify-runtime.py",
-    "scripts/runtime-exec.mjs"
+    "scripts/runtime-exec.mjs",
+    "src/runtime-aiterm-entry.mjs",
+    "scripts/runtime-aiterm/index.js",
+    "scripts/runtime-aiterm/execution-native-server.js",
+    "scripts/runtime-aiterm/claude-parent-hook.js",
+    "scripts/runtime-aiterm/cursor-parent-hook.js",
+    "scripts/runtime-aiterm/codex-parent-hook.js",
+    "scripts/runtime-aiterm/delivery-wake-cli.js"
   ]
 }

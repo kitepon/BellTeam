@@ -1,5 +1,7 @@
 # CLI登録・共有設定の更新
 
+Z-b2 uses stable global Aiterm descriptors and sibling hook adapters, while setup modules/Codex binary come from one captured runtime. The native parser receives its required script basename, state/socket and same-closure provider. Per-connection MCP paths and handoff imports remain immutable. Codex/Cursor pass BELLTEAM_RUNTIME_GENERATION (including empty builtin), CODEX_BIN and CLAUDE_BIN; Cursor's bridge removes unresolved placeholders for these names. The non-native lazy wake command uses the fixed delivery-wake adapter instead of deriving a helper next to runtime-exec. Functions, DFD and retention limits: [Aiterm consumer binding](runtime-updates.md#aiterm-consumer-binding-slice-c).
+
 責任者：エピネル。公開窓口は[runtime](README.md)の`cli-registration`。
 
 [H1接続候補](resume.md)の対象では固定state baseを管理MCPへ登録し、relayで失わず、Codex/Cursorの任意env継承から分ける。通常launch/commandのBot env読込後も固定値を検証する。hookの公開setup/既scopeを使い、設定Promiseの成功を現在の全hook実適用へ補完しない。H1非対象の既存動的設定と管理外項目は保持する。

@@ -197,7 +197,8 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
       onState: state => { updateCenter?.notify(); if (state.phase === 'running' && state.available) directMessages?.requestDrain() } })
   }
   const transport = execution?.transport ?? createManagedTransport({ backgroundSummary, membersAdmission, client: executionClient,
-    configurationRequests: new ConfigurationRequests({ client: executionClient, intents: new ConfigurationIntents(join(root, 'state/configuration-intents'), { trustedAnchor }) }),
+    configurationRequests: new ConfigurationRequests({ client: executionClient, intents: new ConfigurationIntents(join(root, 'state/configuration-intents'),
+      { trustedAnchor, runtimeCapture: () => executionClient.runtime() }) }),
     reportError: report => diagnostics.record(report), ...seatPorts, ...storagePorts,
     assertWorkAllowed: () => aiControl.assertEnabled(), requireMember })
   const idleSessions = execution ? null : new IdleSessions({ bots, transport })

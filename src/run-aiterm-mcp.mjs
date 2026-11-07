@@ -4,7 +4,7 @@
 import { spawn } from 'node:child_process'
 
 const env = { ...process.env }
-for (const name of ['AITERM_SESSION_ID', 'AITERM_AGENT_SESSION_ID', 'AITERM_AGENT_LAUNCH_ID', 'AITERM_STATE_BASE', 'TMPDIR', 'XDG_RUNTIME_DIR', 'TEMP', 'TMP']) {
+for (const name of ['AITERM_SESSION_ID', 'AITERM_AGENT_SESSION_ID', 'AITERM_AGENT_LAUNCH_ID', 'AITERM_STATE_BASE', 'BELLTEAM_RUNTIME_GENERATION', 'CODEX_BIN', 'CLAUDE_BIN', 'TMPDIR', 'XDG_RUNTIME_DIR', 'TEMP', 'TMP']) {
   if (env[name] === `\${env:${name}}`) delete env[name]
 }
 

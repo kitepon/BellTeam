@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import { aitermExecutionRegistration, aitermRegistration, aitermRelay, configureAitermHooks } from '../src/aiterm-hooks.mjs'
+import { aitermExecutionRegistration, aitermRegistration, aitermRelay, configureAitermHooks, AITERM_ADAPTER_DIST, RUNTIME_EXEC } from '../src/aiterm-hooks.mjs'
 
 test('停止用登録はAiterm自身が選ぶscopeと同じ配布物のproviderを使う', async () => {
   const registration = await aitermExecutionRegistration({
@@ -16,7 +16,7 @@ test('停止用登録はAiterm自身が選ぶscopeと同じ配布物のprovider�
   })
   assert.deepEqual(registration, {
     command: process.execPath,
-    args: ['/candidate/aiterm/dist/execution-native-server.js', '--execution-interrupt',
+    args: [join(AITERM_ADAPTER_DIST, 'execution-native-server.js'), '--execution-interrupt',
       '--state-root', '/isolated/state', '--socket', '/isolated/tmux.sock', '--steer-provider', '/candidate/steer/index.js'],
   })
 })
@@ -27,7 +27,7 @@ test('native hookは登録済みMCPと同じ入口をAitermのnative setupへ渡
   const providerFile = '/candidate/steer/index.js'
   const calls = []
   const result = await configureAitermHooks('/isolated/home', {
-    registration, codex: '/candidate/codex',
+    registration, dist: '/candidate/aiterm/dist', codex: '/candidate/codex',
     load: async path => {
       assert.ok(path.startsWith('/candidate/aiterm/dist/'))
       if (path.endsWith('/execution-native-server.js')) return { parseNativeExecutionArguments: args => {
@@ -37,14 +37,14 @@ test('native hookは登録済みMCPと同じ入口をAitermのnative setupへ渡
       return { configureNativeExecutionHooks: async (...args) => { calls.push(args); return { results: { codex: { status: 'ready' } } } } }
     },
   })
-  assert.deepEqual(calls, [['/isolated/home', { registration, expectedScope, providerFile, codexBinary: '/candidate/codex' }]])
+  assert.deepEqual(calls, [['/isolated/home', { registration: { ...registration, args: [join(AITERM_ADAPTER_DIST, 'execution-native-server.js'), '--execution-interrupt'] }, expectedScope, providerFile, codexBinary: '/candidate/codex' }]])
   assert.equal(result.codex.status, 'ready')
 })
 
 test('Aitermの登録はnodeの絶対pathと同梱のindex.jsにする', async () => {
   assert.deepEqual(
     await aitermRegistration({ dist: '/aiterm/dist', load: async () => ({ setupNodeExecutable: () => '/usr/local/bin/node' }) }),
-    { command: '/usr/local/bin/node', args: ['/aiterm/dist/index.js'] },
+    { command: '/usr/local/bin/node', args: [RUNTIME_EXEC, 'runtime-aiterm-mcp', 'aiterm-mcp'] },
   )
 })
 
@@ -70,7 +70,7 @@ test('Aitermの親配送hookだけをClaudeとCursorの共有設定へ登録す�
           mergeCursorParentHooks: (file, registration) => calls.push(['cursor', file, registration]),
         },
   })
-  const registration = { command: '/usr/local/bin/node', args: ['/aiterm/dist/index.js'] }
+  const registration = { command: '/usr/local/bin/node', args: [join(AITERM_ADAPTER_DIST, 'index.js')] }
   assert.deepEqual(calls, [
     ['claude', join(home, '.claude/settings.json'), registration],
     ['cursor', join(home, '.cursor/hooks.json'), registration],
@@ -93,6 +93,6 @@ test('Codexの親配送hookは、Aitermに入口がある時に、コンテナ�
           ensureCodexParentSteer: async (...args) => { calls.push(['codex', ...args]); return outcome },
         },
   })
-  assert.deepEqual(calls, [['claude'], ['cursor'], ['codex', home, { binary: '/usr/local/bin/codex' }]])
+  assert.deepEqual(calls, [['claude'], ['cursor'], ['codex', home, { binary: '/usr/local/bin/codex', runtime: { node: '/usr/local/bin/node', hook: join(AITERM_ADAPTER_DIST, 'codex-parent-hook.js') } }]])
   assert.deepEqual(result, { codex: outcome })
 })

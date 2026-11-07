@@ -85,7 +85,8 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
   native.connect = (...args) => { alive(); return track(ports.native.connect(...args)) }
   native.close = async () => {} // The host owns the shared SDK and native PTYs.
   const { root, ...storageOptions } = ports.configurationStorage
-  const requests = new ConfigurationRequests({ client: native, intents: new ConfigurationIntents(root, storageOptions) })
+  const requests = new ConfigurationRequests({ client: native, intents: new ConfigurationIntents(root,
+    { ...storageOptions, runtimeCapture: () => ports.native.runtime() }) })
   const transport = createManagedTransport({
     ...ports.seat, ...Object.fromEntries(Object.entries(ports.storage ?? {}).filter(([key]) => key !== 'deliveryAnchor')), backgroundSummary,
     activityPath: join(dirname(root), 'execution-activity.json'),

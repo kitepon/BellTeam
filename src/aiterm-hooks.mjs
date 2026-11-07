@@ -1,69 +1,79 @@
-// Aiterm（担当エレグ）の親配送hookを、BellTeamコンテナの共有設定へ登録する。
-// hookが無いと、Claude Code・Cursorの席からの agent_launch・pty_send が CLAUDE_PARENT_HOOK_UNAVAILABLE で拒まれる。
-// 本家の `aiterm-setup` は起こさず、同梱のdistの関数を呼ぶ（`aiterm-setup --hooks-only` と同じ登録になる）。
-// BellTeamが足すのはAitermのhookの項目だけで、登録済みなら何も書かない。
+// Registration and setup use Aiterm's public helpers; shared HOME remains SeatRuntime-owned.
 import { access, constants } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
+import { captureRuntime } from './runtime-selection.mjs'
 
-export const AITERM_DIST = '/usr/local/lib/node_modules/aiterm-mcp/dist'
-// MCPを使う時だけ本体を起こす中継（mcp-lazy。担当レオナ）。BellTeamコンテナに初期搭載している（Dockerfile）。
 export const MCP_LAZY_RELAY = '/usr/local/bin/mcp-lazy'
-// コンテナに初期搭載しているCodex（Dockerfile）。
-export const CODEX_BINARY = '/usr/local/bin/codex'
+export const AITERM_ADAPTER_DIST = '/app/scripts/runtime-aiterm'
+export const RUNTIME_EXEC = '/app/scripts/runtime-exec.mjs'
+const loadModule = path => import(pathToFileURL(path).href)
+const providerFor = entry => createRequire(entry).resolve('aiterm-steer-delivery')
 
-// 中継の実体があればそのpathを返す。無い環境（コンテナの外での起動など）ではnullを返し、Aitermは直結で登録する。
 export async function aitermRelay({ path = MCP_LAZY_RELAY } = {}) {
-  try {
-    await access(path, constants.X_OK)
-    return path
-  } catch {
-    return null
-  }
+  try { await access(path, constants.X_OK); return path } catch { return null }
 }
 
-// `aiterm-setup` が書く登録と同じ形（nodeの絶対path＋index.js）。MCPの登録（harness-config.mjs）にも同じものを使う。
-// 形が違うと、席が引数なしの `aiterm-setup` を流した時にCodex・Grokの登録が作り直され、BellTeamが書いたtimeoutが消える。
-export async function aitermRegistration({ dist = AITERM_DIST, load = path => import(path) } = {}) {
-  const { setupNodeExecutable } = await load(join(dist, 'setup-node.js'))
-  return { command: setupNodeExecutable(), args: [join(dist, 'index.js')] }
+export async function aitermRegistration({ runtimeCapture, dist, load = loadModule } = {}) {
+  const runtime = runtimeCapture ?? await captureRuntime()
+  const { setupNodeExecutable } = await load(join(dist ?? runtime.components['runtime-aiterm-mcp'].dist, 'setup-node.js'))
+  return { command: setupNodeExecutable(), args: [RUNTIME_EXEC, 'runtime-aiterm-mcp', 'aiterm-mcp'] }
 }
 
-// 配送と停止、各CLIは同じAitermのscopeを使う。scopeの決め方はAitermから読み、
-// BellTeam側でstate rootやtmux socketの規則を複製しない。
-export async function aitermExecutionRegistration({ dist = AITERM_DIST, provider, load = path => import(path), resolveProvider = file => createRequire(file).resolve('aiterm-steer-delivery') } = {}) {
+// The fixed adapter keeps the native basename/sibling-hook contract of Aiterm's setup API.
+export async function aitermExecutionRegistration({ runtimeCapture, dist, provider, load = loadModule, resolveProvider = providerFor } = {}) {
+  const runtime = runtimeCapture ?? await captureRuntime()
+  dist ??= runtime.components['runtime-aiterm-mcp'].dist
   const [{ setupNodeExecutable }, { localParentWorkerRuntime }] = await Promise.all([
-    load(join(dist, 'setup-node.js')),
-    load(join(dist, 'execution-parent-worker.js')),
+    load(join(dist, 'setup-node.js')), load(join(dist, 'execution-parent-worker.js')),
   ])
-  const scope = localParentWorkerRuntime.scope()
-  const entry = join(dist, 'execution-native-server.js')
+  const scope = localParentWorkerRuntime.scope(), entry = join(dist, 'execution-native-server.js')
   return {
     command: setupNodeExecutable(),
-    args: [entry, '--execution-interrupt', '--state-root', scope.state_root,
+    args: [join(AITERM_ADAPTER_DIST, 'execution-native-server.js'), '--execution-interrupt', '--state-root', scope.state_root,
       '--socket', scope.multiplexer.key, '--steer-provider', provider ?? resolveProvider(entry)],
   }
 }
 
-// Codexの席が親の時の配送hookは、Aiterm 0.56.0 から登録する（`aiterm-setup --codex-steer enable` と同じ登録になる）。
-// 無いと、Codexの席が起こした子の回答と、Aitermの配送に乗る製品（Approval Box）の回答が、番の終わりまで届かない。
-// AitermはCodexを一時的に起こして登録の読み戻しと承認をする。登録済みなら何も書かない。古いAitermには入口が無いので登録しない。
-// 返す `codex` はAitermの結果（status が ready 以外の時の記録は呼び出し元がする）。
-export async function configureAitermHooks(home, { dist = AITERM_DIST, load = path => import(path), codex = CODEX_BINARY, registration } = {}) {
-  registration ??= await aitermRegistration({ dist, load })
+// A live connection executes immutable files; persistent registrations instead use the adapters above.
+export function aitermConnectionRegistration(registration, runtime, resolveProvider = providerFor) {
+  const component = runtime.components['runtime-aiterm-mcp']
+  const args = [...registration.args]
+  if (args.includes('--execution-interrupt')) {
+    args[0] = join(component.dist, 'execution-native-server.js')
+    const provider = args.indexOf('--steer-provider')
+    if (provider >= 0) args[provider + 1] = resolveProvider(args[0])
+    return { command: registration.command, args }
+  }
+  if (registration.command === 'aiterm-mcp' || args[0] === RUNTIME_EXEC)
+    return { command: component.origin === 'builtin' ? 'aiterm-mcp' : component.bin['aiterm-mcp'], args: args[0] === RUNTIME_EXEC ? args.slice(3) : args }
+  return { ...registration, args }
+}
+
+export async function configureAitermHooks(home, { runtimeCapture, dist, load = loadModule, codex, registration, resolveProvider = providerFor } = {}) {
+  const runtime = runtimeCapture ?? await captureRuntime()
+  dist ??= runtime.components['runtime-aiterm-mcp'].dist
+  codex ??= runtime.components['runtime-codex'].bin.codex
+  registration ??= await aitermRegistration({ runtimeCapture: runtime, dist, load })
   if (registration.args.includes('--execution-interrupt')) {
-    const nativeDist = dirname(registration.args[0])
     const [{ configureNativeExecutionHooks }, { parseNativeExecutionArguments }] = await Promise.all([
-      load(join(nativeDist, 'execution-native-setup.js')),
-      load(join(nativeDist, 'execution-native-server.js')),
+      load(join(dist, 'execution-native-setup.js')), load(join(dist, 'execution-native-server.js')),
     ])
-    const { expectedScope, providerFile } = parseNativeExecutionArguments(registration.args.slice(1))
-    const { results } = await configureNativeExecutionHooks(home, { registration, expectedScope, providerFile, codexBinary: codex })
+    const direct = aitermConnectionRegistration(registration,
+      { ...runtime, components: { ...runtime.components, 'runtime-aiterm-mcp': { ...runtime.components['runtime-aiterm-mcp'], dist } } }, resolveProvider)
+    const { expectedScope, providerFile } = parseNativeExecutionArguments(direct.args.slice(1))
+    const persistent = { command: registration.command,
+      args: [join(AITERM_ADAPTER_DIST, 'execution-native-server.js'), ...direct.args.slice(1)] }
+    const { results } = await configureNativeExecutionHooks(home,
+      { registration: persistent, expectedScope, providerFile, codexBinary: codex })
     return results
   }
   const { mergeClaudeParentHooks, mergeCursorParentHooks, ensureCodexParentSteer } = await load(join(dist, 'setup-integrations.js'))
-  mergeClaudeParentHooks(join(home, '.claude/settings.json'), registration)
-  mergeCursorParentHooks(join(home, '.cursor/hooks.json'), registration)
+  const persistent = { command: registration.command, args: [join(AITERM_ADAPTER_DIST, 'index.js')] }
+  mergeClaudeParentHooks(join(home, '.claude/settings.json'), persistent)
+  mergeCursorParentHooks(join(home, '.cursor/hooks.json'), persistent)
   if (!ensureCodexParentSteer) return { codex: null }
-  return { codex: await ensureCodexParentSteer(home, { binary: codex }) }
+  return { codex: await ensureCodexParentSteer(home, { binary: codex,
+    runtime: { node: registration.command, hook: join(AITERM_ADAPTER_DIST, 'codex-parent-hook.js') } }) }
 }

@@ -1,5 +1,7 @@
 # 元MCP要求と設定切替consumerの親接続
 
+Z-b2 connection binding: parent/dispatcher ConfigurationIntents receives `runtimeCapture: () => native.runtime()` from the same AitermClient used by its requests. Snapshot schema imports and transport helpers stay on that immutable captured dist across selection changes. [Runtime functions and DFD](../runtime/runtime-updates.md#aiterm-consumer-binding-slice-c) own this lifetime; no saved intent schema or additional state writer changes.
+
 所有モリー。consumer内部は[execution](../execution/model-handoff.md)、元deliveryの一件readは[conversation](../conversation/README.md)の正本に従う。
 
 ```mermaid

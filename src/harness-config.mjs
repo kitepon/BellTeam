@@ -7,7 +7,7 @@ import { runtimeEnvironment, runtimeHome } from './runtime-home.mjs'
 import { defaultCallBridgeMcpUrl } from './distribution-profile.mjs'
 import { BELLTEAM_MCP_PATH, CALL_BRIDGE_MCP_PATH, SEAT_HEADER, SEAT_VARIABLE, LAUNCH_HEADER, LAUNCH_VARIABLE } from './seat-mcp.mjs'
 import { configureRtk } from './rtk-hooks.mjs'
-import { aitermRegistration, aitermRelay, configureAitermHooks } from './aiterm-hooks.mjs'
+import { aitermRegistration, aitermRelay, configureAitermHooks, AITERM_ADAPTER_DIST, RUNTIME_EXEC } from './aiterm-hooks.mjs'
 import { configureCursorInstructions } from './cursor-instructions.mjs'
 import { writeAtomic } from './json-file.mjs'
 import { fixedResumeBase } from './resume-policy.mjs'
@@ -54,7 +54,7 @@ const AITERM_SEAT_ENV_VARS = [
 // 本体の環境にある時だけ席へ受け継がれる変数。
 const AITERM_INHERITED_ENV_VARS = ['BELLTEAM_ROOT', 'PLAYWRIGHT_BROWSERS_PATH', 'RTK_TELEMETRY_DISABLED', 'RTK_SUPPRESS_HOOK_WARNING', 'LC_CTYPE']
 // AitermがCLI起動時に付ける。本体の環境にはまだ無い場合がある。
-const AITERM_RUNTIME_ENV_VARS = ['AITERM_SESSION_ID', 'AITERM_AGENT_SESSION_ID', 'AITERM_AGENT_LAUNCH_ID', 'AITERM_STATE_BASE']
+const AITERM_RUNTIME_ENV_VARS = ['AITERM_SESSION_ID', 'AITERM_AGENT_SESSION_ID', 'AITERM_AGENT_LAUNCH_ID', 'AITERM_STATE_BASE', 'BELLTEAM_RUNTIME_GENERATION', 'CODEX_BIN', 'CLAUDE_BIN']
 const AITERM_TEMP_ENV_VARS = ['TMPDIR', 'XDG_RUNTIME_DIR', 'TEMP', 'TMP']
 const UNUSABLE_CODEX_MCPS = ['[mcp_servers.xcodebuildmcp]', '[mcp_servers.openai-api-key-local-confirmation]']
 
@@ -139,8 +139,10 @@ function relayedAiterm(relay, server, harness, home) {
   const native = server.args.includes('--execution-interrupt')
   // Native MCP uses the same lazy relay, but not its old static-profile worker
   // or 18-tool cache. Once invoked it stays connected for the session lifetime.
+  const wakeEntry = server.args[0] === RUNTIME_EXEC ? join(AITERM_ADAPTER_DIST, 'delivery-wake-cli.js')
+    : join(dirname(server.args[0]), 'delivery-wake-cli.js')
   const wake = !native && AITERM_WAKE_PARENTS.includes(harness)
-    ? { MCP_LAZY_WAKE_COMMAND: JSON.stringify([server.command, join(dirname(server.args[0]), 'delivery-wake-cli.js'), '--parent', harness]), MCP_LAZY_WAKE_INTERVAL: '30s' }
+    ? { MCP_LAZY_WAKE_COMMAND: JSON.stringify([server.command, wakeEntry, '--parent', harness]), MCP_LAZY_WAKE_INTERVAL: '30s' }
     : {}
   return {
     command: relay,

@@ -48,6 +48,30 @@ flowchart LR
 
 P5 changes future launches only. P6 never moves a running launch to a new generation.
 
+## Aiterm consumer binding (slice C)
+
+| Function | Input → output | Lifetime / owner |
+| --- | --- | --- |
+| AitermClient.runtime/connect | supplied runtimeCapture or inherited-generation capture → selected MCP entry and helper imports | Elegg; one capture per client/connection, including concurrent connect callers; reconnect retains that capture |
+| captureHandoffConnection | exact SDK/transport + captured dist → capture/control imports | Elegg; immutable absolute module paths captured with that SDK, no query suffix or latest lookup |
+| ConfigurationIntents.handoffTerminal | stored snapshot + owning client's runtime() → captured snapshot schema | Elegg; assembly injects the same native client capture; standalone store captures once |
+| adoptRuntimeResume | startup runtime capture → resume-state-cli.js restore command | Elegg; one capture for the complete pre-bootstrap adoption operation |
+| aitermRegistration / aitermExecutionRegistration | capture → setup imports and persistent dispatch descriptor | Elegg; global ordinary MCP uses runtime-exec; private native MCP uses a fixed adapter, not a wrapper prepended to the native parser |
+| configureAitermHooks | captured setup module + persistent native adapter path → sibling hook registrations | Elegg; existing SeatRuntime remains the sole serial HOME writer; Codex binary comes from the same capture |
+| fixed native/hook adapters | inherited generation → runtime-exec --resolve runtime-aiterm-mcp dist → real helper process | Elegg; capture generation before resolving, inherit env/stdio/args/exit/signal, resolve native provider from that same dist |
+
+Adapters live at `scripts/runtime-aiterm/{index,execution-native-server,claude-parent-hook,cursor-parent-hook,codex-parent-hook,delivery-wake-cli}.js`, with one shared runner `src/runtime-aiterm-entry.mjs`. The native public setup API derives sibling hook paths from registration.args[0] and requires its basename to be execution-native-server.js. Setup loads the real captured module while giving it an existing fixed adapter descriptor for persistent hook commands. AitermClient instead executes the real captured native entry with the captured provider and generation; scope arguments remain owned by Aiterm/SeatRuntime. No helper implementation is copied from Aiterm.
+
+| Flow / store | Data and ownership |
+| --- | --- |
+| P6 → AitermClient → stdio MCP | captured absolute bin/native entry/provider and generation; seat spec installs generation after UID/env setup; custom test transports retain their supplied command |
+| AitermClient → handoff/schema loader | immutable captured dist; configuration assemblies pass runtime() of that exact client, never a global current import base |
+| SeatRuntime → HOME → delayed hook adapter | stable node/script path, existing scope/config args; inherited launch generation selects the retained closure when invoked |
+| startup capture → restore child | real immutable resume-state-cli path; checkpoint payload/state ownership unchanged |
+| code store retention → readers | D5 launch retention remains Kiro's. No collection is introduced here; long-lived MCPs/helpers must retain their closure too before collection can be enabled |
+
+Mixed Aiterm closure sharing is exclusive for `aiterm-state-and-tmux`. The signed row carries `stateCompatibility:{scope:"aiterm-state-and-tmux",mixedGeneration:"exclusive"}`; Molly rejects a conflicting still-referenced Aiterm closure before commit with RUNTIME_ABI_INCOMPATIBLE, comparing Aiterm closure identity rather than the full vector. Natural reference release is the exit. Until that check lands, Aiterm runtime publication stays withheld. Staging executes no package code; aiterm-mcp has no inert --version handler.
+
 ## Stores (DFD)
 
 Root: `RUNTIME_ROOT` = `/srv/bellteam/shared/tools/bellteam-runtime` inside the body (read-only mount) and inside module-installer (read-write mount), backed by the dedicated Compose volume `<project>-runtime-code`. Not server-state, not aiterm-state, not HOME.
