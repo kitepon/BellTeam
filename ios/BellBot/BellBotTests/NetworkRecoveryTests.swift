@@ -723,6 +723,21 @@ final class NetworkRecoveryTests: XCTestCase {
         withExtendedLifetime(observation) {}
     }
 
+    func testSlowUpdatesReadDoesNotDelayTimelineEventsAndIsCoalesced() async {
+        let flood = String(repeating: "event: messages\ndata: {\"type\":\"updates\",\"all\":true,\"topics\":[\"updates\"],\"botIds\":[],\"roomIds\":[]}\n\n", count: 50)
+        let stream = flood + "event: messages\ndata: {\"all\":false,\"topics\":[\"timeline\"],\"botIds\":[\"bot-network\"],\"roomIds\":[]}\n\n"
+        let scenario = NetworkScenario(failures: 0, holdEventsOpen: true, skipAvatarVersion: true,
+                                       eventStream: stream, holdPath: "/api/updates")
+        let store = AppStore(api: makeAPI(scenario))
+        defer { store.stopEvents() }
+        let notified = expectation(description: "更新情報の取得が終わらなくても会話の変更は届く")
+        let observation = store.conversationChanges.sink { if $0 == .bot("bot-network") { notified.fulfill() } }
+        store.startEvents()
+        await fulfillment(of: [notified], timeout: 4)
+        XCTAssertEqual(scenario.count("/api/updates"), 1, "50件の更新通知は実行中の1本にまとめる")
+        withExtendedLifetime(observation) {}
+    }
+
     func testQueueOnlyEventReadsQueueAndMemberWorkWithoutUnrelatedLists() async {
         let stream = "event: messages\ndata: {\"all\":false,\"topics\":[\"queue\"],\"botIds\":[\"bot-network\"],\"roomIds\":[]}\n\n"
         let scenario = NetworkScenario(failures: 0, holdEventsOpen: true, eventStream: stream)
@@ -832,6 +847,8 @@ private final class NetworkScenario {
     let eventStream: String?
     let holdEventsOpen: Bool
     let skipAvatarVersion: Bool
+    /// このpathへの要求には応答しない（遅い取得の再現）。
+    let holdPath: String?
     private let png: Data
 
     @MainActor
@@ -840,7 +857,8 @@ private final class NetworkScenario {
          avatars: Bool = false, accessExpired: Bool = false, httpStatus: Int = 200,
          events502ThenReady: Bool = false, holdEventsOpen: Bool = false,
          skipAvatarVersion: Bool = false, readyOnlyAfterReconnect: Bool = false,
-         eventStream: String? = nil) {
+         eventStream: String? = nil, holdPath: String? = nil) {
+        self.holdPath = holdPath
         self.failures = failures
         self.failureCode = failureCode
         self.failurePath = failurePath
@@ -902,6 +920,7 @@ private final class NetworkScenarioProtocol: URLProtocol {
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func stopLoading() {}
     override func startLoading() {
+        if let hold = Self.scenario.holdPath, request.url!.path == hold { _ = try? Self.scenario.response(request); return }
         do {
             let (data, mime) = try Self.scenario.response(request)
             let url = Self.scenario.accessExpired ? URL(string: "https://test.cloudflareaccess.com/cdn-cgi/access/login")! : request.url!
