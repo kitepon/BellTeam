@@ -26,7 +26,7 @@ Four fixed component IDs. Nothing else is a runtime target; no npm specifier, UR
 | P3 | Authenticated UI plan/start → admitted `kind:"runtime"` job, HTTP202 | Molly (common API + updater job) |
 | P4 | Target release → verified archive → staged closure under `packages/<id>/<archiveSha>` + receipt | Molly (`scripts/runtime_update.py`, run by module-installer) |
 | P5 | Staged closure + expected generation → new generation file + atomic `current.json` | Molly (same script; sole selection writer) |
-| P6 | Launch intent → captured generation and absolute paths | Molly (`src/runtime-selection.mjs`); callers Kiro (execution launch) / Elegg (Aiterm) |
+| P6 | Launch intent → captured generation and absolute paths. `captureRuntime()` / `{generation: undefined}` = current selection (builtin if none); `{generation: null}` = builtin; `{generation: sha}` = that `generations/<sha>.json`, validated like the current path (absent/invalid → `RUNTIME_BINDING_UNAVAILABLE`), used by resume of a recorded launch | Molly (`src/runtime-selection.mjs`); callers Kiro (execution launch, [runtime-capture](../execution/runtime-capture.md)) / Elegg (Aiterm) |
 | P7 | Captured paths → real CLI / MCP / hooks | Kiro, Elegg, Throughline owner (consumers) |
 | P8 | Selection + jobs + live references → inventory rows, retention | Molly (projection), UI owners (display) |
 
@@ -58,7 +58,7 @@ Root: `RUNTIME_ROOT` = `/srv/bellteam/shared/tools/bellteam-runtime` inside the 
 | D2 code | `packages/<componentId>/<archiveSha256>/` = npm prefix (`bin/`, `lib/node_modules/…`) + `manifest.json` + `receipt.json`; dirs 0755, files read-only | P4 once (stage dir + rename) → P6/P7 |
 | D3 selection | `generations/<generationSha256>.json` `{schema:"bellteam.runtime-generation.v1",components:{<id>:{archiveSha256,sourceCommit,upstreamVersion}},jobId}` (all four IDs, a missing ID = builtin); `current.json` `{schema:"bellteam.runtime-selection.v1",generation}` | P5 only: temp + fsync + rename + dir fsync → P6/P8 |
 | D4 jobs | existing `state/jobs/<UUID>.json` with `kind:"runtime"`, `target.moduleId` = runtime componentId; plus selection intent `{jobId,expected,target}` | updater → P3/P8 |
-| D5 live references | Launch → captured generation. Lives in body-writable state, not the read-only runtime mount; shape fixed with Kiro/Elegg in slice C. Until then nothing under D2/D3 is deleted automatically | P6 callers → P8 retention |
+| D5 live references | Launch → captured generation: execution-owned `execution-runtime-launches.json` `{schema:"bellteam.runtime-launches.v1",launches:{<sessionName>:{generation,capturedAt}}}` in body-writable state, not the read-only runtime mount ([runtime-capture](../execution/runtime-capture.md)). Nothing under D2/D3 is deleted automatically before P8 reads it | execution launch (Kiro) → resume, P8 retention |
 | D6 package state | CLI HOME/auth, Aiterm state, Throughline DB | upstream/seat owners; never touched by Z-b2 |
 
 | Flow | Data |

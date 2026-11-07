@@ -194,6 +194,7 @@ EXECUTION_FILES = {'payload/' + name for name in (
     'src/resume-storage.mjs',
     'src/returned-mcp-error.mjs',
     'src/runtime-home.mjs',
+    'src/runtime-selection.mjs',
     'src/seat-activity.mjs',
     'src/seat-command.mjs',
     'src/seat-process.mjs',
