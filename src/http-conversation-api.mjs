@@ -1,3 +1,4 @@
+import { pipeline } from 'node:stream'
 import { json, readJson } from './http-response.mjs'
 import { webMessage, messageImages, MESSAGE_MAX_BYTES } from './http-messages.mjs'
 
@@ -61,13 +62,18 @@ export function createConversationAssetsApi({ events, assets }) {
     if (request.method === 'GET' && imageAssetMatch) {
       if (!assets) return json(response, 404, { error: 'IMAGE_ASSET_NOT_FOUND' })
       const asset = await assets.open(imageAssetMatch[1], imageAssetMatch[2])
+      if (response.destroyed || response.writableEnded) {
+        asset.stream.destroy()
+        return response
+      }
       response.writeHead(200, {
         'content-type': asset.mime,
         'content-length': asset.size,
         'cache-control': 'private, max-age=31536000, immutable',
         'x-content-type-options': 'nosniff',
       })
-      return asset.stream.pipe(response)
+      // A disconnected response must also close the source FileHandle.
+      return pipeline(asset.stream, response, () => {})
     }
     return false
   }
