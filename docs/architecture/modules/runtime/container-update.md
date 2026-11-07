@@ -89,3 +89,30 @@ The source-local capacity contact confirms the seventeenth request is dispatched
 
 
 The 2026-11-07 durable job / real readiness / restart-limit contract is canonical in [update-jobs.md](update-jobs.md). It supersedes unknown-as-job-state and worker-bound-only acceptance text for new jobs. Legacy historical receipts remain unchanged.
+
+
+## Module capability acquisition failures (Z-a3)
+
+`moduleInstallCapabilities()` is a read-only runtime client contact. Its only current production caller is common `prepareStep(planning=true)`. A successful capabilities reply is checked against the running distribution source and protocol; explicit incompatibility still returns `{supported:false,reason}`. A failed capabilities exchange rejects with the existing typed socket/protocol error, including its fixed path/reason, rather than inventing an unsupported capability. Local `/app/distribution.json` read/parse failures reject as UNREADABLE with that fixed path and bounded errno or DISTRIBUTION_INVALID. No free exception message, environment or file bytes are returned. Common owns projecting the returned capability reason and typed acquisition failure into the plan result; neither result launches an installer/job or retries a call.
+
+| Function | Input → output | Owner |
+| --- | --- | --- |
+| Acquire module capability | fixed Unix capabilities read → validated reply OR original typed acquisition failure | runtime client |
+| Bind local source | fixed distribution read/parse + reply source → supported/source mismatch OR typed local UNREADABLE | runtime client |
+| Expose planning outcome | capability reason or thrown acquisition error → common plan failure | integration |
+
+```mermaid
+flowchart LR
+  Plan[Common prepareStep planning] --> Read[Runtime fixed capabilities call]
+  Read --> Reply[Validated reply]
+  Read --> Failure[Typed socket or protocol failure]
+  Reply --> Source[Fixed local distribution source read]
+  Source --> Compare[Existing source and protocol comparison]
+  Source --> Local[UNREADABLE fixed path and bounded reason]
+  Compare --> Capability[Supported or explicit incompatibility reason]
+  Capability --> Plan
+  Failure --> Plan
+  Local --> Plan
+```
+
+The failure path leaves the read immediately and releases its socket through the existing finish path. A later explicit plan can read again after the concrete connection/file problem is repaired; no persistent gate or retry is added. Same-source enforcement remains unchanged. Historical generic refusals cannot be retrospectively labeled timeout or source mismatch because their subreason was discarded.
