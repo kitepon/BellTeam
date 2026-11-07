@@ -585,7 +585,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
     const busy = state.selectedType === 'bot' && state.selected && conversationTimeline.isBusy(state.selected.id)
     stopButton.hidden = deleting || !busy && !stopping
     stopButton.disabled = Boolean(stopping)
-    sendButton.hidden = !deleting && Boolean(busy || stopping)
+    sendButton.hidden = !deleting && Boolean(stopping)
     conversationTimeline.updateStops()
   }
 

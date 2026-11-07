@@ -127,6 +127,25 @@ flowchart TD
 
 全callerは`normalizeItems → roomTimelineItem`と`renderItemElement → deliveryLabel`。直接/部屋の初回・最新・追加・過去ページは共通描画を使い、世代/読取順の契約は維持する。確認は`timeline-open-queue`の正規/旧/不正tuple、部屋の混在・routing失敗、ページ更新とqueue解除の人工fixture。公開窓口の接続は既HTTP履歴のままなのでmodule.json/生成全体図に接続変更はない。N102のcallback→JSONL→store→HTTPで生成した`test/fixtures/delivery-tracking-wire.json`を同じtimeline試験へ接続し、直接の中立表示・既peer詳細の配送失敗表示なし・根拠なしfailed混在部屋の失敗優先を確認する。peer詳細へ新しい配送状態欄は追加しない。
 
+## Active-turn send: function map and data flow
+
+| Function / caller | Input → output |
+| --- | --- |
+| `updateSendButton` ← selection, queue change, catalogue refresh, stop start/completion | Direct Bot queue activity → show both Send and Stop. Stopping hides Send and disables Stop; deleting hides Stop and keeps the composer-disabled Send visible. Room behavior stays unchanged. |
+| form `submit` → `sendMessage` → `conversationComposer.send` | An explicit Send submits the current draft through the existing per-conversation single-flight and HTTP message path, including while the Bot is active. |
+
+```mermaid
+flowchart LR
+  Queue["Existing Bot queue"] --> Busy["timeline.isBusy"]
+  Busy --> Controls["application.updateSendButton<br/>active: Send + Stop"]
+  Stop["Stop in flight"] --> Controls
+  Delete["Bot deletion"] --> Controls
+  Draft["Current draft + explicit form submit"] --> Composer["Existing composer single-flight"]
+  Composer --> POST["Existing message HTTP POST"]
+```
+
+This changes Web presentation only. Existing HTTP/SSE interfaces, Room routing, draft ownership and send admission remain unchanged. The focused Web test covers the control states and an active-turn form submission with the existing composer; it does not establish live AI delivery.
+
 ## 送信受付と表示更新を別の段階にする
 
 ```mermaid
