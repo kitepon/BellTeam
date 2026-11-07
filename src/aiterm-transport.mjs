@@ -59,7 +59,7 @@ export function createManagedTransport({ client = new AitermClient(), ...options
 // BellTeamとAitermの間。席の状態（BotSessionState）と席の活動（SeatActivity）を持ち、一回の配送（DeliveryJob）を進める。
 // Aitermのnativeな実行判断はAitermに在り、ここは返却を事実として受け取る。
 export class AitermTransport {
-  constructor({ resolveBot = null, backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, activeId = randomUUID, activityPath = null, captureRuntime = captureSelectedRuntime, runtimeLaunchesPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {} } = {}) {
+  constructor({ resolveBot = null, backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, assertInputAllowed = () => {}, activeId = randomUUID, activityPath = null, captureRuntime = captureSelectedRuntime, runtimeLaunchesPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {} } = {}) {
     this.backgroundSummary = backgroundSummary
     this.summaryJobs = new Set()
     this.latestSummaryInputs = new Map()
@@ -84,6 +84,7 @@ export class AitermTransport {
     this.updateFastMode = updateFastMode
     this.requireAccess = requireAccess
     this.assertWorkAllowed = assertWorkAllowed
+    this.assertInputAllowed = assertInputAllowed
     this.captureRuntime = captureRuntime
     this.runtimeLaunchesPath = runtimeLaunchesPath
     this.runtimeLaunches = null
@@ -694,9 +695,11 @@ export class AitermTransport {
       ;({ onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null } = conversationCallbacks)
     }
     this.activity.register(job)
+    // Runs only before input is typed, so a body update hold (Z-c) refuses new input without touching running turns.
     const check = () => {
       job.assertNotStopped()
       this.assertWorkAllowed()
+      this.assertInputAllowed()
       admissionCheck()
       if (membersLease) this.membersAdmission.assertLease(membersLease)
     }

@@ -10,6 +10,8 @@ import { IdleSessions } from './idle-sessions.mjs'
 import { CapacityContinuation } from './capacity-continuation.mjs'
 
 export const EXECUTION_STATE_COMPATIBILITY = 'bellteam.execution-state.v1'
+// This engine accepts ports.access.assertInput (Z-c update hold); a parent passes it only when this is true.
+export const EXECUTION_UPDATE_HOLD_GATE = true
 const COMPATIBILITY = EXECUTION_STATE_COMPATIBILITY
 const failure = code => Object.assign(new Error(code), { code, effect: 'not_started', status: 503 })
 const asyncMethods = {
@@ -41,7 +43,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     || typeof handoff.generation !== 'string')) throw failure('EXECUTION_STATE_INCOMPATIBLE')
   const groups = {
     configurationStorage: ['root', 'trustedAnchor', 'ownerUid'],
-    access: ['assertWorkAllowed', 'admitWork', 'requireMember', 'requireAccess'],
+    access: ['assertWorkAllowed', 'admitWork', 'requireMember', 'requireAccess', 'assertInput'],
     storage: ['prepareStartup', 'updateSession', 'updateFastMode', 'deliveryAnchor'],
     seat: ['waitProcess', 'handoffContext', 'writeTemporaryImage', 'removeTemporaryImage', 'tempRoot'],
     observer: ['appendInterimWords', 'emitQueue', 'report'], diagnostics: ['record', 'goalError'],
@@ -95,6 +97,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     resolveBot: id => ports.bots.get(id), configurationRequests: requests, requireMember: ports.access.requireMember,
     requireAccess: ports.access.requireAccess,
     assertWorkAllowed: () => { alive(); ports.access.assertWorkAllowed() },
+    assertInputAllowed: () => ports.access.assertInput?.(),
     reportError: report => { alive(); return track(ports.diagnostics?.record?.(report)) },
   })
   const administration = new BotAdministration({ bots: ports.bots, rooms: ports.rooms, transport, moduleOperations: ports.moduleOperations,

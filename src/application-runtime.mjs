@@ -135,7 +135,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
       await listen(server, socketPath); proceed()
       await listen(internalServer, internalPort, '127.0.0.1'); proceed()
       // Without this endpoint the installer records quiesce=unconfirmed and still stops; serving matters more.
-      if (quiesceSocket) quiesceEndpoint = await listenBodyQuiesce({ path: quiesceSocket }).catch(error => {
+      if (quiesceSocket) quiesceEndpoint = await listenBodyQuiesce({ path: quiesceSocket, ...(services.lifecycle?.quiesce ? { quiesce: services.lifecycle.quiesce } : {}) }).catch(error => {
         process.stderr.write(`BODY_QUIESCE_UNAVAILABLE ${error.code ?? ''}\n`)
         return null
       })
