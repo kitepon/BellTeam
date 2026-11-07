@@ -53,7 +53,7 @@ else if(a[0]==='image'&&a[1]==='inspect'){
  const s=state();s.State.Running=!!e.TEST_STILL_RUNNING;s.State.Restarting=!!e.TEST_STILL_RESTARTING;fs.writeFileSync(root+'/runtime.json',JSON.stringify(s));emit(s.Id);
 }else if(a[0]==='update')emit(a.at(-1));
 else if(a[0]==='rm'){fs.rmSync(root+'/runtime.json',{force:true});emit(a.at(-1));}
-else if(a[0]==='ps'){if(state())emit(state().Id);}
+else if(a[0]==='ps'){if(state())emit(state().Id);if(e.TEST_OTHER_VOLUME_USER&&a.includes('--filter'))emit('f'.repeat(64));}
 else if(a[0]==='inspect'){
  const s=state();emit({id:s.Id,running:s.State.Running,restarting:false,restartPolicy:'unless-stopped',mounts:[]});
 }else if(a[0]==='volume'){
@@ -66,8 +66,8 @@ else if(a[0]==='inspect'){
   const name=a.at(-1),all=resumes();
   if(a[1]==='inspect'){const v=all[name];if(!v)process.exit(1);
    const f=a[a.indexOf('--format')+1];
-   emit(!a.includes('--format')?[v]:f.startsWith('{{.Name}}')?name+' local 0 selected-project aiterm-state':{name,driver:'local',mountpoint:'/vm/'+name+'/_data',optionCount:0,type:null,device:null,options:null});
-  }else if(a[1]==='create'){all[name]={Name:name,Driver:'local',Labels:{'com.docker.compose.project':'selected-project','bellteam.role':'aiterm-state'},Options:{}};fs.writeFileSync(resumeFile,JSON.stringify(all));fs.mkdirSync(root+'/'+name);emit(name);}
+   emit(!a.includes('--format')?[v]:f.includes('.CreatedAt')?[name,'local',v.Mountpoint,e.TEST_RECREATED&&!state()?'recreated':v.CreatedAt].join(' '):f.startsWith('{{.Name}}')?name+' local 0 selected-project aiterm-state':{name,driver:'local',mountpoint:'/vm/'+name+'/_data',optionCount:0,type:null,device:null,options:null});
+  }else if(a[1]==='create'){all[name]={Name:name,Driver:'local',Labels:{'com.docker.compose.project':'selected-project','bellteam.role':'aiterm-state'},Options:{},Mountpoint:'/vm/'+name+'/_data',CreatedAt:'created-'+name};fs.writeFileSync(resumeFile,JSON.stringify(all));fs.mkdirSync(root+'/'+name);emit(name);}
   else process.exit(90);process.exit(0);
  }
  const filename=root+'/volume.json',existing=()=>fs.existsSync(filename)?JSON.parse(fs.readFileSync(filename)):
@@ -88,7 +88,7 @@ else if(a[0]==='run'){
   process.stdout.write(name==='compose.yaml'?'synthetic old compose\n':fs.readFileSync(path.join(repo,source)));
  }else if(entry==='/usr/local/bin/node'){
   if(a.some(v=>v.endsWith('target=/probe'))){if(a.includes('1000:1000'))process.exit(Number(e.TEST_PROBE_RESULT??75));process.exit(0);}
-  if(e.TEST_H1&&a.includes('/app/src/resume-install-plan.mjs')){const r=spawnSync(process.execPath,[repo+'/src/resume-install-plan.mjs',a.at(-1)],{stdio:'inherit'});process.exit(r.status??98);}
+  if(e.TEST_H1&&a.includes('/app/src/resume-install-plan.mjs')){const r=spawnSync(process.execPath,[repo+'/src/resume-install-plan.mjs',...a.slice(a.indexOf('/app/src/resume-install-plan.mjs')+1)],{stdio:'inherit'});process.exit(r.status??98);}
   if(a.includes('/app/scripts/module-update-compose.mjs')){const r=spawnSync(process.execPath,[repo+'/scripts/module-update-compose.mjs',...a.slice(a.indexOf('/app/scripts/module-update-compose.mjs')+1)],{stdio:'inherit'});process.exit(r.status??98);}
   if(a.includes('/app/scripts/container-update-compose.mjs')){const r=spawnSync(process.execPath,[repo+'/scripts/container-update-compose.mjs'],{stdio:'inherit'});process.exit(r.status??98);}
   if(a.includes('/app/scripts/read-container-update-normal.mjs')){
@@ -103,6 +103,10 @@ else if(a[0]==='run'){
    fs.mkdirSync(source+'/server-only',{recursive:true});process.exit(0);
   }
   if(e.TEST_H1&&j>=0&&a[j+1].includes('resume-state-cli.js'))process.exit(0);
+  if(e.TEST_H1&&j>=0&&a[j+1].includes('r="/usr/local/lib/node_modules/aiterm-mcp"')){
+   const code=a[j+1].replace('r="/usr/local/lib/node_modules/aiterm-mcp"','r='+JSON.stringify(root+'/reader/'+a[j-1].slice(7)));
+   const r=spawnSync(process.execPath,['-e',code],{stdio:'inherit'});process.exit(r.status??98);
+  }
   if(e.TEST_H1&&j>=0&&a[j+1].includes('fs.chownSync')){
    const name=a[a.indexOf('--mount')+1].match(/source=([^,]+)/)[1];
    const code=a[j+1].replace('p="/resume-state"','p='+JSON.stringify(root+'/'+name));
@@ -172,7 +176,8 @@ else if(a[0]==='run'){
   fs.writeFileSync(root+'/starts',String(counter));
   // Compose restarts an unchanged container and retains its immutable labels.
   const s=e.TEST_REUSE_CID&&previous?.Image===model.services.bellteam.image?previous:
-   {Id:'d'.repeat(64),Image:model.services.bellteam.image,Config:{Image:model.services.bellteam.image,Labels:{'com.docker.compose.project':model.name,'com.docker.compose.service':'bellteam','com.docker.compose.project.config_files':e.COMPOSE_FILE,'com.docker.compose.project.working_dir':a[a.indexOf('--project-directory')+1],'com.docker.compose.config-hash':'old-hash'}},Mounts:[]};
+   {Id:'d'.repeat(64),Image:model.services.bellteam.image,Config:{Image:model.services.bellteam.image,Labels:{'com.docker.compose.project':model.name,'com.docker.compose.service':'bellteam','com.docker.compose.project.config_files':e.COMPOSE_FILE,'com.docker.compose.project.working_dir':a[a.indexOf('--project-directory')+1],'com.docker.compose.config-hash':'old-hash'}},
+   Mounts:model.volumes?.['aiterm-state']?[{Type:'volume',Name:model.volumes['aiterm-state'].name,Source:'/vm/'+model.volumes['aiterm-state'].name+'/_data',Destination:'/srv/bellteam-aiterm',Driver:'local',RW:true}]:[]};
   s.State={Running:true,Restarting:false,StartedAt:'after-'+counter};fs.writeFileSync(root+'/runtime.json',JSON.stringify(s));
  }else if(!a.includes('pull')&&!a.includes('build'))process.exit(93);
 }else process.exit(92);
@@ -616,6 +621,57 @@ test('H1公開2fileの通常reset導入をvolume未指定で繰り返し、保�
  assert.equal(recovery.find(c=>c.args.includes('up')).compose,generations[2]+'/previous-normal.json')
  assert.equal(await readFile(f.root+'/'+volumes[1]+'/retained','utf8'),'old-state-1')
  const calls=await f.calls();assert.equal(calls.some(c=>c.args.includes('aiterm-checkpoint')),false)
+})
+
+
+test('bundled updater body swap keeps the exact Aiterm backing without initialization; recover remounts it; mismatches refuse',async t=>{
+ const targetImage='sha256:'+'e'.repeat(64)
+ const setup=async()=>{
+  const f=await fixture(t,{h1:true});
+  for(const name of ['install.sh','compose.yaml'])await copyFile(repo+'/distribution/server/'+name,f.install+'/'+name)
+  const first=(await f.run()).stdout.match(/^saved-compose=(.*)$/m)[1],normal=JSON.parse(await readFile(first+'/normal.json'))
+  const volume=normal.volumes['aiterm-state'].name;await writeFile(f.root+'/'+volume+'/retained','native-state')
+  // Same handoff as execute_installer: frozen normal with only the image replaced, plus the expected old body.
+  const handoff=f.root+'/handoff';await mkdir(handoff)
+  await writeFile(handoff+'/previous-normal.json',JSON.stringify(normal))
+  await writeFile(handoff+'/previous-runtime.json',JSON.stringify({Id:'d'.repeat(64),Image:currentImage}))
+  normal.services.bellteam.image=targetImage;await writeFile(handoff+'/input-normal.json',JSON.stringify(normal))
+  for(const image of [currentImage,targetImage]){
+   await mkdir(f.root+'/reader/'+image.slice(7)+'/dist',{recursive:true});await writeFile(f.root+'/reader/'+image.slice(7)+'/dist/index.js','reader')
+  }
+  const worker={BELLTEAM_CONTAINER_UPDATE_WORKER:'1',BELLTEAM_PREVIOUS_COMPOSE:handoff+'/previous-normal.json',
+   COMPOSE_FILE:handoff+'/input-normal.json',COMPOSE_PROJECT_NAME:'selected-project'}
+  return {f,volume,worker,offset:(await f.calls()).length}
+ }
+ const initialized=c=>c.args.some(v=>String(v).includes('fs.chownSync'))
+ const {f,volume,worker,offset}=await setup()
+ const saved=(await f.run(['--no-pull'],worker)).stdout.match(/^saved-compose=(.*)$/m)[1],calls=(await f.calls()).slice(offset)
+ assert.equal(JSON.parse(await readFile(saved+'/normal.json')).volumes['aiterm-state'].name,volume)
+ const plan=JSON.parse(await readFile(saved+'/resume-plan.json'));assert.equal(plan.state_volume,volume);assert.equal(plan.source_volume,volume)
+ assert.ok(calls.some(c=>c.args[0]==='stop'))
+ assert.equal(calls.some(c=>c.args[0]==='volume'&&c.args[1]==='create'||initialized(c)),false,'retained backing is neither created nor initialized')
+ assert.equal(await readFile(f.root+'/'+volume+'/retained','utf8'),'native-state')
+ const body=JSON.parse(await readFile(f.root+'/runtime.json'));assert.equal(body.Image,targetImage);assert.equal(body.Mounts[0].Name,volume)
+ const before=(await f.calls()).length;await f.run(['--recover',saved],worker);const recovery=(await f.calls()).slice(before)
+ assert.equal(recovery.find(c=>c.args.includes('up')).compose,saved+'/previous-normal.json')
+ assert.equal(JSON.parse(await readFile(saved+'/previous-normal.json')).volumes['aiterm-state'].name,volume)
+ assert.equal(recovery.some(c=>c.args[0]==='volume'&&c.args[1]==='create'||initialized(c)),false)
+ assert.equal(await readFile(f.root+'/'+volume+'/retained','utf8'),'native-state')
+ for(const failure of ['reader','writer','mount','missing','recreated']){
+  const {f,volume,worker,offset}=await setup(),extra={...worker}
+  if(failure==='reader')await writeFile(f.root+'/reader/'+targetImage.slice(7)+'/dist/index.js','changed reader')
+  if(failure==='writer')extra.TEST_OTHER_VOLUME_USER='1'
+  if(failure==='recreated')extra.TEST_RECREATED='1'
+  if(failure==='mount'){const r=JSON.parse(await readFile(f.root+'/runtime.json'));r.Mounts[0].Source='/vm/other/_data';await writeFile(f.root+'/runtime.json',JSON.stringify(r))}
+  if(failure==='missing')await writeFile(f.root+'/resume-volumes.json','{}')
+  await assert.rejects(f.run(['--no-pull'],extra),e=>e.code===1&&(failure==='missing'||
+   e.stderr.includes(failure==='reader'?'RESUME_STATE_READER_UNCONFIRMED':'RESUME_PRESERVE_UNCONFIRMED')),failure)
+  const calls=(await f.calls()).slice(offset)
+  assert.equal(calls.some(c=>c.args[0]==='volume'&&c.args[1]==='create'||initialized(c)||c.args.includes('up')),false,failure)
+  // Only the post-stop identity recheck runs after the approved stop; every other refusal leaves the old body serving.
+  assert.equal(calls.some(c=>c.args[0]==='stop'),failure==='recreated',failure)
+  assert.equal(await readFile(f.root+'/'+volume+'/retained','utf8'),'native-state')
+ }
 })
 
 

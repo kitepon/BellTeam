@@ -30,6 +30,18 @@ test('supply plan binds distinct backing and exact old source, refuses unsupport
   assert.deepEqual(first.plan.targets, []);assert.equal(first.normal.services.bellteam.environment.BELLTEAM_RESUME_GENERATION, undefined)
 })
 
+test('preserve plan keeps the exact old backing name and refuses any other mapping or an H1 target set', () => {
+  const kept = planResumeInstall(model('old'), model('old'), runtime, null, '/install/.bellteam-compose.fixed', true)
+  assert.equal(kept.plan.state_volume, 'old');assert.equal(kept.plan.source_volume, 'old');assert.deepEqual(kept.plan.targets, [])
+  assert.equal(kept.normal.services.bellteam.environment.BELLTEAM_AITERM_STATE_VOLUME, 'old')
+  assert.equal(kept.normal.services.bellteam.environment.BELLTEAM_RESUME_GENERATION, undefined)
+  const home = model('old');home.services.bellteam.volumes[1].source = '/elsewhere/home'
+  for (const [normal, previous, source, targets, error] of [[model('new'), model('old'), runtime, null, /PRESERVE_UNCONFIRMED/],
+    [model('old'), model('old'), runtime, [target], /PRESERVE_UNCONFIRMED/], [model('old'), null, null, null, /PRESERVE_UNCONFIRMED/],
+    [model('old'), model('old'), [{ Id: 'x', Image: runtime[0].Image }], null, /SOURCE_UNCONFIRMED/], [model('old'), home, runtime, null, /SOURCE_UNCONFIRMED/]])
+    assert.throws(() => planResumeInstall(normal, previous, source, targets, '/install/.bellteam-compose.fixed', true), error)
+})
+
 test('installer extracts H1 scripts only from the common public/internal image locations', async () => {
   const installer = await readFile(join(repo, 'distribution/server/install.sh'), 'utf8')
   const helper = await readFile(join(repo, 'distribution/server/install-resume-state.sh'), 'utf8')

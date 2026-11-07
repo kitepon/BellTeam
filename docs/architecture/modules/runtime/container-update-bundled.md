@@ -52,7 +52,7 @@ workerは固定image/entry/元UUIDの別Docker containerとして起動し、res
 
 画面更新後の現normalが専用volume内にある場合、後続公開installerは`read-container-update-normal.mjs`を固定imageで実行する。実CIDのCompose labels、同projectのlocal専用volume/実Mountpointと保存世代pathを照合し、専用volumeだけRO mountして旧normalを読む。任意Host fileを読む窓口にはしない。その後は既Compose hash/profile/保存先検査へ接続し、Host利用者にroot権限付与を要求しない。元の設置file/.env/overrideや旧世代は上書きしない。
 
-通常本体更新は停止→新実行世代で、data/home/Cursor/private state/Throughline/profile/購読、旧AI原volume/旧normal/元unknownを保持。同native自動resume/未保存ACKの継続を成功条件へ足さず、旧要求/本文/applyを再送しない。
+通常本体更新は停止→新実行世代で、data/home/Cursor/private state/Throughline/profile/購読、旧normal/元unknownを保持。AI state volumeは[slice 3](#same-backing-aiterm-state-on-a-bundled-body-swap-z-c-slice-3-2026-11-08)の検証が通れば同一backingをそのまま使い、通らなければ停止前に拒否する。同native自動resume/未保存ACKの継続を成功条件へ足さず、旧要求/本文/applyを再送しない。
 
 ## 確認範囲
 
@@ -122,7 +122,7 @@ stateDiagram-v2
 
 The deadline is `now + 300 s`, capped at installer start + 1800 − 330 s so the stop grace and body start still fit the worker's budget; the helper ends at that deadline on its own, so the wait is bounded without a separate timer in sh. `stop_grace_period: 30s` is set on the body service in `compose.yaml`, `distribution/server/compose.yaml` and by `container-update-compose.mjs` on every bundled swap; `module-update-compose.mjs` leaves the body service as is. The legacy host-socket layout keeps its model unchanged, and the explicit `--time 30` covers its installer stop.
 
-Next runtime slices, not in this one: the durable execution hold/drain that replaces the default handler (Kiro); the `afterListenReady` recovery hook and early signal registration (done in [slice 2](#lifecycle-contact-points-z-c-slice-2-2026-11-08)); the same-backing preserve update mode (Molly installer).
+Next runtime slices, not in this one: the durable execution hold/drain that replaces the default handler (Kiro); the `afterListenReady` recovery hook and early signal registration (done in [slice 2](#lifecycle-contact-points-z-c-slice-2-2026-11-08)); the same-backing preserve update mode (done in [slice 3](#same-backing-aiterm-state-on-a-bundled-body-swap-z-c-slice-3-2026-11-08)).
 
 ## Lifecycle contact points (Z-c slice 2, 2026-11-08)
 
@@ -146,4 +146,51 @@ flowchart TD
 | `afterListenReady()` | `execution.lifecycle.afterListenReady` → `services.lifecycle` | once per `start()`, after both listeners and gateway readiness, before ordinary dispatch | awaited ≤ 60 s. Throw → `LIFECYCLE_CONTACT_FAILED afterListenReady`; timeout → `LIFECYCLE_CONTACT_TIMEOUT afterListenReady`; both then start dispatch, so one unavailable seat never keeps listeners or other seats down. Kiro's hold self-release rule covers anything still held. A stop during the wait → `LIFECYCLE_CONTACT_INTERRUPTED`, no dispatch. |
 | `onShutdownSignal({phase})` | `execution.lifecycle.onShutdownSignal` → `services.lifecycle` | first step of `stop()` on SIGTERM/SIGINT, after the startup gate is closed and before any close step | awaited ≤ 10 s, leaving ~20 s of the 30 s grace to close. Throw/timeout logged, close runs anyway. `phase:'starting'` means startup/recovery did not finish: execution keeps the durable hold and original unknowns and nothing is reported as drained. `phase:'running'` is the normal stop. |
 
-Exits: a signal during startup makes `start()` reject `STARTUP_INTERRUPTED` after the step in flight (a step is not cancelled), the supervisor does not print `BellTeam ready`, and `stop()` runs the same `close()`. A signal before `createApplicationRuntime` returns keeps Node's default termination, as before. If close exceeds the grace Docker kills the body and the installer records the stop; restart recovery keeps uncertainty. Pending: Kiro's `lifecycle` handlers (hold, held redelivery, R-resume, gap summary, final markers) and the move of today's pre-listen `directMessages.start()` behind `afterListenReady`; Molly's remaining runtime slice is the same-backing preserve update mode.
+Exits: a signal during startup makes `start()` reject `STARTUP_INTERRUPTED` after the step in flight (a step is not cancelled), the supervisor does not print `BellTeam ready`, and `stop()` runs the same `close()`. A signal before `createApplicationRuntime` returns keeps Node's default termination, as before. If close exceeds the grace Docker kills the body and the installer records the stop; restart recovery keeps uncertainty. Pending: Kiro's `lifecycle` handlers (hold, held redelivery, R-resume, gap summary, final markers) and the move of today's pre-listen `directMessages.start()` behind `afterListenReady`. The same-backing preserve update mode is [slice 3](#same-backing-aiterm-state-on-a-bundled-body-swap-z-c-slice-3-2026-11-08).
+
+## Same-backing Aiterm state on a bundled body swap (Z-c slice 3, 2026-11-08)
+
+Owner Molly. Contracts: [Epinel section 4](/srv/bellteam/bots/bot-0b867848/docs/z-c-runtime-quiesce-supervisor-contract-20261107.md) and [Elegg's caller shape B / retained stores](/srv/bellteam/bots/bot-c2adbe04/docs/aiterm-runtime-replacement-contract-20261107.md#agreed-caller-shape-b). Kiro's B replaces only the body and keeps the same actual Aiterm state backing, HOME and state/config paths; no H1 copy, no empty-volume initialization.
+
+Before this slice, every installer run named a new Aiterm volume `<resolved name>-bellteam-compose.<generation>` (in `resume-install-plan.mjs`), created it, and after the stop emptied-checked and chowned it (`resume_initialize`). The old volume was retained untouched but no longer mounted, so a bundled swap left every seat's native state behind.
+
+Selection is fixed, not caller input: the bundled worker already runs `install.sh --no-pull` with `BELLTEAM_CONTAINER_UPDATE_WORKER=1` and a frozen normal whose image alone changed. `resume_prepare` selects preserve exactly when that marker is set and no `BELLTEAM_RESUME_TARGETS_FILE` is given. Manual/public installs, the legacy Host updater and H1 targets keep the reset or copy paths unchanged. `install-resume-state.sh` and `resume-install-plan.mjs` come from the target image, so preserve applies from the first swap *to* an image with this slice; the old body's `install.sh` already supplies `stopped_container` and `current-runtime.json`.
+
+```mermaid
+flowchart TD
+  Frozen["worker: frozen normal, image replaced"] --> Plan["resume-install-plan preserve: keep resolved name; require name = previous normal's; old CID/image valid; same HOME bind; no targets"]
+  Plan --> Exists["volume exists, local, no options, project + aiterm-state labels, never created"]
+  Exists --> Bind["old body inspect: one /srv/bellteam-aiterm mount, volume, same Name, local, RW, Source = volume Mountpoint"]
+  Bind --> Only["docker ps -a --filter volume = exactly the old CID"]
+  Only --> Reader[aiterm-mcp tree SHA-256 in old body image = target image]
+  Reader --> Record[record Name Driver Mountpoint CreatedAt]
+  Record --> Stop[quiesce, stop exact CID, restart no, rm, writer check]
+  Stop --> Recheck["resume_initialize: same Name Driver Mountpoint CreatedAt, no empty check, chmod or chown"]
+  Recheck --> Up[maintenance, Cursor, compose up on the same volume]
+  Plan -->|mismatch| Refuse[RESUME_PRESERVE_UNCONFIRMED before any stop]
+  Exists -->|missing or foreign| Refuse
+  Bind -->|mismatch| Refuse
+  Only -->|another container| Refuse
+  Reader -->|different tree| RefuseReader[RESUME_STATE_READER_UNCONFIRMED before any stop]
+  Recheck -->|changed| Halted["RESUME_PRESERVE_UNCONFIRMED after stop, worker runs --recover"]
+```
+
+| Element | Input → output | Protection and exit |
+| --- | --- | --- |
+| `planResumeInstall(..., preserve)` | new normal, previous normal, previous runtime, targets null → plan with `state_volume = source_volume`, normal with no `BELLTEAM_RESUME_GENERATION` | Wrong target backing. Throws `RESUME_PRESERVE_UNCONFIRMED`/`RESUME_SOURCE_UNCONFIRMED` before any Docker mutation; the old body keeps serving and the update can be replanned. |
+| `resume_preserve_bind` | `current-runtime.json` (old body inspect), `docker volume inspect`, `docker ps -a --filter volume` → `aiterm-backing` identity line | Dual writers / wrong backing. Volume identity is Name + Driver + Mountpoint + CreatedAt; Docker refuses to remove a volume while any container references it, and a recreate changes CreatedAt. Device/inode is not read: it needs a privileged mount and adds nothing over CreatedAt for local volumes. |
+| `resume_reader` | each image → SHA-256 over the sorted `aiterm-mcp` tree (path, mode, symlink target, bytes) | A different Aiterm state reader opening retained records. Aiterm publishes no reader-compatibility range (Elegg), so only an identical tree is accepted; anything else refuses before the stop. This also makes `--recover` safe: the previous body reads records written by the same reader. |
+| `resume_initialize` (preserve) | recorded identity → recheck only | Recreated volume between `rm` and `up`. Fails after the stop with the old body removed; the worker's existing `--recover` restarts the previous image on the same retained backing. |
+
+Recovery: `--recover <generation>` is unchanged. Its `previous-normal.json` names the same volume, so it remounts the retained backing with no create or initialization, after the existing writer check that includes that volume. Unchanged: `resume_stopped`/`resume_capture` (no targets), the writer check, the stop proof, HOME/data/Cursor/private-state handling, and H1 checkpoint/restore. Residual: between the recheck and `compose up` a Host root actor could still swap the volume; not covered.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Bound: plan + mount + sole-reference + reader checks pass
+  [*] --> Refused: any pre-stop check fails, old body still serving
+  Bound --> Stopped: quiesce, exact stop, rm, writer check
+  Stopped --> Started: identity unchanged, compose up on same backing
+  Stopped --> Recovering: identity changed or later step fails
+  Recovering --> Started: --recover, previous image on same backing
+  Refused --> [*]: update result failed, replan after the cause is gone
+```
