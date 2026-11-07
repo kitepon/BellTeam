@@ -6,6 +6,7 @@ import { writeAtomic } from './json-file.mjs'
 import { performance } from 'node:perf_hooks'
 
 const NATIVE_MS = 15_000, SUMMARY_MS = 600_000
+const HARNESSES = new Set(['codex-cli', 'claude-code', 'grok-cli', 'cursor-cli', 'antigravity-cli'])
 const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u.test(value)
 const launch = value => typeof value === 'string' && /^[0-9a-f]{32}$/u.test(value)
 const text = value => typeof value === 'string' && value.length > 0 && value.length <= 256
@@ -137,9 +138,13 @@ export class CurrentWork {
       if (!target.current() || target.sessionId !== record.sessionId) { this.unknown(record); continue }
       const matches = rows.filter(row => row?.session_id === target.sessionId)
       const row = matches.length === 1 ? matches[0] : null, turn = row?.turn
-      const running = turn?.state === 'running' && text(turn.turn_id)
+      const running = turn?.state === 'running' && text(turn.turn_id) && (row.harness === 'codex-cli'
+        || keys(turn, ['state', 'turn_id', 'started_at', 'event_cursor', 'interim_from', 'wait_process'])
+          && typeof turn.started_at === 'string' && Number.isFinite(Date.parse(turn.started_at))
+          && turn.event_cursor === null && turn.interim_from === null && turn.wait_process === null)
       const idle = turn?.state === 'idle' && Object.keys(turn).length === 1
-      if (!valid || row?.harness !== 'codex-cli' || !launch(row?.launch_id) || !running && !idle) {
+      if (!valid || !HARNESSES.has(row?.harness) || row.harness !== (target.harness ?? 'codex-cli')
+        || !launch(row?.launch_id) || !running && !idle) {
         this.unknown(record); continue
       }
       const next = { sessionId: target.sessionId, launchId: row.launch_id, turnId: running ? turn.turn_id : null }
