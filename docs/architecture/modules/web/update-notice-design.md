@@ -86,6 +86,30 @@ flowchart LR
   Errors --> Screen
 ```
 
+### Existing ordering and reader exit transitions
+
+Named protection: prevent overwriting existing view state with an obsolete or mismatched response. Existing request/plan identity, execution generation and disposed checks retain that protection; server admission, supported flags and explicit POST decisions remain separate.
+
+Ordinary callback ordering already existed as `await onEvent` before reading the next SSE frame. The Promise chain retains this ordering while allowing the independent updates callback to run. Fulfillment advances the next ordinary callback; rejection reports the error and aborts that watcher, suppressing callbacks not yet started. Abort/disposal likewise suppresses queued callbacks, but does not cancel an already running ordinary callback. No new unknown-state or backend admission guard is introduced.
+
+Per-URL in-flight sharing is read scheduling: a concurrent invalidation sets `again` and replaces the apply callback instead of launching a competing read. It does not refuse a plan/start or add an admission lock. The existing loading gate still describes the inventory read; a historical URL cannot hold it. Fulfillment and rejection both settle the active API await; either is processed as a response/error, then one retained invalidation starts the next read, or `finally` deletes the slot. Generation/disposal checks suppress obsolete display application. A caught API rejection follows the same cleanup path as success.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Idle
+  Idle --> Reading: existing GET requested
+  Reading --> ReadingAgain: another invalidation / retain latest callback
+  ReadingAgain --> ReadingAgain: more invalidations coalesce
+  Reading --> Idle: fulfill or reject / apply validated result or error / finally delete slot
+  ReadingAgain --> Reading: fulfill or reject / apply / start retained read
+  Reading --> Disposed: center.close / suppress display
+  ReadingAgain --> Disposed: center.close / suppress display and trailing read
+  Disposed --> Released: in-flight GET fulfills or rejects / finally delete slot
+  Released --> [*]
+```
+
+Disposal does not force an unresolved fetch to settle: its slot remains until the network promise settles. It immediately prevents display application and trailing reads. No timeout or guaranteed network-completion claim is added; other URLs and independent SSE job display remain available. The ordinary watcher similarly cannot cancel an already running display callback. These are existing network/callback completion limits, not a new refusal condition.
+
 No browser timer, repeated polling, new API, persistent job cache, backend success inference or production action. Regression scope is the existing public SSE -> application -> independent update reads -> real update renderer boundary, including a blocked ordinary read and a blocked historical request.
 
 ## 現行の製品画面（2026-11-04工程S）
