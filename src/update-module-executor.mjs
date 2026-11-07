@@ -162,9 +162,17 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
     if (changed) await save()
   } catch (error) { if (error.code !== 'ENOENT') throw failure('UPDATE_LEDGER_INVALID') }
 
-  const exclusive = async (operation, allowStopped = false) => {
+  // Ledger reads/writes take turns instead of refusing: the 60 s notification snapshot or the screen's parallel reads
+  // (inventory + saved request results) must not turn into MODULE_EXCHANGE_BUSY (production 2026-11-08 04:32 JST).
+  // Each turn ends when its bounded socket/file work settles; a real exchange still refuses through `active`/exchangeMutex.
+  let turns = Promise.resolve()
+  const exclusive = (operation, allowStopped = false) => {
+    const turn = turns.then(() => section(operation, allowStopped))
+    turns = turn.catch(() => {})
+    return turn
+  }
+  const section = async (operation, allowStopped) => {
     if (!allowStopped) requireValue(!closed && !fault, fault ?? 'UPDATE_EXECUTOR_CLOSED')
-    requireValue(!busy, 'MODULE_EXCHANGE_BUSY', 409)
     busy = true
     // save() が状態の変化を知らせる。読取りだけの排他（snapshotのhost/install再読）は知らせない。
     // 知らせると端末が /api/updates を読み直し、その読取りがまた鳴らして洪水になる（2026-11-07）。
