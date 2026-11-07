@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { DeliveryJob } from '../src/delivery-job.mjs'
+import { DeliveryJob, queueItem } from '../src/delivery-job.mjs'
 
 const bot = { id: 'bot-synthetic', session: 'slot-synthetic' }
 const make = (options = {}) => new DeliveryJob({ id: 'job-1', bot, info: { context: 'direct' }, startedAt: '2026-10-23T00:00:00.000Z', ...options })
@@ -86,5 +86,13 @@ test('失敗の最終エラーは停止の結論から決め、未送信の実�
 test('一覧の項目は配送の事実だけを見せ、停止の内部状態を含めない', () => {
   const job = make({ info: { context: 'room', contextId: 'room-1', groupId: 'g1' } })
   job.requestStop(Promise.resolve())
-  assert.deepEqual(job.queueItem(), { id: 'job-1', botId: bot.id, botName: bot.id, status: 'running', startedAt: '2026-10-23T00:00:00.000Z', context: 'room', contextId: 'room-1', groupId: 'g1' })
+  assert.deepEqual(job.queueItem(), { id: 'job-1', botId: bot.id, botName: bot.id, status: 'running', startedAt: '2026-10-23T00:00:00.000Z', context: 'room', contextId: 'room-1', groupId: 'g1', steered: false })
+})
+
+test('queueItem は差し込みで受理された文に steered を立てる', () => {
+  const job = accepted()
+  assert.equal(queueItem(job).steered, false)
+  job.receipt = { mode: 'agent_steer', event_cursor: 2 }
+  assert.equal(queueItem(job).steered, true)
+  assert.equal(queueItem(make()).steered, false)
 })

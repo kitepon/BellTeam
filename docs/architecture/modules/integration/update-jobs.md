@@ -12,7 +12,7 @@ Runtime source contract: [runtime/update-jobs.md](../runtime/update-jobs.md). Ow
 | GET /api/updates | Existing inventory plus `jobs:[record,...]`, newest16 across both updater clients; existing operation/previousOperation each retain their own jobs[] |
 | GET /api/updates/jobs/:kind/:jobId | `{job:record}` read directly from the corresponding updater client; kind is module or container, UUID is validated |
 | GET /api/updates/jobs | `{jobs:[record,...]}`; same bounded stored records as inventory/SSE |
-| Existing messages SSE, type=updates | Existing at/topics/botIds/roomIds/type/all plus `jobs:[record,...]` on success or `error:{code,message,path?,reason?}` on read failure; no fabricated state on error |
+| Existing messages SSE, type=updates | `at`, `topics:["updates"]`, `botIds:[]`, `roomIds:[]`, `all:false`, plus `jobs:[record,...]` on success or `error:{code,message,path?,reason?}` on read failure; no fabricated state on error. Published only when the jobs/error body differs from the previously published one (fingerprint in http-events); never `all:true`, so clients refresh only the update screen. The parent ledger notifies on saved state change and on operation completion only; read-side refreshes (inventory snapshot host/install readback) never notify (2026-11-07 flood fix) |
 | Unreadable record | HTTP503 `{error:"UNREADABLE",message:reason,path,reason}`; missing job retains runtime404 |
 
 The job and problem projection remains Owner-only: existing internal update HTTP403 is retained, and the internal SSE server does not attach the Owner update watcher. Other internal SSE topics keep their existing behavior.
@@ -30,7 +30,7 @@ Installed/builtin steps call admitJob without an installer launch, then download
 | Common start | Validated plan, requestId, optional caller key | Existing parent binding saved -> runtime admitJob for each step -> saved receipts ->202 |
 | Common read | Operation bindings or bounded recent lookup | Runtime body-client job/jobs -> closed schema -> unchanged record |
 | Activation | Admitted module job + existing adapter | Persist swapping -> replace/probe completion -> ready or failed |
-| SSE | Existing update notification | Stored recent jobs or explicit reader error; coalesce concurrent reads and retain a final pending invalidation |
+| SSE | Existing update notification | Stored recent jobs or explicit reader error; coalesce concurrent reads, retain a final pending invalidation, drop a body identical to the last published one, scope = topic updates only (all:false) |
 | Terminal report reconciliation | Saved ready/failed report intent in existing parent ledger | Retry only idempotent updateJob ACK; never replay controller/business work |
 | Restart visibility | Runtime active/clear DTO | Existing reporter -> Signal writer -> closed problems projection -> existing update screen |
 
