@@ -30,7 +30,7 @@ Root公開契約2026-11-06、親接続Molly・実入力Kiro・ready Epi。会話
 - `receive`/`sendmessage({from,target,message,image?,images?,executionSource?},{membersLease?})`、`enqueueUserTurn({target,message,images?,recordUser?})`、`receiveCallBridge(既Bridge閉入力)` → `{delivery:'queued'|'delivered',delivery_id,from,target}`。queuedは保存受領のみ、runningは捏造しない。recordUser=falseは既専用経路を維持する。
 - `pending() → 保存済record[]`、`dispatchSaved(deliveryId) → {delivery_id,delivery,dispatched}`、`drainTarget(target) → 同結果[]`（宛先1laneを起こすか、動いている同宛先laneの後に再確認）、`drain() → 全宛先laneの同結果[]`。drainの解決は全laneの完了であり、親はlaneを待たずに次のdrain要求を受けられる。StoreのdurableReceiptsはLF確定行だけ、不正ログ/重複IDは実行根拠にしない。
 - `dispatch({record,images,queue,callbacks}) → Promise<{delivery:'running'|'steered'|'delivered'}>`。queueは既context/contextId/groupId/from/fromName/target/message（Bridgeはcallも）で元IDを維持。callbacksはonStatus/onInterim/onAnswer/onTurnEnd/onUserComplete。Kiroが元recordのfrom=userならturn、Bridgeなら元session/hintを含むnotifyへ接続する。明示effect=not_started例外だけ再開可能。それ以外unknown。入力済trackingを持つcallback後は再開しない。
-- assetsは既`saveAll`/`directory`を使う同親実体。受領前に保存asset本体/asset directoryもfsyncし、再開は永続pathだけを使う。
+- Assets use the same parent's existing `saveAll`/`directory`; fsync the saved asset and its directory before receipt. On dispatch, the parent resolves durable references and reads bytes with `readImageBytes`, then hands `{mime,data:base64}` to execution. Execution owns the UID1000-readable temporary copy and its existing cleanup; the private UID1001 saved path is not passed to the seat. The function/data-flow boundary is [saved-image handoff](../integration/message-receipt.md#saved-image-handoff-to-execution).
 
 閉wire enumへqueuedを追加する共通MCP/HTTP返却はMolly担当。これをrunningへ写像しない。通常ready→drainのイベント接続も親担当。本source単体を親接続完了へ補完しない。
 

@@ -1,5 +1,11 @@
 # 直接メッセージの受領入口
 
+## Saved-image handoff to execution
+
+Function: `DurableMessageReceipts.runSaved` reads saved image references through the existing `readImageBytes` helper in the parent (UID1001), preserving its regular-file, O_NOFOLLOW and size checks. It passes ordered `{mime,data}` image objects with base64 bytes to the existing execution dispatch. The parent's private saved path is never borrowed by the UID1000 seat. Image preparation stays inside the existing dispatch failure boundary; an unproven failure remains unknown without replay rather than leaving a dispatching claim unhandled.
+
+DFD: saved receipt/image reference → parent reads private asset bytes → `{mime,data:base64}` → unchanged transport image-data branch → seat-owned UID1000-readable temporary file → Aiterm/CLI → existing temporary-file cleanup after the turn. Saved assets remain durable and private; source/temporary-file ownership and delivery IDs do not change. Empty image lists preserve text-only dispatch. Historical unknown images are not resent.
+
 Owner公開契約は2026-11-06の「耐久受領とAI実行を分ける」。共通MCP/HTTP・親接続はMolly、保存/履歴はN102、AI引渡しはKiro、ready/寿命はEpi。
 
 | 共通機能 | 入力→出力 | 保持する失敗境界 |
