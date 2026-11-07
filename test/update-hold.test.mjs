@@ -30,7 +30,7 @@ test('drained quiesce saves the hold and answer first, refuses input as not_star
   // Aborted update: the body is still alive after the 120 s window, so the hold ends and input is admitted again.
   assert.equal(f.timer.ms, 120_000)
   f.timer.callback()
-  while (f.hold.held) await new Promise(resolve => setTimeout(resolve, 5))
+  while (!f.released.length) await new Promise(resolve => setTimeout(resolve, 5))
   f.hold.assertInput()
   await assert.rejects(readFile(f.path), { code: 'ENOENT' })
   assert.deepEqual(f.released, [{ released: true, reason: 'expired' }])
@@ -57,6 +57,16 @@ test('a hold saved by the replaced box holds input until afterListenReady releas
   await g.hold.onShutdownSignal()
   assert.deepEqual((await g.read()).interrupted, [{ botId: 'bot-a', deliveryId: 'd1', startedAt: 'T' }])
   await answer
+})
+
+test('release admits input even when the hold file cannot be removed', async t => {
+  const f = await fixture(t)
+  const reports = []
+  const hold = new UpdateHold({ path: f.path, report: error => reports.push(error) })
+  hold.state = { schema: 'bellteam.update-hold.v1' }
+  hold.path = join(f.path, '\0invalid') // rm rejects a path containing NUL
+  assert.equal(await hold.release('startup'), true)
+  hold.assertInput(); assert.equal(reports.length, 1)
 })
 
 test('a quiesce whose hold cannot be saved releases instead of refusing input forever', async t => {
