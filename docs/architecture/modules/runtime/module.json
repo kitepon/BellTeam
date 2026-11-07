@@ -45,6 +45,10 @@
     {
       "module": "execution",
       "port": "members-admission"
+    },
+    {
+      "module": "distribution",
+      "port": "runtime-artifact"
     }
   ],
   "source": [
