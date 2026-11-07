@@ -678,6 +678,26 @@ flowchart LR
 
 会話子のStore固定診断はdispatcher→厳密なIPC union→親onDiagnostic→同Diagnostics writerへ保存する。MESSAGE_LOG_INVALIDのcode/物理line/byte offset/length/固定reasonだけを渡し、本文や自由例外を診断へ含めない。旧fallback Storeも同じ診断writerへ接続する。
 
+### 会話子診断の受領と保存結果の分離
+
+```mermaid
+flowchart LR
+  Child["会話子 diagnostic(code-only / MESSAGE_LOG_INVALID位置)"] -->|"既IPC union検証"| Port["application-services: conversationDiagnosticPort"]
+  Port -->|"code/module:conversation[/diagnostic_log]"| Record["Diagnostics.record: 固定code表とmoduleを検証"]
+  Record -->|"保存"| Store["logs/diagnostics.json"]
+  Record -.->|"拒否・利用不可"| Stderr["stderr: CONVERSATION_DIAGNOSTIC_UNRECORDED {reportCode, reason}"]
+  Port -->|"常に acknowledged"| Child
+  Child -->|"quiesce は未完了呼出の完了を待つ"| Exchange["module-process replace / 交換"]
+```
+
+| Function | Input | Output | Kept contract |
+| --- | --- | --- | --- |
+| `conversationDiagnosticPort(diagnostics)` (application-services) | IPC検証済み会話診断 | 常に解決。`Diagnostics.record`の拒否・利用不可はcodeだけを固定stderr行へ退避 | IPC union検証、Diagnostics固定code表/module検証、保存DTO、本文/例外非転送 |
+
+診断の保存は観測であり、会話処理・quiesce・module交換の成否ではない。`Diagnostics.record`の`DIAGNOSTIC_INVALID`（未登録codeなど）や`DIAGNOSTICS_*`利用不可を子のdiagnostic呼出へ返すと、子のquiesceが`Promise.all`で待つ未完了呼出の拒否として交換全体を`DIAGNOSTIC_INVALID`で止めていた（2026-11-08 conversation@96c07 job 9dad524c）。この拒否が守るもの（データ消失・誤接続・秘密露出・権限昇格・既存状態の上書き）は無いため、親の受領から外す。Diagnostics側の検証と保存契約は変えず、拒否された報告は保存しない。会話codeの固定表への登録はdiagnostics所有。
+
+Impact: changed function is `conversationDiagnosticPort` only (new export of the existing inline `onDiagnostic` closure in `createApplicationServices`). Caller: `createConversationAssembly({ onDiagnostic })` → `createConversationProcess` → `createConversationParentChannel` diagnostic handler (unchanged). Edges changed: Port→Child acknowledgement no longer carries Diagnostics refusal; new Record⇢stderr fallback. Unchanged: conversation IPC union, child quiesce/drain, module-process replace, update executor reason mapping, Diagnostics table/validation/writer, members/usage/notifications diagnostic ports, module source lists. No guard added.
+
 ## 通話bridge配送と閉DTOの接続
 
 ```mermaid

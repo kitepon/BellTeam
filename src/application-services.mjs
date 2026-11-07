@@ -54,6 +54,16 @@ import { HarnessAuth } from './harness-auth.mjs'
 import { attachOlrwOwnerQuestion } from './olrw-management-caller.mjs'
 import { prepareOlrwManagement } from './olrw-management-loader.mjs'
 
+// Saving a report is observation; a store refusal must not fail the child's call, its quiesce or a module exchange.
+export const conversationDiagnosticPort = diagnostics => report => Promise.resolve()
+  .then(() => diagnostics.record({ code: report.code, module: 'conversation',
+    ...(report.code === 'MESSAGE_LOG_INVALID' ? { diagnostic_log: JSON.stringify(report) } : {}) }))
+  .catch(error => {
+    const candidate = error?.code ?? error?.message
+    const reason = /^[A-Z][A-Z0-9_]{0,99}$/u.test(candidate ?? '') ? candidate : 'DIAGNOSTICS_OPERATION_FAILED'
+    process.stderr.write(`${JSON.stringify({ code: 'CONVERSATION_DIAGNOSTIC_UNRECORDED', reportCode: report.code, reason })}\n`)
+  })
+
 // Construct the application graph without starting HTTP listeners or background loops.
 export async function createApplicationServices({ root, moduleChildExitReporter = createModuleChildExitReporter(), exchangeMutex = createModuleExchangeMutex(), aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, olrwManagement = undefined, submittedSecretManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, notify = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory, hostUpdateClient: hostClient, prepareDiagnosticsRelease: prepareDiagnostics = (versionId, options) => prepareModuleRelease('diagnostics', versionId, options), builtinSourceCommit = null, usageAssembly = null, attachUsageServices = () => {}, prepareUsageRelease: prepareUsage = (versionId, options) => prepareModuleRelease('usage', versionId, options), createConversationAssembly: conversationFactory, createExecutionAssembly: executionFactory, loadExecutionFactory: loadExecution = loadExecutionFactory, createExecutionAdoptionStore: adoptionFactory = createExecutionAdoptionStore, prepareExecutionRelease: prepareExecution = prepareExecutionRelease }) {
   let members = null, diagnosticsModule = null, conversationAssembly = null, execution = null, executionClient, memory, rooms, assets, updateCenter, backgroundSummary, submittedSecretCaller = null, directMessages = null
@@ -149,8 +159,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   }
   const conversationPorts = { bots, settings, seatRuntime, aiControl, conversationUsage: createConversationUsage({ settings, notifications }) }
   if (conversationFactory) conversationAssembly = conversationFactory({ root, membersAdmission, exchangeMutex, onModuleChildExit: moduleChildExitReporter.observe, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit, getServices: () => conversationPorts,
-    onDiagnostic: report => diagnostics.record({ code: report.code, module: 'conversation',
-      ...(report.code === 'MESSAGE_LOG_INVALID' ? { diagnostic_log: JSON.stringify(report) } : {}) }), onState: state => { updateCenter?.notify(); if (state.phase === 'running' && state.available) directMessages?.requestDrain() } })
+    onDiagnostic: conversationDiagnosticPort(diagnostics), onState: state => { updateCenter?.notify(); if (state.phase === 'running' && state.available) directMessages?.requestDrain() } })
   if (executionFactory) {
     const selection = adoptionFactory({ root }), selected = await selection.read()
     const queueListeners = new Set()
