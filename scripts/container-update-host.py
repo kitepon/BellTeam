@@ -407,6 +407,8 @@ class HostUpdater:
 
     def module_target(self, catalog_id, component, version):
         check(type(component) is str and component in MODULES | RUNTIMES)
+        # Elegg 2026-11-08: the body's lifetime Aiterm connection shares this scope, so aiterm-mcp updates only with the body image.
+        check(component != 'runtime-aiterm-mcp', 'RUNTIME_COHABITATION_UNSUPPORTED', 409)
         digest(version)
         rows = self.catalog(catalog_id)['releases'] if component in MODULES else runtime_rows(self, catalog_id)
         found = [row for row in rows if row.get('componentId') == component
