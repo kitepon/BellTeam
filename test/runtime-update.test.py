@@ -112,5 +112,24 @@ class RuntimeUpdate(unittest.TestCase):
         self.assertEqual(ru.recover(self.root, generation), 'failed')
 
 
+class VerifyRuntime(unittest.TestCase):
+    def test_policy_digest_and_manifest_first(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('verify_runtime', Path(__file__).resolve().parents[1] / 'scripts/verify-runtime.py')
+        verifier = importlib.util.module_from_spec(spec); spec.loader.exec_module(verifier)
+        archive, receipt, expected = codex()
+        calls = []
+        with open(archive, 'rb') as stream:
+            result = verifier.authenticate('runtime-codex', stream, None, None, dict(verifier.POLICY), expected,
+                                           verify=lambda *args, **kwargs: calls.append(kwargs))
+            self.assertEqual(calls, [{'source': SOURCE, 'signer': SIGNER}])
+            self.assertEqual({k: result[k] for k in ('component', 'archiveSha256', 'manifestSha256', 'manifest')},
+                             {k: receipt[k] for k in ('component', 'archiveSha256', 'manifestSha256', 'manifest')})
+            for component, policy, wanted in [('runtime-npm', verifier.POLICY, expected), ('runtime-codex', {**verifier.POLICY, 'sourceRef': 'refs/heads/x'}, expected),
+                                              ('runtime-codex', verifier.POLICY, {**expected, 'archiveSha256': '0' * 64})]:
+                with self.assertRaises(ValueError):
+                    verifier.authenticate(component, stream, None, None, dict(policy), wanted, verify=lambda *a, **k: None)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -11,7 +11,7 @@ const idempotencyKey = { type: 'string', minLength: 1, maxLength: 128, pattern: 
 const jobState = enumeration(['queued', 'downloading', 'verifying', 'swapping', 'ready', 'failed'])
 const nanoseconds = { type: 'string', pattern: '^[0-9]+$' }
 export const updateJobSchema = object({ schema: { const: 'bellteam.update-job.v1' }, jobId: uuid, idempotencyKey,
-  kind: enumeration(['container', 'module']), target: object({ catalogSha256: nullable({ type: 'string', pattern: '^[a-f0-9]{64}$' }), moduleId: text, versionId: text }),
+  kind: enumeration(['container', 'module', 'runtime']), target: object({ catalogSha256: nullable({ type: 'string', pattern: '^[a-f0-9]{64}$' }), moduleId: text, versionId: text }),
   state: jobState, reason: nullable(object({ code: text, message: text })),
   transitions: list(object({ state: jobState, atNs: nanoseconds })), updatedAtNs: nanoseconds })
 updateJobSchema.allOf = [{ if: { properties: { state: { const: 'failed' } } },

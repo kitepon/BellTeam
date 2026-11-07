@@ -57,6 +57,42 @@ class BundledModuleTests(unittest.TestCase):
             self.assertTrue(capability['moduleInstallSupported'])
             with self.assertRaises(host.Failure): updater.target('unused', 'unused')
 
+    def test_runtime_install_verifies_stages_and_commits_next_launch_selection(self):
+        spec = importlib.util.spec_from_file_location('runtime_fixture', Path(__file__).with_name('runtime-update.test.py'))
+        fixture = importlib.util.module_from_spec(spec); spec.loader.exec_module(fixture)
+        archive, receipt, expected = fixture.codex(b'v1')
+        with tempfile.TemporaryDirectory(dir=Path(__file__).parents[1]) as directory:
+            prefix = Path(directory); (prefix / 'state').mkdir(mode=0o700)
+            runtime_root = prefix / 'runtime'; runtime_root.mkdir()
+            incoming = prefix / 'incoming'; incoming.mkdir()
+            (incoming / 'archive.tar.gz').write_bytes(Path(archive).read_bytes()); (incoming / 'bundle.json').write_text('{}')
+            config = {'release': 'a' * 40, 'platform': {'os': 'linux', 'arch': 'amd64'}}
+            updater = service.ModuleUpdater(prefix, prefix, config, uid=os.getuid())
+            updater.assert_model_binding = lambda *_args: None
+            updater.inspect_current = lambda: {'sourceCommit': 'a' * 40}
+            target = {'componentId': 'runtime-codex', 'versionId': expected['archiveSha256'], 'sourceCommit': expected['sourceCommit'],
+                      'artifact': {'signerCommit': expected['signerCommit']}}
+            updater.planned_target = lambda plan: target
+            states = []
+            updater.progress = lambda _directory, state: states.append(state)
+            verified = Mock(returncode=0, stdout=__import__('json').dumps(receipt).encode())
+            request = prefix / 'state' / 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'; request.mkdir()
+            with patch.object(service, 'RUNTIME', runtime_root), patch.object(host, 'module_inputs', return_value=incoming), \
+                 patch.object(service.subprocess, 'run', return_value=verified) as run:
+                result = updater.install({'target': target, 'expected': {}}, request)
+                self.assertEqual(run.call_args.args[0][1:3], ['/app/scripts/verify-runtime.py', 'runtime-codex'])
+                self.assertEqual((result['execution'], result['verification']), ('succeeded', 'succeeded'))
+                self.assertEqual(states, ['verifying', 'swapping'])
+                runtime = service.load_module('runtime_update', 'runtime_update.py')
+                generation, vector = runtime.read_current(runtime_root)
+                self.assertEqual(vector['runtime-codex']['archiveSha256'], expected['archiveSha256'])
+                self.assertTrue(updater.runtime_committed(request.name))
+                self.assertFalse(updater.runtime_committed('dddddddd-dddd-4ddd-8ddd-dddddddddddd'))
+                self.assertFalse(incoming.exists())
+                verified.returncode = 1
+                with self.assertRaises(host.Failure):
+                    incoming.mkdir(); updater.install({'target': target, 'expected': {}}, request)
+
     def test_image_worker_and_existing_signed_installer_are_the_only_execution_paths(self):
         with tempfile.TemporaryDirectory(dir=Path(__file__).parents[1]) as directory:
             prefix = Path(directory)

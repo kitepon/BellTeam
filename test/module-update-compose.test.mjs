@@ -44,3 +44,21 @@ test('termination helper alone owns temporary Docker access and pins the same pr
  const conflicting=structuredClone(input);conflicting.services['module-worker-termination']={image:'other'}
  assert.throws(()=>moduleWorkerTerminationModel(conflicting),/MODULE_INSTALLER_MODEL_INVALID/)
 })
+
+test('Z-b2 runtime-code: body reads it, the module-installer alone writes it, termination never mounts it', () => {
+  const root = '/srv/bellteam/shared/tools/bellteam-runtime'
+  const normal={name:'p',services:{bellteam:{image:'sha256:'+'a'.repeat(64),volumes:[
+    {type:'bind',source:'/r/data',target:'/srv/bellteam'},{type:'bind',source:'/r/home',target:'/home/bell'},
+    {type:'volume',source:'server-state',target:'/run/bellteam-maintenance',read_only:true,volume:{nocopy:true}}]}},
+    volumes:{'server-state':{name:'s',external:true}}}
+  const {normal:body,backend}=moduleInstallerModels(normal)
+  assert.deepEqual(body.services.bellteam.volumes.filter(m=>m.target===root),[{type:'volume',source:'runtime-code',target:root,read_only:true}])
+  assert.equal(body.volumes['runtime-code'].name,'p-runtime-code')
+  assert.equal(backend.services['module-installer'].volumes.find(m=>m.target===root).read_only,undefined)
+  assert.deepEqual(backend.volumes['runtime-code'],{name:'p-runtime-code',external:true})
+  assert.deepEqual(moduleInstallerModels(body).normal,body)
+  const writable=structuredClone(body);writable.services.bellteam.volumes.find(m=>m.target===root).read_only=false
+  assert.throws(()=>moduleInstallerModels(writable),/MODULE_INSTALLER_MODEL_INVALID/)
+  const helper=moduleWorkerTerminationModel(normal).services['module-worker-termination']
+  assert.equal(helper.volumes.some(m=>m.source==='runtime-code'),false)
+})

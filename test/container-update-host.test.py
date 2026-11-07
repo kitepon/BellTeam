@@ -277,6 +277,64 @@ touch "$BELLTEAM_INSTALL_DIR/applied"
         self.assertEqual(selected['release'],release)
         with self.assertRaises(module.Failure):self.updater.dispatch(dict(operation='catalog',params=dict(componentId='arbitrary')))
 
+    def runtime_catalog(self, compatibility=None):
+        catalog=self.make_catalog(seconds=-30)
+        url='https://github.com/kitepon/BellTeam/releases/download/updates-20261108T000000Z/runtime-codex-'+('b'*40)+'-linux-amd64.tar.gz'
+        release=dict(componentId='runtime-codex',sourceCommit='b'*40,versionId='f'*64,platform=self.config['platform'],changes=[],
+          compatibility=compatibility or dict(runtimeProtocol=1,nodeMajor=26,libc='glibc'),
+          artifact=dict(kind='archive',archive=dict(url=url,sha256='f'*64,bytes=42),bundle=dict(url=url+'.sigstore.json',sha256='a'*64,bytes=24),signerCommit='c'*40))
+        self.install_catalog(catalog)
+        runtime={'schema':'bellteam.runtime-catalog.v1','catalogSha256':self.digest,'releases':[release]}
+        raw=json.dumps(runtime).encode()
+        receipt={'schema':'bellteam.runtime-catalog.verification.v1','runtimeCatalogSha256':hashlib.sha256(raw).hexdigest(),'runtimeCatalog':runtime,
+         'verification':{'method':'github-oidc-attestation','repositoryId':'1404510084','sourceCommit':'f'*40,'signerCommit':'f'*40,
+          'signerWorkflow':'kitepon/BellTeam/.github/workflows/publish-update-catalog.yml'}}
+        module.accept_runtime_catalog(self.updater,raw,receipt,self.digest);return release
+
+    def test_runtime_catalog_is_bound_to_its_main_catalog_and_released_readers_never_see_runtime_rows(self):
+        release=self.runtime_catalog()
+        self.assertNotIn('runtime-codex',[row['componentId'] for row in self.updater.catalog(self.digest)['releases']])
+        self.assertEqual(self.updater.dispatch(dict(operation='catalog',params=dict(componentId='runtime-codex')))['release'],release)
+        raw=json.dumps({'schema':'bellteam.runtime-catalog.v1','catalogSha256':'0'*64,'releases':[]}).encode()
+        with self.assertRaises(module.Failure):
+            module.accept_runtime_catalog(self.updater,raw,{'schema':'bellteam.runtime-catalog.verification.v1','runtimeCatalogSha256':hashlib.sha256(raw).hexdigest(),
+              'runtimeCatalog':json.loads(raw),'verification':{}},self.digest)
+
+    def test_runtime_job_is_restart_free_and_ready_after_its_own_commit(self):
+        release=self.runtime_catalog()
+        plan=self.updater.plan({'planId':str(uuid.uuid4()),'catalogSha256':self.digest,'componentId':'runtime-codex','versionId':'f'*64})
+        self.assertEqual((plan['target'],plan['impact']),(release,{'containerRestart':False}))
+        with self.assertRaises(module.Failure):
+            self.updater.start({'requestId':str(uuid.uuid4()),'planId':plan['planId'],'confirmContainerRestart':True})
+        request=str(uuid.uuid4())
+        self.updater.start({'requestId':request,'planId':plan['planId'],'confirmContainerRestart':False});self.join()
+        job=self.updater.job(request)
+        self.assertEqual((job['kind'],job['target']['moduleId'],job['state']),('runtime','runtime-codex','ready'))
+        self.assertEqual([row['state'] for row in job['transitions']],['queued','downloading','verifying','swapping','ready'])
+        self.assertEqual(module.read_json(self.prefix/'state/runtime-current.json',os.getuid())['current'],request)
+        with self.assertRaises(module.Failure):
+            self.updater.admit_job({'jobId':str(uuid.uuid4()),'idempotencyKey':'k','kind':'module','target':{'catalogSha256':self.digest,'moduleId':'runtime-codex','versionId':'f'*64}})
+
+    def test_runtime_rows_need_the_exact_runtime_contract(self):
+        self.runtime_catalog(dict(runtimeProtocol=2,nodeMajor=26,libc='glibc'))
+        with self.assertRaises(module.Failure):
+            self.updater.plan({'planId':str(uuid.uuid4()),'catalogSha256':self.digest,'componentId':'runtime-codex','versionId':'f'*64})
+
+    def test_lost_runtime_worker_in_swapping_completes_only_if_its_generation_was_committed(self):
+        self.runtime_catalog()
+        for committed,expected in [(True,'ready'),(False,'failed')]:
+            plan=self.updater.plan({'planId':str(uuid.uuid4()),'catalogSha256':self.digest,'componentId':'runtime-codex','versionId':'f'*64})
+            request=str(uuid.uuid4())
+            self.updater.launcher=lambda identifier:None
+            self.updater.start({'requestId':request,'planId':plan['planId'],'confirmContainerRestart':False})
+            directory=self.prefix/'state/operations'/request
+            with module.locked(self.prefix/'state/ledger.lock',wait=True):
+                for state in ['downloading','verifying','swapping']:self.updater.set_job(request,state)
+                value=module.read_json(directory/'operation.json',os.getuid());value.update(worker={'pid':1,'birth':'gone'},phase='applying')
+                module.atomic(directory/'operation.json',value)
+            self.updater.runtime_committed=lambda identifier,c=committed:c
+            self.assertEqual(self.updater.job(request)['state'],expected)
+
     def test_argument_and_root_path_boundaries(self):
         for value in [None, [], {}, 1]:
             with self.assertRaises(module.Failure) as error:
