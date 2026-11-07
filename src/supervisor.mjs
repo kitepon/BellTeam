@@ -46,7 +46,8 @@ const runtime = await createApplicationRuntime({
   bootstrap,
   quiesceSocket: BODY_QUIESCE_SOCKET,
 })
-await runtime.start()
-process.stderr.write('BellTeam ready\n')
-await waitForShutdown()
-await runtime.close()
+// SIGTERM/SIGINT handlers are registered before start, so a signal during startup ends it instead of being lost.
+const stopped = waitForShutdown().then(() => runtime.stop())
+if (await runtime.start().then(() => true, error => { if (error?.code === 'STARTUP_INTERRUPTED') return false; throw error }))
+  process.stderr.write('BellTeam ready\n')
+await stopped
