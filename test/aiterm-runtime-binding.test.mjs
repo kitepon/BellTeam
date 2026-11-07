@@ -96,4 +96,3 @@ test('concurrent connect callers share capture resolution and SDK initialization
   assert.equal(client.connecting, null)
   await client.close()
 })
-
