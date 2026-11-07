@@ -128,6 +128,19 @@ stateDiagram-v2
 
 成功時は元operationと別のroot-owned一回fenceをO_EXCL/file fsync/directory fsyncで保存する。閉返値は`{fenceSha256,fence}`、fence本体は`schema,requestId,planId,originalOperationSha256,decisionSha256,commonProofSha256,action,closedAt`、schema=`bellteam.module-install-fence.v1`/action=close_without_activation。`validateInstallReconciliationFence`を共通へexportする。応答不明/再起動後は同ID readだけで、別decisionでも再発行しない。
 
+### Fence read and plan retention (B-1, 2026-11-08)
+
+```mermaid
+flowchart LR
+  Plan[plan: prune expired plans] --> Keep[keep plans of pointer ops AND every non-terminal op]
+  Switch[termination bridge: scan all ops] --> Fenced{unknown + fence?}
+  Fenced -- yes --> Read[read fence: original operation bytes/hash + fence envelope; plan not read]
+  Fenced -- no, unknown --> Origin[reconciliation_origin: plan retained above]
+  Read --> Skip[closed op excluded from pending]
+```
+
+A durable fence is bound to the original operation raw SHA, requestId and planId (taken from the operation itself), so `read_install_reconciliation_fence` validates it without the saved plan. Plan pruning keeps every plan referenced by a non-terminal (unknown) operation, since reconciliation and the termination bridge read it. Cause: production op 53d582f5 had a fence, but its expired plan 5cd4bfd1 had been pruned by a later module plan. The bridge's fence read then raised an uncoded FileNotFoundError (`HOST_MODULE_TERMINATION_UNCONFIRMED`), which blocked the body swap before any stop.
+
 共通HostUpdaterにoperation_pendingという内部判定点を設け、既Host/本体serviceの挙動は従来どおり、同梱moduleだけ検証済同ID fenceをbusy集計から除外する。原unknown/get/台帳pointerは保持し、別要求/in-flightのbusyは保持する。同IDのstartは既原本を返すだけで、旧workerやwork(entry)を再発行しない。共通公開busy解除は有効fence＋共通終端記録の両方を要求する。runtimeだけのfenceを公開成功にしない。
 
 ## 正規切替時の元worker終端bridge

@@ -292,12 +292,19 @@ class ModuleUpdater(host.HostUpdater):
         return origin, directory, value, plan, plan_sha, installer, decision, receipt
 
     def read_install_reconciliation_fence(self, params):
-        directory, _value, plan, _sha, _installer = self.reconciliation_origin(params)
+        # A written fence is bound to the original operation bytes; reading it needs no (possibly pruned) plan.
+        host.check(host.exact(params, 'requestId,originalOperationSha256'))
+        identifier, original = host.request_id(params['requestId']), host.digest(params['originalOperationSha256'])
+        directory = self.state / 'operations' / identifier
+        value, observed = reconciliation_json(directory / 'operation.json', self.uid)
+        host.check(observed == original, 'HOST_MODULE_ORIGINAL_CHANGED', 409)
+        host.check(value['requestId'] == identifier and value['admission'] == 'accepted' and value['phase'] == 'unknown',
+                   'HOST_MODULE_RECONCILIATION_STATE', 409)
         path = directory / 'reconciliation-fence.json'
         if not path.exists(): raise host.Failure('HOST_MODULE_RECONCILIATION_NOT_FOUND', 404)
         envelope = host.read_json(path, self.uid)
         fence = reconciliation_envelope(envelope, 'fence', FENCE_KEYS)
-        host.check(fence['requestId'] == params['requestId'] and fence['planId'] == plan['planId']
+        host.check(fence['requestId'] == params['requestId'] and fence['planId'] == value['planId']
             and fence['originalOperationSha256'] == params['originalOperationSha256']
             and fence['action'] == 'close_without_activation', 'HOST_MODULE_FENCE_INVALID')
         host.parse_time(fence['closedAt'])
