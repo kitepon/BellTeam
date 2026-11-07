@@ -185,6 +185,8 @@ test('full transport acceptance starts a shared summary for Claude and completio
   } })
   transport.followAcceptedDelivery = () => ({ followed: true, steered: false })
   transport.waitForTurnCompletion = () => done.promise
+  // The native completion watch runs beside the turn wait; a synthetic receipt has no wait_process to spawn.
+  transport.waitUntilDone = () => done.promise
   assert.deepEqual(await transport.notify(bot, 'synthetic', { queue: { groupId: 'delivery-a', context: 'direct', contextId: bot.id },
     summaryAuthority: authority() }), { delivery: 'running' })
   const job = [...transport.jobs][0]
