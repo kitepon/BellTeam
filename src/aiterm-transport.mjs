@@ -19,7 +19,8 @@ import { DeliveryJob } from './delivery-job.mjs'
 import { SeatActivity, SeatTurnWatch } from './seat-activity.mjs'
 import { executionFailureReport, reportExecutionFailure } from './execution-failure-report.mjs'
 import { recoverableTurnFailure } from './capacity-continuation.mjs'
-import { deliveryFailureFields } from './conversation-writer.mjs'
+import { returnedMcpError } from './returned-mcp-error.mjs'
+import { launchFailureDetails } from './agent-launch-error.mjs'
 
 export { AitermClient } from './aiterm-client.mjs'
 export { runWaitProcess } from './aiterm-wait-process.mjs'
@@ -759,7 +760,10 @@ export class AitermTransport {
         const tracking = job.receipt && !job.stopped && !job.nativeTerminal && !error.turnCompleted
           ? [{ schema: 'bellteam.delivery-tracking.v1', admission: 'accepted', completion: 'unknown' }] : []
         const stage = job.deliveryStage ?? 'BOT_DELIVERY_FAILED'
-        const statusFailure = { ...deliveryFailureFields(error), code: stage, delivery_error: { code: stage } }
+        // Same safe fields the conversation writer stores; built here so the execution closure imports no conversation file.
+        const detail = returnedMcpError(error), launch = launchFailureDetails(error)
+        const statusFailure = { code: stage, delivery_error: { code: stage },
+          ...(detail ? { mcp_error: detail } : {}), ...(launch ? { native_launch: launch } : {}) }
         if (!job.receipt && !job.stopped) this.activity.recordFailure(job, stage)
         try {
           await onStatus?.(job.stopped ? 'stopped' : 'failed', statusFailure, ...tracking)
