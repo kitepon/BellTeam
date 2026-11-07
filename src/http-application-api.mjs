@@ -20,11 +20,13 @@ export function createControlApi(options) {
   const usageApi = createUsageApi(options)
   return async (request, response, url) => {
     if (url.pathname === '/api/updates' || url.pathname.startsWith('/api/updates/')) {
+      // Only a reader that opts in sees runtime rows/jobs; released apps reject unknown job kinds.
+      const runtime = url.searchParams.get('runtime') === '1'
       if (internal) return json(response, 403, { error: 'UPDATE_OWNER_REQUIRED' })
       if (!updateCenter) return json(response, 503, { error: 'UPDATE_EXECUTOR_UNAVAILABLE' })
       if (url.pathname === '/api/updates/jobs') {
         if (request.method !== 'GET') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
-        return json(response, 200, await updateCenter.jobs())
+        return json(response, 200, await updateCenter.jobs({ runtime }))
       }
       const jobMatch = url.pathname.match(/^\/api\/updates\/jobs\/(module|container)\/([^/]+)$/u)
       if (jobMatch) {
@@ -46,7 +48,7 @@ export function createControlApi(options) {
       }
       if (url.pathname === '/api/updates') {
         if (request.method !== 'GET') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
-        return json(response, 200, await updateCenter.snapshot())
+        return json(response, 200, await updateCenter.snapshot({ runtime }))
       }
       if (url.pathname === '/api/updates/catalog-check') {
         if (request.method !== 'POST') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })

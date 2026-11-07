@@ -29,7 +29,7 @@ class ExecutionArtifact(unittest.TestCase):
         with self.archive.open('rb') as stream: self.manifest, _ = check_archive(stream, component='execution')
 
     def test_literal_asset_entry_and_string_state_are_required(self):
-        self.assertEqual(len(EXECUTION_FILES), 50)
+        self.assertEqual(len(EXECUTION_FILES), 51)
         changes = [lambda m: m.update(entry='payload/src/usage-entry.mjs'),
             lambda m: m['files'].append(dict(path='payload/src/unknown-helper.mjs', bytes=0, sha256='b'*64)),
             lambda m: m.update(files=[r for r in m['files'] if r['path'] != 'payload/src/module-ipc.mjs']),

@@ -311,7 +311,7 @@ class HostUpdater:
         with locked(self.state / 'ledger.lock', wait=True):
             job = self.read_job(identifier)
             operation_path = self.state / 'operations' / identifier / 'operation.json'
-            if job['kind'] == 'container':
+            if job['kind'] in {'container', 'runtime'}:  # parent may close only a step the worker never accepted
                 check(job['state'] == 'queued' and params['state'] == 'failed'
                       and not os.path.lexists(operation_path) and not os.path.lexists(operation_path.parent / 'claimed'),
                       'HOST_UPDATE_JOB_CONFLICT', 409)
@@ -1219,9 +1219,12 @@ def runtime_rows(updater, catalog_id):
     path = updater.prefix / 'catalog' / 'runtime' / (catalog_id + '.json')
     if not path.exists(): return []
     receipt = read_json(path, updater.uid, CATALOG_LIMIT)
-    check(receipt.get('schema') == 'bellteam.runtime-catalog.verification.v1'
-          and receipt['runtimeCatalog']['catalogSha256'] == catalog_id and valid_catalog_verification(receipt['verification']),
-          'HOST_UPDATE_CATALOG_UNTRUSTED')
+    try:
+        trusted_rows = (receipt['schema'] == 'bellteam.runtime-catalog.verification.v1'
+          and receipt['runtimeCatalog']['catalogSha256'] == catalog_id and valid_catalog_verification(receipt['verification'])
+          and type(receipt['runtimeCatalog']['releases']) is list)
+    except (KeyError, TypeError): trusted_rows = False
+    check(trusted_rows, 'HOST_UPDATE_CATALOG_UNTRUSTED')
     return receipt['runtimeCatalog']['releases']
 
 def _refresh_catalog(updater):

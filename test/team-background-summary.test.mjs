@@ -14,6 +14,9 @@ import { createExecutionDispatcher } from '../src/execution-dispatcher.mjs'
 import { MembersAdmission } from '../src/members-admission.mjs'
 
 const deferred = () => Promise.withResolvers()
+// Z-b2: the runner spawns the captured absolute CLI path, never a PATH lookup.
+const releaseRuntime = { generation: 'a'.repeat(64), components: {
+  'runtime-claude-code': { origin: 'release', bin: { claude: '/rt/claude/bin/claude' } }, 'runtime-codex': { origin: 'release', bin: { codex: '/rt/codex/bin/codex' } } } }
 const tick = () => new Promise(resolve => setImmediate(resolve))
 const first = { revision: '11111111-1111-4111-8111-111111111111', selection: { harness: 'claude', model: 'chosen', reasoningEffort: 'high' } }
 const second = { revision: '22222222-2222-4222-8222-222222222222', selection: { ...first.selection, model: 'other' } }
@@ -111,10 +114,10 @@ test('unconfigured/invalid input and unsupported harness never start a process o
 test('runner pins selected model/effort, disables tools and MCP, uses bounded stdin and rejects malformed results', async () => {
   let captured, response = { stdout: JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: '確認中' }) }
   const run = createBackgroundSummaryRunner({ project: '/unused', models: { forHarness: async () => ({ models: [{ id: 'chosen', efforts: ['high'] }] }) },
-    runner: async (...args) => { captured = args; return response } })
+    runner: async (...args) => { captured = args; return response }, captureRuntime: async () => releaseRuntime })
   assert.equal(await run(first.selection, '{"text":"限定本文"}'), '確認中')
   const [command, args, options] = captured
-  assert.equal(command, 'flock'); assert.deepEqual(args.slice(0, 5), ['--nonblock', '--conflict-exit-code', '75', '/unused/summary.lock', 'claude'])
+  assert.equal(command, 'flock'); assert.deepEqual(args.slice(0, 5), ['--nonblock', '--conflict-exit-code', '75', '/unused/summary.lock', '/rt/claude/bin/claude'])
   assert.equal(args[args.indexOf('--tools') + 1], '')
   assert.ok(args.includes('--safe-mode')); assert.ok(args.includes('--strict-mcp-config')); assert.ok(args.includes('--no-session-persistence'))
   assert.equal(args[args.indexOf('--model') + 1], 'chosen'); assert.equal(args[args.indexOf('--effort') + 1], 'high')
@@ -127,11 +130,11 @@ test('codex runner uses exec JSONL without user config/MCP/rules, read-only sand
   let captured, response = lines([{ type: 'thread.started', thread_id: 't' }, { type: 'turn.started' }, message, { type: 'turn.completed', usage: {} }])
   const run = createBackgroundSummaryRunner({ project: '/unused', models: { forHarness: async harness => {
     assert.equal(harness, 'codex'); return { models: [{ id: 'gpt-6-luna', efforts: ['low'] }] } } },
-    runner: async (...args) => { captured = args; return response } })
+    runner: async (...args) => { captured = args; return response }, captureRuntime: async () => releaseRuntime })
   const selection = { harness: 'codex', model: 'gpt-6-luna', reasoningEffort: 'low' }
   assert.equal(await run(selection, '{"text":"限定本文"}'), '修正を実装中')
   const [command, args, options] = captured
-  assert.equal(command, 'flock'); assert.deepEqual(args.slice(0, 6), ['--nonblock', '--conflict-exit-code', '75', '/unused/summary.lock', 'codex', 'exec'])
+  assert.equal(command, 'flock'); assert.deepEqual(args.slice(0, 6), ['--nonblock', '--conflict-exit-code', '75', '/unused/summary.lock', '/rt/codex/bin/codex', 'exec'])
   for (const flag of ['--json', '--ephemeral', '--ignore-user-config', '--ignore-rules', '--skip-git-repo-check']) assert.ok(args.includes(flag), flag)
   assert.equal(args[args.indexOf('--sandbox') + 1], 'read-only'); assert.equal(args[args.indexOf('-C') + 1], '/unused')
   assert.equal(args[args.indexOf('-m') + 1], 'gpt-6-luna'); assert.ok(args.includes('model_reasoning_effort="low"'))

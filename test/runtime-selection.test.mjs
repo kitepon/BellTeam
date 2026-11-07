@@ -44,6 +44,12 @@ test('builtin until a selection exists, then release paths; an earlier capture k
     const second = commitWithPython(root, 'v2')
     const next = await captureRuntime({ root })
     assert.equal(next.generation, second)
+    // Resume of a recorded launch re-resolves its own generation, not the newer current one; null = builtin.
+    const resumed = await captureRuntime({ root, generation: first })
+    assert.deepEqual(resumed, old)
+    assert.equal((await captureRuntime({ root, generation: null })).components['runtime-codex'].origin, 'builtin')
+    await assert.rejects(captureRuntime({ root, generation: 'e'.repeat(64) }), { code: 'RUNTIME_BINDING_UNAVAILABLE' })
+    await assert.rejects(captureRuntime({ root, generation: 'not-a-sha' }), { code: 'RUNTIME_BINDING_UNAVAILABLE' })
     assert.notEqual(next.components['runtime-codex'].bin.codex, old.components['runtime-codex'].bin.codex)
     // The old launch's capture still resolves its own immutable closure.
     assert.equal(execFileSync('cat', [old.components['runtime-codex'].bin.codex], { encoding: 'utf8' }), 'v1')

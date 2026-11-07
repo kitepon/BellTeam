@@ -45,6 +45,10 @@
     {
       "module": "execution",
       "port": "members-admission"
+    },
+    {
+      "module": "distribution",
+      "port": "runtime-artifact"
     }
   ],
   "source": [
@@ -149,6 +153,7 @@
     "src/module-ready-probe.mjs",
     "scripts/runtime_update.py",
     "src/runtime-selection.mjs",
-    "scripts/verify-runtime.py"
+    "scripts/verify-runtime.py",
+    "scripts/runtime-exec.mjs"
   ]
 }

@@ -2,7 +2,7 @@ import { CurrentWork } from './current-work.mjs'
 import { randomUUID } from 'node:crypto'
 import { MembersAdmission } from './members-admission.mjs'
 import { configurationError } from './configuration-request.mjs'
-import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
@@ -20,6 +20,8 @@ import { executionFailureReport, reportExecutionFailure } from './execution-fail
 import { recoverableTurnFailure } from './capacity-continuation.mjs'
 import { returnedMcpError } from './returned-mcp-error.mjs'
 import { launchFailureDetails } from './agent-launch-error.mjs'
+import { captureRuntime as captureSelectedRuntime } from './runtime-selection.mjs'
+import { writeAtomic } from './json-file.mjs'
 
 export { AitermClient } from './aiterm-client.mjs'
 export { runWaitProcess } from './aiterm-wait-process.mjs'
@@ -57,7 +59,7 @@ export function createManagedTransport({ client = new AitermClient(), ...options
 // BellTeamとAitermの間。席の状態（BotSessionState）と席の活動（SeatActivity）を持ち、一回の配送（DeliveryJob）を進める。
 // Aitermのnativeな実行判断はAitermに在り、ここは返却を事実として受け取る。
 export class AitermTransport {
-  constructor({ resolveBot = null, backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, activeId = randomUUID, activityPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {} } = {}) {
+  constructor({ resolveBot = null, backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, activeId = randomUUID, activityPath = null, captureRuntime = captureSelectedRuntime, runtimeLaunchesPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {} } = {}) {
     this.backgroundSummary = backgroundSummary
     this.summaryJobs = new Set()
     this.latestSummaryInputs = new Map()
@@ -82,6 +84,10 @@ export class AitermTransport {
     this.updateFastMode = updateFastMode
     this.requireAccess = requireAccess
     this.assertWorkAllowed = assertWorkAllowed
+    this.captureRuntime = captureRuntime
+    this.runtimeLaunchesPath = runtimeLaunchesPath
+    this.runtimeLaunches = null
+    this.runtimeLaunchQueue = Promise.resolve()
     this.activeId = activeId
     this.now = now
     this.retainedImages = new Map()
@@ -203,8 +209,9 @@ export class AitermTransport {
     const shortTermMemory = await this.handoffContext(bot.project)
     await this.prepareStartup(bot, shortTermMemory, { membersLease })
     this.membersAdmission.assertLease(membersLease)
+    const runtime = await this.captureLaunchRuntime()
     const launchOptions = this.client.launchOptions
-      ? await this.client.launchOptions(bot.project) : { env: await loadBotEnvironment(bot.project) }
+      ? await this.client.launchOptions(bot.project, runtime) : { env: await loadBotEnvironment(bot.project) }
     let launch
     try {
       this.requireStopVersion(bot.id, version)
@@ -240,6 +247,7 @@ export class AitermTransport {
     const session = launch.structuredContent?.session_id
     if (typeof session !== 'string' || !session) throw new Error(`AITERM_LAUNCH_RECEIPT_INVALID: ${bot.id}`)
     this.sessions.set(bot.id, session)
+    await this.recordRuntimeLaunch(session, runtime)
     try {
       this.membersAdmission.assertLease(membersLease)
       await this.updateSession(bot.id, session, { membersLease })
@@ -267,7 +275,9 @@ export class AitermTransport {
       await this.requireAccess({ setupTest: false, botId: bot.id })
       this.requireStopVersion(bot.id, version)
       if (this.session(bot) !== reference.sessionId) return null
-      const options = this.client.launchOptions ? await this.client.launchOptions(bot.project) : { env: await loadBotEnvironment(bot.project) }
+      // Resume is the same launch: keep the generation recorded for this session (none recorded = current).
+      const runtime = await this.captureLaunchRuntime({ generation: await this.recordedRuntimeGeneration(reference.sessionId) })
+      const options = this.client.launchOptions ? await this.client.launchOptions(bot.project, runtime) : { env: await loadBotEnvironment(bot.project) }
       this.requireStopVersion(bot.id, version)
       const result = await this.changeSession(bot, 'agent_launch', { harness: reference.harness, cwd: bot.project,
         session_name: reference.sessionId, require_existing_resume: true }, options)
@@ -279,6 +289,39 @@ export class AitermTransport {
         await this.recordDeliveryFailure(bot.id, reference.launchId, 'RESTART_RESUME_UNCONFIRMED')
       return { sessionId: receipt.session_id, resumedAt: this.now() }
     })
+  }
+
+  // Z-b2 C1/C2 (docs/architecture/modules/execution/runtime-capture.md): one capture per logical launch.
+  // RUNTIME_BINDING_UNAVAILABLE refuses only this launch and never falls back to builtin code.
+  async captureLaunchRuntime(options) {
+    try { return await this.captureRuntime(options) }
+    catch (error) { throw Object.assign(error, { effect: 'not_started' }) }
+  }
+
+  async readRuntimeLaunches() {
+    if (!this.runtimeLaunchesPath) return {}
+    if (!this.runtimeLaunches) {
+      // Absent or unreadable record = nothing recorded; resume then takes the current capture.
+      try { this.runtimeLaunches = JSON.parse(await readFile(this.runtimeLaunchesPath, 'utf8')).launches ?? {} }
+      catch { this.runtimeLaunches = {} }
+    }
+    return this.runtimeLaunches
+  }
+
+  async recordedRuntimeGeneration(sessionName) {
+    return (await this.readRuntimeLaunches())[sessionName]?.generation
+  }
+
+  // D5 live reference. shortcut: entries are overwritten per session, not removed at close; P8 over-retains closed launches.
+  recordRuntimeLaunch(sessionName, runtime) {
+    if (!this.runtimeLaunchesPath) return
+    this.runtimeLaunchQueue = this.runtimeLaunchQueue.then(async () => {
+      const launches = await this.readRuntimeLaunches()
+      launches[sessionName] = { generation: runtime.generation, capturedAt: this.now() }
+      await mkdir(dirname(this.runtimeLaunchesPath), { recursive: true, mode: 0o700 })
+      await writeAtomic(this.runtimeLaunchesPath, { schema: 'bellteam.runtime-launches.v1', launches })
+    }).catch(() => this.reportError({ code: 'RUNTIME_LAUNCH_RECORD_UNAVAILABLE', module: 'execution' }))
+    return this.runtimeLaunchQueue
   }
 
   async restart(bot, { membersLease } = {}) {

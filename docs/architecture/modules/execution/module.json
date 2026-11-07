@@ -25,6 +25,10 @@
       "port": "seat-process"
     },
     {
+      "module": "runtime",
+      "port": "update"
+    },
+    {
       "module": "aiterm",
       "port": "native"
     },

@@ -26,7 +26,7 @@ Four fixed component IDs. Nothing else is a runtime target; no npm specifier, UR
 | P3 | Authenticated UI plan/start → admitted `kind:"runtime"` job, HTTP202 | Molly (common API + updater job) |
 | P4 | Target release → verified archive → staged closure under `packages/<id>/<archiveSha>` + receipt | Molly (`scripts/runtime_update.py`, run by module-installer) |
 | P5 | Staged closure + expected generation → new generation file + atomic `current.json` | Molly (same script; sole selection writer) |
-| P6 | Launch intent → captured generation and absolute paths | Molly (`src/runtime-selection.mjs`); callers Kiro (execution launch) / Elegg (Aiterm) |
+| P6 | Launch intent → captured generation and absolute paths. `captureRuntime()` / `{generation: undefined}` = current selection (builtin if none); `{generation: null}` = builtin; `{generation: sha}` = that `generations/<sha>.json`, validated like the current path (absent/invalid → `RUNTIME_BINDING_UNAVAILABLE`), used by resume of a recorded launch | Molly (`src/runtime-selection.mjs`); callers Kiro (execution launch, [runtime-capture](../execution/runtime-capture.md)) / Elegg (Aiterm) |
 | P7 | Captured paths → real CLI / MCP / hooks | Kiro, Elegg, Throughline owner (consumers) |
 | P8 | Selection + jobs + live references → inventory rows, retention | Molly (projection), UI owners (display) |
 
@@ -58,7 +58,7 @@ Root: `RUNTIME_ROOT` = `/srv/bellteam/shared/tools/bellteam-runtime` inside the 
 | D2 code | `packages/<componentId>/<archiveSha256>/` = npm prefix (`bin/`, `lib/node_modules/…`) + `manifest.json` + `receipt.json`; dirs 0755, files read-only | P4 once (stage dir + rename) → P6/P7 |
 | D3 selection | `generations/<generationSha256>.json` `{schema:"bellteam.runtime-generation.v1",components:{<id>:{archiveSha256,sourceCommit,upstreamVersion}},jobId}` (all four IDs, a missing ID = builtin); `current.json` `{schema:"bellteam.runtime-selection.v1",generation}` | P5 only: temp + fsync + rename + dir fsync → P6/P8 |
 | D4 jobs | existing `state/jobs/<UUID>.json` with `kind:"runtime"`, `target.moduleId` = runtime componentId; plus selection intent `{jobId,expected,target}` | updater → P3/P8 |
-| D5 live references | Launch → captured generation. Lives in body-writable state, not the read-only runtime mount; shape fixed with Kiro/Elegg in slice C. Until then nothing under D2/D3 is deleted automatically | P6 callers → P8 retention |
+| D5 live references | Launch → captured generation: execution-owned `execution-runtime-launches.json` `{schema:"bellteam.runtime-launches.v1",launches:{<sessionName>:{generation,capturedAt}}}` in body-writable state, not the read-only runtime mount ([runtime-capture](../execution/runtime-capture.md)). Nothing under D2/D3 is deleted automatically before P8 reads it | execution launch (Kiro) → resume, P8 retention |
 | D6 package state | CLI HOME/auth, Aiterm state, Throughline DB | upstream/seat owners; never touched by Z-b2 |
 
 | Flow | Data |
@@ -68,8 +68,20 @@ Root: `RUNTIME_ROOT` = `/srv/bellteam/shared/tools/bellteam-runtime` inside the 
 | F3 | D1 + D4 → P4 → D2: verified bytes, safe extraction (no absolute/escaping links, no devices/set-ID), file inventory digests |
 | F4 | D2 + D3 → P5 → D3: replace exactly one component in the expected vector; expected ≠ actual → `RUNTIME_SELECTION_CHANGED` |
 | F5 | D3 → P6 → caller: `{generation, components:{<id>:{origin:"release"\|"builtin", prefix, bin, dist?}}}` |
-| F6 | D3 + D4 + D5 → P8 → UI: current/published per runtime row + `runtimeApplication:{generationId,policy:"next_launch",retainedGenerations:[{generationId,referenceCount}]}` |
+| F6 | D3 + D4 + D5 → P8 → UI: current/published per runtime row + `runtimeApplication:{generationId,policy:"next_launch"}` (slice D); `retainedGenerations:[{generationId,referenceCount}]` is added with D5 in slice C |
 | F7 | D5 → P8 cleanup: remove only unselected, unreferenced closures; never D6 |
+
+## Stable launcher for registrations (P6, Molly)
+
+`/usr/local/bin/node /app/scripts/runtime-exec.mjs` serves global hook/MCP registrations that outlive one launch's capture.
+
+| Form | Behaviour |
+| --- | --- |
+| `<componentId> <binName> [args…]` | Resolve the generation from `BELLTEAM_RUNTIME_GENERATION` (sha → that generation, `''` → builtin, unset → current), spawn that bin with the original args/env/stdio (release generation: its absolute path; builtin: the bin name through the unchanged PATH, so today's precedence such as a Bot's `.local/bin` is kept), set `BELLTEAM_RUNTIME_GENERATION` for its descendants, forward SIGINT/SIGTERM/SIGHUP, propagate exit code/signal. |
+| `--resolve <componentId> <binName\|dist>` | Print only the absolute path and a newline (Elegg's native helper entries resolve the captured dist, then exec the real helper themselves). |
+| Failure | Exit 1 with one line on stderr: `RUNTIME_COMPONENT_INVALID`, `RUNTIME_ENTRY_INVALID` (unknown bin, `dist` in exec mode, extra args to `--resolve`), `RUNTIME_BINDING_UNAVAILABLE` (never a fall-back to other code), `RUNTIME_EXEC_FAILED`. |
+
+Only the four component IDs and their closed bin/dist names are accepted. No caller path is ever resolved.
 
 ## Job state (no rollback)
 
@@ -110,9 +122,34 @@ A new update is a new job. A previous generation is never re-selected by a plan;
 | Job | `kind:"runtime"`, `target.moduleId` = componentId, pointer `state/runtime-current.json`; any non-terminal container/module/runtime operation refuses a new start (`HOST_UPDATE_IN_PROGRESS`), and the termination bridge refuses a body swap while one is running (`HOST_UPDATE_BUSY`). Plan impact `containerRestart:false`. |
 | Worker | bundled module-installer only (`ModuleUpdater.install_runtime`): downloading → verifying (signature, stage) → swapping (commit) → ready set by the worker. Host-socket installs answer `HOST_RUNTIME_UPDATE_UNSUPPORTED`. Worker lost in swapping: ready only if the current generation's `jobId` is this job, else `HOST_UPDATE_WORKER_LOST`. |
 | Volume | `<project>-runtime-code`, added by `module-update-compose.mjs`: body read-only at `RUNTIME_ROOT`, module-installer read-write at the same path, never in the termination helper. |
-| Body contract | `update-center-contract.mjs` job kind accepts `runtime`. Web/app readers accept it only with slice D; until then no UI path plans a runtime target. |
+| Body contract | `update-center-contract.mjs` job kind accepts `runtime`. Released Web/app readers never receive it: see slice D below. |
+| Parent close | `updateJob` may set `failed` on a runtime record only while it is still `queued` with no operation and no claim (same rule as container): the parent closes a step the worker never accepted. Once accepted, the worker alone completes it. |
 
 **Released installers are unaffected by construction:** they read only `catalog.json`, which keeps its closed component set. Old installers never fetch `runtime-catalog.json`, so they can still plan the container row that brings the enabling image; no publication order is required.
+
+## Inventory, plan and start (slice D)
+
+| Item | Contract |
+| --- | --- |
+| Opt-in | `GET /api/updates?runtime=1` and `GET /api/updates/jobs?runtime=1` only. Without it the response is what it was before Z-b2: no runtime rows, `kind:"runtime"` jobs removed from `jobs[]`, runtime plans and operations left out of `plans`/`operation`/`previousOperation` (the executor picks the latest two non-runtime operations). The `updates` SSE event has no opt-in and always drops runtime jobs; an opted-in screen re-reads GET. Released Web/Apple validators reject unknown job kinds, so this is the only safe exposure. |
+| Row | One row per runtime ID in the module row shape (`id,name,description,current,published,publication,changes,comparison,capability,availability`) plus `runtimeApplication:{generationId:<P6 capture generation or null>,policy:"next_launch"}` on these four rows only. |
+| current | From P6 `captureRuntime()` (injected): `builtin` → `{version:"builtin",sourceCommit:null,digest:null,origin:"builtin"}`; `release` → `{version:<archiveSha256>,sourceCommit:null,digest:"sha256:<archiveSha256>",origin:"release"}`. Capture throws → `current:null`, availability and capability false with `RUNTIME_BINDING_UNAVAILABLE`. No capture supplied → `UPDATE_EXECUTOR_UNAVAILABLE`. |
+| published / comparison | Module catalog reader `select(componentId)` → updater `catalog` op (runtime catalog). Release mapped as modules (`origin:"published"`, `digest:"sha256:<versionId>"`); compatible = exactly `{runtimeProtocol:1,nodeMajor:26,libc:"glibc"}`; digest equality = `up_to_date`. Reader error (old updater without runtime IDs, absent runtime catalog) → `comparison:unavailable` and capability false with that error code. |
+| capability | Executor: offered when published, available, the module client can admit jobs and nothing else is running; then the module-installer capability is read once like modules. Busy → `MODULE_EXCHANGE_BUSY`; equal → `UPDATE_ALREADY_CURRENT`. Notification candidates never include runtime rows. |
+| Plan | `POST /api/updates/plans` `{scope:"component",componentId:<runtime ID>}` only (`action` must be update; rollback → `UPDATE_ROLLBACK_UNSUPPORTED`). `scope:"all"` never includes runtime steps. Executor: current from the opted-in row, signed selection, `planModuleInstall({planId,catalogSha256,componentId,versionId})` with `impact.containerRestart:false`; public plan impact `containerRestart:false`, wording 次回起動から適用・実行中の席は現在の版を継続. |
+| Start | `POST /api/updates/operations` with `confirmContainerRestart:false`: admitJob `kind:"runtime"` (target `{catalogSha256,moduleId:<runtime ID>,versionId}`) saved before HTTP202, then `startModuleInstall` with the same jobId/key. The parent issues no controller exchange and no `updateJob` downloading/verifying/swapping/ready: the worker completes the job. The parent operation projects the stored job: `ready` → completed; `failed` → failed with the job's reason code. Unknown stays unknown until a later read projects the terminal record. Never replayed or retried. |
+
+```mermaid
+flowchart LR
+  UI[Opted-in UI runtime=1] --> Inv[GET /api/updates?runtime=1]
+  Inv --> Cap[P6 captureRuntime] --> Rows[runtime rows + runtimeApplication]
+  Inv --> Sel[module client catalog componentId] --> Rows
+  UI --> Plan[POST plans runtime ID] --> HostPlan[planModuleInstall containerRestart false]
+  UI --> Start[POST operations] --> Admit[admitJob kind runtime] --> Accept[HTTP202]
+  Admit --> Install[startModuleInstall same jobId] --> Worker[updater worker P4 P5 ready or failed]
+  Worker --> Project[parent projects stored job state and reason]
+  Released[Released Web Apple and SSE] --> Filter[no runtime rows jobs plans operations]
+```
 
 ## Delivery slices
 
@@ -121,7 +158,7 @@ A new update is a new job. A previous generation is never re-selected by a plan;
 | A | This diagram; D2/D3 store, P4 staging/verification and P5 commit (`scripts/runtime_update.py`); P6 resolver (`src/runtime-selection.mjs`); tests | Molly |
 | B | `kind:"runtime"` job in the updater dispatch (plan/start/recovery), catalog component set, verifier, `runtime-code` volume in compose (installer rw, body ro) — contract above | Molly; catalog schema contact distribution |
 | C | Consumers call P6 instead of `AITERM_DIST`/`CODEX_BINARY`/PATH; launch references D5 | Kiro (execution), Elegg (Aiterm), Throughline owner |
-| D | Inventory rows + `runtimeApplication`; UI wording "次回起動から適用。実行中の席は現在の版を継続" | Molly projection; Admi / app owners display |
+| D | Inventory rows + `runtimeApplication` behind `runtime=1`, single-target runtime plan/start (contract above); UI wording "次回起動から適用。実行中の席は現在の版を継続" | Molly projection (done); Admi / app owners display |
 | E | publish-runtime workflow, signed closures, catalog rows; enabling image | Centi + supply |
 
 The enabling image is a normal body swap under the usual Owner approval and Bell support. It is not held for Z-c.
