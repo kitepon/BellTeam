@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-07T20:37:10Z",
-  "expiresAt": "2026-11-14T20:37:10Z",
+  "publishedAt": "2026-11-07T21:34:17Z",
+  "expiresAt": "2026-11-14T21:34:17Z",
   "releases": [
     {
       "componentId": "usage",
@@ -635,15 +635,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "3ca3be8eec1c9d5259c30d990561ed80012da4b9",
-      "versionId": "sha256:e5686c28523e10835458970f4a73dea75f660bfa634f37042d6e513279b1a917",
+      "sourceCommit": "7811c3cdaf81b93de2ac4a4f7ed8aa3e373f2da0",
+      "versionId": "sha256:75b8a854d8aed1021da04834f237b7597df999e35ffb7230d697cc432324d26e",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:e5686c28523e10835458970f4a73dea75f660bfa634f37042d6e513279b1a917"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:75b8a854d8aed1021da04834f237b7597df999e35ffb7230d697cc432324d26e"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -652,20 +652,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "本体の更新機能を改善し、対応する部品を本体を停止せずに更新できるようにします。"
+        "次回の本体更新に備え、各席の処理を一時停止して再開する機能を追加します。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "3ca3be8eec1c9d5259c30d990561ed80012da4b9",
-      "versionId": "sha256:e5686c28523e10835458970f4a73dea75f660bfa634f37042d6e513279b1a917",
+      "sourceCommit": "7811c3cdaf81b93de2ac4a4f7ed8aa3e373f2da0",
+      "versionId": "sha256:75b8a854d8aed1021da04834f237b7597df999e35ffb7230d697cc432324d26e",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:e5686c28523e10835458970f4a73dea75f660bfa634f37042d6e513279b1a917"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:75b8a854d8aed1021da04834f237b7597df999e35ffb7230d697cc432324d26e"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -674,7 +674,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "本体の更新機能を改善し、対応する部品を本体を停止せずに更新できるようにします。"
+        "次回の本体更新に備え、各席の処理を一時停止して再開する機能を追加します。"
       ]
     }
   ],
