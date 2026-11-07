@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-07T14:59:02Z",
-  "expiresAt": "2026-11-14T14:59:02Z",
+  "publishedAt": "2026-11-07T16:04:45Z",
+  "expiresAt": "2026-11-14T16:04:45Z",
   "releases": [
     {
       "componentId": "usage",
@@ -635,15 +635,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "b1fe56582f1ac8d35755cac764f22f19f8a20a4c",
-      "versionId": "sha256:f17cb80ce3dc38dc5672fdb8204dc9c2b798e40b6d8efa2e1dace693305397bc",
+      "sourceCommit": "213d99fa4acc9fbb37212e5194d0fe4826175bc6",
+      "versionId": "sha256:8c9eba2a77d3e655e9e19aaa64b25937d83bf790d6387a997bb8014c4b7df467",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:f17cb80ce3dc38dc5672fdb8204dc9c2b798e40b6d8efa2e1dace693305397bc"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8c9eba2a77d3e655e9e19aaa64b25937d83bf790d6387a997bb8014c4b7df467"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -652,20 +652,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "画像配信中断時の読み取りを終了させ、メンバー一覧への画像本体の転送を除きます。"
+        "実行中の席を待って交換を拒否する経路と、会話の診断通知で交換が中断する経路を修正します。",
+        "各メッセージへの共通規範の追記を除き、作業要約のCodex実行を接続します。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "b1fe56582f1ac8d35755cac764f22f19f8a20a4c",
-      "versionId": "sha256:f17cb80ce3dc38dc5672fdb8204dc9c2b798e40b6d8efa2e1dace693305397bc",
+      "sourceCommit": "213d99fa4acc9fbb37212e5194d0fe4826175bc6",
+      "versionId": "sha256:8c9eba2a77d3e655e9e19aaa64b25937d83bf790d6387a997bb8014c4b7df467",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:f17cb80ce3dc38dc5672fdb8204dc9c2b798e40b6d8efa2e1dace693305397bc"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8c9eba2a77d3e655e9e19aaa64b25937d83bf790d6387a997bb8014c4b7df467"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -674,7 +675,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "画像配信中断時の読み取りを終了させ、メンバー一覧への画像本体の転送を除きます。"
+        "実行中の席を待って交換を拒否する経路と、会話の診断通知で交換が中断する経路を修正します。",
+        "各メッセージへの共通規範の追記を除き、作業要約のCodex実行を接続します。"
       ]
     }
   ],
