@@ -1,5 +1,9 @@
 # CLI登録・共有設定の更新
 
+Z-b2 keeps persistent MCP/hook registration descriptors on the original image Aiterm paths, because Aiterm updates only with the body image. Ordinary MCP remains setupNodeExecutable plus image dist/index.js, including the existing mcp-lazy wrapper recognised by Aiterm's sameRegistration; plain aiterm-setup therefore sees the same registered shape and this slice does not trigger replacement that drops BellTeam's Codex/Grok timeout. Native setup receives the image execution-native-server.js, scope and provider, and derives its image sibling hooks. A recover to previous-normal finds those same installation paths in the older image; no new /app adapter path is persisted and no older-body rewrite is required. Superseded PR adapters were never deployed or written to shared HOME. Functions, DFD and precise limits: [Aiterm consumer binding](runtime-updates.md#aiterm-consumer-binding-slice-c).
+
+Per-connection MCP paths and handoff imports remain immutable. Codex/Cursor pass BELLTEAM_RUNTIME_GENERATION (including empty builtin), CODEX_BIN and CLAUDE_BIN; Cursor's bridge removes unresolved placeholders for these names. The non-native lazy wake helper remains the sibling of the original registered Aiterm entry. Codex hook setup uses the selected CLI capture; Aiterm setup/helper code remains image-owned. This does not certify additional Z-c state or vendor compatibility.
+
 責任者：エピネル。公開窓口は[runtime](README.md)の`cli-registration`。
 
 [H1接続候補](resume.md)の対象では固定state baseを管理MCPへ登録し、relayで失わず、Codex/Cursorの任意env継承から分ける。通常launch/commandのBot env読込後も固定値を検証する。hookの公開setup/既scopeを使い、設定Promiseの成功を現在の全hook実適用へ補完しない。H1非対象の既存動的設定と管理外項目は保持する。

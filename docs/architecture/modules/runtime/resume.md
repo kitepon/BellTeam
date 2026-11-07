@@ -1,5 +1,7 @@
 # Aiterm H1 offline保存と起動前復元
 
+Z-b2: `adoptRuntimeResume` captures the selected Aiterm runtime once before restoring its targets and uses that immutable dist for every resume-state-cli invocation. It does not recapture between targets or rewrite checkpoint payloads. [Consumer functions and DFD](runtime-updates.md#aiterm-consumer-binding-slice-c) define the binding; the adoption/state contracts below remain unchanged.
+
 runtime接続候補。製品6658c67の未公開CLI/stream契約を使用する。正式0.63.2や現961の能力ではない。製品最新f3f30feは最終レビュー通過とRootから返却され、H1三moduleは試験対象6658と同bytes。これは製品全体の実供給やruntimeの実Docker/UID/mount・本番の受入を示さない。製品内部は[Aiterm正本](../aiterm/README.md)、mount/bin/contextは[配布の正本](../distribution/h1-offline.md)へ辿る。
 
 ## 初回と保存更新を分ける

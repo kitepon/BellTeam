@@ -1,4 +1,5 @@
-import { AITERM_DIST } from './aiterm-hooks.mjs'
+import { captureRuntime } from './runtime-selection.mjs'
+import { pathToFileURL } from 'node:url'
 import { lstat, mkdir, readdir, realpath } from 'node:fs/promises'
 import { dirname, isAbsolute, join, parse } from 'node:path'
 import { isDeepStrictEqual } from 'node:util'
@@ -18,7 +19,7 @@ function intent(value, botId, id) {
 
 // The root comes only from trusted parent assembly, never an HTTP/MCP DTO.
 export class ConfigurationIntents {
-  constructor(root, { ownerUid = 1001, trustedAnchor = null } = {}) {
+  constructor(root, { ownerUid = 1001, trustedAnchor = null, runtimeCapture = null } = {}) {
     if (!isAbsolute(root) || root !== parse(root).root && root.endsWith('/')) throw configurationError('CONFIGURATION_STORAGE_INVALID')
     if (trustedAnchor && (Object.keys(trustedAnchor).sort().join(',') !== 'dev,ino,path,uid'
       || typeof trustedAnchor.path !== 'string' || !isAbsolute(trustedAnchor.path) || trustedAnchor.path.endsWith('/') || trustedAnchor.uid !== ownerUid
@@ -27,6 +28,7 @@ export class ConfigurationIntents {
     this.root = root
     this.ownerUid = ownerUid
     this.trustedAnchor = trustedAnchor ? { ...trustedAnchor } : null
+    this.runtimeCapture = runtimeCapture
   }
 
   async directory(path, create = false, privateDirectory = true) {
@@ -147,7 +149,8 @@ export class ConfigurationIntents {
     catch (error) { if (error.code === 'ENOENT') return null; throw error }
     if (!value || Object.keys(value).sort().join(',') !== 'schema,snapshot' || value.schema !== 'bellteam.configuration-handoff-result.v1')
       throw configurationError('CONFIGURATION_INTENT_INVALID')
-    const { handoffSnapshotSchema } = await import(`${AITERM_DIST}/model-handoff-control.js`)
+    const runtime = await (typeof this.runtimeCapture === 'function' ? this.runtimeCapture() : this.runtimeCapture ??= captureRuntime())
+    const { handoffSnapshotSchema } = await import(pathToFileURL(join(runtime.components['runtime-aiterm-mcp'].dist, 'model-handoff-control.js')).href)
     const snapshot = handoffSnapshotSchema.parse(value.snapshot)
     if (!isDeepStrictEqual(snapshot.operation, binding) || snapshot.state !== 'terminal' || snapshot.later_effect !== 'excluded')
       throw configurationError('CONFIGURATION_INTENT_INVALID')
