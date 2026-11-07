@@ -19,6 +19,7 @@ export class AitermClient {
     const seatProject = Object.hasOwn(options, 'seatProject') ? options.seatProject : null
     if (seatProject !== null) requireSeatProject(seatProject)
     this.seatProject = seatProject
+    this.environmentReady = options.environmentReady ?? null
     this.command = command
     this.args = [...args]
     this.env = env
@@ -83,6 +84,8 @@ export class AitermClient {
   }
 
   async launchOptions(project) {
+    // 席の起動は全てここを通る。そのBotのsetup.shが終わるまで待つ（終了は成功も失敗も）。
+    await this.environmentReady?.(project)
     return this.seatProject !== null ? { launchProject: requireSeatProject(project) }
       : { env: await loadBotEnvironment(project) }
   }

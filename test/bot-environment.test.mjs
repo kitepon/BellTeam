@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import { loadBotEnvironment, removeSeatClaudeCopies, restoreBotEnvironments } from '../src/bot-environment.mjs'
+import { loadBotEnvironment, removeSeatClaudeCopies, restoreBotEnvironments, restoreBotEnvironmentsInBackground } from '../src/bot-environment.mjs'
 import { AitermClient, AitermTransport } from '../src/aiterm-transport.mjs'
 import { runShellCommand } from '../src/scheduler.mjs'
 import { runtimeEnvironment, runtimeEnvironmentKeys, runtimeHome } from '../src/runtime-home.mjs'
@@ -202,4 +202,28 @@ test('Aitermの短命MCP接続は環境値を個別に持ち、ツール引数�
     assert.equal(JSON.stringify(data.args).includes(marker), false)
   }
   assert.equal(client.client, null)
+})
+
+test('席の起動は該当Botのsetup終了まで待ち、失敗後・登録の無いBotは待たない。setupは順に一回ずつ', async t => {
+  const { bots, a, b } = await fixture(t)
+  const order = [], release = new Map()
+  const restore = async map => {
+    const [id] = map.keys()
+    order.push(`start ${id}`)
+    if (id === 'bot-a') throw new Error('setup exploded')
+    await new Promise(resolve => release.set(id, resolve))
+    order.push(`end ${id}`)
+  }
+  const background = restoreBotEnvironmentsInBackground(bots, { restore })
+  const client = new AitermClient({ environmentReady: background.ready })
+  const waiting = client.launchOptions(b).then(() => order.push('launch bot-b'))
+  await new Promise(resolve => setImmediate(resolve))
+  // bot-aは失敗しても席が進み、bot-bのsetupは走っている最中なので待つ。
+  await client.launchOptions(a)
+  assert.deepEqual(order, ['start bot-a', 'start bot-b'])
+  await client.launchOptions(join(a, '..', 'created-later'))
+  release.get('bot-b')()
+  await waiting
+  await background.finished
+  assert.deepEqual(order, ['start bot-a', 'start bot-b', 'end bot-b', 'launch bot-b'])
 })
