@@ -165,3 +165,15 @@ test('an all plan keeps its module and container steps only', async t => {
   const plan = await f.executor.plan({ scope: 'all' }, null)
   assert.deepEqual(plan.targets.map(target => target.componentId), ['web-gateway'])
 })
+
+test('runtime-aiterm-mcp is never offered or planned: it updates only with the body image (Elegg 2026-11-08)', async t => {
+  const f = await runtimeFixture(t)
+  const notice = { state: 'unavailable', code: 'X', message: 'x' }
+  const row = { id: 'runtime-aiterm-mcp', current: { version: 'builtin', sourceCommit: null, digest: null, origin: 'builtin' },
+    published: { version: sha('b'), sourceCommit: 'b'.repeat(40), digest: 'sha256:' + sha('b'), origin: 'published' },
+    comparison: { state: 'update_available', reason: null }, capability: { supported: false, reason: 'UPDATE_EXECUTOR_UNAVAILABLE' }, availability: { available: true, reason: null } }
+  const offered = await f.executor.snapshot({ components: [row], plans: [], operation: null, previousOperation: null, notice })
+  assert.deepEqual(offered.components[0].capability, { supported: false, reason: 'RUNTIME_COHABITATION_UNSUPPORTED' })
+  await assert.rejects(f.executor.plan({ scope: 'component', componentId: 'runtime-aiterm-mcp' }, { components: [row] }), { code: 'RUNTIME_COHABITATION_UNSUPPORTED' })
+  assert.deepEqual(f.calls, [])
+})
