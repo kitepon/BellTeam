@@ -62,6 +62,7 @@ export function createConversationAssetsApi({ events, assets }) {
     if (request.method === 'GET' && imageAssetMatch) {
       if (!assets) return json(response, 404, { error: 'IMAGE_ASSET_NOT_FOUND' })
       const asset = await assets.open(imageAssetMatch[1], imageAssetMatch[2])
+      // Node 26 pipeline throws if the response ended while open was pending.
       if (response.destroyed || response.writableEnded) {
         asset.stream.destroy()
         return response

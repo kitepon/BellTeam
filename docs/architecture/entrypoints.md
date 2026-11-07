@@ -42,7 +42,7 @@ HTTPでは`healthz`だけ先に返し、`session`は認証判定を返す。そ�
 | GET/PATCH `/owner`、GET `/owner/avatar` | `members.createOwnerApi` → OwnerProfile | [個別規範の正本](modules/members/instructions.md)。保存後に指示生成 |
 | GET/PUT `/user-rules` | `members.createOwnerApi` → UserRules | 全文正本の更新と指示生成の失敗を分ける |
 | GET `/events` | `createMessageEvents.connect` | SSEで変更箇所を通知。履歴本文は別GET |
-| GET `/message-images/:owner/:file` | `createConversationAssetsApi` → `MessageAssets.open` | [保存画像streamの寿命](modules/conversation/delivery.md#保存画像getの読取り寿命)。応答切断時にもreaderを閉じる。通常会話のファイルパスを外へ返さない |
+| GET `/message-images/:owner/:file` | `createConversationAssetsApi` → `assets.open`（本体は`createConversationAssetReader`） | [保存画像streamの寿命](modules/conversation/delivery.md#保存画像getの読取り寿命)。応答切断時にもreaderを閉じる。通常会話のファイルパスを外へ返さない |
 | GET/POST `/bots` | `BotRegistry` / 一覧projection / `memory.ensureScope` | 作成時は台帳→personal記憶準備。一覧は稼働・履歴・設定反映を合成 |
 | GET/PATCH `/bots/:bot` | `members.createMemberProfileApi` → Administration/view | [プロフィール正本](modules/members/profiles.md)。設定保存と稼働反映を分ける |
 | DELETE `/bots/:bot` | `members.createMemberDeletionApi` → `BotAdministration.remove`委譲 | [削除契約](modules/members/deletion.md)。既pendingも同じ入口で再開、202は受付 |
