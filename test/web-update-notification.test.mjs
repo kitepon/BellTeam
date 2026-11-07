@@ -91,10 +91,10 @@ test('public Update open reads inventory and preserved unknown IDs, sends no pla
   const held = JSON.stringify({ requestId: previous.requestId, planId: previous.plan.planId })
   const data = new Map([['bellteam-update-request.v1', held]])
   const center = createUpdateCenter({ root, buttons, storage: { getItem: key => data.get(key) ?? null, setItem: (key, val) => data.set(key, val), removeItem: key => data.delete(key) },
-    api: async (path, options) => { calls.push([path, options]); return path === '/api/updates' ? value : { operation: previous } } })
+    api: async (path, options) => { calls.push([path, options]); return path === '/api/updates?runtime=1' ? value : { operation: previous } } })
   await center.open()
   assert.equal(root.open, true)
-  assert.deepEqual(calls.map(([path]) => path), ['/api/updates', `/api/updates/operations/${previous.requestId}`])
+  assert.deepEqual(calls.map(([path]) => path), ['/api/updates?runtime=1', `/api/updates/operations/${previous.requestId}`])
   assert.ok(calls.every(([, options]) => !options?.method))
   assert.match(data.get('bellteam-update-request.v1'), new RegExp(previous.requestId))
   root.close(); await settle()

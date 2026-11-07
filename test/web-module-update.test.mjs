@@ -47,7 +47,7 @@ test('module UI sends the explicit individual plan and one old-shape operation w
   const { value, plan } = example(), accepted = deferred()
   let input
   const f = fixture(t, async (path, options) => {
-    if (path === '/api/updates') return value
+    if (path === '/api/updates?runtime=1') return value
     if (path.endsWith('/plans')) { const body = JSON.parse(options.body); validateUpdateRequest('plan', body); assert.deepEqual(body, { scope: 'component', componentId: 'notifications' }); return { plan } }
     if (path.endsWith('/operations')) { input = JSON.parse(options.body); validateUpdateRequest('operation', input); return accepted.promise }
     return { operation: operation(plan, input.requestId) }
@@ -71,7 +71,7 @@ test('module UI asks backend for rollback even without update capability and use
   value.components[0].capability = { supported: false, reason: 'UPDATE_EXECUTOR_UNAVAILABLE' }
   let result
   const f = fixture(t, async (path, options) => {
-    if (path === '/api/updates') return value
+    if (path === '/api/updates?runtime=1') return value
     if (path.endsWith('/plans')) { assert.deepEqual(JSON.parse(options.body), { scope: 'component', componentId: 'notifications', action: 'rollback' }); return { plan } }
     if (path.endsWith('/operations')) { const body = JSON.parse(options.body); result = operation(plan, body.requestId, 'completed') }
     return { operation: result }
@@ -95,7 +95,7 @@ test('module UI displays all fixed targets in order and asks restart confirmatio
     value.operation = operation({ ...plan, planId: '33333333-3333-4333-8333-333333333333' }, '22222222-2222-4222-8222-222222222222', 'completed')
     let input
     const f = fixture(t, async (path, options) => {
-      if (path === '/api/updates') return value
+      if (path === '/api/updates?runtime=1') return value
       if (path.endsWith('/plans')) { assert.deepEqual(JSON.parse(options.body), { scope: 'all' }); return { plan } }
       if (path.endsWith('/operations')) input = JSON.parse(options.body)
       return { operation: operation(plan, input.requestId) }
@@ -121,7 +121,7 @@ test('module UI keeps an unknown rollback UUID across reload and reads it despit
   const { value, plan } = example('module_rollback'), saved = storage()
   let input, completed = false
   const api = async (path, options) => {
-    if (path === '/api/updates') { if (completed) throw Object.assign(Error(), { status: 503 }); return value }
+    if (path === '/api/updates?runtime=1') { if (completed) throw Object.assign(Error(), { status: 503 }); return value }
     if (path.endsWith('/plans')) return { plan }
     if (path.endsWith('/operations')) { input = JSON.parse(options.body); throw new TypeError('response lost') }
     assert.equal(path, '/api/updates/operations/' + input.requestId)
@@ -185,7 +185,7 @@ test('module UI never executes an expired or incompatible all plan or an operati
   f.center.close()
   const one = example('module_rollback'); let input
   const g = fixture(t, async (path, options) => {
-    if (path === '/api/updates') return one.value
+    if (path === '/api/updates?runtime=1') return one.value
     if (path.endsWith('/plans')) return { plan: one.plan }
     if (path.endsWith('/operations')) input = JSON.parse(options.body)
     return { operation: operation({ ...one.plan, action: 'update' }, input.requestId, 'completed') }
@@ -215,7 +215,7 @@ test('unknown UI retains old identities and results across explicit new executio
     if (sameTab) saved.setItem(key, JSON.stringify({ requestId: oldId, planId: old.plan.planId }))
     let next
     const api = async (path, options) => {
-      if (path === '/api/updates') return value
+      if (path === '/api/updates?runtime=1') return value
       if (path.endsWith('/plans')) return { plan }
       if (path === '/api/updates/operations') {
         const input = JSON.parse(options.body); requests.push(input)
@@ -265,7 +265,7 @@ test('unknown UI does not bypass active, disabled capability, whole-product or c
     if (condition === 'container') { value.components[0].id = 'container'; old.plan.componentId = 'container'; old.plan.targets[0].componentId = 'container' }
     saved.setItem(key, JSON.stringify({ requestId: oldId, planId: old.plan.planId }))
     const before = saved.getItem(key)
-    const f = fixture(t, async path => path === '/api/updates' ? value : { operation: old }, saved)
+    const f = fixture(t, async path => path === '/api/updates?runtime=1' ? value : { operation: old }, saved)
     await f.center.start(); f.select(condition === 'container' ? 'container' : condition === 'all' ? 'all' : 'notifications')
     assert.equal(f.control('execute').disabled, true, condition)
     f.control('execute').handlers.click(); await settle()
@@ -281,7 +281,7 @@ test('unknown UI blocks new plans after failed, mismatched or malformed old-resu
     saved.setItem(key, JSON.stringify({ requestId: oldId, planId: old.plan.planId }))
     const before = saved.getItem(key)
     const f = fixture(t, async path => {
-      if (path === '/api/updates') return value
+      if (path === '/api/updates?runtime=1') return value
       if (response === '503' || response === '404') throw Object.assign(Error('READ_FAILED'), { status: Number(response) })
       const result = structuredClone(old)
       if (response === 'wrong-id') result.requestId = nextPlanId
@@ -304,7 +304,7 @@ test('unknown UI preserves old pending when a new plan is busy or saving the nex
     saved.setItem(key, JSON.stringify({ requestId: oldId, planId: old.plan.planId }))
     const before = saved.getItem(key)
     const f = fixture(t, async path => {
-      if (path === '/api/updates') return value
+      if (path === '/api/updates?runtime=1') return value
       if (path.endsWith('/plans')) {
         if (failure === 'plan-busy') throw Object.assign(Error('MODULE_EXCHANGE_BUSY'), { status: 409 })
         return { plan }
@@ -328,7 +328,7 @@ test('unknown UI keeps retained results when their GET fails and resumes only af
   saved.setItem(key, JSON.stringify({ previous: [old] }))
   let unavailable = true
   const f = fixture(t, async path => {
-    if (path === '/api/updates') return value
+    if (path === '/api/updates?runtime=1') return value
     if (unavailable) throw Object.assign(Error('READ_FAILED'), { status: 503 })
     return { operation: old }
   }, saved)
@@ -345,7 +345,7 @@ test('unknown UI restores old history after a rejected new operation without res
   const { value, plan, old } = unknownExample(), saved = storage()
   saved.setItem(key, JSON.stringify({ requestId: oldId, planId: old.plan.planId }))
   const f = fixture(t, async path => {
-    if (path === '/api/updates') return value
+    if (path === '/api/updates?runtime=1') return value
     if (path.endsWith('/plans')) return { plan }
     if (path === '/api/updates/operations') throw Object.assign(Error('MODULE_EXCHANGE_BUSY'), { status: 409 })
     return { operation: old }
@@ -384,7 +384,7 @@ test('unknown UI preserves multiple prior requests and blocks if an old request 
   saved.setItem(key, JSON.stringify({ requestId: oldId, planId: old.plan.planId, previous: [earlier] }))
   let applyEarlier = false, next
   const f = fixture(t, async (path, options) => {
-    if (path === '/api/updates') return value
+    if (path === '/api/updates?runtime=1') return value
     if (path.endsWith('/plans')) return { plan }
     if (path === '/api/updates/operations') { next = operation(plan, JSON.parse(options.body).requestId, 'completed'); return { operation: next } }
     return { operation: path.endsWith(oldId) ? old : path.endsWith(earlier.requestId) ? applyEarlier ? { ...earlier, phase: 'applying' } : earlier : next }

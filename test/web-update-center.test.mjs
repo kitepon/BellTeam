@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createUpdateCenter, validUpdateInventory } from '../web/update-center.js'
-import { updateExamples, updateComponents, validateUpdates } from '../src/update-center-contract.mjs'
+import { updateExamples, updateComponents, runtimeUpdateComponents, validateUpdates } from '../src/update-center-contract.mjs'
 import { webDOM } from './helpers/web-dom.mjs'
 import { deferred } from './helpers/editor-dom.mjs'
 
@@ -45,7 +45,7 @@ test('restart-limit problems display supplied evidence and explicit resolution w
   await f.center.refresh()
   assert.equal(validUpdateInventory(value), true)
   assert.equal(rows(), undefined)
-  assert.ok(f.calls.every(([path, options]) => path === '/api/updates' && !options?.method))
+  assert.ok(f.calls.every(([path, options]) => path === '/api/updates?runtime=1' && !options?.method))
 })
 test('the display accepts historical examples and validates consumed fields', () => {
   for (const [name, value] of Object.entries(updateExamples)) assert.equal(validUpdateInventory(value), true, name)
@@ -67,7 +67,7 @@ test('inventory is the only data source; all actual components and independent/p
   const f = fixture(t, async () => value)
   assert.equal(f.calls.length, 0)
   await f.center.start()
-  assert.deepEqual(f.calls, [['/api/updates']])
+  assert.deepEqual(f.calls, [['/api/updates?runtime=1']])
   assert.equal(f.get('[data-update-components]').children.length, 10)
   f.select('members')
   assert.match(text(f.get('[data-update-detail]')), /個別更新に対応していません/)
@@ -77,7 +77,7 @@ test('inventory is the only data source; all actual components and independent/p
   assert.match(text(f.get('[data-update-detail]')), /実行機構は未接続/)
   const action = f.get('[data-update-detail]').children.find(node => node.className === 'update-execute')
   assert.equal(action.disabled, true)
-  assert.ok(f.calls.every(([path, options]) => path === '/api/updates' && !options?.method))
+  assert.ok(f.calls.every(([path, options]) => path === '/api/updates?runtime=1' && !options?.method))
 })
 
 const storedJob = (jobId, state = 'queued', moduleId = 'container') => ({
@@ -116,7 +116,7 @@ test('stored update jobs display all six exact records without a parent aggregat
   await f.center.refresh()
   assert.match(text(f.get('[data-update-detail]')), /保存されたジョブの記録はありません.*HISTORICAL_ERROR \/ 以前の操作記録です。/)
   assert.doesNotMatch(text(f.get('[data-update-detail]')), /結果不明|結果確認不能|状態: unknown|更新完了/)
-  assert.ok(f.calls.every(([path, options]) => path === '/api/updates' && !options?.method))
+  assert.ok(f.calls.every(([path, options]) => path === '/api/updates?runtime=1' && !options?.method))
   offline = true
   await f.center.refresh({ type: 'updates', jobs: [records[5]] })
   assert.match(text(f.get('[data-update-product]')), /NETWORK_READ_FAILED.*状態: failed.*READY_PROBE_FAILED/)
@@ -124,7 +124,7 @@ test('stored update jobs display all six exact records without a parent aggregat
   const storage = storeFixture(), historical = structuredClone(value.operation)
   storage.setItem(requestKey, JSON.stringify({ previous: [historical] }))
   const restored = fixture(t, async path => {
-    if (path === '/api/updates') return value
+    if (path === '/api/updates?runtime=1') return value
     throw Error('HISTORICAL_READ_FAILED')
   }, storage)
   await restored.center.start()
@@ -169,12 +169,80 @@ const receipt = (fixedPlan, requestId, phase = 'applying') => ({ requestId, plan
 async function obtainPlan(f) { await f.center.start(); f.select('container'); control(f, 'execute').handlers.click(); await settle() }
 function confirm(f) { const input = control(f, 'restart-confirm'); input.checked = true; input.handlers.change() }
 
+test('runtime rows opt in, retain next-launch policy and use single-target jobs without restart or rollback', async t => {
+  const { value, fixedPlan } = executable(), storage = storeFixture()
+  const base = value.components[0], policy = '次回起動から適用。実行中の席は現在の版を継続'
+  value.components = runtimeUpdateComponents.map(([id, name, description]) => ({ ...structuredClone(base), id, name, description,
+    runtimeApplication: { generationId: id === 'runtime-codex' ? 'a'.repeat(64) : null, policy: 'next_launch' },
+    capability: id === 'runtime-aiterm-mcp' ? { supported: false, reason: 'AITERM_EXCLUSIVE_SCOPE_UNAVAILABLE' } : { supported: true, reason: null } }))
+  fixedPlan.componentId = 'runtime-codex'
+  fixedPlan.targets = [{ ...fixedPlan.targets[0], componentId: fixedPlan.componentId }]
+  fixedPlan.impact = { containerRestart: false, description: policy }
+  value.operation = null; value.previousOperation = null
+  let accepted = null, sent = null
+  const f = fixture(t, async (path, options) => {
+    if (path === '/api/updates?runtime=1') return value
+    if (path === '/api/updates/plans') {
+      assert.deepEqual(JSON.parse(options.body), { scope: 'component', componentId: 'runtime-codex' })
+      return { plan: fixedPlan }
+    }
+    if (path === '/api/updates/operations') {
+      sent = JSON.parse(options.body)
+      accepted = receipt(fixedPlan, sent.requestId)
+      accepted.jobs[0] = { ...storedJob(sent.requestId, 'queued', fixedPlan.componentId), kind: 'runtime' }
+      value.operation = accepted; value.jobs = accepted.jobs
+      return { operation: accepted }
+    }
+    assert.equal(path, '/api/updates/operations/' + sent.requestId)
+    return { operation: accepted }
+  }, storage)
+  await f.center.start()
+  assert.deepEqual(f.calls, [['/api/updates?runtime=1']])
+  assert.equal(validUpdateInventory(value), true)
+  assert.equal(validateUpdates(value).valid, true)
+  for (const row of f.get('[data-update-components]').children.slice(1)) assert.ok(text(row).includes(policy))
+  for (const [id] of runtimeUpdateComponents) {
+    f.select(id)
+    assert.ok(text(f.get('[data-update-detail]')).includes(policy))
+    assert.equal(control(f, 'rollback'), undefined)
+    assert.equal(control(f, 'restart-confirm'), undefined)
+    assert.doesNotMatch(text(f.get('[data-update-detail]')), /戻し|戻す|巻き戻/)
+  }
+  f.select('runtime-aiterm-mcp')
+  assert.match(text(f.get('[data-update-detail]')), /AITERM_EXCLUSIVE_SCOPE_UNAVAILABLE/)
+  assert.equal(control(f, 'execute').disabled, true)
+  f.select('runtime-codex')
+  assert.match(text(f.get('[data-update-detail]')), /現在稼働.*正式公開版/)
+  control(f, 'execute').handlers.click(); await settle()
+  assert.equal(control(f, 'restart-confirm'), undefined)
+  assert.equal(control(f, 'execute').disabled, false)
+  assert.ok(text(f.get('[data-update-product]')).includes(policy))
+  assert.doesNotMatch(text(f.get('[data-update-product]')), /戻し|戻す|巻き戻/)
+  control(f, 'execute').handlers.click(); await settle()
+  assert.equal(sent.confirmContainerRestart, false)
+  assert.equal(sent.planId, fixedPlan.planId)
+  assert.equal(f.calls.filter(([path]) => path === '/api/updates/operations').length, 1)
+  assert.equal(JSON.parse(storage.getItem(requestKey)).requestId, sent.requestId)
+  assert.match(text(f.get('[data-update-product]')), /状態: queued/)
+  assert.match(text(f.get('[data-update-detail]')), /状態: queued/)
+  accepted.jobs[0] = { ...accepted.jobs[0], state: 'ready', updatedAtNs: '1794000000000000000' }
+  value.jobs = accepted.jobs
+  // Runtime records are absent from public SSE; the opted-in GET supplies their actual state.
+  await f.center.refresh({ type: 'updates', jobs: [] })
+  assert.match(text(f.get('[data-update-product]')), /状態: ready/)
+  assert.match(text(f.get('[data-update-detail]')), /状態: ready/)
+  assert.equal(validUpdateInventory(value), true)
+  for (const runtimeApplication of [undefined, { generationId: 'bad', policy: 'next_launch' }, { generationId: null, policy: 'now' }]) {
+    assert.equal(validUpdateInventory({ ...value, components: [{ ...value.components[0], runtimeApplication }] }), false)
+  }
+})
+
 test('stored update jobs keep lookup IDs across read errors, explicit new starts and reload without replay', async t => {
   const { value, fixedPlan } = executable(), storage = storeFixture(), sent = []
   const unreadable = () => Object.assign(Error('EACCES'), { status: 503, code: 'UNREADABLE', path: '/state/jobs/record.json', reason: 'EACCES' })
   let readError = true
   const api = async (path, options) => {
-    if (path === '/api/updates') return value
+    if (path === '/api/updates?runtime=1') return value
     if (path.endsWith('/plans')) return { plan: fixedPlan }
     if (path === '/api/updates/operations') {
       sent.push(JSON.parse(options.body))
@@ -220,7 +288,7 @@ test('container plan needs explicit restart confirmation, freezes target and sub
   const { value, fixedPlan } = executable(), storage = storeFixture(), response = deferred()
   let accepted = null, body = null
   const f = fixture(t, async (path, options) => {
-    if (path === '/api/updates') return value
+    if (path === '/api/updates?runtime=1') return value
     if (path.endsWith('/plans')) { assert.deepEqual(JSON.parse(options.body), { scope: 'component', componentId: 'container' }); return { plan: fixedPlan } }
     if (path.endsWith('/operations')) { body = JSON.parse(options.body); return response.promise }
     return { operation: accepted }
@@ -247,7 +315,7 @@ test('lost POST response survives reload and catalog outage; recovery only reads
   const { value, fixedPlan } = executable(), storage = storeFixture()
   let sent, completed = false
   const api = async (path, options) => {
-    if (path === '/api/updates') { if (completed) throw Object.assign(Error(), { status: 503 }); return value }
+    if (path === '/api/updates?runtime=1') { if (completed) throw Object.assign(Error(), { status: 503 }); return value }
     if (path.endsWith('/plans')) return { plan: fixedPlan }
     if (path === '/api/updates/operations') { sent = JSON.parse(options.body); throw new TypeError('connection lost') }
     if (!completed) throw Object.assign(Error(), { status: 404 })
@@ -271,7 +339,7 @@ test('lost POST response survives reload and catalog outage; recovery only reads
 test('409 rejects the old plan without a retry, and expired plans cannot start', async t => {
   const { value, fixedPlan } = executable(), storage = storeFixture()
   const f = fixture(t, async path => {
-    if (path === '/api/updates') return value
+    if (path === '/api/updates?runtime=1') return value
     if (path.endsWith('/plans')) return { plan: fixedPlan }
     throw Object.assign(Error(), { status: 409 })
   }, storage)
@@ -295,7 +363,7 @@ test('storage failure, wrong request result and invalid saved IDs never permit a
   assert.equal(blocked.calls.filter(([path]) => path === '/api/updates/operations').length, 0)
   const storage = storeFixture()
   storage.setItem(requestKey, JSON.stringify({ planId: fixedPlan.planId, requestId: '22222222-2222-4222-8222-222222222222' }))
-  const wrong = fixture(t, async path => path === '/api/updates' ? value : { operation: receipt(fixedPlan, '33333333-3333-4333-8333-333333333333', 'completed') }, storage)
+  const wrong = fixture(t, async path => path === '/api/updates?runtime=1' ? value : { operation: receipt(fixedPlan, '33333333-3333-4333-8333-333333333333', 'completed') }, storage)
   await wrong.center.start()
   assert.doesNotMatch(text(wrong.get('[data-update-detail]')), /更新完了/)
   assert.ok(storage.getItem(requestKey))
@@ -339,7 +407,7 @@ test('HTTP browsers without randomUUID still use platform randomness for canonic
   const { value, fixedPlan } = executable()
   let body
   const f = fixture(t, async (path, options) => {
-    if (path === '/api/updates') return value
+    if (path === '/api/updates?runtime=1') return value
     if (path.endsWith('/plans')) return { plan: fixedPlan }
     if (path === '/api/updates/operations') body = JSON.parse(options.body)
     return { operation: receipt(fixedPlan, body.requestId) }
@@ -395,7 +463,7 @@ test('update SSE bypasses a blocked ordinary view and refreshes current jobs ind
   const calls = [], ordered = [], errors = []
   const f = fixture(t, async path => {
     calls.push(path)
-    if (path === '/api/updates') {
+    if (path === '/api/updates?runtime=1') {
       inventoryReads++; inventoryActive++; maxInventoryActive = Math.max(maxInventoryActive, inventoryActive)
       try { return structuredClone(blockInventory ? await slowInventory.promise : value) }
       finally { inventoryActive-- }
@@ -452,7 +520,7 @@ test('update SSE bypasses a blocked ordinary view and refreshes current jobs ind
   await settle()
   assert.match(rows(), /ほかの更新を実行中/)
   assert.doesNotMatch(rows(), /更新に必要な条件を確認できない/)
-  assert.ok(calls.every(path => path === '/api/updates' || path.startsWith('/api/updates/operations/')))
+  assert.ok(calls.every(path => path === '/api/updates?runtime=1' || path.startsWith('/api/updates/operations/')))
   ordinary.resolve(); historical.resolve({ operation: receipt(fixedPlan, oldId, 'completed') })
   await started; await refreshing; await settle()
   assert.deepEqual(ordered, ['begin', 'end', 'begin', 'end'], 'ordinary notifications retain their order')
@@ -467,6 +535,6 @@ test('refresh button asks for the catalog check first and still reads when the c
   })
   await f.center.start(); f.calls.length = 0
   f.get('[data-update-refresh]').handlers.click(); await settle(); await settle()
-  assert.deepEqual(f.calls.map(([path, options]) => [path, options?.method]), [['/api/updates/catalog-check', 'POST'], ['/api/updates', undefined]])
+  assert.deepEqual(f.calls.map(([path, options]) => [path, options?.method]), [['/api/updates/catalog-check', 'POST'], ['/api/updates?runtime=1', undefined]])
   assert.equal(f.get('[data-update-components]').children.length, 2)
 })
