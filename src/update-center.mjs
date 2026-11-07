@@ -43,7 +43,7 @@ export function createUpdateCenter({ gateway = () => null, builtinSourceCommit =
       await moduleExecutor?.close()
     },
     reserveExchange: moduleExecutor?.reserveExchange,
-    notify: () => events.emit('change'),
+    notify: change => events.emit('change', change),
     watch(listener) { events.on('change', listener); return () => events.off('change', listener) },
     jobs: () => jobReader ? jobReader.jobs() : Promise.resolve({ jobs: [] }),
     job(kind, jobId) { if (!jobReader) throw unavailable(); return jobReader.job(kind, jobId) },

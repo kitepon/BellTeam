@@ -11,6 +11,7 @@ import { once } from 'node:events'
 import { createModuleUpdateExecutor } from '../src/update-module-executor.mjs'
 import { createModuleUpdateAdapters } from '../src/update-module-adapters.mjs'
 import { createUpdateCenter } from '../src/update-center.mjs'
+import { createMessageEvents } from '../src/http-events.mjs'
 import { createModuleUpdateCatalog } from '../src/update-module-catalog.mjs'
 import { validateUpdateRequest, validateUpdateResponse, updateActionExamples, updateModuleExamples, validateUpdates } from '../src/update-center-contract.mjs'
 import { MEMBERS_STATE_COMPATIBILITY } from '../src/members/state-compatibility.mjs'
@@ -26,7 +27,7 @@ function selection(id) {
       compatibility: { nodeMajor: 26, parentProtocol: id === 'notifications' ? 2 : 1, stateSchema: id === 'members' ? null : id === 'notifications' ? 2 : 1,
         containerUpdate: null, ...(id === 'members' ? { stateCompatibility: MEMBERS_STATE_COMPATIBILITY } : {}) } } }
 }
-async function fixture(t, { ids = ['notifications'], apply = null, prepare = null, host = null } = {}) {
+async function fixture(t, { ids = ['notifications'], apply = null, prepare = null, host = null, notify } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-module-ledger-')); t.after(() => rm(root, { recursive: true, force: true }))
   const calls = [], current = Object.fromEntries(ids.map(id => [id, structuredClone(builtin)]))
   const catalog = createModuleUpdateCatalog({ client: { catalog: async id => selection(id) } })
@@ -42,7 +43,7 @@ async function fixture(t, { ids = ['notifications'], apply = null, prepare = nul
     host.admitJob = async ({ jobId, idempotencyKey }) => moduleHost.admitJob({ jobId, idempotencyKey, kind: 'container',
       target: { catalogSha256: 'd'.repeat(64), moduleId: 'container', versionId: (await host.plan()).targets[0].published.version } })
   }
-  const executor = await createModuleUpdateExecutor({ root, catalog, adapters, host, moduleHost })
+  const executor = await createModuleUpdateExecutor({ root, catalog, adapters, host, moduleHost, notify })
   const request = plan => ({ planId: plan.planId, requestId: randomUUID(), confirmContainerRestart: false })
   const plan = input => executor.plan(input ?? { scope: 'component', componentId: ids[0] })
   const done = async id => { await executor.close(); return executor.operation(id) }
@@ -372,4 +373,52 @@ test('Owner plan/start/get and individual rollback exchange all three real contr
   assert.equal(await fs.readFile(join(root, 'owner/user-rules.md'), 'utf8'), 'retained rules')
   assert.deepEqual(await fs.readFile(join(root, 'state/push-devices.json')), devices)
   assert.equal(children.filter(child => child.exitCode === null && child.signalCode === null).length, 3)
+})
+
+
+test('actual module completion invalidates an unchanged ready job after busy is released', { timeout: 5000 }, async t => {
+  let center, jobId, releaseApply, releaseReady, sawReady, sawIdle
+  const applyWait = new Promise(resolve => { releaseApply = resolve })
+  const readyWait = new Promise(resolve => { releaseReady = resolve })
+  const readyEvent = new Promise(resolve => { sawReady = resolve })
+  const idleEvent = new Promise(resolve => { sawIdle = resolve })
+  const f = await fixture(t, { apply: () => applyWait, notify: change => center?.notify(change) })
+  center = createUpdateCenter({ moduleCatalog: f.catalog, moduleExecutor: f.executor,
+    jobReader: { jobs: async () => ({ jobs: jobId ? [await f.moduleHost.job(jobId)] : [] }) },
+    notifications: { controller: { snapshot: () => ({ builtinSourceCommit: source, available: true,
+      currentVersionId: f.current.notifications.origin === 'release' ? digest : null, status: { configured: true } }) } } })
+  const updateJob = f.moduleHost.updateJob
+  f.moduleHost.updateJob = async input => {
+    const job = await updateJob(input)
+    if (input.state === 'ready') { center.notify(); await readyWait }
+    return job
+  }
+  const payloads = [], handlers = {}
+  const events = createMessageEvents({ store: { async watch() { return () => {} } }, updateCenter: center, eventKeepalive: 60000 })
+  events.connect({ on(name, handler) { handlers[name] = handler } }, { writeHead() {}, writableEnded: false, write(chunk) {
+    if (!chunk.startsWith('event: messages')) return
+    const value = JSON.parse(chunk.slice(chunk.indexOf('data: ') + 6)); payloads.push(value)
+    if (value.jobs?.[0]?.state === 'ready') {
+      if (payloads.filter(item => item.jobs?.[0]?.state === 'ready').length === 1) sawReady()
+      else sawIdle()
+    }
+  } })
+  t.after(async () => { releaseApply(); releaseReady(); await f.executor.close(); events.stopWatching(); handlers.close() })
+  await events.startMessageWatch()
+  const plan = await f.plan(), accepted = await f.executor.start(f.request(plan))
+  jobId = accepted.jobs[0].jobId; releaseApply()
+  await readyEvent
+  const busy = await center.snapshot()
+  assert.equal(busy.components.find(item => item.id === 'notifications').capability.reason, 'MODULE_EXCHANGE_BUSY')
+  releaseReady(); await idleEvent
+  const idle = await center.snapshot()
+  assert.equal(idle.operation.phase, 'completed')
+  assert.equal(idle.components.find(item => item.id === 'notifications').capability.reason, 'UPDATE_ALREADY_CURRENT')
+  assert.equal(idle.notice.state, 'ready')
+  const ready = payloads.filter(item => item.jobs?.[0]?.state === 'ready')
+  assert.equal(ready.length, 2); assert.deepEqual(ready[0].jobs, ready[1].jobs)
+  for (const value of ready) {
+    assert.deepEqual([value.topics, value.all], [['updates'], false])
+    assert.equal('operationCompleted' in value, false)
+  }
 })

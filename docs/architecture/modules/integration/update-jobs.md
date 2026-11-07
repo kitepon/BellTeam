@@ -55,7 +55,7 @@ flowchart LR
 | Common start | Validated plan, requestId, optional caller key | Existing parent binding saved -> runtime admitJob for each step -> saved receipts ->202 |
 | Common read | Operation bindings or bounded recent lookup | Runtime body-client job/jobs -> closed schema -> unchanged record |
 | Activation | Admitted module job + existing adapter | Persist swapping -> replace/probe completion -> ready or failed |
-| SSE | Existing update notification | Stored recent jobs or explicit reader error; coalesce concurrent reads, retain a final pending invalidation, drop a body identical to the last published one, scope = topic updates only (all:false) |
+| SSE | Existing update notification | Stored recent jobs or explicit reader error; coalesce concurrent reads and retain a final pending invalidation. After active module work clears and releases its exchange reservation, an internal operationCompleted notification invalidates once even when jobs/error are unchanged, so clients re-read idle capability/notice. Ordinary identical bodies remain suppressed; scope = topic updates only (all:false) |
 | Terminal report reconciliation | Saved ready/failed report intent in existing parent ledger | Retry only idempotent updateJob ACK; never replay controller/business work |
 | Restart visibility | Runtime active/clear DTO | Existing reporter -> Signal writer -> closed problems projection -> existing update screen |
 
@@ -74,6 +74,8 @@ flowchart LR
   Reader --> Projection[Closed unchanged record projection]
   Projection --> HTTP
   Projection --> SSE[Existing update messages SSE]
+  Executor -->|active work settles; active cleared and reservation released| Completion[Internal operationCompleted notification]
+  Completion -->|application-services forwards to updateCenter.watch; preserve through pending read| SSE
 ```
 
 ```mermaid
@@ -95,3 +97,11 @@ flowchart LR
 ```
 
 `GET /api/updates` also includes `problems[]` from Signal's `moduleRestartLimitProblems(await diagnostics.list('all',1000))`. Each row has exactly fingerprint/status/kind/moduleId/count/windowSeconds/lastExit{code,signal}/lastReason. Status is open or resolved; resolved retains the last active evidence. The reporter's acknowledged write invalidates existing update SSE so Web refetches the inventory. Usage/conversation candidate probes capture the documented trusted actor and matching current generation lease, call the candidate channel directly, track actual completion, and release authority only at that completion. The separate BugHub-key /api/admin/logs server and raw diagnostic_log/investigation are not exposed to Web. No new diagnostics writer, timer, restart policy, privilege policy, rollback, replay or production operation is added.
+
+## Completion invalidation contact
+
+`createModuleUpdateExecutor.start` owns the actual active Promise; its existing finally clears active and releases the exchange reservation before notifying `{operationCompleted:true}`. `application-services` and `updateCenter.notify/watch` forward this internal hint unchanged. The updates-only branch of `createMessageEvents` consumes it without adding a public SSE field: bypass identical jobs/error suppression for the completed invalidation, including when a jobs read is already in flight. Ordinary notify/read traffic remains deduplicated and never performs an inventory read in the event publisher. Web and Apple keep the existing updates event -> GET inventory flow. Failure completion invalidates too, without implying successful update or changing persisted job/operation semantics.
+
+No new guard, lock, timeout, retry, queue, or public field is introduced. The existing one-read/pending coalescing is retained; the extra boolean retains completion until the next existing read. Source membership stays integration/application-services, update-center and update-module-executor; conversation/module.json continues to list http-events, whose common updates bridge alone changes. HTTP SSE and common executor run in the body, so a signed conversation/Web asset alone does not activate this repair.
+
+N102 confirmed this existing updates-only contact scope; conversation retains the file ownership. The four changed body files are absent from the members/conversation/execution `*_FILES` archive inventories in `scripts/web_gateway_artifact.py`; those already-dispatched signed assets are unaffected by this source change. `http-server` imports `http-events` in the body. Keep the fixed signer source rather than republishing those assets for this repair.
