@@ -6,7 +6,8 @@
 
 ```mermaid
 flowchart TD
-  SSE["SSE type=updates / ready"] --> Refresh["UpdateStore.refresh<br/>GET /api/updates と保存した要求IDのGET"]
+  SSE["SSE type=updates / ready"] --> Side["AppStore.requestSideRefresh<br/>受信と別の1本にまとめる"]
+  Side --> Refresh["UpdateStore.refresh<br/>GET /api/updates と保存した要求IDのGET"]
   Push["push kind=update<br/>BellUpdateRoute 3key完全一致"] -->|"タップ・接続先一致"| Open["AppStore.updatePresented=true<br/>refresh（POSTは送らない）"]
   Scene["画面表示・前面化・再接続"] --> Refresh
   Refresh --> Badge["UpdateBadge<br/>ロゴの右。update_availableだけ"]
@@ -65,7 +66,7 @@ flowchart TD
 
 ## SSEとpush
 
-- SSE：`type=updates`（topics `["updates"]`、`all: true`）は`AppStore.startEvents`の`updates`分岐で`updates.refresh()`だけを呼ぶ（共通一覧は再取得しない）。`ready`（接続・再接続・前面化後の再接続）でも取り直す。`BellEventTopic.updates`は`messages`のtopicとして届いた場合の対応。
+- SSE：現在の本体は`type=updates`（topics `["updates"]`、`all:false`）をジョブまたは読取エラーが変わった時だけ送る。`AppStore.startEvents`は`requestSideRefresh([.updates])`へ積み、受信ループでGETを待たない（共通一覧は再取得しない）。旧本体の`all:true`も更新画面だけ取り直す。`ready`（接続・再接続・前面化後の再接続）でも同じ作業へ積む。`BellEventTopic.updates`は`messages`のtopicとして届いた場合の対応。
 - push：`userInfo["bellteam"]`が`server`・`kind == "update"`・`messageId`（64桁小文字hex）の3keyだけの時に`BellUpdateRoute`として受ける。余分なkey・型違い・kind違いは捨てる。`aps`は読まない。既存3種（reply/secret_request/owner_question）の解析は変えない。
 - タップ：`AppStore.openPendingUpdateNotification`。ready前は保留し、ready後にserverが認証済みの接続先と一致する時だけ画面を開いてGETで確認する。不一致では開かずに1件だけ保留し（`pendingUpdateNotification`、端末の再起動は跨がない）、利用者が明示的にその接続先へ切り替えて認証しreadyになった後で開いてGETする。受信やタップで自動の切替・認証・実行はしない（ミカの契約 `docs/architecture/modules/usage/update-push.md`、git 320f69d2）。タップでPOSTは送らない。前面で届いた一致する通知はbanner/list/soundで表示する。
 
