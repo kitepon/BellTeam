@@ -28,7 +28,7 @@ async function fixture(t, options = {}) {
   const services = { bots, aiControl }
   const conversation = createConversationAssembly({ root, membersAdmission, exchangeMutex, getServices: () => services,
     createProcess: () => ({ start: async () => {}, close: async () => {}, request() { assert.fail('direct receive entered child') } }) })
-  const transport = new AitermTransport({ membersAdmission, conversationAdmission: conversation.admission,
+  const transport = options.createTransport?.({ membersAdmission }) ?? new AitermTransport({ membersAdmission, conversationAdmission: conversation.admission,
     requireMember: async () => {}, assertWorkAllowed: () => aiControl.assertEnabled(), handoffContext: async () => '',
     waitProcess: async () => ({ outcome: 'done', turn_id: 'fresh-turn' }), client: { async call(name, args) {
       if (name === 'pty_send') { sends.push(args); if (options.nativeError) throw options.nativeError; if (options.nativeUnknown) throw Object.assign(Error('uncertain'), { code: 'BOT_SEND_OUTCOME_UNKNOWN' }); return { structuredContent: { mode: 'agent_dispatch', event_cursor: 1, wait_process: { executable: 'fixture', args: [] } } } }
@@ -220,4 +220,26 @@ test('direct first failure reaches registered diagnostics with bound safe fields
   assert.ok(!JSON.stringify(rows).includes(secret))
   assert.equal(JSON.parse(directFailureReport(error).diagnostic_log).effect, null)
   f.direct.requestDrain(); await tick(); await tick(); assert.equal(f.sends.length, 1)
+})
+
+test('a target whose acceptance is pending does not delay a later saved input for another target', async t => {
+  const holds = new Map(), notified = []
+  const f = await fixture(t, { createTransport: ({ membersAdmission }) => ({ membersAdmission, async close() {},
+    async notify(bot, _envelope, options) {
+      notified.push(bot.id)
+      if (bot.id === 'bot-quincy') await new Promise(resolve => holds.set(bot.id, resolve))
+      await options.onStatus('running'); return { delivery: 'running' }
+    } }) })
+  f.direct.start(); f.aiControl.enable()
+  const receive = (from, target, message) => f.conversation.run({ kind: 'bot', botId: from }, () => f.direct.messenger.sendmessage({ from, target, message }))
+  const status = async id => (await f.direct.receipts.store.durableReceipts()).find(row => row.delivery_id === id)?.delivery
+  const held = await receive('bot-peer', 'bot-quincy', 'held input')
+  await settled(async () => notified.includes('bot-quincy'))
+  const independent = await receive('bot-quincy', 'bot-peer', 'independent input')
+  await settled(async () => await status(independent.delivery_id) === 'running')
+  assert.deepEqual(notified, ['bot-quincy', 'bot-peer']); assert.equal(await status(held.delivery_id), 'dispatching')
+  holds.get('bot-quincy')()
+  await settled(async () => await status(held.delivery_id) === 'running')
+  assert.equal(f.errors.length, 0)
+  await f.direct.close()
 })

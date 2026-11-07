@@ -131,3 +131,48 @@ test('actual dispatcher sends direct append through the parent writer and emits 
   assert.equal(methods.filter(method => method === 'direct.log.append').length, 1)
   assert.equal(events.length, 1); assert.equal(f.notices.length, 0)
 })
+
+const until = async predicate => { for (let n = 0; n < 2000 && !await predicate(); n++) await new Promise(resolve => setTimeout(resolve, 1)); assert.ok(await predicate(), 'did not settle') }
+
+test('one target\'s pending acceptance never delays another target; same-target order holds and a late record joins its lane', async t => {
+  const hold = Promise.withResolvers(), order = []
+  const f = await fixture(t, { dispatch: async ({ record, callbacks }) => {
+    order.push(record.message)
+    if (record.target === 'bot-b') await hold.promise
+    await callbacks.onStatus('running')
+    return { delivery: 'running' }
+  } })
+  f.bots.set('bot-c', { id: 'bot-c', name: 'C' }); f.bots.set('bot-d', { id: 'bot-d', name: 'D' })
+  await f.service.receive({ from: 'bot-a', target: 'bot-b', message: 'b1' })
+  await f.service.receive({ from: 'bot-a', target: 'bot-c', message: 'c1' })
+  const first = f.service.drain()
+  await until(() => order.includes('c1'))
+  assert.deepEqual(order, ['b1', 'c1'])
+  await f.service.receive({ from: 'bot-a', target: 'bot-b', message: 'b2' })
+  await f.service.receive({ from: 'bot-a', target: 'bot-d', message: 'd1' })
+  const second = f.service.drain()
+  await until(() => order.includes('d1'))
+  assert.deepEqual(order, ['b1', 'c1', 'd1'])
+  hold.resolve()
+  await Promise.all([first, second])
+  assert.deepEqual(order, ['b1', 'c1', 'd1', 'b2'])
+  assert.deepEqual(await f.service.pending(), [])
+  assert.equal(f.service.lanes.size, 0)
+})
+
+test('a saved failed status stays failed only with a typed not-started frame; an unproven failure stays unknown', async t => {
+  let frame = { schema: 'aiterm.execution-error.v1', code: 'EXECUTION_STATE_UNAVAILABLE', effect: 'not_started', follow_up: 'none' }
+  const f = await fixture(t, { dispatch: async ({ callbacks }) => {
+    await callbacks.onStatus('failed', { code: 'BOT_SEND_FAILED', delivery_error: { code: 'BOT_SEND_FAILED' } })
+    throw Object.assign(Error('acceptance rejected'), { code: 'BOT_SEND_FAILED', effect: 'unknown', ...(frame ? { executionError: frame } : {}) })
+  } })
+  const status = async id => (await f.service.store.records()).find(row => row.delivery_id === id).delivery
+  const unsent = await f.service.receive(f.input)
+  assert.deepEqual(await f.service.dispatchSaved(unsent.delivery_id), { delivery_id: unsent.delivery_id, delivery: 'failed', dispatched: false })
+  assert.equal(await status(unsent.delivery_id), 'failed')
+  frame = null
+  const uncertain = await f.service.receive(f.input)
+  assert.equal((await f.service.dispatchSaved(uncertain.delivery_id)).delivery, 'unknown')
+  assert.equal(await status(uncertain.delivery_id), 'unknown')
+  assert.deepEqual(await f.service.pending(), [])
+})
