@@ -24,7 +24,7 @@ Four fixed component IDs. Nothing else is a runtime target; no npm specifier, UR
 | P1 | Upstream latest stable → complete npm prefix closure per target, manifest, signed archive | Centi + supply owners (publish-runtime workflow) |
 | P2 | Existing catalog verifier → authenticated runtime release rows (componentId in the four IDs) | distribution (catalog schema), runtime (acceptance) |
 | P3 | Authenticated UI plan/start → admitted `kind:"runtime"` job, HTTP202 | Molly (common API + updater job) |
-| P4 | Target release → verified archive → staged closure under `packages/<id>/<archiveSha>` + receipt | Molly (`scripts/runtime-update.py`, run by module-installer) |
+| P4 | Target release → verified archive → staged closure under `packages/<id>/<archiveSha>` + receipt | Molly (`scripts/runtime_update.py`, run by module-installer) |
 | P5 | Staged closure + expected generation → new generation file + atomic `current.json` | Molly (same script; sole selection writer) |
 | P6 | Launch intent → captured generation and absolute paths | Molly (`src/runtime-selection.mjs`); callers Kiro (execution launch) / Elegg (Aiterm) |
 | P7 | Captured paths → real CLI / MCP / hooks | Kiro, Elegg, Throughline owner (consumers) |
@@ -103,7 +103,7 @@ A new update is a new job. A previous generation is never re-selected by a plan;
 
 | Slice | Content | Owner |
 | --- | --- | --- |
-| A | This diagram; D2/D3 store, P4 staging/verification and P5 commit (`scripts/runtime-update.py`); P6 resolver (`src/runtime-selection.mjs`); tests | Molly |
+| A | This diagram; D2/D3 store, P4 staging/verification and P5 commit (`scripts/runtime_update.py`); P6 resolver (`src/runtime-selection.mjs`); tests | Molly |
 | B | `kind:"runtime"` job in the updater dispatch (plan/start/recovery), catalog component set, `runtime-code` volume in compose (installer rw, body ro) | Molly; catalog schema contact distribution |
 | C | Consumers call P6 instead of `AITERM_DIST`/`CODEX_BINARY`/PATH; launch references D5 | Kiro (execution), Elegg (Aiterm), Throughline owner |
 | D | Inventory rows + `runtimeApplication`; UI wording "次回起動から適用。実行中の席は現在の版を継続" | Molly projection; Admi / app owners display |
