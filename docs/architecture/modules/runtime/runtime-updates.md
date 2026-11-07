@@ -71,6 +71,18 @@ Root: `RUNTIME_ROOT` = `/srv/bellteam/shared/tools/bellteam-runtime` inside the 
 | F6 | D3 + D4 + D5 → P8 → UI: current/published per runtime row + `runtimeApplication:{generationId,policy:"next_launch",retainedGenerations:[{generationId,referenceCount}]}` |
 | F7 | D5 → P8 cleanup: remove only unselected, unreferenced closures; never D6 |
 
+## Stable launcher for registrations (P6, Molly)
+
+`/usr/local/bin/node /app/scripts/runtime-exec.mjs` serves global hook/MCP registrations that outlive one launch's capture.
+
+| Form | Behaviour |
+| --- | --- |
+| `<componentId> <binName> [args…]` | Resolve the generation from `BELLTEAM_RUNTIME_GENERATION` (sha → that generation, `''` → builtin, unset → current), spawn that bin with the original args/env/stdio (release generation: its absolute path; builtin: the bin name through the unchanged PATH, so today's precedence such as a Bot's `.local/bin` is kept), set `BELLTEAM_RUNTIME_GENERATION` for its descendants, forward SIGINT/SIGTERM/SIGHUP, propagate exit code/signal. |
+| `--resolve <componentId> <binName\|dist>` | Print only the absolute path and a newline (Elegg's native helper entries resolve the captured dist, then exec the real helper themselves). |
+| Failure | Exit 1 with one line on stderr: `RUNTIME_COMPONENT_INVALID`, `RUNTIME_ENTRY_INVALID` (unknown bin, `dist` in exec mode, extra args to `--resolve`), `RUNTIME_BINDING_UNAVAILABLE` (never a fall-back to other code), `RUNTIME_EXEC_FAILED`. |
+
+Only the four component IDs and their closed bin/dist names are accepted. No caller path is ever resolved.
+
 ## Job state (no rollback)
 
 ```mermaid
