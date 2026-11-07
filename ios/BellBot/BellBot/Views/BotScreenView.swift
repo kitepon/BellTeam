@@ -44,6 +44,27 @@ final class BotTerminalTextView: UITextView {
     }
 }
 
+/// 画面を開いた時の全履歴と、その後に毎秒取る画面末尾をつなぐ。
+/// shortcut: 最初の全履歴と最初の末尾の間に端末が流れると、つなぎ目で数行が重なるか抜ける。画面を開き直すと全履歴から取り直す。
+struct ScreenScrollback {
+    private var history: [Substring] = []
+    private var prefix: String?
+
+    mutating func start(_ full: String) {
+        history = full.split(separator: "\n", omittingEmptySubsequences: false)
+        prefix = nil
+    }
+
+    mutating func merge(tail: String) -> String {
+        if prefix == nil {
+            let tailLines = tail.split(separator: "\n", omittingEmptySubsequences: false).count
+            prefix = history.dropLast(min(tailLines, history.count)).joined(separator: "\n")
+        }
+        guard let prefix, !prefix.isEmpty else { return tail }
+        return prefix + "\n" + tail
+    }
+}
+
 struct BotScreenView: View {
     let bot: Bot
     var embedded = false
@@ -105,13 +126,19 @@ struct BotScreenView: View {
 
     private func refreshScreen(botID: String) async {
         let path = "/api/bots/\(botID)/screen"
+        // 全履歴（最大1万行）は開いた最初の1回だけ取り、以後は画面末尾だけを毎秒取ってつなぐ。
+        var scrollback = ScreenScrollback()
+        var loadedHistory = false
         while !Task.isCancelled {
             let started = ContinuousClock.now
             do {
-                let result: ScreenResponse = try await store.api.get(path + "?history=1")
+                let result: ScreenResponse = try await store.api.get(loadedHistory ? path : path + "?history=1")
                 try Task.checkCancellation()
+                let next: String
+                if loadedHistory { next = scrollback.merge(tail: result.screen) }
+                else { scrollback.start(result.screen); next = result.screen; loadedHistory = true }
                 if online != result.online { online = result.online }
-                if screen != result.screen { screen = result.screen }
+                if screen != next { screen = next }
                 if errorText != nil { errorText = nil }
             } catch is CancellationError { return }
             catch let error as URLError where error.code == .cancelled { return }

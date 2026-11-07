@@ -48,8 +48,8 @@ final class ProfileTerminalUITests: XCTestCase {
                        "同じ画面snapshotを毎秒重複して蓄積しない")
         let reads = try await screenReads(url)
         XCTAssertFalse(reads.isEmpty)
-        XCTAssertTrue(reads.allSatisfy { $0["history"] as? String == "1" },
-                      "表示中の画面だけ実履歴の取得を要求する")
+        XCTAssertEqual(reads.first?["history"] as? String, "1", "開いた最初の1回だけ全履歴を取る")
+        XCTAssertTrue(reads.dropFirst().allSatisfy { $0["history"] == nil }, "以後は画面末尾だけを取る")
         XCTAssertTrue(app.buttons["close-bot-screen"].exists)
         app.buttons["close-bot-screen"].tap()
         try await Task.sleep(for: .seconds(1.2))
@@ -78,7 +78,7 @@ final class ProfileTerminalUITests: XCTestCase {
         try await Task.sleep(for: .seconds(1.5))
         let reads = try await screenReads(url)
         XCTAssertFalse(reads.isEmpty)
-        XCTAssertTrue(reads.allSatisfy { $0["history"] as? String == "1" })
+        XCTAssertEqual(reads.first?["history"] as? String, "1")
         let capture = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         capture.name = "1万行のBOT画面"
         capture.lifetime = .keepAlways
