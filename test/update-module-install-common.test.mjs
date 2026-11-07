@@ -78,6 +78,11 @@ test('install step persists its separate UUID before issuance and only verified 
 test('install capability and fixed Host target are required before public plan admission', async t => {
   const f = await fixture(t)
   f.moduleHost.moduleInstallCapabilities = async () => ({ supported: false })
+  await assert.rejects(f.plan(), { code: 'HOST_MODULE_INSTALL_UNAVAILABLE', status: 503 })
+  assert.equal(f.calls.plans, 0)
+  f.moduleHost.moduleInstallCapabilities = async () => ({ supported: false, reason: 'HOST_MODULE_SOURCE_CHANGED' })
+  await assert.rejects(f.plan(), { code: 'HOST_MODULE_SOURCE_CHANGED', status: 503 })
+  f.moduleHost.moduleInstallCapabilities = async () => ({ supported: false, reason: 'not a code' })
   await assert.rejects(f.plan(), { code: 'HOST_MODULE_INSTALL_UNAVAILABLE' })
   assert.equal(f.calls.plans, 0)
   f.moduleHost.moduleInstallCapabilities = async () => ({ supported: true })
@@ -179,4 +184,26 @@ test('explicit Host not-accepted remains failed and does not leave an unknown in
   assert.equal(f.calls.applies, 0)
   await f.plan()
   assert.equal(f.calls.starts.length, 1)
+})
+
+test('inventory projects the Host module-install refusal reason instead of advertising a plan it will refuse', async t => {
+  const f = await fixture(t)
+  const inventory = () => ({ notice: { state: 'unavailable', code: 'UPDATE_PROVIDERS_UNAVAILABLE', message: '' }, components: [{ id: 'notifications',
+    current: { version: 'a'.repeat(40), sourceCommit: 'a'.repeat(40), digest: null, origin: 'builtin' },
+    published: { version: 'c'.repeat(64), sourceCommit: 'b'.repeat(40), digest: 'sha256:' + 'c'.repeat(64), origin: 'published' },
+    publication: { check: { status: 'verified' } }, comparison: { state: 'update_available', reason: null },
+    capability: { supported: false, reason: 'UPDATE_EXECUTOR_UNAVAILABLE' } }] })
+  f.moduleHost.moduleInstallCapabilities = async () => ({ supported: false, reason: 'HOST_MODULE_SOURCE_CHANGED' })
+  const refused = await f.executor.snapshot(inventory())
+  assert.deepEqual(refused.components[0].capability, { supported: false, reason: 'HOST_MODULE_SOURCE_CHANGED' })
+  assert.notEqual(refused.notice.state, 'ready')
+  await assert.rejects(f.plan(), { code: 'HOST_MODULE_SOURCE_CHANGED' })
+  f.moduleHost.moduleInstallCapabilities = async () => ({ supported: true, reason: null })
+  const offered = await f.executor.snapshot(inventory())
+  assert.deepEqual(offered.components[0].capability, { supported: true, reason: null })
+  assert.equal(offered.notice.state, 'ready')
+  f.setInstalled(true)
+  f.moduleHost.moduleInstallCapabilities = async () => { assert.fail('a current module never consults the Host installer') }
+  const current = await f.executor.snapshot({ ...inventory(), components: [{ ...inventory().components[0], comparison: { state: 'up_to_date', reason: null } }] })
+  assert.deepEqual(current.components[0].capability, { supported: false, reason: 'UPDATE_ALREADY_CURRENT' })
 })

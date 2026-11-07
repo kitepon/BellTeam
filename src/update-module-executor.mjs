@@ -12,6 +12,7 @@ import { createInstallInspection, validateSavedInstallInspection, installReconci
 const failure = (code, status = 503) => Object.assign(new Error(code), { code, status })
 const requireValue = (ok, code, status) => { if (!ok) throw failure(code, status) }
 const safeCode = error => /^[A-Z][A-Z0-9_]{0,99}$/.test(error?.code ?? '') ? error.code : 'UPDATE_MODULE_FAILED'
+const installReason = capability => /^[A-Z][A-Z0-9_]{0,99}$/.test(capability?.reason ?? '') ? capability.reason : 'HOST_MODULE_INSTALL_UNAVAILABLE'
 const copy = value => structuredClone(value)
 const terminal = value => ['completed', 'failed', 'unknown'].includes(value.phase)
 const publicOperation = entry => copy(entry.operation)
@@ -181,7 +182,7 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
       if (error.code !== 'ENOENT' || !moduleHost || !step.release || step.target.origin === 'builtin') throw error
       if (planning) {
         const capability = await moduleHost.moduleInstallCapabilities()
-        requireValue(capability?.supported === true, 'HOST_MODULE_INSTALL_UNAVAILABLE')
+        requireValue(capability?.supported === true, installReason(capability))
         const planId = randomUUID()
         const value = await moduleHost.planModuleInstall({ planId, catalogSha256: step.catalogSha256,
           componentId: step.componentId, versionId: step.release.versionId })
@@ -499,6 +500,13 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
           if (adapters[component.id] && component.published && (current || component.comparison.state === 'update_available' || component.comparison.state === 'unknown' && adapters[component.id].capture?.()?.generation))
             component.capability = { supported: !current && !closed && !fault && !active && !blockedHost,
               reason: closed ? 'UPDATE_EXECUTOR_CLOSED' : fault ?? (active || blockedHost ? 'MODULE_EXCHANGE_BUSY' : current ? 'UPDATE_ALREADY_CURRENT' : null) }
+        }
+        // Inventory advertises what plan will accept: an unplaced archive needs the Host module installer, so its refusal reason is projected here.
+        // shortcut: an archive already placed by an earlier install would still plan without the Host; plan stays the final arbiter.
+        const offered = inventory.components.filter(component => adapters[component.id] && component.capability.supported)
+        if (offered.length && typeof moduleHost?.moduleInstallCapabilities === 'function') {
+          const capability = await moduleHost.moduleInstallCapabilities()
+          if (capability?.supported !== true) for (const component of offered) component.capability = { supported: false, reason: installReason(capability) }
         }
         if (fault || recent[0] && ['unknown', 'failed'].includes(recent[0].operation.phase)) inventory.notice = { state: 'attention', code: fault ?? recent[0].operation.error?.code ?? 'UPDATE_RESULT_UNKNOWN', message: '保存された更新結果を確認してください。同じ要求を自動で再実行しません。' }
         else if (recent[0] && !terminal(recent[0].operation)) inventory.notice = { state: 'updating', code: null, message: '更新処理の結果を保存しています。' }
