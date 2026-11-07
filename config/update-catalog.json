@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-07T16:04:45Z",
-  "expiresAt": "2026-11-14T16:04:45Z",
+  "publishedAt": "2026-11-07T17:11:54Z",
+  "expiresAt": "2026-11-14T17:11:54Z",
   "releases": [
     {
       "componentId": "usage",
@@ -635,15 +635,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "213d99fa4acc9fbb37212e5194d0fe4826175bc6",
-      "versionId": "sha256:8c9eba2a77d3e655e9e19aaa64b25937d83bf790d6387a997bb8014c4b7df467",
+      "sourceCommit": "dcebdf565991d883b5a5e3d0dd0d6715fdcbb1a8",
+      "versionId": "sha256:b797443a00018c9fa2d489e25bd51251d454d2cc35beba860bc0fe5998a98b7a",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8c9eba2a77d3e655e9e19aaa64b25937d83bf790d6387a997bb8014c4b7df467"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b797443a00018c9fa2d489e25bd51251d454d2cc35beba860bc0fe5998a98b7a"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -652,21 +652,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "実行中の席を待って交換を拒否する経路と、会話の診断通知で交換が中断する経路を修正します。",
-        "各メッセージへの共通規範の追記を除き、作業要約のCodex実行を接続します。"
+        "本体更新時の終了処理が、削除済みの更新計画を参照して失敗する経路を修正します。",
+        "実行中の席の引継ぎ、会話の診断通知、共通規範の追記除去と作業要約の修正を含みます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "213d99fa4acc9fbb37212e5194d0fe4826175bc6",
-      "versionId": "sha256:8c9eba2a77d3e655e9e19aaa64b25937d83bf790d6387a997bb8014c4b7df467",
+      "sourceCommit": "dcebdf565991d883b5a5e3d0dd0d6715fdcbb1a8",
+      "versionId": "sha256:b797443a00018c9fa2d489e25bd51251d454d2cc35beba860bc0fe5998a98b7a",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8c9eba2a77d3e655e9e19aaa64b25937d83bf790d6387a997bb8014c4b7df467"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b797443a00018c9fa2d489e25bd51251d454d2cc35beba860bc0fe5998a98b7a"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -675,8 +675,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "実行中の席を待って交換を拒否する経路と、会話の診断通知で交換が中断する経路を修正します。",
-        "各メッセージへの共通規範の追記を除き、作業要約のCodex実行を接続します。"
+        "本体更新時の終了処理が、削除済みの更新計画を参照して失敗する経路を修正します。",
+        "実行中の席の引継ぎ、会話の診断通知、共通規範の追記除去と作業要約の修正を含みます。"
       ]
     }
   ],
