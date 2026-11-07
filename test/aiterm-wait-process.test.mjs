@@ -17,8 +17,9 @@ function syntheticEntry(t) {
     if (command !== 'sudo') return spawn(command, args, options)
     assert.equal(args[2], '/usr/local/libexec/bellteam-seat-exec')
     assert.equal(args[6], seatProject)
-    assert.equal(args[7], '--')
-    return spawn(args[8], args.slice(9), options)
+    const separator = args.indexOf('--', 7)
+    assert.notEqual(separator, -1)
+    return spawn(args[separator + 1], args.slice(separator + 2), options)
   })
   syncBuiltinESMExports()
   t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports() })
@@ -68,7 +69,7 @@ test('seat timeout and running keep the watch busy until done before configure',
     client: { async call(name, args) {
       calls.push([name, args])
       if (name === 'pty_list') return { _meta: { 'aiterm/seat_turns': {
-        schema: 'aiterm.seat-turns.v1', seats: [{ session_id: 'bot-a', turn }],
+        schema: 'aiterm.seat-turns.v1', seats: [{ session_id: 'bot-a', harness: 'codex-cli', turn }],
       } } }
       assert.equal(name, 'agent_configure')
       return {}

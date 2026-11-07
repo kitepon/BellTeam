@@ -40,7 +40,7 @@ test('task settings: one canonical rule reaches all five CLI globals with owner 
 test('dispatch and steering preserve the caller text across all harnesses, setup stays unchanged',async()=>{
  for(const harness of ['codex','claude','grok','cursor'])for(const mode of ['agent_dispatch','agent_steer']){
   const calls=[],transport=new AitermTransport({client:clientFor(calls,mode),waitProcess:async()=>({outcome:'done'})}),bot={id:'bot-a',session:'live-session',harness}
-  transport.prepareDesiredConfiguration=async()=>({schema:'aiterm.pty-observe-result.v1',session_id:'live-session',exists:true,launch_id:'b'.repeat(32)})
+  transport.observeForDispatch=async()=>({schema:'aiterm.pty-observe-result.v1',session_id:'live-session',exists:true,launch_id:'b'.repeat(32)})
   await transport.dispatch(bot,'元の依頼',[])
   const sent=calls.find(c=>c.name==='pty_send').args.text
   assert.equal(sent,'元の依頼')
@@ -53,6 +53,7 @@ test('dispatch and steering preserve the caller text across all harnesses, setup
 
 test('execution bridge dispatch preserves the caller text',async()=>{
  const calls=[],transport=new AitermTransport({executionBridge:{},waitProcess:async()=>({outcome:'done'})}),bot={id:'bot-a',session:'live-session',harness:'codex'}
+ transport.observeForDispatch=async()=>({schema:'aiterm.pty-observe-result.v1',session_id:'live-session',exists:true,launch_id:'b'.repeat(32)})
  const job={executionWasPresent:true,execution:{invoke:async(name,args,options)=>{calls.push({name,args,options});return{structuredContent:receipt('agent_dispatch')}}}}
  await transport.dispatch(bot,'元のbridge依頼',[],{executionJob:job})
  assert.equal(calls.length,1);assert.equal(calls[0].name,'pty_send');assert.equal(calls[0].args.session_id,'live-session')
@@ -64,7 +65,7 @@ test('execution bridge dispatch preserves the caller text',async()=>{
 test('messenger persists and sends the same original statement',async t=>{
  const dir=await mkdtemp(join(tmpdir(),'model-policy-message-'));t.after(()=>rm(dir,{recursive:true,force:true}))
  const calls=[],transport=new AitermTransport({client:clientFor(calls),waitProcess:async()=>({outcome:'done'}),interimInterval:1})
- transport.prepareDesiredConfiguration=async()=>({schema:'aiterm.pty-observe-result.v1',session_id:'live-session',exists:true,launch_id:'b'.repeat(32)})
+ transport.observeForDispatch=async()=>({schema:'aiterm.pty-observe-result.v1',session_id:'live-session',exists:true,launch_id:'b'.repeat(32)})
  const rows=new Map([['bot-a',{id:'bot-a',name:'Sender'}],['bot-b',{id:'bot-b',name:'Receiver',harness:'codex',session:'live-session'}]])
  const bots={refresh:async()=>{},has:id=>rows.has(id),get:id=>rows.get(id)}
  const messenger=new BellTeamMessenger({bots,transport,logPath:join(dir,'messages.jsonl')})

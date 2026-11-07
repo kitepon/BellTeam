@@ -117,7 +117,7 @@ test('Botを起動できなかった時は、サーバー障害として記録�
   assert.equal(body.error, 'INTERNAL_ERROR')
   assert.match(body.message, /メッセージは送信されませんでした。.*AIの認証が切れている可能性があります。/u)
   assert.equal(body.message.includes('pty_'), false)
-  assert.deepEqual(calls.map(call => call[0]), ['pty_send', 'pty_list', 'agent_launch', 'pty_close'])
+  assert.deepEqual(calls.map(call => call[0]), ['pty_send', 'pty_observe', 'agent_launch', 'pty_close'])
   assert.deepEqual(calls.at(-1), ['pty_close', { session_id: 'bot-a' }])
   await transport.idle(bot.id)
   assert.deepEqual(diagnostics.map(value => value.code), ['SERVER_HTTP_500'])
@@ -179,6 +179,8 @@ function registrationLostClient({ refusals, sessions = 'bot-a\tclaude' }) {
     if (name === 'pty_send') return { structuredContent: {
       mode: 'agent_dispatch', event_cursor: 1, wait_process: { executable: '/node', args: ['wait'] },
     } }
+    if (name === 'pty_observe') return { structuredContent: { schema: 'aiterm.pty-observe-result.v1',
+      session_id: 'bot-a', exists: Boolean(sessions), launch_id: sessions ? 'a'.repeat(32) : null, state: 'idle' } }
     if (name === 'pty_list') return { content: [{ type: 'text', text: sessions }] }
     if (name === 'pty_close') return { content: [{ type: 'text', text: 'closed' }] }
     if (name === 'agent_launch') return { structuredContent: { session_id: 'bot-a' } }
@@ -197,7 +199,7 @@ test('席の登録が消えて打つ前に断られた送信は、席を閉じ�
 
   await transport.turn(bot, '再現用の本文')
 
-  assert.deepEqual(calls.map(([name]) => name), ['pty_send', 'pty_list', 'pty_close', 'agent_launch', 'pty_send', 'pty_read'])
+  assert.deepEqual(calls.map(([name]) => name), ['pty_send', 'pty_observe', 'pty_close', 'agent_launch', 'pty_send', 'pty_read'])
   assert.deepEqual(calls[2][1], { session_id: 'bot-a' })
   assert.deepEqual(calls.filter(([name]) => name === 'pty_send').map(([, args]) => args), [
     { session_id: 'bot-a', text: '再現用の本文', require_agent: true },
@@ -214,7 +216,7 @@ test('起こし直した後も登録が無ければ、もう一度は起こし�
 
   await assert.rejects(transport.turn(bot, '再現用の本文'), /AGENT_SESSION_REQUIRED/u)
 
-  assert.deepEqual(calls.map(([name]) => name), ['pty_send', 'pty_list', 'pty_close', 'agent_launch', 'pty_send'])
+  assert.deepEqual(calls.map(([name]) => name), ['pty_send', 'pty_observe', 'pty_close', 'agent_launch', 'pty_send'])
   assert.equal(transport.active.size, 0)
 })
 
@@ -229,7 +231,7 @@ test('画面が無い席が同じ符号で断られた時は、登録の消失�
 
   await transport.turn(bot, '再現用の本文')
 
-  assert.deepEqual(calls.map(([name]) => name), ['pty_send', 'pty_list', 'agent_launch', 'pty_send', 'pty_read'])
+  assert.deepEqual(calls.map(([name]) => name), ['pty_send', 'pty_observe', 'agent_launch', 'pty_send', 'pty_read'])
   assert.deepEqual(written.filter(text => text.includes('registration lost')), [])
 })
 
