@@ -24,6 +24,7 @@ import { BotAdministration } from './bot-administration.mjs'
 import { CapacityContinuation } from './capacity-continuation.mjs'
 import { BotGoals } from './bot-goals.mjs'
 import { AitermClient } from './aiterm-client.mjs'
+import { AitermGenerationClient } from './aiterm-generation-client.mjs'
 import { ConfigurationIntents } from './configuration-intents.mjs'
 import { acquireConfigurationStateAnchor } from './configuration-state-anchor.mjs'
 import { ConfigurationRequests } from './configuration-requests.mjs'
@@ -132,7 +133,9 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   backgroundSummary = createTeamBackgroundSummary({ project: summaryProject, settings, models,
     conversation: () => conversationAssembly, enabled: () => !aiControl.paused,
     notify: () => notify?.({ type: 'bots' }) })
-  executionClient = client ?? new AitermClient({ ...aiterm, ...(seatRuntime ? { seatProject: root } : {}), environmentReady: botEnvironments?.ready })
+  // Stable native port: one generation until the updater publishes an activated candidate.
+  const initialClient = client ?? new AitermClient({ ...aiterm, ...(seatRuntime ? { seatProject: root } : {}), environmentReady: botEnvironments?.ready })
+  executionClient = new AitermGenerationClient({ client: initialClient, runtimeCapture: null })
   const seatPorts = seatRuntime ? {
     writeTemporaryImage: (path, bytes) => seatRuntime.writeTemporaryImage(path, bytes),
     removeTemporaryImage: path => seatRuntime.removeTemporaryImage(path),
