@@ -215,3 +215,36 @@ test('resume ACK retry is idempotent for the already running retained engine', a
   assert.deepEqual(await f.engine.control('resume'), { resumed: true })
   assert.deepEqual(f.calls, calls, 'an ACK retry performs no native/recovery replay')
 })
+
+test('busy exchange hands an accepted running turn to the successor instead of refusing, and reads stay available', async t => {
+  const wait = deferred(), answer = deferred()
+  const f = await fixture(t)
+  f.ports.seat.waitProcess = () => wait.promise
+  const accepted = await f.engine.dispatch(request('transport.notify', bot, 'SYNTHETIC_BODY', { onAnswer: () => answer.promise }))
+  assert.equal(accepted.delivery, 'running')
+  // The full drain (close / install proof) still refuses while the turn runs.
+  await assert.rejects(f.engine.control('quiesce', { timeoutMs: 0 }), { code: 'EXECUTION_BUSY' })
+  await f.engine.control('resume')
+  await f.engine.control('quiesce', { timeoutMs: 200, handover: true })
+  // Reads keep answering from the old engine during the exchange; new work does not.
+  assert.equal(f.engine.project(request('transport.queueItems')).length, 1)
+  assert.deepEqual([...await f.engine.dispatch(request('transport.runningBots', [bot]))], [bot.id])
+  assert.throws(() => f.engine.dispatch(request('transport.notify', bot, 'LATE')), { code: 'EXECUTION_NOT_ACCEPTING' })
+  const state = f.engine.exportState({ handover: true })
+  const next = createExecutionDispatcher({ generation: 'second', ports: f.ports, handoff: state })
+  t.after(async () => { try { await next.control('quiesce', { timeoutMs: 200 }); await next.disconnect() } catch {} })
+  await next.control('initialize')
+  // The successor sees the same live turn (stop/queue/isIdle) and is not blocked by it.
+  assert.equal(next.project(request('transport.queueItems')).length, 1)
+  assert.equal(next.project(request('transport.isIdle', bot.id)), false)
+  await next.control('quiesce', { timeoutMs: 200 }); await next.control('resume')
+  let released = false
+  void state.released.then(() => { released = true })
+  await tick(); assert.equal(released, false)
+  wait.resolve({ outcome: 'done', turn_id: 'turn' }); answer.resolve()
+  await state.released
+  assert.deepEqual(await f.engine.disconnect(), { closed: true })
+  assert.equal(next.project(request('transport.queueItems')).length, 0)
+  assert.equal(next.project(request('transport.isIdle', bot.id)), true)
+  assert.equal(f.closes(), 0)
+})

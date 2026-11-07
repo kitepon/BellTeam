@@ -38,14 +38,16 @@ handoffはhost内volatile、同schema互換のみ。sessions/stopVersions/stopSe
 
 Epiから正式handoffした`src/execution-generation.mjs:createExecutionGeneration`がhost内の固有transactionを所有する。共通child controllerを複製しない。`loadFactory(versionId=null,{expectedRelease})`へbuiltin/SHAだけを渡し、runtime読取口のfrozen `{versionId,sourceCommit,createExecutionDispatcher}`だけで新engineを生成する。任意URL/import/外部business factory選択はHTTPへ出さない。reader比較用に`EXECUTION_STATE_COMPATIBILITY`を旧実値のままexportする。
 
-親Mollyは同一ports、初期currentVersionId/previousVersionIdと既保存writerへの`onAdopt({currentVersionId,previousVersionId})`を注入する。onAdoptは実durable completion（`.completion`があればそれも）を含み、ACK前は新rootを開かない。別保存schema/writer無し。公開は`start/replace/reserve/snapshot/dispatch/project/close`。reserveはstart一回とcancel、実completionを持つ。projectは同期のまま常に現instanceへ転送する。親のtransport.client/membersAdmission/requestStopはliveportsのまま保持し、queue listenerは親observerへ。旧外側SeatTurns/IdleSessionsを別生成して二重producerにせず、factoryが一実体を持つ。
+親Mollyは同一ports、初期currentVersionId/previousVersionIdと既保存writerへの`onAdopt({currentVersionId,previousVersionId})`を注入する。onAdoptは実durable completion（`.completion`があればそれも）を含み、ACK前は新rootを開かない。別保存schema/writer無し。公開は`start/replace/reserve/snapshot/dispatch/project/close`。reserveはstart一回とcancel、実completionを持つ。projectは同期のまま現instanceへ転送し、交換中（available=false）は旧engineが応答する。親のtransport.client/membersAdmission/requestStopはliveportsのまま保持し、queue listenerは親observerへ。旧外側SeatTurns/IdleSessionsを別生成して二重producerにせず、factoryが一実体を持つ。
 
 ```mermaid
 flowchart TD
-  Load["runtime検証済factory取得"] --> Close["新root閉鎖・旧実operation drain60s"]
+  Load["runtime検証済factory取得"] --> Close["新root閉鎖・受付前operation drain60s<br/>(handover: accepted turns/watches excluded)"]
   Close -->|busy| Resume["旧resume5s・候補生成0"]
-  Close --> Export["旧export→retire"]
+  Close --> Export["旧export(handover: live SeatActivity)"]
+  Export --> Detach["旧engine detached: own turns/watches finish → background retire"]
   Export --> Init["新engine initialize"]
+  Close -.->|"project / runningBots"| Reads["旧engineが読取を継続 (until new running)"]
   Init --> Save["親onAdoptの実ACK"]
   Save --> Running["現世代へ同期projection/dispatch"]
   Init -->|失敗| Cleanup["candidate closed実確認"]
@@ -96,7 +98,7 @@ flowchart LR
 
 返却する公開I/Oは`controller`、`start()`、`replace(target)`、`verify()`、`snapshot()`、`close()`。controllerは実Assemblyの同instanceで、外側が交換の同一性を確認できる。startは実loaderでbuiltinを読み、sourceCommitが`48e508bab1c1cad2f8c3220f062715b27bcd3376`と一致してから人工wakeを一回だけ行う。loadFactory/import/installed reader/identityの差替えportはguestに持たせない。
 
-replaceは64桁SHA又はbuiltinだけを受け、同版要求は拒否する。各回に人工notify一件を実dispatcherで配送して、元の本文に追加suffixがないことを確認し、旧世代で捕捉したadmission guardを保存する。その後の実observe Promiseを保留したままcontroller.replaceを呼び、quiescing中は同期queue投影がEXECUTION_NOT_ACCEPTING、交換Promiseは未終端であることを確認する。observe解放後だけ退役・新世代へ進み、同guardがEXECUTION_GENERATION_RETIREDで失効することを確認する。onAdoptの実store.save/readとACK完了前後にも新受付が閉じていることを検査する。native/PTY close要求は即失敗し、SDKclose/PTYclose件数も0を要求する。
+replaceは64桁SHA又はbuiltinだけを受け、同版要求は拒否する。各回に人工notify一件を実dispatcherで配送して、元の本文に追加suffixがないことを確認し、旧世代で捕捉したadmission guardを保存する。その後の実observe Promiseを保留したままcontroller.replaceを呼び、quiescing中は新dispatchがEXECUTION_NOT_ACCEPTINGで、同期queue投影は旧engineが応答し続け、交換Promiseは未終端であることを確認する。observe解放後だけ新世代へ進み、旧engineの背景退役後に同guardがEXECUTION_GENERATION_RETIREDで失効することを確認する。onAdoptの実store.save/readとACK完了前後にも新dispatchが閉じ、読取は応答することを検査する（[Busy exchange handover](#busy-exchange-handover-2026-11-08)）。native/PTY close要求は即失敗し、SDKclose/PTYclose件数も0を要求する。
 
 verifyは署名SHA→builtinの順の二回成功、三世代、保存0600と現選択、同親port/method/session、人工launch一回/send二回/設定reminderなし、保存ACK二回、失効guard二回を要求する。snapshotと各操作の返却はbool/整数だけで、本文・session・path・署名descriptorは含めない。closeは同controllerを閉じ、外側dataの削除はしない。読込/交換失敗はrejectし、保留observeはfinallyで解放する。既loader/store/readerの製品契約内で検査guestを追加し、runtimeコードは変更しない。
 
@@ -145,3 +147,38 @@ runtime readerは同namespaceの既EXECUTION_METHODSからsupportsModelHandoff�
 ## Idempotent resume acknowledgement (runtime recovery contact)
 
 Function/DFD: runtime retries retained-engine `control('resume')` after a lost ACK → initialized, running, non-draining same engine → `{resumed:true}` immediately. It neither starts producers again nor replays deferred recovery. Quiescing/quiesced retains the ordinary resume path; draining/initializing/retired and native/generation identity checks remain. This changes one owned lifecycle response only, not the controller's retry policy or writer-retirement proof.
+
+## Busy exchange handover (2026-11-08)
+
+Incident: Centi job 611ef3ae (00:23:15–00:24:20 JST) failed with EXECUTION_BUSY after 60.7 s. GET /api/bots answered 503 EXECUTION_NOT_ACCEPTING for the whole window. Causes: an accepted delivery job stays in `SeatActivity.jobs` until its native turn ends, and a self-turn watch stays in `watches` until its turn ends. The engine's quiesce required `idleNow()` (all of them zero), and the generation's `waitActive()` additionally waited for every dispatch promise (`turn().completion` = turn end). With any Bot mid-turn the exchange could never succeed. Reads go through `requireCurrent()` (available only) and engine `enter()` (running only), so they were refused for the whole drain.
+
+```mermaid
+flowchart TD
+  Replace["generation.replace"] --> Q["engine.control('quiesce',{handover:true})<br/>root closed for new dispatch"]
+  Q --> Ready{"handoverReady: no initialization / session / configuration / dispatch / wake / stop /<br/>requests.active / work writes / runningSnapshot / deferredRecovery / continuation.pending /<br/>administrative operations, and every job.handoverReady"}
+  Ready -->|"60 s not reached"| Busy["EXECUTION_BUSY → old resume (unchanged)"]
+  Ready --> Export["exportState({handover:true})<br/>clone metadata + live SeatActivity + released"]
+  Export --> Old["old engine detached: observer/idle stopped, queue listener removed,<br/>activity file writer off, capacity failure forwarded"]
+  Old --> Released["own jobs/watches settled and pending=0"] --> Retire["background disconnect (retire)"]
+  Export --> New["new engine adopts the same SeatActivity:<br/>stop/queue/steer/isIdle/follower see the old turns"]
+  New --> Running["running: new deliveries, observer ends old watches, single activity-file writer"]
+  Q -.-> Read["project + transport.runningBots served by the old engine<br/>(quiescing/quiesced) until new running"]
+```
+
+| Contact | Contract |
+| --- | --- |
+| `transport` job | Set `job.handoverReady=true` once acceptance is acknowledged and the native completion is followed (`nativeCompletion`). Unfollowed (legacy steer) or pre-acceptance jobs still drain. |
+| engine `quiesce(timeoutMs,{handover})` | Same 60 s and EXECUTION_BUSY/resume semantics. With handover, wait for `handoverReady()` instead of `idleNow()`. Administrative operations (non-delivery dispatch results, Administration/ModelHandoff/Goals completions) are tracked separately and must be zero, so cloned metadata is never written by the old engine after export. Without handover (close, install proof), the existing full `idleNow()` drain is unchanged. |
+| engine `exportState({handover})` | Adds `activity` (the live SeatActivity, in-process, not serialized) and `released` (a Promise for when the old engine's own items and pending settle). The old engine stops its observer/idle producers, unsubscribes its queue listener, sets its CurrentWork `activityPath=null` (the new engine is the only execution-activity.json writer, and observation-based `finishedActivity` heals it), and forwards capacity `failed(context)` to `activity.recoverCapacity`. |
+| engine handoff adoption | When `handoff.activity` exists, the transport uses it instead of a new SeatActivity, and the clone fields for followedTurns/failed/shownWords are not applied. It sets `activity.recoverCapacity` to its own continuation. It requires the same `EXECUTION_STATE_COMPATIBILITY`, so a legacy handoff without `activity` keeps the clone path. |
+| engine retire | A handed-over engine retires once its own items and pending settle. It never clears the shared listeners (only its own unsubscribe). |
+| engine reads | `project` and dispatch `transport.runningBots` are accepted while running/quiescing/quiesced (reads only). Other dispatch remains running-only. |
+| generation | `replace` uses handover; it skips `waitActive()` in that mode. If the handoff has `released`, the old engine is not disposed synchronously but retired in the background after `released`. A legacy old engine without `released` keeps the existing synchronous dispose. `readable` (the old engine) serves `project`/`transport.runningBots` while `available=false` during an exchange. close/proof keep the full drain. |
+
+Guard inventory (guards.named-protection / self-exit):
+- Pre-acceptance drain: kept. Protection: overwriting existing state (session/configuration/request/work writers and the native send order would otherwise split across two engines). Exit: these operations are short and finish; otherwise EXECUTION_BUSY with old resume (unchanged).
+- Accepted-turn/watch drain: removed. Their only state is the live SeatActivity entry, now shared, and the native turn, which is never touched.
+- Administrative operations: kept (same protection: their results are written to cloned maps). Exit: they finish within the drain, or BUSY/resume.
+- Read refusal during exchange: removed for project/runningBots. The protection was none (read-only). currentWork may be stale until the new observer reads.
+
+Impact: callers are unchanged. HTTP list/profile, MCP get_self/get_bot, room currentWork and queue projection keep their contracts and stop returning 503 during the drain. conversation admission/deliveryCompletion keep tracking the same delivery objects. Stop/interrupt on the new engine reaches old jobs through `stopTargets()`. Activation: execution-generation is body-resident (M14), so this takes effect only after a body image swap; the first module exchange away from the b1fe builtin still runs the old code. Limits: a capacity recovery forwarded from an old job uses that job's stop-version snapshot; a job with nativeUnconfirmed remains in the shared activity as before.

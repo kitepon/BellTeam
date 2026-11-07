@@ -105,7 +105,8 @@ export class AitermTransport {
     const transport = this
     this.seat = {
       sessionState: this.sessionState,
-      activity: this.activity,
+      // An engine handover may replace the registry with the predecessor's live one.
+      get activity() { return transport.activity },
       get executionBridge() { return transport.executionBridge },
       requestStop: (sessions, options) => this.requestStop(sessions, options),
       session: bot => this.session(bot),
@@ -719,6 +720,8 @@ export class AitermTransport {
         await onStatus?.('running')
         await job.checkpoint()
         acknowledged = true
+        // Only native-followed accepted turns may outlive an engine exchange (execution-dispatcher handover).
+        if (followed) job.handoverReady = true
         this.activity.failed.delete(bot.id)
         accept({ delivery: steered ? 'steered' : 'running' })
         endAdmission()

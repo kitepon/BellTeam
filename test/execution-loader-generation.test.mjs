@@ -55,7 +55,8 @@ test('verified reader interface drives different real engine bundles through gen
   await controller.start()
   assert.equal(stableView(bot).fixtureEngine, undefined)
   const update = controller.reserve(versionId, { expectedRelease }); update.start(); await saved
-  assert.throws(() => stableView(bot), { code: 'EXECUTION_NOT_ACCEPTING' })
+  // The previous engine keeps answering reads until the new selection is acknowledged.
+  assert.equal(stableView(bot).fixtureEngine, undefined)
   ack(); await update.completion
   assert.equal(controller.snapshot().update.status, 'succeeded')
   assert.equal(stableView(bot).fixtureEngine, 'signed')

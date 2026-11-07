@@ -44,17 +44,21 @@ async function fixture(t, { save = async () => {}, failInitialize = false, failC
   return { controller, bot, read, created, selections, loads, nativeCalls, nativeCloses: () => nativeCloses }
 }
 
-test('real engine exchange keeps synchronous projection fenced until the durable selection ACK', async t => {
+test('real engine exchange serves the previous synchronous projection until the durable selection ACK, then retires it', async t => {
   const ack = deferred(), entered = deferred()
   const f = await fixture(t, { save: async () => { entered.resolve(); await ack.promise } })
   const stableProject = f.controller.project
   assert.equal(stableProject(request('administration.view', f.bot)).fixtureVersion, null)
   const replacing = f.controller.replace(version)
   await entered.promise
-  assert.throws(() => f.controller.project(request('transport.session', f.bot)), { code: 'EXECUTION_NOT_ACCEPTING' })
+  // Reads never 503 during an exchange: the previous engine answers until the new one is running.
+  assert.equal(f.controller.project(request('administration.view', f.bot)).fixtureVersion, null)
+  await assert.rejects(f.controller.dispatch(request('transport.notify', f.bot, 'LATE')), { code: 'EXECUTION_NOT_ACCEPTING' })
   assert.equal(f.controller.snapshot().currentVersionId, null)
-  assert.equal(f.created.length, 2); assert.equal(f.created[0].retired, true)
+  assert.equal(f.created.length, 2); assert.equal(f.created[0].retired, false)
   ack.resolve(); await replacing
+  f.read.resolve({ structuredContent: { exists: true } })
+  while (!f.created[0].retired) await tick()
   const result = stableProject(request('administration.view', f.bot))
   assert.equal(result.fixtureVersion, version); assert.equal(typeof result.then, 'undefined')
   assert.deepEqual(f.selections, [{ currentVersionId: version, previousVersionId: null }])
