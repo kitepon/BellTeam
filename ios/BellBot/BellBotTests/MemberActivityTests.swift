@@ -42,6 +42,20 @@ final class MemberActivityTests: XCTestCase {
         XCTAssertEqual(CurrentWork.label(nil), "仕事状況を未取得", "currentWorkを返さない旧サーバー")
     }
 
+    func testSteeredDeliveryJoinsTheRunningTurnInsteadOfAddingARow() throws {
+        let response = try JSONDecoder().decode(QueueResponse.self, from: Data("""
+        {"items":[
+          {"id":"turn","botId":"bot-one","status":"running","steered":false},
+          {"id":"steer-1","botId":"bot-one","status":"queued","steered":true},
+          {"id":"steer-2","botId":"bot-one","status":"running","steered":true},
+          {"id":"next","botId":"bot-two","status":"queued","steered":false},
+          {"id":"old-server","botId":"bot-three","status":"queued"}
+        ]}
+        """.utf8))
+        XCTAssertEqual(QueueItem.displayItems(response.items).map(\.id), ["turn", "next", "old-server"],
+                       "差し込みは実行中ターンの1行にまとめ、steeredの無い旧形式は従来どおり")
+    }
+
     func testStoppedDeliveryIsDistinctAndAnotherRunningMemberRemainsVisible() throws {
         let messages = try JSONDecoder().decode([TimelineMessage].self, from: Data("""
         [

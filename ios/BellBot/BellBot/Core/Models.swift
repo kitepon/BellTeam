@@ -142,13 +142,17 @@ struct QueueItem: Decodable, Identifiable, Equatable {
     let status: String
     let groupId: String?
     let message: String?
+    /// 実行中のターンへ差し込まれた配送。無い旧サーバーではfalse扱い。
+    var steered: Bool?
 
+    /// Botの実行中ターンごとに「処理中」を1行だけ出す。差し込まれた配送はそのターンの行にまとめる。
     static func displayItems(_ items: [QueueItem]) -> [QueueItem] {
         enum Key: Hashable { case bot(String, String), unknown(String) }
         var seen: Set<Key> = []
         return items.filter { item in
+            let status = item.steered == true ? "running" : item.status
             // botIdを持たない古い項目同士は、別の配送として残す。
-            let key = item.botId.map { Key.bot($0, item.status) } ?? .unknown(item.id)
+            let key = item.botId.map { Key.bot($0, status) } ?? .unknown(item.id)
             return seen.insert(key).inserted
         }
     }
