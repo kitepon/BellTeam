@@ -414,8 +414,10 @@ if [ -n "$stopped_container" ]; then
     quiesce_deadline=$(( $(date +%s) + 300 ))
     [ "$quiesce_deadline" -le "$quiesce_limit" ] || quiesce_deadline=$quiesce_limit
     quiesce=unconfirmed
-    if answer=$(printf '{"requestId":"%s","containerId":"%s","deadline":%s000}\n' "$(basename "$saved")" "$stopped_container" "$quiesce_deadline" \
-      | docker exec -i --user 1001:1001 "$stopped_container" /usr/local/bin/node /app/scripts/body-quiesce-helper.mjs); then
+    # The helper's own deadline bounds a live body; timeout also bounds an exec that never returns (frozen body/daemon).
+    quiesce_wait=$(( quiesce_deadline - $(date +%s) + 5 ))
+    if [ "$quiesce_wait" -gt 5 ] && answer=$(printf '{"requestId":"%s","containerId":"%s","deadline":%s000}\n' "$(basename "$saved")" "$stopped_container" "$quiesce_deadline" \
+      | timeout --kill-after=5 "$quiesce_wait" docker exec -i --user 1001:1001 "$stopped_container" /usr/local/bin/node /app/scripts/body-quiesce-helper.mjs); then
       case "$answer" in
         *'"result":"drained"'*) quiesce=drained;;
         *'"result":"deadline"'*) quiesce=deadline;;
