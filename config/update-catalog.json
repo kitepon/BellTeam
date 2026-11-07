@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-07T17:11:54Z",
-  "expiresAt": "2026-11-14T17:11:54Z",
+  "publishedAt": "2026-11-07T18:16:37Z",
+  "expiresAt": "2026-11-14T18:16:37Z",
   "releases": [
     {
       "componentId": "usage",
@@ -635,15 +635,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "dcebdf565991d883b5a5e3d0dd0d6715fdcbb1a8",
-      "versionId": "sha256:b797443a00018c9fa2d489e25bd51251d454d2cc35beba860bc0fe5998a98b7a",
+      "sourceCommit": "a74fe75c8c4486785c7faa6b92dff2314ceb9620",
+      "versionId": "sha256:ef4d679f9e1c94ef3ca9b18d306567e74f936b546a9a76581b9d2c4dbf4b5d50",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b797443a00018c9fa2d489e25bd51251d454d2cc35beba860bc0fe5998a98b7a"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ef4d679f9e1c94ef3ca9b18d306567e74f936b546a9a76581b9d2c4dbf4b5d50"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -652,21 +652,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "本体更新時の終了処理が、削除済みの更新計画を参照して失敗する経路を修正します。",
-        "実行中の席の引継ぎ、会話の診断通知、共通規範の追記除去と作業要約の修正を含みます。"
+        "本体の起動猶予を300秒に揃え、起動途中で更新が失敗する経路を修正します。",
+        "更新失敗からの復旧時に、旧本体のmodule-installerも起動し直します。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "dcebdf565991d883b5a5e3d0dd0d6715fdcbb1a8",
-      "versionId": "sha256:b797443a00018c9fa2d489e25bd51251d454d2cc35beba860bc0fe5998a98b7a",
+      "sourceCommit": "a74fe75c8c4486785c7faa6b92dff2314ceb9620",
+      "versionId": "sha256:ef4d679f9e1c94ef3ca9b18d306567e74f936b546a9a76581b9d2c4dbf4b5d50",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b797443a00018c9fa2d489e25bd51251d454d2cc35beba860bc0fe5998a98b7a"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ef4d679f9e1c94ef3ca9b18d306567e74f936b546a9a76581b9d2c4dbf4b5d50"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -675,8 +675,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "本体更新時の終了処理が、削除済みの更新計画を参照して失敗する経路を修正します。",
-        "実行中の席の引継ぎ、会話の診断通知、共通規範の追記除去と作業要約の修正を含みます。"
+        "本体の起動猶予を300秒に揃え、起動途中で更新が失敗する経路を修正します。",
+        "更新失敗からの復旧時に、旧本体のmodule-installerも起動し直します。"
       ]
     }
   ],
