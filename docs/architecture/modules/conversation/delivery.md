@@ -61,14 +61,15 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  Caller["http-application-api.createApplicationApi"] --> HTTP["createConversationAssetsApi / GET message-images"]
-  HTTP --> Open["MessageAssets.open: owner/file検証・O_NOFOLLOW・stat"]
-  Open --> Stream["FileHandle.createReadStream / autoClose"]
+  Assembly["conversation-assembly: assets.openを親readerへ接続"] --> Caller["http-application-api.createApplicationApi"]
+  Caller --> HTTP["createConversationAssetsApi / GET message-images"]
+  HTTP --> Open["createConversationAssetReader / openConversationAsset: owner/file検証・O_NOFOLLOW・stat"]
+  Open --> Stream["FileHandle.createReadStream / autoClose: true"]
   Stream --> Active{"responseは未終了か"}
   Active -->|"destroyed / writableEnded"| Destroy
   Active -->|"未終了"| Pipeline["stream.pipeline: sourceとresponseの終了を接続"]
   Pipeline --> Response["HTTP response / 画像bytes"]
-  Response -->|"途中close・error / 取得待ち中の切断を含む"| Destroy["未完了sourceをdestroy"]
+  Response -->|"途中close・error"| Destroy["未完了sourceをdestroy"]
   Destroy --> Closed["stream close / FileHandleを閉じる"]
   Stream -->|"正常EOF"| Closed
   Pipeline -->|"read error"| Closed
@@ -76,10 +77,10 @@ flowchart LR
 
 | DFD接点 | データと所有 | 終端 |
 | --- | --- | --- |
-| client → handler → `MessageAssets.open` | URLのowner/fileを検証し、保存画像を読み取る。開いたFileHandleは返却streamが所有 | open/stat失敗はopen内でcloseし、既存HTTPエラーへ返す |
+| client → handler → `assets.open` | 本体は`createConversationAssetReader`へ接続。同じ`{mime,size,stream}`契約の`MessageAssets.open`は親直接読取用。URLのowner/fileを検証し、保存画像を読み取る。開いたFileHandleは返却streamが所有 | open/stat失敗はopen内でcloseし、既存HTTPエラーへ返す |
 | 保存領域 → stream → pipeline → response → client | MIME/sizeを応答header、画像bytesを本文へ渡す。handlerがsourceとresponseの寿命を接続 | 正常finishはEOF/autoClose、途中close/errorはpipelineが未完了streamをdestroyしてautoClose。読取り失敗はresponseも破棄し、送信済みheaderへJSONを追記しない |
 
-`MessageAssets.open`待機中にresponseが閉じた/終了した場合は、取得後にstreamを破棄し、既終了responseへpipeしない。未終了responseはpipeline完了callbackで転送エラーを受け取り、未処理errorとして本体へ流さない。成功時のURL/headers/bytesと保存領域は維持する。機能固有の実装は[http-conversation-api.mjs](../../../../src/http-conversation-api.mjs)、試験は[HTTP画像streamの終端](../../../../test/http-conversation-assets.test.mjs)。
+`assets.open`待機中にresponseが閉じた/終了した場合は、取得後にstreamを破棄し、既終了responseへpipeしない。Node26のpipelineは終了済みresponseに同期例外`ERR_STREAM_UNABLE_TO_PIPE`を投げるため、この分岐がFileHandleの解放を保証する。未終了responseはpipeline完了callbackで転送エラーを受け取り、未処理errorとして本体へ流さない。成功時のURL/headers/bytesと保存領域は維持する。機能固有の実装は[http-conversation-api.mjs](../../../../src/http-conversation-api.mjs)と[親reader](../../../../src/conversation-assets.mjs)、試験は[HTTP画像streamの終端](../../../../test/http-conversation-assets.test.mjs)。試験は本体と同じ親readerを使用する。終端はstream層の契約で確認し、ServerResponseの実socket切断は未検証。
 
 ### 対象Bot削除の保存境界
 

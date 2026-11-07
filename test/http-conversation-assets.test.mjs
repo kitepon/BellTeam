@@ -6,12 +6,14 @@ import { join } from 'node:path'
 import { Writable } from 'node:stream'
 import test from 'node:test'
 import { createConversationAssetsApi } from '../src/http-conversation-api.mjs'
+import { createConversationAssetReader } from '../src/conversation-assets.mjs'
 import { MessageAssets } from '../src/message-assets.mjs'
 
 test('画像GETは完了・途中切断・応答エラー・取得待ち中の切断で実ファイルを閉じる', { timeout: 5000 }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-http-image-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const assets = new MessageAssets({ root })
+  const openAsset = createConversationAssetReader({ root })
   const image = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(256 * 1024)])
   await assets.save({ owner: 'user', id: 'image-1', image: { data: image.toString('base64') } })
 
@@ -35,7 +37,7 @@ test('画像GETは完了・途中切断・応答エラー・取得待ち中の�
       let stream, fd, closed
       const api = createConversationAssetsApi({ assets: {
         async open(...args) {
-          const asset = await assets.open(...args)
+          const asset = await openAsset(...args)
           stream = asset.stream
           fd = stream.fd
           closed = new Promise(resolve => stream.once('close', resolve))
