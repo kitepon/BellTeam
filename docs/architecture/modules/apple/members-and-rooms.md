@@ -28,6 +28,7 @@ flowchart TD
 | iPad/MacのRoom行 | rowへ`name`と`recent.preview ?? purpose`を渡す。purpose空時の固定文は無い |
 | RecentMessage.preview | messageの前後空白・改行を除き、空なら「画像」、本文の改行は半角空白へ置換。副題専用の追加HTTPなし |
 | 稼働丸・ファスト表示 | BotPresenceDotは`workingBotIDs.contains(id)`なら赤点滅、onlineなら緑、それ以外は灰色。fastModeはBotFastModeBadge。BotRowの日時は`BellDate.short(recent.at)` |
+| 画像の項目 | 一覧の`avatar`（Bot・Room・Owner）は省略可で、無ければ空として読む。画像は`avatarVersion`付きの個別URLから取る。他の画像本体の項目（avatarLarge等）は一覧から読まない |
 | 一覧上部・下部 | オンライン人数は`store.bots.filter(online).count`、ルーム件数はstore.rooms.count。iPhoneはOwnerの名前・画像、iPad/MacはOwner名も表示 |
 
 `HomeView.search`と`DesktopWorkspaceView.search`は別々の画面内状態。検索はサーバーへ送信しない。name（Botの内部名）、id、position、role、purpose、会話本文は検索条件に含まない。空検索で全件、大文字小文字を区別せず`localizedCaseInsensitiveContains`を使う。検索語のtrimは行わない。iPhoneは消去ボタン、iPad/Macは消去と検索focus、⌘Kを持つ。

@@ -40,6 +40,74 @@ struct CurrentWork: Decodable, Equatable {
     }
 }
 
+// 一覧は画像本体を省いてよい（画像は版付きの個別URLから取る）。`avatar`が無ければ空として読む。
+// 拡張に置き、メンバーごとの初期化子は残す。
+extension Bot {
+    private enum CodingKeys: String, CodingKey {
+        case id, name, displayName, harness, model, reasoningEffort, fastMode, color, profileText, personality
+        case speechStyle, position, role, avatar, avatarVersion, avatarLargeVersion, deleting, online, recent, currentWork
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        displayName = try c.decode(String.self, forKey: .displayName)
+        harness = try c.decode(String.self, forKey: .harness)
+        model = try c.decode(String.self, forKey: .model)
+        reasoningEffort = try c.decode(String.self, forKey: .reasoningEffort)
+        fastMode = try c.decode(Bool.self, forKey: .fastMode)
+        color = try c.decode(String.self, forKey: .color)
+        profileText = try c.decode(String.self, forKey: .profileText)
+        personality = try c.decode(String.self, forKey: .personality)
+        speechStyle = try c.decode(String.self, forKey: .speechStyle)
+        position = try c.decode(String.self, forKey: .position)
+        role = try c.decode(String.self, forKey: .role)
+        avatar = try c.decodeIfPresent(String.self, forKey: .avatar) ?? ""
+        avatarVersion = try c.decodeIfPresent(String.self, forKey: .avatarVersion)
+        avatarLargeVersion = try c.decodeIfPresent(String.self, forKey: .avatarLargeVersion)
+        deleting = try c.decodeIfPresent(Bool.self, forKey: .deleting)
+        online = try c.decode(Bool.self, forKey: .online)
+        recent = try c.decodeIfPresent(RecentMessage.self, forKey: .recent)
+        currentWork = try c.decodeIfPresent(CurrentWork.self, forKey: .currentWork)
+    }
+}
+
+extension Room {
+    private enum CodingKeys: String, CodingKey {
+        case id, name, purpose, representativeId, memberIds, avatar, avatarVersion, recent
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        purpose = try c.decode(String.self, forKey: .purpose)
+        representativeId = try c.decodeIfPresent(String.self, forKey: .representativeId)
+        memberIds = try c.decode([String].self, forKey: .memberIds)
+        avatar = try c.decodeIfPresent(String.self, forKey: .avatar) ?? ""
+        avatarVersion = try c.decodeIfPresent(String.self, forKey: .avatarVersion)
+        recent = try c.decodeIfPresent(RecentMessage.self, forKey: .recent)
+    }
+}
+
+extension Owner {
+    private enum CodingKeys: String, CodingKey {
+        case name, profile, avatar, avatarVersion, xUrl, githubUrl, links
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        name = try c.decode(String.self, forKey: .name)
+        profile = try c.decode(String.self, forKey: .profile)
+        avatar = try c.decodeIfPresent(String.self, forKey: .avatar) ?? ""
+        avatarVersion = try c.decodeIfPresent(String.self, forKey: .avatarVersion)
+        xUrl = try c.decode(String.self, forKey: .xUrl)
+        githubUrl = try c.decode(String.self, forKey: .githubUrl)
+        links = try c.decode([OwnerLink].self, forKey: .links)
+    }
+}
+
 struct Room: Decodable, Identifiable, Equatable {
     let id: String
     let name: String
