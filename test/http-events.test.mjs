@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createMessageEvents } from '../src/http-events.mjs'
+import { createUpdateCenter } from '../src/update-center.mjs'
 
 test('監視の開始途中で失敗したら取得済みの監視を閉じ、元の失敗を返す', async () => {
   const stopped = []
@@ -59,4 +60,30 @@ test('更新の知らせは内容が変わった時だけ、updates topic だけ
   assert.deepEqual(payloads.map(payload => payload.jobs[0].state), ['queued', 'ready'])
   events.stopWatching()
   handlers.close()
+})
+
+
+test('completion during a jobs read survives coalescing without repeating ordinary invalidations', async t => {
+  const data = { jobs: [{ jobId: 'j1', state: 'ready' }] }, written = [], handlers = {}
+  let release, blocked = false
+  const center = createUpdateCenter({ jobReader: { jobs: () => blocked
+    ? new Promise(resolve => { release = () => resolve(data) }) : Promise.resolve(data) } })
+  const events = createMessageEvents({ store: { async watch() { return () => {} } }, updateCenter: center, eventKeepalive: 60000 })
+  events.connect({ on(name, handler) { handlers[name] = handler } }, { writeHead() {}, writableEnded: false, write(chunk) { written.push(chunk) } })
+  t.after(() => { release?.(); events.stopWatching(); handlers.close() })
+  const tick = () => new Promise(resolve => setImmediate(resolve))
+  const payloads = () => written.filter(chunk => chunk.startsWith('event: messages')).map(chunk => JSON.parse(chunk.slice(chunk.indexOf('data: ') + 6)))
+  await events.startMessageWatch()
+  center.notify(); await tick()
+  assert.equal(payloads().length, 1)
+  blocked = true; center.notify(); await tick()
+  center.notify({ operationCompleted: true }); center.notify()
+  blocked = false; release(); await tick()
+  assert.equal(payloads().length, 2)
+  center.notify(); await tick(); center.notify(); await tick()
+  assert.equal(payloads().length, 2)
+  for (const value of payloads()) {
+    assert.deepEqual([value.topics, value.all, value.jobs], [['updates'], false, data.jobs])
+    assert.equal('operationCompleted' in value, false)
+  }
 })

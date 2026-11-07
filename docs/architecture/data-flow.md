@@ -140,7 +140,7 @@ flowchart LR
   P8 -->|U13 closed open/resolved restart problems| P1
   P1 -->|U14 GET inventory / operation / saved reconciliation| E1
   P7a -->|U15 saved change or operation completion| P1
-  P1 -->|U16 changed jobs/error only, topics updates, all false| E1
+  P1 -->|U16 changed jobs/error or settled operation, topics updates, all false| E1
 ```
 
 | Connection | Public boundary, persistence and failure |
@@ -150,7 +150,7 @@ flowchart LR
 | Inspection versus saved read | Reconciliation GET returns only the saved parent inspection/resolution. Explicit inspect POST calls runtime inspection and persists its receipt in D7c and D7b: it is effectful. Current body exposes the existing public Owner route; an internal seat, schedule, actor JSON or historic decision is not an Owner grant. [Common inspection/close](modules/integration/README.md#同install-idのinspectionと明示close入口), [runtime inspection](modules/runtime/module-installer.md#元install-idの追補照合明示解決) |
 | Explicit close (A+B delta) | The executor-local ledger/exchange owner excludes active original work and checks the exact original, apply-not-issued, claim, fresh Owner authorization, current and catalog bindings before a new durable claim. Runtime owns the actual original worker, storage, predecessor/successor and fence checks; a matching fence and parent completion converge the same claim. Retained intent uses readFence only, with no new finalize, admit, work or read reconciliation. No global application mutex or native/writer drain is added; normal Bot reception remains available. [Common close contract](modules/integration/update-jobs.md#close-only-function-and-data-flow-delta) |
 | U13 restart problem | Runtime owns attempt/healthy-window observation; diagnostics owns serialized problem state. Common forwards the closed `problems[]` projection. Missing save/read evidence is not invented; diagnostic/private log storage is not exposed as an arbitrary update API |
-| U15-U16 update events | Only saved changes and operation completion invalidate the update view. Read-only inventory refresh does not notify. The existing publisher coalesces reads, retains a pending invalidation and drops identical jobs/error bodies. Events are scoped to updates with `all:false`, not a global refresh. Web/Apple re-read the inventory; Apple runs that side refresh independently of receiving timeline events. [Common jobs/events](modules/integration/update-jobs.md), [Web updates](modules/web/README.md), [Apple sync](modules/apple/state-and-sync.md) |
+| U15-U16 update events | Only saved changes and operation completion invalidate the update view. Read-only inventory refresh does not notify. The existing publisher coalesces reads, retains a pending invalidation and drops identical jobs/error bodies except for actual module-work settlement after active is cleared and the exchange reservation is released. That internal completion hint forces one inventory invalidation without changing the public event shape. Events are scoped to updates with `all:false`, not a global refresh. Web/Apple re-read the inventory; Apple runs that side refresh independently of receiving timeline events. [Common jobs/events](modules/integration/update-jobs.md), [Web updates](modules/web/README.md), [Apple sync](modules/apple/state-and-sync.md) |
 
 ## State ownership and physical write boundaries
 
