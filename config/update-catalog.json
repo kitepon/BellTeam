@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-07T20:19:47Z",
-  "expiresAt": "2026-11-14T20:19:47Z",
+  "publishedAt": "2026-11-07T20:32:51Z",
+  "expiresAt": "2026-11-14T20:32:51Z",
   "releases": [
     {
       "componentId": "usage",
@@ -635,15 +635,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "09202bd10c9c4c895da2ee0b7f766e13ee86794a",
-      "versionId": "sha256:b779cc57bf4beb0c2a50fe9aa82f5277ca1d7a0dfe8f14d5a9062f738f101489",
+      "sourceCommit": "3ca3be8eec1c9d5259c30d990561ed80012da4b9",
+      "versionId": "sha256:e5686c28523e10835458970f4a73dea75f660bfa634f37042d6e513279b1a917",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b779cc57bf4beb0c2a50fe9aa82f5277ca1d7a0dfe8f14d5a9062f738f101489"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:e5686c28523e10835458970f4a73dea75f660bfa634f37042d6e513279b1a917"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -657,15 +657,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "09202bd10c9c4c895da2ee0b7f766e13ee86794a",
-      "versionId": "sha256:b779cc57bf4beb0c2a50fe9aa82f5277ca1d7a0dfe8f14d5a9062f738f101489",
+      "sourceCommit": "3ca3be8eec1c9d5259c30d990561ed80012da4b9",
+      "versionId": "sha256:e5686c28523e10835458970f4a73dea75f660bfa634f37042d6e513279b1a917",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b779cc57bf4beb0c2a50fe9aa82f5277ca1d7a0dfe8f14d5a9062f738f101489"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:e5686c28523e10835458970f4a73dea75f660bfa634f37042d6e513279b1a917"
       },
       "compatibility": {
         "nodeMajor": null,
