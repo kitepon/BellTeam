@@ -1,5 +1,11 @@
 # 正式Update catalogの信頼境界
 
+## Body-first stable container supply (K-HDMABP), 2026-11-07
+
+Under the Owner-authorized body-first reorder relayed by Trony, replace only the two `container` records (Linux amd64/arm64) with the official stable image of source `b1fe56582f1ac8d35755cac764f22f19f8a20a4c`, index `sha256:f17cb80ce3dc38dc5672fdb8204dc9c2b798e40b6d8efa2e1dace693305397bc`. Centi's official promotion run `42378523439` succeeded after natural run `42377778743`; its CI product evidence is inherited from the supply owner without rerun. All sixteen module records, including the five `69cfac91` assets, every compatibility value and the revocation list are unchanged; publication time and seven-day expiry are refreshed.
+
+This is the same formal-input → catalog → fixed-main publisher → runtime acceptance contract as the Z-a3 supply below: no API, state owner or failure path changes. Centi alone publishes this catalog once and owns the public-UI body plan. Internal first use of this exact digest is still pending under the Owner's catalog-before-UI order; this adoption is not an internal-use or release success report. The retained Z-a3 refusal (one notifications plan refused, zero starts) stays recorded; module activation retries only after a healthy new body.
+
 ## Z-a3: uniform five-module supply, 2026-11-07
 
 Within the existing formal-input → catalog → fixed-main publisher → runtime acceptance contract, replace only the members/conversation/execution/usage/notifications records for both Linux architectures with formal Release `updates-20261107T131813Z`. All ten records bind archive source and signer to `69cfac918836cb3f8f73fdce38804d6c0fba6450`. Centi's successful dedicated runs are members `42376107569`, conversation `42376110818`, execution `42376114224`, usage `42376117513` and notifications `42376120490`; official signature, native/package checks and anonymous archive/bundle bytes are inherited from the supply owner.
