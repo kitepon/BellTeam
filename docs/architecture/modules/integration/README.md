@@ -1,5 +1,7 @@
 # 共通入口・結合実装
 
+[Body-resident code and migration inventory (Z-b3)](../../parent-residency.md) records current process/update boundaries, stable parent contracts and fifteen owner-assigned design handoffs. It does not authorize deployment or implement those migrations.
+
 [本体データフロー](../../data-flow.md)は、1731本体と別版updaterの公開接点を対象に、要求・返却・通知・保存と状態所有を合成する。対象範囲と既知の制限は同正本に置く。
 
 実装と通常main統合の責任者：モリー。全体設計・公開契約裁定・優先順位・本番・Owner判断はトロニー。機能内部と配布は各担当。
