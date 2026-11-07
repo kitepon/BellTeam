@@ -21,7 +21,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [Delivery](../../../../ios/BellBot/BellBot/Core/Models.swift#L61)、[RoomRouting](../../../../ios/BellBot/BellBot/Core/Models.swift#L115) | 配送とルームの返信者判定結果 |
 | [RecentMessage.preview](../../../../ios/BellBot/BellBot/Core/Models.swift#L74) | 一覧の副題用本文・画像表示 |
 | [TimelineMessage.isOutgoing / isPeer / displayedImageURLs / status](../../../../ios/BellBot/BellBot/Core/Models.swift#L100) | 発言の向き・種別・画像参照・配送状態の集約 |
-| [QueueItem.displayItems](../../../../ios/BellBot/BellBot/Core/Models.swift#L128) | Bot IDとstatus単位で表示queueをまとめる。botId無しは別項目 |
+| [QueueItem.displayItems](../../../../ios/BellBot/BellBot/Core/Models.swift#L128) | Bot IDとstatus単位で表示queueをまとめる。`steered:true`（実行中ターンへの差し込み）はrunningとして数え、Botの実行中ターンごとに「処理中」1行にする。steeredの無い旧形式はfalse扱い。botId無しは別項目 |
 | [Schedule.title](../../../../ios/BellBot/BellBot/Core/Models.swift#L159) | 予定の表示名 |
 | [ChatTarget.id / isRoom / path](../../../../ios/BellBot/BellBot/Core/Models.swift#L166) | 宛先と`/api/bots/:id`・`/api/rooms/:id` |
 | [ConversationPage](../../../../ios/BellBot/BellBot/Core/Models.swift#L177)、[ListResponse](../../../../ios/BellBot/BellBot/Core/Models.swift#L183) | 履歴ページと古い残件情報 |
