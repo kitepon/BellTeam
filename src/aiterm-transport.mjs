@@ -15,6 +15,7 @@ import { latestThroughlineHandoffContext } from './throughline-context.mjs'
 import { runWaitProcess } from './aiterm-wait-process.mjs'
 import { BotSessionState } from './bot-session-state.mjs'
 import { DeliveryJob } from './delivery-job.mjs'
+import { operationLease } from './aiterm-operation-lease.mjs'
 import { SeatActivity, SeatTurnWatch } from './seat-activity.mjs'
 import { executionFailureReport, reportExecutionFailure } from './execution-failure-report.mjs'
 import { recoverableTurnFailure } from './capacity-continuation.mjs'
@@ -359,7 +360,8 @@ export class AitermTransport {
             if (job.receipt && job.conversationDelivery && job.nativeCompletion && !job.nativeTerminal)
               this.conversationAdmission?.confirmNativeClosure?.(job.conversationDelivery, job.receipt, closure)
             job.nativeClosure = structuredClone(closure.structuredContent)
-            job.completion.then(() => this.activity.release(job), () => this.activity.release(job))
+            const release = () => { this.activity.release(job); job.native?.release() }
+            job.completion.then(release, release)
           }
           job.markStopped()
         }
@@ -520,6 +522,17 @@ export class AitermTransport {
     return result.structuredContent
   }
 
+  // A cursor belongs to the Aiterm generation that issued it. After a switch the chain restarts without it (aiterm-generation-pin.md).
+  async observeChain(bot, previous = null) {
+    const lease = operationLease(this.client)
+    try {
+      const generation = lease.generation ?? null
+      const cursor = previous?.cursor && (previous.generation ?? null) === generation ? previous.cursor : null
+      const result = await lease.client.call('pty_observe', { session_id: this.session(bot), ...(cursor ? { cursor } : {}) })
+      return { observation: result.structuredContent, generation }
+    } finally { lease.release() }
+  }
+
   // Goal一覧の対象だけをまとめて読む。Goal本体と変更権限は、このsnapshotから作らない。
   async goalTargets(bots) {
     const result = (await this.client.call('pty_list')).structuredContent
@@ -570,7 +583,7 @@ export class AitermTransport {
   // stop()は最後にもう一度読んでターン末尾の言葉を拾い、エラーの知らせを受け取ったかを返す。
   // fromは読み始める位置（差し込みの返りと席の今のターンが返す値）。無い時は最後のdispatchから読む。
   // turnIdを渡すと、ほかのターンの言葉を出さない（読み始める位置より後は、次のターンの言葉も返るため）。
-  followInterim(session, receipt, onInterim, { from = null, turnId = null } = {}) {
+  followInterim(session, receipt, onInterim, { from = null, turnId = null, client = this.client } = {}) {
     let after = 0
     let stopped = false
     let broken = false
@@ -579,7 +592,7 @@ export class AitermTransport {
     const read = async () => {
       if (broken) return
       try {
-        const data = await this.readInterim(session, after, from)
+        const data = await this.readInterim(session, after, from, client)
         if (!data || data.event_cursor !== receipt.event_cursor) return
         const fresh = data.words.filter(word => word.seq > after)
         if (!fresh.length) return
@@ -614,8 +627,8 @@ export class AitermTransport {
   }
 
   // Aitermはpty_observeの_metaに"aiterm/caller": "BellTeam"がある時だけ、結果の_metaへ合間の言葉を付ける（Aiterm ADR 0071）。
-  async readInterim(session, after, from = null) {
-    const result = await this.client.call('pty_observe', { session_id: session }, {
+  async readInterim(session, after, from = null, client = this.client) {
+    const result = await client.call('pty_observe', { session_id: session }, {
       meta: { ...CALLER_META, 'aiterm/interim_after': after, ...(from ? { 'aiterm/interim_from': from } : {}) },
     })
     const data = result?._meta?.['aiterm/interim_words']
@@ -694,6 +707,8 @@ export class AitermTransport {
       this.trackCompletion(this.conversationAdmission.deliveryCompletion(conversationDelivery))
       ;({ onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null } = conversationCallbacks)
     }
+    // Every RPC of this delivery's chain goes to one Aiterm generation (aiterm-generation-pin.md).
+    job.native = operationLease(this.client)
     this.activity.register(job)
     // Runs only before input is typed, so a body update hold (Z-c) refuses new input without touching running turns.
     const check = () => {
@@ -795,12 +810,12 @@ export class AitermTransport {
           return { delivery: 'steered' }
         }
         // ここから先は、この文が始めたターン（前のターンが終わった後で新しいターンになった差し込みも含む）。
-        const answer = transcript ? await this.readTurnAnswer(delivery, completion) : undefined
+        const answer = transcript ? await this.readTurnAnswer(delivery, completion, job.native.client) : undefined
         await job.checkpoint()
         // 画面に出すだけの回答なので、読めなくても配送は完了として扱う。
         if (!transcript && onAnswer) {
           try {
-            const text = await this.readTurnAnswer(delivery, completion)
+            const text = await this.readTurnAnswer(delivery, completion, job.native.client)
             await job.checkpoint()
             if (typeof text === 'string' && text.trim()) await onAnswer(text)
           } catch (error) {
@@ -843,7 +858,7 @@ export class AitermTransport {
         if ((!job.nativeUnconfirmed || job.nativeClosure) && !this.retainUntrackedImages(job, delivery, followed, parent))
           await this.removeTemporaryImages(delivery?.imageFiles)
       } finally {
-        if (!job.nativeUnconfirmed || job.nativeClosure) this.activity.release(job)
+        if (!job.nativeUnconfirmed || job.nativeClosure) { this.activity.release(job); job.native.release() }
       }
     }
     const finishActivity = () => this.workState.finishedActivity(bot.id, job.restartActivity)
@@ -901,8 +916,8 @@ export class AitermTransport {
     return { steered, followed, follower }
   }
 
-  async readTurnAnswer(delivery, completion) {
-    return transcriptText(await this.client.call('pty_read', {
+  async readTurnAnswer(delivery, completion, client = this.client) {
+    return transcriptText(await client.call('pty_read', {
       session_id: delivery.session,
       agent_transcript: true,
       ...(completion.operation_id ? { operation_id: completion.operation_id } : {}),
@@ -920,7 +935,7 @@ export class AitermTransport {
 
   async waitForTurnCompletion(job, delivery, onInterim, nativeCompletion) {
     const interim = onInterim && job.follows
-      ? this.followInterim(delivery.session, delivery.receipt, onInterim, { from: delivery.steer?.interimFrom }) : null
+      ? this.followInterim(delivery.session, delivery.receipt, onInterim, { from: delivery.steer?.interimFrom, client: job.native?.client }) : null
     let completion
     try {
       completion = await (nativeCompletion ?? this.waitUntilDone(delivery.receipt, job.controller.signal))
@@ -978,14 +993,16 @@ export class AitermTransport {
 
   // 席の今のターン（Aiterm 0.60.0、ADR 0122）。席のsessionごとに、動いているターン・{ state: 'idle' }・null（分からない）。
   // All supported activity rows feed CurrentWork; only Codex supplies the legacy watch/wait contract.
-  async seatTurns(bots = []) {
+  seatTurns(bots = []) { return this.#seatTurns(bots, this.client) }
+
+  async #seatTurns(bots, client) {
     const read = this.workState.beginRead(bots.map(bot => {
       const session = this.session(bot), version = this.stopVersions.get(bot.id), harness = HARNESS.get(bot.harness)
       return { botId: bot.id, sessionId: session, harness, current: () => this.session(bot) === session
         && HARNESS.get(bot.harness) === harness && this.stopVersions.get(bot.id) === version && !this.sessionChanges.has(bot.id) }
     }))
     let result
-    try { result = await this.client.call('pty_list', {}, { meta: CALLER_META })
+    try { result = await client.call('pty_list', {}, { meta: CALLER_META })
     } catch (error) { this.workState.endRead(read, null); throw error }
     const data = result?._meta?.['aiterm/seat_turns']
     this.workState.endRead(read, data)
@@ -999,7 +1016,14 @@ export class AitermTransport {
   // 席の今のターンを返さない版のAitermではfalseを返す。
   async watchSeatTurns(bots, { onInterim = null, groupId = randomUUID, allowNew = () => true } = {}) {
     const versions = new Map(bots.map(bot => [bot.id, this.stopVersions.get(bot.id)]))
-    const turns = await this.seatTurns(bots)
+    // Turns read here carry this generation's wait process and interim offsets; each started watch holds it.
+    const lease = operationLease(this.client)
+    try { return await this.#watchSeatTurns(bots, versions, lease, { onInterim, groupId, allowNew }) }
+    finally { lease.release() }
+  }
+
+  async #watchSeatTurns(bots, versions, lease, { onInterim, groupId, allowNew }) {
+    const turns = await this.#seatTurns(bots, lease.client)
     if (!turns) return false
     for (const bot of bots) {
       if (versions.get(bot.id) !== this.stopVersions.get(bot.id)) continue
@@ -1009,13 +1033,13 @@ export class AitermTransport {
       // 追っているターンがもう動いていない。止められたターンでは、Aitermの待ちは返らない（完了の印だけを待つ）。
       // nullは「分からない」なので、追い続ける。
       if (watch && turn?.state === 'running' && turn.turn_id !== watch.turnId) {
-        if (allowNew()) this.watchTurn(bot, session, turn, { onInterim, groupId })
+        if (allowNew()) this.watchTurn(bot, session, turn, { onInterim, groupId, lease })
         watch.end()
         continue
       }
       if (watch && (turn === undefined || turn?.state === 'idle')) watch.end()
       if (allowNew() && turn?.state === 'running' && this.isIdle(bot.id) && this.activity.followedTurns.get(bot.id) !== turn.turn_id)
-        this.watchTurn(bot, session, turn, { onInterim, groupId })
+        this.watchTurn(bot, session, turn, { onInterim, groupId, lease })
     }
     return true
   }
@@ -1029,7 +1053,7 @@ export class AitermTransport {
       throw Object.assign(new Error('CONVERSATION_NOT_ACCEPTED'), { code: 'CONVERSATION_NOT_ACCEPTED', status: 503, effect: 'not_started' })
   }
 
-  watchTurn(bot, session, turn, { onInterim, groupId }) {
+  watchTurn(bot, session, turn, { onInterim, groupId, lease = null }) {
     try { this.assertConversationOccupation(bot.id) } catch { return null }
     const watch = new SeatTurnWatch({ id: this.activeId(), bot, turn, groupId: groupId(), now: this.now() })
     let operationLease, conversationDelivery, words = onInterim
@@ -1053,7 +1077,7 @@ export class AitermTransport {
         await words(bot.id, watch.info.groupId, value)
         watch.shown.words.push(...value.filter(word => word.kind !== 'error').map(word => word.text.trim()).filter(Boolean))
       } : null
-      const interim = say ? this.followInterim(session, turn, say, { from: turn.interim_from, turnId: turn.turn_id }) : null
+      const interim = say ? this.followInterim(session, turn, say, { from: turn.interim_from, turnId: turn.turn_id, client: lease?.client }) : null
       let turnCompleted = false
       try {
         let failure = null
@@ -1080,6 +1104,7 @@ export class AitermTransport {
         this.activity.endWatch(watch)
       }
     })()
+    if (lease) { const release = lease.hold(); watch.completion.then(release, release) }
     if (conversationDelivery) {
       this.conversationAdmission.trackCompletion(conversationDelivery, watch.completion)
       const finish = () => this.conversationAdmission.finish(conversationDelivery)
@@ -1188,7 +1213,7 @@ export class AitermTransport {
       try {
         if (executionJob) executionJob.deliveryStage = 'BOT_SEND_FAILED'
         if (executionJob) executionJob.nativeSession = session
-        result = await this.sendToSession(session, message, imageFiles, check)
+        result = await this.sendToSession(session, message, imageFiles, check, executionJob?.native?.client)
       } catch (error) {
         check()
         // Recover only an explicit pre-input refusal; a missing seat cannot prove an uncertain send was unsent.
@@ -1215,7 +1240,7 @@ export class AitermTransport {
         }, { membersLease })
         check()
         if (executionJob) executionJob.nativeSession = session
-        result = await this.sendToWokenSession(bot, session, message, imageFiles, check)
+        result = await this.sendToWokenSession(bot, session, message, imageFiles, check, executionJob?.native?.client)
       }
       const receipt = result.structuredContent
       if (receipt?.mode !== 'agent_steer'
@@ -1234,10 +1259,10 @@ export class AitermTransport {
   // 断られる（2026-11-07 20:18、起こした6席が全て、生きていた4席は全て通過）。Aitermは本文を送っておらず「少し後で再度
   // pty_send」と案内するので、このdispatchで起こした席だけ同じ文を送り直す。待ちはAitermの受付確認（最長30秒）が持つ。
   // shortcut: 上限3回（起動後およそ90秒）、同時起動の山でも足りない実測が出たら上限を見直す。
-  async sendToWokenSession(bot, session, message, imageFiles, admissionCheck) {
+  async sendToWokenSession(bot, session, message, imageFiles, admissionCheck, client) {
     for (let attempt = 1; ; attempt++) {
       try {
-        return await this.sendToSession(session, message, imageFiles, admissionCheck)
+        return await this.sendToSession(session, message, imageFiles, admissionCheck, client)
       } catch (error) {
         if (error.code !== 'BOT_INPUT_NOT_READY' || error.agentResumeResult || attempt >= WOKEN_SEND_ATTEMPTS) throw error
         admissionCheck?.()
@@ -1249,9 +1274,9 @@ export class AitermTransport {
   // 画像はaitermのimage引数へ渡す。harness別の添付手順（パスの先打鍵等）はaitermが吸収する（0.30.0）。
   // require_agentで、登録が無い席へ普通の端末として打たれる（mode=sent）のを止める。
   // BellTeamの印を付けると、差し込みの返りに、その文を取ったターンを追う手がかりが入る（Aiterm 0.60.0、ADR 0122）。
-  async sendToSession(session, message, imageFiles, admissionCheck) {
+  async sendToSession(session, message, imageFiles, admissionCheck, client = this.client) {
     this.assertWorkAllowed()
-    return this.client.call('pty_send', {
+    return client.call('pty_send', {
       session_id: session,
       text: message,
       require_agent: true,

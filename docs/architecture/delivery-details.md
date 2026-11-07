@@ -33,6 +33,7 @@ flowchart TD
 | 実関数/状態所有 | 正確な役割 |
 | --- | --- |
 | `AitermTransport.submit` / `DeliveryJob` | jobは受付前から`jobs`に登録。停止/設定待ちと検証後に`active`へ入る。dispatchは呼出元の本文をそのままnativeへ渡し、共通規範の節を末尾に追加しない。キューの存在をnative受付済みの証拠にしない |
+| `submit` → `DeliveryJob.native` | jobは受付前に一つのAiterm世代をpinし、`pty_send`・wait process・合間の言葉・transcriptをその世代へ送る。pinの解放は`activity.release`と同じ時点（[aiterm-generation-pin.md](modules/execution/aiterm-generation-pin.md)） |
 | `dispatchInOrder` / `SeatActivity.dispatches` | Bot別に直前のdispatchの返却まで順序付け。ターン終了まで直列化しない。先の拒否を次の独立入力へ伝播しない |
 | `submit`のreceipt以後 → `followAcceptedDelivery` | receipt代入→停止結果適用→checkpoint→steer/follower判定→`job.follows`設定→running通知→checkpoint→accepted。最初のcheckpointは残す。follower判定と印の設定の間へawaitを入れない |
 | `waitForTurnCompletion/followInterim` | nativeのwait processとevent cursorから待つ。途中経過は既存followerがあれば重ねて出さない。最後にも一度読む。途中経過の読取失敗はそのpollだけを止めstderrへ |

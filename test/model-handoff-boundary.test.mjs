@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { createHash, randomUUID } from 'node:crypto'
 import { setImmediate as turn } from 'node:timers/promises'
 import { ModelHandoff } from '../src/model-handoff.mjs'
+import { operationLease } from '../src/aiterm-operation-lease.mjs'
 import { BotAdministration } from '../src/bot-administration.mjs'
 import { configurationBinding, configurationDigest, configurationSettings } from '../src/configuration-request.mjs'
 
@@ -330,4 +331,19 @@ test('terminal persistence completion owns the fence, including failure and retr
   assert.equal(f.handoff.current(botId), null)
   assert.equal(actions(f, 'bind').length, 1)
   assert.equal(commits(f).length, 0)
+})
+
+test('handoff captures over the handed-off job generation and holds it until the operation really ends', { timeout: 3000 }, async () => {
+  const f = fixture(), released = []
+  f.transport.client = { captureHandoffConnection: () => { throw new Error('the current generation must not capture') } }
+  f.job.native = operationLease({ pin: () => ({ generation: 'old', captureHandoffConnection: () => f.binding, release: () => released.push('old') }) })
+  const op = f.handoff.begin(await f.prepare())
+  f.job.native.release()
+  await turn()
+  assert.deepEqual(released, [])
+  f.state.response = snapshot(op.context, { revision: 2, stage: 1, excluded: true })
+  await f.handoff.read(op)
+  await turn()
+  assert.equal(f.handoff.current(botId), null)
+  assert.deepEqual(released, ['old'])
 })

@@ -2,6 +2,8 @@
 
 所有キロ。元handler/fullExtra/_meta/assemblyはMolly、native内部はElegg、原delivery一件read/継続はN102。
 
+Aiterm世代: 捕捉するconnectionは渡すjobのpin（`job.native`）から取る。prepareは捕捉中、beginは`operation.completion`までjobのpinをholdする（[aiterm-generation-pin.md](aiterm-generation-pin.md)）。
+
 ```mermaid
 flowchart LR
   Ingress[元handler 閉8ctx] --> Save[既希望保存 / 同application]

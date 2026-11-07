@@ -54,7 +54,7 @@ export class IdleSessions {
 
   async checkBot(bot) {
     const previous = this.seen.get(bot.id)
-    const observation = await this.transport.observe(bot, previous?.cursor)
+    const { observation, generation } = await this.transport.observeChain(bot, previous)
     if (observation?.exists !== true) {
       this.seen.delete(bot.id)
       return
@@ -64,7 +64,7 @@ export class IdleSessions {
     // 画面が前回の観測から変わっていれば、その間に動いていた。数え直す。
     const since = !quiet ? null
       : previous?.since != null && observation.activity.output_changed === false ? previous.since : now
-    this.seen.set(bot.id, { cursor: observation.activity?.cursor, since })
+    this.seen.set(bot.id, { cursor: observation.activity?.cursor, generation, since })
     if (since === null || now - since < this.idleMs) return
     // 答えを待っている席を閉じると、答えが出ても席が起きない（Approval Boxは閉じた席を起こさない）。
     if (await this.pendingDecisions(bot) !== 0) return

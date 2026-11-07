@@ -27,8 +27,6 @@ export class ModelHandoff {
   async prepare({ botId, current, candidate, ingress, assertCurrent, requestId,
     deadline = performance.now() + 5000, windowSignal = ingress?.signal }) {
     if (!this.eligible(botId, current, candidate, ingress)) return null
-    const connection = this.transport.client.captureHandoffConnection?.()
-    if (!connection) return null
     const jobs = [...this.transport.jobs].filter(job => job.bot.id === botId && !job.stopped && !job.stopRequested
       && !job.nativeTerminal && !job.nativeUnconfirmed && job.receipt?.mode === 'agent_dispatch'
       && job.receipt.session_id === this.transport.session(current) && job.info.groupId
@@ -37,6 +35,11 @@ export class ModelHandoff {
     if (jobs.length !== 1) return null
     const job = jobs[0], launch = { session_id: job.receipt.session_id, launch_id: job.receipt.launch_id }
     if (ingress.expectedLaunch !== null && !same(ingress.expectedLaunch, launch)) return null
+    // Capture over the generation that issued job.receipt, so both boundaries come from one store (aiterm-generation-pin.md).
+    const holdNative = () => job.native?.hold() ?? (() => {})
+    const releaseNative = holdNative()
+    const connection = (job.native?.client ?? this.transport.client).captureHandoffConnection?.()
+    if (!connection) { releaseNative(); return null }
     const abort = new AbortController()
     const cancel = () => abort.abort()
     ingress.signal.addEventListener('abort', cancel, { once: true })
@@ -55,10 +58,10 @@ export class ModelHandoff {
       Promise.resolve(value).then(result => { clear(); resolve(result) }, error => { clear(); reject(error) })
       if (abort.signal.aborted) stop()
     })
-    let original
+    let original, capturing
     try {
       check()
-      const capturing = connection.capture({ schema: 'aiterm.model-handoff.capture-request.v1', action: 'capture',
+      capturing = connection.capture({ schema: 'aiterm.model-handoff.capture-request.v1', action: 'capture',
         launch, native_call: ingress.nativeCall, max_wait_ms: Math.max(1, Math.floor(deadline-performance.now())) }, abort.signal)
       this.trackCompletion(capturing)
       const captured = await waitInWindow(capturing)
@@ -84,7 +87,7 @@ export class ModelHandoff {
       const originBytes = Buffer.from(JSON.stringify(tuple), 'utf8')
       const context = { operation: original.binding, point: captured.point,
         origin_digest: createHash('sha256').update(originBytes).digest('hex'), native_call: call }
-      return { original, context, connection, anchor, candidate, assertCurrent, assertOrigin: check, originBytes, captureSnapshot: captured,
+      return { original, context, connection, holdNative, anchor, candidate, assertCurrent, assertOrigin: check, originBytes, captureSnapshot: captured,
         metadata: { operation: original.binding, origin_digest: context.origin_digest, call_token: call.call_token } }
     } catch {
       if (original) {
@@ -95,6 +98,8 @@ export class ModelHandoff {
     } finally {
       clearTimeout(timer); ingress.signal.removeEventListener('abort', cancel)
       windowSignal?.removeEventListener('abort', cancel)
+      // A capture abandoned by the window still holds the generation until it really returns.
+      if (capturing) Promise.resolve(capturing).then(releaseNative, releaseNative); else releaseNative()
     }
   }
 
@@ -107,6 +112,9 @@ export class ModelHandoff {
     const operation = { ...prepared, contextDigest: digest(prepared.context), botId: prepared.anchor.target, phase: 'response', issued: false,
       sent: new Set(), snapshot: null, invalidated: false, completion: new Promise(resolve => { finish = resolve }), finish }
     operation.finish = finish
+    // The control connection belongs to the job's generation until the operation really ends.
+    const releaseNative = prepared.holdNative?.() ?? (() => {})
+    operation.completion.then(releaseNative)
     this.operations.set(operation.context.operation.id, operation)
     let record = this.records.get(operation.botId)
     if (!record) this.records.set(operation.botId, record = { records: new Map() })
