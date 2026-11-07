@@ -180,6 +180,7 @@ def validate_catalog(value, *, now=None):
     for release in releases:
         exact(release, 'componentId,sourceCommit,versionId,platform,artifact,compatibility,changes')
         component = release['componentId']
+        # Runtime rows never appear here (released readers reject unknown IDs); they live in runtime-catalog.json.
         require(component in ['container', 'web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics', 'execution', 'conversation'])
         require(hexadecimal(release['sourceCommit'], 40))
         platform = release['platform']; exact(platform, 'os,arch')
@@ -221,6 +222,40 @@ def validate_catalog(value, *, now=None):
                 r'https://github\.com/kitepon/BellTeam/releases/download/updates-\d{8}T\d{6}Z/' + filename,
                 artifact['archive']['url']))
             require(artifact['bundle']['url'] == artifact['archive']['url'] + '.sigstore.json')
+    return value
+
+
+RUNTIMES = ('runtime-aiterm-mcp', 'runtime-codex', 'runtime-claude-code', 'runtime-throughline')
+
+
+def validate_runtime_catalog(value):
+    """Z-b2 runtime-catalog.json: a separate signed asset bound to one main catalog; only enabling-image installers read it."""
+    exact(value, 'schema,catalogSha256,releases')
+    require(value['schema'] == 'bellteam.runtime-catalog.v1' and hexadecimal(value['catalogSha256'], 64))
+    releases = value['releases']
+    require(type(releases) is list and len(releases) <= 16)
+    seen = set()
+    for release in releases:
+        exact(release, 'componentId,sourceCommit,versionId,platform,artifact,compatibility,changes')
+        component, platform = release['componentId'], release['platform']
+        require(component in RUNTIMES and hexadecimal(release['sourceCommit'], 40) and hexadecimal(release['versionId'], 64))
+        exact(platform, 'os,arch'); require(platform['os'] == 'linux' and platform['arch'] in ['amd64', 'arm64'])
+        key = component, platform['arch']; require(key not in seen); seen.add(key)
+        require(release['compatibility'] == {'runtimeProtocol': 1, 'nodeMajor': 26, 'libc': 'glibc'}, 'UPDATE_RUNTIME_INCOMPATIBLE')
+        changes = release['changes']
+        require(type(changes) is list and len(changes) <= 16 and all(type(t) is str and 0 < len(t) <= 1000
+                and not re.search(r'[\x00-\x1f\x7f]', t) for t in changes))
+        artifact = release['artifact']
+        exact(artifact, 'kind,archive,bundle,signerCommit')
+        require(artifact['kind'] == 'archive' and hexadecimal(artifact['signerCommit'], 40))
+        for kind, limit in [('archive', 512 * 1024**2), ('bundle', 16 * 1024**2)]:
+            item = artifact[kind]; exact(item, 'url,sha256,bytes')
+            require(hexadecimal(item['sha256'], 64) and type(item['bytes']) is int and 0 < item['bytes'] <= limit)
+        require(artifact['archive']['sha256'] == release['versionId'])
+        filename = component + '-' + release['sourceCommit'] + '-linux-' + platform['arch'] + r'\.tar\.gz'
+        require(type(artifact['archive']['url']) is str and re.fullmatch(
+            r'https://github\.com/kitepon/BellTeam/releases/download/updates-\d{8}T\d{6}Z/' + filename, artifact['archive']['url']))
+        require(artifact['bundle']['url'] == artifact['archive']['url'] + '.sigstore.json')
     return value
 
 

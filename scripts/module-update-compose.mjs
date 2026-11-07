@@ -2,6 +2,8 @@
 import { text } from 'node:stream/consumers'
 import path from 'node:path'
 
+const RUNTIME_ROOT = '/srv/bellteam/shared/tools/bellteam-runtime'
+
 // The installer supplies its frozen normal model, never a caller-selected service.
 export function moduleInstallerModels(input) {
   const normal = structuredClone(input), service = normal?.services?.bellteam
@@ -15,7 +17,7 @@ export function moduleInstallerModels(input) {
     || normal.volumes?.[control[0].source]?.external !== true) throw Error('MODULE_INSTALLER_MODEL_INVALID')
   const privateName = normal.volumes[control[0].source].name
   if (typeof privateName !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(privateName)) throw Error('MODULE_INSTALLER_MODEL_INVALID')
-  const socketName = project + '-module-socket', stateName = project + '-module-updater'
+  const socketName = project + '-module-socket', stateName = project + '-module-updater', runtimeName = project + '-runtime-code'
   const sockets = service.volumes.filter(m => m.target === '/run/bellteam-updater')
   if (sockets.length === 1 && sockets[0].type === 'bind' && sockets[0].read_only === true
     && sockets[0].source === '/srv/bellteam/shared/tools/bellteam-container-update-host/socket'
@@ -29,6 +31,16 @@ export function moduleInstallerModels(input) {
     normal.volumes['module-socket'] = { name:socketName }
     service.volumes.push({ type:'volume',source:'module-socket',target:'/run/bellteam-updater',read_only:true,volume:{nocopy:true} })
   }
+  // Z-b2 runtime code: the body only reads/executes it; the module-installer is its sole writer.
+  const runtimes = service.volumes.filter(m => m.target === RUNTIME_ROOT)
+  if (runtimes.length) {
+    if (runtimes.length !== 1 || runtimes[0].type !== 'volume' || runtimes[0].source !== 'runtime-code' || runtimes[0].read_only !== true
+      || runtimes[0].volume?.subpath || normal.volumes?.['runtime-code']?.name !== runtimeName) throw Error('MODULE_INSTALLER_MODEL_INVALID')
+  } else {
+    if (Object.values(normal.volumes).some(v => v.name === runtimeName)) throw Error('MODULE_INSTALLER_MODEL_INVALID')
+    normal.volumes['runtime-code'] = { name:runtimeName }
+    service.volumes.push({ type:'volume',source:'runtime-code',target:RUNTIME_ROOT,read_only:true })
+  }
   const backend = { name:project, services:{ 'module-installer': {
     image:service.image,init:true,restart:'unless-stopped',read_only:true,user:'0:0',
     entrypoint:['/usr/bin/python3','-I','-B','/app/scripts/module-update-service.py'],
@@ -38,8 +50,10 @@ export function moduleInstallerModels(input) {
     healthcheck:{test:['CMD','/usr/bin/python3','-I','-B','/app/scripts/module-update-service.py','--health'],interval:'10s',timeout:'5s',retries:3,start_period:'120s'},
     volumes:[{type:'volume',source:'module-updater',target:'/srv/bellteam-module-updater',volume:{nocopy:true}},
       {type:'volume',source:'module-socket',target:'/run/bellteam-updater',volume:{nocopy:true}},
-      {type:'volume',source:'private',target:'/srv/bellteam-private',volume:{nocopy:true}}],
-  } },volumes:{'module-updater':{name:stateName},'module-socket':{name:socketName,external:true},private:{name:privateName,external:true}} }
+      {type:'volume',source:'private',target:'/srv/bellteam-private',volume:{nocopy:true}},
+      {type:'volume',source:'runtime-code',target:RUNTIME_ROOT,volume:{nocopy:true}}],
+  } },volumes:{'module-updater':{name:stateName},'module-socket':{name:socketName,external:true},private:{name:privateName,external:true},
+    'runtime-code':{name:runtimeName,external:true}} }
   return {normal,backend}
 }
 
@@ -59,7 +73,7 @@ export function moduleWorkerTerminationModel(input) {
   const data = bind('/srv/bellteam'), home = bind('/home/bell'), runtime = path.posix.dirname(data)
   if (data !== path.posix.join(runtime, 'data') || home !== path.posix.join(runtime, 'home')) throw Error('MODULE_INSTALLER_MODEL_INVALID')
   service.command = [normal.name, service.image, backend.volumes.private.name, path.posix.join(runtime, 'server-only/state-data')]
-  service.volumes = service.volumes.filter(m => m.source !== 'module-socket')
+  service.volumes = service.volumes.filter(m => !['module-socket', 'runtime-code'].includes(m.source))
   service.volumes.push({ type: 'bind', source: '/var/run/docker.sock', target: '/var/run/docker.sock', bind: { create_host_path: false } })
   return { name: normal.name, services: { 'module-worker-termination': service },
     volumes: { 'module-updater': backend.volumes['module-updater'], private: backend.volumes.private } }

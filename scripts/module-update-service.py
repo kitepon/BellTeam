@@ -14,6 +14,7 @@ import socket
 import stat
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 
@@ -28,6 +29,7 @@ def load_module(name, filename):
 host = load_module('bundled_host_protocol', 'container-update-host.py')
 PREFIX = Path('/srv/bellteam-module-updater')
 PRIVATE = Path('/srv/bellteam-private')
+RUNTIME = Path('/srv/bellteam/shared/tools/bellteam-runtime')  # runtime-code volume, read-write only here
 SOCKET = Path('/run/bellteam-updater')
 
 
@@ -355,8 +357,51 @@ class ModuleUpdater(host.HostUpdater):
             except OSError: raise host.Failure('UNREADABLE', path=str(directory / 'reconciliation-fence.json'), reason='OSError')
         return result
 
+    def runtime_committed(self, identifier):
+        runtime = load_module('runtime_update', 'runtime_update.py')
+        try:
+            generation, _ = runtime.read_current(RUNTIME)
+            return generation is not None and runtime.read_json(RUNTIME / 'generations' / (generation + '.json'))['jobId'] == identifier
+        except (OSError, ValueError, KeyError):
+            return False
+
+    def install_runtime(self, plan, directory):
+        # Z-b2 P4/P5 (docs/architecture/modules/runtime/runtime-updates.md): verify, stage immutably, commit next-launch selection.
+        target = plan['target']
+        runtime = load_module('runtime_update', 'runtime_update.py')
+        incoming = host.module_inputs(self, target)
+        self.progress(directory, 'verifying')
+        host.check(self.planned_target(plan) == target, 'HOST_UPDATE_PLAN_CHANGED')
+        self.assert_model_binding(plan['expected'])
+        expected = {'archiveSha256': target['versionId'], 'sourceCommit': target['sourceCommit'], 'signerCommit': target['artifact']['signerCommit']}
+        platform = {**self.config['platform'], 'libc': 'glibc', 'nodeMajor': 26}
+        try:
+            with tempfile.TemporaryDirectory(prefix='runtime-verify-', dir=self.state) as stage:
+                path = Path(stage) / 'expectation.json'
+                path.write_text(json.dumps(expected)); os.chmod(path, 0o400)
+                output = subprocess.run(['/usr/bin/python3', '/app/scripts/verify-runtime.py', target['componentId'],
+                    str(incoming / 'archive.tar.gz'), str(incoming / 'bundle.json'), str(path)],
+                    env={'PATH': '/usr/local/bin:/usr/bin:/bin'}, stdin=subprocess.DEVNULL, capture_output=True, timeout=120)
+            host.check(output.returncode == 0, 'RUNTIME_ARTIFACT_INVALID')
+            receipt = json.loads(output.stdout)
+            closure = runtime.stage(RUNTIME, target['componentId'], incoming / 'archive.tar.gz', receipt, expected, platform)
+            self.progress(directory, 'swapping')
+            current, _ = runtime.read_current(RUNTIME)
+            runtime.commit(RUNTIME, target['componentId'], closure, directory.name, current)
+        except runtime.RuntimeFailure as error:
+            raise host.Failure(error.code)
+        cleanup, error = 'succeeded', None
+        try:
+            import shutil
+            shutil.rmtree(incoming)
+        except OSError:
+            cleanup, error = 'failed', 'HOST_MODULE_CLEANUP_FAILED'
+        return {'execution': 'succeeded', 'verification': 'succeeded', 'cleanup': cleanup,
+                'rollback': 'not_needed', 'observed': self.inspect_current(), 'error': error}
+
     def install(self, plan, directory):
         target = plan['target']
+        if target['componentId'] in host.RUNTIMES: return self.install_runtime(plan, directory)
         host.check(target['componentId'] in host.MODULES, 'HOST_MODULE_TARGET_INVALID')
         incoming = host.module_inputs(self, target)
         self.progress(directory, 'verifying')

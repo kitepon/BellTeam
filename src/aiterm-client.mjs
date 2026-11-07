@@ -351,14 +351,18 @@ async function authCapability(client) {
 }
 
 // Z-b2 C3: Aiterm resolves CODEX_BIN/CLAUDE_BIN and PATH from the launcher MCP's own process.env,
-// so these are set before that short-lived process starts. Equal to the builtin paths until a selection exists.
+// so these are set before that short-lived process starts. Only release components change tool resolution:
+// a builtin capture leaves the Bot's own PATH order (.local/bin, node_modules/.bin, env.sh) untouched.
 export function runtimeLaunchEnv(runtime, path = '') {
   const { components } = runtime
-  const dirs = [...new Set(Object.values(components).flatMap(component => Object.values(component.bin).map(bin => dirname(bin))))]
+  const release = id => components[id].origin === 'release' ? components[id] : null
+  // Release prefixes hold only their own package's bins, so prepending them shadows nothing else.
+  const dirs = [...new Set(Object.keys(components).filter(release).flatMap(id => Object.values(components[id].bin).map(bin => dirname(bin))))]
   return {
-    CODEX_BIN: components['runtime-codex'].bin.codex,
-    CLAUDE_BIN: components['runtime-claude-code'].bin.claude,
-    PATH: [...dirs, ...(path ? [path] : [])].join(':'),
+    ...(release('runtime-codex') ? { CODEX_BIN: components['runtime-codex'].bin.codex } : {}),
+    ...(release('runtime-claude-code') ? { CLAUDE_BIN: components['runtime-claude-code'].bin.claude } : {}),
+    ...(dirs.length ? { PATH: [...dirs, ...(path ? [path] : [])].join(':') } : {}),
+    // '' = builtin; unset would let later hooks/lazy MCP follow a newer selection mid-session (runtime-exec.mjs).
     BELLTEAM_RUNTIME_GENERATION: runtime.generation ?? '',
   }
 }

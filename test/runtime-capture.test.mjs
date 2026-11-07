@@ -6,17 +6,26 @@ import test from 'node:test'
 
 import { AitermClient, AitermTransport } from '../src/aiterm-transport.mjs'
 import { runtimeLaunchEnv } from '../src/aiterm-client.mjs'
+import { captureRuntime } from '../src/runtime-selection.mjs'
 
 const runtime = generation => Object.freeze({ generation, components: {
-  'runtime-aiterm-mcp': { bin: { 'aiterm-mcp': '/rt/a/bin/aiterm-mcp' }, dist: '/rt/a/lib/node_modules/aiterm-mcp/dist' },
-  'runtime-codex': { bin: { codex: '/rt/c/bin/codex' } },
-  'runtime-claude-code': { bin: { claude: '/rt/k/bin/claude' } },
-  'runtime-throughline': { bin: { throughline: '/rt/t/bin/throughline' } },
+  'runtime-aiterm-mcp': { origin: 'release', bin: { 'aiterm-mcp': '/rt/a/bin/aiterm-mcp' }, dist: '/rt/a/lib/node_modules/aiterm-mcp/dist' },
+  'runtime-codex': { origin: 'release', bin: { codex: '/rt/c/bin/codex' } },
+  'runtime-claude-code': { origin: 'release', bin: { claude: '/rt/k/bin/claude' } },
+  'runtime-throughline': { origin: 'release', bin: { throughline: '/rt/t/bin/throughline' } },
 } })
 
 test('launch env hands Aiterm the captured CLI paths with captured bin dirs first on PATH', async t => {
-  assert.deepEqual(runtimeLaunchEnv(runtime(null), '/usr/bin'), { CODEX_BIN: '/rt/c/bin/codex', CLAUDE_BIN: '/rt/k/bin/claude',
-    PATH: '/rt/a/bin:/rt/c/bin:/rt/k/bin:/rt/t/bin:/usr/bin', BELLTEAM_RUNTIME_GENERATION: '' })
+  assert.deepEqual(runtimeLaunchEnv(runtime('b'.repeat(64)), '/usr/bin'), { CODEX_BIN: '/rt/c/bin/codex', CLAUDE_BIN: '/rt/k/bin/claude',
+    PATH: '/rt/a/bin:/rt/c/bin:/rt/k/bin:/rt/t/bin:/usr/bin', BELLTEAM_RUNTIME_GENERATION: 'b'.repeat(64) })
+  // No selection (all builtin) is a true no-op: /usr/local/bin never shadows the Bot's own .local/bin.
+  assert.deepEqual(runtimeLaunchEnv(await captureRuntime({ root: '/nonexistent-runtime-root' }), '/p/.local/bin:/usr/bin'), { BELLTEAM_RUNTIME_GENERATION: '' })
+  // Mixed: only the release component's bin dir and binary are handed over.
+  const mixed = { generation: 'd'.repeat(64), components: { ...runtime(null).components,
+    'runtime-claude-code': { origin: 'builtin', bin: { claude: '/usr/local/bin/claude' } },
+    'runtime-aiterm-mcp': { origin: 'builtin', bin: { 'aiterm-mcp': '/usr/local/bin/aiterm-mcp' } },
+    'runtime-throughline': { origin: 'builtin', bin: { throughline: '/usr/local/bin/throughline' } } } }
+  assert.deepEqual(runtimeLaunchEnv(mixed, '/usr/bin'), { CODEX_BIN: '/rt/c/bin/codex', PATH: '/rt/c/bin:/usr/bin', BELLTEAM_RUNTIME_GENERATION: 'd'.repeat(64) })
   const project = await mkdtemp(join(tmpdir(), 'runtime-capture-'))
   t.after(() => rm(project, { recursive: true, force: true }))
   const { env, runtime: passed } = await new AitermClient().launchOptions(project, runtime('b'.repeat(64)))

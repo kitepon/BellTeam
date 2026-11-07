@@ -16,7 +16,7 @@ import { MembersAdmission } from '../src/members-admission.mjs'
 const deferred = () => Promise.withResolvers()
 // Z-b2: the runner spawns the captured absolute CLI path, never a PATH lookup.
 const releaseRuntime = { generation: 'a'.repeat(64), components: {
-  'runtime-claude-code': { bin: { claude: '/rt/claude/bin/claude' } }, 'runtime-codex': { bin: { codex: '/rt/codex/bin/codex' } } } }
+  'runtime-claude-code': { origin: 'release', bin: { claude: '/rt/claude/bin/claude' } }, 'runtime-codex': { origin: 'release', bin: { codex: '/rt/codex/bin/codex' } } } }
 const tick = () => new Promise(resolve => setImmediate(resolve))
 const first = { revision: '11111111-1111-4111-8111-111111111111', selection: { harness: 'claude', model: 'chosen', reasoningEffort: 'high' } }
 const second = { revision: '22222222-2222-4222-8222-222222222222', selection: { ...first.selection, model: 'other' } }

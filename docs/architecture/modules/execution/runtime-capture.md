@@ -10,7 +10,7 @@ Owner: Kiro. Contract owner of P6 (`src/runtime-selection.mjs`) and D2/D3: Molly
 | C2 | Resume of a saved session → `captureRuntime({ generation })` with the generation recorded for that session (C4); no record → current capture. Aiterm's `require_existing_resume` additionally re-executes the session's saved recipe executable and environment | `AitermTransport.resumePreviouslyActive` |
 | C3 | Capture → launch hand-off to Aiterm. The short-lived launcher MCP process gets, in its own env before it starts (Aiterm reads `resolveAgentBin` inputs from its process env, not per request): `CODEX_BIN`, `CLAUDE_BIN` (captured absolute bins), `PATH` with the four captured `bin` dirs first, `BELLTEAM_RUNTIME_GENERATION` (sha or `''`). The capture is also passed as the `AitermClient` option `runtimeCapture`; which aiterm-mcp code that launcher runs is Elegg's constructor/connect contract | `AitermClient.launchOptions(project, runtime)` → `call` env launcher / seat `run-seat-aiterm-launch` |
 | C4 | Accepted launch → D5 live reference `{generation, capturedAt}` keyed by native session name | `AitermTransport.recordRuntimeLaunch` |
-| C5 | Background summary → `captureRuntime()` per run, spawn the captured absolute `claude` / `codex` | `createBackgroundSummaryRunner` |
+| C5 | Background summary → `captureRuntime()` per run; a release component spawns its captured absolute `claude` / `codex`, a builtin one keeps the harness name resolved through the base PATH | `createBackgroundSummaryRunner` |
 
 ```mermaid
 flowchart LR
@@ -42,4 +42,14 @@ One entry per native session name, overwritten by the next launch of that name. 
 | D5 read fails (absent file) | no record → resume uses the current capture |
 | D5 write fails | reported as `RUNTIME_LAUNCH_RECORD_UNAVAILABLE`; the accepted launch stands (the record only feeds resume pinning and later retention) |
 
-No new guard is added. While no selection exists the capture equals the builtin `/usr/local` paths, so the hand-off values equal what Aiterm resolves today.
+## Hand-off rule (C3/C5)
+
+Only components with `origin:"release"` change a launch:
+
+- `CODEX_BIN` / `CLAUDE_BIN` are set only for a release codex / claude component.
+- `PATH` is prepended only with release package `bin` dirs (`packages/<id>/<sha>/prefix/bin`, which hold only that package's bins).
+- `BELLTEAM_RUNTIME_GENERATION` is always set: the generation sha, or `''` for a builtin capture. `''` pins the launch's later hooks/lazy MCP to builtin in `runtime-exec.mjs`, whereas unset would follow a newer selection mid-session. The variable alone changes no tool resolution.
+
+A builtin component adds no `PATH` entry and no `*_BIN`. In particular `/usr/local/bin` is never prepended, so the Bot's own `PATH` order (`<project>/.local/bin`, `node_modules/.bin`, env.sh additions) stays as before, and Aiterm and the summary runner resolve builtin CLIs exactly as before. With no selection, tool resolution in the launch env and the summary command is unchanged.
+
+No new guard is added.

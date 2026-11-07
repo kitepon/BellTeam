@@ -422,3 +422,14 @@ test('actual module completion invalidates an unchanged ready job after busy is 
     assert.equal('operationCompleted' in value, false)
   }
 })
+
+test('concurrent inventory reads and saved-result reads take turns instead of answering MODULE_EXCHANGE_BUSY', async t => {
+  const f = await fixture(t)
+  const center = createUpdateCenter({ moduleCatalog: f.catalog, moduleExecutor: f.executor })
+  const first = await f.plan(), accepted = await f.executor.start(f.request(first))
+  await f.executor.operation(accepted.requestId)
+  // The 60 s notification snapshot, the screen's GET /api/updates and its saved-request read at once (2026-11-08 04:32 JST).
+  const results = await Promise.allSettled([center.snapshot(), center.snapshot(), f.executor.operation(accepted.requestId), center.snapshot()])
+  assert.deepEqual(results.map(result => result.status), ['fulfilled', 'fulfilled', 'fulfilled', 'fulfilled'])
+  await f.executor.close()
+})

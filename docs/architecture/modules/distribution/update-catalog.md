@@ -218,3 +218,7 @@ source/signer `24a854e49d753f7c60be3f556124920353900c7d`、専用run42037815613�
 ## Web既読回収の正式資材
 
 Webだけ両arch2recordを正式Release `updates-20261106T005219Z`・source/signer `494861b5f424a799bb99eb92b3808fd44ec6a95a`へ更新する。機能/DFDは、Admi最新完全一覧時の既読回収図→PR424通常main→既Web署名run42139478685→Centi公式crypto/全manifestと匿名4asset受入→厳密18record catalog→専用publisher→正式catalog2file。既他16record・全互換・失効情報、execution4a/通知6adとcontainer9fcc/00feは保持する。親249b/ef217復旧候補や別shared-json修理1042の採否へ流用しない。公開時刻/期限だけ新公開へ束縛し、署名sourceとcatalog publisher sourceを分離する。Web内部試験・暗号・既CIは担当成果を継承、当差分は対象asset参照と保持/validatorだけを確認。Owner本番停止・旧unknown・未送信入力を維持し、端末利用版/実交換は別工程。
+
+## Runtime catalog asset (Z-b2)
+
+Runtime package rows are never added to `catalog.json`; released installers reject unknown componentIds. The same publisher may attach `runtime-catalog.json` (+ `.sigstore.json`) to the same `updates-<stamp>` release, bound to that release's `catalog.json` SHA-256. Only installers containing the Z-b2 updater fetch it. Contract and validators: [runtime-updates.md](../runtime/runtime-updates.md#updater-job-and-supply-contract-slice-b).
