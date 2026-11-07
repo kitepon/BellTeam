@@ -222,3 +222,8 @@ Webだけ両arch2recordを正式Release `updates-20261106T005219Z`・source/sign
 ## Runtime catalog asset (Z-b2)
 
 Runtime package rows are never added to `catalog.json`; released installers reject unknown componentIds. The same publisher may attach `runtime-catalog.json` (+ `.sigstore.json`) to the same `updates-<stamp>` release, bound to that release's `catalog.json` SHA-256. Only installers containing the Z-b2 updater fetch it. Contract and validators: [runtime-updates.md](../runtime/runtime-updates.md#updater-job-and-supply-contract-slice-b).
+
+
+## Separate runtime asset (slice E)
+
+The existing publisher also signs runtime-catalog.json with the SAME workflow/source identity and attaches it plus its bundle to the same main-catalog Release. Rows come only from config/runtime-releases.json and bind the exact main catalog SHA; catalog.json bytes and closed component set stay unchanged. Empty runtime release input remains valid. The canonical supply/function/data-flow contract is [runtime-artifact.md](runtime-artifact.md); runtime acceptance is [runtime-updates.md](../runtime/runtime-updates.md).
