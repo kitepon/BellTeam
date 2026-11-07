@@ -1091,7 +1091,7 @@ export class AitermTransport {
     if (observed?.schema !== 'aiterm.pty-observe-result.v1' || observed.session_id !== this.session(bot)
       || typeof observed.exists !== 'boolean' || (observed.exists ? !/^[a-f0-9]{32}$/u.test(observed.launch_id ?? '') : observed.launch_id !== null))
       throw Object.assign(new Error('BOT_OBSERVATION_FAILED'), { code: 'BOT_OBSERVATION_FAILED' })
-    if (!observed.exists || this.activity.configurationChanges.get(bot.id)?.deferredSettings) return observed
+    if (!observed.exists || (observed.reason === 'agent_failed' && observed.state === 'unknown') || this.activity.configurationChanges.get(bot.id)?.deferredSettings) return observed
     const desired = configurationSettings({ model: bot.model, reasoning_effort: bot.reasoningEffort, fast: bot.fastMode === true })
     const last = this.configurationRequests?.view(bot.id)
     if (last?.receipt_persisted && last.binding.session_id === observed.session_id && last.binding.launch_id === observed.launch_id
@@ -1128,9 +1128,23 @@ export class AitermTransport {
     try {
       check()
       let session = this.session(bot)
-      if (!observed.exists) {
+      // Aiterm 0.63.xは復帰に失敗した席の記録を残し、観測はexists=true/reason=agent_failedになる。その席への送信は
+      // 休止・復帰中として断られ続け、「席が在る」と見て起こさない分岐では二度と届かない（2026-11-07、23席）。
+      // Aitermの復帰は失敗で終わっているので、死んだ記録として閉じ、起こし直してから同じ文を送る。休止・復帰中・不明は起こさない。
+      // 閉じるのは、Aitermがその席を入力を受けない記録として観測している時だけ（state=unknown、動いているターンや子配送の観測なし）。
+      const failedRecord = observed.exists && observed.reason === 'agent_failed' && observed.state === 'unknown'
+        && !(observed.pending_child_deliveries > 0)
+      if (!observed.exists || failedRecord) {
         if (executionJob) executionJob.deliveryStage = 'BOT_LAUNCH_FAILED'
-        session = await this.wake(bot, { setupTest, membersLease })
+        session = failedRecord
+          ? await this.memberOperation(bot, async lease => {
+            process.stderr.write(`BellTeam Aiterm agent resume record failed, restarting: ${bot.id}\n`)
+            await this.changeSession(bot, 'pty_close', { session_id: session })
+            await this.removeRetainedImages(bot.id)
+            check()
+            return this.wake(bot, { setupTest, membersLease: lease })
+          }, { membersLease })
+          : await this.wake(bot, { setupTest, membersLease })
         check()
       }
       let result
