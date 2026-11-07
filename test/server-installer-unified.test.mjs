@@ -624,7 +624,7 @@ test('H1公開2fileの通常reset導入をvolume未指定で繰り返し、保�
 })
 
 
-test('bundled updater body swap keeps the exact Aiterm backing without initialization; recover remounts it; mismatches refuse',async t=>{
+test('bundled updater body swap keeps the exact Aiterm backing without initialization; recover remounts it; pre-stop mismatch resets visibly',async t=>{
  const targetImage='sha256:'+'e'.repeat(64)
  const setup=async()=>{
   const f=await fixture(t,{h1:true});
@@ -645,7 +645,8 @@ test('bundled updater body swap keeps the exact Aiterm backing without initializ
  }
  const initialized=c=>c.args.some(v=>String(v).includes('fs.chownSync'))
  const {f,volume,worker,offset}=await setup()
- const saved=(await f.run(['--no-pull'],worker)).stdout.match(/^saved-compose=(.*)$/m)[1],calls=(await f.calls()).slice(offset)
+ const kept=await f.run(['--no-pull'],worker),saved=kept.stdout.match(/^saved-compose=(.*)$/m)[1],calls=(await f.calls()).slice(offset)
+ assert.match(kept.stdout,/^aiterm=preserved$/m)
  assert.equal(JSON.parse(await readFile(saved+'/normal.json')).volumes['aiterm-state'].name,volume)
  const plan=JSON.parse(await readFile(saved+'/resume-plan.json'));assert.equal(plan.state_volume,volume);assert.equal(plan.source_volume,volume)
  assert.ok(calls.some(c=>c.args[0]==='stop'))
@@ -657,21 +658,28 @@ test('bundled updater body swap keeps the exact Aiterm backing without initializ
  assert.equal(JSON.parse(await readFile(saved+'/previous-normal.json')).volumes['aiterm-state'].name,volume)
  assert.equal(recovery.some(c=>c.args[0]==='volume'&&c.args[1]==='create'||initialized(c)),false)
  assert.equal(await readFile(f.root+'/'+volume+'/retained','utf8'),'native-state')
- for(const failure of ['reader','writer','mount','missing','recreated']){
+ // Before the stop any mismatch takes today's reset: new generation, normal initialization, old backing untouched.
+ for(const failure of ['reader','writer','mount']){
   const {f,volume,worker,offset}=await setup(),extra={...worker}
   if(failure==='reader')await writeFile(f.root+'/reader/'+targetImage.slice(7)+'/dist/index.js','changed reader')
   if(failure==='writer')extra.TEST_OTHER_VOLUME_USER='1'
-  if(failure==='recreated')extra.TEST_RECREATED='1'
   if(failure==='mount'){const r=JSON.parse(await readFile(f.root+'/runtime.json'));r.Mounts[0].Source='/vm/other/_data';await writeFile(f.root+'/runtime.json',JSON.stringify(r))}
-  if(failure==='missing')await writeFile(f.root+'/resume-volumes.json','{}')
-  await assert.rejects(f.run(['--no-pull'],extra),e=>e.code===1&&(failure==='missing'||
-   e.stderr.includes(failure==='reader'?'RESUME_STATE_READER_UNCONFIRMED':'RESUME_PRESERVE_UNCONFIRMED')),failure)
-  const calls=(await f.calls()).slice(offset)
-  assert.equal(calls.some(c=>c.args[0]==='volume'&&c.args[1]==='create'||initialized(c)||c.args.includes('up')),false,failure)
-  // Only the post-stop identity recheck runs after the approved stop; every other refusal leaves the old body serving.
-  assert.equal(calls.some(c=>c.args[0]==='stop'),failure==='recreated',failure)
+  const {stdout}=await f.run(['--no-pull'],extra),saved=stdout.match(/^saved-compose=(.*)$/m)[1]
+  assert.match(stdout,new RegExp('^aiterm=reset reason='+(failure==='reader'?'RESUME_STATE_READER_UNCONFIRMED':'RESUME_PRESERVE_UNCONFIRMED')+'$','m'),failure)
+  const plan=JSON.parse(await readFile(saved+'/resume-plan.json')),calls=(await f.calls()).slice(offset)
+  assert.equal(plan.source_volume,volume);assert.notEqual(plan.state_volume,volume)
+  assert.equal(JSON.parse(await readFile(saved+'/normal.json')).volumes['aiterm-state'].name,plan.state_volume)
+  assert.ok(calls.some(c=>c.args[0]==='volume'&&c.args[1]==='create'&&c.args.at(-1)===plan.state_volume),failure)
+  assert.ok(calls.some(initialized),failure)
   assert.equal(await readFile(f.root+'/'+volume+'/retained','utf8'),'native-state')
  }
+ // After the stop a changed backing still refuses; the worker's existing --recover restarts the previous body on it.
+ const late=await setup()
+ await assert.rejects(late.f.run(['--no-pull'],{...late.worker,TEST_RECREATED:'1'}),e=>e.code===1&&/RESUME_PRESERVE_UNCONFIRMED/.test(e.stderr)&&/^aiterm=preserved$/m.test(e.stdout))
+ const lateCalls=(await late.f.calls()).slice(late.offset)
+ assert.ok(lateCalls.some(c=>c.args[0]==='stop'))
+ assert.equal(lateCalls.some(c=>c.args[0]==='volume'&&c.args[1]==='create'||initialized(c)||c.args.includes('up')),false)
+ assert.equal(await readFile(late.f.root+'/'+late.volume+'/retained','utf8'),'native-state')
 })
 
 

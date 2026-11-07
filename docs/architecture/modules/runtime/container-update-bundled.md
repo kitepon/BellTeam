@@ -52,7 +52,7 @@ workerは固定image/entry/元UUIDの別Docker containerとして起動し、res
 
 画面更新後の現normalが専用volume内にある場合、後続公開installerは`read-container-update-normal.mjs`を固定imageで実行する。実CIDのCompose labels、同projectのlocal専用volume/実Mountpointと保存世代pathを照合し、専用volumeだけRO mountして旧normalを読む。任意Host fileを読む窓口にはしない。その後は既Compose hash/profile/保存先検査へ接続し、Host利用者にroot権限付与を要求しない。元の設置file/.env/overrideや旧世代は上書きしない。
 
-通常本体更新は停止→新実行世代で、data/home/Cursor/private state/Throughline/profile/購読、旧normal/元unknownを保持。AI state volumeは[slice 3](#same-backing-aiterm-state-on-a-bundled-body-swap-z-c-slice-3-2026-11-08)の検証が通れば同一backingをそのまま使い、通らなければ停止前に拒否する。同native自動resume/未保存ACKの継続を成功条件へ足さず、旧要求/本文/applyを再送しない。
+通常本体更新は停止→新実行世代で、data/home/Cursor/private state/Throughline/profile/購読、旧normal/元unknownを保持。AI state volumeは[slice 3](#same-backing-aiterm-state-on-a-bundled-body-swap-z-c-slice-3-2026-11-08)の検証が通れば同一backingをそのまま使い、停止前に通らなければ従来のresetで新volumeへ切替え、結果行を出す。同native自動resume/未保存ACKの継続を成功条件へ足さず、旧要求/本文/applyを再送しない。
 
 ## 確認範囲
 
@@ -154,7 +154,7 @@ Owner Molly. Contracts: [Epinel section 4](/srv/bellteam/bots/bot-0b867848/docs/
 
 Before this slice, every installer run named a new Aiterm volume `<resolved name>-bellteam-compose.<generation>` (in `resume-install-plan.mjs`), created it, and after the stop emptied-checked and chowned it (`resume_initialize`). The old volume was retained untouched but no longer mounted, so a bundled swap left every seat's native state behind.
 
-Selection is fixed, not caller input: the bundled worker already runs `install.sh --no-pull` with `BELLTEAM_CONTAINER_UPDATE_WORKER=1` and a frozen normal whose image alone changed. `resume_prepare` selects preserve exactly when that marker is set and no `BELLTEAM_RESUME_TARGETS_FILE` is given. Manual/public installs, the legacy Host updater and H1 targets keep the reset or copy paths unchanged. `install-resume-state.sh` and `resume-install-plan.mjs` come from the target image, so preserve applies from the first swap *to* an image with this slice; the old body's `install.sh` already supplies `stopped_container` and `current-runtime.json`.
+Selection is fixed, not caller input: the bundled worker already runs `install.sh --no-pull` with `BELLTEAM_CONTAINER_UPDATE_WORKER=1` and a frozen normal whose image alone changed. `resume_prepare` tries preserve exactly when that marker is set and no `BELLTEAM_RESUME_TARGETS_FILE` is given. Owner decision 2026-11-08: preserve never blocks a body swap. Any check that fails before the stop takes today's reset path (new generation name, create, normal initialization; the old volume stays untouched) and the installer prints `aiterm=reset reason=<code>`; success prints `aiterm=preserved`. The worker keeps both lines in its installer log. Manual/public installs, the legacy Host updater and H1 targets keep the reset or copy paths unchanged. `install-resume-state.sh` and `resume-install-plan.mjs` come from the target image, so preserve applies from the first swap *to* an image with this slice; the old body's `install.sh` already supplies `stopped_container` and `current-runtime.json`.
 
 ```mermaid
 flowchart TD
@@ -167,30 +167,33 @@ flowchart TD
   Record --> Stop[quiesce, stop exact CID, restart no, rm, writer check]
   Stop --> Recheck["resume_initialize: same Name Driver Mountpoint CreatedAt, no empty check, chmod or chown"]
   Recheck --> Up[maintenance, Cursor, compose up on the same volume]
-  Plan -->|mismatch| Refuse[RESUME_PRESERVE_UNCONFIRMED before any stop]
-  Exists -->|missing or foreign| Refuse
-  Bind -->|mismatch| Refuse
-  Only -->|another container| Refuse
-  Reader -->|different tree| RefuseReader[RESUME_STATE_READER_UNCONFIRMED before any stop]
-  Recheck -->|changed| Halted["RESUME_PRESERVE_UNCONFIRMED after stop, worker runs --recover"]
+  Plan -->|mismatch| Reset["existing reset plan: new generation, create, initialize; print aiterm=reset reason=RESUME_PRESERVE_UNCONFIRMED"]
+  Exists -->|missing or foreign| Reset
+  Bind -->|mismatch| Reset
+  Only -->|another container| Reset
+  Reader -->|different tree| ResetReader["same reset; reason=RESUME_STATE_READER_UNCONFIRMED"]
+  Record --> Preserved["print aiterm=preserved"]
+  Reset --> Stop
+  ResetReader --> Stop
+  Recheck -->|changed| Halted["RESUME_PRESERVE_UNCONFIRMED after stop, install exits non-zero, worker runs existing --recover"]
 ```
 
 | Element | Input → output | Protection and exit |
 | --- | --- | --- |
-| `planResumeInstall(..., preserve)` | new normal, previous normal, previous runtime, targets null → plan with `state_volume = source_volume`, normal with no `BELLTEAM_RESUME_GENERATION` | Wrong target backing. Throws `RESUME_PRESERVE_UNCONFIRMED`/`RESUME_SOURCE_UNCONFIRMED` before any Docker mutation; the old body keeps serving and the update can be replanned. |
-| `resume_preserve_bind` | `current-runtime.json` (old body inspect), `docker volume inspect`, `docker ps -a --filter volume` → `aiterm-backing` identity line | Dual writers / wrong backing. Volume identity is Name + Driver + Mountpoint + CreatedAt; Docker refuses to remove a volume while any container references it, and a recreate changes CreatedAt. Device/inode is not read: it needs a privileged mount and adds nothing over CreatedAt for local volumes. |
-| `resume_reader` | each image → SHA-256 over the sorted `aiterm-mcp` tree (path, mode, symlink target, bytes) | A different Aiterm state reader opening retained records. Aiterm publishes no reader-compatibility range (Elegg), so only an identical tree is accepted; anything else refuses before the stop. This also makes `--recover` safe: the previous body reads records written by the same reader. |
-| `resume_initialize` (preserve) | recorded identity → recheck only | Recreated volume between `rm` and `up`. Fails after the stop with the old body removed; the worker's existing `--recover` restarts the previous image on the same retained backing. |
+| `planResumeInstall(..., preserve)` | new normal, previous normal, previous runtime, targets null → plan with `state_volume = source_volume`, normal with no `BELLTEAM_RESUME_GENERATION` | Wrong target backing. A throw (stderr suppressed) makes `resume_prepare` rerun the planner in reset mode from the saved input normal, before any Docker mutation. |
+| `resume_preserve_bind` | `current-runtime.json` (old body inspect), `docker volume inspect`, `docker ps -a --filter volume` → `aiterm-backing` identity line | Dual writers / wrong backing. Failure → reset path with `reason=RESUME_PRESERVE_UNCONFIRMED`. Volume identity is Name + Driver + Mountpoint + CreatedAt; Docker refuses to remove a volume while any container references it, and a recreate changes CreatedAt. Device/inode is not read: it needs a privileged mount and adds nothing over CreatedAt for local volumes. |
+| `resume_reader` | each image → SHA-256 over the sorted `aiterm-mcp` tree (path, mode, symlink target, bytes) | A different Aiterm state reader opening retained records. Aiterm publishes no reader-compatibility range (Elegg), so only an identical tree preserves; anything else resets with `reason=RESUME_STATE_READER_UNCONFIRMED` until Elegg decides reader compatibility. This also makes `--recover` safe: the previous body reads records written by the same reader. |
+| `resume_initialize` (preserve) | recorded identity → recheck only | Recreated volume between `rm` and `up`. Still refuses: after the stop a reset would mount something nobody validated. The install exits non-zero with the old body removed; the worker's existing `--recover` restarts the previous image from `previous-normal.json` on that volume name. |
 
 Recovery: `--recover <generation>` is unchanged. Its `previous-normal.json` names the same volume, so it remounts the retained backing with no create or initialization, after the existing writer check that includes that volume. Unchanged: `resume_stopped`/`resume_capture` (no targets), the writer check, the stop proof, HOME/data/Cursor/private-state handling, and H1 checkpoint/restore. Residual: between the recheck and `compose up` a Host root actor could still swap the volume; not covered.
 
 ```mermaid
 stateDiagram-v2
-  [*] --> Bound: plan + mount + sole-reference + reader checks pass
-  [*] --> Refused: any pre-stop check fails, old body still serving
+  [*] --> Bound: plan + mount + sole-reference + reader checks pass, aiterm=preserved
+  [*] --> ResetPlanned: any pre-stop check fails, aiterm=reset reason=code
+  ResetPlanned --> ResetStarted: existing reset path, new initialized volume, old volume untouched
   Bound --> Stopped: quiesce, exact stop, rm, writer check
   Stopped --> Started: identity unchanged, compose up on same backing
   Stopped --> Recovering: identity changed or later step fails
   Recovering --> Started: --recover, previous image on same backing
-  Refused --> [*]: update result failed, replan after the cause is gone
 ```

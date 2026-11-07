@@ -6,7 +6,7 @@ runtime接続候補。製品6658c67の未公開CLI/stream契約を使用する�
 
 H1対応imageの初回は、固定base `/srv/bellteam-aiterm` に専用external local volumeを配置し、空・local/optionsなし・project/role labelを確認して1000:1000/0700へ準備する。旧/tmpや未提供CLIの初回から保持できるとはしない。通常の既許可リセット更新は保存要求無しで行え、保持必須ならH1未対応を停止前に拒否する。
 
-通常installerは`BELLTEAM_AITERM_STATE_VOLUME`の解決済み名をprefixとし、既保存世代を末尾へ付けて毎回新しいvolume名を生成し、固定normalへ保存する。未指定の通常reset更新も同じ入口を通り、利用者の手動volume指定や保持要求は不要。旧normalは書き換えずsource名を保持する。`--recover`も旧normalの復帰先volumeをwriter検査に含め、保存済み名へ戻し、新volumeの作成/初期化を行わない。同名/同backingの旧sourceと新destinationへ保存更新しない。例外は同梱updaterの本体交換（`BELLTEAM_CONTAINER_UPDATE_WORKER=1`かつ対象指定無し）だけで、旧本体の実mountと同一のvolumeを名前・実体・単独参照・同一aiterm-mcp readerで照合して新世代名を作らず使い続け、空初期化を行わない。照合不一致は停止前に拒否し、resetへ落とさない。[箱同梱の本体更新 slice 3](container-update-bundled.md#same-backing-aiterm-state-on-a-bundled-body-swap-z-c-slice-3-2026-11-08)を参照。rootのdev/inode/prefixは製品が永続Codex rolloutについて検証し、runtimeがbundleを加工して通さない。
+通常installerは`BELLTEAM_AITERM_STATE_VOLUME`の解決済み名をprefixとし、既保存世代を末尾へ付けて毎回新しいvolume名を生成し、固定normalへ保存する。未指定の通常reset更新も同じ入口を通り、利用者の手動volume指定や保持要求は不要。旧normalは書き換えずsource名を保持する。`--recover`も旧normalの復帰先volumeをwriter検査に含め、保存済み名へ戻し、新volumeの作成/初期化を行わない。同名/同backingの旧sourceと新destinationへ保存更新しない。例外は同梱updaterの本体交換（`BELLTEAM_CONTAINER_UPDATE_WORKER=1`かつ対象指定無し）だけで、旧本体の実mountと同一のvolumeを名前・実体・単独参照・同一aiterm-mcp readerで照合して新世代名を作らず使い続け、空初期化を行わない。停止前の照合不一致は従来のresetへ進み`aiterm=reset reason=<code>`を出す（Owner裁定2026-11-08、本体交換を止めない）。停止後の再照合不一致だけは拒否し、既`--recover`で戻す。[箱同梱の本体更新 slice 3](container-update-bundled.md#same-backing-aiterm-state-on-a-bundled-body-swap-z-c-slice-3-2026-11-08)を参照。rootのdev/inode/prefixは製品が永続Codex rolloutについて検証し、runtimeがbundleを加工して通さない。
 
 ## 停止・保存・採用の順序
 
