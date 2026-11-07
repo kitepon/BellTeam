@@ -44,6 +44,10 @@ else if(a[0]==='image'&&a[1]==='inspect'){
  }
 }else if(a[0]==='exec'&&a.at(-1)==='/app/src/distribution-profile.mjs'){
  process.stdout.write(fs.readFileSync(state().Mounts.find(v=>v.Destination===a.at(-1)).Source));
+}else if(a[0]==='exec'&&a.at(-1)==='/app/scripts/body-quiesce-helper.mjs'){
+ const request=fs.readFileSync(0,'utf8');fs.writeFileSync(root+'/quiesce-request.json',request);
+ if(e.TEST_QUIESCE_FAIL)process.exit(75);
+ emit({requestId:JSON.parse(request).requestId,result:e.TEST_QUIESCE_RESULT??'unsupported'});
 }else if(a[0]==='stop'){
  if(e.TEST_STOP_FAIL)process.exit(59);
  const s=state();s.State.Running=!!e.TEST_STILL_RUNNING;s.State.Restarting=!!e.TEST_STILL_RESTARTING;fs.writeFileSync(root+'/runtime.json',JSON.stringify(s));emit(s.Id);
@@ -416,10 +420,35 @@ test('exact CIDのstop失敗とRunning/Restarting欠測は保守より前に拒�
  for(const extra of [{TEST_STOP_FAIL:'1'},{TEST_STILL_RUNNING:'1'},{TEST_STILL_RESTARTING:'1'}]){
   const f=await fixture(t,{legacy:true});
   await assert.rejects(f.run([],extra),e=>extra.TEST_STOP_FAIL?e.code===59:e.code===1&&e.stderr.includes('SERVER_STATE_STOP_UNCONFIRMED'))
-  const calls=await f.calls();assert.deepEqual(calls.filter(c=>c.args[0]==='stop').map(c=>c.args),[['stop',cid]])
+  const calls=await f.calls();assert.deepEqual(calls.filter(c=>c.args[0]==='stop').map(c=>c.args),[['stop','--time','30',cid]])
   assert.equal(calls.some(c=>c.args.includes('state-maintenance')||c.args.at(-1)==='cursor-update'||c.args.includes('up')),false)
   assert.equal(JSON.parse(await readFile((await f.saved())+'/previous-runtime.json'))[0].Id,cid)
  }
+})
+
+test('stop直前に同じexact CIDへ固定helperで一度だけquiesceし、結果に関わらず--time 30で同CIDを止める',async t=>{
+ for(const [extra,expected] of [[{},'unsupported'],[{TEST_QUIESCE_RESULT:'drained'},'drained'],[{TEST_QUIESCE_RESULT:'deadline'},'deadline'],[{TEST_QUIESCE_FAIL:'1'},'unconfirmed']]){
+  const f=await fixture(t,{legacy:true}),started=Date.now();const {stdout}=await f.run([],extra);const calls=await f.calls(),saved=await f.saved();
+  const helper=calls.findIndex(c=>c.args[0]==='exec'&&c.args.at(-1)==='/app/scripts/body-quiesce-helper.mjs'),stop=calls.findIndex(c=>c.args[0]==='stop');
+  assert.deepEqual(calls[helper].args,['exec','-i','--user','1001:1001',cid,'/usr/local/bin/node','/app/scripts/body-quiesce-helper.mjs'])
+  assert.equal(calls.filter(c=>c.args.at(-1)==='/app/scripts/body-quiesce-helper.mjs').length,1)
+  assert.ok(helper>=0&&stop===helper+1)
+  assert.deepEqual(calls[stop].args,['stop','--time','30',cid])
+  const request=JSON.parse(await readFile(f.root+'/quiesce-request.json','utf8'));
+  assert.deepEqual(Object.keys(request),['requestId','containerId','deadline'])
+  assert.equal(request.requestId,saved.split('/').at(-1));assert.equal(request.containerId,cid)
+  assert.ok(request.deadline>=Math.floor(started/1000)*1000+300_000&&request.deadline<=Date.now()+300_000)
+  assert.match(stdout,new RegExp('^quiesce='+expected+'$','m'))
+  assert.ok(calls.findIndex(c=>c.args.at(-1)==='to-legacy'||c.args.at(-1)==='to-server')>stop)
+ }
+})
+
+test('recoverはquiesceせず、現在のexact CIDを--time 30で止める',async t=>{
+ const f=await fixture(t,{server:true});await f.run();const saved=await f.saved(),before=(await f.calls()).length;
+ const {stdout}=await f.run(['--recover',saved]);const calls=(await f.calls()).slice(before);
+ assert.equal(calls.some(c=>c.args[0]==='exec'&&c.args.at(-1)==='/app/scripts/body-quiesce-helper.mjs'),false)
+ assert.deepEqual(calls.filter(c=>c.args[0]==='stop').map(c=>c.args),[['stop','--time','30','d'.repeat(64)]])
+ assert.doesNotMatch(stdout,/^quiesce=/m)
 })
 
 test('Cursorと通常upの失敗はそのterminalを一度返し、現在と旧設定をprivate世代へ保持する',async t=>{

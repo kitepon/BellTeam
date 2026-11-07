@@ -27,6 +27,7 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
     'config/conversation-verification.json', 'scripts/verify-conversation.py', 'scripts/conversation-start.c', 'scripts/install-conversation-release.py', 'config/memory-verification.json', 'config/usage-verification.json', 'config/diagnostics-verification.json', 'scripts/verify-memory.py', 'scripts/verify-usage.py', 'scripts/verify-diagnostics.py', 'scripts/install-memory-release.py', 'scripts/install-usage-release.py', 'scripts/install-diagnostics-release.py',
     'scripts/verify-update-catalog.py', 'scripts/update_catalog.py', 'config/update-catalog-verification.json',
     'scripts/module-update-service.py', 'scripts/module-update-compose.mjs',
+    'scripts/body-quiesce-helper.mjs',
     'scripts/container-update-host.py', 'scripts/install-container-update-code.py', 'scripts/cleanup-deploy-images.py', 'scripts/save-deploy-restore-point.py',
     ...['bellteam-container-update-host.service.in', 'bellteam-update-catalog-refresh.service.in', 'bellteam-update-catalog-refresh.timer', 'compose.overlay.yaml', 'README.md', 'root-code-paths.json'].map(name => 'distribution/server/updater/' + name),
     'services/subscriptions/product.json', 'services/subscriptions/endpoints.json',

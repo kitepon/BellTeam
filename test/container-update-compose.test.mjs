@@ -24,6 +24,7 @@ test('dedicated Docker authority, original settings preserved, idempotent and co
  assert.deepEqual(containerUpdaterModels(result.normal),result)
  const timed=input();timed.services.bellteam.healthcheck={interval:'10s',retries:5,start_period:'2m0s'}
  assert.equal(containerUpdaterModels(timed).normal.services.bellteam.healthcheck.start_period,'300s')
+ assert.equal(result.normal.services.bellteam.stop_grace_period,'30s')
  assert.equal(normal.services.bellteam.volumes.length,3)
  for(const mutate of [n=>n.services['container-updater']={},n=>n.volumes.alias={name:'selected-project-container-updater'},
   n=>n.services.bellteam.volumes.push({type:'bind',source:'/other',target:'/run/bellteam-container-updater'}),
