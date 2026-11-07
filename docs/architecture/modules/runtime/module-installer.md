@@ -155,7 +155,7 @@ prepareの閉schema bellteam.module-worker-prepare.v1はschema/requestId/planId/
 
 prepare保存不明・stop応答不明・途中record・hash不一致はunconfirmed。再試行でprepareやstopを再発行せず、同IDの既完全recordを読む。完全recordと同停止済みCIDが一致する場合の削除収束、および既削除CIDについて完全record読取だけによる新版起動の再開は可能。不明中は通常installerの保守/起動も非0で止める。対応helperが同imageに無い場合も旧stop/rmへfallbackせず停止前に拒否する。record保存前に旧CIDを削除しない。旧namespaceが事前に失われた場合は拒否し、歴史的な無作用/成功や元unknownを変更しない。
 
-新版backendは既排他内で元operation生bytes/plan/target/storage/ledger/worker/旧service namespaceと切替sourceを完全recordへ再照合する。同namespaceが残っていても途中prepareがあれば完全recordを要求する。recordはroot所有・祖先・mode/nlink/no-follow・canonical hashを検査し、公開JSONを証拠化しない。完全record hashは既evidenceSha256のworkerTerminationSha256へ含め、既公開20key/decision/claim/fence/二providerを変更しない。
+新版backendは既排他内で元operation生bytes/plan/target/storage/ledger/worker/旧service namespaceと切替sourceを完全recordへ再照合する。同namespaceが残っていても途中prepareがあれば完全recordを要求する。recordはroot所有・祖先・mode/nlink/no-follow・canonical hashを検査し、公開JSONを証拠化しない。完全record hashは既evidenceSha256のworkerTerminationSha256へ含め、既公開20key/decision/claim/fenceのDTOを変更しない。Common close-only ownership and normal reception follow the [common contract](../integration/update-jobs.md#close-only-function-and-data-flow-delta); this runtime record does not require common execution/conversation drains.
 
 privileged private readの固定口は同正式imageの `/app/scripts/module-worker-termination.py --read <元UUID>`。既worker/ledger/private/component排他内で保存recordだけを検証し、閉code MODULE_WORKER_TERMINATION_READ/requestId/originalOperationSha256/oldContainerId/worker/receiptSha256/statusをstdoutへ返す。Docker操作/inspect作用/record書込は行わない。Centiは保存済みmodule modelでentrypointをこの固定scriptへ指定した短命読取を使える。通常RPCや利用者bodyからこの私有証拠を渡す口は無い。
 

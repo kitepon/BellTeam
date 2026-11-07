@@ -25,7 +25,7 @@ Installed/builtin steps call admitJob without an installer launch, then download
 
 ## Close-only function and data-flow delta
 
-This accepted B delta changes the common executor contract for `close_without_activation`; the public DTOs, v1 persisted envelopes and existing routes remain unchanged. It does not assert that runtime A is implemented or deployed. Runtime/Epinel owns the original worker, storage, predecessor/successor validation and durable fence. A and B require a matched formal source/image S for subsequent adoption; the separately deployed companion remains ecfc until that adoption.
+This accepted B delta changes the common executor contract for `close_without_activation`; the public DTOs, v1 persisted envelopes and existing routes remain unchanged. Runtime A ships in the same source diff; [its canonical function/DFD](../runtime/module-installer.md#current-bound-successor-of-an-immutable-termination-record) owns the original worker, storage, predecessor/successor validation and durable fence. An explicit authorized inspect alone can publish the immutable current-bound successor; finalize/read only consume an existing one. A and B require a matched formal source/image S for subsequent adoption; source completion deploys neither body nor companion, whose production baseline remains ecfc until a separate operational decision.
 
 | Function / connection | Scoped contract and state transition |
 | --- | --- |
