@@ -34,6 +34,8 @@ const HARNESS = new Map([
 ])
 // 合間の言葉を取りに行く間隔。Aitermのpty_observeは画面本文を読まない軽い呼び出し。
 const INTERIM_INTERVAL_MS = 3000
+// 起こした直後の席へ同じ文を送る回数の上限（sendToWokenSession）。
+const WOKEN_SEND_ATTEMPTS = 3
 // Aitermは、要求の_metaにこの印がある時だけ、BellTeamのための手がかりを結果へ足す（Aiterm ADR 0071・0122）。
 const CALLER_META = { 'aiterm/caller': 'BellTeam' }
 
@@ -1134,8 +1136,10 @@ export class AitermTransport {
       // 閉じるのは、Aitermがその席を入力を受けない記録として観測している時だけ（state=unknown、動いているターンや子配送の観測なし）。
       const failedRecord = observed.exists && observed.reason === 'agent_failed' && observed.state === 'unknown'
         && !(observed.pending_child_deliveries > 0)
+      let woken = false
       if (!observed.exists || failedRecord) {
         if (executionJob) executionJob.deliveryStage = 'BOT_LAUNCH_FAILED'
+        woken = true
         session = failedRecord
           ? await this.memberOperation(bot, async lease => {
             process.stderr.write(`BellTeam Aiterm agent resume record failed, restarting: ${bot.id}\n`)
@@ -1151,7 +1155,8 @@ export class AitermTransport {
       try {
         if (executionJob) executionJob.deliveryStage = 'BOT_SEND_FAILED'
         if (executionJob) executionJob.nativeSession = session
-        result = await this.sendToSession(session, message, imageFiles, check)
+        result = woken ? await this.sendToWokenSession(bot, session, message, imageFiles, check)
+          : await this.sendToSession(session, message, imageFiles, check)
       } catch (error) {
         check()
         // 入力後の不明や復帰確認の要求は、席が消えて見えても起こし直して再送しない。
@@ -1173,7 +1178,7 @@ export class AitermTransport {
         }, { membersLease })
         check()
         if (executionJob) executionJob.nativeSession = session
-        result = await this.sendToSession(session, message, imageFiles, check)
+        result = await this.sendToWokenSession(bot, session, message, imageFiles, check)
       }
       const receipt = result.structuredContent
       if (receipt?.mode !== 'agent_steer'
@@ -1184,6 +1189,23 @@ export class AitermTransport {
     } catch (error) {
       await this.removeTemporaryImages(imageFiles)
       throw error
+    }
+  }
+
+  // agent_launchのreadyとpty_sendの入力受付確認はAitermの中で別々の30秒予算。起こした直後の席は入力欄を描いた後も
+  // 起動の仕事（MCP初期化・hook・履歴の描画）を続け、同時起動の負荷では二つ目の予算が尽きてAGENT_INPUT_NOT_READYで
+  // 断られる（2026-11-07 20:18、起こした6席が全て、生きていた4席は全て通過）。Aitermは本文を送っておらず「少し後で再度
+  // pty_send」と案内するので、このdispatchで起こした席だけ同じ文を送り直す。待ちはAitermの受付確認（最長30秒）が持つ。
+  // shortcut: 上限3回（起動後およそ90秒）、同時起動の山でも足りない実測が出たら上限を見直す。
+  async sendToWokenSession(bot, session, message, imageFiles, admissionCheck) {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await this.sendToSession(session, message, imageFiles, admissionCheck)
+      } catch (error) {
+        if (error.code !== 'BOT_INPUT_NOT_READY' || error.agentResumeResult || attempt >= WOKEN_SEND_ATTEMPTS) throw error
+        admissionCheck?.()
+        process.stderr.write(`BellTeam Aiterm: woken seat not ready for input, sending again (${attempt}/${WOKEN_SEND_ATTEMPTS}): ${bot.id}\n`)
+      }
     }
   }
 
