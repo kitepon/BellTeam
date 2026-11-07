@@ -1,1 +1,188 @@
-[]
+[
+  {
+    "componentId": "runtime-codex",
+    "sourceCommit": "4b08387e80dbee793c5452a921fd0228edc11269",
+    "versionId": "afd14299f1f095c26097bf698be1eabc5ccf1fb0d351b6eaecf2422294acd557",
+    "platform": {
+      "os": "linux",
+      "arch": "amd64"
+    },
+    "artifact": {
+      "kind": "archive",
+      "archive": {
+        "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T203242Z/runtime-codex-4b08387e80dbee793c5452a921fd0228edc11269-linux-amd64.tar.gz",
+        "sha256": "afd14299f1f095c26097bf698be1eabc5ccf1fb0d351b6eaecf2422294acd557",
+        "bytes": 169843546
+      },
+      "bundle": {
+        "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T203242Z/runtime-codex-4b08387e80dbee793c5452a921fd0228edc11269-linux-amd64.tar.gz.sigstore.json",
+        "sha256": "11a05598474068b66620d779392dfa37b82de79fdca84149d0c70ec71a47362d",
+        "bytes": 11167
+      },
+      "signerCommit": "4b08387e80dbee793c5452a921fd0228edc11269"
+    },
+    "compatibility": {
+      "runtimeProtocol": 1,
+      "nodeMajor": 26,
+      "libc": "glibc"
+    },
+    "changes": [
+      "実行環境の初回配布。"
+    ]
+  },
+  {
+    "componentId": "runtime-codex",
+    "sourceCommit": "4b08387e80dbee793c5452a921fd0228edc11269",
+    "versionId": "1184bb3f054d458edfba5281fa3db1d4b6c9e0e4308b51a8d32ec67300401b2b",
+    "platform": {
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "artifact": {
+      "kind": "archive",
+      "archive": {
+        "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T203242Z/runtime-codex-4b08387e80dbee793c5452a921fd0228edc11269-linux-arm64.tar.gz",
+        "sha256": "1184bb3f054d458edfba5281fa3db1d4b6c9e0e4308b51a8d32ec67300401b2b",
+        "bytes": 160082134
+      },
+      "bundle": {
+        "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T203242Z/runtime-codex-4b08387e80dbee793c5452a921fd0228edc11269-linux-arm64.tar.gz.sigstore.json",
+        "sha256": "147f1d17e5136a134edfb24e636465c01aec8c88389d528b7371eeb45fadb7ec",
+        "bytes": 10897
+      },
+      "signerCommit": "4b08387e80dbee793c5452a921fd0228edc11269"
+    },
+    "compatibility": {
+      "runtimeProtocol": 1,
+      "nodeMajor": 26,
+      "libc": "glibc"
+    },
+    "changes": [
+      "実行環境の初回配布。"
+    ]
+  },
+  {
+    "componentId": "runtime-claude-code",
+    "sourceCommit": "4b08387e80dbee793c5452a921fd0228edc11269",
+    "versionId": "ddef90f3d4024d1e7cfed1ff2dc03ceaa429a6e294ca569970c039a8272edec1",
+    "platform": {
+      "os": "linux",
+      "arch": "amd64"
+    },
+    "artifact": {
+      "kind": "archive",
+      "archive": {
+        "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T203250Z/runtime-claude-code-4b08387e80dbee793c5452a921fd0228edc11269-linux-amd64.tar.gz",
+        "sha256": "ddef90f3d4024d1e7cfed1ff2dc03ceaa429a6e294ca569970c039a8272edec1",
+        "bytes": 312051170
+      },
+      "bundle": {
+        "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T203250Z/runtime-claude-code-4b08387e80dbee793c5452a921fd0228edc11269-linux-amd64.tar.gz.sigstore.json",
+        "sha256": "d73d4082b412fbefb1dcdfe42e607a4fe05f226337fdc2f5dfe9786f0cf95cf7",
+        "bytes": 11128
+      },
+      "signerCommit": "4b08387e80dbee793c5452a921fd0228edc11269"
+    },
+    "compatibility": {
+      "runtimeProtocol": 1,
+      "nodeMajor": 26,
+      "libc": "glibc"
+    },
+    "changes": [
+      "実行環境の初回配布。"
+    ]
+  },
+  {
+    "componentId": "runtime-claude-code",
+    "sourceCommit": "4b08387e80dbee793c5452a921fd0228edc11269",
+    "versionId": "b28379d7158452575deb22418591264606a22dfcbddca52d7882b3516517662f",
+    "platform": {
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "artifact": {
+      "kind": "archive",
+      "archive": {
+        "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T203250Z/runtime-claude-code-4b08387e80dbee793c5452a921fd0228edc11269-linux-arm64.tar.gz",
+        "sha256": "b28379d7158452575deb22418591264606a22dfcbddca52d7882b3516517662f",
+        "bytes": 311626934
+      },
+      "bundle": {
+        "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T203250Z/runtime-claude-code-4b08387e80dbee793c5452a921fd0228edc11269-linux-arm64.tar.gz.sigstore.json",
+        "sha256": "85930781d7db90bcba0e98db85c367089f069d1ea76648b620d776dda0060e0e",
+        "bytes": 11234
+      },
+      "signerCommit": "4b08387e80dbee793c5452a921fd0228edc11269"
+    },
+    "compatibility": {
+      "runtimeProtocol": 1,
+      "nodeMajor": 26,
+      "libc": "glibc"
+    },
+    "changes": [
+      "実行環境の初回配布。"
+    ]
+  },
+  {
+    "componentId": "runtime-throughline",
+    "sourceCommit": "4b08387e80dbee793c5452a921fd0228edc11269",
+    "versionId": "f28dc509eb997795453cf0d2a053e799c438df8bfeb371ab99c22ef2553fd058",
+    "platform": {
+      "os": "linux",
+      "arch": "amd64"
+    },
+    "artifact": {
+      "kind": "archive",
+      "archive": {
+        "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T203157Z/runtime-throughline-4b08387e80dbee793c5452a921fd0228edc11269-linux-amd64.tar.gz",
+        "sha256": "f28dc509eb997795453cf0d2a053e799c438df8bfeb371ab99c22ef2553fd058",
+        "bytes": 20192484
+      },
+      "bundle": {
+        "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T203157Z/runtime-throughline-4b08387e80dbee793c5452a921fd0228edc11269-linux-amd64.tar.gz.sigstore.json",
+        "sha256": "8ecf465bf9b9efec2259efbd330456102187ad1e342fa3e36368a704d74e7e47",
+        "bytes": 11269
+      },
+      "signerCommit": "4b08387e80dbee793c5452a921fd0228edc11269"
+    },
+    "compatibility": {
+      "runtimeProtocol": 1,
+      "nodeMajor": 26,
+      "libc": "glibc"
+    },
+    "changes": [
+      "実行環境の初回配布。"
+    ]
+  },
+  {
+    "componentId": "runtime-throughline",
+    "sourceCommit": "4b08387e80dbee793c5452a921fd0228edc11269",
+    "versionId": "c9627b5107f7aa9bcb39c291348baee752a396e568c7864dfb18abac3697ef29",
+    "platform": {
+      "os": "linux",
+      "arch": "arm64"
+    },
+    "artifact": {
+      "kind": "archive",
+      "archive": {
+        "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T203157Z/runtime-throughline-4b08387e80dbee793c5452a921fd0228edc11269-linux-arm64.tar.gz",
+        "sha256": "c9627b5107f7aa9bcb39c291348baee752a396e568c7864dfb18abac3697ef29",
+        "bytes": 20190166
+      },
+      "bundle": {
+        "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T203157Z/runtime-throughline-4b08387e80dbee793c5452a921fd0228edc11269-linux-arm64.tar.gz.sigstore.json",
+        "sha256": "27a0d405822acb933cbf09125f6094c6f07a475731f54c7260f6d958c035ee4d",
+        "bytes": 11093
+      },
+      "signerCommit": "4b08387e80dbee793c5452a921fd0228edc11269"
+    },
+    "compatibility": {
+      "runtimeProtocol": 1,
+      "nodeMajor": 26,
+      "libc": "glibc"
+    },
+    "changes": [
+      "実行環境の初回配布。"
+    ]
+  }
+]
