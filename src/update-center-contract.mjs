@@ -1,5 +1,6 @@
 import { AjvJsonSchemaValidator } from '@modelcontextprotocol/sdk/validation/ajv'
 import { objectSchema } from './mcp-schema.mjs'
+import { RUNTIME_COMPONENTS } from './runtime-selection.mjs'
 const object = properties => objectSchema(properties, Object.keys(properties))
 const text = { type: 'string', minLength: 1 }
 const nullable = schema => ({ anyOf: [schema, { type: 'null' }] })
@@ -28,6 +29,11 @@ export const updateComponents = [
   ['diagnostics', '診断', '機能が報告した問題を集め、調査用に記録します。'],
 ]
 
+// Z-b2 slice D: runtime rows reach only readers that opt in with runtime=1 (docs/architecture/modules/runtime/runtime-updates.md).
+const runtimeNames = { 'runtime-aiterm-mcp': 'Aiterm MCP', 'runtime-codex': 'Codex CLI', 'runtime-claude-code': 'Claude Code', 'runtime-throughline': 'Throughline' }
+export const runtimeUpdateComponents = Object.keys(RUNTIME_COMPONENTS).map(id => [id, runtimeNames[id], 'AIの席が使う実行部品。次回起動から適用。実行中の席は現在の版を継続します。'])
+export const runtimeComponentIds = runtimeUpdateComponents.map(([id]) => id)
+
 const capability = { oneOf: [object({ supported: { const: true }, reason: { type: 'null' } }),
   object({ supported: { const: false }, reason: text })] }
 const version = object({ version: text, sourceCommit: nullable({ type: 'string', pattern: '^[a-f0-9]{40}$' }),
@@ -54,6 +60,8 @@ export const updatesSchema = { $id: 'urn:bellteam:updates:v1', ...object({ schem
     changes: list(text), capability, availability: object({ available: nullable({ type: 'boolean' }), reason: nullable(text) }) })),
   plans: list(plan), operation: nullable(operation), previousOperation: nullable(operation),
 }) }
+updatesSchema.properties.components.items.properties.runtimeApplication = object({
+  generationId: nullable({ type: 'string', pattern: '^[a-f0-9]{64}$' }), policy: { const: 'next_launch' } })
 // Optional on older snapshots; notification eligibility is decided by the server.
 updatesSchema.properties.notificationCandidates = list(object({ componentId: enumeration(updateComponents.map(([id]) => id)), id: { type: 'string', pattern: '^[a-f0-9]{64}$' } }))
 updatesSchema.properties.jobs = list(updateJobSchema)
@@ -63,7 +71,7 @@ updatesSchema.properties.problems = list(object({ fingerprint: { type: 'string',
   lastExit: object({ code: nullable({ type: 'integer' }), signal: nullable(text) }),
   lastReason: enumeration(['process_exit', 'ready_timeout', 'ready_probe_failed', 'recovery_failed']) }))
 export const updateRequestSchemas = {
-  plan: { oneOf: [object({ scope: { const: 'all' } }), object({ scope: { const: 'component' }, componentId: enumeration(updateComponents.map(([id]) => id)) })].map(schema => ({ ...schema, properties: { ...schema.properties, action: enumeration(['update', 'rollback']) } })) },
+  plan: { oneOf: [object({ scope: { const: 'all' } }), object({ scope: { const: 'component' }, componentId: enumeration([...updateComponents.map(([id]) => id), ...runtimeComponentIds]) })].map(schema => ({ ...schema, properties: { ...schema.properties, action: enumeration(['update', 'rollback']) } })) },
   operation: object({ planId: uuid, requestId: uuid, confirmContainerRestart: { type: 'boolean' } }),
   requestId: uuid,
 }

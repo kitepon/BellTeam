@@ -1,18 +1,36 @@
 import { EventEmitter } from 'node:events'
-import { updateComponents, validateUpdates, validateUpdateRequest } from './update-center-contract.mjs'
+import { runtimeComponentIds, runtimeUpdateComponents, updateComponents, validateUpdates, validateUpdateRequest } from './update-center-contract.mjs'
 const unavailable = () => Object.assign(new Error('UPDATE_EXECUTOR_UNAVAILABLE'), { code: 'UPDATE_EXECUTOR_UNAVAILABLE', status: 503,
   publicMessage: 'この設置では、まだアプリから更新を実行できません。' })
 const sourceValid = value => typeof value === 'string' && /^[a-f0-9]{40}$/.test(value)
 const versionValid = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value)
 export function updateNotificationCandidates(inventory, now = Date.now()) {
-  return inventory.components.filter(component => component.current && component.published
+  return inventory.components.filter(component => !runtimeComponentIds.includes(component.id) && component.current && component.published
     && component.comparison.state === 'update_available' && component.publication?.check.status === 'verified'
     && Date.parse(component.publication.catalog.expiresAt) > now
     && /^[a-f0-9]{64}$/.test(component.published.version))
     .map(component => ({ componentId: component.id, id: component.published.version }))
 }
 
-export function createUpdateCenter({ gateway = () => null, builtinSourceCommit = null, notifications = null, members = null, host = null, moduleCatalog = null, moduleExecutor = null, jobReader = null, problemReader = null, memory = null, diagnostics = null, usage = null, execution = null, conversation = null } = {}) {
+// Released Web/Apple readers accept only module/container jobs; runtime jobs and rows reach only runtime=1 readers.
+const visibleJobs = (value, runtime) => runtime ? value : { ...value, jobs: value.jobs.filter(job => job.kind !== 'runtime') }
+const runtimeRows = async captureRuntime => {
+  let capture = null, reason = 'UPDATE_EXECUTOR_UNAVAILABLE'
+  if (captureRuntime) try { capture = await captureRuntime() } catch { reason = 'RUNTIME_BINDING_UNAVAILABLE' }
+  return runtimeUpdateComponents.map(([id, name, description]) => {
+    const item = capture?.components[id]
+    const current = !item ? null : item.origin === 'release'
+      ? { version: item.archiveSha256, sourceCommit: null, digest: `sha256:${item.archiveSha256}`, origin: 'release' }
+      : { version: 'builtin', sourceCommit: null, digest: null, origin: 'builtin' }
+    return { id, name, description, current, published: null, publication: null, changes: [],
+      comparison: { state: 'unavailable', reason: 'PUBLISHED_RELEASE_UNAVAILABLE' },
+      capability: { supported: false, reason: current ? 'UPDATE_EXECUTOR_UNAVAILABLE' : reason },
+      availability: { available: Boolean(current), reason: current ? null : reason },
+      runtimeApplication: { generationId: capture?.generation ?? null, policy: 'next_launch' } }
+  })
+}
+
+export function createUpdateCenter({ gateway = () => null, builtinSourceCommit = null, notifications = null, members = null, host = null, moduleCatalog = null, moduleExecutor = null, jobReader = null, problemReader = null, memory = null, diagnostics = null, usage = null, execution = null, conversation = null, captureRuntime = null } = {}) {
   const events = new EventEmitter(), notified = new Map()
   let notificationTimer = null, notificationRead = null, notificationsClosed = false, lastCandidates = null
   const checkNotifications = () => {
@@ -46,9 +64,9 @@ export function createUpdateCenter({ gateway = () => null, builtinSourceCommit =
     notify: change => events.emit('change', change),
     watch(listener) { events.on('change', listener); return () => events.off('change', listener) },
     checkCatalog() { if (!moduleCatalog) throw unavailable(); return moduleCatalog.checkCatalog() },
-    jobs: () => jobReader ? jobReader.jobs() : Promise.resolve({ jobs: [] }),
+    jobs: ({ runtime = false } = {}) => jobReader ? jobReader.jobs().then(value => visibleJobs(value, runtime)) : Promise.resolve({ jobs: [] }),
     job(kind, jobId) { if (!jobReader) throw unavailable(); return jobReader.job(kind, jobId) },
-    snapshot() {
+    snapshot({ runtime = false } = {}) {
       const web = gateway(), push = notifications?.controller?.snapshot(), roster = members?.controller?.snapshot()
       const source = sourceValid(push?.builtinSourceCommit) ? push.builtinSourceCommit : null
       const builtin = source ? { version: source, sourceCommit: source, digest: null, origin: 'builtin' } : null
@@ -82,7 +100,8 @@ export function createUpdateCenter({ gateway = () => null, builtinSourceCommit =
         notice: { state: 'unavailable', code: 'UPDATE_PROVIDERS_UNAVAILABLE', message: '更新情報を取得できないため、確認できた現在版を表示しています。' },
         components, plans: [], operation: null, previousOperation: null }
       if (!validateUpdates(value).valid) throw new Error('UPDATE_SNAPSHOT_INVALID')
-      const snapshot = host ? host.snapshot(value) : value
+      const base = runtime ? runtimeRows(captureRuntime).then(rows => { value.components.push(...rows); return value }) : value
+      const snapshot = host ? (base.then ? base.then(value => host.snapshot(value)) : host.snapshot(base)) : base
       const result = moduleCatalog ? Promise.resolve(snapshot).then(value => moduleCatalog.snapshot(value)).then(value => {
         if (!validateUpdates(value).valid) throw new Error('UPDATE_SNAPSHOT_INVALID')
         return moduleExecutor ? moduleExecutor.snapshot(value) : value
@@ -90,11 +109,11 @@ export function createUpdateCenter({ gateway = () => null, builtinSourceCommit =
       const project = value => {
         const result = { ...value, notificationCandidates: updateNotificationCandidates(value) }
         return jobReader || problemReader ? Promise.all([jobReader?.jobs(), problemReader?.()])
-          .then(([jobs, problems]) => ({ ...result, ...jobs, ...(problems ? { problems } : {}) })) : result
+          .then(([jobs, problems]) => ({ ...result, ...(jobs && visibleJobs(jobs, runtime)), ...(problems ? { problems } : {}) })) : result
       }
       return result?.then ? result.then(project) : project(result)
     },
-    plan(input) { validateUpdateRequest('plan', input); if (moduleExecutor) return Promise.resolve(this.snapshot()).then(value => moduleExecutor.plan(input, value)); if (host && (!input.action || input.action === 'update')) return host.plan(input); throw unavailable() },
+    plan(input) { validateUpdateRequest('plan', input); if (moduleExecutor) return Promise.resolve(this.snapshot({ runtime: runtimeComponentIds.includes(input.componentId) })).then(value => moduleExecutor.plan(input, value)); if (host && (!input.action || input.action === 'update')) return host.plan(input); throw unavailable() },
     start(input) { validateUpdateRequest('operation', input); if ((moduleExecutor?.hasPlan(input.planId) || moduleExecutor?.hasOperation(input.requestId))) return moduleExecutor.start(input); if (host) return host.start(input).finally(() => events.emit('change')); throw unavailable() },
     operation(requestId) { validateUpdateRequest('requestId', requestId); if (moduleExecutor?.hasOperation(requestId)) return moduleExecutor.operation(requestId); if (host) return host.operation(requestId); throw unavailable() },
     installReconciliation(requestId, installRequestId) {

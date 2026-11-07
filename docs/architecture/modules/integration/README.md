@@ -159,7 +159,7 @@ mcp_request補助JSONのみ追加"]
 
 ## 共通Update状態と受付（段階接続）
 
-`update-center`が現在のWeb受付/通知controller一実体から稼働情報を合成し、正式catalogと耐久更新executorの供給を区別する。厳密JSON schema/null/有限例は`src/update-center-contract.mjs`を正本とする。Owner用GET `/api/updates`、POST `/api/updates/plans`、POST `/api/updates/operations`、GET `/api/updates/operations/:requestId`を既認証/HTTPへ登録し、内部Bot HTTPは403。未供給catalogはpublished:null、耐久executor未供給はcapability:false/plans:[]/操作503を返す。メモリだけの受付を永続acceptedへ見せ替えない。
+`update-center`が現在のWeb受付/通知controller一実体から稼働情報を合成し、正式catalogと耐久更新executorの供給を区別する。厳密JSON schema/null/有限例は`src/update-center-contract.mjs`を正本とする。Owner用GET `/api/updates`、POST `/api/updates/plans`、POST `/api/updates/operations`、GET `/api/updates/operations/:requestId`を既認証/HTTPへ登録し、内部Bot HTTPは403。未供給catalogはpublished:null、耐久executor未供給はcapability:false/plans:[]/操作503を返す。メモリだけの受付を永続acceptedへ見せ替えない。実行部品（runtime-*）の行・job・計画/操作は`?runtime=1`の読取にだけ返し、既公開Web/Appleと既SSEには出さない（[runtime正本](../runtime/runtime-updates.md#inventory-plan-and-start-slice-d)）。
 
 ```mermaid
 flowchart LR
