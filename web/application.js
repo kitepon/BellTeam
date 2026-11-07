@@ -645,6 +645,8 @@ export function createWebApp({ client = createWebClient() } = {}) {
 
   async function refreshFromEvent(payload) {
     if (payload.all || payload.type === 'ready' || payload.type === 'updates') void updateCenter.refresh(payload)
+    // 更新ジョブの知らせは更新画面だけの用事。会話や一覧を読み直さない。
+    if (payload.type === 'updates') return
     try {
       if (payload.type === 'ai-control' && ownerDialog.open) void ownerEditor.refreshAI()
       if (payload.type === 'settings') {

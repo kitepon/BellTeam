@@ -38,3 +38,25 @@ test('開始の失敗と監視を閉じる失敗を両方残す', async () => {
   await assert.rejects(events.startMessageWatch(), error => error instanceof AggregateError
     && error.errors[0] === start && error.errors[1].errors[0] === close)
 })
+
+test('更新の知らせは内容が変わった時だけ、updates topic だけで流す', async () => {
+  let fire, jobs = [{ jobId: 'j1', state: 'queued' }]
+  const written = [], handlers = {}
+  const events = createMessageEvents({
+    store: { async watch() { return () => {} } },
+    updateCenter: { watch(listener) { fire = listener; return () => {} }, jobs: async () => ({ jobs }) },
+    eventKeepalive: 60000,
+  })
+  events.connect({ on(name, handler) { handlers[name] = handler } }, { writeHead() {}, write(chunk) { written.push(chunk) }, writableEnded: false })
+  await events.startMessageWatch()
+  fire(); await new Promise(resolve => setTimeout(resolve, 0))
+  fire(); await new Promise(resolve => setTimeout(resolve, 0))
+  jobs = [{ jobId: 'j1', state: 'ready' }]
+  fire(); await new Promise(resolve => setTimeout(resolve, 0))
+  const payloads = written.filter(chunk => chunk.startsWith('event: messages')).map(chunk => JSON.parse(chunk.slice(chunk.indexOf('data: ') + 6)))
+  assert.equal(payloads.length, 2)
+  for (const payload of payloads) assert.deepEqual([payload.type, payload.topics, payload.all, payload.botIds, payload.roomIds], ['updates', ['updates'], false, [], []])
+  assert.deepEqual(payloads.map(payload => payload.jobs[0].state), ['queued', 'ready'])
+  events.stopWatching()
+  handlers.close()
+})

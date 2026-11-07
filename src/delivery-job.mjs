@@ -100,6 +100,8 @@ export function queueItem(item) {
   return {
     id: item.id, botId: item.bot.id, botName: item.bot.displayName ?? item.bot.name ?? item.bot.id,
     status: 'running', startedAt: item.startedAt, ...item.info,
+    // 動いていたターンへ差し込まれた文。端末は「処理中」をBotのターンにつき一つだけ出す。
+    steered: item.receipt?.mode === 'agent_steer',
   }
 }
 

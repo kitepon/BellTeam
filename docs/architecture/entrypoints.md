@@ -53,7 +53,7 @@ HTTPでは`healthz`だけ先に返し、`session`は認証判定を返す。そ�
 | GET/POST `/bots/:bot/memory`、PATCH `/:id`、POST `/:id/pin`、POST `/consolidate-growth` | `BellTeamMemory`または席proxy | scope内の記憶・履歴・pin・統合 |
 | GET/POST `/bots/:bot/knowledge` | `BellTeamMemory`または席proxy | scope内の知識と索引 |
 | GET/POST `/bots/:bot/messages` | `messagePage` / `messenger.enqueueUserTurn` | ページ取得 / Owner発言の受付 |
-| GET `/bots/:bot/queue` | `transport.queueItems` | 進行中作業の投影 |
+| GET `/bots/:bot/queue` | `transport.queueItems` | 進行中作業の投影。各項目は `id/botId/botName/status/startedAt/context/contextId/groupId/from/fromName/target/message/image` に加え `steered`（動いていたターンへ差し込まれた文なら true）。端末は「処理中」をBotのターンにつき一つだけ出し、steered 項目で増やさない（2026-11-07） |
 | GET/POST `/rooms`、GET/PATCH/DELETE `/rooms/:room` | `RoomRegistry` | 部屋定義・参加者・削除。room DELETEは完了後204 |
 | GET `/rooms/:room/avatar` | `sendAvatar` | 部屋画像 |
 | GET/POST `/rooms/:room/messages`、GET `/rooms/:room/queue` | `messagePage/RoomMessenger/transport` | 部屋の投稿・参加者別配送と表示 |

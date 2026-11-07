@@ -64,14 +64,23 @@ export function createMessageEvents({ store, secretRequests, ownerQuestions, roo
       if (bots?.watch) stops.push(bots.watch(notify))
       if (transport?.watchQueue) stops.push(transport.watchQueue(notify))
       if (updateCenter) {
+        // 更新の知らせは、見える内容（jobs）が前回と変わった時だけ、updates topicだけで流す。
+        // all:true で流すと端末が全体を読み直し、その読取りが更新センターの変更をまた鳴らして洪水になる（2026-11-07）。
+        let lastUpdates = null
+        const publishUpdates = data => {
+          const body = JSON.stringify(data)
+          if (body === lastUpdates) return
+          lastUpdates = body
+          writeEvent({ at: new Date().toISOString(), topics: ['updates'], botIds: [], roomIds: [], type: 'updates', ...data, all: false })
+        }
         const notifyUpdates = () => {
           if (!subscribers.size) return
           updatePending = true
           if (updateRead) return
           updatePending = false
-          updateRead = Promise.resolve().then(() => updateCenter.jobs?.()).then(value => notifyNow({ type: 'updates', ...value }), error => {
+          updateRead = Promise.resolve().then(() => updateCenter.jobs?.()).then(value => publishUpdates({ ...value }), error => {
             const code = error.code ?? 'UPDATE_JOB_READ_FAILED'
-            notifyNow({ type: 'updates', error: { code, message: error.reason ?? code,
+            publishUpdates({ error: { code, message: error.reason ?? code,
               ...(error.path ? { path: error.path } : {}), ...(error.reason ? { reason: error.reason } : {}) } })
           }).finally(() => { updateRead = null; if (updatePending) notifyUpdates() })
         }

@@ -161,7 +161,9 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
     requireValue(!closed && !fault, fault ?? 'UPDATE_EXECUTOR_CLOSED')
     requireValue(!busy, 'MODULE_EXCHANGE_BUSY', 409)
     busy = true
-    try { return await operation() } finally { busy = false; try { notify() } catch {} }
+    // save() が状態の変化を知らせる。読取りだけの排他（snapshotのhost/install再読）は知らせない。
+    // 知らせると端末が /api/updates を読み直し、その読取りがまた鳴らして洪水になる（2026-11-07）。
+    try { return await operation() } finally { busy = false }
   }
   const findPlan = id => state.plans.find(entry => entry.plan.planId === id)
   const findOperation = id => state.operations.find(entry => entry.operation.requestId === id)
@@ -457,7 +459,7 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
           }
           await admit(entry)
           const accepted = await publicJobs(entry)
-          active = work(entry).finally(() => { active = null; release() })
+          active = work(entry).finally(() => { active = null; release(); try { notify() } catch {} })
           return accepted
         } catch (error) { release(); throw error }
       })
