@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path'
 import { BellTeamMessenger } from './messenger.mjs'
 import { memberIdentity } from './member-identity.mjs'
 import { returnedExecutionError } from './execution-error.mjs'
+import { readImageBytes } from './message-assets.mjs'
 
 const fail = code => { throw Object.assign(new Error(code), { code }) }
 
@@ -123,24 +124,26 @@ export class DurableMessageReceipts extends BellTeamMessenger {
     const callbacks = this.notificationCallbacks(record.target, deliveryId, record.session_id ? 'call' : 'direct')
     const knownReplyIds = new Set(records.filter(row => row.from === record.target && row.target === 'user').map(row => row.delivery_id))
     const prepared = { target: record.target, deliveryId, startedAt: this.now(), knownReplyIds }
-    const options = {
-      record,
-      ...(this.executionSources.has(deliveryId) ? { executionSource: this.executionSources.get(deliveryId) } : {}),
-      images: (record.image_assets ?? []).map(asset => ({ path: join(this.assets.directory(asset.owner), asset.file) })),
-      queue: { context: 'direct', contextId: record.target, groupId: deliveryId, from: record.from,
-        fromName: record.from_identity?.name ?? record.from, target: record.target, message: record.message,
-        ...(record.session_id ? { call: { sessionId: record.session_id, event: record.call_event, seq: record.call_seq } } : {}) },
-      callbacks: { ...callbacks,
-        onStatus: (status, error, tracking) => {
-          observed ||= ['running', 'steered', 'delivered'].includes(status) || tracking?.admission === 'accepted'
-          if (!['running', 'steered', 'delivered', 'failed', 'stopped'].includes(status)) fail('DISPATCH_STATUS_INVALID')
-          return callbacks.onStatus(status, error, tracking)
-        },
-        onUserComplete: reply => this.finishUserTurn(prepared, reply),
-      },
-    }
     let result
     try {
+      const options = {
+        record,
+        ...(this.executionSources.has(deliveryId) ? { executionSource: this.executionSources.get(deliveryId) } : {}),
+        // Saved assets are private to UID1001; execution creates its own seat-readable temporary copy.
+        images: await Promise.all((record.image_assets ?? []).map(async asset => ({ mime: asset.mime,
+          data: (await readImageBytes({ path: join(this.assets.directory(asset.owner), asset.file) }, this.assets.maxBytes)).toString('base64') }))),
+        queue: { context: 'direct', contextId: record.target, groupId: deliveryId, from: record.from,
+          fromName: record.from_identity?.name ?? record.from, target: record.target, message: record.message,
+          ...(record.session_id ? { call: { sessionId: record.session_id, event: record.call_event, seq: record.call_seq } } : {}) },
+        callbacks: { ...callbacks,
+          onStatus: (status, error, tracking) => {
+            observed ||= ['running', 'steered', 'delivered'].includes(status) || tracking?.admission === 'accepted'
+            if (!['running', 'steered', 'delivered', 'failed', 'stopped'].includes(status)) fail('DISPATCH_STATUS_INVALID')
+            return callbacks.onStatus(status, error, tracking)
+          },
+          onUserComplete: reply => this.finishUserTurn(prepared, reply),
+        },
+      }
       result = await this.dispatch(options)
       if (!['running', 'steered', 'delivered'].includes(result?.delivery)) fail('DISPATCH_RESULT_INVALID')
     } catch (error) {

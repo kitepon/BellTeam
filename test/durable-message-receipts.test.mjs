@@ -75,18 +75,29 @@ test('saved image references and owner/Bridge metadata survive recreation; unter
   const assets = new MessageAssets({ root: f.root })
   const service = new DurableMessageReceipts({ ...f.options, assets })
   const originalPath = join(f.root, 'incoming.png')
-  await writeFile(originalPath, Buffer.from('iVBORw0KGgo=', 'base64'))
+  const imageBytes = Buffer.from('iVBORw0KGgo=', 'base64')
+  await writeFile(originalPath, imageBytes)
   const receipt = await service.enqueueUserTurn({ target: 'bot-b', message: 'image', images: [{ path: originalPath }] })
   await rm(originalPath)
   const bridge = await service.receiveCallBridge({ event: 'session.message', session_id: 'call-1', target_id: 'bot-b', source_system: 'bridge', source_id: 'caller', source_label: 'Caller', message: 'hello', reply_required: false })
   let dispatched = 0
   const restored = new DurableMessageReceipts({ ...f.options, assets, dispatch: async ({ record, images, queue }) => {
     dispatched++
-    if (record.delivery_id === receipt.delivery_id) { assert.equal(record.from, 'user'); assert.equal(images.length, 1); await readFile(images[0].path) }
+    if (record.delivery_id === receipt.delivery_id) {
+      assert.equal(record.from, 'user'); assert.equal(images.length, 1)
+      assert.equal(images[0].mime, 'image/png'); assert.equal(images[0].path, undefined)
+      assert.deepEqual(Buffer.from(images[0].data, 'base64'), imageBytes)
+    }
     else { assert.equal(record.delivery_id, bridge.delivery_id); assert.equal(record.call_reply_required, false); assert.equal(queue.call.sessionId, 'call-1') }
     return { delivery: 'running' }
   } })
-  await restored.drain(); assert.equal(dispatched, 2)
+  const results = await restored.drain()
+  assert.ok(results.every(result => result.dispatched)); assert.equal(dispatched, 2)
+  const missing = await service.enqueueUserTurn({ target: 'bot-b', message: 'missing saved image', images: [{ data: imageBytes.toString('base64') }] })
+  const saved = (await service.store.records()).find(record => record.delivery_id === missing.delivery_id).image_assets[0]
+  await rm(join(assets.directory(saved.owner), saved.file))
+  assert.deepEqual(await restored.dispatchSaved(missing.delivery_id), { delivery_id: missing.delivery_id, delivery: 'unknown', dispatched: false })
+  assert.equal(dispatched, 2)
   const preview = { ...service.record({ deliveryId: 'preview', from: 'bot-a', target: 'bot-b', message: 'uncommitted', delivery: 'queued' }), durable_receipt: true }
   await appendFile(service.logPath, JSON.stringify(preview))
   assert.deepEqual(await restored.pending(), [])
