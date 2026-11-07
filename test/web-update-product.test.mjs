@@ -25,7 +25,7 @@ function fixture(t, value, plan, { old = null, loseGet = false, failSave = false
   let accepted
   const center = createUpdateCenter({ root, buttons: [dom.get('update-open')], storage: { getItem: key => data.get(key) ?? null, setItem(key, value) { if (failSave) throw Error('storage'); data.set(key, value) }, removeItem: key => data.delete(key) }, api: async (path, options) => {
     calls.push({ path, body: options?.body ? JSON.parse(options.body) : null })
-    if (path === '/api/updates') return value
+    if (path === '/api/updates?runtime=1') return value
     if (path.endsWith('/plans')) return { plan }
     if (path === '/api/updates/operations') { accepted = operation(plan, JSON.parse(options.body).requestId); return { operation: accepted } }
     if (loseGet) throw Error('offline')

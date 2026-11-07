@@ -1,5 +1,30 @@
 # Update通知の表示・操作設計
 
+## Runtime updates in the normal Update screen (2026-11-08, Z-b2 slice D)
+
+The public contract is [runtime slice D](../runtime/runtime-updates.md#inventory-plan-and-start-slice-d), supplied in PR517. Web opts in through GET `/api/updates?runtime=1`; it does not add a second jobs-list request. Existing operation GET, plan/start POST, retained UUIDs and scoped SSE invalidation remain the same.
+
+| Function / connection | Input -> output and ownership |
+| --- | --- |
+| Inventory read and validation | Opted-in snapshot -> existing business rows plus the four fixed runtime IDs; validate consumed `runtimeApplication.policy:next_launch` and nullable generation SHA, and accept stored job `kind:runtime` in inventory, operations, retained history and SSE input. Server owns versions, availability and capability. |
+| List and details | Supplied runtime rows -> existing current/published/changes/status display, with 「次回起動から適用。実行中の席は現在の版を継続」 visible on rows, details and runtime plan review. Unsupported capability retains its concrete supplied reason, including Aiterm MCP exclusive-scope unavailability. |
+| Single-target plan and start | Selected runtime ID -> existing component plan -> one explicit start with `confirmContainerRestart:false` under the supplied `impact.containerRestart:false`. No runtime rollback control or request; all-scope plans stay server-owned and exclude runtime targets. |
+| Refresh and result | Existing updates SSE -> opted-in inventory GET -> actual runtime job record in main/details/history. SSE itself filters runtime jobs; never interpret missing event jobs as completion. Existing per-URL coalescing, latest-record choice, disposal/identity checks and read-error display stay intact. |
+
+```mermaid
+flowchart LR
+  Trigger[Open / ready / updates / manual / visible] --> Read[GET updates runtime=1]
+  Read --> Validate[Existing inventory validator + runtime metadata and job kind]
+  Validate --> Rows[Normal component rows and details / next-launch text]
+  Rows --> Plan[Existing single-component plan POST]
+  Plan --> Review[Runtime review / no restart confirmation / no rollback control]
+  Review --> Start[Existing operation POST / retained request UUID]
+  Start --> Result[Operation GET and opted-in inventory / stored runtime job]
+  Result --> Screen[Main / details / retained history]
+```
+
+Overall function connections remain Web -> integration HTTP/SSE; overall DFD U14 now includes this opted-in read. Runtime P3/P8 and stores remain server-owned. Source reach: `web/update-center.js`; caller `application.js` and assets/module source membership unchanged; URL-sensitive fixtures in the four Web update test files change with the request. No new guard, store, timer, retry, permission decision or backend API is introduced. Existing validation prevents malformed responses overwriting the display; a later successful refresh replaces the read error through the existing state transition.
+
 ## Durable job display contract (2026-11-07)
 
 Root's [job ledger contract](/srv/bellteam/bots/bot-7b140b27/docs/module-job-ledger-contract-20261107.md) supersedes the historical operation-result/unknown display below. Runtime's [exact record and DFD](/srv/bellteam/bots/bot-0b867848/work/BellTeam-module-job-ledger-20261107/docs/architecture/modules/runtime/update-jobs.md) owns job transitions. Job display consumes Molly's final [HTTP/SSE contract](../integration/update-jobs.md), supplied before Web source. Do not infer wire paths from runtime's private socket endpoints. The independent problems projection is final in [Signal PR456](https://github.com/kitepon/BellTeam/pull/456), `docs/architecture/modules/diagnostics/module-restart-limit.md`.
