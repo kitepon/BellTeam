@@ -7,7 +7,7 @@ Centi owns P1 and supply to runtime P2; [runtime update contract](../runtime/run
 | Function | Input → output | Owner/caller |
 | --- | --- | --- |
 | R1 publish-runtime.yml | `runtime-codex`, `runtime-claude-code`, or `runtime-throughline` × native amd64/arm64 → clean Node26/glibc builder | Centi; manual main-only workflow |
-| R2 package-runtime.py | Fresh official npm latest metadata → exact-version global prefix, isolated artifact/native probes → manifest-first archive and integrity/closure receipt | Centi; R1 |
+| R2 package-runtime.py | The same three R1 component IDs + fresh official npm latest metadata → exact-version global prefix, isolated artifact/native probes → manifest-first archive and integrity/closure receipt | Centi; R1 |
 | R3 provenance/release | Exact archive bytes → official main workflow attestation → updates-stamp archive and bundle | Centi; R1, runtime verifier P4 reads |
 | R4 prepare-runtime-catalog.py | config/runtime-releases.json + exact catalog.json SHA → validated separate runtime-catalog.json | Centi; existing catalog publisher |
 | R5 existing catalog publisher | Main catalog and separate runtime catalog → four signed assets in SAME Release | Centi; runtime P2, released installers keep reading only catalog.json |
