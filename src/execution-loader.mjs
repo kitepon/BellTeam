@@ -68,7 +68,8 @@ export function createExecutionFactoryLoader({ prepareRelease = prepareExecution
     }
     return Object.freeze({ versionId, sourceCommit, createExecutionDispatcher: namespace.createExecutionDispatcher,
       supportsModelHandoff: Array.isArray(namespace.EXECUTION_METHODS?.dispatch)
-        && namespace.EXECUTION_METHODS.dispatch.includes('administration.configureFromMcp') })
+        && namespace.EXECUTION_METHODS.dispatch.includes('administration.configureFromMcp'),
+      supportsUpdateHold: namespace.EXECUTION_UPDATE_HOLD_GATE === true })
   }
 }
 

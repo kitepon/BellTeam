@@ -215,7 +215,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   let directTurnReports
   directMessages = createDirectReceiptAssembly({ root, bots, assets: conversationAssembly?.directAssets ?? conversation.assets,
     legacy: conversation.messenger, conversation: conversationAssembly, transport, aiControl, exchangeMutex,
-    executionReady: () => !execution || execution.controller.snapshot().phase === 'running' && execution.controller.snapshot().available,
+    executionReady: () => !execution || execution.controller.snapshot().phase === 'running' && execution.controller.snapshot().available && !execution.hold?.held,
     onMessage: record => notifications.direct(record), onTurnEnd: turn => directTurnReports.afterTurn(turn),
     onError: (error, context) => diagnostics.record(directFailureReport(error, context)) })
   conversationPorts.directReceipts = directMessages.receipts
@@ -307,6 +307,8 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   if (usageAssembly) await usageAssembly.initializeServices()
   // Missing or corrupt summary settings must not prevent the main application from starting.
   try { backgroundSummary.configure(await settings.backgroundAgentConfiguration()) } catch {}
+  // Z-c: a hold saved by the replaced box is restored before the engine starts; release redrains saved input.
+  if (execution?.hold) { await execution.hold.initialize(); execution.hold.watch(() => directMessages?.requestDrain()) }
   if (execution) await execution.controller.start()
   let olrwAuthCaller = null
   try {
@@ -330,14 +332,15 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     olrwAuthCaller = { status: 'unavailable', ownerSecretGuide: async () => null, async close() {} }
     try { await diagnostics.record({ code: 'OLRW_MANAGEMENT_UNAVAILABLE', module: 'integration' }) } catch {}
   }
-  directMessages.start()
   return {
     aiControl, subscriptions, settings, onboarding, harnessAuth, updateCenter, moduleChildExitReporter, membersAuthorization, members, usageAssembly, conversationAssembly, execution, modelHandoffGeneration, backgroundSummary, directMessages,
     notifications, secretRequests, ownerQuestions, bots, rooms,
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, refreshGlobalInstructions, assets,
     scheduler, diagnostics, diagnosticsModule, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller, submittedSecretCaller,
-    lifecycle: execution?.lifecycle ?? {},
+    // Saved direct input drains after listen (Z-c): the hold is released first, and the drain starts even if that contact fails.
+    lifecycle: { ...execution?.lifecycle,
+      afterListenReady: async () => { try { await execution?.lifecycle?.afterListenReady?.() } finally { directMessages.start() } } },
   }
   } catch (error) {
     const failures = []

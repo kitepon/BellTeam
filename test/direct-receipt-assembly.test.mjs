@@ -145,6 +145,8 @@ test('application constructs sole receiver before child start and performs initi
   runtime.services.transport.waitProcess = async () => ({ outcome: 'done' })
   t.after(async () => { await runtime.close(); await rm(root, { recursive: true, force: true }) })
   assert.equal(childStartReceiver, runtime.services.directMessages.receipts)
+  // Z-c: saved input drains from the afterListenReady contact, after listen (update-hold.md).
+  await runtime.services.lifecycle.afterListenReady()
   await settled(async () => sends === 1 && !(await childStartReceiver.pending()).length)
   assert.equal((await childStartReceiver.store.records())[0].delivery_id, original.delivery_id)
 })
