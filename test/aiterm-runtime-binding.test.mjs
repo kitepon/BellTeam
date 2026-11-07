@@ -66,6 +66,18 @@ test('ordinary/native connection specs use the supplied capture and leave custom
   assert.deepEqual(aitermConnectionRegistration(custom, a), custom)
 })
 
+test('builtin Aiterm connection keeps PATH lookup for direct and stable-wrapper registrations', () => {
+  const runtime = { components: { 'runtime-aiterm-mcp': {
+    origin: 'builtin', dist: '/usr/local/lib/node_modules/aiterm-mcp/dist',
+    bin: { 'aiterm-mcp': '/usr/local/bin/aiterm-mcp' },
+  } } }
+  assert.deepEqual(aitermConnectionRegistration({ command: 'aiterm-mcp', args: ['--direct'] }, runtime),
+    { command: 'aiterm-mcp', args: ['--direct'] })
+  assert.deepEqual(aitermConnectionRegistration({ command: '/usr/local/bin/node',
+    args: [RUNTIME_EXEC, 'runtime-aiterm-mcp', 'aiterm-mcp', '--wrapped'] }, runtime),
+  { command: 'aiterm-mcp', args: ['--wrapped'] })
+})
+
 test('concurrent connect callers share capture resolution and SDK initialization', async t => {
   const { a } = await fixture(t)
   let release, calls = 0, command
