@@ -13,6 +13,7 @@ import { OwnerProfile } from '../src/owner-profile.mjs'
 import { UserRules } from '../src/user-rules.mjs'
 import { FeatureSettings } from '../src/feature-settings.mjs'
 import { createSyntheticNotificationsProcess } from './helpers/notifications-process.mjs'
+import { createFixtureJobClient } from './fixtures/update-job-client.mjs'
 import { AitermGenerationClient } from '../src/aiterm-generation-client.mjs'
 
 test('normal parent callers and durable Update use one execution engine without outer producers or shared-client closure', { timeout: 15000 }, async t => {
@@ -30,7 +31,8 @@ test('normal parent callers and durable Update use one execution engine without 
     stateCompatibility: engine.EXECUTION_STATE_COMPATIBILITY, appRoot: `/run/bellteam-maintenance/execution/releases/${id}/payload` })
   const loadExecutionFactory = createExecutionFactoryLoader({ prepareRelease: descriptor,
     builtinIdentity: async () => 'f'.repeat(40), importFactory: async () => engine })
-  const hostUpdateClient = { capabilities: async () => ({ supported: false, reason: 'HOST_UPDATE_UNAVAILABLE', currentRequestId: null, previousRequestId: null }),
+  // Durable update jobs (2026-11-06 contract): admission before 202, parent-reported activation, job reads.
+  const hostUpdateClient = { ...createFixtureJobClient(root), jobs: async () => ({ jobs: [] }), capabilities: async () => ({ supported: false, reason: 'HOST_UPDATE_UNAVAILABLE', currentRequestId: null, previousRequestId: null }),
     catalog: async id => {
       const url = `https://github.com/kitepon/BellTeam/releases/download/updates-20261104T000000Z/execution-${source}-linux-amd64.tar.gz`
       return { schema: 'bellteam.update-catalog.selection.v1', catalogSha256: 'd'.repeat(64), publishedAt: '2026-11-04T00:00:00Z', expiresAt: '2099-01-01T00:00:00Z',
