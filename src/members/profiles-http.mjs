@@ -21,6 +21,7 @@ export function createMemberProfileApi({ bots, transport, administration, memory
         const application = view?.configurationApplication
         const avatars = {}
         for (const field of ['avatar', 'avatarLarge', 'avatarSource', 'avatarLargeSource']) {
+          avatars[field] = ''
           avatars[`${field}Version`] = bot[`${field}Version`]
             ?? avatarVersion(field === 'avatarLarge' ? bot[field] || bot.avatar : bot[field])
         }

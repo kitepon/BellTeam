@@ -21,7 +21,7 @@ flowchart TD
   Listing --> Snapshot["listForClient default / profiles.read ACK stream<br/>metadata + four avatar versions"]
   Snapshot --> Registry
   Profile --> Listing["active/pending一覧<br/>履歴・稼働観測・適用表示"]
-  Listing --> Wire["GET /api/bots, with any query<br/>four version fields, no avatar body fields"]
+  Listing --> Wire["GET /api/bots, with any query<br/>four avatar fields present as empty strings<br/>four versions kept, bodies never sent"]
   Profile -->|"single-Bot GET / image routes"| Detail["readMember / full single profile<br/>authenticated image bytes + ETag"]
   Listing -->|"既HTTPのdeleting"| Apple["Apple利用側<br/>予定対象から削除中を外す"]
 ```
@@ -37,7 +37,7 @@ flowchart TD
 | avatar | 既resolveBotImagePath、PNG/JPEG/WebP/GIF検証、data URL化→registry.updateの順を維持。HTTPのavatar/large/source経路とfallback/etagは既共有画像窓口を使用 |
 | `profiles-http.mjs` | createMemberProfileApiがBot一覧/作成、GET/PATCH profile、avatar、character-sheet一覧/streamを所有。既createBotApiはこのhandlerへ委譲し、execution/memory/conversationの残る経路を保持 |
 | HTTP更新/表示 | PATCHは既Administration.updateへ、GETと一覧の適用観測は既viewへ。返却/statusは既契約。モデルの稼働適用/Map/停止・再開はexecutionが持つ |
-| List | `GET /api/bots` always omits `avatar`, `avatarLarge`, `avatarSource`, and `avatarLargeSource`, preserving all four `*Version` fields and crop metadata. `?avatar=omit` is accepted as a no-op; no query enables inline images. Pending receipts remain deleting=true/online=false, with current membership rechecked after asynchronous reads |
+| List | `GET /api/bots` always includes `avatar`, `avatarLarge`, `avatarSource`, and `avatarLargeSource` as empty strings for required-string client decoders; image bodies are never sent, preserving all four `*Version` fields and crop metadata. `?avatar=omit` is accepted as a no-op; no query enables inline images. Pending receipts remain deleting=true/online=false, with current membership rechecked after asynchronous reads |
 | Appleの一覧利用 | [Apple利用側](../apple/README.md)は既HTTPのdeletingを任意fieldとして読み、trueのBotを予定の期待集合へ含めない。[予定集合の契約](schedules.md#名簿と予定の対象集合)を参照。fieldなしは従来のactiveとして扱う |
 | 作成 | registry.create後にmemory.ensureScope。記憶領域や後段生成が失敗しても、保存済みBotを勝手に消さず元の例外を伝える。偽の会話を発行しない |
 | character-sheet | 正本直下の画像だけを扱う既CharacterSheets契約を維持。runtime公開streamへAbortSignalを渡し、HTTP切断で取消、metadata前/headers後の失敗を元どおり扱う。draftを正本へ昇格しない |
@@ -62,7 +62,7 @@ members/errors.mjsのnormalizeMembersErrorは既固定semantic prefix/コード�
 
 既`profiles.read {}`の一件ずつACKする投影profileへ、`avatarVersion` / `avatarLargeVersion` / `avatarSourceVersion` / `avatarLargeSourceVersion`を付ける。各値は既avatarVersionの空文字またはSHA256先頭16hex。largeは既HTTP同様`avatarLarge || avatar`を使う。画像4本文を送らず、既hasAvatar/hasAvatarLargeとpendingの意味は保つ。共通hash/cacheはavatar-value.mjsへ移し、http-assets.mjsの既avatarVersion exportを維持する。
 
-The parent uses the ACK-completed snapshot of the same generation/revision by default, avoiding one `profile.read` per Bot. `listForClient({omitAvatars:false})` remains an internal legacy fallback, with no HTTP opt-in. The handler emits only version fields, taking existing versions before computing missing legacy versions. Fresh single-profile reads, membership/pending rechecks, authorization and failure semantics remain unchanged.
+The parent uses the ACK-completed snapshot of the same generation/revision by default, avoiding one `profile.read` per Bot. `listForClient({omitAvatars:false})` remains an internal legacy fallback, with no HTTP opt-in. The handler emits all four avatar keys as empty strings alongside the version fields, taking existing versions before computing missing legacy versions. Required-string Apple decoders retain their list contract without transferring image bodies. Fresh single-profile reads, membership/pending rechecks, authorization and failure semantics remain unchanged.
 
 Deployment: both `src/members-facade.mjs` and the imported `src/members/profiles-http.mjs` execute in the body in the current assembly ([residency inventory M08](../../parent-residency.md)). Republishing or replacing only the members child cannot activate this caller change. Body activation belongs to Trony's existing approval boundary; this patch does not migrate handlers or restart the body.
 
