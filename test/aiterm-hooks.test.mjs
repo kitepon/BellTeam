@@ -27,7 +27,7 @@ test('native hookは登録済みMCPと同じ入口をAitermのnative setupへ渡
   const providerFile = '/candidate/steer/index.js'
   const calls = []
   const result = await configureAitermHooks('/isolated/home', {
-    registration, codex: '/candidate/codex',
+    registration, dist: '/candidate/aiterm/dist', codex: '/candidate/codex',
     load: async path => {
       assert.ok(path.startsWith('/candidate/aiterm/dist/'))
       if (path.endsWith('/execution-native-server.js')) return { parseNativeExecutionArguments: args => {
@@ -85,6 +85,7 @@ test('Codexの親配送hookは、Aitermに入口がある時に、コンテナ�
   const outcome = { status: 'ready', changed: true }
   const result = await configureAitermHooks(home, {
     dist: '/aiterm/dist',
+    runtimeCapture: { components: { 'runtime-codex': { bin: { codex: '/selected/codex' } } } },
     load: async path => path.endsWith('setup-node.js')
       ? { setupNodeExecutable: () => '/usr/local/bin/node' }
       : {
@@ -93,6 +94,6 @@ test('Codexの親配送hookは、Aitermに入口がある時に、コンテナ�
           ensureCodexParentSteer: async (...args) => { calls.push(['codex', ...args]); return outcome },
         },
   })
-  assert.deepEqual(calls, [['claude'], ['cursor'], ['codex', home, { binary: '/usr/local/bin/codex' }]])
+  assert.deepEqual(calls, [['claude'], ['cursor'], ['codex', home, { binary: '/selected/codex' }]])
   assert.deepEqual(result, { codex: outcome })
 })

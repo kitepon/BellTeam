@@ -6,16 +6,16 @@ This file is the canonical implementation diagram. The design document stays the
 
 ## Targets
 
-Four fixed component IDs. Nothing else is a runtime target; no npm specifier, URL, shell or path crosses the public boundary.
+Four fixed component IDs remain in the resolver/generation schema. Hot updates support the two CLIs and Throughline. `runtime-aiterm-mcp` is excluded: the body retains an Aiterm MCP connection for its lifetime, and different Aiterm closures are not certified to share its state/tmux scope. Molly's updater capability/plan contract is capability false with `RUNTIME_COHABITATION_UNSUPPORTED` before staging or selection commit. Aiterm updates with the body image through Z-c under its existing acceptance and operational conditions; this slice adds no parent reconnect protocol. No npm specifier, URL, shell or path crosses the public boundary.
 
-| componentId | Package (closed map) | Entries resolved by P6 |
-| --- | --- | --- |
-| `runtime-aiterm-mcp` | `aiterm-mcp` | `bin/aiterm-mcp`, `dist` = `lib/node_modules/aiterm-mcp/dist` |
-| `runtime-codex` | `@openai/codex` | `bin/codex` |
-| `runtime-claude-code` | `@anthropic-ai/claude-code` | `bin/claude` |
-| `runtime-throughline` | `throughline` | `bin/throughline` |
+| componentId | Package (closed map) | Entries resolved by P6 | Hot update |
+| --- | --- | --- | --- |
+| `runtime-aiterm-mcp` | `aiterm-mcp` | `bin/aiterm-mcp`, `dist` = `lib/node_modules/aiterm-mcp/dist` | Unsupported; body-image path |
+| `runtime-codex` | `@openai/codex` | `bin/codex` | Supported |
+| `runtime-claude-code` | `@anthropic-ai/claude-code` | `bin/claude` | Supported |
+| `runtime-throughline` | `throughline` | `bin/throughline` | Supported |
 
-`builtin` paths (the image's `/usr/local` prefix) are what P6 returns while no selection has ever been established on this installation. Once `current.json` exists, the builtin prefix is never used again for managed launches.
+P6 returns `builtin` paths (the image's `/usr/local` prefix) before a selection exists and for each component absent from an established generation vector, including Aiterm on the supported hot-update path. An unreadable/invalid established selection fails; it never falls back to builtin. Builtin CLI execution preserves the caller's PATH precedence.
 
 ## Functions
 
@@ -23,7 +23,7 @@ Four fixed component IDs. Nothing else is a runtime target; no npm specifier, UR
 | --- | --- | --- |
 | P1 | Upstream latest stable → complete npm prefix closure per target, manifest, signed archive | Centi + supply owners (publish-runtime workflow) |
 | P2 | Existing catalog verifier → authenticated runtime release rows (componentId in the four IDs) | distribution (catalog schema), runtime (acceptance) |
-| P3 | Authenticated UI plan/start → admitted `kind:"runtime"` job, HTTP202 | Molly (common API + updater job) |
+| P3 | Authenticated UI plan/start → eligible CLI/Throughline `kind:"runtime"` job, HTTP202; Aiterm → capability false / `RUNTIME_COHABITATION_UNSUPPORTED` before staging/commit | Molly (common API + updater job) |
 | P4 | Target release → verified archive → staged closure under `packages/<id>/<archiveSha>` + receipt | Molly (`scripts/runtime_update.py`, run by module-installer) |
 | P5 | Staged closure + expected generation → new generation file + atomic `current.json` | Molly (same script; sole selection writer) |
 | P6 | Launch intent → captured generation and absolute paths. `captureRuntime()` / `{generation: undefined}` = current selection (builtin if none); `{generation: null}` = builtin; `{generation: sha}` = that `generations/<sha>.json`, validated like the current path (absent/invalid → `RUNTIME_BINDING_UNAVAILABLE`), used by resume of a recorded launch | Molly (`src/runtime-selection.mjs`); callers Kiro (execution launch, [runtime-capture](../execution/runtime-capture.md)) / Elegg (Aiterm) |
@@ -37,7 +37,8 @@ flowchart LR
   Catalog --> P2[P2 authenticate target]
   UI[Authenticated update UI] --> P3[P3 plan start admit job]
   P2 --> P3
-  P3 --> P4[P4 acquire verify stage]
+  P3 -->|CLI or Throughline| P4[P4 acquire verify stage]
+  P3 -->|Aiterm| Unsupported[Capability false RUNTIME_COHABITATION_UNSUPPORTED]
   P4 --> P5[P5 commit generation]
   P5 --> P6[P6 capture at launch]
   P6 --> P7[P7 CLI MCP hooks]
@@ -47,6 +48,37 @@ flowchart LR
 ```
 
 P5 changes future launches only. P6 never moves a running launch to a new generation.
+
+## Aiterm consumer binding (slice C)
+
+These bindings keep Aiterm helpers and imports consistent while CLI/Throughline selections change. They do not enable Aiterm hot replacement. Updater enforcement of the excluded Aiterm channel is Molly's change; the consumer implementation below does not replace that enforcement.
+
+| Function | Input → output | Lifetime / owner |
+| --- | --- | --- |
+| AitermClient.runtime/connect | supplied runtimeCapture or inherited-generation capture → selected MCP entry and helper imports | Elegg; one capture per client/connection, including concurrent connect callers; reconnect retains that capture |
+| captureHandoffConnection | exact SDK/transport + captured dist → capture/control imports | Elegg; immutable absolute module paths captured with that SDK, no query suffix or latest lookup |
+| ConfigurationIntents.handoffTerminal | stored snapshot + owning client's runtime() → captured snapshot schema | Elegg; assembly injects the same native client capture; standalone store captures once |
+| adoptRuntimeResume | startup runtime capture → resume-state-cli.js restore command | Elegg; one capture for the complete pre-bootstrap adoption operation |
+| aitermRegistration / aitermExecutionRegistration | image Aiterm public setup helpers → original direct MCP descriptor | Elegg; ordinary MCP is `node /usr/local/lib/node_modules/aiterm-mcp/dist/index.js`; native MCP uses the image's execution-native-server.js and provider |
+| configureAitermHooks | image setup module + original direct descriptor → image sibling hook registrations | Elegg; existing SeatRuntime remains the sole serial HOME writer; Codex binary comes from the selected CLI capture |
+
+Persistent registrations keep the image's existing direct Aiterm entry paths; no `/app/scripts/runtime-aiterm` adapter or runtime-exec descriptor is written to shared HOME. AitermClient's in-process connection binding still uses its captured native entry/provider/generation. Scope arguments remain owned by Aiterm/SeatRuntime. The native public setup API keeps its required execution-native-server.js basename and derives hooks from that image dist. No helper implementation is copied from Aiterm.
+
+| Flow / store | Data and ownership |
+| --- | --- |
+| P6 → AitermClient → stdio MCP | release bin or builtin `aiterm-mcp` through the unchanged PATH; captured native entry/provider and generation; seat spec installs generation after UID/env setup; custom test transports retain their supplied command |
+| AitermClient → handoff/schema loader | immutable captured dist; configuration assemblies pass runtime() of that exact client, never a global current import base |
+| SeatRuntime → HOME → delayed hook | original image node/dist paths and scope/config args; Aiterm stays on the body-image channel while inherited generation/vendor environment binds the CLI |
+| startup capture → restore child | real immutable resume-state-cli path; checkpoint payload/state ownership unchanged |
+| code store retention → readers | D5 launch retention remains Kiro's and over-retains at close. Long-lived MCP/helper references have no separate persisted record yet; no collection is enabled or introduced here |
+
+Mixed Aiterm closure sharing is unsupported for the shared state/tmux scope. The body's permanent MCP reference makes a release-at-close exclusive check unsuitable for hot replacement. The adopted channel exclusion above replaces the earlier proposed `stateCompatibility` declaration/exclusive check; no such signed-row field is added by this slice. Staging executes no package code; aiterm-mcp has no inert --version handler.
+
+### Shared configuration compatibility and body recover
+
+Ordinary registration remains exactly the shape generated by Aiterm `globalRegistration()` (`setup.ts`): setupNodeExecutable plus the image's dist/index.js. Aiterm `sameRegistration()` (`setup-integrations.ts`) accepts this direct descriptor and its existing mcp-lazy wrapper, so this slice introduces no different descriptor that would cause plain aiterm-setup to rebuild Codex/Grok registration and drop BellTeam timeouts. No new Aiterm recognition logic is assumed.
+
+Native and ordinary hooks also keep their existing image-dist paths. Z-c `--recover`/previous-normal can therefore reopen shared HOME with the older image's existing Aiterm helpers at those same installation paths; no missing `/app/scripts/runtime-aiterm` files are referenced and no older configureAitermHooks rewrite is required to remove adapters. This PR has never been deployed and its superseded adapter descriptors have never been written by it to shared HOME. This contract addresses the newly introduced descriptor hazard; it does not broaden Z-c state-format, vendor or publication acceptance.
 
 ## Stores (DFD)
 
@@ -64,12 +96,12 @@ Root: `RUNTIME_ROOT` = `/srv/bellteam/shared/tools/bellteam-runtime` inside the 
 | Flow | Data |
 | --- | --- |
 | F1 | P1 → D1: archive + Sigstore bundle + catalog row `{componentId,sourceCommit,versionId=archiveSha256,platform,artifact,compatibility,changes}` |
-| F2 | UI → P3 → D4: componentId, catalogSha256, versionId, idempotencyKey; `impact.containerRestart:false` |
+| F2 | UI → P3 → D4: eligible CLI/Throughline componentId, catalogSha256, versionId, idempotencyKey; `impact.containerRestart:false`. Excluded Aiterm returns the capability/refusal above without staging/selection writes |
 | F3 | D1 + D4 → P4 → D2: verified bytes, safe extraction (no absolute/escaping links, no devices/set-ID), file inventory digests |
 | F4 | D2 + D3 → P5 → D3: replace exactly one component in the expected vector; expected ≠ actual → `RUNTIME_SELECTION_CHANGED` |
 | F5 | D3 → P6 → caller: `{generation, components:{<id>:{origin:"release"\|"builtin", prefix, bin, dist?}}}` |
 | F6 | D3 + D4 + D5 → P8 → UI: current/published per runtime row + `runtimeApplication:{generationId,policy:"next_launch"}` (slice D); `retainedGenerations:[{generationId,referenceCount}]` is added with D5 in slice C |
-| F7 | D5 → P8 cleanup: remove only unselected, unreferenced closures; never D6 |
+| F7 | Future D5 → P8 cleanup contract: remove only unselected, unreferenced closures; never D6. No collector is enabled; current per-session D5 alone does not cover long-lived MCP/helper references |
 
 ## runtime-aiterm-mcp updates only with the body image (Elegg decision, 2026-11-08)
 

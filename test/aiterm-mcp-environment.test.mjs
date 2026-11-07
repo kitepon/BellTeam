@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { writeHarnessConfig } from '../src/harness-config.mjs'
 
-const names = ['AITERM_SESSION_ID', 'AITERM_AGENT_SESSION_ID', 'AITERM_AGENT_LAUNCH_ID', 'AITERM_STATE_BASE', 'TMPDIR', 'XDG_RUNTIME_DIR', 'TEMP', 'TMP']
+const names = ['AITERM_SESSION_ID', 'AITERM_AGENT_SESSION_ID', 'AITERM_AGENT_LAUNCH_ID', 'AITERM_STATE_BASE', 'BELLTEAM_RUNTIME_GENERATION', 'CODEX_BIN', 'CLAUDE_BIN', 'TMPDIR', 'XDG_RUNTIME_DIR', 'TEMP', 'TMP']
 const fixture = `
 let body = ''
 for await (const chunk of process.stdin) body += chunk
@@ -45,6 +45,7 @@ test('Cursorの後付けsource/state/socket変数をstdio MCPへ保持し、入�
   const cliEnv = {
     AITERM_SESSION_ID: 'codex:synthetic', AITERM_AGENT_SESSION_ID: 'codex:synthetic',
     AITERM_AGENT_LAUNCH_ID: 'synthetic-launch', AITERM_STATE_BASE: '/synthetic/state dir',
+    BELLTEAM_RUNTIME_GENERATION: '', CODEX_BIN: '/retained/codex', CLAUDE_BIN: '/retained/claude',
     TMPDIR: '/synthetic/socket dir', XDG_RUNTIME_DIR: '/synthetic/runtime',
     TEMP: 'C:\\synthetic temp', TMP: 'C:\\synthetic tmp',
   }

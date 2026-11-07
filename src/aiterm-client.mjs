@@ -1,6 +1,7 @@
-import { dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { AITERM_DIST } from './aiterm-hooks.mjs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { aitermConnectionRegistration } from './aiterm-hooks.mjs'
+import { captureRuntime } from './runtime-selection.mjs'
 import { loadBotEnvironment } from './bot-environment.mjs'
 import { requireSeatProject, seatCommandSpec } from './seat-command.mjs'
 import { createSeatProcessRunner } from './seat-process.mjs'
@@ -24,14 +25,22 @@ export class AitermClient {
     this.command = command
     this.args = [...args]
     this.env = env
+    this.runtimeCapture = options.runtimeCapture ?? null
     this.client = null
     this.transport = null
     this.connecting = null
   }
 
+  runtime() {
+    const inherited = this.env?.BELLTEAM_RUNTIME_GENERATION ?? process.env.BELLTEAM_RUNTIME_GENERATION
+    return this.runtimeCapture ??= captureRuntime({ generation: inherited === undefined ? undefined : inherited || null })
+  }
+
   captureHandoffConnection() {
     if (!this.client || !this.transport || this.connecting || this.client.transport !== this.transport) return null
     const expected = Object.freeze({ sdk: this.client, transport: this.transport })
+    const runtime = this.runtime()
+    const load = async file => import(pathToFileURL(join((await runtime).components['runtime-aiterm-mcp'].dist, file)).href)
     const binding = { expected, currentConnection: () => {
       if (this.connecting || this.client !== expected.sdk || this.transport !== expected.transport) return null
       return { sdk: this.client, transport: this.transport }
@@ -44,29 +53,28 @@ export class AitermClient {
           return value?.version === 1 && Object.keys(value).length === 1
         })) return { schema: 'aiterm.model-handoff.capture-error.v1', status: 'unavailable',
           error_code: 'HANDOFF_CAPTURE_UNAVAILABLE', effect: 'not_started' }
-        return (await import(`${AITERM_DIST}/model-handoff-transport.js`)).captureModelHandoffOverMcp(input, binding, signal)
+        return (await load('model-handoff-transport.js')).captureModelHandoffOverMcp(input, binding, signal)
       },
-      control: async (input, signal) => (await import(`${AITERM_DIST}/model-handoff-control-transport.js`)).modelHandoffOverMcp(input, binding, signal),
+      control: async (input, signal) => (await load('model-handoff-control-transport.js')).modelHandoffOverMcp(input, binding, signal),
     })
   }
 
   async connect() {
     if (this.connecting) return this.connecting
     if (this.client) return
-    const spec = this.seatProject !== null ? seatCommandSpec(this.command, this.args, { project: this.seatProject })
-      : { command: this.command, args: this.args, ...(this.env ? { env: this.env } : {}) }
-    this.client = new Client({ name: 'bellteam', version: '0.1.0' }, { capabilities: {} })
-    this.transport = new StdioClientTransport({ ...spec, stderr: 'inherit' })
-    const client = this.client
-    const transport = this.transport
-    client.onclose = () => {
-      if (this.client === client) {
-        this.client = null
-        this.transport = null
-      }
-    }
     // clientを作っただけでは初期化は終わっていない。同時の呼出しも同じ接続完了を待つ。
     this.connecting = (async () => {
+      const runtime = await this.runtime()
+      const registration = aitermConnectionRegistration({ command: this.command, args: this.args }, runtime)
+      const generation = runtime.generation ?? ''
+      const spec = this.seatProject !== null ? seatCommandSpec('/usr/bin/env',
+        [`BELLTEAM_RUNTIME_GENERATION=${generation}`, registration.command, ...registration.args], { project: this.seatProject })
+        : { ...registration, env: { ...this.env, BELLTEAM_RUNTIME_GENERATION: generation } }
+      const client = this.client = new Client({ name: 'bellteam', version: '0.1.0' }, { capabilities: {} })
+      const transport = this.transport = new StdioClientTransport({ ...spec, stderr: 'inherit' })
+      client.onclose = () => {
+        if (this.client === client) { this.client = null; this.transport = null }
+      }
       try {
         await client.connect(transport)
       } catch (error) {
