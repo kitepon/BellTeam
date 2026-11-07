@@ -144,6 +144,8 @@ iPhone・Macアプリからの通常の会話と予定操作は共通の月額�
 
 ### 本体イメージを更新する
 
+For an existing installation adopting the fixed Q-1 repair image, use the scoped [matched body and module-installer repair procedure](existing-install-repair.md). It preserves the captured storage/options and leaves `container-updater` unchanged; it costs one body restart and one installer replacement. This is separate from fresh installation and the full `install.sh`/Switch workflow.
+
 同梱版では、アプリのUpdateでBellTeam本体を選び、公開版と再起動の影響を確認して計画を作成します。実行中の作業を終え、表示された本体再起動を明示的に確認して実行してください。更新中は接続が切れます。再接続後は同じ操作の結果と実際に起動した版を確認します。結果不明の場合は同じ要求を再送せず、その操作結果を確認してください。
 
 画面からの更新は、導入時に保存した追加設定と保存先を引き継ぎます。設置フォルダの`.env`やoverrideを書き換えた場合は、次の`sh install.sh`で変更を適用してください。画面から更新した後も、元の設置フォルダから公開installerを使って更新できます。
