@@ -35,7 +35,7 @@ export function directFailureReport(error, context) {
 export function createDirectReceiptAssembly({ root, bots, assets, legacy, conversation, transport, aiControl,
   exchangeMutex, executionReady = () => true, onMessage, onTurnEnd, onError = error => console.error(error) }) {
   let started = false, closed = false, requested = false, draining = null
-  const completions = new Set()
+  const completions = new Set(), drains = new Set()
   const report = (error, context) => { try { Promise.resolve(onError(error, context)).catch(console.error) } catch (failure) { console.error(failure) } }
   const ready = () => !closed && !aiControl.paused && executionReady()
   const requestDrain = () => {
@@ -45,7 +45,12 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
     draining = Promise.resolve().then(async () => {
       await exchangeMutex.waitForIdle()
       requested = false
-      if (ready()) await receipts.drain()
+      if (!ready()) return
+      // The request cycle ends once the lanes are kicked off: a lane waiting on one target's acceptance never
+      // delays the next request, which drains another target at once. Lanes stay tracked for close.
+      const lanes = receipts.drain().catch(report)
+      drains.add(lanes)
+      lanes.finally(() => drains.delete(lanes))
     }).catch(report).finally(() => { draining = null; if (requested) requestDrain() })
   }
   const dispatch = async ({ record, images, queue, callbacks, executionSource }) => {
@@ -126,6 +131,6 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
   const unwatch = aiControl.watch(state => { if (!state.paused && state.state === 'enabled') requestDrain() })
   return { receipts, messenger, requestDrain,
     start() { if (!started && !closed) { started = true; requestDrain() } },
-    async close() { closed = true; unwatch(); await draining; await Promise.allSettled([...completions]); await receipts.appendQueue },
+    async close() { closed = true; unwatch(); await draining; await Promise.allSettled([...drains]); await Promise.allSettled([...completions]); await receipts.appendQueue },
   }
 }

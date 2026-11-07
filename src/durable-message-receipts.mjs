@@ -2,6 +2,7 @@ import { open } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { BellTeamMessenger } from './messenger.mjs'
 import { memberIdentity } from './member-identity.mjs'
+import { returnedExecutionError } from './execution-error.mjs'
 
 const fail = code => { throw Object.assign(new Error(code), { code }) }
 
@@ -15,6 +16,7 @@ export class DurableMessageReceipts extends BellTeamMessenger {
     this.onPending = onPending
     this.onError = onError
     this.claims = new Map()
+    this.lanes = new Map()
     this.executionSources = new Map()
     this.childRecords = new WeakSet()
   }
@@ -143,8 +145,12 @@ export class DurableMessageReceipts extends BellTeamMessenger {
       if (!['running', 'steered', 'delivered'].includes(result?.delivery)) fail('DISPATCH_RESULT_INVALID')
     } catch (error) {
       const latest = (await this.store.durableReceipts()).find(row => row.delivery_id === deliveryId)
+      const saved = latest?.delivery
+      // A saved failed status stays failed only when Aiterm's typed frame proves the input never started, so the
+      // history shows undelivered; an unproven failure after invocation stays unknown and is never replayed.
+      const unsent = saved === 'failed' && returnedExecutionError(error?.executionError)?.effect === 'not_started'
       const delivery = !observed && error?.effect === 'not_started' ? 'queued'
-        : observed && latest?.delivery !== 'dispatching' ? latest.delivery : 'unknown'
+        : unsent || (observed && saved !== 'dispatching') ? saved : 'unknown'
       if (latest?.delivery !== delivery) await this.appendDeliveryStatus(deliveryId, delivery)
       if (delivery !== 'queued') this.executionSources.delete(deliveryId)
       return { delivery_id: deliveryId, delivery, dispatched: false }
@@ -156,9 +162,25 @@ export class DurableMessageReceipts extends BellTeamMessenger {
     return { delivery_id: deliveryId, delivery: result.delivery, dispatched: true }
   }
 
+  // One lane per target: a seat's slow or failing acceptance never delays another target's saved input.
+  // Inside a lane the saved order holds and each ID is attempted once; the lane keeps draining its target
+  // until nothing new is queued, so a record saved meanwhile joins it instead of waiting for a new drain.
+  drainTarget(target) {
+    const running = this.lanes.get(target)
+    // A record saved while the lane was ending is drained by a fresh lane after it, never left queued.
+    if (running) return running.then(() => this.drainTarget(target), () => this.drainTarget(target))
+    const seen = new Set(), results = []
+    const next = async () => (await this.pending()).find(record => record.target === target && !seen.has(record.delivery_id))
+    const lane = (async () => {
+      for (let record = await next(); record; record = await next()) { seen.add(record.delivery_id); results.push(await this.dispatchSaved(record.delivery_id)) }
+      return results
+    })()
+    this.lanes.set(target, lane)
+    return lane.finally(() => this.lanes.delete(target))
+  }
+
   async drain() {
-    const results = []
-    for (const record of await this.pending()) results.push(await this.dispatchSaved(record.delivery_id))
-    return results
+    const targets = new Set((await this.pending()).map(record => record.target))
+    return (await Promise.all([...targets].map(target => this.drainTarget(target)))).flat()
   }
 }
