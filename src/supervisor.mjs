@@ -38,11 +38,13 @@ await adoptRuntimeResume()
 const bootstrap = await import('./bootstrap.mjs')
 const { createApplicationRuntime } = await import('./application-runtime.mjs')
 const { waitForShutdown } = await import('./lifecycle.mjs')
+const { BODY_QUIESCE_SOCKET } = await import('./body-quiesce.mjs')
 
 const runtime = await createApplicationRuntime({
   root: process.env.BELLTEAM_ROOT ?? '/srv/bellteam',
   appRoot: dirname(dirname(fileURLToPath(import.meta.url))),
   bootstrap,
+  quiesceSocket: BODY_QUIESCE_SOCKET,
 })
 await runtime.start()
 process.stderr.write('BellTeam ready\n')

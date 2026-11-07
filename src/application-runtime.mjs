@@ -12,10 +12,11 @@ import { createBugHubSecurity } from './bughub-security.mjs'
 import { LiveModelCatalog } from './model-catalog.mjs'
 import { runtimeHome } from './runtime-home.mjs'
 import { readServerSourceCommit } from './server-source.mjs'
+import { listenBodyQuiesce } from './body-quiesce.mjs'
 
 // Importing this factory does not bootstrap the installation or bind any ports.
-export async function createApplicationRuntime({ root, appRoot, bootstrap, environment = process.env, home = runtimeHome(), client }) {
-  let socketDirectory = null, gateway = null, server
+export async function createApplicationRuntime({ root, appRoot, bootstrap, environment = process.env, home = runtimeHome(), client, quiesceSocket = null }) {
+  let socketDirectory = null, gateway = null, quiesceEndpoint = null, server
   const builtinSourceCommit = await readServerSourceCommit()
   const models = bootstrap.models ?? new LiveModelCatalog({ cwd: root })
   const services = await createApplicationServices({ root, ...bootstrap, models, environment, client, gateway: () => gateway, builtinSourceCommit, notify: change => server?.notify(change) })
@@ -111,6 +112,11 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
       const socketPath = join(socketDirectory, 'public.sock')
       await listen(server, socketPath)
       await listen(internalServer, internalPort, '127.0.0.1')
+      // Without this endpoint the installer records quiesce=unconfirmed and still stops; serving matters more.
+      if (quiesceSocket) quiesceEndpoint = await listenBodyQuiesce({ path: quiesceSocket }).catch(error => {
+        process.stderr.write(`BODY_QUIESCE_UNAVAILABLE ${error.code ?? ''}\n`)
+        return null
+      })
       gateway = createHttpGatewayProcess({ onModuleChildExit: services.moduleChildExitReporter.observe, onModuleRestartLimit: services.moduleChildExitReporter.observeRestartLimit, socketPath, port: Number(environment.BELLTEAM_WEB_PORT ?? 4180), appRoot,
         prepareRelease: bootstrap.prepareGatewayRelease ?? prepareGatewayRelease,
         adoptionPath: join(root, 'state/web-gateway-release.json') })
@@ -135,6 +141,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     closing ??= (async () => {
       const errors = []
       for (const stop of [
+        () => quiesceEndpoint?.close(),
         () => services.directMessages?.close(),
         () => services.backgroundSummary?.close(),
         () => services.moduleChildExitReporter.close(),

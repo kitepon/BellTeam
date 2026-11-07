@@ -16,6 +16,8 @@ flowchart TD
   Admission --> Docker[専用serviceだけのDocker操作]
   Docker --> Worker[同固定imageの別container / restart no / 一回claim]
   Worker --> Installer[既execute_installer / 停止・保守・起動]
+  Installer --> Quiesce[stop直前: exact旧本体へ固定helperで一度quiesce / 300s期限]
+  Quiesce --> Stop[結果に関わらず同exact CIDをdocker stop --time 30]
   Installer --> Verify[実CID/image/source/health・保存先照合]
   Verify --> Ledger
   Normal --> Get[同UUID GET / 再接続・再実行無し]
@@ -72,3 +74,52 @@ stateDiagram-v2
 One deadline judges the swap: install.sh's `--wait-timeout 300`. `container-update-compose.mjs` (run from the target image on every bundled swap, and bound by `--configure`) sets the body healthcheck `start_period` to 300s, so a body that is still booting stays `starting` and cannot turn `unhealthy` before that deadline. `distribution/server/compose.yaml` and `compose.yaml` carry the same value for new installs. Cause: the body runs every Bot's `setup.sh` in order before it listens (about 150s for 67 Bots on 2026-11-08), so boot took about 170s, while the bound healthcheck (`start_period` 120s + 5 × 10s) marked it unhealthy at about 163s and `compose up --wait` failed at once. Production request 804be36d: target dcebdf56 turned unhealthy at 02:44:35 JST, became healthy 11s later, and had already been rolled back. Z-e (2026-11-08): the body now starts every Bot's `setup.sh` in the background (same order, one run each, per-Bot failure isolation) and listens first, so `/healthz` no longer depends on the Bot count. A Bot's seat launch waits in `AitermClient.launchOptions` until that Bot's setup has finished; see [cli-registration](cli-registration.md).
 
 Recovery returns the module-installer that the forward run removed. When the saved generation has `module-installer.json` and recovery returns to the server layout, `--recover` regenerates the installer model from `previous-normal.json` with the previous image's own `module-update-compose.mjs`, saves it as `previous-module-installer.json` and starts it with the same wait. A legacy-layout or generator-less previous generation had no installer, so nothing starts. A start failure exits non-zero with `MODULE_INSTALLER_RESTORE_FAILED`, and the body stays recovered. No guard is added. `install.sh` runs from the worker (current) image, so this recovery step applies to swaps started from an image that contains it. Older generations need the host to start the installer once from its saved model.
+
+## Pre-stop quiesce of the exact old body (Z-c slice 1, 2026-11-08)
+
+Owner Molly. Contract: [Epinel's runtime contract](/srv/bellteam/bots/bot-0b867848/docs/z-c-runtime-quiesce-supervisor-contract-20261107.md) adopted by Trony on 2026-11-08 with two decisions: (a) the authority is a fixed helper exec'd as UID1001 into the exact validated old body, reaching a Unix socket in a UID1001-only 0700 directory, with no token, Host port or Docker access for the body; (b) budget 300 s drain + `docker stop --time 30` + 300 s body start = 630 s < the worker's 1800 s. Kiro's design: [Z-c sections 4-6](/srv/bellteam/bots/bot-09e6225c/docs/z-c-seat-survival-design-20261107.md).
+
+```mermaid
+flowchart LR
+  Checks[All nondestructive install checks / module-installer termination] --> Request[install.sh: requestId = saved generation name, exact old CID, deadline = now+300s capped by budget]
+  Request --> Exec["docker exec -i --user 1001:1001 &lt;exact CID&gt; node /app/scripts/body-quiesce-helper.mjs"]
+  Exec --> Socket[/run/bellteam-server/quiesce/quiesce.sock, dir 0700 UID1001]
+  Socket --> Handler["quiesce({requestId, deadline}) supplied at assembly; default unsupported"]
+  Handler --> Answer[one JSON line or none by the deadline]
+  Answer --> Log[installer log line quiesce=drained, deadline, unsupported or unconfirmed]
+  Log --> Stop[docker stop --time 30 exact CID, then existing stop proof]
+```
+
+| Element | Owner | Input → output |
+| --- | --- | --- |
+| `src/body-quiesce.mjs` `listenBodyQuiesce` | runtime (Molly) | `{path, quiesce}` → listening socket; per connection one line ≤ 4096 bytes `{requestId, containerId, deadline}` → one line `{...handlerResult, requestId}` or `{error:'QUIESCE_REQUEST_INVALID'}` / `{error:'QUIESCE_FAILED'}`. Exactly these three keys; requestId `[A-Za-z0-9._-]{1,128}`; containerId 64 hex; deadline integer epoch ms ≤ now + 305 s. 5 s to send the line. |
+| Assembly | runtime (Molly) | `supervisor.mjs` passes `quiesceSocket` = the fixed path; `createApplicationRuntime.start()` listens after the internal listener, before the gateway; `close()` stops accepting and removes the socket first, without waiting for an in-flight request. Tests and other callers pass nothing and open no socket. |
+| `scripts/body-quiesce-helper.mjs` | runtime (Molly) | stdin request → stdout `{requestId, result}` exit 0; invalid stdin exit 2; refused/closed/invalid/no answer by the deadline exit 75. Never retries. |
+| `install.sh` call | runtime (Molly) | Forward runs only, after every nondestructive check and the module-installer termination, immediately before the stop; recovery (`--recover`) never quiesces. |
+| Execution hold behind `quiesce` | Kiro (not wired) | Until wired the default handler answers `unsupported`, so this slice changes no running behaviour except the 30 s stop grace. |
+
+Authority: Node exposes no SO_PEERCRED for Unix sockets, so the 0700 directory owned by UID1001 is the only access control. The listener refuses to start (`BODY_QUIESCE_DIRECTORY_UNSAFE`) when the directory is not a directory owned by its own UID with no group/other bits. Seats run as UID1000 and cannot traverse `/run/bellteam-server` (tmpfs `uid=1001,mode=0700`). A failed listen is written as `BODY_QUIESCE_UNAVAILABLE` and the body keeps serving: the installer then records `unconfirmed` and stops as already approved.
+
+| Observed by install.sh | Log line | Next |
+| --- | --- | --- |
+| helper exit 0, `result:"drained"` | `quiesce=drained` | `docker stop --time 30` exact CID |
+| helper exit 0, `result:"deadline"` | `quiesce=deadline` | same stop |
+| helper exit 0, `result:"unsupported"` (default handler) | `quiesce=unsupported` | same stop |
+| exit 2/75, exec failure (old image without helper, container not running), no answer by the deadline | `quiesce=unconfirmed` | same stop; nothing is inferred about hold markers |
+| exact CID gone or replaced | `quiesce=unconfirmed` | the stop of that exact CID fails and the installer exits non-zero; a replacement is never stopped by name (existing `SERVER_STATE_GENERATION_CHANGED` binding checks run earlier) |
+
+```mermaid
+stateDiagram-v2
+  [*] --> Checked: nondestructive checks passed
+  Checked --> Requested: one helper exec, deadline fixed once
+  Requested --> Answered: drained / deadline / unsupported
+  Requested --> Unconfirmed: helper exit non-zero or deadline reached
+  Answered --> Stopping: docker stop --time 30 exact CID
+  Unconfirmed --> Stopping
+  Stopping --> StoppedProof: existing Running/Restarting false check
+  Stopping --> Failed: exact CID missing, stop fails, installer exits non-zero
+```
+
+The deadline is `now + 300 s`, capped at installer start + 1800 − 330 s so the stop grace and body start still fit the worker's budget; the helper ends at that deadline on its own, so the wait is bounded without a separate timer in sh. `stop_grace_period: 30s` is set on the body service in `compose.yaml`, `distribution/server/compose.yaml` and by `container-update-compose.mjs` on every bundled swap; `module-update-compose.mjs` leaves the body service as is. The legacy host-socket layout keeps its model unchanged, and the explicit `--time 30` covers its installer stop.
+
+Next runtime slices, not in this one: the durable execution hold/drain that replaces the default handler (Kiro); the `afterListenReady` recovery hook (Molly lifecycle, Kiro/N102 content); the same-backing preserve update mode (Molly installer); early signal registration so markers persist inside the 30 s grace (Molly lifecycle, Kiro markers).

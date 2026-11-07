@@ -22,6 +22,7 @@ on:
       - scripts/container-update-service.py
       - scripts/container-update-compose.mjs
       - scripts/read-container-update-normal.mjs
+      - scripts/body-quiesce-helper.mjs
       - scripts/assert-state-writers-stopped.sh
       - scripts/update-cursor.sh
       - scripts/cursor-update-entrypoint.sh
