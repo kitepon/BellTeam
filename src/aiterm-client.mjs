@@ -1,3 +1,4 @@
+import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { AITERM_DIST } from './aiterm-hooks.mjs'
 import { loadBotEnvironment } from './bot-environment.mjs'
@@ -83,11 +84,12 @@ export class AitermClient {
     }
   }
 
-  async launchOptions(project) {
+  async launchOptions(project, runtime = null) {
     // 席の起動は全てここを通る。そのBotのsetup.shが終わるまで待つ（終了は成功も失敗も）。
     await this.environmentReady?.(project)
-    return this.seatProject !== null ? { launchProject: requireSeatProject(project) }
-      : { env: await loadBotEnvironment(project) }
+    if (this.seatProject !== null) return { launchProject: requireSeatProject(project), ...(runtime ? { runtime } : {}) }
+    const env = await loadBotEnvironment(project)
+    return runtime ? { env: { ...env, ...runtimeLaunchEnv(runtime, env.PATH) }, runtime } : { env }
   }
 
   authOptions() {
@@ -97,7 +99,7 @@ export class AitermClient {
   prepareAuthConnection() { return authCapability(this) }
 
   async call(name, args = {}, options = {}) {
-    const { env, meta, launchProject, expectedAuthConnection, expectedConfiguration, admissionCheck } = options
+    const { env, meta, launchProject, expectedAuthConnection, expectedConfiguration, admissionCheck, runtime } = options
     if (Object.hasOwn(options, 'admissionCheck') && (name !== 'pty_send' || typeof admissionCheck !== 'function'
       || ['env', 'launchProject', 'expectedAuthConnection', 'expectedAuthServerVersion', 'expectedConfiguration'].some(key => Object.hasOwn(options, key))))
       throw Object.assign(new Error('AITERM_SEND_GUARD_INVALID'), { code: 'AITERM_SEND_GUARD_INVALID', effect: 'not_issued' })
@@ -118,7 +120,7 @@ export class AitermClient {
         throw Object.assign(new Error('SEAT_LAUNCH_ARGUMENTS'), { code: 'SEAT_LAUNCH_ARGUMENTS' })
       const { stdout } = await createSeatProcessRunner(launchProject)(process.execPath,
         [fileURLToPath(new URL('./run-seat-aiterm-launch.mjs', import.meta.url))], {
-          input: JSON.stringify({ command: this.command, args: this.args, launch: args, meta }),
+          input: JSON.stringify({ command: this.command, args: this.args, launch: args, meta, ...(runtime ? { runtime } : {}) }),
         })
       const response = JSON.parse(stdout)
       if (response.error) throw Object.assign(new Error(response.error.message), response.error)
@@ -130,7 +132,7 @@ export class AitermClient {
       // Do not silently serialize a server-evaluated environment across this boundary.
       if (this.seatProject !== null) throw new Error('SEAT_DYNAMIC_ENV_UNWIRED')
       // Aitermは値ではなくMCPプロセスの変数名を受け取る。起動ごとに専用の短命接続を使う。
-      const launcher = new AitermClient({ command: this.command, args: this.args, env })
+      const launcher = new AitermClient({ command: this.command, args: this.args, env, ...(runtime ? { runtimeCapture: runtime } : {}) })
       try {
         const env_vars = Object.keys(env).filter(key => runtimeEnvironmentKeys.includes(key) || env[key] !== process.env[key])
         return await launcher.call(name, { ...args, env_vars }, { meta })
@@ -346,4 +348,17 @@ async function authCapability(client) {
   if (cursor || !compatible(found)) throw unavailable()
   prepared.set(sdk, { owner: client, transport, pid })
   return sdk
+}
+
+// Z-b2 C3: Aiterm resolves CODEX_BIN/CLAUDE_BIN and PATH from the launcher MCP's own process.env,
+// so these are set before that short-lived process starts. Equal to the builtin paths until a selection exists.
+export function runtimeLaunchEnv(runtime, path = '') {
+  const { components } = runtime
+  const dirs = [...new Set(Object.values(components).flatMap(component => Object.values(component.bin).map(bin => dirname(bin))))]
+  return {
+    CODEX_BIN: components['runtime-codex'].bin.codex,
+    CLAUDE_BIN: components['runtime-claude-code'].bin.claude,
+    PATH: [...dirs, ...(path ? [path] : [])].join(':'),
+    BELLTEAM_RUNTIME_GENERATION: runtime.generation ?? '',
+  }
 }

@@ -37,12 +37,14 @@ function paths(prefix, id) {
 
 // -> {generation: sha|null, components: {<id>: {origin:'release'|'builtin', prefix, bin:{name:abs}, dist?, archiveSha256?}}}
 // Callers keep the returned object for the launch's whole lifetime; a later selection never changes it.
-export async function captureRuntime({ root = RUNTIME_ROOT, builtin = BUILTIN_PREFIX } = {}) {
+// generation: undefined = current selection; null = builtin; sha = that recorded generation (resume of a recorded launch).
+export async function captureRuntime({ root = RUNTIME_ROOT, builtin = BUILTIN_PREFIX, generation: requested } = {}) {
   let vector = {}, generation = null, pointer
-  try { pointer = await readJson(join(root, 'current.json')) } catch (error) {
+  if (requested === undefined) try { pointer = await readJson(join(root, 'current.json')) } catch (error) {
     // No selection was ever established (or no runtime volume on this installation): the image's builtin prefix.
     if (error?.code !== 'ENOENT') throw unavailable()
   }
+  else if (requested !== null) pointer = { schema: 'bellteam.runtime-selection.v1', generation: requested }
   if (pointer !== undefined) try {
     if (!exact(pointer, ['schema', 'generation']) || pointer.schema !== 'bellteam.runtime-selection.v1' || !SHA.test(pointer.generation)) throw unavailable()
     const record = await readJson(join(root, 'generations', `${pointer.generation}.json`))

@@ -1,6 +1,6 @@
 // The fixed entry and run-seat-command have already loaded this target's env
 // as UID1000. Only the MCP result crosses back; environment values stay here.
-import { AitermClient } from './aiterm-client.mjs'
+import { AitermClient, runtimeLaunchEnv } from './aiterm-client.mjs'
 import { authenticationPreflightFailure } from './agent-launch-error.mjs'
 import { mcpRequestContext } from './mcp-request-context.mjs'
 import { returnedMcpError } from './returned-mcp-error.mjs'
@@ -14,7 +14,9 @@ try {
   const request = JSON.parse(Buffer.concat(chunks).toString())
   if (request.launch?.cwd !== process.cwd() || Object.hasOwn(request.launch, 'env_vars'))
     throw Error('SEAT_LAUNCH_ARGUMENTS')
-  client = new AitermClient({ command: request.command, args: request.args, env: process.env })
+  // The launch's captured runtime must be in this MCP process's env before it starts (Aiterm reads its own process.env).
+  if (request.runtime) Object.assign(process.env, runtimeLaunchEnv(request.runtime, process.env.PATH))
+  client = new AitermClient({ command: request.command, args: request.args, env: process.env, ...(request.runtime ? { runtimeCapture: request.runtime } : {}) })
   // Aiterm takes names and reads values from its own seat-owned MCP process.
   const env_vars = Object.keys(process.env).filter(key => /^[A-Za-z_][A-Za-z0-9_]*$/.test(key))
   let response
