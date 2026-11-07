@@ -459,3 +459,14 @@ test('update SSE bypasses a blocked ordinary view and refreshes current jobs ind
   assert.deepEqual(errors, [])
   context.state.stopEvents()
 })
+
+test('refresh button asks for the catalog check first and still reads when the check is rejected', async t => {
+  const f = fixture(t, async path => {
+    if (path === '/api/updates/catalog-check') throw Object.assign(Error('HOST_UPDATE_ARGUMENTS'), { status: 503 })
+    return inventory()
+  })
+  await f.center.start(); f.calls.length = 0
+  f.get('[data-update-refresh]').handlers.click(); await settle(); await settle()
+  assert.deepEqual(f.calls.map(([path, options]) => [path, options?.method]), [['/api/updates/catalog-check', 'POST'], ['/api/updates', undefined]])
+  assert.equal(f.get('[data-update-components]').children.length, 2)
+})

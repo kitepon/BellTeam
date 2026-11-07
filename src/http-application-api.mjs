@@ -48,6 +48,10 @@ export function createControlApi(options) {
         if (request.method !== 'GET') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
         return json(response, 200, await updateCenter.snapshot())
       }
+      if (url.pathname === '/api/updates/catalog-check') {
+        if (request.method !== 'POST') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
+        return json(response, 200, { publication: await updateCenter.checkCatalog() })
+      }
       if (url.pathname === '/api/updates/plans') {
         if (request.method !== 'POST') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
         return json(response, 200, { plan: await updateCenter.plan(await readJson(request, 4096)) })

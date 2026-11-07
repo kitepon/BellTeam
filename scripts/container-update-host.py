@@ -660,6 +660,11 @@ class HostUpdater:
             return {'schema':'bellteam.update-catalog.selection.v1','catalogSha256':pointer['catalogSha256'],
                     'publishedAt':catalog['publishedAt'],'expiresAt':catalog['expiresAt'],'release':selected[0] if selected else None,
                     'publication':read_json(self.prefix/'catalog/refresh.json',self.uid) if (self.prefix/'catalog/refresh.json').exists() else {'status':'unconfirmed','checkedAt':None,'error':'HOST_UPDATE_PUBLICATION_UNCONFIRMED'}}
+        if action == 'checkCatalog':
+            check(params == {})
+            try: refresh_catalog(self)
+            except Exception: pass # A failed check is a normal fact: refresh.json already holds status 'failed'.
+            return read_json(self.prefix/'catalog/refresh.json', self.uid)
         if action == 'plan': return self.plan(params)
         if action == 'start': return self.start(params)
         if action == 'admitJob': return self.admit_job(params)
@@ -1197,15 +1202,17 @@ def _refresh_catalog(updater):
             raw = fetch('https://github.com/kitepon/BellTeam/releases/download/' + tag + '/' + name, limit)
             (Path(staging) / name).write_bytes(raw)
         return verify_and_install_catalog(updater, Path(staging)/'catalog.json', Path(staging)/'catalog.json.sigstore.json')
+REFRESH_LOCK = threading.Lock() # Serializes the background thread and on-demand checks so two catalog installs never overwrite each other.
 def refresh_catalog(updater):
     path = updater.prefix/'catalog/refresh.json'
-    try:
-        identifier = _refresh_catalog(updater)
-    except Exception:
-        atomic(path, {'status':'failed','checkedAt':stamp(),'error':'HOST_UPDATE_PUBLICATION_UNCONFIRMED'})
-        raise
-    atomic(path, {'status':'verified','checkedAt':stamp(),'error':None})
-    return identifier
+    with REFRESH_LOCK:
+        try:
+            identifier = _refresh_catalog(updater)
+        except Exception:
+            atomic(path, {'status':'failed','checkedAt':stamp(),'error':'HOST_UPDATE_PUBLICATION_UNCONFIRMED'})
+            raise
+        atomic(path, {'status':'verified','checkedAt':stamp(),'error':None})
+        return identifier
 
 if __name__ == '__main__':
     try: main()

@@ -56,6 +56,7 @@ export function createModuleUpdateCatalog({ client }) {
   const select = async id => { requireValue(ids.includes(id)); return selection(await client.catalog(id), id) }
   return {
     select,
+    checkCatalog: () => client.checkCatalog(),
     async snapshot(inventory) {
       await Promise.all(ids.map(async id => {
         const component = inventory.components.find(value => value.id === id)

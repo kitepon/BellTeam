@@ -209,6 +209,7 @@ flowchart TD
   Start -->|"切断 / 5xx / 不正応答"| Unknown["受付不明を保持 / 自動再POSTなし"]
   Unknown --> Read["GET operations/requestId"]
   Reload["再読込 / ready / updates / 表示復帰 / 手動再取得"] --> Read
+  Manual["状態を再取得ボタン"] -->|"先に POST catalog-check（失敗は無視）"| Reload
   Read --> Result
   Inventory -.->|"取得不能でも結果GETは独立"| Read
   Result -->|"確認済み終端だけ"| Clear["現在の照会用IDを解除 / 保持済み旧結果は残す"]

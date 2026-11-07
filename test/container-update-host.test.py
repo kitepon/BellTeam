@@ -88,6 +88,21 @@ class HostTest(unittest.TestCase):
             self.assertEqual(result['state'],'failed')
             self.assertEqual(result['reason']['code'],'HOST_UPDATE_HANDOFF_FAILED')
         self.assertEqual(calls,[identifier])
+    def test_check_catalog_returns_the_record_even_on_failure_and_serializes_refreshes(self):
+        frame=lambda params:{'operation':'checkCatalog','params':params}
+        with patch.object(module,'_refresh_catalog',return_value=self.digest):
+            record=self.updater.dispatch(frame({}))
+        self.assertEqual((record['status'],record['error']),('verified',None))
+        with patch.object(module,'_refresh_catalog',side_effect=OSError('offline')):
+            record=self.updater.dispatch(frame({}))
+        self.assertEqual((record['status'],record['error']),('failed','HOST_UPDATE_PUBLICATION_UNCONFIRMED'))
+        with self.assertRaises(module.Failure):self.updater.dispatch(frame({'force':True}))
+        running=[];overlap=[]
+        def fetch(_):
+            running.append(1);overlap.append(len(running));threading.Event().wait(0.05);running.pop();return self.digest
+        with patch.object(module,'_refresh_catalog',fetch),ThreadPoolExecutor(3) as pool:
+            for result in [pool.submit(self.updater.dispatch,frame({})) for _ in range(3)]:self.assertEqual(result.result(5)['status'],'verified')
+        self.assertEqual(max(overlap),1)
     def test_catalog_monotonic_replay_expiry_and_durable_revocation(self):
         first=self.digest
         self.assertEqual(self.install_catalog(self.catalog),first)

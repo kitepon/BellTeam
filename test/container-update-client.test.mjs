@@ -43,6 +43,12 @@ test('dedicated mount routes container separately; legacy shares a client and am
  t.mock.method(fs,'lstat',async()=>{throw Object.assign(Error(),{code:'EACCES'})});syncBuiltinESMExports()
  await assert.rejects(createUpdateClients(),{code:'EACCES'})
 })
+test('checkCatalog sends the closed empty-params frame and returns the Host publication record',async t=>{
+ const record={status:'failed',checkedAt:'2026-11-08T00:00:00Z',error:'HOST_UPDATE_PUBLICATION_UNCONFIRMED'}
+ const {client,frames}=await fixture(t,socket=>socket.end(JSON.stringify({ok:true,value:record})+'\n'))
+ assert.deepEqual(await client.checkCatalog(),record)
+ assert.deepEqual(frames,[{operation:'checkCatalog',params:{}}])
+})
 test('fixed Unix client carries the common requestId and does not resend after ambiguous admission',async t=>{
  const {client,frames}=await fixture(t,(socket,frame)=>{
   if(frame.operation==='start')socket.destroy()
