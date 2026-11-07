@@ -180,7 +180,9 @@ def validate_catalog(value, *, now=None):
     for release in releases:
         exact(release, 'componentId,sourceCommit,versionId,platform,artifact,compatibility,changes')
         component = release['componentId']
-        require(component in ['container', 'web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics', 'execution', 'conversation'])
+        # Runtime rows (Z-b2) are rejected by installers older than the enabling image; publish them only after that swap.
+        require(component in ['container', 'web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics', 'execution', 'conversation',
+                              'runtime-aiterm-mcp', 'runtime-codex', 'runtime-claude-code', 'runtime-throughline'])
         require(hexadecimal(release['sourceCommit'], 40))
         platform = release['platform']; exact(platform, 'os,arch')
         require(platform['os'] == 'linux' and platform['arch'] in ['amd64', 'arm64'])
@@ -196,6 +198,8 @@ def validate_catalog(value, *, now=None):
             validate_members_compatibility(compatibility)
         elif component == 'conversation':
             validate_conversation_compatibility(compatibility)
+        elif component.startswith('runtime-'):
+            require(compatibility == {'runtimeProtocol': 1, 'nodeMajor': 26, 'libc': 'glibc'}, 'UPDATE_RUNTIME_INCOMPATIBLE')
         else:
             exact(compatibility, 'nodeMajor,parentProtocol,stateSchema,containerUpdate')
             require(all(v is None or type(v) is int and 0 < v <= 65535 for v in compatibility.values()))

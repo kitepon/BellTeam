@@ -99,12 +99,26 @@ A new update is a new job. A previous generation is never re-selected by a plan;
 | Reference retention | deleting code a live launch still loads | reference removed at actual close; before slice C there is no deletion at all |
 | Catalog expiry/revocation | unauthorized new code | existing signed refresh |
 
+## Updater job and supply contract (slice B)
+
+| Item | Contract |
+| --- | --- |
+| Catalog row | `componentId` in the four IDs; `versionId` = archive SHA-256; `artifact` = the module archive shape (`archive`/`bundle` URL `…/updates-<stamp>/<componentId>-<sourceCommit>-linux-<arch>.tar.gz` + `.sigstore.json`, `signerCommit`); `compatibility` exactly `{runtimeProtocol:1,nodeMajor:26,libc:"glibc"}`. Checked by `update_catalog.validate_catalog` and `HostUpdater.module_target`. |
+| Archive | tar.gz; first member `manifest.json` `{schema:"bellteam.runtime.artifact.v1",component,package,upstreamVersion,sourceCommit,platform:{os,arch,libc,nodeMajor},files:[{path,type:"file",bytes,sha256,mode:292\|365}\|{path,type:"symlink",target}]}`, then `prefix/…` (npm global prefix). Links are relative leaves inside `prefix/`. |
+| Signature | `scripts/verify-runtime.py` + `config/runtime-verification.json`: `gh attestation verify` bound to `.github/workflows/publish-runtime.yml` on `refs/heads/main`, source and signer digests from the row. |
+| Job | `kind:"runtime"`, `target.moduleId` = componentId, pointer `state/runtime-current.json`; any non-terminal container/module/runtime operation refuses a new start (`HOST_UPDATE_IN_PROGRESS`), and the termination bridge refuses a body swap while one is running (`HOST_UPDATE_BUSY`). Plan impact `containerRestart:false`. |
+| Worker | bundled module-installer only (`ModuleUpdater.install_runtime`): downloading → verifying (signature, stage) → swapping (commit) → ready set by the worker. Host-socket installs answer `HOST_RUNTIME_UPDATE_UNSUPPORTED`. Worker lost in swapping: ready only if the current generation's `jobId` is this job, else `HOST_UPDATE_WORKER_LOST`. |
+| Volume | `<project>-runtime-code`, added by `module-update-compose.mjs`: body read-only at `RUNTIME_ROOT`, module-installer read-write at the same path, never in the termination helper. |
+| Body contract | `update-center-contract.mjs` job kind accepts `runtime`. Web/app readers accept it only with slice D; until then no UI path plans a runtime target. |
+
+**Supply order (protects every installation's catalog acceptance):** installers older than the enabling image reject a whole catalog that contains an unknown componentId. Publish runtime rows only in catalogs issued after the enabling body swap; the enabling container row goes in a catalog without runtime rows.
+
 ## Delivery slices
 
 | Slice | Content | Owner |
 | --- | --- | --- |
 | A | This diagram; D2/D3 store, P4 staging/verification and P5 commit (`scripts/runtime_update.py`); P6 resolver (`src/runtime-selection.mjs`); tests | Molly |
-| B | `kind:"runtime"` job in the updater dispatch (plan/start/recovery), catalog component set, `runtime-code` volume in compose (installer rw, body ro) | Molly; catalog schema contact distribution |
+| B | `kind:"runtime"` job in the updater dispatch (plan/start/recovery), catalog component set, verifier, `runtime-code` volume in compose (installer rw, body ro) — contract above | Molly; catalog schema contact distribution |
 | C | Consumers call P6 instead of `AITERM_DIST`/`CODEX_BINARY`/PATH; launch references D5 | Kiro (execution), Elegg (Aiterm), Throughline owner |
 | D | Inventory rows + `runtimeApplication`; UI wording "次回起動から適用。実行中の席は現在の版を継続" | Molly projection; Admi / app owners display |
 | E | publish-runtime workflow, signed closures, catalog rows; enabling image | Centi + supply |

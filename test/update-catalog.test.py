@@ -63,6 +63,18 @@ class CatalogTest(unittest.TestCase):
             release['artifact']['archive']['url'] = bad
             with self.assertRaises(ValueError): validate_catalog(value, now=NOW)
 
+    def test_runtime_rows_need_the_fixed_ids_and_exact_runtime_contract(self):
+        value = fixture(); release = value['releases'][0]
+        url = 'https://github.com/kitepon/BellTeam/releases/download/updates-20261108T000000Z/runtime-codex-' + SOURCE + '-linux-amd64.tar.gz'
+        release.update(componentId='runtime-codex', versionId='c' * 64,
+            artifact=dict(kind='archive', signerCommit=SIGNER, archive=dict(url=url, bytes=42, sha256='c' * 64),
+                          bundle=dict(url=url+'.sigstore.json', bytes=41, sha256='d' * 64)),
+            compatibility=dict(runtimeProtocol=1, nodeMajor=26, libc='glibc'))
+        validate_catalog(value, now=NOW)
+        for bad in [dict(componentId='runtime-npm'), dict(compatibility=dict(runtimeProtocol=1, nodeMajor=26, libc='glibc', rollbackSafe=True))]:
+            broken = __import__('copy').deepcopy(value); broken['releases'][0].update(bad)
+            with self.assertRaises(ValueError): validate_catalog(broken, now=NOW)
+
     def test_api_fields_are_only_selectors_and_never_urls_to_trust(self):
         record = dict(draft=False, prerelease=False, tag_name='updates-20261103T000000Z',
                       assets=[{'name':'catalog.json','browser_download_url':'http://evil'}, {'name':'catalog.json.sigstore.json'}])

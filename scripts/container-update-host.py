@@ -29,6 +29,12 @@ TERMINAL = {'completed', 'failed'}
 JOB_STATES = ['queued', 'downloading', 'verifying', 'swapping', 'ready', 'failed']
 JOB_RETAIN = 256
 MODULES = {'web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics', 'conversation', 'execution'}
+# Z-b2 fixed runtime targets; same set as runtime_update.COMPONENTS (docs/architecture/modules/runtime/runtime-updates.md).
+RUNTIMES = {'runtime-aiterm-mcp', 'runtime-codex', 'runtime-claude-code', 'runtime-throughline'}
+POINTERS = ['current.json', 'module-current.json', 'runtime-current.json']
+
+def job_kind(component):
+    return 'container' if component == 'container' else 'runtime' if component in RUNTIMES else 'module'
 
 class Failure(Exception):
     def __init__(self, code, status=503, outcome='not_accepted', *, path=None, reason=None):
@@ -190,7 +196,7 @@ class HostUpdater:
             value = read_json(path, self.uid)
             check(exact(value, 'schema,jobId,idempotencyKey,kind,target,state,reason,transitions,updatedAtNs')
                   and value['schema'] == 'bellteam.update-job.v1' and value['jobId'] == identifier
-                  and value['state'] in JOB_STATES and value['kind'] in {'container', 'module'}
+                  and value['state'] in JOB_STATES and value['kind'] in {'container', 'module', 'runtime'}
                   and type(value['idempotencyKey']) is str and re.fullmatch(r'[\x20-\x7e]{1,128}', value['idempotencyKey'])
                   and exact(value['target'], 'catalogSha256,moduleId,versionId')
                   and type(value['transitions']) is list and 1 <= len(value['transitions']) <= 6
@@ -227,9 +233,9 @@ class HostUpdater:
         check(exact(params, 'jobId,idempotencyKey,kind,target'))
         identifier, target = request_id(params['jobId']), params['target']
         check(type(params['idempotencyKey']) is str and re.fullmatch(r'[\x20-\x7e]{1,128}', params['idempotencyKey'])
-              and params['kind'] in {'container', 'module'} and exact(target, 'catalogSha256,moduleId,versionId')
-              and target['moduleId'] in MODULES | {'container'}
-              and (target['moduleId'] == 'container') == (params['kind'] == 'container')
+              and params['kind'] in {'container', 'module', 'runtime'} and exact(target, 'catalogSha256,moduleId,versionId')
+              and target['moduleId'] in MODULES | RUNTIMES | {'container'}
+              and job_kind(target['moduleId']) == params['kind']
               and (target['catalogSha256'] is None or digest(target['catalogSha256']))
               and type(target['versionId']) is str and (target['versionId'] == 'builtin'
                    or re.fullmatch('[a-f0-9]{64}|sha256:[a-f0-9]{64}', target['versionId'])))
@@ -278,12 +284,20 @@ class HostUpdater:
                 worker = operation.get('worker')
                 lost = worker and operation['phase'] not in TERMINAL and not self.worker_alive(worker)
                 unbound = not worker and time.time() - parse_time(operation['updatedAt']) > 30
+                if lost and job['kind'] == 'runtime' and job['state'] == 'swapping' and self.runtime_committed(identifier):
+                    # Commit already published and read back this job's generation: complete it, never re-select.
+                    operation.update(phase='completed', execution='succeeded', verification='succeeded', error=None, updatedAt=stamp())
+                    atomic(self.state / 'operations' / identifier / 'operation.json', operation)
+                    return self.set_job(identifier, 'ready')
                 if lost or unbound:
                     code = 'HOST_UPDATE_WORKER_LOST' if lost else 'HOST_UPDATE_HANDOFF_FAILED'
                     operation.update(phase='failed', execution='failed', verification='failed', error=code, updatedAt=stamp())
                     atomic(self.state / 'operations' / identifier / 'operation.json', operation)
                     job = self.set_job(identifier, 'failed', {'code': code, 'message': code})
             return job
+
+    def runtime_committed(self, identifier):
+        return False
 
     def jobs(self, limit=16):
         check(type(limit) is int and 1 <= limit <= 16)
@@ -392,7 +406,7 @@ class HostUpdater:
         return value
 
     def module_target(self, catalog_id, component, version):
-        check(type(component) is str and component in MODULES)
+        check(type(component) is str and component in MODULES | RUNTIMES)
         digest(version)
         found = [row for row in self.catalog(catalog_id)['releases'] if row.get('componentId') == component
                  and row.get('versionId') == version and row.get('platform') == self.config['platform']]
@@ -411,6 +425,9 @@ class HostUpdater:
         check(type(artifact['archive']['url']) is str and re.fullmatch(url, artifact['archive']['url'])
               and artifact['archive']['sha256'] == version and artifact['bundle']['url'] == artifact['archive']['url'] + '.sigstore.json', 'HOST_MODULE_TARGET_INVALID')
         compatibility = value['compatibility']
+        if component in RUNTIMES:
+            check(compatibility == {'runtimeProtocol': 1, 'nodeMajor': 26, 'libc': 'glibc'}, 'HOST_MODULE_TARGET_INCOMPATIBLE')
+            return value
         compound = component not in {'web-gateway', 'notifications'}
         check(exact(compatibility, 'nodeMajor,parentProtocol,stateSchema,containerUpdate' + (',stateCompatibility' if compound else ''))
               and type(compatibility['nodeMajor']) is int and compatibility['nodeMajor'] == 26
@@ -428,7 +445,7 @@ class HostUpdater:
     def plan(self, params):
         check(exact(params, 'planId,catalogSha256,versionId') or exact(params, 'planId,catalogSha256,componentId,versionId'))
         component = params.get('componentId', 'container')
-        check(type(component) is str and component in MODULES | {'container'})
+        check(type(component) is str and component in MODULES | RUNTIMES | {'container'})
         identifier = request_id(params['planId']); catalog_id = digest(params['catalogSha256'])
         with locked(self.state / 'ledger.lock'):
             path = self.state / 'plans' / (identifier + '.json')
@@ -438,7 +455,7 @@ class HostUpdater:
                       and value['target']['componentId'] == component, 'HOST_UPDATE_PLAN_CONFLICT', 409)
                 return value
             referenced = set()
-            for name in ['current.json', 'module-current.json']:
+            for name in POINTERS:
                 pointer_path = self.state / name
                 if pointer_path.exists():
                     for operation in read_json(pointer_path, self.uid).values():
@@ -526,9 +543,9 @@ class HostUpdater:
             check(parse_time(plan['expiresAt']) > time.time(), 'HOST_UPDATE_PLAN_EXPIRED', 409)
             check(self.planned_target(plan) == plan['target'], 'HOST_UPDATE_PLAN_CHANGED', 409)
             check(self.inspect() == plan['expected'], 'HOST_UPDATE_CURRENT_CHANGED', 409)
-            pointer_path = self.state / ('current.json' if plan['target']['componentId'] == 'container' else 'module-current.json')
+            pointer_path = self.state / {'container': 'current.json', 'module': 'module-current.json', 'runtime': 'runtime-current.json'}[job_kind(plan['target']['componentId'])]
             pointer = read_json(pointer_path, self.uid) if pointer_path.exists() else {'current': None, 'previous': None}
-            for name in ['current.json', 'module-current.json']:
+            for name in POINTERS:
                 path = self.state / name
                 active = read_json(path, self.uid) if path.exists() else {'current': None}
                 if active['current']:
@@ -544,7 +561,7 @@ class HostUpdater:
             finally: os.close(descriptor)
             at = str(time.time_ns())
             job = {'schema': 'bellteam.update-job.v1', 'jobId': identifier, 'idempotencyKey': key,
-                   'kind': 'container' if plan['target']['componentId'] == 'container' else 'module',
+                   'kind': job_kind(plan['target']['componentId']),
                    'target': {'catalogSha256': plan['catalogSha256'], 'moduleId': plan['target']['componentId'], 'versionId': plan['target']['versionId']},
                    'state': 'queued', 'reason': None, 'transitions': [{'state': 'queued', 'atNs': at}], 'updatedAtNs': at}
             if not admitted: atomic(self.state / 'jobs' / (identifier + '.json'), job)
@@ -602,7 +619,7 @@ class HostUpdater:
                     observed = self.inspect()
                     check(observed == plan['expected'], 'HOST_UPDATE_CURRENT_CHANGED')
                     self.assert_model_binding(observed)
-                    if plan['target']['componentId'] != 'container':
+                    if plan['target']['componentId'] in MODULES:
                         atomic(directory / 'module-volume.json', self.module_volume(observed, directory))
                     check(birth(os.getpid()) is not None, 'HOST_UPDATE_WORKER_IDENTITY')
                 except Failure as error:
@@ -628,7 +645,8 @@ class HostUpdater:
                 if value['phase'] == 'failed':
                     code = value['error'] or 'HOST_UPDATE_EXECUTION_FAILED'
                     self.set_job(identifier, 'failed', {'code': code, 'message': code})
-                elif plan['target']['componentId'] == 'container':
+                elif job_kind(plan['target']['componentId']) in {'container', 'runtime'}:
+                    # Runtime selection is committed and read back by install(); there is no parent activation step.
                     self.set_job(identifier, 'ready')
 
     def capabilities(self):
@@ -652,7 +670,7 @@ class HostUpdater:
             check(params == {}); return self.capabilities()
         if action == 'catalog':
             check(exact(params, 'componentId') and type(params['componentId']) is str
-                  and params['componentId'] in MODULES | {'container'})
+                  and params['componentId'] in MODULES | RUNTIMES | {'container'})
             pointer = read_json(self.prefix / 'catalog/state.json', self.uid, CATALOG_LIMIT)
             catalog = self.catalog(pointer['catalogSha256'])
             selected = [row for row in catalog['releases'] if row['componentId'] == params['componentId'] and row['platform'] == self.config['platform']]
@@ -678,6 +696,8 @@ class HostUpdater:
         raise Failure('HOST_UPDATE_ARGUMENTS', 400)
 
     def install(self, plan, directory):
+        # Runtime updates exist only in the bundled module-installer (module-update-service.py).
+        check(plan['target']['componentId'] not in RUNTIMES, 'HOST_RUNTIME_UPDATE_UNSUPPORTED')
         return (execute_installer(self, plan, directory) if plan['target']['componentId'] == 'container'
                 else execute_module_installer(self, plan, directory))
 
