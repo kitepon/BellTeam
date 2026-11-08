@@ -52,6 +52,26 @@ flowchart LR
   UpdateSheet -.同じ内容.- S8
 ```
 
+起動の画面（Mac版RootViewと同じ段階）。主窓は、利用者が押した時だけ接続し直し、自動では繰り返さない。
+
+```mermaid
+flowchart LR
+  Launch[起動] -->|保存した接続先がない| Setup[BellTeamを始める<br/>接続先の入力・導入ガイドのシート]
+  Launch -->|ある| Opening[BellTeamを開いています]
+  Setup -->|続ける| Opening
+  Opening -->|GET /api/session が失敗| Failure[接続できませんでした<br/>もう一度試す・接続先を変更]
+  Opening -->|認証が必要| SignIn[ログイン<br/>ログインして始める→ログインのシート]
+  Opening -->|GET /api/setup が ready 以外| Onboarding[初期設定<br/>AIの選択・認証・3秒ごとの状態確認]
+  Opening -->|GET /api/setup が ready| Workspace[会話の画面]
+  Failure -->|もう一度試す| Opening
+  Failure -->|接続先を変更| Setup
+  SignIn -->|ログインできた| Opening
+  Onboarding -->|認証を確認して始める| Workspace
+  Onboarding -->|接続先を変更| Setup
+  Workspace -->|通信中の失敗| Banner[下部の帯<br/>再接続・接続先]
+  Workspace -.いつでもログインが必要になる.-> SignIn
+```
+
 ```mermaid
 flowchart LR
   subgraph App[BellTeam.App 画面]

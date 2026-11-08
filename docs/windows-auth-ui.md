@@ -5,7 +5,9 @@ Mac版の設定と初回設定を基準に、画面改修版の色・部品へ�
 | 画面 | 確認画像 |
 | --- | --- |
 | 設定内のAI認証一覧 | [settings.png](assets/windows-auth-ui/settings.png) |
-| 最初に使うAIの選択 | [setup.png](assets/windows-auth-ui/setup.png) |
+| 最初に使うAIの選択（PR 10で主窓の中へ移した現行） | [pr10-onboarding-choose.png](assets/windows-mac-gaps/windows/pr10-onboarding-choose.png) |
+| 認証待ちの初期設定（現行） | [pr10-onboarding-waiting.png](assets/windows-mac-gaps/windows/pr10-onboarding-waiting.png) |
+| 旧・小窓の初期設定（置き換え済み） | [setup.png](assets/windows-auth-ui/setup.png) |
 | AI認証の公式サイトと利用者コード | [authentication.png](assets/windows-auth-ui/authentication.png) |
 
 単体試験138件、全窓の非表示を検査する操作確認、.NET同梱x64ビルドが成功。模擬Cookieの保存と別プロセスからの復元、認証の開始を断る操作、専用入力の消去、値を失敗の詳細へ含めないこと、取消後の状態確認を試験した。Cookie試験後の専用WebView2プロセスとBellTeam.exeは0件。本番のAI認証を始める操作は実行していない。

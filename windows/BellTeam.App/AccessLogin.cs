@@ -46,23 +46,26 @@ public sealed class DesktopAccess
     }
 }
 
-public sealed class AccessLoginWindow : Window
+// The WebView2 login page of the 「ログイン」 sheet. Disposing it releases WebView2; the profile folder keeps the login for the next start.
+public sealed class AccessLoginView : DockPanel, IDisposable
 {
     private readonly WebView2 browser = new();
     private readonly TextBlock status = new() { Text = "ログイン画面を開いています…", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(12) };
     private bool checking;
     private bool closed;
+    private bool started;
     private readonly DesktopAccess access;
     private readonly Uri origin;
+    private readonly Action loggedIn;
     private readonly CancellationTokenSource lifetime = new();
-    public AccessLoginWindow(DesktopAccess access, Uri origin)
+    public AccessLoginView(DesktopAccess access, Uri origin, Action loggedIn)
     {
-        this.access = access; this.origin = origin;
-        SetResourceReference(StyleProperty, typeof(Window));
-        Title = "Cloudflare Accessでログイン"; Width = 880; Height = 760; WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        var panel = new DockPanel(); DockPanel.SetDock(status, Dock.Bottom); panel.Children.Add(status); panel.Children.Add(browser); Content = panel;
+        this.access = access; this.origin = origin; this.loggedIn = loggedIn;
+        SetDock(status, Dock.Bottom); Children.Add(status); Children.Add(browser);
         Loaded += async (_, _) =>
         {
+            if (started || closed) return;
+            started = true;
             try
             {
                 if (origin.Scheme != "https") throw new BellApiException("外部ログインにはHTTPSの接続先を指定してください。");
@@ -77,8 +80,8 @@ public sealed class AccessLoginWindow : Window
             }
             catch (Exception) { if (!closed) status.Text = "ログイン画面を開けませんでした。WebView2 Runtimeと接続先を確認して、開き直してください。"; }
         };
-        Closed += (_, _) => { closed = true; lifetime.Cancel(); lifetime.Dispose(); browser.Dispose(); };
     }
+    public void Dispose() { if (closed) return; closed = true; lifetime.Cancel(); lifetime.Dispose(); browser.Dispose(); }
     private async Task CheckAsync()
     {
         if (checking || closed) return;
@@ -88,7 +91,7 @@ public sealed class AccessLoginWindow : Window
             if (!await access.CopyCookiesAsync(browser.CoreWebView2, origin) || closed) return;
             using var api = new BellApi(origin, cookies: access.Cookies);
             var session = await api.GetAsync<SessionInfo>("/api/session", lifetime.Token);
-            if (session.Authenticated && !closed) DialogResult = true;
+            if (session.Authenticated && !closed) loggedIn();
         }
         catch (BellApiException error) when (error.RequiresLogin) { }
         catch (Exception) { if (!closed) status.Text = "ログイン後の接続を確認できませんでした。閉じて接続先を確認してください。"; }

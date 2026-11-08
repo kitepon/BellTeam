@@ -12,9 +12,17 @@ public sealed record AuthenticationState
     public string? Message { get; init; }
     [JsonPropertyName("auth_ui")] public AuthenticationUi? AuthUi { get; init; }
 }
+// The server (src/auth-ui.mjs bindingKeys) accepts a reply only with all nine keys echoed back unchanged, like the Mac AuthenticationBinding.
 public sealed record AuthenticationBinding(
     [property: JsonPropertyName("session_id")] string SessionId,
-    [property: JsonPropertyName("launch_id")] string? LaunchId);
+    [property: JsonPropertyName("launch_id")] string? LaunchId,
+    [property: JsonPropertyName("metadata_identity")] string MetadataIdentity,
+    [property: JsonPropertyName("native_id")] string NativeId,
+    [property: JsonPropertyName("pane_id")] string PaneId,
+    [property: JsonPropertyName("server_pid")] long ServerPid,
+    [property: JsonPropertyName("server_started")] string ServerStarted,
+    [property: JsonPropertyName("pane_pid")] long PanePid,
+    [property: JsonPropertyName("pane_started")] string PaneStarted);
 public sealed record AuthenticationChoice(string Id, string Label);
 public sealed record AuthenticationUi
 {
@@ -28,6 +36,9 @@ public sealed record AuthenticationUi
     [JsonPropertyName("prompt_digest")] public string? PromptDigest { get; init; }
     public AuthenticationBinding? Binding { get; init; }
     public AuthenticationChoice[] Choices { get; init; } = [];
+    // Mac AuthenticationUI.officialURL / canRespond: onboarding only offers what the observed stage can actually accept.
+    [JsonIgnore] public Uri? OfficialUrl => Uri.TryCreate(Url, UriKind.Absolute, out var uri) && uri.Scheme == "https" && uri.Host.Length != 0 && uri.UserInfo.Length == 0 ? uri : null;
+    [JsonIgnore] public bool CanReply => CanRespond && (Stage, Input) switch { ("paste_code", "authorization_code") => OfficialUrl is not null, ("select", "choice") => (Choices ?? []).Length != 0, _ => false };
     [JsonIgnore] public bool CanRespond => Schema == "aiterm.auth-ui.v1" && Binding is not null && !string.IsNullOrEmpty(PromptDigest);
     public bool Equals(AuthenticationUi? other) => other is not null && Schema == other.Schema && Stage == other.Stage
         && Title == other.Title && Message == other.Message && Url == other.Url && UserCode == other.UserCode

@@ -425,6 +425,8 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     }
 
     public void ReportActionError(string? message) => ActionError = message;
+    // Render seam: the bottom banner of a live workspace whose update stream ended.
+    internal void SetConnectionErrorForRender(string message) => ConnectionError = message;
     public async Task RefreshManagementAsync()
     {
         if (api is null || connection is null) return;

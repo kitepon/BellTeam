@@ -12,14 +12,20 @@ public partial class MainWindow : Window, IInspectorHost
     private readonly Workspace model;
     private readonly DesktopAccess? access;
     private readonly DesktopNotifications? notifications;
+    private readonly SettingsStore settingsStore;
+    private StartupPhase startup = StartupPhase.Ready;
+    private int connectGeneration;
+    private bool connecting;
+    private bool signingOut;
+    private string? lastAddress;
     private bool inspectorVisible = true;
     private EditorWindow? page;
     private bool loadingOlder;
     private bool unreadNew; // a message arrived while the reader was away from the bottom
     public Task PageReady { get; private set; } = Task.CompletedTask;
-    public MainWindow(Workspace model, bool persistPlacement = true, DesktopAccess? access = null, DesktopNotifications? notifications = null)
+    public MainWindow(Workspace model, bool persistPlacement = true, DesktopAccess? access = null, DesktopNotifications? notifications = null, SettingsStore? settings = null)
     {
-        this.model = model;
+        this.model = model; settingsStore = settings ?? new SettingsStore(SettingsStore.UserDirectory);
         this.access = access;
         this.notifications = notifications;
         SetResourceReference(StyleProperty, typeof(Window));
@@ -43,7 +49,7 @@ public partial class MainWindow : Window, IInspectorHost
             if (!loadingOlder && args.VerticalChange < 0 && args.VerticalOffset < 48 && model.HasMore && !model.Loading) await LoadOlderPreservingPositionAsync();
         };
         ConversationList.PreviewMouseDown += (_, args) => { if (page is not null && args.OriginalSource is DependencyObject target && ItemsControl.ContainerFromElement(ConversationList, target) is ListBoxItem) ShowConversation(); };
-        Closed += (_, _) => { page?.Close(); sheetContent?.Dispose(); };
+        Closed += (_, _) => { page?.Close(); sheetContent?.Dispose(); (UpdateSheetHost.Content as IDisposable)?.Dispose(); (StartupHost.Child as IDisposable)?.Dispose(); };
         Closing += (_, args) => { if (page?.CanNavigateAway == false) args.Cancel = true; };
         DataObject.AddPastingHandler(Composer, Composer_Pasting);
         model.ScrollToBottom += force =>
@@ -54,9 +60,11 @@ public partial class MainWindow : Window, IInspectorHost
         };
         model.PropertyChanged += (_, args) =>
         {
+            // Mac requireLogin: whenever the server asks for a login, the login screen takes the window.
+            if (args.PropertyName == nameof(Workspace.NeedsLogin) && model.NeedsLogin && !connecting) { if (Dispatcher.CheckAccess()) RouteToLogin(); else Dispatcher.BeginInvoke(RouteToLogin); }
             if (args.PropertyName == nameof(Workspace.Connected)) { if (model.Connected) _ = RefreshUpdateNoticeAsync(); else { UpdateBadge.Visibility = Visibility.Collapsed; CloseMemberWindows(); } }
-            if (args.PropertyName == nameof(Workspace.IsRoom) && inspectorVisible)
-                InspectorColumn.Width = model.IsRoom ? new GridLength(280) : new GridLength(1, GridUnitType.Star);
+            // Without a selection (the welcome screen) there is no inspector column, as on the Mac.
+            if (args.PropertyName == nameof(Workspace.IsRoom) && inspectorVisible && page is null) ProfileLayout();
             if (args.PropertyName == nameof(Workspace.Selected) && page is null) ProfileLayout();
             if (args.PropertyName is nameof(Workspace.Selected) or nameof(Workspace.Connected)) UpdateGoalBar();
             if (args.PropertyName is nameof(Workspace.Loading) or nameof(Workspace.Selected) or nameof(Workspace.LoadFailed) or nameof(Workspace.HasActivity)) UpdateWelcome();
@@ -71,7 +79,7 @@ public partial class MainWindow : Window, IInspectorHost
         StateChanged += (_, _) => { if (WindowState == WindowState.Minimized) model.ReturnToProfile(); };
         if (persistPlacement)
         {
-            var saved = new SettingsStore(SettingsStore.UserDirectory).Load(); DisplayPreference.Current = saved.ConversationOpening;
+            var saved = settingsStore.Load(); DisplayPreference.Current = saved.ConversationOpening;
             var placement = saved.Window;
             if (placement is not null)
             {
@@ -84,7 +92,7 @@ public partial class MainWindow : Window, IInspectorHost
             }
             Closing += (_, _) =>
             {
-                var store = new SettingsStore(SettingsStore.UserDirectory);
+                var store = settingsStore;
                 var bounds = RestoreBounds;
                 try { store.Save(store.Load() with { Window = new(bounds.Left, bounds.Top, bounds.Width, bounds.Height, WindowState == WindowState.Maximized) }); }
                 catch (Exception error) { MessageBox.Show(this, "窓の位置を保存できませんでした。" + error.Message, "BellTeam"); }
@@ -193,7 +201,7 @@ public partial class MainWindow : Window, IInspectorHost
     public void CloseUpdateSheet()
     {
         CloseCropSheet(null); ReleaseSheetSave();
-        switch (UpdateSheetHost.Content) { case AvatarActionsView actions: actions.Dispose(); break; case EditorFormView editor: editor.Dispose(); break; }
+        switch (UpdateSheetHost.Content) { case AvatarActionsView actions: actions.Dispose(); break; case EditorFormView editor: editor.Dispose(); break; case AccessLoginView login: login.Dispose(); break; }
         UpdateSheetClose.IsEnabled = true;
         sheetContent?.Dispose(); sheetContent = null; UpdateSheetHost.Content = null; UpdateSheet.Visibility = Visibility.Collapsed;
     }
@@ -357,51 +365,118 @@ public partial class MainWindow : Window, IInspectorHost
     // Settings needs a live connection, so an unreachable saved server is changed from the connection strip.
     private void Connection_Click(object sender, RoutedEventArgs e) => OpenConnectionSettings();
     private void ClearSearch_Click(object sender, RoutedEventArgs e) { model.Search = ""; SearchBox.Focus(); }
+    // Mac changeServer: the server entry screen replaces the window. The saved address stays until a new one is entered, so it is offered again.
     public void OpenConnectionSettings()
     {
         if (page?.CanNavigateAway == false) { model.ReportActionError("操作が終わってから接続先を変更してください。"); return; }
-        var dialog = new ConnectionWindow(model.Server) { Owner = this };
-        if (dialog.ShowDialog() == true) { ShowConversation(); _ = ChangeServerAsync(dialog.Address); }
+        ShowConversation(); ShowServerSetup();
     }
+    public void ShowServerSetup() => ShowStartup(StartupPhase.Setup);
+    // Render seam: the opening screen.
+    public void ShowOpeningForRender() => ShowStartup(StartupPhase.Checking);
     private async Task SignOutAsync()
     {
-        ShowConversation(); model.SignOut();
+        ShowConversation(); signingOut = true;
+        try { model.SignOut(); } finally { signingOut = false; }
         try { if (notifications is not null) await notifications.SetEnabledAsync(false, persist: false); if (access is not null) await access.SignOutAsync(); }
         catch (Exception error) { model.ReportActionError(error.Message); }
     }
     private async Task ChangeServerAsync(string address)
     {
         if (address == model.Server) { await ConnectAsync(address); return; }
-        model.SignOut();
-        try { if (notifications is not null) await notifications.SetEnabledAsync(false, persist: false); if (access is not null) await access.SignOutAsync(); await ConnectAsync(address); }
-        catch (Exception error) { model.ReportActionError(error.Message); }
+        connecting = true;
+        try { model.SignOut(); if (notifications is not null) await notifications.SetEnabledAsync(false, persist: false); if (access is not null) await access.SignOutAsync(); }
+        catch (Exception error) { connecting = false; ShowStartup(StartupPhase.Failure, error.Message); return; }
+        await ConnectAsync(address);
     }
-    public async Task ConnectAsync(string address)
+    // The Setup screen's 続ける: a bad address throws back to the field; the connection itself reports through the phases.
+    private void ConnectToAddress(string text)
     {
-        await model.ConnectAsync(address);
-        if (!model.Connected) return;
+        var origin = ServerOrigin.Parse(text);
+        settingsStore.Save(settingsStore.Load() with { ServerUrl = origin.AbsoluteUri });
+        _ = ChangeServerAsync(origin.AbsoluteUri);
+    }
+
+    // ---- startup: the Mac RootView phases ----
+    public StartupPhase Startup => startup;
+    public UIElement? StartupContent => StartupHost.Child;
+    private void ShowStartup(StartupPhase phase, string? message = null, SetupState? setup = null)
+    {
+        startup = phase;
+        (StartupHost.Child as IDisposable)?.Dispose();
+        if (phase != StartupPhase.Ready) CloseUpdateSheet();
+        StartupHost.Child = phase switch
+        {
+            StartupPhase.Ready => null,
+            StartupPhase.Checking => new StartupOpeningView(),
+            StartupPhase.Failure => new StartupFailureView(message, () => _ = ConnectAsync(lastAddress ?? model.Server), OpenConnectionSettings),
+            StartupPhase.Setup => new ServerSetupView(ConnectToAddress, ShowServerGuide, model.Server),
+            StartupPhase.SignIn => new LoginView(OpenLoginSheet),
+            _ => new OnboardingView(new SetupApi(model.Management.Api), setup!, CompleteOnboardingAsync, OpenConnectionSettings, model.ConnectionToken)
+        };
+        StartupHost.Visibility = phase == StartupPhase.Ready ? Visibility.Collapsed : Visibility.Visible;
+    }
+    public void ShowServerGuide() { CloseUpdateSheet(); OpenSheet("サーバーの導入ガイド", new ServerGuideView()); }
+    private void RouteToLogin() { if (model.NeedsLogin && !connecting && startup != StartupPhase.SignIn) ShowSignIn(!signingOut && model.AuthMode == "cloudflare"); }
+    // Mac LoginView opens its login sheet by itself when the server just asked for a login (not after an explicit logout).
+    private void ShowSignIn(bool openLogin) { ShowStartup(StartupPhase.SignIn); if (openLogin) OpenLoginSheet(); }
+    private void OpenLoginSheet()
+    {
+        if (access is null) return;
         try
         {
-            var setup = await new SetupApi(model.Management.Api).StatusAsync(model.ConnectionToken);
-            if (setup.Phase != "ready")
-            {
-                var editor = new SetupWindow(model, setup) { Owner = this };
-                editor.ShowDialog(); setup = editor.State;
-                if (setup.Phase != "ready") return;
-                await model.ReconnectAsync();
-            }
+            var origin = ServerOrigin.Parse(model.Server);
+            CloseUpdateSheet();
+            OpenSheet("ログイン", new AccessLoginView(access, origin, () => { CloseUpdateSheet(); _ = ConnectAsync(model.Server, openLogin: false); }));
+        }
+        catch (Exception) { (StartupHost.Child as LoginView)?.ShowError("ログイン画面を開けませんでした。接続先とWebView2 Runtimeを確認してください。"); }
+    }
+    // Mac bootstrap: opening, then the phase the server's answer decides. Nothing is retried; 「もう一度試す」 and 再接続 call this again.
+    public async Task ConnectAsync(string address, bool openLogin = true)
+    {
+        var generation = ++connectGeneration; connecting = true; lastAddress = address;
+        ShowStartup(StartupPhase.Checking);
+        try
+        {
+            await model.ConnectAsync(address);
+            await EnterAsync(generation, openLogin, null);
+        }
+        catch (ArgumentException error) { if (generation == connectGeneration) ShowStartup(StartupPhase.Failure, error.Message); }
+        finally { if (generation == connectGeneration) connecting = false; }
+    }
+    private async Task EnterAsync(int generation, bool openLogin, SetupState? known)
+    {
+        var setup = known; var failure = model.ConnectionError;
+        if (setup is null && model.Connected && !model.NeedsLogin)
+            try { setup = await new SetupApi(model.Management.Api).StatusAsync(model.ConnectionToken); }
+            catch (OperationCanceledException) when (model.ConnectionToken.IsCancellationRequested) { return; }
+            catch (Exception error) { failure = error.Message; }
+        if (generation != connectGeneration) return;
+        switch (StartupRoute.AfterConnect(model.NeedsLogin, model.Connected, setup))
+        {
+            case StartupPhase.Ready: ShowStartup(StartupPhase.Ready); await FinishEntryAsync(setup!); break;
+            case StartupPhase.Onboarding: ShowStartup(StartupPhase.Onboarding, setup: setup); break;
+            case StartupPhase.SignIn: ShowSignIn(openLogin && model.AuthMode == "cloudflare"); break;
+            default: ShowStartup(StartupPhase.Failure, failure); break;
+        }
+    }
+    // After the server reports the first setup done: reload the lists (the guide member exists now) and enter the conversations.
+    private async Task CompleteOnboardingAsync(SetupState ready)
+    {
+        var generation = ++connectGeneration; connecting = true;
+        try { await model.ReconnectAsync(); await EnterAsync(generation, true, ready); }
+        finally { if (generation == connectGeneration) connecting = false; }
+    }
+    private async Task FinishEntryAsync(SetupState setup)
+    {
+        try
+        {
             if (!setup.Complete && setup.GuideBotId is { } guide && model.Entries.FirstOrDefault(entry => entry.Target == new ChatTarget(guide, false)) is { } conversation) await model.SelectAsync(conversation);
             if (notifications is not null) await notifications.InitializeAsync();
             if (notifications is not null) await RefreshUpdateNoticeAsync();
         }
         catch (OperationCanceledException) when (model.ConnectionToken.IsCancellationRequested) { }
         catch (Exception error) { model.ReportActionError(error.Message); }
-    }
-    private async void Login_Click(object sender, RoutedEventArgs e)
-    {
-        if (access is null) return;
-        try { if (new AccessLoginWindow(access, ServerOrigin.Parse(model.Server)) { Owner = this }.ShowDialog() == true) await ConnectAsync(model.Server); }
-        catch (Exception) { model.ReportActionError("ログイン画面を開けませんでした。接続先とWebView2 Runtimeを確認してください。"); }
     }
     public async Task OpenNotificationAsync(string server, ChatTarget? target)
     {
@@ -429,6 +504,7 @@ public partial class MainWindow : Window, IInspectorHost
             if (sheetSave?.DismissPopup() == true || sheetSave is { CanClose: false } || UpdateSheetHost.Content is AvatarActionsView { Busy: true }) return;
             CloseUpdateSheet(); return;
         }
+        if (StartupHost.Visibility == Visibility.Visible) return;
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.D2) { ShowSchedules(); e.Handled = true; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.D3) { ShowGoals(); e.Handled = true; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.OemComma) { ShowSettings(); e.Handled = true; }
@@ -443,36 +519,5 @@ public partial class MainWindow : Window, IInspectorHost
             e.Handled = true;
             await model.SendAsync();
         }
-    }
-}
-
-internal sealed class ConnectionWindow : Window
-{
-    private readonly TextBox input;
-    public string Address { get; private set; } = "";
-    public ConnectionWindow(string address)
-    {
-        Title = "接続先"; Width = 570; Height = 280; ResizeMode = ResizeMode.NoResize; WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        var panel = new StackPanel { Margin = new Thickness(24) };
-        panel.Children.Add(new TextBlock { Text = "接続先URL", FontWeight = FontWeights.SemiBold, FontSize = 18, Margin = new Thickness(0, 0, 0, 10) });
-        input = new TextBox { Text = address };
-        panel.Children.Add(input);
-        panel.Children.Add(new TextBlock { Text = "HTTPS、またはlocalhost・LANのHTTP接続先URL", Margin = new Thickness(0, 8, 0, 8), TextWrapping = TextWrapping.Wrap });
-        var errorText = new TextBlock { Foreground = System.Windows.Media.Brushes.Firebrick, TextWrapping = TextWrapping.Wrap };
-        panel.Children.Add(errorText);
-        var save = new Button { Content = "接続", IsDefault = true, HorizontalAlignment = HorizontalAlignment.Right };
-        save.Click += (_, _) =>
-        {
-            try
-            {
-                var origin = ServerOrigin.Parse(input.Text);
-                var store = new SettingsStore(SettingsStore.UserDirectory);
-                store.Save(store.Load() with { ServerUrl = origin.AbsoluteUri });
-                Address = origin.AbsoluteUri;
-                DialogResult = true;
-            }
-            catch (Exception error) { errorText.Text = error.Message; }
-        };
-        panel.Children.Add(save); Content = panel;
     }
 }

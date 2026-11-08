@@ -51,13 +51,17 @@ public sealed class HarnessAuthenticationTests
     [Fact]
     public async Task TypedAuthenticationResponsesKeepBindingAndPromptForSettingsAndSetup()
     {
-        const string wire = """{"schema":"aiterm.auth-ui.v1","stage":"select","binding":{"session_id":"owned","launch_id":null},"prompt_digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","choices":[{"id":"google","label":"Googleでログイン"}]}""";
+        const string wire = """{"schema":"aiterm.auth-ui.v1","stage":"select","binding":{"session_id":"owned","launch_id":null,"metadata_identity":"meta-1","native_id":"native-1","pane_id":"%3","server_pid":4101,"server_started":"2026-11-08T09:00:00Z","pane_pid":4102,"pane_started":"2026-11-08T09:00:01Z"},"prompt_digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","choices":[{"id":"google","label":"Googleでログイン"}]}""";
         var ui = JsonSerializer.Deserialize<AuthenticationUi>(wire, BellApi.Json)!;
         Assert.Equal(ui, JsonSerializer.Deserialize<AuthenticationUi>(wire, BellApi.Json));
         using var api = new BellApi(new("http://localhost/"), new StubHandler(async (request, token) =>
         {
             using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(token));
-            Assert.Equal("owned", body.RootElement.GetProperty("binding").GetProperty("session_id").GetString());
+            // The server rejects a reply unless all nine binding keys come back unchanged (src/auth-ui.mjs bindingKeys).
+            var sent = body.RootElement.GetProperty("binding");
+            using var received = JsonDocument.Parse(wire);
+            Assert.Equal(9, sent.EnumerateObject().Count());
+            foreach (var key in received.RootElement.GetProperty("binding").EnumerateObject()) Assert.Equal(key.Value.GetRawText(), sent.GetProperty(key.Name).GetRawText());
             Assert.Equal(new string('a', 64), body.RootElement.GetProperty("prompt_digest").GetString());
             Assert.Equal(3, body.RootElement.EnumerateObject().Count());
             return StubHandler.Json(request.RequestUri!.AbsolutePath.StartsWith("/api/setup")
@@ -73,7 +77,7 @@ public sealed class HarnessAuthenticationTests
         Sta(() =>
         {
             var stage = "blocked"; var posts = 0;
-            var ui = new AuthenticationUi { Schema = "aiterm.auth-ui.v1", Stage = "select", Title = "ログイン方法", Binding = new("owned", null), PromptDigest = new string('a', 64), Choices = [new("google", "Googleでログイン")] };
+            var ui = new AuthenticationUi { Schema = "aiterm.auth-ui.v1", Stage = "select", Title = "ログイン方法", Binding = new("owned", null, "meta-1", "native-1", "%3", 4101, "2026-11-08T09:00:00Z", 4102, "2026-11-08T09:00:01Z"), PromptDigest = new string('a', 64), Choices = [new("google", "Googleでログイン")] };
             string Current() => JsonSerializer.Serialize(new { harness = "antigravity", auth = new AuthenticationState { Status = stage is "blocked" or "authenticated" ? stage : "waiting", AuthUi = stage is "select" or "paste_code" ? ui with { Stage = stage, Input = stage == "paste_code" ? "authorization_code" : null } : null } }, BellApi.Json);
             using var workspace = CreateWorkspace(async (request, token) =>
             {
