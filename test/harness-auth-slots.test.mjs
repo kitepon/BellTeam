@@ -160,3 +160,90 @@ test('invalid prepared roots including null remain rejected for both slots', asy
   }
   assert.equal(calls.length, 0)
 })
+
+test('relogin keeps the existing account label and paste-code prompt while another slot remains blocked', async () => {
+  let complete = false
+  const { calls, client } = clientWith(args => {
+    const second = args.configuration_root.endsWith('/2nd')
+    return { structuredContent: receipt(second ? 'second-session' : 'first-session',
+      complete && !second ? { status: 'authenticated', account_label: 'new@example.invalid' } : { account_label: null }) }
+  })
+  const auth = new HarnessAuth({ bots: new Map(), client, accounts: {
+    async prepare(_harness, slot) { return { configurationRoot: `/synthetic/${slot}` } },
+    async list() { return { harnesses: [{ harness: 'claude', slots: [
+      { slot: '1st', loggedIn: true, label: 'existing@example.invalid' },
+      { slot: '2nd', loggedIn: false, label: null },
+    ] }] } },
+  } })
+
+  for (const result of [await auth.start('claude'), await auth.status('claude', { slot: '1st' }),
+    await auth.input('claude', inputFor('first-session'))]) {
+    assert.equal(result.auth.status, 'waiting')
+    assert.equal(result.account_label, 'existing@example.invalid')
+    assert.deepEqual(result.auth.auth_ui.binding, makeBinding('first-session'))
+    assert.equal(result.auth.auth_ui.stage, 'paste_code')
+    assert.equal(result.auth.auth_ui.prompt_digest, 'a'.repeat(64))
+    assert.equal(result.auth.input_required, true)
+    assert.equal(Object.hasOwn(result, 'loggedIn'), false)
+  }
+  const second = await auth.start('claude', { slot: '2nd' })
+  assert.equal(second.auth.status, 'blocked')
+  assert.equal(second.account_label, null)
+  assert.equal((await auth.status('claude')).auth.status, 'waiting')
+  complete = true
+  const finished = await auth.input('claude', inputFor('first-session'))
+  assert.equal(finished.auth.status, 'authenticated')
+  assert.equal(finished.account_label, 'new@example.invalid')
+  assert.equal(auth.sessions.has('claude'), false)
+  assert.equal(auth.receipts.has('claude'), false)
+  assert.equal(auth.sessions.get('claude:2nd'), 'second-session')
+  assert.equal(calls.filter(({ args }) => args.action === 'cancel').length, 1)
+})
+
+test('pre-start authenticated status supports relogin when account metadata is unavailable and cancellation clears evidence', async () => {
+  let running = false
+  const { client } = clientWith(args => {
+    if (args.action === 'start') running = true
+    if (args.action === 'cancel') running = false
+    return { structuredContent: running ? receipt('first-session', { account_label: null })
+      : { schema: 'aiterm.agent-auth-result.v1', status: 'authenticated', account_label: 'old@example.invalid' } }
+  })
+  const auth = new HarnessAuth({ bots: new Map(), client, accounts: {
+    async list() { throw Object.assign(new Error('older metadata port'), { code: 'EXECUTION_REQUEST_INVALID' }) },
+  } })
+  assert.equal((await auth.status('claude')).auth.status, 'authenticated')
+  assert.equal((await auth.start('claude')).account_label, 'old@example.invalid')
+  assert.equal((await auth.status('claude')).auth.status, 'waiting')
+  assert.equal((await auth.start('claude')).auth.status, 'waiting')
+  await auth.cancel('claude')
+  assert.equal(auth.sessions.size, 0)
+  assert.equal(auth.receipts.size, 0)
+  const restored = await auth.status('claude')
+  assert.equal(restored.auth.status, 'authenticated')
+  assert.equal(restored.account_label, 'old@example.invalid')
+})
+
+test('relogin becomes blocked when stored credentials are removed and never carries evidence across a logged-out status', async () => {
+  let loggedIn = true
+  const { client } = clientWith(() => ({ structuredContent: receipt('first-session', { account_label: null }) }))
+  const auth = new HarnessAuth({ bots: new Map(), client, accounts: {
+    async prepare() { return { configurationRoot: '/synthetic/first' } },
+    async list() { return { harnesses: [{ harness: 'claude', slots: [{ slot: '1st', loggedIn, label: loggedIn ? 'old@example.invalid' : null }] }] } },
+  } })
+  assert.equal((await auth.start('claude')).auth.status, 'waiting')
+  loggedIn = false
+  const current = await auth.status('claude')
+  assert.equal(current.auth.status, 'blocked')
+  assert.equal(current.account_label, null)
+  await auth.cancel('claude')
+  assert.equal((await auth.start('claude')).auth.status, 'blocked')
+
+  let status = 'authenticated'
+  const legacy = new HarnessAuth({ bots: new Map(), client: { async call() {
+    return { structuredContent: { schema: 'aiterm.agent-auth-result.v1', status, session_id: status === 'blocked' ? null : undefined } }
+  } } })
+  await legacy.status('claude')
+  status = 'blocked'
+  await legacy.status('claude')
+  assert.equal(legacy.receipts.get('claude').loggedIn, false)
+})

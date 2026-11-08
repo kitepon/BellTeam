@@ -55,6 +55,20 @@ export function createUsageParentEffects({ getServices, getFeatures, seatRuntime
         result = { configurationRoot: prepared?.configurationRoot }
         break
       }
+      case 'auth.listAccounts': {
+        if (context.kind !== 'root' || !['auth.start', 'auth.status', 'auth.input'].includes(context.method)) throw usageError('USAGE_EFFECT_INVALID')
+        if (!services.accounts?.list) { result = { harnesses: [] }; break }
+        let accounts
+        try { accounts = await complete(services.accounts.list()) }
+        catch (error) {
+          if (error?.code !== 'EXECUTION_REQUEST_INVALID') throw error
+          result = { harnesses: [] }
+          break
+        }
+        const row = accounts?.harnesses?.find(value => value.harness === 'claude')
+        result = row ? { harnesses: [{ harness: 'claude', slots: row.slots.map(({ slot, loggedIn, label }) => ({ slot, loggedIn, label })) }] } : { harnesses: [] }
+        break
+      }
       case 'auth.call': {
         const keys = ['harness', 'action', 'session_id', 'relogin', 'expected_binding', 'expected_prompt_digest', 'response', 'configuration_root']
         const harness = Object.keys(HARNESS).find(key => HARNESS[key] === params.harness)
