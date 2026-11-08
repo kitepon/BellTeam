@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T21:58:18Z",
-  "expiresAt": "2026-11-15T21:58:18Z",
+  "publishedAt": "2026-11-08T22:07:35Z",
+  "expiresAt": "2026-11-15T22:07:35Z",
   "releases": [
     {
       "componentId": "usage",
@@ -489,8 +489,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "54094fde34d271ee0e0d4f4853c6eb67b433045a",
-      "versionId": "c7efae7b8ed8466ddfea4f2e209a3e33078b94e3c8771550647598b973a56a80",
+      "sourceCommit": "3b443acf0dbebb7022403d54f61dc8278172f9e8",
+      "versionId": "897380f153c5f5aa5877ad1ecd1cf001e52315cab321f22e16bdbc754bea260a",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -498,16 +498,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T214433Z/execution-54094fde34d271ee0e0d4f4853c6eb67b433045a-linux-amd64.tar.gz",
-          "bytes": 3934946,
-          "sha256": "c7efae7b8ed8466ddfea4f2e209a3e33078b94e3c8771550647598b973a56a80"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T220611Z/execution-3b443acf0dbebb7022403d54f61dc8278172f9e8-linux-amd64.tar.gz",
+          "bytes": 3935072,
+          "sha256": "897380f153c5f5aa5877ad1ecd1cf001e52315cab321f22e16bdbc754bea260a"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T214433Z/execution-54094fde34d271ee0e0d4f4853c6eb67b433045a-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10989,
-          "sha256": "f31dfd7795e6c9dde913704086b0b4dd0318744c903c8b4e4d5e703bbff84785"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T220611Z/execution-3b443acf0dbebb7022403d54f61dc8278172f9e8-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10942,
+          "sha256": "7038f7ee71e5bfcf43a0e8ff4a3767f9c11d2823c37cf5531230d107bcf88d00"
         },
-        "signerCommit": "54094fde34d271ee0e0d4f4853c6eb67b433045a"
+        "signerCommit": "3b443acf0dbebb7022403d54f61dc8278172f9e8"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -517,13 +517,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "Claudeのアカウントは、使用上限に達した時だけ2ndアカウントへ切り替わるようにします。モデルを変えた時も、手が空いた時点でアカウントを選び直します。"
+        "2つ目のアカウントで動く席が、Claude Codeの初回確認画面で止まらないようにします。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "54094fde34d271ee0e0d4f4853c6eb67b433045a",
-      "versionId": "ba63e80a3ced0d997cbfac0482bf3ac855cd02fbfb99fe6f144e53eb09413279",
+      "sourceCommit": "3b443acf0dbebb7022403d54f61dc8278172f9e8",
+      "versionId": "93fc61ea5ba3061f3bc61377fc3e3f2e9c15428244a4d2861476c3d373ae5032",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -531,16 +531,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T214433Z/execution-54094fde34d271ee0e0d4f4853c6eb67b433045a-linux-arm64.tar.gz",
-          "bytes": 3934949,
-          "sha256": "ba63e80a3ced0d997cbfac0482bf3ac855cd02fbfb99fe6f144e53eb09413279"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T220611Z/execution-3b443acf0dbebb7022403d54f61dc8278172f9e8-linux-arm64.tar.gz",
+          "bytes": 3935075,
+          "sha256": "93fc61ea5ba3061f3bc61377fc3e3f2e9c15428244a4d2861476c3d373ae5032"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T214433Z/execution-54094fde34d271ee0e0d4f4853c6eb67b433045a-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10989,
-          "sha256": "4cfba0387fef17362dbab9beab4a4c2415e93b2190a52213337905fe8bd487cc"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T220611Z/execution-3b443acf0dbebb7022403d54f61dc8278172f9e8-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10879,
+          "sha256": "ba15f1f99a82f352f1bfba76579299fb0545397ca732fe62c9507e70fb17f1fa"
         },
-        "signerCommit": "54094fde34d271ee0e0d4f4853c6eb67b433045a"
+        "signerCommit": "3b443acf0dbebb7022403d54f61dc8278172f9e8"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -550,7 +550,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "Claudeのアカウントは、使用上限に達した時だけ2ndアカウントへ切り替わるようにします。モデルを変えた時も、手が空いた時点でアカウントを選び直します。"
+        "2つ目のアカウントで動く席が、Claude Codeの初回確認画面で止まらないようにします。"
       ]
     },
     {
