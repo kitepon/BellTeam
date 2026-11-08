@@ -215,9 +215,10 @@ test('direct first failure reaches registered diagnostics with bound safe fields
   const rows = await diagnostics.list()
   assert.equal(rows.length, 1); assert.equal(reports, 1)
   assert.deepEqual(JSON.parse(rows[0].diagnostic_log), {
+    // The status stage gets execution's delivery-stage failure (aiterm-transport statusFailure), not the original error.
     delivery_id: receipt.delivery_id, target: 'bot-quincy', stage: 'status',
-    code: 'BOT_SEND_OUTCOME_UNKNOWN', cause_code: null, returned: true,
-    tool: 'pty_send', request_phase: 'call', effect: null, outcome: 'unknown',
+    code: 'BOT_SEND_FAILED', cause_code: null, returned: null,
+    tool: null, request_phase: null, effect: null, outcome: null,
   })
   assert.ok(!JSON.stringify(rows).includes(secret))
   assert.equal(JSON.parse(directFailureReport(error).diagnostic_log).effect, null)
@@ -229,7 +230,7 @@ test('a failed status the transport followed to its end (turnCompleted) files no
   const f = await fixture(t, { createTransport: ({ membersAdmission }) => ({ membersAdmission, isIdle: () => false, watchQueue: () => () => {}, async close() {},
     async notify(_bot, envelope, options) {
       await options.onStatus('running')
-      // Turn-end failure fields per wait-contract.md; the control input carries none.
+      // Execution's status failure carrying the turn-end marker (wait-contract.md); the control input carries none.
       queueMicrotask(() => options.onStatus('failed', envelope.includes('harness end')
         ? { ...failure, turnCompleted: true, waitOutcome: 'error', failureCategory: 'other' } : failure))
       return { delivery: 'running' }
