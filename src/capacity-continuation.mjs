@@ -75,10 +75,19 @@ export class CapacityContinuation {
       if (slot !== context.accountLimit.slot) {
         state.accountSwitched = true
         let switched = false
-        try {
-          await this.transport.switchAccount(this.bots.get(context.bot.id) ?? context.bot, { admissionCheck: () => guard() })
-          switched = true
-        } catch { /* Not moved (busy, no resume, old Aiterm): the harness continuation below still applies. */ }
+        for (;;) {
+          try {
+            await this.transport.switchAccount(this.bots.get(context.bot.id) ?? context.bot, { admissionCheck: () => guard() })
+            switched = true
+          } catch (error) {
+            // AGENT_BUSY (Aiterm keeps the seat's background work): wait and ask again; a new delivery or a settings
+            // change ends this wait through guard(). Any other refusal: not moved (production 2026-11-09 07:56 JST, Trony).
+            if (/AGENT_BUSY/u.test(`${error?.code ?? ''} ${error?.message ?? ''}`)) {
+              await new Promise(resolve => setTimeout(resolve, this.busyRetryMs ?? 30_000)); guard(); continue
+            }
+          }
+          break
+        }
         if (switched) {
           context.reconfigured?.()
           guard()
