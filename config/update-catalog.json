@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T22:39:50Z",
-  "expiresAt": "2026-11-15T22:39:50Z",
+  "publishedAt": "2026-11-08T22:44:23Z",
+  "expiresAt": "2026-11-15T22:44:23Z",
   "releases": [
     {
       "componentId": "usage",
@@ -425,8 +425,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "b5c4ea64f8dca92c8a95b83fdd5f33f73df88c66",
-      "versionId": "8ed390d3119505e5abd99b726de5cda935bd9d9650d73bd07282b0d2f77465eb",
+      "sourceCommit": "43a059e69f29c7e69bbf250ebc0f7f55dc24987f",
+      "versionId": "fc8a96374be89ad558e13db04543e1de9b2b66bfa22edfea5c417cc980d6150d",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -434,16 +434,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T223855Z/web-gateway-b5c4ea64f8dca92c8a95b83fdd5f33f73df88c66-linux-amd64.tar.gz",
-          "bytes": 5086061,
-          "sha256": "8ed390d3119505e5abd99b726de5cda935bd9d9650d73bd07282b0d2f77465eb"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T224255Z/web-gateway-43a059e69f29c7e69bbf250ebc0f7f55dc24987f-linux-amd64.tar.gz",
+          "bytes": 5086373,
+          "sha256": "fc8a96374be89ad558e13db04543e1de9b2b66bfa22edfea5c417cc980d6150d"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T223855Z/web-gateway-b5c4ea64f8dca92c8a95b83fdd5f33f73df88c66-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11146,
-          "sha256": "5a58900af40e59c79a2845956d9762e9e17d5d1cb527a92cc5208f758ec38205"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T224255Z/web-gateway-43a059e69f29c7e69bbf250ebc0f7f55dc24987f-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10876,
+          "sha256": "541ac831dcb85a67e98fde3b2244e4383d65856d89967a47e3c0bc38d8978650"
         },
-        "signerCommit": "b5c4ea64f8dca92c8a95b83fdd5f33f73df88c66"
+        "signerCommit": "43a059e69f29c7e69bbf250ebc0f7f55dc24987f"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -452,13 +452,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "仕事の図の矢印のラベルを途中で切らず、折り返してすべて表示します。"
+        "仕事の図の矢印のラベルを途中で切らずに折り返して表示し、ラベル同士が重ならないようにします。作業中の内容の表示も長さで切らないようにします。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "b5c4ea64f8dca92c8a95b83fdd5f33f73df88c66",
-      "versionId": "1148cea2882a526931036dde26f4e4aebac27b933ad3bd592dd24e000b2b858b",
+      "sourceCommit": "43a059e69f29c7e69bbf250ebc0f7f55dc24987f",
+      "versionId": "66f2cca5f3187378cc5ad63287f88790a3f23e8e8bdee2d5038943e830359b10",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -466,16 +466,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T223855Z/web-gateway-b5c4ea64f8dca92c8a95b83fdd5f33f73df88c66-linux-arm64.tar.gz",
-          "bytes": 5086061,
-          "sha256": "1148cea2882a526931036dde26f4e4aebac27b933ad3bd592dd24e000b2b858b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T224255Z/web-gateway-43a059e69f29c7e69bbf250ebc0f7f55dc24987f-linux-arm64.tar.gz",
+          "bytes": 5086373,
+          "sha256": "66f2cca5f3187378cc5ad63287f88790a3f23e8e8bdee2d5038943e830359b10"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T223855Z/web-gateway-b5c4ea64f8dca92c8a95b83fdd5f33f73df88c66-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11158,
-          "sha256": "19b51201b3bc1481edfe2d2da9cd9fb175359d9775dbb65c8446d280eb287174"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T224255Z/web-gateway-43a059e69f29c7e69bbf250ebc0f7f55dc24987f-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10974,
+          "sha256": "52f8d13c0ad520e31cc43c6f34ddccfbc7fd9feb66a66ff7d797f8fe593006b7"
         },
-        "signerCommit": "b5c4ea64f8dca92c8a95b83fdd5f33f73df88c66"
+        "signerCommit": "43a059e69f29c7e69bbf250ebc0f7f55dc24987f"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -484,13 +484,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "仕事の図の矢印のラベルを途中で切らず、折り返してすべて表示します。"
+        "仕事の図の矢印のラベルを途中で切らずに折り返して表示し、ラベル同士が重ならないようにします。作業中の内容の表示も長さで切らないようにします。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "870938ab2d74fe20104ae6f59a84d254fc373cf0",
-      "versionId": "96ac6662d31f6656ab0a63d502efd4f8b18cb5b7dbabaf8c10aafc626cd801db",
+      "sourceCommit": "e3df268c01b0be92fc1a2015ed0c851a91bf68ce",
+      "versionId": "2a32817b10c0170377c7390f7029d49466ab96008fab385d5d1e3d481308dcd1",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -498,16 +498,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T223407Z/execution-870938ab2d74fe20104ae6f59a84d254fc373cf0-linux-amd64.tar.gz",
-          "bytes": 3935699,
-          "sha256": "96ac6662d31f6656ab0a63d502efd4f8b18cb5b7dbabaf8c10aafc626cd801db"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T224351Z/execution-e3df268c01b0be92fc1a2015ed0c851a91bf68ce-linux-amd64.tar.gz",
+          "bytes": 3935939,
+          "sha256": "2a32817b10c0170377c7390f7029d49466ab96008fab385d5d1e3d481308dcd1"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T223407Z/execution-870938ab2d74fe20104ae6f59a84d254fc373cf0-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10879,
-          "sha256": "b863603ebc6ad2768a0096d33f7fe25aa911175074f5de6000ad1b385d31edaa"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T224351Z/execution-e3df268c01b0be92fc1a2015ed0c851a91bf68ce-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10942,
+          "sha256": "912b84bb983f30b2d642a548194ac3ef3fdc4f937ddd881ef3263f8448181056"
         },
-        "signerCommit": "870938ab2d74fe20104ae6f59a84d254fc373cf0"
+        "signerCommit": "e3df268c01b0be92fc1a2015ed0c851a91bf68ce"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -517,13 +517,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "使用上限で2つ目のアカウントへ切り替えた席が、止まったまま起きない問題と、メッセージが届くと上限に達した1つ目のアカウントで起きてしまう問題を直します。"
+        "使用上限に達した席が、2つ目のアカウントへ切り替わって作業を続けるようにします。部品の更新前から動いている席も切り替えの対象にします。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "870938ab2d74fe20104ae6f59a84d254fc373cf0",
-      "versionId": "ca8b8c56ea677ca1bfcebe474291d341f7c204727df0615582456f0615ea33cd",
+      "sourceCommit": "e3df268c01b0be92fc1a2015ed0c851a91bf68ce",
+      "versionId": "8b43711b8d3c160b15a1cdd8be6f8d981206ff644a035e9459dae2082c82c62d",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -531,16 +531,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T223407Z/execution-870938ab2d74fe20104ae6f59a84d254fc373cf0-linux-arm64.tar.gz",
-          "bytes": 3935698,
-          "sha256": "ca8b8c56ea677ca1bfcebe474291d341f7c204727df0615582456f0615ea33cd"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T224351Z/execution-e3df268c01b0be92fc1a2015ed0c851a91bf68ce-linux-arm64.tar.gz",
+          "bytes": 3935942,
+          "sha256": "8b43711b8d3c160b15a1cdd8be6f8d981206ff644a035e9459dae2082c82c62d"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T223407Z/execution-870938ab2d74fe20104ae6f59a84d254fc373cf0-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11087,
-          "sha256": "a4195efe5817d8b14028fca016a65d0b989c7d8be836c73f7e34db49ef3d868a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T224351Z/execution-e3df268c01b0be92fc1a2015ed0c851a91bf68ce-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10942,
+          "sha256": "da0ed1a46f2780db2949fdeeaff13164c897cc46f14882a73e9ffbd4e8cb3f4d"
         },
-        "signerCommit": "870938ab2d74fe20104ae6f59a84d254fc373cf0"
+        "signerCommit": "e3df268c01b0be92fc1a2015ed0c851a91bf68ce"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -550,7 +550,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "使用上限で2つ目のアカウントへ切り替えた席が、止まったまま起きない問題と、メッセージが届くと上限に達した1つ目のアカウントで起きてしまう問題を直します。"
+        "使用上限に達した席が、2つ目のアカウントへ切り替わって作業を続けるようにします。部品の更新前から動いている席も切り替えの対象にします。"
       ]
     },
     {
