@@ -11,7 +11,7 @@ const version = 'a'.repeat(64), badVersion = 'b'.repeat(64), sourceCommit = 'c'.
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no }); return { promise, resolve, reject } }
 const tick = () => new Promise(resolve => setImmediate(resolve))
 const request = (method, ...args) => ({ method, args })
-async function fixture(t, { save = async () => {}, failInitialize = false, failConstruct = false, cleanupUnknown = false, shortDrain = false, autoStart = true, beforeLoad = async () => {} } = {}) {
+async function fixture(t, { save = async () => {}, failInitialize = false, failConstruct = false, cleanupUnknown = false, shortDrain = false, refuseHandover = false, autoStart = true, beforeLoad = async () => {} } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'execution-generation-')); t.after(() => rm(root, { recursive: true, force: true }))
   const bot = { id: 'bot-synthetic', session: 'synthetic', harness: 'codex' }, bots = new Map([[bot.id, bot]])
   const read = deferred(), created = [], selections = [], loads = [], nativeCalls = []
@@ -29,6 +29,8 @@ async function fixture(t, { save = async () => {}, failInitialize = false, failC
           ? { ...actual.project(input), fixtureVersion: versionId } : actual.project(input),
         control: (action, options) => {
           if (action === 'initialize' && versionId === badVersion && failInitialize) return Promise.reject(Error('synthetic initialization failure'))
+          // Pre-#543 installed code refused a handover while busy.
+          if (refuseHandover && versionId === null && action === 'quiesce' && options?.handover) return actual.control('quiesce', { timeoutMs: 0 })
           return actual.control(action, shortDrain && action === 'quiesce' ? { timeoutMs: 0 } : options)
         },
         disconnect: async () => {
@@ -66,13 +68,18 @@ test('real engine exchange serves the previous synchronous projection until the 
   assert.equal(f.nativeCloses(), 0)
 })
 
-test('an actual native operation makes the short drain busy, resumes only the old engine, and creates no candidate', async t => {
-  const f = await fixture(t, { shortDrain: true })
+test('an old engine that refuses the handover cannot veto its replacement; the new engine starts cold', async t => {
+  const f = await fixture(t, { refuseHandover: true })
   const reading = f.controller.dispatch(request('transport.observe', f.bot)); await tick()
-  await assert.rejects(f.controller.replace(version), { code: 'EXECUTION_BUSY' })
-  assert.equal(f.created.length, 1); assert.equal(f.created[0].retired, false)
-  assert.equal(f.controller.snapshot().available, true)
+  await f.controller.replace(version)
+  assert.equal(f.created.length, 2)
+  assert.equal(f.controller.snapshot().currentVersionId, version); assert.equal(f.controller.snapshot().available, true)
+  assert.equal(f.controller.project(request('administration.view', f.bot)).fixtureVersion, version)
+  assert.deepEqual(f.selections, [{ currentVersionId: version, previousVersionId: null }])
+  assert.equal(f.created[0].retired, false)
   f.read.resolve({ structuredContent: { exists: true } }); await reading
+  // The unreleased old engine retires itself once its own work is done.
+  while (!f.created[0].retired) await new Promise(resolve => setTimeout(resolve, 50))
   assert.equal(f.nativeCloses(), 0)
 })
 

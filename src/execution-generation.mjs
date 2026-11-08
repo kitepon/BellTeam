@@ -122,6 +122,16 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
     if ((await within(target.engine.disconnect(), 5000, 'CLEANUP_UNCONFIRMED'))?.closed !== true) throw fail('CLEANUP_UNCONFIRMED')
     if (instance === target) instance = null
   }
+  // Cleanup only: an engine that refused the handover finishes its own accepted turns, then stops; it drains only its own work, not the whole generation's.
+  const retireUnreleased = async old => {
+    while (!closed) {
+      try {
+        if ((await old.engine.control('quiesce', { timeoutMs: 60_000 }))?.quiesced === true
+          && (await within(old.engine.disconnect(), 5000, 'CLEANUP_UNCONFIRMED'))?.closed === true) return
+      } catch {}
+      await new Promise(resolve => setTimeout(resolve, 1000).unref?.())
+    }
+  }
   const adopt = async value => {
     // The parent port must include its real durable completion, including after caller timeout.
     const saving = onAdopt({ ...value })
@@ -172,19 +182,20 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
       const old = instance, oldSelection = { currentVersionId, previousVersionId }
       readable = old
       state('quiescing')
-      let handoff
+      let handoff = null
       try {
-        await quiesce(old, { handover: true })
+        await within(quiesce(old, { handover: true }), 70_000, 'HANDOVER_TIMEOUT')
         handoff = old.engine.exportState({ handover: true })
-      } catch (error) {
-        try {
-          await resume(old)
-        } catch { state('unavailable') }
-        throw error
+      } catch {
+        // The old module cannot veto its replacement (Owner 2026-11-08): retire it unreleased and start the new one cold.
+        handoff = null
       }
       // From this point the retired instance is never resumed.
       recoveryState = { factory: old.factory, handoff, selection: oldSelection }
-      if (!handoff?.released?.then) {
+      if (!handoff) {
+        old.retiring = true; readable = null
+        void retireUnreleased(old)
+      } else if (!handoff.released?.then) {
         try { await dispose(old) } catch (error) { state('unavailable'); throw error }
         readable = null
       } else old.retiring = true
