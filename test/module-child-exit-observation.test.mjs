@@ -84,3 +84,15 @@ test('one real controller close reports after pipes, ignores callback failure, r
  assert.equal(consoleRows.at(-1).code,'MODULE_CHILD_EXITED')
  assert.doesNotMatch(JSON.stringify(consoleRows),/private|callback|secret-path/)
 })
+
+test('the conversation exit-origin line reaches the diagnostic DTO as the closed pair only',async()=>{
+ const c=child(),read=observeModuleChild(c)
+ c.stderr.emit('data',Buffer.from(JSON.stringify({code:'CONVERSATION_CHILD_EXIT_ORIGIN',origin:'peer_failure',failureCode:'CONVERSATION_IPC_INVALID'})+'\n'))
+ c.stderr.closed=true;c.stderr.emit('close')
+ const sent=[];reportModuleChildExit('conversation',{code:0,signal:null},read(),dto=>{sent.push(dto)})
+ assert.deepEqual(sent[0].childExitOrigin,{origin:'peer_failure',failureCode:'CONVERSATION_IPC_INVALID'})
+ assert.equal(sent[0].reason,'unknown');assert.equal(validateModuleChildExitDiagnostic(sent[0]),true)
+ const quiet=child(),readQuiet=observeModuleChild(quiet);quiet.stderr.closed=true;quiet.stderr.emit('close')
+ const plain=[];reportModuleChildExit('members',{code:1,signal:null},readQuiet(),dto=>{plain.push(dto)})
+ assert.equal(Object.hasOwn(plain[0],'childExitOrigin'),false);assert.equal(validateModuleChildExitDiagnostic(plain[0]),true)
+})

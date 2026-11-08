@@ -43,6 +43,10 @@ const modules = new Set(['app', 'session', 'conversation', 'events', 'image', 'b
 const exitComponents = ['conversation', 'usage', 'diagnostics', 'members', 'notifications', 'web-gateway']
 const exitSignals = ['SIGABRT', 'SIGBUS', 'SIGFPE', 'SIGHUP', 'SIGILL', 'SIGINT', 'SIGKILL', 'SIGPIPE', 'SIGQUIT', 'SIGSEGV', 'SIGTERM']
 const exitCodes = ['ERR_IPC_CHANNEL_CLOSED', 'ERR_OUT_OF_RANGE', 'ERR_WORKER_OUT_OF_MEMORY', 'ERR_MODULE_NOT_FOUND']
+// Same closed lists as module-child-restart observeModuleChild(); the conversation child's own exit-origin line.
+const exitOrigins = ['peer_failure', 'parent_disconnect', 'exit_control', 'exit_writer_control']
+const exitFailureCodes = ['IPC_INVALID', 'IPC_DISCONNECTED', 'IPC_TIMEOUT', 'IPC_ACK_TIMEOUT', 'IPC_SEND_FAILED',
+  'CHILD_EXITED', 'BACKGROUND_UNCONFIRMED', 'DELIVERY_RELEASE_UNCONFIRMED', 'PROTOCOL_UNCONFIRMED'].map(code => `CONVERSATION_${code}`)
 const exactKeys = (value, keys) => value !== null && typeof value === 'object' && !Array.isArray(value)
   && [Object.prototype, null].includes(Object.getPrototypeOf(value))
   && Object.keys(value).sort().join(',') === keys
@@ -72,7 +76,11 @@ export function moduleRestartLimitProblems(rows) {
 
 export function validateModuleChildExitDiagnostic(value) {
   try {
-    return exactKeys(value, 'component,exitCode,reason,schema,signal,stderrBytes,stderrCodes,stderrTail,stderrTruncated')
+    const keys = 'component,exitCode,reason,schema,signal,stderrBytes,stderrCodes,stderrTail,stderrTruncated'
+    const origin = value?.childExitOrigin
+    return (exactKeys(value, keys) || exactKeys(value, `childExitOrigin,${keys}`) && value.component === 'conversation'
+      && exactKeys(origin, 'failureCode,origin') && exitOrigins.includes(origin.origin)
+      && (origin.failureCode === null || exitFailureCodes.includes(origin.failureCode)))
       && value.schema === 'bellteam.module-child-exit.v1' && exitComponents.includes(value.component)
       && (value.exitCode === null || Number.isInteger(value.exitCode) && value.exitCode >= -2147483648 && value.exitCode <= 2147483647)
       && (value.signal === null || exitSignals.includes(value.signal))

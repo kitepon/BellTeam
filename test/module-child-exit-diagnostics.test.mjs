@@ -67,3 +67,13 @@ test('child exit uses one writer, six component aggregates, restore and authenti
   assert.deepEqual(rows, restored.list())
   assert.ok(rows.every(row => row.category === 'SERVER_MODULE_CHILD_EXITED' && row.module === 'server' && row.severity === 'high'))
 })
+
+test('conversation child exit carries only the closed exit-origin pair', () => {
+  const origin = { origin: 'peer_failure', failureCode: 'CONVERSATION_IPC_INVALID' }
+  assert.equal(validateModuleChildExitDiagnostic({ ...observation(), childExitOrigin: origin }), true)
+  assert.equal(validateModuleChildExitDiagnostic({ ...observation(), childExitOrigin: { origin: 'exit_control', failureCode: null } }), true)
+  for (const childExitOrigin of [null, { origin: 'private' , failureCode: null }, { origin: 'peer_failure', failureCode: 'PRIVATE_TEXT' },
+    { ...origin, message: 'synthetic-private-secret' }, 'peer_failure'])
+    assert.throws(() => moduleChildExitReport({ ...observation(), childExitOrigin }), /DIAGNOSTIC_INVALID/)
+  assert.throws(() => moduleChildExitReport({ ...observation('members'), childExitOrigin: origin }), /DIAGNOSTIC_INVALID/)
+})
