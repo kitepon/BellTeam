@@ -1,6 +1,7 @@
 import { resolveSeatBotId, seatExecutionSource } from './seat-mcp.mjs'
 import { createControlApi, createApplicationApi } from './http-application-api.mjs'
 import { createBotApi } from './http-bot-api.mjs'
+import { createScreenInputApi } from './http-screen-input-api.mjs'
 import { BotAdministration } from './bot-administration.mjs'
 import { createMemberDeletionApi } from './members/deletion.mjs'
 import { createRoomApi } from './http-room-api.mjs'
@@ -55,6 +56,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
     createScheduleApi({ bots, rooms, scheduler }),
     createGoalApi({ bots, goals, aiControl, ownerActions: !internal, notify: event => server.notify(event) }),
     createConversationApi({ bots, rooms, timeline }),
+    createScreenInputApi({ bots, transport, internal }),
   ]
 
   const server = createServer(async (request, response) => {
