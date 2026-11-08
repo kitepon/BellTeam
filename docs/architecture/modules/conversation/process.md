@@ -178,6 +178,17 @@ Root21:55分担により会話固有parent/child adapterと薄いentryはN102が
 
 stream本文はcallのaccepted/返値metadataのresult-readyを受けてから送る。実advanced IPCがmetadataとopenを同じbatchへ渡す場合にも登録前の本文を落とさない。通常stream4とroot64は別に待機し、callback/continuation枠を保持する。control返値は独立control capabilityの閉DTOとして返し、本文creditを待たない。
 
+返値metadata（`result`）を送った応答側は、同operationへ`error`を送らない。result-ready待ちに独自期限は無く、終わるのは相手のresult-ready到着かchannel失敗（切断・stream失敗）だけ。遅いが生きている相手へ期限切れの`error`を重ねると、相手は`result`済みoperationへの`error`をIPC_INVALIDとして切断し、子はexit 0で終わる（I-5 2026-11-08 14:30:41、09:14も同型の可能性）。callerの通常60秒期限とcall側のaccepted ACK5秒は従来どおり。
+
+```mermaid
+flowchart LR
+  Run[応答側 実処理完了] --> Meta[result metadata送信]
+  Meta --> Wait[result-ready待ち 期限なし]
+  Wait -->|相手のresult-ready| Body[本文stream送信]
+  Wait -->|channel失敗| Fail[既fail: 全pending reject]
+  Meta -.->|送らない| Err[同operationのerror]
+```
+
 ## 正式public observerと既保存の合成
 
 ### accepted AIとcaller期限

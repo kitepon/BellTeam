@@ -125,12 +125,8 @@ export function createConversationPeer(endpoint, { side, accept, validateResult,
   const reply = async (entry, value) => {
     if (entry.kind === 'control') return control(entry.id, { type: 'control-result', value })
     entry.replyReady = deferred()
-    const acknowledged = async metadata => {
-      await control(entry.id, metadata)
-      const timer = setTimeout(() => entry.replyReady.reject(conversationChannelError('CONVERSATION_IPC_ACK_TIMEOUT')), 5000)
-      timer.unref?.()
-      try { await entry.replyReady.promise } finally { clearTimeout(timer) }
-    }
+    // No deadline: an error after a sent result breaks the peer's protocol. Only channel failure ends this wait.
+    const acknowledged = async metadata => { await control(entry.id, metadata); await entry.replyReady.promise }
     if (historyMethods.includes(entry.method)) {
       channelCheck(value?.[Symbol.asyncIterator])
       await acknowledged({ type: 'result', kind: entry.kind, stream: 'history', length: null })
