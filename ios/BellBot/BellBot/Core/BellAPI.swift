@@ -274,6 +274,26 @@ final class BellAPI {
         }
     }
 
+    /// 任意のSSE経路を読む。改行ごとにonActivity（無通信の判定用、keepaliveのコメント行も含む）、イベントごとにonEvent(名前, JSON)。
+    func eventStream(path: String, onActivity: @escaping () -> Void,
+                     onEvent: @escaping (String?, Data) async throws -> Void) async throws {
+        var request = try request(path: path, method: "GET")
+        request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+        request.timeoutInterval = .infinity
+        let (bytes, response) = try await session.bytes(for: request)
+        try validate(response)
+        guard (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type")?.hasPrefix("text/event-stream") == true else {
+            throw BellAPIError.invalidResponse
+        }
+        var parser = SSEParser()
+        for try await byte in bytes {
+            if byte == 10 { onActivity() }
+            if let payload = try parser.feed(byte) {
+                try await onEvent(parser.lastEventName, try JSONSerialization.data(withJSONObject: payload))
+            }
+        }
+    }
+
     func events(_ onEvent: @escaping (BellEvent) async throws -> Void) async throws {
         let startedAt = Date()
         let startedState = diagnostics.requestStartAppState()

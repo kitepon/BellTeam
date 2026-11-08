@@ -13,6 +13,14 @@ struct BellBotApp: App {
         }
         .windowResizability(.contentMinSize)
 
+        WindowGroup("相関図", id: "work-graph") {
+            WorkGraphView()
+                .environmentObject(store)
+                .tint(BellTheme.violet)
+                .frame(minWidth: 480, minHeight: 360)
+        }
+        .windowResizability(.contentMinSize)
+
         WindowGroup("メンバーを編集", id: "member-editor", for: String.self) { $botID in
             if let botID, let bot = store.bots.first(where: { $0.id == botID }) {
                 MemberEditorWindow(bot: bot)
@@ -194,6 +202,9 @@ private struct BellTabs: View {
             GoalsView()
                 .tabItem { Label("ゴール", systemImage: "target") }
                 .tag(3)
+            WorkGraphView()
+                .tabItem { Label("相関図", systemImage: "point.3.connected.trianglepath.dotted") }
+                .tag(4)
             SettingsView()
                 .tabItem { Label("設定", systemImage: "person.crop.circle") }
                 .tag(2)
