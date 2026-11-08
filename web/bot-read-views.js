@@ -15,7 +15,7 @@ const approvalValue = value => value?.status === 'approval_required' && typeof v
   && value.choices.some(choice => ['approve_once', 'deny'].includes(choice?.decision) && typeof choice.label === 'string' && choice.label) ? value : null
 
 export function createScreenView({ panel, status, text, header, api, input = null }) {
-  let owner = null, timer = null, request = 0
+  let owner = null, timer = null, request = 0, reading = null, again = false
   // Per opened panel: the latest approval read, a hidden bar after 503, the key being sent and the last message.
   let approval = null, unavailable = false, unsupported = false, busy = null, message = ''
   const make = (tag, className, value) => { const node = document.createElement(tag); node.className = className; if (value !== undefined) node.textContent = value; return node }
@@ -85,25 +85,35 @@ export function createScreenView({ panel, status, text, header, api, input = nul
   function close() {
     owner = null
     request++
-    clearInterval(timer)
+    clearTimeout(timer)
     timer = null
+    reading = null; again = false
     panel.hidden = true
     approval = null; busy = null; message = ''
     renderInput()
   }
-  async function refresh() {
+  // One read at a time: a request during a read runs once after it (Owner: 1 s, no overlap).
+  function refresh() {
+    if (!owner) return Promise.resolve()
+    if (reading) { again = true; return reading }
+    const current = reading = (async () => {
+      do { again = false; await readOnce() } while (again && reading === current)
+    })().finally(() => { if (reading === current) reading = null })
+    return current
+  }
+  async function readOnce() {
     if (!owner) return
-    const bot = owner, reading = ++request
+    const bot = owner, token = ++request
     const asked = readApproval(bot)
     try {
       const result = await api(`/api/bots/${bot.id}/screen`)
-      if (owner !== bot || reading !== request) return
-      status.textContent = result.online ? `${bot.displayName} の画面 · 2秒ごとに更新` : `${bot.displayName} は停止中（次のメッセージで起動）`
+      if (owner !== bot || token !== request) return
+      status.textContent = result.online ? `${bot.displayName} の画面 · 1秒ごとに更新` : `${bot.displayName} は停止中（次のメッセージで起動）`
       const stick = text.scrollHeight - text.scrollTop - text.clientHeight < 24
       text.textContent = result.screen.replace(/\s+$/u, '')
       fit(result.screen)
       if (stick) text.scrollTop = text.scrollHeight
-    } catch { if (owner === bot && reading === request) status.textContent = '画面を読めませんでした' }
+    } catch { if (owner === bot && token === request) status.textContent = '画面を読めませんでした' }
     await asked
   }
   async function open(bot) {
@@ -115,7 +125,12 @@ export function createScreenView({ panel, status, text, header, api, input = nul
     panel.hidden = false
     renderInput()
     await refresh()
-    if (owner === opened) timer = setInterval(() => { void refresh() }, 2000)
+    tick(opened)
+  }
+  // The next read starts 1 s after the previous one returned.
+  function tick(opened) {
+    if (owner !== opened) return
+    timer = setTimeout(async () => { timer = null; await refresh(); tick(opened) }, 1000)
   }
   // The native screen has 80 columns; measure wide glyphs before fitting the panel.
   function fit(screen) {

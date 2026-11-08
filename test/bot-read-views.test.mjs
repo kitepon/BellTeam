@@ -20,14 +20,14 @@ function platform(t){
  t.after(()=>Object.assign(globalThis,original))
 }
 test('closing an initial screen read cannot recreate its timer or apply a late result',async t=>{
- platform(t);let timers=0;t.mock.method(globalThis,'setInterval',()=>{timers++;return 1});t.mock.method(globalThis,'clearInterval',()=>{})
+ platform(t);let timers=0;t.mock.method(globalThis,'setTimeout',()=>{timers++;return 1});t.mock.method(globalThis,'clearTimeout',()=>{})
  const pending=deferred(),panel=new Element(),status=new Element(),text=new Element()
  const view=createScreenView({panel,status,text,header:{offsetHeight:80},api:()=>pending.promise})
  const opened=view.open({id:'a',displayName:'A'});view.close();pending.resolve({online:true,screen:'old'});await opened
  assert.equal(timers,0);assert.equal(panel.hidden,true);assert.equal(text.textContent,undefined)
 })
 test('screen reopening owns its result and only creates one current timer',async t=>{
- platform(t);let timers=0;t.mock.method(globalThis,'setInterval',()=>{timers++;return 1});t.mock.method(globalThis,'clearInterval',()=>{})
+ platform(t);let timers=0;t.mock.method(globalThis,'setTimeout',()=>{timers++;return 1});t.mock.method(globalThis,'clearTimeout',()=>{})
  const a=deferred(),b=deferred(),panel=new Element(),status=new Element(),text=new Element()
  const view=createScreenView({panel,status,text,header:{offsetHeight:80},api:path=>path.includes('/a/')?a.promise:b.promise})
  const first=view.open({id:'a',displayName:'A'}),second=view.open({id:'b',displayName:'B'})
@@ -55,7 +55,7 @@ test('partial character sheet failure releases prior URLs and close does not rel
 const all=(node,match)=>[...(match(node)?[node]:[]),...(node.children??[]).flatMap(child=>all(child,match))]
 const words=node=>[node.textContent??'',...(node.children??[]).map(words)].join(' ')
 function inputFixture(t,respond){
- platform(t);t.mock.method(globalThis,'setInterval',()=>1);t.mock.method(globalThis,'clearInterval',()=>{})
+ platform(t);t.mock.method(globalThis,'setTimeout',()=>1);t.mock.method(globalThis,'clearTimeout',()=>{})
  const calls=[],panel=new Element(),status=new Element(),text=new Element(),input=new Element()
  const view=createScreenView({panel,status,text,input,header:{offsetHeight:80},api:async(path,options)=>{calls.push({path,body:options?.body?JSON.parse(options.body):null});return respond(path,options)}})
  const key=name=>all(input,node=>node.dataset?.screenKey===name)[0]
@@ -104,4 +104,21 @@ test('a key reply after close or reopen for another Bot is dropped',async t=>{
  await f.view.open({id:'a',displayName:'A'});f.key('Tab').listeners.click()
  await f.view.open({id:'b',displayName:'B'});pending.resolve({key:'Tab',outcome:'accepted'});await settle();await settle()
  assert.doesNotMatch(f.note(),/送りました/);assert.equal(f.key('Tab').disabled,false)
+})
+test('screen reads run every 1 s after the previous returns and never overlap',async t=>{
+ platform(t);const ticks=[];t.mock.method(globalThis,'setTimeout',(fn,ms)=>{ticks.push({fn,ms});return ticks.length});t.mock.method(globalThis,'clearTimeout',()=>{})
+ const gate=deferred();let screens=0,open=0,max=0
+ const panel=new Element(),status=new Element(),text=new Element(),input=new Element()
+ const view=createScreenView({panel,status,text,input,header:{offsetHeight:80},api:async(path,options)=>{
+  if(path.endsWith('/key'))return {key:'Enter',outcome:'accepted'}
+  if(path.endsWith('/approval'))return {status:'none'}
+  screens++;open++;max=Math.max(max,open);if(screens===2)await gate.promise;open--;return {online:true,screen:'s'}}})
+ await view.open({id:'a',displayName:'A'})
+ assert.deepEqual(ticks.map(tick=>tick.ms),[1000]);assert.match(status.textContent,/1秒ごとに更新/)
+ const next=ticks[0].fn();await settle()
+ assert.equal(screens,2);assert.equal(ticks.length,1)
+ const key=all(input,node=>node.dataset?.screenKey==='Enter')[0];key.listeners.click();await settle();await settle()
+ assert.equal(screens,2);assert.equal(max,1)
+ gate.resolve();await next;await settle()
+ assert.equal(screens,3);assert.equal(max,1);assert.deepEqual(ticks.map(tick=>tick.ms),[1000,1000])
 })
