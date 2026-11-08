@@ -68,7 +68,7 @@ Source reach: `web/index.html` (section icon attributes), `web/styles.css`, `web
 
 ## Claude 1st/2nd accounts (2026-11-08, Owner via Trony)
 
-Contract: [harness accounts](../execution/harness-accounts.md) (execution owns the registry and selection; Mika owns HarnessAuth slots; Molly owns the routes). The Web only renders and calls the routes below; it never picks a slot, parses a limit or computes a reset.
+Contract: [harness accounts](../execution/harness-accounts.md) (execution owns the registry and selection; Mika owns HarnessAuth slots; Molly owns the routes). The HTTP paths the Web calls are the canonical [Public HTTP](../execution/harness-accounts.md#public-http-fixed-2026-11-08-by-the-feature-owner-admis-web-shape-accepted) table there; the diagram below only names them. The Web only renders and calls those routes; it never picks a slot, parses a limit or computes a reset.
 
 ```mermaid
 flowchart TD
