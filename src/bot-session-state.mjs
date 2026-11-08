@@ -9,6 +9,8 @@ function changeReport(bot, name, args, result, error) {
     at: new Date().toISOString(), botId: select(bot.id, /^[A-Za-z0-9_-]{1,64}$/u), tool: name,
     session: select(args.session_id ?? args.session_name, /^[A-Za-z0-9_-]{1,64}$/u),
     returned: error === undefined || error?.aitermResponseReturned === true,
+    // An Aiterm error result (isError) carries its code only as the text's leading token ("AGENT_RESUME_CONFLICT: ...").
+    code: select(error?.code ?? (result?.isError === true ? String(result.content?.[0]?.text ?? '').split(':')[0] : undefined), /^(?:AGENT|AITERM|ACCOUNT)_[A-Z_]{2,60}$/u),
     isError: error === undefined ? result?.isError === true : error?.aitermResponseReturned === true ? true : null,
     schema: select(value?.schema, /^aiterm\.(?:pty-close|agent-launch)-result\.v1$/u),
     session_id: select(value?.session_id, /^[A-Za-z0-9_-]{1,64}$/u),

@@ -39,7 +39,7 @@ async function fixture(t, { failures = 1, onAuth = () => {}, changeFailure = x =
       return { structuredContent: receipt }
     }
     if (name === 'pty_close') { if (closeUnknown) throw Error('lost close result'); return { structuredContent: { session_id: args.session_id } } }
-    if (name === 'agent_launch') return { structuredContent: { session_id: bot.id } }
+    if (name === 'agent_launch') return { structuredContent: { schema: 'aiterm.agent-launch-result.v1', session_id: bot.id, startup: { status: 'ready' }, initial_prompt: { status: 'not_requested' } } }
     if (name === 'pty_read') return { structuredContent: { schema: 'aiterm.pty-read-result.v1', mode: 'agent_transcript', text: '', turn_id: `turn-${sends}` } }
     if (name === 'pty_observe') return { structuredContent: { words: [], event_cursor: sends } }
     throw Error(`unexpected ${name}`)

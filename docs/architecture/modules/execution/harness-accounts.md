@@ -105,12 +105,14 @@ Effective slot = the 1st if it is not limited for the seat's scope. Otherwise it
 | --- | --- |
 | A seat's turn ends rate-limited on S | Record the (S, scope) entry. If another slot is available, reconfigure that seat to the other slot and resume the same vendor session (E2), then send the existing capacity-continuation message without changing harness or model. If none is available, the existing CapacityContinuation (another harness) runs unchanged. |
 | Seat whose slot is limited for its scope, idle or between turns | Switch it to its effective slot at the next turn boundary, through the existing configuration application (close at idle, resume). A running turn is never stopped. |
-| Seat starting while the 1st is limited for its scope | Launch directly on the effective slot. |
+| Seat starting while the 1st is limited for its scope | Launch directly on the effective slot. This holds for every launch, the delivery-bound (execution) launch included, and for a hibernated seat woken by a delivery (its resume moves to the effective slot through E2). |
 | Model change in place (`agent_configure`, same CLI) | Select again for the new model; if the slot differs, switch at the next idle boundary (`moveAtBoundary`). So a seat changed to Opus while the 1st is limited only for Fable goes back to the 1st, and a seat changed to Fable goes to the 2nd. |
 | An (S, scope) entry ends | Each seat whose effective slot changes because of it (back to the 1st) switches at its next idle boundary. |
 | Both slots limited for a scope | `accounts.list()` lists that scope in `allLimited:[{scope, earliestResetAt}]`. Mika shows it on the AIの認証 card and in the status banner. Seats keep running as described above. |
 
 The switch reuses the existing resume path, so the conversation, docs and Throughline continue. The vendor session id stays the same, and the launch id changes as it does for a model change.
+
+The switch itself is two Aiterm calls and nothing else: `pty_close {session_id, hibernate:true}` (E4), then a resume-only `agent_launch {harness:'claude-code', session_name, require_existing_resume:true, configuration_root}` (E2). It passes no model, effort, cwd or env, so the saved recipe decides them and only the root changes. (Production 2026-11-09 07:12 JST: the switch used the ordinary wake, which re-sends the launch env as `env_vars`; Aiterm refused the resume after the hibernate and the seat stayed hibernated on no slot.) A refused or unconfirmed resume leaves the seat hibernated; the next delivery wakes it on the effective slot (row above), so the seat leaves that state on its own. The session result log line names the returned Aiterm error code (`code`, only an `AGENT_`, `AITERM_` or `ACCOUNT_` token).
 
 ## Implementation map
 
@@ -118,9 +120,9 @@ The switch reuses the existing resume path, so the conversation, docs and Throug
 | --- | --- |
 | Registry, prepare, selection, limits, timers, re-read, list | `src/harness-accounts.mjs` `HarnessAccounts`, one per execution engine; `load()` at engine initialize re-arms the timers |
 | Limit text parser, model family | `src/claude-limit-text.mjs` |
-| Launch on the selected root, seat slot record | `AitermTransport.wakeNow` (`configuration_root`; an Aiterm without it gets `ACCOUNT_CAPABILITY_UNAVAILABLE` from the client's tool-schema check and the seat launches on the default root as before) |
+| Launch on the selected root, seat slot record | `AitermTransport.wakeNow`, every launch including the execution-bound one (`configuration_root`; an Aiterm without it gets `ACCOUNT_CAPABILITY_UNAVAILABLE` from the client's tool-schema check and the seat launches on the default root as before) |
 | Limit signal → registry | `AitermTransport.recordAccountLimit` from the delivery completion (wait outcome `rate_limited` or `failure.category` `rate_limited`; text = `rate_limit` or `error`) |
-| Failover | `CapacityContinuation.continue`: an account switch of the same harness first (`transport.switchAccount` = `pty_close {hibernate:true}` then the ordinary wake), then the existing harness switch if the account switch is impossible |
+| Failover | `CapacityContinuation.continue`: an account switch of the same harness first (`transport.switchAccount` = `pty_close {hibernate:true}` then the resume-only `agent_launch` above), then the existing harness switch if the account switch is impossible |
 | Idle-boundary moves and return | `AitermTransport.reviewAccounts` / `moveAtBoundary` on every registry change and after a model change applied in place (`reconfigureNow`); `AGENT_BUSY` waits for the turn and retries, never stops it |
 | Successful-turn exit | `AitermTransport.accountTurnDone` on delivery completion |
 | Parent Aiterm env | `AitermClient` (parent clients): `AITERM_CLAUDE_CONFIG_ROOTS` in its own env and in the seat launcher's process env, never in `env_vars`. In production the parent connection starts through the seat command (`/usr/bin/env VAR=… aiterm`), which does not carry `this.env`, so the variable is also an `env` argument there (`seatConnectionEnvironment`). Without it Aiterm rejects every 2nd-root call (`agent_auth` status/start: production 2026-11-08 22:3x JST, USAGE_OPERATION_FAILED). Parent-image source: it goes live with a body swap |

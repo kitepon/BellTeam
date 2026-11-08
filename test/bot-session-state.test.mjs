@@ -134,3 +134,13 @@ test('通常構成（bridge無し）の保存済み配送の回復：resumeは�
   const busy = fixture({ hasJobs: () => true })
   await assert.rejects(busy.closeLaunch(bot, ref, target), { code: 'EXECUTION_BUSY' })
 })
+
+test('an Aiterm error result names its own code token in the session result line (harness-accounts.md switch)', async () => {
+  const lines = []
+  const state = fixture({ call: async () => ({ isError: true, content: [{ type: 'text', text: 'AGENT_RESUME_CONFLICT: private-detail' }] }),
+    writeLog: line => lines.push(line) })
+  await state.changeSession(bot, 'agent_launch', { session_name: bot.session })
+  const r = JSON.parse(lines[0].slice('BellTeam session result: '.length))
+  assert.deepEqual([r.returned, r.isError, r.code], [true, true, 'AGENT_RESUME_CONFLICT'])
+  assert.equal(lines.join('').includes('private-'), false)
+})

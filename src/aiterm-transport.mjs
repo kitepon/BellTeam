@@ -294,7 +294,10 @@ export class AitermTransport {
     const launchOptions = this.client.launchOptions
       ? await this.client.launchOptions(bot.project, runtime) : { env: await loadBotEnvironment(bot.project) }
     let launch
-    const account = harness === 'claude-code' && this.accounts && !execution ? await this.accounts.selection('claude', bot.model) : null
+    const selected = harness === 'claude-code' && this.accounts ? await this.accounts.selection('claude', bot.model) : null
+    // A delivery-bound launch carries the root only when it changes something (a 2nd seat, or a seat leaving one):
+    // the bridge issues one launch, so its old-Aiterm fallback below cannot retry; 1st launches stay as before.
+    const account = selected && (!execution || selected.slot !== '1st' || (this.accounts.seatSlot(bot.id) ?? '1st') !== '1st') ? selected : null
     try {
       this.requireStopVersion(bot.id, version)
       admissionCheck?.()
@@ -1524,11 +1527,23 @@ export class AitermTransport {
     const run = () => this.memberOperation(bot, async membersLease => {
       const version = this.captureStopVersion(bot)
       admissionCheck?.()
-      await this.changeSession(bot, 'pty_close', { session_id: this.session(bot), hibernate: true })
+      const session = this.session(bot)
+      await this.changeSession(bot, 'pty_close', { session_id: session, hibernate: true })
       await this.removeRetainedImages(bot.id)
       this.requireStopVersion(bot.id, version)
       admissionCheck?.()
-      return this.wake(bot, { membersLease, ...(admissionCheck ? { admissionCheck } : {}) })
+      // Resume only (E2): no model, effort, cwd or env, so the saved recipe decides them and only the root changes.
+      const account = await this.accounts.selection('claude', bot.model)
+      const result = await this.changeSession(bot, 'agent_launch', { harness: 'claude-code', session_name: session,
+        require_existing_resume: true, configuration_root: account.configurationRoot })
+      this.membersAdmission.assertLease(membersLease)
+      this.requireStopVersion(bot.id, version)
+      const receipt = result?.structuredContent
+      if (receipt?.schema !== 'aiterm.agent-launch-result.v1' || receipt.session_id !== session || receipt.startup?.status !== 'ready')
+        throw Object.assign(new Error('ACCOUNT_SWITCH_UNCONFIRMED'), { code: 'ACCOUNT_SWITCH_UNCONFIRMED' })
+      this.seatHarnesses.set(bot.id, { session, harness: 'claude-code' })
+      await this.accounts.setSeat(bot.id, account.slot).catch(() => {})
+      return { botId: bot.id, session, slot: account.slot }
     })
     const previous = this.activity.configurationChanges.get(bot.id) ?? Promise.resolve()
     return this.activity.configurationChanges.track(bot.id, previous.then(run, run))
