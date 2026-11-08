@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T11:43:22Z",
-  "expiresAt": "2026-11-15T11:43:22Z",
+  "publishedAt": "2026-11-08T11:51:38Z",
+  "expiresAt": "2026-11-15T11:51:38Z",
   "releases": [
     {
       "componentId": "usage",
@@ -631,6 +631,76 @@
       },
       "changes": [
         "Botが、今のターンが終わったら一度だけ続きを始める予定を作れるようにします。"
+      ]
+    },
+    {
+      "componentId": "work-graph",
+      "sourceCommit": "efc2b3e135540b1c5634fa90e501db3b1c00e2e1",
+      "versionId": "1b8c8c762be2aa37310cd24efab091e17747b64c6d9b8572a3949ac703bf00b6",
+      "platform": {
+        "os": "linux",
+        "arch": "amd64"
+      },
+      "artifact": {
+        "kind": "archive",
+        "archive": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T113242Z/work-graph-efc2b3e135540b1c5634fa90e501db3b1c00e2e1-linux-amd64.tar.gz",
+          "bytes": 3820610,
+          "sha256": "1b8c8c762be2aa37310cd24efab091e17747b64c6d9b8572a3949ac703bf00b6"
+        },
+        "bundle": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T113242Z/work-graph-efc2b3e135540b1c5634fa90e501db3b1c00e2e1-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11048,
+          "sha256": "7b13e3a52488f17cb162bc800a4447dfe82e835e1a2955b0f764901911e0b039"
+        },
+        "signerCommit": "efc2b3e135540b1c5634fa90e501db3b1c00e2e1"
+      },
+      "compatibility": {
+        "nodeMajor": 26,
+        "parentProtocol": 1,
+        "stateSchema": null,
+        "containerUpdate": null,
+        "stateCompatibility": {
+          "state": "none"
+        }
+      },
+      "changes": [
+        "相関図を本体から独立した部品にし、相関図だけを更新できるようにします。"
+      ]
+    },
+    {
+      "componentId": "work-graph",
+      "sourceCommit": "efc2b3e135540b1c5634fa90e501db3b1c00e2e1",
+      "versionId": "fd88d726230dbab7e93219344f55edd029558c85663bb0e2b0544a973acf30d1",
+      "platform": {
+        "os": "linux",
+        "arch": "arm64"
+      },
+      "artifact": {
+        "kind": "archive",
+        "archive": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T113242Z/work-graph-efc2b3e135540b1c5634fa90e501db3b1c00e2e1-linux-arm64.tar.gz",
+          "bytes": 3820610,
+          "sha256": "fd88d726230dbab7e93219344f55edd029558c85663bb0e2b0544a973acf30d1"
+        },
+        "bundle": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T113242Z/work-graph-efc2b3e135540b1c5634fa90e501db3b1c00e2e1-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11048,
+          "sha256": "945dfad291c32ac53a313596f740b558c9555cfaafc1dec00ad0dc45c552830e"
+        },
+        "signerCommit": "efc2b3e135540b1c5634fa90e501db3b1c00e2e1"
+      },
+      "compatibility": {
+        "nodeMajor": 26,
+        "parentProtocol": 1,
+        "stateSchema": null,
+        "containerUpdate": null,
+        "stateCompatibility": {
+          "state": "none"
+        }
+      },
+      "changes": [
+        "相関図を本体から独立した部品にし、相関図だけを更新できるようにします。"
       ]
     },
     {
