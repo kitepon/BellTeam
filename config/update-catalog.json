@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T12:42:48Z",
-  "expiresAt": "2026-11-15T12:42:48Z",
+  "publishedAt": "2026-11-08T12:53:17Z",
+  "expiresAt": "2026-11-15T12:53:17Z",
   "releases": [
     {
       "componentId": "usage",
@@ -425,8 +425,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "00be7c5c1ecbd7e2523348d24972ef3645af5a0d",
-      "versionId": "e22a4198b04ef6c2b3441e7422dbbd4a7b90afb9f59fea9c82f85cda7f9219ab",
+      "sourceCommit": "0c633e0baba3260ecc66a4229c7875e6b7a67249",
+      "versionId": "a285502ec7405c65865c79b7788064075c440ff12bfa341c0857e07c6539dd9e",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -434,16 +434,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T120615Z/web-gateway-00be7c5c1ecbd7e2523348d24972ef3645af5a0d-linux-amd64.tar.gz",
-          "bytes": 5070251,
-          "sha256": "e22a4198b04ef6c2b3441e7422dbbd4a7b90afb9f59fea9c82f85cda7f9219ab"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T124002Z/web-gateway-0c633e0baba3260ecc66a4229c7875e6b7a67249-linux-amd64.tar.gz",
+          "bytes": 5082089,
+          "sha256": "a285502ec7405c65865c79b7788064075c440ff12bfa341c0857e07c6539dd9e"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T120615Z/web-gateway-00be7c5c1ecbd7e2523348d24972ef3645af5a0d-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11021,
-          "sha256": "c0422ddb4008a4bcf77f58169a2674762e847c2569ab5f08769916681b779d44"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T124002Z/web-gateway-0c633e0baba3260ecc66a4229c7875e6b7a67249-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10876,
+          "sha256": "408d49a048107ff8d60d96d458e54a0b72deb4bc98461dd47cb800858e04aeea"
         },
-        "signerCommit": "00be7c5c1ecbd7e2523348d24972ef3645af5a0d"
+        "signerCommit": "0c633e0baba3260ecc66a4229c7875e6b7a67249"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -452,13 +452,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "Webに相関図のボタンを加え、作業中のメンバーとBot間の依頼を図で見られるようにします。設定の「AIの認証」で、認証済みの行に同じ案内が重ねて出ないようにします。Claudeの2つのアカウントの欄は、本体が対応した後に表示されます。"
+        "相関図が画面の縦と横をいっぱいに使って並ぶようにします。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "00be7c5c1ecbd7e2523348d24972ef3645af5a0d",
-      "versionId": "a2e2c1ebee4927c52e945051f17837bd1c0d8994823f4d7933b49e4c457dd5c8",
+      "sourceCommit": "0c633e0baba3260ecc66a4229c7875e6b7a67249",
+      "versionId": "69bdcbbe57d0399b75db0780a4c0c4b8397601eb68d46f151fb3037df50bd3b3",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -466,16 +466,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T120615Z/web-gateway-00be7c5c1ecbd7e2523348d24972ef3645af5a0d-linux-arm64.tar.gz",
-          "bytes": 5070251,
-          "sha256": "a2e2c1ebee4927c52e945051f17837bd1c0d8994823f4d7933b49e4c457dd5c8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T124002Z/web-gateway-0c633e0baba3260ecc66a4229c7875e6b7a67249-linux-arm64.tar.gz",
+          "bytes": 5082089,
+          "sha256": "69bdcbbe57d0399b75db0780a4c0c4b8397601eb68d46f151fb3037df50bd3b3"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T120615Z/web-gateway-00be7c5c1ecbd7e2523348d24972ef3645af5a0d-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10864,
-          "sha256": "11413eb14511d5f21e113d69c19a2c3cd02ad78342f4c3815aa2c5c0f99e2b4a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T124002Z/web-gateway-0c633e0baba3260ecc66a4229c7875e6b7a67249-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10876,
+          "sha256": "ec8e065a44900c5b9e8a4a20a1d49745742b28e2562445f4e71cd79d9f65be19"
         },
-        "signerCommit": "00be7c5c1ecbd7e2523348d24972ef3645af5a0d"
+        "signerCommit": "0c633e0baba3260ecc66a4229c7875e6b7a67249"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -484,7 +484,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "Webに相関図のボタンを加え、作業中のメンバーとBot間の依頼を図で見られるようにします。設定の「AIの認証」で、認証済みの行に同じ案内が重ねて出ないようにします。Claudeの2つのアカウントの欄は、本体が対応した後に表示されます。"
+        "相関図が画面の縦と横をいっぱいに使って並ぶようにします。"
       ]
     },
     {
