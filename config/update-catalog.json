@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T11:40:35Z",
-  "expiresAt": "2026-11-15T11:40:35Z",
+  "publishedAt": "2026-11-08T11:43:22Z",
+  "expiresAt": "2026-11-15T11:43:22Z",
   "releases": [
     {
       "componentId": "usage",
@@ -425,8 +425,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "63bb7a9b838a04ee8521a7ed04a3a697839eb9e2",
-      "versionId": "9e387c84f639269cac5cc7a801dcb646106fa100fb808eaa8cdc5dc502e9c0df",
+      "sourceCommit": "24e4ecfa10274aa2d7e6208a291f28e350ac3bb1",
+      "versionId": "f0759b5e741445c506de5827ede6e7bd20d76d07821ef135a5ce6a52506e0d71",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -434,16 +434,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T075742Z/web-gateway-63bb7a9b838a04ee8521a7ed04a3a697839eb9e2-linux-amd64.tar.gz",
-          "bytes": 5045138,
-          "sha256": "9e387c84f639269cac5cc7a801dcb646106fa100fb808eaa8cdc5dc502e9c0df"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T114012Z/web-gateway-24e4ecfa10274aa2d7e6208a291f28e350ac3bb1-linux-amd64.tar.gz",
+          "bytes": 5060051,
+          "sha256": "f0759b5e741445c506de5827ede6e7bd20d76d07821ef135a5ce6a52506e0d71"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T075742Z/web-gateway-63bb7a9b838a04ee8521a7ed04a3a697839eb9e2-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11005,
-          "sha256": "4b5d99cd388c742d46294b49e0f99cc0bcade12837bdce9adb38cf6ea25cd55b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T114012Z/web-gateway-24e4ecfa10274aa2d7e6208a291f28e350ac3bb1-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10833,
+          "sha256": "1e2607a9709a07da1a8d0a1fe26a8191bcac24b18da71bd489eaacd22a57819a"
         },
-        "signerCommit": "63bb7a9b838a04ee8521a7ed04a3a697839eb9e2"
+        "signerCommit": "24e4ecfa10274aa2d7e6208a291f28e350ac3bb1"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -452,13 +452,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "メンバー一覧で、作業要約が1行のときも名前のすぐ下に出るようにします。"
+        "設定の「AIの認証」で、Claudeの1stアカウントと2ndアカウントを別々に登録できるようにします。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "63bb7a9b838a04ee8521a7ed04a3a697839eb9e2",
-      "versionId": "a086d42735ea144f64087572dc2fb6f257f95de2f3e67a854fd81461e33afbe6",
+      "sourceCommit": "24e4ecfa10274aa2d7e6208a291f28e350ac3bb1",
+      "versionId": "34546a2fb91cbadb878a19185502ce5c09d786e5e696941493752b4b859db1d2",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -466,16 +466,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T075742Z/web-gateway-63bb7a9b838a04ee8521a7ed04a3a697839eb9e2-linux-arm64.tar.gz",
-          "bytes": 5045138,
-          "sha256": "a086d42735ea144f64087572dc2fb6f257f95de2f3e67a854fd81461e33afbe6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T114012Z/web-gateway-24e4ecfa10274aa2d7e6208a291f28e350ac3bb1-linux-arm64.tar.gz",
+          "bytes": 5060051,
+          "sha256": "34546a2fb91cbadb878a19185502ce5c09d786e5e696941493752b4b859db1d2"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T075742Z/web-gateway-63bb7a9b838a04ee8521a7ed04a3a697839eb9e2-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11158,
-          "sha256": "93c233770f1c978784adc684a4a86883d5376fccba953e2ba8d7b608216a4883"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T114012Z/web-gateway-24e4ecfa10274aa2d7e6208a291f28e350ac3bb1-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10641,
+          "sha256": "47dd6481b111ea1c38ca4684abf55b067d678142c9cff1db18ea645fdd280088"
         },
-        "signerCommit": "63bb7a9b838a04ee8521a7ed04a3a697839eb9e2"
+        "signerCommit": "24e4ecfa10274aa2d7e6208a291f28e350ac3bb1"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -484,7 +484,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "メンバー一覧で、作業要約が1行のときも名前のすぐ下に出るようにします。"
+        "設定の「AIの認証」で、Claudeの1stアカウントと2ndアカウントを別々に登録できるようにします。"
       ]
     },
     {
