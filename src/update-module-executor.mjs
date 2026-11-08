@@ -76,7 +76,7 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
     const used = new Set(state.operations.map(entry => entry.operation.plan.planId))
     const kept = state.plans.filter(entry => used.has(entry.plan.planId) || Date.parse(entry.plan.expiresAt) > now())
     // An expired, never-started container plan also leaves the Host adapter's plan directory.
-    for (const entry of state.plans) if (entry.hostPlan && !kept.includes(entry)) void Promise.resolve(host?.forgetPlan?.(entry.plan.planId)).catch(() => {})
+    for (const entry of state.plans) if (entry.hostPlan && !kept.includes(entry)) void Promise.resolve(host?.forgetPlan?.(entry.hostPlan.planId)).catch(() => {})
     state.plans = kept
   }
   const save = async () => {
