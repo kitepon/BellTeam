@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T05:53:50Z",
-  "expiresAt": "2026-11-15T05:53:50Z",
+  "publishedAt": "2026-11-08T06:09:12Z",
+  "expiresAt": "2026-11-15T06:09:12Z",
   "releases": [
     {
       "componentId": "usage",
@@ -635,15 +635,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "db3a77691964a96e31e74f46cc1246b7d12bb7f9",
-      "versionId": "sha256:cb41551f139bb61f23b7a96ca4316d7d779bb07e5d6402a398c2b5fe86ae4a09",
+      "sourceCommit": "68521582f5407edb6146f135e34e0179838430a0",
+      "versionId": "sha256:b7325088c8c8b83214cae9ddf11969f7f66b31602d1134e6a64b367b51c06830",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:cb41551f139bb61f23b7a96ca4316d7d779bb07e5d6402a398c2b5fe86ae4a09"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b7325088c8c8b83214cae9ddf11969f7f66b31602d1134e6a64b367b51c06830"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -652,20 +652,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "画面の入力の受け取りを直し、通知を送った結果の記録を通知の画面で見られるように本体を準備します。"
+        "部品の入れ替え中もメンバー一覧などを止めずに返し、会話の部品が終わる時の処理と記録を直します。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "db3a77691964a96e31e74f46cc1246b7d12bb7f9",
-      "versionId": "sha256:cb41551f139bb61f23b7a96ca4316d7d779bb07e5d6402a398c2b5fe86ae4a09",
+      "sourceCommit": "68521582f5407edb6146f135e34e0179838430a0",
+      "versionId": "sha256:b7325088c8c8b83214cae9ddf11969f7f66b31602d1134e6a64b367b51c06830",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:cb41551f139bb61f23b7a96ca4316d7d779bb07e5d6402a398c2b5fe86ae4a09"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b7325088c8c8b83214cae9ddf11969f7f66b31602d1134e6a64b367b51c06830"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -674,7 +674,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "画面の入力の受け取りを直し、通知を送った結果の記録を通知の画面で見られるように本体を準備します。"
+        "部品の入れ替え中もメンバー一覧などを止めずに返し、会話の部品が終わる時の処理と記録を直します。"
       ]
     }
   ],
