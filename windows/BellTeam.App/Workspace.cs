@@ -30,7 +30,16 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
 {
     private readonly Func<Uri, BellApi> apiFactory;
     private readonly Func<Uri, Task>? prepareConnection;
-    public Workspace(Func<Uri, BellApi>? apiFactory = null, Func<Uri, Task>? prepareConnection = null) { this.apiFactory = apiFactory ?? (origin => new BellApi(origin)); this.prepareConnection = prepareConnection; }
+    private readonly Func<int, CancellationToken, Task> retryDelay;
+    // retryDelay waits before automatic attempt number n (0, 1, 2...); tests replace it so no real backoff is waited.
+    public Workspace(Func<Uri, BellApi>? apiFactory = null, Func<Uri, Task>? prepareConnection = null, Func<int, CancellationToken, Task>? retryDelay = null)
+    {
+        this.apiFactory = apiFactory ?? (origin => new BellApi(origin)); this.prepareConnection = prepareConnection;
+        this.retryDelay = retryDelay ?? ((attempt, token) => Task.Delay(ReconnectBackoff.Ms(attempt), token));
+    }
+    public Task RetryDelayAsync(int attempt, CancellationToken token) => retryDelay(attempt, token);
+    // False when the last failed connection was a refused login: retrying cannot fix it, the login page or the message stays.
+    public bool ConnectionRetryable { get; private set; } = true;
     private BellApi? api;
     private CancellationTokenSource? connection;
     private CancellationTokenSource? selection;
@@ -184,6 +193,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
         Loading = false;
         Changed(nameof(Selected)); Changed(nameof(HasSelection)); Changed(nameof(Connected)); Changed(nameof(EditLabel)); Changed(nameof(CanShowScreen)); Changed(nameof(IsRoom)); Changed(nameof(Title)); Changed(nameof(Profile)); Changed(nameof(Server)); DraftChanged();
         ConnectionError = null;
+        ConnectionRetryable = true;
         NeedsLogin = false;
         ActionError = null;
         ConnectionStatus = "接続を確認しています…";
@@ -196,29 +206,61 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
             token.ThrowIfCancellationRequested();
             var session = await current.GetAsync<SessionInfo>("/api/session", token);
             AuthMode = session.AuthMode; Changed(nameof(AuthMode));
-            if (!session.Authenticated) { NeedsLogin = session.AuthMode == "cloudflare"; throw new BellApiException(NeedsLogin ? "Cloudflare Accessへログインしてください。" : "接続先が認証を拒否しました。サーバーの設定を確認してください。"); }
+            if (!session.Authenticated) { ConnectionRetryable = false; NeedsLogin = session.AuthMode == "cloudflare"; throw new BellApiException(NeedsLogin ? "Cloudflare Accessへログインしてください。" : "接続先が認証を拒否しました。サーバーの設定を確認してください。"); }
             await RefreshAsync(current, token);
             ready = true; Changed(nameof(Connected));
             ConnectionStatus = "接続済み";
             if (listen) _ = ListenAsync(current, token);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-        catch (Exception error) { if (api == current) { ConnectionError = error.Message; ConnectionStatus = "接続できませんでした。"; } }
+        catch (Exception error) { if (api == current) { if (error is BellApiException { RequiresLogin: true }) ConnectionRetryable = false; ConnectionError = error.Message; ConnectionStatus = "接続できませんでした。"; } }
     }
 
+    // Trony 11-08: only cancel, sign-out and a refused login stop; every other failure is shown and reconnects on the backoff (the Mac stops on a malformed stream).
+    private static string? ReconnectText(Exception error) => error switch
+    {
+        BellApiException { RequiresLogin: true } => null,
+        BellApiException { Code: BellApiException.StreamEndedCode } => BellApiException.StreamEndedMessage,
+        BellApiException { Status: { } status } when (int)status == 429 || (int)status >= 500 => BellApiException.ConnectFailedMessage,
+        // The 30 s handshake limit cancels without our token being cancelled: that is a connection failure too.
+        System.Net.Http.HttpRequestException or IOException or OperationCanceledException => BellApiException.ConnectFailedMessage,
+        _ => BellApiException.ConnectFailedMessage + "（" + error.Message + "）"
+    };
+
+    // One stream at a time: after it ends or fails to open, wait the backoff (0/1/2/4/8/15 s) and open the next. Only cancel, sign-out, a new connection or a non-retryable error leaves the loop.
     private async Task ListenAsync(BellApi current, CancellationToken token)
     {
-        try
+        var attempt = 0; string? reconnecting = null;
+        while (true)
         {
-            await foreach (var item in current.EventsAsync(token))
+            var started = System.Diagnostics.Stopwatch.GetTimestamp();
+            try
             {
-                ConnectionStatus = "接続済み・新着を受信中";
-                if (item.TryGetProperty("type", out var type) && type.ValueKind == System.Text.Json.JsonValueKind.String && type.GetString() == "updates") UpdatesChanged?.Invoke();
-                if (item.EnumerateObject().Any()) { if (GoalEvents.ShouldReload(item, ConnectionError is not null)) GoalEvent?.Invoke(); await RefreshAsync(current, token, notify: true); ServerChanged?.Invoke(); }
+                await foreach (var item in current.EventsAsync(token))
+                {
+                    var hadError = ConnectionError is not null; var recovered = reconnecting is not null;
+                    if (recovered && ConnectionError == reconnecting) ConnectionError = null;
+                    reconnecting = null;
+                    ConnectionStatus = "接続済み・新着を受信中";
+                    if (item.TryGetProperty("type", out var type) && type.ValueKind == System.Text.Json.JsonValueKind.String && type.GetString() == "updates") UpdatesChanged?.Invoke();
+                    // Events may have been missed while the stream was down, so the first event after a reconnect reads everything again.
+                    if (recovered || item.EnumerateObject().Any()) { if (GoalEvents.ShouldReload(item, hadError)) GoalEvent?.Invoke(); await RefreshAsync(current, token, notify: true); ServerChanged?.Invoke(); }
+                }
             }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
+            catch (Exception error)
+            {
+                if (api != current || token.IsCancellationRequested) return;
+                reconnecting = ReconnectText(error);
+                ConnectionError = reconnecting ?? error.Message;
+                ConnectionStatus = reconnecting is null ? "新着の受信が停止しました。" : "新着を再接続しています…";
+                if (reconnecting is null) return;
+            }
+            // Mac: a stream that stayed up over 30 s starts the schedule again; a connection that drops at once keeps backing off.
+            if (System.Diagnostics.Stopwatch.GetElapsedTime(started) > ReconnectBackoff.StableConnection) attempt = 0;
+            try { await RetryDelayAsync(attempt++, token); }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
         }
-        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-        catch (Exception error) { if (api == current) { ConnectionError = error.Message; ConnectionStatus = "新着の受信が停止しました。"; } }
     }
 
     private async Task RefreshAsync(BellApi current, CancellationToken token, bool notify = false)

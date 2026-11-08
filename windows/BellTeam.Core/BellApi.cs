@@ -13,6 +13,11 @@ public sealed class BellApiException(string message, HttpStatusCode? status = nu
     public string? Code { get; } = code;
     // The server may or may not have acted: no HTTP answer, an unreadable answer, or a server error.
     public static bool IsResultUnconfirmed(Exception error) => error is not BellApiException { Status: not null } || (int)((BellApiException)error).Status! >= 500;
+    // The update stream closed after it had opened (Mac: 更新の接続が切れました。再接続しています。).
+    public const string StreamEndedCode = "EVENTS_ENDED";
+    public const string StreamEndedMessage = "更新の接続が切れました。再接続しています。";
+    // Mac events(): connecting failed (network, 429, 5xx); retried by the caller.
+    public const string ConnectFailedMessage = "更新へ接続できません。再接続しています。";
     public bool RequiresLogin => Status is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden || (int?)Status is >= 300 and < 400;
 }
 
@@ -175,7 +180,7 @@ public sealed class BellApi : IDisposable
             throw new BellApiException("新着の応答がSSEではありません。");
         await using var stream = await response.Content.ReadAsStreamAsync(token);
         await foreach (var item in SseReader.ReadAsync(stream, token)) yield return item;
-        throw new BellApiException("新着の接続が終了しました。「再接続」を押してください。");
+        throw new BellApiException(BellApiException.StreamEndedMessage, code: BellApiException.StreamEndedCode);
     }
 
     public void Dispose() => client.Dispose();

@@ -211,14 +211,14 @@ public partial class App : Application
             if (e.Args is ["--render-startup", var startupScene, var startupAddress, var startupOutput])
             {
                 // The startup screens read from the mock server (GET only). The routing is the real one: the mock answers the session and setup the scene needs.
-                var model = new Workspace(); var window = new MainWindow(model, persistPlacement: false);
+                var model = new Workspace(); var window = new MainWindow(model, persistPlacement: false) { AutoRetry = false };
                 StartupPhase? expected = startupScene switch { "opening" => StartupPhase.Checking, "setup" or "guide" => StartupPhase.Setup, "failure" => StartupPhase.Failure, "login" => StartupPhase.SignIn, "onboarding-choose" or "onboarding-waiting" => StartupPhase.Onboarding, "banner" => StartupPhase.Ready, _ => null };
                 if (expected is null) throw new ArgumentException("未対応の起動画面です。");
                 if (startupScene == "opening") window.ShowOpeningForRender();
                 else if (startupScene is "setup" or "guide") { window.ShowServerSetup(); if (startupScene == "guide") window.ShowServerGuide(); }
                 else await window.ConnectAsync(startupAddress, openLogin: false);
                 if (window.Startup != expected) throw new BellApiException($"起動画面が想定と違います: {window.Startup}");
-                if (startupScene == "banner") model.SetConnectionErrorForRender("新着の接続が終了しました。「再接続」を押してください。");
+                if (startupScene == "banner") model.SetConnectionErrorForRender("更新の接続が切れました。再接続しています。");
                 var startupRoot = (FrameworkElement)window.Content;
                 startupRoot.Measure(new Size(1280, 820)); startupRoot.Arrange(new Rect(0, 0, 1280, 820)); startupRoot.UpdateLayout();
                 await window.PrepareRenderAsync();
