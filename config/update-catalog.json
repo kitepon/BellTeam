@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T03:04:05Z",
-  "expiresAt": "2026-11-15T03:04:05Z",
+  "publishedAt": "2026-11-08T03:19:26Z",
+  "expiresAt": "2026-11-15T03:19:26Z",
   "releases": [
     {
       "componentId": "usage",
@@ -353,8 +353,8 @@
     },
     {
       "componentId": "diagnostics",
-      "sourceCommit": "febbe3a129dd580e63e3cb26f7331c869daf06a3",
-      "versionId": "fa3f9afa4be312767c0dc031e3a1501e4ff01a1592a0238c86a1e62703f1546a",
+      "sourceCommit": "9b964b1267e86a0c616054d9e092137b4d790358",
+      "versionId": "c4574f40bf4deff3f7b7bb64f15eb3849a4f87de3be1adef0cae5b49f2ced732",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -362,16 +362,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T100349Z/diagnostics-febbe3a129dd580e63e3cb26f7331c869daf06a3-linux-amd64.tar.gz",
-          "sha256": "fa3f9afa4be312767c0dc031e3a1501e4ff01a1592a0238c86a1e62703f1546a",
-          "bytes": 3826276
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T031058Z/diagnostics-9b964b1267e86a0c616054d9e092137b4d790358-linux-amd64.tar.gz",
+          "bytes": 3827283,
+          "sha256": "c4574f40bf4deff3f7b7bb64f15eb3849a4f87de3be1adef0cae5b49f2ced732"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T100349Z/diagnostics-febbe3a129dd580e63e3cb26f7331c869daf06a3-linux-amd64.tar.gz.sigstore.json",
-          "sha256": "fb5c1084777d8ddc4d081a23ac4676aaa4bdaf161afb9b63c188d544557ea277",
-          "bytes": 11205
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T031058Z/diagnostics-9b964b1267e86a0c616054d9e092137b4d790358-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10892,
+          "sha256": "36e5bdb7ee7b721104b84dbf954cf129009e0eaa4dafddbec15902c0f415c762"
         },
-        "signerCommit": "febbe3a129dd580e63e3cb26f7331c869daf06a3"
+        "signerCommit": "9b964b1267e86a0c616054d9e092137b4d790358"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -384,13 +384,13 @@
         }
       },
       "changes": [
-        "子の異常終了の有限な診断情報を保存して取得します。"
+        "採用済み修理をモジュール単独更新で適用します。"
       ]
     },
     {
       "componentId": "diagnostics",
-      "sourceCommit": "febbe3a129dd580e63e3cb26f7331c869daf06a3",
-      "versionId": "fa8e96c39f070bf473c3fe493261810ae91b008e4000dea5a7827403f11c9846",
+      "sourceCommit": "9b964b1267e86a0c616054d9e092137b4d790358",
+      "versionId": "f5629702155635a9cbecf1fb547ff8617423bf0bbafe7535ccd15f8f62c9c175",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -398,16 +398,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T100349Z/diagnostics-febbe3a129dd580e63e3cb26f7331c869daf06a3-linux-arm64.tar.gz",
-          "sha256": "fa8e96c39f070bf473c3fe493261810ae91b008e4000dea5a7827403f11c9846",
-          "bytes": 3826276
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T031058Z/diagnostics-9b964b1267e86a0c616054d9e092137b4d790358-linux-arm64.tar.gz",
+          "bytes": 3827283,
+          "sha256": "f5629702155635a9cbecf1fb547ff8617423bf0bbafe7535ccd15f8f62c9c175"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T100349Z/diagnostics-febbe3a129dd580e63e3cb26f7331c869daf06a3-linux-arm64.tar.gz.sigstore.json",
-          "sha256": "90283ba89a301345f1e400459cf54a22167f2fdecdd6801d9debc9cf2ea31f35",
-          "bytes": 11311
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T031058Z/diagnostics-9b964b1267e86a0c616054d9e092137b4d790358-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10841,
+          "sha256": "ee53f4e1eec9fff287253d7530ba3f45f6581f0d3227232901df612d0b72921e"
         },
-        "signerCommit": "febbe3a129dd580e63e3cb26f7331c869daf06a3"
+        "signerCommit": "9b964b1267e86a0c616054d9e092137b4d790358"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -420,7 +420,7 @@
         }
       },
       "changes": [
-        "子の異常終了の有限な診断情報を保存して取得します。"
+        "採用済み修理をモジュール単独更新で適用します。"
       ]
     },
     {
