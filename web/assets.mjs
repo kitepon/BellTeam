@@ -13,6 +13,8 @@ export const webAssetFiles = new Map([
   ['/web-push.js', 'web-push.js'],
   ['/onboarding.js', 'onboarding.js'],
   ['/harness-auth.js', 'harness-auth.js'],
+  ['/work-graph.js', 'work-graph.js'],
+  ['/work-graph-model.js', 'work-graph-model.js'],
   ['/harness-accounts.js', 'harness-accounts.js'],
   ['/auth-flow.js', 'auth-flow.js'],
   ['/server-origin.js', 'server-origin.js'],
@@ -49,4 +51,4 @@ export const webAssetFiles = new Map([
   ['/icons/icon-512.png', 'icons/icon-512.png'],
 ])
 
-export const versionedWebAssets = new Set(['background-agent-settings.js', 'sw.js', 'notification-worker.js', 'notification-navigation.js', 'current-work.js', 'schedules-overview.js', 'index.html', 'app.js', 'application.js', 'update-center.js', 'client.js', 'owner-editor.js', 'bot-editor.js', 'room-editor.js', 'schedule-editor.js', 'conversation-timeline.js', 'conversation-composer.js', 'harness-auth.js', 'harness-accounts.js', 'onboarding.js', 'rich-text.js', 'secret-input.js'])
+export const versionedWebAssets = new Set(['background-agent-settings.js', 'sw.js', 'notification-worker.js', 'notification-navigation.js', 'current-work.js', 'schedules-overview.js', 'index.html', 'app.js', 'application.js', 'update-center.js', 'client.js', 'owner-editor.js', 'bot-editor.js', 'room-editor.js', 'schedule-editor.js', 'conversation-timeline.js', 'conversation-composer.js', 'harness-auth.js', 'work-graph.js', 'harness-accounts.js', 'onboarding.js', 'rich-text.js', 'secret-input.js'])

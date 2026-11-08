@@ -20,10 +20,11 @@
       <header class="roster-header">
         <button class="brand-mark" id="owner-profile-button" type="button" aria-label="設定を開く">O</button>
         <div class="header-actions">
+          <button class="circle-button" id="all-schedules-button" type="button" aria-label="すべての予定" title="すべての予定"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg></button>
           <button class="circle-button" id="goals-button" type="button" aria-label="ゴール一覧" title="ゴール一覧">
             <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><path d="m12 12 7-7"/></svg>
           </button>
-          <button class="circle-button" id="all-schedules-button" type="button" aria-label="すべての予定" title="すべての予定"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg></button>
+          <button class="circle-button" id="work-graph-button" type="button" aria-label="相関図" title="相関図"><svg viewBox="0 0 24 24"><circle cx="6" cy="7" r="2.5"/><circle cx="18" cy="7" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M8.5 7h7M7.3 9.2l3.4 6.6M16.7 9.2l-3.4 6.6"/></svg></button>
           <button class="circle-button" id="search-button" type="button" aria-label="名前・役職を検索">
             <svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>
           </button>
@@ -131,6 +132,15 @@
     </div>
   </dialog>
 
+  <dialog class="work-graph-dialog" id="work-graph-dialog" aria-label="相関図">
+    <header class="work-graph-header"><button class="text-button" type="button" data-close-dialog="work-graph-dialog">閉じる</button><h2>相関図</h2><span></span></header>
+    <div class="work-graph-stage" data-work-graph-stage>
+      <canvas aria-hidden="true"></canvas>
+      <p class="work-graph-pill" data-work-graph-pill role="status" hidden></p>
+      <div class="work-graph-empty" data-work-graph-empty><span aria-hidden="true"></span><p>いま動いているメンバーはいません</p></div>
+      <ul class="sr-only" data-work-graph-a11y aria-label="相関図のメンバーと依頼"></ul>
+    </div>
+  </dialog>
   <dialog class="sheet-dialog profile-dialog" id="owner-dialog">
     <div class="owner-settings-layout">
       <header class="sheet-header">
