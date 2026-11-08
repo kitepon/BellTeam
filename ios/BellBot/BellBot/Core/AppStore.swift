@@ -562,6 +562,8 @@ final class AppStore: ObservableObject {
     }
 
     private func requestRefreshFromEvent(resources: Set<EventResource>) {
+        // 裏に回った後に届いた知らせでは読まない（OSに止められて時間切れになる）。前面へ戻った時の再取得が全部読み直す。
+        guard scenePhase != .background else { return }
         eventRefreshResources.formUnion(resources)
         guard eventRefreshTask == nil else { return }
         eventRefreshTask = Task { [weak self] in
@@ -634,6 +636,8 @@ final class AppStore: ObservableObject {
         }
         catch is CancellationError { return }
         catch let error as URLError where error.code == .cancelled { return }
+        // 裏に回って止められている間に切れた読み取りは失敗表示にしない。前面へ戻った時の再取得が読み直す。
+        catch where BellDiagnostics.isSuspendedTimeout(error) { return }
         catch let error where BellAPIError.isAuthenticationError(error) { requireLogin(for: error) }
         catch {
             refreshFailure.fullRefreshFailed(error.localizedDescription)
@@ -675,6 +679,7 @@ final class AppStore: ObservableObject {
             updateConnectionError()
         } catch is CancellationError { return }
         catch let error as URLError where error.code == .cancelled { return }
+        catch where BellDiagnostics.isSuspendedTimeout(error) { return }
         catch let error where BellAPIError.isAuthenticationError(error) { requireLogin(for: error) }
         catch {
             refreshFailure.eventRefreshFailed(error.localizedDescription, resources: resources)
@@ -836,6 +841,7 @@ final class AppStore: ObservableObject {
 
     /// 通知が続けて届いても、読み直しは実行中の1本と次の1回だけにまとめる。
     func requestSideRefresh(_ kinds: Set<SideRefresh>) {
+        guard scenePhase != .background else { return }
         sideRefreshPending.formUnion(kinds)
         guard sideRefreshTask == nil, !sideRefreshPending.isEmpty else { return }
         sideRefreshTask = Task { [weak self] in

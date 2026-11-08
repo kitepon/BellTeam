@@ -27,6 +27,47 @@ final class BellDiagnosticsTests: XCTestCase {
         XCTAssertEqual(background.state, "background")
     }
 
+    func testTimeoutThatSpannedASuspensionIsNotReported() {
+        var reports = 0
+        let diagnostics = BellDiagnostics { _, _, _, _ in reports += 1 }
+        diagnostics.updateAppState("active")
+        let start = diagnostics.requestAppStateSnapshot()
+        diagnostics.updateAppState("inactive")
+        diagnostics.updateAppState("background")
+        diagnostics.updateAppState("active")
+        let end = diagnostics.requestAppStateSnapshot()
+        XCTAssertEqual(end.backgroundEntries, start.backgroundEntries + 1)
+        func timeout(start: BellAppStateSnapshot, end: BellAppStateSnapshot) -> URLError {
+            let attempt = BellRequestAttempt(startedAt: Date(), startedContinuousTick: 0, finishedAt: Date(),
+                                             elapsedMonotonicMs: 137_400, elapsedContinuousMs: 137_400,
+                                             appStateAtStart: start, appStateAtEnd: end,
+                                             returnedResponse: false, errorCode: URLError.timedOut.rawValue, metrics: nil)
+            let trace = BellRequestTrace(route: "/api/rooms", method: "GET", startedAt: Date(), failedAt: Date(),
+                                         appStateAtStart: start.state, attempts: 1, metrics: nil, attemptDetails: [attempt])
+            return URLError(.timedOut, userInfo: [BellRequestTrace.userInfoKey: trace])
+        }
+        let suspended = timeout(start: start, end: end)
+        let stayedActive = timeout(start: end, end: end)
+        diagnostics.updateAppState("background")
+        let backgrounded = diagnostics.requestAppStateSnapshot()
+        let startedInBackground = timeout(start: backgrounded, end: backgrounded)
+        #if targetEnvironment(macCatalyst)
+        XCTAssertFalse(BellDiagnostics.isSuspendedTimeout(suspended), "Macは裏に回っても止められないので通常どおり報告")
+        #else
+        XCTAssertTrue(BellDiagnostics.isSuspendedTimeout(suspended))
+        XCTAssertTrue(BellDiagnostics.isSuspendedTimeout(startedInBackground), "裏で始まった要求の時間切れも同じ（8343d1f5）")
+        diagnostics.report(suspended, path: "/api/rooms", method: "GET", observation: .read(suspended, retainedData: true))
+        XCTAssertEqual(reports, 0, "裏に回って止められた間の時間切れは報告しない")
+        #endif
+        XCTAssertFalse(BellDiagnostics.isSuspendedTimeout(stayedActive))
+        diagnostics.report(stayedActive, path: "/api/rooms", method: "GET", observation: .read(stayedActive, retainedData: true))
+        #if targetEnvironment(macCatalyst)
+        XCTAssertEqual(reports, 1)
+        #else
+        XCTAssertEqual(reports, 1, "前面のままの時間切れは今までどおり報告する")
+        #endif
+    }
+
     func testGoalTimeoutCarriesCallsiteWithoutPrivateRoute() {
         var log = ""
         let diagnostics = BellDiagnostics { _, _, _, value in log = value }

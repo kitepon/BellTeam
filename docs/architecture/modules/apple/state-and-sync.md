@@ -36,7 +36,10 @@ flowchart TD
   Session -->|"認証失敗"| Login["requireLogin<br/>Cloudflareログインまたは設定失敗画面"]
   Refresh -->|"途中失敗"| Fail["callerへthrow<br/>bootstrapはfailure、画面更新は既存一覧とエラー"]
   Avatar -->|"途中失敗"| Fail
+  Refresh -->|"iPhone・iPadで裏に回った間の時間切れ"| Suspended["エラー表示も診断もしない<br/>前面へ戻った時のsceneForeground再取得が読み直す"]
 ```
+
+`BellDiagnostics.isSuspendedTimeout`：iPhone・iPadで、裏で始まった、または要求の途中に裏へ回った（`BellAppStateSnapshot.backgroundEntries`が開始と終了で違う）`URLError.timedOut`。OSがアプリを止めている間も60秒の計時は進み、戻った時にまとめて切れるため、通信の失敗とは扱わない。`refreshFromView`と`refreshResourcesFromEvent`は取消と同じく何も表示せず、`BellDiagnostics.report`も報告しない。Macは裏に回っても止められないので、今までどおり時間切れとして扱う。裏に回った後に届いたSSEの知らせ（`requestRefreshFromEvent`・`requestSideRefresh`）は読み取りを始めず、前面へ戻った時の再取得に任せる。
 
 `refresh`は4応答と必要な画像解決が揃うまで共通一覧を書き換えない。Bot cacheの保存は適用後。対象限定の`refreshResourcesFromEvent`は指定資源だけGETし、画像を解決してから適用する。`QueueItem.status == running`のbotId集合が`workingBotIDs`になる。queueの全項目をAppStoreで保持するわけではない。
 
