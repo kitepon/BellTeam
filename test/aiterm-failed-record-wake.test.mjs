@@ -105,7 +105,8 @@ test('起こした席でも上限まで断られたら、起こし直さずそ�
 function scripted({ sends, observed = observation('idle_timeout') }) {
   const calls = []
   const classifier = new AitermClient()
-  const client = { call: (name, args) => classifier.call(name, args) }
+  // Like AitermClient, run the admission check right before issuing pty_send.
+  const client = { call: async (name, args, options) => { if (name === 'pty_send') options?.admissionCheck?.(); return classifier.call(name, args) } }
   classifier.client = { async callTool({ name, arguments: args }) {
     calls.push([name, args])
     if (name === 'pty_send') {
@@ -203,4 +204,38 @@ test('通常構成の回復値は親の照合を通り、通常のdispatchで同
     { recoveredExecution: value, queue: { groupId: 'd-1' } })
   await transport.idle('bot-a')
   assert.deepEqual(calls.filter(([name]) => name === 'pty_send').map(([, args]) => args.text), ['保存済みの本文'])
+})
+
+// A module swap that closes the conversation lease before any words reach the CLI (2026-11-08, Molly/N102 contract).
+async function swapDuring(t, { sends, closeAt }) {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-failed-record-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const { client, calls } = scripted({ sends, observed: absent })
+  let closed = false
+  const original = client.call
+  client.call = async (name, args, options) => {
+    try { return await original(name, args, options) } finally { if (name === closeAt) closed = true }
+  }
+  const statuses = []
+  const transport = new AitermTransport({ client, handoffContext: async () => '', waitProcess: async () => ({ outcome: 'done' }) })
+  const delivered = transport.notify({ id: 'bot-a', session: 'bot-a', harness: 'claude', project: root }, '本文', {
+    admissionCheck: () => { if (closed) throw Object.assign(new Error('CONVERSATION_NOT_ACCEPTED'), { code: 'CONVERSATION_NOT_ACCEPTED', effect: 'not_started' }) },
+    onStatus: status => { statuses.push(status) } })
+  return { delivered, calls, statuses }
+}
+
+test('会話の世代が起こしている途中で閉じたら、打つ前なので型付きの未開始を返し、失敗の状態を残さない', async t => {
+  const run = await swapDuring(t, { sends: ["aiterm: AGENT_SESSION_REQUIRED: session 'bot-a' のagent登録がありません。文字列は送信していません。", null], closeAt: 'agent_launch' })
+  await assert.rejects(run.delivered, error => {
+    assert.deepEqual(error.executionError, { schema: 'aiterm.execution-error.v1', code: 'EXECUTION_STALE_GENERATION', effect: 'not_started', follow_up: 'none' })
+    return true
+  })
+  assert.deepEqual(run.statuses, [])
+  assert.equal(run.calls.filter(([name]) => name === 'pty_send').length, 1)
+})
+
+test('打った可能性がある後に会話の世代が閉じたら、未開始の印を付けない', async t => {
+  // A refusal without a not-sent statement: the words may have reached the CLI before the lease closed.
+  const run = await swapDuring(t, { sends: ['aiterm: PTY_BACKEND_FAILED'], closeAt: 'pty_send' })
+  await assert.rejects(run.delivered, error => error.code === 'CONVERSATION_NOT_ACCEPTED' && error.executionError === undefined)
 })

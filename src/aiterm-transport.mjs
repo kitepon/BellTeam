@@ -43,6 +43,12 @@ const RESENDABLE = ['BOT_INPUT_NOT_READY', 'BOT_SEND_BUSY']
 // The words may already be in the CLI: Aiterm or the RPC could not tell, or Aiterm says not to resend.
 const outcomeUnknown = error => error.code === 'BOT_SEND_OUTCOME_UNKNOWN' || mcpRequestContext(error)?.outcome === 'unknown'
   || String(error.message).includes('再送しないでください')
+const explicitlyUnsent = error => !outcomeUnknown(error)
+  && (['AGENT_SESSION_REQUIRED', ...RESENDABLE].includes(error.code) || String(error.message).includes('送信していません'))
+// A conversation lease or an execution generation closed under the job (module swap).
+const SWAP_CODES = ['CONVERSATION_NOT_ACCEPTED', 'EXECUTION_GENERATION_RETIRED']
+// Typed "not started" for a job a module swap ended before any words could reach the CLI; the record owner requeues it.
+const swapNotStarted = () => ({ schema: 'aiterm.execution-error.v1', code: 'EXECUTION_STALE_GENERATION', effect: 'not_started', follow_up: 'none' })
 // Aitermは、要求の_metaにこの印がある時だけ、BellTeamのための手がかりを結果へ足す（Aiterm ADR 0071・0122）。
 const CALLER_META = { 'aiterm/caller': 'BellTeam' }
 
@@ -852,6 +858,13 @@ export class AitermTransport {
       } catch (cause) {
         const error = await job.failure(cause)
         originalFailure = error
+        // Ended by a module swap before any words could reach the CLI: leave the saved row as it is (no failed
+        // status) and return the typed marker, so the record owner requeues the same delivery after the swap.
+        if (!job.receipt && !job.stopped && !job.inputMayHaveStarted && SWAP_CODES.includes(error.code)) {
+          error.executionError = swapNotStarted()
+          if (!acknowledged) rejectAcceptance(error)
+          throw error
+        }
         // Accepted input remains accepted when only its completion tracking fails.
         const tracking = job.receipt && !job.stopped && !job.nativeTerminal && !error.turnCompleted
           ? [{ schema: 'bellteam.delivery-tracking.v1', admission: 'accepted', completion: 'unknown' }] : []
@@ -1236,7 +1249,7 @@ export class AitermTransport {
       try {
         if (executionJob) executionJob.deliveryStage = 'BOT_SEND_FAILED'
         if (executionJob) executionJob.nativeSession = session
-        result = await this.sendToSession(session, message, imageFiles, check, executionJob?.native?.client)
+        result = await this.sendToSession(session, message, imageFiles, check, executionJob?.native?.client, executionJob)
       } catch (error) {
         check()
         // Wake-first (docs/architecture/delivery-details.md). Kept failures and their exits are listed there.
@@ -1247,7 +1260,7 @@ export class AitermTransport {
         let refusal = error
         // A live seat that is only slow or still taking the previous input gets the same words again first.
         if (live && observed.reason !== 'agent_failed' && RESENDABLE.includes(error.code) && !error.agentResumeResult) {
-          try { result = await this.sendToWokenSession(bot, session, message, imageFiles, check, executionJob?.native?.client) }
+          try { result = await this.sendToWokenSession(bot, session, message, imageFiles, check, executionJob?.native?.client, executionJob) }
           catch (again) { if (outcomeUnknown(again)) throw again; refusal = again }
         }
         if (!result) {
@@ -1268,7 +1281,7 @@ export class AitermTransport {
           }, { membersLease })
           check()
           if (executionJob) executionJob.nativeSession = session
-          result = await this.sendToWokenSession(bot, session, message, imageFiles, check, executionJob?.native?.client)
+          result = await this.sendToWokenSession(bot, session, message, imageFiles, check, executionJob?.native?.client, executionJob)
         }
       }
       // Aiterm accepted the words. A receipt without follow data stays accepted; only its completion is untracked.
@@ -1289,10 +1302,10 @@ export class AitermTransport {
   // 断られる（2026-11-07 20:18、起こした6席が全て、生きていた4席は全て通過）。Aitermは本文を送っておらず「少し後で再度
   // pty_send」と案内するので、このdispatchで起こした席だけ同じ文を送り直す。待ちはAitermの受付確認（最長30秒）が持つ。
   // shortcut: 上限3回（起動後およそ90秒）、同時起動の山でも足りない実測が出たら上限を見直す。
-  async sendToWokenSession(bot, session, message, imageFiles, admissionCheck, client) {
+  async sendToWokenSession(bot, session, message, imageFiles, admissionCheck, client, job = null) {
     for (let attempt = 1; ; attempt++) {
       try {
-        return await this.sendToSession(session, message, imageFiles, admissionCheck, client)
+        return await this.sendToSession(session, message, imageFiles, admissionCheck, client, job)
       } catch (error) {
         if (error.code !== 'BOT_INPUT_NOT_READY' || error.agentResumeResult || attempt >= WOKEN_SEND_ATTEMPTS) throw error
         admissionCheck?.()
@@ -1304,14 +1317,25 @@ export class AitermTransport {
   // 画像はaitermのimage引数へ渡す。harness別の添付手順（パスの先打鍵等）はaitermが吸収する（0.30.0）。
   // require_agentで、登録が無い席へ普通の端末として打たれる（mode=sent）のを止める。
   // BellTeamの印を付けると、差し込みの返りに、その文を取ったターンを追う手がかりが入る（Aiterm 0.60.0、ADR 0122）。
-  async sendToSession(session, message, imageFiles, admissionCheck, client = this.client) {
+  // job.inputMayHaveStarted: once a pty_send was issued and not refused with an explicit not-sent answer, the words
+  // may be in the CLI, and the job never claims "not started" again.
+  async sendToSession(session, message, imageFiles, admissionCheck, client = this.client, job = null) {
     this.assertWorkAllowed()
-    return client.call('pty_send', {
-      session_id: session,
-      text: message,
-      require_agent: true,
-      ...(imageFiles.length ? { image: imageFiles.map(file => file.path) } : {}),
-    }, { meta: CALLER_META, ...(admissionCheck ? { admissionCheck } : {}) })
+    let issued = false
+    const issue = () => { admissionCheck?.(); issued = true }
+    try {
+      const result = await client.call('pty_send', {
+        session_id: session,
+        text: message,
+        require_agent: true,
+        ...(imageFiles.length ? { image: imageFiles.map(file => file.path) } : {}),
+      }, { meta: CALLER_META, ...(admissionCheck || job ? { admissionCheck: issue } : {}) })
+      if (job) job.inputMayHaveStarted = true
+      return result
+    } catch (error) {
+      if (job && issued && !explicitlyUnsent(error)) job.inputMayHaveStarted = true
+      throw error
+    }
   }
 
   session(bot) {

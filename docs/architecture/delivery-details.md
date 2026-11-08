@@ -75,6 +75,8 @@ flowchart TD
 | 動いているターンがある席が、送り直しても受けない | 動いているターンを壊さない | ターンが終われば、次の配送が受理される（差し込みか新しいターン） |
 | 起動の失敗、または起こした席が3回の送信で受けない | 同じ席への後の配送の順番（無限の送り直しでその席の後続を止めない） | 次の配送が観測からやり直し、閉じて起こす。Aitermの元のエラーを返す |
 
+モジュールの入れ替えで、会話のleaseか実行の世代が閉じた配送（`CONVERSATION_NOT_ACCEPTED` / `EXECUTION_GENERATION_RETIRED`）を考える。文がまだCLIに届き得ない時は、失敗の状態（`onStatus('failed')`）を書かない。代わりに型付きの未開始`{schema:'aiterm.execution-error.v1', code:'EXECUTION_STALE_GENERATION', effect:'not_started', follow_up:'none'}`を`error.executionError`に付けて返す。保存行は`dispatching`のまま残り、記録の所有者（会話、N102）が同じIDを`queued`へ戻し、入れ替えの後に届ける（モリー/N102合意 2026-11-08）。「届き得ない」とは、このjobの`pty_send`が一度も発行されていないか、発行した全てが明示の未送信（`AGENT_SESSION_REQUIRED`/`BOT_INPUT_NOT_READY`/`BOT_SEND_BUSY`、または「送信していません」）で断られたこと（`job.inputMayHaveStarted`）。それ以外は印を付けない。
+
 Aitermが受け付けた後の返りに追う手がかり（event_cursor/wait_process）が無い時は、失敗にせず受理として終える（完了は追えない）。配送前には設定操作を挟まない。通常送信の前には観測を挟まない。設定延期と各条件の保護対象・解除は[配送と設定の正本](modules/execution/configuration-delivery.md)に従う。
 
 `agent_launch`の`startup=ready`と`pty_send`の入力受付確認は、Aitermの中で別々の30秒予算である（どちらも入力欄が500ms間隔で11回続けて入力待ちと読めた時に通る。`pty_send`に公開のready_timeoutは無い）。起こした直後の席は入力欄を描いた後も起動の仕事（MCP初期化・hook・履歴の描画）を続け、同時起動の負荷（2026-11-07 20:18–20:20、9席同時、load≈18）では二つ目の予算が尽きて`AGENT_INPUT_NOT_READY`（本文未送信、「少し後で再度pty_send」の案内付き）で断られる。元から生きていた席への送信は同時刻に全部通った。`dispatch`は、このdispatchで起こした席への最初の送信がその型付き未入力拒否（`BOT_INPUT_NOT_READY`、`agentResumeResult`なし）で断られた時だけ、同じ文を上限3回まで送り直す。各回の待ちはAitermの受付確認が持つので配送側は眠らない。起こしていない席の断りは上の段落の経路（閉じて起こす）へ行き、受付後の不明は送り直さない。上限まで断られた時はその失敗を返し、再起動を繰り返さない。
