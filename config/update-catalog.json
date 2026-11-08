@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T01:52:11Z",
-  "expiresAt": "2026-11-15T01:52:11Z",
+  "publishedAt": "2026-11-08T02:27:49Z",
+  "expiresAt": "2026-11-15T02:27:49Z",
   "releases": [
     {
       "componentId": "usage",
@@ -635,15 +635,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "7811c3cdaf81b93de2ac4a4f7ed8aa3e373f2da0",
-      "versionId": "sha256:75b8a854d8aed1021da04834f237b7597df999e35ffb7230d697cc432324d26e",
+      "sourceCommit": "1084a93067fbef7501d13416ac0c0c1d8d4db427",
+      "versionId": "sha256:9357e70df9a64f9944c7e549f910f0884de98d03a498efd9a3b0b191df04bf66",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:75b8a854d8aed1021da04834f237b7597df999e35ffb7230d697cc432324d26e"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:9357e70df9a64f9944c7e549f910f0884de98d03a498efd9a3b0b191df04bf66"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -652,20 +652,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "次回の本体更新に備え、各席の処理を一時停止して再開する機能を追加します。"
+        "部品の更新を本体の入れ替えなしで行えるよう本体を仕上げ、同梱するAIの道具を最新版にします。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "7811c3cdaf81b93de2ac4a4f7ed8aa3e373f2da0",
-      "versionId": "sha256:75b8a854d8aed1021da04834f237b7597df999e35ffb7230d697cc432324d26e",
+      "sourceCommit": "1084a93067fbef7501d13416ac0c0c1d8d4db427",
+      "versionId": "sha256:9357e70df9a64f9944c7e549f910f0884de98d03a498efd9a3b0b191df04bf66",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:75b8a854d8aed1021da04834f237b7597df999e35ffb7230d697cc432324d26e"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:9357e70df9a64f9944c7e549f910f0884de98d03a498efd9a3b0b191df04bf66"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -674,7 +674,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "次回の本体更新に備え、各席の処理を一時停止して再開する機能を追加します。"
+        "部品の更新を本体の入れ替えなしで行えるよう本体を仕上げ、同梱するAIの道具を最新版にします。"
       ]
     }
   ],
