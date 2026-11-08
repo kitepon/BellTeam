@@ -75,3 +75,31 @@ test('the managed transport path exposes the same watchCurrentTurn stream', asyn
   assert.deepEqual(events, [{ botId: 'bot-a', state: 'idle', turnId: null, startedAt: null }])
   stop()
 })
+
+// Belota 2026-11-08: harness saved codex -> claude before the restart; the live row is still codex-cli.
+test('the read target follows the launched seat across a saved harness change, also after an engine exchange', async t => {
+  const { mkdtemp, rm, writeFile } = await import('node:fs/promises')
+  const { join } = await import('node:path'), { tmpdir } = await import('node:os')
+  const dir = await mkdtemp(join(tmpdir(), 'current-turn-')); t.after(() => rm(dir, { recursive: true, force: true }))
+  const path = join(dir, 'execution-runtime-launches.json')
+  let seats = []
+  const make = () => new AitermTransport({ runtimeLaunchesPath: path, client: { async call() {
+    return { _meta: { 'aiterm/seat_turns': { schema: 'aiterm.seat-turns.v1', seats } } } } } })
+  const codexIdle = { session_id: 'bot-a', launch_id: 'b'.repeat(32), harness: 'codex-cli', turn: { state: 'idle' } }
+  const bot = { id: 'bot-a', session: 'bot-a', harness: 'claude' }
+  // Same engine: the transport launched codex for this session.
+  const live = make(); t.after(() => live.close())
+  live.seatHarnesses.set('bot-a', { session: 'bot-a', harness: 'codex-cli' })
+  seats = [codexIdle]; await live.seatTurns([bot])
+  assert.deepEqual(live.currentTurn('bot-a'), { state: 'idle', turnId: null })
+  // A new engine reads the launch record instead.
+  await writeFile(path, JSON.stringify({ schema: 'bellteam.runtime-launches.v1', launches: { 'bot-a': { generation: null, capturedAt: 'x', harness: 'codex-cli' } } }))
+  const exchanged = make(); t.after(() => exchanged.close())
+  await exchanged.seatTurns([bot])
+  assert.deepEqual(exchanged.currentTurn('bot-a'), { state: 'idle', turnId: null })
+  // No record: the profile decides, so the codex row stays unknown (unchanged behavior).
+  await writeFile(path, JSON.stringify({ schema: 'bellteam.runtime-launches.v1', launches: {} }))
+  const bare = make(); t.after(() => bare.close())
+  await bare.seatTurns([bot])
+  assert.deepEqual(bare.currentTurn('bot-a'), { state: 'unknown', turnId: null })
+})
