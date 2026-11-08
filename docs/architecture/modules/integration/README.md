@@ -43,6 +43,8 @@ flowchart TD
   HTTP --> Schedules["members.createScheduleApi"]
   HTTP --> WorkGraph["work-graph.createWorkGraphApi / Owner GET snapshot・SSE"]
   WorkGraph --> WGFacade["work-graph-facade / 子moduleへのrefresh・snapshot"]
+  HTTP --> Accounts["http-accounts-api / GET accounts・POST accounts/rules"]
+  Accounts --> ExecAccounts["execution.accounts list・setRule"]
   HTTP --> Assets["http-assets"]
   Assets --> Web["web.assets"]
   MCP["mcp-tools / 本人・引数確認"] --> TalkTools["mcp-conversation-tools"]
@@ -60,6 +62,10 @@ flowchart TD
 共通MCP全体説明は対象範囲と、設定された設置のSEC所見をBugHubへ記録する案内を持つ。道具の引数・既定値・効果・返却は各description、道具を持ち出す場面・順序はcommon-agents.mdへ置く。v4の共通規範を先に採用してから説明の重複を除き、schema/handler/保存と公開接続は変えない。
 
 内部の実装・図は各moduleだけに置き、この図は接続に限る。公開Updateの現行APIと耐久ledgerの接続は本書のmodule/all更新節、画面はWeb、Host受付と実行はruntimeの正本を参照する。正式配布・製品確認・本番の成立は各工程の実原本で判断する。
+
+## Claudeの1st/2ndアカウント
+
+[harness-accounts](../execution/harness-accounts.md)の公開HTTPを親が持つ。`GET /api/accounts`は`execution.accounts.list()`をそのまま200で返す。`POST /api/accounts/rules`は`{harness, modelPrefix, slot}`だけを`accounts.setRule`へ渡し、`{rules}`を返す。内部席は403 `ACCOUNT_RULE_OWNER_REQUIRED`、入力の誤りは400 `ACCOUNT_RULE_INVALID`。accountsが無い本体と、`EXECUTION_REQUEST_INVALID`を返す古いengineは404で、端末は旧カードを出す。Bot項目（GET `/api/bots`、`/api/bots/:id`）の`account`は`transport.seatAccount(botId)`の値（席に無ければnull）で、対応の無い本体では項目ごと出さない。`accounts`は同じ実体をusageServicesと予備HarnessAuthへも渡す（usageのprivate effect `auth.prepareAccount`）。台帳の変更は次節のSSE `settings`で知らせる。
 
 ## SSE topicの対応
 

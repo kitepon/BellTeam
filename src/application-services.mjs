@@ -251,7 +251,9 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   })
   await assets.initialize()
   if (!usageAssembly) await onboarding.initialize()
-  const harnessAuth = usage?.harnessAuth ?? new HarnessAuth({ bots, client: transport.client })
+  // Claude 1st/2nd accounts (harness-accounts.md); an engine without them leaves this null.
+  const accounts = execution?.accounts ?? null
+  const harnessAuth = usage?.harnessAuth ?? new HarnessAuth({ bots, client: transport.client, accounts })
   let pollTimer = null, pollWork = null
   const pollConversation = () => {
     if (!pollWork) {
@@ -320,7 +322,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
       prepareDiagnostics, workGraph: workGraphModule, prepareWorkGraph, usage: usageAssembly?.controller, prepareUsage, conversation: conversationAssembly?.controller, prepareConversation: (versionId, options) => prepareModuleRelease('conversation', versionId, options), execution: execution?.controller, prepareExecution }), notify: change => updateCenter?.notify(change) })
   updateCenter = createUpdateCenter({ gateway, builtinSourceCommit, notifications, members, host: hostUpdate, moduleCatalog, moduleExecutor,
     onCatalogCheckError: error => { void Promise.resolve(diagnostics.record({ code: 'UPDATE_CATALOG_CHECK_FAILED', module: 'update', diagnostic_log: /^[A-Z][A-Z0-9_]{0,99}$/.test(error?.code ?? '') ? error.code : 'UNKNOWN' })).catch(() => {}) }, jobReader: createUpdateJobReader(updateClients), problemReader: async () => moduleRestartLimitProblems(await diagnostics.list('all', 1000)), memory: seatRuntime?.memoryModule, diagnostics: diagnosticsModule, workGraph: workGraphModule, usage: usageAssembly?.controller, conversation: conversationAssembly?.controller, execution: execution?.controller, captureRuntime })
-  Object.assign(usageServices, { bots, rooms, transport, messenger, notifications, settings, updateCenter, conversationAssembly, backgroundSummary })
+  Object.assign(usageServices, { bots, rooms, transport, messenger, notifications, settings, updateCenter, conversationAssembly, backgroundSummary, accounts })
   if (usageAssembly) await usageAssembly.initializeServices()
   // Missing or corrupt summary settings must not prevent the main application from starting.
   try { backgroundSummary.configure(await settings.backgroundAgentConfiguration()) } catch {}
@@ -354,7 +356,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     notifications, secretRequests, ownerQuestions, bots, rooms,
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, refreshGlobalInstructions, assets,
-    scheduler, diagnostics, diagnosticsModule, workGraph, workGraphModule, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller, submittedSecretCaller,
+    scheduler, diagnostics, diagnosticsModule, workGraph, workGraphModule, accounts, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller, submittedSecretCaller,
     // Saved direct input drains after listen (Z-c). Starting before the hold release is safe and needs no bound:
     // executionReady is false while held, and the release's hold.watch → requestDrain drains it.
     lifecycle: { ...execution?.lifecycle,

@@ -37,6 +37,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     notificationsReleaseControl: notifications.controller,
     updateCenter: services.updateCenter,
     workGraph: services.workGraph,
+    accounts: services.accounts,
     membersAuthorization: services.membersAuthorization,
     usageAssembly: services.usageAssembly,
     conversationAssembly: services.conversationAssembly,
