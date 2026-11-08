@@ -124,3 +124,22 @@ test('依頼ラベルは省略せず折り返し、伸びた札の大きさで�
     assert.ok(!(b.x < d.x + d.w && d.x < b.x + b.w && b.y < d.y + d.h && d.y < b.y + b.h))
   }
 })
+
+test('札どうしは重ならず、古い依頼から置く。置けない札は指した時だけ一番上に出す', () => {
+  const long = '比較表を更新して、iPhone・Mac・Web・Windowsの4つの画面で相関図のラベルが省略されずに全部出ることを確かめてください'
+  const ids = ['h', 'a', 'b', 'c', 'd', 'e', 'f']
+  const model = createGraphModel(), small = { x: 24, y: 24, w: 312, h: 600 }
+  model.snapshot(snapshot(ids.map(id => node(id)), ids.slice(1).map((id, i) => ({ ...edge('h', id, `h:${id}`, long), startedAt: `2026-11-08T12:0${i}:00Z` }))), 0, small)
+  for (let i = 0; i < 300; i++) model.step(1 / 60, small, i * 16)
+  const frame = model.frame(5000, small), grow = b => ({ x: b.x - 4, y: b.y - 4, w: b.w + 8, h: b.h + 8 })
+  const hit = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
+  assert.ok(frame.labels.length > 0)
+  frame.labels.forEach((a, i) => frame.labels.slice(i + 1).forEach(b => assert.ok(!hit(a.box, grow(b.box)), `${a.edge.id} / ${b.edge.id}`)))
+  const placed = frame.labels.map(label => label.edge.startedAt)
+  assert.deepEqual(placed, [...placed].sort())
+  const hidden = ids.slice(1).map(id => `h:${id}`).find(id => !frame.labels.some(label => label.edge.id === id))
+  assert.ok(hidden, 'the crowded hub hides at least one chip')
+  const hovered = model.frame(5000, small, { hover: { edgeId: hidden } }).labels
+  assert.equal(hovered.at(-1).edge.id, hidden)
+  assert.deepEqual(hovered.slice(0, -1).map(label => label.box), frame.labels.map(label => label.box))
+})

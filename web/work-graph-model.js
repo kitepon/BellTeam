@@ -67,6 +67,7 @@ export function readSnapshot(data) {
 
 // 矩形の中心から方向(ux,uy)へ出た線が、一辺sの正方形の縁に当たるまでの距離。
 const border = (s, ux, uy) => (s / 2) / Math.max(Math.abs(ux), Math.abs(uy), 1e-6)
+const grown = box => ({ x: box.x - 4, y: box.y - 4, w: box.w + 8, h: box.h + 8 })
 const intersects = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
 
 export function createGraphModel({ reduceMotion = false } = {}) {
@@ -218,8 +219,10 @@ export function createGraphModel({ reduceMotion = false } = {}) {
         lines.push({ edge, p0, p2, control, length, grow: easeOut(grow), opacity, dotsSince: edge.startAt + GROW_MS, color: accent(a.node.color) })
       }
       const crowded = live2.length > 10
-      const labels = []
-      for (const line of lines) {
+      // 札は古い依頼から置く（新しい依頼が来ても、置いた札は動かない）。どこにも置けない札は、指した時だけ一番上に出す。
+      const labels = [], above = [], started = edge => Date.parse(edge.startedAt) || edge.startAt
+      const order = [...lines].sort((a, b) => started(a.edge) - started(b.edge) || a.edge.startAt - b.edge.startAt || (a.edge.id < b.edge.id ? -1 : 1))
+      for (const line of order) {
         if (line.edge.endAt || !line.edge.label) continue
         let alpha = 1
         if (crowded || line.length < 120) {
@@ -232,11 +235,12 @@ export function createGraphModel({ reduceMotion = false } = {}) {
         let place = null
         for (const t of [0.5, 0.45, 0.55, 0.4, 0.6, 0.35, 0.65, 0.3, 0.7]) {
           const p = pointAt(line, t), box = { x: p.x - width / 2, y: p.y - height / 2, w: width, h: height }
-          if (!discs.some(disc => intersects(box, disc))) { place = box; break }
+          if (!discs.some(disc => intersects(box, disc)) && !labels.some(label => intersects(box, grown(label.box)))) { place = box; break }
         }
-        if (!place && hover?.edgeId === line.edge.id) { const p = pointAt(line, 0.5); place = { x: p.x - width / 2, y: p.y - height / 2, w: width, h: height } }
         if (place) labels.push({ edge: line.edge, box: place, alpha, lines: text })
+        else if (hover?.edgeId === line.edge.id) { const p = pointAt(line, 0.5); above.push({ edge: line.edge, box: { x: p.x - width / 2, y: p.y - height / 2, w: width, h: height }, alpha, lines: text }) }
       }
+      labels.push(...above)
       const names = []
       for (const item of drawn.values()) {
         if (item.node.leaveAt && item.opacity <= 0) continue
