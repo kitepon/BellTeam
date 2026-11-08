@@ -23,6 +23,24 @@ export function workSummaryInput(input) {
   return { expected: { ...input.expected }, summary: input.summary === null ? null : input.summary.trim() }
 }
 
+// after_turn (current-work.md): every change of read(botId) per listener over a queue change stream.
+// A refused read (engine exchange) is retried on the next change of any Bot.
+export function watchCurrentTurn(watchQueue, read, listener) {
+  if (typeof listener !== 'function') throw failure('LISTENER_INVALID', 400)
+  const last = new Map(), retry = new Set()
+  return watchQueue(change => {
+    for (const botId of [...retry, ...(Array.isArray(change?.botIds) ? change.botIds : [])]) {
+      let turn
+      try { turn = read(botId) } catch { retry.add(botId); continue }
+      retry.delete(botId)
+      const key = `${turn.state}:${turn.turnId}`
+      if (last.get(botId) === key) continue
+      last.set(botId, key)
+      try { listener({ botId, state: turn.state, turnId: turn.turnId }) } catch {}
+    }
+  })
+}
+
 // UI state stays observation-based; restart references also use actual accepted native input.
 export class CurrentWork {
   constructor({ now = () => new Date().toISOString(), monotonic = () => performance.now(), notify = () => {}, activityPath = null, reportActivity = () => {} } = {}) {

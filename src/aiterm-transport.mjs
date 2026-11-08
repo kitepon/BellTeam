@@ -1,4 +1,4 @@
-import { CurrentWork } from './current-work.mjs'
+import { CurrentWork, watchCurrentTurn } from './current-work.mjs'
 import { randomUUID } from 'node:crypto'
 import { MembersAdmission } from './members-admission.mjs'
 import { configurationError } from './configuration-request.mjs'
@@ -1030,6 +1030,9 @@ export class AitermTransport {
   currentWorkBinding() { return null }
 
   currentTurn(botId) { return this.workState.turn(botId) }
+
+  // The same after_turn stream for the managed (no execution factory) path; the facade wraps the engine instead.
+  watchCurrentTurn(listener) { return watchCurrentTurn(listener => this.watchQueue(listener), botId => this.currentTurn(botId), listener) }
 
   updateWorkSummary() {
     throw Object.assign(new Error('CURRENT_WORK_FORBIDDEN'), { code: 'CURRENT_WORK_FORBIDDEN', status: 403 })
