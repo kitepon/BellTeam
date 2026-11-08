@@ -94,7 +94,7 @@ flowchart TD
   Settings["設定のHarnessAuthenticationList"] --> List["GET /api/harness-auth"]
   Settings --> Accounts["GET /api/accounts<br/>404は旧本体で従来の1行<br/>失敗は理由を出し2〜60秒で読み直す"]
   List --> Row["各RowがGET /api/harness-auth/:harness<br/>checking / unavailable / known"]
-  Accounts --> Claude["ClaudeAccountsCard<br/>1st/2ndアカウントの行：ログイン状態・アカウント名<br/>モデルごとの上限と解除時刻（日本時間）・使用中のメンバー<br/>allLimitedの帯（使い分けの切替は無い）"]
+  Accounts --> Claude["ClaudeAccountsCard<br/>1st/2ndアカウントの行：認証の札（認証済み／未認証／確認できません）・アカウント名<br/>モデルごとの上限と解除時刻（日本時間）・使用中のメンバー<br/>allLimitedの帯（使い分けの切替は無い）"]
   Claude --> SlotView["HarnessAuthenticationView(slot)<br/>2ndは .../claude?slot=2nd"]
   SlotView --> View
   Row --> View["HarnessAuthenticationView<br/>StateObject HarnessAuthenticationFlow"]

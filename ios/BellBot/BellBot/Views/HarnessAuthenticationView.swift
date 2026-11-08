@@ -294,8 +294,9 @@ private struct ClaudeAccountsCard: View {
             VStack(alignment: .leading, spacing: 3) {
                 // 名前はAIの種類の行と同じ大きさ（Macで説明文より小さくならない）。
                 Text(AccountText.slotName(slot.slot)).fontWeight(.semibold).foregroundStyle(BellTheme.ink)
-                Text(slot.label ?? (slot.loggedIn == true ? "ログイン済み" : slot.loggedIn == false ? "未ログイン" : "確認できません"))
-                    .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
+                if let label = slot.label {
+                    Text(label).font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
+                }
                 ForEach(slot.limits, id: \.scope) { limit in
                     Text(AccountText.limit(limit)).font(BellTheme.secondaryFont).foregroundStyle(.orange)
                 }
@@ -305,8 +306,12 @@ private struct ClaudeAccountsCard: View {
                 }
             }
             Spacer()
-            Text(slot.loggedIn == true ? "ログインし直す" : "ログイン")
-                .font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+            // 他のAIの行と同じ札と文言（認証済み／未認証／確認できません）。
+            Text(slot.loggedIn == true ? "認証済み" : slot.loggedIn == false ? "未認証" : "確認できません")
+                .font(.caption.weight(.semibold)).foregroundStyle(slot.loggedIn == true ? .green : .orange)
+                .accessibilityIdentifier("harness-auth-state-claude-\(slot.slot)")
+            Text(slot.loggedIn == true ? "認証し直す" : slot.loggedIn == false ? "認証する" : "確認する")
+                .font(.subheadline.weight(.semibold)).foregroundStyle(.white).lineLimit(1).fixedSize()
                 .padding(.horizontal, 12).padding(.vertical, 7)
                 .background(BellTheme.violet, in: Capsule())
         }
