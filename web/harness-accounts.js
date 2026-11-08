@@ -1,6 +1,5 @@
 // Claudeの「1stアカウント」「2ndアカウント」。表示文と時刻はexecutionの契約どおり。枠の選択・上限の判定はサーバーが持つ。
 export const slotTitle = slot => ({ '1st': '1stアカウント', '2nd': '2ndアカウント' })[slot] ?? null
-export const FABLE_RULE = { harness: 'claude', modelPrefix: 'claude-fable' }
 
 const jst = (iso, part) => new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', ...part }).format(new Date(iso))
 
@@ -28,10 +27,6 @@ export function bannerTexts(list, now = Date.now()) {
   return Array.isArray(allLimited) ? allLimited.map(item => `両方のアカウントで${limitText(item?.scope, item?.earliestResetAt, now)}`) : []
 }
 
-export function fableOnSecond(list) {
-  return Array.isArray(list?.rules) && list.rules.some(rule => rule?.harness === FABLE_RULE.harness && rule.modelPrefix === FABLE_RULE.modelPrefix && rule.slot === '2nd')
-}
-
 // 1枠分の表示。欠けた値は推測せず「未確認」にする。
 export function slotView(slot, now = Date.now()) {
   const limits = Array.isArray(slot?.limits) ? slot.limits : []
@@ -50,9 +45,7 @@ export function slotView(slot, now = Date.now()) {
 // 一覧の行に出す、席が今使っている枠。旧本体（項目なし）とnullは何も出さない。
 export function seatBadge(account) {
   const title = account?.harness === 'claude' ? slotTitle(account.slot) : null
-  if (!title) return null
-  const preferred = slotTitle(account.preferredSlot)
-  return { text: title, title: preferred && account.preferredSlot !== account.slot ? `${title}で動作中（通常は${preferred}）` : `${title}で動作中` }
+  return title ? { text: title, title: `${title}で動作中` } : null
 }
 
 // 設定のClaude欄。renderSlotAuthは既存のharness-auth行（slot付き）を作る関数で、harness-auth.jsが渡す。
@@ -66,17 +59,7 @@ export function renderClaudeAccounts(harness, list, { api, renderSlotAuth, now =
   banner.setAttribute('role', 'status')
   const rows = document.createElement('div')
   rows.className = 'account-slots'
-  const switchLabel = document.createElement('label')
-  switchLabel.className = 'account-rule'
-  const toggle = document.createElement('input')
-  toggle.type = 'checkbox'
-  toggle.setAttribute('role', 'switch')
-  switchLabel.append(toggle, ' Fableを2ndアカウントで使う')
-  const ruleError = Object.assign(document.createElement('p'), { className: 'form-error' })
-  ruleError.setAttribute('role', 'alert')
-  section.append(heading, banner, rows, switchLabel, ruleError)
-  // 即時保存の操作なので、設定画面の未保存の印にしない。
-  switchLabel.addEventListener('change', event => event.stopPropagation())
+  section.append(heading, banner, rows)
   const stops = []
   const slotRows = new Map()
   let current = list
@@ -87,7 +70,6 @@ export function renderClaudeAccounts(harness, list, { api, renderSlotAuth, now =
     const texts = bannerTexts(current, now())
     banner.hidden = !texts.length
     banner.textContent = texts.join(' / ')
-    toggle.checked = fableOnSecond(current)
     for (const slot of claudeAccounts(current)?.slots ?? []) {
       const view = slotView(slot, now())
       if (!view.title) continue
@@ -115,16 +97,6 @@ export function renderClaudeAccounts(harness, list, { api, renderSlotAuth, now =
   async function refresh() {
     try { const next = await api('/api/accounts'); if (!stopped && claudeAccounts(next)) { current = next; paint() } } catch { /* 前の表示を残す。読めない時に状態を作らない */ }
   }
-  toggle.addEventListener('change', async () => {
-    const wanted = toggle.checked
-    toggle.disabled = true
-    ruleError.textContent = ''
-    try {
-      const result = await api('/api/accounts/rules', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...FABLE_RULE, slot: wanted ? '2nd' : null }) })
-      if (Array.isArray(result?.rules)) current = { ...current, rules: result.rules }
-    } catch (error) { ruleError.textContent = `切り替えられませんでした。${error.message}` }
-    finally { toggle.disabled = false; if (!stopped) paint() }
-  })
   paint()
   return { element: section, refresh, stop() { stopped = true; for (const stop of stops) stop() } }
 }

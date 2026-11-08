@@ -79,19 +79,17 @@ flowchart TD
   Card --> Rows["1stアカウント / 2ndアカウント rows<br/>loggedIn, label, limits, seats"]
   Rows -->|ログイン per row| Auth["existing harness-auth flow<br/>/api/harness-auth/claude[/start|input|cancel]?slot=2nd<br/>(no slot = 1st)"]
   Auth -->|authenticated| List
-  Card --> Switch["switch 「Fableを2ndアカウントで使う」<br/>checked = rules has claude/claude-fable/2nd"]
-  Switch -->|"POST /api/accounts/rules {harness:'claude', modelPrefix:'claude-fable', slot:'2nd'|null}"| Rules[returned rules → switch]
-  Bots["GET /api/bots item.account {harness, slot, preferredSlot} | absent"] --> Member["member card: 1st/2ndアカウント under the meta line<br/>absent/null → nothing"]
+  Bots["GET /api/bots item.account {harness, slot} | absent<br/>(preferredSlot ignored)"] --> Member["member card: 1st/2ndアカウント under the meta line<br/>absent/null → nothing"]
 ```
 
 | Function / edge | Input -> output and ownership |
 | --- | --- |
-| `accountsView(list)` (harness-accounts.js, pure) | accounts.list() -> rows `{slot, title, state, label, limitTexts, seats}`, `fableOn`, `banner`. Missing/odd fields -> neutral text, never a guessed state. |
+| `accountsView(list)` (harness-accounts.js, pure) | accounts.list() -> rows `{slot, title, state, label, limitTexts, seats}`, `banner`. `rules` is not read. Missing/odd fields -> neutral text, never a guessed state. |
 | Limit text | `'all'` -> 「上限中 (HH:MMに解除)」; family -> 「Fableのみ上限中 (HH:MMに解除)」 (family capitalized); time in Asia/Tokyo, `M/D HH:MM` when not today (JST); null -> 「…(解除時刻不明)」. |
 | Banner | `allLimited[]` non-empty -> 「両方のアカウントが上限中です」 + per scope earliest reset (same text rule). |
 | Login | each row embeds the existing `harnessAuthItem` with `slot`; the slot travels only as `?slot=` so the strict input body is unchanged. 1st keeps the old start warning. In 設定 an authenticated row shows only the 認証済み badge, not the repeated 「認証が完了しました」 line (onboarding, which has no badge, keeps it). |
-| Switch | one POST per change, disabled while sending; shown state comes only from the returned `rules` (failure -> previous state + error text). |
-| Member card | `bot.account?.slot` -> 「1stアカウント」/「2ndアカウント」 badge in the member header line; when slot ≠ preferredSlot the title says the preferred one. |
+| No preference switch | Limit-driven only (Owner ruling 2026-11-09, contract #711): the Web has no 「Fableを2ndアカウントで使う」 switch, never calls `POST /api/accounts/rules` (removed), and never reads `rules` or `preferredSlot`. The server alone moves a limited model to the 2nd and back. |
+| Member card | `bot.account?.slot` -> 「1stアカウント」/「2ndアカウント」 badge in the member header line, title 「…で動作中」. |
 | Fallback | `/api/accounts` 404 (older body) -> exactly the previous single Claude card. Other harnesses keep the previous card. |
 
 Source reach: `web/harness-accounts.js` (new), `web/harness-auth.js` (slot option, Claude delegates to the accounts card), `web/application.js` (member slot badge), `web/styles.css`, `web/assets.mjs`, `test/web-harness-accounts.test.mjs`. No storage and no guard added.
