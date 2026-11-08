@@ -28,9 +28,9 @@ export function validateWorkGraphEffect(method, params) {
   else check(workGraphObject(params, []))
 }
 
-const queueItem = item => workGraphObject(item, ['status', 'context', 'contextId', 'groupId', 'from', 'target', 'message', 'image', 'steered', 'startedAt'])
+const queueItem = item => workGraphObject(item, ['status', 'context', 'contextId', 'groupId', 'from', 'target', 'requestSummary', 'image', 'steered', 'startedAt'])
   && str(item.status) && str(item.context) && strOrNull(item.contextId) && strOrNull(item.groupId) && strOrNull(item.from) && strOrNull(item.target)
-  && str(item.message) && typeof item.image === 'boolean' && typeof item.steered === 'boolean'
+  && strOrNull(item.requestSummary) && typeof item.image === 'boolean' && typeof item.steered === 'boolean'
   && (item.startedAt === null || str(item.startedAt) || typeof item.startedAt === 'number')
 const turn = value => workGraphObject(value, ['state', 'turnId'], ['startedAt', 'summary', 'summaryStatus']) && ['working', 'idle', 'unknown'].includes(value.state)
   && strOrNull(value.turnId) && (value.startedAt === undefined || strOrNull(value.startedAt))

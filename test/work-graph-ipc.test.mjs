@@ -30,7 +30,7 @@ test('protocol: requests and effects reject extra keys and bad shapes', () => {
 
 test('protocol: effect results are exact', () => {
   const member = { id: 'a', name: 'A', color: '', avatarVersion: '', deleting: false }
-  const item = { status: 'running', context: 'direct', contextId: null, groupId: 'g', from: 'a', target: 'b', message: 'm', image: false, steered: false, startedAt: 12 }
+  const item = { status: 'running', context: 'direct', contextId: null, groupId: 'g', from: 'a', target: 'b', requestSummary: null, image: false, steered: false, startedAt: 12 }
   validateWorkGraphEffectResult('members.list', { members: [member] })
   validateWorkGraphEffectResult('turns.read', { turns: { a: { state: 'working', turnId: null, startedAt: '2026-11-08T10:00:00.000Z' }, b: { state: 'idle', turnId: 't' } } })
   validateWorkGraphEffectResult('turns.read', { unsupported: true })
@@ -47,6 +47,8 @@ test('protocol: effect results are exact', () => {
   bad(() => validateWorkGraphEffectResult('turns.read', { turns: {}, unsupported: true }))
   bad(() => validateWorkGraphEffectResult('queue.read', { items: [{ ...item, extra: 1 }] }))
   bad(() => validateWorkGraphEffectResult('queue.read', { items: [{ ...item, image: 0 }] }))
+  bad(() => validateWorkGraphEffectResult('queue.read', { items: [{ ...item, message: 'raw body' }] }))
+  bad(() => validateWorkGraphEffectResult('queue.read', { items: [{ ...item, requestSummary: 1 }] }))
   bad(() => validateWorkGraphEffectResult('room.messages', { items: [{ id: 'm', routing: { responders: ['a'] } }] }))
   bad(() => validateWorkGraphEffectResult('nope', {}))
 })
@@ -150,7 +152,7 @@ test('actual IPC: initialize, ready, resume, refresh with effects, snapshot, qui
   await assert.rejects(channel.request('refresh', {}), { outcome: 'not_accepted' })
   assert.deepEqual(await channel.control('resume'), { resumed: true })
   assert.deepEqual(await channel.request('refresh', {}), { batch: null, nextRefreshMs: null })
-  world.queue = [{ status: 'running', context: 'direct', contextId: null, groupId: 'g1', from: 'a', target: 'b', message: 'hi', image: false, steered: false, startedAt: null }]
+  world.queue = [{ status: 'running', context: 'direct', contextId: null, groupId: 'g1', from: 'a', target: 'b', requestSummary: '確認の依頼', image: false, steered: false, startedAt: null }]
   const { batch } = await channel.request('refresh', {})
   assert.deepEqual([batch.version, batch.changes.map(change => change.type)], [1, ['member-enter', 'edge-start']])
   const snapshot = await channel.request('snapshot', {})

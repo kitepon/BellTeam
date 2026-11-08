@@ -7,26 +7,26 @@ import { diffGraph, projectGraph } from '../src/work-graph/projection.mjs'
 
 const T0 = Date.parse('2026-11-08T10:00:00.000Z')
 const member = (id, extra = {}) => ({ id, name: id.toUpperCase(), color: 'sky', avatarVersion: 'v1', ...extra })
-const job = (extra = {}) => ({ status: 'running', context: 'direct', contextId: 'x', groupId: 'g1', from: 'a', target: 'b', message: 'hello', startedAt: '2026-11-08T10:00:01.000Z', ...extra })
+const job = (extra = {}) => ({ status: 'running', context: 'direct', contextId: 'x', groupId: 'g1', from: 'a', target: 'b', requestSummary: null, startedAt: '2026-11-08T10:00:01.000Z', ...extra })
 const project = (input) => projectGraph({ members: [member('a'), member('b'), member('c')], turns: {}, queue: [], responders: {}, now: T0, ...input })
 const working = (...ids) => Object.fromEntries(ids.map(id => [id, { state: 'working', turnId: 't' }]))
 
 test('edge rules: only running direct/room deliveries between two members', () => {
   const queue = [job(), job({ groupId: 'self', from: 'a', target: 'a' }), job({ groupId: 'user', from: 'user' }), job({ groupId: 'f', status: 'failed' }),
     job({ groupId: 'ctx', context: 'self' }), job({ groupId: 'r1', context: 'room', contextId: 'room' }),
-    job({ groupId: 'r2', context: 'room', contextId: 'room', target: 'c', steered: true, message: '\n  \nsecond line' })]
+    job({ groupId: 'r2', context: 'room', contextId: 'room', target: 'c', steered: true, requestSummary: ' \n ' })]
   const { edges, nodes } = project({ queue, responders: { r2: ['c'], r1: ['c'] } })
   assert.deepEqual(edges.map(edge => edge.id), ['g1:b', 'r2:c'])
   assert.deepEqual(edges[1], { id: 'r2:c', requestId: 'r2', from: 'a', to: 'c', context: 'room', roomId: 'room', label: '依頼を処理中', state: 'steered', startedAt: '2026-11-08T10:00:01.000Z' })
   assert.deepEqual(nodes.map(node => [node.botId, node.state]), [['a', 'linked'], ['b', 'linked'], ['c', 'linked']])
 })
 
-test('label: receiver summary when current, else neutral; never the message body', () => {
-  const label = b => project({ queue: [job({ message: 'Admi -> Centi: please publish web-gateway' })], turns: { b } }).edges[0].label
-  assert.equal(label({ state: 'working', turnId: 't', summary: ' 公開手順を確認している ', summaryStatus: 'current' }), '公開手順を確認している')
-  assert.equal(label({ state: 'working', turnId: 't', summary: '古い要約', summaryStatus: 'stale' }), '依頼を処理中')
-  assert.equal(label({ state: 'working', turnId: 't', summary: null, summaryStatus: 'missing' }), '依頼を処理中')
-  assert.equal(label({ state: 'working', turnId: 't' }), '依頼を処理中')
+test('label: the once-per-request summary, else neutral; receiver work summary is not used', () => {
+  const current = { b: { state: 'working', turnId: 't', summary: '別の作業', summaryStatus: 'current' } }
+  const label = requestSummary => project({ queue: [job({ requestSummary })], turns: current }).edges[0].label
+  assert.equal(label(' 相関図の線を直す依頼 '), '相関図の線を直す依頼')
+  assert.equal(label(null), '依頼を処理中')
+  assert.equal(label(''), '依頼を処理中')
   assert.equal(label(undefined), '依頼を処理中')
 })
 
