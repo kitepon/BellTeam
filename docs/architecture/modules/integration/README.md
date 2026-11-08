@@ -138,9 +138,12 @@ flowchart LR
   Safe --> Writer["既Diagnostics.record / SERVER_HTTP_503"]
   Writer --> Saved["既private診断保存 / 管理GET / BugHub通常取込"]
   Error --> Response["既status・JSON応答"]
+  Error --> Text["message: publicMessage → 共通code文表 → error.message"] --> Response
 ```
 
 早期returnしていた型付き503だけを既writerへ記録する。任意のerror.message/stack/header/body/queryや対象IDは記録せず、未知codeはunknown、routeは固定型又は`/api/other`。HTTP段階はhandlerの進行位置で、members内部の失敗phaseではない。親拒否分類・live数・失敗phaseを同一判定へ結び付ける既公開口が無いためunknown/nullを保持し、catch直後のcapture/snapshotから補完しない。既集約はSERVER_HTTP_503/serverの1行でcountと最新診断を保持し、旧500/Apple診断の集約・状態を変えない。診断保存失敗は固定文だけをstderrへ残し元HTTP応答を返す。認可・既入場上限・既処理・status/JSON・再送方針は不変。自然再発や実席probeは検証条件にしない。
+
+型付きエラーの応答messageは、`publicMessage`が無ければ`http-errors`の共通code文表を引く。module IPCは文を運ばず（`Error(code)`とstatusだけ）、親の表が利用者向けの日本語を戻す。IPC payloadは広げない。表の行：`HARNESS_AUTH_ACCOUNTS_UNAVAILABLE`→「アカウントの保存場所を用意できませんでした。少し待ってから、もう一度お試しください。」（usageのaccounts.prepare失敗の正規化、2026-11-08 F-ACCT）。同じcodeは子process経由でも同一process経由でも同じ文になる。
 
 GET `/api/schedules`の型付き503も固定routeのまま保存する。queryや任意pathは残さず、未登録routeは`/api/other`を保つ。既HTTP→Diagnostics保存/reloadの局所確認に同routeを含める。これは診断分類の修理であり、予定取得503の原因特定や回復を示さない。
 

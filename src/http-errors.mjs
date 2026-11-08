@@ -10,6 +10,10 @@ const FAST_MODE_MESSAGES = {
   BOT_FAST_MODE_UNSUPPORTED: 'ファストモードへ切り替えられません。このBotのCLIとモデルは、ファストモードに対応していません。保存は変えていません。',
   BOT_FAST_MODE_ACCOUNT_UNAVAILABLE: 'ファストモードへ切り替えられません。このBotのCLIのアカウントでは、今はファストモードを使えません。保存は変えていません。',
 }
+// 型付きエラーの利用者向け文。module IPCは文を運ばない（Error(code)とstatusだけ）ので、同じcodeへ親がここで日本語を戻す。
+const PUBLIC_MESSAGES = {
+  HARNESS_AUTH_ACCOUNTS_UNAVAILABLE: 'アカウントの保存場所を用意できませんでした。少し待ってから、もう一度お試しください。',
+}
 const unavailableCodes = new Set(['MODULE_OPERATION_NOT_ACCEPTED', 'MEMBERS_NOT_ACCEPTED', 'MEMBERS_NOT_ACCEPTING', 'MEMBERS_UNAVAILABLE',
   'MEMBERS_IPC_CAPACITY', 'MEMBERS_IPC_DISCONNECTED', 'MEMBERS_IPC_SEND_FAILED', 'MEMBERS_IPC_ACK_TIMEOUT',
   'MEMBERS_IPC_TIMEOUT', 'MEMBERS_CHILD_EXITED', 'MEMBERS_IPC_INVALID', 'MEMBERS_RESULT_INVALID',
@@ -37,7 +41,7 @@ export async function respondHttpError(request, response, error, diagnostics, co
         }) })
       } catch { process.stderr.write('BellTeam: HTTP503の診断を保存できませんでした\n') }
     }
-    return json(response, error.status, { error: error.code, message: error.publicMessage ?? error.message, ...(['AUTH_RESPONSE_NOT_ISSUED', 'AUTH_RESPONSE_UNCONFIRMED', 'HARNESS_AUTH_RESPONSE_UNCONFIRMED', 'SETUP_AUTH_RESPONSE_UNCONFIRMED'].includes(error.code) ? { effect: error.effect ?? 'unknown' } : {}) })
+    return json(response, error.status, { error: error.code, message: error.publicMessage ?? (Object.hasOwn(PUBLIC_MESSAGES, error.code) ? PUBLIC_MESSAGES[error.code] : error.message), ...(['AUTH_RESPONSE_NOT_ISSUED', 'AUTH_RESPONSE_UNCONFIRMED', 'HARNESS_AUTH_RESPONSE_UNCONFIRMED', 'SETUP_AUTH_RESPONSE_UNCONFIRMED'].includes(error.code) ? { effect: error.effect ?? 'unknown' } : {}) })
   }
   if (error instanceof SubscriptionAccessError) return json(response, error.status, { error: error.code, message: error.message })
   if (request.url?.startsWith('/api/subscription') && ['INVALID_JSON', 'REQUEST_TOO_LARGE'].includes(error.message))
