@@ -66,12 +66,42 @@ Owner ruling: a text-only settings page is rejected. Same markup sections, same 
 
 Source reach: `web/index.html` (section icon attributes), `web/styles.css`, `web/ai-control.js`, `web/owner-editor.js`. No public HTTP, storage, or save behavior changes; no guard added.
 
+## Claude 1st/2nd accounts (2026-11-08, Owner via Trony)
+
+Contract: [harness accounts](../execution/harness-accounts.md) (execution owns the registry and selection; Mika owns HarnessAuth slots; Molly owns the routes). The Web only renders and calls the routes below; it never picks a slot, parses a limit or computes a reset.
+
+```mermaid
+flowchart TD
+  Open[設定 open / SSE settings] --> List["GET /api/accounts<br/>accounts.list() verbatim"]
+  List -->|404 / no claude entry| Old[old single Claude auth card, unchanged]
+  List -->|claude harness| Card["harness-accounts.js<br/>Claude card"]
+  Card --> Banner["allLimited → banner<br/>earliestResetAt in JST"]
+  Card --> Rows["1stアカウント / 2ndアカウント rows<br/>loggedIn, label, limits, seats"]
+  Rows -->|ログイン per row| Auth["existing harness-auth flow<br/>/api/harness-auth/claude[/start|input|cancel]?slot=2nd<br/>(no slot = 1st)"]
+  Auth -->|authenticated| List
+  Card --> Switch["switch 「Fableを2ndアカウントで使う」<br/>checked = rules has claude/claude-fable/2nd"]
+  Switch -->|"POST /api/accounts/rules {harness:'claude', modelPrefix:'claude-fable', slot:'2nd'|null}"| Rules[returned rules → switch]
+  Bots["GET /api/bots item.account {harness, slot, preferredSlot} | absent"] --> Member["member card: 1st/2ndアカウント under the meta line<br/>absent/null → nothing"]
+```
+
+| Function / edge | Input -> output and ownership |
+| --- | --- |
+| `accountsView(list)` (harness-accounts.js, pure) | accounts.list() -> rows `{slot, title, state, label, limitTexts, seats}`, `fableOn`, `banner`. Missing/odd fields -> neutral text, never a guessed state. |
+| Limit text | `'all'` -> 「上限中 (HH:MMに解除)」; family -> 「Fableのみ上限中 (HH:MMに解除)」 (family capitalized); time in Asia/Tokyo, `M/D HH:MM` when not today (JST); null -> 「…(解除時刻不明)」. |
+| Banner | `allLimited[]` non-empty -> 「両方のアカウントが上限中です」 + per scope earliest reset (same text rule). |
+| Login | each row embeds the existing `harnessAuthItem` with `slot`; the slot travels only as `?slot=` so the strict input body is unchanged. 1st keeps the old start warning. |
+| Switch | one POST per change, disabled while sending; shown state comes only from the returned `rules` (failure -> previous state + error text). |
+| Member card | `bot.account?.slot` -> 「1stアカウント」/「2ndアカウント」 badge in the member header line; when slot ≠ preferredSlot the title says the preferred one. |
+| Fallback | `/api/accounts` 404 (older body) -> exactly the previous single Claude card. Other harnesses keep the previous card. |
+
+Source reach: `web/harness-accounts.js` (new), `web/harness-auth.js` (slot option, Claude delegates to the accounts card), `web/application.js` (member slot badge), `web/styles.css`, `web/assets.mjs`, `test/web-harness-accounts.test.mjs`. No storage and no guard added.
+
 ## 単独試験
 
 Node 24以上の標準機能だけで実行でき、サーバー・native・他機能の内部実装・実データは起動しない。
 
 ```sh
-node --test test/web-client.test.mjs test/web-module.test.mjs test/web-event-refresh.test.mjs test/web-final-ownership.test.mjs test/web-bot-avatar-list.test.mjs test/bot-profile-ui.test.mjs test/editor-ownership.test.mjs test/conversation-composer.test.mjs test/timeline-open-queue.test.mjs test/message-images.test.mjs test/bot-read-views.test.mjs test/goals-view-order.test.mjs test/chat-input.test.mjs test/schedule-list.test.mjs test/memory-view.test.mjs
+node --test test/web-client.test.mjs test/web-module.test.mjs test/web-event-refresh.test.mjs test/web-final-ownership.test.mjs test/web-bot-avatar-list.test.mjs test/bot-profile-ui.test.mjs test/editor-ownership.test.mjs test/conversation-composer.test.mjs test/timeline-open-queue.test.mjs test/message-images.test.mjs test/bot-read-views.test.mjs test/goals-view-order.test.mjs test/chat-input.test.mjs test/schedule-list.test.mjs test/memory-view.test.mjs test/web-harness-accounts.test.mjs test/harness-auth-client.test.mjs test/auth-poll-order.test.mjs
 ```
 
 `web-module`は実際のapplication/各viewを人工HTTP/SSEと小さいDOMで接続し、起動前の無通信、会話別下書き、既読、対象外通知、受付後の表示失敗とPOST一回、pagehideを確認する。`web-client`はJSON/204/error、分割UTF-8、通知順、EOF、既存の再接続分類と解除を確認する。実ブラウザーのレイアウト・native実配送・本番反映を証明する試験ではない。

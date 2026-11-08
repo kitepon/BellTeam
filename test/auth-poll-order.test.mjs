@@ -41,6 +41,7 @@ for (const kind of ['settings', 'onboarding']) for (const late of ['success', 'e
         section = await renderHarnessAuth(container, { api: async (path, options = {}) => {
           if (options.method === 'POST') posts++
           if (path === '/api/harness-auth') return { harnesses: [{ id: 'claude', name: 'Claude', members: 1 }] }
+          if (path === '/api/accounts') throw Object.assign(new Error('NOT_FOUND'), { status: 404 })
           if (++reads === 1) return { auth: waiting }
           return hold(auth => ({ auth }))
         } })

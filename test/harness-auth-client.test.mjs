@@ -63,7 +63,7 @@ test('一覧を開くと各AIの認証状態と操作を表示し、認証し直
     await settle()
     assert.deepEqual(container.children.map(item => item.children[0].textContent), ['Claude · 10人が使用', 'Codex · 19人が使用'])
     assert.ok(container.children.every(item => item.tag !== 'details'))
-    assert.deepEqual(calls, ['GET /api/harness-auth', 'GET /api/harness-auth/claude', 'GET /api/harness-auth/codex'])
+    assert.deepEqual(calls, ['GET /api/harness-auth', 'GET /api/accounts', 'GET /api/harness-auth/claude', 'GET /api/harness-auth/codex'])
     assert.ok(texts(container.children[0]).includes('確認できません'))
     assert.ok(texts(container.children[1]).includes('認証済み'))
     assert.equal(documentListeners.length, 2)
@@ -71,19 +71,19 @@ test('一覧を開くと各AIの認証状態と操作を表示し、認証し直
     const codex = container.children[1]
     const press = label => descendants(codex).find(item => item.tag === 'button' && item.textContent === label).fire('click')
     await settle()
-    assert.deepEqual(calls.slice(1), ['GET /api/harness-auth/claude', 'GET /api/harness-auth/codex'])
+    assert.deepEqual(calls.slice(2), ['GET /api/harness-auth/claude', 'GET /api/harness-auth/codex'])
     assert.ok(texts(codex).includes('認証が完了しました'))
     assert.equal(descendants(codex).some(item => item.textContent === '認証を中止する'), false)
 
     // 認証済みに見えるCodexは、始めた時点で今の認証が消える。1回目は知らせるだけで、何も始めない。
     press('認証し直す')
     await settle()
-    assert.deepEqual(calls.slice(1), ['GET /api/harness-auth/claude', 'GET /api/harness-auth/codex'])
+    assert.deepEqual(calls.slice(2), ['GET /api/harness-auth/claude', 'GET /api/harness-auth/codex'])
     assert.ok(texts(codex).includes('Codexは、認証し直しを始めた時点で今の認証が消えます。'))
     press('始めない')
     await settle()
     assert.equal(texts(codex).includes('Codexは、認証し直しを始めた時点で今の認証が消えます。'), false)
-    assert.deepEqual(calls.slice(1), ['GET /api/harness-auth/claude', 'GET /api/harness-auth/codex'])
+    assert.deepEqual(calls.slice(2), ['GET /api/harness-auth/claude', 'GET /api/harness-auth/codex'])
 
     // 知らせを読んで、もう一度押した時に始める。
     press('認証し直す')

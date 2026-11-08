@@ -10,6 +10,7 @@ import { createRoomEditor } from './room-editor.js?v=__ASSET_VERSION__'
 import { createMemoryView } from './memory-view.js?v=__ASSET_VERSION__'
 import { createScreenView, createCharacterSheetView } from './bot-read-views.js?v=__ASSET_VERSION__'
 import { createScheduleEditor } from './schedule-editor.js?v=__ASSET_VERSION__'
+import { bannerTexts, seatBadge } from './harness-accounts.js?v=__ASSET_VERSION__'
 import { createConversationTimeline } from './conversation-timeline.js?v=__ASSET_VERSION__'
 import { applyAvatar, initials, memberDisplay, formatTime, escapeClass, escapeHtml } from './view-format.js?v=__ASSET_VERSION__'
 import { openOnboarding } from './onboarding.js?v=__ASSET_VERSION__'
@@ -312,6 +313,16 @@ export function createWebApp({ client = createWebClient() } = {}) {
   async function loadFeatureSettings() {
     state.settings = (await api('/api/settings')).settings
     if (state.selectedType === 'room') renderTargetPicker(state.selected)
+    void loadAccountsBanner()
+  }
+
+  // Claudeの1st/2ndが両方とも上限中の時だけ、一覧の上に知らせる。旧本体（/api/accountsなし）や読めない時は出さない。
+  async function loadAccountsBanner() {
+    const banner = document.querySelector('#accounts-banner')
+    if (!banner) return
+    const texts = bannerTexts(await api('/api/accounts').catch(() => null))
+    banner.hidden = !texts.length
+    banner.textContent = texts.join(' / ')
   }
 
   async function loadBots() {
@@ -378,10 +389,11 @@ export function createWebApp({ client = createWebClient() } = {}) {
       button.addEventListener('click', () => selectBot(bot))
       const preview = workLabel(bot.currentWork)
       const parts = workParts(bot.currentWork)
+      const account = seatBadge(bot.account)
       button.innerHTML = `
         <span class="avatar ${escapeClass(bot.color)}" data-avatar>${initials(bot.name)}<i class="presence ${bot.online ? 'online' : ''}"></i></span>
         <span class="bot-copy"><span class="bot-name">${escapeHtml(bot.displayName)}</span>${bot.deleting || bot.deletionRequested ? '<span class="deletion-state">削除を受付・完了未確認</span>' : ''}</span>
-        <span class="bot-meta"><time class="bot-time" title="最終会話の時刻">${formatTime(bot.recent?.at)}</time>${parts.state ? `<span class="work-state">${escapeHtml(parts.state)}</span>` : ''}${unread ? '<i class="unread-dot" aria-label="未読"></i>' : ''}</span>
+        <span class="bot-meta"><time class="bot-time" title="最終会話の時刻">${formatTime(bot.recent?.at)}</time>${parts.state ? `<span class="work-state">${escapeHtml(parts.state)}</span>` : ''}${account ? `<span class="account-slot-badge" title="${escapeHtml(account.title)}">${escapeHtml(account.text)}</span>` : ''}${unread ? '<i class="unread-dot" aria-label="未読"></i>' : ''}</span>
         <span class="bot-preview bot-work-preview" title="${escapeHtml(preview)}">${escapeHtml(parts.text)}</span>`
       applyAvatar(button.querySelector('[data-avatar]'), bot)
       return button
