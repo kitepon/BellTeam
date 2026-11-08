@@ -254,7 +254,7 @@ private struct DesktopInspector: View {
                         Text("\(bot.displayName)の画面").font(.headline).lineLimit(1)
                     }
                     .padding(16)
-                    BotScreenView(bot: bot, embedded: true)
+                    BotScreenView(bot: bot, embedded: true, api: store.api)
                 }
             } else {
                 profile

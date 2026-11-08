@@ -68,7 +68,7 @@ struct ConversationDetailView: View {
                 .bellEditorSheet()
             }
             .sheet(isPresented: $showingScreen) {
-                if let bot { BotScreenView(bot: bot).environmentObject(store) }
+                if let bot { BotScreenView(bot: bot, api: store.api).environmentObject(store) }
             }
             .botProfileImageActions(bot: bot, images: images)
             .onChange(of: room?.id) { _, id in
