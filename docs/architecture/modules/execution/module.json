@@ -9,7 +9,8 @@
     "configuration",
     "stop",
     "observation",
-    "members-admission"
+    "members-admission",
+    "accounts"
   ],
   "uses": [
     {
