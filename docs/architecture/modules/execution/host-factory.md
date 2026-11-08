@@ -167,7 +167,7 @@ flowchart TD
 | --- | --- |
 | engine `quiesce(timeoutMs,{handover})` | Handover waits for nothing but a running initialization. No EXECUTION_BUSY. Without handover (close, install proof) the full `idleNow()` drain, 60 s and EXECUTION_BUSY are unchanged. |
 | engine `exportState({handover})` | Passes the live objects instead of a clone, so writes from work the old engine is still finishing are seen by the successor. Adds `activity` and `released`, detaches the old producers, the queue listener and the activity-file writer, and forwards capacity `failed(context)` to `activity.recoverCapacity`. |
-| engine handoff adoption | With `handoff.activity`, the session-state maps are taken by reference. The deferred capacity contexts on the activity are recovered when the successor becomes running. A legacy handoff without `activity` keeps the clone path. |
+| engine handoff adoption | With `handoff.activity`, the session-state maps are taken by reference when the predecessor exports them as Maps. A predecessor older than the live-state handover exports no `sessionChanges`, so the engine keeps its own map; taking `undefined` broke every wake on production on 2026-11-08: `TypeError … reading 'get'`, delivery 9550cf43. The deferred capacity contexts on the activity are recovered when the successor becomes running. A legacy handoff without `activity` keeps the clone path. |
 | generation `quiesce(handover)` | No `waitActive()` and no 60 s bound. Dispose/close keep both. |
 | kept failure | Initialization still running: the replace waits for it (bounded by INITIALIZE_TIMEOUT 45 s). Protects a half-built engine from being exported. |
 
