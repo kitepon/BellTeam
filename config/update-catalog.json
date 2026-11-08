@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T14:15:51Z",
-  "expiresAt": "2026-11-15T14:15:51Z",
+  "publishedAt": "2026-11-08T15:01:27Z",
+  "expiresAt": "2026-11-15T15:01:27Z",
   "releases": [
     {
       "componentId": "usage",
@@ -489,8 +489,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "be9c089d6f2f19611c5af56844cb035c5cdfa8ee",
-      "versionId": "8177502e2100cc17377d5f5fe73eb3e57b1cc5e3dba32c3ea95385570f7ad678",
+      "sourceCommit": "7dbbeacfda25a41a9e9adb584abf1276b3c50305",
+      "versionId": "f66d271b57916a39d5734a9e61d1241a346a7b047a7ceb4ba7bc8db8404f4c99",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -498,16 +498,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T132535Z/execution-be9c089d6f2f19611c5af56844cb035c5cdfa8ee-linux-amd64.tar.gz",
-          "bytes": 3934184,
-          "sha256": "8177502e2100cc17377d5f5fe73eb3e57b1cc5e3dba32c3ea95385570f7ad678"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T150108Z/execution-7dbbeacfda25a41a9e9adb584abf1276b3c50305-linux-amd64.tar.gz",
+          "bytes": 3935083,
+          "sha256": "f66d271b57916a39d5734a9e61d1241a346a7b047a7ceb4ba7bc8db8404f4c99"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T132535Z/execution-be9c089d6f2f19611c5af56844cb035c5cdfa8ee-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10989,
-          "sha256": "9c8ce9a25a84c1bbf3b145c35236263b1957baa4ae8c748a93a8a71566828c65"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T150108Z/execution-7dbbeacfda25a41a9e9adb584abf1276b3c50305-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10942,
+          "sha256": "19235c0bb5b44cd7a7bbda0592e1aa2214367415d3319cc6047304ede6f3e634"
         },
-        "signerCommit": "be9c089d6f2f19611c5af56844cb035c5cdfa8ee"
+        "signerCommit": "7dbbeacfda25a41a9e9adb584abf1276b3c50305"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -517,13 +517,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "Fableなどのモデルの切り替えルールが、メンバーに効くようにします。"
+        "AIを動かす道具（CLI）を切り替えた後も、ターン終了後の自動の続きが正しく動くようにします。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "be9c089d6f2f19611c5af56844cb035c5cdfa8ee",
-      "versionId": "49231c2b532bfa4defd70b57b061e4dd67e24b1ec94e5a84699f4696e704f532",
+      "sourceCommit": "7dbbeacfda25a41a9e9adb584abf1276b3c50305",
+      "versionId": "865acb176c202a073f0b71f36464c406fab156d8f72d5bcd132f75ea468e85ae",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -531,16 +531,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T132535Z/execution-be9c089d6f2f19611c5af56844cb035c5cdfa8ee-linux-arm64.tar.gz",
-          "bytes": 3934182,
-          "sha256": "49231c2b532bfa4defd70b57b061e4dd67e24b1ec94e5a84699f4696e704f532"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T150108Z/execution-7dbbeacfda25a41a9e9adb584abf1276b3c50305-linux-arm64.tar.gz",
+          "bytes": 3935086,
+          "sha256": "865acb176c202a073f0b71f36464c406fab156d8f72d5bcd132f75ea468e85ae"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T132535Z/execution-be9c089d6f2f19611c5af56844cb035c5cdfa8ee-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10942,
-          "sha256": "4df45b6525d7ed62d052c649dac4e2c0f15c07c960db90ac685023dcb82effca"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T150108Z/execution-7dbbeacfda25a41a9e9adb584abf1276b3c50305-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10852,
+          "sha256": "25e194db71755d430407a34bc04de600e875c16f3e44ac9a3128d922470df0c2"
         },
-        "signerCommit": "be9c089d6f2f19611c5af56844cb035c5cdfa8ee"
+        "signerCommit": "7dbbeacfda25a41a9e9adb584abf1276b3c50305"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -550,7 +550,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "Fableなどのモデルの切り替えルールが、メンバーに効くようにします。"
+        "AIを動かす道具（CLI）を切り替えた後も、ターン終了後の自動の続きが正しく動くようにします。"
       ]
     },
     {
