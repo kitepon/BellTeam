@@ -77,6 +77,17 @@ flowchart LR
 
 reportErrorは任意constructor引数。設定失敗は`SERVER_MODEL_CONFIGURATION_FAILED`/bots、待機追跡故障は`SERVER_TURN_TRACKING_FAILED`/queueとして{code,module,diagnostic_log}を提供する。JSONは`bellteam.execution-failure.v1`の対象/工程、許可した元code、存在するexitCode/signal、既知waitOutcome（未対応値は固定unknown）、適用outcome/effectと下記の配送wait文脈だけ。生message/stack/stdio/env/本文は含めない。不正JSONでも取得済みのprocess終了値とsignalを例外に残す。正常timeout/runningとnativeが返す既知の終了error/rate_limitedは、追跡機構の故障として報告しない。診断callbackの例外は操作結果を変えない。
 
+### Turn-end failure (public error fields, 2026-11-09)
+
+A turn that the transport followed to its terminal and that ended with a harness error rejects with an Error that carries:
+- `turnCompleted: true`;
+- `waitOutcome: 'error' | 'rate_limited'`;
+- `failureCategory: 'rate_limited' | 'capacity' | 'transient' | 'other' | null` (Aiterm `failure.category`);
+- `recoveryFailure`, only when continuation may run;
+- message `AITERM_TURN_ERROR: …` / `AITERM_TURN_RATE_LIMITED: …` and `limitText`. These are raw vendor text: diagnostics never keep them.
+
+There is no `code`. The same object reaches the delivery's `onStatus('failed', error)` in the parent by reference. A genuine tracking failure never has `turnCompleted: true`, so a consumer that reports tracking failures excludes it. Report classification of direct deliveries belongs to the conversation owner (N102, BugHub 95f155b7).
+
 `delivery_wait`だけ、例外を取得した時点の`jobId`・`groupId`（UUID表記のみ）、`stopRequested`・`stopped`・`waitAborted`（booleanのみ）を任意fieldとして加える。groupIdはjob.info.groupIdで、直接配送のdelivery ID、部屋では共有メッセージID。jobIdとbotIdで部屋の対象を区別する。欠測値を作らず、job全体・receipt・signal.reasonは渡さない。値はinterim停止やjob.failureのawait前に取得し、後からの停止状態へ置換しない。watch/設定には文脈を加えない。既caller・export・設定・会話保存schemaは不変で、共通writerは従来のdiagnostic_log JSONを保存する。
 
 `delivery_completion`（2026-11-08追加）は、受理済みの配送が終端前に失敗した時だけ一件出す（待機自体の失敗は既`delivery_wait`が出すので重ねない）。`jobId`・`groupId`、到達した`step`（`answer`/`delivered`/`turn_end`/`other`の固定値）、`errorCode`（大文字snake形式の元code、または`AITERM_`で始まる例外messageの先頭token）、存在する`mcp_request`（既`mcpRequestContext`の射影）だけを持つ。`turnCompleted`でも省かない。理由: 会話側の`status`段の診断は配送stage（BOT_SEND_FAILED等）しか受け取らず、12:47 JSTのOwner配送（turnは正常終了）が原因欠測のnullだけで残ったため。分類・再送・会話保存は変えない。
