@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T07:58:21Z",
-  "expiresAt": "2026-11-15T07:58:21Z",
+  "publishedAt": "2026-11-08T11:34:02Z",
+  "expiresAt": "2026-11-15T11:34:02Z",
   "releases": [
     {
       "componentId": "usage",
@@ -634,16 +634,86 @@
       ]
     },
     {
+      "componentId": "work-graph",
+      "sourceCommit": "efc2b3e135540b1c5634fa90e501db3b1c00e2e1",
+      "versionId": "1b8c8c762be2aa37310cd24efab091e17747b64c6d9b8572a3949ac703bf00b6",
+      "platform": {
+        "os": "linux",
+        "arch": "amd64"
+      },
+      "artifact": {
+        "kind": "archive",
+        "archive": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T113242Z/work-graph-efc2b3e135540b1c5634fa90e501db3b1c00e2e1-linux-amd64.tar.gz",
+          "bytes": 3820610,
+          "sha256": "1b8c8c762be2aa37310cd24efab091e17747b64c6d9b8572a3949ac703bf00b6"
+        },
+        "bundle": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T113242Z/work-graph-efc2b3e135540b1c5634fa90e501db3b1c00e2e1-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11048,
+          "sha256": "7b13e3a52488f17cb162bc800a4447dfe82e835e1a2955b0f764901911e0b039"
+        },
+        "signerCommit": "efc2b3e135540b1c5634fa90e501db3b1c00e2e1"
+      },
+      "compatibility": {
+        "nodeMajor": 26,
+        "parentProtocol": 1,
+        "stateSchema": null,
+        "containerUpdate": null,
+        "stateCompatibility": {
+          "state": "none"
+        }
+      },
+      "changes": [
+        "相関図を本体から独立した部品にし、相関図だけを更新できるようにします。"
+      ]
+    },
+    {
+      "componentId": "work-graph",
+      "sourceCommit": "efc2b3e135540b1c5634fa90e501db3b1c00e2e1",
+      "versionId": "fd88d726230dbab7e93219344f55edd029558c85663bb0e2b0544a973acf30d1",
+      "platform": {
+        "os": "linux",
+        "arch": "arm64"
+      },
+      "artifact": {
+        "kind": "archive",
+        "archive": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T113242Z/work-graph-efc2b3e135540b1c5634fa90e501db3b1c00e2e1-linux-arm64.tar.gz",
+          "bytes": 3820610,
+          "sha256": "fd88d726230dbab7e93219344f55edd029558c85663bb0e2b0544a973acf30d1"
+        },
+        "bundle": {
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T113242Z/work-graph-efc2b3e135540b1c5634fa90e501db3b1c00e2e1-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11048,
+          "sha256": "945dfad291c32ac53a313596f740b558c9555cfaafc1dec00ad0dc45c552830e"
+        },
+        "signerCommit": "efc2b3e135540b1c5634fa90e501db3b1c00e2e1"
+      },
+      "compatibility": {
+        "nodeMajor": 26,
+        "parentProtocol": 1,
+        "stateSchema": null,
+        "containerUpdate": null,
+        "stateCompatibility": {
+          "state": "none"
+        }
+      },
+      "changes": [
+        "相関図を本体から独立した部品にし、相関図だけを更新できるようにします。"
+      ]
+    },
+    {
       "componentId": "container",
-      "sourceCommit": "386de126878531c68334ecb3c451e80c37aee6e5",
-      "versionId": "sha256:c83379dd9117b04c7cdd8341a6f3272d3575840c7b1a37bfef7e972e4626af6e",
+      "sourceCommit": "f851a0be6274fa02f75364ed5a714894dd835078",
+      "versionId": "sha256:0b110d29b0de11eccb494ac50973d674ea5f831099f4fa918fc70e95cc854b64",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c83379dd9117b04c7cdd8341a6f3272d3575840c7b1a37bfef7e972e4626af6e"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:0b110d29b0de11eccb494ac50973d674ea5f831099f4fa918fc70e95cc854b64"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -652,20 +722,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "AI端末の仲介役（Aiterm）を0.63.18に更新し、AIへの入力と画面の読み取りを正しく結び付けます。"
+        "相関図を本体から独立した部品として動かし、本体を入れ替えずに相関図だけを更新できるようにします。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "386de126878531c68334ecb3c451e80c37aee6e5",
-      "versionId": "sha256:c83379dd9117b04c7cdd8341a6f3272d3575840c7b1a37bfef7e972e4626af6e",
+      "sourceCommit": "f851a0be6274fa02f75364ed5a714894dd835078",
+      "versionId": "sha256:0b110d29b0de11eccb494ac50973d674ea5f831099f4fa918fc70e95cc854b64",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c83379dd9117b04c7cdd8341a6f3272d3575840c7b1a37bfef7e972e4626af6e"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:0b110d29b0de11eccb494ac50973d674ea5f831099f4fa918fc70e95cc854b64"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -674,7 +744,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "AI端末の仲介役（Aiterm）を0.63.18に更新し、AIへの入力と画面の読み取りを正しく結び付けます。"
+        "相関図を本体から独立した部品として動かし、本体を入れ替えずに相関図だけを更新できるようにします。"
       ]
     }
   ],
