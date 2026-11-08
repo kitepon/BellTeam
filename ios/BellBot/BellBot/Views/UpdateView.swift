@@ -205,15 +205,18 @@ struct UpdateContent: View {
 
     private func confirmation(_ plan: UpdatePlan) -> some View {
         let names = plan.targets.map { target in updates.inventory?.components.first { $0.id == target.componentId }?.name ?? target.componentId }
-        // 未知のactionやscopeの計画は、何が起きるか分からないので実行させない。
-        let known = plan.action != .unknown && plan.scope != .unknown
-        let ready = updates.canStartPlan && plan.compatibility.compatible && plan.capability.supported && known
+        let ready = updates.canStartPlan && plan.compatibility.compatible && plan.capability.supported
+        let wording = Self.planWording(plan)
         return VStack(alignment: .leading, spacing: 12) {
-            Text(plan.action == .rollback ? "戻す前の確認" : "更新の前に").font(.headline)
+            Text(wording.title).font(.headline)
             Text(names.joined(separator: "、")).font(.body.weight(.semibold))
+            if let raw = wording.serverPlan {
+                Text(raw).font(.caption.monospaced()).foregroundStyle(BellTheme.muted).textSelection(.enabled)
+                    .accessibilityIdentifier("update-server-plan")
+            }
             Label(plan.impact.description, systemImage: plan.impact.containerRestart ? "pause.circle" : "info.circle")
                 .font(.subheadline).foregroundStyle(BellTheme.muted)
-            if !plan.compatibility.compatible || !plan.capability.supported || !known {
+            if !plan.compatibility.compatible || !plan.capability.supported {
                 Text("この更新は、今の状態では適用できません。時間をおいて確認してください。").font(.subheadline)
             }
             if plan.impact.containerRestart {
@@ -224,7 +227,7 @@ struct UpdateContent: View {
             HStack(spacing: 12) {
                 Button("やめる") { updates.discardPlan() }.buttonStyle(.bordered).controlSize(.large)
                 Button { Task { await updates.execute(confirmContainerRestart: confirmedRestart) } } label: {
-                    Text(plan.action == .rollback ? "戻す" : "更新を始める").foregroundStyle(.white).frame(maxWidth: .infinity)
+                    Text(wording.button).foregroundStyle(.white).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent).tint(BellTheme.violet).controlSize(.large)
                 .disabled(!ready || (plan.impact.containerRestart && !confirmedRestart))
@@ -233,6 +236,18 @@ struct UpdateContent: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(22).bellCard()
+    }
+
+    /// 知っている計画は利用者向けの言葉で出す。未知のaction・scopeはアプリで言い換えず、サーバーの値と対象をそのまま見せる。
+    /// 計画の検証と責任はサーバーが持つので、確認すれば実行できる。
+    static func planWording(_ plan: UpdatePlan) -> (title: String, button: String, serverPlan: String?) {
+        guard plan.action == .unknown || plan.scope == .unknown else {
+            return plan.action == .rollback ? ("戻す前の確認", "戻す", nil) : ("更新の前に", "更新を始める", nil)
+        }
+        let targets = plan.targets.map { "\($0.componentId): \(Self.label($0.current)) → \(Self.label($0.published))" }
+        let lines = ["action: \(plan.$action ?? "なし") / scope: \(plan.$scope)",
+                     "containerRestart: \(plan.impact.containerRestart)"] + targets
+        return ("サーバーの計画を確認", "実行する", lines.joined(separator: "\n"))
     }
 
     private var changeList: some View {

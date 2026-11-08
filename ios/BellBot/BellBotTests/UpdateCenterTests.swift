@@ -3,6 +3,7 @@ import SwiftUI
 @testable import BellBot
 
 /// サーバーの有限例13種（Fixtures/update-examples.json。test/apple-update-fixtures.test.mjsが同一性を守る）をdecodeする。
+@MainActor
 final class UpdateModelTests: XCTestCase {
     private static let names = ["running", "no_update", "published_unavailable", "incompatible", "restart_required", "accepted",
                                 "disconnected_unknown", "execution_failed", "verified_completed",
@@ -41,6 +42,13 @@ final class UpdateModelTests: XCTestCase {
         let inventory = try UpdateFixtures.decode(example)
         XCTAssertEqual(inventory.components[0].comparison.state, .unknown, "新しい値でも画面全体は読める")
         XCTAssertEqual(inventory.plans[0].action, .unknown)
+        XCTAssertEqual(inventory.plans[0].$action, "migrate", "元の文字列も持つ")
+        let wording = UpdateContent.planWording(inventory.plans[0])
+        XCTAssertEqual(wording.button, "実行する", "未知の計画も確認すれば実行できる")
+        XCTAssertTrue(wording.serverPlan?.contains("action: migrate") == true, "アプリで言い換えずサーバーの値を見せる")
+        XCTAssertTrue(wording.serverPlan?.contains("containerRestart: true") == true)
+        XCTAssertEqual(UpdateContent.planWording(try UpdateFixtures.inventory("module_rollback").plans[0]).button, "戻す")
+        XCTAssertNil(UpdateContent.planWording(try UpdateFixtures.inventory("restart_required").plans[0]).serverPlan)
         example["schema"] = "bellteam.updates.v2"
         XCTAssertThrowsError(try UpdateFixtures.decode(example), "schemaの不一致は別契約なので応答不正")
     }

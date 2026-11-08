@@ -36,6 +36,35 @@ extension UnknownDecodable {
     }
 }
 
+/// 列挙の値と、サーバーが送った元の文字列の両方を持つ。`$名前`で元の文字列を読む（unknownの時にそのまま見せる）。
+@propertyWrapper
+struct ServerValue<Value: UnknownDecodable & Equatable>: Decodable, Equatable {
+    var wrappedValue: Value
+    let projectedValue: String
+    init(from decoder: Decoder) throws {
+        projectedValue = try decoder.singleValueContainer().decode(String.self)
+        wrappedValue = Value(rawValue: projectedValue) ?? Value.unknownCase
+    }
+}
+
+/// `ServerValue`の、キーが無くてもよい版。無い時は値も元の文字列もnil。
+@propertyWrapper
+struct OptionalServerValue<Value: UnknownDecodable & Equatable>: Decodable, Equatable {
+    var wrappedValue: Value?
+    let projectedValue: String?
+    init(raw: String?) {
+        projectedValue = raw
+        wrappedValue = raw.map { Value(rawValue: $0) ?? Value.unknownCase }
+    }
+    init(from decoder: Decoder) throws { self.init(raw: try decoder.singleValueContainer().decode(String.self)) }
+}
+
+extension KeyedDecodingContainer {
+    func decode<Value>(_ type: OptionalServerValue<Value>.Type, forKey key: Key) throws -> OptionalServerValue<Value> {
+        OptionalServerValue(raw: try decodeIfPresent(String.self, forKey: key))
+    }
+}
+
 /// `GET /api/updates`（`bellteam.updates.v1`）。schemaの不一致だけは別契約なので応答不正。他の列挙の未知の値はunknownとして読む。
 struct UpdateInventory: Decodable, Equatable {
     enum Schema: String, Decodable { case v1 = "bellteam.updates.v1" }
@@ -149,7 +178,7 @@ struct UpdatePlan: Decodable, Equatable {
     struct Impact: Decodable, Equatable { let containerRestart: Bool; let description: String }
 
     let planId: String
-    let scope: Scope
+    @ServerValue var scope: Scope
     @NullableField var componentId: String?
     let expiresAt: String
     let targets: [Target]
@@ -157,7 +186,7 @@ struct UpdatePlan: Decodable, Equatable {
     let impact: Impact
     let capability: UpdateCapability
     // 旧い計画にはactionが無い。無い時は更新を意味する。
-    let action: Action?
+    @OptionalServerValue var action: Action?
 }
 
 struct UpdateOperation: Decodable, Equatable {
