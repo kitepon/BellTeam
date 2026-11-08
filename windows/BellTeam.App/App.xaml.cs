@@ -64,7 +64,7 @@ public partial class App : Application
                 using var pageWorkspace = new Workspace(); await pageWorkspace.ConnectAsync(pageAddress, listen: false);
                 if (pageWorkspace.ConnectionError is { } failure) throw new BellApiException(failure);
                 var pageWindow = new MainWindow(pageWorkspace, persistPlacement: false, notifications: new DesktopNotifications(new WindowsNotificationSink(), new SettingsStore(SettingsStore.UserDirectory), (_, _) => { }));
-                if (pageKind is "settings" or "settings-lower") pageWindow.ShowSettings(); else if (pageKind.StartsWith("settings-", StringComparison.Ordinal) && Enum.TryParse<SettingsPage>(pageKind["settings-".Length..], ignoreCase: true, out var settingsPage)) pageWindow.ShowSettings(settingsPage); else if (pageKind == "schedules") pageWindow.ShowSchedules(); else if (pageKind is "updates" or "updates-current" or "updates-narrow" or "updates-detail-narrow") pageWindow.ShowSettings(SettingsPage.Update); else if (pageKind == "update-sheet") { if (pageWorkspace.Entries.FirstOrDefault() is { } behind) await pageWorkspace.SelectAsync(behind); pageWindow.ShowUpdateSheet(); } else throw new ArgumentException("未対応のページです。");
+                if (pageKind is "settings" or "settings-lower") pageWindow.ShowSettings(); else if (pageKind.StartsWith("settings-", StringComparison.Ordinal) && Enum.TryParse<SettingsPage>(pageKind["settings-".Length..], ignoreCase: true, out var settingsPage)) pageWindow.ShowSettings(settingsPage); else if (pageKind == "schedules") pageWindow.ShowSchedules(); else if (pageKind == "goals") pageWindow.ShowGoals(); else if (pageKind is "updates" or "updates-current" or "updates-narrow" or "updates-detail-narrow") pageWindow.ShowSettings(SettingsPage.Update); else if (pageKind == "update-sheet") { if (pageWorkspace.Entries.FirstOrDefault() is { } behind) await pageWorkspace.SelectAsync(behind); pageWindow.ShowUpdateSheet(); } else throw new ArgumentException("未対応のページです。");
                 await pageWindow.PageReady;
                 var pageWidth = pageKind is "updates-narrow" or "updates-detail-narrow" ? 1100 : 1280; var pageHeight = pageKind is "updates-narrow" or "updates-detail-narrow" ? 700 : 820;
                 var pageRoot = (FrameworkElement)pageWindow.Content; pageRoot.Measure(new Size(pageWidth, pageHeight)); pageRoot.Arrange(new Rect(0, 0, pageWidth, pageHeight)); pageRoot.UpdateLayout();
@@ -110,6 +110,27 @@ public partial class App : Application
                 inspectorRoot.Measure(new Size(1280, inspectorHeight)); inspectorRoot.Arrange(new Rect(0, 0, 1280, inspectorHeight)); inspectorRoot.UpdateLayout();
                 await window.PrepareRenderAsync();
                 WritePng(window, 1280, inspectorHeight, inspectorOutput);
+                model.Dispose(); Shutdown(0); return;
+            }
+            if (e.Args is ["--render-goals", var goalScene, var goalAddress, var goalBotId, var goalOutput])
+            {
+                // The goal pill and editor sheet read from the mock server (GET only). A save used for the validation scene stops before any request.
+                var model = new Workspace(); var window = new MainWindow(model, persistPlacement: false);
+                await model.ConnectAsync(goalAddress, listen: false);
+                if (model.ConnectionError is { } connectFailure) throw new BellApiException(connectFailure);
+                await model.SelectAsync(model.Entries.FirstOrDefault(entry => entry.Target.Id == goalBotId) ?? throw new BellApiException("指定した会話がありません。"));
+                window.HideInspectorForRender();
+                await window.GoalBar.LoadTask;
+                if (goalScene == "pill-open") window.GoalBar.SetExpanded(true);
+                if (goalScene is "editor-create" or "editor-edit")
+                {
+                    var editor = window.GoalBar.OpenEditorForRender(goalScene == "editor-create" ? "create" : "edit") ?? throw new BellApiException("ゴールを読み取れませんでした。");
+                    if (goalScene == "editor-create") { editor.SetForRender("新機能の設計をまとめる", "abc"); await editor.SaveAsync(); }
+                }
+                var goalRoot = (FrameworkElement)window.Content;
+                goalRoot.Measure(new Size(1280, 820)); goalRoot.Arrange(new Rect(0, 0, 1280, 820)); goalRoot.UpdateLayout();
+                await window.PrepareRenderAsync();
+                WritePng(window, 1280, 820, goalOutput);
                 model.Dispose(); Shutdown(0); return;
             }
             if (e.Args is ["--render-screen", var screenScene, var screenAddress, var screenId, var screenOutput])

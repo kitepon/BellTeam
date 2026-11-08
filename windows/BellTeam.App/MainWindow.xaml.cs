@@ -58,6 +58,7 @@ public partial class MainWindow : Window, IInspectorHost
             if (args.PropertyName == nameof(Workspace.IsRoom) && inspectorVisible)
                 InspectorColumn.Width = model.IsRoom ? new GridLength(280) : new GridLength(1, GridUnitType.Star);
             if (args.PropertyName == nameof(Workspace.Selected) && page is null) ProfileLayout();
+            if (args.PropertyName is nameof(Workspace.Selected) or nameof(Workspace.Connected)) UpdateGoalBar();
             if (args.PropertyName is nameof(Workspace.Loading) or nameof(Workspace.Selected) or nameof(Workspace.LoadFailed) or nameof(Workspace.HasActivity)) UpdateWelcome();
             if (args.PropertyName is nameof(Workspace.Selected)) unreadNew = false;
             if (args.PropertyName == nameof(Workspace.StopResult)) ShowStopResult();
@@ -65,6 +66,8 @@ public partial class MainWindow : Window, IInspectorHost
         };
         model.UpdatesChanged += () => _ = RefreshUpdateNoticeAsync();
         PreviewKeyDown += Window_KeyDown;
+        // Mac scenePhase .active: coming back to the window reads the goals again.
+        Activated += (_, _) => { GoalBar.Reload(); (page as GoalsWindow)?.Reload(); };
         StateChanged += (_, _) => { if (WindowState == WindowState.Minimized) model.ReturnToProfile(); };
         if (persistPlacement)
         {
@@ -149,6 +152,7 @@ public partial class MainWindow : Window, IInspectorHost
     private void CreateMember_Click(object sender, RoutedEventArgs e) { var editor = new MemberEditor(model, null) { Owner = this }; _ = editor.InitializeAsync(); editor.ShowDialog(); }
     private void OpenMenu_Click(object sender, RoutedEventArgs e) { if (sender is Button { ContextMenu: { } menu } button) { menu.PlacementTarget = button; menu.IsOpen = true; } }
     private void Schedules_Click(object sender, RoutedEventArgs e) => ShowSchedules();
+    private void Goals_Click(object sender, RoutedEventArgs e) => ShowGoals();
     private void Settings_Click(object sender, RoutedEventArgs e) => ShowSettings();
     private void Updates_Click(object sender, RoutedEventArgs e) => ShowUpdates();
     // The sidebar Update badge (and an update notification) opens the Update sheet, as on the Mac.
@@ -169,8 +173,18 @@ public partial class MainWindow : Window, IInspectorHost
     {
         CloseUpdateSheet(); OpenSheet("メンバー間の連絡", new PeerMessageView(model, message));
     }
+    private ISheetSave? sheetSave;
+    private void SheetSaveChanged() { if (sheetSave is not null) UpdateSheetSave.IsEnabled = sheetSave.CanSave; }
+    private void UpdateSheetSave_Click(object sender, RoutedEventArgs e) { if (sheetSave is { CanSave: true } save) _ = save.SaveAsync(); }
+    private void ReleaseSheetSave()
+    {
+        if (sheetSave is not null) sheetSave.CanSaveChanged -= SheetSaveChanged;
+        sheetSave = null; UpdateSheetSave.Visibility = Visibility.Collapsed;
+    }
     public void OpenSheet(string title, UIElement content)
     {
+        ReleaseSheetSave();
+        if (content is ISheetSave save) { sheetSave = save; save.CanSaveChanged += SheetSaveChanged; UpdateSheetSave.Visibility = Visibility.Visible; SheetSaveChanged(); }
         if (content is AvatarActionsView actions) actions.BusyChanged += () => UpdateSheetClose.IsEnabled = !actions.Busy;
         SheetTitle.Text = title; System.Windows.Automation.AutomationProperties.SetName(SheetFrame, title);
         UpdateSheetHost.Content = content; UpdateSheet.Visibility = Visibility.Visible; UpdateSheet.Focus();
@@ -179,7 +193,7 @@ public partial class MainWindow : Window, IInspectorHost
     Window? IInspectorHost.OwnerWindow => this;
     public void CloseUpdateSheet()
     {
-        (UpdateSheetHost.Content as AvatarActionsView)?.Dispose(); UpdateSheetClose.IsEnabled = true;
+        ReleaseSheetSave(); (UpdateSheetHost.Content as AvatarActionsView)?.Dispose(); UpdateSheetClose.IsEnabled = true;
         sheetContent?.Dispose(); sheetContent = null; UpdateSheetHost.Content = null; UpdateSheet.Visibility = Visibility.Collapsed;
     }
     private void UpdateSheetClose_Click(object sender, RoutedEventArgs e) { if (UpdateSheetHost.Content is AvatarActionsView { Busy: true }) return; CloseUpdateSheet(); }
@@ -197,6 +211,8 @@ public partial class MainWindow : Window, IInspectorHost
         catch (OperationCanceledException) when (model.ConnectionToken.IsCancellationRequested) { }
         catch (Exception) { if (model.Server == server) UpdateBadge.Visibility = Visibility.Collapsed; }
     }
+    public void ShowGoals() { if (!model.Connected) return; var editor = new GoalsWindow(model, this); if (ShowPage(editor)) PageReady = editor.InitializeAsync(); }
+    private void UpdateGoalBar() => GoalBar.Attach(model, model.Connected && model.Selected is { Target: { IsRoom: false } target } ? target.Id : null, this);
     public void ShowSchedules() { if (!model.Connected) return; var editor = new SchedulesWindow(model); if (ShowPage(editor)) PageReady = editor.InitializeAsync(); }
     public void ShowSettings(SettingsPage page = SettingsPage.Profile) { if (!model.Connected) return; var editor = new SettingsWindow(model, OpenConnectionSettings, notifications, () => _ = SignOutAsync()); if (ShowPage(editor)) PageReady = editor.InitializeAsync(page); }
     private bool ShowPage(EditorWindow editor)
@@ -353,6 +369,7 @@ public partial class MainWindow : Window, IInspectorHost
     {
         if (UpdateSheet.Visibility == Visibility.Visible) { if (e.Key == Key.Escape) { CloseUpdateSheet(); e.Handled = true; } return; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.D2) { ShowSchedules(); e.Handled = true; }
+        if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.D3) { ShowGoals(); e.Handled = true; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.OemComma) { ShowSettings(); e.Handled = true; }
         if (e.Key == Key.K && Keyboard.Modifiers == ModifierKeys.Control) { SearchBox.Focus(); SearchBox.SelectAll(); e.Handled = true; }
         if (e.Key == Key.I && Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift)) { ToggleInspector(); e.Handled = true; }
