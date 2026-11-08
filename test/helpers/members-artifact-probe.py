@@ -52,7 +52,7 @@ def seed_members_state(created):
 
 def stage_parent_probe(component='members', created=None):
     parent = APP
-    if component in ('usage', 'diagnostics'):
+    if component in ('usage', 'diagnostics', 'work-graph'):
         # Parent-only probe helpers cannot make a missing child dependency resolve from /app.
         parent = Path(tempfile.mkdtemp(prefix=component + '-probe-parent-'))
         created.append(parent)
@@ -74,7 +74,7 @@ def private_mount_namespace():
 
 
 def main(component='members'):
-    require(component in ('members', 'usage', 'diagnostics'), 'MODULE_PROBE_COMPONENT_INVALID')
+    require(component in ('members', 'usage', 'diagnostics', 'work-graph'), 'MODULE_PROBE_COMPONENT_INVALID')
     entry = Path('/usr/local/libexec/bellteam-' + component + '-start')
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('archive', type=Path)
