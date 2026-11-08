@@ -40,6 +40,21 @@ export function nodeText(node, now) {
   const minutes = Math.max(0, Math.floor((now - (Date.parse(node.activeSince) || now)) / 60000))
   return `${node.name}、作業中、${minutes}分前から`
 }
+// 依頼ラベルは省略せず、幅に収まるまで折り返す（空白があればそこで、なければ文字単位）。
+export function wrapLabel(text, width, measure) {
+  const lines = []
+  for (const paragraph of String(text).split('\n')) {
+    let line = ''
+    for (const char of paragraph) {
+      if (!line || measure(line + char) <= width) { line += char; continue }
+      const space = char === ' ' ? -1 : line.lastIndexOf(' ')
+      if (space > 0 && measure(line.slice(space + 1) + char) <= width) { lines.push(line.slice(0, space)); line = line.slice(space + 1) + char }
+      else { lines.push(line.trimEnd()); line = char === ' ' ? '' : char }
+    }
+    lines.push(line)
+  }
+  return lines
+}
 export const edgeText = (edge, names) => `${names.get(edge.from) ?? edge.from}から${names.get(edge.to) ?? edge.to}へ依頼: ${edge.label}`
 
 const validNode = node => node && typeof node.botId === 'string' && typeof node.name === 'string' && ['working', 'linked'].includes(node.state)
@@ -213,14 +228,14 @@ export function createGraphModel({ reduceMotion = false } = {}) {
         }
         if (hover?.edgeId === line.edge.id) alpha = 1
         if (alpha <= 0) continue
-        const width = Math.min(180, measure(line.edge.label) + 12), height = 20
+        const text = wrapLabel(line.edge.label, 168, measure), width = Math.min(180, Math.max(...text.map(measure)) + 12), height = text.length * 16 + 6
         let place = null
         for (const t of [0.5, 0.45, 0.55, 0.4, 0.6, 0.35, 0.65, 0.3, 0.7]) {
           const p = pointAt(line, t), box = { x: p.x - width / 2, y: p.y - height / 2, w: width, h: height }
           if (!discs.some(disc => intersects(box, disc))) { place = box; break }
         }
         if (!place && hover?.edgeId === line.edge.id) { const p = pointAt(line, 0.5); place = { x: p.x - width / 2, y: p.y - height / 2, w: width, h: height } }
-        if (place) labels.push({ edge: line.edge, box: place, alpha })
+        if (place) labels.push({ edge: line.edge, box: place, alpha, lines: text })
       }
       const names = []
       for (const item of drawn.values()) {
