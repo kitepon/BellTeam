@@ -838,6 +838,7 @@ export class AitermTransport {
           return { delivery: 'steered' }
         }
         // ここから先は、この文が始めたターン（前のターンが終わった後で新しいターンになった差し込みも含む）。
+        job.step = 'answer'
         const answer = transcript ? await this.readTurnAnswer(delivery, completion, job.native.client) : undefined
         await job.checkpoint()
         // 画面に出すだけの回答なので、読めなくても配送は完了として扱う。
@@ -851,11 +852,16 @@ export class AitermTransport {
           }
         }
         await job.checkpoint()
+        job.step = 'delivered'
         await onStatus?.('delivered')
         await job.checkpoint()
+        job.step = 'turn_end'
         onTurnEnd?.({ startedAt: job.startedAt, endedAt: this.now() })
         return transcript ? answer : { delivery: 'delivered' }
       } catch (cause) {
+        // Accepted, then failed before its end: the conversation side only sees the delivery stage, so name the step here.
+        if (acknowledged && !job.waitFailure && !job.stopped)
+          void reportExecutionFailure(this.reportError, bot.id, 'delivery_completion', cause, { jobId: job.id, groupId: info.groupId, step: job.step })
         const error = await job.failure(cause)
         originalFailure = error
         // Ended by a module swap before any words could reach the CLI: the usual failed status is kept for every
@@ -1005,12 +1011,14 @@ export class AitermTransport {
       if (!Object.keys(input).every(key => expected[key] === input[key]) || job.stopped || job.stopRequested || job.nativeTerminal || job.nativeUnconfirmed
         || this.latestSummaryInputs.get(bot.id) !== job.id || this.session(bot) !== delivery.session
         || this.stopVersions.get(bot.id) !== stopVersion || this.sessionChanges.has(bot.id)) return false
-      authority.assertCurrent()
       this.assertWorkAllowed()
       return true
     }
     this.summaryJobs.add(job)
-    this.backgroundSummary.accept(input, { context: authority.context, assertCurrent })
+    // The sender's request (and its leases) ends at acceptance; the summary lives as long as this job, so it
+    // keeps only who sent it. Its read runs in its own short operation (current-work.md).
+    const context = Object.freeze({ actor: authority.context.actor, rootMethod: authority.context.rootMethod })
+    this.backgroundSummary.accept(input, { context, assertCurrent })
   }
 
   currentWork(bot) {

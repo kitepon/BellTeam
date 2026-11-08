@@ -155,9 +155,13 @@ test('transport accepts real launch receipt only, shares parent worker and rejec
   const job = { bot, id: 'input-a', info: { groupId: 'delivery-a', context: 'direct', contextId: 'bot-a' } }
   const receipt = { schema: 'aiterm.pty-send-result.v1', session_id: 'bot-a', launch_id: 'a'.repeat(32) }
   transport.latestSummaryInputs.set(bot.id, job.id)
-  const original = authority(); original.assertCurrent = () => true
+  // The sender's request ended at acceptance (2026-11-08 production: every summary died here); the job still runs.
+  const original = authority()
+  original.context = { ...original.context, operationContext: {}, admissionCheck() {} }
+  original.assertCurrent = () => { throw Object.assign(new Error('MODULE_OPERATION_NOT_ACCEPTED'), { code: 'MODULE_OPERATION_NOT_ACCEPTED' }) }
   transport.startWorkSummary(job, { receipt, session: 'bot-a' }, original, undefined)
-  assert.equal(accepted.length, 1); assert.equal(accepted[0][1].context, original.context)
+  assert.equal(accepted.length, 1)
+  assert.deepEqual(accepted[0][1].context, { actor: { kind: 'owner' }, rootMethod: 'user.turn' })
   assert.equal(accepted[0][1].assertCurrent(accepted[0][0]), true)
   transport.latestSummaryInputs.set(bot.id, 'new'); assert.equal(accepted[0][1].assertCurrent(accepted[0][0]), false)
   assert.equal(transport.currentWorkBinding(bot), null); assert.throws(() => transport.updateWorkSummary(), { code: 'CURRENT_WORK_FORBIDDEN' })

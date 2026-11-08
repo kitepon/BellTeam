@@ -189,10 +189,6 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     && !transport.waking.size && !transport.executionStopping && !requests.active.size
     && !transport.workState.activityPending && !transport.workState.pending.size && !transport.runningSnapshot
     && !deferredRecovery.length && !continuation?.pending.size
-  const assertQuiescent = () => {
-    if (phase !== 'quiesced' || !idleNow()) throw failure('EXECUTION_BUSY')
-    return true
-  }
   const startProducers = () => {
     if (!observerStarted) { observer.start(); observerStarted = true }
     if (!idleStarted) { idle.start(); idleStarted = true }
@@ -211,8 +207,9 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
       if (idleStarted) { idleStarted = false; track(idle.stop()) }
       const deadline = performance.now() + timeoutMs
       while (!ready()) {
-        // Deferred continuation can only run after resume; preserve it and end this drain.
-        if (deferredRecovery.length) throw failure('EXECUTION_BUSY')
+        // Close only: deferred continuation can only run after resume; preserve it and end this drain.
+        // A handover never refuses for it; exportState passes the intent to the successor.
+        if (!handover && deferredRecovery.length) throw failure('EXECUTION_BUSY')
         if (performance.now() >= deadline) throw failure('EXECUTION_BUSY')
         await new Promise(resolve => setTimeout(resolve, Math.min(10, Math.max(1, deadline - performance.now()))))
       }
@@ -345,5 +342,5 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     throw failure('EXECUTION_REQUEST_INVALID')
   }
   return Object.freeze({ validateRequest, dispatch: request => invoke(request, 'dispatch'),
-    project: request => invoke(request, 'project'), control, exportState, disconnect: retire, assertQuiescent })
+    project: request => invoke(request, 'project'), control, exportState, disconnect: retire })
 }

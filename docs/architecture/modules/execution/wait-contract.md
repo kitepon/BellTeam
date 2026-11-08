@@ -68,6 +68,8 @@ flowchart LR
   Tracking["配送の待機例外 / watch追跡故障"] --> Report
   Tracking --> Snapshot["配送wait例外の取得時<br/>job/group ID・停止要求・stopped・signal.aborted"]
   Snapshot --> Report
+  Accepted["受理後の終端前失敗<br/>（回答読取・delivered通知・turn終了callback等）"] --> Step["delivery_completion<br/>job/group ID・到達step・安全code・MCP要求文脈"]
+  Step --> Report
   Report --> Hook["reportError注入接点"]
   Hook --> Diagnostics["integration.Diagnostics.record / BugHub"]
   Hook -->|"診断保存失敗"| Preserve["元操作・元例外を維持 / 再送しない"]
@@ -76,6 +78,8 @@ flowchart LR
 reportErrorは任意constructor引数。設定失敗は`SERVER_MODEL_CONFIGURATION_FAILED`/bots、待機追跡故障は`SERVER_TURN_TRACKING_FAILED`/queueとして{code,module,diagnostic_log}を提供する。JSONは`bellteam.execution-failure.v1`の対象/工程、許可した元code、存在するexitCode/signal、既知waitOutcome（未対応値は固定unknown）、適用outcome/effectと下記の配送wait文脈だけ。生message/stack/stdio/env/本文は含めない。不正JSONでも取得済みのprocess終了値とsignalを例外に残す。正常timeout/runningとnativeが返す既知の終了error/rate_limitedは、追跡機構の故障として報告しない。診断callbackの例外は操作結果を変えない。
 
 `delivery_wait`だけ、例外を取得した時点の`jobId`・`groupId`（UUID表記のみ）、`stopRequested`・`stopped`・`waitAborted`（booleanのみ）を任意fieldとして加える。groupIdはjob.info.groupIdで、直接配送のdelivery ID、部屋では共有メッセージID。jobIdとbotIdで部屋の対象を区別する。欠測値を作らず、job全体・receipt・signal.reasonは渡さない。値はinterim停止やjob.failureのawait前に取得し、後からの停止状態へ置換しない。watch/設定には文脈を加えない。既caller・export・設定・会話保存schemaは不変で、共通writerは従来のdiagnostic_log JSONを保存する。
+
+`delivery_completion`（2026-11-08追加）は、受理済みの配送が終端前に失敗した時だけ一件出す（待機自体の失敗は既`delivery_wait`が出すので重ねない）。`jobId`・`groupId`、到達した`step`（`answer`/`delivered`/`turn_end`/`other`の固定値）、`errorCode`（大文字snake形式の元code、または`AITERM_`で始まる例外messageの先頭token）、存在する`mcp_request`（既`mcpRequestContext`の射影）だけを持つ。`turnCompleted`でも省かない。理由: 会話側の`status`段の診断は配送stage（BOT_SEND_FAILED等）しか受け取らず、12:47 JSTのOwner配送（turnは正常終了）が原因欠測のnullだけで残ったため。分類・再送・会話保存は変えない。
 
 `stopped`はBellTeam jobの扱い、`waitAborted`は待機signalの状態であり、nativeの停止完了証明ではない。停止操作の正規返却後に待機をabortすると、その例外も最終job.failureより前にこの診断へ届く。診断のcode・重大度・集約key・保存件数・再送抑止をこの識別追加では変えない。旧診断の原因や操作相関は遡って補完しない。合成の直接fixtureは`test/delivery-wait-diagnostic-context.test.mjs`。
 
