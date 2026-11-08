@@ -72,7 +72,8 @@ test('一覧を開くと各AIの認証状態と操作を表示し、認証し直
     const press = label => descendants(codex).find(item => item.tag === 'button' && item.textContent === label).fire('click')
     await settle()
     assert.deepEqual(calls.slice(2), ['GET /api/harness-auth/claude', 'GET /api/harness-auth/codex'])
-    assert.ok(texts(codex).includes('認証が完了しました'))
+    assert.ok(texts(codex).includes('認証済み'))
+    assert.equal(texts(codex).includes('認証が完了しました'), false)
     assert.equal(descendants(codex).some(item => item.textContent === '認証を中止する'), false)
 
     // 認証済みに見えるCodexは、始めた時点で今の認証が消える。1回目は知らせるだけで、何も始めない。
@@ -98,7 +99,8 @@ test('一覧を開くと各AIの認証状態と操作を表示し、認証し直
     press('認証を中止する')
     await settle()
     assert.deepEqual(calls.slice(-2), ['POST /api/harness-auth/codex/cancel', 'GET /api/harness-auth/codex'])
-    assert.ok(texts(codex).includes('認証が完了しました'))
+    assert.ok(texts(codex).includes('認証済み'))
+    assert.equal(texts(codex).includes('認証が完了しました'), false)
     assert.equal(descendants(codex).some(item => item.textContent === '認証を中止する'), false)
 
     // 見に行けなかった時は、理由を出して止まる。
@@ -208,9 +210,9 @@ test('変更完了後の古いstatus応答を捨て、不明な入力は明示�
     pending = new Promise(resolve => { finish = resolve })
     t.mock.timers.tick(3000); await settle()
     let input = descendants(row).find(item => item.tag === 'input'); input.value = 'synthetic'; input.fire('input'); button('認証を完了する').fire('click'); await settle()
-    assert.ok(texts(row).includes('認証完了'))
+    assert.ok(texts(row).includes('認証済み'))
     finish({ auth: code }); pending = null; await settle()
-    assert.ok(texts(row).includes('認証完了')); assert.equal(descendants(row).some(item => item.tag === 'input'), false)
+    assert.ok(texts(row).includes('認証済み')); assert.equal(descendants(row).some(item => item.tag === 'input'), false)
     button('認証し直す').fire('click'); await settle(); rejectInput = true
     input = descendants(row).find(item => item.tag === 'input'); input.value = 'synthetic'; input.fire('input'); button('認証を完了する').fire('click'); await settle()
     assert.equal(posts, 2); assert.equal(descendants(row).some(item => item.tag === 'input'), false)

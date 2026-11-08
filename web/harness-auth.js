@@ -123,7 +123,8 @@ function harnessAuthItem(harness, { api, slot, onAuthenticated }) {
       respond: input => perform(async () => { try { return await post('input', input) } catch (error) { inputBlocked = true; throw error } }),
     })
     password = flow.password
-    if (loaded && !errorText) nodes.push(...flow.elements)
+    // 認証済みの「認証が完了しました」は上の印（認証済み）と同じことなので出さない。初期設定の画面は印が無いので従来どおり。
+    if (loaded && !errorText && !(auth?.status === 'authenticated' && view.stage === 'complete')) nodes.push(...flow.elements)
     if (harness.reloginSupported === false && auth?.status === 'authenticated' && harness.startWarning) nodes.push(Object.assign(document.createElement('p'), { textContent: harness.startWarning }))
     const start = () => perform(async () => { confirming = false; const next = await post('start'); started = next.auth?.status !== 'authenticated'; return next })
     const actions = document.createElement('div')

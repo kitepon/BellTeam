@@ -89,7 +89,7 @@ flowchart TD
 | `accountsView(list)` (harness-accounts.js, pure) | accounts.list() -> rows `{slot, title, state, label, limitTexts, seats}`, `fableOn`, `banner`. Missing/odd fields -> neutral text, never a guessed state. |
 | Limit text | `'all'` -> 「上限中 (HH:MMに解除)」; family -> 「Fableのみ上限中 (HH:MMに解除)」 (family capitalized); time in Asia/Tokyo, `M/D HH:MM` when not today (JST); null -> 「…(解除時刻不明)」. |
 | Banner | `allLimited[]` non-empty -> 「両方のアカウントが上限中です」 + per scope earliest reset (same text rule). |
-| Login | each row embeds the existing `harnessAuthItem` with `slot`; the slot travels only as `?slot=` so the strict input body is unchanged. 1st keeps the old start warning. |
+| Login | each row embeds the existing `harnessAuthItem` with `slot`; the slot travels only as `?slot=` so the strict input body is unchanged. 1st keeps the old start warning. In 設定 an authenticated row shows only the 認証済み badge, not the repeated 「認証が完了しました」 line (onboarding, which has no badge, keeps it). |
 | Switch | one POST per change, disabled while sending; shown state comes only from the returned `rules` (failure -> previous state + error text). |
 | Member card | `bot.account?.slot` -> 「1stアカウント」/「2ndアカウント」 badge in the member header line; when slot ≠ preferredSlot the title says the preferred one. |
 | Fallback | `/api/accounts` 404 (older body) -> exactly the previous single Claude card. Other harnesses keep the previous card. |
