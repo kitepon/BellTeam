@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T03:50:13Z",
-  "expiresAt": "2026-11-15T03:50:13Z",
+  "publishedAt": "2026-11-08T03:52:54Z",
+  "expiresAt": "2026-11-15T03:52:54Z",
   "releases": [
     {
       "componentId": "usage",
@@ -635,15 +635,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "bd4fe72c005aa9520f395ab0473c09de72d0ad87",
-      "versionId": "sha256:96affb0133b1835cc19c06fa5a4f52a88e7c5b6b13cb9aaa5ce9224db14c009e",
+      "sourceCommit": "5bd3d74e947fc43c324f5c9e26e1dea9dfa0c527",
+      "versionId": "sha256:4c31bafe397ee9414f1ff2941849e1e73114057f6c6a1e207c008accb6bf75ed",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:96affb0133b1835cc19c06fa5a4f52a88e7c5b6b13cb9aaa5ce9224db14c009e"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:4c31bafe397ee9414f1ff2941849e1e73114057f6c6a1e207c008accb6bf75ed"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -652,20 +652,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "部品の更新を本体の入れ替えなしで行えるよう本体を仕上げ、同梱するAIの道具を最新版にします。"
+        "アップデート画面で、各部品の版の名前を出し、本体が最新かを正しく表示します。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "bd4fe72c005aa9520f395ab0473c09de72d0ad87",
-      "versionId": "sha256:96affb0133b1835cc19c06fa5a4f52a88e7c5b6b13cb9aaa5ce9224db14c009e",
+      "sourceCommit": "5bd3d74e947fc43c324f5c9e26e1dea9dfa0c527",
+      "versionId": "sha256:4c31bafe397ee9414f1ff2941849e1e73114057f6c6a1e207c008accb6bf75ed",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:96affb0133b1835cc19c06fa5a4f52a88e7c5b6b13cb9aaa5ce9224db14c009e"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:4c31bafe397ee9414f1ff2941849e1e73114057f6c6a1e207c008accb6bf75ed"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -674,7 +674,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "部品の更新を本体の入れ替えなしで行えるよう本体を仕上げ、同梱するAIの道具を最新版にします。"
+        "アップデート画面で、各部品の版の名前を出し、本体が最新かを正しく表示します。"
       ]
     }
   ],
