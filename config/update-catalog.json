@@ -1,12 +1,12 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T13:24:51Z",
-  "expiresAt": "2026-11-15T13:24:51Z",
+  "publishedAt": "2026-11-08T13:29:05Z",
+  "expiresAt": "2026-11-15T13:29:05Z",
   "releases": [
     {
       "componentId": "usage",
-      "sourceCommit": "519235920ed1a0d0a23d9581de43895d1d4dfd0e",
-      "versionId": "c454324d15b83ac4e476a208cc9ce7549781301b763b0801abcd0ce809abc810",
+      "sourceCommit": "be9c089d6f2f19611c5af56844cb035c5cdfa8ee",
+      "versionId": "a16aa527d481ffe8d334245b65374155ae1f9263c6d4bd9e3375514d05988bd2",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -14,16 +14,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T124222Z/usage-519235920ed1a0d0a23d9581de43895d1d4dfd0e-linux-amd64.tar.gz",
-          "bytes": 66831,
-          "sha256": "c454324d15b83ac4e476a208cc9ce7549781301b763b0801abcd0ce809abc810"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T132523Z/usage-be9c089d6f2f19611c5af56844cb035c5cdfa8ee-linux-amd64.tar.gz",
+          "bytes": 66922,
+          "sha256": "a16aa527d481ffe8d334245b65374155ae1f9263c6d4bd9e3375514d05988bd2"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T124222Z/usage-519235920ed1a0d0a23d9581de43895d1d4dfd0e-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10764,
-          "sha256": "cff0c1cbe0d15b9529f1f0548c1cc35f31be7ea7e6c8e233c8543aa97d80578e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T132523Z/usage-be9c089d6f2f19611c5af56844cb035c5cdfa8ee-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10917,
+          "sha256": "1f224f971c437c8f0aab01129a5b8c7448a1728f81da874eeca266bc2ecbefa4"
         },
-        "signerCommit": "519235920ed1a0d0a23d9581de43895d1d4dfd0e"
+        "signerCommit": "be9c089d6f2f19611c5af56844cb035c5cdfa8ee"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -47,13 +47,13 @@
         }
       },
       "changes": [
-        "設定画面で、Claudeの2つ目のアカウントを登録・切り替えできるようにします。"
+        "AIの認証で、アカウントの登録を始められなかった時に、理由が分かる表示を返すようにします。"
       ]
     },
     {
       "componentId": "usage",
-      "sourceCommit": "519235920ed1a0d0a23d9581de43895d1d4dfd0e",
-      "versionId": "bb225f41fd092367deb310103b284fd005ba02e34f078348daccc2f989acc83e",
+      "sourceCommit": "be9c089d6f2f19611c5af56844cb035c5cdfa8ee",
+      "versionId": "0d40eb232c070d6c68732e66982bc9b369e2aa3d7db889cf2572b173b2d69cef",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -61,16 +61,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T124222Z/usage-519235920ed1a0d0a23d9581de43895d1d4dfd0e-linux-arm64.tar.gz",
-          "bytes": 66831,
-          "sha256": "bb225f41fd092367deb310103b284fd005ba02e34f078348daccc2f989acc83e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T132523Z/usage-be9c089d6f2f19611c5af56844cb035c5cdfa8ee-linux-arm64.tar.gz",
+          "bytes": 66922,
+          "sha256": "0d40eb232c070d6c68732e66982bc9b369e2aa3d7db889cf2572b173b2d69cef"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T124222Z/usage-519235920ed1a0d0a23d9581de43895d1d4dfd0e-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10815,
-          "sha256": "85e8205e0f01d1093246a05c384afea78790a4c60e0e42143e78a5081c6bc5c5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T132523Z/usage-be9c089d6f2f19611c5af56844cb035c5cdfa8ee-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11011,
+          "sha256": "b50ecb65d22822454695572be60e2e199ad90f20d6e8a8e7f66ee4ed7cc94923"
         },
-        "signerCommit": "519235920ed1a0d0a23d9581de43895d1d4dfd0e"
+        "signerCommit": "be9c089d6f2f19611c5af56844cb035c5cdfa8ee"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -94,7 +94,7 @@
         }
       },
       "changes": [
-        "設定画面で、Claudeの2つ目のアカウントを登録・切り替えできるようにします。"
+        "AIの認証で、アカウントの登録を始められなかった時に、理由が分かる表示を返すようにします。"
       ]
     },
     {
@@ -489,8 +489,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "6f3bf3728648680bee0fe18783b832b2abdc9aa5",
-      "versionId": "d6daaf0d3b6523c7e8370cd24b8b8641a5eff4185897977435efb94158de4c1e",
+      "sourceCommit": "be9c089d6f2f19611c5af56844cb035c5cdfa8ee",
+      "versionId": "8177502e2100cc17377d5f5fe73eb3e57b1cc5e3dba32c3ea95385570f7ad678",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -498,16 +498,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T132237Z/execution-6f3bf3728648680bee0fe18783b832b2abdc9aa5-linux-amd64.tar.gz",
-          "bytes": 3934094,
-          "sha256": "d6daaf0d3b6523c7e8370cd24b8b8641a5eff4185897977435efb94158de4c1e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T132535Z/execution-be9c089d6f2f19611c5af56844cb035c5cdfa8ee-linux-amd64.tar.gz",
+          "bytes": 3934184,
+          "sha256": "8177502e2100cc17377d5f5fe73eb3e57b1cc5e3dba32c3ea95385570f7ad678"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T132237Z/execution-6f3bf3728648680bee0fe18783b832b2abdc9aa5-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10977,
-          "sha256": "0300e7ac6e64ae5dd851803c4841827ce7bc75ce355c583170fea01eaaae57aa"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T132535Z/execution-be9c089d6f2f19611c5af56844cb035c5cdfa8ee-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10989,
+          "sha256": "9c8ce9a25a84c1bbf3b145c35236263b1957baa4ae8c748a93a8a71566828c65"
         },
-        "signerCommit": "6f3bf3728648680bee0fe18783b832b2abdc9aa5"
+        "signerCommit": "be9c089d6f2f19611c5af56844cb035c5cdfa8ee"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -517,13 +517,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "Claudeの2つ目のアカウントでAIを動かす時に、ファイルの権限エラー（EACCES）で止まる問題を直します。"
+        "Fableなどのモデルの切り替えルールが、メンバーに効くようにします。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "6f3bf3728648680bee0fe18783b832b2abdc9aa5",
-      "versionId": "1ad27535ee64b7e4b3fcac4d9aaaf4620a53cf20124db01662bdfbfd894e42e8",
+      "sourceCommit": "be9c089d6f2f19611c5af56844cb035c5cdfa8ee",
+      "versionId": "49231c2b532bfa4defd70b57b061e4dd67e24b1ec94e5a84699f4696e704f532",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -531,16 +531,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T132237Z/execution-6f3bf3728648680bee0fe18783b832b2abdc9aa5-linux-arm64.tar.gz",
-          "bytes": 3934094,
-          "sha256": "1ad27535ee64b7e4b3fcac4d9aaaf4620a53cf20124db01662bdfbfd894e42e8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T132535Z/execution-be9c089d6f2f19611c5af56844cb035c5cdfa8ee-linux-arm64.tar.gz",
+          "bytes": 3934182,
+          "sha256": "49231c2b532bfa4defd70b57b061e4dd67e24b1ec94e5a84699f4696e704f532"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T132237Z/execution-6f3bf3728648680bee0fe18783b832b2abdc9aa5-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10926,
-          "sha256": "393a9c1ecbedcff9d6936b1251eb26d57736a11eb5151db048c13e1562484207"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T132535Z/execution-be9c089d6f2f19611c5af56844cb035c5cdfa8ee-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10942,
+          "sha256": "4df45b6525d7ed62d052c649dac4e2c0f15c07c960db90ac685023dcb82effca"
         },
-        "signerCommit": "6f3bf3728648680bee0fe18783b832b2abdc9aa5"
+        "signerCommit": "be9c089d6f2f19611c5af56844cb035c5cdfa8ee"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -550,7 +550,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "Claudeの2つ目のアカウントでAIを動かす時に、ファイルの権限エラー（EACCES）で止まる問題を直します。"
+        "Fableなどのモデルの切り替えルールが、メンバーに効くようにします。"
       ]
     },
     {
@@ -635,8 +635,8 @@
     },
     {
       "componentId": "work-graph",
-      "sourceCommit": "2dc7cad5b85d7f1a90afc76511a9c0e4b19418aa",
-      "versionId": "05ca67a17d15cff708e0ef41ff333e9f31a31a6a1dbd67edf5197f6e52f95eab",
+      "sourceCommit": "652a945300ab7f580b937ae69f1faa9761c220f8",
+      "versionId": "4afe3048b50e41a81433968e0c104f556160acc0944c1efb0ada11321d52a04d",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -644,16 +644,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T120841Z/work-graph-2dc7cad5b85d7f1a90afc76511a9c0e4b19418aa-linux-amd64.tar.gz",
-          "bytes": 3820756,
-          "sha256": "05ca67a17d15cff708e0ef41ff333e9f31a31a6a1dbd67edf5197f6e52f95eab"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T132358Z/work-graph-652a945300ab7f580b937ae69f1faa9761c220f8-linux-amd64.tar.gz",
+          "bytes": 3820860,
+          "sha256": "4afe3048b50e41a81433968e0c104f556160acc0944c1efb0ada11321d52a04d"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T120841Z/work-graph-2dc7cad5b85d7f1a90afc76511a9c0e4b19418aa-linux-amd64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T132358Z/work-graph-652a945300ab7f580b937ae69f1faa9761c220f8-linux-amd64.tar.gz.sigstore.json",
           "bytes": 11001,
-          "sha256": "4070cfaa50a825fd00f5c4ce24cf9a2eed1a5cb54e196f5d9ad84b3f5b32a906"
+          "sha256": "0e4dee84f6bb7aeff37fbc65329154a32c7dc15659128e1da861b42fa0078524"
         },
-        "signerCommit": "2dc7cad5b85d7f1a90afc76511a9c0e4b19418aa"
+        "signerCommit": "652a945300ab7f580b937ae69f1faa9761c220f8"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -665,13 +665,13 @@
         }
       },
       "changes": [
-        "相関図の線に、Bot間の依頼の本文を出さないようにします。依頼を受けたメンバーの作業の要約は、本体が対応した後に表示されます。"
+        "相関図の線に、依頼の内容を短くまとめた文を表示できるようにします。まとめた文が届くまでは「依頼を処理中」と表示されます。"
       ]
     },
     {
       "componentId": "work-graph",
-      "sourceCommit": "2dc7cad5b85d7f1a90afc76511a9c0e4b19418aa",
-      "versionId": "df2c74c0895951a1d918cd9c53bf20b8cdb7fe73c10f9826aee63072d2c4e38f",
+      "sourceCommit": "652a945300ab7f580b937ae69f1faa9761c220f8",
+      "versionId": "6292bfc82000fda4b12376c7a4164935bdeac453013be898d5b0cfee4d878db8",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -679,16 +679,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T120841Z/work-graph-2dc7cad5b85d7f1a90afc76511a9c0e4b19418aa-linux-arm64.tar.gz",
-          "bytes": 3820756,
-          "sha256": "df2c74c0895951a1d918cd9c53bf20b8cdb7fe73c10f9826aee63072d2c4e38f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T132358Z/work-graph-652a945300ab7f580b937ae69f1faa9761c220f8-linux-arm64.tar.gz",
+          "bytes": 3820860,
+          "sha256": "6292bfc82000fda4b12376c7a4164935bdeac453013be898d5b0cfee4d878db8"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T120841Z/work-graph-2dc7cad5b85d7f1a90afc76511a9c0e4b19418aa-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11001,
-          "sha256": "d8673be70607c09fc4e3abfd08fb8375b0d64fc6143e8f40d1d6d155c64c6f4a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T132358Z/work-graph-652a945300ab7f580b937ae69f1faa9761c220f8-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10993,
+          "sha256": "da6465dfed7017154ee2cfc4550ce7d3e8e8c635a1601bc841686c3957cb7171"
         },
-        "signerCommit": "2dc7cad5b85d7f1a90afc76511a9c0e4b19418aa"
+        "signerCommit": "652a945300ab7f580b937ae69f1faa9761c220f8"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -700,7 +700,7 @@
         }
       },
       "changes": [
-        "相関図の線に、Bot間の依頼の本文を出さないようにします。依頼を受けたメンバーの作業の要約は、本体が対応した後に表示されます。"
+        "相関図の線に、依頼の内容を短くまとめた文を表示できるようにします。まとめた文が届くまでは「依頼を処理中」と表示されます。"
       ]
     },
     {
