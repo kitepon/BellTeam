@@ -277,7 +277,8 @@ async function setup(t, { effect = () => {}, event = async () => {}, dispatcher:
     } })
   t.after(async () => {
     if (endpoints[0].connected) endpoints[0].disconnect()
-    if (closed) { await closed; assert.equal(childErrors, '') }
+    // The only allowed child stderr is its one closed exit-origin line.
+    if (closed) { await closed; assert.match(childErrors, /^(?:\{"code":"CONVERSATION_CHILD_EXIT_ORIGIN","origin":"[a-z_]+","failureCode":(?:null|"[A-Z_]+")\}\n)?$/u) }
     await parent.drainIncoming(); await parent.reaped()
   })
   await parent.control('initialize', { generation, mode: 'restore', bots: fixture.bots })
@@ -748,4 +749,26 @@ test('shared callback capacity reaches 64, rejects overflow, and preserves contr
   held.resolve({}); await Promise.all(calls.map(call => call.completion))
   assert.equal(count, MODULE_CONCURRENCY)
   assert.equal(parent.snapshot().callback, 0)
+})
+
+// I-5 2026-11-08: a peer that only acknowledged the result late must still get that result, not a contradictory error.
+test('a late result-ready keeps the sent result and the channel', { timeout: 4000 }, async t => {
+  const endpoints = pair(), send = endpoints[1].send
+  let held = null
+  endpoints[1].send = (frame, callback) => {
+    if (!held && frame.capability?.type === 'result-ready') { held = () => send(frame, callback); return }
+    send(frame, callback)
+  }
+  const parent = createConversationPeer(endpoints[0], { side: 'parent', validateResult: () => {}, accept: () => async () => ({ done: true }) })
+  const child = createConversationPeer(endpoints[1], { side: 'child', validateResult: () => {}, accept: () => { throw new Error('unexpected') } })
+  t.after(() => { parent.close(); parent.reaped(); child.reaped() })
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const request = child.call('effect', 'work', {})
+  while (!held) await settle()
+  t.mock.timers.tick(5000)
+  for (let i = 0; i < 8; i++) await settle()
+  assert.equal(endpoints[1].connected, true)
+  held()
+  assert.deepEqual(await request, { done: true })
+  assert.equal(endpoints[1].connected, true)
 })
