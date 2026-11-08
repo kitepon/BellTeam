@@ -208,10 +208,11 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch } = {}) {
       context.fillText(truncate(item.node.name, maxWidth, measure(NAME_FONT)), item.x, box.y)
     }
     context.font = LABEL_FONT; context.textBaseline = 'middle'
-    for (const { edge, box, alpha } of frame.labels) {
+    for (const { box, alpha, lines } of frame.labels) {
       context.globalAlpha = alpha
       context.fillStyle = CHIP; roundRect(box.x, box.y, box.w, box.h, 8); context.fill()
-      context.fillStyle = MUTED; context.fillText(truncate(edge.label, box.w - 12, measure(LABEL_FONT)), box.x + box.w / 2, box.y + box.h / 2)
+      context.fillStyle = MUTED
+      lines.forEach((line, i) => context.fillText(line, box.x + box.w / 2, box.y + 3 + 8 + i * 16))
     }
     context.globalAlpha = 1; context.filter = 'none'
     if (model.firstSeen) paintEmpty()

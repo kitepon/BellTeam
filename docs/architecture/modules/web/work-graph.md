@@ -20,7 +20,8 @@ flowchart TD
 
 | Function | Input -> output | Owner |
 | --- | --- | --- |
-| `createGraphModel()` | `snapshot(data, now)` replaces/diffs (throws on unknown schema); `change(batch, now)` -> `true` applied, `false` reconnect; `step(dt, rect, now)`; `frame(now, rect)` -> draw list (positions, opacities, label rects) | `web/work-graph-model.js` (pure, no DOM) |
+| `createGraphModel()` | `snapshot(data, now)` replaces/diffs (throws on unknown schema); `change(batch, now)` -> `true` applied, `false` reconnect; `step(dt, rect, now)`; `frame(now, rect)` -> draw list (positions, opacities, label rects with their wrapped lines) | `web/work-graph-model.js` (pure, no DOM) |
+| Edge label chip (main 180ec7ba) | `wrapLabel(text, 168, measure)` -> every line, never truncated (breaks at a space when the line has one, else per character); chip `w = min(180, widest line + 12)`, `h = lines × 16 + 6`; the placement tries `t = 0.5 … 0.7` with this grown box against discs + 4 pt | same file; the view draws each line, no truncation |
 | Sizes, forces, label placement, blink, curves | numbers exactly as behavior-spec "Sizes", "Layout", "Enter", "Leave", "Blink", "Edges" | same file |
 | Layout (main a438f2e2) | forces in `D`-normalized `(u, v)`: `kr = 0.005/n`, spring `0.02`, `L = min(0.7, 1.4/√n)`, span-following gravity per axis toward 0.5 with `nameHeight` 18; collision `S × 2.2` and bounds in px (bounds keep the name width `S × 2.2` inside `D`, so narrow phones fill the x axis a little less than layout-sim.mjs) | same file; checked against `layout-sim.mjs simulate()` in the test |
 | `createWorkGraphView(dialog, {fetch, reduceMotion})` | `open()` starts stream + rAF; `close()` aborts stream, cancels rAF and timers | `web/work-graph.js` |

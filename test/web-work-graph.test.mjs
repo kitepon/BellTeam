@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { avatarSide, backoffMs, blinkOpacity, createGraphModel, edgeText, enterCurve, flowDots, nodeText } from '../web/work-graph-model.js'
+import { avatarSide, backoffMs, blinkOpacity, createGraphModel, edgeText, enterCurve, flowDots, nodeText, wrapLabel } from '../web/work-graph-model.js'
 import { createGraphStream, parseFrames } from '../web/work-graph.js'
 
 const rect = { x: 24, y: 24, w: 800, h: 600 }
@@ -103,5 +103,24 @@ test('配置は D に正規化した力で両方向を埋める（layout-sim.mjs
     const ref = simulate({ W: D.w, H: D.h, n, edges: sampleEdges(n, 4), seed: 1 })
     assert.ok(Math.abs(fillX - ref.fillX) < 0.05 && Math.abs(fillY - ref.fillY) < 0.05, `n=${n} web ${fillX.toFixed(2)}/${fillY.toFixed(2)} ref ${ref.fillX.toFixed(2)}/${ref.fillY.toFixed(2)}`)
     assert.ok(fillX > 0.8 && fillY > 0.8)
+  }
+})
+
+test('依頼ラベルは省略せず折り返し、伸びた札の大きさで円板を避ける', () => {
+  const measure = text => text.length * 7
+  assert.deepEqual(wrapLabel('aaaa bbbb cc', 56, measure), ['aaaa', 'bbbb cc'])
+  assert.deepEqual(wrapLabel('あいうえおかきくけこ', 35, measure), ['あいうえお', 'かきくけこ'])
+  const long = 'PR733 の相関図の仕様に合わせて、依頼のラベルを省略せずに折り返して全部見せるように直してください。'
+  assert.equal(wrapLabel(long, 168, measure).join('').replace(/ /g, ''), long.replace(/ /g, ''))
+  const model = createGraphModel()
+  model.snapshot(snapshot([node('a'), node('b')], [edge('a', 'b', 'a:b', long)]), 0, rect)
+  for (let i = 0; i < 300; i++) model.step(1 / 60, rect, i * 16)
+  const [label] = model.frame(5000, rect).labels
+  assert.ok(label.lines.length > 1 && label.lines.every(line => !line.includes('…') && measure(line) <= 168))
+  assert.equal(label.box.h, label.lines.length * 16 + 6)
+  assert.ok(label.box.w <= 180)
+  for (const item of model.frame(5000, rect).nodes) {
+    const d = { x: item.x - item.side / 2 - 4, y: item.y - item.side / 2 - 4, w: item.side + 8, h: item.side + 8 }, b = label.box
+    assert.ok(!(b.x < d.x + d.w && d.x < b.x + b.w && b.y < d.y + d.h && d.y < b.y + b.h))
   }
 })
