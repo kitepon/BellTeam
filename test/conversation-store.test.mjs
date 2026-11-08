@@ -44,6 +44,7 @@ test('合間の言葉はそのBotの会話画面にBotの発言として時刻�
     { schema: 'bellteam.direct-message.v1', delivery_id: '1', at: '2026-09-28T01:00:00.000Z', from: 'bell-grok-b', target: 'bell-grok-a', message: '見てほしい', delivery: 'running' },
     { schema: 'bellteam.interim-word.v1', id: 'w1', at: '2026-09-28T01:00:05.000Z', bot: 'bell-grok-a', group_id: '1', text: 'ちょっと見てくるね' },
     { schema: 'bellteam.interim-word.v1', id: 'w2', at: '2026-09-28T01:00:06.000Z', bot: 'bell-grok-b', group_id: '9', text: '別のBotの言葉' },
+    { schema: 'bellteam.interim-word.v1', id: 'w3', at: '2026-09-28T01:00:08.000Z', bot: 'bell-grok-a', group_id: '1', text: '見た結果です', kind: 'answer' },
     { schema: 'bellteam.delivery-status.v1', delivery_id: '1', at: '2026-09-28T01:00:09.000Z', delivery: 'delivered' },
     { schema: 'bellteam.direct-message.v1', delivery_id: '2', at: '2026-09-28T01:00:10.000Z', from: 'bell-grok-a', target: 'user', message: '終わったよ', delivery: 'delivered' },
   ]
@@ -54,6 +55,8 @@ test('合間の言葉はそのBotの会話画面にBotの発言として時刻�
   assert.deepEqual(timeline.map(item => [item.kind, item.direction, item.message]), [
     ['peer', 'received', '見てほしい'],
     ['interim', 'incoming', 'ちょっと見てくるね'],
+    // Bot連絡で始まったターンの最終回答は、Ownerへの返信として出す。
+    ['message', 'incoming', '見た結果です'],
     ['message', 'incoming', '終わったよ'],
   ])
   assert.equal(timeline[1].id, 'w1')
