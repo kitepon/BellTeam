@@ -8,7 +8,7 @@ import { createOwnerEditor } from '../web/owner-editor.js'
 import { editorDOM, deferred } from './helpers/editor-dom.mjs'
 const source=await readFile(new URL('../web/application.js',import.meta.url),'utf8')
 function catalogue(){
- const reads=[],state={selected:null,selectedType:'bot'},ctx={catalogueRead:0,state,rosterRetry:{disabled:false},rosterError:{textContent:''},rosterNotice:{hidden:true},api:path=>{
+ const reads=[],state={selected:null,selectedType:'bot',readReceipts:{}},ctx={catalogueRead:0,state,rosterRetry:{disabled:false},rosterError:{textContent:''},rosterNotice:{hidden:true},conversationKey:(type,id)=>`${type}:${id}`,api:path=>{
   if(path.startsWith('/api/bots')){const pending=deferred();reads.push(pending);return pending.promise}
   return Promise.resolve(path==='/api/rooms'?{rooms:[]}:{owner:{name:'old'}})
  },renderCurrentWork(){},updateSendButton(){},document:{querySelector(){}},renderOwner(){},renderBots(){},clearSelection(){state.selected=null},conversationTimeline:{updateTarget(){}},app:{classList:{contains:()=>false}}}
