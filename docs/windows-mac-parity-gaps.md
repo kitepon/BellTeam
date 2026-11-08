@@ -63,19 +63,19 @@ Mac：[48の詳細パネル](assets/mac-ui-reference-48/01-workspace.png)／Wind
 
 対応済み（PR 6）：[キーバー](assets/windows-mac-gaps/windows/pr6-screen-keys.png)・[許可の帯](assets/windows-mac-gaps/windows/pr6-screen-approval.png)・[数字の段と注意文](assets/windows-mac-gaps/windows/pr6-screen-digits-error.png)・[送信後のチェック](assets/windows-mac-gaps/windows/pr6-screen-sent.png)・[空の画面（起動中）](assets/windows-mac-gaps/windows/pr6-screen-empty.png)・[席が停止中](assets/windows-mac-gaps/windows/pr6-screen-offline.png)・[読み取りの失敗](assets/windows-mac-gaps/windows/pr6-screen-read-failed.png)・[既定の画面](assets/windows-mac-gaps/windows/pr6-workspace.png)。更新は表示中だけ1秒ごと。Macと同じく読み取りが失敗すると止まり、状態行に赤い文を出す（「再読込」ボタンはMacに無いため外した。画面を開き直すと再開する）。許可の確認は画面の読み取りが成功するたびに毎回行い、失敗しても続け、503の間はキーバーごと隠して後の200で戻す。想定外の失敗の報告は連続1回だけ。Macの触覚フィードバックと診断の送り先はWindowsに無く、診断は`Trace`へ書く。
 
-## 5. メンバー追加・編集、ルーム、画像の切り抜き — M
+## 5. メンバー追加・編集、ルーム、画像の切り抜き — M（対応済み：PR 8）
 
-| Mac | Windows |
-| --- | --- |
-| [メンバーを追加](assets/windows-mac-gaps/mac/mac-sheet-new-member-after.png) | [メンバー編集](assets/windows-mac-gaps/windows/02-member-editor.png) |
+対応済み（PR 8）：Macの文言と構成どおりにWindows（WPF）で作った。画面：[メンバーを追加（シート）](assets/windows-mac-gaps/windows/pr8-new-member.png)（Macは`39-preview-sheet-new-member-light.png`）・[メンバーを編集（別窓）](assets/windows-mac-gaps/windows/pr8-member-window.png)（Macは`20-member-edit-window-light.png`）・[ルームを編集（シート）](assets/windows-mac-gaps/windows/pr8-room.png)（Macは`21-room-edit-sheet-light.png`）・[ルームを作る](assets/windows-mac-gaps/windows/pr8-new-room.png)・[画像を調整（シート）](assets/windows-mac-gaps/windows/pr8-crop.png)（Macは`38-preview-avatar-crop-light.png`）・[メンバー削除の確認](assets/windows-mac-gaps/windows/pr8-member-delete-alert.png)・[削除を受け付けた状態](assets/windows-mac-gaps/windows/pr8-member-delete-pending.png)・[削除要求の結果が不明な状態](assets/windows-mac-gaps/windows/pr8-member-delete-unconfirmed.png)・[ルーム削除の確認](assets/windows-mac-gaps/windows/pr8-room-delete-alert.png)。
 
-- Macは1列の区分けしたフォーム（メンバー／画像（追加時のみ）／AI／プロフィール／削除）。上部に「キャンセル」「保存」がある。Windowsは2列の配置で、保存とキャンセルが右下。
-- 「画像」の区分：「小画像を再調整」「大画像を変更」「大画像を再調整」「大画像を小画像と同じに戻す」と各注意文。Windowsには無い。
-- AI：CLIの候補（Codex・Claude・Grok・Cursor・Antigravity）はWindowsも同じ。モデルに「その他」（「モデルID」欄）、エフォートに「X（現在の設定）」があるかは、作業時に照合する。ファストを使えない時の理由文は5種。
-- 削除：「メンバーを削除」と、確認文・結果文（「削除を受け付けました。…」「削除結果を確認」）。Windowsには削除が無い。
-- 保存結果の4文言を揃える。
-- ルーム：「ルームを作る」「ルームを編集」、「代表Bot」（「代表なし」）、削除の文言。
-- 画像の切り抜き：680×520、指示文、320のプレビューと「拡大・縮小」の240幅パネル、「キャンセル」「使用する」。
+- 「メンバーを追加」は窓内のシート（最小720×540、最大820×680）、「メンバーを編集」は別窓（1120×900、最小600×500）。Macと同じ1列の区分け（メンバー／画像（追加時のみ）／AI／プロフィール／削除（編集時のみ））で、上部に「キャンセル」「保存」を置く。保存や削除を受け付けた後は左が「閉じる」になる。
+- 画像（追加時のみ）：「小画像を変更」（80のアバター）、「小画像を再調整」、「大画像を変更」（160のプレビュー）、「大画像を再調整」、「大画像を小画像と同じに戻す」と各注意文。サーバーが独立した大画像を持たない時は「画像の独立編集はサーバー更新後に利用できます。」を出して無効にする。選んだ画像だけを`POST /api/bots`の`avatar`・`avatarSource`・`avatarCrop`（大画像は`avatarLarge…`）に付ける。
+- AI：CLI（Codex・Claude・Grok・Cursor・Antigravity）、モデル（CLIの既定・候補・その他と「モデルID」）、エフォート（CLIの既定・候補・「X（現在の設定）」）、「ファストモード」と「オンにすると利用枠を多く使います。」、使えない理由の赤文（読み込み中・候補を読めない・モデルID未入力・候補の失敗・アカウント制限・既定モデルを確認できない・非対応モデル）。読み込み中は「モデル候補を読み込んでいます…」。
+- 保存結果の4文言（保存した内容を確認／一致しない／確認できない＋「保存結果を確認」）。保存は変更した欄だけのPATCHを1回、結果が不明な時は読み比べだけを行い、再送しない。
+- 削除（メンバー）：「メンバーを削除」→確認文→`DELETE /api/bots/{id}`を1回→「削除を受け付けました。…」と「削除結果を確認」（一覧のGET）。応答が不明な時は「削除要求の結果を確認できませんでした。…」と同じ「削除結果を確認」。一覧から消えたら編集窓を閉じる。
+- ルーム：「ルームを作る」「ルームを編集」、写真・ルーム名・この部屋で共有する仕事、メンバーのチェック、「代表Bot」（「代表なし」と選んだメンバーだけ）、「ルームを削除」と確認文・「操作を完了できませんでした」の確認。
+- 画像の切り抜き：窓内の「画像を調整」シート（680×520）。指示文、320のプレビューと240幅の「拡大・縮小」、「キャンセル」「使用する」。メンバー・ルーム・オーナーの写真と詳細の画像操作が同じシートを使う。
+- 作らなかったもの：Macは未保存の編集内容を窓を閉じるまで保持する（`botEditorDrafts`）が、Windowsは保持しない。Macのルーム保存は全欄を送るが、Windowsは変えた欄だけを送る。編集窓の左上の題と閉じるボタンはWindowsの窓枠を使う。
+- 変えたもの（Mac準拠）：メンバー・ルームの編集から「写真を取り外す」を外した（Macに無い。オーナーの設定画面には残す）。ファスト不可の理由文とファスト欄の注意文をMacの文言にした。
 
 ## 6. ゴール — L（対応済み：PR 7）
 
@@ -180,5 +180,6 @@ PR 5の確認で追加：Macの実物（113の01・02・07）は、会話の上�
 | 9 | 予定の見た目と文言 | S |
 | 10 | 起動・接続・ログイン・初期設定 | M |
 | 11 | 共通部品の仕上げとダーク表示 | S |
+| 12 | Claudeの2アカウント（オーナー機能、担当キロ。契約は`docs/architecture/modules/execution/harness-accounts.md`）：AIの認証の1st・2nd、Fableを2ndで使う切替、両方上限の帯、メンバーの席のアカウント表示。Apple版に合わせる | M |
 
 合計でおよそ14〜16日分（S＝0.5、M＝1、L＝2で数えた実作業）。各PRの採用と導入を待つ時間は含まない。Macの全写真が届いたら、ダーク表示の差と、写真の無い画面（起動・ログイン・初期設定・シート類）を照らし合わせて、規模を見直す。

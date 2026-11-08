@@ -46,10 +46,10 @@ public sealed class FastModeTests
         {
             var original = Initial() with { Harness = harness, Model = model };
             var picker = new ModelPicker(original);
-            var fast = picker.Children.OfType<CheckBox>().Single(); Assert.False(fast.IsEnabled);
+            var fast = picker.FastToggle; Assert.False(fast.IsEnabled);
             using var api = CatalogApi(); Await(picker.LoadAsync(new(api), CancellationToken.None));
             Assert.Equal(available, fast.IsEnabled); Assert.Empty(picker.Apply(original).ChangesFrom(original));
-            var reason = picker.Children.OfType<TextBlock>().Last();
+            var reason = picker.FastReason;
             Assert.Equal(available ? Visibility.Collapsed : Visibility.Visible, reason.Visibility);
             if (harness == "claude") Assert.Equal("このアカウントでは利用できません。", reason.Text);
             if (available) { fast.IsChecked = true; Assert.True(picker.Apply(original).FastMode); }
@@ -62,13 +62,13 @@ public sealed class FastModeTests
         {
             var original = Initial(true); var picker = new ModelPicker(original);
             using var unavailable = new BellApi(new("http://localhost/"), new StubHandler((_, _) => Task.FromResult(StubHandler.Json("{\"message\":\"取得できません。\"}", HttpStatusCode.ServiceUnavailable))));
-            Await(picker.LoadAsync(new(unavailable), CancellationToken.None)); Assert.True(picker.Apply(original).FastMode); Assert.Empty(picker.Apply(original).ChangesFrom(original)); Assert.True(picker.Children.OfType<CheckBox>().Single().IsEnabled);
+            Await(picker.LoadAsync(new(unavailable), CancellationToken.None)); Assert.True(picker.Apply(original).FastMode); Assert.Empty(picker.Apply(original).ChangesFrom(original)); Assert.True(picker.FastToggle.IsEnabled);
             var nextPicker = new ModelPicker(original); using var api = CatalogApi(); Await(nextPicker.LoadAsync(new(api), CancellationToken.None));
             var combos = Descendants<ComboBox>(nextPicker).ToArray(); combos[1].SelectedValue = "test-normal";
-            var changes = nextPicker.Apply(original).ChangesFrom(original); Assert.Equal("test-normal", changes["model"]); Assert.False(changes.ContainsKey("fastMode")); Assert.True(nextPicker.Children.OfType<CheckBox>().Single().IsEnabled);
+            var changes = nextPicker.Apply(original).ChangesFrom(original); Assert.Equal("test-normal", changes["model"]); Assert.False(changes.ContainsKey("fastMode")); Assert.True(nextPicker.FastToggle.IsEnabled);
             nextPicker.SetSavedFastMode(false); Assert.False(nextPicker.Apply(original).FastMode);
-            combos[1].SelectedValue = "test-fast"; Assert.True(nextPicker.Children.OfType<CheckBox>().Single().IsEnabled);
-            combos[0].SelectedValue = "claude"; Assert.False(nextPicker.Children.OfType<CheckBox>().Single().IsEnabled);
+            combos[1].SelectedValue = "test-fast"; Assert.True(nextPicker.FastToggle.IsEnabled);
+            combos[0].SelectedValue = "claude"; Assert.False(nextPicker.FastToggle.IsEnabled);
         });
     }
     [Theory]
@@ -80,7 +80,7 @@ public sealed class FastModeTests
         RunSta(() =>
         {
             var original = Initial(true) with { Harness = reason == "account-unavailable" ? "claude" : "codex", Model = reason == "unsupported" ? "test-normal" : "test-fast" };
-            var picker = new ModelPicker(original); var fast = picker.Children.OfType<CheckBox>().Single(); Assert.True(fast.IsEnabled);
+            var picker = new ModelPicker(original); var fast = picker.FastToggle; Assert.True(fast.IsEnabled);
             using var api = reason == "catalog-error" ? new BellApi(new("http://localhost/"), new StubHandler((_, _) => Task.FromResult(StubHandler.Json("{\"message\":\"取得できません。\"}", HttpStatusCode.ServiceUnavailable)))) : CatalogApi();
             Await(picker.LoadAsync(new(api), CancellationToken.None)); Assert.True(fast.IsEnabled);
             fast.IsChecked = false; Assert.False(fast.IsEnabled);
@@ -132,11 +132,11 @@ public sealed class FastModeTests
                 });
             })));
             Await(workspace.ConnectAsync("http://localhost", listen: false));
-            var editor = new MemberEditor(workspace, "bot-bell"); Await(editor.InitializeAsync()); Await(editor.ModelLoad);
+            var editor = new MemberEditorView(workspace, "bot-bell"); Await(editor.InitializeAsync()); Await(editor.ModelLoad);
             var picker = Descendants<ModelPicker>(editor).Single(); Descendants<ComboBox>(picker).ElementAt(1).SelectedValue = "test-normal";
-            Descendants<Button>(editor).Single(button => (string)button.Content == "保存").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
-            Assert.True(submitted); Assert.False(picker.Children.OfType<CheckBox>().Single().IsChecked); Assert.False(workspace.Entries.Single(entry => !entry.Target.IsRoom).FastMode);
-            Assert.Contains(Descendants<TextBlock>(editor), text => text.Text.Contains("現在の作業が終わってから適用")); editor.Close();
+            Await(editor.SaveAsync());
+            Assert.True(submitted); Assert.False(picker.FastToggle.IsChecked); Assert.False(workspace.Entries.Single(entry => !entry.Target.IsRoom).FastMode);
+            Assert.Contains(Descendants<TextBlock>(editor), text => text.Text.Contains("現在の作業が終わってから適用")); editor.Dispose();
         });
     }
     private static string Bots(bool fast) => JsonSerializer.Serialize(new { bots = new[] { new { id = "bot-bell", name = "ベル", displayName = "ベル", harness = "codex", model = "test-fast", fastMode = fast } } }, BellApi.Json);
