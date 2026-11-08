@@ -126,7 +126,8 @@ test('通常構成（bridge無し）の保存済み配送の回復：resumeは�
   const state = fixture({ call: async (name, args) => { calls.push([name, args]); return { structuredContent: { session_id: args.session_id, outcome: 'closed' } } } })
   const session = state.session(bot) ?? bot.id
   const ref = { target_session_id: session }, target = { session_id: session }
-  assert.equal(await state.reconcileLaunch(bot, ref, target), null)
+  // The parent seam (conversation-execution-effects) checks binding.target.launch against the requested target.
+  assert.deepEqual(await state.reconcileLaunch(bot, ref, target), { ordinary: true, reservation: { request: ref }, binding: { target: { launch: target } } })
   await assert.rejects(state.reconcileLaunch(bot, ref, { session_id: 'other' }), { code: 'BOT_RECOVERY_TARGET_INVALID' })
   assert.deepEqual(await state.closeLaunch(bot, ref, target), { session_id: session, outcome: 'closed' })
   assert.deepEqual(calls, [['pty_close', { session_id: session }]])

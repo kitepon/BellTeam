@@ -185,3 +185,22 @@ test('受理されたが追う手がかりの無い返りは、失敗にせず�
   await run.delivered
   assert.deepEqual(run.names(), ['pty_send'])
 })
+
+test('通常構成の回復値は親の照合を通り、通常のdispatchで同じ配送IDのまま届く', async t => {
+  const { isDeepStrictEqual } = await import('node:util')
+  const { BotSessionState } = await import('../src/bot-session-state.mjs')
+  const state = new BotSessionState({ assertWorkAllowed() {}, executionBridge: () => null, call: async () => ({}), invalidateRunning() {},
+    activity: { configuration: () => false, interruption: () => false, waking: () => false, hasJobs: () => false, idle: () => true } })
+  const target = { session_id: 'bot-a', launch_id: 'a'.repeat(32) }
+  const value = await state.reconcileLaunch({ id: 'bot-a' }, { kind: 'delivery', delivery_id: 'd-1', target_session_id: 'bot-a' }, target)
+  // conversation-execution-effects (body) consumes the recovery handle with exactly this check.
+  assert.equal(isDeepStrictEqual(structuredClone(target), value.binding?.target?.launch), true)
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-failed-record-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const { client, calls } = scripted({ sends: [null] })
+  const transport = new AitermTransport({ client, handoffContext: async () => '', waitProcess: async () => ({ outcome: 'done' }) })
+  await transport.notify({ id: 'bot-a', session: 'bot-a', harness: 'claude', project: root }, '保存済みの本文',
+    { recoveredExecution: value, queue: { groupId: 'd-1' } })
+  await transport.idle('bot-a')
+  assert.deepEqual(calls.filter(([name]) => name === 'pty_send').map(([, args]) => args.text), ['保存済みの本文'])
+})
