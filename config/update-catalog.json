@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T04:50:22Z",
-  "expiresAt": "2026-11-15T04:50:22Z",
+  "publishedAt": "2026-11-08T05:39:26Z",
+  "expiresAt": "2026-11-15T05:39:26Z",
   "releases": [
     {
       "componentId": "usage",
@@ -635,15 +635,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "700918e2868c2020b8b9ead08d6f121c6fe4b9eb",
-      "versionId": "sha256:654f1f5d9dee4929cf947d5d310039fe12fa6466aee22ec3b1847943d65b5a30",
+      "sourceCommit": "db3a77691964a96e31e74f46cc1246b7d12bb7f9",
+      "versionId": "sha256:cb41551f139bb61f23b7a96ca4316d7d779bb07e5d6402a398c2b5fe86ae4a09",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:654f1f5d9dee4929cf947d5d310039fe12fa6466aee22ec3b1847943d65b5a30"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:cb41551f139bb61f23b7a96ca4316d7d779bb07e5d6402a398c2b5fe86ae4a09"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -652,20 +652,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "ターン終了後の続き（after_turn）と共通ルールを入れ、直接届いたメッセージでも作業のまとめを作れるようにします。"
+        "画面の入力の受け取りを直し、通知を送った結果の記録を通知の画面で見られるように本体を準備します。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "700918e2868c2020b8b9ead08d6f121c6fe4b9eb",
-      "versionId": "sha256:654f1f5d9dee4929cf947d5d310039fe12fa6466aee22ec3b1847943d65b5a30",
+      "sourceCommit": "db3a77691964a96e31e74f46cc1246b7d12bb7f9",
+      "versionId": "sha256:cb41551f139bb61f23b7a96ca4316d7d779bb07e5d6402a398c2b5fe86ae4a09",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:654f1f5d9dee4929cf947d5d310039fe12fa6466aee22ec3b1847943d65b5a30"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:cb41551f139bb61f23b7a96ca4316d7d779bb07e5d6402a398c2b5fe86ae4a09"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -674,7 +674,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "ターン終了後の続き（after_turn）と共通ルールを入れ、直接届いたメッセージでも作業のまとめを作れるようにします。"
+        "画面の入力の受け取りを直し、通知を送った結果の記録を通知の画面で見られるように本体を準備します。"
       ]
     }
   ],
