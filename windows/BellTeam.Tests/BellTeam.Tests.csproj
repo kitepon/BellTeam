@@ -3,6 +3,8 @@
   <ItemGroup>
     <None Include="../../test/fixtures/delivery-tracking-wire.json" Link="delivery-tracking-wire.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="fixtures/update-center.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="fixtures/update-center-mixed.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="fixtures/update-center-current.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="fixtures/update-notification-wire.json" CopyToOutputDirectory="PreserveNewest" />
     <ProjectReference Include="../BellTeam.Core/BellTeam.Core.csproj" />
     <ProjectReference Include="../BellTeam.App/BellTeam.App.csproj" />

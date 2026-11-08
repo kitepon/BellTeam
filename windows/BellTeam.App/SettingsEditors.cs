@@ -14,6 +14,8 @@ public sealed partial class SettingsWindow : EditorWindow
     private readonly Action? signOut;
     private readonly DesktopNotifications? notifications;
     private readonly Dictionary<SettingsPage, Border> rows = [];
+    private readonly List<(SettingsPage Page, TextBlock Text, Brush Original)> rowLabels = [];
+    private UpdateContent? updateContent;
     private readonly TextBlock profileName = SettingsUi.Text("あなた", 15, SettingsUi.Ink, FontWeights.SemiBold);
     private readonly AvatarTile profileAvatar = new() { Width = 36, Height = 36 };
     private readonly TextBlock stopRowText = SettingsUi.Text("", 13, SettingsUi.Secondary);
@@ -44,13 +46,13 @@ public sealed partial class SettingsWindow : EditorWindow
         Grid.SetRow(pane, 1); right.Children.Add(pane); Grid.SetColumn(right, 2); layout.Children.Add(right);
         Content = layout;
         if (notifications is not null) notifications.PropertyChanged += NotificationsChanged;
-        Closed += (_, _) => { if (notifications is not null) notifications.PropertyChanged -= NotificationsChanged; lifetime?.Cancel(); embedded?.Close(); };
+        Closed += (_, _) => { if (notifications is not null) notifications.PropertyChanged -= NotificationsChanged; lifetime?.Cancel(); embedded?.Close(); updateContent?.Dispose(); };
         UpdateNotificationRow();
     }
 
     // Leaving the page is blocked while a save here, or an update running in the hosted pane, is still in progress.
-    public override bool CanNavigateAway => base.CanNavigateAway && embedded?.CanNavigateAway != false;
-    public override void ScrollToEndForRender() { if (pane.Content is ScrollViewer scroller) { scroller.ScrollToEnd(); scroller.UpdateLayout(); } }
+    public override bool CanNavigateAway => base.CanNavigateAway && embedded?.CanNavigateAway != false && updateContent?.Busy != true;
+    public override void ScrollToEndForRender() { if (pane.Content is UpdateContent content) content.ScrollToEnd(); else if (pane.Content is ScrollViewer scroller) { scroller.ScrollToEnd(); scroller.UpdateLayout(); } }
     public SettingsPage Selected => selected;
 
     public async Task InitializeAsync(SettingsPage page = SettingsPage.Profile)
@@ -65,8 +67,8 @@ public sealed partial class SettingsWindow : EditorWindow
     public async Task SelectAsync(SettingsPage page)
     {
         if (page == selected && !inSubPage && pane.Content is not null) return;
-        if (embedded?.CanNavigateAway == false) { workspace.ReportActionError("操作が終わってから画面を切り替えてください。"); return; }
-        lifetime?.Cancel(); lifetime?.Dispose(); embedded?.Close(); embedded = null; inSubPage = false;
+        if (embedded?.CanNavigateAway == false || updateContent?.Busy == true) { workspace.ReportActionError("操作が終わってから画面を切り替えてください。"); return; }
+        lifetime?.Cancel(); lifetime?.Dispose(); embedded?.Close(); embedded = null; updateContent?.Dispose(); updateContent = null; inSubPage = false;
         selected = page; Highlight(); SetToolbar(null, null, null);
         lifetime = CancellationTokenSource.CreateLinkedTokenSource(Token); var token = lifetime.Token;
         try
@@ -87,7 +89,7 @@ public sealed partial class SettingsWindow : EditorWindow
         profileAvatar.Entry = OwnerEntry(null); profileAvatar.Workspace = workspace;
         var profile = new Grid(); profile.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) }); profile.ColumnDefinitions.Add(new ColumnDefinition());
         profile.Children.Add(profileAvatar);
-        var text = new StackPanel { Margin = new Thickness(14, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center }; text.Children.Add(profileName); text.Children.Add(SettingsUi.Text("プロフィールとあなたの決まり", 12, SettingsUi.Secondary, null, new Thickness(0, 2, 0, 0)));
+        var text = new StackPanel { Margin = new Thickness(14, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center }; text.Children.Add(profileName); var profileDetail = SettingsUi.Text("プロフィールとあなたの決まり", 12, SettingsUi.Secondary, null, new Thickness(0, 2, 0, 0)); text.Children.Add(profileDetail); Track(SettingsPage.Profile, profileName, profileDetail);
         Grid.SetColumn(text, 1); profile.Children.Add(text);
         list.Children.Add(CategoryRow(SettingsPage.Profile, SettingsPageInfo.Title(SettingsPage.Profile) + " " + workspace.OwnerName, profile, new Thickness(0, 2, 0, 0)));
         foreach (var group in SettingsPageInfo.Groups)
@@ -98,8 +100,9 @@ public sealed partial class SettingsWindow : EditorWindow
                 var grid = new Grid(); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(30) }); grid.ColumnDefinitions.Add(new ColumnDefinition()); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                 grid.Children.Add(SettingsUi.Tile(page, 30));
                 var labels = new StackPanel { Margin = new Thickness(12, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
-                labels.Children.Add(SettingsUi.Text(SettingsPageInfo.Title(page), 14, page == SettingsPage.Stop ? SettingsUi.Red : SettingsUi.Ink, FontWeights.Medium));
-                labels.Children.Add(SettingsUi.Text(SettingsPageInfo.Detail(page), 12, SettingsUi.Secondary, null, new Thickness(0, 2, 0, 0)));
+                var title = SettingsUi.Text(SettingsPageInfo.Title(page), 14, page == SettingsPage.Stop ? SettingsUi.Red : SettingsUi.Ink, FontWeights.Medium);
+                var detail = SettingsUi.Text(SettingsPageInfo.Detail(page), 12, SettingsUi.Secondary, null, new Thickness(0, 2, 0, 0));
+                labels.Children.Add(title); labels.Children.Add(detail); Track(page, title, detail);
                 Grid.SetColumn(labels, 1); grid.Children.Add(labels);
                 var trailing = page == SettingsPage.Stop ? stopRowText : page == SettingsPage.Notifications ? notificationRowText : null;
                 if (trailing is not null) { trailing.VerticalAlignment = VerticalAlignment.Center; trailing.TextWrapping = TextWrapping.NoWrap; Grid.SetColumn(trailing, 2); grid.Children.Add(trailing); }
@@ -117,7 +120,13 @@ public sealed partial class SettingsWindow : EditorWindow
         row.KeyDown += (_, args) => { if (args.Key is Key.Enter or Key.Space) { _ = SelectAsync(page); args.Handled = true; } };
         rows[page] = row; return row;
     }
-    private void Highlight() { foreach (var (page, row) in rows) row.Background = page == selected ? new SolidColorBrush(Color.FromRgb(0xE1, 0xE1, 0xE6)) : Brushes.Transparent; }
+    private void Track(SettingsPage page, params TextBlock[] texts) { foreach (var text in texts) rowLabels.Add((page, text, text.Foreground)); }
+    // Mac sidebar selection: a violet rounded row with white title and subtitle.
+    private void Highlight()
+    {
+        foreach (var (page, row) in rows) row.Background = page == selected ? SettingsUi.Violet : Brushes.Transparent;
+        foreach (var (page, text, original) in rowLabels) text.Foreground = page == selected ? Brushes.White : original;
+    }
 
     private ConversationEntry OwnerEntry(OwnerProfile? owner) => new(new("owner", false), owner?.Name ?? workspace.OwnerName, "", DateTimeOffset.MinValue, new Bot { Id = "owner", Name = owner?.Name ?? workspace.OwnerName, DisplayName = owner?.Name ?? workspace.OwnerName, Avatar = owner?.Avatar ?? "" }, null);
     private void UpdateProfileRow(OwnerProfile owner) { profileName.Text = owner.Name; profileAvatar.Entry = OwnerEntry(owner); }

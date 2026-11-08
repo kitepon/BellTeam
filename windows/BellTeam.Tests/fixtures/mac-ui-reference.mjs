@@ -17,6 +17,7 @@ const schedules = {
 const feature = (id, title) => ({ id, title, enabled: true, status: 'enabled', fields: [] })
 const routes = { '/api/session': { authenticated: true, authMode: 'local' }, '/api/bots': { bots: fixture.bots }, '/api/rooms': { rooms: fixture.rooms }, '/api/models': { models }, '/api/owner': { owner: fixture.owner }, '/api/user-rules': { text: 'チーム全員へ共有する指示。' }, '/api/settings': { settings: [feature('routing','AIによるルーム応答の振り分け'),feature('callBridge','メンバー間の連携'),feature('notifications','通知')], backgroundAgent: { revision: '6f1c1f0e-5d1b-4f43-9a54-0d3a4c2e8b11', selection: { harness: 'codex', model: 'gpt-6.1-sol', reasoningEffort: 'high' } } }, '/api/queue': { items: Array.from({ length: 12 }, (_, index) => ({ id: `job-${index}`, botId: 'bot-one', botName: 'ユキ', status: 'running', context: 'direct', contextId: 'bot-one' })) } }
 routes['/api/updates'] = JSON.parse(readFileSync('windows/BellTeam.Tests/fixtures/update-center.json', 'utf8'))
+const updateFixture = name => JSON.parse(readFileSync(`windows/BellTeam.Tests/fixtures/${name}.json`, 'utf8'))
 let writes = 0
 let gallery = false
 const galleryAssets = { '/api/message-images/demo/one.png': 'ios/BellBot/BellBot/Assets.xcassets/AppIcon.appiconset/bellbot-icon.png', '/api/message-images/demo/two.png': 'docs/assets/mac-ui-reference-48/01-workspace.png' }
@@ -55,10 +56,11 @@ server.listen(0, '127.0.0.1', async () => {
     if (process.argv[4] && !['gallery', 'updates', 'settings', 'summary'].includes(process.argv[4])) throw new Error('WINDOWS_RENDER_SCENE_UNKNOWN')
     // Same three summaries as ios/BellBot/BellBotTests/SummaryLayoutTests.swift.
     if (process.argv[4] === 'summary') ['認証まわりの再試行処理を見直し、通知の表示崩れと画像の読み込み失敗も合わせて直す', 'ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴ', 'abcdefghij'.repeat(8)].forEach((summary, index) => { if (fixture.bots[index]) fixture.bots[index].currentWork = { state: 'working', summary, summaryStatus: 'current' } })
-    const selectedFrames = process.argv[4] === 'summary' ? [['summary.png', ['--render-url', origin, 'bot-one']]] : process.argv[4] === 'settings' ? settingsPages.map(page => [`settings-${page}.png`, ['--render-page', `settings-${page}`, origin]]) : process.argv[4] === 'gallery' ? frames.filter(([name]) => name === '09-gallery.png') : process.argv[4] === 'updates' ? [['update.png', ['--render-page', 'updates', origin]], ['update-narrow.png', ['--render-page', 'updates-narrow', origin]], ['update-detail-narrow.png', ['--render-page', 'updates-detail-narrow', origin]]] : frames
+    const selectedFrames = process.argv[4] === 'summary' ? [['summary.png', ['--render-url', origin, 'bot-one']]] : process.argv[4] === 'settings' ? settingsPages.map(page => [`settings-${page}.png`, ['--render-page', `settings-${page}`, origin]]) : process.argv[4] === 'gallery' ? frames.filter(([name]) => name === '09-gallery.png') : process.argv[4] === 'updates' ? [['update.png', ['--render-page', 'updates', origin]], ['update-current.png', ['--render-page', 'updates-current', origin]], ['update-narrow.png', ['--render-page', 'updates-narrow', origin]], ['update-detail-narrow.png', ['--render-page', 'updates-detail-narrow', origin]], ['update-sheet.png', ['--render-page', 'update-sheet', origin]]] : frames
     for (const [name, args] of selectedFrames) {
       if (name === '07-settings-cloudflare.png') routes['/api/session'].authMode = 'cloudflare'
       if (name === '09-gallery.png') gallery = true
+      if (name.startsWith('update')) routes['/api/updates'] = updateFixture(name === 'update-current.png' ? 'update-center-current' : 'update-center-mixed')
       if (name === 'update-detail-narrow.png') routes['/api/updates'].components[0].current.version = 'a'.repeat(180)
       const output = join(destination, name)
       await new Promise((success, failure) => {

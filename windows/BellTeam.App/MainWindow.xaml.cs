@@ -42,7 +42,7 @@ public partial class MainWindow : Window
             if (!loadingOlder && args.VerticalChange < 0 && args.VerticalOffset < 48 && model.HasMore && !model.Loading) await LoadOlderPreservingPositionAsync();
         };
         ConversationList.PreviewMouseDown += (_, args) => { if (page is not null && args.OriginalSource is DependencyObject target && ItemsControl.ContainerFromElement(ConversationList, target) is ListBoxItem) ShowConversation(); };
-        Closed += (_, _) => page?.Close();
+        Closed += (_, _) => { page?.Close(); sheetContent?.Dispose(); };
         Closing += (_, args) => { if (page?.CanNavigateAway == false) args.Cancel = true; };
         DataObject.AddPastingHandler(Composer, Composer_Pasting);
         model.ScrollToBottom += force =>
@@ -150,7 +150,26 @@ public partial class MainWindow : Window
     private void Schedules_Click(object sender, RoutedEventArgs e) => ShowSchedules();
     private void Settings_Click(object sender, RoutedEventArgs e) => ShowSettings();
     private void Updates_Click(object sender, RoutedEventArgs e) => ShowUpdates();
-    public void ShowUpdates() => ShowSettings(SettingsPage.Update);
+    // The sidebar Update badge (and an update notification) opens the Update sheet, as on the Mac.
+    public void ShowUpdates() => ShowUpdateSheet();
+    private UpdateContent? sheetContent;
+    public Task SheetReady { get; private set; } = Task.CompletedTask;
+    public void ShowUpdateSheet()
+    {
+        if (!model.Connected) return;
+        if (sheetContent is null)
+        {
+            sheetContent = new UpdateContent(model); UpdateSheetHost.Content = sheetContent; UpdateSheet.Visibility = Visibility.Visible;
+        }
+        PageReady = SheetReady = sheetContent.RefreshAsync();
+        UpdateSheet.Focus();
+    }
+    public void CloseUpdateSheet()
+    {
+        if (sheetContent is null) return;
+        sheetContent.Dispose(); sheetContent = null; UpdateSheetHost.Content = null; UpdateSheet.Visibility = Visibility.Collapsed;
+    }
+    private void UpdateSheetClose_Click(object sender, RoutedEventArgs e) => CloseUpdateSheet();
     private async Task RefreshUpdateNoticeAsync()
     {
         var server = model.Server;
@@ -278,6 +297,7 @@ public partial class MainWindow : Window
     }
     private void Window_KeyDown(object sender, KeyEventArgs e)
     {
+        if (sheetContent is not null) { if (e.Key == Key.Escape) { CloseUpdateSheet(); e.Handled = true; } return; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.D2) { ShowSchedules(); e.Handled = true; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.OemComma) { ShowSettings(); e.Handled = true; }
         if (e.Key == Key.K && Keyboard.Modifiers == ModifierKeys.Control) { SearchBox.Focus(); SearchBox.SelectAll(); e.Handled = true; }
