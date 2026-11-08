@@ -3,9 +3,10 @@ const iso = ms => new Date(ms).toISOString()
 const stamp = value => typeof value === 'number' ? iso(value)
   : typeof value === 'string' && /^\d{4}-\d\d-\d\dT/u.test(value) && !Number.isNaN(Date.parse(value)) ? value : null
 
-export function edgeLabel({ message, image }) {
-  const line = String(message ?? '').split('\n').map(text => text.trim()).find(Boolean)
-  return line ? [...line].slice(0, 40).join('') : image ? '画像' : ''
+// Plain Japanese for the Owner: the receiver's current work summary, never the Bot-to-Bot message body.
+export function edgeLabel(turn) {
+  const summary = turn?.summaryStatus === 'current' && typeof turn.summary === 'string' ? turn.summary.trim() : ''
+  return summary || '依頼を処理中'
 }
 
 export function projectGraph({ members, turns = {}, queue, responders = {}, previous = null, now, leaveGraceMs = 4000 }) {
@@ -19,7 +20,7 @@ export function projectGraph({ members, turns = {}, queue, responders = {}, prev
     if (item.context === 'room' ? !responders[item.groupId]?.includes(item.target) : item.context !== 'direct') continue
     const id = `${item.groupId}:${item.target}`
     edges.set(id, { id, requestId: item.groupId, from: item.from, to: item.target, context: item.context,
-      roomId: item.context === 'room' ? item.contextId : null, label: edgeLabel(item),
+      roomId: item.context === 'room' ? item.contextId : null, label: edgeLabel(turns[item.target]),
       state: item.steered ? 'steered' : 'running', startedAt: stamp(item.startedAt) ?? oldEdges.get(id)?.startedAt ?? iso(now) })
   }
   const linked = new Set([...edges.values()].flatMap(edge => [edge.from, edge.to]))
