@@ -3,7 +3,8 @@ import { join } from 'node:path'
 import { writeAtomic } from './json-file.mjs'
 import { MODEL_FAMILIES, modelScope, parseLimitText } from './claude-limit-text.mjs'
 
-// harness-accounts.md: 1st/2nd slots per harness, limits per (slot, model scope), rules. No secrets are stored here.
+// harness-accounts.md: 1st/2nd slots per harness, limits per (slot, model scope). No secrets are stored here.
+// Selection is limit-driven only (Owner ruling 2026-11-09): 1st unless the model is limited there; no preference rules.
 export const ACCOUNT_SLOTS = ['1st', '2nd']
 export const ACCOUNT_HARNESSES = ['claude']
 const SCHEMA = 'bellteam.harness-accounts.v1'
@@ -108,7 +109,7 @@ export class HarnessAccounts {
     timers = { set: setTimeout, clear: clearTimeout }, timeZone = process.env.TZ || 'UTC', log = line => process.stderr.write(`${line}\n`) }) {
     Object.assign(this, { home, statePath, seat, readUsage, now, timers, timeZone, log })
     this.labels = new Map()
-    this.state = { schema: SCHEMA, rules: [], limits: [], seats: {} }
+    this.state = { schema: SCHEMA, limits: [], seats: {} }
     this.listeners = new Set()
     this.resetTimers = new Map()
     this.reread = null
@@ -127,7 +128,6 @@ export class HarnessAccounts {
       const value = JSON.parse(await readFile(this.statePath, 'utf8'))
       if (value?.schema === SCHEMA) this.state = {
         schema: SCHEMA,
-        rules: (value.rules ?? []).filter(rule => this.validRule(rule)),
         limits: (value.limits ?? []).filter(entry => ACCOUNT_HARNESSES.includes(entry?.harness) && ACCOUNT_SLOTS.includes(entry.slot) && SCOPES.has(entry.scope)),
         seats: Object.fromEntries(Object.entries(value.seats ?? {}).filter(([, slot]) => ACCOUNT_SLOTS.includes(slot))),
       }
@@ -193,28 +193,6 @@ export class HarnessAccounts {
     return Boolean(entry?.isFile())
   }
 
-  validRule(rule) {
-    return rule && ACCOUNT_HARNESSES.includes(rule.harness) && typeof rule.modelPrefix === 'string'
-      && rule.modelPrefix.trim() === rule.modelPrefix && rule.modelPrefix.length > 0 && rule.modelPrefix.length <= 64
-      && (rule.slot === null || ACCOUNT_SLOTS.includes(rule.slot))
-  }
-
-  // Upsert by (harness, modelPrefix); slot null removes exactly that rule.
-  async setRule(rule) {
-    if (!this.validRule(rule) || Object.keys(rule).some(key => !['harness', 'modelPrefix', 'slot'].includes(key))) throw fail('ACCOUNT_RULE_INVALID')
-    const rules = this.state.rules.filter(value => value.harness !== rule.harness || value.modelPrefix !== rule.modelPrefix)
-    if (rule.slot) rules.push({ harness: rule.harness, modelPrefix: rule.modelPrefix, slot: rule.slot })
-    await this.save({ ...this.state, rules })
-    return { rules: structuredClone(rules) }
-  }
-
-  preferredSlot(harness, model) {
-    const id = String(model ?? '')
-    // A family rule (claude-fable) also covers the CLI's bare alias (fable); harness-accounts.md "Selection, failover and return".
-    const matches = rule => id.startsWith(rule.modelPrefix) || MODEL_FAMILIES.includes(id) && rule.modelPrefix === `${harness}-${id}`
-    return this.state.rules.find(rule => rule.harness === harness && matches(rule))?.slot ?? '1st'
-  }
-
   limitFor(harness, slot, model) {
     const family = modelScope(model)
     return this.state.limits.filter(entry => entry.harness === harness && entry.slot === slot && (entry.scope === 'all' || entry.scope === family))
@@ -222,10 +200,8 @@ export class HarnessAccounts {
 
   // Never refuses: with every slot limited for this scope, the earliest known reset wins.
   async effectiveSlot(harness, model) {
-    const preferred = this.preferredSlot(harness, model)
-    const order = [preferred, ...ACCOUNT_SLOTS.filter(slot => slot !== preferred)]
     const usable = []
-    for (const slot of order) if (slot === '1st' || await this.loggedIn(harness, slot)) usable.push(slot)
+    for (const slot of ACCOUNT_SLOTS) if (slot === '1st' || await this.loggedIn(harness, slot)) usable.push(slot)
     const free = usable.find(slot => !this.limitFor(harness, slot, model).length)
     if (free) return free
     const reset = slot => Math.max(...this.limitFor(harness, slot, model).map(entry => entry.resetAt ? Date.parse(entry.resetAt) : Infinity))
@@ -234,7 +210,7 @@ export class HarnessAccounts {
 
   async selection(harness, model) {
     const slot = await this.effectiveSlot(harness, model)
-    return { slot, preferredSlot: this.preferredSlot(harness, model), configurationRoot: this.root(harness, slot) }
+    return { slot, configurationRoot: this.root(harness, slot) }
   }
 
   // A seat's own limit signal. The text decides scope and time first; the usage reading only fills what it lacks.
@@ -340,7 +316,8 @@ export class HarnessAccounts {
       })
       harnesses.push({ harness, slots, allLimited })
     }
-    return { harnesses, rules: structuredClone(this.state.rules) }
+    // shortcut: `rules: []` stays for clients that still read it; drop it once Web, Apple and Windows remove the switch.
+    return { harnesses, rules: [] }
   }
 }
 

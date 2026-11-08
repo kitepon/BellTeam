@@ -20,6 +20,8 @@ test('limit text: observed Claude Code forms give scope and reset time', () => {
   assert.equal(at('Usage limit reached · continuing automatically at 8am · esc to cancel').scope, 'all')
   const fable = at("You've reached your Fable limit. Run /usage-credits to continue or switch models with /model.")
   assert.deepEqual([fable.scope, fable.resetAt], ['fable', null])
+  // Usage-credits plans (production 2026-11-09): the model is named after 'keep using'.
+  assert.equal(at("You're out of usage credits. Run /usage-credits to keep using Fable 5.1 or /model to switch models.").scope, 'fable')
   assert.equal(at("You've hit your usage limit. Visit … or try again at Nov 9th, 2026 12:35 PM.").resetAt, '2026-11-09T03:35:00.000Z')
   // Far future (a mis-parse) or the past is not trusted.
   assert.equal(at("You've hit your weekly limit · resets Dec 30, 8am (UTC)").resetAt, null)
@@ -71,14 +73,17 @@ test('limits are per slot and model scope; selection never refuses; the timer cl
   const { home, accounts, advance } = await setup(t)
   await accounts.prepare('claude', '2nd')
   await writeFile(join(home, '.bellteam-accounts/claude/2nd/.credentials.json'), '{}')
-  await accounts.setRule({ harness: 'claude', modelPrefix: 'claude-fable', slot: '2nd' })
+  // No preference: every model starts on the 1st (Owner ruling 2026-11-09).
+  assert.equal((await accounts.selection('claude', 'fable')).slot, '1st')
+  assert.equal((await accounts.selection('claude', 'opus')).slot, '1st')
+  // A Fable-only limit on the 1st moves only Fable seats (the catalog alias 'fable' included); Opus stays on the 1st.
+  const first = await accounts.recordLimit({ harness: 'claude', slot: '1st', model: 'fable', text: "You've reached your Fable limit · resets 9pm (Asia/Tokyo)" })
+  assert.equal(first.scope, 'fable')
+  assert.equal((await accounts.selection('claude', 'fable')).slot, '2nd')
   assert.equal((await accounts.selection('claude', 'claude-fable-5-1')).slot, '2nd')
   assert.equal((await accounts.selection('claude', 'opus')).slot, '1st')
-  // The catalog's Fable 5.1 is the bare alias 'fable'; a versioned rule would not cover it.
-  assert.equal((await accounts.selection('claude', 'fable')).slot, '2nd')
-  assert.equal(accounts.preferredSlot('claude', 'claude-fable-5'), '2nd')
-  assert.equal(accounts.preferredSlot('claude', 'default'), '1st')
-  // A Fable-only limit on the 2nd moves only Fable seats.
+  await accounts.clear(first)
+  assert.equal((await accounts.selection('claude', 'fable')).slot, '1st')
   const entry = await accounts.recordLimit({ harness: 'claude', slot: '2nd', model: 'claude-fable-5-1', text: "You've hit your Fable limit · resets 11pm (Asia/Tokyo)" })
   assert.deepEqual([entry.scope, entry.resetAt, entry.resetSource], ['fable', '2026-11-08T14:00:00.000Z', 'message'])
   assert.equal((await accounts.selection('claude', 'claude-fable-5-1')).slot, '1st')
@@ -91,7 +96,7 @@ test('limits are per slot and model scope; selection never refuses; the timer cl
   assert.deepEqual(listed.harnesses[0].slots[1].seats, ['b1'])
   assert.equal(listed.harnesses[0].slots[0].label, 'a')
   assert.equal(listed.harnesses[0].slots[1].label, null)
-  assert.deepEqual(listed.rules, [{ harness: 'claude', modelPrefix: 'claude-fable', slot: '2nd' }])
+  assert.deepEqual(listed.rules, [])
   // Exactly at the reset time, by the timer.
   await advance(2 * 3_600_000 - 1)
   assert.equal(accounts.limitFor('claude', '2nd', 'claude-fable-5-1').length, 1)
@@ -122,19 +127,6 @@ test('no time in the text: usage fills it; unknown resets exit by re-read or a s
   await accounts.turnSucceeded('claude', '1st', 'opus')
   // The unknown 'all' entry left; the Fable entry with its known time stays.
   assert.deepEqual(accounts.limitFor('claude', '1st', 'claude-fable-5-1').map(value => value.scope), ['fable'])
-})
-
-test('setRule upserts one rule; a failed registry write keeps the state', async t => {
-  const { home, accounts } = await setup(t)
-  await accounts.setRule({ harness: 'claude', modelPrefix: 'claude-opus', slot: '1st' })
-  await accounts.setRule({ harness: 'claude', modelPrefix: 'claude-fable', slot: '2nd' })
-  assert.deepEqual((await accounts.setRule({ harness: 'claude', modelPrefix: 'claude-fable', slot: null })).rules,
-    [{ harness: 'claude', modelPrefix: 'claude-opus', slot: '1st' }])
-  await assert.rejects(accounts.setRule({ harness: 'claude', modelPrefix: '', slot: '2nd' }), { code: 'ACCOUNT_RULE_INVALID' })
-  await chmod(home, 0o500)
-  try { await assert.rejects(accounts.setRule({ harness: 'claude', modelPrefix: 'claude-sonnet', slot: '2nd' })) }
-  finally { await chmod(home, 0o700) }
-  assert.deepEqual(accounts.state.rules, [{ harness: 'claude', modelPrefix: 'claude-opus', slot: '1st' }])
 })
 
 test('a failing reset write keeps the entry limited and retries after 60 s, not in a hot loop', async t => {

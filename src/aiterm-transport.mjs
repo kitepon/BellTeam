@@ -514,6 +514,8 @@ export class AitermTransport {
       if (next.harness === 'cursor' && configuration.reasoning_effort && !configuration.model) configuration.model = next.model
       const receipt = this.configurationRequests ? await this.applyConfigurationRequest(current, configuration, version, requestId)
         : await this.changeSession(current, 'agent_configure', configuration)
+      // A model change keeps the seat; its account follows the new model's limit state at the next idle boundary.
+      if (configuration.model !== undefined && this.claudeAccountBot(next) && !this.accountMoves.has(next.id)) this.moveAtBoundary(next.id)
       return { botId: next.id, session: this.session(next), mode: 'configure',
         ...(this.configurationRequests ? { configurationRequest: receipt } : {}) }
     }, { expected })
@@ -1512,7 +1514,8 @@ export class AitermTransport {
 
   seatAccount(botId) {
     const bot = this.resolveBot?.(botId), slot = this.claudeAccountBot(bot) ? this.accounts.seatSlot(botId) : null
-    return slot ? { harness: 'claude', slot, preferredSlot: this.accounts.preferredSlot('claude', bot.model) } : null
+    // shortcut: preferredSlot is always '1st' (no rules); drop it once Web, Apple and Windows stop reading it.
+    return slot ? { harness: 'claude', slot, preferredSlot: '1st' } : null
   }
 
   // Keep the conversation: hibernate (Aiterm E4) and resume on the selected root (E2). Ordered with setting changes.

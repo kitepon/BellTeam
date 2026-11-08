@@ -1,6 +1,6 @@
 # Harness accounts: 1st/2nd slots, limit failover and return
 
-Owner: Kiro (execution). Requested by the Owner via Trony, 2026-11-08 20:1x JST. Status: contract, not implemented.
+Owner: Kiro (execution). Requested by the Owner via Trony, 2026-11-08 20:1x JST. Status: implemented (execution #674). Limit-driven only (Owner ruling 2026-11-09 06:3x JST via Trony): there are no preference rules and no 「Fableを2ndアカウントで使う」 switch.
 Scope: Claude only. The shape is keyed by harness, so another harness can add slots later without a new contract; nothing Codex-specific is built.
 
 Names in every UI and contract: 「1stアカウント」 (`slot: '1st'`, primary) and 「2ndアカウント」 (`slot: '2nd'`, fallback). No e-mail address is hard-coded. The Owner logs each slot in once from the app.
@@ -9,16 +9,16 @@ Names in every UI and contract: 「1stアカウント」 (`slot: '1st'`, primary
 
 | Function | Owner | Public contact |
 | --- | --- | --- |
-| Slot registry: harness × slot → config root, login label, limit state, model rules | execution (this doc) | `accounts.list()`, `accounts.setRule(rule)`, `transport.seatAccount(botId)` |
+| Slot registry: harness × slot → config root, login label, limit state | execution (this doc) | `accounts.list()`, `transport.seatAccount(botId)` |
 | Slot directory preparation (shared history, separate credentials) | execution | inside `accounts.prepare(harness, slot)`; called before login and before a launch |
 | MCP registration in each slot's `.claude.json` | execution, reusing `mergeMcpConfig` of harness-config | same writer, one more target path per prepared slot |
 | Login per slot | usage (Mika) HarnessAuth → Aiterm `agent_auth` | HarnessAuth `start/input/status/cancel(harness, {slot})` |
 | Limit detection | execution | wait result (trigger) + usage reading (reset time) |
-| Slot selection at launch / resume | execution | launch option `configuration_root` to Aiterm |
+| Slot selection at launch / resume / model change | execution | launch option `configuration_root` to Aiterm |
 | Failover after a limit, return after reset | execution | existing reconfigure (apply at the next turn boundary) + capacity continuation message |
 | Account-card data and slot-aware login contacts | usage (Mika) | typed auth/account-card data built from `accounts.list()` |
-| Routes, private port injection, SSE, Bot DTO | Molly | `accounts.list/setRule` routes, `account` in Bot items, SSE topic `settings` |
-| Rendering: card rows, rule switch, banner, member card | Admi (Web), Apple and Windows owners | the data contacts above |
+| Routes, private port injection, SSE, Bot DTO | Molly | `accounts.list` route, `account` in Bot items, SSE topic `settings` |
+| Rendering: card rows, banner, member card | Admi (Web), Apple and Windows owners | the data contacts above |
 | Per-seat config root on launch, resume and auth | Aiterm (Elegg) | E1–E3 below |
 
 ## Data flow
@@ -28,11 +28,11 @@ flowchart TD
   Owner[Owner: 設定 → AIの認証 → Claude → 1st/2ndアカウント → ログイン] --> Auth[Mika HarnessAuth slot]
   Auth -->|configuration_root of slot| AitermAuth[Aiterm agent_auth: claude auth login under that root]
   AitermAuth --> Cred[(slot root/.credentials.json 0600 — written by the official CLI only)]
-  Registry[(execution accounts.json: rules + limit state, no secrets)] --> Select
-  Bot[Bot model / harness → model scope] --> Select[Select slot: rule → limit of slot × scope → earliest reset]
+  Registry[(execution accounts.json: limit state + seat slots, no secrets)] --> Select
+  Bot[Bot model / harness → model scope; launch or model change] --> Select[Select slot: 1st unless limited for the scope → 2nd → earliest reset]
   Select -->|configuration_root| Launch[Aiterm launch / resume]
   Launch --> Seat[Claude seat]
-  Seat --> Wait[wait result rate_limited / failure.category rate_limited + the seat's limit text]
+  Seat --> Wait[wait result rate_limited / failure.category rate_limited, incl. E5 rate_limit API-error records + the seat's limit text]
   Wait --> Parse[parse scope and reset time from the limit text]
   Parse --> Mark[mark slot × scope limited until resetAt]
   Parse -->|text has no time| Usage[usage reading with that slot's token, in process: row of the same scope]
@@ -41,7 +41,7 @@ flowchart TD
   Mark --> Failover[failed seat: resume same session on the other slot + continuation message]
   Mark --> Idle[other seats on that slot whose model is in the scope: switch at their next idle boundary]
   Clock[timer at resetAt / only when resetAt unknown: usage below limit or a turn in scope succeeds] --> Return[slot × scope available]
-  Return --> Back[seats whose preferred slot it is: switch back at next idle boundary]
+  Return --> Back[seats whose effective slot is now the 1st: switch back at next idle boundary]
   Registry --> List[accounts.list / seatAccount] --> UI[settings card, member card, both-limited banner]
 ```
 
@@ -54,7 +54,7 @@ flowchart TD
 | Credentials | `<root>/.credentials.json` (0600) | written and refreshed only by the official CLI. Only the seat-user helper reads the token, for the usage reading; it returns the usage rows only. The token is never logged, never returned, and never put in env or argv |
 | Account config | 1st: `$BELLTEAM_HOME/.claude.json`; 2nd: `<2nd root>/.claude.json` | holds the CLI's own account record and the MCP registration; not shared |
 | Shared history | in the 2nd root, symlinks to the 1st root: `projects/`, `history.jsonl`, `settings.json`, `CLAUDE.md`, `AGENTS.md`, `skills/`, `commands/`, `plugins/`, `agents/`, `file-history/`, `todos/`, `session-env/`, `shell-snapshots/` | one physical transcript per conversation, so `--resume` under either root finds it, and Throughline/handoff readers keep reading `$HOME/.claude/projects` |
-| Registry | `/srv/bellteam/state/harness-accounts.json`, schema `bellteam.harness-accounts.v1` | `{ rules:[{harness, modelPrefix, slot}], seats:{botId: slot}, limits:[{harness, slot, scope, since, resetAt|null, resetSource:'message'|'usage'|null, text}] }`; one entry per limited (slot, scope); an absent entry means available. `scope` is `'all'` or a model family (`'fable'`, `'opus'`, `'sonnet'`, `'haiku'`). `text` is the limit line the CLI showed (no secrets). No secrets |
+| Registry | `/srv/bellteam/state/harness-accounts.json`, schema `bellteam.harness-accounts.v1` (a `rules` key from before 2026-11-09 is ignored on load and dropped at the next write) | `{ seats:{botId: slot}, limits:[{harness, slot, scope, since, resetAt|null, resetSource:'message'|'usage'|null, text}] }`; one entry per limited (slot, scope); an absent entry means available. `scope` is `'all'` or a model family (`'fable'`, `'opus'`, `'sonnet'`, `'haiku'`). `text` is the limit line the CLI showed (no secrets). No secrets |
 
 ### Identity (production regression 2026-11-08 22:0x JST)
 
@@ -77,8 +77,10 @@ A failed `prepare` is `ACCOUNT_ROOT_UNAVAILABLE` (status 503), and the engine lo
 A seat's model scope is the first family name found in its model id (`fable`, `opus`, `sonnet`, `haiku`; for example `claude-fable-5-1` → `fable`, the alias `opus` → `opus`). An unknown family is only affected by `'all'`. A slot is limited for a seat when it has an entry with scope `'all'` or the seat's family.
 
 1. Trigger: a Claude wait result on a seat whose slot is S, either `outcome:'rate_limited'` (screen line in `rate_limit`) or `failure.category:'rate_limited'` (transcript 429, its line in `error`). Both are existing public wait-result fields.
+   Production 2026-11-09 06:0x JST: on a usage-credits plan the Fable limit is a transcript record `isApiErrorMessage:true, error:'rate_limit', apiError:'model_requires_usage_credits'`, no `apiErrorStatus`, text `You're out of usage credits. Run /usage-credits to keep using Fable 5.1 or /model to switch models.`, and Stop still fires. Aiterm 0.64.0 reports that turn `done`, so no limit is recorded from it and the seat stays on S (Kiro's own Fable seat, 19 turns 06:06–06:27 JST). E5 below makes it `failure.category:'rate_limited'`.
 2. Scope from the limit text, then from usage:
    - `You've reached your Fable limit …` / `You've hit your Opus limit …`: a named family is that family;
+   - `… to keep using Fable 5.1 …` (the usage-credits form): the named model's family;
    - `weekly limit`, `session limit`, `usage limit`, and the screen line `Usage limit reached`: `'all'`.
    If the text does not decide it, the usage reading decides it: `weekly_scoped` rows with `scope.model.display_name` give that family; `session` and `weekly_all` give `'all'`.
 3. Reset time, first from the same text, at detection. The observed forms are:
@@ -95,16 +97,17 @@ A seat's model scope is the first family name found in its model id (`fable`, `o
 
 ## Selection, failover and return
 
-Preferred slot for a seat = the first rule whose `harness` matches and whose `modelPrefix` is a prefix of the Bot's model (example: `{harness:'claude', modelPrefix:'claude-fable', slot:'2nd'}`), otherwise `1st`. A family prefix `claude-<family>` also matches the CLI's bare alias for that family (`fable`, `opus`, `sonnet`, `haiku`): the catalog lists Fable 5.1 as `fable`, and that is what a seat set to Fable carries (production 2026-11-08). A versioned prefix such as `claude-fable-5` matches only by prefix.
+There is no preference rule: every seat prefers the 1st (Owner ruling 2026-11-09). A family is matched on the Bot's model id or the CLI's bare alias (`fable`, `opus`, `sonnet`, `haiku`; the catalog lists Fable 5.1 as `fable`).
 
-Effective slot = the preferred slot if it is logged in and not limited for the seat's scope. Otherwise it is the other logged-in slot not limited for that scope. If every slot is limited for the scope, it is the slot whose matching entry has the earliest `resetAt`, and an unknown reset sorts last. So a Fable-only limit on the 1st moves only Fable seats; Opus and Sonnet seats stay. A launch is never refused for limits: the seat starts, the native CLI shows the limit, and the status surfaces show it plainly.
+Effective slot = the 1st if it is not limited for the seat's scope. Otherwise it is the 2nd if it is logged in and not limited for that scope not limited for that scope. If every slot is limited for the scope, it is the slot whose matching entry has the earliest `resetAt`, and an unknown reset sorts last. So a Fable-only limit on the 1st moves only Fable seats; Opus and Sonnet seats stay. A launch is never refused for limits: the seat starts, the native CLI shows the limit, and the status surfaces show it plainly.
 
 | Event | Action |
 | --- | --- |
 | A seat's turn ends rate-limited on S | Record the (S, scope) entry. If another slot is available, reconfigure that seat to the other slot and resume the same vendor session (E2), then send the existing capacity-continuation message without changing harness or model. If none is available, the existing CapacityContinuation (another harness) runs unchanged. |
 | Seat whose slot is limited for its scope, idle or between turns | Switch it to its effective slot at the next turn boundary, through the existing configuration application (close at idle, resume). A running turn is never stopped. |
-| Seat starting while its preferred slot is limited | Launch directly on the effective slot. |
-| An (S, scope) entry ends | Each seat in that scope whose preferred slot is S and whose current slot differs switches back at its next idle boundary. |
+| Seat starting while the 1st is limited for its scope | Launch directly on the effective slot. |
+| Model change in place (`agent_configure`, same CLI) | Select again for the new model; if the slot differs, switch at the next idle boundary (`moveAtBoundary`). So a seat changed to Opus while the 1st is limited only for Fable goes back to the 1st, and a seat changed to Fable goes to the 2nd. |
+| An (S, scope) entry ends | Each seat whose effective slot changes because of it (back to the 1st) switches at its next idle boundary. |
 | Both slots limited for a scope | `accounts.list()` lists that scope in `allLimited:[{scope, earliestResetAt}]`. Mika shows it on the AIの認証 card and in the status banner. Seats keep running as described above. |
 
 The switch reuses the existing resume path, so the conversation, docs and Throughline continue. The vendor session id stays the same, and the launch id changes as it does for a model change.
@@ -118,18 +121,17 @@ The switch reuses the existing resume path, so the conversation, docs and Throug
 | Launch on the selected root, seat slot record | `AitermTransport.wakeNow` (`configuration_root`; an Aiterm without it gets `ACCOUNT_CAPABILITY_UNAVAILABLE` from the client's tool-schema check and the seat launches on the default root as before) |
 | Limit signal → registry | `AitermTransport.recordAccountLimit` from the delivery completion (wait outcome `rate_limited` or `failure.category` `rate_limited`; text = `rate_limit` or `error`) |
 | Failover | `CapacityContinuation.continue`: an account switch of the same harness first (`transport.switchAccount` = `pty_close {hibernate:true}` then the ordinary wake), then the existing harness switch if the account switch is impossible |
-| Idle-boundary moves and return | `AitermTransport.reviewAccounts` / `moveAtBoundary` on every registry change; `AGENT_BUSY` waits for the turn and retries, never stops it |
+| Idle-boundary moves and return | `AitermTransport.reviewAccounts` / `moveAtBoundary` on every registry change and after a model change applied in place (`reconfigureNow`); `AGENT_BUSY` waits for the turn and retries, never stops it |
 | Successful-turn exit | `AitermTransport.accountTurnDone` on delivery completion |
 | Parent Aiterm env | `AitermClient` (parent clients): `AITERM_CLAUDE_CONFIG_ROOTS` in its own env and in the seat launcher's process env, never in `env_vars`. In production the parent connection starts through the seat command (`/usr/bin/env VAR=… aiterm`), which does not carry `this.env`, so the variable is also an `env` argument there (`seatConnectionEnvironment`). Without it Aiterm rejects every 2nd-root call (`agent_auth` status/start: production 2026-11-08 22:3x JST, USAGE_OPERATION_FAILED). Parent-image source: it goes live with a body swap |
 | MCP registration of slot roots | `writeHarnessConfig` merges into every prepared slot root; `prepare` copies the managed servers once |
-| Facade | `accounts.list/setRule/prepare` (dispatch), `transport.seatAccount` (project), `accounts.watch` over the queue stream (topic `accounts`) |
+| Facade | `accounts.list/prepare` (dispatch), `transport.seatAccount` (project), `accounts.watch` over the queue stream (topic `accounts`) |
 
 ## Public interfaces (execution)
 
-- `accounts.list()` → `{ harnesses:[{ harness:'claude', slots:[{ slot:'1st'|'2nd', loggedIn:boolean|null, label:string|null, history:'shared'|'separate', limits:[{scope, since, resetAt|null, resetSource}], seats:[botId] }], allLimited:[{scope, earliestResetAt|null}] }], rules }`. An empty `limits` means available for every model. `label` is the e-mail the CLI itself recorded for that root's login (`oauthAccount.emailAddress` in its `.claude.json`); it is display text, not a credential. `seats` lists the Bots whose last launch used that slot (`seats` in the registry, written after each Claude launch).
-- `accounts.setRule({harness, modelPrefix, slot})` → all stored rules. Upsert keyed by `(harness, modelPrefix)`; `slot: null` removes exactly that rule; other rules are never touched (Mika, 2026-11-08). Validated: harness known, slot `1st`/`2nd`/null, non-empty prefix ≤ 64 chars. Changing a rule moves affected seats at their next idle boundary.
+- `accounts.list()` → `{ harnesses:[{ harness:'claude', slots:[{ slot:'1st'|'2nd', loggedIn:boolean|null, label:string|null, history:'shared'|'separate', limits:[{scope, since, resetAt|null, resetSource}], seats:[botId] }], allLimited:[{scope, earliestResetAt|null}] }], rules: [] }`. `rules` is always empty (shortcut: kept for clients that still read it; dropped once Web, Apple and Windows remove the switch). An empty `limits` means available for every model. `label` is the e-mail the CLI itself recorded for that root's login (`oauthAccount.emailAddress` in its `.claude.json`); it is display text, not a credential. `seats` lists the Bots whose last launch used that slot (`seats` in the registry, written after each Claude launch).
 - `accounts.prepare(harness, slot)` → `{ configurationRoot }`. It is called by HarnessAuth before a login, and returns the root used for E3.
-- `transport.seatAccount(botId)` → `{ harness, slot, preferredSlot } | null`.
+- `transport.seatAccount(botId)` → `{ harness, slot, preferredSlot } | null`; `preferredSlot` is always `'1st'` (same shortcut as `rules`).
 - `accounts.watch(listener)` → unsubscribe; called after every saved registry change (Molly maps it to the SSE type `settings`). Seats that move also appear on the existing `watchQueue` stream.
 - Module: `src/harness-accounts.mjs` (`HarnessAccounts`, `readClaudeUsage`, `preparedAccountRoots`) and `src/claude-limit-text.mjs` (`parseLimitText`, `modelScope`).
   Both ship in the execution artifact: `EXECUTION_FILES` in `scripts/web_gateway_artifact.py` lists them (the dispatcher imports the first, which imports the second).
@@ -139,7 +141,7 @@ The switch reuses the existing resume path, so the conversation, docs and Throug
 | Path | Contract | Owner of the route |
 | --- | --- | --- |
 | `GET /api/accounts` | `accounts.list()` verbatim. A 404 means an older body: clients show the old single Claude card. | Molly |
-| `POST /api/accounts/rules` | body `{harness, modelPrefix, slot:'1st'\|'2nd'\|null}` → `accounts.setRule` → `{rules}`. Owner-only; other callers get 403. Validation errors are 400 `ACCOUNT_RULE_INVALID`. | Molly |
+| `POST /api/accounts/rules` | Removed (Owner ruling 2026-11-09). An engine without `setRule` answers `EXECUTION_REQUEST_INVALID`, which the current route already maps to 404; Molly deletes the route with the next body. | Molly |
 | `GET /api/harness-auth/claude?slot=2nd` | the existing harness-auth status for that slot. No `slot` means 1st, and the response is unchanged for it. | Mika |
 | `POST /api/harness-auth/claude/{start,input,cancel}?slot=2nd` | the existing login flow for that slot; the body is unchanged. No `slot` means 1st. | Mika |
 | Bot items (`GET /api/bots` and the Bot detail) | `account: {harness, slot, preferredSlot} \| null` from `transport.seatAccount(botId)`. It is absent on older bodies, and clients tolerate that. | Molly |
@@ -161,6 +163,7 @@ The switch reuses the existing resume path, so the conversation, docs and Throug
     - Without `hibernate`, `pty_close` is unchanged.
     - `AITERM_CLAUDE_CONFIG_ROOTS` never reaches a seat's environment.
     - `wait.error` carries the full transcript limit line, and `failure.category` matches "You've hit your <word> limit" without a 429.
+  - E5 (requested 2026-11-09): a Claude transcript record with `isApiErrorMessage:true` and `error:'rate_limit'` (the CLI's own field; seen with `apiError:'model_requires_usage_credits'` and no `apiErrorStatus`) gives `failure.category:'rate_limited'` with its text in `wait.error`, also when Stop fires after it (the turn is not `done`). E4's rate-limit exception covers this record too.
   - E3. `agent_auth` accepts `configuration_root` on `start`. The auth session keeps it, and `respond`, `cancel` or `status` for that session with a different root get `AGENT_CONFIGURATION_ROOT_REJECTED`. `status` returns `account_label`: the `email` field of `claude auth status --json`, or null when not logged in or absent. No tokens anywhere.
   - No reset-time parsing is needed; execution reads it from usage.
 - Mika (usage), agreed 2026-11-08:
@@ -169,27 +172,23 @@ The switch reuses the existing resume path, so the conversation, docs and Throug
   - `slot` stays outside the strict authResponse binding, prompt digest and response object.
   - The selected slot is prepared (`accounts.prepare`) before every `agent_auth` action, and `configuration_root` is passed only privately.
   - Receipts carry `slot` and the nullable native `account_label`.
-  - The typed account-card data contact covers both slot rows (login state, label, per-scope limits with reset, seats), the Fable rule (`setRule({harness:'claude', modelPrefix:'claude-fable', slot:'2nd'|null})`) and `allLimited`/`earliestResetAt`, all from `accounts.list()`.
-- Molly (parent, common HTTP/MCP): routes for `accounts.list` and `setRule`, private port injection, SSE topic `settings`, and `account: seatAccount(botId)` in Bot items.
-- Clients (Admi for Web; the Apple and Windows owners): render the two slot rows 「1stアカウント」/「2ndアカウント」, the switch 「Fableを2ndアカウントで使う」, the both-limited banner, and the seat's slot on the member card. A limit shows its scope: `'all'` as 「上限中 (HH:MMに解除)」, a family as 「Fableのみ上限中 (23:00に解除)」. Times are shown in JST (with the date when it is not today); a null reset shows as 解除時刻不明.
+  - The typed account-card data contact covers both slot rows (login state, label, per-scope limits with reset, seats), and `allLimited`/`earliestResetAt`, all from `accounts.list()`.
+- Molly (parent, common HTTP/MCP): the route for `accounts.list` (the `POST /api/accounts/rules` route is removed), private port injection, SSE topic `settings`, and `account: seatAccount(botId)` in Bot items.
+- Clients (Admi for Web; the Apple and Windows owners): render the two slot rows 「1stアカウント」/「2ndアカウント」, the both-limited banner, and the seat's slot on the member card. A limit shows its scope: `'all'` as 「上限中 (HH:MMに解除)」, a family as 「Fableのみ上限中 (23:00に解除)」. Times are shown in JST (with the date when it is not today); a null reset shows as 解除時刻不明.
 
-## Live acceptance (Owner steps, natural limit only)
+## Live acceptance (Owner's definition 2026-11-09 06:3x JST: a real limit, per model)
 
-The test uses a limit that already exists, so no quota is burned on purpose: a seat that is already limited fails its first turn at once.
+A test member (Claude, Fable) is the subject. No quota is burned on purpose and no limit text is faked.
 
-1. Precondition: Aiterm 0.64.0 (E1–E3), the execution module, Mika's usage contacts, Molly's routes and a client with the rows are in production.
-2. Owner: 設定 → AIの認証 → Claude → 2ndアカウント → ログイン, then log in with the account that is already limited for Fable. 1stアカウント stays the current container login.
-3. Owner: turn on 「Fableを2ndアカウントで使う」.
-4. Owner: pick one idle Bot on a Fable model; its member card shows 2ndアカウント. Send it one ordinary short message.
-5. Expected:
-   - The turn ends rate-limited without spending quota.
-   - The 2ndアカウント row shows 「Fableのみ上限中 (…に解除)」. The time comes from the limit text, or from the usage reading when the text has none.
-   - The member card shows 1stアカウント. Non-Fable seats are not moved.
-   - The same conversation continues with the capacity-continuation message and answers.
-6. At the shown reset time, the entry clears. The Bot moves back to 2ndアカウント at its next idle boundary, with no action needed.
+1. Precondition: the 1st is limited for Fable for real, both slots are logged in, and E5 is live.
+2. The member's first Fable turn really runs on the 1st: it was launched on the 1st, and its model is changed to Fable in place. The turn ends with the real limit record.
+3. Expected: the (1st, fable) entry is recorded with the raw text and `resetAt`. The member is hibernated and resumed on the 2nd with the same vendor session, the continuation message is sent, and the same work completes on the 2nd. The member card shows 2ndアカウント.
+4. Change the member to Opus: it goes back to the 1st at the next idle boundary and answers there. Change it back to Fable: it goes to the 2nd.
+5. At `resetAt` the entry clears, and Fable seats go back to the 1st at their next idle boundary. Record the actual time against `resetAt`.
 
 ## Not covered
 
 - The limit text and the usage endpoint are Claude Code's own output, not a documented API. If a new wording or a changed endpoint gives no time, `resetAt` is null, and the 10-minute re-read plus the successful-turn exit still return the slot. The parser keeps the observed forms above as fixtures.
 - A seat already running on a slot whose credentials the Owner logs out is not moved; its next launch selects again.
+- A slot logged in again under running seats (production 2026-11-09 06:04 JST, 1st changed to another account): the running seats kept answering. Which account a running seat bills until its next launch is not observable without reading tokens, so it is unverified.
 - Codex and other harnesses: no slots now. Adding them means one more root kind (`CODEX_HOME`) in `prepare`, E1–E3 for that harness, and its own limit signal.
