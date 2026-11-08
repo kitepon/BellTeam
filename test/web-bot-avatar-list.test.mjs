@@ -12,9 +12,9 @@ const element = (value = '') => ({ value, files: [], handlers: {}, addEventListe
 
 test('light bot list uses versioned images without embedding image data', async () => {
   const calls = []
-  const state = { selected: null }
+  const state = { selected: null, readReceipts: {} }
   const api = async path => { calls.push(path); return path.startsWith('/api/bots') ? { bots: [{ id: 'bot-a', avatarVersion: '123', avatar: '' }, { id: 'bot-b', avatarVersion: '' }] } : path === '/api/rooms' ? { rooms: [] } : { owner: {} } }
-  const ctx = { catalogueRead: 0, state, api, renderCurrentWork() {}, updateSendButton() {}, document:{querySelector(){}}, renderOwner() {}, renderBots() {} }
+  const ctx = { catalogueRead: 0, state, api, renderCurrentWork() {}, updateSendButton() {}, document:{querySelector(){}}, renderOwner() {}, renderBots() {}, rosterRetry: {}, rosterError: {}, rosterNotice: {}, conversationKey: (type, id) => `${type}:${id}` }
   vm.runInNewContext(extract('async function loadBots()', '\n  function renderOwner()'), ctx)
   await ctx.loadBots()
   assert(calls.includes('/api/bots?avatar=omit'))
