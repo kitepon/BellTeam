@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T11:51:38Z",
-  "expiresAt": "2026-11-15T11:51:38Z",
+  "publishedAt": "2026-11-08T12:09:06Z",
+  "expiresAt": "2026-11-15T12:09:06Z",
   "releases": [
     {
       "componentId": "usage",
@@ -425,8 +425,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "24e4ecfa10274aa2d7e6208a291f28e350ac3bb1",
-      "versionId": "f0759b5e741445c506de5827ede6e7bd20d76d07821ef135a5ce6a52506e0d71",
+      "sourceCommit": "00be7c5c1ecbd7e2523348d24972ef3645af5a0d",
+      "versionId": "e22a4198b04ef6c2b3441e7422dbbd4a7b90afb9f59fea9c82f85cda7f9219ab",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -434,16 +434,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T114012Z/web-gateway-24e4ecfa10274aa2d7e6208a291f28e350ac3bb1-linux-amd64.tar.gz",
-          "bytes": 5060051,
-          "sha256": "f0759b5e741445c506de5827ede6e7bd20d76d07821ef135a5ce6a52506e0d71"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T120615Z/web-gateway-00be7c5c1ecbd7e2523348d24972ef3645af5a0d-linux-amd64.tar.gz",
+          "bytes": 5070251,
+          "sha256": "e22a4198b04ef6c2b3441e7422dbbd4a7b90afb9f59fea9c82f85cda7f9219ab"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T114012Z/web-gateway-24e4ecfa10274aa2d7e6208a291f28e350ac3bb1-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10833,
-          "sha256": "1e2607a9709a07da1a8d0a1fe26a8191bcac24b18da71bd489eaacd22a57819a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T120615Z/web-gateway-00be7c5c1ecbd7e2523348d24972ef3645af5a0d-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11021,
+          "sha256": "c0422ddb4008a4bcf77f58169a2674762e847c2569ab5f08769916681b779d44"
         },
-        "signerCommit": "24e4ecfa10274aa2d7e6208a291f28e350ac3bb1"
+        "signerCommit": "00be7c5c1ecbd7e2523348d24972ef3645af5a0d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -452,13 +452,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "設定の「AIの認証」で、認証済みの行に同じ案内が重ねて出ないようにします。Claudeの2つのアカウントの欄は、本体が対応した後に表示されます。"
+        "Webに相関図のボタンを加え、作業中のメンバーとBot間の依頼を図で見られるようにします。設定の「AIの認証」で、認証済みの行に同じ案内が重ねて出ないようにします。Claudeの2つのアカウントの欄は、本体が対応した後に表示されます。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "24e4ecfa10274aa2d7e6208a291f28e350ac3bb1",
-      "versionId": "34546a2fb91cbadb878a19185502ce5c09d786e5e696941493752b4b859db1d2",
+      "sourceCommit": "00be7c5c1ecbd7e2523348d24972ef3645af5a0d",
+      "versionId": "a2e2c1ebee4927c52e945051f17837bd1c0d8994823f4d7933b49e4c457dd5c8",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -466,16 +466,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T114012Z/web-gateway-24e4ecfa10274aa2d7e6208a291f28e350ac3bb1-linux-arm64.tar.gz",
-          "bytes": 5060051,
-          "sha256": "34546a2fb91cbadb878a19185502ce5c09d786e5e696941493752b4b859db1d2"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T120615Z/web-gateway-00be7c5c1ecbd7e2523348d24972ef3645af5a0d-linux-arm64.tar.gz",
+          "bytes": 5070251,
+          "sha256": "a2e2c1ebee4927c52e945051f17837bd1c0d8994823f4d7933b49e4c457dd5c8"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T114012Z/web-gateway-24e4ecfa10274aa2d7e6208a291f28e350ac3bb1-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10641,
-          "sha256": "47dd6481b111ea1c38ca4684abf55b067d678142c9cff1db18ea645fdd280088"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T120615Z/web-gateway-00be7c5c1ecbd7e2523348d24972ef3645af5a0d-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10864,
+          "sha256": "11413eb14511d5f21e113d69c19a2c3cd02ad78342f4c3815aa2c5c0f99e2b4a"
         },
-        "signerCommit": "24e4ecfa10274aa2d7e6208a291f28e350ac3bb1"
+        "signerCommit": "00be7c5c1ecbd7e2523348d24972ef3645af5a0d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -484,7 +484,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "設定の「AIの認証」で、認証済みの行に同じ案内が重ねて出ないようにします。Claudeの2つのアカウントの欄は、本体が対応した後に表示されます。"
+        "Webに相関図のボタンを加え、作業中のメンバーとBot間の依頼を図で見られるようにします。設定の「AIの認証」で、認証済みの行に同じ案内が重ねて出ないようにします。Claudeの2つのアカウントの欄は、本体が対応した後に表示されます。"
       ]
     },
     {
@@ -635,8 +635,8 @@
     },
     {
       "componentId": "work-graph",
-      "sourceCommit": "efc2b3e135540b1c5634fa90e501db3b1c00e2e1",
-      "versionId": "1b8c8c762be2aa37310cd24efab091e17747b64c6d9b8572a3949ac703bf00b6",
+      "sourceCommit": "2dc7cad5b85d7f1a90afc76511a9c0e4b19418aa",
+      "versionId": "05ca67a17d15cff708e0ef41ff333e9f31a31a6a1dbd67edf5197f6e52f95eab",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -644,16 +644,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T113242Z/work-graph-efc2b3e135540b1c5634fa90e501db3b1c00e2e1-linux-amd64.tar.gz",
-          "bytes": 3820610,
-          "sha256": "1b8c8c762be2aa37310cd24efab091e17747b64c6d9b8572a3949ac703bf00b6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T120841Z/work-graph-2dc7cad5b85d7f1a90afc76511a9c0e4b19418aa-linux-amd64.tar.gz",
+          "bytes": 3820756,
+          "sha256": "05ca67a17d15cff708e0ef41ff333e9f31a31a6a1dbd67edf5197f6e52f95eab"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T113242Z/work-graph-efc2b3e135540b1c5634fa90e501db3b1c00e2e1-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11048,
-          "sha256": "7b13e3a52488f17cb162bc800a4447dfe82e835e1a2955b0f764901911e0b039"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T120841Z/work-graph-2dc7cad5b85d7f1a90afc76511a9c0e4b19418aa-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11001,
+          "sha256": "4070cfaa50a825fd00f5c4ce24cf9a2eed1a5cb54e196f5d9ad84b3f5b32a906"
         },
-        "signerCommit": "efc2b3e135540b1c5634fa90e501db3b1c00e2e1"
+        "signerCommit": "2dc7cad5b85d7f1a90afc76511a9c0e4b19418aa"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -665,13 +665,13 @@
         }
       },
       "changes": [
-        "相関図を本体から独立した部品にし、相関図だけを更新できるようにします。"
+        "相関図の線に、依頼を受けたメンバーの作業の要約を表示します。"
       ]
     },
     {
       "componentId": "work-graph",
-      "sourceCommit": "efc2b3e135540b1c5634fa90e501db3b1c00e2e1",
-      "versionId": "fd88d726230dbab7e93219344f55edd029558c85663bb0e2b0544a973acf30d1",
+      "sourceCommit": "2dc7cad5b85d7f1a90afc76511a9c0e4b19418aa",
+      "versionId": "df2c74c0895951a1d918cd9c53bf20b8cdb7fe73c10f9826aee63072d2c4e38f",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -679,16 +679,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T113242Z/work-graph-efc2b3e135540b1c5634fa90e501db3b1c00e2e1-linux-arm64.tar.gz",
-          "bytes": 3820610,
-          "sha256": "fd88d726230dbab7e93219344f55edd029558c85663bb0e2b0544a973acf30d1"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T120841Z/work-graph-2dc7cad5b85d7f1a90afc76511a9c0e4b19418aa-linux-arm64.tar.gz",
+          "bytes": 3820756,
+          "sha256": "df2c74c0895951a1d918cd9c53bf20b8cdb7fe73c10f9826aee63072d2c4e38f"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T113242Z/work-graph-efc2b3e135540b1c5634fa90e501db3b1c00e2e1-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11048,
-          "sha256": "945dfad291c32ac53a313596f740b558c9555cfaafc1dec00ad0dc45c552830e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T120841Z/work-graph-2dc7cad5b85d7f1a90afc76511a9c0e4b19418aa-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11001,
+          "sha256": "d8673be70607c09fc4e3abfd08fb8375b0d64fc6143e8f40d1d6d155c64c6f4a"
         },
-        "signerCommit": "efc2b3e135540b1c5634fa90e501db3b1c00e2e1"
+        "signerCommit": "2dc7cad5b85d7f1a90afc76511a9c0e4b19418aa"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -700,7 +700,7 @@
         }
       },
       "changes": [
-        "相関図を本体から独立した部品にし、相関図だけを更新できるようにします。"
+        "相関図の線に、依頼を受けたメンバーの作業の要約を表示します。"
       ]
     },
     {
