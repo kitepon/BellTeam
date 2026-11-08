@@ -15,6 +15,11 @@ import { captureMcpRequest } from './mcp-request-context.mjs'
 import { captureMcpError } from './returned-mcp-error.mjs'
 import { configurationConnection, configurationError, markConfigurationNotIssued, CONFIGURATION_SCHEMA } from './configuration-request.mjs'
 
+// The seat-command path does not carry this.env; the parent's Aiterm needs the account roots here too (harness-accounts.md E1).
+export function seatConnectionEnvironment(generation, claudeConfigRoots) {
+  return [`BELLTEAM_RUNTIME_GENERATION=${generation}`, ...(claudeConfigRoots ? [`AITERM_CLAUDE_CONFIG_ROOTS=${claudeConfigRoots}`] : [])]
+}
+
 export class AitermClient {
   constructor(options = {}) {
     const { command = 'aiterm-mcp', args = [], env = runtimeEnvironment() } = options
@@ -71,7 +76,7 @@ export class AitermClient {
       const registration = aitermConnectionRegistration({ command: this.command, args: this.args }, runtime)
       const generation = runtime.generation ?? ''
       const spec = this.seatProject !== null ? seatCommandSpec('/usr/bin/env',
-        [`BELLTEAM_RUNTIME_GENERATION=${generation}`, registration.command, ...registration.args], { project: this.seatProject })
+        [...seatConnectionEnvironment(generation, this.claudeConfigRoots), registration.command, ...registration.args], { project: this.seatProject })
         : { ...registration, env: { ...this.env, BELLTEAM_RUNTIME_GENERATION: generation } }
       const client = this.client = new Client({ name: 'bellteam', version: '0.1.0' }, { capabilities: {} })
       const transport = this.transport = new StdioClientTransport({ ...spec, stderr: 'inherit' })
