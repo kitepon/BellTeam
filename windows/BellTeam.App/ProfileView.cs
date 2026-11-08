@@ -99,7 +99,7 @@ public sealed class ProfileView : StackPanel
     private static string Key(Workspace workspace, ConversationEntry entry)
     {
         var parts = new List<string?> { entry.Target.ToString(), entry.Origin };
-        if (entry.Bot is { } bot) parts.AddRange([bot.Name, bot.DisplayName, bot.Online.ToString(), bot.Harness, bot.Model, bot.ReasoningEffort, bot.Color, bot.AvatarVersion, bot.AvatarLargeVersion, bot.Position, bot.ProfileText, bot.Personality, bot.SpeechStyle, bot.Role, bot.Account?.Harness, bot.Account?.Slot, bot.Account?.PreferredSlot]);
+        if (entry.Bot is { } bot) parts.AddRange([bot.Name, bot.DisplayName, bot.Online.ToString(), bot.Harness, bot.Model, bot.ReasoningEffort, bot.Color, bot.AvatarVersion, bot.AvatarLargeVersion, bot.Position, bot.ProfileText, bot.Personality, bot.SpeechStyle, bot.Role, bot.Account?.Harness, bot.Account?.Slot]);
         if (entry.Room is { } room) { parts.AddRange([room.Name, room.Purpose, room.AvatarVersion]); foreach (var id in room.MemberIds) { var member = workspace.MemberEntry(id); parts.AddRange([id, member?.Name, member?.Bot?.AvatarVersion, member?.Bot?.Color]); } }
         return string.Join('\u0001', parts);
     }
@@ -245,8 +245,6 @@ public sealed class ProfileView : StackPanel
             var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0) };
             row.Children.Add(new TextBlock { Text = label, FontSize = 14, Foreground = InspectorUi.Ink }); row.Children.Add(new TextBlock { Text = value, FontSize = 14, Foreground = InspectorUi.Ink, Margin = new Thickness(10, 0, 0, 0), TextWrapping = TextWrapping.Wrap });
             System.Windows.Automation.AutomationProperties.SetName(row, label + "　" + value); card.Children.Add(row);
-            // Like the Web tooltip: say so when the seat runs on the other slot than its rule prefers.
-            if (label == "アカウント" && AccountText.SlotTitle(bot.Account?.PreferredSlot) is { } preferred && bot.Account?.PreferredSlot != bot.Account?.Slot) row.ToolTip = "通常は" + preferred;
         }
         var screen = InspectorUi.Bordered("Botの画面を見る", ""); screen.Margin = new Thickness(0, 12, 0, 0); screen.Click += async (_, _) => await workspace.OpenScreenAsync(); card.Children.Add(screen);
         var restart = InspectorUi.Bordered("会話セッションを再起動"); restart.Margin = new Thickness(0, 12, 0, 0); card.Children.Add(restart);

@@ -36,7 +36,6 @@ public sealed class HarnessAccountsTests
         Assert.Equal(new AccountLimit("all", "2026-11-08T04:00:00Z", "2026-11-09T23:00:00Z", "usage"), claude.Slots[0].Limits.Single());
         Assert.Null(claude.Slots[1].Limits.Single().ResetAt);
         Assert.Equal(new AccountAllLimited("all", "2026-11-08T08:00:00Z"), claude.AllLimited.Single());
-        Assert.Empty(list.Rules);
     }
 
     [Fact]
@@ -50,21 +49,6 @@ public sealed class HarnessAccountsTests
         }
         using var broken = new BellApi(new("http://localhost/"), new StubHandler((_, _) => Task.FromResult(StubHandler.Json("""{"harnesses":"x"}"""))));
         await Assert.ThrowsAnyAsync<Exception>(() => new HarnessAccountsApi(broken).ReadAsync());
-    }
-
-    [Theory]
-    [InlineData(true, """{"harness":"claude","modelPrefix":"claude-fable","slot":"2nd"}""")]
-    [InlineData(false, """{"harness":"claude","modelPrefix":"claude-fable","slot":null}""")]
-    public async Task SetRuleIsOneUpsertPostWithTheContractBody(bool useSecond, string expected)
-    {
-        var calls = new List<(HttpMethod, string, string)>();
-        using var api = new BellApi(new("http://localhost/"), new StubHandler(async (request, token) =>
-        {
-            calls.Add((request.Method, request.RequestUri!.AbsolutePath, await request.Content!.ReadAsStringAsync(token)));
-            return StubHandler.Json("""{"rules":[{"harness":"claude","modelPrefix":"claude-fable","slot":"2nd"},{"harness":"claude","modelPrefix":"claude-opus","slot":"1st"}]}""");
-        }));
-        var rules = await new HarnessAccountsApi(api).SetFableRuleAsync(useSecond);
-        Assert.Equal((HttpMethod.Post, "/api/accounts/rules", expected), Assert.Single(calls)); Assert.Equal(2, rules.Length);
     }
 
     [Fact]
@@ -112,10 +96,9 @@ public sealed class HarnessAccountsTests
     }
 
     [Fact]
-    public void SlotLinesAndTheFableSwitchComeFromTheList()
+    public void SlotLinesComeFromTheList()
     {
         var list = JsonSerializer.Deserialize<AccountsResponse>(Both, BellApi.Json)!;
-        Assert.True(AccountText.FableOnSecond(list)); Assert.False(AccountText.FableOnSecond(list with { Rules = [new("claude", "claude-fable", "1st")] }));
         var first = list.Claude!.Slots[0]; var second = list.Claude.Slots[1];
         Assert.Equal("first@example.com", AccountText.Login(first)); Assert.Equal("Fableのみ上限中 (23:00に解除)", AccountText.State(first, Now));
         Assert.Equal("未ログイン", AccountText.Login(second)); Assert.Equal("—", AccountText.State(second, Now));
@@ -176,14 +159,14 @@ public sealed class HarnessAccountsTests
     private static string[] Texts(DependencyObject root) => Descendants<TextBlock>(root).Select(text => text.Text).ToArray();
 
     [Fact]
-    public void CardShowsBothSlotRowsTheBannerAndTheSwitch()
+    public void CardShowsBothSlotRowsAndTheBannerWithoutAnyRuleSwitch()
     {
         RunSta(() =>
         {
             var posts = new List<string>();
             using var workspace = Server((request, _) => Task.FromResult(request.Method == HttpMethod.Get ? StubHandler.Json(AllLimited) : StubHandler.Json("""{"rules":[]}""")), posts);
             var window = OpenCard(workspace); var texts = Texts(window);
-            Assert.Contains("1stアカウント", texts); Assert.Contains("2ndアカウント", texts); Assert.Contains("Fableを2ndアカウントで使う", texts);
+            Assert.Contains("1stアカウント", texts); Assert.Contains("2ndアカウント", texts); Assert.DoesNotContain("Fableを2ndアカウントで使う", texts);   // Owner ruling 2026-11-09: limits alone pick the slot
             Assert.Contains("アカウント　a@example.com", texts); Assert.Contains("使用中　1人", texts);
             Assert.Contains(texts, text => text.StartsWith("両方のアカウントで上限中 ("));
             Assert.Contains("状態　上限中 (解除時刻不明)", texts);
@@ -222,27 +205,6 @@ public sealed class HarnessAccountsTests
         });
     }
 
-    [Fact]
-    public void SwitchSendsOnePostAndAnUnconfirmedAnswerIsNeverShownAsSuccess()
-    {
-        RunSta(() =>
-        {
-            var posts = new List<string>(); var answer = "ok";
-            using var workspace = Server((request, _) => Task.FromResult(request.Method == HttpMethod.Get ? StubHandler.Json(Both.Replace("\"rules\":[{\"harness\":\"claude\",\"modelPrefix\":\"claude-fable\",\"slot\":\"2nd\"}]", "\"rules\":[]"))
-                : answer == "ok" ? StubHandler.Json("""{"rules":[{"harness":"claude","modelPrefix":"claude-fable","slot":"2nd"}]}""") : StubHandler.Json("""{"error":"TEMPORARY_FAILURE"}""", HttpStatusCode.BadGateway)), posts);
-            var window = OpenCard(workspace);
-            var toggle = Descendants<ToggleButton>(window).Single(); Assert.False(toggle.IsChecked);
-            toggle.IsChecked = true; toggle.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent)); Await(Task.Delay(50)); Pump();
-            Assert.Equal(["/api/accounts/rules {\"harness\":\"claude\",\"modelPrefix\":\"claude-fable\",\"slot\":\"2nd\"}"], posts);
-            Assert.True(toggle.IsChecked);
-            answer = "bad"; toggle.IsChecked = false; toggle.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent)); Await(Task.Delay(50)); Pump();
-            Assert.Equal(2, posts.Count);              // never resent
-            Assert.True(toggle.IsChecked);             // back to the last known server state, not shown as switched off
-            Assert.Contains(Texts(window), text => text.StartsWith("切り替えの結果を確認できませんでした。"));
-            Assert.Contains(Descendants<Button>(window), button => button.Content as string == "一覧を更新"); window.Close();
-        });
-    }
-
     private static IEnumerable<T> Descendants<T>(DependencyObject root) where T : DependencyObject
     {
         if (root is T found) yield return found;
@@ -261,13 +223,13 @@ public sealed class HarnessAccountsTests
     public async Task AnAppRefusal403IsNotALostSignInButANonJson403Is()
     {
         var signIns = 0;
-        using var refused = new BellApi(new("http://localhost/"), new StubHandler((_, _) => Task.FromResult(StubHandler.Json("""{"error":"ACCOUNT_RULE_OWNER_REQUIRED"}""", HttpStatusCode.Forbidden))));
+        using var refused = new BellApi(new("http://localhost/"), new StubHandler((_, _) => Task.FromResult(StubHandler.Json("""{"error":"WORK_GRAPH_OWNER_REQUIRED"}""", HttpStatusCode.Forbidden))));
         refused.AuthenticationRequired += () => signIns++;
-        var error = await Assert.ThrowsAsync<BellApiException>(() => new HarnessAccountsApi(refused).SetFableRuleAsync(true));
-        Assert.Equal(AccountText.RuleOwnerRequiredCode, error.Code); Assert.False(error.RequiresLogin); Assert.Equal(0, signIns);
+        var error = await Assert.ThrowsAsync<BellApiException>(() => new HarnessAccountsApi(refused).ReadAsync());
+        Assert.Equal("WORK_GRAPH_OWNER_REQUIRED", error.Code); Assert.False(error.RequiresLogin); Assert.Equal(0, signIns);
         using var access = new BellApi(new("http://localhost/"), new StubHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden) { Content = new StringContent("<html>Access denied</html>", System.Text.Encoding.UTF8, "text/html") })));
         access.AuthenticationRequired += () => signIns++;
-        var denied = await Assert.ThrowsAsync<BellApiException>(() => new HarnessAccountsApi(access).SetFableRuleAsync(true));
+        var denied = await Assert.ThrowsAsync<BellApiException>(() => new HarnessAccountsApi(access).ReadAsync());
         Assert.True(denied.RequiresLogin); Assert.Equal(1, signIns); Assert.Equal("Cloudflare Accessへログインしてください。", denied.Message);
     }
 

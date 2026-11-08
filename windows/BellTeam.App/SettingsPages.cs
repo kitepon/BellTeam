@@ -198,26 +198,6 @@ public sealed partial class SettingsWindow
             var (row, state) = AuthRow(names, harness, auth, slot.Slot, Reload, token); row.Margin = new Thickness(0);
             var card = FillRow(row, null); System.Windows.Automation.AutomationProperties.SetName(card, slotTitle); host.Children.Add(card); ready.Add(state);
         }
-        var rule = new Grid { Margin = new Thickness(0, 12, 0, 0) }; rule.ColumnDefinitions.Add(new ColumnDefinition()); rule.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var ruleName = Text("Fableを2ndアカウントで使う", 14, Ink); ruleName.VerticalAlignment = VerticalAlignment.Center; rule.Children.Add(ruleName);
-        var current = list; var toggle = Switch("#34C759"); toggle.IsChecked = AccountText.FableOnSecond(current); Grid.SetColumn(toggle, 1); rule.Children.Add(toggle);
-        System.Windows.Automation.AutomationProperties.SetName(toggle, "Fableを2ndアカウントで使う");
-        var ruleError = Text("", 13, Red, null, new Thickness(0, 8, 0, 0)); ruleError.Visibility = Visibility.Collapsed;
-        host.Children.Add(rule); host.Children.Add(ruleError);
-        // One POST per click, never resent. A failed or unconfirmed answer leaves the switch at the last known server state and offers a re-read.
-        toggle.Click += async (_, _) =>
-        {
-            var wanted = toggle.IsChecked == true; toggle.IsEnabled = false; ruleError.Visibility = Visibility.Collapsed;
-            try { current = current with { Rules = await accounts.SetFableRuleAsync(wanted, token) }; toggle.IsChecked = AccountText.FableOnSecond(current); }
-            catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-            catch (Exception error)
-            {
-                toggle.IsChecked = AccountText.FableOnSecond(current);
-                ruleError.Text = error is BellApiException { Code: AccountText.RuleOwnerRequiredCode } ? AccountText.RuleOwnerRequired : BellApiException.IsResultUnconfirmed(error) ? "切り替えの結果を確認できませんでした。「一覧を更新」で今の設定を確認してください。\n" + error.Message : "切り替えられませんでした。" + error.Message;
-                ruleError.Visibility = Visibility.Visible; if (host.Children[^1] is not Button) host.Children.Add(Retry());
-            }
-            finally { toggle.IsEnabled = true; }
-        };
         await Task.WhenAll(ready);
     }
 
