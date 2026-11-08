@@ -14,6 +14,12 @@ public interface ISheetSave
     bool CanSave { get; }
     event Action? CanSaveChanged;
     Task SaveAsync();
+    // The header's two buttons: the left one closes (the editors say キャンセル until something is saved), the right one saves.
+    string CloseLabel => "閉じる";
+    string SaveLabel => "保存";
+    bool CanClose => true;
+    // Escape closes an open alert before it closes the sheet; true when something was closed.
+    bool DismissPopup() => false;
 }
 
 // SF Symbol "target": two rings and a dot, drawn so it follows Foreground at any size.

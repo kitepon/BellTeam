@@ -14,6 +14,11 @@ public interface IInspectorHost
     void OpenSheet(string title, UIElement content);
     void CloseSheet();
     Window? OwnerWindow { get; }
+    // Mac: the member editor is a window of its own, the room editor a sheet.
+    void EditMember(string id);
+    void EditRoom(string id);
+    // The crop sheet over whatever is open; null when it is cancelled or the sheet it belongs to goes away.
+    Task<AvatarCropOutcome?> CropAsync(BitmapSource image, AvatarVariant variant, AvatarCropRect? initialCrop, bool wantsSelection);
 }
 
 // Mac BotProfileAvatarActions: the 小画像 / 大画像 sheet. 画像変更 picks a file and crops it, 画像調整 re-crops the current (or kept) image;
@@ -140,7 +145,7 @@ public sealed class AvatarActionsView : Grid, IDisposable
         if (!await LoadSettingsAsync()) return;
         var dialog = new OpenFileDialog { Filter = "画像|*.png;*.jpg;*.jpeg;*.webp;*.gif", Title = variant.Label() + "を選ぶ" };
         if (dialog.ShowDialog(host.OwnerWindow) != true) return;
-        try { Crop((await ImageCodec.ReadAsync(dialog.FileName)).Preview, null); }
+        try { await CropAsync((await ImageCodec.ReadAsync(dialog.FileName)).Preview, null); }
         catch (Exception) { errorText = "画像を読み込めませんでした。"; Rebuild(); }
     }
 
@@ -150,15 +155,15 @@ public sealed class AvatarActionsView : Grid, IDisposable
         string data; AvatarCropRect? initial;
         if (Pending is { } kept) { data = kept.Source; initial = kept.Crop; }
         else { var current = settings.AdjustmentImage(variant); data = current.Source.Length == 0 ? current.Render : current.Source; initial = current.Source.Length == 0 ? null : current.Crop; }
-        try { Crop(await DecodeAsync(data), initial); }
+        try { await CropAsync(await DecodeAsync(data), initial); }
         catch (Exception) { errorText = Pending is not null ? "保持中の画像を読み込めませんでした。" : "画像を読み込めませんでした。"; Rebuild(); }
     }
 
-    // The crop editor is the existing window; "使用する" closes this sheet and the save reports in the inspector, as on the Mac.
-    private void Crop(BitmapSource image, AvatarCropRect? initial)
+    // The crop sheet opens over this one; "使用する" closes this sheet and the save reports in the inspector, as on the Mac.
+    private async Task CropAsync(BitmapSource image, AvatarCropRect? initial)
     {
-        var window = new AvatarCropWindow(image, variant, initial, wantsSelection: true) { Owner = host.OwnerWindow };
-        if (window.ShowDialog() != true || window.Selection is not { } selection) return;
+        var outcome = await host.CropAsync(image, variant, initial, wantsSelection: true);
+        if (outcome?.Selection is not { } selection || lifetime.IsCancellationRequested) return;
         host.CloseSheet();
         _ = session.SaveAsync(workspace.Management, bot.Id, variant, selection, version => workspace.AvatarVersion(bot.Id, version), workspace.RefreshForImageAsync, workspace.ConnectionToken);
     }

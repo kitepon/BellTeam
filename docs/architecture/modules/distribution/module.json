@@ -12,7 +12,8 @@
     "members-artifact",
     "memory-artifact",
     "conversation-artifact",
-    "runtime-artifact"
+    "runtime-artifact",
+    "work-graph-artifact"
   ],
   "uses": [
     {
@@ -68,6 +69,8 @@
     "scripts/runtime-builder.Dockerfile",
     "scripts/prepare-runtime-catalog.py",
     "config/runtime-releases.json",
-    ".github/workflows/publish-runtime.yml"
+    ".github/workflows/publish-runtime.yml",
+    ".github/workflows/publish-work-graph.yml",
+    "test/helpers/business-artifact-probe.py"
   ]
 }

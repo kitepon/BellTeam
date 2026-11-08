@@ -71,6 +71,8 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     public PlanningApi Planning => new(api ?? throw new BellApiException("接続先を設定してください。"));
     public GoalsApi Goals => new(api ?? throw new BellApiException("接続先を設定してください。"));
     public event Action? ServerChanged;
+    // The member and room lists were just read again (an open editor checks whether its member is gone).
+    public event Action? RosterChanged;
     // Mac eventRevision: the server events that make an open goal view read its goals again (see GoalEvents).
     public event Action? GoalEvent;
     public event Action? UpdatesChanged;
@@ -176,7 +178,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
         avatars.Clear();
         connection = new CancellationTokenSource();
         selected = null; stoppingBotId = null; stopResult = null; loadFailed = false; routingEnabled = null;
-        all.Clear(); queue = []; OwnerName = "あなた"; AuthMode = "local"; Entries.Clear(); Messages.Clear(); ReplyMembers.Clear();
+        all.Clear(); pendingBotDeletions.Clear(); queue = []; OwnerName = "あなた"; AuthMode = "local"; Entries.Clear(); Messages.Clear(); ReplyMembers.Clear();
         Changed(nameof(OwnerName)); Changed(nameof(AuthMode)); Changed(nameof(OnlineSummary));
         HasMore = false;
         Loading = false;
@@ -251,7 +253,9 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
                 foreach (var image in drafts[key].Attachments) attachmentPreviews.Remove(image);
                 drafts.Remove(key);
             }
+            pendingBotDeletions.IntersectWith(all.Where(entry => entry.Bot is not null).Select(entry => entry.Target.Id));
             Filter();
+            RosterChanged?.Invoke();
             Changed(nameof(OnlineSummary)); Changed(nameof(ConversationSubtitle));
             ActivityChanged();
             if (selected is { } active)
@@ -426,6 +430,24 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
         if (api is null || connection is null) return;
         try { await RefreshAsync(api, connection.Token); }
         catch (Exception error) { ActionError = "保存は受け付けられましたが、一覧の更新を確認できませんでした。" + error.Message; }
+    }
+    // Mac requestBotDeletion / confirmBotDeletion: DELETE answers 202 (accepted only). The member counts as deleting until a list read no longer has it.
+    private readonly HashSet<string> pendingBotDeletions = [];
+    public bool BotDeletionPending(string id) => pendingBotDeletions.Contains(id);
+    // Render seam: the state a 202 from DELETE leaves while the member is still listed.
+    public void SetBotDeletionPendingForRender(string id) { pendingBotDeletions.Add(id); RosterChanged?.Invoke(); }
+    public bool HasBot(string id) => all.Any(entry => entry.Target == new ChatTarget(id, false));
+    public async Task RequestBotDeletionAsync(string id)
+    {
+        await Management.DeleteBotAsync(id, ConnectionToken);
+        if (HasBot(id)) { pendingBotDeletions.Add(id); RosterChanged?.Invoke(); }
+    }
+    // A read only. Throws when the list cannot be read; the caller keeps the member as pending then.
+    public async Task<bool> ConfirmBotDeletionAsync(string id)
+    {
+        if (api is null || connection is null) throw new BellApiException("接続先を設定してください。");
+        await RefreshAsync(api, connection.Token);
+        return !HasBot(id);
     }
     private readonly Dictionary<(string, string), AvatarImageSession> imageSessions = [];
     // One per member and server: a selection kept after an unconfirmed save outlives the inspector and its sheet (Mac store.profileImageDrafts).
