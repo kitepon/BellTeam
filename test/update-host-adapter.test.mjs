@@ -48,6 +48,16 @@ test('feed failure is separate from accepted catalog; no plan or worker is fabri
   assert.equal(item.publication.check.status, 'failed'); assert.equal(item.publication.catalog.sha256, 'c'.repeat(64))
   assert.equal(state.operation, null); assert.equal(f.count(), 0)
 })
+test('the body running the published commit is up to date although its own digest is unknown', async t => {
+  const f = await fixture(t)
+  const center = sourceCommit => createUpdateCenter({ host: createHostUpdateAdapter(f), notifications: { controller: { snapshot: () => ({ builtinSourceCommit: sourceCommit }) } } })
+  const same = (await center(release.sourceCommit).snapshot()).components.find(item => item.id === 'container')
+  assert.equal(same.current.digest, null); assert.equal(same.comparison.state, 'up_to_date')
+  assert.deepEqual(same.capability, { supported: false, reason: 'UPDATE_ALREADY_CURRENT' })
+  assert.match(same.status.line, /^本体は版 bbbbbbb で動いています。最新です。/u)
+  const older = (await center('a'.repeat(40)).snapshot()).components.find(item => item.id === 'container')
+  assert.equal(older.comparison.state, 'update_available')
+})
 test('unknown start is not retried and Host result cannot claim unverified completion', async t => {
   const f = await fixture(t), adapter = createHostUpdateAdapter(f)
   const plan = await adapter.plan({ scope: 'component', componentId: 'container' }); f.unknown()

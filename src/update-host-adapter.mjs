@@ -89,7 +89,9 @@ export function createHostUpdateAdapter({ root, client }) {
         if (selected.release) {
           container.published = version(selected.release); container.changes = selected.release.changes
           const compatible = selected.release.compatibility?.containerUpdate === 1
-          const same = container.current?.digest === selected.release.versionId
+          // The body knows only its own source commit (digest null); one published container image exists per commit.
+          const same = container.current?.digest ? container.current.digest === selected.release.versionId
+            : Boolean(container.current?.sourceCommit) && container.current.sourceCommit === selected.release.sourceCommit
           container.comparison = { state: !compatible ? 'incompatible' : same ? 'up_to_date' : container.current ? 'update_available' : 'unknown',
             reason: !compatible ? 'UPDATE_INCOMPATIBLE' : selected.publication.status === 'failed' ? code(selected.publication.error) : null }
           container.capability = { supported: Boolean(capability.supported && compatible && !same), reason: null }
