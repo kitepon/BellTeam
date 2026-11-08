@@ -21,9 +21,9 @@ public sealed class QualityReviewTests
     public void ImageWithoutUrlStillHasReadableLabel(int count, string expected) => Sta(() =>
     {
         using var workspace = new Workspace(); var card = new MessageCard { Workspace = workspace, Message = new() { Id = "image", At = DateTimeOffset.Now, Image = true, ImageCount = count } };
-        var row = Assert.IsType<StackPanel>(card.Content); var contents = Assert.IsType<StackPanel>(row.Children.OfType<Border>().Single().Child);
-        Assert.Contains(expected, contents.Children.OfType<TextBlock>().Select(item => item.Text));
-        card.Message = card.Message with { Image = false }; Assert.DoesNotContain(contents.Children.OfType<TextBlock>(), item => item.Text == expected && item.Visibility == Visibility.Visible);
+        var label = LogicalTree.Find<TextBlock>(card.Content).Single(item => item.Text == expected); var placeholder = Assert.IsType<StackPanel>(label.Parent);
+        Assert.Equal(Visibility.Visible, placeholder.Visibility);
+        card.Message = card.Message with { Image = false }; Assert.Equal(Visibility.Collapsed, placeholder.Visibility);
     });
     private static void Sta(Action action) { Exception? failure = null; var thread = new Thread(() => { try { action(); } catch (Exception error) { failure = error; } finally { Dispatcher.CurrentDispatcher.InvokeShutdown(); } }); thread.SetApartmentState(ApartmentState.STA); thread.Start(); thread.Join(); if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw(); }
 }

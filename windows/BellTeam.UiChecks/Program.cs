@@ -22,6 +22,8 @@ public static class UiChecks {
     var newMessage = false;
     var time = DateTimeOffset.UtcNow;
     var messages = Enumerable.Range(0,30).Select(index => new TimelineMessage { Id = "m" + index, At = time.AddMinutes(index - 30), Direction = "incoming", Message = "本文" + index + " " + new string('あ',180) }).ToArray();
+    // TimelineMessage carries JsonElement members (delivery tracking) that cannot be written while unset; skip only those, as the server omits absent fields.
+    var wire = new JsonSerializerOptions(BellApi.Json) { TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver { Modifiers = { info => { foreach (var property in info.Properties.Where(property => property.PropertyType == typeof(JsonElement))) property.ShouldSerialize = (_, value) => ((JsonElement)value!).ValueKind != JsonValueKind.Undefined; } } } };
     using var workspace = new Workspace(origin => new BellApi(origin, new MockHandler(request => {
       var path = request.RequestUri!.AbsolutePath;
       object result = path switch {
@@ -36,7 +38,7 @@ public static class UiChecks {
           : new MessagePage { Items = request.RequestUri.Query.Contains("after=") ? (newMessage ? [new TimelineMessage { Id = "new", At = time, Message = "新着です", Direction = "incoming" }] : []) : (newMessage ? messages.Concat([new TimelineMessage { Id = "new", At = time, Message = "新着です", Direction = "incoming" }]).ToArray() : messages), HasMore = true },
         _ => throw new InvalidOperationException("未対応の模擬URL: " + path)
       };
-      return JsonSerializer.Serialize(result, BellApi.Json);
+      return JsonSerializer.Serialize(result, wire);
     })));
     var disconnected = new MainWindow(workspace, persistPlacement:false); disconnected.ShowSettings(); disconnected.ShowSchedules();
     var disconnectedRoot = (FrameworkElement)disconnected.Content; disconnectedRoot.Measure(new Size(1280,820)); disconnectedRoot.Arrange(new Rect(0,0,1280,820)); disconnectedRoot.UpdateLayout();
@@ -59,9 +61,10 @@ public static class UiChecks {
     var scroll = (ScrollViewer)window.FindName("MessageScroll");
     scroll.ScrollToEnd(); await Layout(); Check(scroll.ScrollableHeight > 1000,"長い会話を配置できません。");
     scroll.ScrollToVerticalOffset(scroll.ScrollableHeight / 2); await Layout(); var offset = scroll.VerticalOffset;
+    var latest = (Button)window.FindName("NewMessagesButton"); Check(latest.Visibility == Visibility.Visible && latest.Content as string == "最新へ ↓","読み返している間に「最新へ ↓」が出ません。");
     newMessage = true; await workspace.RefreshManagementAsync(); await Layout();
     Check(Math.Abs(scroll.VerticalOffset-offset) < 1,"新着で読んでいた位置が動きました。");
-    Check(((Button)window.FindName("NewMessagesButton")).Visibility == Visibility.Visible,"新着の入口が見えません。");
+    Check(latest.Visibility == Visibility.Visible && latest.Content as string == "新着メッセージ ↓","新着の入口が見えません。");
     var oldHeight = scroll.ExtentHeight; var older = Descendants<Button>(root).Single(button => button.Content as string == "以前のメッセージを読む");
     older.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Layout();
     Check(workspace.Messages.Count == 41,"以前のメッセージが増えていません。");
@@ -69,11 +72,11 @@ public static class UiChecks {
     Check(Application.Current.Windows.Cast<Window>().All(candidate => new WindowInteropHelper(candidate).Handle == IntPtr.Zero),"確認で窓のハンドルを作成しました。");
     root.Measure(new Size(5120,1400)); root.Arrange(new Rect(0,0,5120,1400)); root.UpdateLayout();
     Check(Descendants<ProfileView>(root).Single().ActualWidth <= 760,"横長の窓でプロフィールが伸びすぎます。");
-    Check(Descendants<MessageCard>(root).Where(card=>card.Content is StackPanel).All(card=>((StackPanel)card.Content).ActualWidth<=900),"横長の窓で吹き出しが伸びすぎます。");
+    Check(Descendants<MessageCard>(root).All(card=>((FrameworkElement)card.Content).ActualWidth<=900),"横長の窓で吹き出しが伸びすぎます。");
     workspace.DraftText = "同じ接続先の下書き"; await (Task)typeof(MainWindow).GetMethod("ChangeServerAsync",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(window,[workspace.Server])!;
     await workspace.SelectAsync(workspace.Entries.Single()); Check(workspace.DraftText=="同じ接続先の下書き","同じ接続先の再入力でログアウトしています。"); workspace.DraftText="";
     workspace.Messages.Clear(); typeof(Workspace).GetProperty(nameof(Workspace.Loading))!.SetValue(workspace,true);
-    Check(!((TextBlock)window.FindName("WelcomeNote")).Text.Contains("最初のメッセージ"),"読込中に送信の案内が出ます。");
+    Check(((FrameworkElement)window.FindName("EmptyConversation")).Visibility==Visibility.Collapsed && ((FrameworkElement)window.FindName("LoadingSpinner")).Visibility==Visibility.Visible,"読込中に送信の案内が出ます。");
     Check(Application.Current.Windows.Cast<Window>().All(candidate => new WindowInteropHelper(candidate).Handle == IntPtr.Zero),"再接続の確認で窓を表示しました。");
     window.Close(); Console.WriteLine("画面内移動・新着・過去ログ位置・前面非表示の確認に成功しました。");
   }

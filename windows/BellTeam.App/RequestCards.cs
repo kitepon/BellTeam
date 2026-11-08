@@ -6,6 +6,7 @@ using BellTeam.Core;
 
 namespace BellTeam.App;
 
+// Mac SecretRequestCard / OwnerQuestionCard: a white card with a violet title line; the parts are spaced 12 apart.
 public sealed class SecretCard(Workspace workspace, string author) : StackPanel
 {
     private SecretRequest? current;
@@ -15,20 +16,36 @@ public sealed class SecretCard(Workspace workspace, string author) : StackPanel
     {
         if (current == request && currentAuthor == sender) return;
         current = request; currentAuthor = sender; Children.Clear();
-        Children.Add(CardText(currentAuthor + " · 秘密情報の入力", bold: true));
+        Children.Add(CardTitle("\uE72E", currentAuthor + " · 秘密情報の入力"));
         Children.Add(CardBody(request.Message));
-        Children.Add(CardText(request.Label + " / " + request.ToolId));
+        Children.Add(CardText(request.Label + " / " + request.ToolId, size: 14, muted: true));
         if (request.Status == "pending")
         {
-            var open = new Button { Content = "安全な入力欄を開く", HorizontalAlignment = HorizontalAlignment.Left };
+            var open = new Button { Content = "安全な入力欄を開く", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) };
+            open.SetResourceReference(StyleProperty, "PrimaryButton"); open.Margin = new Thickness(0, 12, 0, 0);
             open.Click += (_, _) => new SecretInputWindow(request, value => workspace.FinishSecretAsync(request.Id, value), Update) { Owner = Window.GetWindow(this) }.ShowDialog();
             Children.Add(open);
         }
-        else Children.Add(CardText(request.Status switch { "submitted" => "登録済み", "cancelled" => "入力を取り消しました", _ => "不明な入力状態: " + request.Status }));
-        if (request.Notification == "failed") Children.Add(CardText("AIへの通知に失敗しました。チャットで完了を知らせてください。", error: true));
+        else if (request.Status == "submitted") Children.Add(CardStatus("\uE73E", "登録済み"));
+        else if (request.Status == "cancelled") Children.Add(CardStatus("\uE711", "入力を取り消しました"));
+        else Children.Add(CardText("不明な入力状態: " + request.Status, error: true));
+        if (request.Notification == "failed") Children.Add(CardText("AIへの通知に失敗しました。チャットで完了を知らせてください。", size: 14, error: true));
     }
-    internal static TextBlock CardText(string text, bool bold = false, bool error = false) => new() { Text = text, TextWrapping = TextWrapping.Wrap, FontSize = 16, FontWeight = bold ? FontWeights.SemiBold : FontWeights.Normal, Foreground = error ? Brushes.Firebrick : Brushes.DarkSlateGray, Margin = new Thickness(0, 4, 0, 8) };
-    internal static TextBox CardBody(string text) => new() { Text = text, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, FontSize = 18, BorderThickness = new Thickness(0), Background = Brushes.Transparent, Padding = new Thickness(0), Margin = new Thickness(0, 4, 0, 8) };
+    private static readonly FontFamily Icons = new("Segoe Fluent Icons, Segoe MDL2 Assets");
+    internal static FrameworkElement CardTitle(string glyph, string text) => new StackPanel
+    {
+        Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12),
+        Children = { new TextBlock { Text = glyph, FontFamily = Icons, FontSize = 14, Foreground = Violet, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) }, new TextBlock { Text = text, FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = Violet, VerticalAlignment = VerticalAlignment.Center } }
+    };
+    internal static FrameworkElement CardStatus(string glyph, string text, bool strong = false) => new StackPanel
+    {
+        Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0),
+        Children = { new TextBlock { Text = glyph, FontFamily = Icons, FontSize = 14, Foreground = strong ? Violet : Ink, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) }, new TextBlock { Text = text, FontSize = 15, FontWeight = strong ? FontWeights.SemiBold : FontWeights.Normal, Foreground = strong ? Violet : Ink, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap } }
+    };
+    private static readonly Brush Violet = Frozen(Color.FromRgb(97, 71, 212)), Ink = Frozen(Color.FromRgb(33, 41, 61)), MutedInk = Frozen(Color.FromRgb(120, 125, 145)), Red = Frozen(Color.FromRgb(255, 59, 48));
+    private static Brush Frozen(Color color) { var brush = new SolidColorBrush(color); brush.Freeze(); return brush; }
+    internal static TextBlock CardText(string text, bool bold = false, bool error = false, double size = 16, bool muted = false) => new() { Text = text, TextWrapping = TextWrapping.Wrap, FontSize = size, FontWeight = bold ? FontWeights.SemiBold : FontWeights.Normal, Foreground = error ? Red : muted ? MutedInk : Ink, Margin = new Thickness(0, 12, 0, 0) };
+    internal static TextBox CardBody(string text) => new() { Text = text, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, FontSize = 18, BorderThickness = new Thickness(0), Background = Brushes.Transparent, Padding = new Thickness(0), Margin = new Thickness(0) };
 }
 
 public sealed class SecretInputWindow : Window
@@ -47,7 +64,7 @@ public sealed class SecretInputWindow : Window
         Title = request.Label; Width = 560; SizeToContent = SizeToContent.Height; MaxHeight = SystemParameters.WorkArea.Height; WindowStartupLocation = WindowStartupLocation.CenterOwner;
         var panel = new StackPanel { Margin = new Thickness(24) };
         panel.Children.Add(SecretCard.CardBody(request.Message));
-        panel.Children.Add(SecretCard.CardText("値は会話に送信されません。BellTeamの利用者領域へ保存します。"));
+        panel.Children.Add(SecretCard.CardText("値は会話に送信されません。BellTeamの利用者領域へ保存します。", size: 14, muted: true));
         panel.Children.Add(SecretCard.CardText(request.Label, bold: true));
         panel.Children.Add(Input); panel.Children.Add(ErrorText);
         var buttons = new WrapPanel(); buttons.Children.Add(submit); buttons.Children.Add(decline); buttons.Children.Add(close); panel.Children.Add(buttons);
@@ -86,46 +103,55 @@ public sealed class QuestionCard(Workspace workspace, string author) : StackPane
     private string currentAuthor = author;
     private bool sending;
     private readonly List<Control> inputs = [];
-    private readonly TextBlock error = SecretCard.CardText("", error: true);
+    private readonly TextBlock error = SecretCard.CardText("", size: 14, error: true);
+    private TextBlock? title;
     public void Update(OwnerQuestion question) => Update(question, currentAuthor);
     public void Update(OwnerQuestion question, string sender)
     {
         if (current is { } old && old.Id == question.Id && old.Status == question.Status && old.Question == question.Question && old.AllowOther == question.AllowOther && old.Answer == question.Answer && old.Options.SequenceEqual(question.Options))
         {
             current = question; currentAuthor = sender;
-            ((TextBlock)Children[0]).Text = currentAuthor + " · 選んでほしいこと";
+            title!.Text = currentAuthor + " · 選んでほしいこと";
             return;
         }
         current = question; currentAuthor = sender; Children.Clear(); inputs.Clear();
-        Children.Add(SecretCard.CardText(currentAuthor + " · 選んでほしいこと", bold: true));
+        var header = (StackPanel)SecretCard.CardTitle("\uE8FD", currentAuthor + " · 選んでほしいこと"); title = (TextBlock)header.Children[1];
+        Children.Add(header);
         Children.Add(SecretCard.CardBody(question.Question));
-        if (question.Status == "answered") { Children.Add(SecretCard.CardText("回答: " + question.Answer, bold: true)); return; }
+        if (question.Status == "answered") { Children.Add(SecretCard.CardStatus("\uE73E", "回答: " + question.Answer, strong: true)); return; }
         if (question.Status != "open") { Children.Add(SecretCard.CardText("不明な回答状態: " + question.Status, error: true)); return; }
-        var choices = new WrapPanel();
+        var choices = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
         foreach (var option in question.Options)
         {
-            var button = new Button { Content = option, IsEnabled = !sending };
+            var button = new Button { Content = option, IsEnabled = !sending, Background = new SolidColorBrush(Color.FromRgb(228, 226, 236)), Foreground = new SolidColorBrush(Color.FromRgb(33, 41, 61)), BorderThickness = new Thickness(0), FontWeight = FontWeights.Normal, Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 8) };
             button.Click += async (_, _) => await AnswerAsync(question.Id, option, null);
             choices.Children.Add(button); inputs.Add(button);
         }
         Children.Add(choices);
         if (question.AllowOther)
         {
-            Children.Add(SecretCard.CardText("その他（文章で答える）"));
-            var other = new TextBox { AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MaxHeight = 110, IsEnabled = !sending };
-            var send = new Button { Content = "送る", HorizontalAlignment = HorizontalAlignment.Right, IsEnabled = !sending };
+            var other = new TextBox { AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MaxHeight = 110, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, IsEnabled = !sending, FontSize = 14, Padding = new Thickness(8, 6, 8, 6) };
+            var placeholder = new TextBlock { Text = "その他（文章で答える）", FontSize = 14, Foreground = new SolidColorBrush(Color.FromRgb(120, 125, 145)), Margin = new Thickness(9, 7, 0, 0), IsHitTestVisible = false, VerticalAlignment = VerticalAlignment.Top };
+            var send = new Button { Content = "送る", VerticalAlignment = VerticalAlignment.Bottom, IsEnabled = false, Margin = new Thickness(8, 0, 0, 0) };
+            other.TextChanged += (_, _) => { placeholder.Visibility = other.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed; send.IsEnabled = !sending && !string.IsNullOrWhiteSpace(other.Text); };
             send.Click += async (_, _) => { if (!string.IsNullOrWhiteSpace(other.Text)) await AnswerAsync(question.Id, null, other.Text); };
-            inputs.Add(other); inputs.Add(send); Children.Add(other); Children.Add(send);
+            DockPanel.SetDock(send, Dock.Right);
+            var row = new DockPanel { Margin = new Thickness(0, 4, 0, 0) }; var field = new Grid(); field.Children.Add(other); field.Children.Add(placeholder);
+            row.Children.Add(send); row.Children.Add(field);
+            inputs.Add(other); Children.Add(row);
+            SendOther = send; OtherInput = other;
         }
+        else { SendOther = null; OtherInput = null; }
         error.Visibility = error.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
         Children.Add(error);
     }
+    private Button? SendOther; private TextBox? OtherInput;
     private async Task AnswerAsync(string id, string? choice, string? text)
     {
         if (sending) return;
-        sending = true; foreach (var control in inputs) control.IsEnabled = false; error.Text = ""; error.Visibility = Visibility.Collapsed;
+        sending = true; foreach (var control in inputs) control.IsEnabled = false; if (SendOther is not null) SendOther.IsEnabled = false; error.Text = ""; error.Visibility = Visibility.Collapsed;
         try { Update(await workspace.AnswerAsync(id, choice, text)); }
         catch (Exception exception) { error.Text = "操作の結果を確認できませんでした。現在の状態を更新して確認してください。\n" + exception.Message; error.Visibility = Visibility.Visible; }
-        finally { sending = false; foreach (var control in inputs) control.IsEnabled = true; }
+        finally { sending = false; foreach (var control in inputs) control.IsEnabled = true; if (SendOther is not null) SendOther.IsEnabled = !string.IsNullOrWhiteSpace(OtherInput?.Text); }
     }
 }

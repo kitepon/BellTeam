@@ -36,6 +36,8 @@ Mac：[1.0.1(48)の3ペイン](assets/mac-ui-reference-48/01-workspace.png)（PR
 - 処理中の帯：ルームでは処理中の各メンバーに「止める」ボタンを付け、結果の3文言を出す。
 - 入力欄：赤い「今の動作を止める」（処理中・待機中の時だけ）、紫の↑送信ボタン（「送信（Return）」）、ゴールのカプセル（6節）、ルームの返信先は紫のカプセル型メニュー（「返信者を自動選択」「返信するメンバーを選択」「返信: <名前>」「返信: N人」）。添付の縮小画像は60pt。
 
+対応済み（PR 4）：[メンバー](assets/windows-mac-gaps/windows/pr4-conversation-member.png)・[ルーム](assets/windows-mac-gaps/windows/pr4-conversation-room.png)・[配送状態と問い・秘密入力](assets/windows-mac-gaps/windows/pr4-conversation-states.png)・[ルームの処理中と止める](assets/windows-mac-gaps/windows/pr4-conversation-stop-room.png)・[停止結果](assets/windows-mac-gaps/windows/pr4-conversation-stop-notice.png)・[メンバーの停止ボタン](assets/windows-mac-gaps/windows/pr4-conversation-stop-member.png)・[添付](assets/windows-mac-gaps/windows/pr4-conversation-draft.png)・[メンバー間の連絡のシート](assets/windows-mac-gaps/windows/pr4-conversation-peer-sheet.png)・[画像の束](assets/windows-mac-gaps/windows/pr4-conversation-stack.png)・[空](assets/windows-mac-gaps/windows/pr4-conversation-empty.png)・[読込失敗](assets/windows-mac-gaps/windows/pr4-conversation-failed.png)。入力欄のゴールのカプセルはゴールのPR（7）で足す。「受付確認中」「受付済み・反映待ち」はMacが送信中に自分で置く仮の行の状態で、Windowsは仮の行を置かないため、サーバーがその値を返した時だけ出る。ルームの宛先別の配送は、これまで常に空だった表示がMacと同じ最悪の状態（例：失敗が1つでもあれば「配達失敗」）になった。
+
 ## 3. 詳細パネル（メンバー・ルーム） — L
 
 Mac：[48の詳細パネル](assets/mac-ui-reference-48/01-workspace.png)／Windows：[現行](assets/windows-mac-gaps/windows/01-workspace.png)

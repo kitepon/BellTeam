@@ -71,6 +71,25 @@ public partial class App : Application
                 if (pageKind == "updates-detail-narrow") { FindExpander(pageRoot).IsExpanded = true; pageRoot.UpdateLayout(); }
                 await pageWindow.PrepareRenderAsync(bottomOfPage: pageKind is "settings-lower" or "updates-detail-narrow"); WritePng(pageWindow, pageWidth, pageHeight, pageOutput); pageWindow.Close(); Shutdown(0); return;
             }
+            if (e.Args is ["--render-conversation", var scene, var conversationAddress, var sceneConversationId, var conversationOutput])
+            {
+                // A conversation in a named state, read from the mock server (GET only). The failed scene is meant to fail its first read.
+                var model = new Workspace(); var window = new MainWindow(model, persistPlacement: false);
+                await model.ConnectAsync(conversationAddress, listen: false);
+                if (model.ConnectionError is { } connectFailure) throw new BellApiException(connectFailure);
+                await model.SelectAsync(model.Entries.FirstOrDefault(entry => entry.Target.Id == sceneConversationId) ?? throw new BellApiException("指定した会話がありません。"));
+                if (scene != "failed" && model.ConnectionError is { } readFailure) throw new BellApiException(readFailure);
+                if (scene is not ("member" or "room")) window.HideInspectorForRender();
+                if (scene == "draft") { model.AttachClipboardImage(Swatch(0x0A, 0x84, 0xFF)); model.AttachClipboardImage(Swatch(0xE8, 0x6B, 0x94)); model.DraftText = "この画像も見てほしい。"; }
+                if (scene == "stop-notice") model.StopResult = StopNotice.Sent;
+                if (scene == "peer-sheet") window.ShowPeerSheet(model.Messages.Select(item => item.Message).First(item => item.Kind == "peer"));
+                var conversationHeight = scene == "states" ? 1300 : scene == "stack" ? 1500 : 820;
+                var conversationRoot = (FrameworkElement)window.Content;
+                conversationRoot.Measure(new Size(1280, conversationHeight)); conversationRoot.Arrange(new Rect(0, 0, 1280, conversationHeight)); conversationRoot.UpdateLayout();
+                await window.PrepareRenderAsync();
+                WritePng(window, 1280, conversationHeight, conversationOutput);
+                model.Dispose(); Shutdown(0); return;
+            }
             if (e.Args is ["--render-preview", _] || e.Args is ["--render-url", _, _] || e.Args is ["--render-url", _, _, _])
             {
                 // HWNDを作らず、WPFの部品を画像へ描く。Show・Activateは呼ばない。
@@ -92,7 +111,7 @@ public partial class App : Application
                 Shutdown(0);
                 return;
             }
-            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|features|notifications|connection|display|billing|update|about|stop>|schedules|updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>、--render-editor <member|new-member|room|new-room|settings|profile|feature|schedules|new-schedule|setup|authentication> <URL> <ID> <PNG> のいずれかです。");
+            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-conversation <member|room|states|stop|stop-notice|stop-member|draft|peer-sheet|stack|empty|failed> <URL> <会話ID> <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|features|notifications|connection|display|billing|update|about|stop>|schedules|updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>、--render-editor <member|new-member|room|new-room|settings|profile|feature|schedules|new-schedule|setup|authentication> <URL> <ID> <PNG> のいずれかです。");
 
             MainWindow? main = null;
             instance = new SingleInstance(() => Dispatcher.Invoke(() => { main!.WindowState = main.WindowState == WindowState.Minimized ? WindowState.Normal : main.WindowState; main.Show(); main.Activate(); }));
@@ -119,6 +138,11 @@ public partial class App : Application
             else MessageBox.Show(error.Message, "BellTeam", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1);
         }
+    }
+    private static BitmapSource Swatch(byte red, byte green, byte blue)
+    {
+        var pixels = new byte[60 * 60 * 4]; for (var index = 0; index < pixels.Length; index += 4) { pixels[index] = blue; pixels[index + 1] = green; pixels[index + 2] = red; pixels[index + 3] = 255; }
+        var bitmap = BitmapSource.Create(60, 60, 96, 96, PixelFormats.Bgra32, null, pixels, 60 * 4); bitmap.Freeze(); return bitmap;
     }
     private static System.Windows.Controls.Expander FindExpander(DependencyObject root)
     {

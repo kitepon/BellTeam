@@ -249,11 +249,11 @@ public sealed class PhaseTwoTests
             using var workspace = new Workspace();
             var question = JsonSerializer.Deserialize<QuestionResponse>(QuestionJson, BellApi.Json)!.Question with { Status = "open", Answer = null };
             var card = new QuestionCard(workspace, "ベル"); card.Update(question);
-            var input = card.Children.OfType<TextBox>().Single(box => !box.IsReadOnly); input.Text = "書きかけ";
+            var input = LogicalTree.Find<TextBox>(card).Single(box => !box.IsReadOnly); input.Text = "書きかけ";
             card.Update(question with { Options = ["A", "B"] }, "新しい名前");
-            Assert.Same(input, card.Children.OfType<TextBox>().Single(box => !box.IsReadOnly)); Assert.Equal("書きかけ", input.Text);
+            Assert.Same(input, LogicalTree.Find<TextBox>(card).Single(box => !box.IsReadOnly)); Assert.Equal("書きかけ", input.Text);
             card.Update(question with { Status = "answered", Answer = "A" });
-            Assert.Contains(card.Children.OfType<TextBlock>(), text => text.Text == "回答: A");
+            Assert.Contains(LogicalTree.Find<TextBlock>(card), text => text.Text == "回答: A");
         });
     }
 
