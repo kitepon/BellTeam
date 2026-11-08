@@ -196,7 +196,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
   async function quiesce(timeoutMs = 60_000, { handover = false } = {}) {
     if (phase === 'quiesced') return { quiesced: true }
     // Module update (Owner 2026-11-08): never wait for or fail on running work. The old engine keeps finishing what
-    // it already started on the shared live state; only the producers stop. Close/install proof keep the full drain.
+    // it already started on the shared live state; only the producers stop. Close/dispose keep the full drain.
     const ready = handover ? () => !initialization : idleNow
     if (phase !== 'running' && phase !== 'quiescing') throw failure('EXECUTION_NOT_ACCEPTING')
     if (!Number.isFinite(timeoutMs) || timeoutMs < 0 || timeoutMs > 60_000) throw failure('EXECUTION_REQUEST_INVALID')
@@ -314,12 +314,20 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
               if (resumed && requestRestartSummary && Date.parse(resumed.resumedAt) > Date.parse(reference.observedAt))
                 await requestRestartSummary({ botId: bot.id, from: reference.observedAt, to: resumed.resumedAt })
             })())
-            track(reconnect).catch(error => { try { Promise.resolve(ports.diagnostics?.record?.({
+            const report = (error, continuation = null) => { try { Promise.resolve(ports.diagnostics?.record?.({
               code: 'SERVER_TURN_TRACKING_FAILED', module: 'conversation', diagnostic_log: JSON.stringify({
                 stage: 'restart_resume', code: 'RESTART_RESUME_UNAVAILABLE', botId: bot.id, sessionId: reference.sessionId,
                 cause_code: ['AGENT_RESUME_UNAVAILABLE', 'RESUME_CAPABILITY_UNAVAILABLE', 'RESTART_RESUME_UNCONFIRMED'].includes(error?.code) ? error.code : null,
+                ...(continuation ? { continuation } : {}),
               }),
-            })).catch(() => {}) } catch {} })
+            })).catch(() => {}) } catch {} }
+            track(reconnect).catch(async error => {
+              // Owner 2026-11-08: a seat whose resume was refused (not started) comes back fresh and continues
+              // from its docs/memory via one ordinary delivery (restart-resume.md). Uncertain failures get no fresh launch.
+              if (!['AGENT_RESUME_UNAVAILABLE', 'RESUME_CAPABILITY_UNAVAILABLE'].includes(error?.code) || !requestRestartSummary) return report(error)
+              try { await requestRestartSummary({ botId: bot.id, from: reference.observedAt, to: new Date().toISOString(), resumed: false }) }
+              catch { report(error, 'failed') }
+            })
           }
         }
         initialized = true; phase = 'running'; transport.workState.schedule(); startProducers()
