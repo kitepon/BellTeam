@@ -163,8 +163,8 @@ final class BellAPI {
         try await protectedJSON(path: "/api/setup/auth/input", method: "POST", body: body)
     }
 
-    func submitHarnessAuthenticationInput(harness: String, body: AuthenticationReply) async throws -> HarnessAuthenticationResponse {
-        try await protectedJSON(path: "/api/harness-auth/\(harness)/input", method: "POST", body: body)
+    func submitHarnessAuthenticationInput(harness: String, slot: String? = nil, body: AuthenticationReply) async throws -> HarnessAuthenticationResponse {
+        try await protectedJSON(path: "/api/harness-auth/\(harness)/input" + (slot.map { "?slot=\($0)" } ?? ""), method: "POST", body: body)
     }
 
     private func protectedJSON<Body: Encodable, Response: Decodable>(path: String, method: String, body: Body) async throws -> Response {

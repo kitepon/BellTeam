@@ -505,6 +505,11 @@ struct BotProfileAISection: View {
             LabeledContent("ハーネス", value: bot.harness)
             LabeledContent("希望モデル", value: bot.model.isEmpty ? "CLIの既定" : bot.model)
             LabeledContent("希望エフォート", value: bot.reasoningEffort.isEmpty ? "CLIの既定" : bot.reasoningEffort)
+            // 旧本体はaccountを返さない。その時は行を出さない。
+            if let account = bot.account {
+                LabeledContent("アカウント", value: AccountText.slotName(account.slot))
+                    .accessibilityIdentifier("bot-account-slot")
+            }
             Button("Botの画面を見る", systemImage: "terminal", action: onScreen)
                 .buttonStyle(.bordered)
             Button("会話セッションを再起動", action: onRestart)

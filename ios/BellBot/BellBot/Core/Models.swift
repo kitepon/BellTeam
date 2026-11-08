@@ -21,6 +21,7 @@ struct Bot: Decodable, Identifiable, Equatable {
     let online: Bool
     let recent: RecentMessage?
     var currentWork: CurrentWork? = nil
+    var account: BotAccount? = nil
 }
 
 // 名前の下の1行。文言はWebのworkLabelと同じにする。
@@ -45,7 +46,7 @@ struct CurrentWork: Decodable, Equatable {
 extension Bot {
     private enum CodingKeys: String, CodingKey {
         case id, name, displayName, harness, model, reasoningEffort, fastMode, color, profileText, personality
-        case speechStyle, position, role, avatar, avatarVersion, avatarLargeVersion, deleting, online, recent, currentWork
+        case speechStyle, position, role, avatar, avatarVersion, avatarLargeVersion, deleting, online, recent, currentWork, account
     }
 
     init(from decoder: Decoder) throws {
@@ -70,6 +71,7 @@ extension Bot {
         online = try c.decode(Bool.self, forKey: .online)
         recent = try c.decodeIfPresent(RecentMessage.self, forKey: .recent)
         currentWork = try c.decodeIfPresent(CurrentWork.self, forKey: .currentWork)
+        account = try c.decodeIfPresent(BotAccount.self, forKey: .account)
     }
 }
 

@@ -5,6 +5,8 @@ import Foundation
 @MainActor
 final class HarnessAuthenticationFlow: ObservableObject {
     let harness: HarnessAuthenticationOption
+    /// 2ndアカウントの時だけ"2nd"。nilは1stで、従来の経路そのまま。
+    let slot: String?
     private let api: BellAPI
     @Published private(set) var auth: SetupAuthentication?
     @Published private(set) var started = false
@@ -12,13 +14,16 @@ final class HarnessAuthenticationFlow: ObservableObject {
     @Published private(set) var needsRefresh = false
     private var requestSequence = 0
 
-    init(harness: HarnessAuthenticationOption, api: BellAPI) {
+    init(harness: HarnessAuthenticationOption, api: BellAPI, slot: String? = nil) {
         self.harness = harness
+        self.slot = slot
         self.api = api
     }
 
     var needsStartConfirmation: Bool { harness.needsStartConfirmation(auth) }
-    private var path: String { "/api/harness-auth/\(harness.id)" }
+    private var path: String { route("") }
+    private var query: String { slot.map { "?slot=\($0)" } ?? "" }
+    private func route(_ suffix: String) -> String { "/api/harness-auth/\(harness.id)\(suffix)\(query)" }
 
     func refresh() async throws {
         guard !busy else { throw BellAPIError.server("認証の処理が終わってから操作してください。") }
@@ -44,7 +49,7 @@ final class HarnessAuthenticationFlow: ObservableObject {
 
     func start() async throws {
         try await perform(mutation: true) {
-            let next: HarnessAuthenticationResponse = try await api.post(path + "/start", body: SetupEmptyBody())
+            let next: HarnessAuthenticationResponse = try await api.post(route("/start"), body: SetupEmptyBody())
             started = next.auth?.status != .authenticated
             return next
         }
@@ -56,7 +61,7 @@ final class HarnessAuthenticationFlow: ObservableObject {
         }
         do {
             try await perform(mutation: true) {
-                try await api.submitHarnessAuthenticationInput(harness: harness.id, body: reply)
+                try await api.submitHarnessAuthenticationInput(harness: harness.id, slot: slot, body: reply)
             }
         } catch {
             needsRefresh = true
@@ -66,7 +71,7 @@ final class HarnessAuthenticationFlow: ObservableObject {
 
     func cancel() async throws {
         try await perform(mutation: true) {
-            let _: HarnessAuthenticationResponse = try await api.post(path + "/cancel", body: SetupEmptyBody())
+            let _: HarnessAuthenticationResponse = try await api.post(route("/cancel"), body: SetupEmptyBody())
             started = false
             return try await api.get(path)
         }
