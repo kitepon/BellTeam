@@ -4,6 +4,7 @@ import { EventEmitter } from 'node:events'
 export function createUsageFacade({ request, projection, toolsDirectory }) {
   const events = new EventEmitter()
   const call = (method, params, context) => request(method, params, context)
+  const authTarget = (harness, options) => ({ harness, ...(options.slot === undefined ? {} : { slot: options.slot }) })
   const cards = kind => ({
     get: id => projection.get(kind, id),
     read: (id, context) => call(kind === 'secret' ? 'secrets.get' : 'questions.get', { id }, context),
@@ -31,10 +32,10 @@ export function createUsageFacade({ request, projection, toolsDirectory }) {
       prepareStartup: (bot, context) => call('onboarding.prepareStartup', { botId: bot.id }, context),
     },
     harnessAuth: {
-      list: () => projection.auth(), status: (harness, context) => call('auth.status', { harness }, context),
-      start: (harness, context) => call('auth.start', { harness }, context),
-      input: (harness, input, context) => call('auth.input', { harness, input }, context),
-      cancel: (harness, context) => call('auth.cancel', { harness }, context),
+      list: () => projection.auth(), status: (harness, context, options = {}) => call('auth.status', authTarget(harness, options), context),
+      start: (harness, context, options = {}) => call('auth.start', authTarget(harness, options), context),
+      input: (harness, input, context, options = {}) => call('auth.input', { ...authTarget(harness, options), input }, context),
+      cancel: (harness, context, options = {}) => call('auth.cancel', authTarget(harness, options), context),
     },
     secretRequests: {
       ...cards('secret'), toolsDirectory,
