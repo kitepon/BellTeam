@@ -43,6 +43,19 @@ public sealed record Bot
     public string Avatar { get; init; } = "";
     public string AvatarVersion { get; init; } = "";
     public RecentMessage? Recent { get; init; }
+    public CurrentWork? CurrentWork { get; init; }
+}
+// The member row's second line. Same wording as the Mac CurrentWork.label and the Web workLabel.
+public sealed record CurrentWork(string? State, string? Summary, string? SummaryStatus)
+{
+    public static string Label(CurrentWork? work) => (work?.State, work?.SummaryStatus) switch
+    {
+        ("working", "current") => work!.Summary ?? "作業中・要約未設定",
+        ("working", "stale") => "作業中・要約期限切れ",
+        ("working", _) => "作業中・要約未設定",
+        ("idle", _) => "待機中",
+        _ => "仕事状況を未取得"
+    };
 }
 public sealed record Room
 {
