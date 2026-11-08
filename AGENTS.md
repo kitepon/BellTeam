@@ -4,7 +4,7 @@
 
 ## 実装の範囲
 
-- Owner rule (2026-11-07; takes precedence over the retry restriction below for Aiterm/cloud-AI commands): Never block on an unknown command outcome. A command to Aiterm/a cloud AI that lands twice is harmless; stopping is the harm. Commands are idempotent by content (and UUID where the counterpart dedups); on unknown, proceed and re-apply. No *_UNCONFIRMED / 'possible' / 'unknown' refusal may gate a dispatch, a launch, a stop or an operator restart; such facts are recorded and shown, never used as a lock. A guard is added only if its state diagram shows an exit the server can take by itself; 'unknown' is not a state in the model — only desired and actual are.
+- Owner rule (2026-11-07; Aiterm/cloud-AI commands): Never block on an unknown command outcome. A command to Aiterm/a cloud AI that lands twice is harmless; stopping is the harm. Commands are idempotent by content (and UUID where the counterpart dedups); on unknown, proceed and re-apply. No *_UNCONFIRMED / 'possible' / 'unknown' refusal may gate a dispatch, a launch, a stop or an operator restart; such facts are recorded and shown, never used as a lock. A guard is added only if its state diagram shows an exit the server can take by itself; 'unknown' is not a state in the model — only desired and actual are.
 
 - コード修正前に `docs/architecture/feature-map.md` から担当と接続先の機能図を読み、図の変更要否を判断してから全caller・試験・設定を含む範囲を決める。コードと必要な図を同じ差分で更新する。担当と図の正本は `docs/architecture/module-ownership.md` に従う。
 
@@ -13,7 +13,7 @@
 - 補助プログラムの常駐・待受けは実装してよい。待受けるだけのためにAIを常時起動したり、変化のない確認を繰り返してAIを起こし続けたりしない。AIが不要な待受け・確認は、補助プログラムやcommand予定で行う。
 - モバイル回線などの通信不良そのものはバグと扱わない。通信不良が起こる前提で、アプリは接続状態に応じて適切に動作し、回復を待ち、通信復旧後に適切に復帰する。対処や復帰が適切でないアプリの挙動は修理対象とする。
 - 通信不良時にも全機能が動くことは要求しない。通信を必要とする機能が使えないことと、アプリの対処不良を区別する。
-- 反復再試行はiPhoneアプリのSSE切断・一時的な接続失敗からの復旧だけに限る。認証・設定・応答形式の異常では止めて表示する。
+- 一時的な接続・取得失敗（SSE切断を含む）からの復旧は全クライアントを対象とし、失敗理由と再試行状態を表示し、待機間隔に上限を設けたバックオフで自動再試行を続ける。回数の上限で打ち切らない。手動再試行は待機中の次の試行を直ちに実行し、同じ処理を並列に増やさない。キャンセル・サインアウト・接続先変更では旧処理を終了する。認証拒否では権限のない接続を防ぐため当該接続を中断し、有効な認証情報に更新されたら自動再開する。設定・応答形式の異常も理由を表示し、復旧可能な処理を打ち切る理由にはしない。非冪等な要求は二重実行を防ぐため自動再送せず、実行結果を確認する。
 - オーナーが決めた設計・責務境界・登録先は、確認を取らずに上書きしない。変更が必要だと思ったら、変更案を出して合意を得た後だけ行う。
 
 ## 予定
