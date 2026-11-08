@@ -10,7 +10,12 @@
   </PropertyGroup>
   <ItemGroup>
     <Resource Include="../../ios/BellBot/BellBot/Assets.xcassets/AppIcon.appiconset/bellbot-icon.png" Link="Assets/BellTeam.png" />
+    <!-- The Mac app bundles the same three files for its server setup screen. -->
+    <EmbeddedResource Include="../../ios/BellBot/BellBot/Assets.xcassets/BellPortrait.imageset/bell-portrait.png" LogicalName="BellPortrait.png" />
+    <EmbeddedResource Include="../../docs/server-installation.md" LogicalName="server-installation.md" />
+    <EmbeddedResource Include="../../services/subscriptions/product.json" LogicalName="product.json" />
     <InternalsVisibleTo Include="BellTeam.Tests" />
+    <InternalsVisibleTo Include="BellTeam.UiChecks" />
     <ProjectReference Include="../BellTeam.Core/BellTeam.Core.csproj" />
     <PackageReference Include="Markdig" Version="1.4.0" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />

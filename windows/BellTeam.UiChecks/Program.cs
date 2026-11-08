@@ -19,6 +19,7 @@ public static class UiChecks {
     Dispatcher.Run();
   }
   private static async Task Run() {
+    await StartupChecks();
     var newMessage = false;
     var time = DateTimeOffset.UtcNow;
     var messages = Enumerable.Range(0,30).Select(index => new TimelineMessage { Id = "m" + index, At = time.AddMinutes(index - 30), Direction = "incoming", Message = "本文" + index + " " + new string('あ',180) }).ToArray();
@@ -79,6 +80,53 @@ public static class UiChecks {
     Check(((FrameworkElement)window.FindName("EmptyConversation")).Visibility==Visibility.Collapsed && ((FrameworkElement)window.FindName("LoadingSpinner")).Visibility==Visibility.Visible,"読込中に送信の案内が出ます。");
     Check(Application.Current.Windows.Cast<Window>().All(candidate => new WindowInteropHelper(candidate).Handle == IntPtr.Zero),"再接続の確認で窓を表示しました。");
     window.Close(); Console.WriteLine("画面内移動・新着・過去ログ位置・前面非表示の確認に成功しました。");
+  }
+  // The Mac RootView phases on the real MainWindow, against stub servers. Nothing here shows a window; a failure must not be retried by itself.
+  private static async Task StartupChecks() {
+    const string select = "{\"phase\":\"select_harness\",\"harness\":null,\"harnesses\":[{\"id\":\"codex\",\"name\":\"Codex\"}],\"guideBotId\":null,\"complete\":false,\"auth\":null}";
+    (MainWindow Window, Workspace Model, int[] Requests) Open(Func<string,string> answer) {
+      var requests = new int[1];
+      var model = new Workspace(origin => new BellApi(origin, new MockHandler(request => { requests[0]++; return answer(request.RequestUri!.AbsolutePath); })));
+      return (new MainWindow(model, persistPlacement:false), model, requests);
+    }
+    void Lay(MainWindow window) { var content = (FrameworkElement)window.Content; content.Measure(new Size(1280,820)); content.Arrange(new Rect(0,0,1280,820)); content.UpdateLayout(); }
+    async Task Settle(MainWindow window, Func<bool> done) { for (var turn = 0; turn < 200 && !done(); turn++) await Task.Delay(10); Check(done(), "起動の状態が決まりません。"); Lay(window); }
+    var failing = Open(path => path == "/api/session" ? throw new InvalidOperationException("模擬の接続失敗") : "{}");
+    await failing.Window.ConnectAsync("http://localhost"); Lay(failing.Window);
+    Check(failing.Window.Startup == StartupPhase.Failure && failing.Window.StartupContent is StartupFailureView,"接続の失敗が失敗の画面になりません。");
+    var attempts = failing.Requests[0]; await Task.Delay(400);
+    Check(failing.Requests[0] == attempts,"起動の失敗後に自動で再試行しています。");
+    var again = Descendants<Button>(failing.Window.StartupContent!).Single(button => System.Windows.Automation.AutomationProperties.GetName(button) == "もう一度試す");
+    again.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Settle(failing.Window, () => failing.Requests[0] > attempts && failing.Window.Startup == StartupPhase.Failure);
+    var manual = failing.Requests[0]; await Task.Delay(300); Check(failing.Requests[0] == manual && manual - attempts == attempts,"「もう一度試す」が1回の接続になりません。");
+    Lay(failing.Window); var change = Descendants<Button>(failing.Window.StartupContent!).Single(button => System.Windows.Automation.AutomationProperties.GetName(button) == "接続先を変更");
+    change.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Check(failing.Window.Startup == StartupPhase.Setup && failing.Window.StartupContent is ServerSetupView,"失敗の画面から接続先の入力へ移れません。");
+    Check(failing.Requests[0] == manual,"接続先の入力を開いただけで通信しています。");
+    failing.Window.Close(); failing.Model.Dispose();
+
+    var first = Open(_ => "{}"); first.Window.ShowServerSetup();
+    Check(first.Window.Startup == StartupPhase.Setup && first.Window.StartupContent is ServerSetupView && first.Requests[0] == 0,"保存した接続先がない時に接続先の入力になりません。");
+    first.Window.Close(); first.Model.Dispose();
+
+    var login = Open(path => path == "/api/session" ? "{\"authenticated\":false,\"authMode\":\"cloudflare\"}" : "{}");
+    await login.Window.ConnectAsync("http://localhost", openLogin:false);
+    Check(login.Window.Startup == StartupPhase.SignIn && login.Window.StartupContent is LoginView,"Cloudflare Accessのログインが必要な接続先でログイン画面になりません。");
+    login.Window.Close(); login.Model.Dispose();
+
+    var onboarding = Open(path => path switch { "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/setup" => select, "/api/bots" => "{\"bots\":[]}", "/api/rooms" => "{\"rooms\":[]}", "/api/queue" => "{\"items\":[]}", "/api/owner" => "{\"owner\":{\"name\":\"利用者\"}}", _ => "{}" });
+    await onboarding.Window.ConnectAsync("http://localhost"); Lay(onboarding.Window);
+    Check(onboarding.Window.Startup == StartupPhase.Onboarding && onboarding.Window.StartupContent is OnboardingView,"初回設定が済んでいない接続先で初期設定の画面になりません。");
+    Check(((FrameworkElement)onboarding.Window.FindName("StartupHost")).Visibility == Visibility.Visible,"初期設定が主窓を覆いません。");
+    var polls = onboarding.Requests[0]; await Task.Delay(400); Check(onboarding.Requests[0] == polls && !((OnboardingView)onboarding.Window.StartupContent!).Polling,"AIを選ぶ前に状態を読み続けています。");
+    Descendants<Button>(onboarding.Window.StartupContent!).Single(button => System.Windows.Automation.AutomationProperties.GetName(button) == "接続先を変更").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+    Check(onboarding.Window.Startup == StartupPhase.Setup,"初期設定から接続先の入力へ戻れません。");
+    onboarding.Window.Close(); onboarding.Model.Dispose();
+
+    var ready = Open(path => path switch { "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/setup" => "{\"phase\":\"ready\",\"harness\":null,\"harnesses\":[],\"guideBotId\":null,\"complete\":true,\"auth\":null}", "/api/bots" => "{\"bots\":[]}", "/api/rooms" => "{\"rooms\":[]}", "/api/queue" => "{\"items\":[]}", "/api/owner" => "{\"owner\":{\"name\":\"利用者\"}}", _ => "{}" });
+    await ready.Window.ConnectAsync("http://localhost");
+    Check(ready.Window.Startup == StartupPhase.Ready && ready.Window.StartupContent is null && ((FrameworkElement)ready.Window.FindName("StartupHost")).Visibility == Visibility.Collapsed,"初期設定済みの接続先で会話画面になりません。");
+    ready.Window.Close(); ready.Model.Dispose();
+    Check(Application.Current.Windows.Cast<Window>().All(candidate => new WindowInteropHelper(candidate).Handle == IntPtr.Zero),"起動画面の確認で窓のハンドルを作成しました。");
   }
   private static void Check(bool value,string message) { if (!value) throw new InvalidOperationException(message); }
   private static IEnumerable<T> Descendants<T>(DependencyObject root) where T:DependencyObject { for(var index=0;index<VisualTreeHelper.GetChildrenCount(root);index++){var child=VisualTreeHelper.GetChild(root,index);if(child is T match)yield return match;foreach(var item in Descendants<T>(child))yield return item;} }

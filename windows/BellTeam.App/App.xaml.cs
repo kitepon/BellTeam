@@ -55,7 +55,6 @@ public partial class App : Application
                 EditorWindow editor;
                 if (editorKind is "settings" or "profile") { var settingsEditor = new SettingsWindow(editorWorkspace) { Width = 960, Height = 800 }; editor = settingsEditor; await settingsEditor.InitializeAsync(SettingsPage.Profile); }
                 else if (editorKind == "feature") { var feature = new FeatureEditor(editorWorkspace, editorId, "追加機能"); editor = feature; await feature.InitializeAsync(); }
-                else if (editorKind == "setup") editor = new SetupWindow(editorWorkspace, await new SetupApi(editorWorkspace.Management.Api).StatusAsync());
                 else if (editorKind == "authentication") { var option = (await new HarnessAuthenticationApi(editorWorkspace.Management.Api).ListAsync(editorWorkspace.ConnectionToken)).Harnesses.Single(item => item.Id == editorId); var authentication = new HarnessAuthenticationWindow(editorWorkspace, option); editor = authentication; await authentication.InitializeAsync(); }
                 else throw new ArgumentException("未対応の編集画面です。");
                 await editor.ReadyTask; WritePng(editor, (int)editor.Width, (int)editor.Height, editorOutput); editor.Close(); Shutdown(0); return;
@@ -209,6 +208,23 @@ public partial class App : Application
                 model.ReturnToProfile(); await opened;
                 model.Dispose(); Shutdown(0); return;
             }
+            if (e.Args is ["--render-startup", var startupScene, var startupAddress, var startupOutput])
+            {
+                // The startup screens read from the mock server (GET only). The routing is the real one: the mock answers the session and setup the scene needs.
+                var model = new Workspace(); var window = new MainWindow(model, persistPlacement: false);
+                StartupPhase? expected = startupScene switch { "opening" => StartupPhase.Checking, "setup" or "guide" => StartupPhase.Setup, "failure" => StartupPhase.Failure, "login" => StartupPhase.SignIn, "onboarding-choose" or "onboarding-waiting" => StartupPhase.Onboarding, "banner" => StartupPhase.Ready, _ => null };
+                if (expected is null) throw new ArgumentException("未対応の起動画面です。");
+                if (startupScene == "opening") window.ShowOpeningForRender();
+                else if (startupScene is "setup" or "guide") { window.ShowServerSetup(); if (startupScene == "guide") window.ShowServerGuide(); }
+                else await window.ConnectAsync(startupAddress, openLogin: false);
+                if (window.Startup != expected) throw new BellApiException($"起動画面が想定と違います: {window.Startup}");
+                if (startupScene == "banner") model.SetConnectionErrorForRender("新着の接続が終了しました。「再接続」を押してください。");
+                var startupRoot = (FrameworkElement)window.Content;
+                startupRoot.Measure(new Size(1280, 820)); startupRoot.Arrange(new Rect(0, 0, 1280, 820)); startupRoot.UpdateLayout();
+                await window.PrepareRenderAsync();
+                WritePng(window, 1280, 820, startupOutput);
+                model.Dispose(); Shutdown(0); return;
+            }
             if (e.Args is ["--render-preview", _] || e.Args is ["--render-url", _, _] || e.Args is ["--render-url", _, _, _])
             {
                 // HWNDを作らず、WPFの部品を画像へ描く。Show・Activateは呼ばない。
@@ -230,7 +246,7 @@ public partial class App : Application
                 Shutdown(0);
                 return;
             }
-            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-inspector <member|member-small|room|sheet-small|sheet-large|sheet-unsupported|pending|pending-sheet> <URL> <会話ID> <PNG>、--render-screen <keys|approval|digits|sent|empty|offline|failed> <URL> <会話ID> <PNG>、--render-conversation <member|room|states|stop|stop-notice|stop-member|draft|peer-sheet|stack|empty|failed> <URL> <会話ID> <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|features|notifications|connection|display|billing|update|about|stop>|schedules|updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>、--render-editor <member|settings|profile|feature|schedules|new-schedule|setup|authentication> <URL> <ID> <PNG>、--render-editors <new-member|new-room|room|room-delete-alert|crop|member|member-delete-alert|member-delete-pending|member-delete-unconfirmed> <URL> <ID> <PNG> のいずれかです。");
+            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-inspector <member|member-small|room|sheet-small|sheet-large|sheet-unsupported|pending|pending-sheet> <URL> <会話ID> <PNG>、--render-screen <keys|approval|digits|sent|empty|offline|failed> <URL> <会話ID> <PNG>、--render-conversation <member|room|states|stop|stop-notice|stop-member|draft|peer-sheet|stack|empty|failed> <URL> <会話ID> <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|features|notifications|connection|display|billing|update|about|stop>|schedules|updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>、--render-startup <opening|setup|guide|failure|login|onboarding-choose|onboarding-waiting|banner> <URL> <PNG>、--render-editor <member|settings|profile|feature|schedules|new-schedule|authentication> <URL> <ID> <PNG>、--render-editors <new-member|new-room|room|room-delete-alert|crop|member|member-delete-alert|member-delete-pending|member-delete-unconfirmed> <URL> <ID> <PNG> のいずれかです。");
 
             MainWindow? main = null;
             instance = new SingleInstance(() => Dispatcher.Invoke(() => { main!.WindowState = main.WindowState == WindowState.Minimized ? WindowState.Normal : main.WindowState; main.Show(); main.Activate(); }));
@@ -243,8 +259,7 @@ public partial class App : Application
             main.Closed += async (_, _) => { workspace.Dispose(); try { await notifications.DisposeAsync(); } catch (Exception error) { MessageBox.Show("通知の終了処理を完了できませんでした。" + error.Message, "BellTeam", MessageBoxButton.OK, MessageBoxImage.Error); } finally { Shutdown(); } };
             main.Show();
             var settings = new SettingsStore(SettingsStore.UserDirectory).Load();
-            if (settings.ServerUrl is { } url) await main.ConnectAsync(url);
-            else main.OpenConnectionSettings();
+            if (StartupRoute.Initial(settings.ServerUrl) == StartupPhase.Setup) main.ShowServerSetup(); else await main.ConnectAsync(settings.ServerUrl!);
         }
         catch (Exception error)
         {
