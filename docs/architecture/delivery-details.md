@@ -75,7 +75,7 @@ flowchart TD
 | 動いているターンがある席が、送り直しても受けない | 動いているターンを壊さない | ターンが終われば、次の配送が受理される（差し込みか新しいターン） |
 | 起動の失敗、または起こした席が3回の送信で受けない | 同じ席への後の配送の順番（無限の送り直しでその席の後続を止めない） | 次の配送が観測からやり直し、閉じて起こす。Aitermの元のエラーを返す |
 
-モジュールの入れ替えで、会話のleaseか実行の世代が閉じた配送（`CONVERSATION_NOT_ACCEPTED` / `EXECUTION_GENERATION_RETIRED`）を考える。文がまだCLIに届き得ない時は、失敗の状態（`onStatus('failed')`）を書かない。代わりに型付きの未開始`{schema:'aiterm.execution-error.v1', code:'EXECUTION_STALE_GENERATION', effect:'not_started', follow_up:'none'}`を`error.executionError`に付けて返す。保存行は`dispatching`のまま残り、記録の所有者（会話、N102）が同じIDを`queued`へ戻し、入れ替えの後に届ける（モリー/N102合意 2026-11-08）。「届き得ない」とは、このjobの`pty_send`が一度も発行されていないか、発行した全てが明示の未送信（`AGENT_SESSION_REQUIRED`/`BOT_INPUT_NOT_READY`/`BOT_SEND_BUSY`、または「送信していません」）で断られたこと（`job.inputMayHaveStarted`）。それ以外は印を付けない。
+モジュールの入れ替えで、会話のleaseか実行の世代が閉じた配送（`CONVERSATION_NOT_ACCEPTED` / `EXECUTION_GENERATION_RETIRED`）を考える。文がまだCLIに届き得ない時は、型付きの未開始`{schema:'aiterm.execution-error.v1', code:'EXECUTION_STALE_GENERATION', effect:'not_started', follow_up:'none'}`を`error.executionError`に付ける。失敗の状態（`onStatus('failed')`）は、どの呼び手にも従来どおり書く。出口は呼び手ごとに次のとおり（エピネル指摘 2026-11-08）。直接配送（messenger）と部屋（room-messenger）の行は`failed`になり、明示の回復（#549）で同じIDのまま届け直せる。保存配送（durable receipts、N102）は、この印を見て同じIDを`queued`へ戻し、入れ替えの後に届ける。「届き得ない」とは、このjobの`pty_send`が一度も発行されていないか、発行した全てが明示の未送信（`AGENT_SESSION_REQUIRED`/`BOT_INPUT_NOT_READY`/`BOT_SEND_BUSY`、または「送信していません」）で断られたこと（`job.inputMayHaveStarted`）。それ以外は印を付けない。
 
 Aitermが受け付けた後の返りに追う手がかり（event_cursor/wait_process）が無い時は、失敗にせず受理として終える（完了は追えない）。配送前には設定操作を挟まない。通常送信の前には観測を挟まない。設定延期と各条件の保護対象・解除は[配送と設定の正本](modules/execution/configuration-delivery.md)に従う。
 

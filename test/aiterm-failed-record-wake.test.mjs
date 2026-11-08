@@ -224,13 +224,14 @@ async function swapDuring(t, { sends, closeAt }) {
   return { delivered, calls, statuses }
 }
 
-test('会話の世代が起こしている途中で閉じたら、打つ前なので型付きの未開始を返し、失敗の状態を残さない', async t => {
+test('会話の世代が起こしている途中で閉じたら、打つ前なので型付きの未開始を返し、失敗の状態はそのまま残す', async t => {
   const run = await swapDuring(t, { sends: ["aiterm: AGENT_SESSION_REQUIRED: session 'bot-a' のagent登録がありません。文字列は送信していません。", null], closeAt: 'agent_launch' })
   await assert.rejects(run.delivered, error => {
     assert.deepEqual(error.executionError, { schema: 'aiterm.execution-error.v1', code: 'EXECUTION_STALE_GENERATION', effect: 'not_started', follow_up: 'none' })
     return true
   })
-  assert.deepEqual(run.statuses, [])
+  // Every caller keeps its failed status (legacy direct / room rows get an exit through explicit resume).
+  assert.deepEqual(run.statuses, ['failed'])
   assert.equal(run.calls.filter(([name]) => name === 'pty_send').length, 1)
 })
 

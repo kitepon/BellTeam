@@ -858,13 +858,11 @@ export class AitermTransport {
       } catch (cause) {
         const error = await job.failure(cause)
         originalFailure = error
-        // Ended by a module swap before any words could reach the CLI: leave the saved row as it is (no failed
-        // status) and return the typed marker, so the record owner requeues the same delivery after the swap.
-        if (!job.receipt && !job.stopped && !job.inputMayHaveStarted && SWAP_CODES.includes(error.code)) {
+        // Ended by a module swap before any words could reach the CLI: the usual failed status is kept for every
+        // caller (each has its exit: explicit resume), and the error carries the typed not-started marker so a
+        // requeuing record owner (durable receipts) can deliver the same ID after the swap.
+        if (!job.receipt && !job.stopped && !job.inputMayHaveStarted && SWAP_CODES.includes(error.code))
           error.executionError = swapNotStarted()
-          if (!acknowledged) rejectAcceptance(error)
-          throw error
-        }
         // Accepted input remains accepted when only its completion tracking fails.
         const tracking = job.receipt && !job.stopped && !job.nativeTerminal && !error.turnCompleted
           ? [{ schema: 'bellteam.delivery-tracking.v1', admission: 'accepted', completion: 'unknown' }] : []
