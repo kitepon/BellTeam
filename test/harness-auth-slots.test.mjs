@@ -96,3 +96,67 @@ test('missing accounts, invalid slots, and invalid native labels fail before uns
   assert.equal((await auth.status('claude')).account_label, 'claude@example.invalid')
   assert.equal((await auth.cancel('claude', { slot: '2nd' })).slot, '2nd')
 })
+
+test('preparation failures normalize for both slots and a later successful preparation still runs', async () => {
+  const expected = 'アカウントの保存場所を用意できませんでした。少し待ってから、もう一度お試しください。'
+  for (const slot of ['1st', '2nd']) {
+    for (const failure of [
+      Object.assign(new Error('path /private/root'), { code: 'EACCES', errno: -13 }),
+      Object.assign(new Error('path /private/root'), { code: 'ACCOUNT_ROOT_UNAVAILABLE' }),
+      new Error('path /private/root'),
+    ]) {
+      let fail = true
+      const { calls, client } = clientWith(args => ({ structuredContent: receipt('recovered-session') }))
+      const auth = new HarnessAuth({ bots: new Map(), client,
+        accounts: { async prepare() { if (fail) throw failure; return { configurationRoot: `/synthetic/${slot}` } } } })
+
+      await assert.rejects(auth.start('claude', { slot }), error => {
+        assert.equal(error.code, 'HARNESS_AUTH_ACCOUNTS_UNAVAILABLE')
+        assert.equal(error.status, 503)
+        assert.equal(error.message, expected)
+        assert.equal(error.message.includes('/private/root'), false)
+        assert.equal(error.message.includes('EACCES'), false)
+        return true
+      })
+      assert.equal(calls.length, 0)
+      fail = false
+      assert.equal((await auth.start('claude', { slot })).auth.session_id, 'recovered-session')
+      assert.equal(calls.length, 1)
+      assert.equal(calls[0].args.configuration_root, `/synthetic/${slot}`)
+    }
+  }
+})
+
+test('EXECUTION_REQUEST_INVALID keeps 1st default-root compatibility and rejects 2nd without native auth', async () => {
+  const { calls, client } = clientWith(() => ({ structuredContent: receipt('default-session') }))
+  const accounts = { async prepare() { throw Object.assign(new Error('/private/root'), { code: 'EXECUTION_REQUEST_INVALID' }) } }
+  const auth = new HarnessAuth({ bots: new Map(), client, accounts })
+
+  assert.equal((await auth.status('claude')).auth.session_id, null)
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].args.action, 'status')
+  assert.equal(calls[0].args.configuration_root, undefined)
+  await assert.rejects(auth.status('claude', { slot: '2nd' }), error => {
+    assert.equal(error.code, 'HARNESS_AUTH_ACCOUNTS_UNAVAILABLE')
+    assert.equal(error.status, 503)
+    assert.equal(error.message, 'アカウントの保存場所を用意できませんでした。少し待ってから、もう一度お試しください。')
+    return true
+  })
+  assert.equal(calls.length, 1)
+})
+
+test('invalid prepared roots including null remain rejected for both slots', async () => {
+  const { calls, client } = clientWith(() => ({ structuredContent: receipt('unexpected-session') }))
+  const auth = new HarnessAuth({ bots: new Map(), client,
+    accounts: { async prepare(_harness, slot) { return slot === '1st' ? null : { configurationRoot: 'relative/root' } } } })
+
+  for (const slot of ['1st', '2nd']) {
+    await assert.rejects(auth.status('claude', { slot }), error => {
+      assert.equal(error.code, 'HARNESS_AUTH_ACCOUNTS_UNAVAILABLE')
+      assert.equal(error.status, 503)
+      assert.equal(error.message, 'アカウントの保存場所を用意できませんでした。少し待ってから、もう一度お試しください。')
+      return true
+    })
+  }
+  assert.equal(calls.length, 0)
+})
