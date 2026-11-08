@@ -10,7 +10,7 @@ Names in every UI and contract: 「1stアカウント」 (`slot: '1st'`, primary
 | Function | Owner | Public contact |
 | --- | --- | --- |
 | Slot registry: harness × slot → config root, login label, limit state | execution (this doc) | `accounts.list()`, `transport.seatAccount(botId)` |
-| Slot directory preparation (shared history, separate credentials) | execution | inside `accounts.prepare(harness, slot)`; called before login and before a launch |
+| Slot directory preparation (shared history, separate credentials, the 1st root's first-run acknowledgement) | execution | inside `accounts.prepare(harness, slot)`; called before login and before a launch |
 | MCP registration in each slot's `.claude.json` | execution, reusing `mergeMcpConfig` of harness-config | same writer, one more target path per prepared slot |
 | Login per slot | usage (Mika) HarnessAuth → Aiterm `agent_auth` | HarnessAuth `start/input/status/cancel(harness, {slot})` |
 | Limit detection | execution | wait result (trigger) + usage reading (reset time) |
@@ -62,7 +62,7 @@ The execution engine runs in the parent as the server user (`bellteam-server`, u
 
 | Need | Who does it |
 | --- | --- |
-| `prepare` (create the root, chmod 0711, symlinks, managed MCP copy) | seat-user helper, op `prepare` |
+| `prepare` (create the root, chmod 0711, symlinks, managed MCP copy, `hasCompletedOnboarding`/`lastOnboardingVersion` copied from the 1st `.claude.json` when it has them, so a new root's seat does not stop at the first-run "Press Enter to continue" screen; production 2026-11-09 06:46 JST) | seat-user helper, op `prepare` |
 | `label` (the e-mail in `.claude.json`) | seat-user helper, op `label`; cached per slot until `.credentials.json`'s mtime changes (a new login) |
 | usage reading (needs the token) | seat-user helper, op `usage`; returns `[{kind, model, percent, resets_at}]` only |
 | `loggedIn`, `history` | engine `lstat` (needs only traverse permission: the 1st root is 0755, the 2nd chain is 0711) |
