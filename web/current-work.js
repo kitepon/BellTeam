@@ -9,7 +9,7 @@ export function currentWork(value) {
   if (state === 'unknown' ? observedAt !== null && !timestamp(observedAt) : !timestamp(observedAt)) return unknown
   const summarized = source === 'background_agent' && ['working','idle','unknown'].includes(state) || source === 'self_reported' && state === 'working'
   if (summarized && summaryStatus === 'current') {
-    return typeof summary === 'string' && summary.length > 0 && [...summary].length <= 160 && summary === summary.trim()
+    return typeof summary === 'string' && summary.length > 0 && summary === summary.trim()
       && !/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u.test(summary) && timestamp(summaryUpdatedAt) ? value : unknown
   }
   if (summarized && summaryStatus === 'stale') return summary === null && timestamp(summaryUpdatedAt) ? value : unknown

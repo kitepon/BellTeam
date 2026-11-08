@@ -3,16 +3,17 @@ import { objectSchema } from './mcp-schema.mjs'
 const object = properties => objectSchema(properties, Object.keys(properties))
 const date = { type: 'string', format: 'date-time' }
 const nil = { type: 'null' }
-const summary = { type: 'string', minLength: 1, maxLength: 160, pattern: '^(?!\\s)(?!.*\\s$)[^\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029]+$' }
+// No upper bound (Owner 2026-11-09: a summary is never discarded for its length); non-empty, trimmed, one line.
+const summary = { type: 'string', minLength: 1, pattern: '^(?!\\s)(?!.*\\s$)[^\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029]+$' }
 export const currentWorkSchema = { oneOf: ['working', 'idle', 'unknown'].flatMap(state => ['current', 'missing', 'stale'].map(status => object({
   state: { const: state }, summary: status === 'current' ? summary : nil, summaryStatus: { const: status },
   summaryUpdatedAt: status === 'missing' ? nil : date, observedAt: state === 'unknown' ? { anyOf: [date, nil] } : date,
   source: status === 'missing' ? nil : state === 'working' ? { enum: ['self_reported', 'background_agent'] } : { const: 'background_agent' },
 }))) }
 export const currentWorkBindingSchema = object({ sessionId: { type: 'string', minLength: 1 }, launchId: { type: 'string', minLength: 1 }, turnId: { type: 'string', minLength: 1 }, revision: { type: 'string', format: 'uuid' } })
-// The execution writer trims before enforcing the 160-code-point limit.
+// The execution writer trims; the length is not limited.
 export const updateWorkSummaryInputSchema = object({ expected: currentWorkBindingSchema,
-  summary: { anyOf: [{ type: 'string', description: '前後の空白を除き1〜160 Unicode文字。改行・制御文字は不可。' }, nil] } })
+  summary: { anyOf: [{ type: 'string', description: '前後の空白を除き1文字以上。長さの上限なし（目安はメンバーカード2行、全角40字）。改行・制御文字は不可。' }, nil] } })
 export const roomCurrentWorkSchema = object({ scope: { const: 'participants' }, members: { type: 'array', items: object({ botId: { type: 'string', minLength: 1 }, currentWork: currentWorkSchema }) } })
 const validator = new AjvJsonSchemaValidator()
 export const validateCurrentWork = validator.getValidator(currentWorkSchema)

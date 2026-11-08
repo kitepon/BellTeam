@@ -23,8 +23,8 @@ test('generated and legacy summaries retain their sources while unknown sources 
  assert.deepEqual(currentWork(generated),generated)
  assert.deepEqual(currentWork(stale),stale)
  assert.equal(currentWork(legacy).source,'self_reported')
- for(const value of [{...generated,source:'future_agent'},{...stale,summary:'古い本文'},{...generated,summary:'猫'.repeat(161)},{...legacy,state:'idle'},{...generated,summary:'指示\n本文'},{...generated,summary:' '+generated.summary}])assert.equal(currentWork(value).state,'unknown')
- assert.equal(currentWork({...generated,summary:'猫'.repeat(160)}).summary.length,160)
+ for(const value of [{...generated,source:'future_agent'},{...stale,summary:'古い本文'},{...legacy,state:'idle'},{...generated,summary:'指示\n本文'},{...generated,summary:' '+generated.summary}])assert.equal(currentWork(value).state,'unknown')
+ assert.equal(currentWork({...generated,summary:'猫'.repeat(500)}).summary.length,500)
  const summary={},body={}
  const root={querySelector:selector=>selector==='summary'?summary:body}
  const bots=[{id:'a',name:'生成',currentWork:generated},{id:'b',name:'旧自己申告',currentWork:legacy}]
@@ -66,8 +66,8 @@ test('background summary freshness is independent from all three observed execut
 })
 test('missing, inconsistent and malicious fields fail closed without recent or goal fallback',()=>{
  const w=examples.currentWork.workingCurrent
- for(const value of [undefined,null,{}, {...w,state:'idle'},{...w,source:null},{...w,summaryUpdatedAt:null},{...w,summary:'hidden\ntext'},{...w,summary:' '+w.summary},{...w,summary:'a'.repeat(161)},{...w,revision:'private'},{...w,observedAt:'invalid'}])assert.equal(currentWork(value).state,'unknown')
- assert.equal(currentWork({...w,summary:'猫'.repeat(160)}).summary.length,160)
+ for(const value of [undefined,null,{}, {...w,state:'idle'},{...w,source:null},{...w,summaryUpdatedAt:null},{...w,summary:'hidden\ntext'},{...w,summary:' '+w.summary},{...w,revision:'private'},{...w,observedAt:'invalid'}])assert.equal(currentWork(value).state,'unknown')
+ assert.equal(currentWork({...w,summary:'猫'.repeat(500)}).summary.length,500)
 })
 test('Room uses only its participant projection, lists max two named summaries and never infers room work',()=>{
  const bots=['a','b','c','d'].map(id=>({id,name:id,currentWork:examples.currentWork.workingCurrent}))
