@@ -21,9 +21,9 @@ flowchart TD
 
 | 表示 | タイトル・副題と補助表示の出どころ |
 | --- | --- |
-| iPhoneのBotRow | 名前は`displayName`。副題は`CurrentWork.label(currentWork)`（下の現在の仕事） |
+| iPhoneのBotRow | 名前は`displayName`。副題は`CurrentWork.label(currentWork)`（下の現在の仕事）を最大2行（幅80まで全文）で表示。カード外寸は不変（高さ87、アバター57固定）で、文字11.5pt・内側余白11・chevronを名前行へ移す文字配置だけで収める |
 | iPhoneのRoomCard | 名前はname。副題は`recent.preview`、recent無しならpurpose、purpose空なら「チームで話す」。memberIds.countを人数表示 |
-| iPad/MacのBot行 | rowへ`displayName`と`CurrentWork.label(currentWork)`を渡す |
+| iPad/MacのBot行 | `SidebarRowLabel`へ`displayName`と`CurrentWork.label(currentWork)`を渡し、副題を最大2行で表示（Roomは1行のまま）。アバターは従来の1.2倍（iPad 40→48、Mac 48→57.6）。副題11pt。幅80の全文表示はiPad 340・Mac 320以上の列幅で成立し、iPad 230/270は列が狭く切れる |
 | 現在の仕事 | `GET /api/bots`の`currentWork`。working+currentは本人の要約、working+staleは「作業中・要約期限切れ」、他のworkingは「作業中・要約未設定」、idleは「待機中」、unknown・欠落は「仕事状況を未取得」。文言はWebの`workLabel`と同じ。直近発言や予定promptは副題に使わない |
 | iPad/MacのRoom行 | rowへ`name`と`recent.preview ?? purpose`を渡す。purpose空時の固定文は無い |
 | RecentMessage.preview | messageの前後空白・改行を除き、空なら「画像」、本文の改行は半角空白へ置換。副題専用の追加HTTPなし |
