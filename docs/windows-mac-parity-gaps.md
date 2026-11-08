@@ -2,7 +2,7 @@
 
 工程W-MAC。オーナー指示（2026-11-08）：WindowsアプリでMacアプリを完全に再現する。画面・配置・部品・状態の印・操作の流れ・文言をMacと揃え、既存のWPFアプリ（`windows/`）でネイティブに作る。WebViewで包む方式は採らない。OSの違いだけをWindowsの作法に置き換える（⌘→Ctrl、窓の操作ボタン、タイトルバー）。
 
-参照元はPR kitepon/BellTeam#634（head `f4e608fd`）の`ios/`と、Apple担当ベルの確認用写真（FOX `C:\Users\kite_\Developer\mac-reference-20261108\`、83枚）。比較に使う写真は`assets/windows-mac-gaps/`へ写した。Windows側は現行main（`6d48bf3b`）を、Macと同じ`PreviewFixtures`の人工データで、窓を出さずに描いた（`windows/BellTeam.Tests/fixtures/mac-ui-reference.mjs`）。Macの全画面・ライトとダークの写真がそろったら、この一覧を照らし合わせて直す。
+参照元はmain `f62a4286`（PR #634を取り込んだ版）の`ios/`と、Apple担当ベルの確認用写真（FOX `C:\Users\kite_\Developer\mac-reference-20261108\`、83枚）。比較に使う写真は`assets/windows-mac-gaps/`へ写した。Windows側は現行main（`6d48bf3b`）を、Macと同じ`PreviewFixtures`の人工データで、窓を出さずに描いた（`windows/BellTeam.Tests/fixtures/mac-ui-reference.mjs`）。Macの全画面・ライトとダークの写真がそろったら、この一覧を照らし合わせて直す。
 
 規模の目安：S＝半日、M＝1日、L＝2日（実作業。写真の並べ比べを含む）。
 
