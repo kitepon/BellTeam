@@ -59,7 +59,7 @@ test('private preparation is bound to the selected auth slot and forwards only t
   assert.equal(usageEffectValid('auth.prepareAccount', params, { ...context, method: 'onboarding.select' }, params), false)
   assert.equal(usageEffectResultValid('auth.prepareAccount', { configurationRoot: '/synthetic/2nd' }), true)
   assert.equal(usageEffectResultValid('auth.prepareAccount', { configurationRoot: '../unintended' }), false)
-  const services = { accounts: { async prepare(harness, slot) { assert.deepEqual({ harness, slot }, params); return { configurationRoot: '/synthetic/2nd' } } } }
+  const services = { accounts: { async prepare(harness, slot) { assert.deepEqual({ harness, slot }, params); return { configurationRoot: '/synthetic/2nd', history: 'shared' } } } }
   const effect = createUsageParentEffects({ getServices: () => services })
   assert.deepEqual(await effect('auth.prepareAccount', params, context), { configurationRoot: '/synthetic/2nd' })
   delete services.accounts

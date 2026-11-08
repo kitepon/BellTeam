@@ -48,11 +48,13 @@ export function createUsageParentEffects({ getServices, getFeatures, seatRuntime
           await complete(services.backgroundSummary.configure(params.configuration))
         } finally { services.notify?.({ type: 'settings', featureId: 'backgroundAgent' }) }
         break
-      case 'auth.prepareAccount':
+      case 'auth.prepareAccount': {
         if (params.harness !== 'claude' || !['1st', '2nd'].includes(params.slot) || !context.method.startsWith('auth.')) throw usageError('USAGE_EFFECT_INVALID')
         if (!services.accounts?.prepare) throw usageError('HARNESS_AUTH_ACCOUNTS_UNAVAILABLE')
-        result = await complete(services.accounts.prepare(params.harness, params.slot))
+        const prepared = await complete(services.accounts.prepare(params.harness, params.slot))
+        result = { configurationRoot: prepared?.configurationRoot }
         break
+      }
       case 'auth.call': {
         const keys = ['harness', 'action', 'session_id', 'relogin', 'expected_binding', 'expected_prompt_digest', 'response', 'configuration_root']
         const harness = Object.keys(HARNESS).find(key => HARNESS[key] === params.harness)

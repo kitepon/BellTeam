@@ -25,7 +25,7 @@ flowchart LR
 | Existing POST /api/harness-auth/claude/start,input,cancel | same optional query | existing Owner actor boundary and strict binding/prompt_digest/response body unchanged; slot is never inside that body |
 | HarnessAuth status/start/cancel | (harness, options={slot?}); HTTP/facade retains existing context position and appends options | legacy callers keep their signature; standalone class also accepts options in its existing ignored context position |
 | HarnessAuth input | (harness, input, options={slot?}); HTTP/facade appends options after existing context | input checks only selected slot's stored session/receipt; no root from client input |
-| auth.prepareAccount private effect | {harness:claude,slot} -> {configurationRoot:absolute path} | only existing auth root methods, same requested harness/slot; parent accounts.prepare owns paths. Missing accounts gives HARNESS_AUTH_ACCOUNTS_UNAVAILABLE |
+| auth.prepareAccount private effect | {harness:claude,slot} -> {configurationRoot:absolute path} | only existing auth root methods, same requested harness/slot; parent accounts.prepare owns paths and returns {configurationRoot,history}; usage projects only configurationRoot into the private auth effect. Missing accounts gives HARNESS_AUTH_ACCOUNTS_UNAVAILABLE |
 | agent_auth private call | existing arguments + configuration_root for prepared Claude slot | before each action prepare the selected slot; Aiterm E3 owns root validation and same-session root binding. Roots never appear in public response/SSE/log |
 | Claude public snapshot | {harness,slot,account_label,auth} | auth retains its old keys. account_label is native string or null; cancel returns auth:null/label:null. Non-Claude public response stays unchanged |
 
