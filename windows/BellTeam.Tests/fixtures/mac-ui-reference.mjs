@@ -15,13 +15,15 @@ const schedules = {
   planning: [{ id: 'weekly', name: '週のふり返り', prompt: '進んだ仕事をまとめる', kind: 'cron', expression: '0 19 * * 5', timezone: 'Asia/Tokyo', nextRunAt: '2026-10-16T10:00:00Z', enabled: true }]
 }
 const feature = (id, title) => ({ id, title, enabled: true, status: 'enabled', fields: [] })
-const routes = { '/api/session': { authenticated: true, authMode: 'local' }, '/api/bots': { bots: fixture.bots }, '/api/rooms': { rooms: fixture.rooms }, '/api/models': { models }, '/api/owner': { owner: fixture.owner }, '/api/user-rules': { text: 'チーム全員へ共有する指示。' }, '/api/settings': { settings: [feature('routing','AIによるルーム応答の振り分け'),feature('callBridge','メンバー間の連携'),feature('notifications','通知')] }, '/api/queue': { items: Array.from({ length: 12 }, (_, index) => ({ id: `job-${index}`, botId: 'bot-one', botName: 'ユキ', status: 'running', context: 'direct', contextId: 'bot-one' })) } }
+const routes = { '/api/session': { authenticated: true, authMode: 'local' }, '/api/bots': { bots: fixture.bots }, '/api/rooms': { rooms: fixture.rooms }, '/api/models': { models }, '/api/owner': { owner: fixture.owner }, '/api/user-rules': { text: 'チーム全員へ共有する指示。' }, '/api/settings': { settings: [feature('routing','AIによるルーム応答の振り分け'),feature('callBridge','メンバー間の連携'),feature('notifications','通知')], backgroundAgent: { revision: '6f1c1f0e-5d1b-4f43-9a54-0d3a4c2e8b11', selection: { harness: 'codex', model: 'gpt-6.1-sol', reasoningEffort: 'high' } } }, '/api/queue': { items: Array.from({ length: 12 }, (_, index) => ({ id: `job-${index}`, botId: 'bot-one', botName: 'ユキ', status: 'running', context: 'direct', contextId: 'bot-one' })) } }
 routes['/api/updates'] = JSON.parse(readFileSync('windows/BellTeam.Tests/fixtures/update-center.json', 'utf8'))
 let writes = 0
 let gallery = false
 const galleryAssets = { '/api/message-images/demo/one.png': 'ios/BellBot/BellBot/Assets.xcassets/AppIcon.appiconset/bellbot-icon.png', '/api/message-images/demo/two.png': 'docs/assets/mac-ui-reference-48/01-workspace.png' }
 routes['/api/harness-auth'] = { harnesses: [{ id: 'codex', name: 'Codex', members: 2, startWarning: 'Codexは、認証し直しを始めた時点で今の認証が消えます。' }, { id: 'claude', name: 'Claude', members: 1, startWarning: null }] }
 routes['/api/harness-auth/codex'] = { harness: 'codex', auth: { status: 'waiting', url: 'https://example.com/login', user_code: 'TEST-CODE', input_required: false, message: '公式サイトで認証してください。' } }
+routes['/api/harness-auth/claude'] = { harness: 'claude', auth: { status: 'authenticated', input_required: false } }
+routes['/api/ai-control'] = { control: { paused: false, state: 'enabled', updatedAt: null, unconfirmedBotIds: [], commandsConfirmed: null, error: null } }
 routes['/api/setup'] = { phase: 'select_harness', harness: null, harnesses: [{ id: 'codex', name: 'Codex' }, { id: 'claude', name: 'Claude' }, { id: 'grok', name: 'Grok' }, { id: 'cursor', name: 'Cursor' }], guideBotId: null, complete: false, auth: null }
 const server = createServer((request, response) => {
   if (request.method !== 'GET') { writes++; response.writeHead(405); response.end(); return }
@@ -45,12 +47,15 @@ server.listen(0, '127.0.0.1', async () => {
       ['04-settings.png', ['--render-page', 'settings', origin]],
       ['05-setup.png', ['--render-editor', 'setup', origin, '-']],
       ['06-authentication.png', ['--render-editor', 'authentication', origin, 'codex']],
-      ['07-settings-cloudflare.png', ['--render-page', 'settings', origin]],
+      ['07-settings-cloudflare.png', ['--render-page', 'settings-connection', origin]],
       ['08-settings-lower.png', ['--render-page', 'settings-lower', origin]],
       ['09-gallery.png', ['--render-gallery', origin, 'bot-one']]
     ]
-    if (process.argv[4] && !['gallery', 'updates'].includes(process.argv[4])) throw new Error('WINDOWS_RENDER_SCENE_UNKNOWN')
-    const selectedFrames = process.argv[4] === 'gallery' ? frames.filter(([name]) => name === '09-gallery.png') : process.argv[4] === 'updates' ? [['update.png', ['--render-page', 'updates', origin]], ['update-narrow.png', ['--render-page', 'updates-narrow', origin]], ['update-detail-narrow.png', ['--render-page', 'updates-detail-narrow', origin]]] : frames
+    const settingsPages = ['profile', 'ai', 'features', 'notifications', 'connection', 'display', 'billing', 'update', 'about', 'stop']
+    if (process.argv[4] && !['gallery', 'updates', 'settings', 'summary'].includes(process.argv[4])) throw new Error('WINDOWS_RENDER_SCENE_UNKNOWN')
+    // Same three summaries as ios/BellBot/BellBotTests/SummaryLayoutTests.swift.
+    if (process.argv[4] === 'summary') ['認証まわりの再試行処理を見直し、通知の表示崩れと画像の読み込み失敗も合わせて直す', 'ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴ', 'abcdefghij'.repeat(8)].forEach((summary, index) => { if (fixture.bots[index]) fixture.bots[index].currentWork = { state: 'working', summary, summaryStatus: 'current' } })
+    const selectedFrames = process.argv[4] === 'summary' ? [['summary.png', ['--render-url', origin, 'bot-one']]] : process.argv[4] === 'settings' ? settingsPages.map(page => [`settings-${page}.png`, ['--render-page', `settings-${page}`, origin]]) : process.argv[4] === 'gallery' ? frames.filter(([name]) => name === '09-gallery.png') : process.argv[4] === 'updates' ? [['update.png', ['--render-page', 'updates', origin]], ['update-narrow.png', ['--render-page', 'updates-narrow', origin]], ['update-detail-narrow.png', ['--render-page', 'updates-detail-narrow', origin]]] : frames
     for (const [name, args] of selectedFrames) {
       if (name === '07-settings-cloudflare.png') routes['/api/session'].authMode = 'cloudflare'
       if (name === '09-gallery.png') gallery = true

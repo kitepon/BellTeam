@@ -91,6 +91,8 @@ Mac：[48の詳細パネル](assets/mac-ui-reference-48/01-workspace.png)／Wind
 
 ## 8. 設定 — L（作り直し）
 
+対応済み（PR 2）：Windowsの全10ページ（`assets/windows-mac-gaps/windows/pr2-settings-*.png`）。一覧の行の要約はMacと同じ3種類の文で、幅320と340で2行に収まることを確かめた（`pr2-summary-rows-320.png`・`pr2-summary-rows-340.png`）。AIの認証の行を押すと、今は従来の認証の窓を開く。ページ上部にMacの題名の帯は無い。「利用と課金」の説明は、Windowsに購入が無いため「料金と、サーバーとAIの契約」とした。利用規約のリンクは、自前の規約URLが無いため置いていない。
+
 | Mac | Windows |
 | --- | --- |
 | [プロフィール](assets/windows-mac-gaps/mac/mac-profile-after.png)・[AI](assets/windows-mac-gaps/mac/mac-ai-after.png)・[追加機能](assets/windows-mac-gaps/mac/mac-features-after.png)・[通知](assets/windows-mac-gaps/mac/mac-notifications-after.png)・[接続](assets/windows-mac-gaps/mac/mac-connection-after.png)・[表示](assets/windows-mac-gaps/mac/mac-display-after.png)・[課金](assets/windows-mac-gaps/mac/mac-billing-after.png)・[Update](assets/windows-mac-gaps/mac/mac-update-after.png)・[このアプリ](assets/windows-mac-gaps/mac/mac-about-after.png)・[全体停止](assets/windows-mac-gaps/mac/mac-stop-after.png) | [上部](assets/windows-mac-gaps/windows/04-settings.png)・[下部](assets/windows-mac-gaps/windows/08-settings-lower.png) |

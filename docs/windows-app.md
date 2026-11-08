@@ -88,6 +88,8 @@ dotnet publish windows/BellTeam.App/BellTeam.App.csproj -c Release -r win-x64 --
 
 `--render-editor <member|room|new-room|settings|profile|feature|schedules|new-schedule> <URL> <ID> <PNG>`は編集画面を表示せずPNGへ描く。GETだけを使う模擬サーバーでも確認できる。
 
+`--render-page settings-<profile|ai|features|notifications|connection|display|billing|update|about|stop> <URL> <PNG>`は設定の各ページを主窓の中の配置で描く。`mac-ui-reference.mjs`の`settings`場面が10ページ分を`settings-<ページ>.png`へ出す。
+
 `--render-preview`は人工データ、`--render-url`は実サーバーの読み取り結果を使う。画像とsmoke結果には会話・プロフィールが含まれ得るため、生成物はgit管理外とする。`--configure <URL>`は窓を出さず、このPCの接続先だけを保存する導入用の入口。
 
 画像の読み込みにはWindows標準の`Windows.Graphics.Imaging.BitmapDecoder`を使い、WPFへ描く。SDKの参照はWindowsの版を付けたTargetFrameworkから.NETが取得する。追加のWindows App SDK runtimeは使わない。`--render-preview`は画像とカードを含む人工データを1280×1200で描く。

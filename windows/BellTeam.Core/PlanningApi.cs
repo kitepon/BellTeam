@@ -24,6 +24,11 @@ public sealed class PlanningApi(BellApi api)
         => api.WriteAsync<ScheduleResponse>(id is null ? HttpMethod.Post : HttpMethod.Put, target.Path + "/schedules" + (id is null ? "" : "/" + Uri.EscapeDataString(id)), body, token);
     public Task DeleteScheduleAsync(ScheduledEntry entry, CancellationToken token = default) => api.DeleteAsync(entry.Path, token);
     public Task<JsonElement> RunScheduleAsync(ScheduledEntry entry, CancellationToken token = default) => api.PostAsync<JsonElement>(entry.Path + "/run", new { }, token);
+    public async Task<BackgroundAgentRecord?> BackgroundAgentAsync(CancellationToken token = default) => BackgroundAgentRecord.Read(await api.GetAsync<JsonElement>("/api/settings", token));
+    public async Task<BackgroundAgentRecord> SaveBackgroundAgentAsync(BackgroundAgentRecord current, BackgroundAgentSelection draft, CancellationToken token = default)
+        => (await api.WriteAsync<BackgroundAgentResponse>(HttpMethod.Patch, "/api/settings/backgroundAgent", current.UpdateBody(draft), token)).BackgroundAgent;
+    public Task<AiControlResponse> AiControlAsync(CancellationToken token = default) => api.GetAsync<AiControlResponse>("/api/ai-control", token);
+    public Task<AiControlResponse> SetAiControlAsync(bool paused, CancellationToken token = default) => api.WriteAsync<AiControlResponse>(HttpMethod.Patch, "/api/ai-control", AiControl.Body(paused), token);
     public Task<OwnerResponse> OwnerAsync(CancellationToken token = default) => api.GetAsync<OwnerResponse>("/api/owner", token);
     public Task<OwnerResponse> SaveOwnerAsync(Dictionary<string, object?> changes, CancellationToken token = default) => api.WriteAsync<OwnerResponse>(HttpMethod.Patch, "/api/owner", changes, token);
     public Task<UserRulesResponse> RulesAsync(CancellationToken token = default) => api.GetAsync<UserRulesResponse>("/api/user-rules", token);

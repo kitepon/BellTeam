@@ -8,6 +8,7 @@ public sealed record LocalSettings
     public string? ServerUrl { get; init; }
     public WindowPlacement? Window { get; init; }
     public bool NotificationsEnabled { get; init; }
+    public ConversationOpening ConversationOpening { get; init; } = ConversationOpening.Rise;
     public UpdateRequest[] UpdateRequests { get; init; } = [];
     public UpdateNotificationSeen[] UpdateNotifications { get; init; } = [];
 }

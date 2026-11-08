@@ -17,14 +17,16 @@ public sealed class AvatarPicker : StackPanel
     private readonly TextBlock status = new() { TextWrapping = TextWrapping.Wrap, FontSize = 14 };
     private readonly Func<byte[], Task<BitmapSource>> decode;
     public string Value { get; private set; }
-    public AvatarPicker(string value, Func<byte[], Task<BitmapSource>>? decode = null, string name = "B", string color = "violet", bool isRoom = false, bool compact = false)
+    public AvatarPicker(string value, Func<byte[], Task<BitmapSource>>? decode = null, string name = "B", string color = "violet", bool isRoom = false, bool compact = false, bool quiet = false)
     {
+        // quiet: the Mac settings look (74pt portrait, small text-only 写真を変更).
+        var size = quiet ? 74 : 80; image.Width = image.Height = size;
         this.decode = decode ?? ImageCodec.DecodeAsync;
         Value = value;
         placeholder = isRoom ? new System.Windows.Shapes.Path { Data = AvatarTile.CreateRoomSymbol(), Fill = Brushes.White, Stretch = Stretch.Uniform, Width = 50, Height = 50, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
             : new TextBlock { Text = name.Length == 0 ? "B" : System.Globalization.StringInfo.GetNextTextElement(name), FontSize = 34, FontWeight = FontWeights.Bold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-        var portrait = new Grid { Width = 80, Height = 80, Clip = new RectangleGeometry(new Rect(0, 0, 80, 80), 24, 24) }; portrait.Children.Add(placeholder); portrait.Children.Add(image);
-        Children.Add(new Border { Child = portrait, Background = new SolidColorBrush(BellColors.Accent(color)), CornerRadius = new CornerRadius(24), HorizontalAlignment = HorizontalAlignment.Center }); Children.Add(status);
+        var portrait = new Grid { Width = size, Height = size, Clip = new RectangleGeometry(new Rect(0, 0, size, size), size * .31, size * .31) }; portrait.Children.Add(placeholder); portrait.Children.Add(image);
+        Children.Add(new Border { Child = portrait, Background = new SolidColorBrush(BellColors.Accent(color)), CornerRadius = new CornerRadius(size * .31), HorizontalAlignment = HorizontalAlignment.Center }); Children.Add(status);
         var choose = new Button { Content = "写真を変更", HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 10, 0, 2) };
         choose.Click += async (_, _) =>
         {
@@ -41,6 +43,9 @@ public sealed class AvatarPicker : StackPanel
         var remove = new Button { Content = "写真を取り外す", HorizontalAlignment = HorizontalAlignment.Center, FontSize = 12 };
         remove.SetResourceReference(StyleProperty, "QuietButton");
         remove.Click += (_, _) => { Value = ""; image.Source = null; placeholder.Visibility = Visibility.Visible; status.Text = "保存すると写真を取り外します。"; };
+        if (quiet) { choose.SetResourceReference(StyleProperty, "QuietButton"); choose.FontSize = 12; choose.Padding = new Thickness(6, 2, 6, 2); choose.Margin = new Thickness(0, 6, 0, 0); }
+        if (quiet) { var hideEmpty = new Style(typeof(TextBlock)); hideEmpty.Triggers.Add(new Trigger { Property = TextBlock.TextProperty, Value = "", Setters = { new Setter(VisibilityProperty, Visibility.Collapsed) } }); status.Style = hideEmpty; }
+        if (quiet) { remove.Padding = new Thickness(6, 1, 6, 1); remove.Margin = new Thickness(0, 0, 0, 2); remove.FontWeight = FontWeights.Normal; remove.Foreground = Brushes.SlateGray; }
         Children.Add(choose); Children.Add(remove);
         if (compact)
         {
