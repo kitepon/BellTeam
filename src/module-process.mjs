@@ -26,12 +26,12 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
   exportHandoff = async () => undefined, admission, canContinue = () => false,
   onGeneration = () => {}, onState = () => {}, onModuleChildExit, onModuleRestartLimit, probeCandidate, investigationsFile = null,
   startPaused = false, restoreAfterRestart = async () => {}, exchangeMutex = null, spawnProcess = spawn }) {
-  if (!['conversation', 'usage', 'diagnostics'].includes(component) || typeof root !== 'string'
+  if (!['conversation', 'usage', 'diagnostics', 'work-graph'].includes(component) || typeof root !== 'string'
     || typeof createChannel !== 'function' || typeof prepareRelease !== 'function' || typeof validateReady !== 'function'
     || component !== 'diagnostics' && investigationsFile !== null
     || startPaused && component !== 'usage'
     || investigationsFile !== null && typeof investigationsFile !== 'string') throw failure('MODULE_OPTIONS_INVALID', 400)
-  const prefix = component.toUpperCase(), adoptionPath = join(root, `state/${component}-release.json`)
+  const prefix = component.toUpperCase().replaceAll('-', '_'), adoptionPath = join(root, `state/${component}-release.json`)
   const fail = (suffix, status) => failure(`${prefix}_${suffix}`, status)
   let instance = null, currentVersionId = null, previousVersionId = null, generation = null
   let initialized = false, closed = false, available = false, phase = 'unavailable', exchanging = false
@@ -212,7 +212,8 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     try {
       markStage('channel')
       target.channel = createChannel(child, { generation: nextGeneration })
-      if (component !== 'diagnostics' && typeof target.channel.drainIncoming !== 'function') throw fail('CHANNEL_INVALID')
+      // work-graph effects run only inside its root calls, which waitActive already drains.
+      if (!['diagnostics', 'work-graph'].includes(component) && typeof target.channel.drainIncoming !== 'function') throw fail('CHANNEL_INVALID')
       markStage('initialize')
       const params = await initializeParams({ generation: nextGeneration, mode, handoff })
       const initializing = target.channel.control('initialize', params, 45000)

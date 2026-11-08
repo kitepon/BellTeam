@@ -27,6 +27,7 @@ export const updateComponents = [
   ['usage', '利用設定', '設定、公式認証の案内、質問と秘密入力を扱います。'],
   ['memory', '記憶と知識', '出来事と、再利用する知識を保存して探します。'],
   ['diagnostics', '診断', '機能が報告した問題を集め、調査用に記録します。'],
+  ['work-graph', '相関図', '作業中のメンバーとBot間の依頼を、図のデータにして届けます。'],
 ]
 
 // Z-b2 slice D: runtime rows reach only readers that opt in with runtime=1 (docs/architecture/modules/runtime/runtime-updates.md).

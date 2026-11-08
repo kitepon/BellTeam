@@ -30,6 +30,7 @@ on:
       - scripts/module-start.c
       - scripts/usage-start.c
       - scripts/diagnostics-start.c
+      - scripts/work-graph-start.c
       - scripts/server-start.c
       - scripts/install-sce-headers.py
       - compose.cursor-update.yaml

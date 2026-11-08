@@ -2,7 +2,7 @@ import { fstatSync, lstatSync, readFileSync } from 'node:fs'
 
 export function verifyModuleLocks(component) {
   const fail = () => { throw new Error('MODULE_LOCK_INVALID') }
-  if (!['usage', 'diagnostics'].includes(component) || !process.connected
+  if (!['usage', 'diagnostics', 'work-graph'].includes(component) || !process.connected
     || [process.getuid(), process.geteuid(), process.getgid(), process.getegid()].some(id => id !== 1001)) fail()
   const shared = fstatSync(4), writer = fstatSync(5)
   const root = lstatSync('/run/bellteam-maintenance'), lock = lstatSync(`/srv/bellteam/state/${component}.lock`)

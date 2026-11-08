@@ -181,13 +181,13 @@ def validate_catalog(value, *, now=None):
         exact(release, 'componentId,sourceCommit,versionId,platform,artifact,compatibility,changes')
         component = release['componentId']
         # Runtime rows never appear here (released readers reject unknown IDs); they live in runtime-catalog.json.
-        require(component in ['container', 'web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics', 'execution', 'conversation'])
+        require(component in ['container', 'web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics', 'execution', 'conversation', 'work-graph'])
         require(hexadecimal(release['sourceCommit'], 40))
         platform = release['platform']; exact(platform, 'os,arch')
         require(platform['os'] == 'linux' and platform['arch'] in ['amd64', 'arm64'])
         key = component, platform['arch']; require(key not in seen); seen.add(key)
         compatibility = release['compatibility']
-        if component in ('usage', 'diagnostics', 'execution'):
+        if component in ('usage', 'diagnostics', 'execution', 'work-graph'):
             validate_business_compatibility(component, compatibility)
         elif component == 'notifications':
             validate_notifications_compatibility(compatibility)

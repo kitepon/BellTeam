@@ -1,10 +1,10 @@
-const components = ['usage', 'diagnostics', 'conversation']
+const components = ['usage', 'diagnostics', 'conversation', 'work-graph']
 const stages = ['spawn', 'channel', 'initialize', 'ready', 'adoption', 'resume']
 const rollbackStages = ['candidate_cleanup', 'prepare', ...stages]
 const systemCodes = ['ENOENT', 'EACCES', 'EPERM', 'EIO', 'ENOSPC', 'EROFS', 'EMFILE', 'ENFILE', 'EEXIST', 'EINVAL', 'ERR_MODULE_NOT_FOUND', 'ERR_REQUIRE_ASYNC_MODULE']
 const suffixes = ['NOT_ACCEPTING', 'CLOSED', 'DRAIN_REQUIRED', 'CHANNEL_INVALID', 'READY_TIMEOUT', 'READY_INVALID', 'RESUME_FAILED', 'STATE_INCOMPATIBLE', 'CHILD_EXITED', 'IPC_DISCONNECTED', 'IPC_INVALID', 'IPC_TIMEOUT', 'IPC_ACK_TIMEOUT', 'IPC_SEND_FAILED', 'OPERATION_FAILED']
 const codeValid = (component, code) => code === null || typeof code === 'string'
-  && (systemCodes.includes(code) || suffixes.some(suffix => code === `${component.toUpperCase()}_${suffix}`))
+  && (systemCodes.includes(code) || suffixes.some(suffix => code === `${component.toUpperCase().replaceAll('-', '_')}_${suffix}`))
 const safeCode = (component, error) => {
   try { const code = error?.code; return codeValid(component, code) ? code : null } catch { return null }
 }
