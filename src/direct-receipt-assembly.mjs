@@ -34,7 +34,7 @@ export function directFailureReport(error, context) {
 // Durable receive is independent of AI admission; only saved new IDs reach execution.
 export function createDirectReceiptAssembly({ root, bots, assets, legacy, conversation, transport, aiControl,
   exchangeMutex, executionReady = () => true, onMessage, onTurnEnd, onError = error => console.error(error) }) {
-  let started = false, closed = false, requested = false, draining = null
+  let started = false, closed = false, requested = false, draining = null, unwatchQueue = null
   const completions = new Set(), drains = new Set()
   const report = (error, context) => { try { Promise.resolve(onError(error, context)).catch(console.error) } catch (failure) { console.error(failure) } }
   const ready = () => !closed && !aiControl.paused && executionReady()
@@ -52,6 +52,16 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
       drains.add(lanes)
       lanes.finally(() => drains.delete(lanes))
     }).catch(report).finally(() => { draining = null; if (requested) requestDrain() })
+  }
+  const queueChanged = change => {
+    if (closed || !Array.isArray(change?.botIds)) return
+    for (const botId of change.botIds) {
+      try {
+        if (transport.isIdle(botId)) { requestDrain(); return }
+      } catch (error) {
+        if (error?.code !== 'EXECUTION_NOT_ACCEPTING') report(error)
+      }
+    }
   }
   const dispatch = async ({ record, images, queue, callbacks, executionSource }) => {
     let invoked = false, reported = false
@@ -130,7 +140,12 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
   }
   const unwatch = aiControl.watch(state => { if (!state.paused && state.state === 'enabled') requestDrain() })
   return { receipts, messenger, requestDrain,
-    start() { if (!started && !closed) { started = true; requestDrain() } },
-    async close() { closed = true; unwatch(); await draining; await Promise.allSettled([...drains]); await Promise.allSettled([...completions]); await receipts.appendQueue },
+    start() { if (!started && !closed) { started = true; unwatchQueue = transport.watchQueue(queueChanged); requestDrain() } },
+    async close() {
+      closed = true
+      unwatch()
+      try { unwatchQueue?.() } catch (error) { report(error) }
+      await draining; await Promise.allSettled([...drains]); await Promise.allSettled([...completions]); await receipts.appendQueue
+    },
   }
 }

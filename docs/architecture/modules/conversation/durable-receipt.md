@@ -8,9 +8,9 @@ Root公開契約2026-11-06、親接続Molly・実入力Kiro・ready Epi。会話
 | --- | --- | --- |
 | DurableMessageReceipts（親に一実体） | 認証済入口のfrom/target/message/images→同配送IDの既direct-message、delivery=queued。user宛はdelivered。既Store/Assets/Writerを使用 | fresh送信者/宛先・入力・認可・添付保存は維持。AI/子admissionを受領条件にしない。fsync成功前は受領0 |
 | 同実体append | 全直接記録を同Writerのqueueへ直列化。子はdirect.log.append effectで同窓口へ、Roomは既writer | 子effectは既世代/authority/実終端検査を保持。新旧子のwriterは作らない |
-| pending / dispatchSaved / drain / drainTarget | durable受領済queuedだけ列挙、同ID dispatchingを保存後Kiro dispatchへ一回渡す。drainは宛先ごとのlane（drainTarget）を並行に起こし、lane内は保存順に直列で、laneが終わるまで同宛先の新規queuedを拾い続ける | 1宛先の受付待ち/失敗は他宛先の投入を遅らせない。dispatching/unknown/running等は原則再入力0。明示top-level effect=not_startedは従来どおりqueued。加えて、failed callbackを記録した同一dispatchで、未acceptanceのまま型付きterminal `EXECUTION_STALE_GENERATION` / `effect=not_started` が返った時だけ同IDをqueuedへ戻し、durable write後にonPendingを一回通知する。ほかのfailed callbackは既存の型付きnot_started規則を維持する。保存失敗ならnative0 |
-| Kiro dispatch注入 | {record,images,queue,callbacks}→既queue実receipt。queue.groupId=元delivery_id | 実入力とbusy/旧unknown/claimはKiro所有。全自由例外は保存せず状態だけ |
-| Epi通常ready / 初回受領onPending | pending drainを起動 | timer/常駐/AI巡回0。通常イベント接続は親が実施 |
+| pending / dispatchSaved / drain / drainTarget | durable受領済queuedだけ列挙、同ID dispatchingを保存後Kiro dispatchへ一回渡す。drainは宛先ごとのlane（drainTarget）を並行に起こし、lane内は保存順に直列で、laneが終わるまで同宛先の新規queuedを拾い続ける | 1宛先の受付待ち/失敗は他宛先の投入を遅らせない。dispatching/unknown/running等は原則再入力0。明示top-level effect=not_startedは従来どおりqueued。加えて、failed callbackを記録した同一dispatchで未acceptanceのまま型付きterminal `EXECUTION_STALE_GENERATION` / `effect=not_started` が返った時だけ同IDをqueuedへ戻す。ここではonPendingを呼ばず、SeatActivityのidle release eventまで待つ。保存失敗ならnative0 |
+| Stable BODY transport queue watcher | stable facadeのwatchQueueでrelease/endWatch change.botIdsを受け、各BotのisIdleを読む。idle=trueなら通常requestDrainを一度起動 | busy queue eventは無視。`EXECUTION_NOT_ACCEPTING`はskip（generation running eventが再起床させる）。他エラーはreportしてpublisherへ投げ返さない |
+| Epi通常ready / 初回受領onPending | pending drainを起動 | timer/常駐/AI巡回0。stale requeueも独自loopを持たず、queue release/ready eventを使う |
 
 ## データフロー図
 
@@ -24,8 +24,8 @@ Root公開契約2026-11-06、親接続Molly・実入力Kiro・ready Epi。会話
 | Function | Input → output / state | Failure boundary |
 | --- | --- | --- |
 | `runSaved` terminal classification | Parent-wrapped invocation error plus its preserved typed `executionError` frame and latest same-ID durable status → after an `onStatus('failed')` callback, if no acceptance was observed and the exact frame is `EXECUTION_STALE_GENERATION` with `effect=not_started`, persist `queued` for the same ID | Parse the closed typed frame once and reuse it for the existing saved-`failed` rule. Top-level `effect=unknown` alone is not proof. A stale terminal without the failed callback remains on the old unknown path; generic BUSY/not_started plus failed callback remains failed. Invalid frames and other effects keep the existing policy. Accepted/delivered callback states are not requeued. Historical unknown rows have no dispatch attempt/frame to classify and stay unknown. |
-| `onPending` → existing drain request | After the queued status append succeeds, issue one `onPending(deliveryId)` notification through the existing reporting wrapper | Do not notify before durable persistence. This is not a loop and adds no timer, poll, or recovery API. |
-| Existing ready → target lane | The existing nonblocking request waits for `exchangeMutex` idle, checks fresh execution/AI readiness, then `drain()` claims the queued original ID in its normal target lane | Same target ordering and saved envelope/assets remain in force. No child-restore writer or new transport lookup is added. |
+| `SeatActivity.release/endWatch` → stable BODY watcher | Once the seat removes its active job/watch, the public `transport.watchQueue` reports the affected Bot ID. The watcher checks `transport.isIdle(botId)` and requests a drain only when true. | An earlier busy queue event does not trigger a retry. `EXECUTION_NOT_ACCEPTING` is skipped; the existing running/available state edge provides another readiness request. Other watcher errors are reported without escaping into the queue publisher. |
+| Existing exchange-idle → target lane | The ordinary request waits for `exchangeMutex` idle, checks fresh execution/AI readiness, then `drain()` claims the queued original ID in its normal target lane | Same target ordering and saved envelope/assets remain in force. Do not invoke `onPending` from this stale branch: that would spin while the old generation still occupies the Bot. No child-restore writer, per-Bot API, timer or new transport lookup is added. |
 
 ```mermaid
 flowchart LR
@@ -34,8 +34,9 @@ flowchart LR
   Failure --> Typed{Exact typed terminal stale-generation / not_started?}
   Typed -->|No| Existing[Existing failure policy]
   Typed -->|Yes; latest failed and no acceptance| Queued[Persist same ID as queued]
-  Queued --> Pending[onPending once]
-  Pending --> Ready[Existing exchange-idle and ready request]
+  Queued --> Release[SeatActivity release/endWatch emits stable queue change]
+  Release --> Idle[watchQueue checks isIdle for changed Bot]
+  Idle -->|idle| Ready[Existing exchange-idle and ready request]
   Ready --> Lane[Normal same-ID target lane]
   Lane --> Dispatch[Ordinary saved dispatch]
   OldUnknown[Historical unknown without proof] --> Retain[Retain; no automatic replay]

@@ -226,7 +226,7 @@ test('direct first failure reaches registered diagnostics with bound safe fields
 
 test('a target whose acceptance is pending does not delay a later saved input for another target', async t => {
   const holds = new Map(), notified = []
-  const f = await fixture(t, { createTransport: ({ membersAdmission }) => ({ membersAdmission, async close() {},
+  const f = await fixture(t, { createTransport: ({ membersAdmission }) => ({ membersAdmission, isIdle: () => false, watchQueue: () => () => {}, async close() {},
     async notify(bot, _envelope, options) {
       notified.push(bot.id)
       if (bot.id === 'bot-quincy') await new Promise(resolve => holds.set(bot.id, resolve))

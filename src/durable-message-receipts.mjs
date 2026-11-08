@@ -158,7 +158,6 @@ export class DurableMessageReceipts extends BellTeamMessenger {
       const delivery = staleTerminal ? 'queued' : !observed && error?.effect === 'not_started' ? 'queued'
         : unsent || (observed && saved !== 'dispatching') ? saved : 'unknown'
       if (latest?.delivery !== delivery) await this.appendDeliveryStatus(deliveryId, delivery)
-      if (staleTerminal) this.report(() => this.onPending(deliveryId))
       if (delivery !== 'queued') this.executionSources.delete(deliveryId)
       return { delivery_id: deliveryId, delivery, dispatched: false }
     }
