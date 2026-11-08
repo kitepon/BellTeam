@@ -153,10 +153,11 @@ function messageItem(record, direction) {
 }
 
 // 合間の言葉はBotの発言と同じ吹き出しで出す。ラベルは付けない。
+// 通知で始まったターンの最終回答（kind=answer）は、開始元に関係なくOwnerへの返信として出す。
 function interimItem(record) {
   return {
     id: record.id,
-    kind: 'interim',
+    kind: record.kind === 'answer' ? 'message' : 'interim',
     direction: 'incoming',
     at: record.at,
     message: record.text,
