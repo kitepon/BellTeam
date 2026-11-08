@@ -13,7 +13,7 @@ async function fixture(t, options = {}) {
   t.after(() => rm(root, { recursive: true, force: true }))
   let clock = 1_000_000, timer = null
   const released = [], path = join(root, 'execution-update-hold.json')
-  const hold = new UpdateHold({ path, now: () => clock, sleep: async ms => { clock += ms },
+  const hold = new UpdateHold({ path, now: () => clock,
     setTimer: (callback, ms) => (timer = { callback, ms }), clearTimer: () => { timer = null }, ...options })
   hold.watch(event => released.push(event))
   return { hold, path, released, read: async () => JSON.parse(await readFile(path, 'utf8')),
@@ -36,7 +36,7 @@ test('drained quiesce saves the hold and answer first, refuses input as not_star
   assert.deepEqual(f.released, [{ released: true, reason: 'expired' }])
 })
 
-test('deadline with a running delivery records it as interrupted before answering', async t => {
+test('a running delivery is recorded as interrupted and answered at once, without waiting', async t => {
   const running = [{ id: 'job', botId: 'bot-a', groupId: 'delivery-a', status: 'running', startedAt: 'T' }, { botId: 'bot-b', status: 'failed' }]
   const f = await fixture(t, { active: () => running })
   assert.deepEqual(await f.hold.quiesce({ requestId: 'r2', deadline: f.clock + 1_000 }), { result: 'deadline' })

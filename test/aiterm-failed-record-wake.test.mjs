@@ -101,47 +101,87 @@ test('起こした席でも上限まで断られたら、起こし直さずそ�
   assert.equal(calls.filter(([name]) => name === 'agent_launch').length, 1)
 })
 
-test('元から居る席が入力受付の確認に通らない時は、閉じて起こし直してから同じ文を届ける', async t => {
+// pty_sendの返りを順に指定する偽Aiterm。文字列は断りの本文、nullは受理、'untracked'は追う手がかりの無い受理。
+function scripted({ sends, observed = observation('idle_timeout') }) {
+  const calls = []
+  const classifier = new AitermClient()
+  const client = { call: (name, args) => classifier.call(name, args) }
+  classifier.client = { async callTool({ name, arguments: args }) {
+    calls.push([name, args])
+    if (name === 'pty_send') {
+      const next = sends.length ? sends.shift() : null
+      if (typeof next === 'string' && next !== 'untracked') return { isError: true, content: [{ type: 'text', text: next }] }
+      return { structuredContent: next === 'untracked' ? { mode: 'agent_dispatch' }
+        : { mode: 'agent_dispatch', event_cursor: 1, wait_process: { executable: '/node', args: ['wait'] } } }
+    }
+    if (name === 'pty_observe') return { structuredContent: observed }
+    if (name === 'pty_close') return { content: [{ type: 'text', text: 'closed' }] }
+    if (name === 'agent_launch') return { structuredContent: { session_id: 'bot-a' } }
+    if (name === 'pty_read') return { structuredContent: { schema: 'aiterm.pty-read-result.v1', mode: 'agent_transcript', text: '了解' } }
+    throw new Error(`unexpected tool: ${name}`)
+  } }
+  return { client, calls }
+}
+
+async function deliver(t, script, harness = 'codex') {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-failed-record-'))
   t.after(() => rm(root, { recursive: true, force: true }))
-  const { client, calls } = seatClient('idle_timeout', undefined, { firstError: notReady })
+  const { client, calls } = scripted(script)
   const transport = new AitermTransport({ client, handoffContext: async () => '', waitProcess: async () => ({ outcome: 'done' }) })
-  const bot = { id: 'bot-a', session: 'bot-a', harness: 'codex', project: root }
   t.mock.method(process.stderr, 'write', () => true)
-
-  await transport.turn(bot, '再現用の本文')
-
-  assert.deepEqual(calls.map(([name]) => name), ['pty_send', 'pty_observe', 'pty_close', 'agent_launch', 'pty_send', 'pty_read'])
-})
+  const delivered = transport.turn({ id: 'bot-a', session: 'bot-a', harness, project: root }, '再現用の本文')
+  return { delivered, calls, names: () => calls.map(([name]) => name) }
+}
 
 // 2026-11-08 本体入れ替え：端末は消えたがAitermが前の起動記録を残し、Claude席への送信が型の無い文で断られ続けた。
 const replacedNative = 'aiterm: AGENT_RESUME_UNCONFIRMED: 作成したnative端末が置き換わっています。'
 const absent = { schema: 'aiterm.pty-observe-result.v1', session_id: 'bot-a', exists: false, harness: null, launch_id: null, state: 'missing', reason: 'session_missing' }
 
-test('端末が無い席は、断りの型や文言によらず、残った記録を閉じて起こしてから届ける', async t => {
-  const root = await mkdtemp(join(tmpdir(), 'bellteam-failed-record-'))
-  t.after(() => rm(root, { recursive: true, force: true }))
-  const { client, calls } = seatClient('idle_timeout', undefined, { firstError: replacedNative, observed: absent })
-  const transport = new AitermTransport({ client, handoffContext: async () => '', waitProcess: async () => ({ outcome: 'done' }) })
-  const bot = { id: 'bot-a', session: 'bot-a', harness: 'claude', project: root }
-  t.mock.method(process.stderr, 'write', () => true)
-
-  await transport.turn(bot, '再現用の本文')
-
-  assert.deepEqual(calls.map(([name]) => name), ['pty_send', 'pty_observe', 'pty_close', 'agent_launch', 'pty_send', 'pty_read'])
+test('元から居る席が入力受付の確認に通らない時は、まず同じ端末へ送り直す', async t => {
+  const run = await deliver(t, { sends: [notReady, null] })
+  await run.delivered
+  assert.deepEqual(run.names(), ['pty_send', 'pty_observe', 'pty_send', 'pty_read'])
 })
 
-for (const [label, firstError, observed] of [
-  ['動いているターンがある席', notReady, observation('agent_busy', 'busy')],
-  ['端末があり未送信の明示が無い断り', replacedNative, observation('idle_timeout')],
-]) test(`${label}は閉じずに元の失敗を返す`, async t => {
-  const root = await mkdtemp(join(tmpdir(), 'bellteam-failed-record-'))
-  t.after(() => rm(root, { recursive: true, force: true }))
-  const { client, calls } = seatClient('idle_timeout', undefined, { firstError, observed })
-  const transport = new AitermTransport({ client, handoffContext: async () => '', waitProcess: async () => ({ outcome: 'done' }) })
-  const bot = { id: 'bot-a', session: 'bot-a', harness: 'codex', project: root }
+test('送り直しても入力を受けない動いていない席は、閉じて起こしてから届ける', async t => {
+  const run = await deliver(t, { sends: [notReady, notReady, notReady, notReady, null] })
+  await run.delivered
+  assert.deepEqual(run.names(), ['pty_send', 'pty_observe', 'pty_send', 'pty_send', 'pty_send', 'pty_close', 'agent_launch', 'pty_send', 'pty_read'])
+})
 
-  await assert.rejects(transport.turn(bot, '再現用の本文'))
+test('端末が無い席は、断りの型や文言によらず、残った記録を閉じて起こしてから届ける', async t => {
+  const run = await deliver(t, { sends: [replacedNative, null], observed: absent }, 'claude')
+  await run.delivered
+  assert.deepEqual(run.names(), ['pty_send', 'pty_observe', 'pty_close', 'agent_launch', 'pty_send', 'pty_read'])
+})
 
-  assert.equal(calls.some(([name]) => ['pty_close', 'agent_launch'].includes(name)), false)
+test('端末があり型の無い断りでも、動いているターンが無ければ閉じて起こしてから届ける', async t => {
+  const run = await deliver(t, { sends: [replacedNative, null] })
+  await run.delivered
+  assert.deepEqual(run.names(), ['pty_send', 'pty_observe', 'pty_close', 'agent_launch', 'pty_send', 'pty_read'])
+})
+
+test('観測できない時は何も閉じずに起こしてから届ける', async t => {
+  const run = await deliver(t, { sends: [replacedNative, null], observed: { schema: 'broken' } })
+  await run.delivered
+  assert.deepEqual(run.names(), ['pty_send', 'pty_observe', 'agent_launch', 'pty_send', 'pty_read'])
+})
+
+test('動いているターンがある席は送り直し、受けなければ閉じずに元の失敗を返す', async t => {
+  const run = await deliver(t, { sends: Array(9).fill(notReady), observed: observation('agent_busy', 'busy') })
+  await assert.rejects(run.delivered, error => error.code === 'BOT_INPUT_NOT_READY')
+  assert.equal(run.names().filter(name => name === 'pty_send').length, 4)
+  assert.equal(run.calls.some(([name]) => ['pty_close', 'agent_launch'].includes(name)), false)
+})
+
+test('Aitermが再送しないよう言う断りは、観測も起動もせずに返す', async t => {
+  const run = await deliver(t, { sends: ["aiterm: agent session 'bot-a' の Codex への入力完了を確認できません。本文を再送しないでください。"] })
+  await assert.rejects(run.delivered)
+  assert.deepEqual(run.names(), ['pty_send'])
+})
+
+test('受理されたが追う手がかりの無い返りは、失敗にせず受理として終える', async t => {
+  const run = await deliver(t, { sends: ['untracked'] })
+  await run.delivered
+  assert.deepEqual(run.names(), ['pty_send'])
 })
