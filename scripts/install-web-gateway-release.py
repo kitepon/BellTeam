@@ -332,12 +332,10 @@ def install(private_root, incoming_root, expected, component_name='web-gateway')
     with contextlib.ExitStack() as resources:
         private = os.open(private_root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
         resources.callback(os.close, private)
-        fcntl.flock(private, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        fcntl.flock(private, fcntl.LOCK_SH)
         opened, linked = os.fstat(private), private_root.lstat()
         if (opened.st_dev, opened.st_ino) != (info.st_dev, info.st_ino) or (linked.st_dev, linked.st_ino) != (info.st_dev, info.st_ino):
             fail('GATEWAY_INSTALL_PRIVATE_CHANGED')
-        if os.path.lexists(private_root / '.transaction.json'):
-            fail('GATEWAY_INSTALL_MAINTENANCE_ACTIVE')
         component = private_root / component_name
         directory(component, create=True)
         lock = os.open(component / '.install.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
@@ -345,7 +343,7 @@ def install(private_root, incoming_root, expected, component_name='web-gateway')
             st = os.fstat(held.fileno())
             if not stat.S_ISREG(st.st_mode) or st.st_uid != ROOT_UID or st.st_nlink != 1 or stat.S_IMODE(st.st_mode) != 0o600:
                 fail('GATEWAY_INSTALL_LOCK')
-            fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(held, fcntl.LOCK_EX)
             releases = component / 'releases'; directory(releases, create=True)
             for path in component.iterdir():
                 if re.fullmatch(r'\.staging-[a-zA-Z0-9_-]+', path.name):
