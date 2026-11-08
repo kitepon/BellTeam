@@ -3,6 +3,7 @@ import SwiftUI
 @testable import BellBot
 
 /// サーバーの有限例13種（Fixtures/update-examples.json。test/apple-update-fixtures.test.mjsが同一性を守る）をdecodeする。
+@MainActor
 final class UpdateModelTests: XCTestCase {
     private static let names = ["running", "no_update", "published_unavailable", "incompatible", "restart_required", "accepted",
                                 "disconnected_unknown", "execution_failed", "verified_completed",
@@ -30,12 +31,26 @@ final class UpdateModelTests: XCTestCase {
         XCTAssertTrue(try XCTUnwrap(UpdateFixtures.inventory("execution_failed").operation).isSettled)
     }
 
-    func testUnknownEnumValueIsAnInvalidResponse() throws {
+    func testUnknownEnumValueIsReadAsUnknownButAnUnknownSchemaIsRejected() throws {
         var example = try UpdateFixtures.examples()["restart_required"]!
         var components = example["components"] as! [[String: Any]]
         components[0]["comparison"] = ["state": "newer", "reason": NSNull()]
         example["components"] = components
-        XCTAssertThrowsError(try UpdateFixtures.decode(example))
+        var plans = example["plans"] as! [[String: Any]]
+        plans[0]["action"] = "migrate"
+        example["plans"] = plans
+        let inventory = try UpdateFixtures.decode(example)
+        XCTAssertEqual(inventory.components[0].comparison.state, .unknown, "新しい値でも画面全体は読める")
+        XCTAssertEqual(inventory.plans[0].action, .unknown)
+        XCTAssertEqual(inventory.plans[0].$action, "migrate", "元の文字列も持つ")
+        let wording = UpdateContent.planWording(inventory.plans[0])
+        XCTAssertEqual(wording.button, "実行する", "未知の計画も確認すれば実行できる")
+        XCTAssertTrue(wording.serverPlan?.contains("action: migrate") == true, "アプリで言い換えずサーバーの値を見せる")
+        XCTAssertTrue(wording.serverPlan?.contains("containerRestart: true") == true)
+        XCTAssertEqual(UpdateContent.planWording(try UpdateFixtures.inventory("module_rollback").plans[0]).button, "戻す")
+        XCTAssertNil(UpdateContent.planWording(try UpdateFixtures.inventory("restart_required").plans[0]).serverPlan)
+        example["schema"] = "bellteam.updates.v2"
+        XCTAssertThrowsError(try UpdateFixtures.decode(example), "schemaの不一致は別契約なので応答不正")
     }
 
     func testMissingNullableKeyIsAnInvalidResponseButUnknownKeyIsIgnored() throws {
@@ -258,10 +273,10 @@ final class UpdateStoreTests: XCTestCase {
         XCTAssertEqual(store.history.map(\.requestId), [operation["requestId"] as? String].compactMap { $0 }, "前の要求は照会できるまま残す")
     }
 
-    func testInventoryWithAnUnknownValueIsShownAsAnInvalidResponse() async throws {
+    func testInventoryWithAnUnknownSchemaIsShownAsAnInvalidResponse() async throws {
         let (store, _) = try makeStore { _ in
             var example = try UpdateFixtures.examples()["running"]!
-            example["notice"] = ["state": "mystery", "code": NSNull(), "message": "x"]
+            example["schema"] = "bellteam.updates.v2"
             return .json(200, example)
         }
         await store.refresh()
@@ -358,10 +373,10 @@ final class UpdateViewTests: XCTestCase {
         XCTAssertEqual(content.jobRecords.last?.reason?.code, "READY_TIMEOUT")
 
         var unknownState = example
-        unknownState["jobs"] = [job("33333333-3333-4333-8333-333333333333", "unknown", NSNull())]
-        let rejected = try await self.store(json: unknownState)
-        XCTAssertNil(rejected.inventory, "6つ以外の状態は作らず応答不正として扱う")
-        XCTAssertNotNil(rejected.failure)
+        unknownState["jobs"] = [job("33333333-3333-4333-8333-333333333333", "paused", NSNull())]
+        let lenient = try await self.store(json: unknownState)
+        XCTAssertEqual(lenient.inventory?.jobs?.first?.state, .unknown, "6つ以外の状態はunknownとして読み、画面全体は読める")
+        XCTAssertNil(lenient.failure)
     }
 
     func testPartStatusLineReplacesTheJobListOnlyWhenTheServerSendsIt() async throws {

@@ -23,7 +23,7 @@ flowchart TD
 
 | 段階 | 所有者と場所 | 契約 |
 | --- | --- | --- |
-| 応答の型 | `Core/UpdateModels.swift` | `bellteam.updates.v1`をそのままCodableにする。列挙の未知の値・必須nullのキー欠落はdecode失敗＝応答不正。未知のkeyは無視し、版の比較や補完はしない |
+| 応答の型 | `Core/UpdateModels.swift` | `bellteam.updates.v1`をそのままCodableにする。schemaの不一致・必須nullのキー欠落はdecode失敗＝応答不正。列挙の未知の値は`UnknownDecodable`でその項目の`unknown`として読み、画面全体は読める（新しいサーバーが値を足しても配布済みの画面を空にしない）。未知のactionまたはscopeの計画は、確認画面でアプリの言い換え（更新/戻す）を使わず、サーバーのaction・scopeの値、`impact.description`、containerRestart、targets[]をそのまま見せ、確認すれば実行できる（計画の検証はサーバーが持つ）。未知のkeyは無視し、版の比較や補完はしない |
 | 状態 | `Core/UpdateStore.swift`（`AppStore.updates`） | inventory、計画、保存requestIdの照会結果、確認中の文言。サーバーの応答を正本とし、SSEや通知の内容は再取得のきっかけにだけ使う |
 | 要求ID | `UpdateStore.execute` | 実行操作ごとに小文字v4のUUIDを作り、送信前に`UserDefaults`へ接続先ごと（`bellbot.updateRequestID.<origin>`）に保存する。計画IDも同じく保存する。新しい計画は、受け付け済みで進行中の更新がある間だけ取れない（`UpdateStore.canStartPlan`）。状態が分からない要求（中断を含む）があっても、利用者は別の計画を明示的に取れる |
 | 確定の判定と保持 | `UpdateOperation.isSettled`・`UpdateStore.history` | サーバーの照会で確定（rejected、completed、failedかつexecution failed）した要求だけ保存IDを外す。4xxは「受け付けられませんでした」と表示するが、要求ID・計画IDは消さずに過去の要求（`history`、端末に保存）へ移す。照会の404・認証失敗・断線は未受付と確定せず、保存IDを残して「結果を確認できません」と表示し、同じUUIDで照会し直す。新しく実行すると、確定していない前の要求は消さずに過去の要求へ移して照会を続ける。結果を確定できていない要求と同じ計画は再実行せず、利用者が取り直した別の計画（capability.supported）だけを一回実行する。手での消去、自動の再送・再計画はしない（Web版と同じ） |
@@ -58,7 +58,7 @@ flowchart TD
 | 項目 | Appleの扱い |
 | --- | --- |
 | `components[].status`（任意。契約 `apple-update-status-display-contract.md`、本体 c1a32534 / PR #545） | `UpdateComponent.PartStatus`。1つでも`status`があれば、標準画面の「機能の状態」に機能ごと1行で`name`と`status.line`をそのまま出す（言い換え・短縮・合成をしない）。`tone`がattentionの行は強調し、その下に`status.action`を出す。updatingは進行中の印を付ける。この時「ジョブの状態」は標準画面に出さず、ジョブID・raw state・符号は「詳細」だけに置く（`latestJob`のjobId/state/reason、既存の`jobs[]`一覧）。`status`だけは読めない値（未知の列挙など）をその機能のnilとして扱い、その行は従来の表示に戻す。画面全体は読める |
-| `jobs[]`（inventory・operationの両方） | `UpdateJob`（`bellteam.update-job.v1`）。状態は queued/downloading/verifying/swapping/ready/failed の6つだけで、それ以外は応答不正として扱い、状態を作らない。`UpdateContent.jobRecords`が今回の操作・在庫の操作・最近のジョブを`kind:jobId`で重ねずに並べる。`status`の無い旧サーバーだけ、標準画面の「ジョブの状態」に機能名・`状態: <state>`・ジョブID・失敗時の`code / message`をWebと同じ文言でそのまま出す。`status`がある時は同じ一覧を「詳細」に出す |
+| `jobs[]`（inventory・operationの両方） | `UpdateJob`（`bellteam.update-job.v1`）。状態は queued/downloading/verifying/swapping/ready/failed の6つで、それ以外は`unknown`として読み、その行に`状態: unknown`と出す（画面全体は読める）。`UpdateContent.jobRecords`が今回の操作・在庫の操作・最近のジョブを`kind:jobId`で重ねずに並べる。`status`の無い旧サーバーだけ、標準画面の「ジョブの状態」に機能名・`状態: <state>`・ジョブID・失敗時の`code / message`をWebと同じ文言でそのまま出す。`status`がある時は同じ一覧を「詳細」に出す |
 | `problems[]` | `UpdateProblem`。「機能の問題」に機能名・再起動の繰り返し・open/resolved、回数・集計秒数、直近の終了コード/シグナル（nullは未観測）、直近の理由を出す |
 | `admission:"pending"` | 全stepの受付記録が揃う前の付帯情報。表示は「受付中」。ジョブの状態とは別で、確定扱いにしない |
 | 読めない時（503 `UNREADABLE`） | inventoryを持たず、詳細に「取得エラー: <理由>」を出す。状態は作らない。`code`・`path`はBellAPIが保持しないので表示しない |
