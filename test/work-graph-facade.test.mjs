@@ -56,7 +56,7 @@ test('effects return only the agreed fields from the public ports', async () => 
   const effect = createWorkGraphEffects({
     bots: { listForClient: async () => [{ id: 'a', name: 'A', color: 'red', avatarVersion: 'v', deleting: false, secret: 'x' }], get: id => ({ id }) },
     transport: {
-      queueItems: async () => [{ status: 'running', context: 'room', contextId: 'r', groupId: 'g', from: 'a', target: 'b', message: 'm', steered: false, startedAt: 1, extra: 1 }],
+      queueItems: async () => [{ status: 'running', context: 'room', contextId: 'r', groupId: 'g', from: 'a', target: 'b', message: 'm', requestSummary: '要約', steered: false, startedAt: 1, extra: 1 }],
       currentTurn: async id => ({ state: 'working', turnId: `t-${id}`, startedAt: 2, hidden: true }),
       currentWork: () => ({ state: 'working', summary: '相関図の図を直している', summaryStatus: 'current', summaryUpdatedAt: '2026-11-08T12:00:00.000Z', observedAt: '2026-11-08T12:00:00.000Z', source: 'self_reported' }),
     },
@@ -64,7 +64,7 @@ test('effects return only the agreed fields from the public ports', async () => 
   })
   const results = {
     'members.list': [{}, { members: [{ id: 'a', name: 'A', color: 'red', avatarVersion: 'v', deleting: false }] }],
-    'queue.read': [{}, { items: [{ status: 'running', context: 'room', contextId: 'r', groupId: 'g', from: 'a', target: 'b', message: 'm', image: false, steered: false, startedAt: 1 }] }],
+    'queue.read': [{}, { items: [{ status: 'running', context: 'room', contextId: 'r', groupId: 'g', from: 'a', target: 'b', requestSummary: '要約', image: false, steered: false, startedAt: 1 }] }],
     'turns.read': [{ botIds: ['a'] }, { turns: { a: { state: 'working', turnId: 't-a', startedAt: '1970-01-01T00:00:00.002Z', summary: '相関図の図を直している', summaryStatus: 'current' } } }],
     'room.messages': [{ roomId: 'r' }, { items: [{ id: 'g', routing: { responders: ['b'], status: 'pending' } }] }],
   }

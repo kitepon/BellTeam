@@ -66,7 +66,8 @@ export function createWorkGraphEffects({ bots, transport, messagePage }) {
       color: text(item.color), avatarVersion: text(item.avatarVersion), deleting: item.deleting === true })) }
     if (method === 'queue.read') return { items: (await transport.queueItems({})).map(item => ({ status: text(item.status), context: text(item.context),
       contextId: textOrNull(item.contextId), groupId: textOrNull(item.groupId), from: textOrNull(item.from), target: textOrNull(item.target),
-      message: text(item.message), image: Boolean(item.image), steered: item.steered === true, startedAt: item.startedAt ?? null })) }
+      // Kiro's once-per-request Japanese summary; the raw body never leaves the parent.
+      requestSummary: textOrNull(item.requestSummary), image: Boolean(item.image), steered: item.steered === true, startedAt: item.startedAt ?? null })) }
     if (method === 'room.messages') {
       const page = await messagePage('rooms', params.roomId, new URL('http://work-graph.local/?limit=50'))
       return { items: (page?.items ?? []).map(item => ({ id: text(item.id), routing: item.routing && Array.isArray(item.routing.responders)
