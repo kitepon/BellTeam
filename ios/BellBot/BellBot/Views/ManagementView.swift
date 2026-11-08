@@ -118,7 +118,7 @@ struct BotEditor: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("メンバー") {
+                Section(header: BellSectionHeader("メンバー")) {
                     if initial == nil {
                         HStack {
                             Spacer()
@@ -127,7 +127,7 @@ struct BotEditor: View {
                                 VStack(spacing: 8) {
                                     AvatarView(name: name.isEmpty ? "B" : name, avatar: avatar,
                                                color: BellTheme.accent(color), size: 80)
-                                    Text("小画像を変更").font(.caption)
+                                    Text("小画像を変更").font(BellTheme.secondaryFont)
                                 }
                             }
                             .disabled(!canEditVariantImages)
@@ -144,16 +144,16 @@ struct BotEditor: View {
                 }
                 .disabled(deletionPending || deletionResultUnconfirmed)
                 if initial == nil {
-                    Section("画像") {
+                    Section(header: BellSectionHeader("画像")) {
                         if appearanceLoaded && !appearanceSchemaAvailable {
                             Text("画像の独立編集はサーバー更新後に利用できます。")
-                                .font(.footnote).foregroundStyle(BellTheme.muted)
+                                .font(BellTheme.secondaryFont).foregroundStyle(.secondary)
                         }
                         Button("小画像を再調整") { reopenCrop(.small) }
                             .disabled(avatar.isEmpty || !canEditVariantImages)
                         if !(avatarSource?.isEmpty == false), !avatar.isEmpty {
                             Text("元画像が残っていないため、現在の切り抜きの外側は再調整できません。")
-                                .font(.footnote).foregroundStyle(BellTheme.muted)
+                                .font(BellTheme.secondaryFont).foregroundStyle(.secondary)
                         }
                         AvatarImagePicker(onSelect: { cropSource = AvatarCropSource(image: $0, variant: .large) },
                                           onFailure: { errorText = "画像を読み込めませんでした。" }) {
@@ -172,7 +172,7 @@ struct BotEditor: View {
                         if avatarLarge?.isEmpty == false {
                             if !(avatarLargeSource?.isEmpty == false) {
                                 Text("大画像の元画像が残っていないため、現在の切り抜きの外側は再調整できません。")
-                                    .font(.footnote).foregroundStyle(BellTheme.muted)
+                                    .font(BellTheme.secondaryFont).foregroundStyle(.secondary)
                             }
                             Button("大画像を小画像と同じに戻す") {
                                 avatarLarge = ""; avatarLargeSource = ""; avatarLargeCrop = nil
@@ -184,7 +184,7 @@ struct BotEditor: View {
                     }
                     .disabled(deletionPending || deletionResultUnconfirmed)
                 }
-                Section("AI") {
+                Section(header: BellSectionHeader("AI")) {
                     // Macのポップアップでは、候補が届く前に作った選択欄が保存済みのモデルを「CLIの既定」と表示した。
                     // 候補を読み終えてから選択欄を作る。
                     if loadingModels {
@@ -232,7 +232,7 @@ struct BotEditor: View {
                     }
                 }
                 .disabled(deletionPending || deletionResultUnconfirmed)
-                Section("プロフィール") {
+                Section(header: BellSectionHeader("プロフィール")) {
                     profileField("背景・見た目・関係性", text: $profileText)
                     profileField("性格・考え方", text: $personality)
                     profileField("口調", text: $speechStyle)
@@ -522,7 +522,7 @@ struct RoomEditor: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("ルーム") {
+                Section(header: BellSectionHeader("ルーム")) {
                     HStack {
                         Spacer()
                         AvatarImagePicker(onSelect: { cropSource = AvatarCropSource(image: $0) },
@@ -538,7 +538,7 @@ struct RoomEditor: View {
                     TextField("ルーム名", text: $name)
                     TextField("この部屋で共有する仕事", text: $purpose, axis: .vertical).lineLimit(3...7)
                 }
-                Section("メンバー") {
+                Section(header: BellSectionHeader("メンバー")) {
                     ForEach(store.bots) { bot in
                         Toggle(bot.displayName, isOn: Binding(get: { members.contains(bot.id) }, set: { value in
                             if value { members.insert(bot.id) }
@@ -546,7 +546,7 @@ struct RoomEditor: View {
                         }))
                     }
                 }
-                Section("代表") {
+                Section(header: BellSectionHeader("代表")) {
                     Picker("代表Bot", selection: $representative) {
                         Text("代表なし").tag("")
                         ForEach(store.bots.filter { members.contains($0.id) }) { bot in

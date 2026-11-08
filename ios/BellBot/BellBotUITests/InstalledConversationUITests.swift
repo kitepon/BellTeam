@@ -42,7 +42,8 @@ final class InstalledConversationUITests: XCTestCase {
         mark("受入開始")
         app.activate()
         app.tabBars.buttons["設定"].tap()
-        XCTAssertTrue(app.buttons["プロフィールと規範を編集"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["settings-profile"].waitForExistence(timeout: 10))
+        app.buttons["settings-row-notifications"].tap()
 
         let registered = app.staticTexts["返信・入力要求を通知します"]
         let settingsScroll = app.scrollViews.firstMatch
