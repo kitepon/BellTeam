@@ -26,3 +26,27 @@ Kiroの`createExecutionGeneration({ports,loadFactory,onAdopt,currentVersionId,pr
 `createExecutionFactoryLoader`は同じ固定path選択のままI/Oだけを試験DIできる。限定7境界はbuiltin identity、署名済み配置を仮定したdescriptorと固定URL選択、catalog/platform/state不一致、任意path/不正namespace/取消拒否、実互換を使うmanifestを確認する。namespace/receiptは人工で、実root・別bundle・engine/native・署名受入へ補完しない。既usage/diagnostics/memoryの変更manifest接点3だけを追加確認し、作者のengine成功群は再走しない。
 
 実dispatchのglobal-instructions.taskSettingsReminderが読む`payload/config/common-agents.md`はexecutionだけの必須inventoryへ含める。既知asset欠測はimport/旧engine退役より前のmanifest検査で拒否し、親/appの別版assetで補完しない。内容の認証は既署名・source・SHA-size/完全inventoryのままで、互換値/root条件を緩めない。変更したmanifest境界1件で同asset入り正例と欠測拒否を確認し、Kiroの実dispatch→人工pty_send結果やCentiのliteral closure検査は本人原本を継承する。
+
+## The old module cannot veto its replacement (Owner 2026-11-08)
+
+Owner: "大きな箱側が、部品をダウンロードして置き換えるのではないのか。" Job 611ef3ae failed because the installed execution module answered the handover quiesce/export with EXECUTION_BUSY, and `replace()` resumed the old engine and failed the job. Kiro's #543 removed the refusal from new module code, but the module being replaced is always the old code, so the box must not depend on it.
+
+| Step in `execution-generation.replace` | Before | Now |
+| --- | --- | --- |
+| Handover `quiesce(old,{handover})` + `exportState({handover})` | throw -> resume old, job failed | bounded 70 s; any refusal, error or timeout -> forced replacement |
+| Forced replacement | n/a | old marked retiring and never resumed; no handoff; background `retireUnreleased`: the old engine drains only its own accepted work (`control('quiesce')`, 60 s each try, 1 s apart) then `disconnect()`; the loop ends when that succeeds or the generation closes. New engine created with `handoff: null` = the existing cold-start contract (recover from durable state and Aiterm; running CLI turns keep running in their terminals) |
+| New engine init / adopt failure | rollback to old with handoff | unchanged; with no handoff the rollback cold-starts the old factory |
+
+Guard review (guards): no new refusal. The 70 s bound exists only so a hung old module cannot block the swap; its exit is the forced path. Protection kept: the exchange mutex, the update hold and the adopt ACK. Recovery contract owned by Kiro: a cold-started engine must not resend turns that are in flight and must tolerate the unreleased predecessor in the same process finishing its accepted turns. This file is body code (`src/execution-generation.mjs`, not in the execution payload), so it reaches production with the next approved body swap. Until then, a module update succeeds only when the installed module accepts the handover. #543 code always accepts, so once #543 is installed the old-code veto does not return.
+
+```mermaid
+flowchart LR
+  Replace[replace new version] --> Handover[old quiesce+export handover, bounded 70 s]
+  Handover -->|ok| WithHandoff[new engine with live handoff]
+  Handover -->|refused / error / timeout| Forced[old retiring, never resumed; retires itself after its own work]
+  Forced --> Cold[new engine, handoff null: durable state + Aiterm recovery]
+  WithHandoff --> Init[initialize + adopt ACK]
+  Cold --> Init
+  Init -->|ok| Running[new version serving]
+  Init -->|fail| Rollback[old factory restarted with same handoff or cold]
+```
