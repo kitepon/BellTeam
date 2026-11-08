@@ -12,8 +12,8 @@
 | `ConversationContent` | timeline、queue、読取task、hasMore、送信待ち、停止結果、添付の表示用配列、選択宛先、エラー、sheet/gallery、書出し、末尾/新着を所有。名簿・routing設定・API・draftはAppStoreから取得 |
 | `AppStore.draft(for:)` → `ConversationDraft` | 宛先別の同じ参照を返す。本文、添付、宛先集合をメモリ保持。画面復帰時に添付と宛先を画面へ複製。添付代入と宛先変更は辞書内draftへ返す |
 | `ConversationTimelineState` | 受信履歴とローカル送信を別に保持。可視行は受信履歴＋未照合送信。受付IDが履歴に現れるとローカル送信を除去。本文の一致では照合しない |
-| `ConversationList.Coordinator` | 行ID、前回本文/queue/行素材（Botの名前・色・画像版）、実高、既に表示した行、Markdown先読済みsource、読書位置、過去取得要求の状態。表から親へ更新・過去取得・末尾状態をcallback |
-| `ConversationCardStates` | message ID別の質問/秘密カード状態を保持。UITableViewの行が画面外になっても保持。会話画面終了後まで保存する処理はない |
+| `ConversationList.Coordinator` | 行ID、前回本文/queue/行素材（Botの名前・色・画像版）、既に表示した行、Markdown先読済みsource、末尾にいるか、過去取得要求の状態。一覧から親へ更新・過去取得・末尾状態をcallback。読んでいる位置は持たない（ChatLayoutの役目） |
+| `ConversationCardStates` | message ID別の質問/秘密カード状態を保持。一覧の行が画面外になっても保持。会話画面終了後まで保存する処理はない |
 
 主な根拠：[ConversationContent](../../../../ios/BellBot/BellBot/Views/ConversationView.swift#L49)、[draft](../../../../ios/BellBot/BellBot/Core/ConversationDraft.swift#L6)、[timeline](../../../../ios/BellBot/BellBot/Core/ConversationTimelineState.swift#L4)、[表](../../../../ios/BellBot/BellBot/Views/ConversationList.swift#L17)。共通一覧・SSEからの通知の生成は[状態と同期](state-and-sync.md#sseの適用)を参照。
 
@@ -28,7 +28,7 @@ flowchart TD
   Load --> Initial["受信履歴が空ならloadInitial"]
   Load --> Refresh["履歴ありならrefresh"]
   Initial --> Cache["AppStoreの前回pageを先に表示"]
-  Cache --> First["GET T/messages?limit=10<br/>GET T/queueを並列開始"]
+  Cache --> First["GET T/messages?limit=30<br/>GET T/queueを並列開始"]
   First --> Text["本文応答を先に適用・remember<br/>loading終了"]
   Text --> Queue["queue応答を適用<br/>queueのみ失敗しても本文を残す"]
   Refresh --> Delta["最新20件・after=最終受信ID・queue<br/>3応答が揃ってから適用"]
@@ -46,22 +46,22 @@ flowchart TD
 | 非active・画面終了 | reader/olderTaskをcancel、reader参照とagainを消し世代を増加。非activeではloading/loadingOlderも解除。reader世代は古いtaskによるreader参照の消去を防ぐ。取消は表示・診断しない |
 | loadの戻り値 | skippedSceneInactive / skippedAwaitingSend / joinedReaderReturned / startedReaderReturned。HTTP成功を示す値ではない |
 
-過去取得は表を上へ操作し、先頭可視行が25行以内になった時に要求する。下向き操作で次の要求を許可する。Macは表示域を埋めるまで追加要求も行う。失敗だけでは自動で同じfill要求を繰り返さない。
+過去取得は一覧を上へ操作し、先頭可視行が25行以内になった時に要求する（上端に届く前に先読み）。下向き操作で次の要求を許可する。Macは表示域を埋めるまで追加要求も行う。失敗だけでは自動で同じfill要求を繰り返さない。
 
-## 本文と表への反映
+## 本文と一覧への反映
 
 ```mermaid
 flowchart LR
   Model["TimelineMessage / queue"] --> Prepare["Coordinator.present<br/>未先読sourceをMessageText.prerender"]
   Prepare --> Latest["先読中の更新は最新の組だけ保持"]
-  Latest --> Apply["Diffable snapshot<br/>本文・queue・行素材が変わった行だけ再構成<br/>変化なしは表に触らない"]
-  Apply --> Position["末尾追従 / 過去追加の高さ補正<br/>幅変更は先頭可視行の位置を保持"]
+  Latest --> Apply["ChatLayoutDiffableDataSource<br/>本文・queue・行素材が変わった行だけ再構成<br/>変化なしは一覧に触らない"]
+  Apply --> Position["CollectionViewChatLayoutが位置を保つ<br/>上への追加・上の行の実高変化・幅変更でも表示中の行は動かない<br/>新着は末尾にいる時だけ追従"]
   Position --> Callback["末尾48pt以内かを親へ通知"]
 ```
 
 [MessageText](../../../../ios/BellBot/BellBot/Views/MessageText.swift#L4)はEnrichedMarkdownを使用し、改行保持、末尾余白除去、選択・通常コピー/Markdownコピー、openURL、チェック項目の変更無効を設定する。[SelectableText](../../../../ios/BellBot/BellBot/Views/SelectableText.swift#L4)はプロフィール・要求本文等の編集不可UITextView。同一本文では再代入せず選択範囲を保持し、本文/幅/displayScaleに応じて寸法をcacheする。
 
-表は初回配置後にrise/fadeで1回表示し、後から入る行にも同じ方式を適用する。行再利用時はalpha/transform/animationを戻す。末尾追従はcontentSize・inset・layoutで更新し、過去閲覧中は上へ追加した高さ分をoffsetへ足す。Macの離散ホイールはWheelScrollSmoother、連続スクロールは標準処理。pull完了時にrefreshControlを終了する。表への反映とHTTPの取得完了は別段階である。
+一覧はUICollectionViewと[ChatLayout](https://github.com/ekazaev/ChatLayout)（MIT、revision固定、ライセンスは`Resources/ChatLayout-LICENSE.txt`）の`CollectionViewChatLayout`。チャットの定番のスクロール・アンカリングで、読んでいる位置の補正はすべてレイアウトが行い、アプリは位置を計算しない（`keepContentOffsetAtBottomOnBatchUpdates`、`supportSelfSizingInvalidation`）。行の高さはセルが幅固定で中身から測る。初回は最後の行を下端に合わせる。下の余白（キーボード・入力欄）が変わった時だけ、末尾にいれば末尾へ寄せ直す。初回配置後にrise/fadeで1回表示し、後から入る行にも同じ方式を適用する。動きはセルのcontentViewに付ける（セル本体の位置・透明度はレイアウトが当て直すため）。行再利用時はcontentViewのalpha/transform/animationを戻す。Macの離散ホイールはWheelScrollSmoother、連続スクロールは標準処理。pull完了時にrefreshControlを終了する。表への反映とHTTPの取得完了は別段階である。
 
 ## 下書き・添付・宛先
 
@@ -121,7 +121,7 @@ flowchart TD
 | 個別停止 | Bot会話は対象queueにrunning/queuedがある時。ルームは参加者だけ、表示queueの同じBotの最初の該当行だけにボタン。stoppingBotIDがある間は次の停止を抑止。`POST /api/bots/:id/stop`の202/stop_sentは送付済み、200/interruptedかつsessionPreserved=trueは確認済み。Bot IDも照合する |
 | 停止後 | 成功は通知文言を分け、load→共通一覧refresh。認証失敗はrequireLogin。他失敗は取消/結果不明なら未確認、その他は失敗文言、診断後load。deferで停止中を解除。再POSTなし |
 | 再起動 | [ConversationDetailView.swiftの詳細](../../../../ios/BellBot/BellBot/Views/ConversationDetailView.swift#L43)とDesktopInspector.profileのonRestartが[AppStore.restartConversation(target:)](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L401)を呼ぶ。共通操作はauthorizeAIUse→`POST T/restart`→APIAcknowledgement受領だけ。空要求の[EmptyBody](../../../../ios/BellBot/BellBot/Core/Models.swift#L533)はCore/Models.swiftに置く。ack後、詳細はdismiss、inspectorはerrorを消す。refresh・再送・稼働完了を待つ照会はない。詳細catchはlocalizedDescription、inspectorはoperationFailureMessageと`T/restart`・POST・`.write`の診断。Errorは共通操作で変換しない |
-| 端末画面 | 詳細sheetまたはinspector内の[BotScreenView（Views/BotScreenView.swift）](../../../../ios/BellBot/BellBot/Views/BotScreenView.swift#L47)。bot ID/activeをtask IDにし、Bot切替時にscreen/online/errorを消す。activeで、開いた最初の1回だけ`GET /api/bots/:id/screen?history=1`（全履歴）、以後は`GET /api/bots/:id/screen`（画面末尾）を、前の取得の開始から1秒ごとに1本ずつ（重ねない。応答が1秒を超えたら待たずに次へ）取る。`ScreenScrollback`が全履歴から最初の末尾と同じ行数を外した前半に、毎回の末尾をつなぎ、変更した値だけ反映。開き直すと全履歴から取り直す。取消・URLError.cancelledは終了、認証失敗はrequireLogin、それ以外は画面を残しerror/診断を表示してloop終了 |
+| 端末画面 | 詳細sheetまたはinspector内の[BotScreenView（Views/BotScreenView.swift）](../../../../ios/BellBot/BellBot/Views/BotScreenView.swift#L47)。bot ID/activeをtask IDにし、Bot切替時にscreen/online/errorを消す。activeで、開いた最初の1回だけ`GET /api/bots/:id/screen?history=1`（全履歴）、以後は`GET /api/bots/:id/screen`（画面末尾）を、前の取得の開始から1秒ごとに1本ずつ（重ねない。応答が1秒を超えたら待たずに次へ）取る。`ScreenScrollback`が全履歴から最初の末尾と同じ行数を外した前半に、毎回の末尾をつなぎ、変更した値だけ反映。開き直すと全履歴から取り直す。取消・URLError.cancelledは終了、認証失敗はrequireLoginで終了。それ以外は画面を残してerrorを表示し、loopは続ける（次の200でerrorを消して画面を戻す）。診断は失敗が続く間に1回だけ送り、200で次の失敗の報告を許す |
 | 端末本文 | [BotTerminalTextView（Views/BotScreenView.swift）](../../../../ios/BellBot/BellBot/Views/BotScreenView.swift#L32)は選択可・編集不可。末尾28pt以内なら置換後末尾追従、過去閲覧中なら旧offsetを上限内で保持。同じ文字列は置換しない |
 | 端末キー入力 | [ScreenKeyBar／ScreenInputModel（Views/BotScreenKeyBar.swift）](../../../../ios/BellBot/BellBot/Views/BotScreenKeyBar.swift)を端末の下に常時出す（契約は[screen-input](../execution/screen-input.md)）。黒い端末上のダーク配色で、決定(Enter)・取消(Escape)・Tab・中断(Ctrl-C、赤)・矢印4方向と、数字0-9を開閉する行をSF Symbol付きで並べる。1タップ＝`POST /api/bots/:id/screen/key {key}`を1回（自動再試行なし）。送信中は押したキーがスピナー、成功は1.2秒のチェックと触覚、失敗は1行の日本語（409 SCREEN_SEAT_ABSENT=席が起動していません、403=オーナーとしてログインしていません、502/その他=送れませんでした。想定外は診断へ報告）。画面の1秒更新ごとに、前回の答えに関係なく`GET …/screen/approval`を1回取り、`approval_required`の間だけ画面の上に承認バナーを出す。止まる状態は持たない（出口は次の200）：想定外の失敗は連続中1回だけ診断へ報告し次の更新でも取り、次の200で報告の印を戻す。ボタンはサーバーが返す`choices`のlabel（approve_once／deny）で、押すと`POST …/screen/approval {decision,promptDigest}`。409 SCREEN_APPROVAL_CHANGEDは通知して再GET、422 SCREEN_APPROVAL_UNSUPPORTEDはバナーを出さずキーで答えるよう案内、永続許可と自由入力は出さない。503 SCREEN_INPUT_UNAVAILABLE（旧サーバー）はバー全体を黙って隠し、承認GETは続け、次の200でバーを戻す。422は承認ボタンだけ隠し、次の200で戻す。Bot切替でModelを初期化する |
 | 書出し | exportingでボタンを無効化、`GET T/export`のDataをConversationDocumentへ渡しJSON fileExporterを表示。取得失敗はerror/診断、deferでexporting解除。保存失敗もerrorへ。FileDocumentはregularFileContentsだけ読取り、DataをFileWrapperに包む。書出し後に文書状態を消す処理はない |

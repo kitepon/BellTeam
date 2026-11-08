@@ -644,7 +644,7 @@ private struct ConversationContent: View {
         do {
             // 処理待ち一覧の応答を待たず、本文を届いた時点で出す。
             async let waiting: QueueResponse = store.api.get(target.path + "/queue")
-            let result: ListResponse<TimelineMessage> = try await store.api.get(target.path + "/messages?limit=10")
+            let result: ListResponse<TimelineMessage> = try await store.api.get(target.path + "/messages?limit=\(ConversationHistoryPage.firstPage)")
             try Task.checkCancellation()
             guard !stale(), !awaitingSendResponse else { loading = false; return }
             timeline.replaceReceived(result.items)
@@ -703,7 +703,7 @@ private struct ConversationContent: View {
         guard !loading, appIsActive, !awaitingSendResponse else { return }
         do {
             async let waiting: QueueResponse = store.api.get(target.path + "/queue")
-            let latestPath = target.path + "/messages?limit=20"
+            let latestPath = target.path + "/messages?limit=\(ConversationHistoryPage.firstPage)"
             if let lastId = timeline.receivedMessages.last?.id {
                 let encodedId = lastId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? lastId
                 async let latest: ListResponse<TimelineMessage> = store.api.get(latestPath)
@@ -841,6 +841,8 @@ private final class ReadCoordinator {
 }
 
 enum ConversationHistoryPage {
+    /// 開いた時と更新時に取る最新の行数。
+    static let firstPage = 30
     /// 見えている行より上の読込済みが25行以下になったら、次の25行を足す。
     static let lowStockRows = 25
     static let pageSize = 25

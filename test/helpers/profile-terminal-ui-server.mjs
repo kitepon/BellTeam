@@ -15,6 +15,7 @@ const initialProfile = () => ({
 })
 let profile = initialProfile()
 let screen = '履歴の最初の行\n履歴の次の行'
+let screenFailures = 0
 let reads = []
 let writes = []
 let legacyProfile = false
@@ -44,7 +45,7 @@ const server = createServer(async (request, response) => {
     profile = initialProfile(); screen = '履歴の最初の行\n履歴の次の行'; reads = []; writes = []
     legacyProfile = false; profileDelayMs = 0; userRulesDelayMs = 0; userRulesCompletions = 0
     modelsDelayMs = 0; modelsCompletions = 0; botListReads = 0
-    restartFails = false; restarts = []; diagnostics = []
+    restartFails = false; restarts = []; diagnostics = []; screenFailures = 0
     for (const subscriber of eventSubscribers) subscriber.end()
     eventSubscribers.clear()
     return json(response, { ok: true })
@@ -76,6 +77,10 @@ const server = createServer(async (request, response) => {
   }
   if (url.pathname === '/test/screen') {
     screen = url.searchParams.get('value') ?? screen
+    return json(response, { ok: true })
+  }
+  if (url.pathname === '/test/screen-fail') {
+    screenFailures = Number(url.searchParams.get('count') || 0)
     return json(response, { ok: true })
   }
   if (url.pathname === '/test/append-screen') {
@@ -135,6 +140,7 @@ const server = createServer(async (request, response) => {
     return json(response, { messages: [], items: [], hasMore: false })
   if (url.pathname === '/api/bots/bot-one/screen') {
     reads.push({ path: url.pathname, history: url.searchParams.get('history'), at: Date.now() })
+    if (screenFailures > 0) { screenFailures -= 1; return json(response, { error: 'FIXTURE_SCREEN_FAILURE' }, 502) }
     return json(response, { online: true, screen })
   }
   const imageField = new Map([

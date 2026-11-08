@@ -17,7 +17,7 @@ final class ConversationScrollUITests: XCTestCase {
 
     override func tearDown() { app?.terminate() }
 
-    /// 初回10件が長い。Markdownが後から描画されて高さが伸びても、末尾が見える。
+    /// 初回30件が長い。Markdownが後から描画されて高さが伸びても、末尾が見える。
     func testLatestMessageStaysVisibleAfterMarkdownRendering() throws {
         try openConversation("ユキ", failBefore: false)
         let last = text("m060")
@@ -28,25 +28,25 @@ final class ConversationScrollUITests: XCTestCase {
         print("末尾位置 maxY=\(last.frame.maxY) 入力欄上端=\(limit)")
         XCTAssertLessThanOrEqual(last.frame.maxY, limit + 1, "最新メッセージの末尾が入力欄に隠れない")
         XCTAssertGreaterThan(last.frame.minY, 0)
-        XCTAssertEqual(try requests(), ["?limit=10"], "開いただけでは初回の10件しか取得しない")
+        XCTAssertEqual(try requests(), ["?limit=30"], "開いただけでは初回の30件しか取得しない")
     }
 
-    /// 上端へスクロールすると25件を取得し、読んでいた先頭行が同じ位置に残る。足した行のMarkdownが後から伸びても動かない。
+    /// 上へ読むと上端に届く前に25件を先読みし、その時に読んでいた行が同じ位置に残る。足した行のMarkdownが後から伸びても動かない。
     func testOlderMessagesLoadAutomaticallyAtTopAndKeepPosition() throws {
         try openConversation("ユキ", failBefore: false)
         XCTAssertTrue(text("m060").waitForExistence(timeout: 10))
         XCTAssertFalse(app.buttons["以前のメッセージを読む"].exists)
         try scrollUntilOlderRequested()
-        let oldest = text("m051")
-        XCTAssertTrue(oldest.waitForExistence(timeout: 5))
-        let first = oldest.frame.minY
+        Thread.sleep(forTimeInterval: 0.5)
+        let reading = try XCTUnwrap((31...60).reversed().map { text(String(format: "m%03d", $0)) }
+            .first { $0.exists && $0.isHittable }, "先読みの時に読んでいる行がある")
+        let first = reading.frame.minY
         Thread.sleep(forTimeInterval: 3)
-        let settled = oldest.frame.minY
-        print("取得直後のm051 minY=\(first) 3秒後=\(settled) 表示領域=\(conversationScroll().frame)")
-        XCTAssertEqual(try requests().filter { $0.contains("before=") }, ["?limit=25&before=m051"])
+        let settled = reading.frame.minY
+        print("先読み直後の読んでいる行 minY=\(first) 3秒後=\(settled) 表示領域=\(conversationScroll().frame)")
+        XCTAssertEqual(try requests().filter { $0.contains("before=") }, ["?limit=25&before=m031"])
         XCTAssertFalse(app.buttons["以前のメッセージを読む"].exists)
-        XCTAssertLessThan(settled, conversationScroll().frame.maxY, "先頭行が画面内に残る")
-        XCTAssertGreaterThan(oldest.frame.maxY, 0)
+        XCTAssertLessThan(settled, conversationScroll().frame.maxY, "読んでいる行が画面内に残る")
         XCTAssertEqual(first, settled, accuracy: 2, "足した行のMarkdownが伸びても読んでいる位置が動かない")
     }
 
@@ -59,16 +59,16 @@ final class ConversationScrollUITests: XCTestCase {
         XCTAssertEqual(try requests().filter { $0.contains("before=") }.count, 1, "失敗後に自動で繰り返さない")
     }
 
-    /// 初回10件が画面に収まる短い履歴。開いただけでは過去を取得せず、利用者が上へ引いた時に取得する。
+    /// 初回30件の短文の履歴。開いただけでは過去を取得せず、利用者が上へ引いた時に取得する。
     func testShortInitialPageLoadsOlderOnlyWhenUserScrolls() throws {
         try openConversation("ハル", failBefore: false)
         XCTAssertTrue(text("s35").waitForExistence(timeout: 10))
         Thread.sleep(forTimeInterval: 4)
-        XCTAssertEqual(try requests(), ["?limit=10"], "開いただけでは過去を取得しない")
+        XCTAssertEqual(try requests(), ["?limit=30"], "開いただけでは過去を取得しない")
         let scroll = conversationScroll()
         for _ in 0..<4 where try !requests().contains(where: { $0.contains("before=") }) { scroll.swipeDown() }
         Thread.sleep(forTimeInterval: 2)
-        XCTAssertEqual(try requests().filter { $0.contains("before=") }, ["?limit=25&before=s26"])
+        XCTAssertEqual(try requests().filter { $0.contains("before=") }, ["?limit=25&before=s06"])
     }
 
     /// 古い内容を見ている間に新着を取得しても、末尾へ飛ばず新着ボタンを出す。30件の履歴で最古まで読み、上端の引き下げ更新で新着を取る。
@@ -132,7 +132,7 @@ final class ConversationScrollUITests: XCTestCase {
         Thread.sleep(forTimeInterval: 3)
         XCTAssertEqual(text("m001").frame.minY, before, accuracy: 2)
         XCTAssertEqual(try requests().filter { $0.contains("before=") },
-                       ["?limit=25&before=m051", "?limit=25&before=m026"])
+                       ["?limit=25&before=m031", "?limit=25&before=m006"])
         XCTAssertFalse(text("m060").exists, "最古を読んでいる間は最新の本文を描画しない")
     }
 
@@ -144,7 +144,7 @@ final class ConversationScrollUITests: XCTestCase {
         try openConversation("ユキ", failBefore: false)
         XCTAssertTrue(text("m060").waitForExistence(timeout: 10))
         try scrollUntilOlderRequested()
-        let row = text("m051")
+        let row = text("m031")
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         Thread.sleep(forTimeInterval: 3)
         let before = row.frame.minY
@@ -187,7 +187,7 @@ final class ConversationScrollUITests: XCTestCase {
 
     private func text(_ id: String) -> XCUIElement { app.descendants(matching: .any)["message-text-\(id)"].firstMatch }
 
-    private func conversationScroll() -> XCUIElement { app.tables["conversation-messages"] }
+    private func conversationScroll() -> XCUIElement { app.collectionViews["conversation-messages"] }
 
     private func requests() throws -> [String] {
         let value = try XCTUnwrap(JSONSerialization.jsonObject(with: data("/test/proof")) as? [String: Any])
