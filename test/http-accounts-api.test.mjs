@@ -9,22 +9,16 @@ function call(handler, method, path, body) {
   return Promise.resolve(handler(request, response, new URL(path, 'http://x'))).then(result => result === false ? false : response)
 }
 
-test('accounts routes return the engine values and map unsupported engines to 404', async () => {
-  const seen = []
-  const accounts = { list: async () => ({ harnesses: [], rules: [] }), setRule: async rule => { seen.push(rule); return { rules: [rule] } } }
-  const owner = createAccountsApi({ accounts, internal: false })
+test('accounts route returns the engine list and maps unsupported engines to 404; rules route is gone', async () => {
+  const owner = createAccountsApi({ accounts: { list: async () => ({ harnesses: [], rules: [] }) } })
   assert.equal(await call(owner, 'GET', '/api/other'), false)
+  assert.equal(await call(owner, 'POST', '/api/accounts/rules', '{}'), false)
   assert.deepEqual((await call(owner, 'GET', '/api/accounts')).body, { harnesses: [], rules: [] })
-  const posted = await call(owner, 'POST', '/api/accounts/rules', JSON.stringify({ harness: 'claude', modelPrefix: 'claude-fable', slot: '2nd', extra: 1 }))
-  assert.deepEqual([posted.status, seen], [200, [{ harness: 'claude', modelPrefix: 'claude-fable', slot: '2nd' }]])
-  assert.deepEqual([(await call(owner, 'POST', '/api/accounts/rules', '{')).status, (await call(owner, 'POST', '/api/accounts/rules', '[]')).status], [400, 400])
   assert.equal((await call(owner, 'PUT', '/api/accounts')).status, 405)
-  const seat = createAccountsApi({ accounts, internal: true })
-  assert.deepEqual((await call(seat, 'POST', '/api/accounts/rules', '{}')).body, { error: 'ACCOUNT_RULE_OWNER_REQUIRED' })
   assert.equal((await call(createAccountsApi({ accounts: null }), 'GET', '/api/accounts')).status, 404)
   const old = { list: async () => { throw Object.assign(new Error('x'), { code: 'EXECUTION_REQUEST_INVALID' }) } }
   assert.equal((await call(createAccountsApi({ accounts: old }), 'GET', '/api/accounts')).status, 404)
-  await assert.rejects(call(createAccountsApi({ accounts: { list: async () => { throw Object.assign(new Error('x'), { code: 'ACCOUNT_RULE_INVALID', status: 400 }) } } }), 'GET', '/api/accounts'), { code: 'ACCOUNT_RULE_INVALID' })
+  await assert.rejects(call(createAccountsApi({ accounts: { list: async () => { throw Object.assign(new Error('x'), { code: 'EXECUTION_REQUEST_FAILED', status: 500 }) } } }), 'GET', '/api/accounts'), { code: 'EXECUTION_REQUEST_FAILED' })
 })
 
 test('seat account is the slot, null without one, undefined when unsupported', () => {

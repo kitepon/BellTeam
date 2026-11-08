@@ -60,7 +60,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
     createConversationApi({ bots, rooms, timeline }),
     createScreenInputApi({ bots, transport, internal }),
     createWorkGraphApi({ facade: workGraph, internal }),
-    createAccountsApi({ accounts, internal }),
+    createAccountsApi({ accounts }),
   ]
 
   const server = createServer(async (request, response) => {

@@ -43,8 +43,8 @@ flowchart TD
   HTTP --> Schedules["members.createScheduleApi"]
   HTTP --> WorkGraph["work-graph.createWorkGraphApi / Owner GET snapshot・SSE"]
   WorkGraph --> WGFacade["work-graph-facade / 子moduleへのrefresh・snapshot"]
-  HTTP --> Accounts["http-accounts-api / GET accounts・POST accounts/rules"]
-  Accounts --> ExecAccounts["execution.accounts list・setRule"]
+  HTTP --> Accounts["http-accounts-api / GET accounts"]
+  Accounts --> ExecAccounts["execution.accounts list"]
   HTTP --> Assets["http-assets"]
   Assets --> Web["web.assets"]
   MCP["mcp-tools / 本人・引数確認"] --> TalkTools["mcp-conversation-tools"]
@@ -65,7 +65,7 @@ flowchart TD
 
 ## Claudeの1st/2ndアカウント
 
-[harness-accounts](../execution/harness-accounts.md)の公開HTTPを親が持つ。`GET /api/accounts`は`execution.accounts.list()`をそのまま200で返す。`POST /api/accounts/rules`は`{harness, modelPrefix, slot}`だけを`accounts.setRule`へ渡し、`{rules}`を返す。内部席は403 `ACCOUNT_RULE_OWNER_REQUIRED`、入力の誤りは400 `ACCOUNT_RULE_INVALID`。accountsが無い本体と、`EXECUTION_REQUEST_INVALID`を返す古いengineは404で、端末は旧カードを出す。Bot項目（GET `/api/bots`、`/api/bots/:id`）の`account`は`transport.seatAccount(botId)`の値（席に無ければnull）で、対応の無い本体では項目ごと出さない。`accounts`は同じ実体をusageServicesと予備HarnessAuthへも渡す（usageのprivate effect `auth.prepareAccount`）。台帳の変更は次節のSSE `settings`で知らせる。
+[harness-accounts](../execution/harness-accounts.md)の公開HTTPを親が持つ。`GET /api/accounts`は`execution.accounts.list()`をそのまま200で返す。アカウントの選択は上限だけで決まり、好みのルールは無い（オーナー裁定 2026-11-09）。`POST /api/accounts/rules`は削除済みで、他の未知の経路と同じ404になる。accountsが無い本体と、`EXECUTION_REQUEST_INVALID`を返す古いengineは404で、端末は旧カードを出す。Bot項目（GET `/api/bots`、`/api/bots/:id`）の`account`は`transport.seatAccount(botId)`の値（席に無ければnull）で、対応の無い本体では項目ごと出さない。`accounts`は同じ実体をusageServicesと予備HarnessAuthへも渡す（usageのprivate effect `auth.prepareAccount`）。台帳の変更は次節のSSE `settings`で知らせる。
 
 ## SSE topicの対応
 
