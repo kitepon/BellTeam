@@ -21,7 +21,7 @@ public sealed class RemoteImages(Workspace workspace) : StackPanel
         var button = new Button { Padding = new Thickness(0), Margin = new Thickness(0), HorizontalAlignment = outgoing ? HorizontalAlignment.Right : HorizontalAlignment.Left, Cursor = System.Windows.Input.Cursors.Hand };
         button.SetResourceReference(StyleProperty, "QuietButton"); button.Padding = new Thickness(0); button.Margin = new Thickness(0);
         System.Windows.Automation.AutomationProperties.SetName(button, urls.Length > 1 ? $"画像{urls.Length}枚を開く" : "画像を開く");
-        button.Click += (_, _) => new ImageGallery(workspace, paths, 0) { Owner = Window.GetWindow(this) }.ShowDialog();
+        button.Click += (_, _) => ((MainWindow)Window.GetWindow(this)).ShowGallery(paths, 0);
         if (urls.Length == 1)
         {
             var image = new RemoteImage(workspace, urls[0]) { Width = CardWidth }; RoundClip.Apply(image, 13);
@@ -78,52 +78,64 @@ public sealed class RemoteImage : Grid
     }
 }
 
-public sealed class ImageGallery : Window
+// Mac MessageImageGallery as a full-window dark cover inside the main window: × and "n / N" on top, the picture, then ‹ thumbnail strip ›.
+public sealed class ImageGallery : Grid
 {
-    private int selected;
+    private static readonly FontFamily Icons = new("Segoe Fluent Icons, Segoe MDL2 Assets");
+    private readonly string[] paths;
     private readonly ContentControl content = new();
-    private readonly TextBlock position = new() { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12) };
+    private readonly TextBlock position = new() { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, FontSize = 18, Foreground = Brushes.White };
     private readonly List<Task> imageLoads = [];
+    private readonly List<Button> thumbnails = [];
+    private readonly Workspace workspace;
+    private readonly Action close;
+    public int Selected { get; private set; }
     public Task ReadyTask => Task.WhenAll(imageLoads);
-    public ImageGallery(Workspace workspace, string[] paths, int initial)
+    public ImageGallery(Workspace workspace, string[] paths, int initial, Action close)
     {
-        SetResourceReference(StyleProperty, typeof(Window));
-        selected = initial; Title = "画像"; Width = 960; Height = 720; MinWidth = 500; MinHeight = 400;
-        Background = new SolidColorBrush(Color.FromRgb(20, 21, 26)); Foreground = Brushes.White;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        var dock = new DockPanel(); var header = new DockPanel { Margin = new Thickness(16, 10, 16, 0) };
-        var close = new Button { Content = "閉じる", IsCancel = true, Foreground = Brushes.White, Width = 80, Margin = new Thickness(0) }; close.SetResourceReference(StyleProperty, "QuietButton"); close.Click += (_, _) => Close();
-        DockPanel.SetDock(close, Dock.Right); header.Children.Add(close); var spacer = new Border { Width = 80 }; DockPanel.SetDock(spacer,Dock.Left); header.Children.Add(spacer); position.HorizontalAlignment = HorizontalAlignment.Center; position.FontSize = 18; header.Children.Add(position);
-        DockPanel.SetDock(header, Dock.Top); dock.Children.Add(header);
-        var thumbnails = new List<Button>();
-        void ShowImage()
-        {
-            var image = new RemoteImage(workspace, paths[selected]) { Margin = new Thickness(20) }; imageLoads.Add(image.LoadTask); content.Content = image; position.Text = $"{selected + 1} / {paths.Length}";
-            for (var index = 0; index < thumbnails.Count; index++) { thumbnails[index].Opacity = index == selected ? 1 : .5; thumbnails[index].BorderBrush = index == selected ? Brushes.MediumPurple : Brushes.Transparent; }
-            if (thumbnails.Count != 0) thumbnails[selected].BringIntoView();
-        }
-        void Move(int change) { selected = (selected + paths.Length + change) % paths.Length; ShowImage(); }
+        this.workspace = workspace; this.paths = paths; this.close = close; Background = Brushes.Black;
+        RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); RowDefinitions.Add(new RowDefinition()); RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        var header = new Grid { Margin = new Thickness(16, 16, 16, 0) };
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(44) }); header.ColumnDefinitions.Add(new ColumnDefinition()); header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(44) });
+        var closeButton = Control("", "GalleryCircleButton", "閉じる", "閉じる（Esc）", close);
+        header.Children.Add(closeButton); Grid.SetColumn(position, 1); header.Children.Add(position);
+        Children.Add(header);
+        SetRow(content, 1); content.Margin = new Thickness(16, 16, 16, 8); Children.Add(content);
         if (paths.Length > 1)
         {
             var controls = new DockPanel { Margin = new Thickness(16, 0, 16, 16) };
-            var previous = new Button { Content = "前の画像", Foreground = Brushes.White, ToolTip = "前の画像（←）" }; previous.SetResourceReference(StyleProperty, "QuietButton"); previous.Click += (_, _) => Move(-1);
-            var next = new Button { Content = "次の画像", Foreground = Brushes.White, ToolTip = "次の画像（→）" }; next.SetResourceReference(StyleProperty, "QuietButton"); next.Click += (_, _) => Move(1);
+            var previous = Control("", "GalleryChevronButton", "前の画像", "前の画像（←）", () => Move(-1)); var next = Control("", "GalleryChevronButton", "次の画像", "次の画像（→）", () => Move(1));
             DockPanel.SetDock(previous, Dock.Left); DockPanel.SetDock(next, Dock.Right); controls.Children.Add(previous); controls.Children.Add(next);
-            var strip = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center }; var scroll = new ScrollViewer { Content = strip, HorizontalContentAlignment = HorizontalAlignment.Center, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled };
+            var strip = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
+            var scroll = new ScrollViewer { Content = strip, HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, Height = 72 };
             foreach (var index in Enumerable.Range(0, paths.Length))
             {
-                var image = new RemoteImage(workspace, paths[index], maximumDimension: 128) { Width = 64, Height = 64 }; imageLoads.Add(image.LoadTask);
-                var thumbnail = new Button { Content = image, Padding = new Thickness(0), Margin = new Thickness(4), BorderThickness = new Thickness(2), Background = Brushes.Transparent };
-                System.Windows.Automation.AutomationProperties.SetName(thumbnail, $"画像{index + 1}"); thumbnail.Click += (_, _) => { selected = index; ShowImage(); }; thumbnails.Add(thumbnail); strip.Children.Add(thumbnail);
+                var image = new RemoteImage(workspace, paths[index], maximumDimension: 192) { Width = 64, Height = 64 }; imageLoads.Add(image.LoadTask); RoundClip.Apply(image, 8);
+                var thumbnail = new Button { Content = image }; thumbnail.SetResourceReference(StyleProperty, "GalleryThumbButton");
+                System.Windows.Automation.AutomationProperties.SetName(thumbnail, $"画像{index + 1}"); thumbnail.Click += (_, _) => Show(index); thumbnails.Add(thumbnail); strip.Children.Add(thumbnail);
             }
-            controls.Children.Add(scroll); DockPanel.SetDock(controls, Dock.Bottom); dock.Children.Add(controls);
+            controls.Children.Add(scroll); SetRow(controls, 2); Children.Add(controls);
         }
-        PreviewKeyDown += (_, args) =>
-        {
-            if (Keyboard.Modifiers != ModifierKeys.None) return;
-            if (args.Key == Key.Escape) { args.Handled = true; Close(); }
-            else if (paths.Length > 1 && args.Key is Key.Left or Key.Right) { args.Handled = true; Move(args.Key == Key.Left ? -1 : 1); }
-        };
-        dock.Children.Add(content); Content = dock; ShowImage();
+        Show(initial);
+    }
+    private static Button Control(string glyph, string style, string name, string tip, Action click)
+    {
+        var button = new Button { Content = new TextBlock { Text = glyph, FontFamily = Icons, FontSize = 16, Foreground = Brushes.White }, ToolTip = tip };
+        button.SetResourceReference(StyleProperty, style); System.Windows.Automation.AutomationProperties.SetName(button, name); button.Click += (_, _) => click(); return button;
+    }
+    // Mac: ← and → wrap around the pictures, Esc closes.
+    public void Move(int change) => Show((Selected + paths.Length + change) % paths.Length);
+    public bool HandleKey(Key key)
+    {
+        if (key == Key.Escape) { close(); return true; }
+        if (paths.Length > 1 && key is Key.Left or Key.Right) { Move(key == Key.Left ? -1 : 1); return true; }
+        return false;
+    }
+    private void Show(int index)
+    {
+        Selected = index;
+        var image = new RemoteImage(workspace, paths[index]); imageLoads.Add(image.LoadTask); content.Content = image; position.Text = $"{index + 1} / {paths.Length}";
+        for (var at = 0; at < thumbnails.Count; at++) { thumbnails[at].Opacity = at == index ? 1 : .5; thumbnails[at].BorderBrush = at == index ? Brushes.White : Brushes.Transparent; }
+        if (thumbnails.Count != 0) thumbnails[index].BringIntoView();
     }
 }

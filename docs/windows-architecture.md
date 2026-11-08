@@ -34,7 +34,7 @@ flowchart LR
   Sidebar -->|ゴール| Goals[ゴールのページ]
   Sidebar -->|設定| Settings
   Sidebar -->|Updateバッジ| UpdateSheet[Updateシート]
-  Detail --> Conversation[会話<br/>帯・吹き出し・配送状態・Bot間の連絡・画像<br/>秘密入力・問い・処理中の帯と止める<br/>返信先・ゴールのカプセル・入力欄]
+  Detail --> Conversation[会話<br/>帯・吹き出し・受付確認中の仮の吹き出し・配送状態・Bot間の連絡・画像<br/>秘密入力・問い・処理中の帯と止める<br/>返信先・ゴールのカプセル・入力欄]
   Detail --> Inspector[詳細パネル Ctrl+Shift+I<br/>メンバー: 大画像と小画像・AIと操作・プロフィール・メンバーを編集<br/>ルーム: 共有する仕事・参加メンバー・ルームを編集]
   Inspector --> Screen[Botの画面<br/>1秒ごと・キーバー・許可の帯]
   subgraph Settings[設定 項目一覧300＋ページ]
@@ -48,7 +48,8 @@ flowchart LR
     ImageSheet[小画像・大画像の操作] --- Crop[切り抜き 680×520] --- PeerSheet[メンバー間の連絡] --- SecretSheet[秘密の入力]
   end
   Inspector -->|メンバーを編集| MemberWindow[メンバー編集の別窓 1120×900]
-  Conversation --> Gallery[画像の閲覧]
+  Conversation --> Gallery[画像の閲覧<br/>主窓いっぱいの黒い覆い・×・n / N・‹ ›・64のサムネイル]
+  Conversation --> Corner[窓の右上の紫の丸いボタン<br/>詳細パネル・会話を書き出す]
   UpdateSheet -.同じ内容.- S8
 ```
 

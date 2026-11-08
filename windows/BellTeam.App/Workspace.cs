@@ -44,6 +44,8 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     private CancellationTokenSource? connection;
     private CancellationTokenSource? selection;
     private readonly Dictionary<(string, ChatTarget), ConversationDraft> drafts = [];
+    // Mac ConversationTimelineState.pendingSends: the owner's own messages shown before the server history has them.
+    private readonly Dictionary<(string, ChatTarget), List<PendingSend>> pendingSends = [];
     private readonly SemaphoreSlim refreshLock = new(1);
     private List<ConversationEntry> all = [];
     private QueueItem[] queue = [];
@@ -187,7 +189,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
         avatars.Clear();
         connection = new CancellationTokenSource();
         selected = null; stoppingBotId = null; stopResult = null; loadFailed = false; routingEnabled = null;
-        all.Clear(); pendingBotDeletions.Clear(); queue = []; OwnerName = "あなた"; AuthMode = "local"; Entries.Clear(); Messages.Clear(); ReplyMembers.Clear();
+        all.Clear(); pendingBotDeletions.Clear(); pendingSends.Clear(); queue = []; OwnerName = "あなた"; AuthMode = "local"; Entries.Clear(); Messages.Clear(); ReplyMembers.Clear();
         Changed(nameof(OwnerName)); Changed(nameof(AuthMode)); Changed(nameof(OnlineSummary));
         HasMore = false;
         Loading = false;
@@ -293,7 +295,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
             foreach (var key in drafts.Keys.Where(key => key.Item1 == Server && !known.Contains(key.Item2)).ToArray())
             {
                 foreach (var image in drafts[key].Attachments) attachmentPreviews.Remove(image);
-                drafts.Remove(key);
+                drafts.Remove(key); pendingSends.Remove(key);
             }
             pendingBotDeletions.IntersectWith(all.Where(entry => entry.Bot is not null).Select(entry => entry.Target.Id));
             Filter();
@@ -345,7 +347,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
             token.ThrowIfCancellationRequested();
             // The cards created for this first page enter with the staggered opening animation; later arrivals use the short one.
             Opening = true; _ = System.Windows.Threading.Dispatcher.CurrentDispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ContextIdle, () => Opening = false);
-            foreach (var message in page.Items) Messages.Add(new(message));
+            ShowMessages(page.Items);
             HasMore = page.HasMore;
             ScrollToBottom?.Invoke(true);
             if (entry.Target.IsRoom)
@@ -379,24 +381,57 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     private async Task RefreshMessagesAsync(BellApi current, ChatTarget target, CancellationToken token)
     {
         var activeSelection = selection;
-        var last = Messages.LastOrDefault()?.Message.Id;
+        var last = Received().LastOrDefault()?.Id;
         var page = await current.GetAsync<MessagePage>(target.Path + "/messages?limit=30", token);
         var after = last is null ? Array.Empty<TimelineMessage>()
             : (await current.GetAsync<MessagePage>(target.Path + "/messages?after=" + Uri.EscapeDataString(last), token)).Items;
         if (selected?.Target != target || Loading || api != current || selection != activeSelection) return;
-        var merged = Timeline.Merge(Messages.Select(item => item.Message), page.Items.Concat(after));
-        for (var index = 0; index < merged.Length; index++)
-        {
-            if (index == Messages.Count) Messages.Add(new(merged[index]));
-            else Messages[index].Update(merged[index]);
-        }
+        var merged = Timeline.Merge(Received(), page.Items.Concat(after));
+        ShowMessages(merged);
         if (last is null) HasMore = page.HasMore;
-            if (page.Items.Length != 0 && (last is null || merged.LastOrDefault()?.Id != last)) ScrollToBottom?.Invoke(false);
+        if (page.Items.Length != 0 && (last is null || merged.LastOrDefault()?.Id != last)) ScrollToBottom?.Invoke(false);
+    }
+
+    // The server history as the list holds it: everything except the local echoes.
+    private TimelineMessage[] Received() => Messages.Select(item => item.Message).Where(message => !PendingSend.IsLocal(message.Id)).ToArray();
+
+    // Mac visibleMessages: puts the list to "received history, then the echoes the history does not have yet", keeping the rows (and their loaded images) that stay.
+    private void ShowMessages(TimelineMessage[] received)
+    {
+        if (selected is not { } entry) return;
+        var key = (Server, entry.Target);
+        var pending = PendingSend.Reconcile(pendingSends.GetValueOrDefault(key) ?? [], received);
+        if (pending.Count == 0) pendingSends.Remove(key); else pendingSends[key] = pending;
+        var desired = PendingSend.Visible(received, pending);
+        var ids = desired.Select(message => message.Id).ToHashSet();
+        for (var index = Messages.Count - 1; index >= 0; index--) if (!ids.Contains(Messages[index].Message.Id)) Messages.RemoveAt(index);
+        for (var index = 0; index < desired.Length; index++)
+        {
+            if (index < Messages.Count && Messages[index].Message.Id == desired[index].Id) { Messages[index].Update(desired[index]); continue; }
+            var existing = Messages.Select((item, at) => (item, at)).FirstOrDefault(pair => pair.at > index && pair.item.Message.Id == desired[index].Id);
+            if (existing.item is null) Messages.Insert(index, new(desired[index]));
+            else { Messages.Move(existing.at, index); Messages[index].Update(desired[index]); }
+        }
+    }
+    // before null adds after; after null removes before; both replaces.
+    private void ChangePending((string, ChatTarget) key, PendingSend? before, PendingSend? after)
+    {
+        var list = pendingSends.GetValueOrDefault(key) ?? [];
+        var at = before is null ? -1 : list.FindIndex(item => item.Id == before.Id);
+        if (after is null) { if (at >= 0) list.RemoveAt(at); } else if (at >= 0) list[at] = after; else list.Add(after);
+        if (list.Count == 0) pendingSends.Remove(key); else pendingSends[key] = list;
+        if (selected is { } entry && (Server, entry.Target) == key) ShowMessages(Received());
+    }
+    // Render seam: the owner's message in the first seconds after sending (never sent anywhere).
+    internal void ShowEchoForRender(string body, bool accepted)
+    {
+        var key = (Server, selected!.Target); var echo = new PendingSend(PendingSend.NewId(), body, 0, DateTimeOffset.Now);
+        ChangePending(key, null, accepted ? echo with { AcceptedId = "render-accepted" } : echo);
     }
 
     public async Task LoadOlderAsync()
     {
-        if (api is null || selected is null || Messages.FirstOrDefault()?.Message is not { } first || Loading) return;
+        if (api is null || selected is null || Received().FirstOrDefault() is not { } first || Loading) return;
         var target = selected.Target;
         var token = selection!.Token;
         Loading = true;
@@ -423,15 +458,20 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
         draft.Targets = ReplyMembers.Where(item => item.Selected).Select(item => item.Id).ToArray();
         var content = draft.BeginSendContent(); DraftChanged();
         var token = connection!.Token;
+        // Mac send(): the message is on screen as 受付確認中 before the server answers; a failure takes it away again and gives the text back.
+        var key = (Server, target); var echo = new PendingSend(PendingSend.NewId(), content.Text, content.Images.Length, DateTimeOffset.Now);
+        ChangePending(key, null, echo);
+        if (selected?.Target == target) ScrollToBottom?.Invoke(true);
         try
         {
-            await current.SendAsync(target, content.Text, content.Images, target.IsRoom && content.Targets.Length != 0 ? content.Targets : null, token);
+            var acceptedId = await current.SendAsync(target, content.Text, content.Images, target.IsRoom && content.Targets.Length != 0 ? content.Targets : null, token);
             foreach (var image in content.Images) attachmentPreviews.Remove(image);
+            if (api == current) ChangePending(key, echo, echo with { AcceptedId = acceptedId });
             draft.CompleteSend(); DraftChanged();
-            if (selected?.Target == target && api == current) ScrollToBottom?.Invoke(true);
         }
         catch (Exception error)
         {
+            if (api == current) ChangePending(key, echo, null);
             draft.FailSend(content, (BellApiException.IsResultUnconfirmed(error) ? "操作の結果を確認できませんでした。再操作する前に、現在の状態を更新して確認してください。\n" : "") + error.Message);
             DraftChanged();
             return;
@@ -603,7 +643,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     public void SignOut()
     {
         connection?.Cancel(); selection?.Cancel(); ReturnToProfile(); ready = false; selected = null; stoppingBotId = null; stopResult = null; loadFailed = false; routingEnabled = null;
-        all.Clear(); queue = []; Entries.Clear(); Messages.Clear(); ReplyMembers.Clear(); drafts.Clear(); attachmentPreviews.Clear(); avatars.Clear(); OwnerName = "あなた";
+        all.Clear(); queue = []; Entries.Clear(); Messages.Clear(); ReplyMembers.Clear(); drafts.Clear(); pendingSends.Clear(); attachmentPreviews.Clear(); avatars.Clear(); OwnerName = "あなた";
         HasMore = false; Loading = false; ConnectionError = ActionError = null; NeedsLogin = AuthMode == "cloudflare"; ConnectionStatus = "ログアウトしました。";
         foreach (var name in new[] { nameof(Connected), nameof(Selected), nameof(HasSelection), nameof(IsRoom), nameof(Title), nameof(Profile), nameof(OwnerName), nameof(OnlineSummary), nameof(ActivityText), nameof(HasActivity), nameof(ActivityRows), nameof(StopEnabled), nameof(CurrentBotCanStop), nameof(StopResult), nameof(LoadFailed), nameof(RoutingEnabled), nameof(ReplyTargetLabel), nameof(CanShowScreen) }) Changed(name);
         DraftChanged();

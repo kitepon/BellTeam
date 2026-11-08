@@ -121,7 +121,7 @@ public sealed class ConversationParityTests
     public async Task RoomSendNeedsATargetWhenRoutingIsOffAndKeepsTheDraft()
     {
         var posts = 0;
-        using var workspace = RoomWorkspace("""{"settings":[{"id":"routing","status":"disabled"}]}""", ApiTests.EmptyQueue, request => { if (request.Method != HttpMethod.Post) return null; posts++; return StubHandler.Json("{}"); });
+        using var workspace = RoomWorkspace("""{"settings":[{"id":"routing","status":"disabled"}]}""", ApiTests.EmptyQueue, request => { if (request.Method != HttpMethod.Post) return null; posts++; return StubHandler.Json("""{"id":"m-sent"}"""); });
         await workspace.ConnectAsync("http://localhost", listen: false);
         await workspace.SelectAsync(workspace.Entries.Single(item => item.Target.IsRoom));
         Assert.False(workspace.RoutingEnabled); Assert.Equal("返信するメンバーを選択", workspace.ReplyTargetLabel);
@@ -139,7 +139,7 @@ public sealed class ConversationParityTests
     public async Task RoutingOnLabelsTheAutomaticChoiceAndSendsWithoutATarget()
     {
         var posts = 0;
-        using var workspace = RoomWorkspace("""{"settings":[{"id":"other","status":"enabled"},{"id":"routing","status":"enabled"}]}""", ApiTests.EmptyQueue, request => { if (request.Method != HttpMethod.Post) return null; posts++; return StubHandler.Json("{}"); });
+        using var workspace = RoomWorkspace("""{"settings":[{"id":"other","status":"enabled"},{"id":"routing","status":"enabled"}]}""", ApiTests.EmptyQueue, request => { if (request.Method != HttpMethod.Post) return null; posts++; return StubHandler.Json("""{"id":"m-sent"}"""); });
         await workspace.ConnectAsync("http://localhost", listen: false);
         await workspace.SelectAsync(workspace.Entries.Single(item => item.Target.IsRoom));
         Assert.True(workspace.RoutingEnabled); Assert.Equal("返信者を自動選択", workspace.ReplyTargetLabel);
@@ -152,7 +152,7 @@ public sealed class ConversationParityTests
         var posts = 0; var failSettings = false;
         using var workspace = RoomWorkspace("""{"settings":[{"id":"routing","status":"disabled"}]}""", ApiTests.EmptyQueue, request =>
         {
-            if (request.Method == HttpMethod.Post) { posts++; return StubHandler.Json("{}"); }
+            if (request.Method == HttpMethod.Post) { posts++; return StubHandler.Json("""{"id":"m-sent"}"""); }
             return failSettings && request.RequestUri!.AbsolutePath == "/api/settings" ? new HttpResponseMessage(System.Net.HttpStatusCode.ServiceUnavailable) : null;
         });
         await workspace.ConnectAsync("http://localhost", listen: false);
