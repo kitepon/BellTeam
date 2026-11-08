@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { TeamBackgroundSummary, backgroundSummaryText } from '../src/team-background-summary.mjs'
+import { TeamBackgroundSummary, backgroundSummaryText, summaryWidth } from '../src/team-background-summary.mjs'
 import { createBackgroundSummaryRunner } from '../src/background-summary-runner.mjs'
 import { AitermTransport } from '../src/aiterm-transport.mjs'
 import { createConversationExecutionEffects } from '../src/conversation-execution-effects.mjs'
@@ -82,8 +82,28 @@ test('secret actor, wrong reader identity, invalid output and failed runs do not
   f.worker.readInput = async value => ({ ...value, text: 'x', progress: '' })
   f.worker.accept(input('bot-a', 'input-b'), authority()); await f.worker.draining
   await tick(); assert.equal(runs, 1); assert.equal(f.view('bot-a').summaryStatus, 'missing')
-  assert.throws(() => backgroundSummaryText('line\nsecond')); assert.throws(() => backgroundSummaryText('😀'.repeat(161)))
-  assert.equal(backgroundSummaryText(` ${'😀'.repeat(160)} `).length, 320)
+  assert.throws(() => backgroundSummaryText('line\nsecond'))
+})
+test('summary display width: full-width 2, others 1, at most 40, never cut', () => {
+  assert.equal(summaryWidth('要約の表示幅制限を実装中'), 24)
+  assert.equal(summaryWidth('PR602を採用待ち'), 15)
+  assert.equal(summaryWidth('ｱ'), 1); assert.equal(summaryWidth('Ａ😀'), 4)
+  assert.equal(backgroundSummaryText(` ${'猫'.repeat(20)} `), '猫'.repeat(20))
+  assert.equal(backgroundSummaryText('a'.repeat(40)), 'a'.repeat(40))
+  assert.equal(backgroundSummaryText(`${'猫'.repeat(19)}ab`), `${'猫'.repeat(19)}ab`)
+  assert.throws(() => backgroundSummaryText(`${'猫'.repeat(20)}a`), { code: 'BACKGROUND_SUMMARY_TOO_WIDE', width: 41 })
+})
+test('over-width output is regenerated once with its width, then dropped', async t => {
+  const prompts = []
+  const answers = ['猫'.repeat(21), '短い要約']
+  const f = fixture(t, { run: async (_s, prompt) => { prompts.push(JSON.parse(prompt)); return answers.shift() } })
+  f.worker.accept(input(), authority()); await f.worker.draining
+  assert.deepEqual(prompts.map(prompt => prompt.previous_width), [undefined, 42])
+  assert.equal(f.view('bot-a').summary, '短い要約')
+  prompts.length = 0; answers.push('猫'.repeat(21), '猫'.repeat(22), 'never')
+  f.worker.accept(input('bot-a', 'input-b'), authority()); await f.worker.draining
+  assert.deepEqual(prompts.map(prompt => prompt.previous_width), [undefined, 42])
+  assert.equal(f.view('bot-a').summaryStatus, 'missing')
 })
 test('TTL and summary remain independent of native state; unknown never invents working', async t => {
   let clock = 0, live = true
