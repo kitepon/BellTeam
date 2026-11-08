@@ -143,9 +143,10 @@ Mac：[48の詳細パネル](assets/mac-ui-reference-48/01-workspace.png)／Wind
 ## 10. 起動・接続・ログイン・初期設定 — M
 
 対応済み（PR 10）：Mac版のRootViewと同じ段階を主窓の中へ置いた。[起動中](assets/windows-mac-gaps/windows/pr10-opening.png)・[接続できませんでした](assets/windows-mac-gaps/windows/pr10-failure.png)・[接続先の入力](assets/windows-mac-gaps/windows/pr10-server-setup.png)（Macは`36-preview-login-server-setup-light.png`）・[導入ガイドのシート](assets/windows-mac-gaps/windows/pr10-guide.png)・[ログイン](assets/windows-mac-gaps/windows/pr10-login.png)・[初期設定：AIの選択](assets/windows-mac-gaps/windows/pr10-onboarding-choose.png)・[初期設定：認証待ち](assets/windows-mac-gaps/windows/pr10-onboarding-waiting.png)・[接続状態の帯](assets/windows-mac-gaps/windows/pr10-banner.png)（Macは`37-preview-error-connection-banner-light.png`、同じく下部の帯）。
-Macと違う点：(1) 帯に「再接続」「接続先」のボタンが付く（Windowsは自動再接続を持たないため）。(2) 接続先を変える時、入力欄に今の接続先が入っている（Macは空）。保存済みの接続先は、新しい接続先を入れるまで消さない。(3) 導入ガイドのMac共有ボタンは、Windowsに共有シートがないため「GitHubをブラウザーで開く」と「この手順のURLをコピー」にした。(4) 失敗の画面に「接続先を変更」を足した。(5) 初期設定の読み取り（3秒ごと）は、失敗しても止めず、失敗を表示して次の成功で消す。(6) 「BellTeam」の文字間（tracking −2.5）は再現していない（WPFにない）。(7) 窓の題名・左上の信号ボタンはOSの標準。
+Macと違う点：(1) 帯に「再接続」「接続先」のボタンが付く（自動再接続はMac・Webと同じ段階で動くので、ボタンは止まった時と今すぐ試す時の入口）。(2) 接続先を変える時、入力欄に今の接続先が入っている（Macは空）。保存済みの接続先は、新しい接続先を入れるまで消さない。(3) 導入ガイドのMac共有ボタンは、Windowsに共有シートがないため「GitHubをブラウザーで開く」と「この手順のURLをコピー」にした。(4) 失敗の画面に「接続先を変更」を足した。(5) 初期設定の読み取り（3秒ごと）は、失敗しても止めず、失敗を表示して次の成功で消す。(6) 「BellTeam」の文字間（tracking −2.5）は再現していない（WPFにない）。(7) 窓の題名・左上の信号ボタンはOSの標準。
 
 - 起動中は「BellTeamを開いています」、失敗時は「接続できませんでした」と「もう一度試す」。
+- 再接続（トロニー裁定 11-08）：失敗の画面と新着のSSEは、Mac・Webと同じ段階（すぐ→1→2→4→8→15秒、各±20%、以後15秒）で自動に再接続する。「自動再試行は入れない」は取り下げ、常駐・タスクトレイ・自動起動は入れないまま。「もう一度試す」と帯の「再接続」はすぐ試す入口として残す。
 - 接続先の入力（ServerSetupView）：106の肖像画、「BellTeamを始める」、「はじめて使う」カード（導入ガイドのシート）、「BellTeamの接続先URL」「続ける」。
 - ログイン（LoginView）：182の肖像画、「BellTeam」（48pt）、「いつでも、あなたのチームと。」、「ログインして始める」。
 - 初期設定（OnboardingView）：AIのカード選択、認証の案内、「認証を確認して始める」「使うAIを変更」「接続先を変更」。Windowsは同じ機能を別の画面構成で持つ。

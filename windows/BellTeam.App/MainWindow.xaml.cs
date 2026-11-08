@@ -18,6 +18,11 @@ public partial class MainWindow : Window, IInspectorHost
     private bool connecting;
     private bool signingOut;
     private string? lastAddress;
+    // Failed startup connections since the last success; the next automatic try waits ReconnectBackoff for this number. A manual try does not reset it.
+    private int startupAttempt;
+    private CancellationTokenSource? startupRetry;
+    // Off for the render seams, which capture a screen and must not move on by themselves.
+    public bool AutoRetry { get; set; } = true;
     private bool inspectorVisible = true;
     private EditorWindow? page;
     private bool loadingOlder;
@@ -49,7 +54,7 @@ public partial class MainWindow : Window, IInspectorHost
             if (!loadingOlder && args.VerticalChange < 0 && args.VerticalOffset < 48 && model.HasMore && !model.Loading) await LoadOlderPreservingPositionAsync();
         };
         ConversationList.PreviewMouseDown += (_, args) => { if (page is not null && args.OriginalSource is DependencyObject target && ItemsControl.ContainerFromElement(ConversationList, target) is ListBoxItem) ShowConversation(); };
-        Closed += (_, _) => { page?.Close(); sheetContent?.Dispose(); (UpdateSheetHost.Content as IDisposable)?.Dispose(); (StartupHost.Child as IDisposable)?.Dispose(); };
+        Closed += (_, _) => { CancelStartupRetry(); page?.Close(); sheetContent?.Dispose(); (UpdateSheetHost.Content as IDisposable)?.Dispose(); (StartupHost.Child as IDisposable)?.Dispose(); };
         Closing += (_, args) => { if (page?.CanNavigateAway == false) args.Cancel = true; };
         DataObject.AddPastingHandler(Composer, Composer_Pasting);
         model.ScrollToBottom += force =>
@@ -403,6 +408,7 @@ public partial class MainWindow : Window, IInspectorHost
     private void ShowStartup(StartupPhase phase, string? message = null, SetupState? setup = null)
     {
         startup = phase;
+        if (phase != StartupPhase.Failure) CancelStartupRetry();
         (StartupHost.Child as IDisposable)?.Dispose();
         if (phase != StartupPhase.Ready) CloseUpdateSheet();
         StartupHost.Child = phase switch
@@ -431,11 +437,16 @@ public partial class MainWindow : Window, IInspectorHost
         }
         catch (Exception) { (StartupHost.Child as LoginView)?.ShowError("ログイン画面を開けませんでした。接続先とWebView2 Runtimeを確認してください。"); }
     }
-    // Mac bootstrap: opening, then the phase the server's answer decides. Nothing is retried; 「もう一度試す」 and 再接続 call this again.
-    public async Task ConnectAsync(string address, bool openLogin = true)
+    // Mac bootstrap: opening, then the phase the server's answer decides. A failure retries by itself with the backoff (see ScheduleStartupRetry);
+    // 「もう一度試す」 and 再接続 call this again at once. An automatic try keeps the failure page on screen instead of flashing the opening view.
+    public async Task ConnectAsync(string address, bool openLogin = true) => await ConnectAsync(address, openLogin, false);
+    private async Task ConnectAsync(string address, bool openLogin, bool automatic)
     {
-        var generation = ++connectGeneration; connecting = true; lastAddress = address;
-        ShowStartup(StartupPhase.Checking);
+        CancelStartupRetry();
+        var generation = ++connectGeneration; connecting = true;
+        if (address != lastAddress) startupAttempt = 0;
+        lastAddress = address;
+        if (!(automatic && startup == StartupPhase.Failure)) ShowStartup(StartupPhase.Checking);
         try
         {
             await model.ConnectAsync(address);
@@ -452,12 +463,30 @@ public partial class MainWindow : Window, IInspectorHost
             catch (OperationCanceledException) when (model.ConnectionToken.IsCancellationRequested) { return; }
             catch (Exception error) { failure = error.Message; }
         if (generation != connectGeneration) return;
-        switch (StartupRoute.AfterConnect(model.NeedsLogin, model.Connected, setup))
+        var route = StartupRoute.AfterConnect(model.NeedsLogin, model.Connected, setup);
+        if (route != StartupPhase.Failure) startupAttempt = 0;
+        switch (route)
         {
             case StartupPhase.Ready: ShowStartup(StartupPhase.Ready); await FinishEntryAsync(setup!); break;
             case StartupPhase.Onboarding: ShowStartup(StartupPhase.Onboarding, setup: setup); break;
             case StartupPhase.SignIn: ShowSignIn(openLogin && model.AuthMode == "cloudflare"); break;
-            default: ShowStartup(StartupPhase.Failure, failure); break;
+            default: ShowStartup(StartupPhase.Failure, failure); if (model.ConnectionRetryable) ScheduleStartupRetry(generation); break;
+        }
+    }
+    private void CancelStartupRetry() { startupRetry?.Cancel(); startupRetry?.Dispose(); startupRetry = null; }
+    // The failure page leaves by itself: wait the next backoff step, then connect again unless the page or the connection moved on meanwhile.
+    private void ScheduleStartupRetry(int generation)
+    {
+        if (!AutoRetry) return;
+        CancelStartupRetry();
+        var source = startupRetry = new CancellationTokenSource(); var attempt = startupAttempt++;
+        _ = RetryAsync();
+        async Task RetryAsync()
+        {
+            try { await model.RetryDelayAsync(attempt, source.Token); }
+            catch (OperationCanceledException) { return; }
+            if (source.IsCancellationRequested || generation != connectGeneration || startup != StartupPhase.Failure) return;
+            await ConnectAsync(lastAddress ?? model.Server, true, true);
         }
     }
     // After the server reports the first setup done: reload the lists (the guide member exists now) and enter the conversations.

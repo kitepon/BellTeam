@@ -81,27 +81,41 @@ public static class UiChecks {
     Check(Application.Current.Windows.Cast<Window>().All(candidate => new WindowInteropHelper(candidate).Handle == IntPtr.Zero),"再接続の確認で窓を表示しました。");
     window.Close(); Console.WriteLine("画面内移動・新着・過去ログ位置・前面非表示の確認に成功しました。");
   }
-  // The Mac RootView phases on the real MainWindow, against stub servers. Nothing here shows a window; a failure must not be retried by itself.
+  // The Mac RootView phases on the real MainWindow, against stub servers. Nothing here shows a window; a failure retries by itself on the backoff and 「もう一度試す」 tries at once.
   private static async Task StartupChecks() {
     const string select = "{\"phase\":\"select_harness\",\"harness\":null,\"harnesses\":[{\"id\":\"codex\",\"name\":\"Codex\"}],\"guideBotId\":null,\"complete\":false,\"auth\":null}";
-    (MainWindow Window, Workspace Model, int[] Requests) Open(Func<string,string> answer) {
+    (MainWindow Window, Workspace Model, int[] Requests) Open(Func<string,string> answer, Func<int,CancellationToken,Task>? retryDelay = null) {
       var requests = new int[1];
-      var model = new Workspace(origin => new BellApi(origin, new MockHandler(request => { requests[0]++; return answer(request.RequestUri!.AbsolutePath); })));
+      var model = new Workspace(origin => new BellApi(origin, new MockHandler(request => { requests[0]++; return answer(request.RequestUri!.AbsolutePath); })), retryDelay: retryDelay);
       return (new MainWindow(model, persistPlacement:false), model, requests);
     }
     void Lay(MainWindow window) { var content = (FrameworkElement)window.Content; content.Measure(new Size(1280,820)); content.Arrange(new Rect(0,0,1280,820)); content.UpdateLayout(); }
     async Task Settle(MainWindow window, Func<bool> done) { for (var turn = 0; turn < 200 && !done(); turn++) await Task.Delay(10); Check(done(), "起動の状態が決まりません。"); Lay(window); }
+    // Real schedule: the first retry is immediate (attempt 0), the next waits 1 s +-20%.
     var failing = Open(path => path == "/api/session" ? throw new InvalidOperationException("模擬の接続失敗") : "{}");
     await failing.Window.ConnectAsync("http://localhost"); Lay(failing.Window);
     Check(failing.Window.Startup == StartupPhase.Failure && failing.Window.StartupContent is StartupFailureView,"接続の失敗が失敗の画面になりません。");
-    var attempts = failing.Requests[0]; await Task.Delay(400);
-    Check(failing.Requests[0] == attempts,"起動の失敗後に自動で再試行しています。");
-    var again = Descendants<Button>(failing.Window.StartupContent!).Single(button => System.Windows.Automation.AutomationProperties.GetName(button) == "もう一度試す");
-    again.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Settle(failing.Window, () => failing.Requests[0] > attempts && failing.Window.Startup == StartupPhase.Failure);
-    var manual = failing.Requests[0]; await Task.Delay(300); Check(failing.Requests[0] == manual && manual - attempts == attempts,"「もう一度試す」が1回の接続になりません。");
-    Lay(failing.Window); var change = Descendants<Button>(failing.Window.StartupContent!).Single(button => System.Windows.Automation.AutomationProperties.GetName(button) == "接続先を変更");
-    change.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Check(failing.Window.Startup == StartupPhase.Setup && failing.Window.StartupContent is ServerSetupView,"失敗の画面から接続先の入力へ移れません。");
-    Check(failing.Requests[0] == manual,"接続先の入力を開いただけで通信しています。");
+    await Settle(failing.Window, () => failing.Requests[0] >= 2);
+    var immediate = failing.Requests[0]; await Task.Delay(600);
+    Check(failing.Requests[0] == immediate,"最初の自動再試行の次が、待ち時間(0.8秒以上)より前に来ています。");
+    await Settle(failing.Window, () => failing.Requests[0] > immediate);
+    Check(failing.Window.Startup == StartupPhase.Failure && failing.Window.StartupContent is StartupFailureView,"自動再試行の後に失敗の画面が残りません。");
+    // Injected schedule: attempt numbers 0, 1, 2 are asked for in order; the manual button tries at once and does not reset the schedule.
+    var waits = new List<int>();
+    var held = Open(path => path == "/api/session" ? throw new InvalidOperationException("模擬の接続失敗") : "{}", async (attempt, token) => { waits.Add(attempt); if (attempt > 0) await Task.Delay(Timeout.Infinite, token); });
+    await held.Window.ConnectAsync("http://localhost"); Lay(held.Window);
+    await Settle(held.Window, () => waits.Count == 2 && held.Requests[0] == 2);
+    Check(waits.SequenceEqual([0, 1]),"自動再試行の待ち時間が0・1の順になりません。");
+    var attempts = held.Requests[0]; await Task.Delay(200); Check(held.Requests[0] == attempts,"待ち時間の途中で再試行しています。");
+    Lay(held.Window);
+    var again = Descendants<Button>(held.Window.StartupContent!).Single(button => System.Windows.Automation.AutomationProperties.GetName(button) == "もう一度試す");
+    again.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Settle(held.Window, () => held.Requests[0] == attempts + 1 && waits.Count == 3 && held.Window.Startup == StartupPhase.Failure);
+    Check(waits.SequenceEqual([0, 1, 2]),"「もう一度試す」の後の待ち時間が進んでいません。");
+    var manual = held.Requests[0]; await Task.Delay(300); Check(held.Requests[0] == manual,"「もう一度試す」が1回の接続になりません。");
+    Lay(held.Window); var change = Descendants<Button>(held.Window.StartupContent!).Single(button => System.Windows.Automation.AutomationProperties.GetName(button) == "接続先を変更");
+    change.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Check(held.Window.Startup == StartupPhase.Setup && held.Window.StartupContent is ServerSetupView,"失敗の画面から接続先の入力へ移れません。");
+    Check(held.Requests[0] == manual,"接続先の入力を開いただけで通信しています。");
+    held.Window.Close(); held.Model.Dispose();
     failing.Window.Close(); failing.Model.Dispose();
 
     var first = Open(_ => "{}"); first.Window.ShowServerSetup();
