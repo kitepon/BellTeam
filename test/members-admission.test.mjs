@@ -30,6 +30,18 @@ test('a rejected real completion is terminal, not a retry or an unhandled reject
   gate.adopt(ticket, 'b'); gate.resume(ticket)
 })
 
+test('a fresh root waits through an exchange and runs on the new generation', async () => {
+  const gate = new MembersAdmission('a'), ticket = gate.close()
+  const seen = []
+  const read = gate.withReadPin('profiles.read', pin => seen.push(['read', pin.generation]))
+  const write = gate.withLease(lease => seen.push(['write', lease.generation]))
+  assert.throws(() => gate.enter(), { code: 'MEMBERS_NOT_ACCEPTED' })
+  await gate.drain(ticket); gate.adopt(ticket, 'b')
+  await new Promise(resolve => setImmediate(resolve)); assert.deepEqual(seen, [])
+  gate.resume(ticket); await Promise.all([read, write])
+  assert.deepEqual(seen, [['read', 'b'], ['write', 'b']])
+})
+
 test('closed root rejects new work while old live lease callbacks drain', async () => {
   const gate = new MembersAdmission('a'), old = gate.capture(), lease = gate.enter(old, 'root-a')
   const ticket = gate.close()

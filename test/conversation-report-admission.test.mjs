@@ -51,11 +51,12 @@ test('not-issued report adapter retains captured identity and releases only its 
   assert.throws(() => f.members.assertLease(f.state.lease), { code: 'MEMBERS_NOT_ACCEPTED' })
 })
 
-test('closed members admission rejects the one derived preparation before fresh/native and never retries on resume', async t => {
+test('a members exchange holds the one derived preparation before fresh/native and runs it once on resume', async t => {
   const f = fixture(t), ticket = f.members.close()
-  await assert.rejects(f.effect('execution.report', f.params, f.context), { code: 'MEMBERS_NOT_ACCEPTED' })
-  f.members.resume(ticket); await tick()
-  assert.equal(f.state.fresh, 0); assert.equal(f.state.native, 0)
+  void f.effect('execution.report', f.params, f.context)
+  await tick(); assert.equal(f.state.fresh, 0); assert.equal(f.state.native, 0)
+  f.members.resume(ticket); await tick(); await tick()
+  assert.equal(f.state.fresh, 1); assert.equal(f.state.native, 1)
 })
 
 test('fresh await retains the captured stop check and releases its new preparation lease on refusal', async t => {
