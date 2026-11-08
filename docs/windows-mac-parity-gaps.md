@@ -8,7 +8,7 @@
 
 ## 1. 外枠とサイドバー — M
 
-対応済み（PR 1）：[Windowsのサイドバー](assets/windows-mac-gaps/windows/pr1-sidebar.png)・[全体](assets/windows-mac-gaps/windows/pr1-workspace.png)。「ゴール」の入口とCtrl+3はゴールのPR（7）で足す。接続先の変更は設定へ移し、手動の再接続は下部の接続状態の帯へ置いた（Windowsは自動で再接続しないため）。
+対応済み（PR 1）：[Windowsのサイドバー](assets/windows-mac-gaps/windows/pr1-sidebar.png)・[全体](assets/windows-mac-gaps/windows/pr1-workspace.png)。「ゴール」の入口（的のアイコン付き、予定と設定の間）とCtrl+3はPR 7で足した。下部の3つは等幅の3マス（左・中・右）に置き、将来4つ目を足す時は1マス増やすだけで収まる。接続先の変更は設定へ移し、手動の再接続は下部の接続状態の帯へ置いた（Windowsは自動で再接続しないため）。
 
 | Mac | Windows |
 | --- | --- |
@@ -18,7 +18,7 @@
 - 見出しの右側：Macは「＋▾」メニュー（「メンバーを追加」「ルームを作成」）。更新がある時だけ紫の↓丸アイコン（UpdateBadge）が出て、押すとUpdateシートが開く。Windowsは「Update · 状態」の文字ボタンが常に出ていて、「＋」から追加メニューを開く。
 - 一覧の行：Macはアバター57.6、名前16pt semibold、名前の直後に「⚡ ファスト」。メンバーの2行目は「今の仕事」の要約（`currentWork`：要約／「作業中・要約未設定」／「作業中・要約期限切れ」／「待機中」／「仕事状況を未取得」）を最大2行、11ptで出す。Windowsはアバター48で、最後のメッセージを1行、ファストの印は右寄せ。
 - 在席の点：Macは仕事中なら赤く点滅（0.8秒）、待機中はミント、オフラインは灰色。Windowsは点滅しない。
-- 下部：Macは「予定」「ゴール」「設定」の3つ（Ctrl+2・Ctrl+3・Ctrl+,）。Windowsは「ゴール」が無く、地球と更新のアイコンが余分にある。
+- 下部：Macは「予定」「ゴール」「設定」の3つ（Ctrl+2・Ctrl+3・Ctrl+,）。Windowsは、PR 7で「ゴール」を足した。
 - 何も選んでいない時：Macは「検索  ⌘K」「送信  Return」の案内付き（Windowsでは⌘KをCtrl+Kに置き換える）。
 - 接続状態は下部の帯に赤字で出す（「更新の接続が切れました。再接続しています。」など）。
 
@@ -77,13 +77,17 @@ Mac：[48の詳細パネル](assets/mac-ui-reference-48/01-workspace.png)／Wind
 - ルーム：「ルームを作る」「ルームを編集」、「代表Bot」（「代表なし」）、削除の文言。
 - 画像の切り抜き：680×520、指示文、320のプレビューと「拡大・縮小」の240幅パネル、「キャンセル」「使用する」。
 
-## 6. ゴール — L（Windowsに無い）
+## 6. ゴール — L（対応済み：PR 7）
 
-- ページ（Ctrl+3）：見出し「ゴール」と「設定済みのゴールと、現在取得できた状態。」、「ゴールを更新」「ゴールを設定」（メンバー選択のメニュー付き）、読込失敗と空の状態。
-- カード：状態（「進行中」「一時停止」「進行できない状態」「利用制限」「予算に到達」「完了」）、目的、使用量、「前のゴール」「取得 <日時>」、操作「設定」「編集」「一時停止」「再開」「取り消す」。
-- 会話のカプセル：状態と経過時間。押すと開いて「状態を更新」。
-- 編集シート「<名前>のゴール」：「目的」（4000文字まで）、「トークン予算（任意）」、注意文。
-- API：`GET /api/goals`、`/api/bots/{id}/goal`。
+対応済み（PR 7）：Macの文言どおりにWindows（WPF）で作った。画面：[空の一覧](assets/windows-mac-gaps/windows/pr7-goals-empty.png)（Macは`04-goals-list-light.png`）・[状態ごとのカード（Claude進行中＋前のゴール／Codex予算に到達／Grok一時停止）](assets/windows-mac-gaps/windows/pr7-goals-cards.png)・[Codexの進行中／一時停止／利用制限](assets/windows-mac-gaps/windows/pr7-goals-cards-codex.png)・[会話のカプセル（ゴール未設定）](assets/windows-mac-gaps/windows/pr7-goals-pill.png)・[開いたカプセル（未設定）](assets/windows-mac-gaps/windows/pr7-goals-pill-open-unset.png)・[開いたカプセル（進行中）](assets/windows-mac-gaps/windows/pr7-goals-pill-open-active.png)・[編集シート（予算の入力エラー）](assets/windows-mac-gaps/windows/pr7-goals-editor-create-error.png)・[編集シート（項目の切り替え）](assets/windows-mac-gaps/windows/pr7-goals-editor-edit-separate.png)。
+
+- ページ（Ctrl+3）：見出し「ゴール」と「設定済みのゴールと、現在取得できた状態。」、「ゴールを更新」「ゴールを設定」（候補が複数ならメンバー選択のメニュー付き）、読込失敗・現在のゴールを確認できない・空の状態。
+- カード：状態（「進行中」「一時停止」「進行できない状態」「利用制限」「予算に到達」「完了」）、目的、使用量、「前のゴール」「取得 <日時>」、操作「設定」「編集」「一時停止」「再開」「取り消す」（確認ダイアログは出さない）。操作の有無は状態と権限で決まる。出せない操作は「今のゴールでは…を操作できません。」と書く。
+- 会話のカプセル（メンバーの会話だけ。ルームには出さない）：状態と経過時間。押すと開いてカードと「状態を更新」。
+- 編集シート「<名前>のゴール」：「目的」（「n / 4000文字」）、「トークン予算（任意）」（「指定しない」）、CLIが一項目ずつしか受けない時の「変更する項目」、注意文。「保存」はシートの右上。
+- API：`GET /api/goals`、`GET /api/bots/{id}/goal`、変更は`POST /api/bots/{id}/goal`の1本だけ（サーバーにPUT・DELETEは無い）。
+- 読み直す時：開いた時・「更新」・窓が前面に戻った時・サーバーの通知（Macの`eventRevision`と同じ種類）。周期の読み取りは無い。変更は1回の押下で1回だけ送り、自動では再送しない。応答が不明な時は不明と表示して状態を読み直す。
+- Windowsだけの差：Macの診断への記録は無い。日時は日本語の「2026年11月8日 12:00」形式で出す。
 
 ## 7. 予定 — S
 

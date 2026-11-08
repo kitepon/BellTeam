@@ -89,6 +89,35 @@ const screenScenes = {
   empty: { screen: { online: true, screen: '' }, approval: approvalNone }, offline: { screen: { online: false, screen: '' }, approval: { httpStatus: 409, error: 'SCREEN_SEAT_ABSENT' } },
   failed: { screen: { httpStatus: 500, error: 'TEMPORARY_FAILURE' }, approval: approvalNone }
 }
+// Goal scenes (PR 7): bot-one is Claude, bot-two Codex, bot-three Grok. Every route is a GET; the goal POST is never served.
+const goalFields = (objective, tokenBudget, combined) => ({ objective, tokenBudget, combined })
+const goalNone = goalFields(false, false, false)
+const goalSnapshot = (botId, { availability = 'available', capabilities = {}, create = goalNone, edit = goalNone, goal, nativeHistory, message = null } = {}) => ({
+  botId, availability, capabilities: { inspect: true, create: false, edit: false, pause: false, resume: false, clear: false, ...capabilities },
+  fieldCapabilities: { create, edit }, binding: availability === 'available' ? { sessionId: `seat-${botId}`, launchId: 'a'.repeat(32), threadId: `thread-${botId}` } : null,
+  ...(goal === undefined ? {} : { goal }), ...(nativeHistory ? { nativeHistory } : {}), observedAt: '2026-11-08T03:00:00Z', message })
+const codexGoal = (botId, status, objective, tokenBudget, tokensUsed, timeUsedSeconds) => ({ kind: 'codex-cli', native: { threadId: `thread-${botId}`, objective, status, tokenBudget, tokensUsed, timeUsedSeconds, createdAt: 1, updatedAt: 2 } })
+const claudeNative = (condition, met, extra = {}) => ({ type: 'goal_status', condition, met, ...extra })
+const goalScenes = {
+  empty: () => [
+    goalSnapshot('bot-one', { capabilities: { create: true }, create: goalFields(true, false, false), goal: null }),
+    goalSnapshot('bot-two', { capabilities: { create: true }, create: goalFields(true, true, true), goal: null }),
+    goalSnapshot('bot-three', { availability: 'unsupported', message: 'このメンバーではゴール機能をまだ利用できません。' })
+  ],
+  cards: () => [
+    goalSnapshot('bot-one', { capabilities: { edit: true, pause: true, clear: true }, edit: goalFields(true, false, false),
+      goal: { kind: 'claude-code', phase: 'active', native: claudeNative('設計図と画面の仕様を揃え、試験を通す', false, { tokens: 48210, durationMs: 183000, iterations: 6 }), reported_turns: 6 },
+      nativeHistory: { kind: 'claude-code', terminal: 'achieved', native: claudeNative('前回の移行作業を終える', true) } }),
+    goalSnapshot('bot-two', { capabilities: { edit: true, clear: true }, edit: goalFields(true, true, true), goal: codexGoal('bot-two', 'budgetLimited', '配布の手順書を最新にする', 200000, 200412, 5231.5) }),
+    goalSnapshot('bot-three', { capabilities: { resume: true, clear: true }, goal: { kind: 'grok-cli', native: { objective: '画面の文言を見直す' }, current_status: { source: '/goal status', status: 'UserPaused', phase: 'Idle', tokens_used: 12034, elapsed_display: '4m12s' } } })
+  ],
+  'cards-codex': () => [
+    goalSnapshot('bot-one', { capabilities: { edit: true, pause: true, clear: true }, edit: goalFields(true, true, false), goal: codexGoal('bot-one', 'active', '通知の表示を直して配布する', 500000, 120345, 842) }),
+    goalSnapshot('bot-two', { capabilities: { edit: true, resume: true, clear: true }, edit: goalFields(true, true, true), goal: codexGoal('bot-two', 'paused', '予定画面の調整を進める', null, 9800, 61) }),
+    goalSnapshot('bot-three', { capabilities: { clear: true }, goal: codexGoal('bot-three', 'usageLimited', '長い調査を続ける', 1000000, 430000, 7200) })
+  ]
+}
+for (const scene of Object.keys(goalScenes)) sceneMessages[`goals-${scene}`] = { 'bot-one': memberScene, 'bot-two': memberScene, 'bot-three': memberScene }
 let writes = 0
 let gallery = false
 const galleryAssets = { '/api/message-images/demo/one.png': 'ios/BellBot/BellBot/Assets.xcassets/AppIcon.appiconset/bellbot-icon.png', '/api/message-images/demo/two.png': 'docs/assets/mac-ui-reference-48/01-workspace.png', '/api/message-images/demo/three.png': 'docs/assets/conversation-images/iphone-stack.png' }
@@ -102,6 +131,12 @@ const server = createServer((request, response) => {
   const path = new URL(request.url, 'http://localhost').pathname
   if (galleryAssets[path]) { response.writeHead(200, { 'content-type': 'image/png' }); response.end(readFileSync(galleryAssets[path])); return }
   if (conversationScene.startsWith('inspector') && inspectorImages[path]) { response.writeHead(200, { 'content-type': 'image/png' }); response.end(inspectorImages[path]); return }
+  const goalRoute = path.match(/^\/api\/(?:goals|bots\/([^/]+)\/goal)$/)
+  if (goalRoute && conversationScene.startsWith('goals-')) {
+    const snapshots = goalScenes[conversationScene.slice(6)]?.() ?? []
+    const answer = goalRoute[1] ? { snapshot: snapshots.find(item => item.botId === goalRoute[1]) } : { goals: snapshots }
+    response.writeHead(200, { 'content-type': 'application/json' }); response.end(JSON.stringify(answer)); return
+  }
   const screenRoute = path.match(/^\/api\/bots\/[^/]+\/screen(\/approval)?$/)
   if (screenRoute && conversationScene.startsWith('screen-')) {
     const answer = screenScenes[conversationScene.slice(7)]?.[screenRoute[1] ? 'approval' : 'screen'] ?? { httpStatus: 404, error: 'NOT_FOUND' }
@@ -135,7 +170,7 @@ server.listen(0, '127.0.0.1', async () => {
       ['09-gallery.png', ['--render-gallery', origin, 'bot-one']]
     ]
     const settingsPages = ['profile', 'ai', 'features', 'notifications', 'connection', 'display', 'billing', 'update', 'about', 'stop']
-    if (process.argv[4] && !['gallery', 'updates', 'settings', 'summary', 'conversation', 'inspector', 'screen'].includes(process.argv[4])) throw new Error('WINDOWS_RENDER_SCENE_UNKNOWN')
+    if (process.argv[4] && !['gallery', 'updates', 'settings', 'summary', 'conversation', 'inspector', 'screen', 'goals'].includes(process.argv[4])) throw new Error('WINDOWS_RENDER_SCENE_UNKNOWN')
     // Same three summaries as ios/BellBot/BellBotTests/SummaryLayoutTests.swift.
     if (process.argv[4] === 'summary') ['認証まわりの再試行処理を見直し、通知の表示崩れと画像の読み込み失敗も合わせて直す', 'ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴ', 'abcdefghij'.repeat(8)].forEach((summary, index) => { if (fixture.bots[index]) fixture.bots[index].currentWork = { state: 'working', summary, summaryStatus: 'current' } })
     // [file, scene, conversation id]: each renders the conversation in one named state.
@@ -144,7 +179,11 @@ server.listen(0, '127.0.0.1', async () => {
     const inspectorFrames = [['inspector-member-large.png', 'member', 'bot-one'], ['inspector-member-small-only.png', 'member', 'bot-three'], ['inspector-member-no-image.png', 'member', 'bot-two'], ['inspector-room.png', 'room', 'planning'], ['inspector-sheet-small.png', 'sheet-small', 'bot-one'], ['inspector-sheet-large.png', 'sheet-large', 'bot-one'], ['inspector-sheet-unsupported.png', 'sheet-unsupported', 'bot-three'], ['inspector-pending.png', 'pending', 'bot-one'], ['inspector-pending-sheet.png', 'pending-sheet', 'bot-one']]
     // [file, scene]: the Bot screen of bot-one; every scene name starts with "screen-" for the mock.
     const screenFrames = [['screen-keys.png', 'keys'], ['screen-approval.png', 'approval'], ['screen-digits-error.png', 'digits'], ['screen-sent.png', 'sent'], ['screen-empty.png', 'empty'], ['screen-offline.png', 'offline'], ['screen-read-failed.png', 'failed']]
-    const selectedFrames = process.argv[4] === 'screen' ? screenFrames.map(([name, scene]) => [name, ['--render-screen', scene, origin, 'bot-one'], `screen-${scene}`]) : process.argv[4] === 'inspector' ? inspectorFrames.map(([name, scene, id]) => [name, ['--render-inspector', scene, origin, id], `inspector-${scene}`]) : process.argv[4] === 'conversation' ?conversationFrames.map(([name, scene, id]) => [name, ['--render-conversation', scene, origin, id], scene]) : process.argv[4] === 'summary' ? [['summary.png', ['--render-url', origin, 'bot-one']]] : process.argv[4] === 'settings' ? settingsPages.map(page => [`settings-${page}.png`, ['--render-page', `settings-${page}`, origin]]) : process.argv[4] === 'gallery' ? frames.filter(([name]) => name === '09-gallery.png') : process.argv[4] === 'updates' ? [['update.png', ['--render-page', 'updates', origin]], ['update-current.png', ['--render-page', 'updates-current', origin]], ['update-narrow.png', ['--render-page', 'updates-narrow', origin]], ['update-detail-narrow.png', ['--render-page', 'updates-detail-narrow', origin]], ['update-sheet.png', ['--render-page', 'update-sheet', origin]]] : frames
+    // [file, render kind, scene, conversation id or null]: goals; every scene name starts with "goals-" for the mock.
+    const goalFrames = [['goals-empty.png', 'page', 'empty'], ['goals-cards.png', 'page', 'cards'], ['goals-cards-codex.png', 'page', 'cards-codex'],
+      ['goals-pill.png', 'pill', 'empty', 'bot-one'], ['goals-pill-open-unset.png', 'pill-open', 'empty', 'bot-one'], ['goals-pill-open-active.png', 'pill-open', 'cards', 'bot-one'],
+      ['goals-editor-create-error.png', 'editor-create', 'empty', 'bot-two'], ['goals-editor-edit-separate.png', 'editor-edit', 'cards-codex', 'bot-one']]
+    const selectedFrames = process.argv[4] === 'goals' ? goalFrames.map(([name, kind, scene, id]) => [name, kind === 'page' ? ['--render-page', 'goals', origin] : ['--render-goals', kind, origin, id], `goals-${scene}`]) : process.argv[4] === 'screen' ? screenFrames.map(([name, scene]) => [name, ['--render-screen', scene, origin, 'bot-one'], `screen-${scene}`]) : process.argv[4] === 'inspector' ? inspectorFrames.map(([name, scene, id]) => [name, ['--render-inspector', scene, origin, id], `inspector-${scene}`]) : process.argv[4] === 'conversation' ?conversationFrames.map(([name, scene, id]) => [name, ['--render-conversation', scene, origin, id], scene]) : process.argv[4] === 'summary' ? [['summary.png', ['--render-url', origin, 'bot-one']]] : process.argv[4] === 'settings' ? settingsPages.map(page => [`settings-${page}.png`, ['--render-page', `settings-${page}`, origin]]) : process.argv[4] === 'gallery' ? frames.filter(([name]) => name === '09-gallery.png') : process.argv[4] === 'updates' ? [['update.png', ['--render-page', 'updates', origin]], ['update-current.png', ['--render-page', 'updates-current', origin]], ['update-narrow.png', ['--render-page', 'updates-narrow', origin]], ['update-detail-narrow.png', ['--render-page', 'updates-detail-narrow', origin]], ['update-sheet.png', ['--render-page', 'update-sheet', origin]]] : frames
     for (const [name, args, scene] of selectedFrames) {
       conversationScene = scene ?? 'default'
       if (name === '07-settings-cloudflare.png') routes['/api/session'].authMode = 'cloudflare'

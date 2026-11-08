@@ -69,7 +69,10 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     public CancellationToken ConnectionToken => connection?.Token ?? CancellationToken.None;
     public ManagementApi Management => new(api ?? throw new BellApiException("接続先を設定してください。"));
     public PlanningApi Planning => new(api ?? throw new BellApiException("接続先を設定してください。"));
+    public GoalsApi Goals => new(api ?? throw new BellApiException("接続先を設定してください。"));
     public event Action? ServerChanged;
+    // Mac eventRevision: the server events that make an open goal view read its goals again (see GoalEvents).
+    public event Action? GoalEvent;
     public event Action? UpdatesChanged;
     public event Action<MessageNotification>? MessageArrived;
     public ConversationEntry[] Conversations => all.ToArray();
@@ -209,7 +212,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
             {
                 ConnectionStatus = "接続済み・新着を受信中";
                 if (item.TryGetProperty("type", out var type) && type.ValueKind == System.Text.Json.JsonValueKind.String && type.GetString() == "updates") UpdatesChanged?.Invoke();
-                if (item.EnumerateObject().Any()) { await RefreshAsync(current, token, notify: true); ServerChanged?.Invoke(); }
+                if (item.EnumerateObject().Any()) { if (GoalEvents.ShouldReload(item, ConnectionError is not null)) GoalEvent?.Invoke(); await RefreshAsync(current, token, notify: true); ServerChanged?.Invoke(); }
             }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
