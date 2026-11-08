@@ -1,6 +1,7 @@
 import { PushNotifications, validatePushDevice } from '../push-notifications.mjs'
 import { WebPushNotifications } from '../web-push-notifications.mjs'
 import { validateWebPushParams } from './web-push-schema.mjs'
+import { validateUpdateAttemptQuery } from '../update-push-attempts.mjs'
 
 const methods = new Set(['status', 'configure', 'register', 'unregister', 'publish'])
 const printable = value => typeof value === 'string' && Boolean(value.trim()) && !/[\u0000-\u001f\u007f]/u.test(value)
@@ -21,7 +22,7 @@ export function validateNotificationRequest(method, params) {
     const { provider, ...value } = params
     params = value
   }
-  if (method === 'status') object(params, [])
+  if (method === 'status') validateUpdateAttemptQuery(params)
   if (method === 'configure') {
     object(params, ['enabled', 'relayUrl'])
     if (typeof params.enabled !== 'boolean' || typeof params.relayUrl !== 'string' || params.relayUrl.includes('\0')) throw failure('PUSH_INPUT_INVALID')

@@ -55,6 +55,7 @@
     "src/owner-questions.mjs",
     "src/secret-requests.mjs",
     "src/push-notifications.mjs",
+    "src/update-push-attempts.mjs",
     "src/web-push-notifications.mjs",
     "src/web-push-provider.mjs",
     "src/subscriptions.mjs",

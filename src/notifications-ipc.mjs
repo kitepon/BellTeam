@@ -11,7 +11,11 @@ const safeCode = code => typeof code === 'string' && /^[A-Z_0-9]{1,100}$/.test(c
 export const notificationError = (code, outcome = 'unknown', status = 503) => Object.assign(new Error(code), { code, outcome, status })
 const validError = error => keys(error, 'code,outcome,status') && safeCode(error.code)
   && ['unknown', 'not_accepted'].includes(error.outcome) && Number.isInteger(error.status) && error.status >= 400 && error.status <= 599
-const statusValid = value => object(value) && keys(value, value.error === undefined ? 'configured,environments' : 'configured,environments,error')
+const jsonValid = value => value === null || ['string', 'boolean'].includes(typeof value)
+  || typeof value === 'number' && Number.isFinite(value)
+  || Array.isArray(value) && value.every(jsonValid)
+  || object(value) && [Object.prototype, null].includes(Object.getPrototypeOf(value)) && Object.values(value).every(jsonValid)
+const statusValid = value => object(value) && jsonValid(value)
   && typeof value.configured === 'boolean' && Array.isArray(value.environments)
   && value.environments.every(item => ['development', 'production'].includes(item))
   && (value.error === undefined || keys(value.error, 'code,message') && safeCode(value.error.code)
@@ -44,6 +48,13 @@ const validateParams = (method, params, control) => {
   if (method === 'publish') return
   if (!['apns', 'webPush'].includes(params.provider)) throw notificationError('PUSH_IPC_ARGUMENTS', 'not_accepted')
   if (params.provider === 'webPush') validateWebPushParams(method, params)
+  if (params.provider === 'apns' && method === 'status') {
+    const uuid = value => typeof value === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iu.test(value)
+    if (['attemptId', 'before'].some(key => params[key] !== undefined && !uuid(params[key]))
+      || params.deviceOffset !== undefined && (!Number.isSafeInteger(params.deviceOffset) || params.deviceOffset < 0)) {
+      throw notificationError('PUSH_IPC_ARGUMENTS', 'not_accepted', 400)
+    }
+  }
 }
 const bounded = value => { try { return Buffer.byteLength(JSON.stringify(value)) <= NOTIFICATIONS_MESSAGE_LIMIT } catch { return false } }
 const diagnosticValid = value => keys(value, 'code,module,diagnostic_log') && value.module === 'notifications'

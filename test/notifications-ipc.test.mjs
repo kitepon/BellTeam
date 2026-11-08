@@ -13,6 +13,21 @@ async function start(t, options = {}) {
   await channel.ready
   return {child, channel, ended}
 }
+test('additive APNs status keeps old fields and future receipt fields, validates read option shapes', async t => {
+  const old = await start(t)
+  await old.channel.control('resume')
+  assert.deepEqual(await old.channel.request('status', { provider: 'apns' }), { configured: false, environments: [] })
+  const { channel } = await start(t, { mode: 'extended-status' })
+  await channel.control('resume')
+  const attemptId = '11111111-2222-3333-4444-555555555555'
+  const result = await channel.request('status', { provider: 'apns', attemptId, deviceOffset: 20 })
+  assert.equal(result.configured, false)
+  assert.deepEqual(result.updateAttempts, { future: [null, true, 1.5, 'kept'], items: [{ extraAttemptField: { devices: [{ extraDeviceField: 'kept' }] } }] })
+  assert.deepEqual(result.requested, { attemptId, deviceOffset: 20 })
+  for (const options of [{ attemptId: 'bad' }, { before: 'bad' }, { deviceOffset: -1 }, { deviceOffset: 1.2 }]) {
+    await assert.rejects(channel.request('status', { provider: 'apns', ...options }), { code: 'PUSH_IPC_ARGUMENTS', outcome: 'not_accepted', status: 400 })
+  }
+})
 test('closed admission, accepted result, diagnostic ACK and graceful OS close', async t => {
   const reports=[]
   const {channel,ended}=await start(t,{onDiagnostic:async report=>reports.push(report)})

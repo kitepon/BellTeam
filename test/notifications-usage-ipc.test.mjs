@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { createECDH, randomBytes } from 'node:crypto'
-import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -23,6 +23,30 @@ async function start(t, { mode = '', configuration = { enabled: false, relayUrl:
   const ready = await channel.ready
   return { channel, ready, root, child, ended, stderr: () => stderr }
 }
+
+test('update receipt IPC returns concurrent saved attempts and quiesce waits their provider outcomes', async t => {
+  const { channel, root } = await start(t, { mode: 'receipt-provider', configuration: { enabled: true, relayUrl: '' } })
+  await channel.control('resume')
+  await channel.request('register', { ...device, provider: 'apns' })
+  for (const suffix of ['e', 'f']) await channel.request('publish', { type: 'update', id: suffix.repeat(64) })
+  const pending = await channel.request('status', { provider: 'apns' })
+  assert.equal(pending.updateAttempts.total, 2)
+  assert(pending.updateAttempts.items.every(item => item.state === 'pending'))
+  let drained = false
+  const drain = channel.control('quiesce', {}).then(value => { drained = true; return value })
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(drained, false)
+  await writeFile(join(root, 'release'), '')
+  assert.deepEqual(await drain, { quiesced: true })
+  await channel.control('resume')
+  const result = await channel.request('status', { provider: 'apns' })
+  assert(result.updateAttempts.items.every(item => item.state === 'completed' && item.devices[0].outcome === 'accepted'))
+  const selected = await channel.request('status', { provider: 'apns', attemptId: result.updateAttempts.items[0].attemptId, deviceOffset: 0 })
+  assert.equal(selected.updateAttempts.items.length, 1)
+  assert.equal((await readdir(join(root, 'state/update-push-attempts'))).length, 2)
+  assert(!JSON.stringify(result).includes(device.token))
+  assert(!JSON.stringify(result).includes('PRIVATE_TRANSACTION'))
+})
 
 test('実IPCとusage dispatcherは未設定ready・resume前拒否・正常exitを接続する', async t => {
   const { channel, ready, ended } = await start(t)
