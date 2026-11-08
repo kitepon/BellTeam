@@ -34,7 +34,7 @@ export class CapacityContinuation {
   }
 
   failed(context) {
-    if (this.closed || !context.failure || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u.test(context.deliveryId)) return
+    if (this.closed || !(context.failure || context.accountLimit) || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u.test(context.deliveryId)) return
     let state = this.states.get(context.bot.id)
     if (state?.running) { state.next = context; return }
     if (!state || state.deliveryId !== context.deliveryId) {
@@ -93,6 +93,8 @@ export class CapacityContinuation {
         }
       }
     }
+    // Another harness only with Aiterm's terminal-failure proof; an account limit alone ends here.
+    if (!context.failure) return
     for (const harness of ['codex', 'claude', 'grok', 'cursor', 'antigravity']) {
       if (state.attempted.has(harness)) continue
       state.attempted.add(harness)

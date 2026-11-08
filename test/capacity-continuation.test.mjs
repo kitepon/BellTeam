@@ -143,3 +143,24 @@ test('a limit on the 1st account resumes the same conversation on the 2nd before
   assert.deepEqual(accounts.limitFor('claude', '1st', 'fable').map(x => [x.scope, x.resetAt]), [['all', null]])
   assert.deepEqual(f.transport.seatAccount(f.bot.id), { harness: 'claude', slot: '2nd', preferredSlot: '1st' })
 })
+
+// Production 2026-11-09 07:37 JST: the Fable limit came without Aiterm's terminal-failure proof and nothing moved.
+test('an account limit without the terminal-failure proof still resumes on the 2nd and sends the continuation, never another harness', async t => {
+  const home = await mkdtemp(join(tmpdir(), 'capacity-accounts-noproof-')); t.after(() => rm(home, { recursive: true, force: true }))
+  await mkdir(join(home, '.claude/projects'), { recursive: true })
+  const accounts = new HarnessAccounts({ home, statePath: join(home, 'accounts.json'), readUsage: async () => [], log: () => {} })
+  t.after(() => accounts.close())
+  await accounts.prepare('claude', '2nd')
+  await writeFile(join(home, '.bellteam-accounts/claude/2nd/.credentials.json'), '{}')
+  const f = await fixture(t, { accounts, changeFailure: x => ({ ...x, outcome: 'rate_limited',
+    rate_limit: "You're out of usage credits. Run /usage-credits to keep using Fable 5.1 or /model to switch models.",
+    failure: { ...x.failure, terminal: false } }) })
+  await f.start(); await f.settle()
+  const launches = f.calls.filter(x => x.name === 'agent_launch')
+  assert.deepEqual(launches.map(x => x.args.configuration_root), [join(home, '.bellteam-accounts/claude/2nd')])
+  const sends = f.calls.filter(x => x.name === 'pty_send')
+  assert.equal(sends.length, 2)
+  assert.match(sends[1].args.text, /2ndアカウント/)
+  assert.equal(f.bots.get(f.bot.id).harness, 'claude')
+  assert.equal(accounts.seatSlot(f.bot.id), '2nd')
+})
