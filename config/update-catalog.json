@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T06:09:12Z",
-  "expiresAt": "2026-11-15T06:09:12Z",
+  "publishedAt": "2026-11-08T06:37:08Z",
+  "expiresAt": "2026-11-15T06:37:08Z",
   "releases": [
     {
       "componentId": "usage",
@@ -635,15 +635,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "68521582f5407edb6146f135e34e0179838430a0",
-      "versionId": "sha256:b7325088c8c8b83214cae9ddf11969f7f66b31602d1134e6a64b367b51c06830",
+      "sourceCommit": "d0089cbb5765adfc6a89c091eefee499f20120fb",
+      "versionId": "sha256:2381e9ae2416b5204f66816dffc3adfbcb823ef53515ea6457fd5b981a70f402",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b7325088c8c8b83214cae9ddf11969f7f66b31602d1134e6a64b367b51c06830"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:2381e9ae2416b5204f66816dffc3adfbcb823ef53515ea6457fd5b981a70f402"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -652,20 +652,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "部品の入れ替え中もメンバー一覧などを止めずに返し、会話の部品が終わる時の処理と記録を直します。"
+        "どの部品を入れ替えている間も、要求を断らずに待って処理するようにし、共通ルールを更新します。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "68521582f5407edb6146f135e34e0179838430a0",
-      "versionId": "sha256:b7325088c8c8b83214cae9ddf11969f7f66b31602d1134e6a64b367b51c06830",
+      "sourceCommit": "d0089cbb5765adfc6a89c091eefee499f20120fb",
+      "versionId": "sha256:2381e9ae2416b5204f66816dffc3adfbcb823ef53515ea6457fd5b981a70f402",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b7325088c8c8b83214cae9ddf11969f7f66b31602d1134e6a64b367b51c06830"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:2381e9ae2416b5204f66816dffc3adfbcb823ef53515ea6457fd5b981a70f402"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -674,7 +674,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "部品の入れ替え中もメンバー一覧などを止めずに返し、会話の部品が終わる時の処理と記録を直します。"
+        "どの部品を入れ替えている間も、要求を断らずに待って処理するようにし、共通ルールを更新します。"
       ]
     }
   ],
