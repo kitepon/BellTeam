@@ -1,12 +1,12 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T12:39:10Z",
-  "expiresAt": "2026-11-15T12:39:10Z",
+  "publishedAt": "2026-11-08T12:42:48Z",
+  "expiresAt": "2026-11-15T12:42:48Z",
   "releases": [
     {
       "componentId": "usage",
-      "sourceCommit": "69cfac918836cb3f8f73fdce38804d6c0fba6450",
-      "versionId": "e92ff3d2b3285b6f3771cc986abfc4c03a488824fcfa30a29346c8873df925f0",
+      "sourceCommit": "519235920ed1a0d0a23d9581de43895d1d4dfd0e",
+      "versionId": "c454324d15b83ac4e476a208cc9ce7549781301b763b0801abcd0ce809abc810",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -14,16 +14,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T131813Z/usage-69cfac918836cb3f8f73fdce38804d6c0fba6450-linux-amd64.tar.gz",
-          "bytes": 65835,
-          "sha256": "e92ff3d2b3285b6f3771cc986abfc4c03a488824fcfa30a29346c8873df925f0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T124222Z/usage-519235920ed1a0d0a23d9581de43895d1d4dfd0e-linux-amd64.tar.gz",
+          "bytes": 66831,
+          "sha256": "c454324d15b83ac4e476a208cc9ce7549781301b763b0801abcd0ce809abc810"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T131813Z/usage-69cfac918836cb3f8f73fdce38804d6c0fba6450-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10999,
-          "sha256": "b1b34b897746ad00f7a5a965cff2e738b7b44da0d8f7fb6d6513b18b03eb07b0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T124222Z/usage-519235920ed1a0d0a23d9581de43895d1d4dfd0e-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10764,
+          "sha256": "cff0c1cbe0d15b9529f1f0548c1cc35f31be7ea7e6c8e233c8543aa97d80578e"
         },
-        "signerCommit": "69cfac918836cb3f8f73fdce38804d6c0fba6450"
+        "signerCommit": "519235920ed1a0d0a23d9581de43895d1d4dfd0e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -47,13 +47,13 @@
         }
       },
       "changes": [
-        "提出済み認証コードを、本人と既承認を検証する管理側の一回処理へ接続します。"
+        "設定画面で、Claudeの2つ目のアカウントを登録・切り替えできるようにします。"
       ]
     },
     {
       "componentId": "usage",
-      "sourceCommit": "69cfac918836cb3f8f73fdce38804d6c0fba6450",
-      "versionId": "0ff073bfad89120c2b89e9910d76d3e6b1e373e81c84a1686c1df18df9e8badd",
+      "sourceCommit": "519235920ed1a0d0a23d9581de43895d1d4dfd0e",
+      "versionId": "bb225f41fd092367deb310103b284fd005ba02e34f078348daccc2f989acc83e",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -61,16 +61,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T131813Z/usage-69cfac918836cb3f8f73fdce38804d6c0fba6450-linux-arm64.tar.gz",
-          "bytes": 65835,
-          "sha256": "0ff073bfad89120c2b89e9910d76d3e6b1e373e81c84a1686c1df18df9e8badd"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T124222Z/usage-519235920ed1a0d0a23d9581de43895d1d4dfd0e-linux-arm64.tar.gz",
+          "bytes": 66831,
+          "sha256": "bb225f41fd092367deb310103b284fd005ba02e34f078348daccc2f989acc83e"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T131813Z/usage-69cfac918836cb3f8f73fdce38804d6c0fba6450-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11093,
-          "sha256": "ad974e7af1d126be2523a9578f07ad159bf4d2e9e6c2c80bf3b5626449017a6b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T124222Z/usage-519235920ed1a0d0a23d9581de43895d1d4dfd0e-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10815,
+          "sha256": "85e8205e0f01d1093246a05c384afea78790a4c60e0e42143e78a5081c6bc5c5"
         },
-        "signerCommit": "69cfac918836cb3f8f73fdce38804d6c0fba6450"
+        "signerCommit": "519235920ed1a0d0a23d9581de43895d1d4dfd0e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -94,7 +94,7 @@
         }
       },
       "changes": [
-        "提出済み認証コードを、本人と既承認を検証する管理側の一回処理へ接続します。"
+        "設定画面で、Claudeの2つ目のアカウントを登録・切り替えできるようにします。"
       ]
     },
     {
@@ -722,7 +722,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "設定画面に、Claudeの1つ目と2つ目のアカウントの欄が表示されます。2つ目のアカウントの登録は、利用状況の部品を更新した後に使えます。",
+        "設定画面に、Claudeの1つ目と2つ目のアカウントの欄が表示されます。2つ目のアカウントの登録は、利用設定の部品を更新した後に使えます。",
         "相関図の線に、依頼を受けたメンバーの作業の要約が表示されます。",
         "新しい部品が配布されても、更新の確認が止まらないようにします。"
       ]
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "設定画面に、Claudeの1つ目と2つ目のアカウントの欄が表示されます。2つ目のアカウントの登録は、利用状況の部品を更新した後に使えます。",
+        "設定画面に、Claudeの1つ目と2つ目のアカウントの欄が表示されます。2つ目のアカウントの登録は、利用設定の部品を更新した後に使えます。",
         "相関図の線に、依頼を受けたメンバーの作業の要約が表示されます。",
         "新しい部品が配布されても、更新の確認が止まらないようにします。"
       ]
