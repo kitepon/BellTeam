@@ -145,6 +145,8 @@ struct BotScreenView: View {
         // 全履歴（最大1万行）は開いた最初の1回だけ取り、以後は画面末尾だけを毎秒取ってつなぐ。
         var scrollback = ScreenScrollback()
         var loadedHistory = false
+        // 失敗しても止めない。次の200で表示が戻る。診断は失敗が続く間に1回だけ送る。止まるのは取消と認証失敗だけ。
+        var failureReported = false
         while !Task.isCancelled {
             let started = ContinuousClock.now
             do {
@@ -156,6 +158,7 @@ struct BotScreenView: View {
                 if online != result.online { online = result.online }
                 if screen != next { screen = next }
                 if errorText != nil { errorText = nil }
+                failureReported = false
                 await input.refreshApproval()
             } catch is CancellationError { return }
             catch let error as URLError where error.code == .cancelled { return }
@@ -164,8 +167,10 @@ struct BotScreenView: View {
                 break
             } catch {
                 errorText = error.localizedDescription
-                store.api.diagnostics.report(error, path: path, method: "GET", observation: .read(error, retainedData: !screen.isEmpty))
-                break
+                if !failureReported {
+                    failureReported = true
+                    store.api.diagnostics.report(error, path: path, method: "GET", observation: .read(error, retainedData: !screen.isEmpty))
+                }
             }
             // 取得は重ねず、前の取得の開始から1秒たったら次を始める。遅い応答の後は待たずに続ける。
             do { try await Task.sleep(until: started + .seconds(1), clock: .continuous) }

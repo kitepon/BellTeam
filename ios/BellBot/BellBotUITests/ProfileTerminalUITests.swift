@@ -49,7 +49,8 @@ final class ProfileTerminalUITests: XCTestCase {
         let reads = try await screenReads(url)
         XCTAssertFalse(reads.isEmpty)
         XCTAssertEqual(reads.first?["history"] as? String, "1", "開いた最初の1回だけ全履歴を取る")
-        XCTAssertTrue(reads.dropFirst().allSatisfy { $0["history"] == nil }, "以後は画面末尾だけを取る")
+        // fixtureはhistory無しをJSONのnullで返す（NSNull）。
+        XCTAssertTrue(reads.dropFirst().allSatisfy { $0["history"] == nil || $0["history"] is NSNull }, "以後は画面末尾だけを取る")
         XCTAssertTrue(app.buttons["close-bot-screen"].exists)
         app.buttons["close-bot-screen"].tap()
         try await Task.sleep(for: .seconds(1.2))
@@ -57,6 +58,35 @@ final class ProfileTerminalUITests: XCTestCase {
         try await Task.sleep(for: .seconds(1.3))
         let settled = try await screenReadCount(url)
         XCTAssertEqual(settled, afterClose, "閉じた画面を更新しない")
+    }
+
+    /// 画面の取得が失敗しても毎秒の更新は止まらず、次の200で表示が戻る。
+    func testPhoneScreenPollingResumesAfterFailures() async throws {
+        continueAfterFailure = false
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .phone, "iPhoneの詳細画面を確認する試験です。")
+        let url = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_PROFILE_TERMINAL_URL"])
+        try await reset(url)
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-profile-terminal", "-bellbot-preview-server", url]
+        app.launch()
+        defer { app.terminate() }
+        let bot = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "ユキ")).firstMatch
+        XCTAssertTrue(bot.waitForExistence(timeout: 10))
+        bot.tap()
+        app.buttons["詳細"].tap()
+        XCTAssertTrue(app.buttons["Botの画面を見る"].waitForExistence(timeout: 5))
+        app.buttons["Botの画面を見る"].tap()
+        let screen = app.textViews["bot-screen-text"]
+        XCTAssertTrue(screen.waitForExistence(timeout: 5))
+        for path in ["/test/screen-fail?count=3", "/test/append-screen"] {
+            let (_, response) = try await URLSession.shared.data(from: try XCTUnwrap(URL(string: url + path)))
+            XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+        }
+        let before = try await screenReadCount(url)
+        let updated = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value CONTAINS %@", "追加された一行"), object: screen)
+        XCTAssertEqual(XCTWaiter.wait(for: [updated], timeout: 10), .completed, "失敗の後の200で画面が更新される")
+        let after = try await screenReadCount(url)
+        XCTAssertGreaterThanOrEqual(after - before, 4, "3回の失敗の後も毎秒の取得を続けた")
     }
 
     func testPhoneLongHistoryRequestsHistoryAndCapturesScreen() async throws {
