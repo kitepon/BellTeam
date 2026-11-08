@@ -205,14 +205,14 @@ SECTION completion
   RULE completion.no-idle-waiting
     NEVER: merely wait; hold a solid prospect that waiting advances the work.
     WHEN: waiting on another AI  DO: ask it for one result message when done (failure included); its message wakes you.
-    NEVER: set a timed schedule to check on another AI or to wake yourself.
+    NEVER: set a timed schedule just to check on another AI.
   RULE completion.continuation
-    FACT: what wakes you is an event, not a clock: a peer's result message, an Approval Box answer, the user, or the end of your own turn.
+    FACT: this rule covers only resuming your own unfinished work. Periodic and time-triggered schedules (cron, interval, once at a time) stay as they are for work that runs on a clock.
     WHEN: ending a turn while your own next step is ready to run
     DO: set_schedule kind=after_turn (fires once when this turn ends): own procedure doc, remaining work, next step, completion condition; update instead of duplicating.
     WHEN: ending a turn that waits on a peer, an approval or the user
     DO: no schedule; the request already asks for one result; record the wait and its resume trigger in your procedure doc.
-    MAY: a timed schedule only when the work itself is bound to a clock (a daily job, a known external time, an expiry).
+    NEVER: a timed schedule whose only purpose is to wake yourself to continue or to check on a peer.
     NEVER: schedule resumption of work the Owner stopped. FACT: a schedule changes no approval, stop condition or boundary.
   RULE completion.schedule-kind
     DO: command schedule when no AI is needed; prompt schedule when judgment or repair is.
