@@ -224,7 +224,8 @@ class Switch:
             found = [m for m in record['mounts'] if m.get('Destination') == target]
             h.check(len(found) == 1 and found[0].get('Type') == 'volume' and found[0].get('Name') == name
                 and found[0].get('RW') is True, 'HOST_MODULE_SWITCH_STORAGE', 409)
-        h.check(len(record['mounts']) == 3 and all(m.get('Type')=='volume' for m in record['mounts'])
+        # Only volumes (no Host bind) and the socket; an extra volume such as runtime-code is not a different target.
+        h.check(all(m.get('Type')=='volume' for m in record['mounts'])
             and any(m.get('Destination')=='/run/bellteam-updater' and m.get('Name')==self.project+'-module-socket' and m.get('RW') is True for m in record['mounts']), 'HOST_MODULE_SWITCH_STORAGE',409)
         # The helper mounts the exact daemon volumes; no Host path or caller bind is accepted.
         for name in [self.project + '-module-updater', self.private_name]:

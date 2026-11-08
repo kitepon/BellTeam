@@ -178,7 +178,7 @@ shortcut: 完全receiptは初回切替先sourceへ固定、別sourceへの再切
 
 ### 正規private volumeのstorage照合
 
-固定helperの第4引数は凍結normalの同親data/home bindから導出したruntime/server-only/state-dataだけ。既installerのpermission probeが選ぶEngine内local volume（Options null/{}）又は同project label＋exact Options {type:none,o:bind,device:固定device}のprivate volumeを受け入れる。module-updaterはlocal/noOptionsだけ。任意device/driver/追加Options/追加mountを許可せず、private bindの正規形を一般bind許可へ広げない。Docker socket以外のHost bindをhelperへ増設しない。公開20key/元worker namespace/排他/prepareと完全receiptの意味は同じ。
+固定helperの第4引数は凍結normalの同親data/home bindから導出したruntime/server-only/state-dataだけ。既installerのpermission probeが選ぶEngine内local volume（Options null/{}）又は同project label＋exact Options {type:none,o:bind,device:固定device}のprivate volumeを受け入れる。module-updaterはlocal/noOptionsだけ。任意device/driver/追加Optionsを許可せず、private bindの正規形を一般bind許可へ広げない。Old installer mounts (2026-11-08 fix): every mount must be a volume (no Host bind), and the module-updater, private and module-socket mounts must be present with their names. Extra volumes are not refused: the Z-b2 runtime-code volume made the live installer have 4 mounts, and the former exact count of 3 stopped the final body swap with HOST_MODULE_SWITCH_STORAGE.Docker socket以外のHost bindをhelperへ増設しない。公開20key/元worker namespace/排他/prepareと完全receiptの意味は同じ。
 
 The socket capacity and safe exception logging contract is owned by [the shared runtime Server](container-update.md#socket-capacity-and-diagnostics). Module installation uses that same handler; source supply and parent apply remain separate.
 
