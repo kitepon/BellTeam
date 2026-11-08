@@ -20,38 +20,49 @@ export function createContainerUpdateClient(path = socketPath) {
   const call = (operation, params, timeout = 5000) => new Promise((resolve, reject) => {
     const raw = Buffer.from(JSON.stringify({ operation, params }) + '\n')
     if (raw.length > 65536) return reject(failure('HOST_UPDATE_MESSAGE_LIMIT', 'not_accepted', 400))
-    let settled = false, response = Buffer.alloc(0)
-    const socket = createConnection({ path })
+    const deadline = Date.now() + timeout
+    let settled = false, response = Buffer.alloc(0), socket
     const finish = (error, value) => {
       if (settled) return
-      settled = true; socket.destroy()
+      settled = true; socket?.destroy()
       error ? reject(error) : resolve(value)
     }
     const unreadable = reason => Object.assign(failure('UNREADABLE'), { path, reason })
     const unavailable = error => finish(unreadable(error?.code ?? 'CONNECTION_CLOSED'))
-    socket.setTimeout(timeout, () => finish(unreadable('ETIMEDOUT')))
-    socket.once('error', unavailable)
-    socket.once('connect', () => { socket.write(raw, error => { if (error) unavailable() }) })
-    socket.on('data', chunk => {
-      response = Buffer.concat([response, chunk])
-      if (response.length > 65536) return finish(unreadable('RESPONSE_LIMIT'))
-      const end = response.indexOf(10)
-      if (end < 0) return
-      try {
-        if (end !== response.length - 1) throw new Error()
-        const value = JSON.parse(response.subarray(0, end).toString('utf8'))
-        if (value?.ok === true && Object.keys(value).sort().join(',') === 'ok,value') return finish(null, value.value)
-        const error = value?.error
-        if (value?.ok !== false || Object.keys(value).sort().join(',') !== 'error,ok'
-          || !error || ![ 'code,outcome,status', 'code,outcome,path,reason,status' ].includes(Object.keys(error).sort().join(','))
-          || !/^[A-Z_0-9]{1,100}$/.test(error.code) || error.outcome !== 'not_accepted'
-          || ![400,403,404,409,503].includes(error.status)) throw new Error()
-        if (error.code === 'UNREADABLE' && (typeof error.path !== 'string' || typeof error.reason !== 'string')) throw new Error()
-        finish(Object.assign(failure(error.code, error.outcome, error.status), error))
-      } catch { finish(unreadable('RESPONSE_INVALID')) }
-    })
-    socket.once('end', () => { if (!settled) unavailable() })
-    socket.once('close', () => { if (!settled) unavailable() })
+    const attempt = () => {
+      if (settled) return
+      let connected = false
+      const current = socket = createConnection({ path })
+      const live = handler => (...args) => { if (current === socket) handler(...args) }
+      current.setTimeout(Math.max(1, deadline - Date.now()), live(() => finish(unreadable('ETIMEDOUT'))))
+      current.once('error', live(error => {
+        // A full listen backlog refuses the connect with EAGAIN before any byte is sent; connecting again replays nothing.
+        if (!connected && error?.code === 'EAGAIN' && Date.now() < deadline) { socket = null; current.destroy(); return void setTimeout(attempt, 50) }
+        unavailable(error)
+      }))
+      current.once('connect', live(() => { connected = true; current.write(raw, error => { if (error) unavailable() }) }))
+      current.on('data', live(chunk => {
+        response = Buffer.concat([response, chunk])
+        if (response.length > 65536) return finish(unreadable('RESPONSE_LIMIT'))
+        const end = response.indexOf(10)
+        if (end < 0) return
+        try {
+          if (end !== response.length - 1) throw new Error()
+          const value = JSON.parse(response.subarray(0, end).toString('utf8'))
+          if (value?.ok === true && Object.keys(value).sort().join(',') === 'ok,value') return finish(null, value.value)
+          const error = value?.error
+          if (value?.ok !== false || Object.keys(value).sort().join(',') !== 'error,ok'
+            || !error || ![ 'code,outcome,status', 'code,outcome,path,reason,status' ].includes(Object.keys(error).sort().join(','))
+            || !/^[A-Z_0-9]{1,100}$/.test(error.code) || error.outcome !== 'not_accepted'
+            || ![400,403,404,409,503].includes(error.status)) throw new Error()
+          if (error.code === 'UNREADABLE' && (typeof error.path !== 'string' || typeof error.reason !== 'string')) throw new Error()
+          finish(Object.assign(failure(error.code, error.outcome, error.status), error))
+        } catch { finish(unreadable('RESPONSE_INVALID')) }
+      }))
+      current.once('end', live(() => { if (!settled) unavailable() }))
+      current.once('close', live(() => { if (!settled) unavailable() }))
+    }
+    attempt()
   })
   const checkedJob = value => {
     const states = ['queued', 'downloading', 'verifying', 'swapping', 'ready', 'failed']

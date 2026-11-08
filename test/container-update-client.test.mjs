@@ -108,3 +108,21 @@ test('module capability acquisition preserves transport failures without replay 
  await assert.rejects(client.moduleInstallCapabilities(),{code:'UNREADABLE',path:'/run/bellteam-updater/update.sock',reason:'CONNECTION_CLOSED',status:503,outcome:'not_accepted'})
  mode='valid';assert.deepEqual(await client.moduleInstallCapabilities(),{supported:true,reason:null})
 })
+test('connect refused with EAGAIN (full backlog) connects again without replay, then reads the reply',async t=>{
+ const {client,frames,paths}=await fixture(t,(socket,frame)=>socket.end(JSON.stringify({ok:true,value:{requestId:frame.params.requestId,phase:'completed'}})+'\n'))
+ const refuse=()=>{const socket=new net.Socket();process.nextTick(()=>socket.emit('error',Object.assign(Error('connect EAGAIN'),{code:'EAGAIN'})));return socket}
+ net.createConnection.mock.mockImplementationOnce(refuse,0);net.createConnection.mock.mockImplementationOnce(refuse,1)
+ const requestId='c0dd350b-abda-4d12-b08b-3172105e2a71'
+ assert.deepEqual(await client.operation(requestId),{requestId,phase:'completed'})
+ assert.deepEqual(frames.map(frame=>frame.operation),['get'])
+ assert.equal(paths.length,1);assert.equal(net.createConnection.mock.callCount(),3)
+})
+test('EAGAIN after the deadline and other connect errors stay typed UNREADABLE',async t=>{
+ const client=createContainerUpdateClient('/nonexistent/update.sock')
+ await assert.rejects(client.operation('x'),{code:'UNREADABLE',reason:'ENOENT'})
+ t.mock.method(net,'createConnection',()=>{const socket=new net.Socket();process.nextTick(()=>socket.emit('error',Object.assign(Error(),{code:'EAGAIN'})));return socket})
+ syncBuiltinESMExports()
+ const started=Date.now()
+ await assert.rejects(createContainerUpdateClient().plan({}),{code:'UNREADABLE',reason:'EAGAIN'})
+ assert.ok(Date.now()-started>=4900)
+})

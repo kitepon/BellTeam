@@ -83,9 +83,29 @@ containerのcurrent/previous参照は保持し、module設置は別`module-curre
 
 ## Socket capacity and diagnostics
 
-The shared Server used by Host, module-installer and bundled container-updater keeps at most 16 active handlers. A connected request waits for a free slot on the accept thread; remaining connections stay in the bounded socket backlog. Catalog fan-out must not silently discard an install start/get request. The existing client five-second deadline still applies; no request is retried or replayed. Peer/frame validation and worker/ledger ownership remain unchanged. Unexpected Handler exceptions emit only HOST_UPDATE_REQUEST_FAILED and the exception class to stderr; exception messages, request bodies, paths and credentials are omitted.
+The shared Server used by Host, module-installer and bundled container-updater keeps at most 16 active handlers. A connected request waits for a free slot on the accept thread; remaining connections stay in the bounded socket backlog. Catalog fan-out must not silently discard an install start/get request. The existing client five-second deadline still applies; no delivered request is retried or replayed (connect-stage EAGAIN below is not a delivery). Peer/frame validation and worker/ledger ownership remain unchanged. Unexpected Handler exceptions emit only HOST_UPDATE_REQUEST_FAILED and the exception class to stderr; exception messages, request bodies, paths and credentials are omitted.
 
 The source-local capacity contact confirms the seventeenth request is dispatched once after a slot is released. This fixes a demonstrated silent-drop defect; the original ff55 public failure has no saved handler-count or exception trace, so this change does not attribute that historical failure to saturation.
+
+### Full backlog at connect (2026-11-09)
+
+Production 481e8d18, 06:52 JST: with all 16 handlers busy the bounded backlog filled, and Linux refused the AF_UNIX connect with EAGAIN. The client mapped it to `UNREADABLE/EAGAIN`; inside the executor's install poll (`moduleHost.operation`) that ended web-gateway job af88fe02 as `UPDATE_MODULE_ABORTED` after the Host had completed the install, leaving the operation unknown. The same EAGAIN hit a plain operation GET. That abort was a give-up: a busy socket is not data loss or a wrong target.
+
+| Step | Data | Owner |
+| --- | --- | --- |
+| Connect | fixed socket path → connected socket, or connect error before any byte is written | runtime client |
+| Connect refused with EAGAIN | nothing sent → wait 50 ms, connect again (any operation, `start` included) while the call's existing deadline (5 s, checkCatalog 360 s) lasts | runtime client |
+| Send / read | one frame out, one closed reply in; failure after connect stays typed UNREADABLE, never resent | runtime client |
+
+```mermaid
+flowchart LR
+  Call[call operation] --> Connect[connect fixed socket]
+  Connect -->|connected| Send[write one frame] --> Reply[closed reply or typed failure]
+  Connect -->|EAGAIN, nothing sent, deadline left| Wait[50 ms] --> Connect
+  Connect -->|other error, or deadline spent| Failure[UNREADABLE path + errno]
+```
+
+Exit: the backlog drains as handlers finish, so the next connect is accepted and the call continues; the executor's poll then reads the completed install and goes on to apply. Only an EAGAIN that outlasts the call's own deadline surfaces as before. Other connect errors (ENOENT, ECONNREFUSED: no updater listening) and every post-connect failure are unchanged.
 
 
 The 2026-11-07 durable job / real readiness / restart-limit contract is canonical in [update-jobs.md](update-jobs.md). It supersedes unknown-as-job-state and worker-bound-only acceptance text for new jobs. Legacy historical receipts remain unchanged.
