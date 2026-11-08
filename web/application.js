@@ -10,6 +10,7 @@ import { createRoomEditor } from './room-editor.js?v=__ASSET_VERSION__'
 import { createMemoryView } from './memory-view.js?v=__ASSET_VERSION__'
 import { createScreenView, createCharacterSheetView } from './bot-read-views.js?v=__ASSET_VERSION__'
 import { createScheduleEditor } from './schedule-editor.js?v=__ASSET_VERSION__'
+import { createWorkGraphView } from './work-graph.js?v=__ASSET_VERSION__'
 import { bannerTexts, seatBadge } from './harness-accounts.js?v=__ASSET_VERSION__'
 import { createConversationTimeline } from './conversation-timeline.js?v=__ASSET_VERSION__'
 import { applyAvatar, initials, memberDisplay, formatTime, escapeClass, escapeHtml } from './view-format.js?v=__ASSET_VERSION__'
@@ -126,6 +127,10 @@ export function createWebApp({ client = createWebClient() } = {}) {
     onManage: target => scheduleEditor.open(target),
   })
   document.querySelector('#all-schedules-button').addEventListener('click', () => { void allSchedules.open() })
+  const workGraphDialog = document.querySelector('#work-graph-dialog')
+  const workGraph = createWorkGraphView(workGraphDialog, { fetch: fetchImage })
+  document.querySelector('#work-graph-button').addEventListener('click', () => workGraph.open())
+  workGraphDialog.addEventListener('close', () => workGraph.close())
 
   const roomEditor = createRoomEditor(roomDialog, { api, getBots: () => state.bots,
     onSaved: async (room, current) => {
