@@ -1216,19 +1216,17 @@ export class AitermTransport {
         result = await this.sendToSession(session, message, imageFiles, check, executionJob?.native?.client)
       } catch (error) {
         check()
-        // Recover only an explicit pre-input refusal; a missing seat cannot prove an uncertain send was unsent.
-        if (error.code === 'BOT_SEND_OUTCOME_UNKNOWN' || mcpRequestContext(error)?.outcome === 'unknown'
-          || !['AGENT_SESSION_REQUIRED', 'BOT_INPUT_NOT_READY'].includes(error.code)) throw error
+        // Wake whenever the seat can be woken (docs/architecture/delivery-details.md). Kept failures protect:
+        // an uncertain send from running twice, the wrong seat from a bad observation, and a running turn or
+        // possibly typed text in a live terminal.
+        if (error.code === 'BOT_SEND_OUTCOME_UNKNOWN' || mcpRequestContext(error)?.outcome === 'unknown') throw error
         const observed = await this.observeForDispatch(bot, check)
         if (!observed) throw error
-        const failedRecord = observed.exists && observed.reason === 'agent_failed' && observed.state === 'unknown'
-          && !(observed.pending_child_deliveries > 0)
-        if (error.agentResumeResult && (!failedRecord || error.agentResumeResult.launch_id !== observed.launch_id)) throw error
-        const running = observed.exists
-        if (running && error.code !== 'AGENT_SESSION_REQUIRED' && !failedRecord) throw error
+        const unsent = ['AGENT_SESSION_REQUIRED', 'BOT_INPUT_NOT_READY'].includes(error.code) || String(error.message).includes('送信していません')
+        if (observed.exists && (observed.state === 'busy' || observed.pending_child_deliveries > 0 || !unsent)) throw error
+        // A terminal gone with its launch record kept (2026-11-08 body swap) still holds Aiterm state; close it too.
+        const running = observed.exists || error.code !== 'AGENT_SESSION_REQUIRED'
         if (executionJob) executionJob.deliveryStage = 'BOT_LAUNCH_FAILED'
-        // Aitermは画面が無い席も同じ符号で断る（0.52.0）。画面が残っている時だけが登録の消失。
-        // 画面は残り登録だけ消えた席は、起動もできない。閉じてから起こし直し、同じ文を1回だけ送る。
         session = await this.memberOperation(bot, async lease => {
           if (running) {
             process.stderr.write(`BellTeam Aiterm agent registration unavailable, restarting: ${bot.id}\n`)

@@ -50,10 +50,11 @@ flowchart TD
 flowchart TD
   Send["Direct pty_send with require_agent"] --> Reply{"Native result"}
   Reply -->|accepted| Accepted["Follow original receipt"]
-  Reply -->|"unknown / unclassified error"| Fail["Return original error; never replay"]
-  Reply -->|"explicit not-sent refusal"| Observe["Matching pty_observe after refusal"]
-  Observe -->|"invalid / unavailable / live registered seat"| Fail
-  Observe -->|"absent / registration missing / failed inactive record"| Launch["Close only confirmed obsolete record; launch without prompt"]
+  Reply -->|"outcome unknown"| Fail["Return original error; never replay"]
+  Reply -->|"any other refusal"| Observe["Matching pty_observe after refusal"]
+  Observe -->|"invalid / unavailable"| Fail
+  Observe -->|"terminal present: running turn, or refusal without the explicit not-sent phrase"| Fail
+  Observe -->|"terminal absent (any refusal) / terminal present, no running turn, explicit not-sent refusal"| Launch["pty_close what Aiterm still holds; launch without prompt"]
   Launch -->|success| Once["Send original input; retry just-woken not-ready at most 3 times"]
   Launch -->|failure| Cleanup["Clean failed launch; return error"]
   Explicit["保存済み失敗の明示復旧API"] --> Eligible["text-only Bot間配送と<br/>元request/targetを確認"]
@@ -62,11 +63,11 @@ flowchart TD
   Adapter -->|"接続された構成のみ"| Reconcile["元登録の照合 または世代指定close"]
 ```
 
-未送信が明示された拒否後の観測で`reason=agent_failed`の席は、Aitermの復帰（休止席の`codex resume`）が失敗として記録された席。Aitermはその記録を一覧と観測に残し、入力は休止・復帰中として断り続ける（2026-11-07、23席、全件readiness期限超過）。`dispatch`はこれを「不存在」と同じ起動経路へ送り、先に`pty_close`で記録ごと閉じる。閉じる条件は`state=unknown`かつ子配送の観測なし、つまりAitermがその席を入力を受けない記録として観測している時だけで、動いているターンが観測される席は閉じない（トロニー裁定 2026-11-07）。配送前には設定操作を挟まない。通常送信の前には観測を挟まない。拒否後の観測が不正・失敗なら、起動・旧席closeの根拠としては使わない。設定延期と各条件の保護対象・解除は[配送と設定の正本](modules/execution/configuration-delivery.md)に従う。`agent_hibernated`/`agent_resuming`/`agent_unknown`/`resume_unconfirmed`は起こさず従来どおり送信して結果を受ける。
+送信が断られた後の`dispatch`は、席を起こせる限り起こしてから届ける（オーナー裁定 2026-11-07「起こしてから届ける」、2026-11-08「何かがまた無駄に止めてる」）。配送を失敗で終える分岐は、守る物を名指しできる三つだけ。(1) 受付の結果が不明（`BOT_SEND_OUTCOME_UNKNOWN`、RPC不明）：打った文を二度実行させない。(2) 拒否後の観測が不正・失敗：別の席を閉じない。(3) 端末があり、動いているターン（`state=busy`か子配送あり）がある、または断りに「送信していません」の明示が無い：動いているターンと、打たれたかもしれない文を壊さない。それ以外は、端末が無い席（型・文言を問わない。2026-11-08、本体入れ替えで端末が消えたのにAitermが前の起動記録を残し、Claude席が`AGENT_RESUME_UNCONFIRMED: 作成したnative端末が置き換わっています。`で断られ続けた）も、端末はあるがCLIが入力を受けない席（`agent_failed`・未登録・起動中・型付き復帰拒否・入力受付確認の期限切れ）も、Aitermが持っている物を`pty_close`で閉じ（不在で記録も無い時だけ省く）、起こし、同じ文を送る。残る失敗は、起こすこと自体の失敗と、起こした席が送り直しの上限まで入力を受けない時だけで、どちらもAitermの元のエラーを返す。配送前には設定操作を挟まない。通常送信の前には観測を挟まない。設定延期と各条件の保護対象・解除は[配送と設定の正本](modules/execution/configuration-delivery.md)に従う。
 
-`agent_launch`の`startup=ready`と`pty_send`の入力受付確認は、Aitermの中で別々の30秒予算である（どちらも入力欄が500ms間隔で11回続けて入力待ちと読めた時に通る。`pty_send`に公開のready_timeoutは無い）。起こした直後の席は入力欄を描いた後も起動の仕事（MCP初期化・hook・履歴の描画）を続け、同時起動の負荷（2026-11-07 20:18–20:20、9席同時、load≈18）では二つ目の予算が尽きて`AGENT_INPUT_NOT_READY`（本文未送信、「少し後で再度pty_send」の案内付き）で断られる。元から生きていた席への送信は同時刻に全部通った。`dispatch`は、このdispatchで起こした席への最初の送信がその型付き未入力拒否（`BOT_INPUT_NOT_READY`、`agentResumeResult`なし）で断られた時だけ、同じ文を上限3回まで送り直す。各回の待ちはAitermの受付確認が持つので配送側は眠らず、起こしていない席・受付後の不明・型付き復帰拒否・その他の失敗は従来どおり送り直さない。上限まで断られた時はその失敗を返し、再起動を繰り返さない。
+`agent_launch`の`startup=ready`と`pty_send`の入力受付確認は、Aitermの中で別々の30秒予算である（どちらも入力欄が500ms間隔で11回続けて入力待ちと読めた時に通る。`pty_send`に公開のready_timeoutは無い）。起こした直後の席は入力欄を描いた後も起動の仕事（MCP初期化・hook・履歴の描画）を続け、同時起動の負荷（2026-11-07 20:18–20:20、9席同時、load≈18）では二つ目の予算が尽きて`AGENT_INPUT_NOT_READY`（本文未送信、「少し後で再度pty_send」の案内付き）で断られる。元から生きていた席への送信は同時刻に全部通った。`dispatch`は、このdispatchで起こした席への最初の送信がその型付き未入力拒否（`BOT_INPUT_NOT_READY`、`agentResumeResult`なし）で断られた時だけ、同じ文を上限3回まで送り直す。各回の待ちはAitermの受付確認が持つので配送側は眠らない。起こしていない席の断りは上の段落の経路（閉じて起こす）へ行き、受付後の不明は送り直さない。上限まで断られた時はその失敗を返し、再起動を繰り返さない。
 
-型付き復帰拒否は`pty_send`の`aiterm.agent-resume-error.v1`を同session・固定enum・ID型・未送信/席確認の契約で検証する。本文や旧版の文言から推測せず、相反するexecution errorを優先する。型付き復帰拒否後の再起動は、同じlaunchの失敗記録を観測できた時だけ許可する。この分岐は新契約を返すAitermの正式供給が必要であり、席のlive世代や復旧成功の証明にはしない。
+型付き復帰拒否は`pty_send`の`aiterm.agent-resume-error.v1`を同session・固定enum・ID型・未送信/席確認の契約で検証する。本文や旧版の文言から推測せず、相反するexecution errorを優先する。型付き復帰拒否は明示の未送信なので、動いているターンが無ければ閉じて起こす。この分岐は新契約を返すAitermの正式供給が必要であり、席のlive世代や復旧成功の証明にはしない。
 
 通常構成は`createApplicationServices → createManagedTransport`で**executionBridge=null**、直接`pty_send/agent_stop`を使う。`ExecutionBridge`の実装が存在することを、通常運転で全配送が登録されている意味にしない。`resumeDelivery/closeDeliveryLaunch`のHTTP入口は残るが、通常構成では`BotSessionState`のadapter条件で拒否される。
 
