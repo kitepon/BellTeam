@@ -25,15 +25,15 @@ flowchart TD
 flowchart TD
   Events["startEvents<br/>前のSSEと資源taskを止めて開始"] --> Get["GET /api/events"]
   Get --> Apply["受信イベント<br/>エラー消去→共通同期へ"]
-  Get --> End["正常終端 / URLError / 429・5xx"]
+  Get --> End["正常終端 / URLError / 429・5xx<br/>404・形式等その他の失敗（理由を表示）"]
   End --> Notice["再接続中をconnectionErrorへ"]
   Notice --> Delay["1秒から倍増・最大30秒<br/>30秒超の接続で遅延/連続数を戻す"]
   Delay --> Get
   Get --> Auth["認証失敗<br/>requireLogin・loop終了"]
-  Get --> Bad["その他の応答/形式等の失敗<br/>エラーと診断・loop終了"]
+  Get --> Cancel["取消（背景・サインアウト・接続先変更のstopEvents）<br/>loop終了"]
 ```
 
-URLError連続5回目で診断し、429/5xxは各回診断する。取消は終了、stopEventsはeventsTask/eventRefreshTaskをcancelして保留資源集合も消す。接続が切れたことと再接続、イベント後のHTTP再取得、画面の再取得完了は別段階。[詳細](state-and-sync.md#sseの適用)へ接続する。
+URLError連続5回目で診断し、429/5xxは各回診断する。404・読めない応答などその他の失敗も止めず、「更新を受け取れませんでした（理由）。再接続しています。」を出して同じ間隔で再接続し、失敗の連続の初回だけ診断する（Windows #677と同じ。止めるのは取消と認証拒否だけ）。取消は終了、stopEventsはeventsTask/eventRefreshTaskをcancelして保留資源集合も消す。接続が切れたことと再接続、イベント後のHTTP再取得、画面の再取得完了は別段階。[詳細](state-and-sync.md#sseの適用)へ接続する。
 
 ## push登録・受信・画面移動
 
