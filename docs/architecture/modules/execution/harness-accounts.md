@@ -62,7 +62,7 @@ flowchart TD
    - `resetAt` passes, by a single timer set to that time;
    - a usage reading shows every limit below 100 % (re-read every 10 minutes only while S is limited with `resetAt:null`);
    - a turn on S ends `done`.
-4. Display reading: `accounts.list()` re-reads usage for each logged-in slot at most once per 60 s, only when it is asked. No AI is woken and no seat is started for it.
+4. Display reading: `accounts.list()` re-reads usage for each logged-in slot at most once per 60 s, only when it is asked. No AI is woken and no seat is started for it. A display reading never marks a slot limited. Usage limits can be scoped to one model (for example a Fable-only weekly limit), and the whole-slot state would move unrelated seats. Only a seat's own limit signal changes the selection.
 
 ## Selection, failover and return
 
@@ -102,6 +102,21 @@ The switch reuses the existing resume path, so the conversation, docs and Throug
   - The both-limited banner, with the earliest reset.
 - Molly (members DTO, common HTTP/MCP): Bot items carry `account: seatAccount(botId)`. `accounts.list` and `setRules` are routed for the settings card.
 - Clients (Web, Apple, Windows): render the two slot rows, the rule switch, the banner, and the seat's slot on the member card.
+
+## Live acceptance (Owner steps, natural limit only)
+
+The test uses a limit that already exists, so no quota is burned on purpose: a seat that is already limited fails its first turn at once.
+
+1. Precondition: the Aiterm E1–E3 release, the execution module and Mika's card are in production.
+2. Owner: 設定 → AIの認証 → Claude → 2ndアカウント → ログイン, then log in with the account that is already limited for Fable. 1stアカウント stays the current container login.
+3. Owner: turn on 「Fableを2ndアカウントで使う」.
+4. Owner: pick one idle Bot on a Fable model; its member card shows 2ndアカウント. Send it one ordinary short message.
+5. Expected:
+   - The turn ends rate-limited without spending quota.
+   - The 2ndアカウント row shows 上限中 with the reset time.
+   - The member card shows 1stアカウント.
+   - The same conversation continues with the capacity-continuation message and answers.
+6. After the reset time: the Bot's next idle boundary moves it back to 2ndアカウント. No action is needed; check the member card when convenient.
 
 ## Not covered
 
