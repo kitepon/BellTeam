@@ -120,3 +120,33 @@ test('members inventory uses the same controller and keeps durable executor unav
   assert.deepEqual(member.availability, { available: false, reason: 'MEMBERS_UNAVAILABLE' })
   assert.equal(member.published, null)
 })
+
+test('each part gets one plain status line from only its latest job', async () => {
+  const { componentStatus } = await import('../src/update-center.mjs')
+  const { validateUpdates } = await import('../src/update-center-contract.mjs')
+  const at = '1794100000000000000' // 2026-11-08T01:06:40Z = 11/8 10:06 JST
+  const record = (jobId, moduleId, state, updatedAtNs, code) => ({ schema: 'bellteam.update-job.v1', jobId, idempotencyKey: jobId,
+    kind: moduleId === 'container' ? 'container' : 'module', target: { catalogSha256: null, moduleId, versionId: 'builtin' }, state,
+    reason: code ? { code, message: code } : null, transitions: [{ state, atNs: updatedAtNs }], updatedAtNs })
+  const jobs = [record('11111111-1111-4111-8111-111111111111', 'execution', 'failed', '1794000000000000000', 'EXECUTION_BUSY'),
+    record('22222222-2222-4222-8222-222222222222', 'execution', 'ready', at),
+    record('33333333-3333-4333-8333-333333333333', 'conversation', 'failed', at, 'DIAGNOSTIC_INVALID'),
+    record('44444444-4444-4444-8444-444444444444', 'container', 'failed', at, 'HOST_UPDATE_INSTALL_FAILED')]
+  const row = (id, available, origin = 'builtin') => ({ id, current: { version: 'v', sourceCommit: null, digest: null, origin },
+    comparison: { state: 'unavailable', reason: 'PUBLISHED_RELEASE_UNAVAILABLE' }, availability: { available, reason: null } })
+  const superseded = componentStatus(row('execution', true, 'release'), jobs)
+  assert.equal(superseded.latestJob.jobId, '22222222-2222-4222-8222-222222222222')
+  assert.equal(superseded.line, '更新で入れた版を使っています。新しい版があるかは確認できません。11/8 10:06 の更新は完了しました。')
+  assert.equal(superseded.tone, 'ok'); assert.equal(superseded.actionRequired, false)
+  const body = componentStatus(row('container', null), jobs)
+  assert.match(body.line, /11\/8 10:06 の更新はできませんでした。元の版のまま動いています。対応は不要です。$/u)
+  assert.equal(body.actionRequired, false); assert.doesNotMatch(body.line, /HOST_|4444/u)
+  const stopped = componentStatus(row('conversation', false), jobs)
+  assert.equal(stopped.tone, 'attention'); assert.equal(stopped.actionRequired, true); assert.match(stopped.line, /この機能は今使えません。$/u)
+  assert.deepEqual(stopped.latestJob.reason, { code: 'DIAGNOSTIC_INVALID', message: 'DIAGNOSTIC_INVALID' })
+  assert.equal(componentStatus(row('memory', true), jobs).latestJob, null)
+  const center = createUpdateCenter({ jobReader: { jobs: async () => ({ jobs }) } })
+  const inventory = await center.snapshot()
+  assert.equal(inventory.components.find(item => item.id === 'execution').status.latestJob.state, 'ready')
+  assert.equal(validateUpdates(inventory).valid, true)
+})
