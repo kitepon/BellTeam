@@ -121,23 +121,9 @@ public sealed partial class SettingsWindow
             var states = new List<Task>();
             foreach (var harness in harnesses)
             {
-                var row = new Grid { Margin = new Thickness(0, 10, 0, 0) };
-                row.ColumnDefinitions.Add(new ColumnDefinition()); row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                if (harness.Id == "claude") { var host = new StackPanel(); list.Children.Add(host); states.Add(LoadClaudeAsync(host, harness, api, token)); continue; }
                 var names = new StackPanel { VerticalAlignment = VerticalAlignment.Center }; names.Children.Add(Text(harness.Name, 14, Ink)); names.Children.Add(Text(harness.UsageText, 12, Muted, null, new Thickness(0, 2, 0, 0)));
-                var state = Text("", 12, Muted, FontWeights.SemiBold, new Thickness(10, 0, 10, 0)); state.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(state, 1);
-                var action = Capsule("", Violet, Brushes.White); Grid.SetColumn(action, 2); action.VerticalAlignment = VerticalAlignment.Center;
-                row.Children.Add(names); row.Children.Add(state); row.Children.Add(action); list.Children.Add(row);
-                void Show(HarnessRowState value) { state.Text = value.Title; state.Foreground = Tone(value.Tone); action.Content = value.Action; }
-                async Task ReadStateAsync()
-                {
-                    Show(HarnessRowState.Checking);
-                    try { Show(HarnessRowState.From((await api.StatusAsync(harness.Id, token)).Auth?.Status, harness.ReloginSupported)); }
-                    catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-                    catch (Exception) { Show(HarnessRowState.Unavailable); }
-                }
-                action.Click += async (_, _) => { var dialog = new HarnessAuthenticationWindow(workspace, harness) { Owner = DialogOwner }; _ = dialog.InitializeAsync(); dialog.ShowDialog(); await ReadStateAsync(); };
-                System.Windows.Automation.AutomationProperties.SetName(action, harness.Name);
-                states.Add(ReadStateAsync());
+                var (row, ready) = AuthRow(names, harness, api, null, null, token); list.Children.Add(row); states.Add(ready);
             }
             await Task.WhenAll(states);
         }
@@ -148,6 +134,91 @@ public sealed partial class SettingsWindow
             var retry = Capsule("一覧を更新", Fill, Ink, 8, 13, new Thickness(12, 6, 12, 6)); retry.HorizontalAlignment = HorizontalAlignment.Left; retry.Margin = new Thickness(0, 10, 0, 0); retry.FontWeight = FontWeights.Normal;
             retry.Click += (_, _) => _ = LoadHarnessesAsync(list, token); list.Children.Add(retry);
         }
+    }
+
+    // One AI-authentication row: names | state | action. slot is the Claude account slot ("1st"/"2nd") whose login the row reads and starts; null is the single login.
+    // afterDialog replaces the row's own state re-read when the login window closes.
+    private (Grid Row, Task Ready) AuthRow(UIElement names, HarnessAuthenticationOption harness, HarnessAuthenticationApi api, string? slot, Func<Task>? afterDialog, CancellationToken token)
+    {
+        var row = new Grid { Margin = new Thickness(0, 10, 0, 0) };
+        row.ColumnDefinitions.Add(new ColumnDefinition()); row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var state = Text("", 12, Muted, FontWeights.SemiBold, new Thickness(10, 0, 10, 0)); state.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(state, 1);
+        var action = Capsule("", Violet, Brushes.White); Grid.SetColumn(action, 2); action.VerticalAlignment = VerticalAlignment.Center;
+        row.Children.Add(names); row.Children.Add(state); row.Children.Add(action);
+        void Show(HarnessRowState value) { state.Text = value.Title; state.Foreground = Tone(value.Tone); action.Content = value.Action; }
+        async Task ReadStateAsync()
+        {
+            Show(HarnessRowState.Checking);
+            try { var status = (await api.StatusAsync(harness.Id, token, slot)).Auth?.Status; Show(slot is null ? HarnessRowState.From(status, harness.ReloginSupported) : HarnessRowState.FromSlot(status)); }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+            catch (Exception) { Show(HarnessRowState.Unavailable); }
+        }
+        action.Click += async (_, _) => { var dialog = new HarnessAuthenticationWindow(workspace, harness, slot: slot) { Owner = DialogOwner }; _ = dialog.InitializeAsync(); dialog.ShowDialog(); await (afterDialog?.Invoke() ?? ReadStateAsync()); };
+        System.Windows.Automation.AutomationProperties.SetName(action, slot is null ? harness.Name : harness.Name + " " + AccountText.SlotTitle(slot));
+        return (row, ReadStateAsync());
+    }
+
+    // Claude: the two account slots when the server lists accounts, the old single row when GET /api/accounts answers 404 (older server),
+    // and for any other read failure the reason with 一覧を更新 (never the old row, which would hide that the slots exist).
+    private async Task LoadClaudeAsync(StackPanel host, HarnessAuthenticationOption harness, HarnessAuthenticationApi auth, CancellationToken token)
+    {
+        host.Children.Clear();
+        var accounts = new HarnessAccountsApi(workspace.Management.Api);
+        Task Reload() => LoadClaudeAsync(host, harness, auth, token);
+        Button Retry()
+        {
+            var retry = Capsule("一覧を更新", Fill, Ink, 8, 13, new Thickness(12, 6, 12, 6)); retry.HorizontalAlignment = HorizontalAlignment.Left; retry.Margin = new Thickness(0, 10, 0, 0); retry.FontWeight = FontWeights.Normal;
+            retry.Click += (_, _) => _ = Reload(); return retry;
+        }
+        void Failed(string message) { host.Children.Clear(); host.Children.Add(Text("Claudeのアカウントを確認できませんでした。\n" + message, 13, Red, null, new Thickness(0, 10, 0, 0))); host.Children.Add(Retry()); }
+        AccountsResponse? list;
+        try { list = await accounts.ReadAsync(token); token.ThrowIfCancellationRequested(); }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
+        catch (Exception error) { Failed(error.Message); return; }
+        if (list is null)
+        {
+            var oldNames = new StackPanel { VerticalAlignment = VerticalAlignment.Center }; oldNames.Children.Add(Text(harness.Name, 14, Ink)); oldNames.Children.Add(Text(harness.UsageText, 12, Muted, null, new Thickness(0, 2, 0, 0)));
+            var (single, oldReady) = AuthRow(oldNames, harness, auth, null, null, token); host.Children.Add(single); await oldReady; return;
+        }
+        if (list.Claude is not { } claude) { Failed("アカウントの一覧にClaudeの項目がありません。"); return; }
+        var now = DateTimeOffset.Now;
+        var heading = new StackPanel { Margin = new Thickness(0, 10, 0, 0) }; heading.Children.Add(Text(harness.Name, 14, Ink)); heading.Children.Add(Text(harness.UsageText, 12, Muted, null, new Thickness(0, 2, 0, 0))); host.Children.Add(heading);
+        foreach (var text in AccountText.BannerTexts(list, now))
+        {
+            var bar = FillRow(Text(text, 13, Orange, FontWeights.SemiBold), null); System.Windows.Automation.AutomationProperties.SetName(bar, text); host.Children.Add(bar);
+        }
+        var ready = new List<Task>();
+        foreach (var slot in claude.Slots)
+        {
+            if (AccountText.SlotTitle(slot.Slot) is not { } slotTitle) continue;
+            var names = new StackPanel { VerticalAlignment = VerticalAlignment.Center }; names.Children.Add(Text(slotTitle, 14, Ink));
+            var lines = new List<(string Term, string Value, Brush Color)> { ("アカウント", AccountText.Login(slot), Muted), ("状態", AccountText.State(slot, now), slot.Limits.Length != 0 ? Orange : Muted), ("使用中", slot.Seats.Length + "人", Muted) };
+            if (slot.History == "separate") lines.Add(("会話の履歴", "1stアカウントと分かれています", Muted));
+            foreach (var (term, value, color) in lines) names.Children.Add(Text(term + "　" + value, 12, color, null, new Thickness(0, 2, 0, 0)));
+            var (row, state) = AuthRow(names, harness, auth, slot.Slot, Reload, token); row.Margin = new Thickness(0);
+            var card = FillRow(row, null); System.Windows.Automation.AutomationProperties.SetName(card, slotTitle); host.Children.Add(card); ready.Add(state);
+        }
+        var rule = new Grid { Margin = new Thickness(0, 12, 0, 0) }; rule.ColumnDefinitions.Add(new ColumnDefinition()); rule.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var ruleName = Text("Fableを2ndアカウントで使う", 14, Ink); ruleName.VerticalAlignment = VerticalAlignment.Center; rule.Children.Add(ruleName);
+        var current = list; var toggle = Switch("#34C759"); toggle.IsChecked = AccountText.FableOnSecond(current); Grid.SetColumn(toggle, 1); rule.Children.Add(toggle);
+        System.Windows.Automation.AutomationProperties.SetName(toggle, "Fableを2ndアカウントで使う");
+        var ruleError = Text("", 13, Red, null, new Thickness(0, 8, 0, 0)); ruleError.Visibility = Visibility.Collapsed;
+        host.Children.Add(rule); host.Children.Add(ruleError);
+        // One POST per click, never resent. A failed or unconfirmed answer leaves the switch at the last known server state and offers a re-read.
+        toggle.Click += async (_, _) =>
+        {
+            var wanted = toggle.IsChecked == true; toggle.IsEnabled = false; ruleError.Visibility = Visibility.Collapsed;
+            try { current = current with { Rules = await accounts.SetFableRuleAsync(wanted, token) }; toggle.IsChecked = AccountText.FableOnSecond(current); }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+            catch (Exception error)
+            {
+                toggle.IsChecked = AccountText.FableOnSecond(current);
+                ruleError.Text = BellApiException.IsResultUnconfirmed(error) ? "切り替えの結果を確認できませんでした。「一覧を更新」で今の設定を確認してください。\n" + error.Message : "切り替えられませんでした。" + error.Message;
+                ruleError.Visibility = Visibility.Visible; if (host.Children[^1] is not Button) host.Children.Add(Retry());
+            }
+            finally { toggle.IsEnabled = true; }
+        };
+        await Task.WhenAll(ready);
     }
 
     private async Task LoadSummaryAsync(StackPanel card, CancellationToken token)

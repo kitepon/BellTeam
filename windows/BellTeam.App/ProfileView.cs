@@ -25,14 +25,14 @@ internal static class InspectorUi
         template.Triggers.Add(new Trigger { Property = UIElement.IsEnabledProperty, Value = false, Setters = { new Setter(UIElement.OpacityProperty, 0.45, "Chrome") } });
         return template;
     }
-    private static readonly ControlTemplate Chromeless = PlainTemplate();
+    // Built per use: a template is owned by the thread that first touched it, so a shared static fails for a second UI thread (tests).
     private static ControlTemplate PlainTemplate()
     {
         var content = new FrameworkElementFactory(typeof(ContentPresenter));
         return new ControlTemplate(typeof(Button)) { VisualTree = content };
     }
     // A tap target with no chrome (Mac .buttonStyle(.plain)).
-    public static Button Plain(UIElement content, string name) { if (content is Panel panel) panel.Background ??= Brushes.Transparent; var button = new Button { Content = content, Template = Chromeless, Padding = new Thickness(0), Background = Brushes.Transparent, HorizontalContentAlignment = HorizontalAlignment.Stretch, Cursor = System.Windows.Input.Cursors.Hand }; System.Windows.Automation.AutomationProperties.SetName(button, name); return button; }
+    public static Button Plain(UIElement content, string name) { if (content is Panel panel) panel.Background ??= Brushes.Transparent; var button = new Button { Content = content, Template = PlainTemplate(), Padding = new Thickness(0), Background = Brushes.Transparent, HorizontalContentAlignment = HorizontalAlignment.Stretch, Cursor = System.Windows.Input.Cursors.Hand }; System.Windows.Automation.AutomationProperties.SetName(button, name); return button; }
     private static UIElement Label(string text, string? glyph, Brush foreground, double size)
     {
         var line = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
@@ -99,7 +99,7 @@ public sealed class ProfileView : StackPanel
     private static string Key(Workspace workspace, ConversationEntry entry)
     {
         var parts = new List<string?> { entry.Target.ToString(), entry.Origin };
-        if (entry.Bot is { } bot) parts.AddRange([bot.Name, bot.DisplayName, bot.Online.ToString(), bot.Harness, bot.Model, bot.ReasoningEffort, bot.Color, bot.AvatarVersion, bot.AvatarLargeVersion, bot.Position, bot.ProfileText, bot.Personality, bot.SpeechStyle, bot.Role]);
+        if (entry.Bot is { } bot) parts.AddRange([bot.Name, bot.DisplayName, bot.Online.ToString(), bot.Harness, bot.Model, bot.ReasoningEffort, bot.Color, bot.AvatarVersion, bot.AvatarLargeVersion, bot.Position, bot.ProfileText, bot.Personality, bot.SpeechStyle, bot.Role, bot.Account?.Harness, bot.Account?.Slot, bot.Account?.PreferredSlot]);
         if (entry.Room is { } room) { parts.AddRange([room.Name, room.Purpose, room.AvatarVersion]); foreach (var id in room.MemberIds) { var member = workspace.MemberEntry(id); parts.AddRange([id, member?.Name, member?.Bot?.AvatarVersion, member?.Bot?.Color]); } }
         return string.Join('\u0001', parts);
     }
@@ -237,11 +237,16 @@ public sealed class ProfileView : StackPanel
     {
         var card = new StackPanel();
         card.Children.Add(new TextBlock { Text = "AIと操作", FontSize = 14, FontWeight = FontWeights.Bold, Foreground = InspectorUi.Muted });
-        foreach (var (label, value) in new[] { ("ハーネス", bot.Harness), ("希望モデル", BotProfileText.OrDefault(bot.Model)), ("希望エフォート", BotProfileText.OrDefault(bot.ReasoningEffort)) })
+        // The seat's Claude account slot; no row when the server sends none (older body, null, another harness).
+        var rows = new List<(string, string)> { ("ハーネス", bot.Harness), ("希望モデル", BotProfileText.OrDefault(bot.Model)), ("希望エフォート", BotProfileText.OrDefault(bot.ReasoningEffort)) };
+        if (AccountText.SeatText(bot.Account) is { } slotText) rows.Add(("アカウント", slotText));
+        foreach (var (label, value) in rows)
         {
             var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0) };
             row.Children.Add(new TextBlock { Text = label, FontSize = 14, Foreground = InspectorUi.Ink }); row.Children.Add(new TextBlock { Text = value, FontSize = 14, Foreground = InspectorUi.Ink, Margin = new Thickness(10, 0, 0, 0), TextWrapping = TextWrapping.Wrap });
             System.Windows.Automation.AutomationProperties.SetName(row, label + "　" + value); card.Children.Add(row);
+            // Like the Web tooltip: say so when the seat runs on the other slot than its rule prefers.
+            if (label == "アカウント" && AccountText.SlotTitle(bot.Account?.PreferredSlot) is { } preferred && bot.Account?.PreferredSlot != bot.Account?.Slot) row.ToolTip = "通常は" + preferred;
         }
         var screen = InspectorUi.Bordered("Botの画面を見る", ""); screen.Margin = new Thickness(0, 12, 0, 0); screen.Click += async (_, _) => await workspace.OpenScreenAsync(); card.Children.Add(screen);
         var restart = InspectorUi.Bordered("会話セッションを再起動"); restart.Margin = new Thickness(0, 12, 0, 0); card.Children.Add(restart);

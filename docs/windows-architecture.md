@@ -93,6 +93,7 @@ flowchart LR
     C4[GoalsApi]
     C5[PlanningApi]
     C6[SettingsApi<br/>所有者・規範・追加機能・AIの認証・仕事の要約・全体停止]
+    C9[HarnessAccountsApi<br/>Claudeの1st・2ndアカウントの一覧とFableの規則]
     C7[UpdateCenter]
     C8[LocalSettings<br/>接続先・窓・通知・会話の開き方・要求ID]
   end
@@ -103,6 +104,7 @@ flowchart LR
   A4 --> C4
   A5 --> C5
   A6 --> C6
+  A6 --> C9
   A6 --> C8
   A7 --> C7
   C1 -->|"/api/session・bots・rooms（currentWork）・messages・queue・events"| API[共通入口 HTTP API・SSE]
@@ -110,8 +112,9 @@ flowchart LR
   C3 -->|"/api/bots/{id}/screen・screen/key・screen/approval"| API
   C4 -->|"/api/goals・/api/bots/{id}/goal"| API
   C5 -->|"/api/schedules"| API
-  C6 -->|"/api/owner・user-rules・settings・settings/backgroundAgent・harness-auth・ai-control"| API
+  C6 -->|"/api/owner・user-rules・settings・settings/backgroundAgent・harness-auth（Claudeは?slot=2nd）・ai-control"| API
   C7 -->|"/api/updates・plans・operations"| API
+  C9 -->|"GET /api/accounts（404は旧本体）・POST /api/accounts/rules"| API
 ```
 
 - 状態の所有：会話・メンバー・予定・ゴール・追加機能・全体停止など本体の状態は、共通入口のAPIだけで読み書きする。Windowsが持つのは、このPCの設定（接続先・窓・起動中の通知・会話の開き方・Updateの要求ID）とログイン情報だけ。
