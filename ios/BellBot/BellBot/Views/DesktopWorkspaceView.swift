@@ -28,7 +28,7 @@ struct DesktopWorkspaceView: View {
                 #if targetEnvironment(macCatalyst)
                 .navigationSplitViewColumnWidth(min: 320, ideal: 340, max: 420)
                 #else
-                .navigationSplitViewColumnWidth(min: 230, ideal: 270, max: 340)
+                .navigationSplitViewColumnWidth(min: 320, ideal: 340, max: 420)
                 #endif
         } detail: {
             Group {

@@ -104,7 +104,7 @@ final class SummaryLayoutTests: XCTestCase {
     func testSidebarRowShowsTwoLinesWithLargerAvatar() throws {
         // surface, widths, legacy (avatar, vertical padding, name font, detail font), new metrics
         let surfaces: [(String, [CGFloat], (CGFloat, CGFloat, CGFloat, CGFloat), SidebarRowMetrics)] = [
-            ("ipad", [230, 270, 340], (40, 10, 13, 11), .tablet),
+            ("ipad", [320, 340, 420], (40, 10, 13, 11), .tablet),
             ("mac", [320, 340, 420], (48, 12, 16, 14), .mac),
         ]
         for (surface, widths, legacy, metrics) in surfaces {
@@ -120,8 +120,7 @@ final class SummaryLayoutTests: XCTestCase {
                     let textWidth = width - 20 - 2 * metrics.horizontal - metrics.avatar - metrics.spacing
                     let fits = try fitsTwoLines(summary, font: metrics.detailFont, textWidth: textWidth)
                     print("SUMMARYLAYOUT \(surface) width=\(width) \(name) textWidth=\(textWidth) fits2lines=\(fits) before=\(before.height) after=\(after.height)")
-                    // 230 and 270 iPad columns are too narrow for 80 width in 2 lines at a readable size; recorded, not asserted.
-                    if !(surface == "ipad" && width < 340) { XCTAssertTrue(fits, "\(surface) \(width) \(name) is truncated") }
+                    XCTAssertTrue(fits, "\(surface) \(width) \(name) is truncated")
                 }
             }
         }
