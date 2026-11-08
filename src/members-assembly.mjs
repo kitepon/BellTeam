@@ -31,6 +31,7 @@ export function createMembersAssembly({ root, seatRuntime, aiterm, settings, mod
     else {
       const { rooms, assets } = dependencies()
       switch (method) {
+        case 'schedules.currentTurn': value = dependencies().scheduleTurns.currentTurn(params.botId); break
         case 'models.read': value = await models.forHarness(params.harness); break
         case 'assets.prepareBotAssetRemoval': value = await assets.prepareBotAssetRemoval(params.botId, context.operationContext); break
         case 'assets.cancelBotAssetRemoval': value = assets.cancelBotAssetRemoval(params.botId, params.lease, params.state, context.operationContext); break

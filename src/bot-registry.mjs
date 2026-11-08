@@ -3,7 +3,7 @@ import { lstatSync } from 'node:fs'
 import { lstat, mkdir, readFile, readdir, rename, rm, writeFile, stat } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 
-import { normalizeSchedule, scheduleDocument } from './schedule-definition.mjs'
+import { normalizeSchedule, scheduleDocument, validateScheduleTurn } from './schedule-definition.mjs'
 import { validateAvatar } from './avatar-value.mjs'
 import { exists, writeAtomic } from './json-file.mjs'
 export { normalizeSchedule, scheduleDocument } from './schedule-definition.mjs'
@@ -50,6 +50,7 @@ export class BotRegistry extends Map {
     this.onChange = onChange
     this.models = models
     this.projectFiles = projectFiles
+    this.currentTurn = options.currentTurn ?? (() => ({ state: 'idle', turnId: null }))
     this.assetRemoval = options.assetRemoval ?? null
     this.watchers = new Set()
     this.deletionIntents = new Set()
@@ -545,6 +546,7 @@ export class BotRegistry extends Map {
   async setSchedule(id, input) {
     await this.refresh()
     if (!this.has(id)) throw new Error(`BOT_NOT_FOUND: ${id}`)
+    const afterTurn = input.kind === 'after_turn' ? await this.currentTurn(id) : undefined
     return this.#mutateProfile(id, () => mutateSchedules(this, id, schedules => {
       const existing = input.id ? schedules.find(item => item.id === input.id) : null
       if (input.id && !existing) throw new Error(`SCHEDULE_NOT_FOUND: ${input.id}`)
@@ -553,6 +555,7 @@ export class BotRegistry extends Map {
         id: input.id ?? this.id(),
         lastRunAt: null,
         revision: nextScheduleRevision(existing),
+        ...(input.kind === 'after_turn' ? { afterTurn } : {}),
       }, this.now())
       return { schedules: existing ? schedules.map(item => item.id === schedule.id ? schedule : item) : [...schedules, schedule], value: schedule }
     }))
@@ -573,11 +576,35 @@ export class BotRegistry extends Map {
       const timestamp = new Date(ranAt).toISOString()
       const updated = normalizeSchedule({
         ...current,
-        enabled: current.kind === 'once' ? false : current.enabled,
+        enabled: ['once', 'after_turn'].includes(current.kind) ? false : current.enabled,
         lastRunAt: skipped ? current.lastRunAt : timestamp,
       }, new Date(timestamp))
       return { schedules: schedules.map(item => item.id === scheduleId ? updated : item), value: updated }
     }))
+  }
+
+  async claimAfterTurn({ botId, scheduleId, expectedRevision, expectedAfterTurn, observedTurn, ranAt }) {
+    validateId(botId)
+    validateScheduleTurn(expectedAfterTurn)
+    validateScheduleTurn(observedTurn)
+    if (typeof scheduleId !== 'string' || !scheduleId || !Number.isSafeInteger(expectedRevision) || expectedRevision < 0
+      || typeof ranAt !== 'string' || !Number.isFinite(Date.parse(ranAt))) throw registryError('SCHEDULE_CLAIM_INVALID')
+    return this.#mutateProfile(botId, async () => {
+      await this.refresh()
+      if (!this.has(botId)) return null
+      return mutateSchedules(this, botId, schedules => {
+        const current = schedules.find(item => item.id === scheduleId)
+        if (!current || current.kind !== 'after_turn' || !current.enabled || scheduleRevision(current) !== expectedRevision
+          || current.afterTurn.state !== expectedAfterTurn.state || current.afterTurn.turnId !== expectedAfterTurn.turnId
+          || observedTurn.state === 'unknown') return { value: null }
+        if (current.afterTurn.state === 'working' && observedTurn.state === 'working' && current.afterTurn.turnId === observedTurn.turnId) return { value: null }
+        const binding = current.afterTurn.state === 'unknown' && observedTurn.state === 'working'
+        const updated = normalizeSchedule({ ...current,
+          ...(binding ? { afterTurn: observedTurn } : { enabled: false, lastRunAt: ranAt }),
+        }, new Date(ranAt))
+        return { schedules: schedules.map(item => item.id === scheduleId ? updated : item), value: binding ? null : structuredClone(current) }
+      })
+    })
   }
 
   claimDue(input) { return this.#consumeDue(input, false) }
@@ -598,7 +625,7 @@ export class BotRegistry extends Map {
         const current = schedules.find(item => item.id === scheduleId)
         if (!current || !current.enabled || scheduleRevision(current) !== expectedRevision
           || current.nextRunAt !== expectedNextRunAt || Date.parse(expectedNextRunAt) > Date.parse(timestamp)) return { value: null }
-        const updated = normalizeSchedule({ ...current, enabled: current.kind === 'once' ? false : current.enabled,
+        const updated = normalizeSchedule({ ...current, enabled: ['once', 'after_turn'].includes(current.kind) ? false : current.enabled,
           lastRunAt: skipped ? current.lastRunAt : timestamp }, new Date(timestamp))
         return { schedules: schedules.map(item => item.id === scheduleId ? updated : item), value: structuredClone(current) }
       })

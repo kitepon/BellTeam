@@ -1,5 +1,5 @@
 import { validateAvatar } from '../avatar-value.mjs'
-import { normalizeSchedule } from '../schedule-definition.mjs'
+import { normalizeSchedule, validateScheduleTurn } from '../schedule-definition.mjs'
 import { normalizeMembersError } from './errors.mjs'
 
 const fail = () => { throw Object.assign(new Error('MEMBERS_INPUT_INVALID'), { code: 'MEMBERS_INPUT_INVALID', outcome: 'not_accepted', status: 400 }) }
@@ -44,6 +44,7 @@ const schedule = value => {
 }
 const owner = { ownerKind: value => { if (!['bot', 'room'].includes(value)) fail() }, ownerId: id }
 const claim = { ...owner, scheduleId: text, expectedRevision: revision, expectedNextRunAt: time, ranAt: time }
+const turnClaim = { botId: id, scheduleId: text, expectedRevision: revision, expectedAfterTurn: validateScheduleTurn, observedTurn: validateScheduleTurn, ranAt: time }
 
 export function validateMembersContext(context, { initialize = false } = {}) {
   object(context, { generation: value => { string(value, 200); if (!value) fail() }, leaseId: value => { if (initialize && value === null) return; string(value, 200); if (!value) fail() }, rootId: value => { string(value, 200); if (!value) fail() }, ownerWrite: bool, continuation: bool })
@@ -59,6 +60,7 @@ const requests = {
   'removals.read': empty,
   'owner.read': empty, 'owner.update': value => object(value, { changes: ownerChanges }),
   'rules.read': empty, 'rules.update': value => object(value, { text: value => string(value, 20000) }),
+  'schedules.claimAfterTurn': value => object(value, turnClaim),
   'schedules.list': value => object(value, owner),
   'schedules.set': value => object(value, { ...owner, input: schedule }),
   'schedules.remove': value => object(value, { ...owner, scheduleId: text }),
@@ -96,6 +98,7 @@ const effects = {
   'project.appendInstructions': value => object(value, { ...projectId, text: body }),
   'global.writeInstructions': value => object(value, { body }),
   'cli.configure': value => object(value, { botIds: ids }),
+  'schedules.currentTurn': value => object(value, { botId: id }),
   'models.read': value => object(value, { harness }),
   'assets.prepareBotAssetRemoval': value => object(value, projectId),
   'assets.cancelBotAssetRemoval': value => object(value, { ...projectId, lease: text, state: value => object(value, {
@@ -123,7 +126,11 @@ const bot = (value, metadata = false) => {
 }
 const persistedSchedule = value => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) fail()
-  const { lastRunAt, nextRunAt, revision: generation, ...input } = value
+  const { lastRunAt, nextRunAt, revision: generation, afterTurn, state, ...input } = value
+  if (value.kind === 'after_turn') {
+    validateScheduleTurn(afterTurn)
+    if (!['waiting-for-turn-end', 'completed', 'disabled'].includes(state)) fail()
+  } else if (afterTurn !== undefined || state !== undefined) fail()
   schedule(input)
   if (lastRunAt !== null) time(lastRunAt)
   if (nextRunAt !== null) time(nextRunAt)
@@ -149,10 +156,11 @@ function checkMembersResult(method, value) {
   if (method === 'schedules.list') { object(value, { schedules: values => { if (!Array.isArray(values)) fail(); values.forEach(persistedSchedule) } }); return }
   if (method === 'schedules.set') { object(value, { schedule: persistedSchedule }); return }
   if (method === 'schedules.remove') { object(value, { removed: text }); return }
-  if (['schedules.claimDue', 'schedules.skipDue'].includes(method)) { nullableSchedule(value); return }
+  if (['schedules.claimDue', 'schedules.skipDue', 'schedules.claimAfterTurn'].includes(method)) { nullableSchedule(value); return }
   fail()
 }
 function checkMembersEffectResult(method, value) {
+  if (method === 'schedules.currentTurn') { validateScheduleTurn(value); return }
   if (method === 'assets.prepareBotAssetRemoval') { string(value, 200); if (!value) fail(); return }
   if (method === 'assets.cancelBotAssetRemoval') { bool(value); return }
   if (method === 'project.readPreviousSession') { body(value); return }
