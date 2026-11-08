@@ -7,7 +7,11 @@ struct DesktopWorkspaceView: View {
     @State private var search = ""
     @State private var inspectorVisible = true
     @State private var inspectorScreenVisible = false
+    #if DEBUG
+    @State private var creatingBot = ProcessInfo.processInfo.arguments.contains("-bellbot-preview-new-member")
+    #else
     @State private var creatingBot = false
+    #endif
     @State private var creatingRoom = false
     @State private var compactColumn: NavigationSplitViewColumn = .sidebar
     @FocusState private var searching: Bool

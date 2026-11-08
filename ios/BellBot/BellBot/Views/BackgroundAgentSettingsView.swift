@@ -40,6 +40,7 @@ struct BackgroundAgentSettingsCard: View {
             .disabled(store.backgroundAgent == nil)
             .accessibilityIdentifier("background-agent-settings")
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20).bellCard()
     }
 

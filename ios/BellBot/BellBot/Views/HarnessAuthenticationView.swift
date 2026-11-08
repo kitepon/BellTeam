@@ -20,6 +20,7 @@ struct HarnessAuthenticationList: View {
                 Button("一覧を更新") { Task { await load() } }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20).bellCard()
         .task { await load() }
     }

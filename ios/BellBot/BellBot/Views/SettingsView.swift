@@ -130,7 +130,7 @@ private struct SettingsSplitView: View {
                 ForEach(SettingsPage.groups, id: \.self) { group in
                     Section {
                         ForEach(group) { page in
-                            SettingsCategoryRow(page: page).tag(page)
+                            SettingsCategoryRow(page: page, inSidebar: true).tag(page)
                                 .accessibilityIdentifier(page.accessibilityID)
                         }
                     }
@@ -177,8 +177,8 @@ private struct SettingsProfileRow: View {
             AvatarView(name: store.owner?.name ?? "あなた", avatar: store.owner?.avatar ?? "",
                        color: BellTheme.violet, size: large ? 60 : 36)
             VStack(alignment: .leading, spacing: 2) {
-                Text(store.owner?.name ?? "あなた").font(large ? .title3.weight(.semibold) : .body.weight(.semibold))
-                Text("プロフィールとあなたの決まり").font(.subheadline).foregroundStyle(.secondary)
+                Text(store.owner?.name ?? "あなた").font(large ? .title3.weight(.semibold) : .system(size: 15, weight: .semibold))
+                Text("プロフィールとあなたの決まり").font(large ? .subheadline : .system(size: 12)).foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, large ? 6 : 2)
@@ -188,16 +188,28 @@ private struct SettingsProfileRow: View {
 private struct SettingsCategoryRow: View {
     @EnvironmentObject private var store: AppStore
     let page: SettingsPage
+    var inSidebar = false
+
+    #if targetEnvironment(macCatalyst)
+    // Mac: normal Mac reading sizes, not the compact iOS-scaled ones.
+    private let titleFont = Font.system(size: 14, weight: .medium)
+    private let detailFont = Font.system(size: 12)
+    #else
+    private let titleFont = Font.body
+    private let detailFont = Font.footnote
+    #endif
 
     var body: some View {
         HStack(spacing: 12) {
             SettingsIconTile(symbol: page.symbol, tint: page.tint)
             VStack(alignment: .leading, spacing: 2) {
-                Text(page.title).font(.body).foregroundStyle(page == .stop ? .red : .primary)
-                Text(page.detail).font(.footnote).foregroundStyle(.secondary).lineLimit(2)
+                Text(page.title).font(titleFont).foregroundStyle(page == .stop ? .red : .primary)
+                Text(page.detail).font(detailFont).foregroundStyle(.secondary).lineLimit(2)
             }
+            .layoutPriority(1)
             Spacer(minLength: 6)
-            if let badge { badge }
+            // The sidebar is narrow: only the stop state stays visible there; pages show the rest.
+            if let badge, !inSidebar || page == .stop { badge.lineLimit(1).fixedSize() }
         }
         .padding(.vertical, 3)
     }
@@ -424,6 +436,7 @@ private struct StopSettingsPage: View {
                     )) {
                         Label("全員のAIを止める", systemImage: "stop.circle.fill").foregroundStyle(.red)
                     }
+                    .toggleStyle(.switch)
                     .tint(.red)
                     .disabled(store.aiControlUpdating)
                     .accessibilityIdentifier("ai-control-toggle")
@@ -554,9 +567,9 @@ private struct ProfileEditor: View {
                     TextEditor(text: $rules)
                         .frame(minHeight: 180)
                 } header: {
-                    Text("ユーザー規範")
+                    Text("あなたの決まり")
                 } footer: {
-                    Text("チーム全員があなたについて共有する指示です。")
+                    Text("チーム全員が、あなたについて守る指示です。")
                 }
                 if loading { ProgressView() }
                 if let errorText { SettingsBanner(message: errorText) }
