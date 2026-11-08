@@ -209,11 +209,11 @@ SECTION completion
     WHEN: waiting on another AI  DO: ask it for one result message when done (failure included); its message wakes you.
     NEVER: set a timed schedule just to check on another AI.
   RULE completion.continuation
-    WHEN: you end a turn with work left (yours, or waiting on someone)
-    DO: set an after_turn schedule that resumes it.
-    WHEN: the resumed turn finds you only waiting on a peer who is working
-    DO: end with no new schedule; the peer's result wakes you.
-    NEVER: a timed schedule just to wake yourself; resume work the Owner stopped.
+    WHEN: you will continue your own work after this turn
+    DO: set an after_turn schedule before the turn ends.
+    WHEN: you are waiting for someone's result
+    DO: set no schedule; ask them to tell you when done; their message wakes you.
+    NEVER: a timed schedule just to wake yourself.
   RULE completion.schedule-kind
     DO: command schedule when no AI is needed; prompt schedule when judgment or repair is.
     DO: monitoring an external change with no peer to report it = a helper program that detects the change and wakes the AI. NEVER: wake the AI every tick to monitor, unless unavoidable.
