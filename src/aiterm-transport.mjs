@@ -127,6 +127,8 @@ export class AitermTransport {
     this.now = now
     this.retainedImages = new Map()
     this.activity = new SeatActivity()
+    // Harness of the seat this transport launched per Bot, for the current-work read (current-work.md A-1).
+    this.seatHarnesses = new Map()
     // Claude 1st/2nd accounts (harness-accounts.md). Null keeps every launch on the default root.
     this.accounts = accounts
     this.accountMoves = new Map()
@@ -334,7 +336,8 @@ export class AitermTransport {
     const session = launch.structuredContent?.session_id
     if (typeof session !== 'string' || !session) throw new Error(`AITERM_LAUNCH_RECEIPT_INVALID: ${bot.id}`)
     this.sessions.set(bot.id, session)
-    await this.recordRuntimeLaunch(session, runtime)
+    this.seatHarnesses.set(bot.id, { session, harness })
+    await this.recordRuntimeLaunch(session, runtime, harness)
     try {
       this.membersAdmission.assertLease(membersLease)
       await this.updateSession(bot.id, session, { membersLease })
@@ -374,6 +377,7 @@ export class AitermTransport {
       if (receipt?.schema !== 'aiterm.agent-launch-result.v1' || receipt.session_id !== reference.sessionId
         || receipt.startup?.status !== 'ready' || receipt.initial_prompt?.status !== 'not_requested')
         await this.recordDeliveryFailure(bot.id, reference.launchId, 'RESTART_RESUME_UNCONFIRMED')
+      this.seatHarnesses.set(bot.id, { session: reference.sessionId, harness: reference.harness })
       return { sessionId: receipt.session_id, resumedAt: this.now() }
     })
   }
@@ -400,11 +404,11 @@ export class AitermTransport {
   }
 
   // D5 live reference. shortcut: entries are overwritten per session, not removed at close; P8 over-retains closed launches.
-  recordRuntimeLaunch(sessionName, runtime) {
+  recordRuntimeLaunch(sessionName, runtime, harness = null) {
     if (!this.runtimeLaunchesPath) return
     this.runtimeLaunchQueue = this.runtimeLaunchQueue.then(async () => {
       const launches = await this.readRuntimeLaunches()
-      launches[sessionName] = { generation: runtime.generation, capturedAt: this.now() }
+      launches[sessionName] = { generation: runtime.generation, capturedAt: this.now(), ...(harness ? { harness } : {}) }
       await mkdir(dirname(this.runtimeLaunchesPath), { recursive: true, mode: 0o700 })
       await writeAtomic(this.runtimeLaunchesPath, { schema: 'bellteam.runtime-launches.v1', launches })
     }).catch(() => this.reportError({ code: 'RUNTIME_LAUNCH_RECORD_UNAVAILABLE', module: 'execution' }))
@@ -1104,11 +1108,21 @@ export class AitermTransport {
   // All supported activity rows feed CurrentWork; only Codex supplies the legacy watch/wait contract.
   seatTurns(bots = []) { return this.#seatTurns(bots, this.client) }
 
+  // The live seat's harness until a relaunch replaces it; a saved harness change applies from that relaunch.
+  // After an engine exchange the in-memory record is empty; the launch record (D5) keeps the last launch's harness.
+  seatHarness(bot) {
+    const session = this.session(bot), seat = this.seatHarnesses.get(bot.id)
+    if (seat?.session === session) return seat.harness
+    const recorded = this.runtimeLaunches?.[session]?.harness
+    return [...HARNESS.values()].includes(recorded) ? recorded : HARNESS.get(bot.harness)
+  }
+
   async #seatTurns(bots, client) {
+    await this.readRuntimeLaunches()
     const read = this.workState.beginRead(bots.map(bot => {
-      const session = this.session(bot), version = this.stopVersions.get(bot.id), harness = HARNESS.get(bot.harness)
+      const session = this.session(bot), version = this.stopVersions.get(bot.id), harness = this.seatHarness(bot)
       return { botId: bot.id, sessionId: session, harness, current: () => this.session(bot) === session
-        && HARNESS.get(bot.harness) === harness && this.stopVersions.get(bot.id) === version && !this.sessionChanges.has(bot.id) }
+        && this.seatHarness(bot) === harness && this.stopVersions.get(bot.id) === version && !this.sessionChanges.has(bot.id) }
     }))
     let result
     try { result = await client.call('pty_list', {}, { meta: CALLER_META })

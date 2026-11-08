@@ -30,7 +30,7 @@ flowchart LR
 
 `<execution state dir>/execution-runtime-launches.json` (next to `execution-activity.json`, body-writable, 0700 dir), written with the existing `writeAtomic` through one in-process queue:
 
-`{schema:"bellteam.runtime-launches.v1", launches:{<sessionName>:{generation: sha|null, capturedAt: ISO}}}`
+`{schema:"bellteam.runtime-launches.v1", launches:{<sessionName>:{generation: sha|null, capturedAt: ISO, harness?: native harness}}}`. `harness` (additive, 2026-11-08) is the harness that launch started; current-work reads it as the live seat's harness after an engine exchange ([current-work A-1](current-work.md#shared-activity-observation-a-1)).
 
 One entry per native session name, overwritten by the next launch of that name. Entries are not removed at close: P8 then over-retains a closed launch's closure, never under-retains a live one. Before P8 exists nothing deletes closures.
 
