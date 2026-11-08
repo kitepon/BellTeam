@@ -55,6 +55,31 @@ final class WorkGraphModelTests: XCTestCase {
         XCTAssertGreaterThan(closest, side, "アイコンが重ならない")
     }
 
+    /// 旧本体の404では止まらず、遅い間隔で確かめ直し、本体が入れ替わった後のsnapshotで描き始める。
+    func testUnsupportedServerKeepsCheckingAndGoesLiveAfterSwap() async throws {
+        WorkGraphProtocol.responses = [(404, "application/json", #"{"error":"NOT_FOUND"}"#),
+                                       (200, "text/event-stream", "event: snapshot\ndata: {\"epoch\":\"e\",\"version\":1,\"degraded\":[],\"nodes\":[],\"edges\":[]}\n\n")]
+        WorkGraphProtocol.requests = 0
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [WorkGraphProtocol.self]
+        let session = URLSession(configuration: configuration)
+        defer { session.invalidateAndCancel() }
+        let api = BellAPI(baseURL: URL(string: "https://work-graph.test.invalid")!, session: session,
+                          diagnostics: BellDiagnostics(onReport: { _, _, _, _ in }), cookieStorage: configuration.httpCookieStorage!)
+        let model = WorkGraphModel()
+        model.unsupportedRetry = .milliseconds(50)
+        let run = Task { await model.run(api: api) }
+        defer { run.cancel() }
+        var sawUnsupported = false
+        for _ in 0..<100 where model.connection != .live {
+            if model.connection == .unsupported { sawUnsupported = true }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertTrue(sawUnsupported, "404の間は未対応を表示する")
+        XCTAssertEqual(model.connection, .live, "入れ替わった本体のsnapshotで描き始める")
+        XCTAssertGreaterThanOrEqual(WorkGraphProtocol.requests, 2)
+    }
+
     func testDecodesContractChangesAndHelpers() throws {
         let json = #"{"epoch":"e","version":2,"degraded":[],"changes":[{"type":"member-enter","node":{"botId":"a","name":"A","color":"rose","avatarVersion":"","state":"working","activeSince":"2026-11-08T11:00:00.000Z"}},{"type":"edge-end","edgeId":"x"},{"type":"member-leave","botId":"b"},{"type":"future-kind"}]}"#
         let batch = try JSONDecoder().decode(WorkGraphBatch.self, from: Data(json.utf8))
@@ -66,4 +91,20 @@ final class WorkGraphModelTests: XCTestCase {
         XCTAssertEqual(WorkGraphModel.bezier(1, 0.2, 0.8, 0.2, 1), 1, accuracy: 0.001)
         XCTAssertEqual(WorkGraphModel.blink(now: 0.4, activeSince: 0), 0.25 + 0.65, accuracy: 0.001, "1.6秒周期の1/4で最大")
     }
+}
+
+private final class WorkGraphProtocol: URLProtocol {
+    nonisolated(unsafe) static var responses: [(Int, String, String)] = []
+    nonisolated(unsafe) static var requests = 0
+    override class func canInit(with request: URLRequest) -> Bool { request.url?.host == "work-graph.test.invalid" }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        Self.requests += 1
+        let (status, type, body) = Self.responses.count > 1 ? Self.responses.removeFirst() : Self.responses[0]
+        let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": type])!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(body.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
 }

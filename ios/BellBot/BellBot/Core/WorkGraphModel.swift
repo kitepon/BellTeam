@@ -106,6 +106,8 @@ final class WorkGraphModel: ObservableObject {
     var reduceMotion = false
 
     static let path = "/api/work-graph/events"
+    /// 旧本体（404）の間は、この間隔で1回だけ確かめ直す。本体が入れ替わったら開き直さずに描き始める。
+    var unsupportedRetry: Duration = .seconds(60)
 
     enum StreamError: Error { case resync, silent }
 
@@ -140,7 +142,9 @@ final class WorkGraphModel: ObservableObject {
                 return
             } catch BellAPIError.httpStatus(404, _, _) {
                 connection = .unsupported
-                return
+                attempt = 0
+                try? await Task.sleep(for: unsupportedRetry)
+                continue
             } catch let error where BellAPIError.isAuthenticationError(error) {
                 connection = .failed("ログインが必要です。")
                 return
