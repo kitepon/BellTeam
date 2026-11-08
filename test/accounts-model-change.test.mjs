@@ -45,7 +45,7 @@ test('switchAccount hibernates, resumes the same session on the selected root on
 })
 
 // Production 2026-11-09 07:37 JST: after a module exchange the session map is empty; recorded seats still move.
-test('reviewAccounts moves a recorded seat the engine did not launch; a seat that is not running is left alone', async () => {
+test('reviewAccounts moves a recorded seat the engine did not launch; a seat with no saved conversation is left alone', async () => {
   const moved = []
   const accounts = { watch: () => () => {}, close: () => {}, state: { seats: { 'bot-a': '1st', 'bot-b': '1st' } },
     seatSlot: () => '1st', effectiveSlot: async () => '2nd' }
@@ -56,8 +56,26 @@ test('reviewAccounts moves a recorded seat the engine did not launch; a seat tha
   assert.deepEqual(moved, ['bot-a', 'bot-b'])
   const quiet = new AitermTransport({ client: { call: async () => ({}) }, accounts, resolveBot: id => bots[id] })
   const lines = [], write = process.stderr.write
-  quiet.switchAccount = async () => { throw Object.assign(new Error('AGENT_HIBERNATE_UNAVAILABLE: not running'), { code: 'AGENT_HIBERNATE_UNAVAILABLE' }) }
+  quiet.switchAccount = async () => { throw Object.assign(new Error('AGENT_RESUME_UNAVAILABLE: no saved conversation'), { code: 'AGENT_RESUME_UNAVAILABLE' }) }
   process.stderr.write = line => { lines.push(String(line)); return true }
   try { quiet.moveAtBoundary('bot-a'); await quiet.accountMoves.get('bot-a') } finally { process.stderr.write = write }
   assert.deepEqual(lines.filter(line => line.includes('seat move')), [])
+})
+
+// Production 2026-11-09 07:54 JST: a hibernated seat was resumed by Aiterm from its 1st recipe; the switch resumes it on the new root.
+test('switchAccount resumes an already hibernated seat on the selected root', async () => {
+  const calls = []
+  const client = { call: async (name, args) => {
+    calls.push(name)
+    if (name === 'pty_close') throw Object.assign(new Error('AGENT_HIBERNATE_UNAVAILABLE: not_running: 席は休止していません。'), { code: 'AGENT_HIBERNATE_UNAVAILABLE' })
+    return { structuredContent: { schema: 'aiterm.agent-launch-result.v1', session_id: args.session_name, startup: { status: 'ready' } } }
+  } }
+  const seats = []
+  const accounts = { watch: () => () => {}, close: () => {}, state: { seats: {} }, seatSlot: () => '1st',
+    selection: async () => ({ slot: '2nd', configurationRoot: '/r/2nd' }), setSeat: async (id, slot) => { seats.push(slot) } }
+  const transport = new AitermTransport({ client, accounts })
+  transport.requireMember = async () => {}; transport.removeRetainedImages = async () => {}
+  const bot = { id: 'bot-h', session: 'bot-h', harness: 'claude', model: 'opus', project: '/tmp' }
+  assert.deepEqual(await transport.switchAccount(bot), { botId: 'bot-h', session: 'bot-h', slot: '2nd' })
+  assert.deepEqual(calls, ['pty_close', 'agent_launch']); assert.deepEqual(seats, ['2nd'])
 })

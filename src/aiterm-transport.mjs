@@ -1533,7 +1533,10 @@ export class AitermTransport {
       const account = await this.accounts.selection('claude', bot.model)
       // Already there (the limit's continuation and the registry-change move both ask): nothing to close.
       if ((this.accounts.seatSlot(bot.id) ?? '1st') === account.slot) return { botId: bot.id, session, slot: account.slot }
-      await this.changeSession(bot, 'pty_close', { session_id: session, hibernate: true })
+      // A seat already hibernated (idle clock) is not running: go straight to the resume on the new root, so its next
+      // delivery does not wake it from the old recipe (production 2026-11-09 07:54 JST, Centi resumed on the limited 1st).
+      try { await this.changeSession(bot, 'pty_close', { session_id: session, hibernate: true }) }
+      catch (error) { if (!/AGENT_HIBERNATE_UNAVAILABLE/u.test(`${error?.code ?? ''} ${error?.message ?? ''}`)) throw error }
       await this.removeRetainedImages(bot.id)
       this.requireStopVersion(bot.id, version)
       admissionCheck?.()
@@ -1574,8 +1577,8 @@ export class AitermTransport {
         if (!this.isIdle(botId)) continue
         try { return await this.switchAccount(bot) }
         catch (error) {
-          // Not a running seat (closed or already hibernated): nothing to move; its next launch selects the slot.
-          if (/AGENT_HIBERNATE_UNAVAILABLE/u.test(`${error?.code ?? ''} ${error?.message ?? ''}`)) return
+          // No saved conversation to resume (a closed seat): nothing to move; its next fresh launch selects the slot.
+          if (/AGENT_RESUME_UNAVAILABLE/u.test(`${error?.code ?? ''} ${error?.message ?? ''}`)) return
           // AGENT_BUSY: a turn the parent does not follow is still running; try again after it, never stop it.
           if (!/AGENT_BUSY/u.test(`${error?.code ?? ''} ${error?.message ?? ''}`)) throw error
           await new Promise(resolve => setTimeout(resolve, 30_000))
