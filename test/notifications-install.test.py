@@ -56,13 +56,9 @@ class NotificationsWriterTest(unittest.TestCase):
         self.manifest['runtime']['stateSchema']=1;self.make_archive()
         with self.assertRaisesRegex(ValueError,'GATEWAY_INSTALL_RECEIPT'):self.install()
         self.assertEqual(list((self.f.private/'notifications/releases').iterdir()),[])
-    def test_notification_component_lock_excludes_second_installer(self):
-        import fcntl,os
-        component=self.f.private/'notifications';component.mkdir()
-        lock=os.open(component/'.install.lock',os.O_RDWR|os.O_CREAT,0o600)
-        try:
-            fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
-            with self.assertRaises(BlockingIOError):self.install()
-        finally:os.close(lock)
+    def test_notification_component_lock_queues_second_installer(self):
+        component = self.f.private / 'notifications'; component.mkdir()
+        lock = component / '.install.lock'; lock.touch(mode=0o600)
+        self.f.assert_install_waits(lock, base.fcntl.LOCK_EX, self.install)
 
 if __name__=='__main__':unittest.main()

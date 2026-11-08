@@ -20,6 +20,44 @@ flowchart TD
   Prepare -->|欠測/不一致| Keep
 ```
 
+## Installer wait and maintenance-marker correction (2026-11-08)
+
+Trony assigned this bounded correction to Admi; the surrounding public installer/reader remains runtime-owned. `scripts/install-web-gateway-release.py:install` is the shared fixed writer for Web and the seven component wrappers. Public arguments, verifier/hash checks, immutable publication and caller interfaces are unchanged.
+
+| Function / retained serialization | Named protection | Self-exit and next step |
+| --- | --- | --- |
+| Blocking SH on the private-root inode | Prevent concurrent maintenance overwriting the private tree while installation stages or publishes code | Real maintenance EX owner closes/releases its FD on completion/error, or the kernel closes it on process exit; pending SH acquires automatically and continues. Normal body SH coexists. Existing root identity validation stays intact. |
+| Blocking EX on component `.install.lock` | Prevent a second installer deleting the first installer's live staging or racing publication to an existing target | Earlier component writer exits its context on success/error or the process exits; FD close releases EX, and the next installer acquires automatically before stale-stage cleanup. No immediate busy failure, polling, deadline or retry. |
+| Remove `.transaction.json` admission check | A marker alone names no protection beyond actual lock ownership and may remain after a prior transaction | Installation ignores and preserves the marker; no external cleanup is required to proceed. |
+
+```mermaid
+stateDiagram-v2
+  [*] --> WaitingPrivate: install requested / blocking SH
+  WaitingPrivate --> WaitingComponent: private EX released by completion, error or process exit / SH acquired
+  WaitingComponent --> Staging: earlier component EX released by completion, error or process exit / EX acquired
+  Staging --> Verified: snapshot / signature and hash verification
+  Verified --> Published: immutable NOREPLACE publication
+  Published --> Released: success / close both lock FDs
+  Staging --> Released: verification or I/O error / cleanup own stage / close FDs
+  Verified --> Released: publication or I/O error / cleanup own stage / close FDs
+  Released --> [*]
+```
+
+```mermaid
+flowchart LR
+  Caller[Existing install.sh helper / bundled module updater / seven fixed wrappers] --> Shared[Wait for private-root SH / coexist with body SH]
+  Maintenance[Maintenance EX FD close / process exit] --> Shared
+  Shared --> Exclusive[Wait for component install EX]
+  Previous[Previous installer FD close / process exit] --> Exclusive
+  Exclusive --> Stage[Clean orphan stage then snapshot own incoming]
+  Stage --> Verify[Existing authenticated verifier and content hashes]
+  Verify --> Publish[Existing immutable release publication]
+  Publish --> Read[Existing read-only prepare / later explicit adoption]
+  Marker[Existing transaction marker] -. preserved without admission check .-> Stage
+```
+
+The same helper bytes serve `install-{notifications,members,memory,usage,diagnostics,execution,conversation}-release.py` and `module-update-service.py`; only their shared wait behavior changes. Tests of those callers inherit the shared writer contract; direct wrapper lock fixtures now expect queued success. This script is fixed image code included by the server packager, absent from the Web module archive and the Host root-code bundle. Normal Web module update cannot activate the correction: it needs a subsequent formal image/body/helper supply (and the relevant installer companion binding), under its owners' existing operational conditions.
+
 ## 置き場とwriter
 
 | 対象 | 配置と権限 | writer |
@@ -34,7 +72,7 @@ flowchart TD
 
 通常installerの専用modeは既install.sh内に収め、第三shellの手動取得を前提にしない。保存normal・実CIDのimage/mount本人性を検証し、既固定imageからWeb配置専用helperを起動する。停止・pull・image変更・任意command/pathをしない。helperは未信頼incomingをreadonly、既private volumeだけをRWに持ち、空env/固定Python codeでid/source/signerの64/40/40hexだけを受ける。archive/bundleの入力pathは固定incoming root/id内。承認済みsource/signer値をrootoperatorが明示して渡し、manifest/bundleから期待値を作らない。
 
-root helperはprivate rootをSHで取り、.transaction.jsonが無いことを確認してWeb専用.install.lockをEXで保持する。従来の全体EXを取らず、通常本体の旧SHを維持し、全体保守EXを拒否する。Web storeは同専用lock内でだけ変更し、state/採用recordを操作しない。専用入口は通常installerの実装が固定modelから呼び、normal側にroot sudoやDocker socketは増やさない。
+The fixed helper waits for the private-root SH lock, then waits for the component .install.lock EX lock. It coexists with normal-body SH holders, queues behind a real whole-maintenance EX holder, and queues behind an earlier installer for that component. A .transaction.json marker alone never refuses installation and is neither read nor changed. The component store changes only under its exclusive lock; state/adoption records remain untouched. The existing fixed installer entrypoint does not add root sudo or a Docker socket to the normal body.
 
 incoming archive/bundleを開いたFDからroot stagingへsnapshotしてfsync、承認済みexpectationをroot-owned通常fileとして生成。固定公式verifierのexit0/receipt整合後にだけ新しい非公開版dirへ安全な通常fileを書き、全bytes/hashを再照合してdir0555/file0444へ固定する。installation.jsonを最後に書き、renameat2 NOREPLACEで完成版を一度だけ公開し親dirをsyncする。既版は空でも上書きしない。失敗時は当操作stagingだけを除去し、既版/採用stateは保持。強制killの残stagingは次の専用EX取得後に本人性を確認して整理する。署名供給や実root配置の成立をこのsourceから推定しない。
 

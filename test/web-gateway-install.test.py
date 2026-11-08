@@ -1,4 +1,5 @@
 import copy
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import importlib.util
 import io
@@ -10,6 +11,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 import fcntl
@@ -90,6 +92,31 @@ class IsolatedWriterTest(unittest.TestCase):
         self.assertEqual((self.old / 'old').read_bytes(), b'keep old release')
         self.assertEqual(list((self.private / 'web-gateway').glob('.staging-*')), [])
 
+    def assert_install_waits(self, path, mode, install):
+        held = os.open(path, os.O_RDONLY)
+        fcntl.flock(held, fcntl.LOCK_EX)
+        identity = os.fstat(held)
+        waiting = threading.Event()
+        flock = fcntl.flock
+        def observe(fd, operation):
+            info = os.fstat(fd if isinstance(fd, int) else fd.fileno())
+            if (info.st_dev, info.st_ino) == (identity.st_dev, identity.st_ino):
+                waiting.set()
+                self.assertEqual(operation, mode)
+            return flock(fd, operation)
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            with patch.object(writer.fcntl, 'flock', side_effect=observe):
+                result = pool.submit(install)
+                try:
+                    self.assertTrue(waiting.wait(5), 'installer must reach the held lock')
+                    self.assertFalse(result.done(), 'installer must wait rather than fail')
+                    self.verify.assert_not_called()
+                    self.preserved()
+                finally:
+                    os.close(held)
+                self.assertEqual(result.result(timeout=5), dict(versionId=self.expected['archiveSha256'], installed=True))
+        self.preserved()
+
     def test_publish_immutable_and_installation_last_without_adopting_or_overwriting(self):
         events = []
         write = writer.write_file
@@ -123,7 +150,7 @@ class IsolatedWriterTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'GATEWAY_INSTALL_CONTENT_CHANGED'): writer.install(self.private, self.incoming, self.expected)
         self.preserved()
 
-    def test_private_shared_lock_coexists_with_server_and_component_excludes_second_writer(self):
+    def test_private_shared_lock_coexists_with_server_and_excludes_maintenance(self):
         parent = os.open(self.private, os.O_RDONLY | os.O_DIRECTORY)
         try:
             fcntl.flock(parent, fcntl.LOCK_SH | fcntl.LOCK_NB)
@@ -133,25 +160,26 @@ class IsolatedWriterTest(unittest.TestCase):
                 try:
                     with self.assertRaises(BlockingIOError): fcntl.flock(other, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 finally: os.close(other)
-                with self.assertRaises(BlockingIOError): writer.install(self.private, self.incoming, self.expected)
                 return original(*args)
             self.verify.side_effect = observe
             writer.install(self.private, self.incoming, self.expected)
         finally: os.close(parent)
         self.preserved()
 
-    def test_whole_maintenance_exclusive_lock_blocks_install(self):
-        held = os.open(self.private, os.O_RDONLY | os.O_DIRECTORY)
-        try:
-            fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            with self.assertRaises(BlockingIOError): writer.install(self.private, self.incoming, self.expected)
-        finally: os.close(held)
-        self.verify.assert_not_called(); self.preserved()
+    def test_component_install_queues_until_previous_writer_releases_lock(self):
+        lock = self.private / 'web-gateway/.install.lock'; lock.touch(mode=0o600)
+        self.assert_install_waits(lock, fcntl.LOCK_EX, lambda: writer.install(self.private, self.incoming, self.expected))
 
-    def test_transaction_marker_and_input_symlink_refused(self):
+    def test_whole_maintenance_exclusive_lock_queues_install(self):
+        self.assert_install_waits(self.private, fcntl.LOCK_SH, lambda: writer.install(self.private, self.incoming, self.expected))
+
+    def test_transaction_marker_does_not_block_install_or_change_marker(self):
         marker = self.private / '.transaction.json'; marker.write_bytes(b'pending')
-        with self.assertRaisesRegex(ValueError, 'MAINTENANCE_ACTIVE'): writer.install(self.private, self.incoming, self.expected)
-        marker.unlink()
+        writer.install(self.private, self.incoming, self.expected)
+        self.assertEqual(marker.read_bytes(), b'pending')
+        self.preserved()
+
+    def test_input_symlink_refused(self):
         path = self.incoming / self.expected['archiveSha256'] / 'bundle.json'; path.unlink(); path.symlink_to('/etc/passwd')
         with self.assertRaises(OSError): writer.install(self.private, self.incoming, self.expected)
         self.verify.assert_not_called(); self.preserved()
