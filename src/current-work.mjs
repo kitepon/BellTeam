@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { constants } from 'node:fs'
 import { mkdir, open } from 'node:fs/promises'
 import { dirname } from 'node:path'
@@ -101,7 +101,7 @@ export class CurrentWork {
   invalidate(botId) { this.finishedActivity(botId, this.restartActivity.get(botId)); this.unknown(this.record(botId)); this.schedule() }
   sync(botId, sessionId, available = true) {
     const record = this.record(botId)
-    if (record.sessionId !== sessionId) { this.unknown(record); record.sessionId = sessionId }
+    if (record.sessionId !== sessionId) { this.unknown(record); record.sessionId = sessionId; record.absent = false }
     if (!available || this.closed) this.unknown(record)
     this.expire(record)
     return record
@@ -123,6 +123,15 @@ export class CurrentWork {
     const record = this.sync(botId, sessionId, available)
     return record.state === 'working' ? { sessionId: record.sessionId, launchId: record.launchId, turnId: record.turnId, revision: record.revision } : null
   }
+  // after_turn: the owning Bot's actual current turn (current-work.md). Pure read of the latest observation.
+  turn(botId) {
+    const record = this.records.get(botId)
+    if (!record) return { state: 'unknown', turnId: null }
+    this.expire(record)
+    if (record.state === 'working')
+      return { state: 'working', turnId: createHash('sha256').update(point(record)).digest('hex') }
+    return { state: record.state === 'idle' || record.state === 'unknown' && record.absent ? 'idle' : 'unknown', turnId: null }
+  }
   beginRead(targets) {
     for (const target of targets) this.sync(target.botId, target.sessionId, target.current())
     return { seq: ++this.seq, targets }
@@ -137,6 +146,9 @@ export class CurrentWork {
       record.lastRead = read.seq
       if (!target.current() || target.sessionId !== record.sessionId) { this.unknown(record); continue }
       const matches = rows.filter(row => row?.session_id === target.sessionId)
+      // A valid read without this seat proves no turn can run (after_turn reads it as idle; the DTO stays unknown).
+      const absent = valid && matches.length === 0
+      if (record.absent !== absent) { record.absent = absent; try { this.notify(record.botId) } catch {} }
       const row = matches.length === 1 ? matches[0] : null, turn = row?.turn
       const running = turn?.state === 'running' && text(turn.turn_id) && (row.harness === 'codex-cli'
         || keys(turn, ['state', 'turn_id', 'started_at', 'event_cursor', 'interim_from', 'wait_process'])

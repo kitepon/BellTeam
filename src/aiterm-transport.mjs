@@ -1029,6 +1029,8 @@ export class AitermTransport {
 
   currentWorkBinding() { return null }
 
+  currentTurn(botId) { return this.workState.turn(botId) }
+
   updateWorkSummary() {
     throw Object.assign(new Error('CURRENT_WORK_FORBIDDEN'), { code: 'CURRENT_WORK_FORBIDDEN', status: 403 })
   }

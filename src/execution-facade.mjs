@@ -28,6 +28,23 @@ export function createExecutionFacade({ getController, client, membersAdmission,
       try { return current().dispatch({ method, args }) } catch (error) { return Promise.reject(error) }
     }
   }
+  // after_turn (current-work.md): every currentTurn change per listener, over the exchange-surviving queue stream.
+  result.transport.watchCurrentTurn = listener => {
+    if (typeof listener !== 'function') throw failure('EXECUTION_FACADE_OPTIONS_INVALID')
+    const last = new Map(), retry = new Set()
+    return watchQueue(change => {
+      for (const botId of [...retry, ...(Array.isArray(change?.botIds) ? change.botIds : [])]) {
+        let turn
+        try { turn = current().project({ method: 'transport.currentTurn', args: [botId] }) }
+        catch { retry.add(botId); continue }
+        retry.delete(botId)
+        const key = `${turn.state}:${turn.turnId}`
+        if (last.get(botId) === key) continue
+        last.set(botId, key)
+        try { listener({ botId, state: turn.state, turnId: turn.turnId }) } catch {}
+      }
+    })
+  }
   result.transport.close = () => {
     try { return current().close() } catch (error) { return Promise.reject(error) }
   }
