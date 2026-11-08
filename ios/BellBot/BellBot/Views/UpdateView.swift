@@ -205,13 +205,15 @@ struct UpdateContent: View {
 
     private func confirmation(_ plan: UpdatePlan) -> some View {
         let names = plan.targets.map { target in updates.inventory?.components.first { $0.id == target.componentId }?.name ?? target.componentId }
-        let ready = updates.canStartPlan && plan.compatibility.compatible && plan.capability.supported
+        // 未知のactionやscopeの計画は、何が起きるか分からないので実行させない。
+        let known = plan.action != .unknown && plan.scope != .unknown
+        let ready = updates.canStartPlan && plan.compatibility.compatible && plan.capability.supported && known
         return VStack(alignment: .leading, spacing: 12) {
             Text(plan.action == .rollback ? "戻す前の確認" : "更新の前に").font(.headline)
             Text(names.joined(separator: "、")).font(.body.weight(.semibold))
             Label(plan.impact.description, systemImage: plan.impact.containerRestart ? "pause.circle" : "info.circle")
                 .font(.subheadline).foregroundStyle(BellTheme.muted)
-            if !plan.compatibility.compatible || !plan.capability.supported {
+            if !plan.compatibility.compatible || !plan.capability.supported || !known {
                 Text("この更新は、今の状態では適用できません。時間をおいて確認してください。").font(.subheadline)
             }
             if plan.impact.containerRestart {

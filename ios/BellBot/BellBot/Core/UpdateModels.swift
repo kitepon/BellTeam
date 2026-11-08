@@ -25,12 +25,23 @@ extension KeyedDecodingContainer {
     }
 }
 
-/// `GET /api/updates`（`bellteam.updates.v1`）。列挙の未知の値はdecode失敗＝応答不正として扱う。
+/// 新しいサーバーが値を足しても画面全体を読めなくしないため、未知の値はその項目のunknownとして読む。
+protocol UnknownDecodable: RawRepresentable, Decodable where RawValue == String {
+    static var unknownCase: Self { get }
+}
+
+extension UnknownDecodable {
+    init(from decoder: Decoder) throws {
+        self = Self(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? Self.unknownCase
+    }
+}
+
+/// `GET /api/updates`（`bellteam.updates.v1`）。schemaの不一致だけは別契約なので応答不正。他の列挙の未知の値はunknownとして読む。
 struct UpdateInventory: Decodable, Equatable {
     enum Schema: String, Decodable { case v1 = "bellteam.updates.v1" }
     struct Server: Decodable, Equatable { @NullableField var id: String? }
     struct Notice: Decodable, Equatable {
-        enum State: String, Decodable { case ready, unavailable, updating, attention }
+        enum State: String, UnknownDecodable { case ready, unavailable, updating, attention, unknown; static let unknownCase = State.unknown }
         let state: State
         @NullableField var code: String?
         let message: String
@@ -52,7 +63,7 @@ struct UpdateInventory: Decodable, Equatable {
 }
 
 struct UpdateVersion: Decodable, Equatable {
-    enum Origin: String, Decodable { case container, builtin, release, published }
+    enum Origin: String, UnknownDecodable { case container, builtin, release, published, unknown; static let unknownCase = Origin.unknown }
     let version: String
     @NullableField var sourceCommit: String?
     @NullableField var digest: String?
@@ -66,8 +77,9 @@ struct UpdateCapability: Decodable, Equatable {
 
 struct UpdateComponent: Decodable, Equatable, Identifiable {
     struct Comparison: Decodable, Equatable {
-        enum State: String, Decodable {
+        enum State: String, UnknownDecodable {
             case upToDate = "up_to_date", updateAvailable = "update_available", unavailable, incompatible, unknown
+            static let unknownCase = State.unknown
         }
         let state: State
         @NullableField var reason: String?
@@ -75,7 +87,7 @@ struct UpdateComponent: Decodable, Equatable, Identifiable {
     struct Publication: Decodable, Equatable {
         struct Catalog: Decodable, Equatable { let sha256: String; let publishedAt: String; let expiresAt: String }
         struct Check: Decodable, Equatable {
-            enum Status: String, Decodable { case verified, failed, unconfirmed }
+            enum Status: String, UnknownDecodable { case verified, failed, unconfirmed, unknown; static let unknownCase = Status.unknown }
             let status: Status
             @NullableField var checkedAt: String?
             @NullableField var error: String?
@@ -123,8 +135,8 @@ struct UpdateComponent: Decodable, Equatable, Identifiable {
 }
 
 struct UpdatePlan: Decodable, Equatable {
-    enum Scope: String, Decodable { case all, component }
-    enum Action: String, Decodable { case update, rollback }
+    enum Scope: String, UnknownDecodable { case all, component, unknown; static let unknownCase = Scope.unknown }
+    enum Action: String, UnknownDecodable { case update, rollback, unknown; static let unknownCase = Action.unknown }
     struct Target: Decodable, Equatable {
         let componentId: String
         @NullableField var current: UpdateVersion?
@@ -150,9 +162,12 @@ struct UpdatePlan: Decodable, Equatable {
 
 struct UpdateOperation: Decodable, Equatable {
     /// pendingは全stepの受付記録が揃う前の付帯情報で、ジョブの状態ではない。
-    enum Admission: String, Decodable { case pending, accepted, rejected, unknown }
-    enum Phase: String, Decodable { case preparing, applying, reconnecting, verifying, completed, failed, unknown }
-    enum Outcome: String, Decodable { case pending, succeeded, failed, unknown }
+    enum Admission: String, UnknownDecodable { case pending, accepted, rejected, unknown; static let unknownCase = Admission.unknown }
+    enum Phase: String, UnknownDecodable {
+        case preparing, applying, reconnecting, verifying, completed, failed, unknown
+        static let unknownCase = Phase.unknown
+    }
+    enum Outcome: String, UnknownDecodable { case pending, succeeded, failed, unknown; static let unknownCase = Outcome.unknown }
     struct Failure: Decodable, Equatable { let code: String; let message: String }
 
     let requestId: String
@@ -173,8 +188,11 @@ struct UpdateOperation: Decodable, Equatable {
 /// runtimeの`bellteam.update-job.v1`。値は作り替えず、そのまま表示する。
 struct UpdateJob: Decodable, Equatable, Identifiable {
     enum Schema: String, Decodable { case v1 = "bellteam.update-job.v1" }
-    enum Kind: String, Decodable { case module, container }
-    enum State: String, Decodable { case queued, downloading, verifying, swapping, ready, failed }
+    enum Kind: String, UnknownDecodable { case module, container, unknown; static let unknownCase = Kind.unknown }
+    enum State: String, UnknownDecodable {
+        case queued, downloading, verifying, swapping, ready, failed, unknown
+        static let unknownCase = State.unknown
+    }
     struct Target: Decodable, Equatable { let moduleId: String }
     struct Reason: Decodable, Equatable { let code: String; let message: String }
 
@@ -189,7 +207,7 @@ struct UpdateJob: Decodable, Equatable, Identifiable {
 
 /// 機能の再起動が続いた時の問題。statusは解決後もresolvedとして残る。
 struct UpdateProblem: Decodable, Equatable, Identifiable {
-    enum Status: String, Decodable { case open, resolved }
+    enum Status: String, UnknownDecodable { case open, resolved, unknown; static let unknownCase = Status.unknown }
     struct LastExit: Decodable, Equatable {
         @NullableField var code: Int?
         @NullableField var signal: String?
