@@ -1,3 +1,4 @@
+import ChatLayout
 import SwiftUI
 import UIKit
 
@@ -28,8 +29,9 @@ enum ConversationOpening: String, CaseIterable {
     static let storageKey = "conversationOpening"
 }
 
-/// 会話の行をOS標準の表に載せる。行の高さは表が実測し、制御は「末尾にいる間は追従する」と
-/// 「過去を上へ足した分だけ位置をずらす」の2つだけに限る。
+/// 会話の行をチャット用レイアウト（ChatLayout）に載せる。読んでいる位置を保つのはレイアウトの役目で、ここでは位置を計算しない。
+/// - 過去を上へ足す・見えている行より上の行の高さが実測で変わる → レイアウトが表示中の行の画面上の位置を保つ。
+/// - 新着を下へ足す → 末尾にいる時だけ追従し、上を読んでいる時は動かない（keepContentOffsetAtBottomOnBatchUpdates）。
 struct ConversationList<RowContent: View>: UIViewRepresentable {
     let messages: [TimelineMessage]
     let queue: [QueueItem]
@@ -51,28 +53,32 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
-    func makeUIView(context: Context) -> ConversationTableView {
-        let table = ConversationTableView(frame: .zero, style: .plain)
-        table.register(ConversationCell.self, forCellReuseIdentifier: "row")
-        table.allowsSelection = false
-        table.separatorStyle = .none
-        table.backgroundColor = .clear
-        table.keyboardDismissMode = .interactive
-        table.selfSizingInvalidation = .enabledIncludingConstraints
-        table.estimatedRowHeight = 180
-        table.contentInset.top = 20
-        table.alwaysBounceVertical = true
-        table.accessibilityIdentifier = "conversation-messages"
+    func makeUIView(context: Context) -> ConversationCollectionView {
+        let layout = CollectionViewChatLayout()
+        layout.settings.interItemSpacing = 17
+        layout.settings.additionalInsets = UIEdgeInsets(top: 20, left: 0, bottom: 0, right: 0)
+        layout.settings.estimatedItemSize = CGSize(width: 320, height: 120)
+        layout.keepContentOffsetAtBottomOnBatchUpdates = true
+        layout.supportSelfSizingInvalidation = true
+        let view = ConversationCollectionView(frame: .zero, collectionViewLayout: layout)
+        view.register(ConversationCell.self, forCellWithReuseIdentifier: "row")
+        view.backgroundColor = .clear
+        view.keyboardDismissMode = .interactive
+        view.selfSizingInvalidation = .enabled
+        // 先読みのセルはレイアウトの実測と食い違う（ChatLayoutの推奨）。
+        view.isPrefetchingEnabled = false
+        view.alwaysBounceVertical = true
+        view.accessibilityIdentifier = "conversation-messages"
         // 最初の配置が終わるまで見せない。見せる時に選んだ開き方で必ず入る。
-        table.alpha = 0
+        view.alpha = 0
         let refresh = UIRefreshControl()
         refresh.addTarget(context.coordinator, action: #selector(Coordinator.refresh(_:)), for: .valueChanged)
-        table.refreshControl = refresh
-        context.coordinator.attach(table)
-        return table
+        view.refreshControl = refresh
+        context.coordinator.attach(view, layout: layout)
+        return view
     }
 
-    func updateUIView(_ table: ConversationTableView, context: Context) {
+    func updateUIView(_ view: ConversationCollectionView, context: Context) {
         let coordinator = context.coordinator
         coordinator.content = content
         coordinator.onLoadOlder = onLoadOlder
@@ -84,7 +90,7 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         if coordinator.loading && !loading { coordinator.fillRequested = false }
         coordinator.loading = loading
         coordinator.loadingOlder = loadingOlder
-        if table.contentInset.bottom != bottomInset { table.contentInset.bottom = bottomInset }
+        if view.contentInset.bottom != bottomInset { view.contentInset.bottom = bottomInset }
         coordinator.present(rows: rows, messages: messages, queue: queue, rowContext: rowContext,
                             environment: context.environment)
         coordinator.fillIfShort()
@@ -94,7 +100,7 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         }
     }
 
-    final class Coordinator: NSObject, UITableViewDelegate {
+    final class Coordinator: NSObject, UICollectionViewDelegate, ChatLayoutDelegate {
         var content: ((ConversationRow) -> RowContent)?
         var onLoadOlder: (() -> Void)?
         var onRefresh: (() async -> Void)?
@@ -105,12 +111,12 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         var loadingOlder = false
         var fillRequested = false
         var scrollToBottomRevision = 0
-        private weak var table: ConversationTableView?
-        private var dataSource: UITableViewDiffableDataSource<Int, ConversationRow>?
+        private weak var view: ConversationCollectionView?
+        private weak var layout: CollectionViewChatLayout?
+        private var dataSource: ChatLayoutDiffableDataSource<Int, ConversationRow>?
         private var messagesByID: [String: TimelineMessage] = [:]
         private var queue: [QueueItem] = []
         private var rowContext: [ConversationRowContext] = []
-        private var heights: [String: CGFloat] = [:]
         private var lastOffset: CGFloat = 0
         private var armed = true
         private var atBottom = true
@@ -123,33 +129,39 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
         private var wheel: WheelScrollSmoother?
         #endif
 
-        func attach(_ table: ConversationTableView) {
-            self.table = table
-            table.delegate = self
-            dataSource = UITableViewDiffableDataSource(tableView: table) { [weak self] table, indexPath, row in
-                let cell = table.dequeueReusableCell(withIdentifier: "row", for: indexPath) as! ConversationCell
+        func attach(_ view: ConversationCollectionView, layout: CollectionViewChatLayout) {
+            self.view = view
+            self.layout = layout
+            view.delegate = self
+            layout.delegate = self
+            dataSource = ChatLayoutDiffableDataSource(collectionView: view) { [weak self] view, indexPath, row in
+                let cell = view.dequeueReusableCell(withReuseIdentifier: "row", for: indexPath) as! ConversationCell
                 cell.row = row
-                self?.configure(cell, row: row, first: indexPath.row == 0)
+                self?.configure(cell, row: row)
                 return cell
             }
-            table.onLayout = { [weak self] in self?.fillIfShort() }
-            table.onReveal = { [weak self] in self?.reveal() }
+            view.onLayout = { [weak self] in self?.fillIfShort() }
+            view.onReveal = { [weak self] in self?.reveal() }
+            // キーボードや入力欄で下の余白が変わる時、末尾にいたなら末尾に残す（レイアウトはこれを自動では補わない）。
+            view.onInsetChange = { [weak self] in
+                guard let self, atBottom else { return }
+                self.view?.pinToBottom()
+            }
             #if targetEnvironment(macCatalyst)
-            wheel = WheelScrollSmoother(scrollView: table, onStart: { [weak self] in self?.beginUserScroll() },
-                                        onStop: { [weak self] in self?.settle() })
+            wheel = WheelScrollSmoother(scrollView: view, onStart: {}, onStop: { [weak self] in self?.report() })
             #endif
         }
 
-        private func configure(_ cell: ConversationCell, row: ConversationRow, first: Bool) {
+        private func configure(_ cell: ConversationCell, row: ConversationRow) {
             guard let content else { return }
-            cell.contentConfiguration = UIHostingConfiguration { content(row).padding(.top, first ? 0 : 17) }
+            cell.contentConfiguration = UIHostingConfiguration { content(row) }
                 .margins(.vertical, 0)
                 .margins(.horizontal, 18)
                 .background(.clear)
             cell.backgroundConfiguration = .clear()
         }
 
-        /// 本文の素材が揃ってから行を表へ入れる。組み立て中に届いた更新は、最新の状態だけを次に渡す。
+        /// 本文の素材が揃ってから行を入れる。組み立て中に届いた更新は、最新の状態だけを次に渡す。
         func present(rows: [ConversationRow], messages: [TimelineMessage], queue: [QueueItem],
                      rowContext: [ConversationRowContext], environment: EnvironmentValues) {
             latest = (rows, messages, queue, rowContext)
@@ -172,99 +184,100 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
             }
         }
 
-        /// 作り直すのは中身の変わった行だけ。可視行を毎回作り直すと、Macの縦長の表では
-        /// 親の更新のたびに主スレッドが行の再配置で埋まり、文字入力まで待たされた。
+        /// 作り直すのは中身の変わった行だけ。行の追加・削除・高さの変化で読んでいる位置を保つのはレイアウトに任せる。
         private func apply(rows: [ConversationRow], messages: [TimelineMessage], queue: [QueueItem],
                            rowContext: [ConversationRowContext]) {
-            guard let table, let dataSource else { return }
-            let previous = dataSource.snapshot().itemIdentifiers
+            guard let view, let dataSource else { return }
+            let previous = dataSource.snapshot?.itemIdentifiers ?? []
             let updated = Dictionary(messages.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
             var changed = Set<ConversationRow>()
             if self.rowContext != rowContext {
-                changed.formUnion(table.indexPathsForVisibleRows?.compactMap { dataSource.itemIdentifier(for: $0) } ?? [])
+                changed.formUnion(view.indexPathsForVisibleItems.compactMap { dataSource.snapshot?.itemIdentifiers[safe: $0.item] })
             }
             for message in messages where messagesByID[message.id] != nil && messagesByID[message.id] != message {
                 changed.insert(.message(message.id))
             }
             if self.queue != queue { changed.insert(.queue) }
-            // 先頭が変わった時だけ行の順番が動く。その行は保持済みの設定をそのまま使えない。
-            if let first = previous.first, let index = rows.firstIndex(of: first), index > 0 { changed.insert(first) }
+            changed.formIntersection(previous)
             changed.formIntersection(rows)
-            // 行も中身も変わらない親の更新では表に触らない。
+            // 行も中身も変わらない親の更新では触らない。
             if rows == previous && changed.isEmpty { return }
             var snapshot = NSDiffableDataSourceSnapshot<Int, ConversationRow>()
             snapshot.appendSections([0])
             snapshot.appendItems(rows)
             snapshot.reconfigureItems(Array(changed))
-            messagesByID = updated
-            self.queue = queue
-            self.rowContext = rowContext
+            let commit = { [self] in
+                messagesByID = updated
+                self.queue = queue
+                self.rowContext = rowContext
+            }
             let prepended = previous.first.flatMap { rows.firstIndex(of: $0) }.map { $0 > 0 } ?? false
-            if prepended && !table.followsBottom {
-                let height = table.contentSize.height, y = table.contentOffset.y
+            if previous.isEmpty {
+                // 最初の行は末尾から見せる。
                 UIView.performWithoutAnimation {
-                    dataSource.apply(snapshot, animatingDifferences: false)
-                    table.layoutIfNeeded()
+                    dataSource.applySnapshotUsingReloadData(snapshot, commitAlongsideUpdates: commit)
+                    view.layoutIfNeeded()
+                    if !rows.isEmpty {
+                        layout?.restoreContentOffset(with: ChatLayoutPositionSnapshot(
+                            indexPath: IndexPath(item: rows.count - 1, section: 0), edge: .bottom))
+                    }
                 }
-                table.contentOffset.y = y + (table.contentSize.height - height)
+                atBottom = true
             } else {
-                UIView.performWithoutAnimation { dataSource.apply(snapshot, animatingDifferences: false) }
+                UIView.performWithoutAnimation {
+                    dataSource.apply(snapshot, animatingDifferences: false, commitAlongsideUpdates: commit)
+                }
             }
             if prepended {
                 armed = true
-                // 足した行の高さが表へ反映されてから、まだ足りないかを判定する。
-                table.layoutIfNeeded()
                 fillRequested = false
             }
-            if previous.isEmpty && !rows.isEmpty {
-                table.followsBottom = true
-                table.layoutIfNeeded()
-                table.pinToBottom()
-            }
+            report()
         }
 
         func scrollToBottom(animated: Bool) {
-            guard let table else { return }
-            table.followsBottom = true
-            table.setContentOffset(CGPoint(x: 0, y: table.bottomOffset), animated: animated)
-            if !animated { settle() }
+            guard let view else { return }
+            atBottom = true
+            view.setContentOffset(CGPoint(x: 0, y: view.bottomOffset), animated: animated)
+            if !animated { report() }
         }
 
-        /// 最初の配置の直後に、選んだ開き方で表を見せる。1回だけ。
+        /// 最初の配置の直後に、選んだ開き方で見せる。1回だけ。
+        /// 位置と透明度はレイアウトがセルへ当て直すため、動きはセルの中身（contentView）に付ける。
         private func reveal() {
-            guard let table else { return }
+            guard let view else { return }
             switch opening {
             case .fade:
-                UIView.animate(withDuration: 0.25) { table.alpha = 1 }
+                UIView.animate(withDuration: 0.25) { view.alpha = 1 }
             case .rise:
-                let cells = (table.indexPathsForVisibleRows ?? []).sorted { $0.row > $1.row }.compactMap { table.cellForRow(at: $0) }
+                let cells = view.indexPathsForVisibleItems.sorted { $0.item > $1.item }.compactMap { view.cellForItem(at: $0) }
                 for cell in cells {
-                    cell.alpha = 0
-                    cell.transform = CGAffineTransform(translationX: 0, y: 24)
+                    cell.contentView.alpha = 0
+                    cell.contentView.transform = CGAffineTransform(translationX: 0, y: 24)
                 }
-                table.alpha = 1
+                view.alpha = 1
                 for (order, cell) in cells.enumerated() {
                     UIView.animate(withDuration: 0.28, delay: 0.035 * Double(order), options: .curveEaseOut) {
-                        cell.alpha = 1
-                        cell.transform = .identity
+                        cell.contentView.alpha = 1
+                        cell.contentView.transform = .identity
                     }
                 }
             }
-            for cell in table.visibleCells.compactMap({ ($0 as? ConversationCell)?.row }) { shown.insert(cell) }
+            for cell in view.visibleCells.compactMap({ ($0 as? ConversationCell)?.row }) { shown.insert(cell) }
         }
 
         /// 後から画面に入る行（読み足した過去・新着）にも、開いた時と同じ動きを付ける。
-        private func enter(_ cell: UITableViewCell) {
+        private func enter(_ cell: UICollectionViewCell) {
             switch opening {
             case .fade:
-                cell.alpha = 0
-                UIView.animate(withDuration: 0.22) { cell.alpha = 1 }
+                cell.contentView.alpha = 0
+                UIView.animate(withDuration: 0.22) { cell.contentView.alpha = 1 }
             case .rise:
-                cell.alpha = 0
-                cell.transform = CGAffineTransform(translationX: 0, y: 16)
+                cell.contentView.alpha = 0
+                cell.contentView.transform = CGAffineTransform(translationX: 0, y: 16)
                 UIView.animate(withDuration: 0.22, delay: 0, options: .curveEaseOut) {
-                    cell.alpha = 1
-                    cell.transform = .identity
+                    cell.contentView.alpha = 1
+                    cell.contentView.transform = .identity
                 }
             }
         }
@@ -276,32 +289,21 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
             }
         }
 
-        private func beginUserScroll() {
-            table?.followsBottom = false
-        }
-
-        /// 利用者の操作が終わった位置で、末尾にいるかを決める。
-        private func settle() {
-            guard let table else { return }
-            table.followsBottom = table.distanceFromBottom <= 48
-            if table.followsBottom { table.pinToBottom() }
-            report()
-        }
-
+        /// 末尾から48pt以内なら末尾にいるとみなす。親の新着ボタンと、余白変更時の末尾維持に使う。
         private func report() {
-            guard let table else { return }
-            let now = table.distanceFromBottom <= 48
+            guard let view else { return }
+            let now = view.distanceFromBottom <= 48
             guard now != atBottom else { return }
             atBottom = now
-            // 表の配置の途中で呼ばれるので、親の状態は次の周で変える。
+            // 配置の途中で呼ばれるので、親の状態は次の周で変える。
             DispatchQueue.main.async { [onAtBottomChange] in onAtBottomChange?(now) }
         }
 
         func fillIfShort() {
             #if targetEnvironment(macCatalyst)
             // Macのホイールは動かせる長さが無いと位置が変わらないので、表示域が埋まるまで過去を足す。
-            // 親が取得中の間と、届いた行を組み立てている間は頼まず、表へ入った後の判定で頼む。
-            if let table, table.bounds.height > 0, table.contentSize.height <= table.bounds.height,
+            // 親が取得中の間と、届いた行を組み立てている間は頼まず、入った後の判定で頼む。
+            if let view, let layout, view.bounds.height > 0, layout.collectionViewContentSize.height <= view.bounds.height,
                hasMore, !loading, !loadingOlder, !preparing, !fillRequested {
                 fillRequested = true
                 // 親の更新中の配置から呼ばれ得るので、親の状態は次の周で変える。
@@ -310,54 +312,36 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
             #endif
         }
 
-        // MARK: UITableViewDelegate
+        // MARK: UICollectionViewDelegate
 
-        func tableView(_ tableView: UITableView, estimatedHeightForRowAt indexPath: IndexPath) -> CGFloat {
-            if case .message(let id)? = dataSource?.itemIdentifier(for: indexPath), let height = heights[id] { return height }
-            return tableView.estimatedRowHeight
-        }
-
-        func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
-            guard let table, table.revealed, let row = (cell as? ConversationCell)?.row, !shown.contains(row) else { return }
+        func collectionView(_ collectionView: UICollectionView, willDisplay cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {
+            guard let view, view.revealed, let row = (cell as? ConversationCell)?.row, !shown.contains(row) else { return }
             shown.insert(row)
             enter(cell)
         }
 
-        func tableView(_ tableView: UITableView, didEndDisplaying cell: UITableViewCell, forRowAt indexPath: IndexPath) {
-            guard let cell = cell as? ConversationCell, case .message(let id)? = cell.row else { return }
-            heights[id] = cell.bounds.height
-            tableView.estimatedRowHeight = heights.values.reduce(0, +) / CGFloat(heights.count)
-        }
+        func collectionView(_ collectionView: UICollectionView, shouldSelectItemAt indexPath: IndexPath) -> Bool { false }
 
         func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
             #if targetEnvironment(macCatalyst)
             wheel?.stop()
             #endif
-            beginUserScroll()
         }
-
-        func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
-            if !decelerate { settle() }
-        }
-
-        func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) { settle() }
-
-        func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) { settle() }
 
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
-            guard let table else { return }
-            let delta = table.contentOffset.y - lastOffset
-            lastOffset = table.contentOffset.y
-            var userDriven = table.isDragging || table.isDecelerating
+            guard let view else { return }
+            let delta = view.contentOffset.y - lastOffset
+            lastOffset = view.contentOffset.y
+            report()
+            var userDriven = view.isDragging || view.isDecelerating
             #if targetEnvironment(macCatalyst)
             userDriven = userDriven || wheel?.isActive == true
             #endif
-            if userDriven && table.followsBottom && table.distanceFromBottom > 48 { table.followsBottom = false }
-            report()
             guard userDriven else { return }
             if delta > 0 { armed = true }
+            // 読込済みの残りが少なくなったら、上端に届く前に次の過去を頼む（同じ取得は重ねない）。
             if delta < 0, armed, hasMore, !loadingOlder,
-               let first = table.indexPathsForVisibleRows?.first, first.row <= ConversationHistoryPage.lowStockRows {
+               let first = view.indexPathsForVisibleItems.map(\.item).min(), first <= ConversationHistoryPage.lowStockRows {
                 armed = false
                 onLoadOlder?()
             }
@@ -365,40 +349,42 @@ struct ConversationList<RowContent: View>: UIViewRepresentable {
     }
 }
 
-final class ConversationCell: UITableViewCell {
+private extension Array {
+    subscript(safe index: Int) -> Element? { indices.contains(index) ? self[index] : nil }
+}
+
+final class ConversationCell: UICollectionViewCell {
     var row: ConversationRow?
 
     override func prepareForReuse() {
         super.prepareForReuse()
-        layer.removeAllAnimations()
-        alpha = 1
-        transform = .identity
+        contentView.layer.removeAllAnimations()
+        contentView.alpha = 1
+        contentView.transform = .identity
+    }
+
+    /// 幅はレイアウトが決め、高さだけを中身から測る。
+    override func preferredLayoutAttributesFitting(_ layoutAttributes: UICollectionViewLayoutAttributes) -> UICollectionViewLayoutAttributes {
+        let attributes = layoutAttributes.copy() as! UICollectionViewLayoutAttributes
+        let size = contentView.systemLayoutSizeFitting(
+            CGSize(width: layoutAttributes.size.width, height: UIView.layoutFittingCompressedSize.height),
+            withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel)
+        attributes.size.height = ceil(size.height)
+        return attributes
     }
 }
 
-/// 末尾追従と幅変更時の読書位置だけを持つ表。
-final class ConversationTableView: UITableView {
-    var followsBottom = true
-    /// 最初の配置を終えて見せた後か。見せるまでは行の高さの確定も描かない。
+/// 最初に見せる時機と、下の余白の変更を知らせるだけの一覧。位置の制御は持たない。
+final class ConversationCollectionView: UICollectionView {
+    /// 最初の配置を終えて見せた後か。
     private(set) var revealed = false
     private var revealScheduled = false
     var onLayout: (() -> Void)?
     var onReveal: (() -> Void)?
-    private var layoutWidth: CGFloat = 0
-
-    /// 大きさが付いて行が見えた最初の配置の直後に、1回だけ見せる。
-    private func scheduleReveal() {
-        guard !revealScheduled, bounds.height > 0, indexPathsForVisibleRows?.isEmpty == false else { return }
-        revealScheduled = true
-        DispatchQueue.main.async { [weak self] in
-            guard let self, !revealed else { return }
-            revealed = true
-            onReveal?()
-        }
-    }
+    var onInsetChange: (() -> Void)?
 
     var bottomOffset: CGFloat {
-        max(-adjustedContentInset.top, contentSize.height + adjustedContentInset.bottom - bounds.height)
+        max(-adjustedContentInset.top, collectionViewLayout.collectionViewContentSize.height + adjustedContentInset.bottom - bounds.height)
     }
 
     var distanceFromBottom: CGFloat { bottomOffset - contentOffset.y }
@@ -408,43 +394,25 @@ final class ConversationTableView: UITableView {
         if abs(contentOffset.y - y) > 0.5 { contentOffset = CGPoint(x: contentOffset.x, y: y) }
     }
 
-    override var contentSize: CGSize {
-        didSet { if followsBottom, contentSize != oldValue { pinToBottom() } }
-    }
-
     override func adjustedContentInsetDidChange() {
         super.adjustedContentInsetDidChange()
-        if followsBottom { pinToBottom() }
+        onInsetChange?()
     }
 
     override func layoutSubviews() {
-        // 幅が変わると行の高さが変わる。先頭に見えていた行の画面内の位置を保つ。
-        var anchor: (IndexPath, CGFloat)?
-        if bounds.width != layoutWidth {
-            if layoutWidth > 0, !followsBottom, let first = indexPathsForVisibleRows?.first {
-                anchor = (first, rectForRow(at: first).minY - contentOffset.y)
-            }
-            layoutWidth = bounds.width
-        }
-        // 表自身の配置は動かさない。行の高さが推定から実高へ直る時のUIKit既定の動きが、
-        // 開いた時の効果の直後に重なって「上から展開」に見えるため。
-        UIView.performWithoutAnimation { layoutFollowingBottom() }
+        super.layoutSubviews()
         if !revealed { scheduleReveal() }
-        if let (path, offset) = anchor, path.row < numberOfRows(inSection: 0) {
-            contentOffset.y = rectForRow(at: path).minY - offset
-        }
         onLayout?()
     }
 
-    /// 末尾へ寄せると見える行が変わり、その行の実高で末尾がまた動く。同じフレームの中で落ち着くまで繰り返す。
-    private func layoutFollowingBottom() {
-        super.layoutSubviews()
-        guard followsBottom else { return }
-        for _ in 0..<3 {
-            let before = contentOffset.y
-            pinToBottom()
-            if abs(contentOffset.y - before) <= 0.5 { return }
-            super.layoutSubviews()
+    /// 大きさが付いて行が見えた最初の配置の直後に、1回だけ見せる。
+    private func scheduleReveal() {
+        guard !revealScheduled, bounds.height > 0, !indexPathsForVisibleItems.isEmpty else { return }
+        revealScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self, !revealed else { return }
+            revealed = true
+            onReveal?()
         }
     }
 }

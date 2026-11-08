@@ -16,7 +16,7 @@ final class DesktopWorkspaceUITests: XCTestCase {
         let rows = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "message-text-updating-"))
         XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5))
         XCTAssertGreaterThan(rows.count, 0)
-        let scroll = app.tables["conversation-messages"]
+        let scroll = app.collectionViews["conversation-messages"]
         scroll.scroll(byDeltaX: 0, deltaY: -500)
         scroll.scroll(byDeltaX: 0, deltaY: 500)
         input.click()
@@ -55,7 +55,7 @@ final class DesktopWorkspaceUITests: XCTestCase {
         XCTAssertTrue(member.waitForExistence(timeout: 10))
         member.click()
         XCTAssertTrue(app.descendants(matching: .any)["message-text-m060"].firstMatch.waitForExistence(timeout: 10))
-        let scroll = app.tables["conversation-messages"]
+        let scroll = app.collectionViews["conversation-messages"]
         XCTAssertTrue(scroll.waitForExistence(timeout: 5))
         let oldest = app.descendants(matching: .any)["message-text-m001"].firstMatch
         for _ in 0..<70 where !oldest.exists {
@@ -82,7 +82,7 @@ final class DesktopWorkspaceUITests: XCTestCase {
         XCTAssertTrue(member.waitForExistence(timeout: 10))
         member.click()
         XCTAssertTrue(app.descendants(matching: .any)["message-text-m060"].firstMatch.waitForExistence(timeout: 10))
-        let scroll = app.tables["conversation-messages"]
+        let scroll = app.collectionViews["conversation-messages"]
         let oldest = app.descendants(matching: .any)["message-text-m001"].firstMatch
         for _ in 0..<12 where !oldest.exists {
             scroll.scroll(byDeltaX: 0, deltaY: 3000)

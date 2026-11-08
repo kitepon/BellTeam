@@ -17,6 +17,9 @@ settings:
     DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER: NO
     SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
 packages:
+  ChatLayout:
+    url: https://github.com/ekazaev/ChatLayout.git
+    revision: dd4cb5c8f91623331ba023d0ab64d844f8436204
   EnrichedMarkdown:
     url: https://github.com/quolu/enriched-markdown-ios.git
     revision: d07cd2dd508a3ad4fdbd6aa6a3752360c97ddf00
@@ -99,6 +102,8 @@ targets:
           - group.$(BELLTEAM_APP_BUNDLE_IDENTIFIER)
         com.apple.developer.usernotifications.communication: true
     dependencies:
+      - package: ChatLayout
+        product: ChatLayout
       - package: EnrichedMarkdown
         product: EnrichedMarkdown
       - target: NotificationService

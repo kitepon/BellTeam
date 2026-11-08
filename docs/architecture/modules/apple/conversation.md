@@ -12,8 +12,8 @@
 | `ConversationContent` | timeline、queue、読取task、hasMore、送信待ち、停止結果、添付の表示用配列、選択宛先、エラー、sheet/gallery、書出し、末尾/新着を所有。名簿・routing設定・API・draftはAppStoreから取得 |
 | `AppStore.draft(for:)` → `ConversationDraft` | 宛先別の同じ参照を返す。本文、添付、宛先集合をメモリ保持。画面復帰時に添付と宛先を画面へ複製。添付代入と宛先変更は辞書内draftへ返す |
 | `ConversationTimelineState` | 受信履歴とローカル送信を別に保持。可視行は受信履歴＋未照合送信。受付IDが履歴に現れるとローカル送信を除去。本文の一致では照合しない |
-| `ConversationList.Coordinator` | 行ID、前回本文/queue/行素材（Botの名前・色・画像版）、実高、既に表示した行、Markdown先読済みsource、読書位置、過去取得要求の状態。表から親へ更新・過去取得・末尾状態をcallback |
-| `ConversationCardStates` | message ID別の質問/秘密カード状態を保持。UITableViewの行が画面外になっても保持。会話画面終了後まで保存する処理はない |
+| `ConversationList.Coordinator` | 行ID、前回本文/queue/行素材（Botの名前・色・画像版）、既に表示した行、Markdown先読済みsource、末尾にいるか、過去取得要求の状態。一覧から親へ更新・過去取得・末尾状態をcallback。読んでいる位置は持たない（ChatLayoutの役目） |
+| `ConversationCardStates` | message ID別の質問/秘密カード状態を保持。一覧の行が画面外になっても保持。会話画面終了後まで保存する処理はない |
 
 主な根拠：[ConversationContent](../../../../ios/BellBot/BellBot/Views/ConversationView.swift#L49)、[draft](../../../../ios/BellBot/BellBot/Core/ConversationDraft.swift#L6)、[timeline](../../../../ios/BellBot/BellBot/Core/ConversationTimelineState.swift#L4)、[表](../../../../ios/BellBot/BellBot/Views/ConversationList.swift#L17)。共通一覧・SSEからの通知の生成は[状態と同期](state-and-sync.md#sseの適用)を参照。
 
@@ -28,7 +28,7 @@ flowchart TD
   Load --> Initial["受信履歴が空ならloadInitial"]
   Load --> Refresh["履歴ありならrefresh"]
   Initial --> Cache["AppStoreの前回pageを先に表示"]
-  Cache --> First["GET T/messages?limit=10<br/>GET T/queueを並列開始"]
+  Cache --> First["GET T/messages?limit=30<br/>GET T/queueを並列開始"]
   First --> Text["本文応答を先に適用・remember<br/>loading終了"]
   Text --> Queue["queue応答を適用<br/>queueのみ失敗しても本文を残す"]
   Refresh --> Delta["最新20件・after=最終受信ID・queue<br/>3応答が揃ってから適用"]
@@ -46,22 +46,22 @@ flowchart TD
 | 非active・画面終了 | reader/olderTaskをcancel、reader参照とagainを消し世代を増加。非activeではloading/loadingOlderも解除。reader世代は古いtaskによるreader参照の消去を防ぐ。取消は表示・診断しない |
 | loadの戻り値 | skippedSceneInactive / skippedAwaitingSend / joinedReaderReturned / startedReaderReturned。HTTP成功を示す値ではない |
 
-過去取得は表を上へ操作し、先頭可視行が25行以内になった時に要求する。下向き操作で次の要求を許可する。Macは表示域を埋めるまで追加要求も行う。失敗だけでは自動で同じfill要求を繰り返さない。
+過去取得は一覧を上へ操作し、先頭可視行が25行以内になった時に要求する（上端に届く前に先読み）。下向き操作で次の要求を許可する。Macは表示域を埋めるまで追加要求も行う。失敗だけでは自動で同じfill要求を繰り返さない。
 
-## 本文と表への反映
+## 本文と一覧への反映
 
 ```mermaid
 flowchart LR
   Model["TimelineMessage / queue"] --> Prepare["Coordinator.present<br/>未先読sourceをMessageText.prerender"]
   Prepare --> Latest["先読中の更新は最新の組だけ保持"]
-  Latest --> Apply["Diffable snapshot<br/>本文・queue・行素材が変わった行だけ再構成<br/>変化なしは表に触らない"]
-  Apply --> Position["末尾追従 / 過去追加の高さ補正<br/>幅変更は先頭可視行の位置を保持"]
+  Latest --> Apply["ChatLayoutDiffableDataSource<br/>本文・queue・行素材が変わった行だけ再構成<br/>変化なしは一覧に触らない"]
+  Apply --> Position["CollectionViewChatLayoutが位置を保つ<br/>上への追加・上の行の実高変化・幅変更でも表示中の行は動かない<br/>新着は末尾にいる時だけ追従"]
   Position --> Callback["末尾48pt以内かを親へ通知"]
 ```
 
 [MessageText](../../../../ios/BellBot/BellBot/Views/MessageText.swift#L4)はEnrichedMarkdownを使用し、改行保持、末尾余白除去、選択・通常コピー/Markdownコピー、openURL、チェック項目の変更無効を設定する。[SelectableText](../../../../ios/BellBot/BellBot/Views/SelectableText.swift#L4)はプロフィール・要求本文等の編集不可UITextView。同一本文では再代入せず選択範囲を保持し、本文/幅/displayScaleに応じて寸法をcacheする。
 
-表は初回配置後にrise/fadeで1回表示し、後から入る行にも同じ方式を適用する。行再利用時はalpha/transform/animationを戻す。末尾追従はcontentSize・inset・layoutで更新し、過去閲覧中は上へ追加した高さ分をoffsetへ足す。Macの離散ホイールはWheelScrollSmoother、連続スクロールは標準処理。pull完了時にrefreshControlを終了する。表への反映とHTTPの取得完了は別段階である。
+一覧はUICollectionViewと[ChatLayout](https://github.com/ekazaev/ChatLayout)（MIT、revision固定、ライセンスは`Resources/ChatLayout-LICENSE.txt`）の`CollectionViewChatLayout`。チャットの定番のスクロール・アンカリングで、読んでいる位置の補正はすべてレイアウトが行い、アプリは位置を計算しない（`keepContentOffsetAtBottomOnBatchUpdates`、`supportSelfSizingInvalidation`）。行の高さはセルが幅固定で中身から測る。初回は最後の行を下端に合わせる。下の余白（キーボード・入力欄）が変わった時だけ、末尾にいれば末尾へ寄せ直す。初回配置後にrise/fadeで1回表示し、後から入る行にも同じ方式を適用する。動きはセルのcontentViewに付ける（セル本体の位置・透明度はレイアウトが当て直すため）。行再利用時はcontentViewのalpha/transform/animationを戻す。Macの離散ホイールはWheelScrollSmoother、連続スクロールは標準処理。pull完了時にrefreshControlを終了する。表への反映とHTTPの取得完了は別段階である。
 
 ## 下書き・添付・宛先
 
