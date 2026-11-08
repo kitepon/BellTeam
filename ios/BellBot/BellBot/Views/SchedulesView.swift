@@ -395,7 +395,7 @@ private struct ScheduleEditor: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("担当") {
+                Section(header: BellSectionHeader("担当")) {
                     Picker("メンバー・ルーム", selection: $target) {
                         ForEach(targets, id: \.0) { item in Text(item.1).tag(Optional(item.0)) }
                     }
@@ -416,7 +416,7 @@ private struct ScheduleEditor: View {
                         }
                     }
                 }
-                Section("実行内容") {
+                Section(header: BellSectionHeader("実行内容")) {
                     TextField("予定の名前", text: $name)
                     if room == nil {
                         Picker("種類", selection: $action) {
@@ -430,7 +430,7 @@ private struct ScheduleEditor: View {
                         TextField("依頼する内容", text: $prompt, axis: .vertical).lineLimit(3...8)
                     }
                 }
-                Section("タイミング") {
+                Section(header: BellSectionHeader("タイミング")) {
                     Picker("繰り返し", selection: $frequency) {
                         Text("一回だけ").tag("once")
                         Text("毎時").tag("hourly")

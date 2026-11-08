@@ -215,15 +215,15 @@ private struct SettingsCategoryRow: View {
     /// Short live status on the row's trailing edge, where one exists.
     private var badge: Text? {
         switch page {
-        case .notifications: store.notificationsEnabled ? nil : Text("未設定").font(.subheadline).foregroundStyle(.secondary)
+        case .notifications: store.notificationsEnabled ? nil : Text("未設定").font(BellTheme.detailFont).foregroundStyle(.secondary)
         case .billing:
-            store.billing.isDeveloper ? Text("開発者").font(.subheadline).foregroundStyle(.secondary)
-                : store.billing.hasPaidAccess ? Text("有効").font(.subheadline).foregroundStyle(.secondary) : nil
+            store.billing.isDeveloper ? Text("開発者").font(BellTheme.detailFont).foregroundStyle(.secondary)
+                : store.billing.hasPaidAccess ? Text("有効").font(BellTheme.detailFont).foregroundStyle(.secondary) : nil
         case .stop:
             switch store.aiControl?.state {
-            case .stopped?, .stopping?: Text("停止中").font(.subheadline.weight(.semibold)).foregroundStyle(.red)
-            case .unconfirmed?: Text("確認できません").font(.subheadline).foregroundStyle(.red)
-            case .enabled?: Text("動作中").font(.subheadline).foregroundStyle(.secondary)
+            case .stopped?, .stopping?: Text("停止中").font(BellTheme.detailFont.weight(.semibold)).foregroundStyle(.red)
+            case .unconfirmed?: Text("確認できません").font(BellTheme.detailFont).foregroundStyle(.red)
+            case .enabled?: Text("動作中").font(BellTheme.detailFont).foregroundStyle(.secondary)
             case nil: nil
             }
         default: nil
@@ -239,7 +239,7 @@ struct SettingsPageHeader: View {
         VStack(spacing: 8) {
             SettingsIconTile(symbol: page.symbol, tint: page.tint, side: 56)
             Text(page.title).font(.title2.bold())
-            Text(page.detail).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            Text(page.detail).font(BellTheme.detailFont).foregroundStyle(.secondary).multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 6)
@@ -255,7 +255,7 @@ private struct SettingsBanner: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Label(message, systemImage: "exclamationmark.triangle.fill")
-                .font(.subheadline)
+                .font(BellTheme.detailFont)
                 .foregroundStyle(.red)
             if let detail {
                 DisclosureGroup("詳細", isExpanded: $showingDetail) {
@@ -319,7 +319,7 @@ private struct ConnectionSettingsPage: View {
     var body: some View {
         Form {
             Section { SettingsPageHeader(page: .connection) }.listRowBackground(Color.clear)
-            Section("いまの接続") {
+            Section(header: BellSectionHeader("いまの接続")) {
                 LabeledContent("サーバー", value: store.serverURL?.host ?? "未設定")
                 LabeledContent("ログイン方法", value: store.authMode == "cloudflare" ? "Cloudflare Access" : "同じネットワークから直接")
             }
@@ -328,7 +328,7 @@ private struct ConnectionSettingsPage: View {
                     Task { await store.changeServer() }
                 }
             } footer: {
-                Text("接続先を選び直す画面に戻ります。サーバーにある会話や設定は消えません。")
+                Text("接続先を選び直す画面に戻ります。サーバーにある会話や設定は消えません。").font(BellTheme.secondaryFont)
             }
             if store.authMode == "cloudflare" {
                 Section {
@@ -354,9 +354,9 @@ private struct DisplaySettingsPage: View {
                 }
                 .pickerStyle(.inline)
             } header: {
-                Text("会話の開き方")
+                BellSectionHeader("会話の開き方")
             } footer: {
-                Text("会話を開き直すと反映します。")
+                Text("会話を開き直すと反映します。").font(BellTheme.secondaryFont)
             }
         }
     }
@@ -379,9 +379,9 @@ private struct NotificationSettingsPage: View {
                     if let url = URL(string: UIApplication.openNotificationSettingsURLString) { UIApplication.shared.open(url) }
                 }
             } header: {
-                Text("この端末")
+                BellSectionHeader("この端末")
             } footer: {
-                Text("本文や秘密の値は通知に表示しません。")
+                Text("本文や秘密の値は通知に表示しません。").font(BellTheme.secondaryFont)
             }
             if !store.notificationsEnabled {
                 Section {
@@ -438,11 +438,11 @@ private struct StopSettingsPage: View {
                     .disabled(store.aiControlUpdating)
                     .accessibilityIdentifier("ai-control-toggle")
                     Text(status(for: control))
-                        .font(.subheadline)
+                        .font(BellTheme.detailFont)
                         .foregroundStyle(control.state == .unconfirmed ? .red : .secondary)
                     if control.state == .unconfirmed && !control.unconfirmedBotIds.isEmpty {
                         Text("止まったことを確かめられなかったメンバー: \(control.unconfirmedBotIds.count)人")
-                            .font(.subheadline)
+                            .font(BellTheme.detailFont)
                             .foregroundStyle(.red)
                     }
                     if control.state == .stopping || control.state == .unconfirmed {
@@ -460,7 +460,7 @@ private struct StopSettingsPage: View {
                     SettingsBanner(message: "操作できませんでした。少し待ってから、もう一度試してください。", detail: error)
                 }
             } footer: {
-                Text("ONにすると全メンバーへ停止の指示を送り、新しい依頼を受け付けなくなります。会話を読むことはできます。")
+                Text("ONにすると全メンバーへ停止の指示を送り、新しい依頼を受け付けなくなります。会話を読むことはできます。").font(BellTheme.secondaryFont)
             }
         }
         .task { await store.refreshAIControl() }
@@ -530,7 +530,7 @@ private struct ProfileEditor: View {
                     Section { SettingsPageHeader(page: .profile) }
                         .listRowBackground(Color.clear)
                 }
-                Section("あなた") {
+                Section(header: BellSectionHeader("あなた")) {
                     HStack {
                         Spacer()
                         AvatarImagePicker(onSelect: { cropSource = AvatarCropSource(image: $0) },
@@ -545,7 +545,7 @@ private struct ProfileEditor: View {
                     TextField("名前", text: $name)
                     TextField("プロフィール", text: $profile, axis: .vertical).lineLimit(3...8)
                 }
-                Section("リンク") {
+                Section(header: BellSectionHeader("リンク")) {
                     TextField("XのURL", text: $xUrl).textInputAutocapitalization(.never)
                     TextField("GitHubのURL", text: $githubUrl).textInputAutocapitalization(.never)
                     ForEach(links.indices, id: \.self) { index in
@@ -564,9 +564,9 @@ private struct ProfileEditor: View {
                     TextEditor(text: $rules)
                         .frame(minHeight: 180)
                 } header: {
-                    Text("あなたの決まり")
+                    BellSectionHeader("あなたの決まり")
                 } footer: {
-                    Text("チーム全員が、あなたについて守る指示です。")
+                    Text("チーム全員が、あなたについて守る指示です。").font(BellTheme.secondaryFont)
                 }
                 if loading { ProgressView() }
                 if let errorText { SettingsBanner(message: errorText) }

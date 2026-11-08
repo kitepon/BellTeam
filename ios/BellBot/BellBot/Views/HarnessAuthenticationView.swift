@@ -10,7 +10,7 @@ struct HarnessAuthenticationList: View {
         VStack(alignment: .leading, spacing: 13) {
             Label("AIの認証", systemImage: "person.badge.key").font(.headline)
             Text("AIの認証が切れたときや、別のアカウントで入り直すときに使います。")
-                .font(.caption).foregroundStyle(BellTheme.muted)
+                .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
             ForEach(harnesses) { harness in
                 HarnessAuthenticationRow(harness: harness)
             }
@@ -85,7 +85,7 @@ private struct HarnessAuthenticationRow: View {
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(harness.name).foregroundStyle(BellTheme.ink)
-                    Text(harness.usageText).font(.caption).foregroundStyle(BellTheme.muted)
+                    Text(harness.usageText).font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
                 }
                 Spacer()
                 Text(state.title).font(.caption.weight(.semibold)).foregroundStyle(state.tint)

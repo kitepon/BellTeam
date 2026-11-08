@@ -21,6 +21,7 @@ enum BellTheme {
     static let profileTitleFont = Font.system(size: 20)
     static let profileMemberFont = Font.system(size: 16)
     static let messageHelperFont = Font.system(size: 14)
+    static let detailFont = Font.system(size: 14)
     static var profileBodyFont: UIFont { .systemFont(ofSize: 18) }
     #else
     static let messageFontSize: CGFloat = 15.5
@@ -34,6 +35,7 @@ enum BellTheme {
     static let profileTitleFont = Font.title3
     static let profileMemberFont = Font.callout
     static let messageHelperFont = Font.footnote
+    static let detailFont = Font.subheadline
     static var profileBodyFont: UIFont { .preferredFont(forTextStyle: .callout) }
     #endif
 
@@ -142,6 +144,20 @@ enum BellDate {
         if Calendar.current.isDateInToday(date) { return date.formatted(date: .omitted, time: .shortened) }
         if Calendar.current.isDateInYesterday(date) { return "昨日" }
         return date.formatted(.dateTime.month(.abbreviated).day())
+    }
+}
+
+/// Form section header: Mac gets a readable 13 pt (Mac form headers are 10–11 pt and ignore Dynamic Type); iPhone/iPad keep the system look.
+struct BellSectionHeader: View {
+    let title: String
+    init(_ title: String) { self.title = title }
+
+    var body: some View {
+        #if targetEnvironment(macCatalyst)
+        Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary)
+        #else
+        Text(title)
+        #endif
     }
 }
 

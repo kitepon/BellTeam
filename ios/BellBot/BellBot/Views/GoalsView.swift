@@ -438,7 +438,7 @@ private struct GoalEditor: View {
         NavigationStack {
             Form {
                 if separateChoice {
-                    Section("変更する項目") {
+                    Section(header: BellSectionHeader("変更する項目")) {
                         Picker("変更する項目", selection: $selectedField) {
                             Text("目的").tag(GoalEditField.objective)
                             Text("トークン予算").tag(GoalEditField.budget)
@@ -450,7 +450,7 @@ private struct GoalEditor: View {
                     }
                 }
                 if editsObjective {
-                    Section("目的") {
+                    Section(header: BellSectionHeader("目的")) {
                         TextEditor(text: $objective)
                             .frame(minHeight: 120)
                             .accessibilityIdentifier("goal-objective-input")
@@ -458,7 +458,7 @@ private struct GoalEditor: View {
                     }
                 }
                 if editsBudget {
-                    Section("トークン予算（任意）") {
+                    Section(header: BellSectionHeader("トークン予算（任意）")) {
                         TextField("指定しない", text: $budget)
                             .onChange(of: budget) { _, _ in budgetChanged = true }
                             .accessibilityIdentifier("goal-budget-input")
