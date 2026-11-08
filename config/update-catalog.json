@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T06:49:09Z",
-  "expiresAt": "2026-11-15T06:49:09Z",
+  "publishedAt": "2026-11-08T06:54:20Z",
+  "expiresAt": "2026-11-15T06:54:20Z",
   "releases": [
     {
       "componentId": "usage",
@@ -181,8 +181,8 @@
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "c4d1c0cc81e6e86c124dee7437de629bd1bc0f7f",
-      "versionId": "8c7a295b6bab7bbf0f8e1d44349faceea1dfbefe8909d32fdd78425465d2c523",
+      "sourceCommit": "68521582f5407edb6146f135e34e0179838430a0",
+      "versionId": "7ecbf2457c71eaf1b4ccb788669721ddc8358fda6dc64b797a9a560f8dc76475",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -190,16 +190,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T010434Z/conversation-c4d1c0cc81e6e86c124dee7437de629bd1bc0f7f-linux-amd64.tar.gz",
-          "bytes": 3897433,
-          "sha256": "8c7a295b6bab7bbf0f8e1d44349faceea1dfbefe8909d32fdd78425465d2c523"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T065056Z/conversation-68521582f5407edb6146f135e34e0179838430a0-linux-amd64.tar.gz",
+          "bytes": 3897958,
+          "sha256": "7ecbf2457c71eaf1b4ccb788669721ddc8358fda6dc64b797a9a560f8dc76475"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T010434Z/conversation-c4d1c0cc81e6e86c124dee7437de629bd1bc0f7f-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10673,
-          "sha256": "ee2ae72d2752a1a1884c671fa7450d73aea346f7f55ba22824d1552c449b4f8d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T065056Z/conversation-68521582f5407edb6146f135e34e0179838430a0-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11045,
+          "sha256": "c3e675ec62a849a3a1f26c05af21de1ce1bcb59e69522019810f6c67b9d76c60"
         },
-        "signerCommit": "c4d1c0cc81e6e86c124dee7437de629bd1bc0f7f"
+        "signerCommit": "68521582f5407edb6146f135e34e0179838430a0"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -230,13 +230,13 @@
         }
       },
       "changes": [
-        "採用済み修理をモジュール単独更新で適用します。"
+        "会話の終了後も、必要な応答を親方へ届けます。"
       ]
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "c4d1c0cc81e6e86c124dee7437de629bd1bc0f7f",
-      "versionId": "4f92bbe2e1dd23fed02996a40de1d0db0b69e36be505c2a8985f957c7a5a7425",
+      "sourceCommit": "68521582f5407edb6146f135e34e0179838430a0",
+      "versionId": "1b8f2748e7bb837ba099999432809e963246bba68d6fb82eb9da3d2e6d7020d4",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -244,16 +244,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T010434Z/conversation-c4d1c0cc81e6e86c124dee7437de629bd1bc0f7f-linux-arm64.tar.gz",
-          "bytes": 3897433,
-          "sha256": "4f92bbe2e1dd23fed02996a40de1d0db0b69e36be505c2a8985f957c7a5a7425"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T065056Z/conversation-68521582f5407edb6146f135e34e0179838430a0-linux-arm64.tar.gz",
+          "bytes": 3897959,
+          "sha256": "1b8f2748e7bb837ba099999432809e963246bba68d6fb82eb9da3d2e6d7020d4"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T010434Z/conversation-c4d1c0cc81e6e86c124dee7437de629bd1bc0f7f-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10755,
-          "sha256": "683198a88ad6ef015233b7bf9cbacd536140eac444eba7e9be655f61cb7f7e52"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T065056Z/conversation-68521582f5407edb6146f135e34e0179838430a0-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11143,
+          "sha256": "e02756752b6fa8b946ac6c39092a52992d8268acd64119c517a1299118cbf093"
         },
-        "signerCommit": "c4d1c0cc81e6e86c124dee7437de629bd1bc0f7f"
+        "signerCommit": "68521582f5407edb6146f135e34e0179838430a0"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -284,7 +284,7 @@
         }
       },
       "changes": [
-        "採用済み修理をモジュール単独更新で適用します。"
+        "会話の終了後も、必要な応答を親方へ届けます。"
       ]
     },
     {
