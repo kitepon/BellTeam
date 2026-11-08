@@ -114,6 +114,28 @@ public sealed class HarnessAuthenticationTests
             window.Close();
         });
     }
+    [Fact]
+    public void AStatusReadFailureIsShownAndTheNextReadClearsIt()
+    {
+        Sta(() =>
+        {
+            var failRead = false;
+            string Waiting() => JsonSerializer.Serialize(new { harness = "codex", auth = new AuthenticationState { Status = "waiting" } }, BellApi.Json);
+            using var workspace = CreateWorkspace((request, _) => Task.FromResult(failRead && request.Method == HttpMethod.Get
+                ? StubHandler.Json("""{"error":"TEMPORARY"}""", HttpStatusCode.ServiceUnavailable) : StubHandler.Json(Waiting())));
+            var window = new HarnessAuthenticationWindow(workspace, Option, _ => true);
+            Await(window.InitializeAsync());
+            var poll = typeof(HarnessAuthenticationWindow).GetMethod("PollAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
+            var timer = (System.Windows.Threading.DispatcherTimer)typeof(HarnessAuthenticationWindow).GetField("timer", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+            var status = (TextBlock)typeof(EditorWindow).GetField("Status", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+            timer.Start();
+            failRead = true; Await((Task)poll.Invoke(window, null)!);
+            Assert.NotEmpty(status.Text); Assert.True(timer.IsEnabled);   // shown, and the 3-second reading goes on
+            failRead = false; Await((Task)poll.Invoke(window, null)!);
+            Assert.Empty(status.Text); Assert.True(timer.IsEnabled);
+            window.Close();
+        });
+    }
     [Theory]
     [InlineData(400)] [InlineData(307)] [InlineData(0)]
     public async Task InputFailureDoesNotIncludeValueOrInnerException(int status)

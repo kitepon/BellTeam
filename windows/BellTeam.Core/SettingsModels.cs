@@ -86,4 +86,12 @@ public sealed record HarnessRowState(string Title, HarnessTone Tone, string Acti
         "waiting" => new("認証中", HarnessTone.Muted, "続ける"),
         _ => Unavailable
     };
+    // One Claude account slot (「1stアカウント」/「2ndアカウント」): the same states, worded as a login (Web: ログイン / ログインし直す).
+    public static HarnessRowState FromSlot(string? status) => status switch
+    {
+        "authenticated" => new("ログイン済み", HarnessTone.Good, "ログインし直す"),
+        "blocked" => new("未ログイン", HarnessTone.Warning, "ログイン"),
+        "waiting" => new("ログイン中", HarnessTone.Muted, "続ける"),
+        _ => Unavailable
+    };
 }

@@ -11,27 +11,31 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
 {
     private readonly HarnessAuthenticationApi api;
     private readonly HarnessAuthenticationOption harness;
+    private readonly string? slot;
+    private readonly string title;
     private readonly Func<string, bool> confirm;
     private readonly PasswordBox input = new();
     private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromSeconds(3) };
     private CancellationTokenSource? reading;
     private bool pollingFailed;
+    private bool readFailed;
     public AuthenticationState? Authentication { get; private set; }
     public bool Started { get; private set; }
-    public HarnessAuthenticationWindow(Workspace workspace, HarnessAuthenticationOption harness, Func<string, bool>? confirm = null) : base(harness.Name, workspace.ConnectionToken)
+    // slot: the Claude account slot this window logs in ("1st"/"2nd"); null is the single login of every other harness.
+    public HarnessAuthenticationWindow(Workspace workspace, HarnessAuthenticationOption harness, Func<string, bool>? confirm = null, string? slot = null) : base(slot is null ? harness.Name : harness.Name + " · " + AccountText.SlotTitle(slot), workspace.ConnectionToken)
     {
-        api = new(workspace.Management.Api); this.harness = harness;
+        api = new(workspace.Management.Api); this.harness = harness; this.slot = slot; title = slot is null ? harness.Name : harness.Name + " · " + AccountText.SlotTitle(slot);
         this.confirm = confirm ?? (warning => new AuthenticationConfirmationWindow(warning) { Owner = this }.ShowDialog() == true);
         SaveButton.Visibility = Visibility.Collapsed; CloseButton.Content = "閉じる"; Body.MaxWidth = 650;
         Deactivated += (_, _) => { input.Clear(); StopReading(); }; Closed += (_, _) => { input.Clear(); StopReading(); };
         Activated += (_, _) => UpdatePolling(); timer.Tick += async (_, _) => await PollAsync(); Render();
     }
-    public Task InitializeAsync() => PerformAsync(() => api.StatusAsync(harness.Id, Token), clearInput: false);
+    public Task InitializeAsync() => PerformAsync(() => api.StatusAsync(harness.Id, Token, slot: slot), clearInput: false);
     private void Render()
     {
         if (input.Parent is Panel parent) parent.Children.Remove(input);
         Body.Children.Clear();
-        Body.Children.Add(new TextBlock { Text = harness.Name, FontSize = 30, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 8) });
+        Body.Children.Add(new TextBlock { Text = title, FontSize = 30, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 8) });
         Body.Children.Add(new TextBlock { Text = harness.UsageText, Foreground = Brushes.SlateGray, Margin = new Thickness(0, 0, 0, 20) });
         var details = Section("認証の状態");
         details.Children.Add(SecretCard.CardBody(Authentication?.Status switch { "waiting" => "公式サイトでの認証を待っています。", "authenticated" => "認証済みです。", "blocked" => "認証に必要な操作を確認してください。", "failed" => "認証できませんでした。", null => "公式の状態を確認しています。", _ => throw new BellApiException("認証の状態を読み取れませんでした。") }));
@@ -52,13 +56,13 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
                     foreach (var choice in ui.Choices ?? [])
                     {
                         var choose = new Button { Content = choice.Label, IsEnabled = !Busy }; details.Children.Add(choose);
-                        choose.Click += (_, _) => _ = PerformAsync(() => api.RespondAsync(harness.Id, ui, new { kind = "choice", id = choice.Id }, Token));
+                        choose.Click += (_, _) => _ = PerformAsync(() => api.RespondAsync(harness.Id, ui, new { kind = "choice", id = choice.Id }, Token, slot: slot));
                     }
                 if (!pollingFailed && ui.CanRespond && ui.Stage == "paste_code" && ui.Input == "authorization_code")
                 {
                     details.Children.Add(SecretCard.CardBody("公式ページに表示された認証コード")); details.Children.Add(input);
                     var send = new Button { Content = "認証を完了する", IsEnabled = !Busy }; details.Children.Add(send);
-                    send.Click += (_, _) => { if (input.Password.Length == 0) return; var value = input.Password; input.Clear(); _ = PerformAsync(() => api.RespondAsync(harness.Id, ui, new { kind = "authorization_code", value }, Token)); };
+                    send.Click += (_, _) => { if (input.Password.Length == 0) return; var value = input.Password; input.Clear(); _ = PerformAsync(() => api.RespondAsync(harness.Id, ui, new { kind = "authorization_code", value }, Token, slot: slot)); };
                 }
                 else input.Clear();
             }
@@ -66,9 +70,9 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
             {
                 var fields = Section("認証に必要な入力"); System.Windows.Automation.AutomationProperties.SetName(input, "認証に必要な入力"); fields.Children.Add(input);
                 var send = new Button { Content = "入力を送る", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 8) }; fields.Children.Add(send);
-                send.Click += (_, _) => { if (input.Password.Length == 0) return; var text = input.Password; input.Clear(); _ = PerformAsync(() => api.InputAsync(harness.Id, text, null, Token)); };
+                send.Click += (_, _) => { if (input.Password.Length == 0) return; var text = input.Password; input.Clear(); _ = PerformAsync(() => api.InputAsync(harness.Id, text, null, Token, slot: slot)); };
                 var keys = new WrapPanel(); fields.Children.Add(keys);
-                foreach (var key in new[] { "Enter", "Up", "Down", "Tab" }) { var button = new Button { Content = key }; button.Click += (_, _) => _ = PerformAsync(() => api.InputAsync(harness.Id, null, key, Token)); keys.Children.Add(button); }
+                foreach (var key in new[] { "Enter", "Up", "Down", "Tab" }) { var button = new Button { Content = key }; button.Click += (_, _) => _ = PerformAsync(() => api.InputAsync(harness.Id, null, key, Token, slot: slot)); keys.Children.Add(button); }
             }
             else input.Clear();
         }
@@ -76,14 +80,14 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
         if ((harness.ReloginSupported != false || Authentication is { Status: not "authenticated" }) && Authentication?.AuthUi is not { Binding: not null, Stage: not "complete" }) { var start = new Button { Content = Authentication?.Status == "authenticated" ? "認証し直す" : "認証する" }; actions.Children.Add(start); start.Click += async (_, _) => await StartAsync(); }
         else if (Authentication?.Status == "authenticated" && !string.IsNullOrEmpty(harness.StartWarning)) details.Children.Add(SecretCard.CardBody(harness.StartWarning));
         var refresh = new Button { Content = "状態を更新" }; actions.Children.Add(refresh); refresh.Click += async (_, _) => await InitializeAsync();
-        if (Started || Authentication?.AuthUi is { Binding: not null, Stage: not "complete" }) { var cancel = new Button { Content = "やめる" }; actions.Children.Add(cancel); cancel.Click += async (_, _) => await PerformAsync(async () => { await api.CancelAsync(harness.Id, Token); Started = false; return await api.StatusAsync(harness.Id, Token); }); }
+        if (Started || Authentication?.AuthUi is { Binding: not null, Stage: not "complete" }) { var cancel = new Button { Content = "やめる" }; actions.Children.Add(cancel); cancel.Click += async (_, _) => await PerformAsync(async () => { await api.CancelAsync(harness.Id, Token, slot: slot); Started = false; return await api.StatusAsync(harness.Id, Token, slot: slot); }); }
     }
     public async Task StartAsync()
     {
         if (Busy || harness.ReloginSupported == false && Authentication is not { Status: not "authenticated" }) return;
         input.Clear();
         if (harness.NeedsStartConfirmation(Authentication) && !confirm(harness.StartWarning!)) return;
-        await PerformAsync(async () => { var next = await api.StartAsync(harness.Id, Token); Started = next.Auth?.Status != "authenticated"; return next; });
+        await PerformAsync(async () => { var next = await api.StartAsync(harness.Id, Token, slot: slot); Started = next.Auth?.Status != "authenticated"; return next; });
     }
     private async Task PerformAsync(Func<Task<HarnessAuthenticationResponse>> action, bool clearInput = true)
     {
@@ -95,6 +99,7 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
     private void Apply(HarnessAuthenticationResponse next)
     {
         if (next.Harness != harness.Id) throw new BellApiException("別のAIの認証状態が返されました。");
+        if (next.Slot is { } answered && answered != (slot ?? "1st")) throw new BellApiException("別のアカウントの認証状態が返されました。");
         var changed = Authentication != next.Auth; Authentication = next.Auth;
         if (Authentication?.Status == "authenticated") Started = false;
         if (Authentication?.Status != "waiting") timer.Stop();
@@ -106,9 +111,15 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
     {
         if (Busy || reading is not null) return;
         using var current = CancellationTokenSource.CreateLinkedTokenSource(Token); reading = current;
-        try { var next = await api.StatusAsync(harness.Id, current.Token); current.Token.ThrowIfCancellationRequested(); if (!Busy && Authentication != next.Auth) Apply(next); }
+        try
+        {
+            var next = await api.StatusAsync(harness.Id, current.Token, slot: slot); current.Token.ThrowIfCancellationRequested();
+            if (readFailed) { readFailed = false; Status.Text = ""; }
+            if (!Busy && Authentication != next.Auth) Apply(next);
+        }
         catch (OperationCanceledException) when (current.IsCancellationRequested) { }
-        catch (Exception error) { pollingFailed = true; timer.Stop(); Status.Text = error.Message; Render(); }
+        // Trony 11-08: a transient read failure is shown and the next tick reads again; the next success clears it.
+        catch (Exception error) { readFailed = true; Status.Text = error.Message; }
         finally { reading = null; }
     }
 }

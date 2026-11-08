@@ -48,6 +48,8 @@ public sealed record Bot
     public bool UsesSmallImage => string.IsNullOrEmpty(AvatarLargeVersion) || AvatarLargeVersion == AvatarVersion;
     public RecentMessage? Recent { get; init; }
     public CurrentWork? CurrentWork { get; init; }
+    // The seat's Claude account slot (harness-accounts contract); absent on older servers.
+    public SeatAccount? Account { get; init; }
 }
 // The member row's second line. Same wording as the Mac CurrentWork.label and the Web workLabel.
 public sealed record CurrentWork(string? State, string? Summary, string? SummaryStatus)
