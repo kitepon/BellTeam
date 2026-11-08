@@ -147,6 +147,25 @@ public sealed class ConversationParityTests
     }
 
     [Fact]
+    public async Task SettingsReadFailureKeepsTheRefreshAndLetsTheServerDecideARoomSend()
+    {
+        var posts = 0; var failSettings = false;
+        using var workspace = RoomWorkspace("""{"settings":[{"id":"routing","status":"disabled"}]}""", ApiTests.EmptyQueue, request =>
+        {
+            if (request.Method == HttpMethod.Post) { posts++; return StubHandler.Json("{}"); }
+            return failSettings && request.RequestUri!.AbsolutePath == "/api/settings" ? new HttpResponseMessage(System.Net.HttpStatusCode.ServiceUnavailable) : null;
+        });
+        await workspace.ConnectAsync("http://localhost", listen: false);
+        await workspace.SelectAsync(workspace.Entries.Single(item => item.Target.IsRoom));
+        Assert.Equal(false, workspace.RoutingState);
+        failSettings = true;
+        await workspace.RefreshManagementAsync();
+        Assert.Null(workspace.ConnectionError); Assert.NotEmpty(workspace.Entries); Assert.Null(workspace.RoutingState);
+        workspace.DraftText = "お願いします"; await workspace.SendAsync();
+        Assert.Equal(1, posts); Assert.Null(workspace.SendError);
+    }
+
+    [Fact]
     public async Task StopRowsAndOneStopRequestWithoutResend()
     {
         var stops = 0; var status = HttpStatusCode.Accepted; var body = """{"botId":"bot-bell","status":"stop_sent"}""";

@@ -56,7 +56,8 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     private string? stoppingBotId;
     private StopNotice? stopResult;
     private bool loadFailed;
-    private bool routingEnabled;
+    // null = not read yet or the read failed; only a server answer of "off" makes the client refuse a no-target room send.
+    private bool? routingEnabled;
     private readonly Dictionary<string, Task<BitmapSource>> avatars = [];
     public ObservableCollection<ConversationEntry> Entries { get; } = [];
     public ObservableCollection<MessageItem> Messages { get; } = [];
@@ -108,8 +109,9 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     public StopNotice? StopResult { get => stopResult; internal set { stopResult = value; Changed(); } }
     public bool CurrentBotCanStop => selected is { Target: { IsRoom: false, Id: var id } } && queue.Any(item => item.BotId == id && item.IsActive);
     public bool LoadFailed { get => loadFailed; private set { loadFailed = value; Changed(); } }
-    public bool RoutingEnabled => routingEnabled;
-    public string ReplyTargetLabel => ReplyTarget.Label(routingEnabled, ReplyMembers.Where(item => item.Selected).Select(item => item.Name).ToArray());
+    public bool RoutingEnabled => routingEnabled != false;
+    public bool? RoutingState => routingEnabled;
+    public string ReplyTargetLabel => ReplyTarget.Label(routingEnabled != false, ReplyMembers.Where(item => item.Selected).Select(item => item.Name).ToArray());
     public string? MemberName(string id) => all.FirstOrDefault(entry => entry.Target == new ChatTarget(id, false))?.Bot?.DisplayName;
     public ConversationEntry? MemberEntry(string id) => all.FirstOrDefault(entry => entry.Target == new ChatTarget(id, false));
     public string Server => api?.Origin.AbsoluteUri ?? "";
@@ -148,7 +150,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
         api = apiFactory(origin);
         avatars.Clear();
         connection = new CancellationTokenSource();
-        selected = null; stoppingBotId = null; stopResult = null; loadFailed = false; routingEnabled = false;
+        selected = null; stoppingBotId = null; stopResult = null; loadFailed = false; routingEnabled = null;
         all.Clear(); queue = []; OwnerName = "あなた"; AuthMode = "local"; Entries.Clear(); Messages.Clear(); ReplyMembers.Clear();
         Changed(nameof(OwnerName)); Changed(nameof(AuthMode)); Changed(nameof(OnlineSummary));
         HasMore = false;
@@ -201,7 +203,13 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
             var rooms = await current.GetAsync<RoomsResponse>("/api/rooms?avatar=omit", token);
             var activity = await current.GetAsync<QueueResponse>("/api/queue", token);
             var owner = await current.GetAsync<OwnerResponse>("/api/owner?avatar=omit", token);
-            if (selected is { Target.IsRoom: true }) await LoadRoutingAsync(current, token);
+            if (selected is { Target.IsRoom: true })
+            {
+                // An optional setting: its failure must not fail the list refresh.
+                try { await LoadRoutingAsync(current, token); }
+                catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+                catch (Exception error) { SetRouting(null); ActionError = "返信者の自動選択の設定を読み取れませんでした。" + error.Message; }
+            }
             token.ThrowIfCancellationRequested();
             OwnerName = owner.Owner.Name; Changed(nameof(OwnerName));
             queue = activity.Items; var working = queue.Where(item => item.Status == "running").Select(item => item.BotId).ToHashSet();
@@ -273,7 +281,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
             {
                 try { await LoadRoutingAsync(api, token); }
                 catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-                catch (Exception error) { if (!token.IsCancellationRequested) ActionError = "返信者の自動選択の設定を読み取れませんでした。" + error.Message; }
+                catch (Exception error) { if (!token.IsCancellationRequested) { SetRouting(null); ActionError = "返信者の自動選択の設定を読み取れませんでした。" + error.Message; } }
             }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
@@ -285,10 +293,16 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     private async Task LoadRoutingAsync(BellApi current, CancellationToken token)
     {
         var settings = await current.GetAsync<System.Text.Json.JsonElement>("/api/settings", token);
-        var enabled = settings.ValueKind == System.Text.Json.JsonValueKind.Object && settings.TryGetProperty("settings", out var features) && features.ValueKind == System.Text.Json.JsonValueKind.Array
-            && features.EnumerateArray().Any(item => item.ValueKind == System.Text.Json.JsonValueKind.Object && item.TryGetProperty("id", out var id) && id.GetString() == "routing" && item.TryGetProperty("status", out var status) && status.GetString() == "enabled");
+        // An unexpected shape is unknown, not "off".
+        bool? enabled = settings.ValueKind == System.Text.Json.JsonValueKind.Object && settings.TryGetProperty("settings", out var features) && features.ValueKind == System.Text.Json.JsonValueKind.Array
+            ? features.EnumerateArray().Any(item => item.ValueKind == System.Text.Json.JsonValueKind.Object && item.TryGetProperty("id", out var id) && id.ValueKind == System.Text.Json.JsonValueKind.String && id.GetString() == "routing" && item.TryGetProperty("status", out var status) && status.ValueKind == System.Text.Json.JsonValueKind.String && status.GetString() == "enabled")
+            : null;
+        SetRouting(enabled);
+    }
+    private void SetRouting(bool? enabled)
+    {
         if (enabled == routingEnabled) return;
-        routingEnabled = enabled; Changed(nameof(RoutingEnabled)); Changed(nameof(ReplyTargetLabel));
+        routingEnabled = enabled; Changed(nameof(RoutingEnabled)); Changed(nameof(RoutingState)); Changed(nameof(ReplyTargetLabel));
     }
 
     private async Task RefreshMessagesAsync(BellApi current, ChatTarget target, CancellationToken token)
@@ -331,7 +345,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     public async Task SendAsync()
     {
         if (!CanSend) return;
-        if (IsRoom && !ReplyMembers.Any(item => item.Selected) && !routingEnabled) { Draft!.Reject(ReplyTarget.RoutingUnsetError); DraftChanged(); return; }
+        if (IsRoom && !ReplyMembers.Any(item => item.Selected) && routingEnabled == false) { Draft!.Reject(ReplyTarget.RoutingUnsetError); DraftChanged(); return; }
         var current = api!;
         var target = selected!.Target;
         var draft = Draft!;
@@ -471,7 +485,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     public async Task ReconnectAsync() { if (api is not null) await ConnectAsync(Server); }
     public void SignOut()
     {
-        connection?.Cancel(); selection?.Cancel(); ReturnToProfile(); ready = false; selected = null; stoppingBotId = null; stopResult = null; loadFailed = false; routingEnabled = false;
+        connection?.Cancel(); selection?.Cancel(); ReturnToProfile(); ready = false; selected = null; stoppingBotId = null; stopResult = null; loadFailed = false; routingEnabled = null;
         all.Clear(); queue = []; Entries.Clear(); Messages.Clear(); ReplyMembers.Clear(); drafts.Clear(); attachmentPreviews.Clear(); avatars.Clear(); OwnerName = "あなた";
         HasMore = false; Loading = false; ConnectionError = ActionError = null; NeedsLogin = AuthMode == "cloudflare"; ConnectionStatus = "ログアウトしました。";
         foreach (var name in new[] { nameof(Connected), nameof(Selected), nameof(HasSelection), nameof(IsRoom), nameof(Title), nameof(Profile), nameof(OwnerName), nameof(OnlineSummary), nameof(ActivityText), nameof(HasActivity), nameof(ActivityRows), nameof(StopEnabled), nameof(CurrentBotCanStop), nameof(StopResult), nameof(LoadFailed), nameof(RoutingEnabled), nameof(ReplyTargetLabel), nameof(CanShowScreen) }) Changed(name);
