@@ -144,3 +144,39 @@ flowchart LR
 runDueのRoom refreshも他の読取/claimと同じ内部optionsを受ける。これは親安定Room facadeへ旧受付leaseを渡す修理で、Room writerを複製しない。conversation導入時はconstructorのmoduleOperationsへ共通createModuleOperationContextの実体を注入する。tick/prepareResume/手動runはwithContext(operation, context?)で最初のfresh/消化前に両入場を予約し、親opaque contextをcloneせず読取/claim/skip/配送へ渡す。既contextはassertされた継続で、新予約/finishを増やさない。一方拒否なら作用0、accepted後unknownは再送0。provider未注入の既builtinは従来membersAdmissionだけを使う。両入場の原子性・channel逆effect束縛・交換mutexは共通/runtime所有で、このcallerは再実装しない。
 
 直接境界はtest/members-conversation-operation.test.mjsのcaller用providerと、test/members-module-operation-integration.test.mjsの実共通factory＋実Room CASで確認する。後者のconversation gateは別MembersAdmissionによる機構fixtureで、Kiro実lifetime gate/実IPC/実予定発行を証明しない。
+
+## Turn-end continuation (`after_turn`)
+
+Owner contract, 2026-11-08. Bot schedules add `kind=after_turn`: one prompt-only delivery, no clock fields. Creation/update binds the owning Bot's current execution turn; with no current turn it becomes eligible immediately. List returns `state: waiting-for-turn-end` while enabled. Removal and replacement use the existing owner writer and revision. Room schedules keep their clock-only contract.
+
+```mermaid
+flowchart TD
+  Set[Bot set_schedule / HTTP set] --> Snapshot[Execution public currentTurn snapshot]
+  Snapshot --> Save[Members writer stores afterTurn + revision]
+  Save --> Changed[Existing registry change notification]
+  Terminal[Execution public watchCurrentTurn: every state/identity change] --> Reconcile[Scheduler reconcile after_turn]
+  Changed --> Reconcile
+  Reconcile --> Current[Execution public currentTurn snapshot]
+  Current -->|captured turn still current| Wait[waiting-for-turn-end]
+  Current -->|no captured turn / captured turn ended| Claim[Members CAS claimAfterTurn]
+  Wait -->|public terminal event| Reconcile
+  Claim -->|latest enabled revision only, disable before dispatch| Deliver[Ordinary scheduler Messenger delivery]
+  Deliver --> Next[Execution queues next turn and wakes dead seat]
+```
+
+| Flow | Public handoff / ownership |
+| --- | --- |
+| AT1 | BotRegistry.setSchedule captures execution's current turn snapshot through an injected public snapshot; members child obtains it through `schedules.currentTurn` parent effect. External input cannot choose a turn ID. Existing execution identities are reused. |
+| AT2 | Members schedule.json owns `afterTurn` ({state:working/idle/unknown,turnId:string/null}), revision, enabled, lastRunAt, nextRunAt=null. Definition rejects command and all clock fields. State is waiting-for-turn-end while enabled, completed when consumed, disabled when explicitly disabled. |
+| AT3 | Execution owns active-turn identity and all normal/error/stop terminal events. Scheduler uses only public snapshot/subscription, including after an engine change; execution internals remain execution-owned. |
+| AT4 | Registry change after save and execution terminal event request reconciliation. Snapshot comparison after the durable save closes the end-during-save race. Startup reconciliation recovers persisted waiters whose captured turn has already ended. No clock tick wakes an after_turn continuation. |
+| AT5 | `claimAfterTurn(botId,scheduleId,expectedRevision,expectedAfterTurn,ranAt)` uses the existing per-owner writer. Exactly one caller receives the latest pre-consumption snapshot; replacement/removal/disabled or duplicate event yields null. It disables before ordinary dispatch. |
+| AT6 | Scheduler uses the existing module operation context, stop admission, and `dispatchBotSchedule` Messenger path. A prompt enters the ordinary next-turn delivery path; no execution-internal access or separate queue is added. Existing explicit global AI stop remains authoritative. |
+
+Affected scope: schedule-definition, BotRegistry writer/CAS, members request/effect/facade/assembly, parent scheduler wiring, Bot MCP description/schema and HTTP's existing delegated path. The scheduler and parent wiring remain body-resident; members child definition/storage/MCP are distributed in members. The execution handoff is owned and tested by Kiro. A focused schedules test covers binding, delayed/immediate activation, update/remove/duplicate-event races and input rejection. Existing clock schedule behavior is outside this change.
+
+Execution agreement (Kiro): `transport.currentTurn(botId)` returns `{state:working,turnId:opaque}` / `{state:idle,turnId:null}` / `{state:unknown,turnId:null}`. `watchCurrentTurn(listener)` emits every snapshot change, including unknown resolution. Offline/dead seats are idle. Live unknown observations resolve on the existing seat observation poll or seat closure. Unknown at save persists as unknown; first resolved working CAS-binds that identity, first resolved idle consumes it. No timestamp field is used. A stale observation may miss intervening turns; the first resolved working identity is the recoverable binding. Ordinary delivery to another already-started turn can steer it; scheduler does not create a private execution queue.
+
+AI global pause defers after_turn dispatch. The parent subscribes to the existing AiControl change event and reconciles after enable; no timed wake is required. Native turn-change events reconcile only that Bot; startup and registry generation/change events reconcile the current owners.
+
+Released-client edit compatibility: existing Apple/Web editors map an unknown kind to cron. To prevent overwriting the saved continuation, BotRegistry rejects replacing an existing after_turn with another kind (`SCHEDULE_AFTER_TURN_REPLACE_REQUIRED`, 409); after_turn prompt/name/enabled updates remain valid. Clock fields on after_turn remain invalid. An intentional clock schedule is created after deleting the old continuation through the existing remove path. This validation protects the saved definition and adds no runtime waiting state. HTTP PUT checks this before members input normalization so released editors receive the explicit error even when their fallback cron expression is empty. POST/MCP replacement is also protected by the owning writer.

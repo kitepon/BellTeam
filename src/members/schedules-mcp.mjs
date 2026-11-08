@@ -14,11 +14,11 @@ const intervalScheduleProperties = {
 export const botScheduleTools = [
   {
     name: 'set_schedule',
-    description: 'Botの自動実行予定を追加または更新する。一回はkind=onceとat、cron式はkind=cronとexpression、日おきはkind=interval_daysとintervalDays・startDate・time、時間帯内の時間おきはkind=interval_hoursとintervalHours・startHour・endHourを使う。実行内容はpromptかcommandのどちらか一方。botId省略時は自分。',
+    description: 'Botの自動実行予定を追加または更新する。一回はkind=onceとat、cron式はkind=cronとexpression、日おきはkind=interval_daysとintervalDays・startDate・time、時間帯内の時間おきはkind=interval_hoursとintervalHours・startHour・endHourを使う。kind=after_turnは現在の対象Botのターンが通常終了・エラー終了・停止で終わった時にpromptを一度だけ実行する。対象Botの実行中ターンがなければ直ちに実行する。prompt専用で時刻フィールドは使わない。実行内容はpromptかcommandのどちらか一方。botId省略時は自分。',
     inputSchema: objectSchema({
       id: { type: 'string', description: '更新する予定ID。新規追加では省略する。' },
       name: { type: 'string', maxLength: 100 },
-      kind: { type: 'string', enum: ['once', 'cron', 'interval_days', 'interval_hours'] },
+      kind: { type: 'string', enum: ['once', 'cron', 'interval_days', 'interval_hours', 'after_turn'] },
       ...intervalScheduleProperties,
       at: { type: 'string', description: '一回実行のISO日時' },
       expression: { type: 'string', description: '反復実行のcron式' },
@@ -31,7 +31,7 @@ export const botScheduleTools = [
   },
   {
     name: 'list_schedules',
-    description: 'Botの自動実行予定を一覧する。botId省略時は自分。',
+    description: 'Botの自動実行予定を一覧する。after_turnは対象Botのターン終了待ちとして表示される。botId省略時は自分。',
     inputSchema: objectSchema({ botId: { type: 'string', minLength: 1, description: '対象Bot ID。省略時は自分。' } }),
   },
   {

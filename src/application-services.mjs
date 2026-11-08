@@ -69,6 +69,7 @@ export const conversationDiagnosticPort = diagnostics => report => Promise.resol
 // Construct the application graph without starting HTTP listeners or background loops.
 export async function createApplicationServices({ root, moduleChildExitReporter = createModuleChildExitReporter(), exchangeMutex = createModuleExchangeMutex(), aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, botEnvironments = null, olrwManagement = undefined, submittedSecretManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, notify = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory, hostUpdateClient: hostClient, prepareDiagnosticsRelease: prepareDiagnostics = (versionId, options) => prepareModuleRelease('diagnostics', versionId, options), builtinSourceCommit = null, usageAssembly = null, attachUsageServices = () => {}, prepareUsageRelease: prepareUsage = (versionId, options) => prepareModuleRelease('usage', versionId, options), createConversationAssembly: conversationFactory, createExecutionAssembly: executionFactory, loadExecutionFactory: loadExecution = loadExecutionFactory, createExecutionAdoptionStore: adoptionFactory = createExecutionAdoptionStore, prepareExecutionRelease: prepareExecution = prepareExecutionRelease }) {
   let members = null, diagnosticsModule = null, conversationAssembly = null, execution = null, executionClient, memory, rooms, assets, updateCenter, backgroundSummary, submittedSecretCaller = null, directMessages = null
+  let scheduleTurns = null
   const membersAdmission = new MembersAdmission()
   const executionHandoffSupport = new Map()
   const modelHandoffGeneration = () => {
@@ -100,7 +101,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   } }, !diagnosticsModule || Boolean(diagnosticsModule.snapshot().available))
   if (seatRuntime || membersFactory) {
     members = createMembersAssembly({ root, seatRuntime, aiterm, settings, models, membersAdmission, exchangeMutex,
-      membersAuthorization, diagnostics, onModuleChildExit: moduleChildExitReporter.observe, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit, dependencies: () => ({ memory, rooms, assets, conversationAssembly }), onState: () => updateCenter?.notify(),
+      membersAuthorization, diagnostics, onModuleChildExit: moduleChildExitReporter.observe, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit, dependencies: () => ({ memory, rooms, assets, conversationAssembly, scheduleTurns }), onState: () => updateCenter?.notify(),
       ...(membersFactory ? { createProcess: membersFactory } : {}),
     })
     await members.controller.start()
@@ -207,6 +208,8 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
       { trustedAnchor, runtimeCapture: () => executionClient.runtime() }) }),
     reportError: report => diagnostics.record(report), ...seatPorts, ...storagePorts,
     assertWorkAllowed: () => aiControl.assertEnabled(), requireMember })
+  scheduleTurns = transport
+  if (!members) bots.currentTurn = botId => transport.currentTurn(botId)
   const idleSessions = execution ? null : new IdleSessions({ bots, transport })
   const goals = execution?.goals ?? new BotGoals({ transport, admitWork: () => aiControl.admit(), reportError: goalError })
   conversationPorts.transport = transport
@@ -270,6 +273,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     paused: () => aiControl.paused,
     assertWorkAllowed: () => aiControl.assertEnabled(),
   })
+  aiControl.watch(control => { if (!control.paused && transport.currentTurn) scheduler.requestAfterTurn() })
   const characterSheets = seatRuntime ? seatRuntime.characterSheets(id => bots.projectPath(id))
     : new CharacterSheets({ projectPath: id => bots.projectPath(id) })
   // Bot設定変更・停止・削除の業務判断。公開APIと席MCPが同じ判断を使う。

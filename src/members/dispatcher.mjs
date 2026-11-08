@@ -52,6 +52,7 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
   }
   const bots = new BotRegistry({ seedPath: join(dirname(dirname(dirname(fileURLToPath(import.meta.url)))), 'config/bots.json'),
     botsRoot: join(root, 'bots'), stateRoot: join(root, 'state/bots'), projectFiles,
+    currentTurn: botId => call('schedules.currentTurn', { botId }),
     models: { forHarness: harness => call('models.read', { harness }) },
     onChange: registry => call('cli.configure', { botIds: [...registry.keys()] }),
     assetRemoval: {
@@ -150,6 +151,7 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
         await refreshGlobalInstructions()
         return { text }
       }
+      case 'schedules.claimAfterTurn': return bots.claimAfterTurn(params)
       case 'schedules.list': return { schedules: params.ownerKind === 'bot' ? await bots.listSchedules(params.ownerId)
         : await call('room.schedules.list', { roomId: params.ownerId }) }
       case 'schedules.set': return { schedule: params.ownerKind === 'bot' ? await bots.setSchedule(params.ownerId, params.input)

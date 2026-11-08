@@ -30,10 +30,20 @@ export class BotScheduler {
     this.unconfirmedClaims = new Map()
     this.commandJobs = new Set()
     this.currentRun = null
+    this.afterTurnRun = null
+    this.afterTurnBots = new Set()
+    this.afterTurnAll = false
+    this.turnUnsubscribe = null
+    this.scheduleUnsubscribe = null
   }
 
   start() {
     if (this.timer) return
+    if (this.transport?.watchCurrentTurn) {
+      this.turnUnsubscribe = this.transport.watchCurrentTurn(({ botId }) => this.requestAfterTurn(botId))
+      this.scheduleUnsubscribe = this.registry.watch?.(() => this.requestAfterTurn())
+      this.requestAfterTurn()
+    }
     this.runDue().catch(reportError)
     this.timer = setInterval(() => this.runDue().catch(reportError), this.intervalMs)
   }
@@ -41,6 +51,48 @@ export class BotScheduler {
   stop() {
     clearInterval(this.timer)
     this.timer = null
+    this.turnUnsubscribe?.()
+    this.scheduleUnsubscribe?.()
+    this.turnUnsubscribe = this.scheduleUnsubscribe = null
+  }
+
+  requestAfterTurn(botId) {
+    if (botId) this.afterTurnBots.add(botId)
+    else this.afterTurnAll = true
+    if (!this.afterTurnRun) {
+      this.afterTurnRun = Promise.resolve().then(async () => {
+        while (this.afterTurnAll || this.afterTurnBots.size) {
+          const botIds = this.afterTurnAll ? null : [...this.afterTurnBots]
+          this.afterTurnAll = false
+          this.afterTurnBots.clear()
+          await this.runAfterTurn(botIds)
+        }
+      }).finally(() => { this.afterTurnRun = null })
+      this.afterTurnRun.catch(reportError)
+    }
+    return this.afterTurnRun
+  }
+
+  async runAfterTurn(botIds = null) {
+    if (this.paused()) return
+    return this.withOperationContext(async options => {
+      await this.registry.refresh(options)
+      const bots = botIds ? botIds.map(id => this.registry.get(id)).filter(Boolean) : [...this.registry.values()]
+      for (const bot of bots) {
+        for (const schedule of await this.registry.listSchedules(bot.id, options)) {
+          if (schedule.kind !== 'after_turn' || !schedule.enabled) continue
+          const observedTurn = this.transport.currentTurn(bot.id)
+          if (observedTurn.state === 'unknown') continue
+          const check = this.admitWork()
+          check()
+          const claimed = await this.registry.claimAfterTurn({ botId: bot.id, scheduleId: schedule.id,
+            expectedRevision: scheduleRevision(schedule), expectedAfterTurn: schedule.afterTurn, observedTurn, ranAt: new Date().toISOString() }, options)
+          if (!claimed) continue
+          check()
+          await this.dispatchBotSchedule(bot, claimed, options)
+        }
+      }
+    })
   }
 
   async runDue(now = new Date()) {

@@ -73,6 +73,7 @@ export function createMembersFacade({ request, callback, admission, projection }
     listSchedules: async (botId, context) => (await invoke('schedules.list', { ownerKind: 'bot', ownerId: botId }, context)).schedules,
     setSchedule: async (botId, input, context) => (await invoke('schedules.set', { ownerKind: 'bot', ownerId: botId, input }, context)).schedule,
     removeSchedule: async (botId, scheduleId, context) => (await invoke('schedules.remove', { ownerKind: 'bot', ownerId: botId, scheduleId }, context)).removed,
+    claimAfterTurn: (input, context) => invoke('schedules.claimAfterTurn', input, context),
     claimDue: ({ botId, ...input }, context) => invoke('schedules.claimDue', { ownerKind: 'bot', ownerId: botId, ...input }, context),
     skipDue: ({ botId, ...input }, context) => invoke('schedules.skipDue', { ownerKind: 'bot', ownerId: botId, ...input }, context),
   }

@@ -49,6 +49,10 @@
     {
       "module": "conversation",
       "port": "history"
+    },
+    {
+      "module": "execution",
+      "port": "turn"
     }
   ],
   "source": [

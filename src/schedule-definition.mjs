@@ -3,7 +3,7 @@ import { scheduleRevision } from './schedule-mutations.mjs'
 
 export function normalizeSchedule(value, now) {
   if (typeof value.id !== 'string' || value.id.length === 0) throw new Error('SCHEDULE_ID_INVALID')
-  if (!['once', 'cron', 'interval_days', 'interval_hours'].includes(value.kind)) throw new Error('SCHEDULE_KIND_INVALID')
+  if (!['once', 'cron', 'interval_days', 'interval_hours', 'after_turn'].includes(value.kind)) throw new Error('SCHEDULE_KIND_INVALID')
   const prompt = typeof value.prompt === 'string' ? value.prompt.trim() : ''
   const command = typeof value.command === 'string' ? value.command.trim() : ''
   // AIへの指示（prompt）か、AIを起こさないコマンド（command）のどちらか一方だけを持つ。
@@ -19,6 +19,14 @@ export function normalizeSchedule(value, now) {
     enabled,
     lastRunAt: value.lastRunAt ?? null,
     ...(Object.hasOwn(value, 'revision') ? { revision: scheduleRevision(value) } : {}),
+  }
+  if (value.kind === 'after_turn') {
+    if (command || ['at', 'expression', 'timezone', 'intervalDays', 'startDate', 'time', 'intervalHours', 'startHour', 'endHour', 'minute'].some(key => Object.hasOwn(value, key)))
+      throw new Error('SCHEDULE_AFTER_TURN_INVALID')
+    const afterTurn = value.afterTurn ?? { state: 'unknown', turnId: null }
+    validateScheduleTurn(afterTurn)
+    return { ...base, afterTurn: { ...afterTurn }, nextRunAt: null,
+      state: enabled ? 'waiting-for-turn-end' : base.lastRunAt ? 'completed' : 'disabled' }
   }
   if (value.kind === 'once') {
     const date = new Date(value.at)
@@ -87,3 +95,9 @@ export function scheduleDocument(schedules) {
   return { schema: 'bellteam.schedule.v1', schedules }
 }
 
+
+export function validateScheduleTurn(value) {
+  if (!value || !['working', 'idle', 'unknown'].includes(value.state)
+    || (value.state === 'working' ? typeof value.turnId !== 'string' || !value.turnId || value.turnId.includes('\0') : value.turnId !== null)
+    || Object.keys(value).some(key => !['state', 'turnId'].includes(key))) throw new Error('SCHEDULE_TURN_INVALID')
+}

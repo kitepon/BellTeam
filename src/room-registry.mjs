@@ -238,6 +238,7 @@ export class RoomRegistry extends Map {
   }
 
   async setSchedule(id, input) {
+    if (input.kind === 'after_turn') throw new Error('SCHEDULE_AFTER_TURN_ROOM_UNSUPPORTED')
     const room = this.require(id)
     return mutateSchedules(this, id, schedules => {
       const existing = input.id ? schedules.find(item => item.id === input.id) : null
