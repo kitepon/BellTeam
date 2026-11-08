@@ -1,5 +1,35 @@
 # Update通知の表示・操作設計
 
+## Card overview redesign (2026-11-08, Owner via Trony)
+
+Owner ruling: a text-only Update screen is rejected. This section supersedes the "Standard overview" and "Older-body fallback" rows of the per-component status section below for the normal surface; that section's reader, details and refresh rows stay in force. Data sources are unchanged: the same inventory GET, `components[].status`, `jobs[]`, operation GET and SSE. No new request, store, timer, route or server judgment.
+
+| Function / edge | Input -> output and ownership |
+| --- | --- |
+| `cardState(component, records)` | Row + newest visible job record for that `moduleId` (own operation / current operation / inventory or SSE jobs; falls back to `status.latestJob`) -> `{badge, tone, job, step}`. Badge: running job -> 更新中 with step 1..4 of queued/downloading/verifying/swapping; `status.tone==='attention'` -> 要対応; failed latest job -> 失敗, except the server's own rule (part running and already up_to_date) hides it; `update_available` -> 更新あり; `up_to_date` -> 最新; `incompatible` -> 使えない版; otherwise 確認できません. Web derives presentation only; Common still owns `line`, `action` and the latest-job choice. |
+| Version name | Human version name, never a hash: release installed by this part's latest succeeded job -> `M/D HH:mm 版` (job time); part already up_to_date with a publication -> `M/D HH:mm 版` (catalog publishedAt); otherwise 本体に同梱の版 / 稼働中の版 / 更新で入れた版 / 版を確認できません. The origin (本体に同梱 / 更新で導入 / 本体) is a small secondary word when a dated name is shown. update_available adds `新しい版 M/D HH:mm` (catalog publishedAt). Hashes, digests and the server `line` (which carries a 7-hex name) move to 詳細. |
+| Last-updated time | Card job time (JST, M/D HH:mm): 最終更新 for ready, 開始 for running, 失敗 for failed; none -> 更新の記録なし. |
+| Summary header | Icon tile + title + observed time + 再確認 (secondary). Title priority: read error -> 更新情報を取得できません; first load -> 確認しています; submitting -> 受け付けています; plan -> 〈名前〉を更新します/戻します; running -> 更新しています; attention -> 対応が必要です; N candidates -> Nつ更新できます; failed only -> 前回の更新に失敗したものがあります; all ok -> すべて最新です; else 一部の状態を確認できません. Runtime rows are excluded from the summary count and are shown as a separate "AIの実行部品" card group: Owner rule, Aiterm/CLIs update only with the body release, so their version line is 本体に同梱 and their badge is the neutral 本体と一緒に更新 (running/failed runtime jobs still show 更新中/失敗). |
+| Card action | One button per card, only when `update_available` and `capability.supported` and no job is running for it: 更新 (or もう一度更新 after a failure). It sends the existing single-component plan request. No header primary; cards without anything to do have no button. |
+| Plan review | Existing fixed plan -> one confirmation card (name, 現在 -> 新しい版, impact, existing restart checkbox, 確認して更新する, やめる). やめる only clears the local plan; nothing is sent. |
+| Failure banner | Read/storage/operation errors, attention actions, failed latest jobs and open restart problems -> one plain-words banner: what happened + what to do (+ もう一度確認 for read errors). Codes, paths, job IDs and request IDs stay in the existing 詳細 disclosure (toolbar notice, support details, jobs, problems). Own completed operation -> a success banner 〈名前〉を更新しました. |
+| Theme/layout | Tokens on `.update-center` with `prefers-color-scheme: dark` overrides; icons are CSS masks keyed by `data-icon=<component id>`; card grid auto-fills >=260px on PC, one column on mobile (<=780px). |
+
+```mermaid
+flowchart LR
+  Read[Inventory GET runtime=1 + SSE + operation GET] --> Rows[components + status]
+  Read --> Recs[jobs / operation jobs / own result]
+  Rows --> Card[cardState per row]
+  Recs --> Card
+  Card --> Cards[Card grid: icon, name, version name, badge, progress, last updated, one action]
+  Card --> Summary[Summary header]
+  Card --> Banner[Failure / success banner, plain words]
+  Cards -->|更新| Plan[Existing plan POST] --> Review[Confirmation card] -->|確認して更新する| Start[Existing operation POST]
+  Rows --> Detail[詳細: line, versions, codes, IDs, jobs, problems]
+```
+
+Source reach: `web/update-center.js` (renderProduct, card helpers), `web/styles.css` (update-center tokens, cards, dark mode), `test/web-update-product.test.mjs`. `index.html` markup, `application.js`, public API/SSE and module membership are unchanged. No guard is added or removed: card buttons use the existing `canPlan`; やめる clears local state only.
+
 ## Per-component standard status (2026-11-08)
 
 This display contract supersedes the main-screen raw-job requirements below when `components[].status` is supplied. Source contract: Molly PR545, [per-component status line](../integration/update-jobs.md#per-component-status-line-2026-11-08). Common owns the latest job, status wording, time and action decision. Web never selects a latest job to compose its own standard status.

@@ -53,6 +53,19 @@ APIの拒否や応答不明を未保存・未配送と断定しない。202は�
 
 今回の図変更は、共通文書にあったWeb内部図の移管と、起動/通信/資材登録の所有の明示。integrationから`assets`利用を追加する。既公開HTTP JSON、status、永続保存形式、画面操作の完了条件は変更しない。
 
+## 設定画面のカード表示（2026-11-08, Owner via Trony）
+
+Owner ruling: a text-only settings page is rejected. Same markup sections, same APIs and save contracts; presentation only.
+
+| Function / edge | Input -> output and ownership |
+| --- | --- |
+| Section cards | Each `#owner-dialog .feature-settings-section` and the profile block render as a surface card with an icon tile (`data-settings-icon` on the section, CSS mask icon). Tabs stay scroll anchors and become sticky. |
+| Whole stop (`ai-control.js`) | Existing server `control.state` -> `root.dataset.state` -> colored status pill (enabled ok / stopping info / stopped danger / unconfirmed attention / unknown muted) and the checkbox drawn as a switch. The view still never infers ON/OFF from a failed PATCH. |
+| Settings read failures (`owner-editor.js`) | User rules / features / AI auth read errors -> plain sentence with what to do; the raw code goes under a `詳細` disclosure in the same alert element. No retry loop or new request is added. |
+| Theme | Tokens on `#owner-dialog` with `prefers-color-scheme: dark` overrides (surface, fields, buttons, pills). Other dialogs are unchanged. |
+
+Source reach: `web/index.html` (section icon attributes), `web/styles.css`, `web/ai-control.js`, `web/owner-editor.js`. No public HTTP, storage, or save behavior changes; no guard added.
+
 ## 単独試験
 
 Node 24以上の標準機能だけで実行でき、サーバー・native・他機能の内部実装・実データは起動しない。

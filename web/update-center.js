@@ -78,14 +78,45 @@ export function validUpdateInventory(value) {
 const versionLabel = value => value === null ? '稼働版を確認できません' : `${value.origin === 'builtin' ? '内蔵版 · ' : ''}${/^(?:sha256:)?[a-f0-9]{40,64}$/.test(value.version) ? value.version.replace(/^sha256:/, '').slice(0, 12) : value.version}`
 const formatDate = value => new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(value)) + ' JST'
 
+const cardIcons = ['container', 'web-gateway', 'notifications', 'members', 'conversation', 'execution', 'usage', 'memory', 'diagnostics']
+const jobSteps = { queued: 1, downloading: 2, verifying: 3, swapping: 4 }
+const stepText = { queued: '順番を待っています', downloading: '新しい版を取り込んでいます', verifying: '新しい版を確かめています', swapping: '新しい版に切り替えています' }
+const shortTime = value => new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
+// People-facing version name (dated when a time is known); hashes and the server line stay in 詳細.
+const versionName = (item, job) => {
+  if (isRuntime(item.id)) return { name: '本体に同梱', origin: '' }
+  if (!item.current) return { name: '版を確認できません', origin: '' }
+  const at = item.current.origin === 'release' && job?.outcome === 'succeeded' ? job.at
+    : item.comparison.state === 'up_to_date' && item.publication ? item.publication.catalog.publishedAt : null
+  const origin = { builtin: '本体に同梱', release: '更新で導入', container: '本体' }[item.current.origin] ?? ''
+  return at ? { name: `${shortTime(at)} 版`, origin }
+    : { name: { builtin: '本体に同梱の版', release: '更新で入れた版', container: '稼働中の版' }[item.current.origin] ?? '現在の版', origin: '' }
+}
+// Badge from the newest job record for this part (fresher via SSE), else the server's latestJob; wording stays with the server line.
+export function cardState(item, records = []) {
+  const status = componentStatus(item.status) ? item.status : null, latestAt = status?.latestJob ? BigInt(Date.parse(status.latestJob.at)) * 1000000n : -1n
+  // The server's latest job wins unless an SSE/operation record is the same job or newer.
+  const record = records.filter(job => job.target.moduleId === item.id && (!status?.latestJob || job.jobId === status.latestJob.jobId || BigInt(job.updatedAtNs) > latestAt))
+    .reduce((latest, job) => !latest || BigInt(job.updatedAtNs) > BigInt(latest.updatedAtNs) ? job : latest, null)
+  const job = record ? { state: record.state, outcome: record.state === 'ready' ? 'succeeded' : record.state === 'failed' ? 'failed' : 'running', at: new Date(Number(BigInt(record.updatedAtNs) / 1000000n)).toISOString() }
+    : status?.latestJob ? { state: status.latestJob.state, outcome: status.latestJob.outcome, at: status.latestJob.at } : null
+  const serving = item.id === 'container' || item.availability.available === true
+  if (job?.outcome === 'running') return { badge: '更新中', tone: 'info', job, step: jobSteps[job.state] ?? 1 }
+  if (status?.tone === 'attention') return { badge: '要対応', tone: 'danger', job, step: 0 }
+  if (job?.outcome === 'failed' && !(serving && item.comparison.state === 'up_to_date')) return { badge: '失敗', tone: 'danger', job, step: 0 }
+  // Owner rule: Aiterm/CLIs update only with the body release.
+  if (isRuntime(item.id)) return { badge: '本体と一緒に更新', tone: 'neutral', job, step: 0 }
+  const [badge, tone] = { update_available: ['更新あり', 'accent'], up_to_date: ['最新', 'ok'], incompatible: ['使えない版', 'muted'] }[item.comparison.state] ?? ['確認できません', 'muted']
+  return { badge, tone, job, step: 0 }
+}
+
 export function createUpdateCenter({ root, api, buttons, storage }) {
   const get = selector => root.querySelector(selector)
   const list = get('[data-update-components]'), detail = get('[data-update-detail]')
   const product = get('[data-update-product]')
-  let choosing = false
   const notice = get('[data-update-notice]'), refreshButton = get('[data-update-refresh]')
   let selected = 'all', generation = 0, opened = false, disposed = false, loading = false
-  let opener = null, inventory = null, recentJobs = [], failure = '', planFailure = '', componentStatuses = false
+  let opener = null, inventory = null, recentJobs = [], failure = '', planFailure = ''
   const requestKey = 'bellteam-update-request.v1'
   let planned = null, planning = false, submitting = false, confirmed = false, planGeneration = 0
   let pending = null, ownResult = null, operationMessage = '', storageFailure = '', requestStorage = storage
@@ -301,7 +332,7 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     const codes = new Set([planFailure, component?.availability.reason, component?.comparison.reason, component?.capability.reason,
       component?.publication?.check.error, displayPlan?.compatibility.reason, displayPlan?.capability.reason, result?.error?.code, status?.latestJob?.reason?.code].filter(Boolean))
     const values = [
-      ['稼働版', component?.current?.version], ['稼働配布物', component?.current?.digest],
+      ['状態の説明', status?.line], ['稼働版', component?.current?.version], ['稼働配布物', component?.current?.digest],
       ['公開版', component?.published?.version], ['公開配布物', component?.published?.digest],
       ['最新ジョブID', status?.latestJob?.jobId], ['最新ジョブ種別', status?.latestJob?.kind],
       ['最新ジョブ状態', status?.latestJob?.state], ['最新ジョブ結果', status?.latestJob?.outcome],
@@ -358,93 +389,58 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
   }
   function renderProduct({ action, result, selectedPlan }) {
     const focus = document.activeElement?.dataset?.updateControl
-    const candidates = (inventory?.components ?? []).filter(item => item.comparison.state === 'update_available' && item.capability.supported)
     const recordsById = new Map()
     for (const record of [...(ownResult?.jobs ?? []), ...(inventory?.operation?.jobs ?? []), ...recentJobs]) {
       const key = `${record.kind}:${record.jobId}`
       recordsById.set(key, newerJob(recordsById.get(key), record))
     }
     const records = [...recordsById.values()]
-    const latest = inventory?.components.length && inventory.components.every(item => item.comparison.state === 'up_to_date' && item.publication?.check.status === 'verified')
-    let title = records.length ? '更新ジョブ' : candidates.length ? '更新があります' : latest ? '最新の状態です' : '更新情報'
-    let description = records.length ? '各ジョブの状態と理由を表示しています。' : candidates.length ? '新しいバージョンを利用できます。' : latest ? '利用できる更新はありません。' : '更新の情報を取得してください。'
-    let mark = records.length || candidates.length ? '↑' : latest ? '✓' : '↻'
-    if (componentStatuses) { title = '更新状況'; description = inventory?.notice.message ?? ''; mark = '↑' }
-    const readError = operationReadError || failure || storageFailure
-    if (readError) { title = '更新情報の取得エラー'; description = componentStatuses ? '更新情報を取得できませんでした。詳細を確認してください。' : readError; mark = '↻' }
-    if (loading && !inventory && !readError) { title = '更新を確認しています'; description = '少しお待ちください。'; mark = '↻' }
-    if (selectedPlan && !submitting) { title = '更新内容を確認'; description = '対象と影響を確認してから、更新を始めます。'; mark = '↑' }
-    if (submitting) { title = '更新の受付を確認しています'; description = '要求の応答を待っています。'; mark = '↻' }
-    if (choosing && !selectedPlan) { title = '更新する項目を選択'; description = '更新する項目を一つ選んでください。'; mark = '↑' }
+    const components = inventory?.components ?? []
+    const states = new Map(components.map(item => [item.id, cardState(item, records)]))
+    const product_ = components.filter(item => !isRuntime(item.id)), runtime = components.filter(item => isRuntime(item.id))
+    const count = badge => product_.filter(item => states.get(item.id).badge === badge).length
+    const candidates = components.filter(item => item.comparison.state === 'update_available' && item.capability.supported && states.get(item.id).badge !== '更新中')
+    const readError = failure || storageFailure
+    const running = components.filter(item => states.get(item.id).badge === '更新中')
+    let title, description = '', tone = 'ok'
+    if (readError) [title, tone] = ['更新情報を取得できません', 'danger']
+    else if (loading && !inventory) [title, tone] = ['更新を確認しています', 'info']
+    else if (submitting) [title, tone] = ['更新を受け付けています', 'info']
+    else if (selectedPlan) {
+      const names = selectedPlan.targets.map(target => components.find(item => item.id === target.componentId)?.name ?? '選択した項目').join('・')
+      ;[title, tone] = [`${names}を${selectedPlan.action === 'rollback' ? '戻します' : '更新します'}`, 'info']
+    } else if (running.length) [title, tone] = ['更新しています', 'info']
+    else if (count('要対応')) [title, tone] = ['対応が必要です', 'danger']
+    else if (candidates.filter(item => !isRuntime(item.id)).length) [title, tone] = [`${candidates.filter(item => !isRuntime(item.id)).length}つ更新できます`, 'accent']
+    else if (count('失敗')) [title, tone] = ['前回の更新に失敗したものがあります', 'danger']
+    else if (product_.length && count('最新') === product_.length) title = 'すべて最新です'
+    else [title, tone] = [inventory ? '一部の状態を確認できません' : '更新情報', 'muted']
+    if (!selectedPlan && !readError && inventory) description = running.length ? '進み具合はこの画面で確認できます。閉じても更新は続きます。'
+      : title === 'すべて最新です' ? `${product_.length}つの機能はどれも最新版です。` : candidates.length ? '更新したい機能の「更新」を押してください。' : ''
     product.replaceChildren()
-    const icon = element('div', 'update-status-icon', mark); icon.setAttribute('aria-hidden', 'true')
+    product.dataset.tone = tone
+    const header = element('header', 'update-summary')
+    const icon = element('span', 'update-summary-icon'); icon.dataset.tone = tone; icon.setAttribute('aria-hidden', 'true')
+    const copy = element('div', 'update-summary-copy')
     const heading = element('h3', 'update-status-title', title); heading.setAttribute('aria-live', 'polite')
-    product.append(icon, heading, element('p', 'update-status-copy', description))
-    if (operationMessage) product.append(element('p', 'update-status-copy', operationMessage))
-    if (componentStatuses && inventory) {
-      const section = element('section', 'update-release-notes update-component-statuses')
-      for (const component of inventory.components) {
-        const status = componentStatus(component.status) ? component.status : null
-        const row = element('article', `update-component-summary${status?.tone === 'attention' ? ' is-attention' : ''}`)
-        if (status) row.dataset.statusTone = status.tone
-        row.append(element('strong', '', component.name), element('p', '', status?.line ?? comparisonLabel(component)))
-        if (status?.tone === 'attention' && status.action) row.append(element('p', '', status.action))
-        if (!status && !component.capability.supported) row.append(element('p', '', explanation(component.capability.reason, isRuntime(component.id))))
-        section.append(row)
-      }
-      product.append(section)
+    copy.append(heading)
+    if (description) copy.append(element('p', 'update-status-copy', description))
+    const meta = element('div', 'update-summary-meta')
+    if (inventory) meta.append(element('span', 'update-summary-time', `確認 ${shortTime(inventory.observedAt)}`))
+    const again = element('button', 'update-recheck', loading ? '確認中…' : '再確認'); again.type = 'button'
+    again.dataset.updateControl = 'recheck'; again.disabled = loading || planning || submitting
+    again.addEventListener('click', () => { void checkThenRefresh() })
+    meta.append(again)
+    header.append(icon, copy, meta); product.append(header)
+    renderBanner({ components, states, readError, selectedPlan })
+    if (selectedPlan) renderReview({ action, selectedPlan, components })
+    else if (inventory) {
+      renderCards(product_, states, candidates, null)
+      if (runtime.length) renderCards(runtime, states, candidates, 'AIの実行部品 · 次回起動から適用')
     }
     if (records.length) {
       const section = element('section', 'update-release-notes update-jobs')
-      section.append(element('h4', '', componentStatuses ? '保存されたジョブ' : 'ジョブの状態'))
-      renderJobs(section, records); (componentStatuses ? detail : product).append(section)
-    }
-    const choose = item => { selected = item.id; choosing = false; planned = null; confirmed = false; planGeneration++; planning = false; if (canPlan()) void requestPlan(); else renderDetail() }
-    if (choosing && !selectedPlan) {
-      const options = element('div', 'update-options')
-      for (const item of candidates) {
-        const button = element('button', 'update-option', item.name + ' ›'); button.type = 'button'
-        button.dataset.updateControl = `choose-${item.id}`; button.disabled = loading || planning || submitting
-        button.addEventListener('click', () => choose(item)); options.append(button)
-      }
-      product.append(options)
-    } else {
-      const changed = selectedPlan ? selectedPlan.targets.map(target => inventory?.components.find(item => item.id === target.componentId)).filter(Boolean) : candidates
-      const changes = [...new Set(changed.flatMap(item => item.changes))].filter(line => line.length <= 160 && !/sha256|commit|protocol|schema|\bnull\b|[a-f0-9]{12,}/i.test(line) && !/\b[A-Z][A-Z_]{5,}\b/.test(line)).slice(0, 3)
-      if (changes.length) {
-        const section = element('section', 'update-release-notes'); section.append(element('h4', '', '更新内容'))
-        for (const line of changes) section.append(element('p', '', line))
-        product.append(section)
-      }
-      if (selectedPlan) {
-        const review = element('section', 'update-plan-review')
-        review.append(element('h4', '', selectedPlan.action === 'rollback' ? '戻す項目' : '更新する項目'))
-        for (const target of selectedPlan.targets) review.append(element('p', '', inventory?.components.find(item => item.id === target.componentId)?.name ?? '選択した項目'))
-        review.append(element('p', '', selectedPlan.impact.containerRestart ? '更新中は会話と処理が一時中断します。再接続後に結果を確認します。' : isRuntime(selectedPlan.componentId) ? runtimeApplicationText : '本体の再起動はありません。'))
-        product.append(review)
-        const check = Array.from(detail.children).find(node => node.className === 'update-restart-confirm')
-        if (check) product.append(check)
-        action.textContent = submitting ? '受付を確認しています…' : selectedPlan.action === 'rollback' ? '確認して戻す' : '確認して更新する'
-        product.append(action)
-        if (!selectedPlan.capability.supported || !selectedPlan.compatibility.compatible || Date.parse(selectedPlan.expiresAt) <= Date.now()) {
-          product.append(element('p', 'update-status-copy', 'この計画では更新できません。状況を確認して、更新内容を取り直してください。'))
-          const retry = element('button', 'update-replan', '更新内容を再確認'); retry.type = 'button'; retry.disabled = !canPlan(selectedPlan.action ?? 'update')
-          retry.addEventListener('click', () => { void requestPlan(selectedPlan.action ?? 'update') }); product.append(retry)
-        }
-      } else {
-        const primary = element('button', 'update-execute update-primary', planning ? '更新内容を確認しています…' : candidates.length && !failure && !storageFailure ? '更新する' : latest ? '更新を確認' : 'もう一度確認')
-        primary.type = 'button'; primary.dataset.updateControl = 'primary'; primary.disabled = loading || planning || submitting
-        primary.addEventListener('click', () => {
-          if (failure || storageFailure || !candidates.length) { void refresh(); return }
-          if (candidates.length === 1) choose(candidates[0]); else { choosing = true; renderDetail() }
-        })
-        product.append(primary)
-      }
-    }
-    if (choosing) {
-      const secondary = element('button', 'update-replan', '戻る'); secondary.type = 'button'
-      secondary.dataset.updateControl = 'choose'; secondary.disabled = loading || planning || submitting
-      secondary.addEventListener('click', () => { choosing = !choosing; renderDetail() }); product.append(secondary)
+      section.append(element('h4', '', '保存されたジョブ')); renderJobs(section, records); detail.append(section)
     }
     if (inventory?.problems?.length) {
       const section = element('section', 'update-release-notes update-problems')
@@ -452,16 +448,116 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
       for (const problem of inventory.problems) {
         const row = element('article', 'update-problem')
         row.dataset.problemFingerprint = problem.fingerprint
-        const name = inventory.components.find(item => item.id === problem.moduleId)?.name ?? problem.moduleId
+        const name = components.find(item => item.id === problem.moduleId)?.name ?? problem.moduleId
         row.append(element('p', '', `${name} · 再起動の繰り返し · ${problem.status === 'resolved' ? '解決済み' : '問題あり'}`),
           element('p', '', `再起動回数: ${problem.count} / 集計期間（秒）: ${problem.windowSeconds}`),
           element('p', '', `直近の終了コード: ${problem.lastExit.code ?? '未観測'} / シグナル: ${problem.lastExit.signal ?? '未観測'}`),
           element('p', '', `直近の理由: ${problem.lastReason}`))
         section.append(row)
       }
-      (componentStatuses ? detail : product).append(section)
+      detail.append(section)
     }
     if (focus) product.querySelector(`[data-update-control="${focus}"]`)?.focus()
+  }
+  function renderBanner({ components, states, readError, selectedPlan }) {
+    const name = id => components.find(item => item.id === id)?.name ?? '機能'
+    const lines = [], banner = element('section', 'update-banner')
+    let tone = 'danger', heading = ''
+    if (readError) {
+      heading = storageFailure ? 'この端末に更新の記録を保存できません' : '更新情報を読み取れませんでした'
+      lines.push(storageFailure ? 'ブラウザーの保存を許可してから、画面を開き直してください。' : '接続を確かめて、「もう一度確認」を押してください。')
+    }
+    if (operationReadError) { heading ||= '更新の結果を確認できませんでした'; lines.push('接続を確かめて、「もう一度確認」を押してください。更新は二重には始まりません。') }
+    if (operationMessage && !submitting) { heading ||= '更新を始められませんでした'; lines.push(operationMessage) }
+    for (const item of components) {
+      const state = states.get(item.id), status = componentStatus(item.status) ? item.status : null
+      if (state.badge === '要対応') { heading ||= `${item.name}が使えません`; lines.push(`${item.name}: ${status?.action ?? 'この機能は今使えません。「詳細」の内容を担当に伝えてください。'}`) }
+      if (state.badge === '失敗') { heading ||= '前回の更新ができませんでした'; lines.push(`${item.name}: ${item.availability.available === false ? 'この機能は今使えません。「詳細」の内容を担当に伝えてください。' : '元の版のまま動いています。' + (item.comparison.state === 'update_available' ? '「もう一度更新」でやり直せます。' : '対応は不要です。')}`) }
+    }
+    for (const problem of inventory?.problems ?? []) if (problem.status === 'open') {
+      heading ||= `${name(problem.moduleId)}が再起動を繰り返しています`; lines.push(`${name(problem.moduleId)}: 「詳細」の内容を担当に伝えてください。`)
+    }
+    const done = !selectedPlan && ownResult && (ownResult.jobs?.length ? ownResult.jobs.every(job => (recentJobs.find(item => item.jobId === job.jobId) ?? job).state === 'ready') : ownResult.phase === 'completed' && ownResult.execution === 'succeeded')
+    if (!heading && done) {
+      tone = 'ok'; heading = `${ownResult.plan.targets.map(target => name(target.componentId)).join('・')}を${ownResult.plan.action === 'rollback' ? '戻しました' : '更新しました'}`
+    }
+    if (!heading) return
+    banner.dataset.tone = tone; banner.setAttribute('role', tone === 'ok' ? 'status' : 'alert')
+    banner.append(element('strong', '', heading))
+    for (const line of [...new Set(lines)]) banner.append(element('p', '', line))
+    if (readError || operationReadError) {
+      const retry = element('button', 'update-banner-action', 'もう一度確認'); retry.type = 'button'
+      retry.dataset.updateControl = 'retry'; retry.disabled = loading || submitting
+      retry.addEventListener('click', () => { void refresh() }); banner.append(retry)
+    }
+    product.append(banner)
+  }
+  function renderCards(items, states, candidates, label) {
+    const group = element('section', 'update-cards')
+    if (label) { group.classList.add('is-runtime'); group.append(element('h4', 'update-cards-label', label)) }
+    for (const item of items) {
+      const state = states.get(item.id), card = element('article', 'update-card')
+      card.dataset.component = item.id; card.dataset.tone = state.tone
+      const top = element('div', 'update-card-top')
+      const icon = element('span', 'update-card-icon'); icon.dataset.icon = cardIcons.includes(item.id) ? item.id : isRuntime(item.id) ? 'runtime' : 'module'
+      icon.setAttribute('aria-hidden', 'true')
+      const badge = element('span', 'update-badge', state.badge); badge.dataset.tone = state.tone
+      top.append(icon, badge)
+      const version = versionName(item, state.job), line = element('p', 'update-card-version')
+      line.append(element('span', 'update-card-version-name', version.name))
+      if (version.origin) line.append(element('span', 'update-card-origin', version.origin))
+      if (item.comparison.state === 'update_available') line.append(element('span', 'update-card-next', item.publication ? `新しい版 ${shortTime(item.publication.catalog.publishedAt)}` : '新しい版あり'))
+      card.append(top, element('h4', 'update-card-name', item.name), line, element('p', 'update-card-description', item.description))
+      if (state.step) {
+        const progress = element('div', 'update-progress'); progress.setAttribute('role', 'progressbar')
+        progress.setAttribute('aria-valuemin', '0'); progress.setAttribute('aria-valuemax', '4'); progress.setAttribute('aria-valuenow', String(state.step))
+        progress.setAttribute('aria-label', `${item.name}の更新 ${state.step}/4`)
+        const bar = element('span', ''); bar.style.width = `${state.step * 25}%`; progress.append(bar)
+        card.append(progress, element('p', 'update-card-step', `${state.step}/4 · ${stepText[state.job.state]}`))
+      }
+      if (item.comparison.state === 'update_available') {
+        const notes = item.changes.filter(line => line.length <= 120 && !/sha256|commit|protocol|schema|\bnull\b|[a-f0-9]{12,}/i.test(line) && !/\b[A-Z][A-Z_]{5,}\b/.test(line)).slice(0, 2)
+        if (notes.length) { const list = element('ul', 'update-card-notes'); for (const line of notes) list.append(element('li', '', line)); card.append(list) }
+      }
+      const foot = element('div', 'update-card-foot')
+      foot.append(element('span', 'update-card-time', state.job ? `${{ succeeded: '最終更新', running: '開始', failed: '失敗' }[state.job.outcome]} ${shortTime(state.job.at)}` : '更新の記録なし'))
+      if (candidates.includes(item)) {
+        const button = element('button', 'update-card-action', state.badge === '失敗' ? 'もう一度更新' : '更新'); button.type = 'button'
+        button.dataset.updateControl = `card-${item.id}`; button.disabled = loading || planning || submitting
+        button.setAttribute('aria-label', `${item.name}を${button.textContent}`)
+        button.addEventListener('click', () => { selected = item.id; planned = null; confirmed = false; planGeneration++; planning = false; void requestPlan() })
+        foot.append(button)
+      }
+      card.append(foot); group.append(card)
+    }
+    product.append(group)
+  }
+  function renderReview({ action, selectedPlan, components }) {
+    const review = element('section', 'update-plan-review')
+    for (const target of selectedPlan.targets) {
+      const item = components.find(component => component.id === target.componentId)
+      const row = element('div', 'update-review-target')
+      const icon = element('span', 'update-card-icon'); icon.dataset.icon = cardIcons.includes(target.componentId) ? target.componentId : isRuntime(target.componentId) ? 'runtime' : 'module'
+      icon.setAttribute('aria-hidden', 'true')
+      const copy = element('div', '')
+      copy.append(element('strong', '', item?.name ?? '選択した項目'), element('p', 'update-card-version', `${item ? versionName(item, cardState(item, [])?.job).name : '現在の版'} → ${selectedPlan.action === 'rollback' ? '以前の版' : item?.publication ? `新しい版 ${shortTime(item.publication.catalog.publishedAt)}` : '新しい版'}`))
+      row.append(icon, copy); review.append(row)
+    }
+    review.append(element('p', 'update-review-impact', selectedPlan.impact.containerRestart ? '更新中は全Botの会話と処理が一時中断します。再接続後に結果を確認します。' : isRuntime(selectedPlan.componentId) ? runtimeApplicationText : '本体の再起動はありません。使いながら更新できます。'))
+    const check = Array.from(detail.children).find(node => node.className === 'update-restart-confirm')
+    if (check) review.append(check)
+    action.textContent = submitting ? '受付を確認しています…' : selectedPlan.action === 'rollback' ? '確認して戻す' : '確認して更新する'
+    action.className = 'update-execute update-primary'
+    const buttons = element('div', 'update-review-actions')
+    const cancel = element('button', 'update-cancel', 'やめる'); cancel.type = 'button'; cancel.dataset.updateControl = 'cancel'; cancel.disabled = submitting
+    cancel.addEventListener('click', () => { planned = null; confirmed = false; planGeneration++; render() })
+    buttons.append(cancel, action); review.append(buttons)
+    if (!selectedPlan.capability.supported || !selectedPlan.compatibility.compatible || Date.parse(selectedPlan.expiresAt) <= Date.now()) {
+      review.append(element('p', 'update-review-impact', 'この内容では更新できません。「更新内容を再確認」で取り直してください。'))
+      const retry = element('button', 'update-replan', '更新内容を再確認'); retry.type = 'button'; retry.disabled = !canPlan(selectedPlan.action ?? 'update')
+      retry.addEventListener('click', () => { void requestPlan(selectedPlan.action ?? 'update') }); review.append(retry)
+    }
+    product.append(review)
   }
   async function requestPlan(action = 'update') {
     if (!canPlan(action)) return
@@ -579,7 +675,6 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     loading = true; render()
     const reads = [readLatest(inventoryPath, (result, revision) => {
       inventory = result.status === 'fulfilled' && validUpdateInventory(result.value) ? result.value : null
-      if (inventory) componentStatuses = inventory.components.some(item => componentStatus(item.status))
       if (inventory && revision === eventRevision) recentJobs = inventory.jobs ?? []
       failure = inventory ? '' : result.status === 'fulfilled' ? '更新情報の応答形式を確認できません。' : errorText(result.reason)
     })]

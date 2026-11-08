@@ -9,6 +9,14 @@ import { renderHarnessAuth } from './harness-auth.js?v=__ASSET_VERSION__'
 import { aiControlView } from './ai-control.js?v=__ASSET_VERSION__'
 import { createBackgroundAgentSettings } from './background-agent-settings.js?v=__ASSET_VERSION__'
 
+// Plain words and what to do for the owner; the raw code stays under 詳細.
+function showFailure(node, lead, failure) {
+  const more = document.createElement('details'), summary = document.createElement('summary'), code = document.createElement('code')
+  summary.textContent = '詳細'; code.textContent = failure?.message ?? ''
+  more.append(summary, code)
+  node.replaceChildren(Object.assign(document.createElement('span'), { textContent: `${lead}接続を確かめて、設定を開き直してください。` }), more)
+}
+
 export function createOwnerEditor(dialog, { api, onOwner, onSettings }) {
   const find = id => dialog.querySelector(`#${id}`)
   const form = find('owner-form'), name = find('owner-name'), description = find('owner-description')
@@ -133,19 +141,19 @@ export function createOwnerEditor(dialog, { api, onOwner, onSettings }) {
       opened.rulesLoaded = true
       rulesInput.disabled = false
       saveButton.disabled = false
-    } catch (failure) { if (opened === owner) error.textContent = `ユーザー規範を読めませんでした（${failure.message}）` }
+    } catch (failure) { if (opened === owner) showFailure(error, '全メンバーに共有する規範を読み込めませんでした。', failure) }
     if (opened !== owner) return
     try {
       find('feature-settings-error').textContent = ''
       await refreshFeatures(opened)
-    } catch (failure) { if (opened === owner) find('feature-settings-error').textContent = failure.message }
+    } catch (failure) { if (opened === owner) showFailure(find('feature-settings-error'), '追加機能の状態を読み込めませんでした。', failure) }
     if (opened !== owner) return
     try {
       find('harness-auth-error').textContent = ''
       const section = await renderHarnessAuth(opened.auth, { api })
       if (opened !== owner) { section.stop(); return }
       harnessAuthSection = section
-    } catch (failure) { if (opened === owner) find('harness-auth-error').textContent = failure.message }
+    } catch (failure) { if (opened === owner) showFailure(find('harness-auth-error'), 'AIの認証状態を読み込めませんでした。', failure) }
   }
   async function save(event) {
     event.preventDefault()
