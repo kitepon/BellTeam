@@ -9,7 +9,7 @@ import { createExecutionAssembly } from '../src/execution-assembly.mjs'
 import { MembersAdmission } from '../src/members-admission.mjs'
 import { AitermClient } from '../src/aiterm-client.mjs'
 
-test('cold startup resumes saved active conversations only, never fresh, and asks once for the known gap', async t => {
+test('cold startup resumes saved active conversations with resume-only launches, asks once for the known gap, and a refused resume gets one fresh continuation delivery', async t => {
   const root = await mkdtemp(join(tmpdir(), 'restart-resume-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const path = join(root, 'execution-activity.json'), now = '2026-11-06T06:00:00.000Z'
@@ -45,11 +45,14 @@ test('cold startup resumes saved active conversations only, never fresh, and ask
   }
   await start('first')
   assert.deepEqual(launches.map(value => value.session_name).sort(), ['active','unavailable'])
-  assert.equal(summaries.length, 1); assert.equal(summaries[0].botId, 'active'); assert.equal(summaries[0].from, now)
-  assert.equal(reports.some(value => value.code === 'SERVER_TURN_TRACKING_FAILED' && JSON.parse(value.diagnostic_log).code === 'RESTART_RESUME_UNAVAILABLE'), true)
+  const byBot = Object.fromEntries(summaries.map(value => [value.botId, value]))
+  assert.equal(summaries.length, 2); assert.equal(byBot.active.from, now); assert.equal(byBot.active.resumed, undefined)
+  // Owner 2026-11-08: the refused seat is not left down; one ordinary delivery wakes it fresh (restart-resume.md).
+  assert.equal(byBot.unavailable.resumed, false); assert.equal(byBot.unavailable.from, now)
+  assert.equal(reports.some(value => value.code === 'SERVER_TURN_TRACKING_FAILED' && JSON.parse(value.diagnostic_log).code === 'RESTART_RESUME_UNAVAILABLE'), false)
   assert.deepEqual(JSON.parse(await readFile(path, 'utf8')).targets, [])
   await start('second')
-  assert.equal(launches.length, 2); assert.equal(summaries.length, 1)
+  assert.equal(launches.length, 2); assert.equal(summaries.length, 2)
 
   const client = new AitermClient()
   let nativeCalls = 0
@@ -89,4 +92,36 @@ test('cold resume rejection reaches the existing registered diagnostics sink wit
   assert.deepEqual(JSON.parse(rows[0].diagnostic_log), { stage: 'restart_resume', code: 'RESTART_RESUME_UNAVAILABLE',
     botId: 'bot-active', sessionId: 'bot-active', cause_code: 'AGENT_RESUME_UNAVAILABLE' })
   assert.ok(!JSON.stringify(rows).includes('PRIVATE_BODY_STACK'))
+})
+
+for (const sendFails of [false, true]) test(`refused resume asks for one fresh continuation delivery (send fails: ${sendFails})`, async t => {
+  const { Diagnostics } = await import('../src/diagnostics.mjs')
+  const root = await mkdtemp(join(tmpdir(), 'restart-fresh-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const activity = new CurrentWork({ activityPath: join(root, 'execution-activity.json') })
+  activity.startedActivity('bot-active', 'codex-cli', 'bot-active', { session_id: 'bot-active', launch_id: 'a'.repeat(32) })
+  await activity.activityQueue
+  const diagnostics = new Diagnostics(join(root, 'diagnostics.json')); await diagnostics.initialize()
+  const bots = new Map([['bot-active', { id: 'bot-active', session: 'bot-active', harness: 'codex', project: root }]])
+  const requests = []
+  const dispatcher = createExecutionDispatcher({ generation: 'one', requestRestartSummary: async input => {
+    requests.push(input); if (sendFails) throw new Error('send failed')
+  }, ports: {
+    native: { launchOptions: async () => ({}), call: async tool => {
+      if (tool === 'pty_list') return { content: [] }
+      throw Object.assign(Error('PRIVATE_BODY_STACK'), { code: 'AGENT_RESUME_UNAVAILABLE' })
+    } }, bots, rooms: {}, membersAdmission: new MembersAdmission(),
+    configurationStorage: { root: join(root, 'intents'), ownerUid: process.getuid() },
+    access: { assertWorkAllowed() {} }, diagnostics: { record: report => diagnostics.record(report) }, observer: { report() {} },
+  } })
+  t.after(async () => { await dispatcher.control('quiesce'); await dispatcher.control('exit') })
+  await dispatcher.control('initialize')
+  for (let i = 0; i < 100 && !requests.length; i++) await new Promise(resolve => setTimeout(resolve, 1))
+  for (let i = 0; i < 20; i++) await new Promise(resolve => setTimeout(resolve, 1))
+  assert.equal(requests.length, 1)
+  assert.equal(requests[0].botId, 'bot-active'); assert.equal(requests[0].resumed, false)
+  assert.ok(Date.parse(requests[0].from) < Date.parse(requests[0].to))
+  const rows = await diagnostics.list()
+  if (!sendFails) assert.equal(rows.length, 0)
+  else assert.equal(JSON.parse(rows[0].diagnostic_log).continuation, 'failed')
 })
