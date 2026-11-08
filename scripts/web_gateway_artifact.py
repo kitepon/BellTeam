@@ -158,7 +158,9 @@ BUSINESS_FILES = {
         'src/work-graph-dispatcher.mjs',
         'src/work-graph-entry.mjs',
         'src/work-graph-ipc.mjs',
+        'src/work-graph-locks.mjs',
         'src/work-graph-protocol.mjs',
+        'src/work-graph/core.mjs',
         'src/work-graph/projection.mjs',
     )},
 }

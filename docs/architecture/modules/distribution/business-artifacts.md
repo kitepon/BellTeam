@@ -20,7 +20,7 @@ usageはentryから到達する固定inventory（設定guideとsubscriptions JSO
 
 背景agent設定の業務source・唯一writer・閉I/Oはusage所有。配布はBUSINESS_FILES['usage']へ上の2fileだけを追加し、同じ固定sourceのpackage生成と完全inventory検証へ渡す。既6設定の保存形式・互換値や他componentのclosureは変更しない。新backendのsourceと同じ通常候補へ接続し、closureだけを先行配布しない。
 
-work-graphはBUSINESS_FILES['work-graph']の固定closure（entry/dispatcher/ipc/protocol/projectionと共通module-ipc/locks/streams、package/lock）で、state fileを持たない（stateCompatibility {state:'none'}）。署名前probeはscripts/probe-work-graph-runtime.mjsを使い、人工state/logsだけを準備する。親probeの補助src（notifications-ipcとweb-push-schema）はusage/diagnosticsと同じ一時親directoryに置く。
+work-graphはBUSINESS_FILES['work-graph']の固定closure（entryから到達する全src: entry/dispatcher/ipc/locks/protocol/work-graph/core/projectionと共通module-ipc/locks/streams、package/lock）で、state fileを持たない（stateCompatibility {state:'none'}）。署名前probeはscripts/probe-work-graph-runtime.mjsを使い、人工state/logsだけを準備する。親probeの補助src（notifications-ipcとweb-push-schema）はusage/diagnosticsと同じ一時親directoryに置く。
 
 実互換はusage/state-compatibility.mjs、work-graph-protocol.mjs又はdiagnostics-protocol.mjsの本人exportへ一致させ、Node26/P1、catalog stateSchemaとcontainerUpdateはnull。別のstate番号は作らない。署名policyは各専用workflowのrefs/heads/main、repositoryId1404510084、source/signer/archiveを固定。検証前のarchive JavaScript実行は禁止し、信頼済imageのexportと比較する。
 
