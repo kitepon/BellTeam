@@ -39,10 +39,12 @@ Unknown `color` names fall back to violet.
 
 ## Sizes
 
-- Node avatar side `S`: 56 pt (Mac 64 pt), rounded rect corner `S × 0.31` as `AvatarView`.
-- More than 12 nodes: `S = max(36, S × sqrt(12 / n))`.
+Revised 2026-11-08 after the Owner watched the Apple drawing (#665): 「ノード同士が近すぎた」「画面いっぱいうまく使った方がいい」「登場人物が増えすぎたら小さくする」.
+
+- Drawable rect `D` (width `W`, height `H`): the full content area from top to bottom, minus safe-area insets, minus the nav/tab bar, minus 24 pt padding on every side. `m = min(W, H)`. The layout center is the center of `D`, not of the window.
+- Base avatar side `S0`: 56 pt (Mac 64 pt). Above 12 nodes `S12 = S0 × sqrt(12 / n)`, else `S12 = S0`.
+- Node avatar side `S = max(36, min(S12, sqrt(W × H / n) × 0.3))`, so many members shrink to fit the area. Rounded rect corner `S × 0.31` as `AvatarView`.
 - Name under the avatar: 1 line, `listNameFontSize`, ink, truncated at `S × 2.2` width.
-- Safe padding to every screen edge: 24 pt plus safe-area insets.
 
 ## Layout: force-directed
 
@@ -50,11 +52,13 @@ Every frame each node `i` with position `p` and velocity `v`:
 
 | Force | Rule | Parameter |
 | --- | --- | --- |
-| Repulsion | every pair, `F = kr / d²` along the pair, `d ≥ 1` | `kr = 12000 × (S/56)²` |
-| Spring | each edge, `F = ks × (d − L)` | `ks = 0.05`, `L = clamp(min(W,H) × 0.28, 140, 260)` pt |
-| Center gravity | toward the canvas center, `F = kg × (c − p)` | `kg = 0.015` |
-| Collision | if `d < S × 1.5`, push both apart to `S × 1.5` | hard constraint |
-| Bounds | clamp `p` inside the padded rect | hard constraint |
+| Repulsion | every pair, `F = kr / d²` along the pair, `d ≥ 1` | `kr = 0.00009 × m³ × min(1, 6 / n)` |
+| Spring | each edge, `F = ks × (d − L)` | `ks = 0.05`, `L = 0.38 × m` |
+| Center gravity | toward the center of `D`, per axis: `Fx = kx × (cx − px)`, `Fy = ky × (cy − py)` | `kx = 0.004 × m / W`, `ky = 0.004 × m / H` (weaker along the long axis, so the graph spreads across the whole area) |
+| Collision | if `d < S × 2.2`, push both apart to `S × 2.2` | hard constraint |
+| Bounds | clamp `p` so the whole node (disc and name) stays inside `D` | hard constraint |
+
+The earlier values (`kr = 12000`, `kg = 0.015`, collision `S × 1.5`) clustered everything in the center and are replaced.
 
 Integration: `v = (v + F × α) × 0.82`; `p += v × (dt × 60)`; cap `|v|` at 14 pt per frame-equivalent.
 
@@ -88,7 +92,9 @@ Node pairs connected in both directions (A→B and B→A) count as one spring.
 - Flow: dots of 3.5 pt radius in the requester's accent, spaced every 28 pt along the path, moving from requester to receiver at 90 pt/s (fixed speed, so longer lines take longer). Dots fade in over the first 10% and out over the last 10% of the path.
 - `steered` edges: same flow at 0.75 opacity, plus the base line in the requester accent at 0.35.
 - Edge start: the base line grows from requester to receiver over 350 ms ease-out, then dots start. Edge end: line and dots fade out over 300 ms.
-- Label: `label` in a chip (fill canvas 0.92, corner 8 pt, padding 6×3 pt, `listDetailFontSize`, muted, 1 line, max width 180 pt, tail truncation) at the path midpoint. Hide labels when there are more than 10 edges or the path is shorter than 120 pt; the full text shows on hover (Mac/Web/Windows) or long-press (iPhone).
+- Label: `label` in a chip (fill canvas 0.92, corner 8 pt, padding 6×3 pt, `listDetailFontSize`, muted, 1 line, max width 180 pt, tail truncation) near the path midpoint.
+- Labels and names never cover a node disc. A label chip may not intersect any disc grown by 4 pt: try path positions `t = 0.5, 0.45, 0.55, 0.4, 0.6, … 0.3, 0.7`; if none is free, the label is hidden (shown on hover/tap). A name that would overlap another node's disc moves above its own avatar; if that overlaps too, it is hidden until hover/tap.
+- Crowded (more than 10 edges, or the path is shorter than 120 pt): only newly started edges show their label, for 3 s after `edge-start`, then fade out over 400 ms. All other labels show on hover (Mac/Web/Windows) or tap/long-press (iPhone).
 
 ## Empty state
 
@@ -101,6 +107,7 @@ No nodes: centered text `いま動いているメンバーはいません` in mu
 - Reconnect immediately, then after 1, 2, 4, 8, 15, 15, … s (±20% jitter). Never give up while the page is open.
 - On the new snapshot: remove the pill, restore color, and animate the diff (Data handling step 3).
 - Non-empty `degraded`: keep the live graph and show the pill `一部の情報を取得できていません` until a batch arrives with empty `degraded`.
+- Unreadable response (HTTP error such as 503 `WORK_GRAPH_UNAVAILABLE`, bad JSON, unknown schema): keep the last graph, show the pill `データを読み込めませんでした。再接続中…`, and reconnect with the same backoff. The client never stops retrying while the page is open.
 - App backgrounded (iOS) or window hidden: close the stream; on return reconnect and diff.
 
 ## Accessibility and motion
