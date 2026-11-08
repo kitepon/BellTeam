@@ -70,14 +70,30 @@ class CatalogTest(unittest.TestCase):
             artifact=dict(kind='archive', signerCommit=SIGNER, archive=dict(url=url, bytes=42, sha256='c' * 64),
                           bundle=dict(url=url+'.sigstore.json', bytes=41, sha256='d' * 64)),
             compatibility=dict(runtimeProtocol=1, nodeMajor=26, libc='glibc'))
-        # Released readers reject unknown IDs, so the main catalog never carries runtime rows.
-        with self.assertRaises(ValueError): validate_catalog(value, now=NOW)
+        # The publisher keeps runtime rows out of the main catalog; a reader ignores such a row instead of the whole catalog.
+        with self.assertRaises(ValueError): validate_catalog(value, now=NOW, strict=True)
+        ignored = []
+        self.assertIs(validate_catalog(value, now=NOW, ignored=ignored), value)
+        self.assertEqual(ignored, ['runtime-codex'])
         runtime = dict(schema='bellteam.runtime-catalog.v1', catalogSha256='e' * 64, releases=[release])
         self.assertIs(validate_runtime_catalog(runtime), runtime)
         for bad in [dict(componentId='runtime-npm'), dict(componentId='members'),
                     dict(compatibility=dict(runtimeProtocol=1, nodeMajor=26, libc='glibc', rollbackSafe=True))]:
             broken = __import__('copy').deepcopy(runtime); broken['releases'][0].update(bad)
             with self.assertRaises(ValueError): validate_runtime_catalog(broken)
+
+    def test_unknown_component_rows_are_skipped_but_known_rows_stay_strict(self):
+        value = fixture()
+        value['releases'].append(dict(componentId='future-module', anything='newer schema'))
+        ignored = []
+        self.assertIs(validate_catalog(value, now=NOW, ignored=ignored), value)
+        self.assertEqual(ignored, ['future-module'])
+        with self.assertRaises(ValueError): validate_catalog(value, now=NOW, strict=True)
+        for bad in [dict(componentId='Bad Id'), dict(componentId=None), 'row']:
+            broken = __import__('copy').deepcopy(value); broken['releases'][1] = bad
+            with self.assertRaises(ValueError): validate_catalog(broken, now=NOW)
+        broken = __import__('copy').deepcopy(value); broken['releases'][0]['platform']['arch'] = 'mips'
+        with self.assertRaises(ValueError): validate_catalog(broken, now=NOW)
 
     def test_api_fields_are_only_selectors_and_never_urls_to_trust(self):
         record = dict(draft=False, prerelease=False, tag_name='updates-20261103T000000Z',
@@ -136,7 +152,7 @@ class CatalogTest(unittest.TestCase):
             raise AssertionError(url)
         with patch.object(Path, 'read_bytes', return_value=json.dumps(value).encode()), \
              patch.object(publication, 'download', side_effect=fetch), \
-             patch.object(publication, 'validate_catalog', side_effect=lambda v: validate_catalog(v,now=NOW)), redirect_stdout(io.StringIO()) as output:
+             patch.object(publication, 'validate_catalog', side_effect=lambda v, **options: validate_catalog(v, now=NOW, **options)), redirect_stdout(io.StringIO()) as output:
             publication.main()
             self.assertEqual(json.loads(output.getvalue())['tag'], 'updates-20261103T000000Z')
             release['sourceCommit'] = 'e'*40

@@ -89,7 +89,7 @@ def verify_conversation_release(release):
 def main():
     raw = Path('config/update-catalog.json').read_bytes()
     require(len(raw) <= MAX_CATALOG)
-    catalog = validate_catalog(strict_json(raw))
+    catalog = validate_catalog(strict_json(raw), strict=True)
     token = None
     for release in catalog['releases']:
         artifact = release['artifact']

@@ -163,7 +163,12 @@ def validate_conversation_archive(release, manifest, consumer_state):
             'UPDATE_CONVERSATION_ARCHIVE_INCOMPATIBLE')
     return manifest
 
-def validate_catalog(value, *, now=None):
+CATALOG_COMPONENTS = ('container', 'web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics', 'execution', 'conversation', 'work-graph')
+
+
+def validate_catalog(value, *, now=None, strict=False, ignored=None):
+    """Readers (strict=False) skip rows of components this body does not know, so a newer module never blocks the
+    whole catalog; known rows keep full validation. The publisher (strict=True) still rejects unknown components."""
     exact(value, 'schema,publishedAt,expiresAt,releases,revokedCatalogs')
     require(value['schema'] == 'bellteam.update-catalog.v1')
     published, expiry = timestamp(value['publishedAt']), timestamp(value['expiresAt'])
@@ -178,10 +183,15 @@ def validate_catalog(value, *, now=None):
     require(type(releases) is list and len(releases) <= 128)
     seen = set()
     for release in releases:
-        exact(release, 'componentId,sourceCommit,versionId,platform,artifact,compatibility,changes')
+        require(type(release) is dict and type(release.get('componentId')) is str
+                and re.fullmatch('[a-z][a-z0-9-]{0,63}', release['componentId']))
         component = release['componentId']
-        # Runtime rows never appear here (released readers reject unknown IDs); they live in runtime-catalog.json.
-        require(component in ['container', 'web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics', 'execution', 'conversation', 'work-graph'])
+        # Runtime rows never appear here; they live in runtime-catalog.json. An unknown row is never planned or trusted.
+        if component not in CATALOG_COMPONENTS:
+            require(not strict, 'UPDATE_CATALOG_COMPONENT_UNKNOWN')
+            if ignored is not None: ignored.append(component)
+            continue
+        exact(release, 'componentId,sourceCommit,versionId,platform,artifact,compatibility,changes')
         require(hexadecimal(release['sourceCommit'], 40))
         platform = release['platform']; exact(platform, 'os,arch')
         require(platform['os'] == 'linux' and platform['arch'] in ['amd64', 'arm64'])
