@@ -1,4 +1,4 @@
-import { json, readJson } from './http-response.mjs'
+import { json } from './http-response.mjs'
 
 // Routes for the Claude 1st/2nd accounts (docs/architecture/modules/execution/harness-accounts.md, "Public HTTP").
 // An engine without the 'accounts' owner answers EXECUTION_REQUEST_INVALID; that body does not support accounts.
@@ -13,24 +13,13 @@ export function readSeatAccount(transport, botId) {
   } catch (error) { return unsupported(error) ? undefined : null }
 }
 
-export function createAccountsApi({ accounts, internal }) {
+export function createAccountsApi({ accounts }) {
   return async (request, response, url) => {
-    if (url.pathname !== '/api/accounts' && url.pathname !== '/api/accounts/rules') return false
+    if (url.pathname !== '/api/accounts') return false
     if (!accounts?.list) return json(response, 404, { error: 'NOT_FOUND' })
-    try {
-      if (url.pathname === '/api/accounts') {
-        if (request.method !== 'GET') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
-        return json(response, 200, await accounts.list())
-      }
-      if (request.method !== 'POST') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
-      if (internal) return json(response, 403, { error: 'ACCOUNT_RULE_OWNER_REQUIRED' })
-      let input
-      try { input = await readJson(request, 4096) }
-      catch { return json(response, 400, { error: 'ACCOUNT_RULE_INVALID' }) }
-      if (!input || typeof input !== 'object' || Array.isArray(input)) return json(response, 400, { error: 'ACCOUNT_RULE_INVALID' })
-      const { harness, modelPrefix, slot } = input
-      return json(response, 200, await accounts.setRule({ harness, modelPrefix, slot }))
-    } catch (error) {
+    if (request.method !== 'GET') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
+    try { return json(response, 200, await accounts.list()) }
+    catch (error) {
       if (unsupported(error)) return json(response, 404, { error: 'NOT_FOUND' })
       throw error
     }
