@@ -128,8 +128,9 @@ export class BotSessionState {
     if (target?.session_id !== session || request?.target_session_id !== session)
       throw Object.assign(new Error('回復対象の席が一致しません。'), { code: 'BOT_RECOVERY_TARGET_INVALID' })
     // Normal configuration (no bridge): the saved delivery is redelivered on the ordinary path, which wakes the seat
-    // and keeps per-seat order. There is no registered execution to reconcile.
-    if (!this.executionBridge) return null
+    // and keeps per-seat order. The value carries the identity the parent seam checks (binding.target.launch) and
+    // tells submit to take ordinary dispatch; there is no registered execution to reconcile.
+    if (!this.executionBridge) return { ordinary: true, reservation: { request: structuredClone(request) }, binding: { target: { launch: structuredClone(target) } } }
     if (busy()) throw Object.assign(new Error('この席は処理中です。'), { code: 'EXECUTION_BUSY', effect: 'not_started' })
     // 既存の席変更一覧へ載せ、照合と設定変更・停止が交差しても不明を勝手に解除しない。
     const pending = this.executionBridge.reconcileLaunch(request, target)

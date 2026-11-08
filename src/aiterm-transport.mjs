@@ -768,8 +768,8 @@ export class AitermTransport {
             || recoveredExecution.reservation.request.delivery_id !== info.groupId
             || recoveredExecution.binding?.target?.launch.session_id !== this.session(bot))
             throw Object.assign(new Error('EXECUTION_INVALID'), { code: 'EXECUTION_INVALID', effect: 'not_started' })
-          job.execution = recoveredExecution
-          job.executionWasPresent = true
+          // An ordinary recovery (normal configuration) is redelivered by ordinary dispatch.
+          if (!recoveredExecution.ordinary) { job.execution = recoveredExecution; job.executionWasPresent = true }
         }
         check()
         this.activity.admit(job)
