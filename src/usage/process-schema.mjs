@@ -6,6 +6,7 @@ const text = value => typeof value === 'string' && value.length > 0 && !value.in
 const id = value => text(value) && value.length <= 200
 const feature = value => ['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'webPush'].includes(value)
 const harness = value => Object.hasOwn(HARNESS, value)
+const accountSlot = value => ['1st', '2nd'].includes(value)
 const none = value => object(value) && Object.keys(value).length === 0
 const shape = (required, optional = {}) => value => object(value)
   && Object.keys(value).every(key => Object.hasOwn(required, key) || Object.hasOwn(optional, key))
@@ -32,10 +33,10 @@ export const usageMethods = {
   'onboarding.start': spec(none),
   'onboarding.complete': spec(none),
   'onboarding.prepareStartup': spec(shape({ botId: id }), kinds.system),
-  'auth.list': spec(none), 'auth.status': spec(shape({ harness })),
-  'auth.start': spec(shape({ harness }), kinds.owner),
-  'auth.input': spec(shape({ harness, input: object }), kinds.owner),
-  'auth.cancel': spec(shape({ harness }), kinds.owner),
+  'auth.list': spec(none), 'auth.status': spec(shape({ harness }, { slot: accountSlot })),
+  'auth.start': spec(shape({ harness }, { slot: accountSlot }), kinds.owner),
+  'auth.input': spec(shape({ harness, input: object }, { slot: accountSlot }), kinds.owner),
+  'auth.cancel': spec(shape({ harness }, { slot: accountSlot }), kinds.owner),
   'secrets.create': spec(shape({ toolId: text, label: text, message: text }, { roomId: value => value === null || id(value) }), kinds.bot),
   'secrets.get': cardRead,
   'secrets.submit': spec(shape({ id, value: value => typeof value === 'string' }), kinds.owner),
@@ -60,7 +61,8 @@ export function validateUsageActor(actor) {
     && (actor.kind === 'bot' ? actor.botId !== null : actor.botId === null)
 }
 export function validateUsageRequest(method, params, actor) {
-  if (!Object.hasOwn(usageMethods, method) || !usageMethods[method].valid(params)) throw usageError('USAGE_INPUT_INVALID', 400)
+  if (!Object.hasOwn(usageMethods, method) || !usageMethods[method].valid(params)
+    || method.startsWith('auth.') && params.slot === '2nd' && params.harness !== 'claude') throw usageError('USAGE_INPUT_INVALID', 400)
   if (!validateUsageActor(actor) || !usageMethods[method].actors.includes(actor.kind)
     || actor.kind === 'bot' && method === 'settings.update' && params.id === 'webPush') throw usageError('USAGE_ACTOR_FORBIDDEN', 403)
 }

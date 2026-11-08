@@ -1,6 +1,7 @@
 import { json, readJson } from '../http-response.mjs'
 import { SubscriptionAccessError } from '../subscriptions.mjs'
 import { webPushError, webPushFields, validateWebPushOrigin } from './web-push-schema.mjs'
+import { harnessAuthSlot, HarnessAuthError } from '../harness-auth.mjs'
 import { authCodeChallenge } from '../auth-ui.mjs'
 import { backgroundAgentError, backgroundInputValid } from './background-agent-settings.mjs'
 
@@ -36,9 +37,12 @@ export function createUsageApi({ onboarding, internal, notify, harnessAuth, sett
       if (!harnessAuth) return json(response, 404, { error: 'NOT_FOUND' })
       const [, harness, action] = harnessAuthMatch
       if (internal && request.method !== 'GET') return json(response, 403, { error: 'HARNESS_AUTH_OWNER_REQUIRED' })
-      if (request.method === 'GET' && !action) return json(response, 200, harness ? await harnessAuth.status(harness, await context('auth.status')) : harnessAuth.list())
-      if (request.method === 'POST' && action === 'input') return json(response, 200, await harnessAuth.input(harness, await readJson(request, 8192), await context('auth.input')))
-      if (request.method === 'POST' && action) return json(response, 200, await harnessAuth[action](harness, await context('auth.' + action)))
+      const slots = url.searchParams.getAll('slot')
+      if (slots.length > 1 || slots.length && !harness) throw new HarnessAuthError('HARNESS_AUTH_SLOT_INVALID', 400, '認証するアカウントを選んでください。')
+      const options = slots.length ? { slot: harnessAuthSlot(harness, slots[0]) } : {}
+      if (request.method === 'GET' && !action) return json(response, 200, harness ? await harnessAuth.status(harness, await context('auth.status'), options) : harnessAuth.list())
+      if (request.method === 'POST' && action === 'input') return json(response, 200, await harnessAuth.input(harness, await readJson(request, 8192), await context('auth.input'), options))
+      if (request.method === 'POST' && action) return json(response, 200, await harnessAuth[action](harness, await context('auth.' + action), options))
       return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
     }
     if (url.pathname === '/api/settings' && request.method === 'GET') return json(response, 200, {

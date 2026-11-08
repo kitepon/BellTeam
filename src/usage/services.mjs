@@ -2,7 +2,7 @@ import { join } from 'node:path'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { FeatureSettings } from '../feature-settings.mjs'
 import { Onboarding, HARNESS } from '../onboarding.mjs'
-import { HarnessAuth } from '../harness-auth.mjs'
+import { HarnessAuth, harnessAuthStateKeyValid } from '../harness-auth.mjs'
 import { SecretRequests, secretCompletionMessage } from '../secret-requests.mjs'
 import { OwnerQuestions, ownerAnswerMessage } from '../owner-questions.mjs'
 import { Subscriptions } from '../subscriptions.mjs'
@@ -11,12 +11,14 @@ import { usageError, validateUsageRequest } from './process-schema.mjs'
 import { BackgroundAgentSettings } from './background-agent-settings.mjs'
 
 const clone = value => structuredClone(value)
-const receiptKeys = ['schema', 'status', 'session_id', 'url', 'user_code', 'input_required', 'message']
+const receiptKeys = ['slot', 'account_label', 'schema', 'status', 'session_id', 'url', 'user_code', 'input_required', 'message']
 function receipt(value, session) {
   if (value === null) return null
   if (!value || typeof value !== 'object' || Array.isArray(value)
     || ['session_id', 'url', 'user_code', 'message'].some(key => value[key] !== undefined && value[key] !== null && typeof value[key] !== 'string')
     || value.input_required !== undefined && typeof value.input_required !== 'boolean'
+    || value.slot !== undefined && !['1st', '2nd'].includes(value.slot)
+    || value.account_label !== undefined && value.account_label !== null && typeof value.account_label !== 'string'
     || session && value.session_id && value.session_id !== session) throw usageError('USAGE_HANDOFF_INVALID')
   authReceipt({ structuredContent: value }, session, () => usageError('USAGE_HANDOFF_INVALID'))
   return { ...Object.fromEntries(receiptKeys.filter(key => Object.hasOwn(value, key)).map(key => [key, value[key]])), auth_ui: authUi(value, session ?? value.session_id) }
@@ -35,8 +37,9 @@ function volatileState(value) {
   }
   const epochs = map(value.epochs, (id, epoch) => ['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'webPush'].includes(id) && Number.isSafeInteger(epoch) && epoch >= 0)
   if (epochs.size !== 6) throw usageError('USAGE_HANDOFF_INVALID')
-  const sessions = map(value.sessions, (key, session) => Object.hasOwn(HARNESS, key) && typeof session === 'string' && session.length > 0)
-  const receipts = map(value.receipts, (key, item) => Object.hasOwn(HARNESS, key) && item !== null && Boolean(receipt(item, sessions.get(key))))
+  const sessions = map(value.sessions, (key, session) => harnessAuthStateKeyValid(key) && typeof session === 'string' && session.length > 0)
+  const receipts = map(value.receipts, (key, item) => harnessAuthStateKeyValid(key) && item !== null
+    && (item.slot === undefined ? key !== 'claude:2nd' : item.slot === (key === 'claude:2nd' ? '2nd' : '1st')) && Boolean(receipt(item, sessions.get(key))))
   const errors = map(value.errors, (id, code) => ['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'webPush'].includes(id) && typeof code === 'string' && /^[A-Z_0-9]+$/u.test(code))
   return { epochs, sessions, receipts: new Map([...receipts].map(([h, item]) => [h, receipt(item, sessions.get(h))])), errors, onboardingAuth: receipt(value.onboardingAuth) }
 }
@@ -124,9 +127,9 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
       if (!bot) throw usageError('BOT_NOT_FOUND', 404)
       return onboarding.prepareStartup(bot)
     },
-    'auth.list': () => harnessAuth.list(), 'auth.status': ({ harness }) => harnessAuth.status(harness),
-    'auth.start': ({ harness }) => harnessAuth.start(harness), 'auth.input': ({ harness, input }) => harnessAuth.input(harness, input),
-    'auth.cancel': ({ harness }) => harnessAuth.cancel(harness),
+    'auth.list': () => harnessAuth.list(), 'auth.status': ({ harness, slot }) => harnessAuth.status(harness, { slot }),
+    'auth.start': ({ harness, slot }) => harnessAuth.start(harness, { slot }), 'auth.input': ({ harness, input, slot }) => harnessAuth.input(harness, input, { slot }),
+    'auth.cancel': ({ harness, slot }) => harnessAuth.cancel(harness, { slot }),
     'secrets.create': (params, actor) => secretRequests.create({ ...params, botId: actor.botId }),
     'secrets.get': ({ id }, actor) => getOwned(secretRequests, id, actor, 'SECRET_REQUEST_NOT_FOUND'),
     'secrets.submit': ({ id, value }) => secretRequests.submit(id, value), 'secrets.cancel': ({ id }) => secretRequests.cancel(id),
@@ -143,7 +146,7 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
     'subscriptions.completeSetup': ({ botId }) => subscriptions.completeSetup(botId),
     'subscriptions.runSetupTest': ({ botId }) => subscriptions.runSetupTest(botId, () => callEffect('subscription.setupTest', { botId })),
   }
-  const harnessAuth = new HarnessAuth({ bots, client })
+  const harnessAuth = new HarnessAuth({ bots, client, accounts: { prepare: (harness, slot) => callEffect('auth.prepareAccount', { harness, slot }) } })
   const publish = record => {
     const row = clone({ ...record, revision: ++revision }), previous = projectionTail
     const result = scoped(async () => { await previous; await onProjection(row) })

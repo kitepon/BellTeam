@@ -23,7 +23,13 @@ export function usageResultValid(method, value, params = {}) {
   if (['settings.setError', 'onboarding.prepareStartup', 'secrets.notifyOwnerGuide'].includes(method)) return value === null
   if (method.startsWith('onboarding.')) return record('onboarding', value)
   if (method === 'auth.list') return record('auth', value)
-  if (method.startsWith('auth.')) return exact(value, ['harness', 'auth']) && value.harness === params.harness && auth(value.auth)
+  if (method.startsWith('auth.')) {
+    const slot = params.slot ?? '1st'
+    const legacy = exact(value, ['harness', 'auth']) && slot === '1st'
+    const scoped = params.harness === 'claude' && exact(value, ['harness', 'slot', 'account_label', 'auth'])
+      && value.slot === slot && (value.account_label === null || typeof value.account_label === 'string')
+    return (legacy || scoped) && value.harness === params.harness && auth(value.auth)
+  }
   if (method === 'secrets.timeline') return timeline('secret_request', value)
   if (method.startsWith('secrets.')) return record('secret', value) && (!params.id || value.id === params.id)
   if (method === 'questions.timeline') return timeline('owner_question', value)

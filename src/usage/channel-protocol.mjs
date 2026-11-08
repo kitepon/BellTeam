@@ -1,3 +1,4 @@
+import { isAbsolute } from 'node:path'
 import { HARNESS, GUIDE_BOT_ID } from '../onboarding.mjs'
 import { usageError, validateUsageActor } from './process-schema.mjs'
 import { usageProjectionRecordValid } from './projection.mjs'
@@ -39,9 +40,14 @@ export function usageEffectValid(method, params, context, rootParams = {}) {
   if (method === 'members.read') return exact(params, '') && (context.kind === 'control' && context.method === 'initialize' && ['services', 'restore'].includes(context.mode)
     || context.kind === 'root' && ['secrets.create', 'questions.create', 'onboarding.prepareStartup'].includes(context.method))
   if (context.kind !== 'root') return false
-  if (method === 'auth.call') return named(params, ['harness', 'action'], ['session_id', 'relogin', 'expected_binding', 'expected_prompt_digest', 'response'])
+  if (method === 'auth.prepareAccount') return exact(params, 'harness,slot') && params.harness === 'claude'
+    && ['1st', '2nd'].includes(params.slot) && params.harness === rootParams.harness && params.slot === (rootParams.slot ?? '1st')
+    && ['auth.start', 'auth.status', 'auth.input', 'auth.cancel'].includes(context.method)
+  if (method === 'auth.call') return named(params, ['harness', 'action'], ['session_id', 'relogin', 'expected_binding', 'expected_prompt_digest', 'response', 'configuration_root'])
     && Object.values(HARNESS).includes(params.harness) && authActions[context.method]?.includes(params.action)
     && (!params.session_id || text(params.session_id)) && (!Object.hasOwn(params, 'relogin') || typeof params.relogin === 'boolean')
+    && (!Object.hasOwn(params, 'configuration_root') || rootParams.harness === 'claude' && params.harness === HARNESS.claude
+      && typeof params.configuration_root === 'string' && isAbsolute(params.configuration_root) && !params.configuration_root.includes('\0'))
     && (params.action !== 'respond' || object(params.expected_binding) && text(params.expected_prompt_digest) && object(params.response))
   if (!allowed[method]?.includes(context.method)) return false
   if (method === 'backgroundAgent.models') return exact(params, 'harness') && backgroundHarnesses.includes(params.harness) && params.harness === rootParams.harness
@@ -62,6 +68,8 @@ export function usageEffectResultValid(method, value) {
   if (method === 'members.read') return Array.isArray(value) && value.every(metadata)
   if (method === 'onboarding.ensureGuide') return metadata(value) && value.id === GUIDE_BOT_ID
   if (method === 'rooms.read') return Array.isArray(value) && value.every(room => exact(room, 'id,memberIds') && text(room.id) && Array.isArray(room.memberIds) && room.memberIds.every(text))
+  if (method === 'auth.prepareAccount') return exact(value, 'configurationRoot') && typeof value.configurationRoot === 'string'
+    && isAbsolute(value.configurationRoot) && !value.configurationRoot.includes('\0')
   if (method === 'auth.call') return named(value, ['structuredContent'], ['isError']) && object(value.structuredContent) && (!Object.hasOwn(value, 'isError') || typeof value.isError === 'boolean')
   if (method === 'subscription.setupTest') return text(value) && value.trim().length > 0
   return Object.hasOwn(allowed, method) && value === null

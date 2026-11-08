@@ -74,6 +74,7 @@ flowchart LR
   m_usage -->|"turn"| m_execution
   m_usage -->|"lifecycle"| m_runtime
   m_usage -->|"seat-process"| m_runtime
+  m_usage -->|"accounts"| m_execution
   m_web -->|"HTTP/SSE"| m_integration
   m_work_graph -->|"observation"| m_execution
   m_work_graph -->|"registry"| m_members
@@ -131,7 +132,7 @@ flowchart LR
 | [会話・履歴](modules/conversation/README.md) | N102 | messages / history / membership-cleanup / room-access / durable-messages |
 | [診断](modules/diagnostics/README.md) | シグナル | diagnostics |
 | [商用配布](modules/distribution/README.md) | センチ | image / web-gateway-artifact / notifications-artifact / update-catalog / members-artifact / memory-artifact / conversation-artifact / runtime-artifact / work-graph-artifact |
-| [AI実行制御](modules/execution/README.md) | キロ | turn / configuration / stop / observation / members-admission |
+| [AI実行制御](modules/execution/README.md) | キロ | turn / configuration / stop / observation / members-admission / accounts |
 | [共通入口・結合実装](modules/integration/README.md) | モリー | HTTP/MCP / HTTP/SSE / diagnostics |
 | [mcp-lazy](modules/mcp-lazy/README.md) | レオナ | relay |
 | [メンバー・予定](modules/members/README.md) | ベロータ | registry / schedules / instructions |
