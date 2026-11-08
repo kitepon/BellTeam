@@ -8,7 +8,7 @@ import { createSeatProcessRunner } from './seat-process.mjs'
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
-import { runtimeEnvironment, runtimeEnvironmentKeys } from './runtime-home.mjs'
+import { runtimeEnvironment, runtimeEnvironmentKeys, runtimeHome } from './runtime-home.mjs'
 import { returnedExecutionError, ERROR_META } from './execution-error.mjs'
 import { authenticationPreflightFailure, unpromptedLaunchActionRequired, resumeUnavailable } from './agent-launch-error.mjs'
 import { captureMcpRequest } from './mcp-request-context.mjs'
@@ -24,7 +24,10 @@ export class AitermClient {
     this.environmentReady = options.environmentReady ?? null
     this.command = command
     this.args = [...args]
-    this.env = env
+    // harness-accounts.md E1: the parent's own Aiterm learns which account roots it may use; never a seat's env.
+    // Parent clients (seatProject set) get the default; a seat launcher receives it explicitly per launch.
+    this.claudeConfigRoots = options.claudeConfigRoots ?? (seatProject !== null ? join(runtimeHome(), '.bellteam-accounts', 'claude') : null)
+    this.env = this.claudeConfigRoots ? { ...env, AITERM_CLAUDE_CONFIG_ROOTS: this.claudeConfigRoots } : env
     this.runtimeCapture = options.runtimeCapture ?? null
     this.client = null
     this.transport = null
@@ -128,7 +131,8 @@ export class AitermClient {
         throw Object.assign(new Error('SEAT_LAUNCH_ARGUMENTS'), { code: 'SEAT_LAUNCH_ARGUMENTS' })
       const { stdout } = await createSeatProcessRunner(launchProject)(process.execPath,
         [fileURLToPath(new URL('./run-seat-aiterm-launch.mjs', import.meta.url))], {
-          input: JSON.stringify({ command: this.command, args: this.args, launch: args, meta, ...(runtime ? { runtime } : {}) }),
+          input: JSON.stringify({ command: this.command, args: this.args, launch: args, meta, ...(runtime ? { runtime } : {}),
+            ...(this.claudeConfigRoots && args.configuration_root ? { claudeConfigRoots: this.claudeConfigRoots } : {}) }),
         })
       const response = JSON.parse(stdout)
       if (response.error) throw Object.assign(new Error(response.error.message), response.error)
@@ -140,7 +144,7 @@ export class AitermClient {
       // Do not silently serialize a server-evaluated environment across this boundary.
       if (this.seatProject !== null) throw new Error('SEAT_DYNAMIC_ENV_UNWIRED')
       // Aitermは値ではなくMCPプロセスの変数名を受け取る。起動ごとに専用の短命接続を使う。
-      const launcher = new AitermClient({ command: this.command, args: this.args, env, ...(runtime ? { runtimeCapture: runtime } : {}) })
+      const launcher = new AitermClient({ command: this.command, args: this.args, env, claudeConfigRoots: this.claudeConfigRoots, ...(runtime ? { runtimeCapture: runtime } : {}) })
       try {
         const env_vars = Object.keys(env).filter(key => runtimeEnvironmentKeys.includes(key) || env[key] !== process.env[key])
         return await launcher.call(name, { ...args, env_vars }, { meta })
@@ -157,6 +161,17 @@ export class AitermClient {
     const callClient = this.client
     if (boundConfiguration) configurationConnection(this, expectedConfiguration.sdk, expectedConfiguration.transport)
     if (boundAuth) authConnection(this, expectedAuthConnection)
+    // An Aiterm without the account inputs would drop them silently and run on the wrong account.
+    const accountInput = name === 'agent_launch' && Object.hasOwn(args, 'configuration_root') ? ['agent_launch', 'configuration_root', 'string']
+      : name === 'pty_close' && args.hibernate === true ? ['pty_close', 'hibernate', 'boolean'] : null
+    if (accountInput) {
+      let supported = false
+      try {
+        const tools = await callClient.listTools()
+        supported = tools.tools.some(tool => tool.name === accountInput[0] && tool.inputSchema?.properties?.[accountInput[1]]?.type === accountInput[2])
+      } catch { /* Nothing was issued by the capability read. */ }
+      if (!supported) throw Object.assign(new Error('ACCOUNT_CAPABILITY_UNAVAILABLE'), { code: 'ACCOUNT_CAPABILITY_UNAVAILABLE', effect: 'not_started' })
+    }
     if (name === 'agent_launch' && args.require_existing_resume === true) {
       let supported = false
       try {

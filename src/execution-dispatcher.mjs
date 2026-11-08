@@ -8,6 +8,8 @@ import { BotGoals } from './bot-goals.mjs'
 import { SeatTurns } from './seat-turns.mjs'
 import { IdleSessions } from './idle-sessions.mjs'
 import { CapacityContinuation } from './capacity-continuation.mjs'
+import { HarnessAccounts } from './harness-accounts.mjs'
+import { runtimeHome } from './runtime-home.mjs'
 
 export const EXECUTION_STATE_COMPATIBILITY = 'bellteam.execution-state.v1'
 // This engine accepts ports.access.assertInput (Z-c update hold); a parent passes it only when this is true.
@@ -21,10 +23,11 @@ const asyncMethods = {
     'idle', 'restartIfIdle', 'updateWorkSummary', 'seatTurns', 'watchSeatTurns', 'screenKey', 'screenApproval'],
   administration: ['configureFromMcp', 'update', 'reconcile', 'readConfigurationOperation', 'stop', 'restart', 'remove'],
   goals: ['list', 'inspect', 'mutate'],
+  accounts: ['list', 'setRule', 'prepare'],
 }
 const syncMethods = {
   transport: ['session', 'currentWork', 'currentWorkBinding', 'shownInSelfTurn', 'consumeShownWords',
-    'isIdle', 'deliveryBots', 'queueItems', 'currentTurn'],
+    'isIdle', 'deliveryBots', 'queueItems', 'currentTurn', 'seatAccount'],
   administration: ['view'],
 }
 export const EXECUTION_METHODS = Object.freeze({
@@ -103,8 +106,9 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
   const { root, ...storageOptions } = ports.configurationStorage
   const requests = new ConfigurationRequests({ client: native, intents: new ConfigurationIntents(root,
     { ...storageOptions, runtimeCapture: () => ports.native.runtime() }) })
+  const accounts = new HarnessAccounts({ home: runtimeHome(), statePath: join(dirname(root), 'harness-accounts.json') })
   const transport = createManagedTransport({
-    ...ports.seat, ...Object.fromEntries(Object.entries(ports.storage ?? {}).filter(([key]) => key !== 'deliveryAnchor')), backgroundSummary,
+    ...ports.seat, accounts, ...Object.fromEntries(Object.entries(ports.storage ?? {}).filter(([key]) => key !== 'deliveryAnchor')), backgroundSummary,
     activityPath: join(dirname(root), 'execution-activity.json'),
     runtimeLaunchesPath: join(dirname(root), 'execution-runtime-launches.json'),
     trackCompletion: track, client: native, membersAdmission: ports.membersAdmission, conversationAdmission: ports.conversationAdmission,
@@ -122,7 +126,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
   const goals = new BotGoals({ transport, admitWork: ports.access.admitWork,
     reportError: error => { alive(); return track(ports.diagnostics?.goalError?.(error)) } })
   const continuation = ports.continuation ? new CapacityContinuation({ ...ports.continuation,
-    bots: ports.bots, administration,
+    bots: ports.bots, administration, accounts, transport,
     assertEnabled: () => { alive(); ports.access.assertWorkAllowed() },
   }) : null
   const deferredRecovery = []
@@ -159,7 +163,8 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
   const unsubscribe = transport.watchQueue(change => {
     alive(); track(ports.observer?.emitQueue?.(change))
   })
-  const engines = { transport, administration, goals }
+  const engines = { transport, administration, goals,
+    accounts: { list: () => accounts.list(), setRule: rule => accounts.setRule(rule), prepare: (harness, slot) => accounts.prepare(harness, slot) } }
   const deliveryMethods = new Set(['transport.turn', 'transport.notify', 'transport.notifyReport', 'transport.setupTest'])
   const invoke = (request, type) => {
     enterFor({ type, method: request?.method }); validateRequest(request, type)
@@ -305,6 +310,9 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
       if (initialized || phase !== 'created') throw failure('EXECUTION_NOT_ACCEPTING')
       phase = 'initializing'
       initialization = (async () => {
+        // Re-arm the exact-time reset timers from the registry (restart and engine exchange alike).
+        await accounts.load()
+        void transport.reviewAccounts()
         if (!handoff) {
           for (const reference of await transport.workState.takeRestartActivity()) {
             const bot = ports.bots.get(reference.botId)

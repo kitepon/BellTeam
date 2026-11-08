@@ -17,7 +17,7 @@ export function createExecutionFacade({ getController, client, membersAdmission,
       throw failure('EXECUTION_NOT_ACCEPTING')
     return controller
   }
-  const result = { transport: { client, membersAdmission, requestStop, watchQueue }, administration: {}, goals: {} }
+  const result = { transport: { client, membersAdmission, requestStop, watchQueue }, administration: {}, goals: {}, accounts: {} }
   for (const method of EXECUTION_METHODS.project) {
     const [owner, name] = method.split('.')
     result[owner][name] = (...args) => current().project({ method, args })
@@ -32,6 +32,10 @@ export function createExecutionFacade({ getController, client, membersAdmission,
   // after_turn (current-work.md): every currentTurn change per listener, over the exchange-surviving queue stream.
   result.transport.watchCurrentTurn = listener => watchCurrentTurn(watchQueue,
     botId => current().project({ method: 'transport.currentTurn', args: [botId, { startedAt: true }] }), listener)
+  // harness-accounts.md: registry changes arrive on the exchange-surviving queue stream as topic 'accounts'.
+  result.accounts.watch = listener => watchQueue(change => {
+    if (change?.topics?.includes('accounts')) { try { listener() } catch {} }
+  })
   result.transport.close = () => {
     try { return current().close() } catch (error) { return Promise.reject(error) }
   }

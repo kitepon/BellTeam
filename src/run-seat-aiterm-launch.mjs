@@ -19,6 +19,8 @@ try {
   client = new AitermClient({ command: request.command, args: request.args, env: process.env, ...(request.runtime ? { runtimeCapture: request.runtime } : {}) })
   // Aiterm takes names and reads values from its own seat-owned MCP process.
   const env_vars = Object.keys(process.env).filter(key => /^[A-Za-z_][A-Za-z0-9_]*$/.test(key))
+  // Only this launcher's Aiterm reads it (account roots, harness-accounts.md E1); it is not forwarded to the seat.
+  if (typeof request.claudeConfigRoots === 'string' && request.claudeConfigRoots) process.env.AITERM_CLAUDE_CONFIG_ROOTS = request.claudeConfigRoots
   let response
   try {
     response = { result: await client.call('agent_launch', { ...request.launch, env_vars }, { meta: request.meta }) }

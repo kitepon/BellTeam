@@ -25,8 +25,8 @@ export function recoverableTurnFailure(receipt, result) {
 }
 
 export class CapacityContinuation {
-  constructor({ bots, administration, messenger, models, harnessAuth, assertEnabled }) {
-    Object.assign(this, { bots, administration, messenger, models, harnessAuth, assertEnabled })
+  constructor({ bots, administration, messenger, models, harnessAuth, assertEnabled, accounts = null, transport = null }) {
+    Object.assign(this, { bots, administration, messenger, models, harnessAuth, assertEnabled, accounts, transport })
     // shortcut: the finite episode budget is process-local, persist it if recovery must span restarts.
     this.states = new Map()
     this.pending = new Set()
@@ -67,6 +67,32 @@ export class CapacityContinuation {
     guard()
     await this.bots.refresh?.()
     if (!sameSettings(this.bots.get(context.bot.id), context.bot)) throw superseded()
+    // harness-accounts.md: another account of the same harness comes before another harness.
+    if (context.accountLimit && this.accounts && this.transport?.switchAccount && !state.accountSwitched) {
+      await context.accountLimit.recorded.catch(() => {})
+      guard()
+      const slot = await this.accounts.effectiveSlot('claude', context.bot.model)
+      if (slot !== context.accountLimit.slot) {
+        state.accountSwitched = true
+        let switched = false
+        try {
+          await this.transport.switchAccount(this.bots.get(context.bot.id) ?? context.bot, { admissionCheck: () => guard() })
+          switched = true
+        } catch { /* Not moved (busy, no resume, old Aiterm): the harness continuation below still applies. */ }
+        if (switched) {
+          context.reconfigured?.()
+          guard()
+          const message = `利用上限で前の処理が終了したため、同じAIの${slot}アカウントへ切り替えて、同じ会話を再開しました。` +
+            `元の依頼は保存された会話履歴のdelivery_id=${context.deliveryId}です。` +
+            '前の処理で実行済みの操作や結果不明の副作用を確認し、元の依頼本文や完了済みの操作を繰り返さずに続けてください。'
+          const check = () => guard(message)
+          check(); state.sent++
+          const result = await this.messenger.sendmessage({ from: 'scheduler', target: context.bot.id, message }, { admissionCheck: check })
+          state.deliveryId = result.delivery_id
+          return
+        }
+      }
+    }
     for (const harness of ['codex', 'claude', 'grok', 'cursor', 'antigravity']) {
       if (state.attempted.has(harness)) continue
       state.attempted.add(harness)
