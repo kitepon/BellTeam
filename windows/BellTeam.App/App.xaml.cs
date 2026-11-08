@@ -90,6 +90,28 @@ public partial class App : Application
                 WritePng(window, 1280, conversationHeight, conversationOutput);
                 model.Dispose(); Shutdown(0); return;
             }
+            if (e.Args is ["--render-inspector", var inspectorScene, var inspectorAddress, var inspectorId, var inspectorOutput])
+            {
+                // The inspector (and its image sheets) read from the mock server (GET only); no save is ever sent.
+                var model = new Workspace(); var window = new MainWindow(model, persistPlacement: false);
+                await model.ConnectAsync(inspectorAddress, listen: false);
+                if (model.ConnectionError is { } connectFailure) throw new BellApiException(connectFailure);
+                await model.SelectAsync(model.Entries.FirstOrDefault(entry => entry.Target.Id == inspectorId) ?? throw new BellApiException("指定した会話がありません。"));
+                if (inspectorScene.StartsWith("pending", StringComparison.Ordinal))
+                {
+                    var swatch = Swatch(0xE8, 0x6B, 0x94);
+                    model.ImageSession(inspectorId).Keep(AvatarVariant.Large, new AvatarSelection(AvatarCropWindow.Encode(swatch, new AvatarCrop(swatch.PixelWidth, swatch.PixelHeight, 1024)), "data:image/jpeg;base64,/9j/", new AvatarCropRect(0, 0, 1, 1)), BotProfileText.Unconfirmed(new BellApiException("接続が切れました。")));
+                }
+                AvatarActionsView? sheet = inspectorScene switch { "sheet-small" => window.ShowAvatarSheetForRender(AvatarVariant.Small), "sheet-large" or "sheet-unsupported" or "pending-sheet" => window.ShowAvatarSheetForRender(AvatarVariant.Large), _ => null };
+                if (inspectorScene == "sheet-unsupported" && sheet is not null) await sheet.LoadSettingsAsync();
+                if (sheet is not null) await sheet.Ready;
+                var inspectorHeight = sheet is null ? 1300 : 820;
+                var inspectorRoot = (FrameworkElement)window.Content;
+                inspectorRoot.Measure(new Size(1280, inspectorHeight)); inspectorRoot.Arrange(new Rect(0, 0, 1280, inspectorHeight)); inspectorRoot.UpdateLayout();
+                await window.PrepareRenderAsync();
+                WritePng(window, 1280, inspectorHeight, inspectorOutput);
+                model.Dispose(); Shutdown(0); return;
+            }
             if (e.Args is ["--render-preview", _] || e.Args is ["--render-url", _, _] || e.Args is ["--render-url", _, _, _])
             {
                 // HWNDを作らず、WPFの部品を画像へ描く。Show・Activateは呼ばない。
@@ -111,7 +133,7 @@ public partial class App : Application
                 Shutdown(0);
                 return;
             }
-            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-conversation <member|room|states|stop|stop-notice|stop-member|draft|peer-sheet|stack|empty|failed> <URL> <会話ID> <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|features|notifications|connection|display|billing|update|about|stop>|schedules|updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>、--render-editor <member|new-member|room|new-room|settings|profile|feature|schedules|new-schedule|setup|authentication> <URL> <ID> <PNG> のいずれかです。");
+            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-inspector <member|member-small|room|sheet-small|sheet-large|sheet-unsupported|pending|pending-sheet> <URL> <会話ID> <PNG>、--render-conversation <member|room|states|stop|stop-notice|stop-member|draft|peer-sheet|stack|empty|failed> <URL> <会話ID> <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|features|notifications|connection|display|billing|update|about|stop>|schedules|updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>、--render-editor <member|new-member|room|new-room|settings|profile|feature|schedules|new-schedule|setup|authentication> <URL> <ID> <PNG> のいずれかです。");
 
             MainWindow? main = null;
             instance = new SingleInstance(() => Dispatcher.Invoke(() => { main!.WindowState = main.WindowState == WindowState.Minimized ? WindowState.Normal : main.WindowState; main.Show(); main.Activate(); }));

@@ -83,9 +83,9 @@
         </Border>
       </StackPanel></Border>
     </Grid>
-    <Border x:Name="Inspector" Grid.Column="2" Background="#FFFEFF" BorderBrush="#E0DBE8" BorderThickness="1,0,0,0">
+    <Border x:Name="Inspector" Grid.Column="2" Background="#99FFFFFF" BorderBrush="#E0DBE8" BorderThickness="1,0,0,0">
       <Grid>
-        <ScrollViewer VerticalScrollBarVisibility="Auto" Visibility="{Binding ProfileVisible, Converter={StaticResource Visible}}"><local:ProfileView Workspace="{Binding}" MaxWidth="760" HorizontalAlignment="Center"/></ScrollViewer>
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Visibility="{Binding ProfileVisible, Converter={StaticResource Visible}}"><local:ProfileView x:Name="ProfilePanel" Workspace="{Binding}" MaxWidth="760" HorizontalAlignment="Center"/></ScrollViewer>
         <Grid Visibility="{Binding ScreenVisible, Converter={StaticResource Visible}}" Margin="12"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions><WrapPanel><Button Content="プロフィールに戻る" Click="Profile_Click"/><Button Content="再読込" Click="Screen_Click"/></WrapPanel><TextBox Grid.Row="1" Text="{Binding Screen, Mode=OneWay}" FontFamily="Cascadia Mono, Consolas" FontSize="12" IsReadOnly="True" AcceptsReturn="True" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Botの画面"/><TextBlock Grid.Row="2" Text="{Binding ScreenStatus}" TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="5"/></Grid>
       </Grid>
     </Border>

@@ -8,6 +8,8 @@ namespace BellTeam.Tests;
 
 public sealed class QualityTests
 {
+    // The inspector nests its avatar (hero button), so look through the logical tree.
+    private static IEnumerable<AvatarTile> Tiles(System.Windows.DependencyObject parent) => System.Windows.LogicalTreeHelper.GetChildren(parent).OfType<System.Windows.DependencyObject>().SelectMany(child => child is AvatarTile tile ? [tile] : Tiles(child));
     [Fact]
     public void ActivityGroupsOneBotAndStatusAndKeepsUnknownDeliveriesSeparate()
     {
@@ -58,7 +60,7 @@ public sealed class QualityTests
                 })))));
                 workspace.ConnectAsync("http://localhost", listen: false).GetAwaiter().GetResult(); var view = new ProfileView { Workspace = workspace };
                 workspace.SelectAsync(workspace.Entries[0]).GetAwaiter().GetResult(); workspace.SelectAsync(workspace.Entries[1]).GetAwaiter().GetResult();
-                Assert.Equal("two", view.Children.OfType<AvatarTile>().Single().Entry!.Target.Id);
+                Assert.Equal("two", Tiles(view).Single().Entry!.Target.Id);
             }
             catch (Exception error) { failure = error; }
         });

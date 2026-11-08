@@ -10,7 +10,8 @@ LAN接続で一覧・会話・プロフィールを使う1段目に、画像・�
 
 - 左: メンバー・ルームの検索と一覧。ルームとメンバーの各一覧を新着順に並べる。検索は名前を対象とする。Mac版と同じく、メンバーの2行目には「今の仕事」の要約（`currentWork`）を最大2行で出し、ルームは最後のメッセージを1行で出す。仕事中の在席の点は赤く点滅する。更新がある時だけ、ロゴの右にUpdateのバッジを出す。幅は320〜420 DIPで、境目をドラッグして変えられる。
 - 中央: 選択した会話。最新30件から読み、以前のメッセージを追加で読める。SSEで一覧・会話を更新する。最新ページの既存行も更新し、配送状態や確定した本文を反映する。古い会話を読んでいる時は新着で末尾へ移動しない。
-- 右: メンバーのプロフィール・AI、またはルームの共有する仕事と参加メンバー。メンバーの会話では中央と等幅、ルームでは280 DIP。詳細パネルは隠せる。
+- 右: メンバーは大画像（正方形）の左上に白枠の小画像（152 DIP）を重ね、名前・オンライン表示、「AIと操作」（ハーネス・希望モデル・希望エフォート。空は「CLIの既定」）、「プロフィール」5項目、「メンバーを編集」。ルームは76 DIPの画像と名前、「この部屋で共有する仕事」、「参加メンバー」（30 DIPの画像と名前・役職。押すとそのメンバーの会話へ）、「ルームを編集」。メンバーの会話では中央と等幅、ルームでは280 DIP。詳細パネルは隠せる。
+- 小画像・大画像を押すと、窓内のシート（「小画像」「大画像」）が開く。「画像変更」（ファイル選択→切り抜き）と「画像調整」（今の画像か保持中の選択を切り抜き直す）。保存は`PATCH /api/bots/{id}`で、その画像の3項目（小: `avatar`・`avatarSource`・`avatarCrop`、大: `avatarLarge`・`avatarLargeSource`・`avatarLargeCrop`）だけを一度送る。通信が切れた時は`GET /api/bots/{id}`で読み戻して照合し、再送はしない。確認できない結果は選択を保持し、「保存結果を確認」「選択を破棄」を出す。サーバーが独立した大画像の項目を返さない時は「画像の独立編集はサーバー更新後に利用できます。」を出す。大画像の表示は`GET /api/bots/{id}/avatar-large?v=<avatarLargeVersion>`（独立した大画像が無ければ小画像）。
 - `Ctrl+K`: 一覧の検索。入力欄の`Enter`: 送信。`Shift+Enter`: 改行。`Ctrl+Shift+I`: 詳細パネルの表示・非表示。`Ctrl+2`: 予定。`Ctrl+,`: 設定。
 - ルームの入力欄の上に紫のカプセル型メニューを置く。「返信者を自動選択」（振り分けの設定が無効な間は選べない）とメンバーごとのチェックで返信先を決め、ラベルは「返信者を自動選択」「返信するメンバーを選択」「返信: <名前>」「返信: N人」に変わる。振り分けが無効で返信先も未選択の送信は、送らずに「返信者の自動選択は未設定です。入力欄の上で返信するメンバーを選んでください。」を入力欄の上へ出し、本文は残す。振り分けの設定は、ルームを開いた時と更新のたびに`/api/settings`の`routing`から読む。
 - 会話ごとに下書きと返信先を保持する。下書きはアプリを開いている間の状態で、終了時には保存しない。接続先の違う会話とは混在させない。
@@ -92,6 +93,7 @@ dotnet publish windows/BellTeam.App/BellTeam.App.csproj -c Release -r win-x64 --
 
 `--render-page settings-<profile|ai|features|notifications|connection|display|billing|update|about|stop> <URL> <PNG>`は設定の各ページを主窓の中の配置で描く。`mac-ui-reference.mjs`の`settings`場面が10ページ分を`settings-<ページ>.png`へ出す。
 
+`--render-inspector <member|member-small|room|sheet-small|sheet-large|sheet-unsupported|pending|pending-sheet> <URL> <会話ID> <PNG>`は詳細パネルと画像のシートを模擬サーバー（GETだけ）から描く。
 `--render-preview`は人工データ、`--render-url`は実サーバーの読み取り結果を使う。画像とsmoke結果には会話・プロフィールが含まれ得るため、生成物はgit管理外とする。`--configure <URL>`は窓を出さず、このPCの接続先だけを保存する導入用の入口。
 
 画像の読み込みにはWindows標準の`Windows.Graphics.Imaging.BitmapDecoder`を使い、WPFへ描く。SDKの参照はWindowsの版を付けたTargetFrameworkから.NETが取得する。追加のWindows App SDK runtimeは使わない。`--render-preview`は画像とカードを含む人工データを1280×1200で描く。

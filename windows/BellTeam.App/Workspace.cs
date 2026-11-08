@@ -21,6 +21,8 @@ public sealed record ConversationEntry(ChatTarget Target, string Name, string Su
     public string FastModeBadge => FastMode ? "  ⚡ ファスト" : "";
     private static readonly System.Windows.Media.Brush WorkingBrush = Frozen(0xFF, 0x3B, 0x30), OnlineBrush = Frozen(0x2E, 0xB3, 0x9E), OfflineBrush = Frozen(0xE5, 0xE3, 0xF0);
     private static System.Windows.Media.Brush Frozen(byte r, byte g, byte b) { var brush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(r, g, b)); brush.Freeze(); return brush; }
+    // The independent large image (Mac avatar-large); null while the large slot shows the small image.
+    public string? LargeAvatarUrl => Origin is not null && Bot is { UsesSmallImage: false } bot ? Origin + $"api/bots/{Uri.EscapeDataString(Target.Id)}/avatar-large?v={bot.AvatarLargeVersion}" : null;
     public string? AvatarUrl => Origin is not null && (Bot?.AvatarVersion ?? Room?.AvatarVersion ?? "").Length != 0 ? Origin + $"api/{(Target.IsRoom ? "rooms" : "bots")}/{Uri.EscapeDataString(Target.Id)}/avatar?v={Bot?.AvatarVersion ?? Room!.AvatarVersion}" : null;
 }
 
@@ -219,7 +221,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
             if (notify)
                 foreach (var entry in all)
                     if (previous.TryGetValue(entry.Target, out var before) && MessageNotification.FromRecent(Server, entry.Target, entry.Bot?.Name ?? entry.Name, before.Bot?.Recent ?? before.Room?.Recent, entry.Bot?.Recent ?? entry.Room?.Recent) is { } notification) MessageArrived?.Invoke(notification);
-            var usedAvatars = all.Select(entry => entry.AvatarUrl).ToHashSet(); foreach (var key in avatars.Keys.Where(key => !usedAvatars.Contains(key)).ToArray()) avatars.Remove(key);
+            var usedAvatars = all.SelectMany(entry => new[] { entry.AvatarUrl, entry.LargeAvatarUrl }).ToHashSet(); foreach (var key in avatars.Keys.Where(key => !usedAvatars.Contains(key)).ToArray()) avatars.Remove(key);
             var known = all.Select(entry => entry.Target).ToHashSet();
             foreach (var key in drafts.Keys.Where(key => key.Item1 == Server && !known.Contains(key.Item2)).ToArray())
             {
@@ -402,6 +404,12 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
         try { await RefreshAsync(api, connection.Token); }
         catch (Exception error) { ActionError = "保存は受け付けられましたが、一覧の更新を確認できませんでした。" + error.Message; }
     }
+    private readonly Dictionary<(string, string), AvatarImageSession> imageSessions = [];
+    // One per member and server: a selection kept after an unconfirmed save outlives the inspector and its sheet (Mac store.profileImageDrafts).
+    public AvatarImageSession ImageSession(string botId) { if (!imageSessions.TryGetValue((Server, botId), out var session)) imageSessions[(Server, botId)] = session = new(); return session; }
+    public string? AvatarVersion(string botId, AvatarVariant variant) => all.FirstOrDefault(entry => entry.Target == new ChatTarget(botId, false))?.Bot is { } bot ? variant == AvatarVariant.Small ? bot.AvatarVersion : bot.AvatarLargeVersion : null;
+    // Unlike RefreshManagementAsync this throws: the image save flow must know whether the roster caught up.
+    public Task RefreshForImageAsync() => api is null || connection is null ? Task.CompletedTask : RefreshAsync(api, connection.Token);
     public Task<BitmapSource> AvatarAsync(string url)
     {
         if (avatars.TryGetValue(url, out var existing)) return existing;

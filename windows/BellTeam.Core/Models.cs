@@ -32,6 +32,7 @@ public sealed record Bot
     public required string DisplayName { get; init; }
     public string Harness { get; init; } = "";
     public string Model { get; init; } = "";
+    public string ReasoningEffort { get; init; } = "";
     public string ProfileText { get; init; } = "";
     public string Personality { get; init; } = "";
     public string SpeechStyle { get; init; } = "";
@@ -42,6 +43,9 @@ public sealed record Bot
     public string Color { get; init; } = "violet";
     public string Avatar { get; init; } = "";
     public string AvatarVersion { get; init; } = "";
+    public string? AvatarLargeVersion { get; init; }
+    // Mac BotProfileImageState.usesSmallImage: no independent large image, so the large slot shows the small one.
+    public bool UsesSmallImage => string.IsNullOrEmpty(AvatarLargeVersion) || AvatarLargeVersion == AvatarVersion;
     public RecentMessage? Recent { get; init; }
     public CurrentWork? CurrentWork { get; init; }
 }
