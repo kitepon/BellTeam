@@ -55,7 +55,11 @@ export function createScheduleApi({ bots, rooms, scheduler }) {
         return json(response, 201, { schedule })
       }
       if (request.method === 'PUT' && scheduleId) {
-        const schedule = await bots.setSchedule(botId, { ...await readJson(request), id: decodeURIComponent(scheduleId) })
+        const input = { ...await readJson(request), id: decodeURIComponent(scheduleId) }
+        const existing = (await bots.listSchedules(botId)).find(schedule => schedule.id === input.id)
+        if (existing?.kind === 'after_turn' && input.kind !== 'after_turn')
+          return json(response, 409, { error: 'SCHEDULE_AFTER_TURN_REPLACE_REQUIRED', message: 'ターン終了後の予定は時刻指定へ変更できません。元の予定を残しました。時刻指定にする場合は削除して作り直してください。' })
+        const schedule = await bots.setSchedule(botId, input)
         return json(response, 200, { schedule })
       }
       if (request.method === 'DELETE' && scheduleId) {

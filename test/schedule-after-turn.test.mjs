@@ -9,6 +9,7 @@ import { OwnerProfile } from '../src/owner-profile.mjs'
 import { UserRules } from '../src/user-rules.mjs'
 import { createMembersDispatcher } from '../src/members/dispatcher.mjs'
 import { validateMembersResult } from '../src/members/protocol.mjs'
+import { createScheduleApi } from '../src/members/schedules-http.mjs'
 import { botScheduleTools } from '../src/members/schedules-mcp.mjs'
 
 // One end-to-end schedules contract: real writer + child DTO/effect + event-driven scheduler.
@@ -92,6 +93,20 @@ test('after_turn binds its owner, reconciles races and consumes once through ord
   assert.equal(sent.length, beforeUnknown + 1)
   for (const input of [{ command: 'true', prompt: undefined }, { at: new Date().toISOString() }, { timezone: 'UTC' }, { afterTurn: current }])
     await assert.rejects(create(input))
+  // Released Apple/Web editors submit fallback cron; preserve the stored continuation.
+  current = { state: 'working', turnId: 'turn-edit' }
+  const protectedSchedule = await create()
+  const api = createScheduleApi({ bots, rooms: null, scheduler })
+  for (const expression of ['0 9 * * 1-5', '']) {
+    let status, body
+    const response = { writeHead: code => { status = code }, end: value => { body = JSON.parse(value) } }
+    const request = { method: 'PUT', async *[Symbol.asyncIterator]() { yield Buffer.from(JSON.stringify({ kind: 'cron', expression, prompt: 'edited' })) } }
+    await api(request, response, new URL(`http://test/api/bots/bot-a/schedules/${protectedSchedule.id}`))
+    assert.equal(status, 409); assert.equal(body.error, 'SCHEDULE_AFTER_TURN_REPLACE_REQUIRED')
+    assert.deepEqual((await bots.listSchedules('bot-a')).find(item => item.id === protectedSchedule.id), protectedSchedule)
+  }
+  await assert.rejects(create({ id: protectedSchedule.id, kind: 'cron', expression: '0 9 * * 1-5' }), { code: 'SCHEDULE_AFTER_TURN_REPLACE_REQUIRED' })
+  await create({ id: protectedSchedule.id, prompt: 'still after turn' })
   const tool = botScheduleTools.find(tool => tool.name === 'set_schedule')
   assert.ok(tool.inputSchema.properties.kind.enum.includes('after_turn'))
 })

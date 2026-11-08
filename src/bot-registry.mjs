@@ -550,6 +550,7 @@ export class BotRegistry extends Map {
     return this.#mutateProfile(id, () => mutateSchedules(this, id, schedules => {
       const existing = input.id ? schedules.find(item => item.id === input.id) : null
       if (input.id && !existing) throw new Error(`SCHEDULE_NOT_FOUND: ${input.id}`)
+      if (existing?.kind === 'after_turn' && input.kind !== 'after_turn') throw registryError('SCHEDULE_AFTER_TURN_REPLACE_REQUIRED')
       const schedule = normalizeSchedule({
         ...input,
         id: input.id ?? this.id(),
