@@ -61,6 +61,10 @@ flowchart TD
 
 内部の実装・図は各moduleだけに置き、この図は接続に限る。公開Updateの現行APIと耐久ledgerの接続は本書のmodule/all更新節、画面はWeb、Host受付と実行はruntimeの正本を参照する。正式配布・製品確認・本番の成立は各工程の実原本で判断する。
 
+## SSE topicの対応
+
+既SSE `messages` は端末が知るtopicだけを流し、未知topicは`all:true`（全体再取得）になる。executionのアカウント台帳の変更（queue-streamの`topics:['accounts']`、[harness-accounts](../execution/harness-accounts.md)）は`settings`へ読み替え、設定カードだけを再取得させる。
+
 ## 一覧履歴の親集約
 
 ```mermaid

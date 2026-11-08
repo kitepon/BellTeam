@@ -87,3 +87,21 @@ test('completion during a jobs read survives coalescing without repeating ordina
     assert.equal('operationCompleted' in value, false)
   }
 })
+
+test('アカウント台帳の変更は settings topic として流し、全体再取得にしない', async () => {
+  let fire
+  const written = [], handlers = {}
+  const events = createMessageEvents({
+    store: { async watch() { return () => {} } },
+    transport: { watchQueue(listener) { fire = listener; return () => {} } },
+    eventKeepalive: 60000, messageEventWindow: 0,
+  })
+  events.connect({ on(name, handler) { handlers[name] = handler } }, { writeHead() {}, write(chunk) { written.push(chunk) }, writableEnded: false })
+  await events.startMessageWatch()
+  fire({ all: false, topics: ['accounts'], botIds: [], roomIds: [] })
+  await new Promise(resolve => setTimeout(resolve, 5))
+  const payloads = written.filter(chunk => chunk.startsWith('event: messages')).map(chunk => JSON.parse(chunk.slice(chunk.indexOf('data: ') + 6)))
+  assert.deepEqual(payloads.map(payload => [payload.all, payload.topics]), [[false, ['settings']]])
+  handlers.close?.()
+  events.stopWatching()
+})
