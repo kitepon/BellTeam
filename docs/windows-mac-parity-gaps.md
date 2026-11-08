@@ -8,6 +8,8 @@
 
 ## 1. 外枠とサイドバー — M
 
+対応済み（PR 1）：[Windowsのサイドバー](assets/windows-mac-gaps/windows/pr1-sidebar.png)・[全体](assets/windows-mac-gaps/windows/pr1-workspace.png)。「ゴール」の入口とCtrl+3はゴールのPR（7）で足す。接続先の変更は設定へ移し、手動の再接続は下部の接続状態の帯へ置いた（Windowsは自動で再接続しないため）。
+
 | Mac | Windows |
 | --- | --- |
 | [設定表示時の外枠](assets/windows-mac-gaps/mac/mac-profile-after.png)・[一覧の行](assets/windows-mac-gaps/mac/summary-mac-340-natural-after.png) | [現行](assets/windows-mac-gaps/windows/01-workspace.png) |

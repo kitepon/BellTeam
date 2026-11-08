@@ -53,12 +53,12 @@ public partial class MainWindow : Window
         };
         model.PropertyChanged += (_, args) =>
         {
-            if (args.PropertyName == nameof(Workspace.Connected)) { if (model.Connected) _ = RefreshUpdateNoticeAsync(); else UpdateButton.Content = "Update"; }
+            if (args.PropertyName == nameof(Workspace.Connected)) { if (model.Connected) _ = RefreshUpdateNoticeAsync(); else UpdateBadge.Visibility = Visibility.Collapsed; }
             if (args.PropertyName == nameof(Workspace.IsRoom) && inspectorVisible)
                 InspectorColumn.Width = model.IsRoom ? new GridLength(280) : new GridLength(1, GridUnitType.Star);
             if (args.PropertyName == nameof(Workspace.Selected) && page is null) ProfileLayout();
             if (args.PropertyName is nameof(Workspace.Loading) or nameof(Workspace.Selected)) UpdateWelcome();
-            if (args.PropertyName is nameof(Workspace.ConnectionError) or nameof(Workspace.ActionError)) ErrorStrip.Visibility = model.ConnectionError is null && model.ActionError is null ? Visibility.Collapsed : Visibility.Visible;
+            if (args.PropertyName is nameof(Workspace.ConnectionError) or nameof(Workspace.ActionError)) { ErrorStrip.Visibility = model.ConnectionError is null && model.ActionError is null ? Visibility.Collapsed : Visibility.Visible; ReconnectButton.Visibility = model.ConnectionError is null || model.Server.Length == 0 ? Visibility.Collapsed : Visibility.Visible; ConnectionButton.Visibility = model.ConnectionError is null ? Visibility.Collapsed : Visibility.Visible; }
         };
         model.UpdatesChanged += () => _ = RefreshUpdateNoticeAsync();
         PreviewKeyDown += Window_KeyDown;
@@ -158,10 +158,11 @@ public partial class MainWindow : Window
             var state = await new UpdateCenter(model.Management.Api, new SettingsStore(SettingsStore.UserDirectory)).InventoryAsync(model.ConnectionToken);
             if (model.Server != server) return;
             if (notifications is not null) await notifications.NotifyUpdatesAsync(server, state.NotificationCandidates);
-            UpdateButton.Content = state.Notice.State switch { "updating" => "Update · 更新中", "attention" => "Update · 要確認", "unavailable" => "Update · 利用不能", _ when state.Components.Any(item => item.Comparison.State == "update_available") => "Update · 更新あり", _ => "Update" };
+            // Mac UpdateBadge: shown only while some component has update_available; other states live on the Update page.
+            UpdateBadge.Visibility = state.Components.Any(item => item.Comparison.State == "update_available") ? Visibility.Visible : Visibility.Collapsed;
         }
         catch (OperationCanceledException) when (model.ConnectionToken.IsCancellationRequested) { }
-        catch (Exception) { if (model.Server == server) UpdateButton.Content = "Update · 確認不能"; }
+        catch (Exception) { if (model.Server == server) UpdateBadge.Visibility = Visibility.Collapsed; }
     }
     public void ShowSchedules() { if (!model.Connected) return; var editor = new SchedulesWindow(model); if (ShowPage(editor)) PageReady = editor.InitializeAsync(); }
     public void ShowSettings() { if (!model.Connected) return; var editor = new SettingsWindow(model, OpenConnectionSettings, notifications, () => _ = SignOutAsync()); if (ShowPage(editor)) PageReady = editor.InitializeAsync(); }
@@ -172,14 +173,13 @@ public partial class MainWindow : Window
         model.ReturnToProfile(); PageHost.Content = null; page?.Close(); page = editor;
         PageHost.Content = editor.AsPage(ShowConversation); PageArea.Visibility = Visibility.Visible;
         ConversationArea.Visibility = Inspector.Visibility = Visibility.Collapsed;
-        SchedulesNav.Background = editor is SchedulesWindow ? Brushes.White : Brushes.Transparent; SettingsNav.Background = editor is SettingsWindow ? Brushes.White : Brushes.Transparent;
         return true;
     }
     private void ShowConversation()
     {
         if (page?.CanNavigateAway == false) { model.ReportActionError("操作が終わってから画面を切り替えてください。"); return; }
         PageHost.Content = null; page?.Close(); page = null; PageArea.Visibility = Visibility.Collapsed;
-        ConversationArea.Visibility = Visibility.Visible; SchedulesNav.Background = SettingsNav.Background = Brushes.Transparent; ProfileLayout();
+        ConversationArea.Visibility = Visibility.Visible; ProfileLayout();
     }
     private void ProfileLayout()
     {
@@ -190,6 +190,7 @@ public partial class MainWindow : Window
     private void UpdateWelcome()
     {
         Welcome.Visibility = !model.HasSelection || model.Messages.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        WelcomeHints.Visibility = model.HasSelection ? Visibility.Collapsed : Visibility.Visible;
         WelcomeTitle.Text = model.HasSelection ? model.Loading ? "読み込み中…" : model.Title + "との会話" : "チームと、同じデスクで。";
         WelcomeNote.Text = model.Loading ? "" : model.HasSelection ? "最初のメッセージを送って、会話を始めましょう。" : "左のメンバーやルームを選んで、会話を始めましょう。";
     }
@@ -209,7 +210,9 @@ public partial class MainWindow : Window
             foreach (var nested in Descendants<T>(child)) yield return nested;
         }
     }
+    // Settings needs a live connection, so an unreachable saved server is changed from the connection strip.
     private void Connection_Click(object sender, RoutedEventArgs e) => OpenConnectionSettings();
+    private void ClearSearch_Click(object sender, RoutedEventArgs e) { model.Search = ""; SearchBox.Focus(); }
     public void OpenConnectionSettings()
     {
         if (page?.CanNavigateAway == false) { model.ReportActionError("操作が終わってから接続先を変更してください。"); return; }

@@ -15,7 +15,12 @@ public sealed record ConversationEntry(ChatTarget Target, string Name, string Su
     public bool FastMode => Bot?.FastMode == true;
     public bool IsMember => Bot is not null;
     public string PreviewText => TextContent.Normalize(Subtitle).Replace('\n', ' ');
-    public System.Windows.Media.Brush PresenceBrush => Working ? System.Windows.Media.Brushes.IndianRed : Bot?.Online == true ? System.Windows.Media.Brushes.MediumAquamarine : System.Windows.Media.Brushes.LightSlateGray;
+    // Mac BotPresenceDot: red (pulsing in the row template) while working, mint when online, the line colour when offline.
+    public System.Windows.Media.Brush PresenceBrush => Working ? WorkingBrush : Bot?.Online == true ? OnlineBrush : OfflineBrush;
+    public string PresenceLabel => Working ? "仕事中" : Bot?.Online == true ? "オンライン・待機中" : "オフライン";
+    public string FastModeBadge => FastMode ? "  ⚡ ファスト" : "";
+    private static readonly System.Windows.Media.Brush WorkingBrush = Frozen(0xFF, 0x3B, 0x30), OnlineBrush = Frozen(0x2E, 0xB3, 0x9E), OfflineBrush = Frozen(0xE5, 0xE3, 0xF0);
+    private static System.Windows.Media.Brush Frozen(byte r, byte g, byte b) { var brush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(r, g, b)); brush.Freeze(); return brush; }
     public string? AvatarUrl => Origin is not null && (Bot?.AvatarVersion ?? Room?.AvatarVersion ?? "").Length != 0 ? Origin + $"api/{(Target.IsRoom ? "rooms" : "bots")}/{Uri.EscapeDataString(Target.Id)}/avatar?v={Bot?.AvatarVersion ?? Room!.AvatarVersion}" : null;
 }
 
@@ -175,7 +180,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
             OwnerName = owner.Owner.Name; Changed(nameof(OwnerName));
             queue = activity.Items; var working = queue.Where(item => item.Status == "running").Select(item => item.BotId).ToHashSet();
             var previous = all.ToDictionary(entry => entry.Target);
-            all = bots.Bots.Select(bot => new ConversationEntry(new(bot.Id, false), bot.DisplayName, bot.Recent?.Preview ?? bot.Position, bot.Recent?.At ?? DateTimeOffset.MinValue, bot, null, Server, working.Contains(bot.Id)))
+            all = bots.Bots.Select(bot => new ConversationEntry(new(bot.Id, false), bot.DisplayName, CurrentWork.Label(bot.CurrentWork), bot.Recent?.At ?? DateTimeOffset.MinValue, bot, null, Server, working.Contains(bot.Id)))
                 .Concat(rooms.Rooms.Select(room => new ConversationEntry(new(room.Id, true), room.Name, room.Recent?.Preview ?? room.Purpose, room.Recent?.At ?? DateTimeOffset.MinValue, null, room, Server))).ToList();
             if (notify)
                 foreach (var entry in all)

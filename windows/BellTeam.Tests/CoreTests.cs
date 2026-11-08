@@ -99,4 +99,18 @@ public sealed class CoreTests
         Assert.Equal("以前の会話", merged[0].Message);
         Assert.Equal("delivered", merged[1].Delivery);
     }
+
+    [Theory]
+    [InlineData("""{"state":"working","summary":"認証まわりを直す","summaryStatus":"current"}""", "認証まわりを直す")]
+    [InlineData("""{"state":"working","summaryStatus":"current"}""", "作業中・要約未設定")]
+    [InlineData("""{"state":"working","summary":"古い要約","summaryStatus":"stale"}""", "作業中・要約期限切れ")]
+    [InlineData("""{"state":"working","summaryStatus":"missing"}""", "作業中・要約未設定")]
+    [InlineData("""{"state":"idle","summary":"前の仕事","summaryStatus":"current"}""", "待機中")]
+    [InlineData("""{"state":"unknown"}""", "仕事状況を未取得")]
+    [InlineData("null", "仕事状況を未取得")]
+    public void MemberRowSecondLineMatchesTheMacCurrentWorkLabel(string json, string expected)
+    {
+        var bot = JsonSerializer.Deserialize<Bot>($$"""{"id":"b","name":"ユキ","displayName":"ユキ","currentWork":{{json}}}""", BellApi.Json)!;
+        Assert.Equal(expected, CurrentWork.Label(bot.CurrentWork));
+    }
 }
