@@ -32,7 +32,7 @@ root expectationのwriterは通常installerのprivileged operatorから64/40/40h
 
 検証fixtureはtest/web-gateway-artifact.test.py、既収録境界はtest/server-distribution.test.mjs。正の単体試験はmock wiringの検査で、crypto成功へ加算しない。実OIDC workflowはsource採否後の固定run原本で別に記録する。
 
-実archiveの子起動確認で、http-assets→http-server→subscriptionsがservices/subscriptions/{product,endpoints}.jsonをstatic importすることを確認。公開JSON2fileも固定収録し、完全自己完結を親/app fallbackで代用しない。
+実archiveの子起動確認で、http-assets→http-server→subscriptionsがservices/subscriptions/{product,endpoints}.jsonをstatic importすることを確認。公開JSON2fileも固定収録し、完全自己完結を親/app fallbackで代用しない。#657以降はusage/http-api→harness-auth→onboardingがconfig/setup-guide.jsonをstatic importするため、これも固定収録する。
 
 正式資材の親契約1はRoot交換候補78ce32b以降のentry ABIで、versionId/旧資材catalog引数とready.protocolVersion1/assetVersion/addressを要求する。専用workflowは実archiveからtest/helpers/web-gateway-artifact-probe.mjsを実行してこのABIと資材自己完結を検査してからattestする。旧f1deのentryはこの検査を通さず、正式parentProtocol1へ流用しない。正式署名sourceは交換/採用recordを統合した固定mainとする。ローカル入力の内容試験は正式署名やnativeARM実行を示さない。
 
