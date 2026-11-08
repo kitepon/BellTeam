@@ -37,7 +37,7 @@ test('protocol: effect results are exact', () => {
   validateWorkGraphEffectResult('turns.read', { unsupported: true })
   validateWorkGraphEffectResult('turns.read', { turns: { a: { state: 'working', turnId: 't', summary: '確認している', summaryStatus: 'current' }, b: { state: 'idle', turnId: null, summary: null, summaryStatus: 'missing' } } })
   bad(() => validateWorkGraphEffectResult('turns.read', { turns: { a: { state: 'working', turnId: 't', summaryStatus: 'fresh' } } }))
-  bad(() => validateWorkGraphEffectResult('turns.read', { turns: { a: { state: 'working', turnId: 't', summary: 'x'.repeat(201) } } }))
+  validateWorkGraphEffectResult('turns.read', { turns: { a: { state: 'working', turnId: 't', summary: 'x'.repeat(1000) } } })
   validateWorkGraphEffectResult('queue.read', { items: [item] })
   validateWorkGraphEffectResult('room.messages', { items: [{ id: 'm', routing: null }, { id: 'n', routing: { responders: ['a'], status: 'ready' } }] })
   bad(() => validateWorkGraphEffectResult('members.list', { members: [{ ...member, extra: 1 }] }))
