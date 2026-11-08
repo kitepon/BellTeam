@@ -520,7 +520,8 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
                 catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
                 // BellApi has already raised AuthenticationRequired (the login button); the screen just stops.
                 catch (BellApiException error) when (error.RequiresLogin) { firstRead.TrySetResult(); break; }
-                catch (Exception error) { SetScreen(screenRaw, screenOnline, error.Message); firstRead.TrySetResult(); break; }
+                // A transient failure (timeout, 5xx, seat restart) must not freeze an open screen: show it, read again next tick; the next 200 clears it.
+                catch (Exception error) { SetScreen(screenRaw, screenOnline, error.Message); firstRead.TrySetResult(); }
                 // Reads never overlap: the next starts one second after the previous started, at once after a slow answer.
                 var wait = TimeSpan.FromSeconds(1) - started.Elapsed;
                 if (wait > TimeSpan.Zero) await Task.Delay(wait, token);

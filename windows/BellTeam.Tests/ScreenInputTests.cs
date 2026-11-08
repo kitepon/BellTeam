@@ -207,7 +207,7 @@ public sealed class ScreenInputTests
     })));
 
     [Fact]
-    public async Task ScreenReadsHistoryOnceThenTheTailEverySecondAndStopsAfterAFailureWithoutRetry()
+    public async Task ScreenReadsHistoryOnceThenTheTailEverySecondAndKeepsReadingAfterAFailure()
     {
         var requests = new List<string>(); var reads = 0;
         using var workspace = Screens(request =>
@@ -217,7 +217,8 @@ public sealed class ScreenInputTests
             {
                 1 => StubHandler.Json("""{"online":true,"screen":"a\nb\nc\nd"}"""),
                 2 => StubHandler.Json("""{"online":true,"screen":"d\ne"}"""),
-                _ => StubHandler.Json("""{"error":"TEMPORARY_FAILURE"}""", HttpStatusCode.InternalServerError)
+                3 => StubHandler.Json("""{"error":"TEMPORARY_FAILURE"}""", HttpStatusCode.InternalServerError),
+                _ => StubHandler.Json("""{"online":true,"screen":"e\nf"}""")
             };
         }, requests);
         await workspace.ConnectAsync("http://localhost", listen: false);
@@ -225,13 +226,18 @@ public sealed class ScreenInputTests
         var run = workspace.OpenScreenAsync();
         await workspace.ScreenFirstRead.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal("a\nb\nc\nd", workspace.Screen); Assert.Equal("1秒ごとに更新", workspace.ScreenStatus); Assert.True(workspace.ScreenOnline);
-        await run.WaitAsync(TimeSpan.FromSeconds(8));   // the third read fails and ends the loop
-        Assert.Equal("BellTeam: TEMPORARY_FAILURE", workspace.ScreenStatus); Assert.Equal("BellTeam: TEMPORARY_FAILURE", workspace.ScreenError);
-        Assert.Equal("a\nb\nd\ne", workspace.Screen);   // the prefix is fixed at the first tail (the documented seam shortcut)
-        await Task.Delay(1300);
-        Assert.Equal(
-            ["/api/bots/bot-bell/screen?history=1", "/api/bots/bot-bell/screen/approval", "/api/bots/bot-bell/screen", "/api/bots/bot-bell/screen/approval", "/api/bots/bot-bell/screen"],
-            requests);
+        var deadline = DateTime.UtcNow.AddSeconds(6);
+        while (workspace.ScreenError is null && DateTime.UtcNow < deadline) await Task.Delay(20);
+        Assert.Equal("BellTeam: TEMPORARY_FAILURE", workspace.ScreenError); Assert.Equal("BellTeam: TEMPORARY_FAILURE", workspace.ScreenStatus);
+        Assert.False(run.IsCompleted);   // the failure does not end the loop
+        deadline = DateTime.UtcNow.AddSeconds(6);
+        while (workspace.ScreenError is not null && DateTime.UtcNow < deadline) await Task.Delay(20);
+        Assert.Null(workspace.ScreenError); Assert.Equal("1秒ごとに更新", workspace.ScreenStatus);
+        Assert.EndsWith("e\nf", workspace.Screen);
+        workspace.ReturnToProfile(); await run.WaitAsync(TimeSpan.FromSeconds(5));
+        string[] seen; lock (requests) seen = requests.ToArray();
+        Assert.Equal("/api/bots/bot-bell/screen?history=1", seen[0]);
+        Assert.Equal(1, seen.Count(path => path.EndsWith("?history=1", StringComparison.Ordinal)));
     }
 
     [Fact]
