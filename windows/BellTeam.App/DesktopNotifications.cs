@@ -21,8 +21,10 @@ public sealed class WindowsNotificationSink(string appId = DesktopShortcut.AppId
     private readonly Dictionary<ToastNotification, MessageNotification> visible = [];
     public void Start(Action<string, ChatTarget?> activated, Action<string> failed)
     {
-        Marshal.ThrowExceptionForHR(DesktopShortcut.SetCurrentProcessExplicitAppUserModelID(appId));
         this.activated = activated; this.failed = failed;
+        // The Store package already has its own AUMID; the installer build sets the one on its Start menu shortcut.
+        if (PackageIdentity.IsPackaged) { notifier = ToastNotificationManager.CreateToastNotifier(); return; }
+        Marshal.ThrowExceptionForHR(DesktopShortcut.SetCurrentProcessExplicitAppUserModelID(appId));
         notifier = ToastNotificationManager.CreateToastNotifier(appId);
     }
     public void Show(MessageNotification message)
@@ -54,7 +56,7 @@ public sealed class WindowsNotificationSink(string appId = DesktopShortcut.AppId
         if (current is null) return Task.CompletedTask;
         ToastNotification[] displayed; lock (gate) displayed = visible.Keys.ToArray();
         foreach (var toast in displayed) { Release(toast); current.Hide(toast); }
-        ToastNotificationManager.History.Clear(appId);
+        if (PackageIdentity.IsPackaged) ToastNotificationManager.History.Clear(); else ToastNotificationManager.History.Clear(appId);
         return Task.CompletedTask;
     }
 }
@@ -62,7 +64,7 @@ public sealed class DesktopNotifications(INotificationSink sink, SettingsStore s
 {
     public bool Enabled { get; private set; }
     public string? Error { get; private set; }
-    public string Status => Error ?? (Enabled ? "アプリが起きている間だけ通知します。" : "通知はオフです。");
+    public string Status => Error ?? (!Enabled ? "通知はオフです。" : PackageIdentity.IsPackaged ? "アプリが起きている間に通知します。閉じている間も、更新はWindowsが通知します。" : "アプリが起きている間だけ通知します。");
     public event PropertyChangedEventHandler? PropertyChanged;
     private readonly SemaphoreSlim changing = new(1);
     private readonly SemaphoreSlim updateChanging = new(1);

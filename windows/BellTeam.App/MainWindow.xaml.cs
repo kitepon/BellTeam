@@ -12,19 +12,23 @@ public partial class MainWindow : Window
     private readonly Workspace model;
     private readonly DesktopAccess? access;
     private readonly DesktopNotifications? notifications;
+    private readonly ClosedAppPush? push;
     private bool inspectorVisible = true;
     private EditorWindow? page;
     private bool loadingOlder;
     public Task PageReady { get; private set; } = Task.CompletedTask;
-    public MainWindow(Workspace model, bool persistPlacement = true, DesktopAccess? access = null, DesktopNotifications? notifications = null)
+    public MainWindow(Workspace model, bool persistPlacement = true, DesktopAccess? access = null, DesktopNotifications? notifications = null, ClosedAppPush? push = null)
     {
         this.model = model;
         this.access = access;
         this.notifications = notifications;
+        this.push = push;
         SetResourceReference(StyleProperty, typeof(Window));
         InitializeComponent();
         DataContext = model;
         if (notifications is not null) notifications.PropertyChanged += (_, args) => { if (args.PropertyName == nameof(DesktopNotifications.Error) && notifications.Error is { } error) Dispatcher.Invoke(() => model.ReportActionError(error)); };
+        // SetEnabledAsync raises Enabled on every call (connect, toggle), so the WNS registration follows the same setting.
+        if (notifications is not null && push is not null) notifications.PropertyChanged += (_, args) => { if (args.PropertyName == nameof(DesktopNotifications.Enabled) && model.Connected) _ = Dispatcher.InvokeAsync(() => SyncPushAsync(notifications.Enabled)); };
         model.MessageArrived += async message =>
         {
             if (notifications?.Enabled != true || IsActive && page is null && model.Selected?.Target == message.Target) return;
@@ -216,16 +220,24 @@ public partial class MainWindow : Window
         var dialog = new ConnectionWindow(model.Server) { Owner = this };
         if (dialog.ShowDialog() == true) { ShowConversation(); _ = ChangeServerAsync(dialog.Address); }
     }
+    private async Task SyncPushAsync(bool enabled)
+    {
+        if (push is null || !model.Connected) return;
+        var token = model.ConnectionToken;
+        try { await push.SyncAsync(model.Management.Api, model.Server, enabled, token); }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception error) { model.ReportActionError((enabled ? "終了中の通知を登録できませんでした。" : "終了中の通知を解除できませんでした。") + error.Message); }
+    }
     private async Task SignOutAsync()
     {
-        ShowConversation(); model.SignOut();
+        ShowConversation(); await SyncPushAsync(false); model.SignOut();
         try { if (notifications is not null) await notifications.SetEnabledAsync(false, persist: false); if (access is not null) await access.SignOutAsync(); }
         catch (Exception error) { model.ReportActionError(error.Message); }
     }
     private async Task ChangeServerAsync(string address)
     {
         if (address == model.Server) { await ConnectAsync(address); return; }
-        model.SignOut();
+        await SyncPushAsync(false); model.SignOut();
         try { if (notifications is not null) await notifications.SetEnabledAsync(false, persist: false); if (access is not null) await access.SignOutAsync(); await ConnectAsync(address); }
         catch (Exception error) { model.ReportActionError(error.Message); }
     }
@@ -255,6 +267,11 @@ public partial class MainWindow : Window
         if (access is null) return;
         try { if (new AccessLoginWindow(access, ServerOrigin.Parse(model.Server)) { Owner = this }.ShowDialog() == true) await ConnectAsync(model.Server); }
         catch (Exception) { model.ReportActionError("ログイン画面を開けませんでした。接続先とWebView2 Runtimeを確認してください。"); }
+    }
+    public Task OpenUpdateLaunchAsync(string launch)
+    {
+        if (UpdateLaunch.Server(launch) is not { } server) { model.ReportActionError("通知の接続先を確認できません。"); return Task.CompletedTask; }
+        return OpenNotificationAsync(server, null);
     }
     public async Task OpenNotificationAsync(string server, ChatTarget? target)
     {

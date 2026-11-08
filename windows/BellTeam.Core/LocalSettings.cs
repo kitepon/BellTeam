@@ -10,6 +10,7 @@ public sealed record LocalSettings
     public bool NotificationsEnabled { get; init; }
     public UpdateRequest[] UpdateRequests { get; init; } = [];
     public UpdateNotificationSeen[] UpdateNotifications { get; init; } = [];
+    public PushChannelRegistration? PushChannel { get; init; }
 }
 public sealed class SettingsStore(string directory)
 {

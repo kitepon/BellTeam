@@ -10,7 +10,8 @@ internal sealed class SingleInstance : IDisposable
     private readonly CancellationTokenSource stop = new();
     private readonly string pipeName;
     public bool IsPrimary { get; }
-    public SingleInstance(Action activate)
+    // message: the protocol launch URI to forward to the running window, or null for a plain launch.
+    public SingleInstance(Action<string?> activate, string? message = null)
     {
         var user = WindowsIdentity.GetCurrent().User!.Value;
         pipeName = "BellTeam-" + user;
@@ -21,10 +22,11 @@ internal sealed class SingleInstance : IDisposable
         {
             using var pipe = new NamedPipeClientStream(".", pipeName, PipeDirection.Out);
             pipe.Connect(3000);
-            pipe.WriteByte(1);
+            var payload = System.Text.Encoding.UTF8.GetBytes((message ?? "") + "\n");
+            pipe.Write(payload);
         }
     }
-    private async Task ListenAsync(Action activate)
+    private async Task ListenAsync(Action<string?> activate)
     {
         try
         {
@@ -32,8 +34,9 @@ internal sealed class SingleInstance : IDisposable
             {
                 using var pipe = new NamedPipeServerStream(pipeName, PipeDirection.In, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
                 await pipe.WaitForConnectionAsync(stop.Token);
-                var signal = new byte[1];
-                if (await pipe.ReadAsync(signal, stop.Token) != 0) activate();
+                using var reader = new StreamReader(pipe, System.Text.Encoding.UTF8);
+                var text = await reader.ReadToEndAsync(stop.Token);
+                if (text.Length != 0) activate(text.TrimEnd('\n') is { Length: > 0 } launch ? launch : null);
             }
         }
         catch (OperationCanceledException) when (stop.IsCancellationRequested) { }

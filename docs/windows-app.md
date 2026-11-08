@@ -39,7 +39,7 @@ LAN接続で一覧・会話・プロフィールを使う1段目に、画像・�
 
 接続先は初回の「接続先」で入力し、このPCの`%LOCALAPPDATA%\BellTeam\settings.json`へ保存する。HTTPS、またはlocalhost・LANのHTTPを受け付ける。判定は`web/server-origin.js`の通信条件と`ios/BellBot/Shared/ServerOrigin.swift`の接続先条件に合わせる。認証情報、パス、クエリー、フラグメント付きの接続先は断る。サーバーの利用者設定は埋め込まない。
 
-SSEの切断・応答形式の異常は画面下部に表示する。「再接続」で利用者が接続し直す。常駐、タスクトレイ、自動起動、自動再試行は入れない。起動中のWindows通知はこのPCの設定で有効にでき、既定はオフ。閉じると終了する。
+SSEの切断・応答形式の異常は画面下部に表示する。「再接続」で利用者が接続し直す。常駐、タスクトレイ、自動起動、自動再試行は入れない。起動中のWindows通知はこのPCの設定で有効にでき、既定はオフ。閉じると終了する。Microsoft Store版だけは、同じ設定がオンの間、閉じている時の更新通知をWindowsが表示する。アプリは常駐しない。仕組みは[機能図](windows-architecture.md#終了中の更新通知microsoft-store版)を参照。
 
 ## このPCへの導入
 
@@ -62,6 +62,22 @@ pwsh -NoProfile -File scripts/install-windows.ps1 -Uninstall
 ```
 
 削除後もこのPCの接続先・窓・通知の設定とログイン情報は残す。完全に設定を消す場合は、アプリ終了後に`%LOCALAPPDATA%\BellTeam`を利用者が削除する。
+
+## Microsoft Store版
+
+閉じている間の更新通知を受けるため、Microsoft Storeの個人開発者としてMSIXを提出する。StoreがMSIXへ署名するため、証明書は使わない。従来のinstaller版は既存利用者向けに残す。installer版はパッケージ識別を持たないため、閉じている間の通知は届かない。
+
+提出用のMSIXは次で作る。値はPartner Centerのアプリの「Product identity」に出る公開値で、秘密ではない。Windows SDKの`makeappx.exe`を使う。
+
+```powershell
+pwsh -NoProfile -File scripts/package-windows-store.ps1 -IdentityName '<Package/Identity/Name>' -Publisher '<Package/Identity/Publisher>' -PublisherDisplayName '<Package/Properties/PublisherDisplayName>'
+```
+
+`windows/artifacts/store-win-x64/BellTeam_<版>.0_x64.msix`ができる。版は`BellTeam.App.csproj`の`Version`に`.0`を付けたもの。マニフェストの正本は`windows/BellTeam.App/Package/AppxManifest.xml`で、`runFullTrust`と、通知のタップ先`bellteam-update:`プロトコルを宣言する。
+
+Store版の設定とログイン情報は、Windowsがパッケージ用の場所へ分けて保存するため、installer版とは共有しない。初回は接続先を入力する。
+
+2026-11-08、FOXで仮の識別値を使ってMSIXの作成（makeappxのマニフェスト検証）が成功した。同じレイアウトを利用者単位で一時登録し、パッケージ識別ありの状態で窓を出さない読み取りsmokeが成功した（local認証、133メンバー、8ルーム、会話10件、SSE接続）。登録は削除済み。別の窓を出さない検証用パッケージでは、識別ありで`PushNotificationChannelManager`からWNSチャネル（30日有効）を取得でき、識別なしでは`0x80070490`で失敗した。閉じた状態からのプロトコル起動では、URIが起動引数と`AppInstance.GetActivatedEventArgs()`の両方で届いた。WNSの実送信、Toastの表示、タップは、Store登録とミカの中央送信の準備後に実機で確認する。
 
 ## 開発と確認
 
