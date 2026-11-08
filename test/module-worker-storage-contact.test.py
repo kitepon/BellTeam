@@ -59,6 +59,13 @@ class StorageContact(unittest.TestCase):
         self.assertFalse((self.directory/'worker-termination-prepare.json').exists())
         self.assert_original_untouched()
 
+    def test_an_extra_volume_mount_such_as_runtime_code_does_not_refuse_the_switch(self):
+        self.model_command()
+        self.old['mounts'].append(dict(Type='volume',Name='bellteam-runtime-code',Destination='/srv/bellteam/shared/tools/bellteam-runtime',RW=True))
+        self.operation['phase']='completed';fixture.host.atomic(self.directory/'operation.json',self.operation)
+        self.switch.switch()
+        self.assertTrue(any(a[:2]==['container','rm'] for a in self.actions))
+
     def test_local_bind_no_pending_update_reaches_same_container_removal(self):
         self.model_command()
         self.operation['phase']='completed';fixture.host.atomic(self.directory/'operation.json',self.operation)
