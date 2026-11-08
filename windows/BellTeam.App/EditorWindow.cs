@@ -14,17 +14,17 @@ public class EditorWindow : Window
     protected readonly Button CloseButton = new() { Content = "キャンセル" };
     protected readonly StackPanel Actions = new() { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
     protected Func<Task<bool>>? SaveAction;
-    protected bool Busy { get; private set; }
+    protected bool Busy { get; set; }
     protected bool Saved { get; set; }
     protected CancellationToken Token { get; }
     protected readonly List<Task> InitialLoads = [];
     protected Window DialogOwner => Owner ?? this;
     private Action? closePage;
     private bool closeWhileReading;
-    public bool CanNavigateAway => !Busy || closeWhileReading;
+    public virtual bool CanNavigateAway => !Busy || closeWhileReading;
     private readonly ScrollViewer scroller = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     public Task ReadyTask => Task.WhenAll(InitialLoads);
-    public void ScrollToEndForRender() { scroller.ScrollToEnd(); scroller.UpdateLayout(); }
+    public virtual void ScrollToEndForRender() { scroller.ScrollToEnd(); scroller.UpdateLayout(); }
     public EditorWindow(string title, CancellationToken parent = default)
     {
         SetResourceReference(StyleProperty, typeof(Window)); SetResourceReference(BackgroundProperty, "ConversationBackground");
@@ -40,11 +40,12 @@ public class EditorWindow : Window
         CloseButton.Click += (_, _) => { if (closePage is { } returnToConversation) returnToConversation(); else Close(); };
         Closing += (_, args) => { if (!CanNavigateAway) args.Cancel = true; };
     }
-    public FrameworkElement AsPage(Action close)
+    // keepActions: the hosted editor still needs its own 保存/戻る buttons (the settings pane embeds the feature editor).
+    public FrameworkElement AsPage(Action close, bool keepActions = false)
     {
         closePage = close; var content = (FrameworkElement)Content; Content = null;
         Body.MaxWidth = 850; Body.HorizontalAlignment = HorizontalAlignment.Stretch;
-        Actions.Visibility = Visibility.Collapsed;
+        if (!keepActions) Actions.Visibility = Visibility.Collapsed;
         return content;
     }
     protected async Task RunAsync(Func<Task<bool>> operation, bool canClose = false)
@@ -57,7 +58,7 @@ public class EditorWindow : Window
         catch (OperationCanceledException) when (Token.IsCancellationRequested) { }
         catch (Exception error) { Status.Text = error is Core.BellApiException { Status: not null } ? error.Message : "操作の結果を確認できませんでした。現在の状態を確認してください。\n" + error.Message; }
         finally { Busy = false; Actions.IsEnabled = true; Body.IsEnabled = SaveButton.IsEnabled = !Saved; CloseButton.IsEnabled = true; if (Saved) CloseButton.Content = "閉じる"; }
-        if (close) Close();
+        if (close) { if (closePage is { } returnToHost) returnToHost(); else Close(); }
     }
     protected void Heading(string label) => Body.Children.Add(new TextBlock { Text = label, FontSize = 20, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 18, 0, 10) });
     protected StackPanel Section(string label)

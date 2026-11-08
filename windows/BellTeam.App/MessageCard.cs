@@ -25,6 +25,15 @@ public sealed class MessageCard : ContentControl
     private readonly TextBlock imageLabel = new() { Foreground = Brushes.SlateGray, FontSize = 14, Margin = new Thickness(0, 6, 0, 6) };
     private string? accentName;
     private readonly TextBlock delivery = new() { FontSize = 14, Foreground = Brushes.SlateGray, Margin = new Thickness(5, 6, 5, 0) };
+    private bool entered;
+    public MessageCard()
+    {
+        Loaded += (_, _) =>
+        {
+            if (entered || Workspace is null || DataContext is not MessageItem item) return;
+            entered = true; MessageEntrance.Play(this, Workspace.Messages.Count - 1 - Math.Max(0, Workspace.Messages.IndexOf(item)), Workspace.Opening);
+        };
+    }
     private static void Changed(DependencyObject sender, DependencyPropertyChangedEventArgs args)
     {
         var card = (MessageCard)sender;

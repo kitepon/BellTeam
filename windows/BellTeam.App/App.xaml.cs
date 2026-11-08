@@ -12,6 +12,8 @@ public partial class App : Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        // Renders are screenshots taken right after layout; the card entrance animation would leave cards transparent.
+        if (e.Args.Any(argument => argument.StartsWith("--render", StringComparison.Ordinal))) MessageEntrance.Enabled = false;
         try
         {
             if (e.Args is ["--smoke-test", var address, var result])
@@ -48,8 +50,7 @@ public partial class App : Application
                 EditorWindow editor;
                 if (editorKind is "member" or "new-member") { var member = new MemberEditor(editorWorkspace, editorKind == "new-member" ? null : editorId); editor = member; await member.InitializeAsync(); }
                 else if (editorKind is "room" or "new-room") { var room = new RoomEditor(editorWorkspace, editorKind == "new-room" ? null : editorId); editor = room; await room.InitializeAsync(); }
-                else if (editorKind == "settings") { var settingsEditor = new SettingsWindow(editorWorkspace); editor = settingsEditor; await settingsEditor.InitializeAsync(); }
-                else if (editorKind == "profile") { var profile = new ProfileEditor(editorWorkspace); editor = profile; await profile.InitializeAsync(); }
+                else if (editorKind is "settings" or "profile") { var settingsEditor = new SettingsWindow(editorWorkspace) { Width = 960, Height = 800 }; editor = settingsEditor; await settingsEditor.InitializeAsync(SettingsPage.Profile); }
                 else if (editorKind == "feature") { var feature = new FeatureEditor(editorWorkspace, editorId, "追加機能"); editor = feature; await feature.InitializeAsync(); }
                 else if (editorKind == "schedules") { var schedules = new SchedulesWindow(editorWorkspace); editor = schedules; await schedules.InitializeAsync(); }
                 else if (editorKind == "new-schedule") editor = new ScheduleEditor(editorWorkspace, null);
@@ -63,7 +64,7 @@ public partial class App : Application
                 using var pageWorkspace = new Workspace(); await pageWorkspace.ConnectAsync(pageAddress, listen: false);
                 if (pageWorkspace.ConnectionError is { } failure) throw new BellApiException(failure);
                 var pageWindow = new MainWindow(pageWorkspace, persistPlacement: false, notifications: new DesktopNotifications(new WindowsNotificationSink(), new SettingsStore(SettingsStore.UserDirectory), (_, _) => { }));
-                if (pageKind is "settings" or "settings-lower") pageWindow.ShowSettings(); else if (pageKind == "schedules") pageWindow.ShowSchedules(); else if (pageKind is "updates" or "updates-narrow" or "updates-detail-narrow") pageWindow.ShowUpdates(); else throw new ArgumentException("未対応のページです。");
+                if (pageKind is "settings" or "settings-lower") pageWindow.ShowSettings(); else if (pageKind.StartsWith("settings-", StringComparison.Ordinal) && Enum.TryParse<SettingsPage>(pageKind["settings-".Length..], ignoreCase: true, out var settingsPage)) pageWindow.ShowSettings(settingsPage); else if (pageKind == "schedules") pageWindow.ShowSchedules(); else if (pageKind is "updates" or "updates-narrow" or "updates-detail-narrow") pageWindow.ShowUpdates(); else throw new ArgumentException("未対応のページです。");
                 await pageWindow.PageReady;
                 var pageWidth = pageKind is "updates-narrow" or "updates-detail-narrow" ? 1100 : 1280; var pageHeight = pageKind is "updates-narrow" or "updates-detail-narrow" ? 700 : 820;
                 var pageRoot = (FrameworkElement)pageWindow.Content; pageRoot.Measure(new Size(pageWidth, pageHeight)); pageRoot.Arrange(new Rect(0, 0, pageWidth, pageHeight)); pageRoot.UpdateLayout();
@@ -91,7 +92,7 @@ public partial class App : Application
                 Shutdown(0);
                 return;
             }
-            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-page <settings|settings-lower|schedules|updates|updates-narrow|updates-detail-narrow> <URL> <PNG>、--render-editor <member|new-member|room|new-room|settings|profile|feature|schedules|new-schedule|setup|authentication> <URL> <ID> <PNG> のいずれかです。");
+            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|features|notifications|connection|display|billing|update|about|stop>|schedules|updates|updates-narrow|updates-detail-narrow> <URL> <PNG>、--render-editor <member|new-member|room|new-room|settings|profile|feature|schedules|new-schedule|setup|authentication> <URL> <ID> <PNG> のいずれかです。");
 
             MainWindow? main = null;
             instance = new SingleInstance(() => Dispatcher.Invoke(() => { main!.WindowState = main.WindowState == WindowState.Minimized ? WindowState.Normal : main.WindowState; main.Show(); main.Activate(); }));

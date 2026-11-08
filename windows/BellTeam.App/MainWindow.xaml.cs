@@ -65,7 +65,8 @@ public partial class MainWindow : Window
         StateChanged += (_, _) => { if (WindowState == WindowState.Minimized) model.ReturnToProfile(); };
         if (persistPlacement)
         {
-            var placement = new SettingsStore(SettingsStore.UserDirectory).Load().Window;
+            var saved = new SettingsStore(SettingsStore.UserDirectory).Load(); DisplayPreference.Current = saved.ConversationOpening;
+            var placement = saved.Window;
             if (placement is not null)
             {
                 Width = Math.Max(MinWidth, placement.Width); Height = Math.Max(MinHeight, placement.Height);
@@ -149,7 +150,7 @@ public partial class MainWindow : Window
     private void Schedules_Click(object sender, RoutedEventArgs e) => ShowSchedules();
     private void Settings_Click(object sender, RoutedEventArgs e) => ShowSettings();
     private void Updates_Click(object sender, RoutedEventArgs e) => ShowUpdates();
-    public void ShowUpdates() { if (!model.Connected) return; var editor = new UpdateCenterWindow(model); if (ShowPage(editor)) PageReady = editor.InitializeAsync(); }
+    public void ShowUpdates() => ShowSettings(SettingsPage.Update);
     private async Task RefreshUpdateNoticeAsync()
     {
         var server = model.Server;
@@ -165,7 +166,7 @@ public partial class MainWindow : Window
         catch (Exception) { if (model.Server == server) UpdateBadge.Visibility = Visibility.Collapsed; }
     }
     public void ShowSchedules() { if (!model.Connected) return; var editor = new SchedulesWindow(model); if (ShowPage(editor)) PageReady = editor.InitializeAsync(); }
-    public void ShowSettings() { if (!model.Connected) return; var editor = new SettingsWindow(model, OpenConnectionSettings, notifications, () => _ = SignOutAsync()); if (ShowPage(editor)) PageReady = editor.InitializeAsync(); }
+    public void ShowSettings(SettingsPage page = SettingsPage.Profile) { if (!model.Connected) return; var editor = new SettingsWindow(model, OpenConnectionSettings, notifications, () => _ = SignOutAsync()); if (ShowPage(editor)) PageReady = editor.InitializeAsync(page); }
     private bool ShowPage(EditorWindow editor)
     {
         if (page?.CanNavigateAway == false) { editor.Close(); model.ReportActionError("操作が終わってから画面を切り替えてください。"); return false; }

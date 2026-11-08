@@ -228,9 +228,32 @@ public sealed class PlanningTests
                 }));
             })));
             Await(workspace.ConnectAsync("http://localhost", listen: false));
-            var editor = new ProfileEditor(workspace); Await(editor.InitializeAsync());
+            var editor = new SettingsWindow(workspace); Await(editor.InitializeAsync(SettingsPage.Profile));
             foreach (var text in Descendants<TextBox>(editor).Where(text => text.AcceptsReturn)) text.Text = text.Text.Replace("\n", "\r\n");
             Descendants<Button>(editor).Single(button => (string)button.Content == "保存").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump(); Assert.Equal(0, writes); editor.Close();
+        });
+    }
+    [Fact]
+    public void StopPageSendsOnePatchAndShowsTheReturnedState()
+    {
+        RunSta(() =>
+        {
+            var patches = new List<string>();
+            using var workspace = new Workspace(origin => new BellApi(origin, new StubHandler(async (request, _) =>
+            {
+                if (request.Method == HttpMethod.Patch) { patches.Add(await request.Content!.ReadAsStringAsync()); return StubHandler.Json("""{"control":{"paused":true,"state":"stopped","unconfirmedBotIds":[]}}"""); }
+                return StubHandler.Json(request.RequestUri!.AbsolutePath switch
+                {
+                    "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/bots" => ApiTests.Bots, "/api/queue" => ApiTests.EmptyQueue, "/api/rooms" => ApiTests.Rooms, "/api/owner" => ApiTests.Owner,
+                    "/api/ai-control" => """{"control":{"paused":false,"state":"enabled","unconfirmedBotIds":[]}}""", _ => ApiTests.Page
+                });
+            })));
+            Await(workspace.ConnectAsync("http://localhost", listen: false));
+            var editor = new SettingsWindow(workspace); Await(editor.InitializeAsync(SettingsPage.Stop));
+            var toggle = Descendants<System.Windows.Controls.Primitives.ToggleButton>(editor).Single(); Assert.False(toggle.IsChecked);
+            toggle.IsChecked = true; toggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump(); Pump();
+            Assert.Equal(["{\"paused\":true}"], patches);
+            Assert.Contains(Descendants<TextBlock>(editor), text => text.Text == "停止中"); editor.Close();
         });
     }
     private static Workspace WorkspaceWithFeatures(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>? write = null) => new(origin => new BellApi(origin, new StubHandler((request, token) =>

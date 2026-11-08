@@ -80,6 +80,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     public bool SelectedFastMode => selected?.FastMode == true;
     public bool HasSelection => selected is not null;
     public bool Connected => ready;
+    public bool Opening { get; private set; }
     public string EditLabel => IsRoom ? "ルームを編集" : "メンバーを編集";
     public bool CanAttach => HasSelection && Draft is { Attaching: false };
     public bool IsRoom => selected?.Target.IsRoom == true;
@@ -237,6 +238,8 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
         {
             var page = await api.GetAsync<MessagePage>(entry.Target.Path + "/messages?limit=30", token);
             token.ThrowIfCancellationRequested();
+            // The cards created for this first page enter with the staggered opening animation; later arrivals use the short one.
+            Opening = true; _ = System.Windows.Threading.Dispatcher.CurrentDispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ContextIdle, () => Opening = false);
             foreach (var message in page.Items) Messages.Add(new(message));
             HasMore = page.HasMore;
             ScrollToBottom?.Invoke(true);
