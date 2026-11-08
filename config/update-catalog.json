@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T04:23:27Z",
-  "expiresAt": "2026-11-15T04:23:27Z",
+  "publishedAt": "2026-11-08T04:25:19Z",
+  "expiresAt": "2026-11-15T04:25:19Z",
   "releases": [
     {
       "componentId": "usage",
@@ -555,8 +555,8 @@
     },
     {
       "componentId": "members",
-      "sourceCommit": "80c1d502c3ae84e6ef4b4619819aad100fc6b0bd",
-      "versionId": "bcf1cb4327f2ebb91cb95dcc5cfedd333b2a924e06ff8656e7cecd85d52c51b6",
+      "sourceCommit": "a2d87d19b7d542c758614b4fece1f5f1b42bac79",
+      "versionId": "50a331fca2a53b23714260c52b35b4d2929e3047f26acb0855016a9bb130eb6e",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -564,16 +564,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T014907Z/members-80c1d502c3ae84e6ef4b4619819aad100fc6b0bd-linux-amd64.tar.gz",
-          "bytes": 4326872,
-          "sha256": "bcf1cb4327f2ebb91cb95dcc5cfedd333b2a924e06ff8656e7cecd85d52c51b6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T042439Z/members-a2d87d19b7d542c758614b4fece1f5f1b42bac79-linux-amd64.tar.gz",
+          "bytes": 4332176,
+          "sha256": "50a331fca2a53b23714260c52b35b4d2929e3047f26acb0855016a9bb130eb6e"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T014907Z/members-80c1d502c3ae84e6ef4b4619819aad100fc6b0bd-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10624,
-          "sha256": "2e91430e1c079585ccb9a739d12ff22450ae91a2662edecd8d3cd97c024fd14b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T042439Z/members-a2d87d19b7d542c758614b4fece1f5f1b42bac79-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10808,
+          "sha256": "642506b166681d8e6af7fcc5dae15ace71c0f047229e6834dcdada6a44ee2248"
         },
-        "signerCommit": "80c1d502c3ae84e6ef4b4619819aad100fc6b0bd"
+        "signerCommit": "a2d87d19b7d542c758614b4fece1f5f1b42bac79"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -590,13 +590,13 @@
         }
       },
       "changes": [
-        "採用済み修理をモジュール単独更新で適用します。"
+        "after_turn scheduling support from PR #579 and #582."
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "80c1d502c3ae84e6ef4b4619819aad100fc6b0bd",
-      "versionId": "1b39a007c0dba96416bb4f1cc89794edf38fc8d7988b69a2dabd5abcd4387d64",
+      "sourceCommit": "a2d87d19b7d542c758614b4fece1f5f1b42bac79",
+      "versionId": "5f2aacdecf2073dfda32acf50029f4b84fb21b2f2ed369d3a9d46b42c0068505",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -604,16 +604,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T014907Z/members-80c1d502c3ae84e6ef4b4619819aad100fc6b0bd-linux-arm64.tar.gz",
-          "bytes": 4326871,
-          "sha256": "1b39a007c0dba96416bb4f1cc89794edf38fc8d7988b69a2dabd5abcd4387d64"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T042439Z/members-a2d87d19b7d542c758614b4fece1f5f1b42bac79-linux-arm64.tar.gz",
+          "bytes": 4332173,
+          "sha256": "5f2aacdecf2073dfda32acf50029f4b84fb21b2f2ed369d3a9d46b42c0068505"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T014907Z/members-80c1d502c3ae84e6ef4b4619819aad100fc6b0bd-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10808,
-          "sha256": "9ae70a8eff5affb8d5b6e240ee3f7013a6b9547766f8335c6802abdbebc961a7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T042439Z/members-a2d87d19b7d542c758614b4fece1f5f1b42bac79-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10933,
+          "sha256": "b2a86d09a59cd78faacac0cb3c486f83661297ce0213eb4bc1fee69ab7c13c88"
         },
-        "signerCommit": "80c1d502c3ae84e6ef4b4619819aad100fc6b0bd"
+        "signerCommit": "a2d87d19b7d542c758614b4fece1f5f1b42bac79"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -630,7 +630,7 @@
         }
       },
       "changes": [
-        "採用済み修理をモジュール単独更新で適用します。"
+        "after_turn scheduling support from PR #579 and #582."
       ]
     },
     {
