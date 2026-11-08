@@ -303,7 +303,7 @@ final class UpdateStoreTests: XCTestCase {
 @MainActor
 final class UpdateViewTests: XCTestCase {
     func testEachServerStateShowsOneSimpleStatus() async throws {
-        let expected = ["restart_required": "更新があります", "no_update": "最新の状態です", "verified_completed": "更新しました",
+        let expected = ["restart_required": "BellTeam本体を更新できます", "no_update": "すべて最新です", "verified_completed": "更新しました",
                         "disconnected_unknown": "更新の結果を確認中", "execution_failed": "更新できませんでした",
                         "accepted": "更新しています", "published_unavailable": "更新を確認できませんでした"]
         for (name, title) in expected.sorted(by: { $0.key < $1.key }) {
@@ -318,6 +318,50 @@ final class UpdateViewTests: XCTestCase {
                 attachment.name = "update-\(name)-\(Int(width))"
                 attachment.lifetime = .keepAlways
                 add(attachment)
+            }
+        }
+    }
+
+    /// 機能ごとの行・状態の印・注意の帯を、iPhone幅とMacの窓幅、明暗の両方で描いて確認用に残す。
+    func testDesignedPartRowsRenderForReview() async throws {
+        var example = try XCTUnwrap(try UpdateFixtures.examples()["all_modules"])
+        var components = try XCTUnwrap(example["components"] as? [[String: Any]])
+        let job: (String, String, String) -> [String: Any] = { state, outcome, at in
+            ["jobId": "44444444-4444-4444-8444-444444444444", "kind": "module", "state": state, "outcome": outcome, "at": at, "reason": NSNull()]
+        }
+        components[0]["status"] = ["line": "11/8 13:34 公開の版を使っています。新しい版はありません。", "tone": "ok", "actionRequired": false,
+                                   "action": NSNull(), "latestJob": job("ready", "succeeded", "2026-11-08T04:34:47Z")]
+        components[1]["comparison"] = ["state": "update_available", "reason": NSNull()]
+        components[1]["status"] = ["line": "新しい版があります。", "tone": "ok", "actionRequired": false, "action": NSNull(), "latestJob": NSNull()]
+        components[2]["status"] = ["line": "11/8 12:21 の更新はできませんでした。この機能は止まっています。", "tone": "attention", "actionRequired": true,
+                                   "action": "BellTeamの管理者に連絡してください。",
+                                   "latestJob": ["jobId": "55555555-5555-4555-8555-555555555555", "kind": "module", "state": "failed", "outcome": "failed",
+                                                 "at": "2026-11-08T03:21:00Z", "reason": ["code": "READY_TIMEOUT", "message": "ready probe timed out"]]]
+        example["components"] = components
+        let mixed = try await store(json: example)
+        let content = UpdateContent(updates: mixed)
+        let rows = try XCTUnwrap(mixed.inventory?.components)
+        XCTAssertEqual(rows.map { content.badge(for: $0) }, [.upToDate, .available, .failed])
+        XCTAssertEqual(content.attentionParts.map(\.component.id), [rows[2].id])
+        XCTAssertFalse(UpdateContent.versionName(rows[0]).contains("bbbbbbb"), "ハッシュは見せない")
+        let current = try await store(for: "no_update")
+        let folder = URL(fileURLWithPath: "/Users/kite/bellteam-screens")
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        for (name, updates) in [("mixed", mixed), ("current", current)] {
+            for width in [390.0, 820.0] {
+                for scheme in [ColorScheme.light, .dark] {
+                    let view = UpdateContent(updates: updates).background(Color(.systemGroupedBackground))
+                        .frame(width: width).environment(\.colorScheme, scheme)
+                    let renderer = ImageRenderer(content: view)
+                    renderer.scale = 2
+                    let image = try XCTUnwrap(renderer.uiImage)
+                    let label = "update-\(name)-\(Int(width))-\(scheme == .dark ? "dark" : "light")"
+                    try? image.pngData()?.write(to: folder.appendingPathComponent("\(label).png"))
+                    let attachment = XCTAttachment(image: image)
+                    attachment.name = label
+                    attachment.lifetime = .keepAlways
+                    add(attachment)
+                }
             }
         }
     }
