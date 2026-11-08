@@ -221,14 +221,15 @@ jobs:
           assert.equal(subscription.canUseAI, true);
           assert.equal((await fetch(base)).status, 200);
           '
-      - name: 失敗時のmodule-installer・container-updaterの記録（診断用）
+      - name: 失敗時の本体・module-installer・container-updaterの状態と記録
         if: failure()
         run: |
-          for c in server-smoke-module-installer-1 server-smoke-container-updater-1; do
-            echo "== $c"; docker inspect --format '{{json .State.Health}}' "$c" 2>&1 | head -c 4000; echo
+          docker ps -a --filter label=com.docker.compose.project=server-smoke --format '{{.Names}} {{.Status}}' || true
+          for c in $(docker ps -aq --filter label=com.docker.compose.project=server-smoke); do
+            echo "== $(docker inspect --format '{{.Name}} {{.State.Status}} exit={{.State.ExitCode}}' "$c")"
+            docker inspect --format '{{json .State.Health}}' "$c" 2>&1 | head -c 4000; echo
             docker logs --tail 80 "$c" 2>&1 || true
           done
-          curl -sS https://api.github.com/rate_limit | head -c 600 || true
       - name: モデル候補の取得と未認証CLIの理由表示を確認
         run: |
           docker compose exec -T bellteam node --input-type=module -e '
