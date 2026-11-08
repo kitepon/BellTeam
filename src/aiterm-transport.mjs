@@ -939,7 +939,8 @@ export class AitermTransport {
         // Same safe fields the conversation writer stores; built here so the execution closure imports no conversation file.
         const detail = returnedMcpError(error), launch = launchFailureDetails(error)
         const statusFailure = { code: stage, delivery_error: { code: stage },
-          ...(detail ? { mcp_error: detail } : {}), ...(launch ? { native_launch: launch } : {}) }
+          ...(detail ? { mcp_error: detail } : {}), ...(launch ? { native_launch: launch } : {}),
+          ...(error.turnCompleted === true ? { turnCompleted: true } : {}) }
         if (!job.receipt && !job.stopped) this.activity.recordFailure(job, stage)
         try {
           await onStatus?.(job.stopped ? 'stopped' : 'failed', statusFailure, ...tracking)

@@ -86,7 +86,7 @@ A turn that the transport followed to its terminal and that ended with a harness
 - `recoveryFailure`, only when continuation may run;
 - message `AITERM_TURN_ERROR: …` / `AITERM_TURN_RATE_LIMITED: …` and `limitText`. These are raw vendor text: diagnostics never keep them.
 
-There is no `code`. The same object reaches the delivery's `onStatus('failed', error)` in the parent by reference. A genuine tracking failure never has `turnCompleted: true`, so a consumer that reports tracking failures excludes it. Report classification of direct deliveries belongs to the conversation owner (N102, BugHub 95f155b7).
+There is no `code`. The thrown Error is not passed to `onStatus`: the parent's `onStatus('failed', statusFailure)` gets the safe projection `{ code: <delivery stage>, delivery_error, mcp_error?, native_launch? }`, and it adds `turnCompleted: true` only when the Error has it (no other turn-end field, never the vendor text). A genuine tracking failure never has `turnCompleted: true`, so a consumer that reports tracking failures excludes it. Report classification of direct deliveries belongs to the conversation owner (N102, BugHub 95f155b7).
 
 `delivery_wait`だけ、例外を取得した時点の`jobId`・`groupId`（UUID表記のみ）、`stopRequested`・`stopped`・`waitAborted`（booleanのみ）を任意fieldとして加える。groupIdはjob.info.groupIdで、直接配送のdelivery ID、部屋では共有メッセージID。jobIdとbotIdで部屋の対象を区別する。欠測値を作らず、job全体・receipt・signal.reasonは渡さない。値はinterim停止やjob.failureのawait前に取得し、後からの停止状態へ置換しない。watch/設定には文脈を加えない。既caller・export・設定・会話保存schemaは不変で、共通writerは従来のdiagnostic_log JSONを保存する。
 
