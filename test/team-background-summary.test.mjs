@@ -259,3 +259,63 @@ test('real engine exchange keeps one parent worker and an old factory accepts un
   await assembly.controller.replace('b'.repeat(64)); assembly.transport.currentWork(bot)
   assert.deepEqual(seen, [shared, shared]); assert.equal(projections.length, 1)
 })
+
+test('request summary: once per group, after member-card records, width 40 with one regeneration, forgotten on release', async t => {
+  const runs = [], ready = []
+  let width = 30
+  const f = fixture(t, { run: async (_s, prompt, options) => {
+    const value = JSON.parse(prompt); runs.push({ purpose: options?.purpose ?? 'work', ...value })
+    if (options?.purpose !== 'request') return '修理を確認中'
+    const text = 'あ'.repeat(width / 2); width = 20; return text
+  } })
+  let live = true
+  f.worker.accept(input(), authority())
+  f.worker.request('group-1', '表示幅を直してください', { current: () => live, ready: () => ready.push('group-1') })
+  f.worker.request('group-1', 'second responder of the same post', { current: () => live, ready: () => ready.push('dup') })
+  await f.worker.draining
+  // Member card first, then one request run (width 30 fits in 40).
+  assert.deepEqual(runs.map(run => run.purpose), ['work', 'request'])
+  assert.equal(f.worker.requestSummary('group-1'), 'あ'.repeat(15)); assert.deepEqual(ready, ['group-1'])
+  // Over 40: exactly one regeneration told the measured width.
+  width = 50
+  f.worker.request('group-2', '別の依頼', { current: () => true, ready: () => {} })
+  await f.worker.draining
+  assert.deepEqual(runs.slice(2).map(run => run.previous_width ?? null), [null, 50])
+  assert.equal(f.worker.requestSummary('group-2'), 'あ'.repeat(10))
+  f.worker.forgetRequest('group-1'); assert.equal(f.worker.requestSummary('group-1'), null)
+  // A group that left the queue during its run stores nothing; invalid input never runs.
+  const before = runs.length
+  f.worker.request('group-3', '依頼', { current: () => false, ready: () => ready.push('group-3') })
+  f.worker.request('group-4', '', { current: () => true, ready: () => {} })
+  await f.worker.draining
+  assert.equal(runs.length, before); assert.equal(f.worker.requestSummary('group-3'), null); assert.equal(ready.includes('group-3'), false)
+})
+
+test('runner: the request purpose uses its own instruction; an unknown purpose is refused', async () => {
+  const seen = []
+  const runner = createBackgroundSummaryRunner({ project: '/p', models: { forHarness: async () => ({ models: [{ id: 'chosen', efforts: ['high'] }] }) },
+    captureRuntime: async () => releaseRuntime,
+    runner: async (_command, args) => { seen.push(args[args.indexOf('--system-prompt') + 1]); return { stdout: JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: 'x' }) } } })
+  await runner(first.selection, '{}', { purpose: 'request' }); await runner(first.selection, '{}')
+  assert.match(seen[0], /依頼要約専用/); assert.match(seen[1], /仕事要約専用/)
+  await assert.rejects(runner(first.selection, '{}', { purpose: 'other' }), { code: 'BACKGROUND_SUMMARY_PURPOSE_INVALID' })
+})
+
+test('transport: Bot-sent groups get one request run, rows carry requestSummary, the last release forgets it', async () => {
+  const requests = [], forgotten = [], summaries = new Map([['g1', '表示幅を直してほしい']])
+  const backgroundSummary = { invalidate() {}, accept() {}, snapshot: (_b, _s, value) => value,
+    request: (key, text, options) => requests.push({ key, text, options }), requestSummary: key => summaries.get(key) ?? null,
+    forgetRequest: key => forgotten.push(key) }
+  const transport = new AitermTransport({ backgroundSummary, client: { call: async () => ({}) } })
+  const job = (id, botId, info) => ({ id, bot: { id: botId }, startedAt: 't', info: { groupId: 'g1', context: 'room', contextId: 'r', message: '幅を直して', ...info } })
+  const a = job('j1', 'bot-a'), b = job('j2', 'bot-b'), owner = job('j3', 'bot-c', { groupId: 'g2', context: 'direct' })
+  for (const value of [a, b, owner]) transport.activity.admit(value)
+  const bot = { context: { actor: { kind: 'bot' } } }
+  transport.startRequestSummary(a, bot); transport.startRequestSummary(owner, { context: { actor: { kind: 'owner' } } })
+  assert.deepEqual(requests.map(value => [value.key, value.text]), [['g1', '幅を直して']])
+  assert.deepEqual(transport.queueItems().map(item => [item.id, item.requestSummary]), [['j1', '表示幅を直してほしい'], ['j2', '表示幅を直してほしい'], ['j3', null]])
+  assert.equal(requests[0].options.current(), true)
+  transport.activity.release(a); assert.deepEqual(forgotten, [])
+  transport.activity.release(b); assert.deepEqual(forgotten, ['g1']); assert.equal(requests[0].options.current(), false)
+  transport.activity.release(owner)
+})

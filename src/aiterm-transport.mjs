@@ -129,6 +129,7 @@ export class AitermTransport {
     this.activity = new SeatActivity()
     // Harness of the seat this transport launched per Bot, for the current-work read (current-work.md A-1).
     this.seatHarnesses = new Map()
+    this.activity.groupReleased = groupId => this.backgroundSummary?.forgetRequest?.(groupId)
     // Claude 1st/2nd accounts (harness-accounts.md). Null keeps every launch on the default root.
     this.accounts = accounts
     this.accountMoves = new Map()
@@ -847,6 +848,7 @@ export class AitermTransport {
         job.restartActivity = this.workState.startedActivity(bot.id, HARNESS.get(bot.harness), delivery.session, delivery.receipt)
         job.nativeSession = delivery.session
         this.startWorkSummary(job, delivery, summaryAuthority, recoveryVersion)
+        this.startRequestSummary(job, summaryAuthority)
         const tracking = this.followAcceptedDelivery(job, delivery)
         const { steered, follower } = tracking
         followed = tracking.followed
@@ -1087,6 +1089,18 @@ export class AitermTransport {
     this.backgroundSummary.accept(input, { context, assertCurrent })
   }
 
+  // One summary per Bot-to-Bot delivery group; the room responders of one post share it (current-work.md "Request summary").
+  startRequestSummary(job, authority) {
+    const groupId = job.info.groupId
+    if (typeof this.backgroundSummary?.request !== 'function' || authority?.context?.actor?.kind !== 'bot'
+      || !['direct', 'room'].includes(job.info.context) || typeof groupId !== 'string' || !groupId) return
+    const jobs = () => [...this.activity.active.values()].filter(item => item.info?.groupId === groupId)
+    this.backgroundSummary.request(groupId, job.info.message, {
+      current: () => jobs().length > 0,
+      ready: () => { for (const item of jobs()) this.activity.emit(item) },
+    })
+  }
+
   currentWork(bot) {
     const snapshot = this.workState.snapshot(bot.id, this.session(bot), !this.sessionChanges.has(bot.id))
     return this.backgroundSummary ? this.backgroundSummary.snapshot(bot.id, this.session(bot), snapshot)
@@ -1268,8 +1282,11 @@ export class AitermTransport {
     return this.activity.stopTargets().map(job => job.bot)
   }
 
+  // requestSummary: the 相関図 edge label (current-work.md "Request summary"); null until ready, on failure, or on an older body.
   queueItems(filter) {
-    return this.activity.items(filter)
+    const items = this.activity.items(filter), summary = this.backgroundSummary
+    if (typeof summary?.requestSummary !== 'function') return items
+    return items.map(item => ({ ...item, requestSummary: item.status === 'running' && item.groupId ? summary.requestSummary(item.groupId) : null }))
   }
 
   watchQueue(listener) {
