@@ -7,6 +7,7 @@ import { returnedExecutionError } from './execution-error.mjs'
 
 const directFailureCodes = new Set([...diagnosticCauseCodes,
   'BOT_SESSION_UNCONFIRMED', 'BOT_INPUT_NOT_READY', 'BOT_SEND_OUTCOME_UNKNOWN', 'AGENT_SESSION_REQUIRED',
+  'BOT_LAUNCH_FAILED', 'BOT_SEND_FAILED', 'BOT_DELIVERY_FAILED',
   'BOT_NOT_FOUND', 'AI_GLOBAL_PAUSED', 'MEMBERS_NOT_ACCEPTED', 'CONVERSATION_NOT_ACCEPTED',
   'CONVERSATION_RECOVERY_UNAVAILABLE', 'DISPATCH_ACCEPTANCE_UNAVAILABLE', 'CONTINUATION_SUPERSEDED',
   'CONFIGURATION_UNAVAILABLE', 'CONFIGURATION_PREPARATION_UNCONFIRMED', 'CONFIGURATION_NOT_APPLIED',
@@ -68,6 +69,8 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
     const reportOnce = (error, stage) => {
       if (reported) return
       reported = true
+      // The harness ended a turn the transport followed to its end (wait-contract "Turn-end failure"): not a tracking failure.
+      if (error?.turnCompleted === true) return
       report(error, { delivery_id: record.delivery_id, target: record.target, stage })
     }
     try {
