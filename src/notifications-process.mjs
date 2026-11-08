@@ -251,6 +251,8 @@ export function createNotificationsProcess({ root, configuration, onDiagnostic =
     const expected = params ? Object.fromEntries(Object.entries(params).filter(([key]) => key !== 'provider')) : null
     const captured = method === 'configure' && providers.includes(provider) ? captureConfiguration(provider, expected) : null
     if (closed || !available || exchanging || !instance) {
+      // A captured configure stays epoch-bound and keeps its refusal; reads wait for the next child.
+      if (!captured && !closed) return recovery.hold(() => request(method, params), () => failure('PUSH_NOT_ACCEPTING'))
       if (captured && !closed) { commitApplication(provider, captured.epochs[provider], undefined, 'PUSH_CONFIGURATION_BUSY'); emit() }
       throw failure('PUSH_NOT_ACCEPTING')
     }

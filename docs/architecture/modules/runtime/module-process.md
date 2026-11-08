@@ -272,3 +272,25 @@ flowchart LR
   H --> A[adopt + resume]
   C --> A
 ```
+
+## Requests between children wait instead of 503 (2026-11-08, Molly; Epinel runtime / Kiro execution OK)
+
+Owner: a module exchange or a child loss must be invisible to callers. Members got this in #603 (`MembersAdmission`, [execution/members-admission.md](../execution/members-admission.md)). The other controllers share one wait primitive in the recovery controller.
+
+| Function | Input | Behaviour |
+| --- | --- | --- |
+| `createModuleChildRestart(...).hold(retry, refuse)` (`src/module-child-restart.mjs`) | a request that found no usable child | waits for the next `running()` (exchange success, rollback, recovery) or `close()`, then runs `retry` once. Closed: `refuse()` at once. No `running()` within `MODULE_HOLD_MS` = 60 s: `refuse()` (the old 503) and the waiter is removed, so a later `running()` never runs a request whose caller already got the refusal (same for members `#afterExchange`). The timer is unref'd; waiters hold no lease or active entry, so drain/quiesce never wait for them |
+| `module-process` `invoke('request')` (conversation, usage, diagnostics) | no instance, ended instance, or `!available` without `canContinue` | `recovery.hold(() => invoke(...), () => <C>_NOT_ACCEPTING)`. Callbacks keep their refusal (they belong to a live lease) |
+| `memory-process` `request` | `!available` or `changing` (exchange in progress) | hold; the replace `finally` calls `recovery.running()` when the module is still available, so waiters resume after the exchange |
+| `notifications-process` `request` | `!available`, `exchanging` or no instance | hold for reads; a captured `configure` stays epoch-bound and keeps `PUSH_CONFIGURATION_BUSY` + `PUSH_NOT_ACCEPTING` |
+| `execution-generation` `dispatch` | `!available` (except the existing `transport.runningBots` read from the readable previous engine) | hold, then dispatch to the new engine. `project` stays synchronous and unchanged |
+
+```mermaid
+flowchart LR
+  Req[request] -->|usable child| Send[child / engine]
+  Req -->|between children, not closed| Hold[recovery.hold]
+  Hold -->|running: exchange done, rollback, recovered| Send
+  Hold -->|close, or 60 s without running| Refuse[old 503]
+```
+
+No new refusal, lock or state writer. Body-resident (parent controllers in `/app/src`). Not changed: the conversation child's own refusals while it quiesces (child-internal), and the conversation lifetime admission, which never gated new work by ticket.

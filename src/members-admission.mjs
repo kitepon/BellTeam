@@ -111,8 +111,10 @@ export class MembersAdmission {
   #afterExchange(retry) {
     const opened = this.#opened.promise
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(rejected()), MEMBERS_EXCHANGE_HOLD_MS); timer.unref?.()
-      opened.then(() => { clearTimeout(timer); try { resolve(retry()) } catch (error) { reject(error) } })
+      let expired = false
+      // A timed-out caller already has the refusal; a later resume must not run its operation.
+      const timer = setTimeout(() => { expired = true; reject(rejected()) }, MEMBERS_EXCHANGE_HOLD_MS); timer.unref?.()
+      opened.then(() => { if (expired) return; clearTimeout(timer); try { resolve(retry()) } catch (error) { reject(error) } })
     })
   }
 

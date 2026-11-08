@@ -151,3 +151,16 @@ test('rejected read completion is terminal and original operation errors retain 
   assert.throws(() => gate.withReadPin('profiles.read', () => { throw original }), error => error === original)
   const ticket = gate.close(); await gate.drain(ticket); gate.adopt(ticket, 'next'); gate.resume(ticket)
 })
+
+test('a members hold that timed out never runs its operation on a later resume', async t => {
+  const { mock } = await import('node:test')
+  const { MEMBERS_EXCHANGE_HOLD_MS } = await import('../src/members-admission.mjs')
+  mock.timers.enable({ apis: ['setTimeout'] }); t.after(() => mock.timers.reset())
+  const gate = new MembersAdmission('a'), ticket = gate.close()
+  let runs = 0
+  const held = gate.withLease(() => ++runs)
+  mock.timers.tick(MEMBERS_EXCHANGE_HOLD_MS)
+  await assert.rejects(held, { code: 'MEMBERS_NOT_ACCEPTED' })
+  await gate.drain(ticket); gate.resume(ticket); await new Promise(resolve => setImmediate(resolve))
+  assert.equal(runs, 0)
+})
