@@ -66,7 +66,7 @@ flowchart LR
   subgraph Core[BellTeam.Core 通信とモデル]
     C1[Workspace・BellApi<br/>一覧・会話・送信・SSE]
     C2[ManagementApi<br/>メンバー・ルーム・画像・書き出し・再起動・停止]
-    C3[ScreenInputApi]
+    C3[ScreenInputModel<br/>キー・許可の送信と確認]
     C4[GoalsApi]
     C5[PlanningApi]
     C6[SettingsApi<br/>所有者・規範・追加機能・AIの認証・仕事の要約・全体停止]

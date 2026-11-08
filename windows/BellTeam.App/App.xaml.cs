@@ -112,6 +112,25 @@ public partial class App : Application
                 WritePng(window, 1280, inspectorHeight, inspectorOutput);
                 model.Dispose(); Shutdown(0); return;
             }
+            if (e.Args is ["--render-screen", var screenScene, var screenAddress, var screenId, var screenOutput])
+            {
+                // The Bot screen read from the mock server (GET only). States that need a POST result are set through render seams, never sent.
+                var model = new Workspace(); var window = new MainWindow(model, persistPlacement: false);
+                await model.ConnectAsync(screenAddress, listen: false);
+                if (model.ConnectionError is { } connectFailure) throw new BellApiException(connectFailure);
+                await model.SelectAsync(model.Entries.FirstOrDefault(entry => entry.Target.Id == screenId) ?? throw new BellApiException("指定した会話がありません。"));
+                var opened = model.OpenScreenAsync();
+                await model.ScreenFirstRead.WaitAsync(TimeSpan.FromSeconds(10));
+                if (screenScene == "digits") { window.ScreenPanel.OpenDigitsForRender(); model.ScreenInput!.SetNoticeForRender("席が起動していません"); }
+                if (screenScene == "sent") window.ScreenPanel.ShowSentForRender("Enter");
+                var screenRoot = (FrameworkElement)window.Content;
+                screenRoot.Measure(new Size(1280, 820)); screenRoot.Arrange(new Rect(0, 0, 1280, 820)); screenRoot.UpdateLayout();
+                window.ScreenPanel.FollowBottomForRender();
+                await window.PrepareRenderAsync();
+                WritePng(window, 1280, 820, screenOutput);
+                model.ReturnToProfile(); await opened;
+                model.Dispose(); Shutdown(0); return;
+            }
             if (e.Args is ["--render-preview", _] || e.Args is ["--render-url", _, _] || e.Args is ["--render-url", _, _, _])
             {
                 // HWNDを作らず、WPFの部品を画像へ描く。Show・Activateは呼ばない。
@@ -133,7 +152,7 @@ public partial class App : Application
                 Shutdown(0);
                 return;
             }
-            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-inspector <member|member-small|room|sheet-small|sheet-large|sheet-unsupported|pending|pending-sheet> <URL> <会話ID> <PNG>、--render-conversation <member|room|states|stop|stop-notice|stop-member|draft|peer-sheet|stack|empty|failed> <URL> <会話ID> <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|features|notifications|connection|display|billing|update|about|stop>|schedules|updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>、--render-editor <member|new-member|room|new-room|settings|profile|feature|schedules|new-schedule|setup|authentication> <URL> <ID> <PNG> のいずれかです。");
+            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-inspector <member|member-small|room|sheet-small|sheet-large|sheet-unsupported|pending|pending-sheet> <URL> <会話ID> <PNG>、--render-screen <keys|approval|digits|sent|empty|offline|failed> <URL> <会話ID> <PNG>、--render-conversation <member|room|states|stop|stop-notice|stop-member|draft|peer-sheet|stack|empty|failed> <URL> <会話ID> <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|features|notifications|connection|display|billing|update|about|stop>|schedules|updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>、--render-editor <member|new-member|room|new-room|settings|profile|feature|schedules|new-schedule|setup|authentication> <URL> <ID> <PNG> のいずれかです。");
 
             MainWindow? main = null;
             instance = new SingleInstance(() => Dispatcher.Invoke(() => { main!.WindowState = main.WindowState == WindowState.Minimized ? WindowState.Normal : main.WindowState; main.Show(); main.Activate(); }));

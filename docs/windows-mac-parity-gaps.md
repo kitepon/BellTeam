@@ -54,12 +54,14 @@ Mac：[48の詳細パネル](assets/mac-ui-reference-48/01-workspace.png)／Wind
 
 | Mac | Windows |
 | --- | --- |
-| [キー](assets/windows-mac-gaps/mac/screenkeys-keys-820-light.png)・[許可](assets/windows-mac-gaps/mac/screenkeys-approval-820-light.png)・[数字と失敗](assets/windows-mac-gaps/mac/screenkeys-digits-error-820-light.png) | 画面の表示だけ。キーバーは無い |
+| [キー](assets/windows-mac-gaps/mac/screenkeys-keys-820-light.png)・[許可](assets/windows-mac-gaps/mac/screenkeys-approval-820-light.png)・[数字と失敗](assets/windows-mac-gaps/mac/screenkeys-digits-error-820-light.png) | [キー](assets/windows-mac-gaps/windows/pr6-screen-keys.png)・[許可](assets/windows-mac-gaps/windows/pr6-screen-approval.png)・[数字と失敗](assets/windows-mac-gaps/windows/pr6-screen-digits-error.png) |
 
-- 見出しは「プロフィールに戻る」と「<名前>の画面」。黒地に白の12pt等幅で、1秒ごとに更新（Windowsは2秒）。状態行は「1秒ごとに更新」または「停止中」。
+- 見出しは「プロフィールに戻る」と「<名前>の画面」。黒地に白の12pt等幅で、1秒ごとに更新。状態行は「1秒ごとに更新」または「停止中」。
 - キーバー：1段目は「取消」「Tab」「決定」（紫）「中断」（赤）、2段目は「左」「上」「下」「右」「数字」（0〜9の段を開く）。送信中は回転、成功後1.2秒チェック。API `POST /api/bots/{id}/screen/key`。
 - 許可の帯（琥珀色）「許可を求められています」。選択肢ごとのボタン（`approve_once`は緑）。`GET/POST /api/bots/{id}/screen/approval`。
 - 注意文：「画面が変わりました。もう一度確認してください」など5種。
+
+対応済み（PR 6）：[キーバー](assets/windows-mac-gaps/windows/pr6-screen-keys.png)・[許可の帯](assets/windows-mac-gaps/windows/pr6-screen-approval.png)・[数字の段と注意文](assets/windows-mac-gaps/windows/pr6-screen-digits-error.png)・[送信後のチェック](assets/windows-mac-gaps/windows/pr6-screen-sent.png)・[空の画面（起動中）](assets/windows-mac-gaps/windows/pr6-screen-empty.png)・[席が停止中](assets/windows-mac-gaps/windows/pr6-screen-offline.png)・[読み取りの失敗](assets/windows-mac-gaps/windows/pr6-screen-read-failed.png)・[既定の画面](assets/windows-mac-gaps/windows/pr6-workspace.png)。更新は表示中だけ1秒ごと。Macと同じく読み取りが失敗すると止まり、状態行に赤い文を出す（「再読込」ボタンはMacに無いため外した。画面を開き直すと再開する）。許可の確認は画面の読み取りが成功するたびに毎回行い、失敗しても続け、503の間はキーバーごと隠して後の200で戻す。想定外の失敗の報告は連続1回だけ。Macの触覚フィードバックと診断の送り先はWindowsに無く、診断は`Trace`へ書く。
 
 ## 5. メンバー追加・編集、ルーム、画像の切り抜き — M
 
@@ -143,6 +145,7 @@ Mac：[48の詳細パネル](assets/mac-ui-reference-48/01-workspace.png)／Wind
 ## 11. 共通部品とキー操作 — S
 
 PR 4の確認でトロニーが仕上げへ回した項目（例外にせず再現する）：「安全な入力欄を開く」をMacと同じ灰色のボタンにする。送信直後に、Macと同じ「受付確認中」の仮の吹き出しを出す。画像の閲覧を別の窓ではなく、主窓の中で開く。
+PR 5の確認で追加：Macの実物（113の01・02・07）は、会話の上にアバターと名前の帯を持たず、窓の題名が「BellTeam」で、詳細パネルの切替と書き出しを窓の右上に紫の丸いボタン2つで置く。#634のソースと実物を照らし、実物に合わせる。
 
 - 画像の閲覧：Windowsにほぼある。「n / N」、64の縮小画像の帯、Esc・←・→を確かめる。
 - 文字の大きさ：本文18、入力18、一覧の名前16・補助14、ボタン16、プロフィールの題20、区分の見出し13 semibold。カードの角丸24。
