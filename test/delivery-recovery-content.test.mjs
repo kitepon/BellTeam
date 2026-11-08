@@ -97,3 +97,47 @@ test('saved recovery retains image bytes and call identity without a content-typ
   await messenger.closeDeliveryLaunch(incomplete.delivery_id, launch)
   assert.equal(calls.pop().kind, 'close', 'close does not need or resend image bytes')
 })
+
+test('explicit recovery and close accept an unknown call through the ordinary recovery marker', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'delivery-recovery-unknown-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const bots = new Map([['bot-target', { id: 'bot-target', name: 'Target' }]])
+  const calls = [], id = 'unknown-call'
+  const ordinary = { ordinary: true,
+    reservation: { request: { kind: 'delivery', delivery_id: id, target_session_id: launch.session_id } },
+    binding: { target: { launch } } }
+  const messenger = new BellTeamMessenger({ bots, logPath: join(root, 'messages.jsonl'),
+    requireAccess: () => {}, transport: {
+      async reconcileLaunch(bot, request, target) {
+        calls.push({ kind: 'reconcile', bot: bot.id, request, target })
+        return ordinary
+      },
+      async closeLaunch(bot, request, target) {
+        calls.push({ kind: 'close', bot: bot.id, request, target })
+        return { closed: true }
+      },
+      async notify(bot, text, options) {
+        calls.push({ kind: 'notify', bot: bot.id, text, options })
+        assert.equal(options.recoveredExecution, ordinary)
+        return { delivery: 'running' }
+      },
+    } })
+  await messenger.append({ schema: 'bellteam.direct-message.v1', delivery_id: id,
+    at: new Date().toISOString(), from: 'call-bridge:local:peer', target: 'bot-target',
+    from_identity: { id: 'call-bridge:local:peer', name: 'Caller', position: 'local' },
+    message: 'Unknown original call', image: false, delivery: 'unknown', session_id: 'original-session',
+    call_event: 'session.message', call_seq: 7, call_reply_required: false })
+
+  await messenger.closeDeliveryLaunch(id, launch)
+  assert.equal(calls[0].kind, 'close')
+  const result = await messenger.resumeDelivery(id, launch)
+  assert.equal(result.delivery_id, id)
+  const [, reconciliation, sent] = calls
+  assert.equal(reconciliation.kind, 'reconcile')
+  assert.equal(sent.kind, 'notify')
+  assert.equal(sent.options.queue.groupId, id)
+  assert.deepEqual(sent.options.queue.call, { sessionId: 'original-session', event: 'session.message', seq: 7 })
+  assert.equal(sent.options.queue.from, 'call-bridge:local:peer')
+  assert.equal(sent.options.recoveredExecution, ordinary)
+  assert.equal(sent.text.includes('call_send'), false)
+})

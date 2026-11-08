@@ -14,4 +14,4 @@ UNIX socketのGET `/v0/directory`は`bellteam.call-directory.v1`のmembersを返
 
 Bridge内部図は[Bridge module](../bridge/README.md)から製品の正本へ辿る。本体API/MCP中継とsocket機能の有効化は統合/利用設定、席の実行はAI実行制御、共有ランタイムは実行環境へ接続する。Bridgeの未公開候補採用や製品修理を本体受付のsource分離と混同しない。
 
-Owner recovery of a saved failed call uses the [saved delivery recovery contract](delivery.md#saved-image-and-call-delivery-recovery). Keep the original call session/event/seq and reply requirement; a call is not excluded by its sender category. Bridge peers do not receive the owner-only resume/close authority.
+Owner recovery of a saved failed or unknown call uses the [saved delivery recovery contract](delivery.md#saved-image-and-call-delivery-recovery). Keep the original call session/event/seq and reply requirement; a call is not excluded by its sender category. Bridge peers do not receive the owner-only resume/close authority.

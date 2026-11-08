@@ -147,7 +147,7 @@ export class BellTeamMessenger extends ConversationWriter {
   resumableDelivery(deliveryId, records) {
     const record = records.find(row => row.delivery_id === deliveryId)
     if (!record) throw Object.assign(new Error('DELIVERY_NOT_FOUND'), { code: 'DELIVERY_NOT_FOUND', status: 404 })
-    if (record.delivery !== 'failed' || !this.bots.has(record.target))
+    if (!['failed', 'unknown'].includes(record.delivery) || !this.bots.has(record.target))
       throw Object.assign(new Error('DELIVERY_NOT_RESUMABLE'), { code: 'DELIVERY_NOT_RESUMABLE', status: 409 })
     return record
   }

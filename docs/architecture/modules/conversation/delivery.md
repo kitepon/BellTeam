@@ -129,26 +129,26 @@ flowchart TD
 
 ## Saved image and call delivery recovery
 
-The owner-only `delivery.resume` and `delivery.closeLaunch` entries use the saved failed row and the expected target launch. Content type and sender category do not determine recoverability: image, user, scheduler and call rows use the same saved-ID lookup. Authentication and actor capture stay in the parent; bridge peers gain no recovery authority. A missing row, a non-failed row or a missing target remains invalid input to this failed-delivery API. Execution owns the decision whether the original input was issued and the target generation can be recovered.
+The owner-only `delivery.resume` and `delivery.closeLaunch` entries use the saved failed or unknown row and expected target launch. Content type and sender category do not determine recoverability: image, user, scheduler and call rows use the same saved-ID lookup. Authentication and actor capture stay in the parent; bridge peers gain no recovery authority. A missing row, any other status, or a missing target remains invalid. Resume is an explicit owner operation: it may send the saved input again even when execution cannot prove whether the earlier send was issued. With no execution bridge, an explicit resume dispatches the saved input through ordinary notify; that does not prove the earlier send was never issued. Legacy adapters retain their own execution-owned checks; conversation does not make those checks a universal no-replay precondition. The concrete parent receipt handling for this path is part of the execution integration contract.
 
 ```mermaid
 flowchart LR
-  Owner[Authenticated owner / saved delivery ID and expected launch] --> Row[Messenger: original failed row and current target]
+  Owner[Authenticated owner / saved delivery ID and expected launch] --> Row[Messenger: original failed or unknown row and current target]
   Row --> Close[closeDeliveryLaunch: same-ID execution close / no input or asset read]
   Row --> Assets[resumeDelivery: load original saved image bytes]
   Assets --> Reconcile[Execution: original request and expected generation]
   Reconcile --> Notify[Normal notify / same delivery ID / saved envelope and call metadata]
   Notify --> Status[Original row status and existing callbacks]
-  Close --> Original[Original failed row retained]
+  Close --> Original[Original failed or unknown row retained]
 ```
 
 | Function / DFD edge | Ownership and contract |
 | --- | --- |
-| `resumableDelivery` → saved row | Conversation selects the original failed row and existing target. Remove the blanket `image`, `session_id` and Bot-only sender exclusions; the persisted sender is not a new caller-supplied identity. |
+| `resumableDelivery` → saved row | Conversation selects the original failed or unknown row and existing target. Keep the blanket content-type and sender-category exclusions absent; the persisted sender is not a new caller-supplied identity. |
 | Saved assets → `resumeDelivery` → execution | Load `image_assets` or the legacy `image_asset` through the existing bounded no-follow reader, before reconciliation. Pass `{mime,data}` bytes, never a private saved path. A record claiming an attachment without any saved reference is incomplete input (`IMAGE_ASSET_NOT_FOUND`); never silently omit it. Existing filesystem errors remain input-read failures. Future legacy Bot-to-Bot sends save their attachments as well; the ordinary durable parent receipt already does so. |
 | Saved call metadata → `callEnvelope` / `queue.call` | Keep the original session/event/seq, sender label and `call_reply_required`. Initial call receipt and recovery use the same envelope builder. Earlier rows without `call_reply_required` retain the previous default of requesting a reply. |
-| Reconcile → notify | Keep the existing closed effect wire and opaque recovery handle. The existing API sends the original never-issued input after execution reconciliation; it is not observation-only. Execution must not authorize a second input from an accepted or unresolved send. Kiro owns this contract and its production execution-module implementation. |
-| `closeDeliveryLaunch` → execution | Do not read, resend or reconstruct attachments. Closing the matching launch retains the original failed history and original ID. |
+| Reconcile → notify | Keep the existing closed effect wire and opaque recovery handle. Explicit owner recovery dispatches the original saved input through ordinary notify; this can retype an earlier input whose outcome is unknown. Without a bridge, execution returns a truthy `ordinary` value with the original reservation request and requested launch binding, so the existing parent target check succeeds. The engine consumes that value as ordinary dispatch, without installing it as a legacy execution request. This is Kiro's execution contract; it requires no parent migration. Do not require proof that the earlier input was never issued. Legacy adapter-specific checks remain execution-owned. |
+| `closeDeliveryLaunch` → execution | Do not read, resend or reconstruct attachments. Closing the matching launch retains the original failed/unknown history and original ID. |
 
 No new retry limit, queue, watcher, guard or stored schema is introduced. Image references and `call_reply_required` are existing optional fields. Missing source bytes cannot be reconstructed from an old image flag; that is missing required input, not a reason to exclude all image deliveries. The changed Messenger executes in the conversation child and is in the existing signed conversation archive. The existing parent HTTP/facade/effect signatures remain unchanged; activate the conversation module together with Kiro's compatible execution module through the normal signed module-update path. Source adoption and archive membership alone do not prove production activation.
 
