@@ -77,10 +77,10 @@ A failed `prepare` is `ACCOUNT_ROOT_UNAVAILABLE` (status 503), and the engine lo
 A seat's model scope is the first family name found in its model id (`fable`, `opus`, `sonnet`, `haiku`; for example `claude-fable-5-1` → `fable`, the alias `opus` → `opus`). An unknown family is only affected by `'all'`. A slot is limited for a seat when it has an entry with scope `'all'` or the seat's family.
 
 1. Trigger: a Claude wait result on a seat whose slot is S, either `outcome:'rate_limited'` (screen line in `rate_limit`) or `failure.category:'rate_limited'` (transcript 429, its line in `error`). Both are existing public wait-result fields.
-   Production 2026-11-09 06:0x JST: on a usage-credits plan the Fable limit is a transcript record `isApiErrorMessage:true, error:'rate_limit', apiError:'model_requires_usage_credits'`, no `apiErrorStatus`, text `You're out of usage credits. Run /usage-credits to keep using Fable 5.1 or /model to switch models.`, and Stop still fires. Aiterm 0.64.0 reports that turn `done`, so no limit is recorded from it and the seat stays on S (Kiro's own Fable seat, 19 turns 06:06–06:27 JST). E5 below makes it `failure.category:'rate_limited'`.
+   Production 2026-11-09 06:0x JST (usage credits off): the plain Fable limit is a transcript record `isApiErrorMessage:true, error:'rate_limit', apiError:'model_requires_usage_credits'`, no `apiErrorStatus`, text `You're out of usage credits. Run /usage-credits to keep using Fable 5.1 or /model to switch models.`, and Stop still fires. Aiterm 0.64.0 reports that turn `done`, so no limit is recorded from it and the seat stays on S (Kiro's own Fable seat, 19 turns 06:06–06:27 JST). E5 below makes it `failure.category:'rate_limited'`.
 2. Scope from the limit text, then from usage:
    - `You've reached your Fable limit …` / `You've hit your Opus limit …`: a named family is that family;
-   - `… to keep using Fable 5.1 …` (the usage-credits form): the named model's family;
+   - `You're out of usage credits … to keep using Fable 5.1 …` (Claude Code's model-limit line, also with credits off): the named model's family;
    - `weekly limit`, `session limit`, `usage limit`, and the screen line `Usage limit reached`: `'all'`.
    If the text does not decide it, the usage reading decides it: `weekly_scoped` rows with `scope.model.display_name` give that family; `session` and `weekly_all` give `'all'`.
 3. Reset time, first from the same text, at detection. The observed forms are:

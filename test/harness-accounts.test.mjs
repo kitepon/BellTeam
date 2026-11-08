@@ -20,7 +20,7 @@ test('limit text: observed Claude Code forms give scope and reset time', () => {
   assert.equal(at('Usage limit reached · continuing automatically at 8am · esc to cancel').scope, 'all')
   const fable = at("You've reached your Fable limit. Run /usage-credits to continue or switch models with /model.")
   assert.deepEqual([fable.scope, fable.resetAt], ['fable', null])
-  // Usage-credits plans (production 2026-11-09): the model is named after 'keep using'.
+  // The model-limit line (production 2026-11-09, credits off): the model is named after 'keep using'.
   assert.equal(at("You're out of usage credits. Run /usage-credits to keep using Fable 5.1 or /model to switch models.").scope, 'fable')
   assert.equal(at("You've hit your usage limit. Visit … or try again at Nov 9th, 2026 12:35 PM.").resetAt, '2026-11-09T03:35:00.000Z')
   // Far future (a mis-parse) or the past is not trusted.
