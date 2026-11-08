@@ -632,6 +632,24 @@ final class NetworkRecoveryTests: XCTestCase {
         withExtendedLifetime((errorObservation, eventObservation)) {}
     }
 
+    /// 404（旧本体・経路の入れ替え中）でも止めず、理由を出して再接続し、次の接続で知らせを受ける（Windows #677と同じ）。
+    func testEvents404KeepsReconnectingAndReceivesUpdateAfterward() async {
+        let scenario = NetworkScenario(failures: 0, events502ThenReady: true, eventsFirstStatus: 404, holdEventsOpen: true)
+        let store = AppStore(api: makeAPI(scenario))
+        defer { store.stopEvents() }
+        let banner = expectation(description: "404で理由と再接続を表示")
+        let recovered = expectation(description: "再接続後の知らせを受信")
+        let errorObservation = store.$connectionError.compactMap { $0 }.sink { value in
+            if value.contains("再接続") { banner.fulfill() }
+        }
+        let eventObservation = store.$eventRevision.dropFirst().sink { _ in recovered.fulfill() }
+        store.startEvents()
+        await fulfillment(of: [banner, recovered], timeout: 4)
+        XCTAssertNil(store.connectionError)
+        XCTAssertEqual(scenario.count("/api/events"), 2)
+        withExtendedLifetime((errorObservation, eventObservation)) {}
+    }
+
     func testReadyAfterReconnectFetchesUpdatesMissedDuringDisconnection() async {
         let scenario = NetworkScenario(failures: 0, events502ThenReady: true,
                                        holdEventsOpen: true, skipAvatarVersion: true,
@@ -843,6 +861,8 @@ private final class NetworkScenario {
     let accessExpired: Bool
     let httpStatus: Int
     let events502ThenReady: Bool
+    /// events502ThenReadyの初回の状態（既定502）。
+    let eventsFirstStatus: Int
     let readyOnlyAfterReconnect: Bool
     let eventStream: String?
     let holdEventsOpen: Bool
@@ -855,7 +875,7 @@ private final class NetworkScenario {
     init(failures: Int, failureCode: URLError.Code = .networkConnectionLost,
          failurePath: String? = nil,
          avatars: Bool = false, accessExpired: Bool = false, httpStatus: Int = 200,
-         events502ThenReady: Bool = false, holdEventsOpen: Bool = false,
+         events502ThenReady: Bool = false, eventsFirstStatus: Int = 502, holdEventsOpen: Bool = false,
          skipAvatarVersion: Bool = false, readyOnlyAfterReconnect: Bool = false,
          eventStream: String? = nil, holdPath: String? = nil) {
         self.holdPath = holdPath
@@ -866,6 +886,7 @@ private final class NetworkScenario {
         self.accessExpired = accessExpired
         self.httpStatus = httpStatus
         self.events502ThenReady = events502ThenReady
+        self.eventsFirstStatus = eventsFirstStatus
         self.readyOnlyAfterReconnect = readyOnlyAfterReconnect
         self.eventStream = eventStream
         self.holdEventsOpen = holdEventsOpen
@@ -925,7 +946,7 @@ private final class NetworkScenarioProtocol: URLProtocol {
             let (data, mime) = try Self.scenario.response(request)
             let url = Self.scenario.accessExpired ? URL(string: "https://test.cloudflareaccess.com/cdn-cgi/access/login")! : request.url!
             let status = Self.scenario.events502ThenReady && request.url!.path == "/api/events"
-                && Self.scenario.count("/api/events") == 1 ? 502 : Self.scenario.httpStatus
+                && Self.scenario.count("/api/events") == 1 ? Self.scenario.eventsFirstStatus : Self.scenario.httpStatus
             let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": mime])!
             client!.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
             client!.urlProtocol(self, didLoad: data)

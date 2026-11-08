@@ -122,7 +122,7 @@ flowchart TD
 | 会話が非activeまたは非表示 | readerと過去読取taskをcancel、世代を増加。背景送信は専用の実行時間管理を通る |
 | SSE終了・通信失敗・HTTP429/5xx | 画面へ再接続中と表示。1秒から倍増し最大30秒。30秒超の接続後は遅延・連続失敗数をリセット。URLError連続5回目に診断 |
 | SSE認証失敗 | requireLoginへ渡して再接続loopを終了 |
-| SSEのその他の応答/復号等の異常 | エラー表示・診断後にloop終了。自動再接続しない |
+| SSEのその他の応答（404など）/復号等の異常 | 理由を表示し、同じ間隔（1秒から倍増・最大30秒）で再接続を続ける。診断は失敗の連続の初回だけ。止めるのは取消と認証拒否だけ |
 | 通常HTTPのGETでnetworkConnectionLost | BellAPI.loadが一度だけGETを取り直す。他のGET失敗やPOST/PATCH/PUT/DELETEをここでは再送しない |
 | JSON/画像/HTTP検証の失敗 | throwしてcallerが表示・診断を決める。認証用保護sessionはredirectを拒否し、deferでinvalidateAndCancel |
 | 会話ページを消した後の初回読取応答 | conversationGeneration不一致なら成功/失敗を適用しない。rememberも世代を検査 |

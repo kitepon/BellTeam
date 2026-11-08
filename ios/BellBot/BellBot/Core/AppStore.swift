@@ -814,10 +814,12 @@ final class AppStore: ObservableObject {
                     if failures == Self.eventsFailureReportThreshold { api.diagnostics.report(error, path: "/api/events", method: "GET", observation: .reconnecting, elapsedMilliseconds: BellDiagnostics.elapsedMilliseconds(since: requestStarted)) }
                 } catch {
                     if Task.isCancelled { return }
-                    eventsError = error.localizedDescription
+                    // 404・読めない応答でも止めない。理由を出したまま同じ間隔で再接続し、報告は失敗の連続ごとに1件。
+                    // 止めるのは取消（サインアウト・接続先変更を含む）と認証拒否だけ（Windows #677と同じ）。
+                    failures += 1
+                    eventsError = "更新を受け取れませんでした（\(BellAPIError.operationFailureMessage(error))）。再接続しています。"
                     updateConnectionError()
-                    api.diagnostics.report(error, path: "/api/events", method: "GET", observation: .read(error, retainedData: !bots.isEmpty || !rooms.isEmpty))
-                    return
+                    if failures == 1 { api.diagnostics.report(error, path: "/api/events", method: "GET", observation: .read(error, retainedData: !bots.isEmpty || !rooms.isEmpty)) }
                 }
                 if Date().timeIntervalSince(connectedAt) > 30 { reconnectDelay = 1_000_000_000; failures = 0 }
                 do { try await Task.sleep(nanoseconds: reconnectDelay) }
