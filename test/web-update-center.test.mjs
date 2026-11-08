@@ -143,7 +143,7 @@ test('component status uses exact server lines and actions while technical histo
   assert.equal(validUpdateInventory(value), true)
   for (const status of [null, {}, { line: '確認', tone: 'invalid', actionRequired: false, action: null, latestJob: null },
     { line: '確認', tone: 'ok', actionRequired: false, action: null, latestJob: { ...latest(succeeded), at: 'invalid' } }]) {
-    assert.equal(validUpdateInventory({ ...value, components: [{ ...base, status }] }), false)
+    assert.equal(validUpdateInventory({ ...value, components: [{ ...base, status }] }), true)
   }
   assert.ok(f.calls.every(([path, options]) => path === '/api/updates?runtime=1' && !options?.method))
 })
@@ -295,6 +295,47 @@ test('runtime rows opt in, retain next-launch policy and use single-target jobs 
   for (const runtimeApplication of [undefined, { generationId: 'bad', policy: 'next_launch' }, { generationId: null, policy: 'now' }]) {
     assert.equal(validUpdateInventory({ ...value, components: [{ ...value.components[0], runtimeApplication }] }), false)
   }
+})
+
+test('a newer optional status falls back per row without disabling components or blocking plan and start', async t => {
+  const { value, fixedPlan } = executable(), storage = storeFixture()
+  const first = value.components[0]
+  first.status = { line: 'この部品の説明は新しい形式です。', tone: 'future_tone', actionRequired: false, action: null,
+    latestJob: { kind: 'future_kind', reason: { future: true } } }
+  value.components.push({ ...structuredClone(first), id: 'notifications', name: '通知', status: {
+    line: '通知は利用できます。更新があります。', tone: 'ok', actionRequired: false, action: null, latestJob: null } })
+  for (const component of value.components) component.capability = { supported: true, reason: null }
+  let accepted = null
+  const f = fixture(t, async (path, options) => {
+    if (path === '/api/updates?runtime=1') return value
+    if (path.endsWith('/plans')) return { plan: fixedPlan }
+    if (path.endsWith('/operations')) {
+      const body = JSON.parse(options.body)
+      accepted = receipt(fixedPlan, body.requestId)
+      value.operation = accepted
+      return { operation: accepted }
+    }
+    return { operation: accepted }
+  }, storage)
+  await f.center.start()
+  assert.equal(validUpdateInventory(value), true)
+  const product = f.get('[data-update-product]')
+  const rows = product.children.find(node => node.className === 'update-release-notes update-component-statuses').children
+  assert.equal(rows.length, 2)
+  assert.equal(rows[0].children[0].textContent, first.name)
+  assert.equal(rows[0].children[1].textContent, '更新あり')
+  assert.equal(rows[1].children[1].textContent, value.components[1].status.line)
+  assert.doesNotMatch(text(product), /新しい形式|future_|応答形式/)
+  for (const component of value.components) {
+    f.select(component.id)
+    assert.equal(control(f, 'execute').disabled, false)
+  }
+  f.select('container')
+  control(f, 'execute').handlers.click(); await settle()
+  confirm(f)
+  control(f, 'execute').handlers.click(); await settle()
+  assert.equal(f.calls.filter(([path]) => path === '/api/updates/operations').length, 1)
+  assert.equal(accepted.admission, 'accepted')
 })
 
 test('stored update jobs keep lookup IDs across read errors, explicit new starts and reload without replay', async t => {

@@ -46,7 +46,7 @@ const errorText = error => [...new Set([error?.code, error?.message, error?.path
     : error?.status === 404 ? 'この接続先では更新情報が未提供です。' : '更新情報を取得できませんでした。')
 const comparisonLabel = item => item.comparison.state === 'up_to_date' && item.publication?.check.status !== 'verified'
   ? '受入済み版と一致 · 公開情報の取得確認が必要です' : comparisons[item.comparison.state]
-const componentStatus = value => value === undefined || value && text(value.line)
+const componentStatus = value => value && text(value.line)
   && ['ok', 'updating', 'attention'].includes(value.tone) && typeof value.actionRequired === 'boolean' && nullableText(value.action)
   && (value.latestJob === null || value.latestJob && uuid(value.latestJob.jobId)
     && ['module', 'container', 'runtime'].includes(value.latestJob.kind) && jobStates.includes(value.latestJob.state)
@@ -66,7 +66,7 @@ export function validUpdateInventory(value) {
     && Array.isArray(value.components) && new Set(value.components.map(item => item?.id)).size === value.components.length
     && value.components.every(item => item && text(item.id) && text(item.name) && text(item.description) && version(item.current) && version(item.published)
       && item.comparison && Object.hasOwn(comparisons, item.comparison.state) && nullableText(item.comparison.reason)
-      && componentStatus(item.status) && publication(item.publication) && Array.isArray(item.changes) && item.changes.every(text) && capability(item.capability) && item.availability
+      && publication(item.publication) && Array.isArray(item.changes) && item.changes.every(text) && capability(item.capability) && item.availability
       && [true, false, null].includes(item.availability.available) && nullableText(item.availability.reason)
       && (!isRuntime(item.id) || item.runtimeApplication?.policy === 'next_launch'
         && (item.runtimeApplication.generationId === null || /^[a-f0-9]{64}$/.test(item.runtimeApplication.generationId))))
@@ -182,6 +182,7 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
   function renderDetail() {
     const supportOpen = Array.from(detail.children).find(node => node.className === 'update-support')?.open ?? false
     const component = inventory?.components.find(item => item.id === selected)
+    const status = componentStatus(component?.status) ? component.status : null
     const selectedPlan = planned
     const affects = item => item && (selected === 'all' || item.plan.targets.some(target => target.componentId === selected))
     const current = inventory?.operation, previous = inventory?.previousOperation
@@ -298,14 +299,14 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     summary.dataset.updateControl = 'support-summary'; support.append(summary)
     const fields = element('dl', '')
     const codes = new Set([planFailure, component?.availability.reason, component?.comparison.reason, component?.capability.reason,
-      component?.publication?.check.error, displayPlan?.compatibility.reason, displayPlan?.capability.reason, result?.error?.code, component?.status?.latestJob?.reason?.code].filter(Boolean))
+      component?.publication?.check.error, displayPlan?.compatibility.reason, displayPlan?.capability.reason, result?.error?.code, status?.latestJob?.reason?.code].filter(Boolean))
     const values = [
       ['稼働版', component?.current?.version], ['稼働配布物', component?.current?.digest],
       ['公開版', component?.published?.version], ['公開配布物', component?.published?.digest],
-      ['最新ジョブID', component?.status?.latestJob?.jobId], ['最新ジョブ種別', component?.status?.latestJob?.kind],
-      ['最新ジョブ状態', component?.status?.latestJob?.state], ['最新ジョブ結果', component?.status?.latestJob?.outcome],
-      ['最新ジョブ日時', component?.status?.latestJob ? formatDate(component.status.latestJob.at) : null],
-      ['最新ジョブの理由', component?.status?.latestJob?.reason?.message],
+      ['最新ジョブID', status?.latestJob?.jobId], ['最新ジョブ種別', status?.latestJob?.kind],
+      ['最新ジョブ状態', status?.latestJob?.state], ['最新ジョブ結果', status?.latestJob?.outcome],
+      ['最新ジョブ日時', status?.latestJob ? formatDate(status.latestJob.at) : null],
+      ['最新ジョブの理由', status?.latestJob?.reason?.message],
       ...(displayPlan?.targets.map(target => [`固定した更新先 · ${target.componentId}`, target.published.version]) ?? []),
       ['計画ID', displayPlan?.planId], ['要求ID', result?.requestId ?? pending?.requestId],
       ['状態・理由の符号', [...codes].join(' / ')],
@@ -383,12 +384,12 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     if (componentStatuses && inventory) {
       const section = element('section', 'update-release-notes update-component-statuses')
       for (const component of inventory.components) {
-        const status = component.status
-        if (!status) continue
-        const row = element('article', `update-component-summary${status.tone === 'attention' ? ' is-attention' : ''}`)
-        row.dataset.statusTone = status.tone
-        row.append(element('strong', '', component.name), element('p', '', status.line))
-        if (status.tone === 'attention' && status.action) row.append(element('p', '', status.action))
+        const status = componentStatus(component.status) ? component.status : null
+        const row = element('article', `update-component-summary${status?.tone === 'attention' ? ' is-attention' : ''}`)
+        if (status) row.dataset.statusTone = status.tone
+        row.append(element('strong', '', component.name), element('p', '', status?.line ?? comparisonLabel(component)))
+        if (status?.tone === 'attention' && status.action) row.append(element('p', '', status.action))
+        if (!status && !component.capability.supported) row.append(element('p', '', explanation(component.capability.reason, isRuntime(component.id))))
         section.append(row)
       }
       product.append(section)
@@ -578,7 +579,7 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     loading = true; render()
     const reads = [readLatest(inventoryPath, (result, revision) => {
       inventory = result.status === 'fulfilled' && validUpdateInventory(result.value) ? result.value : null
-      if (inventory) componentStatuses = inventory.components.some(item => item.status !== undefined)
+      if (inventory) componentStatuses = inventory.components.some(item => componentStatus(item.status))
       if (inventory && revision === eventRevision) recentJobs = inventory.jobs ?? []
       failure = inventory ? '' : result.status === 'fulfilled' ? '更新情報の応答形式を確認できません。' : errorText(result.reason)
     })]

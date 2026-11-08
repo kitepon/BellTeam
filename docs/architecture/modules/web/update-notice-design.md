@@ -6,16 +6,16 @@ This display contract supersedes the main-screen raw-job requirements below when
 
 | Function / edge | Input -> output and ownership |
 | --- | --- |
-| Inventory validator | Optional component `status:{line,tone:ok/updating/attention,actionRequired,action,latestJob}` -> validated display values. Missing status remains compatible with older bodies. Latest-job ID/kind/state/outcome/ISO time/reason are detail-only data. |
+| Per-row optional display reader | Check each component `status:{line,tone:ok/updating/attention,actionRequired,action,latestJob}` only for that row's presentation. Malformed or newer-shaped status is treated as absent for that row and never rejects inventory or blocks any plan/start. Latest-job ID/kind/state/outcome/ISO time/reason are detail-only data when the status shape is readable. |
 | Standard overview | Supplied component statuses -> one row per supplied component: name + exact server line, through text nodes. Attention rows receive visual/text emphasis and show the supplied action. The ordinary heading uses a neutral label and the server notice. No client-composed version/job sentence or interpretation of old failures. |
 | Technical details | Existing combined jobs and restart-problem sections move under the existing 詳細 disclosure for status-capable responses. Latest-job fields are added to the selected component's support details; current/published versions and retained operation/history displays remain there. Standard errors use a brief read-error message; full codes/path/reason remain in details. |
-| Older-body fallback | When no component supplies status, keep existing standard rendering unchanged, including the legacy job list. A mixed response summarizes only supplied statuses and keeps all raw records in details; no missing sentence is invented. Keep the last successful response mode through a read failure, so stale event jobs cannot leak onto the standard screen; a successful older-body response resets the mode. |
+| Older-body fallback | When no component supplies status, keep existing standard rendering unchanged, including the legacy job list. A mixed response uses valid supplied statuses and the existing comparison/capability rendering for rows with absent or invalid status, while keeping raw records in details. No missing server sentence is invented. Keep the last successful response mode through a read failure, so stale event jobs cannot leak onto the standard screen; a successful older-body response resets the mode. |
 | Refresh and actions | Same opted-in inventory GET, retained operation GET and SSE invalidation; no new request, store, timer or server judgment. Existing plan/start/confirmation/UUID retention and runtime no-rollback policy remain unchanged. |
 
 ```mermaid
 flowchart LR
   SSE[Existing updates SSE] --> Read[Existing inventory GET runtime=1]
-  Read --> Status[Validate optional component status]
+  Read --> Status[Read optional status per row / invalid means absent]
   Status -->|supplied line/tone/action| Standard[Normal overview: component name + server text]
   Status -->|latestJob| Detail[Existing 詳細 disclosure]
   Read --> Jobs[Existing jobs / operation / problems]
@@ -26,7 +26,7 @@ flowchart LR
   Error --> Brief[Brief standard error without technical codes]
 ```
 
-Overall Web -> integration HTTP/SSE composition remains unchanged; overall DFD U14 names the status projection. Source reach is `web/update-center.js`, `web/styles.css` and `test/web-update-center.test.mjs`; `application.js`, public routes/SSE, module.json and assets membership stay unchanged. No new guard is introduced; existing invalid-response/read-error handling clears through a later successful refresh. The new validation checks consumed response fields at the existing trust boundary.
+Overall Web -> integration HTTP/SSE composition remains unchanged; overall DFD U14 names the status projection. Source reach is `web/update-center.js`, `web/styles.css` and `test/web-update-center.test.mjs`; `application.js`, public routes/SSE, module.json and assets membership stay unchanged. No new guard is introduced; existing invalid-response/read-error handling clears through a later successful refresh. Optional status checks select a row display only; they are absent from the whole-inventory validator and cannot refuse an inventory or an update action. A readable status can arrive on any later refresh; malformed/newer optional shapes require no server repair or Web upgrade to use the existing update actions.
 
 ## Runtime updates in the normal Update screen (2026-11-08, Z-b2 slice D)
 
