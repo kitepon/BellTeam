@@ -79,7 +79,11 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
         if (!bot) throw Object.assign(new Error('BOT_NOT_FOUND'), { code: 'BOT_NOT_FOUND', status: 404 })
         check()
         const { onUserComplete, ...notificationCallbacks } = callbacks
-        const options = { images, queue, ...notificationCallbacks,
+        // Work summaries (message-receipt.md): who sent it, never a lease; a bridge call is not a summary root.
+        const actor = record.from === 'user' ? { kind: 'owner' } : record.from === 'scheduler' ? { kind: 'scheduler' } : { kind: 'bot', botId: record.from }
+        const summaryAuthority = record.session_id ? null
+          : { context: Object.freeze({ actor: Object.freeze(actor), rootMethod: record.from === 'user' ? 'user.post' : 'direct.post' }), assertCurrent: () => true }
+        const options = { images, queue, summaryAuthority, ...notificationCallbacks,
           onStatus(status, error, tracking) {
             if (status === 'failed' && error) reportOnce(error, 'status')
             return notificationCallbacks.onStatus(status, error, tracking)

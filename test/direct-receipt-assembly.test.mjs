@@ -43,7 +43,7 @@ async function fixture(t, options = {}) {
   services.directReceipts = direct.receipts
   await conversation.initialize()
   t.after(async () => { await direct.close(); await transport.close(); await conversation.close(); await rm(root, { recursive: true, force: true }) })
-  return { root, bots, membersAdmission, exchangeMutex, conversation, direct, sends, errors, aiControl, listeners }
+  return { root, bots, membersAdmission, exchangeMutex, conversation, direct, sends, errors, aiControl, listeners, transport }
 }
 
 test('parent saves while AI paused/child closed; mutex release and enabled event dispatch same IDs once with Owner reply and Bridge hint', async t => {
@@ -244,4 +244,18 @@ test('a target whose acceptance is pending does not delay a later saved input fo
   await settled(async () => await status(held.delivery_id) === 'running')
   assert.equal(f.errors.length, 0)
   await f.direct.close()
+})
+
+test('direct receipts hand the work-summary worker who sent them, and a bridge call none', async t => {
+  const f = await fixture(t), seen = []
+  f.transport.startWorkSummary = (job, _delivery, authority) => seen.push([job.info.from, authority?.context ?? null])
+  await f.conversation.run({ kind: 'owner' }, () => f.direct.messenger.enqueueUserTurn({ target: 'bot-quincy', message: 'owner' }))
+  await f.conversation.run({ kind: 'bot', botId: 'bot-peer' }, () => f.direct.messenger.sendmessage({ from: 'bot-peer', target: 'bot-quincy', message: 'peer' }))
+  await f.conversation.run({ kind: 'bridge' }, () => f.direct.messenger.receiveCallBridge({ event: 'session.reply', session_id: 'call-1', target_id: 'bot-quincy', source_system: 'local', source_id: 'person', source_label: 'Caller', message: 'call', seq: 1 }))
+  f.direct.start(); f.aiControl.enable()
+  await settled(async () => seen.length === 3)
+  assert.deepEqual(Object.fromEntries(seen.map(([from, context]) => [from.startsWith('bridge') || from.includes(':') ? 'bridge' : from, context])), {
+    user: { actor: { kind: 'owner' }, rootMethod: 'user.post' },
+    'bot-peer': { actor: { kind: 'bot', botId: 'bot-peer' }, rootMethod: 'direct.post' },
+    bridge: null })
 })
