@@ -68,6 +68,7 @@ test('ラベルは円板に重ならず、混んでいる時は始まって3秒�
   assert.equal(nodeText(node('a', 'working', 'アン'), Date.parse('2026-11-08T12:05:30Z')), 'アン、作業中、5分前から')
   assert.equal(nodeText(node('b', 'linked', 'ベル'), 0), 'ベル、依頼の相手')
   assert.equal(edgeText(edge('a', 'b'), new Map([['a', 'アン'], ['b', 'ベル']])), 'アンからベルへ依頼: 依頼')
+  for (const label of [null, '']) assert.equal(edgeText(edge('a', 'b', 'a:b', label), new Map([['a', 'アン'], ['b', 'ベル']])), 'アンからベルへ依頼')
 })
 
 test('SSEの読み取り：snapshotから始め、番号の飛び・404・503・切断はどれも再接続し続ける', async () => {
