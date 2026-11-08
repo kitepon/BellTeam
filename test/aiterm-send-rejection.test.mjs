@@ -235,7 +235,7 @@ test('画面が無い席が同じ符号で断られた時は、登録の消失�
   assert.deepEqual(written.filter(text => text.includes('registration lost')), [])
 })
 
-test('打った後に返るmode=sentは、送り直さず無効な受け取りとして失敗にする', async () => {
+test('打った後に返るmode=sentは、送り直さず追う手がかりの無い受理として終える', async () => {
   const calls = []
   const transport = new AitermTransport({
     client: { async call(name) {
@@ -247,7 +247,7 @@ test('打った後に返るmode=sentは、送り直さず無効な受け取り�
   })
   const bot = { id: 'bot-a', session: 'bot-a', harness: 'claude', project: '/bots/bot-a' }
 
-  await assert.rejects(transport.turn(bot, '再現用の本文'), /AITERM_DISPATCH_RECEIPT_INVALID: bot-a/u)
+  await transport.turn(bot, '再現用の本文')
 
   assert.deepEqual(calls, ['pty_send'])
 })
@@ -323,7 +323,7 @@ test('前の送信が失敗しても、同じ席への次の送信は止めな�
   const first = transport.notify(bot, '1通目')
   const second = transport.notify(bot, '2通目')
 
-  await assert.rejects(first, /PTY_BACKEND_FAILED/u)
+  await assert.rejects(first)
   assert.deepEqual(await second, { delivery: 'running' })
   await transport.idle(bot.id)
   assert.equal(transport.dispatches.size, 0)

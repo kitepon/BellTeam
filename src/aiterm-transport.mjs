@@ -39,6 +39,11 @@ const HARNESS = new Map([
 const INTERIM_INTERVAL_MS = 3000
 // 起こした直後の席へ同じ文を送る回数の上限（sendToWokenSession）。
 const WOKEN_SEND_ATTEMPTS = 3
+// Pre-input refusals of a live seat that clear by themselves (slow readiness, previous input still being taken).
+const RESENDABLE = ['BOT_INPUT_NOT_READY', 'BOT_SEND_BUSY']
+// The words may already be in the CLI: Aiterm or the RPC could not tell, or Aiterm says not to resend.
+const outcomeUnknown = error => error.code === 'BOT_SEND_OUTCOME_UNKNOWN' || mcpRequestContext(error)?.outcome === 'unknown'
+  || String(error.message).includes('再送しないでください')
 // Aitermは、要求の_metaにこの印がある時だけ、BellTeamのための手がかりを結果へ足す（Aiterm ADR 0071・0122）。
 const CALLER_META = { 'aiterm/caller': 'BellTeam' }
 
@@ -909,7 +914,7 @@ export class AitermTransport {
 
   followAcceptedDelivery(job, delivery) {
     const steered = delivery.receipt.mode === 'agent_steer'
-    const followed = !steered || delivery.steer !== null
+    const followed = !delivery.untracked && (!steered || delivery.steer !== null)
     // 次の送信もこの印を使うため、追跡担当の選択と設定は同期で行う。
     const follower = steered ? this.activity.follower(job.bot.id) : null
     job.follows = followed && !follower
@@ -1216,36 +1221,45 @@ export class AitermTransport {
         result = await this.sendToSession(session, message, imageFiles, check, executionJob?.native?.client)
       } catch (error) {
         check()
-        // Wake whenever the seat can be woken (docs/architecture/delivery-details.md). Kept failures protect:
-        // an uncertain send from running twice, the wrong seat from a bad observation, and a running turn or
-        // possibly typed text in a live terminal.
-        if (error.code === 'BOT_SEND_OUTCOME_UNKNOWN' || mcpRequestContext(error)?.outcome === 'unknown') throw error
+        // Wake-first (docs/architecture/delivery-details.md). Kept failures and their exits are listed there.
+        if (outcomeUnknown(error)) throw error
         const observed = await this.observeForDispatch(bot, check)
-        if (!observed) throw error
-        const unsent = ['AGENT_SESSION_REQUIRED', 'BOT_INPUT_NOT_READY'].includes(error.code) || String(error.message).includes('送信していません')
-        if (observed.exists && (observed.state === 'busy' || observed.pending_child_deliveries > 0 || !unsent)) throw error
-        // A terminal gone with its launch record kept (2026-11-08 body swap) still holds Aiterm state; close it too.
-        const running = observed.exists || error.code !== 'AGENT_SESSION_REQUIRED'
-        if (executionJob) executionJob.deliveryStage = 'BOT_LAUNCH_FAILED'
-        session = await this.memberOperation(bot, async lease => {
-          if (running) {
-            process.stderr.write(`BellTeam Aiterm agent registration unavailable, restarting: ${bot.id}\n`)
-            await this.changeSession(bot, 'pty_close', { session_id: session })
-            await this.removeRetainedImages(bot.id)
-          }
+        const live = observed?.exists === true
+        const turnRunning = live && (observed.state === 'busy' || observed.pending_child_deliveries > 0)
+        let refusal = error
+        // A live seat that is only slow or still taking the previous input gets the same words again first.
+        if (live && observed.reason !== 'agent_failed' && RESENDABLE.includes(error.code) && !error.agentResumeResult) {
+          try { result = await this.sendToWokenSession(bot, session, message, imageFiles, check, executionJob?.native?.client) }
+          catch (again) { if (outcomeUnknown(again)) throw again; refusal = again }
+        }
+        if (!result) {
+          // Never close a terminal whose turn is running; that turn ends and the next delivery is taken.
+          if (turnRunning) throw refusal
+          // Close what Aiterm still holds: a live terminal, or a launch record kept after its terminal vanished
+          // (2026-11-08 body swap). An unreadable observation closes nothing; agent_launch refuses a live seat.
+          const close = live || (observed && refusal.code !== 'AGENT_SESSION_REQUIRED')
+          if (executionJob) executionJob.deliveryStage = 'BOT_LAUNCH_FAILED'
+          session = await this.memberOperation(bot, async lease => {
+            if (close) {
+              process.stderr.write(`BellTeam Aiterm agent registration unavailable, restarting: ${bot.id}\n`)
+              await this.changeSession(bot, 'pty_close', { session_id: session })
+              await this.removeRetainedImages(bot.id)
+            }
+            check()
+            return this.wake(bot, { setupTest, membersLease: lease })
+          }, { membersLease })
           check()
-          return this.wake(bot, { setupTest, membersLease: lease })
-        }, { membersLease })
-        check()
-        if (executionJob) executionJob.nativeSession = session
-        result = await this.sendToWokenSession(bot, session, message, imageFiles, check, executionJob?.native?.client)
+          if (executionJob) executionJob.nativeSession = session
+          result = await this.sendToWokenSession(bot, session, message, imageFiles, check, executionJob?.native?.client)
+        }
       }
-      const receipt = result.structuredContent
-      if (receipt?.mode !== 'agent_steer'
-        && (receipt?.mode !== 'agent_dispatch' || !Number.isInteger(receipt.event_cursor) || !receipt.wait_process))
-        throw new Error(`AITERM_DISPATCH_RECEIPT_INVALID: ${bot.id}`)
+      // Aiterm accepted the words. A receipt without follow data stays accepted; only its completion is untracked.
+      const receipt = result.structuredContent ?? {}
+      const untracked = receipt.mode !== 'agent_steer'
+        && (receipt.mode !== 'agent_dispatch' || !Number.isInteger(receipt.event_cursor) || !receipt.wait_process)
+      if (untracked) process.stderr.write(`BellTeam Aiterm: accepted send without follow data: ${bot.id}\n`)
       if (receipt.mode === 'agent_dispatch') await this.removeRetainedImages(bot.id)
-      return { receipt, imageFiles, session, steer: receipt.mode === 'agent_steer' ? steerFollow(result) : null }
+      return { receipt, imageFiles, session, untracked, steer: receipt.mode === 'agent_steer' ? steerFollow(result) : null }
     } catch (error) {
       await this.removeTemporaryImages(imageFiles)
       throw error

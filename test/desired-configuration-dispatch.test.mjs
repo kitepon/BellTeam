@@ -145,17 +145,19 @@ test('native completion rejection remains visible without blocking an independen
 })
 
 
-test('refusal recovery never replaces a seat on uncertain input or invalid identity evidence', async t => {
+test('refusal recovery never replaces a seat on uncertain input, and never closes on invalid identity evidence', async t => {
   const f = await fixture(t, true)
-  for (const [code, observed] of [
-    ['BOT_SEND_OUTCOME_UNKNOWN', { schema: 'aiterm.pty-observe-result.v1', session_id: f.bot.id, exists: false, launch_id: null }],
-    ['BOT_INPUT_NOT_READY', { schema: 'wrong', exists: false }],
-    ['BOT_INPUT_NOT_READY', { schema: 'aiterm.pty-observe-result.v1', session_id: 'other-seat', exists: false, launch_id: null }],
-  ]) {
-    f.transport.observe = async () => observed
-    f.onSend = () => { throw Object.assign(Error(code), { code }) }
-    await assert.rejects(f.transport.turn(f.bot, 'independent input'), error => error.code === code)
-  }
-  assert.equal(f.calls.filter(c => c.name === 'pty_send').length, 3)
+  f.transport.observe = async () => ({ schema: 'aiterm.pty-observe-result.v1', session_id: f.bot.id, exists: false, launch_id: null })
+  f.onSend = () => { throw Object.assign(Error('BOT_SEND_OUTCOME_UNKNOWN'), { code: 'BOT_SEND_OUTCOME_UNKNOWN' }) }
+  await assert.rejects(f.transport.turn(f.bot, 'independent input'), error => error.code === 'BOT_SEND_OUTCOME_UNKNOWN')
   assert.equal(f.calls.some(c => ['agent_launch', 'pty_close'].includes(c.name)), false)
+  // An unreadable observation closes nothing; the seat's own launch is still attempted (wake-first).
+  for (const observed of [{ schema: 'wrong', exists: false },
+    { schema: 'aiterm.pty-observe-result.v1', session_id: 'other-seat', exists: false, launch_id: null }]) {
+    f.transport.observe = async () => observed
+    f.onSend = () => { throw Object.assign(Error('BOT_INPUT_NOT_READY'), { code: 'BOT_INPUT_NOT_READY' }) }
+    await f.transport.turn(f.bot, 'independent input').catch(() => {})
+  }
+  assert.equal(f.calls.some(c => c.name === 'pty_close'), false)
+  assert.equal(f.calls.filter(c => c.name === 'agent_launch').length, 2)
 })

@@ -50,11 +50,14 @@ flowchart TD
 flowchart TD
   Send["Direct pty_send with require_agent"] --> Reply{"Native result"}
   Reply -->|accepted| Accepted["Follow original receipt"]
-  Reply -->|"outcome unknown"| Fail["Return original error; never replay"]
+  Reply -->|"outcome unknown / Aiterm says do not resend"| Fail["Return original error; never replay"]
   Reply -->|"any other refusal"| Observe["Matching pty_observe after refusal"]
-  Observe -->|"invalid / unavailable"| Fail
-  Observe -->|"terminal present: running turn, or refusal without the explicit not-sent phrase"| Fail
-  Observe -->|"terminal absent (any refusal) / terminal present, no running turn, explicit not-sent refusal"| Launch["pty_close what Aiterm still holds; launch without prompt"]
+  Observe -->|"live, not agent_failed, not-ready or busy-taking-input"| Again["Resend the same words to the same terminal (at most 3)"]
+  Again -->|accepted| Accepted
+  Again -->|"still refused, turn running"| Keep["Return refusal; the turn ends and the next delivery is taken"]
+  Again -->|"still refused, no running turn"| Launch
+  Observe -->|"live with a running turn, not resendable"| Keep
+  Observe -->|"absent / live without a running turn / unreadable"| Launch["pty_close what Aiterm holds (nothing when unreadable); launch without prompt"]
   Launch -->|success| Once["Send original input; retry just-woken not-ready at most 3 times"]
   Launch -->|failure| Cleanup["Clean failed launch; return error"]
   Explicit["保存済み失敗の明示復旧API"] --> Eligible["text-only Bot間配送と<br/>元request/targetを確認"]
@@ -63,7 +66,16 @@ flowchart TD
   Adapter -->|"接続された構成のみ"| Reconcile["元登録の照合 または世代指定close"]
 ```
 
-送信が断られた後の`dispatch`は、席を起こせる限り起こしてから届ける（オーナー裁定 2026-11-07「起こしてから届ける」、2026-11-08「何かがまた無駄に止めてる」）。配送を失敗で終える分岐は、守る物を名指しできる三つだけ。(1) 受付の結果が不明（`BOT_SEND_OUTCOME_UNKNOWN`、RPC不明）：打った文を二度実行させない。(2) 拒否後の観測が不正・失敗：別の席を閉じない。(3) 端末があり、動いているターン（`state=busy`か子配送あり）がある、または断りに「送信していません」の明示が無い：動いているターンと、打たれたかもしれない文を壊さない。それ以外は、端末が無い席（型・文言を問わない。2026-11-08、本体入れ替えで端末が消えたのにAitermが前の起動記録を残し、Claude席が`AGENT_RESUME_UNCONFIRMED: 作成したnative端末が置き換わっています。`で断られ続けた）も、端末はあるがCLIが入力を受けない席（`agent_failed`・未登録・起動中・型付き復帰拒否・入力受付確認の期限切れ）も、Aitermが持っている物を`pty_close`で閉じ（不在で記録も無い時だけ省く）、起こし、同じ文を送る。残る失敗は、起こすこと自体の失敗と、起こした席が送り直しの上限まで入力を受けない時だけで、どちらもAitermの元のエラーを返す。配送前には設定操作を挟まない。通常送信の前には観測を挟まない。設定延期と各条件の保護対象・解除は[配送と設定の正本](modules/execution/configuration-delivery.md)に従う。
+送信が断られた後の`dispatch`は、席を起こせる限り起こしてから届ける（オーナー裁定 2026-11-07「起こしてから届ける」、2026-11-08「何かがまた無駄に止めてる」、共通規範 guards.give-up-is-a-guard / remove-unnamed）。2026-11-08の本体入れ替えでは、端末が消えたのにAitermが前の起動記録を残した。そのためClaude席への送信が`AGENT_RESUME_UNCONFIRMED: 作成したnative端末が置き換わっています。`で断られ、起こされないまま失敗した（PR #500で回復を二つの符号に絞っていたため、#540で修理）。いまの経路は次のとおり。端末があり、`agent_failed`でなく、`BOT_INPUT_NOT_READY`/`BOT_SEND_BUSY`で断られた席には、同じ端末へ同じ文を送り直す（負荷で起動が遅いだけの席を閉じない）。それでも受けず、動いているターンも無ければ、閉じて起こす。端末が無い席、端末はあるが動いているターンが無い席、観測が読めない席は、起こして同じ文を送る。閉じるのは、Aitermが持っている物（端末、または端末が消えた起動記録）だけで、観測が読めない時は何も閉じない。観測が読めない時に生きた席があれば、`agent_launch`が打つ前に断る。
+
+失敗で終わる分岐、それぞれが守る物、そこからの出口：
+| 分岐 | 守る物 | 出口 |
+|---|---|---|
+| 結果不明（`BOT_SEND_OUTCOME_UNKNOWN`、RPC不明、Aitermの「再送しないでください」） | 打った文を二度実行させない | 席には触れない。次の配送は通常どおり進む。この記録はunknownのまま残り、送り手が会話を見て新しく送る |
+| 動いているターンがある席が、送り直しても受けない | 動いているターンを壊さない | ターンが終われば、次の配送が受理される（差し込みか新しいターン） |
+| 起動の失敗、または起こした席が3回の送信で受けない | 同じ席への後の配送の順番（無限の送り直しでその席の後続を止めない） | 次の配送が観測からやり直し、閉じて起こす。Aitermの元のエラーを返す |
+
+Aitermが受け付けた後の返りに追う手がかり（event_cursor/wait_process）が無い時は、失敗にせず受理として終える（完了は追えない）。配送前には設定操作を挟まない。通常送信の前には観測を挟まない。設定延期と各条件の保護対象・解除は[配送と設定の正本](modules/execution/configuration-delivery.md)に従う。
 
 `agent_launch`の`startup=ready`と`pty_send`の入力受付確認は、Aitermの中で別々の30秒予算である（どちらも入力欄が500ms間隔で11回続けて入力待ちと読めた時に通る。`pty_send`に公開のready_timeoutは無い）。起こした直後の席は入力欄を描いた後も起動の仕事（MCP初期化・hook・履歴の描画）を続け、同時起動の負荷（2026-11-07 20:18–20:20、9席同時、load≈18）では二つ目の予算が尽きて`AGENT_INPUT_NOT_READY`（本文未送信、「少し後で再度pty_send」の案内付き）で断られる。元から生きていた席への送信は同時刻に全部通った。`dispatch`は、このdispatchで起こした席への最初の送信がその型付き未入力拒否（`BOT_INPUT_NOT_READY`、`agentResumeResult`なし）で断られた時だけ、同じ文を上限3回まで送り直す。各回の待ちはAitermの受付確認が持つので配送側は眠らない。起こしていない席の断りは上の段落の経路（閉じて起こす）へ行き、受付後の不明は送り直さない。上限まで断られた時はその失敗を返し、再起動を繰り返さない。
 
