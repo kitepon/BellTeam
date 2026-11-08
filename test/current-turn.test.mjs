@@ -57,3 +57,16 @@ test('currentTurn follows the native observation; watchCurrentTurn emits every c
   seats = [row({ state: 'idle' })]; await poll()
   assert.equal(events.length, count)
 })
+
+test('the managed transport path exposes the same watchCurrentTurn stream', async t => {
+  let seats = []
+  const transport = new AitermTransport({ client: { async call() {
+    return { _meta: { 'aiterm/seat_turns': { schema: 'aiterm.seat-turns.v1', seats } } }
+  } } })
+  t.after(() => transport.close())
+  const events = [], stop = transport.watchCurrentTurn(event => events.push(event))
+  seats = [{ session_id: 'bot-a', launch_id: 'a'.repeat(32), harness: 'claude-code', turn: { state: 'idle' } }]
+  await transport.seatTurns([{ id: 'bot-a', session: 'bot-a', harness: 'claude' }])
+  assert.deepEqual(events, [{ botId: 'bot-a', state: 'idle', turnId: null }])
+  stop()
+})
