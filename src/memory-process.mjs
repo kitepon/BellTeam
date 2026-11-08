@@ -109,6 +109,7 @@ export function createMemoryProcess({ root, run = createSeatProcessRunner(root, 
   })
   const request = async (method, params) => {
     await start()
+    if (!closed && MEMORY_METHODS.includes(method) && (!available || changing)) return recovery.hold(() => request(method, params), () => failure('MEMORY_NOT_ACCEPTED'))
     if (!available || changing || closed || !MEMORY_METHODS.includes(method)) throw failure('MEMORY_NOT_ACCEPTED')
     return execute(descriptor, generation, method, params)
   }
@@ -154,7 +155,7 @@ export function createMemoryProcess({ root, run = createSeatProcessRunner(root, 
       }
     }
     try { replacing = Promise.resolve().then(() => exchangeMutex ? exchangeMutex.runExclusive(perform) : perform()); return await replacing }
-    finally { changing = false }
+    finally { changing = false; if (available) recovery.running() }
   }
   const reserve = (requested, options = {}) => {
     if (requested !== 'builtin' && !versionValid(requested)) throw failure('MEMORY_VERSION_INVALID')

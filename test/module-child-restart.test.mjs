@@ -39,3 +39,15 @@ test('stderr observation retains only a finite set of fixed codes', () => {
   assert.deepEqual(codes().stderrCodes, ['ERR_IPC_CHANNEL_CLOSED', 'ERR_WORKER_OUT_OF_MEMORY'])
   assert.doesNotMatch(JSON.stringify(codes()), /private|secret|token/)
 })
+
+test('hold waits for the next running and refuses when closed or never running', async () => {
+  const { createModuleChildRestart } = await import('../src/module-child-restart.mjs')
+  const recovery = createModuleChildRestart(async () => {})
+  let runs = 0
+  const held = recovery.hold(() => ++runs, () => Object.assign(new Error('X_NOT_ACCEPTING'), { code: 'X_NOT_ACCEPTING' }))
+  await new Promise(resolve => setImmediate(resolve)); assert.equal(runs, 0)
+  recovery.running(); assert.equal(await held, 1)
+  const closing = recovery.hold(() => 'late', () => Object.assign(new Error('X_NOT_ACCEPTING'), { code: 'X_NOT_ACCEPTING' }))
+  recovery.close(); assert.equal(await closing, 'late')
+  await assert.rejects(recovery.hold(() => 'never', () => Object.assign(new Error('X_NOT_ACCEPTING'), { code: 'X_NOT_ACCEPTING' })), { code: 'X_NOT_ACCEPTING' })
+})
