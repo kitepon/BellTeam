@@ -67,6 +67,8 @@ pwsh -NoProfile -File scripts/install-windows.ps1 -Uninstall
 
 閉じている間の更新通知を受けるため、Microsoft Storeの個人開発者としてMSIXを提出する。StoreがMSIXへ署名するため、証明書は使わない。従来のinstaller版は既存利用者向けに残す。installer版はパッケージ識別を持たないため、閉じている間の通知は届かない。
 
+Storeへの登録・名前の予約・WNSの秘密値の作成はオーナーだけが行う。手順と現在地は[Store版のオーナー手順](windows-store-owner-steps.md)。
+
 提出用のMSIXは次で作る。値はPartner Centerのアプリの「Product identity」に出る公開値で、秘密ではない。Windows SDKの`makeappx.exe`を使う。
 
 ```powershell
