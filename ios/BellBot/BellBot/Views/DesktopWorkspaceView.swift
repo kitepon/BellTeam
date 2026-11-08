@@ -96,7 +96,9 @@ struct DesktopWorkspaceView: View {
         .sheet(isPresented: $creatingRoom) { RoomEditor(initial: nil).environmentObject(store).bellEditorSheet() }
         #if DEBUG && targetEnvironment(macCatalyst)
         .onAppear {
-            if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-work-graph") { openWindow(id: "work-graph") }
+            // -bellbot-open-work-graph は試料データにせず、実サーバーのまま窓を開く（色・画像の確認用）。
+            let arguments = ProcessInfo.processInfo.arguments
+            if arguments.contains("-bellbot-preview-work-graph") || arguments.contains("-bellbot-open-work-graph") { openWindow(id: "work-graph") }
         }
         #endif
         .sheet(item: $store.notificationSecret) { request in

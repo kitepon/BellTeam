@@ -55,6 +55,24 @@ final class WorkGraphModelTests: XCTestCase {
         XCTAssertGreaterThan(closest, side, "アイコンが重ならない")
     }
 
+    /// behavior-spec.mdの参照シミュレーション（layout-sim.mjs）どおり、8〜30人で縦横とも約9割に広がる。
+    func testLayoutFillsBothAxesLikeTheReferenceSimulation() {
+        for (size, count) in [(CGSize(width: 1000, height: 668), 16), (CGSize(width: 393, height: 688), 8), (CGSize(width: 818, height: 1048), 30)] {
+            let model = WorkGraphModel()
+            model.step(now: 0, size: size, insets: EdgeInsets())
+            let ids = (0..<count).map { "n\($0)" }
+            model.apply(WorkGraphSnapshot(epoch: "e", version: 1, degraded: [], nodes: ids.map { node($0) },
+                                          edges: (1..<count).filter { $0 % 2 == 0 }.map { edge(ids[$0 / 2], ids[$0]) }), at: 0)
+            for t in stride(from: 0.0, to: 15.0, by: 1.0 / 60) { model.step(now: t, size: size, insets: EdgeInsets()) }
+            let d = model.drawable, s = model.side(for: count), name = BellTheme.listNameFontSize * 1.4
+            let xs = ids.compactMap { model.bodies[$0]?.position.x }, ys = ids.compactMap { model.bodies[$0]?.position.y }
+            let fillX = ((xs.max() ?? 0) - (xs.min() ?? 0) + s) / d.width
+            let fillY = ((ys.max() ?? 0) - (ys.min() ?? 0) + s + name) / d.height
+            XCTAssertTrue((0.84...0.98).contains(fillX), "\(size) n=\(count) fillX=\(fillX)")
+            XCTAssertTrue((0.84...0.98).contains(fillY), "\(size) n=\(count) fillY=\(fillY)")
+        }
+    }
+
     /// 旧本体の404では止まらず、遅い間隔で確かめ直し、本体が入れ替わった後のsnapshotで描き始める。
     func testUnsupportedServerKeepsCheckingAndGoesLiveAfterSwap() async throws {
         WorkGraphProtocol.responses = [(404, "application/json", #"{"error":"NOT_FOUND"}"#),
@@ -78,6 +96,20 @@ final class WorkGraphModelTests: XCTestCase {
         XCTAssertTrue(sawUnsupported, "404の間は未対応を表示する")
         XCTAssertEqual(model.connection, .live, "入れ替わった本体のsnapshotで描き始める")
         XCTAssertGreaterThanOrEqual(WorkGraphProtocol.requests, 2)
+    }
+
+    /// 線の上にいるアイコンは、線から押し出される（Owner：アイコンと線を重ねない）。
+    func testNodeMovesOffALineItIsNotPartOf() {
+        let model = WorkGraphModel()
+        let size = CGSize(width: 900, height: 600)
+        model.step(now: 0, size: size, insets: EdgeInsets())
+        model.apply(WorkGraphSnapshot(epoch: "e", version: 1, degraded: [], nodes: [node("a"), node("b"), node("c")], edges: [edge("a", "b")]), at: 0)
+        for t in stride(from: 0.0, to: 15.0, by: 1.0 / 60) { model.step(now: t, size: size, insets: EdgeInsets()) }
+        guard let a = model.bodies["a"]?.position, let b = model.bodies["b"]?.position, let c = model.bodies["c"]?.position else { return XCTFail() }
+        let ex = b.x - a.x, ey = b.y - a.y
+        let t = min(1, max(0, ((c.x - a.x) * ex + (c.y - a.y) * ey) / (ex * ex + ey * ey)))
+        let gap = hypot(c.x - (a.x + ex * t), c.y - (a.y + ey * t))
+        XCTAssertGreaterThan(gap, model.side(for: 3) / 2, "アイコンが線に重ならない")
     }
 
     func testDecodesContractChangesAndHelpers() throws {

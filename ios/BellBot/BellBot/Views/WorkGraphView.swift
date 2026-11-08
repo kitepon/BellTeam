@@ -43,7 +43,8 @@ struct WorkGraphView: View {
     }
 
     private func graph(insets: EdgeInsets) -> some View {
-        TimelineView(.animation) { timeline in
+        // 1秒30回で十分に滑らか。毎表示フレームで描くとMacのCPUを使い続けた（115で実測94%）。
+        TimelineView(.animation(minimumInterval: 1.0 / 30)) { timeline in
             let now = timeline.date.timeIntervalSinceReferenceDate
             Canvas { context, size in
                 MainActor.assumeIsolated {
@@ -113,19 +114,51 @@ struct WorkGraphView: View {
             guard !crowded || now - line.startedAt < 5, let label = line.edge.label, !label.isEmpty,
                   let geometry = path(line, now: now), geometry.length >= 120,
                   now - line.startedAt >= 0.35 else { continue }
-            let text = context.resolve(Text(label).font(.system(size: BellTheme.listDetailFontSize)).foregroundColor(BellTheme.muted))
+            let wire = WorkGraphColor.wire(tone(line.edge.from))
+            let text = context.resolve(Text(label).font(.system(size: BellTheme.listDetailFontSize, weight: .medium)).foregroundColor(BellTheme.ink))
+            let icon = context.resolve(Image(systemName: "envelope.fill"))
+            let iconSide = BellTheme.listDetailFontSize
             let measured = text.measure(in: CGSize(width: 180, height: 40))
-            let width = min(measured.width, 180) + 12, height = measured.height + 6
+            let width = min(measured.width, 180) + iconSide + 22, height = max(measured.height, iconSide) + 10
             for t in [0.5, 0.38, 0.62, 0.28, 0.72] {
                 let at = geometry.point(t)
-                let chip = CGRect(x: at.x - width / 2, y: at.y - height / 2, width: width, height: height)
-                guard !occupied.contains(where: { $0.intersects(chip.insetBy(dx: -2, dy: -2)) }) else { continue }
-                occupied.append(chip)
-                context.fill(Path(roundedRect: chip, cornerRadius: 8), with: .color(BellTheme.canvas.opacity(0.92)))
-                context.draw(text, in: chip.insetBy(dx: 6, dy: 3))
+                // 札は線の上に少し浮かせ、下の尖りで線を指す。
+                let tag = CGRect(x: at.x - width / 2, y: at.y - height - 7, width: width, height: height)
+                let area = tag.union(CGRect(x: at.x - 4, y: at.y - 7, width: 8, height: 7))
+                guard !occupied.contains(where: { $0.intersects(area.insetBy(dx: -2, dy: -2)) }) else { continue }
+                occupied.append(area)
+                drawTag(&context, tag: tag, point: at, wire: wire, icon: icon, iconSide: iconSide, text: text)
                 break
             }
         }
+    }
+
+    /// 依頼元の色。会話の窓と同じく、アバター画像から取った代表色（画像が無ければ設定の色）。
+    private func tone(_ botId: String) -> Color {
+        if let bot = store.bots.first(where: { $0.id == botId }) { return AvatarTone.accent(for: bot) }
+        return BellTheme.accent(model.bodies[botId]?.node.color ?? "violet")
+    }
+
+    /// 依頼の札：白地に依頼元の色の縁と左帯、封筒の印、線へ向かう尖り。影はぼかさず1枚ずらして描く。
+    private func drawTag(_ context: inout GraphicsContext, tag: CGRect, point: CGPoint, wire: Color,
+                         icon: GraphicsContext.ResolvedImage, iconSide: CGFloat, text: GraphicsContext.ResolvedText) {
+        var tail = Path()
+        tail.move(to: CGPoint(x: point.x - 5, y: tag.maxY - 0.5))
+        tail.addLine(to: CGPoint(x: point.x, y: point.y - 1))
+        tail.addLine(to: CGPoint(x: point.x + 5, y: tag.maxY - 0.5))
+        tail.closeSubpath()
+        let shape = Path(roundedRect: tag, cornerRadius: 9)
+        context.fill(Path(roundedRect: tag.offsetBy(dx: 0, dy: 1.5), cornerRadius: 9), with: .color(BellTheme.ink.opacity(0.08)))
+        context.fill(tail, with: .color(wire))
+        context.fill(shape, with: .color(.white))
+        context.stroke(shape, with: .color(wire.opacity(0.55)), lineWidth: 1)
+        var bar = context
+        bar.clip(to: shape)
+        bar.fill(Path(CGRect(x: tag.minX, y: tag.minY, width: 4, height: tag.height)), with: .color(wire))
+        var tinted = icon
+        tinted.shading = .color(wire)
+        context.draw(tinted, in: CGRect(x: tag.minX + 9, y: tag.midY - iconSide / 2, width: iconSide, height: iconSide))
+        context.draw(text, in: CGRect(x: tag.minX + 13 + iconSide, y: tag.minY + 5, width: tag.width - iconSide - 19, height: tag.height - 10))
     }
 
     private func path(_ line: WorkGraphModel.Line, now: Double) -> (path: Path, length: CGFloat, point: (CGFloat) -> CGPoint, mid: CGPoint)? {
@@ -156,41 +189,37 @@ struct WorkGraphView: View {
         return (path, length, point, point(0.5))
     }
 
+    /// 依頼の線：依頼元のテーマ色を濃くした電線。線の中を明るい筋が依頼元から依頼先へ走る（Owner、点の代わり）。
     private func drawEdge(_ context: inout GraphicsContext, _ line: WorkGraphModel.Line, now: Double, live: Bool) {
         guard let geometry = path(line, now: now) else { return }
-        let accent = BellTheme.accent(model.bodies[line.edge.from]?.node.color ?? "violet")
+        let base = tone(line.edge.from)
+        let wire = WorkGraphColor.wire(base), spark = WorkGraphColor.spark(base)
         let grow = 1 - pow(1 - min(max((now - line.startedAt) / 0.35, 0), 1), 3)
         let fade = line.endedAt.map { max(0, 1 - (now - $0) / 0.3) } ?? 1
         var layer = context
-        layer.opacity = fade
+        layer.opacity = fade * (line.edge.steered ? 0.75 : 1)
         let drawn = geometry.path.trimmedPath(from: 0, to: grow)
-        layer.stroke(drawn, with: .color(BellTheme.line), lineWidth: 2)
-        if line.edge.steered { layer.stroke(drawn, with: .color(accent.opacity(0.35)), lineWidth: 2) }
+        // 外側の淡い被覆と、中の導線。
+        layer.stroke(drawn, with: .color(wire.opacity(0.18)), style: StrokeStyle(lineWidth: 7, lineCap: .round))
+        layer.stroke(drawn, with: .color(wire.opacity(0.9)), style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
         guard grow >= 1 else { return }
         // 受け手側の矢じり。
-        let tip = geometry.point(1), back = geometry.point(max(0, 1 - 10 / max(geometry.length, 1)))
+        let tip = geometry.point(1), back = geometry.point(max(0, 1 - 11 / max(geometry.length, 1)))
         let ax = tip.x - back.x, ay = tip.y - back.y, al = max(hypot(ax, ay), 0.001)
         let ux = ax / al, uy = ay / al
         var arrow = Path()
         arrow.move(to: tip)
-        arrow.addLine(to: CGPoint(x: tip.x - ux * 10 + uy * 5, y: tip.y - uy * 10 - ux * 5))
-        arrow.addLine(to: CGPoint(x: tip.x - ux * 10 - uy * 5, y: tip.y - uy * 10 + ux * 5))
+        arrow.addLine(to: CGPoint(x: tip.x - ux * 11 + uy * 5.5, y: tip.y - uy * 11 - ux * 5.5))
+        arrow.addLine(to: CGPoint(x: tip.x - ux * 11 - uy * 5.5, y: tip.y - uy * 11 + ux * 5.5))
         arrow.closeSubpath()
-        layer.fill(arrow, with: .color(accent))
-        // 流れの点：依頼元から依頼先へ90pt/sで、28ptおきに流す。
-        if live && !reduceMotion && line.endedAt == nil {
-            let travelled = (now - line.startedAt - 0.35) * 90
-            let offset = CGFloat(travelled.truncatingRemainder(dividingBy: 28))
-            var distance = offset
-            while distance < geometry.length {
-                let t = distance / geometry.length
-                let edgeFade = min(1, t / 0.1, (1 - t) / 0.1)
-                let p = geometry.point(t)
-                layer.fill(Path(ellipseIn: CGRect(x: p.x - 3.5, y: p.y - 3.5, width: 7, height: 7)),
-                           with: .color(accent.opacity(Double(edgeFade) * (line.edge.steered ? 0.75 : 1))))
-                distance += 28
-            }
-        }
+        layer.fill(arrow, with: .color(wire))
+        // 電気の流れ：線の内側だけを、明るい筋が90pt/sで依頼元から依頼先へ走る。光は太さの違う2本で描く（ぼかしは使わない）。
+        guard live && !reduceMotion && line.endedAt == nil else { return }
+        let phase = -CGFloat((now - line.startedAt - 0.35) * 90)
+        layer.stroke(geometry.path, with: .color(spark.opacity(0.35)),
+                     style: StrokeStyle(lineWidth: 5, lineCap: .round, dash: [16, 30], dashPhase: phase))
+        layer.stroke(geometry.path, with: .color(spark),
+                     style: StrokeStyle(lineWidth: 1.8, lineCap: .round, dash: [16, 30], dashPhase: phase))
     }
 
     private func drawNode(_ context: inout GraphicsContext, _ body: WorkGraphModel.Body, now: Double, live: Bool) {
@@ -204,10 +233,8 @@ struct WorkGraphView: View {
             let ring = Path(roundedRect: CGRect(x: look.point.x - radius, y: look.point.y - radius, width: radius * 2, height: radius * 2),
                             cornerRadius: radius * 0.62)
             let strength = reduceMotion || !live ? 0.8 : WorkGraphModel.blink(now: now, activeSince: body.activeSince)
-            layer.drawLayer { glow in
-                glow.addFilter(.blur(radius: 6))
-                glow.stroke(ring, with: .color(accent.opacity(strength / 2)), lineWidth: 3)
-            }
+            // 光は太い淡い線で描く（毎フレームのぼかしは重い）。
+            layer.stroke(ring, with: .color(accent.opacity(strength * 0.22)), lineWidth: 9)
             layer.stroke(ring, with: .color(accent.opacity(strength)), lineWidth: 3)
         }
         if let symbol = layer.resolveSymbol(id: body.node.botId) {
@@ -302,5 +329,18 @@ struct WorkGraphView: View {
                 Text("\(from)から\(to)へ依頼: \(edge.label ?? "")")
             }
         }
+    }
+}
+
+/// 線と札の色。会話の窓の色（AvatarTone）を基調に、明るい背景でも沈まないよう濃くする。
+enum WorkGraphColor {
+    static func wire(_ base: Color) -> Color { shade(base, saturation: 1.15, brightness: 0.85) }
+    /// 線の中を走る光。同じ色相を明るくする。
+    static func spark(_ base: Color) -> Color { shade(base, saturation: 0.45, brightness: 1.3) }
+
+    private static func shade(_ base: Color, saturation: CGFloat, brightness: CGFloat) -> Color {
+        var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        UIColor(base).getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+        return Color(hue: Double(h), saturation: Double(min(1, s * saturation)), brightness: Double(min(1, b * brightness)))
     }
 }
