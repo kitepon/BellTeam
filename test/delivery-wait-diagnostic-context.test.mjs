@@ -72,7 +72,8 @@ test('accepted fake delivery cancelled locally remains stopped with one diagnost
   const reports = [], statuses = [], calls = [], original = abortError()
   const transport = new AitermTransport({ activeId: () => jobId,
     client: { async call(name) { calls.push(name); assert.equal(name, 'pty_send'); return { structuredContent: receipt } } },
-    waitProcess: async () => { [...transport.activity.jobs][0].markStopped(); throw original },
+    // The followed wait starts before acceptance; stop only after it, or the stop rejects the acceptance itself.
+    waitProcess: async () => { await completion.accepted; [...transport.activity.jobs][0].markStopped(); throw original },
     reportError: report => reports.push(report) })
   const completion = transport.submit(bot, 'synthetic input', { info: { groupId }, onStatus: (...values) => statuses.push(values) })
   const rejected = assert.rejects(completion, { code: 'BOT_STOPPED' })
@@ -96,4 +97,20 @@ test('accepted delivery failing before its end names its step and a code token o
   const coded = JSON.parse(executionFailureReport('bot-a', 'delivery_completion', Object.assign(new Error('x'), { code: 'CONVERSATION_NOT_ACCEPTED' }), { step: 'bogus' }).diagnostic_log)
   assert.equal(coded.errorCode, 'CONVERSATION_NOT_ACCEPTED'); assert.equal(coded.step, 'other')
   assert.equal(JSON.parse(executionFailureReport('bot-a', 'delivery_completion', new Error('free text')).diagnostic_log).errorCode, 'UNKNOWN')
+})
+
+for (const outcome of ['error', 'rate_limited']) test(`accepted turn ending ${outcome} gives onStatus turnCompleted, no vendor text`, async () => {
+  const statuses = []
+  const transport = new AitermTransport({ activeId: () => jobId,
+    client: { async call() { return { structuredContent: receipt } } },
+    waitProcess: async () => ({ outcome, ...(outcome === 'rate_limited' ? { rate_limit: 'private-canary' } : { error: 'private-canary' }) }),
+    reportError() {} })
+  const completion = transport.submit(bot, 'synthetic input', { info: { groupId }, onStatus: (...values) => statuses.push(values) })
+  await assert.rejects(completion, error => error.turnCompleted === true)
+  const [status, failure, tracking] = statuses.at(-1)
+  assert.equal(status, 'failed')
+  assert.equal(failure.turnCompleted, true)
+  assert.equal(typeof failure.code, 'string')
+  assert.equal(tracking, undefined)
+  assert.doesNotMatch(JSON.stringify(failure), /private-canary/)
 })
