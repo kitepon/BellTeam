@@ -22,7 +22,7 @@ test('after_turn binds its owner, reconciles races and consumes once through ord
   ] }))
   await mkdir(join(root, 'state'))
   let current = { state: 'working', turnId: 'turn-1' }, listener
-  const transport = { currentTurn: () => current, watchTurn: callback => { listener = callback; return () => { listener = null } } }
+  const transport = { currentTurn: () => current, watchCurrentTurn: callback => { listener = callback; return () => { listener = null } } }
   const bots = new BotRegistry({ seedPath, botsRoot: join(root, 'bots'), stateRoot: join(root, 'state/bots'), currentTurn: transport.currentTurn })
   await bots.initialize()
   await new OwnerProfile({ root }).initialize(); await new UserRules({ root }).initialize()

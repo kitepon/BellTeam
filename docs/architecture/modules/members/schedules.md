@@ -154,7 +154,7 @@ flowchart TD
   Set[Bot set_schedule / HTTP set] --> Snapshot[Execution public currentTurn snapshot]
   Snapshot --> Save[Members writer stores afterTurn + revision]
   Save --> Changed[Existing registry change notification]
-  Terminal[Execution public watchTurn: every state/identity change] --> Reconcile[Scheduler reconcile after_turn]
+  Terminal[Execution public watchCurrentTurn: every state/identity change] --> Reconcile[Scheduler reconcile after_turn]
   Changed --> Reconcile
   Reconcile --> Current[Execution public currentTurn snapshot]
   Current -->|captured turn still current| Wait[waiting-for-turn-end]
@@ -175,7 +175,7 @@ flowchart TD
 
 Affected scope: schedule-definition, BotRegistry writer/CAS, members request/effect/facade/assembly, parent scheduler wiring, Bot MCP description/schema and HTTP's existing delegated path. The scheduler and parent wiring remain body-resident; members child definition/storage/MCP are distributed in members. The execution handoff is owned and tested by Kiro. A focused schedules test covers binding, delayed/immediate activation, update/remove/duplicate-event races and input rejection. Existing clock schedule behavior is outside this change.
 
-Execution agreement (Kiro): `transport.currentTurn(botId)` returns `{state:working,turnId:opaque}` / `{state:idle,turnId:null}` / `{state:unknown,turnId:null}`. `watchTurn(listener)` emits every snapshot change, including unknown resolution. Offline/dead seats are idle. Live unknown observations resolve on the existing seat observation poll or seat closure. Unknown at save persists as unknown; first resolved working CAS-binds that identity, first resolved idle consumes it. No timestamp field is used. A stale observation may miss intervening turns; the first resolved working identity is the recoverable binding. Ordinary delivery to another already-started turn can steer it; scheduler does not create a private execution queue.
+Execution agreement (Kiro): `transport.currentTurn(botId)` returns `{state:working,turnId:opaque}` / `{state:idle,turnId:null}` / `{state:unknown,turnId:null}`. `watchCurrentTurn(listener)` emits every snapshot change, including unknown resolution. Offline/dead seats are idle. Live unknown observations resolve on the existing seat observation poll or seat closure. Unknown at save persists as unknown; first resolved working CAS-binds that identity, first resolved idle consumes it. No timestamp field is used. A stale observation may miss intervening turns; the first resolved working identity is the recoverable binding. Ordinary delivery to another already-started turn can steer it; scheduler does not create a private execution queue.
 
 AI global pause defers after_turn dispatch. The parent subscribes to the existing AiControl change event and reconciles after enable; no timed wake is required. Native turn-change events reconcile only that Bot; startup and registry generation/change events reconcile the current owners.
 

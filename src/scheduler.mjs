@@ -39,8 +39,8 @@ export class BotScheduler {
 
   start() {
     if (this.timer) return
-    if (this.transport?.watchTurn) {
-      this.turnUnsubscribe = this.transport.watchTurn(({ botId }) => this.requestAfterTurn(botId))
+    if (this.transport?.watchCurrentTurn) {
+      this.turnUnsubscribe = this.transport.watchCurrentTurn(({ botId }) => this.requestAfterTurn(botId))
       this.scheduleUnsubscribe = this.registry.watch?.(() => this.requestAfterTurn())
       this.requestAfterTurn()
     }
