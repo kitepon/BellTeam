@@ -7,7 +7,7 @@ const deferred = () => { let resolve; const promise = new Promise(r => { resolve
 function elements() {
   const make = () => ({ handlers: {}, addEventListener(name, handler) { this.handlers[name] = handler }, emit(name) { return this.handlers[name]() } })
   const toggle = make(), status = make(), button = make()
-  return { toggle, status, button, root: { querySelector: selector => selector === 'input' ? toggle : selector === 'button' ? button : status } }
+  return { toggle, status, button, root: { setAttribute(name, value) { this[name] = value }, querySelector: selector => selector === 'input' ? toggle : selector === 'button' ? button : status } }
 }
 
 test('Webは正本が読めるまでトグルを隠し、失敗後に古い値を表示しない', async () => {
@@ -15,9 +15,11 @@ test('Webは正本が読めるまでトグルを隠し、失敗後に古い値�
   const view = aiControlView(f.root, async () => { if (fail) throw Error('offline'); return { control: value('stopped') } })
   assert.equal(f.toggle.hidden, true); assert.equal(f.toggle.disabled, true)
   await view.refresh(); assert.equal(f.toggle.checked, true); assert.equal(f.toggle.hidden, false)
+  assert.equal(f.root['data-state'], 'stopped')
   fail = true; await view.refresh()
   assert.equal(f.toggle.hidden, true); assert.equal(f.toggle.disabled, true)
   assert.match(f.status.textContent, /状態を確認できません/)
+  assert.equal(f.root['data-state'], 'unknown')
 })
 
 test('Webは通信断や502/503でPATCHを再送せずGETで正本を読み直す', async () => {

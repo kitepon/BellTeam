@@ -1,11 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createUpdateCenter } from '../web/update-center.js'
+import { createUpdateCenter, cardState } from '../web/update-center.js'
 import { updateModuleExamples, updateExamples } from '../src/update-center-contract.mjs'
+import { componentStatus } from '../src/update-center.mjs'
 import { webDOM } from './helpers/web-dom.mjs'
 const settle = () => new Promise(resolve => setImmediate(resolve))
 const text = node => [node.textContent ?? '', ...node.children.map(text)].join(' ')
 const find = (node, name) => node.dataset?.updateControl === name ? node : node.children.map(child => find(child, name)).find(Boolean)
+const all = (node, match) => [...(match(node) ? [node] : []), ...node.children.flatMap(child => all(child, match))]
 const key = 'bellteam-update-request.v1'
 function example(container = false) {
   const value = structuredClone(container ? updateExamples.accepted : updateModuleExamples.module_update), plan = value.operation.plan
@@ -18,109 +20,107 @@ function example(container = false) {
   item.changes = ['画面の文字を読みやすくしました。', 'commit ' + 'a'.repeat(40)]
   return { value, plan }
 }
+const job = (moduleId, state, minutesAgo, reason = null) => ({ schema: 'bellteam.update-job.v1', jobId: '44444444-4444-4444-8444-44444444444' + state.length % 10, kind: 'module', target: { moduleId },
+  updatedAtNs: String(BigInt(Date.now() - minutesAgo * 60000) * 1000000n), state, reason })
 const operation = (plan, id, phase = 'completed') => ({ plan, requestId: id, admission: 'accepted', phase, execution: phase === 'completed' ? 'succeeded' : 'unknown', verification: phase === 'completed' ? 'succeeded' : 'unknown', error: null, reference: id })
-function fixture(t, value, plan, { old = null, loseGet = false, failSave = false } = {}) {
+function fixture(t, value, plan, { old = null, failSave = false, failRead = false } = {}) {
   const dom = webDOM(t), root = dom.get('update-center'), product = root.querySelector('[data-update-product]'), calls = [], data = new Map()
   if (old) { value.operation = old; data.set(key, JSON.stringify({ requestId: old.requestId, planId: old.plan.planId })) }
   let accepted
   const center = createUpdateCenter({ root, buttons: [dom.get('update-open')], storage: { getItem: key => data.get(key) ?? null, setItem(key, value) { if (failSave) throw Error('storage'); data.set(key, value) }, removeItem: key => data.delete(key) }, api: async (path, options) => {
     calls.push({ path, body: options?.body ? JSON.parse(options.body) : null })
-    if (path === '/api/updates?runtime=1') return value
+    if (path === '/api/updates?runtime=1') { if (failRead) throw Object.assign(Error('offline'), { code: 'NETWORK_DOWN' }); return value }
     if (path.endsWith('/plans')) return { plan }
     if (path === '/api/updates/operations') { accepted = operation(plan, JSON.parse(options.body).requestId); return { operation: accepted } }
-    if (loseGet) throw Error('offline')
     return { operation: path.endsWith(old?.requestId) ? old : accepted }
   } })
-  return { center, product, calls, data, control: name => find(product, name), text: () => text(product) }
+  return { center, product, calls, data, control: name => find(product, name), text: () => text(product), cards: () => all(product, node => node.className === 'update-card') }
 }
 
-test('standard view has a single primary, genuine changes, and no component table or technical values', async t => {
-  const { value, plan } = example(), f = fixture(t, value, plan)
-  await f.center.start()
-  assert.match(f.text(), /更新があります.*画面の文字を読みやすく/)
-  assert.doesNotMatch(f.text(), /commit|[a-f0-9]{32}|UUID|protocol|内蔵版|公開版/)
-  assert.equal(f.product.children.filter(node => node.tagName === 'BUTTON' || node.dataset?.updateControl === 'primary').length, 1)
-  assert.equal(f.control('primary').textContent, '更新する')
+test('cards show icon, name, version name, badge and time; one action only where an update exists; no hashes', async t => {
+  const { value, plan } = example(); value.components.push({ ...structuredClone(value.components[0]), id: 'memory', name: '記憶', comparison: { state: 'up_to_date', reason: null }, capability: { supported: false, reason: 'UPDATE_ALREADY_CURRENT' }, changes: [] })
+  const f = fixture(t, value, plan); await f.center.start()
+  const [update, latest] = f.cards()
+  assert.match(f.text(), /1つ更新できます/)
+  assert.match(text(update), /更新あり.*新しい版あり.*画面の文字を読みやすく.*更新の記録なし/)
+  assert.equal(all(update, node => node.className === 'update-card-icon')[0].dataset.icon, plan.componentId)
+  assert.match(text(latest), /最新/)
+  assert.ok(find(update, 'card-' + plan.componentId)); assert.equal(all(latest, node => node.className === 'update-card-action').length, 0)
+  assert.doesNotMatch(f.text(), /commit|[a-f0-9]{12,}|UUID|protocol/)
   assert.equal(f.calls.filter(call => call.body).length, 0)
-  value.components[0].changes = []; await f.center.refresh()
-  assert.doesNotMatch(f.text(), /変更内容|届いて|未供給/)
 })
 
-test('one candidate requests one fixed plan, then explicit Start exactly once; no automatic follow-up', async t => {
+test('card action requests one component plan, then explicit Start exactly once with a success banner', async t => {
   const { value, plan } = example(), f = fixture(t, value, plan)
-  await f.center.start(); f.control('primary').handlers.click(); await settle()
-  assert.match(f.text(), /更新内容を確認/)
-  assert.equal(f.calls.filter(call => call.path.endsWith('/plans')).length, 1)
-  assert.equal(f.calls.filter(call => call.path === '/api/updates/operations').length, 0)
+  await f.center.start(); f.control('card-' + plan.componentId).handlers.click(); await settle()
+  assert.match(f.text(), /を更新します/)
+  assert.deepEqual(f.calls.find(call => call.path.endsWith('/plans')).body, { scope: 'component', componentId: plan.componentId })
   const action = f.control('execute'); action.handlers.click(); action.handlers.click(); await settle()
   assert.equal(f.calls.filter(call => call.path === '/api/updates/operations').length, 1)
   assert.match(f.text(), /更新しました/)
-  assert.doesNotMatch(f.text(), /最新の状態です/)
 })
 
-test('multiple candidates require one selection before planning and never synthesize an all request', async t => {
-  const { value, plan } = example(); value.components.push({ ...structuredClone(value.components[0]), id: 'memory', name: '記憶' })
-  const f = fixture(t, value, plan); await f.center.start(); f.control('primary').handlers.click()
-  assert.match(f.text(), /更新する項目を選択/)
-  assert.equal(f.calls.filter(call => call.body).length, 0)
-  f.control('choose-' + plan.componentId).handlers.click(); await settle()
-  const sent = f.calls.find(call => call.path.endsWith('/plans')).body
-  assert.deepEqual(sent, { scope: 'component', componentId: plan.componentId })
+test('やめる clears the local plan and sends nothing', async t => {
+  const { value, plan } = example(), f = fixture(t, value, plan)
+  await f.center.start(); f.control('card-' + plan.componentId).handlers.click(); await settle()
+  const before = f.calls.length; f.control('cancel').handlers.click()
+  assert.equal(f.calls.length, before); assert.ok(f.control('card-' + plan.componentId)); assert.equal(f.control('execute'), undefined)
 })
 
 test('restart impact requires the existing explicit checkbox before Start', async t => {
   const { value, plan } = example(true), f = fixture(t, value, plan)
-  await f.center.start(); f.control('primary').handlers.click(); await settle()
-  assert.equal(f.control('execute').disabled, true)
-  assert.match(f.text(), /一時中断/)
+  await f.center.start(); f.control('card-' + plan.componentId).handlers.click(); await settle()
+  assert.equal(f.control('execute').disabled, true); assert.match(f.text(), /一時中断/)
   f.control('execute').handlers.click(); await settle()
   assert.equal(f.calls.filter(call => call.path === '/api/updates/operations').length, 0)
   const checkbox = f.control('restart-confirm'); checkbox.checked = true; checkbox.handlers.change()
-  assert.equal(f.control('execute').disabled, false)
   f.control('execute').handlers.click(); await settle()
   assert.equal(f.calls.find(call => call.path === '/api/updates/operations').body.confirmContainerRestart, true)
 })
 
-test('old unknown keeps its UUID, GET-only primary and explicit new-plan path; failed GET stops Start', async t => {
-  const { value, plan } = example(); const oldPlan = structuredClone(plan); oldPlan.planId = '11111111-1111-4111-8111-111111111111'
-  const old = operation(oldPlan, '22222222-2222-4222-8222-222222222222', 'unknown')
-  const f = fixture(t, value, plan, { old, loseGet: true }); await f.center.start()
-  assert.match(f.text(), /結果を確認中/); assert.equal(f.control('primary').textContent, '状況を確認')
-  assert.doesNotMatch(f.text(), /記録を保持|要求ID|UUID/)
-  f.control('primary').handlers.click(); await settle()
-  assert.ok(f.data.get(key).includes(old.requestId)); assert.equal(f.calls.filter(call => call.body).length, 0)
-  f.control('choose').handlers.click(); f.control('choose-' + plan.componentId).handlers.click(); await settle()
-  assert.equal(f.calls.filter(call => call.path.endsWith('/plans')).length, 0)
+test('badges follow the newest job and the server status: running with progress, failed, attention, latest', () => {
+  const { value } = example(), base = value.components[0]
+  const row = (comparison, available = true, jobs = []) => { const item = { ...structuredClone(base), comparison: { state: comparison, reason: null }, availability: { available, reason: null } }; return { ...item, status: componentStatus(item, jobs) } }
+  const running = [job(base.id, 'downloading', 1)]
+  assert.deepEqual([cardState(row('update_available', true, running), running).badge, cardState(row('update_available', true, running), running).step], ['更新中', 2])
+  const failed = [job(base.id, 'failed', 5, { code: 'HOST_UPDATE_INSTALL_FAILED', message: 'x' })]
+  assert.equal(cardState(row('update_available', true, failed), failed).badge, '失敗')
+  assert.equal(cardState(row('up_to_date', true, failed), failed).badge, '最新')
+  assert.equal(cardState(row('update_available', false, failed), failed).badge, '要対応')
+  assert.equal(cardState(row('up_to_date')).badge, '最新')
+  // Without status (older body) the badge comes from comparison and records only.
+  assert.equal(cardState({ ...structuredClone(base), comparison: { state: 'update_available', reason: null } }).badge, '更新あり')
+})
+
+test('failures appear as a plain-words banner; codes stay out of the normal surface', async t => {
+  const { value, plan } = example(), item = value.components[0]
+  value.jobs = [job(item.id, 'failed', 5, { code: 'HOST_UPDATE_INSTALL_FAILED', message: 'install failed' })]
+  item.availability = { available: false, reason: null }; item.status = componentStatus(item, value.jobs)
+  const f = fixture(t, value, plan); await f.center.start()
+  assert.match(f.text(), /対応が必要です/); assert.match(f.text(), /担当に伝えてください/)
+  assert.doesNotMatch(f.text(), /HOST_UPDATE_INSTALL_FAILED|install failed|44444444/)
+  const r = fixture(t, structuredClone(value), plan, { failRead: true }); await r.center.start()
+  assert.match(r.text(), /更新情報を取得できません/); assert.ok(r.control('retry')); assert.doesNotMatch(r.text(), /NETWORK_DOWN/)
 })
 
 test('save failure and unsupported plan are visible and never send Start', async t => {
   const { value, plan } = example(), f = fixture(t, value, plan, { failSave: true })
-  await f.center.start(); f.control('primary').handlers.click(); await settle(); f.control('execute').handlers.click(); await settle()
-  assert.match(f.text(), /開始できませんでした/); assert.equal(f.calls.filter(call => call.path === '/api/updates/operations').length, 0)
-  plan.capability = { supported: false, reason: 'UPDATE_EXECUTOR_UNAVAILABLE' }; await f.center.refresh()
+  await f.center.start(); f.control('card-' + plan.componentId).handlers.click(); await settle(); f.control('execute').handlers.click(); await settle()
+  assert.match(f.text(), /更新を始められませんでした/); assert.equal(f.calls.filter(call => call.path === '/api/updates/operations').length, 0)
+  plan.capability = { supported: false, reason: 'UPDATE_EXECUTOR_UNAVAILABLE' }
+  f.control('cancel').handlers.click(); f.control('card-' + plan.componentId).handlers.click(); await settle()
   assert.equal(f.control('execute').disabled, true)
 })
 
-test('running updates offer only a state GET and never issue a plan or Start', async t => {
-  const { value, plan } = example()
-  value.operation = { ...operation(plan, '22222222-2222-4222-8222-222222222222'), phase: 'applying', execution: 'pending', verification: 'pending' }
-  const f = fixture(t, value, plan); await f.center.start()
-  assert.match(f.text(), /更新しています/); assert.equal(f.control('primary').textContent, '状況を確認')
-  f.control('primary').handlers.click(); await settle()
-  assert.equal(f.calls.filter(call => call.body).length, 0)
-})
-
-test('successful GET of an old unknown allows an explicit new plan while retaining the old IDs and result', async t => {
+test('a new plan from a card keeps the old unknown request IDs and result', async t => {
   const { value, plan } = example(), oldPlan = structuredClone(plan)
   oldPlan.planId = '55555555-5555-4555-8555-555555555555'
   const old = operation(oldPlan, '22222222-2222-4222-8222-222222222222', 'unknown')
   const f = fixture(t, value, plan, { old }); await f.center.start()
-  f.control('choose').handlers.click(); f.control('choose-' + plan.componentId).handlers.click(); await settle()
-  assert.equal(f.calls.filter(call => call.path.endsWith('/plans')).length, 1)
+  f.control('card-' + plan.componentId).handlers.click(); await settle()
   f.control('execute').handlers.click(); await settle()
   const sent = f.calls.find(call => call.path === '/api/updates/operations').body
   assert.notEqual(sent.requestId, old.requestId)
-  const held = JSON.parse(f.data.get(key)); assert.deepEqual(held.previous, [old])
-  assert.equal(f.calls.filter(call => call.path === '/api/updates/operations').length, 1)
+  assert.deepEqual(JSON.parse(f.data.get(key)).previous.map(entry => [entry.requestId, entry.planId ?? entry.plan.planId]), [[old.requestId, oldPlan.planId]])
   assert.ok(f.calls.some(call => call.path.endsWith(old.requestId)))
 })

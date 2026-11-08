@@ -8,6 +8,9 @@ import { deferred } from './helpers/editor-dom.mjs'
 const settle = () => new Promise(resolve => setImmediate(resolve))
 const text = node => [node.textContent ?? '', ...node.children.map(text)].join(' ')
 const inventory = () => structuredClone(updateExamples.published_unavailable)
+// The whole dialog: normal cards plus 詳細 (detail and toolbar notice), where raw records and codes live.
+const whole = f => ['[data-update-notice]', '[data-update-product]', '[data-update-detail]'].map(selector => text(f.get(selector))).join(' ')
+const cards = f => { const found = []; const walk = node => { if (node.className === 'update-card') found.push(node); node.children.forEach(walk) }; walk(f.get('[data-update-product]')); return found }
 function fixture(t, api, storage) {
   const dom = webDOM(t), root = dom.get('update-center'), calls = []
   const opener = dom.get('update-open')
@@ -23,7 +26,7 @@ test('restart-limit problems display supplied evidence and explicit resolution w
     lastExit: { code: null, signal: null }, lastReason: 'ready_probe_failed' }
   value.problems = [problem]
   const f = fixture(t, async () => value)
-  const rows = () => f.get('[data-update-product]').children.find(node => node.className === 'update-release-notes update-problems')
+  const rows = () => f.get('[data-update-detail]').children.find(node => node.className === 'update-release-notes update-problems')
   await f.center.start()
   assert.equal(validUpdateInventory(value), true)
   assert.equal(rows().children[1].dataset.problemFingerprint, problem.fingerprint)
@@ -109,29 +112,23 @@ test('component status uses exact server lines and actions while technical histo
   const f = fixture(t, async () => { if (offline) throw Error('UNREADABLE_PRIVATE_CODE'); return value })
   await f.center.start()
   const product = () => text(f.get('[data-update-product]'))
-  const rows = () => f.get('[data-update-product]').children.find(node => node.className === 'update-release-notes update-component-statuses').children
   assert.equal(validUpdateInventory(value), true)
-  assert.equal(rows().length, 2)
-  for (const [index, component] of value.components.entries()) {
-    assert.equal(rows()[index].children[0].textContent, component.name)
-    assert.equal(rows()[index].children[1].textContent, component.status.line)
-  }
-  assert.match(rows()[1].className, /\bis-attention\b/)
-  assert.equal(rows()[1].children[2].textContent, value.components[1].status.action)
-  assert.doesNotMatch(product(), /ジョブの状態|ジョブID|状態:|failed|ready|READY_PROBE_FAILED|10000000-|20000000-|30000000-|直近の終了コード/)
+  assert.equal(cards(f).length, 2)
+  assert.deepEqual(cards(f).map(card => card.dataset.component), value.components.map(component => component.id))
+  assert.match(text(cards(f)[0]), /確認できません.*最終更新/)
+  assert.equal(cards(f)[1].dataset.tone, 'danger'); assert.match(text(cards(f)[1]), /要対応/)
+  assert.match(product(), /対応が必要です.*通知の設定を確認してください。/)
+  assert.doesNotMatch(product(), /ジョブID|状態:|failed|READY_PROBE_FAILED|10000000-|20000000-|30000000-|直近の終了コード|<img/)
   f.select('container')
   assert.match(text(f.get('[data-update-detail]')), new RegExp(succeeded.jobId))
-  assert.match(text(f.get('[data-update-detail]')), /最新ジョブ日時.*JST/)
+  assert.match(text(f.get('[data-update-detail]')), /状態の説明.*内蔵版です。.*最新ジョブ日時.*JST/)
   assert.match(text(f.get('[data-update-detail]')), /状態: failed.*READY_PROBE_FAILED/)
   f.select('notifications')
   assert.match(text(f.get('[data-update-detail]')), new RegExp(failed.jobId))
   assert.match(text(f.get('[data-update-detail]')), /READY_PROBE_FAILED/)
   value.components[1].status = { line: '更新を実行しています。', tone: 'updating', actionRequired: false, action: null, latestJob: null }
   await f.center.refresh({ type: 'updates', jobs: [old] })
-  assert.equal(rows()[1].dataset.statusTone, 'updating')
-  assert.equal(rows()[1].children.length, 2)
-  assert.ok(product().includes(value.components[1].status.line))
-  assert.doesNotMatch(product(), /通知の設定を確認|更新を完了できません|READY_PROBE_FAILED/)
+  assert.doesNotMatch(product(), /要対応|通知の設定を確認|更新を完了できません|READY_PROBE_FAILED/)
   offline = true
   await f.center.refresh({ type: 'updates', jobs: [failed] })
   assert.doesNotMatch(product(), /UNREADABLE_PRIVATE_CODE|READY_PROBE_FAILED|30000000-|状態: failed/)
@@ -139,7 +136,8 @@ test('component status uses exact server lines and actions while technical histo
   offline = false
   for (const component of value.components) delete component.status
   await f.center.refresh()
-  assert.match(product(), /ジョブの状態.*状態: failed.*READY_PROBE_FAILED/)
+  assert.match(whole(f), /保存されたジョブ.*状態: failed.*READY_PROBE_FAILED/)
+  assert.doesNotMatch(product(), /READY_PROBE_FAILED/)
   assert.equal(validUpdateInventory(value), true)
   for (const status of [null, {}, { line: '確認', tone: 'invalid', actionRequired: false, action: null, latestJob: null },
     { line: '確認', tone: 'ok', actionRequired: false, action: null, latestJob: { ...latest(succeeded), at: 'invalid' } }]) {
@@ -158,7 +156,7 @@ test('stored update jobs display all six exact records without a parent aggregat
   const f = fixture(t, async () => { if (offline) throw Error('NETWORK_READ_FAILED'); return value })
   await f.center.start()
   assert.equal(validUpdateInventory(value), true)
-  const product = f.get('[data-update-product]'), body = text(product)
+  const product = f.get('[data-update-detail]'), body = text(product)
   for (const record of records) {
     assert.match(body, new RegExp(`状態: ${record.state}`))
     assert.match(body, new RegExp(record.jobId))
@@ -179,7 +177,7 @@ test('stored update jobs display all six exact records without a parent aggregat
   assert.ok(f.calls.every(([path, options]) => path === '/api/updates?runtime=1' && !options?.method))
   offline = true
   await f.center.refresh({ type: 'updates', jobs: [records[5]] })
-  assert.match(text(f.get('[data-update-product]')), /NETWORK_READ_FAILED.*状態: failed.*READY_PROBE_FAILED/)
+  assert.match(whole(f), /NETWORK_READ_FAILED.*状態: failed.*READY_PROBE_FAILED/)
   assert.doesNotMatch(text(f.get('[data-update-product]')), /状態: unknown|結果不明/)
   const storage = storeFixture(), historical = structuredClone(value.operation)
   storage.setItem(requestKey, JSON.stringify({ previous: [historical] }))
@@ -283,13 +281,13 @@ test('runtime rows opt in, retain next-launch policy and use single-target jobs 
   assert.equal(sent.planId, fixedPlan.planId)
   assert.equal(f.calls.filter(([path]) => path === '/api/updates/operations').length, 1)
   assert.equal(JSON.parse(storage.getItem(requestKey)).requestId, sent.requestId)
-  assert.match(text(f.get('[data-update-product]')), /状態: queued/)
+  assert.match(whole(f), /状態: queued/)
   assert.match(text(f.get('[data-update-detail]')), /状態: queued/)
   accepted.jobs[0] = { ...accepted.jobs[0], state: 'ready', updatedAtNs: '1794000000000000000' }
   value.jobs = accepted.jobs
   // Runtime records are absent from public SSE; the opted-in GET supplies their actual state.
   await f.center.refresh({ type: 'updates', jobs: [] })
-  assert.match(text(f.get('[data-update-product]')), /状態: ready/)
+  assert.match(whole(f), /状態: ready/)
   assert.match(text(f.get('[data-update-detail]')), /状態: ready/)
   assert.equal(validUpdateInventory(value), true)
   for (const runtimeApplication of [undefined, { generationId: 'bad', policy: 'next_launch' }, { generationId: null, policy: 'now' }]) {
@@ -320,11 +318,9 @@ test('a newer optional status falls back per row without disabling components or
   await f.center.start()
   assert.equal(validUpdateInventory(value), true)
   const product = f.get('[data-update-product]')
-  const rows = product.children.find(node => node.className === 'update-release-notes update-component-statuses').children
-  assert.equal(rows.length, 2)
-  assert.equal(rows[0].children[0].textContent, first.name)
-  assert.equal(rows[0].children[1].textContent, '更新あり')
-  assert.equal(rows[1].children[1].textContent, value.components[1].status.line)
+  assert.equal(cards(f).length, 2)
+  assert.match(text(cards(f)[0]), new RegExp(`更新あり.*${first.name}`))
+  assert.match(text(cards(f)[1]), /通知/)
   assert.doesNotMatch(text(product), /新しい形式|future_|応答形式/)
   for (const component of value.components) {
     f.select(component.id)
@@ -358,7 +354,7 @@ test('stored update jobs keep lookup IDs across read errors, explicit new starts
   await obtainPlan(f); confirm(f)
   const button = control(f, 'execute'); button.handlers.click(); button.handlers.click(); await settle()
   assert.equal(sent.length, 1)
-  assert.match(text(f.get('[data-update-product]')), /UNREADABLE \/ EACCES \/ \/state\/jobs\/record.json/)
+  assert.match(whole(f), /UNREADABLE \/ EACCES \/ \/state\/jobs\/record.json/)
   assert.equal(JSON.parse(storage.getItem(requestKey)).requestId, sent[0].requestId)
   assert.doesNotMatch(text(f.get('[data-update-product]')), /結果不明|結果確認不能|状態: failed/)
   await f.center.refresh()
@@ -372,15 +368,15 @@ test('stored update jobs keep lookup IDs across read errors, explicit new starts
   f.center.close(); readError = false
   const reloaded = fixture(t, api, storage)
   await reloaded.center.start()
-  assert.match(text(reloaded.get('[data-update-product]')), /状態: ready/)
+  assert.match(whole(reloaded), /状態: ready/)
   assert.equal(JSON.parse(storage.getItem(requestKey)).requestId, sent[1].requestId)
   assert.ok(reloaded.calls.some(([path]) => path.endsWith(sent[0].requestId)))
   assert.ok(reloaded.calls.some(([path]) => path.endsWith(sent[1].requestId)))
   assert.ok(reloaded.calls.every(([, options]) => !options?.method))
   assert.equal(sent.length, 2)
   await reloaded.center.refresh({ type: 'updates', error: { code: 'UNREADABLE', message: 'EIO', path: '/state/jobs/sse.json', reason: 'EIO' } })
-  assert.match(text(reloaded.get('[data-update-product]')), /UNREADABLE \/ EIO \/ \/state\/jobs\/sse.json/)
-  assert.match(text(reloaded.get('[data-update-product]')), /状態: ready/)
+  assert.match(whole(reloaded), /UNREADABLE \/ EIO \/ \/state\/jobs\/sse.json/)
+  assert.match(whole(reloaded), /状態: ready/)
   await reloaded.center.refresh()
   assert.doesNotMatch(text(reloaded.get('[data-update-product]')), /EIO/)
 })
@@ -576,7 +572,7 @@ test('update SSE bypasses a blocked ordinary view and refreshes current jobs ind
   const started = f.center.start()
   await settle()
   f.select('container')
-  assert.match(text(f.get('[data-update-product]')), /状態: queued/)
+  assert.match(whole(f), /状態: queued/)
   const client = createWebClient({ fetch: async () => new Response(new ReadableStream({ start(controller) { eventStream = controller } })) })
   const context = vm.createContext({ state: {}, watchEvents: client.watchEvents, updateCenter: f.center,
     ownerDialog: { open: false }, goals: { refreshOnEvent() {} },
@@ -595,7 +591,7 @@ test('update SSE bypasses a blocked ordinary view and refreshes current jobs ind
   const downloading = { ...initial.jobs[0], state: 'downloading', updatedAtNs: '1794000000000000000' }
   emit({ type: 'updates', all: false, jobs: [downloading] })
   await settle()
-  assert.match(text(f.get('[data-update-product]')), /状態: downloading/)
+  assert.match(whole(f), /状態: downloading/)
   assert.match(text(f.get('[data-update-detail]')), /状態: downloading/)
   const ready = { ...downloading, state: 'ready', updatedAtNs: '1794000000000000001' }
   value.operation = { ...initial, phase: 'completed', execution: 'succeeded', verification: 'succeeded', jobs: [ready] }
@@ -605,7 +601,7 @@ test('update SSE bypasses a blocked ordinary view and refreshes current jobs ind
   value.components[0].capability = { supported: false, reason: 'UPDATE_ALREADY_CURRENT' }
   for (let i = 0; i < 4; i++) emit({ type: 'updates', all: false, jobs: [ready] })
   await settle()
-  assert.match(text(f.get('[data-update-product]')), /状態: ready/)
+  assert.match(whole(f), /状態: ready/)
   assert.match(text(f.get('[data-update-detail]')), /状態: ready/)
   assert.deepEqual(ordered, ['begin'], 'ordinary view is still waiting')
   assert.equal(oldReads, 1, 'blocked history is not fetched concurrently')

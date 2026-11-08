@@ -17,6 +17,7 @@ export function aiControlView(root, api) {
   const refresh = root.querySelector('button')
   let busy = false, generation = 0, control = null
   const render = message => {
+    root.setAttribute('data-state', busy ? 'stopping' : control?.state ?? 'unknown')
     toggle.hidden = !control
     toggle.disabled = busy || !control
     toggle.checked = control?.paused ?? false
