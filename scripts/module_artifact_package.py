@@ -51,7 +51,7 @@ def main(component):
         root = Path(work); payload = root / 'payload'; payload.mkdir()
         paths = ['src', 'package.json', 'package-lock.json']
         if component == 'web-gateway':
-            paths += ['web', 'services/subscriptions/product.json', 'services/subscriptions/endpoints.json']
+            paths += ['web', 'services/subscriptions/product.json', 'services/subscriptions/endpoints.json', 'config/setup-guide.json']
         elif component == 'members':
             paths += ['config/common-agents.md']
         if component == 'execution':
