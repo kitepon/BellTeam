@@ -31,7 +31,7 @@ export function createExecutionFacade({ getController, client, membersAdmission,
   }
   // after_turn (current-work.md): every currentTurn change per listener, over the exchange-surviving queue stream.
   result.transport.watchCurrentTurn = listener => watchCurrentTurn(watchQueue,
-    botId => current().project({ method: 'transport.currentTurn', args: [botId] }), listener)
+    botId => current().project({ method: 'transport.currentTurn', args: [botId, { startedAt: true }] }), listener)
   result.transport.close = () => {
     try { return current().close() } catch (error) { return Promise.reject(error) }
   }

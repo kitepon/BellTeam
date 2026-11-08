@@ -33,10 +33,10 @@ export function watchCurrentTurn(watchQueue, read, listener) {
       let turn
       try { turn = read(botId) } catch { retry.add(botId); continue }
       retry.delete(botId)
-      const key = `${turn.state}:${turn.turnId}`
+      const startedAt = turn.startedAt ?? null, key = `${turn.state}:${turn.turnId}:${startedAt}`
       if (last.get(botId) === key) continue
       last.set(botId, key)
-      try { listener({ botId, state: turn.state, turnId: turn.turnId }) } catch {}
+      try { listener({ botId, state: turn.state, turnId: turn.turnId, startedAt }) } catch {}
     }
   })
 }
@@ -92,7 +92,7 @@ export class CurrentWork {
   }
   record(botId) {
     if (!this.records.has(botId)) this.records.set(botId, {
-      botId, sessionId: null, launchId: null, turnId: null, revision: randomUUID(), state: 'unknown',
+      botId, sessionId: null, launchId: null, turnId: null, startedAt: null, revision: randomUUID(), state: 'unknown',
       observedAt: null, observedMono: null, summary: null, summaryStatus: 'missing', summaryUpdatedAt: null,
       summaryMono: null, lastRead: 0, barrier: 0, completed: null,
     })
@@ -111,7 +111,7 @@ export class CurrentWork {
   unknown(record, barrier = true) {
     if (barrier) record.barrier = ++this.seq
     const changed = record.state !== 'unknown' || record.launchId !== null || record.summaryStatus !== 'missing'
-    record.state = 'unknown'; record.launchId = null; record.turnId = null; record.observedMono = null
+    record.state = 'unknown'; record.launchId = null; record.turnId = null; record.startedAt = null; record.observedMono = null
     this.clearSummary(record)
     if (this.pending.has(record.botId)) this.finish(this.pending.get(record.botId), failure('UNAVAILABLE', 503))
     if (changed) this.changed(record)
@@ -142,13 +142,14 @@ export class CurrentWork {
     return record.state === 'working' ? { sessionId: record.sessionId, launchId: record.launchId, turnId: record.turnId, revision: record.revision } : null
   }
   // after_turn: the owning Bot's actual current turn (current-work.md). Pure read of the latest observation.
-  turn(botId) {
+  // startedAt only on request: the members after_turn validators accept exactly {state,turnId}.
+  turn(botId, { startedAt = false } = {}) {
     const record = this.records.get(botId)
-    if (!record) return { state: 'unknown', turnId: null }
-    this.expire(record)
-    if (record.state === 'working')
-      return { state: 'working', turnId: createHash('sha256').update(point(record)).digest('hex') }
-    return { state: record.state === 'idle' || record.state === 'unknown' && record.absent ? 'idle' : 'unknown', turnId: null }
+    if (record) this.expire(record)
+    const turn = record?.state === 'working'
+      ? { state: 'working', turnId: createHash('sha256').update(point(record)).digest('hex') }
+      : { state: record?.state === 'idle' || record?.state === 'unknown' && record.absent ? 'idle' : 'unknown', turnId: null }
+    return startedAt ? { ...turn, startedAt: turn.state === 'working' ? record.startedAt : null } : turn
   }
   beginRead(targets) {
     for (const target of targets) this.sync(target.botId, target.sessionId, target.current())
@@ -181,7 +182,10 @@ export class CurrentWork {
       if (running && record.completed === point(next)) { this.unknown(record); continue }
       const state = running ? 'working' : 'idle'
       const changed = record.state !== state || record.launchId !== next.launchId || record.turnId !== next.turnId
-      if (changed) { this.clearSummary(record); Object.assign(record, next, { state }) }
+      if (changed) {
+        const started = running && typeof turn.started_at === 'string' && Number.isFinite(Date.parse(turn.started_at))
+        this.clearSummary(record); Object.assign(record, next, { state, startedAt: started ? new Date(turn.started_at).toISOString() : null })
+      }
       record.observedAt = this.now(); record.observedMono = this.monotonic()
       const active = this.restartActivity.get(target.botId)
       if (running) {
