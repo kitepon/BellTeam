@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T13:29:05Z",
-  "expiresAt": "2026-11-15T13:29:05Z",
+  "publishedAt": "2026-11-08T14:15:51Z",
+  "expiresAt": "2026-11-15T14:15:51Z",
   "releases": [
     {
       "componentId": "usage",
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "0c633e0baba3260ecc66a4229c7875e6b7a67249",
-      "versionId": "sha256:c7f15ad794f2150169462e26702775c6a75b0a34e67bf7220fcc0e3cf6520303",
+      "sourceCommit": "39b752aeb75b22d5c65be07a42366ffe660006f3",
+      "versionId": "sha256:03dba5a81290865a9fef90a8df81b58a4c1508433b4a6d8d4bd69de5230b3063",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c7f15ad794f2150169462e26702775c6a75b0a34e67bf7220fcc0e3cf6520303"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:03dba5a81290865a9fef90a8df81b58a4c1508433b4a6d8d4bd69de5230b3063"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,22 +722,23 @@
         "containerUpdate": 1
       },
       "changes": [
-        "設定画面に、Claudeの1つ目と2つ目のアカウントの欄が表示されます。2つ目のアカウントの登録は、利用設定の部品を更新した後に使えます。",
-        "相関図の線に、依頼を受けたメンバーの作業の要約が表示されます。",
-        "新しい部品が配布されても、更新の確認が止まらないようにします。"
+        "AIの認証で、2つ目のClaudeアカウントを開くとエラーになる問題を直します。",
+        "アカウントの保存場所を用意できなかった時は、記号ではなく日本語の説明が表示されます。",
+        "相関図の線には、依頼の要約が届くまで「依頼を処理中」と表示されます。",
+        "一時的に使えなくなった時の記録に、どの処理で起きたかが残るようにします。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "0c633e0baba3260ecc66a4229c7875e6b7a67249",
-      "versionId": "sha256:c7f15ad794f2150169462e26702775c6a75b0a34e67bf7220fcc0e3cf6520303",
+      "sourceCommit": "39b752aeb75b22d5c65be07a42366ffe660006f3",
+      "versionId": "sha256:03dba5a81290865a9fef90a8df81b58a4c1508433b4a6d8d4bd69de5230b3063",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c7f15ad794f2150169462e26702775c6a75b0a34e67bf7220fcc0e3cf6520303"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:03dba5a81290865a9fef90a8df81b58a4c1508433b4a6d8d4bd69de5230b3063"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,9 +747,10 @@
         "containerUpdate": 1
       },
       "changes": [
-        "設定画面に、Claudeの1つ目と2つ目のアカウントの欄が表示されます。2つ目のアカウントの登録は、利用設定の部品を更新した後に使えます。",
-        "相関図の線に、依頼を受けたメンバーの作業の要約が表示されます。",
-        "新しい部品が配布されても、更新の確認が止まらないようにします。"
+        "AIの認証で、2つ目のClaudeアカウントを開くとエラーになる問題を直します。",
+        "アカウントの保存場所を用意できなかった時は、記号ではなく日本語の説明が表示されます。",
+        "相関図の線には、依頼の要約が届くまで「依頼を処理中」と表示されます。",
+        "一時的に使えなくなった時の記録に、どの処理で起きたかが残るようにします。"
       ]
     }
   ],
