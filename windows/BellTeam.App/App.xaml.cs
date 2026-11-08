@@ -12,6 +12,8 @@ public partial class App : Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        // Store build: a tap on the closed-app update toast launches bellteam-update:?server=...
+        var launch = e.Args is [var argument] && UpdateLaunch.IsLaunch(argument) ? argument : null;
         try
         {
             if (e.Args is ["--smoke-test", var address, var result])
@@ -91,25 +93,26 @@ public partial class App : Application
                 Shutdown(0);
                 return;
             }
-            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-page <settings|settings-lower|schedules|updates|updates-narrow|updates-detail-narrow> <URL> <PNG>、--render-editor <member|new-member|room|new-room|settings|profile|feature|schedules|new-schedule|setup|authentication> <URL> <ID> <PNG> のいずれかです。");
+            if (e.Args.Length != 0 && launch is null) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-page <settings|settings-lower|schedules|updates|updates-narrow|updates-detail-narrow> <URL> <PNG>、--render-editor <member|new-member|room|new-room|settings|profile|feature|schedules|new-schedule|setup|authentication> <URL> <ID> <PNG> のいずれかです。");
 
             MainWindow? main = null;
-            instance = new SingleInstance(() => Dispatcher.Invoke(() => { main!.WindowState = main.WindowState == WindowState.Minimized ? WindowState.Normal : main.WindowState; main.Show(); main.Activate(); }));
+            instance = new SingleInstance(message => Dispatcher.Invoke(() => { main!.WindowState = main.WindowState == WindowState.Minimized ? WindowState.Normal : main.WindowState; main.Show(); main.Activate(); if (message is not null) _ = main.OpenUpdateLaunchAsync(message); }), launch);
             if (!instance.IsPrimary) { Shutdown(0); return; }
             var access = new DesktopAccess();
             var workspace = new Workspace(origin => new BellApi(origin, cookies: access.Cookies), access.RestoreAsync);
             var notifications = new DesktopNotifications(new WindowsNotificationSink(), new SettingsStore(SettingsStore.UserDirectory), (server, target) => Dispatcher.BeginInvoke(() => _ = main!.OpenNotificationAsync(server, target)));
-            main = new MainWindow(workspace, access: access, notifications: notifications);
+            main = new MainWindow(workspace, access: access, notifications: notifications, push: PackageIdentity.IsPackaged ? new ClosedAppPush(new WnsChannelSource(), new SettingsStore(SettingsStore.UserDirectory)) : null);
             MainWindow = main;
             main.Closed += async (_, _) => { workspace.Dispose(); try { await notifications.DisposeAsync(); } catch (Exception error) { MessageBox.Show("通知の終了処理を完了できませんでした。" + error.Message, "BellTeam", MessageBoxButton.OK, MessageBoxImage.Error); } finally { Shutdown(); } };
             main.Show();
             var settings = new SettingsStore(SettingsStore.UserDirectory).Load();
             if (settings.ServerUrl is { } url) await main.ConnectAsync(url);
             else main.OpenConnectionSettings();
+            if (launch is not null) await main.OpenUpdateLaunchAsync(launch);
         }
         catch (Exception error)
         {
-            var unattended = e.Args.Length != 0;
+            var unattended = e.Args.Length != 0 && launch is null;
             if (unattended)
             {
                 // 自動検証で対話ダイアログを出さない。終了コードと標準エラーで失敗を返す。
