@@ -12,8 +12,7 @@ flowchart TD
   Worker --> Reader[N102: 一件read / 要約自身の新しい短いoperation / 最大4000字と固定status1000字]
   Reader --> Runner[既seat process / tools無しCLI: claude print・codex exec --json / 実run一件]
   Runner --> Check[設定revision / 元job・停止世代 / 同session-launch再照合]
-  Runner -->|"display width over 80: one regeneration with the measured width"| Runner
-  Check --> Memory[表示幅80以内の短い句 / 10分TTL]
+  Check --> Memory[短い句、長さで捨てず切らない / 10分TTL]
   Worker --> Drop[落とした試行: stderr一行 stage・code / 本文なし]
   Native[Existing SeatTurns / all five live observations] --> State[Parent activity / independent of summary]
   Native --> Legacy[Codex-only legacy watch and wait]
@@ -37,7 +36,7 @@ flowchart TD
 
 `createBackgroundSummaryRunner({project,models,runner})` は既createSeatProcessRunnerのbase環境/取消・group終端を再利用。専用projectは親が `shared/tools/bellteam-background-agent` に用意し、Bot席として登録しない。所有はexecutionキロ、READMEへ目的と保持する空lock fileを記す。既authを使い、CLIのtools/MCP/hooks/自動指示読取を無効にした非対話面だけを許可する。現在供給するadapterは2つで、どちらもこのrunnerが直接argvと結果parseを持つ（Aiterm adapterへの依存は無い）。Claudeはprint/safe-mode/tools空/strict-mcp-config空/settings-source空/no-session-persistence、結果は単一JSON `type=result,subtype=success,is_error=false,result:string`。Codexは `codex exec --json --ephemeral --skip-git-repo-check --ignore-user-config --ignore-rules --sandbox read-only -C <project> -m <model> [-c model_reasoning_effort="<effort>"] -c project_doc_max_bytes=0 <instruction>`、入力JSONはstdin（CLIが`<stdin>`blockとして付加）。結果はJSONLで、`turn.completed`があり`turn.failed`/`error`が無く、最後の`item.completed`の`agent_message.text`が文字列の時だけ成功。user config（MCP/hooks/profile）と規則・AGENTS読取を外し、shellはread-only sandbox。grok/cursor/antigravityはBACKGROUND_SUMMARY_HARNESS_UNSUPPORTED、無断代替0。60秒期限・64KiB出力上限、失敗後同入力の再発行0。
 
-runへ渡すのは選択済み設定と限定JSONだけ。出力はplain stringで親がtrim後、空でなく制御文字無し、表示幅80以内（East Asian Width F/W=2、他=1。全角だけなら40字）を検証し（2026-11-08 Owner裁定: メンバーカードの要約2行に収まる幅。14:5xに40から80へ。本番の32〜86字は見切れていた。句の内容は「今していること」で、ID・SHA・PR番号・「〜依頼」の定型句を書かない指示）、幅を超えた出力は切り詰めず、同じ入力と測った幅（previous_width）を添えて一度だけ再生成する。再生成も超えたら`BACKGROUND_SUMMARY_TOO_WIDE`で落とす（それ以上の再試行なし）。公開DTOの上限160は変えない（既存表示の契約）。元run closureの対象・入力/設定revisionと現recordを保存直前に照合する。AIに対象や状態の本人性を選ばせない。空・不正・取消・未知はmissing、主仕事を待たせない。落とした試行（設定なし以外）は `BellTeam background summary: <botId> <stage> <code>` をstderrへ一行書く（本文・要約文は書かない）。
+runへ渡すのは選択済み設定と限定JSONだけ。出力はplain stringで親がtrim後、空でなく制御文字無しだけを検証する。長さでは捨てず切らず、再生成もしない（2026-11-09 Owner裁定: 幅を超えたら捨てる考え自体が誤り。指示の目安はメンバーカード2行に収まる全角40字で、句の内容は「今していること」、ID・SHA・PR番号・「〜依頼」の定型句を書かない）。ただしメンバーカードは公開DTO（integrationの current-work-contract.mjs、1〜160 Unicode文字）を超える句だけ `BACKGROUND_SUMMARY_DTO_LIMIT` で保存しない（保護対象: DTOを読む全readerが失敗しない。上限を外すのはintegrationの契約変更）。元run closureの対象・入力/設定revisionと現recordを保存直前に照合する。AIに対象や状態の本人性を選ばせない。空・不正・取消・未知はmissing、主仕事を待たせない。落とした試行（設定なし以外）は `BellTeam background summary: <botId> <stage> <code>` をstderrへ一行書く（本文・要約文は書かない）。
 
 ## currentWork
 
@@ -111,7 +110,6 @@ flowchart LR
   Accept[AitermTransport.submit: delivery accepted<br/>authority actor kind bot, context direct/room] -->|"first job of that groupId only<br/>(room post with several responders = one run)"| Req["TeamBackgroundSummary.request(groupId, info.message, {current, ready})"]
   Req --> Serial[same serial drain as currentWork, before pending member-card records<br/>one actual run at a time: summary.lock]
   Serial --> Run["runner(selection, {text}, {purpose:'request'})<br/>request instruction"]
-  Run -->|"display width over 40: one regeneration with previous_width"| Run
   Run --> Store[requests Map groupId → phrase]
   Store -->|ready| Emit[activity.emit for the group's jobs → queue SSE]
   Rows["transport.queueItems() rows"] -->|"requestSummary = requestSummary(groupId) ?? null"| WG[Molly queue.read → Black work-graph label]
@@ -122,7 +120,7 @@ flowchart LR
 | --- | --- |
 | Trigger | `submit` after acceptance, when `summaryAuthority.context.actor.kind === 'bot'`, `info.context` is `direct` or `room`, and `info.groupId` is set. Key = `groupId`. A groupId already requested is not requested again (responders of one room post share it). No GET, render or timer starts a run. |
 | Input | `{ text: info.message }` only, ≤ 4000 code points (longer is not summarized: null). Untrusted material; the instruction says so. |
-| Output | One Japanese phrase saying what is being asked; display width ≤ 40 (same EAW count as the member card); no IDs, SHA, PR numbers, times, quotes or Markdown. Over-width gets exactly one regeneration with `previous_width`; then dropped. The instruction asks for about 14 full-width characters (regeneration: 10), well under the limit: asked for "within 40", the production model (codex gpt-6-luna low) overshot on most Bot requests and 18 were dropped as `BACKGROUND_SUMMARY_TOO_WIDE` in 06:45–06:59 JST 2026-11-09; with the target, 16/16 real Bot requests fit first time (widths 22–37). |
+| Output | One Japanese phrase saying what is being asked; no IDs, SHA, PR numbers, times, quotes or Markdown. The instruction targets about 20 full-width characters. Owner ruling 2026-11-09 07:3x JST (via Black): whatever the model returns is kept (trim only); it is never dropped or cut for its length and never regenerated. (Until then over-width output was dropped as `BACKGROUND_SUMMARY_TOO_WIDE`: 18 drops in 06:45–06:59 JST.) The 相関図 label wraps any length (Black #733). |
 | Order | A pending request runs before the next pending member-card record (a run already in flight finishes first). Card-first (until 2026-11-09) left Bot-to-Bot edges at 依頼を処理中 for minutes under load: Black's production reads 06:51–06:52 JST. |
 | Failure | Any failure, no selection, or AI paused → stays `null`; no retry (same as the member card). The drop line is `BellTeam background summary: request <stage> <code>` (no text). |
 | Lifetime | Kept while any job of that groupId is active in the queue. `SeatActivity.release` of the last one calls `forgetRequest(groupId)`. A run in flight whose `current()` turned false stores nothing. `close()` clears everything. |
