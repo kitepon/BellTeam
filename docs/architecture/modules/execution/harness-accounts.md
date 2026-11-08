@@ -95,7 +95,7 @@ A seat's model scope is the first family name found in its model id (`fable`, `o
 
 ## Selection, failover and return
 
-Preferred slot for a seat = the first rule whose `harness` matches and whose `modelPrefix` is a prefix of the Bot's model (example: `{harness:'claude', modelPrefix:'claude-fable', slot:'2nd'}`), otherwise `1st`.
+Preferred slot for a seat = the first rule whose `harness` matches and whose `modelPrefix` is a prefix of the Bot's model (example: `{harness:'claude', modelPrefix:'claude-fable', slot:'2nd'}`), otherwise `1st`. A family prefix `claude-<family>` also matches the CLI's bare alias for that family (`fable`, `opus`, `sonnet`, `haiku`): the catalog lists Fable 5.1 as `fable`, and that is what a seat set to Fable carries (production 2026-11-08). A versioned prefix such as `claude-fable-5` matches only by prefix.
 
 Effective slot = the preferred slot if it is logged in and not limited for the seat's scope. Otherwise it is the other logged-in slot not limited for that scope. If every slot is limited for the scope, it is the slot whose matching entry has the earliest `resetAt`, and an unknown reset sorts last. So a Fable-only limit on the 1st moves only Fable seats; Opus and Sonnet seats stay. A launch is never refused for limits: the seat starts, the native CLI shows the limit, and the status surfaces show it plainly.
 

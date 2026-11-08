@@ -74,6 +74,10 @@ test('limits are per slot and model scope; selection never refuses; the timer cl
   await accounts.setRule({ harness: 'claude', modelPrefix: 'claude-fable', slot: '2nd' })
   assert.equal((await accounts.selection('claude', 'claude-fable-5-1')).slot, '2nd')
   assert.equal((await accounts.selection('claude', 'opus')).slot, '1st')
+  // The catalog's Fable 5.1 is the bare alias 'fable'; a versioned rule would not cover it.
+  assert.equal((await accounts.selection('claude', 'fable')).slot, '2nd')
+  assert.equal(accounts.preferredSlot('claude', 'claude-fable-5'), '2nd')
+  assert.equal(accounts.preferredSlot('claude', 'default'), '1st')
   // A Fable-only limit on the 2nd moves only Fable seats.
   const entry = await accounts.recordLimit({ harness: 'claude', slot: '2nd', model: 'claude-fable-5-1', text: "You've hit your Fable limit · resets 11pm (Asia/Tokyo)" })
   assert.deepEqual([entry.scope, entry.resetAt, entry.resetSource], ['fable', '2026-11-08T14:00:00.000Z', 'message'])
