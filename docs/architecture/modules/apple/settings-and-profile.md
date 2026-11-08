@@ -6,18 +6,23 @@
 
 ```mermaid
 flowchart TD
-  Settings["SettingsView"] --> Owner["Owner表示<br/>AppStore.owner"]
-  Settings --> Profile["ProfileEditor<br/>Ownerとユーザー規範のdraft"]
-  Settings --> Control["AIControlCard<br/>AppStoreのAI停止状態"]
-  Settings --> Opening["会話の開き方Picker<br/>AppStorage conversationOpening"]
-  Settings --> Auth["HarnessAuthenticationList<br/>公式AIの状態と再認証"]
-  Settings --> Features["FeatureSettingsList / Editor<br/>追加機能と秘密の設定値"]
-  Settings --> Billing["SubscriptionCard<br/>BillingStore"]
-  Settings --> Push["BellNotifications.shared<br/>登録状態・OS設定を開く"]
-  Settings --> Session["AppStore.changeServer / signOut"]
+  Settings["SettingsView"] -->|"compact（iPhone）"| Phone["SettingsPhoneView<br/>NavigationStack + 項目一覧（insetGrouped）"]
+  Settings -->|"regular（iPad・Mac）"| Split["SettingsSplitView<br/>左に項目（sidebar）、右に選んだページ"]
+  Phone --> Page["SettingsPageView(page)"]
+  Split --> Page
+  Page --> Profile["プロフィール: ProfileEditor(embedded)<br/>Ownerとユーザー規範のdraft"]
+  Page --> AI["AIの設定: HarnessAuthenticationList<br/>+ BackgroundAgentSettingsCard"]
+  Page --> Features["追加機能: FeatureSettingsList / Editor"]
+  Page --> Push["通知: BellNotifications.shared<br/>登録・OS設定を開く"]
+  Page --> Session["接続: host・ログイン方法<br/>AppStore.changeServer / signOut"]
+  Page --> Opening["表示: 会話の開き方Picker<br/>AppStorage conversationOpening"]
+  Page --> Billing["利用と課金: SubscriptionCard / BillingStore"]
+  Page --> Update["アップデート: UpdateContent(store.updates)"]
+  Page --> About["このアプリについて: Bundleの版・接続先"]
+  Page --> Control["全体停止: AppStoreのAI停止状態<br/>赤い別グループ"]
 ```
 
-SettingsViewは編集用Owner draftを持たず、ProfileEditorをsheetで開く。通知のエラーはsingletonのerrorText。会話の開き方はrise/fadeの端末設定で、HTTPへ保存しない。Cloudflareの時だけlogoutボタンを表示する。認証・購読・通知の実装全体は[全体図](overview.md)と[索引](function-index.md)へ接続する。
+項目は`SettingsPage`（題名・一行の説明・SF Symbol・色・`accessibilityID`）が一か所で持つ。一覧の各行はアイコン・題名・説明と、接続先・通知未設定・購読・停止状態の短い状態表示。各ページの先頭は`SettingsPageHeader`（大きいアイコン・題名・説明）。失敗は`SettingsBanner`で平易な文を出し、生の文は「詳細」の中だけに置く。全体停止は一覧の最下部の単独グループで赤く表示する。プロフィールはsheetでなくページとして開き、保存後は閉じずに「保存しました」を出す。通知のエラーはsingletonのerrorText。会話の開き方はrise/fadeの端末設定で、HTTPへ保存しない。Cloudflareの時だけ接続ページにログアウトを出す。UI試験は`settings-profile`と`settings-row-<page>`で入る。DEBUGの`-bellbot-preview-settings <page>`は試料データ（`AppStore.prepareSettingsPreview`）でそのページを開く。認証・購読・通知の実装全体は[全体図](overview.md)と[索引](function-index.md)へ接続する。
 
 ## Ownerと規範のdraft
 

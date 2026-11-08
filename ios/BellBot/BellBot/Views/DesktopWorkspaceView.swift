@@ -86,8 +86,8 @@ struct DesktopWorkspaceView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .background(BellTheme.canvas)
-        .sheet(isPresented: $creatingBot) { BotEditor(initial: nil).environmentObject(store) }
-        .sheet(isPresented: $creatingRoom) { RoomEditor(initial: nil).environmentObject(store) }
+        .sheet(isPresented: $creatingBot) { BotEditor(initial: nil).environmentObject(store).bellEditorSheet() }
+        .sheet(isPresented: $creatingRoom) { RoomEditor(initial: nil).environmentObject(store).bellEditorSheet() }
         .sheet(item: $store.notificationSecret) { request in
             SecretInputSheet(request: request) { _ in store.eventRevision += 1 }.environmentObject(store)
         }
@@ -353,8 +353,11 @@ private struct DesktopInspector: View {
         .foregroundStyle(BellTheme.ink).background(.white.opacity(0.6))
         .accessibilityIdentifier("workspace-inspector")
         .sheet(isPresented: $editing) {
-            if let room { RoomEditor(initial: room).environmentObject(store) }
-            else if let bot { BotEditor(initial: bot).environmentObject(store) }
+            Group {
+                if let room { RoomEditor(initial: room).environmentObject(store) }
+                else if let bot { BotEditor(initial: bot).environmentObject(store) }
+            }
+            .bellEditorSheet()
         }
     }
     private func heading(_ title: String) -> some View { Text(title).font(BellTheme.secondaryFont.weight(.bold)).foregroundStyle(BellTheme.muted) }

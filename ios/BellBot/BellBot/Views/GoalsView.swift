@@ -113,6 +113,7 @@ struct GoalsView: View {
                                            objective: objective, tokenBudget: tokenBudget)
                 }
                 .environmentObject(store)
+                .bellEditorSheet()
             }
             .task(id: store.selectedTab) {
                 if store.selectedTab == 3 {
@@ -229,6 +230,7 @@ struct ChatGoalBar: View {
                                        objective: objective, tokenBudget: tokenBudget)
             }
             .environmentObject(store)
+            .bellEditorSheet()
         }
         .task(id: botId) {
             let phase = scenePhase

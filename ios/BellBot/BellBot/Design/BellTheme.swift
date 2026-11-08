@@ -146,6 +146,19 @@ enum BellDate {
 }
 
 extension View {
+    /// Mac: editing sheets open large (resizable from 720x640) so every section shows at normal Mac text size.
+    @ViewBuilder func bellEditorSheet() -> some View {
+        #if targetEnvironment(macCatalyst)
+        if #available(macCatalyst 18.0, *) {
+            frame(minWidth: 720, idealWidth: 820, minHeight: 640, idealHeight: 760).presentationSizing(.fitted)
+        } else {
+            frame(minWidth: 720, idealWidth: 820, minHeight: 640, idealHeight: 760)
+        }
+        #else
+        self
+        #endif
+    }
+
     func bellCard() -> some View {
         self
             .background(.white.opacity(0.91), in: RoundedRectangle(cornerRadius: 24, style: .continuous))

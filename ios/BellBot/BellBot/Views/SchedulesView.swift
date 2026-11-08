@@ -72,10 +72,12 @@ struct SchedulesView: View {
             .sheet(isPresented: $creating, onDismiss: { Task { await load() } }) {
                 ScheduleEditor(initial: nil)
                     .environmentObject(store)
+                    .bellEditorSheet()
             }
             .sheet(item: $editing, onDismiss: { Task { await load() } }) { entry in
                 ScheduleEditor(initial: entry)
                     .environmentObject(store)
+                    .bellEditorSheet()
             }
             .task(id: scenePhase) { if scenePhase == .active { await load() } }
             .onChange(of: store.selectedTab) { _, tab in

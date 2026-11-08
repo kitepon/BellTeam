@@ -50,6 +50,7 @@ extension AppStore {
                 draft(for: .bot("bot-one")).attachments = [image]
             }
         }
+        if arguments.contains("-bellbot-preview-settings") { try! prepareSettingsPreview() }
         if arguments.contains("-bellbot-preview-connection-error") {
             connectionError = "更新へ接続できません。再接続しています。"
         }

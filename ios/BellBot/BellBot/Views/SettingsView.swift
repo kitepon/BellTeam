@@ -446,7 +446,7 @@ private struct StopSettingsPage: View {
                         .accessibilityIdentifier("ai-control-refresh")
                 }
                 if store.aiControlLoading || store.aiControlUpdating { ProgressView() }
-                if let error = store.aiControlError {
+                if let error = store.aiControlError, store.aiControl != nil {
                     SettingsBanner(message: "操作できませんでした。少し待ってから、もう一度試してください。", detail: error)
                 }
             } footer: {

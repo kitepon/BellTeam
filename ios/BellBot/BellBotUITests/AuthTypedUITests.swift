@@ -84,6 +84,8 @@ final class AuthTypedUITests: XCTestCase {
         let settings = app.buttons["設定"].firstMatch
         XCTAssertTrue(settings.waitForExistence(timeout: 10))
         settings.tap()
+        XCTAssertTrue(app.buttons["settings-row-ai"].waitForExistence(timeout: 5))
+        app.buttons["settings-row-ai"].tap()
         let entry = app.buttons["harness-auth-codex"]
         for _ in 0..<5 where !entry.isHittable { app.scrollViews.firstMatch.swipeUp() }
         XCTAssertTrue(entry.waitForExistence(timeout: 5))
@@ -110,6 +112,8 @@ final class AuthTypedUITests: XCTestCase {
             let settings = app.buttons["設定"].firstMatch
             XCTAssertTrue(settings.waitForExistence(timeout: 10))
             settings.tap()
+            XCTAssertTrue(app.buttons["settings-row-ai"].waitForExistence(timeout: 5))
+            app.buttons["settings-row-ai"].tap()
             let entry = app.buttons["harness-auth-\(harness)"]
             for _ in 0..<5 where !entry.isHittable { app.scrollViews.firstMatch.swipeUp() }
             XCTAssertTrue(entry.waitForExistence(timeout: 5))
