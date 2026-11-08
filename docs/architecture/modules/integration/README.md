@@ -42,6 +42,7 @@ flowchart TD
   Bot --> Conversation["http-conversation-api"]
   HTTP --> Schedules["members.createScheduleApi"]
   HTTP --> WorkGraph["work-graph.createWorkGraphApi / Owner GET snapshot・SSE"]
+  WorkGraph --> WGFacade["work-graph-facade / 子moduleへのrefresh・snapshot"]
   HTTP --> Assets["http-assets"]
   Assets --> Web["web.assets"]
   MCP["mcp-tools / 本人・引数確認"] --> TalkTools["mcp-conversation-tools"]
@@ -54,7 +55,7 @@ flowchart TD
   Features["application-features / 互換export"] --> Apply["usage.createApplicationFeatures"]
 ```
 
-登録順、同じAdministration/service実体、会話と秘密・質問の保存後の部分失敗、MCP公開schemaを統合境界で確認する。membersの削除/予定/プロフィール/画像/Owner個別受付は各公開窓口へ渡し、共通整形・認証・エラー変換と登録をここが持つ。削除の既pending受付とCLI同期失敗の独立はmembersの意図した契約変更。相関図（work-graph）は既featureApisの末尾へ登録し、room APIと同じbots/rooms/transport/messagePage実体とinternalだけを渡す。状態は持たず、内部席は403を本人handlerが返す。モデル適用等の残る業務分離は各担当の継続範囲で、全機能の分離完了とは扱わない。
+登録順、同じAdministration/service実体、会話と秘密・質問の保存後の部分失敗、MCP公開schemaを統合境界で確認する。membersの削除/予定/プロフィール/画像/Owner個別受付は各公開窓口へ渡し、共通整形・認証・エラー変換と登録をここが持つ。削除の既pending受付とCLI同期失敗の独立はmembersの意図した契約変更。相関図（work-graph）は独立更新の子moduleとして動かす（[親側の図](../runtime/work-graph-child.md)）。既featureApisの末尾のhandlerへ`{facade, internal}`だけを渡し、facadeが子へのrefresh/snapshotと、bots/rooms/transport/messagePageの読取effectを持つ。親は状態を持たず、内部席は403を本人handlerが返す。モデル適用等の残る業務分離は各担当の継続範囲で、全機能の分離完了とは扱わない。
 
 共通MCP全体説明は対象範囲と、設定された設置のSEC所見をBugHubへ記録する案内を持つ。道具の引数・既定値・効果・返却は各description、道具を持ち出す場面・順序はcommon-agents.mdへ置く。v4の共通規範を先に採用してから説明の重複を除き、schema/handler/保存と公開接続は変えない。
 

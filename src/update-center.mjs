@@ -68,7 +68,7 @@ const runtimeRows = async captureRuntime => {
   })
 }
 
-export function createUpdateCenter({ gateway = () => null, builtinSourceCommit = null, notifications = null, members = null, host = null, moduleCatalog = null, moduleExecutor = null, jobReader = null, problemReader = null, onCatalogCheckError = () => {}, memory = null, diagnostics = null, usage = null, execution = null, conversation = null, captureRuntime = null } = {}) {
+export function createUpdateCenter({ gateway = () => null, builtinSourceCommit = null, notifications = null, members = null, host = null, moduleCatalog = null, moduleExecutor = null, jobReader = null, problemReader = null, onCatalogCheckError = () => {}, memory = null, diagnostics = null, workGraph = null, usage = null, execution = null, conversation = null, captureRuntime = null } = {}) {
   const events = new EventEmitter(), notified = new Map()
   let notificationTimer = null, notificationRead = null, notificationsClosed = false, lastCandidates = null
   const checkNotifications = () => {
@@ -123,16 +123,16 @@ export function createUpdateCenter({ gateway = () => null, builtinSourceCommit =
         ? { version: versionId, sourceCommit: null, digest: `sha256:${versionId}`, origin: 'release' }
         : id === 'container' && builtin ? { ...builtin, origin: 'container' } : builtin
       const components = updateComponents.map(([id, name, description]) => {
-        const memoryState = id === 'memory' ? memory?.snapshot() : id === 'diagnostics' ? diagnostics?.snapshot() : id === 'usage' ? usage?.snapshot() : id === 'execution' ? execution?.snapshot() : id === 'conversation' ? conversation?.snapshot() : null
+        const memoryState = id === 'memory' ? memory?.snapshot() : id === 'diagnostics' ? diagnostics?.snapshot() : id === 'work-graph' ? workGraph?.snapshot() : id === 'usage' ? usage?.snapshot() : id === 'execution' ? execution?.snapshot() : id === 'conversation' ? conversation?.snapshot() : null
         const moduleBuiltinSource = memoryState?.builtinSourceCommit
           ?? (memoryState?.currentTarget === 'builtin' && memoryState?.currentVersionId === null ? builtinSourceCommit : null)
         const gatewayBuiltin = sourceValid(builtinSourceCommit) ? { version: builtinSourceCommit, sourceCommit: builtinSourceCommit, digest: null, origin: 'builtin' } : null
-        const current = id === 'web-gateway' ? versionValid(web?.versionId) ? active(id, web.versionId) : web?.versionId === null ? gatewayBuiltin : null : ['memory', 'diagnostics', 'usage', 'execution', 'conversation'].includes(id) ? memoryState?.currentVersionId ? active(id, memoryState.currentVersionId) : sourceValid(moduleBuiltinSource) ? { version: moduleBuiltinSource, sourceCommit: moduleBuiltinSource, digest: null, origin: 'builtin' } : null : id === 'members' ? versionValid(roster?.currentVersionId)
+        const current = id === 'web-gateway' ? versionValid(web?.versionId) ? active(id, web.versionId) : web?.versionId === null ? gatewayBuiltin : null : ['memory', 'diagnostics', 'work-graph', 'usage', 'execution', 'conversation'].includes(id) ? memoryState?.currentVersionId ? active(id, memoryState.currentVersionId) : sourceValid(moduleBuiltinSource) ? { version: moduleBuiltinSource, sourceCommit: moduleBuiltinSource, digest: null, origin: 'builtin' } : null : id === 'members' ? versionValid(roster?.currentVersionId)
           ? { version: roster.currentVersionId, sourceCommit: null, digest: `sha256:${roster.currentVersionId}`, origin: 'release' }
           : sourceValid(roster?.builtinSourceCommit) ? { version: roster.builtinSourceCommit, sourceCommit: roster.builtinSourceCommit, digest: null, origin: 'builtin' } : null
           : active(id, id === 'web-gateway' ? web?.versionId : id === 'notifications' ? push?.currentVersionId : null)
         let available = null, reason = 'AVAILABILITY_UNKNOWN'
-        if (id === 'memory' && memory || id === 'diagnostics' && diagnostics || id === 'usage' && usage || id === 'execution' && execution || id === 'conversation' && conversation) { available = Boolean(memoryState?.available); reason = available ? null : id === 'memory' ? 'MEMORY_UNAVAILABLE' : id === 'diagnostics' ? 'DIAGNOSTICS_UNAVAILABLE' : id === 'usage' ? 'USAGE_UNAVAILABLE' : id === 'conversation' ? 'CONVERSATION_UNAVAILABLE' : 'EXECUTION_UNAVAILABLE' }
+        if (id === 'memory' && memory || id === 'diagnostics' && diagnostics || id === 'work-graph' && workGraph || id === 'usage' && usage || id === 'execution' && execution || id === 'conversation' && conversation) { available = Boolean(memoryState?.available); reason = available ? null : id === 'memory' ? 'MEMORY_UNAVAILABLE' : id === 'diagnostics' ? 'DIAGNOSTICS_UNAVAILABLE' : id === 'work-graph' ? 'WORK_GRAPH_UNAVAILABLE' : id === 'usage' ? 'USAGE_UNAVAILABLE' : id === 'conversation' ? 'CONVERSATION_UNAVAILABLE' : 'EXECUTION_UNAVAILABLE' }
         if (id === 'web-gateway') { available = Boolean(web?.pid); reason = available ? null : 'WEB_GATEWAY_UNAVAILABLE' }
         if (id === 'members' && members) { available = Boolean(roster?.available); reason = available ? null : 'MEMBERS_UNAVAILABLE' }
         if (id === 'notifications') {

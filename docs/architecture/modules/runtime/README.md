@@ -12,6 +12,7 @@ bootstrap、席側短命処理、CLI登録、状態移行、backup/restore、設
 - [記憶の固定版席runnerと実子終端](memory-process.md)
 - [共通の有限IPCとstream](module-ipc.md)
 - [usage・diagnosticsの固定Cとlock本人性](module-start.md)
+- [work-graph（相関図）の独立更新子moduleの親側](work-graph-child.md)
 - [固有channelを載せる共通child世代controller](module-process.md)
 - [業務moduleのinstalled readerと固定wrapper](module-release.md)
 - [executionの固定host factory読込](execution-loader.md)

@@ -36,6 +36,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     webGatewayControl,
     notificationsReleaseControl: notifications.controller,
     updateCenter: services.updateCenter,
+    workGraph: services.workGraph,
     membersAuthorization: services.membersAuthorization,
     usageAssembly: services.usageAssembly,
     conversationAssembly: services.conversationAssembly,
@@ -180,7 +181,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
         () => scheduler.stop(), () => idleSessions?.stop(), () => selfTurns.stop(), () => seatTurns?.stop(),
         () => closeServer(server), () => closeServer(internalServer), () => features.close(),
         () => bootstrap.seatRuntime?.memoryModule?.close(),
-        () => services.conversationAssembly?.close(), () => transport.close(), () => services.execution && transport.client.close(), () => services.members?.controller.close(), () => notifications.close(), () => services.usageAssembly?.close(), () => services.diagnosticsModule?.close(),
+        () => services.conversationAssembly?.close(), () => transport.close(), () => services.execution && transport.client.close(), () => services.members?.controller.close(), () => notifications.close(), () => services.usageAssembly?.close(), () => services.diagnosticsModule?.close(), () => services.workGraphModule?.close(),
         () => socketDirectory && rm(socketDirectory, { recursive: true, force: true }),
       ]) {
         try { await stop() } catch (error) { errors.push(error) }

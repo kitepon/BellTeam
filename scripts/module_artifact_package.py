@@ -70,7 +70,7 @@ def main(component):
                 else:
                     target.parent.mkdir(parents=True, exist_ok=True)
                     target.write_bytes(tar.extractfile(item).read())
-        if component not in ('diagnostics', 'execution', 'conversation'):
+        if component not in ('diagnostics', 'execution', 'conversation', 'work-graph'):
             (payload / 'src/distribution-profile.mjs').write_bytes(subprocess.check_output(
                 ['git', 'show', source + ':distribution/server/distribution-profile.mjs'], cwd=repo))
         if component == 'members':
@@ -99,7 +99,7 @@ def main(component):
                     require(path.suffix != '.node' and magic not in [b'\x7fELF', b'\x00asm']
                             and not magic.startswith(b'MZ'), 'GATEWAY_NATIVE_RUNNER_REQUIRED')
         if component in BUSINESS_FILES or component == 'execution':
-            module, exported = ('src/execution-dispatcher.mjs', 'EXECUTION_STATE_COMPATIBILITY') if component == 'execution' else ('src/usage/state-compatibility.mjs', 'USAGE_STATE_COMPATIBILITY') if component == 'usage' else ('src/diagnostics-protocol.mjs', 'DIAGNOSTICS_STATE_COMPATIBILITY')
+            module, exported = ('src/execution-dispatcher.mjs', 'EXECUTION_STATE_COMPATIBILITY') if component == 'execution' else ('src/usage/state-compatibility.mjs', 'USAGE_STATE_COMPATIBILITY') if component == 'usage' else ('src/work-graph-protocol.mjs', 'WORK_GRAPH_STATE_COMPATIBILITY') if component == 'work-graph' else ('src/diagnostics-protocol.mjs', 'DIAGNOSTICS_STATE_COMPATIBILITY')
             actual = json.loads(subprocess.check_output(['node', '--input-type=module', '-e',
                 'const m = await import(process.argv[1]); console.log(JSON.stringify(m[process.argv[2]]))',
                 (payload / module).as_uri(), exported], env={'PATH': os.environ['PATH']}, text=True))

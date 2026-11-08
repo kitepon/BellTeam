@@ -4,6 +4,7 @@ const validators = Object.freeze({
   usage: value => assertBusinessModuleCompatibility('usage', value),
   diagnostics: value => assertBusinessModuleCompatibility('diagnostics', value),
   conversation: value => assertBusinessModuleCompatibility('conversation', value),
+  'work-graph': value => assertBusinessModuleCompatibility('work-graph', value),
 })
 const exact = (value, names) => value && typeof value === 'object' && !Array.isArray(value)
   && Object.keys(value).sort().join(',') === names.split(',').sort().join(',')
@@ -13,7 +14,8 @@ const checkComponent = component => {
 
 export function assertModuleCatalogRelease(component, release, descriptor) {
   checkComponent(component)
-  const fail = () => { throw Object.assign(new Error(`${component.toUpperCase()}_CATALOG_INCOMPATIBLE`), { code: `${component.toUpperCase()}_CATALOG_INCOMPATIBLE` }) }
+  const code = `${component.toUpperCase().replaceAll('-', '_')}_CATALOG_INCOMPATIBLE`
+  const fail = () => { throw Object.assign(new Error(code), { code }) }
   if (!exact(release, 'componentId,sourceCommit,versionId,platform,artifact,compatibility,changes')
     || release.componentId !== component || release.versionId !== descriptor.versionId || release.sourceCommit !== descriptor.sourceCommit
     || !exact(release.platform, 'os,arch') || release.platform.os !== descriptor.platform?.os || release.platform.arch !== descriptor.platform?.arch

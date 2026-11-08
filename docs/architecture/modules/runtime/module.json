@@ -155,6 +155,12 @@
     "src/runtime-selection.mjs",
     "src/aiterm-generation-client.mjs",
     "scripts/verify-runtime.py",
-    "scripts/runtime-exec.mjs"
+    "scripts/runtime-exec.mjs",
+    "scripts/work-graph-start.c",
+    "src/work-graph-process.mjs",
+    "src/work-graph-locks.mjs",
+    "src/work-graph-install-plan.mjs",
+    "scripts/install-work-graph-release.py",
+    "scripts/verify-work-graph.py"
   ]
 }

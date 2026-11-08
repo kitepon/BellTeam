@@ -111,6 +111,7 @@
     "src/direct-receipt-assembly.mjs",
     "src/module-child-exit-reporter.mjs",
     "src/background-summary-assembly.mjs",
-    "src/json-file.mjs"
+    "src/json-file.mjs",
+    "src/work-graph-facade.mjs"
   ]
 }
