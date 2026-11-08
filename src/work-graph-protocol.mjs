@@ -35,7 +35,7 @@ const queueItem = item => workGraphObject(item, [...QUEUE_KEYS, 'requestSummary'
   && (item.startedAt === null || str(item.startedAt) || typeof item.startedAt === 'number')
 const turn = value => workGraphObject(value, ['state', 'turnId'], ['startedAt', 'summary', 'summaryStatus']) && ['working', 'idle', 'unknown'].includes(value.state)
   && strOrNull(value.turnId) && (value.startedAt === undefined || strOrNull(value.startedAt))
-  && (value.summary === undefined || strOrNull(value.summary) && (value.summary === null || value.summary.length <= 200))
+  && (value.summary === undefined || strOrNull(value.summary))
   && (value.summaryStatus === undefined || ['current', 'missing', 'stale'].includes(value.summaryStatus))
 
 export function validateWorkGraphEffectResult(method, value) {
