@@ -212,7 +212,8 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     try {
       markStage('channel')
       target.channel = createChannel(child, { generation: nextGeneration })
-      if (component !== 'diagnostics' && typeof target.channel.drainIncoming !== 'function') throw fail('CHANNEL_INVALID')
+      // work-graph effects run only inside its root calls, which waitActive already drains.
+      if (!['diagnostics', 'work-graph'].includes(component) && typeof target.channel.drainIncoming !== 'function') throw fail('CHANNEL_INVALID')
       markStage('initialize')
       const params = await initializeParams({ generation: nextGeneration, mode, handoff })
       const initializing = target.channel.control('initialize', params, 45000)

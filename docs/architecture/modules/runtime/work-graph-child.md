@@ -32,8 +32,8 @@ flowchart LR
 | Step | From → to | Data | Owner of the data |
 | --- | --- | --- | --- |
 | 1 | Owner client → http-api | `GET /api/work-graph`, `GET /api/work-graph/events` (common authorizer; internal server 403 `WORK_GRAPH_OWNER_REQUIRED`; non-GET 405) | none |
-| 2 | http-api → facade.snapshot() → child root `snapshot` | `bellteam.work-graph.v1` snapshot, JSON body as is | child memory |
-| 3 | http-api → facade.subscribe(send) | first subscriber: root `refresh` (baseline) then `snapshot`; watchers start. Last unsubscribe: watchers stop, timer cleared | facade memory |
+| 2 | http-api → facade.snapshot() → child root `refresh` then `snapshot` (same chain) | the refresh batch, if any, goes to current subscribers; then the stored `bellteam.work-graph.v1` snapshot, JSON body as is | child memory |
+| 3 | http-api → facade.subscribe(send) | first subscriber starts the watchers; last unsubscribe stops them and clears the timers | facade memory |
 | 4 | watchers → facade → child root `refresh` | coalesced 100 ms, serialized. Result `{batch\|null, nextRefreshMs\|null}`; batch → every subscriber as `event: change`, `id: <epoch>:<version>`; one timer from nextRefreshMs | child memory |
 | 5 | child → parent effect (only inside a root call) | `members.list {}` → `{members:[{id,name,color,avatarVersion,deleting}]}` (bots.listForClient); `turns.read {botIds ≤200}` → `{turns:{[id]:{state,turnId,startedAt?}}}` or `{unsupported:true}` on EXECUTION_REQUEST_INVALID (transport.currentTurn(id,{startedAt:true})); `queue.read {}` → `{items:[{status,context,contextId,groupId,from,target,message,image,steered,startedAt}]}` (transport.queueItems({})); `room.messages {roomId}` → `{items:[{id,routing:{responders,status}}]}` (messagePage('rooms', roomId, ?limit=50)) | members / execution / conversation (read only) |
 
@@ -44,6 +44,7 @@ The parent writes no work-graph state. The child holds only memory, and keeps on
 - Child (Black): `src/work-graph-protocol.mjs` (`WORK_GRAPH_PROTOCOL_VERSION=1`, `WORK_GRAPH_STATE_COMPATIBILITY={state:'none'}`, `assertWorkGraphStateCompatibility`, root `refresh`/`snapshot`, the four effect validators, control validators, `validateWorkGraphReady`), `src/work-graph-ipc.mjs` (`createWorkGraphParentChannel(child, {generation, onEffect})`, `createWorkGraphChildChannel({dispatcher})`), `src/work-graph-dispatcher.mjs`, `src/work-graph-entry.mjs`, `scripts/probe-work-graph-runtime.mjs`, `scripts/package-work-graph.py` and the signed asset.
 - Parent (Molly): the files below. The parent channel validates every effect request before `onEffect(method, params)` and every root result.
 - Compatibility in the catalog: `{ nodeMajor: 26, parentProtocol: 1, stateSchema: null, containerUpdate: null, stateCompatibility: {state:'none'} }`.
+- Effect rows carry exactly the agreed keys and types (`startedAt` of a turn is an ISO string or null); the parent normalizes them, and the child's parent channel rejects anything else. The work-graph channel has no `drainIncoming`: its effects run only inside root calls, which the common controller already drains.
 - A new effect method is a parent change and ships with a body image. Any other change to the graph logic ships only in the child asset.
 
 ## Parent changes (this slice)

@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createWorkGraphFacade, createWorkGraphEffects } from '../src/work-graph-facade.mjs'
+import { validateWorkGraphEffectResult } from '../src/work-graph-protocol.mjs'
 
 const tick = () => new Promise(resolve => setImmediate(resolve))
 
@@ -20,7 +21,7 @@ function fixture({ refresh = () => ({ batch: null, nextRefreshMs: null }), fail 
   return { facade, calls, listeners, stopped, timers, fire }
 }
 
-test('first subscriber runs the baseline refresh before its snapshot on one chain; invalidations coalesce', async () => {
+test('snapshot runs refresh then snapshot on one chain; invalidations coalesce while subscribed', async () => {
   let batch = null
   const f = fixture({ refresh: () => ({ batch, nextRefreshMs: null }) })
   const sent = []
@@ -45,7 +46,7 @@ test('first subscriber runs the baseline refresh before its snapshot on one chai
 test('nextRefreshMs arms one timer; an unavailable child rejects with WORK_GRAPH_UNAVAILABLE', async () => {
   const f = fixture({ refresh: () => ({ batch: null, nextRefreshMs: 4000 }) })
   f.facade.subscribe(() => {})
-  await tick(); await tick()
+  await f.facade.snapshot(); await tick()
   assert.equal(f.timers.at(-1).ms, 4000)
   const down = fixture({ fail: true })
   await assert.rejects(down.facade.snapshot(), { code: 'WORK_GRAPH_UNAVAILABLE', status: 503 })
@@ -60,10 +61,17 @@ test('effects return only the agreed fields from the public ports', async () => 
     },
     messagePage: async (kind, id, url) => ({ items: [{ id: 'g', body: 'x', routing: { responders: ['b'], status: 'pending', other: 1 } }], kind, id, limit: url.searchParams.get('limit') }),
   })
-  assert.deepEqual(await effect('members.list', {}), { members: [{ id: 'a', name: 'A', color: 'red', avatarVersion: 'v', deleting: false }] })
-  assert.deepEqual((await effect('queue.read', {})).items[0], { status: 'running', context: 'room', contextId: 'r', groupId: 'g', from: 'a', target: 'b', message: 'm', steered: false, startedAt: 1 })
-  assert.deepEqual(await effect('turns.read', { botIds: ['a'] }), { turns: { a: { state: 'working', turnId: 't-a', startedAt: 2 } } })
-  assert.deepEqual(await effect('room.messages', { roomId: 'r' }), { items: [{ id: 'g', routing: { responders: ['b'], status: 'pending' } }] })
+  const results = {
+    'members.list': [{}, { members: [{ id: 'a', name: 'A', color: 'red', avatarVersion: 'v', deleting: false }] }],
+    'queue.read': [{}, { items: [{ status: 'running', context: 'room', contextId: 'r', groupId: 'g', from: 'a', target: 'b', message: 'm', image: false, steered: false, startedAt: 1 }] }],
+    'turns.read': [{ botIds: ['a'] }, { turns: { a: { state: 'working', turnId: 't-a', startedAt: '1970-01-01T00:00:00.002Z' } } }],
+    'room.messages': [{ roomId: 'r' }, { items: [{ id: 'g', routing: { responders: ['b'], status: 'pending' } }] }],
+  }
+  for (const [method, [params, expected]] of Object.entries(results)) {
+    const value = await effect(method, params)
+    assert.deepEqual(value, expected)
+    validateWorkGraphEffectResult(method, value)
+  }
   const invalid = createWorkGraphEffects({ bots: {}, messagePage: async () => null,
     transport: { currentTurn: async () => { throw Object.assign(new Error('x'), { code: 'EXECUTION_REQUEST_INVALID' }) } } })
   assert.deepEqual(await invalid('turns.read', { botIds: ['a'] }), { unsupported: true })

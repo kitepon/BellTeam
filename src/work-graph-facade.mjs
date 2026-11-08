@@ -34,8 +34,6 @@ export function createWorkGraphFacade({ controller, bots, rooms, transport, coal
         if (mine === session) stops.push(stop); else stop()
       }, () => {})
     }
-    // Baseline before the subscriber's snapshot: both run on the same chain.
-    void refresh(mine)
   }
 
   function stop() {
@@ -45,7 +43,8 @@ export function createWorkGraphFacade({ controller, bots, rooms, transport, coal
   }
 
   return {
-    snapshot: () => call('snapshot', {}),
+    // The child's snapshot returns stored state, so a refresh (published to current subscribers) runs first on the same chain.
+    snapshot: () => { void refresh(session); return call('snapshot', {}) },
     subscribe(send) {
       subscribers.add(send)
       if (subscribers.size === 1) start()
@@ -56,18 +55,26 @@ export function createWorkGraphFacade({ controller, bots, rooms, transport, coal
 
 // Effects the child may call, inside a root call, over existing public ports. Only the listed fields leave the parent.
 export function createWorkGraphEffects({ bots, transport, messagePage }) {
-  const pick = (value, names) => Object.fromEntries(names.filter(name => value?.[name] !== undefined).map(name => [name, value[name]]))
+  // Rows carry exactly the agreed keys and types; the child's channel rejects anything else.
+  const text = value => value == null ? '' : String(value)
+  const textOrNull = value => value == null ? null : String(value)
+  const time = value => typeof value === 'number' ? new Date(value).toISOString() : textOrNull(value)
+  const turn = value => ({ state: ['working', 'idle'].includes(value?.state) ? value.state : 'unknown', turnId: textOrNull(value?.turnId), startedAt: time(value?.startedAt) })
   return async (method, params) => {
-    if (method === 'members.list') return { members: (await bots.listForClient()).map(item => pick(item, ['id', 'name', 'color', 'avatarVersion', 'deleting'])) }
-    if (method === 'queue.read') return { items: (await transport.queueItems({})).map(item => pick(item, ['status', 'context', 'contextId', 'groupId', 'from', 'target', 'message', 'image', 'steered', 'startedAt'])) }
+    if (method === 'members.list') return { members: (await bots.listForClient()).map(item => ({ id: text(item.id), name: text(item.name),
+      color: text(item.color), avatarVersion: text(item.avatarVersion), deleting: item.deleting === true })) }
+    if (method === 'queue.read') return { items: (await transport.queueItems({})).map(item => ({ status: text(item.status), context: text(item.context),
+      contextId: textOrNull(item.contextId), groupId: textOrNull(item.groupId), from: textOrNull(item.from), target: textOrNull(item.target),
+      message: text(item.message), image: Boolean(item.image), steered: item.steered === true, startedAt: item.startedAt ?? null })) }
     if (method === 'room.messages') {
       const page = await messagePage('rooms', params.roomId, new URL('http://work-graph.local/?limit=50'))
-      return { items: (page?.items ?? []).map(item => ({ id: item.id, routing: pick(item.routing, ['responders', 'status']) })) }
+      return { items: (page?.items ?? []).map(item => ({ id: text(item.id), routing: item.routing && Array.isArray(item.routing.responders)
+        ? { responders: item.routing.responders.map(String), status: text(item.routing.status) } : null })) }
     }
     if (method === 'turns.read') {
       if (typeof transport.currentTurn !== 'function') return { unsupported: true }
       try {
-        const rows = await Promise.all(params.botIds.map(async id => [id, pick(await transport.currentTurn(id, { startedAt: true }), ['state', 'turnId', 'startedAt'])]))
+        const rows = await Promise.all(params.botIds.map(async id => [id, turn(await transport.currentTurn(id, { startedAt: true }))]))
         return { turns: Object.fromEntries(rows) }
       } catch (error) {
         if (error?.code === 'EXECUTION_REQUEST_INVALID' || /EXECUTION_REQUEST_INVALID/u.test(error?.message ?? '')) return { unsupported: true }
