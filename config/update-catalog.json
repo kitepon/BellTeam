@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T01:47:08Z",
-  "expiresAt": "2026-11-15T01:47:08Z",
+  "publishedAt": "2026-11-08T01:52:11Z",
+  "expiresAt": "2026-11-15T01:52:11Z",
   "releases": [
     {
       "componentId": "usage",
@@ -555,8 +555,8 @@
     },
     {
       "componentId": "members",
-      "sourceCommit": "c4d1c0cc81e6e86c124dee7437de629bd1bc0f7f",
-      "versionId": "874898a224bbc9d2b6b852fb6331ba159f4993de95dbb0e48c7b3474dd355d6e",
+      "sourceCommit": "80c1d502c3ae84e6ef4b4619819aad100fc6b0bd",
+      "versionId": "bcf1cb4327f2ebb91cb95dcc5cfedd333b2a924e06ff8656e7cecd85d52c51b6",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -564,16 +564,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T010417Z/members-c4d1c0cc81e6e86c124dee7437de629bd1bc0f7f-linux-amd64.tar.gz",
-          "bytes": 4325644,
-          "sha256": "874898a224bbc9d2b6b852fb6331ba159f4993de95dbb0e48c7b3474dd355d6e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T014907Z/members-80c1d502c3ae84e6ef4b4619819aad100fc6b0bd-linux-amd64.tar.gz",
+          "bytes": 4326872,
+          "sha256": "bcf1cb4327f2ebb91cb95dcc5cfedd333b2a924e06ff8656e7cecd85d52c51b6"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T010417Z/members-c4d1c0cc81e6e86c124dee7437de629bd1bc0f7f-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10620,
-          "sha256": "984af87a8fcd5594cd36900038a5dcb4fc0ebea9e0066b423cb8cac4cb29a5c3"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T014907Z/members-80c1d502c3ae84e6ef4b4619819aad100fc6b0bd-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10624,
+          "sha256": "2e91430e1c079585ccb9a739d12ff22450ae91a2662edecd8d3cd97c024fd14b"
         },
-        "signerCommit": "c4d1c0cc81e6e86c124dee7437de629bd1bc0f7f"
+        "signerCommit": "80c1d502c3ae84e6ef4b4619819aad100fc6b0bd"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -595,8 +595,8 @@
     },
     {
       "componentId": "members",
-      "sourceCommit": "c4d1c0cc81e6e86c124dee7437de629bd1bc0f7f",
-      "versionId": "aa3f2de2e0d94797cceace9b4e8782632d08fe6219ef31e9c3e166167cd0937e",
+      "sourceCommit": "80c1d502c3ae84e6ef4b4619819aad100fc6b0bd",
+      "versionId": "1b39a007c0dba96416bb4f1cc89794edf38fc8d7988b69a2dabd5abcd4387d64",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -604,16 +604,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T010417Z/members-c4d1c0cc81e6e86c124dee7437de629bd1bc0f7f-linux-arm64.tar.gz",
-          "bytes": 4325648,
-          "sha256": "aa3f2de2e0d94797cceace9b4e8782632d08fe6219ef31e9c3e166167cd0937e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T014907Z/members-80c1d502c3ae84e6ef4b4619819aad100fc6b0bd-linux-arm64.tar.gz",
+          "bytes": 4326871,
+          "sha256": "1b39a007c0dba96416bb4f1cc89794edf38fc8d7988b69a2dabd5abcd4387d64"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T010417Z/members-c4d1c0cc81e6e86c124dee7437de629bd1bc0f7f-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10749,
-          "sha256": "0f393de9e1860d66d994406fb031c60136a6c4176b76425fdff0e2cdc14a9567"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T014907Z/members-80c1d502c3ae84e6ef4b4619819aad100fc6b0bd-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10808,
+          "sha256": "9ae70a8eff5affb8d5b6e240ee3f7013a6b9547766f8335c6802abdbebc961a7"
         },
-        "signerCommit": "c4d1c0cc81e6e86c124dee7437de629bd1bc0f7f"
+        "signerCommit": "80c1d502c3ae84e6ef4b4619819aad100fc6b0bd"
       },
       "compatibility": {
         "nodeMajor": 26,
