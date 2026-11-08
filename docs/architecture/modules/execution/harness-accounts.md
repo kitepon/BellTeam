@@ -118,6 +118,7 @@ The switch reuses the existing resume path, so the conversation, docs and Throug
 - `transport.seatAccount(botId)` → `{ harness, slot, preferredSlot } | null`.
 - `accounts.watch(listener)` → unsubscribe; called after every saved registry change (Molly maps it to the SSE type `settings`). Seats that move also appear on the existing `watchQueue` stream.
 - Module: `src/harness-accounts.mjs` (`HarnessAccounts`, `readClaudeUsage`, `preparedAccountRoots`) and `src/claude-limit-text.mjs` (`parseLimitText`, `modelScope`).
+  Both ship in the execution artifact: `EXECUTION_FILES` in `scripts/web_gateway_artifact.py` lists them (the dispatcher imports the first, which imports the second).
 
 ## Public HTTP (fixed 2026-11-08 by the feature owner; Admi's Web shape accepted)
 
