@@ -115,3 +115,18 @@ test('内部MCPの503はMCP段階を記録しURL内容を保持しない', async
   assert.equal(log.request_route, '/api/other')
   assert.doesNotMatch(records[0].diagnostic_log, /private/u)
 })
+
+test('control段階の型付き503は他moduleの定数codeも保存しroute型を変えない', async t => {
+  const records = []
+  const base = await serve(t, {
+    diagnostics: { record: async report => records.push(report) }, bots: { refresh: async () => {} },
+    updateCenter: { jobs() { throw Object.assign(new Error('private-message'), { code: 'UPDATE_EXECUTOR_UNAVAILABLE', status: 503 }) } },
+  })
+  const response = await fetch(`${base}/api/updates/jobs?private-query`)
+  assert.equal(response.status, 503)
+  const log = JSON.parse(records[0].diagnostic_log)
+  assert.equal(log.error_code, 'UPDATE_EXECUTOR_UNAVAILABLE')
+  assert.equal(log.http_stage, 'control')
+  assert.equal(log.request_route, '/api/other')
+  assert.doesNotMatch(records[0].diagnostic_log, /private-/u)
+})

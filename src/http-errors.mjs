@@ -14,10 +14,8 @@ const FAST_MODE_MESSAGES = {
 const PUBLIC_MESSAGES = {
   HARNESS_AUTH_ACCOUNTS_UNAVAILABLE: 'アカウントの保存場所を用意できませんでした。少し待ってから、もう一度お試しください。',
 }
-const unavailableCodes = new Set(['MODULE_OPERATION_NOT_ACCEPTED', 'MEMBERS_NOT_ACCEPTED', 'MEMBERS_NOT_ACCEPTING', 'MEMBERS_UNAVAILABLE',
-  'MEMBERS_IPC_CAPACITY', 'MEMBERS_IPC_DISCONNECTED', 'MEMBERS_IPC_SEND_FAILED', 'MEMBERS_IPC_ACK_TIMEOUT',
-  'MEMBERS_IPC_TIMEOUT', 'MEMBERS_CHILD_EXITED', 'MEMBERS_IPC_INVALID', 'MEMBERS_RESULT_INVALID',
-  'MEMBERS_OPERATION_FAILED', 'MEMBERS_PROJECTION_UNCONFIRMED', 'BOT_SESSION_UNCONFIRMED'])
+// Typed 503 codes are product constants (no input/ID/message); anything else is recorded as unknown.
+const safeCode = /^[A-Z][A-Z0-9_]{2,63}$/u
 const httpStages = new Set(['url', 'authorize', 'members_authorization', 'seat_mcp', 'control', 'members_refresh', 'feature', 'static'])
 const unavailableRoutes = new Set(['/api/bots', '/api/rooms', '/api/owner', '/api/queue', '/api/models', '/api/settings', '/api/schedules'])
 
@@ -31,7 +29,7 @@ export async function respondHttpError(request, response, error, diagnostics, co
       try {
         await diagnostics.record({ code: 'SERVER_HTTP_503', module: 'server', diagnostic_log: JSON.stringify({
           schema: 'bellteam.http-unavailable.v1',
-          error_code: unavailableCodes.has(error.code) ? error.code : 'unknown',
+          error_code: safeCode.test(error.code) ? error.code : 'unknown',
           http_method: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'].includes(request.method) ? request.method : 'unknown',
           request_route: unavailableRoutes.has(path) ? path : scoped ? `/api/${scoped[1]}/:id/${scoped[2]}` : '/api/other',
           request_started_at_ms: Number.isSafeInteger(context.startedAt) && context.startedAt >= 0 ? context.startedAt : null,
