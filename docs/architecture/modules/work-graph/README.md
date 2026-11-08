@@ -107,6 +107,12 @@ What an edge means: a Bot-to-Bot delivery that the receiver is processing right 
 - No replay: `Last-Event-ID` is ignored. Every connection starts with a fresh `snapshot`; the client diffs it against what it drew and animates the difference.
 - A new `epoch` means the module restarted (for example, a parent restart). Versions from the old epoch are void.
 
+## Box registration
+
+`src/work-graph/http-api.mjs` exports `createWorkGraphApi({ bots, rooms, transport, messagePage, internal, heartbeatMs? })`, returning the common `(request, response, url)` handler; it returns `false` for other paths. The parent injects existing public ports only: `bots` (members.registry `listForClient`, `watch`), `rooms.watch` and `messagePage('rooms', id, url)` (conversation.history), `transport` (execution.observation `currentTurn`, `watchCurrentTurn`, `queueItems`, `watchQueue`). Internal seat callers get 403 `WORK_GRAPH_OWNER_REQUIRED`.
+
+Source: `projection.mjs` (pure projection and diff), `hub.mjs` (subscribers, coalescing, epoch/version, leave-grace timer, serialized recomputes), `http-api.mjs` (routes and SSE framing).
+
 ## State ownership
 
 No persistent state. Everything (last graph, epoch, version, first-seen working times, leave timers, subscribers) lives in memory and is rebuilt from the provider reads after a restart. The module writes no file and no other module's state.
