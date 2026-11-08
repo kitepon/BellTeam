@@ -28,9 +28,12 @@ export function validateWorkGraphEffect(method, params) {
   else check(workGraphObject(params, []))
 }
 
-const queueItem = item => workGraphObject(item, ['status', 'context', 'contextId', 'groupId', 'from', 'target', 'message', 'image', 'steered', 'startedAt'])
+const QUEUE_KEYS = ['status', 'context', 'contextId', 'groupId', 'from', 'target', 'image', 'steered', 'startedAt']
+// Legacy: a body before #692 sends the raw `message` (ignored, label 依頼を処理中). Remove once every body is >= #692.
+const queueItem = item => (workGraphObject(item, [...QUEUE_KEYS, 'requestSummary']) && strOrNull(item.requestSummary)
+  || workGraphObject(item, [...QUEUE_KEYS, 'message']) && str(item.message))
   && str(item.status) && str(item.context) && strOrNull(item.contextId) && strOrNull(item.groupId) && strOrNull(item.from) && strOrNull(item.target)
-  && str(item.message) && typeof item.image === 'boolean' && typeof item.steered === 'boolean'
+  && typeof item.image === 'boolean' && typeof item.steered === 'boolean'
   && (item.startedAt === null || str(item.startedAt) || typeof item.startedAt === 'number')
 const turn = value => workGraphObject(value, ['state', 'turnId'], ['startedAt', 'summary', 'summaryStatus']) && ['working', 'idle', 'unknown'].includes(value.state)
   && strOrNull(value.turnId) && (value.startedAt === undefined || strOrNull(value.startedAt))
