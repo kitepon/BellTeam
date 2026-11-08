@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { TeamBackgroundSummary, backgroundSummaryText, summaryWidth } from '../src/team-background-summary.mjs'
+import { TeamBackgroundSummary, backgroundSummaryText } from '../src/team-background-summary.mjs'
 import { createBackgroundSummaryRunner } from '../src/background-summary-runner.mjs'
 import { AitermTransport } from '../src/aiterm-transport.mjs'
 import { createConversationExecutionEffects } from '../src/conversation-execution-effects.mjs'
@@ -84,26 +84,17 @@ test('secret actor, wrong reader identity, invalid output and failed runs do not
   await tick(); assert.equal(runs, 1); assert.equal(f.view('bot-a').summaryStatus, 'missing')
   assert.throws(() => backgroundSummaryText('line\nsecond'))
 })
-test('summary display width: full-width 2, others 1, at most 80, never cut', () => {
-  assert.equal(summaryWidth('要約の表示幅制限を実装中'), 24)
-  assert.equal(summaryWidth('PR602を採用待ち'), 15)
-  assert.equal(summaryWidth('ｱ'), 1); assert.equal(summaryWidth('Ａ😀'), 4)
-  assert.equal(backgroundSummaryText(` ${'猫'.repeat(40)} `), '猫'.repeat(40))
-  assert.equal(backgroundSummaryText('a'.repeat(80)), 'a'.repeat(80))
-  assert.equal(backgroundSummaryText(`${'猫'.repeat(39)}ab`), `${'猫'.repeat(39)}ab`)
-  assert.throws(() => backgroundSummaryText(`${'猫'.repeat(40)}a`), { code: 'BACKGROUND_SUMMARY_TOO_WIDE', width: 81 })
-})
-test('over-width output is regenerated once with its width, then dropped', async t => {
+test('a summary is kept whatever its length (Owner 2026-11-09): trim only, no regeneration; the card keeps the 160 DTO bound', async t => {
+  assert.equal(backgroundSummaryText(` ${'猫'.repeat(100)} `), '猫'.repeat(100))
   const prompts = []
-  const answers = ['猫'.repeat(41), '短い要約']
+  const answers = ['猫'.repeat(60), '猫'.repeat(161)]
   const f = fixture(t, { run: async (_s, prompt) => { prompts.push(JSON.parse(prompt)); return answers.shift() } })
   f.worker.accept(input(), authority()); await f.worker.draining
-  assert.deepEqual(prompts.map(prompt => prompt.previous_width), [undefined, 82])
-  assert.equal(f.view('bot-a').summary, '短い要約')
-  prompts.length = 0; answers.push('猫'.repeat(41), '猫'.repeat(42), 'never')
+  assert.equal(f.view('bot-a').summary, '猫'.repeat(60))
   f.worker.accept(input('bot-a', 'input-b'), authority()); await f.worker.draining
-  assert.deepEqual(prompts.map(prompt => prompt.previous_width), [undefined, 82])
-  assert.equal(f.view('bot-a').summaryStatus, 'missing')
+  assert.equal(prompts.length, 2, 'never regenerated')
+  assert.equal(prompts.some(prompt => 'previous_width' in prompt), false)
+  assert.equal(f.view('bot-a').summaryStatus, 'missing', 'over the integration DTO (160 code points) only')
 })
 test('TTL and summary remain independent of native state; unknown never invents working', async t => {
   let clock = 0, live = true
@@ -260,28 +251,28 @@ test('real engine exchange keeps one parent worker and an old factory accepts un
   assert.deepEqual(seen, [shared, shared]); assert.equal(projections.length, 1)
 })
 
-test('request summary: once per group, after the in-flight member-card run, width 40 with one regeneration, forgotten on release', async t => {
+test('request summary: once per group, after the in-flight member-card run, any length kept, forgotten on release', async t => {
   const runs = [], ready = []
   let width = 30
   const f = fixture(t, { run: async (_s, prompt, options) => {
     const value = JSON.parse(prompt); runs.push({ purpose: options?.purpose ?? 'work', ...value })
     if (options?.purpose !== 'request') return '修理を確認中'
-    const text = 'あ'.repeat(width / 2); width = 20; return text
+    return 'あ'.repeat(width / 2)
   } })
   let live = true
   f.worker.accept(input(), authority())
   f.worker.request('group-1', '表示幅を直してください', { current: () => live, ready: () => ready.push('group-1') })
   f.worker.request('group-1', 'second responder of the same post', { current: () => live, ready: () => ready.push('dup') })
   await f.worker.draining
-  // The member card already in flight, then one request run (width 30 fits in 40).
+  // The member card already in flight, then one request run.
   assert.deepEqual(runs.map(run => run.purpose), ['work', 'request'])
   assert.equal(f.worker.requestSummary('group-1'), 'あ'.repeat(15)); assert.deepEqual(ready, ['group-1'])
-  // Over 40: exactly one regeneration told the measured width.
-  width = 50
+  // Long output is kept as is: one run, no regeneration.
+  width = 100
   f.worker.request('group-2', '別の依頼', { current: () => true, ready: () => {} })
   await f.worker.draining
-  assert.deepEqual(runs.slice(2).map(run => run.previous_width ?? null), [null, 50])
-  assert.equal(f.worker.requestSummary('group-2'), 'あ'.repeat(10))
+  assert.equal(runs.length, 3)
+  assert.equal(f.worker.requestSummary('group-2'), 'あ'.repeat(50))
   f.worker.forgetRequest('group-1'); assert.equal(f.worker.requestSummary('group-1'), null)
   // A group that left the queue during its run stores nothing; invalid input never runs.
   const before = runs.length

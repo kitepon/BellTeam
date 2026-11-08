@@ -9,26 +9,11 @@ const id = value => typeof value === 'string' && value.length > 0 && value.lengt
 const allowed = context => ['owner', 'bot', 'scheduler'].includes(context?.actor?.kind)
   && ['user.post', 'user.turn', 'direct.post', 'room.post', 'room.reply'].includes(context?.rootMethod)
 const fail = () => { throw new Error('BACKGROUND_SUMMARY_INVALID') }
-// East Asian Width F/W = 2, everything else 1 (Owner 2026-11-08: the member card shows 2 lines, width 80).
-// shortcut: block-level F/W ranges (CJK, kana, Hangul, fullwidth forms, emoji planes); a few narrow symbols inside the emoji
-// blocks count 2 (stricter, never cut off) and rare wide symbols in U+2xxx count 1. Use a full EAW table if those matter.
-const WIDE = [[0x1100, 0x115F], [0x2E80, 0x303E], [0x3041, 0x33FF], [0x3400, 0x4DBF], [0x4E00, 0x9FFF], [0xA000, 0xA4CF],
-  [0xA960, 0xA97F], [0xAC00, 0xD7A3], [0xF900, 0xFAFF], [0xFE10, 0xFE19], [0xFE30, 0xFE6F], [0xFF00, 0xFF60], [0xFFE0, 0xFFE6],
-  [0x1F300, 0x1F64F], [0x1F680, 0x1F6FF], [0x1F900, 0x1F9FF], [0x1FA70, 0x1FAFF], [0x20000, 0x3FFFD]]
-export const BACKGROUND_SUMMARY_MAX_WIDTH = 80
-// 相関図 edge label: one line (current-work.md "Request summary").
-export const REQUEST_SUMMARY_MAX_WIDTH = 40
-export const summaryWidth = text => [...text].reduce((sum, char) => {
-  const code = char.codePointAt(0)
-  return sum + (WIDE.some(([low, high]) => code >= low && code <= high) ? 2 : 1)
-}, 0)
-// Over-width output is rejected, never cut.
-export function backgroundSummaryText(value, max = BACKGROUND_SUMMARY_MAX_WIDTH) {
+// Owner 2026-11-09: a summary is never dropped or cut for its length; the instruction only gives a target.
+export function backgroundSummaryText(value) {
   if (typeof value !== 'string' || /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u.test(value)) fail()
   const text = value.trim()
   if (!text) fail()
-  const width = summaryWidth(text)
-  if (width > max) throw Object.assign(new Error('BACKGROUND_SUMMARY_TOO_WIDE'), { code: 'BACKGROUND_SUMMARY_TOO_WIDE', width })
   return text
 }
 function configuration(value) {
@@ -163,13 +148,9 @@ export class TeamBackgroundSummary {
         if (!this.current(record) || controller.signal.aborted || this.settings.revision !== revision) continue
         stage = 'run'
         const material = { text: input.text, progress: input.progress }
-        let summary
-        try { summary = backgroundSummaryText(await this.run(fresh.selection, JSON.stringify(material), { signal: controller.signal })) }
-        catch (error) {
-          // Over-width output gets exactly one regeneration told its measured width; any other failure is not retried.
-          if (error.code !== 'BACKGROUND_SUMMARY_TOO_WIDE' || !this.current(record) || controller.signal.aborted) throw error
-          summary = backgroundSummaryText(await this.run(fresh.selection, JSON.stringify({ ...material, previous_width: error.width }), { signal: controller.signal }))
-        }
+        const summary = backgroundSummaryText(await this.run(fresh.selection, JSON.stringify(material), { signal: controller.signal }))
+        // Protection: the integration currentWork DTO (current-work-contract.mjs) rejects over 160 code points, which would fail every reader of the card.
+        if ([...summary].length > 160) throw Object.assign(new Error('BACKGROUND_SUMMARY_DTO_LIMIT'), { code: 'BACKGROUND_SUMMARY_DTO_LIMIT' })
         stage = 'result'
         stage = 'configuration'
         const latest = configuration(await this.configuration())
@@ -202,12 +183,7 @@ export class TeamBackgroundSummary {
       if (!fresh.selection || !live()) return
       stage = 'run'
       const options = { signal: controller.signal, purpose: 'request' }
-      let summary
-      try { summary = backgroundSummaryText(await this.run(fresh.selection, JSON.stringify({ text: entry.text }), options), REQUEST_SUMMARY_MAX_WIDTH) }
-      catch (error) {
-        if (error.code !== 'BACKGROUND_SUMMARY_TOO_WIDE' || !live()) throw error
-        summary = backgroundSummaryText(await this.run(fresh.selection, JSON.stringify({ text: entry.text, previous_width: error.width }), options), REQUEST_SUMMARY_MAX_WIDTH)
-      }
+      const summary = backgroundSummaryText(await this.run(fresh.selection, JSON.stringify({ text: entry.text }), options))
       if (!live() || this.settings.revision !== fresh.revision) return
       entry.summary = summary
       try { entry.ready() } catch {}
