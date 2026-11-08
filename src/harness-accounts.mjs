@@ -1,4 +1,4 @@
-import { lstat, mkdir, readdir, readFile, symlink } from 'node:fs/promises'
+import { lstat, readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { writeAtomic } from './json-file.mjs'
 import { MODEL_FAMILIES, modelScope, parseLimitText } from './claude-limit-text.mjs'
@@ -22,28 +22,92 @@ async function present(path) {
   try { return await lstat(path) } catch (error) { if (error.code === 'ENOENT') return null; throw error }
 }
 
-// The usage endpoint Claude Code itself uses (scripts/claude-usage.py). The token stays in this function.
-export async function readClaudeUsage(root, { fetch: request = fetch } = {}) {
-  let token
-  try { token = JSON.parse(await readFile(join(root, '.credentials.json'), 'utf8'))?.claudeAiOauth?.accessToken } catch { token = null }
-  if (typeof token !== 'string' || !token) throw fail('ACCOUNT_USAGE_UNAVAILABLE')
-  let body
-  try {
-    const response = await request('https://api.anthropic.com/api/oauth/usage', { headers: { Authorization: `Bearer ${token}`,
-      'anthropic-beta': 'oauth-2025-04-20', 'User-Agent': 'claude-code', 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(20_000) })
-    if (!response.ok) throw new Error()
-    body = await response.json()
-  } catch { throw fail('ACCOUNT_USAGE_UNAVAILABLE') }
-  return (Array.isArray(body?.limits) ? body.limits : []).map(row => ({
-    scope: row?.kind === 'weekly_scoped' ? modelScope(row?.scope?.model?.display_name) : 'all',
+// Runs as the seat user (harness-accounts.md "Identity"): the engine is another user and cannot open the seat's files.
+// Self-contained on purpose: it is stringified into `node -e` for the parent's seat runner. No module-scope names.
+export async function seatFiles(op, ...args) {
+  const { chmod, lstat, mkdir, readFile, rename, symlink, unlink, writeFile } = await import('node:fs/promises')
+  const { join } = await import('node:path')
+  const error = code => Object.assign(new Error(code), { code })
+  const present = async path => { try { return await lstat(path) } catch (cause) { if (cause.code === 'ENOENT') return null; throw cause } }
+  const readJson = async path => JSON.parse(await readFile(path, 'utf8'))
+  if (op === 'prepare') {
+    const [home, harness, slot, shared, managed] = args
+    const parent = join(home, '.bellteam-accounts'), root = join(parent, harness, slot), primary = join(home, `.${harness}`)
+    await mkdir(root, { recursive: true, mode: 0o711 })
+    // Traverse only, for the engine's lstat (loggedIn, history); no listing, no reading.
+    for (const directory of [parent, join(parent, harness), root]) await chmod(directory, 0o711)
+    let history = 'shared'
+    for (const name of shared) {
+      const link = join(root, name), entry = await present(link)
+      if (entry) { if (!entry.isSymbolicLink() && name === 'projects') history = 'separate'; continue }
+      // Create-only: an existing entry is never replaced. A target that does not exist yet stays the CLI's own.
+      if (await present(join(primary, name))) await symlink(join(primary, name), link)
+    }
+    const to = join(root, `.${harness}.json`)
+    let source = {}, target = {}, readable = true
+    try { source = await readJson(join(home, `.${harness}.json`)) } catch {}
+    try { target = await readJson(to) } catch (cause) { if (cause.code !== 'ENOENT') readable = false }
+    if (readable) {
+      const servers = Object.fromEntries(Object.entries(source.mcpServers ?? {}).filter(([id]) => managed.includes(id)))
+      const projects = { ...(target.projects ?? {}) }
+      for (const [path, value] of Object.entries(source.projects ?? {}))
+        if (value?.hasTrustDialogAccepted) projects[path] = { ...(projects[path] ?? {}), hasTrustDialogAccepted: true }
+      const temporary = `${to}.${process.pid}.${Date.now()}.tmp`
+      try {
+        await writeFile(temporary, `${JSON.stringify({ ...target, mcpServers: { ...(target.mcpServers ?? {}), ...servers }, projects }, null, 2)}\n`, { mode: 0o600 })
+        await rename(temporary, to)
+      } catch (cause) { await unlink(temporary).catch(() => {}); throw cause }
+    }
+    return { configurationRoot: root, history }
+  }
+  if (op === 'label') {
+    try { const value = (await readJson(args[0]))?.oauthAccount?.emailAddress; return typeof value === 'string' && value ? value : null }
+    catch { return null }
+  }
+  if (op === 'usage') {
+    // The usage endpoint Claude Code itself uses (scripts/claude-usage.py). The token never leaves this process.
+    let token
+    try { token = (await readJson(join(args[0], '.credentials.json')))?.claudeAiOauth?.accessToken } catch { token = null }
+    if (typeof token !== 'string' || !token) throw error('ACCOUNT_USAGE_UNAVAILABLE')
+    let body
+    try {
+      const response = await fetch('https://api.anthropic.com/api/oauth/usage', { headers: { Authorization: `Bearer ${token}`,
+        'anthropic-beta': 'oauth-2025-04-20', 'User-Agent': 'claude-code', 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(20_000) })
+      if (!response.ok) throw error('ACCOUNT_USAGE_UNAVAILABLE')
+      body = await response.json()
+    } catch { throw error('ACCOUNT_USAGE_UNAVAILABLE') }
+    return (Array.isArray(body?.limits) ? body.limits : []).map(row => ({ kind: row?.kind ?? null,
+      model: row?.scope?.model?.display_name ?? null, percent: row?.percent ?? null, resets_at: row?.resets_at ?? null }))
+  }
+  throw error('ACCOUNT_SEAT_OP_INVALID')
+}
+
+export const SEAT_FILES_SCRIPT = `(${seatFiles})(...JSON.parse(process.argv[1])).then(value => process.stdout.write(JSON.stringify({ ok: true, value: value ?? null })),
+  error => process.stdout.write(JSON.stringify({ ok: false, code: typeof error?.code === 'string' && /^[A-Z_0-9]{1,100}$/.test(error.code) ? error.code : 'FAILED' })))`
+
+// The parent's seat runner (ports.seat.waitProcess: sudo seat-exec as the seat user, stdout parsed as JSON).
+export function seatFilesOver(waitProcess) {
+  return async (op, ...args) => {
+    const result = await waitProcess({ executable: process.execPath, args: ['-e', SEAT_FILES_SCRIPT, JSON.stringify([op, ...args])] }, null)
+    if (result?.ok === true) return result.value
+    const code = typeof result?.code === 'string' ? result.code : 'ACCOUNT_SEAT_FAILED'
+    throw Object.assign(new Error(code), { code })
+  }
+}
+
+export async function readClaudeUsage(root, { seat = seatFiles } = {}) {
+  const rows = await seat('usage', root)
+  return (Array.isArray(rows) ? rows : []).map(row => ({
+    scope: row?.kind === 'weekly_scoped' ? modelScope(row?.model) : 'all',
     percent: Number(row?.percent), resetsAt: iso(row?.resets_at) ? new Date(row.resets_at).toISOString() : null,
   })).filter(row => row.scope && Number.isFinite(row.percent))
 }
 
 export class HarnessAccounts {
-  constructor({ home, statePath, readUsage = readClaudeUsage, now = () => Date.now(),
+  constructor({ home, statePath, seat = seatFiles, readUsage = root => readClaudeUsage(root, { seat }), now = () => Date.now(),
     timers = { set: setTimeout, clear: clearTimeout }, timeZone = process.env.TZ || 'UTC', log = line => process.stderr.write(`${line}\n`) }) {
-    Object.assign(this, { home, statePath, readUsage, now, timers, timeZone, log })
+    Object.assign(this, { home, statePath, seat, readUsage, now, timers, timeZone, log })
+    this.labels = new Map()
     this.state = { schema: SCHEMA, rules: [], limits: [], seats: {} }
     this.listeners = new Set()
     this.resetTimers = new Map()
@@ -96,30 +160,15 @@ export class HarnessAccounts {
 
   async prepare(harness, slot) {
     if (!ACCOUNT_HARNESSES.includes(harness) || !ACCOUNT_SLOTS.includes(slot)) throw fail('ACCOUNT_SLOT_INVALID')
-    const root = this.root(harness, slot)
-    if (slot === '1st') return { configurationRoot: root, history: 'shared' }
-    const primary = this.root(harness, '1st')
-    await mkdir(root, { recursive: true, mode: 0o700 })
-    let history = 'shared'
-    for (const name of SHARED) {
-      const link = join(root, name), entry = await present(link)
-      if (entry) { if (!entry.isSymbolicLink() && name === 'projects') history = 'separate'; continue }
-      // Create-only: an existing entry is never replaced. A target that does not exist yet stays the CLI's own.
-      if (await present(join(primary, name))) await symlink(join(primary, name), link)
+    if (slot === '1st') return { configurationRoot: this.root(harness, slot), history: 'shared' }
+    try {
+      const prepared = await this.seat('prepare', this.home, harness, slot, SHARED, MANAGED_MCP)
+      if (prepared?.configurationRoot !== this.root(harness, slot) || !['shared', 'separate'].includes(prepared.history)) throw Object.assign(new Error(), { code: 'ACCOUNT_SEAT_INVALID' })
+      return prepared
+    } catch (error) {
+      this.log(`BellTeam accounts: prepare ${harness} ${slot} failed (${error?.code ?? 'FAILED'})`)
+      throw Object.assign(new Error('ACCOUNT_ROOT_UNAVAILABLE'), { code: 'ACCOUNT_ROOT_UNAVAILABLE', status: 503 })
     }
-    await this.copyManagedMcp(join(this.home, `.${harness}.json`), join(root, `.${harness}.json`))
-    return { configurationRoot: root, history }
-  }
-
-  async copyManagedMcp(from, to) {
-    let source = {}, target = {}
-    try { source = JSON.parse(await readFile(from, 'utf8')) } catch {}
-    try { target = JSON.parse(await readFile(to, 'utf8')) } catch (error) { if (error.code !== 'ENOENT') return }
-    const servers = Object.fromEntries(Object.entries(source.mcpServers ?? {}).filter(([id]) => MANAGED_MCP.includes(id)))
-    const projects = { ...(target.projects ?? {}) }
-    for (const [path, value] of Object.entries(source.projects ?? {}))
-      if (value?.hasTrustDialogAccepted) projects[path] = { ...(projects[path] ?? {}), hasTrustDialogAccepted: true }
-    await writeAtomic(to, { ...target, mcpServers: { ...(target.mcpServers ?? {}), ...servers }, projects })
   }
 
   // The slot each Claude seat was last launched on (kept across restarts and engine exchanges).
@@ -129,10 +178,13 @@ export class HarnessAccounts {
     await this.save({ ...this.state, seats: { ...this.state.seats, [botId]: slot } })
   }
 
-  // Display label: the e-mail the CLI recorded for its own login (not a credential).
+  // Display label: the e-mail the CLI recorded for its own login (not a credential). Read as the seat user, cached until a new login.
   async label(harness, slot) {
+    const stamp = (await present(join(this.root(harness, slot), '.credentials.json')).catch(() => null))?.mtimeMs ?? null
+    const key = `${harness}:${slot}`, cached = this.labels.get(key)
+    if (cached && cached.stamp === stamp) return cached.value
     const path = slot === '1st' ? join(this.home, `.${harness}.json`) : join(this.root(harness, slot), `.${harness}.json`)
-    try { const value = JSON.parse(await readFile(path, 'utf8'))?.oauthAccount?.emailAddress; return typeof value === 'string' && value ? value : null }
+    try { const read = await this.seat('label', path), value = typeof read === 'string' && read ? read : null; this.labels.set(key, { stamp, value }); return value }
     catch { return null }
   }
 

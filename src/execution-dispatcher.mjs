@@ -8,7 +8,7 @@ import { BotGoals } from './bot-goals.mjs'
 import { SeatTurns } from './seat-turns.mjs'
 import { IdleSessions } from './idle-sessions.mjs'
 import { CapacityContinuation } from './capacity-continuation.mjs'
-import { HarnessAccounts } from './harness-accounts.mjs'
+import { HarnessAccounts, seatFilesOver } from './harness-accounts.mjs'
 import { runtimeHome } from './runtime-home.mjs'
 
 export const EXECUTION_STATE_COMPATIBILITY = 'bellteam.execution-state.v1'
@@ -106,7 +106,9 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
   const { root, ...storageOptions } = ports.configurationStorage
   const requests = new ConfigurationRequests({ client: native, intents: new ConfigurationIntents(root,
     { ...storageOptions, runtimeCapture: () => ports.native.runtime() }) })
-  const accounts = new HarnessAccounts({ home: runtimeHome(), statePath: join(dirname(root), 'harness-accounts.json') })
+  // The engine is not the seat user; seat-owned files go through the parent's seat runner (harness-accounts.md "Identity").
+  const accounts = new HarnessAccounts({ home: runtimeHome(), statePath: join(dirname(root), 'harness-accounts.json'),
+    ...(typeof ports.seat?.waitProcess === 'function' ? { seat: seatFilesOver(ports.seat.waitProcess) } : {}) })
   const transport = createManagedTransport({
     ...ports.seat, accounts, ...Object.fromEntries(Object.entries(ports.storage ?? {}).filter(([key]) => key !== 'deliveryAnchor')), backgroundSummary,
     activityPath: join(dirname(root), 'execution-activity.json'),
