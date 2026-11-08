@@ -92,7 +92,11 @@ flowchart TD
 ```mermaid
 flowchart TD
   Settings["設定のHarnessAuthenticationList"] --> List["GET /api/harness-auth"]
+  Settings --> Accounts["GET /api/accounts<br/>404は旧本体で従来の1行<br/>失敗は理由を出し2〜60秒で読み直す"]
   List --> Row["各RowがGET /api/harness-auth/:harness<br/>checking / unavailable / known"]
+  Accounts --> Claude["ClaudeAccountsCard<br/>1st/2ndアカウントの行：認証の札（認証済み／未認証／確認できません）・アカウント名<br/>モデルごとの上限と解除時刻（日本時間）・使用中のメンバー<br/>allLimitedの帯（使い分けの切替は無い）"]
+  Claude --> SlotView["HarnessAuthenticationView(slot)<br/>2ndは .../claude?slot=2nd"]
+  SlotView --> View
   Row --> View["HarnessAuthenticationView<br/>StateObject HarnessAuthenticationFlow"]
   View --> Read["明示refresh / waitingの3秒poll"]
   View --> Start["必要時に警告確認→POST .../start"]
@@ -104,7 +108,7 @@ flowchart TD
   Cancel --> Auth
 ```
 
-[HarnessAuthenticationFlow](../../../../ios/BellBot/BellBot/Core/HarnessAuthenticationFlow.swift#L6)がauth/started/busy/needsRefresh/requestSequenceを所有する。Rowの失敗はunavailable（未認証とは表示しない）、認証失敗はrequireLogin。開始可否と警告はHarnessAuthenticationOptionのreloginSupported/startWarningと現在statusから決める。
+[HarnessAuthenticationFlow](../../../../ios/BellBot/BellBot/Core/HarnessAuthenticationFlow.swift#L6)がauth/started/busy/needsRefresh/requestSequenceを所有する。Claudeの2ndアカウントはflowの`slot`で、GET・start・input・cancelのすべてに`?slot=2nd`を付ける（1stは付けず従来どおり）。アカウントの形・文言は[harness-accounts](../execution/harness-accounts.md)が正本で、表示は`Core/HarnessAccounts.swift`の`AccountText`（上限中 (HH:MMに解除)／Fableのみ上限中 (23:00に解除)／解除時刻不明、日本時間・今日以外は日付付き）。使い分けの規則・切替は無い（Owner裁定 2026-11-09）：1stが上限のモデルだけ2ndで動き、解除か上限でないモデルで1stへ戻るのは本体が決め、アプリは表示だけ。`rules`と`preferredSlot`は読まない。SSEの変化（eventRevision）でアカウントを読み直す。404は旧本体で従来の1行、それ以外の失敗は前に読めた行を残して理由を出し、2・4・8…秒（上限60秒）で読み直し続ける（「一覧を更新」は待たずに読む）。行の下に使用中のメンバーを名簿の名前で出す。メンバーのプロフィールのAI欄は、Bot項目に`account`がある時だけ「アカウント」行（いま動いているアカウント）を出す。Rowの失敗はunavailable（未認証とは表示しない）、認証失敗はrequireLogin。開始可否と警告はHarnessAuthenticationOptionのreloginSupported/startWarningと現在statusから決める。
 
 - refreshはbusyならthrow。sequenceを進め、成功でneedsRefreshを消す。pollはbusy/needsRefresh中はreturnし、GET後に取消とsequenceを確認。古い成功/失敗は採用しない。
 - start/respond/cancelはperformがbusyを立て、mutationでsequenceを進める。start応答でstartedを決定。respondは失敗でneedsRefreshを立て、明示更新まで操作を止める。

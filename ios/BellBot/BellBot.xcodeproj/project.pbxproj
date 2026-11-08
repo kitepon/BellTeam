@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F24D82FB7D2D73B6BD7A968B /* HarnessAccountsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A96C990A57AB09F59B8C710 /* HarnessAccountsTests.swift */; };
+		48CCD83121A5BC6280ECC0F1 /* HarnessAccounts.swift in Sources */ = {isa = PBXBuildFile; fileRef = D51EE729B1665E043C22C643 /* HarnessAccounts.swift */; };
 		77F798172722EF38B1F2582E /* WorkGraphModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48AF3ACFE0D0B4499E121BF1 /* WorkGraphModelTests.swift */; };
 		8B7EBDB81F678A62635E07E6 /* WorkGraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAF4B47FBA73D4BB31ADD06A /* WorkGraphView.swift */; };
 		58B203B99F5DD6D1D0DD37F4 /* WorkGraphModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE58200E7AB06D254A38D46A /* WorkGraphModel.swift */; };
@@ -172,6 +174,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		2A96C990A57AB09F59B8C710 /* HarnessAccountsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessAccountsTests.swift; sourceTree = "<group>"; };
+		D51EE729B1665E043C22C643 /* HarnessAccounts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessAccounts.swift; sourceTree = "<group>"; };
 		48AF3ACFE0D0B4499E121BF1 /* WorkGraphModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkGraphModelTests.swift; sourceTree = "<group>"; };
 		CAF4B47FBA73D4BB31ADD06A /* WorkGraphView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkGraphView.swift; sourceTree = "<group>"; };
 		FE58200E7AB06D254A38D46A /* WorkGraphModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkGraphModel.swift; sourceTree = "<group>"; };
@@ -363,6 +367,7 @@
 				6BF2159F5902850520F32BCE /* SecretTransportTests.swift */,
 				C03043D84E81301281D2DAF1 /* SelectableTextLayoutTests.swift */,
 				EBE8C6D8F416B9FE3A4684E1 /* UpdateCenterTests.swift */,
+				2A96C990A57AB09F59B8C710 /* HarnessAccountsTests.swift */,
 				48AF3ACFE0D0B4499E121BF1 /* WorkGraphModelTests.swift */,
 				7467F7F326A5018989201D23 /* Fixtures */,
 			);
@@ -387,6 +392,7 @@
 				C1591BB8E9DBEBF507281786 /* ConversationTimelineState.swift */,
 				9ACA35546635F6D2015D125D /* GoalModels.swift */,
 				7B16BBA5C8EA43B9DAEB489C /* GoalViewModel.swift */,
+				D51EE729B1665E043C22C643 /* HarnessAccounts.swift */,
 				FE58200E7AB06D254A38D46A /* WorkGraphModel.swift */,
 				43A258F77FFF85F8B7D633F6 /* HarnessAuthenticationFlow.swift */,
 				13E96D036E6FB833A7C3EDD3 /* Models.swift */,
@@ -800,6 +806,7 @@
 				BA0FCCBDC792435CB3724421 /* FeatureSettingsView.swift in Sources */,
 				1654E73C4B332B67D641E881 /* GoalModels.swift in Sources */,
 				AD4516BD27FE38BB044320B5 /* GoalViewModel.swift in Sources */,
+				48CCD83121A5BC6280ECC0F1 /* HarnessAccounts.swift in Sources */,
 				58B203B99F5DD6D1D0DD37F4 /* WorkGraphModel.swift in Sources */,
 				20A6DD5C68124EEA9D35C510 /* GoalsView.swift in Sources */,
 				8B7EBDB81F678A62635E07E6 /* WorkGraphView.swift in Sources */,
@@ -860,6 +867,7 @@
 				C7EDF928F89B111580BAEB5B /* SecretTransportTests.swift in Sources */,
 				025B957E795ADEEBC3666BC7 /* SelectableTextLayoutTests.swift in Sources */,
 				AA24E81FFCF69D26D8E40DC1 /* UpdateCenterTests.swift in Sources */,
+				F24D82FB7D2D73B6BD7A968B /* HarnessAccountsTests.swift in Sources */,
 				77F798172722EF38B1F2582E /* WorkGraphModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

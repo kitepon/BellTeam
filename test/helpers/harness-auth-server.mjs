@@ -12,6 +12,7 @@ let status = 'authenticated'
 let failStatus = null
 let blocked = null
 let unreadable = null
+let accounts = null // null: older body (404). 'fable': 1st limited for Fable. 'both': both slots limited for Fable.
 let requests = []
 const auth = harness => {
   const current = harness === blocked ? 'blocked' : status
@@ -25,13 +26,22 @@ const server = createServer(async (request, response) => {
   const json = value => { response.setHeader('Content-Type', 'application/json'); response.end(JSON.stringify(value)) }
   if (path === '/test/reset') {
     status = 'authenticated'; failStatus = null; requests = []
-    blocked = url.searchParams.get('blocked'); unreadable = url.searchParams.get('unreadable')
+    blocked = url.searchParams.get('blocked'); unreadable = url.searchParams.get('unreadable'); accounts = url.searchParams.get('accounts')
     return json({ ok: true })
   }
   // 一覧が全AIを読むので、失敗は対象のAIだけに当てる。
   if (path === '/test/fail-status') { failStatus = url.searchParams.get('harness') ?? 'codex'; return json({ ok: true }) }
   if (path === '/test/proof') return json({ requests })
   if (path === '/api/harness-auth') return json({ harnesses })
+  if (path === '/api/accounts') {
+    if (!accounts) { response.statusCode = 404; return json({ error: 'NOT_FOUND' }) }
+    const at = hours => new Date(Date.now() + hours * 3600_000).toISOString()
+    const fable = hours => [{ scope: 'fable', since: at(-1), resetAt: at(hours), resetSource: 'message' }]
+    return json({ rules: [], harnesses: [{ harness: 'claude', slots: [
+      { slot: '1st', loggedIn: true, label: 'owner@example.com', history: 'shared', limits: fable(2), seats: ['bot-one'] },
+      { slot: '2nd', loggedIn: true, label: 'second@example.com', history: 'shared', limits: accounts === 'both' ? fable(30) : [], seats: accounts === 'both' ? [] : ['bot-three'] },
+    ], allLimited: accounts === 'both' ? [{ scope: 'fable', earliestResetAt: at(2) }] : [] }] })
+  }
   if (path.startsWith('/api/harness-auth/')) {
     let text = ''
     for await (const chunk of request) text += chunk
