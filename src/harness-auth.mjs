@@ -127,12 +127,15 @@ export class HarnessAuth {
     let configurationRoot
     if (harness === 'claude') {
       try {
-        if (!this.accounts?.prepare) throw new HarnessAuthError('HARNESS_AUTH_ACCOUNTS_UNAVAILABLE', 503, 'アカウント別の認証を利用できません。')
+        if (!this.accounts?.prepare) throw new HarnessAuthError('HARNESS_AUTH_ACCOUNTS_UNAVAILABLE', 503, 'アカウントの保存場所を用意できませんでした。少し待ってから、もう一度お試しください。')
         const prepared = await this.accounts.prepare(harness, slot)
         if (typeof prepared?.configurationRoot !== 'string' || !isAbsolute(prepared.configurationRoot) || prepared.configurationRoot.includes('\0'))
           throw new HarnessAuthError('HARNESS_AUTH_ACCOUNTS_INVALID', 502, '認証先のアカウントを確認できませんでした。')
         configurationRoot = prepared.configurationRoot
-      } catch (error) { if (slot !== '1st' || error.code !== 'HARNESS_AUTH_ACCOUNTS_UNAVAILABLE') throw error }
+      } catch (error) {
+        if (slot === '1st' && ['HARNESS_AUTH_ACCOUNTS_UNAVAILABLE', 'EXECUTION_REQUEST_INVALID'].includes(error?.code)) configurationRoot = undefined
+        else throw new HarnessAuthError('HARNESS_AUTH_ACCOUNTS_UNAVAILABLE', 503, 'アカウントの保存場所を用意できませんでした。少し待ってから、もう一度お試しください。')
+      }
     }
     const session = this.sessions.get(key)
     const cwd = [...this.bots.values()].find(bot => bot.harness === harness)?.project
