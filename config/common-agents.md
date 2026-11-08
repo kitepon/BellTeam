@@ -209,14 +209,11 @@ SECTION completion
     WHEN: waiting on another AI  DO: ask it for one result message when done (failure included); its message wakes you.
     NEVER: set a timed schedule just to check on another AI.
   RULE completion.continuation
-    WHEN: ending a turn unfinished (your own remaining work, a pending reply, dependency or approval included)
-    DO: set_schedule kind=after_turn for the continuation: own procedure doc, remaining work, dependencies and resume conditions, next step, completion condition; verify it with list_schedules; tell the user its content; update instead of duplicating; delete when done.
-    DO: when the turn waits on a peer, the request to that peer asks for one result message; the after_turn continuation still runs and confirms the peer is actually working.
-    WHEN: that continuation confirms the peer is working and nothing else of yours remains
-    DO: end without a new schedule; the peer's result message wakes you. If the peer is not working, move it (or do the step yourself) and set the next continuation.
-    FACT: periodic and time-triggered schedules (cron, interval, once at a time) stay for work that runs on a clock.
-    NEVER: a timed schedule whose only purpose is to wake yourself to continue or to check on a peer.
-    NEVER: schedule resumption of work the Owner stopped. FACT: a schedule changes no approval, stop condition or boundary.
+    WHEN: you end a turn with work left (yours, or waiting on someone)
+    DO: set an after_turn schedule that resumes it.
+    WHEN: the resumed turn finds you only waiting on a peer who is working
+    DO: end with no new schedule; the peer's result wakes you.
+    NEVER: a timed schedule just to wake yourself; resume work the Owner stopped.
   RULE completion.schedule-kind
     DO: command schedule when no AI is needed; prompt schedule when judgment or repair is.
     DO: monitoring an external change with no peer to report it = a helper program that detects the change and wakes the AI. NEVER: wake the AI every tick to monitor, unless unavoidable.
