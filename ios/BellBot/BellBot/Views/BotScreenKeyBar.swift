@@ -32,7 +32,7 @@ final class ScreenInputModel: ObservableObject {
 
     private let api: BellAPI
     private var botID: String
-    private var approvalPollFailed = false
+    private var approvalFailureReported = false
     private var feedbackTask: Task<Void, Never>?
 
     init(api: BellAPI, botID: String) {
@@ -49,7 +49,7 @@ final class ScreenInputModel: ObservableObject {
         notice = nil
         approval = nil
         approvalUnsupported = false
-        approvalPollFailed = false
+        approvalFailureReported = false
     }
 
     func sendKey(_ key: String) async {
@@ -73,20 +73,24 @@ final class ScreenInputModel: ObservableObject {
         }
     }
 
-    /// Called once per screen refresh. Failures here stay quiet (the key bar still works) except an unexpected one, reported once.
+    /// Called on every screen refresh, whatever the last answer was: no state here stops the probing.
+    /// A 200 brings the bar back after a 503 and clears an unsupported answer; an unexpected failure is reported once per streak.
     func refreshApproval() async {
-        guard available, !approvalPollFailed, !approvalUnsupported else { return }
         let id = botID
         let path = "/api/bots/\(id)/screen/approval"
         do {
             let result: ScreenApproval = try await api.get(path)
             guard id == botID else { return }
+            if !available { available = true }
+            if approvalUnsupported { approvalUnsupported = false }
+            approvalFailureReported = false
             let next = result.isRequired ? result : nil
             if approval != next { approval = next }
         } catch is CancellationError {
         } catch let error as URLError where error.code == .cancelled {
         } catch BellAPIError.httpStatus(503, "SCREEN_INPUT_UNAVAILABLE", _) {
             available = false
+            approval = nil
         } catch BellAPIError.httpStatus(409, "SCREEN_SEAT_ABSENT", _) {
             approval = nil
         } catch BellAPIError.httpStatus(422, "SCREEN_APPROVAL_UNSUPPORTED", _) {
@@ -94,8 +98,10 @@ final class ScreenInputModel: ObservableObject {
             approvalUnsupported = true
         } catch where BellAPIError.isAuthenticationError(error) {
         } catch {
-            approvalPollFailed = true
-            api.diagnostics.report(error, path: path, method: "GET", observation: .read(error, retainedData: false))
+            if !approvalFailureReported {
+                approvalFailureReported = true
+                api.diagnostics.report(error, path: path, method: "GET", observation: .read(error, retainedData: false))
+            }
         }
     }
 

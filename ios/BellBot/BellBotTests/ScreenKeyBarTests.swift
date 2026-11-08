@@ -88,6 +88,29 @@ final class ScreenKeyBarTests: XCTestCase {
         XCTAssertNil(model.notice)
     }
 
+    func testBarComesBackWhenTheServerLaterAnswers200() async throws {
+        let (model, session) = makeModel()
+        defer { session.invalidateAndCancel() }
+        ScreenInputProtocol.script["GET /api/bots/b1/screen/approval"] = [(503, #"{"error":"SCREEN_INPUT_UNAVAILABLE"}"#), (200, #"{"status":"none"}"#)]
+        await model.refreshApproval()
+        XCTAssertFalse(model.available)
+        await model.refreshApproval()
+        XCTAssertTrue(model.available, "the next 200 shows the bar again on the same open screen")
+    }
+
+    func testApprovalBannerAppearsAfterAFailedPoll() async throws {
+        let (model, session) = makeModel()
+        defer { session.invalidateAndCancel() }
+        ScreenInputProtocol.script["GET /api/bots/b1/screen/approval"] = [(500, #"{"error":"INTERNAL"}"#), (500, #"{"error":"INTERNAL"}"#),
+                                                                          (200, Self.required("sha256:later"))]
+        await model.refreshApproval()
+        await model.refreshApproval()
+        XCTAssertNil(model.approval)
+        await model.refreshApproval()
+        XCTAssertEqual(model.approval?.promptDigest, "sha256:later", "a failed poll does not stop later polls")
+        XCTAssertEqual(ScreenInputProtocol.requests.count, 3)
+    }
+
     // MARK: rendering
 
     func testRenderKeyBarStates() throws {
