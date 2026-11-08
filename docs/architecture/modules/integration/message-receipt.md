@@ -70,6 +70,16 @@ DFD: existing child appendQueue -> captured old-write barrier -> same child appe
 
 DFD: new saved ID → durable dispatching claim → runtime pre-registration observation → exact bound pending proof → error-frame closed validation → same parent receipt queued → later ordinary ready → same-ID claim once. Native/legacy unknown remains retained. Existing sanitized mcp_error/native_launch flows through both error-frame hops and the existing callback writer instead of being dropped; historical missing fields are not reconstructed. This is source connection work, not a new diagnostic API or a prerequisite for Epi's standalone runtime adoption.
 
+## Typed terminal stale-generation requeue
+
+| Function | Input → output / owner | Boundary |
+| --- | --- | --- |
+| Parent `DurableMessageReceipts.runSaved` | The top-level dispatcher may wrap an invoked error as `effect=unknown` while preserving the closed `executionError` frame. After the original `onStatus('failed')` callback has been durably saved, if no acceptance was observed and the exact returned frame is `EXECUTION_STALE_GENERATION` / `effect=not_started`, append `queued` for the same receipt ID. Parse the frame once and reuse it for the existing saved-failed classification. | A stale terminal without the failed callback stays on the old unknown path. Generic failed + BUSY/not_started stays failed. Do not infer from code alone, malformed frame, `effect=possible` or other codes. Accepted/running/delivered outcomes and nonmatching failed callbacks follow the old policy. Old unknown rows have no associated typed attempt proof and stay retained. |
+| Durable append → readiness trigger | Only after the queued status append succeeds, invoke the existing `onPending(deliveryId)` callback once via the normal error-report wrapper. | No new API, timer, poll, or child restore/writer. A write failure emits no trigger. |
+| Trigger → existing same-ID target lane | Existing requestDrain waits for exchange idle and fresh ready/AI state, then `receipts.drain()` claims the queued same-ID receipt under its original target lane and saved ordering. | The lane remains nonblocking relative to other targets and the cycle does not await the lane. No generic unknown retry. |
+
+DFD: invoked same-ID `dispatching` → original `onStatus('failed')` callback durably saves failed → parent error wrapper (`effect=unknown`, typed frame preserved) → exact terminal stale-generation/not_started + latest failed + no acceptance → durable same-ID `queued` → one `onPending` → existing exchange-idle/fresh-ready request → ordinary same-ID target lane. A terminal marker without the failed callback and any other mismatch follow the existing failure policy; historical unknown remains excluded. The conversation body-resident implementation is adopted only through the next approved body swap. See the canonical conversation contract: [terminal stale-generation requeue](../conversation/durable-receipt.md#terminal-stale-generation-requeue).
+
 ## Bound direct failure reporting (2026-11-06 R isolated case)
 
 | Function | Input/output and ownership | Failure boundary |
