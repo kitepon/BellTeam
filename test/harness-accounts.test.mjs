@@ -49,7 +49,7 @@ async function setup(t, { usage = async () => [] } = {}) {
   return { home, accounts, advance, timers }
 }
 
-test('prepare: create-only symlinks to the 1st root, managed MCP copied, credentials separate', async t => {
+test('prepare: create-only symlinks to the 1st root, the 1st config copied except the account, credentials separate', async t => {
   const { home, accounts } = await setup(t)
   await mkdir(join(home, '.bellteam-accounts/claude/2nd'), { recursive: true })
   await writeFile(join(home, '.bellteam-accounts/claude/2nd/settings.json'), '{"own":true}')
@@ -61,10 +61,17 @@ test('prepare: create-only symlinks to the 1st root, managed MCP copied, credent
   assert.equal(await readFile(join(configurationRoot, 'settings.json'), 'utf8'), '{"own":true}')
   await assert.rejects(lstat(join(configurationRoot, '.credentials.json')))
   const config = JSON.parse(await readFile(join(configurationRoot, '.claude.json'), 'utf8'))
-  assert.deepEqual(Object.keys(config.mcpServers), ['bellteam'])
+  // Only the account differs (Owner 2026-11-09): every MCP server and setting of the 1st, not just BellTeam's three.
+  assert.deepEqual(Object.keys(config.mcpServers), ['bellteam', 'other'])
   assert.equal(config.projects['/p'].hasTrustDialogAccepted, true)
   assert.equal(config.oauthAccount, undefined)
-  assert.deepEqual([config.hasCompletedOnboarding, config.lastOnboardingVersion, config.numStartups], [true, '2.1.261', undefined])
+  assert.deepEqual([config.hasCompletedOnboarding, config.lastOnboardingVersion, config.numStartups], [true, '2.1.261', 9])
+  // The slot's own account record and caches stay; a later 1st change reaches the next prepare.
+  await writeFile(join(configurationRoot, '.claude.json'), JSON.stringify({ ...config, oauthAccount: { emailAddress: 'b' }, modelAccessCache: { own: 1 } }))
+  await writeFile(join(home, '.claude.json'), JSON.stringify({ mcpServers: { bellteam: { url: 'x' }, other: { url: 'y' }, added: { url: 'z' } }, oauthAccount: { emailAddress: 'a' }, modelAccessCache: { first: 1 } }))
+  await accounts.prepare('claude', '2nd')
+  const again = JSON.parse(await readFile(join(configurationRoot, '.claude.json'), 'utf8'))
+  assert.deepEqual([Object.keys(again.mcpServers), again.oauthAccount.emailAddress, again.modelAccessCache], [['bellteam', 'other', 'added'], 'b', { own: 1 }])
   assert.equal(await accounts.loggedIn('claude', '2nd'), false)
   assert.deepEqual(await accounts.prepare('claude', '1st'), { configurationRoot: join(home, '.claude'), history: 'shared' })
   await assert.rejects(accounts.prepare('claude', '3rd'), { code: 'ACCOUNT_SLOT_INVALID' })

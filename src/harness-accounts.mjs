@@ -14,7 +14,8 @@ const CLEAR_RETRY_MS = 60_000
 // Shared with the 1st root so a resume under either root finds the same conversation and the same user settings.
 const SHARED = ['projects', 'history.jsonl', 'settings.json', 'CLAUDE.md', 'AGENTS.md', 'skills', 'commands', 'plugins',
   'agents', 'file-history', 'todos', 'session-env', 'shell-snapshots']
-const MANAGED_MCP = ['bellteam', 'aiterm', 'call-bridge']
+// The account's own record in `.claude.json`; everything else is copied from the 1st (plus every key naming a cache).
+const ACCOUNT_KEYS = ['oauthAccount', 'userID', 'claudeAiMcpEverConnected', 'penguinModeOrgEnabled']
 const SCOPES = new Set(['all', ...MODEL_FAMILIES])
 const fail = code => Object.assign(new Error(code), { code, status: 400 })
 const iso = value => typeof value === 'string' && Number.isFinite(Date.parse(value))
@@ -32,7 +33,7 @@ export async function seatFiles(op, ...args) {
   const present = async path => { try { return await lstat(path) } catch (cause) { if (cause.code === 'ENOENT') return null; throw cause } }
   const readJson = async path => JSON.parse(await readFile(path, 'utf8'))
   if (op === 'prepare') {
-    const [home, harness, slot, shared, managed] = args
+    const [home, harness, slot, shared, accountKeys] = args
     const parent = join(home, '.bellteam-accounts'), root = join(parent, harness, slot), primary = join(home, `.${harness}`)
     await mkdir(root, { recursive: true, mode: 0o711 })
     // Traverse only, for the engine's lstat (loggedIn, history); no listing, no reading.
@@ -49,16 +50,14 @@ export async function seatFiles(op, ...args) {
     try { source = await readJson(join(home, `.${harness}.json`)) } catch {}
     try { target = await readJson(to) } catch (cause) { if (cause.code !== 'ENOENT') readable = false }
     if (readable) {
-      const servers = Object.fromEntries(Object.entries(source.mcpServers ?? {}).filter(([id]) => managed.includes(id)))
-      const projects = { ...(target.projects ?? {}) }
-      for (const [path, value] of Object.entries(source.projects ?? {}))
-        if (value?.hasTrustDialogAccepted) projects[path] = { ...(projects[path] ?? {}), hasTrustDialogAccepted: true }
-      // A new root never saw the CLI's first-run screens; without the 1st root's acknowledgement a seat waits at "Press Enter".
-      const onboarded = source.hasCompletedOnboarding === true
-        ? { hasCompletedOnboarding: true, ...(typeof source.lastOnboardingVersion === 'string' ? { lastOnboardingVersion: source.lastOnboardingVersion } : {}) } : {}
+      // Only the account differs (Owner 2026-11-09): every 1st setting (MCP servers, projects, onboarding, ...) is the 1st's;
+      // the slot keeps its own account record and what the server sent for that account (caches).
+      const own = key => accountKeys.includes(key) || /cache/iu.test(key)
+      const next = { ...Object.fromEntries(Object.entries(target).filter(([key]) => own(key))),
+        ...Object.fromEntries(Object.entries(source).filter(([key]) => !own(key))) }
       const temporary = `${to}.${process.pid}.${Date.now()}.tmp`
       try {
-        await writeFile(temporary, `${JSON.stringify({ ...target, ...onboarded, mcpServers: { ...(target.mcpServers ?? {}), ...servers }, projects }, null, 2)}\n`, { mode: 0o600 })
+        await writeFile(temporary, `${JSON.stringify(next, null, 2)}\n`, { mode: 0o600 })
         await rename(temporary, to)
       } catch (cause) { await unlink(temporary).catch(() => {}); throw cause }
     }
@@ -165,7 +164,7 @@ export class HarnessAccounts {
     if (!ACCOUNT_HARNESSES.includes(harness) || !ACCOUNT_SLOTS.includes(slot)) throw fail('ACCOUNT_SLOT_INVALID')
     if (slot === '1st') return { configurationRoot: this.root(harness, slot), history: 'shared' }
     try {
-      const prepared = await this.seat('prepare', this.home, harness, slot, SHARED, MANAGED_MCP)
+      const prepared = await this.seat('prepare', this.home, harness, slot, SHARED, ACCOUNT_KEYS)
       if (prepared?.configurationRoot !== this.root(harness, slot) || !['shared', 'separate'].includes(prepared.history)) throw Object.assign(new Error(), { code: 'ACCOUNT_SEAT_INVALID' })
       return prepared
     } catch (error) {

@@ -298,6 +298,9 @@ export class AitermTransport {
     // A delivery-bound launch carries the root only when it changes something (a 2nd seat, or a seat leaving one):
     // the bridge issues one launch, so its old-Aiterm fallback below cannot retry; 1st launches stay as before.
     const account = selected && (!execution || selected.slot !== '1st' || (this.accounts.seatSlot(bot.id) ?? '1st') !== '1st') ? selected : null
+    // The slot's config is the 1st's except the account (harness-accounts.md): refresh it before every launch there.
+    // A failed refresh (logged by prepare) launches on the slot's last copy rather than not at all.
+    if (account && account.slot !== '1st') await this.accounts.prepare('claude', account.slot).catch(() => {})
     try {
       this.requireStopVersion(bot.id, version)
       admissionCheck?.()
