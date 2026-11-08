@@ -6,40 +6,59 @@ This module owns the **data** of the 相関図 page only: which members are work
 
 The connections are in [module.json](module.json). The overall [function map](../../feature-map.md), [data flow](../../data-flow.md) and [ownership](../../module-ownership.md) trace callers and providers.
 
+## Process placement (Trony ruling 2026-11-08)
+
+work-graph runs as its **own module child**, like the other business modules, so every change to the graph logic ships as a module-only exchange without stopping the body. The body keeps only a thin, stable part: the HTTP/SSE handler, the facade and the effect handlers over the existing public ports. Splitting follows the diagnostics pattern: the module owner (Black) owns the protocol, both IPC channel ends, the dispatcher, the core and the entry. Runtime (Molly) owns the start binary, process wrapper, locks and closed sets. Integration (Molly) owns the facade, effect handlers and mount. Distribution (Centi) signs and installs the asset.
+
 ## Function map
 
 ```mermaid
 flowchart LR
-  subgraph WG[work-graph module, src/work-graph/]
-    API["createWorkGraphApi(options)<br/>GET /api/work-graph<br/>GET /api/work-graph/events"]
-    Hub["WorkGraphHub<br/>subscribers, coalesce 100 ms,<br/>epoch + version, leave grace"]
-    Project["projectGraph(reads)<br/>pure: nodes + edges"]
-    Diff["diffGraph(prev, next)<br/>pure: ordered changes"]
+  subgraph Body[body process, stable]
+    API["src/work-graph/http-api.mjs (Black)<br/>GET /api/work-graph<br/>GET /api/work-graph/events"]
+    Facade["work-graph-facade (Molly)<br/>subscribers, coalesce 100 ms,<br/>one call chain, refresh timer"]
+    Effects["effect handlers (Molly)<br/>members.list / turns.read /<br/>queue.read / room.messages"]
+    PChan["createWorkGraphParentChannel (Black)<br/>validates effects and results"]
+    Proc["work-graph-process / start.c / locks (Molly)"]
   end
-  ExecObs["execution.observation<br/>currentTurn / watchCurrentTurn<br/>queueItems / watchQueue"]
-  Reg["members.registry<br/>listForClient / watch"]
-  Hist["conversation.history<br/>room messages: routing.responders<br/>changed invalidation"]
-  Apps["Apple / Web / Windows<br/>via integration HTTP/SSE"]
-  ExecObs -->|turn state, queue items, invalidations| Hub
-  Reg -->|id, name, color, avatarVersion| Hub
-  Hist -->|responders per room message id| Hub
-  Hub --> Project --> Diff --> Hub
-  API --> Hub
-  Hub -->|snapshot, change batches| API
-  API -->|JSON / SSE| Apps
+  subgraph Child[work-graph child, module-only exchange]
+    CChan["createWorkGraphChildChannel (Black)"]
+    Disp["work-graph-dispatcher (Black)<br/>refresh / snapshot"]
+    Core["core: epoch, version, last graph,<br/>responder cache, first-seen times"]
+    Project["projection.mjs: projectGraph, diffGraph"]
+  end
+  ExecObs["execution.observation"]
+  Reg["members.registry"]
+  Hist["conversation.history"]
+  Apps["Apple / Web / Windows"]
+  Apps -->|JSON / SSE| API
+  API --> Facade
+  Facade -->|root refresh / snapshot| PChan
+  PChan <-->|IPC| CChan
+  CChan --> Disp --> Core --> Project
+  CChan -->|effect calls inside a root call| PChan
+  PChan --> Effects
+  Effects --> ExecObs
+  Effects --> Reg
+  Effects --> Hist
+  ExecObs -->|invalidations| Facade
+  Reg -->|invalidations| Facade
+  Hist -->|invalidations| Facade
+  Proc --> Child
 ```
 
 ## Data flow
 
 | ID | From -> to | Data | Notes |
 | --- | --- | --- | --- |
-| W1 | providers -> hub | execution `watchCurrentTurn` `{botId,state,turnId,startedAt?}` and `watchQueue`; members `watch`; conversation `changed` (timeline/rooms) | Wake-up signals only. The hub subscribes before its first read and re-reads after every signal; it never builds state from signal payloads alone |
-| W2 | hub -> execution | `currentTurn(botId, {startedAt: true})` per active member, `queueItems({})` | Live projections. No sequence, no replay. `startedAt` since main 7d5d1cee (PR #641); absent or null on older engines |
-| W3 | hub -> members | `listForClient()` | id, name, color, avatarVersion. Rows with `deleting: true` and absent ids are not members. A failed read is unavailable, never an empty roster |
-| W4 | hub -> conversation | recent messages of each room that has a live room queue item | `routing.responders` of the message whose id equals the item's `groupId`. Silent (non-responder) room deliveries are not work requests. Responders are cached per message id once routing is final |
-| W5 | hub -> app | snapshot JSON, then SSE `snapshot` + `change` batches | Owner-authenticated `/api`, internal callers get 403 like other `/api` routes |
+| W1 | providers -> facade | execution `watchCurrentTurn` and `watchQueue`; members `watch`; conversation `rooms.watch` | Wake-up signals only, forwarded while at least one SSE subscriber exists. Coalesced 100 ms into one root `refresh` |
+| W2 | facade -> child | root `refresh {}` -> `{batch, nextRefreshMs}`; root `snapshot {}` -> snapshot | All child calls run on one chain, so a snapshot never interleaves with a refresh. `nextRefreshMs` arms one timer (leave grace) |
+| W3 | child -> parent effects | `members.list {}` -> `{members:[{id,name,color,avatarVersion,deleting}]}` | From `bots.listForClient()`. Effects are accepted only inside a pending root call. A failed read is unavailable, never an empty roster |
+| W4 | child -> parent effects | `turns.read {botIds}` -> `{turns:{[id]:{state,turnId,startedAt?}}}` or `{unsupported:true}`; `queue.read {}` -> `{items:[{status,context,contextId,groupId,from,target,message,image,steered,startedAt}]}` | From `currentTurn(id,{startedAt:true})` and `queueItems({})`. Live projections, no sequence |
+| W5 | child -> parent effects | `room.messages {roomId}` -> `{items:[{id,routing:{responders,status}}]}` | From `messagePage('rooms', roomId, ?limit=50)`. Silent (non-responder) room deliveries are not work requests |
+| W6 | facade -> app | snapshot JSON; SSE `snapshot` then `change` batches | Owner-authenticated `/api`; internal callers 403; child unavailable 503 `WORK_GRAPH_UNAVAILABLE` |
 
-Recompute: any W1 signal schedules one recompute after 100 ms (coalesced). A recompute does W2 to W4, projects the graph, diffs it against the last published graph, and publishes one change batch if anything changed. With no subscriber, nothing runs; `GET /api/work-graph` computes one fresh graph on demand.
+The child holds all graph state in memory (epoch, version, last graph, responder cache, first-seen working times). A new child generation starts a new epoch; by contract clients reconnect on an epoch change and draw the new snapshot.
 
 ## Projection rules
 
@@ -82,7 +101,7 @@ What an edge means: a Bot-to-Bot delivery that the receiver is processing right 
 - `color` is the member's accent name (`violet`, `rose`, `indigo`, `sky`, `mint`, `amber`); apps map it with their theme (Apple: `BellTheme.accent(_:)`).
 - Avatar image: the existing `GET /api/bots/:id/avatar`, cached by `avatarVersion` (empty string = no avatar; draw the initial).
 - `degraded` lists sources that failed in the last recompute: `turn`, `queue`, `members`, `responders`, or `turn-unsupported` (old execution engine). The graph keeps the last good data for a failed source. Empty means fully live.
-- Errors: 401/403 as the common `/api` auth; 405 `METHOD_NOT_ALLOWED` for other methods.
+- Errors: 401/403 as the common `/api` auth; 405 `METHOD_NOT_ALLOWED` for other methods; 503 `WORK_GRAPH_UNAVAILABLE` while the child is not serving (both routes).
 
 ### `GET /api/work-graph/events` (SSE)
 
@@ -107,15 +126,19 @@ What an edge means: a Bot-to-Bot delivery that the receiver is processing right 
 - No replay: `Last-Event-ID` is ignored. Every connection starts with a fresh `snapshot`; the client diffs it against what it drew and animates the difference.
 - A new `epoch` means the module restarted (for example, a parent restart). Versions from the old epoch are void.
 
-## Box registration
+## Child protocol
 
-`src/work-graph/http-api.mjs` exports `createWorkGraphApi({ bots, rooms, transport, messagePage, internal, heartbeatMs? })`, returning the common `(request, response, url)` handler; it returns `false` for other paths. The parent injects existing public ports only: `bots` (members.registry `listForClient`, `watch`), `rooms.watch` and `messagePage('rooms', id, url)` (conversation.history), `transport` (execution.observation `currentTurn`, `watchCurrentTurn`, `queueItems`, `watchQueue`). Internal seat callers get 403 `WORK_GRAPH_OWNER_REQUIRED`.
+`src/work-graph-protocol.mjs`: `WORK_GRAPH_PROTOCOL_VERSION = 1`, `WORK_GRAPH_STATE_COMPATIBILITY = {state:'none'}`, root methods `refresh` and `snapshot` (params `{}`), the four effect methods above with exact param and result validators, controls `initialize {generation, mode: bootstrap|restore}`, `quiesce`, `resume`, `exit`, and `validateWorkGraphReady({versionId, protocolVersion, stateCompatibility})`. Only fixed error codes cross the wire.
 
-Source: `projection.mjs` (pure projection and diff), `hub.mjs` (subscribers, coalescing, epoch/version, leave-grace timer, serialized recomputes), `http-api.mjs` (routes and SSE framing).
+`src/work-graph-ipc.mjs`: `createWorkGraphParentChannel(child, {generation, onEffect})` returns `{ready, request, control, reaped, dispose, snapshot}` for the common controller. `createWorkGraphChildChannel({dispatcher})` runs in the child; the dispatcher reads providers only through `effect(method, params)` bound to the current root call.
+
+`src/work-graph-dispatcher.mjs` wraps the core (`src/work-graph/core.mjs`) and `projection.mjs`. `src/work-graph-entry.mjs` is the child entry; `scripts/probe-work-graph-runtime.mjs` checks initialize/ready/resume/quiesce/exit on the real start binary.
+
+`src/work-graph/http-api.mjs` stays in the body: `createWorkGraphApi({facade, internal, heartbeatMs?})`, calling only `facade.snapshot()` and `facade.subscribe(send)`.
 
 ## State ownership
 
-No persistent state. Everything (last graph, epoch, version, first-seen working times, leave timers, subscribers) lives in memory and is rebuilt from the provider reads after a restart. The module writes no file and no other module's state.
+No persistent state (`stateCompatibility {state:'none'}`). The child keeps the last graph, epoch, version, responder cache and first-seen working times in memory; the facade keeps subscribers and timers. Both are rebuilt from the provider reads after a restart or exchange. Nothing writes a file or another module's state.
 
 ## Failure handling
 
@@ -124,10 +147,11 @@ No persistent state. Everything (last graph, epoch, version, first-seen working 
 | A provider read throws | Keep the last good data for that source, add it to `degraded`, publish if `degraded` changed | The next W1 signal recomputes; success clears the entry |
 | `currentTurn` returns `EXECUTION_REQUEST_INVALID` | `turn-unsupported` in `degraded`; nodes come only from live edges (`linked`) | Engine update; the next recompute retries |
 | Subscriber socket closes | Drop the subscriber; stop watching providers when none remain | The next subscriber restarts watching |
-| Parent restart | New epoch, empty in-memory state | Clients reconnect and draw the new snapshot |
+| Child unavailable (exchange, crash) | `GET` and new SSE connections get 503 `WORK_GRAPH_UNAVAILABLE`; open streams keep the last graph | The common controller restarts or exchanges the child; the next call succeeds and the new epoch makes clients redraw |
+| Parent restart or child exchange | New epoch, empty in-memory state | Clients reconnect and draw the new snapshot |
 
 No guard refuses a request. Reads never block on another module beyond the provider call itself.
 
 ## Tests (own range)
 
-`test/work-graph.test.mjs`: projection rules, diff order and versioning, leave grace, degraded sources, SSE framing and handler routes, using fake provider ports.
+`test/work-graph.test.mjs`: projection rules, diff order and versioning, leave grace, degraded sources, SSE framing and handler routes. `test/work-graph-ipc.test.mjs`: protocol validators, effect binding to a pending root call, control sequence, and a real child over a fork IPC pipe.
