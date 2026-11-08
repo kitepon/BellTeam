@@ -350,11 +350,10 @@ public sealed partial class SettingsWindow
     }
 
     // ---- アップデート ----
-    private async Task UpdatePageAsync()
+    private Task UpdatePageAsync()
     {
-        var editor = new UpdateCenterWindow(workspace); embedded = editor;
-        pane.Content = editor.AsPage(() => { });
-        await editor.InitializeAsync();
+        var content = new UpdateContent(workspace); updateContent = content; pane.Content = content;
+        return content.RefreshAsync();
     }
 
     // ---- このアプリについて ----

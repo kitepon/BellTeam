@@ -1,0 +1,48 @@
+{
+  "schema": "bellteam.updates.v1",
+  "server": {
+    "id": "example-server"
+  },
+  "observedAt": "2026-11-08T13:40:00+09:00",
+  "notice": {
+    "state": "ready",
+    "code": null,
+    "message": "すべて最新です。"
+  },
+  "components": [
+    {
+      "id": "container",
+      "name": "BellTeam本体",
+      "description": "機能を動かす実行環境と、製品全体の構成。",
+      "current": {
+        "version": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "sourceCommit": null,
+        "digest": null,
+        "origin": "container"
+      },
+      "published": {
+        "version": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "sourceCommit": null,
+        "digest": null,
+        "origin": "published"
+      },
+      "publication": null,
+      "comparison": {
+        "state": "up_to_date",
+        "reason": null
+      },
+      "changes": [],
+      "capability": {
+        "supported": true,
+        "reason": null
+      },
+      "availability": {
+        "available": true,
+        "reason": null
+      }
+    }
+  ],
+  "plans": [],
+  "operation": null,
+  "previousOperation": null
+}

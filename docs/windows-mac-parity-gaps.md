@@ -91,6 +91,8 @@ Mac：[48の詳細パネル](assets/mac-ui-reference-48/01-workspace.png)／Wind
 
 ## 8. 設定 — L（作り直し）
 
+対応済み（PR 3の追加修正）：選んだ項目の行はMacと同じく紫の角丸で、題名と説明が白。ページの本文は最大幅720で中央に置く。「利用と課金」の説明は一覧と見出しの両方で「料金と、サーバーとAIの契約」。画像は`pr2-settings-*.png`を差し替えた。
+
 対応済み（PR 2）：Windowsの全10ページ（`assets/windows-mac-gaps/windows/pr2-settings-*.png`）。一覧の行の要約はMacと同じ3種類の文で、幅320と340で2行に収まることを確かめた（`pr2-summary-rows-320.png`・`pr2-summary-rows-340.png`）。AIの認証の行を押すと、今は従来の認証の窓を開く。ページ上部にMacの題名の帯は無い。「利用と課金」の説明は、Windowsに購入が無いため「料金と、サーバーとAIの契約」とした。利用規約のリンクは、自前の規約URLが無いため置いていない。
 
 | Mac | Windows |
@@ -113,9 +115,11 @@ Mac：[48の詳細パネル](assets/mac-ui-reference-48/01-workspace.png)／Wind
 
 | Mac | Windows |
 | --- | --- |
-| [混在](assets/windows-mac-gaps/mac/update-mixed-820-light.png)・[最新](assets/windows-mac-gaps/mac/update-current-820-light.png)・[設定内](assets/windows-mac-gaps/mac/mac-update-after.png) | [現行](assets/windows-mac-gaps/windows/update.png) |
+| [混在](assets/windows-mac-gaps/mac/update-mixed-820-light.png)・[最新](assets/windows-mac-gaps/mac/update-current-820-light.png)・[設定内](assets/windows-mac-gaps/mac/mac-update-after.png) | [設定のページ（混在）](assets/windows-update-page/update.png)・[すべて最新](assets/windows-update-page/update-current.png)・[Updateシート](assets/windows-update-page/update-sheet.png) |
 
-- 表示する場所：設定のページと、一覧の見出しのバッジから開く大きいシートの2か所。Windowsは主画面のページで、パンくず「BELLTEAM / 更新」と「いつものチームを、より快適に。」を出している。
+対応済み（PR 3）：設定の「アップデート」ページと、一覧の見出しのバッジから開くメイン窓内のUpdateシートが、同じ部品でMacの9状態・帯・選択・確認カード・機能の一覧・更新内容・ジョブの状態・機能の問題・閉じた詳細を出す。パンくずと「いつものチームを、より快適に。」は無い。実画面：`assets/windows-update-page/update.png`（混在）、`update-current.png`（すべて最新）、`update-sheet.png`（シート）、`update-narrow.png`（最小幅）、`update-detail-narrow.png`（詳細を開いた最小幅）。Windowsの更新状態は`UpdateScreen`が、同じinventoryと操作の値からMacの規則で決める。Macの「まとめて更新」は元からMacに無く、Windowsの旧画面にあった全体計画の入口は置かない（APIは変えていない）。暗い外観はWindowsに無いため、暗色の画像との照合は色の確認だけに留めた。
+
+- 表示する場所：設定のページと、一覧の見出しのバッジから開く大きいシートの2か所（どちらも対応済み）。
 - 上段のカード：52の丸いアイコン、題名、説明、主ボタン。状態は9種（「確認しています」「更新しています」「更新しました」「Xを更新できます」「すべて最新です」など）。
 - 「確認が必要な機能があります」の赤い帯、「どれを更新しますか」、確認カード（「更新の前に」「会話と処理が一時止まることを確認しました」のスイッチ）。
 - 「機能」の一覧：34のアイコン、名前、版の説明、状態バッジ（「最新」「更新あり」「更新中」「失敗」「確認できません」）。

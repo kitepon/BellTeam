@@ -12,11 +12,30 @@ public sealed record UpdateCompatibility(bool Compatible, string? Reason);
 public sealed record UpdateImpact(bool ContainerRestart, string Description);
 public sealed record UpdatePlan(Guid PlanId, string Scope, string? ComponentId, DateTimeOffset ExpiresAt, UpdateTarget[] Targets, UpdateCompatibility Compatibility, UpdateImpact Impact, UpdateCapability Capability, string? Action);
 public sealed record UpdateError(string Code, string Message);
-public sealed record UpdateOperation(Guid RequestId, UpdatePlan Plan, string Admission, string Phase, string Execution, string Verification, UpdateError? Error, string? Reference);
-public sealed record UpdateComponent(string Id, string Name, string Description, UpdateVersion? Current, UpdateVersion? Published, UpdateComparison Comparison, string[] Changes, UpdateCapability Capability, UpdateAvailability Availability, JsonElement Publication);
+public sealed record UpdateJobTarget(string ModuleId);
+public sealed record UpdateJob(string JobId, string Kind, UpdateJobTarget Target, string State, UpdateError? Reason);
+public sealed record UpdateOperation(Guid RequestId, UpdatePlan Plan, string Admission, string Phase, string Execution, string Verification, UpdateError? Error, string? Reference, UpdateJob[]? Jobs = null);
+public sealed record UpdateLatestJob(string JobId, string Kind, string State, string Outcome, string At, UpdateError? Reason);
+public sealed record UpdatePartStatus(string Line, string Tone, bool ActionRequired, string? Action, UpdateLatestJob? LatestJob);
+public sealed record UpdateLastExit(int? Code, string? Signal);
+public sealed record UpdateProblem(string Fingerprint, string Status, string Kind, string ModuleId, int Count, int WindowSeconds, UpdateLastExit LastExit, string LastReason);
+// Status is read leniently (like the Mac LenientField): an unreadable per-part status only drops that part's status line.
+public sealed record UpdateComponent(string Id, string Name, string Description, UpdateVersion? Current, UpdateVersion? Published, UpdateComparison Comparison, string[] Changes, UpdateCapability Capability, UpdateAvailability Availability, JsonElement Publication, JsonElement Status = default)
+{
+    public UpdatePartStatus? Part
+    {
+        get
+        {
+            if (Status.ValueKind != JsonValueKind.Object) return null;
+            try { var value = Status.Deserialize<UpdatePartStatus>(BellApi.Json); return value is not null && value.Tone is "ok" or "updating" or "attention" && value.Line is not null ? value : null; }
+            catch (JsonException) { return null; }
+        }
+    }
+    public string? PublishedAt => Publication.ValueKind == JsonValueKind.Object && Publication.TryGetProperty("catalog", out var catalog) && catalog.ValueKind == JsonValueKind.Object && catalog.TryGetProperty("publishedAt", out var at) && at.ValueKind == JsonValueKind.String ? at.GetString() : null;
+}
 public sealed record UpdateCandidate(string ComponentId, string Id);
 public sealed record UpdateNotificationSeen(string Server, string ComponentId, string Id);
-public sealed record UpdateInventory(string Schema, UpdateNotice Notice, UpdateComponent[] Components, UpdatePlan[] Plans, UpdateOperation? Operation, UpdateOperation? PreviousOperation, UpdateCandidate[]? NotificationCandidates = null);
+public sealed record UpdateInventory(string Schema, UpdateNotice Notice, UpdateComponent[] Components, UpdatePlan[] Plans, UpdateOperation? Operation, UpdateOperation? PreviousOperation, UpdateCandidate[]? NotificationCandidates = null, UpdateJob[]? Jobs = null, UpdateProblem[]? Problems = null);
 public sealed record UpdatePlanResponse(UpdatePlan Plan);
 public sealed record UpdateOperationResponse(UpdateOperation Operation);
 public sealed record UpdateRequest(string Server, Guid RequestId, Guid PlanId, UpdateOperation? Result, string? Rejection = null);

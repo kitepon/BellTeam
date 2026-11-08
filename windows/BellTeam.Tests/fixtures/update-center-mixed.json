@@ -1,0 +1,150 @@
+{
+  "schema": "bellteam.updates.v1",
+  "server": {
+    "id": "example-server"
+  },
+  "observedAt": "2026-11-08T13:40:00+09:00",
+  "notice": {
+    "state": "attention",
+    "code": null,
+    "message": "確認が必要な機能があります。"
+  },
+  "components": [
+    {
+      "id": "web-gateway",
+      "name": "Web受付",
+      "description": "Webからの受付を担当する機能。",
+      "current": {
+        "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceCommit": null,
+        "digest": null,
+        "origin": "container"
+      },
+      "published": {
+        "version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sourceCommit": null,
+        "digest": null,
+        "origin": "published"
+      },
+      "publication": null,
+      "comparison": {
+        "state": "up_to_date",
+        "reason": null
+      },
+      "changes": [],
+      "capability": {
+        "supported": true,
+        "reason": null
+      },
+      "availability": {
+        "available": true,
+        "reason": null
+      },
+      "status": {
+        "line": "11/8 13:34 公開の版を使っています。新しい版はありません。",
+        "tone": "ok",
+        "actionRequired": false,
+        "action": null,
+        "latestJob": {
+          "jobId": "44444444-4444-4444-8444-444444444444",
+          "kind": "module",
+          "state": "ready",
+          "outcome": "succeeded",
+          "at": "2026-11-08T04:34:47Z",
+          "reason": null
+        }
+      }
+    },
+    {
+      "id": "notifications",
+      "name": "通知",
+      "description": "メンバーからの連絡を届ける機能。",
+      "current": {
+        "version": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "sourceCommit": null,
+        "digest": null,
+        "origin": "container"
+      },
+      "published": {
+        "version": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "sourceCommit": null,
+        "digest": null,
+        "origin": "published"
+      },
+      "publication": null,
+      "comparison": {
+        "state": "update_available",
+        "reason": null
+      },
+      "changes": [
+        "機能を更新します。"
+      ],
+      "capability": {
+        "supported": true,
+        "reason": null
+      },
+      "availability": {
+        "available": true,
+        "reason": null
+      },
+      "status": {
+        "line": "新しい版があります。",
+        "tone": "ok",
+        "actionRequired": false,
+        "action": null,
+        "latestJob": null
+      }
+    },
+    {
+      "id": "members",
+      "name": "メンバーと予定",
+      "description": "メンバーと予定を管理する機能。",
+      "current": {
+        "version": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "sourceCommit": null,
+        "digest": null,
+        "origin": "container"
+      },
+      "published": {
+        "version": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "sourceCommit": null,
+        "digest": null,
+        "origin": "published"
+      },
+      "publication": null,
+      "comparison": {
+        "state": "up_to_date",
+        "reason": null
+      },
+      "changes": [],
+      "capability": {
+        "supported": true,
+        "reason": null
+      },
+      "availability": {
+        "available": true,
+        "reason": null
+      },
+      "status": {
+        "line": "11/8 12:21 の更新はできませんでした。この機能は止まっています。",
+        "tone": "attention",
+        "actionRequired": true,
+        "action": "BellTeamの管理者に連絡してください。",
+        "latestJob": {
+          "jobId": "55555555-5555-4555-8555-555555555555",
+          "kind": "module",
+          "state": "failed",
+          "outcome": "failed",
+          "at": "2026-11-08T03:21:00Z",
+          "reason": {
+            "code": "READY_TIMEOUT",
+            "message": "ready probe timed out"
+          }
+        }
+      }
+    }
+  ],
+  "plans": [],
+  "operation": null,
+  "previousOperation": null
+}
