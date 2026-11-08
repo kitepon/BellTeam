@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T22:44:23Z",
-  "expiresAt": "2026-11-15T22:44:23Z",
+  "publishedAt": "2026-11-08T23:12:03Z",
+  "expiresAt": "2026-11-15T23:12:03Z",
   "releases": [
     {
       "componentId": "usage",
@@ -489,8 +489,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "e3df268c01b0be92fc1a2015ed0c851a91bf68ce",
-      "versionId": "2a32817b10c0170377c7390f7029d49466ab96008fab385d5d1e3d481308dcd1",
+      "sourceCommit": "8611472c0473056cfa537af74d0f0f20fca78c54",
+      "versionId": "86b3606299a9359e2dad4fb06a2f3201a2b723ae934c97d3487b2a4435323421",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -498,16 +498,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T224351Z/execution-e3df268c01b0be92fc1a2015ed0c851a91bf68ce-linux-amd64.tar.gz",
-          "bytes": 3935939,
-          "sha256": "2a32817b10c0170377c7390f7029d49466ab96008fab385d5d1e3d481308dcd1"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T231030Z/execution-8611472c0473056cfa537af74d0f0f20fca78c54-linux-amd64.tar.gz",
+          "bytes": 3936221,
+          "sha256": "86b3606299a9359e2dad4fb06a2f3201a2b723ae934c97d3487b2a4435323421"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T224351Z/execution-e3df268c01b0be92fc1a2015ed0c851a91bf68ce-linux-amd64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T231030Z/execution-8611472c0473056cfa537af74d0f0f20fca78c54-linux-amd64.tar.gz.sigstore.json",
           "bytes": 10942,
-          "sha256": "912b84bb983f30b2d642a548194ac3ef3fdc4f937ddd881ef3263f8448181056"
+          "sha256": "6b09196f37eedc2a90cafb828e76afb3d329a74dee37477f069691516e6681c8"
         },
-        "signerCommit": "e3df268c01b0be92fc1a2015ed0c851a91bf68ce"
+        "signerCommit": "8611472c0473056cfa537af74d0f0f20fca78c54"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -517,13 +517,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "使用上限に達した席が、2つ目のアカウントへ切り替わって作業を続けるようにします。部品の更新前から動いている席も切り替えの対象にします。"
+        "使用上限に達した席の休止が処理中として断られた場合、30秒ごとにアカウントの切り替えを再試行します。切り替えの成功、新しい配信、設定変更のいずれかまで続けます。休止済みの席は選択したアカウントで再開します。実行部品のみの配布で、本体は含みません。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "e3df268c01b0be92fc1a2015ed0c851a91bf68ce",
-      "versionId": "8b43711b8d3c160b15a1cdd8be6f8d981206ff644a035e9459dae2082c82c62d",
+      "sourceCommit": "8611472c0473056cfa537af74d0f0f20fca78c54",
+      "versionId": "685674f9bf178fef28bc5f39554fdb3101701ab8c461ff197ad5dca00d67b96e",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -531,16 +531,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T224351Z/execution-e3df268c01b0be92fc1a2015ed0c851a91bf68ce-linux-arm64.tar.gz",
-          "bytes": 3935942,
-          "sha256": "8b43711b8d3c160b15a1cdd8be6f8d981206ff644a035e9459dae2082c82c62d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T231030Z/execution-8611472c0473056cfa537af74d0f0f20fca78c54-linux-arm64.tar.gz",
+          "bytes": 3936223,
+          "sha256": "685674f9bf178fef28bc5f39554fdb3101701ab8c461ff197ad5dca00d67b96e"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T224351Z/execution-e3df268c01b0be92fc1a2015ed0c851a91bf68ce-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10942,
-          "sha256": "da0ed1a46f2780db2949fdeeaff13164c897cc46f14882a73e9ffbd4e8cb3f4d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T231030Z/execution-8611472c0473056cfa537af74d0f0f20fca78c54-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10989,
+          "sha256": "f7f89f2ede204525c89439139ad24ba6edc397013e9a7dff0e8591b7bdf4e462"
         },
-        "signerCommit": "e3df268c01b0be92fc1a2015ed0c851a91bf68ce"
+        "signerCommit": "8611472c0473056cfa537af74d0f0f20fca78c54"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -550,7 +550,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "使用上限に達した席が、2つ目のアカウントへ切り替わって作業を続けるようにします。部品の更新前から動いている席も切り替えの対象にします。"
+        "使用上限に達した席の休止が処理中として断られた場合、30秒ごとにアカウントの切り替えを再試行します。切り替えの成功、新しい配信、設定変更のいずれかまで続けます。休止済みの席は選択したアカウントで再開します。実行部品のみの配布で、本体は含みません。"
       ]
     },
     {
