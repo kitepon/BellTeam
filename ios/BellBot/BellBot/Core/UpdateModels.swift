@@ -11,6 +11,20 @@ struct NullableField<Value: Decodable & Equatable>: Decodable, Equatable {
     }
 }
 
+/// 任意の補足項目。欠落や読めない値（未知の列挙など）はその項目だけ無いものとし、応答全体を不正にしない。
+@propertyWrapper
+struct LenientField<Value: Decodable & Equatable>: Decodable, Equatable {
+    var wrappedValue: Value?
+    init(wrappedValue: Value?) { self.wrappedValue = wrappedValue }
+    init(from decoder: Decoder) throws { wrappedValue = try? decoder.singleValueContainer().decode(Value.self) }
+}
+
+extension KeyedDecodingContainer {
+    func decode<Value>(_ type: LenientField<Value>.Type, forKey key: Key) throws -> LenientField<Value> {
+        LenientField(wrappedValue: try? decodeIfPresent(Value.self, forKey: key))
+    }
+}
+
 /// `GET /api/updates`（`bellteam.updates.v1`）。列挙の未知の値はdecode失敗＝応答不正として扱う。
 struct UpdateInventory: Decodable, Equatable {
     enum Schema: String, Decodable { case v1 = "bellteam.updates.v1" }
@@ -75,6 +89,7 @@ struct UpdateComponent: Decodable, Equatable, Identifiable {
     }
 
     /// 機能ごとの状態の1行（本体 c1a32534 以降）。旧サーバーには無い。`line`はサーバーの文をそのまま出す。
+    /// 読めない時（未知のtone等）はその機能だけnilにし、従来の表示へ戻す。
     struct PartStatus: Decodable, Equatable {
         enum Tone: String, Decodable { case ok, updating, attention }
         struct LatestJob: Decodable, Equatable {
@@ -97,7 +112,7 @@ struct UpdateComponent: Decodable, Equatable, Identifiable {
     let id: String
     let name: String
     let description: String
-    let status: PartStatus?
+    @LenientField var status: PartStatus?
     @NullableField var current: UpdateVersion?
     @NullableField var published: UpdateVersion?
     let comparison: Comparison

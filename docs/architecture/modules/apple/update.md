@@ -57,7 +57,7 @@ flowchart TD
 
 | 項目 | Appleの扱い |
 | --- | --- |
-| `components[].status`（任意。契約 `apple-update-status-display-contract.md`、本体 c1a32534 / PR #545） | `UpdateComponent.PartStatus`。1つでも`status`があれば、標準画面の「機能の状態」に機能ごと1行で`name`と`status.line`をそのまま出す（言い換え・短縮・合成をしない）。`tone`がattentionの行は強調し、その下に`status.action`を出す。updatingは進行中の印を付ける。この時「ジョブの状態」は標準画面に出さず、ジョブID・raw state・符号は「詳細」だけに置く（`latestJob`のjobId/state/reason、既存の`jobs[]`一覧）。列挙の未知の値は応答不正 |
+| `components[].status`（任意。契約 `apple-update-status-display-contract.md`、本体 c1a32534 / PR #545） | `UpdateComponent.PartStatus`。1つでも`status`があれば、標準画面の「機能の状態」に機能ごと1行で`name`と`status.line`をそのまま出す（言い換え・短縮・合成をしない）。`tone`がattentionの行は強調し、その下に`status.action`を出す。updatingは進行中の印を付ける。この時「ジョブの状態」は標準画面に出さず、ジョブID・raw state・符号は「詳細」だけに置く（`latestJob`のjobId/state/reason、既存の`jobs[]`一覧）。`status`だけは読めない値（未知の列挙など）をその機能のnilとして扱い、その行は従来の表示に戻す。画面全体は読める |
 | `jobs[]`（inventory・operationの両方） | `UpdateJob`（`bellteam.update-job.v1`）。状態は queued/downloading/verifying/swapping/ready/failed の6つだけで、それ以外は応答不正として扱い、状態を作らない。`UpdateContent.jobRecords`が今回の操作・在庫の操作・最近のジョブを`kind:jobId`で重ねずに並べる。`status`の無い旧サーバーだけ、標準画面の「ジョブの状態」に機能名・`状態: <state>`・ジョブID・失敗時の`code / message`をWebと同じ文言でそのまま出す。`status`がある時は同じ一覧を「詳細」に出す |
 | `problems[]` | `UpdateProblem`。「機能の問題」に機能名・再起動の繰り返し・open/resolved、回数・集計秒数、直近の終了コード/シグナル（nullは未観測）、直近の理由を出す |
 | `admission:"pending"` | 全stepの受付記録が揃う前の付帯情報。表示は「受付中」。ジョブの状態とは別で、確定扱いにしない |

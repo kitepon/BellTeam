@@ -380,10 +380,16 @@ final class UpdateViewTests: XCTestCase {
         XCTAssertEqual(content.partStatuses.first?.status.action, "設定を確認してください。")
         XCTAssertEqual(content.partStatuses.first?.status.latestJob?.reason?.code, "READY_TIMEOUT")
 
+        // 未知のtoneの機能だけ従来表示に戻し、他の機能と画面全体は読める。
+        var other = components[0]
+        other["id"] = "notifications"
         components[0]["status"] = ["line": line, "tone": "loud", "actionRequired": false, "action": NSNull(), "latestJob": NSNull()]
+        components.append(other)
         example["components"] = components
-        let rejected = try await store(json: example)
-        XCTAssertNil(rejected.inventory, "未知のtoneは応答不正")
+        let lenient = try await store(json: example)
+        let inventory = try XCTUnwrap(lenient.inventory, "未知の値を含むstatusでも在庫全体は読める")
+        XCTAssertNil(inventory.components[0].status)
+        XCTAssertEqual(UpdateContent(updates: lenient).partStatuses.map(\.component.id), ["notifications"])
     }
 
     func testUnconfirmedRequestKeepsCheckingButOffersAnotherFormalCandidate() async throws {
