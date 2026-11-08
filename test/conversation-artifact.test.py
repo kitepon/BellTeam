@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
-from web_gateway_artifact import contract, validate_manifest, write_archive, check_archive, sha256
+from web_gateway_artifact import CONVERSATION_FILES, contract, validate_manifest, write_archive, check_archive, sha256
 from module_artifact_package import validate_conversation_source
 from module_artifact_verifier import authenticate, policy_for
 from update_catalog import validate_catalog, validate_conversation_archive
@@ -23,8 +23,8 @@ class ConversationArtifact(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name); self.payload = self.root / 'payload'
-        self.entry, self.runtime, required = contract('conversation')
-        for name in [*(name.removeprefix('payload/') for name in required), 'node_modules/mock/package.json']:
+        self.entry, self.runtime, _ = contract('conversation')
+        for name in [*(name.removeprefix('payload/') for name in CONVERSATION_FILES), 'node_modules/mock/package.json']:
             path = self.payload / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text(name)
         state = self.payload / 'src/conversation/state-compatibility.mjs'; state.parent.mkdir(exist_ok=True)
         state.write_text('export const CONVERSATION_STATE_COMPATIBILITY = ' + json.dumps(self.runtime['stateCompatibility']))
@@ -43,8 +43,8 @@ class ConversationArtifact(unittest.TestCase):
         again = self.root / 'again.tar.gz'; write_archive(self.payload, again, SOURCE, 'amd64', component='conversation')
         self.assertEqual(self.archive.read_bytes(), again.read_bytes())
 
-    def test_durable_receipt_dependency_is_allowed_without_expanding_old_inventory(self):
-        _, _, required = contract('conversation')
+    def test_durable_receipt_dependency_and_new_files_are_the_modules_own_decision(self):
+        required = CONVERSATION_FILES
         self.assertEqual(len(required), 56)
         dependency = self.payload / 'src/direct-log-record.mjs'
         dependency.write_bytes((ROOT / 'src/direct-log-record.mjs').read_bytes())
@@ -55,9 +55,9 @@ class ConversationArtifact(unittest.TestCase):
         self.assertEqual(checked, manifest)
         sources = {row['path'] for row in checked['files'] if not row['path'].startswith('payload/node_modules/')}
         self.assertEqual(sources, required | {'payload/src/direct-log-record.mjs'})
-        bad = copy.deepcopy(manifest)
-        bad['files'].append(dict(path='payload/src/unregistered.mjs', bytes=0, sha256='0' * 64))
-        with self.assertRaises(ValueError): validate_manifest(bad, component='conversation')
+        added = copy.deepcopy(manifest)
+        added['files'].append(dict(path='payload/src/unregistered.mjs', bytes=0, sha256='0' * 64))
+        self.assertIs(validate_manifest(added, component='conversation'), added)
 
     def test_all_seven_values_order_types_and_unknown_fields_are_strict(self):
         changes = [lambda m:m.update(component='members'), lambda m:m.update(entry='payload/src/members-entry.mjs'),
@@ -78,26 +78,23 @@ class ConversationArtifact(unittest.TestCase):
         state = self.payload / 'src/conversation/state-compatibility.mjs'
         state.write_text('export const CONVERSATION_STATE_COMPATIBILITY = {}')
         with self.assertRaisesRegex(ValueError,'CONVERSATION_SOURCE_STATE_INCOMPATIBLE'): validate_conversation_source(self.payload)
-        m=copy.deepcopy(self.manifest);m['files']=[f for f in m['files'] if not f['path'].endswith('state-compatibility.mjs')]
+        m=copy.deepcopy(self.manifest);m['files']=[f for f in m['files'] if f['path'] != m['entry']]
         with self.assertRaises(ValueError): validate_manifest(m, component='conversation')
 
-    def test_literal_closure_missing_dependencies_are_rejected(self):
-        _, _, required = contract('conversation')
+    def test_packaging_selection_covers_literal_closure(self):
+        required = CONVERSATION_FILES
         self.assertEqual(len(required), 56)
-        for omitted in ['payload/src/module-ipc.mjs', 'payload/src/module-streams.mjs', 'payload/src/conversation/probe-fixture.json',
+        for selected in ['payload/src/module-ipc.mjs', 'payload/src/module-streams.mjs', 'payload/src/conversation/probe-fixture.json',
                         'payload/src/conversation/dispatcher.mjs', 'payload/src/observer-check.mjs',
                         'payload/src/usage/web-push-schema.mjs']:
-            manifest = copy.deepcopy(self.manifest)
-            manifest['files'] = [row for row in manifest['files'] if row['path'] != omitted]
-            with self.subTest(path=omitted), self.assertRaises(ValueError):
-                validate_manifest(manifest, component='conversation')
+            self.assertIn(selected, required)
         self.assertNotIn('payload/src/conversation-lifetimes.mjs', required)
         self.assertNotIn('payload/src/run-seat-command.mjs', required)
 
     def test_fixed_channel_import_requires_shared_concurrency_module(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            for name in contract('conversation')[2]:
+            for name in CONVERSATION_FILES:
                 relative = name.removeprefix('payload/')
                 target = root / relative; target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(ROOT / relative, target)

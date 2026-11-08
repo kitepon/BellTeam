@@ -226,19 +226,14 @@ def contract(component):
     require(component in ('web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics', 'execution', 'conversation'), 'MODULE_COMPONENT_INVALID')
     entry = 'payload/src/execution-dispatcher.mjs' if component == 'execution' else 'payload/src/run-memory-runtime.mjs' if component == 'memory' else ENTRY if component == 'web-gateway' else f'payload/src/{component}-entry.mjs'
     runtime = dict(os='linux', nodeMajor=26, parentProtocol=1)
-    required = {entry, 'payload/package.json', 'payload/package-lock.json'}
-    if component == 'web-gateway':
-        required.update({'payload/web/assets.mjs', 'payload/services/subscriptions/product.json',
-                         'payload/services/subscriptions/endpoints.json'})
-    elif component == 'notifications':
+    # Install accepts the module's own signed file list; only the public entry contract is fixed here.
+    # The *_FILES sets above select what the packager takes from the module's source commit; they never gate install.
+    required = {entry} if component == 'memory' else {entry, 'payload/package.json', 'payload/package-lock.json'}
+    if component == 'notifications':
         runtime.update(parentProtocol=2, stateSchema=2)
-    elif component == 'memory':
-        required = MEMORY_FILES
     elif component == 'execution':
-        required = EXECUTION_FILES
         runtime['stateCompatibility'] = 'bellteam.execution-state.v1'
     elif component in BUSINESS_FILES:
-        required = BUSINESS_FILES[component]
         runtime['stateCompatibility'] = BUSINESS_STATE[component]
     elif component == 'members':
         # Match the writer's existing formats; exchange never authorizes migration.
@@ -246,8 +241,7 @@ def contract(component):
             botProfileSchema='bellteam.bot.v8', scheduleSchema='bellteam.schedule.v1',
             ownerProfileSchema='bellteam.owner-profile.v1', deletionReceiptSchema='bellteam.bot-deletion.v1',
             userRulesEncoding='utf8', initializedMarker='.initialized')
-        required.update({'payload/config/common-agents.md', 'payload/src/members/state-compatibility.mjs'})
-    else:
+    elif component == 'conversation':
         runtime['stateSchema'] = None
         runtime['stateCompatibility'] = dict(
             directRecordSchemas=['bellteam.direct-message.v1', 'bellteam.interim-word.v1', 'bellteam.delivery-status.v1'],
@@ -255,7 +249,6 @@ def contract(component):
             roomSchema='bellteam.room.v1', scheduleSchema='bellteam.schedule.v1', selfTurnsSchema='bellteam.self-turns.v1',
             imageMimeTypes=['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
             readerContract='bellteam.conversation-reader.v1')
-        required.update(CONVERSATION_FILES)
     return entry, runtime, required
 
 
@@ -284,16 +277,8 @@ def validate_manifest(value, source=None, arch=None, *, component='web-gateway')
         names.add(name)
         total += file['bytes']
     require(total <= MAX_CONTENT)
-    if component == 'execution':
-        # Keep the two published layouts closed while requiring the complete new handoff closure.
-        sources = {name for name in names if not name.startswith('payload/node_modules/')}
-        legacy = required - {'payload/src/aiterm-hooks.mjs', 'payload/src/model-handoff.mjs'}
-        require(sources in (required, legacy, legacy - {'payload/src/automatic-configuration-application.mjs'}))
-    else:
-        require(names == required if component in ('memory', 'usage') else required <= names)
-    if component in ('diagnostics', 'execution', 'conversation'):
-        allowed = required | ({'payload/src/direct-log-record.mjs'} if component == 'conversation' else set())
-        require(all(name in allowed or name.startswith('payload/node_modules/') for name in names))
+    # A missing import fails the candidate probe before the swap, and the old version keeps serving.
+    require(required <= names)
     return value
 
 
@@ -312,7 +297,7 @@ def write_archive(payload, output, source, arch, *, component='web-gateway', sta
         inventory.append(dict(path=name, bytes=len(data), sha256=sha256(data)))
         paths[name] = target
     entry, runtime, required = contract(component)
-    if component == 'execution': require(required <= paths.keys())
+    if component == 'execution': require(EXECUTION_FILES <= paths.keys())
     if component == 'memory': runtime['stateCompatibility'] = validate_memory_state(state_compatibility)
     else: require(state_compatibility is None)
     manifest = validate_manifest(dict(schema=f'bellteam.{component}.artifact.v1', component=component,
