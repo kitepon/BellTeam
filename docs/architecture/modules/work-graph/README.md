@@ -54,7 +54,7 @@ flowchart LR
 | W1 | providers -> facade | execution `watchCurrentTurn` and `watchQueue`; members `watch`; conversation `rooms.watch` | Wake-up signals only, forwarded while at least one SSE subscriber exists. Coalesced 100 ms into one root `refresh` |
 | W2 | facade -> child | root `refresh {}` -> `{batch, nextRefreshMs}`; root `snapshot {}` -> snapshot | All child calls run on one chain, so a snapshot never interleaves with a refresh. `nextRefreshMs` arms one timer (leave grace) |
 | W3 | child -> parent effects | `members.list {}` -> `{members:[{id,name,color,avatarVersion,deleting}]}` | From `bots.listForClient()`. Effects are accepted only inside a pending root call. A failed read is unavailable, never an empty roster |
-| W4 | child -> parent effects | `turns.read {botIds}` -> `{turns:{[id]:{state,turnId,startedAt?}}}` or `{unsupported:true}`; `queue.read {}` -> `{items:[{status,context,contextId,groupId,from,target,message,image,steered,startedAt}]}` | From `currentTurn(id,{startedAt:true})` and `queueItems({})`. Live projections, no sequence |
+| W4 | child -> parent effects | `turns.read {botIds}` -> `{turns:{[id]:{state,turnId,startedAt?,summary?,summaryStatus?}}}` or `{unsupported:true}`; `queue.read {}` -> `{items:[{status,context,contextId,groupId,from,target,message,image,steered,startedAt}]}` | From `currentTurn(id,{startedAt:true})`, the member's `currentWork.summary`/`summaryStatus` (execution's Japanese work summary, width 80) and `queueItems({})`. Live projections, no sequence. `summary`/`summaryStatus` are optional: a parent without them yields the neutral label |
 | W5 | child -> parent effects | `room.messages {roomId}` -> `{items:[{id,routing:{responders,status}}]}` | From `messagePage('rooms', roomId, ?limit=50)`. Silent (non-responder) room deliveries are not work requests |
 | W6 | facade -> app | snapshot JSON; SSE `snapshot` then `change` batches | Owner-authenticated `/api`; internal callers 403; child unavailable 503 `WORK_GRAPH_UNAVAILABLE` |
 
@@ -67,7 +67,7 @@ What an edge means: a Bot-to-Bot delivery that the receiver is processing right 
 - **Edge**: a queue item with `status: 'running'`, `context` direct or room, `from` and `target` both active members, `from != target`. Room items count only if `target` is in that message's `routing.responders`; while routing is pending or the message cannot be read, the item is not an edge yet. `context: self`, items from the user, and `failed` items are not edges.
 - Edge identity: `id = groupId + ':' + target` (durable delivery id / room message id plus receiver). `requestId = groupId`.
 - Edge `state`: `running`, or `steered` once execution reports `steered: true` (accepted into the receiver's running turn).
-- Edge `label`: first non-empty line of the request text, at most 40 characters; `画像` when the item has only images.
+- Edge `label` is plain Japanese for the Owner and never comes from the message body (Bot-to-Bot bodies are English working text; Trony, 2026-11-08). It is the receiver's current work summary when that summary is `current` and non-empty, else `依頼を処理中`. All live edges into the same receiver share that label. A summary change emits `edge-update`.
 - **Node**: a member whose `currentTurn` is `working` (`state: 'working'`, blinks), or an endpoint of a live edge while not working (`state: 'linked'`, drawn quieter, no blink). Nobody else appears.
 - `unknown` turn state holds the member's previous presence. It neither adds nor removes a node.
 - `activeSince`: execution's `startedAt` when provided; otherwise the time this module first saw the member working. It is kept while the member stays on screen.
@@ -92,7 +92,7 @@ What an edge means: a Bot-to-Bot delivery that the receiver is processing right 
   ],
   "edges": [
     { "id": "85a6…:bot-c4a34a0b", "requestId": "85a6…", "from": "bot-c19019b6", "to": "bot-c4a34a0b",
-      "context": "direct", "roomId": null, "label": "For the NEW data-only 相関図 module…",
+      "context": "direct", "roomId": null, "label": "相関図の公開窓口を確認している",
       "state": "running", "startedAt": "2026-11-08T10:33:10.000Z" }
   ]
 }

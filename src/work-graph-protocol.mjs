@@ -32,8 +32,10 @@ const queueItem = item => workGraphObject(item, ['status', 'context', 'contextId
   && str(item.status) && str(item.context) && strOrNull(item.contextId) && strOrNull(item.groupId) && strOrNull(item.from) && strOrNull(item.target)
   && str(item.message) && typeof item.image === 'boolean' && typeof item.steered === 'boolean'
   && (item.startedAt === null || str(item.startedAt) || typeof item.startedAt === 'number')
-const turn = value => workGraphObject(value, ['state', 'turnId'], ['startedAt']) && ['working', 'idle', 'unknown'].includes(value.state)
+const turn = value => workGraphObject(value, ['state', 'turnId'], ['startedAt', 'summary', 'summaryStatus']) && ['working', 'idle', 'unknown'].includes(value.state)
   && strOrNull(value.turnId) && (value.startedAt === undefined || strOrNull(value.startedAt))
+  && (value.summary === undefined || strOrNull(value.summary) && (value.summary === null || value.summary.length <= 200))
+  && (value.summaryStatus === undefined || ['current', 'missing', 'stale'].includes(value.summaryStatus))
 
 export function validateWorkGraphEffectResult(method, value) {
   if (method === 'members.list') need(workGraphObject(value, ['members']) && list(value.members, member =>

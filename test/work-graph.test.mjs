@@ -17,15 +17,17 @@ test('edge rules: only running direct/room deliveries between two members', () =
     job({ groupId: 'r2', context: 'room', contextId: 'room', target: 'c', steered: true, message: '\n  \nsecond line' })]
   const { edges, nodes } = project({ queue, responders: { r2: ['c'], r1: ['c'] } })
   assert.deepEqual(edges.map(edge => edge.id), ['g1:b', 'r2:c'])
-  assert.deepEqual(edges[1], { id: 'r2:c', requestId: 'r2', from: 'a', to: 'c', context: 'room', roomId: 'room', label: 'second line', state: 'steered', startedAt: '2026-11-08T10:00:01.000Z' })
+  assert.deepEqual(edges[1], { id: 'r2:c', requestId: 'r2', from: 'a', to: 'c', context: 'room', roomId: 'room', label: '依頼を処理中', state: 'steered', startedAt: '2026-11-08T10:00:01.000Z' })
   assert.deepEqual(nodes.map(node => [node.botId, node.state]), [['a', 'linked'], ['b', 'linked'], ['c', 'linked']])
 })
 
-test('label: 40 chars, image-only, empty', () => {
-  const label = message => project({ queue: [job(message)] }).edges[0].label
-  assert.equal(label({ message: 'x'.repeat(60) }), 'x'.repeat(40))
-  assert.equal(label({ message: '', image: true }), '画像')
-  assert.equal(label({ message: '' }), '')
+test('label: receiver summary when current, else neutral; never the message body', () => {
+  const label = b => project({ queue: [job({ message: 'Admi -> Centi: please publish web-gateway' })], turns: { b } }).edges[0].label
+  assert.equal(label({ state: 'working', turnId: 't', summary: ' 公開手順を確認している ', summaryStatus: 'current' }), '公開手順を確認している')
+  assert.equal(label({ state: 'working', turnId: 't', summary: '古い要約', summaryStatus: 'stale' }), '依頼を処理中')
+  assert.equal(label({ state: 'working', turnId: 't', summary: null, summaryStatus: 'missing' }), '依頼を処理中')
+  assert.equal(label({ state: 'working', turnId: 't' }), '依頼を処理中')
+  assert.equal(label(undefined), '依頼を処理中')
 })
 
 test('nodes: working beats linked, defaults, deleting excluded, unknown holds presence', () => {
