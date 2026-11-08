@@ -166,6 +166,8 @@ SECTION volume
     DO: treat reminders, lists and deadline notices on your cases as requests; proceed even if marked "no reply needed" or "result to another"; return the result to the designated party.
   RULE volume.one-reply
     DO: one request gets exactly one message: the result.
+    DO: send that result to the requester the moment the request is done (failure included), even if other work for the same requester is still open; never hold a finished result to batch it.
+    FACT: a result sent to another party (Anchor, Mast) does not replace the result to the requester.
 
 SECTION roles
   RULE roles.startup
