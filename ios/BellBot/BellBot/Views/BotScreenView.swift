@@ -75,6 +75,13 @@ struct BotScreenView: View {
     @State private var online = false
     @State private var errorText: String?
     @State private var visibleBotID: String?
+    @StateObject private var input: ScreenInputModel
+
+    init(bot: Bot, embedded: Bool = false, api: BellAPI) {
+        self.bot = bot
+        self.embedded = embedded
+        _input = StateObject(wrappedValue: ScreenInputModel(api: api, botID: bot.id))
+    }
 
     var body: some View {
         Group {
@@ -98,6 +105,7 @@ struct BotScreenView: View {
                 screen = ""
                 online = false
                 errorText = nil
+                input.reset(botID: bot.id)
             }
             guard scenePhase == .active else { return }
             await refreshScreen(botID: bot.id)
@@ -112,6 +120,13 @@ struct BotScreenView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .safeAreaInset(edge: .bottom) {
+            VStack(spacing: 0) {
+            if input.available {
+                ScreenKeyBar(sendingKey: input.sendingKey, sentKey: input.sentKey, notice: input.notice,
+                             approval: input.approvalUnsupported ? nil : input.approval,
+                             onKey: { key in Task { await input.sendKey(key) } },
+                             onDecision: { decision in Task { await input.respond(decision) } })
+            }
             HStack(spacing: 7) {
                 Circle().fill(online ? BellTheme.mint : BellTheme.muted).frame(width: 7, height: 7)
                 Text(errorText ?? (online ? "1秒ごとに更新" : "停止中"))
@@ -121,6 +136,7 @@ struct BotScreenView: View {
             .frame(maxWidth: .infinity)
             .padding(10)
             .background(Color.black)
+            }
         }
     }
 
@@ -140,6 +156,7 @@ struct BotScreenView: View {
                 if online != result.online { online = result.online }
                 if screen != next { screen = next }
                 if errorText != nil { errorText = nil }
+                await input.refreshApproval()
             } catch is CancellationError { return }
             catch let error as URLError where error.code == .cancelled { return }
             catch let error where BellAPIError.isAuthenticationError(error) {

@@ -104,7 +104,9 @@
 		C99C73B3266DF4792EB3D17F /* ServerOrigin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 549845AE12463CD143CDEEB8 /* ServerOrigin.swift */; };
 		CF86EA52EF3720485D3AB265 /* InstalledConversationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FFC48F6891C1B67D0D7D224 /* InstalledConversationUITests.swift */; };
 		D2C41EF2F6330CC13B43961C /* NotificationService.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 9CF9B993CAE157FD87092D72 /* NotificationService.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		D7F1C971318B3D8F639572B6 /* BotScreenKeyBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70E6B86A44AFB7053F2260B5 /* BotScreenKeyBar.swift */; };
 		D9090FD32702DDE687079C6D /* BellNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF1230D327F5DB87E3EAEC0A /* BellNotificationService.swift */; };
+		D95AC4FE64F4F64A16F11000 /* ScreenKeyBarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16B891C02B4DF8B097EF304 /* ScreenKeyBarTests.swift */; };
 		D9D7875A215B631D4D0E4BAF /* RoomDeletionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82FA18958963479A339A70F4 /* RoomDeletionTests.swift */; };
 		D9E1CCD5CB66B80DC67DF166 /* ConversationDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0138E86CF9C413979445F108 /* ConversationDocument.swift */; };
 		DE9CF89E182A2D6AF2B4592C /* MessageInputTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 776478A3D8DE35F33CEB5585 /* MessageInputTests.swift */; };
@@ -218,6 +220,7 @@
 		6A2F000635CD2024008345A3 /* ServerInstallationGuide.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerInstallationGuide.swift; sourceTree = "<group>"; };
 		6BF2159F5902850520F32BCE /* SecretTransportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretTransportTests.swift; sourceTree = "<group>"; };
 		6CCAEDB62892A74233BDFCB0 /* BellAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BellAPI.swift; sourceTree = "<group>"; };
+		70E6B86A44AFB7053F2260B5 /* BotScreenKeyBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotScreenKeyBar.swift; sourceTree = "<group>"; };
 		71785B41220656576156BBC5 /* HarnessAuthenticationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessAuthenticationUITests.swift; sourceTree = "<group>"; };
 		75B87E22433703F49BF8DB76 /* ConversationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationView.swift; sourceTree = "<group>"; };
 		776478A3D8DE35F33CEB5585 /* MessageInputTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageInputTests.swift; sourceTree = "<group>"; };
@@ -242,6 +245,7 @@
 		9CF9B993CAE157FD87092D72 /* NotificationService.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = NotificationService.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		9D505AA366C00647C21E6CE8 /* AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStore.swift; sourceTree = "<group>"; };
 		9E6415CA59C389AF3A2462C7 /* EventStreamLiveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventStreamLiveTests.swift; sourceTree = "<group>"; };
+		A16B891C02B4DF8B097EF304 /* ScreenKeyBarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenKeyBarTests.swift; sourceTree = "<group>"; };
 		A705FBAB6CC825EC30D4D015 /* SecretRequestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretRequestView.swift; sourceTree = "<group>"; };
 		AA28AC7BFD35A51CF55B3E60 /* SchedulesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchedulesView.swift; sourceTree = "<group>"; };
 		ABF09858FAA98BE09EEF4582 /* UpdateModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateModels.swift; sourceTree = "<group>"; };
@@ -341,6 +345,7 @@
 				ED0F4DFFFAE06E03111B358A /* NotificationTests.swift */,
 				37AF152E2DF0BD72789A33E8 /* OnboardingTests.swift */,
 				82FA18958963479A339A70F4 /* RoomDeletionTests.swift */,
+				A16B891C02B4DF8B097EF304 /* ScreenKeyBarTests.swift */,
 				6BF2159F5902850520F32BCE /* SecretTransportTests.swift */,
 				C03043D84E81301281D2DAF1 /* SelectableTextLayoutTests.swift */,
 				EBE8C6D8F416B9FE3A4684E1 /* UpdateCenterTests.swift */,
@@ -417,6 +422,7 @@
 				F156208B81C891BA501E7785 /* AvatarImagePicker.swift */,
 				176EA930767EE44E1A60E29B /* BackgroundAgentSettingsView.swift */,
 				249245C6E0484FEEB193F0E2 /* BotProfileComponents.swift */,
+				70E6B86A44AFB7053F2260B5 /* BotScreenKeyBar.swift */,
 				1A349EE234D1444D7643C961 /* BotScreenView.swift */,
 				3899063BEB68B3C806D39EC8 /* ConversationDetailView.swift */,
 				5AE9528CE84E51C21E27CB68 /* ConversationImages.swift */,
@@ -758,6 +764,7 @@
 				158521A7ACEF14BA3C0F151C /* BotAvatarCache.swift in Sources */,
 				3AE91015609ECFC45B7F24D4 /* BotPresenceDot.swift in Sources */,
 				C66C5032BA9B2FA249D48B2B /* BotProfileComponents.swift in Sources */,
+				D7F1C971318B3D8F639572B6 /* BotScreenKeyBar.swift in Sources */,
 				01B9F4FC0C70E3B3C7CA7788 /* BotScreenView.swift in Sources */,
 				097BC2376E3C25FEBD28641E /* BotSettings.swift in Sources */,
 				3CA85150E6BD8BE8189F7AB0 /* CommunicationNotification.swift in Sources */,
@@ -826,6 +833,7 @@
 				0257818FD6EAD80113F01926 /* NotificationTests.swift in Sources */,
 				F4E28EAECE529EA885542A2D /* OnboardingTests.swift in Sources */,
 				D9D7875A215B631D4D0E4BAF /* RoomDeletionTests.swift in Sources */,
+				D95AC4FE64F4F64A16F11000 /* ScreenKeyBarTests.swift in Sources */,
 				C7EDF928F89B111580BAEB5B /* SecretTransportTests.swift in Sources */,
 				025B957E795ADEEBC3666BC7 /* SelectableTextLayoutTests.swift in Sources */,
 				AA24E81FFCF69D26D8E40DC1 /* UpdateCenterTests.swift in Sources */,
