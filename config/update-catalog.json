@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T22:34:41Z",
-  "expiresAt": "2026-11-15T22:34:41Z",
+  "publishedAt": "2026-11-08T22:39:50Z",
+  "expiresAt": "2026-11-15T22:39:50Z",
   "releases": [
     {
       "componentId": "usage",
@@ -425,8 +425,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "14c55b549c7d762946d891303ade2e3bdb735d8e",
-      "versionId": "c72140e62279778f5c3fca69b81469a5ea077a1af789717141f02b66f5d55f69",
+      "sourceCommit": "b5c4ea64f8dca92c8a95b83fdd5f33f73df88c66",
+      "versionId": "8ed390d3119505e5abd99b726de5cda935bd9d9650d73bd07282b0d2f77465eb",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -434,16 +434,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T214502Z/web-gateway-14c55b549c7d762946d891303ade2e3bdb735d8e-linux-amd64.tar.gz",
-          "bytes": 5085489,
-          "sha256": "c72140e62279778f5c3fca69b81469a5ea077a1af789717141f02b66f5d55f69"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T223855Z/web-gateway-b5c4ea64f8dca92c8a95b83fdd5f33f73df88c66-linux-amd64.tar.gz",
+          "bytes": 5086061,
+          "sha256": "8ed390d3119505e5abd99b726de5cda935bd9d9650d73bd07282b0d2f77465eb"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T214502Z/web-gateway-14c55b549c7d762946d891303ade2e3bdb735d8e-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10911,
-          "sha256": "d8c5f9126b9fa3037ce612cb384796ffae0a7523a5726441afd90cb1b183487d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T223855Z/web-gateway-b5c4ea64f8dca92c8a95b83fdd5f33f73df88c66-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11146,
+          "sha256": "5a58900af40e59c79a2845956d9762e9e17d5d1cb527a92cc5208f758ec38205"
         },
-        "signerCommit": "14c55b549c7d762946d891303ade2e3bdb735d8e"
+        "signerCommit": "b5c4ea64f8dca92c8a95b83fdd5f33f73df88c66"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -452,13 +452,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "メンバー画面から「Fableを2ndアカウントで使う」スイッチを外します。アカウントは使用上限に合わせて自動で選ばれます。"
+        "仕事の図の矢印のラベルを途中で切らず、折り返してすべて表示します。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "14c55b549c7d762946d891303ade2e3bdb735d8e",
-      "versionId": "4dfd5b9982d992fdd0b8e412300ecba49b9d80c03f0a5654bbff33b0ad2df2bd",
+      "sourceCommit": "b5c4ea64f8dca92c8a95b83fdd5f33f73df88c66",
+      "versionId": "1148cea2882a526931036dde26f4e4aebac27b933ad3bd592dd24e000b2b858b",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -466,16 +466,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T214502Z/web-gateway-14c55b549c7d762946d891303ade2e3bdb735d8e-linux-arm64.tar.gz",
-          "bytes": 5085489,
-          "sha256": "4dfd5b9982d992fdd0b8e412300ecba49b9d80c03f0a5654bbff33b0ad2df2bd"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T223855Z/web-gateway-b5c4ea64f8dca92c8a95b83fdd5f33f73df88c66-linux-arm64.tar.gz",
+          "bytes": 5086061,
+          "sha256": "1148cea2882a526931036dde26f4e4aebac27b933ad3bd592dd24e000b2b858b"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T214502Z/web-gateway-14c55b549c7d762946d891303ade2e3bdb735d8e-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11005,
-          "sha256": "c893d47115ea33f6db12d01a0e2e19bb33f2f6cb60c0e537bd8a888add46951f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T223855Z/web-gateway-b5c4ea64f8dca92c8a95b83fdd5f33f73df88c66-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11158,
+          "sha256": "19b51201b3bc1481edfe2d2da9cd9fb175359d9775dbb65c8446d280eb287174"
         },
-        "signerCommit": "14c55b549c7d762946d891303ade2e3bdb735d8e"
+        "signerCommit": "b5c4ea64f8dca92c8a95b83fdd5f33f73df88c66"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -484,7 +484,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "メンバー画面から「Fableを2ndアカウントで使う」スイッチを外します。アカウントは使用上限に合わせて自動で選ばれます。"
+        "仕事の図の矢印のラベルを途中で切らず、折り返してすべて表示します。"
       ]
     },
     {
@@ -635,8 +635,8 @@
     },
     {
       "componentId": "work-graph",
-      "sourceCommit": "652a945300ab7f580b937ae69f1faa9761c220f8",
-      "versionId": "4afe3048b50e41a81433968e0c104f556160acc0944c1efb0ada11321d52a04d",
+      "sourceCommit": "b5c4ea64f8dca92c8a95b83fdd5f33f73df88c66",
+      "versionId": "3893fa3d7b86f16514322c73871c33745351b19db097ba53de99f6dcbbf76e6a",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -644,16 +644,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T132358Z/work-graph-652a945300ab7f580b937ae69f1faa9761c220f8-linux-amd64.tar.gz",
-          "bytes": 3820860,
-          "sha256": "4afe3048b50e41a81433968e0c104f556160acc0944c1efb0ada11321d52a04d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T223841Z/work-graph-b5c4ea64f8dca92c8a95b83fdd5f33f73df88c66-linux-amd64.tar.gz",
+          "bytes": 3820699,
+          "sha256": "3893fa3d7b86f16514322c73871c33745351b19db097ba53de99f6dcbbf76e6a"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T132358Z/work-graph-652a945300ab7f580b937ae69f1faa9761c220f8-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11001,
-          "sha256": "0e4dee84f6bb7aeff37fbc65329154a32c7dc15659128e1da861b42fa0078524"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T223841Z/work-graph-b5c4ea64f8dca92c8a95b83fdd5f33f73df88c66-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11189,
+          "sha256": "3708dd75132eab8b2d7418942908ce30f15e8a50591802d747e6ca0a5529c8c4"
         },
-        "signerCommit": "652a945300ab7f580b937ae69f1faa9761c220f8"
+        "signerCommit": "b5c4ea64f8dca92c8a95b83fdd5f33f73df88c66"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -665,13 +665,13 @@
         }
       },
       "changes": [
-        "相関図の線に、依頼の内容を短くまとめた文を表示できるようにします。まとめた文が届くまでは「依頼を処理中」と表示されます。"
+        "メンバーの作業の要約が長い時も、その結果を捨てずに仕事の図へ表示します。"
       ]
     },
     {
       "componentId": "work-graph",
-      "sourceCommit": "652a945300ab7f580b937ae69f1faa9761c220f8",
-      "versionId": "6292bfc82000fda4b12376c7a4164935bdeac453013be898d5b0cfee4d878db8",
+      "sourceCommit": "b5c4ea64f8dca92c8a95b83fdd5f33f73df88c66",
+      "versionId": "7ee5017c5714e6d59aed7c65514f459ea4e047ff6dda323070d80c8c3f004aa4",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -679,16 +679,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T132358Z/work-graph-652a945300ab7f580b937ae69f1faa9761c220f8-linux-arm64.tar.gz",
-          "bytes": 3820860,
-          "sha256": "6292bfc82000fda4b12376c7a4164935bdeac453013be898d5b0cfee4d878db8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T223841Z/work-graph-b5c4ea64f8dca92c8a95b83fdd5f33f73df88c66-linux-arm64.tar.gz",
+          "bytes": 3820699,
+          "sha256": "7ee5017c5714e6d59aed7c65514f459ea4e047ff6dda323070d80c8c3f004aa4"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T132358Z/work-graph-652a945300ab7f580b937ae69f1faa9761c220f8-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10993,
-          "sha256": "da6465dfed7017154ee2cfc4550ce7d3e8e8c635a1601bc841686c3957cb7171"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T223841Z/work-graph-b5c4ea64f8dca92c8a95b83fdd5f33f73df88c66-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11095,
+          "sha256": "cbf6b62f06ef840e798f9eb366ed81d83fc9027f253c7f5c84b8632637f56ca9"
         },
-        "signerCommit": "652a945300ab7f580b937ae69f1faa9761c220f8"
+        "signerCommit": "b5c4ea64f8dca92c8a95b83fdd5f33f73df88c66"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -700,7 +700,7 @@
         }
       },
       "changes": [
-        "相関図の線に、依頼の内容を短くまとめた文を表示できるようにします。まとめた文が届くまでは「依頼を処理中」と表示されます。"
+        "メンバーの作業の要約が長い時も、その結果を捨てずに仕事の図へ表示します。"
       ]
     },
     {
