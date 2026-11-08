@@ -5,6 +5,7 @@ import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { runtimeEnvironment, runtimeHome } from './runtime-home.mjs'
 import { defaultCallBridgeMcpUrl } from './distribution-profile.mjs'
+import { preparedAccountRoots } from './harness-accounts.mjs'
 import { BELLTEAM_MCP_PATH, CALL_BRIDGE_MCP_PATH, SEAT_HEADER, SEAT_VARIABLE, LAUNCH_HEADER, LAUNCH_VARIABLE } from './seat-mcp.mjs'
 import { configureRtk } from './rtk-hooks.mjs'
 import { aitermRegistration, aitermRelay, configureAitermHooks } from './aiterm-hooks.mjs'
@@ -122,6 +123,8 @@ export async function writeHarnessConfig(bots, home = runtimeHome(), { callBridg
     writeCodexConfig(join(home, '.codex/config.toml'), bots, `approval_policy = "never"\nsandbox_mode = "danger-full-access"\n\n${codexMcp}${codexUnusableMcp}${codexProjects}`),
     writeGrokConfig(join(home, '.grok/config.toml'), `[ui]\npermission_mode = "always-approve"\n\n${grokMcp}`),
     mergeMcpConfig(join(home, '.claude.json'), claudeMcp, [...bots.values()].map(bot => bot.project)),
+    // The 2nd account roots (harness-accounts.md) carry the same registration.
+    ...(await preparedAccountRoots(home)).map(root => mergeMcpConfig(join(root, '.claude.json'), claudeMcp, [...bots.values()].map(bot => bot.project))),
     mergeMcpConfig(join(home, '.cursor/mcp.json'), cursorMcp),
     mergeMcpConfig(join(home, '.gemini/config/mcp_config.json'), antigravityMcp),
   ])

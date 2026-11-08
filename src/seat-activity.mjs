@@ -114,6 +114,11 @@ export class SeatActivity {
     return () => this.listeners.delete(listener)
   }
 
+  // A change that is not about one queue item (for example the account registry, harness-accounts.md).
+  emitChange(change) {
+    for (const listener of this.listeners) listener(change)
+  }
+
   emit(item) {
     const change = { all: !item?.bot?.id, topics: ['queue'], botIds: item?.bot?.id ? [item.bot.id] : [], roomIds: item?.info?.context === 'room' && item.info.contextId ? [item.info.contextId] : [] }
     for (const listener of this.listeners) listener(change)

@@ -7,6 +7,8 @@ import { AitermTransport } from '../src/aiterm-transport.mjs'
 import { BotAdministration } from '../src/bot-administration.mjs'
 import { BellTeamMessenger } from '../src/messenger.mjs'
 import { CapacityContinuation, recoverableTurnFailure } from '../src/capacity-continuation.mjs'
+import { HarnessAccounts } from '../src/harness-accounts.mjs'
+import { mkdir, writeFile } from 'node:fs/promises'
 
 const tick = () => new Promise(resolve => setImmediate(resolve))
 const observation = receipt => ({ schema: 'aiterm.agent-wait-result.v1', outcome: 'error', error: 'provider limit',
@@ -17,7 +19,7 @@ const observation = receipt => ({ schema: 'aiterm.agent-wait-result.v1', outcome
     ...(receipt.input_id ? { input_id: receipt.input_id } : {}),
   } } })
 
-async function fixture(t, { failures = 1, onAuth = () => {}, changeFailure = x => x, closeUnknown = false } = {}) {
+async function fixture(t, { failures = 1, onAuth = () => {}, changeFailure = x => x, closeUnknown = false, accounts = null } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'capacity-continuation-')); t.after(() => rm(root, { recursive: true, force: true }))
   const bot = { id: 'bot-synthetic', name: 'Synthetic', session: 'bot-synthetic', project: root,
     harness: 'claude', model: 'fable', reasoningEffort: 'high', fastMode: false }
@@ -42,7 +44,7 @@ async function fixture(t, { failures = 1, onAuth = () => {}, changeFailure = x =
     if (name === 'pty_observe') return { structuredContent: { words: [], event_cursor: sends } }
     throw Error(`unexpected ${name}`)
   } }
-  const transport = new AitermTransport({ client, handoffContext: async () => '',
+  const transport = new AitermTransport({ client, handoffContext: async () => '', accounts, resolveBot: id => bots.get(id),
     updateSession: (id, session) => bots.update(id, { session }),
     assertWorkAllowed: () => { if (!enabled) throw Object.assign(Error('paused'), { code: 'AI_GLOBAL_PAUSED' }) },
     waitProcess: async descriptor => {
@@ -52,7 +54,7 @@ async function fixture(t, { failures = 1, onAuth = () => {}, changeFailure = x =
   transport.isRunning = async () => true
   const admin = new BotAdministration({ bots, transport, writeLog() {} })
   const messenger = new BellTeamMessenger({ bots, transport, logPath: join(root, 'messages.jsonl') })
-  const recovery = new CapacityContinuation({ bots, administration: admin, messenger,
+  const recovery = new CapacityContinuation({ bots, administration: admin, messenger, accounts, transport,
     assertEnabled: () => { if (!enabled) throw Object.assign(Error('paused'), { code: 'AI_GLOBAL_PAUSED' }) },
     harnessAuth: { status: async harness => { await onAuth({ harness, bots, stop: () => { enabled = false } }); return { status: 'authenticated' } } },
     models: { forHarness: async harness => ({ defaultModel: harness === 'codex' ? 'gpt-6.1-sol' : 'available', models: [
@@ -116,4 +118,28 @@ test('unbound, nonterminal, legacy and mismatched input failures never authorize
   const recovery = new CapacityContinuation({})
   recovery.failed({ deliveryId: 'untrusted\ntext', failure: result.failure })
   assert.equal(recovery.pending.size, 0)
+})
+
+test('a limit on the 1st account resumes the same conversation on the 2nd before any harness switch', async t => {
+  const home = await mkdtemp(join(tmpdir(), 'capacity-accounts-')); t.after(() => rm(home, { recursive: true, force: true }))
+  await mkdir(join(home, '.claude/projects'), { recursive: true })
+  const accounts = new HarnessAccounts({ home, statePath: join(home, 'accounts.json'), readUsage: async () => [], log: () => {} })
+  t.after(() => accounts.close())
+  await accounts.prepare('claude', '2nd')
+  await writeFile(join(home, '.bellteam-accounts/claude/2nd/.credentials.json'), '{}')
+  const f = await fixture(t, { accounts }); await f.start(); await f.settle()
+  const launches = f.calls.filter(x => x.name === 'agent_launch')
+  // The fixture's seat is already running on the default (1st) root; only the move launches.
+  assert.deepEqual(launches.map(x => x.args.configuration_root), [join(home, '.bellteam-accounts/claude/2nd')])
+  const close = f.calls.find(x => x.name === 'pty_close')
+  assert.equal(close.args.hibernate, true)
+  assert.ok(f.calls.indexOf(close) < f.calls.indexOf(launches[0]))
+  assert.equal(f.bots.get(f.bot.id).harness, 'claude', 'same harness and model: only the account changed')
+  const sends = f.calls.filter(x => x.name === 'pty_send')
+  assert.equal(sends.length, 2)
+  assert.match(sends[1].args.text, /2ndアカウント/)
+  assert.doesNotMatch(sends[1].args.text, /ORIGINAL_PRIVATE_BODY/)
+  assert.equal(accounts.seatSlot(f.bot.id), '2nd')
+  assert.deepEqual(accounts.limitFor('claude', '1st', 'fable').map(x => [x.scope, x.resetAt]), [['all', null]])
+  assert.deepEqual(f.transport.seatAccount(f.bot.id), { harness: 'claude', slot: '2nd', preferredSlot: '1st' })
 })

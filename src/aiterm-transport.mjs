@@ -93,7 +93,7 @@ const SCREEN_KEYS = new Set(['Enter', 'Escape', 'Tab', 'Up', 'Down', 'Left', 'Ri
 const screenFailure = (code, status) => Object.assign(new Error(code), { code, status, effect: 'not_started' })
 
 export class AitermTransport {
-  constructor({ resolveBot = null, backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, assertInputAllowed = () => {}, activeId = randomUUID, activityPath = null, captureRuntime = captureSelectedRuntime, runtimeLaunchesPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {} } = {}) {
+  constructor({ resolveBot = null, backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, assertInputAllowed = () => {}, activeId = randomUUID, activityPath = null, captureRuntime = captureSelectedRuntime, runtimeLaunchesPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {}, accounts = null } = {}) {
     this.backgroundSummary = backgroundSummary
     this.summaryJobs = new Set()
     this.latestSummaryInputs = new Map()
@@ -127,6 +127,13 @@ export class AitermTransport {
     this.now = now
     this.retainedImages = new Map()
     this.activity = new SeatActivity()
+    // Claude 1st/2nd accounts (harness-accounts.md). Null keeps every launch on the default root.
+    this.accounts = accounts
+    this.accountMoves = new Map()
+    this.accountsUnsubscribe = accounts?.watch(() => {
+      this.activity.emitChange({ all: false, topics: ['accounts'], botIds: [], roomIds: [] })
+      void this.reviewAccounts()
+    }) ?? null
     this.workState = new CurrentWork({ now, activityPath, reportActivity: () => this.reportError({ code: 'RESTART_ACTIVITY_UNAVAILABLE', module: 'execution' }), notify: id => this.activity.emit({ bot: { id } }) })
     this.restarts = new Map()
     this.sessionState = new BotSessionState({
@@ -284,10 +291,11 @@ export class AitermTransport {
     const launchOptions = this.client.launchOptions
       ? await this.client.launchOptions(bot.project, runtime) : { env: await loadBotEnvironment(bot.project) }
     let launch
+    const account = harness === 'claude-code' && this.accounts && !execution ? await this.accounts.selection('claude', bot.model) : null
     try {
       this.requireStopVersion(bot.id, version)
       admissionCheck?.()
-      launch = await this.changeSession(bot, 'agent_launch', {
+      const launchArgs = {
         harness,
         cwd: bot.project,
         session_name: execution?.reservation.target.session_id ?? bot.id,
@@ -296,7 +304,15 @@ export class AitermTransport {
         ...(bot.reasoningEffort ? { reasoning_effort: bot.reasoningEffort } : {}),
         // 既定はファストモードを使わない（オーナー裁定 2026-10-12）。共有の設定に残った値で起きないよう、必ず真偽で渡す。
         fast: bot.fastMode === true,
-      }, { ...launchOptions, ...(execution ? { execution } : {}) })
+      }
+      const issue = args => this.changeSession(bot, 'agent_launch', args, { ...launchOptions, ...(execution ? { execution } : {}) })
+      // An Aiterm without account roots (before 0.64.0) runs every seat on the default (1st) root.
+      launch = account ? await issue({ ...launchArgs, configuration_root: account.configurationRoot }).catch(error => {
+        if (error?.code !== 'ACCOUNT_CAPABILITY_UNAVAILABLE') throw error
+        account.slot = '1st'
+        return issue(launchArgs)
+      }) : await issue(launchArgs)
+      if (account) void this.accounts.setSeat(bot.id, account.slot).catch(() => {})
     } catch (error) {
       // 起動の準備が終わらなかった席は、Aitermの端末だけが残る（認証が切れたCLIがサインインの画面で止まった時など。2026-10-05、Codex）。
       // 残すと席が「動いている」扱いになり、次の送信から起こし直せず、入力も受け付けない。BellTeamの席には、その画面へ答える人が居ない。
@@ -963,10 +979,14 @@ export class AitermTransport {
     }
     result.accepted = accepted
     result.admissionCompletion = admissionCompletion
-    job.completion.then(() => this.continuation?.succeeded(bot.id, info.groupId ?? job.id), error => {
+    job.completion.then(() => {
+      this.continuation?.succeeded(bot.id, info.groupId ?? job.id)
+      this.accountTurnDone(bot)
+    }, error => {
+      const accountLimit = this.recordAccountLimit(bot, error)
       if (!error?.recoveryFailure || job.stopped || job.stopRequested
         || job.conversationGeneration && job.conversationGeneration !== this.conversationAdmission?.capture().generation) return
-      this.continuation?.failed({ bot, deliveryId: info.groupId ?? job.id, failure: error.recoveryFailure,
+      this.continuation?.failed({ bot, deliveryId: info.groupId ?? job.id, failure: error.recoveryFailure, accountLimit,
         reconfigured: () => { this.requireStopVersion(bot.id, recoveryVersion); recoverySession = this.session(bot) },
         check: allowedMessage => {
           if (conversationDelivery) {
@@ -1422,9 +1442,11 @@ export class AitermTransport {
       if (result.outcome === 'done') { this.workState.completedTurn(result); return result }
       if (result.outcome === 'timeout' || result.outcome === 'running') continue
       // error: harnessの記録でturnがAPIエラー等で打ち切られた（Aiterm 0.31.0）。本文を残して配送失敗にする。
-      if (result.outcome === 'error') throw Object.assign(new Error(`AITERM_TURN_ERROR: ${result.error ?? 'unknown'}`), { waitOutcome: result.outcome, turnCompleted: true, ...(recoveryFailure ? { recoveryFailure } : {}) })
+      // failureCategory/limitText: the seat's own limit line for the account registry (harness-accounts.md).
+      const limit = { failureCategory: result.failure?.category ?? null, limitText: result.rate_limit ?? result.error ?? null }
+      if (result.outcome === 'error') throw Object.assign(new Error(`AITERM_TURN_ERROR: ${result.error ?? 'unknown'}`), { waitOutcome: result.outcome, turnCompleted: true, ...limit, ...(recoveryFailure ? { recoveryFailure } : {}) })
       // rate_limited: harnessの利用上限。Aitermが画面や記録から拾った上限の知らせを理由に残す。
-      if (result.outcome === 'rate_limited' && result.rate_limit) throw Object.assign(new Error(`AITERM_TURN_RATE_LIMITED: ${result.rate_limit}`), { waitOutcome: result.outcome, turnCompleted: true, ...(recoveryFailure ? { recoveryFailure } : {}) })
+      if (result.outcome === 'rate_limited' && result.rate_limit) throw Object.assign(new Error(`AITERM_TURN_RATE_LIMITED: ${result.rate_limit}`), { waitOutcome: result.outcome, turnCompleted: true, ...limit, ...(recoveryFailure ? { recoveryFailure } : {}) })
       throw Object.assign(new Error(`AITERM_TURN_${String(result.outcome).toUpperCase()}`), { waitOutcome: result.outcome })
     }
     throw new Error('AITERM_WAIT_STOPPED')
@@ -1440,7 +1462,77 @@ export class AitermTransport {
     await this.removeTemporaryImages(images)
   }
 
+  claudeAccountBot(bot) { return Boolean(this.accounts && bot && HARNESS.get(bot.harness) === 'claude-code') }
+
+  // A seat's own limit signal -> registry entry for the slot it runs on. Returns {slot, recorded} or null.
+  recordAccountLimit(bot, error) {
+    if (!this.claudeAccountBot(bot) || !(error?.waitOutcome === 'rate_limited' || error?.failureCategory === 'rate_limited'
+      || error?.recoveryFailure?.category === 'rate_limited')) return null
+    const slot = this.accounts.seatSlot(bot.id) ?? '1st'
+    const recorded = this.accounts.recordLimit({ harness: 'claude', slot, model: bot.model, text: error.limitText ?? error.message })
+    recorded.catch(() => {})
+    return { slot, recorded }
+  }
+
+  accountTurnDone(bot) {
+    if (!this.claudeAccountBot(bot)) return
+    void this.accounts.turnSucceeded('claude', this.accounts.seatSlot(bot.id) ?? '1st', bot.model).catch(() => {})
+  }
+
+  seatAccount(botId) {
+    const bot = this.resolveBot?.(botId), slot = this.claudeAccountBot(bot) ? this.accounts.seatSlot(botId) : null
+    return slot ? { harness: 'claude', slot, preferredSlot: this.accounts.preferredSlot('claude', bot.model) } : null
+  }
+
+  // Keep the conversation: hibernate (Aiterm E4) and resume on the selected root (E2). Ordered with setting changes.
+  switchAccount(bot, { admissionCheck } = {}) {
+    const run = () => this.memberOperation(bot, async membersLease => {
+      const version = this.captureStopVersion(bot)
+      admissionCheck?.()
+      await this.changeSession(bot, 'pty_close', { session_id: this.session(bot), hibernate: true })
+      await this.removeRetainedImages(bot.id)
+      this.requireStopVersion(bot.id, version)
+      admissionCheck?.()
+      return this.wake(bot, { membersLease, ...(admissionCheck ? { admissionCheck } : {}) })
+    })
+    const previous = this.activity.configurationChanges.get(bot.id) ?? Promise.resolve()
+    return this.activity.configurationChanges.track(bot.id, previous.then(run, run))
+  }
+
+  // After a registry change: seats whose effective slot differs move at their next idle boundary. A running turn is never stopped.
+  async reviewAccounts() {
+    if (!this.accounts) return
+    for (const [botId, slot] of Object.entries(this.accounts.state.seats)) {
+      const bot = this.resolveBot?.(botId)
+      if (!this.claudeAccountBot(bot) || !this.sessions.has(botId) || this.accountMoves.has(botId)) continue
+      if (slot !== await this.accounts.effectiveSlot('claude', bot.model)) this.moveAtBoundary(botId)
+    }
+  }
+
+  moveAtBoundary(botId) {
+    const pending = (async () => {
+      for (;;) {
+        await Promise.all(this.activity.of(botId).map(turn => (turn.nativeCompletion ?? turn.completion)?.catch(() => {})))
+        await this.activity.configurationChanges.get(botId)?.catch(() => {})
+        const bot = this.resolveBot?.(botId)
+        if (!this.claudeAccountBot(bot) || !this.sessions.has(botId)
+          || this.accounts.seatSlot(botId) === await this.accounts.effectiveSlot('claude', bot.model)) return
+        if (!this.isIdle(botId)) continue
+        try { return await this.switchAccount(bot) }
+        catch (error) {
+          // AGENT_BUSY: a turn the parent does not follow is still running; try again after it, never stop it.
+          if (!/AGENT_BUSY/u.test(`${error?.code ?? ''} ${error?.message ?? ''}`)) throw error
+          await new Promise(resolve => setTimeout(resolve, 30_000))
+        }
+      }
+    })().catch(error => process.stderr.write(`BellTeam accounts: seat move unconfirmed: ${botId} ${error?.code ?? 'UNKNOWN'}\n`))
+      .finally(() => this.accountMoves.delete(botId))
+    this.accountMoves.set(botId, pending)
+  }
+
   async close() {
+    this.accountsUnsubscribe?.()
+    this.accounts?.close()
     const recovery = this.continuation?.close()
     for (const job of this.summaryJobs) this.backgroundSummary?.invalidate(job.bot.id, job.id)
     this.summaryJobs.clear()
