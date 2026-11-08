@@ -120,10 +120,9 @@ public sealed class PhaseTwoTests
         })));
         await workspace.ConnectAsync("http://localhost", listen: false);
         await workspace.SelectAsync(workspace.Entries.Single(item => !item.Target.IsRoom));
-        var read = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        workspace.PropertyChanged += (_, change) => { if (change.PropertyName == nameof(Workspace.ScreenStatus) && workspace.ScreenStatus == "停止中") read.TrySetResult(); };
         var run = workspace.OpenScreenAsync();
-        await read.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await workspace.ScreenFirstRead.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("停止中", workspace.ScreenStatus);
         Assert.Equal("次のメッセージで起動します", workspace.Screen);
         workspace.ReturnToProfile(); await run;
         Assert.False(workspace.ScreenVisible); Assert.Equal(1, requests);

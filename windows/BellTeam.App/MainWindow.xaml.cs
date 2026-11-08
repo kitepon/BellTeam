@@ -139,8 +139,6 @@ public partial class MainWindow : Window, IInspectorHost
         }
         else if (e.DataObject.GetData(DataFormats.FileDrop) is string[] paths) { e.CancelCommand(); await model.AttachFilesAsync(paths); }
     }
-    private async void Screen_Click(object sender, RoutedEventArgs e) => await model.OpenScreenAsync();
-    private void Profile_Click(object sender, RoutedEventArgs e) => model.ReturnToProfile();
     private void Edit_Click(object sender, RoutedEventArgs e)
     {
         if (model.Selected is not { } entry) return;
