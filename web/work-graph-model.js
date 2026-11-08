@@ -55,7 +55,7 @@ export function wrapLabel(text, width, measure) {
   }
   return lines
 }
-export const edgeText = (edge, names) => `${names.get(edge.from) ?? edge.from}から${names.get(edge.to) ?? edge.to}へ依頼: ${edge.label}`
+export const edgeText = (edge, names) => `${names.get(edge.from) ?? edge.from}から${names.get(edge.to) ?? edge.to}へ依頼${edge.label ? `: ${edge.label}` : ''}`
 
 const validNode = node => node && typeof node.botId === 'string' && typeof node.name === 'string' && ['working', 'linked'].includes(node.state)
 const validEdge = edge => edge && typeof edge.id === 'string' && typeof edge.from === 'string' && typeof edge.to === 'string'
