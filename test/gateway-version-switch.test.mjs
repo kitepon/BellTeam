@@ -12,10 +12,10 @@ const ids = { one: 'a'.repeat(64), two: 'b'.repeat(64), broken: 'c'.repeat(64), 
 
 const appRoot = fileURLToPath(new URL('../', import.meta.url))
 
-async function fixture(t) {
+async function fixture(t, handler = (_request, response) => response.end('{"authenticated":true}')) {
   const root = await mkdtemp(join(tmpdir(), 'gateway-switch-'))
   const socketPath = join(root, 'business.sock')
-  const backend = createServer((_request, response) => response.end('{"authenticated":true}'))
+  const backend = createServer(handler)
   backend.listen(socketPath); await once(backend, 'listening')
   t.after(async () => { await new Promise(resolve => backend.close(resolve)); await rm(root, { recursive: true, force: true }) })
   const releases = new Map()
@@ -184,4 +184,26 @@ test('automatic recovery restarts the same gateway version and port', async t =>
   assert.ok(gateway.pid)
   assert.equal(gateway.address.port, address.port)
   assert.equal((await fetch(`http://127.0.0.1:${address.port}/`)).status, 200)
+})
+
+test('a request still running in the old gateway cannot veto the exchange: the drain times out and the new version starts', { timeout: 20000 }, async t => {
+  const held = new Set()
+  const { socketPath, releases } = await fixture(t, (request, response) => {
+    if (request.url === '/api/slow') { held.add(response); return }
+    response.end('{"authenticated":true}')
+  })
+  t.after(() => { for (const response of held) response.destroy() })
+  const gateway = createHttpGatewayProcess({ socketPath, port: 0, appRoot: releases.get(ids.one).appRoot, prepareRelease: async id => releases.get(id) })
+  t.after(() => gateway.close())
+  await gateway.start()
+  const base = `http://127.0.0.1:${gateway.address.port}`, oldPid = gateway.pid
+  const inflight = fetch(base + '/api/slow').then(() => 'answered', () => 'reset')
+  while (held.size === 0) await new Promise(resolve => setTimeout(resolve, 10))
+  const started = Date.now()
+  assert.deepEqual(await gateway.replace(ids.two), { versionId: ids.two, address: gateway.address })
+  assert.ok(Date.now() - started >= 4500, 'the old gateway got its bounded drain first')
+  assert.notEqual(gateway.pid, oldPid)
+  assert.equal(gateway.versionId, ids.two)
+  assert.match(await (await fetch(base)).text(), /<h1>two<\/h1>/)
+  assert.equal(await inflight, 'reset')
 })

@@ -138,6 +138,7 @@ Rule: signature/hash verification stays; a stop, refusal or wait stays only with
 | Removed (file) | Was | Now |
 | --- | --- | --- |
 | module-process `replace` drain/quiesce/export failure | old module timed out or refused, was resumed, and the job failed | old child is stopped like a crash (exit, then SIGKILL after 5 s); the candidate launches with no handoff and restores from durable state, the same path as after an unexpected exit |
+| http-gateway-process `replace` drain failure or 5 s timeout (2026-11-09) | old gateway was SIGKILLed, then the replace rolled back to it and the job failed (UPDATE_MODULE_FAILED); in production the old gateway kept taking new keep-alive requests during the drain | the drain error is ignored: `stop()` always waits for the old child to end, then the new version starts. A new-version start failure still restarts the previous version |
 | module-process / execution-generation `replace` and `reserve` when unavailable or never started | NOT_ACCEPTING: a broken version could never be updated | replaceable; a missing or dead old instance is skipped. On success the module is initialized |
 | module-process / execution-generation `exclusive` and `reserve` while recovery or another operation runs | UPDATE_IN_PROGRESS 409 | turns queue; the reservation itself (two exchanges at once) still refuses and exits when its completion settles |
 | update-module-executor `checkCurrent`, apply re-check, plan | refused when the adapter was unavailable | only a changed current/generation refuses (wrong target) |

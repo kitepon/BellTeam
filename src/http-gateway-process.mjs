@@ -183,7 +183,8 @@ export function createHttpGatewayProcess({ socketPath, port, appRoot, prepareRel
         return { versionId: currentVersion, address }
       }
       try {
-        await stop()
+        // The old gateway cannot veto its replacement (Owner 2026-11-08): stop() always ends it (SIGKILL after the 5 s drain).
+        await stop().catch(() => {})
         update.signal.throwIfAborted()
         await startAt(release.appRoot, release.versionId)
         update.signal.throwIfAborted()
