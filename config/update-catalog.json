@@ -1,12 +1,12 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T15:01:27Z",
-  "expiresAt": "2026-11-15T15:01:27Z",
+  "publishedAt": "2026-11-08T21:12:21Z",
+  "expiresAt": "2026-11-15T21:12:21Z",
   "releases": [
     {
       "componentId": "usage",
-      "sourceCommit": "be9c089d6f2f19611c5af56844cb035c5cdfa8ee",
-      "versionId": "a16aa527d481ffe8d334245b65374155ae1f9263c6d4bd9e3375514d05988bd2",
+      "sourceCommit": "30b509d8ef7b41df56733e01948ae58c828460dc",
+      "versionId": "05477d516d56dd02c9b4f840501988384c00eb14bf2316af1a08a5704e6b03d9",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -14,16 +14,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T132523Z/usage-be9c089d6f2f19611c5af56844cb035c5cdfa8ee-linux-amd64.tar.gz",
-          "bytes": 66922,
-          "sha256": "a16aa527d481ffe8d334245b65374155ae1f9263c6d4bd9e3375514d05988bd2"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T211157Z/usage-30b509d8ef7b41df56733e01948ae58c828460dc-linux-amd64.tar.gz",
+          "bytes": 67399,
+          "sha256": "05477d516d56dd02c9b4f840501988384c00eb14bf2316af1a08a5704e6b03d9"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T132523Z/usage-be9c089d6f2f19611c5af56844cb035c5cdfa8ee-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10917,
-          "sha256": "1f224f971c437c8f0aab01129a5b8c7448a1728f81da874eeca266bc2ecbefa4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T211157Z/usage-30b509d8ef7b41df56733e01948ae58c828460dc-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10905,
+          "sha256": "7430bc77bfbf15cc6bafa5630f23d8197f91e1c0d558c38b72e44a19b48da47f"
         },
-        "signerCommit": "be9c089d6f2f19611c5af56844cb035c5cdfa8ee"
+        "signerCommit": "30b509d8ef7b41df56733e01948ae58c828460dc"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -47,13 +47,13 @@
         }
       },
       "changes": [
-        "AIの認証で、アカウントの登録を始められなかった時に、理由が分かる表示を返すようにします。"
+        "Claudeの再ログイン中も、保存済みのログイン情報が使える間は、アカウント名を残したまま「認証中」と表示します。"
       ]
     },
     {
       "componentId": "usage",
-      "sourceCommit": "be9c089d6f2f19611c5af56844cb035c5cdfa8ee",
-      "versionId": "0d40eb232c070d6c68732e66982bc9b369e2aa3d7db889cf2572b173b2d69cef",
+      "sourceCommit": "30b509d8ef7b41df56733e01948ae58c828460dc",
+      "versionId": "3185285a205e8a9a5e7fc4139ccb848237997ffd91c5bdbaedcbf8a36a9a32b8",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -61,16 +61,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T132523Z/usage-be9c089d6f2f19611c5af56844cb035c5cdfa8ee-linux-arm64.tar.gz",
-          "bytes": 66922,
-          "sha256": "0d40eb232c070d6c68732e66982bc9b369e2aa3d7db889cf2572b173b2d69cef"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T211157Z/usage-30b509d8ef7b41df56733e01948ae58c828460dc-linux-arm64.tar.gz",
+          "bytes": 67399,
+          "sha256": "3185285a205e8a9a5e7fc4139ccb848237997ffd91c5bdbaedcbf8a36a9a32b8"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T132523Z/usage-be9c089d6f2f19611c5af56844cb035c5cdfa8ee-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11011,
-          "sha256": "b50ecb65d22822454695572be60e2e199ad90f20d6e8a8e7f66ee4ed7cc94923"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T211157Z/usage-30b509d8ef7b41df56733e01948ae58c828460dc-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10862,
+          "sha256": "68bd23e2afd7c6b1f04c83d7fa30e0af7bb8d4a7aee9fe22b5dc56bd36ab2525"
         },
-        "signerCommit": "be9c089d6f2f19611c5af56844cb035c5cdfa8ee"
+        "signerCommit": "30b509d8ef7b41df56733e01948ae58c828460dc"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -94,7 +94,7 @@
         }
       },
       "changes": [
-        "AIの認証で、アカウントの登録を始められなかった時に、理由が分かる表示を返すようにします。"
+        "Claudeの再ログイン中も、保存済みのログイン情報が使える間は、アカウント名を残したまま「認証中」と表示します。"
       ]
     },
     {
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "39b752aeb75b22d5c65be07a42366ffe660006f3",
-      "versionId": "sha256:03dba5a81290865a9fef90a8df81b58a4c1508433b4a6d8d4bd69de5230b3063",
+      "sourceCommit": "481e8d18825679a119f39e81ee7789a55e616960",
+      "versionId": "sha256:a887931714369d2e7b6d28026c08e05f0bf6edbbc1b69ae1508e446451ac525d",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:03dba5a81290865a9fef90a8df81b58a4c1508433b4a6d8d4bd69de5230b3063"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a887931714369d2e7b6d28026c08e05f0bf6edbbc1b69ae1508e446451ac525d"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,23 +722,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "AIの認証で、2つ目のClaudeアカウントを開くとエラーになる問題を直します。",
-        "アカウントの保存場所を用意できなかった時は、記号ではなく日本語の説明が表示されます。",
-        "相関図の線には、依頼の要約が届くまで「依頼を処理中」と表示されます。",
-        "一時的に使えなくなった時の記録に、どの処理で起きたかが残るようにします。"
+        "相関図の線に、各AIへの依頼の要約が表示されるようになります。",
+        "要約が届くまでは、これまでどおり「依頼を処理中」と表示されます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "39b752aeb75b22d5c65be07a42366ffe660006f3",
-      "versionId": "sha256:03dba5a81290865a9fef90a8df81b58a4c1508433b4a6d8d4bd69de5230b3063",
+      "sourceCommit": "481e8d18825679a119f39e81ee7789a55e616960",
+      "versionId": "sha256:a887931714369d2e7b6d28026c08e05f0bf6edbbc1b69ae1508e446451ac525d",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:03dba5a81290865a9fef90a8df81b58a4c1508433b4a6d8d4bd69de5230b3063"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a887931714369d2e7b6d28026c08e05f0bf6edbbc1b69ae1508e446451ac525d"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -747,10 +745,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "AIの認証で、2つ目のClaudeアカウントを開くとエラーになる問題を直します。",
-        "アカウントの保存場所を用意できなかった時は、記号ではなく日本語の説明が表示されます。",
-        "相関図の線には、依頼の要約が届くまで「依頼を処理中」と表示されます。",
-        "一時的に使えなくなった時の記録に、どの処理で起きたかが残るようにします。"
+        "相関図の線に、各AIへの依頼の要約が表示されるようになります。",
+        "要約が届くまでは、これまでどおり「依頼を処理中」と表示されます。"
       ]
     }
   ],
