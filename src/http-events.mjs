@@ -37,7 +37,9 @@ export function createMessageEvents({ store, secretRequests, ownerQuestions, roo
         || !Array.isArray(change.botIds) || !Array.isArray(change.roomIds)) changes.all = true
       else {
         changes.all ||= change.all
-        for (const topic of change.topics) {
+        for (const raw of change.topics) {
+          // The account registry change is shown on the settings card; clients know only 'settings'.
+          const topic = raw === 'accounts' ? 'settings' : raw
           if (!knownTopics.has(topic)) changes.all = true
           else changes.topics.add(topic)
         }
