@@ -39,7 +39,7 @@ async function fixture(t, { failures = 1, onAuth = () => {}, changeFailure = x =
       return { structuredContent: receipt }
     }
     if (name === 'pty_close') { if (closeUnknown) throw Error('lost close result'); return { structuredContent: { session_id: args.session_id } } }
-    if (name === 'agent_launch') return { structuredContent: { schema: 'aiterm.agent-launch-result.v1', session_id: bot.id, startup: { status: 'ready' }, initial_prompt: { status: 'not_requested' } } }
+    if (name === 'agent_launch') return { structuredContent: { schema: 'aiterm.agent-launch-result.v1', session_id: args.session_name ?? bot.id, startup: { status: 'ready' }, initial_prompt: { status: 'not_requested' } } }
     if (name === 'pty_read') return { structuredContent: { schema: 'aiterm.pty-read-result.v1', mode: 'agent_transcript', text: '', turn_id: `turn-${sends}` } }
     if (name === 'pty_observe') return { structuredContent: { words: [], event_cursor: sends } }
     throw Error(`unexpected ${name}`)
@@ -120,7 +120,7 @@ test('unbound, nonterminal, legacy and mismatched input failures never authorize
   assert.equal(recovery.pending.size, 0)
 })
 
-test('a limit on the 1st account resumes the same conversation on the 2nd before any harness switch', async t => {
+test('a limit on the 1st account starts a new seat on the 2nd (old seat left) before any harness switch', async t => {
   const home = await mkdtemp(join(tmpdir(), 'capacity-accounts-')); t.after(() => rm(home, { recursive: true, force: true }))
   await mkdir(join(home, '.claude/projects'), { recursive: true })
   const accounts = new HarnessAccounts({ home, statePath: join(home, 'accounts.json'), readUsage: async () => [], log: () => {} })
@@ -129,11 +129,11 @@ test('a limit on the 1st account resumes the same conversation on the 2nd before
   await writeFile(join(home, '.bellteam-accounts/claude/2nd/.credentials.json'), '{}')
   const f = await fixture(t, { accounts }); await f.start(); await f.settle()
   const launches = f.calls.filter(x => x.name === 'agent_launch')
-  // The fixture's seat is already running on the default (1st) root; only the move launches.
+  // The fixture's seat is already running on the default (1st) root; only the new seat launches, under a new name.
   assert.deepEqual(launches.map(x => x.args.configuration_root), [join(home, '.bellteam-accounts/claude/2nd')])
-  const close = f.calls.find(x => x.name === 'pty_close')
-  assert.equal(close.args.hibernate, true)
-  assert.ok(f.calls.indexOf(close) < f.calls.indexOf(launches[0]))
+  assert.match(launches[0].args.session_name, /^bot-synthetic-2nd-[0-9a-z]+$/u)
+  assert.equal(f.calls.some(x => x.name === 'pty_close'), false, 'the old seat is left as it is')
+  assert.equal(f.bots.get(f.bot.id).session, launches[0].args.session_name)
   assert.equal(f.bots.get(f.bot.id).harness, 'claude', 'same harness and model: only the account changed')
   const sends = f.calls.filter(x => x.name === 'pty_send')
   assert.equal(sends.length, 2)
@@ -163,28 +163,4 @@ test('an account limit without the terminal-failure proof still resumes on the 2
   assert.match(sends[1].args.text, /2ndアカウント/)
   assert.equal(f.bots.get(f.bot.id).harness, 'claude')
   assert.equal(accounts.seatSlot(f.bot.id), '2nd')
-})
-
-// Production 2026-11-09 07:56 JST: Aiterm refused the hibernate (background work) once and the switch was dropped.
-test('the account continuation asks again while Aiterm answers AGENT_BUSY, then resumes on the 2nd and continues', async t => {
-  const home = await mkdtemp(join(tmpdir(), 'capacity-accounts-busy-')); t.after(() => rm(home, { recursive: true, force: true }))
-  await mkdir(join(home, '.claude/projects'), { recursive: true })
-  const accounts = new HarnessAccounts({ home, statePath: join(home, 'accounts.json'), readUsage: async () => [], log: () => {} })
-  t.after(() => accounts.close())
-  await accounts.prepare('claude', '2nd')
-  await writeFile(join(home, '.bellteam-accounts/claude/2nd/.credentials.json'), '{}')
-  let busy = 2
-  const f = await fixture(t, { accounts })
-  f.recovery.busyRetryMs = 1
-  const call = f.transport.client.call.bind(f.transport.client)
-  f.transport.client.call = async (name, args, options) => {
-    if (name === 'pty_close' && args.hibernate && busy-- > 0) throw Object.assign(new Error('AGENT_BUSY: background_work_or_unknown'), { code: 'AGENT_BUSY' })
-    return call(name, args, options)
-  }
-  f.transport.moveAtBoundary = () => {}
-  await f.start(); await f.settle()
-  assert.equal(busy, -1, 'asked three times')
-  assert.deepEqual(f.calls.filter(x => x.name === 'agent_launch').map(x => x.args.configuration_root), [join(home, '.bellteam-accounts/claude/2nd')])
-  const sends = f.calls.filter(x => x.name === 'pty_send')
-  assert.equal(sends.length, 2); assert.match(sends[1].args.text, /2ndアカウント/)
 })

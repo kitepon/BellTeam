@@ -278,8 +278,8 @@ export class AitermTransport {
     }, options))
   }
 
-  async wakeNow(bot, { setupTest = false, execution = null, membersLease, admissionCheck } = {}) {
-    if (!membersLease) return this.memberOperation(bot, lease => this.wakeNow(bot, { setupTest, execution, membersLease: lease, admissionCheck }))
+  async wakeNow(bot, { setupTest = false, execution = null, membersLease, admissionCheck, sessionName = null } = {}) {
+    if (!membersLease) return this.memberOperation(bot, lease => this.wakeNow(bot, { setupTest, execution, membersLease: lease, admissionCheck, sessionName }))
     this.membersAdmission.assertLease(membersLease)
     const version = this.captureStopVersion(bot)
     if (this.executionBridge && !execution) await this.awaitUnboundAdmission(bot, version)
@@ -304,7 +304,9 @@ export class AitermTransport {
       const launchArgs = {
         harness,
         cwd: bot.project,
-        session_name: execution?.reservation.target.session_id ?? bot.id,
+        // An account seat (harness-accounts.md) keeps its own name; any other fresh launch uses the Bot id as before.
+        session_name: execution?.reservation.target.session_id ?? sessionName
+          ?? (this.session(bot).startsWith(`${bot.id}-`) ? this.session(bot) : bot.id),
         trust_project: true,
         ...(bot.model ? { model: bot.model } : {}),
         ...(bot.reasoningEffort ? { reasoning_effort: bot.reasoningEffort } : {}),
@@ -1523,31 +1525,18 @@ export class AitermTransport {
     return slot ? { harness: 'claude', slot, preferredSlot: '1st' } : null
   }
 
-  // Keep the conversation: hibernate (Aiterm E4) and resume on the selected root (E2). Ordered with setting changes.
+  // harness-accounts.md: a new seat on the selected slot; the old seat is left as it is (Owner 2026-11-09, "1stは放置").
+  // It cannot use its limited slot anyway, and its background processes keep running until Aiterm's idle clock ends it.
   switchAccount(bot, { admissionCheck } = {}) {
     const run = () => this.memberOperation(bot, async membersLease => {
-      const version = this.captureStopVersion(bot)
       admissionCheck?.()
-      const session = this.session(bot)
-      // Resume only (E2): no model, effort, cwd or env, so the saved recipe decides them and only the root changes.
       const account = await this.accounts.selection('claude', bot.model)
-      // Already there (the limit's continuation and the registry-change move both ask): nothing to close.
-      if ((this.accounts.seatSlot(bot.id) ?? '1st') === account.slot) return { botId: bot.id, session, slot: account.slot }
-      // A seat already hibernated (idle clock) is not running: go straight to the resume on the new root, so its next
-      // delivery does not wake it from the old recipe (production 2026-11-09 07:54 JST, Centi resumed on the limited 1st).
-      try { await this.changeSession(bot, 'pty_close', { session_id: session, hibernate: true }) }
-      catch (error) { if (!/AGENT_HIBERNATE_UNAVAILABLE/u.test(`${error?.code ?? ''} ${error?.message ?? ''}`)) throw error }
-      await this.removeRetainedImages(bot.id)
-      this.requireStopVersion(bot.id, version)
-      admissionCheck?.()
-      const result = await this.changeSession(bot, 'agent_launch', { harness: 'claude-code', session_name: session,
-        require_existing_resume: true, configuration_root: account.configurationRoot })
-      this.membersAdmission.assertLease(membersLease)
-      this.requireStopVersion(bot.id, version)
-      const receipt = result?.structuredContent
-      if (receipt?.schema !== 'aiterm.agent-launch-result.v1' || receipt.session_id !== session || receipt.startup?.status !== 'ready')
-        throw Object.assign(new Error('ACCOUNT_SWITCH_UNCONFIRMED'), { code: 'ACCOUNT_SWITCH_UNCONFIRMED' })
-      this.seatHarnesses.set(bot.id, { session, harness: 'claude-code' })
+      if ((this.accounts.seatSlot(bot.id) ?? '1st') === account.slot) return { botId: bot.id, session: this.session(bot), slot: account.slot }
+      const running = await this.isRunning(bot)
+      const session = `${bot.id}-${account.slot}-${Date.now().toString(36)}`
+      // Running: launch the new seat now (wakeNow records the name after the launch). Not running: its next delivery does.
+      if (running) await this.wakeNow(bot, { membersLease, sessionName: session, ...(admissionCheck ? { admissionCheck } : {}) })
+      else { this.sessions.set(bot.id, session); await this.updateSession(bot.id, session, { membersLease }) }
       await this.accounts.setSeat(bot.id, account.slot).catch(() => {})
       return { botId: bot.id, session, slot: account.slot }
     })
@@ -1575,14 +1564,7 @@ export class AitermTransport {
         if (!this.claudeAccountBot(bot)
           || this.accounts.seatSlot(botId) === await this.accounts.effectiveSlot('claude', bot.model)) return
         if (!this.isIdle(botId)) continue
-        try { return await this.switchAccount(bot) }
-        catch (error) {
-          // No saved conversation to resume (a closed seat): nothing to move; its next fresh launch selects the slot.
-          if (/AGENT_RESUME_UNAVAILABLE/u.test(`${error?.code ?? ''} ${error?.message ?? ''}`)) return
-          // AGENT_BUSY: a turn the parent does not follow is still running; try again after it, never stop it.
-          if (!/AGENT_BUSY/u.test(`${error?.code ?? ''} ${error?.message ?? ''}`)) throw error
-          await new Promise(resolve => setTimeout(resolve, 30_000))
-        }
+        return await this.switchAccount(bot)
       }
     })().catch(error => process.stderr.write(`BellTeam accounts: seat move unconfirmed: ${botId} ${error?.code ?? 'UNKNOWN'}\n`))
       .finally(() => this.accountMoves.delete(botId))
