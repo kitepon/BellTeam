@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T00:50:39Z",
-  "expiresAt": "2026-11-15T00:50:39Z",
+  "publishedAt": "2026-11-08T00:53:40Z",
+  "expiresAt": "2026-11-15T00:53:40Z",
   "releases": [
     {
       "componentId": "usage",
@@ -181,8 +181,8 @@
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "4e6ecd550b673e5542fa70c1302605941303d6f2",
-      "versionId": "def5c2681ae29ce56776cbcffda8bc74dff887891c6f0b8bf45630061c8a6e66",
+      "sourceCommit": "f7a79354c2b14ae25bd3ea3c5239cd02736b094f",
+      "versionId": "c15146a6446fa6cf49048aeb4845b82a7adebf48183056c5509147dd029a8bc2",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -190,16 +190,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T190833Z/conversation-4e6ecd550b673e5542fa70c1302605941303d6f2-linux-amd64.tar.gz",
-          "bytes": 3897290,
-          "sha256": "def5c2681ae29ce56776cbcffda8bc74dff887891c6f0b8bf45630061c8a6e66"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T005255Z/conversation-f7a79354c2b14ae25bd3ea3c5239cd02736b094f-linux-amd64.tar.gz",
+          "bytes": 3897440,
+          "sha256": "c15146a6446fa6cf49048aeb4845b82a7adebf48183056c5509147dd029a8bc2"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T190833Z/conversation-4e6ecd550b673e5542fa70c1302605941303d6f2-linux-amd64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T005255Z/conversation-f7a79354c2b14ae25bd3ea3c5239cd02736b094f-linux-amd64.tar.gz.sigstore.json",
           "bytes": 11143,
-          "sha256": "107808b257d582382eb6c3793ad866abff518da9b69cb406db6dc363c9fde7f0"
+          "sha256": "2106984a6e55ba349bb433a5bab9b0ca9750add66f441663c454b674762fef84"
         },
-        "signerCommit": "4e6ecd550b673e5542fa70c1302605941303d6f2"
+        "signerCommit": "f7a79354c2b14ae25bd3ea3c5239cd02736b094f"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -230,13 +230,13 @@
         }
       },
       "changes": [
-        "署名済みの更新アーカイブを通常の単独更新経路で適用します。"
+        "採用済み修理をモジュール単独更新で適用します。"
       ]
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "4e6ecd550b673e5542fa70c1302605941303d6f2",
-      "versionId": "3be27723a447d686c53771e383c216ad07304e0f3909891c8b41da76c81f07a5",
+      "sourceCommit": "f7a79354c2b14ae25bd3ea3c5239cd02736b094f",
+      "versionId": "a7c2b20701a6f203d224753482e1d67f632bcd0cc5a8575e2f1cea5cf7f9f6fe",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -244,16 +244,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T190833Z/conversation-4e6ecd550b673e5542fa70c1302605941303d6f2-linux-arm64.tar.gz",
-          "bytes": 3897291,
-          "sha256": "3be27723a447d686c53771e383c216ad07304e0f3909891c8b41da76c81f07a5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T005255Z/conversation-f7a79354c2b14ae25bd3ea3c5239cd02736b094f-linux-arm64.tar.gz",
+          "bytes": 3897440,
+          "sha256": "a7c2b20701a6f203d224753482e1d67f632bcd0cc5a8575e2f1cea5cf7f9f6fe"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T190833Z/conversation-4e6ecd550b673e5542fa70c1302605941303d6f2-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11237,
-          "sha256": "bf86221d28a630a1e71ed105866b79a4cb47d465d70a547986217fa645d553a0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T005255Z/conversation-f7a79354c2b14ae25bd3ea3c5239cd02736b094f-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11092,
+          "sha256": "9d5b53c2a273328096ad45451136da1bf7fc8e8702add509d894d482678b2685"
         },
-        "signerCommit": "4e6ecd550b673e5542fa70c1302605941303d6f2"
+        "signerCommit": "f7a79354c2b14ae25bd3ea3c5239cd02736b094f"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -284,7 +284,7 @@
         }
       },
       "changes": [
-        "署名済みの更新アーカイブを通常の単独更新経路で適用します。"
+        "採用済み修理をモジュール単独更新で適用します。"
       ]
     },
     {
