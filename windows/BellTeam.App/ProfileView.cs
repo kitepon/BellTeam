@@ -260,11 +260,7 @@ public sealed class ProfileView : StackPanel
     private UIElement EditButton(Workspace workspace, ConversationEntry entry)
     {
         var edit = InspectorUi.Prominent(entry.Target.IsRoom ? "ルームを編集" : "メンバーを編集", ""); edit.HorizontalAlignment = HorizontalAlignment.Left; edit.Margin = new Thickness(0);
-        edit.Click += (_, _) =>
-        {
-            EditorWindow window = entry.Target.IsRoom ? new RoomEditor(workspace, entry.Target.Id) : new MemberEditor(workspace, entry.Target.Id); window.Owner = Host?.OwnerWindow ?? Window.GetWindow(this);
-            if (window is RoomEditor roomEditor) _ = roomEditor.InitializeAsync(); else _ = ((MemberEditor)window).InitializeAsync(); window.ShowDialog();
-        };
+        edit.Click += (_, _) => { if (entry.Target.IsRoom) Host?.EditRoom(entry.Target.Id); else Host?.EditMember(entry.Target.Id); };
         return edit;
     }
     private static UIElement Detail(string title, string value, bool spaced)

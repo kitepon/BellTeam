@@ -47,10 +47,13 @@ public partial class App : Application
             {
                 using var editorWorkspace = new Workspace(); await editorWorkspace.ConnectAsync(editorAddress, listen: false);
                 if (editorWorkspace.ConnectionError is { } connectionError) throw new BellApiException(connectionError);
+                if (editorKind == "member")
+                {
+                    var memberWindow = new MemberEditorWindow(editorWorkspace, editorId); await memberWindow.InitializeAsync(); await memberWindow.View.ReadyTask;
+                    WritePng(memberWindow, (int)memberWindow.Width, (int)memberWindow.Height, editorOutput); memberWindow.Close(); Shutdown(0); return;
+                }
                 EditorWindow editor;
-                if (editorKind is "member" or "new-member") { var member = new MemberEditor(editorWorkspace, editorKind == "new-member" ? null : editorId); editor = member; await member.InitializeAsync(); }
-                else if (editorKind is "room" or "new-room") { var room = new RoomEditor(editorWorkspace, editorKind == "new-room" ? null : editorId); editor = room; await room.InitializeAsync(); }
-                else if (editorKind is "settings" or "profile") { var settingsEditor = new SettingsWindow(editorWorkspace) { Width = 960, Height = 800 }; editor = settingsEditor; await settingsEditor.InitializeAsync(SettingsPage.Profile); }
+                if (editorKind is "settings" or "profile") { var settingsEditor = new SettingsWindow(editorWorkspace) { Width = 960, Height = 800 }; editor = settingsEditor; await settingsEditor.InitializeAsync(SettingsPage.Profile); }
                 else if (editorKind == "feature") { var feature = new FeatureEditor(editorWorkspace, editorId, "追加機能"); editor = feature; await feature.InitializeAsync(); }
                 else if (editorKind == "schedules") { var schedules = new SchedulesWindow(editorWorkspace); editor = schedules; await schedules.InitializeAsync(); }
                 else if (editorKind == "new-schedule") editor = new ScheduleEditor(editorWorkspace, null);
@@ -58,6 +61,36 @@ public partial class App : Application
                 else if (editorKind == "authentication") { var option = (await new HarnessAuthenticationApi(editorWorkspace.Management.Api).ListAsync(editorWorkspace.ConnectionToken)).Harnesses.Single(item => item.Id == editorId); var authentication = new HarnessAuthenticationWindow(editorWorkspace, option); editor = authentication; await authentication.InitializeAsync(); }
                 else throw new ArgumentException("未対応の編集画面です。");
                 await editor.ReadyTask; WritePng(editor, (int)editor.Width, (int)editor.Height, editorOutput); editor.Close(); Shutdown(0); return;
+            }
+            if (e.Args is ["--render-editors", var editorScene, var sceneAddress, var sceneId, var sceneOutput])
+            {
+                // The member and room editors in named states, read from the mock server (GET only). Delete and save states are set through render seams, never sent.
+                var model = new Workspace(); var window = new MainWindow(model, persistPlacement: false);
+                await model.ConnectAsync(sceneAddress, listen: false);
+                if (model.ConnectionError is { } connectFailure) throw new BellApiException(connectFailure);
+                if (model.Entries.FirstOrDefault(entry => entry.Target.Id == sceneId) is { } behind) await model.SelectAsync(behind);
+                if (editorScene.StartsWith("member", StringComparison.Ordinal))
+                {
+                    if (editorScene == "member-delete-pending") model.SetBotDeletionPendingForRender(sceneId);
+                    var memberWindow = window.CreateMemberWindowForRender(sceneId); await memberWindow.InitializeAsync(); await memberWindow.View.ReadyTask;
+                    if (editorScene == "member-delete-unconfirmed") memberWindow.View.ShowDeletionUnconfirmedForRender();
+                    if (editorScene == "member-delete-alert") memberWindow.View.AskDelete();
+                    if (editorScene is "member-delete-pending" or "member-delete-unconfirmed") { var memberRoot = (FrameworkElement)memberWindow.Content; memberRoot.Measure(new Size(1120, 900)); memberRoot.Arrange(new Rect(0, 0, 1120, 900)); memberRoot.UpdateLayout(); memberWindow.View.ScrollToEndForRender(); }
+                    WritePng(memberWindow, 1120, 900, sceneOutput); memberWindow.Close(); model.Dispose(); Shutdown(0); return;
+                }
+                if (editorScene is "new-member") window.ShowMemberSheet();
+                else if (editorScene is "new-room") window.ShowRoomSheet(null);
+                else if (editorScene is "room" or "room-delete-alert") window.ShowRoomSheet(sceneId);
+                else if (editorScene == "crop") { window.ShowCropForRender(SplitSwatch(), AvatarVariant.Small); }
+                else throw new ArgumentException("未対応の編集画面です。");
+                await window.PageReady;
+                if (editorScene == "room-delete-alert" && window.OpenEditor is RoomEditorView roomView) roomView.AskDelete();
+                if (window.OpenEditor is MemberEditorView created) await created.ImagesReady;
+                var sceneRoot = (FrameworkElement)window.Content;
+                sceneRoot.Measure(new Size(1280, 820)); sceneRoot.Arrange(new Rect(0, 0, 1280, 820)); sceneRoot.UpdateLayout();
+                await window.PrepareRenderAsync();
+                WritePng(window, 1280, 820, sceneOutput);
+                model.Dispose(); Shutdown(0); return;
             }
             if (e.Args is ["--render-page", var pageKind, var pageAddress, var pageOutput])
             {
@@ -100,7 +133,7 @@ public partial class App : Application
                 if (inspectorScene.StartsWith("pending", StringComparison.Ordinal))
                 {
                     var swatch = Swatch(0xE8, 0x6B, 0x94);
-                    model.ImageSession(inspectorId).Keep(AvatarVariant.Large, new AvatarSelection(AvatarCropWindow.Encode(swatch, new AvatarCrop(swatch.PixelWidth, swatch.PixelHeight, 1024)), "data:image/jpeg;base64,/9j/", new AvatarCropRect(0, 0, 1, 1)), BotProfileText.Unconfirmed(new BellApiException("接続が切れました。")));
+                    model.ImageSession(inspectorId).Keep(AvatarVariant.Large, new AvatarSelection(AvatarCropView.Encode(swatch, new AvatarCrop(swatch.PixelWidth, swatch.PixelHeight, 1024)), "data:image/jpeg;base64,/9j/", new AvatarCropRect(0, 0, 1, 1)), BotProfileText.Unconfirmed(new BellApiException("接続が切れました。")));
                 }
                 AvatarActionsView? sheet = inspectorScene switch { "sheet-small" => window.ShowAvatarSheetForRender(AvatarVariant.Small), "sheet-large" or "sheet-unsupported" or "pending-sheet" => window.ShowAvatarSheetForRender(AvatarVariant.Large), _ => null };
                 if (inspectorScene == "sheet-unsupported" && sheet is not null) await sheet.LoadSettingsAsync();
@@ -173,7 +206,7 @@ public partial class App : Application
                 Shutdown(0);
                 return;
             }
-            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-inspector <member|member-small|room|sheet-small|sheet-large|sheet-unsupported|pending|pending-sheet> <URL> <会話ID> <PNG>、--render-screen <keys|approval|digits|sent|empty|offline|failed> <URL> <会話ID> <PNG>、--render-conversation <member|room|states|stop|stop-notice|stop-member|draft|peer-sheet|stack|empty|failed> <URL> <会話ID> <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|features|notifications|connection|display|billing|update|about|stop>|schedules|updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>、--render-editor <member|new-member|room|new-room|settings|profile|feature|schedules|new-schedule|setup|authentication> <URL> <ID> <PNG> のいずれかです。");
+            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-inspector <member|member-small|room|sheet-small|sheet-large|sheet-unsupported|pending|pending-sheet> <URL> <会話ID> <PNG>、--render-screen <keys|approval|digits|sent|empty|offline|failed> <URL> <会話ID> <PNG>、--render-conversation <member|room|states|stop|stop-notice|stop-member|draft|peer-sheet|stack|empty|failed> <URL> <会話ID> <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|features|notifications|connection|display|billing|update|about|stop>|schedules|updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>、--render-editor <member|settings|profile|feature|schedules|new-schedule|setup|authentication> <URL> <ID> <PNG>、--render-editors <new-member|new-room|room|room-delete-alert|crop|member|member-delete-alert|member-delete-pending|member-delete-unconfirmed> <URL> <ID> <PNG> のいずれかです。");
 
             MainWindow? main = null;
             instance = new SingleInstance(() => Dispatcher.Invoke(() => { main!.WindowState = main.WindowState == WindowState.Minimized ? WindowState.Normal : main.WindowState; main.Show(); main.Activate(); }));
@@ -200,6 +233,13 @@ public partial class App : Application
             else MessageBox.Show(error.Message, "BellTeam", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1);
         }
+    }
+    // Mac preview image of the crop sheet: the left half blue, the right half green.
+    private static BitmapSource SplitSwatch()
+    {
+        const int width = 400, height = 300; var pixels = new byte[width * height * 4];
+        for (var y = 0; y < height; y++) for (var x = 0; x < width; x++) { var at = (y * width + x) * 4; var left = x < width / 2; pixels[at] = (byte)(left ? 0xFF : 0x59); pixels[at + 1] = (byte)(left ? 0x84 : 0xC2); pixels[at + 2] = (byte)(left ? 0x0A : 0x34); pixels[at + 3] = 255; }
+        var bitmap = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, pixels, width * 4); bitmap.Freeze(); return bitmap;
     }
     private static BitmapSource Swatch(byte red, byte green, byte blue)
     {
