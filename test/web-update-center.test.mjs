@@ -88,6 +88,66 @@ const storedJob = (jobId, state = 'queued', moduleId = 'container') => ({
   transitions: [{ state, atNs: '1793999999999999999' }], updatedAtNs: '1793999999999999999',
 })
 
+test('component status uses exact server lines and actions while technical history stays in details', async t => {
+  const value = inventory(), base = value.components[0]
+  const old = storedJob('10000000-0000-4000-8000-000000000000', 'failed')
+  const succeeded = storedJob('20000000-0000-4000-8000-000000000000', 'ready')
+  const failed = storedJob('30000000-0000-4000-8000-000000000000', 'failed', 'notifications')
+  const latest = record => ({ jobId: record.jobId, kind: record.kind, state: record.state,
+    outcome: record.state === 'ready' ? 'succeeded' : 'failed', at: '2026-11-08T00:45:00Z', reason: record.reason })
+  value.components = [
+    { ...base, status: { line: '内蔵版です。更新はありません。11/08 09:45 JSTに更新しました。',
+      tone: 'ok', actionRequired: false, action: null, latestJob: latest(succeeded) } },
+    { ...structuredClone(base), id: 'notifications', name: '通知', status: {
+      line: '現在利用できません。11/08 09:45 JSTの更新を完了できませんでした。<img src=x>',
+      tone: 'attention', actionRequired: true, action: '通知の設定を確認してください。', latestJob: latest(failed) } },
+  ]
+  value.jobs = [old, succeeded, failed]
+  value.problems = [{ fingerprint: 'a'.repeat(64), status: 'open', kind: 'module_restart_limit', moduleId: 'notifications',
+    count: 5, windowSeconds: 1800, lastExit: { code: 1, signal: null }, lastReason: 'READY_PROBE_FAILED' }]
+  let offline = false
+  const f = fixture(t, async () => { if (offline) throw Error('UNREADABLE_PRIVATE_CODE'); return value })
+  await f.center.start()
+  const product = () => text(f.get('[data-update-product]'))
+  const rows = () => f.get('[data-update-product]').children.find(node => node.className === 'update-release-notes update-component-statuses').children
+  assert.equal(validUpdateInventory(value), true)
+  assert.equal(rows().length, 2)
+  for (const [index, component] of value.components.entries()) {
+    assert.equal(rows()[index].children[0].textContent, component.name)
+    assert.equal(rows()[index].children[1].textContent, component.status.line)
+  }
+  assert.match(rows()[1].className, /\bis-attention\b/)
+  assert.equal(rows()[1].children[2].textContent, value.components[1].status.action)
+  assert.doesNotMatch(product(), /ジョブの状態|ジョブID|状態:|failed|ready|READY_PROBE_FAILED|10000000-|20000000-|30000000-|直近の終了コード/)
+  f.select('container')
+  assert.match(text(f.get('[data-update-detail]')), new RegExp(succeeded.jobId))
+  assert.match(text(f.get('[data-update-detail]')), /最新ジョブ日時.*JST/)
+  assert.match(text(f.get('[data-update-detail]')), /状態: failed.*READY_PROBE_FAILED/)
+  f.select('notifications')
+  assert.match(text(f.get('[data-update-detail]')), new RegExp(failed.jobId))
+  assert.match(text(f.get('[data-update-detail]')), /READY_PROBE_FAILED/)
+  value.components[1].status = { line: '更新を実行しています。', tone: 'updating', actionRequired: false, action: null, latestJob: null }
+  await f.center.refresh({ type: 'updates', jobs: [old] })
+  assert.equal(rows()[1].dataset.statusTone, 'updating')
+  assert.equal(rows()[1].children.length, 2)
+  assert.ok(product().includes(value.components[1].status.line))
+  assert.doesNotMatch(product(), /通知の設定を確認|更新を完了できません|READY_PROBE_FAILED/)
+  offline = true
+  await f.center.refresh({ type: 'updates', jobs: [failed] })
+  assert.doesNotMatch(product(), /UNREADABLE_PRIVATE_CODE|READY_PROBE_FAILED|30000000-|状態: failed/)
+  assert.match(text(f.get('[data-update-notice]')), /UNREADABLE_PRIVATE_CODE/)
+  offline = false
+  for (const component of value.components) delete component.status
+  await f.center.refresh()
+  assert.match(product(), /ジョブの状態.*状態: failed.*READY_PROBE_FAILED/)
+  assert.equal(validUpdateInventory(value), true)
+  for (const status of [null, {}, { line: '確認', tone: 'invalid', actionRequired: false, action: null, latestJob: null },
+    { line: '確認', tone: 'ok', actionRequired: false, action: null, latestJob: { ...latest(succeeded), at: 'invalid' } }]) {
+    assert.equal(validUpdateInventory({ ...value, components: [{ ...base, status }] }), false)
+  }
+  assert.ok(f.calls.every(([path, options]) => path === '/api/updates?runtime=1' && !options?.method))
+})
+
 test('stored update jobs display all six exact records without a parent aggregate or fabricated legacy state', async t => {
   const value = structuredClone(updateExamples.verified_completed)
   value.operation.verification = 'pending'

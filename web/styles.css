@@ -592,6 +592,9 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .update-release-notes, .update-plan-review { margin: 28px 0 0; padding: 22px 24px; border: 1px solid #e4e8dd; border-radius: 16px; background: #fff; text-align: left; }
 .update-release-notes h4, .update-plan-review h4 { margin: 0 0 10px; font-size: 12px; color: #405438; }
 .update-release-notes p, .update-plan-review p { margin: 6px 0 0; font-size: 13px; line-height: 1.85; color: #5b6756; overflow-wrap: anywhere; }
+.update-component-summary + .update-component-summary { margin-top: 18px; padding-top: 18px; border-top: 1px solid #e4e8dd; }
+.update-component-summary.is-attention { padding-left: 12px; border-left: 3px solid #8b5c30; }
+.update-component-summary.is-attention p { color: #74451e; font-weight: 650; }
 .update-options { display: grid; gap: 10px; margin-top: 28px; }
 .update-option { min-height: 52px; padding: 14px 20px; border: 1px solid #dce3d3; border-radius: 14px; color: #34492e; background: #fff; font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
 .update-option:hover { background: #eef3e6; }
