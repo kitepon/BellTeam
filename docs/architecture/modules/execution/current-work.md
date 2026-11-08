@@ -12,8 +12,8 @@ flowchart TD
   Worker --> Reader[N102: 一件read / 要約自身の新しい短いoperation / 最大4000字と固定status1000字]
   Reader --> Runner[既seat process / tools無しCLI: claude print・codex exec --json / 実run一件]
   Runner --> Check[設定revision / 元job・停止世代 / 同session-launch再照合]
-  Runner -->|"display width over 40: one regeneration with the measured width"| Runner
-  Check --> Memory[表示幅40以内の短い句 / 10分TTL]
+  Runner -->|"display width over 80: one regeneration with the measured width"| Runner
+  Check --> Memory[表示幅80以内の短い句 / 10分TTL]
   Worker --> Drop[落とした試行: stderr一行 stage・code / 本文なし]
   Native[Existing SeatTurns / all five live observations] --> State[Parent activity / independent of summary]
   Native --> Legacy[Codex-only legacy watch and wait]
@@ -37,7 +37,7 @@ flowchart TD
 
 `createBackgroundSummaryRunner({project,models,runner})` は既createSeatProcessRunnerのbase環境/取消・group終端を再利用。専用projectは親が `shared/tools/bellteam-background-agent` に用意し、Bot席として登録しない。所有はexecutionキロ、READMEへ目的と保持する空lock fileを記す。既authを使い、CLIのtools/MCP/hooks/自動指示読取を無効にした非対話面だけを許可する。現在供給するadapterは2つで、どちらもこのrunnerが直接argvと結果parseを持つ（Aiterm adapterへの依存は無い）。Claudeはprint/safe-mode/tools空/strict-mcp-config空/settings-source空/no-session-persistence、結果は単一JSON `type=result,subtype=success,is_error=false,result:string`。Codexは `codex exec --json --ephemeral --skip-git-repo-check --ignore-user-config --ignore-rules --sandbox read-only -C <project> -m <model> [-c model_reasoning_effort="<effort>"] -c project_doc_max_bytes=0 <instruction>`、入力JSONはstdin（CLIが`<stdin>`blockとして付加）。結果はJSONLで、`turn.completed`があり`turn.failed`/`error`が無く、最後の`item.completed`の`agent_message.text`が文字列の時だけ成功。user config（MCP/hooks/profile）と規則・AGENTS読取を外し、shellはread-only sandbox。grok/cursor/antigravityはBACKGROUND_SUMMARY_HARNESS_UNSUPPORTED、無断代替0。60秒期限・64KiB出力上限、失敗後同入力の再発行0。
 
-runへ渡すのは選択済み設定と限定JSONだけ。出力はplain stringで親がtrim後、空でなく制御文字無し、表示幅40以内（East Asian Width F/W=2、他=1。全角だけなら20字）を検証し（2026-11-08 Owner裁定: 一覧の名前の下に収まる幅。本番の32〜86字は見切れていた。句の内容は「今していること」で、ID・SHA・PR番号・「〜依頼」の定型句を書かない指示）、幅を超えた出力は切り詰めず、同じ入力と測った幅（previous_width）を添えて一度だけ再生成する。再生成も超えたら`BACKGROUND_SUMMARY_TOO_WIDE`で落とす（それ以上の再試行なし）。公開DTOの上限160は変えない（既存表示の契約）。元run closureの対象・入力/設定revisionと現recordを保存直前に照合する。AIに対象や状態の本人性を選ばせない。空・不正・取消・未知はmissing、主仕事を待たせない。落とした試行（設定なし以外）は `BellTeam background summary: <botId> <stage> <code>` をstderrへ一行書く（本文・要約文は書かない）。
+runへ渡すのは選択済み設定と限定JSONだけ。出力はplain stringで親がtrim後、空でなく制御文字無し、表示幅80以内（East Asian Width F/W=2、他=1。全角だけなら40字）を検証し（2026-11-08 Owner裁定: メンバーカードの要約2行に収まる幅。14:5xに40から80へ。本番の32〜86字は見切れていた。句の内容は「今していること」で、ID・SHA・PR番号・「〜依頼」の定型句を書かない指示）、幅を超えた出力は切り詰めず、同じ入力と測った幅（previous_width）を添えて一度だけ再生成する。再生成も超えたら`BACKGROUND_SUMMARY_TOO_WIDE`で落とす（それ以上の再試行なし）。公開DTOの上限160は変えない（既存表示の契約）。元run closureの対象・入力/設定revisionと現recordを保存直前に照合する。AIに対象や状態の本人性を選ばせない。空・不正・取消・未知はmissing、主仕事を待たせない。落とした試行（設定なし以外）は `BellTeam background summary: <botId> <stage> <code>` をstderrへ一行書く（本文・要約文は書かない）。
 
 ## currentWork
 
