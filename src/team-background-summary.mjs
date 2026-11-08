@@ -36,6 +36,11 @@ export class TeamBackgroundSummary {
     this.active = null; this.draining = null; this.closed = false; this.timer = null
   }
   changed(botId) { try { this.notify(botId) } catch {} }
+  dropped(botId, stage, error = null) {
+    // No text or summary is written; this line is the only trace of an attempt that produced nothing.
+    const code = /^[A-Z][A-Z0-9_]{0,99}$/u.test(error?.code ?? '') ? error.code : error ? 'UNKNOWN' : 'none'
+    try { process.stderr.write(`BellTeam background summary: ${botId} ${stage} ${code}\n`) } catch {}
+  }
   clear(record) {
     record.summary = null; record.summaryUpdatedAt = null; record.summaryStatus = 'missing'; record.summaryMono = null
   }
@@ -109,6 +114,7 @@ export class TeamBackgroundSummary {
       this.queue.delete(botId)
       const controller = new AbortController(), active = { record, controller, revision: null }
       this.active = active
+      let stage = 'configuration'
       try {
         const fresh = configuration(await this.configuration())
         this.configure(fresh)
@@ -117,20 +123,25 @@ export class TeamBackgroundSummary {
         active.revision = fresh.revision
         if (!fresh.selection || !this.current(record) || controller.signal.aborted) continue
         const revision = fresh.revision
+        stage = 'read'
         const input = await this.readInput(record.input, record.authority)
         if (!input || !exact(input, [...fields, 'text', 'progress']) || !fields.every(key => input[key] === record.input[key])
           || typeof input.text !== 'string' || !input.text.trim() || [...input.text].length > 4000
-          || typeof input.progress !== 'string' || [...input.progress].length > 1000) continue
+          || typeof input.progress !== 'string' || [...input.progress].length > 1000) { this.dropped(botId, 'read_empty'); continue }
         if (!this.current(record) || controller.signal.aborted || this.settings.revision !== revision) continue
+        stage = 'run'
         const result = await this.run(fresh.selection, JSON.stringify({ text: input.text, progress: input.progress }), { signal: controller.signal })
+        stage = 'result'
         const summary = backgroundSummaryText(result)
+        stage = 'configuration'
         const latest = configuration(await this.configuration())
         this.configure(latest)
         if (!this.current(record) || controller.signal.aborted || !same(fresh, latest)) continue
         record.summary = summary; record.summaryStatus = 'current'; record.summaryUpdatedAt = this.now(); record.summaryMono = this.monotonic()
         this.changed(botId); this.schedule()
-      } catch {
+      } catch (error) {
         // An unknown attempt is never retried; only a new input or configuration can enqueue it.
+        if (!controller.signal.aborted && !this.closed) this.dropped(botId, stage, error)
       } finally { if (this.active === active) this.active = null }
     }
   }

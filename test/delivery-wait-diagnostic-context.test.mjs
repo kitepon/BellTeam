@@ -84,3 +84,16 @@ test('accepted fake delivery cancelled locally remains stopped with one diagnost
   assert.equal(reports.length, 1)
   assert.deepEqual([JSON.parse(reports[0].diagnostic_log).stopped, JSON.parse(reports[0].diagnostic_log).waitAborted], [true, true])
 })
+
+test('accepted delivery failing before its end names its step and a code token only', () => {
+  const job = '11111111-1111-4111-8111-111111111111', group = '22222222-2222-4222-8222-222222222222'
+  const report = executionFailureReport('bot-a', 'delivery_completion',
+    Object.assign(new Error('AITERM_TRANSCRIPT_TURN_MISMATCH private words'), { turnCompleted: true }),
+    { jobId: job, groupId: group, step: 'answer', extra: 'dropped' })
+  assert.equal(report.code, 'SERVER_TURN_TRACKING_FAILED')
+  assert.deepEqual(JSON.parse(report.diagnostic_log), { schema: 'bellteam.execution-failure.v1', botId: 'bot-a',
+    phase: 'delivery_completion', step: 'answer', jobId: job, groupId: group, errorCode: 'AITERM_TRANSCRIPT_TURN_MISMATCH' })
+  const coded = JSON.parse(executionFailureReport('bot-a', 'delivery_completion', Object.assign(new Error('x'), { code: 'CONVERSATION_NOT_ACCEPTED' }), { step: 'bogus' }).diagnostic_log)
+  assert.equal(coded.errorCode, 'CONVERSATION_NOT_ACCEPTED'); assert.equal(coded.step, 'other')
+  assert.equal(JSON.parse(executionFailureReport('bot-a', 'delivery_completion', new Error('free text')).diagnostic_log).errorCode, 'UNKNOWN')
+})

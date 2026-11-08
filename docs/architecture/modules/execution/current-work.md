@@ -5,14 +5,15 @@
 ```mermaid
 flowchart TD
   Settings[Mika: 全体revisionと選択] --> Worker[親のTeamBackgroundSummary一実体]
-  Effect[認証済親effect / 通常actorとrootMethod] --> Authority[元contextと同期assertCurrent / private参照]
+  Effect[認証済親effect / 通常actorとrootMethod] --> Authority[actor・rootMethodだけ / 同期assertCurrentは配送job側 / 元request leaseに依存しない]
   Authority --> Job[実DeliveryJob / accepted receipt session-launch / 元job ID]
   Job --> Latest[Botごと最新入力 / 旧結果失効]
   Latest --> Worker
-  Worker --> Reader[N102: 一件read / 最大4000字と固定status1000字]
+  Worker --> Reader[N102: 一件read / 要約自身の新しい短いoperation / 最大4000字と固定status1000字]
   Reader --> Runner[既seat process / tools無しCLI: claude print・codex exec --json / 実run一件]
   Runner --> Check[設定revision / 元job・停止世代 / 同session-launch再照合]
   Check --> Memory[一行160Unicode / 10分TTL]
+  Worker --> Drop[落とした試行: stderr一行 stage・code / 本文なし]
   Native[Existing SeatTurns / all five live observations] --> State[Parent activity / independent of summary]
   Native --> Legacy[Codex-only legacy watch and wait]
   Memory --> DTO[既currentWork 6key / source background_agent]
@@ -25,9 +26,9 @@ flowchart TD
 
 `new TeamBackgroundSummary({configuration,readInput,run,notify,enabled})`。configurationはfresh `Promise<{revision,selection}>`、selectionはnull又はharness/model/reasoningEffortの閉3key。effort空文字はモデル個別effortsが空の時だけCLI指定無しとして許可する。Mikaが保存前にlive catalogで検証し、runnerも発行直前に再検証する。設定の保存成功callbackは `configure(record)`、shutdownは `await close()`。同値は再生成しない。未設定やgetter失敗を別モデルへ補完しない。
 
-`readInput(input,authority)` はJSON閉7key `{botId,sessionId,launchId,inputRevision,deliveryId,context,contextId}` と、private `{context,assertCurrent}` を受ける。元contextは既認証済enriched objectを保持しclone/JSON化しない。assertCurrent(input)は同期で元lease・世代・delivery・親session/launch/inputRevision・停止世代を照合、false/throwは失効。返却はnull又は同7key＋text/progressの閉9key、本文最大4000・保存固定status最大1000 Unicode。interim/自由callback/全文履歴/画像/secret値/任意fileを渡さない。
+`readInput(input,authority)` はJSON閉7key `{botId,sessionId,launchId,inputRevision,deliveryId,context,contextId}` と、private `{context,assertCurrent}` を受ける。contextは元配送の `{actor,rootMethod}` だけを持つ凍結objectで、元requestのoperationContext/lease/admissionCheckを持たない。限定readは要約自身の新しい短いoperation（members/conversation lease）で行い、actorの既method上限と会話側の宛先・room照合はそのまま効く。assertCurrent(input)は同期で配送job・親session/launch/inputRevision・停止世代・最新入力・AI停止を照合、false/throwは失効。元requestのleaseは照合しない（2026-11-08 実測: HTTP/MCP配送は受理で応答しmembers leaseを解放するため、元leaseに結ぶと全要約が受理直後に失効し本番0件だった）。要約の寿命は配送jobの寿命（turn終端・停止・新入力で消える）だけで決まる。返却はnull又は同7key＋text/progressの閉9key、本文最大4000・保存固定status最大1000 Unicode。interim/自由callback/全文履歴/画像/secret値/任意fileを渡さない。
 
-`createConversationExecutionEffects` は既親の認証済actorがowner/bot/scheduler、rootMethodがuser.post/user.turn/direct.post/room.post/room.replyの時だけauthorityを捕捉する。usage secret/question/onboarding/observer/bridge/report/recoveryは除外。通常文中の未知の秘密を判定する新分類器は作らない。N102の専用callerが読取前後に同authorityを検査し保存済み元一件と宛先を照合する。既deliveryAnchorの本人actorを緩めない。
+`createConversationExecutionEffects` は既親の認証済actorがowner/bot/scheduler、rootMethodがuser.post/user.turn/direct.post/room.post/room.replyの時だけauthorityを捕捉する。transportは受理後、そのauthorityから `{actor,rootMethod}` だけを要約workerへ渡す。usage secret/question/onboarding/observer/bridge/report/recoveryは除外。通常文中の未知の秘密を判定する新分類器は作らない。N102の専用callerが読取前後に同authorityを検査し保存済み元一件と宛先を照合する。既deliveryAnchorの本人actorを緩めない。
 
 ## 実行と結果
 
@@ -35,7 +36,7 @@ flowchart TD
 
 `createBackgroundSummaryRunner({project,models,runner})` は既createSeatProcessRunnerのbase環境/取消・group終端を再利用。専用projectは親が `shared/tools/bellteam-background-agent` に用意し、Bot席として登録しない。所有はexecutionキロ、READMEへ目的と保持する空lock fileを記す。既authを使い、CLIのtools/MCP/hooks/自動指示読取を無効にした非対話面だけを許可する。現在供給するadapterは2つで、どちらもこのrunnerが直接argvと結果parseを持つ（Aiterm adapterへの依存は無い）。Claudeはprint/safe-mode/tools空/strict-mcp-config空/settings-source空/no-session-persistence、結果は単一JSON `type=result,subtype=success,is_error=false,result:string`。Codexは `codex exec --json --ephemeral --skip-git-repo-check --ignore-user-config --ignore-rules --sandbox read-only -C <project> -m <model> [-c model_reasoning_effort="<effort>"] -c project_doc_max_bytes=0 <instruction>`、入力JSONはstdin（CLIが`<stdin>`blockとして付加）。結果はJSONLで、`turn.completed`があり`turn.failed`/`error`が無く、最後の`item.completed`の`agent_message.text`が文字列の時だけ成功。user config（MCP/hooks/profile）と規則・AGENTS読取を外し、shellはread-only sandbox。grok/cursor/antigravityはBACKGROUND_SUMMARY_HARNESS_UNSUPPORTED、無断代替0。60秒期限・64KiB出力上限、失敗後同入力の再発行0。
 
-runへ渡すのは選択済み設定と限定JSONだけ。出力はplain stringで親がtrim後1〜160Unicode/制御文字無しを検証し、元run closureの対象・入力/設定revisionと現recordを保存直前に照合する。AIに対象や状態の本人性を選ばせない。空・不正・取消・未知はmissing、主仕事を待たせない。
+runへ渡すのは選択済み設定と限定JSONだけ。出力はplain stringで親がtrim後1〜160Unicode/制御文字無しを検証し、元run closureの対象・入力/設定revisionと現recordを保存直前に照合する。AIに対象や状態の本人性を選ばせない。空・不正・取消・未知はmissing、主仕事を待たせない。落とした試行（設定なし以外）は `BellTeam background summary: <botId> <stage> <code>` をstderrへ一行書く（本文・要約文は書かない）。
 
 ## currentWork
 

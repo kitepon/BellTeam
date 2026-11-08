@@ -275,39 +275,7 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
     }
     state('closed')
   })()
-  const withInstallReconciliationProof = callback => {
-    if (typeof callback !== 'function') return Promise.reject(fail('REQUEST_INVALID', 400))
-    if (reservation) return Promise.reject(fail('UPDATE_IN_PROGRESS', 409))
-    return exclusive(async () => {
-      const target = requireCurrent(), expectedGeneration = target.generation
-      if (typeof target.engine.assertQuiescent !== 'function') throw fail('PROOF_UNAVAILABLE')
-      state('quiescing')
-      let valid = true
-      const assertQuiescent = () => {
-        if (!valid || closed || instance !== target || target.generation !== expectedGeneration
-          || phase !== 'quiescing' || available || !target.quiesced) throw fail('PROOF_UNAVAILABLE')
-        if (target.engine.assertQuiescent() !== true) throw fail('PROOF_UNAVAILABLE')
-        return true
-      }
-      try {
-        await quiesce(target)
-        assertQuiescent()
-        const result = callback(assertQuiescent)
-        let value
-        try { value = await result }
-        finally { await (result?.completion ?? result) }
-        assertQuiescent()
-        return value
-      } finally {
-        valid = false
-        if (!closed) {
-          try { await resume(target) }
-          catch (error) { state('unavailable'); throw error }
-        }
-      }
-    })
-  }
-  return Object.freeze({ start, replace, reserve, snapshot, close, withInstallReconciliationProof,
+  return Object.freeze({ start, replace, reserve, snapshot, close,
     dispatch(request) {
       try {
         const target = !available && readable && !closed && request?.method === 'transport.runningBots' ? readable : requireCurrent()

@@ -10,7 +10,8 @@ const waitOutcomes = new Set(['done', 'running', 'timeout', 'closed', 'error', '
 const configurationCodes = new Set(['CONFIGURATION_INTENT_SAVE_UNCONFIRMED', 'CONFIGURATION_STORAGE_INVALID'])
 
 export function executionFailureReport(botId, phase, error, context = {}) {
-  if (!['configuration', 'delivery_wait', 'seat_watch'].includes(phase)) return null
+  if (!['configuration', 'delivery_wait', 'seat_watch', 'delivery_completion'].includes(phase)) return null
+  if (phase === 'delivery_completion') return completionFailureReport(botId, error, context)
   if (phase !== 'configuration' && (error?.turnCompleted === true || ['timeout', 'running'].includes(error?.waitOutcome))) return null
   const detail = { schema: 'bellteam.execution-failure.v1',
     botId: typeof botId === 'string' && /^bot-[a-z0-9-]{1,100}$/u.test(botId) ? botId : null, phase }
@@ -56,6 +57,21 @@ export function executionFailureReport(botId, phase, error, context = {}) {
   }
   return { code: phase === 'configuration' ? 'SERVER_MODEL_CONFIGURATION_FAILED' : 'SERVER_TURN_TRACKING_FAILED',
     module: phase === 'configuration' ? 'bots' : 'queue', diagnostic_log: JSON.stringify(detail) }
+}
+
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu
+// An accepted delivery that failed before its end: which step, and a code token only (wait-contract.md).
+function completionFailureReport(botId, error, context) {
+  const detail = { schema: 'bellteam.execution-failure.v1',
+    botId: typeof botId === 'string' && /^bot-[a-z0-9-]{1,100}$/u.test(botId) ? botId : null, phase: 'delivery_completion',
+    step: ['answer', 'delivered', 'turn_end'].includes(context?.step) ? context.step : 'other' }
+  for (const key of ['jobId', 'groupId']) if (uuid.test(context?.[key] ?? '')) detail[key] = context[key]
+  const code = returnedExecutionError(error?.executionError)?.code ?? error?.code
+  const token = String(error?.message ?? '').match(/^(AITERM_[A-Z0-9_]{1,96})\b/u)?.[1]
+  detail.errorCode = typeof code === 'string' && /^[A-Z][A-Z0-9_]{0,99}$/u.test(code) ? code : token ?? 'UNKNOWN'
+  const request = mcpRequestContext(error)
+  if (request) detail.mcp_request = request
+  return { code: 'SERVER_TURN_TRACKING_FAILED', module: 'queue', diagnostic_log: JSON.stringify(detail) }
 }
 
 export async function reportExecutionFailure(reportError, botId, phase, error, context) {
