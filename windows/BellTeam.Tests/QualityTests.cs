@@ -41,7 +41,7 @@ public sealed class QualityTests
             "/api/owner" => ApiTests.Owner, "/api/queue" => active ? "{\"items\":[{\"id\":\"a\",\"botId\":\"bot-bell\",\"botName\":\"ベル\",\"status\":\"running\",\"context\":\"room\",\"contextId\":\"room-work\"},{\"id\":\"b\",\"botId\":\"bot-bell\",\"botName\":\"ベル\",\"status\":\"running\",\"context\":\"room\",\"contextId\":\"room-work\"}]}" : ApiTests.EmptyQueue, _ => ApiTests.Page
         })))));
         await workspace.ConnectAsync("http://localhost", listen: false); Assert.True(workspace.Entries.Single(entry => !entry.Target.IsRoom).Working);
-        await workspace.SelectAsync(workspace.Entries.Single(entry => entry.Target.IsRoom)); Assert.True(workspace.HasActivity); Assert.Equal("◌  ベル · 処理中", workspace.ActivityText);
+        await workspace.SelectAsync(workspace.Entries.Single(entry => entry.Target.IsRoom)); Assert.True(workspace.HasActivity); Assert.Equal("ベル · 処理中", workspace.ActivityText);
         active = false; await workspace.RefreshManagementAsync(); Assert.False(workspace.HasActivity); Assert.False(workspace.Entries.Single(entry => !entry.Target.IsRoom).Working);
     }
     [Fact]
@@ -79,7 +79,7 @@ public sealed class QualityTests
                 })))));
                 workspace.ConnectAsync("http://localhost", listen: false).GetAwaiter().GetResult(); workspace.SelectAsync(workspace.Entries.Single()).GetAwaiter().GetResult();
                 var card = new MessageCard { Workspace = workspace, Message = new() { Id = "example", At = DateTimeOffset.Now, Direction = "incoming", Message = "選択できる本文" } };
-                var row = Assert.IsType<System.Windows.Controls.StackPanel>(card.Content); var bubble = row.Children.OfType<System.Windows.Controls.Border>().Single(); var body = Assert.IsType<System.Windows.Controls.StackPanel>(bubble.Child).Children.OfType<MarkdownView>().Single(); var document = body.Document;
+                var bubble = LogicalTree.Find<System.Windows.Controls.Border>(card.Content).Single(border => border.CornerRadius == new System.Windows.CornerRadius(21)); var body = LogicalTree.Find<MarkdownView>(card.Content).Single(); var document = body.Document;
                 color = "rose"; workspace.RefreshManagementAsync().GetAwaiter().GetResult();
                 Assert.Equal(System.Windows.Media.Color.FromArgb(46, 232, 107, 148), Assert.IsType<System.Windows.Media.SolidColorBrush>(bubble.Background).Color); Assert.Same(document, body.Document);
             }

@@ -20,6 +20,8 @@ public sealed class ConversationDraft
         Sending = true;
         return sent;
     }
+    // A refusal to send (or a failed paste) shown above the input; the next send clears it.
+    public void Reject(string error) => Error = error;
     public void CompleteSend() => Sending = false;
     public void FailSend(string sent, string error)
     {
@@ -32,4 +34,13 @@ public sealed class ConversationDraft
         Attachments.InsertRange(0, sent.Images);
         FailSend(sent.Text, error);
     }
+}
+
+// The composer's reply-target capsule in a room, worded like the Mac targetLabel.
+public static class ReplyTarget
+{
+    public static string Label(bool routingEnabled, IReadOnlyList<string> selectedNames)
+        => selectedNames.Count == 0 ? routingEnabled ? "返信者を自動選択" : "返信するメンバーを選択"
+        : selectedNames.Count == 1 ? "返信: " + selectedNames[0] : $"返信: {selectedNames.Count}人";
+    public const string RoutingUnsetError = "返信者の自動選択は未設定です。入力欄の上で返信するメンバーを選んでください。";
 }

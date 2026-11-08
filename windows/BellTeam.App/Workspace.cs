@@ -53,6 +53,11 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     private string screen = "";
     private string screenStatus = "";
     private string? actionError;
+    private string? stoppingBotId;
+    private StopNotice? stopResult;
+    private bool loadFailed;
+    // null = not read yet or the read failed; only a server answer of "off" makes the client refuse a no-target room send.
+    private bool? routingEnabled;
     private readonly Dictionary<string, Task<BitmapSource>> avatars = [];
     public ObservableCollection<ConversationEntry> Entries { get; } = [];
     public ObservableCollection<MessageItem> Messages { get; } = [];
@@ -71,7 +76,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     public string Screen { get => screen; private set { screen = value; Changed(); } }
     public string ScreenStatus { get => screenStatus; private set { screenStatus = value; Changed(); } }
     public bool CanShowScreen => selected is { Target.IsRoom: false };
-    public AttachmentPreview[] Attachments => Draft?.Attachments.Select(image => new AttachmentPreview(image, attachmentPreviews[image])).ToArray() ?? [];
+    public AttachmentPreview[] Attachments => Draft?.Attachments.Select((image, index) => new AttachmentPreview(image, attachmentPreviews[image], index + 1)).ToArray() ?? [];
     public string Search { get => search; set { search = value; Changed(); Filter(); } }
     public string? ConnectionError { get => connectionError; private set { connectionError = value; Changed(); } }
     public bool NeedsLogin { get => needsLogin; private set { needsLogin = value; Changed(); } }
@@ -86,9 +91,29 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     public bool IsRoom => selected?.Target.IsRoom == true;
     public string Title => selected?.Name ?? "チームと、同じデスクで。";
     public string OnlineSummary => $"{all.Count(entry => entry.Bot?.Online == true)}人オンライン";
-    public string ConversationSubtitle => selected?.Bot is { } bot ? bot.Online ? "オンライン" : "次のメッセージで起動します" : selected?.Room is { } room ? $"{room.MemberIds.Length}人のメンバー" : "";
-    public string ActivityText => selected is { } entry ? string.Join('\n', QueueItem.DisplayItems(queue.Where(item => entry.Target.IsRoom ? item.Context == "room" && item.ContextId == entry.Target.Id : item.BotId == entry.Target.Id)).Select(item => $"◌  {item.BotName ?? entry.Name} · {(item.Status == "queued" ? "送信待ち" : "処理中")}")) : "";
-    public bool HasActivity => ActivityText.Length != 0;
+    public string ConversationSubtitle => selected?.Bot is { } bot ? bot.Online ? "オンライン" : "オフライン" : selected?.Room is { } room ? $"{room.MemberIds.Length}人のルーム" : "";
+    private QueueItem[] SelectedQueue => selected is { } entry ? QueueItem.DisplayItems(queue.Where(item => entry.Target.IsRoom ? item.Context == "room" && item.ContextId == entry.Target.Id : item.BotId == entry.Target.Id)) : [];
+    public string ActivityText => selected is { } entry ? string.Join('\n', SelectedQueue.Select(item => item.Line(entry.Name))) : "";
+    public bool HasActivity => SelectedQueue.Length != 0;
+    // One line per running/queued delivery; a room line carries the member's stop button (Mac queueStrip).
+    public ActivityRow[] ActivityRows
+    {
+        get
+        {
+            if (selected is not { } entry) return [];
+            var display = SelectedQueue;
+            return display.Select(item => new ActivityRow(item.Line(entry.Name), QueueItem.IsStopRow(item, display, entry.Target.IsRoom, entry.Room?.MemberIds ?? []) ? item.BotId : null, item.BotName ?? entry.Name, item.BotId is { } id && id == stoppingBotId)).ToArray();
+        }
+    }
+    public bool StopEnabled => stoppingBotId is null;
+    public StopNotice? StopResult { get => stopResult; internal set { stopResult = value; Changed(); } }
+    public bool CurrentBotCanStop => selected is { Target: { IsRoom: false, Id: var id } } && queue.Any(item => item.BotId == id && item.IsActive);
+    public bool LoadFailed { get => loadFailed; private set { loadFailed = value; Changed(); } }
+    public bool RoutingEnabled => routingEnabled != false;
+    public bool? RoutingState => routingEnabled;
+    public string ReplyTargetLabel => ReplyTarget.Label(routingEnabled != false, ReplyMembers.Where(item => item.Selected).Select(item => item.Name).ToArray());
+    public string? MemberName(string id) => all.FirstOrDefault(entry => entry.Target == new ChatTarget(id, false))?.Bot?.DisplayName;
+    public ConversationEntry? MemberEntry(string id) => all.FirstOrDefault(entry => entry.Target == new ChatTarget(id, false));
     public string Server => api?.Origin.AbsoluteUri ?? "";
     public bool HasMore { get => hasMore; private set { hasMore = value; Changed(); } }
     public bool Loading { get => loading; private set { loading = value; Changed(); Changed(nameof(CanSend)); } }
@@ -109,6 +134,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
         PropertyChanged?.Invoke(this, new(name));
         if (name == nameof(Selected)) PropertyChanged?.Invoke(this, new(nameof(SelectedFastMode)));
     }
+    private void ActivityChanged() { Changed(nameof(ActivityText)); Changed(nameof(HasActivity)); Changed(nameof(ActivityRows)); Changed(nameof(StopEnabled)); Changed(nameof(CurrentBotCanStop)); }
     private void DraftChanged() { Changed(nameof(DraftText)); Changed(nameof(SendError)); Changed(nameof(SendLabel)); Changed(nameof(CanSend)); Changed(nameof(CanAttach)); Changed(nameof(Attachments)); }
 
     public async Task ConnectAsync(string address, bool listen = true)
@@ -124,7 +150,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
         api = apiFactory(origin);
         avatars.Clear();
         connection = new CancellationTokenSource();
-        selected = null;
+        selected = null; stoppingBotId = null; stopResult = null; loadFailed = false; routingEnabled = null;
         all.Clear(); queue = []; OwnerName = "あなた"; AuthMode = "local"; Entries.Clear(); Messages.Clear(); ReplyMembers.Clear();
         Changed(nameof(OwnerName)); Changed(nameof(AuthMode)); Changed(nameof(OnlineSummary));
         HasMore = false;
@@ -177,6 +203,13 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
             var rooms = await current.GetAsync<RoomsResponse>("/api/rooms?avatar=omit", token);
             var activity = await current.GetAsync<QueueResponse>("/api/queue", token);
             var owner = await current.GetAsync<OwnerResponse>("/api/owner?avatar=omit", token);
+            if (selected is { Target.IsRoom: true })
+            {
+                // An optional setting: its failure must not fail the list refresh.
+                try { await LoadRoutingAsync(current, token); }
+                catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+                catch (Exception error) { SetRouting(null); ActionError = "返信者の自動選択の設定を読み取れませんでした。" + error.Message; }
+            }
             token.ThrowIfCancellationRequested();
             OwnerName = owner.Owner.Name; Changed(nameof(OwnerName));
             queue = activity.Items; var working = queue.Where(item => item.Status == "running").Select(item => item.BotId).ToHashSet();
@@ -195,7 +228,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
             }
             Filter();
             Changed(nameof(OnlineSummary)); Changed(nameof(ConversationSubtitle));
-            Changed(nameof(ActivityText)); Changed(nameof(HasActivity));
+            ActivityChanged();
             if (selected is { } active)
             {
                 selected = all.FirstOrDefault(item => item.Target == active.Target);
@@ -223,14 +256,15 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
         var token = selection.Token;
         selected = entry;
         Changed(nameof(ConversationSubtitle));
-        Changed(nameof(ActivityText)); Changed(nameof(HasActivity));
+        stopResult = null; loadFailed = false; Changed(nameof(StopResult)); Changed(nameof(LoadFailed));
+        ActivityChanged();
         if (!drafts.ContainsKey((Server, entry.Target))) drafts[(Server, entry.Target)] = new ConversationDraft();
         Messages.Clear(); HasMore = false;
         ReplyMembers.Clear();
         foreach (var id in entry.Room?.MemberIds ?? [])
             ReplyMembers.Add(new MemberChoice(id, all.FirstOrDefault(item => item.Target == new ChatTarget(id, false))?.Name ?? id, Draft!.Targets.Contains(id)));
         ActionError = null;
-        Changed(nameof(Selected)); Changed(nameof(HasSelection)); Changed(nameof(EditLabel)); Changed(nameof(IsRoom)); Changed(nameof(Title)); Changed(nameof(Profile)); Changed(nameof(CanShowScreen)); DraftChanged();
+        Changed(nameof(Selected)); Changed(nameof(HasSelection)); Changed(nameof(EditLabel)); Changed(nameof(IsRoom)); Changed(nameof(Title)); Changed(nameof(Profile)); Changed(nameof(CanShowScreen)); Changed(nameof(ReplyTargetLabel)); DraftChanged();
         if (preview) { foreach (var item in PreviewMessages()) Messages.Add(new(item)); return; }
         if (api is null) return;
         Loading = true;
@@ -243,10 +277,32 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
             foreach (var message in page.Items) Messages.Add(new(message));
             HasMore = page.HasMore;
             ScrollToBottom?.Invoke(true);
+            if (entry.Target.IsRoom)
+            {
+                try { await LoadRoutingAsync(api, token); }
+                catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+                catch (Exception error) { if (!token.IsCancellationRequested) { SetRouting(null); ActionError = "返信者の自動選択の設定を読み取れませんでした。" + error.Message; } }
+            }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-        catch (Exception error) { if (!token.IsCancellationRequested) ConnectionError = error.Message; }
+        catch (Exception error) { if (!token.IsCancellationRequested) { ConnectionError = error.Message; LoadFailed = Messages.Count == 0; } }
         finally { if (!token.IsCancellationRequested) Loading = false; }
+    }
+
+    // Mac routingEnabled: the "routing" feature is on. Only a room needs it, so only a selected room reads it.
+    private async Task LoadRoutingAsync(BellApi current, CancellationToken token)
+    {
+        var settings = await current.GetAsync<System.Text.Json.JsonElement>("/api/settings", token);
+        // An unexpected shape is unknown, not "off".
+        bool? enabled = settings.ValueKind == System.Text.Json.JsonValueKind.Object && settings.TryGetProperty("settings", out var features) && features.ValueKind == System.Text.Json.JsonValueKind.Array
+            ? features.EnumerateArray().Any(item => item.ValueKind == System.Text.Json.JsonValueKind.Object && item.TryGetProperty("id", out var id) && id.ValueKind == System.Text.Json.JsonValueKind.String && id.GetString() == "routing" && item.TryGetProperty("status", out var status) && status.ValueKind == System.Text.Json.JsonValueKind.String && status.GetString() == "enabled")
+            : null;
+        SetRouting(enabled);
+    }
+    private void SetRouting(bool? enabled)
+    {
+        if (enabled == routingEnabled) return;
+        routingEnabled = enabled; Changed(nameof(RoutingEnabled)); Changed(nameof(RoutingState)); Changed(nameof(ReplyTargetLabel));
     }
 
     private async Task RefreshMessagesAsync(BellApi current, ChatTarget target, CancellationToken token)
@@ -289,6 +345,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     public async Task SendAsync()
     {
         if (!CanSend) return;
+        if (IsRoom && !ReplyMembers.Any(item => item.Selected) && routingEnabled == false) { Draft!.Reject(ReplyTarget.RoutingUnsetError); DraftChanged(); return; }
         var current = api!;
         var target = selected!.Target;
         var draft = Draft!;
@@ -304,8 +361,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
         }
         catch (Exception error)
         {
-            var uncertain = error is not BellApiException { Status: not null } || (int)((error as BellApiException)?.Status ?? 0) >= 500;
-            draft.FailSend(content, (uncertain ? "操作の結果を確認できませんでした。再操作する前に、現在の状態を更新して確認してください。\n" : "") + error.Message);
+            draft.FailSend(content, (BellApiException.IsResultUnconfirmed(error) ? "操作の結果を確認できませんでした。再操作する前に、現在の状態を更新して確認してください。\n" : "") + error.Message);
             DraftChanged();
             return;
         }
@@ -313,6 +369,26 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception error) { if (api == current) ConnectionError = "送信は受け付けられました。会話の更新に失敗しました。" + error.Message; }
     }
+
+    // Never resent on its own: a stop whose result is unknown is reported as such and the owner decides.
+    public async Task StopAsync(string botId, string name)
+    {
+        if (api is null || connection is null || stoppingBotId is not null) return;
+        var current = api; var token = connection.Token;
+        stoppingBotId = botId; stopResult = null; Changed(nameof(StopResult)); ActivityChanged();
+        try
+        {
+            var outcome = await current.StopBotAsync(botId, token);
+            StopResult = StopNotice.FromOutcome(outcome, name);
+        }
+        catch (Exception error) { StopResult = StopNotice.FromFailure(error); }
+        finally { stoppingBotId = null; ActivityChanged(); }
+        if (api == current) await RefreshManagementAsync();
+    }
+    public Task StopCurrentAsync() => selected is { Target: { IsRoom: false, Id: var id } } entry ? StopAsync(id, entry.Name) : Task.CompletedTask;
+    public void ToggleReplyMember(MemberChoice choice) { choice.Selected = !choice.Selected; Changed(nameof(ReplyTargetLabel)); }
+    public void ClearReplyMembers() { foreach (var item in ReplyMembers) item.Selected = false; Changed(nameof(ReplyTargetLabel)); }
+    public void ReportDraftError(string message) { if (Draft is { } draft) { draft.Reject(message); DraftChanged(); } }
 
     public void SaveReplyMembers()
     {
@@ -409,10 +485,10 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     public async Task ReconnectAsync() { if (api is not null) await ConnectAsync(Server); }
     public void SignOut()
     {
-        connection?.Cancel(); selection?.Cancel(); ReturnToProfile(); ready = false; selected = null;
+        connection?.Cancel(); selection?.Cancel(); ReturnToProfile(); ready = false; selected = null; stoppingBotId = null; stopResult = null; loadFailed = false; routingEnabled = null;
         all.Clear(); queue = []; Entries.Clear(); Messages.Clear(); ReplyMembers.Clear(); drafts.Clear(); attachmentPreviews.Clear(); avatars.Clear(); OwnerName = "あなた";
         HasMore = false; Loading = false; ConnectionError = ActionError = null; NeedsLogin = AuthMode == "cloudflare"; ConnectionStatus = "ログアウトしました。";
-        foreach (var name in new[] { nameof(Connected), nameof(Selected), nameof(HasSelection), nameof(IsRoom), nameof(Title), nameof(Profile), nameof(OwnerName), nameof(OnlineSummary), nameof(ActivityText), nameof(HasActivity), nameof(CanShowScreen) }) Changed(name);
+        foreach (var name in new[] { nameof(Connected), nameof(Selected), nameof(HasSelection), nameof(IsRoom), nameof(Title), nameof(Profile), nameof(OwnerName), nameof(OnlineSummary), nameof(ActivityText), nameof(HasActivity), nameof(ActivityRows), nameof(StopEnabled), nameof(CurrentBotCanStop), nameof(StopResult), nameof(LoadFailed), nameof(RoutingEnabled), nameof(ReplyTargetLabel), nameof(CanShowScreen) }) Changed(name);
         DraftChanged();
     }
     public void LoadPreview()
@@ -431,7 +507,8 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     public void Dispose() { ReturnToProfile(); connection?.Cancel(); selection?.Cancel(); connection?.Dispose(); selection?.Dispose(); api?.Dispose(); attachmentPreviews.Clear(); avatars.Clear(); drafts.Clear(); }
 }
 
-public sealed record AttachmentPreview(ImageAttachment Data, BitmapSource Preview) { public string Name => Data.Name; }
+public sealed record ActivityRow(string Text, string? StopBotId, string Name, bool Stopping) { public string StopLabel => Stopping ? "停止中…" : "止める"; }
+public sealed record AttachmentPreview(ImageAttachment Data, BitmapSource Preview, int Number = 0) { public string Name => Data.Name; public string RemoveLabel => $"添付画像{Number}を外す"; }
 
 public sealed class MemberChoice(string id, string name, bool selected)
 {

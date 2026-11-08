@@ -56,7 +56,7 @@ public sealed class DeliveryTrackingTests
         Assert.Equal("完了未確認の宛先あり", Label($"{uncertain},{{\"delivery\":\"running\"}},{{\"delivery\":\"queued\"}},{{\"delivery\":\"stopped\"}}"));
         Assert.Equal("配達失敗", Label($"{uncertain},{{\"delivery\":\"failed\"}}"));
         Assert.Equal("配達失敗", Label(uncertain, "{\"status\":\"failed\"}"));
-        Assert.Equal("", Label("{\"delivery\":\"failed\"}"));
+        Assert.Equal("配達失敗", Label("{\"delivery\":\"failed\"}"));
         Assert.Equal("", Label($"{uncertain},null"));
         Assert.Equal("", Timeline.DeliveryLabel(Read($"\"deliveryTracking\":{Tracking}"), true));
     }
@@ -71,7 +71,7 @@ public sealed class DeliveryTrackingTests
             {
                 using var workspace = new Workspace();
                 var card = new MessageCard { Workspace = workspace, Message = Read($"\"delivery\":\"failed\",\"deliveryTracking\":{Tracking}") };
-                Assert.Contains("受付済み・完了未確認", Assert.IsType<StackPanel>(card.Content).Children.OfType<TextBlock>().Single().Text);
+                Assert.Contains(LogicalTree.Find<TextBlock>(card.Content), text => text.Text.EndsWith(" · 受付済み・完了未確認"));
             }
             catch (Exception error) { failure = error; }
             finally { System.Windows.Threading.Dispatcher.CurrentDispatcher.InvokeShutdown(); }

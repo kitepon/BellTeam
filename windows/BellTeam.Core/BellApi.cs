@@ -9,6 +9,8 @@ namespace BellTeam.Core;
 public sealed class BellApiException(string message, HttpStatusCode? status = null) : Exception(message)
 {
     public HttpStatusCode? Status { get; } = status;
+    // The server may or may not have acted: no HTTP answer, an unreadable answer, or a server error.
+    public static bool IsResultUnconfirmed(Exception error) => error is not BellApiException { Status: not null } || (int)((BellApiException)error).Status! >= 500;
     public bool RequiresLogin => Status is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden || (int?)Status is >= 300 and < 400;
 }
 
@@ -50,6 +52,13 @@ public sealed class BellApi : IDisposable
         if (result.ValueKind != JsonValueKind.Object) throw new BellApiException("BellTeamからの送信応答を読み取れませんでした。");
     }
 
+    // Never retried by the caller: a stop whose result is unknown is reported, not resent.
+    public async Task<BotStopOutcome> StopBotAsync(string botId, CancellationToken token = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, new ChatTarget(botId, false).Path + "/stop");
+        var (result, status) = await JsonWithStatusAsync<BotStopResponse>(request, token);
+        return result.Outcome(status, botId) ?? throw new BellApiException("BellTeamからの応答を読み取れませんでした。");
+    }
     public async Task<T> PostAsync<T>(string path, object body, CancellationToken token = default)
         => await WriteAsync<T>(HttpMethod.Post, path, body, token);
     public async Task<T> WriteAsync<T>(HttpMethod method, string path, object body, CancellationToken token = default)
@@ -105,7 +114,8 @@ public sealed class BellApi : IDisposable
         return JsonSerializer.SerializeToUtf8Bytes(document, new JsonSerializerOptions(Json) { WriteIndented = true });
     }
 
-    private async Task<T> JsonAsync<T>(HttpRequestMessage request, CancellationToken token)
+    private async Task<T> JsonAsync<T>(HttpRequestMessage request, CancellationToken token) => (await JsonWithStatusAsync<T>(request, token)).Value;
+    private async Task<(T Value, int Status)> JsonWithStatusAsync<T>(HttpRequestMessage request, CancellationToken token)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
         timeout.CancelAfter(TimeSpan.FromSeconds(30));
@@ -116,8 +126,8 @@ public sealed class BellApi : IDisposable
             throw new BellApiException("BellTeamからの応答がJSONではありません。接続先を確認してください。");
         try
         {
-            return await response.Content.ReadFromJsonAsync<T>(Json, timeout.Token)
-                ?? throw new BellApiException("BellTeamからの応答が空です。");
+            return (await response.Content.ReadFromJsonAsync<T>(Json, timeout.Token)
+                ?? throw new BellApiException("BellTeamからの応答が空です。"), (int)response.StatusCode);
         }
         catch (JsonException error) { throw new BellApiException("BellTeamからの応答を読み取れませんでした。" + error.Message); }
     }

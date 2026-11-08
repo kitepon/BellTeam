@@ -15,6 +15,7 @@ public partial class MainWindow : Window
     private bool inspectorVisible = true;
     private EditorWindow? page;
     private bool loadingOlder;
+    private bool unreadNew; // a message arrived while the reader was away from the bottom
     public Task PageReady { get; private set; } = Task.CompletedTask;
     public MainWindow(Workspace model, bool persistPlacement = true, DesktopAccess? access = null, DesktopNotifications? notifications = null)
     {
@@ -36,7 +37,7 @@ public partial class MainWindow : Window
         MessageScroll.ScrollChanged += async (_, args) =>
         {
             if (!ReferenceEquals(args.OriginalSource, MessageScroll)) return;
-            NewMessagesButton.Visibility = MessageScroll.ScrollableHeight - MessageScroll.VerticalOffset < 80 ? Visibility.Collapsed : Visibility.Visible;
+            ShowLatestButton();
             var previousBottomDistance = args.ExtentHeight - args.ExtentHeightChange - args.ViewportHeight - args.VerticalOffset;
             if (!loadingOlder && args.ExtentHeightChange > 0 && previousBottomDistance < 80) _ = Dispatcher.BeginInvoke(() => MessageScroll.ScrollToEnd());
             if (!loadingOlder && args.VerticalChange < 0 && args.VerticalOffset < 48 && model.HasMore && !model.Loading) await LoadOlderPreservingPositionAsync();
@@ -49,7 +50,7 @@ public partial class MainWindow : Window
         {
             if (force || MessageScroll.ScrollableHeight - MessageScroll.VerticalOffset < 80)
                 Dispatcher.BeginInvoke(() => MessageScroll.ScrollToEnd());
-            else NewMessagesButton.Visibility = Visibility.Visible;
+            else { unreadNew = true; ShowLatestButton(); }
         };
         model.PropertyChanged += (_, args) =>
         {
@@ -57,7 +58,9 @@ public partial class MainWindow : Window
             if (args.PropertyName == nameof(Workspace.IsRoom) && inspectorVisible)
                 InspectorColumn.Width = model.IsRoom ? new GridLength(280) : new GridLength(1, GridUnitType.Star);
             if (args.PropertyName == nameof(Workspace.Selected) && page is null) ProfileLayout();
-            if (args.PropertyName is nameof(Workspace.Loading) or nameof(Workspace.Selected)) UpdateWelcome();
+            if (args.PropertyName is nameof(Workspace.Loading) or nameof(Workspace.Selected) or nameof(Workspace.LoadFailed) or nameof(Workspace.HasActivity)) UpdateWelcome();
+            if (args.PropertyName is nameof(Workspace.Selected)) unreadNew = false;
+            if (args.PropertyName == nameof(Workspace.StopResult)) ShowStopResult();
             if (args.PropertyName is nameof(Workspace.ConnectionError) or nameof(Workspace.ActionError)) { ErrorStrip.Visibility = model.ConnectionError is null && model.ActionError is null ? Visibility.Collapsed : Visibility.Visible; ReconnectButton.Visibility = model.ConnectionError is null || model.Server.Length == 0 ? Visibility.Collapsed : Visibility.Visible; ConnectionButton.Visibility = model.ConnectionError is null ? Visibility.Collapsed : Visibility.Visible; }
         };
         model.UpdatesChanged += () => _ = RefreshUpdateNoticeAsync();
@@ -132,7 +135,7 @@ public partial class MainWindow : Window
         if (e.DataObject.GetData(DataFormats.Bitmap) is System.Windows.Media.Imaging.BitmapSource image)
         {
             e.CancelCommand();
-            try { model.AttachClipboardImage(image); } catch (Exception error) { model.ReportActionError("画像を貼り付けられませんでした。" + error.Message); }
+            try { model.AttachClipboardImage(image); } catch (Exception) { model.ReportDraftError("貼り付けた画像を読み込めませんでした。"); }
         }
         else if (e.DataObject.GetData(DataFormats.FileDrop) is string[] paths) { e.CancelCommand(); await model.AttachFilesAsync(paths); }
     }
@@ -159,15 +162,23 @@ public partial class MainWindow : Window
         if (!model.Connected) return;
         if (sheetContent is null)
         {
-            sheetContent = new UpdateContent(model); UpdateSheetHost.Content = sheetContent; UpdateSheet.Visibility = Visibility.Visible;
+            CloseUpdateSheet(); OpenSheet("アップデート", sheetContent = new UpdateContent(model));
         }
         PageReady = SheetReady = sheetContent.RefreshAsync();
-        UpdateSheet.Focus();
+    }
+    // Mac PeerMessageSheet in the shared in-window sheet.
+    public void ShowPeerSheet(TimelineMessage message)
+    {
+        CloseUpdateSheet(); OpenSheet("メンバー間の連絡", new PeerMessageView(model, message));
+    }
+    private void OpenSheet(string title, UIElement content)
+    {
+        SheetTitle.Text = title; System.Windows.Automation.AutomationProperties.SetName(SheetFrame, title);
+        UpdateSheetHost.Content = content; UpdateSheet.Visibility = Visibility.Visible; UpdateSheet.Focus();
     }
     public void CloseUpdateSheet()
     {
-        if (sheetContent is null) return;
-        sheetContent.Dispose(); sheetContent = null; UpdateSheetHost.Content = null; UpdateSheet.Visibility = Visibility.Collapsed;
+        sheetContent?.Dispose(); sheetContent = null; UpdateSheetHost.Content = null; UpdateSheet.Visibility = Visibility.Collapsed;
     }
     private void UpdateSheetClose_Click(object sender, RoutedEventArgs e) => CloseUpdateSheet();
     private async Task RefreshUpdateNoticeAsync()
@@ -207,19 +218,58 @@ public partial class MainWindow : Window
         Inspector.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
         InspectorColumn.MinWidth = show ? 280 : 0; InspectorColumn.Width = show ? model.IsRoom ? new GridLength(280) : new GridLength(1, GridUnitType.Star) : new GridLength(0);
     }
+    // Mac ConversationContent: spinner while the first read runs, then the empty or failed state when there is nothing (not even a queue line) to show.
     private void UpdateWelcome()
     {
-        Welcome.Visibility = !model.HasSelection || model.Messages.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        WelcomeHints.Visibility = model.HasSelection ? Visibility.Collapsed : Visibility.Visible;
-        WelcomeTitle.Text = model.HasSelection ? model.Loading ? "読み込み中…" : model.Title + "との会話" : "チームと、同じデスクで。";
-        WelcomeNote.Text = model.Loading ? "" : model.HasSelection ? "最初のメッセージを送って、会話を始めましょう。" : "左のメンバーやルームを選んで、会話を始めましょう。";
+        var empty = model.HasSelection && model.Messages.Count == 0;
+        Welcome.Visibility = model.HasSelection ? Visibility.Collapsed : Visibility.Visible;
+        LoadingSpinner.Visibility = empty && model.Loading ? Visibility.Visible : Visibility.Collapsed;
+        var idle = empty && !model.Loading && !model.HasActivity;
+        EmptyConversation.Visibility = idle && !model.LoadFailed ? Visibility.Visible : Visibility.Collapsed;
+        FailedConversation.Visibility = idle && model.LoadFailed ? Visibility.Visible : Visibility.Collapsed;
+        EmptyTitle.Text = model.Title + "と話しましょう";
     }
-    private void NewMessages_Click(object sender, RoutedEventArgs e) { MessageScroll.ScrollToEnd(); NewMessagesButton.Visibility = Visibility.Collapsed; }
+    private void ShowStopResult()
+    {
+        var notice = model.StopResult;
+        StopNoticeBox.Visibility = notice is null ? Visibility.Collapsed : Visibility.Visible;
+        StopNoticeText.Text = notice?.Message ?? "";
+        StopNoticeText.Foreground = notice?.IsError == true ? new SolidColorBrush(Color.FromRgb(255, 59, 48)) : (Brush)FindResource("Violet");
+    }
+    // Mac: "新着メッセージ ↓" once something new arrived while reading older messages, else "最新へ ↓"; hidden at the bottom.
+    private void ShowLatestButton()
+    {
+        var atBottom = MessageScroll.ScrollableHeight - MessageScroll.VerticalOffset < 80;
+        if (atBottom) unreadNew = false;
+        NewMessagesButton.Content = unreadNew ? "新着メッセージ ↓" : "最新へ ↓";
+        NewMessagesButton.Visibility = atBottom && !unreadNew ? Visibility.Collapsed : Visibility.Visible;
+    }
+    private void NewMessages_Click(object sender, RoutedEventArgs e) { unreadNew = false; MessageScroll.ScrollToEnd(); NewMessagesButton.Visibility = Visibility.Collapsed; }
+    private async void Reload_Click(object sender, RoutedEventArgs e) { if (model.Selected is { } entry) await model.SelectAsync(entry); }
+    private async void StopBot_Click(object sender, RoutedEventArgs e) { if (sender is Button { Tag: ActivityRow { StopBotId: { } id } row }) await model.StopAsync(id, row.Name); }
+    private async void StopCurrent_Click(object sender, RoutedEventArgs e) => await model.StopCurrentAsync();
+    // Mac targetPicker: "返信者を自動選択" (off when routing is off), then a check per member.
+    private void ReplyTarget_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button) return;
+        static TextBlock Check(bool on) => new() { Text = on ? "\uE73E" : "\uE91F", FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets") };
+        var menu = new ContextMenu { PlacementTarget = button, Placement = System.Windows.Controls.Primitives.PlacementMode.Top };
+        var auto = new MenuItem { Header = "返信者を自動選択", Icon = Check(!model.ReplyMembers.Any(member => member.Selected)), IsEnabled = model.RoutingEnabled };
+        auto.Click += (_, _) => model.ClearReplyMembers(); menu.Items.Add(auto);
+        foreach (var member in model.ReplyMembers.ToArray())
+        {
+            var item = new MenuItem { Header = member.Name, Icon = Check(member.Selected) };
+            item.Click += (_, _) => model.ToggleReplyMember(member); menu.Items.Add(item);
+        }
+        menu.IsOpen = true;
+    }
+    public void HideInspectorForRender() { inspectorVisible = false; ProfileLayout(); }
     public async Task PrepareRenderAsync(bool bottomOfPage = false)
     {
         await Task.WhenAll(Descendants<RemoteImage>(Root).Select(image => image.LoadTask).Concat(Descendants<AvatarTile>(Root).Select(tile => tile.LoadTask)));
         if (bottomOfPage) page?.ScrollToEndForRender();
         Root.UpdateLayout();
+        if (ConversationArea.Visibility == Visibility.Visible) { MessageScroll.ScrollToEnd(); Root.UpdateLayout(); } // images that finished loading changed the height
     }
     private static IEnumerable<T> Descendants<T>(DependencyObject parent) where T : DependencyObject
     {
@@ -297,7 +347,7 @@ public partial class MainWindow : Window
     }
     private void Window_KeyDown(object sender, KeyEventArgs e)
     {
-        if (sheetContent is not null) { if (e.Key == Key.Escape) { CloseUpdateSheet(); e.Handled = true; } return; }
+        if (UpdateSheet.Visibility == Visibility.Visible) { if (e.Key == Key.Escape) { CloseUpdateSheet(); e.Handled = true; } return; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.D2) { ShowSchedules(); e.Handled = true; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.OemComma) { ShowSettings(); e.Handled = true; }
         if (e.Key == Key.K && Keyboard.Modifiers == ModifierKeys.Control) { SearchBox.Focus(); SearchBox.SelectAll(); e.Handled = true; }
