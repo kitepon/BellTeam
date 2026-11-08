@@ -41,30 +41,44 @@ Unknown `color` names fall back to violet.
 
 Revised 2026-11-08 after the Owner watched the Apple drawing (#665): 「ノード同士が近すぎた」「画面いっぱいうまく使った方がいい」「登場人物が増えすぎたら小さくする」.
 
-- Drawable rect `D` (width `W`, height `H`): the full content area from top to bottom, minus safe-area insets, minus the nav/tab bar, minus 24 pt padding on every side. `m = min(W, H)`. The layout center is the center of `D`, not of the window.
+- Drawable rect `D` (width `W`, height `H`): the full content area from top to bottom, minus safe-area insets, minus the nav/tab bar, minus 24 pt padding on every side. The layout center is the center of `D`, not of the window.
 - Base avatar side `S0`: 56 pt (Mac 64 pt). Above 12 nodes `S12 = S0 × sqrt(12 / n)`, else `S12 = S0`.
 - Node avatar side `S = max(36, min(S12, sqrt(W × H / n) × 0.3))`, so many members shrink to fit the area. Rounded rect corner `S × 0.31` as `AvatarView`.
 - Name under the avatar: 1 line, `listNameFontSize`, ink, truncated at `S × 2.2` width.
 
-## Layout: force-directed
+## Layout: force-directed, normalized to the drawable rect
 
-Every frame each node `i` with position `p` and velocity `v`:
+Revised 2026-11-08 after the live production Web run (1440×900): with forces scaled by the short side `m`, a wide screen left empty bands left, right and on top (Trony, Admi). The Owner asked 「画面いっぱいうまく使った方がいい」. The layout now fills **both axes** of `D` at any aspect ratio.
 
-| Force | Rule | Parameter |
+Positions are simulated in normalized coordinates `u = (x − D.minX) / W`, `v = (y − D.minY) / H`, both in `[0, 1]`, center `(0.5, 0.5)`. Distances `d` for repulsion and springs are measured in `(u, v)`. Collision and bounds are measured in points. Drawing maps back with `x = D.minX + u × W`, `y = D.minY + v × H`.
+
+Every frame, each node `i`:
+
+| Force | Rule (normalized units) | Parameter |
 | --- | --- | --- |
-| Repulsion | every pair, `F = kr / d²` along the pair, `d ≥ 1` | `kr = 0.00009 × m³ × min(1, 6 / n)` |
-| Spring | each edge, `F = ks × (d − L)` | `ks = 0.05`, `L = 0.38 × m` |
-| Center gravity | toward the center of `D`, per axis: `Fx = kx × (cx − px)`, `Fy = ky × (cy − py)` | `kx = 0.004 × m / W`, `ky = 0.004 × m / H` (weaker along the long axis, so the graph spreads across the whole area) |
-| Collision | if `d < S × 2.2`, push both apart to `S × 2.2` | hard constraint |
-| Bounds | clamp `p` so the whole node (disc and name) stays inside `D` | hard constraint |
+| Repulsion | every pair, `F = kr / d²` along the pair, `d ≥ 0.01` | `kr = 0.005 / n` |
+| Spring | each edge, `F = ks × (d − L)` | `ks = 0.02`, `L = min(0.7, 1.4 / √n)` |
+| Span-following gravity, per axis | `Fu = gu × (0.5 − u)`, `Fv = gv × (0.5 − v)` | `gu = 0.02 × clamp((spanU / 0.88)^16, 0.001, 50)`, likewise `gv` with `spanV` |
+| Collision (points) | if `d < S × 2.2`, push both apart to `S × 2.2` | hard constraint |
+| Bounds (points) | clamp so the whole node (disc and name) stays inside `D` | hard constraint |
 
-The earlier values (`kr = 12000`, `kg = 0.015`, collision `S × 1.5`) clustered everything in the center and are replaced.
+`spanU = max(u) − min(u) + S / W` and `spanV = max(v) − min(v) + (S + nameHeight) / H`, over all non-leaving nodes, recomputed each frame. Gravity weakens when an axis is under 88 % filled and strengthens when it is over 88 %. So each axis settles near 88 % for any `n` and any aspect ratio, without a fixed center pull or a hard boundary press. `nameHeight` is the name line height (Apple `listNameFontSize` line, 18 pt on iPhone).
 
-Integration: `v = (v + F × α) × 0.82`; `p += v × (dt × 60)`; cap `|v|` at 14 pt per frame-equivalent.
+Integration: `vu = (vu + Fu × α) × 0.82`, `vv = (vv + Fv × α) × 0.82`, then `u += vu × (dt × 60)`, `v += vv × (dt × 60)`. Cap the speed in points: if `hypot(vu × W, vv × H) > 14`, scale both down to 14 pt per frame-equivalent.
 
-`α` (heat): set to 1 on every applied change batch or window resize, then `α = max(0.04, α × 0.985)` each 1/60 s. The floor 0.04 keeps the layout drifting gently, so it re-arranges by itself and never freezes.
+`α` (heat): set to 1 on every applied change batch or window resize, then `α = max(0.04, α × 0.985)` each 1/60 s. The floor 0.04 keeps the layout drifting gently, so it re-arranges by itself and never freezes. Node pairs connected in both directions (A→B and B→A) count as one spring.
 
-Node pairs connected in both directions (A→B and B→A) count as one spring.
+Expected result, from the reference simulation [layout-sim.mjs](layout-sim.mjs) (`node layout-sim.mjs`; same constants as above, exported as `LAYOUT`):
+
+| Members | Fill of each axis |
+| --- | --- |
+| 2 | 0.57–0.74 (the pair lies along a diagonal) |
+| 3–4 | 0.83–0.86 |
+| 8–30 | 0.89–0.94 |
+
+This holds for Web 1440×900, a Mac window, iPhone portrait, iPad portrait and square, within ±0.02 across them. When members cannot fit at `S × 2.2` spacing (about 30 on an iPhone), the graph reaches the edges and the crowded shrink of `S` applies. App builders can port `simulate()` to check their implementation against these numbers.
+
+The earlier values (`kr = 0.00009 × m³ × min(1, 6/n)`, `L = 0.38 × m`, gravity `0.004 × m / W` and `0.004 × m / H`) are replaced.
 
 ## Enter (member-enter)
 
