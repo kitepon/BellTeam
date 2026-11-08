@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events'
 import { fork } from 'node:child_process'
 import test from 'node:test'
 import { createWorkGraphParentChannel } from '../src/work-graph-ipc.mjs'
+import { projectGraph } from '../src/work-graph/projection.mjs'
 import { WORK_GRAPH_STATE_COMPATIBILITY, validateWorkGraphControl, validateWorkGraphControlResult, validateWorkGraphEffect,
   validateWorkGraphEffectResult, validateWorkGraphReady, validateWorkGraphRequest, validateWorkGraphResult, workGraphWireError } from '../src/work-graph-protocol.mjs'
 import { waitNotificationsChildClose } from '../src/notifications-ipc.mjs'
@@ -48,6 +49,10 @@ test('protocol: effect results are exact', () => {
   bad(() => validateWorkGraphEffectResult('queue.read', { items: [{ ...item, extra: 1 }] }))
   bad(() => validateWorkGraphEffectResult('queue.read', { items: [{ ...item, image: 0 }] }))
   bad(() => validateWorkGraphEffectResult('queue.read', { items: [{ ...item, message: 'raw body' }] }))
+  const { requestSummary, ...legacy } = item
+  validateWorkGraphEffectResult('queue.read', { items: [{ ...legacy, message: 'Admi -> Centi: raw body' }] })
+  bad(() => validateWorkGraphEffectResult('queue.read', { items: [{ ...legacy, message: 1 }] }))
+  assert.equal(projectGraph({ members: [member, { ...member, id: 'b' }], queue: [{ ...legacy, message: 'Admi -> Centi: raw body' }], now: 0 }).edges[0].label, '依頼を処理中')
   bad(() => validateWorkGraphEffectResult('queue.read', { items: [{ ...item, requestSummary: 1 }] }))
   bad(() => validateWorkGraphEffectResult('room.messages', { items: [{ id: 'm', routing: { responders: ['a'] } }] }))
   bad(() => validateWorkGraphEffectResult('nope', {}))
