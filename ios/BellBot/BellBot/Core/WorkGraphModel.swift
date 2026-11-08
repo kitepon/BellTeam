@@ -62,7 +62,7 @@ struct WorkGraphBatch: Decodable {
 /// 描画中の図とシミュレーション。位置はbotId鍵で持ち、SwiftUIの再描画では消えない。
 @MainActor
 final class WorkGraphModel: ObservableObject {
-    enum Connection: Equatable { case connecting, live, reconnecting, unsupported, failed(String) }
+    enum Connection: Equatable { case connecting, live, reconnecting, unreadable, unsupported, failed(String) }
 
     struct Body {
         var node: WorkGraphNode
@@ -93,6 +93,13 @@ final class WorkGraphModel: ObservableObject {
     private var version = 0
     private var lastStep: Double?
     private var size = CGSize.zero
+    private var insets = EdgeInsets()
+    /// 実際に描ける範囲（上下の安全域・タブを除く）。重心・間隔・境界はこの範囲で決める。
+    var area: CGRect {
+        CGRect(x: insets.leading, y: insets.top,
+               width: max(1, size.width - insets.leading - insets.trailing),
+               height: max(1, size.height - insets.top - insets.bottom))
+    }
     private var pendingResize = false
     private var lastByte = Date()
     var baseSide: CGFloat = 56
@@ -138,8 +145,8 @@ final class WorkGraphModel: ObservableObject {
                 connection = .failed("ログインが必要です。")
                 return
             } catch is DecodingError {
-                connection = .failed("相関図の応答を読めませんでした。")
-                return
+                // 読めない応答でも止めない。表示したまま再接続し、読めるsnapshotが来たら消える（新しい本体で直れば開き直さずに戻る）。
+                connection = .unreadable
             } catch StreamError.resync {
                 attempt = 0
                 continue
@@ -147,7 +154,7 @@ final class WorkGraphModel: ObservableObject {
                 if connection == .live { attempt = 0 }
             }
             if Task.isCancelled { return }
-            if connection != .unsupported { connection = .reconnecting }
+            if connection != .unreadable { connection = .reconnecting }
             let waits: [Double] = [0, 1, 2, 4, 8, 15]
             let wait = waits[min(attempt, waits.count - 1)] * Double.random(in: 0.8...1.2)
             attempt += 1
@@ -218,7 +225,7 @@ final class WorkGraphModel: ObservableObject {
     }
 
     private func enter(_ node: WorkGraphNode, at now: Double) {
-        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        let center = CGPoint(x: area.midX, y: area.midY)
         let side = side(for: max(1, liveCount + 1))
         let spawn: CGPoint
         let target: CGPoint
@@ -254,12 +261,13 @@ final class WorkGraphModel: ObservableObject {
     func side(for count: Int) -> CGFloat {
         let n = CGFloat(max(count, 1))
         let byCount = count > 12 ? baseSide * sqrt(12 / n) : baseSide
-        let byArea = size.width > 0 && size.height > 0 ? sqrt(size.width * size.height / n) * 0.3 : baseSide
+        let byArea = size.width > 0 && size.height > 0 ? sqrt(area.width * area.height / n) * 0.3 : baseSide
         return max(36, min(byCount, byArea))
     }
 
     /// 1フレーム進める。dtは実時間（1/30秒で頭打ち）。
-    func step(now: Double, size newSize: CGSize, insets: EdgeInsets) {
+    func step(now: Double, size newSize: CGSize, insets newInsets: EdgeInsets) {
+        if newInsets != insets { insets = newInsets; heat = 1 }
         if newSize != size {
             if size != .zero { heat = 1 }
             size = newSize
@@ -272,12 +280,12 @@ final class WorkGraphModel: ObservableObject {
         let ids = order.filter { bodies[$0]?.leavingAt == nil }
         let s = side(for: ids.count)
         // 画面いっぱいに広げる（Owner）。間隔・線の長さ・反発は画面の短辺mから決め、引力は長い辺の向きほど弱くする。
-        let m = max(min(size.width, size.height), 1)
+        let m = max(min(area.width, area.height), 1)
         // 人数が多いほど1組あたりの反発を弱め、壁へ押し付けない。
         let kr = 0.00009 * m * m * m * min(1, 6 / CGFloat(max(ids.count, 1)))
         let length = m * 0.38
-        let gx = 0.004 * m / max(size.width, 1), gy = 0.004 * m / max(size.height, 1)
-        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        let gx = 0.004 * m / area.width, gy = 0.004 * m / area.height
+        let center = CGPoint(x: area.midX, y: area.midY)
         var force: [String: CGVector] = [:]
         for (i, a) in ids.enumerated() {
             guard let pa = bodies[a]?.position else { continue }
@@ -333,9 +341,8 @@ final class WorkGraphModel: ObservableObject {
                 bodies[b]?.position = CGPoint(x: pb.x + ux * shift, y: pb.y + uy * shift)
             }
         }
-        let bounds = CGRect(x: 24 + insets.leading + s / 2, y: 24 + insets.top + s / 2,
-                            width: max(0, size.width - 48 - insets.leading - insets.trailing - s),
-                            height: max(0, size.height - 48 - insets.top - insets.bottom - s))
+        let inner = area.insetBy(dx: 24 + s / 2, dy: 24 + s / 2)
+        let bounds = inner.width > 0 && inner.height > 0 ? inner : CGRect(x: area.midX, y: area.midY, width: 0, height: 0)
         for id in ids {
             guard var p = bodies[id]?.position else { continue }
             p.x = min(max(p.x, bounds.minX), bounds.maxX)
@@ -352,7 +359,7 @@ final class WorkGraphModel: ObservableObject {
         if let leavingAt = body.leavingAt {
             let t = min(max((now - leavingAt) / 0.6, 0), 1)
             let k = Self.bezier(t, 0.4, 0, 1, 1)
-            let center = CGPoint(x: size.width / 2, y: size.height / 2)
+            let center = CGPoint(x: area.midX, y: area.midY)
             var dx = body.leaveFrom.x - center.x, dy = body.leaveFrom.y - center.y
             let d = max(1, hypot(dx, dy)); dx /= d; dy /= d
             let travel = hypot(size.width, size.height)

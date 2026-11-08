@@ -84,14 +84,47 @@ struct WorkGraphView: View {
     private func draw(_ context: inout GraphicsContext, now: Double) {
         let live = model.connection == .live
         let lines = model.lines.values.sorted { $0.edge.id < $1.edge.id }
-        let showLabels = lines.filter { $0.endedAt == nil }.count <= 10
-        for line in lines { drawEdge(&context, line, now: now, live: live, showLabel: showLabels) }
+        for line in lines { drawEdge(&context, line, now: now, live: live) }
         var nodes = context
         // 切断中は最後の図を残し、彩度を落として点滅と流れを止める。
         if !live { nodes.addFilter(.saturation(0.4)) }
         for id in model.order {
             guard let body = model.bodies[id] else { continue }
             drawNode(&nodes, body, now: now, live: live)
+        }
+        drawLabels(&context, lines: lines, now: now)
+    }
+
+    /// 依頼のラベルはアイコン・名前・他のラベルに重ねない。線の上の空いた所を探し、無ければ出さない（全文は長押し・ポインタで出る）。
+    /// 多すぎる時（10本超）は始まって5秒以内の新しい依頼だけを出す。新しい依頼ほど先に場所を取る。
+    private func drawLabels(_ context: inout GraphicsContext, lines: [WorkGraphModel.Line], now: Double) {
+        var occupied: [CGRect] = []
+        for id in model.order {
+            guard let body = model.bodies[id] else { continue }
+            let look = model.appearance(body, at: now)
+            let size = side * look.scale
+            occupied.append(CGRect(x: look.point.x - size / 2 - 6, y: look.point.y - size / 2 - 6, width: size + 12, height: size + 12))
+            let width = side * 2.2
+            occupied.append(CGRect(x: look.point.x - width / 2, y: look.point.y + size / 2 + 4, width: width, height: BellTheme.listNameFontSize * 1.5))
+        }
+        let open = lines.filter { $0.endedAt == nil }
+        let crowded = open.count > 10
+        for line in open.sorted(by: { $0.startedAt > $1.startedAt }) {
+            guard !crowded || now - line.startedAt < 5, let label = line.edge.label, !label.isEmpty,
+                  let geometry = path(line, now: now), geometry.length >= 120,
+                  now - line.startedAt >= 0.35 else { continue }
+            let text = context.resolve(Text(label).font(.system(size: BellTheme.listDetailFontSize)).foregroundColor(BellTheme.muted))
+            let measured = text.measure(in: CGSize(width: 180, height: 40))
+            let width = min(measured.width, 180) + 12, height = measured.height + 6
+            for t in [0.5, 0.38, 0.62, 0.28, 0.72] {
+                let at = geometry.point(t)
+                let chip = CGRect(x: at.x - width / 2, y: at.y - height / 2, width: width, height: height)
+                guard !occupied.contains(where: { $0.intersects(chip.insetBy(dx: -2, dy: -2)) }) else { continue }
+                occupied.append(chip)
+                context.fill(Path(roundedRect: chip, cornerRadius: 8), with: .color(BellTheme.canvas.opacity(0.92)))
+                context.draw(text, in: chip.insetBy(dx: 6, dy: 3))
+                break
+            }
         }
     }
 
@@ -123,7 +156,7 @@ struct WorkGraphView: View {
         return (path, length, point, point(0.5))
     }
 
-    private func drawEdge(_ context: inout GraphicsContext, _ line: WorkGraphModel.Line, now: Double, live: Bool, showLabel: Bool) {
+    private func drawEdge(_ context: inout GraphicsContext, _ line: WorkGraphModel.Line, now: Double, live: Bool) {
         guard let geometry = path(line, now: now) else { return }
         let accent = BellTheme.accent(model.bodies[line.edge.from]?.node.color ?? "violet")
         let grow = 1 - pow(1 - min(max((now - line.startedAt) / 0.35, 0), 1), 3)
@@ -157,14 +190,6 @@ struct WorkGraphView: View {
                            with: .color(accent.opacity(Double(edgeFade) * (line.edge.steered ? 0.75 : 1))))
                 distance += 28
             }
-        }
-        if showLabel, geometry.length >= 120, let label = line.edge.label, !label.isEmpty {
-            let text = layer.resolve(Text(label).font(.system(size: BellTheme.listDetailFontSize)).foregroundColor(BellTheme.muted))
-            let measured = text.measure(in: CGSize(width: 180, height: 40))
-            let chip = CGRect(x: geometry.mid.x - min(measured.width, 180) / 2 - 6, y: geometry.mid.y - measured.height / 2 - 3,
-                              width: min(measured.width, 180) + 12, height: measured.height + 6)
-            layer.fill(Path(roundedRect: chip, cornerRadius: 8), with: .color(BellTheme.canvas.opacity(0.92)))
-            layer.draw(text, in: chip.insetBy(dx: 6, dy: 3))
         }
     }
 
@@ -213,6 +238,8 @@ struct WorkGraphView: View {
     @ViewBuilder private var pill: some View {
         if model.connection == .reconnecting {
             pillText("再接続中…")
+        } else if model.connection == .unreadable {
+            pillText("相関図の応答を読めませんでした。再接続しています…")
         } else if model.degraded && model.connection == .live {
             pillText("一部の情報を取得できていません")
         }
