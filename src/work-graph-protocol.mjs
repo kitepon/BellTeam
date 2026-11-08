@@ -29,9 +29,7 @@ export function validateWorkGraphEffect(method, params) {
 }
 
 const QUEUE_KEYS = ['status', 'context', 'contextId', 'groupId', 'from', 'target', 'image', 'steered', 'startedAt']
-// Legacy: a body before #692 sends the raw `message` (ignored, label 依頼を処理中). Remove once every body is >= #692.
-const queueItem = item => (workGraphObject(item, [...QUEUE_KEYS, 'requestSummary']) && strOrNull(item.requestSummary)
-  || workGraphObject(item, [...QUEUE_KEYS, 'message']) && str(item.message))
+const queueItem = item => workGraphObject(item, [...QUEUE_KEYS, 'requestSummary']) && strOrNull(item.requestSummary)
   && str(item.status) && str(item.context) && strOrNull(item.contextId) && strOrNull(item.groupId) && strOrNull(item.from) && strOrNull(item.target)
   && typeof item.image === 'boolean' && typeof item.steered === 'boolean'
   && (item.startedAt === null || str(item.startedAt) || typeof item.startedAt === 'number')
