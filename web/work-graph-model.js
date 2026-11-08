@@ -2,7 +2,7 @@
 export const SCHEMA = 'bellteam.work-graph.v1'
 export const ACCENTS = { violet: '#6147D4', rose: '#E86B94', indigo: '#4559C2', sky: '#47A1E3', mint: '#2EB29E', amber: '#E89E47' }
 export const accent = color => ACCENTS[color] ?? ACCENTS.violet
-const ENTER_MS = 700, LEAVE_MS = 600, GROW_MS = 350, END_MS = 300, NEW_LABEL_MS = 3000, LABEL_FADE_MS = 400, REDUCED_MS = 200
+const NAME_HEIGHT = 18, ENTER_MS = 700, LEAVE_MS = 600, GROW_MS = 350, END_MS = 300, NEW_LABEL_MS = 3000, LABEL_FADE_MS = 400, REDUCED_MS = 200
 
 export function cubicBezier(x1, y1, x2, y2) {
   const at = (a, b, t) => 3 * a * t * (1 - t) ** 2 + 3 * b * t * t * (1 - t) + t ** 3
@@ -64,7 +64,7 @@ export function createGraphModel({ reduceMotion = false } = {}) {
     const theta = (fnv1a(node.botId) % 360) * Math.PI / 180
     const c = rect ? { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 } : { x: 0, y: 0 }
     const near = reduceMotion ? 0.12 : 0.25, m = rect ? Math.min(rect.w, rect.h) : 100
-    nodes.set(node.botId, { ...node, x: c.x + Math.cos(theta) * m * near, y: c.y + Math.sin(theta) * m * near, vx: 0, vy: 0, theta, enterAt: now, leaveAt: null })
+    nodes.set(node.botId, { ...node, x: c.x + Math.cos(theta) * m * near, y: c.y + Math.sin(theta) * m * near, vu: 0, vv: 0, theta, enterAt: now, leaveAt: null })
     firstSeen = true
   }
   function leave(botId, now) { const node = nodes.get(botId); if (node && !node.leaveAt) node.leaveAt = now }
@@ -113,14 +113,19 @@ export function createGraphModel({ reduceMotion = false } = {}) {
       for (const [id, node] of nodes) if (node.leaveAt && now - node.leaveAt >= (reduceMotion ? REDUCED_MS : LEAVE_MS)) nodes.delete(id)
       const live = [...nodes.values()].filter(node => !node.leaveAt), n = live.length
       if (!n) return
-      const { w: W, h: H } = rect, m = Math.min(W, H), S = avatarSide(rect, n, wide)
-      const cx = rect.x + W / 2, cy = rect.y + H / 2
-      const kr = 0.00009 * m ** 3 * Math.min(1, 6 / n), ks = 0.05, L = 0.38 * m, kx = 0.004 * m / W, ky = 0.004 * m / H
-      const force = new Map(live.map(node => [node, { x: kx * (cx - node.x), y: ky * (cy - node.y) }]))
-      for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
-        const a = live[i], b = live[j], dx = a.x - b.x, dy = a.y - b.y, d = Math.max(1, Math.hypot(dx, dy)), f = kr / (d * d)
-        force.get(a).x += f * dx / d; force.get(a).y += f * dy / d; force.get(b).x -= f * dx / d; force.get(b).y -= f * dy / d
+      // 力は D に正規化した座標 (u, v) で計算する。衝突と境界だけ点で測る（behavior-spec "Layout ... normalized"）。
+      const { w: W, h: H } = rect, S = avatarSide(rect, n, wide), cx = rect.x + W / 2, cy = rect.y + H / 2
+      const kr = 0.005 / n, ks = 0.02, L = Math.min(0.7, 1.4 / Math.sqrt(n))
+      const uv = new Map(live.map(node => [node, { u: (node.x - rect.x) / W, v: (node.y - rect.y) / H }]))
+      const span = (key, size) => Math.max(...live.map(node => uv.get(node)[key])) - Math.min(...live.map(node => uv.get(node)[key])) + size
+      const gravity = fill => 0.02 * Math.min(50, Math.max(0.001, (fill / 0.88) ** 16))
+      const gu = gravity(span('u', S / W)), gv = gravity(span('v', (S + NAME_HEIGHT) / H))
+      const force = new Map(live.map(node => [node, { u: gu * (0.5 - uv.get(node).u), v: gv * (0.5 - uv.get(node).v) }]))
+      const pull = (a, b, q) => {
+        const du = uv.get(b).u - uv.get(a).u, dv = uv.get(b).v - uv.get(a).v, d = Math.max(0.01, Math.hypot(du, dv)), f = q(d)
+        force.get(a).u += f * du / d; force.get(a).v += f * dv / d; force.get(b).u -= f * du / d; force.get(b).v -= f * dv / d
       }
+      for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) pull(live[i], live[j], d => -kr / (d * d))
       const springs = new Set()
       for (const edge of edges.values()) {
         if (edge.endAt) continue
@@ -129,15 +134,14 @@ export function createGraphModel({ reduceMotion = false } = {}) {
         const key = [edge.from, edge.to].sort().join('\n')
         if (springs.has(key)) continue
         springs.add(key)
-        const dx = b.x - a.x, dy = b.y - a.y, d = Math.max(1, Math.hypot(dx, dy)), f = ks * (d - L)
-        force.get(a).x += f * dx / d; force.get(a).y += f * dy / d; force.get(b).x -= f * dx / d; force.get(b).y -= f * dy / d
+        pull(a, b, d => ks * (d - L))
       }
       for (const node of live) {
-        const f = force.get(node)
-        node.vx = (node.vx + f.x * alpha) * 0.82; node.vy = (node.vy + f.y * alpha) * 0.82
-        const speed = Math.hypot(node.vx, node.vy)
-        if (speed > 14) { node.vx *= 14 / speed; node.vy *= 14 / speed }
-        node.x += node.vx * dt * 60; node.y += node.vy * dt * 60
+        const f = force.get(node), p = uv.get(node)
+        node.vu = ((node.vu ?? 0) + f.u * alpha) * 0.82; node.vv = ((node.vv ?? 0) + f.v * alpha) * 0.82
+        const speed = Math.hypot(node.vu * W, node.vv * H)
+        if (speed > 14) { node.vu *= 14 / speed; node.vv *= 14 / speed }
+        node.x = rect.x + (p.u + node.vu * dt * 60) * W; node.y = rect.y + (p.v + node.vv * dt * 60) * H
       }
       const gap = S * 2.2
       for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {

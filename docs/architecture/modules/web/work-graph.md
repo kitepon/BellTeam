@@ -1,6 +1,6 @@
 # Web 相関図 (work graph page)
 
-Owner: Admi (Web). Data and motion are not decided here: the data contract is [work-graph](../work-graph/README.md#public-contract) (Arc Ranger Black) and what the user sees is the shared [behavior and visual spec](../work-graph/behavior-spec.md) (main 6b1f2570). This file maps that spec onto Web code. Requested by the Owner via Trony, 2026-11-08.
+Owner: Admi (Web). Data and motion are not decided here: the data contract is [work-graph](../work-graph/README.md#public-contract) (Arc Ranger Black) and what the user sees is the shared [behavior and visual spec](../work-graph/behavior-spec.md) (main 6b1f2570; layout revised a438f2e2). This file maps that spec onto Web code. Requested by the Owner via Trony, 2026-11-08.
 
 ## Function map
 
@@ -22,6 +22,7 @@ flowchart TD
 | --- | --- | --- |
 | `createGraphModel()` | `snapshot(data, now)` replaces/diffs (throws on unknown schema); `change(batch, now)` -> `true` applied, `false` reconnect; `step(dt, rect, now)`; `frame(now, rect)` -> draw list (positions, opacities, label rects) | `web/work-graph-model.js` (pure, no DOM) |
 | Sizes, forces, label placement, blink, curves | numbers exactly as behavior-spec "Sizes", "Layout", "Enter", "Leave", "Blink", "Edges" | same file |
+| Layout (main a438f2e2) | forces in `D`-normalized `(u, v)`: `kr = 0.005/n`, spring `0.02`, `L = min(0.7, 1.4/√n)`, span-following gravity per axis toward 0.5 with `nameHeight` 18; collision `S × 2.2` and bounds in px (bounds keep the name width `S × 2.2` inside `D`, so narrow phones fill the x axis a little less than layout-sim.mjs) | same file; checked against `layout-sim.mjs simulate()` in the test |
 | `createWorkGraphView(dialog, {fetch, reduceMotion})` | `open()` starts stream + rAF; `close()` aborts stream, cancels rAF and timers | `web/work-graph.js` |
 | Stream loop | `fetch('/api/work-graph/events')`; non-OK, bad JSON, unknown schema -> unreadable pill; 404 -> "not on this server" state; socket end/error or 35 s silence -> 再接続中…; every case retries with the backoff while open; hidden tab closes the stream and reconnects on return | same file |
 | Hover | pointer near a path or a node -> that edge label / that node name shown (crowded and hidden labels) | same file |

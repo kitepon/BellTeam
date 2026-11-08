@@ -89,3 +89,19 @@ test('SSEの読み取り：snapshotから始め、番号の飛び・404・503・
   assert.deepEqual(snapshots, [{ v: 1 }])
   assert.ok(timers.includes(0))
 })
+
+test('配置は D に正規化した力で両方向を埋める（layout-sim.mjs と同じ埋まり方、Web 1440×900）', async () => {
+  const { simulate, sampleEdges } = await import('../docs/architecture/modules/work-graph/layout-sim.mjs')
+  const D = { x: 24, y: 24, w: 1392, h: 740 }
+  for (const n of [4, 16]) {
+    const ids = Array.from({ length: n }, (_, i) => `bot-${i}`), model = createGraphModel()
+    model.snapshot(snapshot(ids.map(id => node(id)), sampleEdges(n, 4).map(([a, b]) => edge(ids[a], ids[b]))), 0, D)
+    for (let i = 0; i < 900; i++) model.step(1 / 60, D, i * 16.7)
+    const S = avatarSide(D, n, false), list = [...model.nodes.values()]
+    const fillX = (Math.max(...list.map(p => p.x)) - Math.min(...list.map(p => p.x)) + S) / D.w
+    const fillY = (Math.max(...list.map(p => p.y)) - Math.min(...list.map(p => p.y)) + S + 18) / D.h
+    const ref = simulate({ W: D.w, H: D.h, n, edges: sampleEdges(n, 4), seed: 1 })
+    assert.ok(Math.abs(fillX - ref.fillX) < 0.05 && Math.abs(fillY - ref.fillY) < 0.05, `n=${n} web ${fillX.toFixed(2)}/${fillY.toFixed(2)} ref ${ref.fillX.toFixed(2)}/${ref.fillY.toFixed(2)}`)
+    assert.ok(fillX > 0.8 && fillY > 0.8)
+  }
+})
