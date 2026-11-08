@@ -76,6 +76,7 @@
     "src/conversation-lifetimes.mjs",
     "src/conversation-execution-effects.mjs",
     "src/team-background-summary.mjs",
-    "src/background-summary-runner.mjs"
+    "src/background-summary-runner.mjs",
+    "src/http-screen-input-api.mjs"
   ]
 }

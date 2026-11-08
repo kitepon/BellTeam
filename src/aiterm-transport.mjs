@@ -89,6 +89,9 @@ export function operationLease(client) {
 
 // BellTeamとAitermの間。席の状態（BotSessionState）と席の活動（SeatActivity）を持ち、一回の配送（DeliveryJob）を進める。
 // Aitermのnativeな実行判断はAitermに在り、ここは返却を事実として受け取る。
+const SCREEN_KEYS = new Set(['Enter', 'Escape', 'Tab', 'Up', 'Down', 'Left', 'Right', 'C-c', ...'0123456789'])
+const screenFailure = (code, status) => Object.assign(new Error(code), { code, status, effect: 'not_started' })
+
 export class AitermTransport {
   constructor({ resolveBot = null, backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, assertInputAllowed = () => {}, activeId = randomUUID, activityPath = null, captureRuntime = captureSelectedRuntime, runtimeLaunchesPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {} } = {}) {
     this.backgroundSummary = backgroundSummary
@@ -197,6 +200,42 @@ export class AitermTransport {
       return { online: false, screen: '' }
     }
     return { online: true, screen: cleanScreen(textResult(result), history ? 10000 : 25) }
+  }
+
+  // N5 screen input (screen-input.md): one Owner key or approval answer into the seat the screen view shows.
+  async screenKey(bot, key) {
+    if (!SCREEN_KEYS.has(key)) throw screenFailure('SCREEN_KEY_INVALID', 400)
+    if (!await this.isRunning(bot)) throw screenFailure('SCREEN_SEAT_ABSENT', 409)
+    try { await this.client.call('pty_key', { session_id: this.session(bot), key }) }
+    catch { throw screenFailure('SCREEN_INPUT_FAILED', 502) }
+    return { key, outcome: 'accepted' }
+  }
+
+  async screenApproval(bot, { action, decision, promptDigest } = {}) {
+    const tool = { claude: 'claude_approval', codex: 'agent_approval' }[bot.harness]
+    const digest = value => typeof value === 'string' && /^sha256:[0-9a-f]{64}$/u.test(value)
+    if (action === 'respond' && (!['approve_once', 'deny'].includes(decision) || !digest(promptDigest))) throw screenFailure('SCREEN_APPROVAL_INVALID', 400)
+    if (!['inspect', 'respond'].includes(action)) throw screenFailure('SCREEN_APPROVAL_INVALID', 400)
+    if (!await this.isRunning(bot)) throw screenFailure('SCREEN_SEAT_ABSENT', 409)
+    if (!tool) {
+      if (action === 'inspect') return { status: 'none' }
+      throw screenFailure('SCREEN_APPROVAL_UNSUPPORTED', 422)
+    }
+    const session_id = this.session(bot)
+    if (action === 'inspect') {
+      let result
+      // No dialog on screen comes back as a tool refusal; the view then shows only the key bar.
+      try { result = (await this.client.call(tool, { action: 'inspect', session_id }))?.structuredContent } catch { return { status: 'none' } }
+      if (result?.status !== 'approval_required' || !digest(result.prompt_digest) || !Array.isArray(result.choices)) return { status: 'none' }
+      return { status: 'approval_required', promptDigest: result.prompt_digest,
+        choices: result.choices.filter(choice => ['approve_once', 'deny'].includes(choice?.decision) && typeof choice.label === 'string')
+          .map(choice => ({ decision: choice.decision, label: choice.label.slice(0, 200) })) }
+    }
+    let result
+    try { result = (await this.client.call(tool, { action: 'respond', session_id, approval_choice: decision, observed_prompt_digest: promptDigest }))?.structuredContent }
+    catch { throw screenFailure('SCREEN_APPROVAL_CHANGED', 409) }
+    if (result?.status !== 'submitted') throw screenFailure('SCREEN_INPUT_FAILED', 502)
+    return { status: 'submitted', decision }
   }
 
   async ensure(bot) {
