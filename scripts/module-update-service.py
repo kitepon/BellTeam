@@ -455,7 +455,10 @@ def serve(updater, socket_directory):
     os.chown(socket_directory, 0, 1001)
     os.chmod(socket_directory, 0o750)
     with host.locked(updater.state / 'daemon.lock'):
-        host.refresh_catalog(updater)
+        # The official catalog check needs GitHub; an unreachable or rate-limited API must not stop the installer.
+        # refresh.json records the failure, the accepted catalog (if any) keeps serving, and the loop below retries.
+        try: host.refresh_catalog(updater); failed = False
+        except Exception: failed = True
         path = socket_directory / 'update.sock'
         if os.path.lexists(path):
             info = path.lstat()
@@ -469,10 +472,11 @@ def serve(updater, socket_directory):
             signal.signal(signal.SIGTERM, close)
             signal.signal(signal.SIGINT, close)
             stop = threading.Event()
-            def refresh():
-                while not stop.wait(900):
-                    try: host.refresh_catalog(updater)
-                    except Exception: pass # Durable refresh.json records failure; accepted catalog still expires.
+            def refresh(failed=failed):
+                # Retry every minute until a check succeeds, then every 15 minutes.
+                while not stop.wait(60 if failed else 900):
+                    try: host.refresh_catalog(updater); failed = False
+                    except Exception: failed = True # Durable refresh.json records failure; accepted catalog still expires.
             threading.Thread(target=refresh, daemon=True).start()
             inode = path.lstat().st_ino
             try: server.serve_forever(poll_interval=0.2)
