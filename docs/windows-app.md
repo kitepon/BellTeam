@@ -30,7 +30,7 @@ LAN接続で一覧・会話・プロフィールを使う1段目に、画像・�
 - 追加メニューの「メンバーを追加」は窓内のシート、詳細の「メンバーを編集」はMacと同じ別窓（1120×900、最小600×500）で開く。どちらもMacの1列のフォーム（メンバー／画像（追加時のみ）／AI／プロフィール／削除（編集時のみ））で、上部に「キャンセル」「保存」を置く。追加時は小画像・大画像を切り抜きシートで選び、選んだ区分の画像だけを`POST /api/bots`へ付ける（`avatar`・`avatarSource`・`avatarCrop`、大画像は`avatarLarge…`）。編集は開いた時から変えた欄だけをPATCHし、未知の欄や別の書き手が変えた欄を送り返さない。モデルは「CLIの既定」・候補・「その他」（「モデルID」欄）、エフォートは候補と「X（現在の設定）」。候補の取得に失敗しても保存済みのモデルとエフォートを保持する。応答が無い・サーバーエラーの時は変更した欄だけをGETで読み比べ、「保存した内容をサーバーで確認しました。」「サーバーの保存内容は入力と一致していません。入力は残しています。」「保存結果を確認できませんでした。入力は残しています。」のどれかを出し、後の二つには「保存結果を確認」（GETだけ）を付ける。保存を自動で再送しない。入力を直すと結果の行は消える。
 - 追加メニューの「ルームを作成」（シート題「ルームを作る」）と詳細の「ルームを編集」は窓内のシートで、ルーム（写真・ルーム名・この部屋で共有する仕事）・メンバー（チェック）・代表（「代表Bot」、「代表なし」と選んだメンバーだけ）・削除（編集時のみ）を設定する。削除はMac版と同じ確認文を出し、失敗は「操作を完了できませんでした」の確認で知らせる。写真は切り抜きシートで位置と倍率を調整して512×512のJPEGにする。編集は変えた欄だけをPATCHする（Macは全欄を送る）。
 
-- 一覧の「予定」でメンバーとルームの予定を次回の順に読む。作成・編集・削除・今すぐ実行に対応する。繰り返しは一回・毎時・毎日・曜日・数日おき・数時間おき・cron式。BotはAIへの指示かコマンド、ルームは返信するメンバーを指定したAIへの指示を使う。既存のcron式とタイムゾーンはそのまま保持する。更新はサーバーの契約どおりPUTで全内容を置き換える。削除はMac版と同じ確認を出す。今すぐ実行はBotの番を起こす。
+- 一覧の「予定」でメンバーとルームの予定を次回の順に読む。Macと同じ見た目で、右上の紫の「＋」から追加し、カードの「今すぐ実行」「編集」とごみ箱（削除は「この予定を削除しますか？」の確認つき）で操作する。次回は「次回 10月14日(水) 9:00」の形で、無ければ「次回未定」。追加・編集は主窓の中のシート（担当・実行内容・タイミング）で、繰り返しは一回だけ・毎時・毎日・毎週・数日おき・数時間おき・cron式。BotはAIへの指示かコマンド、ルームは返信するメンバーを指定したAIへの指示を使う。既存のcron式とタイムゾーンはそのまま保持し、毎時・毎日・毎週に当てはまる式だけ該当の繰り返しで開く（範囲・間隔などを含む式はcron式のまま）。更新はサーバーの契約どおりPUTで全内容を置き換え、新規はPOSTで、保存・今すぐ実行・削除は1回の操作で1回だけ送り、自動では再送しない。結果が不明な時は不明と表示して一覧を読み直す。
 - 一覧の「設定」で追加機能の状態と設定、オーナーのプロフィール・写真・情報源リンク、ユーザー規範を編集する。プロフィールと追加機能は変更した欄だけを送る。秘密の欄はマスクし、空欄は保持、「保存すると登録済みの値を消す」を明示した時だけ空文字を送る。送信・非アクティブ化・終了で秘密の入力を消し、応答や例外の詳細を表示しない。追加機能の無効化はMac版と同じく追加確認を出さず、保存で反映する。秘密の値を明示的に消す操作はMac版には無い。
 - 一覧下部の「ゴール」（`Ctrl+3`）でメンバーのゴールを読む。設定済みのゴールをカードで出し、設定・編集・一時停止・再開・取り消すを確認なしで押せる（操作の有無はサーバーが返す権限と状態で決まる）。メンバーの会話には入力欄の上にゴールのカプセルが出て、押すとカードと「状態を更新」が開く。編集は「<名前>のゴール」のシートで、「目的」（4000文字まで）と「トークン予算（任意）」を保存する。変更は`POST /api/bots/{id}/goal`を1回だけ送り、自動では再送しない。応答が不明な時は不明と表示して状態を読み直す。ゴールは開いた時・更新・窓の前面復帰・サーバーの通知で読み、周期の読み取りは無い。
 - 通常の文、問いの文章回答、プロフィール・共有する仕事・予定・規範などの複数行テキストは、送信時にLFへそろえる。編集前後もLFで比較し、改行形式だけの違いで未編集の欄を送り返さない。秘密の値は変換しない。
@@ -90,8 +90,9 @@ dotnet publish windows/BellTeam.App/BellTeam.App.csproj -c Release -r win-x64 --
 & './windows/artifacts/publish-win-x64/BellTeam.exe' --render-url 'http://サーバーのLANアドレス:18891' "$PWD/windows/artifacts/live.png"
 ```
 
-`--render-editor <member|settings|profile|feature|schedules|new-schedule|setup|authentication> <URL> <ID> <PNG>`は編集画面を、`--render-editors <new-member|new-room|room|room-delete-alert|crop|member|member-delete-alert|member-delete-pending|member-delete-unconfirmed> <URL> <ID> <PNG>`はメンバー・ルームの編集とシートを表示せずPNGへ描く。GETだけを使う模擬サーバーでも確認できる（`mac-ui-reference.mjs ... editors`）。
+`--render-editor <member|settings|profile|feature|setup|authentication> <URL> <ID> <PNG>`は編集画面を、`--render-editors <new-member|new-room|room|room-delete-alert|crop|member|member-delete-alert|member-delete-pending|member-delete-unconfirmed> <URL> <ID> <PNG>`はメンバー・ルームの編集とシートを表示せずPNGへ描く。GETだけを使う模擬サーバーでも確認できる（`mac-ui-reference.mjs ... editors`）。
 
+`--render-schedules <list|empty|failed|delete|editor-member|editor-room|editor-weekly-error|editor-interval> <URL> <PNG>`は予定のページとシートを描く（`mac-ui-reference.mjs ... schedules`。GETだけで、編集の検証エラーは送信前に止まる）。
 `--render-page settings-<profile|ai|features|notifications|connection|display|billing|update|about|stop> <URL> <PNG>`は設定の各ページを主窓の中の配置で描く。`mac-ui-reference.mjs`の`settings`場面が10ページ分を`settings-<ページ>.png`へ出す。
 
 `--render-inspector <member|member-small|room|sheet-small|sheet-large|sheet-unsupported|pending|pending-sheet> <URL> <会話ID> <PNG>`は詳細パネルと画像のシートを模擬サーバー（GETだけ）から描く。

@@ -98,6 +98,11 @@ Mac：[48の詳細パネル](assets/mac-ui-reference-48/01-workspace.png)／Wind
 - 右上は紫の丸い「＋」だけ。Windowsは「再読込」と「予定を追加」の2つ。
 - カードの右上に種類のアイコン（一回なら予定表、繰り返しなら矢印）。日時は「次回 10月14日(水) 9:00」（時計アイコン付き）。Windowsは「10/14 (水) 09:00」。削除はごみ箱アイコン、ボタンは薄い面付き。
 - 空の状態「予定はありません」「右上の＋から追加できます。」。編集シートの繰り返し名「毎週」（Windowsは「曜日」）。
+対応済み（PR 9）：Macの文言と構成どおりにWindows（WPF）で作った。画面：[一覧](assets/windows-mac-gaps/windows/pr9-schedules-list.png)（Macは`03-schedules-list-light.png`）・[既定の模擬](assets/windows-mac-gaps/windows/pr9-schedules.png)・[空](assets/windows-mac-gaps/windows/pr9-schedules-empty.png)・[読込失敗](assets/windows-mac-gaps/windows/pr9-schedules-failed.png)・[削除の確認](assets/windows-mac-gaps/windows/pr9-schedules-delete.png)・[追加（メンバー）](assets/windows-mac-gaps/windows/pr9-schedules-editor-member.png)・[追加（ルーム、返信するメンバー）](assets/windows-mac-gaps/windows/pr9-schedules-editor-room.png)・[毎週の入力エラー](assets/windows-mac-gaps/windows/pr9-schedules-editor-weekly-error.png)・[数時間おき](assets/windows-mac-gaps/windows/pr9-schedules-editor-interval.png)。
+- 右上は紫の丸い「＋」だけ（再読込と文字の追加ボタンは無くした。開いた時とサーバーの通知で読み直す）。34ptの見出し「予定」と説明、カード（種類のアイコン・時計つきの「次回 10月14日(水) 9:00」・薄い面の「今すぐ実行」「編集」・ごみ箱）、削除の確認、空と読込失敗の表示はMacのとおり。
+- 編集は主窓の中のシート。担当・実行内容・タイミングの3区画、繰り返しの名前は「毎週」、各繰り返しの入力欄とMacの入力エラー（「実行内容を入力してください。」「曜日を選んでください。」）もMacのとおり。
+- サーバーとの通信は変えていない（更新はPUTで全内容、新規はPOST、削除はDELETE、今すぐ実行はPOST。cron式とタイムゾーンは保持）。保存・実行・削除は1回の操作で1回だけ送り、結果が不明な時は表示して一覧を読み直す。
+- Windowsだけの差：編集を開いた時、cron式は毎時・毎日・毎週にそのまま当てはまる時だけ該当の繰り返しで開く（Macは範囲「1-5」も毎週として開き曜日が空になる）。既存の予定の返信するメンバーは編集を開いても消さない。日付の入力欄はWindowsの日付選択と、時・分の2つのリスト。
 
 ## 8. 設定 — L（作り直し）
 

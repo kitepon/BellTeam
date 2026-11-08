@@ -55,8 +55,6 @@ public partial class App : Application
                 EditorWindow editor;
                 if (editorKind is "settings" or "profile") { var settingsEditor = new SettingsWindow(editorWorkspace) { Width = 960, Height = 800 }; editor = settingsEditor; await settingsEditor.InitializeAsync(SettingsPage.Profile); }
                 else if (editorKind == "feature") { var feature = new FeatureEditor(editorWorkspace, editorId, "追加機能"); editor = feature; await feature.InitializeAsync(); }
-                else if (editorKind == "schedules") { var schedules = new SchedulesWindow(editorWorkspace); editor = schedules; await schedules.InitializeAsync(); }
-                else if (editorKind == "new-schedule") editor = new ScheduleEditor(editorWorkspace, null);
                 else if (editorKind == "setup") editor = new SetupWindow(editorWorkspace, await new SetupApi(editorWorkspace.Management.Api).StatusAsync());
                 else if (editorKind == "authentication") { var option = (await new HarnessAuthenticationApi(editorWorkspace.Management.Api).ListAsync(editorWorkspace.ConnectionToken)).Harnesses.Single(item => item.Id == editorId); var authentication = new HarnessAuthenticationWindow(editorWorkspace, option); editor = authentication; await authentication.InitializeAsync(); }
                 else throw new ArgumentException("未対応の編集画面です。");
@@ -90,6 +88,32 @@ public partial class App : Application
                 sceneRoot.Measure(new Size(1280, 820)); sceneRoot.Arrange(new Rect(0, 0, 1280, 820)); sceneRoot.UpdateLayout();
                 await window.PrepareRenderAsync();
                 WritePng(window, 1280, 820, sceneOutput);
+                model.Dispose(); Shutdown(0); return;
+            }
+            if (e.Args is ["--render-schedules", var scheduleScene, var scheduleAddress, var scheduleOutput])
+            {
+                // The schedule page and its sheets in named states, read from the mock server (GET only). The weekly error is a validation that stops before any request.
+                var model = new Workspace(); var window = new MainWindow(model, persistPlacement: false);
+                await model.ConnectAsync(scheduleAddress, listen: false);
+                if (model.ConnectionError is { } connectFailure) throw new BellApiException(connectFailure);
+                window.ShowSchedules(); await window.PageReady;
+                var page = window.SchedulesPage ?? throw new BellApiException("予定のページを開けませんでした。");
+                switch (scheduleScene)
+                {
+                    case "list" or "empty" or "failed": break;
+                    case "delete": page.AskDeleteForRender(); break;
+                    case "editor-member": page.OpenEditorForRender().Prefill(nameText: "朝の確認", text: "今日の予定と優先事項を整理して、先に知らせてほしい。"); break;
+                    case "editor-room": page.OpenEditorForRender().Prefill(ownerPath: new ChatTarget("planning", true).Path, nameText: "週のふり返り", text: "進んだ仕事をまとめる", frequencyId: "daily"); break;
+                    case "editor-weekly-error": { var view = page.OpenEditorForRender("weekly"); view.Prefill(frequencyId: "weekly", weekdays: []); await view.SaveAsync(); break; }
+                    case "editor-interval": page.OpenEditorForRender().Prefill(nameText: "巡回", text: "python3 tools/patrol.py", frequencyId: "interval_hours"); break;
+                    default: throw new ArgumentException("未対応の予定の画面です。");
+                }
+                await window.PageReady;
+                var scheduleRoot = (FrameworkElement)window.Content;
+                scheduleRoot.Measure(new Size(1280, 820)); scheduleRoot.Arrange(new Rect(0, 0, 1280, 820)); scheduleRoot.UpdateLayout();
+                if (scheduleScene == "editor-weekly-error") page.Editor!.ScrollToEndForRender();
+                await window.PrepareRenderAsync();
+                WritePng(window, 1280, 820, scheduleOutput);
                 model.Dispose(); Shutdown(0); return;
             }
             if (e.Args is ["--render-page", var pageKind, var pageAddress, var pageOutput])

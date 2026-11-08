@@ -41,7 +41,7 @@ public class EditorWindow : Window
         Closing += (_, args) => { if (!CanNavigateAway) args.Cancel = true; };
     }
     // keepActions: the hosted editor still needs its own 保存/戻る buttons (the settings pane embeds the feature editor).
-    public FrameworkElement AsPage(Action close, bool keepActions = false)
+    public virtual FrameworkElement AsPage(Action close, bool keepActions = false)
     {
         closePage = close; var content = (FrameworkElement)Content; Content = null;
         Body.MaxWidth = 850; Body.HorizontalAlignment = HorizontalAlignment.Stretch;
