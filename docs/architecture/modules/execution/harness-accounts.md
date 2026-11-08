@@ -91,9 +91,13 @@ The switch reuses the existing resume path, so the conversation, docs and Throug
 ## What other owners add
 
 - Elegg (Aiterm):
-  - E1. `agent_launch` / `claude_agent` accept `configuration_root`: an absolute path that is either the default Claude root or a directory under `$HOME/.bellteam-accounts/claude/`. The seat runs with `CLAUDE_CONFIG_DIR` set to it, or unset for the default root. It is stored in the resume recipe. Anything else is rejected with a typed error (protection: credentials of an unintended directory).
-  - E2. A resume of an existing session with a different `configuration_root` is allowed when the transcript `<new root>/projects/<slug>/<vendor_session_id>.jsonl` exists. It realpaths to the same file through the shared symlink. Today the recipe pins the original root.
-  - E3. `agent_auth` accepts the same `configuration_root` for `start`, `status`, `respond` and `cancel`. `status` additionally returns the non-secret `account_label` (the e-mail from `claude auth status --json`) when logged in.
+  Agreed by Elegg on 2026-11-08 (Aiterm 0.64.0):
+  - E1. `agent_launch` / `claude_agent` accept `configuration_root`. Two values are allowed:
+    - the default root `$HOME/.claude`, where the seat runs with `CLAUDE_CONFIG_DIR` unset;
+    - an existing directory whose realpath is a direct child of a parent listed in `AITERM_CLAUDE_CONFIG_ROOTS` (a path-delimited list) in the Aiterm MCP process env.
+    BellTeam sets `AITERM_CLAUDE_CONFIG_ROOTS=$HOME/.bellteam-accounts/claude` only in the env of the parent's own Aiterm client process. Bot-side Aiterm processes do not get it, so they can use only the default root. The root is stored in the resume recipe. Anything else gets `AGENT_CONFIGURATION_ROOT_REJECTED` (protection: credentials of an unintended directory). `env_vars` containing `CLAUDE_CONFIG_DIR` together with `configuration_root` gets the same error (two sources for one value). With `remote`, the seat's own Aiterm validates against its own env.
+  - E2. A cross-root resume goes only through the existing resume entry: `session_name` of a hibernated seat, or `require_existing_resume`. `configuration_root` is the only setting allowed to differ; a model, effort, cwd or env difference still gives `AGENT_RESUME_CONFLICT`. The transcript must exist at `<new root>/projects/<slug of recipe cwd>/<vendor_session_id>.jsonl`, otherwise resume is unavailable. The new recipe stores the new root, and `CLAUDE_CONFIG_DIR` null for the default. So execution's failover first applies the slot change alone, and any model change follows as an ordinary change.
+  - E3. `agent_auth` accepts `configuration_root` on `start`. The auth session keeps it, and `respond`, `cancel` or `status` for that session with a different root get `AGENT_CONFIGURATION_ROOT_REJECTED`. `status` returns `account_label`: the `email` field of `claude auth status --json`, or null when not logged in or absent. No tokens anywhere.
   - No reset-time parsing is needed; execution reads it from usage.
 - Mika (usage, settings):
   - HarnessAuth takes `{slot}`. It gets the root from `accounts.prepare` and passes it to `agent_auth` (E3). The receipt carries `slot`.
