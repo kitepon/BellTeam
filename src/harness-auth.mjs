@@ -62,9 +62,10 @@ export class HarnessAuth {
     return this.change(async () => {
       this.require(harness)
       const slot = harnessAuthSlot(harness, selected?.slot), key = harnessAuthKey(harness, slot)
+      const previous = this.receipts.get(key)
       if (this.sessions.has(key)) await this.end(harness, slot)
       // Antigravityは初回認証だけ。他のAIは、認証済みに見える時も公式ログインを始める。
-      const receipt = await this.call(harness, 'start', { relogin: harness !== 'antigravity' }, slot)
+      const receipt = await this.call(harness, 'start', { relogin: harness !== 'antigravity' }, slot, previous)
       // relogin を知らないAitermは引数を捨て、認証済みなら何も始めずに返す。始まっていない事を、認証済みと取り違えない。
       if (harness !== 'antigravity' && receipt.status === 'authenticated' && !receipt.session_id)
         throw new HarnessAuthError('HARNESS_AUTH_RELOGIN_UNSUPPORTED', 409, 'このサーバーのAitermは、認証済みのAIの認証のやり直しに対応していません。BellTeamを更新してください。')
@@ -122,7 +123,7 @@ export class HarnessAuth {
     this.receipts.delete(key)
   }
 
-  async call(harness, action, options = {}, slot = '1st') {
+  async call(harness, action, options = {}, slot = '1st', previous = this.receipts.get(harnessAuthKey(harness, slot))) {
     const key = harnessAuthKey(harness, slot)
     let configurationRoot
     if (harness === 'claude') {
@@ -137,6 +138,14 @@ export class HarnessAuth {
         else throw new HarnessAuthError('HARNESS_AUTH_ACCOUNTS_UNAVAILABLE', 503, 'アカウントの保存場所を用意できませんでした。少し待ってから、もう一度お試しください。')
       }
     }
+    let account
+    if (harness === 'claude' && action !== 'cancel') {
+      // Login metadata enriches the display; its absence must not stop official auth.
+      try {
+        const accounts = await this.accounts?.list?.()
+        account = accounts?.harnesses?.find(value => value.harness === harness)?.slots?.find(value => value.slot === slot)
+      } catch {}
+    }
     const session = this.sessions.get(key)
     const cwd = [...this.bots.values()].find(bot => bot.harness === harness)?.project
     const result = await this.client.call('agent_auth', {
@@ -148,7 +157,14 @@ export class HarnessAuth {
     const receipt = authReceipt(result, session, () => new HarnessAuthError('HARNESS_AUTH_RESPONSE_INVALID', 502, 'Aitermの公式認証の応答を読み取れません。'))
     if (harness === 'claude' && receipt.account_label !== undefined && receipt.account_label !== null && typeof receipt.account_label !== 'string')
       throw new HarnessAuthError('HARNESS_AUTH_RESPONSE_INVALID', 502, 'Aitermの公式認証の応答を読み取れません。')
-    const value = harness === 'claude' ? { ...receipt, slot, account_label: receipt.account_label ?? null } : receipt
+    const active = action !== 'cancel' && receipt.status !== 'authenticated' && Boolean(session || receipt.session_id)
+    const loggedIn = account?.loggedIn === true || active && (previous?.status === 'authenticated'
+      || account?.loggedIn !== false && previous?.loggedIn === true)
+    const relogin = active && loggedIn
+    const value = harness === 'claude' ? { ...receipt, slot,
+      status: relogin && receipt.status === 'blocked' ? 'waiting' : receipt.status,
+      account_label: relogin ? account?.label ?? previous?.account_label ?? receipt.account_label ?? null : receipt.account_label ?? null,
+      loggedIn: receipt.status === 'authenticated' || loggedIn } : receipt
     this.receipts.set(key, value)
     return value
   }

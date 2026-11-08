@@ -43,6 +43,8 @@ export function usageEffectValid(method, params, context, rootParams = {}) {
   if (method === 'auth.prepareAccount') return exact(params, 'harness,slot') && params.harness === 'claude'
     && ['1st', '2nd'].includes(params.slot) && params.harness === rootParams.harness && params.slot === (rootParams.slot ?? '1st')
     && ['auth.start', 'auth.status', 'auth.input', 'auth.cancel'].includes(context.method)
+  if (method === 'auth.listAccounts') return exact(params, '')
+    && ['auth.start', 'auth.status', 'auth.input'].includes(context.method) && rootParams.harness === 'claude'
   if (method === 'auth.call') return named(params, ['harness', 'action'], ['session_id', 'relogin', 'expected_binding', 'expected_prompt_digest', 'response', 'configuration_root'])
     && Object.values(HARNESS).includes(params.harness) && authActions[context.method]?.includes(params.action)
     && (!params.session_id || text(params.session_id)) && (!Object.hasOwn(params, 'relogin') || typeof params.relogin === 'boolean')
@@ -70,6 +72,11 @@ export function usageEffectResultValid(method, value) {
   if (method === 'rooms.read') return Array.isArray(value) && value.every(room => exact(room, 'id,memberIds') && text(room.id) && Array.isArray(room.memberIds) && room.memberIds.every(text))
   if (method === 'auth.prepareAccount') return exact(value, 'configurationRoot') && typeof value.configurationRoot === 'string'
     && isAbsolute(value.configurationRoot) && !value.configurationRoot.includes('\0')
+  if (method === 'auth.listAccounts') return exact(value, 'harnesses') && Array.isArray(value.harnesses) && value.harnesses.length <= 1
+    && value.harnesses.every(row => exact(row, 'harness,slots') && row.harness === 'claude' && Array.isArray(row.slots) && row.slots.length <= 2
+      && row.slots.every(slot => exact(slot, 'slot,loggedIn,label') && ['1st', '2nd'].includes(slot.slot)
+        && (slot.loggedIn === null || typeof slot.loggedIn === 'boolean') && (slot.label === null || typeof slot.label === 'string'))
+      && new Set(row.slots.map(slot => slot.slot)).size === row.slots.length)
   if (method === 'auth.call') return named(value, ['structuredContent'], ['isError']) && object(value.structuredContent) && (!Object.hasOwn(value, 'isError') || typeof value.isError === 'boolean')
   if (method === 'subscription.setupTest') return text(value) && value.trim().length > 0
   return Object.hasOwn(allowed, method) && value === null

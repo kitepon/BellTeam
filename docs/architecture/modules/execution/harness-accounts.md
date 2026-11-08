@@ -164,6 +164,7 @@ The switch reuses the existing resume path, so the conversation, docs and Throug
   - E3. `agent_auth` accepts `configuration_root` on `start`. The auth session keeps it, and `respond`, `cancel` or `status` for that session with a different root get `AGENT_CONFIGURATION_ROOT_REJECTED`. `status` returns `account_label`: the `email` field of `claude auth status --json`, or null when not logged in or absent. No tokens anywhere.
   - No reset-time parsing is needed; execution reads it from usage.
 - Mika (usage), agreed 2026-11-08:
+  - During an open slot auth session with existing credentials (accounts.list loggedIn=true or the pre-start status authenticated), usage reports waiting (認証中) with the existing account label; blocked means no credentials, and execution seat selection is unchanged.
   - HarnessAuth sessions and receipts are keyed by `(harness, slot)`; no slot means 1st, and non-Claude behavior is unchanged.
   - `slot` stays outside the strict authResponse binding, prompt digest and response object.
   - The selected slot is prepared (`accounts.prepare`) before every `agent_auth` action, and `configuration_root` is passed only privately.

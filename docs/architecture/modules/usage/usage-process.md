@@ -56,6 +56,7 @@ settings先行initializeから始め、subscriptions/members→notifications/tra
 | method | params | 成功result/親が保持するもの |
 | --- | --- | --- |
 | settings.changed | id, configuration, epoch | null。既onChange/listener/CLI/通知applyの実completionをawait。configurationは当該featureだけprivate |
+| auth.prepareAccount / auth.listAccounts | selected slot / {} | [Slot authentication](harness-accounts.md) owns the closed private execution-root and login-metadata projections; native roots and credential files never enter public account cards. |
 | auth.call | harness(native enum), action、必要session/relogin/binding/digest/response | `{structuredContent,isError?}`だけ。content/log/envは渡さず、同parent client/authOptionsと固定projectからcwdを解決 |
 | onboarding.prepareStartup | botId, text | null。親はlive contextと正規projectFilesでappend。任意pathなし |
 | onboarding.startConversation | botId, message | null。既recordUser:falseの同messenger受付をawait |
@@ -68,16 +69,17 @@ settings先行initializeから始め、subscriptions/members→notifications/tra
 
 `createUsageRegistryPorts({effect,initialMembers})`でこれらのmetadataから既bots/rooms公開形を作る。初期ガイド以外のcreate/updateと未知fieldは拒否する。これがnative/clientや会話graphを二重構築することはない。
 
-## 親12effectsの接続helper
+## 固定親effectsの接続helper
 
-`src/usage-parent-effects.mjs:createUsageParentEffects({getServices,getFeatures,seatRuntime})`をMollyの親assemblyが呼ぶ。返却する(method,params,context)はusage channelで検証済みの閉12effectだけを同servicesへ接続する。ALS/authority/callback lifetimeは呼出元assemblyが所有し、helperはactorやleaseを生成しない。settings.changedはgetFeatures().onChangeの既apply参照を毎回取得し、未初期化ならUSAGE_EFFECT_UNAVAILABLE。settings.updateへ再入しない。
+`src/usage-parent-effects.mjs:createUsageParentEffects({getServices,getFeatures,seatRuntime})`をMollyの親assemblyが呼ぶ。返却する(method,params,context)はusage channelで検証済みの検証済みの閉effectだけを同servicesへ接続する。ALS/authority/callback lifetimeは呼出元assemblyが所有し、helperはactorやleaseを生成しない。settings.changedはgetFeatures().onChangeの既apply参照を毎回取得し、未初期化ならUSAGE_EFFECT_UNAVAILABLE。settings.updateへ再入しない。
 
 ```mermaid
 flowchart LR
   Channel[usage channel 検証済みeffect] --> Assembly[Molly ALS / opaque実context]
-  Assembly --> Adapter[usage-parent-effects 閉12method]
+  Assembly --> Adapter[usage-parent-effects 閉method]
   Adapter --> Apply[getFeatures onChange / epoch]
   Adapter --> Registry[同bots / rooms fresh公開口]
+  Adapter --> Accounts[execution.accounts prepare / list]
   Adapter --> Parent[同native client / messenger / notifications / transport]
   Adapter --> Project[固定seatRuntime membersProject / projectFiles]
 ```

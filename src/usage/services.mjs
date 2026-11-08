@@ -11,11 +11,12 @@ import { usageError, validateUsageRequest } from './process-schema.mjs'
 import { BackgroundAgentSettings } from './background-agent-settings.mjs'
 
 const clone = value => structuredClone(value)
-const receiptKeys = ['slot', 'account_label', 'schema', 'status', 'session_id', 'url', 'user_code', 'input_required', 'message']
+const receiptKeys = ['loggedIn', 'slot', 'account_label', 'schema', 'status', 'session_id', 'url', 'user_code', 'input_required', 'message']
 function receipt(value, session) {
   if (value === null) return null
   if (!value || typeof value !== 'object' || Array.isArray(value)
     || ['session_id', 'url', 'user_code', 'message'].some(key => value[key] !== undefined && value[key] !== null && typeof value[key] !== 'string')
+    || value.loggedIn !== undefined && typeof value.loggedIn !== 'boolean'
     || value.input_required !== undefined && typeof value.input_required !== 'boolean'
     || value.slot !== undefined && !['1st', '2nd'].includes(value.slot)
     || value.account_label !== undefined && value.account_label !== null && typeof value.account_label !== 'string'
@@ -146,7 +147,8 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
     'subscriptions.completeSetup': ({ botId }) => subscriptions.completeSetup(botId),
     'subscriptions.runSetupTest': ({ botId }) => subscriptions.runSetupTest(botId, () => callEffect('subscription.setupTest', { botId })),
   }
-  const harnessAuth = new HarnessAuth({ bots, client, accounts: { prepare: (harness, slot) => callEffect('auth.prepareAccount', { harness, slot }) } })
+  const harnessAuth = new HarnessAuth({ bots, client, accounts: { prepare: (harness, slot) => callEffect('auth.prepareAccount', { harness, slot }),
+    list: () => callEffect('auth.listAccounts', {}) } })
   const publish = record => {
     const row = clone({ ...record, revision: ++revision }), previous = projectionTail
     const result = scoped(async () => { await previous; await onProjection(row) })
