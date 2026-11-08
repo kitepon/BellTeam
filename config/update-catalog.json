@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T23:12:03Z",
-  "expiresAt": "2026-11-15T23:12:03Z",
+  "publishedAt": "2026-11-08T23:31:43Z",
+  "expiresAt": "2026-11-15T23:31:43Z",
   "releases": [
     {
       "componentId": "usage",
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "3f3adbf5c76ebe23c703020759b1e40397c9f65a",
-      "versionId": "sha256:8229a9bb61e7146f169510fa88cc7913d93048c0ad38b99398ccb4c5f327645f",
+      "sourceCommit": "f2c852e4a5f595262fa6e2a644ff53f2fcef518a",
+      "versionId": "sha256:470d6253cf8fbbd89d2567de09aefba52f9e0451b4bbb9efa5b19788c3f4d23a",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8229a9bb61e7146f169510fa88cc7913d93048c0ad38b99398ccb4c5f327645f"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:470d6253cf8fbbd89d2567de09aefba52f9e0451b4bbb9efa5b19788c3f4d23a"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,22 +722,22 @@
         "containerUpdate": 1
       },
       "changes": [
-        "機能の更新で、更新係が混み合っていても途中で止まらず、そのまま続くようにします。",
-        "相関図で、Bot同士の依頼の要約が付かないまま残ることを減らします。",
-        "ターンの終わりで失敗した送信を、追跡の失敗として誤って報告しないようにします。"
+        "古いゲートウェイの停止が時間切れになっても、新しい版への切替を続けます。",
+        "長い仕事状況もWeb画面に表示し、要約は長さだけで捨てないようにします。",
+        "アカウント切替時、Aitermが使用中の間は再試行し、休止済みの席は新しい設定で再開します。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "3f3adbf5c76ebe23c703020759b1e40397c9f65a",
-      "versionId": "sha256:8229a9bb61e7146f169510fa88cc7913d93048c0ad38b99398ccb4c5f327645f",
+      "sourceCommit": "f2c852e4a5f595262fa6e2a644ff53f2fcef518a",
+      "versionId": "sha256:470d6253cf8fbbd89d2567de09aefba52f9e0451b4bbb9efa5b19788c3f4d23a",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8229a9bb61e7146f169510fa88cc7913d93048c0ad38b99398ccb4c5f327645f"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:470d6253cf8fbbd89d2567de09aefba52f9e0451b4bbb9efa5b19788c3f4d23a"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,9 +746,9 @@
         "containerUpdate": 1
       },
       "changes": [
-        "機能の更新で、更新係が混み合っていても途中で止まらず、そのまま続くようにします。",
-        "相関図で、Bot同士の依頼の要約が付かないまま残ることを減らします。",
-        "ターンの終わりで失敗した送信を、追跡の失敗として誤って報告しないようにします。"
+        "古いゲートウェイの停止が時間切れになっても、新しい版への切替を続けます。",
+        "長い仕事状況もWeb画面に表示し、要約は長さだけで捨てないようにします。",
+        "アカウント切替時、Aitermが使用中の間は再試行し、休止済みの席は新しい設定で再開します。"
       ]
     }
   ],
