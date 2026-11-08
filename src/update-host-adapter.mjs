@@ -64,6 +64,11 @@ export function createHostUpdateAdapter({ root, client }) {
   return {
     operation,
     checkCatalog: () => client.checkCatalog(),
+    // Cleanup for the plan directory; the executor calls it only for expired plans that never started.
+    async forgetPlan(id) {
+      validateUpdateRequest('requestId', id)
+      try { await unlink(join(directory, id + '.json')) } catch (error) { if (error.code !== 'ENOENT') throw error }
+    },
     job: id => client.job(id),
     updateJob: input => client.updateJob(input),
     async admitJob({ planId, jobId, idempotencyKey }) {

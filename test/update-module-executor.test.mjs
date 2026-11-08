@@ -433,3 +433,17 @@ test('concurrent inventory reads and saved-result reads take turns instead of an
   assert.deepEqual(results.map(result => result.status), ['fulfilled', 'fulfilled', 'fulfilled', 'fulfilled'])
   await f.executor.close()
 })
+
+test('cleanup of an expired, never-started all plan removes its Host plan file by the Host planId', async t => {
+  const forgotten = [], target = { version: 'sha256:' + 'f'.repeat(64), sourceCommit: nextSource, digest: 'sha256:' + 'f'.repeat(64), origin: 'published' }
+  const hostPlan = expiresAt => ({ planId: randomUUID(), scope: 'component', componentId: 'container', expiresAt, targets: [{ componentId: 'container', current: { ...builtin, origin: 'container' }, published: target }], compatibility: { compatible: true, reason: null }, impact: { containerRestart: true, description: '本体の再起動' }, capability: { supported: true, reason: null } })
+  const first = hostPlan(new Date(Date.now() + 300).toISOString())
+  const host = { plan: async () => forgotten.length || first.used ? hostPlan('2099-01-01T00:00:00Z') : (first.used = true, first), forgetPlan: async id => { forgotten.push(id) } }
+  const f = await fixture(t, { host }), inventory = { components: [{ id: 'container', publication: { catalog: { sha256: 'd'.repeat(64) } }, comparison: { state: 'update_available' }, capability: { supported: true } }] }
+  const expiring = await f.executor.plan({ scope: 'all' }, inventory)
+  assert.notEqual(expiring.planId, first.planId)
+  await new Promise(resolve => setTimeout(resolve, 400))
+  await f.executor.plan({ scope: 'all' }, inventory)
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(forgotten, [first.planId])
+})
