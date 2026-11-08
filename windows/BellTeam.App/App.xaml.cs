@@ -41,7 +41,8 @@ public partial class App : Application
                 var target = galleryWorkspace.Entries.Single(item=>item.Target.Id==galleryId); await galleryWorkspace.SelectAsync(target);
                 var paths = galleryWorkspace.Messages.SelectMany(item=>item.Message.DisplayedImageUrls).Distinct().ToArray();
                 if (paths.Length==0) throw new BellApiException("表示する画像がありません。");
-                var gallery = new ImageGallery(galleryWorkspace,paths,0); await gallery.ReadyTask; WritePng(gallery,960,720,galleryOutput); gallery.Close(); Shutdown(0); return;
+                var galleryWindow = new MainWindow(galleryWorkspace, persistPlacement: false); var gallery = galleryWindow.ShowGallery(paths, 0); await gallery.ReadyTask;
+                WritePng(galleryWindow, 1280, 820, galleryOutput); galleryWindow.Close(); Shutdown(0); return;
             }
             if (e.Args is ["--render-editor", var editorKind, var editorAddress, var editorId, var editorOutput])
             {
@@ -138,6 +139,7 @@ public partial class App : Application
                 if (scene is not ("member" or "room")) window.HideInspectorForRender();
                 if (scene == "draft") { model.AttachClipboardImage(Swatch(0x0A, 0x84, 0xFF)); model.AttachClipboardImage(Swatch(0xE8, 0x6B, 0x94)); model.DraftText = "この画像も見てほしい。"; }
                 if (scene == "stop-notice") model.StopResult = StopNotice.Sent;
+                if (scene == "echo") { model.ShowEchoForRender("続きはあとで確認するね。", accepted: true); model.ShowEchoForRender("ありがとう、助かったよ。", accepted: false); }
                 if (scene == "peer-sheet") window.ShowPeerSheet(model.Messages.Select(item => item.Message).First(item => item.Kind == "peer"));
                 var conversationHeight = scene == "states" ? 1300 : scene == "stack" ? 1500 : 820;
                 var conversationRoot = (FrameworkElement)window.Content;
@@ -246,7 +248,7 @@ public partial class App : Application
                 Shutdown(0);
                 return;
             }
-            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-inspector <member|member-small|room|sheet-small|sheet-large|sheet-unsupported|pending|pending-sheet> <URL> <会話ID> <PNG>、--render-screen <keys|approval|digits|sent|empty|offline|failed> <URL> <会話ID> <PNG>、--render-conversation <member|room|states|stop|stop-notice|stop-member|draft|peer-sheet|stack|empty|failed> <URL> <会話ID> <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|features|notifications|connection|display|billing|update|about|stop>|schedules|updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>、--render-startup <opening|setup|guide|failure|login|onboarding-choose|onboarding-waiting|banner> <URL> <PNG>、--render-editor <member|settings|profile|feature|schedules|new-schedule|authentication> <URL> <ID> <PNG>、--render-editors <new-member|new-room|room|room-delete-alert|crop|member|member-delete-alert|member-delete-pending|member-delete-unconfirmed> <URL> <ID> <PNG> のいずれかです。");
+            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-inspector <member|member-small|room|sheet-small|sheet-large|sheet-unsupported|pending|pending-sheet> <URL> <会話ID> <PNG>、--render-screen <keys|approval|digits|sent|empty|offline|failed> <URL> <会話ID> <PNG>、--render-conversation <member|room|secret|echo|states|stop|stop-notice|stop-member|draft|peer-sheet|stack|empty|failed> <URL> <会話ID> <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|features|notifications|connection|display|billing|update|about|stop>|schedules|updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>、--render-startup <opening|setup|guide|failure|login|onboarding-choose|onboarding-waiting|banner> <URL> <PNG>、--render-editor <member|settings|profile|feature|schedules|new-schedule|authentication> <URL> <ID> <PNG>、--render-editors <new-member|new-room|room|room-delete-alert|crop|member|member-delete-alert|member-delete-pending|member-delete-unconfirmed> <URL> <ID> <PNG> のいずれかです。");
 
             MainWindow? main = null;
             instance = new SingleInstance(() => Dispatcher.Invoke(() => { main!.WindowState = main.WindowState == WindowState.Minimized ? WindowState.Normal : main.WindowState; main.Show(); main.Activate(); }));

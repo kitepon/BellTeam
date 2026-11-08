@@ -35,12 +35,8 @@
     </Border>
     <GridSplitter Grid.Column="0" Width="5" HorizontalAlignment="Right" Background="Transparent" ResizeBehavior="CurrentAndNext" AutomationProperties.Name="サイドバーの幅"/>
     <Grid x:Name="ConversationArea" Grid.Column="1" Background="{StaticResource ConversationBackground}">
-      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-      <DockPanel Margin="18,12">
-        <Button DockPanel.Dock="Right" Content="&#xE8A0;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Style="{StaticResource IconButton}" Click="Inspector_Click" ToolTip="詳細パネル（Ctrl+Shift+I）" AutomationProperties.Name="詳細パネル"/>
-        <Button DockPanel.Dock="Right" Content="&#xE72D;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Style="{StaticResource IconButton}" Click="Export_Click" IsEnabled="{Binding HasSelection}" ToolTip="会話を書き出す" AutomationProperties.Name="会話を書き出す"/>
-        <DockPanel Visibility="{Binding HasSelection, Converter={StaticResource Visible}}"><local:AvatarTile Entry="{Binding Selected}" Workspace="{Binding}" Width="34" Height="34" Margin="0,0,10,0"/><StackPanel VerticalAlignment="Center"><StackPanel Orientation="Horizontal"><TextBlock Text="{Binding Title}" FontSize="18" FontWeight="Bold" TextTrimming="CharacterEllipsis"/><TextBlock Text="⚡ ファスト" FontSize="13" Foreground="{StaticResource Violet}" Margin="6,0,0,0" VerticalAlignment="Center" Visibility="{Binding SelectedFastMode, Converter={StaticResource Visible}}" AutomationProperties.Name="ファストモード中"/></StackPanel><TextBlock Text="{Binding ConversationSubtitle}" FontSize="14" Foreground="{StaticResource Muted}"/></StackPanel></DockPanel>
-      </DockPanel>
+      <Grid.RowDefinitions><RowDefinition Height="52"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+      <!-- Mac shows no avatar+name row here: the window title says BellTeam and the toolbar band only carries the corner buttons below. -->
       <ScrollViewer x:Name="MessageScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="18,20,18,18" AutomationProperties.Name="会話" AllowDrop="True" PreviewDragOver="Images_DragOver" Drop="Images_Drop">
         <Grid MinHeight="{Binding ViewportHeight, ElementName=MessageScroll}"><StackPanel VerticalAlignment="Bottom">
           <Button Content="以前のメッセージを読む" Visibility="{Binding HasMore, Converter={StaticResource Visible}}" Click="Older_Click"/>
@@ -84,13 +80,18 @@
         </Border>
       </StackPanel></Border>
     </Grid>
-    <Border x:Name="Inspector" Grid.Column="2" Background="#99FFFFFF" BorderBrush="#E0DBE8" BorderThickness="1,0,0,0">
+    <Border x:Name="Inspector" Grid.Column="2" Background="#99FFFFFF" BorderBrush="#E0DBE8" BorderThickness="1,0,0,0" Padding="0,52,0,0">
       <Grid>
         <ScrollViewer VerticalScrollBarVisibility="Auto" Visibility="{Binding ProfileVisible, Converter={StaticResource Visible}}"><local:ProfileView x:Name="ProfilePanel" Workspace="{Binding}" MaxWidth="760" HorizontalAlignment="Center"/></ScrollViewer>
         <local:ScreenView x:Name="ScreenPanel" Workspace="{Binding}" Visibility="{Binding ScreenVisible, Converter={StaticResource Visible}}"/>
       </Grid>
     </Border>
     <Border x:Name="PageArea" Grid.Column="1" Grid.ColumnSpan="2" Background="{StaticResource ConversationBackground}" Visibility="Collapsed"><ContentControl x:Name="PageHost"/></Border>
+    <!-- Mac window toolbar (top right): the inspector toggle, then the export, as violet filled circles. -->
+    <StackPanel x:Name="CornerButtons" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,7,10,0" Panel.ZIndex="5" Visibility="Collapsed">
+      <Button x:Name="InspectorToggle" Content="&#xE8A0;" Style="{StaticResource ToolbarCircleButton}" Click="Inspector_Click" Margin="0,0,8,0" ToolTip="詳細パネル（Ctrl+Shift+I）" AutomationProperties.Name="詳細パネル" AutomationProperties.AutomationId="inspector-toggle"/>
+      <Button x:Name="ExportButton" Content="&#xE72D;" Style="{StaticResource ToolbarCircleButton}" Click="Export_Click" IsEnabled="{Binding HasSelection}" ToolTip="会話を書き出す" AutomationProperties.Name="会話を書き出す" AutomationProperties.AutomationId="conversation-export"/>
+    </StackPanel>
     <!-- Mac bottom banner (safeAreaInset): a centred red caption on material. Windows keeps 再接続 and 接続先 because it never reconnects by itself. -->
     <Border x:Name="ErrorStrip" Grid.Row="1" Grid.ColumnSpan="3" Visibility="Collapsed" Background="#E9E7E6" Padding="8"><StackPanel><DockPanel><Button x:Name="ConnectionButton" DockPanel.Dock="Right" Content="接続先" Click="Connection_Click" Margin="8,0,0,0" Padding="10,2" FontSize="11" Visibility="Collapsed" AutomationProperties.Name="接続先"/><Button x:Name="ReconnectButton" DockPanel.Dock="Right" Content="再接続" Click="Reconnect_Click" Margin="8,0,0,0" Padding="10,2" FontSize="11" Visibility="Collapsed" AutomationProperties.Name="再接続"/><TextBlock Text="{Binding ConnectionError}" TextAlignment="Center" VerticalAlignment="Center" Foreground="#FF3B30" TextWrapping="Wrap" FontSize="10" AutomationProperties.Name="接続の失敗"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers></Style></TextBlock.Style></TextBlock></DockPanel><TextBlock Text="{Binding ActionError}" TextAlignment="Center" Foreground="#FF3B30" TextWrapping="Wrap" FontSize="10" AutomationProperties.Name="操作の失敗"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers></Style></TextBlock.Style></TextBlock></StackPanel></Border>
     <!-- Mac RootView phases other than the workspace: opening, failure, server entry, onboarding and login fill the window. -->
@@ -101,8 +102,8 @@
         <Border.Effect><DropShadowEffect Color="#000000" Opacity="0.25" BlurRadius="30" ShadowDepth="8" Direction="270"/></Border.Effect>
         <DockPanel>
           <Grid DockPanel.Dock="Top" Height="52" Background="#F2F2F7">
-            <Button x:Name="UpdateSheetClose" Content="閉じる" Click="UpdateSheetClose_Click" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="12,0,0,0" Padding="10,6" Background="Transparent" BorderThickness="0" Foreground="{StaticResource Violet}" FontSize="14" AutomationProperties.Name="閉じる"/>
-            <Button x:Name="UpdateSheetSave" Content="保存" Click="UpdateSheetSave_Click" Visibility="Collapsed" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,12,0" Padding="10,6" Background="Transparent" BorderThickness="0" Foreground="{StaticResource Violet}" FontSize="14" FontWeight="SemiBold" AutomationProperties.Name="保存"/>
+            <Button x:Name="UpdateSheetClose" Content="閉じる" Click="UpdateSheetClose_Click" Style="{StaticResource SheetPillButton}" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="12,0,0,0" AutomationProperties.Name="閉じる"/>
+            <Button x:Name="UpdateSheetSave" Content="保存" Click="UpdateSheetSave_Click" Visibility="Collapsed" Style="{StaticResource SheetPillButton}" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,12,0" AutomationProperties.Name="保存"/>
             <TextBlock x:Name="SheetTitle" Text="アップデート" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource Ink}"/>
           </Grid>
           <Border DockPanel.Dock="Top" Height="1" Background="#E6E6EB"/>
@@ -116,8 +117,8 @@
         <Border.Effect><DropShadowEffect Color="#000000" Opacity="0.25" BlurRadius="30" ShadowDepth="8" Direction="270"/></Border.Effect>
         <DockPanel>
           <Grid DockPanel.Dock="Top" Height="52" Background="#F2F2F7">
-            <Button x:Name="CropCancel" Content="キャンセル" Click="CropCancel_Click" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="12,0,0,0" Padding="10,6" Background="Transparent" BorderThickness="0" Foreground="{StaticResource Violet}" FontSize="14" AutomationProperties.Name="キャンセル"/>
-            <Button x:Name="CropUse" Content="使用する" Click="CropUse_Click" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,12,0" Padding="10,6" Background="Transparent" BorderThickness="0" Foreground="{StaticResource Violet}" FontSize="14" FontWeight="SemiBold" AutomationProperties.Name="使用する"/>
+            <Button x:Name="CropCancel" Content="キャンセル" Click="CropCancel_Click" Style="{StaticResource SheetPillButton}" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="12,0,0,0" AutomationProperties.Name="キャンセル"/>
+            <Button x:Name="CropUse" Content="使用する" Click="CropUse_Click" Style="{StaticResource SheetPillButton}" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,12,0" AutomationProperties.Name="使用する"/>
             <TextBlock Text="画像を調整" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource Ink}"/>
           </Grid>
           <Border DockPanel.Dock="Top" Height="1" Background="#E6E6EB"/>
@@ -125,5 +126,7 @@
         </DockPanel>
       </Border>
     </Grid>
+    <!-- Mac MessageImageGallery cover: above every sheet, Esc closes it. -->
+    <Grid x:Name="GalleryHost" Grid.RowSpan="2" Grid.ColumnSpan="3" Panel.ZIndex="40" Visibility="Collapsed" Background="Black" Focusable="True" KeyboardNavigation.TabNavigation="Cycle"/>
   </Grid>
 </Window>

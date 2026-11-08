@@ -22,7 +22,7 @@ public sealed class SecretCard(Workspace workspace, string author) : StackPanel
         if (request.Status == "pending")
         {
             var open = new Button { Content = "安全な入力欄を開く", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) };
-            open.SetResourceReference(StyleProperty, "PrimaryButton"); open.Margin = new Thickness(0, 12, 0, 0);
+            open.SetResourceReference(StyleProperty, "MacBorderedButton");
             open.Click += (_, _) => new SecretInputWindow(request, value => workspace.FinishSecretAsync(request.Id, value), Update) { Owner = Window.GetWindow(this) }.ShowDialog();
             Children.Add(open);
         }
@@ -123,7 +123,7 @@ public sealed class QuestionCard(Workspace workspace, string author) : StackPane
         var choices = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
         foreach (var option in question.Options)
         {
-            var button = new Button { Content = option, IsEnabled = !sending, Background = new SolidColorBrush(Color.FromRgb(228, 226, 236)), Foreground = new SolidColorBrush(Color.FromRgb(33, 41, 61)), BorderThickness = new Thickness(0), FontWeight = FontWeights.Normal, Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 8) };
+            var button = new Button { Content = option, IsEnabled = !sending, Margin = new Thickness(0, 0, 8, 8) }; button.SetResourceReference(StyleProperty, "MacBorderedButton");
             button.Click += async (_, _) => await AnswerAsync(question.Id, option, null);
             choices.Children.Add(button); inputs.Add(button);
         }

@@ -54,7 +54,7 @@ public partial class MainWindow : Window, IInspectorHost
             if (!loadingOlder && args.VerticalChange < 0 && args.VerticalOffset < 48 && model.HasMore && !model.Loading) await LoadOlderPreservingPositionAsync();
         };
         ConversationList.PreviewMouseDown += (_, args) => { if (page is not null && args.OriginalSource is DependencyObject target && ItemsControl.ContainerFromElement(ConversationList, target) is ListBoxItem) ShowConversation(); };
-        Closed += (_, _) => { CancelStartupRetry(); page?.Close(); sheetContent?.Dispose(); (UpdateSheetHost.Content as IDisposable)?.Dispose(); (StartupHost.Child as IDisposable)?.Dispose(); };
+        Closed += (_, _) => { CancelStartupRetry(); CloseGallery(); page?.Close(); sheetContent?.Dispose(); (UpdateSheetHost.Content as IDisposable)?.Dispose(); (StartupHost.Child as IDisposable)?.Dispose(); };
         Closing += (_, args) => { if (page?.CanNavigateAway == false) args.Cancel = true; };
         DataObject.AddPastingHandler(Composer, Composer_Pasting);
         model.ScrollToBottom += force =>
@@ -288,7 +288,7 @@ public partial class MainWindow : Window, IInspectorHost
         if (IsLoaded) editor.Owner = this;
         model.ReturnToProfile(); PageHost.Content = null; page?.Close(); page = editor;
         PageHost.Content = editor.AsPage(ShowConversation); PageArea.Visibility = Visibility.Visible;
-        ConversationArea.Visibility = Inspector.Visibility = Visibility.Collapsed;
+        ConversationArea.Visibility = Inspector.Visibility = Visibility.Collapsed; UpdateCornerButtons();
         return true;
     }
     private void ShowConversation()
@@ -302,7 +302,10 @@ public partial class MainWindow : Window, IInspectorHost
         var show = inspectorVisible && model.HasSelection;
         Inspector.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
         InspectorColumn.MinWidth = show ? 280 : 0; InspectorColumn.Width = show ? model.IsRoom ? new GridLength(280) : new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        UpdateCornerButtons();
     }
+    // Mac toolbar: the inspector toggle and the export belong to the conversation, so a page (settings, schedules, goals) or an empty window shows neither.
+    private void UpdateCornerButtons() => CornerButtons.Visibility = ConversationArea.Visibility == Visibility.Visible && model.HasSelection ? Visibility.Visible : Visibility.Collapsed;
     // Mac ConversationContent: spinner while the first read runs, then the empty or failed state when there is nothing (not even a queue line) to show.
     private void UpdateWelcome()
     {
@@ -523,8 +526,24 @@ public partial class MainWindow : Window, IInspectorHost
         if (!inspectorVisible) model.ReturnToProfile();
         ProfileLayout();
     }
+    // The image gallery covers the whole window (Mac fullScreenCover). Opening it again replaces the one that is open.
+    private IInputElement? focusBeforeGallery;
+    public ImageGallery ShowGallery(string[] paths, int initial)
+    {
+        if (GalleryHost.Children.Count == 0) focusBeforeGallery = Keyboard.FocusedElement;
+        GalleryHost.Children.Clear();
+        var gallery = new ImageGallery(model, paths, initial, CloseGallery); GalleryHost.Children.Add(gallery); GalleryHost.Visibility = Visibility.Visible; GalleryHost.Focus();
+        return gallery;
+    }
+    public ImageGallery? Gallery => GalleryHost.Children.OfType<ImageGallery>().FirstOrDefault();
+    public void CloseGallery()
+    {
+        GalleryHost.Children.Clear(); GalleryHost.Visibility = Visibility.Collapsed;
+        var back = focusBeforeGallery; focusBeforeGallery = null; if (back is not null) Keyboard.Focus(back);
+    }
     private void Window_KeyDown(object sender, KeyEventArgs e)
     {
+        if (Gallery is { } gallery) { if (Keyboard.Modifiers == ModifierKeys.None && gallery.HandleKey(e.Key)) e.Handled = true; return; }
         if (CropSheet.Visibility == Visibility.Visible) { if (e.Key == Key.Escape) { CloseCropSheet(null); e.Handled = true; } return; }
         if (UpdateSheet.Visibility == Visibility.Visible)
         {

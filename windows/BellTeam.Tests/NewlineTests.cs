@@ -45,7 +45,7 @@ public sealed class NewlineTests
             {
                 "text" => """{"question":{"id":"question-a","botId":"bot-bell","question":"質問","options":[],"allowOther":true,"status":"answered"}}""",
                 "profileText" => """{"bot":{"name":"ベル","harness":"codex"}}""",
-                "purpose" => """{"room":{"id":"room-a","name":"部屋","memberIds":[]}}""", _ => "{}"
+                "purpose" => """{"room":{"id":"room-a","name":"部屋","memberIds":[]}}""", "message" => """{"delivery_id":"delivery-1"}""", _ => "{}"
             });
         }));
         await api.SendAsync(new("bot-bell", false), "前\r\n後", null);

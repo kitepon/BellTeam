@@ -47,16 +47,19 @@ public sealed class BellApi : IDisposable
         return await JsonAsync<T>(request, token);
     }
 
-    public Task SendAsync(ChatTarget target, string text, string[]? targets, CancellationToken token = default)
+    public Task<string> SendAsync(ChatTarget target, string text, string[]? targets, CancellationToken token = default)
         => SendAsync(target, text, [], targets, token);
-    public async Task SendAsync(ChatTarget target, string text, ImageAttachment[] images, string[]? targets, CancellationToken token = default)
+    // Returns the id the history will carry for this message (Mac messageID(for:)): a room answers "id", a member "delivery_id"
+    // (src/conversation/results.mjs user.post; the Mac reads it through convertFromSnakeCase).
+    public async Task<string> SendAsync(ChatTarget target, string text, ImageAttachment[] images, string[]? targets, CancellationToken token = default)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, target.Path + "/messages")
         {
             Content = JsonContent.Create(new { message = TextContent.Normalize(text), images = images.Select(image => new ImagePayload(image.Mime, Convert.ToBase64String(image.Bytes))).ToArray(), targets }, options: Json)
         };
         var result = await JsonAsync<JsonElement>(request, token);
-        if (result.ValueKind != JsonValueKind.Object) throw new BellApiException("BellTeamからの送信応答を読み取れませんでした。");
+        if (result.ValueKind == JsonValueKind.Object && result.TryGetProperty(target.IsRoom ? "id" : "delivery_id", out var id) && id.ValueKind == JsonValueKind.String && id.GetString() is { Length: > 0 } accepted) return accepted;
+        throw new BellApiException("BellTeamからの送信応答を読み取れませんでした。");
     }
 
     // Never retried by the caller: a stop whose result is unknown is reported, not resent.

@@ -43,7 +43,7 @@ public static class UiChecks {
     })));
     var disconnected = new MainWindow(workspace, persistPlacement:false); disconnected.ShowSettings(); disconnected.ShowSchedules();
     var disconnectedRoot = (FrameworkElement)disconnected.Content; disconnectedRoot.Measure(new Size(1280,820)); disconnectedRoot.Arrange(new Rect(0,0,1280,820)); disconnectedRoot.UpdateLayout();
-    Check(Descendants<TextBlock>(disconnectedRoot).Single(text=>System.Windows.Automation.AutomationProperties.GetName(text)=="ファストモード中").Visibility==Visibility.Collapsed,"会話を選ぶ前にファストの印が出ます。");
+    Check(((FrameworkElement)disconnected.FindName("CornerButtons")).Visibility==Visibility.Collapsed,"会話を選ぶ前に詳細パネルと書き出しのボタンが出ます。");
     Check(((FrameworkElement)disconnected.FindName("PageArea")).Visibility == Visibility.Collapsed && workspace.ActionError is null,"未接続で設定のページが開きました。"); disconnected.Close();
     await workspace.ConnectAsync("http://localhost", listen:false);
     var window = new MainWindow(workspace, persistPlacement:false); var root = (FrameworkElement)window.Content;
@@ -56,9 +56,31 @@ public static class UiChecks {
     closing = new(); typeof(Window).GetMethod("OnClosing",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(window,[closing]); Check(!closing.Cancel,"書込後も窓を閉じられません。");
     var list = (ListBox)window.FindName("ConversationList"); var entry = workspace.Entries.Single(); list.SelectedItem = entry; await Layout();
     Check(((FrameworkElement)window.FindName("PageArea")).Visibility == Visibility.Collapsed,"一覧から会話へ戻れません。");
+    var corner = (StackPanel)window.FindName("CornerButtons");
+    // Mac toolbar: no avatar+name row over the conversation; the inspector toggle then the export are the two violet circles at the top right.
+    Check(corner.Visibility==Visibility.Visible && corner.Children.OfType<Button>().Select(button=>System.Windows.Automation.AutomationProperties.GetName(button)).SequenceEqual(["詳細パネル","会話を書き出す"]),"会話の右上に詳細パネルと書き出しのボタンが並びません。");
+    Check(Descendants<AvatarTile>(((FrameworkElement)window.FindName("ConversationArea"))).All(tile=>tile.Width!=34),"会話の上にアバターと名前の帯が残っています。");
+    var inspectorPanel = (FrameworkElement)window.FindName("Inspector"); var toggle = (Button)window.FindName("InspectorToggle");
+    Check(inspectorPanel.Visibility==Visibility.Visible,"会話を開いても詳細パネルが出ません。");
+    toggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Check(inspectorPanel.Visibility==Visibility.Collapsed && corner.Visibility==Visibility.Visible,"右上のボタンで詳細パネルを閉じられません。");
+    toggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Check(inspectorPanel.Visibility==Visibility.Visible,"右上のボタンで詳細パネルを開けません。");
     window.ShowSchedules(); await window.PageReady; await Layout();
+    Check(corner.Visibility==Visibility.Collapsed,"予定のページに詳細パネルと書き出しのボタンが出ています。");
     var item = Descendants<ListBoxItem>(list).Single(); item.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice,0,MouseButton.Left) { RoutedEvent = UIElement.PreviewMouseDownEvent }); await Layout();
     Check(((FrameworkElement)window.FindName("PageArea")).Visibility == Visibility.Collapsed,"同じ会話へ戻れません。");
+    Check(corner.Visibility==Visibility.Visible,"会話へ戻っても右上のボタンが戻りません。");
+    // The shared sheet header buttons are Mac capsules, not flat text.
+    window.OpenSheet("確認", new TextBlock()); await Layout();
+    foreach (var sheetButton in new[]{"UpdateSheetClose","UpdateSheetSave","CropCancel","CropUse"}) { var pill = (Button)window.FindName(sheetButton); pill.ApplyTemplate(); Check(Descendants<Border>(pill).First().CornerRadius.TopLeft>=99,"シートの見出しのボタンがカプセルになりません。"); }
+    window.CloseUpdateSheet();
+    // The gallery covers the main window itself; Esc closes it and the arrow keys move between pictures.
+    var gallery = window.ShowGallery(["/a.png","/b.png"],0); await Layout(); var galleryHost = (FrameworkElement)window.FindName("GalleryHost");
+    Check(galleryHost.Visibility==Visibility.Visible && galleryHost.ActualWidth>=1280 && galleryHost.ActualHeight>=820,"画像の閲覧が窓いっぱいに開きません。");
+    using (var keys = new HwndSource(new HwndSourceParameters("非表示の画像キー確認") { Width=1,Height=1,WindowStyle=unchecked((int)0x80000000),ExtendedWindowStyle=0x08000000 })) {
+      void Press(Key key) => window.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice,keys,0,key) { RoutedEvent=Keyboard.PreviewKeyDownEvent });
+      Press(Key.Right); Check(gallery.Selected==1,"→で次の画像へ進みません。"); Press(Key.Left); Check(gallery.Selected==0,"←で前の画像へ戻りません。");
+      Press(Key.Escape); Check(window.Gallery is null && galleryHost.Visibility==Visibility.Collapsed,"Escで画像の閲覧を閉じられません。");
+    }
     var scroll = (ScrollViewer)window.FindName("MessageScroll");
     scroll.ScrollToEnd(); await Layout(); Check(scroll.ScrollableHeight > 1000,"長い会話を配置できません。");
     scroll.ScrollToVerticalOffset(scroll.ScrollableHeight / 2); await Layout(); var offset = scroll.VerticalOffset;

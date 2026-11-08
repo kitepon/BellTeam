@@ -34,9 +34,9 @@ public sealed class PhaseTwoTests
             using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(token));
             Assert.Equal("", body.RootElement.GetProperty("message").GetString());
             Assert.Equal("AQID", body.RootElement.GetProperty("images")[0].GetProperty("data").GetString());
-            return StubHandler.Json("{}");
+            return StubHandler.Json("""{"delivery_id":"d1"}""");
         }));
-        await api.SendAsync(new("bot-bell", false), "", [image], null);
+        Assert.Equal("d1", await api.SendAsync(new("bot-bell", false), "", [image], null));
     }
 
     [Theory]
