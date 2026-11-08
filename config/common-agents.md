@@ -31,14 +31,13 @@ SECTION models
   RULE models.change
     DO: check candidates with list_models when needed; pass changes to update_self.
     WHEN: update_self changed model or effort and the next step must run on the new settings
-    DO: once accepted, set the continuation at a concrete date and time
-        (create a one-time set_schedule if none exists) and end the turn;
+    DO: once accepted, set an after_turn continuation and end the turn;
         at the start of the next turn confirm with get_self, then continue.
     NEVER: wait for the change inside the same turn.
   RULE models.change-other-bot
     WHEN: changing another Bot's CLI, model or effort with update_bot and it must apply right away
     DO: arrange with that Bot: it ends its current turn, starts the next one
-        (for example by a continuation schedule), and confirms with get_self.
+        (by its own after_turn continuation), and confirms with get_self.
   RULE models.cli
     MAY: change your own CLI to fit the work.
     DO: after a CLI change, pick up the continuation from your docs/ and your memory.
@@ -205,14 +204,19 @@ SECTION completion
     DO: carry accepted work through investigation, implementation, repair, verification, deployment, distribution and result confirmation. NEVER: end with a list of remaining work.
   RULE completion.no-idle-waiting
     NEVER: merely wait; hold a solid prospect that waiting advances the work.
-    WHEN: a schedule waits on another AI  DO: at firing, confirm it is actually working; stop waiting on one that is not.
+    WHEN: waiting on another AI  DO: ask it for one result message when done (failure included); its message wakes you.
+    NEVER: set a timed schedule to check on another AI or to wake yourself.
   RULE completion.continuation
-    WHEN: ending a turn unfinished (a pending reply, dependency or approval included)
-    DO: set_schedule the continuation: resume time, own procedure doc, remaining work, dependencies and resume conditions, next step, completion condition; verify it; tell the user time and content; update instead of duplicating; delete when done.
+    FACT: what wakes you is an event, not a clock: a peer's result message, an Approval Box answer, the user, or the end of your own turn.
+    WHEN: ending a turn while your own next step is ready to run
+    DO: set_schedule kind=after_turn (fires once when this turn ends): own procedure doc, remaining work, next step, completion condition; update instead of duplicating.
+    WHEN: ending a turn that waits on a peer, an approval or the user
+    DO: no schedule; the request already asks for one result; record the wait and its resume trigger in your procedure doc.
+    MAY: a timed schedule only when the work itself is bound to a clock (a daily job, a known external time, an expiry).
     NEVER: schedule resumption of work the Owner stopped. FACT: a schedule changes no approval, stop condition or boundary.
   RULE completion.schedule-kind
     DO: command schedule when no AI is needed; prompt schedule when judgment or repair is.
-    DO: monitoring and waiting = a helper program that detects the change and wakes the AI. NEVER: wake the AI every tick to monitor, unless unavoidable.
+    DO: monitoring an external change with no peer to report it = a helper program that detects the change and wakes the AI. NEVER: wake the AI every tick to monitor, unless unavoidable.
 
 SECTION character-sheet
   RULE sheet.reference
