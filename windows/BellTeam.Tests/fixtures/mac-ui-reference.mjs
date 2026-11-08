@@ -144,14 +144,13 @@ const startupReady = { phase: 'ready', harness: null, harnesses: [], guideBotId:
 // Reset times are relative to now so the card shows them as today (HH:MM) in JST.
 const inMinutes = minutes => new Date(Date.now() + minutes * 60000).toISOString()
 const accountSlot = (slot, label, { loggedIn = true, limits = [], seats = [], history = 'shared' } = {}) => ({ slot, loggedIn, label, history, limits, seats })
-const fableRule = [{ harness: 'claude', modelPrefix: 'claude-fable', slot: '2nd' }]
 const accountScenes = {
-  normal: () => ({ harnesses: [{ harness: 'claude', slots: [accountSlot('1st', 'first@example.com', { seats: ['bot-one', 'bot-two'] }), accountSlot('2nd', 'second@example.com', { seats: ['bot-three'] })], allLimited: [] }], rules: fableRule }),
+  normal: () => ({ harnesses: [{ harness: 'claude', slots: [accountSlot('1st', 'first@example.com', { seats: ['bot-one', 'bot-two'] }), accountSlot('2nd', 'second@example.com', { seats: ['bot-three'] })], allLimited: [] }], rules: [] }),
   'one-limited': () => ({ harnesses: [{ harness: 'claude', slots: [accountSlot('1st', 'first@example.com', { limits: [{ scope: 'fable', since: inMinutes(-30), resetAt: inMinutes(150), resetSource: 'message' }], seats: ['bot-two'] }), accountSlot('2nd', 'second@example.com', { seats: ['bot-one', 'bot-three'] })], allLimited: [] }], rules: [] }),
   'both-limited': () => ({ harnesses: [{ harness: 'claude', slots: [
     accountSlot('1st', 'first@example.com', { limits: [{ scope: 'all', since: inMinutes(-60), resetAt: inMinutes(180), resetSource: 'usage' }], seats: ['bot-one'] }),
     accountSlot('2nd', 'second@example.com', { limits: [{ scope: 'all', since: inMinutes(-20), resetAt: null, resetSource: null }, { scope: 'fable', since: inMinutes(-20), resetAt: inMinutes(300), resetSource: 'message' }], seats: ['bot-three'], history: 'separate' })],
-    allLimited: [{ scope: 'all', earliestResetAt: inMinutes(180) }, { scope: 'fable', earliestResetAt: inMinutes(180) }] }], rules: fableRule }),
+    allLimited: [{ scope: 'all', earliestResetAt: inMinutes(180) }, { scope: 'fable', earliestResetAt: inMinutes(180) }] }], rules: [] }),
   unlogged: () => ({ harnesses: [{ harness: 'claude', slots: [accountSlot('1st', 'first@example.com', { seats: ['bot-one'] }), accountSlot('2nd', null, { loggedIn: false })], allLimited: [] }], rules: [] })
 }
 const server = createServer((request, response) => {

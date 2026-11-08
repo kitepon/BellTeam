@@ -193,10 +193,12 @@ PR 5の確認で追加：Macの実物（113の01・02・07）は、会話の上�
 | 9 | 予定の見た目と文言 | S |
 | 10 | 起動・接続・ログイン・初期設定 | M |
 | 11 | 共通部品の仕上げ（11a）。ダーク表示は対象外（11節） | S |
-| 12 | Claudeの2アカウント（オーナー機能、担当キロ。契約は`docs/architecture/modules/execution/harness-accounts.md`）：AIの認証の1st・2nd、Fableを2ndで使う切替、両方上限の帯、メンバーの席のアカウント表示。Apple版に合わせる。状態：対応済み（Apple版の到着後に照合）。写真：[2行・通常](assets/windows-mac-gaps/windows/pr12-accounts-normal.png)・[片方が上限](assets/windows-mac-gaps/windows/pr12-accounts-one-limited.png)・[両方上限の帯](assets/windows-mac-gaps/windows/pr12-accounts-both-limited.png)・[2ndが未ログイン](assets/windows-mac-gaps/windows/pr12-accounts-unlogged.png)・[旧本体の1行](assets/windows-mac-gaps/windows/pr12-accounts-old-server.png)・[メンバーの席のアカウント](assets/windows-mac-gaps/windows/pr12-accounts-member-card.png) | M |
+| 12 | Claudeの2アカウント（オーナー機能、担当キロ。契約は`docs/architecture/modules/execution/harness-accounts.md`）：AIの認証の1st・2nd、両方上限の帯、メンバーの席のアカウント表示。Apple版に合わせる。状態：対応済み（Apple版の到着後に照合）。写真：[2行・通常](assets/windows-mac-gaps/windows/pr12-accounts-normal.png)・[片方が上限](assets/windows-mac-gaps/windows/pr12-accounts-one-limited.png)・[両方上限の帯](assets/windows-mac-gaps/windows/pr12-accounts-both-limited.png)・[2ndが未ログイン](assets/windows-mac-gaps/windows/pr12-accounts-unlogged.png)・[旧本体の1行](assets/windows-mac-gaps/windows/pr12-accounts-old-server.png)・[メンバーの席のアカウント](assets/windows-mac-gaps/windows/pr12-accounts-member-card.png) | M |
 
 合計でおよそ14〜16日分（S＝0.5、M＝1、L＝2で数えた実作業）。各PRの採用と導入を待つ時間は含まない。Macの全写真が届いたら、ダーク表示の差と、写真の無い画面（起動・ログイン・初期設定・シート類）を照らし合わせて、規模を見直す。
 
 ## 完了（2026-11-08）
 
 W-MACは、0〜10、11a、再接続の裁定、12がすべてmainに採用された（#635・#636・#637・#638・#639・#640・#643・#647・#653・#660・#672・#677・#683・#685・#687）。ダーク表示は対象外。残る追加作業は、Apple版のClaudeの2アカウントが入った時の照合だけ。
+
+Claudeの2アカウントの改訂（2026-11-09、オーナー裁定・契約PR #711）：上限だけで席のアカウントが決まるため、Windowsから「Fableを2ndアカウントで使う」の切替と`/api/accounts/rules`・`account.preferredSlot`の利用を外した。各アカウントの名前・ログイン状態・モデルごとの上限（日本時間の解除時刻）・席の数は残す。

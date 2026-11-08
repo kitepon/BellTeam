@@ -22,36 +22,27 @@ public sealed record AccountHarness
     public AccountSlot[] Slots { get; init; } = [];
     public AccountAllLimited[] AllLimited { get; init; } = [];
 }
-public sealed record AccountRule(string Harness, string ModelPrefix, string? Slot);
 public sealed record AccountsResponse
 {
     public AccountHarness[] Harnesses { get; init; } = [];
-    public AccountRule[] Rules { get; init; } = [];
     public AccountHarness? Claude => Harnesses.FirstOrDefault(item => item.Harness == "claude" && item.Slots.Length != 0);
 }
-public sealed record AccountRulesResponse { public AccountRule[] Rules { get; init; } = []; }
 // Bot item 'account' (transport.seatAccount): absent on older bodies and null for a seat without a slot.
-public sealed record SeatAccount(string? Harness, string? Slot, string? PreferredSlot);
+// Limits alone pick the slot (Owner ruling 2026-11-09), so the server's preferredSlot is not read.
+public sealed record SeatAccount(string? Harness, string? Slot);
 
 public sealed class HarnessAccountsApi(BellApi api)
 {
-    public const string FablePrefix = "claude-fable";
     // null means an older body (HTTP 404 of GET /api/accounts): the caller shows the old single Claude card. Any other failure throws.
     public async Task<AccountsResponse?> ReadAsync(CancellationToken token = default)
     {
         try { return await api.GetAsync<AccountsResponse>("/api/accounts", token); }
         catch (BellApiException error) when (error.Status == HttpStatusCode.NotFound) { return null; }
     }
-    // One POST per call; the caller never resends it. slot null removes the rule.
-    public async Task<AccountRule[]> SetFableRuleAsync(bool useSecond, CancellationToken token = default)
-        => (await api.PostAsync<AccountRulesResponse>("/api/accounts/rules", new { harness = "claude", modelPrefix = FablePrefix, slot = useSecond ? "2nd" : (string?)null }, token)).Rules;
 }
 
 public static class AccountText
 {
-    // Kiro, 2026-11-08: the text for a 403 ACCOUNT_RULE_OWNER_REQUIRED on POST /api/accounts/rules.
-    public const string RuleOwnerRequired = "アカウントの設定を変えられるのはオーナーだけです。オーナーとしてサインインしているか確かめてください。";
-    public const string RuleOwnerRequiredCode = "ACCOUNT_RULE_OWNER_REQUIRED";
     private static readonly TimeSpan Jst = TimeSpan.FromHours(9);
     public static string? SlotTitle(string? slot) => slot switch { "1st" => "1stアカウント", "2nd" => "2ndアカウント", _ => null };
 
@@ -71,8 +62,6 @@ public static class AccountText
     }
     public static string[] BannerTexts(AccountsResponse? list, DateTimeOffset now)
         => (list?.Claude?.AllLimited ?? []).Select(item => "両方のアカウントで" + LimitText(item.Scope, item.EarliestResetAt, now)).ToArray();
-    public static bool FableOnSecond(AccountsResponse? list)
-        => list?.Rules.Any(rule => rule.Harness == "claude" && rule.ModelPrefix == HarnessAccountsApi.FablePrefix && rule.Slot == "2nd") == true;
     // A value the server did not send is 未確認, never a guess.
     public static string Login(AccountSlot slot) => slot.LoggedIn switch { true => string.IsNullOrEmpty(slot.Label) ? "ログイン済み" : slot.Label, false => "未ログイン", _ => "ログイン状態は未確認" };
     public static string State(AccountSlot slot, DateTimeOffset now)
