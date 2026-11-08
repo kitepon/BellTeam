@@ -209,7 +209,10 @@ export class HarnessAccounts {
   }
 
   preferredSlot(harness, model) {
-    return this.state.rules.find(rule => rule.harness === harness && String(model ?? '').startsWith(rule.modelPrefix))?.slot ?? '1st'
+    const id = String(model ?? '')
+    // A family rule (claude-fable) also covers the CLI's bare alias (fable); harness-accounts.md "Selection, failover and return".
+    const matches = rule => id.startsWith(rule.modelPrefix) || MODEL_FAMILIES.includes(id) && rule.modelPrefix === `${harness}-${id}`
+    return this.state.rules.find(rule => rule.harness === harness && matches(rule))?.slot ?? '1st'
   }
 
   limitFor(harness, slot, model) {
