@@ -137,9 +137,14 @@ test('each part gets one plain status line from only its latest job', async () =
   const superseded = componentStatus(row('execution', true, 'release'), jobs)
   assert.equal(superseded.latestJob.jobId, '22222222-2222-4222-8222-222222222222')
   assert.equal(superseded.line, '更新で入れた版を使っています。新しい版があるかは確認できません。11/8 10:06 の更新は完了しました。')
+  const named = { ...row('execution', true, 'release'), current: { version: 'a'.repeat(64), sourceCommit: 'bd4fe72c'.padEnd(40, '0'), digest: null, origin: 'release' },
+    published: { version: 'c'.repeat(64), sourceCommit: '9b964b12'.padEnd(40, '0'), digest: null, origin: 'published' }, comparison: { state: 'update_available', reason: null } }
+  assert.equal(componentStatus(named, []).line, '更新で入れた版（bd4fe72）を使っています。新しい版（9b964b1）があります。')
+  const fixedSince = componentStatus({ ...row('conversation', true), comparison: { state: 'up_to_date', reason: null } }, jobs)
+  assert.equal(fixedSince.line, '最初から入っている版を使っています。最新です。'); assert.equal(fixedSince.latestJob.state, 'failed')
   assert.equal(superseded.tone, 'ok'); assert.equal(superseded.actionRequired, false)
   const body = componentStatus(row('container', null), jobs)
-  assert.match(body.line, /11\/8 10:06 の更新はできませんでした。元の版のまま動いています。対応は不要です。$/u)
+  assert.match(body.line, /^本体は動いています。.*11\/8 10:06 の更新は入れ替えの途中で失敗しました。元の版のまま動いています。対応は不要です。$/u)
   assert.equal(body.actionRequired, false); assert.doesNotMatch(body.line, /HOST_|4444/u)
   const stopped = componentStatus(row('conversation', false), jobs)
   assert.equal(stopped.tone, 'attention'); assert.equal(stopped.actionRequired, true); assert.match(stopped.line, /この機能は今使えません。$/u)

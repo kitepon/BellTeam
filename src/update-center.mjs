@@ -14,8 +14,12 @@ export function updateNotificationCandidates(inventory, now = Date.now()) {
 
 const runningText = { queued: '更新の順番を待っています', downloading: '新しい版を取り込んでいます', verifying: '新しい版を確かめています', swapping: '新しい版に切り替えています' }
 const failureCause = { UPDATE_PARENT_INTERRUPTED: '本体が止まったため、途中で終わりました', EXECUTION_BUSY: '使用中だったため、見送りました',
-  MODULE_EXCHANGE_BUSY: '使用中だったため、見送りました', BOT_UPDATE_HOLD: '使用中だったため、見送りました' }
-const updateText = { update_available: '新しい版があります。', up_to_date: '最新です。', incompatible: '新しい版はありますが、今の本体では使えません。' }
+  MODULE_EXCHANGE_BUSY: '使用中だったため、見送りました', BOT_UPDATE_HOLD: '使用中だったため、見送りました',
+  HOST_UPDATE_INSTALL_FAILED: '入れ替えの途中で失敗しました', DIAGNOSTIC_INVALID: '記録の処理で止まり、できませんでした' }
+const updateText = { update_available: v => `新しい版${v ? `（${v}）` : ''}があります。`, up_to_date: () => '最新です。',
+  incompatible: () => '新しい版はありますが、今の本体では使えません。' }
+// The short name people use for a release: first 7 hex of its source commit (or of a hex version).
+const versionName = version => [version?.sourceCommit, version?.version].find(value => /^[a-f0-9]{7,}$/u.test(value ?? ''))?.slice(0, 7) ?? null
 // Owner reads JST (owner rule voice.time); `at` stays ISO for clients that reformat.
 const jst = at => new Date(at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 // One line per part: installed version, update availability, and only the latest job for that part.
@@ -24,21 +28,24 @@ export function componentStatus(component, jobs = []) {
     .reduce((latest, item) => !latest || BigInt(item.updatedAtNs) > BigInt(latest.updatedAtNs) ? item : latest, null)
   const outcome = !job ? null : job.state === 'ready' ? 'succeeded' : job.state === 'failed' ? 'failed' : 'running'
   const at = job && new Date(Number(BigInt(job.updatedAtNs) / 1000000n)).toISOString()
+  const name = versionName(component.current), named = name ? `（${name}）` : ''
   const installed = !component.current ? '使っている版を確認できません。'
-    : component.current.origin === 'release' ? '更新で入れた版を使っています。' : '最初から入っている版を使っています。'
+    : component.id === 'container' ? `本体は${name ? `版 ${name} で` : ''}動いています。`
+      : component.current.origin === 'release' ? `更新で入れた版${named}を使っています。` : `最初から入っている版${named}を使っています。`
   // The body answering this request proves the container is serving.
   const running = component.id === 'container' || component.availability.available === true
   const stopped = component.id !== 'container' && component.availability.available === false
   let jobText = '', tone = 'ok', action = null
   if (outcome === 'running') { jobText = `${jst(at)} から更新中です（${runningText[job.state]}）。`; tone = 'updating' }
   if (outcome === 'succeeded') jobText = `${jst(at)} の更新は完了しました。`
-  if (outcome === 'failed') {
+  // A failure stops mattering once the running part is already the newest version.
+  if (outcome === 'failed' && !(running && component.comparison.state === 'up_to_date')) {
     jobText = `${jst(at)} の更新は${failureCause[job.reason.code] ?? 'できませんでした'}。`
       + (stopped ? 'この機能は今使えません。' : running ? '元の版のまま動いています。対応は不要です。' : '')
       + (!stopped && component.comparison.state === 'update_available' ? 'もう一度更新できます。' : '')
     if (stopped) { tone = 'attention'; action = 'この機能が使えません。「詳細」の内容を担当に伝えてください。' }
   }
-  return { line: installed + (updateText[component.comparison.state] ?? '新しい版があるかは確認できません。') + jobText,
+  return { line: installed + (updateText[component.comparison.state]?.(versionName(component.published)) ?? '新しい版があるかは確認できません。') + jobText,
     tone, actionRequired: action !== null, action,
     latestJob: job && { jobId: job.jobId, kind: job.kind, state: job.state, outcome, at, reason: job.reason } }
 }
