@@ -100,8 +100,9 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
     target.quiescing = stopping
     void Promise.resolve(stopping).finally(() => { if (target.quiescing === stopping) target.quiescing = null }).catch(() => {})
     // Handover: accepted turns stay on the old engine, so their dispatch promises are not drained here.
-    const [result] = await within(Promise.all([stopping, handover ? null : waitActive()]), 60_000, 'BUSY')
-    if (result?.quiesced !== true || performance.now() - started > 60_000) throw fail('QUIESCE_FAILED')
+    // A module update (handover) never waits for running work; only close/dispose keeps the drain and 60 s bound.
+    const [result] = handover ? [await stopping] : await within(Promise.all([stopping, waitActive()]), 60_000, 'BUSY')
+    if (result?.quiesced !== true || (!handover && performance.now() - started > 60_000)) throw fail('QUIESCE_FAILED')
     target.quiesced = true
   }
   const resume = async target => {
