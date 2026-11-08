@@ -82,3 +82,8 @@ test('removed main-agent tool rejects before refreshing members or entering the 
     rooms: { refresh: async () => { bots.delete('bot-a') } }, updateWorkSummary: async () => { updates++ } }), /TOOL_NOT_FOUND/)
   assert.equal(updates, 0)
 })
+
+test('the currentWork DTO has no length bound (Owner 2026-11-09) but stays non-empty, trimmed and one line', () => {
+  for (const summary of ['猫'.repeat(500), 'a'.repeat(5000)]) assert.equal(validateCurrentWork({ ...work(), summary }).valid, true)
+  for (const summary of ['', ' 先頭空白', '改行\nあり', '制御\u0007']) assert.equal(validateCurrentWork({ ...work(), summary }).valid, false)
+})
