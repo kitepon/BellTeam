@@ -81,21 +81,22 @@ Public read and change stream for the members scheduler's `after_turn` (once, pr
 ```mermaid
 flowchart LR
   Poll[SeatTurns poll: every Bot, one pty_list] --> EndRead[CurrentWork.endRead]
-  EndRead -->|row running| Working[working: session+launch+native turn]
+  EndRead -->|row running| Working[working: session+launch+native turn+started_at]
   EndRead -->|row idle| Idle[idle]
   EndRead -->|valid read, no row| Absent[no live seat: absent=true]
   EndRead -->|stale/ambiguous/mismatch/starting| Unknown[unknown]
-  Working & Idle & Absent & Unknown --> Turn["transport.currentTurn(botId)<br/>project, pure read"]
+  Working & Idle & Absent & Unknown --> Turn["transport.currentTurn(botId[, {startedAt:true}])<br/>project, pure read"]
   EndRead -->|state, turn or absent changed| Notify[activity.emit bot id]
   Notify --> Queue[parent watchQueue: botIds]
-  Queue --> Watch["facade transport.watchCurrentTurn(listener)<br/>emits {botId,state,turnId} when currentTurn differs"]
+  Queue --> Watch["facade transport.watchCurrentTurn(listener)<br/>emits {botId,state,turnId,startedAt} when currentTurn differs"]
   Watch --> Scheduler[Belorta: CAS claim + ordinary delivery]
 ```
 
 | Contact | Contract |
 | --- | --- |
 | `transport.currentTurn(botId)` | `{state:'working',turnId}` / `{state:'idle',turnId:null}` / `{state:'unknown',turnId:null}`. `turnId` is opaque (sha256 of session, launch, native turn id); compare for equality only. A Bot whose latest valid read has no seat row (offline, dead, closed) is `idle`: no turn can run. The Bot-list DTO keeps showing such Bots as `unknown` (unchanged). |
-| `transport.watchCurrentTurn(listener)` | Parent facade and `AitermTransport` itself (the managed path without an execution factory), both via the one helper `watchCurrentTurn(watchQueue, read, listener)` in current-work.mjs; returns unsubscribe. Fires `listener({botId,state,turnId})` whenever `currentTurn(botId)` differs from what this listener last received, unknown transitions included. Built on the existing parent `watchQueue` stream, so it survives execution engine exchange. A read refused during an exchange is retried on the next change event of any Bot. |
+| `transport.currentTurn(botId, {startedAt:true})` | Same result plus `startedAt`: ISO string when `working`, `null` otherwise (2026-11-08, for Black's 相関図 node activeSince). Source: the running row's `started_at` captured with the binding. For Codex it is the native turn start; for the other CLIs it is the start of the Aiterm-observed parent-work span first seen by a live read (not vendor invocation birth). An invalid/missing value is `null`. Without the option the result keeps exactly `{state,turnId}`, because the members after_turn validators accept only those two keys. An old engine ignores the option, so a missing key means "not supplied". |
+| `transport.watchCurrentTurn(listener)` | Parent facade and `AitermTransport` itself (the managed path without an execution factory), both via the one helper `watchCurrentTurn(watchQueue, read, listener)` in current-work.mjs; returns unsubscribe. Reads `currentTurn(botId,{startedAt:true})` and fires `listener({botId,state,turnId,startedAt})` (`startedAt` null unless supplied for a working turn) whenever that result differs from what this listener last received, unknown transitions included. Built on the existing parent `watchQueue` stream, so it survives execution engine exchange. A read refused during an exchange is retried on the next change event of any Bot. |
 | unknown self-exit | `unknown` = a live seat whose observation is stale (>15 s), ambiguous, mismatched or starting. The poll re-reads every Bot each tick; the next valid read resolves it to working/idle/absent, and each of those emits. No timer, wait or refusal is added. |
 | observation semantics | A schedule saved while `unknown` binds the first resolved `working` turn, and that turn may have started after the save: an observation cannot prove which turn was current while it was unknown. The first resolved `idle` fires at once. |
 | delivery semantics | The scheduler's dispatch is an ordinary delivery. If the Bot is mid-turn at dispatch (for example bound X ended and Y already started), the words are steered into Y. They are not queued as a new turn. A dead seat is woken by the same delivery. |

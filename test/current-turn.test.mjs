@@ -33,11 +33,15 @@ test('currentTurn follows the native observation; watchCurrentTurn emits every c
   seats = [running('one')]; await poll()
   const one = transport.currentTurn('bot-a')
   assert.equal(one.state, 'working'); assert.match(one.turnId, /^[0-9a-f]{64}$/u)
+  // startedAt only on request; the default stays {state,turnId} for the members after_turn validators.
+  assert.deepEqual(Object.keys(one), ['state', 'turnId'])
+  assert.deepEqual(transport.currentTurn('bot-a', { startedAt: true }), { ...one, startedAt: new Date(0).toISOString() })
   seats = [running('two')]; await poll()
   const two = transport.currentTurn('bot-a')
   assert.notEqual(two.turnId, one.turnId)
   seats = [row({ state: 'idle' })]; await poll()
   assert.deepEqual(transport.currentTurn('bot-a'), { state: 'idle', turnId: null })
+  assert.deepEqual(transport.currentTurn('bot-a', { startedAt: true }), { state: 'idle', turnId: null, startedAt: null })
   // Stale observation is unknown (not idle); the next valid read leaves it on its own.
   clock = 20_000
   assert.deepEqual(transport.currentTurn('bot-a'), { state: 'unknown', turnId: null })
@@ -51,7 +55,8 @@ test('currentTurn follows the native observation; watchCurrentTurn emits every c
   const own = events.filter(event => event.botId === 'bot-a')
   assert.deepEqual(own.map(event => event.state), ['working', 'working', 'idle', 'unknown', 'idle', 'working'])
   assert.equal(own[0].turnId, one.turnId); assert.equal(own[1].turnId, two.turnId)
-  assert.deepEqual(events.filter(event => event.botId === 'bot-other'), [{ botId: 'bot-other', state: 'unknown', turnId: null }])
+  assert.deepEqual(own.map(event => event.startedAt), [0, 0, null, null, null, 0].map(value => value === null ? null : new Date(value).toISOString()))
+  assert.deepEqual(events.filter(event => event.botId === 'bot-other'), [{ botId: 'bot-other', state: 'unknown', turnId: null, startedAt: null }])
   stop()
   const count = events.length
   seats = [row({ state: 'idle' })]; await poll()
@@ -67,6 +72,6 @@ test('the managed transport path exposes the same watchCurrentTurn stream', asyn
   const events = [], stop = transport.watchCurrentTurn(event => events.push(event))
   seats = [{ session_id: 'bot-a', launch_id: 'a'.repeat(32), harness: 'claude-code', turn: { state: 'idle' } }]
   await transport.seatTurns([{ id: 'bot-a', session: 'bot-a', harness: 'claude' }])
-  assert.deepEqual(events, [{ botId: 'bot-a', state: 'idle', turnId: null }])
+  assert.deepEqual(events, [{ botId: 'bot-a', state: 'idle', turnId: null, startedAt: null }])
   stop()
 })
