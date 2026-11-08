@@ -50,11 +50,25 @@ flowchart TD
 | Item | Place | Notes |
 | --- | --- | --- |
 | 1st slot root | `$BELLTEAM_HOME/.claude` with `CLAUDE_CONFIG_DIR` unset (today's login) | unchanged; no migration |
-| 2nd slot root | `$BELLTEAM_HOME/.bellteam-accounts/claude/2nd/` (0700) | `CLAUDE_CONFIG_DIR` set to this path |
-| Credentials | `<root>/.credentials.json` (0600) | written and refreshed only by the official CLI. The parent reads the 2nd/1st token in process for the usage reading only; never logged, never returned, never put in env or argv |
+| 2nd slot root | `$BELLTEAM_HOME/.bellteam-accounts/claude/2nd/` (0711; `.bellteam-accounts/` and its `claude/` also 0711) | `CLAUDE_CONFIG_DIR` set to this path. Owned by the seat user; 0711 lets the engine (another user) `lstat` known names inside without listing or reading |
+| Credentials | `<root>/.credentials.json` (0600) | written and refreshed only by the official CLI. Only the seat-user helper reads the token, for the usage reading; it returns the usage rows only. The token is never logged, never returned, and never put in env or argv |
 | Account config | 1st: `$BELLTEAM_HOME/.claude.json`; 2nd: `<2nd root>/.claude.json` | holds the CLI's own account record and the MCP registration; not shared |
 | Shared history | in the 2nd root, symlinks to the 1st root: `projects/`, `history.jsonl`, `settings.json`, `CLAUDE.md`, `AGENTS.md`, `skills/`, `commands/`, `plugins/`, `agents/`, `file-history/`, `todos/`, `session-env/`, `shell-snapshots/` | one physical transcript per conversation, so `--resume` under either root finds it, and Throughline/handoff readers keep reading `$HOME/.claude/projects` |
 | Registry | `/srv/bellteam/state/harness-accounts.json`, schema `bellteam.harness-accounts.v1` | `{ rules:[{harness, modelPrefix, slot}], seats:{botId: slot}, limits:[{harness, slot, scope, since, resetAt|null, resetSource:'message'|'usage'|null, text}] }`; one entry per limited (slot, scope); an absent entry means available. `scope` is `'all'` or a model family (`'fable'`, `'opus'`, `'sonnet'`, `'haiku'`). `text` is the limit line the CLI showed (no secrets). No secrets |
+
+### Identity (production regression 2026-11-08 22:0x JST)
+
+The execution engine runs in the parent as the server user (`bellteam-server`, uid 1001). `$BELLTEAM_HOME` (`/home/bell`) and every slot root belong to the seat user (`bell`, uid 1000), and `.claude.json` / `.credentials.json` are 0600. So the engine never opens, creates or writes files there itself:
+
+| Need | Who does it |
+| --- | --- |
+| `prepare` (create the root, chmod 0711, symlinks, managed MCP copy) | seat-user helper, op `prepare` |
+| `label` (the e-mail in `.claude.json`) | seat-user helper, op `label`; cached per slot until `.credentials.json`'s mtime changes (a new login) |
+| usage reading (needs the token) | seat-user helper, op `usage`; returns `[{kind, model, percent, resets_at}]` only |
+| `loggedIn`, `history` | engine `lstat` (needs only traverse permission: the 1st root is 0755, the 2nd chain is 0711) |
+
+Seat-user helper = `seatFiles` in `src/harness-accounts.mjs`, a self-contained function run as `node -e` through the parent's existing seat runner `ports.seat.waitProcess` (sudo seat-exec, uid 1000; the same path the Aiterm wait process uses), and it prints one JSON result. No new parent port and no body swap. Without `ports.seat` (single-user development and tests), the same function runs in the engine's own process.
+A failed `prepare` is `ACCOUNT_ROOT_UNAVAILABLE` (status 503), and the engine logs the underlying code. The module IPC carries the code only. HarnessAuth (usage) renders it as plain Japanese, never a raw errno.
 
 `prepare` creates missing symlinks only and never overwrites an existing non-symlink entry (protection: overwriting existing state). If an entry is a real file, the slot is reported as `history: 'separate'` in `accounts.list()` and the Owner sees it. The slot still works: launch and login proceed, and resume finds only conversations written under that root.
 

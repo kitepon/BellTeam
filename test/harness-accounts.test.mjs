@@ -154,3 +154,27 @@ test('a failing reset write keeps the entry limited and retries after 60 s, not 
   await advance(60_000)
   assert.equal(accounts.limitFor('claude', '1st', 'opus').length, 0)
 })
+
+test('seat-user helper: the stringified script runs alone, makes a traversable root, and a failure is ACCOUNT_ROOT_UNAVAILABLE', async t => {
+  const { execFile } = await import('node:child_process')
+  const { stat } = await import('node:fs/promises')
+  const { seatFilesOver } = await import('../src/harness-accounts.mjs')
+  // Stand-in for ports.seat.waitProcess: run the executable, parse stdout (the real one adds sudo seat-exec).
+  const waitProcess = ({ executable, args }) => new Promise((resolve, reject) =>
+    execFile(executable, args, { cwd: tmpdir() }, (error, stdout) => { try { resolve(JSON.parse(stdout)) } catch { reject(error) } }))
+  const { home } = await setup(t)
+  const logs = []
+  const accounts = new HarnessAccounts({ home, statePath: join(home, 'state.json'), seat: seatFilesOver(waitProcess), log: line => logs.push(line) })
+  const { configurationRoot, history } = await accounts.prepare('claude', '2nd')
+  assert.equal(history, 'shared')
+  assert.equal(await readlink(join(configurationRoot, 'projects')), join(home, '.claude/projects'))
+  for (const path of [join(home, '.bellteam-accounts'), join(home, '.bellteam-accounts/claude'), configurationRoot])
+    assert.equal((await stat(path)).mode & 0o777, 0o711)
+  assert.equal((await stat(join(configurationRoot, '.claude.json'))).mode & 0o777, 0o600)
+  assert.equal(await accounts.label('claude', '1st'), 'a')
+  await rm(configurationRoot, { recursive: true, force: true })
+  await chmod(join(home, '.bellteam-accounts/claude'), 0o500)
+  try { await assert.rejects(accounts.prepare('claude', '2nd'), { code: 'ACCOUNT_ROOT_UNAVAILABLE', status: 503 }) }
+  finally { await chmod(join(home, '.bellteam-accounts/claude'), 0o700) }
+  assert.match(logs.at(-1), /prepare claude 2nd failed \(EACCES\)/)
+})
