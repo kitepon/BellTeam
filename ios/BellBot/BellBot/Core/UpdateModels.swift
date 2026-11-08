@@ -74,9 +74,30 @@ struct UpdateComponent: Decodable, Equatable, Identifiable {
         @NullableField var reason: String?
     }
 
+    /// 機能ごとの状態の1行（本体 c1a32534 以降）。旧サーバーには無い。`line`はサーバーの文をそのまま出す。
+    struct PartStatus: Decodable, Equatable {
+        enum Tone: String, Decodable { case ok, updating, attention }
+        struct LatestJob: Decodable, Equatable {
+            enum Kind: String, Decodable { case container, module, runtime }
+            enum Outcome: String, Decodable { case running, succeeded, failed }
+            let jobId: String
+            let kind: Kind
+            let state: UpdateJob.State
+            let outcome: Outcome
+            let at: String
+            let reason: UpdateJob.Reason?
+        }
+        let line: String
+        let tone: Tone
+        let actionRequired: Bool
+        let action: String?
+        let latestJob: LatestJob?
+    }
+
     let id: String
     let name: String
     let description: String
+    let status: PartStatus?
     @NullableField var current: UpdateVersion?
     @NullableField var published: UpdateVersion?
     let comparison: Comparison

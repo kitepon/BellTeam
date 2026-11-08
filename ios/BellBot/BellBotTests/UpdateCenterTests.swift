@@ -364,6 +364,28 @@ final class UpdateViewTests: XCTestCase {
         XCTAssertNotNil(rejected.failure)
     }
 
+    func testPartStatusLineReplacesTheJobListOnlyWhenTheServerSendsIt() async throws {
+        var example = try XCTUnwrap(try UpdateFixtures.examples()["running"])
+        let plain = try await store(json: example)
+        XCTAssertTrue(UpdateContent(updates: plain).partStatuses.isEmpty, "statusの無い旧サーバーは今までの表示")
+        var components = try XCTUnwrap(example["components"] as? [[String: Any]])
+        let line = "最初から入っている版を使っています。11/8 10:06 の更新はできませんでした。元の版のまま動いています。対応は不要です。"
+        components[0]["status"] = ["line": line, "tone": "attention", "actionRequired": true, "action": "設定を確認してください。",
+                                   "latestJob": ["jobId": "33333333-3333-4333-8333-333333333333", "kind": "runtime", "state": "failed",
+                                                 "outcome": "failed", "at": "2026-11-08T01:06:00Z",
+                                                 "reason": ["code": "READY_TIMEOUT", "message": "ready probe timed out"]]]
+        example["components"] = components
+        let content = UpdateContent(updates: try await store(json: example))
+        XCTAssertEqual(content.partStatuses.first?.status.line, line, "サーバーの文をそのまま持つ")
+        XCTAssertEqual(content.partStatuses.first?.status.action, "設定を確認してください。")
+        XCTAssertEqual(content.partStatuses.first?.status.latestJob?.reason?.code, "READY_TIMEOUT")
+
+        components[0]["status"] = ["line": line, "tone": "loud", "actionRequired": false, "action": NSNull(), "latestJob": NSNull()]
+        example["components"] = components
+        let rejected = try await store(json: example)
+        XCTAssertNil(rejected.inventory, "未知のtoneは応答不正")
+    }
+
     func testUnconfirmedRequestKeepsCheckingButOffersAnotherFormalCandidate() async throws {
         var interrupted = try XCTUnwrap(try UpdateFixtures.examples()["interrupted"])
         let plain = try await store(for: "interrupted")

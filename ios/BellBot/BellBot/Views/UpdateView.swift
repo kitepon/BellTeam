@@ -60,7 +60,8 @@ struct UpdateContent: View {
             if let plan = updates.plan { confirmation(plan) }
             else if choosing, candidates.count > 1 { chooser }
             if !changes.isEmpty, updates.plan == nil, showsChanges { changeList }
-            if !jobRecords.isEmpty { jobList }
+            if !partStatuses.isEmpty { partStatusList }
+            else if !jobRecords.isEmpty { jobList }
             if let problems = updates.inventory?.problems, !problems.isEmpty { problemList(problems) }
             details
         }
@@ -259,22 +260,60 @@ struct UpdateContent: View {
         updates.inventory?.components.first { $0.id == moduleId }?.name ?? moduleId
     }
 
-    private var jobList: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("ジョブの状態").font(.headline)
-            ForEach(jobRecords) { job in
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(componentName(job.target.moduleId)).font(.subheadline.weight(.semibold))
-                    Text("状態: \(job.state.rawValue)")
-                    Text("ジョブID: \(job.jobId)").font(.caption.monospaced()).foregroundStyle(BellTheme.muted).textSelection(.enabled)
-                    if let reason = job.reason { Text("\(reason.code) / \(reason.message)").foregroundStyle(.red) }
+    /// サーバーが機能ごとの1行を返す時だけ、標準画面はその行を出す。旧サーバーはジョブ一覧のまま。
+    var partStatuses: [(component: UpdateComponent, status: UpdateComponent.PartStatus)] {
+        (updates.inventory?.components ?? []).compactMap { component in component.status.map { (component, $0) } }
+    }
+
+    private var partStatusList: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("機能の状態").font(.headline)
+            ForEach(partStatuses, id: \.component.id) { part in
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        if part.status.tone == .updating { ProgressView().controlSize(.small) }
+                        if part.status.tone == .attention {
+                            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red).accessibilityHidden(true)
+                        }
+                        Text(part.component.name).font(.subheadline.weight(.semibold))
+                    }
+                    Text(part.status.line).font(.subheadline).fixedSize(horizontal: false, vertical: true)
+                    if part.status.tone == .attention, let action = part.status.action {
+                        Text(action).font(.subheadline.weight(.semibold)).foregroundStyle(.red)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
-                .accessibilityElement(children: .contain)
-                .accessibilityIdentifier("update-job-\(job.jobId)")
+                .padding(part.status.tone == .attention ? 10 : 0)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(part.status.tone == .attention ? Color.red.opacity(0.08) : .clear, in: RoundedRectangle(cornerRadius: 10))
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("update-part-\(part.component.id)")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18).bellCard()
+    }
+
+    private var jobList: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("ジョブの状態").font(.headline)
+            jobRows
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(18).bellCard()
+    }
+
+    private var jobRows: some View {
+        ForEach(jobRecords) { job in
+            VStack(alignment: .leading, spacing: 2) {
+                Text(componentName(job.target.moduleId)).font(.subheadline.weight(.semibold))
+                Text("状態: \(job.state.rawValue)")
+                Text("ジョブID: \(job.jobId)").font(.caption.monospaced()).foregroundStyle(BellTheme.muted).textSelection(.enabled)
+                if let reason = job.reason { Text("\(reason.code) / \(reason.message)").foregroundStyle(.red) }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("update-job-\(job.jobId)")
+        }
     }
 
     private func problemList(_ problems: [UpdateProblem]) -> some View {
@@ -313,9 +352,19 @@ struct UpdateContent: View {
                         Text("比較: \(Self.comparison[component.comparison.state] ?? "")\(Self.reason(component.comparison.reason))")
                         if let reason = component.capability.reason { Text("更新: できません（\(reason)）") }
                         if component.availability.available == false { Text("利用: できません\(Self.reason(component.availability.reason))") }
+                        if let job = component.status?.latestJob {
+                            Text("最新のジョブ: \(job.jobId) / \(job.kind.rawValue) / \(job.state.rawValue) / \(job.outcome.rawValue) / \(job.at)")
+                            if let reason = job.reason { Text("\(reason.code) / \(reason.message)") }
+                        }
                     }
                     .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("update-component-\(component.id)")
+                }
+                if !partStatuses.isEmpty, !jobRecords.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("ジョブの記録").font(.subheadline.weight(.semibold))
+                        jobRows
+                    }
                 }
                 if let operation { operationDetail(operation, title: "今回の更新") }
                 if let previous = updates.inventory?.previousOperation { operationDetail(previous, title: "前回の更新") }
