@@ -95,6 +95,11 @@ final class WorkGraphModel: ObservableObject {
     private var size = CGSize.zero
     private var insets = EdgeInsets()
     /// 実際に描ける範囲（上下の安全域・タブを除く）。重心・間隔・境界はこの範囲で決める。
+    /// 仕様の描画範囲D：安全域とタブを除き、さらに四方24pt内側。
+    var drawable: CGRect {
+        let inner = area.insetBy(dx: 24, dy: 24)
+        return inner.width > 1 && inner.height > 1 ? inner : area
+    }
     var area: CGRect {
         CGRect(x: insets.leading, y: insets.top,
                width: max(1, size.width - insets.leading - insets.trailing),
@@ -265,7 +270,7 @@ final class WorkGraphModel: ObservableObject {
     func side(for count: Int) -> CGFloat {
         let n = CGFloat(max(count, 1))
         let byCount = count > 12 ? baseSide * sqrt(12 / n) : baseSide
-        let byArea = size.width > 0 && size.height > 0 ? sqrt(area.width * area.height / n) * 0.3 : baseSide
+        let byArea = size.width > 0 && size.height > 0 ? sqrt(drawable.width * drawable.height / n) * 0.3 : baseSide
         return max(36, min(byCount, byArea))
     }
 
@@ -281,77 +286,92 @@ final class WorkGraphModel: ObservableObject {
         for (id, body) in bodies where body.leavingAt.map({ now - $0 > 0.6 }) == true { bodies[id] = nil; order.removeAll { $0 == id } }
         for (id, line) in lines where line.endedAt.map({ now - $0 > 0.3 }) == true { lines[id] = nil }
         guard dt > 0 else { return }
+        // behavior-spec.md「Layout: force-directed, normalized to the drawable rect」（layout-sim.mjsと同じ定数）。
         let ids = order.filter { bodies[$0]?.leavingAt == nil }
+        guard !ids.isEmpty else { return }
+        let d = drawable, W = d.width, H = d.height
+        let n = CGFloat(ids.count)
         let s = side(for: ids.count)
-        // 画面いっぱいに広げる（Owner）。間隔・線の長さ・反発は画面の短辺mから決め、引力は長い辺の向きほど弱くする。
-        let m = max(min(area.width, area.height), 1)
-        // 人数が多いほど1組あたりの反発を弱め、壁へ押し付けない。
-        let kr = 0.00009 * m * m * m * min(1, 6 / CGFloat(max(ids.count, 1)))
-        let length = m * 0.38
-        let gx = 0.004 * m / area.width, gy = 0.004 * m / area.height
-        let center = CGPoint(x: area.midX, y: area.midY)
+        let nameHeight = BellTheme.listNameFontSize * 1.4
+        let kr = 0.005 / n
+        let length = min(0.7, 1.4 / sqrt(n))
+        var u: [String: CGPoint] = [:]
+        for id in ids { if let p = bodies[id]?.position { u[id] = CGPoint(x: (p.x - d.minX) / W, y: (p.y - d.minY) / H) } }
         var force: [String: CGVector] = [:]
-        for (i, a) in ids.enumerated() {
-            guard let pa = bodies[a]?.position else { continue }
-            var f = CGVector(dx: gx * (center.x - pa.x), dy: gy * (center.y - pa.y))
-            for b in ids[(i + 1)...] {
-                guard let pb = bodies[b]?.position else { continue }
-                let dx = pa.x - pb.x, dy = pa.y - pb.y
-                let d = max(1, hypot(dx, dy))
-                let push = kr / (d * d)
-                f.dx += push * dx / d; f.dy += push * dy / d
-                force[b, default: .zero].dx -= push * dx / d
-                force[b, default: .zero].dy -= push * dy / d
-            }
-            force[a, default: .zero].dx += f.dx
-            force[a, default: .zero].dy += f.dy
+        func pull(_ a: String, _ b: String, _ amount: (CGFloat) -> CGFloat) {
+            guard let pa = u[a], let pb = u[b] else { return }
+            let du = pb.x - pa.x, dv = pb.y - pa.y, dist = max(0.01, hypot(du, dv))
+            let q = amount(dist)
+            force[a, default: .zero].dx += q * du / dist; force[a, default: .zero].dy += q * dv / dist
+            force[b, default: .zero].dx -= q * du / dist; force[b, default: .zero].dy -= q * dv / dist
         }
+        for (i, a) in ids.enumerated() { for b in ids[(i + 1)...] { pull(a, b) { -kr / ($0 * $0) } } }
         var pairs = Set<String>()
         for line in lines.values where line.endedAt == nil {
             let key = [line.edge.from, line.edge.to].sorted().joined(separator: "|")
-            guard pairs.insert(key).inserted, let pa = bodies[line.edge.from]?.position, let pb = bodies[line.edge.to]?.position,
-                  bodies[line.edge.from]?.leavingAt == nil, bodies[line.edge.to]?.leavingAt == nil else { continue }
-            let dx = pb.x - pa.x, dy = pb.y - pa.y
-            let d = max(1, hypot(dx, dy))
-            let pull = 0.05 * (d - length)
-            force[line.edge.from, default: .zero].dx += pull * dx / d
-            force[line.edge.from, default: .zero].dy += pull * dy / d
-            force[line.edge.to, default: .zero].dx -= pull * dx / d
-            force[line.edge.to, default: .zero].dy -= pull * dy / d
+            guard u[line.edge.from] != nil, u[line.edge.to] != nil, pairs.insert(key).inserted else { continue }
+            pull(line.edge.from, line.edge.to) { 0.02 * ($0 - length) }
         }
+        // 各軸の広がりが88%より狭ければ重力を弱め、広ければ強める。
+        func gravity(_ fill: CGFloat) -> CGFloat { 0.02 * min(50, max(0.001, pow(fill / 0.88, 16))) }
+        let us = ids.compactMap { u[$0] }
+        let gu = gravity((us.map(\.x).max() ?? 0.5) - (us.map(\.x).min() ?? 0.5) + s / W)
+        let gv = gravity((us.map(\.y).max() ?? 0.5) - (us.map(\.y).min() ?? 0.5) + (s + nameHeight) / H)
         let frames = dt * 60
         for id in ids {
-            guard var body = bodies[id] else { continue }
+            guard var body = bodies[id], var p = u[id] else { continue }
             let f = force[id] ?? .zero
-            var v = CGVector(dx: (body.velocity.dx + f.dx * heat) * 0.82, dy: (body.velocity.dy + f.dy * heat) * 0.82)
-            let speed = hypot(v.dx, v.dy)
+            var v = CGVector(dx: (body.velocity.dx + (f.dx + gu * (0.5 - p.x)) * heat) * 0.82,
+                             dy: (body.velocity.dy + (f.dy + gv * (0.5 - p.y)) * heat) * 0.82)
+            let speed = hypot(v.dx * W, v.dy * H)
             if speed > 14 { v.dx *= 14 / speed; v.dy *= 14 / speed }
             body.velocity = v
-            body.position.x += v.dx * frames
-            body.position.y += v.dy * frames
+            p.x = min(1 - s / 2 / W, max(s / 2 / W, p.x + v.dx * frames))
+            p.y = min(1 - (s / 2 + nameHeight) / H, max(s / 2 / H, p.y + v.dy * frames))
+            u[id] = p
             bodies[id] = body
         }
-        // 衝突（S×1.5より近いものを押し離す）と、余白の内側への制限は毎フレームの絶対条件。
+        // 衝突は点で測る（S×2.2）。
         let minDistance = s * 2.2
         for (i, a) in ids.enumerated() {
             for b in ids[(i + 1)...] {
-                guard let pa = bodies[a]?.position, let pb = bodies[b]?.position else { continue }
-                let dx = pb.x - pa.x, dy = pb.y - pa.y
-                let d = hypot(dx, dy)
-                guard d < minDistance else { continue }
-                let (ux, uy) = d > 0.001 ? (dx / d, dy / d) : (1.0, 0.0)
-                let shift = (minDistance - d) / 2
-                bodies[a]?.position = CGPoint(x: pa.x - ux * shift, y: pa.y - uy * shift)
-                bodies[b]?.position = CGPoint(x: pb.x + ux * shift, y: pb.y + uy * shift)
+                guard let pa = u[a], let pb = u[b] else { continue }
+                let dx = (pb.x - pa.x) * W, dy = (pb.y - pa.y) * H, dist = max(0.01, hypot(dx, dy))
+                guard dist < minDistance else { continue }
+                let push = (minDistance - dist) / 2
+                u[a] = CGPoint(x: pa.x - push * dx / dist / W, y: pa.y - push * dy / dist / H)
+                u[b] = CGPoint(x: pb.x + push * dx / dist / W, y: pb.y + push * dy / dist / H)
             }
         }
-        let inner = area.insetBy(dx: 24 + s / 2, dy: 24 + s / 2)
-        let bounds = inner.width > 0 && inner.height > 0 ? inner : CGRect(x: area.midX, y: area.midY, width: 0, height: 0)
+        // 線とアイコンを重ねない（Owner）：つながっていない線に近すぎるアイコンを線から垂直に押し出し、線の両端は少し逆へ動かす。
+        let clearance = s * 0.5 + 10
+        for line in lines.values where line.endedAt == nil {
+            let a = line.edge.from, b = line.edge.to
+            guard let pa = u[a], let pb = u[b] else { continue }
+            let ax = pa.x * W, ay = pa.y * H, bx = pb.x * W, by = pb.y * H
+            let ex = bx - ax, ey = by - ay, length2 = ex * ex + ey * ey
+            guard length2 > 1 else { continue }
+            for k in ids where k != a && k != b {
+                guard let pk = u[k] else { continue }
+                let px = pk.x * W, py = pk.y * H
+                let t = min(0.95, max(0.05, ((px - ax) * ex + (py - ay) * ey) / length2))
+                let cx = ax + ex * t, cy = ay + ey * t
+                var nx = px - cx, ny = py - cy
+                var dist = hypot(nx, ny)
+                guard dist < clearance else { continue }
+                if dist < 0.01 { nx = -ey; ny = ex; dist = sqrt(length2) } // 線の真上なら線に垂直な向きへ
+                let push = (clearance - dist) * 0.5
+                let ux = nx / dist, uy = ny / dist
+                u[k] = CGPoint(x: pk.x + push * 0.7 * ux / W, y: pk.y + push * 0.7 * uy / H)
+                if let ca = u[a] { u[a] = CGPoint(x: ca.x - push * 0.15 * ux / W, y: ca.y - push * 0.15 * uy / H) }
+                if let cb = u[b] { u[b] = CGPoint(x: cb.x - push * 0.15 * ux / W, y: cb.y - push * 0.15 * uy / H) }
+            }
+        }
         for id in ids {
-            guard var p = bodies[id]?.position else { continue }
-            p.x = min(max(p.x, bounds.minX), bounds.maxX)
-            p.y = min(max(p.y, bounds.minY), bounds.maxY)
-            bodies[id]?.position = p
+            guard var p = u[id] else { continue }
+            p.x = min(1 - s / 2 / W, max(s / 2 / W, p.x))
+            p.y = min(1 - (s / 2 + nameHeight) / H, max(s / 2 / H, p.y))
+            bodies[id]?.position = CGPoint(x: d.minX + p.x * W, y: d.minY + p.y * H)
         }
         heat = max(0.04, heat * pow(0.985, frames))
     }
