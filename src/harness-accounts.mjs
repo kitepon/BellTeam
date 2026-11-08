@@ -53,9 +53,12 @@ export async function seatFiles(op, ...args) {
       const projects = { ...(target.projects ?? {}) }
       for (const [path, value] of Object.entries(source.projects ?? {}))
         if (value?.hasTrustDialogAccepted) projects[path] = { ...(projects[path] ?? {}), hasTrustDialogAccepted: true }
+      // A new root never saw the CLI's first-run screens; without the 1st root's acknowledgement a seat waits at "Press Enter".
+      const onboarded = source.hasCompletedOnboarding === true
+        ? { hasCompletedOnboarding: true, ...(typeof source.lastOnboardingVersion === 'string' ? { lastOnboardingVersion: source.lastOnboardingVersion } : {}) } : {}
       const temporary = `${to}.${process.pid}.${Date.now()}.tmp`
       try {
-        await writeFile(temporary, `${JSON.stringify({ ...target, mcpServers: { ...(target.mcpServers ?? {}), ...servers }, projects }, null, 2)}\n`, { mode: 0o600 })
+        await writeFile(temporary, `${JSON.stringify({ ...target, ...onboarded, mcpServers: { ...(target.mcpServers ?? {}), ...servers }, projects }, null, 2)}\n`, { mode: 0o600 })
         await rename(temporary, to)
       } catch (cause) { await unlink(temporary).catch(() => {}); throw cause }
     }

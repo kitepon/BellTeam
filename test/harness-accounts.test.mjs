@@ -36,7 +36,7 @@ async function setup(t, { usage = async () => [] } = {}) {
   await mkdir(join(home, '.claude/projects'), { recursive: true })
   await writeFile(join(home, '.claude/settings.json'), '{}')
   await writeFile(join(home, '.claude/.credentials.json'), '{"claudeAiOauth":{"accessToken":"secret"}}')
-  await writeFile(join(home, '.claude.json'), JSON.stringify({ mcpServers: { bellteam: { url: 'x' }, other: { url: 'y' } }, projects: { '/p': { hasTrustDialogAccepted: true } }, oauthAccount: { emailAddress: 'a' } }))
+  await writeFile(join(home, '.claude.json'), JSON.stringify({ mcpServers: { bellteam: { url: 'x' }, other: { url: 'y' } }, projects: { '/p': { hasTrustDialogAccepted: true } }, oauthAccount: { emailAddress: 'a' }, hasCompletedOnboarding: true, lastOnboardingVersion: '2.1.261', numStartups: 9 }))
   let clock = NOW
   const timers = new Map(); let next = 0
   const accounts = new HarnessAccounts({ home, statePath: join(home, 'state.json'), readUsage: usage, now: () => clock,
@@ -64,6 +64,7 @@ test('prepare: create-only symlinks to the 1st root, managed MCP copied, credent
   assert.deepEqual(Object.keys(config.mcpServers), ['bellteam'])
   assert.equal(config.projects['/p'].hasTrustDialogAccepted, true)
   assert.equal(config.oauthAccount, undefined)
+  assert.deepEqual([config.hasCompletedOnboarding, config.lastOnboardingVersion, config.numStartups], [true, '2.1.261', undefined])
   assert.equal(await accounts.loggedIn('claude', '2nd'), false)
   assert.deepEqual(await accounts.prepare('claude', '1st'), { configurationRoot: join(home, '.claude'), history: 'shared' })
   await assert.rejects(accounts.prepare('claude', '3rd'), { code: 'ACCOUNT_SLOT_INVALID' })
