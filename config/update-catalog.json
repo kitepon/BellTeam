@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T05:39:26Z",
-  "expiresAt": "2026-11-15T05:39:26Z",
+  "publishedAt": "2026-11-08T05:53:50Z",
+  "expiresAt": "2026-11-15T05:53:50Z",
   "releases": [
     {
       "componentId": "usage",
@@ -289,8 +289,8 @@
     },
     {
       "componentId": "notifications",
-      "sourceCommit": "69cfac918836cb3f8f73fdce38804d6c0fba6450",
-      "versionId": "bd341b881b6c9f1ce964a6568b39aedd57a9bb58e8658f1d6b779f90ae5b3e87",
+      "sourceCommit": "c42bb7890d0d42b5d97bbc114926955e68b9ff3e",
+      "versionId": "99afae5efe01fab0f2aa4c310fc34a9177aec5cf66afc68225d0d465c73f5768",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -298,16 +298,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T131813Z/notifications-69cfac918836cb3f8f73fdce38804d6c0fba6450-linux-amd64.tar.gz",
-          "bytes": 4300355,
-          "sha256": "bd341b881b6c9f1ce964a6568b39aedd57a9bb58e8658f1d6b779f90ae5b3e87"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T052115Z/notifications-c42bb7890d0d42b5d97bbc114926955e68b9ff3e-linux-amd64.tar.gz",
+          "bytes": 4329967,
+          "sha256": "99afae5efe01fab0f2aa4c310fc34a9177aec5cf66afc68225d0d465c73f5768"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T131813Z/notifications-69cfac918836cb3f8f73fdce38804d6c0fba6450-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11213,
-          "sha256": "2563c50cd1556f0e74cbacd1097dfc1caafe932ff582f320c81e574ed245b949"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T052115Z/notifications-c42bb7890d0d42b5d97bbc114926955e68b9ff3e-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11131,
+          "sha256": "407ce63e8a91a2e9dedaccfa3f169a9319e8b9120fb17e3a1b704a9173862e5a"
         },
-        "signerCommit": "69cfac918836cb3f8f73fdce38804d6c0fba6450"
+        "signerCommit": "c42bb7890d0d42b5d97bbc114926955e68b9ff3e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -316,13 +316,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "明示された有効期限を過ぎた通知登録を、通常の保存処理で除去します。"
+        "通知を送った時刻と結果を保存し、後から確認できるようにします。"
       ]
     },
     {
       "componentId": "notifications",
-      "sourceCommit": "69cfac918836cb3f8f73fdce38804d6c0fba6450",
-      "versionId": "39b6d8bc744a96b40c3b8e58a9e48aab34d051dc92e2f77c67fbc68280d540f7",
+      "sourceCommit": "c42bb7890d0d42b5d97bbc114926955e68b9ff3e",
+      "versionId": "f80e556656f3c4e1f0b88e4cdaf3a8b56934ba92e94f45db2bbaa8e7e0d166c8",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -330,16 +330,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T131813Z/notifications-69cfac918836cb3f8f73fdce38804d6c0fba6450-linux-arm64.tar.gz",
-          "bytes": 4300356,
-          "sha256": "39b6d8bc744a96b40c3b8e58a9e48aab34d051dc92e2f77c67fbc68280d540f7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T052115Z/notifications-c42bb7890d0d42b5d97bbc114926955e68b9ff3e-linux-arm64.tar.gz",
+          "bytes": 4329968,
+          "sha256": "f80e556656f3c4e1f0b88e4cdaf3a8b56934ba92e94f45db2bbaa8e7e0d166c8"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261107T131813Z/notifications-69cfac918836cb3f8f73fdce38804d6c0fba6450-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11131,
-          "sha256": "6d83bbf960491fc7001b46b51a963029a9747f5ae0a57266a5c4381599aa8197"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T052115Z/notifications-c42bb7890d0d42b5d97bbc114926955e68b9ff3e-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11213,
+          "sha256": "bb1523981d0a7df02a5a4aa24f7ec3c1f49932cabcd2ba03f7b380e9922e352c"
         },
-        "signerCommit": "69cfac918836cb3f8f73fdce38804d6c0fba6450"
+        "signerCommit": "c42bb7890d0d42b5d97bbc114926955e68b9ff3e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -348,7 +348,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "明示された有効期限を過ぎた通知登録を、通常の保存処理で除去します。"
+        "通知を送った時刻と結果を保存し、後から確認できるようにします。"
       ]
     },
     {
