@@ -284,3 +284,28 @@ test('avatar versions are projection-only closed metadata with exact digest form
   }
   assert.throws(() => validateMembersRequest('profile.update', { botId: 'bot-a', changes: { avatarVersion: '' } }, context))
 })
+
+test('each generation renders the global instructions from its own template once, on the first owner.read', async t => {
+  const template = await readFile(new URL('../config/common-agents.md', import.meta.url), 'utf8')
+  const writes = []
+  const f = await fixture(t, async (method, params) => {
+    if (method === 'global.writeInstructions') writes.push(params.body)
+    return method === 'project.readPreviousSession' ? '' : undefined
+  })
+  assert.equal(writes.length, 0)
+  await f.request('owner.read', {}); await f.request('owner.read', {})
+  assert.equal(writes.length, 1)
+  assert.ok(writes[0].includes(template.trim()))
+
+  const reports = []
+  let attempts = 0
+  const root = f.root
+  const failing = createMembersDispatcher({ root, projection: async () => {}, diagnostic: async report => { reports.push(report) },
+    effect: async method => { if (method === 'global.writeInstructions') { attempts++; throw Object.assign(new Error('EACCES'), { code: 'EACCES' }) } } })
+  await failing.control('initialize', { generation: 'test' }, initial); await failing.control('resume', {})
+  failing.validateRequest('owner.read', {}, context)
+  assert.equal((await failing.dispatch('owner.read', {}, context)).owner.schema, 'bellteam.owner-profile.v1')
+  assert.equal((await failing.dispatch('owner.read', {}, context)).owner.schema, 'bellteam.owner-profile.v1')
+  assert.deepEqual(reports.map(report => report.code), ['MEMBERS_GLOBAL_INSTRUCTIONS_FAILED'])
+  assert.equal(attempts, 2)
+})
