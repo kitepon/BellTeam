@@ -139,8 +139,9 @@ export class TeamBackgroundSummary {
   }
   async drainQueue() {
     while ((this.queue.size || this.requestQueue.size) && !this.closed) {
-      // Member-card records first; requests share the same single actual run.
-      if (!this.queue.size) { await this.drainRequest(); continue }
+      // Requests first: one run per delivery group and its edge is gone when the group ends, while a member-card record
+      // coalesces per Bot; card-first left requests waiting for minutes behind ~20 Bots' records (2026-11-09 06:5x JST).
+      if (this.requestQueue.size) { await this.drainRequest(); continue }
       const [botId, record] = this.queue.entries().next().value
       this.queue.delete(botId)
       const controller = new AbortController(), active = { record, controller, revision: null }

@@ -260,7 +260,7 @@ test('real engine exchange keeps one parent worker and an old factory accepts un
   assert.deepEqual(seen, [shared, shared]); assert.equal(projections.length, 1)
 })
 
-test('request summary: once per group, after member-card records, width 40 with one regeneration, forgotten on release', async t => {
+test('request summary: once per group, after the in-flight member-card run, width 40 with one regeneration, forgotten on release', async t => {
   const runs = [], ready = []
   let width = 30
   const f = fixture(t, { run: async (_s, prompt, options) => {
@@ -273,7 +273,7 @@ test('request summary: once per group, after member-card records, width 40 with 
   f.worker.request('group-1', '表示幅を直してください', { current: () => live, ready: () => ready.push('group-1') })
   f.worker.request('group-1', 'second responder of the same post', { current: () => live, ready: () => ready.push('dup') })
   await f.worker.draining
-  // Member card first, then one request run (width 30 fits in 40).
+  // The member card already in flight, then one request run (width 30 fits in 40).
   assert.deepEqual(runs.map(run => run.purpose), ['work', 'request'])
   assert.equal(f.worker.requestSummary('group-1'), 'あ'.repeat(15)); assert.deepEqual(ready, ['group-1'])
   // Over 40: exactly one regeneration told the measured width.
@@ -289,6 +289,18 @@ test('request summary: once per group, after member-card records, width 40 with 
   f.worker.request('group-4', '', { current: () => true, ready: () => {} })
   await f.worker.draining
   assert.equal(runs.length, before); assert.equal(f.worker.requestSummary('group-3'), null); assert.equal(ready.includes('group-3'), false)
+})
+
+test('request summary: a pending request runs before pending member-card records', async t => {
+  const runs = []
+  const f = fixture(t, { run: async (_s, prompt, options) => { runs.push(options?.purpose ?? JSON.parse(prompt).text); return options?.purpose === 'request' ? '依頼' : '作業中' } })
+  f.worker.accept(input('bot-a', 'input-a'), authority())
+  f.worker.accept(input('bot-b', 'input-b'), authority())
+  f.worker.accept(input('bot-c', 'input-c'), authority())
+  f.worker.request('group-1', '依頼の本文', { current: () => true, ready: () => {} })
+  await f.worker.draining
+  // bot-a was already in flight; the request goes ahead of bot-b and bot-c.
+  assert.deepEqual(runs, ['input-a', 'request', 'input-b', 'input-c'])
 })
 
 test('runner: the request purpose uses its own instruction; an unknown purpose is refused', async () => {
