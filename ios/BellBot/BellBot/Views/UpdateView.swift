@@ -29,7 +29,7 @@ struct UpdateView: View {
     var body: some View {
         NavigationStack {
             ScrollView { UpdateContent(updates: updates) }
-                .background(BellTheme.canvas)
+                .background(Color(.systemGroupedBackground))
                 .navigationTitle("アップデート")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .topBarLeading) { Button("閉じる") { dismiss() } } }
@@ -55,20 +55,21 @@ struct UpdateContent: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 22) {
             hero
+            if !attentionParts.isEmpty { attentionBanner }
             if let plan = updates.plan { confirmation(plan) }
             else if choosing, candidates.count > 1 { chooser }
+            if !(updates.inventory?.components ?? []).isEmpty { partList }
             if !changes.isEmpty, updates.plan == nil, showsChanges { changeList }
-            if !partStatuses.isEmpty { partStatusList }
-            else if !jobRecords.isEmpty { jobList }
+            if partStatuses.isEmpty, !jobRecords.isEmpty { jobList }
             if let problems = updates.inventory?.problems, !problems.isEmpty { problemList(problems) }
             details
         }
-        .frame(maxWidth: 560, alignment: .leading)
-        .padding(.horizontal, 22).padding(.vertical, 24)
+        .frame(maxWidth: 620, alignment: .leading)
+        .padding(.horizontal, 18).padding(.vertical, 22)
         .frame(maxWidth: .infinity)
-        .foregroundStyle(BellTheme.ink)
+        .foregroundStyle(Color.primary)
         .onChange(of: updates.plan?.planId) { _, _ in confirmedRestart = false; choosing = false }
     }
 
@@ -99,23 +100,34 @@ struct UpdateContent: View {
 
     private var hero: some View {
         let (icon, title, detail, tint) = heroText
-        return VStack(alignment: .leading, spacing: 14) {
-            Image(systemName: icon)
-                .font(.system(size: 40, weight: .semibold))
-                .foregroundStyle(tint)
+        return VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .center, spacing: 14) {
+                ZStack {
+                    Circle().fill(tint.opacity(0.15))
+                    if case .updating = status {
+                        ProgressView().controlSize(.regular).tint(tint)
+                    } else {
+                        Image(systemName: icon).font(.title2.weight(.semibold)).foregroundStyle(tint)
+                    }
+                }
+                .frame(width: 52, height: 52)
                 .accessibilityHidden(true)
-            Text(title).font(.title2.weight(.bold)).accessibilityIdentifier("update-status")
-            Text(detail).font(.body).foregroundStyle(BellTheme.muted).fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title).font(.title3.weight(.bold)).accessibilityIdentifier("update-status")
+                    Text(detail).font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+            }
             if let note = heroNote {
-                Text(note).font(.footnote).foregroundStyle(BellTheme.ink)
+                Label(note, systemImage: "info.circle").font(.footnote)
                     .padding(10).frame(maxWidth: .infinity, alignment: .leading)
-                    .background(BellTheme.violetLight.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
+                    .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10))
                     .accessibilityIdentifier("update-message")
             }
             primaryButton
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(22).bellCard()
+        .padding(18)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     /// 操作の失敗は短い案内だけを標準面に出す。元の説明・符号は詳細に残す。
@@ -135,8 +147,9 @@ struct UpdateContent: View {
         case .unconfirmed: ("clock.arrow.circlepath", "更新の結果を確認中", "更新の結果を、まだ確認できていません。", BellTheme.muted)
         case .failed: ("xmark.circle", "更新できませんでした", "更新を完了できませんでした。理由は「詳細」で確認できます。", BellTheme.muted)
         case .completed: ("checkmark.circle.fill", "更新しました", "\(updatedNames)を新しい版にしました。", BellTheme.mint)
-        case .available: ("arrow.down.circle.fill", "更新があります", candidates.count == 1 ? "\(candidates[0].name)の新しい版を使えます。" : "\(candidates.count)つの機能に新しい版があります。", BellTheme.violet)
-        case .upToDate: ("checkmark.seal.fill", "最新の状態です", "今のところ、新しい更新はありません。", BellTheme.mint)
+        case .available: ("arrow.down.circle.fill", candidates.count == 1 ? "\(candidates[0].name)を更新できます" : "\(candidates.count)つ更新できます",
+                          candidates.count == 1 ? "新しい版を使えます。" : "\(candidates.map(\.name).joined(separator: "・"))に新しい版があります。", BellTheme.violet)
+        case .upToDate: ("checkmark.seal.fill", "すべて最新です", "今のところ、新しい更新はありません。", BellTheme.mint)
         case .unknown: ("questionmark.circle", "更新を確認できませんでした", "時間をおいて、もう一度確認してください。", BellTheme.muted)
         }
     }
@@ -200,7 +213,7 @@ struct UpdateContent: View {
             Button("やめる") { choosing = false }.font(.subheadline)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(22).bellCard()
+        .padding(18).background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private func confirmation(_ plan: UpdatePlan) -> some View {
@@ -235,7 +248,7 @@ struct UpdateContent: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(22).bellCard()
+        .padding(18).background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     /// 知っている計画は利用者向けの言葉で出す。未知のaction・scopeはアプリで言い換えず、サーバーの値と対象をそのまま見せる。
@@ -261,7 +274,7 @@ struct UpdateContent: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(22).bellCard()
+        .padding(18).background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     // MARK: 更新ジョブと機能の問題（Webと同じ表示。値は作り替えない）
@@ -282,33 +295,146 @@ struct UpdateContent: View {
         (updates.inventory?.components ?? []).compactMap { component in component.status.map { (component, $0) } }
     }
 
-    private var partStatusList: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("機能の状態").font(.headline)
-            ForEach(partStatuses, id: \.component.id) { part in
+    // MARK: 機能ごとの行（アイコン・名前・版・状態の印・最後の更新）
+
+    enum PartBadge: Equatable {
+        case upToDate, available, updating, failed, unknown
+        var text: String {
+            switch self {
+            case .upToDate: "最新"
+            case .available: "更新あり"
+            case .updating: "更新中"
+            case .failed: "失敗"
+            case .unknown: "確認できません"
+            }
+        }
+        var tint: Color {
+            switch self {
+            case .upToDate: BellTheme.mint
+            case .available, .updating: BellTheme.violet
+            case .failed: .red
+            case .unknown: .secondary
+            }
+        }
+    }
+
+    /// 今の操作の対象になっている機能は「更新中」。サーバーの1行のtoneと比較の結果から印を決める。
+    func badge(for component: UpdateComponent) -> PartBadge {
+        if let operation, !operation.isSettled, operation.plan.targets.contains(where: { $0.componentId == component.id }) { return .updating }
+        switch component.status?.tone {
+        case .updating?: return .updating
+        case .attention?: return .failed
+        default: break
+        }
+        switch component.comparison.state {
+        case .upToDate: return .upToDate
+        case .updateAvailable: return .available
+        default: return .unknown
+        }
+    }
+
+    /// 版はハッシュを見せず、内蔵版・版名・公開日・「公開中の最新版」「今の版」のどれかで出す。
+    static func versionName(_ component: UpdateComponent) -> String {
+        guard let current = component.current else { return "版を確認できません" }
+        if current.origin == .builtin { return "最初から入っている版" }
+        let isHash = current.version.count >= 12 && current.version.allSatisfy(\.isHexDigit)
+        if !isHash { return "版 \(current.version)" }
+        if component.comparison.state == .upToDate, let published = component.publication?.catalog.publishedAt,
+           let date = BellDate.parse(published) {
+            return "\(date.formatted(.dateTime.month().day().hour().minute())) 公開の版"
+        }
+        return component.comparison.state == .upToDate ? "公開中の最新版" : "今の版"
+    }
+
+    /// 最後に成功した更新の時刻。サーバーが最新のジョブを返す時だけ出す。
+    static func lastUpdated(_ component: UpdateComponent) -> String? {
+        guard let job = component.status?.latestJob, job.outcome == .succeeded, let date = BellDate.parse(job.at) else { return nil }
+        return "\(date.formatted(.dateTime.month().day().hour().minute())) に更新"
+    }
+
+    static func icon(for id: String) -> String {
+        switch id {
+        case "container": "shippingbox.fill"
+        case "web-gateway": "globe"
+        case "notifications": "bell.fill"
+        case "members": "person.2.fill"
+        case "memory": "brain"
+        case "diagnostics": "stethoscope"
+        case "usage": "chart.bar.fill"
+        case "execution": "bolt.fill"
+        case "conversation": "bubble.left.and.bubble.right.fill"
+        default: "puzzlepiece.extension.fill"
+        }
+    }
+
+    var attentionParts: [(component: UpdateComponent, status: UpdateComponent.PartStatus)] {
+        partStatuses.filter { $0.status.tone == .attention }
+    }
+
+    /// 注意が必要な機能だけ、サーバーの文とすべきことを目立たせる。符号やIDは詳細だけ。
+    private var attentionBanner: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("確認が必要な機能があります", systemImage: "exclamationmark.triangle.fill")
+                .font(.headline).foregroundStyle(.red)
+            ForEach(attentionParts, id: \.component.id) { part in
                 VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        if part.status.tone == .updating { ProgressView().controlSize(.small) }
-                        if part.status.tone == .attention {
-                            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red).accessibilityHidden(true)
-                        }
-                        Text(part.component.name).font(.subheadline.weight(.semibold))
-                    }
+                    Text(part.component.name).font(.subheadline.weight(.semibold))
                     Text(part.status.line).font(.subheadline).fixedSize(horizontal: false, vertical: true)
-                    if part.status.tone == .attention, let action = part.status.action {
-                        Text(action).font(.subheadline.weight(.semibold)).foregroundStyle(.red)
-                            .fixedSize(horizontal: false, vertical: true)
+                    if let action = part.status.action {
+                        Label(action, systemImage: "hand.point.right.fill").font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                .padding(part.status.tone == .attention ? 10 : 0)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(part.status.tone == .attention ? Color.red.opacity(0.08) : .clear, in: RoundedRectangle(cornerRadius: 10))
                 .accessibilityElement(children: .combine)
-                .accessibilityIdentifier("update-part-\(part.component.id)")
+                .accessibilityIdentifier("update-attention-\(part.component.id)")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(18).bellCard()
+        .padding(16)
+        .background(Color.red.opacity(0.1), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.red.opacity(0.35)))
+    }
+
+    private var partList: some View {
+        let components = updates.inventory?.components ?? []
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("機能").font(.footnote.weight(.semibold)).foregroundStyle(.secondary).textCase(nil).padding(.leading, 6)
+            VStack(spacing: 0) {
+                ForEach(Array(components.enumerated()), id: \.element.id) { index, component in
+                    partRow(component)
+                    if index < components.count - 1 { Divider().padding(.leading, 62) }
+                }
+            }
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+    }
+
+    private func partRow(_ component: UpdateComponent) -> some View {
+        let badge = badge(for: component)
+        let updated = Self.lastUpdated(component)
+        return HStack(spacing: 12) {
+            Image(systemName: Self.icon(for: component.id))
+                .font(.system(size: 15, weight: .semibold)).foregroundStyle(.white)
+                .frame(width: 34, height: 34)
+                .background(badge == .failed ? Color.red : BellTheme.violet, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(component.name).font(.body.weight(.medium))
+                Text([Self.versionName(component), updated].compactMap { $0 }.joined(separator: " · "))
+                    .font(.footnote).foregroundStyle(.secondary).lineLimit(2)
+            }
+            Spacer(minLength: 8)
+            HStack(spacing: 5) {
+                if badge == .updating { ProgressView().controlSize(.mini).tint(badge.tint) }
+                Text(badge.text).font(.caption.weight(.semibold))
+            }
+            .foregroundStyle(badge.tint)
+            .padding(.horizontal, 9).padding(.vertical, 4)
+            .background(badge.tint.opacity(0.14), in: Capsule())
+        }
+        .padding(.horizontal, 14).padding(.vertical, 10)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("update-part-\(component.id)")
     }
 
     private var jobList: some View {
@@ -317,7 +443,7 @@ struct UpdateContent: View {
             jobRows
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(18).bellCard()
+        .padding(16).background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private var jobRows: some View {
@@ -349,7 +475,7 @@ struct UpdateContent: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(18).bellCard()
+        .padding(16).background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     // MARK: 詳細（技術情報）
