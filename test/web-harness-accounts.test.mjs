@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { bannerTexts, fableOnSecond, limitText, seatBadge, slotView } from '../web/harness-accounts.js'
+import { bannerTexts, limitText, seatBadge, slotView } from '../web/harness-accounts.js'
 import { renderHarnessAuth } from '../web/harness-auth.js'
 
 const now = Date.parse('2026-11-08T12:00:00Z') // 21:00 JST
@@ -18,18 +18,16 @@ const list = {
     { slot: '1st', loggedIn: true, label: 'first@example.test', history: 'shared', limits: [{ scope: 'fable', since: '2026-11-08T11:00:00Z', resetAt: '2026-11-08T14:00:00Z', resetSource: 'message' }], seats: ['bot-a', 'bot-b'] },
     { slot: '2nd', loggedIn: false, label: null, history: 'separate', limits: [], seats: [] },
   ], allLimited: [{ scope: 'fable', earliestResetAt: null }] }],
-  rules: [{ harness: 'claude', modelPrefix: 'claude-fable', slot: '2nd' }],
+  rules: [{ harness: 'claude', modelPrefix: 'claude-fable', slot: '2nd' }], // 旧本体の残り。Webは読まない
 }
 
-test('枠・規則・両方上限・席の印は accounts.list() と Bot項目だけから決める', () => {
+test('枠・両方上限・席の印は accounts.list() と Bot項目だけから決める', () => {
   assert.deepEqual(slotView(list.harnesses[0].slots[0], now), { slot: '1st', title: '1stアカウント', login: 'first@example.test', state: 'Fableのみ上限中 (23:00に解除)', limited: true, seats: 2, separate: false })
   assert.deepEqual(slotView(list.harnesses[0].slots[1], now), { slot: '2nd', title: '2ndアカウント', login: '未ログイン', state: '', limited: false, seats: 0, separate: true })
   assert.equal(slotView({ slot: '1st' }, now).login, 'ログイン状態は未確認')
-  assert.equal(fableOnSecond(list), true)
-  assert.equal(fableOnSecond({ ...list, rules: [] }), false)
   assert.deepEqual(bannerTexts(list, now), ['両方のアカウントでFableのみ上限中 (解除時刻不明)'])
   assert.deepEqual(bannerTexts(null), [])
-  assert.deepEqual(seatBadge({ harness: 'claude', slot: '1st', preferredSlot: '2nd' }), { text: '1stアカウント', title: '1stアカウントで動作中（通常は2ndアカウント）' })
+  assert.deepEqual(seatBadge({ harness: 'claude', slot: '2nd', preferredSlot: '1st' }), { text: '2ndアカウント', title: '2ndアカウントで動作中' })
   assert.equal(seatBadge(undefined), null)
   assert.equal(seatBadge(null), null)
 })
@@ -44,7 +42,7 @@ class Element {
 const descendants = element => [element, ...element.children.flatMap(descendants)]
 const settle = () => new Promise(resolve => setImmediate(resolve))
 
-test('Claudeは1st/2ndの2行。ログインは枠ごとに ?slot=、切替は setRule を1回。/api/accounts が無ければ従来の1行', async () => {
+test('Claudeは1st/2ndの2行。ログインは枠ごとに ?slot=、切替スイッチは無い。/api/accounts が無ければ従来の1行', async () => {
   const previous = globalThis.document
   globalThis.document = { hidden: false, createElement: tag => new Element(tag), addEventListener() {}, removeEventListener() {} }
   const calls = []
@@ -53,7 +51,6 @@ test('Claudeは1st/2ndの2行。ログインは枠ごとに ?slot=、切替は s
     calls.push(`${options.method ?? 'GET'} ${path}${options.body ? ` ${options.body}` : ''}`)
     if (path === '/api/harness-auth') return { harnesses: [{ id: 'claude', name: 'Claude', members: 2, startWarning: null }] }
     if (path === '/api/accounts') { if (!accounts) throw Object.assign(new Error('NOT_FOUND'), { status: 404 }); return accounts }
-    if (path === '/api/accounts/rules') return { rules: [] }
     if (path.startsWith('/api/harness-auth/claude')) return { harness: 'claude', auth: { status: path.includes('slot=2nd') ? 'blocked' : 'authenticated', session_id: null } }
     throw new Error(`unexpected ${path}`)
   }
@@ -65,12 +62,7 @@ test('Claudeは1st/2ndの2行。ログインは枠ごとに ?slot=、切替は s
     assert.deepEqual(all.filter(item => item.tag === 'h5').map(item => item.textContent), ['1stアカウント', '2ndアカウント'])
     assert.ok(calls.includes('GET /api/harness-auth/claude') && calls.includes('GET /api/harness-auth/claude?slot=2nd'))
     assert.ok(all.some(item => item.tag === 'dd' && /^Fableのみ上限中 \((\d+\/\d+ )?\d{2}:\d{2}に解除\)$/.test(item.textContent)))
-    const toggle = all.find(item => item.attributes.role === 'switch')
-    assert.equal(toggle.checked, true)
-    toggle.checked = false
-    await toggle.listeners.change[0]()
-    assert.ok(calls.includes('POST /api/accounts/rules {"harness":"claude","modelPrefix":"claude-fable","slot":null}'))
-    assert.equal(toggle.checked, false)
+    assert.ok(!all.some(item => item.attributes.role === 'switch' || /Fableを2ndアカウントで使う/.test(item.textContent)))
     const start = all.find(item => item.tag === 'button' && item.textContent === 'ログイン')
     await start.listeners.click[0]()
     await settle()
