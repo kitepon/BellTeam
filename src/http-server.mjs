@@ -9,6 +9,7 @@ import { createDeliveryApi } from './http-delivery-api.mjs'
 import { createScheduleApi } from './http-schedule-api.mjs'
 import { createConversationApi } from './http-conversation-api.mjs'
 import { createGoalApi } from './http-goal-api.mjs'
+import { createWorkGraphApi } from './work-graph/http-api.mjs'
 import { createServer } from 'node:http'
 import { LiveModelCatalog } from './model-catalog.mjs'
 import { json } from './http-response.mjs'
@@ -57,6 +58,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
     createGoalApi({ bots, goals, aiControl, ownerActions: !internal, notify: event => server.notify(event) }),
     createConversationApi({ bots, rooms, timeline }),
     createScreenInputApi({ bots, transport, internal }),
+    createWorkGraphApi({ bots, rooms, transport, messagePage, internal }),
   ]
 
   const server = createServer(async (request, response) => {
