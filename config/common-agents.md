@@ -66,6 +66,9 @@ SECTION design
 
 SECTION guards
   # Stopping is a cost. A guard must name what it protects and how the system leaves it.
+  RULE guards.stopping-is-not-safety
+    FACT: stopping or refusing something never "makes it safe"; every stop and every refusal does real harm to the user.
+    NEVER: treat a stop, refusal or restriction as the safe choice.
   RULE guards.unknown-is-not-danger
     MAY: stop on an unknown state only when the unknown state itself is dangerous
          (railways, cars, power plants and the like).
