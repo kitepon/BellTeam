@@ -17,17 +17,17 @@ test('edge rules: only running direct/room deliveries between two members', () =
     job({ groupId: 'r2', context: 'room', contextId: 'room', target: 'c', steered: true, requestSummary: ' \n ' })]
   const { edges, nodes } = project({ queue, responders: { r2: ['c'], r1: ['c'] } })
   assert.deepEqual(edges.map(edge => edge.id), ['g1:b', 'r2:c'])
-  assert.deepEqual(edges[1], { id: 'r2:c', requestId: 'r2', from: 'a', to: 'c', context: 'room', roomId: 'room', label: '依頼を処理中', state: 'steered', startedAt: '2026-11-08T10:00:01.000Z' })
+  assert.deepEqual(edges[1], { id: 'r2:c', requestId: 'r2', from: 'a', to: 'c', context: 'room', roomId: 'room', label: null, state: 'steered', startedAt: '2026-11-08T10:00:01.000Z' })
   assert.deepEqual(nodes.map(node => [node.botId, node.state]), [['a', 'linked'], ['b', 'linked'], ['c', 'linked']])
 })
 
-test('label: the once-per-request summary, else neutral; receiver work summary is not used', () => {
+test('label: the once-per-request summary, else null (no chip); receiver work summary is not used', () => {
   const current = { b: { state: 'working', turnId: 't', summary: '別の作業', summaryStatus: 'current' } }
   const label = requestSummary => project({ queue: [job({ requestSummary })], turns: current }).edges[0].label
   assert.equal(label(' 相関図の線を直す依頼 '), '相関図の線を直す依頼')
-  assert.equal(label(null), '依頼を処理中')
-  assert.equal(label(''), '依頼を処理中')
-  assert.equal(label(undefined), '依頼を処理中')
+  assert.equal(label(null), null)
+  assert.equal(label(''), null)
+  assert.equal(label(undefined), null)
 })
 
 test('nodes: working beats linked, defaults, deleting excluded, unknown holds presence', () => {

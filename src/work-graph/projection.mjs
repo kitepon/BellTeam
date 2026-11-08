@@ -5,7 +5,7 @@ const stamp = value => typeof value === 'number' ? iso(value)
 
 // Plain Japanese for the Owner: the once-per-request summary of the request (Owner 2026-11-08), never the raw body.
 export function edgeLabel(item) {
-  return (typeof item?.requestSummary === 'string' ? item.requestSummary.trim() : '') || '依頼を処理中'
+  return (typeof item?.requestSummary === 'string' ? item.requestSummary.trim() : '') || null
 }
 
 export function projectGraph({ members, turns = {}, queue, responders = {}, previous = null, now, leaveGraceMs = 4000 }) {

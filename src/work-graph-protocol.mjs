@@ -84,7 +84,7 @@ const node = value => workGraphObject(value, ['botId', 'name', 'color', 'avatarV
   && str(value.botId) && str(value.name) && str(value.color) && str(value.avatarVersion) && ['working', 'linked'].includes(value.state) && str(value.activeSince)
 const edge = value => workGraphObject(value, ['id', 'requestId', 'from', 'to', 'context', 'roomId', 'label', 'state', 'startedAt'])
   && str(value.id) && str(value.requestId) && str(value.from) && str(value.to) && ['direct', 'room'].includes(value.context)
-  && strOrNull(value.roomId) && str(value.label) && ['running', 'steered'].includes(value.state) && str(value.startedAt)
+  && strOrNull(value.roomId) && strOrNull(value.label) && ['running', 'steered'].includes(value.state) && str(value.startedAt)
 const change = value => value && (value.type === 'member-enter' || value.type === 'member-update' ? workGraphObject(value, ['type', 'node']) && node(value.node)
   : value.type === 'edge-start' || value.type === 'edge-update' ? workGraphObject(value, ['type', 'edge']) && edge(value.edge)
     : value.type === 'edge-end' ? workGraphObject(value, ['type', 'edgeId']) && str(value.edgeId)

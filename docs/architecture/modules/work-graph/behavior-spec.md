@@ -106,7 +106,7 @@ The earlier values (`kr = 0.00009 × m³ × min(1, 6/n)`, `L = 0.38 × m`, gravi
 - Flow: dots of 3.5 pt radius in the requester's accent, spaced every 28 pt along the path, moving from requester to receiver at 90 pt/s (fixed speed, so longer lines take longer). Dots fade in over the first 10% and out over the last 10% of the path.
 - `steered` edges: same flow at 0.75 opacity, plus the base line in the requester accent at 0.35.
 - Edge start: the base line grows from requester to receiver over 350 ms ease-out, then dots start. Edge end: line and dots fade out over 300 ms.
-- Label: `label` in a chip (fill canvas 0.92, corner 8 pt, padding 6×3 pt, `listDetailFontSize`, muted, max width 180 pt) near the path midpoint. The whole label is always shown: it wraps onto as many lines as it needs and is never truncated (Owner ruling 2026-11-09). The chip height grows with the lines (line height 16 pt).
+- Label: when `label` is null there is no chip (the line and flow show alone until the summary arrives by `edge-update`). Otherwise `label` in a chip (fill canvas 0.92, corner 8 pt, padding 6×3 pt, `listDetailFontSize`, muted, max width 180 pt) near the path midpoint. The whole label is always shown: it wraps onto as many lines as it needs and is never truncated (Owner ruling 2026-11-09). The chip height grows with the lines (line height 16 pt).
 - Labels and names never cover a node disc, and label chips never cover each other. Place chips in edge start order (oldest first, so a placed chip does not jump when a newer edge arrives). A chip may not intersect any disc grown by 4 pt nor any chip already placed grown by 4 pt: try path positions `t = 0.5, 0.45, 0.55, 0.4, 0.6, … 0.3, 0.7`; if none is free, the label is hidden (shown on hover/tap, drawn above everything else). A name that would overlap another node's disc moves above its own avatar; if that overlaps too, it is hidden until hover/tap.
 - Crowded (more than 10 edges, or the path is shorter than 120 pt): only newly started edges show their label, for 3 s after `edge-start`, then fade out over 400 ms. All other labels show on hover (Mac/Web/Windows) or tap/long-press (iPhone).
 
@@ -127,5 +127,5 @@ No nodes: centered text `いま動いているメンバーはいません` in mu
 ## Accessibility and motion
 
 - Reduce Motion: no fly-in/out (fade 200 ms in place, spawn at a free spot near the center), no blink (static ring at 0.8), flow dots replaced by the static arrow.
-- Each node is an accessibility element: `<name>、作業中、<n>分前から` (`linked`: `<name>、依頼の相手`). Each edge: `<from>から<to>へ依頼: <label>`.
+- Each node is an accessibility element: `<name>、作業中、<n>分前から` (`linked`: `<name>、依頼の相手`). Each edge: `<from>から<to>へ依頼: <label>`, or `<from>から<to>へ依頼` when `label` is null.
 - Tap/click on a node: no action in this version.
