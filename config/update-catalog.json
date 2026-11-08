@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T06:54:20Z",
-  "expiresAt": "2026-11-15T06:54:20Z",
+  "publishedAt": "2026-11-08T07:18:16Z",
+  "expiresAt": "2026-11-15T07:18:16Z",
   "releases": [
     {
       "componentId": "usage",
@@ -425,8 +425,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "02800c5df3351b2b13c3aad19809b0fc456b03d5",
-      "versionId": "4d2ecc622ba591c61b68ea5445c3741195d4c057717a5d3de6a685b4262a8d69",
+      "sourceCommit": "68521582f5407edb6146f135e34e0179838430a0",
+      "versionId": "9a1c010bc629d426e9f060f690af663d404144bedf76eac06f68483711010cd9",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -434,16 +434,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T044646Z/web-gateway-02800c5df3351b2b13c3aad19809b0fc456b03d5-linux-amd64.tar.gz",
-          "bytes": 5038778,
-          "sha256": "4d2ecc622ba591c61b68ea5445c3741195d4c057717a5d3de6a685b4262a8d69"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T065124Z/web-gateway-68521582f5407edb6146f135e34e0179838430a0-linux-amd64.tar.gz",
+          "bytes": 5044219,
+          "sha256": "9a1c010bc629d426e9f060f690af663d404144bedf76eac06f68483711010cd9"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T044646Z/web-gateway-02800c5df3351b2b13c3aad19809b0fc456b03d5-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11064,
-          "sha256": "d60cd8d0b9c795aebb194a9ec010f393e5170eae472f7f21bd50e7c90ee06e3d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T065124Z/web-gateway-68521582f5407edb6146f135e34e0179838430a0-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10958,
+          "sha256": "6cbd16acdb349a7bde57b45c931753b20248b26f4ffabb5984d49a89289cf670"
         },
-        "signerCommit": "02800c5df3351b2b13c3aad19809b0fc456b03d5"
+        "signerCommit": "68521582f5407edb6146f135e34e0179838430a0"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -452,13 +452,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "採用済み修理をモジュール単独更新で適用します。"
+        "メンバー名の下に作業要約を2行で表示し、行全体に広げます。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "02800c5df3351b2b13c3aad19809b0fc456b03d5",
-      "versionId": "e04ca96eadcd6307d10c375bb06f0de592fea919eb03d01e363ef1e67f6fb562",
+      "sourceCommit": "68521582f5407edb6146f135e34e0179838430a0",
+      "versionId": "7c5790135d6334e00e9828b7db4fc6ae8aa7f1eaa95c31524962e82e4e61a0ed",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -466,16 +466,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T044646Z/web-gateway-02800c5df3351b2b13c3aad19809b0fc456b03d5-linux-arm64.tar.gz",
-          "bytes": 5038778,
-          "sha256": "e04ca96eadcd6307d10c375bb06f0de592fea919eb03d01e363ef1e67f6fb562"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T065124Z/web-gateway-68521582f5407edb6146f135e34e0179838430a0-linux-arm64.tar.gz",
+          "bytes": 5044219,
+          "sha256": "7c5790135d6334e00e9828b7db4fc6ae8aa7f1eaa95c31524962e82e4e61a0ed"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T044646Z/web-gateway-02800c5df3351b2b13c3aad19809b0fc456b03d5-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10876,
-          "sha256": "2fba28d6aae4702888296e8032a6bb8f94ee1a515d924c844495b937d867a3f1"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T065124Z/web-gateway-68521582f5407edb6146f135e34e0179838430a0-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11146,
+          "sha256": "ae5e28041f9f199523f7316bf3888c52cf9a7201dce655548b9ff9707dc8746a"
         },
-        "signerCommit": "02800c5df3351b2b13c3aad19809b0fc456b03d5"
+        "signerCommit": "68521582f5407edb6146f135e34e0179838430a0"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -484,7 +484,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "採用済み修理をモジュール単独更新で適用します。"
+        "メンバー名の下に作業要約を2行で表示し、行全体に広げます。"
       ]
     },
     {
