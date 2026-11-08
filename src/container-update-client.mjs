@@ -1,5 +1,5 @@
 import { createConnection } from 'node:net'
-import { lstat, readFile } from 'node:fs/promises'
+import { lstat } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 const socketPath = '/run/bellteam-updater/update.sock'
 const failure = (code, outcome = 'not_accepted', status = 503) => Object.assign(new Error(code), { code, outcome, status })
@@ -66,16 +66,7 @@ export function createContainerUpdateClient(path = socketPath) {
       catch { return { supported: false, reason: 'HOST_UPDATE_UNAVAILABLE', currentRequestId: null, previousRequestId: null } } },
     moduleInstallCapabilities: async () => {
       const value = await call('capabilities', {})
-      if (value?.moduleInstallerSource !== undefined) {
-        let distribution
-        try { distribution = JSON.parse(await readFile('/app/distribution.json', 'utf8')) }
-        catch (error) {
-          throw Object.assign(failure('UNREADABLE'), { path: '/app/distribution.json',
-            reason: /^[A-Z][A-Z0-9_]{0,63}$/.test(error?.code ?? '') ? error.code : 'DISTRIBUTION_INVALID' })
-        }
-        if (!/^[a-f0-9]{40}$/.test(value.moduleInstallerSource) || distribution?.sourceCommit !== value.moduleInstallerSource)
-          return { supported: false, reason: 'HOST_MODULE_SOURCE_CHANGED' }
-      }
+      // Owner 2026-11-08: the installer's source need not equal the body's; the module-install protocol is the contract.
       const supported = typeof value?.moduleInstallSupported === 'boolean' ? value.moduleInstallSupported : value?.supported
       return supported === true && value.moduleInstallProtocol === 1 ? { supported: true, reason: null }
         : { supported: false, reason: /^[A-Z_0-9]{1,100}$/.test(value?.moduleInstallReason ?? value?.reason ?? '') ? (value.moduleInstallReason ?? value.reason) : 'HOST_MODULE_INSTALL_UNAVAILABLE' }

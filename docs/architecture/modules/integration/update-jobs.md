@@ -153,7 +153,12 @@ Activation: every file above is body code, so these take effect at the next appr
 
 ### Catalog check reaches both Host stores (2026-11-08)
 
-Found at the final-modularization swap: module rows read `/run/bellteam-updater/update.sock` and the container row reads `/run/bellteam-container-updater/update.sock`, each with its own catalog store. `POST /api/updates/catalog-check` only refreshed the module store, so the container row waited for its 30 min `bellteam-update-catalog-refresh.timer`. Now `updateCenter.checkCatalog` calls `moduleCatalog.checkCatalog` and `host.checkCatalog` (update-host-adapter → container client `checkCatalog`) together and returns the module result as before (`{publication}` unchanged). A failed container check does not fail the response; that row shows its own publication status.
+Found at the final-modularization swap: module rows read `/run/bellteam-updater/update.sock` and the container row reads `/run/bellteam-container-updater/update.sock`, each with its own catalog store. `POST /api/updates/catalog-check` only refreshed the module store, so the container row waited for its 30 min `bellteam-update-catalog-refresh.timer`. Now `updateCenter.checkCatalog` calls `moduleCatalog.checkCatalog` and `host.checkCatalog` (update-host-adapter → container client `checkCatalog`) together and returns the module result as before (`{publication}` unchanged). A failed container check does not fail the response; it is recorded as diagnostic `UPDATE_CATALOG_CHECK_FAILED` (module `update`) and that row shows its own publication status.
+
+### Follow-ups (2026-11-08, after #568)
+
+- `HOST_MODULE_SOURCE_CHANGED` removed (Trony boundary ruling: module replacement is the box's). `moduleInstallCapabilities` no longer requires the Host installer source to equal `/app/distribution.json`; the protection is the module-install protocol (`moduleInstallProtocol === 1`), which is unchanged. After a body swap, modules stay installable before the Host installer code is reinstalled.
+- Host plan directory cleanup: when the executor's ledger cleanup drops an expired, never-started container plan, it also calls `host.forgetPlan(planId)`, which removes that one plan file (missing is fine).
 
 ```mermaid
 flowchart LR

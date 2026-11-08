@@ -87,42 +87,24 @@ test('module installation remains unsupported on an old Host without the explici
  protocol=2;assert.equal((await client.moduleInstallCapabilities()).supported,false)
 })
 
-test('bundled module capability is separate from container capability and bound to the running source',async t=>{
- const fs=(await import('node:fs/promises')).default
+test('bundled module capability is separate from container capability and bound to the install protocol, not the body source',async t=>{
  const source='a'.repeat(40)
- t.mock.method(fs,'readFile',async path=>{assert.equal(path,'/app/distribution.json');return JSON.stringify({sourceCommit:source})})
- syncBuiltinESMExports()
  let value={supported:false,reason:'HOST_CONTAINER_UPDATE_UNSUPPORTED',moduleInstallProtocol:1,moduleInstallSupported:true,moduleInstallerSource:source}
  const {client}=await fixture(t,socket=>socket.end(JSON.stringify({ok:true,value})+'\n'))
  assert.equal((await client.capabilities()).supported,false)
  assert.deepEqual(await client.moduleInstallCapabilities(),{supported:true,reason:null})
  value={...value,moduleInstallerSource:'b'.repeat(40)}
- assert.deepEqual(await client.moduleInstallCapabilities(),{supported:false,reason:'HOST_MODULE_SOURCE_CHANGED'})
+ assert.deepEqual(await client.moduleInstallCapabilities(),{supported:true,reason:null})
+ value={...value,moduleInstallProtocol:2}
+ assert.deepEqual((await client.moduleInstallCapabilities()).supported,false)
 })
 
-test('module capability acquisition preserves transport and local source read failures without replay',async t=>{
- const fs=(await import('node:fs/promises')).default
- const source='a'.repeat(40)
+test('module capability acquisition preserves transport failures without replay and reads no local source',async t=>{
  let mode='transport'
- t.mock.method(fs,'readFile',async path=>{
-  assert.equal(path,'/app/distribution.json')
-  if(mode==='permission')throw Object.assign(Error('private contents'),{code:'EACCES'})
-  if(mode==='invalid')return '{private contents'
-  return JSON.stringify({sourceCommit:source})
- })
- syncBuiltinESMExports()
- const {client,frames}=await fixture(t,socket=>{
+ const {client}=await fixture(t,socket=>{
   if(mode==='transport')socket.destroy()
-  else socket.end(JSON.stringify({ok:true,value:{moduleInstallProtocol:1,moduleInstallSupported:true,moduleInstallerSource:source}})+'\n')
+  else socket.end(JSON.stringify({ok:true,value:{moduleInstallProtocol:1,moduleInstallSupported:true,moduleInstallerSource:'a'.repeat(40)}})+'\n')
  })
  await assert.rejects(client.moduleInstallCapabilities(),{code:'UNREADABLE',path:'/run/bellteam-updater/update.sock',reason:'CONNECTION_CLOSED',status:503,outcome:'not_accepted'})
- for(const [next,reason] of [['permission','EACCES'],['invalid','DISTRIBUTION_INVALID']]){
-  mode=next
-  await assert.rejects(client.moduleInstallCapabilities(),error=>{
-   assert.equal(error.code,'UNREADABLE');assert.equal(error.path,'/app/distribution.json');assert.equal(error.reason,reason)
-   assert.equal(error.message,'UNREADABLE');assert.equal(error.status,503);return true
-  })
- }
  mode='valid';assert.deepEqual(await client.moduleInstallCapabilities(),{supported:true,reason:null})
- assert.deepEqual(frames.map(frame=>frame.operation),Array(4).fill('capabilities'))
 })

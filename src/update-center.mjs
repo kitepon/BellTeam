@@ -61,7 +61,7 @@ const runtimeRows = async captureRuntime => {
   })
 }
 
-export function createUpdateCenter({ gateway = () => null, builtinSourceCommit = null, notifications = null, members = null, host = null, moduleCatalog = null, moduleExecutor = null, jobReader = null, problemReader = null, memory = null, diagnostics = null, usage = null, execution = null, conversation = null, captureRuntime = null } = {}) {
+export function createUpdateCenter({ gateway = () => null, builtinSourceCommit = null, notifications = null, members = null, host = null, moduleCatalog = null, moduleExecutor = null, jobReader = null, problemReader = null, onCatalogCheckError = () => {}, memory = null, diagnostics = null, usage = null, execution = null, conversation = null, captureRuntime = null } = {}) {
   const events = new EventEmitter(), notified = new Map()
   let notificationTimer = null, notificationRead = null, notificationsClosed = false, lastCandidates = null
   const checkNotifications = () => {
@@ -99,7 +99,12 @@ export function createUpdateCenter({ gateway = () => null, builtinSourceCommit =
     checkCatalog() {
       const checks = [moduleCatalog?.checkCatalog(), host?.checkCatalog?.()].filter(Boolean)
       if (!checks.length) throw unavailable()
-      return Promise.allSettled(checks).then(([first]) => { if (first.status === 'rejected') throw first.reason; return first.value })
+      return Promise.allSettled(checks).then(([first, ...rest]) => {
+        // A failed second store does not fail the Owner's call, but it is reported, never silent.
+        for (const result of rest) if (result.status === 'rejected') try { onCatalogCheckError(result.reason) } catch {}
+        if (first.status === 'rejected') throw first.reason
+        return first.value
+      })
     },
     jobs: ({ runtime = false } = {}) => jobReader ? jobReader.jobs().then(value => visibleJobs(value, runtime)) : Promise.resolve({ jobs: [] }),
     job(kind, jobId) { if (!jobReader) throw unavailable(); return jobReader.job(kind, jobId) },
