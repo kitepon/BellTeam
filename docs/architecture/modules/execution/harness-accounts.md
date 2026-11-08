@@ -102,6 +102,17 @@ The switch reuses the existing resume path, so the conversation, docs and Throug
 - `transport.seatAccount(botId)` → `{ harness, slot, preferredSlot } | null`.
 - Change notification: the existing `watchQueue` stream (`botIds` of the moved seats) and the SSE topic `settings` for registry changes.
 
+## Public HTTP (fixed 2026-11-08 by the feature owner; Admi's Web shape accepted)
+
+| Path | Contract | Owner of the route |
+| --- | --- | --- |
+| `GET /api/accounts` | `accounts.list()` verbatim. A 404 means an older body: clients show the old single Claude card. | Molly |
+| `POST /api/accounts/rules` | body `{harness, modelPrefix, slot:'1st'\|'2nd'\|null}` → `accounts.setRule` → `{rules}`. Owner-only; other callers get 403. Validation errors are 400 `ACCOUNT_RULE_INVALID`. | Molly |
+| `GET /api/harness-auth/claude?slot=2nd` | the existing harness-auth status for that slot. No `slot` means 1st, and the response is unchanged for it. | Mika |
+| `POST /api/harness-auth/claude/{start,input,cancel}?slot=2nd` | the existing login flow for that slot; the body is unchanged. No `slot` means 1st. | Mika |
+| Bot items (`GET /api/bots` and the Bot detail) | `account: {harness, slot, preferredSlot} \| null` from `transport.seatAccount(botId)`. It is absent on older bodies, and clients tolerate that. | Molly |
+| SSE `/api/events` | `type: 'settings'` on every registry change, from `accounts.watch`. The engine's raw queue-stream topic `accounts` is internal and is not forwarded to clients. | Molly |
+
 ## What other owners add
 
 - Elegg (Aiterm):
