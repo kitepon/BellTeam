@@ -540,6 +540,8 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .update-center [data-tone="info"] { --tone: var(--u-info); --tone-bg: var(--u-info-bg); }
 .update-center [data-tone="danger"] { --tone: var(--u-danger); --tone-bg: var(--u-danger-bg); }
 .update-center [data-tone="muted"] { --tone: var(--u-mute); --tone-bg: var(--u-mute-bg); }
+.update-center [data-tone="neutral"] { --tone: var(--u-ink); --tone-bg: var(--u-soft); }
+.update-badge[data-tone="neutral"]::before { display: none; }
 
 .update-summary { display: flex; gap: 18px; align-items: center; padding: 22px 24px; border: 1px solid var(--u-line); border-radius: 20px; background: var(--u-surface); }
 .update-summary-icon { width: 56px; height: 56px; border-radius: 18px; background: var(--tone-bg); color: var(--tone); }
@@ -563,7 +565,7 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .update-cards-label { grid-column: 1 / -1; margin: 10px 2px 0; color: var(--u-muted); font-size: 12px; font-weight: 700; }
 .update-card { position: relative; display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 16px; border: 1px solid var(--u-line); border-radius: 18px; background: var(--u-surface); overflow: hidden; }
 .update-card::before { content: ""; position: absolute; inset: 0 0 auto; height: 3px; background: var(--tone); opacity: .85; }
-.update-card[data-tone="ok"]::before, .update-card[data-tone="muted"]::before { opacity: 0; }
+.update-card[data-tone="ok"]::before, .update-card[data-tone="muted"]::before, .update-card[data-tone="neutral"]::before { opacity: 0; }
 .update-card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
 .update-card .update-card-icon { width: 40px; height: 40px; border-radius: 12px; background: var(--u-soft); color: var(--u-ink); }
 .update-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: var(--tone-bg); color: var(--tone); font-size: 11px; font-weight: 750; white-space: nowrap; }
@@ -572,6 +574,9 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .update-card-name { margin: 0; font-size: 15px; font-weight: 750; letter-spacing: -.01em; }
 .update-card-description { display: -webkit-box; margin: 0; overflow: hidden; color: var(--u-muted); font-size: 12px; line-height: 1.6; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .update-card-version { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0; color: var(--u-muted); font-size: 12px; }
+.update-card-version-name { color: var(--u-ink); font-weight: 650; }
+.update-card-origin { color: var(--u-muted); font-size: 11px; }
+.update-card-origin::before { content: "· "; }
 .update-card-next { padding: 1px 8px; border-radius: 6px; background: var(--u-accent-bg); color: var(--u-accent); font-size: 11px; font-weight: 700; }
 .update-progress { height: 6px; margin-top: 6px; border-radius: 999px; background: var(--u-soft); overflow: hidden; }
 .update-progress span { display: block; height: 100%; border-radius: inherit; background: var(--u-info); transition: width .4s ease; }

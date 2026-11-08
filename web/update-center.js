@@ -82,8 +82,16 @@ const cardIcons = ['container', 'web-gateway', 'notifications', 'members', 'conv
 const jobSteps = { queued: 1, downloading: 2, verifying: 3, swapping: 4 }
 const stepText = { queued: '順番を待っています', downloading: '新しい版を取り込んでいます', verifying: '新しい版を確かめています', swapping: '新しい版に切り替えています' }
 const shortTime = value => new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
-// People-facing version name; hashes and the server line stay in 詳細.
-const humanVersion = item => !item.current ? '版を確認できません' : { builtin: '内蔵版', release: '更新で入れた版', container: '本体の版', published: '公開版' }[item.current.origin] ?? '現在の版'
+// People-facing version name (dated when a time is known); hashes and the server line stay in 詳細.
+const versionName = (item, job) => {
+  if (isRuntime(item.id)) return { name: '本体に同梱', origin: '' }
+  if (!item.current) return { name: '版を確認できません', origin: '' }
+  const at = item.current.origin === 'release' && job?.outcome === 'succeeded' ? job.at
+    : item.comparison.state === 'up_to_date' && item.publication ? item.publication.catalog.publishedAt : null
+  const origin = { builtin: '本体に同梱', release: '更新で導入', container: '本体' }[item.current.origin] ?? ''
+  return at ? { name: `${shortTime(at)} 版`, origin }
+    : { name: { builtin: '本体に同梱の版', release: '更新で入れた版', container: '稼働中の版' }[item.current.origin] ?? '現在の版', origin: '' }
+}
 // Badge from the newest job record for this part (fresher via SSE), else the server's latestJob; wording stays with the server line.
 export function cardState(item, records = []) {
   const status = componentStatus(item.status) ? item.status : null, latestAt = status?.latestJob ? BigInt(Date.parse(status.latestJob.at)) * 1000000n : -1n
@@ -96,6 +104,8 @@ export function cardState(item, records = []) {
   if (job?.outcome === 'running') return { badge: '更新中', tone: 'info', job, step: jobSteps[job.state] ?? 1 }
   if (status?.tone === 'attention') return { badge: '要対応', tone: 'danger', job, step: 0 }
   if (job?.outcome === 'failed' && !(serving && item.comparison.state === 'up_to_date')) return { badge: '失敗', tone: 'danger', job, step: 0 }
+  // Owner rule: Aiterm/CLIs update only with the body release.
+  if (isRuntime(item.id)) return { badge: '本体と一緒に更新', tone: 'neutral', job, step: 0 }
   const [badge, tone] = { update_available: ['更新あり', 'accent'], up_to_date: ['最新', 'ok'], incompatible: ['使えない版', 'muted'] }[item.comparison.state] ?? ['確認できません', 'muted']
   return { badge, tone, job, step: 0 }
 }
@@ -493,9 +503,11 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
       icon.setAttribute('aria-hidden', 'true')
       const badge = element('span', 'update-badge', state.badge); badge.dataset.tone = state.tone
       top.append(icon, badge)
-      const versionName = element('p', 'update-card-version', humanVersion(item))
-      if (item.comparison.state === 'update_available') versionName.append(element('span', 'update-card-next', '新しい版あり'))
-      card.append(top, element('h4', 'update-card-name', item.name), versionName, element('p', 'update-card-description', item.description))
+      const version = versionName(item, state.job), line = element('p', 'update-card-version')
+      line.append(element('span', 'update-card-version-name', version.name))
+      if (version.origin) line.append(element('span', 'update-card-origin', version.origin))
+      if (item.comparison.state === 'update_available') line.append(element('span', 'update-card-next', item.publication ? `新しい版 ${shortTime(item.publication.catalog.publishedAt)}` : '新しい版あり'))
+      card.append(top, element('h4', 'update-card-name', item.name), line, element('p', 'update-card-description', item.description))
       if (state.step) {
         const progress = element('div', 'update-progress'); progress.setAttribute('role', 'progressbar')
         progress.setAttribute('aria-valuemin', '0'); progress.setAttribute('aria-valuemax', '4'); progress.setAttribute('aria-valuenow', String(state.step))
@@ -528,7 +540,7 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
       const icon = element('span', 'update-card-icon'); icon.dataset.icon = cardIcons.includes(target.componentId) ? target.componentId : isRuntime(target.componentId) ? 'runtime' : 'module'
       icon.setAttribute('aria-hidden', 'true')
       const copy = element('div', '')
-      copy.append(element('strong', '', item?.name ?? '選択した項目'), element('p', 'update-card-version', `${item ? humanVersion(item) : '現在の版'} → ${selectedPlan.action === 'rollback' ? '以前の版' : '新しい版'}`))
+      copy.append(element('strong', '', item?.name ?? '選択した項目'), element('p', 'update-card-version', `${item ? versionName(item, cardState(item, [])?.job).name : '現在の版'} → ${selectedPlan.action === 'rollback' ? '以前の版' : item?.publication ? `新しい版 ${shortTime(item.publication.catalog.publishedAt)}` : '新しい版'}`))
       row.append(icon, copy); review.append(row)
     }
     review.append(element('p', 'update-review-impact', selectedPlan.impact.containerRestart ? '更新中は全Botの会話と処理が一時中断します。再接続後に結果を確認します。' : isRuntime(selectedPlan.componentId) ? runtimeApplicationText : '本体の再起動はありません。使いながら更新できます。'))

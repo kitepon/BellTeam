@@ -45,9 +45,19 @@ test('cards show icon, name, version name, badge and time; one action only where
   assert.match(text(update), /更新あり.*新しい版あり.*画面の文字を読みやすく.*更新の記録なし/)
   assert.equal(all(update, node => node.className === 'update-card-icon')[0].dataset.icon, plan.componentId)
   assert.match(text(latest), /最新/)
+  assert.doesNotMatch(text(update), /内蔵版/)
   assert.ok(find(update, 'card-' + plan.componentId)); assert.equal(all(latest, node => node.className === 'update-card-action').length, 0)
   assert.doesNotMatch(f.text(), /commit|[a-f0-9]{12,}|UUID|protocol/)
   assert.equal(f.calls.filter(call => call.body).length, 0)
+})
+
+test('version line shows a dated human name with the origin as a secondary word', async t => {
+  const { value, plan } = example(), item = value.components[0], at = '2026-11-08T04:01:00Z'
+  item.comparison = { state: 'up_to_date', reason: null }; item.capability = { supported: false, reason: 'UPDATE_ALREADY_CURRENT' }
+  item.publication = { catalog: { sha256: 'a'.repeat(64), publishedAt: at, expiresAt: '2099-01-01T00:00:00Z' }, check: { status: 'verified', checkedAt: at, error: null } }
+  const f = fixture(t, value, plan); await f.center.start()
+  assert.match(text(f.cards()[0]), /11\/8 13:01 版/)
+  assert.doesNotMatch(text(f.cards()[0]), /[a-f0-9]{7,}/)
 })
 
 test('card action requests one component plan, then explicit Start exactly once with a success banner', async t => {
@@ -88,6 +98,8 @@ test('badges follow the newest job and the server status: running with progress,
   assert.equal(cardState(row('up_to_date', true, failed), failed).badge, '最新')
   assert.equal(cardState(row('update_available', false, failed), failed).badge, '要対応')
   assert.equal(cardState(row('up_to_date')).badge, '最新')
+  // Owner rule: runtime parts update only with the body, so their badge is neutral, never an error.
+  assert.deepEqual(['badge', 'tone'].map(key => cardState({ ...structuredClone(base), id: 'runtime-codex', comparison: { state: 'unavailable', reason: null } })[key]), ['本体と一緒に更新', 'neutral'])
   // Without status (older body) the badge comes from comparison and records only.
   assert.equal(cardState({ ...structuredClone(base), comparison: { state: 'update_available', reason: null } }).badge, '更新あり')
 })
