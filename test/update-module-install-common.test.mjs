@@ -114,12 +114,13 @@ test('unknown install survives reconstruction and is queried with its saved UUID
   assert.equal((await f.ledger()).operations[0].steps[0].installPhase, 'completed')
 })
 
-test('Host unknown blocks subsequent plans and never reaches replace', async t => {
+test('Host unknown blocks a second exchange (not planning) and never reaches replace', async t => {
   const f = await fixture(t), plan = await f.plan(), request = f.request(plan)
   f.setPhase('unknown')
   await f.executor.start(request)
   assert.equal((await done(f.executor, request.requestId)).phase, 'unknown')
-  await assert.rejects(f.plan(), { code: 'MODULE_EXCHANGE_BUSY' })
+  const next = await f.plan()
+  await assert.rejects(f.executor.start(f.request(next)), { code: 'MODULE_EXCHANGE_BUSY' })
   assert.equal(f.calls.applies, 0); assert.equal(f.calls.starts.length, 1)
 })
 

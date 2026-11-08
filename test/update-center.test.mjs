@@ -150,3 +150,11 @@ test('each part gets one plain status line from only its latest job', async () =
   assert.equal(inventory.components.find(item => item.id === 'execution').status.latestJob.state, 'ready')
   assert.equal(validateUpdates(inventory).valid, true)
 })
+
+test('one catalog check refreshes the module store and the container Host store', async () => {
+  const calls = []
+  const center = createUpdateCenter({ moduleCatalog: { checkCatalog: async () => { calls.push('module'); return { status: 'verified' } }, snapshot: value => value },
+    host: { checkCatalog: async () => { calls.push('container'); throw Object.assign(new Error('x'), { code: 'UNREADABLE' }) }, snapshot: value => value } })
+  assert.deepEqual(await center.checkCatalog(), { status: 'verified' })
+  assert.deepEqual(calls.sort(), ['container', 'module'])
+})

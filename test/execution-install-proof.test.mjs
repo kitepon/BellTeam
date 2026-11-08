@@ -46,11 +46,14 @@ test('proof keeps the real engine fenced through actual callback completion unde
   assert.equal(finished, false); assert.equal(f.controller.snapshot().available, false)
   assert.equal(f.controller.snapshot().generation, before.generation)
   await assert.rejects(f.controller.dispatch({ method: 'transport.observe', args: [f.bot] }), { code: 'EXECUTION_NOT_ACCEPTING' })
-  await assert.rejects(f.controller.replace('b'.repeat(64)), { code: 'EXECUTION_NOT_ACCEPTING' })
-  await assert.rejects(f.controller.withInstallReconciliationProof(() => {}), { code: 'EXECUTION_UPDATE_IN_PROGRESS' })
+  // A second exclusive request takes its turn after the proof instead of being refused (Owner 2026-11-08).
+  let second = false
+  const queued = f.controller.withInstallReconciliationProof(() => { second = true; return 'second' })
+  await tick(); assert.equal(second, false)
   durable.resolve(); assert.equal(await attempt, 'saved')
-  assert.equal(f.sharedCalls(), calls + 1); assert.equal(f.controller.snapshot().available, true)
+  assert.equal(f.sharedCalls(), calls + 1)
   assert.throws(proof, { code: 'EXECUTION_PROOF_UNAVAILABLE' }); assert.equal(f.nativeCloses(), 0)
+  assert.equal(await queued, 'second'); assert.equal(f.controller.snapshot().available, true)
 })
 
 test('actual native work refuses the proof and resumes the same engine without releasing the work', async t => {

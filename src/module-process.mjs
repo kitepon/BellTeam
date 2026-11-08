@@ -1,6 +1,6 @@
 import { probeModuleReady } from './module-ready-probe.mjs'
 import { createModuleChildRestart, reportModuleChildExit, observeModuleChild, reportConversationChildExitOrigin } from './module-child-restart.mjs'
-import { moduleExchangeDiagnostic, moduleDrainDiagnostic, moduleRecoveryLog, moduleTerminationLog } from './module-exchange-diagnostic.mjs'
+import { moduleExchangeDiagnostic, moduleRecoveryLog, moduleTerminationLog } from './module-exchange-diagnostic.mjs'
 import { spawn } from 'node:child_process'
 import { constants } from 'node:fs'
 import { open } from 'node:fs/promises'
@@ -267,9 +267,9 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
       await target.end
     } finally { clearTimeout(timer) }
   }
+  // Exchanges and recovery take turns instead of refusing each other (Owner 2026-11-08).
   const exclusive = action => {
-    if (operation) return Promise.reject(fail('UPDATE_IN_PROGRESS', 409))
-    const promise = Promise.resolve().then(action)
+    const promise = (operation ?? Promise.resolve()).catch(() => {}).then(action)
     operation = promise
     void promise.finally(() => { if (operation === promise) operation = null }).catch(() => {})
     return promise
@@ -307,7 +307,8 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
   }
   const replace = (requested, { expectedRelease } = {}) => {
     if (requested !== 'builtin' && !versionValid(requested)) return Promise.reject(fail('VERSION_INVALID', 400))
-    if (!initialized || !available || closed) return Promise.reject(fail('NOT_ACCEPTING'))
+    // A stopped or never-started module is replaceable too: the update is how a broken version gets fixed.
+    if (closed) return Promise.reject(fail('NOT_ACCEPTING'))
     if (reservation && !startingReservation) return Promise.reject(fail('UPDATE_IN_PROGRESS', 409))
     const versionId = requested === 'builtin' ? null : requested
     const expected = expectedRelease ? structuredClone(expectedRelease) : undefined
@@ -318,23 +319,22 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
       const old = instance, oldVersion = currentVersionId, oldPrevious = previousVersionId
       const ticket = closeAdmission('module_replace')
       exchanging = true; state('quiescing')
-      let handoff, drainStage = 'parent_drain'
+      let handoff
       try {
-        await drain(old, ticket, stage => { drainStage = stage })
-        drainStage = 'handoff'
+        await drain(old, ticket)
         const exporting = track(exportHandoff(old.channel))
         handoff = (await within(Promise.all([exporting, exporting.completion]), 60000, `${prefix}_DRAIN_TIMEOUT`))[0]
-        await prepare(versionId, expected)
-      } catch (error) {
-        try {
-          if (error?.code === `${prefix}_DRAIN_TIMEOUT`)
-            error.moduleDiagnostic = moduleDrainDiagnostic(component, drainStage, active.size, admission)
-        } catch {}
+      } catch {
+        // The old module cannot veto its replacement (Owner 2026-11-08): it is stopped below like a crashed child and
+        // the candidate restores from durable state, exactly as after an unexpected exit.
+        handoff = undefined
+      }
+      try { await prepare(versionId, expected) } catch (error) {
         if (!closed) { try { await resume(old, ticket) } catch { state('unavailable') } }
         throw error
       }
       if (closed) throw fail('CLOSED')
-      await finishExit(old)
+      if (old && !old.ended) await finishExit(old)
       if (closed) throw fail('CLOSED')
       state('starting')
       let stage = 'spawn'
@@ -346,6 +346,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
         currentVersionId = versionId; previousVersionId = oldVersion
         stage = 'resume'
         await resume(next, ticket)
+        initialized = true
         return snapshot()
       } catch (error) {
         if (['READY_TIMEOUT', 'READY_PROBE_FAILED'].includes(error?.code)) {
@@ -377,8 +378,8 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
   }
   const reserve = (versionId, options) => {
     if (versionId !== 'builtin' && !versionValid(versionId)) throw fail('VERSION_INVALID', 400)
-    if (!available || closed) throw fail('NOT_ACCEPTING')
-    if (operation || reservation) throw fail('UPDATE_IN_PROGRESS', 409)
+    if (closed) throw fail('NOT_ACCEPTING')
+    if (reservation) throw fail('UPDATE_IN_PROGRESS', 409)
     const next = { versionId, status: 'accepted' }; update = next
     const captured = options?.expectedRelease ? { expectedRelease: structuredClone(options.expectedRelease) } : undefined
     let resolve, started = false
