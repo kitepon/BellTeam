@@ -68,6 +68,8 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
     const reportOnce = (error, stage) => {
       if (reported) return
       reported = true
+      // The harness ended a turn the transport followed to its end (wait-contract "Turn-end failure"): not a tracking failure.
+      if (error?.turnCompleted === true) return
       report(error, { delivery_id: record.delivery_id, target: record.target, stage })
     }
     try {

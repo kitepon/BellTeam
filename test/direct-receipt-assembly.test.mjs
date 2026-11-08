@@ -224,6 +224,28 @@ test('direct first failure reaches registered diagnostics with bound safe fields
   f.direct.requestDrain(); await tick(); await tick(); assert.equal(f.sends.length, 1)
 })
 
+test('a failed status the transport followed to its end (turnCompleted) files no tracking-failure report; other failures still do', async t => {
+  const failure = { code: 'BOT_SEND_FAILED', delivery_error: { code: 'BOT_SEND_FAILED' } }
+  const f = await fixture(t, { createTransport: ({ membersAdmission }) => ({ membersAdmission, isIdle: () => false, watchQueue: () => () => {}, async close() {},
+    async notify(_bot, envelope, options) {
+      await options.onStatus('running')
+      // Turn-end failure fields per wait-contract.md; the control input carries none.
+      queueMicrotask(() => options.onStatus('failed', envelope.includes('harness end')
+        ? { ...failure, turnCompleted: true, waitOutcome: 'error', failureCategory: 'other' } : failure))
+      return { delivery: 'running' }
+    } }) })
+  f.direct.start(); f.aiControl.enable()
+  const receive = message => f.conversation.run({ kind: 'bot', botId: 'bot-peer' }, () => f.direct.messenger.sendmessage({ from: 'bot-peer', target: 'bot-quincy', message }))
+  const failed = async id => (await f.direct.receipts.store.durableReceipts()).find(row => row.delivery_id === id)?.delivery === 'failed'
+  const ended = await receive('harness end')
+  await settled(() => failed(ended.delivery_id))
+  assert.deepEqual(f.errors, [])
+  const lost = await receive('tracking lost')
+  await settled(() => failed(lost.delivery_id))
+  await settled(() => f.errors.length === 1)
+  assert.equal(f.errors[0].turnCompleted, undefined)
+})
+
 test('a target whose acceptance is pending does not delay a later saved input for another target', async t => {
   const holds = new Map(), notified = []
   const f = await fixture(t, { createTransport: ({ membersAdmission }) => ({ membersAdmission, isIdle: () => false, watchQueue: () => () => {}, async close() {},
