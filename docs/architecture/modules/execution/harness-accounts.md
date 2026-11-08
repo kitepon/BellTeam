@@ -120,7 +120,7 @@ The switch reuses the existing resume path, so the conversation, docs and Throug
 | Failover | `CapacityContinuation.continue`: an account switch of the same harness first (`transport.switchAccount` = `pty_close {hibernate:true}` then the ordinary wake), then the existing harness switch if the account switch is impossible |
 | Idle-boundary moves and return | `AitermTransport.reviewAccounts` / `moveAtBoundary` on every registry change; `AGENT_BUSY` waits for the turn and retries, never stops it |
 | Successful-turn exit | `AitermTransport.accountTurnDone` on delivery completion |
-| Parent Aiterm env | `AitermClient` (parent clients): `AITERM_CLAUDE_CONFIG_ROOTS` in its own env and in the seat launcher's process env, never in `env_vars` |
+| Parent Aiterm env | `AitermClient` (parent clients): `AITERM_CLAUDE_CONFIG_ROOTS` in its own env and in the seat launcher's process env, never in `env_vars`. In production the parent connection starts through the seat command (`/usr/bin/env VAR=… aiterm`), which does not carry `this.env`, so the variable is also an `env` argument there (`seatConnectionEnvironment`). Without it Aiterm rejects every 2nd-root call (`agent_auth` status/start: production 2026-11-08 22:3x JST, USAGE_OPERATION_FAILED). Parent-image source: it goes live with a body swap |
 | MCP registration of slot roots | `writeHarnessConfig` merges into every prepared slot root; `prepare` copies the managed servers once |
 | Facade | `accounts.list/setRule/prepare` (dispatch), `transport.seatAccount` (project), `accounts.watch` over the queue stream (topic `accounts`) |
 

@@ -182,3 +182,11 @@ test('seat-user helper: the stringified script runs alone, makes a traversable r
   finally { await chmod(join(home, '.bellteam-accounts/claude'), 0o700) }
   assert.match(logs.at(-1), /prepare claude 2nd failed \(EACCES\)/)
 })
+
+test('parent Aiterm over the seat command carries the account roots (production 2nd-login rejection)', async () => {
+  const { AitermClient, seatConnectionEnvironment } = await import('../src/aiterm-client.mjs')
+  const client = new AitermClient({ seatProject: '/srv/bellteam' })
+  assert.match(client.claudeConfigRoots, /\/\.bellteam-accounts\/claude$/)
+  assert.deepEqual(seatConnectionEnvironment('g', client.claudeConfigRoots), ['BELLTEAM_RUNTIME_GENERATION=g', `AITERM_CLAUDE_CONFIG_ROOTS=${client.claudeConfigRoots}`])
+  assert.deepEqual(seatConnectionEnvironment('g', null), ['BELLTEAM_RUNTIME_GENERATION=g'])
+})
