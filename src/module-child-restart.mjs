@@ -163,7 +163,7 @@ export function reportModuleChildExit(component, { code, signal }, observation, 
       stderrCodes: observation.stderrCodes, reason: observation.reason, stderrBytes: observation.stderrBytes,
       stderrTruncated: observation.stderrTruncated, stderrTail: observation.stderrTail,
       // The child's own closed exit-origin line (conversation only); absent when the child wrote none.
-      ...(observation.childExitOrigin ? { childExitOrigin: { ...observation.childExitOrigin } } : {}) }
+      ...(component === 'conversation' && observation.childExitOrigin ? { childExitOrigin: { ...observation.childExitOrigin } } : {}) }
     Promise.resolve(onModuleChildExit(value)).catch(() => {})
   } catch {}
 }
