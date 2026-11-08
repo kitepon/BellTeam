@@ -187,8 +187,8 @@ struct ScreenKeyBar: View {
             }
             HStack(spacing: 8) {
                 key("Left", "左", "arrow.left", compact: true)
-                key("Down", "下", "arrow.down", compact: true)
                 key("Up", "上", "arrow.up", compact: true)
+                key("Down", "下", "arrow.down", compact: true)
                 key("Right", "右", "arrow.right", compact: true)
                 Button { withAnimation(.snappy) { showDigits.toggle() } } label: {
                     Label("数字", systemImage: showDigits ? "chevron.down" : "number")
