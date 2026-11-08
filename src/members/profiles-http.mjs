@@ -1,4 +1,5 @@
 import { readCurrentWork } from '../current-work-contract.mjs'
+import { readSeatAccount } from '../http-accounts-api.mjs'
 import { json, readJson } from '../http-response.mjs'
 import { recentTimeline } from '../timeline-index.mjs'
 import { avatarVersion, sendAvatar } from '../http-assets.mjs'
@@ -56,6 +57,9 @@ export function createMemberProfileApi({ bots, transport, administration, memory
         if (state === 'absent') continue
         if (state === 'pending') { item.deleting = true; item.online = false }
         item.currentWork = readCurrentWork(transport, state === 'active' ? bots.get(item.id) : null)
+        // Bot DTO 'account' (harness-accounts.md): absent when the body or the engine has no accounts.
+        const account = readSeatAccount(transport, item.id)
+        if (account !== undefined) item.account = state === 'active' ? account : null
         current.push(item)
       }
       return json(response, 200, { bots: current })
@@ -113,7 +117,10 @@ export function createMemberProfileApi({ bots, transport, administration, memory
       const botId = profileMatch[1]
       const bot = await readMember(botId)
       if (!bot) return json(response, 404, { error: 'BOT_NOT_FOUND' })
-      if (request.method === 'GET') return json(response, 200, { bot: administration.view?.(bot) ?? bot })
+      if (request.method === 'GET') {
+        const view = administration.view?.(bot) ?? bot, account = readSeatAccount(transport, botId)
+        return json(response, 200, { bot: account === undefined ? view : { ...view, account } })
+      }
       if (request.method === 'PATCH') return json(response, 200, await administration.update(botId, await readJson(request)))
     }
 
