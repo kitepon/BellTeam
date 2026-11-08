@@ -50,3 +50,5 @@ flowchart LR
   Init -->|ok| Running[new version serving]
   Init -->|fail| Rollback[old factory restarted with same handoff or cold]
 ```
+
+Sweep (2026-11-08): `replace`/`reserve` also accept a stopped or never-ready engine (a missing old is skipped; an old that never became ready is only disconnected), and `exclusive` queues behind recovery instead of answering UPDATE_IN_PROGRESS. See [update-jobs.md sweep](../integration/update-jobs.md#update-path-guard-sweep-owner-2026-11-08-ハッシュで確認してるんだから止める必要ない).

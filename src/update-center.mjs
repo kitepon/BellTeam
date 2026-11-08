@@ -94,7 +94,13 @@ export function createUpdateCenter({ gateway = () => null, builtinSourceCommit =
     reserveExchange: moduleExecutor?.reserveExchange,
     notify: change => events.emit('change', change),
     watch(listener) { events.on('change', listener); return () => events.off('change', listener) },
-    checkCatalog() { if (!moduleCatalog) throw unavailable(); return moduleCatalog.checkCatalog() },
+    // Module rows and the container row read separate Host catalog stores; one Owner check refreshes both
+    // (2026-11-08: the container row otherwise waited for its 30 min timer). The first store's result is returned.
+    checkCatalog() {
+      const checks = [moduleCatalog?.checkCatalog(), host?.checkCatalog?.()].filter(Boolean)
+      if (!checks.length) throw unavailable()
+      return Promise.allSettled(checks).then(([first]) => { if (first.status === 'rejected') throw first.reason; return first.value })
+    },
     jobs: ({ runtime = false } = {}) => jobReader ? jobReader.jobs().then(value => visibleJobs(value, runtime)) : Promise.resolve({ jobs: [] }),
     job(kind, jobId) { if (!jobReader) throw unavailable(); return jobReader.job(kind, jobId) },
     snapshot({ runtime = false } = {}) {

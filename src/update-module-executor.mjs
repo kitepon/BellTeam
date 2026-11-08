@@ -31,7 +31,7 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
   const hasCloseIntent = entry => entry.steps.some(step => step.installReconciliation?.close)
   const publicJobs = async entry => {
     // Active work owns its writes; a retained close intent can only converge its fence.
-    if (!active && !closed && !fault && !hasCloseIntent(entry)) {
+    if (!active && !closed && !hasCloseIntent(entry)) {
       if (entry.jobBindings) await flushJobReports(entry)
       if (entry.interrupted) {
         for (const binding of entry.jobBindings.filter((binding, index) => binding.admitted && (binding.kind === 'module'
@@ -63,16 +63,29 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
     const info = await dir.stat()
     requireValue(info.uid === process.getuid() && (info.mode & 0o7777) === 0o700, 'UPDATE_LEDGER_INVALID')
   } finally { await dir.close() }
+  // Size is kept by cleanup, never by refusing (Owner 2026-11-08): oldest settled operations go first (each component's
+  // latest completed one stays as the rollback source; unknown ones stay for reconciliation), then expired unused plans.
+  const prune = () => {
+    const latest = new Map()
+    for (const entry of state.operations) if (entry.operation.phase === 'completed' && entry.operation.plan.scope === 'component') latest.set(entry.operation.plan.componentId, entry)
+    while (state.operations.length > 1000) {
+      const index = state.operations.findIndex(entry => ['completed', 'failed'].includes(entry.operation.phase) && latest.get(entry.operation.plan.componentId) !== entry)
+      if (index < 0) break
+      state.operations.splice(index, 1)
+    }
+    const used = new Set(state.operations.map(entry => entry.operation.plan.planId))
+    state.plans = state.plans.filter(entry => used.has(entry.plan.planId) || Date.parse(entry.plan.expiresAt) > now())
+  }
   const save = async () => {
+    prune()
     const bytes = JSON.stringify(state) + '\n'
-    // shortcut: retain 4096 plans/operations in 16 MiB; add archival before raising these bounds.
-    requireValue(state.plans.length <= 4096 && state.operations.length <= 4096 && Buffer.byteLength(bytes) <= 16 * 1024 ** 2, 'UPDATE_LEDGER_CAPACITY')
     const temporary = join(directory, randomUUID() + '.tmp')
     const file = await open(temporary, 'wx', 0o600)
     try {
       await file.writeFile(bytes); await file.sync(); await file.close()
       await rename(temporary, path)
       const parent = await open(directory, 'r'); try { await parent.sync() } finally { await parent.close() }
+      fault = null
     } catch (error) { fault = 'UPDATE_LEDGER_WRITE_FAILED'; await file.close().catch(() => {}); await unlink(temporary).catch(() => {}); throw failure('UPDATE_LEDGER_WRITE_FAILED') }
     try { notify() } catch {}
   }
@@ -101,11 +114,11 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
     const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK)
     try {
       const info = await file.stat()
-      requireValue(info.isFile() && info.uid === process.getuid() && info.nlink === 1 && (info.mode & 0o7777) === 0o600 && info.size <= 16 * 1024 ** 2, 'UPDATE_LEDGER_INVALID')
+      requireValue(info.isFile() && info.uid === process.getuid() && info.nlink === 1 && (info.mode & 0o7777) === 0o600, 'UPDATE_LEDGER_INVALID')
       state = JSON.parse(await file.readFile('utf8'))
     } finally { await file.close() }
-    requireValue(state?.schema === 'bellteam.module-update.ledger.v1' && Array.isArray(state.plans) && state.plans.length <= 4096
-      && Array.isArray(state.operations) && state.operations.length <= 4096, 'UPDATE_LEDGER_INVALID')
+    requireValue(state?.schema === 'bellteam.module-update.ledger.v1' && Array.isArray(state.plans)
+      && Array.isArray(state.operations), 'UPDATE_LEDGER_INVALID')
     const planIds = new Set(), operationIds = new Set()
     for (const entry of state.plans) {
       validateUpdateResponse('plan', { plan: entry.plan })
@@ -176,7 +189,8 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
     return turn
   }
   const section = async (operation, allowStopped) => {
-    if (!allowStopped) requireValue(!closed && !fault, fault ?? 'UPDATE_EXECUTOR_CLOSED')
+    // A failed ledger write is shown (notice) but never refuses later work: every save rewrites the whole ledger atomically.
+    if (!allowStopped) requireValue(!closed, 'UPDATE_EXECUTOR_CLOSED')
     busy = true
     // save() が状態の変化を知らせる。読取りだけの排他（snapshotのhost/install再読）は知らせない。
     // 知らせると端末が /api/updates を読み直し、その読取りがまた鳴らして洪水になる（2026-11-07）。
@@ -255,7 +269,8 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
   }
   const checkCurrent = entry => {
     for (const step of entry.steps.filter(step => jobKind(step.componentId) === 'module')) {
-      requireValue(isDeepStrictEqual(adapters[step.componentId].current(), step.from) && adapters[step.componentId].available()
+      // A stopped (unavailable) module is still replaceable; only a changed current/generation means a different target.
+      requireValue(isDeepStrictEqual(adapters[step.componentId].current(), step.from)
         && isDeepStrictEqual(adapters[step.componentId].capture?.() ?? null, step.guard), 'UPDATE_CURRENT_CHANGED', 409)
     }
   }
@@ -323,7 +338,7 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
         }
         if (needsInstall) await install(step, progress, binding)
         await adapter.prepare(step)
-        requireValue(adapter.available() && isDeepStrictEqual(adapter.current(), step.from) && isDeepStrictEqual(adapter.capture?.() ?? null, step.guard), 'UPDATE_CURRENT_CHANGED', 409)
+        requireValue(isDeepStrictEqual(adapter.current(), step.from) && isDeepStrictEqual(adapter.capture?.() ?? null, step.guard), 'UPDATE_CURRENT_CHANGED', 409)
         progress.applyIssued = true; await save()
         if (binding) await moduleHost.updateJob({ jobId: binding.jobId, state: 'swapping', reason: null })
         await adapter.apply(step)
@@ -379,7 +394,7 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
   }
   return {
     reserveExchange() {
-      requireValue(!closed && !fault, fault ?? 'UPDATE_EXECUTOR_CLOSED')
+      requireValue(!closed, 'UPDATE_EXECUTOR_CLOSED')
       requireValue(!busy && !state.operations.some(hostPending), 'MODULE_EXCHANGE_BUSY', 409)
       return exchangeMutex.reserve()
     },
@@ -395,7 +410,7 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
         let owned = true
         try {
           return await inspection.inspect(requestId, installRequestId, input, grant, () => {
-            requireValue(owned && busy && !active && !closed && !fault, 'UPDATE_RECONCILIATION_PROOF_CHANGED', 409)
+            requireValue(owned && busy && !active && !closed, 'UPDATE_RECONCILIATION_PROOF_CHANGED', 409)
             return true
           })
         } finally { owned = false }
@@ -404,7 +419,7 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
     async plan(input, inventory = null) {
       validateUpdateRequest('plan', input)
       return exclusive(async () => {
-        requireValue(!active && !state.operations.some(hostPending), 'MODULE_EXCHANGE_BUSY', 409)
+        // Planning never refuses during an exchange: start re-checks current, and start alone holds the exchange.
         const action = input.action ?? 'update'
         requireValue(action !== 'rollback' || input.scope === 'component' && jobKind(input.componentId) === 'module', 'UPDATE_ROLLBACK_UNSUPPORTED', 409)
         if (input.componentId === 'container') {
@@ -426,7 +441,7 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
           const step = { componentId: input.componentId, from, target: published(value.release), release: value.release, catalogSha256: value.catalogSha256 }
           await planInstall(step)
           const plan = { planId: randomUUID(), scope: 'component', componentId: input.componentId, action,
-            expiresAt: new Date(Math.min(now() + 10 * 60 * 1000, Date.parse(value.expiresAt), Date.parse(step.installPlan.expiresAt))).toISOString(),
+            expiresAt: new Date(Math.min(Date.parse(value.expiresAt), Date.parse(step.installPlan.expiresAt))).toISOString(),
             targets: [{ componentId: input.componentId, current: from, published: step.target }], compatibility: { compatible: true, reason: null },
             impact: { containerRestart: false, description: '次回起動から適用します。実行中の席は現在の版を継続し、本体は再起動しません。' }, capability: { supported: true, reason: null } }
           validateUpdateResponse('plan', { plan })
@@ -436,10 +451,11 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
         const ids = input.scope === 'all' ? Object.keys(adapters) : [input.componentId]
         requireValue(ids.every(id => adapters[id]), 'UPDATE_EXECUTOR_UNAVAILABLE')
         const steps = [], selections = []
-        let expires = now() + 10 * 60 * 1000
+        // Owner 2026-11-08: no own plan TTL; start re-checks current and publication, so only catalog/Host expiry binds a plan.
+        let expires = Infinity
         for (const id of ids) {
           const adapter = adapters[id], from = adapter.current()
-          requireValue(adapter.available() && (from || adapter.capture?.()?.generation), 'UPDATE_CURRENT_UNAVAILABLE')
+          requireValue(from || adapter.capture?.()?.generation, 'UPDATE_CURRENT_UNAVAILABLE')
           if (action === 'rollback') {
             const previous = [...state.operations].reverse().filter(entry => entry.operation.phase === 'completed' && entry.operation.plan.scope === 'component')
               .flatMap(entry => findPlan(entry.operation.plan.planId).steps).find(step => step.componentId === id)
@@ -475,11 +491,12 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
           if (step.installPlan) expires = Math.min(expires, Date.parse(step.installPlan.expiresAt))
         }
         const plan = { planId: randomUUID(), scope: input.scope, componentId: input.scope === 'all' ? null : input.componentId, action,
-          expiresAt: new Date(expires).toISOString(), targets: steps.map(step => ({ componentId: step.componentId, current: step.componentId === 'container' ? hostPlan.targets[0].current : step.from, published: step.target })),
+          // A catalog-free rollback plan still needs a date; it only bounds how long the unused plan is stored.
+          expiresAt: new Date(Number.isFinite(expires) ? expires : now() + 24 * 60 * 60 * 1000).toISOString(), targets: steps.map(step => ({ componentId: step.componentId, current: step.componentId === 'container' ? hostPlan.targets[0].current : step.from, published: step.target })),
           compatibility: { compatible: true, reason: null }, impact: { containerRestart: Boolean(hostPlan), description: hostPlan ? '機能の切替後、本体を再起動します。会話と処理が一時中断します。' : '対象の機能を順に切り替えます。本体は再起動しません。' }, capability: { supported: true, reason: null } }
         validateUpdateResponse('plan', { plan })
         const entry = { plan, steps, hostPlan }; checkCurrent(entry)
-        requireValue(!closed && expires > now(), 'UPDATE_PLAN_EXPIRED', 409)
+        requireValue(!closed && expires > now(), 'UPDATE_PLAN_EXPIRED', 409) // only a catalog/Host plan that already expired
         state.plans.push(entry); await save(); return copy(plan)
       })
     },
@@ -529,9 +546,9 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
       validateUpdateRequest('requestId', id)
       return exclusive(async () => {
         const entry = findOperation(id); requireValue(entry, 'UPDATE_OPERATION_NOT_FOUND', 404)
-        if (entry.hostIssued && !['completed', 'failed'].includes(entry.operation.phase) && !active && !closed && !fault) await refreshHost(entry)
-        if (!active && !closed && !fault) { try { await refreshRuntime(entry) } catch {} }
-        if (entry.steps.some(installPending) && !active && !closed && !fault) {
+        if (entry.hostIssued && !['completed', 'failed'].includes(entry.operation.phase) && !active && !closed) await refreshHost(entry)
+        if (!active && !closed) { try { await refreshRuntime(entry) } catch {} }
+        if (entry.steps.some(installPending) && !active && !closed) {
           // A failed readback must not hide the already durable unknown result.
           try { await refreshInstalls(entry) } catch {}
         }
@@ -541,7 +558,7 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
     async snapshot(inventory) {
       return exclusive(async () => {
         const pendingHost = state.operations.find(hostPending)
-        if (pendingHost && !active && !closed && !fault) { try { await refreshHost(pendingHost); await refreshRuntime(pendingHost); await refreshInstalls(pendingHost) } catch {} }
+        if (pendingHost && !active && !closed) { try { await refreshHost(pendingHost); await refreshRuntime(pendingHost); await refreshInstalls(pendingHost) } catch {} }
         // Runtime rows are present only for a runtime=1 reader; released readers never see a runtime plan or operation.
         const runtimeShown = inventory.components.some(component => jobKind(component.id) === 'runtime')
         const visible = plan => runtimeShown || plan.targets.every(target => jobKind(target.componentId) !== 'runtime')
@@ -554,21 +571,22 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
           const current = component.comparison.state === 'up_to_date' && component.publication?.check.status === 'verified'
           const runtime = jobKind(component.id) === 'runtime' && component.availability.available === true && moduleHost?.admitJob
           if ((adapters[component.id] || runtime) && component.published && (current || component.comparison.state === 'update_available' || component.comparison.state === 'unknown' && adapters[component.id]?.capture?.()?.generation))
-            component.capability = { supported: !current && !closed && !fault && !active && !blockedHost,
-              reason: closed ? 'UPDATE_EXECUTOR_CLOSED' : fault ?? (active || blockedHost ? 'MODULE_EXCHANGE_BUSY' : current ? 'UPDATE_ALREADY_CURRENT' : null) }
+            component.capability = { supported: !current && !closed && !active && !blockedHost,
+              reason: closed ? 'UPDATE_EXECUTOR_CLOSED' : active || blockedHost ? 'MODULE_EXCHANGE_BUSY' : current ? 'UPDATE_ALREADY_CURRENT' : null }
           if (bodyImageOnly(component.id)) component.capability = { supported: false, reason: 'RUNTIME_COHABITATION_UNSUPPORTED' }
         }
         // Inventory advertises what plan will accept: an unplaced archive needs the Host module installer, so its refusal reason is projected here.
         // shortcut: an archive already placed by an earlier install would still plan without the Host; plan stays the final arbiter.
         const offered = inventory.components.filter(component => (adapters[component.id] || jobKind(component.id) === 'runtime') && component.capability.supported)
         if (offered.length && typeof moduleHost?.moduleInstallCapabilities === 'function') {
-          const capability = await moduleHost.moduleInstallCapabilities()
+          // An unreachable Host only marks the offered rows; it never fails the whole inventory.
+          const capability = await moduleHost.moduleInstallCapabilities().catch(() => ({ supported: false, reason: 'HOST_MODULE_INSTALL_UNAVAILABLE' }))
           if (capability?.supported !== true) for (const component of offered) component.capability = { supported: false, reason: installReason(capability) }
         }
         if (fault || recent[0] && ['unknown', 'failed'].includes(recent[0].operation.phase)) inventory.notice = { state: 'attention', code: fault ?? recent[0].operation.error?.code ?? 'UPDATE_RESULT_UNKNOWN', message: '保存された更新結果を確認してください。同じ要求を自動で再実行しません。' }
         else if (recent[0] && !terminal(recent[0].operation)) inventory.notice = { state: 'updating', code: null, message: '更新処理の結果を保存しています。' }
         else if (inventory.components.some(component => component.capability.supported)) inventory.notice = { state: 'ready', code: null, message: '固定計画を作成して更新対象を確認できます。' }
-        else if (!closed && !fault && !active && !blockedHost && inventory.notice.code === 'UPDATE_PROVIDERS_UNAVAILABLE'
+        else if (!closed && !active && !blockedHost && inventory.notice.code === 'UPDATE_PROVIDERS_UNAVAILABLE'
           && inventory.components.some(component => adapters[component.id] && component.capability.reason === 'UPDATE_ALREADY_CURRENT'))
           inventory.notice = { state: 'ready', code: null, message: '確認できた機能の稼働版は、正式公開版と一致しています。' }
         return inventory

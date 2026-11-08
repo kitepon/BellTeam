@@ -112,12 +112,11 @@ test('shared exchange mutex retains OS close and rejects another controller befo
   assert.equal(second.process.snapshot().update.status, 'failed')
   assert.equal(second.preparations.length, 0)
   first.reap(first.children[0]); await replacing
+  // A refused quiesce no longer vetoes the exchange; the mutex is released afterwards.
   second.behavior.quiesce = false
-  await assert.rejects(second.process.replace(sha), /QUIESCE_FAILED/)
-  await exchangeMutex.runExclusive(() => {})
-  second.behavior.quiesce = true
   await second.process.replace(sha)
   assert.equal(second.process.snapshot().currentVersionId, sha)
+  await exchangeMutex.runExclusive(() => {})
 })
 
 test('exchange retains actual request completion and OS/pipe close before the next generation', async t => {
@@ -143,28 +142,25 @@ test('exchange retains actual request completion and OS/pipe close before the ne
   assert.equal(record.currentVersionId, sha); assert.equal(record.previousVersionId, null)
 })
 
-test('failed quiesce resumes the original writer and issues no new child', async t => {
+test('a refused quiesce cannot veto: the old child is stopped and the candidate restores without handoff', async t => {
   const f = await fixture(t); await f.process.start()
   f.behavior.quiesce = false
-  await assert.rejects(f.process.replace(sha), /QUIESCE_FAILED/)
-  assert.equal(f.children.length, 1); assert.equal(f.children[0].exitCode, null)
-  assert.equal(f.process.snapshot().available, true)
+  await f.process.replace(sha)
+  assert.equal(f.children.length, 2); assert.notEqual(f.children[0].exitCode, null)
+  assert.equal(f.process.snapshot().available, true); assert.equal(f.process.snapshot().currentVersionId, sha)
 })
 
-test('quiesce has an outer deadline while its actual completion remains held', async t => {
+test('a quiesce past its outer deadline cannot veto: the exchange continues without handoff', async t => {
   const f = await fixture(t); await f.process.start()
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const done = deferred(); f.behavior.quiesceWait = done.promise
   const replacing = f.process.replace(sha)
   await turn()
-  const rejected = assert.rejects(replacing, /DRAIN_TIMEOUT/)
-  t.mock.timers.tick(60001); await rejected
-  assert.equal(f.children.length, 1); assert.equal(f.process.snapshot().available, true)
-  let finished = false
-  const closing = f.process.close().then(() => { finished = true })
-  await turn(); assert.equal(finished, false)
+  t.mock.timers.tick(60001)
   f.behavior.quiesceWait = null; done.resolve({ quiesced: true })
-  t.mock.timers.reset(); await closing
+  t.mock.timers.reset(); await replacing
+  assert.equal(f.children.length, 2); assert.equal(f.process.snapshot().currentVersionId, sha)
+  assert.equal(f.process.snapshot().available, true)
 })
 
 test('parent effects after child OS close hold reaped and the next writer', async t => {
@@ -293,9 +289,11 @@ test('rollback adoption alone is not success when old resume fails',async t=>{
  assert.equal(f.process.snapshot().available,false);
 })
 
-test('pre-candidate quiesce failure does not fabricate candidate diagnostics',async t=>{
- const f=await fixture(t);await f.process.start();f.behavior.quiesce=false;
- await assert.rejects(f.process.replace(sha),error=>{assert.equal(error.moduleDiagnostic,undefined);assert.equal(f.children.length,1);return true});
+test('a stopped module is replaceable: the update is how a broken version gets fixed', async t => {
+  const f = await fixture(t); await f.process.start()
+  f.reap(f.children[0]); await turn()
+  await f.process.replace(sha)
+  assert.equal(f.process.snapshot().currentVersionId, sha); assert.equal(f.process.snapshot().available, true)
 })
 
 

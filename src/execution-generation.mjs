@@ -124,6 +124,8 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
   }
   // Cleanup only: an engine that refused the handover finishes its own accepted turns, then stops; it drains only its own work, not the whole generation's.
   const retireUnreleased = async old => {
+    // An engine that never became ready has no work of its own to finish.
+    if (!old.ready) { await within(Promise.resolve().then(() => old.engine.disconnect()), 5000, 'CLEANUP_UNCONFIRMED').catch(() => {}); return }
     while (!closed) {
       try {
         if ((await old.engine.control('quiesce', { timeoutMs: 60_000 }))?.quiesced === true
@@ -138,9 +140,9 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
     try { await saving }
     finally { await (saving?.completion ?? saving) }
   }
+  // Exchanges and recovery take turns instead of refusing each other (Owner 2026-11-08).
   const exclusive = action => {
-    if (operation) return Promise.reject(fail('UPDATE_IN_PROGRESS', 409))
-    const pending = Promise.resolve().then(action)
+    const pending = (operation ?? Promise.resolve()).catch(() => {}).then(action)
     operation = pending
     void pending.finally(() => { if (operation === pending) operation = null }).catch(() => {})
     return pending
@@ -173,7 +175,8 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
   const replace = (requested, { expectedRelease } = {}) => {
     const versionId = requested === 'builtin' ? null : requested
     if (requested !== 'builtin' && (requested === null || !valid(versionId))) return Promise.reject(fail('VERSION_INVALID', 400))
-    if (!available || closed || reservation && !startingReservation) return Promise.reject(fail('NOT_ACCEPTING'))
+    // A stopped engine is replaceable too: the update is how a broken version gets fixed.
+    if (closed || reservation && !startingReservation) return Promise.reject(fail('NOT_ACCEPTING'))
     const expected = expectedRelease ? structuredClone(expectedRelease) : undefined
     return exchange(async () => {
       const nextFactory = await load(versionId, { expectedRelease: expected })
@@ -191,10 +194,10 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
         handoff = null
       }
       // From this point the retired instance is never resumed.
-      recoveryState = { factory: old.factory, handoff, selection: oldSelection }
+      recoveryState = { factory: old?.factory ?? nextFactory, handoff, selection: oldSelection }
       if (!handoff) {
-        old.retiring = true; readable = null
-        void retireUnreleased(old)
+        readable = null
+        if (old) { old.retiring = true; void retireUnreleased(old) }
       } else if (!handoff.released?.then) {
         try { await dispose(old) } catch (error) { state('unavailable'); throw error }
         readable = null
@@ -244,8 +247,8 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
   }
   const reserve = (requested, options = {}) => {
     if (requested !== 'builtin' && !valid(requested) || requested === null) throw fail('VERSION_INVALID', 400)
-    requireCurrent()
-    if (operation || reservation) throw fail('UPDATE_IN_PROGRESS', 409)
+    if (closed) throw fail('NOT_ACCEPTING')
+    if (reservation) throw fail('UPDATE_IN_PROGRESS', 409)
     const ticket = {}, record = { versionId: requested, status: 'accepted' }
     reservation = ticket; update = record; state(phase, available)
     const expected = options.expectedRelease ? { expectedRelease: structuredClone(options.expectedRelease) } : undefined

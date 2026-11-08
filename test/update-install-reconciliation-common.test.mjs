@@ -115,7 +115,8 @@ test('inspection HTTP is Owner-only, closed, and GET only projects saved state',
   const before = { ...f.calls }
   assert.deepEqual(await (await fetch(url, { headers })).json(), value)
   assert.deepEqual(f.calls, before)
-  await assert.rejects(f.executor().plan({ scope: 'component', componentId: 'execution' }), { code: 'MODULE_EXCHANGE_BUSY' })
+  // An unknown install blocks a second exchange; planning itself is never refused.
+  assert.throws(() => f.executor().reserveExchange(), { code: 'MODULE_EXCHANGE_BUSY' })
 })
 
 test('same-ID close persists proof before RPC and fence before excluding busy, keeping original unknown', async t => {

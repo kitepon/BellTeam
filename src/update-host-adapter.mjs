@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { mkdir, readFile, readdir, open, link, unlink } from 'node:fs/promises'
+import { mkdir, readFile, open, link, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import { validateUpdates, validateUpdateRequest, validateUpdateResponse } from './update-center-contract.mjs'
 const failure = (code, status = 503) => Object.assign(new Error(code), { code, status })
@@ -26,8 +26,6 @@ export function createHostUpdateAdapter({ root, client }) {
   const save = async (plan, catalogSha256) => {
     validateUpdateResponse('plan', { plan })
     await mkdir(directory, { recursive: true, mode: 0o700 })
-    // shortcut: retain at most 4096 immutable plans; add an archive before increasing this bound.
-    requireValue((await readdir(directory)).length < 4096, 'UPDATE_PLAN_CAPACITY')
     const temporary = join(directory, randomUUID() + '.tmp'), target = join(directory, plan.planId + '.json')
     const file = await open(temporary, 'wx', 0o600)
     try { await file.writeFile(JSON.stringify({ plan, catalogSha256 }) + '\n'); await file.sync() } finally { await file.close() }
@@ -65,6 +63,7 @@ export function createHostUpdateAdapter({ root, client }) {
   }
   return {
     operation,
+    checkCatalog: () => client.checkCatalog(),
     job: id => client.job(id),
     updateJob: input => client.updateJob(input),
     async admitJob({ planId, jobId, idempotencyKey }) {

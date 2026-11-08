@@ -128,3 +128,37 @@ flowchart LR
 ```
 
 Compatibility: additive only. Released Apple (Codable ignores unknown keys) and Web (`validUpdateInventory` checks consumed keys only) keep working; `jobs[]` stays unchanged for 詳細 and old clients. New clients must treat a missing `status` (older server) by falling back to their current rendering. SSE is unchanged (it still triggers GET).
+
+## Update-path guard sweep (Owner 2026-11-08: "ハッシュで確認してるんだから止める必要ない")
+
+Rule: signature/hash verification stays; a stop, refusal or wait stays only with a named protection and a self-exit (guards.*). Unnamed ones are removed, not tuned.
+
+| Removed (file) | Was | Now |
+| --- | --- | --- |
+| module-process `replace` drain/quiesce/export failure | old module timed out or refused, was resumed, and the job failed | old child is stopped like a crash (exit, then SIGKILL after 5 s); the candidate launches with no handoff and restores from durable state, the same path as after an unexpected exit |
+| module-process / execution-generation `replace` and `reserve` when unavailable or never started | NOT_ACCEPTING: a broken version could never be updated | replaceable; a missing or dead old instance is skipped. On success the module is initialized |
+| module-process / execution-generation `exclusive` and `reserve` while recovery or another operation runs | UPDATE_IN_PROGRESS 409 | turns queue; the reservation itself (two exchanges at once) still refuses and exits when its completion settles |
+| update-module-executor `checkCurrent`, apply re-check, plan | refused when the adapter was unavailable | only a changed current/generation refuses (wrong target) |
+| update-module-executor `plan` during an exchange or an unknown Host install | MODULE_EXCHANGE_BUSY 409 | planning always answers; `start`/`reserveExchange` still refuse a second exchange, which exits when the first settles or its Host result becomes known |
+| update-module-executor plan TTL (now+10 min) | plans expired after 10 min | expiry = catalog / Host plan expiry; a catalog-free rollback plan gets 24 h only to bound storage; start re-checks current and publication |
+| update-module-executor ledger write fault | sticky: every later operation refused until process restart | notice only; the next save rewrites the whole ledger atomically and clears it |
+| update-module-executor ledger capacity (4096 / 16 MiB at save and load) | permanent refusal, and a ledger over the bound was unloadable | cleanup instead: over 1000 operations, the oldest completed/failed go first (each component's latest completed one stays for rollback; unknown stays), then expired unused plans |
+| update-host-adapter plan capacity (4096 files) | permanent refusal of container plans | removed |
+| update-module-executor inventory `moduleInstallCapabilities` throw | an unreachable Host failed the whole inventory | only the offered rows show HOST_MODULE_INSTALL_UNAVAILABLE |
+| update-center `checkCatalog` | refreshed only the module Host store; the container row waited for a 30 min timer | refreshes both stores at once (section below) |
+
+Kept, each with its protection and exit: signature/hash/trust (catalog, sigstore attestation, archive and per-file SHA, receipt/fence hashes); wrong target (plan-current/generation binding, requestId/job binding, entry/source/arch); path safety (no-follow, owner/mode, safe tar paths); state compatibility (data loss); one exchange at a time (exchange mutex/reservation, exits when the exchange settles); no replay of unknown results (exits by reading the same request); Owner authorization; explicit container-restart consent; request-shape validation. Waits are bounded (socket 5 s, catalog check 360 s, init/ready 45 s, handover 70 s) or end on the awaited work.
+
+Activation: every file above is body code, so these take effect at the next approved body swap.
+
+### Catalog check reaches both Host stores (2026-11-08)
+
+Found at the final-modularization swap: module rows read `/run/bellteam-updater/update.sock` and the container row reads `/run/bellteam-container-updater/update.sock`, each with its own catalog store. `POST /api/updates/catalog-check` only refreshed the module store, so the container row waited for its 30 min `bellteam-update-catalog-refresh.timer`. Now `updateCenter.checkCatalog` calls `moduleCatalog.checkCatalog` and `host.checkCatalog` (update-host-adapter → container client `checkCatalog`) together and returns the module result as before (`{publication}` unchanged). A failed container check does not fail the response; that row shows its own publication status.
+
+```mermaid
+flowchart LR
+  POST[POST /api/updates/catalog-check] --> Center[updateCenter.checkCatalog]
+  Center --> M[moduleCatalog → module socket store]
+  Center --> H[host adapter → container socket store]
+  M --> Resp["200 {publication} (module result)"]
+```

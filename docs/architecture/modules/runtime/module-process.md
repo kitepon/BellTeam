@@ -188,6 +188,8 @@ flowchart LR
 
 ## 旧exit前のdrain timeout
 
+**Superseded 2026-11-08** by [the old module cannot veto its replacement](#the-old-module-cannot-veto-its-replacement-owner-2026-11-08): DRAIN_TIMEOUT no longer resumes the old child or fails the update, so this diagnostic is no longer attached. The validator still accepts saved drain-v1 rows.
+
 更新のDRAIN_TIMEOUTだけ既error.moduleDiagnosticへ`bellteam.module-drain-diagnostic.v1`を付ける。schema/component/stage/runnerActive/admissionActive/admissionClosed/admissionUnconfirmedの閉7key・1024 bytes以内。stageはparent_drain/child_quiesce/handoff。activeは非負safe整数又は欠測null、boolも欠測null可。既admission.snapshotからactive/closed/unconfirmedだけを選び、generation/lease/correlation・自由error・本文・stackを含めない。snapshot失敗は欠測にし、元error/code/60秒/旧resume/非再送を変えない。
 
 診断は旧resumeの前に捕捉し、親は既private step.runtimeDiagnosticへ保存する。validateModuleExchangeDiagnosticは旧exchange-v1又は新drain-v1の閉variantだけを許可し、既7key exchangeの検査と過去field無しledgerを維持。公開Operation DTOへ追加しない。現在の本番f3f098bbの段階/activeを新sourceから後付けせず、元欠測を保持する。
@@ -253,3 +255,18 @@ N102正式channel.control('quiesceWriter',{},60000)はexact {writerQuiesced:true
 
 
 The 2026-11-07 durable job / real readiness / restart-limit contract is canonical in [update-jobs.md](update-jobs.md). It supersedes unknown-as-job-state and worker-bound-only acceptance text for new jobs. Legacy historical receipts remain unchanged.
+
+## The old module cannot veto its replacement (Owner 2026-11-08)
+
+`replace`: a drain, quiesce or handoff-export failure or timeout no longer resumes the old child and fails the job. The old child is stopped like a crash (`finishExit`: exit, then SIGKILL after 5 s), and the candidate launches with `handoff: undefined`, i.e. the existing restore path used after an unexpected exit (durable state). Only a candidate `prepare` failure still resumes the old child, because nothing was replaced. A stopped or never-started module is replaceable (no `available`/`initialized` precondition; a missing or ended old child is skipped); success sets `initialized`. `exclusive` queues behind recovery instead of answering UPDATE_IN_PROGRESS; `reserve` refuses only a second reservation (two exchanges at once), which exits when that reservation's completion settles. The `moduleDrainDiagnostic` on DRAIN_TIMEOUT is gone with the refusal it explained. Sweep table: [update-jobs.md](../integration/update-jobs.md#update-path-guard-sweep-owner-2026-11-08-ハッシュで確認してるんだから止める必要ない).
+
+```mermaid
+flowchart LR
+  R[replace version] --> P[prepare candidate]
+  P -->|fail| Old[old resumed, error]
+  P --> D[drain + quiesce + export, bounded]
+  D -->|ok| H[launch with handoff]
+  D -->|refused / timeout / no old| K[stop old like a crash] --> C[launch restore, no handoff]
+  H --> A[adopt + resume]
+  C --> A
+```
