@@ -71,6 +71,15 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
     globalWriting = task
     return task
   }
+  // A new generation may carry a new common template; parent's ready probe (owner.read) is its first leased request.
+  let generationRender = null, renderReported = false
+  const renderForGeneration = () => generationRender ??= refreshGlobalInstructions().catch(async error => {
+    generationRender = null // Retry on the next owner.read; a read-pinned one may precede the leased probe.
+    const code = error?.code
+    if (renderReported || code === 'MEMBERS_EFFECT_UNSUPPORTED') return
+    renderReported = true
+    try { await diagnostic({ code: 'MEMBERS_GLOBAL_INSTRUCTIONS_FAILED', module: 'members', diagnostic_log: /^[A-Z_0-9]{1,100}$/.test(code ?? '') ? code : 'UNKNOWN' }) } catch { /* Keep members available. */ }
+  })
   async function writeGlobal() {
     const common = await readFile(new URL('../../config/common-agents.md', import.meta.url), 'utf8')
     await call('global.writeInstructions', { body: renderGlobalInstructions(await ownerProfile.restore(), await userRules.restore(), common) })
@@ -129,7 +138,7 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
       case 'profile.session': return { bot: await bots.updateSession(params.botId, params.session) }
       case 'profile.fastMode': return { bot: await bots.updateFastMode(params.botId, params.fastMode) }
       case 'removals.read': return bots.readRemovalStates()
-      case 'owner.read': return { owner: await ownerProfile.restore() }
+      case 'owner.read': await renderForGeneration(); return { owner: await ownerProfile.restore() }
       case 'owner.update': {
         const owner = await saveOwner(() => ownerProfile.update(params.changes))
         await refreshGlobalInstructions()
