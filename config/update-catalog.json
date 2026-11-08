@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T07:18:16Z",
-  "expiresAt": "2026-11-15T07:18:16Z",
+  "publishedAt": "2026-11-08T07:21:51Z",
+  "expiresAt": "2026-11-15T07:21:51Z",
   "releases": [
     {
       "componentId": "usage",
@@ -489,8 +489,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "02800c5df3351b2b13c3aad19809b0fc456b03d5",
-      "versionId": "3812e3576bb11602f06af19b0ffbe4c329666519d7e5f8bd422a006bc0814d03",
+      "sourceCommit": "68521582f5407edb6146f135e34e0179838430a0",
+      "versionId": "6daa3380dd72b1ad4b2faa23da2201f7f6699ee4860a26916ea3677b4f151df6",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -498,16 +498,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T044440Z/execution-02800c5df3351b2b13c3aad19809b0fc456b03d5-linux-amd64.tar.gz",
-          "bytes": 3923260,
-          "sha256": "3812e3576bb11602f06af19b0ffbe4c329666519d7e5f8bd422a006bc0814d03"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T065148Z/execution-68521582f5407edb6146f135e34e0179838430a0-linux-amd64.tar.gz",
+          "bytes": 3923909,
+          "sha256": "6daa3380dd72b1ad4b2faa23da2201f7f6699ee4860a26916ea3677b4f151df6"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T044440Z/execution-02800c5df3351b2b13c3aad19809b0fc456b03d5-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10848,
-          "sha256": "36917949ff9c2760e869a41a8f722fc24dbcf6545e2cf4c691947e028cfb982e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T065148Z/execution-68521582f5407edb6146f135e34e0179838430a0-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10942,
+          "sha256": "a9090ca2ace6cd8115d85b9911bf738013c5d7ffb1419dd2b4afe8693bc90301"
         },
-        "signerCommit": "02800c5df3351b2b13c3aad19809b0fc456b03d5"
+        "signerCommit": "68521582f5407edb6146f135e34e0179838430a0"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -517,13 +517,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "採用済み修理をモジュール単独更新で適用します。"
+        "入力IDに対応する記録から応答を確認し、別の入力との取り違えを防ぎます。失敗時はaitermのエラーコードを保ちます。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "02800c5df3351b2b13c3aad19809b0fc456b03d5",
-      "versionId": "9404ca5598ef410ff069ca06b3a3f77cb6df87ddeaf493dd096741cb2eac0e12",
+      "sourceCommit": "68521582f5407edb6146f135e34e0179838430a0",
+      "versionId": "c348efde940d25e0353d5d14abe1b2fc614e278f4fe628b77100d6a0ce1c2b9f",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -531,16 +531,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T044440Z/execution-02800c5df3351b2b13c3aad19809b0fc456b03d5-linux-arm64.tar.gz",
-          "bytes": 3923259,
-          "sha256": "9404ca5598ef410ff069ca06b3a3f77cb6df87ddeaf493dd096741cb2eac0e12"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T065148Z/execution-68521582f5407edb6146f135e34e0179838430a0-linux-arm64.tar.gz",
+          "bytes": 3923912,
+          "sha256": "c348efde940d25e0353d5d14abe1b2fc614e278f4fe628b77100d6a0ce1c2b9f"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T044440Z/execution-02800c5df3351b2b13c3aad19809b0fc456b03d5-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10801,
-          "sha256": "a5a69bf827eb941bfce888466f1b84f841473bb0db662f2ca0164e1d8ed1b480"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T065148Z/execution-68521582f5407edb6146f135e34e0179838430a0-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11020,
+          "sha256": "4b2935768067c91be74505d148618538ac12e049546dbf8c5164b814bd024a9d"
         },
-        "signerCommit": "02800c5df3351b2b13c3aad19809b0fc456b03d5"
+        "signerCommit": "68521582f5407edb6146f135e34e0179838430a0"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -550,7 +550,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "採用済み修理をモジュール単独更新で適用します。"
+        "入力IDに対応する記録から応答を確認し、別の入力との取り違えを防ぎます。失敗時はaitermのエラーコードを保ちます。"
       ]
     },
     {
