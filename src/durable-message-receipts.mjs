@@ -151,8 +151,11 @@ export class DurableMessageReceipts extends BellTeamMessenger {
       const saved = latest?.delivery
       // A saved failed status stays failed only when Aiterm's typed frame proves the input never started, so the
       // history shows undelivered; an unproven failure after invocation stays unknown and is never replayed.
-      const unsent = saved === 'failed' && returnedExecutionError(error?.executionError)?.effect === 'not_started'
-      const delivery = !observed && error?.effect === 'not_started' ? 'queued'
+      const executionError = returnedExecutionError(error?.executionError)
+      const staleTerminal = !observed && saved === 'failed' && executionError?.code === 'EXECUTION_STALE_GENERATION'
+        && executionError.effect === 'not_started'
+      const unsent = saved === 'failed' && executionError?.effect === 'not_started'
+      const delivery = staleTerminal ? 'queued' : !observed && error?.effect === 'not_started' ? 'queued'
         : unsent || (observed && saved !== 'dispatching') ? saved : 'unknown'
       if (latest?.delivery !== delivery) await this.appendDeliveryStatus(deliveryId, delivery)
       if (delivery !== 'queued') this.executionSources.delete(deliveryId)
