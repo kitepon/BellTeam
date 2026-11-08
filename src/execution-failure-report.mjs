@@ -31,8 +31,10 @@ export function executionFailureReport(botId, phase, error, context = {}) {
   }
   if (phase === 'configuration') {
     detail.failure = diagnosticFailureDetails(error)
-    if (configurationCodes.has(error?.code)) detail.failure.error_code = error.code
-    if (configurationCodes.has(error?.cause?.code)) detail.failure.cause_code = error.cause.code
+    // Any internal code token names the cause (wait-contract.md); free messages stay out.
+    const token = value => typeof value === 'string' && /^[A-Z][A-Z0-9_]{0,99}$/u.test(value)
+    if (configurationCodes.has(error?.code) || token(error?.code)) detail.failure.error_code = error.code
+    if (configurationCodes.has(error?.cause?.code) || token(error?.cause?.code)) detail.failure.cause_code = error.cause.code
     const configuration = configurationRequestFailure(error)
     if (configuration) {
       try { detail.configuration_request = configurationBinding(configuration.binding) } catch { /* Invalid supplemental data is not diagnostic evidence. */ }

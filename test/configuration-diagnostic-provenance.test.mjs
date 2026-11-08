@@ -69,3 +69,11 @@ test('configuration provenance rejects unsafe supplemental fields without changi
   const wait = JSON.parse(executionFailureReport('bot-synthetic', 'seat_watch', error).diagnostic_log)
   assert.deepEqual(wait, { schema: 'bellteam.execution-failure.v1', botId: 'bot-synthetic', phase: 'seat_watch' })
 })
+
+test('configuration failure keeps an internal code token as its cause (b5159a79)', () => {
+  const error = Object.assign(Error('free private words'), { code: 'CONFIGURATION_SEAT_BUSY', effect: 'not_started',
+    cause: Object.assign(Error('x'), { code: 'AGENT_SESSION_REQUIRED' }) })
+  const detail = JSON.parse(executionFailureReport('bot-synthetic', 'configuration', error).diagnostic_log)
+  assert.deepEqual(detail.failure, { error_type: 'Error', error_code: 'CONFIGURATION_SEAT_BUSY', cause_code: 'AGENT_SESSION_REQUIRED' })
+  assert.doesNotMatch(JSON.stringify(detail), /free private words/)
+})
