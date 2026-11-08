@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T21:48:48Z",
-  "expiresAt": "2026-11-15T21:48:48Z",
+  "publishedAt": "2026-11-08T21:58:18Z",
+  "expiresAt": "2026-11-15T21:58:18Z",
   "releases": [
     {
       "componentId": "usage",
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "481e8d18825679a119f39e81ee7789a55e616960",
-      "versionId": "sha256:a887931714369d2e7b6d28026c08e05f0bf6edbbc1b69ae1508e446451ac525d",
+      "sourceCommit": "14c55b549c7d762946d891303ade2e3bdb735d8e",
+      "versionId": "sha256:c5f38a2e5891e25a9fa809102c44d99abcc7b004fef600e2f8ba854a5ebf4607",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a887931714369d2e7b6d28026c08e05f0bf6edbbc1b69ae1508e446451ac525d"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c5f38a2e5891e25a9fa809102c44d99abcc7b004fef600e2f8ba854a5ebf4607"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,21 +722,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "相関図の線に、各AIへの依頼の要約が表示されるようになります。",
-        "要約が届くまでは、これまでどおり「依頼を処理中」と表示されます。"
+        "Claudeのアカウントは使用上限だけで選ばれるようになり、アカウントを決める古い設定の受け口を外します。",
+        "AIをつなぐ部品（aiterm-mcp）を0.64.2にします。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "481e8d18825679a119f39e81ee7789a55e616960",
-      "versionId": "sha256:a887931714369d2e7b6d28026c08e05f0bf6edbbc1b69ae1508e446451ac525d",
+      "sourceCommit": "14c55b549c7d762946d891303ade2e3bdb735d8e",
+      "versionId": "sha256:c5f38a2e5891e25a9fa809102c44d99abcc7b004fef600e2f8ba854a5ebf4607",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:a887931714369d2e7b6d28026c08e05f0bf6edbbc1b69ae1508e446451ac525d"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c5f38a2e5891e25a9fa809102c44d99abcc7b004fef600e2f8ba854a5ebf4607"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -745,8 +745,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "相関図の線に、各AIへの依頼の要約が表示されるようになります。",
-        "要約が届くまでは、これまでどおり「依頼を処理中」と表示されます。"
+        "Claudeのアカウントは使用上限だけで選ばれるようになり、アカウントを決める古い設定の受け口を外します。",
+        "AIをつなぐ部品（aiterm-mcp）を0.64.2にします。"
       ]
     }
   ],
