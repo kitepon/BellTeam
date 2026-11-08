@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
 import test from 'node:test'
 import { createWorkGraphApi } from '../src/work-graph/http-api.mjs'
-import { createWorkGraphHub } from '../src/work-graph/hub.mjs'
+import { createWorkGraphCore } from '../src/work-graph/core.mjs'
 import { diffGraph, projectGraph } from '../src/work-graph/projection.mjs'
 
 const T0 = Date.parse('2026-11-08T10:00:00.000Z')
@@ -70,136 +70,128 @@ test('diff order: enter, update, edge-start, edge-update, edge-end, leave', () =
   assert.deepEqual(diffGraph(prev, lone).map(name).slice(-4), ['edge-end:old:c', 'edge-end:keep:b', 'member-leave:a', 'member-leave:b'])
 })
 
-// Fake ports and timers for hub and api tests.
-function rig(overrides = {}) {
-  const state = { members: [member('a'), member('b')], turns: {}, queue: [], pages: {}, time: T0, fail: new Set() }
-  const listeners = new Set(), timers = new Set()
-  const guard = name => { if (state.fail.has(name)) throw Object.assign(new Error(name), { code: name === 'turn-unsupported' ? 'EXECUTION_REQUEST_INVALID' : 'X' }) }
-  const ports = {
-    bots: { listForClient: async () => { guard('members'); return state.members } },
-    rooms: {},
-    transport: {
-      currentTurn: async id => { guard('turn'); guard('turn-unsupported'); return state.turns[id] ?? { state: 'idle', turnId: null } },
-      queueItems: async () => { guard('queue'); return state.queue },
-      watchQueue: listener => { listeners.add(listener); return () => listeners.delete(listener) },
-    },
-    messagePage: async (kind, id) => { guard('responders'); return { items: state.pages[id] ?? [] } },
-    now: () => state.time, coalesceMs: 0, leaveGraceMs: 4000,
-    setTimer: (fn, ms) => { const timer = { fn, ms }; timers.add(timer); return timer },
-    clearTimer: timer => timers.delete(timer),
-    ...overrides,
-  }
-  const settle = async () => {
-    for (let i = 0; i < 4; i++) { await new Promise(resolve => setImmediate(resolve)); for (const timer of [...timers].filter(timer => timer.ms === 0)) { timers.delete(timer); await timer.fn() } }
+// Fake provider effects for core tests.
+function rig(options = {}) {
+  const state = { members: [member('a'), member('b')], turns: {}, queue: [], pages: {}, time: T0, fail: new Set(), unsupported: false, calls: [], busy: 0, overlap: false }
+  const effect = async (method, params) => {
+    state.calls.push([method, params])
+    if (++state.busy > 1) state.overlap = true
     await new Promise(resolve => setImmediate(resolve))
+    state.busy--
+    if (state.fail.has(method)) throw Object.assign(new Error('WORK_GRAPH_EFFECT_FAILED'), { code: 'WORK_GRAPH_EFFECT_FAILED' })
+    if (method === 'members.list') return { members: state.members.map(item => ({ color: '', avatarVersion: '', deleting: false, ...item })) }
+    if (method === 'turns.read') return state.unsupported ? { unsupported: true }
+      : { turns: Object.fromEntries(params.botIds.map(id => [id, state.turns[id] ?? { state: 'idle', turnId: null }])) }
+    if (method === 'queue.read') return { items: state.queue }
+    return { items: state.pages[params.roomId] ?? [] }
   }
-  const signal = async () => { for (const listener of listeners) listener({}); await settle() }
-  return { state, ports, listeners, timers, settle, signal }
+  const core = createWorkGraphCore({ now: () => state.time, ...options })
+  return { state, effect, core, refresh: () => core.refresh(effect), snapshot: () => core.snapshot(effect),
+    count: name => state.calls.filter(([method]) => method === name).length }
 }
+const types = batch => batch.changes.map(change => change.type)
 
-test('hub: snapshot without subscribers is fresh and starts no watcher', async () => {
-  const { ports, state, listeners } = rig()
-  state.turns.a = { state: 'working', turnId: 't' }
-  const hub = createWorkGraphHub(ports)
-  const snapshot = await hub.snapshot()
+test('core: first refresh is the baseline, snapshot without baseline computes one', async () => {
+  const x = rig()
+  x.state.turns.a = { state: 'working', turnId: 't' }
+  assert.deepEqual(await x.refresh(), { batch: null, nextRefreshMs: null })
+  const y = rig()
+  y.state.turns.a = { state: 'working', turnId: 't' }
+  const snapshot = await y.snapshot()
   assert.equal(snapshot.schema, 'bellteam.work-graph.v1')
   assert.equal(snapshot.version, 0)
-  assert.deepEqual([snapshot.nodes.map(node => node.botId), snapshot.degraded, listeners.size], [['a'], [], 0])
+  assert.deepEqual([snapshot.nodes.map(node => node.botId), snapshot.degraded], [['a'], []])
+  assert.equal(y.count('members.list'), 1)
+  await y.snapshot()
+  assert.equal(y.count('members.list'), 1)
+  assert.equal((await y.refresh()).batch, null)
 })
 
-test('hub: batches bump version by one, in README order, from watchers', async () => {
-  const { ports, state, signal, settle, listeners } = rig()
-  const hub = createWorkGraphHub(ports)
-  const batches = []
-  const stop = hub.subscribe(batch => batches.push(batch))
-  await settle()
-  assert.equal(listeners.size, 1)
-  assert.equal((await hub.snapshot()).version, 0)
-  state.turns.a = { state: 'working', turnId: 't' }
-  state.queue = [job()]
-  await signal()
-  assert.deepEqual(batches.map(batch => [batch.epoch === hub.epoch, batch.version, batch.changes.map(change => change.type)]),
-    [[true, 1, ['member-enter', 'member-enter', 'edge-start']]])
-  await signal()
-  assert.equal(batches.length, 1)
-  state.queue = []
-  await signal()
-  assert.deepEqual(batches[1].changes.map(change => change.type), ['edge-end'])
-  assert.equal(batches[1].version, 2)
-  stop()
-  assert.equal(listeners.size, 0)
+test('core: batches bump version by one, in README order', async () => {
+  const x = rig()
+  await x.refresh()
+  assert.equal((await x.snapshot()).version, 0)
+  x.state.turns.a = { state: 'working', turnId: 't' }
+  x.state.queue = [job()]
+  const { batch } = await x.refresh()
+  assert.deepEqual([batch.epoch === x.core.epoch, batch.version, types(batch)], [true, 1, ['member-enter', 'member-enter', 'edge-start']])
+  assert.equal((await x.refresh()).batch, null)
+  x.state.queue = []
+  const second = (await x.refresh()).batch
+  assert.deepEqual([second.version, types(second)], [2, ['edge-end']])
+  assert.equal((await x.snapshot()).version, 2)
 })
 
-test('hub: leave grace via scheduled recompute', async () => {
-  const { ports, state, signal, settle, timers } = rig()
-  const hub = createWorkGraphHub(ports)
-  const batches = []
-  hub.subscribe(batch => batches.push(batch))
-  await settle()
-  state.turns.a = { state: 'working', turnId: 't' }
-  await signal()
-  state.turns.a = { state: 'idle', turnId: null }
-  state.time += 1000
-  await signal()
-  assert.equal(batches.length, 1)
-  assert.equal([...timers].some(timer => timer.ms === 4000), true)
-  state.time += 4000
-  const [grace] = [...timers]
-  timers.delete(grace); grace.fn()
-  await settle()
-  assert.deepEqual(batches.at(-1).changes, [{ type: 'member-leave', botId: 'a' }])
+test('core: leave grace is reported as nextRefreshMs, then member-leave', async () => {
+  const x = rig()
+  await x.refresh()
+  x.state.turns.a = { state: 'working', turnId: 't' }
+  await x.refresh()
+  x.state.turns.a = { state: 'idle', turnId: null }
+  x.state.time += 1000
+  assert.deepEqual(await x.refresh(), { batch: null, nextRefreshMs: 4000 })
+  x.state.time += 4000
+  const { batch, nextRefreshMs } = await x.refresh()
+  assert.deepEqual([batch.changes, nextRefreshMs], [[{ type: 'member-leave', botId: 'a' }], null])
 })
 
-test('hub: room edges need a final responder list, cached per message', async () => {
-  const { ports, state, signal, settle } = rig()
-  state.queue = [job({ context: 'room', contextId: 'room', groupId: 'm1' })]
-  state.pages.room = [{ id: 'm1', routing: { status: 'pending', responders: [] } }]
-  let reads = 0
-  const read = ports.messagePage
-  ports.messagePage = async (...args) => { reads++; return read(...args) }
-  const hub = createWorkGraphHub(ports)
-  const batches = []
-  hub.subscribe(batch => batches.push(batch))
-  await settle()
-  assert.equal((await hub.snapshot()).edges.length, 0)
-  reads = 0
-  state.pages.room = [{ id: 'm1', routing: { status: 'ready', responders: ['b'] } }]
-  await signal()
-  await signal()
-  assert.deepEqual(batches.map(batch => batch.changes.map(change => change.type)), [['member-enter', 'member-enter', 'edge-start']])
-  assert.equal(reads, 1)
+test('core: room edges need a final responder list, cached per message', async () => {
+  const x = rig()
+  x.state.queue = [job({ context: 'room', contextId: 'room', groupId: 'm1' })]
+  x.state.pages.room = [{ id: 'm1', routing: { status: 'pending', responders: [] } }, { id: 'm2', routing: null }]
+  await x.refresh()
+  assert.equal((await x.snapshot()).edges.length, 0)
+  x.state.pages.room = [{ id: 'm1', routing: { status: 'ready', responders: ['b'] } }]
+  assert.deepEqual(types((await x.refresh()).batch), ['member-enter', 'member-enter', 'edge-start'])
+  const reads = x.count('room.messages')
+  await x.refresh()
+  assert.equal(x.count('room.messages'), reads)
+  assert.deepEqual(x.state.calls.find(([method]) => method === 'room.messages')[1], { roomId: 'room' })
 })
 
-test('hub: failing sources keep last good data and report degraded, then recover', async () => {
-  const { ports, state, signal, settle } = rig()
-  state.turns.a = { state: 'working', turnId: 't' }
-  const hub = createWorkGraphHub(ports)
-  const batches = []
-  hub.subscribe(batch => batches.push(batch))
-  await settle()
-  assert.equal((await hub.snapshot()).nodes.length, 1)
-  state.fail.add('turn'); state.fail.add('queue'); state.fail.add('members')
-  state.members = []
-  await signal()
-  assert.deepEqual(batches.at(-1).degraded, ['members', 'queue', 'turn'].sort())
-  assert.deepEqual(batches.at(-1).changes, [])
-  assert.equal((await hub.snapshot()).nodes.length, 1)
-  state.fail.clear()
-  state.members = [member('a')]
-  await signal()
-  assert.deepEqual(batches.at(-1).degraded, [])
-  const responders = rig()
-  responders.state.fail.add('responders')
-  responders.state.queue = [job({ context: 'room', contextId: 'room', groupId: 'm1' })]
-  assert.deepEqual((await createWorkGraphHub(responders.ports).snapshot()).degraded, ['responders'])
+test('core: failing sources keep last good data and report degraded, then recover', async () => {
+  const x = rig()
+  x.state.turns.a = { state: 'working', turnId: 't' }
+  await x.refresh()
+  x.state.fail.add('turns.read'); x.state.fail.add('queue.read'); x.state.fail.add('members.list')
+  x.state.members = []
+  const { batch } = await x.refresh()
+  assert.deepEqual([batch.degraded, batch.changes], [['members', 'queue', 'turn'], []])
+  assert.equal((await x.snapshot()).nodes.length, 1)
+  x.state.fail.clear()
+  x.state.members = [member('a')]
+  assert.deepEqual((await x.refresh()).batch.degraded, [])
+  const y = rig()
+  y.state.fail.add('room.messages')
+  y.state.queue = [job({ context: 'room', contextId: 'room', groupId: 'm1' })]
+  assert.deepEqual((await y.snapshot()).degraded, ['responders'])
 })
 
-test('hub: old engine reports turn-unsupported and shows linked nodes only', async () => {
-  const { ports, state } = rig()
-  state.fail.add('turn-unsupported')
-  state.queue = [job()]
-  const snapshot = await createWorkGraphHub(ports).snapshot()
+test('core: old engine reports turn-unsupported and shows linked nodes only', async () => {
+  const x = rig()
+  x.state.unsupported = true
+  x.state.queue = [job()]
+  const snapshot = await x.snapshot()
   assert.deepEqual([snapshot.degraded, snapshot.nodes.map(node => node.state)], [['turn-unsupported'], ['linked', 'linked']])
+})
+
+test('core: turns.read covers non-deleting members in chunks of 200', async () => {
+  const x = rig()
+  x.state.members = [...Array.from({ length: 450 }, (_, i) => member(`m${i}`)), member('gone', { deleting: true })]
+  await x.refresh()
+  const reads = x.state.calls.filter(([method]) => method === 'turns.read').map(([, params]) => params.botIds)
+  assert.deepEqual(reads.map(ids => ids.length).sort((a, b) => a - b), [50, 200, 200])
+  assert.equal(reads.flat().includes('gone'), false)
+  const none = rig()
+  none.state.members = []
+  await none.refresh()
+  assert.equal(none.count('turns.read'), 0)
+})
+
+test('core: concurrent calls never interleave their effects', async () => {
+  const x = rig()
+  await Promise.all([x.refresh(), x.snapshot(), x.refresh(), x.snapshot()])
+  assert.equal(x.state.overlap, false)
 })
 
 function fakeConnection(method = 'GET') {
@@ -209,35 +201,75 @@ function fakeConnection(method = 'GET') {
   return { request, response, chunks }
 }
 
-test('http-api: routes, auth and SSE framing', async () => {
-  const { ports, state, signal, settle } = rig()
-  const api = createWorkGraphApi({ ...ports, heartbeatMs: 1e9 })
-  const call = async (path, method, internalApi = api) => {
-    const { request, response, chunks } = fakeConnection(method)
-    const result = await internalApi(request, response, new URL(path, 'http://x'))
-    return { request, response, chunks, result }
-  }
-  assert.equal((await call('/api/other')).result, false)
-  const forbidden = await call('/api/work-graph', 'GET', createWorkGraphApi({ ...ports, internal: true }))
+const snap = (version = 0) => ({ schema: 'bellteam.work-graph.v1', epoch: 'e1', version, at: '2026-11-08T10:00:00.000Z', degraded: [], nodes: [], edges: [] })
+const unavailable = () => Object.assign(new Error('WORK_GRAPH_UNAVAILABLE'), { code: 'WORK_GRAPH_UNAVAILABLE' })
+function fakeFacade(overrides = {}) {
+  const facade = { senders: new Set(), snapshot: async () => snap(), subscribe(send) { facade.senders.add(send); return () => facade.senders.delete(send) }, ...overrides }
+  return facade
+}
+const call = async (api, path, method = 'GET') => {
+  const { request, response, chunks } = fakeConnection(method)
+  const result = await api(request, response, new URL(path, 'http://x'))
+  return { request, response, chunks, result }
+}
+
+test('http-api: routes and auth', async () => {
+  const facade = fakeFacade()
+  const api = createWorkGraphApi({ facade, heartbeatMs: 1e9 })
+  assert.equal((await call(api, '/api/other')).result, false)
+  const forbidden = await call(createWorkGraphApi({ facade, internal: true }), '/api/work-graph')
   assert.deepEqual([forbidden.response.head[0], forbidden.chunks[0].includes('WORK_GRAPH_OWNER_REQUIRED')], [403, true])
-  assert.equal((await call('/api/work-graph', 'POST')).response.head[0], 405)
-  const plain = await call('/api/work-graph', 'GET')
+  assert.equal((await call(api, '/api/work-graph', 'POST')).response.head[0], 405)
+  assert.equal((await call(api, '/api/work-graph/events', 'POST')).response.head[0], 405)
+  const plain = await call(api, '/api/work-graph')
   assert.equal(plain.response.head[0], 200)
   assert.equal(JSON.parse(plain.chunks[0]).schema, 'bellteam.work-graph.v1')
+})
 
-  const sse = await call('/api/work-graph/events', 'GET')
-  assert.deepEqual([sse.response.head[0], sse.response.head[1]['content-type']], [200, 'text/event-stream'])
-  assert.match(sse.chunks[0], /^event: snapshot\ndata: \{.*"version":0.*\}\n\n$/u)
-  state.turns.a = { state: 'working', turnId: 't' }
-  await signal()
-  const frame = sse.chunks[1]
-  assert.match(frame, /^event: change\nid: [0-9a-f-]+:1\ndata: /u)
-  assert.equal(JSON.parse(frame.split('data: ')[1]).changes[0].type, 'member-enter')
-  sse.request.emit('close')
-  await settle()
-  state.turns.b = { state: 'working', turnId: 't' }
-  await signal()
-  assert.equal(sse.chunks.length, 2)
+test('http-api: SSE framing, held batches, heartbeat and close cleanup', async () => {
+  let release
+  const facade = fakeFacade({ snapshot: () => new Promise(resolve => { release = () => resolve(snap(5)) }) })
+  const api = createWorkGraphApi({ facade, heartbeatMs: 5 })
+  const { request, response, chunks } = fakeConnection()
+  const pending = api(request, response, new URL('/api/work-graph/events', 'http://x'))
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(response.head, null)
+  const batch = version => ({ epoch: 'e1', version, at: 'x', degraded: [], changes: [{ type: 'member-leave', botId: 'a' }] })
+  for (const send of facade.senders) { send(batch(5)); send(batch(6)) }
+  release()
+  await pending
+  assert.deepEqual([response.head[0], response.head[1]['content-type']], [200, 'text/event-stream'])
+  assert.match(chunks[0], /^event: snapshot\ndata: \{.*"version":5.*\}\n\n$/u)
+  assert.equal(chunks.length, 2)
+  assert.match(chunks[1], /^event: change\nid: e1:6\ndata: \{.*"version":6.*\}\n\n$/u)
+  for (const send of facade.senders) send(batch(7))
+  assert.match(chunks[2], /^event: change\nid: e1:7\n/u)
+  await new Promise(resolve => setTimeout(resolve, 20))
+  assert.equal(chunks.includes(': hb\n\n'), true)
+  request.emit('close')
+  const after = chunks.length
+  assert.equal(facade.senders.size, 0)
+  await new Promise(resolve => setTimeout(resolve, 20))
+  assert.equal(chunks.length, after)
+})
+
+test('http-api: unavailable child answers 503 JSON before any SSE header', async () => {
+  const facade = fakeFacade({ snapshot: async () => { throw unavailable() } })
+  const api = createWorkGraphApi({ facade, heartbeatMs: 1e9 })
+  for (const path of ['/api/work-graph', '/api/work-graph/events']) {
+    const result = await call(api, path)
+    assert.deepEqual([result.response.head[0], result.response.head[1]['content-type'], JSON.parse(result.chunks[0])],
+      [503, 'application/json; charset=utf-8', { error: 'WORK_GRAPH_UNAVAILABLE' }])
+  }
+  assert.equal(facade.senders.size, 0)
+})
+
+test('http-api: other facade errors are rethrown after the subscription is dropped', async () => {
+  const facade = fakeFacade({ snapshot: async () => { throw new Error('boom') } })
+  const api = createWorkGraphApi({ facade })
+  await assert.rejects(call(api, '/api/work-graph/events'), /boom/u)
+  assert.equal(facade.senders.size, 0)
+  await assert.rejects(call(api, '/api/work-graph'), /boom/u)
 })
 
 test('activeSince: a linked member that starts working begins a new span', () => {
@@ -245,22 +277,4 @@ test('activeSince: a linked member that starts working begins a new span', () =>
   const now = project({ queue: [job()], turns: { ...working('a'), b: { state: 'working', startedAt: '2026-11-08T10:00:07.000Z' } }, previous: linked, now: T0 + 9000 })
   assert.deepEqual(now.nodes.map(node => [node.botId, node.state, node.activeSince]),
     [['a', 'working', '2026-11-08T10:00:00.000Z'], ['b', 'working', '2026-11-08T10:00:07.000Z']])
-})
-
-test('hub: resubscribe during an in-flight pass still gets a full baseline snapshot', { timeout: 2000 }, async () => {
-  let release
-  const { ports, state, settle } = rig()
-  state.turns.a = { state: 'working', turnId: 't' }
-  const list = ports.bots.listForClient
-  const hub = createWorkGraphHub({ ...ports, bots: { listForClient: async () => { await new Promise(resolve => { release = resolve }); return list() } } })
-  const first = hub.subscribe(() => {})
-  await settle()
-  first()
-  const second = hub.subscribe(() => {})
-  release()
-  await settle()
-  release?.()
-  await settle()
-  assert.deepEqual((await hub.snapshot()).nodes.map(node => node.botId), ['a'])
-  second()
 })
