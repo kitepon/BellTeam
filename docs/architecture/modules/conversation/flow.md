@@ -41,7 +41,7 @@ sequenceDiagram
 | --- | --- | --- |
 | sendmessage | 送信者/宛先の確認、受付、本文/画像の保存 | notify、配送metadata、進行/回答/終了callback |
 | receiveCallBridge | 通話のsession/event/seqと受信内容の保存 | notify、通話metadata、同じ意味のcallback |
-| resumeDelivery | 保存済みfailed配送と宛先を確認し、画像bytes・通話metadataを復元 | 同じ配送IDのnotify、recoveredExecution。内容による除外は[復旧契約](delivery.md#saved-image-and-call-delivery-recovery)に従って撤去 |
+| resumeDelivery | 保存済みfailed/unknown配送と宛先を確認し、画像bytes・通話metadataを復元 | 同じ配送IDのnotify、recoveredExecution。明示操作はunknownも再送し得る。詳細は[復旧契約](delivery.md#saved-image-and-call-delivery-recovery) |
 | closeDeliveryLaunch | 同じ適用対象の検証後、未解決の起動を閉じる | 本文の再送とは別の明示操作 |
 
 直接通知の `onStatus/onInterim/onAnswer/onTurnEnd` の接続は同じ意味の重複である。notificationCallbacksで共通化した。保存の正本と型付き失敗の変換は[保存責任図](README.md#保存と実行結果の変換)へ接続する。一方、利用者の回答保存には差し込み時の回答所有と重複抑止がある。部屋には参加者別の保存形式と返信者の検証がある。見た目が似ているだけで全経路を同じ処理へまとめない。
