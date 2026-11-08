@@ -75,23 +75,14 @@ export class CapacityContinuation {
       if (slot !== context.accountLimit.slot) {
         state.accountSwitched = true
         let switched = false
-        for (;;) {
-          try {
-            await this.transport.switchAccount(this.bots.get(context.bot.id) ?? context.bot, { admissionCheck: () => guard() })
-            switched = true
-          } catch (error) {
-            // AGENT_BUSY (Aiterm keeps the seat's background work): wait and ask again; a new delivery or a settings
-            // change ends this wait through guard(). Any other refusal: not moved (production 2026-11-09 07:56 JST, Trony).
-            if (/AGENT_BUSY/u.test(`${error?.code ?? ''} ${error?.message ?? ''}`)) {
-              await new Promise(resolve => setTimeout(resolve, this.busyRetryMs ?? 30_000)); guard(); continue
-            }
-          }
-          break
-        }
+        try {
+          await this.transport.switchAccount(this.bots.get(context.bot.id) ?? context.bot, { admissionCheck: () => guard() })
+          switched = true
+        } catch { /* Not moved (paused, superseded, launch failed): the harness continuation below still applies. */ }
         if (switched) {
           context.reconfigured?.()
           guard()
-          const message = `利用上限で前の処理が終了したため、同じAIの${slot}アカウントへ切り替えて、同じ会話を再開しました。` +
+          const message = `利用上限で前の処理が終了したため、同じAIの${slot}アカウントで新しい席を起動しました。前の会話は短期記憶と手順書で引き継いでいます。` +
             `元の依頼は保存された会話履歴のdelivery_id=${context.deliveryId}です。` +
             '前の処理で実行済みの操作や結果不明の副作用を確認し、元の依頼本文や完了済みの操作を繰り返さずに続けてください。'
           const check = () => guard(message)

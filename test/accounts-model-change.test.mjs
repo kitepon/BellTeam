@@ -19,33 +19,31 @@ test('a Claude model change in place moves the seat to the slot of the new model
   assert.deepEqual(calls.at(-1), ['agent_configure', { session_id: 'bot-a', model: 'fable', reasoning_effort: 'high' }])
 })
 
-// harness-accounts.md: the switch is hibernate + a resume-only launch on the selected root; no model, effort, cwd or env.
-test('switchAccount hibernates, resumes the same session on the selected root only, and records the slot', async () => {
-  const calls = [], seats = []
-  const client = { call: async (name, args, options) => {
-    calls.push([name, args, options ?? null])
-    return name === 'agent_launch' ? { structuredContent: { schema: 'aiterm.agent-launch-result.v1', session_id: args.session_name, startup: { status: 'ready' } } }
-      : { structuredContent: { schema: 'aiterm.pty-close-result.v1', session_id: args.session_id } }
-  } }
+// harness-accounts.md: the switch starts a new seat on the selected slot and leaves the old one; no pty_close.
+test('switchAccount launches a new seat for a running member and only renames a seat that is not running', async () => {
+  const calls = [], seats = [], updates = []
+  const client = { call: async (name, args) => { calls.push([name, args]); return {} } }
   const accounts = { watch: () => () => {}, close: () => {}, state: { seats: {} }, seatSlot: () => '1st',
-    selection: async () => ({ slot: '2nd', configurationRoot: '/home/x/.bellteam-accounts/claude/2nd' }),
-    setSeat: async (botId, slot) => { seats.push([botId, slot]) } }
-  const transport = new AitermTransport({ client, accounts })
+    selection: async () => ({ slot: '2nd', configurationRoot: '/r/2nd' }), setSeat: async (botId, slot) => { seats.push([botId, slot]) } }
+  const transport = new AitermTransport({ client, accounts, updateSession: async (id, session) => { updates.push([id, session]) } })
   transport.requireMember = async () => {}
-  transport.removeRetainedImages = async () => {}
-  const bot = { id: 'bot-a', session: 'bot-a', harness: 'claude', model: 'fable', reasoningEffort: 'high', project: '/tmp' }
-  transport.sessions.set(bot.id, 'bot-a')
-  assert.deepEqual(await transport.switchAccount(bot), { botId: 'bot-a', session: 'bot-a', slot: '2nd' })
-  assert.deepEqual(calls.map(([name, args]) => [name, args]), [
-    ['pty_close', { session_id: 'bot-a', hibernate: true }],
-    ['agent_launch', { harness: 'claude-code', session_name: 'bot-a', require_existing_resume: true, configuration_root: '/home/x/.bellteam-accounts/claude/2nd' }],
-  ])
-  assert.equal(calls[1][2]?.env, undefined, 'no launch env, so no env_vars reach Aiterm')
-  assert.deepEqual(seats, [['bot-a', '2nd']])
+  const woken = []
+  transport.wakeNow = async (bot, options) => { woken.push(options.sessionName) }
+  const bot = { id: 'bot-a', session: 'bot-a', harness: 'claude', model: 'fable', project: '/tmp' }
+  transport.isRunning = async () => true
+  const moved = await transport.switchAccount(bot)
+  assert.match(moved.session, /^bot-a-2nd-[0-9a-z]+$/u); assert.equal(moved.slot, '2nd')
+  assert.deepEqual(woken, [moved.session])
+  assert.equal(calls.some(([name]) => name === 'pty_close'), false)
+  transport.isRunning = async () => false
+  const renamed = await transport.switchAccount({ ...bot, id: 'bot-b', session: 'bot-b' })
+  assert.deepEqual(woken, [moved.session], 'a seat that is not running is not launched')
+  assert.deepEqual(updates, [['bot-b', renamed.session]]); assert.equal(transport.session({ id: 'bot-b' }), renamed.session)
+  assert.deepEqual(seats, [['bot-a', '2nd'], ['bot-b', '2nd']])
 })
 
 // Production 2026-11-09 07:37 JST: after a module exchange the session map is empty; recorded seats still move.
-test('reviewAccounts moves a recorded seat the engine did not launch; a seat with no saved conversation is left alone', async () => {
+test('reviewAccounts moves a recorded seat the engine did not launch', async () => {
   const moved = []
   const accounts = { watch: () => () => {}, close: () => {}, state: { seats: { 'bot-a': '1st', 'bot-b': '1st' } },
     seatSlot: () => '1st', effectiveSlot: async () => '2nd' }
@@ -54,28 +52,4 @@ test('reviewAccounts moves a recorded seat the engine did not launch; a seat wit
   transport.moveAtBoundary = botId => moved.push(botId)
   await transport.reviewAccounts()
   assert.deepEqual(moved, ['bot-a', 'bot-b'])
-  const quiet = new AitermTransport({ client: { call: async () => ({}) }, accounts, resolveBot: id => bots[id] })
-  const lines = [], write = process.stderr.write
-  quiet.switchAccount = async () => { throw Object.assign(new Error('AGENT_RESUME_UNAVAILABLE: no saved conversation'), { code: 'AGENT_RESUME_UNAVAILABLE' }) }
-  process.stderr.write = line => { lines.push(String(line)); return true }
-  try { quiet.moveAtBoundary('bot-a'); await quiet.accountMoves.get('bot-a') } finally { process.stderr.write = write }
-  assert.deepEqual(lines.filter(line => line.includes('seat move')), [])
-})
-
-// Production 2026-11-09 07:54 JST: a hibernated seat was resumed by Aiterm from its 1st recipe; the switch resumes it on the new root.
-test('switchAccount resumes an already hibernated seat on the selected root', async () => {
-  const calls = []
-  const client = { call: async (name, args) => {
-    calls.push(name)
-    if (name === 'pty_close') throw Object.assign(new Error('AGENT_HIBERNATE_UNAVAILABLE: not_running: 席は休止していません。'), { code: 'AGENT_HIBERNATE_UNAVAILABLE' })
-    return { structuredContent: { schema: 'aiterm.agent-launch-result.v1', session_id: args.session_name, startup: { status: 'ready' } } }
-  } }
-  const seats = []
-  const accounts = { watch: () => () => {}, close: () => {}, state: { seats: {} }, seatSlot: () => '1st',
-    selection: async () => ({ slot: '2nd', configurationRoot: '/r/2nd' }), setSeat: async (id, slot) => { seats.push(slot) } }
-  const transport = new AitermTransport({ client, accounts })
-  transport.requireMember = async () => {}; transport.removeRetainedImages = async () => {}
-  const bot = { id: 'bot-h', session: 'bot-h', harness: 'claude', model: 'opus', project: '/tmp' }
-  assert.deepEqual(await transport.switchAccount(bot), { botId: 'bot-h', session: 'bot-h', slot: '2nd' })
-  assert.deepEqual(calls, ['pty_close', 'agent_launch']); assert.deepEqual(seats, ['2nd'])
 })
