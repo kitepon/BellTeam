@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { createHash, randomUUID } from 'node:crypto'
 import { setImmediate as turn } from 'node:timers/promises'
 import { ModelHandoff } from '../src/model-handoff.mjs'
-import { operationLease } from '../src/aiterm-operation-lease.mjs'
+import { operationLease } from '../src/aiterm-transport.mjs'
 import { BotAdministration } from '../src/bot-administration.mjs'
 import { configurationBinding, configurationDigest, configurationSettings } from '../src/configuration-request.mjs'
 

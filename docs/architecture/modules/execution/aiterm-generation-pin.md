@@ -6,7 +6,7 @@ An execution operation whose RPCs and child processes share generation-local val
 
 | Function | Input -> output | Pin scope |
 | --- | --- | --- |
-| `operationLease(client)` (`src/aiterm-operation-lease.mjs`) | dispatcher native -> `{ client, generation, hold(), release() }` | one `pin()`; the pin is released when the owner's `release()` and every `hold()` have ended. A client without `pin` (tests, plain AitermClient) is used as is |
+| `operationLease(client)` (`src/aiterm-transport.mjs`; the execution release is a closed 51-file set, so it lives in an existing file) | dispatcher native -> `{ client, generation, hold(), release() }` | one `pin()`; the pin is released when the owner's `release()` and every `hold()` have ended. A client without `pin` (tests, plain AitermClient) is used as is |
 | dispatcher `native.pin()` | facade lease -> lease whose `call`/`connect` keep the dispatcher's `alive()`, method allowlist and `track()` | the facade lease; `release` is forwarded |
 | `AitermTransport.submit` / `DeliveryJob.native` | job -> lease taken before dispatch | `pty_send` (`sendToSession`), `wait_process` (`waitUntilDone`), interim `pty_observe` (`followInterim`), transcript `pty_read` (`readTurnAnswer`). Released where the job leaves the registry (`activity.release`): after native completion settles. An unconfirmed native completion keeps the job and its pin |
 | `watchSeatTurns` -> `watchTurn` | one lease per scan; each started `SeatTurnWatch` holds it | `pty_list` seat-turn read, the turn's `wait_process` and interim reads. Released at `endWatch` |
