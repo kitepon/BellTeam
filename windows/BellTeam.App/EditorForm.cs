@@ -70,20 +70,25 @@ public abstract class EditorFormView : Grid, ISheetSave, IDisposable
     // The Mac alert: a title, a message and stacked buttons. Any button closes it first, then runs its action.
     protected void ShowAlert(string title, string message, params AlertChoice[] choices)
     {
+        alertLayer.Children.Clear(); alertLayer.Children.Add(AlertFrame(title, message, () => DismissPopup(), choices)); alertLayer.Visibility = Visibility.Visible;
+    }
+    // The alert card itself, also used by the schedule page's delete confirmation. Any button dismisses first, then runs its action.
+    internal static Border AlertFrame(string title, string message, Action dismiss, params AlertChoice[] choices)
+    {
         var card = new StackPanel { Width = 300 };
-        card.Children.Add(Text(title, 14, Ink, FontWeights.SemiBold, new Thickness(20, 18, 20, 0))); ((TextBlock)card.Children[0]).TextAlignment = TextAlignment.Center;
-        var detail = Text(message, 12, Ink, null, new Thickness(20, 6, 20, 16)); detail.TextAlignment = TextAlignment.Center; card.Children.Add(detail);
+        var heading = Text(title, 14, Ink, FontWeights.SemiBold, new Thickness(20, 18, 20, message.Length == 0 ? 16 : 0)); heading.TextAlignment = TextAlignment.Center; card.Children.Add(heading);
+        if (message.Length != 0) { var detail = Text(message, 12, Ink, null, new Thickness(20, 6, 20, 16)); detail.TextAlignment = TextAlignment.Center; card.Children.Add(detail); }
         foreach (var choice in choices)
         {
             var button = new Button { Content = choice.Label, Style = null, Background = Brushes.Transparent, BorderThickness = new Thickness(0, 1, 0, 0), BorderBrush = Hairline, Foreground = choice.Destructive ? Red : Violet, FontSize = 14, FontWeight = choice.Bold ? FontWeights.SemiBold : FontWeights.Normal, Padding = new Thickness(0, 11, 0, 11), Cursor = Cursors.Hand };
             button.Template = AlertTemplate();
             System.Windows.Automation.AutomationProperties.SetName(button, choice.Label);
-            button.Click += (_, _) => { DismissPopup(); choice.Click?.Invoke(); };
+            button.Click += (_, _) => { dismiss(); choice.Click?.Invoke(); };
             card.Children.Add(button);
         }
         var frame = new Border { Child = card, Background = new SolidColorBrush(Color.FromRgb(0xF6, 0xF6, 0xF8)), CornerRadius = new CornerRadius(14), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, ClipToBounds = true, Effect = new System.Windows.Media.Effects.DropShadowEffect { Opacity = .3, BlurRadius = 24, ShadowDepth = 6, Direction = 270 } };
         System.Windows.Automation.AutomationProperties.SetName(frame, title);
-        alertLayer.Children.Clear(); alertLayer.Children.Add(frame); alertLayer.Visibility = Visibility.Visible;
+        return frame;
     }
     private static ControlTemplate AlertTemplate() => (ControlTemplate)System.Windows.Markup.XamlReader.Parse(
         "<ControlTemplate xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" TargetType=\"Button\"><Border x:Name=\"Chrome\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" Background=\"{TemplateBinding Background}\" BorderBrush=\"{TemplateBinding BorderBrush}\" BorderThickness=\"{TemplateBinding BorderThickness}\" Padding=\"{TemplateBinding Padding}\"><ContentPresenter HorizontalAlignment=\"Center\"/></Border><ControlTemplate.Triggers><Trigger Property=\"IsMouseOver\" Value=\"True\"><Setter TargetName=\"Chrome\" Property=\"Background\" Value=\"#14000000\"/></Trigger></ControlTemplate.Triggers></ControlTemplate>");

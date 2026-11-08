@@ -259,6 +259,99 @@ public sealed class PlanningTests
     private static Workspace WorkspaceWithFeatures(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>? write = null) => new(origin => new BellApi(origin, new StubHandler((request, token) =>
         request.Method != HttpMethod.Get ? write!(request, token) : Task.FromResult(StubHandler.Json(request.RequestUri!.AbsolutePath switch
         { "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/bots" => ApiTests.Bots, "/api/queue" => ApiTests.EmptyQueue, "/api/rooms" => ApiTests.Rooms, "/api/owner" => ApiTests.Owner, "/api/settings" => "{\"settings\":[" + FeatureJson + "]}", _ => ApiTests.Page })))));
+    // ---- the Mac schedule page and editor (PR 9) ----
+    [Fact]
+    public void NextRunIsPrintedLikeTheMacCardAndAMissingOneIsUndecided()
+    {
+        Assert.Equal("10月14日(水) 9:00", ScheduleText.Format(new DateTime(2026, 10, 14, 9, 0, 0)));
+        Assert.Equal("11月8日(日) 18:20", ScheduleText.Format(new DateTime(2026, 11, 8, 18, 20, 0)));
+        Assert.Equal("12月1日(火) 0:05", ScheduleText.Format(new DateTime(2026, 12, 1, 0, 5, 0)));
+        Assert.Equal("次回未定", ScheduleText.Next(null));
+        Assert.Equal("次回 " + ScheduleText.Format(DateTimeOffset.Parse("2026-10-14T00:00:00Z").LocalDateTime), ScheduleText.Next("2026-10-14T00:00:00Z"));
+        Assert.Equal("次回 未定", ScheduleText.Next("not a date"));
+    }
+    [Fact]
+    public void OnlyAOneTimeScheduleGetsTheCalendarIcon()
+    {
+        var calendar = SchedulesWindow.KindGlyph("once");
+        Assert.All(new[] { "cron", "interval_days", "interval_hours" }, kind => Assert.NotEqual(calendar, SchedulesWindow.KindGlyph(kind)));
+        Assert.Equal(SchedulesWindow.KindGlyph("cron"), SchedulesWindow.KindGlyph("interval_hours"));
+    }
+    [Theory]
+    [InlineData("15 * * * *", "hourly")]
+    [InlineData("0 9 * * *", "daily")]
+    [InlineData("0 19 * * 5", "weekly")]
+    [InlineData("0 9 * * 1,3", "weekly")]
+    [InlineData("0 9 * * 1-5", "cron")]
+    [InlineData("*/5 * * * *", "cron")]
+    [InlineData("0 9 1 * *", "cron")]
+    [InlineData("0 9 * * 7", "cron")]
+    [InlineData("00 9 * * *", "cron")]
+    public void ACronExpressionOpensAsAMacRepeatOnlyWhenNothingIsLost(string expression, string frequency)
+    {
+        var draft = ScheduleDraft.From(new Schedule { Id = "a", Kind = "cron", Prompt = "確認", Expression = expression, Timezone = "Asia/Tokyo" });
+        Assert.Equal(frequency, draft.Frequency);
+        Assert.Equal(expression, draft.Payload(false, [])["expression"]);
+    }
+    private static Workspace ScheduleWorkspace(List<(string Method, string Path)> requests, HttpStatusCode write = HttpStatusCode.OK) => new(origin => new BellApi(origin, new StubHandler((request, _) =>
+    {
+        var path = request.RequestUri!.AbsolutePath;
+        if (request.Method != HttpMethod.Get) { requests.Add((request.Method.Method, path)); return Task.FromResult(write == HttpStatusCode.OK ? StubHandler.Json("{\"schedule\":" + ScheduleJson + "}") : new HttpResponseMessage(write)); }
+        return Task.FromResult(StubHandler.Json(path switch
+        {
+            "/api/session" => """{"authenticated":true,"authMode":"local"}""", "/api/bots" => ApiTests.Bots, "/api/rooms" => ApiTests.Rooms, "/api/owner" => ApiTests.Owner, "/api/queue" => ApiTests.EmptyQueue, _ => ApiTests.Page
+        }));
+    })));
+    [Fact]
+    public void TheWeeklyRepeatIsCalledMaiShuuAndStaysTheSameCronOnTheWire()
+    {
+        RunSta(() =>
+        {
+            var requests = new List<(string, string)>();
+            using var workspace = ScheduleWorkspace(requests); Await(workspace.ConnectAsync("http://localhost", listen: false));
+            var view = new ScheduleEditorView(workspace, null);
+            Assert.Equal("毎週", ScheduleEditorView.Frequencies.Single(option => option.Id == "weekly").Label);
+            Assert.DoesNotContain(Descendants<TextBlock>(view), text => text.Text == "曜日");
+            Assert.Equal(["日", "月", "火", "水", "木", "金", "土"], Descendants<System.Windows.Controls.Primitives.ToggleButton>(view).Select(toggle => System.Windows.Automation.AutomationProperties.GetName(toggle)));
+            view.Prefill(nameText: "週次", text: "確認", frequencyId: "weekly", weekdays: [1, 3]);
+            var body = view.Collect(out _);
+            Assert.Equal("cron", body["kind"]); Assert.Matches(@"^\d+ \d+ \* \* 1,3$", (string)body["expression"]!); Assert.Equal("確認", body["prompt"]); Assert.Equal(ScheduleDraft.LocalTimezone(), body["timezone"]);
+            Assert.Empty(requests); view.Dispose();
+        });
+    }
+    [Fact]
+    public void TheEditorStopsOnTheMacErrorsBeforeAnyRequestAndASaveIsSentOnce()
+    {
+        RunSta(() =>
+        {
+            var requests = new List<(string, string)>(); var closed = false;
+            using var workspace = ScheduleWorkspace(requests, HttpStatusCode.InternalServerError); Await(workspace.ConnectAsync("http://localhost", listen: false));
+            var view = new ScheduleEditorView(workspace, null) { Closer = () => closed = true };
+            view.Prefill(text: " "); Await(view.SaveAsync()); Assert.Equal("実行内容を入力してください。", view.ErrorText);
+            view.Prefill(text: "確認", frequencyId: "weekly", weekdays: []); Await(view.SaveAsync()); Assert.Equal("曜日を選んでください。", view.ErrorText);
+            Assert.Empty(requests);
+            view.Prefill(weekdays: [2]); Await(view.SaveAsync());
+            // An unknown result is shown as unknown, the sheet stays open, and nothing is sent again by itself.
+            Assert.Single(requests); Assert.Equal("POST", requests[0].Item1); Assert.StartsWith("操作の結果を確認できませんでした。", view.ErrorText); Assert.False(closed); Assert.True(view.CanSave);
+            view.Dispose();
+        });
+    }
+    [Fact]
+    public void AnExistingRoomScheduleIsPutWholeWithItsRepliersAndNoCommand()
+    {
+        RunSta(() =>
+        {
+            var requests = new List<(string, string)>(); var closed = false;
+            using var workspace = ScheduleWorkspace(requests); Await(workspace.ConnectAsync("http://localhost", listen: false));
+            var entry = new ScheduledEntry(new ChatTarget("room-work", true), "作業部屋", JsonSerializer.Deserialize<Schedule>(ScheduleJson.Replace("\"targets\":null", "\"targets\":[\"bot-bell\"]"), BellApi.Json)!);
+            var view = new ScheduleEditorView(workspace, entry) { Closer = () => closed = true };
+            var body = view.Collect(out var owner);
+            Assert.True(owner.Target.IsRoom); Assert.Equal(new[] { "bot-bell" }, body["targets"]); Assert.Equal("0 9 * * 1-5", body["expression"]); Assert.Equal("Asia/Tokyo", body["timezone"]); Assert.False(body.ContainsKey("command"));
+            Await(view.SaveAsync()); Assert.Equal(("PUT", "/api/rooms/room-work/schedules/schedule-a"), requests.Single()); Assert.True(closed);
+            view.Dispose();
+        });
+    }
+
     private static IEnumerable<T> Descendants<T>(DependencyObject root) where T : DependencyObject
     {
         if (root is T found) yield return found;

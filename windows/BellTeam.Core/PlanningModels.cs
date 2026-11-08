@@ -70,13 +70,28 @@ public sealed class ScheduleDraft
     public static ScheduleDraft From(Schedule item)
     {
         var draft = new ScheduleDraft { Name = item.Name, Action = item.Command is null ? "prompt" : "command", Content = item.Command ?? item.Prompt ?? "", Frequency = item.Kind, Enabled = item.Enabled,
-            Expression = item.Expression ?? "", Timezone = item.Timezone ?? LocalTimezone(), IntervalDays = item.IntervalDays ?? 2, IntervalHours = item.IntervalHours ?? 3,
+            Timezone = item.Timezone ?? LocalTimezone(), IntervalDays = item.IntervalDays ?? 2, IntervalHours = item.IntervalHours ?? 3,
             StartHour = item.StartHour ?? 9, EndHour = item.EndHour ?? 18, Minute = item.Minute ?? 0 };
+        if (item.Expression is { } expression) draft.Expression = expression;
         if (item.At is { } at) draft.Date = DateTimeOffset.Parse(at, CultureInfo.InvariantCulture).LocalDateTime;
         if (item.StartDate is { } start) draft.StartDate = DateTime.ParseExact(start, "yyyy-MM-dd", CultureInfo.InvariantCulture);
         if (item.Time is { } time) { var parsed = TimeOnly.ParseExact(time, "HH:mm", CultureInfo.InvariantCulture); draft.Hour = parsed.Hour; draft.Minute = parsed.Minute; }
+        if (item.Kind == "cron") ReadCron(draft, draft.Expression);
         return draft;
     }
+    // Mac populate(): a cron expression opens as 毎時・毎日・毎週 when it is exactly that shape; anything else (ranges, steps, day-of-month) stays cron so saving never rewrites it.
+    private static void ReadCron(ScheduleDraft draft, string expression)
+    {
+        var parts = expression.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length != 5 || parts[2] != "*" || parts[3] != "*" || !Plain(parts[0], 59, out var minute)) return;
+        if (parts[1] == "*" && parts[4] == "*") { draft.Frequency = "hourly"; draft.Minute = minute; return; }
+        if (!Plain(parts[1], 23, out var hour)) return;
+        if (parts[4] == "*") { draft.Frequency = "daily"; draft.Hour = hour; draft.Minute = minute; return; }
+        var days = parts[4].Split(',');
+        if (!days.All(day => Plain(day, 6, out _))) return;
+        draft.Frequency = "weekly"; draft.Hour = hour; draft.Minute = minute; draft.Weekdays = days.Select(int.Parse).ToHashSet();
+    }
+    private static bool Plain(string text, int max, out int value) => int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out value) && value <= max && value.ToString(CultureInfo.InvariantCulture) == text;
     public Dictionary<string, object?> Payload(bool room, string[] targets)
     {
         if (string.IsNullOrWhiteSpace(Content)) throw new ArgumentException("実行内容を入力してください。");
@@ -101,6 +116,15 @@ public sealed class ScheduleDraft
         }
         return body;
     }
+}
+
+// What the Mac schedule card prints: the next run as "次回 10月14日(水) 9:00" (BellDate.long), "次回未定" when the server has none, and the kind icon choice.
+public static class ScheduleText
+{
+    private const string Weekdays = "日月火水木金土";
+    public static string Format(DateTime local) => $"{local.Month}月{local.Day}日({Weekdays[(int)local.DayOfWeek]}) {local.Hour}:{local.Minute:00}";
+    public static string Next(string? nextRunAt) => nextRunAt is null ? "次回未定" : "次回 " + (DateTimeOffset.TryParse(nextRunAt, CultureInfo.InvariantCulture, DateTimeStyles.None, out var at) ? Format(at.LocalDateTime) : "未定");
+    public static bool IsOneTime(string kind) => kind == "once";
 }
 
 public sealed record OwnerLink(string Label, string Url);
