@@ -227,7 +227,8 @@ struct BotEditor: View {
                         .accessibilityIdentifier("fast-mode-toggle")
                     Text("オンにすると利用枠を多く使います。")
                         .font(.footnote).foregroundStyle(BellTheme.muted)
-                    if let reason = fastModeUnavailableReason {
+                    // 読み込み中は上の進捗表示が状態を示す。赤字は読み込めない・選べない理由だけに使う。
+                    if let reason = fastModeUnavailableReason, !loadingModels {
                         Text(reason).font(.footnote).foregroundStyle(.red)
                     }
                 }
