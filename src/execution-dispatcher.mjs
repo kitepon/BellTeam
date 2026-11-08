@@ -23,7 +23,7 @@ const asyncMethods = {
     'idle', 'restartIfIdle', 'updateWorkSummary', 'seatTurns', 'watchSeatTurns', 'screenKey', 'screenApproval'],
   administration: ['configureFromMcp', 'update', 'reconcile', 'readConfigurationOperation', 'stop', 'restart', 'remove'],
   goals: ['list', 'inspect', 'mutate'],
-  accounts: ['list', 'setRule', 'prepare'],
+  accounts: ['list', 'prepare'],
 }
 const syncMethods = {
   transport: ['session', 'currentWork', 'currentWorkBinding', 'shownInSelfTurn', 'consumeShownWords',
@@ -166,7 +166,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     alive(); track(ports.observer?.emitQueue?.(change))
   })
   const engines = { transport, administration, goals,
-    accounts: { list: () => accounts.list(), setRule: rule => accounts.setRule(rule), prepare: (harness, slot) => accounts.prepare(harness, slot) } }
+    accounts: { list: () => accounts.list(), prepare: (harness, slot) => accounts.prepare(harness, slot) } }
   const deliveryMethods = new Set(['transport.turn', 'transport.notify', 'transport.notifyReport', 'transport.setupTest'])
   const invoke = (request, type) => {
     enterFor({ type, method: request?.method }); validateRequest(request, type)

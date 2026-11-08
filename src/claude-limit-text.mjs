@@ -32,7 +32,8 @@ const hour24 = (hour, meridiem) => (Number(hour) % 12) + (meridiem.toLowerCase()
 
 export function parseLimitText(text, { now = Date.now(), timeZone = 'UTC' } = {}) {
   const line = String(text ?? '')
-  const named = line.match(/\byour\s+([A-Za-z]+)\s+limit\b/iu)?.[1]?.toLowerCase()
+  // `keep using Fable 5.1`: the usage-credits form of a model limit (production 2026-11-09).
+  const named = (line.match(/\byour\s+([A-Za-z]+)\s+limit\b/iu) ?? line.match(/\bkeep using\s+([A-Za-z]+)/iu))?.[1]?.toLowerCase()
   const scope = MODEL_FAMILIES.includes(named) ? named
     : /\b(weekly|session|usage)\s+limit\b|Usage limit reached/iu.test(line) ? 'all' : null
   const tagged = line.match(/\(([A-Za-z_]+(?:\/[A-Za-z_+-]+)*)\)/u)?.[1]
