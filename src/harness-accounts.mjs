@@ -13,7 +13,7 @@ const MAX_TIMER_MS = 2_147_000_000
 const CLEAR_RETRY_MS = 60_000
 // Shared with the 1st root so a resume under either root finds the same conversation and the same user settings.
 const SHARED = ['projects', 'history.jsonl', 'settings.json', 'CLAUDE.md', 'AGENTS.md', 'skills', 'commands', 'plugins',
-  'agents', 'file-history', 'todos', 'session-env', 'shell-snapshots']
+  'agents', 'file-history', 'todos', 'session-env', 'shell-snapshots', 'jobs', 'state']
 // The account's own record in `.claude.json`; everything else is copied from the 1st (plus every key naming a cache).
 const ACCOUNT_KEYS = ['oauthAccount', 'userID', 'claudeAiMcpEverConnected', 'penguinModeOrgEnabled']
 const SCOPES = new Set(['all', ...MODEL_FAMILIES])
