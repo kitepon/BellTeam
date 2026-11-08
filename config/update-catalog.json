@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T22:07:35Z",
-  "expiresAt": "2026-11-15T22:07:35Z",
+  "publishedAt": "2026-11-08T22:09:36Z",
+  "expiresAt": "2026-11-15T22:09:36Z",
   "releases": [
     {
       "componentId": "usage",
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "14c55b549c7d762946d891303ade2e3bdb735d8e",
-      "versionId": "sha256:c5f38a2e5891e25a9fa809102c44d99abcc7b004fef600e2f8ba854a5ebf4607",
+      "sourceCommit": "3f3adbf5c76ebe23c703020759b1e40397c9f65a",
+      "versionId": "sha256:8229a9bb61e7146f169510fa88cc7913d93048c0ad38b99398ccb4c5f327645f",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c5f38a2e5891e25a9fa809102c44d99abcc7b004fef600e2f8ba854a5ebf4607"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8229a9bb61e7146f169510fa88cc7913d93048c0ad38b99398ccb4c5f327645f"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,21 +722,22 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Claudeのアカウントは使用上限だけで選ばれるようになり、アカウントを決める古い設定の受け口を外します。",
-        "AIをつなぐ部品（aiterm-mcp）を0.64.2にします。"
+        "機能の更新で、更新係が混み合っていても途中で止まらず、そのまま続くようにします。",
+        "相関図で、Bot同士の依頼の要約が付かないまま残ることを減らします。",
+        "ターンの終わりで失敗した送信を、追跡の失敗として誤って報告しないようにします。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "14c55b549c7d762946d891303ade2e3bdb735d8e",
-      "versionId": "sha256:c5f38a2e5891e25a9fa809102c44d99abcc7b004fef600e2f8ba854a5ebf4607",
+      "sourceCommit": "3f3adbf5c76ebe23c703020759b1e40397c9f65a",
+      "versionId": "sha256:8229a9bb61e7146f169510fa88cc7913d93048c0ad38b99398ccb4c5f327645f",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c5f38a2e5891e25a9fa809102c44d99abcc7b004fef600e2f8ba854a5ebf4607"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8229a9bb61e7146f169510fa88cc7913d93048c0ad38b99398ccb4c5f327645f"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -745,8 +746,9 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Claudeのアカウントは使用上限だけで選ばれるようになり、アカウントを決める古い設定の受け口を外します。",
-        "AIをつなぐ部品（aiterm-mcp）を0.64.2にします。"
+        "機能の更新で、更新係が混み合っていても途中で止まらず、そのまま続くようにします。",
+        "相関図で、Bot同士の依頼の要約が付かないまま残ることを減らします。",
+        "ターンの終わりで失敗した送信を、追跡の失敗として誤って報告しないようにします。"
       ]
     }
   ],
