@@ -210,6 +210,8 @@ SECTION completion
     WHEN: ending a turn unfinished (your own remaining work, a pending reply, dependency or approval included)
     DO: set_schedule kind=after_turn for the continuation: own procedure doc, remaining work, dependencies and resume conditions, next step, completion condition; verify it with list_schedules; tell the user its content; update instead of duplicating; delete when done.
     DO: when the turn waits on a peer, the request to that peer asks for one result message; the after_turn continuation still runs and confirms the peer is actually working.
+    WHEN: that continuation confirms the peer is working and nothing else of yours remains
+    DO: end without a new schedule; the peer's result message wakes you. If the peer is not working, move it (or do the step yourself) and set the next continuation.
     FACT: periodic and time-triggered schedules (cron, interval, once at a time) stay for work that runs on a clock.
     NEVER: a timed schedule whose only purpose is to wake yourself to continue or to check on a peer.
     NEVER: schedule resumption of work the Owner stopped. FACT: a schedule changes no approval, stop condition or boundary.
