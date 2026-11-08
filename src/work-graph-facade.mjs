@@ -1,3 +1,4 @@
+import { readCurrentWork } from './current-work-contract.mjs'
 // Parent side of the work-graph child (docs/architecture/modules/runtime/work-graph-child.md).
 // Provider invalidations become one serialized root 'refresh'; batches go to the body's SSE subscribers.
 const unavailable = () => Object.assign(new Error('WORK_GRAPH_UNAVAILABLE'), { code: 'WORK_GRAPH_UNAVAILABLE', status: 503 })
@@ -74,7 +75,11 @@ export function createWorkGraphEffects({ bots, transport, messagePage }) {
     if (method === 'turns.read') {
       if (typeof transport.currentTurn !== 'function') return { unsupported: true }
       try {
-        const rows = await Promise.all(params.botIds.map(async id => [id, turn(await transport.currentTurn(id, { startedAt: true }))]))
+        const rows = await Promise.all(params.botIds.map(async id => {
+          // The edge label is the receiver's Japanese work summary (GET /api/bots currentWork), never a message body.
+          const work = readCurrentWork(transport, bots.get?.(id) ?? null)
+          return [id, { ...turn(await transport.currentTurn(id, { startedAt: true })), summary: work.summary, summaryStatus: work.summaryStatus }]
+        }))
         return { turns: Object.fromEntries(rows) }
       } catch (error) {
         if (error?.code === 'EXECUTION_REQUEST_INVALID' || /EXECUTION_REQUEST_INVALID/u.test(error?.message ?? '')) return { unsupported: true }
