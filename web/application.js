@@ -116,7 +116,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
 
   const memoryView = createMemoryView(memoryDialog, { api })
   const characterSheets = createCharacterSheetView(characterSheetDialog, characterSheetList, { api, fetchImage })
-  const screenView = createScreenView({ panel: screenPanel, status: screenStatus, text: screenText, header: document.querySelector('.chat-header'), api })
+  const screenView = createScreenView({ panel: screenPanel, status: screenStatus, text: screenText, input: document.querySelector('#screen-input'), header: document.querySelector('.chat-header'), api })
 
   const scheduleEditor = createScheduleEditor(scheduleDialog, { api, getBot: id => state.bots.find(bot => bot.id === id) })
 
