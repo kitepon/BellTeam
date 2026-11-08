@@ -62,7 +62,7 @@ flowchart TD
   Launch -->|failure| Cleanup["Clean failed launch; return error"]
   Explicit["保存済み失敗の明示復旧API"] --> Eligible["画像・通話を含む保存済みfailed配送と<br/>元request/targetを確認"]
   Eligible --> Adapter{"旧実行adapterが接続済みか"}
-  Adapter -->|"通常構成は未接続"| Refuse["BOT_SESSION_UNCONFIRMED"]
+  Adapter -->|"通常構成（未接続）"| Ordinary["resume: 同じdelivery_idを通常経路で再配送（起こしてから届ける）<br/>close: 動くターンが無ければ席をpty_close"]
   Adapter -->|"接続された構成のみ"| Reconcile["元登録の照合 または世代指定close"]
 ```
 
@@ -81,7 +81,7 @@ Aitermが受け付けた後の返りに追う手がかり（event_cursor/wait_pr
 
 型付き復帰拒否は`pty_send`の`aiterm.agent-resume-error.v1`を同session・固定enum・ID型・未送信/席確認の契約で検証する。本文や旧版の文言から推測せず、相反するexecution errorを優先する。型付き復帰拒否は明示の未送信なので、動いているターンが無ければ閉じて起こす。この分岐は新契約を返すAitermの正式供給が必要であり、席のlive世代や復旧成功の証明にはしない。
 
-通常構成は`createApplicationServices → createManagedTransport`で**executionBridge=null**、直接`pty_send/agent_stop`を使う。`ExecutionBridge`の実装が存在することを、通常運転で全配送が登録されている意味にしない。`resumeDelivery/closeDeliveryLaunch`のHTTP入口は残るが、通常構成では`BotSessionState`のadapter条件で拒否される。
+通常構成は`createApplicationServices → createManagedTransport`で**executionBridge=null**、直接`pty_send/agent_stop`を使う。`ExecutionBridge`の実装が存在することを、通常運転で全配送が登録されている意味にしない。通常構成の`resumeDelivery/closeDeliveryLaunch`（2026-11-08、トロニー「失敗記録から出られない」の修理）では、`BotSessionState.reconcileLaunch`が席の一致だけを確かめて`null`を返す。保存済みの配送は同じdelivery_idのまま通常の`notify`で再配送され、席が無ければ起こしてから届ける。同じ席への順番は`dispatchInOrder`が保つ。`closeLaunch`は動いているターンが無い時に席を`pty_close`し、次の配送で起こす。残る拒否は二つ。席の不一致（`BOT_RECOVERY_TARGET_INVALID`）は別の席を閉じないため。出口は正しい席を指定し直すこと。動いているターンがある席のclose（`EXECUTION_BUSY`、未実行）はそのターンを壊さないため。出口はターンが終わった後のclose。再配送してよいか（結果不明の文を送り直すか）は、明示の回復を求めた送り手が判断する。
 
 旧adapterを注入した構成では、`ExecutionBridge.reserve/ExecutionRequest.invoke`がrequest・source・target世代・入力境界を結び、`acceptBinding`が不完全な追跡とnative受付を分離する。明示resumeは元registerを再作成せず、元sendがnot_issuedと確認できる時だけ`reconcileLaunch`→同じ配送IDのnotifyへ進む。closeは元unknown launchの期待世代に対する管理操作であり、元配送のunknown記録は変更しない。通信断やstatus不一致を成功へ補完しない。
 
