@@ -57,7 +57,7 @@ flowchart TD
   Observe -->|"terminal absent (any refusal) / terminal present, no running turn, explicit not-sent refusal"| Launch["pty_close what Aiterm still holds; launch without prompt"]
   Launch -->|success| Once["Send original input; retry just-woken not-ready at most 3 times"]
   Launch -->|failure| Cleanup["Clean failed launch; return error"]
-  Explicit["保存済み失敗の明示復旧API"] --> Eligible["text-only Bot間配送と<br/>元request/targetを確認"]
+  Explicit["保存済み失敗の明示復旧API"] --> Eligible["画像・通話を含む保存済みfailed配送と<br/>元request/targetを確認"]
   Eligible --> Adapter{"旧実行adapterが接続済みか"}
   Adapter -->|"通常構成は未接続"| Refuse["BOT_SESSION_UNCONFIRMED"]
   Adapter -->|"接続された構成のみ"| Reconcile["元登録の照合 または世代指定close"]

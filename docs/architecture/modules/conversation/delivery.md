@@ -127,6 +127,31 @@ flowchart TD
 | 通知 | `roomEnvelope` / `Promise.allSettled` | 配送対象と返信者のsnapshotを分ける。全員の受付結果を回収。各onStatusで部屋recordを更新、途中経過/最終回答は各BotのOwner会話へ |
 | 返信 | `mcp-conversation-tools.mjs`の`respond_to_room` | 元発言/宛先/返信者に対応付ける。silentは制御応答、replyだけ新規部屋投稿。新投稿は新しい返信担当判定を持つ |
 
+## Saved image and call delivery recovery
+
+The owner-only `delivery.resume` and `delivery.closeLaunch` entries use the saved failed row and the expected target launch. Content type and sender category do not determine recoverability: image, user, scheduler and call rows use the same saved-ID lookup. Authentication and actor capture stay in the parent; bridge peers gain no recovery authority. A missing row, a non-failed row or a missing target remains invalid input to this failed-delivery API. Execution owns the decision whether the original input was issued and the target generation can be recovered.
+
+```mermaid
+flowchart LR
+  Owner[Authenticated owner / saved delivery ID and expected launch] --> Row[Messenger: original failed row and current target]
+  Row --> Close[closeDeliveryLaunch: same-ID execution close / no input or asset read]
+  Row --> Assets[resumeDelivery: load original saved image bytes]
+  Assets --> Reconcile[Execution: original request and expected generation]
+  Reconcile --> Notify[Normal notify / same delivery ID / saved envelope and call metadata]
+  Notify --> Status[Original row status and existing callbacks]
+  Close --> Original[Original failed row retained]
+```
+
+| Function / DFD edge | Ownership and contract |
+| --- | --- |
+| `resumableDelivery` → saved row | Conversation selects the original failed row and existing target. Remove the blanket `image`, `session_id` and Bot-only sender exclusions; the persisted sender is not a new caller-supplied identity. |
+| Saved assets → `resumeDelivery` → execution | Load `image_assets` or the legacy `image_asset` through the existing bounded no-follow reader, before reconciliation. Pass `{mime,data}` bytes, never a private saved path. A record claiming an attachment without any saved reference is incomplete input (`IMAGE_ASSET_NOT_FOUND`); never silently omit it. Existing filesystem errors remain input-read failures. Future legacy Bot-to-Bot sends save their attachments as well; the ordinary durable parent receipt already does so. |
+| Saved call metadata → `callEnvelope` / `queue.call` | Keep the original session/event/seq, sender label and `call_reply_required`. Initial call receipt and recovery use the same envelope builder. Earlier rows without `call_reply_required` retain the previous default of requesting a reply. |
+| Reconcile → notify | Keep the existing closed effect wire and opaque recovery handle. The existing API sends the original never-issued input after execution reconciliation; it is not observation-only. Execution must not authorize a second input from an accepted or unresolved send. Kiro owns this contract and its production execution-module implementation. |
+| `closeDeliveryLaunch` → execution | Do not read, resend or reconstruct attachments. Closing the matching launch retains the original failed history and original ID. |
+
+No new retry limit, queue, watcher, guard or stored schema is introduced. Image references and `call_reply_required` are existing optional fields. Missing source bytes cannot be reconstructed from an old image flag; that is missing required input, not a reason to exclude all image deliveries. The changed Messenger executes in the conversation child and is in the existing signed conversation archive. The existing parent HTTP/facade/effect signatures remain unchanged; activate the conversation module together with Kiro's compatible execution module through the normal signed module-update path. Source adoption and archive membership alone do not prove production activation.
+
 ## 受付済みの追跡中断
 
 executionの[待機契約](../execution/wait-contract.md)が既onStatus(status,error)の第3引数へ渡す既知3値を、直接user/Bot/通話/復旧と部屋で同じ意味のまま転送する。delivery-tracking.mjsはfailedかつschema=bellteam.delivery-tracking.v1/admission=accepted/completion=unknownだけを固定3値へ作り直す。余分なfieldと任意error本文は保存しない。

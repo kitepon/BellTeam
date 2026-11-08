@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto'
+import { join } from 'node:path'
 
 import { memberIdentity } from './member-identity.mjs'
 import { ConversationStore } from './conversation-store.mjs'
 import { deliveryExecutionRef } from './execution-bridge.mjs'
 import { ConversationWriter } from './conversation-writer.mjs'
+import { readImageBytes } from './message-assets.mjs'
 
 export function directEnvelope(from, message) {
   const identity = typeof from === 'string' ? { id: from, name: from, position: '', role: '' } : from
@@ -48,8 +50,10 @@ export class BellTeamMessenger extends ConversationWriter {
     const imageAsset = images.length && target === 'user' && this.assets
       ? await this.assets.save({ owner: from, id: deliveryId, image: images[0] })
       : null
+    const imageAssets = images.length && bot && this.assets
+      ? await this.assets.saveAll({ owner: from, id: deliveryId, images }) : []
     const record = this.record({
-      deliveryId, from, target, message, images, imageAsset,
+      deliveryId, from, target, message, images, imageAsset, imageAssets,
       delivery: bot ? 'running' : 'delivered',
     })
     await this.append(record)
@@ -81,19 +85,16 @@ export class BellTeamMessenger extends ConversationWriter {
     await this.requireAccess({ from, target })
     const deliveryId = this.deliveryId()
     const identity = { id: from, name: sourceLabel, position: sourceSystem, role: '通話相手' }
-    await this.append({
+    const record = {
       schema: 'bellteam.direct-message.v1', delivery_id: deliveryId, at: this.now(),
       from, target, from_identity: identity, target_identity: memberIdentity(this.bots, target),
       message, image: false, delivery: 'running', session_id: sessionId,
-      call_event: event, call_seq: seq,
-    })
-    const party = event === 'session.reply' ? 'local' : 'member'
-    const replyHint = replyRequired === false ? ''
-      : `\n\n返信する時は call-bridge MCP の call_send に session_id=${sessionId}、from_party=${party} を指定して。`
-    const envelope = `「${sourceLabel}」（${sourceSystem}:${sourceId}）から通話が届いています。session_id=${sessionId}${seq == null ? '' : ` seq=${seq}`}\n\n${message}${replyHint}`
+      call_event: event, call_seq: seq, call_reply_required: replyRequired,
+    }
+    await this.append(record)
     try {
       check()
-      const result = await this.transport.notify(bot, envelope, {
+      const result = await this.transport.notify(bot, callEnvelope(record), {
         queue: { context: 'direct', contextId: bot.id, groupId: deliveryId, from, fromName: sourceLabel, target: bot.id, message,
           call: { sessionId, event, seq } },
         ...this.notificationCallbacks(bot.id, deliveryId, 'call'),
@@ -111,14 +112,21 @@ export class BellTeamMessenger extends ConversationWriter {
     const record = this.resumableDelivery(deliveryId, await this.store.records())
     const bot = this.bots.get(record.target)
     await this.requireAccess({ from: record.from, target: bot.id })
+    const savedImages = record.image_assets ?? (record.image_asset ? [record.image_asset] : [])
+    if (record.image && !savedImages.length) throw new Error('IMAGE_ASSET_NOT_FOUND')
+    const images = await Promise.all(savedImages.map(async asset => ({ mime: asset.mime,
+      data: (await readImageBytes({ path: join(this.assets.directory(asset.owner), asset.file) }, this.assets.maxBytes)).toString('base64') })))
     check()
     const execution = await this.transport.reconcileLaunch(bot, deliveryExecutionRef(deliveryId, target?.session_id), target)
     check()
-    const result = await this.transport.notify(bot, directEnvelope(record.from_identity ?? record.from, record.message), {
+    const result = await this.transport.notify(bot, record.session_id ? callEnvelope(record)
+      : directEnvelope(record.from_identity ?? record.from, record.message), {
       recoveredExecution: execution,
+      images,
       queue: { context: 'direct', contextId: bot.id, groupId: deliveryId, from: record.from,
-        fromName: record.from_identity?.name ?? record.from, target: bot.id, message: record.message },
-      ...this.notificationCallbacks(bot.id, deliveryId, 'direct'),
+        fromName: record.from_identity?.name ?? record.from, target: bot.id, message: record.message,
+        ...(record.session_id ? { call: { sessionId: record.session_id, event: record.call_event, seq: record.call_seq } } : {}) },
+      ...this.notificationCallbacks(bot.id, deliveryId, record.session_id ? 'call' : 'direct'),
     })
     return { delivery: result.delivery, delivery_id: deliveryId, from: record.from, target: bot.id }
   }
@@ -139,8 +147,7 @@ export class BellTeamMessenger extends ConversationWriter {
   resumableDelivery(deliveryId, records) {
     const record = records.find(row => row.delivery_id === deliveryId)
     if (!record) throw Object.assign(new Error('DELIVERY_NOT_FOUND'), { code: 'DELIVERY_NOT_FOUND', status: 404 })
-    // 今回の回復対象は本文だけのBot間直接配送。通話や添付を新しい配送へ複製しない。
-    if (record.delivery !== 'failed' || record.image || record.session_id || !this.bots.has(record.from) || !this.bots.has(record.target))
+    if (record.delivery !== 'failed' || !this.bots.has(record.target))
       throw Object.assign(new Error('DELIVERY_NOT_RESUMABLE'), { code: 'DELIVERY_NOT_RESUMABLE', status: 409 })
     return record
   }
@@ -254,6 +261,14 @@ export class BellTeamMessenger extends ConversationWriter {
     }
   }
 
+}
+
+function callEnvelope(record) {
+  const identity = record.from_identity
+  const party = record.call_event === 'session.reply' ? 'local' : 'member'
+  const replyHint = record.call_reply_required === false ? ''
+    : `\n\n返信する時は call-bridge MCP の call_send に session_id=${record.session_id}、from_party=${party} を指定して。`
+  return `「${identity.name}」（${identity.position}:${record.from.split(':').slice(2).join(':')}）から通話が届いています。session_id=${record.session_id}${record.call_seq == null ? '' : ` seq=${record.call_seq}`}\n\n${record.message}${replyHint}`
 }
 
 function validateImage(image) {
