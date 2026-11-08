@@ -9,6 +9,7 @@ export const ACCOUNT_HARNESSES = ['claude']
 const SCHEMA = 'bellteam.harness-accounts.v1'
 const REREAD_MS = 600_000
 const MAX_TIMER_MS = 2_147_000_000
+const CLEAR_RETRY_MS = 60_000
 // Shared with the 1st root so a resume under either root finds the same conversation and the same user settings.
 const SHARED = ['projects', 'history.jsonl', 'settings.json', 'CLAUDE.md', 'AGENTS.md', 'skills', 'commands', 'plugins',
   'agents', 'file-history', 'todos', 'session-env', 'shell-snapshots']
@@ -210,16 +211,20 @@ export class HarnessAccounts {
 
   key(entry) { return `${entry.harness}:${entry.slot}:${entry.scope}` }
 
-  arm(entry) {
+  // retryMs: after a failed clear write the entry stays limited and the clear is retried later, never in a hot loop.
+  arm(entry, retryMs = null) {
     const key = this.key(entry)
     if (this.resetTimers.has(key)) this.timers.clear(this.resetTimers.get(key))
     this.resetTimers.delete(key)
     if (!entry.resetAt) return
-    const delay = Date.parse(entry.resetAt) - this.now()
+    const delay = retryMs ?? Date.parse(entry.resetAt) - this.now()
     const fire = () => {
       this.resetTimers.delete(key)
       if (Date.parse(entry.resetAt) > this.now()) return this.arm(entry)
-      void this.clear(entry).catch(() => this.arm(entry))
+      void this.clear(entry).catch(error => {
+        if (!retryMs) this.log(`BellTeam accounts: reset write failed, retrying every ${CLEAR_RETRY_MS / 1000}s: ${key} ${error?.code ?? 'UNKNOWN'}`)
+        this.arm(entry, CLEAR_RETRY_MS)
+      })
     }
     this.resetTimers.set(key, this.timers.set(fire, Math.max(0, Math.min(delay, MAX_TIMER_MS))))
   }

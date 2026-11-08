@@ -132,3 +132,25 @@ test('setRule upserts one rule; a failed registry write keeps the state', async 
   finally { await chmod(home, 0o700) }
   assert.deepEqual(accounts.state.rules, [{ harness: 'claude', modelPrefix: 'claude-opus', slot: '1st' }])
 })
+
+test('a failing reset write keeps the entry limited and retries after 60 s, not in a hot loop', async t => {
+  const { home, accounts, advance, timers } = await setup(t)
+  const lines = []; accounts.log = line => lines.push(line)
+  await accounts.recordLimit({ harness: 'claude', slot: '1st', model: 'opus', text: "You've hit your session limit · resets 1pm (UTC)" })
+  await chmod(home, 0o500)
+  try {
+    await advance(3_600_000)
+    assert.equal(accounts.limitFor('claude', '1st', 'opus').length, 1)
+    // One pending retry timer 60 s ahead, nothing due now.
+    const pending = [...timers.values()]
+    assert.equal(pending.length, 1)
+    await advance(0)
+    assert.equal([...timers.values()].length, 1)
+    await advance(59_999)
+    assert.equal(accounts.limitFor('claude', '1st', 'opus').length, 1)
+    await advance(1)
+    assert.equal(lines.filter(line => line.includes('reset write failed')).length, 1, 'logged once, code only')
+  } finally { await chmod(home, 0o700) }
+  await advance(60_000)
+  assert.equal(accounts.limitFor('claude', '1st', 'opus').length, 0)
+})
