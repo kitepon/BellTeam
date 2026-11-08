@@ -590,7 +590,7 @@
         }
       },
       "changes": [
-        "after_turn scheduling support from PR #579 and #582."
+        "Botが、今のターンが終わったら一度だけ続きを始める予定を作れるようにします。"
       ]
     },
     {
@@ -630,7 +630,7 @@
         }
       },
       "changes": [
-        "after_turn scheduling support from PR #579 and #582."
+        "Botが、今のターンが終わったら一度だけ続きを始める予定を作れるようにします。"
       ]
     },
     {
