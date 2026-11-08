@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T04:25:19Z",
-  "expiresAt": "2026-11-15T04:25:19Z",
+  "publishedAt": "2026-11-08T04:27:56Z",
+  "expiresAt": "2026-11-15T04:27:56Z",
   "releases": [
     {
       "componentId": "usage",
@@ -635,15 +635,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "5bd3d74e947fc43c324f5c9e26e1dea9dfa0c527",
-      "versionId": "sha256:4c31bafe397ee9414f1ff2941849e1e73114057f6c6a1e207c008accb6bf75ed",
+      "sourceCommit": "700918e2868c2020b8b9ead08d6f121c6fe4b9eb",
+      "versionId": "sha256:654f1f5d9dee4929cf947d5d310039fe12fa6466aee22ec3b1847943d65b5a30",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:4c31bafe397ee9414f1ff2941849e1e73114057f6c6a1e207c008accb6bf75ed"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:654f1f5d9dee4929cf947d5d310039fe12fa6466aee22ec3b1847943d65b5a30"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -652,20 +652,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "アップデート画面で、各部品の版の名前を出し、本体が最新かを正しく表示します。"
+        "ターン終了後の続き（after_turn）と共通ルールを入れ、直接届いたメッセージでも作業のまとめを作れるようにします。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "5bd3d74e947fc43c324f5c9e26e1dea9dfa0c527",
-      "versionId": "sha256:4c31bafe397ee9414f1ff2941849e1e73114057f6c6a1e207c008accb6bf75ed",
+      "sourceCommit": "700918e2868c2020b8b9ead08d6f121c6fe4b9eb",
+      "versionId": "sha256:654f1f5d9dee4929cf947d5d310039fe12fa6466aee22ec3b1847943d65b5a30",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:4c31bafe397ee9414f1ff2941849e1e73114057f6c6a1e207c008accb6bf75ed"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:654f1f5d9dee4929cf947d5d310039fe12fa6466aee22ec3b1847943d65b5a30"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -674,7 +674,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "アップデート画面で、各部品の版の名前を出し、本体が最新かを正しく表示します。"
+        "ターン終了後の続き（after_turn）と共通ルールを入れ、直接届いたメッセージでも作業のまとめを作れるようにします。"
       ]
     }
   ],
