@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T07:21:51Z",
-  "expiresAt": "2026-11-15T07:21:51Z",
+  "publishedAt": "2026-11-08T07:26:54Z",
+  "expiresAt": "2026-11-15T07:26:54Z",
   "releases": [
     {
       "componentId": "usage",
@@ -635,15 +635,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "d0089cbb5765adfc6a89c091eefee499f20120fb",
-      "versionId": "sha256:2381e9ae2416b5204f66816dffc3adfbcb823ef53515ea6457fd5b981a70f402",
+      "sourceCommit": "386de126878531c68334ecb3c451e80c37aee6e5",
+      "versionId": "sha256:c83379dd9117b04c7cdd8341a6f3272d3575840c7b1a37bfef7e972e4626af6e",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:2381e9ae2416b5204f66816dffc3adfbcb823ef53515ea6457fd5b981a70f402"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c83379dd9117b04c7cdd8341a6f3272d3575840c7b1a37bfef7e972e4626af6e"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -652,20 +652,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "どの部品を入れ替えている間も、要求を断らずに待って処理するようにし、共通ルールを更新します。"
+        "AI端末の仲介役（Aiterm）を0.63.18に更新し、AIへの入力と画面の読み取りを正しく結び付けます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "d0089cbb5765adfc6a89c091eefee499f20120fb",
-      "versionId": "sha256:2381e9ae2416b5204f66816dffc3adfbcb823ef53515ea6457fd5b981a70f402",
+      "sourceCommit": "386de126878531c68334ecb3c451e80c37aee6e5",
+      "versionId": "sha256:c83379dd9117b04c7cdd8341a6f3272d3575840c7b1a37bfef7e972e4626af6e",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:2381e9ae2416b5204f66816dffc3adfbcb823ef53515ea6457fd5b981a70f402"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c83379dd9117b04c7cdd8341a6f3272d3575840c7b1a37bfef7e972e4626af6e"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -674,7 +674,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "どの部品を入れ替えている間も、要求を断らずに待って処理するようにし、共通ルールを更新します。"
+        "AI端末の仲介役（Aiterm）を0.63.18に更新し、AIへの入力と画面の読み取りを正しく結び付けます。"
       ]
     }
   ],
