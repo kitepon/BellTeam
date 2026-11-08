@@ -62,6 +62,11 @@ export const updatesSchema = { $id: 'urn:bellteam:updates:v1', ...object({ schem
 }) }
 updatesSchema.properties.components.items.properties.runtimeApplication = object({
   generationId: nullable({ type: 'string', pattern: '^[a-f0-9]{64}$' }), policy: { const: 'next_launch' } })
+// Optional on older servers: one plain-Japanese status per part (docs/architecture/modules/integration/update-jobs.md).
+updatesSchema.properties.components.items.properties.status = object({ line: text, tone: enumeration(['ok', 'updating', 'attention']),
+  actionRequired: { type: 'boolean' }, action: nullable(text),
+  latestJob: nullable(object({ jobId: uuid, kind: enumeration(['container', 'module', 'runtime']), state: jobState,
+    outcome: enumeration(['running', 'succeeded', 'failed']), at: date, reason: nullable(object({ code: text, message: text })) })) })
 // Optional on older snapshots; notification eligibility is decided by the server.
 updatesSchema.properties.notificationCandidates = list(object({ componentId: enumeration(updateComponents.map(([id]) => id)), id: { type: 'string', pattern: '^[a-f0-9]{64}$' } }))
 updatesSchema.properties.jobs = list(updateJobSchema)

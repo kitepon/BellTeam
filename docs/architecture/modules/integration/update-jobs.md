@@ -105,3 +105,26 @@ flowchart LR
 No new guard, lock, timeout, retry, queue, or public field is introduced. The existing one-read/pending coalescing is retained; the extra boolean retains completion until the next existing read. Source membership stays integration/application-services, update-center and update-module-executor; conversation/module.json continues to list http-events, whose common updates bridge alone changes. HTTP SSE and common executor run in the body, so a signed conversation/Web asset alone does not activate this repair.
 
 N102 confirmed this existing updates-only contact scope; conversation retains the file ownership. The four changed body files are absent from the members/conversation/execution `*_FILES` archive inventories in `scripts/web_gateway_artifact.py`; those already-dispatched signed assets are unaffected by this source change. `http-server` imports `http-events` in the body. Keep the fixed signer source rather than republishing those assets for this repair.
+
+## Per-component status line (2026-11-08)
+
+Owner defect: the standard screens rendered `jobs[]` as a flat history (same part repeated, raw UUID/state/code, superseded failures looking current). Fix: the server owns one plain-Japanese status per component; clients show it instead of the raw job list.
+
+| Function | Input | Output and owner |
+| --- | --- | --- |
+| `componentStatus(component, jobs, now)` in `update-center.mjs` | One projected component row + the same visible `jobs[]` the response carries | `components[].status` (additive, optional in schema): `{line, tone, actionRequired, action, latestJob}`. Molly owns wording and rules |
+| Latest job per part | `jobs[]` with `target.moduleId === component.id`, max `updatedAtNs` | `latestJob:{jobId,kind,state,outcome,at,reason}` or null. Only the latest job per part is ever summarized, so a failure disappears as soon as a later job exists for that part. shortcut: only the bounded newest-16 window is seen; a part with no job in it gets no job sentence |
+| Line | current origin, comparison.state, latest job, availability | `line` = installed sentence + update sentence + latest-job sentence with JST time. No IDs, versions or codes |
+| Need for the user | failed latest job + `availability.available === false` | `tone:"attention"`, `actionRequired:true`, `action` text. A failed job while the part still runs (or the body answering, for `container`) is `actionRequired:false` |
+
+```mermaid
+flowchart LR
+  Rows[Projected components] --> Status[componentStatus per row]
+  Jobs[Visible jobs: newest 16, runtime filtered unless runtime=1] --> Latest[Latest job per moduleId]
+  Latest --> Status
+  Status --> Body["GET /api/updates components[].status"]
+  Body --> Apple[Bell: Apple standard screen shows line/action; jobs, IDs, codes under 詳細]
+  Body --> Web[Admi: Web same]
+```
+
+Compatibility: additive only. Released Apple (Codable ignores unknown keys) and Web (`validUpdateInventory` checks consumed keys only) keep working; `jobs[]` stays unchanged for 詳細 and old clients. New clients must treat a missing `status` (older server) by falling back to their current rendering. SSE is unchanged (it still triggers GET).
