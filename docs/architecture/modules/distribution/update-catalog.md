@@ -1,5 +1,24 @@
 # 正式Update catalogの信頼境界
 
+## Forward-compatible readers: unknown component rows, 2026-11-08 JST
+
+Cause (Trony ruling, found by Centi at 20:38 JST): body 386de126's `validate_catalog` had a closed componentId list, so the signed catalog `updates-20261108T113402Z` with the new `work-graph` rows was rejected wholesale (`UPDATE_CATALOG_INVALID` → `HOST_UPDATE_PUBLICATION_UNCONFIRMED`). Every installed body kept its old catalog and could plan nothing, the f851a0be swap included.
+
+From the next body on, readers (`verify-update-catalog.py` in the root host/installer, through `validate_catalog`) skip a row whose `componentId` they do not know. The row must still be an object with a lowercase id. It is listed through `ignored` and is never planned or trusted. The signed bytes are accepted unchanged, so the row stays visible in the stored catalog. Known rows keep the full validation; a malformed known row still rejects the catalog. The publisher's preflight (`check-update-catalog-publication.py`) runs `strict=True`: an unknown or misspelt component, or a runtime row in the main catalog, is still refused before signing.
+
+```mermaid
+flowchart LR
+  Signed[signed catalog bytes] --> Rows{each release row}
+  Rows -->|known componentId| Full[full validation / any defect rejects the catalog]
+  Rows -->|unknown componentId| Skip[ignored: not planned, not trusted / noted]
+  Full --> Accept[accept catalog / unchanged bytes]
+  Skip --> Accept
+  Publisher[publisher preflight strict=True] -->|unknown| Refuse[refuse before signing]
+```
+
+Already installed bodies (386de126, f851a0be) keep the closed list. A new component row can be published only after the bodies that must read it carry this reader. Until then the supply order is: body first, then the new component's rows.
+
+
 ## Fixed213d handover-body catalog, 2026-11-08 JST
 
 Within the existing formal-image -> catalog -> fixed-main publisher -> runtime.update -> P7a/P7b plan/job flow, replace only the two container records with source `213d99fa4acc9fbb37212e5194d0fe4826175bc6`, official stable index `sha256:8c9eba2a77d3e655e9e19aaa64b25937d83bf790d6387a997bb8014c4b7df467`. Natural image run `42388593023` and same-index promotion `42389401765` succeeded; the normal body, module-installer and container-updater derive from that one image. Inherit Centi's source/platform/native receipts (Aiterm MCP 0.63.16), scoped preservation assertions and formal promotion without retest or rebuild. Preserve all sixteen module records, compatibility values and revocations; refresh catalog publication/expiry metadata.
