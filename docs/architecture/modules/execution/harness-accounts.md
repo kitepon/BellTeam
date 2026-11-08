@@ -9,14 +9,16 @@ Names in every UI and contract: 「1stアカウント」 (`slot: '1st'`, primary
 
 | Function | Owner | Public contact |
 | --- | --- | --- |
-| Slot registry: harness × slot → config root, login label, limit state, model rules | execution (this doc) | `accounts.list()`, `accounts.setRules(rules)`, `transport.seatAccount(botId)` |
+| Slot registry: harness × slot → config root, login label, limit state, model rules | execution (this doc) | `accounts.list()`, `accounts.setRule(rule)`, `transport.seatAccount(botId)` |
 | Slot directory preparation (shared history, separate credentials) | execution | inside `accounts.prepare(harness, slot)`; called before login and before a launch |
 | MCP registration in each slot's `.claude.json` | execution, reusing `mergeMcpConfig` of harness-config | same writer, one more target path per prepared slot |
 | Login per slot | usage (Mika) HarnessAuth → Aiterm `agent_auth` | HarnessAuth `start/input/status/cancel(harness, {slot})` |
 | Limit detection | execution | wait result (trigger) + usage reading (reset time) |
 | Slot selection at launch / resume | execution | launch option `configuration_root` to Aiterm |
 | Failover after a limit, return after reset | execution | existing reconfigure (apply at the next turn boundary) + capacity continuation message |
-| Display | usage (Mika) settings card, members DTO (Molly), clients | `accounts.list()`, `seatAccount(botId)`, SSE topic `settings` |
+| Account-card data and slot-aware login contacts | usage (Mika) | typed auth/account-card data built from `accounts.list()` |
+| Routes, private port injection, SSE, Bot DTO | Molly | `accounts.list/setRule` routes, `account` in Bot items, SSE topic `settings` |
+| Rendering: card rows, rule switch, banner, member card | Admi (Web), Apple and Windows owners | the data contacts above |
 | Per-seat config root on launch, resume and auth | Aiterm (Elegg) | E1–E3 below |
 
 ## Data flow
@@ -83,7 +85,7 @@ The switch reuses the existing resume path, so the conversation, docs and Throug
 ## Public interfaces (execution)
 
 - `accounts.list()` → `{ harnesses:[{ harness:'claude', slots:[{ slot:'1st'|'2nd', loggedIn:boolean|null, label:string|null, history:'shared'|'separate', limit:{state, resetAt|null, since|null}, seats:[botId] }], allLimited, earliestResetAt|null }], rules }`. `label` is the account e-mail that `claude auth status --json` reports (E3); it is display text, not a credential.
-- `accounts.setRules(rules)` → stored rules (validated: harness known, slot `1st`/`2nd`, non-empty prefix ≤ 64 chars). Changing a rule moves affected seats at their next idle boundary.
+- `accounts.setRule({harness, modelPrefix, slot})` → all stored rules. Upsert keyed by `(harness, modelPrefix)`; `slot: null` removes exactly that rule; other rules are never touched (Mika, 2026-11-08). Validated: harness known, slot `1st`/`2nd`/null, non-empty prefix ≤ 64 chars. Changing a rule moves affected seats at their next idle boundary.
 - `accounts.prepare(harness, slot)` → `{ configurationRoot }`. It is called by HarnessAuth before a login, and returns the root used for E3.
 - `transport.seatAccount(botId)` → `{ harness, slot, preferredSlot } | null`.
 - Change notification: the existing `watchQueue` stream (`botIds` of the moved seats) and the SSE topic `settings` for registry changes.
@@ -99,28 +101,14 @@ The switch reuses the existing resume path, so the conversation, docs and Throug
   - E2. A cross-root resume goes only through the existing resume entry: `session_name` of a hibernated seat, or `require_existing_resume`. `configuration_root` is the only setting allowed to differ; a model, effort, cwd or env difference still gives `AGENT_RESUME_CONFLICT`. The transcript must exist at `<new root>/projects/<slug of recipe cwd>/<vendor_session_id>.jsonl`, otherwise resume is unavailable. The new recipe stores the new root, and `CLAUDE_CONFIG_DIR` null for the default. So execution's failover first applies the slot change alone, and any model change follows as an ordinary change.
   - E3. `agent_auth` accepts `configuration_root` on `start`. The auth session keeps it, and `respond`, `cancel` or `status` for that session with a different root get `AGENT_CONFIGURATION_ROOT_REJECTED`. `status` returns `account_label`: the `email` field of `claude auth status --json`, or null when not logged in or absent. No tokens anywhere.
   - No reset-time parsing is needed; execution reads it from usage.
-- Mika (usage, settings):
-  - HarnessAuth takes `{slot}`. It gets the root from `accounts.prepare` and passes it to `agent_auth` (E3). The receipt carries `slot`.
-  - The AIの認証 card shows Claude as two rows, 「1stアカウント」 and 「2ndアカウント」. Each row has the login state, the label, the limit state with its reset time (JST), the number of seats on it, and a log-in button.
-  - A rule switch on the card: 「Fableを2ndアカウントで使う」 → `setRules`.
-  - The both-limited banner, with the earliest reset.
-- Molly (members DTO, common HTTP/MCP): Bot items carry `account: seatAccount(botId)`. `accounts.list` and `setRules` are routed for the settings card.
-- Clients (Web, Apple, Windows): render the two slot rows, the rule switch, the banner, and the seat's slot on the member card.
-
-## Live acceptance (Owner steps, natural limit only)
-
-The test uses a limit that already exists, so no quota is burned on purpose: a seat that is already limited fails its first turn at once.
-
-1. Precondition: the Aiterm E1–E3 release, the execution module and Mika's card are in production.
-2. Owner: 設定 → AIの認証 → Claude → 2ndアカウント → ログイン, then log in with the account that is already limited for Fable. 1stアカウント stays the current container login.
-3. Owner: turn on 「Fableを2ndアカウントで使う」.
-4. Owner: pick one idle Bot on a Fable model; its member card shows 2ndアカウント. Send it one ordinary short message.
-5. Expected:
-   - The turn ends rate-limited without spending quota.
-   - The 2ndアカウント row shows 上限中 with the reset time.
-   - The member card shows 1stアカウント.
-   - The same conversation continues with the capacity-continuation message and answers.
-6. After the reset time: the Bot's next idle boundary moves it back to 2ndアカウント. No action is needed; check the member card when convenient.
+- Mika (usage), agreed 2026-11-08:
+  - HarnessAuth sessions and receipts are keyed by `(harness, slot)`; no slot means 1st, and non-Claude behavior is unchanged.
+  - `slot` stays outside the strict authResponse binding, prompt digest and response object.
+  - The selected slot is prepared (`accounts.prepare`) before every `agent_auth` action, and `configuration_root` is passed only privately.
+  - Receipts carry `slot` and the nullable native `account_label`.
+  - The typed account-card data contact covers both slot rows (login state, label, limit, reset, seats), the Fable rule (`setRule({harness:'claude', modelPrefix:'claude-fable', slot:'2nd'|null})`) and `allLimited`/`earliestResetAt`, all from `accounts.list()`.
+- Molly (parent, common HTTP/MCP): routes for `accounts.list` and `setRule`, private port injection, SSE topic `settings`, and `account: seatAccount(botId)` in Bot items.
+- Clients (Admi for Web; the Apple and Windows owners): render the two slot rows 「1stアカウント」/「2ndアカウント」, the switch 「Fableを2ndアカウントで使う」, the both-limited banner, and the seat's slot on the member card. Times are shown in JST; a null reset shows as unknown.
 
 ## Not covered
 
