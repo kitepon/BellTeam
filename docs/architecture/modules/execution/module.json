@@ -55,6 +55,7 @@
     "src/execution-transport.mjs",
     "src/execution-bridge.mjs",
     "src/capacity-continuation.mjs",
+    "src/harness-accounts.mjs",
     "src/current-work.mjs",
     "src/members-admission.mjs",
     "src/configuration-request.mjs",
