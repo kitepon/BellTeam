@@ -18,7 +18,8 @@ public sealed class BellApiException(string message, HttpStatusCode? status = nu
     public const string StreamEndedMessage = "更新の接続が切れました。再接続しています。";
     // Mac events(): connecting failed (network, 429, 5xx); retried by the caller.
     public const string ConnectFailedMessage = "更新へ接続できません。再接続しています。";
-    public bool RequiresLogin => Status is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden || (int?)Status is >= 300 and < 400;
+    // A 403 that carries a server error code is an app refusal (owner required), not a lost sign-in.
+    public bool RequiresLogin => Status is HttpStatusCode.Unauthorized || Status is HttpStatusCode.Forbidden && Code is null || (int?)Status is >= 300 and < 400;
 }
 
 public sealed class BellApi : IDisposable
@@ -145,13 +146,21 @@ public sealed class BellApi : IDisposable
     private async Task ValidateAsync(HttpResponseMessage response, CancellationToken token)
     {
         var status = (int)response.StatusCode;
+        // Every server 403 is a JSON {"error": "..._OWNER_REQUIRED"} refusal; Cloudflare Access answers with a redirect, 401 or a non-JSON 403.
+        // Only the latter means "sign in again" (Kiro: keep the Cloudflare Access text for a real access failure only).
+        string? body = null;
+        if (status == 403 && response.Content.Headers.ContentType?.MediaType == "application/json")
+        {
+            body = await response.Content.ReadAsStringAsync(token);
+            if (ErrorCode(body) is { } refusal) throw new BellApiException("BellTeam: " + refusal, response.StatusCode, refusal);
+        }
         if (status is >= 300 and < 400 || status is 401 or 403)
         {
             AuthenticationRequired?.Invoke();
             throw new BellApiException("Cloudflare Accessへログインしてください。", response.StatusCode);
         }
         if (response.IsSuccessStatusCode) return;
-        var body = await response.Content.ReadAsStringAsync(token);
+        body ??= await response.Content.ReadAsStringAsync(token);
         string detail = $"HTTP {status}"; string? code = null;
         if (response.Content.Headers.ContentType?.MediaType == "application/json")
         {
@@ -168,6 +177,11 @@ public sealed class BellApi : IDisposable
             catch (JsonException) { detail += "（エラー応答のJSONを読み取れませんでした）"; }
         }
         throw new BellApiException("BellTeam: " + detail, response.StatusCode, code);
+    }
+    private static string? ErrorCode(string body)
+    {
+        try { using var document = JsonDocument.Parse(body); return document.RootElement.ValueKind == JsonValueKind.Object && document.RootElement.TryGetProperty("error", out var code) && code.ValueKind == JsonValueKind.String && code.GetString() is { Length: > 0 } value ? value : null; }
+        catch (JsonException) { return null; }
     }
 
     public async IAsyncEnumerable<JsonElement> EventsAsync([EnumeratorCancellation] CancellationToken token = default)

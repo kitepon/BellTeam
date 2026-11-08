@@ -49,6 +49,9 @@ public sealed class HarnessAccountsApi(BellApi api)
 
 public static class AccountText
 {
+    // Kiro, 2026-11-08: the text for a 403 ACCOUNT_RULE_OWNER_REQUIRED on POST /api/accounts/rules.
+    public const string RuleOwnerRequired = "アカウントの設定を変えられるのはオーナーだけです。オーナーとしてサインインしているか確かめてください。";
+    public const string RuleOwnerRequiredCode = "ACCOUNT_RULE_OWNER_REQUIRED";
     private static readonly TimeSpan Jst = TimeSpan.FromHours(9);
     public static string? SlotTitle(string? slot) => slot switch { "1st" => "1stアカウント", "2nd" => "2ndアカウント", _ => null };
 

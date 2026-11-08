@@ -255,4 +255,42 @@ public sealed class HarnessAccountsTests
         Exception? failure = null; var thread = new Thread(() => { try { SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher)); action(); } catch (Exception error) { failure = error; } finally { Dispatcher.CurrentDispatcher.InvokeShutdown(); } });
         thread.SetApartmentState(ApartmentState.STA); thread.Start(); thread.Join(); if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
     }
+
+    // ---- Kiro's answers (2026-11-08) ----
+    [Fact]
+    public async Task AnAppRefusal403IsNotALostSignInButANonJson403Is()
+    {
+        var signIns = 0;
+        using var refused = new BellApi(new("http://localhost/"), new StubHandler((_, _) => Task.FromResult(StubHandler.Json("""{"error":"ACCOUNT_RULE_OWNER_REQUIRED"}""", HttpStatusCode.Forbidden))));
+        refused.AuthenticationRequired += () => signIns++;
+        var error = await Assert.ThrowsAsync<BellApiException>(() => new HarnessAccountsApi(refused).SetFableRuleAsync(true));
+        Assert.Equal(AccountText.RuleOwnerRequiredCode, error.Code); Assert.False(error.RequiresLogin); Assert.Equal(0, signIns);
+        using var access = new BellApi(new("http://localhost/"), new StubHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden) { Content = new StringContent("<html>Access denied</html>", System.Text.Encoding.UTF8, "text/html") })));
+        access.AuthenticationRequired += () => signIns++;
+        var denied = await Assert.ThrowsAsync<BellApiException>(() => new HarnessAccountsApi(access).SetFableRuleAsync(true));
+        Assert.True(denied.RequiresLogin); Assert.Equal(1, signIns); Assert.Equal("Cloudflare Accessへログインしてください。", denied.Message);
+    }
+
+    [Fact]
+    public void TheMemberListShowsTheBothLimitedNoticeOnlyWhileBothAreLimited()
+    {
+        RunSta(() =>
+        {
+            var accounts = (HttpStatusCode.OK, AllLimited);
+            using var workspace = new Workspace(origin => new BellApi(origin, new StubHandler((request, _) => Task.FromResult(request.RequestUri!.AbsolutePath == "/api/accounts"
+                ? StubHandler.Json(accounts.Item2, accounts.Item1)
+                : StubHandler.Json(request.RequestUri.AbsolutePath switch
+                {
+                    "/api/session" => """{"authenticated":true,"authMode":"local"}""", "/api/bots" => ApiTests.Bots,
+                    "/api/owner" => ApiTests.Owner, "/api/rooms" => """{"rooms":[]}""", "/api/queue" => ApiTests.EmptyQueue, _ => ApiTests.Page
+                })))));
+            Await(workspace.ConnectAsync("http://localhost", listen: false));
+            Assert.StartsWith("両方のアカウントで上限中", workspace.AccountsBanner);
+            accounts = (HttpStatusCode.OK, Both); Await(workspace.RefreshManagementAsync()); Assert.Equal("", workspace.AccountsBanner);
+            accounts = (HttpStatusCode.NotFound, """{"error":"NOT_FOUND"}"""); Await(workspace.RefreshManagementAsync()); Assert.Equal("", workspace.AccountsBanner);
+            accounts = (HttpStatusCode.OK, AllLimited); Await(workspace.RefreshManagementAsync()); Assert.NotEqual("", workspace.AccountsBanner);
+            accounts = (HttpStatusCode.ServiceUnavailable, """{"error":"TEMPORARY"}"""); Await(workspace.RefreshManagementAsync());
+            Assert.Equal("", workspace.AccountsBanner); Assert.Null(workspace.ConnectionError);   // an optional notice never fails the list
+        });
+    }
 }

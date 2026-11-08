@@ -213,7 +213,7 @@ public sealed partial class SettingsWindow
             catch (Exception error)
             {
                 toggle.IsChecked = AccountText.FableOnSecond(current);
-                ruleError.Text = BellApiException.IsResultUnconfirmed(error) ? "切り替えの結果を確認できませんでした。「一覧を更新」で今の設定を確認してください。\n" + error.Message : "切り替えられませんでした。" + error.Message;
+                ruleError.Text = error is BellApiException { Code: AccountText.RuleOwnerRequiredCode } ? AccountText.RuleOwnerRequired : BellApiException.IsResultUnconfirmed(error) ? "切り替えの結果を確認できませんでした。「一覧を更新」で今の設定を確認してください。\n" + error.Message : "切り替えられませんでした。" + error.Message;
                 ruleError.Visibility = Visibility.Visible; if (host.Children[^1] is not Button) host.Children.Add(Retry());
             }
             finally { toggle.IsEnabled = true; }

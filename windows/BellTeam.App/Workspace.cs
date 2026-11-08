@@ -54,6 +54,8 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     private bool needsLogin;
     private string connectionStatus = "接続先を設定してください。";
     public string OwnerName { get; private set; } = "あなた";
+    // Above the member list only while both Claude slots are limited (Kiro, same as Web loadAccountsBanner).
+    public string AccountsBanner { get; private set; } = "";
     public string AuthMode { get; private set; } = "local";
     private ConversationEntry? selected;
     private bool hasMore;
@@ -265,6 +267,14 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
         }
     }
 
+    // An optional notice like Web: an older body (404) or a failed read only hides it; the next list refresh reads it again.
+    private static async Task<string> AccountsBannerAsync(BellApi current, CancellationToken token)
+    {
+        try { return string.Join(" / ", AccountText.BannerTexts(await new HarnessAccountsApi(current).ReadAsync(token), DateTimeOffset.Now)); }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+        catch (Exception) { return ""; }
+    }
+
     private async Task RefreshAsync(BellApi current, CancellationToken token, bool notify = false)
     {
         await refreshLock.WaitAsync(token);
@@ -274,6 +284,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
             var rooms = await current.GetAsync<RoomsResponse>("/api/rooms?avatar=omit", token);
             var activity = await current.GetAsync<QueueResponse>("/api/queue", token);
             var owner = await current.GetAsync<OwnerResponse>("/api/owner?avatar=omit", token);
+            var accountsBanner = await AccountsBannerAsync(current, token);
             if (selected is { Target.IsRoom: true })
             {
                 // An optional setting: its failure must not fail the list refresh.
@@ -283,6 +294,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
             }
             token.ThrowIfCancellationRequested();
             OwnerName = owner.Owner.Name; Changed(nameof(OwnerName));
+            if (AccountsBanner != accountsBanner) { AccountsBanner = accountsBanner; Changed(nameof(AccountsBanner)); }
             queue = activity.Items; var working = queue.Where(item => item.Status == "running").Select(item => item.BotId).ToHashSet();
             var previous = all.ToDictionary(entry => entry.Target);
             all = bots.Bots.Select(bot => new ConversationEntry(new(bot.Id, false), bot.DisplayName, CurrentWork.Label(bot.CurrentWork), bot.Recent?.At ?? DateTimeOffset.MinValue, bot, null, Server, working.Contains(bot.Id)))
@@ -643,7 +655,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     public void SignOut()
     {
         connection?.Cancel(); selection?.Cancel(); ReturnToProfile(); ready = false; selected = null; stoppingBotId = null; stopResult = null; loadFailed = false; routingEnabled = null;
-        all.Clear(); queue = []; Entries.Clear(); Messages.Clear(); ReplyMembers.Clear(); drafts.Clear(); pendingSends.Clear(); attachmentPreviews.Clear(); avatars.Clear(); OwnerName = "あなた";
+        all.Clear(); queue = []; Entries.Clear(); Messages.Clear(); ReplyMembers.Clear(); drafts.Clear(); pendingSends.Clear(); attachmentPreviews.Clear(); avatars.Clear(); OwnerName = "あなた"; AccountsBanner = ""; Changed(nameof(AccountsBanner));
         HasMore = false; Loading = false; ConnectionError = ActionError = null; NeedsLogin = AuthMode == "cloudflare"; ConnectionStatus = "ログアウトしました。";
         foreach (var name in new[] { nameof(Connected), nameof(Selected), nameof(HasSelection), nameof(IsRoom), nameof(Title), nameof(Profile), nameof(OwnerName), nameof(OnlineSummary), nameof(ActivityText), nameof(HasActivity), nameof(ActivityRows), nameof(StopEnabled), nameof(CurrentBotCanStop), nameof(StopResult), nameof(LoadFailed), nameof(RoutingEnabled), nameof(ReplyTargetLabel), nameof(CanShowScreen) }) Changed(name);
         DraftChanged();
