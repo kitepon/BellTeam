@@ -995,10 +995,13 @@ export class AitermTransport {
   }
 
   async readTurnAnswer(delivery, completion, client = this.client) {
+    // Bind the read to this delivery's Claude input: a next input to the seat must not change which answer is read (wait-contract.md).
+    const inputId = !completion.operation_id && /^[a-f0-9]{32}$/u.test(delivery.receipt?.input_id ?? '') ? delivery.receipt.input_id : null
     return transcriptText(await client.call('pty_read', {
       session_id: delivery.session,
       agent_transcript: true,
       ...(completion.operation_id ? { operation_id: completion.operation_id } : {}),
+      ...(inputId ? { input_id: inputId } : {}),
     }), completion)
   }
 
