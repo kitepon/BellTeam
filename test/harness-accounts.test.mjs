@@ -190,3 +190,15 @@ test('parent Aiterm over the seat command carries the account roots (production 
   assert.deepEqual(seatConnectionEnvironment('g', client.claudeConfigRoots), ['BELLTEAM_RUNTIME_GENERATION=g', `AITERM_CLAUDE_CONFIG_ROOTS=${client.claudeConfigRoots}`])
   assert.deepEqual(seatConnectionEnvironment('g', null), ['BELLTEAM_RUNTIME_GENERATION=g'])
 })
+
+// harness-accounts.md: an unreadable or invalid 1st config never empties the slot's copy (protection: overwriting existing state).
+test('prepare keeps the slot config byte-for-byte when the 1st config cannot be read or parsed', async t => {
+  const { home, accounts } = await setup(t)
+  const { configurationRoot } = await accounts.prepare('claude', '2nd')
+  const before = await readFile(join(configurationRoot, '.claude.json'), 'utf8')
+  for (const broken of ['{not json', '[]']) {
+    await writeFile(join(home, '.claude.json'), broken)
+    await assert.rejects(accounts.prepare('claude', '2nd'), { code: 'ACCOUNT_ROOT_UNAVAILABLE' })
+    assert.equal(await readFile(join(configurationRoot, '.claude.json'), 'utf8'), before)
+  }
+})

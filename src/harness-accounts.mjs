@@ -46,8 +46,11 @@ export async function seatFiles(op, ...args) {
       if (await present(join(primary, name))) await symlink(join(primary, name), link)
     }
     const to = join(root, `.${harness}.json`)
-    let source = {}, target = {}, readable = true
-    try { source = await readJson(join(home, `.${harness}.json`)) } catch {}
+    let source, target = {}, readable = true
+    // An unreadable 1st config would turn the copy into a deletion: keep the slot's file as it is and fail the prepare
+    // (protection: overwriting existing state); a launch then goes on with the last copy, the next prepare refreshes it.
+    try { source = await readJson(join(home, `.${harness}.json`)) } catch { throw error('ACCOUNT_SOURCE_UNREADABLE') }
+    if (!source || typeof source !== 'object' || Array.isArray(source)) throw error('ACCOUNT_SOURCE_UNREADABLE')
     try { target = await readJson(to) } catch (cause) { if (cause.code !== 'ENOENT') readable = false }
     if (readable) {
       // Only the account differs (Owner 2026-11-09): every 1st setting (MCP servers, projects, onboarding, ...) is the 1st's;
