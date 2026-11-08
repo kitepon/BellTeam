@@ -58,7 +58,7 @@ public partial class MainWindow : Window
                 InspectorColumn.Width = model.IsRoom ? new GridLength(280) : new GridLength(1, GridUnitType.Star);
             if (args.PropertyName == nameof(Workspace.Selected) && page is null) ProfileLayout();
             if (args.PropertyName is nameof(Workspace.Loading) or nameof(Workspace.Selected)) UpdateWelcome();
-            if (args.PropertyName is nameof(Workspace.ConnectionError) or nameof(Workspace.ActionError)) { ErrorStrip.Visibility = model.ConnectionError is null && model.ActionError is null ? Visibility.Collapsed : Visibility.Visible; ReconnectButton.Visibility = model.ConnectionError is null || model.Server.Length == 0 ? Visibility.Collapsed : Visibility.Visible; }
+            if (args.PropertyName is nameof(Workspace.ConnectionError) or nameof(Workspace.ActionError)) { ErrorStrip.Visibility = model.ConnectionError is null && model.ActionError is null ? Visibility.Collapsed : Visibility.Visible; ReconnectButton.Visibility = model.ConnectionError is null || model.Server.Length == 0 ? Visibility.Collapsed : Visibility.Visible; ConnectionButton.Visibility = model.ConnectionError is null ? Visibility.Collapsed : Visibility.Visible; }
         };
         model.UpdatesChanged += () => _ = RefreshUpdateNoticeAsync();
         PreviewKeyDown += Window_KeyDown;
@@ -210,6 +210,8 @@ public partial class MainWindow : Window
             foreach (var nested in Descendants<T>(child)) yield return nested;
         }
     }
+    // Settings needs a live connection, so an unreachable saved server is changed from the connection strip.
+    private void Connection_Click(object sender, RoutedEventArgs e) => OpenConnectionSettings();
     private void ClearSearch_Click(object sender, RoutedEventArgs e) { model.Search = ""; SearchBox.Focus(); }
     public void OpenConnectionSettings()
     {
