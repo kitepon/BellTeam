@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T12:53:17Z",
-  "expiresAt": "2026-11-15T12:53:17Z",
+  "publishedAt": "2026-11-08T12:59:57Z",
+  "expiresAt": "2026-11-15T12:59:57Z",
   "releases": [
     {
       "componentId": "usage",
@@ -489,8 +489,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "68521582f5407edb6146f135e34e0179838430a0",
-      "versionId": "6daa3380dd72b1ad4b2faa23da2201f7f6699ee4860a26916ea3677b4f151df6",
+      "sourceCommit": "1c7e2eaebe1289f9a3d553998151ab4bb8653244",
+      "versionId": "cdf62984fed7102b31b262cee96f6fa01562bcb421b5cf3cba326f2b5bf8e7de",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -498,16 +498,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T065148Z/execution-68521582f5407edb6146f135e34e0179838430a0-linux-amd64.tar.gz",
-          "bytes": 3923909,
-          "sha256": "6daa3380dd72b1ad4b2faa23da2201f7f6699ee4860a26916ea3677b4f151df6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T125928Z/execution-1c7e2eaebe1289f9a3d553998151ab4bb8653244-linux-amd64.tar.gz",
+          "bytes": 3933004,
+          "sha256": "cdf62984fed7102b31b262cee96f6fa01562bcb421b5cf3cba326f2b5bf8e7de"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T065148Z/execution-68521582f5407edb6146f135e34e0179838430a0-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10942,
-          "sha256": "a9090ca2ace6cd8115d85b9911bf738013c5d7ffb1419dd2b4afe8693bc90301"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T125928Z/execution-1c7e2eaebe1289f9a3d553998151ab4bb8653244-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10989,
+          "sha256": "508801cca27538c219564d5611f3460b6117fcf8f4e94dc133e1f2ca2472083d"
         },
-        "signerCommit": "68521582f5407edb6146f135e34e0179838430a0"
+        "signerCommit": "1c7e2eaebe1289f9a3d553998151ab4bb8653244"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -517,13 +517,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "入力IDに対応する記録から応答を確認し、別の入力との取り違えを防ぎます。失敗時はaitermのエラーコードを保ちます。"
+        "Claudeの1つ目と2つ目のアカウントを分けて扱い、設定の「AIの認証」でそれぞれの状態を確認できるようにします。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "68521582f5407edb6146f135e34e0179838430a0",
-      "versionId": "c348efde940d25e0353d5d14abe1b2fc614e278f4fe628b77100d6a0ce1c2b9f",
+      "sourceCommit": "1c7e2eaebe1289f9a3d553998151ab4bb8653244",
+      "versionId": "99fed810e0f4bc19e1bb2e2049a626ee4d5e925a5d7b13976945436ac773f973",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -531,16 +531,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T065148Z/execution-68521582f5407edb6146f135e34e0179838430a0-linux-arm64.tar.gz",
-          "bytes": 3923912,
-          "sha256": "c348efde940d25e0353d5d14abe1b2fc614e278f4fe628b77100d6a0ce1c2b9f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T125928Z/execution-1c7e2eaebe1289f9a3d553998151ab4bb8653244-linux-arm64.tar.gz",
+          "bytes": 3933007,
+          "sha256": "99fed810e0f4bc19e1bb2e2049a626ee4d5e925a5d7b13976945436ac773f973"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T065148Z/execution-68521582f5407edb6146f135e34e0179838430a0-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11020,
-          "sha256": "4b2935768067c91be74505d148618538ac12e049546dbf8c5164b814bd024a9d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T125928Z/execution-1c7e2eaebe1289f9a3d553998151ab4bb8653244-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11036,
+          "sha256": "3eb7c0422a6bd2a73c0fb1915f1828e568f2ea01774e91722d9c5c08f938c94e"
         },
-        "signerCommit": "68521582f5407edb6146f135e34e0179838430a0"
+        "signerCommit": "1c7e2eaebe1289f9a3d553998151ab4bb8653244"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -550,7 +550,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "入力IDに対応する記録から応答を確認し、別の入力との取り違えを防ぎます。失敗時はaitermのエラーコードを保ちます。"
+        "Claudeの1つ目と2つ目のアカウントを分けて扱い、設定の「AIの認証」でそれぞれの状態を確認できるようにします。"
       ]
     },
     {
