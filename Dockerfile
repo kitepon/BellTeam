@@ -31,7 +31,9 @@ RUN curl -fsSL https://x.ai/cli/install.sh | bash \
 RUN curl -fsSL https://antigravity.google/cli/install.sh | bash -s -- --dir /usr/local/bin \
   && agy --version
 # RTK（担当ドリリー）。本家のinstall.shがsha256を照合する。~/.localはcursor-cliのvolumeで隠れるため/usr/local/binへ置く。
-RUN curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/master/install.sh | RTK_INSTALL_DIR=/usr/local/bin sh \
+# 版を固定する: 最新版の検索はGitHub APIを使い、CIの共有IPでは回数制限で失敗する（2026-11-08）。版の更新はドリリー。
+ARG RTK_VERSION=v1.2.0
+RUN curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/master/install.sh | RTK_VERSION=$RTK_VERSION RTK_INSTALL_DIR=/usr/local/bin sh \
   && rtk --version
 COPY --from=mcp-lazy /out/mcp-lazy /usr/local/bin/mcp-lazy
 RUN mcp-lazy --version

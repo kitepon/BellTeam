@@ -185,3 +185,9 @@ The socket capacity and safe exception logging contract is owned by [the shared 
 ## Runtime targets (Z-b2)
 
 The same service also installs the four fixed runtime targets (`kind:"runtime"`): `install_runtime` verifies with `verify-runtime.py`, stages and commits the next-launch selection on the `runtime-code` volume, and sets the job ready itself. Canonical contract: [runtime-updates.md](runtime-updates.md#updater-job-and-supply-contract-slice-b).
+
+## 起動時の公式catalog確認が失敗しても止まらない（2026-11-08）
+
+`serve`は起動時に公式catalogを一回確認する（GitHub APIとRelease）。この確認が失敗しても、serviceは止まらずにsocketを開く。失敗は`catalog/refresh.json`のstatus `failed`として残り、受理済みのcatalogがあればそれで計画を受け付け続ける。再確認は成功するまで60秒ごと、成功後は900秒ごと。初回でcatalogが一つも無い間は`--health`が失敗する（catalogが無ければ計画できないため）。次の確認が成功すれば、その時点でhealthyになる。
+
+原因：以前は起動時の確認の失敗がそのまま例外になった。serviceは`MODULE_INSTALLER_STOPPED`で終了し、再起動を繰り返していた。2026-11-08のCI（arm64、run 42478770320）では、共有IPのGitHub API回数制限でこの状態になり、`MODULE_INSTALLER_START_FAILED`で失敗した。本番でも、本体の入れ替えの瞬間にGitHubへつながらないと、同じ理由で入れ替えが失敗し得た。この停止は何も守っていなかったので外した。
