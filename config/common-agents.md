@@ -78,6 +78,12 @@ SECTION guards
     WHEN: a guard is unavoidable
     DO: before implementing, prove on the state diagram a transition by which the system
         leaves the guarded state on its own.
+  RULE guards.give-up-is-a-guard
+    WHEN: an operation ends as failed or refused while the system could still proceed (wake, start, send)
+    DO: count it as a guard.
+  RULE guards.remove-unnamed
+    WHEN: an existing guard names no protection or no self-exit
+    DO: remove it. NEVER: repair, tune or add a timeout to it.
 
 SECTION verification
   # Verify once, by the diagrams, within the changed range.
