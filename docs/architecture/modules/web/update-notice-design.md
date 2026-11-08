@@ -1,5 +1,33 @@
 # Update通知の表示・操作設計
 
+## Per-component standard status (2026-11-08)
+
+This display contract supersedes the main-screen raw-job requirements below when `components[].status` is supplied. Source contract: Molly PR545, [per-component status line](../integration/update-jobs.md#per-component-status-line-2026-11-08). Common owns the latest job, status wording, time and action decision. Web never selects a latest job to compose its own standard status.
+
+| Function / edge | Input -> output and ownership |
+| --- | --- |
+| Per-row optional display reader | Check each component `status:{line,tone:ok/updating/attention,actionRequired,action,latestJob}` only for that row's presentation. Malformed or newer-shaped status is treated as absent for that row and never rejects inventory or blocks any plan/start. Latest-job ID/kind/state/outcome/ISO time/reason are detail-only data when the status shape is readable. |
+| Standard overview | Supplied component statuses -> one row per supplied component: name + exact server line, through text nodes. Attention rows receive visual/text emphasis and show the supplied action. The ordinary heading uses a neutral label and the server notice. No client-composed version/job sentence or interpretation of old failures. |
+| Technical details | Existing combined jobs and restart-problem sections move under the existing 詳細 disclosure for status-capable responses. Latest-job fields are added to the selected component's support details; current/published versions and retained operation/history displays remain there. Standard errors use a brief read-error message; full codes/path/reason remain in details. |
+| Older-body fallback | When no component supplies status, keep existing standard rendering unchanged, including the legacy job list. A mixed response uses valid supplied statuses and the existing comparison/capability rendering for rows with absent or invalid status, while keeping raw records in details. No missing server sentence is invented. Keep the last successful response mode through a read failure, so stale event jobs cannot leak onto the standard screen; a successful older-body response resets the mode. |
+| Refresh and actions | Same opted-in inventory GET, retained operation GET and SSE invalidation; no new request, store, timer or server judgment. Existing plan/start/confirmation/UUID retention and runtime no-rollback policy remain unchanged. |
+
+```mermaid
+flowchart LR
+  SSE[Existing updates SSE] --> Read[Existing inventory GET runtime=1]
+  Read --> Status[Read optional status per row / invalid means absent]
+  Status -->|supplied line/tone/action| Standard[Normal overview: component name + server text]
+  Status -->|latestJob| Detail[Existing 詳細 disclosure]
+  Read --> Jobs[Existing jobs / operation / problems]
+  Jobs -->|status supplied| Detail
+  Jobs -->|all status absent| Legacy[Existing older-body standard view]
+  Read --> Error[Existing reader error]
+  Error --> Detail
+  Error --> Brief[Brief standard error without technical codes]
+```
+
+Overall Web -> integration HTTP/SSE composition remains unchanged; overall DFD U14 names the status projection. Source reach is `web/update-center.js`, `web/styles.css` and `test/web-update-center.test.mjs`; `application.js`, public routes/SSE, module.json and assets membership stay unchanged. No new guard is introduced; existing invalid-response/read-error handling clears through a later successful refresh. Optional status checks select a row display only; they are absent from the whole-inventory validator and cannot refuse an inventory or an update action. A readable status can arrive on any later refresh; malformed/newer optional shapes require no server repair or Web upgrade to use the existing update actions.
+
 ## Runtime updates in the normal Update screen (2026-11-08, Z-b2 slice D)
 
 The public contract is [runtime slice D](../runtime/runtime-updates.md#inventory-plan-and-start-slice-d), supplied in PR517. Web opts in through GET `/api/updates?runtime=1`; it does not add a second jobs-list request. Existing operation GET, plan/start POST, retained UUIDs and scoped SSE invalidation remain the same.
@@ -55,7 +83,7 @@ flowchart LR
   Projection --> Screen
 ```
 
-The main screen must expose the real job ID and state rather than hide them only in support details. Display reason text with textContent; do not translate backend messages into browser diagnoses. No browser job store, automatic POST replay, server-judgment duplication, restart timer/counter, admin-key endpoint, or rollback feature is added. Preserve existing drafts, focus, selected targets and fixed plan confirmation. Unrelated version comparison and conversation deliveryTracking accepted/unknown retain their own contracts.
+Older bodies without component status keep the original main-screen job ID/state rendering. Status-capable bodies show those technical values only under 詳細. Display reason text with textContent; do not translate backend messages into browser diagnoses. No browser job store, automatic POST replay, server-judgment duplication, restart timer/counter, admin-key endpoint, or rollback feature is added. Preserve existing drafts, focus, selected targets and fixed plan confirmation. Unrelated version comparison and conversation deliveryTracking accepted/unknown retain their own contracts.
 
 ### Final problems projection
 
@@ -67,7 +95,7 @@ GET/inventory may return `operation.admission:"pending"` while per-step durable 
 
 POST `/api/updates/operations` keeps the existing body; caller idempotencyKey defaults to requestId, so Web keeps its existing single canonical UUID and does not generate per-step keys. 202 `{operation}` follows every durable per-step admission. `operation.jobs[]` contains full stored records; no aggregate job state exists. GET `/api/updates/operations/:requestId` refreshes the same bound records. GET `/api/updates` adds recent `jobs[]` (16) and problems[]. The Web uses these existing inventory/operation reads, without an extra recent-jobs request. The common contract also provides GET `/api/updates/jobs` and `/api/updates/jobs/:kind/:jobId`; Web need not duplicate its reads through these routes.
 
-Render every stored record with its jobId, exact state, module target and failed reason.code/message in both main view and appropriate operation detail/history. Do not derive an operation-wide state from these records or legacy phase/execution/verification. Legacy operations without jobs retain requestId/planId and display their supplied historical error, if any, plus the absence of a stored job; do not fabricate a job or show an unknown state.
+Render every stored record with its jobId, exact state, module target and failed reason.code/message in appropriate operation detail/history; only the older-body fallback repeats them on the main view. Do not derive an operation-wide state from these records or legacy phase/execution/verification. Legacy operations without jobs retain requestId/planId and display their supplied historical error, if any, plus the absence of a stored job; do not fabricate a job or show an unknown state.
 
 Keep `bellteam-update-request.v1` current requestId/planId and historical snapshots. When an explicit new operation replaces an unresolved lookup, preserve its IDs as a previous reference even if no result was readable; previous entries may therefore be original historical operation snapshots or `{requestId,planId}` references. New history stores only these references, without copying full job records; preserve existing historical snapshots unchanged. GET recovery always uses those same IDs, including after terminal records, reload or reader failure. A browser snapshot is never a server ledger. No automatic POST retry. Capability/plan and server admission own concurrency decisions; a failed read or legacy unknown does not introduce a new browser admission guard. Retain fixed-target confirmation, double-click suppression and storage errors protecting lookup identity.
 

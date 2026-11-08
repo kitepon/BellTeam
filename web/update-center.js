@@ -46,6 +46,12 @@ const errorText = error => [...new Set([error?.code, error?.message, error?.path
     : error?.status === 404 ? 'この接続先では更新情報が未提供です。' : '更新情報を取得できませんでした。')
 const comparisonLabel = item => item.comparison.state === 'up_to_date' && item.publication?.check.status !== 'verified'
   ? '受入済み版と一致 · 公開情報の取得確認が必要です' : comparisons[item.comparison.state]
+const componentStatus = value => value && text(value.line)
+  && ['ok', 'updating', 'attention'].includes(value.tone) && typeof value.actionRequired === 'boolean' && nullableText(value.action)
+  && (value.latestJob === null || value.latestJob && uuid(value.latestJob.jobId)
+    && ['module', 'container', 'runtime'].includes(value.latestJob.kind) && jobStates.includes(value.latestJob.state)
+    && ['running', 'succeeded', 'failed'].includes(value.latestJob.outcome) && date(value.latestJob.at)
+    && (value.latestJob.reason === null || value.latestJob.reason && text(value.latestJob.reason.code) && text(value.latestJob.reason.message)))
 const problem = value => value && text(value.fingerprint) && ['open', 'resolved'].includes(value.status)
   && value.kind === 'module_restart_limit' && text(value.moduleId) && Number.isSafeInteger(value.count)
   && value.windowSeconds === 1800 && value.lastExit
@@ -79,7 +85,7 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
   let choosing = false
   const notice = get('[data-update-notice]'), refreshButton = get('[data-update-refresh]')
   let selected = 'all', generation = 0, opened = false, disposed = false, loading = false
-  let opener = null, inventory = null, recentJobs = [], failure = '', planFailure = ''
+  let opener = null, inventory = null, recentJobs = [], failure = '', planFailure = '', componentStatuses = false
   const requestKey = 'bellteam-update-request.v1'
   let planned = null, planning = false, submitting = false, confirmed = false, planGeneration = 0
   let pending = null, ownResult = null, operationMessage = '', storageFailure = '', requestStorage = storage
@@ -176,6 +182,7 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
   function renderDetail() {
     const supportOpen = Array.from(detail.children).find(node => node.className === 'update-support')?.open ?? false
     const component = inventory?.components.find(item => item.id === selected)
+    const status = componentStatus(component?.status) ? component.status : null
     const selectedPlan = planned
     const affects = item => item && (selected === 'all' || item.plan.targets.some(target => target.componentId === selected))
     const current = inventory?.operation, previous = inventory?.previousOperation
@@ -292,10 +299,14 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     summary.dataset.updateControl = 'support-summary'; support.append(summary)
     const fields = element('dl', '')
     const codes = new Set([planFailure, component?.availability.reason, component?.comparison.reason, component?.capability.reason,
-      component?.publication?.check.error, displayPlan?.compatibility.reason, displayPlan?.capability.reason, result?.error?.code].filter(Boolean))
+      component?.publication?.check.error, displayPlan?.compatibility.reason, displayPlan?.capability.reason, result?.error?.code, status?.latestJob?.reason?.code].filter(Boolean))
     const values = [
       ['稼働版', component?.current?.version], ['稼働配布物', component?.current?.digest],
       ['公開版', component?.published?.version], ['公開配布物', component?.published?.digest],
+      ['最新ジョブID', status?.latestJob?.jobId], ['最新ジョブ種別', status?.latestJob?.kind],
+      ['最新ジョブ状態', status?.latestJob?.state], ['最新ジョブ結果', status?.latestJob?.outcome],
+      ['最新ジョブ日時', status?.latestJob ? formatDate(status.latestJob.at) : null],
+      ['最新ジョブの理由', status?.latestJob?.reason?.message],
       ...(displayPlan?.targets.map(target => [`固定した更新先 · ${target.componentId}`, target.published.version]) ?? []),
       ['計画ID', displayPlan?.planId], ['要求ID', result?.requestId ?? pending?.requestId],
       ['状態・理由の符号', [...codes].join(' / ')],
@@ -358,8 +369,9 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     let title = records.length ? '更新ジョブ' : candidates.length ? '更新があります' : latest ? '最新の状態です' : '更新情報'
     let description = records.length ? '各ジョブの状態と理由を表示しています。' : candidates.length ? '新しいバージョンを利用できます。' : latest ? '利用できる更新はありません。' : '更新の情報を取得してください。'
     let mark = records.length || candidates.length ? '↑' : latest ? '✓' : '↻'
+    if (componentStatuses) { title = '更新状況'; description = inventory?.notice.message ?? ''; mark = '↑' }
     const readError = operationReadError || failure || storageFailure
-    if (readError) { title = '更新情報の取得エラー'; description = readError; mark = '↻' }
+    if (readError) { title = '更新情報の取得エラー'; description = componentStatuses ? '更新情報を取得できませんでした。詳細を確認してください。' : readError; mark = '↻' }
     if (loading && !inventory && !readError) { title = '更新を確認しています'; description = '少しお待ちください。'; mark = '↻' }
     if (selectedPlan && !submitting) { title = '更新内容を確認'; description = '対象と影響を確認してから、更新を始めます。'; mark = '↑' }
     if (submitting) { title = '更新の受付を確認しています'; description = '要求の応答を待っています。'; mark = '↻' }
@@ -369,10 +381,23 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     const heading = element('h3', 'update-status-title', title); heading.setAttribute('aria-live', 'polite')
     product.append(icon, heading, element('p', 'update-status-copy', description))
     if (operationMessage) product.append(element('p', 'update-status-copy', operationMessage))
+    if (componentStatuses && inventory) {
+      const section = element('section', 'update-release-notes update-component-statuses')
+      for (const component of inventory.components) {
+        const status = componentStatus(component.status) ? component.status : null
+        const row = element('article', `update-component-summary${status?.tone === 'attention' ? ' is-attention' : ''}`)
+        if (status) row.dataset.statusTone = status.tone
+        row.append(element('strong', '', component.name), element('p', '', status?.line ?? comparisonLabel(component)))
+        if (status?.tone === 'attention' && status.action) row.append(element('p', '', status.action))
+        if (!status && !component.capability.supported) row.append(element('p', '', explanation(component.capability.reason, isRuntime(component.id))))
+        section.append(row)
+      }
+      product.append(section)
+    }
     if (records.length) {
       const section = element('section', 'update-release-notes update-jobs')
-      section.append(element('h4', '', 'ジョブの状態'))
-      renderJobs(section, records); product.append(section)
+      section.append(element('h4', '', componentStatuses ? '保存されたジョブ' : 'ジョブの状態'))
+      renderJobs(section, records); (componentStatuses ? detail : product).append(section)
     }
     const choose = item => { selected = item.id; choosing = false; planned = null; confirmed = false; planGeneration++; planning = false; if (canPlan()) void requestPlan(); else renderDetail() }
     if (choosing && !selectedPlan) {
@@ -434,7 +459,7 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
           element('p', '', `直近の理由: ${problem.lastReason}`))
         section.append(row)
       }
-      product.append(section)
+      (componentStatuses ? detail : product).append(section)
     }
     if (focus) product.querySelector(`[data-update-control="${focus}"]`)?.focus()
   }
@@ -554,6 +579,7 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     loading = true; render()
     const reads = [readLatest(inventoryPath, (result, revision) => {
       inventory = result.status === 'fulfilled' && validUpdateInventory(result.value) ? result.value : null
+      if (inventory) componentStatuses = inventory.components.some(item => componentStatus(item.status))
       if (inventory && revision === eventRevision) recentJobs = inventory.jobs ?? []
       failure = inventory ? '' : result.status === 'fulfilled' ? '更新情報の応答形式を確認できません。' : errorText(result.reason)
     })]
