@@ -51,3 +51,16 @@ test('hold waits for the next running and refuses when closed or never running',
   recovery.close(); assert.equal(await closing, 'late')
   await assert.rejects(recovery.hold(() => 'never', () => Object.assign(new Error('X_NOT_ACCEPTING'), { code: 'X_NOT_ACCEPTING' })), { code: 'X_NOT_ACCEPTING' })
 })
+
+test('a hold that timed out never runs its retry on a later running', async t => {
+  const { mock } = await import('node:test')
+  const { createModuleChildRestart, MODULE_HOLD_MS } = await import('../src/module-child-restart.mjs')
+  mock.timers.enable({ apis: ['setTimeout'] }); t.after(() => mock.timers.reset())
+  const recovery = createModuleChildRestart(async () => {})
+  let runs = 0
+  const held = recovery.hold(() => ++runs, () => Object.assign(new Error('X_NOT_ACCEPTING'), { code: 'X_NOT_ACCEPTING' }))
+  mock.timers.tick(MODULE_HOLD_MS)
+  await assert.rejects(held, { code: 'X_NOT_ACCEPTING' })
+  recovery.running(); await new Promise(resolve => setImmediate(resolve))
+  assert.equal(runs, 0)
+})

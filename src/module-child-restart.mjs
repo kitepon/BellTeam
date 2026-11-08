@@ -74,8 +74,10 @@ export function createModuleChildRestart(restart, component = null, onModuleRest
     hold(retry, refuse) {
       if (closed) return Promise.reject(refuse())
       return new Promise((resolve, reject) => {
-        const timer = setTimeout(() => reject(refuse()), MODULE_HOLD_MS); timer.unref?.()
-        waiters.add(() => { clearTimeout(timer); Promise.resolve().then(retry).then(resolve, reject) })
+        // A timed-out waiter leaves the set: its caller already has the refusal, so a later running() must not run it.
+        const waiter = () => { clearTimeout(timer); Promise.resolve().then(retry).then(resolve, reject) }
+        const timer = setTimeout(() => { waiters.delete(waiter); reject(refuse()) }, MODULE_HOLD_MS); timer.unref?.()
+        waiters.add(waiter)
       })
     },
     close() { closed = true; clearTimeout(timer); clearQuiet(); timer = null; transition('closed'); wake() },
