@@ -379,7 +379,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
       const preview = workLabel(bot.currentWork)
       button.innerHTML = `
         <span class="avatar ${escapeClass(bot.color)}" data-avatar>${initials(bot.name)}<i class="presence ${bot.online ? 'online' : ''}"></i></span>
-        <span class="bot-copy"><span class="bot-name">${escapeHtml(bot.displayName)}</span><span class="bot-position">${escapeHtml(bot.position || '役職未設定')}</span><span class="bot-preview">${escapeHtml(preview)}</span>${bot.deleting || bot.deletionRequested ? '<span class="deletion-state">削除を受付・完了未確認</span>' : ''}</span>
+        <span class="bot-copy"><span class="bot-name">${escapeHtml(bot.displayName)}</span><span class="bot-position">${escapeHtml(bot.position || '役職未設定')}</span><span class="bot-preview bot-work-preview" title="${escapeHtml(preview)}">${escapeHtml(preview)}</span>${bot.deleting || bot.deletionRequested ? '<span class="deletion-state">削除を受付・完了未確認</span>' : ''}</span>
         <span class="bot-meta"><time class="bot-time" title="最終会話の時刻">${formatTime(bot.recent?.at)}</time>${unread ? '<i class="unread-dot" aria-label="未読"></i>' : ''}</span>`
       applyAvatar(button.querySelector('[data-avatar]'), bot)
       return button

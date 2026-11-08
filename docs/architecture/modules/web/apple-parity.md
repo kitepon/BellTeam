@@ -89,7 +89,7 @@ Molly固定 `contract-artifacts.json` SHA256 `b9767b6668a6c70e64291408fe090ba6b6
 ```mermaid
 flowchart LR
   GET["既Bot/Room GET currentWork"] --> Boundary["current-work.js<br/>6key/状態/要約/時刻整合<br/>欠測・不正はunknown"]
-  Boundary --> Bot["Bot subtitle<br/>current短文 / 未設定 / 期限切れ / 待機 / 未取得"]
+  Boundary --> Bot["Bot subtitle（名前の下に折り返し・title全文）<br/>current短文 / 未設定 / 期限切れ / 待機 / 未取得"]
   Boundary --> Room["Room scope:participantsだけ<br/>本人名付き要約最大2名＋残り人数"]
   Room --> Detail["ヘッダーの仕事details<br/>表示権限内の現参加者全員"]
   Bot --> Detail
@@ -99,6 +99,8 @@ flowchart LR
 `online/recent`は接続・最終会話の補助表示でありwork stateへ変換しない。Roomの仕事情報はRoom DTOからだけ読み、名簿からは名前と現在参加者だけを確認する。member DTOからRoom作業を合成しない。SSE→既loadBotsの再読取で同時に更新する。詳細を開閉してもAPI/AIを追加で呼ばない。期限/完了判定はproviderが所有し、Webは古い本文の表示fallbackや独自TTLを作らない。UIの有限例検証と実backend接続成功は別記する。
 
 2026-11-05背景agent契約: 公開6keyを維持し、source `background_agent`はworking/idle/unknown × current/missing/staleの9tupleを許す。旧`self_reported`のcurrent/staleはworkingだけ。missingは全stateで本文/更新時刻/source=null。unknownのobservedAtだけnull可、それ以外はdate必須。詳細の「実行状態」と「要約の生成元」を分け、新値を「自動生成」、旧値を「本人記載」、missing/nullは「未取得」と表示する。idle/unknownでもcurrent本文を表示し、それぞれ「待機中」「実行状態未取得」を併記する。要約からworkingを推測しない。未知sourceはDTO全体をunknownとして扱い、成功ラベルや旧要約で補わない。本文がないworkingは「作業中・要約未取得」。Roomでも参加者ごとに状態/生成元を表示し、旧自己申告を自動生成へ変換しない。10分TTL・入力/設定revision・停止時失効とwriterはexecutionが所有し、Webは返却されたstale/missingを描画する。停止や不明を要約本文から推測しない。
+
+2026-11-08要約幅（Owner裁定、Kiro供給側で幅40＝全角20/半角40以内に制限）: Webは文字数を切らない。一覧のBot行は名前の下に要約ラベルを折り返して表示する。通常の幅40は2行、W/Mのような幅広英字だけ3〜4行になる。4行を超えた分だけ末尾を省略する（旧本体の160字要約向けの上限）。行のtitleに全文を持つ。ヘッダーの仕事detailsのsummaryは折り返して全文を表示する。幅40の要約（全角20・半角40）はPCと360px幅の携帯で省略なしに収まること。Roomの参加者行は従来の1行表示。
 
 currentWork消費側の限定確認: 供給6有限例、欠測/不整合/不正文字、Unicode160、Roomに最大2名＋残数/退室者除外/重複unknownを局所確認。実HTTPのfield欠測をunknownと描画。供給例はconsumerへの明示fixtureだけで注入し、画面には『レビュー用：供給契約の有限例 / backend実接続は未確認』を常設したPC/mobile画像を保存。既SSEで選択中の詳細もunknownへ再同期、mutation0/JS例外0。backend実装SHA到着後の実GET mapping照合は未完。原本は担当席integrations/web-current-work-20261103/。
 
