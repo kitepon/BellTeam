@@ -22,6 +22,11 @@ export function workLabel(value) {
   return work.state === 'working' ? work.summary ?? (work.summaryStatus === 'stale' ? '作業中・要約期限切れ' : '作業中・要約未取得')
     : work.state === 'idle' ? '待機中' : '仕事状況を未取得'
 }
+// List rows show the state of a current summary in the time column, so the summary alone keeps its 2 lines.
+export function workParts(value) {
+  const work = currentWork(value)
+  return work.summaryStatus === 'current' && work.state !== 'working' ? { text: work.summary, state: stateLabel[work.state] } : { text: workLabel(value), state: '' }
+}
 export function participantWork(room, bots) {
   const input = room.currentWork?.scope === 'participants' && Array.isArray(room.currentWork.members) ? room.currentWork.members : []
   return room.memberIds.flatMap(id => {

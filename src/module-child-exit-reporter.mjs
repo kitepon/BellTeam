@@ -9,11 +9,16 @@ export function createModuleChildExitReporter() {
     for (const [component, entry] of pending) {
       if (entry.phase !== 'pending' || active.has(component)) continue
       entry.phase = 'issued'
+      let refile = false
       const task = Promise.resolve().then(() => entry.restart ? diagnostics.recordModuleRestartLimit(entry.report) : diagnostics.record(entry.report)).then(() => {
         if (pending.get(component) === entry) pending.delete(component)
-      }, error => { entry.phase = error?.outcome === 'not_accepted' ? 'pending' : 'unknown' }).finally(() => {
+      }, error => {
+        // An older diagnostics child refuses the optional origin key: store the same exit once in the old shape.
+        if ((error?.code ?? error?.message) === 'DIAGNOSTIC_INVALID' && entry.fallback) { entry.report = entry.fallback; entry.fallback = null; entry.phase = 'pending'; refile = true; return }
+        entry.phase = error?.outcome === 'not_accepted' ? 'pending' : 'unknown'
+      }).finally(() => {
         active.delete(component)
-        if (pending.get(component) !== entry) flush()
+        if (pending.get(component) !== entry || refile) flush()
       })
       active.set(component, task)
     }
@@ -22,7 +27,8 @@ export function createModuleChildExitReporter() {
     observe(dto) {
       if (closed) return
       const report = moduleChildExitReport(dto)
-      pending.set(dto.component, { report, phase: 'pending' })
+      const { childExitOrigin, ...plain } = dto
+      pending.set(dto.component, { report, phase: 'pending', fallback: childExitOrigin ? moduleChildExitReport(plain) : null })
       flush()
     },
     observeRestartLimit(dto) {

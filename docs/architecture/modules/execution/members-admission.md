@@ -25,6 +25,25 @@ transportはwake prepare→native→session/fast保存、restart close→wake保
 
 この公開口はlease相関/寿命だけ。IPCのroot/effect/callback別credit・byte上限・ACK期限はruntime、唯一writer/fresh本人/投影はmembers/common。channelに任意method/pathを公開するものではない。正式assemblyの共有注入とfresh callbackはMolly/Epi/Belortaの同公開窓口へ接続する。
 
+## 交換中の新rootは待って通す（2026-11-08、Molly、キロ確認）
+
+Owner不具合: members子の単独更新中（13:37:44 JST、job d92d948e）に GET /api/bots 等が 503 MEMBERS_NOT_ACCEPTED になった。本体は動いており、部品の交換は呼び手に見えてはいけない。
+
+| 入口 | 交換中（ticketあり）の動き |
+| --- | --- |
+| `withLease(op)` / `withReadPin(method, op)`（lease・pin・expected なし＝新root） | 拒否せず `resume(ticket)` まで待ち、新generationで入場して実行する。待ちの出口は resume（交換の成功・失敗・回復のどれでも必ず呼ばれる）。resume が来ない時（members が閉じたまま）の出口として `MEMBERS_EXCHANGE_HOLD_MS`=60秒後に従来の 503 |
+| 既lease/既pin を渡す呼び出し、`expected` を渡す呼び出し、同期の `enter()` / `enterReadPin()` | 変更なし（旧epochに束縛された要求は従来どおり拒否） |
+
+```mermaid
+flowchart LR
+  Req[新root要求] -->|ticketなし| Enter[enter / 実行]
+  Req -->|ticketあり| Hold[resume待ち]
+  Hold -->|resume| Enter
+  Hold -->|60秒内にresumeなし| Refuse[従来の503]
+```
+
+新しい拒否・lockは追加しない。保護対象は従来どおり「旧子が書き終える前に新子が書かない」（drain/adopt）で、待ちはその閉鎖の間だけ。待ちはlive leaseに数えないのでdrain/adoptを止めない。body-resident（親の`MembersAdmission`実体は本体の`/app/src`）。
+
 ## fresh readの世代pin（限定新契約）
 
 ```mermaid

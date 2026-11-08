@@ -89,7 +89,7 @@ export function createNotifications({ root, bots, diagnostics, configuration, pr
       if (state.applyError?.webPush) throw webPushError(state.applyError.webPush, 503)
       return state.status.webPush
     },
-    status: () => request('status', { provider: 'apns' }),
+    status: value => apns('status', value),
     configure: value => apns('configure', value),
     register: value => apns('register', value),
     unregister: value => apns('unregister', value),

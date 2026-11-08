@@ -12,11 +12,39 @@ import { respondHttpError } from '../src/http-errors.mjs'
 import { ConversationWriter } from '../src/conversation-writer.mjs'
 import { SecretRequests } from '../src/secret-requests.mjs'
 import { OwnerQuestions } from '../src/owner-questions.mjs'
+import { validateUpdateAttemptQuery } from '../src/update-push-attempts.mjs'
 
 const device = { token: 'a'.repeat(64), environment: 'production', server: 'https://bellteam.example', signedTransaction: 'PRIVATE_TRANSACTION' }
 const event = { type: 'direct', id: 'existing-id', botId: 'bot-a', senderName: 'メンバー' }
 const tick = () => new Promise(resolve => setImmediate(resolve))
 const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r }); return { promise, resolve } }
+
+test('update receipt HTTP query forwards typed options through the existing facade without sending', async t => {
+  const calls = []
+  const notifications = createNotifications({ root: 'unused', bots: new Map(), diagnostics: { async record() {} }, configuration: () => ({}),
+    createProcess: () => ({ async request(method, params) {
+      const { provider, ...options } = params
+      assert.equal(method, 'status'); assert.equal(provider, 'apns')
+      validateUpdateAttemptQuery(options)
+      calls.push(options)
+      return { configured: true, environments: ['production'], futureField: { retained: true } }
+    } }),
+  })
+  const handler = createUsageApi({ notifications })
+  const server = createServer((request, response) => {
+    void handler(request, response, new URL(request.url, 'http://localhost')).catch(error => respondHttpError(request, response, error))
+  })
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  t.after(() => { server.closeAllConnections(); server.close() })
+  const attemptId = '11111111-2222-3333-4444-555555555555'
+  const base = `http://127.0.0.1:${server.address().port}/api/notifications`
+  const result = await fetch(`${base}?attemptId=${attemptId}&deviceOffset=20`)
+  assert.equal(result.status, 200)
+  assert.deepEqual((await result.json()).futureField, { retained: true })
+  assert.deepEqual(calls, [{ attemptId, deviceOffset: 20 }])
+  assert.equal((await fetch(`${base}?deviceOffset=-1`)).status, 400)
+  assert.equal(calls.length, 1)
+})
 
 async function fixture(t, { provider, configuration = { enabled: true, relayUrl: '' } } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'notifications-usage-'))

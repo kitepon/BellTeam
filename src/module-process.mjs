@@ -300,8 +300,10 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     try {
       const target = instance
       if (component !== 'conversation' && proofHeld) throw fail('PROOF_UNAVAILABLE')
-      if (!target || target.ended || component !== 'conversation' && kind === 'request' && !available && !canContinue(method, options, target.generation))
+      if (!target || target.ended || component !== 'conversation' && kind === 'request' && !available && !canContinue(method, options, target.generation)) {
+        if (kind === 'request' && !closed) return recovery.hold(() => invoke(kind, method, params, options), () => fail('NOT_ACCEPTING'))
         throw fail('NOT_ACCEPTING')
+      }
       return track(target.channel[kind](method, params, options))
     } catch (error) { return Promise.reject(error) }
   }

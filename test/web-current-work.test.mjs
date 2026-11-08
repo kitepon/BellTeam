@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
-import { currentWork, workLabel, participantWork, roomWorkPreview, renderCurrentWork } from '../web/current-work.js'
+import { currentWork, workLabel, workParts, participantWork, roomWorkPreview, renderCurrentWork } from '../web/current-work.js'
 const examples=JSON.parse(await readFile(new URL('fixtures/web-current-work.json',import.meta.url)))
 test('all six supplied finite currentWork states retain their distinct meanings',()=>{
  for(const value of Object.values(examples.currentWork))assert.deepEqual(currentWork(value),value)
@@ -11,6 +11,10 @@ test('all six supplied finite currentWork states retain their distinct meanings'
  assert.equal(workLabel(w.workingStale),'作業中・要約期限切れ')
  assert.equal(workLabel(w.idle),'待機中')
  assert.equal(workLabel(w.unknownLastObservation),'仕事状況を未取得')
+ const idleCurrent={...w.workingCurrent,state:'idle',source:'background_agent'}
+ assert.deepEqual(workParts(idleCurrent),{text:w.workingCurrent.summary,state:'待機中'})
+ assert.deepEqual(workParts(w.workingCurrent),{text:w.workingCurrent.summary,state:''})
+ assert.deepEqual(workParts(w.idle),{text:'待機中',state:''})
 })
 test('generated and legacy summaries retain their sources while unknown sources remain unknown',()=>{
  const legacy=examples.currentWork.workingCurrent

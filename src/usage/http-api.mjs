@@ -117,7 +117,14 @@ export function createUsageApi({ onboarding, internal, notify, harnessAuth, sett
     }
     if (url.pathname.startsWith('/api/notifications')) {
       if (!notifications) return json(response, 404, { error: 'NOT_FOUND' })
-      if (request.method === 'GET' && url.pathname === '/api/notifications') return json(response, 200, await notifications.status())
+      if (request.method === 'GET' && url.pathname === '/api/notifications') {
+        const options = {}
+        for (const key of ['attemptId', 'before', 'deviceOffset']) if (url.searchParams.has(key)) {
+          const value = url.searchParams.get(key)
+          options[key] = key === 'deviceOffset' ? /^\d+$/u.test(value) ? Number(value) : NaN : value
+        }
+        return json(response, 200, await notifications.status(options))
+      }
       if (request.method === 'POST' && url.pathname === '/api/notifications/devices')
         return json(response, 200, await notifications.register(await readJson(request, 32768)))
       if (request.method === 'POST' && url.pathname === '/api/notifications/unregister')

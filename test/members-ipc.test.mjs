@@ -183,7 +183,10 @@ test('trusted old lease fresh read and startup continue through the closed child
   const saved = await x.channel.callback('profile.session', { botId: bot.id, session: 'continued-session' }, { membersLease: lease })
   assert.equal(saved.bot.session, 'continued-session')
   assert.equal(await readFile(join(x.root, 'bots', bot.id, 'memory/previous-session.md'), 'utf8'), 'continued\n')
-  assert.throws(() => x.request('profiles.read', { continuation: true }), { outcome: 'not_accepted' })
+  // A fresh root waits through the exchange instead of failing (members-admission.md); the sync enter still refuses.
+  let settled = false
+  x.request('profiles.read', { continuation: true }).then(() => { settled = true }, () => { settled = true })
+  await new Promise(resolve => setImmediate(resolve)); assert.equal(settled, false)
   assert.throws(() => x.admission.enter(), { code: 'MEMBERS_NOT_ACCEPTED' })
   x.admission.finish(lease); await x.admission.drain(ticket)
   await x.channel.control('quiesce'); await x.channel.control('exit'); await x.ended

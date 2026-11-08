@@ -3,6 +3,7 @@ import { createNotificationsChildChannel } from '../../src/notifications-ipc.mjs
 const mode = process.argv[3]
 let config = {}, channel, resumes = 0
 const status = { apns: { configured: false, environments: [] }, webPush: { enabled: false, configured: false, publicKey: null, error: null } }
+if (mode === 'extended-status') status.apns.updateAttempts = { future: [null, true, 1.5, 'kept'], items: [{ extraAttemptField: { devices: [{ extraDeviceField: 'kept' }] } }] }
 const initialized = () => ({ status, applyError: { apns: null, webPush: null } })
 channel = createNotificationsChildChannel({
   validateRequest() {},
@@ -14,6 +15,7 @@ channel = createNotificationsChildChannel({
     if (method === 'publish') return { accepted: true }
     if (method === 'configure') { if (mode === 'configure-delay') await new Promise(resolve => setTimeout(resolve, 100)); config[params.provider] = params }
     if (params.diagnostic) await channel.diagnostic({code:'SERVER_PUSH_SEND_FAILED',module:'notifications',diagnostic_log:'FIXTURE_ERROR'})
+    if (mode === 'extended-status' && method === 'status') return { ...status.apns, requested: Object.fromEntries(Object.entries(params).filter(([key]) => ['attemptId', 'before', 'deviceOffset'].includes(key))) }
     return status[params.provider]
   },
   async control(method, params) {

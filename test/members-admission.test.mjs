@@ -30,6 +30,18 @@ test('a rejected real completion is terminal, not a retry or an unhandled reject
   gate.adopt(ticket, 'b'); gate.resume(ticket)
 })
 
+test('a fresh root waits through an exchange and runs on the new generation', async () => {
+  const gate = new MembersAdmission('a'), ticket = gate.close()
+  const seen = []
+  const read = gate.withReadPin('profiles.read', pin => seen.push(['read', pin.generation]))
+  const write = gate.withLease(lease => seen.push(['write', lease.generation]))
+  assert.throws(() => gate.enter(), { code: 'MEMBERS_NOT_ACCEPTED' })
+  await gate.drain(ticket); gate.adopt(ticket, 'b')
+  await new Promise(resolve => setImmediate(resolve)); assert.deepEqual(seen, [])
+  gate.resume(ticket); await Promise.all([read, write])
+  assert.deepEqual(seen, [['read', 'b'], ['write', 'b']])
+})
+
 test('closed root rejects new work while old live lease callbacks drain', async () => {
   const gate = new MembersAdmission('a'), old = gate.capture(), lease = gate.enter(old, 'root-a')
   const ticket = gate.close()
@@ -138,4 +150,17 @@ test('rejected read completion is terminal and original operation errors retain 
   await assert.rejects(gate.withReadPin('profiles.read', async () => { throw original }), error => error === original)
   assert.throws(() => gate.withReadPin('profiles.read', () => { throw original }), error => error === original)
   const ticket = gate.close(); await gate.drain(ticket); gate.adopt(ticket, 'next'); gate.resume(ticket)
+})
+
+test('a members hold that timed out never runs its operation on a later resume', async t => {
+  const { mock } = await import('node:test')
+  const { MEMBERS_EXCHANGE_HOLD_MS } = await import('../src/members-admission.mjs')
+  mock.timers.enable({ apis: ['setTimeout'] }); t.after(() => mock.timers.reset())
+  const gate = new MembersAdmission('a'), ticket = gate.close()
+  let runs = 0
+  const held = gate.withLease(() => ++runs)
+  mock.timers.tick(MEMBERS_EXCHANGE_HOLD_MS)
+  await assert.rejects(held, { code: 'MEMBERS_NOT_ACCEPTED' })
+  await gate.drain(ticket); gate.resume(ticket); await new Promise(resolve => setImmediate(resolve))
+  assert.equal(runs, 0)
 })

@@ -166,6 +166,8 @@ SECTION volume
     DO: treat reminders, lists and deadline notices on your cases as requests; proceed even if marked "no reply needed" or "result to another"; return the result to the designated party.
   RULE volume.one-reply
     DO: one request gets exactly one message: the result.
+    DO: send that result to the requester the moment the request is done (failure included), even if other work for the same requester is still open; never hold a finished result to batch it.
+    FACT: a result sent to another party (Anchor, Mast) does not replace the result to the requester.
 
 SECTION roles
   RULE roles.startup
@@ -207,13 +209,8 @@ SECTION completion
     WHEN: waiting on another AI  DO: ask it for one result message when done (failure included); its message wakes you.
     NEVER: set a timed schedule just to check on another AI.
   RULE completion.continuation
-    FACT: this rule covers only resuming your own unfinished work. Periodic and time-triggered schedules (cron, interval, once at a time) stay as they are for work that runs on a clock.
-    WHEN: ending a turn while your own next step is ready to run
-    DO: set_schedule kind=after_turn (fires once when this turn ends): own procedure doc, remaining work, next step, completion condition; update instead of duplicating.
-    WHEN: ending a turn that waits on a peer, an approval or the user
-    DO: no schedule; the request already asks for one result; record the wait and its resume trigger in your procedure doc.
-    NEVER: a timed schedule whose only purpose is to wake yourself to continue or to check on a peer.
-    NEVER: schedule resumption of work the Owner stopped. FACT: a schedule changes no approval, stop condition or boundary.
+    WHEN: ending a turn unfinished (a pending reply, dependency or approval included)
+    DO: set the continuation with set_schedule kind=after_turn.
   RULE completion.schedule-kind
     DO: command schedule when no AI is needed; prompt schedule when judgment or repair is.
     DO: monitoring an external change with no peer to report it = a helper program that detects the change and wakes the AI. NEVER: wake the AI every tick to monitor, unless unavoidable.

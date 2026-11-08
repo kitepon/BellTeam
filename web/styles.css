@@ -331,7 +331,7 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
   .app.chat-open .chat { transform: translateX(0); }
   .roster-title { padding-left: 26px; }
   .bot-list { padding-left: 12px; padding-right: 12px; }
-  .bot-row { grid-template-columns: 62px minmax(0, 1fr) auto; padding: 12px 10px; }
+  .bot-row { grid-template-columns: 62px minmax(0, 1fr) auto; gap: 12px; padding: 12px 6px; }
   .avatar { width: 62px; height: 62px; }
   .chat-header { padding: max(13px, env(safe-area-inset-top)) 18px 11px; min-height: 76px; }
   .back-button { display: grid; width: 48px; height: 48px; }
@@ -441,7 +441,6 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .roster-search { display: block; padding: 0 22px 16px; }
 .roster-notice { padding: 0 22px 16px; }
 .roster-search input { width: 100%; min-height: 44px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; background: #f6f6f8; font: inherit; font-size: 15px; }
-.bot-position { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: #62626c; line-height: 1.6; }
 .search-empty { padding: 20px 24px; color: var(--muted); font-size: 14px; line-height: 1.8; }
 .profile-dialog { width: min(720px, calc(100vw - 32px)); }
 .profile-dialog .sheet-body { padding: 28px 32px 40px; }
@@ -496,7 +495,7 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .chat-header { flex-wrap: wrap; }
 .current-work-detail { flex: 0 0 100%; min-width: 0; font-size: 13px; }
 .current-work-detail[hidden] { display: none; }
-.current-work-detail summary { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; color: #5e586b; padding: 8px 0; }
+.current-work-detail summary { overflow-wrap: anywhere; cursor: pointer; color: #5e586b; padding: 8px 0; }
 .current-work-detail [data-work-body] { position: absolute; z-index: 9; top: calc(100% - 6px); left: 16px; right: 16px; max-height: min(50dvh, 440px); overflow-y: auto; border: 1px solid var(--line); border-radius: 18px; padding: 20px; background: white; box-shadow: 0 16px 40px #0002; }
 .current-work-detail section { padding: 16px 0; border-bottom: 1px solid var(--line); }
 .current-work-detail h3 { margin: 0 0 8px; font-size: 15px; }
@@ -504,6 +503,15 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .current-work-detail dl { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 6px; font-size: 12px; color: #6b6871; }
 .current-work-detail dd { margin: 0; }
 .bot-preview.room-work-preview { display: block; white-space: normal; }
+/* Name row hugs its content and the summary row takes the rest of the avatar height, so a 1-line summary starts right under the name. */
+.bot-row:has(.bot-work-preview) { row-gap: 2px; grid-template-rows: auto 1fr; }
+.bot-row:has(.bot-work-preview) > .bot-copy, .bot-row:has(.bot-work-preview) > .bot-meta { align-self: start; }
+.bot-row:has(.bot-work-preview) > .bot-meta { grid-auto-flow: column; gap: 6px; }
+.bot-row:has(.bot-work-preview) > .bot-meta > * { align-self: baseline; }
+.bot-row:has(.bot-work-preview) > .avatar { grid-row: 1 / 3; align-self: start; }
+/* Right of the avatar, under name/role and the time column, at 12px so a width-80 summary (40 full-width) fits 2 lines on a 360px phone. */
+.bot-preview.bot-work-preview { grid-column: 2 / -1; grid-row: 2; align-self: start; margin-top: 0; font-size: 12px; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; white-space: normal; overflow-wrap: anywhere; }
+.work-state { color: var(--muted); font-size: 11px; white-space: nowrap; }
 .work-scope, .work-more { display: block; font-size: 11px; line-height: 1.8; color: #76707e; }
 .work-preview-line { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.7; }
 
