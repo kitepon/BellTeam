@@ -28,6 +28,8 @@ export class SeatActivity {
     // 席ごとの、最後に追ったターンで合間の言葉として出した文。回答の頭から外すのに使う（self-turns.mjs）。
     this.shownWords = new Map()
     this.listeners = new Set()
+    // Called with a delivery groupId when its last active job leaves the queue (request summary, current-work.md).
+    this.groupReleased = () => {}
     this.configurationChanges = new PendingByBot()
     this.dispatches = new PendingByBot()
     this.waking = new PendingByBot()
@@ -45,6 +47,8 @@ export class SeatActivity {
   release(job) {
     this.active.delete(job.id)
     this.jobs.delete(job)
+    const groupId = job.info?.groupId
+    if (groupId && ![...this.active.values()].some(item => item.info?.groupId === groupId)) { try { this.groupReleased(groupId) } catch {} }
     this.emit(job)
   }
 

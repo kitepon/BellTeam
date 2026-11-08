@@ -101,3 +101,29 @@ flowchart LR
 | observation semantics | A schedule saved while `unknown` binds the first resolved `working` turn, and that turn may have started after the save: an observation cannot prove which turn was current while it was unknown. The first resolved `idle` fires at once. |
 | delivery semantics | The scheduler's dispatch is an ordinary delivery. If the Bot is mid-turn at dispatch (for example bound X ended and Y already started), the words are steered into Y. They are not queued as a new turn. A dead seat is woken by the same delivery. |
 | compatibility | The parent facade is built from the body's method list, and the engine validates against its own list. The feature needs a body with this facade and an execution module with `transport.currentTurn`. Callers check `typeof transport.watchCurrentTurn === 'function'` and treat `EXECUTION_REQUEST_INVALID` from `currentTurn` as "not yet supported" (old engine), never as idle. |
+
+## Request summary for the 相関図 edge label (2026-11-08, Owner ruling via Black)
+
+The edge label shows what one Bot asked another, summarized once per request by the member-card model (`backgroundAgentConfiguration`). It is separate from the member-card `currentWork` summary, which is unchanged.
+
+```mermaid
+flowchart LR
+  Accept[AitermTransport.submit: delivery accepted<br/>authority actor kind bot, context direct/room] -->|"first job of that groupId only<br/>(room post with several responders = one run)"| Req["TeamBackgroundSummary.request(groupId, info.message, {current, ready})"]
+  Req --> Serial[same serial drain as currentWork, after pending member-card records<br/>one actual run at a time: summary.lock]
+  Serial --> Run["runner(selection, {text}, {purpose:'request'})<br/>request instruction"]
+  Run -->|"display width over 40: one regeneration with previous_width"| Run
+  Run --> Store[requests Map groupId → phrase]
+  Store -->|ready| Emit[activity.emit for the group's jobs → queue SSE]
+  Rows["transport.queueItems() rows"] -->|"requestSummary = requestSummary(groupId) ?? null"| WG[Molly queue.read → Black work-graph label]
+  Release[SeatActivity.release: last active job of the groupId] -->|forgetRequest| Store
+```
+
+| Contact | Contract |
+| --- | --- |
+| Trigger | `submit` after acceptance, when `summaryAuthority.context.actor.kind === 'bot'`, `info.context` is `direct` or `room`, and `info.groupId` is set. Key = `groupId`. A groupId already requested is not requested again (responders of one room post share it). No GET, render or timer starts a run. |
+| Input | `{ text: info.message }` only, ≤ 4000 code points (longer is not summarized: null). Untrusted material; the instruction says so. |
+| Output | One Japanese phrase saying what is being asked; display width ≤ 40 (same EAW count as the member card); no IDs, SHA, PR numbers, times, quotes or Markdown. Over-width gets exactly one regeneration with `previous_width`; then dropped. |
+| Failure | Any failure, no selection, or AI paused → stays `null`; no retry (same as the member card). The drop line is `BellTeam background summary: request <stage> <code>` (no text). |
+| Lifetime | Kept while any job of that groupId is active in the queue. `SeatActivity.release` of the last one calls `forgetRequest(groupId)`. A run in flight whose `current()` turned false stores nothing. `close()` clears everything. |
+| Public row | With a worker that supports requests, every `transport.queueItems()` row has `requestSummary: string \| null` (failed rows `null`). Without one the rows are unchanged (no key). |
+| Compatibility | The worker and runner are parent-image source, the transport is execution. An older body has no `request` method, so rows say `null` and the label falls back to 依頼を処理中. An older engine sends no key; the consumer treats a missing key as null. The feature goes live only with both. |

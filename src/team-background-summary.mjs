@@ -16,17 +16,19 @@ const WIDE = [[0x1100, 0x115F], [0x2E80, 0x303E], [0x3041, 0x33FF], [0x3400, 0x4
   [0xA960, 0xA97F], [0xAC00, 0xD7A3], [0xF900, 0xFAFF], [0xFE10, 0xFE19], [0xFE30, 0xFE6F], [0xFF00, 0xFF60], [0xFFE0, 0xFFE6],
   [0x1F300, 0x1F64F], [0x1F680, 0x1F6FF], [0x1F900, 0x1F9FF], [0x1FA70, 0x1FAFF], [0x20000, 0x3FFFD]]
 export const BACKGROUND_SUMMARY_MAX_WIDTH = 80
+// 相関図 edge label: one line (current-work.md "Request summary").
+export const REQUEST_SUMMARY_MAX_WIDTH = 40
 export const summaryWidth = text => [...text].reduce((sum, char) => {
   const code = char.codePointAt(0)
   return sum + (WIDE.some(([low, high]) => code >= low && code <= high) ? 2 : 1)
 }, 0)
 // Over-width output is rejected, never cut.
-export function backgroundSummaryText(value) {
+export function backgroundSummaryText(value, max = BACKGROUND_SUMMARY_MAX_WIDTH) {
   if (typeof value !== 'string' || /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u.test(value)) fail()
   const text = value.trim()
   if (!text) fail()
   const width = summaryWidth(text)
-  if (width > BACKGROUND_SUMMARY_MAX_WIDTH) throw Object.assign(new Error('BACKGROUND_SUMMARY_TOO_WIDE'), { code: 'BACKGROUND_SUMMARY_TOO_WIDE', width })
+  if (width > max) throw Object.assign(new Error('BACKGROUND_SUMMARY_TOO_WIDE'), { code: 'BACKGROUND_SUMMARY_TOO_WIDE', width })
   return text
 }
 function configuration(value) {
@@ -47,6 +49,7 @@ export class TeamBackgroundSummary {
     this.configuration = readConfiguration; this.readInput = readInput; this.run = run; this.notify = notify
     this.enabled = enabled; this.now = now; this.monotonic = monotonic
     this.settings = { revision: null, selection: null }; this.records = new Map(); this.queue = new Map()
+    this.requests = new Map(); this.requestQueue = new Set()
     this.active = null; this.draining = null; this.closed = false; this.timer = null
   }
   changed(botId) { try { this.notify(botId) } catch {} }
@@ -79,7 +82,7 @@ export class TeamBackgroundSummary {
       || typeof authority?.assertCurrent !== 'function' || this.closed) return
     const old = this.records.get(input.botId)
     if (old && same(old.input, input)) return
-    if (this.active?.record.input.botId === input.botId) this.active.controller.abort()
+    if (this.active?.record?.input.botId === input.botId) this.active.controller.abort()
     const record = { input: Object.freeze({ ...input }), authority }
     this.clear(record); this.records.set(input.botId, record)
     this.queue.set(input.botId, record); this.changed(input.botId); this.start()
@@ -90,6 +93,18 @@ export class TeamBackgroundSummary {
     this.records.delete(botId); this.queue.delete(botId)
     if (this.active?.record === record) this.active.controller.abort()
     this.changed(botId); this.schedule()
+  }
+  // One summary of what a Bot asked, per delivery group, never re-run (current-work.md "Request summary").
+  request(key, text, { current, ready }) {
+    if (this.closed || !id(key) || this.requests.has(key) || typeof current !== 'function' || typeof ready !== 'function'
+      || typeof text !== 'string' || !text.trim() || [...text].length > 4000) return
+    this.requests.set(key, { text, current, ready, summary: null })
+    this.requestQueue.add(key); this.start()
+  }
+  requestSummary(key) { return this.requests.get(key)?.summary ?? null }
+  forgetRequest(key) {
+    this.requests.delete(key); this.requestQueue.delete(key)
+    if (this.active?.requestKey === key) this.active.controller.abort()
   }
   snapshot(botId, sessionId, fallback) {
     const record = this.records.get(botId)
@@ -118,12 +133,14 @@ export class TeamBackgroundSummary {
     this.timer.unref?.()
   }
   start() {
-    if (this.draining || this.closed || !this.queue.size) return
-    this.draining = this.drainQueue().finally(() => { this.draining = null; if (this.queue.size && !this.closed) this.start() })
+    if (this.draining || this.closed || !this.queue.size && !this.requestQueue.size) return
+    this.draining = this.drainQueue().finally(() => { this.draining = null; if ((this.queue.size || this.requestQueue.size) && !this.closed) this.start() })
     this.draining.catch(() => {})
   }
   async drainQueue() {
-    while (this.queue.size && !this.closed) {
+    while ((this.queue.size || this.requestQueue.size) && !this.closed) {
+      // Member-card records first; requests share the same single actual run.
+      if (!this.queue.size) { await this.drainRequest(); continue }
       const [botId, record] = this.queue.entries().next().value
       this.queue.delete(botId)
       const controller = new AbortController(), active = { record, controller, revision: null }
@@ -165,8 +182,41 @@ export class TeamBackgroundSummary {
       } finally { if (this.active === active) this.active = null }
     }
   }
+  async drainRequest() {
+    const key = this.requestQueue.values().next().value
+    this.requestQueue.delete(key)
+    const entry = this.requests.get(key)
+    if (!entry) return
+    const controller = new AbortController(), active = { record: null, requestKey: key, controller, revision: null }
+    this.active = active
+    const live = () => {
+      if (this.closed || controller.signal.aborted || this.requests.get(key) !== entry) return false
+      try { return entry.current() !== false && this.enabled() !== false } catch { return false }
+    }
+    let stage = 'configuration'
+    try {
+      const fresh = configuration(await this.configuration())
+      this.configure(fresh)
+      active.revision = fresh.revision
+      if (!fresh.selection || !live()) return
+      stage = 'run'
+      const options = { signal: controller.signal, purpose: 'request' }
+      let summary
+      try { summary = backgroundSummaryText(await this.run(fresh.selection, JSON.stringify({ text: entry.text }), options), REQUEST_SUMMARY_MAX_WIDTH) }
+      catch (error) {
+        if (error.code !== 'BACKGROUND_SUMMARY_TOO_WIDE' || !live()) throw error
+        summary = backgroundSummaryText(await this.run(fresh.selection, JSON.stringify({ text: entry.text, previous_width: error.width }), options), REQUEST_SUMMARY_MAX_WIDTH)
+      }
+      if (!live() || this.settings.revision !== fresh.revision) return
+      entry.summary = summary
+      try { entry.ready() } catch {}
+    } catch (error) {
+      // Never retried: one attempt per request.
+      if (!controller.signal.aborted && !this.closed) this.dropped('request', stage, error)
+    } finally { if (this.active === active) this.active = null }
+  }
   async close() {
-    this.closed = true; this.queue.clear(); this.active?.controller.abort()
+    this.closed = true; this.queue.clear(); this.requests.clear(); this.requestQueue.clear(); this.active?.controller.abort()
     clearTimeout(this.timer); this.timer = null
     for (const botId of this.records.keys()) this.changed(botId)
     this.records.clear()
