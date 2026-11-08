@@ -26,6 +26,7 @@ Owner 2026-11-02指示による本体分担。機能を分離し、担当が自�
 | モリー | 薄い親・共通入口 | 安定facade、共通HTTP/MCP dispatch、全module共通ledger/adapter組立、機能間接続・必要な結合試験と通常main統合 |
 | シグナル | diagnostics専任 | 診断factory/閉dispatcher、report/code/集約・唯一writer、同state restore、close-drain、管理GET契約。BugHubはフラジャイル |
 | トロニー | 全体設計・統合裁定 | 全体設計・公開契約/診断方針裁定、共通規範、全体図整合、優先順位、本番反映・Owner判断 |
+| アークレンジャー・ブラック | 相関図 | 作業中メンバーとBot間依頼の現在グラフ（snapshot/SSE）と、各アプリ共通の動き仕様。描画はApple/Web/Windowsの各担当。2026-11-08 Owner依頼・トロニー割当 |
 
 Apple/Windowsクライアントは各ベル、Aitermはエレグ、Throughlineはリヴァリン、Bridgeはリター、mcp-lazyはレオナ、RTKはドリリー、testgateはシラツル、BugHubはフラジャイル、Approval Boxはナユタ、Caveatはノア。各正本と公開接点は modules の索引へ接続する。OS・ホストはエマ等の既担当。
 

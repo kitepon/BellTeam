@@ -20,6 +20,7 @@ flowchart LR
   m_runtime["実行環境・更新復旧 / モリー"]
   m_usage["利用設定・通知 / ミカ"]
   m_web["Webアプリ / アドミ"]
+  m_work_graph["相関図 / アークレンジャー・ブラック"]
   m_conversation -->|"turn"| m_execution
   m_conversation -->|"registry"| m_members
   m_conversation -->|"notify"| m_usage
@@ -74,6 +75,9 @@ flowchart LR
   m_usage -->|"lifecycle"| m_runtime
   m_usage -->|"seat-process"| m_runtime
   m_web -->|"HTTP/SSE"| m_integration
+  m_work_graph -->|"observation"| m_execution
+  m_work_graph -->|"registry"| m_members
+  m_work_graph -->|"history"| m_conversation
 ```
 
 ## アプリ・独立製品との接続
@@ -139,6 +143,7 @@ flowchart LR
 | [利用設定・通知](modules/usage/README.md) | ミカ | settings / notify / auth |
 | [Webアプリ](modules/web/README.md) | アドミ | ui / assets |
 | [Windowsアプリ](modules/windows/README.md) | ベル（Windows） | public |
+| [相関図](modules/work-graph/README.md) | アークレンジャー・ブラック | work-graph |
 
 変更前に担当図と接続先の図を読み、図の変更要否と作業範囲を確認する。個別図・接続の変更後は `node scripts/render-feature-map.mjs` で再生成する。
 

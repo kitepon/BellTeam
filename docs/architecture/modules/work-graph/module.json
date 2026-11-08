@@ -1,0 +1,29 @@
+{
+  "title": "相関図",
+  "owner": "アークレンジャー・ブラック",
+  "botId": "bot-c19019b6",
+  "scope": "作業中メンバーとBot間依頼の現在グラフのデータ（snapshot/SSE）と共通の動き仕様。描画は各アプリ",
+  "external": false,
+  "provides": [
+    "work-graph"
+  ],
+  "uses": [
+    {
+      "module": "execution",
+      "port": "observation"
+    },
+    {
+      "module": "members",
+      "port": "registry"
+    },
+    {
+      "module": "conversation",
+      "port": "history"
+    }
+  ],
+  "source": [
+    "src/work-graph/http-api.mjs",
+    "src/work-graph/hub.mjs",
+    "src/work-graph/projection.mjs"
+  ]
+}
