@@ -276,3 +276,7 @@ stateDiagram-v2
 エピネルはruntime機構と固定内容writerを担当内として確認。Mollyは共通assembly/認証/HTTP-MCP/診断を担当内として確認。N102はRoom claim/skipの同一writer、最新snapshot返却と対象画像drainを担当内として確認。キロは親epoch/tokenが未提供で追加が必要なこと、command/03時整理/IdleSessionsを親に残すことを確認した。本紙はこの4返却を反映しており、各担当内部を当席が実装する許可とはしない。
 
 参照原本は各席の `docs/members-runtime-input-20261103.md`（エピネル）、`docs/members-module-common-contract-inputs-20261103.md`（Molly）、`docs/conversation-members-update-contract-20261103.md`（N102）、`docs/members-execution-swap-contract-20261103.md`（キロ）。固定SHA-sizeと絶対pathは作者成果のmanifestへ記録する。Rootへの固定依頼は、閉じた逆向きeffect DTO/専用owner権限伝達/容量と期限、claimの一回までの発行方針、親epoch/token、対象画像drainとcancel、初回移行/ready/互換集合である。
+
+## Generation global-instructions refresh (2026-11-08)
+
+The read-only restore/initialize contract above remains scoped to state attachment. The subsequent leased candidate `owner.read` probe also attempts the once-per-generation five-CLI global render. It runs after durable candidate selection and before successful availability/replacement ACK. Rendering failure leaves the read successful. Probe failure enters candidate lifecycle recovery; other rollback paths after old-child exit launch a fresh old child. Pre-hook versions do not gain this behavior merely by being restarted. The canonical function/data-flow and rollback limits are in [instructions](instructions.md#candidate-probe-and-rollback-ordering); the parent ready-probe request and public ABI remain unchanged.
