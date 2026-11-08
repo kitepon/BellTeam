@@ -210,8 +210,7 @@ SECTION completion
     NEVER: set a timed schedule just to check on another AI.
   RULE completion.continuation
     WHEN: ending a turn unfinished (a pending reply, dependency or approval included)
-    DO: set_schedule kind=after_turn for the continuation: own procedure doc, remaining work, dependencies and resume conditions, next step, completion condition; verify it; tell the user its content; update instead of duplicating; delete when done.
-    NEVER: schedule resumption of work the Owner stopped. FACT: a schedule changes no approval, stop condition or boundary.
+    DO: set the continuation with set_schedule kind=after_turn.
   RULE completion.schedule-kind
     DO: command schedule when no AI is needed; prompt schedule when judgment or repair is.
     DO: monitoring an external change with no peer to report it = a helper program that detects the change and wakes the AI. NEVER: wake the AI every tick to monitor, unless unavoidable.
