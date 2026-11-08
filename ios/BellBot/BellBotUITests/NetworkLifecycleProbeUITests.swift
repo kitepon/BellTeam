@@ -11,6 +11,7 @@ final class NetworkLifecycleProbeUITests: XCTestCase {
         app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", server]
         app.launch(); defer { app.terminate() }
         app.tabBars.buttons["設定"].tap()
+        app.buttons["settings-row-features"].tap()
         let setting = app.staticTexts["試験機能"]
         for _ in 0..<5 where !setting.isHittable { app.scrollViews.firstMatch.swipeUp() }
         XCTAssertTrue(setting.waitForExistence(timeout: 5))
@@ -36,6 +37,7 @@ final class NetworkLifecycleProbeUITests: XCTestCase {
         app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", server]
         app.launch(); defer { app.terminate() }
         app.tabBars.buttons["設定"].tap()
+        app.buttons["settings-row-features"].tap()
         let setting = app.staticTexts["試験機能"]
         for _ in 0..<5 where !setting.isHittable { app.scrollViews.firstMatch.swipeUp() }
         XCTAssertTrue(setting.waitForExistence(timeout: 5))
@@ -744,6 +746,7 @@ final class NetworkLifecycleProbeUITests: XCTestCase {
         app.launch()
         defer { app.terminate() }
         app.buttons["設定"].firstMatch.tap()
+        app.buttons["settings-row-subscription"].tap()
         let developer = app.staticTexts["開発者として利用中"]
         for _ in 0..<5 where !developer.isHittable { app.scrollViews.firstMatch.swipeUp() }
         XCTAssertTrue(developer.waitForExistence(timeout: 5))

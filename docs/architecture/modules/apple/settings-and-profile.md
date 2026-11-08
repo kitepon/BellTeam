@@ -4,20 +4,26 @@
 
 ## 設定画面の責任
 
+SettingsViewはNavigationStackでSettingsRootPageを包む。SettingsRootPageはiOS設定アプリ型のinset-grouped（VStackと`secondarySystemGroupedBackground`の角丸コンテナ。List/Formは使わない）。行は色付き角丸のアイコンタイル・題名・副値・子ページを開く行だけの`chevron`で作る。子ページ（SettingsSubPage）は既存のカードをそのままScrollViewに載せ、`NavigationLink`で`SettingsView`のNavigationStackへpushする。
+
 ```mermaid
 flowchart TD
-  Settings["SettingsView"] --> Owner["Owner表示<br/>AppStore.owner"]
-  Settings --> Profile["ProfileEditor<br/>Ownerとユーザー規範のdraft"]
-  Settings --> Control["AIControlCard<br/>AppStoreのAI停止状態"]
-  Settings --> Opening["会話の開き方Picker<br/>AppStorage conversationOpening"]
-  Settings --> Auth["HarnessAuthenticationList<br/>公式AIの状態と再認証"]
-  Settings --> Features["FeatureSettingsList / Editor<br/>追加機能と秘密の設定値"]
-  Settings --> Billing["SubscriptionCard<br/>BillingStore"]
-  Settings --> Push["BellNotifications.shared<br/>登録状態・OS設定を開く"]
-  Settings --> Session["AppStore.changeServer / signOut"]
+  Settings["SettingsView<br/>NavigationStack"] --> Root["SettingsRootPage<br/>systemGroupedBackground"]
+  Root --> Profile["プロフィール行<br/>AvatarView・名前・抜粋"] --> Editor["ProfileEditor sheet<br/>Ownerとユーザー規範のdraft"]
+  Root --> Conn["接続<br/>接続先host・認証方式・接続先を変更"] --> Session["AppStore.changeServer"]
+  Root --> AI["AI<br/>AIControlRow: トグルと状態をインライン"]
+  AI --> Control["AppStoreのAI停止状態<br/>ai-control-toggle / ai-control-refresh"]
+  AI -->|"push"| Auth["AIのアカウント<br/>HarnessAuthenticationList"]
+  AI -->|"push"| BG["バックグラウンドAI<br/>BackgroundAgentSettingsCard"]
+  Root --> Feat["機能"]
+  Feat -->|"push"| Features["追加機能<br/>FeatureSettingsList / Editor"]
+  Feat -->|"push"| Push["通知<br/>NotificationSettingsCard<br/>BellNotifications.shared"]
+  Root --> Disp["表示<br/>会話の開き方Picker<br/>AppStorage conversationOpening"]
+  Root -->|"push"| Billing["購読<br/>SubscriptionCard / BillingStore"]
+  Root --> Out["ログアウト行<br/>authMode == cloudflareの時だけ<br/>AppStore.signOut"]
 ```
 
-SettingsViewは編集用Owner draftを持たず、ProfileEditorをsheetで開く。通知のエラーはsingletonのerrorText。会話の開き方はrise/fadeの端末設定で、HTTPへ保存しない。Cloudflareの時だけlogoutボタンを表示する。認証・購読・通知の実装全体は[全体図](overview.md)と[索引](function-index.md)へ接続する。
+SettingsRootPageはナビゲーションバーを隠し、ルートの大見出しだけを自前で描く（子ページは通常のバーと戻るボタン）。ImageRendererで描けるよう、ルートはList/Formを使わない（試験`SettingsScreenshotTests`が390・820幅、light/darkのPNGを`~/bellteam-screens`へ出力する）。色はシステム色、文字はDynamic Typeのtext style、アクセントは`BellTheme.violet`。SettingsViewは編集用Owner draftを持たず、ProfileEditorをsheetで開く。通知のエラーはsingletonのerrorText。会話の開き方はrise/fadeの端末設定で、HTTPへ保存しない。認証・購読・通知の実装全体は[全体図](overview.md)と[索引](function-index.md)へ接続する。UI試験は子ページ行のaccessibilityIdentifier（`settings-profile`、`settings-row-ai-accounts`・`-background-agent`・`-features`・`-notifications`・`-subscription`）で入る。
 
 ## Ownerと規範のdraft
 

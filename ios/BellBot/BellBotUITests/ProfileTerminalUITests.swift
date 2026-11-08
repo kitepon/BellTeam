@@ -346,7 +346,7 @@ final class ProfileTerminalUITests: XCTestCase {
         app.launch()
         defer { app.terminate() }
         app.tabBars.buttons["設定"].tap()
-        app.buttons["プロフィールと規範を編集"].tap()
+        app.buttons["settings-profile"].tap()
         let change = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "写真を変更")).firstMatch
         XCTAssertTrue(change.waitForExistence(timeout: 5))
         XCTAssertEqual(change.images.count, 0)
