@@ -52,7 +52,9 @@ class MemoryArtifact(unittest.TestCase):
  def test_closure_and_actual_state_reject_missing_extra_replaced_bad_types(self):
   self.assertEqual(set(f['path'] for f in self.manifest['files']),MEMORY_FILES)
   self.assertEqual(policy_for('memory')['signerWorkflow'],'kitepon/BellTeam/.github/workflows/publish-memory.yml')
-  for change in [lambda m:m['files'].pop(),lambda m:m['files'].append(dict(path='payload/db.sqlite',bytes=0,sha256='0'*64)),lambda m:m['files'][0].update(path='payload/foreign.mjs'),lambda m:m.update(entry='payload/src/run-seat-runtime.mjs'),lambda m:m['runtime']['stateCompatibility'].update(memoryUserVersion=False),lambda m:m['runtime']['stateCompatibility'].update(searchIndexVersion='1:unknown'),lambda m:m['runtime']['stateCompatibility'].update(extra=1),lambda m:m['runtime']['stateCompatibility'].pop('knowledgeEncoding')]:
+  extra=copy.deepcopy(self.manifest);extra['files'].append(dict(path='payload/src/memory/new-helper.mjs',bytes=0,sha256='0'*64))
+  self.assertIs(validate_manifest(extra,component='memory'),extra)
+  for change in [lambda m:m.update(files=[f for f in m['files'] if f['path']!=m['entry']]),lambda m:m.update(entry='payload/src/run-seat-runtime.mjs'),lambda m:m['runtime']['stateCompatibility'].update(memoryUserVersion=False),lambda m:m['runtime']['stateCompatibility'].update(searchIndexVersion='1:unknown'),lambda m:m['runtime']['stateCompatibility'].update(extra=1),lambda m:m['runtime']['stateCompatibility'].pop('knowledgeEncoding')]:
    value=copy.deepcopy(self.manifest);change(value)
    with self.assertRaises(ValueError):validate_manifest(value,component='memory')
  def test_catalog_manifest_consumer_full_equality_including_icu(self):

@@ -21,11 +21,6 @@ class BusinessArtifacts(unittest.TestCase):
         required = {'payload/src/usage/background-agent-settings.mjs', 'payload/src/json-file.mjs'}
         _, manifest, _ = self.artifact('usage')
         self.assertTrue(required <= {row['path'] for row in manifest['files']})
-        for missing in required:
-            incomplete = copy.deepcopy(manifest)
-            incomplete['files'] = [row for row in incomplete['files'] if row['path'] != missing]
-            with self.subTest(missing=missing), self.assertRaises(ValueError):
-                validate_manifest(incomplete, component='usage')
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -42,12 +37,12 @@ class BusinessArtifacts(unittest.TestCase):
         with archive.open('rb') as stream: manifest, digest = check_archive(stream, component=component)
         return archive, manifest, digest
 
-    def test_manifest_rejects_missing_extra_replaced_source_and_state(self):
+    def test_manifest_rejects_missing_entry_and_changed_state(self):
         for component in BUSINESS_FILES:
             _, manifest, _ = self.artifact(component)
-            for change in [lambda m: m['files'].pop(),
-                           lambda m: m['files'].append(dict(path='payload/src/other-engine.mjs', bytes=0, sha256='b' * 64)),
-                           lambda m: m['files'][0].update(path='payload/src/replaced.mjs'),
+            extra = copy.deepcopy(manifest); extra['files'].append(dict(path='payload/src/other-engine.mjs', bytes=0, sha256='b' * 64))
+            self.assertIs(validate_manifest(extra, component=component), extra)
+            for change in [lambda m: m.update(files=[r for r in m['files'] if r['path'] != m['entry']]),
                            lambda m: m['runtime']['stateCompatibility'].update(unknown='new'),
                            lambda m: m['runtime'].update(parentProtocol=2)]:
                 value = copy.deepcopy(manifest); change(value)

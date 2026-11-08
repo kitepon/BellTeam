@@ -37,3 +37,27 @@ image CIの空の永続領域からのinstaller検査は、GET `/api/settings`�
 usage/diagnosticsの固定入口は[runtime module-start](../runtime/module-start.md)契約で収録する。public packageはmodule-start.cとusage-start.c/diagnostics-start.cを全て含め、Dockerfileで同includeから二つの固定binaryをcompileする。root:root/0755・非setuid、追加sudo規則無し。通常image CIの既原本採取で両binaryのowner/mode/SHA-sizeを記録する。runtimeのIPC3 advanced/privateSH4/moduleEX5・UID1001は本人入口契約であり、配置成功だけでcontroller交換/実native成功にはしない。共通include又は固定wrapper更新も通常image push対象へ含め、専用buildを増やさない。
 
 - [R-resume normal native build input](restart-resume.md): actual0.63.7 pin→ordinary0.63.8 candidate after permitted native publication; temporary bounded author Molly, permanent Centi.
+
+## Module contents are defined by the module's signed manifest (2026-11-08)
+
+Defect: the body installer (`scripts/web_gateway_artifact.py validate_manifest`, inside the body image) checked execution/memory/usage/diagnostics/conversation against closed per-module file sets, so adding or folding a file in a module (#539 `src/aiterm-operation-lease.mjs`) required a body swap. Under guards.named-protection the closed set protected nothing the signature and probe do not already protect, so it is removed, not kept with an exit.
+
+| Check at install (body) | Protection | Kept |
+| --- | --- | --- |
+| Signed catalog -> archive SHA -> `manifest.json` -> every file's bytes/SHA (`check_archive`) | wrong target, tampering | yes (unchanged) |
+| Safe paths, size limits, `node_modules` only as data | escape / secret exposure | yes (unchanged) |
+| schema/component/sourceCommit/arch/entry/runtime incl. `stateCompatibility` | data loss, overwriting existing state | yes (unchanged) |
+| Entry file + `package.json`/`package-lock.json` (memory: entry only) present | public entry contract | yes |
+| Closed per-module file set (EXECUTION_FILES 51 / legacy 47/48/50 layouts, MEMORY/usage exact, diagnostics/conversation allow-lists, members/web-gateway extra required files) | none beyond the rows above; a missing import fails the candidate probe before the swap and the old version keeps serving | removed |
+
+`EXECUTION_FILES`, `BUSINESS_FILES`, `MEMORY_FILES`, `CONVERSATION_FILES` remain only as the packager's selection from the module's own source commit (`module_artifact_package.py`, `package-memory.py`) and its source-side import-closure tests. Changing them is a module-source change and never needs a body swap once the body carrying this validator is installed. This validator ships with the next approved body swap (the Aiterm hot-path swap); until then the installed body still enforces the old closed sets, so a module must stay inside them.
+
+```mermaid
+flowchart LR
+  Src[Module source commit] --> Pack[Packager: module's own selection lists] --> Manifest[manifest.json files + entry + runtime]
+  Manifest --> Sign[Signed catalog / archive SHA]
+  Sign --> Install[Body validate_manifest: signature chain, paths, entry contract, state compatibility]
+  Install --> Probe[Candidate probe in child]
+  Probe -->|ok| Swap[Swap]
+  Probe -->|missing import / fail| Keep[Old version keeps serving]
+```

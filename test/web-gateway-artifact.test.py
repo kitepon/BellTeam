@@ -87,8 +87,11 @@ class GatewayArtifactTest(unittest.TestCase):
                        lambda m: m.update(authenticationSucceeded=True)]:
             value = json.loads(json.dumps(self.manifest)); change(value)
             with self.assertRaises(ValueError): validate_manifest(value, SOURCE, ARCH)
+        # Non-entry files are the module's own signed decision; the entry stays required.
         value = json.loads(json.dumps(self.manifest))
         value['files'] = [f for f in value['files'] if not f['path'].startswith('payload/services/')]
+        self.assertIs(validate_manifest(value, SOURCE, ARCH), value)
+        value['files'] = [f for f in value['files'] if f['path'] != value['entry']]
         with self.assertRaises(ValueError): validate_manifest(value, SOURCE, ARCH)
 
     def test_mocked_official_result_is_bound_to_fds_expected_sha_and_repository(self):

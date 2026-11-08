@@ -31,10 +31,8 @@ class ExecutionArtifact(unittest.TestCase):
     def test_literal_asset_entry_and_string_state_are_required(self):
         self.assertEqual(len(EXECUTION_FILES), 51)
         changes = [lambda m: m.update(entry='payload/src/usage-entry.mjs'),
-            lambda m: m['files'].append(dict(path='payload/src/unknown-helper.mjs', bytes=0, sha256='b'*64)),
-            lambda m: m.update(files=[r for r in m['files'] if r['path'] != 'payload/src/module-ipc.mjs']),
-            lambda m: m.update(files=[r for r in m['files'] if r['path'] != 'payload/config/common-agents.md']),
-            lambda m: m['files'].append(dict(path='payload/src/run-seat-command.mjs', bytes=0, sha256='b'*64)),
+            lambda m: m.update(files=[r for r in m['files'] if r['path'] != 'payload/src/execution-dispatcher.mjs']),
+            lambda m: m.update(files=[r for r in m['files'] if r['path'] != 'payload/package.json']),
             lambda m: m['runtime'].update(stateCompatibility={'schema':'bellteam.execution-state.v1'}),
             lambda m: m['runtime'].update(stateSchema=1),
             lambda m: m['runtime'].update(parentProtocol=2)]
@@ -44,7 +42,7 @@ class ExecutionArtifact(unittest.TestCase):
         with self.assertRaises(ValueError): validate_manifest(self.manifest, 'b'*40, component='execution')
         with self.assertRaises(ValueError): validate_manifest(self.manifest, arch='unknown', component='execution')
 
-    def test_reader_accepts_only_signed_47_48_and_current_50_layouts(self):
+    def test_reader_accepts_the_modules_own_signed_file_list(self):
         legacy48 = copy.deepcopy(self.manifest)
         legacy48['files'] = [row for row in legacy48['files']
             if row['path'] not in {'payload/src/aiterm-hooks.mjs', 'payload/src/model-handoff.mjs'}]
@@ -57,18 +55,15 @@ class ExecutionArtifact(unittest.TestCase):
                 dependencies = copy.deepcopy(manifest)
                 dependencies['files'].append(dict(path='payload/node_modules/dependency/index.js', bytes=0, sha256='b'*64))
                 validate_manifest(dependencies, component='execution')
-                for change in [lambda m: m['files'].pop(0),
-                    lambda m: m['files'].append(dict(path='payload/src/extra.mjs', bytes=0, sha256='b'*64)),
+                # Adding or removing a non-entry file is the module's own decision; no body swap.
+                for change in [lambda m: m['files'].append(dict(path='payload/src/aiterm-operation-lease.mjs', bytes=0, sha256='b'*64)),
+                    lambda m: m.update(files=[r for r in m['files'] if r['path'] != 'payload/src/module-ipc.mjs'])]:
+                    accepted = copy.deepcopy(manifest); change(accepted)
+                    self.assertIs(validate_manifest(accepted, component='execution'), accepted)
+                for change in [lambda m: m.update(files=[r for r in m['files'] if r['path'] != m['entry']]),
                     lambda m: m['runtime'].update(nodeMajor=24)]:
                     invalid = copy.deepcopy(manifest); change(invalid)
                     with self.assertRaises(ValueError): validate_manifest(invalid, component='execution')
-
-    def test_partial_handoff_layouts_are_rejected(self):
-        for missing in ['aiterm-hooks.mjs', 'model-handoff.mjs', 'automatic-configuration-application.mjs']:
-            manifest = copy.deepcopy(self.manifest)
-            manifest['files'] = [row for row in manifest['files'] if row['path'] != 'payload/src/' + missing]
-            with self.subTest(missing=missing), self.assertRaises(ValueError):
-                validate_manifest(manifest, component='execution')
 
     def test_producer_requires_current_50_layout(self):
         for missing in ['aiterm-hooks.mjs', 'model-handoff.mjs', 'automatic-configuration-application.mjs']:
