@@ -54,7 +54,7 @@ public partial class MainWindow : Window, IInspectorHost
         };
         model.PropertyChanged += (_, args) =>
         {
-            if (args.PropertyName == nameof(Workspace.Connected)) { if (model.Connected) _ = RefreshUpdateNoticeAsync(); else UpdateBadge.Visibility = Visibility.Collapsed; }
+            if (args.PropertyName == nameof(Workspace.Connected)) { if (model.Connected) _ = RefreshUpdateNoticeAsync(); else { UpdateBadge.Visibility = Visibility.Collapsed; CloseMemberWindows(); } }
             if (args.PropertyName == nameof(Workspace.IsRoom) && inspectorVisible)
                 InspectorColumn.Width = model.IsRoom ? new GridLength(280) : new GridLength(1, GridUnitType.Star);
             if (args.PropertyName == nameof(Workspace.Selected) && page is null) ProfileLayout();
@@ -142,14 +142,8 @@ public partial class MainWindow : Window, IInspectorHost
         }
         else if (e.DataObject.GetData(DataFormats.FileDrop) is string[] paths) { e.CancelCommand(); await model.AttachFilesAsync(paths); }
     }
-    private void Edit_Click(object sender, RoutedEventArgs e)
-    {
-        if (model.Selected is not { } entry) return;
-        if (entry.Target.IsRoom) { var editor = new RoomEditor(model, entry.Target.Id) { Owner = this }; _ = editor.InitializeAsync(); editor.ShowDialog(); }
-        else { var editor = new MemberEditor(model, entry.Target.Id) { Owner = this }; _ = editor.InitializeAsync(); editor.ShowDialog(); }
-    }
-    private void CreateRoom_Click(object sender, RoutedEventArgs e) { var editor = new RoomEditor(model, null) { Owner = this }; _ = editor.InitializeAsync(); editor.ShowDialog(); }
-    private void CreateMember_Click(object sender, RoutedEventArgs e) { var editor = new MemberEditor(model, null) { Owner = this }; _ = editor.InitializeAsync(); editor.ShowDialog(); }
+    private void CreateRoom_Click(object sender, RoutedEventArgs e) => ShowRoomSheet(null);
+    private void CreateMember_Click(object sender, RoutedEventArgs e) => ShowMemberSheet();
     private void OpenMenu_Click(object sender, RoutedEventArgs e) { if (sender is Button { ContextMenu: { } menu } button) { menu.PlacementTarget = button; menu.IsOpen = true; } }
     private void Schedules_Click(object sender, RoutedEventArgs e) => ShowSchedules();
     private void Goals_Click(object sender, RoutedEventArgs e) => ShowGoals();
@@ -174,12 +168,17 @@ public partial class MainWindow : Window, IInspectorHost
         CloseUpdateSheet(); OpenSheet("メンバー間の連絡", new PeerMessageView(model, message));
     }
     private ISheetSave? sheetSave;
-    private void SheetSaveChanged() { if (sheetSave is not null) UpdateSheetSave.IsEnabled = sheetSave.CanSave; }
+    private void SheetSaveChanged()
+    {
+        if (sheetSave is null) return;
+        UpdateSheetSave.IsEnabled = sheetSave.CanSave; UpdateSheetSave.Content = sheetSave.SaveLabel; UpdateSheetClose.Content = sheetSave.CloseLabel; UpdateSheetClose.IsEnabled = sheetSave.CanClose;
+        System.Windows.Automation.AutomationProperties.SetName(UpdateSheetClose, sheetSave.CloseLabel); System.Windows.Automation.AutomationProperties.SetName(UpdateSheetSave, sheetSave.SaveLabel);
+    }
     private void UpdateSheetSave_Click(object sender, RoutedEventArgs e) { if (sheetSave is { CanSave: true } save) _ = save.SaveAsync(); }
     private void ReleaseSheetSave()
     {
         if (sheetSave is not null) sheetSave.CanSaveChanged -= SheetSaveChanged;
-        sheetSave = null; UpdateSheetSave.Visibility = Visibility.Collapsed;
+        sheetSave = null; UpdateSheetSave.Visibility = Visibility.Collapsed; UpdateSheetClose.Content = "閉じる"; UpdateSheetSave.Content = "保存";
     }
     public void OpenSheet(string title, UIElement content)
     {
@@ -193,10 +192,63 @@ public partial class MainWindow : Window, IInspectorHost
     Window? IInspectorHost.OwnerWindow => this;
     public void CloseUpdateSheet()
     {
-        ReleaseSheetSave(); (UpdateSheetHost.Content as AvatarActionsView)?.Dispose(); UpdateSheetClose.IsEnabled = true;
+        CloseCropSheet(null); ReleaseSheetSave();
+        switch (UpdateSheetHost.Content) { case AvatarActionsView actions: actions.Dispose(); break; case EditorFormView editor: editor.Dispose(); break; }
+        UpdateSheetClose.IsEnabled = true;
         sheetContent?.Dispose(); sheetContent = null; UpdateSheetHost.Content = null; UpdateSheet.Visibility = Visibility.Collapsed;
     }
-    private void UpdateSheetClose_Click(object sender, RoutedEventArgs e) { if (UpdateSheetHost.Content is AvatarActionsView { Busy: true }) return; CloseUpdateSheet(); }
+    private void UpdateSheetClose_Click(object sender, RoutedEventArgs e) { if (UpdateSheetHost.Content is AvatarActionsView { Busy: true } || sheetSave is { CanClose: false }) return; CloseUpdateSheet(); }
+
+    // Mac: 追加 opens the new-member and new-room sheets, the profile's edit button the room sheet; a member is edited in a window of its own.
+    public void ShowMemberSheet()
+    {
+        if (!model.Connected) return;
+        var view = new MemberEditorView(model, null); OpenEditorSheet("メンバーを追加", view); PageReady = SheetReady = ReadyAfter(view.InitializeAsync(), view);
+    }
+    public void ShowRoomSheet(string? id)
+    {
+        if (!model.Connected) return;
+        var view = new RoomEditorView(model, id); OpenEditorSheet(id is null ? "ルームを作る" : "ルームを編集", view); PageReady = SheetReady = ReadyAfter(view.InitializeAsync(), view);
+    }
+    private static async Task ReadyAfter(Task initialize, EditorFormView view) { await initialize; await view.ReadyTask; }
+    private void OpenEditorSheet(string title, EditorFormView view) { CloseUpdateSheet(); view.Closer = CloseUpdateSheet; OpenSheet(title, view); }
+    // Render seam: the open editor sheet.
+    public EditorFormView? OpenEditor => UpdateSheetHost.Content as EditorFormView;
+    private readonly Dictionary<string, MemberEditorWindow> memberWindows = [];
+    public void EditMember(string id)
+    {
+        if (!model.Connected) return;
+        if (memberWindows.TryGetValue(id, out var open)) { open.Activate(); return; }
+        var window = new MemberEditorWindow(model, id) { Owner = this };
+        memberWindows[id] = window; window.Closed += (_, _) => memberWindows.Remove(id);
+        window.Show(); _ = window.InitializeAsync();
+    }
+    public void EditRoom(string id) => ShowRoomSheet(id);
+    private void CloseMemberWindows() { foreach (var window in memberWindows.Values.ToArray()) window.Close(); }
+    // Render seam: the member editor window, built but never shown.
+    public MemberEditorWindow CreateMemberWindowForRender(string id) => new(model, id);
+
+    // The crop sheet: one request at a time. 使用する hands the result back to whoever asked; anything else gives null.
+    private TaskCompletionSource<AvatarCropOutcome?>? cropRequest;
+    private AvatarCropView? cropView;
+    public Task<AvatarCropOutcome?> CropAsync(System.Windows.Media.Imaging.BitmapSource image, AvatarVariant variant, AvatarCropRect? initialCrop, bool wantsSelection)
+    {
+        CloseCropSheet(null);
+        cropView = new AvatarCropView(image, variant, initialCrop, wantsSelection); CropHost.Content = cropView; CropSheet.Visibility = Visibility.Visible; CropSheet.Focus();
+        return (cropRequest = new(TaskCreationOptions.RunContinuationsAsynchronously)).Task;
+    }
+    private void CloseCropSheet(AvatarCropOutcome? outcome)
+    {
+        var request = cropRequest; cropRequest = null; cropView = null; CropHost.Content = null; CropSheet.Visibility = Visibility.Collapsed;
+        request?.TrySetResult(outcome);
+    }
+    private void CropCancel_Click(object sender, RoutedEventArgs e) => CloseCropSheet(null);
+    private void CropUse_Click(object sender, RoutedEventArgs e) { if (cropView?.TryUse() is { } outcome) CloseCropSheet(outcome); }
+    // Render seam: the crop sheet over the main window.
+    public AvatarCropView ShowCropForRender(System.Windows.Media.Imaging.BitmapSource image, AvatarVariant variant)
+    {
+        _ = CropAsync(image, variant, null, false); return cropView!;
+    }
     private async Task RefreshUpdateNoticeAsync()
     {
         var server = model.Server;
@@ -367,7 +419,14 @@ public partial class MainWindow : Window, IInspectorHost
     }
     private void Window_KeyDown(object sender, KeyEventArgs e)
     {
-        if (UpdateSheet.Visibility == Visibility.Visible) { if (e.Key == Key.Escape) { CloseUpdateSheet(); e.Handled = true; } return; }
+        if (CropSheet.Visibility == Visibility.Visible) { if (e.Key == Key.Escape) { CloseCropSheet(null); e.Handled = true; } return; }
+        if (UpdateSheet.Visibility == Visibility.Visible)
+        {
+            if (e.Key != Key.Escape) return;
+            e.Handled = true;
+            if (sheetSave?.DismissPopup() == true || sheetSave is { CanClose: false } || UpdateSheetHost.Content is AvatarActionsView { Busy: true }) return;
+            CloseUpdateSheet(); return;
+        }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.D2) { ShowSchedules(); e.Handled = true; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.D3) { ShowGoals(); e.Handled = true; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.OemComma) { ShowSettings(); e.Handled = true; }

@@ -19,7 +19,16 @@ public sealed class ManagementApi(BellApi api)
         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
         catch (Exception error) { return new(AvatarSaveOutcome.Unconfirmed, error); }
     }
-    public Task<BotSettingsResponse> CreateBotAsync(BotSettings settings, CancellationToken token = default) => Api.PostAsync<BotSettingsResponse>("/api/bots", settings.Normalized.Fields(), token);
+    // POST /api/bots (src/members/profiles-http.mjs:63, BotRegistry.create). Like the Mac body, the image fields are present only for a variant that was chosen or reset.
+    public Task<BotSettingsResponse> CreateBotAsync(BotSettings settings, params BotImageFields[] images) => CreateBotAsync(settings, images, default);
+    public Task<BotSettingsResponse> CreateBotAsync(BotSettings settings, BotImageFields[] images, CancellationToken token)
+    {
+        var body = settings.Normalized.Fields(); body.Remove("avatar");
+        foreach (var image in images) foreach (var field in image.Wire) body[field.Key] = field.Value;
+        return Api.PostAsync<BotSettingsResponse>("/api/bots", body, token);
+    }
+    // DELETE /api/bots/{id}: 202 is an acceptance only (src/members/deletion.mjs:25). It is sent once; the outcome is read from the list afterwards.
+    public Task DeleteBotAsync(string id, CancellationToken token = default) => Api.DeleteAsync(new ChatTarget(id, false).Path, token);
     public Task<System.Text.Json.JsonElement> RestartBotAsync(string id, CancellationToken token = default) => Api.PostAsync<System.Text.Json.JsonElement>(new ChatTarget(id, false).Path + "/restart", new { }, token);
     public async Task<bool> ConfirmBotAsync(string id, Dictionary<string, object?> changes, CancellationToken token = default) => (await GetBotAsync(id, token)).Bot.Matches(changes);
     public async Task<Room> CreateRoomAsync(RoomSettings settings, CancellationToken token = default) => (await Api.PostAsync<RoomResponse>("/api/rooms", settings with { Purpose = TextContent.Normalize(settings.Purpose) }, token)).Room;

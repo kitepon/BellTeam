@@ -95,7 +95,7 @@ public sealed class PhaseThreeTests
         RunSta(() =>
         {
             var source = BitmapSource.Create(4, 2, 96, 96, PixelFormats.Bgra32, null, new byte[32], 16);
-            var value = AvatarCropWindow.Encode(source, new AvatarCrop(4, 2));
+            var value = AvatarCropView.Encode(source, new AvatarCrop(4, 2));
             Assert.StartsWith("data:image/jpeg;base64,", value);
             var bytes = Convert.FromBase64String(value.Split(',')[1]);
             using var stream = new System.IO.MemoryStream(bytes);
@@ -109,7 +109,7 @@ public sealed class PhaseThreeTests
         RunSta(() =>
         {
             var decoded = new TaskCompletionSource<BitmapSource>(TaskCreationOptions.RunContinuationsAsynchronously);
-            var picker = new AvatarPicker("data:image/png;base64,AQID", _ => decoded.Task);
+            var picker = new AvatarPicker("data:image/png;base64,AQID", _ => decoded.Task, quiet: true);
             var load = picker.LoadAsync();
             picker.Children.OfType<Button>().Single(button => (string)button.Content == "写真を取り外す").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var bitmap = BitmapSource.Create(2, 2, 96, 96, PixelFormats.Bgra32, null, new byte[16], 8); bitmap.Freeze(); decoded.SetResult(bitmap); Await(load);

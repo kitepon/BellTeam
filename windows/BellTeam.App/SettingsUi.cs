@@ -166,11 +166,11 @@ internal static class SettingsUi
     }
 }
 
-// White rounded group whose rows are separated by hairlines; rows can be added and removed after creation.
+// White rounded group whose rows are separated by hairlines; rows can be added, hidden and removed after creation.
 internal sealed class GroupCard : Border
 {
     private readonly StackPanel rows = new();
-    private readonly List<(UIElement Row, Border Line)> items = [];
+    private readonly List<(UIElement Row, StackPanel Holder, Border Line)> items = [];
     public GroupCard() { Background = Brushes.White; CornerRadius = new CornerRadius(10); Child = rows; }
     public GroupCard(params UIElement[] initial) : this() { foreach (var row in initial) Add(row); }
     public void Add(UIElement row) => Insert(items.Count, row);
@@ -179,12 +179,27 @@ internal sealed class GroupCard : Border
     {
         var line = new Border { Height = 1, Background = SettingsUi.Hairline, Margin = new Thickness(20, 0, 0, 0) };
         var holder = new StackPanel(); holder.Children.Add(line); holder.Children.Add(row);
-        rows.Children.Insert(index, holder); items.Insert(index, (row, line)); Refresh();
+        rows.Children.Insert(index, holder); items.Insert(index, (row, holder, line)); Refresh();
     }
     public void Remove(UIElement row)
     {
         var index = items.FindIndex(item => item.Row == row); if (index < 0) return;
         rows.Children.RemoveAt(index); items.RemoveAt(index); Refresh();
     }
-    private void Refresh() { for (var index = 0; index < items.Count; index++) items[index].Line.Visibility = index == 0 ? Visibility.Collapsed : Visibility.Visible; }
+    public void Clear() { rows.Children.Clear(); items.Clear(); }
+    // A hidden row takes its separator with it; the first row shown never has one.
+    public void SetVisible(UIElement row, bool visible)
+    {
+        var index = items.FindIndex(item => item.Row == row); if (index < 0) return;
+        items[index].Holder.Visibility = visible ? Visibility.Visible : Visibility.Collapsed; Refresh();
+    }
+    private void Refresh()
+    {
+        var first = true;
+        foreach (var item in items)
+        {
+            if (item.Holder.Visibility != Visibility.Visible) continue;
+            item.Line.Visibility = first ? Visibility.Collapsed : Visibility.Visible; first = false;
+        }
+    }
 }
