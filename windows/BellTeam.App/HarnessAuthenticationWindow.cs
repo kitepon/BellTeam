@@ -36,7 +36,7 @@ public sealed class HarnessAuthenticationWindow : EditorWindow
         if (input.Parent is Panel parent) parent.Children.Remove(input);
         Body.Children.Clear();
         Body.Children.Add(new TextBlock { Text = title, FontSize = 30, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 8) });
-        Body.Children.Add(new TextBlock { Text = harness.UsageText, Foreground = Brushes.SlateGray, Margin = new Thickness(0, 0, 0, 20) });
+        Body.Children.Add(new TextBlock { Text = harness.UsageText, Foreground = Palette.Get("Subtle"), Margin = new Thickness(0, 0, 0, 20) });
         var details = Section("認証の状態");
         details.Children.Add(SecretCard.CardBody(Authentication?.Status switch { "waiting" => "公式サイトでの認証を待っています。", "authenticated" => "認証済みです。", "blocked" => "認証に必要な操作を確認してください。", "failed" => "認証できませんでした。", null => "公式の状態を確認しています。", _ => throw new BellApiException("認証の状態を読み取れませんでした。") }));
         if (Authentication is { } auth)

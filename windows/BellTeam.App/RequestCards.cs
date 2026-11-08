@@ -42,8 +42,10 @@ public sealed class SecretCard(Workspace workspace, string author) : StackPanel
         Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0),
         Children = { new TextBlock { Text = glyph, FontFamily = Icons, FontSize = 14, Foreground = strong ? Violet : Ink, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) }, new TextBlock { Text = text, FontSize = 15, FontWeight = strong ? FontWeights.SemiBold : FontWeights.Normal, Foreground = strong ? Violet : Ink, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap } }
     };
-    private static readonly Brush Violet = Frozen(Color.FromRgb(97, 71, 212)), Ink = Frozen(Color.FromRgb(33, 41, 61)), MutedInk = Frozen(Color.FromRgb(120, 125, 145)), Red = Frozen(Color.FromRgb(255, 59, 48));
-    private static Brush Frozen(Color color) { var brush = new SolidColorBrush(color); brush.Freeze(); return brush; }
+    private static Brush Violet => Palette.Get("Violet");
+    private static Brush Ink => Palette.Ink;
+    private static Brush MutedInk => Palette.Muted;
+    private static Brush Red => Palette.Get("Red");
     internal static TextBlock CardText(string text, bool bold = false, bool error = false, double size = 16, bool muted = false) => new() { Text = text, TextWrapping = TextWrapping.Wrap, FontSize = size, FontWeight = bold ? FontWeights.SemiBold : FontWeights.Normal, Foreground = error ? Red : muted ? MutedInk : Ink, Margin = new Thickness(0, 12, 0, 0) };
     internal static TextBox CardBody(string text) => new() { Text = text, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, FontSize = 18, BorderThickness = new Thickness(0), Background = Brushes.Transparent, Padding = new Thickness(0), Margin = new Thickness(0) };
 }
@@ -131,7 +133,7 @@ public sealed class QuestionCard(Workspace workspace, string author) : StackPane
         if (question.AllowOther)
         {
             var other = new TextBox { AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MaxHeight = 110, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, IsEnabled = !sending, FontSize = 14, Padding = new Thickness(8, 6, 8, 6) };
-            var placeholder = new TextBlock { Text = "その他（文章で答える）", FontSize = 14, Foreground = new SolidColorBrush(Color.FromRgb(120, 125, 145)), Margin = new Thickness(9, 7, 0, 0), IsHitTestVisible = false, VerticalAlignment = VerticalAlignment.Top };
+            var placeholder = new TextBlock { Text = "その他（文章で答える）", FontSize = 14, Foreground = Palette.Muted, Margin = new Thickness(9, 7, 0, 0), IsHitTestVisible = false, VerticalAlignment = VerticalAlignment.Top };
             var send = new Button { Content = "送る", VerticalAlignment = VerticalAlignment.Bottom, IsEnabled = false, Margin = new Thickness(8, 0, 0, 0) };
             other.TextChanged += (_, _) => { placeholder.Visibility = other.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed; send.IsEnabled = !sending && !string.IsNullOrWhiteSpace(other.Text); };
             send.Click += async (_, _) => { if (!string.IsNullOrWhiteSpace(other.Text)) await AnswerAsync(question.Id, null, other.Text); };

@@ -39,7 +39,7 @@ public sealed partial class SettingsWindow
     {
         var page = NewPage(SettingsPage.Profile);
         var content = new StackPanel(); page.Children.Add(content); content.Children.Add(Loading("読み込んでいます…"));
-        var save = Capsule("保存", new SolidColorBrush(Color.FromRgb(0xE9, 0xE9, 0xEE)), Ink, 15, 13, new Thickness(14, 5, 14, 5)); save.IsEnabled = false;
+        var save = Capsule("保存", Palette.Get("SaveDisabled"), Ink, 15, 13, new Thickness(14, 5, 14, 5)); save.IsEnabled = false;
         SetToolbar(null, null, save);
         try
         {

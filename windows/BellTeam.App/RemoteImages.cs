@@ -32,19 +32,19 @@ public sealed class RemoteImages(Workspace workspace) : StackPanel
         var sign = outgoing ? -1 : 1; var origin = outgoing ? CardWidth * .2 : 0;
         for (var depth = Math.Min(urls.Length, 3) - 1; depth >= 0; depth--)
         {
-            var card = new Border { Width = CardWidth, Height = CardHeight, CornerRadius = new CornerRadius(18), BorderBrush = new SolidColorBrush(Color.FromArgb(20, 0, 0, 0)), BorderThickness = new Thickness(1), Background = Brushes.White };
+            var card = new Border { Width = CardWidth, Height = CardHeight, CornerRadius = new CornerRadius(18), BorderBrush = Palette.Get("CardLine"), BorderThickness = new Thickness(1), Background = Palette.Card };
             card.Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Colors.Black, Opacity = .18, BlurRadius = 20, ShadowDepth = 8, Direction = 270 };
             var inner = new Grid(); RoundClip.Apply(inner, 17);
             inner.Children.Add(new RemoteImage(workspace, urls[depth], maximumDimension: 1024));
-            if (depth > 0) inner.Children.Add(new Border { Background = new SolidColorBrush(Color.FromArgb(71, 255, 255, 255)) });
+            if (depth > 0) inner.Children.Add(new Border { Background = Palette.Get("StackVeil") });
             card.Child = inner;
             var scale = 1 - depth * .04;
             card.RenderTransform = new TransformGroup { Children = [new ScaleTransform(scale, scale, CardWidth / 2, CardHeight / 2), new RotateTransform(depth * 4 * sign, CardWidth / 2, CardHeight / 2), new TranslateTransform(depth * CardWidth * .10 * sign, depth * CardWidth * .11)] };
             Canvas.SetLeft(card, origin); Canvas.SetTop(card, 8); canvas.Children.Add(card);
         }
         var caption = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0), HorizontalAlignment = outgoing ? HorizontalAlignment.Right : HorizontalAlignment.Left };
-        caption.Children.Add(new TextBlock { Text = "\uE8B9", FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), FontSize = 13, Foreground = new SolidColorBrush(Color.FromRgb(120, 125, 145)), Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center });
-        caption.Children.Add(new TextBlock { Text = $"画像{urls.Length}枚", FontSize = 13, Foreground = new SolidColorBrush(Color.FromRgb(120, 125, 145)) });
+        caption.Children.Add(new TextBlock { Text = "\uE8B9", FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), FontSize = 13, Foreground = Palette.Muted, Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center });
+        caption.Children.Add(new TextBlock { Text = $"画像{urls.Length}枚", FontSize = 13, Foreground = Palette.Muted });
         button.Content = canvas; Children.Add(button); Children.Add(caption);
     }
 }
@@ -74,7 +74,7 @@ public sealed class RemoteImage : Grid
             token.ThrowIfCancellationRequested(); image.Source = bitmap; status.Visibility = Visibility.Collapsed; MinHeight = 0;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-        catch (Exception error) { if (!token.IsCancellationRequested) { status.Text = "画像を読み込めません"; status.Foreground = Brushes.Firebrick; ToolTip = error.Message; } }
+        catch (Exception error) { if (!token.IsCancellationRequested) { status.Text = "画像を読み込めません"; status.Foreground = Palette.Get("Danger"); ToolTip = error.Message; } }
     }
 }
 

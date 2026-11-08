@@ -15,7 +15,7 @@ internal sealed class OnboardingView : StartupBackdrop, IDisposable
     private readonly CancellationToken lifetime;
     private readonly StackPanel column = new();
     private readonly PasswordBox code = new() { FontSize = 13, Padding = new Thickness(8, 6, 8, 6), MaxWidth = 360, HorizontalAlignment = HorizontalAlignment.Left };
-    private readonly TextBlock codeHint = MacUi.Text("認証コード", 13, new SolidColorBrush(Color.FromRgb(0xC4, 0xC4, 0xC8)));
+    private readonly TextBlock codeHint = MacUi.Text("認証コード", 13, Palette.Get("Placeholder"));
     private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromSeconds(3) };
     private Window? window;
     private SetupState state;

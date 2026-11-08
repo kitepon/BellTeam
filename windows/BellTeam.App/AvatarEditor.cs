@@ -62,11 +62,11 @@ public sealed class AvatarPicker : StackPanel
         var hideEmpty = new Style(typeof(TextBlock)); hideEmpty.Triggers.Add(new Trigger { Property = TextBlock.TextProperty, Value = "", Setters = { new Setter(VisibilityProperty, Visibility.Collapsed) } }); status.Style = hideEmpty;
         choose.SetResourceReference(StyleProperty, "QuietButton"); choose.FontSize = 12; choose.Padding = new Thickness(6, 2, 6, 2); choose.Margin = new Thickness(0, 6, 0, 0); choose.FontWeight = FontWeights.Normal;
         Children.Add(choose);
-        if (!quiet) { status.FontSize = 12; status.Foreground = Brushes.Firebrick; status.HorizontalAlignment = HorizontalAlignment.Center; return; }
+        if (!quiet) { status.FontSize = 12; status.Foreground = Palette.Get("Danger"); status.HorizontalAlignment = HorizontalAlignment.Center; return; }
         var remove = new Button { Content = "写真を取り外す", HorizontalAlignment = HorizontalAlignment.Center, FontSize = 12 };
         remove.SetResourceReference(StyleProperty, "QuietButton");
         remove.Click += (_, _) => { Value = ""; Selection = null; image.Source = null; placeholder.Visibility = Visibility.Visible; status.Text = "保存すると写真を取り外します。"; };
-        remove.Padding = new Thickness(6, 1, 6, 1); remove.Margin = new Thickness(0, 0, 0, 2); remove.FontWeight = FontWeights.Normal; remove.Foreground = Brushes.SlateGray;
+        remove.Padding = new Thickness(6, 1, 6, 1); remove.Margin = new Thickness(0, 0, 0, 2); remove.FontWeight = FontWeights.Normal; remove.Foreground = Palette.Get("Subtle");
         Children.Add(remove);
     }
     private async Task ChooseAsync()
@@ -111,9 +111,9 @@ public sealed class AvatarCropView : Grid
     private readonly BitmapSource original;
     private readonly AvatarCrop crop;
     private readonly bool wantsSelection;
-    private readonly Canvas preview = new() { Width = 320, Height = 320, Background = new SolidColorBrush(Color.FromRgb(0xF2, 0xF2, 0xF7)) };
+    private readonly Canvas preview = new() { Width = 320, Height = 320, Background = Palette.Get("CropFill") };
     private readonly Image image = new();
-    private readonly TextBlock error = new() { TextWrapping = TextWrapping.Wrap, Foreground = Brushes.Firebrick, FontSize = 13 };
+    private readonly TextBlock error = new() { TextWrapping = TextWrapping.Wrap, Foreground = Palette.Get("Danger"), FontSize = 13 };
     private Point? start;
     private Point offset;
     internal Slider ZoomSlider { get; }

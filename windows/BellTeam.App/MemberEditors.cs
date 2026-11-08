@@ -35,7 +35,7 @@ public sealed class ModelPicker : Border
         cliRow = Labeled("CLI", harness); modelRow = Labeled("モデル", model); customRow = Row(customField.Element); effortRow = Labeled("エフォート", effort); loadingRow = Row(spinner);
         var fastRow = Row(fast); var noteRow = Row(Text(EditorText.FastModeNote, 12, Muted)); reasonRow = Row(reason);
         foreach (var row in new UIElement[] { loadingRow, cliRow, modelRow, customRow, effortRow, fastRow, noteRow, reasonRow }) card.Add(row);
-        Child = card; CornerRadius = new CornerRadius(10); Background = Brushes.White;
+        Child = card; CornerRadius = new CornerRadius(10); Background = Palette.Card;
         fast.IsChecked = initial.FastMode; System.Windows.Automation.AutomationProperties.SetName(fast, "ファストモード");
         fast.Checked += (_, _) => { RenderFast(); Edited?.Invoke(); }; fast.Unchecked += (_, _) => { RenderFast(); Edited?.Invoke(); };
         harness.SelectionChanged += (_, _) => { if (updating || harness.SelectedValue is not string id) return; selection.SelectHarness(id); Render(); Edited?.Invoke(); };
@@ -113,7 +113,7 @@ public sealed class ModelPicker : Border
 public sealed class MemberEditorView : EditorFormView
 {
     private enum Outcome { Saved, Confirmed, Different, Unconfirmed }
-    private static readonly Brush Mint = new SolidColorBrush(Color.FromRgb(0x2E, 0xB3, 0x9E));
+    private static Brush Mint => Palette.Get("Mint");
     private readonly Workspace workspace;
     private readonly string? id;
     private BotSettings original = new() { Name = "", Harness = "codex" };
@@ -480,7 +480,7 @@ public sealed class MemberEditorWindow : Window
         SetResourceReference(StyleProperty, typeof(Window)); SetResourceReference(BackgroundProperty, "ConversationBackground");
         Title = "メンバーを編集"; Width = Math.Min(1120, SystemParameters.WorkArea.Width); Height = Math.Min(900, SystemParameters.WorkArea.Height); MinWidth = 600; MinHeight = 500; WindowStartupLocation = WindowStartupLocation.CenterOwner;
         view = new MemberEditorView(workspace, id) { Closer = Close };
-        cancel = Capsule("キャンセル", Brushes.White, Ink, 16, 13, new Thickness(14, 6, 14, 6)); save = Capsule("保存", Brushes.White, Ink, 16, 13, new Thickness(14, 6, 14, 6)); save.Margin = new Thickness(8, 0, 0, 0);
+        cancel = Capsule("キャンセル", Palette.Card, Ink, 16, 13, new Thickness(14, 6, 14, 6)); save = Capsule("保存", Palette.Card, Ink, 16, 13, new Thickness(14, 6, 14, 6)); save.Margin = new Thickness(8, 0, 0, 0);
         System.Windows.Automation.AutomationProperties.SetName(cancel, "キャンセル"); System.Windows.Automation.AutomationProperties.SetName(save, "保存");
         cancel.Click += (_, _) => { if (view.CanClose) Close(); }; save.Click += async (_, _) => await view.SaveAsync();
         var bar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 8, 14, 8) }; bar.Children.Add(cancel); bar.Children.Add(save);

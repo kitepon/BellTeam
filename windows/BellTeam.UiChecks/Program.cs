@@ -13,7 +13,7 @@ using BellTeam.App;
 using BellTeam.Core;
 public static class UiChecks {
   [STAThread] public static void Main(string[] args) {
-    var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown }; app.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("pack://application:,,,/BellTeam;component/Theme.xaml") });
+    var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown }; app.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("pack://application:,,,/BellTeam;component/Theme.xaml") }); Palette.Install(app.Resources);
     var dispatcher = Dispatcher.CurrentDispatcher; SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(dispatcher));
     dispatcher.BeginInvoke(async () => { try { if (args is ["--access-cookie", var action, var profile]) await AccessCookieCheck.Run([action,profile]); else if (args is ["--notification-register"]) await NativeNotificationCheck.RunAsync(); else if (args is ["--notification-silent"]) await NativeNotificationCheck.RunAsync(showSilently:true); else if (args.Length == 0) await Run(); else throw new ArgumentException("引数は --access-cookie <write|read|clear|empty> <試験プロファイル> または --notification-register です。"); } catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; } finally { app.Shutdown(); dispatcher.InvokeShutdown(); } });
     Dispatcher.Run();
@@ -48,6 +48,9 @@ public static class UiChecks {
     await workspace.ConnectAsync("http://localhost", listen:false);
     var window = new MainWindow(workspace, persistPlacement:false); var root = (FrameworkElement)window.Content;
     async Task Layout() { root.Measure(new Size(1280,820)); root.Arrange(new Rect(0,0,1280,820)); root.UpdateLayout(); await Dispatcher.Yield(DispatcherPriority.ApplicationIdle); root.UpdateLayout(); }
+    var themed = (Grid)window.FindName("Root"); Check(((SolidColorBrush)themed.Background).Color == Color.FromRgb(0xF8,0xF8,0xFB),"明るい表示の背景色が違います。");
+    Palette.Apply(true); Check(((SolidColorBrush)themed.Background).Color == Color.FromRgb(0x12,0x12,0x14) && ((SolidColorBrush)((Border)window.FindName("Inspector")).BorderBrush).Color == Color.FromRgb(0x3A,0x3A,0x3E),"暗い表示へ切り替えても、窓の色が変わりません。");
+    Palette.Apply(false); Check(((SolidColorBrush)themed.Background).Color == Color.FromRgb(0xF8,0xF8,0xFB),"明るい表示へ戻しても、窓の色が戻りません。");
     window.ShowSettings(); await window.PageReady; await Layout();
     Check(((FrameworkElement)window.FindName("PageArea")).Visibility == Visibility.Visible,"設定から勝手に会話へ戻りました。");
     var page = (EditorWindow)typeof(MainWindow).GetField("page",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(window)!;

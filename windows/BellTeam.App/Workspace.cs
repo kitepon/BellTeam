@@ -19,8 +19,9 @@ public sealed record ConversationEntry(ChatTarget Target, string Name, string Su
     public System.Windows.Media.Brush PresenceBrush => Working ? WorkingBrush : Bot?.Online == true ? OnlineBrush : OfflineBrush;
     public string PresenceLabel => Working ? "仕事中" : Bot?.Online == true ? "オンライン・待機中" : "オフライン";
     public string FastModeBadge => FastMode ? "  ⚡ ファスト" : "";
-    private static readonly System.Windows.Media.Brush WorkingBrush = Frozen(0xFF, 0x3B, 0x30), OnlineBrush = Frozen(0x2E, 0xB3, 0x9E), OfflineBrush = Frozen(0xE5, 0xE3, 0xF0);
-    private static System.Windows.Media.Brush Frozen(byte r, byte g, byte b) { var brush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(r, g, b)); brush.Freeze(); return brush; }
+    private static System.Windows.Media.Brush WorkingBrush => Palette.Get("Red");
+    private static System.Windows.Media.Brush OnlineBrush => Palette.Get("Mint");
+    private static System.Windows.Media.Brush OfflineBrush => Palette.Get("Offline");
     // The independent large image (Mac avatar-large); null while the large slot shows the small image.
     public string? LargeAvatarUrl => Origin is not null && Bot is { UsesSmallImage: false } bot ? Origin + $"api/bots/{Uri.EscapeDataString(Target.Id)}/avatar-large?v={bot.AvatarLargeVersion}" : null;
     public string? AvatarUrl => Origin is not null && (Bot?.AvatarVersion ?? Room?.AvatarVersion ?? "").Length != 0 ? Origin + $"api/{(Target.IsRoom ? "rooms" : "bots")}/{Uri.EscapeDataString(Target.Id)}/avatar?v={Bot?.AvatarVersion ?? Room!.AvatarVersion}" : null;

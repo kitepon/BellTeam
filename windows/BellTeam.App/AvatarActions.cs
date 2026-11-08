@@ -46,14 +46,14 @@ public sealed class AvatarActionsView : Grid, IDisposable
     {
         this.workspace = workspace; this.entry = entry; bot = entry.Bot ?? throw new ArgumentException("メンバーを選んでください。"); this.variant = variant; this.session = session; this.host = host;
         lifetime = CancellationTokenSource.CreateLinkedTokenSource(workspace.ConnectionToken);
-        Background = (Brush)Application.Current.FindResource("ConversationBackground");
+        Background = Palette.Get("ConversationBackground");
         session.Changed += Changed; Rebuild();
     }
     public void Dispose() { session.Changed -= Changed; lifetime.Cancel(); lifetime.Dispose(); }
     private void Changed() { BusyChanged?.Invoke(); Rebuild(); }
 
-    private static readonly Brush Muted = (Brush)Application.Current.FindResource("Muted");
-    private static readonly Brush Red = new SolidColorBrush(Color.FromRgb(255, 59, 48));
+    private static Brush Muted => Palette.Muted;
+    private static Brush Red => Palette.Get("Red");
     private AvatarSelection? Pending => session.Pending(variant);
 
     private void Rebuild()

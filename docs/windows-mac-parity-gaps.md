@@ -151,7 +151,7 @@ Macと違う点：(1) 帯に「再接続」「接続先」のボタンが付く�
 - ログイン（LoginView）：182の肖像画、「BellTeam」（48pt）、「いつでも、あなたのチームと。」、「ログインして始める」。
 - 初期設定（OnboardingView）：AIのカード選択、認証の案内、「認証を確認して始める」「使うAIを変更」「接続先を変更」。Windowsは同じ機能を別の画面構成で持つ。
 
-## 11. 共通部品とキー操作 — S（一部対応済み：PR 11a）
+## 11. 共通部品とキー操作 — S（対応済み：PR 11a・PR 11b）
 
 PR 4の確認でトロニーが仕上げへ回した項目（例外にせず再現する）：「安全な入力欄を開く」をMacと同じ灰色のボタンにする。送信直後に、Macと同じ「受付確認中」の仮の吹き出しを出す。画像の閲覧を別の窓ではなく、主窓の中で開く。
 PR 5の確認で追加：Macの実物（113の01・02・07）は、会話の上にアバターと名前の帯を持たず、窓の題名が「BellTeam」で、詳細パネルの切替と書き出しを窓の右上に紫の丸いボタン2つで置く。#634のソースと実物を照らし、実物に合わせる。
@@ -166,6 +166,14 @@ PR 5の確認で追加：Macの実物（113の01・02・07）は、会話の上�
 - 文字の大きさ：本文18、入力18、一覧の名前16・補助14、ボタン16、プロフィールの題20、区分の見出し13 semibold。カードの角丸24。
 - シートの大きさ：最小720×540、標準820×680。WPFでは主窓の上に重ねるモーダル（暗くした背景）で再現する。
 - キー：Ctrl+K、Ctrl+2、Ctrl+3（新規）、Ctrl+,、Ctrl+Shift+I、Enter（送信）とShift+Enter（改行）。
+
+対応済み（PR 11b）：ダーク表示。Windowsの「既定のアプリ モード」に従い（Macがシステムの外観に従うのと同じ）、変わったら再起動せずに切り替わる。タイトルバーも暗くする。OSの設定は読むだけで書かない。
+- Macの実物の確認：Macアプリは`UIUserInterfaceStyle: Light`（`ios/BellBot/project.yml`）で、アプリ本体は暗い表示にならない。113の`-dark`写真のうち30・34・35・37・40〜44・47〜49は、対応する`-light`と画素までほぼ同じ（差は在席の点の数十画素だけ）で、写真の無い画面は「アプリ自身の配色」のまま。暗い見本として使えるのは、単体試験の部品の描画だけ：60・61（アップデート。黒の背景、`#1C1C1E`のカード、赤の帯は赤の1割、区切り線`#3E3E41`、白の文字）。62・63（キーバー）は、Macも常に暗い（`colorScheme = .dark`）ため明るい版と同じ。
+- そのため暗い配色は、60・61に出ているMacのシステムの暗い色（`systemGroupedBackground`→黒、`secondarySystemGroupedBackground`→`#1C1C1E`、`.primary`→白、`.secondary`→灰、区切り線）を、Windowsの同じ役の部品へ当てて決めた。写真の無い面（会話の背景、サイドバー、入力欄、吹き出し）は同じ考えで暗くした。
+- 変わる部分（Macのシステム色にあたる所）：窓・設定・シートの背景、カード・入力欄・メニュー・選択欄、本文・補助の文字、区切り線と枠、会話の背景のグラデーション、サイドバー、作成欄の帯、スクロールバー、日付の選択欄、右クリックのメニュー。変わらない部分（アプリ自身の配色）：紫・緑・赤・橙、アクセント色の吹き出し・アバター、設定のアイコンの色、Botの画面とキーバー（Macも常に暗い）、画像の閲覧、確認の覆い。
+- 明るい表示は変えていない：描画の全場面97枚を変更前（main）と比べ、スピナーの回転など動く部分（1枚につき120画素ほど）を除いて画素が一致した。
+- 写真（Windowsの暗い表示。`docs/assets/windows-mac-gaps/windows/`）：[一覧](assets/windows-mac-gaps/windows/pr11b-workspace-dark.png)（Mac 30と比較）、[停止の列](assets/windows-mac-gaps/windows/pr11b-conversation-stop-room-dark.png)（34）、[添付の下書き](assets/windows-mac-gaps/windows/pr11b-conversation-draft-dark.png)（35）、[接続の帯](assets/windows-mac-gaps/windows/pr11b-startup-banner-dark.png)（37）、設定10ページ`pr11b-settings-<ページ>-dark.png`（40〜49）、[アップデート](assets/windows-mac-gaps/windows/pr11b-update-dark.png)・[最新](assets/windows-mac-gaps/windows/pr11b-update-current-dark.png)（47・60・61）、[キーバー](assets/windows-mac-gaps/windows/pr11b-screen-approval-dark.png)・[数字と失敗](assets/windows-mac-gaps/windows/pr11b-screen-digits-error-dark.png)（62・63）。
+- 再現していない所：システムの明るいままの部品（日付選択の暦の窓、チェックボックスの枠、ファイル選択やメッセージボックスなどOSの窓）。Macの`regularMaterial`（すりガラス）は、不透明な暗い色で置き換えた。
 
 ## サーバーと裁定
 
@@ -190,7 +198,9 @@ PR 5の確認で追加：Macの実物（113の01・02・07）は、会話の上�
 | 8 | メンバー・ルームの編集シート、削除、切り抜き | M |
 | 9 | 予定の見た目と文言 | S |
 | 10 | 起動・接続・ログイン・初期設定 | M |
-| 11 | 共通部品の仕上げとダーク表示 | S |
+| 11 | 共通部品の仕上げとダーク表示。状態：対応済み（11a：仕上げ5件、11b：ダーク表示）。写真：`pr11a-*.png`・`pr11b-*-dark.png` | S |
 | 12 | Claudeの2アカウント（オーナー機能、担当キロ。契約は`docs/architecture/modules/execution/harness-accounts.md`）：AIの認証の1st・2nd、Fableを2ndで使う切替、両方上限の帯、メンバーの席のアカウント表示。Apple版に合わせる。状態：対応済み（Apple版の到着後に照合）。写真：[2行・通常](assets/windows-mac-gaps/windows/pr12-accounts-normal.png)・[片方が上限](assets/windows-mac-gaps/windows/pr12-accounts-one-limited.png)・[両方上限の帯](assets/windows-mac-gaps/windows/pr12-accounts-both-limited.png)・[2ndが未ログイン](assets/windows-mac-gaps/windows/pr12-accounts-unlogged.png)・[旧本体の1行](assets/windows-mac-gaps/windows/pr12-accounts-old-server.png)・[メンバーの席のアカウント](assets/windows-mac-gaps/windows/pr12-accounts-member-card.png) | M |
 
 合計でおよそ14〜16日分（S＝0.5、M＝1、L＝2で数えた実作業）。各PRの採用と導入を待つ時間は含まない。Macの全写真が届いたら、ダーク表示の差と、写真の無い画面（起動・ログイン・初期設定・シート類）を照らし合わせて、規模を見直す。
+
+状態（W-MAC）：最後のPR 11bで、表のPR 0〜12がすべて出そろった。ダーク表示は、Macのアプリ自体が明るい固定で暗い写真の見本が60・61の部品だけだったため、その2枚のシステムの暗い色を基準に決めた（上の11節）。見積もりの見直しは、ダーク表示の差が「Macに暗い見本が無い」という結果になったため要らない。

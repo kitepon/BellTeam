@@ -41,9 +41,8 @@ public sealed class TargetIcon : FrameworkElement
 
 internal static class GoalUi
 {
-    public static Brush Brush(string key) => (Brush)Application.Current.FindResource(key);
-    public static readonly Brush Red = Frozen(0xFF, 0x3B, 0x30);
-    private static Brush Frozen(byte r, byte g, byte b) { var brush = new SolidColorBrush(Color.FromRgb(r, g, b)); brush.Freeze(); return brush; }
+    public static Brush Brush(string key) => Palette.Get(key);
+    public static Brush Red => Palette.Get("Red");
 
     public static TextBlock Text(string text, double size, Brush? foreground = null, FontWeight? weight = null, Thickness? margin = null) => new()
     {
@@ -70,7 +69,7 @@ internal static class GoalUi
         if (chevron is not null) content.Children.Add(new TextBlock { Text = chevron, FontFamily = icons, FontSize = 9, Foreground = ink, Margin = new Thickness(5, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
         var button = new Button { Height = 38, MinWidth = 38, Padding = new Thickness(chevron is null ? 0 : 12, 0, chevron is null ? 0 : 12, 0), Margin = new Thickness(4, 0, 0, 0), Content = content, ToolTip = name };
         var chrome = new FrameworkElementFactory(typeof(Border)); chrome.Name = "Chrome"; chrome.SetValue(Border.CornerRadiusProperty, new CornerRadius(19));
-        chrome.SetValue(Border.BackgroundProperty, filled ? Brush("Violet") : Brushes.White); chrome.SetValue(Border.BorderBrushProperty, Brush("Line")); chrome.SetValue(Border.BorderThicknessProperty, new Thickness(filled ? 0 : 1));
+        chrome.SetValue(Border.BackgroundProperty, filled ? Brush("Violet") : Palette.Card); chrome.SetValue(Border.BorderBrushProperty, Brush("Line")); chrome.SetValue(Border.BorderThicknessProperty, new Thickness(filled ? 0 : 1));
         var presenter = new FrameworkElementFactory(typeof(ContentPresenter)); presenter.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Center); presenter.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center); chrome.AppendChild(presenter);
         var template = new ControlTemplate(typeof(Button)) { VisualTree = chrome };
         template.Triggers.Add(new Trigger { Property = UIElement.IsEnabledProperty, Value = false, Setters = { new Setter(UIElement.OpacityProperty, .4, "Chrome") } });
@@ -128,7 +127,7 @@ internal static class GoalCard
             if (snapshot.UnavailableActions is { Length: > 0 } unavailable) Add(GoalUi.Text($"今のゴールでは{string.Join("・", unavailable)}を操作できません。", 13, muted));
             if (!chat && snapshot.Goal is not null) Add(GoalUi.Text(snapshot.PageFootnote, 13, muted));
         }
-        var card = new Border { Child = stack, Padding = new Thickness(18), CornerRadius = new CornerRadius(24), Background = new SolidColorBrush(Color.FromArgb(0xE8, 255, 255, 255)), BorderBrush = GoalUi.Brush("Line"), BorderThickness = new Thickness(1) };
+        var card = new Border { Child = stack, Padding = new Thickness(18), CornerRadius = new CornerRadius(24), Background = Palette.Get("PanelFill"), BorderBrush = GoalUi.Brush("Line"), BorderThickness = new Thickness(1) };
         if (chat) card.Effect = new DropShadowEffect { Color = Colors.Black, Opacity = .15, BlurRadius = 14, ShadowDepth = 7, Direction = 270 };
         System.Windows.Automation.AutomationProperties.SetName(card, name + "のゴール");
         return card;
@@ -271,7 +270,7 @@ public sealed class GoalPill : StackPanel
                 details.Children.Add(GoalCard.Build(snapshot, name, goals.Busy, chat: true, action => Edit(snapshot, action), action => _ = goals.RunAsync(snapshot, action)));
             else
             {
-                var note = new Border { Padding = new Thickness(18), CornerRadius = new CornerRadius(24), Background = new SolidColorBrush(Color.FromArgb(0xE8, 255, 255, 255)), BorderBrush = GoalUi.Brush("Line"), BorderThickness = new Thickness(1) };
+                var note = new Border { Padding = new Thickness(18), CornerRadius = new CornerRadius(24), Background = Palette.Get("PanelFill"), BorderBrush = GoalUi.Brush("Line"), BorderThickness = new Thickness(1) };
                 note.Child = GoalUi.Text(goals.NeedsRefresh ? "現在のゴールを確認できません。状態を更新してください。" : "ゴールの状態を取得できません。", 13);
                 details.Children.Add(note);
             }
@@ -284,7 +283,7 @@ public sealed class GoalPill : StackPanel
         label.Children.Add(new TextBlock { Text = Title(goals, botId), FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = GoalUi.Brush("Ink"), TextTrimming = TextTrimming.CharacterEllipsis });
         if (snapshot is { Availability: GoalAvailability.Available, Goal: not null } && snapshot.PillElapsed is { } elapsed)
             label.Children.Add(new TextBlock { Text = elapsed, FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = GoalUi.Brush("Ink"), Margin = new Thickness(7, 0, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis });
-        var capsule = new Border { Child = label, CornerRadius = new CornerRadius(99), Padding = new Thickness(15, 8, 15, 8), Background = new SolidColorBrush(Color.FromArgb(0xE0, 0xF6, 0xF6, 0xF9)), BorderBrush = GoalUi.Brush("Line"), BorderThickness = new Thickness(1) };
+        var capsule = new Border { Child = label, CornerRadius = new CornerRadius(99), Padding = new Thickness(15, 8, 15, 8), Background = Palette.Get("PillFill"), BorderBrush = GoalUi.Brush("Line"), BorderThickness = new Thickness(1) };
         var pill = new Button { Content = capsule, HorizontalAlignment = HorizontalAlignment.Center, Padding = new Thickness(0), Margin = new Thickness(0), BorderThickness = new Thickness(0), Background = Brushes.Transparent };
         var template = new ControlTemplate(typeof(Button)) { VisualTree = new FrameworkElementFactory(typeof(ContentPresenter)) };
         pill.Template = template; pill.Cursor = Cursors.Hand;
@@ -331,7 +330,7 @@ public sealed class GoalEditorView : ScrollViewer, ISheetSave
         // 変更する項目: a segmented control, shown only when the CLI takes one field at a time.
         choice.Children.Add(Header("変更する項目"));
         var segments = new UniformGrid { Rows = 1, Margin = new Thickness(0, 0, 0, 8) };
-        var segmentFrame = new Border { Child = segments, Background = new SolidColorBrush(Color.FromRgb(0xE3, 0xE3, 0xE8)), CornerRadius = new CornerRadius(9), Padding = new Thickness(2) };
+        var segmentFrame = new Border { Child = segments, Background = Palette.Get("Segment"), CornerRadius = new CornerRadius(9), Padding = new Thickness(2) };
         segments.Children.Add(Segment("目的", GoalEditField.Objective, objectiveSegment)); segments.Children.Add(Segment("トークン予算", GoalEditField.Budget, budgetSegment));
         choice.Children.Add(segmentFrame);
         choice.Children.Add(GoalUi.Text("目的と予算は、一項目ずつ保存してください。", 13, muted, margin: new Thickness(4, 0, 0, 0)));
@@ -374,7 +373,7 @@ public sealed class GoalEditorView : ScrollViewer, ISheetSave
     {
         var current = goals.Snapshots.FirstOrDefault(item => item.BotId == editor.BotId);
         choice.Visibility = editor.SeparateChoice(current) ? Visibility.Visible : Visibility.Collapsed;
-        objectiveSegment.Background = editor.Field == GoalEditField.Objective ? Brushes.White : Brushes.Transparent; budgetSegment.Background = editor.Field == GoalEditField.Budget ? Brushes.White : Brushes.Transparent;
+        objectiveSegment.Background = editor.Field == GoalEditField.Objective ? Palette.Get("SegmentOn") : Brushes.Transparent; budgetSegment.Background = editor.Field == GoalEditField.Budget ? Palette.Get("SegmentOn") : Brushes.Transparent;
         objectiveSection.Visibility = editor.EditsObjective(current) ? Visibility.Visible : Visibility.Collapsed;
         budgetSection.Visibility = editor.EditsBudget(current) ? Visibility.Visible : Visibility.Collapsed;
         count.Text = editor.CountText; placeholder.Visibility = budget.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;

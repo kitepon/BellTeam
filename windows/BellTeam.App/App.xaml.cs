@@ -13,7 +13,10 @@ public partial class App : Application
     {
         base.OnStartup(e);
         // Renders are screenshots taken right after layout; the card entrance animation would leave cards transparent.
-        if (e.Args.Any(argument => argument.StartsWith("--render", StringComparison.Ordinal))) MessageEntrance.Enabled = false;
+        var rendering = e.Args.Any(argument => argument.StartsWith("--render", StringComparison.Ordinal));
+        if (rendering) MessageEntrance.Enabled = false;
+        // Renders ignore the system mode so they repeat: light unless BELLTEAM_RENDER_THEME=dark. A real run follows the Windows app mode.
+        AppTheme.Start(rendering ? (Environment.GetEnvironmentVariable("BELLTEAM_RENDER_THEME") == "dark" ? "dark" : "light") : null);
         try
         {
             if (e.Args is ["--smoke-test", var address, var result])

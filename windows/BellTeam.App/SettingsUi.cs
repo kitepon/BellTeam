@@ -47,9 +47,16 @@ public static class SettingsPageInfo
 // Building blocks of the Mac-style settings pages: icon tiles, grouped cards, rows and buttons.
 internal static class SettingsUi
 {
-    private static SolidColorBrush Solid(string hex) { var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex)); brush.Freeze(); return brush; }
-    public static readonly Brush Ink = Solid("#21293D"), Muted = Solid("#787D91"), Secondary = Solid("#8A8A8E"), Violet = Solid("#6147D4"), Red = Solid("#FF3B30"), Green = Solid("#34C759"), Orange = Solid("#FF9500");
-    public static readonly Brush Canvas = Solid("#F2F2F7"), Hairline = Solid("#E6E6EB"), Fill = Solid("#F0F0F4");
+    public static Brush Ink => Palette.Ink;
+    public static Brush Muted => Palette.Muted;
+    public static Brush Secondary => Palette.Secondary;
+    public static Brush Violet => Palette.Get("Violet");
+    public static Brush Red => Palette.Get("Red");
+    public static Brush Green => Palette.Get("Green");
+    public static Brush Orange => Palette.Get("Orange");
+    public static Brush Canvas => Palette.Get("Grouped");
+    public static Brush Hairline => Palette.Get("Hairline");
+    public static Brush Fill => Palette.Get("Fill");
     public static readonly FontFamily Icons = new("Segoe Fluent Icons, Segoe MDL2 Assets");
 
     public static TextBlock Text(string text, double size = 13, Brush? color = null, FontWeight? weight = null, Thickness? margin = null)
@@ -90,8 +97,8 @@ internal static class SettingsUi
     // bellCard(): the white rounded card of the card-style pages.
     public static Border Card(UIElement content) => new()
     {
-        Child = content, Background = new SolidColorBrush(Color.FromArgb(0xE8, 255, 255, 255)), CornerRadius = new CornerRadius(24), Padding = new Thickness(20),
-        BorderBrush = new SolidColorBrush(Color.FromArgb(0xA6, 0xE5, 0xE3, 0xF0)), BorderThickness = new Thickness(1),
+        Child = content, Background = Palette.Get("PanelFill"), CornerRadius = new CornerRadius(24), Padding = new Thickness(20),
+        BorderBrush = Palette.Get("PanelLine"), BorderThickness = new Thickness(1),
         Effect = new DropShadowEffect { Color = Color.FromRgb(0x21, 0x29, 0x3D), Opacity = .05, BlurRadius = 16, ShadowDepth = 8, Direction = 270 }
     };
 
@@ -144,7 +151,7 @@ internal static class SettingsUi
     public static ToggleButton Switch(string onColor)
     {
         var template = (ControlTemplate)XamlReader.Parse(
-            $"<ControlTemplate xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" TargetType=\"ToggleButton\"><Grid x:Name=\"Root\" Width=\"42\" Height=\"26\"><Border x:Name=\"Track\" CornerRadius=\"13\" Background=\"#E5E5EA\"/><Ellipse x:Name=\"Knob\" Width=\"22\" Height=\"22\" Fill=\"White\" HorizontalAlignment=\"Left\" Margin=\"2,0,0,0\"><Ellipse.Effect><DropShadowEffect Opacity=\"0.25\" BlurRadius=\"3\" ShadowDepth=\"1\"/></Ellipse.Effect></Ellipse></Grid><ControlTemplate.Triggers><Trigger Property=\"IsChecked\" Value=\"True\"><Setter TargetName=\"Track\" Property=\"Background\" Value=\"{onColor}\"/><Setter TargetName=\"Knob\" Property=\"HorizontalAlignment\" Value=\"Right\"/><Setter TargetName=\"Knob\" Property=\"Margin\" Value=\"0,0,2,0\"/></Trigger><Trigger Property=\"IsEnabled\" Value=\"False\"><Setter TargetName=\"Root\" Property=\"Opacity\" Value=\"0.5\"/></Trigger></ControlTemplate.Triggers></ControlTemplate>");
+            $"<ControlTemplate xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" TargetType=\"ToggleButton\"><Grid x:Name=\"Root\" Width=\"42\" Height=\"26\"><Border x:Name=\"Track\" CornerRadius=\"13\" Background=\"{{DynamicResource SwitchOff}}\"/><Ellipse x:Name=\"Knob\" Width=\"22\" Height=\"22\" Fill=\"White\" HorizontalAlignment=\"Left\" Margin=\"2,0,0,0\"><Ellipse.Effect><DropShadowEffect Opacity=\"0.25\" BlurRadius=\"3\" ShadowDepth=\"1\"/></Ellipse.Effect></Ellipse></Grid><ControlTemplate.Triggers><Trigger Property=\"IsChecked\" Value=\"True\"><Setter TargetName=\"Track\" Property=\"Background\" Value=\"{onColor}\"/><Setter TargetName=\"Knob\" Property=\"HorizontalAlignment\" Value=\"Right\"/><Setter TargetName=\"Knob\" Property=\"Margin\" Value=\"0,0,2,0\"/></Trigger><Trigger Property=\"IsEnabled\" Value=\"False\"><Setter TargetName=\"Root\" Property=\"Opacity\" Value=\"0.5\"/></Trigger></ControlTemplate.Triggers></ControlTemplate>");
         return new ToggleButton { Template = template, Cursor = System.Windows.Input.Cursors.Hand, Margin = new Thickness(0), VerticalAlignment = VerticalAlignment.Center };
     }
 
@@ -171,7 +178,7 @@ internal sealed class GroupCard : Border
 {
     private readonly StackPanel rows = new();
     private readonly List<(UIElement Row, StackPanel Holder, Border Line)> items = [];
-    public GroupCard() { Background = Brushes.White; CornerRadius = new CornerRadius(10); Child = rows; }
+    public GroupCard() { Background = Palette.Card; CornerRadius = new CornerRadius(10); Child = rows; }
     public GroupCard(params UIElement[] initial) : this() { foreach (var row in initial) Add(row); }
     public void Add(UIElement row) => Insert(items.Count, row);
     public int Count => items.Count;

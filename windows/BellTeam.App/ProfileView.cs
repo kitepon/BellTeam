@@ -11,8 +11,11 @@ namespace BellTeam.App;
 // Small controls of the inspector and its image sheet, in the Mac look (plain tap targets, bordered and prominent buttons).
 internal static class InspectorUi
 {
-    public static readonly Brush Ink = Frozen(0x21, 0x29, 0x3D), Muted = Frozen(0x78, 0x7D, 0x91), Mint = Frozen(0x2E, 0xB3, 0x9E), Red = Frozen(255, 59, 48), Violet = Frozen(0x61, 0x47, 0xD4);
-    private static Brush Frozen(byte r, byte g, byte b) { var brush = new SolidColorBrush(Color.FromRgb(r, g, b)); brush.Freeze(); return brush; }
+    public static Brush Ink => Palette.Ink;
+    public static Brush Muted => Palette.Muted;
+    public static Brush Mint => Palette.Get("Mint");
+    public static Brush Red => Palette.Get("Red");
+    public static Brush Violet => Palette.Get("Violet");
     private static ControlTemplate Template(double radius)
     {
         var chrome = new FrameworkElementFactory(typeof(Border)) { Name = "Chrome" };
@@ -114,7 +117,7 @@ public sealed class ProfileView : StackPanel
         rendered = key; Children.Clear(); status = null; epoch++; largeError = false; LoadTask = Task.CompletedTask;
         if (session is not null) session.Changed -= SessionChanged;
         session = null;
-        if (entry is null) { versions = null; Children.Add(new TextBlock { Text = "メンバーやルームを選ぶと、ここに詳細を表示します。", FontSize = 16, Foreground = Brushes.Gray, TextWrapping = TextWrapping.Wrap }); return; }
+        if (entry is null) { versions = null; Children.Add(new TextBlock { Text = "メンバーやルームを選ぶと、ここに詳細を表示します。", FontSize = 16, Foreground = Palette.Get("Gray"), TextWrapping = TextWrapping.Wrap }); return; }
         if (entry.Bot is { } bot)
         {
             session = workspace.ImageSession(bot.Id); session.Changed += SessionChanged;
@@ -154,7 +157,7 @@ public sealed class ProfileView : StackPanel
         if (entry.Bot is not null) { RenderStatus(); LoadTask = LoadLargeAsync(workspace, entry, epoch); }
     }
     private void AddBlock(UIElement element, bool first = false) { if (element is FrameworkElement item) item.Margin = new Thickness(item.Margin.Left, Children.Count == 0 || first ? item.Margin.Top : item.Margin.Top + 22, item.Margin.Right, item.Margin.Bottom); Children.Add(element); }
-    private static Border Divider() => new() { Height = 1, Background = new SolidColorBrush(Color.FromRgb(229, 227, 240)) };
+    private static Border Divider() => new() { Height = 1, Background = Palette.Get("Line") };
     private static TextBlock Heading(string text) => new() { Text = text, FontSize = 14, FontWeight = FontWeights.Bold, Foreground = InspectorUi.Muted };
 
     private UIElement Hero(Workspace workspace, ConversationEntry entry, Bot bot)

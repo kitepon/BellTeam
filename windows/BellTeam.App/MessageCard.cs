@@ -16,8 +16,8 @@ public sealed class MessageCard : ContentControl
     public static readonly DependencyProperty WorkspaceProperty = DependencyProperty.Register(nameof(Workspace), typeof(Workspace), typeof(MessageCard), new PropertyMetadata(null, Changed));
     public Workspace Workspace { get => (Workspace)GetValue(WorkspaceProperty); set => SetValue(WorkspaceProperty, value); }
     private static readonly FontFamily Icons = new("Segoe Fluent Icons, Segoe MDL2 Assets");
-    private static readonly Brush Muted = Frozen(Color.FromRgb(120, 125, 145)), Failed = Frozen(Color.FromRgb(255, 59, 48));
-    private static Brush Frozen(Color color) { var brush = new SolidColorBrush(color); brush.Freeze(); return brush; }
+    private static Brush Muted => Palette.Muted;
+    private static Brush Failed => Palette.Get("Red");
     private string? messageId;
     private Grid? layout;
     private AvatarTile? avatar;
@@ -61,9 +61,9 @@ public sealed class MessageCard : ContentControl
         var name = (Workspace.IsRoom ? Workspace.Bots.FirstOrDefault(bot => bot.Id == message.Sender?.Id)?.Color : Workspace.Selected?.Bot?.Color) ?? "violet";
         if (accentName == name) return;
         accentName = name; var accent = BellColors.Accent(name);
-        bubble.Background = new SolidColorBrush(message.IsOutgoing ? Colors.White : Color.FromArgb(46, accent.R, accent.G, accent.B));
-        bubble.BorderBrush = new SolidColorBrush(message.IsOutgoing ? Color.FromRgb(229, 227, 240) : Color.FromArgb(90, accent.R, accent.G, accent.B));
-        var label = new SolidColorBrush(message.IsOutgoing ? Color.FromRgb(120, 125, 145) : accent);
+        bubble.Background = message.IsOutgoing ? Palette.Get("BubbleOut") : new SolidColorBrush(Color.FromArgb(46, accent.R, accent.G, accent.B));
+        bubble.BorderBrush = message.IsOutgoing ? Palette.Get("BubbleOutLine") : new SolidColorBrush(Color.FromArgb(90, accent.R, accent.G, accent.B));
+        var label = message.IsOutgoing ? Palette.Muted : new SolidColorBrush(accent);
         heading!.Foreground = label; stackName!.Foreground = new SolidColorBrush(accent);
     }
     private static TextBlock Glyph(string text, double size, Brush brush) => new() { Text = text, FontFamily = Icons, FontSize = size, Foreground = brush, VerticalAlignment = VerticalAlignment.Center };
@@ -87,7 +87,7 @@ public sealed class MessageCard : ContentControl
     {
         layout = null;
         var label = new TextBlock { FontSize = 14, Foreground = Muted, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0), Text = $"{message.PeerName ?? "メンバー"}との連絡" };
-        var capsule = new Border { Background = new SolidColorBrush(Color.FromArgb(191, 255, 255, 255)), CornerRadius = new CornerRadius(99), Padding = new Thickness(15, 9, 15, 9), Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { Glyph("", 13, Muted), label, Glyph("", 10, Muted) } } };
+        var capsule = new Border { Background = Palette.Get("Glass"), CornerRadius = new CornerRadius(99), Padding = new Thickness(15, 9, 15, 9), Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { Glyph("", 13, Muted), label, Glyph("", 10, Muted) } } };
         var button = new Button { Content = capsule, Padding = new Thickness(0), Margin = new Thickness(0), HorizontalAlignment = HorizontalAlignment.Center, Cursor = System.Windows.Input.Cursors.Hand };
         button.SetResourceReference(StyleProperty, "QuietButton"); button.Padding = new Thickness(0); button.Margin = new Thickness(0);
         System.Windows.Automation.AutomationProperties.SetName(button, label.Text);
@@ -99,7 +99,7 @@ public sealed class MessageCard : ContentControl
     private void BuildRequest(TimelineMessage message)
     {
         layout = null;
-        var card = new Border { Background = new SolidColorBrush(Color.FromArgb(230, 255, 255, 255)), CornerRadius = new CornerRadius(20), BorderBrush = new SolidColorBrush(Color.FromArgb(51, 97, 71, 212)), BorderThickness = new Thickness(1), Padding = new Thickness(20) };
+        var card = new Border { Background = Palette.Get("GlassCard"), CornerRadius = new CornerRadius(20), BorderBrush = new SolidColorBrush(Color.FromArgb(51, 97, 71, 212)), BorderThickness = new Thickness(1), Padding = new Thickness(20) };
         if (message.SecretRequest is not null) { secret = new SecretCard(Workspace, Author); card.Child = secret; }
         else { question = new QuestionCard(Workspace, Author); card.Child = question; }
         Content = new CappedRow { Child = card, HorizontalAlignment = HorizontalAlignment.Left };
@@ -120,7 +120,7 @@ public sealed class MessageCard : ContentControl
         heading = new TextBlock { FontSize = 14, FontWeight = FontWeights.Bold };
         images = new RemoteImages(Workspace);
         imageLabel = new TextBlock { FontSize = 15, VerticalAlignment = VerticalAlignment.Center };
-        imagePlaceholder = new StackPanel { Orientation = Orientation.Horizontal, Children = { Glyph("", 15, Brushes.SlateGray), imageLabel } };
+        imagePlaceholder = new StackPanel { Orientation = Orientation.Horizontal, Children = { Glyph("", 15, Palette.Get("Subtle")), imageLabel } };
         imageLabel.Margin = new Thickness(7, 0, 0, 0);
         body = new MarkdownView { FontSize = 18 };
         replyLabel = new TextBlock { FontSize = 11, Foreground = Muted };

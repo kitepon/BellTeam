@@ -30,8 +30,14 @@ internal static class EmbeddedAsset
 // Mac catalyst controls and BellTheme pieces used by the full-window screens.
 internal static class MacUi
 {
-    private static SolidColorBrush Solid(string hex) { var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex)); brush.Freeze(); return brush; }
-    public static readonly Brush Ink = Solid("#21293D"), Muted = Solid("#787D91"), Secondary = Solid("#8A8A8E"), Violet = Solid("#6147D4"), ProminentFill = Solid("#5642C9"), Red = Solid("#FF3B30"), Line = Solid("#E5E3F0"), ButtonFill = Solid("#E4E3E8");
+    public static Brush Ink => Palette.Ink;
+    public static Brush Muted => Palette.Muted;
+    public static Brush Secondary => Palette.Secondary;
+    public static Brush Violet => Palette.Get("Violet");
+    public static Brush ProminentFill => Palette.Get("ProminentFill");
+    public static Brush Red => Palette.Get("Red");
+    public static Brush Line => Palette.Get("Line");
+    public static Brush ButtonFill => Palette.Get("ButtonFill");
     public static readonly FontFamily Icons = new("Segoe Fluent Icons, Segoe MDL2 Assets");
     private const string Namespaces = "xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"";
     // A template belongs to the thread that parsed it, so each UI thread keeps its own.
@@ -70,7 +76,7 @@ internal static class MacUi
     }
     // bellCard(): white at 91 %, a 24 pt corner, a faint line and a soft shadow.
     public static Border Card(UIElement child, Thickness padding)
-        => new() { Child = child, Padding = padding, CornerRadius = new CornerRadius(24), Background = new SolidColorBrush(Color.FromArgb(0xE8, 255, 255, 255)), BorderBrush = new SolidColorBrush(Color.FromArgb(0xA6, 0xE5, 0xE3, 0xF0)), BorderThickness = new Thickness(1), Effect = new DropShadowEffect { Color = Color.FromRgb(0x21, 0x29, 0x3D), Opacity = 0.035, BlurRadius = 16, ShadowDepth = 8, Direction = 270 } };
+        => new() { Child = child, Padding = padding, CornerRadius = new CornerRadius(24), Background = Palette.Get("PanelFill"), BorderBrush = Palette.Get("PanelLine"), BorderThickness = new Thickness(1), Effect = new DropShadowEffect { Color = Color.FromRgb(0x21, 0x29, 0x3D), Opacity = 0.035, BlurRadius = 16, ShadowDepth = 8, Direction = 270 } };
     public static void OpenUrl(Uri address, Action<string> failed)
     {
         try { Process.Start(new ProcessStartInfo(address.AbsoluteUri) { UseShellExecute = true }); }
@@ -84,7 +90,7 @@ internal class StartupBackdrop : Grid
     public StartupBackdrop()
     {
         ClipToBounds = true;
-        Background = new LinearGradientBrush([new GradientStop(Color.FromRgb(0xEC, 0xE6, 0xFE), 0), new GradientStop(Color.FromRgb(0xF8, 0xF8, 0xFB), 0.5), new GradientStop(Colors.White, 1)], new Point(0, 0), new Point(1, 1));
+        Background = Palette.Get("StartupBackground");
         Children.Add(new System.Windows.Shapes.Ellipse { Width = 380, Height = 380, Fill = new SolidColorBrush(Color.FromArgb(20, 0x61, 0x47, 0xD4)), Effect = new BlurEffect { Radius = 65 }, RenderTransform = new TranslateTransform(170, -330), IsHitTestVisible = false });
     }
     protected static ScrollViewer Scroll(StackPanel column, double maxWidth, Thickness margin)
@@ -155,7 +161,7 @@ internal sealed class ServerSetupView : StartupBackdrop
         System.Windows.Automation.AutomationProperties.SetAutomationId(guideButton, "server-installation-guide"); column.Children.Add(guideButton);
         column.Children.Add(MacUi.Text("サーバーを用意済みの方", 13, MacUi.Ink, FontWeights.Bold, new Thickness(0, 30, 0, 0)));
         column.Children.Add(MacUi.Text("同じマシンならhttp://localhost:18891、iPhone・iPadならLAN上のBellTeamのURLを入力してください。外部接続はHTTPSを使います。", 13, MacUi.Muted, margin: new Thickness(0, 22, 0, 0)));
-        var field = new Grid(); var placeholder = MacUi.Text("BellTeamの接続先URL", 13, new SolidColorBrush(Color.FromRgb(0xC4, 0xC4, 0xC8))); placeholder.IsHitTestVisible = false; placeholder.VerticalAlignment = VerticalAlignment.Center;
+        var field = new Grid(); var placeholder = MacUi.Text("BellTeamの接続先URL", 13, Palette.Get("Placeholder")); placeholder.IsHitTestVisible = false; placeholder.VerticalAlignment = VerticalAlignment.Center;
         field.Children.Add(address); field.Children.Add(placeholder);
         void ShowPlaceholder() => placeholder.Visibility = address.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
         address.TextChanged += (_, _) => ShowPlaceholder(); ShowPlaceholder();

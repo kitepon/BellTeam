@@ -322,7 +322,7 @@ public partial class MainWindow : Window, IInspectorHost
         var notice = model.StopResult;
         StopNoticeBox.Visibility = notice is null ? Visibility.Collapsed : Visibility.Visible;
         StopNoticeText.Text = notice?.Message ?? "";
-        StopNoticeText.Foreground = notice?.IsError == true ? new SolidColorBrush(Color.FromRgb(255, 59, 48)) : (Brush)FindResource("Violet");
+        StopNoticeText.Foreground = notice?.IsError == true ? Palette.Get("Red") : Palette.Get("Violet");
     }
     // Mac: "新着メッセージ ↓" once something new arrived while reading older messages, else "最新へ ↓"; hidden at the bottom.
     private void ShowLatestButton()

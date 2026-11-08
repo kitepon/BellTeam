@@ -121,6 +121,10 @@ flowchart LR
 - 新しいCoreの窓口（`ScreenInputApi`・`GoalsApi`・`SettingsApi`の追加分）は、Mac版が使う同じAPIを呼ぶ。サーバーの変更は要らない。
 - 失敗の扱い：理由を表示する。接続の失敗（起動の失敗の画面と新着のSSE）は、Mac・Webと同じ段階で自動に再接続する。新着は、切れた時（「更新の接続が切れました。再接続しています。」）と、つながらない・429・5xx（「更新へ接続できません。再接続しています。」）で続け、30秒を超えて保てた接続の後は段階を最初に戻す。止めるのは認証が必要・取り消し・ログアウトの時だけで、形式の異常など想定外の失敗も理由を添えて再接続を続ける。その他の操作の失敗（送信など）は自動で繰り返さない。例外はMac版と同じ定期の読み取り（Botの画面と許可の確認は1秒ごと、AIの認証待ちは3秒ごと）で、表示している間だけ動かす。
 
+## 配色（明るい・暗い）
+
+配色の所有は`windows/BellTeam.App/Theme.cs`の`Palette`（色の表。明るい値は従来の値、暗い値はMacのシステムの暗い色）と`AppTheme`（OSの設定の読取りと切替）。明るい・暗いの選択は`LocalSettings`に保存せず、OSの「既定のアプリ モード」（`AppsUseLightTheme`）に従う。切替は`SystemEvents.UserPreferenceChanged`（`ImmersiveColorSet`）で受け、UIスレッドで`Palette.Apply`を呼ぶ。コードで作る画面は`Palette`の同じブラシ（色だけを書き換える）を持ち、XAMLは`DynamicResource`で`Application.Resources`の同じキーを引く（アプリ側の辞書はブラシを固定するため、切替のたびに複製で入れ替える）。OSが常に明るい部品（スクロールバー・日付選択）は、暗い間だけ暗い暗黙のスタイルを差す。タイトルバーは全ての最上位の窓へ`DwmSetWindowAttribute`（`DWMWA_USE_IMMERSIVE_DARK_MODE`）で合わせる。描画の入口は環境変数`BELLTEAM_RENDER_THEME`で上書きする（OSの設定は見ない）。
+
 ## 変更時の手順
 
 変更前に[全体図](architecture/feature-map.md)からこの図、呼出元と接続先の図へ辿り、機能・入出力・状態所有・接続・失敗の扱いを確認して図の変更要否を決める。全caller、データ、test、fixture、設定、exportまで影響範囲を確認する。必要な図と接続情報はコードと同じ差分で更新し、図を変えない場合は既存図に収まる理由を変更説明に記す。全体図の生成と直接境界の検証は[共通手順](architecture/module-ownership.md)に従う。

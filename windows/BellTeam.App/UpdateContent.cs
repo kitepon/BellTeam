@@ -14,7 +14,7 @@ namespace BellTeam.App;
 public sealed class UpdateContent : UserControl, IDisposable
 {
     private static readonly Color VioletColor = Color.FromRgb(0x61, 0x47, 0xD4), MintColor = Color.FromRgb(0x2E, 0xB3, 0x9E), RedColor = Color.FromRgb(0xFF, 0x3B, 0x30), GreyColor = Color.FromRgb(0x8A, 0x8A, 0x8E);
-    private static readonly Brush Group = new SolidColorBrush(Color.FromRgb(0xF2, 0xF2, 0xF7));
+    private static Brush Group => Palette.Get("Grouped");
     private readonly Workspace workspace;
     private readonly UpdateCenter center;
     private readonly StackPanel stack = new() { Margin = new Thickness(18, 22, 18, 22), MaxWidth = 620 };
@@ -101,7 +101,7 @@ public sealed class UpdateContent : UserControl, IDisposable
         if (mono) block.FontFamily = new FontFamily("Consolas, Yu Gothic UI");
         return block;
     }
-    private static Border Card(UIElement child, double padding = 18) => new() { Child = child, Background = Brushes.White, CornerRadius = new CornerRadius(16), Padding = new Thickness(padding) };
+    private static Border Card(UIElement child, double padding = 18) => new() { Child = child, Background = Palette.Card, CornerRadius = new CornerRadius(16), Padding = new Thickness(padding) };
     private void Add(UIElement element) { if (element is FrameworkElement item) item.Margin = new Thickness(item.Margin.Left, stack.Children.Count == 0 ? 0 : 22, item.Margin.Right, item.Margin.Bottom); stack.Children.Add(element); }
     private static Button Pill(string label, bool prominent, Action click, bool enabled = true)
     {
@@ -266,7 +266,7 @@ public sealed class UpdateContent : UserControl, IDisposable
     private FrameworkElement AttentionBanner((UpdateComponent Component, UpdatePartStatus Status)[] parts)
     {
         var column = new StackPanel();
-        column.Children.Add(InfoLine("\uE7BA", "確認が必要な機能があります", Solid(RedColor), 15));
+        column.Children.Add(InfoLine("\uE7BA", "確認が必要な機能があります", Palette.Get("Red"), 15));
         ((Grid)column.Children[0]).Children.OfType<TextBlock>().Last().FontWeight = FontWeights.SemiBold;
         foreach (var part in parts)
         {
@@ -275,7 +275,7 @@ public sealed class UpdateContent : UserControl, IDisposable
             item.Children.Add(Label(part.Status.Line, 13, SettingsUi.Ink, null, new Thickness(0, 4, 0, 0)));
             if (part.Status.Action is { } action)
             {
-                var hint = Label("☞  " + action, 13, Solid(RedColor), FontWeights.SemiBold, new Thickness(0, 4, 0, 0)); hint.FontFamily = new FontFamily("Yu Gothic UI, Segoe UI Symbol"); item.Children.Add(hint);
+                var hint = Label("☞  " + action, 13, Palette.Get("Red"), FontWeights.SemiBold, new Thickness(0, 4, 0, 0)); hint.FontFamily = new FontFamily("Yu Gothic UI, Segoe UI Symbol"); item.Children.Add(hint);
             }
             System.Windows.Automation.AutomationProperties.SetAutomationId(item, "update-attention-" + part.Component.Id); column.Children.Add(item);
         }
@@ -297,7 +297,7 @@ public sealed class UpdateContent : UserControl, IDisposable
             if (index > 0) rows.Children.Add(new Border { Height = 1, Background = SettingsUi.Hairline, Margin = new Thickness(62, 0, 0, 0) });
             rows.Children.Add(PartRow(components[index]));
         }
-        section.Children.Add(new Border { Child = rows, Background = Brushes.White, CornerRadius = new CornerRadius(16) });
+        section.Children.Add(new Border { Child = rows, Background = Palette.Card, CornerRadius = new CornerRadius(16) });
         return section;
     }
     private FrameworkElement PartRow(UpdateComponent component)
@@ -339,7 +339,7 @@ public sealed class UpdateContent : UserControl, IDisposable
             item.Children.Add(Label(UpdateScreen.ComponentName(inventory, job.Target.ModuleId), 13, SettingsUi.Ink, FontWeights.SemiBold));
             item.Children.Add(Label("状態: " + job.State, 13));
             item.Children.Add(Label("ジョブID: " + job.JobId, 11.5, SettingsUi.Muted, null, null, mono: true));
-            if (job.Reason is { } reason) item.Children.Add(Label(reason.Code + " / " + reason.Message, 13, Solid(RedColor)));
+            if (job.Reason is { } reason) item.Children.Add(Label(reason.Code + " / " + reason.Message, 13, Palette.Get("Red")));
             System.Windows.Automation.AutomationProperties.SetAutomationId(item, "update-job-" + job.JobId); yield return item;
         }
     }
@@ -415,10 +415,10 @@ public sealed class UpdateContent : UserControl, IDisposable
         """
         <ControlTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" TargetType="Expander">
           <StackPanel>
-            <ToggleButton IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}" Cursor="Hand" Focusable="True">
+            <ToggleButton IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}" Cursor="Hand" Focusable="True" Foreground="{DynamicResource RowText}">
               <ToggleButton.Template><ControlTemplate TargetType="ToggleButton"><Grid Background="Transparent"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                 <ContentPresenter Content="{Binding Header, RelativeSource={RelativeSource AncestorType=Expander}}" VerticalAlignment="Center"/>
-                <TextBlock x:Name="Chevron" Grid.Column="1" Text="&#xE76C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" Foreground="#21293D" VerticalAlignment="Center" Margin="0,0,6,0"/></Grid>
+                <TextBlock x:Name="Chevron" Grid.Column="1" Text="&#xE76C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" Foreground="{DynamicResource Ink}" VerticalAlignment="Center" Margin="0,0,6,0"/></Grid>
                 <ControlTemplate.Triggers><Trigger Property="IsChecked" Value="True"><Setter TargetName="Chevron" Property="Text" Value="&#xE70D;"/></Trigger></ControlTemplate.Triggers></ControlTemplate></ToggleButton.Template>
             </ToggleButton>
             <ContentPresenter x:Name="Body" Visibility="Collapsed"/>
