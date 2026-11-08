@@ -31,7 +31,7 @@ struct BackgroundAgentSettingsCard: View {
         VStack(alignment: .leading, spacing: 13) {
             Label("仕事の要約を書くAI", systemImage: "text.badge.star").font(.headline)
             Text("メンバー一覧に出る「今の仕事」を、チームで一人のAIがまとめます。")
-                .font(.caption).foregroundStyle(BellTheme.muted)
+                .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
             NavigationLink {
                 BackgroundAgentEditor()
             } label: {
@@ -40,6 +40,7 @@ struct BackgroundAgentSettingsCard: View {
             .disabled(store.backgroundAgent == nil)
             .accessibilityIdentifier("background-agent-settings")
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20).bellCard()
     }
 

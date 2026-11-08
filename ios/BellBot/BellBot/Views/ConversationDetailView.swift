@@ -61,11 +61,14 @@ struct ConversationDetailView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("閉じる") { dismiss() } } }
             .sheet(isPresented: $editingProfile) {
-                if let room { RoomEditor(initial: room).environmentObject(store) }
-                else if let bot { BotEditor(initial: bot).environmentObject(store) }
+                Group {
+                    if let room { RoomEditor(initial: room).environmentObject(store) }
+                    else if let bot { BotEditor(initial: bot).environmentObject(store) }
+                }
+                .bellEditorSheet()
             }
             .sheet(isPresented: $showingScreen) {
-                if let bot { BotScreenView(bot: bot).environmentObject(store) }
+                if let bot { BotScreenView(bot: bot, api: store.api).environmentObject(store) }
             }
             .botProfileImageActions(bot: bot, images: images)
             .onChange(of: room?.id) { _, id in

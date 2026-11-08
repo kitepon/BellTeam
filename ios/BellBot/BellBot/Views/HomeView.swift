@@ -220,19 +220,25 @@ private struct RoomCard: View {
     }
 }
 
-private struct BotRow: View {
+struct BotRow: View {
     let bot: Bot
     let working: Bool
 
+    static let avatarSize: CGFloat = 57
+    static let horizontalPadding: CGFloat = 11
+    static let spacing: CGFloat = 11
+    static let summaryFontSize: CGFloat = 11.5
+
     var body: some View {
-        HStack(spacing: 15) {
-            AvatarView(name: bot.name, avatar: bot.avatar, color: BellTheme.accent(bot.color), size: 57)
+        // Card size is set by the 57pt avatar; the summary gets 2 lines through text layout only (11.5pt, tight spacing, chevron moved to the name row).
+        HStack(spacing: Self.spacing) {
+            AvatarView(name: bot.name, avatar: bot.avatar, color: BellTheme.accent(bot.color), size: Self.avatarSize)
                 .overlay(alignment: .bottomTrailing) {
                     BotPresenceDot(online: bot.online, working: working, size: 13)
                         .offset(x: 2, y: 2)
                 }
-            VStack(alignment: .leading, spacing: 5) {
-                HStack {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 4) {
                     Text(bot.displayName)
                         .font(.system(size: 17, weight: .semibold, design: .rounded))
                         .foregroundStyle(BellTheme.ink)
@@ -242,17 +248,19 @@ private struct BotRow: View {
                     Text(BellDate.short(bot.recent?.at))
                         .font(.system(size: 12))
                         .foregroundStyle(BellTheme.muted)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(BellTheme.line)
                 }
                 Text(CurrentWork.label(bot.currentWork))
-                    .font(.system(size: 14))
+                    .font(.system(size: Self.summaryFontSize))
                     .foregroundStyle(BellTheme.muted)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            Image(systemName: "chevron.right")
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(BellTheme.line)
         }
-        .padding(15)
+        .padding(.horizontal, Self.horizontalPadding)
+        .padding(.vertical, 15)
         .bellCard()
     }
 }

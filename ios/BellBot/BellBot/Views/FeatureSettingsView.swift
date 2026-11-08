@@ -8,7 +8,7 @@ struct FeatureSettingsList: View {
         VStack(alignment: .leading, spacing: 13) {
             Label("追加機能", systemImage: "slider.horizontal.3").font(.headline)
             Text("未設定の機能は無効です。案内役との会話でも設定できます。")
-                .font(.caption).foregroundStyle(BellTheme.muted)
+                .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
             ForEach(store.featureSettings) { setting in
                 NavigationLink {
                     FeatureSettingEditor(setting: setting)
@@ -16,12 +16,12 @@ struct FeatureSettingsList: View {
                     VStack(alignment: .leading, spacing: 5) {
                         HStack { Text(setting.title); Spacer(); Text(setting.statusText).foregroundStyle(setting.error == nil ? BellTheme.muted : .red) }
                         if let failure = setting.error {
-                            Text("\(failure.code): \(failure.message)").font(.caption).foregroundStyle(.red)
+                            Text("\(failure.code): \(failure.message)").font(BellTheme.secondaryFont).foregroundStyle(.red)
                         }
                     }.padding(.vertical, 6)
                 }
             }
-            if let errorText { Text(errorText).font(.caption).foregroundStyle(.red) }
+            if let errorText { Text(errorText).font(BellTheme.secondaryFont).foregroundStyle(.red) }
         }
         .padding(20).bellCard()
         .task {
@@ -56,12 +56,12 @@ private struct FeatureSettingEditor: View {
                 Section {
                     Toggle("有効にする", isOn: $enabled)
                     Text("必要な項目を登録してから有効にしてください。秘密の値は会話へ送られません。")
-                        .font(.caption).foregroundStyle(BellTheme.muted)
+                        .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
                 }
                 if let failure = currentSetting.error {
                     Section("反映エラー") {
                         Text(failure.message).foregroundStyle(.red)
-                        Text(failure.code).font(.caption).foregroundStyle(BellTheme.muted)
+                        Text(failure.code).font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
                     }
                 }
                 Section("設定") {

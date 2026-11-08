@@ -23,7 +23,7 @@ private struct SubscriptionContent: View {
             if billing.isDeveloper {
                 Text("開発者として利用中").foregroundStyle(BellTheme.mint)
                 Text("このサーバーでは購読の購入は不要です。AIへの送信と予定操作を利用できます。")
-                    .font(.caption).foregroundStyle(BellTheme.muted)
+                    .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
             } else if billing.presentation == .checking {
                 ProgressView(billing.progressText)
                     .accessibilityIdentifier("subscription-checking")
@@ -33,21 +33,21 @@ private struct SubscriptionContent: View {
             } else {
                 if billing.hasPaidAccess, let entitlement = billing.entitlement {
                     Text("このApple Accountの購読は有効です").foregroundStyle(BellTheme.mint)
-                    Text("有効期限：\(entitlement.validUntil.formatted(date: .abbreviated, time: .shortened))").font(.caption)
+                    Text("有効期限：\(entitlement.validUntil.formatted(date: .abbreviated, time: .shortened))").font(BellTheme.secondaryFont)
                     if entitlement.gracePeriodExpiresAt != nil {
                         Text("Appleの支払い猶予期間中です。購読を管理して支払い方法を確認してください。")
-                            .font(.caption).foregroundStyle(BellTheme.muted)
+                            .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
                     } else if !entitlement.autoRenewing {
                         Text("自動更新は停止しています。有効期限までは利用できます。")
-                            .font(.caption).foregroundStyle(BellTheme.muted)
+                            .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
                     }
                 } else {
                     Text("このApple Accountの有効な購読はありません")
                     Text("初期案内の会話、保存した会話の閲覧・書き出しは無料です。通常のAI送信と予定の作成・編集・実行は、購読が有効な間に使えます。Webで用意した予定は継続します。")
-                        .font(.caption).foregroundStyle(BellTheme.muted)
+                        .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
                     if billing.status?.setupComplete != true {
                         Text("案内役と初期設定をすべて完了すると、購読を開始できます。")
-                            .font(.caption).foregroundStyle(BellTheme.muted)
+                            .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
                         Button("初期案内を開く") { Task { await billing.openSetupGuide() } }
                             .buttonStyle(.bordered)
                     }
@@ -56,7 +56,7 @@ private struct SubscriptionContent: View {
                         Text("\(product.displayPrice)／月 · 自動更新")
                             .font(.title3).fontWeight(.semibold)
                         Text("初期案内でサーバーとAIを試し、設定を完了してから購入できます。Appleの購入画面で承認した時に課金が始まります。")
-                            .font(.caption).foregroundStyle(BellTheme.muted)
+                            .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
                         if billing.status?.setupComplete == true {
                             Button("月額購読を開始") { Task { await billing.purchase(purchase) } }
                                 .buttonStyle(.borderedProminent)
@@ -66,8 +66,8 @@ private struct SubscriptionContent: View {
                 }
             }
             if billing.isDeveloper && billing.working { ProgressView(billing.progressText) }
-            if let message = billing.message { Text(message).font(.caption) }
-            if let error = billing.errorText { Text(error).font(.caption).foregroundStyle(.red) }
+            if let message = billing.message { Text(message).font(BellTheme.secondaryFont) }
+            if let error = billing.errorText { Text(error).font(BellTheme.secondaryFont).foregroundStyle(.red) }
             HStack {
                 if !billing.isDeveloper {
                     Button("購入を復元") { Task { await billing.restore() } }

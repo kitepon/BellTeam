@@ -12,6 +12,8 @@ final class HarnessAuthenticationUITests: XCTestCase {
         let settings = app.buttons["設定"].firstMatch
         XCTAssertTrue(settings.waitForExistence(timeout: 8))
         settings.tap()
+        XCTAssertTrue(app.buttons["settings-row-ai"].waitForExistence(timeout: 5))
+        app.buttons["settings-row-ai"].tap()
         let entry = app.buttons["harness-auth-antigravity"]
         for _ in 0..<6 where !entry.isHittable { app.scrollViews.firstMatch.swipeUp() }
         XCTAssertTrue(entry.waitForExistence(timeout: 5))
@@ -43,6 +45,8 @@ final class HarnessAuthenticationUITests: XCTestCase {
         let settings = app.buttons["設定"].firstMatch
         XCTAssertTrue(settings.waitForExistence(timeout: 8))
         settings.tap()
+        XCTAssertTrue(app.buttons["settings-row-ai"].waitForExistence(timeout: 5))
+        app.buttons["settings-row-ai"].tap()
         let entry = app.buttons["harness-auth-antigravity"]
         for _ in 0..<6 where !entry.isHittable { app.scrollViews.firstMatch.swipeUp() }
         XCTAssertTrue(entry.waitForExistence(timeout: 5))
@@ -69,6 +73,8 @@ final class HarnessAuthenticationUITests: XCTestCase {
         let settings = app.buttons["設定"].firstMatch
         XCTAssertTrue(settings.waitForExistence(timeout: 8))
         settings.tap()
+        XCTAssertTrue(app.buttons["settings-row-ai"].waitForExistence(timeout: 5))
+        app.buttons["settings-row-ai"].tap()
         let expected = [
             ("codex", "認証済み", "認証し直す"),
             ("cursor", "未認証", "認証する"),
@@ -98,6 +104,8 @@ final class HarnessAuthenticationUITests: XCTestCase {
         let settings = app.buttons["設定"].firstMatch
         XCTAssertTrue(settings.waitForExistence(timeout: 8))
         settings.tap()
+        XCTAssertTrue(app.buttons["settings-row-ai"].waitForExistence(timeout: 5))
+        app.buttons["settings-row-ai"].tap()
         let codex = app.buttons["harness-auth-codex"]
         for _ in 0..<5 where !codex.isHittable { app.scrollViews.firstMatch.swipeUp() }
         XCTAssertTrue(codex.waitForExistence(timeout: 5))

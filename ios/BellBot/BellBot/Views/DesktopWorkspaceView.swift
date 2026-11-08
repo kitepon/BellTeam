@@ -7,7 +7,11 @@ struct DesktopWorkspaceView: View {
     @State private var search = ""
     @State private var inspectorVisible = true
     @State private var inspectorScreenVisible = false
+    #if DEBUG
+    @State private var creatingBot = ProcessInfo.processInfo.arguments.contains("-bellbot-preview-new-member")
+    #else
     @State private var creatingBot = false
+    #endif
     @State private var creatingRoom = false
     @State private var compactColumn: NavigationSplitViewColumn = .sidebar
     @FocusState private var searching: Bool
@@ -28,7 +32,7 @@ struct DesktopWorkspaceView: View {
                 #if targetEnvironment(macCatalyst)
                 .navigationSplitViewColumnWidth(min: 320, ideal: 340, max: 420)
                 #else
-                .navigationSplitViewColumnWidth(min: 230, ideal: 270, max: 340)
+                .navigationSplitViewColumnWidth(min: 320, ideal: 340, max: 420)
                 #endif
         } detail: {
             Group {
@@ -86,8 +90,8 @@ struct DesktopWorkspaceView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .background(BellTheme.canvas)
-        .sheet(isPresented: $creatingBot) { BotEditor(initial: nil).environmentObject(store) }
-        .sheet(isPresented: $creatingRoom) { RoomEditor(initial: nil).environmentObject(store) }
+        .sheet(isPresented: $creatingBot) { BotEditor(initial: nil).environmentObject(store).bellEditorSheet() }
+        .sheet(isPresented: $creatingRoom) { RoomEditor(initial: nil).environmentObject(store).bellEditorSheet() }
         .sheet(item: $store.notificationSecret) { request in
             SecretInputSheet(request: request) { _ in store.eventRevision += 1 }.environmentObject(store)
         }
@@ -202,41 +206,12 @@ struct DesktopWorkspaceView: View {
             store.chatPath = [target]
             compactColumn = .detail
         } label: {
-            HStack(spacing: 11) {
-                AvatarView(name: name, avatar: avatar, color: color, size: rowAvatarSize, isRoom: target.isRoom)
-                    .overlay(alignment: .bottomTrailing) {
-                        if !target.isRoom { BotPresenceDot(online: online, working: working, size: 9) }
-                    }
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack(spacing: 6) {
-                        Text(name).font(.system(size: BellTheme.listNameFontSize, weight: .semibold)).lineLimit(1)
-                        if fastMode { BotFastModeBadge() }
-                    }
-                    Text(subtitle).font(.system(size: BellTheme.listDetailFontSize)).foregroundStyle(BellTheme.muted).lineLimit(1)
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 10).padding(.vertical, rowVerticalPadding)
-            .background(selection == target && store.selectedTab == 0 ? .white : .clear, in: RoundedRectangle(cornerRadius: 12))
+            SidebarRowLabel(name: name, subtitle: subtitle, avatar: avatar, color: color, isRoom: target.isRoom,
+                            online: online, working: working, fastMode: fastMode,
+                            selected: selection == target && store.selectedTab == 0, metrics: .current)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain).accessibilityIdentifier("conversation-\(target.id)")
-    }
-
-    private var rowAvatarSize: CGFloat {
-        #if targetEnvironment(macCatalyst)
-        48
-        #else
-        40
-        #endif
-    }
-
-    private var rowVerticalPadding: CGFloat {
-        #if targetEnvironment(macCatalyst)
-        12
-        #else
-        10
-        #endif
     }
 
     private var welcome: some View {
@@ -279,7 +254,7 @@ private struct DesktopInspector: View {
                         Text("\(bot.displayName)の画面").font(.headline).lineLimit(1)
                     }
                     .padding(16)
-                    BotScreenView(bot: bot, embedded: true)
+                    BotScreenView(bot: bot, embedded: true, api: store.api)
                 }
             } else {
                 profile
@@ -353,9 +328,61 @@ private struct DesktopInspector: View {
         .foregroundStyle(BellTheme.ink).background(.white.opacity(0.6))
         .accessibilityIdentifier("workspace-inspector")
         .sheet(isPresented: $editing) {
-            if let room { RoomEditor(initial: room).environmentObject(store) }
-            else if let bot { BotEditor(initial: bot).environmentObject(store) }
+            Group {
+                if let room { RoomEditor(initial: room).environmentObject(store) }
+                else if let bot { BotEditor(initial: bot).environmentObject(store) }
+            }
+            .bellEditorSheet()
         }
     }
     private func heading(_ title: String) -> some View { Text(title).font(BellTheme.secondaryFont.weight(.bold)).foregroundStyle(BellTheme.muted) }
+}
+
+/// Layout numbers for a sidebar row. The avatar is 1.2x the old size so the row has the height for a name plus a 2-line summary.
+struct SidebarRowMetrics {
+    let avatar: CGFloat, vertical: CGFloat, horizontal: CGFloat, spacing: CGFloat, nameFont: CGFloat, detailFont: CGFloat
+
+    static let tablet = SidebarRowMetrics(avatar: 48, vertical: 8, horizontal: 8, spacing: 8, nameFont: 13, detailFont: 11)
+    static let mac = SidebarRowMetrics(avatar: 57.6, vertical: 8, horizontal: 6, spacing: 8, nameFont: 16, detailFont: 11)
+    static var current: SidebarRowMetrics {
+        #if targetEnvironment(macCatalyst)
+        .mac
+        #else
+        .tablet
+        #endif
+    }
+}
+
+struct SidebarRowLabel: View {
+    let name: String
+    let subtitle: String
+    let avatar: String
+    let color: Color
+    var isRoom = false
+    var online = false
+    var working = false
+    var fastMode = false
+    var selected = false
+    var metrics: SidebarRowMetrics = .current
+
+    var body: some View {
+        HStack(spacing: metrics.spacing) {
+            AvatarView(name: name, avatar: avatar, color: color, size: metrics.avatar, isRoom: isRoom)
+                .overlay(alignment: .bottomTrailing) {
+                    if !isRoom { BotPresenceDot(online: online, working: working, size: 9) }
+                }
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(name).font(.system(size: metrics.nameFont, weight: .semibold)).lineLimit(1)
+                    if fastMode { BotFastModeBadge() }
+                }
+                // Members show their work summary on up to 2 lines; rooms keep a 1-line preview.
+                Text(subtitle).font(.system(size: metrics.detailFont)).foregroundStyle(BellTheme.muted)
+                    .lineLimit(isRoom ? 1 : 2).fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, metrics.horizontal).padding(.vertical, metrics.vertical)
+        .background(selected ? .white : .clear, in: RoundedRectangle(cornerRadius: 12))
+    }
 }

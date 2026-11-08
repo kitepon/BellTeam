@@ -340,6 +340,9 @@ final class AppStore: ObservableObject {
     }
 
     private func readAIControl() async {
+        #if DEBUG
+        if let previewAIControl { aiControl = previewAIControl; return }
+        #endif
         let epoch = aiControlEpoch
         aiControlReadSequence += 1
         let sequence = aiControlReadSequence
@@ -362,6 +365,28 @@ final class AppStore: ObservableObject {
         }
         if aiControlLoading { aiControlLoading = false }
     }
+
+    #if DEBUG
+    private var previewAIControl: AIControl?
+
+    /// `-bellbot-preview-settings`: realistic settings data for screenshots, no server.
+    func prepareSettingsPreview() throws {
+        serverURL = URL(string: "https://bellteam.example.com")
+        authMode = "cloudflare"
+        owner = Owner(name: "クオ", profile: "BellTeamの設計者。AIチームと一緒にプロダクトを作っています。", avatar: "",
+                      xUrl: "https://x.com/kitepon", githubUrl: "https://github.com/kitepon", links: [])
+        featureSettings = try JSONDecoder().decode([FeatureSetting].self, from: Data(#"""
+        [{"id":"notifications","title":"通知","enabled":true,"status":"enabled","fields":[],"error":null},
+         {"id":"calendar","title":"カレンダー","enabled":false,"status":"disabled","fields":[],"error":null}]
+        """#.utf8))
+        backgroundAgent = try JSONDecoder().decode(BackgroundAgentRecord.self, from: Data(
+            #"{"revision":"r1","selection":{"harness":"codex","model":"gpt-5","reasoningEffort":"low"}}"#.utf8))
+        previewAIControl = try JSONDecoder().decode(AIControl.self, from: Data(
+            #"{"paused":false,"state":"enabled","updatedAt":null,"unconfirmedBotIds":[],"commandsConfirmed":true,"error":null}"#.utf8))
+        aiControl = previewAIControl
+        selectedTab = 2
+    }
+    #endif
 
     private func resetAIControl() {
         aiControlEpoch += 1
