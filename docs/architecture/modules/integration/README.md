@@ -755,7 +755,7 @@ flowchart LR
   Pending --> Facade[同diagnostics facade.record / 唯一writer]
 ```
 
-6factoryへ同一callbackを転送し、bootstrap初期化中から有限DTOを保持する。Signalの単一formatterで検証・本文を閉じた後、componentごと最新1件、同componentの保存は一件ずつ進める。診断不在/未readyは保留し、既onStateの復帰又は初期化ACK後にflush。保存ACKした同一entryだけを削除し、途中で来た新entryを消さない。明示not_acceptedだけ次の復帰に再試行でき、結果unknownは再recordしない。closeで新受付を止め保存中を回収、親消失後の未保存を復元済みとしない。別writer/永続queue/追加timer/元要求再送は作らない。観測・再生成はruntime、閉DTOと保存はdiagnosticsの正本へ従う。
+6factoryへ同一callbackを転送し、bootstrap初期化中から有限DTOを保持する。Signalの単一formatterで検証・本文を閉じた後、componentごと最新1件、同componentの保存は一件ずつ進める。診断不在/未readyは保留し、既onStateの復帰又は初期化ACK後にflush。保存ACKした同一entryだけを削除し、途中で来た新entryを消さない。明示not_acceptedだけ次の復帰に再試行でき、結果unknownは再recordしない。`childExitOrigin` 付きreportを旧diagnostics子が `DIAGNOSTIC_INVALID` で拒否した時だけ、同entryをoriginなしの旧形で一度だけ保存し直す（保護: 子終了記録の消失。出口: 一回）。closeで新受付を止め保存中を回収、親消失後の未保存を復元済みとしない。別writer/永続queue/追加timer/元要求再送は作らない。観測・再生成はruntime、閉DTOと保存はdiagnosticsの正本へ従う。
 
 ## 自動設定操作の読取登録
 

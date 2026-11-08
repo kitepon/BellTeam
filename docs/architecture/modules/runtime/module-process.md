@@ -173,7 +173,7 @@ admission snapshot不在/失敗とconsole失敗は観測欠測になり、元制
 
 `observeModuleChild()`の内部snapshotは固定4code、既Node heap OOM marker、GCのbeforeMiB/afterMiB/capacityMiB/pauseMsだけを返す。rawは8KiB以内でpipe close時に破棄する。最大8件の末尾証拠は`heap_oom`又は`gc`の有限0..1e9数値。stderrBytesは非負safe整数で飽和、raw/evidence上限超過はstderrTruncated=true。不明なstderrやOSのSIGKILLからOOM原因を推定しない。既固定console出力は維持する。
 
-閉DTO `bellteam.module-child-exit.v1`と単一validator/formatter/保存/取得は[diagnostics正本](../diagnostics/README.md#子終了の有限診断)。親登録と診断停止中の最大6最新値・ready時flushは[integration](../integration/README.md)。runtimeは新しいwriter/queue/再送機構を持たない。
+`reportModuleChildExit` は観測済みの閉じた `childExitOrigin` があれば同DTOへ載せる（2026-11-08 I-5: consoleの `MODULE_CHILD_EXIT_ORIGIN` は本体再作成で失われるため）。無ければkeyを付けない。閉DTO `bellteam.module-child-exit.v1`と単一validator/formatter/保存/取得は[diagnostics正本](../diagnostics/README.md#子終了の有限診断)。親登録と診断停止中の最大6最新値・ready時flushは[integration](../integration/README.md)。runtimeは新しいwriter/queue/再送機構を持たない。
 
 ```mermaid
 flowchart LR

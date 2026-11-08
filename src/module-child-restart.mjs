@@ -161,7 +161,9 @@ export function reportModuleChildExit(component, { code, signal }, observation, 
   try {
     const value = { schema: 'bellteam.module-child-exit.v1', component, exitCode, signal,
       stderrCodes: observation.stderrCodes, reason: observation.reason, stderrBytes: observation.stderrBytes,
-      stderrTruncated: observation.stderrTruncated, stderrTail: observation.stderrTail }
+      stderrTruncated: observation.stderrTruncated, stderrTail: observation.stderrTail,
+      // The closed origin survives body recreation only inside the stored DTO (I-5).
+      ...observation.childExitOrigin ? { childExitOrigin: { ...observation.childExitOrigin } } : {} }
     Promise.resolve(onModuleChildExit(value)).catch(() => {})
   } catch {}
 }
