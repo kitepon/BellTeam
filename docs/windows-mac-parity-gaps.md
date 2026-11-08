@@ -48,6 +48,8 @@ Mac：[48の詳細パネル](assets/mac-ui-reference-48/01-workspace.png)／Wind
 - ルーム：アバター76、「この部屋で共有する仕事」「参加メンバー」（30ptの行、押すとそのメンバーの会話へ）、「ルームを編集」。
 - 幅：メンバーなら会話と半分ずつ、ルームなら280。Windowsは同じ。
 
+対応済み（PR 5）：[大画像のあるメンバー](assets/windows-mac-gaps/windows/pr5-inspector-member-large.png)・[小画像だけのメンバー](assets/windows-mac-gaps/windows/pr5-inspector-member-small-only.png)・[画像の無いメンバー](assets/windows-mac-gaps/windows/pr5-inspector-member-no-image.png)・[ルーム](assets/windows-mac-gaps/windows/pr5-inspector-room.png)・[小画像のシート](assets/windows-mac-gaps/windows/pr5-inspector-sheet-small.png)・[大画像のシート](assets/windows-mac-gaps/windows/pr5-inspector-sheet-large.png)・[サーバーが独立編集に未対応](assets/windows-mac-gaps/windows/pr5-inspector-sheet-unsupported.png)・[保持中の選択（詳細欄）](assets/windows-mac-gaps/windows/pr5-inspector-pending.png)・[保持中の選択（シート）](assets/windows-mac-gaps/windows/pr5-inspector-pending-sheet.png)・[既定の画面](assets/windows-mac-gaps/windows/pr5-workspace.png)。Macの切り抜きは同じシートの中で行うが、Windowsは既存の切り抜き窓（PR 8で整える）を開く。「使用する」でシートを閉じ、保存の進行と結果は詳細欄に出る。「会話セッションを再起動」の失敗はカード内に出す（Macと同じ）。参加メンバーの行はMacと同じく「名前 役職」（表示名）。
+
 ## 4. Botの画面とキーバー — M
 
 | Mac | Windows |
@@ -139,6 +141,8 @@ Mac：[48の詳細パネル](assets/mac-ui-reference-48/01-workspace.png)／Wind
 - 初期設定（OnboardingView）：AIのカード選択、認証の案内、「認証を確認して始める」「使うAIを変更」「接続先を変更」。Windowsは同じ機能を別の画面構成で持つ。
 
 ## 11. 共通部品とキー操作 — S
+
+PR 4の確認でトロニーが仕上げへ回した項目（例外にせず再現する）：「安全な入力欄を開く」をMacと同じ灰色のボタンにする。送信直後に、Macと同じ「受付確認中」の仮の吹き出しを出す。画像の閲覧を別の窓ではなく、主窓の中で開く。
 
 - 画像の閲覧：Windowsにほぼある。「n / N」、64の縮小画像の帯、Esc・←・→を確かめる。
 - 文字の大きさ：本文18、入力18、一覧の名前16・補助14、ボタン16、プロフィールの題20、区分の見出し13 semibold。カードの角丸24。

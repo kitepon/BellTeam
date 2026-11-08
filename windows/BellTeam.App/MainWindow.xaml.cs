@@ -7,7 +7,7 @@ using System.Windows.Media;
 
 namespace BellTeam.App;
 
-public partial class MainWindow : Window
+public partial class MainWindow : Window, IInspectorHost
 {
     private readonly Workspace model;
     private readonly DesktopAccess? access;
@@ -23,7 +23,7 @@ public partial class MainWindow : Window
         this.access = access;
         this.notifications = notifications;
         SetResourceReference(StyleProperty, typeof(Window));
-        InitializeComponent();
+        InitializeComponent(); ProfilePanel.Host = this;
         DataContext = model;
         if (notifications is not null) notifications.PropertyChanged += (_, args) => { if (args.PropertyName == nameof(DesktopNotifications.Error) && notifications.Error is { } error) Dispatcher.Invoke(() => model.ReportActionError(error)); };
         model.MessageArrived += async message =>
@@ -171,16 +171,20 @@ public partial class MainWindow : Window
     {
         CloseUpdateSheet(); OpenSheet("メンバー間の連絡", new PeerMessageView(model, message));
     }
-    private void OpenSheet(string title, UIElement content)
+    public void OpenSheet(string title, UIElement content)
     {
+        if (content is AvatarActionsView actions) actions.BusyChanged += () => UpdateSheetClose.IsEnabled = !actions.Busy;
         SheetTitle.Text = title; System.Windows.Automation.AutomationProperties.SetName(SheetFrame, title);
         UpdateSheetHost.Content = content; UpdateSheet.Visibility = Visibility.Visible; UpdateSheet.Focus();
     }
+    void IInspectorHost.CloseSheet() => CloseUpdateSheet();
+    Window? IInspectorHost.OwnerWindow => this;
     public void CloseUpdateSheet()
     {
+        (UpdateSheetHost.Content as AvatarActionsView)?.Dispose(); UpdateSheetClose.IsEnabled = true;
         sheetContent?.Dispose(); sheetContent = null; UpdateSheetHost.Content = null; UpdateSheet.Visibility = Visibility.Collapsed;
     }
-    private void UpdateSheetClose_Click(object sender, RoutedEventArgs e) => CloseUpdateSheet();
+    private void UpdateSheetClose_Click(object sender, RoutedEventArgs e) { if (UpdateSheetHost.Content is AvatarActionsView { Busy: true }) return; CloseUpdateSheet(); }
     private async Task RefreshUpdateNoticeAsync()
     {
         var server = model.Server;
@@ -263,10 +267,12 @@ public partial class MainWindow : Window
         }
         menu.IsOpen = true;
     }
+    // Render seam: the image sheet a tap on the hero image opens.
+    public AvatarActionsView? ShowAvatarSheetForRender(AvatarVariant variant) => ProfilePanel.OpenActionsForRender(variant);
     public void HideInspectorForRender() { inspectorVisible = false; ProfileLayout(); }
     public async Task PrepareRenderAsync(bool bottomOfPage = false)
     {
-        await Task.WhenAll(Descendants<RemoteImage>(Root).Select(image => image.LoadTask).Concat(Descendants<AvatarTile>(Root).Select(tile => tile.LoadTask)));
+        await Task.WhenAll(Descendants<RemoteImage>(Root).Select(image => image.LoadTask).Append(ProfilePanel.LoadTask).Concat(Descendants<AvatarTile>(Root).Select(tile => tile.LoadTask)));
         if (bottomOfPage) page?.ScrollToEndForRender();
         Root.UpdateLayout();
         if (ConversationArea.Visibility == Visibility.Visible) { MessageScroll.ScrollToEnd(); Root.UpdateLayout(); } // images that finished loading changed the height
