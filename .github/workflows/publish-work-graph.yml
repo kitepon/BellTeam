@@ -1,0 +1,98 @@
+{
+  "name": "work-graph専用archiveとOIDC provenanceを作る",
+  "on": {
+    "workflow_dispatch": {}
+  },
+  "permissions": {
+    "contents": "read",
+    "id-token": "write",
+    "attestations": "write"
+  },
+  "concurrency": {
+    "group": "work-graph-artifact",
+    "cancel-in-progress": false
+  },
+  "jobs": {
+    "package": {
+      "if": "github.repository == 'kitepon/BellTeam' && github.ref == 'refs/heads/main'",
+      "strategy": {
+        "fail-fast": false,
+        "matrix": {
+          "include": [
+            {
+              "arch": "amd64",
+              "runner": "ubuntu-24.04"
+            },
+            {
+              "arch": "arm64",
+              "runner": "ubuntu-24.04-arm"
+            }
+          ]
+        }
+      },
+      "runs-on": "${{ matrix.runner }}",
+      "timeout-minutes": 15,
+      "env": {
+        "ARCH": "${{ matrix.arch }}",
+        "SOURCE": "${{ github.sha }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v7",
+          "with": {
+            "persist-credentials": false
+          }
+        },
+        {
+          "uses": "actions/setup-node@v7",
+          "with": {
+            "node-version": "26"
+          }
+        },
+        {
+          "name": "固定main sourceからwork-graphのclean production依存とarchiveを作る",
+          "run": "python3 test/business-artifact.test.py\npython3 - <<'PYTHON'\nimport os,platform,re,subprocess\nassert re.fullmatch('[a-f0-9]{40}',os.environ['SOURCE'])\nassert {'x86_64':'amd64','aarch64':'arm64'}[platform.machine()] == os.environ['ARCH']\nassert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip() == os.environ['SOURCE']\nPYTHON\nmkdir -p runtime/work-graph\npython3 scripts/package-work-graph.py \"runtime/work-graph/work-graph-$SOURCE-linux-$ARCH.tar.gz\" --source \"$SOURCE\" --arch \"$ARCH\" > runtime/work-graph/package-result.json\n"
+        },
+        {
+          "name": "実archiveを固定C入口とUID1001のlockで起動・回収して確認",
+          "run": "archive=\"runtime/work-graph/work-graph-$SOURCE-linux-$ARCH.tar.gz\"\nsudo unshare --mount --propagation private python3 test/helpers/business-artifact-probe.py work-graph \"$archive\" \"$(command -v node)\"\n"
+        },
+        {
+          "name": "archiveの公式OIDC attestationを生成",
+          "id": "attest",
+          "uses": "actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6",
+          "with": {
+            "subject-path": "runtime/work-graph/*.tar.gz",
+            "create-storage-record": false
+          }
+        },
+        {
+          "name": "公式verifierでidentityとsourceを確認してbundleを保存",
+          "env": {
+            "BUNDLE": "${{ steps.attest.outputs.bundle-path }}"
+          },
+          "run": "archive=\"runtime/work-graph/work-graph-$SOURCE-linux-$ARCH.tar.gz\"\ngh attestation verify \"$archive\" --repo kitepon/BellTeam --signer-workflow kitepon/BellTeam/.github/workflows/publish-work-graph.yml --source-ref refs/heads/main --source-digest \"$SOURCE\" --signer-digest \"$SOURCE\" --deny-self-hosted-runners --bundle \"$BUNDLE\" --custom-trusted-root config/web-gateway-trusted-root.jsonl --format json > runtime/work-graph/verified.json\njq -e 'length > 0 and all(.[]; .verificationResult.signature.certificate.sourceRepositoryIdentifier == \"1404510084\")' runtime/work-graph/verified.json\ncp \"$BUNDLE\" \"$archive.sigstore.json\"\n"
+        },
+        {
+          "uses": "actions/upload-artifact@v7",
+          "with": {
+            "name": "work-graph-${{ matrix.arch }}-${{ github.run_attempt }}",
+            "path": "runtime/work-graph/",
+            "if-no-files-found": "error"
+          }
+        },
+        {
+          "name": "署名前失敗の診断原本を保存",
+          "if": "failure()",
+          "uses": "actions/upload-artifact@v7",
+          "with": {
+            "name": "work-graph-diagnostics-${{ matrix.arch }}-${{ github.run_attempt }}",
+            "path": "runtime/work-graph/entry-probe.*",
+            "if-no-files-found": "ignore",
+            "retention-days": 7
+          }
+        }
+      ]
+    }
+  }
+}
