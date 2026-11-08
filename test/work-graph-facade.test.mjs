@@ -54,17 +54,18 @@ test('nextRefreshMs arms one timer; an unavailable child rejects with WORK_GRAPH
 
 test('effects return only the agreed fields from the public ports', async () => {
   const effect = createWorkGraphEffects({
-    bots: { listForClient: async () => [{ id: 'a', name: 'A', color: 'red', avatarVersion: 'v', deleting: false, secret: 'x' }] },
+    bots: { listForClient: async () => [{ id: 'a', name: 'A', color: 'red', avatarVersion: 'v', deleting: false, secret: 'x' }], get: id => ({ id }) },
     transport: {
       queueItems: async () => [{ status: 'running', context: 'room', contextId: 'r', groupId: 'g', from: 'a', target: 'b', message: 'm', steered: false, startedAt: 1, extra: 1 }],
       currentTurn: async id => ({ state: 'working', turnId: `t-${id}`, startedAt: 2, hidden: true }),
+      currentWork: () => ({ state: 'working', summary: '相関図の図を直している', summaryStatus: 'current', summaryUpdatedAt: '2026-11-08T12:00:00.000Z', observedAt: '2026-11-08T12:00:00.000Z', source: 'self_reported' }),
     },
     messagePage: async (kind, id, url) => ({ items: [{ id: 'g', body: 'x', routing: { responders: ['b'], status: 'pending', other: 1 } }], kind, id, limit: url.searchParams.get('limit') }),
   })
   const results = {
     'members.list': [{}, { members: [{ id: 'a', name: 'A', color: 'red', avatarVersion: 'v', deleting: false }] }],
     'queue.read': [{}, { items: [{ status: 'running', context: 'room', contextId: 'r', groupId: 'g', from: 'a', target: 'b', message: 'm', image: false, steered: false, startedAt: 1 }] }],
-    'turns.read': [{ botIds: ['a'] }, { turns: { a: { state: 'working', turnId: 't-a', startedAt: '1970-01-01T00:00:00.002Z' } } }],
+    'turns.read': [{ botIds: ['a'] }, { turns: { a: { state: 'working', turnId: 't-a', startedAt: '1970-01-01T00:00:00.002Z', summary: '相関図の図を直している', summaryStatus: 'current' } } }],
     'room.messages': [{ roomId: 'r' }, { items: [{ id: 'g', routing: { responders: ['b'], status: 'pending' } }] }],
   }
   for (const [method, [params, expected]] of Object.entries(results)) {
@@ -75,5 +76,9 @@ test('effects return only the agreed fields from the public ports', async () => 
   const invalid = createWorkGraphEffects({ bots: {}, messagePage: async () => null,
     transport: { currentTurn: async () => { throw Object.assign(new Error('x'), { code: 'EXECUTION_REQUEST_INVALID' }) } } })
   assert.deepEqual(await invalid('turns.read', { botIds: ['a'] }), { unsupported: true })
+  const unknown = createWorkGraphEffects({ bots: {}, messagePage: async () => null, transport: { currentTurn: async () => ({ state: 'idle', turnId: null }) } })
+  const row = await unknown('turns.read', { botIds: ['z'] })
+  assert.deepEqual(row, { turns: { z: { state: 'idle', turnId: null, startedAt: null, summary: null, summaryStatus: 'missing' } } })
+  validateWorkGraphEffectResult('turns.read', row)
   await assert.rejects(invalid('other', {}), { code: 'WORK_GRAPH_EFFECT_INVALID' })
 })
