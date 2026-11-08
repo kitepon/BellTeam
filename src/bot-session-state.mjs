@@ -125,8 +125,11 @@ export class BotSessionState {
     const version = this.captureStopVersion(bot)
     const busy = () => this.stopping || this.sessionChanges.has(bot.id) || this.activity.configuration(bot.id)
       || this.activity.hasJobs(bot.id) || !this.activity.idle(bot.id)
-    if (!this.executionBridge || target?.session_id !== session || request?.target_session_id !== session)
+    if (target?.session_id !== session || request?.target_session_id !== session)
       throw Object.assign(new Error('回復対象の席が一致しません。'), { code: 'BOT_RECOVERY_TARGET_INVALID' })
+    // Normal configuration (no bridge): the saved delivery is redelivered on the ordinary path, which wakes the seat
+    // and keeps per-seat order. There is no registered execution to reconcile.
+    if (!this.executionBridge) return null
     if (busy()) throw Object.assign(new Error('この席は処理中です。'), { code: 'EXECUTION_BUSY', effect: 'not_started' })
     // 既存の席変更一覧へ載せ、照合と設定変更・停止が交差しても不明を勝手に解除しない。
     const pending = this.executionBridge.reconcileLaunch(request, target)
@@ -157,9 +160,16 @@ export class BotSessionState {
     const version = this.captureStopVersion(bot)
     const busy = () => this.stopping || this.sessionChanges.has(bot.id) || this.activity.configuration(bot.id)
       || this.activity.waking(bot.id) || this.activity.hasJobs(bot.id) || !this.activity.idle(bot.id)
-    if (!this.executionBridge || target?.session_id !== session || request?.target_session_id !== session)
+    if (target?.session_id !== session || request?.target_session_id !== session)
       throw Object.assign(new Error('回復対象の席が一致しません。'), { code: 'BOT_RECOVERY_TARGET_INVALID' })
+    // Never close a seat whose turn is running; the turn ends and the close can be asked again.
     if (busy()) throw Object.assign(new Error('この席は処理中です。'), { code: 'EXECUTION_BUSY', effect: 'not_started' })
+    // Normal configuration (no bridge): close the seat's terminal and launch record; the next delivery wakes it.
+    if (!this.executionBridge) {
+      const receipt = await this.changeSession(bot, 'pty_close', { session_id: session })
+      this.sessions.delete(bot.id)
+      return receipt?.structuredContent ?? { session_id: session, outcome: 'closed' }
+    }
     // No session-only close, registration or body dispatch belongs here. The
     // product owns atomic original-request / expected-generation validation.
     const pending = this.executionBridge.closeLaunch(request, target)

@@ -948,7 +948,8 @@ export class AitermTransport {
 
   retainUntrackedImages(job, delivery, followed, parent) {
     const temporary = delivery?.imageFiles.filter(file => file.temporary) ?? []
-    if (job.stopped || delivery?.receipt.mode !== 'agent_steer' || followed || parent || !temporary.length) return false
+    // An accepted send whose end cannot be followed (untracked dispatch) keeps its images until the seat's next dispatch.
+    if (job.stopped || (delivery?.receipt.mode !== 'agent_steer' && !delivery?.untracked) || followed || parent || !temporary.length) return false
     const retained = this.retainedImages.get(job.bot.id) ?? []
     retained.push(...temporary)
     this.retainedImages.set(job.bot.id, retained)

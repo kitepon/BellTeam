@@ -51,6 +51,8 @@
     "src/execution-generation.mjs",
     "src/execution-dispatcher.mjs",
     "src/aiterm-transport.mjs",
+    "src/execution-transport.mjs",
+    "src/execution-bridge.mjs",
     "src/capacity-continuation.mjs",
     "src/current-work.mjs",
     "src/members-admission.mjs",

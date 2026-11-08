@@ -120,3 +120,16 @@ test('配送中の照合を拒否し、照合中に更新された同じ原因�
   assert.equal(state.sessionChanges.size, 0)
   assert.equal(calls, 1)
 })
+
+test('通常構成（bridge無し）の保存済み配送の回復：resumeは通常の再配送へ渡し、closeは席を閉じる', async () => {
+  const calls = []
+  const state = fixture({ call: async (name, args) => { calls.push([name, args]); return { structuredContent: { session_id: args.session_id, outcome: 'closed' } } } })
+  const session = state.session(bot) ?? bot.id
+  const ref = { target_session_id: session }, target = { session_id: session }
+  assert.equal(await state.reconcileLaunch(bot, ref, target), null)
+  await assert.rejects(state.reconcileLaunch(bot, ref, { session_id: 'other' }), { code: 'BOT_RECOVERY_TARGET_INVALID' })
+  assert.deepEqual(await state.closeLaunch(bot, ref, target), { session_id: session, outcome: 'closed' })
+  assert.deepEqual(calls, [['pty_close', { session_id: session }]])
+  const busy = fixture({ hasJobs: () => true })
+  await assert.rejects(busy.closeLaunch(bot, ref, target), { code: 'EXECUTION_BUSY' })
+})
