@@ -3,17 +3,16 @@ import { readFile, rm } from 'node:fs/promises'
 import { writeAtomic } from './json-file.mjs'
 
 export const UPDATE_HOLD_STOP_WINDOW_MS = 120_000 // installer answer→SIGTERM is ≤ 30 s (container-update-bundled.md)
-const POLL_MS = 250
 const SCHEMA = 'bellteam.update-hold.v1'
 
 export const updateHoldError = () => Object.assign(new Error('BOT_UPDATE_HOLD'), { code: 'BOT_UPDATE_HOLD', status: 503, effect: 'not_started',
   publicMessage: 'BellTeam本体の更新中のため、このメッセージは保留しました。更新後に順番どおり届けます。' })
 
 export class UpdateHold {
-  constructor({ path, active = () => [], now = () => Date.now(), sleep = ms => new Promise(resolve => setTimeout(resolve, ms)),
+  constructor({ path, active = () => [], now = () => Date.now(),
     setTimer = (callback, ms) => { const timer = setTimeout(callback, ms); timer.unref?.(); return timer }, clearTimer = clearTimeout,
     stopWindow = UPDATE_HOLD_STOP_WINDOW_MS, report = () => {} } = {}) {
-    Object.assign(this, { path, active, now, sleep, setTimer, clearTimer, stopWindow, report })
+    Object.assign(this, { path, active, now, setTimer, clearTimer, stopWindow, report })
     this.state = null
     this.quiescing = null
     this.expiry = null
@@ -50,7 +49,7 @@ export class UpdateHold {
       this.clearExpiry()
       // The hold is durable before anything waits on it.
       await this.save()
-      while (this.activeDeliveries().length && this.now() < deadline) await this.sleep(Math.min(POLL_MS, Math.max(1, deadline - this.now())))
+      // Owner 2026-11-08: never wait for running work; it is recorded as interrupted and resumed after the swap.
       const running = this.activeDeliveries()
       Object.assign(this.state, { answeredAt: this.now(), result: running.length ? 'deadline' : 'drained', interrupted: running })
       await this.save()

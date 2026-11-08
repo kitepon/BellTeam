@@ -6,7 +6,7 @@ Owner: Kiro. Design record: Kiro docs/z-c-seat-survival-design-20261107.md (sect
 
 | ID | Function: input → output | Code |
 | --- | --- | --- |
-| H1 | quiesce `{requestId, deadline}` → durable hold → wait until no active delivery or deadline → durable answer (+ interrupted markers on deadline) → `{result:'drained'\|'deadline'}`. The same requestId returns the saved answer | `UpdateHold.quiesce` (execution assembly, parent-resident) |
+| H1 | quiesce `{requestId, deadline}` → durable hold → durable answer at once, never waiting for running work (Owner 2026-11-08: our work is long, waiting only blocks the update). Running deliveries are saved as interrupted markers and resumed after the swap → `{result:'drained'\|'deadline'}` (`deadline` = some deliveries were running; the protocol enum is unchanged). The same requestId returns the saved answer | `UpdateHold.quiesce` (execution assembly, parent-resident) |
 | H2 | New input while held → `BOT_UPDATE_HOLD` (503, effect `not_started`), no native input. The gate is the deliver `check()`, which runs only before input is typed (`ports.access.assertInput`). That port is passed only to engines exporting `EXECUTION_UPDATE_HOLD_GATE` (loader `supportsUpdateHold`), because older engines reject unknown port keys. A facade guard on turn/notify/notifyReport also covers older engines; jobs already inside an older engine are not gated | `UpdateHold.assertInput`; `AitermTransport` `check()`; `createExecutionFacade` |
 | H3 | Lease exit: after the answer, the hold expires at answeredAt + 120 s (installer answer→SIGTERM ≤ 30 s). A body still alive then = aborted update → release | `UpdateHold` timer |
 | H4 | Body start: a hold saved by the previous box is active from `initialize()` until `afterListenReady`; that releases it after the controller is running (R-resume reconnect already ran in `controller.start`) | `UpdateHold.initialize` / `lifecycle.afterListenReady` |
@@ -17,7 +17,7 @@ Owner: Kiro. Design record: Kiro docs/z-c-seat-survival-design-20261107.md (sect
 stateDiagram-v2
   [*] --> Serving
   Serving --> Holding: quiesce(requestId, deadline), hold saved
-  Holding --> Answered: no active delivery (drained) or deadline (interrupted saved), answer saved
+  Holding --> Answered: at once; running deliveries saved as interrupted, answer saved
   Answered --> [*]: SIGTERM within 120 s, box replaced
   Answered --> Serving: answeredAt + 120 s, body still alive (aborted update) → release
   [*] --> StaleHold: new box start finds a saved hold

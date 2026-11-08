@@ -148,7 +148,30 @@ runtime readerは同namespaceの既EXECUTION_METHODSからsupportsModelHandoff�
 
 Function/DFD: runtime retries retained-engine `control('resume')` after a lost ACK → initialized, running, non-draining same engine → `{resumed:true}` immediately. It neither starts producers again nor replays deferred recovery. Quiescing/quiesced retains the ordinary resume path; draining/initializing/retired and native/generation identity checks remain. This changes one owned lifecycle response only, not the controller's retry policy or writer-retirement proof.
 
-## Busy exchange handover (2026-11-08)
+## Module update swaps at once (2026-11-08, Owner ruling)
+
+Owner (09:4x JST, after job 611ef3ae failed with EXECUTION_BUSY): "少し待つ必要がない。更新後に作業を継続すればいいだけだ。" A module update never waits for running work and never fails because work is running. The earlier handover still waited up to 60 s for `handoverReady` (no dispatch, wake, session/configuration change, administrative operation, deferred capacity recovery, and only followed jobs). Under real load that window never came.
+
+```mermaid
+flowchart TD
+  Replace["generation.replace"] --> Q["engine.control('quiesce',{handover:true})<br/>root closed for new dispatch, idle/observer producers stopped, no wait"]
+  Q --> Export["exportState({handover:true})<br/>LIVE objects (no clone): sessions, stopVersions, stopSessions, sessionChanges,<br/>requests, applications, automatic operations, work records, retained images, idle.seen, continuation states<br/>+ live SeatActivity + released; deferred capacity contexts moved to activity.deferredCapacity"]
+  Export --> Old["old engine keeps finishing what it already started<br/>(typing, wake, configuration, followed and unfollowed turns) on the same live state"]
+  Old --> Released["own jobs/watches settled and pending=0"] --> Retire["background disconnect (retire)"]
+  Export --> New["new engine adopts the same live objects and SeatActivity;<br/>shared dispatches/waking/configurationChanges keep per-seat order across both engines"]
+  New --> Running["running: deferred capacity recovered; new deliveries; input refused during the swap was kept (not_started → queued) and drains now"]
+  Q -.-> Read["reads served by the old engine until new running"]
+```
+
+| Contact | Contract |
+| --- | --- |
+| engine `quiesce(timeoutMs,{handover})` | Handover waits for nothing but a running initialization. No EXECUTION_BUSY. Without handover (close, install proof) the full `idleNow()` drain, 60 s and EXECUTION_BUSY are unchanged. |
+| engine `exportState({handover})` | Passes the live objects instead of a clone, so writes from work the old engine is still finishing are seen by the successor. Adds `activity` and `released`, detaches the old producers, the queue listener and the activity-file writer, and forwards capacity `failed(context)` to `activity.recoverCapacity`. |
+| engine handoff adoption | With `handoff.activity`, the session-state maps are taken by reference. The deferred capacity contexts on the activity are recovered when the successor becomes running. A legacy handoff without `activity` keeps the clone path. |
+| generation `quiesce(handover)` | No `waitActive()` and no 60 s bound. Dispose/close keep both. |
+| kept failure | Initialization still running: the replace waits for it (bounded by INITIALIZE_TIMEOUT 45 s). Protects a half-built engine from being exported. |
+
+## Busy exchange handover (2026-11-08, superseded by the section above)
 
 Incident: Centi job 611ef3ae (00:23:15–00:24:20 JST) failed with EXECUTION_BUSY after 60.7 s. GET /api/bots answered 503 EXECUTION_NOT_ACCEPTING for the whole window. Causes: an accepted delivery job stays in `SeatActivity.jobs` until its native turn ends, and a self-turn watch stays in `watches` until its turn ends. The engine's quiesce required `idleNow()` (all of them zero), and the generation's `waitActive()` additionally waited for every dispatch promise (`turn().completion` = turn end). With any Bot mid-turn the exchange could never succeed. Reads go through `requireCurrent()` (available only) and engine `enter()` (running only), so they were refused for the whole drain.
 

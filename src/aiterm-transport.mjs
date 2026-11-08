@@ -808,8 +808,6 @@ export class AitermTransport {
         await onStatus?.('running')
         await job.checkpoint()
         acknowledged = true
-        // Only native-followed accepted turns may outlive an engine exchange (execution-dispatcher handover).
-        if (followed) job.handoverReady = true
         this.activity.failed.delete(bot.id)
         accept({ delivery: steered ? 'steered' : 'running' })
         endAdmission()

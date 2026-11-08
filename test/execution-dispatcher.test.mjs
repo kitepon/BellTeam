@@ -248,3 +248,22 @@ test('busy exchange hands an accepted running turn to the successor instead of r
   assert.equal(next.project(request('transport.isIdle', bot.id)), true)
   assert.equal(f.closes(), 0)
 })
+
+test('a module update swaps at once while a delivery is still being typed; the old engine finishes it on shared state', async t => {
+  const sending = deferred()
+  const f = await fixture(t, name => name === 'pty_send' ? sending.promise : undefined)
+  const delivery = f.engine.dispatch(request('transport.notify', bot, 'IN_FLIGHT_BODY'))
+  await tick()
+  // Owner 2026-11-08: no drain wait and no EXECUTION_BUSY for running work.
+  await f.engine.control('quiesce', { timeoutMs: 0, handover: true })
+  const state = f.engine.exportState({ handover: true })
+  const next = createExecutionDispatcher({ generation: 'second', ports: f.ports, handoff: state })
+  t.after(async () => { try { await next.control('quiesce', { timeoutMs: 200 }); await next.disconnect() } catch {} })
+  await next.control('initialize')
+  assert.equal(next.project(request('transport.isIdle', bot.id)), false)
+  sending.resolve(undefined)
+  assert.equal((await delivery).delivery, 'running')
+  await state.released
+  assert.deepEqual(await f.engine.disconnect(), { closed: true })
+  assert.equal(next.project(request('transport.isIdle', bot.id)), true)
+})

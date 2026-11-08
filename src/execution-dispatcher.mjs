@@ -155,6 +155,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     for (const key of ['active', 'jobs', 'watches', 'followedTurns', 'configurationChanges', 'dispatches', 'waking']) transport[key] = activity[key]
   }
   transport.activity.recoverCapacity = continuation ? context => continuation.failed(context) : null
+  if (continuation) deferredRecovery.push(...(transport.activity.deferredCapacity?.splice(0) ?? []))
   const unsubscribe = transport.watchQueue(change => {
     alive(); track(ports.observer?.emitQueue?.(change))
   })
@@ -188,13 +189,6 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     && !transport.waking.size && !transport.executionStopping && !requests.active.size
     && !transport.workState.activityPending && !transport.workState.pending.size && !transport.runningSnapshot
     && !deferredRecovery.length && !continuation?.pending.size
-  // Accepted, followed turns and self-turn watches may keep running on this engine after a handover.
-  const handoverReady = () => !initialization && !administrative.size
-    && own(transport.jobs).every(job => job.handoverReady)
-    && !transport.sessionChanges.size && !transport.configurationChanges.size && !transport.dispatches.size
-    && !transport.waking.size && !transport.executionStopping && !requests.active.size
-    && !transport.workState.activityPending && !transport.workState.pending.size && !transport.runningSnapshot
-    && !deferredRecovery.length && !continuation?.pending.size
   const assertQuiescent = () => {
     if (phase !== 'quiesced' || !idleNow()) throw failure('EXECUTION_BUSY')
     return true
@@ -205,7 +199,9 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
   }
   async function quiesce(timeoutMs = 60_000, { handover = false } = {}) {
     if (phase === 'quiesced') return { quiesced: true }
-    const ready = handover ? handoverReady : idleNow
+    // Module update (Owner 2026-11-08): never wait for or fail on running work. The old engine keeps finishing what
+    // it already started on the shared live state; only the producers stop. Close/install proof keep the full drain.
+    const ready = handover ? () => !initialization : idleNow
     if (phase !== 'running' && phase !== 'quiescing') throw failure('EXECUTION_NOT_ACCEPTING')
     if (!Number.isFinite(timeoutMs) || timeoutMs < 0 || timeoutMs > 60_000) throw failure('EXECUTION_REQUEST_INVALID')
     phase = 'quiescing'
@@ -230,10 +226,12 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     return draining
   }
   function exportState({ handover = false } = {}) {
-    if (phase !== 'quiesced' || !(handover ? handoverReady() : idleNow())) throw failure('EXECUTION_BUSY')
+    if (phase !== 'quiesced' || !(handover ? !initialization : idleNow())) throw failure('EXECUTION_BUSY')
     const state = transport.sessionState
-    // Clone the entire evidence graph once: rejected.original must remain pending's object.
-    const metadata = structuredClone({
+    // Handover passes the live objects, so writes from work the old engine is still finishing reach the successor.
+    // Otherwise clone the entire evidence graph once: rejected.original must remain pending's object.
+    const metadata = (handover ? value => value : structuredClone)({
+      ...(handover ? { sessionChanges: state.sessionChanges } : {}),
       sessions: state.sessions, stopVersions: state.stopVersions, stopSessions: state.stopSessions,
       // Empty legacy fields keep older handoff readers compatible; they are never admission state.
       uncertainty: new Map(), uncertaintyVersions: new Map(),
@@ -250,6 +248,8 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     // Own turns finish here; the successor shares the registry and becomes the only activity-file writer.
     const completions = own([...transport.jobs, ...transport.watches.values()]).map(item => item.completion)
     handedOver = { activity: transport.activity }
+    // Capacity failures deferred while quiescing are recovered by the successor once it adopts the activity.
+    transport.activity.deferredCapacity = [...(transport.activity.deferredCapacity ?? []), ...deferredRecovery.splice(0)]
     unsubscribe(); transport.workState.activityPath = null
     const released = (async () => {
       await Promise.allSettled(completions)
@@ -259,7 +259,10 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
   }
   if (handoff) {
     const m = handoff.metadata
-    for (const key of ['sessions', 'stopVersions', 'stopSessions']) for (const entry of m[key]) transport.sessionState[key].set(...entry)
+    if (handoff.activity) {
+      // Same live maps as the old engine (handover); both ends see one state while its last work finishes.
+      for (const key of ['sessions', 'stopVersions', 'stopSessions', 'sessionChanges']) transport.sessionState[key] = transport[key] = m[key]
+    } else for (const key of ['sessions', 'stopVersions', 'stopSessions']) for (const entry of m[key]) transport.sessionState[key].set(...entry)
     Object.assign(requests, m.requests, { restoring: Promise.resolve() })
     administration.applications = m.applications
     administration.automaticConfigurationOperations = m.automaticConfigurationOperations ?? new Map()
@@ -320,6 +323,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
           }
         }
         initialized = true; phase = 'running'; transport.workState.schedule(); startProducers()
+        for (const context of deferredRecovery.splice(0)) recover(context)
         return { stateCompatibility: COMPATIBILITY }
       })()
       try { return await initialization }
