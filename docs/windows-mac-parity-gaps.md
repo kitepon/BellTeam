@@ -151,7 +151,9 @@ Macと違う点：(1) 帯に「再接続」「接続先」のボタンが付く�
 - ログイン（LoginView）：182の肖像画、「BellTeam」（48pt）、「いつでも、あなたのチームと。」、「ログインして始める」。
 - 初期設定（OnboardingView）：AIのカード選択、認証の案内、「認証を確認して始める」「使うAIを変更」「接続先を変更」。Windowsは同じ機能を別の画面構成で持つ。
 
-## 11. 共通部品とキー操作 — S（一部対応済み：PR 11a）
+## 11. 共通部品とキー操作 — S（対応済み：PR 11a。ダーク表示は対象外）
+
+ダーク表示：対象外（トロニー裁定 2026-11-08）。Mac版（とiPhone版）はライト固定で、`ios/BellBot/project.yml`の`UIUserInterfaceStyle: Light`と`ios/BellBot/BellBot/Info.plist`の同じ項目が、最初の履歴（`f0529291`、2026-10-04）から入っている。Mac 113の「-dark」写真（30〜49）はライトとほぼ同じで、Windowsもシステムの外観にかかわらずライト固定とする。Windowsの外観に追従するダーク表示の実装は、全プラットフォームでダーク表示を決める日のために、ブランチ`claude/windows-mac-dark`（`ec59751a`）へマージせず残す。
 
 PR 4の確認でトロニーが仕上げへ回した項目（例外にせず再現する）：「安全な入力欄を開く」をMacと同じ灰色のボタンにする。送信直後に、Macと同じ「受付確認中」の仮の吹き出しを出す。画像の閲覧を別の窓ではなく、主窓の中で開く。
 PR 5の確認で追加：Macの実物（113の01・02・07）は、会話の上にアバターと名前の帯を持たず、窓の題名が「BellTeam」で、詳細パネルの切替と書き出しを窓の右上に紫の丸いボタン2つで置く。#634のソースと実物を照らし、実物に合わせる。
@@ -190,7 +192,11 @@ PR 5の確認で追加：Macの実物（113の01・02・07）は、会話の上�
 | 8 | メンバー・ルームの編集シート、削除、切り抜き | M |
 | 9 | 予定の見た目と文言 | S |
 | 10 | 起動・接続・ログイン・初期設定 | M |
-| 11 | 共通部品の仕上げとダーク表示 | S |
+| 11 | 共通部品の仕上げ（11a）。ダーク表示は対象外（11節） | S |
 | 12 | Claudeの2アカウント（オーナー機能、担当キロ。契約は`docs/architecture/modules/execution/harness-accounts.md`）：AIの認証の1st・2nd、Fableを2ndで使う切替、両方上限の帯、メンバーの席のアカウント表示。Apple版に合わせる。状態：対応済み（Apple版の到着後に照合）。写真：[2行・通常](assets/windows-mac-gaps/windows/pr12-accounts-normal.png)・[片方が上限](assets/windows-mac-gaps/windows/pr12-accounts-one-limited.png)・[両方上限の帯](assets/windows-mac-gaps/windows/pr12-accounts-both-limited.png)・[2ndが未ログイン](assets/windows-mac-gaps/windows/pr12-accounts-unlogged.png)・[旧本体の1行](assets/windows-mac-gaps/windows/pr12-accounts-old-server.png)・[メンバーの席のアカウント](assets/windows-mac-gaps/windows/pr12-accounts-member-card.png) | M |
 
 合計でおよそ14〜16日分（S＝0.5、M＝1、L＝2で数えた実作業）。各PRの採用と導入を待つ時間は含まない。Macの全写真が届いたら、ダーク表示の差と、写真の無い画面（起動・ログイン・初期設定・シート類）を照らし合わせて、規模を見直す。
+
+## 完了（2026-11-08）
+
+W-MACは、0〜10、11a、再接続の裁定、12がすべてmainに採用された（#635・#636・#637・#638・#639・#640・#643・#647・#653・#660・#672・#677・#683・#685・#687）。ダーク表示は対象外。残る追加作業は、Apple版のClaudeの2アカウントが入った時の照合だけ。
