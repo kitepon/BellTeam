@@ -1,8 +1,6 @@
-# mcp-lazy（MCPを使う時だけ本体を起こす中継。担当レオナ）。npmの同名パッケージは別の製品なので、公開リポジトリの受入済みコミットからビルドする。
-FROM golang:1.27.1-trixie AS mcp-lazy
-ARG MCP_LAZY_COMMIT=ba0f4433fa668c57f3b5df400041559d140db533
-RUN git clone https://github.com/kitepon/mcp-lazy.git /src \
-  && git -C /src checkout --detach "$MCP_LAZY_COMMIT" \
+# mcp-lazy（MCPを使う時だけ本体を起こす中継。担当レオナ）。npmの同名パッケージは別の製品なので、公開リポジトリの最新mainからビルドする（Owner 2026-11-08: 同梱物は固定しない）。
+FROM golang:trixie AS mcp-lazy
+RUN git clone --depth 1 https://github.com/kitepon/mcp-lazy.git /src \
   && cd /src \
   && CGO_ENABLED=0 go build -buildvcs=false -trimpath -ldflags '-s -w' -o /out/mcp-lazy .
 
@@ -24,7 +22,7 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends gh \
   && rm -rf /var/lib/apt/lists/*
 
-RUN npm install --global corepack@latest @openai/codex@latest @anthropic-ai/claude-code@latest throughline@0.16.56 aiterm-mcp@latest \
+RUN npm install --global corepack@latest @openai/codex@latest @anthropic-ai/claude-code@latest throughline@latest aiterm-mcp@latest \
   && corepack --version && codex --version && claude --version && throughline --version \
   && node -e 'for (const name of ["aiterm-mcp"]) console.log(name, require("/usr/local/lib/node_modules/" + name + "/package.json").version)'
 RUN curl -fsSL https://x.ai/cli/install.sh | bash \
