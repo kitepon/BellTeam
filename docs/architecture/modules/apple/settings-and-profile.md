@@ -22,7 +22,7 @@ flowchart TD
   Page --> Control["全体停止: AppStoreのAI停止状態<br/>赤い別グループ"]
 ```
 
-項目は`SettingsPage`（題名・一行の説明・SF Symbol・色・`accessibilityID`）が一か所で持つ。一覧の各行はアイコン・題名・説明と、接続先・通知未設定・購読・停止状態の短い状態表示。各ページの先頭は`SettingsPageHeader`（大きいアイコン・題名・説明）。失敗は`SettingsBanner`で平易な文を出し、生の文は「詳細」の中だけに置く。全体停止は一覧の最下部の単独グループで赤く表示する。プロフィールはsheetでなくページとして開き、保存後は閉じずに「保存しました」を出す。通知のエラーはsingletonのerrorText。会話の開き方はrise/fadeの端末設定で、HTTPへ保存しない。Cloudflareの時だけ接続ページにログアウトを出す。UI試験は`settings-profile`と`settings-row-<page>`で入る。DEBUGの`-bellbot-preview-settings <page>`は試料データ（`AppStore.prepareSettingsPreview`）でそのページを開く。認証・購読・通知の実装全体は[全体図](overview.md)と[索引](function-index.md)へ接続する。
+項目は`SettingsPage`（題名・一行の説明・SF Symbol・色・`accessibilityID`）が一か所で持つ。一覧の各行はアイコン・題名・説明と、通知未設定・購読・停止状態の短い状態表示。各ページの先頭は`SettingsPageHeader`（大きいアイコン・題名・説明）。失敗は`SettingsBanner`で平易な文を出し、生の文は「詳細」の中だけに置く。全体停止は一覧の最下部の単独グループで赤く表示する。プロフィールはsheetでなくページとして開き、保存後は閉じずに「保存しました」を出す。通知のエラーはsingletonのerrorText。会話の開き方はrise/fadeの端末設定で、HTTPへ保存しない。Cloudflareの時だけ接続ページにログアウトを出す。UI試験は`settings-profile`と`settings-row-<page>`で入る。DEBUGの`-bellbot-preview-settings <page>`は試料データ（`AppStore.prepareSettingsPreview`）でそのページを開く。認証・購読・通知の実装全体は[全体図](overview.md)と[索引](function-index.md)へ接続する。
 
 ## Ownerと規範のdraft
 

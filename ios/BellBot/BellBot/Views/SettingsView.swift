@@ -130,7 +130,7 @@ private struct SettingsSplitView: View {
                 ForEach(SettingsPage.groups, id: \.self) { group in
                     Section {
                         ForEach(group) { page in
-                            SettingsCategoryRow(page: page, inSidebar: true).tag(page)
+                            SettingsCategoryRow(page: page).tag(page)
                                 .accessibilityIdentifier(page.accessibilityID)
                         }
                     }
@@ -188,7 +188,6 @@ private struct SettingsProfileRow: View {
 private struct SettingsCategoryRow: View {
     @EnvironmentObject private var store: AppStore
     let page: SettingsPage
-    var inSidebar = false
 
     #if targetEnvironment(macCatalyst)
     // Mac: normal Mac reading sizes, not the compact iOS-scaled ones.
@@ -208,8 +207,7 @@ private struct SettingsCategoryRow: View {
             }
             .layoutPriority(1)
             Spacer(minLength: 6)
-            // The sidebar is narrow: only the stop state stays visible there; pages show the rest.
-            if let badge, !inSidebar || page == .stop { badge.lineLimit(1).fixedSize() }
+            if let badge { badge.lineLimit(1).fixedSize() }
         }
         .padding(.vertical, 3)
     }
@@ -217,7 +215,6 @@ private struct SettingsCategoryRow: View {
     /// Short live status on the row's trailing edge, where one exists.
     private var badge: Text? {
         switch page {
-        case .connection: Text(store.serverURL?.host ?? "未設定").font(.subheadline).foregroundStyle(.secondary)
         case .notifications: store.notificationsEnabled ? nil : Text("未設定").font(.subheadline).foregroundStyle(.secondary)
         case .billing:
             store.billing.isDeveloper ? Text("開発者").font(.subheadline).foregroundStyle(.secondary)
