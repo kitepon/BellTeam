@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T04:46:38Z",
-  "expiresAt": "2026-11-15T04:46:38Z",
+  "publishedAt": "2026-11-08T04:50:22Z",
+  "expiresAt": "2026-11-15T04:50:22Z",
   "releases": [
     {
       "componentId": "usage",
@@ -425,8 +425,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "a2d87d19b7d542c758614b4fece1f5f1b42bac79",
-      "versionId": "36c32969cc3f27797b39090cd0fea29bcde7f9801bb44d6efc621235971cccd2",
+      "sourceCommit": "02800c5df3351b2b13c3aad19809b0fc456b03d5",
+      "versionId": "4d2ecc622ba591c61b68ea5445c3741195d4c057717a5d3de6a685b4262a8d69",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -434,16 +434,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T042101Z/web-gateway-a2d87d19b7d542c758614b4fece1f5f1b42bac79-linux-amd64.tar.gz",
-          "bytes": 5033859,
-          "sha256": "36c32969cc3f27797b39090cd0fea29bcde7f9801bb44d6efc621235971cccd2"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T044646Z/web-gateway-02800c5df3351b2b13c3aad19809b0fc456b03d5-linux-amd64.tar.gz",
+          "bytes": 5038778,
+          "sha256": "4d2ecc622ba591c61b68ea5445c3741195d4c057717a5d3de6a685b4262a8d69"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T042101Z/web-gateway-a2d87d19b7d542c758614b4fece1f5f1b42bac79-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10974,
-          "sha256": "4657c78a2dcf351ff723263742a3ed71fa77f0570ba322a2440ce26f470cd04c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T044646Z/web-gateway-02800c5df3351b2b13c3aad19809b0fc456b03d5-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11064,
+          "sha256": "d60cd8d0b9c795aebb194a9ec010f393e5170eae472f7f21bd50e7c90ee06e3d"
         },
-        "signerCommit": "a2d87d19b7d542c758614b4fece1f5f1b42bac79"
+        "signerCommit": "02800c5df3351b2b13c3aad19809b0fc456b03d5"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -457,8 +457,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "a2d87d19b7d542c758614b4fece1f5f1b42bac79",
-      "versionId": "d80ae8f07c486b79430affe7b73865369cee4047ec5580e6bd12c139cd438492",
+      "sourceCommit": "02800c5df3351b2b13c3aad19809b0fc456b03d5",
+      "versionId": "e04ca96eadcd6307d10c375bb06f0de592fea919eb03d01e363ef1e67f6fb562",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -466,16 +466,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T042101Z/web-gateway-a2d87d19b7d542c758614b4fece1f5f1b42bac79-linux-arm64.tar.gz",
-          "bytes": 5033859,
-          "sha256": "d80ae8f07c486b79430affe7b73865369cee4047ec5580e6bd12c139cd438492"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T044646Z/web-gateway-02800c5df3351b2b13c3aad19809b0fc456b03d5-linux-arm64.tar.gz",
+          "bytes": 5038778,
+          "sha256": "e04ca96eadcd6307d10c375bb06f0de592fea919eb03d01e363ef1e67f6fb562"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T042101Z/web-gateway-a2d87d19b7d542c758614b4fece1f5f1b42bac79-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10923,
-          "sha256": "a00e81dfe5bc56dafc5f32062d27a41ec4efce23a6ca3679c36fd90d584dd1f2"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T044646Z/web-gateway-02800c5df3351b2b13c3aad19809b0fc456b03d5-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10876,
+          "sha256": "2fba28d6aae4702888296e8032a6bb8f94ee1a515d924c844495b937d867a3f1"
         },
-        "signerCommit": "a2d87d19b7d542c758614b4fece1f5f1b42bac79"
+        "signerCommit": "02800c5df3351b2b13c3aad19809b0fc456b03d5"
       },
       "compatibility": {
         "nodeMajor": 26,
