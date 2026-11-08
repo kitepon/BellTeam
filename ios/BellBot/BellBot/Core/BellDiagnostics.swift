@@ -9,6 +9,8 @@ struct BellAppStateSnapshot: Sendable {
     let changedAt: Date
     let changedContinuousTick: UInt64
     let revision: UInt64
+    /// 裏に回った回数。要求の開始と終了で違えば、その間にOSがアプリを止め得た。
+    var backgroundEntries: UInt64 = 0
 }
 
 struct BellRequestAttempt {
@@ -278,6 +280,7 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
     private var appStateChangedAt = Date()
     private var appStateChangedContinuousTick = clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW)
     private var appStateRevision: UInt64 = 0
+    private var backgroundEntries: UInt64 = 0
     private let onReport: ((String, String, String, String) -> Void)?
 
     init(onReport: ((String, String, String, String) -> Void)? = nil) {
@@ -316,6 +319,7 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
             appStateChangedAt = Date()
             appStateChangedContinuousTick = clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW)
             appStateRevision += 1
+            if state == "background" { backgroundEntries += 1 }
         }
         lock.unlock()
     }
@@ -328,14 +332,14 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
         lock.lock(); defer { lock.unlock() }
         return BellAppStateSnapshot(state: appState, changedAt: appStateChangedAt,
                                     changedContinuousTick: appStateChangedContinuousTick,
-                                    revision: appStateRevision)
+                                    revision: appStateRevision, backgroundEntries: backgroundEntries)
     }
 
     func report(_ error: Error, path: String, method: String?, observation: BellDiagnosticObservation,
                 elapsedMilliseconds: Int? = nil, diagnosticContext: String? = nil) {
         // 通知APIの失敗はBellNotificationsがstage付きで1回記録する。
         if path == "/api/notifications" || path.hasPrefix("/api/notifications/") { return }
-        if Self.isExpectedCancellation(error) { return }
+        if Self.isExpectedCancellation(error) || Self.isSuspendedTimeout(error) { return }
         let code: String
         if let urlError = error as? URLError {
             code = urlError.code == .timedOut ? "IOS_NETWORK_TIMEOUT" : "IOS_NETWORK_FAILURE"
@@ -389,6 +393,20 @@ final class BellDiagnostics: NSObject, MXMetricManagerSubscriber {
     /// OSが端末・回線の状態を示した値。これだけでは修理担当や重大度を決めない。
     static func isDeviceState(_ error: URLError) -> Bool {
         [.cancelled, .notConnectedToInternet, .dataNotAllowed, .internationalRoamingOff, .callIsActive].contains(error.code)
+    }
+
+    /// iPhone・iPadで、裏で始まったか要求の途中に裏へ回り、OSに止められている間に時間切れになった要求。
+    /// 60秒の計時は止まっている間も進み、戻った時にまとめて切れる。通信や利用者への影響ではないので報告しない。
+    /// 前面へ戻った時の再取得（`AppStore.sceneChanged`）が読み直す。Macは裏に回っても止められないので対象外。
+    static func isSuspendedTimeout(_ error: Error) -> Bool {
+        #if targetEnvironment(macCatalyst)
+        return false
+        #else
+        guard (error as? URLError)?.code == .timedOut,
+              let attempt = BellRequestTrace.from(error)?.attemptDetails.last else { return false }
+        return attempt.appStateAtStart.state == "background"
+            || attempt.appStateAtEnd.backgroundEntries > attempt.appStateAtStart.backgroundEntries
+        #endif
     }
 
     static func isExpectedCancellation(_ error: Error) -> Bool {
