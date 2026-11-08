@@ -30,7 +30,7 @@ flowchart TD
 flowchart TD
   List["一覧・検索<br/>HomeView / DesktopWorkspaceView"] --> Selection["AppStore.chatPath / selectedTab"]
   Selection --> Chat["ConversationView<br/>履歴・送信・添付・宛先・停止・書出し"]
-  Selection --> Pages["予定 / GoalsView / SettingsView"]
+  Selection --> Pages["予定 / GoalsView / 相関図 / SettingsView<br/>Macの相関図はwork-graph WindowGroup"]
   Edit["BotEditor / RoomEditor / ProfileEditor<br/>画像・追加機能の編集"] --> HTTP["BellAPI<br/>HTTP応答を呼出元へ返す"]
   Chat --> HTTP
   Pages --> HTTP

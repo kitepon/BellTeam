@@ -51,6 +51,8 @@ extension AppStore {
             }
         }
         if arguments.contains("-bellbot-preview-settings") { try! prepareSettingsPreview() }
+        // 相関図を直接開く（iPhone/iPadはタブ、Macは窓をDesktopWorkspaceViewが開く）。
+        if arguments.contains("-bellbot-preview-work-graph") { selectedTab = 4 }
         if arguments.contains("-bellbot-preview-connection-error") {
             connectionError = "更新へ接続できません。再接続しています。"
         }

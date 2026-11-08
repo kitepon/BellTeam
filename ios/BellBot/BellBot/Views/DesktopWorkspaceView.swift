@@ -3,6 +3,7 @@ import SwiftUI
 /// iPadとMacの一覧・会話・詳細。通信と編集画面はiPhoneとも共有する。
 struct DesktopWorkspaceView: View {
     @EnvironmentObject private var store: AppStore
+    @Environment(\.openWindow) private var openWindow
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var search = ""
     @State private var inspectorVisible = true
@@ -40,6 +41,7 @@ struct DesktopWorkspaceView: View {
                 case 1: SchedulesView()
                 case 2: SettingsView()
                 case 3: GoalsView()
+                case 4: WorkGraphView()
                 default:
                     if let selection {
                         #if targetEnvironment(macCatalyst)
@@ -92,6 +94,11 @@ struct DesktopWorkspaceView: View {
         .background(BellTheme.canvas)
         .sheet(isPresented: $creatingBot) { BotEditor(initial: nil).environmentObject(store).bellEditorSheet() }
         .sheet(isPresented: $creatingRoom) { RoomEditor(initial: nil).environmentObject(store).bellEditorSheet() }
+        #if DEBUG && targetEnvironment(macCatalyst)
+        .onAppear {
+            if ProcessInfo.processInfo.arguments.contains("-bellbot-preview-work-graph") { openWindow(id: "work-graph") }
+        }
+        #endif
         .sheet(item: $store.notificationSecret) { request in
             SecretInputSheet(request: request) { _ in store.eventRevision += 1 }.environmentObject(store)
         }
@@ -174,6 +181,16 @@ struct DesktopWorkspaceView: View {
                 Spacer()
                 Button { store.selectedTab = 3; compactColumn = .detail } label: { Label("ゴール", systemImage: "target") }
                     .keyboardShortcut("3", modifiers: .command)
+                Spacer()
+                Button {
+                    #if targetEnvironment(macCatalyst)
+                    openWindow(id: "work-graph")
+                    #else
+                    store.selectedTab = 4; compactColumn = .detail
+                    #endif
+                } label: { Label("相関図", systemImage: "point.3.connected.trianglepath.dotted") }
+                    .keyboardShortcut("4", modifiers: .command)
+                    .accessibilityIdentifier("open-work-graph")
                 Spacer()
                 Button { store.selectedTab = 2; compactColumn = .detail } label: { Label("設定", systemImage: "gearshape") }
                     .keyboardShortcut(",", modifiers: .command)
