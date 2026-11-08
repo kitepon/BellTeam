@@ -72,3 +72,30 @@ Same original rows -> Codex-only Map -> existing watch/wait/interim
 The observation clock starts at successful valid current-read completion, not span start/file mtime; existing15s expiry is unchanged. A12-minute parent wait remains working while fresh positive reads arrive. Positive whole-parent terminal ends activity despite detached children; a child or late/vetoed Stop cannot beat current parent occupancy. This precedence and actual live evidence are native producer responsibilities; CurrentWork never reconstructs activity from input, queue, summary or cached flags. Existing unknown/idle/error and summary meanings remain unchanged.
 
 The legacy watcher receives Codex rows only, retaining Codex null/idle/running behavior and real tracking. Observation-only rows never issue a waiter or interim call. No new native call, wire key/state, self-summary writer or background agent is introduced. One focused transport/CurrentWork fixture checks all five contracted rows, stable long parent waits, positive terminal with detached-child fixture data, stale/ambiguous/malformed/mismatched observations and no non-Codex wait issuance. Synthetic native-row fixtures are consumer evidence, not live native acceptance. Elegg supplies actual producers; normal main/supply/runtime acceptance follow that real handoff.
+
+## Current turn for after_turn schedules (2026-11-08, contract agreed with Belorta)
+
+Public read and change stream for the members scheduler's `after_turn` (once, prompt only). The source is the same native CurrentWork observation as the Bot list; no delivery/callback lifetime and no execution internals cross the boundary.
+
+```mermaid
+flowchart LR
+  Poll[SeatTurns poll: every Bot, one pty_list] --> EndRead[CurrentWork.endRead]
+  EndRead -->|row running| Working[working: session+launch+native turn]
+  EndRead -->|row idle| Idle[idle]
+  EndRead -->|valid read, no row| Absent[no live seat: absent=true]
+  EndRead -->|stale/ambiguous/mismatch/starting| Unknown[unknown]
+  Working & Idle & Absent & Unknown --> Turn["transport.currentTurn(botId)<br/>project, pure read"]
+  EndRead -->|state, turn or absent changed| Notify[activity.emit bot id]
+  Notify --> Queue[parent watchQueue: botIds]
+  Queue --> Watch["facade transport.watchCurrentTurn(listener)<br/>emits {botId,state,turnId} when currentTurn differs"]
+  Watch --> Scheduler[Belorta: CAS claim + ordinary delivery]
+```
+
+| Contact | Contract |
+| --- | --- |
+| `transport.currentTurn(botId)` | `{state:'working',turnId}` / `{state:'idle',turnId:null}` / `{state:'unknown',turnId:null}`. `turnId` is opaque (sha256 of session, launch, native turn id); compare for equality only. A Bot whose latest valid read has no seat row (offline, dead, closed) is `idle`: no turn can run. The Bot-list DTO keeps showing such Bots as `unknown` (unchanged). |
+| `transport.watchCurrentTurn(listener)` | Parent facade, returns unsubscribe. Fires `listener({botId,state,turnId})` whenever `currentTurn(botId)` differs from what this listener last received, unknown transitions included. Built on the existing parent `watchQueue` stream, so it survives execution engine exchange. A read refused during an exchange is retried on the next change event of any Bot. |
+| unknown self-exit | `unknown` = a live seat whose observation is stale (>15 s), ambiguous, mismatched or starting. The poll re-reads every Bot each tick; the next valid read resolves it to working/idle/absent, and each of those emits. No timer, wait or refusal is added. |
+| observation semantics | A schedule saved while `unknown` binds the first resolved `working` turn, and that turn may have started after the save: an observation cannot prove which turn was current while it was unknown. The first resolved `idle` fires at once. |
+| delivery semantics | The scheduler's dispatch is an ordinary delivery. If the Bot is mid-turn at dispatch (for example bound X ended and Y already started), the words are steered into Y. They are not queued as a new turn. A dead seat is woken by the same delivery. |
+| compatibility | The parent facade is built from the body's method list, and the engine validates against its own list. The feature needs a body with this facade and an execution module with `transport.currentTurn`. Callers check `typeof transport.watchCurrentTurn === 'function'` and treat `EXECUTION_REQUEST_INVALID` from `currentTurn` as "not yet supported" (old engine), never as idle. |
