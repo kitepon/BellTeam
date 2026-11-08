@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T22:09:36Z",
-  "expiresAt": "2026-11-15T22:09:36Z",
+  "publishedAt": "2026-11-08T22:34:41Z",
+  "expiresAt": "2026-11-15T22:34:41Z",
   "releases": [
     {
       "componentId": "usage",
@@ -489,8 +489,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "3b443acf0dbebb7022403d54f61dc8278172f9e8",
-      "versionId": "897380f153c5f5aa5877ad1ecd1cf001e52315cab321f22e16bdbc754bea260a",
+      "sourceCommit": "870938ab2d74fe20104ae6f59a84d254fc373cf0",
+      "versionId": "96ac6662d31f6656ab0a63d502efd4f8b18cb5b7dbabaf8c10aafc626cd801db",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -498,16 +498,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T220611Z/execution-3b443acf0dbebb7022403d54f61dc8278172f9e8-linux-amd64.tar.gz",
-          "bytes": 3935072,
-          "sha256": "897380f153c5f5aa5877ad1ecd1cf001e52315cab321f22e16bdbc754bea260a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T223407Z/execution-870938ab2d74fe20104ae6f59a84d254fc373cf0-linux-amd64.tar.gz",
+          "bytes": 3935699,
+          "sha256": "96ac6662d31f6656ab0a63d502efd4f8b18cb5b7dbabaf8c10aafc626cd801db"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T220611Z/execution-3b443acf0dbebb7022403d54f61dc8278172f9e8-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10942,
-          "sha256": "7038f7ee71e5bfcf43a0e8ff4a3767f9c11d2823c37cf5531230d107bcf88d00"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T223407Z/execution-870938ab2d74fe20104ae6f59a84d254fc373cf0-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10879,
+          "sha256": "b863603ebc6ad2768a0096d33f7fe25aa911175074f5de6000ad1b385d31edaa"
         },
-        "signerCommit": "3b443acf0dbebb7022403d54f61dc8278172f9e8"
+        "signerCommit": "870938ab2d74fe20104ae6f59a84d254fc373cf0"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -517,13 +517,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "2つ目のアカウントで動く席が、Claude Codeの初回確認画面で止まらないようにします。"
+        "使用上限で2つ目のアカウントへ切り替えた席が、止まったまま起きない問題と、メッセージが届くと上限に達した1つ目のアカウントで起きてしまう問題を直します。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "3b443acf0dbebb7022403d54f61dc8278172f9e8",
-      "versionId": "93fc61ea5ba3061f3bc61377fc3e3f2e9c15428244a4d2861476c3d373ae5032",
+      "sourceCommit": "870938ab2d74fe20104ae6f59a84d254fc373cf0",
+      "versionId": "ca8b8c56ea677ca1bfcebe474291d341f7c204727df0615582456f0615ea33cd",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -531,16 +531,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T220611Z/execution-3b443acf0dbebb7022403d54f61dc8278172f9e8-linux-arm64.tar.gz",
-          "bytes": 3935075,
-          "sha256": "93fc61ea5ba3061f3bc61377fc3e3f2e9c15428244a4d2861476c3d373ae5032"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T223407Z/execution-870938ab2d74fe20104ae6f59a84d254fc373cf0-linux-arm64.tar.gz",
+          "bytes": 3935698,
+          "sha256": "ca8b8c56ea677ca1bfcebe474291d341f7c204727df0615582456f0615ea33cd"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T220611Z/execution-3b443acf0dbebb7022403d54f61dc8278172f9e8-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10879,
-          "sha256": "ba15f1f99a82f352f1bfba76579299fb0545397ca732fe62c9507e70fb17f1fa"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T223407Z/execution-870938ab2d74fe20104ae6f59a84d254fc373cf0-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11087,
+          "sha256": "a4195efe5817d8b14028fca016a65d0b989c7d8be836c73f7e34db49ef3d868a"
         },
-        "signerCommit": "3b443acf0dbebb7022403d54f61dc8278172f9e8"
+        "signerCommit": "870938ab2d74fe20104ae6f59a84d254fc373cf0"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -550,7 +550,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "2つ目のアカウントで動く席が、Claude Codeの初回確認画面で止まらないようにします。"
+        "使用上限で2つ目のアカウントへ切り替えた席が、止まったまま起きない問題と、メッセージが届くと上限に達した1つ目のアカウントで起きてしまう問題を直します。"
       ]
     },
     {
