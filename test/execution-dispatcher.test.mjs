@@ -267,3 +267,19 @@ test('a module update swaps at once while a delivery is still being typed; the o
   assert.deepEqual(await f.engine.disconnect(), { closed: true })
   assert.equal(next.project(request('transport.isIdle', bot.id)), true)
 })
+
+test('a handover from a predecessor without sessionChanges keeps a working session map, so a wake still runs', async t => {
+  const f = await fixture(t)
+  await f.engine.control('quiesce', { timeoutMs: 0, handover: true })
+  const state = f.engine.exportState({ handover: true })
+  // An engine older than the live-state handover exports the cloned maps only.
+  delete state.metadata.sessionChanges
+  const next = createExecutionDispatcher({ generation: 'second', ports: f.ports, handoff: state })
+  t.after(async () => { try { await next.control('quiesce', { timeoutMs: 200 }); await next.disconnect() } catch {} })
+  await next.control('initialize')
+  assert.equal((await next.dispatch(request('transport.notify', bot, 'AFTER_LEGACY_HANDOFF'))).delivery, 'running')
+  while (!next.project(request('transport.isIdle', bot.id))) await tick()
+  await state.released
+  assert.deepEqual(await f.engine.disconnect(), { closed: true })
+  await next.control('quiesce', { timeoutMs: 200 }); await next.disconnect()
+})

@@ -261,7 +261,10 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     const m = handoff.metadata
     if (handoff.activity) {
       // Same live maps as the old engine (handover); both ends see one state while its last work finishes.
-      for (const key of ['sessions', 'stopVersions', 'stopSessions', 'sessionChanges']) transport.sessionState[key] = transport[key] = m[key]
+      // A predecessor older than the live-state handover (or one whose own adoption lost a map) exports no
+      // sessionChanges; keep this engine's own map then (2026-11-08: undefined broke every wake with a TypeError).
+      for (const key of ['sessions', 'stopVersions', 'stopSessions', 'sessionChanges'])
+        if (m[key] instanceof Map) transport.sessionState[key] = transport[key] = m[key]
     } else for (const key of ['sessions', 'stopVersions', 'stopSessions']) for (const entry of m[key]) transport.sessionState[key].set(...entry)
     Object.assign(requests, m.requests, { restoring: Promise.resolve() })
     administration.applications = m.applications
