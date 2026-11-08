@@ -43,3 +43,21 @@ test('switchAccount hibernates, resumes the same session on the selected root on
   assert.equal(calls[1][2]?.env, undefined, 'no launch env, so no env_vars reach Aiterm')
   assert.deepEqual(seats, [['bot-a', '2nd']])
 })
+
+// Production 2026-11-09 07:37 JST: after a module exchange the session map is empty; recorded seats still move.
+test('reviewAccounts moves a recorded seat the engine did not launch; a seat that is not running is left alone', async () => {
+  const moved = []
+  const accounts = { watch: () => () => {}, close: () => {}, state: { seats: { 'bot-a': '1st', 'bot-b': '1st' } },
+    seatSlot: () => '1st', effectiveSlot: async () => '2nd' }
+  const bots = { 'bot-a': { id: 'bot-a', harness: 'claude', model: 'fable' }, 'bot-b': { id: 'bot-b', harness: 'claude', model: 'fable' } }
+  const transport = new AitermTransport({ client: { call: async () => ({}) }, accounts, resolveBot: id => bots[id] })
+  transport.moveAtBoundary = botId => moved.push(botId)
+  await transport.reviewAccounts()
+  assert.deepEqual(moved, ['bot-a', 'bot-b'])
+  const quiet = new AitermTransport({ client: { call: async () => ({}) }, accounts, resolveBot: id => bots[id] })
+  const lines = [], write = process.stderr.write
+  quiet.switchAccount = async () => { throw Object.assign(new Error('AGENT_HIBERNATE_UNAVAILABLE: not running'), { code: 'AGENT_HIBERNATE_UNAVAILABLE' }) }
+  process.stderr.write = line => { lines.push(String(line)); return true }
+  try { quiet.moveAtBoundary('bot-a'); await quiet.accountMoves.get('bot-a') } finally { process.stderr.write = write }
+  assert.deepEqual(lines.filter(line => line.includes('seat move')), [])
+})

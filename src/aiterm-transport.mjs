@@ -996,9 +996,10 @@ export class AitermTransport {
       this.accountTurnDone(bot)
     }, error => {
       const accountLimit = this.recordAccountLimit(bot, error)
-      if (!error?.recoveryFailure || job.stopped || job.stopRequested
+      // An account limit continues on the other account even without Aiterm's terminal-failure proof (harness-accounts.md).
+      if (!(error?.recoveryFailure || accountLimit) || job.stopped || job.stopRequested
         || job.conversationGeneration && job.conversationGeneration !== this.conversationAdmission?.capture().generation) return
-      this.continuation?.failed({ bot, deliveryId: info.groupId ?? job.id, failure: error.recoveryFailure, accountLimit,
+      this.continuation?.failed({ bot, deliveryId: info.groupId ?? job.id, failure: error.recoveryFailure ?? null, accountLimit,
         reconfigured: () => { this.requireStopVersion(bot.id, recoveryVersion); recoverySession = this.session(bot) },
         check: allowedMessage => {
           if (conversationDelivery) {
@@ -1528,12 +1529,14 @@ export class AitermTransport {
       const version = this.captureStopVersion(bot)
       admissionCheck?.()
       const session = this.session(bot)
+      // Resume only (E2): no model, effort, cwd or env, so the saved recipe decides them and only the root changes.
+      const account = await this.accounts.selection('claude', bot.model)
+      // Already there (the limit's continuation and the registry-change move both ask): nothing to close.
+      if ((this.accounts.seatSlot(bot.id) ?? '1st') === account.slot) return { botId: bot.id, session, slot: account.slot }
       await this.changeSession(bot, 'pty_close', { session_id: session, hibernate: true })
       await this.removeRetainedImages(bot.id)
       this.requireStopVersion(bot.id, version)
       admissionCheck?.()
-      // Resume only (E2): no model, effort, cwd or env, so the saved recipe decides them and only the root changes.
-      const account = await this.accounts.selection('claude', bot.model)
       const result = await this.changeSession(bot, 'agent_launch', { harness: 'claude-code', session_name: session,
         require_existing_resume: true, configuration_root: account.configurationRoot })
       this.membersAdmission.assertLease(membersLease)
@@ -1554,7 +1557,8 @@ export class AitermTransport {
     if (!this.accounts) return
     for (const [botId, slot] of Object.entries(this.accounts.state.seats)) {
       const bot = this.resolveBot?.(botId)
-      if (!this.claudeAccountBot(bot) || !this.sessions.has(botId) || this.accountMoves.has(botId)) continue
+      // Every recorded seat, also one launched by an earlier engine (the session map starts empty after an exchange).
+      if (!this.claudeAccountBot(bot) || this.accountMoves.has(botId)) continue
       if (slot !== await this.accounts.effectiveSlot('claude', bot.model)) this.moveAtBoundary(botId)
     }
   }
@@ -1565,11 +1569,13 @@ export class AitermTransport {
         await Promise.all(this.activity.of(botId).map(turn => (turn.nativeCompletion ?? turn.completion)?.catch(() => {})))
         await this.activity.configurationChanges.get(botId)?.catch(() => {})
         const bot = this.resolveBot?.(botId)
-        if (!this.claudeAccountBot(bot) || !this.sessions.has(botId)
+        if (!this.claudeAccountBot(bot)
           || this.accounts.seatSlot(botId) === await this.accounts.effectiveSlot('claude', bot.model)) return
         if (!this.isIdle(botId)) continue
         try { return await this.switchAccount(bot) }
         catch (error) {
+          // Not a running seat (closed or already hibernated): nothing to move; its next launch selects the slot.
+          if (/AGENT_HIBERNATE_UNAVAILABLE/u.test(`${error?.code ?? ''} ${error?.message ?? ''}`)) return
           // AGENT_BUSY: a turn the parent does not follow is still running; try again after it, never stop it.
           if (!/AGENT_BUSY/u.test(`${error?.code ?? ''} ${error?.message ?? ''}`)) throw error
           await new Promise(resolve => setTimeout(resolve, 30_000))
