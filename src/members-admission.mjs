@@ -5,6 +5,10 @@ const rejected = () => Object.assign(new Error('MEMBERS_NOT_ACCEPTED'), {
   code: 'MEMBERS_NOT_ACCEPTED', status: 503, outcome: 'not_accepted', effect: 'not_started',
 })
 
+// A new owned root waits through a module exchange instead of failing; the exchange always ends in resume.
+// The bound is the wait's self-exit when no resume comes (members closed for good): then the existing refusal.
+export const MEMBERS_EXCHANGE_HOLD_MS = 60000
+
 export const MEMBERS_READ_PIN_METHODS = Object.freeze(['profiles.read', 'profile.read', 'removals.read', 'owner.read', 'rules.read', 'schedules.list'])
 
 // Parent-owned leases survive admission closure, never a generation change.
@@ -15,6 +19,7 @@ export class MembersAdmission {
   #readPins = new Set()
   #completions = new Map()
   #ticket = null
+  #opened = null
   #waiters = new Set()
 
   constructor(generation = 'builtin') {
@@ -102,7 +107,17 @@ export class MembersAdmission {
     this.#trackCompletion(pin, completion)
   }
 
+  // Only a fresh root (no pin/lease, no captured epoch) is held; anything bound to the old epoch keeps its refusal.
+  #afterExchange(retry) {
+    const opened = this.#opened.promise
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(rejected()), MEMBERS_EXCHANGE_HOLD_MS); timer.unref?.()
+      opened.then(() => { clearTimeout(timer); try { resolve(retry()) } catch (error) { reject(error) } })
+    })
+  }
+
   withReadPin(method, operation, { pin, expected, correlation } = {}) {
+    if (!pin && expected === undefined && this.#ticket) return this.#afterExchange(() => this.withReadPin(method, operation, { correlation }))
     const owned = !pin
     const current = pin ? this.assertReadPin(pin, { method }) : this.enterReadPin(method, expected, correlation)
     let result
@@ -112,6 +127,7 @@ export class MembersAdmission {
   }
 
   withLease(operation, { lease, expected } = {}) {
+    if (!lease && expected === undefined && this.#ticket) return this.#afterExchange(() => this.withLease(operation))
     const owned = !lease
     const current = lease ? this.assertLease(lease) : this.enter(expected)
     let result
@@ -124,6 +140,7 @@ export class MembersAdmission {
     if (this.#ticket) return this.#ticket
     this.#epoch++
     this.#ticket = Object.freeze({ generation: this.#generation, epoch: this.#epoch })
+    this.#opened = Promise.withResolvers()
     return this.#ticket
   }
 
@@ -146,5 +163,6 @@ export class MembersAdmission {
   resume(ticket) {
     this.#assertTicket(ticket)
     this.#ticket = null
+    this.#opened.resolve(); this.#opened = null
   }
 }
