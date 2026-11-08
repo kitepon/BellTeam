@@ -201,5 +201,5 @@ export function createOwnerEditor(dialog, { api, onOwner, onSettings }) {
   }
 
 
-  return { open, refreshAI: () => aiControl.refresh(), refreshFeatureStatus(settings) { if (dialog.open && owner) { refreshFeatureSettingsStatus(owner.features, settings); void webPush.refresh(); void backgroundAgent.refresh() } } }
+  return { open, refreshAI: () => aiControl.refresh(), refreshFeatureStatus(settings) { if (dialog.open && owner) { refreshFeatureSettingsStatus(owner.features, settings); void webPush.refresh(); void backgroundAgent.refresh(); harnessAuthSection?.refresh() } } }
 }

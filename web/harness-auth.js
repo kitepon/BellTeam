@@ -1,6 +1,7 @@
 // 設定の「AIの認証」。初期設定の後に、AIの公式認証をやり直す。
 // AIの認証が切れると、そのAIを使うメンバーは起動できず、入り直しを頼める相手も居なくなる。利用者がここから自分で戻す。
 import { authFlowView, renderAuthFlow } from './auth-flow.js?v=__ASSET_VERSION__'
+import { claudeAccounts, renderClaudeAccounts } from './harness-accounts.js?v=__ASSET_VERSION__'
 
 export function harnessAuthTitle(harness) {
   return harness.members > 0 ? `${harness.name} · ${harness.members}人が使用` : `${harness.name} · 使用していません`
@@ -18,30 +19,39 @@ export function needsStartConfirmation(harness, auth) {
 }
 
 // AIの種類ごとの行を描く。返す stop は、設定を閉じる時に呼ぶ（見に行くのを止め、入力欄を空にする）。
+// Claudeは /api/accounts があれば1st/2ndの2行。無い旧本体では従来の1行のまま。
 export async function renderHarnessAuth(container, { api }) {
   const stops = []
   container.replaceChildren()
   const { harnesses } = await api('/api/harness-auth')
+  const accounts = harnesses.some(harness => harness.id === 'claude') ? await api('/api/accounts').catch(() => null) : null
+  const sections = []
   for (const harness of harnesses) {
-    const item = harnessAuthItem(harness, { api })
+    const item = harness.id === 'claude' && claudeAccounts(accounts)
+      ? renderClaudeAccounts(harness, accounts, { api, renderSlotAuth: (target, options) => harnessAuthItem(target, { api, ...options }) })
+      : harnessAuthItem(harness, { api })
+    if (item.refresh) sections.push(item)
     stops.push(item.stop)
     container.append(item.element)
   }
-  return { stop() { for (const stop of stops) stop() } }
+  return { refresh() { for (const section of sections) void section.refresh() }, stop() { for (const stop of stops) stop() } }
 }
 
-function harnessAuthItem(harness, { api }) {
-  const row = document.createElement('section')
-  row.className = 'feature-setting harness-auth'
+// slotがあれば、その枠の公式ログイン。枠は ?slot= だけで渡し、入力の本文は変えない（1stは従来と同じ要求）。
+function harnessAuthItem(harness, { api, slot, onAuthenticated }) {
+  const row = document.createElement(slot ? 'div' : 'section')
+  row.className = slot ? 'harness-auth slot-auth' : 'feature-setting harness-auth'
   row.dataset.harnessId = harness.id
-  const heading = document.createElement('h4')
-  heading.textContent = harnessAuthTitle(harness)
   const body = document.createElement('div')
   body.className = 'harness-auth-body'
   const status = document.createElement('p')
   status.setAttribute('role', 'status')
-  row.append(heading, status, body)
-  const path = `/api/harness-auth/${encodeURIComponent(harness.id)}`
+  if (!slot) row.append(Object.assign(document.createElement('h4'), { textContent: harnessAuthTitle(harness) }))
+  row.append(status, body)
+  const base = `/api/harness-auth/${encodeURIComponent(harness.id)}`
+  const query = slot && slot !== '1st' ? `?slot=${encodeURIComponent(slot)}` : ''
+  const path = base + query
+  const login = slot ? ['ログイン', 'ログインし直す'] : ['認証する', '認証し直す']
   let auth = null
   let loaded = false
   let started = false
@@ -55,7 +65,7 @@ function harnessAuthItem(harness, { api }) {
   let timer
   let password
   const clear = () => { if (password) password.value = '' }
-  const post = (action, payload) => api(`${path}/${action}`, {
+  const post = (action, payload) => api(`${base}/${action}${query}`, {
     method: 'POST', redirect: 'error', cache: 'no-store',
     ...(payload ? { headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) } : {}),
   })
@@ -69,7 +79,7 @@ function harnessAuthItem(harness, { api }) {
         const next = (await api(path)).auth
         if (stopped || observedRevision !== revision) return
         // 状態が同じ間は、入力中の欄を作り直さない。
-        if (JSON.stringify(next) !== JSON.stringify(auth)) { auth = next; if (auth?.status === 'authenticated') started = false; render() }
+        if (JSON.stringify(next) !== JSON.stringify(auth)) { const before = auth?.status; auth = next; if (auth?.status === 'authenticated') { started = false; if (before !== 'authenticated') onAuthenticated?.() } render() }
         schedule()
       } catch (error) { if (stopped || observedRevision !== revision) return; errorText = error.message; render() }
     }, 3000)
@@ -83,9 +93,11 @@ function harnessAuthItem(harness, { api }) {
     clear()
     render()
     try {
+      const before = auth?.status
       auth = (await action()).auth
       inputBlocked = false
       if (auth?.status === 'authenticated') started = false
+      if (auth?.status === 'authenticated' && before !== 'authenticated' && loaded) onAuthenticated?.()
       loaded = true
     } catch (error) { errorText = error.message }
     finally { busy = false; if (!stopped) { render(); schedule() } }
@@ -111,7 +123,8 @@ function harnessAuthItem(harness, { api }) {
       respond: input => perform(async () => { try { return await post('input', input) } catch (error) { inputBlocked = true; throw error } }),
     })
     password = flow.password
-    if (loaded && !errorText) nodes.push(...flow.elements)
+    // 認証済みの「認証が完了しました」は上の印（認証済み）と同じことなので出さない。初期設定の画面は印が無いので従来どおり。
+    if (loaded && !errorText && !(auth?.status === 'authenticated' && view.stage === 'complete')) nodes.push(...flow.elements)
     if (harness.reloginSupported === false && auth?.status === 'authenticated' && harness.startWarning) nodes.push(Object.assign(document.createElement('p'), { textContent: harness.startWarning }))
     const start = () => perform(async () => { confirming = false; const next = await post('start'); started = next.auth?.status !== 'authenticated'; return next })
     const actions = document.createElement('div')
@@ -122,7 +135,7 @@ function harnessAuthItem(harness, { api }) {
       nodes.push(warning)
       actions.append(button('今の認証を手放して始める', start), button('始めない', () => { confirming = false; render() }))
     } else {
-      if ((harness.reloginSupported !== false || auth && auth.status !== 'authenticated') && (!(auth?.session_id || view.binding) || view.stage === 'complete')) actions.append(button(auth?.status === 'authenticated' ? '認証し直す' : '認証する', () => {
+      if ((harness.reloginSupported !== false || auth && auth.status !== 'authenticated') && (!(auth?.session_id || view.binding) || view.stage === 'complete')) actions.append(button(auth?.status === 'authenticated' ? login[1] : login[0], () => {
         if (needsStartConfirmation(harness, auth)) { confirming = true; render() } else return start()
       }))
       actions.append(button('状態を更新', () => perform(async () => { const next = await api(path); if (next.auth?.status === 'authenticated') started = false; return next })))

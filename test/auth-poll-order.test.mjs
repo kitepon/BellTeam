@@ -41,6 +41,7 @@ for (const kind of ['settings', 'onboarding']) for (const late of ['success', 'e
         section = await renderHarnessAuth(container, { api: async (path, options = {}) => {
           if (options.method === 'POST') posts++
           if (path === '/api/harness-auth') return { harnesses: [{ id: 'claude', name: 'Claude', members: 1 }] }
+          if (path === '/api/accounts') throw Object.assign(new Error('NOT_FOUND'), { status: 404 })
           if (++reads === 1) return { auth: waiting }
           return hold(auth => ({ auth }))
         } })
@@ -57,11 +58,11 @@ for (const kind of ['settings', 'onboarding']) for (const late of ['success', 'e
       document.hidden = false; for (const listener of [...listeners]) listener()
       t.mock.timers.tick(3000); await settle(); assert.equal(pending.length, 2)
       pending[1].resolve(completed); await settle()
-      assert.ok(all(row).some(node => node.textContent === '認証完了'))
+      assert.ok(all(row).some(node => node.textContent === (kind === 'settings' ? '認証済み' : '認証完了')))
       if (late === 'success') pending[0].resolve(waiting)
       else pending[0].reject(Error('以前の状態確認の失敗'))
       await settle()
-      assert.ok(all(row).some(node => node.textContent === '認証完了'))
+      assert.ok(all(row).some(node => node.textContent === (kind === 'settings' ? '認証済み' : '認証完了')))
       assert.equal(all(row).some(node => node.tag === 'input'), false)
       assert.equal(all(row).some(node => node.textContent === '以前の状態確認の失敗'), false)
       t.mock.timers.tick(9000); await settle()
