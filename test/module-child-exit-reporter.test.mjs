@@ -95,3 +95,23 @@ test('normal runtime wires diagnostics and gateway observations into the same wr
   await runtime.start(); await setImmediate(); await runtime.close()
   assert.deepEqual(records.filter(report => report.code === 'SERVER_MODULE_CHILD_EXITED').map(report => JSON.parse(report.diagnostic_log).component).sort(), ['diagnostics', 'web-gateway'])
 })
+
+test('child exit origin rides the stored DTO, and an older diagnostics refusal refiles it once without the origin (I-5)', async () => {
+  const { reportModuleChildExit } = await import('../src/module-child-restart.mjs')
+  const { validateModuleChildExitDiagnostic } = await import('../src/diagnostics.mjs')
+  const observation = { stderrCodes: [], reason: 'unknown', stderrBytes: 107, stderrTruncated: false, stderrTail: [],
+    childExitOrigin: { origin: 'exit_control', failureCode: null } }
+  let dto; reportModuleChildExit('conversation', { code: 0, signal: null }, observation, value => { dto = value })
+  assert.deepEqual(dto.childExitOrigin, { origin: 'exit_control', failureCode: null })
+  assert.equal(validateModuleChildExitDiagnostic(dto), true)
+  assert.equal(validateModuleChildExitDiagnostic({ ...dto, childExitOrigin: { origin: 'text', failureCode: null } }), false)
+  assert.equal(validateModuleChildExitDiagnostic({ ...dto, childExitOrigin: { origin: 'peer_failure', failureCode: 'secret text' } }), false)
+  const saved = [], reporter = createModuleChildExitReporter()
+  reporter.attach({ record: async report => {
+    if (report.diagnostic_log.includes('childExitOrigin')) throw Object.assign(new Error('DIAGNOSTIC_INVALID'), { code: 'DIAGNOSTIC_INVALID' })
+    saved.push(JSON.parse(report.diagnostic_log))
+  } }, true)
+  reporter.observe(dto)
+  for (let i = 0; i < 5; i++) await setImmediate()
+  assert.equal(saved.length, 1); assert.equal(saved[0].childExitOrigin, undefined); assert.equal(saved[0].exitCode, 0)
+})

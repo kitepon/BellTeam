@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { once } from 'node:events'
+import { EventEmitter, once } from 'node:events'
 import test from 'node:test'
 import { connect, createServer as createHttp2Server } from 'node:http2'
 import { generateKeyPair } from 'jose'
@@ -205,13 +205,14 @@ test('relayは端末本人の購入情報だけを送り、未登録・不正な
   await assert.rejects(service.register({ ...device, signedTransaction: '' }), /PUSH_DEVICE_INVALID/u)
 })
 
-async function apnsServer(t) {
+async function apnsServer(t, respond) {
   const sessions = []
   const server = createHttp2Server()
   const tokens = []
   server.on('session', session => sessions.push(session))
   server.on('stream', (stream, headers) => {
     tokens.push(headers.authorization)
+    if (respond) return respond(stream, headers)
     stream.respond({ ':status': 200 })
     stream.end()
   })
@@ -221,6 +222,121 @@ async function apnsServer(t) {
   const origin = `http://127.0.0.1:${server.address().port}`
   return { sessions, tokens, open: () => connect(origin) }
 }
+
+test('update receipts retain actual APNs HTTP status and apns-id for accepted and rejected sends', async t => {
+  const apnsId = '11111111-2222-3333-4444-555555555555'
+  let status = 200
+  const { open } = await apnsServer(t, stream => {
+    stream.respond({ ':status': status, 'apns-id': apnsId })
+    stream.end(status === 200 ? '' : JSON.stringify({ reason: 'BadDeviceToken' }))
+  })
+  const provider = await apnsProvider({ open })
+  t.after(() => provider.close())
+  const accepted = await provider.send(device, { aps: {} }, 'receipt')
+  assert.deepEqual(accepted, { sentAt: accepted.sentAt, apnsStatus: 200, apnsId })
+  assert.match(accepted.sentAt, /\+09:00$/u)
+  status = 400
+  await assert.rejects(provider.send(device, { aps: {} }, 'receipt'), { code: 'APNS_HTTP_400_BADDEVICETOKEN', apnsStatus: 400, apnsId })
+  status = 410
+  await assert.rejects(provider.send(device, { aps: {} }, 'receipt'), { code: 'APNS_UNREGISTERED', apnsStatus: 410, apnsId })
+})
+
+test('update receipts persist one candidate attempt with separate device results and no secrets or retry', async t => {
+  const { root, service, provider, reports } = await fixture(t)
+  for (const suffix of ['b', 'c']) await service.register({ ...device, token: suffix.repeat(64), signedTransaction: 'PRIVATE_TRANSACTION' })
+  const calls = []
+  const apnsId = '11111111-2222-3333-4444-555555555555'
+  const sentAt = '2026-11-08T14:00:00.000+09:00'
+  provider.send = async destination => {
+    calls.push(destination.token)
+    if (destination.token === device.token) return { sentAt, apnsStatus: 200, apnsId, token: 'PRIVATE_TOKEN' }
+    if (destination.token.startsWith('b')) throw Object.assign(new Error('PRIVATE_MESSAGE'), { sentAt, code: 'APNS_HTTP_400_BADDEVICETOKEN', apnsStatus: 400, apnsId })
+    throw Object.assign(new Error('PRIVATE_MESSAGE'), { sentAt, code: 'APNS_TIMEOUT', apnsId: 'PRIVATE_TOKEN' })
+  }
+  service.publish({ kind: 'update', id: 'f'.repeat(64) })
+  await service.close()
+  const page = service.status().updateAttempts
+  assert.equal(page.total, 1)
+  const record = page.items[0]
+  assert.equal(record.candidateId, 'f'.repeat(64))
+  assert.equal(record.targetDeviceCount, 3)
+  assert.match(record.sentAt, /\+09:00$/u)
+  assert.equal(record.state, 'completed')
+  assert.deepEqual(record.devices.map(row => [row.outcome, row.apnsStatus, row.apnsId, row.errorReason]), [
+    ['accepted', 200, apnsId, null], ['rejected', 400, apnsId, 'APNS_HTTP_400_BADDEVICETOKEN'], ['unknown', null, null, 'APNS_TIMEOUT'],
+  ])
+  assert.equal(calls.length, 3)
+  assert.equal(reports.length, 2)
+  const directory = join(root, 'state/update-push-attempts')
+  assert.deepEqual(await readdir(directory), [`${record.attemptId}.json`])
+  const saved = JSON.parse(await readFile(join(directory, `${record.attemptId}.json`), 'utf8'))
+  assert.equal(saved.devices.length, 3)
+  const exposed = JSON.stringify([page, saved, reports])
+  assert(!exposed.includes('PRIVATE_'))
+  for (const token of calls) assert(!exposed.includes(token))
+  const selected = service.status({ attemptId: record.attemptId, deviceOffset: 1 }).updateAttempts.items[0]
+  assert.equal(selected.devices[0].device, 2)
+})
+
+test('update receipt write failure never blocks sending and not-configured or zero-device attempts stay explicit', async t => {
+  const { root, service, provider } = await fixture(t)
+  await writeFile(join(root, 'state/update-push-attempts'), 'existing state')
+  let sent = 0
+  provider.send = async () => { sent++; return { apnsStatus: 200, apnsId: null } }
+  service.publish({ kind: 'update', id: 'd'.repeat(64) })
+  await service.close()
+  assert.equal(sent, 1)
+  assert.equal(service.status().updateAttemptStorageError, 'PUSH_ATTEMPT_SAVE_FAILED')
+  assert.equal(await readFile(join(root, 'state/update-push-attempts'), 'utf8'), 'existing state')
+  await rm(join(root, 'state/update-push-attempts'))
+  await service.configure({ enabled: false, relayUrl: '' })
+  service.publish({ kind: 'update', id: 'e'.repeat(64) })
+  await service.close()
+  assert.equal(service.status().updateAttempts.items[0].errorReason, 'PUSH_NOT_CONFIGURED')
+  await service.configure({ enabled: true, relayUrl: '' })
+  await service.unregister(device)
+  service.publish({ kind: 'update', id: 'a'.repeat(64) })
+  await service.close()
+  assert.equal(service.status().updateAttempts.items[0].errorReason, 'PUSH_NO_REGISTERED_DEVICES')
+  assert.equal(sent, 1)
+})
+
+test('update receipt timeout has no invented APNs response and sends only once', async () => {
+  let requests = 0
+  const connection = new EventEmitter()
+  connection.setTimeout = () => {}
+  connection.request = () => {
+    requests++
+    const stream = new EventEmitter()
+    stream.setEncoding = () => {}
+    stream.setTimeout = (_milliseconds, callback) => queueMicrotask(callback)
+    stream.close = () => {}
+    stream.end = () => {}
+    return stream
+  }
+  const provider = await apnsProvider({ open: () => connection })
+  await assert.rejects(provider.send(device, { aps: {} }, 'receipt'), { code: 'APNS_TIMEOUT', apnsStatus: null, apnsId: null })
+  assert.equal(requests, 1)
+})
+
+test('update receipt keeps preflight rejection and receipt-less relay acceptance distinct from an APNs send', async t => {
+  const { service, provider } = await fixture(t)
+  provider.send = async () => { throw Object.assign(new Error('PRIVATE_TRANSACTION'), { code: 'SUBSCRIPTION_REQUIRED' }) }
+  service.publish({ kind: 'update', id: 'd'.repeat(64) })
+  await service.close()
+  let result = service.status().updateAttempts.items[0]
+  assert.equal(result.sentAt, null)
+  assert.equal(result.devices[0].outcome, 'not_sent')
+  assert.equal(result.devices[0].errorReason, 'SUBSCRIPTION_REQUIRED')
+  provider.send = async () => {}
+  service.publish({ kind: 'update', id: 'e'.repeat(64) })
+  await service.close()
+  result = service.status().updateAttempts.items[0]
+  assert.equal(result.sentAt, null)
+  assert.equal(result.devices[0].outcome, 'unknown')
+  assert.equal(result.devices[0].apnsStatus, null)
+  assert.equal(result.devices[0].errorReason, 'APNS_RECEIPT_UNAVAILABLE')
+})
 
 async function apnsProvider(options) {
   const { privateKey } = await generateKeyPair('ES256')

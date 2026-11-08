@@ -69,7 +69,9 @@ function completionFailureReport(botId, error, context) {
     step: ['answer', 'delivered', 'turn_end'].includes(context?.step) ? context.step : 'other' }
   for (const key of ['jobId', 'groupId']) if (uuid.test(context?.[key] ?? '')) detail[key] = context[key]
   const code = returnedExecutionError(error?.executionError)?.code ?? error?.code
-  const token = String(error?.message ?? '').match(/^(AITERM_[A-Z0-9_]{1,96})\b/u)?.[1]
+  // Aiterm tool errors arrive as "aiterm: <CODE>: <text>"; only the code token is kept.
+  const token = String(error?.message ?? '').match(/^(?:aiterm: )?((?:AITERM_)?[A-Z][A-Z0-9_]{2,96}):/u)?.[1]
+    ?? String(error?.message ?? '').match(/^(AITERM_[A-Z0-9_]{1,96})\b/u)?.[1]
   detail.errorCode = typeof code === 'string' && /^[A-Z][A-Z0-9_]{0,99}$/u.test(code) ? code : token ?? 'UNKNOWN'
   const request = mcpRequestContext(error)
   if (request) detail.mcp_request = request

@@ -275,13 +275,16 @@ export function createExecutionGeneration({ ports, loadFactory, onAdopt, backgro
     }
     state('closed')
   })()
-  return Object.freeze({ start, replace, reserve, snapshot, close,
+  const api = Object.freeze({ start, replace, reserve, snapshot, close,
     dispatch(request) {
       try {
+        if (!available && !closed && !(readable && request?.method === 'transport.runningBots'))
+          return recovery.hold(() => api.dispatch(request), () => fail('NOT_ACCEPTING'))
         const target = !available && readable && !closed && request?.method === 'transport.runningBots' ? readable : requireCurrent()
         return track(target.engine.dispatch(request))
       } catch (error) { return Promise.reject(error) }
     },
     project(request) { return (!available && readable && !closed ? readable : requireCurrent()).engine.project(request) },
   })
+  return api
 }

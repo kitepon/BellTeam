@@ -3,6 +3,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { importPKCS8, SignJWT } from 'jose'
 import { isSupportedServerURL } from './server-address.mjs'
+import { UpdatePushAttempts, apnsReceipt, jstNow, updatePushReason } from './update-push-attempts.mjs'
 
 export const APNS_IDLE_TIMEOUT_MS = 5 * 60 * 1000
 
@@ -17,6 +18,7 @@ export class PushNotifications {
     this.devices = new Map()
     this.saving = Promise.resolve()
     this.inflight = new Set()
+    this.updateAttempts = new UpdatePushAttempts(root)
   }
 
   async initialize() {
@@ -37,11 +39,12 @@ export class PushNotifications {
         this.devices.set(device.token, device)
       }
     } catch (error) { if (error.code !== 'ENOENT') throw error }
+    await this.updateAttempts.initialize()
   }
 
-  status() {
+  status(options) {
     return { configured: Boolean(this.provider), environments: this.provider?.environments ?? [],
-      ...(this.error ? { error: this.error } : {}) }
+      ...(this.error ? { error: this.error } : {}), ...this.updateAttempts.status(options) }
   }
 
   async configure({ enabled, relayUrl }) {
@@ -113,6 +116,12 @@ export class PushNotifications {
   }
 
   publish(event) {
+    if (event.kind === 'update') {
+      const task = this.publishUpdate(event).catch(() => process.stderr.write('BellTeam: 更新通知の記録を完了できませんでした (PUSH_ATTEMPT_SAVE_FAILED)\n'))
+      this.inflight.add(task)
+      void task.finally(() => this.inflight.delete(task))
+      return
+    }
     if (!this.provider) return
     const provider = this.provider
     let failed = false
@@ -131,6 +140,40 @@ export class PushNotifications {
       .catch(error => process.stderr.write(`BellTeam: 通知の診断または登録の更新に失敗しました (${error.code ?? 'PUSH_STATE_FAILED'})\n`))
     this.inflight.add(task)
     void task.finally(() => this.inflight.delete(task))
+  }
+
+  async publishUpdate(event) {
+    const provider = this.provider, devices = [...this.devices.values()]
+    const attempt = this.updateAttempts.create(event.id, devices, Boolean(provider))
+    const save = async () => {
+      if (!await this.updateAttempts.save(attempt)) {
+        try { await this.recordFailure({ code: 'PUSH_ATTEMPT_SAVE_FAILED' }) }
+        catch { process.stderr.write('BellTeam: 更新通知の保存失敗を診断できませんでした (PUSH_DIAGNOSTIC_FAILED)\n') }
+      }
+    }
+    await save()
+    if (provider) await Promise.all(devices.map(async (device, index) => {
+      const result = attempt.devices[index]
+      try {
+        Object.assign(result, apnsReceipt(await provider.send(device, notificationPayload(event, device.server), event.id)))
+        result.outcome = result.apnsStatus === 200 ? 'accepted' : 'unknown'
+        if (result.apnsStatus === null) result.errorReason = 'APNS_RECEIPT_UNAVAILABLE'
+      } catch (error) {
+        Object.assign(result, apnsReceipt(error))
+        result.errorReason = updatePushReason(error.code)
+        result.outcome = result.apnsStatus !== null && result.apnsStatus !== 200 ? 'rejected'
+          : ['PUSH_ENVIRONMENT_UNAVAILABLE', 'SUBSCRIPTION_REQUIRED', 'PUSH_NOT_CONFIGURED'].includes(error.code) ? 'not_sent' : 'unknown'
+        try {
+          if (error.code === 'APNS_UNREGISTERED') await this.unregister(device)
+          else await this.recordFailure(error)
+        } catch { process.stderr.write('BellTeam: 更新通知の診断または登録を保存できませんでした (PUSH_STATE_FAILED)\n') }
+      }
+      if (result.sentAt && (!attempt.sentAt || result.sentAt < attempt.sentAt)) attempt.sentAt = result.sentAt
+    }))
+    if (attempt.state === 'pending') attempt.state = 'completed'
+    attempt.completedAt = jstNow()
+    await save()
+    if (provider && !attempt.devices.some(row => row.errorReason) && !this.updateAttempts.writeError) this.error = null
   }
 
   async recordFailure(error, report = 'SERVER_PUSH_SEND_FAILED') {
@@ -275,24 +318,27 @@ export class APNsProvider {
       this.connections.set(device.environment, opened)
       connection = opened
     }
-    await new Promise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       const request = connection.request({ ':method': 'POST', ':path': `/3/device/${device.token}`,
         authorization: `bearer ${token}`, 'apns-topic': this.config.topic,
         'apns-push-type': 'alert', 'apns-priority': '10', 'apns-collapse-id': id,
         'apns-expiration': String(now + 86400) })
-      let status, response = ''
-      request.on('response', headers => { status = headers[':status'] })
+      const sentAt = jstNow()
+      let status, apnsId, response = ''
+      const receipt = () => apnsReceipt({ sentAt, apnsStatus: status, apnsId })
+      const fail = code => reject(Object.assign(pushError(code), receipt()))
+      request.on('response', headers => { status = headers[':status']; apnsId = headers['apns-id'] })
       request.setEncoding('utf8')
       request.on('data', chunk => { response += chunk })
-      request.on('error', () => reject(pushError('APNS_CONNECTION_FAILED')))
-      request.setTimeout(15000, () => { request.close(); reject(pushError('APNS_TIMEOUT')) })
+      request.on('error', () => fail('APNS_CONNECTION_FAILED'))
+      request.setTimeout(15000, () => { request.close(); fail('APNS_TIMEOUT') })
       request.on('end', () => {
-        if (status === 200) return resolve()
-        if (status === 410) return reject(pushError('APNS_UNREGISTERED'))
+        if (status === 200) return resolve(receipt())
+        if (status === 410) return fail('APNS_UNREGISTERED')
         let reason
         try { reason = JSON.parse(response).reason } catch { /* HTTPステータスを診断へ残す。 */ }
         const detail = typeof reason === 'string' && /^[A-Za-z]+$/u.test(reason) ? `_${reason.toUpperCase()}` : ''
-        reject(pushError(`APNS_HTTP_${status ?? 'UNKNOWN'}${detail}`))
+        fail(`APNS_HTTP_${status ?? 'UNKNOWN'}${detail}`)
       })
       request.end(JSON.stringify(payload))
     })

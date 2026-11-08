@@ -10,10 +10,11 @@ const waitRelease = name => new Promise(resolve => {
   const watcher = watch(root, () => { void access(join(root, name)).then(() => { watcher.close(); resolve() }, () => {}) })
   void access(join(root, name)).then(() => { watcher.close(); resolve() }, () => {})
 })
-const provider = ['provider', 'both-providers'].includes(mode) ? { environments: ['production'], close() {},
+const provider = ['provider', 'both-providers', 'receipt-provider'].includes(mode) ? { environments: ['production'], close() {},
   async send(device, payload, id) {
     await appendFile(join(root, 'sent.jsonl'), JSON.stringify({ id, payload }) + '\n')
-    if (id === 'slow') await waitRelease('release')
+    if (id === 'slow' || mode === 'receipt-provider') await waitRelease('release')
+    if (mode === 'receipt-provider') return { apnsStatus: 200, apnsId: '11111111-2222-3333-4444-555555555555' }
   } } : undefined
 const webPushProvider = mode === 'both-providers' ? { async send(_subscription, payload) {
   await appendFile(join(root, 'web-sent.jsonl'), payload + '\n')

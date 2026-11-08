@@ -32,6 +32,8 @@ flowchart LR
 
 ## Kの子終了診断callbackの転送
 
+The 2026-11-08 additive APNs status and saved update-attempt state contract is canonical in [update-push.md](update-push.md#saved-apns-update-attempt-receipts-2026-11-08). The selected notification child owns its new receipt directory and existing inflight/saving drain. The existing parent IPC status validator is closed and MUST be extended compatibly in an authorized body release before this module can expose receipts; authenticated HTTP forwarding needs no new route. Molly owns the parent contact. This supersedes the historical preparation note below that excluded a persistent receipt ledger for update notifications.
+
 ```mermaid
 flowchart LR
   Assembly[integration application-services] -->|同じonModuleChildExit関数| Facade[usage createNotifications]

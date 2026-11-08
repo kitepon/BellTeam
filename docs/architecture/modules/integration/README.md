@@ -713,6 +713,8 @@ flowchart LR
 
 ## 正式候補の通知
 
+L-1 receipt read contact (2026-11-08, parent owner Molly): existing authenticated GET `/api/notifications` forwards optional `attemptId`, `before`, `deviceOffset` to the existing APNs status request. The parent validates the existing configured/environments/error fields and option shapes, accepts additive plain JSON status/attempt/device fields, and forwards them unchanged within the existing 64KiB IPC envelope. Notification-child projection owns secret redaction and receipt paging/storage. Canonical contract: [usage update receipts](../usage/update-push.md#saved-apns-update-attempt-receipts-2026-11-08). Parent compatibility must ship in the next authorized body before the new notifications module; no new read route, notification send or update POST is added by this contact.
+
 ```mermaid
 flowchart LR
   Runtime[既runtime start / close] --> Read[共通Updateを初回と60秒毎に読取]

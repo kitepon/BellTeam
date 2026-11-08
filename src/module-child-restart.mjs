@@ -1,4 +1,8 @@
 // Only lifecycle recovery is retried; accepted business requests are never replayed.
+// A request arriving between children waits for the next usable state instead of being refused (Owner 2026-11-08).
+// Self-exits: running() (exchange success, rollback, recovery) or close(); the bound covers a module that stays down.
+export const MODULE_HOLD_MS = 60000
+
 export function createModuleChildRestart(restart, component = null, onModuleRestartLimit) {
   let timer = null, closed = false, delay = 1000, healthySince = null, attempting = false, state = null
   let quietTimer = null, reported = false, attempts = [], lastExit = { code: null, signal: null }, lastReason = 'recovery_failed'
@@ -66,6 +70,16 @@ export function createModuleChildRestart(restart, component = null, onModuleRest
       lastReason = 'process_exit'
     },
     wait: () => state === 'available' || closed ? Promise.resolve() : new Promise(resolve => waiters.add(resolve)),
+    // retry runs once after the next running()/close(); refuse() is the old refusal, used when closed or after the bound.
+    hold(retry, refuse) {
+      if (closed) return Promise.reject(refuse())
+      return new Promise((resolve, reject) => {
+        // A timed-out waiter leaves the set: its caller already has the refusal, so a later running() must not run it.
+        const waiter = () => { clearTimeout(timer); Promise.resolve().then(retry).then(resolve, reject) }
+        const timer = setTimeout(() => { waiters.delete(waiter); reject(refuse()) }, MODULE_HOLD_MS); timer.unref?.()
+        waiters.add(waiter)
+      })
+    },
     close() { closed = true; clearTimeout(timer); clearQuiet(); timer = null; transition('closed'); wake() },
   }
 }
@@ -161,7 +175,9 @@ export function reportModuleChildExit(component, { code, signal }, observation, 
   try {
     const value = { schema: 'bellteam.module-child-exit.v1', component, exitCode, signal,
       stderrCodes: observation.stderrCodes, reason: observation.reason, stderrBytes: observation.stderrBytes,
-      stderrTruncated: observation.stderrTruncated, stderrTail: observation.stderrTail }
+      stderrTruncated: observation.stderrTruncated, stderrTail: observation.stderrTail,
+      // The child's own closed exit-origin line (conversation only); absent when the child wrote none.
+      ...(component === 'conversation' && observation.childExitOrigin ? { childExitOrigin: { ...observation.childExitOrigin } } : {}) }
     Promise.resolve(onModuleChildExit(value)).catch(() => {})
   } catch {}
 }

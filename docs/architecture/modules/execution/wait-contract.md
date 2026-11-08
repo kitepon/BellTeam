@@ -68,7 +68,7 @@ flowchart LR
   Tracking["配送の待機例外 / watch追跡故障"] --> Report
   Tracking --> Snapshot["配送wait例外の取得時<br/>job/group ID・停止要求・stopped・signal.aborted"]
   Snapshot --> Report
-  Accepted["受理後の終端前失敗<br/>（回答読取・delivered通知・turn終了callback等）"] --> Step["delivery_completion<br/>job/group ID・到達step・安全code・MCP要求文脈"]
+  Accepted["受理後の終端前失敗<br/>（回答読取・delivered通知・turn終了callback等）"] --> Step["delivery_completion<br/>job/group ID・到達step・安全code（AITERM_ / aiterm: CODE:）・MCP要求文脈"]
   Step --> Report
   Report --> Hook["reportError注入接点"]
   Hook --> Diagnostics["integration.Diagnostics.record / BugHub"]
@@ -80,6 +80,21 @@ reportErrorは任意constructor引数。設定失敗は`SERVER_MODEL_CONFIGURATI
 `delivery_wait`だけ、例外を取得した時点の`jobId`・`groupId`（UUID表記のみ）、`stopRequested`・`stopped`・`waitAborted`（booleanのみ）を任意fieldとして加える。groupIdはjob.info.groupIdで、直接配送のdelivery ID、部屋では共有メッセージID。jobIdとbotIdで部屋の対象を区別する。欠測値を作らず、job全体・receipt・signal.reasonは渡さない。値はinterim停止やjob.failureのawait前に取得し、後からの停止状態へ置換しない。watch/設定には文脈を加えない。既caller・export・設定・会話保存schemaは不変で、共通writerは従来のdiagnostic_log JSONを保存する。
 
 `delivery_completion`（2026-11-08追加）は、受理済みの配送が終端前に失敗した時だけ一件出す（待機自体の失敗は既`delivery_wait`が出すので重ねない）。`jobId`・`groupId`、到達した`step`（`answer`/`delivered`/`turn_end`/`other`の固定値）、`errorCode`（大文字snake形式の元code、または`AITERM_`で始まる例外messageの先頭token）、存在する`mcp_request`（既`mcpRequestContext`の射影）だけを持つ。`turnCompleted`でも省かない。理由: 会話側の`status`段の診断は配送stage（BOT_SEND_FAILED等）しか受け取らず、12:47 JSTのOwner配送（turnは正常終了）が原因欠測のnullだけで残ったため。分類・再送・会話保存は変えない。
+
+Aiterm returns tool errors as text `aiterm: <message>`. A code token in the form `aiterm: <CODE>: …` (e.g. `AGENT_SEND_BUSY`, and the transcript codes below) is also taken as `errorCode`. Free text is still excluded (2026-11-08 7681ba25: the first natural output had `step answer` with `errorCode UNKNOWN` because Aiterm's refusal carried no code).
+
+### Answer read bound to the delivered input (2026-11-08)
+
+```mermaid
+flowchart LR
+  Send["pty_send dispatch receipt<br/>input_id (Claude)"] --> Wait["completion of that turn"]
+  Wait --> Read["readTurnAnswer<br/>pty_read agent_transcript + input_id"]
+  Next["next input to the same seat<br/>(Owner, room, parent delivery)"] -.->|"no longer changes the target"| Read
+  Read -->|"text of that input's turn"| Answer["delivered answer"]
+  Read -->|"aiterm: AITERM_TRANSCRIPT_INPUT_PENDING / _REPLACED / TRANSCRIPT_*"| Fail["delivery_completion errorCode"]
+```
+
+Cause (7681ba25 / 95f155b7, bot-d0c6b7d9 14:34 JST): the unbound read means "the seat's latest turn". The Owner's next message started a new Claude turn 0.5 s after the answered turn ended (done 05:34:45.509Z, next input 05:34:45.988Z). Aiterm refused the read because the new turn was still active, although the answer existed. The delivery became BOT_SEND_FAILED. The read now passes the dispatch receipt's `input_id` when it is a 32-hex Claude input ID. Steer and non-Claude receipts carry none and keep today's read (Codex already binds by `turn_id`). The bound read and its codes are an Aiterm public addition requested from Elegg (`AITERM_TRANSCRIPT_INPUT_PENDING`, `AITERM_TRANSCRIPT_INPUT_REPLACED`). An Aiterm without it strips the unknown argument and behaves as before. No retry, wait or new guard is added. Fixture: `test/answer-input-bound.test.mjs`.
 
 `stopped`はBellTeam jobの扱い、`waitAborted`は待機signalの状態であり、nativeの停止完了証明ではない。停止操作の正規返却後に待機をabortすると、その例外も最終job.failureより前にこの診断へ届く。診断のcode・重大度・集約key・保存件数・再送抑止をこの識別追加では変えない。旧診断の原因や操作相関は遡って補完しない。合成の直接fixtureは`test/delivery-wait-diagnostic-context.test.mjs`。
 

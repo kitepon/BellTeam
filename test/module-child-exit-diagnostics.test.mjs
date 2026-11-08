@@ -44,7 +44,8 @@ test('child exit uses one writer, six component aggregates, restore and authenti
   const first = await writer.record(report)
   assert.equal(JSON.parse(await readFile(path, 'utf8'))[0].diagnostic_log, report.diagnostic_log)
   await writer.setStatus(first.fingerprint, 'resolved')
-  const latest = { ...observation(), reason: 'unknown', stderrTail: [], stderrCodes: [], signal: 'SIGKILL', stderrBytes: 0, stderrTruncated: false }
+  const latest = { ...observation(), reason: 'unknown', stderrTail: [], stderrCodes: [], signal: 'SIGKILL', stderrBytes: 0, stderrTruncated: false,
+    childExitOrigin: { origin: 'peer_failure', failureCode: 'CONVERSATION_IPC_INVALID' } }
   const second = await writer.record(moduleChildExitReport(latest))
   assert.equal(second.fingerprint, first.fingerprint)
   assert.equal(second.occurrence_count, 2)
@@ -65,5 +66,17 @@ test('child exit uses one writer, six component aggregates, restore and authenti
   assert.equal(response.status, 200)
   const rows = await response.json()
   assert.deepEqual(rows, restored.list())
+  assert.deepEqual(JSON.parse(rows.find(row => JSON.parse(row.diagnostic_log).component === 'conversation').diagnostic_log).childExitOrigin,
+    { origin: 'peer_failure', failureCode: 'CONVERSATION_IPC_INVALID' })
   assert.ok(rows.every(row => row.category === 'SERVER_MODULE_CHILD_EXITED' && row.module === 'server' && row.severity === 'high'))
+})
+
+test('conversation child exit carries only the closed exit-origin pair', () => {
+  const origin = { origin: 'peer_failure', failureCode: 'CONVERSATION_IPC_INVALID' }
+  assert.equal(validateModuleChildExitDiagnostic({ ...observation(), childExitOrigin: origin }), true)
+  assert.equal(validateModuleChildExitDiagnostic({ ...observation(), childExitOrigin: { origin: 'exit_control', failureCode: null } }), true)
+  for (const childExitOrigin of [null, { origin: 'private' , failureCode: null }, { origin: 'peer_failure', failureCode: 'PRIVATE_TEXT' },
+    { ...origin, message: 'synthetic-private-secret' }, 'peer_failure'])
+    assert.throws(() => moduleChildExitReport({ ...observation(), childExitOrigin }), /DIAGNOSTIC_INVALID/)
+  assert.throws(() => moduleChildExitReport({ ...observation('members'), childExitOrigin: origin }), /DIAGNOSTIC_INVALID/)
 })
