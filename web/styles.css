@@ -80,6 +80,42 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .screen-status { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #9a9aa2; font-size: 11px; }
 .screen-close { flex: none; padding: 6px 12px; border: 0; border-radius: 10px; background: #26262c; color: #fff; font-size: 12px; cursor: pointer; }
 .screen-text { margin: 0; min-height: 0; overflow: auto; padding: 8px 14px 12px; font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre; }
+/* Key bar and approval card: the panel is a terminal, dark in both color schemes. */
+.screen-input { display: grid; grid-template-columns: minmax(0, 1fr); flex: none; gap: 10px; padding: 10px 14px 12px; border-top: 1px solid #26262c; background: #141418; }
+.screen-input[hidden], .screen-approval[hidden] { display: none; }
+.screen-approval { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid #6b5420; border-left: 4px solid #f3b75a; border-radius: 12px; background: #2a2112; }
+.screen-approval-copy { display: grid; flex: 1 1 220px; gap: 2px; min-width: 0; }
+.screen-approval-copy strong { color: #f3b75a; font-size: 13px; }
+.screen-approval-copy span { color: #c9c2b0; font-size: 12px; line-height: 1.6; }
+.screen-approval-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.screen-approve, .screen-deny { min-height: 40px; padding: 8px 16px; border-radius: 10px; font: inherit; font-size: 13px; font-weight: 750; cursor: pointer; }
+.screen-approve { border: 0; background: #f3b75a; color: #1d1608; }
+.screen-deny { border: 1px solid #5a5a63; background: transparent; color: #ececf1; }
+.screen-keys { display: flex; flex-wrap: wrap; gap: 8px 14px; }
+.screen-key-stop { margin-left: auto; }
+.screen-key-group { display: flex; flex-wrap: wrap; gap: 6px; }
+.screen-key { min-width: 40px; min-height: 38px; padding: 6px 10px; border: 1px solid #34343c; border-bottom-width: 3px; border-radius: 10px; background: #1f1f25; color: #ececf1; font: 600 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace; cursor: pointer; }
+.screen-key:hover:not(:disabled) { border-color: #5a5a66; background: #2a2a31; }
+.screen-key:active:not(:disabled) { border-bottom-width: 1px; transform: translateY(2px); }
+.screen-key:disabled, .screen-approve:disabled, .screen-deny:disabled { opacity: .45; cursor: wait; }
+.screen-key-enter { min-width: 72px; border-color: #3d5a2c; background: #23331d; color: #cfe8b5; }
+.screen-key-interrupt { border-color: #6b2a24; background: #2f1714; color: #ff9d8c; font-family: inherit; }
+.screen-input-note { min-height: 0; margin: 0; color: #a9a9b2; font-size: 12px; }
+.screen-input-note:empty { display: none; }
+.screen-input button:focus-visible { outline: 2px solid #f3b75a; outline-offset: 2px; }
+@media (max-width: 640px) {
+  .screen-input { padding: 10px 10px 12px; }
+  .screen-keys { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 8px; }
+  .screen-key-group { flex-wrap: nowrap; gap: 4px; min-width: 0; }
+  .screen-key-moves { grid-column: 1 / -1; grid-row: 1; }
+  .screen-key-digits { grid-column: 1; grid-row: 2; }
+  .screen-key-stop { grid-column: 2; grid-row: 2; margin: 0; }
+  .screen-key-moves .screen-key, .screen-key-digits .screen-key { flex: 1 1 0; min-width: 0; padding: 6px 0; }
+  .screen-key { min-height: 42px; }
+  .screen-key-enter { min-width: 0; }
+  .screen-approval-actions { width: 100%; }
+  .screen-approve, .screen-deny { flex: 1; }
+}
 .chat-header { z-index: 5; min-height: 86px; gap: 12px; border-bottom: 1px solid rgba(236,236,238,.7); background: var(--panel); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px); }
 .back-button { display: none; }
 .chat-profile { display: flex; flex: 1; gap: 12px; align-items: center; min-width: 0; padding: 0; overflow: hidden; border: 0; background: transparent; text-align: left; cursor: pointer; }

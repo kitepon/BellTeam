@@ -1,33 +1,136 @@
-export function createScreenView({ panel, status, text, header, api }) {
-  let owner = null, timer = null, request = 0
+// Closed key set from the execution screen-input contract; labels are what the Owner sees.
+const screenKeys = [['Escape', 'Esc'], ['Tab', 'Tab'], ['Up', '↑'], ['Down', '↓'], ['Left', '←'], ['Right', '→'], ['Enter', 'Enter']]
+const digitKeys = [...'1234567890']
+const keyNames = { Escape: 'Esc', Up: '↑', Down: '↓', Left: '←', Right: '→', 'C-c': '中断（Ctrl+C）' }
+const inputErrors = {
+  SCREEN_SEAT_ABSENT: '席が起動していません。次のメッセージで起動します。',
+  SCREEN_INPUT_FAILED: '届いたか確認できませんでした。画面を見てから、必要ならもう一度押してください。',
+  SCREEN_KEY_INVALID: 'このキーは送れません。',
+  SCREEN_APPROVAL_INVALID: '確認への答えを送れませんでした。画面を見てから、もう一度選んでください。',
+  SCREEN_APPROVAL_CHANGED: '確認の内容が変わりました。最新の内容を表示します。',
+  SCREEN_APPROVAL_UNSUPPORTED: 'このAIの確認には、下のキーで答えてください。',
+}
+const unavailableError = error => error?.code === 'SCREEN_INPUT_UNAVAILABLE' || error?.status === 503
+const approvalValue = value => value?.status === 'approval_required' && typeof value.promptDigest === 'string' && Array.isArray(value.choices)
+  && value.choices.some(choice => ['approve_once', 'deny'].includes(choice?.decision) && typeof choice.label === 'string' && choice.label) ? value : null
+
+export function createScreenView({ panel, status, text, header, api, input = null }) {
+  let owner = null, timer = null, request = 0, reading = null, again = false
+  // Per opened panel: the latest approval read, a hidden bar after 503, the key being sent and the last message.
+  let approval = null, unavailable = false, unsupported = false, busy = null, message = ''
+  const make = (tag, className, value) => { const node = document.createElement(tag); node.className = className; if (value !== undefined) node.textContent = value; return node }
+  const card = input && make('section', 'screen-approval'), keys = input && make('div', 'screen-keys'), note = input && make('p', 'screen-input-note')
+  const keyButtons = []
+  if (input) {
+    note.setAttribute('role', 'status'); note.setAttribute('aria-live', 'polite')
+    const addKey = (parent, key, label, className = 'screen-key') => {
+      const button = make('button', className, label); button.type = 'button'; button.dataset.screenKey = key
+      button.setAttribute('aria-label', `${keyNames[key] ?? key} キーを送る`)
+      button.addEventListener('click', () => { void sendKey(key) }); parent.append(button); keyButtons.push(button)
+    }
+    // 中断 sits in its own group, away from Enter, so it is not hit by accident.
+    const moves = make('div', 'screen-key-group screen-key-moves'), digits = make('div', 'screen-key-group screen-key-digits'), stop = make('div', 'screen-key-group screen-key-stop')
+    for (const [key, label] of screenKeys) addKey(moves, key, label, key === 'Enter' ? 'screen-key screen-key-enter' : 'screen-key')
+    for (const key of digitKeys) addKey(digits, key, key)
+    addKey(stop, 'C-c', '中断', 'screen-key screen-key-interrupt')
+    keys.append(moves, digits, stop)
+    input.replaceChildren(card, keys, note)
+  }
+  function renderInput() {
+    if (!input) return
+    input.hidden = !owner || unavailable
+    for (const button of keyButtons) button.disabled = Boolean(busy)
+    note.textContent = message
+    card.hidden = !approval
+    card.replaceChildren()
+    if (!approval) return
+    const copy = make('div', 'screen-approval-copy')
+    copy.append(make('strong', '', '確認を求めています'), make('span', '', '内容は上の画面で確かめてから答えてください。'))
+    const actions = make('div', 'screen-approval-actions')
+    for (const choice of approval.choices.filter(item => ['approve_once', 'deny'].includes(item?.decision))) {
+      const button = make('button', choice.decision === 'approve_once' ? 'screen-approve' : 'screen-deny', choice.label); button.type = 'button'
+      button.dataset.screenDecision = choice.decision; button.disabled = Boolean(busy)
+      button.addEventListener('click', () => { void answer(choice.decision) }); actions.append(button)
+    }
+    card.append(copy, actions)
+  }
+  function fail(error) {
+    if (unavailableError(error)) { unavailable = true; approval = null; message = ''; return }
+    if (error?.code === 'SCREEN_APPROVAL_UNSUPPORTED') { unsupported = true; approval = null }
+    message = inputErrors[error?.code] ?? '送れませんでした。画面を見てから、必要ならもう一度押してください。'
+  }
+  async function readApproval(bot) {
+    if (!input || unavailable || unsupported) return
+    try {
+      const value = await api(`/api/bots/${bot.id}/screen/approval`)
+      if (owner === bot) approval = approvalValue(value)
+    } catch (error) { if (owner === bot) { approval = null; if (unavailableError(error)) unavailable = true } }
+    if (owner === bot) renderInput()
+  }
+  // One tap is one request; errors are shown, never retried automatically.
+  async function send(path, body, done) {
+    if (!owner || busy) return
+    const bot = owner
+    busy = body.key ?? body.decision; message = ''; renderInput()
+    try {
+      await api(path(bot), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+      if (owner === bot) done()
+    } catch (error) { if (owner === bot) fail(error) }
+    if (owner !== bot) return
+    busy = null; renderInput(); void refresh()
+  }
+  const sendKey = key => send(bot => `/api/bots/${bot.id}/screen/key`, { key }, () => { message = `${keyNames[key] ?? key} を送りました` })
+  const answer = decision => approval && send(bot => `/api/bots/${bot.id}/screen/approval`, { decision, promptDigest: approval.promptDigest },
+    () => { approval = null; message = decision === 'approve_once' ? '今回だけ許可しました' : '拒否しました' })
   function close() {
     owner = null
     request++
-    clearInterval(timer)
+    clearTimeout(timer)
     timer = null
+    reading = null; again = false
     panel.hidden = true
+    approval = null; busy = null; message = ''
+    renderInput()
   }
-  async function refresh() {
+  // One read at a time: a request during a read runs once after it (Owner: 1 s, no overlap).
+  function refresh() {
+    if (!owner) return Promise.resolve()
+    if (reading) { again = true; return reading }
+    const current = reading = (async () => {
+      do { again = false; await readOnce() } while (again && reading === current)
+    })().finally(() => { if (reading === current) reading = null })
+    return current
+  }
+  async function readOnce() {
     if (!owner) return
-    const bot = owner, reading = ++request
+    const bot = owner, token = ++request
+    const asked = readApproval(bot)
     try {
       const result = await api(`/api/bots/${bot.id}/screen`)
-      if (owner !== bot || reading !== request) return
-      status.textContent = result.online ? `${bot.displayName} の画面 · 2秒ごとに更新` : `${bot.displayName} は停止中（次のメッセージで起動）`
+      if (owner !== bot || token !== request) return
+      status.textContent = result.online ? `${bot.displayName} の画面 · 1秒ごとに更新` : `${bot.displayName} は停止中（次のメッセージで起動）`
       const stick = text.scrollHeight - text.scrollTop - text.clientHeight < 24
       text.textContent = result.screen.replace(/\s+$/u, '')
       fit(result.screen)
       if (stick) text.scrollTop = text.scrollHeight
-    } catch { if (owner === bot && reading === request) status.textContent = '画面を読めませんでした' }
+    } catch { if (owner === bot && token === request) status.textContent = '画面を読めませんでした' }
+    await asked
   }
   async function open(bot) {
     close()
     owner = { ...bot }
+    unavailable = false; unsupported = false
     const opened = owner
     panel.style.top = `${header.offsetHeight}px`
     panel.hidden = false
+    renderInput()
     await refresh()
-    if (owner === opened) timer = setInterval(() => { void refresh() }, 2000)
+    tick(opened)
+  }
+  // The next read starts 1 s after the previous one returned.
+  function tick(opened) {
+    if (owner !== opened) return
+    timer = setTimeout(async () => { timer = null; await refresh(); tick(opened) }, 1000)
   }
   // The native screen has 80 columns; measure wide glyphs before fitting the panel.
   function fit(screen) {
