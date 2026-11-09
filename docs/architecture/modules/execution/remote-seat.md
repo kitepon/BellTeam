@@ -98,6 +98,8 @@ stateDiagram-v2
 | Live activity for member cards | `pty_observe` / SeatTurns observations, same schema | current-work, background summary (unchanged) |
 | Session transcript for short-term memory | `transcript.read({sessionName, cursor})` → `{entries: [...jsonl lines], cursor}`; cursor = `{claudeSessionId, offset}` of `~/.claude/projects/<cwd>/<id>.jsonl` on the terminal | Throughline ingest (proposed, Rivalin): execution forwards `{botId, sessionName, launchId, entries, cursor}` after each turn end and after reconnect; Throughline acks the cursor it stored; execution keeps only the last acked cursor in memory |
 
+Completion boundary (Rivalin 2026-11-09, Throughline ADR0002): `transcript.read` returns entries only through the end of the latest turn **the native adapter confirmed complete** for that Claude session (the same completion its `claude_turn` wait reports), never an unfinished tail, including after reconnect. Assistant presence, file mtime or process exit is not completion. Execution calls `transcript.read` only after it holds a native completion for that session; after a mid-turn reconnect it first waits that turn's completion through the bound port, then reads. Byte contract (Rivalin): each entry is a complete original JSONL line with its original line ending; `offset` is the exclusive UTF-8 byte offset; range start = end − Σ byteLength(entries).
+
 Reconnect reads from the last acked cursor, so nothing is duplicated and no delivered input is replayed. The terminal keeps no BellTeam history copy; history stays the conversation module's.
 
 ## Not changed
