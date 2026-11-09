@@ -83,6 +83,10 @@
       "port": "trust"
     },
     {
+      "module": "terminals",
+      "port": "folder"
+    },
+    {
       "module": "usage",
       "port": "secrets"
     }
