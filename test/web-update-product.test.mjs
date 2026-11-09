@@ -115,6 +115,15 @@ test('failures appear as a plain-words banner; codes stay out of the normal surf
   assert.match(r.text(), /更新情報を取得できません/); assert.ok(r.control('recheck')); assert.equal(r.control('retry'), undefined); assert.doesNotMatch(r.text(), /NETWORK_DOWN/)
 })
 
+test('a kept swap with a failed Aiterm state step says the new version runs and names the step', async t => {
+  const { value, plan } = example(), item = value.components[0]
+  value.jobs = [job(item.id, 'failed', 5, { code: 'HOST_UPDATE_AITERM_STATE_FAILED', message: 'x' })]
+  item.comparison = { state: 'up_to_date', reason: null }; item.status = componentStatus(item, value.jobs)
+  assert.equal(cardState(item, value.jobs).badge, '失敗')
+  const f = fixture(t, value, plan); await f.center.start()
+  assert.match(f.text(), /新しい版で動いていますが、席の状態を整える手順で失敗しました/); assert.doesNotMatch(f.text(), /元の版/)
+})
+
 test('save failure and unsupported plan are visible and never send Start', async t => {
   const { value, plan } = example(), f = fixture(t, value, plan, { failSave: true })
   await f.center.start(); f.control('card-' + plan.componentId).handlers.click(); await settle(); f.control('execute').handlers.click(); await settle()
