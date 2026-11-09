@@ -73,3 +73,24 @@ test('delete acceptance remains pending; read-only result confirmation never rep
  present=false;await f.get('verify-bot-deletion').handlers.click()
  assert.equal(f.dialog.open,false);assert.deepEqual(writes,['DELETE']);assert.deepEqual(observations,[false,true,true])
 })
+
+test('model select shows display names while saving ids, and says loading instead of unsupported before /api/models', async t => {
+ const f=editorDOM(t),writes=[];let answer
+ const existing={...bot('a'),model:'fable',reasoningEffort:'high'}
+ const catalog={codex:{...models.codex,models:[{id:'fable',display_name:'Fable 5.2',efforts:['high']},{id:'opus',display_name:'Opus 5.5',efforts:['high']},{id:'claude-opus-5-5',display_name:'Opus 5.5',efforts:['high']},{id:'plain',efforts:['high']}]}}
+ const editor=createBotEditor(f.dialog,{...callbacks,api:async(path,options)=>{
+  if(options?.method){writes.push(JSON.parse(options.body));return{bot:existing}}
+  return path==='/api/models'?new Promise(resolve=>{answer=()=>resolve({models:catalog})}):{bot:existing}
+ }})
+ const opened=editor.open(existing)
+ const labels=id=>f.get(id).children.map(option=>option.textContent)
+ assert.deepEqual(labels('bot-model'),['fable（読み込み中…）'])
+ assert.deepEqual(labels('bot-reasoning-effort'),['high（読み込み中…）'])
+ assert.match(f.get('bot-model-status').textContent,/読み込んでいます/)
+ answer();await opened
+ assert.deepEqual(labels('bot-model'),['CLIの既定','Fable 5.2','Opus 5.5（opus）','Opus 5.5（claude-opus-5-5）','plain','その他（手入力）'])
+ assert.equal(f.get('bot-model').value,'fable')
+ assert.equal(f.get('bot-model-status').textContent,'')
+ await f.submit('bot-form')
+ assert.equal(writes[0].model,'fable')
+})

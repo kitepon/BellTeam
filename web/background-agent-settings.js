@@ -1,3 +1,4 @@
+import { modelChoices } from './view-format.js?v=__ASSET_VERSION__'
 const harnesses = [['claude','Claude Code'],['codex','Codex'],['grok','Grok'],['cursor','Cursor'],['antigravity','Antigravity']]
 const exact = (value, keys) => value && typeof value === 'object' && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value,key))
 function validRecord(value) {
@@ -28,7 +29,7 @@ export function createBackgroundAgentSettings(root, api) {
     if (!opened) return
     const draft=opened.draft, models=candidates(opened), selected=models.find(item=>item.id === draft.model)
     options(harness, [['','ハーネスを選択'],...harnesses], draft.harness)
-    const modelOptions=[['','モデルを選択'],...models.map(item=>[item.id,item.id])]
+    const modelOptions=[['','モデルを選択'],...modelChoices(models)]
     if (draft.model && !selected) modelOptions.push([draft.model,`${draft.model}（現在の候補にありません）`])
     options(model,modelOptions,draft.model)
     const efforts=selected?.efforts ?? [], effortOptions=selected && !efforts.length ? [['','CLIの既定（エフォート指定なし）']] : [['','エフォートを選択'],...efforts.map(value=>[value,value])]

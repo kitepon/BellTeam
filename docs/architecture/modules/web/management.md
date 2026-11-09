@@ -22,7 +22,7 @@ flowchart TD
 | 機能 / app側caller | 実装と主な関数 | 所有・保存後の結果 |
 | --- | --- | --- |
 | Bot作成・編集 / `openBotDialog` | [bot-editor.js](../../../../web/bot-editor.js) `createBotEditor/open/saveBot` | owner.bot、saving、editRevision、avatar。保存時target/bodyを固定。成功後の一覧GET失敗でも返却Bot IDを保持し次の手動保存はPATCH |
-| Botモデル・適用表示 / editor.open | 同上 `renderModelOptions/selectableEfforts/renderEffortOptions/renderBotConfigurationStatus` | models/AbortController。close/reopenで旧読取をabort。保存済み候補外effortは表示に残す。configurationApplicationと希望設定を区別 |
+| Botモデル・適用表示 / editor.open | 同上 `renderModelOptions/selectableEfforts/renderEffortOptions/renderBotConfigurationStatus` | models/AbortController。close/reopenで旧読取をabort。保存済み候補外effortは表示に残す。configurationApplicationと希望設定を区別。候補の表示名は`view-format.js` `modelChoices`（display_name、無ければid、同名はid併記）、保存値はid。`/api/models`応答前（models=null）は保存値だけを「読み込み中」と表示し、未対応と判定しない。読取失敗後は保存値をそのまま表示 |
 | Bot再起動・削除 / editorのbutton | 同上 `restart/remove` → appの`onRestarted/onDeleted/onStatus` | 操作時Botを固定。再起動202と削除202は背景受付。appが一覧・選択を更新する。表示更新失敗でも背景削除の受付と示す |
 | 部屋編集・削除 / `openRoomDialog` | [room-editor.js](../../../../web/room-editor.js) `open/saveRoom/remove/renderRoomRepresentativeOptions` | owner.room、参加者、代表、avatar。代表は選んだ参加者内。保存対象/bodyと再open後の結果所有を保持 |
 | Ownerプロフィール・規範 / `openOwnerDialog` | [owner-editor.js](../../../../web/owner-editor.js) `open/save/renderOwnerLinkRows/addOwnerLinkRow` | 開いたprofile、入力版、saving、avatar。profile PATCH→rules PUTは別要求。部分成功を表示し自動再発行しない |
@@ -122,7 +122,7 @@ flowchart LR
   Saved --> Work[生成状況は既currentWork投影]
 ```
 
-`owner-editor`は専用formのopen/closeと既settings通知を接続する。`background-agent-settings.js`が全体一件のrecord・候補cache・未保存draft・読取世代・保存中を持ち、他Botの設定/要約writerは持たない。全体設定と組合せ検証の正本は[usage](../usage/README.md)、HTTP/モデル一覧は[integration](../integration/README.md)、生成/失効は[execution](../execution/README.md)。公開v1はGET settingsのトップbackgroundAgent、Owner PATCH `/api/settings/backgroundAgent`のexpectedRevision/harness/model/reasoningEffort厳密4key。既FeatureSetting配列へ7項目目を加えない。公開6設定・Ownerプロフィール保存と独立する。
+`owner-editor`は専用formのopen/closeと既settings通知を接続する。モデル候補の表示名はBot編集と同じ`modelChoices`で、保存値はid。`background-agent-settings.js`が全体一件のrecord・候補cache・未保存draft・読取世代・保存中を持ち、他Botの設定/要約writerは持たない。全体設定と組合せ検証の正本は[usage](../usage/README.md)、HTTP/モデル一覧は[integration](../integration/README.md)、生成/失効は[execution](../execution/README.md)。公開v1はGET settingsのトップbackgroundAgent、Owner PATCH `/api/settings/backgroundAgent`のexpectedRevision/harness/model/reasoningEffort厳密4key。既FeatureSetting配列へ7項目目を加えない。公開6設定・Ownerプロフィール保存と独立する。
 
 未供給キー/不正record/取得失敗では編集と保存を無効にする。候補はモデル個別effortsだけを使い、空配列だけ空文字のCLI既定を許す。初期未設定は候補を自動選択しない。保存済み候補外値は残し保存不可。選択変更でPATCHを発行しない。候補はopen/手動再取得時だけ読み、settings通知は設定GETだけを行う。
 
