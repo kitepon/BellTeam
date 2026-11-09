@@ -180,3 +180,19 @@ test('credential replacement during resolution rejects the old callback and sour
   await service.submit(retry.id, { source: 'onepassword', reference })
   assert.equal(service.get(retry.id).status, 'submitted')
 })
+
+test('restored child handles announce initial availability and recover under the parent refresh contract', async t => {
+  const { root, bots, rooms, service } = await fixture(t)
+  const item = await submitted(service), dto = await service.bindCredential(item.id, scope)
+  service.close()
+  const source = fakeSource(); source.available = false; source.failed = true
+  const restored = new SecretRequests({ root, bots, rooms, onePassword: source, credentialRetryMs: 0, notify() {} })
+  t.after(() => restored.close())
+  const events = []; restored.watchCredentials(event => events.push(event))
+  await restored.initialize({ readOnly: true })
+  assert.deepEqual(await restored.credentials.refreshAvailability(), { recoveryNeeded: true })
+  assert.deepEqual(events.at(-1), { ...dto, available: false, reason: 'availability' })
+  source.failed = false; source.connected(true)
+  assert.deepEqual(await restored.credentials.refreshAvailability(), { recoveryNeeded: false })
+  assert.deepEqual(events.at(-1), { ...dto, available: true, reason: 'availability' })
+})

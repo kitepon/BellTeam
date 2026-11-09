@@ -40,6 +40,8 @@ export class SecretCredentials {
   #events = new EventEmitter()
   #tail = Promise.resolve()
   #retry
+  #announced = new Set()
+  #recovery
   #closed = false
   constructor({ root, getRequest, onePassword = createOnePasswordSource(), providers = {}, retryMs = 60000 }) {
     this.sourceDirectory = join(root, 'state/secret-sources')
@@ -49,6 +51,7 @@ export class SecretCredentials {
     this.onePassword = onePassword
     this.retryMs = retryMs
     this.#providers = new Map(Object.entries(providers))
+    this.onePassword.watch(() => this.#publishRecovery())
   }
 
   async initialize({ readOnly = false } = {}) {
@@ -73,6 +76,16 @@ export class SecretCredentials {
 
   inputOptions() { return { preferred: this.onePassword.available ? 'onepassword' : 'stored', onePasswordAvailable: this.onePassword.available } }
   watch(listener) { this.#events.on('change', listener); return () => this.#events.off('change', listener) }
+  watchRecovery(listener) { this.#events.on('recovery', listener); return () => this.#events.off('recovery', listener) }
+  recoveryState() { return { recoveryNeeded: !this.onePassword.available || [...this.#availability.values()].some(available => !available) } }
+  #publishRecovery() {
+    const state = this.recoveryState()
+    if (!this.#closed && state.recoveryNeeded !== this.#recovery) {
+      this.#recovery = state.recoveryNeeded
+      this.#events.emit('recovery', state)
+    }
+    return state
+  }
   #serialize(operation) {
     const run = this.#tail.then(() => { if (this.#closed) throw error('SECRET_SOURCE_UNAVAILABLE', 503); return operation() })
     this.#tail = run.catch(() => {})
@@ -131,6 +144,7 @@ export class SecretCredentials {
       await this.#save(record, true)
       this.#availability.set(requestId, this.#available(requestId))
       this.#events.emit('change', { ...this.#dto(record), reason: 'revision' })
+      this.#announced.add(record.handle)
       return this.#dto(record)
     })
   }
@@ -143,6 +157,7 @@ export class SecretCredentials {
       await this.#save(next)
       const event = { ...this.#dto(next), reason: 'revision' }
       this.#events.emit('change', event)
+      this.#announced.add(handle)
       return this.#dto(next)
     })
   }
@@ -150,9 +165,13 @@ export class SecretCredentials {
     if (this.#closed) return
     const before = this.#available(requestId)
     this.#availability.set(requestId, available)
-    if (before !== available) for (const record of this.#handles.values()) {
-      if (record.requestId === requestId) this.#events.emit('change', { ...this.#dto(record), reason: 'availability' })
+    for (const record of this.#handles.values()) {
+      if (record.requestId === requestId && (before !== available || !this.#announced.has(record.handle))) {
+        this.#events.emit('change', { ...this.#dto(record), reason: 'availability' })
+        this.#announced.add(record.handle)
+      }
     }
+    this.#publishRecovery()
     if (!available && this.retryMs > 0 && !this.#retry) {
       this.#retry = setTimeout(() => {
         this.#retry = null
@@ -202,6 +221,11 @@ export class SecretCredentials {
     for (const requestId of pending) {
       try { await this.resolveRequest(requestId) } catch {}
     }
+    for (const record of this.#handles.values()) if (!this.#announced.has(record.handle)) {
+      this.#events.emit('change', { ...this.#dto(record), reason: 'availability' })
+      this.#announced.add(record.handle)
+    }
+    return this.#publishRecovery()
   }
   close() { this.#closed = true; clearTimeout(this.#retry); this.onePassword.close() }
 }

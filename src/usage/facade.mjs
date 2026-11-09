@@ -50,6 +50,7 @@ export function createUsageFacade({ request, projection, toolsDirectory }) {
         try { return await consume(value) } finally { value = null }
       },
       watchCredentials(listener) { events.on('credential', listener); return () => events.off('credential', listener) },
+      watchRecovery(listener) { events.on('credentialRecovery', listener); return () => events.off('credentialRecovery', listener) },
       refreshCredentials: context => call('secrets.refresh', {}, context),
       cancel: (id, context) => call('secrets.cancel', { id }, context),
       withdraw: (id, botId, context) => call('secrets.withdraw', { id }, context),
@@ -70,6 +71,7 @@ export function createUsageFacade({ request, projection, toolsDirectory }) {
     accept(row, generation) {
       projection.accept(row, generation)
       if (row.type === 'credential') events.emit('credential', structuredClone(row.value))
+      if (row.type === 'credentialRecovery') events.emit('credentialRecovery', structuredClone(row.value))
       if (row.type === 'event') {
         if (row.value.topics.includes('requests')) events.emit('secret', structuredClone(row.value))
         if (row.value.topics.includes('questions')) events.emit('question', structuredClone(row.value))

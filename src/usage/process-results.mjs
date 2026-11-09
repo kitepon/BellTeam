@@ -21,7 +21,8 @@ export function usageResultValid(method, value, params = {}) {
   if (method === 'settings.list') return Array.isArray(value) && value.length === 6 && new Set(value.map(item => item?.id)).size === 6 && value.every(usageSettingValid)
   if (method === 'settings.configuration') return usageConfigurationValid(params.id, value)
   if (method === 'settings.update') return usageSettingValid(value) && value.id === params.id
-  if (['settings.setError', 'onboarding.prepareStartup', 'secrets.notifyOwnerGuide', 'secrets.refresh'].includes(method)) return value === null
+  if (['settings.setError', 'onboarding.prepareStartup', 'secrets.notifyOwnerGuide'].includes(method)) return value === null
+  if (method === 'secrets.refresh') return exact(value, ['recoveryNeeded']) && typeof value.recoveryNeeded === 'boolean'
   if (method.startsWith('onboarding.')) return record('onboarding', value)
   if (method === 'auth.list') return record('auth', value)
   if (method.startsWith('auth.')) {

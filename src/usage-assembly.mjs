@@ -67,6 +67,7 @@ export function createUsageAssembly({ root, exchangeMutex, environment = {}, sea
       const results = await Promise.allSettled([nativeCredentials.refresh(), facade.secretRequests.refreshCredentials(systemContext('secrets.refresh'))])
       const failed = results.find(result => result.status === 'rejected')
       if (failed) throw failed.reason
+      return results[1].value
     },
     watch(listener) {
       const child = facade.secretRequests.watchCredentials(listener), native = nativeCredentials.watch(listener)
@@ -74,6 +75,7 @@ export function createUsageAssembly({ root, exchangeMutex, environment = {}, sea
     },
     setNativeProvider: provider => nativeCredentials.setProvider(provider),
     registerNative: (binding, target) => nativeCredentials.register(binding, target),
+    watchRecovery: listener => facade.secretRequests.watchRecovery(listener),
   }
   credentials.watchCredentials = credentials.watch
   controller = createProcess({ root, admission, exchangeMutex, onModuleChildExit, onModuleRestartLimit, authorizeActor: authority.authorizeActor, onState,

@@ -85,7 +85,7 @@ export class NativeSecretCredentials {
     try { status = await this.#status(row) } catch {
       const before = this.#availability.get(row.handle)
       this.#availability.set(row.handle, false)
-      if (before === true) this.#emit(row, 'availability')
+      if (before !== false) this.#emit(row, 'availability')
       throw unavailable()
     }
     if (this.#closed) throw unavailable()
@@ -97,7 +97,7 @@ export class NativeSecretCredentials {
       this.#emit(row, 'revision')
     } else {
       this.#availability.set(row.handle, status.available)
-      if (before !== undefined && before !== status.available) this.#emit(row, 'availability')
+      if (before !== status.available) this.#emit(row, 'availability')
     }
     return { row, status }
   }

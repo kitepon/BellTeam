@@ -21,6 +21,7 @@ export class SecretRequests {
     this.events = new EventEmitter()
     this.credentials = new SecretCredentials({ root, getRequest: id => this.get(id), onePassword, providers: secretProviders, retryMs: credentialRetryMs })
     this.credentials.watch(event => this.events.emit('credential', event))
+    this.credentials.watchRecovery(event => this.events.emit('recovery', event))
     this.credentials.onePassword.watch(() => {
       for (const item of this.items.values()) {
         this.cardTimelines.put(this.get(item.id))
@@ -120,6 +121,7 @@ export class SecretRequests {
   replaceCredential(handle, id, context) { return this.credentials.replace(handle, id, context) }
   withResolved(handle, context, consume) { return this.credentials.withResolved(handle, context, consume) }
   watchCredentials(listener) { this.events.on('credential', listener); return () => this.events.off('credential', listener) }
+  watchRecovery(listener) { this.events.on('recovery', listener); return () => this.events.off('recovery', listener) }
   close() { this.credentials.close() }
 
   async cancel(id) {

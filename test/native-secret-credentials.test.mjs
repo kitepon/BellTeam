@@ -60,3 +60,22 @@ test('native binding keeps capabilities private and recovers durable revisions',
   await assert.rejects(restored.withResolved(dto.handle, context, () => assert.fail()), { code: 'SECRET_SOURCE_UNAVAILABLE' })
   restored.close()
 })
+
+test('restored handle reports initial outage and recovery', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'native-recovery-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const provider = { async status(id) { return { ref: id, target, credential: { provider: 'aiterm.native-ssh-key.v1', revision: revision(1), available: true } } } }
+  const initial = new NativeSecretCredentials({ root }); initial.setProvider(provider)
+  const dto = await initial.register({ ref, target }, scope)
+  initial.close()
+  const restored = new NativeSecretCredentials({ root })
+  await restored.ready()
+  const events = []; restored.watch(event => events.push(event))
+  await restored.refresh()
+  assert.deepEqual(events, [{ ...dto, available: false, reason: 'availability' }])
+  restored.setProvider(provider)
+  await restored.refresh()
+  assert.deepEqual(events.at(-1), { ...dto, reason: 'availability' })
+  assert.equal(events.length, 2)
+  restored.close()
+})

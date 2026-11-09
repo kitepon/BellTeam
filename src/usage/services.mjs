@@ -166,6 +166,7 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
   const baseProjection = () => [{ ...settingsProjection() }, { type: 'onboarding', value: onboarding.snapshot() }, { type: 'auth', value: harnessAuth.list() }, { type: 'subscription', value: subscriptions.status() }]
   secretRequests.watch(event => { if (initialized) publish({ type: 'event', value: event }) })
   secretRequests.watchCredentials(value => { if (initialized) publish({ type: 'credential', value }) })
+  secretRequests.watchRecovery(value => { if (initialized) publish({ type: 'credentialRecovery', value }) })
   ownerQuestions.watch(event => publish({ type: 'event', value: event }))
   const dispatch = (method, params, actor) => {
     return track(() => effectScope.run({ effects: new Set() }, async () => {

@@ -36,6 +36,7 @@ export function usageProjectionRecordValid(row) {
   }
   if (!keys(row, ['type', 'revision', 'value']) || !object(row.value)) return false
   const item = row.value
+  if (row.type === 'credentialRecovery') return keys(item, ['recoveryNeeded']) && typeof item.recoveryNeeded === 'boolean'
   if (row.type === 'credential') return keys(item, ['handle', 'revision', 'available', 'reason'])
     && credentialDtoValid({ handle: item.handle, revision: item.revision, available: item.available }) && ['revision', 'availability'].includes(item.reason)
   if (row.type === 'secret') return keys(item, ['id', 'botId', 'roomId', 'toolId', 'label', 'message', 'at', 'status'], ['path', 'notification', 'withdrawn', 'inputOptions'])
@@ -64,7 +65,7 @@ export function usageProjectionRecordValid(row) {
 export function createUsageProjection({ bots }) {
   let generation = null, staging = null, current = null, revision = -1, bootstrap = null, bootstrapGeneration = null
   const seenGenerations = new Set()
-  const records = new Set(['settings', 'onboarding', 'auth', 'subscription', 'secret', 'question', 'event', 'credential'])
+  const records = new Set(['settings', 'onboarding', 'auth', 'subscription', 'secret', 'question', 'event', 'credential', 'credentialRecovery'])
   const empty = () => ({ settings: null, onboarding: null, auth: null, subscription: null, secrets: new Map(), questions: new Map(),
     secretTimeline: new CardTimelines(bots, 'secret_request'), questionTimeline: new CardTimelines(bots, 'owner_question') })
   const copy = value => structuredClone(value)
@@ -81,7 +82,7 @@ export function createUsageProjection({ bots }) {
       if (!Array.isArray(row.list) || !row.configurations || row.list.length !== 6
         || row.list.some(item => typeof item.id !== 'string' || !Object.hasOwn(row.configurations, item.id))) throw usageError('USAGE_PROJECTION_INVALID')
       state.settings = copy(row)
-    } else if (!['event', 'credential'].includes(row.type)) {
+    } else if (!['event', 'credential', 'credentialRecovery'].includes(row.type)) {
       if (!row.value || typeof row.value !== 'object') throw usageError('USAGE_PROJECTION_INVALID')
       state[row.type] = copy(row.value)
     }
