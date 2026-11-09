@@ -65,6 +65,18 @@
     {
       "module": "runtime",
       "port": "module-runner"
+    },
+    {
+      "module": "terminals",
+      "port": "registry"
+    },
+    {
+      "module": "terminals",
+      "port": "reachability"
+    },
+    {
+      "module": "terminals",
+      "port": "connection"
     }
   ],
   "source": [
@@ -113,6 +125,10 @@
     "src/background-summary-assembly.mjs",
     "src/json-file.mjs",
     "src/work-graph-facade.mjs",
-    "src/http-accounts-api.mjs"
+    "src/http-accounts-api.mjs",
+    "src/seat-credentials.mjs",
+    "src/http-terminals-api.mjs",
+    "src/terminals-mcp.mjs",
+    "src/secret-credential-refresh.mjs"
   ]
 }

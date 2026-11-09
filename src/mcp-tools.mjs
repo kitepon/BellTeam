@@ -8,6 +8,7 @@ import { memberReadTools, memberWriteTools, callMemberTool } from './members/pro
 
 export { resolveBotImagePath } from './bot-image-path.mjs'
 import { deleteBotTool, runDeleteBotTool } from './members/deletion.mjs'
+import { terminalTools, callTerminalTool } from './terminals-mcp.mjs'
 
 export const bellTeamTools = Object.freeze([
   {
@@ -104,6 +105,7 @@ export const bellTeamTools = Object.freeze([
   ...conversationTools,
   ...roomScheduleTools,
   ...bugHubSecurityTools,
+  ...terminalTools,
 ])
 
 // 長期記憶の1件は1つの話にする（2026-10-14 オーナー裁定）。直すたびに前の版へ足して伸びるので、長い物は拒まずに、返りで分ける様に知らせる。
@@ -156,6 +158,7 @@ async function runBellTeamTool(context) {
     return { ...result, bot: { ...result.bot, currentWork: readCurrentWork(context, bot), currentWorkBinding: readCurrentWorkBinding(context.currentWorkBinding, bot) } }
   }
   if (name === 'list_models') return getModels(args.harness)
+  if (terminalTools.some(tool => tool.name === name)) return callTerminalTool({ name, args, terminals: context.terminals })
   if ([...memberReadTools, ...memberWriteTools].some(tool => tool.name === name))
     return callMemberTool({ name, args, from, registry, botView, configure, memory, ownerProfile, userRules })
   if (Object.hasOwn(scheduleToolHandlers, name)) return scheduleToolHandlers[name]({ registry, rooms, from, args })
