@@ -102,7 +102,7 @@ export function createConversationAssembly({ root, membersAdmission, exchangeMut
   }
   const facade = createFacade({ getController: () => ({ ...controller, request: invoke, callback: (method, params, options) => invoke(method, params, options, true) }), context })
   return { controller, admission, moduleOperations, facade, directAssets,
-    captureReceipt(method, input) {
+    captureReceipt(method, input, captureActor) {
       const current = scope.getStore()
       if (!current?.actor) throw denied()
       const params = method === 'call.receive' ? input : { ...input, images: input.images ?? (input.image ? [input.image] : []) }
@@ -112,6 +112,7 @@ export function createConversationAssembly({ root, membersAdmission, exchangeMut
         throw Object.assign(new Error('CONVERSATION_SENDER_FORBIDDEN'), { code: 'CONVERSATION_SENDER_FORBIDDEN', status: 403 })
       if (['onboarding', 'usage'].includes(current.actor.kind) && input.target !== current.actor.botId)
         throw Object.assign(new Error('CONVERSATION_TARGET_FORBIDDEN'), { code: 'CONVERSATION_TARGET_FORBIDDEN', status: 403 })
+      captureActor?.({ ...current.actor })
       return current.parent?.executionSource
     },
     assets: { ...facade.assets, open: createConversationAssetReader({ root }), initialize: () => gate.initialize(),
