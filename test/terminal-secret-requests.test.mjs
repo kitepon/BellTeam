@@ -229,3 +229,19 @@ test('longest valid terminal ID keeps complete SSH and sudo caller labels', asyn
     assert.equal(secretRequest.purpose, purpose)
   }
 })
+
+test('delayed null-delete preserves same-handle native replacement', async t => {
+  const entered = deferred(), released = deferred()
+  const { credentials, binding } = await selectionRaceFixture(t, { 'secrets.revokeTerminalRequests': () => { entered.resolve(); return released.promise } })
+  const original = await credentials.registerNative(binding, scope)
+  const deleting = credentials.unbind(null, scope)
+  await entered.promise
+  const replacement = { ...binding, ref: '1636df5b-a61c-4bba-82f9-95aed6d1583f' }
+  const updated = await credentials.replace(original.handle, replacement, context)
+  assert.equal(updated.handle, original.handle)
+  assert.equal(updated.revision, original.revision + 1)
+  released.resolve(null)
+  assert.equal(await deleting, null)
+  assert.deepEqual(await credentials.current(scope), { ...updated, requestId: null })
+  assert.equal(await credentials.withResolved(updated.handle, { ...context, expectedRevision: updated.revision }, capability => capability.nativeKeyRef), replacement.ref)
+})

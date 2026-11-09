@@ -216,11 +216,12 @@ export class NativeSecretCredentials {
       return this.#dto(next)
     })
   }
-  unbind(handle, scope) {
+  unbind(handle, scope, token) {
     return this.#serialize(async () => {
       scope = normalizeCredentialScope(scope)
       const row = this.#handles.get(handle)
       if (!row || row.terminalId !== scope.terminalId || row.purpose !== scope.purpose) throw error('SECRET_CREDENTIAL_FORBIDDEN', 403)
+      if (token !== undefined && !this.#captureMatches(this.#selectionKey(scope), token)) return this.#dto(row)
       if (row.revoked) { this.#availability.set(handle, false); return this.#dto(row) }
       const next = { ...row, revoked: true }
       await this.#save(next)

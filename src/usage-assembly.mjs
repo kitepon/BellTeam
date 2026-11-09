@@ -77,7 +77,7 @@ export function createUsageAssembly({ root, exchangeMutex, environment = {}, sea
         const captured = await nativeCredentials.captureSelection(target)
         await facade.secretRequests.revokeTerminalRequests(target, systemContext('secrets.revokeTerminalRequests'))
         const selected = captured.selection.credential
-        if (selected && nativeCredentials.owns(selected.handle)) await nativeCredentials.unbind(selected.handle, target)
+        if (selected && nativeCredentials.owns(selected.handle)) await nativeCredentials.unbind(selected.handle, target, captured.token)
         await nativeCredentials.clearSelection(target, captured.token)
         return null
       }
