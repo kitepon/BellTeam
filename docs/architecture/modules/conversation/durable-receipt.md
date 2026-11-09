@@ -62,3 +62,13 @@ This parent-source behavior is activated only with the next approved body-reside
 既executionSourceは親だけの一時参照としてdispatchへ渡し、本文JSONLへ保存しない。process再生成後に元authorityを捏造して復元しない。入力済callback後の実delivered/running追跡と、stale markerに該当しないfailed追跡は後着例外でqueued/unknownへ上書きしない。
 
 親認可・同asset gate・実dispatcher・通常再開・closeの正本は[integration/message-receipt.md](../integration/message-receipt.md)を参照。親callbacksは同writerへ直接保存するため、会話child追跡不明だけで新規AI入力を待たせない。
+
+## Message author capture and history
+
+| Function | Input → persisted/public output | Ownership and limits |
+| --- | --- | --- |
+| Stable direct adapter | Existing validated `captureReceipt(method,input,captureActor?)` supplies the authenticated actor synchronously. Owner → `{kind:'user'}`; Bot → `{kind:'bot',botId}`; other/no actor → `{kind:'unknown'}` for `from=user`. | Shared capture port: Molly. N102 adapter passes authorship as a separate receive option, never as an accepted message-body/MCP field. Original executionSource capture/return remains unchanged. |
+| Durable receive and ordinary Bot writer | Separate trusted `messageAuthor` receipt option → `direct-message.v1.messageAuthor`; normal Bot outputs derive their Bot ID from the existing sender. Interim writer stores its Bot author. | N102. Image/save/status/dispatch inputs stay unchanged. Unknown actor does not stop delivery. Parent body and child optional-record validator must ship together before new child records use the field. |
+| ConversationStore message/peer/interim projection | Author evidence → additive `item.messageAuthor` through existing timeline/page/recent/export/MCP read. Known historical Bot sender → bot; unmarked historical `from=user` → unknown. | No historical rewrite. Existing presentation/IDs/paging/delivery preserved. Unknown is never promoted to user. Belorta's instruction proof reads kind=user explicitly. |
+
+DFD: authenticated HTTP/MCP actor → existing shared capture validation → separate trusted receipt option → existing single parent writer/fsync → canonical direct JSONL → ConversationStore → unchanged timeline/public readers plus messageAuthor. A Bot's `send_user_message` routes with `from=user` but captures the actual Bot actor. New Bot replies and interim/final records flow through their existing writer with Bot author → strict optional child append field → same parent writer. Historical ambiguous user-side records → unknown → readable timeline; no input lock, retry or synthetic identity is introduced.

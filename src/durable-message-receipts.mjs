@@ -36,7 +36,7 @@ export class DurableMessageReceipts extends BellTeamMessenger {
     catch (error) { report(error) }
   }
 
-  async receive(input, { membersLease } = {}) {
+  async receive(input, { membersLease, messageAuthor } = {}) {
     const allowed = ['from', 'target', 'message', 'image', 'images', 'executionSource']
     if (!input || Object.keys(input).some(key => !allowed.includes(key))) fail('MESSAGE_INPUT_INVALID')
     const { from, target, message, images = input.image ? [input.image] : [] } = input
@@ -49,7 +49,7 @@ export class DurableMessageReceipts extends BellTeamMessenger {
     const deliveryId = this.deliveryId()
     if (images.length && !this.assets) fail('IMAGE_STORAGE_REQUIRED')
     const imageAssets = images.length ? await this.assets.saveAll({ owner: from, id: deliveryId, images }) : []
-    const record = { ...this.record({ deliveryId, from, target, message, images, imageAssets,
+    const record = { ...this.record({ deliveryId, from, target, message, images, imageAssets, messageAuthor,
       delivery: target === 'user' ? 'delivered' : 'queued' }), durable_receipt: true }
     if (input.executionSource) this.executionSources.set(deliveryId, input.executionSource)
     try { return await this.saveReceipt(record) }

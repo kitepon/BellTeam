@@ -80,3 +80,11 @@ RoomRegistryのlist/set/remove/mark/read/write予定窓口、schedule-definition
 直接境界の確認先はconversation-module、messenger、mcp-tools/seat-mcp、room-messenger/routing/registry、delivery-recovery、call-bridge-server、message-assets、conversation-store/export、http-server/events、server-history-performance、self-turns/turn-reports、application-runtime、launch-action-required、execution-source。全試験と実席操作を定型の完了条件に加えない。
 
 SelfTurnsの変更検知はThroughline公開observer-checkと既observer-readを使用する。project/checkToken/read cursor/seen/pendingと保存/取消の正本は[自主回答の図](observation.md)。席側runtimeの旧DB/WAL署名窓口もruntime担当の差分で除去し、consumerと同時結合した。Throughline内部のsource解析は製品が所有する。
+
+## Message author contract
+
+The existing direct timeline (`store.timeline`, MCP `list_messages`, HTTP pages/recent/export) adds `messageAuthor: {kind:'user'|'bot'|'unknown', botId?:string}`. `botId` exists exactly for `kind:'bot'`. This records authorship independently of the display `kind`/`direction` and the legacy routing `from`/`target`; those fields and shipped Web/Apple124/125/Windows rendering remain unchanged. A Bot's `send_user_message` still displays as an outgoing user-side bubble but its author is the authenticated Bot. `sendmessage(target=user)`, saved replies, interim words and peer-started final answers identify the writing Bot.
+
+Only a captured authenticated Owner actor marks a new user-side receipt `kind:'user'`. A captured Bot actor marks it `kind:'bot',botId`. Usage/onboarding or uncaptured legacy user-side inputs are `kind:'unknown'`. Historical `from=user` rows lacking this field are unknown because the old log cannot distinguish typed user input from Bot impersonation. Historical Bot outputs/interim words retain their known Bot identity. Do not rewrite historical records or infer user authorship from outgoing direction, message text, display identity or executionSource.
+
+Consumers proving the user's explicit instruction must require `item.kind==='message'`, `item.direction==='outgoing'`, and `item.messageAuthor.kind==='user'`, in addition to their own text/time checks. Unknown is read evidence only, not a send/admission guard. [Writer function and data-flow](durable-receipt.md#message-author-capture-and-history) and [shared authenticated capture](../integration/message-receipt.md) define the connection.

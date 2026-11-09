@@ -76,6 +76,7 @@ export class ConversationWriter {
       await this.append({
         schema: 'bellteam.interim-word.v1', id: this.deliveryId(), at: this.now(),
         bot: botId, group_id: groupId, text: word.text,
+        messageAuthor: { kind: 'bot', botId },
         ...(word.kind === 'error' || word.kind === 'answer' ? { kind: word.kind } : {}),
         ...(word.at ? { written_at: word.at } : {}),
       })
