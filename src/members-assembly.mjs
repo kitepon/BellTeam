@@ -3,7 +3,6 @@ import { join } from 'node:path'
 import { createMembersProcess } from './members-process.mjs'
 import { createMembersFacade } from './members-facade.mjs'
 import { createMembersProjection } from './members-projection.mjs'
-import { withMemberFolderCheck } from './members-folder.mjs'
 import { createMembersRuntimeEffects, MEMBERS_RUNTIME_EFFECT_METHODS } from './members-runtime-effects.mjs'
 import { validateMembersEffect, validateMembersEffectResult } from './members/protocol.mjs'
 
@@ -34,6 +33,17 @@ export function createMembersAssembly({ root, seatRuntime, aiterm, settings, mod
       switch (method) {
         case 'schedules.currentTurn': value = dependencies().scheduleTurns.currentTurn(params.botId); break
         case 'models.read': value = await models.forHarness(params.harness); break
+        // S5 (remote-seat.md): no terminals core, or a core without folder, answers null = not checked.
+        case 'terminals.read': { const terminal = await dependencies().terminals?.registry.get(params.terminalId); value = terminal ? { user: terminal.user } : null; break }
+        case 'terminals.folder': {
+          const core = dependencies().terminals
+          if (typeof core?.folder !== 'function') { value = null; break }
+          try { value = await core.folder(params) } catch (error) {
+            if (error?.code === 'INVALID_PATH') throw Object.assign(new Error('BOT_PROJECT_ROOT_INVALID'), { code: 'BOT_PROJECT_ROOT_INVALID', status: 400 })
+            throw error
+          }
+          break
+        }
         case 'assets.prepareBotAssetRemoval': value = await assets.prepareBotAssetRemoval(params.botId, context.operationContext); break
         case 'assets.cancelBotAssetRemoval': value = assets.cancelBotAssetRemoval(params.botId, params.lease, params.state, context.operationContext); break
         case 'room.schedules.list': value = await rooms.listSchedules(params.roomId, context.operationContext); break
@@ -63,7 +73,6 @@ export function createMembersAssembly({ root, seatRuntime, aiterm, settings, mod
     authorizeOwner: (method, authorization) => membersAuthorization.authorizeOwner(method, authorization),
   })
   facade = createMembersFacade({ request: (method, params, options) => dependencies().conversationAssembly?.memberRequest(method, params, options, (...args) => controller.request(...args)) ?? controller.request(method, params, options), callback: (...args) => controller.callback(...args), admission: membersAdmission, projection })
-  withMemberFolderCheck(facade.bots, () => dependencies().terminals ?? null)
   Object.defineProperty(facade.bots, 'size', { get: () => [...facade.bots.keys()].length })
   facade.bots.projectPath = id => {
     if (typeof id !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(id)) throw new Error('BOT_ID_INVALID')

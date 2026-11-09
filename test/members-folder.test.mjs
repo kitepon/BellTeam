@@ -1,73 +1,76 @@
-import test from 'node:test'
+// S5 folder check on save (docs/architecture/modules/members/remote-seat.md "Folder check on save").
 import assert from 'node:assert/strict'
-import { withMemberFolderCheck, memberFolderSlug } from '../src/members-folder.mjs'
+import test from 'node:test'
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { BotRegistry, memberFolderSlug } from '../src/bot-registry.mjs'
+import { OwnerProfile } from '../src/owner-profile.mjs'
+import { UserRules } from '../src/user-rules.mjs'
+import { createMembersDispatcher } from '../src/members/dispatcher.mjs'
 
-function setup({ reason = null, current = { id: 'bot-a', name: 'ベロータ', terminalId: '', projectRoot: '' }, core = true } = {}) {
-  const calls = { folder: [], create: [], update: [], preview: [] }
-  const terminals = core ? {
-    registry: { get: async id => id === 'mac' ? { terminalId: 'mac', user: 'kite' } : null },
-    folder: async request => { calls.folder.push(request); const r = typeof reason === 'function' ? reason(request) : reason
-      return { terminalId: request.terminalId, path: request.path, observedAt: 't', exists: null, directory: null, writable: null, reason: r,
-        ...(r ? { action: `do ${r}` } : {}) } },
-  } : null
-  const bots = withMemberFolderCheck({
-    readMember: async () => current,
-    create: async input => { calls.create.push(input); return { id: 'bot-n', ...input } },
-    update: async (id, changes) => { calls.update.push(changes); return { ...current, ...changes } },
-    previewUpdate: async (id, changes) => { calls.preview.push(changes); return { ...current, ...changes } },
-  }, () => terminals)
-  return { bots, calls }
+const context = Object.freeze({ generation: 'test', leaseId: 'lease', rootId: 'root', ownerWrite: false, continuation: false })
+
+async function fixture(t, reason = () => null) {
+  const root = await mkdtemp(join(tmpdir(), 'members-folder-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const seedPath = join(root, 'seed.json')
+  await writeFile(seedPath, JSON.stringify({ schema: 'bellteam.bots.v1', bots: [{ id: 'bot-a', displayName: 'Synthetic', harness: 'claude', session: 'bot-a', project: '/unused' }] }))
+  await mkdir(join(root, 'state'))
+  await new BotRegistry({ seedPath, botsRoot: join(root, 'bots'), stateRoot: join(root, 'state/bots') }).initialize()
+  await new OwnerProfile({ root }).initialize(); await new UserRules({ root }).initialize()
+  const folders = []
+  const effect = async (method, params) => {
+    if (method === 'project.readPreviousSession') return ''
+    if (method === 'terminals.read') return params.terminalId === 'mac' ? { user: 'kite' } : null
+    if (method === 'terminals.folder') {
+      folders.push(params)
+      const r = reason(params)
+      return { terminalId: params.terminalId, path: params.path, observedAt: '2026-11-10T00:00:00.000Z', exists: null, directory: null, writable: null, reason: r, ...(r ? { action: `do ${r}` } : {}) }
+    }
+  }
+  const dispatcher = createMembersDispatcher({ root, effect, projection: async () => {} })
+  await dispatcher.control('initialize', { generation: 'test' }, { ...context, leaseId: null })
+  await dispatcher.control('resume', {})
+  const request = (method, params) => { dispatcher.validateRequest(method, params, context); return dispatcher.dispatch(method, params, context) }
+  return { request, folders }
 }
 
-test('create with a terminal only gets the default folder and a usable check', async () => {
-  const { bots, calls } = setup()
-  const bot = await bots.create({ name: ' ベロ/タ ', harness: 'claude', terminalId: 'mac' })
+test('create with a terminal only gets the default folder and a usable check', async t => {
+  const f = await fixture(t)
+  const { bot, folderCheck } = await f.request('profile.create', { input: { name: ' ベロ/タ ', harness: 'claude', terminalId: 'mac' } })
   assert.equal(bot.projectRoot, '/Users/kite/BellTeam/ベロ-タ')
-  assert.deepEqual(calls.folder, [{ terminalId: 'mac', path: '/Users/kite/BellTeam/ベロ-タ', create: false }])
-  assert.deepEqual(bot.folderCheck, { checked: true, reason: null, observedAt: 't' })
+  assert.deepEqual(f.folders, [{ terminalId: 'mac', path: '/Users/kite/BellTeam/ベロ-タ', create: false }])
+  assert.deepEqual(folderCheck, { checked: true, reason: null, observedAt: '2026-11-10T00:00:00.000Z' })
   assert.equal(memberFolderSlug('..'), 'member')
+  await assert.rejects(f.request('profile.create', { input: { name: 'x', terminalId: 'nope' } }), { code: 'TERMINAL_NOT_FOUND', status: 404 })
 })
 
-test('a missing folder refuses the save; createFolder repeats it with create and is not saved', async () => {
-  const { bots, calls } = setup({ reason: request => request.create ? null : 'FOLDER_MISSING' })
-  await assert.rejects(bots.create({ name: 'x', terminalId: 'mac', projectRoot: '/Users/kite/a' }),
-    error => error.code === 'FOLDER_MISSING' && error.status === 409 && error.action === 'do FOLDER_MISSING' && error.projectRoot === '/Users/kite/a')
-  assert.equal(calls.create.length, 0)
-  const bot = await bots.create({ name: 'x', terminalId: 'mac', projectRoot: '/Users/kite/a', createFolder: true })
-  assert.equal(calls.folder.at(-1).create, true)
-  assert.equal(Object.hasOwn(calls.create[0], 'createFolder'), false)
-  assert.equal(bot.folderCheck.checked, true)
+test('a missing folder refuses the save; createFolder repeats it with create and is not saved', async t => {
+  const f = await fixture(t, params => params.create ? null : 'FOLDER_MISSING')
+  const input = { name: 'x', harness: 'claude', terminalId: 'mac', projectRoot: '/Users/kite/a' }
+  await assert.rejects(f.request('profile.create', { input }), { code: 'FOLDER_MISSING', status: 409 })
+  assert.equal((await f.request('profile.preview', { botId: 'bot-a', changes: {} })).bot.id, 'bot-a')
+  const { bot } = await f.request('profile.create', { input: { ...input, createFolder: true } })
+  assert.equal(f.folders.at(-1).create, true)
+  assert.equal(Object.hasOwn(bot, 'createFolder'), false)
 })
 
-test('an unreachable terminal saves the folder as unchecked', async () => {
-  const { bots, calls } = setup({ reason: 'UNREACHABLE' })
-  const bot = await bots.update('bot-a', { terminalId: 'mac', projectRoot: '/Users/kite/a' })
-  assert.equal(calls.update.length, 1)
-  assert.deepEqual(bot.folderCheck, { checked: false, reason: 'UNREACHABLE', observedAt: 't', action: 'do UNREACHABLE' })
+test('rejected input with createFolder never reaches the terminal', async t => {
+  const f = await fixture(t)
+  await assert.rejects(f.request('profile.create', { input: { name: 'x', terminalId: 'mac', projectRoot: '/Users/kite/../a', createFolder: true } }),
+    { code: 'BOT_PROJECT_ROOT_INVALID' })
+  await assert.rejects(f.request('profile.update', { botId: 'bot-a', changes: { avatarSource: '', terminalId: 'mac', projectRoot: '/Users/kite/a', createFolder: true } }),
+    { code: 'BOT_AVATAR_CROP_INVALID' })
+  assert.deepEqual(f.folders, [])
 })
 
-test('unchanged or unrelated edits make no terminal call; preview defaults without one', async () => {
-  const current = { id: 'bot-a', name: 'a', terminalId: 'mac', projectRoot: '/Users/kite/a' }
-  const { bots, calls } = setup({ current })
-  await bots.update('bot-a', { role: 'r' })
-  await bots.update('bot-a', { terminalId: 'mac', projectRoot: '/Users/kite/a' })
-  assert.equal(calls.folder.length, 0)
-  const local = setup()
-  await local.bots.previewUpdate('bot-a', { terminalId: 'mac', createFolder: true })
-  assert.deepEqual(local.calls.preview, [{ terminalId: 'mac', projectRoot: '/Users/kite/BellTeam/ベロータ' }])
-  assert.equal(local.calls.folder.length, 0)
-})
-
-test('invalid path, unknown terminal, bad flag and no terminals core', async () => {
-  const { bots } = setup()
-  await assert.rejects(bots.create({ name: 'x', terminalId: 'nope' }), { code: 'TERMINAL_NOT_FOUND', status: 404 })
-  await assert.rejects(bots.create({ name: 'x', createFolder: 'yes' }), { code: 'BOT_UPDATE_FIELD_INVALID', status: 400 })
-  const invalid = setup()
-  invalid.bots.create = withMemberFolderCheck({ create: async input => input }, () => ({ registry: {}, folder: async () => {
-    throw Object.assign(new Error('bad'), { code: 'INVALID_PATH', status: 400 }) } })).create
-  await assert.rejects(invalid.bots.create({ name: 'x', terminalId: 'mac', projectRoot: '/a' }), { code: 'BOT_PROJECT_ROOT_INVALID', status: 400 })
-  const none = setup({ core: false })
-  const bot = await none.bots.create({ name: 'x', terminalId: 'mac', projectRoot: '/a', createFolder: true })
-  assert.equal(bot.folderCheck, undefined)
-  assert.equal(Object.hasOwn(none.calls.create[0], 'createFolder'), false)
+test('an unreachable terminal saves the folder as unchecked; unrelated edits make no terminal call', async t => {
+  const f = await fixture(t, () => 'UNREACHABLE')
+  const { bot, folderCheck } = await f.request('profile.update', { botId: 'bot-a', changes: { terminalId: 'mac', projectRoot: '/Users/kite/a' } })
+  assert.equal(bot.projectRoot, '/Users/kite/a')
+  assert.deepEqual(folderCheck, { checked: false, reason: 'UNREACHABLE', observedAt: '2026-11-10T00:00:00.000Z', action: 'do UNREACHABLE' })
+  const unrelated = await f.request('profile.update', { botId: 'bot-a', changes: { role: 'r' } })
+  assert.equal(unrelated.folderCheck, undefined)
+  assert.equal(f.folders.length, 1)
 })

@@ -87,7 +87,6 @@
     "src/members/protocol.mjs",
     "src/members/dispatcher.mjs",
     "src/members/errors.mjs",
-    "src/members/project-docs.mjs",
-    "src/members-folder.mjs"
+    "src/members/project-docs.mjs"
   ]
 }
