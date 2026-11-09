@@ -22,6 +22,10 @@ test('sourceは受信ヘッダーの世代だけを保持し、欠測をBot名�
   }
   assert.deepEqual(seatExecutionSource({ headers: headers('bot-a', 'a'.repeat(32)) }, bots()),
     { sourceSession: 'bot-a', source: { launch: { session_id: 'bot-a', launch_id: 'a'.repeat(32) }, boundary: null } })
+  assert.deepEqual(seatExecutionSource({ headers: headers('bot-a-2nd-mw8hc4gr', 'a'.repeat(32)) }, bots()),
+    { sourceSession: 'bot-a-2nd-mw8hc4gr', source: { launch: { session_id: 'bot-a-2nd-mw8hc4gr', launch_id: 'a'.repeat(32) }, boundary: null } })
+  assert.deepEqual(seatExecutionSource({ headers: headers('bot-z-2nd-mw8hc4gr', 'a'.repeat(32)) }, bots()),
+    { sourceSession: null, source: { launch: null, boundary: null } })
 })
 
 test('同時MCP要求のsourceを混ぜず、モデル引数で受信時のsourceを書き換えられない', async t => {
