@@ -112,6 +112,10 @@ Effective slot = the 1st if it is not limited for the seat's scope. Otherwise it
 
 The switch starts a new seat; it never stops, hibernates or resumes the old one. The new seat has a new session name, `<botId>-<slot>-<base36 time>`, stored as the Bot's `session` (`updateSession`), and is an ordinary fresh launch (`wakeNow` with that name and the selected `configuration_root`). Like every fresh launch it gets the Throughline short-term memory of the previous conversation and the Bot's docs, so the work continues; the vendor conversation is a new one, because two CLIs must not write one conversation. A later fresh launch keeps an account seat's name (one that starts with `<botId>-`); any other fresh launch uses the Bot id as before. The old seat keeps its own name and is no longer the Bot's seat: deliveries, stops and observation follow the new name. Aiterm's idle clock hibernates it once its background processes end, so it leaves on its own.
 
+## Deployment order (#754, cross-cutting)
+
+The link-based `prepare` (execution and usage modules, both ship `src/harness-accounts.mjs`) needs a body that no longer writes into slot roots (`writeHarnessConfig` in `src/harness-config.mjs`, body-resident, in no module payload). An older body's atomic merge into `<2nd root>/.claude.json` replaces the link with a regular file that carries the 1st `oauthAccount` (wrong-account state). So: the body with #754 goes live first, then the execution and usage modules carrying #754. Known payload consumers of `src/harness-accounts.mjs`: execution (`EXECUTION_FILES` in `scripts/web_gateway_artifact.py`, execution module.json) and usage (HarnessAuth / usage prepare). After the modules: restart the seats running on the 2nd so they read the 1st config.
+
 ## Implementation map
 
 | Piece | Where |
