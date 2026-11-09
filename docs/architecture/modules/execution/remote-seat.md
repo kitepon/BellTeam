@@ -113,3 +113,9 @@ Local seats (no `terminalId`): today's path, including env forwarding. Delivery 
 | C7 | `RemoteSeats.waitProcess` / `forward` / `handoffContext` |
 
 Test: `test/remote-seats.test.mjs`.
+
+## Deployment order
+
+1. Deploy a body image from adopted #765 main (or a successor) first. It must contain the parent `AitermClient.privateEnv`, #793 seat launcher, #792 `connection.target`, #804 `connection.observe`, and the signed execution-manifest closure reader.
+2. Then install the execution module containing `src/remote-seats.mjs`.
+3. Live remote seats additionally require the next Aiterm release with `agent_launch`'s `terminal` argument and the `aiterm-transcript-read` CLI. Adoption or installation before that release is not a live Mac result.
