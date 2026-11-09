@@ -180,3 +180,26 @@ test('bind_terminal_key: target from the record, handle becomes sshKeyRef, typed
   await assert.rejects(callTerminalTool({ name: 'bind_terminal_key', args: { terminalId: 'owner-macbook', ref, host: 'evil' }, terminals: () => core, terminalKeys: () => keys }), /TOOL_ARGUMENT_INVALID/)
   await assert.rejects(callTerminalTool({ name: 'bind_terminal_key', args: { terminalId: 'owner-macbook', ref }, terminals: () => core, terminalKeys: () => null }), { code: 'CREDENTIAL_UNAVAILABLE' })
 })
+
+test('terminal key load: value only on the bin stdin, receipt or binding error, invalid input refused before resolve', async () => {
+  const { loadTerminalKey } = await import('../src/application-services.mjs')
+  const ref = '725ca83c-f52f-4036-9390-8d9e4c482f14', handle = '11111111-2222-4333-8444-555555555555', key = '-----BEGIN OPENSSH PRIVATE KEY-----\nfixture\n'
+  const resolved = []
+  const credentials = { withResolved: async (h, context, consume) => { resolved.push({ h, context }); return consume(key) } }
+  const calls = []
+  const runner = result => async (command, args, options) => { calls.push({ command, args, input: options.input.toString('utf8'), options: { ...options, input: undefined } }); return result }
+  const receipt = { schema: 'aiterm.credential-load.v1', accepted: true }
+  const base = { credentials, terminalId: 'owner-macbook', memberId: 'bot-aa', ref, handle, revision: 3 }
+  assert.deepEqual(await loadTerminalKey({ ...base, run: runner({ code: 0, signal: null, stdout: JSON.stringify(receipt) }) }), receipt)
+  assert.deepEqual(resolved, [{ h: handle, context: { terminalId: 'owner-macbook', memberId: 'bot-aa', purpose: 'terminal.ssh' } }])
+  assert.deepEqual(calls[0].args, ['aiterm-remote-terminal', 'credential-load', '--ref', ref, '--terminal-id', 'owner-macbook', '--handle', handle, '--revision', '3', '--purpose', 'ssh-key'])
+  assert.equal(calls[0].input, key); assert.ok(!calls[0].args.some(arg => arg.includes('PRIVATE')))
+  await assert.rejects(loadTerminalKey({ ...base, run: runner({ code: 2, signal: null, stdout: JSON.stringify({ schema: 'aiterm.remote-binding-error.v1', code: 'REMOTE_BINDING_NOT_FOUND' }) }) }), { code: 'REMOTE_BINDING_NOT_FOUND', status: 409 })
+  for (const result of [{ code: 1, signal: null, stdout: '{}' }, { code: 0, signal: null, stdout: '{"schema":"other"}' }, { code: null, signal: 'SIGTERM', stdout: '' }])
+    await assert.rejects(loadTerminalKey({ ...base, run: runner(result) }), { code: 'TERMINAL_KEY_LOAD_UNAVAILABLE' })
+  resolved.length = 0
+  for (const bad of [{ ref: 'x' }, { handle: 'x' }, { revision: 0 }, { revision: 1.5 }, { terminalId: 'Bad' }, { memberId: 7 }])
+    await assert.rejects(loadTerminalKey({ ...base, ...bad, run: runner({}) }), { code: 'TERMINAL_KEY_LOAD_INVALID' })
+  assert.equal(resolved.length, 0)
+  await assert.rejects(loadTerminalKey({ ...base, credentials: null, run: runner({}) }), { code: 'CREDENTIAL_UNAVAILABLE' })
+})

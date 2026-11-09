@@ -87,6 +87,32 @@ export async function remoteTerminalStatus(project, ref, run = createSeatProcess
   return value
 }
 
+const TERMINAL_KEY_LOAD_FAILED = (code = 'TERMINAL_KEY_LOAD_UNAVAILABLE', status = 503) => Object.assign(new Error(code), { code, status })
+const uuidText = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u.test(value)
+
+// RS13: hand a secret-backed SSH key to the terminal's private ssh-agent. Only this parent resolves the value; it crosses
+// once, on the bin's stdin (never argv, env, file, PTY or log). Exit 0 = accepted receipt, exit 2 = binding error DTO.
+export async function loadTerminalKey({ credentials, terminalId, memberId = null, ref, handle, revision, run }) {
+  if (typeof terminalId !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/u.test(terminalId) || !uuidText(ref) || !uuidText(handle)
+    || !Number.isSafeInteger(revision) || revision < 1 || (memberId !== null && typeof memberId !== 'string'))
+    throw TERMINAL_KEY_LOAD_FAILED('TERMINAL_KEY_LOAD_INVALID', 400)
+  if (typeof credentials?.withResolved !== 'function') throw TERMINAL_KEY_LOAD_FAILED('CREDENTIAL_UNAVAILABLE')
+  return credentials.withResolved(handle, { terminalId, memberId, purpose: 'terminal.ssh' }, async value => {
+    if (typeof value !== 'string' || !value || Buffer.byteLength(value, 'utf8') > 65536) throw TERMINAL_KEY_LOAD_FAILED('TERMINAL_KEY_INVALID', 400)
+    let result
+    try {
+      result = await run('/usr/bin/env', ['aiterm-remote-terminal', 'credential-load', '--ref', ref, '--terminal-id', terminalId,
+        '--handle', handle, '--revision', String(revision), '--purpose', 'ssh-key'], { input: Buffer.from(value, 'utf8'), acceptNonzero: true, maxBuffer: 65536 })
+    } catch { throw TERMINAL_KEY_LOAD_FAILED() }
+    let dto
+    try { dto = JSON.parse(result.stdout) } catch { throw TERMINAL_KEY_LOAD_FAILED() }
+    if (!result.signal && result.code === 0 && dto?.schema === 'aiterm.credential-load.v1') return dto
+    if (!result.signal && result.code === 2 && dto?.schema === 'aiterm.remote-binding-error.v1')
+      throw Object.assign(TERMINAL_KEY_LOAD_FAILED(typeof dto.code === 'string' ? dto.code : 'TERMINAL_KEY_LOAD_REFUSED', 409), { binding: dto })
+    throw TERMINAL_KEY_LOAD_FAILED()
+  })
+}
+
 export async function createApplicationServices({ root, moduleChildExitReporter = createModuleChildExitReporter(), exchangeMutex = createModuleExchangeMutex(), aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, botEnvironments = null, olrwManagement = undefined, submittedSecretManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, notify = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory, createWorkGraphProcess: workGraphFactory, prepareWorkGraphRelease: prepareWorkGraph = (versionId, options) => prepareModuleRelease('work-graph', versionId, options), hostUpdateClient: hostClient, prepareDiagnosticsRelease: prepareDiagnostics = (versionId, options) => prepareModuleRelease('diagnostics', versionId, options), builtinSourceCommit = null, usageAssembly = null, attachUsageServices = () => {}, prepareUsageRelease: prepareUsage = (versionId, options) => prepareModuleRelease('usage', versionId, options), createConversationAssembly: conversationFactory, createExecutionAssembly: executionFactory, loadExecutionFactory: loadExecution = loadExecutionFactory, createExecutionAdoptionStore: adoptionFactory = createExecutionAdoptionStore, prepareExecutionRelease: prepareExecution = prepareExecutionRelease, createTerminalsCore = null }) {
   let terminals = null, credentialRefresh = null, members = null, diagnosticsModule = null, workGraphModule = null, workGraph = null, conversationAssembly = null, execution = null, executionClient, memory, rooms, assets, updateCenter, backgroundSummary, submittedSecretCaller = null, directMessages = null
   let scheduleTurns = null
@@ -212,6 +238,9 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     revoke: ({ sessionName }) => seatCredentials.revoke({ sessionName }),
     // RS03: only execution's seat launch call uses this, to put the value into the launcher's stdin privateEnv.
     reveal: credentialRef => seatCredentials.reveal(credentialRef),
+    // RS13: execution calls this before launching on a secret-backed terminal (target.credential {handle, revision}).
+    loadTerminalKey: ({ terminalId, memberId = null, ref, handle, revision }) => loadTerminalKey({ credentials: usageAssembly?.credentials ?? null,
+      terminalId, memberId, ref, handle, revision, run: createSeatProcessRunner(root) }),
   })
   if (executionFactory) {
     const selection = adoptionFactory({ root }), selected = await selection.read()
