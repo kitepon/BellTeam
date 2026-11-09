@@ -188,7 +188,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   // Remote seats (remote-seat-ingress.md): terminals core is an in-parent injectable; seat credentials are parent state.
   const seatCredentials = createSeatCredentials({ path: join(root, 'state/seat-credentials.json') })
   terminals = createTerminalsCore ? createTerminalsCore({ stateRoot: join(root, 'state'), credentials: usageAssembly?.credentials ?? null,
-    seatCredentials: { reveal: ref => seatCredentials.reveal(ref) }, report: report => diagnostics.record(report) }) : null
+    report: report => diagnostics.record(report) }) : null
   // RS11: native SSH credential status comes from Elegg's one-shot UID 1000 bin; usage validates the DTO.
   if (terminals && usageAssembly?.credentials?.setNativeProvider) usageAssembly.credentials.setNativeProvider({ status: ref => remoteTerminalStatus(root, ref) })
   // RS12: bind an Aiterm-held key ref to a registered terminal; the target comes from the record, never the caller.
