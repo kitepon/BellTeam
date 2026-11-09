@@ -30,6 +30,8 @@ flowchart TD
 
 共有JSONは`.claude.json`、`.cursor/mcp.json`、`.gemini/config/mcp_config.json`。Claudeの2ndアカウントroot（`$HOME/.bellteam-accounts/claude/<slot>/`）へは書かない。そこの`.claude.json`は1stの`$HOME/.claude.json`へのlinkで、ここでrenameすると link が通常fileに置き換わり、1stの`oauthAccount`を持つ別fileになる（execution/harness-accounts.md「Deployment order」、2026-11-09 #754）。同じdirectoryへ0600で完成文書を書いてrenameし、既存読者に空や途中のJSONを見せない。BellTeam管理MCPと既存のproject trust以外の項目は既存merge規則で保持する。3file全部の同時公開や停電時のfsync完了を保証する契約にはしていない。
 
+席の起動とClaudeアカウント（execution/harness-accounts.md「Login per slot」、2026-11-09 #756）: 親（execution）は`agent_launch`の起動に、使うloginのslot名（`claudeLogin: '2nd'`）だけを渡し、tokenは渡さない。席ユーザーで動く`src/run-seat-aiterm-launch.mjs`が、受け継いだ`CLAUDE_CODE_OAUTH_TOKEN`を消し、`claudeLogin`があればそのslotの`<BELLTEAM_HOME>/.bellteam-accounts/claude/<slot>/oauth-token`（席ユーザー0600）を読んで自分のprocess envへ入れ、`env_vars`には変数名だけを載せる。tokenが無い・形式違いならその起動は`ACCOUNT_LOGIN_UNAVAILABLE`で失敗し、1stのloginで起動しない。配布順: この本体（#756以上）が先に本番、その後に`claudeLogin`を送るexecution module。古い起動側は`claudeLogin`を無視して2ndの席を1stのloginで起動するため。
+
 本番の所有実体はbootstrapの一つ。子入口`run-seat-runtime`の2操作と、低層`harness-config`の関数はその実行部。`application-features`の直接writer既定は席proxyなしの互換構成と隔離試験に残る。独立した複数SeatRuntimeや複数本体を同じhomeへ向ける排他は提供しない。新しい本番callerは同じ登録窓口へ接続し、低層writerを別processで直接呼ばない。
 
 外部CLIや手動ツールによるread-modify-writeと排他する契約はない。外部writerによる途中JSON/更新消失まで今回の修理で解決したとは扱わない。不正な既存JSONは元例外を返し、空設定へ置換しない。Andersonの元例外のJSON名と競合相手は未確定のまま。
