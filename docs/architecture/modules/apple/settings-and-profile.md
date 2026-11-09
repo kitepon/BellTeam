@@ -12,6 +12,7 @@ flowchart TD
   Split --> Page
   Page --> Profile["プロフィール: ProfileEditor(embedded)<br/>Ownerとユーザー規範のdraft"]
   Page --> AI["AIの設定: HarnessAuthenticationList<br/>+ BackgroundAgentSettingsCard"]
+  Page --> Terminals["端末: TerminalListPage<br/>terminals.md"]
   Page --> Features["追加機能: FeatureSettingsList / Editor"]
   Page --> Push["通知: BellNotifications.shared<br/>登録・OS設定を開く"]
   Page --> Session["接続: host・ログイン方法<br/>AppStore.changeServer / signOut"]
@@ -79,6 +80,7 @@ flowchart TD
 
 | 状態・操作 | 返却先と保持 |
 | --- | --- |
+| 一覧（`onePassword`） | 行は題名と状態バッジ（アイコン付き）。反映errorはcodeを付けずサーバーの平易な文だけ。行は`FeatureSettingDestination`が`OnePasswordSettingEditor`へ渡す。項目が無い旧本体の一覧には何も増えない |
 | 一覧 | taskでrefreshSettings。読み取れない時はerrorText。各settingのstatusText、error.code/messageを表示 |
 | 初回読取 | loaded=falseではフォーム項目を出さず、保存も無効。成功したsettingsに編集対象IDが無ければinvalidResponse |
 | currentSetting | AppStore.featureSettingsから同IDを検索し、無ければ引数setting。反映error表示はこの現在値、編集中のenabled/valuesは別の@State |
@@ -88,6 +90,32 @@ flowchart TD
 | 保存失敗 | 非秘密のdraftは残る。秘密値は既に消去済み。operationFailureMessageとsecretWrite診断。認証失敗はrequireLogin |
 | 非active・画面終了 | clearSecrets。非秘密draftをAppStoreへ退避する経路は無い |
 | 取消・未保存 | navigationで戻る。専用取消ボタンや未保存確認dialogは定義されていない |
+
+### 1Password連携（`onePassword`、usage #838）
+
+契約は[secret credentials「Settings 1Password連携 token field」](../usage/secret-credentials.md#settings-1password連携-token-field-2026-11-09-owner-ask-trony-un-hold)。Webの設定画面（`web/onboarding.js`）と同じ文・同じ状態にする。`FeatureSetting`は`guide`と`connection`を省略可・読めなければnilで読み、旧本体や崩れた本体でも一覧の読込を失敗させない。
+
+```mermaid
+flowchart TD
+  List["FeatureSettingsList<br/>onePassword行 = OnePasswordBadge + 平易なerror文"] --> Editor["OnePasswordSettingEditor<br/>Form（ヘッダ・案内・token・主ボタン）"]
+  Editor --> Load["load: GET /api/settings<br/>enabled初期値 = enabled または 未設定"]
+  Load --> View["ヘッダ: バッジ（連携中/未連携/失敗）<br/>失敗: error.messageをそのまま<br/>連携中: 読める保管庫と鍵の数の一行<br/>案内: 未連携は開く、連携中は「作り方を見る」の中"]
+  Editor --> Save["保存して連携を確かめる"]
+  Save --> Check["OnePasswordState.tokenProblem<br/>ops_で始まらなければ送らない"]
+  Check --> Patch["updateSetting<br/>PATCH /api/settings/onePassword {enabled, values:{token}}"]
+  Patch --> Reload["GET /api/settings<br/>store.featureSettings更新 → バッジ再計算"]
+  Patch -->|"失敗"| Err["平易な文とsecretWrite診断（tokenは消去済み）"]
+```
+
+| 状態・部品 | 内容 |
+| --- | --- |
+| `OnePasswordState` | `error`があれば失敗、無くて`status=='enabled'`なら連携中、他は未連携。バッジは連携中=緑・未連携=灰・失敗=赤。接続の一行は連携中だけ（`connection`が無ければ「1Passwordにつながっています。」、鍵0件はWebと同じ次の一手の文） |
+| 案内 | `guide.steps`を順に表示し、`link`は`https`の時だけ開く（`FeatureGuide.openableLink`）。連携の状態が変わった時だけ開閉し、読んでいる途中の案内は閉じない |
+| token欄 | `SecureField`、`privacySensitive`、保存後も画面に返さない（一覧のtokenは空）。非active・画面終了で消す。空のまま保存できるのは、設定済みで連携の切替だけの時 |
+| 保存 | `ops_`の検査（前後の空白は除く）→ PATCH → 一覧を読み直して結果をバッジで見せる。PATCH成功後に読み直しだけ失敗した時は「保存しました。表示を更新できませんでした」。非冪等の自動再送なし |
+| 旧本体 | `onePassword`項目が無い一覧は従来のまま（行も編集も増えない） |
+
+試験は`TerminalsTests`（読込・バッジ・`ops_`・https）と`TerminalsUITests.testOnePasswordSettingBadgeGuideAndTokenCheck`。
 
 ## 仕事の要約を書くAI
 

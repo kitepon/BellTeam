@@ -195,7 +195,7 @@ final class BotSaveTests: XCTestCase {
         }
         let api = makeAPI(fixture, diagnostics: diagnostics)
         do {
-            _ = try await api.finishSecretRequest(id: "request", value: nil)
+            _ = try await api.finishSecretRequest(id: "request", submission: nil)
             XCTFail("保存の応答を秘密入力の応答としては読めない")
         } catch { XCTAssertTrue(error is DecodingError) }
         XCTAssertEqual(count, 0, "秘密入力の処理結果は、画面で扱ってから報告する")

@@ -20,6 +20,9 @@ struct BotSettings: Codable, Equatable {
     var avatarCrop: AvatarCropRect? = nil
     var avatarLargeSource: String? = nil
     var avatarLargeCrop: AvatarCropRect? = nil
+    /// members C1. nil = not sent (older BellTeam or section unavailable); both "" = this BellTeam.
+    var terminalId: String? = nil
+    var projectRoot: String? = nil
 
     // サーバーのnormalizeProfileが整える4項目を、送る値でも同じ形にする。
     var normalized: Self {
@@ -31,7 +34,16 @@ struct BotSettings: Codable, Equatable {
              reasoningEffort: reasoningEffort.trimmingCharacters(in: .whitespacesAndNewlines),
              fastMode: fastMode, avatarLarge: avatarLarge, avatarSource: avatarSource,
              avatarCrop: avatarCrop, avatarLargeSource: avatarLargeSource,
-             avatarLargeCrop: avatarLargeCrop)
+             avatarLargeCrop: avatarLargeCrop, terminalId: terminalId, projectRoot: projectRoot)
+    }
+
+    /// Unsent binding fields compare as the server's current values.
+    func withBinding(from current: Self) -> Self {
+        guard terminalId == nil else { return self }
+        var value = self
+        value.terminalId = current.terminalId
+        value.projectRoot = current.projectRoot
+        return value
     }
 
     func withSmallAvatar(from current: Self) -> Self {
@@ -110,6 +122,7 @@ struct BotSettingsRequest: Encodable {
         case name, profileText, personality, speechStyle, position, role, avatar, color
         case harness, model, reasoningEffort, fastMode
         case avatarLarge, avatarSource, avatarCrop, avatarLargeSource, avatarLargeCrop
+        case terminalId, projectRoot
     }
 
     func encode(to encoder: Encoder) throws {
@@ -139,6 +152,8 @@ struct BotSettingsRequest: Encodable {
         if value.fastMode != originalFastMode {
             try body.encode(value.fastMode, forKey: .fastMode)
         }
+        try body.encodeIfPresent(value.terminalId, forKey: .terminalId)
+        try body.encodeIfPresent(value.projectRoot, forKey: .projectRoot)
     }
 }
 

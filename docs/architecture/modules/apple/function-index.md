@@ -44,10 +44,11 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [HarnessAuthenticationOption.needsStartConfirmation](../../../../ios/BellBot/BellBot/Core/Models.swift#L445) | 警告を伴う開始確認の要否 |
 | [HarnessAuthenticationsResponse / HarnessAuthenticationResponse](../../../../ios/BellBot/BellBot/Core/Models.swift#L449) | AI再認証一覧・個別状態 |
 | [FeatureField.id](../../../../ios/BellBot/BellBot/Core/Models.swift#L460)、[FeatureSettingError](../../../../ios/BellBot/BellBot/Core/Models.swift#L462)、[FeatureSetting.statusText](../../../../ios/BellBot/BellBot/Core/Models.swift#L470) | 追加機能の項目・反映エラー・表示 |
+| `FeatureSetting.guide` / `connection`、`FeatureGuide`（`openableLink`はhttpsだけ）、`OnePasswordConnection`、`OnePasswordState`（バッジ・接続の一行・`tokenProblem`）、`OnePasswordKey` / `OnePasswordKeysResponse` / `OnePasswordKeyList`（`after(_:)`は404を未対応、他を失敗）（`Core/Models.swift`） | 1Password連携の案内・接続・状態・`ops_`検査と、SSH鍵の選択一覧（[図](settings-and-profile.md#1password連携onepasswordusage-838)）。`guide`・`connection`は読めなければnil |
 | [FeatureSettingsResponse / FeatureSettingResponse / FeatureSettingUpdate / APIAcknowledgement](../../../../ios/BellBot/BellBot/Core/Models.swift#L475) | 追加機能HTTPと内容を持たないack |
 | [MessageSendAcknowledgement.messageID](../../../../ios/BellBot/BellBot/Core/Models.swift#L484) | BotのdeliveryIdとRoomのidを選ぶ |
 | [ImagePayload / SendMessageBody](../../../../ios/BellBot/BellBot/Core/Models.swift#L492) | 本文・画像・ルーム宛先の送信body |
-| [SecretRequest / SecretRequestResponse](../../../../ios/BellBot/BellBot/Core/Models.swift#L503) | 秘密入力要求の状態と結果 |
+| [SecretRequest / SecretRequestResponse](../../../../ios/BellBot/BellBot/Core/Models.swift#L503) | 秘密入力要求の状態と結果。`botId`はnil可（端末の鍵）、`purpose`・`inputOptions`は省略可。同じ箇所の`SecretInputOptions`（1Passwordを先に開くか）と`SecretSubmission`（保存値 / 1Password参照のbody） |
 | [OwnerQuestion / OwnerAnswerBody / OwnerQuestionResponse](../../../../ios/BellBot/BellBot/Core/Models.swift#L516) | 選択質問・回答要求・結果 |
 | [EmptyBody](../../../../ios/BellBot/BellBot/Core/Models.swift#L533) | AppStore.restartConversationの再起動要求の空JSON値 |
 
@@ -132,7 +133,8 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [BellEventTopic / BellEvent.Scope](../../../../ios/BellBot/BellBot/Core/BellAPI.swift#L57)、[BellEvent.init](../../../../ios/BellBot/BellBot/Core/BellAPI.swift#L70) | SSE type/topic/IDの検査とall/targeted |
 | [BellAPI.init](../../../../ios/BellBot/BellBot/Core/BellAPI.swift#L109) | URLSession・cookie・diagnosticsを保持 |
 | [resetConnections](../../../../ios/BellBot/BellBot/Core/BellAPI.swift#L118) | cookieを保ったsession.flush |
-| [finishSecretRequest](../../../../ios/BellBot/BellBot/Core/BellAPI.swift#L120) | 秘密値submit/cancel、保護通信 |
+| [finishSecretRequest](../../../../ios/BellBot/BellBot/Core/BellAPI.swift#L133) | 秘密値・1Password参照（`SecretSubmission`）のsubmit、nilはcancel。保護通信 |
+| `onePasswordKeys(requestId:)` | `GET /api/secret-requests/:id/onepassword-items`の`items`。旧本体は404 |
 | [updateSetting](../../../../ios/BellBot/BellBot/Core/BellAPI.swift#L142) | 追加機能の保護PATCH |
 | [submitAuthenticationInput](../../../../ios/BellBot/BellBot/Core/BellAPI.swift#L146) | 初回認証の保護POST |
 | [submitHarnessAuthenticationInput](../../../../ios/BellBot/BellBot/Core/BellAPI.swift#L150) | 再認証入力の保護POST |
@@ -249,6 +251,8 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | 型・関数 | 機能 |
 | --- | --- |
 | [FeatureSettingsList.body](../../../../ios/BellBot/BellBot/Views/FeatureSettingsView.swift#L7) | 一覧GET・状態/反映errorと編集への遷移 |
+| `FeatureSettingsList`の1Password行・`FeatureSettingDestination`・`OnePasswordBadge` | 行のバッジとplainなerror文、editorの振り分け。DEBUG `-bellbot-preview-feature <id>`でそのeditorを開く |
+| `OnePasswordSettingEditor`（`load`・`save`） | 1Password連携のヘッダ・案内・token欄・主ボタン。`ops_`検査→PATCH→一覧再取得 |
 | [FeatureSettingEditor.currentSetting](../../../../ios/BellBot/BellBot/Views/FeatureSettingsView.swift#L51) | 共通状態の現在値を選ぶ |
 | [FeatureSettingEditor.body](../../../../ios/BellBot/BellBot/Views/FeatureSettingsView.swift#L53) | 初回読取後の編集・再読込、secret消去タイミング |
 | [value(for:)](../../../../ios/BellBot/BellBot/Views/FeatureSettingsView.swift#L99) | key別の入力Binding |
@@ -301,6 +305,19 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [BellUpdateRoute](../../../../ios/BellBot/BellBot/Core/BellNotifications.swift#L28) | push `kind=update`の3key完全一致の解析と接続先照合 |
 | [AppStore.openPendingUpdateNotification](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L889) | ready後に接続先一致の時だけUpdate画面を開きGET。`startEvents`の`updates`分岐は[AppStore.swift](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L736) |
 
+## 端末の登録とメンバーの端末・フォルダ
+
+追加時点のファイル。契約と流れは[端末](terminals.md)。
+
+| ファイル・型 | 機能 |
+| --- | --- |
+| [Core/Terminals.swift](../../../../ios/BellBot/BellBot/Core/Terminals.swift) | `Terminal`・`TerminalCheck`・`TerminalMaintenance`（新しい項目は省略可で読む）、`TerminalDraft`（登録の検査とPUT body）、`MemberBinding`（組の規則とフォルダ）、`HostKeyFingerprint`、`TerminalKeyKind`・`TerminalKeyState`・`Terminal.key(_:)`（鍵の行の状態と鍵の出どころの文）、`TerminalKeyRequestResponse`、`TerminalErrorText`（`trace.serverErrorCode`から文、端末・鍵の入口の未対応の判定） |
+| [Core/AppStore+Terminals.swift](../../../../ios/BellBot/BellBot/Core/AppStore+Terminals.swift) | `TerminalDirectory`と`refreshTerminals`・`saveTerminal`・`confirmHostKey`・`removeTerminal`・`checkTerminal`・`requestTerminalKey`・`removeTerminalKey`。`AppStore.terminals`はサインアウトと接続先変更で空に戻す |
+| [Views/TerminalsView.swift](../../../../ios/BellBot/BellBot/Views/TerminalsView.swift) | `TerminalListPage`・`TerminalDetailPage`・`TerminalEditor`・`HostKeyConfirmSheet`・`MemberTerminalSection`・`TerminalsCalmLine`、鍵の行`TerminalKeyRow`と秘密入力sheetの起動・外す確認。DEBUGの`-bellbot-preview-terminal`で状態を開く |
+| [Bot.terminalId / projectRoot](../../../../ios/BellBot/BellBot/Core/Models.swift)、[BotSettings.withBinding](../../../../ios/BellBot/BellBot/Core/BotSettings.swift) | メンバーの2項目（nilは旧本体）。nilはencodeせず、照合ではサーバー値を採る |
+| [BotEditor](../../../../ios/BellBot/BellBot/Views/ManagementView.swift) | 「端末とフォルダ」節、保存前の組の規則、members符号の文 |
+| [SettingsPage.terminals](../../../../ios/BellBot/BellBot/Views/SettingsView.swift) | 設定の項目「端末」。`SettingsIconTile`と`SettingsBanner`をこの画面と共有 |
+
 ## その他の製品Swift：ファイル単位
 
 パスは`ios/BellBot/`から。上の9ファイルを除く43ファイル。型・関数名は到達先の目印で、この表では関数ごとの全分岐を列挙していない。
@@ -342,7 +359,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [BellBot/Views/OnboardingView.swift](../../../../ios/BellBot/BellBot/Views/OnboardingView.swift) | 初回AI選択・typed認証・guide開始・3秒poll |
 | [BellBot/Views/OwnerQuestionView.swift](../../../../ios/BellBot/BellBot/Views/OwnerQuestionView.swift) | OwnerQuestionCardState/Card、回答、FlowButtons/FlowLayout |
 | [BellBot/Views/SchedulesView.swift](../../../../ios/BellBot/BellBot/Views/SchedulesView.swift) | ScheduleRefreshState、一覧・対象差分・CRUD/run、ScheduleEditorの頻度/宛先。既存[予定一覧図](schedule-list.md)を再利用 |
-| [BellBot/Views/SecretRequestView.swift](../../../../ios/BellBot/BellBot/Views/SecretRequestView.swift) | 秘密要求カード状態、SecretInputSheetのsubmit/cancel・値の消去 |
+| [BellBot/Views/SecretRequestView.swift](../../../../ios/BellBot/BellBot/Views/SecretRequestView.swift) | 秘密要求カード状態、SecretInputSheetの入力方法（1Password参照が先・保存値が代替。SSH鍵は1Passwordの鍵の一覧から選ぶ・旧本体は貼り付けへ）・submit/cancel・値と参照の消去 |
 | [BellBot/Views/SelectableText.swift](../../../../ios/BellBot/BellBot/Views/SelectableText.swift) | 選択可能UITextView、MeasuredTextViewの幅別寸法cache |
 | [BellBot/Views/ServerInstallationGuide.swift](../../../../ios/BellBot/BellBot/Views/ServerInstallationGuide.swift) | 同梱Markdown、依頼文のコピー/共有、導入ガイドへのLink |
 | [BellBot/Views/SubscriptionView.swift](../../../../ios/BellBot/BellBot/Views/SubscriptionView.swift) | SubscriptionCard/Content、価格・権利・購入/復元/再確認・リンク |
@@ -385,6 +402,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [OnboardingTests.swift](../../../../ios/BellBot/BellBotTests/OnboardingTests.swift) | origin、初回認証decode、binding/digest、session、保護通信、反映エラー |
 | [RoomDeletionTests.swift](../../../../ios/BellBot/BellBotTests/RoomDeletionTests.swift) | 削除対象の選択/draftだけ整理、失敗時保持 |
 | [SecretTransportTests.swift](../../../../ios/BellBot/BellBotTests/SecretTransportTests.swift) | public HTTP拒否と秘密POST redirect拒否 |
+| [TerminalsTests.swift](../../../../ios/BellBot/BellBotTests/TerminalsTests.swift) | 端末・メンバー項目の新旧応答、鍵の項目と行の状態、鍵の秘密入力要求の解読と送信body、組の規則、フォルダ、指紋、確認結果の文、符号の文、未対応状態 |
 | [SelectableTextLayoutTests.swift](../../../../ios/BellBot/BellBotTests/SelectableTextLayoutTests.swift) | UITextView寸法・本文変更・幅変更のcache |
 
 ### BellBotUITests
@@ -409,6 +427,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [RoomDeletionUITests.swift](../../../../ios/BellBot/BellBotUITests/RoomDeletionUITests.swift) | 取消/失敗の保持、成功時一覧復帰とメンバー保持 |
 | [SecretInputUITests.swift](../../../../ios/BellBot/BellBotUITests/SecretInputUITests.swift) | 登録表示・値と入力欄の非表示・再起動後の表示。通常会話へのPOST件数は確認しない |
 | [ServerSetupUITests.swift](../../../../ios/BellBot/BellBotUITests/ServerSetupUITests.swift) | 接続後AI選択、未接続の導入ガイドとURL入力保持 |
+| [TerminalsUITests.swift](../../../../ios/BellBot/BellBotUITests/TerminalsUITests.swift) | iPhoneの端末一覧・追加・確認・ホスト鍵・削除、鍵の設定（秘密入力カード・1Password参照が先）と外す、メンバー編集の端末とフォルダ、旧本体の一行表示 |
 | [TabletWorkspaceUITests.swift](../../../../ios/BellBot/BellBotUITests/TabletWorkspaceUITests.swift) | iPad画像寸法、列/回転/draft、キーボード、共通編集sheet |
 
 ### Testsと構成

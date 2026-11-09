@@ -80,6 +80,7 @@ final class AppStore: ObservableObject {
     @Published var featureSettings: [FeatureSetting] = []
     /// nilは未取得か、サーバーが要約のAIの設定を持たない版。
     @Published var backgroundAgent: BackgroundAgentRecord?
+    @Published var terminals = TerminalDirectory()
     @Published var authMode = "local"
     var openLoginAutomatically = false
     var routingEnabled: Bool { featureSettings.first { $0.id == "routing" }?.status == "enabled" }
@@ -243,6 +244,7 @@ final class AppStore: ObservableObject {
         setupAuthUpdating = false
         featureSettings = []
         backgroundAgent = nil
+        terminals = TerminalDirectory()
         authMode = "local"
         phase = .setup
     }
@@ -926,6 +928,7 @@ final class AppStore: ObservableObject {
         clearConversationPages()
         profileImageDrafts.removeAll()
         pendingBotDeletionIDs.removeAll()
+        terminals = TerminalDirectory()
         resetAIControl()
         updates.reset()
         updatePresented = false

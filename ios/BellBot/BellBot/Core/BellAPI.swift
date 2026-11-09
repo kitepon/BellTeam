@@ -129,14 +129,15 @@ final class BellAPI {
     /// 消し、Cloudflare Accessの`CF_Authorization`を失う）。
     func resetConnections() async { await session.flush() }
 
-    func finishSecretRequest(id: String, value: String?) async throws -> SecretRequestResponse {
-        let action = value == nil ? "cancel" : "submit"
+    /// nil cancels the request.
+    func finishSecretRequest(id: String, submission: SecretSubmission?) async throws -> SecretRequestResponse {
+        let action = submission == nil ? "cancel" : "submit"
         let path = "/api/secret-requests/\(id)/\(action)"
         guard let baseURL, ServerOrigin.url(baseURL.absoluteString) != nil else { throw BellAPIError.notConfigured }
         var request = try request(path: path, method: "POST")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.cachePolicy = .reloadIgnoringLocalCacheData
-        request.httpBody = try JSONSerialization.data(withJSONObject: value.map { ["value": $0] } ?? [:])
+        request.httpBody = try JSONSerialization.data(withJSONObject: submission?.body ?? [:])
         let session = makeProtectedSession()
         defer { session.invalidateAndCancel() }
         let responseData: Data
@@ -149,6 +150,12 @@ final class BellAPI {
             responseData = data
         } catch { try Task.checkCancellation(); throw error }
         return try decode(SecretRequestResponse.self, from: responseData, path: path, method: "POST")
+    }
+
+    /// SSH Key items the connected 1Password can read, for a pending terminal.ssh request. Owner only; 404 on an older body.
+    func onePasswordKeys(requestId: String) async throws -> [OnePasswordKey] {
+        let response: OnePasswordKeysResponse = try await get("/api/secret-requests/\(requestId)/onepassword-items")
+        return response.items
     }
 
     func updateSetting(id: String, body: FeatureSettingUpdate) async throws -> FeatureSettingResponse {

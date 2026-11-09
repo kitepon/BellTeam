@@ -134,6 +134,11 @@
 		F7A3610AB742DDF65F460171 /* Intents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F7AFDC6BC1AC218DA4FCDCE2 /* Intents.framework */; };
 		F8CEC404D66D5C0D890F7698 /* TabletWorkspaceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58852297683AC8B45153D2EB /* TabletWorkspaceUITests.swift */; };
 		FBB5374AF788223F144EA209 /* BackgroundAgentSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30D8B7EA92DE81A89E5F7552 /* BackgroundAgentSettingsTests.swift */; };
+		C33D1C0EEF37C6AB2E8B1326 /* Terminals.swift in Sources */ = {isa = PBXBuildFile; fileRef = A021355366408D62FEB17C22 /* Terminals.swift */; };
+		7954C5E1CF2F87F7ACBBF89D /* AppStore+Terminals.swift in Sources */ = {isa = PBXBuildFile; fileRef = 908CCCA5DB8A728D93EBE62C /* AppStore+Terminals.swift */; };
+		440BA6626A922E088830E703 /* TerminalsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A846D7E03155925B7C889F78 /* TerminalsView.swift */; };
+		80040FBFD07EBA996465E510 /* TerminalsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD030D677F42C9522B911963 /* TerminalsTests.swift */; };
+		E38A73871683AC3DBAAC7482 /* TerminalsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E8E01D7B05CDF3AB0836927 /* TerminalsUITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -302,6 +307,11 @@
 		F7AFDC6BC1AC218DA4FCDCE2 /* Intents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Intents.framework; path = System/Library/Frameworks/Intents.framework; sourceTree = SDKROOT; };
 		FCA2FFA3D879C25501EC4AC0 /* ConversationAppearanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationAppearanceTests.swift; sourceTree = "<group>"; };
 		FE1FA71AEBBE1E4EF674E584 /* BackgroundMessageSendTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundMessageSendTests.swift; sourceTree = "<group>"; };
+		A021355366408D62FEB17C22 /* Terminals.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Terminals.swift; sourceTree = "<group>"; };
+		908CCCA5DB8A728D93EBE62C /* AppStore+Terminals.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppStore+Terminals.swift"; sourceTree = "<group>"; };
+		A846D7E03155925B7C889F78 /* TerminalsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalsView.swift; sourceTree = "<group>"; };
+		AD030D677F42C9522B911963 /* TerminalsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalsTests.swift; sourceTree = "<group>"; };
+		4E8E01D7B05CDF3AB0836927 /* TerminalsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalsUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -348,6 +358,7 @@
 				85C81E947834BDF63F27C14D /* BellDiagnosticsTests.swift */,
 				4E89EE9A9585139D146052FD /* BillingStoreTests.swift */,
 				254EE50E23553FA4436C995B /* BotSaveTests.swift */,
+				AD030D677F42C9522B911963 /* TerminalsTests.swift */,
 				19964D1F37185563CBBACBFB /* BotStopTests.swift */,
 				1059C273C08DFFD40999AB9A /* BotTerminalTextViewTests.swift */,
 				E84D909378D259B30ED5A9AE /* CommunicationNotificationTests.swift */,
@@ -389,6 +400,8 @@
 				5E2260DBCC86E8B67926D92D /* BellNotifications.swift */,
 				97CBCF3591B5FD4DA9FE6961 /* BillingStore.swift */,
 				219D6D25E6BA0B32D27F3918 /* BotSettings.swift */,
+				908CCCA5DB8A728D93EBE62C /* AppStore+Terminals.swift */,
+				A021355366408D62FEB17C22 /* Terminals.swift */,
 				0138E86CF9C413979445F108 /* ConversationDocument.swift */,
 				2DA4E9B64A2516F75A7E8655 /* ConversationDraft.swift */,
 				C1591BB8E9DBEBF507281786 /* ConversationTimelineState.swift */,
@@ -441,6 +454,7 @@
 		6E89FA37A88D0443F27DD9EA /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				A846D7E03155925B7C889F78 /* TerminalsView.swift */,
 				E18B998FC06A5BE8997CC48B /* AuthenticationInstructions.swift */,
 				B68E48020A5C203154A695A5 /* AvatarCropEditor.swift */,
 				F156208B81C891BA501E7785 /* AvatarImagePicker.swift */,
@@ -510,6 +524,7 @@
 				7A2B380C11C4A08661841A96 /* NetworkLifecycleProbeUITests.swift */,
 				2749F7F59C6FDA73CBD7A823 /* NotificationNavigationUITests.swift */,
 				5768EA0588C3BE0F41FF57E7 /* ProfileTerminalUITests.swift */,
+				4E8E01D7B05CDF3AB0836927 /* TerminalsUITests.swift */,
 				7D550B852B0446656582D8B7 /* RoomDeletionUITests.swift */,
 				4E03B5FA12F194911158CB0A /* SecretInputUITests.swift */,
 				C6541CB30BEDC47A2F0317DA /* ServerSetupUITests.swift */,
@@ -753,6 +768,7 @@
 				F14A03F182409BC47F82A13A /* NetworkLifecycleProbeUITests.swift in Sources */,
 				BCE2A0CEF26E911C718D1DE7 /* NotificationNavigationUITests.swift in Sources */,
 				DF42AEC2790886E7ADC17DF9 /* ProfileTerminalUITests.swift in Sources */,
+				E38A73871683AC3DBAAC7482 /* TerminalsUITests.swift in Sources */,
 				497FA865C863E1F1305FF785 /* RoomDeletionUITests.swift in Sources */,
 				34DACDAFD584A2A5DA4A83C5 /* SecretInputUITests.swift in Sources */,
 				7D093A6599CE91BFFD301E70 /* ServerSetupUITests.swift in Sources */,
@@ -797,6 +813,9 @@
 				D7F1C971318B3D8F639572B6 /* BotScreenKeyBar.swift in Sources */,
 				01B9F4FC0C70E3B3C7CA7788 /* BotScreenView.swift in Sources */,
 				097BC2376E3C25FEBD28641E /* BotSettings.swift in Sources */,
+				440BA6626A922E088830E703 /* TerminalsView.swift in Sources */,
+				7954C5E1CF2F87F7ACBBF89D /* AppStore+Terminals.swift in Sources */,
+				C33D1C0EEF37C6AB2E8B1326 /* Terminals.swift in Sources */,
 				3CA85150E6BD8BE8189F7AB0 /* CommunicationNotification.swift in Sources */,
 				A45B8D3EAE0E36A000548D59 /* ConversationDetailView.swift in Sources */,
 				D9E1CCD5CB66B80DC67DF166 /* ConversationDocument.swift in Sources */,
@@ -850,6 +869,7 @@
 				DF0F6D89FB75D2318FD9484E /* BellDiagnosticsTests.swift in Sources */,
 				529D85B3ECEBB99D6FDF5AEA /* BillingStoreTests.swift in Sources */,
 				4EA35592F0FF935859D2718E /* BotSaveTests.swift in Sources */,
+				80040FBFD07EBA996465E510 /* TerminalsTests.swift in Sources */,
 				A9A3678F294FEF42E8AD810C /* BotStopTests.swift in Sources */,
 				C44EFE3CB2B841A23DC06E6D /* BotTerminalTextViewTests.swift in Sources */,
 				7EDA8878BC6C2253AD736426 /* CommunicationNotificationTests.swift in Sources */,

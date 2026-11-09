@@ -22,6 +22,9 @@ struct Bot: Decodable, Identifiable, Equatable {
     let recent: RecentMessage?
     var currentWork: CurrentWork? = nil
     var account: BotAccount? = nil
+    /// members C1. nil = this BellTeam's member DTO predates the fields; "" = runs inside this BellTeam.
+    var terminalId: String? = nil
+    var projectRoot: String? = nil
 }
 
 // 名前の下の1行。文言はWebのworkLabelと同じにする。
@@ -47,6 +50,7 @@ extension Bot {
     private enum CodingKeys: String, CodingKey {
         case id, name, displayName, harness, model, reasoningEffort, fastMode, color, profileText, personality
         case speechStyle, position, role, avatar, avatarVersion, avatarLargeVersion, deleting, online, recent, currentWork, account
+        case terminalId, projectRoot
     }
 
     init(from decoder: Decoder) throws {
@@ -72,6 +76,8 @@ extension Bot {
         recent = try c.decodeIfPresent(RecentMessage.self, forKey: .recent)
         currentWork = try c.decodeIfPresent(CurrentWork.self, forKey: .currentWork)
         account = try c.decodeIfPresent(BotAccount.self, forKey: .account)
+        terminalId = try c.decodeIfPresent(String.self, forKey: .terminalId)
+        projectRoot = try c.decodeIfPresent(String.self, forKey: .projectRoot)
     }
 }
 
@@ -559,9 +565,83 @@ struct FeatureSetting: Decodable, Identifiable, Equatable {
     let status: String
     let fields: [FeatureField]
     let error: FeatureSettingError?
+    /// How to get the secret a field wants (onePassword). Absent on an older body: the extras stay hidden.
+    let guide: FeatureGuide?
+    /// onePassword while connected: readable vault names and the SSH key count. Absent otherwise.
+    let connection: OnePasswordConnection?
+
+    private enum CodingKeys: String, CodingKey { case id, title, enabled, status, fields, error, guide, connection }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        title = try c.decode(String.self, forKey: .title)
+        enabled = try c.decode(Bool.self, forKey: .enabled)
+        status = try c.decode(String.self, forKey: .status)
+        fields = try c.decode([FeatureField].self, forKey: .fields)
+        error = try c.decodeIfPresent(FeatureSettingError.self, forKey: .error)
+        // The extras never fail the list: a body that does not match simply shows nothing new.
+        guide = try? c.decodeIfPresent(FeatureGuide.self, forKey: .guide)
+        connection = try? c.decodeIfPresent(OnePasswordConnection.self, forKey: .connection)
+    }
+
     var statusText: String {
         if error != nil { return "反映エラー" }
         return switch status { case "enabled": "有効"; case "disabled": "無効"; default: "未設定" }
+    }
+}
+struct FeatureGuide: Decodable, Equatable {
+    struct Link: Decodable, Equatable { let label: String; let url: String }
+    let steps: [String]
+    let link: Link?
+
+    /// Only an https link is opened (same rule as the Web Settings guide).
+    var openableLink: (label: String, url: URL)? {
+        guard let link, let url = URL(string: link.url), url.scheme == "https", url.host?.isEmpty == false else { return nil }
+        return (link.label, url)
+    }
+}
+struct OnePasswordConnection: Decodable, Equatable { let vaults: [String]; let sshKeys: Int }
+
+/// The 1Password連携 header badge: the connection result, not the generic enabled/disabled.
+enum OnePasswordState: Equatable {
+    case connected, off, failed
+
+    init(_ setting: FeatureSetting) { self = setting.error != nil ? .failed : setting.status == "enabled" ? .connected : .off }
+
+    var badgeText: String { switch self { case .connected: "連携中"; case .off: "未連携"; case .failed: "失敗" } }
+    var symbol: String { switch self { case .connected: "checkmark.circle.fill"; case .off: "minus.circle.fill"; case .failed: "exclamationmark.triangle.fill" } }
+
+    /// The line under a connected header (wording shared with the Web Settings). nil when not connected.
+    static func connectionLine(_ setting: FeatureSetting) -> String? {
+        guard OnePasswordState(setting) == .connected else { return nil }
+        guard let connection = setting.connection else { return "1Passwordにつながっています。" }
+        let vaults = connection.vaults.isEmpty ? "なし" : connection.vaults.joined(separator: "、")
+        return connection.sshKeys > 0
+            ? "読める保管庫：\(vaults)　SSH鍵：\(connection.sshKeys)件"
+            : "読める保管庫：\(vaults)　SSH鍵が見つかりません。読める保管庫にSSH鍵を入れるか、サービスアカウントに鍵のある保管庫を足してください。"
+    }
+
+    /// Client check before saving; the server validates the token itself.
+    static func tokenProblem(_ token: String) -> String? {
+        token.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("ops_") ? nil : "サービスアカウントのトークン（ops_で始まる文字）を貼ってください。"
+    }
+}
+/// `GET /api/secret-requests/:id/onepassword-items`. The reference is only submitted, never shown.
+struct OnePasswordKey: Decodable, Identifiable, Equatable {
+    let title: String
+    let vault: String?
+    let reference: String
+    var id: String { reference }
+}
+struct OnePasswordKeysResponse: Decodable { let items: [OnePasswordKey] }
+/// What the SSH key picker shows. An absent route (older body) falls back to pasting a key.
+enum OnePasswordKeyList: Equatable {
+    case loading, loaded([OnePasswordKey]), failed, unsupported
+
+    static func after(_ error: Error) -> OnePasswordKeyList {
+        if case .httpStatus(404, _, _)? = error as? BellAPIError { return .unsupported }
+        return .failed
     }
 }
 struct FeatureSettingsResponse: Decodable {
@@ -623,13 +703,61 @@ struct SendMessageBody: Encodable {
 
 struct SecretRequest: Decodable, Identifiable, Equatable {
     let id: String
-    let botId: String
+    /// nil for an Owner terminal-key request (terminals #811), which has no Bot sender.
+    let botId: String?
     let roomId: String?
     let toolId: String
     let label: String
     let message: String
     let status: String
     let notification: String?
+    /// `terminal.ssh` | `terminal.sudo` for a terminal key; absent for Bot requests.
+    var purpose: String?
+    /// usage secret credentials: 1Password is offered first when connected. Absent on an older body (stored value only).
+    var inputOptions: SecretInputOptions?
+
+    private enum CodingKeys: String, CodingKey { case id, botId, roomId, toolId, label, message, status, notification, purpose, inputOptions }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        botId = try c.decodeIfPresent(String.self, forKey: .botId)
+        roomId = try c.decodeIfPresent(String.self, forKey: .roomId)
+        // The keys route contract names only {id, label, inputOptions}; the rest defaults for that minimal body.
+        toolId = try c.decodeIfPresent(String.self, forKey: .toolId) ?? ""
+        label = try c.decode(String.self, forKey: .label)
+        message = try c.decodeIfPresent(String.self, forKey: .message) ?? ""
+        status = try c.decodeIfPresent(String.self, forKey: .status) ?? "pending"
+        notification = try c.decodeIfPresent(String.self, forKey: .notification)
+        purpose = try c.decodeIfPresent(String.self, forKey: .purpose)
+        inputOptions = try? c.decodeIfPresent(SecretInputOptions.self, forKey: .inputOptions)
+    }
+}
+
+struct SecretInputOptions: Decodable, Equatable {
+    let preferred: String
+    let onePasswordAvailable: Bool
+
+    /// The source the card opens with: 1Password when connected and preferred, else the stored value.
+    var opensWithOnePassword: Bool { onePasswordAvailable && preferred != "stored" }
+}
+
+/// What the secret card sends (usage http-api submit): a stored value or a 1Password reference.
+enum SecretSubmission: Equatable {
+    case value(String)
+    case onePassword(reference: String)
+
+    var body: [String: String] {
+        switch self {
+        case .value(let value): ["value": value]
+        case .onePassword(let reference): ["source": "onepassword", "reference": reference]
+        }
+    }
+
+    /// Same check as the Web card: a reference starts with op://; the server validates the full form.
+    static func referenceProblem(_ reference: String) -> String? {
+        reference.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("op://") ? nil : "1Passwordの参照（op://で始まる）を入力してください。"
+    }
 }
 
 struct SecretRequestResponse: Decodable { let request: SecretRequest }
