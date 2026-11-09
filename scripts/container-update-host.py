@@ -913,7 +913,7 @@ def body_preflight(updater, ref, normal, directory):
         output = updater.command([docker, 'run', '--rm', '--interactive', '--network', 'none', '--read-only', '--user', '0:0',
             # Read-only search/read of the 1001- and root-owned 0600 records; every mount is read-only.
             '--cap-drop', 'ALL', '--cap-add', 'DAC_READ_SEARCH', '--security-opt', 'no-new-privileges:true', '--pids-limit', '64', '--memory', '512m',
-            '--mount', 'type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock',
+            '--mount', 'type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock,readonly',
             '--mount', f'type=volume,source={project}-module-updater,target=/srv/bellteam-module-updater,readonly',
             '--mount', f'type=volume,source={state},target=/srv/bellteam-private,readonly',
             '--mount', f'type=volume,source={state},target=/run/bellteam-maintenance,readonly',
@@ -949,6 +949,8 @@ def execute_installer(updater, plan, directory):
     if body_preflight(updater, ref, normal, directory) == 'fail':
         return {'execution': 'failed', 'verification': 'failed', 'observed': None, 'cleanup': 'not_needed',
                 'rollback': 'not_needed', 'error': 'HOST_UPDATE_PREFLIGHT_FAILED'}
+    # The preflight can take up to 120 s; a body that changed meanwhile must not get a stale plan.
+    check(updater.inspect_current() == plan['expected'], 'HOST_UPDATE_CURRENT_CHANGED')
     # Configuration remains in the existing private installation domain, never in the public ledger.
     inputs = updater.prefix / 'installation/operations' / plan['planId']
     inputs.mkdir(mode=0o700, parents=True, exist_ok=True)

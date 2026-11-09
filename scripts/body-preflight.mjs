@@ -11,6 +11,7 @@ const FALLBACK = new Set(['usage', 'diagnostics', 'conversation', 'work-graph'])
 const COMPONENTS = ['members', 'memory', 'notifications', 'web-gateway', 'execution', ...FALLBACK]
 
 export function classifyRelease(component, role, code) {
+  if (typeof code !== 'string' || !/^[A-Z][A-Z_0-9]{0,99}$/.test(code) || code === 'UNKNOWN') return 'warning' // uncoded = unknown, never blocks
   if (FALLBACK.has(component) && code === `${component.toUpperCase().replaceAll('-', '_')}_STATE_INCOMPATIBLE`) return 'warning'
   if (FALLBACK.has(component) || role === 'currentVersionId') return 'fail'
   return 'warning' // a previous release outside module-process is not certainly read at start
@@ -50,7 +51,7 @@ async function main() {
       try { manifest = JSON.parse(readFileSync(`${control}/${component}/releases/${versionId}/manifest.json`, 'utf8')) }
       catch { warnings.push({ check: 'release', component, role, versionId, code: 'MANIFEST_UNREADABLE' }); continue }
       try { validate(manifest) } catch (error) {
-        const row = { check: 'release', component, role, versionId, code: String(error?.code ?? 'UNKNOWN') };
+        const row = { check: 'release', component, role, versionId, code: error?.code ?? null };
         (classifyRelease(component, role, row.code) === 'fail' ? failures : warnings).push(row)
       }
     }

@@ -108,6 +108,8 @@ class CatalogTest(unittest.TestCase):
         self.assertEqual(len(publication_candidates([{**record, 'prerelease':True}], 'candidate')), 1)
         self.assertEqual(publication_candidates([{**record, 'draft':True}], 'candidate'), [])
         with self.assertRaises(ValueError): publication_candidates([record], 'preview')
+        for channel in ('stable', 'candidate'):  # bool identity: 0/1 are malformed, not False/True
+            self.assertEqual(publication_candidates([{**record, 'prerelease':0}, {**record, 'prerelease':1}], channel), [])
 
     def test_publisher_and_pin_use_only_successful_certificate_subject(self):
         raw = json.dumps(fixture()).encode(); digest = hashlib.sha256(raw).hexdigest()

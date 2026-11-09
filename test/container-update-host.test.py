@@ -246,6 +246,21 @@ touch "$BELLTEAM_INSTALL_DIR/applied"
         self.assertFalse((install/'applied').exists());self.assertEqual(module.read_json(directory/'preflight.json',os.getuid())['result'],'fail')
         verdict='not json';second=self.prefix/'state/fixture-result-2';second.mkdir()
         self.assertEqual(module.execute_installer(self.updater,self.plan(),second)['verification'],'succeeded')
+    def test_body_change_during_preflight_applies_no_stale_plan(self):
+        install=self.executor_fixture()
+        module.atomic(self.prefix/'installation/normal.json',{'name':'bellteam','volumes':{'server-state':{'name':'bellteam-server-state'}},
+            'services':{'bellteam':{'image':self.current['imageId'],'volumes':[{'type':'bind','source':'/data','target':'/srv/bellteam'}]}}})
+        base,inspect=self.updater.command,self.updater.inspect_current
+        changed={**self.current,'containerId':'e'*64}
+        def command(args,**options):
+            if '/app/scripts/body-preflight.mjs' in args:
+                self.updater.inspect_current=lambda:dict(changed)  # the body was replaced while the preflight ran
+                return json.dumps({'result':'pass','failures':[],'warnings':[],'report':{}}).encode()
+            return b'{}' if args[1:3]==['volume','inspect'] else base(args,**options)
+        self.updater.command=command
+        directory=self.prefix/'state/fixture-result';directory.mkdir()
+        with self.assertRaises(module.Failure) as raised:module.execute_installer(self.updater,self.plan(),directory)
+        self.assertEqual(raised.exception.code,'HOST_UPDATE_CURRENT_CHANGED');self.assertFalse((install/'applied').exists())
     def test_installer_failure_uses_existing_recover_and_verifies_old_image_source(self):
         install=self.executor_fixture(fail=True)
         plan=self.plan();directory=self.prefix/'state/fixture-result';directory.mkdir()

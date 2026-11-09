@@ -274,7 +274,8 @@ def publication_candidates(records, channel='stable'):
     found = []
     for record in records:
         # A prerelease catalog carries an untested candidate; only an install that chose the candidate channel reads it.
-        if type(record) is not dict or record.get('draft') is not False or record.get('prerelease') not in ((False, True) if channel == 'candidate' else (False,)):
+        prerelease = record.get('prerelease') if type(record) is dict else None
+        if type(record) is not dict or record.get('draft') is not False or not (prerelease is False or channel == 'candidate' and prerelease is True):
             continue
         tag = record.get('tag_name')
         if type(tag) is not str or not re.fullmatch(r'updates-\d{8}T\d{6}Z', tag):

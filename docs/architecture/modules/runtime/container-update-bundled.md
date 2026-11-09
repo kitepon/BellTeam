@@ -202,12 +202,12 @@ stateDiagram-v2
 
 Why: four production body swaps (11/8 01:44, 02:47, 11:53, 11/9 19:15) failed because target-image code first met production's accumulated state inside the real install: module-updater ledger history, an installer container from an older generation, and adopted module releases. Nothing before `swapping` ran target code against that state. What it protects: the running body from a doomed stop/restart and the turns that would be cut. It refuses only a definite failure; unknown never blocks.
 
-`execute_installer` (container-update-host.py), after the pull and the existing `verifying` checks, runs `/app/scripts/body-preflight.mjs` from the **target** image once. The container is `--rm --network none --read-only --cap-drop ALL --cap-add DAC_READ_SEARCH` (to read the UID 1001 and root 0600 records), with normal.json on stdin. Its mounts are all read-only: module-updater volume, server-state volume (as `/srv/bellteam-private` and `/run/bellteam-maintenance`), and the `/srv/bellteam` data bind. The Docker socket is also mounted, used only by the bridge dry run for inspect/ls. The volumes are inspected first, so the run never creates one.
+`execute_installer` (container-update-host.py), after the pull and the existing `verifying` checks, runs `/app/scripts/body-preflight.mjs` from the **target** image once. The container is `--rm --network none --read-only --cap-drop ALL --cap-add DAC_READ_SEARCH` (to read the UID 1001 and root 0600 records), with normal.json on stdin. Its mounts are all read-only: module-updater volume, server-state volume (as `/srv/bellteam-private` and `/run/bellteam-maintenance`), and the `/srv/bellteam` data bind. The Docker socket is also mounted with the readonly flag. A socket file's mount flag does not restrict Docker API calls: the Docker side stays read-only because the dry-run code issues only `container ls/inspect` and `volume inspect` and returns before any lock or change. The volumes are inspected first, so the run never creates one.
 
 | Check | Target code | Definite fail (blocks) | Warning / report (never blocks) |
 | --- | --- | --- | --- |
 | Termination bridge | `module-worker-termination.py --dry-run`: the real `Switch.switch` ledger walk and the installer `service()` shape check, stopped before the first lock | a coded `HOST_*` error other than the catch-all `HOST_MODULE_TERMINATION_UNCONFIRMED` | catch-all / uncoded / cannot run = unknown |
-| Adopted releases | every `state/<c>-release.json` current/previous manifest through the target's own manifest validators | current release of members/memory/execution/notifications/web-gateway rejected; any rejection other than `<C>_STATE_INCOMPATIBLE` for usage/diagnostics/conversation/work-graph | `<C>_STATE_INCOMPATIBLE` for those four (#822 builtin fallback); previous of the other five |
+| Adopted releases | every `state/<c>-release.json` current/previous manifest through the target's own manifest validators | current release of members/memory/execution/notifications/web-gateway rejected; any rejection other than `<C>_STATE_INCOMPATIBLE` for usage/diagnostics/conversation/work-graph | `<C>_STATE_INCOMPATIBLE` for those four (#822 builtin fallback); previous of the other five; an uncoded validator exception (unknown) |
 | Boot | Bot count | — | reported with start_period |
 
 Result `preflight.json` in the operation directory: `{result: pass|fail, failures[], warnings[], report}`.
@@ -216,8 +216,10 @@ Result `preflight.json` in the operation directory: `{result: pass|fail, failure
 stateDiagram-v2
   [*] --> verifying: pull + identity checks
   verifying --> preflight: target image /app/scripts/body-preflight.mjs
-  preflight --> swapping: pass
-  preflight --> swapping: unknown (cannot run, timeout, older target without the entry)
+  preflight --> recheck: pass
+  preflight --> recheck: unknown (cannot run, timeout, older target without the entry, uncoded error)
+  recheck --> swapping: current body == plan expected
+  recheck --> failed: HOST_UPDATE_CURRENT_CHANGED (body changed during preflight)
   preflight --> failed: definite fail / HOST_UPDATE_PREFLIGHT_FAILED / old body untouched, rollback not_needed
   failed --> [*]: next target gets a fresh plan and a fresh preflight
   swapping --> [*]: install.sh as before

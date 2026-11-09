@@ -8,6 +8,7 @@ test('only a definite target-code failure blocks; #822 fallbacks and unknowns ar
   assert.equal(classifyRelease('usage', 'currentVersionId', 'GATEWAY_RELEASE_INCOMPATIBLE'), 'fail')
   assert.equal(classifyRelease('members', 'currentVersionId', 'MEMBERS_STATE_INCOMPATIBLE'), 'fail')
   assert.equal(classifyRelease('members', 'previousVersionId', 'MEMBERS_STATE_INCOMPATIBLE'), 'warning')
+  for (const code of [null, undefined, 'UNKNOWN', 'not a code']) assert.equal(classifyRelease('members', 'currentVersionId', code), 'warning')
   assert.equal(classifyBridge(0, ''), 'pass')
   assert.equal(classifyBridge(1, 'HOST_MODULE_SWITCH_STORAGE\n'), 'fail')
   assert.equal(classifyBridge(1, 'HOST_MODULE_TERMINATION_UNCONFIRMED\n'), 'warning')
