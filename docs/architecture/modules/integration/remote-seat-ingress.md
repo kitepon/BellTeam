@@ -9,10 +9,10 @@ This document owns three parent pieces: the remote seat MCP endpoint (container 
 ```mermaid
 flowchart LR
   Exec[execution remote path / Kiro]
-  Cred[ingress.seatCredential: issue / revoke]
+  Cred[ingress.seatCredential: issue / reveal / revoke]
   Store[(state/seat-credentials.json: sha256 only)]
   Core[terminals core / Crust: registry, reachability, connection]
-  Private[parent-side private launch channel / Elegg]
+  Private[existing seat-user launcher / runtime / Elegg]
   Native[Aiterm remote adapter / Elegg]
   Mac[Remote Claude seat, cwd = projectRoot]
   Forward[Aiterm SSH reverse forward / Elegg: terminal 127.0.0.1:P stable per terminal -> container 127.0.0.1:4182]
@@ -26,10 +26,11 @@ flowchart LR
   Cred -->|registry.get: terminal exists| Core
   Cred <--> Store
   Cred -->|url, credentialRef| Exec
-  Exec -->|open with credentials.BELLTEAM_MCP_TOKEN = credentialRef| Core
-  Core --> Private
-  Private -->|reveal credentialRef| Cred
-  Private --> Native
+  Core -->|connection.target: terminal, cwd, accountOwner| Exec
+  Exec -->|reveal credentialRef| Cred
+  Cred -->|token only as privateEnv in launcher stdin JSON| Private
+  Exec -->|agent_launch: terminal, cwd, privateEnvNames| Private
+  Private -->|environment names / Aiterm launch| Native
   Native <--> Mac
   Core -->|handles| Usage
   Usage -->|native provider status ref| Status
