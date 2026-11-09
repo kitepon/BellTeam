@@ -208,27 +208,27 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 
 | 型・関数・算出値 | 機能 |
 | --- | --- |
-| [ModelsResponse / HarnessModels / ModelCatalogFailure / ModelChoice](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L3) | モデル候補と利用可否 |
+| [ModelsResponse / HarnessModels / ModelCatalogFailure / ModelChoice](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L3) | モデル候補と利用可否。ModelChoice.labelは`display_name`（任意）か、無ければidを表示名にする |
 | [HarnessModels.fastModeUnavailableReason](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L11) | fastの不可理由 |
-| [BotEditor.init](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L73) | initialからdraftの初期値を設定 |
-| [modelChoices / effortChoices / fastModeUnavailableReason](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L92) | 候補と現在値、fast表示条件 |
-| [deletionPending / largeAvatarPreview / canEditVariantImages](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L109) | 編集制御・画像プレビュー |
-| [BotEditor.body](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L118) | メンバー・AI・プロフィール・削除・保存結果のフォーム |
-| [profileField](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L329) | 複数行プロフィール入力 |
-| [load](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L336) | draft復元・モデル候補GET |
-| [reopenCrop](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L376) | 画像variantの再調整 |
-| [persistDraft](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L388) | 既存Bot draftをAppStoreへ |
-| [save](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L395) | メンバー保存・結果表示・一覧refresh |
-| [deleteMember](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L430) | 削除要求と結果不明表示 |
-| [confirmDeletion](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L447) | GETによる削除結果確認 |
-| [settings / hasSavedResult](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L463) | BotSettings構築と結果の文言選択 |
-| [confirmSave](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L480) | 保存内容のGET照合 |
-| [close](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L493) | draft削除・sheet/windowを閉じる |
-| [RoomRequest](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L500) | ルーム編集body |
-| [RoomEditor.body](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L522) | メンバーSet選択・代表Picker・画像・削除・エラー |
-| [populate](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L600) | initialからルームdraftへ |
-| [save](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L609) | POST/PATCH・RoomResponse適用 |
-| [deleteRoom](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L641) | 削除・dismissと失敗保持 |
+| [BotEditor.init](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L79) | initialからdraftの初期値を設定 |
+| [modelChoices / effortChoices / fastModeUnavailableReason](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L98) | 候補と現在値、fast表示条件 |
+| [deletionPending / largeAvatarPreview / canEditVariantImages](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L115) | 編集制御・画像プレビュー |
+| [BotEditor.body](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L124) | メンバー・AI・プロフィール・削除・保存結果のフォーム |
+| [profileField](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L335) | 複数行プロフィール入力 |
+| [load](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L342) | draft復元・モデル候補GET |
+| [reopenCrop](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L382) | 画像variantの再調整 |
+| [persistDraft](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L394) | 既存Bot draftをAppStoreへ |
+| [save](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L401) | メンバー保存・結果表示・一覧refresh |
+| [deleteMember](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L436) | 削除要求と結果不明表示 |
+| [confirmDeletion](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L453) | GETによる削除結果確認 |
+| [settings / hasSavedResult](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L469) | BotSettings構築と結果の文言選択 |
+| [confirmSave](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L486) | 保存内容のGET照合 |
+| [close](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L499) | draft削除・sheet/windowを閉じる |
+| [RoomRequest](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L506) | ルーム編集body |
+| [RoomEditor.body](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L528) | メンバーSet選択・代表Picker・画像・削除・エラー |
+| [populate](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L606) | initialからルームdraftへ |
+| [save](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L615) | POST/PATCH・RoomResponse適用 |
+| [deleteRoom](../../../../ios/BellBot/BellBot/Views/ManagementView.swift#L647) | 削除・dismissと失敗保持 |
 
 ## Views/SettingsView.swift
 

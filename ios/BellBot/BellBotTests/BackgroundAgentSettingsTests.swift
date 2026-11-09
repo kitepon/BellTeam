@@ -25,6 +25,20 @@ final class BackgroundAgentSettingsTests: XCTestCase {
         XCTAssertEqual(object["reasoningEffort"] as? String, "high")
     }
 
+    func testModelChoiceLabelUsesDisplayNameAndFallsBackToId() throws {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase // BellAPIと同じ
+        let catalog = try decoder.decode(ModelsResponse.self, from: Data(#"""
+        {"models":{
+          "claude":{"efforts":[],"models":[{"id":"fable","display_name":"Fable 5.2","efforts":[],"fast":false}]},
+          "cursor":{"efforts":[],"models":[{"id":"auto","display_name":null,"efforts":[],"fast":false},{"id":"old","efforts":[],"fast":false}]}}}
+        """#.utf8)).models
+        let fable = try XCTUnwrap(catalog["claude"]?.models.first)
+        XCTAssertEqual(fable.label, "Fable 5.2")
+        XCTAssertEqual(fable.id, "fable", "保存値はidのまま")
+        XCTAssertEqual(catalog["cursor"]?.models.map(\.label), ["auto", "old"], "nullと欠落はidを表示")
+    }
+
     func testChoicesUseEachModelsOwnEffortsAndNeverSubstitute() throws {
         let catalog = try JSONDecoder().decode(ModelsResponse.self, from: Data(#"""
         {"models":{

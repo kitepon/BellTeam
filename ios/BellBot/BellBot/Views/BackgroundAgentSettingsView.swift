@@ -84,7 +84,7 @@ private struct BackgroundAgentEditor: View {
                         if !choices.efforts(harness: harness, model: next).contains(effort) { effort = "" }
                     })) {
                         Text("選んでください").tag("")
-                        ForEach(choices.models(for: harness)) { Text($0.id).tag($0.id) }
+                        ForEach(choices.models(for: harness)) { Text($0.label).tag($0.id) }
                         if !model.isEmpty && !choices.models(for: harness).contains(where: { $0.id == model }) {
                             Text("\(model)（現在の候補にありません）").tag(model)
                         }

@@ -30,6 +30,12 @@ struct ModelChoice: Decodable, Identifiable {
     let id: String
     let efforts: [String]
     let fast: Bool
+    /// サーバーの`display_name`（BellAPIのconvertFromSnakeCaseでdisplayNameに入る）。旧応答・cursorなどではnull／欠落。保存値と選択値は常にid。
+    var displayName: String? = nil
+    var label: String {
+        let name = displayName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return name.isEmpty ? id : name
+    }
 }
 
 struct BotEditor: View {
@@ -214,7 +220,7 @@ struct BotEditor: View {
                             if !effortChoices.contains(effort) { effort = "" }
                         })) {
                             Text("CLIの既定").tag("")
-                            ForEach(modelChoices) { choice in Text(choice.id).tag(choice.id) }
+                            ForEach(modelChoices) { choice in Text(choice.label).tag(choice.id) }
                             Text("その他").tag("__custom__")
                         }
                         .disabled(catalog[harness]?.error != nil)

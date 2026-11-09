@@ -124,7 +124,7 @@ flowchart TD
 | 段階 | 入出力 |
 | --- | --- |
 | 読取 | `GET /api/settings`のトップ`backgroundAgent`を`AppStore.backgroundAgent`へ。キーが無い応答は旧版として編集不可、`{revision:null,selection:null}`は未設定 |
-| 候補 | `GET /api/models`。モデルは対象harnessの`models`、エフォートはそのモデル個別の`efforts`。個別effortsが空の時だけ`""`（CLIの既定）。候補に無い保存値は「現在の候補にありません」と出し、選び直すまで保存不可。別の値で埋めない |
+| 候補 | `GET /api/models`。モデルは対象harnessの`models`（Pickerの表示名は`ModelChoice.label`＝`display_name`、null・欠落・空ならid。tagと保存値はid）、エフォートはそのモデル個別の`efforts`。個別effortsが空の時だけ`""`（CLIの既定）。候補に無い保存値は「現在の候補にありません」と出し、選び直すまで保存不可。別の値で埋めない |
 | 保存 | `PATCH /api/settings/backgroundAgent`へ`expectedRevision`（初回null）と`harness`・`model`・`reasoningEffort`の4キー。200の`backgroundAgent`で保存値とrevisionを更新。自動の再送はしない |
 | 失敗 | 案内文を出し、入力中の選択は残す。409と500は`GET /api/settings`で保存値とrevisionを読み直し、保存済みの値を並べて見せる |
 | 通知 | SSE `settings`で`refreshSettings`。編集中の選択は上書きしない |
