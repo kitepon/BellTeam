@@ -11,7 +11,7 @@ struct SecretRequestCard: View {
     let onOpenInput: () -> Void
 
     private var current: SecretRequest { state.result ?? request }
-    private var name: String { store.bots.first { $0.id == request.botId }?.name ?? request.botId }
+    private var name: String { store.bots.first { $0.id == request.botId }?.name ?? request.botId ?? "" }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -44,40 +44,87 @@ struct SecretRequestCard: View {
 
 struct SecretInputSheet: View {
     let request: SecretRequest
+    /// Shown instead of the request label (a terminal key's label is the server's English text).
+    var title: String?
     let onComplete: (SecretRequest) -> Void
     @EnvironmentObject private var store: AppStore
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @State private var value = ""
+    @State private var reference = ""
+    @State private var useOnePassword: Bool
     @State private var sending = false
     @State private var errorText: String?
+
+    init(request: SecretRequest, title: String? = nil, onComplete: @escaping (SecretRequest) -> Void) {
+        self.request = request
+        self.title = title
+        self.onComplete = onComplete
+        _useOnePassword = State(initialValue: request.inputOptions?.opensWithOnePassword == true)
+    }
+
+    private var onePasswordOffered: Bool { request.inputOptions?.onePasswordAvailable == true }
+    /// An OpenSSH private key is multiline; a SecureField would drop its newlines. The value is sent as typed.
+    private var multiline: Bool { request.purpose == "terminal.ssh" }
+    private var ready: Bool { useOnePassword ? !reference.trimmingCharacters(in: .whitespaces).isEmpty : !value.isEmpty }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    SelectableText(request.message)
-                    Text("値は会話に送信されません。BellTeamの利用者領域へ保存します。")
+                    if !request.message.isEmpty { SelectableText(request.message) }
+                    Text(useOnePassword ? "参照は会話に送信されません。値は1Passwordから読み出します。"
+                         : "値は会話に送信されません。BellTeamの利用者領域へ保存します。")
                         .font(.footnote).foregroundStyle(BellTheme.muted)
                 }
-                Section(request.label) {
-                    SecureField(request.label, text: $value)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .privacySensitive()
-                        .accessibilityIdentifier("secret-value")
+                if onePasswordOffered {
+                    Section("入力方法") {
+                        Picker("入力方法", selection: $useOnePassword) {
+                            Text("1Passwordの参照を使う").tag(true)
+                            Text("値をBellTeamへ保存する").tag(false)
+                        }
+                        .pickerStyle(.inline)
+                        .labelsHidden()
                         .disabled(sending)
+                        .accessibilityIdentifier("secret-source")
+                    }
+                }
+                Section(title ?? request.label) {
+                    if useOnePassword {
+                        TextField("op://保管庫/アイテム/フィールド", text: $reference)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .privacySensitive()
+                            .accessibilityIdentifier("secret-reference")
+                            .disabled(sending)
+                    } else if multiline {
+                        TextEditor(text: $value)
+                            .font(.footnote.monospaced())
+                            .frame(minHeight: 120)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .privacySensitive()
+                            .accessibilityIdentifier("secret-value")
+                            .disabled(sending)
+                    } else {
+                        SecureField(title ?? request.label, text: $value)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .privacySensitive()
+                            .accessibilityIdentifier("secret-value")
+                            .disabled(sending)
+                    }
                 }
                 Section {
                     Button("登録して続ける") { Task { await finish(submit: true) } }
-                        .disabled(sending || value.isEmpty)
+                        .disabled(sending || !ready)
                     Button("入力を断る", role: .destructive) { Task { await finish(submit: false) } }
                         .disabled(sending)
                     if sending { ProgressView("送信中") }
                     if let errorText { Text(errorText).foregroundStyle(.red).font(.footnote) }
                 }
             }
-            .navigationTitle(request.label)
+            .navigationTitle(title ?? request.label)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -85,21 +132,29 @@ struct SecretInputSheet: View {
                 }
             }
             .interactiveDismissDisabled(sending)
-            .onChange(of: scenePhase) { _, phase in if phase != .active { value = "" } }
-            .onDisappear { value = "" }
+            .onChange(of: useOnePassword) { _, _ in clear() }
+            .onChange(of: scenePhase) { _, phase in if phase != .active { clear() } }
+            .onDisappear { clear() }
         }
     }
 
+    private func clear() { value = ""; reference = "" }
+
     private func finish(submit: Bool) async {
         guard !sending else { return }
+        if submit, useOnePassword, let problem = SecretSubmission.referenceProblem(reference) { errorText = problem; return }
         sending = true
         defer { sending = false }
-        do { try await store.authorizeAIUse(target: .bot(request.botId)) }
-        catch { errorText = error.localizedDescription; return }
-        let submittedValue = submit ? value : nil
-        value = ""
+        // A terminal key (no Bot) is not AI use; Bot requests keep the paid-access gate.
+        if let botId = request.botId {
+            do { try await store.authorizeAIUse(target: .bot(botId)) }
+            catch { errorText = error.localizedDescription; return }
+        }
+        let submission: SecretSubmission? = !submit ? nil
+            : useOnePassword ? .onePassword(reference: reference.trimmingCharacters(in: .whitespacesAndNewlines)) : .value(value)
+        clear()
         do {
-            let result = try await store.api.finishSecretRequest(id: request.id, value: submittedValue)
+            let result = try await store.api.finishSecretRequest(id: request.id, submission: submission)
             onComplete(result.request)
             dismiss()
         } catch let error where BellAPIError.isAuthenticationError(error) {

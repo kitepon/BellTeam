@@ -2,7 +2,7 @@
 
 [全体図](overview.md) / [メンバー・ルーム編集](members-and-rooms.md) / [設定](settings-and-profile.md) / [関数索引](function-index.md) / [試験](tests.md)。以下の実装名は`ios/BellBot/BellBot/`からの相対名。
 
-使う契約：[terminals](../terminals/README.md)（registry・reachability・C8 maintenance）、[ingress RS09/RS12](../integration/remote-seat-ingress.md#data-flow)（HTTP `/api/terminals*`、鍵を結ぶのはBot MCPの`bind_terminal_key`だけ）、[members C1](../members/remote-seat.md#c1-member-binding)（`terminalId`・`projectRoot`）、[secret credentials C5](../usage/secret-credentials.md)（1Password参照を先、保存値は代替。値は一般の欄に書かない）。Appleはこれらの利用側で、契約を変えない。
+使う契約：[terminals](../terminals/README.md)（registry・reachability・C8 maintenance）、[ingress RS09/RS12](../integration/remote-seat-ingress.md#data-flow)（HTTP `/api/terminals*`）、[terminals「Key setting from the app」](../terminals/README.md#key-setting-from-the-app-trony-ruling-2026-11-09)（`POST|DELETE /api/terminals/:id/keys/{ssh|sudo}`、projectionの`keySource`・`sudoKeySource`・`sshKeyPending`・`sudoKeyPending`）、[members C1](../members/remote-seat.md#c1-member-binding)（`terminalId`・`projectRoot`）、[secret credentials](../usage/secret-credentials.md#owner-terminal-key-settings)と[秘密の入力](../../../secret-input.md)（既存の秘密入力カード、`inputOptions`で1Password参照を先・保存値を代替、`POST /api/secret-requests/:id/submit`。値は一般の欄に書かない）。Appleはこれらの利用側で、契約を変えない。
 
 ## 機能図
 
@@ -14,7 +14,10 @@ flowchart TD
   List --> Form["TerminalEditor<br/>ID・ホスト・ユーザー・ポート・OS・持ち主"]
   Detail --> Form
   Detail --> HostKey["HostKeyConfirmSheet<br/>端末で読んだ指紋を入力"]
-  Detail --> Keys["鍵の行: 設定済み/未設定だけ<br/>「Botに頼んで設定する」"]
+  Detail --> Keys["TerminalKeyRow（SSH鍵・sudo鍵）<br/>設定済み/未設定/設定待ち + 鍵の出どころ<br/>「設定する」「設定し直す」「外す」"]
+  Keys --> KeyState["Terminal.key → TerminalKeyState<br/>旧本体は未対応の一行"]
+  Keys --> Card["SecretInputSheet（既存の秘密入力カード）<br/>1Password参照が先・保存値が代替"]
+  Card --> SecretAPI["BellAPI.finishSecretRequest<br/>保護session"]
   Form --> Rules["TerminalDraft.problem<br/>サーバーと同じ形の検査"]
   HostKey --> FP["HostKeyFingerprint.problem<br/>SHA256:+43文字"]
   Store["AppStore+Terminals<br/>terminals: TerminalDirectory"] --> API["BellAPI get/put/post/delete"]
@@ -22,6 +25,7 @@ flowchart TD
   Detail --> Store
   Form --> Store
   HostKey --> Store
+  Keys --> Store
   Section["MemberTerminalSection<br/>このBellTeam / 登録した端末 + フォルダ"] --> Store
   Section --> Pair["MemberBinding.problem<br/>組の規則・絶対パス"]
   BotEditor["BotEditor.save"] --> Pair
@@ -31,9 +35,10 @@ flowchart TD
 
 | 部品 | 責任 |
 | --- | --- |
-| `Core/Terminals.swift` | `Terminal`・`TerminalCheck`・`TerminalMaintenance`（新しい項目はすべて省略可で読む）、`TerminalDraft`（登録の検査とbody）、`MemberBinding`（組の規則とフォルダの検査）、`HostKeyFingerprint`、`TerminalReachabilityText`（確認結果の文）、`TerminalErrorText`（HTTPの符号から文） |
-| `Core/AppStore+Terminals.swift` | `TerminalDirectory`（`state`・`checks`・`checking`）を`AppStore.terminals`に保持。`refreshTerminals`・`saveTerminal`・`confirmHostKey`・`removeTerminal`・`checkTerminal`。サインアウトと接続先変更で空に戻す |
-| `Views/TerminalsView.swift` | 一覧・詳細・登録/編集・ホスト鍵の画面と、メンバー編集の「端末とフォルダ」節 |
+| `Core/Terminals.swift` | `Terminal`・`TerminalCheck`・`TerminalMaintenance`（新しい項目はすべて省略可で読む）、`TerminalKeyKind`・`TerminalKeyState`（鍵の行）、`TerminalDraft`（登録の検査とbody）、`MemberBinding`（組の規則とフォルダの検査）、`HostKeyFingerprint`、`TerminalReachabilityText`（確認結果の文）、`TerminalErrorText`（HTTPの符号から文） |
+| `Core/AppStore+Terminals.swift` | `TerminalDirectory`（`state`・`checks`・`checking`）を`AppStore.terminals`に保持。`refreshTerminals`・`saveTerminal`・`confirmHostKey`・`removeTerminal`・`checkTerminal`・`requestTerminalKey`・`removeTerminalKey`。サインアウトと接続先変更で空に戻す |
+| `Views/TerminalsView.swift` | 一覧・詳細・登録/編集・ホスト鍵の画面、鍵の行（`TerminalKeyRow`）と外す確認、メンバー編集の「端末とフォルダ」節 |
+| `Views/SecretRequestView.swift` | `SecretInputSheet`。端末の鍵でも会話の秘密要求と同じ入力欄を使う（[質問・秘密要求](requests-and-auth.md)） |
 | `Views/ManagementView.swift` | BotEditorに節を置き、保存前に組の規則を検査し、対応サーバーの時だけ2項目を送る |
 | `Views/SettingsView.swift` | 設定の項目「端末」 |
 
@@ -46,9 +51,40 @@ flowchart TD
 | AT03 | 確認 -> `POST /api/terminals/:id/check` | `{reachable, reason, action?, observedAt}`を端末ごとに`checks`へ保持（アプリ内だけ）。席は起動しない |
 | AT04 | ホスト鍵 -> `PUT /api/terminals/:id` `{confirmHostKey:'SHA256:…'}` | オーナーが端末で読んだ指紋だけを送る。サーバーは一度scanし、等しい時だけ信用し直す。409 `HOST_KEY_FINGERPRINT_MISMATCH`は「指紋が違う」と表示して入力を残す |
 | AT05 | 削除 -> `DELETE /api/terminals/:id` | 確認ダイアログの後。メンバーの設定と保留中のメッセージは残ると表示 |
+| AT07 | 鍵の行「設定する」「設定し直す」 -> `POST /api/terminals/:id/keys/{ssh|sudo}`（本文は空の`{}`） | `{secretRequest:{id,label,inputOptions,…}}`。一覧を読み直して「設定待ち」にし、返った依頼で既存の秘密入力カードを開く。カードは`inputOptions.onePasswordAvailable`なら1Password参照を上・既定に、保存値を代替に出す。SSH鍵は複数行欄。カードから`POST /api/secret-requests/:id/submit`（`{source:'onepassword',reference}`または`{value}`）。閉じた時と完了時に一覧を読み直す。鍵の値・参照はこの画面にもHTTPの鍵の入口にも出ない |
+| AT08 | 鍵の行「外す」 -> `DELETE /api/terminals/:id/keys/{ssh|sudo}` | 確認ダイアログの後。サーバーが鍵を外し（設定待ちの依頼も取り消し）、一覧を読み直す |
 | AT06 | メンバー保存 -> `PATCH /api/bots/:id` / `POST /api/bots` | 対応サーバーの時だけ`terminalId`・`projectRoot`（このBellTeamは両方空）。400 `BOT_TERMINAL_ID_INVALID`・`BOT_PROJECT_ROOT_INVALID`・`BOT_REMOTE_BINDING_INVALID`は画面の検査と同じ文 |
 
-鍵（SSH・sudo）を結ぶ入口はアプリから届かない。HTTPに無く、Bot MCPの`bind_terminal_key`（Aitermが持つ鍵の登録）と`register_terminal`の`sudoKeyRef`（秘密入力カードの参照）だけがある。アプリは設定済み/未設定だけを表示し、行に「Botに頼んで設定する」とその理由を出す。鍵の値・`op://`参照の欄は作らない。アプリの入口が契約に加わったら、1Password参照を先、秘密入力カードの保存値を代替として同じ行から結ぶ。
+```mermaid
+sequenceDiagram
+  participant Row as TerminalKeyRow
+  participant Store as AppStore+Terminals
+  participant T as terminals HTTP
+  participant Card as SecretInputSheet
+  participant S as secret-requests HTTP
+  Row->>Store: requestTerminalKey(id, kind)
+  Store->>T: POST /api/terminals/:id/keys/ssh|sudo {}
+  T-->>Store: {secretRequest}
+  Store->>T: GET /api/terminals（設定待ち）
+  Store-->>Row: secretRequest
+  Row->>Card: 開く（1Password参照が先）
+  Card->>S: POST /api/secret-requests/:id/submit {source:'onepassword',reference} | {value}
+  S-->>Card: {request}
+  Card-->>Row: 完了 / 閉じる
+  Row->>Store: refreshTerminals（設定済み・鍵の出どころ）
+  Row->>Store: removeTerminalKey(id, kind)（確認の後）
+  Store->>T: DELETE /api/terminals/:id/keys/ssh|sudo
+  Store->>T: GET /api/terminals
+```
+
+| 鍵の行（`Terminal.key`） | 表示と操作 |
+| --- | --- |
+| `sshKeyPending`/`sudoKeyPending`が無い（旧本体） | 設定済み/未設定と、節に一行「このBellTeamはまだアプリからの鍵の設定に対応していません」。ボタンなし。POSTが`TERMINAL_NOT_FOUND`以外の404を返した時も同じ |
+| 未設定 | 「未設定」、「設定する」 |
+| 設定待ち | 「設定待ち」と、設定済みなら今の鍵の出どころ（新しい鍵が結ばれるまで今の鍵を使う）。「設定する」/「設定し直す」で入力欄を開き直す（サーバーは新しい依頼に置き換える）。「外す」 |
+| 設定済み | 「設定済み」と鍵の出どころ（`terminal-native`=端末にある鍵、`secret`=BellTeamに預けた鍵）。「設定し直す」「外す」 |
+
+SSH鍵は「必須。これが無いと端末につなげません。」、sudo鍵は「任意。自分の端末では不要です。」と添える。ハンドル・値・`op://`参照は表示しない（projectionにも無い）。失敗は詳細ページ下の案内（`SettingsBanner`）に符号から選んだ平易な文で出し、サーバーの英文は出さない：`KEY_IN_REQUEST_REFUSED` 400（アプリは本文を送らないが、来たら入力欄だけに入れる案内）、`TERMINAL_NOT_FOUND` 404、`CREDENTIAL_UNAVAILABLE` 503（少し待って再試行）、`TERMINAL_UNAVAILABLE` 503（BellTeamのAitermを更新）、`TERMINAL_CHANGED` 409（もう一度押す）。自動再送はしない。
 
 ## 状態
 
@@ -89,13 +125,13 @@ stateDiagram-v2
 
 ## 旧本体との互換
 
-すべての新しい項目は省略可で読む。旧本体では端末の一覧が404になり、メンバーに2項目が無いので、両方の節は一行の案内だけになる。`BotSettings`の2項目は`nil`の時にencodeせず、保存結果の照合でも`nil`ならサーバーの現在値を採用する。
+すべての新しい項目は省略可で読む。旧本体では端末の一覧が404になり、メンバーに2項目が無いので、両方の節は一行の案内だけになる。端末の一覧はあるが鍵の入口が無い本体（projectionに`sshKeyPending`が無い）では、鍵の行だけが一行の案内になり、他の操作はそのまま使える。`BotSettings`の2項目は`nil`の時にencodeせず、保存結果の照合でも`nil`ならサーバーの現在値を採用する。
 
 ## 試験と確認用の起動引数
 
-単体は`TerminalsTests`、iPhoneの画面は`TerminalsUITests`と[terminals-ui-server.mjs](../../../../test/helpers/terminals-ui-server.mjs)（[試験の対応表](tests.md#terminalsuitestsswift)）。DEBUGの`-bellbot-preview-terminals`はpreview名簿に2項目を付ける（無ければ旧本体の名簿）。`-bellbot-preview-terminal add | detail:<id> | check:<id> | hostkey:<id> | edit:<id>`は`-bellbot-preview-settings terminals`と組み合わせてその状態を開く。
+単体は`TerminalsTests`、iPhoneの画面は`TerminalsUITests`と[terminals-ui-server.mjs](../../../../test/helpers/terminals-ui-server.mjs)（[試験の対応表](tests.md#terminalsuitestsswift)）。DEBUGの`-bellbot-preview-terminals`はpreview名簿に2項目を付ける（無ければ旧本体の名簿）。`-bellbot-preview-terminal add | detail:<id> | check:<id> | hostkey:<id> | edit:<id> | setkey:<id>`（`setkey`はSSH鍵の入力欄を開く）は`-bellbot-preview-settings terminals`と組み合わせてその状態を開く。
 
 ## 未調査
 
 - サーバーが`action`に指紋を含めるか（Aitermの文面）。含まない時は端末で読んだ指紋の入力だけで確かめる。
-- 実端末への確認・ホスト鍵の信用し直しは、試験用サーバー（`test/helpers/terminals-ui-server.mjs`）だけで確認した。
+- 実端末への確認・ホスト鍵の信用し直し・鍵の設定と外す操作は、試験用サーバー（`test/helpers/terminals-ui-server.mjs`）だけで確認した。実際のMika・1Password・Aitermとの結合は未確認。

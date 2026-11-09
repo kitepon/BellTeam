@@ -32,7 +32,9 @@ final class TerminalsUITests: XCTestCase {
         XCTAssertTrue(waitLabel(app, "terminal-reachability", contains: "つながる"))
         shot(app, "02-terminal-detail-reachable")
         app.swipeUp()
-        XCTAssertTrue(app.descendants(matching: .any)["terminal-key-route"].waitForExistence(timeout: 3), "鍵の行は「Botに頼んで設定する」")
+        XCTAssertTrue(app.descendants(matching: .any)["terminal-key-ssh"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["set-key-ssh"].exists, "鍵の行は「設定し直す」")
+        XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Botに頼んで")).firstMatch.exists)
         XCTAssertTrue(app.staticTexts["Claude Codeを更新しました（2.1.30 → 2.1.32）"].waitForExistence(timeout: 3))
         shot(app, "03-terminal-detail-keys")
         app.navigationBars.buttons.element(boundBy: 0).tap()
@@ -143,6 +145,90 @@ final class TerminalsUITests: XCTestCase {
         app.navigationBars.buttons.element(boundBy: 0).tap()
         XCTAssertTrue(app.buttons["settings-row-terminals"].waitForExistence(timeout: 5), "設定の項目「端末」")
         shot(app, "00-settings-root")
+    }
+
+    func testKeySettingThroughTheSecretCardAndRemoval() async throws {
+        var app = launch(["-bellbot-preview-terminals", "-bellbot-preview-settings", "terminals"])
+        let owner = app.buttons["terminal-row-owner-macbook"]
+        XCTAssertTrue(owner.waitForExistence(timeout: 10))
+        owner.tap()
+        let ssh = app.descendants(matching: .any)["terminal-key-ssh"]
+        let sudo = app.descendants(matching: .any)["terminal-key-sudo"]
+        XCTAssertTrue(scrollTo(app.buttons["set-key-sudo"], in: app))
+        XCTAssertTrue(ssh.label.contains("設定済み") && ssh.label.contains("端末にある鍵"), ssh.label)
+        XCTAssertTrue(sudo.label.contains("未設定") && sudo.label.contains("自分の端末では不要"), sudo.label)
+        XCTAssertEqual(app.buttons["set-key-ssh"].label, "設定し直す")
+        XCTAssertEqual(app.buttons["set-key-sudo"].label, "設定する")
+        XCTAssertFalse(app.buttons["remove-key-sudo"].exists, "未設定の鍵は外せない")
+        shot(app, "40-terminal-keys-configured-and-missing")
+
+        // sudo: the card opens with 1Password first; the reference goes only to the secret submit.
+        app.buttons["set-key-sudo"].tap()
+        let reference = app.textFields["secret-reference"]
+        XCTAssertTrue(reference.waitForExistence(timeout: 5), "1Passwordが接続済みなら参照が先")
+        let onePassword = app.buttons["1Passwordの参照を使う"], stored = app.buttons["値をBellTeamへ保存する"]
+        XCTAssertTrue(onePassword.exists && stored.exists)
+        XCTAssertLessThan(onePassword.frame.minY, stored.frame.minY, "1Passwordが上")
+        XCTAssertTrue(app.navigationBars["owner-macbookのsudo鍵"].exists)
+        shot(app, "41-terminal-key-secret-card-1password")
+        reference.tap()
+        reference.typeText("op://aaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbb/password")
+        app.buttons["登録して続ける"].tap()
+        XCTAssertTrue(waitLabel(app, "terminal-key-sudo", contains: "設定済み"))
+        XCTAssertTrue(sudo.label.contains("BellTeamに預けた鍵"), sudo.label)
+        XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "op://aaaa")).firstMatch.exists, "参照を画面に出さない")
+        var proof = try await call("/test/proof")
+        XCTAssertEqual((proof["keyRequests"] as? [[String: Any]])?.first?["bodyKeys"] as? [String], [], "鍵の入口には何も送らない")
+        let submit = (proof["secretSubmits"] as? [[String: Any]])?.last ?? [:]
+        XCTAssertEqual(submit["action"] as? String, "submit")
+        XCTAssertEqual(submit["keys"] as? [String], ["reference", "source"])
+        XCTAssertEqual(submit["source"] as? String, "onepassword")
+        shot(app, "42-terminal-keys-sudo-set")
+
+        // ssh again with the stored value, closed before sending: the row waits and the old key stays.
+        XCTAssertTrue(scrollTo(app.buttons["set-key-ssh"], in: app))
+        app.buttons["set-key-ssh"].tap()
+        XCTAssertTrue(app.textFields["secret-reference"].waitForExistence(timeout: 5))
+        app.buttons["値をBellTeamへ保存する"].tap()
+        let value = app.textViews["secret-value"]
+        XCTAssertTrue(value.waitForExistence(timeout: 3), "SSH鍵は複数行の欄")
+        shot(app, "43-terminal-key-secret-card-stored")
+        app.buttons["閉じる"].tap()
+        XCTAssertTrue(waitLabel(app, "terminal-key-ssh", contains: "設定待ち"))
+        XCTAssertTrue(ssh.label.contains("端末にある鍵"), "新しい鍵が結ばれるまで今の鍵")
+        shot(app, "44-terminal-keys-ssh-pending")
+
+        // Remove sudo after confirming.
+        XCTAssertTrue(scrollTo(app.buttons["remove-key-sudo"], in: app))
+        app.buttons["remove-key-sudo"].tap()
+        let alert = app.alerts["「owner-macbook」のsudo鍵を外しますか？"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        shot(app, "45-terminal-key-remove-confirm")
+        alert.buttons["外す"].tap()
+        XCTAssertTrue(waitLabel(app, "terminal-key-sudo", contains: "未設定"))
+        proof = try await call("/test/proof")
+        XCTAssertEqual((proof["keyDeletes"] as? [[String: String]])?.last, ["terminalId": "owner-macbook", "kind": "sudo"])
+        XCTAssertEqual((proof["secretSubmits"] as? [Any])?.count, 1, "閉じた入力欄は何も送らない")
+
+        // 503: a calm reason, the card does not open.
+        _ = try await call("/test/mode?keys=unavailable")
+        app.buttons["set-key-sudo"].tap()
+        XCTAssertTrue(app.staticTexts["いまは鍵の入力欄を開けません。少し待ってから、もう一度試してください。"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.textFields["secret-reference"].exists)
+        app.terminate()
+
+        // An older body: the key rows show one calm line and no buttons; the rest of the page stays.
+        _ = try await call("/test/mode?keys=old")
+        app = launch(["-bellbot-preview-terminals", "-bellbot-preview-settings", "terminals"])
+        defer { app.terminate() }
+        XCTAssertTrue(app.buttons["terminal-row-owner-macbook"].waitForExistence(timeout: 10))
+        app.buttons["terminal-row-owner-macbook"].tap()
+        let calm = app.descendants(matching: .any)["terminal-keys-unsupported"]
+        XCTAssertTrue(scrollTo(calm, in: app))
+        XCTAssertTrue(app.descendants(matching: .any)["terminal-key-ssh"].label.contains("設定済み"))
+        XCTAssertFalse(app.buttons["set-key-ssh"].exists)
+        XCTAssertFalse(app.buttons["remove-key-ssh"].exists)
+        shot(app, "46-terminal-keys-old-body")
     }
 
     func testMemberEditorTerminalAndFolder() async throws {

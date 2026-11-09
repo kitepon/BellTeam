@@ -148,7 +148,7 @@ final class BellDiagnosticsTests: XCTestCase {
                           session: URLSession(configuration: configuration),
                           diagnostics: BellDiagnostics(onReport: { _, _, _, _ in }))
         do {
-            _ = try await api.finishSecretRequest(id: "request-private-id", value: "secret-value")
+            _ = try await api.finishSecretRequest(id: "request-private-id", submission: .value("secret-value"))
             XCTFail("500を成功にしない")
         } catch {
             let log = try XCTUnwrap(BellRequestTrace.from(error)).log

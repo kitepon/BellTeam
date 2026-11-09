@@ -1,12 +1,11 @@
 import SwiftUI
 
-// F-SEAT-HOST P2 screens (docs/architecture/modules/apple/terminals.md). Keys are shown only as configured / missing.
+// F-SEAT-HOST P2 screens (docs/architecture/modules/apple/terminals.md). Keys show only their state and source, never a value or op://.
 
 private let unsupportedLine = "このBellTeamはまだ端末の登録に対応していません"
-private let keyRouteReason = "このBellTeamには、アプリから鍵を結ぶ入口がまだありません。いまはBotの道具だけが鍵を結べます（SSH鍵は bind_terminal_key、sudo鍵は register_terminal）。Botに頼んでください。鍵の中身や1Passwordの参照を、会話や普通の入力欄に書かないでください。"
 
 #if DEBUG
-/// `-bellbot-preview-terminal add | detail:<id> | check:<id> | hostkey:<id> | edit:<id>` opens that state for screenshots.
+/// `-bellbot-preview-terminal add | detail:<id> | check:<id> | hostkey:<id> | edit:<id> | setkey:<id>` opens that state for screenshots.
 enum TerminalPreviewRoute {
     static var value: (action: String, id: String?)? {
         let arguments = ProcessInfo.processInfo.arguments
@@ -65,7 +64,7 @@ struct TerminalListPage: View {
                 } header: {
                     BellSectionHeader("登録した端末")
                 } footer: {
-                    Text("メンバーの席を、BellTeamの外のMacで動かす時に使います。鍵は「設定済み」かどうかだけを表示します。").font(BellTheme.secondaryFont)
+                    Text("メンバーの席を、BellTeamの外のMacで動かす時に使います。鍵は状態だけを表示し、中身は表示しません。").font(BellTheme.secondaryFont)
                 }
                 if let error = store.terminals.readError {
                     Section { SettingsBanner(message: "最新の一覧を読み込めませんでした。前に読んだ一覧を表示しています。", detail: error) }
@@ -100,8 +99,8 @@ private struct TerminalRow: View {
                 Text("\(terminal.address) · \(terminal.osLabel) · \(terminal.ownerLabel)")
                     .font(BellTheme.detailFont).foregroundStyle(.secondary).lineLimit(2)
                 HStack(spacing: 10) {
-                    KeyBadge(title: "SSH鍵", configured: terminal.sshKeyConfigured)
-                    if terminal.sudoKeyConfigured { KeyBadge(title: "sudo鍵", configured: true) }
+                    KeyBadge(kind: .ssh, terminal: terminal)
+                    if terminal.sudoKeyConfigured || terminal.sudoKeyPending { KeyBadge(kind: .sudo, terminal: terminal) }
                     if let check { ReachabilityBadge(check: check) }
                 }
             }
@@ -111,13 +110,35 @@ private struct TerminalRow: View {
 }
 
 private struct KeyBadge: View {
-    let title: String
-    let configured: Bool
+    let kind: TerminalKeyKind
+    let terminal: Terminal
     var body: some View {
-        Label("\(title) \(configured ? "設定済み" : "未設定")", systemImage: configured ? "checkmark.circle.fill" : "circle.dashed")
+        let look = KeyLook(terminal.key(kind), configured: kind == .ssh ? terminal.sshKeyConfigured : terminal.sudoKeyConfigured)
+        Label("\(kind.title) \(look.text)", systemImage: look.symbol)
             .font(.caption)
-            .foregroundStyle(configured ? BellTheme.mint : .orange)
+            .foregroundStyle(look.color)
     }
+}
+
+/// An older body (`.unsupported`) still reports configured / missing.
+private struct KeyLook {
+    let text: String
+    let symbol: String
+    let color: Color
+    init(_ state: TerminalKeyState, configured: Bool) {
+        switch state {
+        case .pending: (text, symbol, color) = (state.status, "hourglass", .orange)
+        case .configured: (text, symbol, color) = (state.status, "checkmark.circle.fill", BellTheme.mint)
+        case .missing: (text, symbol, color) = (state.status, "circle.dashed", .orange)
+        case .unsupported: (text, symbol, color) = configured ? ("設定済み", "checkmark.circle.fill", BellTheme.mint) : ("未設定", "circle.dashed", .orange)
+        }
+    }
+}
+
+private struct KeyRequestSheetItem: Identifiable {
+    let kind: TerminalKeyKind
+    let request: SecretRequest
+    var id: String { request.id }
 }
 
 private struct ReachabilityBadge: View {
@@ -138,6 +159,10 @@ struct TerminalDetailPage: View {
     @State private var confirmingRemoval = false
     @State private var errorText: String?
     @State private var working = false
+    @State private var keySheet: KeyRequestSheetItem?
+    @State private var removingKey: TerminalKeyKind?
+    /// POST keys answered 404 without TERMINAL_NOT_FOUND: an older BellTeam without the route.
+    @State private var keysRouteMissing = false
 
     private var terminal: Terminal? { store.terminals.terminal(terminalId) }
     private var check: TerminalCheck? { store.terminals.checks[terminalId] }
@@ -165,6 +190,20 @@ struct TerminalDetailPage: View {
         .sheet(isPresented: $confirmingHostKey) {
             if let terminal { HostKeyConfirmSheet(terminal: terminal, check: check).environmentObject(store).bellEditorSheet() }
         }
+        .sheet(item: $keySheet) { item in
+            SecretInputSheet(request: item.request, title: "\(terminalId)の\(item.kind.title)") { _ in
+                Task { await store.refreshTerminals() }
+            }
+            .environmentObject(store)
+        }
+        .alert(removingKey.map { "「\(terminalId)」の\($0.title)を外しますか？" } ?? "",
+               isPresented: Binding(get: { removingKey != nil }, set: { if !$0 { removingKey = nil } }), presenting: removingKey) { kind in
+            Button("外す", role: .destructive) { Task { await removeKey(kind) } }
+            Button("キャンセル", role: .cancel) {}
+        } message: { kind in
+            Text(kind == .ssh ? "外すと、鍵を設定し直すまでこの端末につなげません。設定待ちの入力欄も取り消します。"
+                 : "外すと、sudoが要る作業は鍵を設定し直すまで止まります。設定待ちの入力欄も取り消します。")
+        }
         .alert("「\(terminalId)」の登録を消しますか？", isPresented: $confirmingRemoval) {
             Button("登録を消す", role: .destructive) { Task { await remove() } }
             Button("キャンセル", role: .cancel) {}
@@ -178,6 +217,7 @@ struct TerminalDetailPage: View {
             case "check": await runCheck()
             case "hostkey": await runCheck(); confirmingHostKey = true
             case "edit": editing = true
+            case "setkey": await setKey(.ssh)
             default: break
             }
         }
@@ -241,16 +281,23 @@ struct TerminalDetailPage: View {
             Text("ホスト鍵は、つなぐ相手が本当にこの端末かを見分ける印です。端末で読んだ指紋と同じ時だけ信用します。").font(BellTheme.secondaryFont)
         }
         Section {
-            KeyStatusRow(title: "SSH鍵", note: "必須。これが無いと端末につなげません。", configured: terminal.sshKeyConfigured)
-            KeyStatusRow(title: "sudo鍵", note: "任意。自分の端末では不要です。", configured: terminal.sudoKeyConfigured)
-            VStack(alignment: .leading, spacing: 4) {
-                Label("Botに頼んで設定する", systemImage: "person.bubble").font(.body.weight(.medium))
-                Text(keyRouteReason).font(BellTheme.detailFont).foregroundStyle(.secondary)
+            ForEach([TerminalKeyKind.ssh, .sudo]) { kind in
+                TerminalKeyRow(kind: kind, terminal: terminal, routeMissing: keysRouteMissing, disabled: working) {
+                    Task { await setKey(kind) }
+                } onRemove: { removingKey = kind }
             }
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("terminal-key-route")
+            if keysRouteMissing || !terminal.keysRouteAvailable {
+                Label(TerminalKeyState.unsupported.status, systemImage: "info.circle")
+                    .font(BellTheme.detailFont)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("terminal-keys-unsupported")
+            }
         } header: {
             BellSectionHeader("鍵")
+        } footer: {
+            if terminal.keysRouteAvailable && !keysRouteMissing {
+                Text("鍵は専用の入力欄だけに入れます。1Passwordの参照を先に選べます。中身や参照は、この画面にも会話にも出しません。").font(BellTheme.secondaryFont)
+            }
         }
         if let maintenance = terminal.maintenance {
             Section(header: BellSectionHeader("Claude Codeの更新")) {
@@ -281,6 +328,26 @@ struct TerminalDetailPage: View {
         catch { errorText = TerminalErrorText.message(for: error) }
     }
 
+    private func setKey(_ kind: TerminalKeyKind) async {
+        working = true
+        defer { working = false }
+        errorText = nil
+        do { keySheet = KeyRequestSheetItem(kind: kind, request: try await store.requestTerminalKey(id: terminalId, kind: kind)) }
+        catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
+        catch where TerminalErrorText.isKeysUnsupported(error) { keysRouteMissing = true }
+        catch { errorText = TerminalErrorText.message(for: error) }
+    }
+
+    private func removeKey(_ kind: TerminalKeyKind) async {
+        working = true
+        defer { working = false }
+        errorText = nil
+        do { try await store.removeTerminalKey(id: terminalId, kind: kind) }
+        catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
+        catch where TerminalErrorText.isKeysUnsupported(error) { keysRouteMissing = true }
+        catch { errorText = TerminalErrorText.message(for: error) }
+    }
+
     private func remove() async {
         working = true
         defer { working = false }
@@ -291,23 +358,53 @@ struct TerminalDetailPage: View {
     }
 }
 
-private struct KeyStatusRow: View {
-    let title: String
-    let note: String
-    let configured: Bool
+private struct TerminalKeyRow: View {
+    let kind: TerminalKeyKind
+    let terminal: Terminal
+    let routeMissing: Bool
+    let disabled: Bool
+    let onSet: () -> Void
+    let onRemove: () -> Void
+
+    private var state: TerminalKeyState { routeMissing ? .unsupported : terminal.key(kind) }
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                Text(note).font(.caption).foregroundStyle(.secondary)
+        let look = KeyLook(state, configured: kind == .ssh ? terminal.sshKeyConfigured : terminal.sudoKeyConfigured)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(kind.title)
+                    Text(kind == .ssh ? "必須。これが無いと端末につなげません。" : "任意。自分の端末では不要です。")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Label(look.text, systemImage: look.symbol)
+                        .font(BellTheme.detailFont)
+                        .foregroundStyle(look.color)
+                    if let source = state.source { Text(source).font(.caption).foregroundStyle(.secondary) }
+                }
             }
-            Spacer()
-            Label(configured ? "設定済み" : "未設定", systemImage: configured ? "checkmark.circle.fill" : "circle.dashed")
-                .font(BellTheme.detailFont)
-                .foregroundStyle(configured ? BellTheme.mint : .orange)
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("terminal-key-\(kind.rawValue)")
+            if case .pending = state {
+                Text("入力を待っています。入力欄を閉じた時は「\(state.setTitle)」でもう一度開けます。").font(.caption).foregroundStyle(.secondary)
+            }
+            if state != .unsupported {
+                HStack(spacing: 10) {
+                    Button(state.setTitle, systemImage: "key", action: onSet)
+                        .accessibilityIdentifier("set-key-\(kind.rawValue)")
+                    if state.removable {
+                        Button("外す", systemImage: "minus.circle", role: .destructive, action: onRemove)
+                            .accessibilityIdentifier("remove-key-\(kind.rawValue)")
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(disabled)
+            }
         }
-        .accessibilityElement(children: .combine)
+        .padding(.vertical, 2)
     }
 }
 
@@ -369,7 +466,7 @@ struct TerminalEditor: View {
                         .font(BellTheme.secondaryFont)
                 }
                 Section {
-                    Text("SSH鍵とsudo鍵は、登録した後に端末の画面で状態を確かめます。鍵の中身はここに入れません。")
+                    Text("SSH鍵とsudo鍵は、登録した後に端末の画面で設定します。鍵の中身はここに入れません。")
                         .font(BellTheme.detailFont).foregroundStyle(.secondary)
                 }
                 if let errorText { Section { SettingsBanner(message: errorText) } }

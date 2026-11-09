@@ -15,6 +15,13 @@ struct Terminal: Decodable, Identifiable, Equatable {
     var sudoKeyConfigured = false
     var hostTrusted = false
     var maintenance: TerminalMaintenance?
+    /// terminals #811: `terminal-native` | `secret` | nil. Never a handle, value or op:// reference.
+    var keySource: String?
+    var sudoKeySource: String?
+    var sshKeyPending = false
+    var sudoKeyPending = false
+    /// An older BellTeam's projection has no pending fields and no keys route.
+    var keysRouteAvailable = false
 
     var id: String { terminalId }
     var address: String { "\(user)@\(host):\(port)" }
@@ -22,7 +29,8 @@ struct Terminal: Decodable, Identifiable, Equatable {
     var ownerLabel: String { accountOwner == "terminal-owner" ? "その端末の持ち主" : "自分の端末" }
 
     private enum CodingKeys: String, CodingKey {
-        case terminalId, host, user, port, os, accountOwner, sshKeyConfigured, sudoKeyConfigured, hostTrust, maintenance
+        case terminalId, host, user, port, os, accountOwner, sshKeyConfigured, sudoKeyConfigured, hostTrust, maintenance,
+             keySource, sudoKeySource, sshKeyPending, sudoKeyPending
     }
     private struct HostTrust: Decodable {}
 
@@ -40,6 +48,66 @@ struct Terminal: Decodable, Identifiable, Equatable {
         sudoKeyConfigured = try c.decodeIfPresent(Bool.self, forKey: .sudoKeyConfigured) ?? false
         hostTrusted = (try? c.decodeIfPresent(HostTrust.self, forKey: .hostTrust)) != nil
         maintenance = try? c.decodeIfPresent(TerminalMaintenance.self, forKey: .maintenance)
+        keySource = try c.decodeIfPresent(String.self, forKey: .keySource)
+        sudoKeySource = try c.decodeIfPresent(String.self, forKey: .sudoKeySource)
+        let sshPending = try c.decodeIfPresent(Bool.self, forKey: .sshKeyPending)
+        sshKeyPending = sshPending ?? false
+        sudoKeyPending = try c.decodeIfPresent(Bool.self, forKey: .sudoKeyPending) ?? false
+        keysRouteAvailable = sshPending != nil
+    }
+
+    func key(_ kind: TerminalKeyKind) -> TerminalKeyState {
+        guard keysRouteAvailable else { return .unsupported }
+        let configured = kind == .ssh ? sshKeyConfigured : sudoKeyConfigured
+        let source = (kind == .ssh ? keySource : sudoKeySource).map(TerminalKeyState.sourceLabel)
+        if kind == .ssh ? sshKeyPending : sudoKeyPending { return .pending(configured: configured, source: configured ? source : nil) }
+        return configured ? .configured(source: source) : .missing
+    }
+}
+
+enum TerminalKeyKind: String, Identifiable {
+    case ssh, sudo
+    var id: String { rawValue }
+    var title: String { self == .ssh ? "SSH鍵" : "sudo鍵" }
+}
+
+/// One key row (apple/terminals.md AT07/AT08).
+enum TerminalKeyState: Equatable {
+    case unsupported
+    case missing
+    /// A secret card was opened and not yet bound; a configured key stays in use until the new one binds.
+    case pending(configured: Bool, source: String?)
+    case configured(source: String?)
+
+    static func sourceLabel(_ source: String) -> String {
+        source == "terminal-native" ? "端末にある鍵" : "BellTeamに預けた鍵"
+    }
+
+    var status: String {
+        switch self {
+        case .unsupported: "このBellTeamはまだアプリからの鍵の設定に対応していません"
+        case .missing: "未設定"
+        case .pending: "設定待ち"
+        case .configured: "設定済み"
+        }
+    }
+    var source: String? {
+        switch self {
+        case .configured(let source), .pending(_, let source): source
+        default: nil
+        }
+    }
+    var setTitle: String {
+        switch self {
+        case .configured, .pending(configured: true, _): "設定し直す"
+        default: "設定する"
+        }
+    }
+    var removable: Bool {
+        switch self {
+        case .configured, .pending: true
+        default: false
+        }
     }
 }
 
@@ -173,6 +241,8 @@ struct TerminalPutBody: Encodable {
 
 struct HostKeyConfirmBody: Encodable { let confirmHostKey: String }
 
+struct TerminalKeyRequestResponse: Decodable { let secretRequest: SecretRequest }
+
 /// members C1: both empty (this BellTeam) or both set; projectRoot an absolute POSIX path.
 enum MemberBinding {
     static func problem(terminalId: String, projectRoot: String) -> String? {
@@ -219,6 +289,12 @@ enum TerminalErrorText {
         return status == 404 || status == 503 && code(error) == "TERMINALS_UNAVAILABLE"
     }
 
+    /// A keys route that answers 404 without TERMINAL_NOT_FOUND is a BellTeam without it (older body).
+    static func isKeysUnsupported(_ error: Error) -> Bool {
+        guard case BellAPIError.httpStatus(let status, _, _) = error else { return false }
+        return status == 404 && code(error) != "TERMINAL_NOT_FOUND"
+    }
+
     /// Server message for INVALID_TERMINAL starts with the field name (registry.mjs); never echoed to the screen.
     static func message(for error: Error) -> String {
         guard case BellAPIError.httpStatus(_, let message, _) = error else { return BellAPIError.operationFailureMessage(error) }
@@ -237,6 +313,11 @@ enum TerminalErrorText {
         case "HOST_KEY_FINGERPRINT_MISMATCH": return "入れた指紋が端末の今のホスト鍵と一致しませんでした。信用し直していません。端末で指紋をもう一度確かめてください。"
         case "INVALID_TERMINAL_STORE": return "BellTeamに保存された端末の一覧を読めませんでした。管理者に確かめてもらってください。"
         case "TERMINALS_UNAVAILABLE": return "このBellTeamはまだ端末の登録に対応していません。"
+        case "KEY_IN_REQUEST_REFUSED": return "鍵の中身はこの画面から送りません。開いた入力欄だけに入れてください。"
+        case "INVALID_KEY_KIND": return "鍵の種類を読み取れませんでした。画面を開き直してください。"
+        case "CREDENTIAL_UNAVAILABLE": return "いまは鍵の入力欄を開けません。少し待ってから、もう一度試してください。"
+        case "TERMINAL_UNAVAILABLE": return "BellTeamが端末への接続を準備できませんでした。BellTeamのAitermを更新してから、もう一度試してください。"
+        case "TERMINAL_CHANGED": return "設定の途中で端末の接続先が変わりました。もう一度「設定する」を押してください。"
         case let code?: if let text = member(code) { return text }
         default: break
         }

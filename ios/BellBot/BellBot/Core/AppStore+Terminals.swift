@@ -88,6 +88,34 @@ extension AppStore {
         }
     }
 
+    /// AT07: an empty POST; the key itself goes only into the returned secret card (KEY_IN_REQUEST_REFUSED otherwise).
+    func requestTerminalKey(id: String, kind: TerminalKeyKind) async throws -> SecretRequest {
+        let path = "/api/terminals/\(id)/keys/\(kind.rawValue)"
+        do {
+            let response: TerminalKeyRequestResponse = try await api.post(path, body: EmptyBody())
+            await refreshTerminals() // the projection now says pending
+            return response.secretRequest
+        } catch {
+            if !BellAPIError.isAuthenticationError(error) {
+                api.diagnostics.report(error, path: "/api/terminals/:id/keys/:kind", method: "POST", observation: .write)
+            }
+            throw error
+        }
+    }
+
+    /// AT08: the server unbinds the key (or cancels a pending card) and clears it; the list is read again.
+    func removeTerminalKey(id: String, kind: TerminalKeyKind) async throws {
+        do {
+            try await api.delete("/api/terminals/\(id)/keys/\(kind.rawValue)")
+            await refreshTerminals()
+        } catch {
+            if !BellAPIError.isAuthenticationError(error) {
+                api.diagnostics.report(error, path: "/api/terminals/:id/keys/:kind", method: "DELETE", observation: .write)
+            }
+            throw error
+        }
+    }
+
     /// One transient SSH probe on the server; it never launches a seat. Concurrent taps share the in-flight check.
     func checkTerminal(id: String) async throws {
         guard !terminals.checking.contains(id) else { return }

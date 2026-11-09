@@ -5,7 +5,7 @@ final class SecretTransportTests: XCTestCase {
     func testSecretSubmissionRejectsPublicHTTP() async {
         let api = BellAPI(baseURL: URL(string: "http://example.com:18443"))
         do {
-            _ = try await api.finishSecretRequest(id: "example", value: "dummy")
+            _ = try await api.finishSecretRequest(id: "example", submission: .value("dummy"))
             XCTFail("外部HTTPへの秘密情報送信を拒否する必要があります。")
         } catch BellAPIError.notConfigured { }
         catch { XCTFail("期待しないエラー: \(type(of: error))") }
@@ -17,7 +17,7 @@ final class SecretTransportTests: XCTestCase {
         }
         let api = BellAPI(baseURL: URL(string: "https://localhost:18443"))
         do {
-            _ = try await api.finishSecretRequest(id: "redirect", value: "dummy")
+            _ = try await api.finishSecretRequest(id: "redirect", submission: .value("dummy"))
             XCTFail("リダイレクトを拒否する必要があります。")
         } catch BellAPIError.httpStatus(let status, _, _) {
             XCTAssertEqual(status, 307)

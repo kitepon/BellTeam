@@ -1,7 +1,8 @@
 // Apple terminals screens (docs/architecture/modules/apple/terminals.md): artificial registry, check results and member PATCH rules.
-// No SSH, keys or real terminals. Prints {"url"} on start; /test/reset, /test/mode?terminals=ok|unsupported|unavailable&members=new|old,
-// /test/proof, /test/fingerprint?id=.
-import { createHash } from 'node:crypto'
+// Keys (terminals #811): POST/DELETE /api/terminals/:id/keys/{ssh|sudo} and the secret card's /api/secret-requests/:id/submit|cancel.
+// No SSH, keys or real terminals. Prints {"url"} on start; /test/reset,
+// /test/mode?terminals=ok|unsupported|unavailable&members=new|old&keys=ok|old|unavailable&onepassword=1|0, /test/proof, /test/fingerprint?id=.
+import { createHash, randomUUID } from 'node:crypto'
 import { createServer } from 'node:http'
 import { readFile } from 'node:fs/promises'
 
@@ -15,22 +16,30 @@ const MEMBER_TERMINAL_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u
 let state
 function reset() {
   state = {
-    mode: { terminals: 'ok', members: 'new' },
+    mode: { terminals: 'ok', members: 'new', keys: 'ok', onepassword: '1' },
     bots: structuredClone(fixture.bots).map((bot, index) => ({ ...bot, terminalId: index === 0 ? 'owner-macbook' : '', projectRoot: index === 0 ? '/Users/kite/work/app' : '' })),
     terminals: [
-      { terminalId: 'owner-macbook', host: '192.168.1.12', user: 'kite', port: 22, os: 'macos', accountOwner: 'owner', sshKeyConfigured: true, sudoKeyConfigured: false, hostTrust: trust('owner-macbook'), revision: 4, maintenance: { terminalId: 'owner-macbook', observedAt: '2026-11-09T07:40:00Z', before: '2.1.30', after: '2.1.32', outcome: 'updated' } },
-      { terminalId: 'sleeping-mini', host: '192.168.1.20', user: 'kite', port: 22, os: 'macos', accountOwner: 'owner', sshKeyConfigured: true, sudoKeyConfigured: false, hostTrust: trust('sleeping-mini'), revision: 1, maintenance: null },
-      { terminalId: 'studio-mac', host: '192.168.1.30', user: 'hana', port: 2222, os: 'macos', accountOwner: 'terminal-owner', sshKeyConfigured: true, sudoKeyConfigured: true, revision: 2, maintenance: null },
-      { terminalId: 'office-imac', host: 'office-imac.local', user: 'kite', port: 22, os: 'macos', accountOwner: 'owner', sshKeyConfigured: true, sudoKeyConfigured: false, hostTrust: trust('office-imac'), revision: 3, maintenance: { terminalId: 'office-imac', observedAt: '2026-11-08T22:10:00Z', before: '2.1.29', after: '2.1.29', outcome: 'failed' } },
+      { terminalId: 'owner-macbook', host: '192.168.1.12', user: 'kite', port: 22, os: 'macos', accountOwner: 'owner', sshKeyConfigured: true, sudoKeyConfigured: false, keySource: 'terminal-native', hostTrust: trust('owner-macbook'), revision: 4, maintenance: { terminalId: 'owner-macbook', observedAt: '2026-11-09T07:40:00Z', before: '2.1.30', after: '2.1.32', outcome: 'updated' } },
+      { terminalId: 'sleeping-mini', host: '192.168.1.20', user: 'kite', port: 22, os: 'macos', accountOwner: 'owner', sshKeyConfigured: true, sudoKeyConfigured: false, keySource: 'terminal-native', hostTrust: trust('sleeping-mini'), revision: 1, maintenance: null },
+      { terminalId: 'studio-mac', host: '192.168.1.30', user: 'hana', port: 2222, os: 'macos', accountOwner: 'terminal-owner', sshKeyConfigured: true, sudoKeyConfigured: true, keySource: 'secret', sudoKeySource: 'secret', revision: 2, maintenance: null },
+      { terminalId: 'office-imac', host: 'office-imac.local', user: 'kite', port: 22, os: 'macos', accountOwner: 'owner', sshKeyConfigured: true, sudoKeyConfigured: false, keySource: 'terminal-native', hostTrust: trust('office-imac'), revision: 3, maintenance: { terminalId: 'office-imac', observedAt: '2026-11-08T22:10:00Z', before: '2.1.29', after: '2.1.29', outcome: 'failed' } },
     ],
-    proof: { terminalReads: 0, puts: [], deletes: [], checks: [], botSaves: [], rejectedBotSaves: [] },
+    requests: new Map(),
+    proof: { terminalReads: 0, puts: [], deletes: [], checks: [], botSaves: [], rejectedBotSaves: [], keyRequests: [], keyDeletes: [], secretSubmits: [] },
   }
 }
 reset()
 
+const KINDS = { ssh: { purpose: 'terminal.ssh', configured: 'sshKeyConfigured', source: 'keySource', pending: 'sshKeyPending', label: 'SSH key' },
+  sudo: { purpose: 'terminal.sudo', configured: 'sudoKeyConfigured', source: 'sudoKeySource', pending: 'sudoKeyPending', label: 'sudo password' } }
+
+// Same public shape as registry.mjs publicView; keys=old drops the #811 fields (an older body).
 const projection = record => {
-  const { hostTrust, ...rest } = record
-  return hostTrust ? { ...rest, hostTrust } : rest
+  const { hostTrust, keySource, sudoKeySource, sshKeyRequest, sudoKeyRequest, ...rest } = record
+  const keys = state.mode.keys === 'old' ? {} : {
+    keySource: record.sshKeyConfigured ? keySource ?? 'terminal-native' : null, sudoKeySource: record.sudoKeyConfigured ? sudoKeySource ?? 'secret' : null,
+    sshKeyPending: Boolean(sshKeyRequest), sudoKeyPending: Boolean(sudoKeyRequest) }
+  return { ...rest, ...keys, ...(hostTrust ? { hostTrust } : {}) }
 }
 
 function check(record) {
@@ -64,7 +73,7 @@ const server = createServer(async (request, response) => {
   // What the Owner would read on the terminal itself (the test plays the Owner).
   if (path === '/test/fingerprint') return send(200, { fingerprint: fingerprint(url.searchParams.get('id') ?? '') })
   if (path === '/test/mode') {
-    for (const key of ['terminals', 'members']) if (url.searchParams.has(key)) state.mode[key] = url.searchParams.get(key)
+    for (const key of ['terminals', 'members', 'keys', 'onepassword']) if (url.searchParams.has(key)) state.mode[key] = url.searchParams.get(key)
     return send(200, state.mode)
   }
   const bots = () => state.bots.map(bot => {
@@ -98,6 +107,60 @@ const server = createServer(async (request, response) => {
   if (path === '/api/models') return send(200, { models: { claude: { efforts: ['high'], models: [{ id: 'opus', efforts: ['high'], fast: true }] }, codex: { efforts: [], models: [] }, grok: { efforts: [], models: [] } } })
   if (path === '/api/queue' || path.endsWith('/queue')) return send(200, { items: [] })
   if (path.endsWith('/messages') || path.endsWith('/timeline')) return send(200, { messages: [], items: [], hasMore: false })
+
+  const secretMatch = /^\/api\/secret-requests\/([a-f0-9-]+)(?:\/(submit|cancel))?$/u.exec(path)
+  if (secretMatch) {
+    const item = state.requests.get(secretMatch[1])
+    if (!item) return fail(404, 'NOT_FOUND')
+    if (!secretMatch[2] && request.method === 'GET') return send(200, { request: item })
+    if (request.method !== 'POST') return fail(405, 'METHOD_NOT_ALLOWED')
+    const input = await body(request)
+    // Proof keeps only the shape: which source and whether a value came, never the dummy value itself.
+    state.proof.secretSubmits.push({ id: item.id, action: secretMatch[2], keys: Object.keys(input).sort(), source: input.source ?? null, referencePrefix: input.reference?.slice(0, 5) ?? null })
+    if (item.status !== 'pending') return fail(409, 'SECRET_REQUEST_NOT_PENDING')
+    if (secretMatch[2] === 'cancel') { item.status = 'cancelled'; return send(200, { request: item }) }
+    if (input.source === 'onepassword' ? !/^op:\/\/[a-z0-9]{26}\/[a-z0-9]{26}\/[^/?#]+$/u.test(input.reference ?? '') : typeof input.value !== 'string' || !input.value)
+      return fail(400, input.source === 'onepassword' ? 'SECRET_REFERENCE_INVALID' : 'SECRET_VALUE_INVALID')
+    item.status = 'submitted'
+    // Mika binds, terminals applies the event for the pending request id.
+    const record = state.terminals.find(terminal => terminal.terminalId === item.terminalId)
+    const kind = Object.values(KINDS).find(value => value.purpose === item.purpose)
+    const requestField = kind === KINDS.ssh ? 'sshKeyRequest' : 'sudoKeyRequest'
+    if (record && record[requestField] === item.id) Object.assign(record, { [kind.configured]: true, [kind.source]: 'secret', [requestField]: null })
+    return send(200, { request: item })
+  }
+
+  const keyMatch = /^\/api\/terminals\/([a-z0-9][a-z0-9-]{0,63})\/keys\/([a-z]+)$/u.exec(path)
+  if (keyMatch) {
+    if (state.mode.terminals !== 'ok' || state.mode.keys === 'old') return fail(404, 'NOT_FOUND')
+    const [, id, kindName] = keyMatch
+    const kind = Object.hasOwn(KINDS, kindName) ? KINDS[kindName] : null
+    if (!kind) return fail(400, 'INVALID_KEY_KIND', 'Key kind must be ssh or sudo')
+    const record = state.terminals.find(terminal => terminal.terminalId === id)
+    if (!record) return fail(404, 'TERMINAL_NOT_FOUND', 'Terminal not found; list_terminals shows the registered terminalIds')
+    const requestField = kind === KINDS.ssh ? 'sshKeyRequest' : 'sudoKeyRequest'
+    if (request.method === 'POST') {
+      const input = await body(request)
+      state.proof.keyRequests.push({ terminalId: id, kind: kindName, bodyKeys: Object.keys(input) })
+      if (Object.keys(input).length) return fail(400, 'KEY_IN_REQUEST_REFUSED', 'Send no key, password or reference here; open the returned secret request and enter it there')
+      if (state.mode.keys === 'unavailable') return fail(503, 'CREDENTIAL_UNAVAILABLE', 'The secret input is not available now; try again later')
+      const available = state.mode.onepassword === '1'
+      const item = { id: randomUUID(), botId: null, roomId: null, toolId: 'terminal-key', terminalId: id, purpose: kind.purpose,
+        label: `${kind.label} for terminal ${id}`, message: `端末「${id}」の${kind === KINDS.ssh ? 'SSH鍵' : 'sudo認証情報'}を登録してください。値や1Password参照は、この専用欄へ入力してください。`,
+        at: new Date().toISOString(), status: 'pending', inputOptions: { preferred: available ? 'onepassword' : 'stored', onePasswordAvailable: available } }
+      if (record[requestField]) state.requests.get(record[requestField]).status = 'cancelled'
+      state.requests.set(item.id, item)
+      record[requestField] = item.id
+      return send(200, { secretRequest: item })
+    }
+    if (request.method === 'DELETE') {
+      state.proof.keyDeletes.push({ terminalId: id, kind: kindName })
+      if (record[requestField]) state.requests.get(record[requestField]).status = 'cancelled'
+      Object.assign(record, { [kind.configured]: false, [kind.source]: null, [requestField]: null })
+      return send(200, { terminal: projection(record) })
+    }
+    return fail(405, 'METHOD_NOT_ALLOWED')
+  }
 
   const terminalsMatch = /^\/api\/terminals(?:\/([a-z0-9][a-z0-9-]{0,63})(\/check)?)?$/u.exec(path)
   if (terminalsMatch) {

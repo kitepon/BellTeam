@@ -629,13 +629,61 @@ struct SendMessageBody: Encodable {
 
 struct SecretRequest: Decodable, Identifiable, Equatable {
     let id: String
-    let botId: String
+    /// nil for an Owner terminal-key request (terminals #811), which has no Bot sender.
+    let botId: String?
     let roomId: String?
     let toolId: String
     let label: String
     let message: String
     let status: String
     let notification: String?
+    /// `terminal.ssh` | `terminal.sudo` for a terminal key; absent for Bot requests.
+    var purpose: String?
+    /// usage secret credentials: 1Password is offered first when connected. Absent on an older body (stored value only).
+    var inputOptions: SecretInputOptions?
+
+    private enum CodingKeys: String, CodingKey { case id, botId, roomId, toolId, label, message, status, notification, purpose, inputOptions }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        botId = try c.decodeIfPresent(String.self, forKey: .botId)
+        roomId = try c.decodeIfPresent(String.self, forKey: .roomId)
+        // The keys route contract names only {id, label, inputOptions}; the rest defaults for that minimal body.
+        toolId = try c.decodeIfPresent(String.self, forKey: .toolId) ?? ""
+        label = try c.decode(String.self, forKey: .label)
+        message = try c.decodeIfPresent(String.self, forKey: .message) ?? ""
+        status = try c.decodeIfPresent(String.self, forKey: .status) ?? "pending"
+        notification = try c.decodeIfPresent(String.self, forKey: .notification)
+        purpose = try c.decodeIfPresent(String.self, forKey: .purpose)
+        inputOptions = try? c.decodeIfPresent(SecretInputOptions.self, forKey: .inputOptions)
+    }
+}
+
+struct SecretInputOptions: Decodable, Equatable {
+    let preferred: String
+    let onePasswordAvailable: Bool
+
+    /// The source the card opens with: 1Password when connected and preferred, else the stored value.
+    var opensWithOnePassword: Bool { onePasswordAvailable && preferred != "stored" }
+}
+
+/// What the secret card sends (usage http-api submit): a stored value or a 1Password reference.
+enum SecretSubmission: Equatable {
+    case value(String)
+    case onePassword(reference: String)
+
+    var body: [String: String] {
+        switch self {
+        case .value(let value): ["value": value]
+        case .onePassword(let reference): ["source": "onepassword", "reference": reference]
+        }
+    }
+
+    /// Same check as the Web card: a reference starts with op://; the server validates the full form.
+    static func referenceProblem(_ reference: String) -> String? {
+        reference.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("op://") ? nil : "1Passwordの参照（op://で始まる）を入力してください。"
+    }
 }
 
 struct SecretRequestResponse: Decodable { let request: SecretRequest }

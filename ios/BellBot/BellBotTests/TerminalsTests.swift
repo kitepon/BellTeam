@@ -29,6 +29,85 @@ final class TerminalsTests: XCTestCase {
         XCTAssertNil(partial.maintenance)
     }
 
+    func testKeyFieldsDecodeAndMapToRowStates() throws {
+        func terminal(_ json: String) throws -> Terminal { try JSONDecoder().decode(Terminal.self, from: Data(json.utf8)) }
+        let native = try terminal(#"{"terminalId":"a","sshKeyConfigured":true,"sudoKeyConfigured":true,"keySource":"terminal-native","sudoKeySource":"secret","sshKeyPending":false,"sudoKeyPending":false}"#)
+        XCTAssertTrue(native.keysRouteAvailable)
+        XCTAssertEqual(native.key(.ssh), .configured(source: "端末にある鍵"))
+        XCTAssertEqual(native.key(.sudo), .configured(source: "BellTeamに預けた鍵"))
+        XCTAssertEqual(native.key(.ssh).status, "設定済み")
+        XCTAssertEqual(native.key(.ssh).setTitle, "設定し直す")
+        XCTAssertTrue(native.key(.ssh).removable)
+
+        let missing = try terminal(#"{"terminalId":"b","sshKeyConfigured":false,"keySource":null,"sudoKeySource":null,"sshKeyPending":false,"sudoKeyPending":false}"#)
+        XCTAssertEqual(missing.key(.ssh), .missing)
+        XCTAssertEqual(missing.key(.ssh).status, "未設定")
+        XCTAssertEqual(missing.key(.ssh).setTitle, "設定する")
+        XCTAssertFalse(missing.key(.sudo).removable)
+        XCTAssertNil(missing.key(.ssh).source)
+
+        let pending = try terminal(#"{"terminalId":"c","sshKeyConfigured":true,"keySource":"secret","sshKeyPending":true,"sudoKeyPending":true}"#)
+        XCTAssertEqual(pending.key(.ssh), .pending(configured: true, source: "BellTeamに預けた鍵"), "新しい鍵が結ばれるまで今の鍵を使う")
+        XCTAssertEqual(pending.key(.ssh).status, "設定待ち")
+        XCTAssertEqual(pending.key(.ssh).setTitle, "設定し直す")
+        XCTAssertEqual(pending.key(.sudo), .pending(configured: false, source: nil))
+        XCTAssertEqual(pending.key(.sudo).setTitle, "設定する")
+        XCTAssertTrue(pending.key(.sudo).removable, "設定待ちの入力欄も外せる")
+
+        // An older body: no pending fields, so no keys route.
+        let old = try terminal(#"{"terminalId":"d","sshKeyConfigured":true,"sudoKeyConfigured":false}"#)
+        XCTAssertFalse(old.keysRouteAvailable)
+        XCTAssertEqual(old.key(.ssh), .unsupported)
+        XCTAssertEqual(old.key(.sudo), .unsupported)
+        XCTAssertNil(old.keySource)
+    }
+
+    func testTerminalKeyRequestDecodesTheSecretCardWithOnePasswordFirst() throws {
+        let minimal = try JSONDecoder().decode(TerminalKeyRequestResponse.self, from: Data(#"""
+        {"secretRequest":{"id":"0b6b2f1c-1111-4c4c-8888-000000000001","label":"SSH key for terminal owner-macbook",
+          "inputOptions":{"preferred":"onepassword","onePasswordAvailable":true}}}
+        """#.utf8)).secretRequest
+        XCTAssertNil(minimal.botId)
+        XCTAssertEqual(minimal.status, "pending")
+        XCTAssertEqual(minimal.message, "")
+        XCTAssertEqual(minimal.inputOptions?.opensWithOnePassword, true)
+
+        let full = try JSONDecoder().decode(SecretRequest.self, from: Data(#"""
+        {"id":"r","botId":null,"roomId":null,"toolId":"terminal-key","terminalId":"owner-macbook","purpose":"terminal.ssh",
+         "label":"SSH key","message":"端末「owner-macbook」のSSH鍵を登録してください。","at":"2026-11-09T09:00:00Z","status":"pending",
+         "inputOptions":{"preferred":"stored","onePasswordAvailable":false}}
+        """#.utf8))
+        XCTAssertEqual(full.purpose, "terminal.ssh")
+        XCTAssertEqual(full.inputOptions?.opensWithOnePassword, false, "1Passwordが無ければ保存値だけ")
+
+        let bot = try JSONDecoder().decode(SecretRequest.self, from: Data(#"""
+        {"id":"b","botId":"bot-one","toolId":"github","label":"GitHubトークン","message":"m","status":"submitted"}
+        """#.utf8))
+        XCTAssertEqual(bot.botId, "bot-one")
+        XCTAssertNil(bot.inputOptions, "旧本体のカードは保存値の入力だけ")
+
+        XCTAssertEqual(SecretSubmission.onePassword(reference: "op://v/i/f").body, ["source": "onepassword", "reference": "op://v/i/f"])
+        XCTAssertEqual(SecretSubmission.value("x").body, ["value": "x"])
+        XCTAssertNil(SecretSubmission.referenceProblem(" op://v/i/f "))
+        XCTAssertNotNil(SecretSubmission.referenceProblem("v/i/f"))
+    }
+
+    func testKeyRouteErrorsAreCalm() {
+        func failure(_ status: Int, _ code: String) -> Error {
+            var trace = BellRequestTrace(route: "/api/terminals", method: "POST", startedAt: Date(), failedAt: Date(),
+                                         appStateAtStart: "active", attempts: 1, metrics: nil)
+            trace.serverErrorCode = code
+            return BellAPIError.httpStatus(status, code, trace)
+        }
+        XCTAssertTrue(TerminalErrorText.message(for: failure(400, "KEY_IN_REQUEST_REFUSED")).contains("入力欄だけ"))
+        XCTAssertTrue(TerminalErrorText.message(for: failure(503, "CREDENTIAL_UNAVAILABLE")).contains("少し待って"))
+        XCTAssertTrue(TerminalErrorText.message(for: failure(503, "TERMINAL_UNAVAILABLE")).contains("Aiterm"))
+        XCTAssertTrue(TerminalErrorText.message(for: failure(409, "TERMINAL_CHANGED")).contains("接続先が変わりました"))
+        XCTAssertTrue(TerminalErrorText.isKeysUnsupported(failure(404, "NOT_FOUND")), "鍵の入口が無い旧本体")
+        XCTAssertFalse(TerminalErrorText.isKeysUnsupported(failure(404, "TERMINAL_NOT_FOUND")))
+        XCTAssertFalse(TerminalErrorText.isKeysUnsupported(failure(503, "CREDENTIAL_UNAVAILABLE")))
+    }
+
     func testMemberDecodesWithAndWithoutBindingFields() throws {
         let base = #""id":"b","name":"b","displayName":"b","harness":"claude","model":"","reasoningEffort":"","fastMode":false,"color":"violet","profileText":"","personality":"","speechStyle":"","position":"","role":"","online":true"#
         let old = try JSONDecoder().decode(Bot.self, from: Data("{\(base)}".utf8))
