@@ -190,3 +190,44 @@ test('mounted core: a card key is loaded into Aiterm before its own check; a nat
   assert.deepEqual(native.calls.filter(call => call.op === 'register').at(-1).target, { host: '192.168.1.13', user: 'kite', port: 22 }, 'a new binding for the new target')
   assert.equal(native.calls.some(call => call.op === 'confirmHostKey' && call.ref === 'native-binding'), false)
 })
+
+test('S2 trust attest: keyless binding first, trust only on Aiterm equality, key setting reuses the binding', async t => {
+  const stateRoot = await mkdtemp(join(tmpdir(), 'terminals-trust-'))
+  t.after(() => rm(stateRoot, { recursive: true, force: true }))
+  const native = fakeNative()
+  const core = createTerminalsCore({ stateRoot, credentials: fakeCredentials(), adapter: native })
+  t.after(() => core.close())
+  await core.registry.put(terminal)
+  const api = createTerminalsApi({ terminals: () => core, internal: false })
+  const call = async (method, path, body) => {
+    const request = Readable.from(body ? [Buffer.from(body)] : [])
+    request.method = method
+    request.headers = {}
+    let status, payload
+    const response = { writeHead(code) { status = code }, setHeader() {}, end(text) { payload = JSON.parse(text) } }
+    try { await api(request, response, new URL(`http://h${path}`)) } catch (error) { status = error.status; payload = { error: error.code } }
+    return { status, payload }
+  }
+
+  assert.equal((await call('POST', '/api/terminals/friend-mac/trust', JSON.stringify({ fingerprint, host: 'x' }))).status, 400)
+  assert.deepEqual((await call('POST', '/api/terminals/nope/trust', JSON.stringify({ fingerprint }))).payload, { error: 'TERMINAL_NOT_FOUND' })
+
+  // Unreachable scan: nothing written, 503.
+  native.confirmHostKey = async () => { throw Object.assign(new Error('x'), { code: 'UNREACHABLE' }) }
+  assert.deepEqual(await call('POST', '/api/terminals/friend-mac/trust', JSON.stringify({ fingerprint })), { status: 503, payload: { error: 'TERMINAL_UNAVAILABLE' } })
+  // Another machine answers: 409, nothing written.
+  native.confirmHostKey = async () => { throw Object.assign(new Error('x'), { code: 'HOST_KEY_FINGERPRINT_MISMATCH' }) }
+  assert.deepEqual(await call('POST', '/api/terminals/friend-mac/trust', JSON.stringify({ fingerprint })), { status: 409, payload: { error: 'HOST_KEY_FINGERPRINT_MISMATCH' } })
+  assert.equal((await core.registry.get('friend-mac')).hostTrust, undefined)
+
+  delete native.confirmHostKey
+  native.confirmHostKey = async (ref, value) => { native.calls.push({ op: 'confirmHostKey', ref, fingerprint: value }); return { provider: 'aiterm.known-hosts.v1', revision: `sha256:${'b'.repeat(64)}` } }
+  const ok = await call('POST', '/api/terminals/friend-mac/trust', JSON.stringify({ fingerprint }))
+  assert.equal(ok.status, 200)
+  assert.equal(ok.payload.terminal.hostTrust.revision, `sha256:${'b'.repeat(64)}`)
+  assert.equal(ok.payload.terminal.bindingRef, undefined, 'binding ref stays internal')
+  const registered = 'd1b2c3d4-1234-4234-8234-123456789abc'
+  assert.equal(native.calls.find(c => c.op === 'confirmHostKey').ref, registered)
+  await core.keys.request('friend-mac', 'ssh')
+  assert.equal(native.calls.filter(c => c.op === 'register').length, 1, 'key setting reuses the attest binding')
+})

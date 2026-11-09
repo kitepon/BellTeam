@@ -41,7 +41,7 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
 
   // Aiterm's binding: the native key's ref (Owner terminals) or the keyless binding terminals registered for a secret key.
   async function withBindingRef(record, use) {
-    if (record.keySource === 'secret') return use(record.bindingRef)
+    if (record.keySource === 'secret' || !record.sshKeyRef) return use(record.bindingRef)
     return secrets.withResolved(record.sshKeyRef, { terminalId: record.terminalId, memberId: null, purpose: 'terminal.ssh' }, value => use(value?.nativeKeyRef))
   }
 
@@ -52,6 +52,8 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
       if (!trust?.revision) throw new Error()
       return { provider: trust.provider, revision: trust.revision }
     } catch (error) {
+      if (error?.code === 'UNREACHABLE' || error?.code === 'REMOTE_AITERM_UNAVAILABLE')
+        throw Object.assign(new Error('The host key cannot be checked now; make sure the Mac is awake on the same network and try again'), { code: 'TERMINAL_UNAVAILABLE', status: 503 })
       throw Object.assign(new Error('Host key did not match the confirmed fingerprint'), { code: 'HOST_KEY_FINGERPRINT_MISMATCH', status: 409, ...(error?.action ? { action: error.action } : {}) })
     }
   }
@@ -102,6 +104,27 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
     if (!existing) return registry.register(Object.fromEntries(Object.entries(input).filter(([, value]) => value !== null)))
     const { terminalId, ...patch } = input
     return registry.update(terminalId, patch)
+  }
+
+  // S2: the Apple app on that Mac attests its own host-key fingerprint; Aiterm trusts it only when its own scan is equal.
+  const attest = (terminalId, fingerprint) => serial(terminalId, () => attestNow(terminalId, fingerprint))
+  async function attestNow(terminalId, fingerprint) {
+    const record = await registry.target(terminalId)
+    if (!record) throw keyError('TERMINAL_NOT_FOUND', 404, 'Terminal not found; list_terminals shows the registered terminalIds')
+    const sameTarget = stored => stored.host === record.host && stored.user === record.user && stored.port === record.port
+    const changed = () => keyError('TERMINAL_CHANGED', 409, 'The terminal changed while its host key was being checked; check it again')
+    let bindingRef = record.bindingRef
+    // Right after 保存 there is no key yet: trust needs Aiterm's keyless binding for this target. Saved before the scan,
+    // so a failed attempt is retried on the same binding and key setting reuses it.
+    if (!bindingRef && !(record.sshKeyRef && record.keySource !== 'secret')) {
+      bindingRef = await native().register({ host: record.host, user: record.user, port: record.port })
+        .catch(() => { throw keyError('TERMINAL_UNAVAILABLE', 503, 'Aiterm could not create the terminal binding; try again later') })
+      if (!await registry.update(terminalId, { bindingRef }, sameTarget)) throw changed()
+    }
+    const hostTrust = await confirm({ ...record, bindingRef }, fingerprint)
+    const saved = await registry.update(terminalId, { hostTrust }, sameTarget)
+    if (!saved) throw changed()
+    return { terminal: saved }
   }
 
   // Key setting (Trony ruling): Mika's Owner secret card; the value never passes through terminals.
@@ -184,6 +207,7 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
     },
     reachability: { check },
     keys: { request: requestKey, remove: removeKey },
+    trust: { attest },
     connection,
     maintenance: connection.maintenance,
     watch(listener) { watchers.add(listener); return () => watchers.delete(listener) },

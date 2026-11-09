@@ -79,6 +79,10 @@
       "port": "connection"
     },
     {
+      "module": "terminals",
+      "port": "trust"
+    },
+    {
       "module": "usage",
       "port": "secrets"
     }
