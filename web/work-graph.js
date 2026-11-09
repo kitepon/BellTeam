@@ -242,22 +242,30 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch, onOpenMe
     const frame = model.frame(now(), rectOf(), { wide: wide(), hover, measure: measure(LABEL_FONT) })
     return { frame, x, y, botId: nodeAt(frame, x, y) }
   }
-  canvas.addEventListener('pointermove', event => {
-    const { frame, x, y, botId: node } = hit(event)
-    tap.move(event.pointerId, event.clientX, event.clientY)
-    canvas.style.cursor = node ? 'pointer' : ''
+  const hoverAt = ({ frame, x, y, botId: node }) => {
     const inside = ({ box }) => x >= box.x && x <= box.x + box.w && y >= box.y && y <= box.y + box.h
     let edgeId = node ? null : (frame.labels.findLast(inside) ?? frame.blocked.findLast(inside))?.edge.id ?? null
     if (!node && !edgeId) for (const line of frame.lines) {
       for (let i = 0; i <= 20; i++) { const p = pointAt(line, i / 20); if (Math.hypot(p.x - x, p.y - y) < 10) { edgeId = line.edge.id; break } }
       if (edgeId) break
     }
-    hover = node ? { botId: node } : edgeId ? { edgeId } : null
+    return node ? { botId: node } : edgeId ? { edgeId } : null
+  }
+  // マウスは指している間だけ。指は線をタップすると、次にほかをタップするまで出す（behavior-spec #800）。
+  canvas.addEventListener('pointermove', event => {
+    tap.move(event.pointerId, event.clientX, event.clientY)
+    if (event.pointerType === 'touch') return
+    const point = hit(event)
+    canvas.style.cursor = point.botId ? 'pointer' : ''
+    hover = hoverAt(point)
   })
-  canvas.addEventListener('pointerleave', () => { hover = null })
+  canvas.addEventListener('pointerleave', event => { if (event.pointerType !== 'touch') hover = null })
   // タップの決まりは createTap（押した時の相手で開く）。
   canvas.addEventListener('pointerdown', event => tap.down(event.pointerId, event.clientX, event.clientY, event.timeStamp, event.isPrimary && event.button === 0 ? hit(event).botId : null))
-  canvas.addEventListener('pointerup', event => tap.up(event.pointerId, event.clientX, event.clientY, event.timeStamp))
+  canvas.addEventListener('pointerup', event => {
+    if (event.pointerType === 'touch') hover = hoverAt(hit(event))
+    tap.up(event.pointerId, event.clientX, event.clientY, event.timeStamp)
+  })
   canvas.addEventListener('pointercancel', () => tap.cancel())
   const visibility = () => { if (!open) return; if (document.hidden) stream.stop(); else stream.start() }
   const resize = () => model.heat()

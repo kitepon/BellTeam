@@ -130,7 +130,7 @@ test('依頼ラベルは省略せず折り返し、伸びた札の大きさで�
   }
 })
 
-test('札どうしも名前とも重ならず、古い依頼から置く。置けない札は空くまで待ち、指しても出さない', () => {
+test('札どうしも名前とも重ならず、古い依頼から置く。置けない札は空くまで待ち、線を指した時だけ一番上に出す', () => {
   const long = '比較表を更新して、iPhone・Mac・Web・Windowsの4つの画面で相関図のラベルが省略されずに全部出ることを確かめてください'
   const ids = ['h', 'a', 'b', 'c', 'd', 'e', 'f']
   const model = createGraphModel(), small = { x: 24, y: 24, w: 312, h: 600 }
@@ -145,7 +145,10 @@ test('札どうしも名前とも重ならず、古い依頼から置く。置�
   assert.deepEqual(placed, [...placed].sort())
   const hidden = ids.slice(1).map(id => `h:${id}`).find(id => !frame.labels.some(label => label.edge.id === id))
   assert.ok(hidden, 'the crowded hub hides at least one chip')
-  assert.equal(model.frame(5000, small, { hover: { edgeId: hidden } }).labels.some(label => label.edge.id === hidden), false)
+  const hovered = model.frame(5000, small, { hover: { edgeId: hidden } }).labels
+  assert.equal(hovered.at(-1).edge.id, hidden)
+  assert.deepEqual(hovered.slice(0, -1).map(label => label.box), frame.labels.map(label => label.box))
+  assert.equal(model.edges.get(hidden).chip.t, null, 'it goes back to waiting')
   // 置けた札を指すと一番上に描く。
   const shown = frame.labels[0].edge.id
   assert.equal(model.frame(5000, small, { hover: { edgeId: shown } }).labels.at(-1).edge.id, shown)

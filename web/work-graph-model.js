@@ -255,7 +255,11 @@ export function createGraphModel({ reduceMotion = false } = {}) {
           else if (!free(boxAt(line, chip.t, w, h))) chip.t = first ?? chip.t
         }
         const hovered = hover?.edgeId === edge.id && edge.label && !edge.endAt
-        if (chip.t === null) continue
+        // 空きを待つ札も、線を指している・タップした間は t = 0.5 で一番上に出す（behavior-spec #800）。
+        if (chip.t === null) {
+          if (hovered) above.push({ edge, box: boxAt(line, 0.5, w, h), alpha: 1, lines: text, blocked: false })
+          continue
+        }
         const box = boxAt(line, chip.t, w, h), isBlocked = !free(box)
         placed.push(box)
         // 最初に出る時いつも200msで現れる。
