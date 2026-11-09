@@ -18,12 +18,19 @@ TRANSIENT_HTTP = {408, 425, 429, 500, 502, 503, 504}
 RETRY_WINDOW = 240  # inside the job's 10 min; the next ordinary publisher run is the exit after it
 
 
+RELEASE_DOWNLOAD = 'https://github.com/kitepon/BellTeam/releases/download/'
+
+
 def download(url, headers=None, maximum=4 * MAX_CATALOG):
     deadline = time.monotonic() + RETRY_WINDOW
-    delay = 2
+    delay, attempt = 2, 0
     while True:
+        # github.com can keep answering one release URL with a cached 504; a one-off query reaches the same asset.
+        # Same host and path; the bytes are still bound by size/sha256/signature, so identity is unchanged.
+        target = url if attempt == 0 or not url.startswith(RELEASE_DOWNLOAD) or '?' in url else f'{url}?attempt={attempt}-{time.time_ns()}'
+        attempt += 1
         try:
-            with urlopen(Request(url, headers=headers or {}), timeout=30) as response:
+            with urlopen(Request(target, headers=headers or {}), timeout=30) as response:
                 raw = response.read(maximum + 1)
             break
         except HTTPError as error:
