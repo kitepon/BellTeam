@@ -1231,13 +1231,32 @@ def runtime_rows(updater, catalog_id):
     check(trusted_rows, 'HOST_UPDATE_CATALOG_UNTRUSTED')
     return receipt['runtimeCatalog']['releases']
 
+RELEASE_DOWNLOAD = 'https://github.com/kitepon/BellTeam/releases/download/'
+PUBLICATION_RETRY_WINDOW = 60
+
+def fetch_publication(opener, url, limit, sleep=time.sleep, clock=time.monotonic):
+    """One public read. Transient HTTP/network failures retry within 60 s; github.com can keep answering one exact
+    release URL with a cached 504, so a release retry adds a one-off query (same host/path; bytes are verified after)."""
+    import urllib.request, urllib.error, http.client
+    deadline, delay, attempt = clock() + PUBLICATION_RETRY_WINDOW, 2, 0
+    while True:
+        target = url if attempt == 0 or not url.startswith(RELEASE_DOWNLOAD) else f'{url}?attempt={attempt}-{time.time_ns()}'
+        attempt += 1
+        try:
+            with opener.open(urllib.request.Request(target, headers={'User-Agent':'BellTeam-Updater','Accept':'application/vnd.github+json'}), timeout=15) as response:
+                check(response.status == 200, 'HOST_UPDATE_PUBLICATION_UNAVAILABLE')
+                raw = response.read(limit + 1)
+            break
+        except urllib.error.HTTPError as error:
+            if error.code not in {408, 425, 429, 500, 502, 503, 504} or clock() + delay > deadline: raise
+        except (urllib.error.URLError, OSError, http.client.IncompleteRead):
+            if clock() + delay > deadline: raise
+        sleep(delay); delay = min(delay * 2, 15)
+    check(len(raw) <= limit, 'HOST_UPDATE_PUBLICATION_LIMIT'); return raw
+
 def _refresh_catalog(updater):
-    import urllib.request
     opener = publication_opener()
-    def fetch(url, limit):
-        with opener.open(urllib.request.Request(url, headers={'User-Agent':'BellTeam-Updater','Accept':'application/vnd.github+json'}), timeout=15) as response:
-            check(response.status == 200, 'HOST_UPDATE_PUBLICATION_UNAVAILABLE')
-            raw = response.read(limit + 1); check(len(raw) <= limit, 'HOST_UPDATE_PUBLICATION_LIMIT'); return raw
+    fetch = lambda url, limit: fetch_publication(opener, url, limit)
     rows = decode(fetch('https://api.github.com/repos/kitepon/BellTeam/releases?per_page=100', 4 * CATALOG_LIMIT))
     # Distribution owns the formal publication selector; root still authenticates every selected byte.
     import importlib.util

@@ -103,6 +103,35 @@ class HostTest(unittest.TestCase):
         with patch.object(module,'_refresh_catalog',fetch),ThreadPoolExecutor(3) as pool:
             for result in [pool.submit(self.updater.dispatch,frame({})) for _ in range(3)]:self.assertEqual(result.result(5)['status'],'verified')
         self.assertEqual(max(overlap),1)
+    def test_publication_fetch_recovers_cached_release_504_and_keeps_permanent_failures(self):
+        import io, contextlib, urllib.error
+        url = module.RELEASE_DOWNLOAD + 'updates-20261109T075719Z/catalog.json'
+        def reply(body=b'{}'):
+            response = io.BytesIO(body); response.status = 200
+            return contextlib.nullcontext(response)
+        failure = lambda code: urllib.error.HTTPError(url, code, 'x', {}, None)
+        class Opener:
+            def __init__(self, results): self.results, self.urls = list(results), []
+            def open(self, request, timeout): self.urls.append(request.full_url); result = self.results.pop(0); return (_ for _ in ()).throw(result) if isinstance(result, Exception) else result
+        sleeps = []
+        opener = Opener([failure(504), failure(504), reply(b'catalog')])
+        self.assertEqual(module.fetch_publication(opener, url, 100, sleep=sleeps.append), b'catalog')
+        self.assertEqual(opener.urls[0], url)
+        self.assertTrue(all(u.startswith(url + '?attempt=') for u in opener.urls[1:]) and len(set(opener.urls)) == 3)
+        self.assertEqual(sleeps, [2, 4])
+        api = 'https://api.github.com/repos/kitepon/BellTeam/releases?per_page=100'
+        opener = Opener([urllib.error.URLError('reset'), reply()])
+        self.assertEqual(module.fetch_publication(opener, api, 100, sleep=lambda _: None), b'{}')
+        self.assertEqual(opener.urls, [api, api])
+        opener = Opener([failure(404)])
+        with self.assertRaises(urllib.error.HTTPError): module.fetch_publication(opener, url, 100, sleep=sleeps.append)
+        self.assertEqual(len(opener.urls), 1)
+        with self.assertRaises(Exception): module.fetch_publication(Opener([reply(b'x' * 101)]), url, 100)
+        clock = iter([0, 0, module.PUBLICATION_RETRY_WINDOW])
+        opener = Opener([failure(504), failure(504)])
+        with self.assertRaises(urllib.error.HTTPError): module.fetch_publication(opener, url, 100, sleep=lambda _: None, clock=lambda: next(clock))
+        self.assertEqual(len(opener.urls), 2)
+
     def test_catalog_monotonic_replay_expiry_and_durable_revocation(self):
         first=self.digest
         self.assertEqual(self.install_catalog(self.catalog),first)
