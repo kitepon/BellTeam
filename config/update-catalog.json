@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-09T03:50:42Z",
-  "expiresAt": "2026-11-16T03:50:42Z",
+  "publishedAt": "2026-11-09T03:57:17Z",
+  "expiresAt": "2026-11-16T03:57:17Z",
   "releases": [
     {
       "componentId": "usage",
@@ -635,8 +635,8 @@
     },
     {
       "componentId": "work-graph",
-      "sourceCommit": "b5c4ea64f8dca92c8a95b83fdd5f33f73df88c66",
-      "versionId": "3893fa3d7b86f16514322c73871c33745351b19db097ba53de99f6dcbbf76e6a",
+      "sourceCommit": "173c5aaba3023f30ad2f89fb6b6b01be7d3411fc",
+      "versionId": "5ea59f3b9dfc0ac8aecc754154d56ef0862e23705132fa2cf43e8d710ba8c2c6",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -644,16 +644,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T223841Z/work-graph-b5c4ea64f8dca92c8a95b83fdd5f33f73df88c66-linux-amd64.tar.gz",
-          "bytes": 3820699,
-          "sha256": "3893fa3d7b86f16514322c73871c33745351b19db097ba53de99f6dcbbf76e6a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T224512Z/work-graph-173c5aaba3023f30ad2f89fb6b6b01be7d3411fc-linux-amd64.tar.gz",
+          "bytes": 3820680,
+          "sha256": "5ea59f3b9dfc0ac8aecc754154d56ef0862e23705132fa2cf43e8d710ba8c2c6"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T223841Z/work-graph-b5c4ea64f8dca92c8a95b83fdd5f33f73df88c66-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11189,
-          "sha256": "3708dd75132eab8b2d7418942908ce30f15e8a50591802d747e6ca0a5529c8c4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T224512Z/work-graph-173c5aaba3023f30ad2f89fb6b6b01be7d3411fc-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11142,
+          "sha256": "96cf10020c34e24ddf0221700cd6e865ce7ac5c8186cbbe42401e5416b57bb7a"
         },
-        "signerCommit": "b5c4ea64f8dca92c8a95b83fdd5f33f73df88c66"
+        "signerCommit": "173c5aaba3023f30ad2f89fb6b6b01be7d3411fc"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -665,13 +665,13 @@
         }
       },
       "changes": [
-        "メンバーの作業の要約が長い時も、その結果を捨てずに仕事の図へ表示します。"
+        "相関図の依頼ラベルは文字列か空欄で返し、「依頼を処理中」の印を表示しないようにします。"
       ]
     },
     {
       "componentId": "work-graph",
-      "sourceCommit": "b5c4ea64f8dca92c8a95b83fdd5f33f73df88c66",
-      "versionId": "7ee5017c5714e6d59aed7c65514f459ea4e047ff6dda323070d80c8c3f004aa4",
+      "sourceCommit": "173c5aaba3023f30ad2f89fb6b6b01be7d3411fc",
+      "versionId": "2794f26f0d30eaf410b932b5d141bc77feedb538cab7217afa237ec77a1fcbdc",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -679,16 +679,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T223841Z/work-graph-b5c4ea64f8dca92c8a95b83fdd5f33f73df88c66-linux-arm64.tar.gz",
-          "bytes": 3820699,
-          "sha256": "7ee5017c5714e6d59aed7c65514f459ea4e047ff6dda323070d80c8c3f004aa4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T224512Z/work-graph-173c5aaba3023f30ad2f89fb6b6b01be7d3411fc-linux-arm64.tar.gz",
+          "bytes": 3820680,
+          "sha256": "2794f26f0d30eaf410b932b5d141bc77feedb538cab7217afa237ec77a1fcbdc"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T223841Z/work-graph-b5c4ea64f8dca92c8a95b83fdd5f33f73df88c66-linux-arm64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T224512Z/work-graph-173c5aaba3023f30ad2f89fb6b6b01be7d3411fc-linux-arm64.tar.gz.sigstore.json",
           "bytes": 11095,
-          "sha256": "cbf6b62f06ef840e798f9eb366ed81d83fc9027f253c7f5c84b8632637f56ca9"
+          "sha256": "04473cb1c2305b72449222e01faa52b8f6ae3ef89a7ff74ab7e5831261ec9ce8"
         },
-        "signerCommit": "b5c4ea64f8dca92c8a95b83fdd5f33f73df88c66"
+        "signerCommit": "173c5aaba3023f30ad2f89fb6b6b01be7d3411fc"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -700,7 +700,7 @@
         }
       },
       "changes": [
-        "メンバーの作業の要約が長い時も、その結果を捨てずに仕事の図へ表示します。"
+        "相関図の依頼ラベルは文字列か空欄で返し、「依頼を処理中」の印を表示しないようにします。"
       ]
     },
     {
