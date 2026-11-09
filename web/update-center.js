@@ -92,18 +92,20 @@ const versionName = (item, job) => {
   return at ? { name: `${shortTime(at)} 版`, origin }
     : { name: { builtin: '本体に同梱の版', release: '更新で入れた版', container: '稼働中の版' }[item.current.origin] ?? '現在の版', origin: '' }
 }
+// Swap kept, a later step failed (container-update-bundled.md): the new version runs, so never say the old one does.
+const swappedThenFailed = job => job?.reason?.code === 'HOST_UPDATE_AITERM_STATE_FAILED'
 // Badge from the newest job record for this part (fresher via SSE), else the server's latestJob; wording stays with the server line.
 export function cardState(item, records = []) {
   const status = componentStatus(item.status) ? item.status : null, latestAt = status?.latestJob ? BigInt(Date.parse(status.latestJob.at)) * 1000000n : -1n
   // The server's latest job wins unless an SSE/operation record is the same job or newer.
   const record = records.filter(job => job.target.moduleId === item.id && (!status?.latestJob || job.jobId === status.latestJob.jobId || BigInt(job.updatedAtNs) > latestAt))
     .reduce((latest, job) => !latest || BigInt(job.updatedAtNs) > BigInt(latest.updatedAtNs) ? job : latest, null)
-  const job = record ? { state: record.state, outcome: record.state === 'ready' ? 'succeeded' : record.state === 'failed' ? 'failed' : 'running', at: new Date(Number(BigInt(record.updatedAtNs) / 1000000n)).toISOString() }
-    : status?.latestJob ? { state: status.latestJob.state, outcome: status.latestJob.outcome, at: status.latestJob.at } : null
+  const job = record ? { state: record.state, outcome: record.state === 'ready' ? 'succeeded' : record.state === 'failed' ? 'failed' : 'running', at: new Date(Number(BigInt(record.updatedAtNs) / 1000000n)).toISOString(), reason: record.reason }
+    : status?.latestJob ? { state: status.latestJob.state, outcome: status.latestJob.outcome, at: status.latestJob.at, reason: status.latestJob.reason } : null
   const serving = item.id === 'container' || item.availability.available === true
   if (job?.outcome === 'running') return { badge: '更新中', tone: 'info', job, step: jobSteps[job.state] ?? 1 }
   if (status?.tone === 'attention') return { badge: '要対応', tone: 'danger', job, step: 0 }
-  if (job?.outcome === 'failed' && !(serving && item.comparison.state === 'up_to_date')) return { badge: '失敗', tone: 'danger', job, step: 0 }
+  if (job?.outcome === 'failed' && (swappedThenFailed(job) || !(serving && item.comparison.state === 'up_to_date'))) return { badge: '失敗', tone: 'danger', job, step: 0 }
   // Owner rule: Aiterm/CLIs update only with the body release.
   if (isRuntime(item.id)) return { badge: '本体と一緒に更新', tone: 'neutral', job, step: 0 }
   const [badge, tone] = { update_available: ['更新あり', 'accent'], up_to_date: ['最新', 'ok'], incompatible: ['使えない版', 'muted'] }[item.comparison.state] ?? ['確認できません', 'muted']
@@ -472,7 +474,7 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     for (const item of components) {
       const state = states.get(item.id), status = componentStatus(item.status) ? item.status : null
       if (state.badge === '要対応') { heading ||= `${item.name}が使えません`; lines.push(`${item.name}: ${status?.action ?? 'この機能は今使えません。「詳細」の内容を担当に伝えてください。'}`) }
-      if (state.badge === '失敗') { heading ||= '前回の更新ができませんでした'; lines.push(`${item.name}: ${item.availability.available === false ? 'この機能は今使えません。「詳細」の内容を担当に伝えてください。' : '元の版のまま動いています。' + (item.comparison.state === 'update_available' ? '「もう一度更新」でやり直せます。' : '対応は不要です。')}`) }
+      if (state.badge === '失敗') { heading ||= '前回の更新ができませんでした'; lines.push(`${item.name}: ${item.availability.available === false ? 'この機能は今使えません。「詳細」の内容を担当に伝えてください。' : swappedThenFailed(state.job) ? '新しい版で動いていますが、席の状態を整える手順で失敗しました。「詳細」の内容を担当に伝えてください。' : '元の版のまま動いています。' + (item.comparison.state === 'update_available' ? '「もう一度更新」でやり直せます。' : '対応は不要です。')}`) }
     }
     for (const problem of inventory?.problems ?? []) if (problem.status === 'open') {
       heading ||= `${name(problem.moduleId)}が再起動を繰り返しています`; lines.push(`${name(problem.moduleId)}: 「詳細」の内容を担当に伝えてください。`)

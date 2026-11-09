@@ -15,7 +15,8 @@ export function updateNotificationCandidates(inventory, now = Date.now()) {
 const runningText = { queued: '更新の順番を待っています', downloading: '新しい版を取り込んでいます', verifying: '新しい版を確かめています', swapping: '新しい版に切り替えています' }
 const failureCause = { UPDATE_PARENT_INTERRUPTED: '本体が止まったため、途中で終わりました', EXECUTION_BUSY: '使用中だったため、見送りました',
   MODULE_EXCHANGE_BUSY: '使用中だったため、見送りました', BOT_UPDATE_HOLD: '使用中だったため、見送りました',
-  HOST_UPDATE_INSTALL_FAILED: '入れ替えの途中で失敗しました', DIAGNOSTIC_INVALID: '記録の処理で止まり、できませんでした' }
+  HOST_UPDATE_INSTALL_FAILED: '入れ替えの途中で失敗しました', DIAGNOSTIC_INVALID: '記録の処理で止まり、できませんでした',
+  HOST_UPDATE_AITERM_STATE_FAILED: '新しい版に切り替わりましたが、席の状態を整える手順で失敗しました' }
 const updateText = { update_available: v => `新しい版${v ? `（${v}）` : ''}があります。`, up_to_date: () => '最新です。',
   incompatible: () => '新しい版はありますが、今の本体では使えません。' }
 // The short name people use for a release: first 7 hex of its source commit (or of a hex version).
@@ -38,10 +39,12 @@ export function componentStatus(component, jobs = []) {
   let jobText = '', tone = 'ok', action = null
   if (outcome === 'running') { jobText = `${jst(at)} から更新中です（${runningText[job.state]}）。`; tone = 'updating' }
   if (outcome === 'succeeded') jobText = `${jst(at)} の更新は完了しました。`
-  // A failure stops mattering once the running part is already the newest version.
-  if (outcome === 'failed' && !(running && component.comparison.state === 'up_to_date')) {
+  // The swap was kept and a later step failed (verification failed): the new version runs.
+  const swapped = job?.reason?.code === 'HOST_UPDATE_AITERM_STATE_FAILED'
+  // A failure stops mattering once the running part is already the newest version, unless it happened on that version.
+  if (outcome === 'failed' && (swapped || !(running && component.comparison.state === 'up_to_date'))) {
     jobText = `${jst(at)} の更新は${failureCause[job.reason.code] ?? 'できませんでした'}。`
-      + (stopped ? 'この機能は今使えません。' : running ? '元の版のまま動いています。対応は不要です。' : '')
+      + (stopped ? 'この機能は今使えません。' : swapped ? '新しい版で動いています。「詳細」の内容を担当に伝えてください。' : running ? '元の版のまま動いています。対応は不要です。' : '')
       + (!stopped && component.comparison.state === 'update_available' ? 'もう一度更新できます。' : '')
     if (stopped) { tone = 'attention'; action = 'この機能が使えません。「詳細」の内容を担当に伝えてください。' }
   }

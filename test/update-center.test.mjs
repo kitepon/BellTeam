@@ -146,6 +146,11 @@ test('each part gets one plain status line from only its latest job', async () =
   const body = componentStatus(row('container', null), jobs)
   assert.match(body.line, /^本体は動いています。.*11\/8 10:06 の更新は入れ替えの途中で失敗しました。元の版のまま動いています。対応は不要です。$/u)
   assert.equal(body.actionRequired, false); assert.doesNotMatch(body.line, /HOST_|4444/u)
+  // Swap kept, Aiterm state step failed: shown even on the newest version, never 元の版のまま.
+  const kept = componentStatus({ ...row('container', null), comparison: { state: 'up_to_date', reason: null } },
+    [record('55555555-5555-4555-8555-555555555555', 'container', 'failed', at, 'HOST_UPDATE_AITERM_STATE_FAILED')])
+  assert.match(kept.line, /最新です。11\/8 10:06 の更新は新しい版に切り替わりましたが、席の状態を整える手順で失敗しました。新しい版で動いています。「詳細」の内容を担当に伝えてください。$/u)
+  assert.doesNotMatch(kept.line, /元の版/u); assert.equal(kept.actionRequired, false)
   const stopped = componentStatus(row('conversation', false), jobs)
   assert.equal(stopped.tone, 'attention'); assert.equal(stopped.actionRequired, true); assert.match(stopped.line, /この機能は今使えません。$/u)
   assert.deepEqual(stopped.latestJob.reason, { code: 'DIAGNOSTIC_INVALID', message: 'DIAGNOSTIC_INVALID' })
