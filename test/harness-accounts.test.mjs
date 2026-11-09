@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { lstat, mkdtemp, mkdir, readFile, readlink, rm, writeFile, chmod } from 'node:fs/promises'
+import { lstat, readdir, mkdtemp, mkdir, readFile, readlink, rm, writeFile, chmod } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { parseLimitText, modelScope } from '../src/claude-limit-text.mjs'
@@ -49,30 +49,24 @@ async function setup(t, { usage = async () => [] } = {}) {
   return { home, accounts, advance, timers }
 }
 
-test('prepare: create-only symlinks to the 1st root, the 1st config copied except the account, credentials separate', async t => {
+test('prepare: every 1st entry and the 1st config are links, only the login is the slot\'s own; own entries moved aside', async t => {
   const { home, accounts } = await setup(t)
-  await mkdir(join(home, '.bellteam-accounts/claude/2nd'), { recursive: true })
-  await writeFile(join(home, '.bellteam-accounts/claude/2nd/settings.json'), '{"own":true}')
+  const root = join(home, '.bellteam-accounts/claude/2nd')
+  await mkdir(root, { recursive: true })
+  await writeFile(join(root, 'settings.json'), '{"own":true}')
+  await writeFile(join(root, '.claude.json'), '{"oauthAccount":{"emailAddress":"b"}}')
+  await writeFile(join(root, '.credentials.json'), '{"claudeAiOauth":{"accessToken":"second"}}')
   const { configurationRoot, history } = await accounts.prepare('claude', '2nd')
-  assert.equal(configurationRoot, join(home, '.bellteam-accounts/claude/2nd'))
-  assert.equal(history, 'shared')
-  assert.equal(await readlink(join(configurationRoot, 'projects')), join(home, '.claude/projects'))
-  // An existing real file is never replaced.
-  assert.equal(await readFile(join(configurationRoot, 'settings.json'), 'utf8'), '{"own":true}')
-  await assert.rejects(lstat(join(configurationRoot, '.credentials.json')))
-  const config = JSON.parse(await readFile(join(configurationRoot, '.claude.json'), 'utf8'))
-  // Only the account differs (Owner 2026-11-09): every MCP server and setting of the 1st, not just BellTeam's three.
-  assert.deepEqual(Object.keys(config.mcpServers), ['bellteam', 'other'])
-  assert.equal(config.projects['/p'].hasTrustDialogAccepted, true)
-  assert.equal(config.oauthAccount, undefined)
-  assert.deepEqual([config.hasCompletedOnboarding, config.lastOnboardingVersion, config.numStartups], [true, '2.1.261', 9])
-  // The slot's own account record and caches stay; a later 1st change reaches the next prepare.
-  await writeFile(join(configurationRoot, '.claude.json'), JSON.stringify({ ...config, oauthAccount: { emailAddress: 'b' }, modelAccessCache: { own: 1 } }))
-  await writeFile(join(home, '.claude.json'), JSON.stringify({ mcpServers: { bellteam: { url: 'x' }, other: { url: 'y' }, added: { url: 'z' } }, oauthAccount: { emailAddress: 'a' }, modelAccessCache: { first: 1 } }))
+  assert.equal(configurationRoot, root); assert.equal(history, 'shared')
+  for (const name of ['projects', 'settings.json']) assert.equal(await readlink(join(root, name)), join(home, '.claude', name))
+  assert.equal(await readlink(join(root, '.claude.json')), join(home, '.claude.json'))
+  // The slot's login stays its own; what the slot made itself is kept aside, never deleted.
+  assert.equal(await readFile(join(root, '.credentials.json'), 'utf8'), '{"claudeAiOauth":{"accessToken":"second"}}')
+  const kept = await readdir(join(root, '.bellteam-previous'))
+  assert.deepEqual(kept.map(name => name.replace(/\.\d+$/u, '')).sort(), ['.claude.json', '1st.claude.json', 'settings.json'])
+  // Idempotent: a second prepare changes nothing.
   await accounts.prepare('claude', '2nd')
-  const again = JSON.parse(await readFile(join(configurationRoot, '.claude.json'), 'utf8'))
-  assert.deepEqual([Object.keys(again.mcpServers), again.oauthAccount.emailAddress, again.modelAccessCache], [['bellteam', 'other', 'added'], 'b', { own: 1 }])
-  assert.equal(await accounts.loggedIn('claude', '2nd'), false)
+  assert.equal((await readdir(join(root, '.bellteam-previous'))).length, 3)
   assert.deepEqual(await accounts.prepare('claude', '1st'), { configurationRoot: join(home, '.claude'), history: 'shared' })
   await assert.rejects(accounts.prepare('claude', '3rd'), { code: 'ACCOUNT_SLOT_INVALID' })
 })
@@ -99,6 +93,9 @@ test('limits are per slot and model scope; selection never refuses; the timer cl
   // Both limited for fable: the earliest known reset wins, never a refusal.
   assert.equal((await accounts.selection('claude', 'claude-fable-5-1')).slot, '2nd')
   await accounts.setSeat('b1', '2nd')
+  // The label comes from each slot's own login (profile endpoint); stand in for the network here.
+  const seat = accounts.seat
+  accounts.seat = (op, ...rest) => op === 'label' ? (rest[0].endsWith('/.claude') ? 'a' : null) : seat(op, ...rest)
   const listed = await accounts.list()
   assert.deepEqual(listed.harnesses[0].allLimited, [{ scope: 'fable', earliestResetAt: '2026-11-08T14:00:00.000Z' }])
   assert.deepEqual(listed.harnesses[0].slots[1].seats, ['b1'])
@@ -174,8 +171,7 @@ test('seat-user helper: the stringified script runs alone, makes a traversable r
   assert.equal(await readlink(join(configurationRoot, 'projects')), join(home, '.claude/projects'))
   for (const path of [join(home, '.bellteam-accounts'), join(home, '.bellteam-accounts/claude'), configurationRoot])
     assert.equal((await stat(path)).mode & 0o777, 0o711)
-  assert.equal((await stat(join(configurationRoot, '.claude.json'))).mode & 0o777, 0o600)
-  assert.equal(await accounts.label('claude', '1st'), 'a')
+  assert.equal(await readlink(join(configurationRoot, '.claude.json')), join(home, '.claude.json'))
   await rm(configurationRoot, { recursive: true, force: true })
   await chmod(join(home, '.bellteam-accounts/claude'), 0o500)
   try { await assert.rejects(accounts.prepare('claude', '2nd'), { code: 'ACCOUNT_ROOT_UNAVAILABLE', status: 503 }) }
@@ -189,16 +185,4 @@ test('parent Aiterm over the seat command carries the account roots (production 
   assert.match(client.claudeConfigRoots, /\/\.bellteam-accounts\/claude$/)
   assert.deepEqual(seatConnectionEnvironment('g', client.claudeConfigRoots), ['BELLTEAM_RUNTIME_GENERATION=g', `AITERM_CLAUDE_CONFIG_ROOTS=${client.claudeConfigRoots}`])
   assert.deepEqual(seatConnectionEnvironment('g', null), ['BELLTEAM_RUNTIME_GENERATION=g'])
-})
-
-// harness-accounts.md: an unreadable or invalid 1st config never empties the slot's copy (protection: overwriting existing state).
-test('prepare keeps the slot config byte-for-byte when the 1st config cannot be read or parsed', async t => {
-  const { home, accounts } = await setup(t)
-  const { configurationRoot } = await accounts.prepare('claude', '2nd')
-  const before = await readFile(join(configurationRoot, '.claude.json'), 'utf8')
-  for (const broken of ['{not json', '[]']) {
-    await writeFile(join(home, '.claude.json'), broken)
-    await assert.rejects(accounts.prepare('claude', '2nd'), { code: 'ACCOUNT_ROOT_UNAVAILABLE' })
-    assert.equal(await readFile(join(configurationRoot, '.claude.json'), 'utf8'), before)
-  }
 })

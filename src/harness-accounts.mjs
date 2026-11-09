@@ -1,4 +1,4 @@
-import { lstat, readdir, readFile } from 'node:fs/promises'
+import { lstat, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { writeAtomic } from './json-file.mjs'
 import { MODEL_FAMILIES, modelScope, parseLimitText } from './claude-limit-text.mjs'
@@ -11,11 +11,6 @@ const SCHEMA = 'bellteam.harness-accounts.v1'
 const REREAD_MS = 600_000
 const MAX_TIMER_MS = 2_147_000_000
 const CLEAR_RETRY_MS = 60_000
-// Shared with the 1st root so a resume under either root finds the same conversation and the same user settings.
-const SHARED = ['projects', 'history.jsonl', 'settings.json', 'CLAUDE.md', 'AGENTS.md', 'skills', 'commands', 'plugins',
-  'agents', 'file-history', 'todos', 'session-env', 'shell-snapshots', 'jobs', 'state']
-// The account's own record in `.claude.json`; everything else is copied from the 1st (plus every key naming a cache).
-const ACCOUNT_KEYS = ['oauthAccount', 'userID', 'claudeAiMcpEverConnected', 'penguinModeOrgEnabled']
 const SCOPES = new Set(['all', ...MODEL_FAMILIES])
 const fail = code => Object.assign(new Error(code), { code, status: 400 })
 const iso = value => typeof value === 'string' && Number.isFinite(Date.parse(value))
@@ -27,48 +22,47 @@ async function present(path) {
 // Runs as the seat user (harness-accounts.md "Identity"): the engine is another user and cannot open the seat's files.
 // Self-contained on purpose: it is stringified into `node -e` for the parent's seat runner. No module-scope names.
 export async function seatFiles(op, ...args) {
-  const { chmod, lstat, mkdir, readFile, rename, symlink, unlink, writeFile } = await import('node:fs/promises')
+  const { chmod, copyFile, lstat, mkdir, readdir, readFile, rename, symlink } = await import('node:fs/promises')
   const { join } = await import('node:path')
   const error = code => Object.assign(new Error(code), { code })
   const present = async path => { try { return await lstat(path) } catch (cause) { if (cause.code === 'ENOENT') return null; throw cause } }
   const readJson = async path => JSON.parse(await readFile(path, 'utf8'))
   if (op === 'prepare') {
-    const [home, harness, slot, shared, accountKeys] = args
+    const [home, harness, slot] = args
     const parent = join(home, '.bellteam-accounts'), root = join(parent, harness, slot), primary = join(home, `.${harness}`)
     await mkdir(root, { recursive: true, mode: 0o711 })
-    // Traverse only, for the engine's lstat (loggedIn, history); no listing, no reading.
+    // Traverse only, for the engine's lstat (loggedIn); no listing, no reading.
     for (const directory of [parent, join(parent, harness), root]) await chmod(directory, 0o711)
-    let history = 'shared'
-    for (const name of shared) {
+    // Only the login differs (Owner 2026-11-09): every entry of the 1st root and the 1st config file are links here;
+    // only .credentials.json is the slot's own. The CLI writes through a linked config file (checked 2026-11-09).
+    const entries = (await readdir(primary)).filter(name => name !== '.credentials.json').map(name => [name, join(primary, name)])
+    entries.push([`.${harness}.json`, join(home, `.${harness}.json`)])
+    for (const [name, target] of entries) {
       const link = join(root, name), entry = await present(link)
-      if (entry) { if (!entry.isSymbolicLink() && name === 'projects') history = 'separate'; continue }
-      // Create-only: an existing entry is never replaced. A target that does not exist yet stays the CLI's own.
-      if (await present(join(primary, name))) await symlink(join(primary, name), link)
+      if (entry?.isSymbolicLink()) continue
+      // An entry the slot made itself is moved aside, never deleted (protection: data loss), then linked.
+      if (entry) {
+        await mkdir(join(root, '.bellteam-previous'), { recursive: true, mode: 0o700 })
+        // A seat still running on the slot's own config may write it through the new link once: keep the 1st as it was.
+        if (name === `.${harness}.json`) await copyFile(target, join(root, '.bellteam-previous', `1st${name}.${Date.now()}`)).catch(() => {})
+        await rename(link, join(root, '.bellteam-previous', `${name}.${Date.now()}`))
+      }
+      await symlink(target, link)
     }
-    const to = join(root, `.${harness}.json`)
-    let source, target = {}, readable = true
-    // An unreadable 1st config would turn the copy into a deletion: keep the slot's file as it is and fail the prepare
-    // (protection: overwriting existing state); a launch then goes on with the last copy, the next prepare refreshes it.
-    try { source = await readJson(join(home, `.${harness}.json`)) } catch { throw error('ACCOUNT_SOURCE_UNREADABLE') }
-    if (!source || typeof source !== 'object' || Array.isArray(source)) throw error('ACCOUNT_SOURCE_UNREADABLE')
-    try { target = await readJson(to) } catch (cause) { if (cause.code !== 'ENOENT') readable = false }
-    if (readable) {
-      // Only the account differs (Owner 2026-11-09): every 1st setting (MCP servers, projects, onboarding, ...) is the 1st's;
-      // the slot keeps its own account record and what the server sent for that account (caches).
-      const own = key => accountKeys.includes(key) || /cache/iu.test(key)
-      const next = { ...Object.fromEntries(Object.entries(target).filter(([key]) => own(key))),
-        ...Object.fromEntries(Object.entries(source).filter(([key]) => !own(key))) }
-      const temporary = `${to}.${process.pid}.${Date.now()}.tmp`
-      try {
-        await writeFile(temporary, `${JSON.stringify(next, null, 2)}\n`, { mode: 0o600 })
-        await rename(temporary, to)
-      } catch (cause) { await unlink(temporary).catch(() => {}); throw cause }
-    }
-    return { configurationRoot: root, history }
+    return { configurationRoot: root, history: 'shared' }
   }
   if (op === 'label') {
-    try { const value = (await readJson(args[0]))?.oauthAccount?.emailAddress; return typeof value === 'string' && value ? value : null }
-    catch { return null }
+    // The config file is the 1st's now, so the e-mail comes from the slot's own login (the profile endpoint Claude Code uses).
+    let token
+    try { token = (await readJson(join(args[0], '.credentials.json')))?.claudeAiOauth?.accessToken } catch { token = null }
+    if (typeof token !== 'string' || !token) return null
+    try {
+      const response = await fetch('https://api.anthropic.com/api/oauth/profile', { headers: { Authorization: `Bearer ${token}`,
+        'anthropic-beta': 'oauth-2025-04-20', 'User-Agent': 'claude-code', 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(20_000) })
+      if (!response.ok) return null
+      const value = (await response.json())?.account?.email
+      return typeof value === 'string' && value ? value : null
+    } catch { return null }
   }
   if (op === 'usage') {
     // The usage endpoint Claude Code itself uses (scripts/claude-usage.py). The token never leaves this process.
@@ -167,7 +161,7 @@ export class HarnessAccounts {
     if (!ACCOUNT_HARNESSES.includes(harness) || !ACCOUNT_SLOTS.includes(slot)) throw fail('ACCOUNT_SLOT_INVALID')
     if (slot === '1st') return { configurationRoot: this.root(harness, slot), history: 'shared' }
     try {
-      const prepared = await this.seat('prepare', this.home, harness, slot, SHARED, ACCOUNT_KEYS)
+      const prepared = await this.seat('prepare', this.home, harness, slot)
       if (prepared?.configurationRoot !== this.root(harness, slot) || !['shared', 'separate'].includes(prepared.history)) throw Object.assign(new Error(), { code: 'ACCOUNT_SEAT_INVALID' })
       return prepared
     } catch (error) {
@@ -183,13 +177,12 @@ export class HarnessAccounts {
     await this.save({ ...this.state, seats: { ...this.state.seats, [botId]: slot } })
   }
 
-  // Display label: the e-mail the CLI recorded for its own login (not a credential). Read as the seat user, cached until a new login.
+  // Display label: the e-mail of the slot's own login (not a credential). Read as the seat user, cached until a new login.
   async label(harness, slot) {
     const stamp = (await present(join(this.root(harness, slot), '.credentials.json')).catch(() => null))?.mtimeMs ?? null
     const key = `${harness}:${slot}`, cached = this.labels.get(key)
     if (cached && cached.stamp === stamp) return cached.value
-    const path = slot === '1st' ? join(this.home, `.${harness}.json`) : join(this.root(harness, slot), `.${harness}.json`)
-    try { const read = await this.seat('label', path), value = typeof read === 'string' && read ? read : null; this.labels.set(key, { stamp, value }); return value }
+    try { const read = await this.seat('label', this.root(harness, slot)), value = typeof read === 'string' && read ? read : null; this.labels.set(key, { stamp, value }); return value }
     catch { return null }
   }
 
@@ -326,9 +319,3 @@ export class HarnessAccounts {
   }
 }
 
-// Slot roots that already exist; harness-config keeps their MCP registration in step with the 1st root.
-export async function preparedAccountRoots(home, harness = 'claude') {
-  const parent = join(home, '.bellteam-accounts', harness)
-  try { return (await readdir(parent, { withFileTypes: true })).filter(entry => entry.isDirectory() && ACCOUNT_SLOTS.includes(entry.name)).map(entry => join(parent, entry.name)) }
-  catch { return [] }
-}
