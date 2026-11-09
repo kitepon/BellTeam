@@ -181,8 +181,10 @@ class MembersArtifactTest(unittest.TestCase):
             validate_catalog(catalog,now=now)
             release['compatibility']['stateCompatibility']=self.manifest['runtime']['stateCompatibility']
             with self.subTest(component=component),self.assertRaises(ValueError):validate_catalog(catalog,now=now)
-        catalog=self.catalog();catalog['releases'][0]['componentId']='future-component'
-        with self.assertRaises(ValueError):validate_catalog(catalog,now=now)
+        # 41b2b408 contract: readers skip unknown rows; only the publisher (strict=True) refuses them
+        catalog=self.catalog();catalog['releases'][0]['componentId']='future-component';ignored=[]
+        self.assertIs(validate_catalog(catalog,now=now,ignored=ignored),catalog);self.assertEqual(ignored,['future-component'])
+        with self.assertRaises(ValueError):validate_catalog(catalog,now=now,strict=True)
 
     def test_catalog_archive_and_consumer_must_match_and_asset_hash_is_checked(self):
         from update_catalog import validate_members_archive
