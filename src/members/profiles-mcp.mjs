@@ -65,6 +65,8 @@ export const memberWriteTools = [
       harness: { type: 'string', enum: ['claude', 'codex', 'grok', 'cursor', 'antigravity'], description: 'CLI種別' },
       model: { type: 'string', maxLength: 200, description: 'モデルID。空文字でそのCLIの既定へ戻す。' },
       reasoningEffort: { type: 'string', description: 'エフォート。空文字でそのCLIの既定へ戻す。最新の候補はlist_modelsで取得する。保存時もCLIの現在の一覧で確認する。' },
+      terminalId: { type: 'string', maxLength: 128, description: 'リモート席の端末ID。空文字でBellTeam内の通常の席へ戻す。projectRootと一緒に指定する。' },
+      projectRoot: { type: 'string', maxLength: 4096, description: 'リモート席が起動するフォルダの絶対パス（macOS）。空文字で通常の席へ戻す。terminalIdと一緒に指定する。' },
     }, ['botId']),
   },
   {
@@ -88,7 +90,24 @@ export const memberWriteTools = [
       role: { type: 'string', maxLength: 8000 },
       avatar: { type: 'string', maxLength: 3000000 },
       color: { type: 'string', enum: ['rose', 'indigo', 'violet'] },
+      terminalId: { type: 'string', maxLength: 128, description: 'リモート席の端末ID。空文字でBellTeam内の通常の席へ戻す。projectRootと一緒に指定する。' },
+      projectRoot: { type: 'string', maxLength: 4096, description: 'リモート席が起動するフォルダの絶対パス（macOS）。空文字で通常の席へ戻す。terminalIdと一緒に指定する。' },
     }, ['name', 'harness']),
+  },
+  {
+    name: 'list_member_docs',
+    description: '自分のBellTeamプロジェクトにある手順書（docs/配下）とAGENTS.local.mdの一覧を返す。リモート席でもBellTeam側の正本を読む。',
+    inputSchema: objectSchema({}),
+  },
+  {
+    name: 'read_member_doc',
+    description: '自分のBellTeamプロジェクトの手順書を読む。pathはAGENTS.local.mdかdocs/からの相対パス。',
+    inputSchema: objectSchema({ path: { type: 'string', minLength: 1, maxLength: 4096 } }, ['path']),
+  },
+  {
+    name: 'write_member_doc',
+    description: '自分のBellTeamプロジェクトの手順書を保存する（全文置換、1MiBまで）。pathはAGENTS.local.mdかdocs/からの相対パス。足りないdocs/配下のフォルダは作る。',
+    inputSchema: objectSchema({ path: { type: 'string', minLength: 1, maxLength: 4096 }, content: { type: 'string', maxLength: 1048576 } }, ['path', 'content']),
   },
 ]
 
@@ -116,6 +135,10 @@ export async function callMemberTool({ name, args = {}, from, registry, botView 
     const avatar = `data:${mime};base64,${(await readFile(source)).toString('base64')}`
     return { bot: await registry.update(botId, { avatar }) }
   }
+  // C6: always the caller's own project; `from` is the ingress-resolved botId, never an argument.
+  if (name === 'list_member_docs') return { files: await registry.docs.list(from) }
+  if (name === 'read_member_doc') return registry.docs.read(from, args.path)
+  if (name === 'write_member_doc') return registry.docs.write(from, args.path, args.content)
   if (name === 'create_bot') {
     const bot = await registry.create(args)
     await memory?.ensureScope(bot.id, 'personal')

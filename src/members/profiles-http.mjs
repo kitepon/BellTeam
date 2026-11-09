@@ -40,6 +40,8 @@ export function createMemberProfileApi({ bots, transport, administration, memory
           speechStyle: bot.speechStyle ?? '',
           position: bot.position ?? '',
           role: bot.role ?? '',
+          terminalId: bot.terminalId ?? '',
+          projectRoot: bot.projectRoot ?? '',
           ...avatars,
           avatarCrop: bot.avatarCrop ?? null,
           avatarLargeCrop: bot.avatarLargeCrop ?? null,

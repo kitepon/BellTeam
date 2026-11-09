@@ -3,6 +3,7 @@ import { validateMembersEffect } from './members/protocol.mjs'
 export const MEMBERS_RUNTIME_EFFECT_METHODS = Object.freeze([
   'project.ensureRoot', 'project.claim', 'project.initialize', 'project.remove', 'project.readPreviousSession',
   'project.writeInstructions', 'project.prepareStartupContext', 'project.appendInstructions', 'global.writeInstructions', 'cli.configure',
+  'project.composeInstructions', 'project.docs.list', 'project.docs.read', 'project.docs.write',
 ])
 
 export function createMembersRuntimeEffects({ seatRuntime, readCurrentBotIds, aiterm, callBridge }) {
