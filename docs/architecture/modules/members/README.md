@@ -15,12 +15,14 @@
 - [予定](schedules.md)：Bot/部屋予定のMCP説明/schema/handler、HTTP受付、共通定義と発行。部屋の公開資格helperを使用する。
 - [プロフィール・画像](profiles.md)：9つのMCP説明/schema/handlerと一覧/profile/画像のHTTP受付。実行設定はexecutionへ委譲する。
 - [Owner個別規範・起動指示](instructions.md)：読取/更新の専用窓口、保存後の生成、共通テンプレートとの境界。
+- [Remote seat C1/C6](remote-seat.md): member terminalId/projectRoot, launch-time instruction text for execution, member-scoped docs/AGENTS.local MCP interface.
 
 | 公開窓口 | 入出力と所有者間の境界 |
 | --- | --- |
 | registry | BotRegistryのprofile/create/update/hasPendingRemoval/remove/listForClient。profiles-mcp/profiles-httpとdeletionのschema/handlerをmembersが所有。実行対象はactive Map、HTTP一覧はpending receiptを含む |
 | schedules | `members/schedules-mcp.mjs`のBot/部屋6道具と`members/schedules-http.mjs`の公開handler。Bot/RoomRegistryのlist/set/remove/mark、共通schedule-definition/schedule-mutations、scheduler発行は維持。部屋正本・targets/資格helper・command拒否はconversation |
-| instructions | owner-httpと既専用mcp-owner-tools、profiles-mcpのOwner読取。ProjectFiles個別指示/startup context、OwnerProfile/UserRules保存、global-instructionsの再生成。保存成功と生成失敗を区別。共通テンプレートは統合担当 |
+| docs | members/profiles-mcp `list_member_docs`/`read_member_doc`/`write_member_doc` on the caller's own BellTeam project via runtime `project.docs.*` ([remote-seat.md](remote-seat.md)) |
+| instructions | owner-httpと既専用mcp-owner-tools、profiles-mcpのOwner読取。ProjectFiles個別指示/startup context、OwnerProfile/UserRules保存、global-instructionsの再生成。保存成功と生成失敗を区別。共通テンプレートは統合担当。remote seatの起動文はfacade `bots.launchContext` → `profile.launchContext`（[remote-seat.md](remote-seat.md)） |
 
 使用する公開窓口はexecution.stop/configuration/observation、runtime.project-files/cli-registration、conversation.membership-cleanup/messages/room-access/history、memory.memory。共有CLI JSON、RoomRegistryの部屋正本、native停止の内部へ直接書き込まない。
 

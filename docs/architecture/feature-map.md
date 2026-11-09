@@ -142,7 +142,7 @@ flowchart LR
 | [AI実行制御](modules/execution/README.md) | キロ | turn / configuration / stop / observation / members-admission / accounts |
 | [共通入口・結合実装](modules/integration/README.md) | モリー | HTTP/MCP / HTTP/SSE / diagnostics |
 | [mcp-lazy](modules/mcp-lazy/README.md) | レオナ | relay |
-| [メンバー・予定](modules/members/README.md) | ベロータ | registry / schedules / instructions |
+| [メンバー・予定](modules/members/README.md) | ベロータ | registry / schedules / instructions / docs |
 | [記憶・知識](modules/memory/README.md) | ビスケット | memory |
 | [RTK](modules/rtk/README.md) | ドリリー | hook |
 | [実行環境・更新復旧](modules/runtime/README.md) | モリー | lifecycle / seat-process / project-files / cli-registration / module-runner / update / module-runner |
