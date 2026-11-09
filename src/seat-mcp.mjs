@@ -1,7 +1,7 @@
 // 席のCLIがHTTPでつなぐMCPの入口。supervisorの内部入口（loopback）だけで開く。
 // 席ごとにnodeを起こさないよう、bellteamの道具と通話ブリッジへの中継をここで受ける。
 import { readFile } from 'node:fs/promises'
-import { request as httpRequest } from 'node:http'
+import { createServer, request as httpRequest } from 'node:http'
 import { request as httpsRequest } from 'node:https'
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
@@ -73,6 +73,20 @@ export function createRemoteSeatIngress({ credentials, bots, seatMcp }) {
     const path = url.pathname === REMOTE_SEAT_MCP_PATH ? BELLTEAM_MCP_PATH : CALL_BRIDGE_MCP_PATH
     return seatMcp()(request, response, new URL(`${path}${url.search}`, url))
   }
+}
+
+// RS05: the container-loopback listener that Aiterm's SSH reverse forward targets. Only the two seat MCP paths; no other API.
+export function createRemoteSeatServer(ingress) {
+  return createServer(async (request, response) => {
+    try {
+      const url = new URL(request.url, 'http://bellteam.local')
+      if (url.pathname !== REMOTE_SEAT_MCP_PATH && url.pathname !== `${REMOTE_SEAT_MCP_PATH}/call-bridge`) return reply(response, 404, { error: 'NOT_FOUND' })
+      return await ingress(request, response, url)
+    } catch (error) {
+      if (!response.headersSent) reply(response, error?.status ?? 500, { error: error?.code ?? 'INTERNAL_ERROR' })
+      else response.destroy()
+    }
+  })
 }
 
 // 道具のうち、配送・設定・再起動は本体のAPIと同じ経路を通す。
