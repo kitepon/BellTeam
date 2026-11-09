@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-09T13:03:22Z",
-  "expiresAt": "2026-11-16T13:03:22Z",
+  "publishedAt": "2026-11-09T13:13:15Z",
+  "expiresAt": "2026-11-16T13:13:15Z",
   "releases": [
     {
       "componentId": "usage",
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "7c54e0e048c9873f5ff91382413862a0bf7efd70",
-      "versionId": "sha256:766cf3000cb5ffd4bad5564bed1b3adc6c91bf023b5cd9c60ca7d9a90f27eff9",
+      "sourceCommit": "fb923ca4b2cd15f3909b232aa1b57f8be50b75cd",
+      "versionId": "sha256:b129afc6b13486d5fb27dfa848ab36bf196f365fcc08b5bd4bf2e36e58097e42",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:766cf3000cb5ffd4bad5564bed1b3adc6c91bf023b5cd9c60ca7d9a90f27eff9"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b129afc6b13486d5fb27dfa848ab36bf196f365fcc08b5bd4bf2e36e58097e42"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,20 +722,23 @@
         "containerUpdate": 1
       },
       "changes": [
-        "複数アカウントの席を正しく識別し、2つ目の席で操作を続けられるようにします。"
+        "LANにある端末（Macなど）で、メンバーの席を動かせるようにします。席とBellTeamのやりとりは、端末へのSSH接続の中だけを通ります。",
+        "アプリの設定から、端末のSSH鍵を登録できるようにします。",
+        "本体の入れ替えの前に、新しい本体で今の状態を読み取って確かめ、確実に失敗する入れ替えは今の本体を止めずに取りやめます。",
+        "入れ替えのたびに保存場所の名前が長くなり続ける不具合と、古い形の部品があると起動できない不具合を直します。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "7c54e0e048c9873f5ff91382413862a0bf7efd70",
-      "versionId": "sha256:766cf3000cb5ffd4bad5564bed1b3adc6c91bf023b5cd9c60ca7d9a90f27eff9",
+      "sourceCommit": "fb923ca4b2cd15f3909b232aa1b57f8be50b75cd",
+      "versionId": "sha256:b129afc6b13486d5fb27dfa848ab36bf196f365fcc08b5bd4bf2e36e58097e42",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:766cf3000cb5ffd4bad5564bed1b3adc6c91bf023b5cd9c60ca7d9a90f27eff9"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b129afc6b13486d5fb27dfa848ab36bf196f365fcc08b5bd4bf2e36e58097e42"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -744,7 +747,10 @@
         "containerUpdate": 1
       },
       "changes": [
-        "複数アカウントの席を正しく識別し、2つ目の席で操作を続けられるようにします。"
+        "LANにある端末（Macなど）で、メンバーの席を動かせるようにします。席とBellTeamのやりとりは、端末へのSSH接続の中だけを通ります。",
+        "アプリの設定から、端末のSSH鍵を登録できるようにします。",
+        "本体の入れ替えの前に、新しい本体で今の状態を読み取って確かめ、確実に失敗する入れ替えは今の本体を止めずに取りやめます。",
+        "入れ替えのたびに保存場所の名前が長くなり続ける不具合と、古い形の部品があると起動できない不具合を直します。"
       ]
     }
   ],
