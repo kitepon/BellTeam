@@ -24,7 +24,13 @@ test('validates target fields and rejects source references', async t => {
     { port: 0 }, { port: 65536 }, { os: 'linux' }, { accountOwner: 'other' },
     { unexpected: true }, { hostTrust: { provider: 'op://vault/item', revision: 1 } }
   ]) await assert.rejects(registry.register({ ...input, ...patch }), { code: 'INVALID_TERMINAL' })
+  // A pasted key is refused with the next action, and its value is never echoed back.
+  const key = '-----BEGIN OPENSSH PRIVATE KEY----- abc'
+  await assert.rejects(registry.register({ ...input, sshKeyRef: key }), error => error.message.includes('secret input card') && !error.message.includes('abc'))
+  await assert.rejects(registry.register({ ...input, port: '22' }), { message: /port must be an integer/ })
   assert.deepEqual(await registry.list(), [])
+  const { sshKeyRef: _key, ...keyless } = input
+  assert.equal((await registry.register(keyless)).sshKeyConfigured, false, 'key is bound later')
 })
 
 test('persists revisions, redacts references and serializes updates', async t => {

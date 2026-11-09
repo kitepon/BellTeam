@@ -7,7 +7,7 @@ const fingerprintPattern = /^SHA256:[A-Za-z0-9+/]{43}$/
 
 // Molly #767 mount: the parent calls this once; no child, no service.
 // native: Elegg's UID1000 remote-terminal processes (credential and trust are Aiterm-held); `adapter` replaces it in tests.
-export function createTerminalsCore({ stateRoot, credentials = null, seatCredentials = null, report = null, seatProject = stateRoot && dirname(stateRoot), adapter = null, native: _sharedClient, ...options } = {}) {
+export function createTerminalsCore({ stateRoot, credentials = null, report = null, seatProject = stateRoot && dirname(stateRoot), adapter = null, native: _sharedClient, ...options } = {}) {
   const watchers = new Set()
   const publish = event => { for (const listener of watchers) { try { listener(event) } catch {} } }
   const record = dto => Promise.resolve().then(() => report?.({ module: 'terminals', ...dto })).catch(() => {})
@@ -21,15 +21,15 @@ export function createTerminalsCore({ stateRoot, credentials = null, seatCredent
       return credentials.withResolved(handle, context, consume)
     }
   }
-  // Created lazily so a missing Aiterm release only makes opens TERMINAL_UNAVAILABLE.
+  // Created lazily so a missing Aiterm release only makes targets/checks TERMINAL_UNAVAILABLE.
   const lazyNative = { connect: request => native().connect(request), trust: ref => native().trust(ref) }
-  const connection = createTerminalConnection({ registry, secrets, native: lazyNative, seatCredentials, ...options })
+  const connection = createTerminalConnection({ registry, secrets, native: lazyNative, ...options })
   connection.onAvailable(({ terminalId }) => publish({ terminalId, reachable: true, observedAt: new Date().toISOString() }))
   const unwatchCredentials = credentials?.watchCredentials?.(event => connection.onCredentialEvent(event))
 
-  const open = connection.open
-  connection.open = async request => {
-    try { return await open(request) } catch (error) {
+  const target = connection.target
+  connection.target = async request => {
+    try { return await target(request) } catch (error) {
       if (error.code === 'TARGET_MISMATCH') await record({ code: 'TERMINAL_TARGET_MISMATCH', terminalId: request?.terminalId, action: error.action })
       throw error
     }

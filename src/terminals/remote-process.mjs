@@ -1,14 +1,11 @@
-// Elegg C3 (aiterm-mcp remote-terminal.md, f7022539): one UID1000 `aiterm-remote-terminal` stdio MCP process (`serve`) per bound
-// connection, started through the seat command entry like the parent's Aiterm. Process exit = connection closed.
+// Elegg C3 (aiterm-mcp remote-terminal.md, f7022539): one UID1000 `aiterm-remote-terminal` stdio MCP process (`serve`) per
+// reachability check or C8 run, started through the seat command entry like the parent's Aiterm. Process exit = closed.
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { seatCommandSpec } from '../seat-command.mjs'
 import { createSeatProcessRunner } from '../seat-process.mjs'
 
 const BIN = 'aiterm-remote-terminal'
-const EVENT = 'aiterm/remote-terminal-event'
-// A turn can run for hours; the SDK default (60 s) would cut it, so wait only for the caller's abort (max setTimeout).
-const NO_TIMEOUT = 2_147_483_647
 
 async function stdioClient(project) {
   const client = new Client({ name: 'bellteam-terminals', version: '0.1.0' }, { capabilities: {} })
@@ -28,7 +25,7 @@ export function createRemoteTerminalProcesses({ project, connectClient = () => s
   async function start() {
     let client
     try { client = await connectClient() } catch { throw Object.assign(new Error('Remote terminal process unavailable'), { code: 'REMOTE_AITERM_UNAVAILABLE' }) }
-    const tool = async (name, args = {}, options) => parse(await client.callTool({ name, arguments: args }, undefined, options))
+    const tool = async (name, args = {}) => parse(await client.callTool({ name, arguments: args }))
     return { client, tool }
   }
 
@@ -40,34 +37,18 @@ export function createRemoteTerminalProcesses({ project, connectClient = () => s
   return {
     async trust(ref) { return (await status(ref))?.trust ?? null },
 
-    async connect({ target, hostTrust, credential, privateEnv }) {
+    // Transient process for reachability and C8 only; seats run through Aiterm's own agent_launch (Trony ruling 2026-11-09).
+    async connect({ target, hostTrust, credential }) {
       if (!credential?.nativeKeyRef) throw Object.assign(new Error('Unsupported credential'), { code: 'CREDENTIAL_UNUSABLE' })
       const { client, tool } = await start()
-      const listeners = new Set()
-      let closing = false
-      const emit = event => { for (const listener of listeners) { try { listener(event) } catch {} } }
-      client.fallbackNotificationHandler = async notification => { if (notification.method === EVENT) emit(notification.params) }
-      client.onclose = () => { if (!closing) emit({ type: 'lost', at: new Date().toISOString(), code: 'CONNECTION_LOST' }) }
       try {
         const current = await tool('remote_terminal_status', { ref: credential.nativeKeyRef })
         if (current?.trust?.revision !== hostTrust.revision) throw Object.assign(new Error('Host trust revision changed'), { code: 'HOST_TRUST_STALE' })
-        await tool('remote_terminal_open', {
-          ref: credential.nativeKeyRef, target, trustRevision: hostTrust.revision,
-          credentialRevision: credential.credentialRevision ?? current.credential?.revision,
-          ...(privateEnv ? { privateEnv } : {})
-        })
-      } catch (error) { closing = true; await client.close().catch(() => {}); throw error }
+        await tool('remote_terminal_open', { ref: credential.nativeKeyRef, target, trustRevision: hostTrust.revision, credentialRevision: credential.credentialRevision ?? current.credential?.revision })
+      } catch (error) { await client.close().catch(() => {}); throw error }
       return {
-        // Results stay the raw MCP result, identical to the local Aiterm call.
-        callTool: (name, args, options = {}) => client.callTool({ name: 'remote_terminal_call', arguments: { name, args,
-          ...(options.private ? { private: options.private } : {}), ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}) } }),
-        transcript: { read: request => tool('remote_terminal_transcript_read', request) },
-        // aiterm-wait's one-line JSON receipt, unchanged; abort cancels the request (Aiterm answers WAIT_CANCELLED).
-        wait: (waitProcess, { signal } = {}) => tool('remote_terminal_wait', { waitProcess }, { signal, timeout: NO_TIMEOUT }),
         command: op => tool('remote_terminal_command', { op }),
-        onEvent(listener) { listeners.add(listener); return () => listeners.delete(listener) },
         async close() {
-          closing = true
           await tool('remote_terminal_close').catch(() => {})
           await client.close().catch(() => {})
           return { closed: true }

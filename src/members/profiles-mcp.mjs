@@ -65,8 +65,8 @@ export const memberWriteTools = [
       harness: { type: 'string', enum: ['claude', 'codex', 'grok', 'cursor', 'antigravity'], description: 'CLI種別' },
       model: { type: 'string', maxLength: 200, description: 'モデルID。空文字でそのCLIの既定へ戻す。' },
       reasoningEffort: { type: 'string', description: 'エフォート。空文字でそのCLIの既定へ戻す。最新の候補はlist_modelsで取得する。保存時もCLIの現在の一覧で確認する。' },
-      terminalId: { type: 'string', maxLength: 128, description: 'リモート席の端末ID。空文字でBellTeam内の通常の席へ戻す。projectRootと一緒に指定する。' },
-      projectRoot: { type: 'string', maxLength: 4096, description: 'リモート席が起動するフォルダの絶対パス（macOS）。空文字で通常の席へ戻す。terminalIdと一緒に指定する。' },
+      terminalId: { type: 'string', maxLength: 128, description: 'リモート席を動かす端末のID。list_terminalsに出ている登録済みのIDをそのまま書く（例 owner-macbook）。空文字でBellTeam内の通常の席へ戻す。projectRootと必ず一緒に指定する（片方だけはBOT_REMOTE_BINDING_INVALID）。形が違うとBOT_TERMINAL_ID_INVALID。' },
+      projectRoot: { type: 'string', maxLength: 4096, description: 'その端末の上での、席が起動するフォルダの絶対パス（例 /Users/kite/work/app）。BellTeamのコンテナ側のパスではない。/で始め、.や..や空の区切りを含めない（違うとBOT_PROJECT_ROOT_INVALID）。端末にそのフォルダが無いと起動時にCWD_UNAVAILABLEになり、ホームなど別の場所では起動しない。空文字で通常の席へ戻す。terminalIdと必ず一緒に指定する。' },
     }, ['botId']),
   },
   {
@@ -90,8 +90,8 @@ export const memberWriteTools = [
       role: { type: 'string', maxLength: 8000 },
       avatar: { type: 'string', maxLength: 3000000 },
       color: { type: 'string', enum: ['rose', 'indigo', 'violet'] },
-      terminalId: { type: 'string', maxLength: 128, description: 'リモート席の端末ID。空文字でBellTeam内の通常の席へ戻す。projectRootと一緒に指定する。' },
-      projectRoot: { type: 'string', maxLength: 4096, description: 'リモート席が起動するフォルダの絶対パス（macOS）。空文字で通常の席へ戻す。terminalIdと一緒に指定する。' },
+      terminalId: { type: 'string', maxLength: 128, description: 'リモート席を動かす端末のID。list_terminalsに出ている登録済みのIDをそのまま書く（例 owner-macbook）。空文字でBellTeam内の通常の席へ戻す。projectRootと必ず一緒に指定する（片方だけはBOT_REMOTE_BINDING_INVALID）。形が違うとBOT_TERMINAL_ID_INVALID。' },
+      projectRoot: { type: 'string', maxLength: 4096, description: 'その端末の上での、席が起動するフォルダの絶対パス（例 /Users/kite/work/app）。BellTeamのコンテナ側のパスではない。/で始め、.や..や空の区切りを含めない（違うとBOT_PROJECT_ROOT_INVALID）。端末にそのフォルダが無いと起動時にCWD_UNAVAILABLEになり、ホームなど別の場所では起動しない。空文字で通常の席へ戻す。terminalIdと必ず一緒に指定する。' },
     }, ['name', 'harness']),
   },
   {

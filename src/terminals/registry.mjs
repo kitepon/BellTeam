@@ -14,19 +14,32 @@ function invalid(message, code = 'INVALID_TERMINAL') {
   return Object.assign(new Error(message), { code, status: STATUS[code] })
 }
 
+// Messages name the field, the expected form and the next action; they never echo a submitted value (it may be a pasted secret).
+const REF_HINT = 'the reference (UUID) issued by the secret input card or for a 1Password reference; never put a key or password in any argument'
+const looksSecret = value => typeof value === 'string' && /-----BEGIN|PRIVATE KEY|^op:\/\/|^ssh-(ed25519|rsa)|^ecdsa-/i.test(value)
+
+function checkRef(field, value, label) {
+  if (looksSecret(value)) throw invalid(`${field} looks like a key or a raw secret reference; it was not saved. Remove it from your messages, enter the ${label} through the secret input card, and pass ${REF_HINT}`)
+  if (typeof value !== 'string' || !uuid.test(value)) throw invalid(`${field} must be ${REF_HINT}`)
+}
+
 function validate(record, stored = false) {
   const allowed = stored ? [...fields, 'terminalId', 'revision'] : fields
-  if (!object(record) || Object.keys(record).some(key => !allowed.includes(key))) throw invalid('Invalid terminal fields')
+  if (!object(record)) throw invalid('Terminal fields must be one JSON object')
+  const unknown = Object.keys(record).filter(key => !allowed.includes(key))
+  if (unknown.length) throw invalid(`Unknown terminal fields: ${unknown.join(', ')}. Allowed: terminalId, ${fields.filter(key => key !== 'hostTrust').join(', ')}, confirmHostKey`)
   if (stored && (!slug.test(record.terminalId ?? '') || !Number.isSafeInteger(record.revision) || record.revision < 1)) throw invalid('Invalid terminal identity or revision')
-  if (typeof record.host !== 'string' || !(isIP(record.host) || /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/i.test(record.host))) throw invalid('Invalid host')
-  if (typeof record.user !== 'string' || !/^[a-z_][a-z0-9_.-]*[$]?$/i.test(record.user)) throw invalid('Invalid user')
-  if (!Number.isInteger(record.port) || record.port < 1 || record.port > 65535) throw invalid('Invalid port')
-  if (record.os !== 'macos' || !['owner', 'terminal-owner'].includes(record.accountOwner)) throw invalid('Invalid OS or account owner')
-  if (typeof record.sshKeyRef !== 'string' || !uuid.test(record.sshKeyRef)) throw invalid('Invalid SSH credential reference')
-  if (record.sudoKeyRef !== undefined && (typeof record.sudoKeyRef !== 'string' || !uuid.test(record.sudoKeyRef))) throw invalid('Invalid sudo credential reference')
-  // hostTrust is Elegg's public trust ref: {provider:'aiterm.known-hosts.v1', revision:'sha256:<64hex>'}.
-  if (record.hostTrust !== undefined && (!object(record.hostTrust) || Object.keys(record.hostTrust).length !== 2 || typeof record.hostTrust.provider !== 'string' || !/^[a-z0-9][a-z0-9._-]*$/i.test(record.hostTrust.provider) || typeof record.hostTrust.revision !== 'string' || !/^sha256:[0-9a-f]{64}$/.test(record.hostTrust.revision))) throw invalid('Invalid host trust')
-  if (record.ingressUrl !== undefined && (typeof record.ingressUrl !== 'string' || !/^https?:\/\/[a-z0-9.-]+(?::\d{1,5})?$/i.test(record.ingressUrl))) throw invalid('Invalid ingress URL')
+  if (typeof record.host !== 'string' || !(isIP(record.host) || /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/i.test(record.host))) throw invalid('host must be the terminal\'s IP address or DNS name only (no user@, port, path or ssh options), for example 192.168.1.12')
+  if (typeof record.user !== 'string' || !/^[a-z_][a-z0-9_.-]*[$]?$/i.test(record.user)) throw invalid('user must be the login user name on the terminal, for example kite')
+  if (!Number.isInteger(record.port) || record.port < 1 || record.port > 65535) throw invalid('port must be an integer SSH port 1-65535 (default 22)')
+  if (record.os !== 'macos') throw invalid('os must be "macos" (the only supported terminal OS now)')
+  if (!['owner', 'terminal-owner'].includes(record.accountOwner)) throw invalid('accountOwner must be "owner" (the Owner\'s own machine: seats may use the Owner\'s Claude accounts) or "terminal-owner" (someone else\'s machine: seats use that machine\'s own Claude login)')
+  // Optional: a terminal is registered first and its key bound later (bind_terminal_key); until then targets are CREDENTIAL_UNAVAILABLE.
+  if (record.sshKeyRef !== undefined) checkRef('sshKeyRef', record.sshKeyRef, 'SSH key')
+  if (record.sudoKeyRef !== undefined) checkRef('sudoKeyRef', record.sudoKeyRef, 'sudo password')
+  // hostTrust is Elegg's public trust ref: {provider:'aiterm.known-hosts.v1', revision:'sha256:<64hex>'}; set by terminals, not callers.
+  if (record.hostTrust !== undefined && (!object(record.hostTrust) || Object.keys(record.hostTrust).length !== 2 || typeof record.hostTrust.provider !== 'string' || !/^[a-z0-9][a-z0-9._-]*$/i.test(record.hostTrust.provider) || typeof record.hostTrust.revision !== 'string' || !/^sha256:[0-9a-f]{64}$/.test(record.hostTrust.revision))) throw invalid('hostTrust is set by terminals from the trusted host key; to trust a changed host key pass confirmHostKey with the SHA256: fingerprint the Owner confirmed')
+  if (record.ingressUrl !== undefined && (typeof record.ingressUrl !== 'string' || !/^https?:\/\/[a-z0-9.-]+(?::\d{1,5})?$/i.test(record.ingressUrl))) throw invalid('ingressUrl must be an http origin only, like http://127.0.0.1:4182 (no path); for SSH reverse-forward terminals Aiterm replaces it with the terminal\'s own loopback port')
 }
 
 function projection(record) {
@@ -81,8 +94,8 @@ export function createTerminalRegistry({ stateRoot, onChange } = {}) {
       return mutate(records => {
         const { terminalId = randomUUID(), ...candidate } = { port: 22, ...structuredClone(input) }
         validate(candidate)
-        if (typeof terminalId !== 'string' || !slug.test(terminalId)) throw invalid('Invalid terminal identity')
-        if (records.some(item => item.terminalId === terminalId)) throw invalid('Terminal already registered', 'TERMINAL_EXISTS')
+        if (typeof terminalId !== 'string' || !slug.test(terminalId)) throw invalid('terminalId must be a lowercase slug of letters, digits and -, for example owner-macbook')
+        if (records.some(item => item.terminalId === terminalId)) throw invalid('Terminal already registered; to change it call register_terminal again with only the fields to change', 'TERMINAL_EXISTS')
         const record = { ...candidate, terminalId, revision: 1 }
         records.push(record)
         return { changed: true, value: projection(record), event: { terminalId: record.terminalId, revision: record.revision, removed: false } }
@@ -90,9 +103,9 @@ export function createTerminalRegistry({ stateRoot, onChange } = {}) {
     },
     update(terminalId, patch) {
       return mutate(records => {
-        if (!object(patch) || Object.keys(patch).some(key => !fields.includes(key))) throw invalid('Invalid terminal fields')
+        if (!object(patch) || Object.keys(patch).some(key => !fields.includes(key))) throw invalid(`Unknown terminal fields. Allowed: ${fields.join(', ')}`)
         const index = records.findIndex(item => item.terminalId === terminalId)
-        if (index < 0) throw invalid('Terminal not found', 'TERMINAL_NOT_FOUND')
+        if (index < 0) throw invalid('Terminal not found; list_terminals shows the registered terminalIds', 'TERMINAL_NOT_FOUND')
         const record = { ...records[index], ...structuredClone(patch), revision: records[index].revision + 1 }
         if (record.sudoKeyRef === null) delete record.sudoKeyRef
         if (record.hostTrust === null) delete record.hostTrust

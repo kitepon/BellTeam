@@ -2,7 +2,7 @@
   "title": "端末接続",
   "owner": "クラスト",
   "botId": "bot-9741b319",
-  "scope": "Terminal registry, SSH/sudo secret handles, reachability, sole remote connection entry and terminal Claude Code maintenance. Lifecycle: execution; PTY: Aiterm; resolution: usage.",
+  "scope": "Terminal registry, SSH/sudo secret handles, host trust, reachability, sudo receipts, terminal Claude Code maintenance and the terminal launch target. Lifecycle: execution; SSH/PTY: Aiterm; resolution: usage.",
   "external": false,
   "provides": [
     "registry",
