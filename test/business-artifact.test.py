@@ -78,7 +78,7 @@ class BusinessArtifacts(unittest.TestCase):
         published = {**BUSINESS_STATE['usage'], 'secretEncoding': 'utf8-exclusive-0600'}
         self.assertEqual(validate_business_compatibility('usage', {**base, 'stateCompatibility': published})['stateCompatibility'], published)
         validate_business_compatibility('execution', {**base, 'stateCompatibility': 'bellteam.execution-state.v1'})
-        for bad in [None, {}, [], 'Bad State!', {'Key': 'v'}, {'k': {'nested': 1}}, {'k': 1}, {'k': ['x\n']}, {f'k{i}': 'v' for i in range(33)}]:
+        for bad in [None, {}, [], 'Bad State!', {'Key': 'v'}, {'k': {'nested': 1}}, {'k': -1}, {'k': True}, {'k': ['x\n']}, {f'k{i}': 'v' for i in range(33)}]:
             with self.subTest(bad=bad), self.assertRaisesRegex(ValueError, 'UPDATE_MODULE_STATE_INCOMPATIBLE'):
                 validate_business_compatibility('usage', {**base, 'stateCompatibility': bad})
         with self.assertRaises(ValueError): validate_business_compatibility('usage', {**base, 'parentProtocol': 2, 'stateCompatibility': published})

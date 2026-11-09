@@ -117,7 +117,11 @@ export function createTerminalConnection({ registry, secrets, native, seatCreden
         }
         return session.callTool(name, args, options)
       },
-      transcript: { read: request => session.transcript.read(request) }
+      transcript: { read: request => session.transcript.read(request) },
+      async wait(waitProcess, options) {
+        if (!connections.has(connectionRef)) throw failure('TERMINAL_UNAVAILABLE')
+        return session.wait(waitProcess, options)
+      }
     }
   }
 

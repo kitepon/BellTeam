@@ -158,7 +158,7 @@ async function runBellTeamTool(context) {
     return { ...result, bot: { ...result.bot, currentWork: readCurrentWork(context, bot), currentWorkBinding: readCurrentWorkBinding(context.currentWorkBinding, bot) } }
   }
   if (name === 'list_models') return getModels(args.harness)
-  if (terminalTools.some(tool => tool.name === name)) return callTerminalTool({ name, args, terminals: context.terminals })
+  if (terminalTools.some(tool => tool.name === name)) return callTerminalTool({ name, args, terminals: context.terminals, terminalKeys: context.terminalKeys })
   if ([...memberReadTools, ...memberWriteTools].some(tool => tool.name === name))
     return callMemberTool({ name, args, from, registry, botView, configure, memory, ownerProfile, userRules })
   if (Object.hasOwn(scheduleToolHandlers, name)) return scheduleToolHandlers[name]({ registry, rooms, from, args })

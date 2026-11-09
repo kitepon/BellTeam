@@ -99,7 +99,7 @@ test('Web APIはCloudflare Access認証を必須にし、一覧・会話取得�
     id: bot.id, displayName: bot.displayName, harness: 'grok', color: 'rose', online: true,
     name: bot.name, model: '', reasoningEffort: '', fastMode: false, profileText: '', personality: '', speechStyle: '', position: bot.position, role: '', avatar: '', avatarLarge: '', avatarSource: '', avatarLargeSource: '', avatarVersion: '',
     avatarLargeVersion: '', avatarSourceVersion: '',
-    avatarLargeSourceVersion: '', avatarCrop: null, avatarLargeCrop: null,
+    avatarLargeSourceVersion: '', avatarCrop: null, avatarLargeCrop: null, terminalId: '', projectRoot: '',
     currentWork: { state: 'unknown', summary: null, summaryStatus: 'missing', summaryUpdatedAt: null, observedAt: null, source: null },
     recent: { id: '1', kind: 'message', direction: 'incoming', message: 'こんにちは', at: '2026-09-02T01:02:03.000Z' },
   }] })

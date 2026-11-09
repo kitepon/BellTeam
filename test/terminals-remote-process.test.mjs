@@ -10,7 +10,7 @@ function fakeClient(responses) {
   const client = {
     calls,
     closed: false,
-    async callTool({ name, arguments: args }) { calls.push({ name, args }); return responses[name]?.(args) ?? json({}) },
+    async callTool({ name, arguments: args }, _schema, options) { calls.push({ name, args, ...(options ? { options } : {}) }); return responses[name]?.(args) ?? json({}) },
     async close() { client.closed = true; client.onclose?.() }
   }
   return client
@@ -27,6 +27,10 @@ test('opens over the remote-terminal tools and maps call/command/close/lost', as
   await session.callTool('agent_launch', { cwd: '/x' }, { private: { appendSystemPrompt: 'r' }, timeoutMs: 5 })
   assert.deepEqual(client.calls[2], { name: 'remote_terminal_call', args: { name: 'agent_launch', args: { cwd: '/x' }, private: { appendSystemPrompt: 'r' }, timeoutMs: 5 } })
   assert.equal((await session.command('claude_version')).version, '2.0.0')
+  const signal = new AbortController().signal
+  client.callTool = async ({ name, arguments: args }, _schema, options) => { client.calls.push({ name, args, options }); return json({ outcome: 'done', cursor: 'c2' }) }
+  assert.deepEqual(await session.wait({ executable: 'aiterm-wait', args: ['--session', 's'] }, { signal }), { outcome: 'done', cursor: 'c2' })
+  assert.deepEqual(client.calls.at(-1), { name: 'remote_terminal_wait', args: { waitProcess: { executable: 'aiterm-wait', args: ['--session', 's'] } }, options: { signal, timeout: 2_147_483_647 } })
   const events = []
   session.onEvent(event => events.push(event.type))
   await client.fallbackNotificationHandler({ method: 'aiterm/remote-terminal-event', params: { type: 'ready' } })

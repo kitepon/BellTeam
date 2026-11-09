@@ -117,9 +117,13 @@ class ConversationArtifact(unittest.TestCase):
         for key in release['compatibility']:
             c=copy.deepcopy(catalog);del c['releases'][0]['compatibility'][key]
             with self.assertRaises(ValueError):validate_catalog(c,now=1793664001)
-        for mutate in [lambda c:c.update(extra=1),lambda c:c.update(nodeMajor='26'),lambda c:c.update(nodeMajor=True),lambda c:c.update(stateSchema=1),lambda c:c['stateCompatibility']['directRecordSchemas'].reverse()]:
+        for mutate in [lambda c:c.update(extra=1),lambda c:c.update(nodeMajor='26'),lambda c:c.update(nodeMajor=True),lambda c:c.update(stateSchema=1),lambda c:c['stateCompatibility'].update(readerContract=None)]:
             c=copy.deepcopy(catalog);mutate(c['releases'][0]['compatibility'])
             with self.assertRaises(ValueError):validate_catalog(c,now=1793664001)
+        # Another well-formed published state passes the catalog and is refused per target against the consumer.
+        c=copy.deepcopy(catalog);c['releases'][0]['compatibility']['stateCompatibility']['directRecordSchemas'].reverse()
+        validate_catalog(c,now=1793664001)
+        with self.assertRaises(ValueError):validate_conversation_archive(c['releases'][0],self.manifest,state)
         m=copy.deepcopy(self.manifest);m['sourceCommit']='b'*40
         with self.assertRaises(ValueError):validate_conversation_archive(release,m,state)
         with self.assertRaisesRegex(ValueError,'UPDATE_CONVERSATION_CONSUMER_UNSUPPORTED'):validate_conversation_archive(release,self.manifest,{})
