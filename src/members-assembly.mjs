@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { createMembersProcess } from './members-process.mjs'
 import { createMembersFacade } from './members-facade.mjs'
 import { createMembersProjection } from './members-projection.mjs'
+import { withMemberFolderCheck } from './members-folder.mjs'
 import { createMembersRuntimeEffects, MEMBERS_RUNTIME_EFFECT_METHODS } from './members-runtime-effects.mjs'
 import { validateMembersEffect, validateMembersEffectResult } from './members/protocol.mjs'
 
@@ -62,6 +63,7 @@ export function createMembersAssembly({ root, seatRuntime, aiterm, settings, mod
     authorizeOwner: (method, authorization) => membersAuthorization.authorizeOwner(method, authorization),
   })
   facade = createMembersFacade({ request: (method, params, options) => dependencies().conversationAssembly?.memberRequest(method, params, options, (...args) => controller.request(...args)) ?? controller.request(method, params, options), callback: (...args) => controller.callback(...args), admission: membersAdmission, projection })
+  withMemberFolderCheck(facade.bots, () => dependencies().terminals ?? null)
   Object.defineProperty(facade.bots, 'size', { get: () => [...facade.bots.keys()].length })
   facade.bots.projectPath = id => {
     if (typeof id !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(id)) throw new Error('BOT_ID_INVALID')

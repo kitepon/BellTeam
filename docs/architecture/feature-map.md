@@ -69,6 +69,8 @@ flowchart LR
   m_members -->|"observation"| m_execution
   m_members -->|"history"| m_conversation
   m_members -->|"turn"| m_execution
+  m_members -->|"registry"| m_terminals
+  m_members -->|"folder"| m_terminals
   m_memory -->|"seat-process"| m_runtime
   m_runtime -->|"registry"| m_members
   m_runtime -->|"image"| m_distribution
@@ -150,7 +152,7 @@ flowchart LR
 | [記憶・知識](modules/memory/README.md) | ビスケット | memory |
 | [RTK](modules/rtk/README.md) | ドリリー | hook |
 | [実行環境・更新復旧](modules/runtime/README.md) | モリー | lifecycle / seat-process / project-files / cli-registration / module-runner / update / module-runner |
-| [端末接続](modules/terminals/README.md) | クラスト | registry / reachability / connection / privilege / maintenance |
+| [端末接続](modules/terminals/README.md) | クラスト | registry / reachability / connection / privilege / maintenance / folder |
 | [testgate](modules/testgate/README.md) | シラツル | hook |
 | [Throughline](modules/throughline/README.md) | リヴァリン | context |
 | [利用設定・通知](modules/usage/README.md) | ミカ | settings / notify / auth / secrets |

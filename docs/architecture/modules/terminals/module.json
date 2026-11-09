@@ -9,7 +9,8 @@
     "reachability",
     "connection",
     "privilege",
-    "maintenance"
+    "maintenance",
+    "folder"
   ],
   "uses": [
     {

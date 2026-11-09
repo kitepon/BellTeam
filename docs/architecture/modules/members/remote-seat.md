@@ -8,7 +8,9 @@ Members owns the member binding fields, the launch-time instruction text and the
 
 ```mermaid
 flowchart LR
-  Admin[HTTP PATCH/POST / MCP create_bot, update_bot] -->|terminalId, projectRoot| Registry[members registry: validate + save bot.json]
+  Admin[HTTP PATCH/POST / MCP create_bot, update_bot] -->|terminalId, projectRoot, createFolder?| Folder[parent members-folder: default root + S5 check]
+  Folder -->|registry.get user; folder terminalId, path, create| Terminals[terminals core]
+  Folder -->|binding without createFolder| Registry[members registry: validate + save bot.json]
   Registry --> State[(state/bots/id/bot.json v8, additive fields)]
   Registry -->|projection snapshot, watch bots topic| Views[list / get_bot / get_self / execution]
   Exec[execution wakeNow, member.terminalId set] -->|profile.launchContext botId, sessionName, shortTermMemory| Launch[members launchContext]
@@ -25,10 +27,26 @@ flowchart LR
 
 | Field | Value and validation | Owner and use |
 | --- | --- | --- |
-| `terminalId` | `''` (local seat) or terminals registry key: `^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$` | Saved by members; existence and target are checked by terminals at `connection.open` (missing binding is reported there, no silent substitute) |
+| `terminalId` | `''` (local seat) or terminals registry key: `^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$` | Saved by members; on a binding change the folder is checked through terminals before the save (S5 below); target is checked again by terminals at `connection.open` (missing binding is reported there, no silent substitute) |
 | `projectRoot` | `''` or absolute POSIX path (P1 macOS): starts with `/`, no NUL, no `.`/`..`/empty segments, no trailing `/` except `/`, at most 4096 bytes | The remote process starts with `cwd = projectRoot`. Members never reads or writes it |
 | pair rule | both empty or both set (`BOT_REMOTE_BINDING_INVALID`) | A member is either local or bound to one terminal folder |
 | `bindingRevision` (derived, not stored) | first 16 hex of sha256 of `JSON.stringify([terminalId, projectRoot])` | Returned by launchContext as `revision`; execution relaunches fresh at the next idle boundary when it changes |
+
+### Folder check on save (S5, terminals self-service step 4)
+
+`src/members-folder.mjs` wraps the parent facade's `bots.create` / `bots.update` / `bots.previewUpdate`, so HTTP `POST /api/bots`, `PATCH /api/bots/:id` (through execution's administration) and MCP `create_bot` / `update_bot` / `update_self` all pass it before the members child saves. Request: Crust, design #854, terminals contract PR #858 (`terminals.folder({terminalId, path, create})`, flow S5 / RT21).
+
+| Step | Rule |
+| --- | --- |
+| Flag | `createFolder` (boolean, optional) on create/update input. Stripped before the child; never saved. Non-boolean -> `BOT_UPDATE_FIELD_INVALID` 400 |
+| When | The resulting binding has a `terminalId` and differs from the current one, or `createFolder: true`. Unrelated edits and local members make no terminal call |
+| Default folder | `terminalId` set and `projectRoot` empty or omitted -> `/Users/<terminal user>/BellTeam/<slug>`; user from `terminals.registry.get`, slug = trimmed member name with `/`, `:` and NUL replaced by `-` (`member` if empty, `.` or `..`). Preview applies the same default without a terminal call. Screens prefill by the same rule. Unknown terminal -> `TERMINAL_NOT_FOUND` 404 |
+| Check | `terminals.folder({terminalId, path: projectRoot, create: createFolder})`. `INVALID_PATH` -> `BOT_PROJECT_ROOT_INVALID` 400 |
+| Refuse | `FOLDER_MISSING` / `FOLDER_NOT_DIRECTORY` / `FOLDER_NOT_WRITABLE` / `FOLDER_NOT_PERMITTED` -> that code, status 409, message `<terminals action> (<folder>)`; `TERMINAL_NOT_FOUND` -> 404. Nothing is saved. The screen offers 「このフォルダを作って保存」 = the same save with `createFolder: true` |
+| Save unchecked | Any other reason (availability: `UNREACHABLE`, `CONNECTION_REFUSED`, `TERMINAL_UNAVAILABLE`, ...) saves. The returned bot carries `folderCheck: {checked: false, reason, observedAt, action?}`; a usable folder gives `{checked: true, reason: null, observedAt}`. Response-only, not stored; launch keeps `CWD_UNAVAILABLE` as the final guard |
+| No terminals core | (body without terminals, or a core without `folder`) -> no check, save as before |
+
+Guard: the refusals protect against a wrong folder (a seat that cannot start, or one started in an unintended path). Exit: a created or changed folder on the next save; `createFolder: true` creates it in the same save. No stored state.
 
 The fields are additive optional keys in `bellteam.bot.v8`, so a v8 reader that predates them still restores the file. Create/update/preview use the existing per-Bot serialized `#mutateProfile` path and the existing projection snapshot plus `watch` change notice (`topics: ['bots']`, the Bot ID). No new event channel. Local members (`terminalId: ''`) keep the existing launch path and file writes unchanged. The three binding rejections are input errors: `src/members/errors.mjs` maps them to status 400 / `not_accepted` (only code, outcome and status cross the module wire).
 
@@ -60,4 +78,4 @@ Protections named: wrong target (another member's project, the user's repository
 
 ## Verification scope
 
-Focused members tests only: field validation/persistence/projection, pair rule, revision, launchContext composition order and no-write, docs path rejection and round-trip. Execution launch, terminals connection, ingress identity and native carrier are their owners' tests.
+Focused members tests only: folder check wrapper (`test/members-folder.test.mjs`, fake terminals core), field validation/persistence/projection, pair rule, revision, launchContext composition order and no-write, docs path rejection and round-trip. Execution launch, terminals connection, ingress identity and native carrier are their owners' tests.
