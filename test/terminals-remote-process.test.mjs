@@ -32,6 +32,10 @@ test('opens a transient process for C8 commands and closes it', async () => {
   // A secret-key terminal: Mika handle instead of the native revision (Elegg: never both).
   const keyed = fakeClient({ remote_terminal_status: status })
   await createRemoteTerminalProcesses({ project: '/srv/bellteam', connectClient: async () => keyed }).connect({ ...request, binding: { ref: 'b', credential: { handle: 'h', revision: 2 }, sudoCredential: { handle: 's', revision: 1 } } })
+  const runs = []
+  await createRemoteTerminalProcesses({ project: '/srv/bellteam', run: async (command, args, options) => { runs.push({ args, options }) } })
+    .loadCredential({ ref: 'b', terminalId: 'friend-mac', handle: 'h', revision: 2, purpose: 'ssh-key', key: 'KEYBYTES' })
+  assert.deepEqual(runs[0], { args: ['aiterm-remote-terminal', 'credential-load', '--ref', 'b', '--terminal-id', 'friend-mac', '--handle', 'h', '--revision', '2', '--purpose', 'ssh-key'], options: { input: 'KEYBYTES' } }, 'key on stdin only')
   assert.deepEqual(keyed.calls[1].args, { ref: 'b', target: request.target, trustRevision: revision, credential: { handle: 'h', revision: 2 }, sudoCredential: { handle: 's', revision: 1 } })
 })
 

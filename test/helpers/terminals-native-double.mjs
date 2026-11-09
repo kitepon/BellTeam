@@ -11,6 +11,7 @@ export function fakeNative({ connectError, versions = ['1.0.0', '1.0.1'], update
     sessions,
     connectError,
     async trust(ref) { calls.push({ op: 'trust', ref }); return trust },
+    async loadCredential({ key, ...request }) { calls.push({ op: 'loadCredential', ...request, keyLength: key.length }) },
     async register(target) { calls.push({ op: 'register', target }); return 'd1b2c3d4-1234-4234-8234-123456789abc' },
     async confirmHostKey(ref, fingerprint) { calls.push({ op: 'confirmHostKey', ref, fingerprint }); return trust },
     async connect(request) {

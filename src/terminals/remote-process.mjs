@@ -58,6 +58,12 @@ export function createRemoteTerminalProcesses({ project, connectClient = () => s
       }
     },
 
+    // Elegg 0.67.0 credential-load: key bytes on stdin only (never argv); Aiterm keeps them in its per-terminal agent.
+    async loadCredential({ ref, terminalId, handle, revision, purpose, key }) {
+      if (typeof key !== 'string' || !key) throw Object.assign(new Error('Unsupported credential'), { code: 'CREDENTIAL_UNUSABLE' })
+      await run('/usr/bin/env', [BIN, 'credential-load', '--ref', ref, '--terminal-id', terminalId, '--handle', handle, '--revision', String(revision), '--purpose', purpose], { input: key })
+    },
+
     // Keyless binding for a terminal whose key comes from the secret card (Elegg: Aiterm-owned empty known_hosts.d/<ref>).
     async register({ host, user, port }) {
       const { stdout } = await run('/usr/bin/env', [BIN, 'register', '--host', host, '--user', user, '--port', String(port)])

@@ -10,6 +10,8 @@ const MESSAGES = {
 const NATIVE_CODES = {
   HOST_TRUST_MISSING: 'TARGET_MISMATCH', HOST_TRUST_STALE: 'TARGET_MISMATCH', HOST_KEY_MISMATCH: 'TARGET_MISMATCH', HOST_KEY_FINGERPRINT_MISMATCH: 'TARGET_MISMATCH',
   CREDENTIAL_UNUSABLE: 'CREDENTIAL_UNAVAILABLE', CREDENTIAL_REVISION_STALE: 'CREDENTIAL_UNAVAILABLE', AUTH_FAILED: 'CREDENTIAL_UNAVAILABLE',
+  // aiterm-mcp 0.67.0: a handle key not yet loaded by Mika's credential-load handoff; her availability event is the exit.
+  CREDENTIAL_NOT_LOADED: 'CREDENTIAL_UNAVAILABLE', CREDENTIAL_REQUIRED: 'CREDENTIAL_UNAVAILABLE',
   UNREACHABLE: 'TERMINAL_UNAVAILABLE', REMOTE_AITERM_UNAVAILABLE: 'TERMINAL_UNAVAILABLE', REMOTE_AITERM_TOO_OLD: 'TERMINAL_UNAVAILABLE', CONNECTION_LOST: 'TERMINAL_UNAVAILABLE'
 }
 
@@ -109,6 +111,14 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
     if (!current()) throw failure('TERMINAL_UNAVAILABLE')
     let session
     try {
+      // A handle key must be in Aiterm before its own open (aiterm-mcp 0.67.0 credential-load); execution loads it the same way
+      // before a launch. The value exists only inside Mika's callback and goes to Aiterm's stdin.
+      if (binding.credential) {
+        await secrets.withResolved(target.sshKeyRef, { terminalId: target.terminalId, memberId: null, purpose: 'terminal.ssh' },
+          key => native.loadCredential({ ref: binding.ref, terminalId: target.terminalId, ...binding.credential, purpose: 'ssh-key', key }))
+          .catch(() => { throw Object.assign(new Error('x'), { code: 'CREDENTIAL_NOT_LOADED' }) })
+        if (!current()) throw failure('TERMINAL_UNAVAILABLE')
+      }
       session = await native.connect({
         target: { host: target.host, user: target.user, port: target.port, os: target.os },
         hostTrust: target.hostTrust,

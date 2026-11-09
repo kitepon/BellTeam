@@ -47,12 +47,17 @@ test('target hands execution the Aiterm launch target and runs C8 once per Claud
 test('a secret-key terminal hands the Mika handle, never a value; optional sudo never gates', async t => {
   const bindingRef = 'b1b2c3d4-1234-4234-8234-123456789abc'
   const sudoKeyRef = 'c1b2c3d4-1234-4234-8234-123456789abc'
-  const secret = setup(t, { target: { ...base, keySource: 'secret', bindingRef, sudoKeyRef } })
+  const cardSecrets = { ...fakeSecrets(), calls: [], credential(handle, context) { this.calls.push({ op: 'credential', handle, context }); return { handle, revision: 2, available: true } },
+    async withResolved(handle, context, consume) { this.calls.push({ op: 'resolve', handle, context }); return consume('KEYBYTES') } }
+  const secret = setup(t, { target: { ...base, keySource: 'secret', bindingRef, sudoKeyRef }, secrets: cardSecrets })
   const { terminal } = await secret.connection.target({ ...request, harness: 'codex' })
   assert.deepEqual(terminal, { ref: bindingRef, target: { host: '192.168.1.12', user: 'kite', port: 22 }, trustRevision: hostTrust.revision,
     credential: { handle: sshKeyRef, revision: 2 }, sudoCredential: { handle: sudoKeyRef, revision: 2 } })
-  assert.equal(secret.secrets.calls.some(call => call.op !== 'credential'), false, 'no withResolved: terminals never holds the key value')
+  assert.equal(secret.secrets.calls.some(call => call.op !== 'credential'), false, 'the target itself resolves no key value')
   await secret.connection.target(request)
+  assert.deepEqual(secret.native.calls.find(call => call.op === 'loadCredential'), { op: 'loadCredential', ref: bindingRef, terminalId: 'owner-macbook', handle: sshKeyRef, revision: 2, purpose: 'ssh-key', keyLength: 8 },
+    'C8 open loads the key into Aiterm first (stdin), never into the target')
+  assert.ok(secret.native.calls.findIndex(call => call.op === 'loadCredential') < secret.native.calls.findIndex(call => call.op === 'open'))
   assert.deepEqual(secret.native.calls.find(call => call.op === 'open').binding.credential, { handle: sshKeyRef, revision: 2 })
   const unbound = setup(t, { target: { ...base, keySource: 'secret' } })
   await assert.rejects(unbound.connection.target(request), { code: 'CREDENTIAL_UNAVAILABLE', reason: 'BINDING_UNSET' })
