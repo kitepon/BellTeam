@@ -117,6 +117,7 @@ class ContainerUpdaterTests(unittest.TestCase):
         saved = (self.prefix / 'config.json').read_bytes()
         self.assertEqual(host.read_json(self.prefix / 'installation/normal.json', os.getuid(), host.CATALOG_LIMIT), normal)
         self.assertEqual(json.loads(saved)['installRoot'], self.config['volumeRoot'] + '/installation/work')
+        self.assertEqual(json.loads(saved)['channel'], 'stable')  # no BELLTEAM_UPDATE_CHANNEL in the model = stable
         self.current['sourceCommit'] = 'f' * 40
         with self.assertRaises(host.Failure): configure()
         self.current['sourceCommit'] = self.config['release']

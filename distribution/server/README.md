@@ -23,6 +23,7 @@ Webアプリとサーバーは無料です。初期設定の後も、すべて�
 | `COMPOSE_PROJECT_NAME` | この設置を識別するCompose project名。他の設置と異なる名前を使います |
 | `BELLTEAM_SERVER_STATE_VOLUME` | 本体の設定・会話などを保存する専用volume名 |
 | `BELLTEAM_AITERM_STATE_VOLUME` | AI実行の状態を保存する専用volume名 |
+| `BELLTEAM_UPDATE_CHANNEL` | 本体更新の候補の読み先。`stable`（既定）は正式版だけ。`candidate`は試験用の先行公開（GitHubのprerelease）も読む。試験の箱だけで使う |
 | `BELLTEAM_SERVER_IMAGE` | 使用する公開イメージ。版を固定するときは配布元が示す`ghcr.io/kitepon/bellteam-server@sha256:…`の完全な参照を指定します |
 
 たとえば別の設置と保存先を分け、同じPCからだけ接続する場合の`.env`は次の形です。projectとvolumeの名前は、この設置専用の名前に変えてください。

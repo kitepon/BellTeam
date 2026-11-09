@@ -268,11 +268,14 @@ def validate_runtime_catalog(value):
     return value
 
 
-def publication_candidates(records):
+def publication_candidates(records, channel='stable'):
     require(type(records) is list and len(records) <= 100, 'UPDATE_PUBLICATIONS_INVALID')
+    require(channel in ('stable', 'candidate'), 'UPDATE_CHANNEL_INVALID')
     found = []
     for record in records:
-        if type(record) is not dict or record.get('draft') is not False or record.get('prerelease') is not False:
+        # A prerelease catalog carries an untested candidate; only an install that chose the candidate channel reads it.
+        prerelease = record.get('prerelease') if type(record) is dict else None
+        if type(record) is not dict or record.get('draft') is not False or not (prerelease is False or channel == 'candidate' and prerelease is True):
             continue
         tag = record.get('tag_name')
         if type(tag) is not str or not re.fullmatch(r'updates-\d{8}T\d{6}Z', tag):

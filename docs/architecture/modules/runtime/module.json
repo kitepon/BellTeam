@@ -107,6 +107,7 @@
     "scripts/install-notifications-release.py",
     "src/container-update-client.mjs",
     "scripts/container-update-host.py",
+    "scripts/body-preflight.mjs",
     "scripts/module-update-service.py",
     "scripts/module-update-compose.mjs",
     "scripts/container-update-service.py",

@@ -39,6 +39,15 @@ test('内部で使ったindexと両archのsourceを照合し、同一digestだ�
   assert.deepEqual(calls.slice(1), ['latest', 'preview'].map(tag => ['docker', 'buildx', 'imagetools', 'inspect', '--raw', `${image}:${tag}`]))
 })
 
+test('candidate stage tags only candidate, before an acceptance record exists', async () => {
+  const r = registry()
+  const candidate = await verifyCandidate({ image, digest: r.digest, source, result: '', stage: 'candidate', fetch: r.get })
+  const calls = []
+  await promoteCandidate(candidate, { summary: null, run: (command, args) => { calls.push([command, ...args]); return args.includes('--raw') ? r.raw : '' } })
+  assert.deepEqual(calls[0], ['docker', 'buildx', 'imagetools', 'create', '-t', `${image}:candidate`, `${image}@${r.digest}`])
+  await assert.rejects(verifyCandidate({ image, digest: r.digest, source, result: '', fetch: r.get }))
+})
+
 test('別sourceや片arch、未取得のindexを内部受入済みとして扱わない', async () => {
   for (const options of [{ revision: 'b'.repeat(40) }, { arches: ['amd64'] }]) {
     const r = registry(options)

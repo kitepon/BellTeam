@@ -901,6 +901,34 @@ class Server(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
         try: super().process_request_thread(request, client_address)
         finally: self.slots.release()
 
+def body_preflight(updater, ref, normal, directory):
+    """Run the target image's own read-only preflight; only its definite 'fail' blocks the swap (Trony 2026-11-09)."""
+    docker = updater.config['docker']
+    try:
+        project, state = updater.config['projectName'], normal['volumes']['server-state']['name']
+        data = [m['source'] for m in normal['services']['bellteam']['volumes'] if m.get('type') == 'bind' and m.get('target') == '/srv/bellteam']
+        check(len(data) == 1 and re.fullmatch('[a-zA-Z0-9][a-zA-Z0-9_.-]*', state) is not None, 'HOST_UPDATE_PREFLIGHT_UNKNOWN')
+        for name in [project + '-module-updater', state]:  # inspect first so docker run never creates a volume
+            updater.command([docker, 'volume', 'inspect', name])
+        output = updater.command([docker, 'run', '--rm', '--interactive', '--network', 'none', '--read-only', '--user', '0:0',
+            # Read-only search/read of the 1001- and root-owned 0600 records; every mount is read-only.
+            '--cap-drop', 'ALL', '--cap-add', 'DAC_READ_SEARCH', '--security-opt', 'no-new-privileges:true', '--pids-limit', '64', '--memory', '512m',
+            '--mount', 'type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock,readonly',
+            '--mount', f'type=volume,source={project}-module-updater,target=/srv/bellteam-module-updater,readonly',
+            '--mount', f'type=volume,source={state},target=/srv/bellteam-private,readonly',
+            '--mount', f'type=volume,source={state},target=/run/bellteam-maintenance,readonly',
+            '--mount', f'type=bind,source={data[0]},target=/srv/bellteam,readonly',
+            '--entrypoint', '/usr/local/bin/node', ref, '/app/scripts/body-preflight.mjs'],
+            timeout=120, input=json.dumps(normal).encode())
+        result = decode(output)
+        check(type(result) is dict and result.get('result') in ('pass', 'fail'), 'HOST_UPDATE_PREFLIGHT_UNKNOWN')
+    except Exception:
+        return 'unknown'  # cannot run or answer (older target, timeout): the swap proceeds as before
+    try: atomic(directory / 'preflight.json', result)
+    except Exception: pass
+    return result['result']
+
+
 def execute_installer(updater, plan, directory):
     config = updater.config
     release = updater.code_root
@@ -917,6 +945,11 @@ def execute_installer(updater, plan, directory):
     updater.progress(directory, 'verifying')
     selected = updater.command([config['docker'], 'image', 'inspect', '--format', '{{.Id}}', ref]).decode().strip()
     check(re.fullmatch('sha256:[a-f0-9]{64}', selected), 'HOST_UPDATE_IMAGE_INVALID')
+    check(updater.inspect_current() == plan['expected'], 'HOST_UPDATE_CURRENT_CHANGED')
+    if body_preflight(updater, ref, normal, directory) == 'fail':
+        return {'execution': 'failed', 'verification': 'failed', 'observed': None, 'cleanup': 'not_needed',
+                'rollback': 'not_needed', 'error': 'HOST_UPDATE_PREFLIGHT_FAILED'}
+    # The preflight can take up to 120 s; a body that changed meanwhile must not get a stale plan.
     check(updater.inspect_current() == plan['expected'], 'HOST_UPDATE_CURRENT_CHANGED')
     # Configuration remains in the existing private installation domain, never in the public ledger.
     inputs = updater.prefix / 'installation/operations' / plan['planId']
@@ -1264,7 +1297,7 @@ def _refresh_catalog(updater):
     trusted(script, updater.uid)
     spec = importlib.util.spec_from_file_location('bellteam_catalog_discovery', script)
     discovery = importlib.util.module_from_spec(spec); spec.loader.exec_module(discovery)
-    candidates = sorted(discovery.publication_candidates(rows),key=lambda value:value['tag'],reverse=True)
+    candidates = sorted(discovery.publication_candidates(rows, updater.config.get('channel', 'stable')),key=lambda value:value['tag'],reverse=True)
     check(bool(candidates), 'HOST_UPDATE_PUBLICATION_UNAVAILABLE')
     tag = candidates[0]['tag']
     with tempfile.TemporaryDirectory(prefix='catalog-fetch-', dir=updater.state) as staging:

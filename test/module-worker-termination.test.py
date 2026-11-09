@@ -68,6 +68,12 @@ class WorkerBridge(unittest.TestCase):
         self.assertFalse(self.updater.operation_pending(self.request));self.assert_original_untouched()
         self.assertIn(['container','wait',self.cid],self.actions)
 
+    def test_bridge_dry_run_reads_like_the_switch_and_changes_nothing(self):
+        dry=bridge.Switch(api,self.updater,self.project,self.image,'private',self.command,dry_run=True)
+        dry.switch()
+        self.assertFalse(any(a[:2] in (['container','update'],['container','stop'],['container','rm']) for a in self.actions))
+        self.assertFalse((self.directory/'worker-termination.json').exists());self.assert_original_untouched()
+
     def test_bridge_namespace_worker_stage_and_busy_refuse_before_stop(self):
         self.ns='999'
         with self.assertRaises(host.Failure):self.switch.switch()

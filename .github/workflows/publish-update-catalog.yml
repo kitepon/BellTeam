@@ -1,7 +1,16 @@
 {
   "name": "正式Update catalogを公式OIDC付きReleaseへ公開",
   "on": {
-    "workflow_dispatch": {}
+    "workflow_dispatch": {
+      "inputs": {
+        "prerelease": {
+          "description": "true=試験の箱のcandidate channelだけが読む先行公開（containerはcandidateタグと照合）",
+          "required": false,
+          "default": false,
+          "type": "boolean"
+        }
+      }
+    }
   },
   "permissions": {
     "contents": "write",
@@ -19,7 +28,8 @@
       "timeout-minutes": 10,
       "env": {
         "GH_TOKEN": "${{ github.token }}",
-        "SOURCE": "${{ github.sha }}"
+        "SOURCE": "${{ github.sha }}",
+        "UPDATE_CATALOG_PRERELEASE": "${{ inputs.prerelease }}"
       },
       "steps": [
         {
@@ -56,7 +66,7 @@
             "BUNDLE": "${{ steps.attest.outputs.bundle-path }}",
             "RUNTIME_BUNDLE": "${{ steps.runtime_attest.outputs.bundle-path }}"
           },
-          "run": "mkdir -p runtime/update-catalog\ncp config/update-catalog.json runtime/update-catalog/catalog.json\ncp \"$BUNDLE\" runtime/update-catalog/catalog.json.sigstore.json\ngh attestation verify runtime/update-catalog/catalog.json --repo kitepon/BellTeam --signer-workflow kitepon/BellTeam/.github/workflows/publish-update-catalog.yml --source-ref refs/heads/main --source-digest \"$SOURCE\" --signer-digest \"$SOURCE\" --deny-self-hosted-runners --bundle runtime/update-catalog/catalog.json.sigstore.json --custom-trusted-root config/web-gateway-trusted-root.jsonl --format json > runtime/update-catalog/verified.json\njq -e 'length > 0 and all(.[]; .verificationResult.signature.certificate.sourceRepositoryIdentifier == \"1404510084\")' runtime/update-catalog/verified.json\ncp \"$RUNTIME_BUNDLE\" runtime/update-catalog/runtime-catalog.json.sigstore.json\ngh attestation verify runtime/update-catalog/runtime-catalog.json --repo kitepon/BellTeam --signer-workflow kitepon/BellTeam/.github/workflows/publish-update-catalog.yml --source-ref refs/heads/main --source-digest \"$SOURCE\" --signer-digest \"$SOURCE\" --deny-self-hosted-runners --bundle runtime/update-catalog/runtime-catalog.json.sigstore.json --custom-trusted-root config/web-gateway-trusted-root.jsonl --format json > runtime/update-catalog/runtime-verified.json\njq -e 'length > 0 and all(.[]; .verificationResult.signature.certificate.sourceRepositoryIdentifier == \"1404510084\")' runtime/update-catalog/runtime-verified.json\nrelease_tag=$(jq -r .tag publication.json)\ngh release create \"$release_tag\" --repo kitepon/BellTeam --target \"$SOURCE\" --title \"BellTeam update catalog $release_tag\" --notes \"正式公開資材の固定版・互換・変更情報。\" runtime/update-catalog/catalog.json runtime/update-catalog/catalog.json.sigstore.json runtime/update-catalog/runtime-catalog.json runtime/update-catalog/runtime-catalog.json.sigstore.json\n"
+          "run": "mkdir -p runtime/update-catalog\ncp config/update-catalog.json runtime/update-catalog/catalog.json\ncp \"$BUNDLE\" runtime/update-catalog/catalog.json.sigstore.json\ngh attestation verify runtime/update-catalog/catalog.json --repo kitepon/BellTeam --signer-workflow kitepon/BellTeam/.github/workflows/publish-update-catalog.yml --source-ref refs/heads/main --source-digest \"$SOURCE\" --signer-digest \"$SOURCE\" --deny-self-hosted-runners --bundle runtime/update-catalog/catalog.json.sigstore.json --custom-trusted-root config/web-gateway-trusted-root.jsonl --format json > runtime/update-catalog/verified.json\njq -e 'length > 0 and all(.[]; .verificationResult.signature.certificate.sourceRepositoryIdentifier == \"1404510084\")' runtime/update-catalog/verified.json\ncp \"$RUNTIME_BUNDLE\" runtime/update-catalog/runtime-catalog.json.sigstore.json\ngh attestation verify runtime/update-catalog/runtime-catalog.json --repo kitepon/BellTeam --signer-workflow kitepon/BellTeam/.github/workflows/publish-update-catalog.yml --source-ref refs/heads/main --source-digest \"$SOURCE\" --signer-digest \"$SOURCE\" --deny-self-hosted-runners --bundle runtime/update-catalog/runtime-catalog.json.sigstore.json --custom-trusted-root config/web-gateway-trusted-root.jsonl --format json > runtime/update-catalog/runtime-verified.json\njq -e 'length > 0 and all(.[]; .verificationResult.signature.certificate.sourceRepositoryIdentifier == \"1404510084\")' runtime/update-catalog/runtime-verified.json\nrelease_tag=$(jq -r .tag publication.json)\nprerelease=\"\"\nif [ \"$UPDATE_CATALOG_PRERELEASE\" = true ]; then prerelease=--prerelease; fi\ngh release create \"$release_tag\" $prerelease --repo kitepon/BellTeam --target \"$SOURCE\" --title \"BellTeam update catalog $release_tag\" --notes \"正式公開資材の固定版・互換・変更情報。\" runtime/update-catalog/catalog.json runtime/update-catalog/catalog.json.sigstore.json runtime/update-catalog/runtime-catalog.json runtime/update-catalog/runtime-catalog.json.sigstore.json\n"
         },
         {
           "uses": "actions/upload-artifact@v7",

@@ -196,8 +196,9 @@ FORMAT = '{"id":{{json .Id}},"image":{{json .Image}},"started":{{json .State.Sta
 
 
 class Switch:
-    def __init__(self, api, updater, project, image, private_name, command=None, private_device=None):
+    def __init__(self, api, updater, project, image, private_name, command=None, private_device=None, dry_run=False):
         self.api, self.host, self.updater = api, api.host, updater
+        self.dry_run = dry_run
         self.project, self.image, self.private_name = project, image, private_name
         self.command = command or self.run
         self.private_device = private_device
@@ -274,6 +275,10 @@ class Switch:
             pending.append(dict(requestId=path.name, originalOperationSha256=hashlib.sha256((path/'operation.json').read_bytes()).hexdigest()))
         if not ids and not pending: self.log('not_needed'); return
         cid = ids[0] if ids else None; self.container_id=cid
+        if self.dry_run:
+            # Preflight: the same reads as the real switch, stopped before any lock or Docker change.
+            if cid and not pending: self.service(self.inspect(cid),cid)
+            self.log('dry_run'); return
         with contextlib.ExitStack() as locks:
             locks.enter_context(h.locked(u.state/'worker.lock'))
             locks.enter_context(h.locked(u.state/'ledger.lock'))
@@ -365,6 +370,8 @@ def read_receipt(api,updater,request):
 def main():
     api=load('termination_module_api','module-update-service.py')
     read_only=len(sys.argv)==3 and sys.argv[1]=='--read'
+    dry_run=len(sys.argv)==6 and sys.argv[1]=='--dry-run'
+    if dry_run: del sys.argv[1]
     api.host.check(read_only or len(sys.argv)==5,'HOST_MODULE_SWITCH_ARGUMENTS')
     api.host.check(os.getuid()==os.geteuid()==0,'HOST_UPDATE_ROOT_REQUIRED')
     os.umask(0o077)
@@ -374,13 +381,13 @@ def main():
     arch={'x86_64':'amd64','aarch64':'arm64'}.get(platform.machine())
     api.host.check(arch is not None and sys.platform=='linux','HOST_MODULE_PLATFORM_UNSUPPORTED')
     api.host.trusted(api.PREFIX,directory=True)
-    if not read_only:(api.PREFIX/'state').mkdir(mode=0o700,exist_ok=True)
+    if not read_only and not dry_run:(api.PREFIX/'state').mkdir(mode=0o700,exist_ok=True)
     api.host.trusted(api.PREFIX/'state',directory=True)
     updater=api.ModuleUpdater(api.PREFIX,api.PRIVATE,dict(release=source,platform=dict(os='linux',arch=arch),python='/usr/bin/python3'))
     if read_only:
         print(json.dumps(read_receipt(api,updater,sys.argv[2]),separators=(',',':')))
         return
-    Switch(api,updater,*sys.argv[1:4],private_device=sys.argv[4]).switch()
+    Switch(api,updater,*sys.argv[1:4],private_device=sys.argv[4],dry_run=dry_run).switch()
 
 
 if __name__=='__main__':
