@@ -17,6 +17,7 @@ import { OwnerProfile } from '../src/owner-profile.mjs'
 import { UserRules } from '../src/user-rules.mjs'
 import { FeatureSettings } from '../src/feature-settings.mjs'
 import { createSyntheticNotificationsProcess } from './helpers/notifications-process.mjs'
+import { createFixtureJobClient } from './fixtures/update-job-client.mjs'
 
 const sourceCommit = 'b'.repeat(40), versions = ['a'.repeat(64), 'c'.repeat(64)]
 const selection = (component, versionId) => {
@@ -41,7 +42,7 @@ async function bootstrap(t) {
 test('normal diagnostics factory feeds the stable facade, admin API, real controller and durable update ledger without a second writer', { timeout: 15000 }, async t => {
   const initial = await bootstrap(t), children = [], root = initial.root
   let activeVersion = versions[0], controller, clientCloses = 0
-  const hostUpdateClient = { capabilities: async () => ({ supported: false, reason: 'HOST_UPDATE_UNAVAILABLE', currentRequestId: null, previousRequestId: null }), catalog: async id => selection(id, activeVersion) }
+  const hostUpdateClient = { ...createFixtureJobClient(root), jobs: async () => ({ jobs: [] }), capabilities: async () => ({ supported: false, reason: 'HOST_UPDATE_UNAVAILABLE', currentRequestId: null, previousRequestId: null }), catalog: async id => selection(id, activeVersion) }
   const prepareDiagnosticsRelease = async (versionId, options) => {
     const descriptor = { versionId, sourceCommit, platform: { os: 'linux', arch: 'amd64' }, protocolVersion: 1,
       stateCompatibility: DIAGNOSTICS_STATE_COMPATIBILITY, appRoot: `/run/bellteam-maintenance/diagnostics/releases/${versionId}/payload` }
