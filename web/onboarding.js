@@ -118,7 +118,24 @@ export function openOnboarding(initial, { api, onReady, onLater }) {
 }
 
 function featureSettingTitle(setting) {
+  // 1Password連携は接続の結果を、連携中・未連携・失敗で示す。
+  if (setting.id === 'onePassword') return `${setting.title} · ${setting.error ? '失敗' : setting.status === 'enabled' ? '連携中' : '未連携'}`
   return `${setting.title} · ${setting.error ? '反映エラー' : { enabled: '有効', disabled: '無効', unconfigured: '未設定' }[setting.status]}`
+}
+const featureErrorText = setting => setting.id === 'onePassword' ? setting.error.message : `${setting.error.code}: ${setting.error.message}`
+
+function renderFeatureGuide(guide) {
+  const box = document.createElement('div')
+  box.className = 'feature-guide'
+  for (const step of guide.steps) box.append(Object.assign(document.createElement('p'), { textContent: step }))
+  let url
+  try { url = new URL(guide.link.url) } catch {}
+  if (url?.protocol === 'https:') {
+    const link = Object.assign(document.createElement('a'), { href: url.href, textContent: guide.link.label, target: '_blank', rel: 'noopener noreferrer' })
+    link.referrerPolicy = 'no-referrer'
+    box.append(link)
+  }
+  return box
 }
 
 // 設定変更の通知では入力中のフォームを保ち、状態とエラーだけを更新する。
@@ -140,7 +157,7 @@ export function refreshFeatureSettingsStatus(container, settings) {
         failure.setAttribute('role', 'alert')
         details.append(failure)
       }
-      failure.textContent = `${setting.error.code}: ${setting.error.message}`
+      failure.textContent = featureErrorText(setting)
     } else failure?.remove()
   }
 }
@@ -158,8 +175,11 @@ export function renderFeatureSettings(container, settings, { api, onChange }) {
     toggle.className = 'feature-toggle'
     const enabled = document.createElement('input')
     enabled.type = 'checkbox'
-    enabled.checked = setting.enabled
-    toggle.append(enabled, document.createTextNode('有効にする'))
+    // 1Password連携は、トークンを貼って保存すれば連携する。解除はチェックを外して保存する。
+    const onePassword = setting.id === 'onePassword'
+    enabled.checked = setting.enabled || onePassword && setting.status === 'unconfigured'
+    toggle.append(enabled, document.createTextNode(onePassword ? '1Passwordと連携する' : '有効にする'))
+    if (setting.guide) form.append(renderFeatureGuide(setting.guide))
     form.append(toggle)
     const inputs = []
     for (const field of setting.fields) {
@@ -174,6 +194,7 @@ export function renderFeatureSettings(container, settings, { api, onChange }) {
       input.autocapitalize = 'none'
       input.spellcheck = false
       if (field.secret) input.placeholder = field.configured ? '登録済み・変更するときだけ入力' : '未設定'
+      if (onePassword) input.setAttribute('data-1p-ignore', '')
       inputs.push({ field, input })
       label.append(input)
       form.append(label)
@@ -183,7 +204,7 @@ export function renderFeatureSettings(container, settings, { api, onChange }) {
     error.setAttribute('role', 'alert')
     const save = document.createElement('button')
     save.type = 'submit'
-    save.textContent = 'この機能を保存'
+    save.textContent = onePassword ? '保存して連携を確かめる' : 'この機能を保存'
     form.append(error, save)
     form.addEventListener('submit', async event => {
       event.preventDefault()
@@ -217,7 +238,7 @@ export function renderFeatureSettings(container, settings, { api, onChange }) {
       const failure = document.createElement('p')
       failure.className = 'form-error feature-application-error'
       failure.setAttribute('role', 'alert')
-      failure.textContent = `${setting.error.code}: ${setting.error.message}`
+      failure.textContent = featureErrorText(setting)
       details.append(failure)
     }
     details.append(form)

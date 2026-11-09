@@ -228,16 +228,29 @@ test('restored child handles announce initial availability and recover under the
   assert.deepEqual(events.at(-1), { ...dto, ...scope, requestId: item.id, available: true, reason: 'availability' })
 })
 
-test('the reserved token card feeds op privately and the SSH card lists existing keys to the Owner only', async t => {
-  const { bots, rooms, source, service } = await fixture(t)
-  let refreshes = 0
-  source.refresh = async () => { refreshes++ }
-  const token = await service.create({ ...input, toolId: 'onepassword-service-account', label: '1Password token' })
-  await assert.rejects(service.submit(token.id, { source: 'onepassword', reference }), /SECRET_VALUE_INVALID/)
+test('Settings 1Password連携 supplies the token to op only while enabled and reports the result as the feature status', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-onepassword-settings-'))
+  const bots = new Map([['bot-a', { id: 'bot-a', name: 'A' }]]), rooms = new Map()
+  const source = fakeSource()
+  let accept = false
+  source.available = false
+  source.refresh = async () => { const token = await source.token(); source.reason = 'rejected'; source.connected(accept && token === 'ops_synthetic') }
+  const service = createUsageServices({ root, bots, rooms, onePassword: source, effect: async () => {}, onProjection: () => {} })
+  t.after(async () => { await service.quiesce(); service.close(); await rm(root, { recursive: true, force: true }) })
+  await service.initializeSettings(); await service.initialize()
   assert.equal(await source.token(), null)
-  await service.submit(token.id, 'ops_synthetic-token\n')
-  assert.equal(await source.token(), 'ops_synthetic-token')
-  assert.equal(refreshes, 1)
+  const status = async () => (await service.request('settings.list', {}, owner)).find(row => row.id === 'onePassword')
+  let saved = await service.request('settings.update', { id: 'onePassword', input: { enabled: true, values: { token: 'ops_synthetic' } } }, owner)
+  assert.equal(saved.error.code, 'ONEPASSWORD_TOKEN_REJECTED'); assert.equal(saved.fields[0].value, '')
+  accept = true
+  saved = await service.request('settings.update', { id: 'onePassword', input: { enabled: true } }, owner)
+  assert.equal(saved.error, undefined); assert.equal(saved.status, 'enabled'); assert.equal(source.available, true)
+  await service.request('settings.update', { id: 'onePassword', input: { enabled: false } }, owner)
+  assert.equal(await source.token(), null); assert.equal((await status()).status, 'disabled'); assert.equal((await status()).error, undefined)
+})
+
+test('the SSH card lists existing keys to the Owner only', async t => {
+  const { bots, rooms, source, service } = await fixture(t)
   const server = createBellTeamServer({ bots, rooms, secretRequests: service,
     store: { timeline: async () => [], watch: async () => () => {} }, transport: {}, authorize: () => true })
   server.listen(0, '127.0.0.1'); await once(server, 'listening')

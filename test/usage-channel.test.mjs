@@ -187,7 +187,7 @@ test('real advanced Node IPC uses the same dispatcher and exits after export/res
   const value = await f.request('secrets.submit', { id: item.id, value: 'real-node-ipc-only' })
   assert.equal(value.notification, 'sent'); assert.equal(f.projection.get('secret', item.id).status, 'submitted')
   await f.parent.control('quiesce'); const { handoff } = await f.parent.control('export')
-  assert.ok(handoff.epochs.length === 6)
+  assert.ok(handoff.epochs.length === 7)
   await f.parent.control('resume'); await f.parent.control('quiesce'); await f.parent.control('exit')
   assert.deepEqual(await f.ended, { code: 0, signal: null }); assert.equal(f.stderr(), '')
 })

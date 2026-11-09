@@ -5,14 +5,16 @@ import { credentialDtoValid, credentialScopeValid } from './secret-credentials.m
 
 const object = value => value && typeof value === 'object' && !Array.isArray(value)
 const keys = (value, required, optional = []) => object(value) && required.every(key => Object.hasOwn(value, key)) && Object.keys(value).every(key => [...required, ...optional].includes(key))
-const fields = { routing: ['apiKey'], callBridge: ['url', 'token'], cloudflare: ['teamDomain', 'audience', 'publicUrl'], diagnostics: ['key'], notifications: ['relayUrl'], webPush: ['subject'] }
+const fields = { routing: ['apiKey'], callBridge: ['url', 'token'], cloudflare: ['teamDomain', 'audience', 'publicUrl'], diagnostics: ['key'], notifications: ['relayUrl'], webPush: ['subject'], onePassword: ['token'] }
 const validGeneration = value => Number.isSafeInteger(value) && value >= 0 || typeof value === 'string' && value.length > 0 && value.length <= 200
 const secretKeys = new Set(['apiKey', 'token', 'key'])
 export function usageSettingValid(item) {
-  if (!keys(item, ['id', 'title', 'enabled', 'status', 'fields'], ['error']) || !Object.hasOwn(fields, item.id)) return false
+  if (!keys(item, ['id', 'title', 'enabled', 'status', 'fields'], ['error', 'guide']) || !Object.hasOwn(fields, item.id)) return false
   const names = fields[item.id]
   return typeof item.title === 'string' && typeof item.enabled === 'boolean' && ['enabled', 'disabled', 'unconfigured'].includes(item.status)
     && (!item.error || keys(item.error, ['code', 'message']) && typeof item.error.code === 'string' && typeof item.error.message === 'string')
+    && (!item.guide || keys(item.guide, ['steps', 'link']) && Array.isArray(item.guide.steps) && item.guide.steps.every(step => typeof step === 'string')
+      && keys(item.guide.link, ['label', 'url']) && typeof item.guide.link.label === 'string' && /^https:\/\//u.test(item.guide.link.url))
     && Array.isArray(item.fields) && item.fields.length === names.length && item.fields.every((field, index) => keys(field, ['key', 'label', 'secret', 'value', 'configured'])
       && field.key === names[index] && typeof field.label === 'string' && field.secret === secretKeys.has(field.key) && typeof field.configured === 'boolean'
       && typeof field.value === 'string' && (!field.secret || field.value === ''))
@@ -26,7 +28,7 @@ export function usageProjectionRecordValid(row) {
     if (!keys(row, ['type', 'revision', 'list', 'configurations', 'epochs'], ['backgroundAgent', 'backgroundAgentError'])
       || Object.hasOwn(row, 'backgroundAgent') && (!backgroundRecordValid(row.backgroundAgent) || Object.hasOwn(row, 'backgroundAgentError'))
       || Object.hasOwn(row, 'backgroundAgentError') && !['BACKGROUND_AGENT_STATE_INVALID', 'BACKGROUND_AGENT_STATE_FAILED'].includes(row.backgroundAgentError)
-      || !keys(row.configurations, Object.keys(fields)) || !keys(row.epochs, Object.keys(fields)) || Object.values(row.epochs).some(epoch => !Number.isSafeInteger(epoch) || epoch < 0) || !Array.isArray(row.list) || row.list.length !== 6) return false
+      || !keys(row.configurations, Object.keys(fields)) || !keys(row.epochs, Object.keys(fields)) || Object.values(row.epochs).some(epoch => !Number.isSafeInteger(epoch) || epoch < 0) || !Array.isArray(row.list) || row.list.length !== Object.keys(fields).length) return false
     const seen = new Set()
     return row.list.every(item => {
       if (!usageSettingValid(item) || seen.has(item.id)) return false
@@ -84,7 +86,7 @@ export function createUsageProjection({ bots }) {
       items.set(item.id, copy(item))
       if (item.botId !== null) (secret ? state.secretTimeline : state.questionTimeline).put(copy(item))
     } else if (row.type === 'settings') {
-      if (!Array.isArray(row.list) || !row.configurations || row.list.length !== 6
+      if (!Array.isArray(row.list) || !row.configurations || row.list.length !== Object.keys(fields).length
         || row.list.some(item => typeof item.id !== 'string' || !Object.hasOwn(row.configurations, item.id))) throw usageError('USAGE_PROJECTION_INVALID')
       state.settings = copy(row)
     } else if (!['event', 'credential', 'credentialRecovery'].includes(row.type)) {

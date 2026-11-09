@@ -18,7 +18,7 @@ export function usageResultValid(method, value, params = {}) {
   if (method === 'settings.backgroundAgent') return backgroundRecordValid(value)
   if (method === 'settings.updateBackgroundAgent') return backgroundRecordValid(value) && value.selection !== null
     && ['harness', 'model', 'reasoningEffort'].every(key => value.selection[key] === params[key])
-  if (method === 'settings.list') return Array.isArray(value) && value.length === 6 && new Set(value.map(item => item?.id)).size === 6 && value.every(usageSettingValid)
+  if (method === 'settings.list') return Array.isArray(value) && value.length === 7 && new Set(value.map(item => item?.id)).size === 7 && value.every(usageSettingValid)
   if (method === 'settings.configuration') return usageConfigurationValid(params.id, value)
   if (method === 'settings.update') return usageSettingValid(value) && value.id === params.id
   if (['settings.setError', 'onboarding.prepareStartup', 'secrets.notifyOwnerGuide'].includes(method)) return value === null

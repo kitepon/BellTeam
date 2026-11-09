@@ -120,7 +120,9 @@ export function openSecretInput(request, api, onComplete) {
     else input.value = ''
     note.textContent = next === 'onepassword'
       ? '参照は会話に送信されません。値は1Passwordから読み出します。'
-      : '値は会話に送信されません。BellTeamの利用者領域へ保存します。'
+      : multiline
+        ? '秘密鍵（「-----BEGIN OPENSSH PRIVATE KEY-----」で始まる文字）をそのまま貼ってください。1Passwordを使っている場合は、設定の「1Password連携」を済ませると、ここで鍵を一覧から選べます。値は会話に送信されません。'
+        : '値は会話に送信されません。BellTeamの利用者領域へ保存します。'
   }
   select(onePassword && request.inputOptions.preferred !== 'stored' ? 'onepassword' : 'stored')
   const error = document.createElement('p')

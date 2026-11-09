@@ -31,6 +31,7 @@ export function createOnePasswordSource({ command, environment = process.env, ex
   let closed = false
   let initialized = false
   let available = false
+  let reason = null
   let retryTimer = null
   let flight = null
   let commandFlight = null
@@ -80,7 +81,8 @@ export function createOnePasswordSource({ command, environment = process.env, ex
   }
 
   async function invoke(args, limit = maxBuffer) {
-    const file = await selectedCommand()
+    let file
+    try { file = await selectedCommand() } catch { throw Object.assign(unavailable(), { reason: 'missing' }) }
     const secret = await token()
     // The token lives only in this call's env: never argv, files, logs or errors.
     const env = typeof secret === 'string' && secret ? { ...environment, OP_SERVICE_ACCOUNT_TOKEN: secret } : environment
@@ -127,9 +129,12 @@ export function createOnePasswordSource({ command, environment = process.env, ex
         if (!identity || typeof identity !== 'object' || Array.isArray(identity)
           || !['account_uuid', 'user_uuid'].some(key => typeof identity[key] === 'string' && identity[key].trim())) throw unavailable()
         if (closed) return false
+        reason = null
         setAvailable(true)
         return true
-      } catch {
+      } catch (failure) {
+        // Only the Settings status reads this: no op in the body, or op refused the token / could not connect.
+        reason = failure?.reason === 'missing' ? 'missing' : 'rejected'
         if (!closed) { setAvailable(false); scheduleRetry() }
         return false
       } finally {
@@ -154,6 +159,7 @@ export function createOnePasswordSource({ command, environment = process.env, ex
 
   return {
     get available() { return available },
+    get reason() { return reason },
     refresh,
     resolve,
     listSshKeys,

@@ -112,13 +112,13 @@ async function connected(t) {
   return { root, service, facade, effects, projection, failApply: () => { failApply = true } }
 }
 
-test('usage writer publishes the same record before apply, preserves six settings and restricts Owner writes', async t => {
+test('usage writer publishes the same record before apply, preserves the seven settings and restricts Owner writes', async t => {
   const f = await connected(t)
   const prior = await readFile(join(f.root, 'shared/tools/bellteam-settings/settings.json'), 'utf8')
   const saved = await f.facade.settings.updateBackgroundAgent(initial, { usageContext: owner })
   assert.deepEqual(await f.facade.settings.backgroundAgentConfiguration(), saved)
   assert.deepEqual(f.effects.map(row => row.method), ['backgroundAgent.models', 'backgroundAgent.changed'])
-  assert.equal(f.facade.settings.list().length, 6)
+  assert.equal(f.facade.settings.list().length, 7)
   assert.equal(await readFile(join(f.root, 'shared/tools/bellteam-settings/settings.json'), 'utf8'), prior)
   await assert.rejects(f.facade.settings.updateBackgroundAgent({ ...initial, expectedRevision: saved.revision }, { usageContext: bot }), { code: 'USAGE_ACTOR_FORBIDDEN', status: 403 })
   f.failApply()
@@ -211,7 +211,7 @@ test('corrupt background record does not stop other usage settings or initialize
   const seed = await service.initializeSettings()
   assert.equal(seed.backgroundAgentError, 'BACKGROUND_AGENT_STATE_INVALID')
   await service.initialize()
-  assert.equal((await service.request('settings.list', {}, owner)).length, 6)
+  assert.equal((await service.request('settings.list', {}, owner)).length, 7)
   await assert.rejects(service.request('settings.backgroundAgent', {}, owner), { code: 'BACKGROUND_AGENT_STATE_INVALID' })
   assert.equal(await readFile(path, 'utf8'), '{broken')
   await service.quiesce(); service.close()

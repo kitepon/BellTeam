@@ -120,7 +120,7 @@ flowchart TD
   Pending -.-> View
 ```
 
-`FeatureSettings.update`は入力検証、秘密入力による保存値・1Password参照の解決、設定の保存、適用を接続する。公開`list`は秘密値を空文字にし、`configuration`は本体内の適用先にだけ実値を渡す。内部HTTPはsecret直値を許さず、MCPが確定したbotIdと提出済みrequestIdで読む。外部HTTPではOwnerのvaluesを受ける。
+`FeatureSettings.update`は入力検証、秘密入力による保存値・1Password参照の解決、設定の保存、適用を接続する。公開`list`は秘密値を空文字にし、`configuration`は本体内の適用先にだけ実値を渡す。内部HTTPはsecret直値を許さず、MCPが確定したbotIdと提出済みrequestIdで読む。外部HTTPではOwnerのvaluesを受ける。`onePassword`（1Password連携）は秘密欄`token`だけを持ち、保存後に1Passwordへの接続を確かめて、結果を設定の状態とエラーで返す。詳細の正本は[secret credentials](secret-credentials.md#settings-1password連携-token-field-2026-11-09-owner-ask-trony-un-hold)。
 
 | 対象 | 状態の持ち主 / 呼ばれる関数 | 失敗後に残るもの |
 | --- | --- | --- |

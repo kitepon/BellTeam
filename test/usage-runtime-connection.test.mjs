@@ -64,7 +64,7 @@ test('installed-reader refusal and real wrapper/facade/apply connection keep sta
     const token = (method, kind = 'owner') => authority.capture(method, { kind, botId: kind === 'bot' ? 'bot-a' : null })
     const parent = { controller, facade, token, async start() {
       const starting = await controller.start(); assert.equal(starting.available, false); assert.equal(starting.phase, 'initializing')
-      assert.equal(facade.settings.list().length, 6)
+      assert.equal(facade.settings.list().length, 7)
       features = createApplicationFeatures({ services: { bots, settings: facade.settings, messenger: {}, diagnostics: { record: async () => {} },
         notifications: { initialStatus: async () => null }, transport: { isRunning: async () => stopPending, stopForConfiguration: async () => { stopStarted.resolve(); return stopped.promise } } }, home: '/unused', environment: {},
         configureHarnessConfig: async () => {}, notify: () => {}, usageContext: method => {
