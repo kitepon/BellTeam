@@ -21,6 +21,7 @@ export function fakeNative({ connectError, versions = ['1.0.0', '1.0.1'], update
         closed: false,
         async callTool(name, args, options) { calls.push({ op: 'callTool', name, args, options }); return { content: [{ type: 'text', text: '{}' }] } },
         transcript: { async read(request) { calls.push({ op: 'transcript', request }); return { entries: [], cursor: request?.cursor } } },
+        async wait(waitProcess, options) { calls.push({ op: 'wait', waitProcess, options }); return { outcome: 'done' } },
         async command(op) {
           calls.push({ op: 'command', command: op })
           if (op !== 'claude_version') return { op, exit_code: updateCode, version: null, output_tail: '' }
@@ -58,7 +59,7 @@ export function fakeConnection({ openError } = {}) {
     async open(request) {
       if (openError) throw Object.assign(new Error(openError), { code: openError, effect: 'not_started' })
       const session = await native.connect({ target: { terminalId: request.terminalId }, hostTrust: null, credential: null })
-      return { connectionRef: `ref-${native.sessions.length}`, native: { callTool: session.callTool, transcript: session.transcript } }
+      return { connectionRef: `ref-${native.sessions.length}`, native: { callTool: session.callTool, transcript: session.transcript, wait: session.wait } }
     },
     async close() { return { closed: true } },
     onAvailable(listener) { listeners.add(listener); return () => listeners.delete(listener) },

@@ -154,9 +154,9 @@ flowchart LR
   Conn -->|reveal credentialRef| Seat[Molly seatCredentials]
   Conn -->|2nd slot login, accountOwner=owner only| Login[accountLoginEnvironment]
   Conn -->|connect target,hostTrust,credential,privateEnv| Proc[remote-process.mjs]
-  Proc -->|seat command entry, UID1000 stdio MCP| RT[aiterm-remote-terminal: status/open/call/transcript/command/close]
+  Proc -->|seat command entry, UID1000 stdio MCP| RT[aiterm-remote-terminal: status/open/call/transcript/wait/command/close]
   RT -->|SSH with Aiterm-held key + known_hosts| Mac[Owner Mac: claude in projectRoot]
-  Conn -->|connectionRef + bound native: callTool / transcript.read| Exec
+  Conn -->|connectionRef + bound native: callTool / transcript.read / wait| Exec
   Conn -->|first agent_launch claude-code| Maint[maintenance: claude_version, claude_update or claude_install]
   Maint --> RT
   RT -->|event lost| Conn
@@ -173,7 +173,7 @@ flowchart LR
 | `registry` | `list()`, `get(id)` (null if absent), `put(input)`, `remove(id)` | Nonsecret projection with `ingressUrl` and `maintenance` (last C8 outcome or null, in memory); errors `{code, status}`: `INVALID_TERMINAL` 400, `TERMINAL_NOT_FOUND` 404, `TERMINAL_EXISTS` 409, `HOST_KEY_FINGERPRINT_MISMATCH` 409, `INVALID_TERMINAL_STORE` 500 |
 | `registry` | `put({..., confirmHostKey: 'SHA256:...'})` | Owner's "confirm the new host key": Aiterm's `trust-confirm` scans once and writes only on an equal fingerprint, then the new trust revision is stored. Without it, a new record binds the trust Aiterm already holds (P1 pre-enrolled known_hosts) |
 | `connection` | `open({terminalId, memberId, projectRoot, seatBinding:{botId, sessionName}, accountOwner, credentials?})` | `{connectionRef, native}`; or `{code, effect:'not_started', reason?, action?}` with code `TERMINAL_UNAVAILABLE` / `CREDENTIAL_UNAVAILABLE` / `TARGET_MISMATCH` |
-| `connection` | `native.callTool(name, args, {private?, timeoutMs?})`, `native.transcript.read({sessionName, cursor, maxBytes?})` | Raw MCP result of the remote Aiterm tool, identical to local. `agent_launch` must carry `cwd === projectRoot` and `session_name === seatBinding.sessionName` or it is `TARGET_MISMATCH` without reaching the terminal. `CWD_UNAVAILABLE` / `CONNECTION_LOST` from the remote pass through |
+| `connection` | `native.callTool(name, args, {private?, timeoutMs?})`, `native.transcript.read({sessionName, cursor, maxBytes?})`, `native.wait(waitProcess, {signal?})` | `wait` runs a receipt's `wait_process` on the terminal (`remote_terminal_wait`) and returns aiterm-wait's JSON receipt unchanged; no request timeout, `signal` abort cancels it (`WAIT_CANCELLED`). Raw MCP result of the remote Aiterm tool, identical to local. `agent_launch` must carry `cwd === projectRoot` and `session_name === seatBinding.sessionName` or it is `TARGET_MISMATCH` without reaching the terminal. `CWD_UNAVAILABLE` / `CONNECTION_LOST` from the remote pass through |
 | `connection` | `close(connectionRef)`; `onAvailable(listener)` -> unsubscribe | Idempotent release; `listener({terminalId})` when the terminal is usable again |
 | `reachability` | `check(terminalId)` | `{terminalId, observedAt, reachable, reason, action?}`; opens and closes the remote process, never launches |
 | `maintenance` (C8) | `last(terminalId)` | `{terminalId, observedAt, before, after, outcome:'current'/'updated'/'failed'}` |

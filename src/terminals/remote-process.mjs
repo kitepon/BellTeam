@@ -7,6 +7,8 @@ import { createSeatProcessRunner } from '../seat-process.mjs'
 
 const BIN = 'aiterm-remote-terminal'
 const EVENT = 'aiterm/remote-terminal-event'
+// A turn can run for hours; the SDK default (60 s) would cut it, so wait only for the caller's abort (max setTimeout).
+const NO_TIMEOUT = 2_147_483_647
 
 async function stdioClient(project) {
   const client = new Client({ name: 'bellteam-terminals', version: '0.1.0' }, { capabilities: {} })
@@ -26,7 +28,7 @@ export function createRemoteTerminalProcesses({ project, connectClient = () => s
   async function start() {
     let client
     try { client = await connectClient() } catch { throw Object.assign(new Error('Remote terminal process unavailable'), { code: 'REMOTE_AITERM_UNAVAILABLE' }) }
-    const tool = async (name, args = {}) => parse(await client.callTool({ name, arguments: args }))
+    const tool = async (name, args = {}, options) => parse(await client.callTool({ name, arguments: args }, undefined, options))
     return { client, tool }
   }
 
@@ -60,6 +62,8 @@ export function createRemoteTerminalProcesses({ project, connectClient = () => s
         callTool: (name, args, options = {}) => client.callTool({ name: 'remote_terminal_call', arguments: { name, args,
           ...(options.private ? { private: options.private } : {}), ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}) } }),
         transcript: { read: request => tool('remote_terminal_transcript_read', request) },
+        // aiterm-wait's one-line JSON receipt, unchanged; abort cancels the request (Aiterm answers WAIT_CANCELLED).
+        wait: (waitProcess, { signal } = {}) => tool('remote_terminal_wait', { waitProcess }, { signal, timeout: NO_TIMEOUT }),
         command: op => tool('remote_terminal_command', { op }),
         onEvent(listener) { listeners.add(listener); return () => listeners.delete(listener) },
         async close() {

@@ -43,9 +43,13 @@ test('opens a bound port, resolves the key inside the callback and maintains Cla
   assert.deepEqual((({ before, after, outcome }) => ({ before, after, outcome }))(connection.maintenance.last('owner-macbook')), { before: '1.0.0', after: '1.0.1', outcome: 'updated' })
 
   await assert.rejects(port.callTool('agent_launch', { ...launch, cwd: '/Users/kite' }), { code: 'TARGET_MISMATCH' })
+  const signal = new AbortController().signal
+  assert.deepEqual(await port.wait({ args: ['--session', 'seat'] }, { signal }), { outcome: 'done' })
+  assert.equal(native.calls.find(call => call.op === 'wait').options.signal, signal)
   assert.deepEqual(await connection.close(connectionRef), { closed: true })
   assert.deepEqual(await connection.close(connectionRef), { closed: false })
   await assert.rejects(port.callTool('pty_send', {}), { code: 'TERMINAL_UNAVAILABLE' })
+  await assert.rejects(port.wait({ args: [] }), { code: 'TERMINAL_UNAVAILABLE' })
 })
 
 test('installs when Claude is missing and a failed update keeps the launch going', async t => {
