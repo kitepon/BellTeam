@@ -18,8 +18,11 @@ test('cold startup resumes saved active conversations with resume-only launches,
     const entry = activity.startedActivity(id, 'codex-cli', id, { session_id: id, launch_id: 'a'.repeat(32) })
     if (id === 'idle') activity.finishedActivity(id, entry)
   }
+  // A working seat on a harness without resume support is woken fresh, not silently left down.
+  activity.startedActivity('grok', 'grok-cli', 'grok', { session_id: 'grok', launch_id: 'a'.repeat(32) })
   await activity.activityQueue
   const bots = new Map(['active','unavailable','idle','no-reference'].map(id => [id, { id, session: id, harness: 'codex', project: root }]))
+  bots.set('grok', { id: 'grok', session: 'grok', harness: 'grok', project: root })
   bots.refresh = async () => {}
   const launches = [], summaries = [], reports = []
   const ports = { native: { launchOptions: async () => ({}), async call(name, args) {
@@ -46,13 +49,14 @@ test('cold startup resumes saved active conversations with resume-only launches,
   await start('first')
   assert.deepEqual(launches.map(value => value.session_name).sort(), ['active','unavailable'])
   const byBot = Object.fromEntries(summaries.map(value => [value.botId, value]))
-  assert.equal(summaries.length, 2); assert.equal(byBot.active.from, now); assert.equal(byBot.active.resumed, undefined)
+  assert.equal(summaries.length, 3); assert.equal(byBot.active.from, now); assert.equal(byBot.active.resumed, undefined)
+  assert.equal(byBot.grok.resumed, false)
   // Owner 2026-11-08: the refused seat is not left down; one ordinary delivery wakes it fresh (restart-resume.md).
   assert.equal(byBot.unavailable.resumed, false); assert.equal(byBot.unavailable.from, now)
   assert.equal(reports.some(value => value.code === 'SERVER_TURN_TRACKING_FAILED' && JSON.parse(value.diagnostic_log).code === 'RESTART_RESUME_UNAVAILABLE'), false)
   assert.deepEqual(JSON.parse(await readFile(path, 'utf8')).targets, [])
   await start('second')
-  assert.equal(launches.length, 2); assert.equal(summaries.length, 2)
+  assert.equal(launches.length, 2); assert.equal(summaries.length, 3)
 
   const client = new AitermClient()
   let nativeCalls = 0
