@@ -65,6 +65,10 @@
     {
       "module": "runtime",
       "port": "module-runner"
+    },
+    {
+      "module": "usage",
+      "port": "secrets"
     }
   ],
   "source": [
@@ -113,6 +117,7 @@
     "src/background-summary-assembly.mjs",
     "src/json-file.mjs",
     "src/work-graph-facade.mjs",
-    "src/http-accounts-api.mjs"
+    "src/http-accounts-api.mjs",
+    "src/submitted-secret-caller.mjs"
   ]
 }

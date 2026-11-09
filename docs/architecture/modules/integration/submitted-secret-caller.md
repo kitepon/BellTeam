@@ -33,3 +33,7 @@ Rootが13:09:33の独立connection GET identityを今回の検証先として採
 ## 固定開始回答の添え書き
 
 今回専用wrapperはK-3JM9PSの元回答answered_at=2026-11-05T03:12:22.959Zと、UTF-8/無正規化48B/SHA668c51b4b24fa19e654ba6d4ffadc54565620aca4c86f13835713f209b010780を実応答で照合する。成功後だけ既helper向けの応答内textをnullへ射影し、既helperが残る全本人・connection・版・選択・context/optionsを検査する。実応答は65536B上限、記録/外部返却なし。K-6782UMと旧OLRWの空text条件は同一sourceのまま。期待値はRoot start-answer-text-boundary.json（先行保存元回答）由来であり、今回応答から生成しない。
+
+## C5 inventory and resolver seam (2026-11-09)
+
+The parent-owned `src/submitted-secret-caller.mjs` is explicitly inventoried by integration/module.json under Molly. Its C5 adapter passes metadata reads plus a private resolveValue capability using a freshly captured systemContext(secrets.resolveRequest); it never accepts an external path/source/actor. Usage owns resolution and the existing fixed consumer retains its authorization and durable one-shot claim. This closes the changed-source inventory omission without changing runtime behavior.

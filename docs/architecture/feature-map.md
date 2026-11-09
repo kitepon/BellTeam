@@ -50,6 +50,7 @@ flowchart LR
   m_integration -->|"members-admission"| m_execution
   m_integration -->|"diagnostics"| m_diagnostics
   m_integration -->|"module-runner"| m_runtime
+  m_integration -->|"secrets"| m_usage
   m_members -->|"stop"| m_execution
   m_members -->|"project-files"| m_runtime
   m_members -->|"cli-registration"| m_runtime
