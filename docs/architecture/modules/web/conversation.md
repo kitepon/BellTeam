@@ -34,7 +34,7 @@ flowchart LR
 
 ### 初回設定はあとへ回せる
 
-`/api/setup`が`ready`でなければ`openOnboarding`の画面を出す。この画面は守る対象（データ消失・接続先違い・秘密・権限）を持たないので、閉じるのを止めない。Escと「あとで設定する」で閉じられる。閉じたら`onLater`→`startConversations`で一覧・Update・SSEを始め、一覧上に「初回設定を続ける」を出す。押すと`/api/setup`を読み直して同じ画面を開く。`ready`になった時（画面の開始操作、又はSSEのsetup通知）は案内を消す。`startConversations`は二度目以降、Update/SSE/通知を再開せず、一覧の再読と案内Botの自動選択だけを行う。案内Botの自動選択は`phase=ready`の時だけ。サーバーの初回設定状態とAPIは変えない。
+`/api/setup`が`ready`でなければ`openOnboarding`の画面を出す。この画面は守る対象（データ消失・接続先違い・秘密・権限）を持たないので、閉じるのを止めない。Escと「あとで設定する」で閉じられる。閉じたら`onLater`→`startConversations`で一覧・Update・SSEを始め、一覧上に案内カード（icon・「初回設定がまだ済んでいません」・主ボタン「初回設定を続ける」）を出す。押すと`/api/setup`を読み直して同じ画面を開く。一覧が空の時の文は、検索語があれば検索の文、なければ「まだメンバーはいません」（setup未完了なら主ボタンへ案内）にする。`ready`になった時（画面の開始操作、又はSSEのsetup通知）は案内を消す。`startConversations`は二度目以降、Update/SSE/通知を再開せず、一覧の再読と案内Botの自動選択だけを行う。案内Botの自動選択は`phase=ready`の時だけ。サーバーの初回設定状態とAPIは変えない。
 
 ```mermaid
 stateDiagram-v2

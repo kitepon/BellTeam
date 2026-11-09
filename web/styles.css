@@ -443,6 +443,12 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .roster-notice { padding: 0 22px 16px; }
 .roster-search input { width: 100%; min-height: 44px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; background: #f6f6f8; font: inherit; font-size: 15px; }
 .search-empty { padding: 20px 24px; color: var(--muted); font-size: 14px; line-height: 1.8; }
+.setup-notice { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 12px 14px; margin: 0 22px 16px; padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: #f7f7f8; }
+.setup-notice[hidden] { display: none; }
+.setup-notice-icon { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 13px; background: #fff; box-shadow: 0 6px 16px rgba(0,0,0,.06); }
+.setup-notice-icon svg { width: 21px; height: 21px; }
+.setup-notice-text { margin: 0; font-size: 15px; font-weight: 700; line-height: 1.5; }
+.setup-notice-action { grid-column: 1 / -1; min-height: 46px; border: 0; border-radius: 13px; background: #111; color: #fff; font-weight: 750; cursor: pointer; }
 .profile-dialog { width: min(720px, calc(100vw - 32px)); }
 .profile-dialog .sheet-body { padding: 28px 32px 40px; }
 .profile-dialog .sheet-header { min-height: 72px; }
@@ -603,7 +609,6 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .update-banner { display: grid; gap: 4px; padding: 16px 18px 16px 20px; border: 1px solid color-mix(in srgb, var(--tone) 35%, transparent); border-left: 4px solid var(--tone); border-radius: 14px; background: var(--tone-bg); color: var(--u-ink); }
 .update-banner strong { color: var(--tone); font-size: 14px; }
 .update-banner p { margin: 0; font-size: 13px; line-height: 1.75; }
-.update-banner-action { justify-self: start; min-height: 38px; margin-top: 8px; padding: 6px 16px; border: 0; border-radius: 10px; background: var(--tone); color: var(--u-surface); font-size: 13px; font-weight: 700; cursor: pointer; }
 
 .update-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
 .update-cards.is-runtime { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
