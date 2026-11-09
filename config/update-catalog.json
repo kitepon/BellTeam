@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-09T00:03:34Z",
-  "expiresAt": "2026-11-16T00:03:34Z",
+  "publishedAt": "2026-11-09T00:23:13Z",
+  "expiresAt": "2026-11-16T00:23:13Z",
   "releases": [
     {
       "componentId": "usage",
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "f2c852e4a5f595262fa6e2a644ff53f2fcef518a",
-      "versionId": "sha256:470d6253cf8fbbd89d2567de09aefba52f9e0451b4bbb9efa5b19788c3f4d23a",
+      "sourceCommit": "d9f230fb4310afc3952e31260cadd5cc5fd278a9",
+      "versionId": "sha256:601473df0f527fdd312434b459fe9a381370f4c1a33de4c967af3c9b566c5149",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:470d6253cf8fbbd89d2567de09aefba52f9e0451b4bbb9efa5b19788c3f4d23a"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:601473df0f527fdd312434b459fe9a381370f4c1a33de4c967af3c9b566c5149"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,22 +722,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "古いゲートウェイの停止が時間切れになっても、新しい版への切替を続けます。",
-        "長い仕事状況もWeb画面に表示し、要約は長さだけで捨てないようにします。",
-        "アカウント切替時、Aitermが使用中の間は再試行し、休止済みの席は新しい設定で再開します。"
+        "二つ目のAitermログイン環境向けに、ログイン設定ファイルへのリンクを追加します。",
+        "ゲートウェイ切替時は、旧版の停止待ちが時間切れでも、新しい版への切替を続けます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "f2c852e4a5f595262fa6e2a644ff53f2fcef518a",
-      "versionId": "sha256:470d6253cf8fbbd89d2567de09aefba52f9e0451b4bbb9efa5b19788c3f4d23a",
+      "sourceCommit": "d9f230fb4310afc3952e31260cadd5cc5fd278a9",
+      "versionId": "sha256:601473df0f527fdd312434b459fe9a381370f4c1a33de4c967af3c9b566c5149",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:470d6253cf8fbbd89d2567de09aefba52f9e0451b4bbb9efa5b19788c3f4d23a"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:601473df0f527fdd312434b459fe9a381370f4c1a33de4c967af3c9b566c5149"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,9 +745,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "古いゲートウェイの停止が時間切れになっても、新しい版への切替を続けます。",
-        "長い仕事状況もWeb画面に表示し、要約は長さだけで捨てないようにします。",
-        "アカウント切替時、Aitermが使用中の間は再試行し、休止済みの席は新しい設定で再開します。"
+        "二つ目のAitermログイン環境向けに、ログイン設定ファイルへのリンクを追加します。",
+        "ゲートウェイ切替時は、旧版の停止待ちが時間切れでも、新しい版への切替を続けます。"
       ]
     }
   ],
