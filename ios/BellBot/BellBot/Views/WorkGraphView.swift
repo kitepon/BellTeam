@@ -96,8 +96,9 @@ struct WorkGraphView: View {
         drawLabels(&context, lines: lines, now: now)
     }
 
-    /// 依頼のラベルはアイコン・名前・他のラベルに重ねない。線の上の空いた所を探し、無ければ出さない（全文は長押し・ポインタで出る）。
-    /// 多すぎる時（10本超）は始まって5秒以内の新しい依頼だけを出す。新しい依頼ほど先に場所を取る。
+    /// 依頼のラベルはアイコン・名前・他のラベルに重ねない（behavior-spec.md #738）。始まった順（古い順）に置くので、
+    /// 新しい依頼が来ても置いた札は動かない。置いた札は4pt広げて障害物に加え、空きが無ければ出さない（全文は長押し・ポインタで最前面に出る）。
+    /// 混んでいる時（10本超、または線が120pt未満）は始まって3秒だけ出し、400msで消える（`WorkGraphModel.labelOpacity`）。
     private func drawLabels(_ context: inout GraphicsContext, lines: [WorkGraphModel.Line], now: Double) {
         var occupied: [CGRect] = []
         for id in model.order {
@@ -109,28 +110,48 @@ struct WorkGraphView: View {
             occupied.append(CGRect(x: look.point.x - width / 2, y: look.point.y + size / 2 + 4, width: width, height: BellTheme.listNameFontSize * 1.5))
         }
         let open = lines.filter { $0.endedAt == nil }
-        let crowded = open.count > 10
-        for line in open.sorted(by: { $0.startedAt > $1.startedAt }) {
-            guard !crowded || now - line.startedAt < 5, let label = line.edge.label, !label.isEmpty,
-                  let geometry = path(line, now: now), geometry.length >= 120,
+        let tooMany = open.count > 10
+        for line in WorkGraphModel.labelOrder(open) {
+            guard let label = line.edge.label, !label.isEmpty, let geometry = path(line, now: now),
                   now - line.startedAt >= 0.35 else { continue }
+            let opacity = WorkGraphModel.labelOpacity(line, crowded: tooMany || geometry.length < 120, now: now)
+            guard opacity > 0 else { continue }
             let wire = WorkGraphColor.wire(tone(line.edge.from))
-            let text = context.resolve(Text(label).font(.system(size: BellTheme.listDetailFontSize, weight: .medium)).foregroundColor(BellTheme.ink))
+            // 札は最大180pt幅。文は切らずに折り返し、行の高さ16ptで行数ぶん伸びる（behavior-spec.md、Owner裁定 2026-11-09）。
+            // 行の高さを決めて描くため、CanvasのTextではなく段落指定付きの文字列で測って描く。
+            let text = Self.labelText(label)
             let icon = context.resolve(Image(systemName: "envelope.fill"))
             let iconSide = BellTheme.listDetailFontSize
-            let measured = text.measure(in: CGSize(width: 180, height: 40))
-            let width = min(measured.width, 180) + iconSide + 22, height = max(measured.height, iconSide) + 10
-            for t in [0.5, 0.38, 0.62, 0.28, 0.72] {
+            let textWidth = Self.labelMaxWidth - iconSide - 22
+            let bounds = text.boundingRect(with: CGSize(width: textWidth, height: .greatestFiniteMagnitude), options: .usesLineFragmentOrigin, context: nil)
+            let measured = CGSize(width: ceil(bounds.width), height: ceil(bounds.height))
+            let width = min(measured.width, textWidth) + iconSide + 22, height = max(measured.height, iconSide) + 10
+            for t in [0.5, 0.45, 0.55, 0.4, 0.6, 0.35, 0.65, 0.3, 0.7] {
                 let at = geometry.point(t)
                 // 札は線の上に少し浮かせ、下の尖りで線を指す。
                 let tag = CGRect(x: at.x - width / 2, y: at.y - height - 7, width: width, height: height)
                 let area = tag.union(CGRect(x: at.x - 4, y: at.y - 7, width: 8, height: 7))
-                guard !occupied.contains(where: { $0.intersects(area.insetBy(dx: -2, dy: -2)) }) else { continue }
+                guard !occupied.contains(where: { $0.intersects(area.insetBy(dx: -4, dy: -4)) }) else { continue }
                 occupied.append(area)
-                drawTag(&context, tag: tag, point: at, wire: wire, icon: icon, iconSide: iconSide, text: text)
+                var faded = context
+                faded.opacity = opacity
+                drawTag(&faded, tag: tag, point: at, wire: wire, icon: icon, iconSide: iconSide, text: text)
                 break
             }
         }
+    }
+
+    static let labelMaxWidth: CGFloat = 180
+    static let labelLineHeight: CGFloat = 16
+
+    /// 依頼の札の文。行の高さ16ptちょうどで折り返す。
+    static func labelText(_ label: String) -> NSAttributedString {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.minimumLineHeight = labelLineHeight
+        paragraph.maximumLineHeight = labelLineHeight
+        return NSAttributedString(string: label, attributes: [
+            .font: UIFont.systemFont(ofSize: BellTheme.listDetailFontSize, weight: .medium),
+            .foregroundColor: UIColor(BellTheme.ink), .paragraphStyle: paragraph])
     }
 
     /// 依頼元の色。会話の窓と同じく、アバター画像から取った代表色（画像が無ければ設定の色）。
@@ -141,7 +162,7 @@ struct WorkGraphView: View {
 
     /// 依頼の札：白地に依頼元の色の縁と左帯、封筒の印、線へ向かう尖り。影はぼかさず1枚ずらして描く。
     private func drawTag(_ context: inout GraphicsContext, tag: CGRect, point: CGPoint, wire: Color,
-                         icon: GraphicsContext.ResolvedImage, iconSide: CGFloat, text: GraphicsContext.ResolvedText) {
+                         icon: GraphicsContext.ResolvedImage, iconSide: CGFloat, text: NSAttributedString) {
         var tail = Path()
         tail.move(to: CGPoint(x: point.x - 5, y: tag.maxY - 0.5))
         tail.addLine(to: CGPoint(x: point.x, y: point.y - 1))
@@ -157,8 +178,14 @@ struct WorkGraphView: View {
         bar.fill(Path(CGRect(x: tag.minX, y: tag.minY, width: 4, height: tag.height)), with: .color(wire))
         var tinted = icon
         tinted.shading = .color(wire)
-        context.draw(tinted, in: CGRect(x: tag.minX + 9, y: tag.midY - iconSide / 2, width: iconSide, height: iconSide))
-        context.draw(text, in: CGRect(x: tag.minX + 13 + iconSide, y: tag.minY + 5, width: tag.width - iconSide - 19, height: tag.height - 10))
+        // 封筒は1行目の高さに置く（複数行でも札の真ん中へ流れない）。
+        context.draw(tinted, in: CGRect(x: tag.minX + 9, y: tag.minY + 5 + max(0, Self.labelLineHeight - iconSide) / 2, width: iconSide, height: iconSide))
+        let textRect = CGRect(x: tag.minX + 13 + iconSide, y: tag.minY + 5, width: tag.width - iconSide - 19, height: tag.height - 10)
+        context.withCGContext { cg in
+            UIGraphicsPushContext(cg)
+            text.draw(with: textRect, options: .usesLineFragmentOrigin, context: nil)
+            UIGraphicsPopContext()
+        }
     }
 
     private func path(_ line: WorkGraphModel.Line, now: Double) -> (path: Path, length: CGFloat, point: (CGFloat) -> CGPoint, mid: CGPoint)? {
@@ -326,7 +353,7 @@ struct WorkGraphView: View {
             if let edge = model.lines[id]?.edge {
                 let from = model.bodies[edge.from]?.node.name ?? edge.from
                 let to = model.bodies[edge.to]?.node.name ?? edge.to
-                Text("\(from)から\(to)へ依頼: \(edge.label ?? "")")
+                Text(edge.label.map { "\(from)から\(to)へ依頼: \($0)" } ?? "\(from)から\(to)へ依頼")
             }
         }
     }
