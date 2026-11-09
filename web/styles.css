@@ -805,6 +805,11 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 #owner-dialog .feature-badge.connected { background: var(--s-ok-bg); color: var(--s-ok); }
 #owner-dialog .feature-badge.off { background: var(--s-mute-bg); color: var(--s-muted); }
 #owner-dialog .feature-badge.failed { background: var(--s-danger-bg); color: var(--s-danger); }
+#owner-dialog .feature-result { margin: 0; padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.7; background: var(--s-mute-bg); color: var(--s-ink); }
+#owner-dialog .feature-result[data-state="checking"] { background: var(--s-info-bg); }
+#owner-dialog .feature-result[data-state="connected"] { background: var(--s-ok-bg); }
+#owner-dialog .feature-result[data-state="failed"] { background: var(--s-danger-bg); }
+#owner-dialog .feature-result[hidden] { display: none; }
 #owner-dialog .harness-auth-status { background: var(--s-mute-bg); color: var(--s-muted); border-radius: 999px; }
 #owner-dialog .harness-auth-status.authenticated { background: var(--s-ok-bg); color: var(--s-ok); }
 #owner-dialog .harness-auth-status.blocked, #owner-dialog .harness-auth-status.failed { background: var(--s-danger-bg); color: var(--s-danger); }
