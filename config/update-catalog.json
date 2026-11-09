@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-09T13:13:15Z",
-  "expiresAt": "2026-11-16T13:13:15Z",
+  "publishedAt": "2026-11-09T14:44:25Z",
+  "expiresAt": "2026-11-16T14:44:25Z",
   "releases": [
     {
       "componentId": "usage",
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "fb923ca4b2cd15f3909b232aa1b57f8be50b75cd",
-      "versionId": "sha256:b129afc6b13486d5fb27dfa848ab36bf196f365fcc08b5bd4bf2e36e58097e42",
+      "sourceCommit": "a15379439c78708e52b65f95e7e6e89bd0c81d0d",
+      "versionId": "sha256:5fb25dd1c2ca329ed47a0250805f4b24fb02bd084d5f647fcf0962f5fe357e57",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b129afc6b13486d5fb27dfa848ab36bf196f365fcc08b5bd4bf2e36e58097e42"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:5fb25dd1c2ca329ed47a0250805f4b24fb02bd084d5f647fcf0962f5fe357e57"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,23 +722,22 @@
         "containerUpdate": 1
       },
       "changes": [
-        "LANにある端末（Macなど）で、メンバーの席を動かせるようにします。席とBellTeamのやりとりは、端末へのSSH接続の中だけを通ります。",
-        "アプリの設定から、端末のSSH鍵を登録できるようにします。",
-        "本体の入れ替えの前に、新しい本体で今の状態を読み取って確かめ、確実に失敗する入れ替えは今の本体を止めずに取りやめます。",
-        "入れ替えのたびに保存場所の名前が長くなり続ける不具合と、古い形の部品があると起動できない不具合を直します。"
+        "本体を入れ替えても、席の会話の状態を引き継ぎます。Aiterm の版が上がっても、席が最初からやり直しになりません。",
+        "会話を引き継げなかった席には、最初からやり直したことを知らせてから起こします。",
+        "1Password に保存済みの SSH 鍵を、端末の鍵のカードから選べるようにします。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "fb923ca4b2cd15f3909b232aa1b57f8be50b75cd",
-      "versionId": "sha256:b129afc6b13486d5fb27dfa848ab36bf196f365fcc08b5bd4bf2e36e58097e42",
+      "sourceCommit": "a15379439c78708e52b65f95e7e6e89bd0c81d0d",
+      "versionId": "sha256:5fb25dd1c2ca329ed47a0250805f4b24fb02bd084d5f647fcf0962f5fe357e57",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b129afc6b13486d5fb27dfa848ab36bf196f365fcc08b5bd4bf2e36e58097e42"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:5fb25dd1c2ca329ed47a0250805f4b24fb02bd084d5f647fcf0962f5fe357e57"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -747,10 +746,9 @@
         "containerUpdate": 1
       },
       "changes": [
-        "LANにある端末（Macなど）で、メンバーの席を動かせるようにします。席とBellTeamのやりとりは、端末へのSSH接続の中だけを通ります。",
-        "アプリの設定から、端末のSSH鍵を登録できるようにします。",
-        "本体の入れ替えの前に、新しい本体で今の状態を読み取って確かめ、確実に失敗する入れ替えは今の本体を止めずに取りやめます。",
-        "入れ替えのたびに保存場所の名前が長くなり続ける不具合と、古い形の部品があると起動できない不具合を直します。"
+        "本体を入れ替えても、席の会話の状態を引き継ぎます。Aiterm の版が上がっても、席が最初からやり直しになりません。",
+        "会話を引き継げなかった席には、最初からやり直したことを知らせてから起こします。",
+        "1Password に保存済みの SSH 鍵を、端末の鍵のカードから選べるようにします。"
       ]
     }
   ],
