@@ -74,7 +74,7 @@ test('prepare: every 1st entry and the 1st config are links, only the login is t
 test('limits are per slot and model scope; selection never refuses; the timer clears at the reset time', async t => {
   const { home, accounts, advance } = await setup(t)
   await accounts.prepare('claude', '2nd')
-  await writeFile(join(home, '.bellteam-accounts/claude/2nd/.credentials.json'), '{}')
+  await writeFile(join(home, '.bellteam-accounts/claude/2nd/oauth-token'), 'sk-ant-oat01-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
   // No preference: every model starts on the 1st (Owner ruling 2026-11-09).
   assert.equal((await accounts.selection('claude', 'fable')).slot, '1st')
   assert.equal((await accounts.selection('claude', 'opus')).slot, '1st')

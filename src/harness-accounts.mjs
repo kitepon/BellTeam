@@ -186,8 +186,9 @@ export class HarnessAccounts {
     catch { return null }
   }
 
+  // A non-1st seat can start only with its long-lived login (oauth-token, passed to the CLI env; harness-accounts.md).
   async loggedIn(harness, slot) {
-    const entry = await present(join(this.root(harness, slot), '.credentials.json'))
+    const entry = await present(join(this.root(harness, slot), slot === '1st' ? '.credentials.json' : 'oauth-token'))
     return Boolean(entry?.isFile())
   }
 

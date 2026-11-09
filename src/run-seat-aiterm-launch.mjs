@@ -1,6 +1,6 @@
 // The fixed entry and run-seat-command have already loaded this target's env
 // as UID1000. Only the MCP result crosses back; environment values stay here.
-import { AitermClient, runtimeLaunchEnv } from './aiterm-client.mjs'
+import { AitermClient, accountLoginEnvironment, runtimeLaunchEnv } from './aiterm-client.mjs'
 import { authenticationPreflightFailure } from './agent-launch-error.mjs'
 import { mcpRequestContext } from './mcp-request-context.mjs'
 import { returnedMcpError } from './returned-mcp-error.mjs'
@@ -16,6 +16,9 @@ try {
     throw Error('SEAT_LAUNCH_ARGUMENTS')
   // The launch's captured runtime must be in this MCP process's env before it starts (Aiterm reads its own process.env).
   if (request.runtime) Object.assign(process.env, runtimeLaunchEnv(request.runtime, process.env.PATH))
+  // harness-accounts.md: a 2nd seat differs only in its login; read here as the seat user, given only to this CLI's env.
+  delete process.env.CLAUDE_CODE_OAUTH_TOKEN
+  if (request.claudeLogin !== undefined) Object.assign(process.env, await accountLoginEnvironment(request.claudeLogin, process.env))
   client = new AitermClient({ command: request.command, args: request.args, env: process.env, ...(request.runtime ? { runtimeCapture: request.runtime } : {}) })
   // Aiterm takes names and reads values from its own seat-owned MCP process.
   const env_vars = Object.keys(process.env).filter(key => /^[A-Za-z_][A-Za-z0-9_]*$/.test(key))
