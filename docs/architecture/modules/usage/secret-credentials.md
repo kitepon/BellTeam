@@ -96,7 +96,7 @@ flowchart LR
   Revoke --> Event
 ```
 
-Only the trusted parent/execution resolves secret handles. The private UID1000 native consumer receives OpenSSH key bytes by stdin/EOF through the existing seat process runner, never value argv/env/files/PTY/MCP arguments. Its ingestion CLI is Elegg-owned. Sudo-key is a later explicit sudo authentication secret (normally UTF-8 password); ordinary SSH launch retains only its handle and does not resolve or use it.
+Secret input resolves handles for the trusted parent ingestion callback; execution814 carries metadata only and invokes that parent port. The private UID1000 native consumer receives OpenSSH key bytes by stdin/EOF through the existing seat process runner, never value argv/env/files/PTY/MCP arguments. Its ingestion CLI is Elegg-owned. Sudo-key is a later explicit sudo authentication secret (normally UTF-8 password); ordinary SSH launch retains only its handle and does not resolve or use it.
 
 Completion correlation: scoped events include requestId; current returns {handle,revision,available,requestId}|null. Native-origin requestId is null. Owner create/submit/delete are serialized: creating B cancels pending A in the same scope; unbind cancels pending scope cards. Terminals applies only the exact pending requestId together with its captured target revision; this prevents a deleted/replaced request from being applied late. Source binding validates the request's retained scope independently of the submit body.
 
@@ -110,3 +110,11 @@ Submission recovery: if source persistence succeeded but binding failed, a still
 The fixed executable's filesystem path resolution is separate from secret-reference resolution. When neither the shared wrapper nor an op executable on PATH exists, refresh returns false without an unhandled rejection; stored input and application startup remain available. This repair stays within the existing optional-source unavailable/recovery contract and changes no I/O, state or connection.
 
 Parent publication order is schema/generation/revision validation, then durable selection update, then the credential event. A rejected stale projection cannot mutate the selection index before its revision check.
+
+### Captured-intent and delivery fences
+
+A parent read-then-write carries an opaque selection-writer capture. Restoring an absent selection and clearing after a delayed scope delete are conditional inside that writer: any newer bind, tombstone, or update invalidates the capture. Delete revokes only the native handle captured before the child await, so it cannot revoke a replacement installed meanwhile. Current fallback returns the authoritative selection when its conditional restore loses.
+
+The trusted parent callback is the key-byte delivery boundary; execution814 carries metadata only and asks the parent ingestion port. Both native and child resolution recheck authoritative selection immediately when invoking that callback. The selection writer serializes the check and synchronous callback invocation without holding its queue over the callback's async result; source resolution delay cannot deliver an older selection after replacement/delete. A new request can proceed immediately with the current handle.
+
+Owner terminal labels permit up to128 characters, covering the caller's fixed SSH/sudo prefix plus a valid63-character terminal ID without truncation. Retained terminal/purpose are unchanged; Bot-secret label limits stay as before.

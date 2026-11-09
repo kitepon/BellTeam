@@ -87,7 +87,7 @@ export class SecretRequests {
   requestTerminalKey({ terminalId, purpose, label }) {
     return this.terminalKeyOperation(async () => {
       const scope = normalizeCredentialScope({ terminalId, purpose })
-      if (!['terminal.ssh', 'terminal.sudo'].includes(scope.purpose) || typeof label !== 'string' || !label.trim() || label.length > 80) throw new Error('SECRET_REQUEST_INVALID')
+      if (!['terminal.ssh', 'terminal.sudo'].includes(scope.purpose) || typeof label !== 'string' || !label.trim() || label.length > 128) throw new Error('SECRET_REQUEST_INVALID')
       await this.cancelTerminalRequests(scope)
       const item = { id: randomUUID(), botId: null, roomId: null, toolId: 'terminal-key', ...scope,
         label, message: `端末「${terminalId}」の${scope.purpose === 'terminal.ssh' ? 'SSH鍵' : 'sudo認証情報'}を登録してください。値や1Password参照は、この専用欄へ入力してください。`,

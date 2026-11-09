@@ -151,3 +151,81 @@ test('parent validates credential projection before durable selection and notifi
   assert.throws(() => stale.accept(row, 'test', () => order.push('must-not-persist')), /USAGE_PROJECTION_REVISION/)
   assert.equal(order.includes('must-not-persist'), false)
 })
+
+const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done }); return { promise, resolve } }
+async function selectionRaceFixture(t, handlers = {}) {
+  const root = await mkdtemp(join(tmpdir(), 'terminal-selection-race-'))
+  const target = { host: '192.0.2.10', user: 'synthetic', port: 22 }
+  const ref = '9c76dc83-e47b-4db6-b71b-bfd775bce746'
+  const assembly = createUsageAssembly({ root, getServices: () => ({ bots: new Map() }), onEffect() {},
+    createProcess: ports => ({
+      request(method, params, options) {
+        assert.equal(ports.authorizeActor(method, options.capturedAuthorization).kind, 'system')
+        const run = Promise.resolve().then(() => handlers[method]?.(params) ?? null)
+        Object.defineProperty(run, 'completion', { value: run }); return run
+      }, close() {},
+    }) })
+  assembly.credentials.setNativeProvider({ status: async current => ({ ref: current, target,
+    credential: { provider: 'aiterm.native-ssh-key.v1', revision: 'sha256:' + 'a'.repeat(64), available: true } }) })
+  t.after(async () => { await assembly.close(); await rm(root, { recursive: true, force: true }) })
+  return { credentials: assembly.credentials, binding: { ref, target } }
+}
+
+test('delayed current fallback preserves a newer bind or tombstone', async t => {
+  for (const action of ['bind', 'delete']) {
+    const entered = deferred(), released = deferred()
+    const { credentials, binding } = await selectionRaceFixture(t, { 'secrets.current': () => { entered.resolve(); return released.promise } })
+    const current = credentials.current(scope)
+    await entered.promise
+    const newer = action === 'bind' ? await credentials.registerNative(binding, scope) : null
+    if (action === 'delete') await credentials.unbind(null, scope)
+    released.resolve({ handle: 'older-retained-handle', revision: 1, available: true, requestId: 'older-request' })
+    assert.deepEqual(await current, newer ? { ...newer, requestId: null } : null)
+    assert.deepEqual(await credentials.current(scope), newer ? { ...newer, requestId: null } : null)
+  }
+})
+
+test('delayed delete preserves a newer binding and its usable callback', async t => {
+  const entered = deferred(), released = deferred()
+  const { credentials, binding } = await selectionRaceFixture(t, { 'secrets.revokeTerminalRequests': () => { entered.resolve(); return released.promise } })
+  const old = await credentials.registerNative(binding, scope)
+  const deleting = credentials.unbind(null, scope)
+  await entered.promise
+  const newer = await credentials.registerNative(binding, scope)
+  released.resolve(null)
+  assert.equal(await deleting, null)
+  assert.deepEqual(await credentials.current(scope), { ...newer, requestId: null })
+  assert.equal(await credentials.withResolved(newer.handle, context, () => 'current-callback'), 'current-callback')
+  await assert.rejects(credentials.withResolved(old.handle, context, () => assert.fail()), { code: 'SECRET_CREDENTIAL_REVOKED' })
+})
+
+test('delayed child resolution cannot deliver bytes after scope replacement', async t => {
+  const entered = deferred(), released = deferred()
+  const { credentials, binding } = await selectionRaceFixture(t, { 'secrets.resolve': () => { entered.resolve(); return released.promise } })
+  let delivered = false
+  const resolving = credentials.withResolved('unchanged-old-child-handle', context, () => { delivered = true })
+  await entered.promise
+  const newer = await credentials.registerNative(binding, scope)
+  released.resolve('synthetic-old-key-bytes')
+  await assert.rejects(resolving, { code: 'SECRET_CREDENTIAL_REVOKED' })
+  assert.equal(delivered, false)
+  assert.equal(await credentials.withResolved(newer.handle, context, () => 'new-callback'), 'new-callback')
+})
+
+test('longest valid terminal ID keeps complete SSH and sudo caller labels', async t => {
+  const { root, service } = await fixture(t)
+  const { createTerminalsCore } = await import('../src/terminals/core.mjs')
+  const terminalId = 't'.repeat(63)
+  const core = createTerminalsCore({ stateRoot: root,
+    credentials: { requestTerminalKey: input => service.requestTerminalKey(input), watchCredentials: listener => service.watchCredentials(listener), current: target => service.currentCredential(target) },
+    adapter: { register: async () => '14a6d89a-48d6-45bc-9929-f8945cf3596a' } })
+  t.after(() => core.close())
+  await core.ready
+  await core.registry.put({ terminalId, host: '192.0.2.11', user: 'synthetic', os: 'macos', accountOwner: 'terminal-owner' })
+  for (const [kind, label, purpose] of [['ssh', 'SSH key', 'terminal.ssh'], ['sudo', 'sudo password', 'terminal.sudo']]) {
+    const { secretRequest } = await core.keys.request(terminalId, kind)
+    assert.equal(secretRequest.label, `${label} for terminal ${terminalId}`)
+    assert.equal(secretRequest.terminalId, terminalId)
+    assert.equal(secretRequest.purpose, purpose)
+  }
+})

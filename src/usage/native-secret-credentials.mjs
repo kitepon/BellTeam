@@ -22,6 +22,8 @@ export class NativeSecretCredentials {
   #handles = new Map()
   #availability = new Map()
   #selections = new Map()
+  #selectionEpochs = new Map()
+  #selectionCaptures = new WeakMap()
   #provider
   #events = new EventEmitter()
   #tail = Promise.resolve()
@@ -80,11 +82,44 @@ export class NativeSecretCredentials {
     try { await writeFile(temporary, JSON.stringify({ ...scope, credential }), { mode: 0o600, flag: 'wx' }); await rename(temporary, path) }
     finally { await unlink(temporary).catch(() => {}) }
     this.#selections.set(key, credential)
+    this.#selectionEpochs.set(key, (this.#selectionEpochs.get(key) ?? 0) + 1)
   }
-  clearSelection(scope) { return this.#serialize(() => this.#writeSelection(normalizeCredentialScope(scope), null)) }
-  selection(scope) { return this.#serialize(() => { const key = this.#selectionKey(normalizeCredentialScope(scope)); return { present: this.#selections.has(key), credential: this.#selections.get(key) ?? null } }) }
+  #snapshot(key) {
+    const credential = this.#selections.get(key)
+    return { present: this.#selections.has(key), credential: credential ? { ...credential } : null }
+  }
+  #captureMatches(key, token) {
+    const capture = token && this.#selectionCaptures.get(token)
+    return capture?.key === key && capture.epoch === (this.#selectionEpochs.get(key) ?? 0)
+  }
+  clearSelection(scope, token) { return this.#serialize(async () => {
+    scope = normalizeCredentialScope(scope)
+    if (token !== undefined && !this.#captureMatches(this.#selectionKey(scope), token)) return
+    await this.#writeSelection(scope, null)
+  }) }
+  selection(scope) { return this.#serialize(() => this.#snapshot(this.#selectionKey(normalizeCredentialScope(scope)))) }
+  captureSelection(scope) { return this.#serialize(() => {
+    const key = this.#selectionKey(normalizeCredentialScope(scope)), token = Object.freeze({})
+    this.#selectionCaptures.set(token, { key, epoch: this.#selectionEpochs.get(key) ?? 0 })
+    return { token, selection: this.#snapshot(key) }
+  }) }
+  restoreSelection(scope, credential, token) { return this.#serialize(async () => {
+    scope = normalizeCredentialScope(scope)
+    const key = this.#selectionKey(scope)
+    if (credential !== null && !this.#selections.has(key) && this.#captureMatches(key, token)) await this.#select({ ...scope, ...credential, reason: 'bound' })
+    return this.#snapshot(key)
+  }) }
   selectCredential(event) { return this.#serialize(() => this.#select(event)) }
-  assertSelected(handle, scope) { return this.#serialize(() => { const key = this.#selectionKey(normalizeCredentialScope(scope)); if (this.#selections.has(key) && this.#selections.get(key)?.handle !== handle) throw error('SECRET_CREDENTIAL_REVOKED', 403) }) }
+  #assertSelected(handle, scope) {
+    const key = this.#selectionKey(normalizeCredentialScope(scope))
+    if (this.#selections.has(key) && this.#selections.get(key)?.handle !== handle) throw error('SECRET_CREDENTIAL_REVOKED', 403)
+  }
+  assertSelected(handle, scope) { return this.#serialize(() => this.#assertSelected(handle, scope)) }
+  async withSelected(handle, scope, consume) {
+    if (typeof consume !== 'function') throw error('SECRET_CREDENTIAL_INVALID')
+    const wrapped = await this.#serialize(() => { this.#assertSelected(handle, scope); return { result: consume() } })
+    return wrapped.result
+  }
   async #emit(row, reason) {
     const event = { ...this.#dto(row), terminalId: row.terminalId, purpose: row.purpose, requestId: null, reason }
     await this.#select(event)

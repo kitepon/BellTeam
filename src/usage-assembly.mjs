@@ -52,12 +52,11 @@ export function createUsageAssembly({ root, exchangeMutex, environment = {}, sea
     bind: (id, target) => facade.secretRequests.bindCredential(id, target, systemContext('secrets.bind')),
     async current(target) {
       target = normalizeCredentialScope(target)
-      let selection = await nativeCredentials.selection(target)
+      const captured = await nativeCredentials.captureSelection(target)
+      let selection = captured.selection
       if (!selection.present) {
         const retained = await facade.secretRequests.currentCredential(target, systemContext('secrets.current'))
-        if (!retained) return null
-        await nativeCredentials.selectCredential({ ...target, ...retained, reason: 'bound' })
-        selection = { present: true, credential: retained }
+        selection = await nativeCredentials.restoreSelection(target, retained, captured.token)
       }
       if (!selection.credential) return null
       const selected = selection.credential
@@ -75,10 +74,11 @@ export function createUsageAssembly({ root, exchangeMutex, environment = {}, sea
       target = normalizeCredentialScope({ terminalId: target?.terminalId, purpose: target?.purpose })
       await nativeCredentials.ready()
       if (handle === null) {
+        const captured = await nativeCredentials.captureSelection(target)
         await facade.secretRequests.revokeTerminalRequests(target, systemContext('secrets.revokeTerminalRequests'))
-        const selection = await nativeCredentials.selection(target)
-        if (selection.credential && nativeCredentials.owns(selection.credential.handle)) await nativeCredentials.unbind(selection.credential.handle, target)
-        await nativeCredentials.clearSelection(target)
+        const selected = captured.selection.credential
+        if (selected && nativeCredentials.owns(selected.handle)) await nativeCredentials.unbind(selected.handle, target)
+        await nativeCredentials.clearSelection(target, captured.token)
         return null
       }
       if (!nativeCredentials.owns(handle)) return facade.secretRequests.unbindCredential(handle, target, systemContext('secrets.unbind'))
@@ -94,8 +94,9 @@ export function createUsageAssembly({ root, exchangeMutex, environment = {}, sea
     async withResolved(handle, target, consume) {
       await nativeCredentials.ready()
       await nativeCredentials.assertSelected(handle, { terminalId: target?.terminalId, purpose: target?.purpose })
-      return nativeCredentials.owns(handle) ? nativeCredentials.withResolved(handle, target, consume)
-        : facade.secretRequests.withResolved(handle, target, consume, systemContext('secrets.resolve'))
+      const deliver = value => nativeCredentials.withSelected(handle, { terminalId: target?.terminalId, purpose: target?.purpose }, () => consume(value))
+      return nativeCredentials.owns(handle) ? nativeCredentials.withResolved(handle, target, deliver)
+        : facade.secretRequests.withResolved(handle, target, deliver, systemContext('secrets.resolve'))
     },
     async replace(handle, source, target) {
       await nativeCredentials.ready()
