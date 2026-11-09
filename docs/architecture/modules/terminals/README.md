@@ -179,7 +179,7 @@ flowchart LR
 | `maintenance` (C8) | `last(terminalId)` | `{terminalId, observedAt, before, after, outcome:'current'/'updated'/'failed'}` |
 | watch | `watch(listener)` | `{terminalId, reachable, observedAt}` for Molly's surfaces |
 
-`credentials` on `open` (Kiro): `{BELLTEAM_MCP_TOKEN: credentialRef, CLAUDE_CODE_OAUTH_TOKEN?: {harness:'claude', slot}}`. Terminals resolves them into `privateEnv` (Molly `seatCredentials.reveal`; the slot login through the existing `accountLoginEnvironment`, only when the registry `accountOwner` is `owner`). Any other name, or a login for a non-Owner terminal, is `CREDENTIAL_UNAVAILABLE` and the Owner's token is never read. Values go only to Elegg's `privateEnv` over SSH stdin.
+`credentials` on `open` (Kiro): `{BELLTEAM_MCP_TOKEN: credentialRef, CLAUDE_CODE_OAUTH_TOKEN?: {harness:'claude', slot}}`. Terminals resolves them into `privateEnv` (Molly `seatCredentials.reveal`; the slot login through the existing `accountLoginEnvironment`, only when the registry `accountOwner` is `owner`). Any other name, or a login for a non-Owner terminal, is `CREDENTIAL_UNAVAILABLE` and the Owner's token is never read. Values go only to Elegg's `privateEnv` over SSH stdin. Known limit: the default slot-login read (`accountLoginEnvironment`) runs in the parent (UID1001) while the token file is the seat user's (UID1000), so remote 2nd-slot launch is not accepted until a seat-user/native login supply exists; P1 acceptance uses the 1st slot.
 
 Rules the code enforces:
 
@@ -201,7 +201,7 @@ stateDiagram-v2
   Closed --> [*]
 ```
 
-  `dispose()` (core `close()`) is async: it stops the observer, marks the core disposed, waits for every in-flight `open` and `check` from its first step through its discard-close, then closes every live session (each UID1000 remote-terminal process) before resolving. Staleness is re-checked after each await and inside the credential callback, so no process starts after dispose or a registry change. After dispose, `open` and `check` start nothing.
+  `dispose()` (core `close()`) is async: it stops the observer, marks the core disposed, waits for every in-flight `open` and `check` from its first step through its discard-close, then closes every live session (each UID1000 remote-terminal process) before resolving. Staleness is re-checked after each await and inside the credential callback, so no process starts after dispose or a registry change. `close` is tracked the same way, so a close already in flight (registry change or caller) is awaited too. After dispose, `open` and `check` start nothing and the observer cannot be re-armed.
 - C8: on the first `agent_launch` with `harness:'claude-code'` per connection, before forwarding it: `claude_version`, then `claude_update` (or the official `claude_install` when no CLI answers), then `claude_version`. The outcome is kept for `maintenance.last`. A failed update never blocks the launch, the installed CLI stays, running CLIs are untouched, and no version is pinned.
 
 Test double for execution: `test/helpers/terminals-native-double.mjs` (`fakeConnection`, plus `fakeNative` / `fakeSecrets` for the ports terminals consumes).

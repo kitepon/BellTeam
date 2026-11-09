@@ -46,7 +46,7 @@ export function createTerminalConnection({ registry, secrets, native, seatCreden
   }
 
   function want(terminalId) {
-    if (wanted.has(terminalId)) return
+    if (disposed || wanted.has(terminalId)) return
     const probe = { delay: probeDelays.first, timer: null }
     wanted.set(terminalId, probe)
     const schedule = () => {
@@ -130,6 +130,7 @@ export function createTerminalConnection({ registry, secrets, native, seatCreden
         if (typeof token !== 'string' || !token) throw failure('CREDENTIAL_UNAVAILABLE')
         env[name] = token
       } else if (name === 'CLAUDE_CODE_OAUTH_TOKEN' && target.accountOwner === 'owner' && ref?.harness === 'claude') {
+        // shortcut: parent UID1001 cannot read the seat user's token file; upgrade to a seat-user/native login supply before 2nd-slot acceptance.
         Object.assign(env, await loginEnvironment(ref.slot).catch(() => { throw failure('CREDENTIAL_UNAVAILABLE') }))
       } else throw failure('CREDENTIAL_UNAVAILABLE') // never read the Owner's login for another person's terminal
     }
@@ -168,13 +169,14 @@ export function createTerminalConnection({ registry, secrets, native, seatCreden
     return { connectionRef, native: bind(connectionRef, terminalId, projectRoot, seatBinding.sessionName, session) }
   }
 
-  async function close(connectionRef) {
+  // Tracked like open/check, so dispose also waits for a close already in flight (registry change or caller).
+  const close = connectionRef => track(async () => {
     const entry = connections.get(connectionRef)
     if (!entry) return { closed: false }
     connections.delete(connectionRef)
     await entry.session.close()
     return { closed: true }
-  }
+  })
 
   const check = terminalId => track(() => checkNow(terminalId))
   async function checkNow(terminalId) {

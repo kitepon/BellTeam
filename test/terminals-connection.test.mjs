@@ -219,3 +219,40 @@ test('dispose awaits whole open/check lifecycles: delayed target, env, probe and
   assert.ok(native.sessions.every(session => session.closed))
   t.after(() => connection.dispose())
 })
+
+test('dispose waits for an in-flight close and a late missing target does not re-arm the observer', async t => {
+  const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r }); return { promise, resolve } }
+  const native = fakeNative()
+  const targetGate = deferred()
+  const closeGate = deferred()
+  let present = true
+  let gateNext = false
+  const registry = { async target(id) { if (gateNext) { gateNext = false; await targetGate.promise } return present && id === base.terminalId ? structuredClone(base) : null } }
+  const connection = createTerminalConnection({ registry, secrets: fakeSecrets(), native, probeDelays: { first: 5, max: 10 } })
+  const seen = []
+  connection.onAvailable(event => seen.push(event.terminalId))
+  await connection.open(request)
+  const session = native.sessions[0]
+  const close = session.close
+  session.close = async () => { await closeGate.promise; return close() }
+  const revising = connection.onRegistryChange({ terminalId: 'owner-macbook', revision: 2, removed: false })
+  gateNext = true
+  const missingLater = connection.open(request)
+  await wait(1)
+  let disposed = false
+  const disposing = connection.dispose().then(() => { disposed = true })
+  present = false
+  targetGate.resolve()
+  await assert.rejects(missingLater, { code: 'TERMINAL_UNAVAILABLE' })
+  await wait(1)
+  assert.equal(disposed, false, 'dispose waits for the close already in flight')
+  closeGate.resolve()
+  await Promise.all([revising, disposing])
+  assert.equal(session.closed, true)
+  seen.length = 0
+  present = true
+  await connection.onCredentialEvent({ handle: sshKeyRef, available: true })
+  await wait(20)
+  assert.deepEqual(seen, [], 'no wanted terminal or observer after dispose')
+  t.after(() => connection.dispose())
+})
