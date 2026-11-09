@@ -136,6 +136,19 @@ test('credential refresh: recoveryNeeded without handles arms the timer until re
   assert.equal(recoveryListener, null)
 })
 
+test('remote seat listener: loopback server serves only the two seat MCP paths', async t => {
+  const { createRemoteSeatServer } = await import('../src/seat-mcp.mjs')
+  const seen = []
+  const server = createRemoteSeatServer(async (request, response, url) => { seen.push(url.pathname); response.end('ok') })
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  t.after(() => new Promise(resolve => server.close(resolve)))
+  const base = `http://127.0.0.1:${server.address().port}`
+  assert.equal(await (await fetch(base + '/api/seat-mcp', { method: 'POST' })).text(), 'ok')
+  assert.equal(await (await fetch(base + '/api/seat-mcp/call-bridge?x=1', { method: 'POST' })).text(), 'ok')
+  for (const path of ['/api/queue', '/mcp', '/api/seat-mcp/other', '/healthz']) assert.equal((await fetch(base + path)).status, 404)
+  assert.deepEqual(seen, ['/api/seat-mcp', '/api/seat-mcp/call-bridge'])
+})
+
 test('native credential status: one-shot bin, exit 0/2 DTOs as-is, anything else unavailable', async () => {
   const { remoteTerminalStatus } = await import('../src/application-services.mjs')
   const ref = '725ca83c-f52f-4036-9390-8d9e4c482f14'
