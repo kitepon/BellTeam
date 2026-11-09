@@ -130,7 +130,7 @@ test('依頼ラベルは省略せず折り返し、伸びた札の大きさで�
   }
 })
 
-test('札どうしも名前とも重ならず、古い依頼から置く。置けない札は空くまで待ち、指しても出さない', () => {
+test('札どうしも名前とも重ならず、古い依頼から置く。置けない札は待たずに t = 0.5 で blocked として出す', () => {
   const long = '比較表を更新して、iPhone・Mac・Web・Windowsの4つの画面で相関図のラベルが省略されずに全部出ることを確かめてください'
   const ids = ['h', 'a', 'b', 'c', 'd', 'e', 'f']
   const model = createGraphModel(), small = { x: 24, y: 24, w: 312, h: 600 }
@@ -143,9 +143,13 @@ test('札どうしも名前とも重ならず、古い依頼から置く。置�
   for (const label of frame.labels) for (const name of frame.names) assert.ok(!hit(label.box, grow(name.box)), `${label.edge.id} over ${name.item.node.botId}`)
   const placed = frame.labels.map(label => label.edge.startedAt)
   assert.deepEqual(placed, [...placed].sort())
-  const hidden = ids.slice(1).map(id => `h:${id}`).find(id => !frame.labels.some(label => label.edge.id === id))
-  assert.ok(hidden, 'the crowded hub hides at least one chip')
-  assert.equal(model.frame(5000, small, { hover: { edgeId: hidden } }).labels.some(label => label.edge.id === hidden), false)
+  // 混んだ図でも全部の札を出す（#797）。空きの無い札は blocked の列に t = 0.5 で。
+  for (const id of ids.slice(1).map(id => `h:${id}`)) assert.ok([...frame.labels, ...frame.blocked].some(label => label.edge.id === id), `${id} drawn`)
+  const stuck = frame.blocked[0]
+  assert.ok(stuck?.blocked, 'the crowded hub has at least one blocked chip')
+  assert.equal(model.edges.get(stuck.edge.id).chip.t, 0.5)
+  // 指した blocked の札は一番上に描く。
+  assert.equal(model.frame(5000, small, { hover: { edgeId: stuck.edge.id } }).labels.at(-1).edge.id, stuck.edge.id)
   // 置けた札を指すと一番上に描く。
   const shown = frame.labels[0].edge.id
   assert.equal(model.frame(5000, small, { hover: { edgeId: shown } }).labels.at(-1).edge.id, shown)

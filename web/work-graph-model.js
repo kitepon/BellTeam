@@ -231,7 +231,7 @@ export function createGraphModel({ reduceMotion = false } = {}) {
       // 描いている名前も札の障害物（隠れた名前は除く）。去る顔は円板と同じく数えない。
       const nameBoxes = names.filter(({ item }) => !item.node.leaveAt).map(({ box }) => grown(box))
       // 札は出始めを依頼ごとに一度だけ決め、線が終わるまで出し続ける（behavior-spec "Chip start"）。毎コマ決め直すと点いたり消えたりする。
-      // 置き場所は古い依頼から。今の t が空いていれば動かさず、ふさがれば最初の空き t へ。どこも空かなければ今の t のまま blocked。
+      // 置き場所は古い依頼から。最初は空き t、無ければ t = 0.5 で blocked として待たずに出す。今の t が空いていれば動かさず、ふさがれば最初の空き t へ。どこも空かなければ今の t のまま blocked。
       const labels = [], blocked = [], above = [], placed = [], started = edge => Date.parse(edge.startedAt) || edge.startAt
       const order = [...lines].sort((a, b) => started(a.edge) - started(b.edge) || a.edge.startAt - b.edge.startAt || (a.edge.id < b.edge.id ? -1 : 1))
       const boxAt = (line, t, w, h) => { const p = pointAt(line, t); return { x: p.x - w / 2, y: p.y - h / 2, w, h } }
@@ -251,7 +251,7 @@ export function createGraphModel({ reduceMotion = false } = {}) {
         if (alpha <= 0 && (chip.nullAt !== null || edge.endAt)) chip.t = null
         else if (!edge.endAt && chip.nullAt === null) {
           const first = SLOTS.find(t => free(boxAt(line, t, w, h)))
-          if (chip.t === null) { if (first !== undefined) { chip.t = first; chip.appearAt = now } }
+          if (chip.t === null) { chip.t = first ?? 0.5; chip.appearAt = now }
           else if (!free(boxAt(line, chip.t, w, h))) chip.t = first ?? chip.t
         }
         const hovered = hover?.edgeId === edge.id && edge.label && !edge.endAt
