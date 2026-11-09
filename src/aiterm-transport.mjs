@@ -335,7 +335,15 @@ export class AitermTransport {
       try { launch = await launchWith(launchArgs) } catch (error) {
         // remote-seat.md R13: Aiterm's key agent was gone or older; load the key again and launch once more.
         if (!remote || !KEY_RELOAD.has(error?.code)) throw error
-        launch = await launchWith({ ...launchArgs, terminal: await remote.reloadKey() })
+        // Aiterm refused before contacting the terminal: nothing was launched with this seat credential yet.
+        issuedLaunch = false
+        const terminal = await remote.reloadKey()
+        // The existing checkpoint again: a stop or admission change during the reload starts nothing.
+        this.membersAdmission.assertLease(membersLease)
+        this.requireStopVersion(bot.id, version)
+        admissionCheck?.()
+        issuedLaunch = true
+        launch = await launchWith({ ...launchArgs, terminal })
       }
       if (remote) this.remoteSeats.launched(bot, launch?.structuredContent)
       if (account) void this.accounts.setSeat(bot.id, account.slot).catch(() => {})

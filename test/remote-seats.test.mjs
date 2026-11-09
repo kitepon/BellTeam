@@ -259,3 +259,20 @@ test('R13: CREDENTIAL_REVISION_STALE on agent_launch loads again and launches on
     assert.equal(k.loads.length, 2, 'loaded before the launch and again after the refusal')
   } finally { await rm(root, { recursive: true, force: true }) }
 })
+
+test('R13: a stop/admission change while the reload is suspended starts no second agent_launch', async () => {
+  const { root, calls, transport, member } = await transportFixture()
+  try {
+    const k = keyFixture()
+    transport.remoteSeats = k.seats
+    let admitted = true
+    const load = k.seats.ingress.seatCredential.loadTerminalKey
+    k.seats.ingress.seatCredential.loadTerminalKey = async request => { if (k.loads.length === 1) admitted = false; return load(request) }
+    const client = transport.client
+    client.call = async (name, args) => { calls.push({ name, args }); if (name === 'agent_launch') throw code('CREDENTIAL_NOT_LOADED'); return {} }
+    await assert.rejects(transport.wakeNow(member, { membersLease: 'L', admissionCheck: () => { if (!admitted) throw code('ADMISSION_CHANGED') } }), { code: 'ADMISSION_CHANGED' })
+    assert.equal(calls.filter(call => call.name === 'agent_launch').length, 1)
+    assert.equal(k.loads.length, 2)
+    assert.ok(k.log.some(entry => entry.op === 'revoke'), 'the seat credential of the refused launch is revoked')
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
