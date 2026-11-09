@@ -22,7 +22,7 @@ import { returnedMcpError } from './returned-mcp-error.mjs'
 import { launchFailureDetails } from './agent-launch-error.mjs'
 import { captureRuntime as captureSelectedRuntime } from './runtime-selection.mjs'
 import { writeAtomic } from './json-file.mjs'
-import { isRemoteBot, seatTarget } from './remote-seats.mjs'
+import { isRemoteBot, seatTarget, KEY_RELOAD } from './remote-seats.mjs'
 
 export { AitermClient } from './aiterm-client.mjs'
 export { runWaitProcess } from './aiterm-wait-process.mjs'
@@ -330,8 +330,13 @@ export class AitermTransport {
         admissionCheck?.()
       }
       issuedLaunch = true
-      launch = await this.changeSession(bot, 'agent_launch', launchArgs, { ...launchOptions,
+      const launchWith = args => this.changeSession(bot, 'agent_launch', args, { ...launchOptions,
         ...(claudeLogin ? { claudeLogin } : {}), ...(remote ? { privateEnv: remote.privateEnv } : {}), ...(execution ? { execution } : {}) })
+      try { launch = await launchWith(launchArgs) } catch (error) {
+        // remote-seat.md R13: Aiterm's key agent was gone or older; load the key again and launch once more.
+        if (!remote || !KEY_RELOAD.has(error?.code)) throw error
+        launch = await launchWith({ ...launchArgs, terminal: await remote.reloadKey() })
+      }
       if (remote) this.remoteSeats.launched(bot, launch?.structuredContent)
       if (account) void this.accounts.setSeat(bot.id, account.slot).catch(() => {})
     } catch (error) {

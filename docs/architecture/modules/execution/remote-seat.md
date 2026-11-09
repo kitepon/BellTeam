@@ -56,6 +56,20 @@ A credential issued for a launch that never issued `agent_launch` (or failed `no
 
 Wrong-target guard (kept): a remote member with no terminals/ingress ports (older parent) throws `TERMINALS_UNAVAILABLE`, `effect: not_started`. Protects: starting in the server folder. Exit: the next body start with the ports drains the same queued ID.
 
+## Terminal key set from the app (R13, Aiterm 0.67.0; ruling 2026-11-09 17:3x)
+
+A terminal whose SSH key was set from the app has no native key in Aiterm. Its `connection.target` value carries `terminal.credential = {handle, revision}` (Mika's opaque handle, Crust #811) instead of `credentialRevision`. Before `agent_launch`, `RemoteSeats.loadKey` asks the parent to load it:
+
+```text
+ports.ingress.seatCredential.loadTerminalKey({terminalId, memberId: botId, ref: terminal.ref, handle, revision})
+  -> aiterm.credential-load.v1 {accepted: true, ref, handle, revision}
+```
+
+- Molly #813: the parent resolves the handle through Mika (`purpose: terminal.ssh`, expected revision) and pipes the raw key to `aiterm-remote-terminal credential-load --ref R --terminal-id ID --handle UUID --revision N --purpose ssh-key` on stdin as UID1000. Execution never holds the value; it never lands on disk, argv, env, logs, MCP arguments or the PTY.
+- A receipt that is not `accepted` for the same handle/revision, or any error (binding error code, `TERMINAL_KEY_LOAD_UNAVAILABLE`, `TERMINAL_KEY_LOAD_INVALID`, `CREDENTIAL_UNAVAILABLE`, Mika's stale revision), is `CREDENTIAL_UNAVAILABLE` (`not_started`); `loadKey`'s caller arms terminals' observer, and Mika's availability event (terminals `onCredentialEvent`) drains the wait.
+- Native-key terminals (`credentialRevision`, no `credential`) are unchanged: no load.
+- `CREDENTIAL_NOT_LOADED` / `CREDENTIAL_REVISION_STALE` from Aiterm (agent removed after the last seat, host restart, a new key revision) are not delivery failures: on `agent_launch`, `wakeNow` loads again (fresh `connection.target`) and launches once more; on a session call of a held remote seat, `RemoteSeats.route` reloads for that seat's terminal and issues the same call once more (Aiterm refuses before contacting the terminal, so nothing was sent). A second refusal is returned as is.
+
 ## Target revision (member terminal/folder change)
 
 Member updates reach the registry by two paths: the HTTP profile PATCH (`administration.update`) and members' MCP `update_bot`/`update_self`, which saves `terminalId`/`projectRoot` straight to the registry without execution. The delivery is the boundary both share, so the move is in `dispatch` (before the send): when the launch record's `target` of the current session differs from `seatTarget(bot)` now (terminal or folder revision, or local ↔ remote), `dispatch` observes the seat; an idle or absent seat is closed (`pty_close`; a remote close revokes its credential) and woken on the new target through the existing `memberOperation` + `wake`, then the message is sent there. A seat whose turn is running keeps today's delivery (the same rule as the wake-first recovery: never close a running turn); the next delivery moves it. No record (launched before records existed) = unchanged. Account-slot seats on an unchanged target are not touched.
@@ -101,11 +115,12 @@ Local seats (no `terminalId`): today's path, including env forwarding. Delivery 
 
 | Piece | Where |
 | --- | --- |
-| Ports | `createExecutionDispatcher`: `ports.terminals = {connection: {target, observe}, watch}`, `ports.ingress = {seatCredential: {issue, revoke, reveal}}`, `ports.bots.launchContext`; `EXECUTION_REMOTE_SEATS = true` → loader `supportsRemoteSeats` (#773). `RemoteSeats` exists only when all three are present |
+| Ports | `createExecutionDispatcher`: `ports.terminals = {connection: {target, observe}, watch}`, `ports.ingress = {seatCredential: {issue, revoke, reveal, loadTerminalKey}}`, `ports.bots.launchContext`; `EXECUTION_REMOTE_SEATS = true` → loader `supportsRemoteSeats` (#773). `RemoteSeats` exists only when all three are present |
 | Remote member | `isRemoteBot(bot)`, `seatTarget(bot)` (`src/remote-seats.mjs`) |
 | Launch inputs | `RemoteSeats.prepare` / `launched`; `AitermTransport.wakeNow` |
 | Private env | `AitermClient.call` option `privateEnv` (agent_launch with `terminal` only) |
 | Target revision | `AitermTransport.seatTargetChanged` + `dispatch`; D5 record `target` |
+| App-set terminal key (R13) | `RemoteSeats.target` / `loadKey` / `reloadKey`; `wakeNow` launch retry; `RemoteSeats.route` session-call retry |
 | Queue on launch failure | `RemoteSeats.launchFailed` (from `wakeNow`) |
 | Distribution | `scripts/web_gateway_artifact.py` `EXECUTION_FILES` includes `src/remote-seats.mjs` (54, Molly's authorization) |
 | Credential release | `RemoteSeats.route` (successful `pty_close`) |
