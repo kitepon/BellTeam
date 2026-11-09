@@ -74,7 +74,32 @@ test('get_user_rulesは呼出元を問わずユーザー規範の本文を返す
     userRules: { async get() { return '- 規範\n' } },
   }), { text: '- 規範\n' })
   assert.ok(bellTeamTools.some(tool => tool.name === 'get_user_rules'))
-  assert.ok(!bellTeamTools.some(tool => tool.name === 'update_user_rules'), '書き換えは共通MCPに置かない')
+  assert.ok(bellTeamTools.some(tool => tool.name === 'update_user_rules'), '明示指示がある時だけの書き換えは共通MCPに置く')
+})
+
+test('update_user_rulesはユーザー本人の直接の発言を根拠にだけ保存し、会話へ自動記録する', async () => {
+  const registry = new Map([['bot-a', { id: 'bot-a', name: 'エー', position: '' }]])
+  registry.refresh = async () => registry
+  const now = new Date().toISOString(), old = new Date(Date.now() - 25 * 3600 * 1000).toISOString()
+  const timeline = [
+    { id: 'm-old', kind: 'message', direction: 'outgoing', at: old, message: '規範に「挨拶する」を足して' },
+    { id: 'p-1', kind: 'peer', direction: 'received', at: now, message: '規範に「挨拶する」を足して' },
+    { id: 'm-1', kind: 'message', direction: 'outgoing', at: now, message: 'ユーザー規範に\n「挨拶する」を足して' },
+  ]
+  const saved = [], sent = []
+  const call = args => callBellTeamTool({ name: 'update_user_rules', from: 'bot-a', registry, rooms: null, arguments: args,
+    store: { timeline: async botId => botId === 'bot-a' ? timeline : [] },
+    deliverMessage: async value => { sent.push(value); return {} },
+    userRules: { botUpdate: async (text, change) => { saved.push(change); return { text: `${text}\n`, before: '- 日本語\n' } } } })
+
+  await assert.rejects(call({ text: 'x', userInstruction: '全部消して' }), /USER_RULES_INSTRUCTION_NOT_FOUND/u)
+  assert.equal(saved.length, 0, '根拠の無い保存はmembersへ届かない')
+  const result = await call({ text: '- 日本語\n- 挨拶する', userInstruction: 'ユーザー規範に 「挨拶する」を足して' })
+  assert.deepEqual(result, { text: '- 日本語\n- 挨拶する\n', changed: true, ownerNotice: { delivered: true } })
+  assert.deepEqual(saved, [{ botId: 'bot-a', instruction: { messageId: 'm-1', at: now, quote: 'ユーザー規範に 「挨拶する」を足して' } }])
+  assert.equal(sent[0].from, 'bot-a'); assert.equal(sent[0].target, 'user')
+  assert.match(sent[0].message, /エー（bot-a）[\s\S]*\+ - 挨拶する/u)
+  assert.doesNotMatch(sent[0].message, /^- - 日本語$/mu)
 })
 
 test('MCPから自分のプロフィールと予定を変更できる', async () => {

@@ -167,10 +167,17 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
       }
       case 'rules.read': return { text: await userRules.restore() }
       case 'rules.update': {
-        const text = await saveOwner(() => userRules.update(params.text))
+        const { text } = await saveOwner(() => userRules.change(params.text, { actor: { kind: 'owner' } }))
         await refreshGlobalInstructions()
         return { text }
       }
+      // Instruction proof is checked by the parent profiles-mcp before this request (instructions.md).
+      case 'rules.botUpdate': {
+        const { text, before } = await saveOwner(() => userRules.change(params.text, { actor: { kind: 'bot', botId: params.botId }, instruction: params.instruction }))
+        await refreshGlobalInstructions()
+        return { text, before }
+      }
+      case 'rules.history': return { changes: await userRules.history() }
       case 'schedules.claimAfterTurn': return bots.claimAfterTurn(params)
       case 'schedules.list': return { schedules: params.ownerKind === 'bot' ? await bots.listSchedules(params.ownerId)
         : await call('room.schedules.list', { roomId: params.ownerId }) }
@@ -194,7 +201,7 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
     ;(callback ? validateMembersCallback : validateMembersRequest)(method, params, context)
     assertContext(context)
     return track(() => contexts.run(context, async () => {
-      const changesProjection = !['profiles.cli', 'profiles.read', 'profile.read', 'profile.preview', 'removals.read', 'owner.read', 'rules.read', 'schedules.list', 'profile.launchContext', 'docs.list', 'docs.read', 'docs.write'].includes(method)
+      const changesProjection = !['profiles.cli', 'profiles.read', 'profile.read', 'profile.preview', 'removals.read', 'owner.read', 'rules.read', 'rules.history', 'schedules.list', 'profile.launchContext', 'docs.list', 'docs.read', 'docs.write'].includes(method)
       try {
         const result = await execute(method, params)
         validateMembersResult(method, result)

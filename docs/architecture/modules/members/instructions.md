@@ -6,11 +6,18 @@
 flowchart TD
   Http["HTTP認証"] --> Owner["members.owner-http<br/>Owner profile / user-rules"]
   Read["通常MCPの2読取"] --> Member["members.profiles-mcp"]
+  BotWrite["通常MCP update_user_rules<br/>text + userInstruction"] --> Proof["profiles-mcp: 呼出Botの直接会話timelineで<br/>24h以内のユーザー発言に引用が含まれるか"]
+  Proof -->|"無し"| Refused["USER_RULES_INSTRUCTION_NOT_FOUND<br/>保存しない"]
+  Proof -->|"有り: messageId/at/quote"| BotSave["members rules.botUpdate<br/>actor=bot"]
   Dedicated["登録された専用owner MCP"] --> Rules["mcp-owner-tools<br/>全文update_user_rules"]
-  Owner --> Save["OwnerProfile/UserRulesへ保存"]
+  Owner --> Save["OwnerProfile/UserRulesへ保存<br/>rules.update actor=owner"]
   Rules --> Save
+  BotSave --> Save
   Member -->|"読取のみ"| Data["owner/profile.json<br/>owner/user-rules.md"]
+  Save -->|"本文が変わった時だけ先に追記"| History["owner/user-rules-history.jsonl<br/>at/actor/instruction/before/after"]
   Save --> Data
+  History --> HistoryApi["GET /api/user-rules/history<br/>rules.history 新しい順50件"]
+  BotSave -->|"保存後"| Notice["呼出Botからユーザーへの直接会話に<br/>自動記録: 誰/時刻/根拠/差分"]
   Save --> Refresh["refreshGlobalInstructions"]
   Generation["新members世代の初回owner.read<br/>候補の準備確認、利用可能の公開前"] --> Refresh
   Common["integration所有<br/>common-agents.md"] --> Refresh
@@ -43,7 +50,7 @@ CLI固有のAGENTS.overrideやCLAUDE.localに依存しない。個別指示は�
 
 ## Ownerプロフィールと規範
 
-`OwnerProfile.get/update`が`owner/profile.json`、`UserRules.get/update`が`owner/user-rules.md`を所有する。HTTPの更新と別owner MCPは、保存後に`refreshGlobalInstructions`を呼ぶ。`createGlobalInstructionsRefresher`はOwner情報→ユーザー規範→製品規範の順に生成して、`writeGlobalInstructions`または席proxyに渡す。Bot個別のAGENTS生成とは別責任である。全製品共通テンプレート`config/common-agents.md`は統合担当が所有し、membersは生成経路へ渡された本文を使う。
+`OwnerProfile.get/update`が`owner/profile.json`、`UserRules.get/update/history`が`owner/user-rules.md`と`owner/user-rules-history.jsonl`を所有する。HTTPの更新、通常MCPのBot更新と別owner MCPは、保存後に`refreshGlobalInstructions`を呼ぶ。`createGlobalInstructionsRefresher`はOwner情報→ユーザー規範→製品規範の順に生成して、`writeGlobalInstructions`または席proxyに渡す。Bot個別のAGENTS生成とは別責任である。全製品共通テンプレート`config/common-agents.md`は統合担当が所有し、membersは生成経路へ渡された本文を使う。
 
 ### 全文共通指示の有効template
 
@@ -77,9 +84,18 @@ Webの`createOwnerEditor.save`はprofile PATCH→rules PUTの順であり、一�
 
 ## 公開handlerと境界
 
-`members/owner-http.mjs:createOwnerApi({ownerProfile,userRules,refreshGlobalInstructions})`はGET/PATCH /api/owner、GET /api/owner/avatar、GET/PUT /api/user-rulesを所有する。createApplicationApiはこの窓口と既conversation assetsを接続する。全経路/status/返却と画像整形を維持する。
+`members/owner-http.mjs:createOwnerApi({ownerProfile,userRules,refreshGlobalInstructions})`はGET/PATCH /api/owner、GET /api/owner/avatar、GET/PUT /api/user-rules、GET /api/user-rules/historyを所有する。createApplicationApiはこの窓口と既conversation assetsを接続する。全経路/status/返却と画像整形を維持する。
 
-通常MCPはprofiles-mcpのget_owner_profile/get_user_rulesによる読取だけ。全文更新は既`mcp-owner-tools.mjs`の専用ownerTools/callOwnerToolへ登録済みの席だけが行い、共通MCPへ新しい更新道具を足さない。登録された席の本人性・公開入口は既設定に従う。本文の型/長さ/余分key検証を保持し、権限を役職の文字列へ置換しない。
+通常MCPはprofiles-mcpのget_owner_profile/get_user_rulesの読取と、ユーザーの明示指示がある時だけの`update_user_rules`（Owner 2026-11-10、Trony経由）。専用`mcp-owner-tools.mjs`のownerTools/callOwnerToolは従来どおり残す。本文の型/長さ/余分key検証を保持し、権限を役職の文字列へ置換しない。
+
+### Botによるユーザー規範の更新（明示指示だけ）
+
+- 入力: `update_user_rules({text, userInstruction})`。textは全文置換、userInstructionはユーザー本人の発言の原文引用（2000字まで）。
+- 指示の運び方: 呼出元`from`（ingressが決めたBot ID、引数ではない）の直接会話timeline（conversationの公開`store.timeline`）から、ユーザーが送った（`kind=message, direction=outgoing`）24時間以内の発言を新しい順に見て、空白を詰めた引用を含む最初の一件を根拠にする。他Botの発言（peer）、予定（scheduler）、ルームは根拠にならない。
+- 拒否（guard）: 引用が空、又は該当発言が無ければ`USER_RULES_INSTRUCTION_NOT_FOUND`で保存しない。守るもの: Ownerの正本の上書きとBotによる自己権限拡大（全Botを縛る規範をBotの判断や他Botの依頼で書くこと）。self-exit: 拒否は呼出ごとで状態を残さない。ユーザーが直接会話で指示すれば次の呼出で通り、Owner HTTPの保存は常に通る。
+- 保存: members `rules.botUpdate {text, botId, instruction:{messageId,at,quote}}`（ownerWrite不要。根拠の確認は親のprofiles-mcpが済ませる）→ Owner保存と同じ直列化・`refreshGlobalInstructions`。結果は`{text, before}`。
+- Ownerへの見え方: 本文が変わった保存は、Owner/Botどちらも`owner/user-rules-history.jsonl`に`{schema:'bellteam.user-rules-change.v1', at, actor:{kind:'owner'}|{kind:'bot',botId}, instruction?, before, after}`を追記し、`GET /api/user-rules/history`（members `rules.history`、lease付き読取）が新しい順50件を`{changes}`で返す。Botの保存後は、そのBotからユーザーへの直接会話に、Bot名・JST時刻・根拠の発言・行差分の自動記録を送る。Web/Apple/Windowsはクライアント変更なしで会話として見える。通知の失敗は保存を取り消さず、結果の`ownerNotice.delivered=false`で返す。
+- 既知の限界: 既存の`send_user_message`で送られた発言もユーザー発言として記録されるため、記録上はOwner本人の送信と区別できない。区別にはconversationの記録へ送信元を足す必要がある。
 
 どちらの更新も正本保存→指示再生成の順。生成失敗時は元の例外を伝え、保存済みprofile/rulesを消したり成功へ変えたりしない。通常MCPの応答整形、共通認証とエラー変換はintegration。全製品共通テンプレートの変更をmembers内部で行わない。
 

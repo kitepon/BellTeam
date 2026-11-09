@@ -47,6 +47,10 @@ const docPath = value => string(value, 4096)
 const docContent = value => string(value, 1024 * 1024)
 const owner = { ownerKind: value => { if (!['bot', 'room'].includes(value)) fail() }, ownerId: id }
 const claim = { ...owner, scheduleId: text, expectedRevision: revision, expectedNextRunAt: time, ranAt: time }
+const instruction = value => object(value, { messageId: value => { string(value, 200); if (!value) fail() }, at: time, quote: value => { string(value, 2000); if (!value.trim()) fail() } })
+const rulesChange = value => object(value, { schema: value => { if (value !== 'bellteam.user-rules-change.v1') fail() }, at: time,
+  actor: value => { if (value?.kind === 'owner') object(value, { kind: text }); else object(value, { kind: value => { if (value !== 'bot') fail() }, botId: id }) },
+  instruction, before: body, after: body }, ['schema', 'at', 'actor', 'before', 'after'])
 const turnClaim = { botId: id, scheduleId: text, expectedRevision: revision, expectedAfterTurn: validateScheduleTurn, observedTurn: validateScheduleTurn, ranAt: time }
 
 export function validateMembersContext(context, { initialize = false } = {}) {
@@ -67,6 +71,8 @@ const requests = {
   'removals.read': empty,
   'owner.read': empty, 'owner.update': value => object(value, { changes: ownerChanges }),
   'rules.read': empty, 'rules.update': value => object(value, { text: value => string(value, 20000) }),
+  'rules.botUpdate': value => object(value, { text: value => string(value, 20000), botId: id, instruction }),
+  'rules.history': empty,
   'schedules.claimAfterTurn': value => object(value, turnClaim),
   'schedules.list': value => object(value, owner),
   'schedules.set': value => object(value, { ...owner, input: schedule }),
@@ -175,6 +181,8 @@ function checkMembersResult(method, value) {
   if (method === 'profile.startup') { object(value, { prepared: value => { if (value !== true) fail() } }); return }
   if (method === 'removals.read') { removalStates(value); return }
   if (['rules.read', 'rules.update'].includes(method)) { object(value, { text: body }); return }
+  if (method === 'rules.botUpdate') { object(value, { text: body, before: body }); return }
+  if (method === 'rules.history') { object(value, { changes: values => { if (!Array.isArray(values)) fail(); values.forEach(rulesChange) } }); return }
   if (['owner.read', 'owner.update'].includes(method)) { object(value, { owner: value => { const { schema, ...fields } = value ?? {}; if (schema !== 'bellteam.owner-profile.v1') fail(); ownerChanges(fields) } }); return }
   if (method === 'schedules.list') { object(value, { schedules: values => { if (!Array.isArray(values)) fail(); values.forEach(persistedSchedule) } }); return }
   if (method === 'schedules.set') { object(value, { schedule: persistedSchedule }); return }

@@ -160,7 +160,8 @@ async function runBellTeamTool(context) {
   if (name === 'list_models') return getModels(args.harness)
   if (terminalTools.some(tool => tool.name === name)) return callTerminalTool({ name, args, terminals: context.terminals, terminalKeys: context.terminalKeys })
   if ([...memberReadTools, ...memberWriteTools].some(tool => tool.name === name))
-    return callMemberTool({ name, args, from, registry, botView, configure, memory, ownerProfile, userRules })
+    return callMemberTool({ name, args, from, registry, botView, configure, memory, ownerProfile, userRules, store,
+      deliverMessage: deliverMessage ?? (value => messenger.sendmessage(value)) })
   if (Object.hasOwn(scheduleToolHandlers, name)) return scheduleToolHandlers[name]({ registry, rooms, from, args })
   if (Object.hasOwn(usageToolHandlers, name)) return usageToolHandlers[name]({ ...context, args })
   if (conversationTools.some(tool => tool.name === name))
