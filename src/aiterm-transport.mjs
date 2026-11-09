@@ -396,14 +396,16 @@ export class AitermTransport {
   async resumePreviouslyActive(bot, reference) {
     // A remote seat survives on its terminal; the normal wake takes it over there (remote-seat.md).
     if (isRemoteBot(bot)) return null
+    // A working seat that cannot be resumed here is not left down: the typed refusal sends it the fresh continuation.
+    const notResumable = () => Object.assign(new Error('RESUME_CAPABILITY_UNAVAILABLE'), { code: 'RESUME_CAPABILITY_UNAVAILABLE', effect: 'not_started' })
     if (!['claude-code', 'codex-cli'].includes(reference.harness) || HARNESS.get(bot.harness) !== reference.harness
-      || this.session(bot) !== reference.sessionId) return null
+      || this.session(bot) !== reference.sessionId) throw notResumable()
     await this.client.environmentReady?.(bot.project)
     return this.memberOperation(bot, async membersLease => {
         const version = this.captureStopVersion(bot)
       await this.requireAccess({ setupTest: false, botId: bot.id })
       this.requireStopVersion(bot.id, version)
-      if (this.session(bot) !== reference.sessionId) return null
+      if (this.session(bot) !== reference.sessionId) throw notResumable()
       // Resume is the same launch: keep the generation recorded for this session (none recorded = current).
       const runtime = await this.captureLaunchRuntime({ generation: await this.recordedRuntimeGeneration(reference.sessionId) })
       const options = this.client.launchOptions ? await this.client.launchOptions(bot.project, runtime) : { env: await loadBotEnvironment(bot.project) }
