@@ -1,4 +1,4 @@
-import { resolveSeatBotId, seatExecutionSource } from './seat-mcp.mjs'
+import { REMOTE_SEAT_MCP_PATH, resolveSeatBotId, seatExecutionSource } from './seat-mcp.mjs'
 import { createControlApi, createApplicationApi } from './http-application-api.mjs'
 import { createBotApi } from './http-bot-api.mjs'
 import { createScreenInputApi } from './http-screen-input-api.mjs'
@@ -11,6 +11,7 @@ import { createConversationApi } from './http-conversation-api.mjs'
 import { createGoalApi } from './http-goal-api.mjs'
 import { createWorkGraphApi } from './work-graph/http-api.mjs'
 import { createAccountsApi } from './http-accounts-api.mjs'
+import { createTerminalsApi } from './http-terminals-api.mjs'
 import { createServer } from 'node:http'
 import { LiveModelCatalog } from './model-catalog.mjs'
 import { json } from './http-response.mjs'
@@ -31,7 +32,7 @@ export { EVENT_KEEPALIVE_MS, MESSAGE_EVENT_WINDOW_MS }
 // 手前の中継（cloudflaredの既定90秒）より長く保つ。
 export const KEEP_ALIVE_TIMEOUT_MS = 125000
 
-export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, messenger, store, transport, memory, ownerProfile, refreshGlobalInstructions = async () => {}, assets, staticRoot, assetVersion = Date.now().toString(36), models = new LiveModelCatalog(), scheduler = null, userRules = null, characterSheets = null, diagnostics = null, secretRequests = null, ownerQuestions = null, ownerSecretGuide = null, submittedSecretConsumer = null, captureSubmittedSecretContext = null, notifications = null, subscriptions = null, settings = null, onboarding = null, harnessAuth = null, aiControl = null, administration = null, goals = null, webGatewayControl = null, notificationsReleaseControl = null, updateCenter = null, workGraph = null, accounts = null, membersAuthorization = null, usageAssembly = null, conversationAssembly = null, authMode = () => 'cloudflare', internal = false, seatMcp = null, eventKeepalive = EVENT_KEEPALIVE_MS, messageEventWindow = MESSAGE_EVENT_WINDOW_MS, writeLog = line => process.stderr.write(line) }) {
+export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, messenger, store, transport, memory, ownerProfile, refreshGlobalInstructions = async () => {}, assets, staticRoot, assetVersion = Date.now().toString(36), models = new LiveModelCatalog(), scheduler = null, userRules = null, characterSheets = null, diagnostics = null, secretRequests = null, ownerQuestions = null, ownerSecretGuide = null, submittedSecretConsumer = null, captureSubmittedSecretContext = null, notifications = null, subscriptions = null, settings = null, onboarding = null, harnessAuth = null, aiControl = null, administration = null, goals = null, webGatewayControl = null, notificationsReleaseControl = null, updateCenter = null, workGraph = null, accounts = null, membersAuthorization = null, usageAssembly = null, conversationAssembly = null, authMode = () => 'cloudflare', internal = false, seatMcp = null, remoteSeatMcp = null, terminals = () => null, eventKeepalive = EVENT_KEEPALIVE_MS, messageEventWindow = MESSAGE_EVENT_WINDOW_MS, writeLog = line => process.stderr.write(line) }) {
 
   if (typeof authorize !== 'function') throw new Error('BELLTEAM_AUTHORIZER_REQUIRED')
   const events = createMessageEvents({ store, secretRequests, ownerQuestions, rooms, bots, transport, aiControl, updateCenter: internal ? null : updateCenter, eventKeepalive, messageEventWindow })
@@ -61,6 +62,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
     createScreenInputApi({ bots, transport, internal }),
     createWorkGraphApi({ facade: workGraph, internal }),
     createAccountsApi({ accounts }),
+    createTerminalsApi({ terminals, internal }),
   ]
 
   const server = createServer(async (request, response) => {
@@ -72,6 +74,11 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
     try {
       const url = new URL(request.url, 'http://bellteam.local')
       if (request.method === 'GET' && url.pathname === '/healthz') return json(response, 200, { status: 'ok' })
+      // A remote seat authenticates with its seat credential, not the Owner session (remote-seat-ingress.md).
+      if (!internal && remoteSeatMcp && (url.pathname === REMOTE_SEAT_MCP_PATH || url.pathname === `${REMOTE_SEAT_MCP_PATH}/call-bridge`)) {
+        stage = 'remote_seat_mcp'
+        return await remoteSeatMcp(request, response, url)
+      }
       stage = 'authorize'
       const authenticated = await authorize(request)
       if (request.method === 'GET' && url.pathname === '/api/session') return json(response, 200, { authenticated, authMode: authMode(request) })
