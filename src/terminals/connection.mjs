@@ -36,7 +36,7 @@ export function createTerminalConnection({ registry, secrets, native, seatCreden
   const maintenance = new Map()
   const listeners = new Set()
   const generations = new Map() // terminalId -> registry-change count; an open started before a change is stale
-  const opening = new Set()
+  const operations = new Set() // whole open/check lifecycles, awaited by dispose
   let disposed = false
 
   function emitAvailable(terminalId) {
@@ -73,11 +73,12 @@ export function createTerminalConnection({ registry, secrets, native, seatCreden
     } catch {}
   }
 
-  async function connectTarget(target, memberId, privateEnv) {
+  async function connectTarget(target, memberId, privateEnv, current = () => !disposed) {
     if (!target.hostTrust) throw failure('TARGET_MISMATCH', `confirm the host key of ${target.host}`, 'HOST_TRUST_MISSING')
     let credential = null
     try {
       return await secrets.withResolved(target.sshKeyRef, { terminalId: target.terminalId, memberId, purpose: 'terminal.ssh' }, value => {
+        if (!current()) throw failure('TERMINAL_UNAVAILABLE') // disposed or target revised while resolving: start no process
         // Mika's value union: a key value (future) or P1's native-held {nativeKeyRef, revision}; neither is kept after this call.
         credential = typeof value === 'string' ? { privateKey: value } : { nativeKeyRef: value?.nativeKeyRef, credentialRevision: value?.revision }
         return native.connect({
@@ -135,20 +136,32 @@ export function createTerminalConnection({ registry, secrets, native, seatCreden
     return Object.keys(env).length ? env : undefined
   }
 
-  async function open({ terminalId, memberId, projectRoot, seatBinding, accountOwner, credentials } = {}) {
+  function track(run) {
+    const operation = Promise.resolve().then(run)
+    operations.add(operation)
+    operation.then(() => operations.delete(operation), () => operations.delete(operation))
+    return operation
+  }
+
+  const open = request => track(() => openNow(request ?? {}))
+  async function openNow({ terminalId, memberId, projectRoot, seatBinding, accountOwner, credentials }) {
     if (disposed) throw failure('TERMINAL_UNAVAILABLE')
+    // Generation is captured before the read, so a snapshot read across a registry change is never accepted.
+    const generation = generations.get(terminalId) ?? 0
+    const current = () => !disposed && (generations.get(terminalId) ?? 0) === generation
     const target = await registry.target(terminalId).catch(() => null)
     if (!target) { if (typeof terminalId === 'string') want(terminalId); throw failure('TERMINAL_UNAVAILABLE') }
     if (accountOwner !== target.accountOwner) throw failure('TARGET_MISMATCH', `set the account owner of terminal ${terminalId} or the member binding`)
     if (typeof projectRoot !== 'string' || !isAbsolute(projectRoot) || typeof seatBinding?.sessionName !== 'string' || typeof memberId !== 'string') throw failure('TARGET_MISMATCH', 'set an absolute project folder and seat for the member')
     let session
     // TARGET_MISMATCH exits by registry revision (onRegistryChange), so only availability failures are probed.
-    const generation = generations.get(terminalId) ?? 0
-    const pending = connectTarget(target, memberId, await resolvePrivateEnv(credentials, target))
-    opening.add(pending)
-    try { session = await pending } catch (error) { if (error.code !== 'TARGET_MISMATCH' && !disposed) want(terminalId); throw error } finally { opening.delete(pending) }
+    try {
+      const privateEnv = await resolvePrivateEnv(credentials, target)
+      if (!current()) throw failure('TERMINAL_UNAVAILABLE')
+      session = await connectTarget(target, memberId, privateEnv, current)
+    } catch (error) { if (error.code !== 'TARGET_MISMATCH' && current()) want(terminalId); throw error }
     // Registry revision or shutdown while connecting: never publish a connection to the old target.
-    if (disposed || (generations.get(terminalId) ?? 0) !== generation) { await session.close().catch(() => {}); throw failure('TERMINAL_UNAVAILABLE') }
+    if (!current()) { await session.close().catch(() => {}); throw failure('TERMINAL_UNAVAILABLE') }
     const connectionRef = randomUUID()
     connections.set(connectionRef, { terminalId, session })
     session.onEvent?.(event => { if (event?.type === 'lost' && connections.delete(connectionRef)) want(terminalId) })
@@ -163,14 +176,15 @@ export function createTerminalConnection({ registry, secrets, native, seatCreden
     return { closed: true }
   }
 
-  async function check(terminalId) {
+  const check = terminalId => track(() => checkNow(terminalId))
+  async function checkNow(terminalId) {
     const observation = { terminalId, observedAt: now().toISOString(), reachable: false, reason: null }
     if (disposed) return { ...observation, reason: 'TERMINAL_UNAVAILABLE' }
     const target = await registry.target(terminalId).catch(() => null)
     if (!target) return { ...observation, reason: 'TERMINAL_NOT_FOUND' }
     try {
       const session = await connectTarget(target, null)
-      await session.close()
+      await session.close().catch(() => {})
       return { ...observation, reachable: true }
     } catch (error) {
       return { ...observation, reason: error.reason ?? error.code, ...(error.action ? { action: error.action } : {}) }
@@ -205,7 +219,7 @@ export function createTerminalConnection({ registry, secrets, native, seatCreden
       disposed = true
       for (const probe of wanted.values()) clearTimeout(probe.timer)
       wanted.clear()
-      await Promise.allSettled([...opening])
+      while (operations.size) await Promise.allSettled([...operations])
       await Promise.allSettled([...connections.keys()].map(close))
     }
   }

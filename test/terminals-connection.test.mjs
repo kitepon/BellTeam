@@ -177,3 +177,45 @@ test('dispose and registry change never leave or publish a stale connection', as
   assert.equal(native.sessions.length, before, 'nothing starts after dispose')
   void live
 })
+
+test('dispose awaits whole open/check lifecycles: delayed target, env, probe and close', async t => {
+  const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r }); return { promise, resolve } }
+  const native = fakeNative()
+  const targetGate = deferred()
+  const envGate = deferred()
+  const closeGate = deferred()
+  let slowTarget = true
+  const registry = { async target(id) { if (slowTarget) { slowTarget = false; await targetGate.promise } return id === base.terminalId ? structuredClone(base) : null } }
+  const seatCredentials = { reveal: () => envGate.promise }
+  const connection = createTerminalConnection({ registry, secrets: fakeSecrets(), native, seatCredentials })
+
+  // Target read straddles a registry change: the snapshot is stale and nothing starts.
+  const acrossChange = connection.open(request)
+  await wait(1)
+  await connection.onRegistryChange({ terminalId: 'owner-macbook', revision: 2, removed: false })
+  targetGate.resolve()
+  await assert.rejects(acrossChange, { code: 'TERMINAL_UNAVAILABLE' })
+  assert.equal(native.sessions.length, 0)
+
+  // Env resolution blocked while dispose starts: dispose waits and no process starts afterwards.
+  const blockedEnv = connection.open({ ...request, credentials: { BELLTEAM_MCP_TOKEN: 'ref' } })
+  // A probe whose session close is slow: dispose resolves only after that close.
+  const realConnect = native.connect
+  native.connect = async req => { const session = await realConnect(req); const close = session.close; session.close = async () => { await closeGate.promise; return close() }; return session }
+  const probe = connection.check('owner-macbook')
+  await wait(1)
+  let disposed = false
+  const disposing = connection.dispose().then(() => { disposed = true })
+  await wait(1)
+  assert.equal(disposed, false, 'dispose waits for the blocked env and the probe close')
+  envGate.resolve('token')
+  await assert.rejects(blockedEnv, { code: 'TERMINAL_UNAVAILABLE' })
+  await wait(1)
+  assert.equal(disposed, false)
+  closeGate.resolve()
+  await disposing
+  assert.equal((await probe).reachable, true)
+  assert.equal(native.sessions.length, 1, 'only the probe started a process')
+  assert.ok(native.sessions.every(session => session.closed))
+  t.after(() => connection.dispose())
+})

@@ -193,15 +193,15 @@ Rules the code enforces:
 
 ```mermaid
 stateDiagram-v2
-  [*] --> Opening: open (captures terminal generation)
+  [*] --> Opening: open (captures terminal generation before the registry read)
   Opening --> Live: native.connect settled, generation unchanged, not disposed
-  Opening --> Discarded: registry change for the terminal or dispose while connecting
+  Opening --> Discarded: registry change for the terminal or dispose during target read, credential resolution or connect
   Discarded --> [*]: session closed, TERMINAL_UNAVAILABLE not_started (registry change already emitted available)
   Live --> Closed: close(ref) / lost event / registry change / dispose
   Closed --> [*]
 ```
 
-  `dispose()` (core `close()`) is async: it stops the observer, marks the core disposed, waits for in-flight opens to settle and closes every live session (each UID1000 remote-terminal process) before resolving. After dispose, `open` and `check` start nothing.
+  `dispose()` (core `close()`) is async: it stops the observer, marks the core disposed, waits for every in-flight `open` and `check` from its first step through its discard-close, then closes every live session (each UID1000 remote-terminal process) before resolving. Staleness is re-checked after each await and inside the credential callback, so no process starts after dispose or a registry change. After dispose, `open` and `check` start nothing.
 - C8: on the first `agent_launch` with `harness:'claude-code'` per connection, before forwarding it: `claude_version`, then `claude_update` (or the official `claude_install` when no CLI answers), then `claude_version`. The outcome is kept for `maintenance.last`. A failed update never blocks the launch, the installed CLI stays, running CLIs are untouched, and no version is pinned.
 
 Test double for execution: `test/helpers/terminals-native-double.mjs` (`fakeConnection`, plus `fakeNative` / `fakeSecrets` for the ports terminals consumes).
