@@ -2,18 +2,19 @@ import SwiftUI
 
 /// One settings category: its own page, reached from the category list (iPhone) or the sidebar (iPad/Mac).
 enum SettingsPage: String, CaseIterable, Identifiable, Hashable {
-    case profile, ai, features, notifications, connection, display, billing, update, about, stop
+    case profile, ai, terminals, features, notifications, connection, display, billing, update, about, stop
 
     var id: String { rawValue }
 
     /// Category groups in list order; 全体停止 stays alone at the bottom.
-    static let groups: [[SettingsPage]] = [[.ai, .features, .notifications], [.connection, .display],
+    static let groups: [[SettingsPage]] = [[.ai, .terminals, .features, .notifications], [.connection, .display],
                                            [.billing, .update, .about], [.stop]]
 
     var title: String {
         switch self {
         case .profile: "プロフィール"
         case .ai: "AIの設定"
+        case .terminals: "端末"
         case .features: "追加機能"
         case .notifications: "通知"
         case .connection: "接続"
@@ -29,6 +30,7 @@ enum SettingsPage: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .profile: "名前・写真・紹介文と、チームが守るあなたの決まり"
         case .ai: "AIのアカウントと、仕事の要約を書くAI"
+        case .terminals: "メンバーの席を動かすMacと、その鍵"
         case .features: "通知の送信などを使うための設定"
         case .notifications: "メンバーからの連絡をこの端末に届ける"
         case .connection: "つないでいるサーバーとログイン方法"
@@ -44,6 +46,7 @@ enum SettingsPage: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .profile: "person.crop.circle.fill"
         case .ai: "sparkles"
+        case .terminals: "desktopcomputer"
         case .features: "puzzlepiece.extension.fill"
         case .notifications: "bell.badge.fill"
         case .connection: "network"
@@ -59,6 +62,7 @@ enum SettingsPage: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .profile: BellTheme.violet
         case .ai: .purple
+        case .terminals: .cyan
         case .features: .orange
         case .notifications: .red
         case .connection: .blue
@@ -154,7 +158,7 @@ private struct SettingsSplitView: View {
     }
 }
 
-private struct SettingsIconTile: View {
+struct SettingsIconTile: View {
     let symbol: String
     let tint: Color
     var side: CGFloat = 30
@@ -247,7 +251,7 @@ struct SettingsPageHeader: View {
 }
 
 /// A failure in plain words; the raw text only under 詳細.
-private struct SettingsBanner: View {
+struct SettingsBanner: View {
     let message: String
     var detail: String?
     @State private var showingDetail = false
@@ -279,6 +283,7 @@ private struct SettingsPageView: View {
                 HarnessAuthenticationList()
                 BackgroundAgentSettingsCard()
             }
+            case .terminals: TerminalListPage()
             case .features: SettingsCardPage(page: page) { FeatureSettingsList() }
             case .notifications: NotificationSettingsPage()
             case .connection: ConnectionSettingsPage()

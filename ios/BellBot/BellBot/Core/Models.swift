@@ -22,6 +22,9 @@ struct Bot: Decodable, Identifiable, Equatable {
     let recent: RecentMessage?
     var currentWork: CurrentWork? = nil
     var account: BotAccount? = nil
+    /// members C1. nil = this BellTeam's member DTO predates the fields; "" = runs inside this BellTeam.
+    var terminalId: String? = nil
+    var projectRoot: String? = nil
 }
 
 // 名前の下の1行。文言はWebのworkLabelと同じにする。
@@ -47,6 +50,7 @@ extension Bot {
     private enum CodingKeys: String, CodingKey {
         case id, name, displayName, harness, model, reasoningEffort, fastMode, color, profileText, personality
         case speechStyle, position, role, avatar, avatarVersion, avatarLargeVersion, deleting, online, recent, currentWork, account
+        case terminalId, projectRoot
     }
 
     init(from decoder: Decoder) throws {
@@ -72,6 +76,8 @@ extension Bot {
         recent = try c.decodeIfPresent(RecentMessage.self, forKey: .recent)
         currentWork = try c.decodeIfPresent(CurrentWork.self, forKey: .currentWork)
         account = try c.decodeIfPresent(BotAccount.self, forKey: .account)
+        terminalId = try c.decodeIfPresent(String.self, forKey: .terminalId)
+        projectRoot = try c.decodeIfPresent(String.self, forKey: .projectRoot)
     }
 }
 

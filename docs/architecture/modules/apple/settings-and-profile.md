@@ -12,6 +12,7 @@ flowchart TD
   Split --> Page
   Page --> Profile["プロフィール: ProfileEditor(embedded)<br/>Ownerとユーザー規範のdraft"]
   Page --> AI["AIの設定: HarnessAuthenticationList<br/>+ BackgroundAgentSettingsCard"]
+  Page --> Terminals["端末: TerminalListPage<br/>terminals.md"]
   Page --> Features["追加機能: FeatureSettingsList / Editor"]
   Page --> Push["通知: BellNotifications.shared<br/>登録・OS設定を開く"]
   Page --> Session["接続: host・ログイン方法<br/>AppStore.changeServer / signOut"]

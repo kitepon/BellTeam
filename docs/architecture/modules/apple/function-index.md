@@ -301,6 +301,19 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [BellUpdateRoute](../../../../ios/BellBot/BellBot/Core/BellNotifications.swift#L28) | push `kind=update`の3key完全一致の解析と接続先照合 |
 | [AppStore.openPendingUpdateNotification](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L889) | ready後に接続先一致の時だけUpdate画面を開きGET。`startEvents`の`updates`分岐は[AppStore.swift](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L736) |
 
+## 端末の登録とメンバーの端末・フォルダ
+
+追加時点のファイル。契約と流れは[端末](terminals.md)。
+
+| ファイル・型 | 機能 |
+| --- | --- |
+| [Core/Terminals.swift](../../../../ios/BellBot/BellBot/Core/Terminals.swift) | `Terminal`・`TerminalCheck`・`TerminalMaintenance`（新しい項目は省略可で読む）、`TerminalDraft`（登録の検査とPUT body）、`MemberBinding`（組の規則とフォルダ）、`HostKeyFingerprint`、`TerminalErrorText`（`trace.serverErrorCode`から文、未対応の判定） |
+| [Core/AppStore+Terminals.swift](../../../../ios/BellBot/BellBot/Core/AppStore+Terminals.swift) | `TerminalDirectory`と`refreshTerminals`・`saveTerminal`・`confirmHostKey`・`removeTerminal`・`checkTerminal`。`AppStore.terminals`はサインアウトと接続先変更で空に戻す |
+| [Views/TerminalsView.swift](../../../../ios/BellBot/BellBot/Views/TerminalsView.swift) | `TerminalListPage`・`TerminalDetailPage`・`TerminalEditor`・`HostKeyConfirmSheet`・`MemberTerminalSection`・`TerminalsCalmLine`。DEBUGの`-bellbot-preview-terminal`で状態を開く |
+| [Bot.terminalId / projectRoot](../../../../ios/BellBot/BellBot/Core/Models.swift)、[BotSettings.withBinding](../../../../ios/BellBot/BellBot/Core/BotSettings.swift) | メンバーの2項目（nilは旧本体）。nilはencodeせず、照合ではサーバー値を採る |
+| [BotEditor](../../../../ios/BellBot/BellBot/Views/ManagementView.swift) | 「端末とフォルダ」節、保存前の組の規則、members符号の文 |
+| [SettingsPage.terminals](../../../../ios/BellBot/BellBot/Views/SettingsView.swift) | 設定の項目「端末」。`SettingsIconTile`と`SettingsBanner`をこの画面と共有 |
+
 ## その他の製品Swift：ファイル単位
 
 パスは`ios/BellBot/`から。上の9ファイルを除く43ファイル。型・関数名は到達先の目印で、この表では関数ごとの全分岐を列挙していない。
@@ -385,6 +398,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [OnboardingTests.swift](../../../../ios/BellBot/BellBotTests/OnboardingTests.swift) | origin、初回認証decode、binding/digest、session、保護通信、反映エラー |
 | [RoomDeletionTests.swift](../../../../ios/BellBot/BellBotTests/RoomDeletionTests.swift) | 削除対象の選択/draftだけ整理、失敗時保持 |
 | [SecretTransportTests.swift](../../../../ios/BellBot/BellBotTests/SecretTransportTests.swift) | public HTTP拒否と秘密POST redirect拒否 |
+| [TerminalsTests.swift](../../../../ios/BellBot/BellBotTests/TerminalsTests.swift) | 端末・メンバー項目の新旧応答、組の規則、フォルダ、指紋、確認結果の文、符号の文、未対応状態 |
 | [SelectableTextLayoutTests.swift](../../../../ios/BellBot/BellBotTests/SelectableTextLayoutTests.swift) | UITextView寸法・本文変更・幅変更のcache |
 
 ### BellBotUITests
@@ -409,6 +423,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [RoomDeletionUITests.swift](../../../../ios/BellBot/BellBotUITests/RoomDeletionUITests.swift) | 取消/失敗の保持、成功時一覧復帰とメンバー保持 |
 | [SecretInputUITests.swift](../../../../ios/BellBot/BellBotUITests/SecretInputUITests.swift) | 登録表示・値と入力欄の非表示・再起動後の表示。通常会話へのPOST件数は確認しない |
 | [ServerSetupUITests.swift](../../../../ios/BellBot/BellBotUITests/ServerSetupUITests.swift) | 接続後AI選択、未接続の導入ガイドとURL入力保持 |
+| [TerminalsUITests.swift](../../../../ios/BellBot/BellBotUITests/TerminalsUITests.swift) | iPhoneの端末一覧・追加・確認・ホスト鍵・削除、メンバー編集の端末とフォルダ、旧本体の一行表示 |
 | [TabletWorkspaceUITests.swift](../../../../ios/BellBot/BellBotUITests/TabletWorkspaceUITests.swift) | iPad画像寸法、列/回転/draft、キーボード、共通編集sheet |
 
 ### Testsと構成

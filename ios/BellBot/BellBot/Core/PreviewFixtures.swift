@@ -37,6 +37,12 @@ extension AppStore {
             bots[0].avatarVersion = "profile-small-v1"
             bots[0].avatarLargeVersion = "profile-large-v1"
         }
+        // Member DTO with the members C1 fields (a BellTeam that has the terminals registry); without it, the older body.
+        if arguments.contains("-bellbot-preview-terminals") {
+            for index in bots.indices { bots[index].terminalId = ""; bots[index].projectRoot = "" }
+            bots[0].terminalId = "owner-macbook"
+            bots[0].projectRoot = "/Users/kite/work/app"
+        }
         rooms = fixture.rooms
         owner = fixture.owner
         workingBotIDs = ["bot-one"]

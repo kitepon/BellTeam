@@ -69,6 +69,8 @@ struct BotEditor: View {
     @State private var modelErrorText: String?
     @State private var saveResult: BotSaveResult?
     @State private var submittedSettings: BotSettings?
+    @State private var terminalId = ""
+    @State private var projectRoot = ""
 
     init(initial: Bot?, closeWindow: (() -> Void)? = nil) {
         self.initial = initial
@@ -87,7 +89,13 @@ struct BotEditor: View {
         _color = State(initialValue: initial?.color ?? "violet")
         _avatar = State(initialValue: initial?.avatar ?? "")
         _appearanceLoaded = State(initialValue: initial == nil)
+        _terminalId = State(initialValue: initial?.terminalId ?? "")
+        _projectRoot = State(initialValue: initial?.projectRoot ?? "")
     }
+
+    /// members C1 fields are sent only when this BellTeam has the terminals registry and the member DTO carries them.
+    private var memberFieldsAvailable: Bool { initial.map { $0.terminalId != nil } ?? true }
+    private var bindingAvailable: Bool { store.terminals.supported && memberFieldsAvailable }
 
     private var modelChoices: [ModelChoice] { catalog[harness]?.models ?? [] }
     private var effortChoices: [String] {
@@ -233,6 +241,9 @@ struct BotEditor: View {
                     }
                 }
                 .disabled(deletionPending || deletionResultUnconfirmed)
+                MemberTerminalSection(terminalId: $terminalId, projectRoot: $projectRoot,
+                                      memberFieldsAvailable: memberFieldsAvailable)
+                    .disabled(deletionPending || deletionResultUnconfirmed)
                 Section(header: BellSectionHeader("プロフィール")) {
                     profileField("背景・見た目・関係性", text: $profileText)
                     profileField("性格・考え方", text: $personality)
@@ -293,6 +304,7 @@ struct BotEditor: View {
                 }
             }
             .task { await load() }
+            .task { await store.refreshTerminals() }
             .onChange(of: settings) { _, _ in
                 persistDraft()
                 saveResult = nil
@@ -346,6 +358,7 @@ struct BotEditor: View {
                 avatarLarge = saved.avatarLarge; avatarSource = saved.avatarSource
                 avatarCrop = saved.avatarCrop; avatarLargeSource = saved.avatarLargeSource
                 avatarLargeCrop = saved.avatarLargeCrop
+                if let id = saved.terminalId { terminalId = id; projectRoot = saved.projectRoot ?? "" }
                 smallAvatarChanged = draft.smallAvatarChanged
                 largeAvatarChanged = draft.largeAvatarChanged
                 appearanceLoaded = draft.appearanceLoaded
@@ -398,6 +411,9 @@ struct BotEditor: View {
         guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             errorText = "名前を入力してください。"; return
         }
+        if bindingAvailable, let problem = MemberBinding.problem(terminalId: terminalId, projectRoot: projectRoot) {
+            errorText = problem; return
+        }
         saving = true
         defer { saving = false }
         errorText = nil
@@ -422,7 +438,8 @@ struct BotEditor: View {
             close()
         } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
         catch {
-            if case BellAPIError.httpStatus(_, let message?, _) = error { errorText = message }
+            if let code = TerminalErrorText.code(error), let text = TerminalErrorText.member(code) { errorText = text }
+            else if case BellAPIError.httpStatus(_, let message?, _) = error { errorText = message }
             else { errorText = BellAPIError.operationFailureMessage(error) }
             store.api.diagnostics.report(error, path: "/api/bots", method: nil, observation: .write)
         }
@@ -468,7 +485,9 @@ struct BotEditor: View {
                     model: model == "__custom__" ? customModel : model, reasoningEffort: effort,
                     fastMode: fastMode, avatarLarge: avatarLarge, avatarSource: avatarSource,
                     avatarCrop: avatarCrop, avatarLargeSource: avatarLargeSource,
-                    avatarLargeCrop: avatarLargeCrop)
+                    avatarLargeCrop: avatarLargeCrop,
+                    terminalId: bindingAvailable ? terminalId : nil,
+                    projectRoot: bindingAvailable ? projectRoot : nil)
     }
 
     private var hasSavedResult: Bool {

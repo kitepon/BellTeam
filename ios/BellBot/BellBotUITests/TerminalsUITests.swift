@@ -1,0 +1,249 @@
+import XCTest
+import UIKit
+
+/// iPhone: terminal list/add/check/host key and the member editor's 「端末とフォルダ」 against test/helpers/terminals-ui-server.mjs
+/// (BELLTEAM_TERMINALS_FIXTURE_URL). Screenshots are kept as attachments.
+@MainActor
+final class TerminalsUITests: XCTestCase {
+    private var server = ""
+
+    override func setUp() async throws {
+        continueAfterFailure = false
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .phone, "iPhoneの画面を確かめる試験です。")
+        server = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_TERMINALS_FIXTURE_URL"],
+                               "test/helpers/terminals-ui-server.mjsの起動が必要です。")
+        _ = try await call("/test/reset")
+    }
+
+    func testTerminalListAddCheckAndHostKeyConfirm() async throws {
+        let app = launch(["-bellbot-preview-terminals", "-bellbot-preview-settings", "terminals"])
+        defer { app.terminate() }
+        let owner = app.buttons["terminal-row-owner-macbook"]
+        XCTAssertTrue(owner.waitForExistence(timeout: 10))
+        XCTAssertTrue(owner.label.contains("kite@192.168.1.12:22"))
+        XCTAssertTrue(owner.label.contains("SSH鍵 設定済み"))
+        XCTAssertFalse(owner.label.contains("op://"))
+        shot(app, "01-terminal-list")
+
+        // Reachable.
+        owner.tap()
+        XCTAssertTrue(app.buttons["check-terminal"].waitForExistence(timeout: 5))
+        app.buttons["check-terminal"].tap()
+        XCTAssertTrue(waitLabel(app, "terminal-reachability", contains: "つながる"))
+        shot(app, "02-terminal-detail-reachable")
+        app.swipeUp()
+        XCTAssertTrue(app.descendants(matching: .any)["terminal-key-route"].waitForExistence(timeout: 3), "鍵の行は「Botに頼んで設定する」")
+        XCTAssertTrue(app.staticTexts["Claude Codeを更新しました（2.1.30 → 2.1.32）"].waitForExistence(timeout: 3))
+        shot(app, "03-terminal-detail-keys")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.buttons["terminal-row-owner-macbook"].label.contains("つながる"), "一覧に最後の確認結果")
+
+        // Unreachable: the plain reason, not the code.
+        app.buttons["terminal-row-sleeping-mini"].tap()
+        app.buttons["check-terminal"].tap()
+        XCTAssertTrue(waitLabel(app, "terminal-reachability", contains: "端末が眠っているか"))
+        XCTAssertFalse(app.descendants(matching: .any)["terminal-reachability"].label.contains("UNREACHABLE"))
+        shot(app, "04-terminal-detail-unreachable")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+
+        // Host key reported with a fingerprint: wrong input is refused by the server, the confirmed one is trusted.
+        app.swipeUp()
+        app.buttons["terminal-row-office-imac"].tap()
+        app.buttons["check-terminal"].tap()
+        XCTAssertTrue(waitLabel(app, "terminal-reachability", contains: "ホスト鍵"))
+        shot(app, "05-terminal-detail-hostkey-changed")
+        XCTAssertTrue(scrollTo(app.buttons["confirm-host-key"], in: app))
+        app.buttons["confirm-host-key"].tap()
+        let field = app.descendants(matching: .any)["host-key-fingerprint"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["trust-host-key"].isEnabled, "指紋を入れるまで信用できない")
+        shot(app, "06-hostkey-sheet-empty")
+        field.tap()
+        field.typeText("SHA256:" + String(repeating: "A", count: 43))
+        XCTAssertTrue(app.staticTexts["入れた指紋と一致しません"].waitForExistence(timeout: 3))
+        app.buttons["trust-host-key"].tap()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "一致しませんでした")).firstMatch.waitForExistence(timeout: 5))
+        shot(app, "07-hostkey-sheet-mismatch")
+        let right = try await call("/test/fingerprint?id=office-imac")["fingerprint"] as? String ?? ""
+        field.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.9)).tap() // cursor after the last character
+        field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 60) + right)
+        XCTAssertTrue(app.staticTexts["入れた指紋と一致しています"].waitForExistence(timeout: 3))
+        shot(app, "08-hostkey-sheet-match")
+        app.buttons["trust-host-key"].tap()
+        XCTAssertTrue(app.buttons["edit-terminal"].waitForExistence(timeout: 5), "シートを閉じて詳細へ戻る")
+        XCTAssertTrue(scrollTo(app.buttons["check-terminal"], in: app, up: true))
+        app.buttons["check-terminal"].tap()
+        XCTAssertTrue(waitLabel(app, "terminal-reachability", contains: "つながる"), "信用し直した後はつながる")
+        XCTAssertFalse(app.buttons["confirm-host-key"].exists, "信用し直した後は確かめる操作を出さない")
+        let puts = try await call("/test/proof")["puts"] as? [[String: Any]] ?? []
+        XCTAssertEqual(puts.compactMap { ($0["body"] as? [String: Any])?["confirmHostKey"] as? String }.last, right)
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+
+        // Trust missing (no fingerprint from the server): the Owner reads it on the terminal.
+        app.buttons["terminal-row-studio-mac"].tap()
+        app.buttons["check-terminal"].tap()
+        XCTAssertTrue(waitLabel(app, "terminal-reachability", contains: "ホスト鍵"))
+        shot(app, "09-terminal-detail-hostkey-missing")
+        XCTAssertTrue(scrollTo(app.buttons["confirm-host-key"], in: app))
+        app.buttons["confirm-host-key"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["host-key-fingerprint"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["サーバーが見た指紋"].exists)
+        shot(app, "10-hostkey-sheet-missing")
+        app.buttons["キャンセル"].tap()
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+
+        // Add: no key fields at all.
+        app.buttons["add-terminal"].tap()
+        let id = app.textFields["terminal-field-端末ID"]
+        XCTAssertTrue(id.waitForExistence(timeout: 5))
+        id.tap(); id.typeText("Bad ID")
+        app.buttons["save-terminal"].tap()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH %@", "端末IDは英小文字")).firstMatch.waitForExistence(timeout: 3))
+        let putsBeforeAdd = try await call("/test/proof")["puts"] as? [Any]
+        XCTAssertEqual(putsBeforeAdd?.count, 2, "形の違う登録は送らない（2件はホスト鍵の誤りと正しい指紋）")
+        shot(app, "11-terminal-add-invalid")
+        id.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.5)).tap() // cursor at the end of the right-aligned text
+        id.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 10) + "new-mac\n")
+        XCTAssertEqual(id.value as? String, "new-mac")
+        app.textFields["terminal-field-ホスト"].tap(); app.textFields["terminal-field-ホスト"].typeText("192.168.1.40\n")
+        app.textFields["terminal-field-ユーザー"].tap(); app.textFields["terminal-field-ユーザー"].typeText("aoi\n")
+        XCTAssertEqual(app.textFields["terminal-field-ユーザー"].value as? String, "aoi")
+        app.buttons["その端末の持ち主"].tap()
+        shot(app, "12-terminal-add-filled")
+        app.buttons["save-terminal"].tap()
+        let added = app.buttons["terminal-row-new-mac"]
+        XCTAssertTrue(added.waitForExistence(timeout: 5))
+        XCTAssertTrue(added.label.contains("SSH鍵 未設定"))
+        let addBody = (try await call("/test/proof")["puts"] as? [[String: Any]] ?? []).last?["body"] as? [String: Any] ?? [:]
+        XCTAssertEqual(Set(addBody.keys), ["host", "user", "port", "os", "accountOwner"], "鍵の項目は送らない")
+        XCTAssertEqual(addBody["accountOwner"] as? String, "terminal-owner")
+        added.tap()
+        app.buttons["check-terminal"].tap()
+        XCTAssertTrue(waitLabel(app, "terminal-reachability", contains: "SSH鍵"))
+        shot(app, "13-terminal-detail-no-key")
+
+        // Edit keeps the ID fixed.
+        app.buttons["edit-terminal"].tap()
+        XCTAssertTrue(app.buttons["save-terminal"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.textFields["terminal-field-端末ID"].exists, "端末IDは変えられない")
+        shot(app, "14-terminal-edit")
+        app.buttons["キャンセル"].tap()
+
+        // Remove after confirmation.
+        XCTAssertTrue(scrollTo(app.buttons["remove-terminal"], in: app))
+        app.buttons["remove-terminal"].tap()
+        XCTAssertTrue(app.alerts.firstMatch.waitForExistence(timeout: 3))
+        shot(app, "15-terminal-remove-confirm")
+        app.alerts.firstMatch.buttons["登録を消す"].tap()
+        let deletes = try await call("/test/proof")["deletes"] as? [String]
+        XCTAssertEqual(deletes, ["new-mac"])
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH %@", "この端末の登録が見つかりません")).firstMatch.waitForExistence(timeout: 5))
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertFalse(app.buttons["terminal-row-new-mac"].waitForExistence(timeout: 2))
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.buttons["settings-row-terminals"].waitForExistence(timeout: 5), "設定の項目「端末」")
+        shot(app, "00-settings-root")
+    }
+
+    func testMemberEditorTerminalAndFolder() async throws {
+        let app = launch(["-bellbot-preview-terminals"])
+        defer { app.terminate() }
+        try openMemberEditor(app)
+        let picker = app.buttons["member-terminal-picker"]
+        XCTAssertTrue(scrollTo(picker, in: app))
+        XCTAssertTrue(picker.label.contains("owner-macbook"))
+        let folder = app.textFields["member-project-root"]
+        XCTAssertEqual(folder.value as? String, "/Users/kite/work/app")
+        shot(app, "20-member-editor-terminal")
+
+        folder.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.5)).tap() // cursor at the end of the right-aligned text
+        folder.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 40) + "work/app\n")
+        XCTAssertEqual(folder.value as? String, "work/app")
+        let rule = "フォルダは「/」で始まる端末上の絶対パスにします"
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH %@", rule)).firstMatch.waitForExistence(timeout: 3))
+        app.buttons["save-member"].tap()
+        shot(app, "21-member-editor-folder-invalid")
+        var proof = try await call("/test/proof")
+        XCTAssertEqual((proof["botSaves"] as? [Any])?.count, 0, "画面の検査で止め、送らない")
+        XCTAssertEqual((proof["rejectedBotSaves"] as? [Any])?.count, 0)
+
+        picker.tap()
+        app.buttons["このBellTeam"].tap()
+        XCTAssertFalse(app.textFields["member-project-root"].exists, "このBellTeamではフォルダ欄を出さない")
+        shot(app, "22-member-editor-local")
+        app.buttons["save-member"].tap()
+        XCTAssertTrue(app.buttons["メンバーを編集"].waitForExistence(timeout: 10), "保存して閉じる")
+        proof = try await call("/test/proof")
+        let saved = (proof["botSaves"] as? [[String: Any]])?.last?["body"] as? [String: Any] ?? [:]
+        XCTAssertEqual(saved["terminalId"] as? String, "")
+        XCTAssertEqual(saved["projectRoot"] as? String, "")
+    }
+
+    func testOldServerShowsOneCalmLineAndSendsNoNewFields() async throws {
+        _ = try await call("/test/mode?terminals=unsupported&members=old")
+        var app = launch(["-bellbot-preview-settings", "terminals"])
+        XCTAssertTrue(app.descendants(matching: .any)["terminals-unsupported"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "できませんでした")).firstMatch.exists, "失敗の帯を出さない")
+        XCTAssertFalse(app.buttons["add-terminal"].exists)
+        shot(app, "30-terminal-list-unsupported")
+        app.terminate()
+
+        app = launch([])
+        defer { app.terminate() }
+        try openMemberEditor(app)
+        let calm = app.descendants(matching: .any)["terminals-unsupported"]
+        XCTAssertTrue(scrollTo(calm, in: app))
+        XCTAssertFalse(app.buttons["member-terminal-picker"].exists)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4)).press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.65)))
+        shot(app, "31-member-editor-unsupported")
+        app.buttons["save-member"].tap()
+        XCTAssertTrue(app.buttons["メンバーを編集"].waitForExistence(timeout: 10))
+        let saved = (try await call("/test/proof")["botSaves"] as? [[String: Any]])?.last?["body"] as? [String: Any] ?? [:]
+        XCTAssertFalse(saved.keys.contains("terminalId"), "旧本体へ新しい項目を送らない")
+        XCTAssertFalse(saved.keys.contains("projectRoot"))
+    }
+
+    private func launch(_ arguments: [String]) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", server] + arguments
+        app.launch()
+        return app
+    }
+
+    private func openMemberEditor(_ app: XCUIApplication) throws {
+        let bot = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "ユキ")).firstMatch
+        XCTAssertTrue(bot.waitForExistence(timeout: 10))
+        bot.tap()
+        XCTAssertTrue(app.buttons["詳細"].waitForExistence(timeout: 5))
+        app.buttons["詳細"].tap()
+        XCTAssertTrue(app.buttons["メンバーを編集"].waitForExistence(timeout: 5))
+        app.buttons["メンバーを編集"].tap()
+        XCTAssertTrue(app.buttons["save-member"].waitForExistence(timeout: 5))
+    }
+
+    private func scrollTo(_ element: XCUIElement, in app: XCUIApplication, up: Bool = false) -> Bool {
+        for _ in 0..<8 {
+            if element.waitForExistence(timeout: 1) && element.isHittable { return true }
+            if up { app.swipeDown() } else { app.swipeUp() }
+        }
+        return element.exists
+    }
+
+    private func waitLabel(_ app: XCUIApplication, _ id: String, contains text: String) -> Bool {
+        let element = app.descendants(matching: .any)[id]
+        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", text), object: element)
+        return XCTWaiter.wait(for: [expectation], timeout: 8) == .completed
+    }
+
+    private func shot(_ app: XCUIApplication, _ name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "iphone-\(name)"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    private func call(_ path: String) async throws -> [String: Any] {
+        let (data, _) = try await URLSession.shared.data(from: try XCTUnwrap(URL(string: server + path)))
+        return try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
+    }
+}

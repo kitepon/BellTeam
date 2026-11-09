@@ -435,6 +435,21 @@ goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`tes
 | [testMeasurementsMatchNativeLayoutAndInvalidateWithContent](../../../../ios/BellBot/BellBotTests/SelectableTextLayoutTests.swift#L25) | 短文/長文/本文置換/幅変更でnative layoutと寸法一致 |
 | [testResizingRetainsIntrinsicProposalsAndMeasuresEachNewWidthOnce](../../../../ios/BellBot/BellBotTests/SelectableTextLayoutTests.swift#L43) | 0/自然幅をcache保持し20幅変更の実組版22回、再計測無し |
 
+### TerminalsTests.swift
+
+対象：端末の登録とメンバーの端末・フォルダ（[図](terminals.md)）。補助型も同じファイルを読んだ。
+
+| 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
+| --- | --- |
+| testTerminalDecodesTheRegistryProjectionAndAnOlderPartialBody | 公開projection（鍵は設定済み表示だけ、hostTrust、C8）と、項目が欠けた旧い応答を既定値で読む |
+| testMemberDecodesWithAndWithoutBindingFields | メンバーの`terminalId`・`projectRoot`が無い応答はnil、ある応答は値 |
+| testBindingFieldsAreSentOnlyWhenAvailable | nilの2項目は送らない、空文字は送る。照合では送っていない項目にサーバー値を採る |
+| testPairRuleAndFolderFormMatchTheServer | 組の規則、端末IDの形、フォルダの絶対パス（相対・末尾/・//・.・..・NUL・4096バイト超を拒否） |
+| testTerminalDraftAndFingerprintFollowTheRegistryForms | 端末ID・ホスト・ユーザー・ポートの形、既存IDは検査しない、指紋の形、`action`内の指紋の抽出 |
+| testCheckReasonsBecomePlainJapanese | 確認結果の`reason`を4分類＋その他の平易な文へ |
+| testServerErrorsMapToTheSameMessagesWithoutEchoingTheServerText | `trace.serverErrorCode`から文を選び、英文の`message`を画面に出さない。404と503 `TERMINALS_UNAVAILABLE`だけを未対応とする |
+| testUnsupportedServerShowsTheCalmStateAndKeepsAListOnALaterFailure | URLProtocolで404/503→未対応、200→一覧、後の500は一覧を残して`readError` |
+
 ## BellBotUITests
 
 ### AuthTypedUITests.swift
@@ -872,6 +887,16 @@ Macの端末表示中の照会と非表示後の停止、小画像保存の結�
 | [testLandscapeInspectorKeepsComposerAboveKeyboard](../../../../ios/BellBot/BellBotUITests/TabletWorkspaceUITests.swift#L65) | 詳細/keyboardの開閉と入力再開後もinput/send操作可・会話末尾が上 |
 | [testMemberAndRoomEditorsUseSharedSheets](../../../../ios/BellBot/BellBotUITests/TabletWorkspaceUITests.swift#L128) | 共通Bot/room editor sheetと削除確認取消でroom保持 |
 
+### TerminalsUITests.swift
+
+対象：iPhoneの端末画面とメンバー編集（[図](terminals.md)）。`BELLTEAM_TERMINALS_FIXTURE_URL` → [terminals-ui-server.mjs](../../../../test/helpers/terminals-ui-server.mjs)。無ければ失敗、iPhone以外はskip。各状態の画面写真を添付に残す。
+
+| 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
+| --- | --- |
+| testTerminalListAddCheckAndHostKeyConfirm | 一覧の宛先・鍵の状態（`op://`無し）、つながる/眠っている/ホスト鍵変化/信用なし/鍵なしの確認結果、指紋の誤りは409で信用せず、端末で読んだ指紋だけを`confirmHostKey`で送る、追加の検査とbody（鍵の項目なし）、編集でIDを変えない、確認後の削除、設定の項目「端末」 |
+| testMemberEditorTerminalAndFolder | 保存済みの端末とフォルダの表示、相対パスは画面で止めてPATCHしない、このBellTeamへ戻すと両方空で保存 |
+| testOldServerShowsOneCalmLineAndSendsNoNewFields | 一覧404とメンバー項目なしで一行の案内だけ、保存bodyに2項目を含めない |
+
 ### WorkGraphTapUITests.swift
 
 対象：iPhoneの相関図のタブ。`test/helpers/work-graph-server.mjs`のURLを`TEST_RUNNER_BELLTEAM_WORK_GRAPH_FIXTURE_URL`で渡す（無ければskip）。Mac・iPadはskip。
@@ -941,6 +966,7 @@ fixtureは起動していない。本体型のimport先は読まず、fixtureが
 | `BELLTEAM_SCROLL_FIXTURE_URL` → [conversation-scroll-server.mjs](../../../../test/helpers/conversation-scroll-server.mjs) | 60行の混合Markdown/短文、35短文、before/after/limit、旧remaining_before無し、過去GET500、短page。append/対象通知のSSE、要求queryと診断codeをproofへ |
 | `BELLTEAM_GOALS_FIXTURE_URL` → [goals-ui-server.mjs](../../../../test/helpers/goals-ui-server.mjs) | FULL/TAGGED/GROK/GROK_SIGNED_TOKENS/GROK_DETAIL/GROK_CLEAR/GROK_ACTIVE_NO_CLEAR/CHAT/CHAT_LONG（`GOALS_FIXTURE_`接頭辞、値1）で応答を選ぶ。binding/capability/単独項目を検査。unconfirmed/応答破棄/旧一覧保留/GET失敗/field変更、read/writeのproof |
 | `BELLTEAM_PROFILE_TERMINAL_URL` → [profile-terminal-ui-server.mjs](../../../../test/helpers/profile-terminal-ui-server.mjs) | BellPortraitのsmall/large/source/crop、旧schema、1万行端末、遅延profile/rules/models、Bot更新SSE、画像3項目PATCH、従来のread/write/完了数を保持。developer購読、再起動POSTの503/200切替、diagnostics POST受信と202応答を追加。proofのrestarts/diagnosticsへmethod/path/bodyを記録しresetで初期化 |
+| `BELLTEAM_TERMINALS_FIXTURE_URL` → [terminals-ui-server.mjs](../../../../test/helpers/terminals-ui-server.mjs) | PreviewFixturesの名簿に`terminalId`・`projectRoot`を付け、人工の端末4台（つながる/眠っている/信用なし/ホスト鍵変化）を返す。check・PUT（`confirmHostKey`は端末ごとの人工指紋と一致した時だけ信用）・DELETE・メンバーPATCHの組の規則。`/test/mode`で一覧404・503と旧メンバー応答、`/test/proof`へPUT/DELETE/check/保存body、`/test/fingerprint`はオーナーが端末で読む指紋の代わり。SSH・鍵・実端末へ接続しない |
 | `BELLTEAM_NETWORK_PROBE_URL` → [network-lifecycle-server.mjs](../../../../test/helpers/network-lifecycle-server.mjs) | developer購読、20秒POST/8秒予定GET/fast1秒、開始/完了/close時刻・同時数/peak・全GET記録。HTTP受付IDを返すがGET履歴は空 |
 | `BELLTEAM_REPORTING_PROBE_URL` → [bughub-ui-probe.mjs](../../../../test/fixtures/bughub-ui-probe.mjs) | 設定初回/後続503、予定/会話/queue無応答、POST切断/500/503/保留受付、停止502/202、SSE502→ready、保存後応答喪失。要求時刻/closed/imageCount、受信診断をproofへ。人工本文は診断へ含めないassertを試験が持つ |
 | `BELLTEAM_APPLE_INTEGRATION_URL` → [apple-integration-server.mjs](../../../../test/helpers/apple-integration-server.mjs) | 人工Bot/認証/未来予定と製品HTTP/SSEを接続。新着/配送状態/room/queue/秘密/質問/予定の制御、旧/不正JSON/未知topic注入、再接続、sourceRevision/要求/frame/変更元/CLI記録。中継はGET/HEADとdiagnosticsだけ受理。終了でstream/2server/一時rootを整理 |

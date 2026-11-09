@@ -72,6 +72,7 @@ extension BellAPI {
             if !largeAvatarChanged {
                 expected = expected.withLargeAvatar(from: current.bot)
             }
+            expected = expected.withBinding(from: current.bot)
             return current.bot == expected ? .confirmed : .different
         } catch let error where BellAPIError.isAuthenticationError(error) {
             throw error
