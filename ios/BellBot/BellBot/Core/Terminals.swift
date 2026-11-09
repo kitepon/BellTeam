@@ -283,10 +283,10 @@ enum TerminalErrorText {
         return message.flatMap { $0.wholeMatch(of: /[A-Z0-9_]+/) != nil ? $0 : nil }
     }
 
-    /// 404 or 503 TERMINALS_UNAVAILABLE on the list: this BellTeam has no terminals registry (older body or not mounted).
+    /// 404/405 on the list: this BellTeam has no terminals route (older body), as Web. A 503 TERMINALS_UNAVAILABLE is a failure.
     static func isUnsupported(_ error: Error) -> Bool {
         guard case BellAPIError.httpStatus(let status, _, _) = error else { return false }
-        return status == 404 || status == 503 && code(error) == "TERMINALS_UNAVAILABLE"
+        return status == 404 || status == 405
     }
 
     /// A keys route that answers 404 without TERMINAL_NOT_FOUND is a BellTeam without it (older body).
@@ -312,7 +312,7 @@ enum TerminalErrorText {
         case "TERMINAL_EXISTS": return "同じ端末IDがもう登録されています。別のIDにしてください。"
         case "HOST_KEY_FINGERPRINT_MISMATCH": return "入れた指紋が端末の今のホスト鍵と一致しませんでした。信用し直していません。端末で指紋をもう一度確かめてください。"
         case "INVALID_TERMINAL_STORE": return "BellTeamに保存された端末の一覧を読めませんでした。管理者に確かめてもらってください。"
-        case "TERMINALS_UNAVAILABLE": return "このBellTeamはまだ端末の登録に対応していません。"
+        case "TERMINALS_UNAVAILABLE": return "端末の機能が、いま本体で動いていません。少し待ってから、もう一度読み込んでください。"
         case "KEY_IN_REQUEST_REFUSED": return "鍵の中身はこの画面から送りません。開いた入力欄だけに入れてください。"
         case "INVALID_KEY_KIND": return "鍵の種類を読み取れませんでした。画面を開き直してください。"
         case "CREDENTIAL_UNAVAILABLE": return "いまは鍵の入力欄を開けません。少し待ってから、もう一度試してください。"

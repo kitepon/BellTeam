@@ -213,7 +213,8 @@ final class TerminalsTests: XCTestCase {
                        TerminalErrorText.member("BOT_PROJECT_ROOT_INVALID"))
 
         XCTAssertTrue(TerminalErrorText.isUnsupported(failure(404, "NOT_FOUND", nil)))
-        XCTAssertTrue(TerminalErrorText.isUnsupported(failure(503, "TERMINALS_UNAVAILABLE", "TERMINALS_UNAVAILABLE")))
+        XCTAssertTrue(TerminalErrorText.isUnsupported(failure(405, "METHOD_NOT_ALLOWED", nil)))
+        XCTAssertFalse(TerminalErrorText.isUnsupported(failure(503, "TERMINALS_UNAVAILABLE", "TERMINALS_UNAVAILABLE")), "本体で端末の機能が動いていないだけ")
         XCTAssertFalse(TerminalErrorText.isUnsupported(failure(503, "MEMBERS_UNAVAILABLE", nil)), "他の503は一時的な失敗")
         XCTAssertFalse(TerminalErrorText.isUnsupported(URLError(.notConnectedToInternet)))
     }
@@ -226,9 +227,14 @@ final class TerminalsTests: XCTestCase {
         await store.refreshTerminals()
         XCTAssertEqual(store.terminals.state, .unsupported)
 
-        TerminalsProtocol.respond(503, #"{"error":"TERMINALS_UNAVAILABLE","message":"TERMINALS_UNAVAILABLE"}"#)
+        TerminalsProtocol.respond(405, #"{"error":"METHOD_NOT_ALLOWED"}"#)
         await store.refreshTerminals()
         XCTAssertEqual(store.terminals.state, .unsupported)
+
+        // First load answered 503: a failure with a reason and retry, not Unsupported.
+        TerminalsProtocol.respond(503, #"{"error":"TERMINALS_UNAVAILABLE","message":"TERMINALS_UNAVAILABLE"}"#)
+        await store.refreshTerminals()
+        guard case .failed = store.terminals.state else { return XCTFail("first-load 503 must be failed, got \(store.terminals.state)") }
 
         TerminalsProtocol.respond(200, #"{"terminals":[{"terminalId":"owner-macbook","host":"h","user":"u"}]}"#)
         await store.refreshTerminals()
@@ -240,6 +246,16 @@ final class TerminalsTests: XCTestCase {
         XCTAssertEqual(store.terminals.terminals.map(\.terminalId), ["owner-macbook"], "読み直しの失敗で一覧を消さない")
         XCTAssertNotNil(store.terminals.readError)
         XCTAssertFalse(store.terminals.loading)
+
+        // An unmounted core (503) after a supported load keeps the roster and sets readError.
+        TerminalsProtocol.respond(200, #"{"terminals":[{"terminalId":"owner-macbook","host":"h","user":"u"}]}"#)
+        await store.refreshTerminals()
+        XCTAssertNil(store.terminals.readError)
+        TerminalsProtocol.respond(503, #"{"error":"TERMINALS_UNAVAILABLE","message":"TERMINALS_UNAVAILABLE"}"#)
+        await store.refreshTerminals()
+        XCTAssertEqual(store.terminals.terminals.map(\.terminalId), ["owner-macbook"])
+        XCTAssertTrue(store.terminals.supported)
+        XCTAssertNotNil(store.terminals.readError)
     }
 
     private func setting(_ json: String) throws -> FeatureSetting { try JSONDecoder().decode(FeatureSetting.self, from: Data(json.utf8)) }

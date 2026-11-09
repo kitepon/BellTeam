@@ -47,7 +47,7 @@ flowchart TD
 
 | ID | 画面 -> HTTP | 送るもの / 戻り |
 | --- | --- | --- |
-| AT01 | 一覧・メンバー編集 -> `GET /api/terminals` | `{terminals:[…]}`。404、または503 `TERMINALS_UNAVAILABLE`は「未対応」として一行だけ出す（赤字なし）。他の失敗は理由と再読込 |
+| AT01 | 一覧・メンバー編集 -> `GET /api/terminals` | `{terminals:[…]}`。404・405（経路が無い旧本体。Webと同じ）だけ「未対応」として一行だけ出す（赤字なし）。503 `TERMINALS_UNAVAILABLE`（本体で端末の機能が動いていない）を含む他の失敗は理由と再読込で、読めていた一覧とメンバーの端末・フォルダ操作は残す。自動再試行はしない |
 | AT02 | 登録・編集 -> `PUT /api/terminals/:id` | `host`・`user`・`port`・`os`・`accountOwner`だけ。鍵の項目は送らない。応答の公開projectionを一覧へ反映。IDは登録時だけ入力し、編集では変えない |
 | AT03 | 確認 -> `POST /api/terminals/:id/check` | `{reachable, reason, action?, observedAt}`を端末ごとに`checks`へ保持（アプリ内だけ）。席は起動しない |
 | AT04 | ホスト鍵 -> `PUT /api/terminals/:id` `{confirmHostKey:'SHA256:…'}` | オーナーが端末で読んだ指紋だけを送る。サーバーは一度scanし、等しい時だけ信用し直す。409 `HOST_KEY_FINGERPRINT_MISMATCH`は「指紋が違う」と表示して入力を残す |
@@ -96,12 +96,12 @@ stateDiagram-v2
   [*] --> NotLoaded
   NotLoaded --> Loading: 画面を開く
   Loading --> Supported: 200
-  Loading --> Unsupported: 404 / 503 TERMINALS_UNAVAILABLE
-  Loading --> Failed: その他の失敗（理由と再読込）
+  Loading --> Unsupported: 404 / 405（初回の経路なし）
+  Loading --> Failed: 初回のその他の失敗（503 TERMINALS_UNAVAILABLE を含む。理由と再読込）
   Failed --> Loading: 再読込
   Unsupported --> Loading: 画面を開き直す
   Supported --> Supported: 保存・削除・ホスト鍵は応答を一覧へ反映、確認は checks へ
-  Supported --> Loading: 画面を開き直す・再読込（後の失敗は一覧を残して readError）
+  Supported --> Loading: 画面を開き直す・再読込（後の失敗は404・405・503を含め一覧を残して readError）
   Supported --> [*]: サインアウト / 接続先変更で破棄
 ```
 

@@ -5,7 +5,7 @@ struct TerminalDirectory: Equatable {
     enum State: Equatable {
         case notLoaded
         case supported([Terminal])
-        /// The BellTeam has no terminals registry (404 / 503 TERMINALS_UNAVAILABLE): one calm line, no banner.
+        /// The BellTeam has no terminals registry (404 / 405 on the list): one calm line, no banner.
         case unsupported
         case failed(String)
     }
