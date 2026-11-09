@@ -17,6 +17,7 @@ flowchart TD
   Validate --> Display[固定通知文・既icon / 不正は汎用通知]
   Display --> Open[notificationclick 同origin rootだけfocus/open]
   Open --> Route[公開IDだけを通常認証後まで保留]
+  Graph[相関図の顔タップ open botId<br/>メモリのみ・sessionStorage/URLなし] --> Route
   Route --> Chat[既名簿/選択/履歴/カードへ復帰]
   Route --> Update[update種は既Updateを開く / inventoryと保持IDのGETだけ]
 ```

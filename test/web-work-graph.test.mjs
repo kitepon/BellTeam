@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { avatarSide, backoffMs, blinkOpacity, createGraphModel, edgeText, enterCurve, flowDots, nodeText, wrapLabel } from '../web/work-graph-model.js'
+import { avatarSide, backoffMs, blinkOpacity, createGraphModel, createTap, edgeText, enterCurve, flowDots, nodeAt, nodeText, wrapLabel } from '../web/work-graph-model.js'
 import { createGraphStream, parseFrames } from '../web/work-graph.js'
 
 const rect = { x: 24, y: 24, w: 800, h: 600 }
@@ -61,8 +61,9 @@ test('ラベルは円板に重ならず、混んでいる時は始まって3秒�
   crowd.snapshot(snapshot(ids.map(id => node(id)), ids.slice(1).map((id, i) => edge(ids[i], id))), 0, rect)
   for (let i = 0; i < 300; i++) crowd.step(1 / 60, rect, i * 16)
   assert.ok(crowd.frame(1000, rect).labels.length > 0)
-  assert.equal(crowd.frame(3500, rect).labels.length, 0)
-  assert.equal(crowd.frame(3500, rect, { hover: { edgeId: 'n0:n1' } }).labels.length, 1)
+  assert.ok(crowd.frame(3500, rect).labels.length > 0, 'brief runs 3 s from the first frame with a label')
+  assert.equal(crowd.frame(4500, rect).labels.length, 0)
+  assert.equal(crowd.frame(4500, rect, { hover: { edgeId: 'n0:n1' } }).labels.length, 1)
   assert.equal(blinkOpacity(Date.parse('2026-11-08T12:00:00Z'), '2026-11-08T12:00:00Z'), 0.25 + 0.65 * 0.5)
   assert.ok(Math.abs(enterCurve(1) - 1) < 1e-9 && enterCurve(0) === 0)
   assert.equal(nodeText(node('a', 'working', 'アン'), Date.parse('2026-11-08T12:05:30Z')), 'アン、作業中、5分前から')
@@ -143,4 +144,84 @@ test('札どうしは重ならず、古い依頼から置く。置けない札�
   const hovered = model.frame(5000, small, { hover: { edgeId: hidden } }).labels
   assert.equal(hovered.at(-1).edge.id, hidden)
   assert.deepEqual(hovered.slice(0, -1).map(label => label.box), frame.labels.map(label => label.box))
+})
+
+test('札の出し方は依頼ごとに一度だけ決めて保つ。shown は混んでも消えず、空きが無ければ今の t で blocked', () => {
+  const two = createGraphModel()
+  two.snapshot(snapshot([node('a'), node('b')], [edge('a', 'b')]), 0, rect)
+  for (let i = 0; i < 300; i++) two.step(1 / 60, rect, i * 16)
+  assert.equal(two.frame(5000, rect).labels.length, 1)
+  // shown は最初に置かれた時も200msで現れる。
+  assert.ok(two.frame(5100, rect).labels[0].alpha < 1 && two.frame(5300, rect).labels[0].alpha === 1)
+  assert.equal(two.edges.get('a:b').chip.mode, 'shown')
+  // あとで混んでも（11本以上）shown のまま。text の変化は折り返しだけ。
+  const more = Array.from({ length: 11 }, (_, i) => ({ type: 'edge-start', edge: edge('a', 'b', `x${i}`, null) }))
+  more.push({ type: 'edge-update', edge: edge('a', 'b', 'a:b', '別の依頼') })
+  assert.equal(two.change({ epoch: 'e1', version: 2, degraded: [], changes: more }, 6000, rect), true)
+  for (let t = 6000; t < 20000; t += 500) {
+    const chip = two.frame(t, rect).labels.find(label => label.edge.id === 'a:b')
+    assert.ok(chip && chip.alpha === 1 && chip.lines[0] === '別の依頼', `shown at ${t}`)
+  }
+  // 円板が今の t に来て空きが無くなったら、その t のまま blocked（線の上・顔の下に描く別の列）。
+  const chip = two.edges.get('a:b').chip, a = two.nodes.get('a'), b = two.nodes.get('b')
+  const saved = { ax: a.x, ay: a.y }
+  a.x = b.x; a.y = b.y + 1
+  const frame = two.frame(21000, rect)
+  assert.equal(frame.labels.some(label => label.edge.id === 'a:b'), false)
+  assert.equal(frame.blocked.find(label => label.edge.id === 'a:b')?.blocked, true)
+  assert.notEqual(chip.t, null)
+  // label が null に戻ったら 300 ms で消え、場所を返す。
+  Object.assign(a, { x: saved.ax, y: saved.ay })
+  two.change({ epoch: 'e1', version: 3, degraded: [], changes: [{ type: 'edge-update', edge: edge('a', 'b', 'a:b', null) }] }, 22000, rect)
+  two.frame(22000, rect)
+  assert.ok(two.frame(22100, rect).labels.find(label => label.edge.id === 'a:b').alpha < 1)
+  two.frame(22400, rect)
+  assert.equal(chip.t, null)
+  assert.equal(two.frame(23000, rect).labels.some(label => label.edge.id === 'a:b'), false)
+  // brief は窓が終わったら自分では戻らない（空いても）。
+  const crowd = createGraphModel(), ids = Array.from({ length: 12 }, (_, i) => `n${i}`)
+  crowd.snapshot(snapshot(ids.map(id => node(id)), ids.slice(1).map((id, i) => edge(ids[i], id))), 0, rect)
+  for (let i = 0; i < 300; i++) crowd.step(1 / 60, rect, i * 16)
+  crowd.frame(1000, rect)
+  crowd.change({ epoch: 'e1', version: 2, degraded: [], changes: ids.slice(2).map((id, i) => ({ type: 'edge-end', edgeId: `${ids[i + 1]}:${id}` })) }, 2000, rect)
+  crowd.step(1 / 60, rect, 2400)
+  assert.equal(crowd.frame(9000, rect).labels.length, 0)
+  assert.equal(crowd.edges.get('n0:n1').chip.mode, 'brief')
+})
+
+test('顔のタップ範囲：名前か44×44以上の四角。線・札・余白は null。後に描いた顔が上', () => {
+  const item = (botId, x, y, side) => ({ node: { botId }, x, y, side })
+  const frame = { nodes: [item('a', 100, 100, 30), item('b', 130, 100, 30)], names: [{ item: item('c', 300, 300, 56), box: { x: 280, y: 337, w: 40, h: 18 } }], labels: [], blocked: [], lines: [] }
+  assert.equal(nodeAt(frame, 100 - 21, 100 + 21), 'a', '30 px avatar grows to 44×44')
+  assert.equal(nodeAt(frame, 100 - 23, 100), null)
+  assert.equal(nodeAt(frame, 120, 100), 'b', 'the later drawn node is on top')
+  assert.equal(nodeAt(frame, 300, 345), 'c', 'the name is part of the target')
+  assert.equal(nodeAt(frame, 500, 500), null)
+  // 名前が重なったら、後に描いた（上に見えている）名前の子。
+  const both = { ...frame, names: [...frame.names, { item: item('d', 310, 300, 56), box: { x: 300, y: 337, w: 40, h: 18 } }] }
+  assert.equal(nodeAt(both, 310, 345), 'd')
+  // タップ：押した時の相手で開く。10px以上はみ出したら、戻ってきても開かない。長押しも開かない。
+  const opened = [], tap = createTap(botId => opened.push(botId))
+  tap.down(1, 0, 0, 0, 'a'); tap.move(1, 5, 0); tap.up(1, 6, 0, 400)
+  tap.down(1, 0, 0, 1000, 'b'); tap.move(1, 20, 0); tap.move(1, 0, 0); tap.up(1, 0, 0, 1200)
+  tap.down(1, 0, 0, 2000, 'c'); tap.up(1, 0, 0, 2500)
+  tap.down(1, 0, 0, 3000, null); tap.up(1, 0, 0, 3100)
+  tap.down(1, 0, 0, 4000, 'e'); tap.cancel(); tap.up(1, 0, 0, 4100)
+  assert.deepEqual(opened, ['a'])
+})
+
+test('タップした子の会話は、通知と同じ経路でメモリにだけ持って開く', async () => {
+  const { createNotificationNavigation } = await import('../web/notification-navigation.js')
+  const data = new Map(), routed = [], notices = []
+  const browser = { location: { href: 'https://example.com/', origin: 'https://example.com' }, history: { replaceState(a, b, url) { browser.location.href = url } }, sessionStorage: { getItem: k => data.get(k) ?? null, setItem: (k, v) => data.set(k, v), removeItem: k => data.delete(k) }, navigator: {} }
+  let fail = true
+  const nav = createNotificationNavigation({ browser, onRoute: async value => { if (fail) throw Error('TARGET_UNAVAILABLE'); routed.push(value) }, onNotice: notice => notices.push(notice) })
+  await nav.ready()
+  const route = { kind: 'member', messageId: null, requestId: null, botId: 'bot-a', roomId: null }
+  await nav.open(route)
+  assert.match(notices.at(-1), /開けませんでした/)
+  assert.equal(data.size, 0); assert.equal(browser.location.href, 'https://example.com/')
+  fail = false
+  await nav.retry()
+  assert.deepEqual(routed, [route]); assert.equal(notices.at(-1), '')
 })
