@@ -3,7 +3,7 @@ import { openSecretInput } from './secret-input.js?v=__ASSET_VERSION__'
 // Terminals (F-SEAT-HOST P2). The server owns registry, trust and secrets; this view only renders projections and calls the
 // Owner routes once per tap. No key value, op:// reference or key handle ever passes through here.
 const TRUST = /^(HOST_TRUST_|HOST_KEY_|TARGET_MISMATCH$)/
-const CREDENTIAL = /^(CREDENTIAL_|AUTH_FAILED$)/
+const CREDENTIAL = /^CREDENTIAL_/
 
 // One observation from POST /check -> plain words. Raw codes stay in the title only.
 export function terminalStatus(observation) {
@@ -11,11 +11,16 @@ export function terminalStatus(observation) {
   if (observation.reachable === true) return { tone: 'ok', label: 'つながります', help: '' }
   const reason = typeof observation.reason === 'string' ? observation.reason : ''
   if (reason === 'SSH_KEY_UNSET') return { tone: 'attention', label: 'SSH鍵が未設定', help: 'SSH鍵を設定すると、この端末で席を動かせます。', reason }
+  // Reasons are evidence, not diagnoses: offer the likely fix without asserting the cause (terminals README step 4).
+  if (reason === 'AUTH_FAILED') return { tone: 'danger', label: '鍵が通りません', help: 'この鍵がまだMacに入っていないかもしれません。', reason, authorize: true }
+  if (reason === 'CONNECTION_REFUSED') return { tone: 'attention', label: '届きません', help: 'Macのリモートログインがオンか確かめてください。', reason }
+  if (reason === 'UNREACHABLE') return { tone: 'attention', label: '届きません', help: 'Macが起きていて、同じネットワークにあるか確かめてください。', reason }
   if (CREDENTIAL.test(reason)) return { tone: 'danger', label: '鍵が使えません', help: 'SSH鍵が端末に受け付けられませんでした。鍵を入れ直してください。', reason }
   if (TRUST.test(reason)) return { tone: 'danger', label: 'ホスト鍵の確認が必要', help: 'この端末をまだ信用していません。端末で指紋を確かめて、下に入れてください。', reason, trust: true }
   if (reason === 'REMOTE_AITERM_TOO_OLD') return { tone: 'attention', label: '端末のAitermが古い', help: '端末のAitermを新しくすると届くようになります。', reason }
   if (reason === 'TERMINAL_NOT_FOUND') return { tone: 'danger', label: '登録がありません', help: '一覧を更新してください。', reason }
-  return { tone: 'attention', label: '届きません', help: '端末が眠っているか、ネットワークにつながっていません。起きれば、届いていない依頼から自動で再開します。', reason }
+  const action = typeof observation.action === 'string' && observation.action.trim() ? observation.action : ''
+  return { tone: 'attention', label: '届きません', help: action || '端末が眠っているか、ネットワークにつながっていません。起きれば、届いていない依頼から自動で再開します。', reason }
 }
 
 // members C1: '' or an absolute POSIX path without empty / . / .. segments and no trailing slash.
@@ -37,6 +42,21 @@ export function remoteBindingBody(saved, terminalId, projectRoot) {
   return { body: { terminalId, projectRoot: root } }
 }
 
+// members S5 default folder; same slug rule as members-folder.mjs memberFolderSlug.
+export function memberFolder(user, name) {
+  const slug = String(name ?? '').trim().replace(/[/:\0]/gu, '-')
+  return `/Users/${user}/BellTeam/${slug && slug !== '.' && slug !== '..' ? slug : 'member'}`
+}
+
+// members S5 save refusals: the server message already carries the fix and the folder (terminals actions, Japanese).
+// null = not a folder refusal; a bare code (no message in the envelope) falls back to one plain line.
+export function folderRefusal(error, folder) {
+  if (error?.code === 'TERMINAL_NOT_FOUND') return 'この端末は登録されていません。'
+  if (!/^FOLDER_/u.test(error?.code ?? '')) return null
+  return error.message && error.message !== error.code ? error.message : `このフォルダは使えません（${folder}）。`
+}
+export const FOLDER_UNCHECKED = 'Macにつながらなかったので、フォルダはまだ確かめていません。席を起こす時にもう一度確かめます。'
+
 // GET /api/terminals with the tolerance every caller shares: older bodies (404) and an unmounted core (503).
 export async function readTerminals(api, options) {
   try { return { terminals: (await api('/api/terminals', options)).terminals ?? [] } }
@@ -56,7 +76,14 @@ const ERRORS = {
   HOST_KEY_FINGERPRINT_MISMATCH: '指紋が端末のものと一致しません。端末でもう一度確かめてください。',
   CREDENTIAL_UNAVAILABLE: 'SSH鍵がまだ使えません。先に鍵を設定してください。',
   TERMINALS_UNAVAILABLE: '端末の機能が、いま本体で動いていません。',
+  HOST_TRUST_MISSING: '先にこのMacを確かめてください。',
+  SSH_KEY_UNSET: '先にSSH鍵を設定してください。',
 }
+// keyAuthorization.outcome -> plain words; success runs the check again instead.
+const AUTHORIZE_TEXT = { PASSWORD_REJECTED: 'パスワードが違いました。', PASSWORD_AUTH_DISABLED: 'このMacはパスワードでのログインを受け付けていません。',
+  AUTHORIZATION_UNCONFIRMED: '入れられたか確かめられませんでした。もう一度お試しください。' }
+export const authorizeText = outcome => AUTHORIZE_TEXT[outcome] ?? 'もう一度お試しください。'
+const AUTHORIZE_WAIT_MS = 1000
 const errorText = error => ERRORS[error?.code] ?? '結果を確認できませんでした。一覧を更新して確かめてください。'
 const keyLabel = { ssh: 'SSH鍵', sudo: 'sudo鍵' }
 // Source of each purpose's key. The native (terminal-held) capability is SSH only (usage C5), so the shared keySource never describes sudo.
@@ -92,7 +119,7 @@ export function createTerminalsView(dialog, { api }) {
   dialog.addEventListener('close', () => { opened = null })
 
   async function open() {
-    opened = { terminals: [], observations: new Map(), busy: new Set(), keyRoute: true, editing: null, unsupported: false, trustDraft: new Map() }
+    opened = { terminals: [], observations: new Map(), busy: new Set(), keyRoute: true, editing: null, unsupported: false, trustDraft: new Map(), authorizing: new Map(), authorizeRequest: new Map() }
     say('')
     body.replaceChildren(element('p', '読み込んでいます…', 'field-help'))
     if (!dialog.open) dialog.showModal()
@@ -142,6 +169,33 @@ export function createTerminalsView(dialog, { api }) {
     const current = opened
     openSecretInput({ message: `端末「${terminal.terminalId}」の${keyLabel[purpose]}です。値はこの入力欄だけに入れてください。`, ...request }, api, () => { if (opened === current) void load() })
   })
+  // Self-service step 4: the Mac's login password goes only into Mika's card; this view waits for the outcome.
+  const authorizeKey = id => run(`authorize:${id}`, () => api(`/api/terminals/${id}/keys/ssh/authorize`, { method: 'POST' }), result => {
+    const request = result.secretRequest
+    if (!request?.id) { say('入力欄を開けませんでした。一覧を更新して確かめてください。'); return }
+    const current = opened
+    current.authorizing.delete(id); current.authorizeRequest.set(id, request.id)
+    // onComplete also fires for 入力を断る; only a submitted password has an outcome to wait for.
+    openSecretInput(request, api, done => { if (opened === current && done?.status === 'submitted') void awaitAuthorization(id, request.id) })
+  })
+  // Pending stays true until the outcome is recorded (#858); the requestId match also ignores an older outcome.
+  // Keeps observing the submitted request while it can still finish. Exits: its outcome, or the Owner closing the dialog /
+  // starting a newer request for this terminal. A failed read is retried on the next tick, never a give-up.
+  async function awaitAuthorization(id, requestId) {
+    const current = opened
+    const observing = () => opened === current && current.authorizeRequest.get(id) === requestId
+    current.authorizing.set(id, { text: 'Macに鍵を入れています…', waiting: true }); render()
+    let outcome = null
+    for (let read = 0; !outcome; read++) {
+      if (read) await new Promise(resolve => setTimeout(resolve, AUTHORIZE_WAIT_MS))
+      if (!observing()) return
+      const terminal = await api(`/api/terminals/${id}`).catch(() => null)
+      if (!observing()) return
+      if (terminal?.keyAuthorizationPending !== true && terminal?.keyAuthorization?.requestId === requestId) outcome = terminal.keyAuthorization.outcome
+    }
+    if (outcome === 'AUTHORIZED' || outcome === 'ALREADY_AUTHORIZED') { current.authorizing.delete(id); render(); await check(id); return }
+    current.authorizing.set(id, { text: authorizeText(outcome), retry: outcome === 'PASSWORD_REJECTED' }); render()
+  }
   const unbindKey = (terminal, purpose) => {
     if (!window.confirm(`端末「${terminal.terminalId}」の${keyLabel[purpose]}を外しますか？`)) return
     return run(`key:${terminal.terminalId}`, () => api(`/api/terminals/${terminal.terminalId}/keys/${purpose}`, { method: 'DELETE' }), () => load())
@@ -178,7 +232,10 @@ export function createTerminalsView(dialog, { api }) {
     owner.value = draft.accountOwner
     // Typed values survive re-renders (busy state, a failed save) until the form is closed.
     node.addEventListener('input', () => Object.assign(draft, { terminalId: id.value, host: host.value, user: user.value, port: port.value, accountOwner: owner.value, revision: draft.revision + 1 }))
-    node.append(element('h4', terminal ? `「${terminal.terminalId}」を編集` : '端末を追加'),
+    node.append(element('h4', terminal ? `「${terminal.terminalId}」を編集` : '端末を追加'))
+    // Precondition first: SSH needs Remote Login on (self-service step 1).
+    if (!terminal) node.append(element('p', 'Macの「システム設定 > 一般 > 共有」で「リモートログイン」をオンにしてください。', 'field-help'))
+    node.append(
       field('端末ID', id, '英小文字・数字・ハイフン。あとから変えられません。'), field('ホスト', host, 'IPアドレスかホスト名だけ。user@ やポートは入れません。'),
       field('ユーザー名', user), field('SSHのポート', port), field('機械の持ち主', owner), element('p', 'OSは今は macOS だけです。鍵は、登録したあとに「設定する」から入れます。', 'field-help'))
     const actions = element('div', undefined, 'terminal-actions')
@@ -231,15 +288,29 @@ export function createTerminalsView(dialog, { api }) {
     meta.append(badge('macOS', 'muted'), badge(terminal.accountOwner === 'terminal-owner' ? 'ほかの人の機械' : '自分の機械', 'muted'),
       terminal.hostTrust ? badge('ホスト鍵 登録済み', 'ok') : badge('ホスト鍵 未登録', 'attention'))
     node.append(head, meta)
-    const needsKeyFirst = (status.trust || !terminal.hostTrust) && terminal.sshKeyConfigured === false
-    const help = needsKeyFirst && status.trust ? '先にSSH鍵を設定してください。そのあと、ホスト鍵の指紋を確かめます。' : status.help
-    if (help) node.append(element('p', help, 'field-help'))
+    const needsTrust = status.trust || !terminal.hostTrust
+    if (needsTrust) node.append(element('p', 'このMacでBellTeamアプリを開くと、自動で確かめます。', 'field-help'))
+    if (status.help && !status.trust) node.append(element('p', status.help, 'field-help'))
+    const authorizing = opened.authorizing.get(id)
+    if (authorizing) node.append(element('p', authorizing.text, 'field-help'))
+    if ((status.authorize && !authorizing) || authorizing?.retry) {
+      const authorize = button('このMacにこの鍵を入れる', () => { void authorizeKey(id) }, 'primary')
+      authorize.disabled = opened.busy.has(`authorize:${id}`)
+      const row = element('div', undefined, 'terminal-actions'); row.append(authorize); node.append(row)
+    }
     const observed = opened.observations.get(id)?.observedAt
     if (observed) node.append(element('p', `確かめた時刻 ${new Date(observed).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`, 'terminal-time'))
     const claude = terminal.maintenance
     if (claude?.after || claude?.before) node.append(element('p', `Claude Code ${claude.after ?? claude.before}${claude.outcome === 'updated' ? '（最新に更新しました）' : claude.outcome === 'failed' ? '（更新できませんでした。入っている版で動きます）' : ''}`, 'terminal-time'))
     node.append(keyRow(terminal, 'ssh'), keyRow(terminal, 'sudo'))
-    if ((status.trust || !terminal.hostTrust) && !needsKeyFirst) node.append(trustForm(terminal))
+    // Manual sheet for a Mac without the app; PUT confirmHostKey uses the SSH key's binding, so the key comes first there.
+    if (needsTrust) {
+      const other = element('details', undefined, 'terminal-other')
+      other.append(element('summary', 'ほかの方法'), terminal.sshKeyConfigured === false
+        ? element('p', '先にSSH鍵を設定してください。そのあと、ホスト鍵の指紋を確かめます。', 'field-help') : trustForm(terminal))
+      if (opened.trustDraft.get(id)) other.open = true
+      node.append(other)
+    }
     if (opened.editing === id) node.append(form(terminal))
     const actions = element('div', undefined, 'terminal-actions')
     const checkButton = button(opened.busy.has(`check:${id}`) ? '確かめています…' : '届くか確かめる', () => { void check(id) }, 'primary')
