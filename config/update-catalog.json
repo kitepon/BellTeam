@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-09T05:08:29Z",
-  "expiresAt": "2026-11-16T05:08:29Z",
+  "publishedAt": "2026-11-09T06:17:23Z",
+  "expiresAt": "2026-11-16T06:17:23Z",
   "releases": [
     {
       "componentId": "usage",
@@ -425,8 +425,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "b316a4c18e3d855efa0c0b1b36aff53dd176d7b0",
-      "versionId": "c906c5c93ce5dca716a8caf78916e779b2f6c41187f59acc945e74764232d8cb",
+      "sourceCommit": "bebee5027ccc8543187f8c2c55a65d5c8c6c8890",
+      "versionId": "e0c1706765bc32b4d6e3678e022482fc149ecf2828c6e9bd14d74dca6f2343e3",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -434,16 +434,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T050504Z/web-gateway-b316a4c18e3d855efa0c0b1b36aff53dd176d7b0-linux-amd64.tar.gz",
-          "bytes": 5087435,
-          "sha256": "c906c5c93ce5dca716a8caf78916e779b2f6c41187f59acc945e74764232d8cb"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T061028Z/web-gateway-bebee5027ccc8543187f8c2c55a65d5c8c6c8890-linux-amd64.tar.gz",
+          "bytes": 5113786,
+          "sha256": "e0c1706765bc32b4d6e3678e022482fc149ecf2828c6e9bd14d74dca6f2343e3"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T050504Z/web-gateway-b316a4c18e3d855efa0c0b1b36aff53dd176d7b0-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10876,
-          "sha256": "9ead28b917891e6dfde04e38a8c7c43d88f6fb58f1277af3828d1ad43f24202f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T061028Z/web-gateway-bebee5027ccc8543187f8c2c55a65d5c8c6c8890-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10821,
+          "sha256": "014dac97cf00e71145cff89420c07db1134ca411d04a22aee4df1c6f17476235"
         },
-        "signerCommit": "b316a4c18e3d855efa0c0b1b36aff53dd176d7b0"
+        "signerCommit": "bebee5027ccc8543187f8c2c55a65d5c8c6c8890"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -452,13 +452,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "秘密入力で、サーバーが利用可能と知らせた場合に1Passwordの参照を選べるようにします。利用できない場合は従来の入力方法を維持します。"
+        "Web相関図でメンバーをタップするとそのメンバーとのチャットを開き、チップを安定して表示します。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "b316a4c18e3d855efa0c0b1b36aff53dd176d7b0",
-      "versionId": "c3854c7a1d6c0322739452f634a58459c2203e79266881406820b41630cbfd82",
+      "sourceCommit": "bebee5027ccc8543187f8c2c55a65d5c8c6c8890",
+      "versionId": "b1b17c48e2d12b3670caaf57c178dd20f23c99715795503d40e07be43d995c04",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -466,16 +466,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T050504Z/web-gateway-b316a4c18e3d855efa0c0b1b36aff53dd176d7b0-linux-arm64.tar.gz",
-          "bytes": 5087435,
-          "sha256": "c3854c7a1d6c0322739452f634a58459c2203e79266881406820b41630cbfd82"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T061028Z/web-gateway-bebee5027ccc8543187f8c2c55a65d5c8c6c8890-linux-arm64.tar.gz",
+          "bytes": 5113786,
+          "sha256": "b1b17c48e2d12b3670caaf57c178dd20f23c99715795503d40e07be43d995c04"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T050504Z/web-gateway-b316a4c18e3d855efa0c0b1b36aff53dd176d7b0-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11099,
-          "sha256": "3757a0ab5059df5b780e909bd950dbfb8b034c6711a2c6681ef53acaa4282158"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T061028Z/web-gateway-bebee5027ccc8543187f8c2c55a65d5c8c6c8890-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10688,
+          "sha256": "d8037c61a2e2e948dc7b37a475183bfad412c0d164aec8cf147ac5323f5733a1"
         },
-        "signerCommit": "b316a4c18e3d855efa0c0b1b36aff53dd176d7b0"
+        "signerCommit": "bebee5027ccc8543187f8c2c55a65d5c8c6c8890"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -484,7 +484,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "秘密入力で、サーバーが利用可能と知らせた場合に1Passwordの参照を選べるようにします。利用できない場合は従来の入力方法を維持します。"
+        "Web相関図でメンバーをタップするとそのメンバーとのチャットを開き、チップを安定して表示します。"
       ]
     },
     {
