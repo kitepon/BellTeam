@@ -27,14 +27,14 @@ Root限定割当の実行3接点は[通常配送と未確認記録の分離](../
 | 親機能 | 接続・所有・失敗 |
 | --- | --- |
 | 一実体 | application-servicesがN102 DurableMessageReceiptsを一回生成し、conversationPorts.directReceiptsへ同参照を供給。子direct.log.appendは同writerへ。Roomは既所有 |
-| 認可 | assemblyの現在の認証actorを純粋な既method/入力検証で捕捉。Bot送信者・usage/onboarding targetを保持。子admission/AI有効を受領の条件にしない。executionSourceは登録済親contextだけ、本文由来は採用しない |
+| 認可 | assemblyの現在の認証actorを純粋な既method/入力検証で捕捉。Bot送信者・usage/onboarding targetを保持。子admission/AI有効を受領の条件にしない。executionSourceは登録済親contextだけ、本文由来は採用しない。任意の第3引数`captureActor`は既検証の通過後、返却前に現在の認証actorの浅いcopyを一回受け取る（送信者表示用）。`from`や本文は送信者の根拠にしない。返却値/実行権限は不変 |
 | 添付 | assemblyの既asset gateを共有。親saveはmembersだけの短命contextで同gateへ入り、子writer/admissionを予約しない。削除は同gateが親/子の実save終端を待つ |
 | 新受領 | 公開MCP/HTTP user/peer/Bridge→安定親receive→queued+fsync→queued返却。recordUser=falseは既onboarding専用経路。履歴read/旧制御/Roomは既facade |
 | 実入力 | 同queued IDを耐久claim→fresh本人/明示AI許可→既transport turn/notify→実accepted。同callbacksは親writerへ保存、Owner実replyも保存。Bridge session/event/seq/hint保持。実入力前の既拒否だけnot_started、native例外はunknownを保持 |
 | 通常再開 | onPending・conversation/executionのrunningavailable・AiControl保存後enabledが同nonblocking要求へ。mutex解放後にfresh execution ready/AI許可/closedを確認。会話の追跡不明だけを新規入力gateにしない。組立完了後初回一回。queued-not_started自己再試行/新timer/AIpoll無し |
 | 終了 | drain要求のclosed化・AI購読解除→既起動失敗/通常close。元job/native/watch/callbackを付替えない |
 
-DFD: `認証済actor→純粋な既認可→親一実体receive→同asset gate→同JSONL queued/fsync→同ID受領`。`onPending/既runningavailable/AI enabled→nonblocking request→exchangeMutex.waitForIdle→fresh execution/AI→同ID queued claim→fresh本人→通常transport→実callback/Owner返答→同writer→既履歴watch/通知`。`旧legacy/unknown/dispatching→保持`、`保存失敗→受領拒否/native0`、`明示not_started→queued保持・次の外部通常eventまで自己loop無し`。
+DFD: `認証済actor→純粋な既認可→captureActor?({...actor})→親一実体receive→同asset gate→同JSONL queued/fsync→同ID受領`。`onPending/既runningavailable/AI enabled→nonblocking request→exchangeMutex.waitForIdle→fresh execution/AI→同ID queued claim→fresh本人→通常transport→実callback/Owner返答→同writer→既履歴watch/通知`。`旧legacy/unknown/dispatching→保持`、`保存失敗→受領拒否/native0`、`明示not_started→queued保持・次の外部通常eventまで自己loop無し`。
 
 N102 b0602e18の6case/35.790054msを継承。親の新規接続だけを追加検証し、全作者内部群は再走しない。本sourceを現用無停止採用の証明にしない。
 
