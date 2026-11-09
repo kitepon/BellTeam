@@ -856,3 +856,7 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .work-graph-empty.visible { opacity: 1; }
 .work-graph-empty span { position: absolute; width: 220px; height: 220px; border-radius: 50%; background: rgba(97, 71, 212, .08); filter: blur(50px); }
 .work-graph-empty p { position: relative; margin: 0; padding: 0 24px; color: #787D91; font-size: 15px; text-align: center; }
+.secret-sources { display: grid; gap: 6px; margin: 0 0 12px; padding: 0; border: 0; }
+.secret-sources legend { margin-bottom: 4px; font-size: 13px; color: #676076; }
+.secret-sources label { display: flex; align-items: center; gap: 8px; }
+.secret-dialog .secret-sources input { width: auto; padding: 0; accent-color: #6851c4; }

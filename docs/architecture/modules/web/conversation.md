@@ -106,6 +106,27 @@ flowchart TD
 
 Webが所有するsourceは `web/secret-input.js`、既callerは `web/conversation-timeline.js:renderItemElement`。URLはブラウザーのanchorだけが持ち、新しいWeb資材/export/依存はない。機能間窓口は既HTTP/SSEのままなのでmodule.json/生成全体図の接続変更はなく、外部ページへの遷移をこの担当図へ記す。有限fixtureは `test/secret-owner-guide.test.mjs` の固定3origin/不正URL/旧カード/閉じた状態/既dialog/明示submitと取消、`timeline-open-queue` の直接・部屋と履歴更新時の除去。Owner専用投影とexport除外の実fixtureはサーバー担当との結合で確認する。人工DOM試験を公式認証/本番の成功と扱わない。
 
+## 秘密入力dialogの1Password参照選択
+
+usage（ミカ）が source/reference/handle/revision/resolution の正本を持つ。Webは既秘密カードの `item.secret_request.inputOptions?: {preferred:'onepassword'|'stored', onePasswordAvailable:boolean}` を読み、入力方法の選択と一回のsubmit本文だけを持つ。
+
+```mermaid
+flowchart TD
+  Item["履歴 item.secret_request<br/>inputOptions は usage が付与"] --> Open["Web secret-input<br/>安全な入力欄を開く"]
+  Open --> Avail{"inputOptions.onePasswordAvailable === true"}
+  Avail -->|"true"| Choice["選択: 1Password参照（先頭）/ 値を保存<br/>preferred='stored' の時だけ保存を既定、他は1Password"]
+  Avail -->|"欠落・false・不正"| Stored["既存の値入力だけ（旧server互換）"]
+  Choice -->|"1Password"| Ref["参照欄 op://…（text, autocomplete off）"]
+  Choice -->|"値を保存"| Stored
+  Ref -->|"op:// で始まる"| PostRef["POST submit {source:'onepassword', reference}"]
+  Stored --> PostVal["POST submit {value}"]
+  PostRef --> Done["onComplete(result.request) → カードは状態だけ"]
+  PostVal --> Done
+  PostRef -->|"失敗"| Keep["参照欄を保持して再入力可能<br/>値欄は送信前に消去済み"]
+```
+
+参照と値はカード・履歴・console・storage・エラー文へ出さない。参照欄はdialogを閉じる/画面を隠すと消去する。参照の構文と1Password接続・解決の正否はserverが判定し、Webは `op://` 接頭辞の確認だけを行う。`onePasswordAvailable` が無い旧serverでは画面も本文も既存のまま。Appleの同等UIはベルの担当。fixtureは `test/secret-onepassword-choice.test.mjs`。
+
 ## 受付後の追跡故障を未達へ読み替えない
 
 会話/実行担当が公開する任意の`deliveryTracking`を表示根拠にする。`delivery === 'failed'`で、`schema === 'bellteam.delivery-tracking.v1'`・`admission === 'accepted'`・`completion === 'unknown'`の全値が一致する場合だけ、直接会話は「受付済み・完了未確認」、部屋は「完了未確認の宛先あり」と中立表示する。fieldなしの旧failedと欠落/未知/不正tupleは従来の「配達失敗」を維持する。running/delivered/stopped等をこのtupleだけで変更しない。
