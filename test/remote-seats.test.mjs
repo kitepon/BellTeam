@@ -276,3 +276,22 @@ test('R13: a stop/admission change while the reload is suspended starts no secon
     assert.ok(k.log.some(entry => entry.op === 'revoke'), 'the seat credential of the refused launch is revoked')
   } finally { await rm(root, { recursive: true, force: true }) }
 })
+
+test('R13: an accountOwner change during the reload launches nothing more and never sends the Owner login elsewhere', async () => {
+  const { root, calls, transport, member } = await transportFixture()
+  try {
+    const k = keyFixture()
+    transport.remoteSeats = k.seats
+    transport.accounts = { watch: () => () => {}, selection: async () => ({ slot: '2nd' }), setSeat: async () => {} }
+    let owner = 'owner'
+    k.seats.terminals.connection.target = async request => ({ terminal: keyed, cwd: request.projectRoot, accountOwner: owner })
+    const client = transport.client
+    client.call = async (name, args, options) => { calls.push({ name, args, options }); if (name === 'agent_launch') { owner = 'user-b'; throw code('CREDENTIAL_NOT_LOADED') } return {} }
+    await assert.rejects(transport.wakeNow(member, { membersLease: 'L' }), error => error.code === 'TERMINAL_TARGET_CHANGED' && error.effect === 'not_started')
+    const launches = calls.filter(call => call.name === 'agent_launch')
+    assert.equal(launches.length, 1)
+    assert.equal(launches[0].options.claudeLogin, '2nd', 'the first launch was on the Owner terminal')
+    assert.ok(k.log.some(entry => entry.op === 'revoke'))
+    assert.deepEqual(k.observed, ['mac-1'])
+  } finally { await rm(root, { recursive: true, force: true }) }
+})

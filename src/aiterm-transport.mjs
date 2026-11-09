@@ -350,7 +350,7 @@ export class AitermTransport {
     } catch (error) {
       // A credential issued for a launch that was never issued is revoked; a launch possibly running keeps its own.
       // Aiterm's connectivity codes keep the message queued and arm terminals' observer (remote-seat.md "Pending delivery").
-      if (remote && issuedLaunch) this.remoteSeats.launchFailed(bot, error)
+      if (remote) this.remoteSeats.launchFailed(bot, error)
       if (remote && (!issuedLaunch || ['not_started', 'not_issued'].includes(error?.effect))) await remote.revoke()
       // 起動の準備が終わらなかった席は、Aitermの端末だけが残る（認証が切れたCLIがサインインの画面で止まった時など。2026-10-05、Codex）。
       // 残すと席が「動いている」扱いになり、次の送信から起こし直せず、入力も受け付けない。BellTeamの席には、その画面へ答える人が居ない。

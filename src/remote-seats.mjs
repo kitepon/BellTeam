@@ -6,7 +6,8 @@
 // Terminal and credential unavailability keeps the saved message queued (Owner 2026-11-09 13:38). Each code has an exit:
 // terminals' observer (connectivity) or its registry-change edge (target/trust revision). A missing folder or a too old
 // Aiterm on the terminal has no observable exit, so it stays a visible delivery failure.
-const REACHABILITY = new Set(['TERMINAL_UNAVAILABLE', 'CREDENTIAL_UNAVAILABLE', 'UNREACHABLE', 'HOST_TRUST_STALE', 'SEAT_FORWARD_UNAVAILABLE'])
+const REACHABILITY = new Set(['TERMINAL_UNAVAILABLE', 'CREDENTIAL_UNAVAILABLE', 'UNREACHABLE', 'HOST_TRUST_STALE', 'SEAT_FORWARD_UNAVAILABLE',
+  'TERMINAL_TARGET_CHANGED'])
 const NOT_STARTED = new Set([...REACHABILITY, 'TARGET_MISMATCH', 'HOST_KEY_MISMATCH', 'TERMINAL_NOT_FOUND',
   'BOT_REMOTE_BINDING_MISSING', 'MEMBERS_EFFECT_UNSUPPORTED', 'SEAT_CREDENTIAL_INVALID', 'TERMINALS_UNAVAILABLE'])
 const reachability = code => REACHABILITY.has(code) || typeof code === 'string' && code.startsWith('CREDENTIAL_')
@@ -82,8 +83,16 @@ export class RemoteSeats {
         args: { ...args, terminal, cwd, append_system_prompt: text,
           mcp_config: { mcpServers: { bellteam: { type: 'http', url, headers }, 'call-bridge': { type: 'http', url: `${url}/call-bridge`, headers } } } },
         claudeLogin,
-        // CREDENTIAL_NOT_LOADED / CREDENTIAL_REVISION_STALE on agent_launch: load again and launch once more (R13).
-        reloadKey: () => this.target(bot, harness).then(fresh => fresh.terminal),
+        // CREDENTIAL_NOT_LOADED / CREDENTIAL_REVISION_STALE on agent_launch: load again and launch once more (R13), only for
+        // the same target intent. A changed owner, binding, host or folder would mix the prepared login/options with another
+        // target, so it is not started; terminals' observer drains it and the next wake prepares afresh.
+        reloadKey: async () => {
+          const fresh = await this.target(bot, harness)
+          if (fresh.accountOwner !== accountOwner || fresh.cwd !== cwd || fresh.terminal?.ref !== terminal.ref
+            || JSON.stringify(fresh.terminal?.target) !== JSON.stringify(terminal.target))
+            throw Object.assign(new Error('TERMINAL_TARGET_CHANGED'), { code: 'TERMINAL_TARGET_CHANGED', effect: 'not_started' })
+          return fresh.terminal
+        },
         // The seat launcher forwards exactly these names (Molly #793); the login value still comes only from claudeLogin.
         privateEnv: { names: ['BELLTEAM_MCP_TOKEN', ...(claudeLogin ? ['CLAUDE_CODE_OAUTH_TOKEN'] : [])], resolve: async () => ({ BELLTEAM_MCP_TOKEN: await this.ingress.seatCredential.reveal(credentialRef) }) },
         revoke: () => this.revoke(sessionName),
