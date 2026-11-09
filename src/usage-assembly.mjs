@@ -145,9 +145,9 @@ export function createUsageAssembly({ root, exchangeMutex, environment = {}, sea
       return scope.run(current, () => onEffect(method, params, current))
     },
     onProjection: async (row, context) => {
-      if (row.type === 'credential') await nativeCredentials.selectCredential(row.value)
       return context.phase === 'seed' ? projection.seed(row, context.generation)
-        : context.phase === 'snapshot' ? projection.accept(row, context.generation) : facade.accept(row, context.generation)
+        : context.phase === 'snapshot' ? projection.accept(row, context.generation)
+          : facade.accept(row, context.generation, row.type === 'credential' ? () => nativeCredentials.selectCredential(row.value) : undefined)
     },
     onSnapshotStart: context => projection.begin(context.generation),
     onSnapshotEnd: context => projection.commit(context.generation),

@@ -72,14 +72,18 @@ export function createUsageFacade({ request, projection, toolsDirectory }) {
       completeSetup: (botId, context) => call('subscriptions.completeSetup', { botId }, context),
       runSetupTest: (botId, run, context) => call('subscriptions.runSetupTest', { botId }, context),
     },
-    accept(row, generation) {
+    accept(row, generation, beforeNotify) {
       projection.accept(row, generation)
-      if (row.type === 'credential') events.emit('credential', structuredClone(row.value))
-      if (row.type === 'credentialRecovery') events.emit('credentialRecovery', structuredClone(row.value))
-      if (row.type === 'event') {
-        if (row.value.topics.includes('requests')) events.emit('secret', structuredClone(row.value))
-        if (row.value.topics.includes('questions')) events.emit('question', structuredClone(row.value))
+      const notify = () => {
+        if (row.type === 'credential') events.emit('credential', structuredClone(row.value))
+        if (row.type === 'credentialRecovery') events.emit('credentialRecovery', structuredClone(row.value))
+        if (row.type === 'event') {
+          if (row.value.topics.includes('requests')) events.emit('secret', structuredClone(row.value))
+          if (row.value.topics.includes('questions')) events.emit('question', structuredClone(row.value))
+        }
       }
+      if (beforeNotify) return Promise.resolve().then(beforeNotify).then(notify)
+      notify()
     },
   }
   return facade

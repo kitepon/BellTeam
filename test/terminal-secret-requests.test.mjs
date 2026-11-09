@@ -139,3 +139,15 @@ test('Owner submitted source survives binding failure and retry binds it without
   await service.submit(request.secretRequest.id, 'must-not-overwrite')
   assert.equal(await service.withResolved(recovered.handle, context, value => value), 'retained-key')
 })
+
+test('parent validates credential projection before durable selection and notifies only after persistence', async () => {
+  const { createUsageFacade } = await import('../src/usage/facade.mjs')
+  const order = [], row = { type: 'credential', revision: 1, value: { ...scope, handle: 'synthetic-handle', revision: 1, available: true, requestId: 'synthetic-request', reason: 'bound' } }
+  const facade = createUsageFacade({ request() {}, projection: { accept() { order.push('validate') } } })
+  facade.secretRequests.watchCredentials(() => order.push('notify'))
+  await facade.accept(row, 'test', async () => { order.push('persist') })
+  assert.deepEqual(order, ['validate', 'persist', 'notify'])
+  const stale = createUsageFacade({ request() {}, projection: { accept() { throw new Error('USAGE_PROJECTION_REVISION') } } })
+  assert.throws(() => stale.accept(row, 'test', () => order.push('must-not-persist')), /USAGE_PROJECTION_REVISION/)
+  assert.equal(order.includes('must-not-persist'), false)
+})

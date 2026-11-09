@@ -108,3 +108,5 @@ Submission recovery: if source persistence succeeded but binding failed, a still
 ### Missing optional executable during startup
 
 The fixed executable's filesystem path resolution is separate from secret-reference resolution. When neither the shared wrapper nor an op executable on PATH exists, refresh returns false without an unhandled rejection; stored input and application startup remain available. This repair stays within the existing optional-source unavailable/recovery contract and changes no I/O, state or connection.
+
+Parent publication order is schema/generation/revision validation, then durable selection update, then the credential event. A rejected stale projection cannot mutate the selection index before its revision check.
