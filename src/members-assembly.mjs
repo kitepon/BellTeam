@@ -33,6 +33,17 @@ export function createMembersAssembly({ root, seatRuntime, aiterm, settings, mod
       switch (method) {
         case 'schedules.currentTurn': value = dependencies().scheduleTurns.currentTurn(params.botId); break
         case 'models.read': value = await models.forHarness(params.harness); break
+        // S5 (remote-seat.md): no terminals core, or a core without folder, answers null = not checked.
+        case 'terminals.read': { const terminal = await dependencies().terminals?.registry.get(params.terminalId); value = terminal ? { user: terminal.user } : null; break }
+        case 'terminals.folder': {
+          const core = dependencies().terminals
+          if (typeof core?.folder !== 'function') { value = null; break }
+          try { value = await core.folder(params) } catch (error) {
+            if (error?.code === 'INVALID_PATH') throw Object.assign(new Error('BOT_PROJECT_ROOT_INVALID'), { code: 'BOT_PROJECT_ROOT_INVALID', status: 400 })
+            throw error
+          }
+          break
+        }
         case 'assets.prepareBotAssetRemoval': value = await assets.prepareBotAssetRemoval(params.botId, context.operationContext); break
         case 'assets.cancelBotAssetRemoval': value = assets.cancelBotAssetRemoval(params.botId, params.lease, params.state, context.operationContext); break
         case 'room.schedules.list': value = await rooms.listSchedules(params.roomId, context.operationContext); break

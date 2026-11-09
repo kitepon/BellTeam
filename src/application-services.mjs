@@ -147,7 +147,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   } }, !diagnosticsModule || Boolean(diagnosticsModule.snapshot().available))
   if (seatRuntime || membersFactory) {
     members = createMembersAssembly({ root, seatRuntime, aiterm, settings, models, membersAdmission, exchangeMutex,
-      membersAuthorization, diagnostics, onModuleChildExit: moduleChildExitReporter.observe, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit, dependencies: () => ({ memory, rooms, assets, conversationAssembly, scheduleTurns }), onState: () => updateCenter?.notify(),
+      membersAuthorization, diagnostics, onModuleChildExit: moduleChildExitReporter.observe, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit, dependencies: () => ({ memory, rooms, assets, conversationAssembly, scheduleTurns, terminals }), onState: () => updateCenter?.notify(),
       ...(membersFactory ? { createProcess: membersFactory } : {}),
     })
     await members.controller.start()

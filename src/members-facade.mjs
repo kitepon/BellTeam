@@ -50,6 +50,8 @@ export function createMembersFacade({ request, callback, admission, projection }
       collectProfiles({ ...context, membersReadPin: profilesPin }, { ...context, membersReadPin: memberPin }),
     { expected: { generation: profilesPin.generation, epoch: profilesPin.epoch } }), { pin: context.membersReadPin })
   }
+  // S5 (remote-seat.md): the save's folder check rides on the returned bot only, never stored.
+  const withFolderCheck = ({ bot, folderCheck }) => folderCheck ? { ...bot, folderCheck } : bot
   const bots = {
     // These are display projection reads, never fresh authorization.
     get: id => { const bot = projection.get(id); return bot?.deleting ? undefined : bot },
@@ -64,9 +66,9 @@ export function createMembersFacade({ request, callback, admission, projection }
     readRemovalStates: context => invoke('removals.read', {}, context),
     hasPendingRemoval: async (botId, context) => (await invoke('removals.read', {}, context)).removals.some(value => value.botId === botId),
     remove: (botId, context) => invoke('profile.remove', { botId }, context),
-    create: async (input, context = {}) => (await invoke('profile.create', { input, ...(context.id === undefined ? {} : { id: context.id }) }, context)).bot,
+    create: async (input, context = {}) => withFolderCheck(await invoke('profile.create', { input, ...(context.id === undefined ? {} : { id: context.id }) }, context)),
     previewUpdate: async (botId, changes, context) => (await invoke('profile.preview', { botId, changes }, context)).bot,
-    update: async (botId, changes, context) => (await invoke('profile.update', { botId, changes }, context)).bot,
+    update: async (botId, changes, context) => withFolderCheck(await invoke('profile.update', { botId, changes }, context)),
     prepareStartupContext: async (botId, shortTermMemory, context) => { await invoke('profile.startup', { botId, shortTermMemory }, context) },
     // Remote seat C1/C6 (modules/members/remote-seat.md); execution calls this instead of prepareStartupContext.
     launchContext: async (botId, { sessionName, shortTermMemory }, context) => (await invoke('profile.launchContext', { botId, sessionName, shortTermMemory }, context)).launchContext,

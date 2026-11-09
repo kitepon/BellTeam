@@ -54,6 +54,7 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
     botsRoot: join(root, 'bots'), stateRoot: join(root, 'state/bots'), projectFiles,
     currentTurn: botId => call('schedules.currentTurn', { botId }),
     models: { forHarness: harness => call('models.read', { harness }) },
+    terminals: { read: terminalId => call('terminals.read', { terminalId }), folder: request => call('terminals.folder', request) },
     onChange: registry => call('cli.configure', { botIds: [...registry.keys()] }),
     assetRemoval: {
       prepareBotAssetRemoval: botId => call('assets.prepareBotAssetRemoval', { botId }),
@@ -144,10 +145,11 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
       }
       case 'profile.preview': return { bot: await bots.previewUpdate(params.botId, params.changes) }
       case 'profile.remove': return bots.remove(params.botId)
-      case 'profile.update': return { bot: await bots.update(params.botId, params.changes) }
+      case 'profile.update': { const saved = {}; const bot = await bots.update(params.botId, params.changes, saved); return { bot, ...saved } }
       case 'profile.create': {
-        const bot = await bots.create(params.input, params.id === undefined ? {} : { id: params.id })
-        return { bot }
+        const saved = {}
+        const bot = await bots.create(params.input, params.id === undefined ? { saved } : { id: params.id, saved })
+        return { bot, ...saved }
       }
       case 'profile.launchContext': return { launchContext: await launchContext(params) }
       case 'docs.list': await currentBot(params.botId); return { files: await call('project.docs.list', { botId: params.botId }) }

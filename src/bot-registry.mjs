@@ -53,6 +53,8 @@ export class BotRegistry extends Map {
     this.projectFiles = projectFiles
     this.currentTurn = options.currentTurn ?? (() => ({ state: 'idle', turnId: null }))
     this.assetRemoval = options.assetRemoval ?? null
+    // S5 (remote-seat.md): members effects; null answers mean no terminals core, so no default and no check.
+    this.terminals = options.terminals ?? { read: async () => null, folder: async () => null }
     this.watchers = new Set()
     this.deletionIntents = new Set()
   }
@@ -169,10 +171,12 @@ export class BotRegistry extends Map {
     return join(this.stateRoot, id)
   }
 
-  async create(input, { id = this.botId() } = {}) {
+  async create(input, { id = this.botId(), saved = {} } = {}) {
     await this.refresh()
     validateId(id)
     if (this.has(id)) throw new Error(`BOT_DUPLICATE: ${id}`)
+    const createFolder = input.createFolder === true
+    input = await this.#defaultProjectRoot(input)
     const project = this.projectPath(id)
     const profile = normalizeProfile({
       id,
@@ -200,10 +204,12 @@ export class BotRegistry extends Map {
     })
     await this.validateEffort(profile)
     await this.validateFastMode(profile)
+    if (this.separateState && (await pathExists(join(this.stateRoot, '.deleting', id))
+      || await pathExists(join(this.stateRoot, '.deleting', `${id}.json`))))
+      throw registryError('BOT_DELETE_PENDING')
+    // After every input check, before any write: the only remote mutation (make_dir) needs a valid save.
+    if (profile.terminalId) await this.#checkFolder(profile, createFolder, saved)
     if (this.separateState) {
-      if (await pathExists(join(this.stateRoot, '.deleting', id))
-        || await pathExists(join(this.stateRoot, '.deleting', `${id}.json`)))
-        throw registryError('BOT_DELETE_PENDING')
       // Claim a fresh project atomically; never adopt an orphan, file or symlink.
       await this.projectFiles.claim(project)
     }
@@ -217,8 +223,11 @@ export class BotRegistry extends Map {
     return this.get(id)
   }
 
-  async update(id, changes) {
+  async update(id, changes, saved = {}) {
     const candidate = await this.previewUpdate(id, changes)
+    const before = this.#previewBases.get(candidate), createFolder = changes.createFolder === true
+    if (candidate.terminalId && (createFolder || candidate.terminalId !== before.terminalId || candidate.projectRoot !== before.projectRoot))
+      await this.#checkFolder(candidate, createFolder, saved)
     await this.#mutateProfile(id, async () => {
       await this.refresh()
       const current = this.get(id), base = this.#previewBases.get(candidate)
@@ -289,9 +298,9 @@ export class BotRegistry extends Map {
     if (!current) throw new Error(`BOT_NOT_FOUND: ${id}`)
     if (!changes || typeof changes !== 'object' || Array.isArray(changes)) throw new Error('BOT_UPDATE_INVALID')
     for (const key of Object.keys(changes)) {
-      if (!PROFILE_FIELDS.has(key)) throw new Error(`BOT_UPDATE_FIELD_INVALID: ${key}`)
+      if (!PROFILE_FIELDS.has(key) && key !== 'createFolder') throw new Error(`BOT_UPDATE_FIELD_INVALID: ${key}`)
     }
-    const images = { ...changes }
+    const { createFolder, ...images } = changes
     for (const field of ['avatar', 'avatarLarge']) {
       const source = `${field}Source`, crop = `${field}Crop`
       if (Object.hasOwn(changes, source) || Object.hasOwn(changes, crop)) {
@@ -300,7 +309,7 @@ export class BotRegistry extends Map {
         images[source] = ''; images[crop] = null
       }
     }
-    let profile = normalizeProfile({ ...current, ...images })
+    let profile = normalizeProfile(await this.#defaultProjectRoot({ ...current, ...images }))
     if (['harness', 'model', 'reasoningEffort'].some(field => profile[field] !== current[field]))
       await this.validateEffort(profile)
     if (profile.fastMode && ['harness', 'model', 'fastMode'].some(field => profile[field] !== current[field])) {
@@ -312,6 +321,24 @@ export class BotRegistry extends Map {
     const candidate = Object.freeze(profile)
     this.#previewBases.set(candidate, current)
     return candidate
+  }
+
+  // S5: a terminal with an empty folder gets /Users/<terminal user>/BellTeam/<name slug>.
+  async #defaultProjectRoot(value) {
+    if (typeof value.terminalId !== 'string' || !TERMINAL_ID.test(value.terminalId) || value.projectRoot) return value
+    const terminal = await this.terminals.read(value.terminalId)
+    if (!terminal) throw Object.assign(registryError('TERMINAL_NOT_FOUND'), { status: 404 })
+    return { ...value, projectRoot: `/Users/${terminal.user}/BellTeam/${memberFolderSlug(value.name)}` }
+  }
+
+  // S5: FOLDER_* and TERMINAL_NOT_FOUND refuse the save; any other reason saves the folder as unchecked.
+  async #checkFolder(profile, create, saved) {
+    const result = await this.terminals.folder({ terminalId: profile.terminalId, path: profile.projectRoot, create })
+    if (!result) return
+    const { reason, action, observedAt } = result
+    if (reason === 'TERMINAL_NOT_FOUND' || reason?.startsWith('FOLDER_'))
+      throw Object.assign(registryError(reason), { status: reason === 'TERMINAL_NOT_FOUND' ? 404 : 409, outcome: 'not_accepted' })
+    saved.folderCheck = { checked: reason === null, reason, observedAt, ...(action ? { action } : {}) }
   }
 
   async validateEffort(profile) {
@@ -693,6 +720,11 @@ export class BotRegistry extends Map {
     await writeAtomic(join(this.statePath(id), 'schedule.json'), scheduleDocument(schedules))
     this.changed(id, 'schedules')
   }
+}
+
+export function memberFolderSlug(name) {
+  const slug = String(name ?? '').trim().replace(/[/:\0]/gu, '-')
+  return slug && slug !== '.' && slug !== '..' ? slug : 'member'
 }
 
 function registryError(code) {

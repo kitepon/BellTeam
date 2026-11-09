@@ -71,6 +71,8 @@ flowchart LR
   m_members -->|"observation"| m_execution
   m_members -->|"history"| m_conversation
   m_members -->|"turn"| m_execution
+  m_members -->|"registry"| m_terminals
+  m_members -->|"folder"| m_terminals
   m_memory -->|"seat-process"| m_runtime
   m_runtime -->|"registry"| m_members
   m_runtime -->|"image"| m_distribution

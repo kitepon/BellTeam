@@ -31,8 +31,8 @@ const profileFields = {
   avatarCrop: crop, avatarLargeCrop: crop,
   terminalId: value => string(value, 128), projectRoot: value => string(value, 4096),
 }
-const changes = value => object(value, profileFields, [])
-const create = value => object(value, profileFields, ['name'])
+const changes = value => object(value, { ...profileFields, createFolder: bool }, [])
+const create = value => object(value, { ...profileFields, createFolder: bool }, ['name'])
 const ownerChanges = value => object(value, {
   name: value => string(value, 100), profile: value => string(value, 8000), avatar: validateAvatar,
   xUrl: value => string(value, 2048), githubUrl: value => string(value, 2048),
@@ -111,6 +111,8 @@ const effects = {
   'cli.configure': value => object(value, { botIds: ids }),
   'schedules.currentTurn': value => object(value, { botId: id }),
   'models.read': value => object(value, { harness }),
+  'terminals.read': value => object(value, { terminalId: value => string(value, 128) }),
+  'terminals.folder': value => object(value, { terminalId: value => string(value, 128), path: value => string(value, 4096), create: bool }),
   'assets.prepareBotAssetRemoval': value => object(value, projectId),
   'assets.cancelBotAssetRemoval': value => object(value, { ...projectId, lease: text, state: value => object(value, {
     active: value => { if (value !== true) fail() }, hasIntent: value => { if (value !== false) fail() }, retired: value => { if (value !== false) fail() },
@@ -152,6 +154,9 @@ const removalStates = value => object(value, { removals: values => {
   if (!Array.isArray(values)) fail()
   values.forEach(item => object(item, { botId: id, active: bool, hasIntent: value => { if (value !== true) fail() }, retired: bool }))
 } })
+const code = value => { if (typeof value !== 'string' || !/^[A-Z][A-Z0-9_]{2,63}$/u.test(value)) fail() }
+const nullable = check => value => { if (value !== null) check(value) }
+const folderCheck = value => object(value, { checked: bool, reason: nullable(code), observedAt: time, action: value => string(value, 1000) }, ['checked', 'reason', 'observedAt'])
 const docFile = value => object(value, { path: docPath, size: revision, modifiedAt: time })
 const docFiles = value => { if (!Array.isArray(value)) fail(); value.forEach(docFile) }
 function checkMembersResult(method, value) {
@@ -161,7 +166,8 @@ function checkMembersResult(method, value) {
     return
   }
   if (method === 'profiles.read') { object(value, { revision }); return }
-  if (['profile.read', 'profile.create', 'profile.preview', 'profile.update', 'profile.session', 'profile.fastMode'].includes(method)) { object(value, { bot }); return }
+  if (['profile.create', 'profile.update'].includes(method)) { object(value, { bot, folderCheck }, ['bot']); return }
+  if (['profile.read', 'profile.preview', 'profile.session', 'profile.fastMode'].includes(method)) { object(value, { bot }); return }
   if (method === 'profile.launchContext') { object(value, { launchContext: value => object(value, { text: body, revision: value => { if (!/^[a-f0-9]{16}$/u.test(value)) fail() } }) }); return }
   if (method === 'docs.list') { object(value, { files: docFiles }); return }
   if (method === 'docs.read') { object(value, { path: docPath, content: docContent, modifiedAt: time }); return }
@@ -187,6 +193,11 @@ function checkMembersEffectResult(method, value) {
   if (method === 'models.read') {
     if (!value || typeof value !== 'object' || !Array.isArray(value.efforts) || value.efforts.some(item => typeof item !== 'string')
       || value.models !== undefined && !Array.isArray(value.models)) fail()
+    return
+  }
+  if (method === 'terminals.read') { if (value != null) object(value, { user: value => string(value, 256) }); return }
+  if (method === 'terminals.folder') {
+    if (value != null) object(value, { terminalId: text, path: text, observedAt: time, exists: nullable(bool), directory: nullable(bool), writable: nullable(bool), reason: nullable(code), action: value => string(value, 1000) }, ['observedAt', 'reason'])
     return
   }
   if (method === 'room.schedules.list') { if (!Array.isArray(value)) fail(); value.forEach(persistedSchedule); return }

@@ -54,6 +54,14 @@
     {
       "module": "execution",
       "port": "turn"
+    },
+    {
+      "module": "terminals",
+      "port": "registry"
+    },
+    {
+      "module": "terminals",
+      "port": "folder"
     }
   ],
   "source": [
