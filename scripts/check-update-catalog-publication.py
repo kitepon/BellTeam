@@ -3,6 +3,7 @@
 from http.client import IncompleteRead
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -126,7 +127,8 @@ def main():
                 token = json.loads(download('https://ghcr.io/token?service=ghcr.io&scope=repository:kitepon/bellteam-server:pull'))['token']
             headers = {'Authorization':'Bearer '+token, 'Accept':'application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json,application/vnd.oci.image.manifest.v1+json,application/vnd.docker.distribution.manifest.v2+json'}
             base = 'https://ghcr.io/v2/kitepon/bellteam-server/'
-            index = download(base+'manifests/latest', headers)
+            # A prerelease catalog offers the candidate tag only to candidate-channel installs.
+            index = download(base+'manifests/'+('candidate' if os.environ.get('UPDATE_CATALOG_PRERELEASE') == 'true' else 'latest'), headers)
             require('sha256:'+hashlib.sha256(index).hexdigest() == release['versionId'], 'UPDATE_CONTAINER_NOT_STABLE')
             descriptor = next(m for m in json.loads(index)['manifests'] if m['platform']['os'] == release['platform']['os'] and m['platform']['architecture'] == release['platform']['arch'])
             manifest = download(base+'manifests/'+descriptor['digest'], headers)

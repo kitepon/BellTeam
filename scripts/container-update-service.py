@@ -149,9 +149,11 @@ def configure():
                and type(normal.get('services')) is dict and 'bellteam' in normal['services'], 'HOST_UPDATE_MODEL_INVALID')
     image = normal['services']['bellteam'].get('image')
     host.check(type(image) is str and re.fullmatch('sha256:[a-f0-9]{64}', image), 'HOST_UPDATE_IMAGE_INVALID')
+    channel = (normal['services']['bellteam'].get('environment') or {}).get('BELLTEAM_UPDATE_CHANNEL', 'stable')
+    host.check(channel in ('stable', 'candidate'), 'HOST_UPDATE_CHANNEL_INVALID')
     config = {'schema': 'bellteam.bundled-container-updater.v1', 'release': source, 'platform': native,
               'projectName': project, 'workerImage': image, 'volumeName': project + '-container-updater',
-              'docker': DOCKER, 'python': '/usr/bin/python3', 'shell': '/bin/sh'}
+              'docker': DOCKER, 'python': '/usr/bin/python3', 'shell': '/bin/sh', 'channel': channel}
     updater = ContainerUpdater(PREFIX, config)
     config['volumeRoot'] = volume(updater, config['volumeName'], project)
     config['installRoot'] = config['volumeRoot'] + '/installation/work'
@@ -167,7 +169,9 @@ def configure():
 def load():
     source, native = distribution()
     config = host.read_json(PREFIX / 'config.json')
-    host.check(host.exact(config, 'schema,release,platform,projectName,workerImage,volumeName,docker,python,shell,volumeRoot,installRoot')
+    keys = 'schema,release,platform,projectName,workerImage,volumeName,docker,python,shell,volumeRoot,installRoot'
+    # channel is absent in configs written before the candidate channel existed (= stable).
+    host.check((host.exact(config, keys) or host.exact(config, keys + ',channel') and config['channel'] in ('stable', 'candidate'))
                and config['schema'] == 'bellteam.bundled-container-updater.v1' and config['release'] == source
                and config['platform'] == native and config['docker'] == DOCKER
                and config['python'] == '/usr/bin/python3' and config['shell'] == '/bin/sh'

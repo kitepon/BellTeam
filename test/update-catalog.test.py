@@ -104,6 +104,10 @@ class CatalogTest(unittest.TestCase):
         self.assertNotIn('sourceCommit', candidates[0])
         for bad in [{**record, 'draft':True}, {**record, 'prerelease':True}, {**record, 'tag_name':'main'}]:
             self.assertEqual(publication_candidates([bad]), [])
+        # Only an install on the candidate channel reads a prerelease catalog; drafts stay excluded.
+        self.assertEqual(len(publication_candidates([{**record, 'prerelease':True}], 'candidate')), 1)
+        self.assertEqual(publication_candidates([{**record, 'draft':True}], 'candidate'), [])
+        with self.assertRaises(ValueError): publication_candidates([record], 'preview')
 
     def test_publisher_and_pin_use_only_successful_certificate_subject(self):
         raw = json.dumps(fixture()).encode(); digest = hashlib.sha256(raw).hexdigest()

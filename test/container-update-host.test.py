@@ -231,6 +231,21 @@ touch "$BELLTEAM_INSTALL_DIR/applied"
         self.assertEqual(result['verification'],'succeeded');self.assertEqual(result['cleanup'],'failed')
         self.assertEqual(result['rollback'],'not_needed');self.assertFalse((install/'recovered').exists())
         self.assertEqual(module.read_json(self.prefix/'state/current-runtime.json',os.getuid())['sourceCommit'],'d'*40)
+    def test_target_preflight_definite_failure_ends_before_install_and_unknown_proceeds(self):
+        install=self.executor_fixture()
+        module.atomic(self.prefix/'installation/normal.json',{'name':'bellteam','volumes':{'server-state':{'name':'bellteam-server-state'}},
+            'services':{'bellteam':{'image':self.current['imageId'],'volumes':[{'type':'bind','source':'/data','target':'/srv/bellteam'}]}}})
+        base,verdict=self.updater.command,{'result':'fail','failures':[{'check':'release','code':'MEMBERS_STATE_INCOMPATIBLE'}],'warnings':[],'report':{}}
+        def command(args,**options):
+            if '/app/scripts/body-preflight.mjs' in args:return json.dumps(verdict).encode()
+            return b'{}' if args[1:3]==['volume','inspect'] else base(args,**options)
+        self.updater.command=command
+        directory=self.prefix/'state/fixture-result';directory.mkdir()
+        result=module.execute_installer(self.updater,self.plan(),directory)
+        self.assertEqual((result['error'],result['rollback']),('HOST_UPDATE_PREFLIGHT_FAILED','not_needed'))
+        self.assertFalse((install/'applied').exists());self.assertEqual(module.read_json(directory/'preflight.json',os.getuid())['result'],'fail')
+        verdict='not json';second=self.prefix/'state/fixture-result-2';second.mkdir()
+        self.assertEqual(module.execute_installer(self.updater,self.plan(),second)['verification'],'succeeded')
     def test_installer_failure_uses_existing_recover_and_verifies_old_image_source(self):
         install=self.executor_fixture(fail=True)
         plan=self.plan();directory=self.prefix/'state/fixture-result';directory.mkdir()

@@ -5,11 +5,13 @@ import { appendFile } from 'node:fs/promises'
 import { execFileSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
 
-export async function verifyCandidate({ image, digest, source, result, fetch: get = fetch }) {
+export async function verifyCandidate({ image, digest, source, result, stage = 'stable', fetch: get = fetch }) {
   assert.equal(image, 'ghcr.io/kitepon/bellteam-server')
   assert.match(digest ?? '', /^sha256:[0-9a-f]{64}$/)
   assert.match(source ?? '', /^[0-9a-f]{40}$/)
-  assert.ok(result?.trim(), '内部先行受入の結果を指定してください')
+  assert.ok(['stable', 'candidate'].includes(stage))
+  // A candidate is tagged only for the test install's candidate channel, before acceptance exists.
+  if (stage === 'stable') assert.ok(result?.trim(), '内部先行受入の結果を指定してください')
   const tokenResponse = await get('https://ghcr.io/token?service=ghcr.io&scope=repository:kitepon/bellteam-server:pull')
   assert.equal(tokenResponse.status, 200)
   const { token } = await tokenResponse.json()
@@ -30,13 +32,14 @@ export async function verifyCandidate({ image, digest, source, result, fetch: ge
     assert.equal(config.digest, manifest.value.config.digest)
     assert.equal(config.value.config.Labels['org.opencontainers.image.revision'], source)
   }
-  return { digest, source, result }
+  return { digest, source, result, stage }
 }
 
 export async function promoteCandidate(candidate, { run = execFileSync, summary = process.env.GITHUB_STEP_SUMMARY } = {}) {
   const image = 'ghcr.io/kitepon/bellteam-server'
-  run('docker', ['buildx', 'imagetools', 'create', '-t', `${image}:latest`, '-t', `${image}:preview`, `${image}@${candidate.digest}`], { stdio: 'inherit' })
-  for (const tag of ['latest', 'preview']) {
+  const tags = candidate.stage === 'candidate' ? ['candidate'] : ['latest', 'preview']
+  run('docker', ['buildx', 'imagetools', 'create', ...tags.flatMap(tag => ['-t', `${image}:${tag}`]), `${image}@${candidate.digest}`], { stdio: 'inherit' })
+  for (const tag of tags) {
     const raw = run('docker', ['buildx', 'imagetools', 'inspect', '--raw', `${image}:${tag}`], { encoding: 'utf8' })
     assert.equal(`sha256:${createHash('sha256').update(raw).digest('hex')}`, candidate.digest)
   }
@@ -44,7 +47,7 @@ export async function promoteCandidate(candidate, { run = execFileSync, summary 
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const candidate = await verifyCandidate({ image: process.env.IMAGE, digest: process.env.ACCEPTED_DIGEST, source: process.env.ACCEPTED_SOURCE, result: process.env.ACCEPTANCE_RESULT })
+  const candidate = await verifyCandidate({ image: process.env.IMAGE, digest: process.env.ACCEPTED_DIGEST, source: process.env.ACCEPTED_SOURCE, result: process.env.ACCEPTANCE_RESULT, stage: process.env.PROMOTION_STAGE || 'stable' })
   execFileSync('git', ['merge-base', '--is-ancestor', candidate.source, 'origin/main'])
   assert.ok(['check', 'promote'].includes(process.argv[2]))
   if (process.argv[2] === 'promote') await promoteCandidate(candidate)

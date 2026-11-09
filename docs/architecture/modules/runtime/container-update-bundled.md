@@ -197,3 +197,30 @@ stateDiagram-v2
   Stopped --> Recovering: identity changed or later step fails
   Recovering --> Started: --recover, previous image on same backing
 ```
+
+## Target-image preflight before the swap (class fix, Trony 2026-11-09)
+
+Why: four production body swaps (11/8 01:44, 02:47, 11:53, 11/9 19:15) failed because target-image code first met production's accumulated state inside the real install: module-updater ledger history, an installer container from an older generation, and adopted module releases. Nothing before `swapping` ran target code against that state. What it protects: the running body from a doomed stop/restart and the turns that would be cut. It refuses only a definite failure; unknown never blocks.
+
+`execute_installer` (container-update-host.py), after the pull and the existing `verifying` checks, runs `/app/scripts/body-preflight.mjs` from the **target** image once. The container is `--rm --network none --read-only --cap-drop ALL --cap-add DAC_READ_SEARCH` (to read the UID 1001 and root 0600 records), with normal.json on stdin. Its mounts are all read-only: module-updater volume, server-state volume (as `/srv/bellteam-private` and `/run/bellteam-maintenance`), and the `/srv/bellteam` data bind. The Docker socket is also mounted, used only by the bridge dry run for inspect/ls. The volumes are inspected first, so the run never creates one.
+
+| Check | Target code | Definite fail (blocks) | Warning / report (never blocks) |
+| --- | --- | --- | --- |
+| Termination bridge | `module-worker-termination.py --dry-run`: the real `Switch.switch` ledger walk and the installer `service()` shape check, stopped before the first lock | a coded `HOST_*` error other than the catch-all `HOST_MODULE_TERMINATION_UNCONFIRMED` | catch-all / uncoded / cannot run = unknown |
+| Adopted releases | every `state/<c>-release.json` current/previous manifest through the target's own manifest validators | current release of members/memory/execution/notifications/web-gateway rejected; any rejection other than `<C>_STATE_INCOMPATIBLE` for usage/diagnostics/conversation/work-graph | `<C>_STATE_INCOMPATIBLE` for those four (#822 builtin fallback); previous of the other five |
+| Boot | Bot count | — | reported with start_period |
+
+Result `preflight.json` in the operation directory: `{result: pass|fail, failures[], warnings[], report}`.
+
+```mermaid
+stateDiagram-v2
+  [*] --> verifying: pull + identity checks
+  verifying --> preflight: target image /app/scripts/body-preflight.mjs
+  preflight --> swapping: pass
+  preflight --> swapping: unknown (cannot run, timeout, older target without the entry)
+  preflight --> failed: definite fail / HOST_UPDATE_PREFLIGHT_FAILED / old body untouched, rollback not_needed
+  failed --> [*]: next target gets a fresh plan and a fresh preflight
+  swapping --> [*]: install.sh as before
+```
+
+Scope: this runs in the updater that the **current** body carries. Swaps away from a body without it (7c54e0e0, abe262ad) are covered by Molly's manual read-only preflight instead (integrations/abe262ad-manual-preflight-20261109).

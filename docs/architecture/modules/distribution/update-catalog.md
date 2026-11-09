@@ -1,5 +1,24 @@
 # 正式Update catalogの信頼境界
 
+## Candidate channel for app-path body tests (class fix, Trony 2026-11-09)
+
+Why: a body could reach the app update path only after it was in the stable catalog, so "update over production's adopted modules" ran first in production. Constraint (Trony): use the public mechanism only, and never offer an untested body to users.
+
+```mermaid
+flowchart LR
+  Image[publish-server-image candidate index] -->|promote stage=candidate| Tag[ghcr :candidate only]
+  Tag --> Pre[publish-update-catalog prerelease=true / same signer workflow / container row == :candidate]
+  Pre --> GH[GitHub Release prerelease:true]
+  GH -->|channel=candidate| Test[test install: BELLTEAM_UPDATE_CHANNEL=candidate / app Update]
+  GH -.->|channel=stable ignores prerelease| Prod[production / unchanged]
+  Test -->|PASS| Stable[promote stage=stable :latest+:preview -> stable catalog]
+```
+
+- `scripts/update_catalog.py publication_candidates(records, channel)`: `stable` (default) keeps draft:false + prerelease:false; `candidate` also accepts prerelease:true. The newest tag wins, so a later stable catalog supersedes a candidate one.
+- The bundled container-updater writes `channel` from the install model's `BELLTEAM_UPDATE_CHANNEL` (compose default `stable`). Configs written before the channel existed have no `channel` key = stable. Module updaters keep reading stable.
+- Publisher: `UPDATE_CATALOG_PRERELEASE=true` compares the container row with `manifests/candidate` instead of `latest` and creates the release with `--prerelease`. Signing, attestation and verification are unchanged.
+- Limit: the channel is read by the updater of the body that the test install starts from, so it works only from a body that carries it (the fix body on). The 7c54 -> abe262ad transition used the one-time install-path test (Trony ruling b).
+
 ## Remote-seat body catalog (container 5b404cf0), 2026-11-09 JST
 
 Within the existing formal-image -> catalog -> fixed-main publisher -> runtime.update -> P7a/P7b plan/job flow, replace only the two `container` records with source `5b404cf0c87c673ce9c9c86ba43d01432cfd70ac`, official stable index `sha256:fc92f326c2de37dbe43a1eea47e876b7078163adbfe2fab431996e520f1c7d0d` (natural image run 42591316853 green on both arches, aiterm-mcp 0.67.0; Centi product test/pre-acceptance PASS, record `/srv/bellteam/bots/bot-8bc1fb5d/integrations/body-remote-seat-5b404cf0-20261109/result.json`; same-index promotion run 42595168680). All module records, compatibility values and revocations are byte-equal to the live published catalog cde9b78f (updates-20261109T075719Z); only publication time and seven-day expiry are refreshed.

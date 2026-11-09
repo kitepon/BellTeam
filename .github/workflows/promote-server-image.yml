@@ -12,9 +12,15 @@ on:
         required: true
         type: string
       result:
-        description: センチの事前試験と内部先行受入の結果の記録先
-        required: true
+        description: センチの事前試験と内部先行受入の結果の記録先（stageがstableの時は必須）
+        required: false
         type: string
+      stage:
+        description: stable=安定版(latest/preview)へ反映、candidate=試験の箱のcandidate channel用にcandidateタグだけ付ける
+        required: false
+        default: stable
+        type: choice
+        options: [stable, candidate]
 
 concurrency:
   group: public-server-stable
@@ -35,6 +41,7 @@ jobs:
       ACCEPTED_DIGEST: ${{ inputs.digest }}
       ACCEPTED_SOURCE: ${{ inputs.source }}
       ACCEPTANCE_RESULT: ${{ inputs.result }}
+      PROMOTION_STAGE: ${{ inputs.stage }}
     steps:
       - uses: actions/checkout@v7
         with:
