@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { aitermConnectionRegistration } from './aiterm-hooks.mjs'
@@ -16,6 +17,17 @@ import { captureMcpError } from './returned-mcp-error.mjs'
 import { configurationConnection, configurationError, markConfigurationNotIssued, CONFIGURATION_SCHEMA } from './configuration-request.mjs'
 
 // The seat-command path does not carry this.env; the parent's Aiterm needs the account roots here too (harness-accounts.md E1).
+// harness-accounts.md: a non-1st Claude seat gets only its login, CLAUDE_CODE_OAUTH_TOKEN, read as the seat user from
+// <BELLTEAM_HOME>/.bellteam-accounts/claude/<slot>/oauth-token (0600). Missing or malformed: the launch fails, never 1st.
+export const ACCOUNT_LOGINS = ['2nd']
+export async function accountLoginEnvironment(slot, environment = process.env) {
+  if (!ACCOUNT_LOGINS.includes(slot)) throw Object.assign(new Error('ACCOUNT_LOGIN_UNAVAILABLE'), { code: 'ACCOUNT_LOGIN_UNAVAILABLE' })
+  let token
+  try { token = (await readFile(join(runtimeHome(environment), '.bellteam-accounts', 'claude', slot, 'oauth-token'), 'utf8')).trim() } catch { token = '' }
+  if (!/^sk-ant-oat01-[A-Za-z0-9_-]{20,}$/u.test(token)) throw Object.assign(new Error('ACCOUNT_LOGIN_UNAVAILABLE'), { code: 'ACCOUNT_LOGIN_UNAVAILABLE', effect: 'not_started' })
+  return { CLAUDE_CODE_OAUTH_TOKEN: token }
+}
+
 export function seatConnectionEnvironment(generation, claudeConfigRoots) {
   return [`BELLTEAM_RUNTIME_GENERATION=${generation}`, ...(claudeConfigRoots ? [`AITERM_CLAUDE_CONFIG_ROOTS=${claudeConfigRoots}`] : [])]
 }
@@ -115,7 +127,7 @@ export class AitermClient {
   prepareAuthConnection() { return authCapability(this) }
 
   async call(name, args = {}, options = {}) {
-    const { env, meta, launchProject, expectedAuthConnection, expectedConfiguration, admissionCheck, runtime } = options
+    const { env, meta, launchProject, expectedAuthConnection, expectedConfiguration, admissionCheck, runtime, claudeLogin } = options
     if (Object.hasOwn(options, 'admissionCheck') && (name !== 'pty_send' || typeof admissionCheck !== 'function'
       || ['env', 'launchProject', 'expectedAuthConnection', 'expectedAuthServerVersion', 'expectedConfiguration'].some(key => Object.hasOwn(options, key))))
       throw Object.assign(new Error('AITERM_SEND_GUARD_INVALID'), { code: 'AITERM_SEND_GUARD_INVALID', effect: 'not_issued' })
@@ -137,7 +149,9 @@ export class AitermClient {
       const { stdout } = await createSeatProcessRunner(launchProject)(process.execPath,
         [fileURLToPath(new URL('./run-seat-aiterm-launch.mjs', import.meta.url))], {
           input: JSON.stringify({ command: this.command, args: this.args, launch: args, meta, ...(runtime ? { runtime } : {}),
-            ...(this.claudeConfigRoots && args.configuration_root ? { claudeConfigRoots: this.claudeConfigRoots } : {}) }),
+            ...(this.claudeConfigRoots && args.configuration_root ? { claudeConfigRoots: this.claudeConfigRoots } : {}),
+            // Which login the seat-side launcher puts in the CLI env (harness-accounts.md); the token never passes here.
+            ...(name === 'agent_launch' && ACCOUNT_LOGINS.includes(claudeLogin) ? { claudeLogin } : {}) }),
         })
       const response = JSON.parse(stdout)
       if (response.error) throw Object.assign(new Error(response.error.message), response.error)
@@ -149,9 +163,10 @@ export class AitermClient {
       // Do not silently serialize a server-evaluated environment across this boundary.
       if (this.seatProject !== null) throw new Error('SEAT_DYNAMIC_ENV_UNWIRED')
       // Aitermは値ではなくMCPプロセスの変数名を受け取る。起動ごとに専用の短命接続を使う。
-      const launcher = new AitermClient({ command: this.command, args: this.args, env, claudeConfigRoots: this.claudeConfigRoots, ...(runtime ? { runtimeCapture: runtime } : {}) })
+      const login = name === 'agent_launch' && ACCOUNT_LOGINS.includes(claudeLogin) ? await accountLoginEnvironment(claudeLogin, env) : {}
+      const launcher = new AitermClient({ command: this.command, args: this.args, env: { ...env, ...login }, claudeConfigRoots: this.claudeConfigRoots, ...(runtime ? { runtimeCapture: runtime } : {}) })
       try {
-        const env_vars = Object.keys(env).filter(key => runtimeEnvironmentKeys.includes(key) || env[key] !== process.env[key])
+        const env_vars = [...Object.keys(env).filter(key => runtimeEnvironmentKeys.includes(key) || env[key] !== process.env[key]), ...Object.keys(login)]
         return await launcher.call(name, { ...args, env_vars }, { meta })
       } finally {
         await launcher.close()

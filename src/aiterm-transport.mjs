@@ -294,13 +294,8 @@ export class AitermTransport {
     const launchOptions = this.client.launchOptions
       ? await this.client.launchOptions(bot.project, runtime) : { env: await loadBotEnvironment(bot.project) }
     let launch
-    const selected = harness === 'claude-code' && this.accounts ? await this.accounts.selection('claude', bot.model) : null
-    // A delivery-bound launch carries the root only when it changes something (a 2nd seat, or a seat leaving one):
-    // the bridge issues one launch, so its old-Aiterm fallback below cannot retry; 1st launches stay as before.
-    const account = selected && (!execution || selected.slot !== '1st' || (this.accounts.seatSlot(bot.id) ?? '1st') !== '1st') ? selected : null
-    // The slot's config is the 1st's except the account (harness-accounts.md): refresh it before every launch there.
-    // A failed refresh (logged by prepare) launches on the slot's last copy rather than not at all.
-    if (account && account.slot !== '1st') await this.accounts.prepare('claude', account.slot).catch(() => {})
+    // harness-accounts.md: every seat runs on the 1st root; a 2nd seat differs only in the login the CLI gets (env token).
+    const account = harness === 'claude-code' && this.accounts ? await this.accounts.selection('claude', bot.model) : null
     try {
       this.requireStopVersion(bot.id, version)
       admissionCheck?.()
@@ -316,13 +311,8 @@ export class AitermTransport {
         // 既定はファストモードを使わない（オーナー裁定 2026-10-12）。共有の設定に残った値で起きないよう、必ず真偽で渡す。
         fast: bot.fastMode === true,
       }
-      const issue = args => this.changeSession(bot, 'agent_launch', args, { ...launchOptions, ...(execution ? { execution } : {}) })
-      // An Aiterm without account roots (before 0.64.0) runs every seat on the default (1st) root.
-      launch = account ? await issue({ ...launchArgs, configuration_root: account.configurationRoot }).catch(error => {
-        if (error?.code !== 'ACCOUNT_CAPABILITY_UNAVAILABLE') throw error
-        account.slot = '1st'
-        return issue(launchArgs)
-      }) : await issue(launchArgs)
+      launch = await this.changeSession(bot, 'agent_launch', launchArgs, { ...launchOptions,
+        ...(account && account.slot !== '1st' ? { claudeLogin: account.slot } : {}), ...(execution ? { execution } : {}) })
       if (account) void this.accounts.setSeat(bot.id, account.slot).catch(() => {})
     } catch (error) {
       // 起動の準備が終わらなかった席は、Aitermの端末だけが残る（認証が切れたCLIがサインインの画面で止まった時など。2026-10-05、Codex）。

@@ -14,7 +14,7 @@ Names in every UI and contract: 「1stアカウント」 (`slot: '1st'`, primary
 | MCP registration in each slot's `.claude.json` | execution, reusing `mergeMcpConfig` of harness-config | same writer, one more target path per prepared slot |
 | Login per slot | usage (Mika) HarnessAuth → Aiterm `agent_auth` | HarnessAuth `start/input/status/cancel(harness, {slot})` |
 | Limit detection | execution | wait result (trigger) + usage reading (reset time) |
-| Slot selection at launch / resume / model change | execution | launch option `configuration_root` to Aiterm |
+| Slot selection at launch / model change | execution | launch option `claudeLogin` (the slot); the seat-side launcher puts that slot's login into the CLI env |
 | Failover after a limit, return after reset | execution | existing reconfigure (apply at the next turn boundary) + capacity continuation message |
 | Account-card data and slot-aware login contacts | usage (Mika) | typed auth/account-card data built from `accounts.list()` |
 | Routes, private port injection, SSE, Bot DTO | Molly | `accounts.list` route, `account` in Bot items, SSE topic `settings` |
@@ -26,11 +26,11 @@ Names in every UI and contract: 「1stアカウント」 (`slot: '1st'`, primary
 ```mermaid
 flowchart TD
   Owner[Owner: 設定 → AIの認証 → Claude → 1st/2ndアカウント → ログイン] --> Auth[Mika HarnessAuth slot]
-  Auth -->|configuration_root of slot| AitermAuth[Aiterm agent_auth: claude auth login under that root]
+  Auth -->|configuration_root of slot (login card only; seats use oauth-token)| AitermAuth[Aiterm agent_auth: claude auth login under that root]
   AitermAuth --> Cred[(slot root/.credentials.json 0600 — written by the official CLI only)]
   Registry[(execution accounts.json: limit state + seat slots, no secrets)] --> Select
   Bot[Bot model / harness → model scope; launch or model change] --> Select[Select slot: 1st unless limited for the scope → 2nd → earliest reset]
-  Select -->|configuration_root| Launch[Aiterm launch / resume]
+  Select -->|claudeLogin: 2nd -> seat launcher puts CLAUDE_CODE_OAUTH_TOKEN in the CLI env; same 1st root| Launch[Aiterm launch]
   Launch --> Seat[Claude seat]
   Seat --> Wait[wait result rate_limited / failure.category rate_limited, incl. E5 rate_limit API-error records + the seat's limit text]
   Wait --> Parse[parse scope and reset time from the limit text]
@@ -50,10 +50,10 @@ flowchart TD
 | Item | Place | Notes |
 | --- | --- | --- |
 | 1st slot root | `$BELLTEAM_HOME/.claude` with `CLAUDE_CONFIG_DIR` unset (today's login) | unchanged; no migration |
-| 2nd slot root | `$BELLTEAM_HOME/.bellteam-accounts/claude/2nd/` (0711; `.bellteam-accounts/` and its `claude/` also 0711) | `CLAUDE_CONFIG_DIR` set to this path. Owned by the seat user; 0711 lets the engine (another user) `lstat` known names inside without listing or reading |
+| 2nd slot root (login card and usage reading only) | `$BELLTEAM_HOME/.bellteam-accounts/claude/2nd/` (0711; `.bellteam-accounts/` and its `claude/` also 0711) | Used by HarnessAuth `?slot=2nd` and the usage reading under `CLAUDE_CONFIG_DIR` set to this path. Seats never run with it since 2026-11-09 (login-only, Login per slot row); it also holds the seats' `oauth-token`. Owned by the seat user; 0711 lets the engine `lstat` known names inside. |
 | Credentials | `<root>/.credentials.json` (0600) | written and refreshed only by the official CLI. Only the seat-user helper reads the token, for the usage reading; it returns the usage rows only. The token is never logged, never returned, and never put in env or argv |
-| Account config | the 1st config file `$BELLTEAM_HOME/.claude.json`, also for the 2nd: `<2nd root>/.claude.json` is a link to it | Only the login differs (Owner 2026-11-09: "CLIに渡すログイン情報だけが違う", the promise from the start). The CLI writes through the link (checked 2026-11-09 with `claude mcp add`). The account record inside it (`oauthAccount`) is whichever login wrote last and is not used by BellTeam: the slot label comes from the slot's own login (profile endpoint). claude.ai connectors (Gmail, Calendar, Drive, …) belong to the claude.ai account itself and are connected per account by the Owner. |
-| Shared root | in the 2nd root, a link for every entry of the 1st root (`$BELLTEAM_HOME/.claude/*`) except `.credentials.json`, plus `.claude.json` | the 2nd seat sees exactly the 1st's settings, MCP servers, skills, plugins, hooks, history and conversations. An entry the 2nd root made itself (from the folder-per-account version until 2026-11-09) is moved to `<2nd root>/.bellteam-previous/` and then linked; nothing is deleted. When the slot's own `.claude.json` is moved aside, a copy of the 1st `.claude.json` is kept there too, because a seat still running on the old copy may write it once through the new link. `history` is always `shared`. |
+| Login per slot | 1st: the CLI's own login in `$BELLTEAM_HOME/.claude/.credentials.json`. 2nd: `$BELLTEAM_HOME/.bellteam-accounts/claude/2nd/oauth-token` (seat user, 0600), a long-lived `claude setup-token` token of the 2nd account | Only the login passed to the CLI differs (Owner 2026-11-09 09:2x JST, the promise from the start). Every seat runs on the 1st root with the 1st config; a 2nd seat gets `CLAUDE_CODE_OAUTH_TOKEN` in its env and nothing else differs: no `CLAUDE_CONFIG_DIR`, no `configuration_root`, no copy, no links. The token is read only by the seat-side launcher (`run-seat-aiterm-launch.mjs`, seat user) through `accountLoginEnvironment`; the engine passes only the slot name. A missing or malformed token fails that launch (`ACCOUNT_LOGIN_UNAVAILABLE`), never a launch on the 1st login; `loggedIn` for the 2nd is the token file's presence, so selection does not pick the 2nd without it. At rest the token is also in Aiterm's own resume recipe of that seat (seat user, 0600), the same protection as the CLI's credentials file. |
+| 2nd root folder | `$BELLTEAM_HOME/.bellteam-accounts/claude/2nd/` | holds the 2nd `oauth-token`; seats no longer use it as a config root. Its older contents (own `.claude.json`, links from #754, `.credentials.json` of the earlier OAuth login) stay untouched; HarnessAuth/usage may still prepare it, which changes no seat. |
 | Registry | `/srv/bellteam/state/harness-accounts.json`, schema `bellteam.harness-accounts.v1` (a `rules` key from before 2026-11-09 is ignored on load and dropped at the next write) | `{ seats:{botId: slot}, limits:[{harness, slot, scope, since, resetAt|null, resetSource:'message'|'usage'|null, text}] }`; one entry per limited (slot, scope); an absent entry means available. `scope` is `'all'` or a model family (`'fable'`, `'opus'`, `'sonnet'`, `'haiku'`). `text` is the limit line the CLI showed (no secrets). No secrets |
 
 ### Identity (production regression 2026-11-08 22:0x JST)
@@ -110,7 +110,11 @@ Effective slot = the 1st if it is not limited for the seat's scope. Otherwise it
 | An (S, scope) entry ends | Each seat whose effective slot changes because of it (back to the 1st) switches at its next idle boundary. |
 | Both slots limited for a scope | `accounts.list()` lists that scope in `allLimited:[{scope, earliestResetAt}]`. Mika shows it on the AIの認証 card and in the status banner. Seats keep running as described above. |
 
-The switch starts a new seat; it never stops, hibernates or resumes the old one. The new seat has a new session name, `<botId>-<slot>-<base36 time>`, stored as the Bot's `session` (`updateSession`), and is an ordinary fresh launch (`wakeNow` with that name and the selected `configuration_root`). Like every fresh launch it gets the Throughline short-term memory of the previous conversation and the Bot's docs, so the work continues; the vendor conversation is a new one, because two CLIs must not write one conversation. A later fresh launch keeps an account seat's name (one that starts with `<botId>-`); any other fresh launch uses the Bot id as before. The old seat keeps its own name and is no longer the Bot's seat: deliveries, stops and observation follow the new name. Aiterm's idle clock hibernates it once its background processes end, so it leaves on its own.
+The switch starts a new seat; it never stops, hibernates or resumes the old one. The new seat has a new session name, `<botId>-<slot>-<base36 time>`, stored as the Bot's `session` (`updateSession`), and is an ordinary fresh launch (`wakeNow` with that name and `claudeLogin` of the selected slot). Like every fresh launch it gets the Throughline short-term memory of the previous conversation and the Bot's docs, so the work continues; the vendor conversation is a new one, because two CLIs must not write one conversation. A later fresh launch keeps an account seat's name (one that starts with `<botId>-`); any other fresh launch uses the Bot id as before. The old seat keeps its own name and is no longer the Bot's seat: deliveries, stops and observation follow the new name. Aiterm's idle clock hibernates it once its background processes end, so it leaves on its own.
+
+## Deployment order (login-only, cross-cutting)
+
+`run-seat-aiterm-launch.mjs` (body-resident, seat user) must know `claudeLogin` before the execution module sends it: an older launcher ignores it and would start the 2nd seat with the 1st login. So: body first, then the execution module (`aiterm-client.mjs`, `aiterm-transport.mjs`, `harness-accounts.mjs`), then restart the seats that run on the 2nd. The #754 order below is superseded for seats (the link prepare is no longer used by any launch).
 
 ## Deployment order (#754, cross-cutting)
 
@@ -122,7 +126,7 @@ The link-based `prepare` (execution and usage modules, both ship `src/harness-ac
 | --- | --- |
 | Registry, prepare, selection, limits, timers, re-read, list | `src/harness-accounts.mjs` `HarnessAccounts`, one per execution engine; `load()` at engine initialize re-arms the timers |
 | Limit text parser, model family | `src/claude-limit-text.mjs` |
-| Launch on the selected root, seat slot record | `AitermTransport.wakeNow`, every launch including the execution-bound one (`configuration_root`; an Aiterm without it gets `ACCOUNT_CAPABILITY_UNAVAILABLE` from the client's tool-schema check and the seat launches on the default root as before) |
+| Launch with the selected login, seat slot record | `AitermTransport.wakeNow`, every launch including the execution-bound one: `claudeLogin` in the client options for a non-1st slot (`AitermClient.call` forwards it to the seat launcher, or reads the token itself on the local env path); no `configuration_root` |
 | Limit signal → registry | `AitermTransport.recordAccountLimit` from the delivery completion (wait outcome `rate_limited` or `failure.category` `rate_limited`; text = `rate_limit` or `error`) |
 | Failover | `CapacityContinuation.continue`: an account switch of the same harness first (`transport.switchAccount` = a new seat on the selected slot, above), then the existing harness switch if the account switch is impossible |
 | Idle-boundary moves and return | `AitermTransport.reviewAccounts` / `moveAtBoundary` on every registry change and after a model change applied in place (`reconfigureNow`); it waits for the member's running turn to end, never stops it, then calls `switchAccount` (a new seat; nothing for Aiterm to refuse) |
@@ -155,7 +159,7 @@ The link-based `prepare` (execution and usage modules, both ship `src/harness-ac
 
 - Elegg (Aiterm):
   Agreed by Elegg on 2026-11-08 (Aiterm 0.64.0):
-  - E1. `agent_launch` / `claude_agent` accept `configuration_root`. Two values are allowed:
+  - E1 (unused by seats since 2026-11-09, login-only): `agent_launch` / `claude_agent` accept `configuration_root`. Two values are allowed:
     - the default root `$HOME/.claude`, where the seat runs with `CLAUDE_CONFIG_DIR` unset;
     - an existing directory whose realpath is a direct child of a parent listed in `AITERM_CLAUDE_CONFIG_ROOTS` (a path-delimited list) in the Aiterm MCP process env.
     BellTeam sets `AITERM_CLAUDE_CONFIG_ROOTS=$HOME/.bellteam-accounts/claude` only in the env of the parent's own Aiterm client process. Bot-side Aiterm processes do not get it, so they can use only the default root. The root is stored in the resume recipe. Anything else gets `AGENT_CONFIGURATION_ROOT_REJECTED` (protection: credentials of an unintended directory). `env_vars` containing `CLAUDE_CONFIG_DIR` together with `configuration_root` gets the same error (two sources for one value). With `remote`, the seat's own Aiterm validates against its own env.

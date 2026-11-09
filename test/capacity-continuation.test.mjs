@@ -29,7 +29,7 @@ async function fixture(t, { failures = 1, onAuth = () => {}, changeFailure = x =
   bots.update = async (id, changes) => { const value = { ...bots.get(id), ...changes }; bots.set(id, value); return value }
   let sends = 0, enabled = true
   const client = { launchOptions: async () => ({}), async call(name, args, options = {}) {
-    options.admissionCheck?.(); calls.push({ name, args })
+    options.admissionCheck?.(); calls.push({ name, args, login: options.claudeLogin ?? null })
     if (name === 'pty_send') {
       sends++
       const current = bots.get(bot.id), receipt = { mode: 'agent_dispatch', session_id: args.session_id, launch_id: 'a'.repeat(32),
@@ -126,11 +126,11 @@ test('a limit on the 1st account starts a new seat on the 2nd (old seat left) be
   const accounts = new HarnessAccounts({ home, statePath: join(home, 'accounts.json'), readUsage: async () => [], log: () => {} })
   t.after(() => accounts.close())
   await accounts.prepare('claude', '2nd')
-  await writeFile(join(home, '.bellteam-accounts/claude/2nd/.credentials.json'), '{}')
+  await writeFile(join(home, '.bellteam-accounts/claude/2nd/oauth-token'), 'sk-ant-oat01-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
   const f = await fixture(t, { accounts }); await f.start(); await f.settle()
   const launches = f.calls.filter(x => x.name === 'agent_launch')
   // The fixture's seat is already running on the default (1st) root; only the new seat launches, under a new name.
-  assert.deepEqual(launches.map(x => x.args.configuration_root), [join(home, '.bellteam-accounts/claude/2nd')])
+  assert.deepEqual(launches.map(x => [x.login, x.args.configuration_root]), [['2nd', undefined]], 'same root, only the login differs')
   assert.match(launches[0].args.session_name, /^bot-synthetic-2nd-[0-9a-z]+$/u)
   assert.equal(f.calls.some(x => x.name === 'pty_close'), false, 'the old seat is left as it is')
   assert.equal(f.bots.get(f.bot.id).session, launches[0].args.session_name)
@@ -151,13 +151,13 @@ test('an account limit without the terminal-failure proof still resumes on the 2
   const accounts = new HarnessAccounts({ home, statePath: join(home, 'accounts.json'), readUsage: async () => [], log: () => {} })
   t.after(() => accounts.close())
   await accounts.prepare('claude', '2nd')
-  await writeFile(join(home, '.bellteam-accounts/claude/2nd/.credentials.json'), '{}')
+  await writeFile(join(home, '.bellteam-accounts/claude/2nd/oauth-token'), 'sk-ant-oat01-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
   const f = await fixture(t, { accounts, changeFailure: x => ({ ...x, outcome: 'rate_limited',
     rate_limit: "You're out of usage credits. Run /usage-credits to keep using Fable 5.1 or /model to switch models.",
     failure: { ...x.failure, terminal: false } }) })
   await f.start(); await f.settle()
   const launches = f.calls.filter(x => x.name === 'agent_launch')
-  assert.deepEqual(launches.map(x => x.args.configuration_root), [join(home, '.bellteam-accounts/claude/2nd')])
+  assert.deepEqual(launches.map(x => [x.login, x.args.configuration_root]), [['2nd', undefined]], 'same root, only the login differs')
   const sends = f.calls.filter(x => x.name === 'pty_send')
   assert.equal(sends.length, 2)
   assert.match(sends[1].args.text, /2ndアカウント/)
