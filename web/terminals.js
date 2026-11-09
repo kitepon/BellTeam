@@ -80,9 +80,10 @@ const ERRORS = {
   SSH_KEY_UNSET: '先にSSH鍵を設定してください。',
 }
 // keyAuthorization.outcome -> plain words; success runs the check again instead.
-const AUTHORIZE_TEXT = { PASSWORD_REJECTED: 'パスワードが違いました。', PASSWORD_AUTH_DISABLED: 'このMacはパスワードでのログインを受け付けていません。' }
+const AUTHORIZE_TEXT = { PASSWORD_REJECTED: 'パスワードが違いました。', PASSWORD_AUTH_DISABLED: 'このMacはパスワードでのログインを受け付けていません。',
+  AUTHORIZATION_UNCONFIRMED: '入れられたか確かめられませんでした。もう一度お試しください。' }
 export const authorizeText = outcome => AUTHORIZE_TEXT[outcome] ?? 'もう一度お試しください。'
-const AUTHORIZE_WAIT_MS = 1000, AUTHORIZE_WAIT_LIMIT = 120
+const AUTHORIZE_WAIT_MS = 1000
 const errorText = error => ERRORS[error?.code] ?? '結果を確認できませんでした。一覧を更新して確かめてください。'
 const keyLabel = { ssh: 'SSH鍵', sudo: 'sudo鍵' }
 // Source of each purpose's key. The native (terminal-held) capability is SSH only (usage C5), so the shared keySource never describes sudo.
@@ -118,7 +119,7 @@ export function createTerminalsView(dialog, { api }) {
   dialog.addEventListener('close', () => { opened = null })
 
   async function open() {
-    opened = { terminals: [], observations: new Map(), busy: new Set(), keyRoute: true, editing: null, unsupported: false, trustDraft: new Map(), authorizing: new Map() }
+    opened = { terminals: [], observations: new Map(), busy: new Set(), keyRoute: true, editing: null, unsupported: false, trustDraft: new Map(), authorizing: new Map(), authorizeRequest: new Map() }
     say('')
     body.replaceChildren(element('p', '読み込んでいます…', 'field-help'))
     if (!dialog.open) dialog.showModal()
@@ -173,22 +174,23 @@ export function createTerminalsView(dialog, { api }) {
     const request = result.secretRequest
     if (!request?.id) { say('入力欄を開けませんでした。一覧を更新して確かめてください。'); return }
     const current = opened
-    current.authorizing.delete(id)
+    current.authorizing.delete(id); current.authorizeRequest.set(id, request.id)
     // onComplete also fires for 入力を断る; only a submitted password has an outcome to wait for.
     openSecretInput(request, api, done => { if (opened === current && done?.status === 'submitted') void awaitAuthorization(id, request.id) })
   })
   // Pending stays true until the outcome is recorded (#858); the requestId match also ignores an older outcome.
-  // Exits: matching outcome, dialog closed, GET error, or AUTHORIZE_WAIT_LIMIT reads.
+  // Keeps observing the submitted request while it can still finish. Exits: its outcome, or the Owner closing the dialog /
+  // starting a newer request for this terminal. A failed read is retried on the next tick, never a give-up.
   async function awaitAuthorization(id, requestId) {
     const current = opened
+    const observing = () => opened === current && current.authorizeRequest.get(id) === requestId
     current.authorizing.set(id, { text: 'Macに鍵を入れています…', waiting: true }); render()
     let outcome = null
-    for (let read = 0; read < AUTHORIZE_WAIT_LIMIT && !outcome; read++) {
+    for (let read = 0; !outcome; read++) {
       if (read) await new Promise(resolve => setTimeout(resolve, AUTHORIZE_WAIT_MS))
-      if (opened !== current) return
-      let terminal
-      try { terminal = await api(`/api/terminals/${id}`) } catch (error) { if (opened === current) { current.authorizing.delete(id); say(errorText(error), error?.code ?? ''); render() } return }
-      if (opened !== current) return
+      if (!observing()) return
+      const terminal = await api(`/api/terminals/${id}`).catch(() => null)
+      if (!observing()) return
       if (terminal?.keyAuthorizationPending !== true && terminal?.keyAuthorization?.requestId === requestId) outcome = terminal.keyAuthorization.outcome
     }
     if (outcome === 'AUTHORIZED' || outcome === 'ALREADY_AUTHORIZED') { current.authorizing.delete(id); render(); await check(id); return }

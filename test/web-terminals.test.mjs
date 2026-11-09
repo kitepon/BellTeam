@@ -11,8 +11,8 @@ test('check observation -> plain words; host trust reasons ask for the fingerpri
   assert.equal(terminalStatus({ reachable: false, reason: 'CONNECTION_REFUSED' }).help, 'Macのリモートログインがオンか確かめてください。')
   assert.equal(terminalStatus({ reachable: false, reason: 'UNREACHABLE' }).help, 'Macが起きていて、同じネットワークにあるか確かめてください。')
   assert.equal(terminalStatus({ reachable: false, reason: 'SOMETHING_NEW', action: 'do X' }).help, 'do X')
-  assert.deepEqual(['PASSWORD_REJECTED', 'PASSWORD_AUTH_DISABLED', 'TERMINAL_CHANGED', null].map(authorizeText),
-    ['パスワードが違いました。', 'このMacはパスワードでのログインを受け付けていません。', 'もう一度お試しください。', 'もう一度お試しください。'])
+  assert.deepEqual(['PASSWORD_REJECTED', 'PASSWORD_AUTH_DISABLED', 'AUTHORIZATION_UNCONFIRMED', 'TERMINAL_CHANGED', null].map(authorizeText),
+    ['パスワードが違いました。', 'このMacはパスワードでのログインを受け付けていません。', '入れられたか確かめられませんでした。もう一度お試しください。', 'もう一度お試しください。', 'もう一度お試しください。'])
   for (const reason of ['CREDENTIAL_UNAVAILABLE', 'CREDENTIAL_REVISION_STALE']) assert.equal(terminalStatus({ reachable: false, reason }).label, '鍵が使えません')
   for (const reason of ['HOST_TRUST_MISSING', 'HOST_KEY_MISMATCH', 'HOST_TRUST_STALE', 'TARGET_MISMATCH']) assert.equal(terminalStatus({ reachable: false, reason }).trust, true)
   for (const reason of ['UNREACHABLE', 'CONNECTION_LOST', 'TERMINAL_UNAVAILABLE', 'SOMETHING_NEW', null]) assert.equal(terminalStatus({ reachable: false, reason }).label, '届きません')
