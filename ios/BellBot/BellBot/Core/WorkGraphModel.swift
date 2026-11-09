@@ -83,11 +83,16 @@ struct WorkGraphPress: Equatable {
         if hypot(point.x - start.x, point.y - start.y) >= 10 { moved = true }
     }
 
-    /// 離した時に開くメンバー。タップでなければnil。
-    func release(at point: CGPoint, time end: Double) -> String? {
+    /// 離した時にタップ（10pt未満の移動・500ms未満）か。メンバーのタップも線のタップも同じ基準。
+    func isTap(at point: CGPoint, time end: Double) -> Bool {
         var press = self
         press.move(to: point)
-        return !press.moved && end - time < 0.5 ? botId : nil
+        return !press.moved && end - time < 0.5
+    }
+
+    /// 離した時に開くメンバー。タップでなければnil。
+    func release(at point: CGPoint, time end: Double) -> String? {
+        isTap(at: point, time: end) ? botId : nil
     }
 }
 
@@ -180,6 +185,8 @@ final class WorkGraphModel: ObservableObject {
     @Published private(set) var isEmpty = true
     /// 試験がメンバーを置けるよう、setは閉じない。
     var bodies: [String: Body] = [:]
+    /// iPhone/iPadで線をタップして札を見せている辺（次の別のタップまで）。
+    private(set) var tappedEdge: String?
     /// 名前が隠れていても見せるメンバー（Macはポインタ、iPhone/iPadは指が載った相手）。`layoutChips`が毎フレーム受ける。
     private(set) var revealed: String?
     private(set) var lines: [String: Line] = [:]
@@ -548,7 +555,8 @@ final class WorkGraphModel: ObservableObject {
     /// 1コマ分の札を置く（behavior-spec.md「Edges」）。札はlatch frameで一度作り、辺が終わるまで残す。
     /// 置き場所は始まった順に、メンバーの四角・描いている名前・先に置いた札（blockedも含む）をそれぞれ4pt広げて避けた最初の空きt。
     /// 今のtが空いていれば動かさず、ふさがれば最初の空きtへ、どこも空かなければ今のtのままblocked。
-    func layoutChips(_ paths: [EdgePath], size: (String) -> CGSize, hover: String?, reveal: String? = nil, now: Double) {
+    /// `peek`は、空きを待つ札を`t = 0.5`で最前面に見せる辺（Macは線へのポインタ、iPhone/iPadは`tappedEdge`）。
+    func layoutChips(_ paths: [EdgePath], size: (String) -> CGSize, hover: String?, peek: String? = nil, reveal: String? = nil, now: Double) {
         self.paths = paths
         revealed = reveal
         let enter = reduceMotion ? 0.2 : 0.7
@@ -592,7 +600,15 @@ final class WorkGraphModel: ObservableObject {
             }
             lines[line.edge.id]?.chip = chip
             let hovered = hover == line.edge.id && label != nil && line.endedAt == nil
-            guard let t = chip.t else { continue }
+            guard let t = chip.t else {
+                // 待っている札は、線を指している間だけ`t = 0.5`で最前面に出す。置き場所は取らない。
+                if peek == line.edge.id, label != nil, line.endedAt == nil {
+                    let f = frame(0.5)
+                    layers.above.append(PlacedChip(id: line.edge.id, text: chip.text, anchor: path.point(0.5), tag: f.tag, area: f.area,
+                                                   opacity: 1, blocked: false))
+                }
+                continue
+            }
             let f = frame(t)
             let blocked = !free(f.area)
             placed.append(f.area) // blockedの札も後の札の障害物（Webと同じ）。
@@ -618,6 +634,18 @@ final class WorkGraphModel: ObservableObject {
         }
         return nil
     }
+
+    /// 離したタップ（`WorkGraphPress.isTap`が真）の行き先で、札を見せる辺を決める。
+    /// 開いた線 → その辺（別の線なら移る）。見せている札 → そのまま。メンバー・空いた所・ほかの札 → 消す。
+    func tap(at point: CGPoint, now: Double) {
+        switch hit(at: point, now: now) {
+        case .edge(let id): tappedEdge = id
+        case .chip(let id) where id == tappedEdge: break
+        default: tappedEdge = nil
+        }
+    }
+
+    func clearTap() { tappedEdge = nil }
 
     /// 押した位置にいるメンバー（behavior-spec.md「Tap or click on a member」）。アイコンと名前が対象で、
     /// どちらも44pt四方より小さくしない。線・札・空いた所は対象外。退場中のnodeも描いている間は対象。
