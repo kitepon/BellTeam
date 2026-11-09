@@ -283,13 +283,18 @@ export function nodeAt(frame, x, y) {
   return item?.node.botId ?? null
 }
 
-// タップ：押した時の相手を覚え、10px未満・500ms未満で離したらその相手を開く。押している間に一度でも10px以上動いたら取り消し。
+// タップ：主ボタンの押下を覚え、10px未満・500ms未満で離したらタップ（true を返す）。顔の上で押していたらその相手を開く。押している間に一度でも10px以上動いたら取り消し。
 export function createTap(onTap) {
   let press = null
   return {
-    down(id, x, y, at, botId) { press = botId ? { id, x, y, at, botId } : null },
+    down(id, x, y, at, primary, botId = null) { press = primary ? { id, x, y, at, botId } : null },
     move(id, x, y) { if (press?.id === id && Math.hypot(x - press.x, y - press.y) >= 10) press = null },
-    up(id, x, y, at) { const item = press; press = null; if (item?.id === id && Math.hypot(x - item.x, y - item.y) < 10 && at - item.at < 500) onTap(item.botId) },
+    up(id, x, y, at) {
+      const item = press; press = null
+      const tapped = item?.id === id && Math.hypot(x - item.x, y - item.y) < 10 && at - item.at < 500
+      if (tapped && item.botId) onTap(item.botId)
+      return tapped
+    },
     cancel() { press = null },
   }
 }

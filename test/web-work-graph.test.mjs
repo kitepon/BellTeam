@@ -199,12 +199,15 @@ test('顔のタップ範囲：名前か44×44以上の四角。線・札・余�
   const both = { ...frame, names: [...frame.names, { item: item('d', 310, 300, 56), box: { x: 300, y: 337, w: 40, h: 18 } }] }
   assert.equal(nodeAt(both, 310, 345), 'd')
   // タップ：押した時の相手で開く。10px以上はみ出したら、戻ってきても開かない。長押しも開かない。
+  // up の戻り値は「タップと認めたか」。線や余白のタップ（相手なし）も true、指の札の表示はこれだけで変える。
   const opened = [], tap = createTap(botId => opened.push(botId))
-  tap.down(1, 0, 0, 0, 'a'); tap.move(1, 5, 0); tap.up(1, 6, 0, 400)
-  tap.down(1, 0, 0, 1000, 'b'); tap.move(1, 20, 0); tap.move(1, 0, 0); tap.up(1, 0, 0, 1200)
-  tap.down(1, 0, 0, 2000, 'c'); tap.up(1, 0, 0, 2500)
-  tap.down(1, 0, 0, 3000, null); tap.up(1, 0, 0, 3100)
-  tap.down(1, 0, 0, 4000, 'e'); tap.cancel(); tap.up(1, 0, 0, 4100)
+  tap.down(1, 0, 0, 0, true, 'a'); tap.move(1, 5, 0); assert.equal(tap.up(1, 6, 0, 400), true)
+  tap.down(1, 0, 0, 1000, true, 'b'); tap.move(1, 20, 0); tap.move(1, 0, 0); assert.equal(tap.up(1, 0, 0, 1200), false)
+  tap.down(1, 0, 0, 2000, true, 'c'); assert.equal(tap.up(1, 0, 0, 2500), false)
+  tap.down(1, 0, 0, 3000, true, null); assert.equal(tap.up(1, 0, 0, 3100), true)
+  tap.down(1, 0, 0, 4000, true, 'e'); tap.cancel(); assert.equal(tap.up(1, 0, 0, 4100), false)
+  tap.down(1, 0, 0, 5000, false, null); assert.equal(tap.up(1, 0, 0, 5100), false)
+  tap.down(1, 0, 0, 6000, true, null); assert.equal(tap.up(2, 0, 0, 6100), false)
   assert.deepEqual(opened, ['a'])
 })
 

@@ -251,7 +251,7 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch, onOpenMe
     }
     return node ? { botId: node } : edgeId ? { edgeId } : null
   }
-  // マウスは指している間だけ。指は線をタップすると、次にほかをタップするまで出す（behavior-spec #800）。
+  // マウスは指している間だけ。指は線をタップすると、次にほかをタップするまで出す（behavior-spec #800、タップの決まりは createTap）。
   canvas.addEventListener('pointermove', event => {
     tap.move(event.pointerId, event.clientX, event.clientY)
     if (event.pointerType === 'touch') return
@@ -261,10 +261,10 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch, onOpenMe
   })
   canvas.addEventListener('pointerleave', event => { if (event.pointerType !== 'touch') hover = null })
   // タップの決まりは createTap（押した時の相手で開く）。
-  canvas.addEventListener('pointerdown', event => tap.down(event.pointerId, event.clientX, event.clientY, event.timeStamp, event.isPrimary && event.button === 0 ? hit(event).botId : null))
+  canvas.addEventListener('pointerdown', event => { const primary = event.isPrimary && event.button === 0; tap.down(event.pointerId, event.clientX, event.clientY, event.timeStamp, primary, primary ? hit(event).botId : null) })
   canvas.addEventListener('pointerup', event => {
-    if (event.pointerType === 'touch') hover = hoverAt(hit(event))
-    tap.up(event.pointerId, event.clientX, event.clientY, event.timeStamp)
+    // 指の札の表示（peek）は、タップと認めた時だけ変える。
+    if (tap.up(event.pointerId, event.clientX, event.clientY, event.timeStamp) && event.pointerType === 'touch') hover = hoverAt(hit(event))
   })
   canvas.addEventListener('pointercancel', () => tap.cancel())
   const visibility = () => { if (!open) return; if (document.hidden) stream.stop(); else stream.start() }
