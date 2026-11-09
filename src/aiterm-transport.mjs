@@ -22,6 +22,7 @@ import { returnedMcpError } from './returned-mcp-error.mjs'
 import { launchFailureDetails } from './agent-launch-error.mjs'
 import { captureRuntime as captureSelectedRuntime } from './runtime-selection.mjs'
 import { writeAtomic } from './json-file.mjs'
+import { isRemoteBot } from './remote-seats.mjs'
 
 export { AitermClient } from './aiterm-client.mjs'
 export { runWaitProcess } from './aiterm-wait-process.mjs'
@@ -93,7 +94,7 @@ const SCREEN_KEYS = new Set(['Enter', 'Escape', 'Tab', 'Up', 'Down', 'Left', 'Ri
 const screenFailure = (code, status) => Object.assign(new Error(code), { code, status, effect: 'not_started' })
 
 export class AitermTransport {
-  constructor({ resolveBot = null, backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, assertInputAllowed = () => {}, activeId = randomUUID, activityPath = null, captureRuntime = captureSelectedRuntime, runtimeLaunchesPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {}, accounts = null } = {}) {
+  constructor({ resolveBot = null, backgroundSummary = null, conversationAdmission = null, trackCompletion = () => {}, configurationRequests = null, membersAdmission = new MembersAdmission(), requireMember = async () => {}, client = new AitermClient(), executionBridge = null, requestStop = null, tempRoot = tmpdir(), writeTemporaryImage = writeLocalImage, removeTemporaryImage = path => rm(path, { force: true }), waitProcess = runWaitProcess, handoffContext = latestThroughlineHandoffContext, prepareStartup = async () => {}, updateSession = async () => {}, updateFastMode = async () => {}, requireAccess = async () => {}, assertWorkAllowed = () => {}, assertInputAllowed = () => {}, activeId = randomUUID, activityPath = null, captureRuntime = captureSelectedRuntime, runtimeLaunchesPath = null, now = () => new Date().toISOString(), interimInterval = INTERIM_INTERVAL_MS, reportError = () => {}, accounts = null, remoteSeats = null } = {}) {
     this.backgroundSummary = backgroundSummary
     this.summaryJobs = new Set()
     this.latestSummaryInputs = new Map()
@@ -132,6 +133,7 @@ export class AitermTransport {
     this.activity.groupReleased = groupId => this.backgroundSummary?.forgetRequest?.(groupId)
     // Claude 1st/2nd accounts (harness-accounts.md). Null keeps every launch on the default root.
     this.accounts = accounts
+    this.remoteSeats = remoteSeats
     this.accountMoves = new Map()
     this.accountsUnsubscribe = accounts?.watch(() => {
       this.activity.emitChange({ all: false, topics: ['accounts'], botIds: [], roomIds: [] })
@@ -291,7 +293,10 @@ export class AitermTransport {
     await this.prepareStartup(bot, shortTermMemory, { membersLease })
     this.membersAdmission.assertLease(membersLease)
     const runtime = await this.captureLaunchRuntime()
-    const launchOptions = this.client.launchOptions
+    // Protects the wrong target: a terminal-bound member never starts in the server folder. Exit: an engine with the
+    // terminals ports (next body start) drains the same queued ID.
+    if (isRemoteBot(bot) && !this.remoteSeats) throw Object.assign(new Error('TERMINALS_UNAVAILABLE'), { code: 'TERMINALS_UNAVAILABLE', effect: 'not_started', status: 503 })
+    const launchOptions = isRemoteBot(bot) ? null : this.client.launchOptions
       ? await this.client.launchOptions(bot.project, runtime) : { env: await loadBotEnvironment(bot.project) }
     let launch
     // harness-accounts.md: every seat runs on the 1st root; a 2nd seat differs only in the login the CLI gets (env token).
@@ -311,8 +316,11 @@ export class AitermTransport {
         // 既定はファストモードを使わない（オーナー裁定 2026-10-12）。共有の設定に残った値で起きないよう、必ず真偽で渡す。
         fast: bot.fastMode === true,
       }
-      launch = await this.changeSession(bot, 'agent_launch', launchArgs, { ...launchOptions,
-        ...(account && account.slot !== '1st' ? { claudeLogin: account.slot } : {}), ...(execution ? { execution } : {}) })
+      // remote-seat.md: a member bound to a terminal launches there with its launch context instead of local files.
+      launch = isRemoteBot(bot)
+        ? await this.remoteSeats.launch(bot, launchArgs, { shortTermMemory, context: { membersLease }, slot: account?.slot ?? null })
+        : await this.changeSession(bot, 'agent_launch', launchArgs, { ...launchOptions,
+          ...(account && account.slot !== '1st' ? { claudeLogin: account.slot } : {}), ...(execution ? { execution } : {}) })
       if (account) void this.accounts.setSeat(bot.id, account.slot).catch(() => {})
     } catch (error) {
       // 起動の準備が終わらなかった席は、Aitermの端末だけが残る（認証が切れたCLIがサインインの画面で止まった時など。2026-10-05、Codex）。
@@ -356,6 +364,8 @@ export class AitermTransport {
   }
 
   async resumePreviouslyActive(bot, reference) {
+    // A remote seat survives on its terminal; the normal wake takes it over there (remote-seat.md).
+    if (isRemoteBot(bot)) return null
     if (!['claude-code', 'codex-cli'].includes(reference.harness) || HARNESS.get(bot.harness) !== reference.harness
       || this.session(bot) !== reference.sessionId) return null
     await this.client.environmentReady?.(bot.project)

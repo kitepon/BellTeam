@@ -10,10 +10,14 @@ import { IdleSessions } from './idle-sessions.mjs'
 import { CapacityContinuation } from './capacity-continuation.mjs'
 import { HarnessAccounts, seatFilesOver } from './harness-accounts.mjs'
 import { runtimeHome } from './runtime-home.mjs'
+import { RemoteSeats } from './remote-seats.mjs'
+import { runWaitProcess } from './aiterm-wait-process.mjs'
 
 export const EXECUTION_STATE_COMPATIBILITY = 'bellteam.execution-state.v1'
 // This engine accepts ports.access.assertInput (Z-c update hold); a parent passes it only when this is true.
 export const EXECUTION_UPDATE_HOLD_GATE = true
+// This engine accepts ports.terminals and ports.ingress (remote-seat.md); a parent passes them only when this is true.
+export const EXECUTION_REMOTE_SEATS = true
 const COMPATIBILITY = EXECUTION_STATE_COMPATIBILITY
 const failure = code => Object.assign(new Error(code), { code, effect: 'not_started', status: 503 })
 const asyncMethods = {
@@ -35,7 +39,7 @@ export const EXECUTION_METHODS = Object.freeze({
   project: Object.freeze(Object.entries(syncMethods).flatMap(([owner, names]) => names.map(name => `${owner}.${name}`))),
 })
 const portNames = ['native', 'membersAdmission', 'conversationAdmission', 'moduleOperations', 'bots', 'rooms', 'configurationStorage',
-  'access', 'storage', 'seat', 'observer', 'diagnostics', 'continuation']
+  'access', 'storage', 'seat', 'observer', 'diagnostics', 'continuation', 'terminals', 'ingress']
 
 // This module and every relative engine import belong to the same fixed bundle.
 export function createExecutionDispatcher({ generation, ports, handoff = null, backgroundSummary = null, requestRestartSummary = null }) {
@@ -51,6 +55,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     seat: ['waitProcess', 'handoffContext', 'writeTemporaryImage', 'removeTemporaryImage', 'tempRoot'],
     observer: ['appendInterimWords', 'emitQueue', 'report'], diagnostics: ['record', 'goalError'],
     continuation: ['models', 'harnessAuth', 'messenger'],
+    terminals: ['connection', 'watch'], ingress: ['seatCredential'],
   }
   for (const [name, allowed] of Object.entries(groups))
     if (ports[name] && Object.keys(ports[name]).some(key => !allowed.includes(key))) throw failure('EXECUTION_PORTS_INVALID')
@@ -109,11 +114,16 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
   // The engine is not the seat user; seat-owned files go through the parent's seat runner (harness-accounts.md "Identity").
   const accounts = new HarnessAccounts({ home: runtimeHome(), statePath: join(dirname(root), 'harness-accounts.json'),
     ...(typeof ports.seat?.waitProcess === 'function' ? { seat: seatFilesOver(ports.seat.waitProcess) } : {}) })
+  // Both remote ports or neither: a half-mounted parent keeps terminal-bound members queued (TERMINALS_UNAVAILABLE).
+  const remoteSeats = ports.terminals?.connection && ports.ingress?.seatCredential && typeof ports.bots.launchContext === 'function'
+    ? new RemoteSeats({ terminals: ports.terminals, ingress: ports.ingress,
+      launchContext: (...args) => ports.bots.launchContext(...args), emitQueue: item => transport.emitQueue(item) }) : null
   const transport = createManagedTransport({
-    ...ports.seat, accounts, ...Object.fromEntries(Object.entries(ports.storage ?? {}).filter(([key]) => key !== 'deliveryAnchor')), backgroundSummary,
+    ...ports.seat, accounts, remoteSeats,
+    ...(remoteSeats ? { waitProcess: remoteSeats.waitProcess(ports.seat?.waitProcess ?? runWaitProcess) } : {}), ...Object.fromEntries(Object.entries(ports.storage ?? {}).filter(([key]) => key !== 'deliveryAnchor')), backgroundSummary,
     activityPath: join(dirname(root), 'execution-activity.json'),
     runtimeLaunchesPath: join(dirname(root), 'execution-runtime-launches.json'),
-    trackCompletion: track, client: native, membersAdmission: ports.membersAdmission, conversationAdmission: ports.conversationAdmission,
+    trackCompletion: track, client: remoteSeats ? remoteSeats.route(native) : native, membersAdmission: ports.membersAdmission, conversationAdmission: ports.conversationAdmission,
     resolveBot: id => ports.bots.get(id), configurationRequests: requests, requireMember: ports.access.requireMember,
     requireAccess: ports.access.requireAccess,
     assertWorkAllowed: () => { alive(); ports.access.assertWorkAllowed() },
@@ -247,14 +257,16 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     })
     const result = { stateCompatibility: COMPATIBILITY, generation, metadata,
       // Parent observer opaque handles refer to these exact objects; never serialize them.
-      shownWords: new Map(transport.activity.shownWords) }
+      shownWords: new Map(transport.activity.shownWords),
+      // Live remote seat connections stay with the successor (same Map, never serialized).
+      ...(remoteSeats ? { remoteSeats: remoteSeats.seats } : {}) }
     if (!handover) return result
     // Own turns finish here; the successor shares the registry and becomes the only activity-file writer.
     const completions = own([...transport.jobs, ...transport.watches.values()]).map(item => item.completion)
     handedOver = { activity: transport.activity }
     // Capacity failures deferred while quiescing are recovered by the successor once it adopts the activity.
     transport.activity.deferredCapacity = [...(transport.activity.deferredCapacity ?? []), ...deferredRecovery.splice(0)]
-    unsubscribe(); transport.workState.activityPath = null
+    unsubscribe(); remoteSeats?.close(); transport.workState.activityPath = null
     const released = (async () => {
       await Promise.allSettled(completions)
       while (pending.size) await Promise.allSettled([...pending])
@@ -284,6 +296,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     }
     idle.seen = m.idleSeen
     if (continuation) continuation.states = m.continuationStates
+    if (remoteSeats && handoff.remoteSeats instanceof Map) remoteSeats.seats = handoff.remoteSeats
   }
   async function retire() {
     if (phase === 'retired') return { closed: true }
@@ -295,6 +308,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
       observerStarted = false; idleStarted = false
       if (!settled()) throw failure('EXECUTION_BUSY')
       // A shared registry keeps the successor's listeners.
+      remoteSeats?.close()
       if (handedOver) unsubscribe(); else { unsubscribe(); transport.activity.listeners.clear() }
       clearTimeout(transport.workState.timer); transport.workState.timer = null
       // Never call Transport.close(): it closes the shared native client and aborts watches.

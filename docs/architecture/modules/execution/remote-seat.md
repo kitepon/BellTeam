@@ -1,6 +1,6 @@
 # Remote seats (C2 lifecycle, C7 capture)
 
-Owner: Kiro (execution). Request: Trony, 2026-11-09 (F-SEAT-HOST, `remote-seat-plan-20261109.md`). Cross contracts: [terminals](../terminals/README.md) C1–C9 (PR #764). Status: **P0 design; no code yet.** P1 scope is the Owner's Mac + Claude Code, no sudo, SSH key already registered.
+Owner: Kiro (execution). Request: Trony, 2026-11-09 (F-SEAT-HOST, `remote-seat-plan-20261109.md`). Cross contracts: [terminals](../terminals/README.md) C1–C9 (PR #764). Status: **P1 implemented in `src/remote-seats.mjs`** (see P1 implementation below). P1 scope is the Owner's Mac + Claude Code, no sudo, SSH key already registered.
 
 A remote seat is the same BellTeam seat (same Bot, same session name, same delivery, same accounts logic) whose process runs on a registered terminal with `cwd = projectRoot`. Execution changes only **where** the native calls go and **what** it hands the launch instead of writing files. No relay seat, no new queue, no second history writer.
 
@@ -117,3 +117,23 @@ Local seats (no `terminalId`): byte-for-byte today's path. Delivery ordering, du
 - members (Belorta): settled in PR #768: facade `bots.launchContext(botId, {sessionName, shortTermMemory}, context)` → `{text, revision}` under the normal members lease (`profile.launchContext`), writes nothing; `revision` = hash of `[terminalId, projectRoot]`; member fields `bot.terminalId` / `bot.projectRoot` (`''` = local). Errors `BOT_NOT_FOUND`, `BOT_REMOTE_BINDING_MISSING`, `MEMBERS_EFFECT_UNSUPPORTED` map to `not_started`.
 - common ingress (Molly): settled in PR #767 `integration/remote-seat-ingress.md`. Given to the engine only when its factory declares `supportsRemoteSeats === true`: `ports.ingress.seatCredential.issue/revoke`, `ports.terminals = {connection, watch}` (Crust's core as is; `watch` carries availability). The bearer binds `{botId, sessionName}`; reissue for the same sessionName replaces the old token, so a relaunch invalidates the previous seat. `launchId` stays today's format-checked header claim (not bound; not needed because one live token per sessionName). Rejected token = 400 `BELLTEAM_SEAT_UNRESOLVED`, exit = relaunch with a fresh token.
 - Throughline (Rivalin): ingest with cursor ack, and `handoffContext` reading that ingest for remote seats.
+
+## P1 implementation (`src/remote-seats.mjs`)
+
+| Piece | Where | Behavior |
+| --- | --- | --- |
+| Ports | `createExecutionDispatcher` | `ports.terminals = {connection, watch}` and `ports.ingress = {seatCredential}` accepted; the engine exports `EXECUTION_REMOTE_SEATS = true`, which the runtime loader turns into `factory.supportsRemoteSeats` (Molly's mount, PR #767). `RemoteSeats` exists only when both ports and `ports.bots.launchContext` (members, PR #768) are present |
+| Remote member | `isRemoteBot(bot)` | `bot.terminalId` and `bot.projectRoot` both non-empty |
+| Launch | `AitermTransport.wakeNow` → `RemoteSeats.launch` | Today's launch args (session name, model, effort, fast, account slot from today's selection). Open without credentials, `pty_observe` the session: alive there = taken over (after a body restart; its credential survives), no second launch and no new credential. Otherwise `launchContext` → `seatCredential.issue` → `open` with `credentials` → `agent_launch` with `options.private`. A failed remote launch closes its half-started session on that terminal, never through the local client. Today's server-side `prepareStartup` still runs (it writes the server member project only) |
+| Wrong target guard | `wakeNow` | A remote member with no remote ports (older parent) throws `TERMINALS_UNAVAILABLE`, `effect: not_started`. Protects: starting in the server folder. Exit: the next body start with the ports drains the same queued ID |
+| Routing | `RemoteSeats.route(native)` | Session-addressed calls of a held remote seat go to its bound `native.callTool`; others to the shared client. `pty_list` lists held remote seats as running (the seat survives on the terminal). `admissionCheck` runs right before the remote send. A successful `pty_close` releases the connection and revokes the credential |
+| Completion wait | `RemoteSeats.waitProcess(local)` | A receipt's `wait_process` with `--session <held remote seat>` runs through the bound `native.wait(process, {signal})` on the terminal (same JSON result as `aiterm-wait`); missing = `REMOTE_WAIT_UNAVAILABLE` |
+| Lost connection | `RemoteSeats.call` | `TERMINAL_UNAVAILABLE` refused before sending: reopen once without credentials and retry. In-flight `CONNECTION_LOST` is returned, never resent |
+| Pending while away | `RemoteSeats.wait/available` | Not-started codes record `terminalId → botIds`; `watch` event `reachable: true` emits the existing queue edge for those Bots and held seats there |
+| Generation exchange | export/import | The held seat Map is handed to the successor (same object, never serialized); retire only unsubscribes the watch |
+| Restart resume | `resumePreviouslyActive` | Skipped for remote members; the normal wake takes the seat over |
+| Account owner | `RemoteSeats.open` | shortcut: P1 passes `accountOwner: 'owner'` (Owner's terminals only); a non-Owner terminal fails `TARGET_MISMATCH` in terminals. P3 needs a nonsecret registry read for the account domain |
+
+Test: `test/remote-seats.test.mjs` (launch names/references only, asleep → available edge, takeover, routing/list/wait, reconnect without resend).
+
+Still open: `native.wait` on the bound port (Elegg adapter + Crust bind); `supportsRemoteSeats` in the runtime loader (Molly); `uses` entries in module.json once terminals is on main; Throughline `transcript.read` forwarding after completion (P1 keeps short-term memory from the server side; remote ingest follows Rivalin's adapter).
