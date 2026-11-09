@@ -191,7 +191,7 @@ test('terminal key load: value only on the bin stdin, receipt or binding error, 
   const receipt = { schema: 'aiterm.credential-load.v1', accepted: true }
   const base = { credentials, terminalId: 'owner-macbook', memberId: 'bot-aa', ref, handle, revision: 3 }
   assert.deepEqual(await loadTerminalKey({ ...base, run: runner({ code: 0, signal: null, stdout: JSON.stringify(receipt) }) }), receipt)
-  assert.deepEqual(resolved, [{ h: handle, context: { terminalId: 'owner-macbook', memberId: 'bot-aa', purpose: 'terminal.ssh' } }])
+  assert.deepEqual(resolved, [{ h: handle, context: { terminalId: 'owner-macbook', memberId: 'bot-aa', purpose: 'terminal.ssh', expectedRevision: 3 } }])
   assert.deepEqual(calls[0].args, ['aiterm-remote-terminal', 'credential-load', '--ref', ref, '--terminal-id', 'owner-macbook', '--handle', handle, '--revision', '3', '--purpose', 'ssh-key'])
   assert.equal(calls[0].input, key); assert.ok(!calls[0].args.some(arg => arg.includes('PRIVATE')))
   await assert.rejects(loadTerminalKey({ ...base, run: runner({ code: 2, signal: null, stdout: JSON.stringify({ schema: 'aiterm.remote-binding-error.v1', code: 'REMOTE_BINDING_NOT_FOUND' }) }) }), { code: 'REMOTE_BINDING_NOT_FOUND', status: 409 })

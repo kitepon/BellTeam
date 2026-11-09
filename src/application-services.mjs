@@ -97,7 +97,7 @@ export async function loadTerminalKey({ credentials, terminalId, memberId = null
     || !Number.isSafeInteger(revision) || revision < 1 || (memberId !== null && typeof memberId !== 'string'))
     throw TERMINAL_KEY_LOAD_FAILED('TERMINAL_KEY_LOAD_INVALID', 400)
   if (typeof credentials?.withResolved !== 'function') throw TERMINAL_KEY_LOAD_FAILED('CREDENTIAL_UNAVAILABLE')
-  return credentials.withResolved(handle, { terminalId, memberId, purpose: 'terminal.ssh' }, async value => {
+  return credentials.withResolved(handle, { terminalId, memberId, purpose: 'terminal.ssh', expectedRevision: revision }, async value => {
     if (typeof value !== 'string' || !value || Buffer.byteLength(value, 'utf8') > 65536) throw TERMINAL_KEY_LOAD_FAILED('TERMINAL_KEY_INVALID', 400)
     let result
     try {
