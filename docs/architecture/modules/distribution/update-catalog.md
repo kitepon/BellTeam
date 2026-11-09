@@ -26,6 +26,9 @@ Impact: `scripts/web_gateway_artifact.py` (`state_form`; optional `state` on `va
 
 ## Publisher preflight download: transient recovery, 2026-11-09 JST
 
+Addendum (Web791 acceptance, 2026-11-09 JST): github.com kept answering one exact release-asset URL (`updates-20261109T072703Z/...amd64.tar.gz.sigstore.json`) with HTTP 504 in ~0.03 s on every retry (a cached failure), while the same path with a one-off query string returned 200 with the expected 11099 bytes. Retries of the same string could never recover. For `https://github.com/kitepon/BellTeam/releases/download/...` URLs without a query, the first request uses the fixed URL and each retry adds `?attempt=<n>-<ns>`. Host and path stay the same, and the bytes are still bound by size, sha256, signature and formal-release metadata, so identity is unchanged. Other URLs (GHCR token/manifests/blobs) retry unchanged.
+
+
 Cause (Centi classified, Trony ruling): Web766 publisher run 42566309359 attempts 1 and 2 failed on an intermittent github.com HTTP 504 for the unchanged formal memory archive URL, before OIDC/sign/upload; the same URL later returned 200. `check-update-catalog-publication.py:download` made one 30 s request and gave up. That give-up named no protection.
 
 `download` now repeats the request on the same URL and headers when the failure is transient: HTTP 408/425/429/500/502/503/504, or a network/timeout/truncated-read error. New attempts are scheduled with a 2 s backoff doubling up to 30 s, within a 240 s retry window measured from the first request. The last request retains the existing 30 s timeout, and the workflow retains its 10 min job timeout. Every other HTTP status (404, 401, 403, ...) is raised at once. Retry happens only before bytes are accepted; the byte cap, then `download_asset`'s size/sha256, then signature/archive/formal-release checks run unchanged on the bytes that arrived, and their failures are never retried. No API-only substitute URL, no rebuild/re-sign. When the window passes, the error is raised as before: the preflight refuses before signing (protection: never sign a catalog whose formal targets were not read), and the next ordinary publisher run from main is the exit.
@@ -34,7 +37,7 @@ Cause (Centi classified, Trony ruling): Web766 publisher run 42566309359 attempt
 flowchart LR
   Req[GET fixed public URL] -->|2xx| Cap[byte cap]
   Req -->|408/425/429/500/502/503/504, network, timeout, truncated| Wait{within 240 s?}
-  Wait -->|yes: sleep 2..30 s| Req
+  Wait -->|yes: sleep 2..30 s; release URL gets a one-off query| Req
   Wait -->|no| Refuse[raise: refuse before OIDC/sign/upload]
   Req -->|other HTTP status| Refuse
   Cap -->|over| Refuse

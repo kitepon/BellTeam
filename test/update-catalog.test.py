@@ -143,7 +143,14 @@ class CatalogTest(unittest.TestCase):
         def failure(code): return HTTPError(url, code, 'x', {}, None)
         with patch.object(publication, 'urlopen', side_effect=[failure(504), failure(504), ok()]) as fetch, patch.object(publication.time, 'sleep') as sleep:
             self.assertEqual(publication.download(url), body)
-            self.assertEqual([c.args[0].full_url for c in fetch.call_args_list], [url] * 3)
+            urls = [c.args[0].full_url for c in fetch.call_args_list]
+            # First the fixed URL, then the same path with a one-off query (cached 504 at github.com).
+            self.assertEqual(urls[0], url)
+            self.assertTrue(all(u.startswith(url + '?attempt=') for u in urls[1:]) and len(set(urls)) == 3)
+        other = 'https://ghcr.io/v2/kitepon/bellteam-server/manifests/latest'
+        with patch.object(publication, 'urlopen', side_effect=[failure(504), ok()]) as fetch, patch.object(publication.time, 'sleep'):
+            self.assertEqual(publication.download(other), body)
+            self.assertEqual([c.args[0].full_url for c in fetch.call_args_list], [other] * 2)
             self.assertEqual(sleep.call_count, 2)
         with patch.object(publication, 'urlopen', side_effect=[failure(404)]) as fetch, patch.object(publication.time, 'sleep') as sleep:
             with self.assertRaises(HTTPError): publication.download(url)
