@@ -48,12 +48,18 @@ export function memberFolder(user, name) {
   return `/Users/${user}/BellTeam/${slug && slug !== '.' && slug !== '..' ? slug : 'member'}`
 }
 
-// members S5 save refusals: the server message already carries the fix and the folder (terminals actions, Japanese).
-// null = not a folder refusal; a bare code (no message in the envelope) falls back to one plain line.
+// members S5 save refusals carry only the code (#859), so the Web words them (reference: terminals FOLDER_ACTIONS)
+// and names the folder from the form. null = not a folder refusal.
+const FOLDER_REFUSALS = {
+  FOLDER_MISSING: 'このフォルダはMacにありません。作るか、あるフォルダを選んでください',
+  FOLDER_NOT_DIRECTORY: 'これはファイルです。フォルダを選んでください',
+  FOLDER_NOT_WRITABLE: 'このMacのユーザーが書き込めるフォルダを選んでください',
+  FOLDER_NOT_PERMITTED: 'Macがこのフォルダを開かせてくれません。デスクトップ・書類・ダウンロードの外を選ぶか、リモートログインの「リモートユーザにフルディスクアクセスを許可」をオンにしてください',
+}
 export function folderRefusal(error, folder) {
   if (error?.code === 'TERMINAL_NOT_FOUND') return 'この端末は登録されていません。'
   if (!/^FOLDER_/u.test(error?.code ?? '')) return null
-  return error.message && error.message !== error.code ? error.message : `このフォルダは使えません（${folder}）。`
+  return `${FOLDER_REFUSALS[error.code] ?? 'このフォルダは使えません'}（${folder}）。`
 }
 export const FOLDER_UNCHECKED = 'Macにつながらなかったので、フォルダはまだ確かめていません。席を起こす時にもう一度確かめます。'
 
