@@ -68,6 +68,12 @@ export function readSnapshot(data) {
 // 矩形の中心から方向(ux,uy)へ出た線が、一辺sの正方形の縁に当たるまでの距離。
 const border = (s, ux, uy) => (s / 2) / Math.max(Math.abs(ux), Math.abs(uy), 1e-6)
 const SLOTS = [0.5, 0.45, 0.55, 0.4, 0.6, 0.35, 0.65, 0.3, 0.7]
+// 顔の箱：一辺 S の円板の正方形と、前のコマで描いた名前の箱（顔からの差 nameRel）を合わせ、g 広げる。
+const nodeBox = (node, p, S, g) => {
+  const r = node.nameRel, half = S / 2
+  return { x0: Math.min(p.x - half, r ? p.x + r.x0 : Infinity) - g, x1: Math.max(p.x + half, r ? p.x + r.x1 : -Infinity) + g,
+    y0: Math.min(p.y - half, r ? p.y + r.y0 : Infinity) - g, y1: Math.max(p.y + half, r ? p.y + r.y1 : -Infinity) + g }
+}
 const grown = box => ({ x: box.x - 4, y: box.y - 4, w: box.w + 8, h: box.h + 8 })
 const intersects = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
 
@@ -80,10 +86,65 @@ const crossCount = (P, list, all) => {
   for (const [a, b] of list) for (const [e, f] of all) if (a !== e && a !== f && b !== e && b !== f && cross(P[a], P[b], P[e], P[f])) c++
   return c
 }
+// 線分abが箱rに入るか（Liang-Barsky、layout-sim.mjs と同じ）。箱は {x0, x1, y0, y1}。
+export function segmentHitsBox(a, b, r) {
+  let t0 = 0, t1 = 1
+  const dx = b.x - a.x, dy = b.y - a.y
+  for (const [p, q] of [[-dx, a.x - r.x0], [dx, r.x1 - a.x], [-dy, a.y - r.y0], [dy, r.y1 - a.y]]) {
+    if (p === 0) { if (q < 0) return false; continue }
+    const t = q / p
+    if (p < 0) { if (t > t1) return false; if (t > t0) t0 = t } else { if (t < t0) return false; if (t < t1) t1 = t }
+  }
+  return true
+}
+const boxesMeet = (r, q) => r.x0 < q.x1 && q.x0 < r.x1 && r.y0 < q.y1 && q.y0 < r.y1
+const CLEARANCE = 0.003, CLEAR_GAP = 6, CHIP_GAP = 4
+
+// behavior-spec "Clearance"（layout-sim.mjs simulate() の clear 部分と同じ式）。P は点、返す力は正規化座標。
+// box(k, g): k 番の顔の箱を g だけ広げたもの。chip(a, b): その線の blocked の札の箱（4 広げた）か null。
+export function clearanceForces(P, pairs, { box, chip = () => null, kc = CLEARANCE }) {
+  const F = P.map(() => ({ u: 0, v: 0 }))
+  const push = (c, a, b, ta, nx, ny) => {
+    const d = Math.hypot(nx, ny) || 1, fu = kc * nx / d, fv = kc * ny / d
+    F[c].u += fu; F[c].v += fv; F[a].u -= fu * (1 - ta); F[a].v -= fv * (1 - ta); F[b].u -= fu * ta; F[b].v -= fv * ta
+  }
+  for (const [a, b] of pairs) {
+    const blocked = chip(a, b), ex = P[b].x - P[a].x, ey = P[b].y - P[a].y, el = ex * ex + ey * ey || 1
+    if (blocked && [a, b].some(e => boxesMeet(blocked, box(e, 0)))) {
+      // 札が自分の両端の間に収まらない：線を伸ばす
+      const d = Math.sqrt(el), fu = kc * ex / d, fv = kc * ey / d
+      F[a].u -= fu; F[a].v -= fv; F[b].u += fu; F[b].v += fv
+    }
+    for (let c = 0; c < P.length; c++) {
+      if (c === a || c === b) continue
+      const r = box(c, CLEAR_GAP), cx = P[c].x, cy = (r.y0 + r.y1) / 2
+      if (segmentHitsBox(P[a], P[b], r)) {
+        const t = Math.min(1, Math.max(0, ((cx - P[a].x) * ex + (cy - P[a].y) * ey) / el))
+        let nx = cx - (P[a].x + t * ex), ny = cy - (P[a].y + t * ey)
+        if (Math.hypot(nx, ny) < 1e-6) { nx = -ey; ny = ex }
+        push(c, a, b, t, nx, ny)
+      }
+      if (blocked && boxesMeet(blocked, box(c, 0))) push(c, a, b, 0.5, cx - (blocked.x0 + blocked.x1) / 2, cy - (blocked.y0 + blocked.y1) / 2)
+    }
+  }
+  return F
+}
+
 // 入れ替えると交差が一番多く減る2人（同数なら先の組）。減らないなら null。
-export function bestSwap(P, edges) {
+// clear = { box(k, p) } の時、関係のない顔の箱を通る線も交差1つと数える（behavior-spec "Clearance"）。
+export function bestSwap(P, edges, clear = null) {
   const pairs = pairsOf(edges), touching = P.map((_, i) => pairs.filter(([a, b]) => a === i || b === i))
-  const local = (Q, i, j) => { const mine = [...new Set([...touching[i], ...touching[j]])]; return crossCount(Q, mine, pairs) - crossCount(Q, mine, mine) / 2 }
+  const passes = (Q, i, j) => {
+    if (!clear) return 0
+    let c = 0
+    const hit = (a, b, k) => k !== a && k !== b && segmentHitsBox(Q[a], Q[b], clear.box(k, Q[k]))
+    for (const [a, b] of pairs) {
+      if (a === i || a === j || b === i || b === j) { for (let k = 0; k < Q.length; k++) if (hit(a, b, k)) c++ }
+      else { if (hit(a, b, i)) c++; if (hit(a, b, j)) c++ }
+    }
+    return c
+  }
+  const local = (Q, i, j) => { const mine = [...new Set([...touching[i], ...touching[j]])]; return crossCount(Q, mine, pairs) - crossCount(Q, mine, mine) / 2 + passes(Q, i, j) }
   let best = null
   for (let i = 0; i < P.length; i++) for (let j = i + 1; j < P.length; j++) {
     if (!touching[i].length && !touching[j].length) continue
@@ -107,10 +168,10 @@ export function createGraphModel({ reduceMotion = false } = {}) {
     return { x: g.from.x + (node.x - g.from.x) * k, y: g.from.y + (node.y - g.from.y) * k, opacity: 1 }
   }
   // 30コマごとに一組だけ入れ替える。位置と速度を交換し、α は変えない（behavior-spec "Uncrossing swaps"）。
-  function uncross(live, now) {
+  function uncross(live, now, S) {
     const order = [...live].sort((a, b) => a.botId < b.botId ? -1 : a.botId > b.botId ? 1 : 0), index = new Map(order.map((node, i) => [node.botId, i]))
     const list = [...edges.values()].filter(edge => !edge.endAt && index.has(edge.from) && index.has(edge.to)).map(edge => [index.get(edge.from), index.get(edge.to)])
-    const swap = bestSwap(order, list)
+    const swap = bestSwap(order, list, { box: (k, p) => nodeBox(order[k], p, S, 0) })
     if (!swap) return
     const [a, b] = swap.pair.map(i => order[i])
     for (const node of [a, b]) if (reduceMotion || now - node.enterAt >= ENTER_MS) { const p = drawnAt(node, now); node.glide = { from: { x: p.x, y: p.y }, at: now } }
@@ -195,6 +256,20 @@ export function createGraphModel({ reduceMotion = false } = {}) {
         springs.add(key)
         pull(a, b, d => ks * (d - L))
       }
+      // Clearance: 線と blocked の札を、関係のない顔（円板＋描いた名前）からどける。
+      const index = new Map(live.map((node, i) => [node.botId, i])), P = live.map(node => ({ x: node.x, y: node.y })), chips = new Map()
+      for (const edge of edges.values()) {
+        if (edge.endAt || !index.has(edge.from) || !index.has(edge.to)) continue
+        const [a, b] = [index.get(edge.from), index.get(edge.to)].sort((x, y) => x - y), key = `${a},${b}`
+        if (!chips.has(key)) chips.set(key, null)
+        if (edge.chip?.blocked && !chips.get(key)) {
+          const mx = (P[a].x + P[b].x) / 2, my = (P[a].y + P[b].y) / 2, { w, h } = edge.chip
+          chips.set(key, { x0: mx - w / 2 - CHIP_GAP, x1: mx + w / 2 + CHIP_GAP, y0: my - h / 2 - CHIP_GAP, y1: my + h / 2 + CHIP_GAP })
+        }
+      }
+      const clear = clearanceForces(P, [...chips.keys()].map(key => key.split(',').map(Number)),
+        { box: (k, g) => nodeBox(live[k], P[k], S, g), chip: (a, b) => chips.get(`${a},${b}`) })
+      live.forEach((node, i) => { force.get(node).u += clear[i].u; force.get(node).v += clear[i].v })
       for (const node of live) {
         const f = force.get(node), p = uv.get(node)
         node.vu = ((node.vu ?? 0) + f.u * alpha) * 0.82; node.vv = ((node.vv ?? 0) + f.v * alpha) * 0.82
@@ -216,7 +291,7 @@ export function createGraphModel({ reduceMotion = false } = {}) {
         node.x = W < halfX * 2 ? cx : Math.min(rect.x + W - halfX, Math.max(rect.x + halfX, node.x))
         node.y = H < top + bottom ? cy : Math.min(rect.y + H - bottom, Math.max(rect.y + top, node.y))
       }
-      if (++steps % 30 === 0) uncross(live, now)
+      if (++steps % 30 === 0) uncross(live, now, S)
       alpha = Math.max(0.04, alpha * 0.985 ** (dt * 60))
     },
     // 描く物の一覧。edges → nodes → labels の順に描く。
@@ -271,6 +346,12 @@ export function createGraphModel({ reduceMotion = false } = {}) {
         const box = !others.some(disc => intersects(below, disc)) ? below : !others.some(disc => intersects(over, disc)) ? over : hover?.botId === item.node.botId ? below : null
         if (box) names.push({ item, box, maxWidth: item.side * 2.2 })
       }
+      // 顔の箱（Clearance）に使う名前の位置を、顔からの差で覚える。隠れた名前は数えない。
+      const named = new Map(names.map(({ item, box }) => [item.node, box]))
+      for (const item of drawn.values()) {
+        const box = named.get(item.node)
+        item.node.nameRel = box ? { x0: box.x - item.x, x1: box.x + box.w - item.x, y0: box.y - item.y, y1: box.y + box.h - item.y } : null
+      }
       // 描いている名前も札の障害物（隠れた名前は除く）。去る顔は円板と同じく数えない。
       const nameBoxes = names.filter(({ item }) => !item.node.leaveAt).map(({ box }) => grown(box))
       // 札は出始めを依頼ごとに一度だけ決め、線が終わるまで出し続ける（behavior-spec "Chip start"）。毎コマ決め直すと点いたり消えたりする。
@@ -288,6 +369,8 @@ export function createGraphModel({ reduceMotion = false } = {}) {
         if (edge.label) { chip.nullAt = null; chip.lines = wrapLabel(edge.label, 168, measure) }
         else chip.nullAt ??= now
         const text = chip.lines, w = Math.min(180, Math.max(...text.map(measure)) + 12), h = text.length * 16 + 6
+        // Clearance が読む：札の大きさと、空きがない（置いた場所がふさがれた・まだ空きを待つ）か。
+        chip.w = w; chip.h = h; chip.blocked = false
         let alpha = line.opacity
         if (chip.nullAt !== null) alpha *= Math.max(0, 1 - (now - chip.nullAt) / END_MS)
         // 消えた札だけが場所を返す。
@@ -300,10 +383,12 @@ export function createGraphModel({ reduceMotion = false } = {}) {
         const hovered = hover?.edgeId === edge.id && edge.label && !edge.endAt
         // 空きを待つ札も、線を指している・タップした間は t = 0.5 で一番上に出す（behavior-spec #800）。
         if (chip.t === null) {
+          chip.blocked = !edge.endAt && chip.nullAt === null
           if (hovered) above.push({ edge, box: boxAt(line, 0.5, w, h), alpha: 1, lines: text, blocked: false })
           continue
         }
         const box = boxAt(line, chip.t, w, h), isBlocked = !free(box)
+        chip.blocked = isBlocked && !edge.endAt && chip.nullAt === null
         placed.push(box)
         // 最初に出る時いつも200msで現れる。
         alpha *= Math.min(1, (now - chip.appearAt) / 200)
