@@ -148,6 +148,9 @@ final class WorkGraphModelTests: XCTestCase {
         wandered.move(to: CGPoint(x: 50, y: 62))
         XCTAssertNil(wandered.release(at: CGPoint(x: 50, y: 50), time: 100.2))
         XCTAssertNil(WorkGraphPress(botId: nil, start: .zero, time: 0).release(at: .zero, time: 0.1), "空いた所は開かない")
+        XCTAssertTrue(press.isTap(at: CGPoint(x: 59.9, y: 50), time: 100.499), "線のタップもメンバーと同じ基準")
+        XCTAssertFalse(press.isTap(at: CGPoint(x: 60, y: 50), time: 100.1))
+        XCTAssertFalse(press.isTap(at: CGPoint(x: 50, y: 50), time: 100.5))
     }
 
     /// 取り消された押下（@GestureStateがnilへ戻る）の後、同じ位置の新しい押下は新しいメンバーを開く。
@@ -270,8 +273,8 @@ final class WorkGraphModelTests: XCTestCase {
     private let chipSize: (String) -> CGSize = { _ in CGSize(width: 100, height: 26) }
 
     /// 図の外（y=2000以下）に置いた直線。メンバーの四角に当たらず、札どうしだけを確かめられる。
-    private func straight(_ id: String, x: CGFloat = 0, y: CGFloat = 2000, span: CGFloat = 1000, length: CGFloat? = nil) -> WorkGraphModel.EdgePath {
-        WorkGraphModel.EdgePath(id: id, length: length ?? span) { t in CGPoint(x: x + span * t, y: y) }
+    private func straight(_ id: String, x: CGFloat = 0, y: CGFloat = 2000, span: CGFloat = 1000) -> WorkGraphModel.EdgePath {
+        WorkGraphModel.EdgePath(id: id) { t in CGPoint(x: x + span * t, y: y) }
     }
 
     private func entering(_ nodes: [WorkGraphNode], _ edges: [WorkGraphEdge], reduceMotion: Bool = false) -> WorkGraphModel {
@@ -290,21 +293,20 @@ final class WorkGraphModelTests: XCTestCase {
         model.layoutChips([straight("a>b")], size: chipSize, hover: nil, now: 0.69)
         XCTAssertNil(model.lines["a>b"]?.chip, "入場中の位置では決めない")
         model.layoutChips([straight("a>b")], size: chipSize, hover: nil, now: 0.7)
-        XCTAssertEqual(model.lines["a>b"]?.chip?.mode, .shown)
-        XCTAssertEqual(model.lines["a>b"]?.chip?.since, 0.7)
+        XCTAssertEqual(model.lines["a>b"]?.chip?.appearAt, 0.7)
 
         let reduced = entering([node("a"), node("b")], [edge("a", "b")], reduceMotion: true)
         reduced.layoutChips([straight("a>b")], size: chipSize, hover: nil, now: 0.19)
         XCTAssertNil(reduced.lines["a>b"]?.chip)
         reduced.layoutChips([straight("a>b")], size: chipSize, hover: nil, now: 0.2)
-        XCTAssertEqual(reduced.lines["a>b"]?.chip?.since, 0.2, "動きを減らす設定は200ms")
+        XCTAssertEqual(reduced.lines["a>b"]?.chip?.appearAt, 0.2, "動きを減らす設定は200ms")
 
         // bは0.6に入って0.65に退場を始める。bの入場（1.3まで）を待たずに、aが着いた0.7で決める。
         let leaving = entering([node("a")], [])
         leaving.apply(WorkGraphBatch(epoch: "e", version: 2, degraded: [], changes: [.memberEnter(node("b")), .edgeStart(edge("a", "b"))]), at: 0.6)
         leaving.apply(WorkGraphBatch(epoch: "e", version: 3, degraded: [], changes: [.memberLeave("b")]), at: 0.65)
         leaving.layoutChips([straight("a>b")], size: chipSize, hover: nil, now: 0.7)
-        XCTAssertEqual(leaving.lines["a>b"]?.chip?.since, 0.7, "退場中の端は入場を終えた扱い")
+        XCTAssertEqual(leaving.lines["a>b"]?.chip?.appearAt, 0.7, "退場中の端は入場を終えた扱い")
 
         // labelがnullの間は決めない。edge-updateで要約が届いたコマで決める。
         let pending = entering([node("a"), node("b")], [edge("a", "b", label: nil)])
@@ -313,77 +315,63 @@ final class WorkGraphModelTests: XCTestCase {
         XCTAssertTrue(drawn(pending).isEmpty)
         pending.apply(WorkGraphBatch(epoch: "e", version: 2, degraded: [], changes: [.edgeUpdate(edge("a", "b"))]), at: 6)
         pending.layoutChips([straight("a>b")], size: chipSize, hover: nil, now: 6)
-        XCTAssertEqual(pending.lines["a>b"]?.chip?.since, 6)
+        XCTAssertEqual(pending.lines["a>b"]?.chip?.appearAt, 6)
     }
 
-    /// 混んでいれば（開いた依頼が10本超、または線が120pt未満）brief、そうでなければshown。後から変わらない。
-    func testChipModeIsDecidedOnceFromCrowdingAtTheLatchFrame() {
-        let model = entering([], [edge("x", "y", id: "short"), edge("x", "y", id: "long")])
-        model.layoutChips([straight("short", length: 119), straight("long", y: 2400, length: 120)], size: chipSize, hover: nil, now: 1)
-        XCTAssertEqual(model.lines["short"]?.chip?.mode, .brief)
-        XCTAssertEqual(model.lines["long"]?.chip?.mode, .shown)
-        // 後で短くなっても、長くなっても変えない。
-        model.layoutChips([straight("short", length: 500), straight("long", y: 2400, length: 50)], size: chipSize, hover: nil, now: 2)
-        XCTAssertEqual(model.lines["short"]?.chip?.mode, .brief)
-        XCTAssertEqual(model.lines["long"]?.chip?.mode, .shown)
-
+    /// 札は混んだ図（開いた依頼が10本超）でも短い線（120pt未満）でも、latch frameから辺が終わるまで出し続ける。3秒で消えない。
+    func testCrowdedAndShortPathChipsStayVisibleForTheWholeEdge() {
         let ids = (0..<11).map { "e\($0)" }
         let crowded = entering([], ids.map { edge("x", "y", id: $0) })
-        crowded.layoutChips(ids.enumerated().map { straight($1, y: 2000 + CGFloat($0) * 100) }, size: chipSize, hover: nil, now: 1)
-        XCTAssertTrue(ids.allSatisfy { crowded.lines[$0]?.chip?.mode == .brief }, "11本開いていれば混んでいる")
+        let paths = ids.enumerated().map { straight($1, y: 2000 + CGFloat($0) * 100) }
+        for now in [1.0, 1.3, 4.5, 4.9, 12, 60] {
+            crowded.layoutChips(paths, size: chipSize, hover: nil, now: now)
+            XCTAssertEqual(crowded.chips.unblocked.count, 11, "\(now)")
+            if now >= 1.3 { XCTAssertTrue(crowded.chips.unblocked.allSatisfy { $0.opacity == 1 }, "\(now)") }
+        }
+
+        let short = entering([], [edge("x", "y", id: "short")])
+        let path = straight("short", span: 80)
+        for now in [1.0, 1.3, 4.5, 12, 60] {
+            short.layoutChips([path], size: chipSize, hover: nil, now: now)
+            XCTAssertEqual(short.chips.unblocked.map(\.id), ["short"], "\(now)")
+        }
+        XCTAssertEqual(short.chips.unblocked.first?.opacity, 1)
+        // 辺が終わるまで。終われば線と一緒に300msで消える。
+        short.apply(WorkGraphBatch(epoch: "e", version: 2, degraded: [], changes: [.edgeEnd("short")]), at: 61)
+        short.layoutChips([path], size: chipSize, hover: nil, now: 61.31)
+        XCTAssertTrue(drawn(short).isEmpty)
     }
 
-    /// briefはlatch frameから3秒出て400msで消え、その後は自分からは戻らない。指した時だけ最前面に出る。
-    func testBriefChipShowsThreeSecondsFadesAndNeverComesBack() throws {
-        let model = entering([], [edge("x", "y", id: "b")])
-        let path = straight("b", length: 80)
-        model.layoutChips([path], size: chipSize, hover: nil, now: 1)
-        XCTAssertEqual(model.chips.unblocked.first?.opacity, 1, "空いていればlatch frameからすぐ出る")
-        model.layoutChips([path], size: chipSize, hover: nil, now: 3.9)
-        XCTAssertEqual(model.chips.unblocked.first?.opacity, 1)
-        model.layoutChips([path], size: chipSize, hover: nil, now: 4.2)
-        XCTAssertEqual(try XCTUnwrap(model.chips.unblocked.first?.opacity), 0.5, accuracy: 1e-6)
-        model.layoutChips([path], size: chipSize, hover: nil, now: 4.41)
-        XCTAssertTrue(drawn(model).isEmpty)
-        XCTAssertNil(model.lines["b"]?.chip?.t, "消えた後は場所を返す")
-        // 空いて長い線になっても、自分からは戻らない。
-        model.layoutChips([straight("b", length: 800)], size: chipSize, hover: nil, now: 60)
-        XCTAssertTrue(drawn(model).isEmpty)
-        model.layoutChips([straight("b", length: 800)], size: chipSize, hover: "b", now: 61)
-        XCTAssertEqual(model.chips.above.map(\.id), ["b"])
-        XCTAssertEqual(model.chips.above.first?.opacity, 1)
-        model.layoutChips([straight("b", length: 800)], size: chipSize, hover: nil, now: 62)
-        XCTAssertTrue(drawn(model).isEmpty)
-    }
-
-    /// briefが窓の間に空きを見つけられなければ一度も描かない。
-    func testBriefChipWithoutASlotInItsWindowIsNeverDrawn() {
+    /// 空きが無い札は描かずに待つ。待つ時間に上限は無く、空いたコマで一度だけ現れる。
+    func testChipWithoutASlotWaitsUndrawnWithoutExpiring() throws {
         let model = entering([], [edge("x", "y", id: "a"), edge("x", "y", id: "b")])
-        // aが先（id順）に置かれ、bの置き場所をすべてふさぐ。bは短い線でbrief。
-        let a = straight("a", x: 400, span: 200), b = straight("b", x: 400, span: 200, length: 80)
-        for now in stride(from: 1.0, through: 6.0, by: 0.1) {
+        // aが先（id順）に置かれ、bの置き場所をすべてふさぐ。
+        let a = straight("a", x: 400, span: 200), b = straight("b", x: 400, span: 200)
+        for now in stride(from: 1.0, through: 60.0, by: 1.0) {
             model.layoutChips([a, b], size: chipSize, hover: nil, now: now)
             XCTAssertFalse(drawn(model).contains { $0.id == "b" }, "\(now)")
         }
-        model.layoutChips([b], size: chipSize, hover: nil, now: 7)
-        XCTAssertFalse(drawn(model).contains { $0.id == "b" }, "窓が終われば空いても出ない")
+        model.layoutChips([b], size: chipSize, hover: nil, now: 61)
+        XCTAssertEqual(model.lines["b"]?.chip?.appearAt, 61)
+        XCTAssertEqual(model.chips.unblocked.first?.opacity, 0, "空いたコマから200msで現れる")
+        model.layoutChips([b], size: chipSize, hover: nil, now: 61.1)
+        XCTAssertEqual(try XCTUnwrap(model.chips.unblocked.first?.opacity), 0.5, accuracy: 1e-6)
     }
 
-    /// shownは辺が終わるまで残る。文が変わっても決め直さず、折り返しだけ変わる。labelがnullへ戻れば300msで消える。
-    func testShownChipStaysRewrapsAndFadesWhenTheLabelGoesNull() throws {
+    /// 札は辺が終わるまで残る。文が変わっても決め直さず、折り返しだけ変わる。labelがnullへ戻れば300msで消える。
+    func testChipStaysRewrapsAndFadesWhenTheLabelGoesNull() throws {
         let model = entering([], [edge("x", "y", id: "s")])
         let path = straight("s")
         var sizes: [String] = []
         let measure: (String) -> CGSize = { sizes.append($0); return CGSize(width: 100, height: 26) }
         model.layoutChips([path], size: measure, hover: nil, now: 1)
-        XCTAssertEqual(model.chips.unblocked.first?.opacity, 0, "shownは200msで現れる")
+        XCTAssertEqual(model.chips.unblocked.first?.opacity, 0, "最初は200msで現れる")
         model.layoutChips([path], size: measure, hover: nil, now: 1.1)
         XCTAssertEqual(try XCTUnwrap(model.chips.unblocked.first?.opacity), 0.5, accuracy: 1e-6)
-        model.layoutChips([straight("s", length: 40)], size: measure, hover: nil, now: 100)
-        XCTAssertEqual(model.chips.unblocked.first?.opacity, 1, "後で短くなっても消えない")
+        model.layoutChips([straight("s", span: 40)], size: measure, hover: nil, now: 100)
+        XCTAssertEqual(model.chips.unblocked.first?.opacity, 1, "後で短くなっても、100秒たっても消えない")
         model.apply(WorkGraphBatch(epoch: "e", version: 2, degraded: [], changes: [.edgeUpdate(edge("x", "y", id: "s", label: "新しい要約"))]), at: 101)
         model.layoutChips([path], size: measure, hover: nil, now: 101)
-        XCTAssertEqual(model.lines["s"]?.chip?.mode, .shown)
         XCTAssertEqual(model.chips.unblocked.first?.text, "新しい要約")
         XCTAssertEqual(sizes.last, "新しい要約", "新しい文で測り直す")
         XCTAssertEqual(model.chips.unblocked.first?.opacity, 1, "文が変わっても消えない")
@@ -417,47 +405,128 @@ final class WorkGraphModelTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(model.lines["b"]?.chip?.t), 0.35, accuracy: 1e-9, "空いている間は動かない")
     }
 
-    /// 名前は札の障害物ではない（札が名前に重なってよい）。メンバーの四角は障害物。
-    func testChipMayCoverANameButNotAnAvatar() throws {
+    /// 札は描いている名前にもメンバーの四角にも重ならない（どちらも4pt広げて避ける）。
+    func testChipNeverCoversADrawnNameOrAnAvatar() throws {
         let model = settled([node("a")])
-        let frames = model.frames(try XCTUnwrap(model.bodies["a"]), at: 10)
+        let body = try XCTUnwrap(model.bodies["a"])
+        let frames = model.frames(body, at: 10), name = try XCTUnwrap(model.nameText(body, at: 10))
         model.apply(WorkGraphBatch(epoch: "e", version: 2, degraded: [], changes: [.edgeStart(edge("x", "y", id: "n"))]), at: 10)
-        // 尖りの先をアイコンの下45ptに置くと、札（高さ26・尖り7）は名前に重なり、6pt広げたアイコンの四角とは4pt広げても2pt離れる。
-        let path = straight("n", x: frames.avatar.midX - 500, y: frames.avatar.maxY + 45)
+        // 尖りの先をアイコンの下42ptに置くと、0.5の札（高さ26・尖り7）は名前に重なり、アイコンの4pt外には収まる。
+        let path = straight("n", x: name.midX - 500, y: frames.avatar.maxY + 42)
         model.layoutChips([path], size: chipSize, hover: nil, now: 10)
         let chip = try XCTUnwrap(model.chips.unblocked.first)
-        XCTAssertEqual(model.lines["n"]?.chip?.t, 0.5)
-        XCTAssertTrue(chip.area.intersects(frames.name), "名前の上に置く")
-        XCTAssertFalse(chip.area.insetBy(dx: -4, dy: -4).intersects(frames.avatar.insetBy(dx: -6, dy: -6)))
-        // アイコンの上を通る線では、アイコンを避けたtへ置く。
+        XCTAssertNotEqual(model.lines["n"]?.chip?.t, 0.5, "0.5は名前にふさがれる")
+        XCTAssertFalse(chip.area.insetBy(dx: -4, dy: -4).intersects(name))
+        XCTAssertFalse(chip.area.insetBy(dx: -4, dy: -4).intersects(frames.avatar))
+        // アイコンの上を通る線でも、アイコンを避けたtへ置く。
         let model2 = settled([node("a")])
         let avatar = model2.frames(try XCTUnwrap(model2.bodies["a"]), at: 10).avatar
         model2.apply(WorkGraphBatch(epoch: "e", version: 2, degraded: [], changes: [.edgeStart(edge("x", "y", id: "n"))]), at: 10)
         model2.layoutChips([straight("n", x: avatar.midX - 500, y: avatar.maxY)], size: chipSize, hover: nil, now: 10)
-        let t = try XCTUnwrap(model2.lines["n"]?.chip?.t)
-        XCTAssertNotEqual(t, 0.5)
-        XCTAssertFalse(try XCTUnwrap(model2.chips.unblocked.first).area.insetBy(dx: -4, dy: -4).intersects(avatar.insetBy(dx: -6, dy: -6)))
+        XCTAssertNotEqual(model2.lines["n"]?.chip?.t, 0.5)
+        XCTAssertFalse(try XCTUnwrap(model2.chips.unblocked.first).area.insetBy(dx: -4, dy: -4).intersects(avatar))
+    }
+
+    /// 見えていない名前（不透明度0）は障害物ではない。見えた時にふさがれれば、札は最初の空きtへ移る。
+    func testAHiddenNameIsNotAnObstacle() throws {
+        let model = entering([node("a")], [edge("x", "y", id: "n")], reduceMotion: true)
+        let body = try XCTUnwrap(model.bodies["a"])
+        XCTAssertNil(model.nameText(body, at: 0), "動きを減らす設定の入場は不透明度0から始まる")
+        let frames = model.frames(body, at: 0), name = model.frames(body, at: 0.2).name
+        let path = straight("n", x: name.midX - 500, y: frames.avatar.maxY + 42)
+        model.layoutChips([path], size: chipSize, hover: nil, now: 0)
+        XCTAssertEqual(model.lines["n"]?.chip?.t, 0.5, "隠れた名前の上にも置く")
+        model.layoutChips([path], size: chipSize, hover: nil, now: 0.2)
+        XCTAssertNotNil(model.nameText(body, at: 0.2))
+        XCTAssertNotEqual(model.lines["n"]?.chip?.t, 0.5, "名前が見えたらふさがれて移る")
+    }
+
+    /// 名前の判定用に、aの名前（長い）の右下にb、必要なら右上にcを4pt広げた四角が名前に触れるよう置く。
+    private func nameCrowd(above: Bool) -> WorkGraphModel {
+        let long = WorkGraphNode(botId: "a", name: String(repeating: "あ", count: 16), color: "violet", avatarVersion: "", state: "working", activeSince: nil)
+        let model = settled(above ? [long, node("b"), node("c")] : [long, node("b")])
+        let s = model.side(for: model.liveCount), x: CGFloat = 450
+        model.bodies["a"]?.position = CGPoint(x: x, y: 300)
+        model.bodies["b"]?.position = CGPoint(x: x + 90, y: 308 + s)
+        if above { model.bodies["c"]?.position = CGPoint(x: x + 90, y: 292 - s) }
+        return model
+    }
+
+    /// 名前の下が他のメンバーのアイコンに重なるなら、顔の上へ移る。上が空いていれば隠さない。
+    func testANameMovesAboveItsAvatarWhenItOverlapsAnotherDiscBelow() throws {
+        let model = nameCrowd(above: false)
+        let a = try XCTUnwrap(model.bodies["a"]), frames = model.frames(a, at: 10)
+        XCTAssertLessThanOrEqual(frames.name.maxY, frames.avatar.minY, "名前は顔の上")
+        XCTAssertFalse(model.nameHidden(a, at: 10))
+        XCTAssertNotNil(model.nameText(a, at: 10))
+        // bの名前は下のまま（下に重なるアイコンが無い）。
+        let b = try XCTUnwrap(model.bodies["b"]), bf = model.frames(b, at: 10)
+        XCTAssertGreaterThanOrEqual(bf.name.minY, bf.avatar.maxY)
+        // aのアイコンの上の名前の位置も、押せる範囲としてaを開く。
+        XCTAssertEqual(model.member(at: center(frames.name), now: 10), "a")
+    }
+
+    /// 上も重なるなら隠れる。隠れた名前は障害物ではなく、欄（下）の押下はメンバーへ行き、その間だけ見える。
+    func testANameWithBothPlacesOverlappingIsHiddenUntilRevealed() throws {
+        let model = nameCrowd(above: true)
+        let a = try XCTUnwrap(model.bodies["a"]), frames = model.frames(a, at: 10)
+        XCTAssertTrue(model.nameHidden(a, at: 10))
+        XCTAssertNil(model.nameText(a, at: 10), "隠れた名前は障害物に入らない")
+        XCTAssertGreaterThanOrEqual(frames.name.minY, frames.avatar.maxY, "欄は下のまま")
+        // 隠れた名前の欄を押しても、メンバーのアイコンと同じくaへ行く。
+        let spot = CGPoint(x: frames.avatar.midX, y: frames.avatar.maxY + 8)
+        XCTAssertEqual(model.hit(at: spot, now: 10), .member("a"))
+        XCTAssertEqual(model.press(at: spot, time: 10).botId, "a")
+        // 札は隠れた名前の上にも置く。
+        model.apply(WorkGraphBatch(epoch: "e", version: 2, degraded: [], changes: [.edgeStart(edge("x", "y", id: "n"))]), at: 10)
+        let path = straight("n", x: frames.avatar.midX - 45 - 500, y: frames.avatar.maxY + 42)
+        model.layoutChips([path], size: chipSize, hover: nil, now: 10)
+        XCTAssertEqual(model.lines["n"]?.chip?.t, 0.5)
+        // 指して（Mac: 重ねる、iPhone: 置く）見せている間は名前が出て、札はよける。放せばまた隠れる。
+        model.layoutChips([path], size: chipSize, hover: nil, reveal: "a", now: 10.1)
+        XCTAssertFalse(model.nameHidden(a, at: 10.1))
+        XCTAssertNotNil(model.nameText(a, at: 10.1))
+        XCTAssertNotEqual(model.lines["n"]?.chip?.t, 0.5, "見えた名前はふさがれて札が移る")
+        model.layoutChips([path], size: chipSize, hover: nil, reveal: "b", now: 10.2)
+        XCTAssertTrue(model.nameHidden(a, at: 10.2), "ほかのメンバーを指しても見えない")
+        model.layoutChips([path], size: chipSize, hover: nil, now: 10.3)
+        XCTAssertTrue(model.nameHidden(a, at: 10.3))
+    }
+
+    /// 退場中のメンバーのアイコンも名前も、札の障害物ではない。
+    func testALeavingMembersDiscAndNameAreNotChipObstacles() throws {
+        for (leaving, expected) in [(false, false), (true, true)] {
+            let model = settled([node("b")])
+            let frames = model.frames(try XCTUnwrap(model.bodies["b"]), at: 10)
+            if leaving { model.apply(WorkGraphBatch(epoch: "e", version: 2, degraded: [], changes: [.memberLeave("b")]), at: 10) }
+            model.apply(WorkGraphBatch(epoch: "e", version: leaving ? 3 : 2, degraded: [], changes: [.edgeStart(edge("x", "y", id: "disc")), .edgeStart(edge("x", "y", id: "name"))]), at: 10)
+            let disc = straight("disc", x: frames.avatar.midX - 500, y: frames.avatar.midY)
+            let name = straight("name", x: frames.name.midX - 500, y: frames.avatar.maxY + 42)
+            model.layoutChips([disc, name], size: chipSize, hover: nil, now: 10)
+            XCTAssertEqual(model.lines["disc"]?.chip?.t == 0.5, expected, "leaving=\(leaving)の円板")
+            XCTAssertEqual(model.lines["name"]?.chip?.t == 0.5, expected, "leaving=\(leaving)の名前")
+        }
     }
 
     /// どのtも空かなければ今のtのままblocked。blockedは線のすぐ上・メンバーと重ならない札の下に描く層に入り、空けば戻る。
     /// タップの順は メンバー（44pt四方） > 重ならない札 > blockedの札 > 線。
     func testNoFreeSlotMarksTheChipBlockedAndHitOrderFollowsTheLayers() throws {
         let model = entering([], [edge("x", "y", id: "a"), edge("x", "y", id: "b")])
-        let b = straight("b", x: 400, y: 2010, span: 200, length: 300)
-        model.layoutChips([straight("a", x: 400, y: 3000, span: 200, length: 300), b], size: chipSize, hover: nil, now: 1)
+        let b = straight("b", x: 400, y: 2010, span: 200)
+        model.layoutChips([straight("a", x: 400, y: 3000, span: 200), b], size: chipSize, hover: nil, now: 1)
         XCTAssertEqual(model.lines["b"]?.chip?.t, 0.5)
-        let a = straight("a", x: 400, span: 200, length: 300)
+        let a = straight("a", x: 400, span: 200)
         model.layoutChips([a, b], size: chipSize, hover: nil, now: 2)
         XCTAssertEqual(model.chips.unblocked.map(\.id), ["a"])
         XCTAssertEqual(model.chips.blocked.map(\.id), ["b"])
         XCTAssertEqual(model.lines["b"]?.chip?.t, 0.5, "今のtのまま")
-        XCTAssertEqual(model.chips.blocked.first?.opacity, 1, "shownは隠さない")
+        XCTAssertEqual(model.chips.blocked.first?.opacity, 1, "blockedでも隠さない")
         let chipA = try XCTUnwrap(model.chips.unblocked.first), chipB = try XCTUnwrap(model.chips.blocked.first)
         XCTAssertEqual(model.hit(at: CGPoint(x: chipA.area.midX, y: chipA.area.midY), now: 2), .chip("a"), "重ならない札がblockedより上")
         XCTAssertEqual(model.hit(at: CGPoint(x: chipB.area.midX, y: chipA.area.maxY + 5), now: 2), .chip("b"))
         XCTAssertEqual(model.hit(at: CGPoint(x: 400, y: 2000), now: 2), .edge("a"))
         XCTAssertNil(model.hit(at: CGPoint(x: 100, y: 1500), now: 2))
-        model.layoutChips([straight("a", x: 400, y: 3000, span: 200, length: 300), b], size: chipSize, hover: nil, now: 3)
+        model.layoutChips([straight("a", x: 400, y: 3000, span: 200), b], size: chipSize, hover: nil, now: 3)
         XCTAssertEqual(model.chips.unblocked.map(\.id).sorted(), ["a", "b"], "空けばblockedを解く")
         XCTAssertTrue(model.chips.blocked.isEmpty)
     }
@@ -465,11 +534,11 @@ final class WorkGraphModelTests: XCTestCase {
     /// 先に置いた札はblockedでも後の札の障害物（Webと同じ）。cはaに重ならずbだけに重なる位置でも、空いていると見なさない。
     func testANewerChipDoesNotTakeASlotOverlappingAnEarlierBlockedChip() throws {
         let model = entering([], [edge("x", "y", id: "a"), edge("x", "y", id: "b"), edge("x", "y", id: "c")])
-        let b = straight("b", x: 400, y: 2010, span: 200, length: 300)
-        let c = straight("c", x: 400, y: 2042, span: 200, length: 300)
-        let farA = straight("a", x: 400, y: 3000, span: 200, length: 300)
-        model.layoutChips([farA, b, straight("c", x: 400, y: 4000, span: 200, length: 300)], size: chipSize, hover: nil, now: 1)
-        model.layoutChips([straight("a", x: 400, span: 200, length: 300), b, c], size: chipSize, hover: nil, now: 2)
+        let b = straight("b", x: 400, y: 2010, span: 200)
+        let c = straight("c", x: 400, y: 2042, span: 200)
+        let farA = straight("a", x: 400, y: 3000, span: 200)
+        model.layoutChips([farA, b, straight("c", x: 400, y: 4000, span: 200)], size: chipSize, hover: nil, now: 1)
+        model.layoutChips([straight("a", x: 400, span: 200), b, c], size: chipSize, hover: nil, now: 2)
         XCTAssertEqual(model.chips.unblocked.map(\.id), ["a"])
         XCTAssertEqual(model.chips.blocked.map(\.id), ["b", "c"], "cはaに重ならないがblockedのbに重なる")
     }
@@ -479,15 +548,101 @@ final class WorkGraphModelTests: XCTestCase {
         let model = settled([node("a")])
         let avatar = model.frames(try XCTUnwrap(model.bodies["a"]), at: 10).avatar
         model.apply(WorkGraphBatch(epoch: "e", version: 2, degraded: [], changes: [.edgeStart(edge("x", "y", id: "c"))]), at: 10)
-        // アイコンを通る短い線（brief）。窓の後に指すと、置き場所を問わず0.5に最前面で出る。
+        // 先に遠くへ置き、その後アイコンを通る線になって空きが無くなった札（blocked）。指すと最前面に出る。
         let path = straight("c", x: avatar.midX - 50, y: avatar.midY + 20, span: 100)
-        model.layoutChips([path], size: chipSize, hover: nil, now: 10)
+        model.layoutChips([straight("c", x: avatar.midX - 50, y: 3000, span: 100)], size: chipSize, hover: nil, now: 10)
         model.layoutChips([path], size: chipSize, hover: nil, now: 14)
+        XCTAssertEqual(model.chips.blocked.map(\.id), ["c"])
         model.layoutChips([path], size: chipSize, hover: "c", now: 14.1)
         let chip = try XCTUnwrap(model.chips.above.first)
         XCTAssertTrue(chip.area.contains(CGPoint(x: avatar.midX, y: avatar.midY)))
         XCTAssertEqual(model.hit(at: CGPoint(x: avatar.midX, y: avatar.midY), now: 14.1), .member("a"))
         XCTAssertEqual(model.hit(at: CGPoint(x: chip.area.minX + 2, y: chip.area.minY + 2), now: 14.1), .chip("c"))
+    }
+
+    /// aが先に置かれ、bの置き場所をすべてふさぐ（bは描かれず待つ）。aの札の四角（x 450〜550）の外、t=0.1の点でbの線をタップする。
+    private func waitingChipModel() -> (model: WorkGraphModel, a: WorkGraphModel.EdgePath, b: WorkGraphModel.EdgePath, onB: CGPoint, onA: CGPoint) {
+        let model = entering([], [edge("x", "y", id: "a"), edge("x", "y", id: "b")])
+        let a = straight("a", x: 400, span: 200), b = straight("b", x: 400, y: 2020, span: 200)
+        model.layoutChips([a, b], size: chipSize, hover: nil, now: 1)
+        return (model, a, b, CGPoint(x: 420, y: 2020), CGPoint(x: 420, y: 2000))
+    }
+
+    /// 待っている札は、線をタップすると`t = 0.5`で最前面に出る（iPhone/iPad）。次の別のタップで待つ状態へ戻る。
+    func testTappingTheLineOfAWaitingChipRevealsItAtHalfOnTopUntilTheNextTap() throws {
+        let (model, a, b, onB, _) = waitingChipModel()
+        XCTAssertNil(model.lines["b"]?.chip?.t, "待っている")
+        XCTAssertEqual(model.hit(at: onB, now: 1), .edge("b"))
+        model.tap(at: onB, now: 1)
+        XCTAssertEqual(model.tappedEdge, "b")
+        model.layoutChips([a, b], size: chipSize, hover: nil, peek: model.tappedEdge, now: 1.1)
+        let shown = try XCTUnwrap(model.chips.above.first)
+        XCTAssertEqual(shown.id, "b")
+        XCTAssertEqual(shown.opacity, 1)
+        XCTAssertEqual(shown.anchor, b.point(0.5), "t = 0.5")
+        XCTAssertNil(model.lines["b"]?.chip?.t, "置き場所は取らない")
+        // 次のフレームも出続ける。
+        model.layoutChips([a, b], size: chipSize, hover: nil, peek: model.tappedEdge, now: 5)
+        XCTAssertEqual(model.chips.above.map(\.id), ["b"])
+        // 空いた所のタップで待つ状態へ戻る。
+        model.tap(at: CGPoint(x: 100, y: 1500), now: 5)
+        XCTAssertNil(model.tappedEdge)
+        model.layoutChips([a, b], size: chipSize, hover: nil, peek: model.tappedEdge, now: 5.1)
+        XCTAssertFalse(drawn(model).contains { $0.id == "b" })
+        XCTAssertNil(model.lines["b"]?.chip?.t)
+    }
+
+    /// 別の線のタップで、見せる札はその辺へ移る。見せている札そのもののタップは動かさない。
+    func testTappingAnotherLineMovesTheReveal() throws {
+        let (model, a, b, onB, onA) = waitingChipModel()
+        model.tap(at: onB, now: 1)
+        model.layoutChips([a, b], size: chipSize, hover: nil, peek: model.tappedEdge, now: 1.1)
+        let chip = try XCTUnwrap(model.chips.above.first)
+        model.tap(at: CGPoint(x: chip.area.midX, y: chip.area.midY), now: 1.2)
+        XCTAssertEqual(model.tappedEdge, "b", "見せている札を押しても消えない")
+        model.tap(at: onA, now: 1.3)
+        XCTAssertEqual(model.tappedEdge, "a")
+        model.layoutChips([a, b], size: chipSize, hover: nil, peek: model.tappedEdge, now: 1.4)
+        XCTAssertFalse(drawn(model).contains { $0.id == "b" }, "bは待つ状態へ戻る")
+    }
+
+    /// メンバーのタップは線に奪われず、見せている札を消す。
+    func testANodeTapIsNotStolenByTheLineAndClearsTheReveal() throws {
+        let model = settled([node("a")])
+        let avatar = model.frames(try XCTUnwrap(model.bodies["a"]), at: 10).avatar
+        model.apply(WorkGraphBatch(epoch: "e", version: 2, degraded: [], changes: [.edgeStart(edge("x", "y", id: "c"))]), at: 10)
+        let through = straight("c", x: avatar.midX - 50, y: avatar.midY, span: 100)
+        model.layoutChips([through], size: chipSize, hover: nil, now: 10)
+        let center = center(avatar)
+        XCTAssertEqual(model.hit(at: center, now: 10), .member("a"), "線の上でもメンバーが先")
+        model.tap(at: CGPoint(x: avatar.midX - 50, y: avatar.midY), now: 10)
+        XCTAssertEqual(model.tappedEdge, "c")
+        model.tap(at: center, now: 10)
+        XCTAssertNil(model.tappedEdge)
+    }
+
+    /// 終わった辺の線は押せず、札も見せない。
+    func testAClosedEdgeIsNotRevealed() throws {
+        let (model, a, b, onB, _) = waitingChipModel()
+        model.apply(WorkGraphBatch(epoch: "e", version: 2, degraded: [], changes: [.edgeEnd("b")]), at: 2)
+        model.layoutChips([a, b], size: chipSize, hover: nil, now: 2.1)
+        XCTAssertNil(model.hit(at: onB, now: 2.1))
+        model.tap(at: onB, now: 2.1)
+        XCTAssertNil(model.tappedEdge)
+        model.layoutChips([a, b], size: chipSize, hover: nil, peek: "b", now: 2.2)
+        XCTAssertFalse(drawn(model).contains { $0.id == "b" })
+    }
+
+    /// Mac: 線の上のポインタ（hit = .edge）が、待っている札を見せる。離れると戻る。
+    func testHoveringTheLineOfAWaitingChipRevealsItOnMac() throws {
+        let (model, a, b, onB, _) = waitingChipModel()
+        guard case .edge(let id)? = model.hit(at: onB, now: 1) else { return XCTFail("線を指している") }
+        model.layoutChips([a, b], size: chipSize, hover: id, peek: id, now: 1.1)
+        let chip = try XCTUnwrap(model.chips.above.first)
+        XCTAssertEqual(chip.id, "b")
+        XCTAssertEqual(model.hit(at: CGPoint(x: chip.area.midX, y: chip.area.midY), now: 1.1), .chip("b"), "札の上でもhoverは続く")
+        model.layoutChips([a, b], size: chipSize, hover: nil, peek: nil, now: 1.2)
+        XCTAssertFalse(drawn(model).contains { $0.id == "b" })
     }
 
     /// 長押し（500ms以上）は会話を開かない。メンバーの上の押下は札を出さない（指した相手がメンバーなので）。
