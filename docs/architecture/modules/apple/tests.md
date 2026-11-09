@@ -872,6 +872,14 @@ Macの端末表示中の照会と非表示後の停止、小画像保存の結�
 | [testLandscapeInspectorKeepsComposerAboveKeyboard](../../../../ios/BellBot/BellBotUITests/TabletWorkspaceUITests.swift#L65) | 詳細/keyboardの開閉と入力再開後もinput/send操作可・会話末尾が上 |
 | [testMemberAndRoomEditorsUseSharedSheets](../../../../ios/BellBot/BellBotUITests/TabletWorkspaceUITests.swift#L128) | 共通Bot/room editor sheetと削除確認取消でroom保持 |
 
+### WorkGraphTapUITests.swift
+
+対象：iPhoneの相関図のタブ。`test/helpers/work-graph-server.mjs`のURLを`TEST_RUNNER_BELLTEAM_WORK_GRAPH_FIXTURE_URL`で渡す（無ければskip）。Mac・iPadはskip。
+
+| 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
+| --- | --- |
+| [testTappingAMemberOpensTheirChatAndBackReturnsToTheGraph](../../../../ios/BellBot/BellBotUITests/WorkGraphTapUITests.swift#L6) | ハルのアイコンを押すとハルの会話（書出しボタン・題名）が開き、戻ると相関図のタブが選ばれ会話は消える。前後の画面写真を添付 |
+
 ## Testsの独立チェック
 
 Xcode targetのTests登録はproject.ymlにはない。`@main`からprecondition/guardで検査する2プログラム。今回はコンパイル・実行しない。

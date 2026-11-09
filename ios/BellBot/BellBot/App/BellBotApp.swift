@@ -7,9 +7,10 @@ struct BellBotApp: App {
 
     var body: some Scene {
         #if targetEnvironment(macCatalyst)
-        WindowGroup {
+        WindowGroup(id: MainWindow.id) {
             mainContent
                 .frame(minWidth: 1100, idealWidth: 1280, minHeight: 640, idealHeight: 820)
+                .background(SceneReader { MainWindow.sessionID = $0.session.persistentIdentifier })
         }
         .windowResizability(.contentMinSize)
 
@@ -60,6 +61,46 @@ struct BellBotApp: App {
 }
 
 #if targetEnvironment(macCatalyst)
+/// 本体の窓。相関図の窓から会話を開く時に前へ出す（work-graph behavior-spec.md「Tap or click on a member」）。
+@MainActor
+enum MainWindow {
+    static let id = "main"
+    static var sessionID: String?
+
+    /// 開いている本体の窓を前へ出す。無ければopenで開く。
+    static func bringToFront(open: () -> Void, failed: @escaping @MainActor (Error) -> Void) {
+        guard let session = UIApplication.shared.openSessions.first(where: { $0.persistentIdentifier == sessionID }) else { open(); return }
+        UIApplication.shared.requestSceneSessionActivation(session, userActivity: nil, options: nil) { error in
+            Task { @MainActor in failed(error) }
+        }
+    }
+}
+
+/// 載せた窓のsceneを1回だけ知らせる。
+private struct SceneReader: UIViewRepresentable {
+    let onAttach: (UIWindowScene) -> Void
+
+    func makeUIView(context: Context) -> WindowObserver {
+        let view = WindowObserver()
+        view.onAttach = onAttach
+        return view
+    }
+
+    func updateUIView(_ uiView: WindowObserver, context: Context) {}
+}
+
+private final class WindowObserver: UIView {
+    var onAttach: ((UIWindowScene) -> Void)?
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if let scene = window?.windowScene {
+            onAttach?(scene)
+            onAttach = nil
+        }
+    }
+}
+
 private struct MemberEditorWindow: View {
     let bot: Bot
     @Environment(\.dismissWindow) private var dismissWindow
@@ -95,18 +136,6 @@ private struct MemberEditorWindowGeometry: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: WindowObserver, context: Context) {}
-
-    final class WindowObserver: UIView {
-        var onAttach: ((UIWindowScene) -> Void)?
-
-        override func didMoveToWindow() {
-            super.didMoveToWindow()
-            if let scene = window?.windowScene {
-                onAttach?(scene)
-                onAttach = nil
-            }
-        }
-    }
 }
 #endif
 

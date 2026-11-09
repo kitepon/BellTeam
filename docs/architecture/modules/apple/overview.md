@@ -31,6 +31,7 @@ flowchart TD
   List["一覧・検索<br/>HomeView / DesktopWorkspaceView"] --> Selection["AppStore.chatPath / selectedTab"]
   Selection --> Chat["ConversationView<br/>履歴・送信・添付・宛先・停止・書出し"]
   Selection --> Pages["予定 / GoalsView / 相関図 / SettingsView<br/>Macの相関図はwork-graph WindowGroup"]
+  Open["AppStore.openConversation<br/>通知のタップ・相関図のメンバーのタップ"] --> Selection
   Edit["BotEditor / RoomEditor / ProfileEditor<br/>画像・追加機能の編集"] --> HTTP["BellAPI<br/>HTTP応答を呼出元へ返す"]
   Chat --> HTTP
   Pages --> HTTP
@@ -69,7 +70,7 @@ SSE本文をそのまま名簿や会話の正本にしない。`AppStore`が必�
 | 接続認証・初回利用・AI再認証 | `LoginView.swift`、`OnboardingView.swift`、`HarnessAuthenticationView.swift`、`AuthenticationInstructions.swift`、`Core/HarnessAuthenticationFlow.swift`、`Shared/ServerOrigin.swift` | `GET /api/session`、`GET /api/setup`、`POST /api/setup/harness`、`POST /api/setup/start`、`POST /api/setup/auth/input`。`GET /api/harness-auth`、`GET /api/harness-auth/:harness`、`POST /api/harness-auth/:harness/start`、`POST /api/harness-auth/:harness/input`、`POST /api/harness-auth/:harness/cancel` | `setup`イベント/topic。認証waitingは3秒照会、入力失敗後は明示更新待ち |
 | サーバー導入ガイド | `Views/ServerInstallationGuide.swift`。同梱Markdown表示、依頼文のコピー・共有、導入URLへのLink | ガイド表示自体の本体HTTPなし | なし |
 | Update画面（商用更新） | `Core/UpdateModels.swift`、`Core/UpdateStore.swift`、`Views/UpdateView.swift`。`AppStore.updates`・`updatePresented`、`HomeView`・`DesktopWorkspaceView`のロゴ右の印、`BellNotifications`の`BellUpdateRoute`。詳細は[Update画面](update.md) | `GET /api/updates`、`POST /api/updates/plans`、`POST /api/updates/operations`、`GET /api/updates/operations/:requestId` | `type=updates`と`ready`でGET。push `kind=update`はタップで画面を開くだけ |
-| push登録・受信・通知から移動 | `Core/BellNotifications.swift`、`AppStore.openPendingNotification`、`NotificationService/BellNotificationService.swift`、`Shared/CommunicationNotification.swift`・`BotAvatarCache.swift` | `GET /api/notifications`、`POST /api/notifications/devices`、`POST /api/notifications/unregister`。秘密要求は個別GET | 通知拡張はSSE・HTTPを使わずApp Groupの画像を読む |
+| push登録・受信・通知から移動 | `Core/BellNotifications.swift`、`AppStore.openPendingNotification`（会話の移動は`AppStore.openConversation`。相関図のメンバーのタップも同じ経路を使う。[相関図](work-graph.md)）、`NotificationService/BellNotificationService.swift`、`Shared/CommunicationNotification.swift`・`BotAvatarCache.swift` | `GET /api/notifications`、`POST /api/notifications/devices`、`POST /api/notifications/unregister`。秘密要求は個別GET | 通知拡張はSSE・HTTPを使わずApp Groupの画像を読む |
 | 購読と復元・AI利用判定 | `Core/BillingStore.swift`、`AppleSubscriptionAccess.swift`、`Views/SubscriptionView.swift`。StoreKit本人権利と本体状態を別に保持 | `GET /api/subscription`、`POST /api/subscription/verify`、`POST /api/subscription/refresh`。AppleのStoreKit商品・取引・復元も利用 | 専用購読なし。前面復帰で再確認 |
 | 端末保存とlogout削除 | `AppStore.swift`、`BellNotifications.swift`、`BotAvatarCache.swift`、`ConversationList.swift`。保存物・残存物は[状態の詳細](state-and-sync.md#端末保存と後始末) | 通知解除は`POST /api/notifications/unregister`。logout専用HTTPなし | logoutでSSE停止 |
 | 診断 | `Core/BellDiagnostics.swift`、`BellAPI.swift`。呼出元が影響と入力保持を渡す。MetricKitのhang/crashも送る | `POST /api/diagnostics`。BellAPIを介さずURLSession.sharedから送信、202を確認 | SSEの失敗もAppStoreから診断 |

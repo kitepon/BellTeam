@@ -100,8 +100,14 @@ final class AppStore: ObservableObject {
     private var refreshFailure = MemberListRefreshError()
     private var eventsError: String?
     private var notificationError: String?
-    @Published var selectedTab = 0
-    @Published var chatPath: [ChatTarget] = []
+    @Published var selectedTab = 0 { didSet { if selectedTab != 0 { chatReturnTab = nil } } }
+    @Published var chatPath: [ChatTarget] = [] {
+        didSet {
+            // 相関図から開いた会話で戻ると相関図のタブへ帰る（work-graph behavior-spec.md「Tap or click on a member」）。
+            if chatPath.isEmpty { _ = returnFromConversation() }
+        }
+    }
+    private var chatReturnTab: Int?
     private var drafts: [ChatTarget: ConversationDraft] = [:]
     // 編集値は再認証をまたいで保持する。文字入力でアプリ全体へ更新通知を出さない。
     var botEditorDrafts: [String: BotEditorDraft] = [:]
@@ -912,6 +918,7 @@ final class AppStore: ObservableObject {
         stopEvents()
         billing.stop()
         await BellNotifications.shared.detach()
+        chatReturnTab = nil
         chatPath = []
         for draft in drafts.values { draft.clear() }
         drafts.removeAll()
@@ -930,13 +937,30 @@ final class AppStore: ObservableObject {
         if authMode == "cloudflare" { phase = .signIn } else { phase = .setup }
     }
 
+    /// 1つの会話を開く経路。通知のタップと相関図のメンバーのタップが使う。
+    /// returningToを渡すと、その会話から戻った時（chatPathが空になった時）にそのタブへ帰る。
+    func openConversation(_ target: ChatTarget, returningTo tab: Int? = nil) {
+        chatReturnTab = nil
+        selectedTab = 0
+        chatPath = [target]
+        chatReturnTab = tab
+        eventRevision += 1
+    }
+
+    /// 相関図から開いた会話を戻る操作で閉じた時、その帰り先のタブへ移る。帰り先が無ければfalse。
+    /// iPhoneはchatPathが空になった時、縮んだiPadは一覧の列へ戻った時に呼ぶ。
+    func returnFromConversation() -> Bool {
+        guard let tab = chatReturnTab else { return false }
+        chatReturnTab = nil
+        selectedTab = tab
+        return true
+    }
+
     private func openPendingNotification() async {
         guard case .ready = phase, let route = pendingNotification else { return }
         pendingNotification = nil
         guard route.belongs(to: serverURL) else { return }
-        selectedTab = 0
-        chatPath = [route.target]
-        eventRevision += 1
+        openConversation(route.target)
         if let id = route.requestID {
             do {
                 let response: SecretRequestResponse = try await api.get("/api/secret-requests/\(id)")

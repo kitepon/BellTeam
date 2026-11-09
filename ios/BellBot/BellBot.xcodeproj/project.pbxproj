@@ -21,6 +21,7 @@
 		074D759AFDEEFF6FE840BD80 /* OwnerQuestionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3532F3AFA8FB5FAC79A9F73 /* OwnerQuestionView.swift */; };
 		097BC2376E3C25FEBD28641E /* BotSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 219D6D25E6BA0B32D27F3918 /* BotSettings.swift */; };
 		09AA374DA8E6242762BF33A0 /* GoalsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 235EF35980A7AB4299594E9F /* GoalsUITests.swift */; };
+		F30ED3800A3A5C3EA05D379F /* WorkGraphTapUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BBC8C5C4354549F8CDE70F2 /* WorkGraphTapUITests.swift */; };
 		0D4A7550D7A1CB322AF04B68 /* ConversationAppearanceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D91477F755E7B3FFAC049315 /* ConversationAppearanceUITests.swift */; };
 		0DA1D18D904869960DA78C0B /* ConversationTimelineStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 111BABF39834B4AAC46442D0 /* ConversationTimelineStateTests.swift */; };
 		0EA4B14252327E5F858F1967 /* AppleSubscriptionAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19FCB6739FF40249F7E3779F /* AppleSubscriptionAccess.swift */; };
@@ -196,6 +197,7 @@
 		21479869FD1BC24B77D65313 /* BellTeam.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = BellTeam.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		219D6D25E6BA0B32D27F3918 /* BotSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotSettings.swift; sourceTree = "<group>"; };
 		235EF35980A7AB4299594E9F /* GoalsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalsUITests.swift; sourceTree = "<group>"; };
+		4BBC8C5C4354549F8CDE70F2 /* WorkGraphTapUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkGraphTapUITests.swift; sourceTree = "<group>"; };
 		249245C6E0484FEEB193F0E2 /* BotProfileComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotProfileComponents.swift; sourceTree = "<group>"; };
 		24BE5D9C546C511849AC258D /* FeatureSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureSettingsView.swift; sourceTree = "<group>"; };
 		254EE50E23553FA4436C995B /* BotSaveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotSaveTests.swift; sourceTree = "<group>"; };
@@ -501,6 +503,7 @@
 				3261621AD9FBA22C17AA737C /* ConversationScrollUITests.swift */,
 				3C31E76D76A3C99D5754050E /* DesktopWorkspaceUITests.swift */,
 				235EF35980A7AB4299594E9F /* GoalsUITests.swift */,
+				4BBC8C5C4354549F8CDE70F2 /* WorkGraphTapUITests.swift */,
 				71785B41220656576156BBC5 /* HarnessAuthenticationUITests.swift */,
 				5FFC48F6891C1B67D0D7D224 /* InstalledConversationUITests.swift */,
 				9154D4ED3669583CD9042D73 /* MemberDeletionUITests.swift */,
@@ -743,6 +746,7 @@
 				69E9BC12563E9EB63A76D270 /* ConversationScrollUITests.swift in Sources */,
 				390A4D9E0545A9B21203147A /* DesktopWorkspaceUITests.swift in Sources */,
 				09AA374DA8E6242762BF33A0 /* GoalsUITests.swift in Sources */,
+				F30ED3800A3A5C3EA05D379F /* WorkGraphTapUITests.swift in Sources */,
 				058A119AEB52889040256F15 /* HarnessAuthenticationUITests.swift in Sources */,
 				CF86EA52EF3720485D3AB265 /* InstalledConversationUITests.swift in Sources */,
 				771A7ABA1E4AF838428A675F /* MemberDeletionUITests.swift in Sources */,
