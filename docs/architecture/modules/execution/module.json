@@ -44,6 +44,18 @@
     {
       "module": "usage",
       "port": "settings"
+    },
+    {
+      "module": "terminals",
+      "port": "connection"
+    },
+    {
+      "module": "terminals",
+      "port": "reachability"
+    },
+    {
+      "module": "integration",
+      "port": "HTTP/MCP"
     }
   ],
   "source": [
@@ -56,6 +68,7 @@
     "src/execution-bridge.mjs",
     "src/capacity-continuation.mjs",
     "src/harness-accounts.mjs",
+    "src/remote-seats.mjs",
     "src/current-work.mjs",
     "src/members-admission.mjs",
     "src/configuration-request.mjs",

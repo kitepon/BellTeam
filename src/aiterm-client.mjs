@@ -127,7 +127,11 @@ export class AitermClient {
   prepareAuthConnection() { return authCapability(this) }
 
   async call(name, args = {}, options = {}) {
-    const { env, meta, launchProject, expectedAuthConnection, expectedConfiguration, admissionCheck, runtime, claudeLogin } = options
+    const { env, meta, launchProject, expectedAuthConnection, expectedConfiguration, admissionCheck, runtime, claudeLogin, privateEnv } = options
+    // remote-seat.md: a terminal launch names only its private env; values are read here, at the launch, and go to the
+    // seat launcher's stdin (never argv, log or disk).
+    if (privateEnv && (name !== 'agent_launch' || !args.terminal || !Array.isArray(privateEnv.names) || typeof privateEnv.resolve !== 'function'))
+      throw Object.assign(new Error('SEAT_LAUNCH_ARGUMENTS'), { code: 'SEAT_LAUNCH_ARGUMENTS', effect: 'not_started' })
     if (Object.hasOwn(options, 'admissionCheck') && (name !== 'pty_send' || typeof admissionCheck !== 'function'
       || ['env', 'launchProject', 'expectedAuthConnection', 'expectedAuthServerVersion', 'expectedConfiguration'].some(key => Object.hasOwn(options, key))))
       throw Object.assign(new Error('AITERM_SEND_GUARD_INVALID'), { code: 'AITERM_SEND_GUARD_INVALID', effect: 'not_issued' })
@@ -143,7 +147,8 @@ export class AitermClient {
     if (this.seatProject !== null) requireSeatProject(this.seatProject)
     if (Object.hasOwn(options, 'launchProject')) {
       requireSeatProject(launchProject)
-      if (this.seatProject === null || name !== 'agent_launch' || args.cwd !== launchProject
+      // A terminal launch runs its launcher in the server member project; its cwd is the folder on the terminal.
+      if (this.seatProject === null || name !== 'agent_launch' || (!args.terminal && args.cwd !== launchProject)
         || Object.hasOwn(options, 'env') || Object.hasOwn(args, 'env_vars'))
         throw Object.assign(new Error('SEAT_LAUNCH_ARGUMENTS'), { code: 'SEAT_LAUNCH_ARGUMENTS' })
       const { stdout } = await createSeatProcessRunner(launchProject)(process.execPath,
@@ -151,7 +156,8 @@ export class AitermClient {
           input: JSON.stringify({ command: this.command, args: this.args, launch: args, meta, ...(runtime ? { runtime } : {}),
             ...(this.claudeConfigRoots && args.configuration_root ? { claudeConfigRoots: this.claudeConfigRoots } : {}),
             // Which login the seat-side launcher puts in the CLI env (harness-accounts.md); the token never passes here.
-            ...(name === 'agent_launch' && ACCOUNT_LOGINS.includes(claudeLogin) ? { claudeLogin } : {}) }),
+            ...(name === 'agent_launch' && ACCOUNT_LOGINS.includes(claudeLogin) ? { claudeLogin } : {}),
+            ...(privateEnv ? { privateEnvNames: privateEnv.names, privateEnv: await privateEnv.resolve() } : {}) }),
         })
       const response = JSON.parse(stdout)
       if (response.error) throw Object.assign(new Error(response.error.message), response.error)
@@ -164,9 +170,12 @@ export class AitermClient {
       if (this.seatProject !== null) throw new Error('SEAT_DYNAMIC_ENV_UNWIRED')
       // Aitermは値ではなくMCPプロセスの変数名を受け取る。起動ごとに専用の短命接続を使う。
       const login = name === 'agent_launch' && ACCOUNT_LOGINS.includes(claudeLogin) ? await accountLoginEnvironment(claudeLogin, env) : {}
-      const launcher = new AitermClient({ command: this.command, args: this.args, env: { ...env, ...login }, claudeConfigRoots: this.claudeConfigRoots, ...(runtime ? { runtimeCapture: runtime } : {}) })
+      const secret = privateEnv ? await privateEnv.resolve() : {}
+      const launcher = new AitermClient({ command: this.command, args: this.args, env: { ...env, ...login, ...secret }, claudeConfigRoots: this.claudeConfigRoots, ...(runtime ? { runtimeCapture: runtime } : {}) })
       try {
-        const env_vars = [...Object.keys(env).filter(key => runtimeEnvironmentKeys.includes(key) || env[key] !== process.env[key]), ...Object.keys(login)]
+        // A terminal gets only its named private env and login, never this server's environment.
+        const env_vars = privateEnv ? [...new Set([...privateEnv.names, ...Object.keys(login)])]
+          : [...Object.keys(env).filter(key => runtimeEnvironmentKeys.includes(key) || env[key] !== process.env[key]), ...Object.keys(login)]
         return await launcher.call(name, { ...args, env_vars }, { meta })
       } finally {
         await launcher.close()
