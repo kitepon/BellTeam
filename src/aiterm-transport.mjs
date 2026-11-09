@@ -22,7 +22,7 @@ import { returnedMcpError } from './returned-mcp-error.mjs'
 import { launchFailureDetails } from './agent-launch-error.mjs'
 import { captureRuntime as captureSelectedRuntime } from './runtime-selection.mjs'
 import { writeAtomic } from './json-file.mjs'
-import { isRemoteBot, seatTarget } from './remote-seats.mjs'
+import { isRemoteBot, seatTarget, KEY_RELOAD } from './remote-seats.mjs'
 
 export { AitermClient } from './aiterm-client.mjs'
 export { runWaitProcess } from './aiterm-wait-process.mjs'
@@ -330,14 +330,27 @@ export class AitermTransport {
         admissionCheck?.()
       }
       issuedLaunch = true
-      launch = await this.changeSession(bot, 'agent_launch', launchArgs, { ...launchOptions,
+      const launchWith = args => this.changeSession(bot, 'agent_launch', args, { ...launchOptions,
         ...(claudeLogin ? { claudeLogin } : {}), ...(remote ? { privateEnv: remote.privateEnv } : {}), ...(execution ? { execution } : {}) })
+      try { launch = await launchWith(launchArgs) } catch (error) {
+        // remote-seat.md R13: Aiterm's key agent was gone or older; load the key again and launch once more.
+        if (!remote || !KEY_RELOAD.has(error?.code)) throw error
+        // Aiterm refused before contacting the terminal: nothing was launched with this seat credential yet.
+        issuedLaunch = false
+        const terminal = await remote.reloadKey()
+        // The existing checkpoint again: a stop or admission change during the reload starts nothing.
+        this.membersAdmission.assertLease(membersLease)
+        this.requireStopVersion(bot.id, version)
+        admissionCheck?.()
+        issuedLaunch = true
+        launch = await launchWith({ ...launchArgs, terminal })
+      }
       if (remote) this.remoteSeats.launched(bot, launch?.structuredContent)
       if (account) void this.accounts.setSeat(bot.id, account.slot).catch(() => {})
     } catch (error) {
       // A credential issued for a launch that was never issued is revoked; a launch possibly running keeps its own.
       // Aiterm's connectivity codes keep the message queued and arm terminals' observer (remote-seat.md "Pending delivery").
-      if (remote && issuedLaunch) this.remoteSeats.launchFailed(bot, error)
+      if (remote) this.remoteSeats.launchFailed(bot, error)
       if (remote && (!issuedLaunch || ['not_started', 'not_issued'].includes(error?.effect))) await remote.revoke()
       // 起動の準備が終わらなかった席は、Aitermの端末だけが残る（認証が切れたCLIがサインインの画面で止まった時など。2026-10-05、Codex）。
       // 残すと席が「動いている」扱いになり、次の送信から起こし直せず、入力も受け付けない。BellTeamの席には、その画面へ答える人が居ない。

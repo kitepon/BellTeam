@@ -3,7 +3,7 @@ import { constants } from 'node:fs'
 import { execFile as nodeExecFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { EventEmitter } from 'node:events'
-import { isAbsolute, resolve } from 'node:path'
+import { isAbsolute, resolve as resolvePath } from 'node:path'
 
 const execFile = promisify(nodeExecFile)
 const sharedCommand = '/srv/bellteam/shared/tools/onepassword/bin/op'
@@ -39,13 +39,13 @@ export function createOnePasswordSource({ command, environment = process.env, ex
 
   async function executable(candidate) {
     if (candidate.includes('/')) {
-      const path = isAbsolute(candidate) ? candidate : resolve(candidate)
+      const path = isAbsolute(candidate) ? candidate : resolvePath(candidate)
       await access(path, constants.X_OK)
       return path
     }
     for (const directory of (environment.PATH ?? '').split(':')) {
       if (!directory) continue
-      const path = resolve(directory, candidate)
+      const path = resolvePath(directory, candidate)
       try { await access(path, constants.X_OK); return path } catch {}
     }
     throw unavailable()

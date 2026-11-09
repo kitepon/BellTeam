@@ -1,10 +1,43 @@
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 import { createOnePasswordSource, validateOnePasswordReference } from '../src/usage/onepassword-source.mjs'
 
 const vault = 'a'.repeat(26)
 const item = 'b'.repeat(26)
 const reference = `op://${vault}/${item}/section/private%20key%26name?attribute=otp`
+
+test('missing optional op on PATH does not reject startup', () => {
+  const sourceUrl = new URL('../src/usage/onepassword-source.mjs', import.meta.url).href
+  const script = `
+    import assert from 'node:assert/strict'
+    import { createRequire, syncBuiltinESMExports } from 'node:module'
+    const require = createRequire(import.meta.url)
+    const fsPromises = require('node:fs/promises')
+    const originalAccess = fsPromises.access
+    fsPromises.access = async function (path, ...args) {
+      if (String(path) === '/srv/bellteam/shared/tools/onepassword/bin/op') {
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      }
+      return originalAccess.call(this, path, ...args)
+    }
+    syncBuiltinESMExports()
+    const { createOnePasswordSource } = await import(${JSON.stringify(sourceUrl)})
+    let executeCalls = 0
+    const source = createOnePasswordSource({
+      environment: { PATH: '/nonexistent' },
+      execute: async () => { executeCalls++; throw new Error('must not execute') },
+    })
+    assert.equal(await source.refresh(), false)
+    assert.equal(executeCalls, 0)
+    source.close()
+    await new Promise(resolve => setImmediate(resolve))
+  `
+  const child = spawnSync(process.execPath, ['--unhandled-rejections=strict', '--input-type=module', '-e', script], {
+    encoding: 'utf8',
+  })
+  assert.equal(child.status, 0, `child process failed: ${child.stderr}`)
+})
 
 test('validates references and captures only the read value through argv', async t => {
   const calls = []

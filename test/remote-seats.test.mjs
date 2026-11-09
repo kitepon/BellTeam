@@ -202,3 +202,96 @@ test('agent_launch terminal codes after a good target: connectivity queues and a
   assert.equal(folder.effect, undefined)
   assert.deepEqual([...seats.waiting.get('mac-1')], ['bot-aaaa1111'])
 })
+
+const keyed = { ref: 'owner-macbook', target: terminal.target, trustRevision: 't1', credential: { handle: '11111111-2222-4333-8444-555555555555', revision: 3 } }
+
+function keyFixture({ receipt = request => ({ schema: 'aiterm.credential-load.v1', accepted: true, ref: request.ref, handle: request.handle, revision: request.revision }) } = {}) {
+  const base = fixture()
+  const loads = [], observed = []
+  base.seats.terminals.connection.target = async request => { base.log.push({ op: 'target', request }); return { terminal: keyed, cwd: request.projectRoot, accountOwner: 'owner' } }
+  base.seats.terminals.connection.observe = terminalId => observed.push(terminalId)
+  base.seats.ingress.seatCredential.loadTerminalKey = async request => { loads.push(request); return receipt(request) }
+  return { ...base, loads, observed }
+}
+
+test('R13: an app-set key is loaded by the parent before the launch; execution passes only the handle and revision', async () => {
+  const { seats, loads } = keyFixture()
+  const prepared = await seats.prepare(bot, launchArgs, { slot: '1st', harness: 'claude-code' })
+  assert.deepEqual(prepared.args.terminal.credential, keyed.credential)
+  assert.deepEqual(loads, [{ terminalId: 'mac-1', memberId: bot.id, ref: 'owner-macbook', handle: keyed.credential.handle, revision: 3 }])
+
+  const native = fixture()
+  native.seats.ingress.seatCredential.loadTerminalKey = async () => assert.fail('a native key is never loaded')
+  await native.seats.prepare(bot, launchArgs, { slot: '1st', harness: 'claude-code' })
+})
+
+test('R13: a refused load is not started, arms the observer and queues the Bot', async () => {
+  const { seats, observed, log } = keyFixture({ receipt: () => { throw code('TERMINAL_KEY_LOAD_UNAVAILABLE') } })
+  await assert.rejects(seats.prepare(bot, launchArgs, { slot: '1st' }), error => error.code === 'CREDENTIAL_UNAVAILABLE' && error.effect === 'not_started')
+  assert.deepEqual(observed, ['mac-1'])
+  assert.deepEqual([...seats.waiting.get('mac-1')], [bot.id])
+  assert.equal(log.some(entry => entry.op === 'issue'), false)
+})
+
+test('R13: CREDENTIAL_NOT_LOADED on a session call loads again and issues the same call once more', async () => {
+  const { seats, loads } = keyFixture()
+  seats.launched(bot, { session_id: launchArgs.session_name, launch_id: 'a'.repeat(32) })
+  const issued = []
+  let refuse = 1
+  const client = seats.route({ call: async (name, args) => { issued.push(name); if (refuse-- > 0) throw code('CREDENTIAL_NOT_LOADED'); return { ok: true } } })
+  assert.deepEqual(await client.call('pty_send', { session_id: launchArgs.session_name, text: 'x' }), { ok: true })
+  assert.deepEqual(issued, ['pty_send', 'pty_send'])
+  assert.equal(loads.length, 1)
+  refuse = 1
+  await assert.rejects(client.call('pty_send', { session_id: 'bot-local', text: 'x' }), { code: 'CREDENTIAL_NOT_LOADED' })
+})
+
+test('R13: CREDENTIAL_REVISION_STALE on agent_launch loads again and launches once more with the fresh terminal', async () => {
+  const { root, calls, transport, member } = await transportFixture()
+  try {
+    const k = keyFixture()
+    transport.remoteSeats = k.seats
+    let refuse = 1
+    const client = transport.client, original = client.call
+    client.call = async (name, args, options) => { if (name === 'agent_launch' && refuse-- > 0) { calls.push({ name, args }); throw code('CREDENTIAL_REVISION_STALE') } return original(name, args, options) }
+    assert.equal(await transport.wakeNow(member, { membersLease: 'L' }), 'bot-aaaa1111')
+    assert.equal(calls.filter(call => call.name === 'agent_launch').length, 2)
+    assert.equal(k.loads.length, 2, 'loaded before the launch and again after the refusal')
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
+
+test('R13: a stop/admission change while the reload is suspended starts no second agent_launch', async () => {
+  const { root, calls, transport, member } = await transportFixture()
+  try {
+    const k = keyFixture()
+    transport.remoteSeats = k.seats
+    let admitted = true
+    const load = k.seats.ingress.seatCredential.loadTerminalKey
+    k.seats.ingress.seatCredential.loadTerminalKey = async request => { if (k.loads.length === 1) admitted = false; return load(request) }
+    const client = transport.client
+    client.call = async (name, args) => { calls.push({ name, args }); if (name === 'agent_launch') throw code('CREDENTIAL_NOT_LOADED'); return {} }
+    await assert.rejects(transport.wakeNow(member, { membersLease: 'L', admissionCheck: () => { if (!admitted) throw code('ADMISSION_CHANGED') } }), { code: 'ADMISSION_CHANGED' })
+    assert.equal(calls.filter(call => call.name === 'agent_launch').length, 1)
+    assert.equal(k.loads.length, 2)
+    assert.ok(k.log.some(entry => entry.op === 'revoke'), 'the seat credential of the refused launch is revoked')
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
+
+test('R13: an accountOwner change during the reload launches nothing more and never sends the Owner login elsewhere', async () => {
+  const { root, calls, transport, member } = await transportFixture()
+  try {
+    const k = keyFixture()
+    transport.remoteSeats = k.seats
+    transport.accounts = { watch: () => () => {}, selection: async () => ({ slot: '2nd' }), setSeat: async () => {} }
+    let owner = 'owner'
+    k.seats.terminals.connection.target = async request => ({ terminal: keyed, cwd: request.projectRoot, accountOwner: owner })
+    const client = transport.client
+    client.call = async (name, args, options) => { calls.push({ name, args, options }); if (name === 'agent_launch') { owner = 'user-b'; throw code('CREDENTIAL_NOT_LOADED') } return {} }
+    await assert.rejects(transport.wakeNow(member, { membersLease: 'L' }), error => error.code === 'TERMINAL_TARGET_CHANGED' && error.effect === 'not_started')
+    const launches = calls.filter(call => call.name === 'agent_launch')
+    assert.equal(launches.length, 1)
+    assert.equal(launches[0].options.claudeLogin, '2nd', 'the first launch was on the Owner terminal')
+    assert.ok(k.log.some(entry => entry.op === 'revoke'))
+    assert.deepEqual(k.observed, ['mac-1'])
+  } finally { await rm(root, { recursive: true, force: true }) }
+})

@@ -2,6 +2,7 @@ import { openImageViewer } from './image-gallery.js?v=__ASSET_VERSION__'
 import { guardEditorClose, requestEditorClose } from './editor-close.js?v=__ASSET_VERSION__'
 import { createAvatarEditor } from './avatar-editor.js?v=__ASSET_VERSION__'
 import { applyAvatar, initials, escapeClass } from './view-format.js?v=__ASSET_VERSION__'
+import { readTerminals, remoteBindingBody } from './terminals.js?v=__ASSET_VERSION__'
 
 export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, onStatus, onMemory, onSheets }) {
   let owner = null, models = {}, modelLoad = null, saving = null, editRevision = 0
@@ -38,6 +39,12 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
   const botManagementActions = dialog.querySelector('#bot-management-actions')
   const characterSheetButton = dialog.querySelector('#character-sheet-button')
   const memoryButton = dialog.querySelector('#memory-button')
+  const botRemote = dialog.querySelector('#bot-remote')
+  const botTerminal = dialog.querySelector('#bot-terminal')
+  const botProjectRoot = dialog.querySelector('#bot-project-root')
+  const botProjectRootField = dialog.querySelector('#bot-project-root-field')
+  const botRemoteStatus = dialog.querySelector('#bot-remote-status')
+  botTerminal.addEventListener('change', () => { botProjectRootField.hidden = !botTerminal.value })
   const avatar = createAvatarEditor({ onChange: () => { editRevision++ }, retainSource:true, applyAvatar, initials, escapeClass,
     fileInput: botAvatarFile, preview: botAvatarPreview, cropEditor, canvas: avatarCrop, zoom: avatarZoom,
     nameInput: botName, colorInput: botColor, fallback: 'B', error: botFormError })
@@ -121,7 +128,9 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
     appearanceStatus.textContent = bot ? '保存済みの写真を読み込んでいます…' : '一覧用の小画像とプロフィール用の大画像を別々に保存できます。'
     owner.initialRevision = editRevision
     renderDeletionState()
+    botRemote.hidden = true
     if (!dialog.open) dialog.showModal()
+    void loadRemote(owner, controller.signal)
     try {
       const result = await api('/api/models', { signal: controller.signal })
       if (controller.signal.aborted) return
@@ -156,6 +165,24 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
     }
   }
   dialog.addEventListener('close', () => { if (!dialog.open) { modelLoad?.abort(); owner = null; avatar.cancelRead(); largeAvatar.cancelRead() } })
+
+  // 動かす場所: shown only when this body serves /api/terminals, so older bodies never see the two fields.
+  async function loadRemote(opened, signal) {
+    let result
+    try { result = await readTerminals(api, { signal }) } catch { return }
+    if (owner !== opened || signal.aborted || result.error) return
+    const savedId = opened.bot?.terminalId ?? ''
+    const options = [['', 'BellTeamの中（通常の席）'], ...result.terminals.map(item => [item.terminalId, `${item.terminalId}（${item.user}@${item.host}）`])]
+    // A saved binding whose terminal is gone stays visible instead of being silently replaced.
+    if (savedId && !result.terminals.some(item => item.terminalId === savedId)) options.push([savedId, `${savedId}（登録がありません）`])
+    selectOptions(botTerminal, options)
+    botTerminal.value = savedId
+    botProjectRoot.value = opened.bot?.projectRoot ?? ''
+    botProjectRootField.hidden = !savedId
+    botRemoteStatus.textContent = result.terminals.length ? '' : '端末はまだ登録されていません。設定の「端末」から登録できます。'
+    opened.remote = true
+    botRemote.hidden = false
+  }
 
   const CUSTOM_MODEL = '__custom__'
   function selectOptions(select, options) {
@@ -226,6 +253,8 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
     event.preventDefault()
     if (!owner || saving === owner || deletionPending()) return
     if (avatar.pending() || largeAvatar.pending()) { botFormError.textContent = '写真を読み込んでいます。表示を確認してから保存してください。'; return }
+    const remote = owner.remote ? remoteBindingBody(owner.bot, botTerminal.value, botProjectRoot.value) : { body: {} }
+    if (remote.error) { botFormError.textContent = remote.error; return }
     const opened = owner, revision = editRevision
     const current = () => owner === opened && revision === editRevision
     saving = opened
@@ -239,6 +268,7 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
       ...(largeAvatar.changed() ? { avatarLarge:largeAvatar.value(), avatarLargeSource:largeAvatar.source(), avatarLargeCrop:largeAvatar.rectangle() } : {}),
       ...((opened.bot?.fastMode === true) !== botFastMode.checked ? { fastMode: botFastMode.checked } : {}),
       color: botColor.value, harness: botHarness.value, model: selectedModel(), reasoningEffort: botReasoningEffort.value,
+      ...remote.body,
     }
     opened.submission = { profile, revision }
     let accepted = false

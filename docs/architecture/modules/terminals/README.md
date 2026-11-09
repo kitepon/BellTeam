@@ -152,7 +152,7 @@ flowchart LR
   Reg -->|nonsecret change terminalId,revision| Conn[connection.mjs]
   Exec[execution #765] -->|target terminalId,memberId,projectRoot,harness| Conn
   Conn -->|internal record| Reg
-  Conn -->|withResolved sshKeyRef, terminalId+memberId+purpose| Mika[usage credentials C5]
+  Conn -->|native-key withResolved for check/C8, terminalId+memberId+purpose| Mika[usage credentials C5]
   Mika -->|nativeKeyRef + revision only, inside callback| Conn
   Conn -->|terminal ref,target,trustRevision,credentialRevision + cwd + accountOwner| Exec
   Exec -->|agent_launch terminal + cwd, then session_id calls| Aiterm[local Aiterm: routes the seat to the terminal]
@@ -184,9 +184,9 @@ Aiterm launch argument (Elegg accepted, next aiterm-mcp release): `terminal` is 
 
 Rules the code enforces:
 
-- Native mapping (check and C8 processes): `HOST_TRUST_MISSING` / `HOST_TRUST_STALE` / `HOST_KEY_MISMATCH` / `HOST_KEY_FINGERPRINT_MISMATCH` -> `TARGET_MISMATCH`; `CREDENTIAL_UNUSABLE` / `CREDENTIAL_REVISION_STALE` / `AUTH_FAILED` -> `CREDENTIAL_UNAVAILABLE`; `UNREACHABLE` / `REMOTE_AITERM_*` / `CONNECTION_LOST` / anything unclassified -> `TERMINAL_UNAVAILABLE`. Only the code, Elegg's plain `action` and the host appear; raw native text is dropped. Every `TARGET_MISMATCH` from `target` is recorded through `report` with its action so the Owner sees it.
+- Native mapping (check and C8 processes): `HOST_TRUST_MISSING` / `HOST_TRUST_STALE` / `HOST_KEY_MISMATCH` / `HOST_KEY_FINGERPRINT_MISMATCH` -> `TARGET_MISMATCH`; `CREDENTIAL_UNUSABLE` / `CREDENTIAL_REVISION_STALE` / `AUTH_FAILED` / `CREDENTIAL_NOT_LOADED` / `CREDENTIAL_REQUIRED` -> `CREDENTIAL_UNAVAILABLE` (aiterm-mcp 0.67.0: a handle key must be loaded by `credential-load` on stdin before an open; for a secret-backed launch, execution (#814) calls the parent ingress.seatCredential.loadTerminalKey port (#813) with metadata only; the parent resolves inside Mika's expectedRevision-bound callback and sends the key only on stdin. Terminals resolves its own check/C8 key through Mika's callback, rechecking generation/dispose immediately before that load); `UNREACHABLE` / `REMOTE_AITERM_*` / `CONNECTION_LOST` / anything unclassified -> `TERMINAL_UNAVAILABLE`. Only the code, Elegg's plain `action` and the host appear; raw native text is dropped. Every `TARGET_MISMATCH` from `target` is recorded through `report` with its action so the Owner sees it.
 - Missing `hostTrust`, a non-absolute `projectRoot` or a missing `memberId` -> `TARGET_MISMATCH` before any process starts. `accountOwner` is returned from the registry, not asserted by the caller.
-- Credential and trust are Aiterm-held (UID1000). Mika's callback gives only `{nativeKeyRef, revision}`; the binding ref and revisions are public metadata and are what `terminal` carries. A string value (a future key value) is refused as `CREDENTIAL_UNAVAILABLE`. Every `target` resolves again.
+- Aiterm holds credential and trust in UID1000. For native keys, Mika's callback gives only `{nativeKeyRef, revision}`; the binding ref and revisions are public metadata. Secret-backed targets carry only `{handle, revision}`; execution (#814) calls the parent `loadTerminalKey` port (#813), which resolves inside Mika's revision-bound callback and sends key bytes only on credential-load stdin. A raw key string in a target is refused as `CREDENTIAL_UNAVAILABLE`; each `target` resolves again.
 - `HOST_TRUST_STALE`: terminals re-reads Aiterm's status and stores the new trust revision; that registry change emits `available` and execution re-targets.
 - Exits (no sticky state): a failed `target` for availability or credential records the terminal as wanted. Mika's `{available:true}` event for its handle, a registry change, or a successful observer `check` emits `available`. The observer is an in-process timer that runs `check` only while some wanted terminal is not yet usable (30 s, doubling to 5 min), stops on success or removal, and never wakes an AI.
 - Staleness and lifecycle (`target` and `check` alike):
@@ -214,6 +214,66 @@ stateDiagram-v2
 - Misuse resistance (Owner 2026-11-09 「AIが使い方を間違えないように」): the MCP tool descriptions (`src/terminals-mcp.mjs`, member `terminalId`/`projectRoot` in `src/members/profiles-mcp.mjs`) state each field's meaning and form, that keys are given only as a 1Password reference or through the secret input card (never in an argument or message), that `projectRoot` is an absolute path on that terminal, and what each error means with its next action. The registry rejects malformed input with a message naming the field, its expected form and the next action, never echoing the value; a ref field holding something key-like (`-----BEGIN`, `op://`, `ssh-ed25519` ...) is refused with the secret-input instruction.
 
 Test double for execution: `test/helpers/terminals-native-double.mjs` (`fakeConnection` with `target`/`onAvailable`, plus `fakeNative` / `fakeSecrets` for the ports terminals consumes).
+
+#### Key setting from the app (Trony ruling 2026-11-09)
+
+Gap found by Admi: Owner HTTP had no key route, `bind_terminal_key` takes an Aiterm-held UUID the Owner never sees, Mika's `credentials.bind` had no live caller, and `target` accepted only a native key. Adopted route, owner terminals (HTTP + registry):
+
+```mermaid
+sequenceDiagram
+  participant App as Owner app (Admi / Ziz)
+  participant T as terminals HTTP + registry
+  participant M as Mika credentials
+  participant E as execution (Kiro)
+  participant P as parent application services (Molly)
+  participant A as Aiterm UID1000 (Elegg)
+  App->>T: POST /api/terminals/:id/keys/ssh|sudo
+  T->>A: ssh, no binding yet: register --host --user --port (keyless; native terminals reuse the native binding ref)
+  T->>M: requestTerminalKey({terminalId, purpose, label}) (Owner origin, botId null)
+  M-->>T: {secretRequest: {id, label, inputOptions}}
+  T->>T: store sshKeyRequest / sudoKeyRequest (projection sshKeyPending / sudoKeyPending)
+  T-->>App: {secretRequest: {id, label, inputOptions}}
+  App->>M: existing secret dialog -> POST /api/secret-requests/:id/submit (1Password reference first)
+  M->>M: bind(requestId, {terminalId, purpose}) -> handle
+  M-->>T: watchCredentials {terminalId, purpose, handle, revision, available, reason, requestId}
+  T->>T: only when requestId is the pending request: store sshKeyRef / sudoKeyRef + keySource 'secret', clear the request (registry change -> available)
+  Note over T,M: start: for a pending request, credentials.current({terminalId, purpose}) recovers a missed event
+  App->>T: DELETE /api/terminals/:id/keys/ssh|sudo
+  T->>M: unbind(handle, {terminalId, purpose}) then clear ref, source and request
+  Note over T,E: target carries only binding and credential metadata
+  E->>P: ingress.seatCredential.loadTerminalKey({terminalId, memberId, ref, handle, revision})
+  P->>M: withResolved(handle, {terminalId, memberId, purpose: terminal.ssh, expectedRevision: revision})
+  M-->>P: key inside the revision-bound callback only
+  P->>A: credential-load through seat runner stdin
+  A->>A: per-terminal private ssh-agent
+```
+
+Pending-key lifecycle (per terminal and kind). Every read-then-write on one terminal (put, remove, key request/apply/remove) runs in one per-terminal order, and each key write is conditional inside the registry writer:
+
+```mermaid
+stateDiagram-v2
+  [*] --> NoKey
+  NoKey --> Pending: POST keys/kind -> request id R stored (conditional on unchanged host/user/port; else 409 TERMINAL_CHANGED)
+  Configured --> Pending: POST again (key stays until the new card binds)
+  Pending --> Pending: POST again -> new id R2 replaces R (a late R is ignored)
+  Pending --> Configured: event or current() with requestId == pending R -> ref + keySource secret, request cleared
+  Pending --> NoKey: DELETE -> unbind(ref or null = scope cancel of pending cards) + clear; a late R is ignored
+  Configured --> NoKey: DELETE -> Mika unbind, then clear ref/source/request
+  Pending --> Retarget: host/user/port changed -> request, bindingRef and hostTrust cleared; late R ignored
+  Configured --> Retarget: host/user/port changed -> bindingRef and hostTrust cleared; a native ssh key (Aiterm binding to the old target) is cleared and unbound, a card key stays
+  Retarget --> Pending: POST keys/ssh -> new keyless Aiterm binding for the new target, then confirmHostKey
+```
+
+`confirmHostKey` together with a target change is refused (confirm the new target after its binding exists). A trust rebind from the observer is conditional on the record revision it read. `core.close()` stops taking events, then joins startup reconciliation and every in-flight key operation before the mount closes the credential provider. Key kinds are only the own keys `ssh` / `sudo`; events apply only with `requestId` equal to the pending request (Mika adds `requestId` to the event and `current`).
+
+| Item | Contract |
+| --- | --- |
+| Registry fields | `sshKeyRef` / `sudoKeyRef` (Mika handles), `keySource` / `sudoKeySource`: `terminal-native` (Owner terminals, Aiterm-held key registered through Mika's registerNative; the default for a ref without a source) or `secret` (set through the secret card). op vs stored is never recorded. `bindingRef`: Aiterm's public binding (target + known_hosts + trust). `sshKeyRequest` / `sudoKeyRequest`: the pending secret request. All of these except the refs are internal: `put` refuses them from a caller. A native key bound through `bind_terminal_key` clears `keySource` and a pending ssh request. Projection: `sshKeyConfigured`, `sudoKeyConfigured`, `keySource`, `sudoKeySource`, `sshKeyPending`, `sudoKeyPending`; never a handle, key, password or op:// reference |
+| `target` | `terminal-native`: `{ref: nativeKeyRef, target, trustRevision, credentialRevision}` as today. `secret`: `{ref: bindingRef, target, trustRevision, credential: {handle, revision}}` (no credentialRevision). `sudoCredential: {handle, revision}` when a sudo key is set. The target carries metadata only. For a secret key, execution (Kiro #814) calls the parent `ingress.seatCredential.loadTerminalKey` port (#813) before launch; the parent resolves the handle inside Mika's `withResolved` callback at `expectedRevision` and sends key bytes only on the seat runner stdin to Aiterm `credential-load` (aiterm-mcp 0.67.0). Execution never receives or resolves key bytes. |
+| Check / C8 | Same target data through `remote_terminal_open`. Before its own open terminals loads a handle key the same way: Mika's `withResolved` callback (context `expectedRevision` = the handle revision in the target, Mika's contract as Molly #813 uses it; a changed revision loads nothing) pipes the value to `aiterm-remote-terminal credential-load --ref --terminal-id --handle --revision --purpose ssh-key` on stdin (never argv, never kept); a failed load is `CREDENTIAL_UNAVAILABLE`, exited by Mika's availability event |
+| HTTP (Owner) | `POST /api/terminals/:id/keys/{ssh,sudo}` -> `{secretRequest}`; a non-empty body is `400 KEY_IN_REQUEST_REFUSED` (the key goes only into the card). `DELETE` -> `{terminal}`. Errors: `INVALID_KEY_KIND` 400 (use ssh or sudo), `TERMINAL_NOT_FOUND` 404, `CREDENTIAL_UNAVAILABLE` 503 (secret input not mounted), `TERMINAL_UNAVAILABLE` 503 (Aiterm could not create the binding) |
+| Mika contract | `credentials.requestTerminalKey({terminalId, purpose, label})`, `watchCredentials` event `{terminalId, purpose, handle, revision, available, reason, requestId}`, `current({terminalId, purpose})` -> `{handle, revision, available, requestId}`, `unbind(handle | null, {terminalId, purpose})` (null = scope cancel), `credential(handle, context)`. Purposes `terminal.ssh` / `terminal.sudo` (Mika aliases of ssh-key / sudo-key) |
+| Exits | A submitted key emits a registry change -> `available`. DELETE leaves the terminal registered; `target` then answers `CREDENTIAL_UNAVAILABLE` reason `SSH_KEY_UNSET` with action "set the SSH key of terminal X" until a new key is set |
 
 #### Registry
 

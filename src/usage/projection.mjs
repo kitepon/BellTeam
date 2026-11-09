@@ -1,7 +1,7 @@
 import { CardTimelines } from '../card-timelines.mjs'
 import { usageError } from './process-schema.mjs'
 import { backgroundRecordValid, backgroundAgentError } from './background-agent-settings.mjs'
-import { credentialDtoValid } from './secret-credentials.mjs'
+import { credentialDtoValid, credentialScopeValid } from './secret-credentials.mjs'
 
 const object = value => value && typeof value === 'object' && !Array.isArray(value)
 const keys = (value, required, optional = []) => object(value) && required.every(key => Object.hasOwn(value, key)) && Object.keys(value).every(key => [...required, ...optional].includes(key))
@@ -37,10 +37,14 @@ export function usageProjectionRecordValid(row) {
   if (!keys(row, ['type', 'revision', 'value']) || !object(row.value)) return false
   const item = row.value
   if (row.type === 'credentialRecovery') return keys(item, ['recoveryNeeded']) && typeof item.recoveryNeeded === 'boolean'
-  if (row.type === 'credential') return keys(item, ['handle', 'revision', 'available', 'reason'])
-    && credentialDtoValid({ handle: item.handle, revision: item.revision, available: item.available }) && ['revision', 'availability'].includes(item.reason)
-  if (row.type === 'secret') return keys(item, ['id', 'botId', 'roomId', 'toolId', 'label', 'message', 'at', 'status'], ['path', 'notification', 'withdrawn', 'inputOptions'])
-    && ['id', 'botId', 'toolId', 'label', 'message', 'at'].every(key => typeof item[key] === 'string') && (item.roomId === null || typeof item.roomId === 'string')
+  if (row.type === 'credential') return keys(item, ['terminalId', 'purpose', 'handle', 'revision', 'available', 'reason', 'requestId'])
+    && credentialScopeValid({ terminalId: item.terminalId, purpose: item.purpose }) && (item.requestId === null || typeof item.requestId === 'string')
+    && credentialDtoValid({ handle: item.handle, revision: item.revision, available: item.available }) && ['bound', 'unbound', 'revision', 'availability'].includes(item.reason)
+  if (row.type === 'secret') return keys(item, ['id', 'botId', 'roomId', 'toolId', 'label', 'message', 'at', 'status'], ['path', 'notification', 'withdrawn', 'inputOptions', 'terminalId', 'purpose'])
+    && ['id', 'toolId', 'label', 'message', 'at'].every(key => typeof item[key] === 'string') && (item.roomId === null || typeof item.roomId === 'string')
+    && (typeof item.botId === 'string' && !Object.hasOwn(item, 'terminalId') && !Object.hasOwn(item, 'purpose')
+      || item.botId === null && item.roomId === null && item.toolId === 'terminal-key' && ['terminal.ssh', 'terminal.sudo'].includes(item.purpose)
+      && credentialScopeValid({ terminalId: item.terminalId, purpose: item.purpose }))
     && ['pending', 'submitted', 'cancelled'].includes(item.status) && (!Object.hasOwn(item, 'path') || typeof item.path === 'string')
     && (!Object.hasOwn(item, 'notification') || ['pending', 'sent', 'failed', 'not_needed'].includes(item.notification))
     && (!Object.hasOwn(item, 'withdrawn') || typeof item.withdrawn === 'boolean')
@@ -73,11 +77,12 @@ export function createUsageProjection({ bots }) {
     if (!row || !records.has(row.type) || !usageProjectionRecordValid(row)) throw usageError('USAGE_PROJECTION_INVALID')
     if (['secret', 'question'].includes(row.type)) {
       const item = row.value
-      if (!item || typeof item.id !== 'string' || typeof item.botId !== 'string'
+      if (!item || typeof item.id !== 'string' || row.type !== 'secret' && typeof item.botId !== 'string'
         || Object.hasOwn(item, 'value')) throw usageError('USAGE_PROJECTION_INVALID')
       const secret = row.type === 'secret'
       const items = secret ? state.secrets : state.questions
-      items.set(item.id, copy(item)); (secret ? state.secretTimeline : state.questionTimeline).put(copy(item))
+      items.set(item.id, copy(item))
+      if (item.botId !== null) (secret ? state.secretTimeline : state.questionTimeline).put(copy(item))
     } else if (row.type === 'settings') {
       if (!Array.isArray(row.list) || !row.configurations || row.list.length !== 6
         || row.list.some(item => typeof item.id !== 'string' || !Object.hasOwn(row.configurations, item.id))) throw usageError('USAGE_PROJECTION_INVALID')

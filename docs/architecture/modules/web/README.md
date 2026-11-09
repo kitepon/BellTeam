@@ -94,6 +94,44 @@ flowchart TD
 
 Source reach: `web/harness-accounts.js` (new), `web/harness-auth.js` (slot option, Claude delegates to the accounts card), `web/application.js` (member slot badge), `web/styles.css`, `web/assets.mjs`, `test/web-harness-accounts.test.mjs`. No storage and no guard added.
 
+## Terminals and remote member binding (F-SEAT-HOST P2, 2026-11-09, Trony)
+
+Contracts consumed unchanged: [terminals registry](../terminals/README.md) (Crust), Owner HTTP [RS09](../integration/remote-seat-ingress.md) (Molly), member [C1 binding](../members/remote-seat.md#c1-member-binding) (Belorta), [secret input](../usage/secret-credentials.md) (Mika). Key route adopted by Trony 2026-11-09: `POST /api/terminals/:id/keys/{ssh|sudo}` -> `{secretRequest:{id,label,inputOptions}}`, `DELETE` same path unbinds; projection adds `keySource` (`terminal-native` / `secret`). `terminals.js` handles only nonsecret metadata and never stores a key value, an `op://` reference or a key handle UUID; the existing secret dialog alone holds the ephemeral value or `op://` reference while the Owner types it and submits it once (its existing contract in [conversation](conversation.md)).
+
+```mermaid
+flowchart TD
+  Settings[設定: 端末 section] -->|端末を管理| Dialog["terminals.js #terminals-dialog"]
+  Dialog --> List["GET /api/terminals<br/>404 → not supported / 503 → not running"]
+  List --> Cards["terminal cards<br/>user@host:port, owner, key badges, last check, C8 Claude Code"]
+  Cards -->|届くか確かめる| Check["POST /api/terminals/:id/check<br/>observation kept in memory only"]
+  Check --> Badge["terminalStatus(observation)<br/>plain words + tone"]
+  Badge -->|host trust reason| Confirm["fingerprint input → PUT :id {confirmHostKey}"]
+  Cards -->|追加 / 編集| Form["PUT /api/terminals/:id {host,user,port,os:'macos',accountOwner}"]
+  Cards -->|削除| Remove["DELETE /api/terminals/:id (confirm dialog)"]
+  Cards -->|SSH鍵 / sudo鍵を設定| Key["POST /api/terminals/:id/keys/:purpose"]
+  Key -->|secretRequest| Secret["existing secret dialog (secret-input.js openSecretInput)<br/>1Password first when connected → /api/secret-requests/:id/submit"]
+  Key -->|404 / 405| NoRoute["この本体ではまだ画面から鍵を設定できません"]
+  Secret --> List
+  Cards -->|鍵を外す| Unbind["DELETE /api/terminals/:id/keys/:purpose (confirm)"]
+  Editor["bot-editor 動かす場所"] -->|on open| List2["GET /api/terminals (same tolerance)"]
+  List2 -->|ok| Fields["select: BellTeamの中 / registered terminals + folder (absolute path)"]
+  List2 -->|404 / 503 / error| Hidden["section hidden, fields never sent"]
+  Fields -->|changed only| Body["POST/PATCH /api/bots body adds terminalId + projectRoot (both or both '')"]
+```
+
+| Function / edge | Input -> output and ownership |
+| --- | --- |
+| `terminalStatus(observation)` (pure) | `null` -> 未確認 (muted). `reachable` -> つながります (ok). `SSH_KEY_UNSET` -> SSH鍵が未設定 (attention). `CREDENTIAL_*` / `AUTH_FAILED` -> 鍵が使えません (danger). `HOST_TRUST_*` / `HOST_KEY_*` / `TARGET_MISMATCH` -> ホスト鍵の確認が必要 (danger, shows the fingerprint form). `REMOTE_AITERM_TOO_OLD` -> 端末のAitermが古い. `TERMINAL_NOT_FOUND` -> 登録がありません. Anything else -> 届きません: asleep or off the network; delivery resumes by itself. Raw codes only in the badge title. |
+| Terminal card | Projection as served. Key badges: `sshKeyConfigured` / `sudoKeyConfigured` (absent -> 未確認, never guessed). Source per purpose, `keySourceOf(terminal, purpose)` (pure): SSH = `sshKeySource ?? keySource`; sudo = `sudoKeySource ?? 'secret'` (the native capability is SSH only, usage C5), so an SSH `terminal-native` key never decides the sudo row. `terminal-native` -> 端末の鍵, `secret` -> 秘密入力. `maintenance.after` -> Claude Code version line. `hostTrust` absent -> ホスト鍵 未登録. |
+| Register / edit | One PUT per tap with the fixed body; `terminalId` is a lowercase slug and read-only when editing; `os` is always `macos` (only supported OS). Error code -> plain sentence; the server message goes under 詳細. No retry. The form draft carries an input revision (bot-editor pattern): a save captures `{draft, revision}` and its success closes the form only when the same dialog still shows that draft at that revision. A newer add/edit/cancel or input after the tap is kept (「保存しました。そのあとに変えた入力は残しています。」); a failure keeps the draft. |
+| Host key confirm | Fingerprint must start with `SHA256:`; one `PUT {confirmHostKey}`; `HOST_KEY_FINGERPRINT_MISMATCH` -> 指紋が端末と一致しません. The Web never accepts a host key on its own. The typed fingerprint is cleared only on success, in the same open dialog, and only if the field still holds the submitted value; failed and newer input stay. |
+| Keys | Setter calls the key route once and opens the existing secret dialog with the returned request; after it closes the list is read again. 404/405 -> setter disabled with a plain note until the dialog is reopened. Unbind asks first. |
+| Member binding | Section shown only after `GET /api/terminals` succeeds. `projectRootProblem(path)` mirrors C1 (starts with `/`, no empty/`.`/`..` segment, no trailing `/`, ≤ 4096). Both empty or both set, checked before save. A bound terminal missing from the list stays selectable as 「(登録がありません)」 so the saved binding is never silently replaced. Fields go into the body only when they differ from the saved member (old bodies never see them). |
+
+Ownership: results apply only to the same open dialog (`opened` token); close/reopen drops late replies. No storage, polling, SSE or guard added; the server owns validation, trust and secrets.
+
+Source reach: `web/terminals.js` (new), `web/secret-input.js` (export `openSecretInput`), `web/bot-editor.js`, `web/application.js`, `web/index.html`, `web/styles.css`, `web/assets.mjs`, `test/web-terminals.test.mjs`.
+
 ## 相関図
 
 [相関図 page](work-graph.md): full-screen dialog drawing the work-graph contract with the shared behavior spec. Source reach: `web/work-graph-model.js`, `web/work-graph.js`, `web/index.html` (nav button + dialog), `web/application.js` (open, tap -> notification route), `web/notification-navigation.js` (`open`), `web/styles.css`, `web/assets.mjs`, `test/web-work-graph.test.mjs`.

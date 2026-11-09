@@ -203,3 +203,17 @@ test('terminal key load: value only on the bin stdin, receipt or binding error, 
   assert.equal(resolved.length, 0)
   await assert.rejects(loadTerminalKey({ ...base, credentials: null, run: runner({}) }), { code: 'CREDENTIAL_UNAVAILABLE' })
 })
+
+test('credential refresh: unbound removes an unavailable handle and disarms its timer', async t => {
+  t.mock.timers.enable({ apis: ['setInterval'] })
+  const { createCredentialRefresh } = await import('../src/secret-credential-refresh.mjs')
+  let listener, calls = 0
+  const helper = createCredentialRefresh({ refresh: async () => { calls++ }, watch: next => { listener = next; return () => {} }, intervalMs: 1000 })
+  t.after(() => helper.stop())
+  listener({ handle: 'removed-handle', available: false, reason: 'availability' })
+  assert.equal(helper.pending, 1)
+  listener({ handle: 'removed-handle', available: false, reason: 'unbound' })
+  assert.equal(helper.pending, 0)
+  t.mock.timers.tick(5000); await Promise.resolve()
+  assert.equal(calls, 0)
+})

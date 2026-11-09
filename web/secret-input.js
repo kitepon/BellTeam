@@ -51,7 +51,7 @@ export function renderSecretRequest(request, { api, sender, onComplete }) {
   return card
 }
 
-function openSecretInput(request, api, onComplete) {
+export function openSecretInput(request, api, onComplete) {
   const dialog = document.createElement('dialog')
   dialog.className = 'secret-dialog'
   dialog.dataset.requestId = request.id
@@ -62,8 +62,10 @@ function openSecretInput(request, api, onComplete) {
   message.textContent = request.message
   const note = document.createElement('p')
   note.className = 'secret-note'
-  const input = document.createElement('input')
-  input.type = 'password'
+  // An OpenSSH private key is multiline; a password input would drop its newlines. The value is sent as typed, never trimmed.
+  const multiline = request.purpose === 'terminal.ssh'
+  const input = document.createElement(multiline ? 'textarea' : 'input')
+  if (multiline) { input.rows = 6; input.className = 'secret-multiline' } else input.type = 'password'
   input.autocomplete = 'off'
   input.setAttribute('aria-label', request.label)
   input.spellcheck = false

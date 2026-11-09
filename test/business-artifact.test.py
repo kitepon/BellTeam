@@ -32,7 +32,7 @@ class BusinessArtifacts(unittest.TestCase):
         exported = json.loads(subprocess.check_output(['node', '--input-type=module', '-e',
             "import {USAGE_STATE_COMPATIBILITY as state} from './src/usage/state-compatibility.mjs'; process.stdout.write(JSON.stringify(state))"], cwd=ROOT))
         self.assertEqual(BUSINESS_STATE['usage'], exported)
-        self.assertEqual(exported['secretEncoding'], 'stored-or-private-reference-v1')
+        self.assertEqual(exported['secretEncoding'], 'stored-or-private-reference-v2')
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

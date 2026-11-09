@@ -26,7 +26,7 @@ export function createCredentialRefresh({ refresh, watch, watchRecovery = null, 
   }
   const unwatch = watch(event => {
     if (typeof event?.handle !== 'string') return
-    if (event.available === false) unavailable.add(event.handle)
+    if (event.available === false && event.reason !== 'unbound') unavailable.add(event.handle)
     else unavailable.delete(event.handle)
     arm()
   })
