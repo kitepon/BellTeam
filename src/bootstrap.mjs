@@ -20,6 +20,7 @@ import { AitermClient } from './aiterm-client.mjs'
 export { createExecutionAssembly } from './execution-assembly.mjs'
 export { createDiagnosticsProcess } from './diagnostics-process.mjs'
 export { createWorkGraphProcess } from './work-graph-process.mjs'
+export { createTerminalsCore } from './terminals/core.mjs'
 
 const appRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 const home = runtimeHome()
