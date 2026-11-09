@@ -6,7 +6,15 @@ struct WorkGraphView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var model = WorkGraphModel()
-    @State private var pointer: CGPoint?
+    @State private var hover: CGPoint?
+    /// 押下の記録。ジェスチャのコールバックから読み書きするので@State（@GestureStateはコールバック内で読まない）。
+    @State private var press: WorkGraphPress?
+    /// 押している間だけtrue。取消でも終了でも自動でfalseへ戻り、それを見て記録を消す。
+    @GestureState private var pressing = false
+    #if targetEnvironment(macCatalyst)
+    @Environment(\.openWindow) private var openWindow
+    @State private var mainWindowError: String?
+    #endif
 
     #if targetEnvironment(macCatalyst)
     private static let baseSide: CGFloat = 64
@@ -59,22 +67,49 @@ struct WorkGraphView: View {
             .accessibilityElement(children: .contain)
             .accessibilityChildren { accessibilityItems(now: now) }
         }
-        .overlay { fullLabel }
+        // アイコンか名前のタップ（Macは主ボタンのクリック）でそのメンバーの会話を開く。ポインタを重ねるだけでは開かない。
+        // iPhone/iPadは指を置いている間（タップ・長押し）、その下の線の札を最前面に出す。長押し（500ms以上）は会話を開かない。
+        .simultaneousGesture(DragGesture(minimumDistance: 0)
+            .updating($pressing) { _, pressing, _ in pressing = true }
+            // 新しい押下かどうかは位置でなく、記録がnilかどうか。時計は描画と同じWorkGraphModel.now（Value.timeはDateで、基準が別）。
+            .onChanged { value in
+                model.updatePress(&press, start: value.startLocation, location: value.location, time: WorkGraphModel.now)
+            }
+            .onEnded { value in
+                // 取り消された押下ではここへ来ない（記録は下のonChange(of: pressing)が消す）。
+                let id = press?.release(at: value.location, time: WorkGraphModel.now)
+                press = nil
+                if let id { open(id) }
+            })
+        // 取消でも終了でもpressingがfalseへ戻るので、古い押下が次の押下へ残らない。
+        .onChange(of: pressing) { if !pressing { press = nil } }
         #if targetEnvironment(macCatalyst)
         .onContinuousHover { phase in
-            if case .active(let point) = phase { pointer = point } else { pointer = nil }
+            if case .active(let point) = phase { hover = point } else { hover = nil }
         }
-        #else
-        .simultaneousGesture(LongPressGesture(minimumDuration: 0.4)
-            .sequenced(before: DragGesture(minimumDistance: 0))
-            .onChanged { value in if case .second(true, let drag?) = value { pointer = drag.location } }
-            .onEnded { _ in pointer = nil })
         #endif
+        // 見えなくなる・背景へ回る時、ポインタと押下を残さない。
+        .onDisappear { hover = nil; press = nil }
+        .onChange(of: scenePhase) { hover = nil; press = nil }
     }
 
     // MARK: Drawing
 
     private var side: CGFloat { model.side(for: max(1, model.liveCount)) }
+
+    /// 通知のタップと同じ経路でそのメンバーの会話を開く。iPhone/iPadは戻ると相関図へ帰る。
+    /// Macは相関図の窓を残し、本体の窓を前へ出す（閉じていれば開く）。
+    private func open(_ botId: String) {
+        #if targetEnvironment(macCatalyst)
+        store.openConversation(.bot(botId))
+        mainWindowError = nil
+        MainWindow.bringToFront(open: { openWindow(id: MainWindow.id) }) { error in
+            mainWindowError = "メインの窓を開けませんでした: \(error.localizedDescription)"
+        }
+        #else
+        store.openConversation(.bot(botId), returningTo: 4)
+        #endif
+    }
 
     private func avatar(_ node: WorkGraphNode) -> some View {
         let bot = store.bots.first { $0.id == node.botId }
@@ -85,7 +120,12 @@ struct WorkGraphView: View {
     private func draw(_ context: inout GraphicsContext, now: Double) {
         let live = model.connection == .live
         let lines = model.lines.values.sorted { $0.edge.id < $1.edge.id }
+        model.layoutChips(lines.compactMap { line in
+            path(line, now: now).map { WorkGraphModel.EdgePath(id: line.edge.id, length: $0.length, point: $0.point) }
+        }, size: Self.chipSize, hover: hoveredEdge(now: now), now: now)
         for line in lines { drawEdge(&context, line, now: now, live: live) }
+        // 置き場所の無い札（blocked）だけは線のすぐ上、メンバー・名前・ほかの札の下（behavior-spec.md「Edges」）。
+        drawChips(&context, model.chips.blocked)
         var nodes = context
         // 切断中は最後の図を残し、彩度を落として点滅と流れを止める。
         if !live { nodes.addFilter(.saturation(0.4)) }
@@ -93,52 +133,41 @@ struct WorkGraphView: View {
             guard let body = model.bodies[id] else { continue }
             drawNode(&nodes, body, now: now, live: live)
         }
-        drawLabels(&context, lines: lines, now: now)
+        drawChips(&context, model.chips.unblocked + model.chips.above)
     }
 
-    /// 依頼のラベルはアイコン・名前・他のラベルに重ねない（behavior-spec.md #738）。始まった順（古い順）に置くので、
-    /// 新しい依頼が来ても置いた札は動かない。置いた札は4pt広げて障害物に加え、空きが無ければ出さない（全文は長押し・ポインタで最前面に出る）。
-    /// 混んでいる時（10本超、または線が120pt未満）は始まって3秒だけ出し、400msで消える（`WorkGraphModel.labelOpacity`）。
-    private func drawLabels(_ context: inout GraphicsContext, lines: [WorkGraphModel.Line], now: Double) {
-        var occupied: [CGRect] = []
-        for id in model.order {
-            guard let body = model.bodies[id] else { continue }
-            let look = model.appearance(body, at: now)
-            let size = side * look.scale
-            occupied.append(CGRect(x: look.point.x - size / 2 - 6, y: look.point.y - size / 2 - 6, width: size + 12, height: size + 12))
-            let width = side * 2.2
-            occupied.append(CGRect(x: look.point.x - width / 2, y: look.point.y + size / 2 + 4, width: width, height: BellTheme.listNameFontSize * 1.5))
+    /// 指している線か札（Macはポインタ、iPhone/iPadは置いた指）。メンバーの上なら無い。
+    private func hoveredEdge(now: Double) -> String? {
+        #if targetEnvironment(macCatalyst)
+        let pointer = hover
+        #else
+        let pointer = press?.location
+        #endif
+        return switch pointer.flatMap({ model.hit(at: $0, now: now) }) {
+        case .chip(let id), .edge(let id): id
+        default: nil
         }
-        let open = lines.filter { $0.endedAt == nil }
-        let tooMany = open.count > 10
-        for line in WorkGraphModel.labelOrder(open) {
-            guard let label = line.edge.label, !label.isEmpty, let geometry = path(line, now: now),
-                  now - line.startedAt >= 0.35 else { continue }
-            let opacity = WorkGraphModel.labelOpacity(line, crowded: tooMany || geometry.length < 120, now: now)
-            guard opacity > 0 else { continue }
-            let wire = WorkGraphColor.wire(tone(line.edge.from))
-            // 札は最大180pt幅。文は切らずに折り返し、行の高さ16ptで行数ぶん伸びる（behavior-spec.md、Owner裁定 2026-11-09）。
-            // 行の高さを決めて描くため、CanvasのTextではなく段落指定付きの文字列で測って描く。
-            let text = Self.labelText(label)
-            let icon = context.resolve(Image(systemName: "envelope.fill"))
-            let iconSide = BellTheme.listDetailFontSize
-            let textWidth = Self.labelMaxWidth - iconSide - 22
-            let bounds = text.boundingRect(with: CGSize(width: textWidth, height: .greatestFiniteMagnitude), options: .usesLineFragmentOrigin, context: nil)
-            let measured = CGSize(width: ceil(bounds.width), height: ceil(bounds.height))
-            let width = min(measured.width, textWidth) + iconSide + 22, height = max(measured.height, iconSide) + 10
-            for t in [0.5, 0.45, 0.55, 0.4, 0.6, 0.35, 0.65, 0.3, 0.7] {
-                let at = geometry.point(t)
-                // 札は線の上に少し浮かせ、下の尖りで線を指す。
-                let tag = CGRect(x: at.x - width / 2, y: at.y - height - 7, width: width, height: height)
-                let area = tag.union(CGRect(x: at.x - 4, y: at.y - 7, width: 8, height: 7))
-                guard !occupied.contains(where: { $0.intersects(area.insetBy(dx: -4, dy: -4)) }) else { continue }
-                occupied.append(area)
-                var faded = context
-                faded.opacity = opacity
-                drawTag(&faded, tag: tag, point: at, wire: wire, icon: icon, iconSide: iconSide, text: text)
-                break
-            }
+    }
+
+    /// 札の出し方と置き場所は`WorkGraphModel.layoutChips`が決める。ここは描くだけ。
+    private func drawChips(_ context: inout GraphicsContext, _ chips: [WorkGraphModel.PlacedChip]) {
+        guard !chips.isEmpty else { return }
+        let icon = context.resolve(Image(systemName: "envelope.fill"))
+        for chip in chips where chip.opacity > 0 {
+            var faded = context
+            faded.opacity = chip.opacity
+            drawTag(&faded, tag: chip.tag, point: chip.anchor, wire: WorkGraphColor.wire(tone(model.lines[chip.id]?.edge.from ?? "")),
+                    icon: icon, iconSide: BellTheme.listDetailFontSize, text: Self.labelText(chip.text))
         }
+    }
+
+    /// 札の大きさ。最大180pt幅で、文は切らずに折り返し、行の高さ16ptで行数ぶん伸びる（behavior-spec.md、Owner裁定 2026-11-09）。
+    /// 行の高さを決めて描くため、CanvasのTextではなく段落指定付きの文字列で測る。
+    static func chipSize(_ label: String) -> CGSize {
+        let iconSide = BellTheme.listDetailFontSize
+        let textWidth = labelMaxWidth - iconSide - 22
+        let bounds = labelText(label).boundingRect(with: CGSize(width: textWidth, height: .greatestFiniteMagnitude), options: .usesLineFragmentOrigin, context: nil)
+        return CGSize(width: min(ceil(bounds.width), textWidth) + iconSide + 22, height: max(ceil(bounds.height), iconSide) + 10)
     }
 
     static let labelMaxWidth: CGFloat = 180
@@ -188,7 +217,7 @@ struct WorkGraphView: View {
         }
     }
 
-    private func path(_ line: WorkGraphModel.Line, now: Double) -> (path: Path, length: CGFloat, point: (CGFloat) -> CGPoint, mid: CGPoint)? {
+    private func path(_ line: WorkGraphModel.Line, now: Double) -> (path: Path, length: CGFloat, point: (CGFloat) -> CGPoint)? {
         guard let a = model.bodies[line.edge.from], let b = model.bodies[line.edge.to] else { return nil }
         let pa = model.appearance(a, at: now).point, pb = model.appearance(b, at: now).point
         let dx = pb.x - pa.x, dy = pb.y - pa.y
@@ -209,11 +238,11 @@ struct WorkGraphView: View {
                 CGPoint(x: (1 - t) * (1 - t) * start.x + 2 * (1 - t) * t * control.x + t * t * end.x,
                         y: (1 - t) * (1 - t) * start.y + 2 * (1 - t) * t * control.y + t * t * end.y)
             }
-            return (path, length, point, point(0.5))
+            return (path, length, point)
         }
         path.addLine(to: end)
         let point: (CGFloat) -> CGPoint = { t in CGPoint(x: start.x + (end.x - start.x) * t, y: start.y + (end.y - start.y) * t) }
-        return (path, length, point, point(0.5))
+        return (path, length, point)
     }
 
     /// 依頼の線：依頼元のテーマ色を濃くした電線。線の中を明るい筋が依頼元から依頼先へ走る（Owner、点の代わり）。
@@ -273,8 +302,7 @@ struct WorkGraphView: View {
         }
         let name = layer.resolve(Text(body.node.name).font(.system(size: BellTheme.listNameFontSize, weight: .semibold))
             .foregroundColor(body.node.working ? BellTheme.ink : BellTheme.muted))
-        let width = side * 2.2
-        layer.draw(name, in: CGRect(x: look.point.x - width / 2, y: look.point.y + size / 2 + 6, width: width, height: BellTheme.listNameFontSize * 1.4))
+        layer.draw(name, in: model.frames(body, at: now).name)
     }
 
     // MARK: Overlays
@@ -290,6 +318,9 @@ struct WorkGraphView: View {
     }
 
     @ViewBuilder private var pill: some View {
+        #if targetEnvironment(macCatalyst)
+        if let mainWindowError { pillText(mainWindowError) }
+        #endif
         if model.connection == .reconnecting {
             pillText("再接続中…")
         } else if model.connection == .unreadable {
@@ -314,46 +345,34 @@ struct WorkGraphView: View {
             .accessibilityIdentifier("work-graph-unavailable")
     }
 
-    /// 長押し（iPhone）・ポインタ（Mac）の近くにある依頼の全文。
-    @ViewBuilder private var fullLabel: some View {
-        if let pointer, let match = nearestLabel(to: pointer) {
-            Text(match.label)
-                .font(.system(size: BellTheme.listDetailFontSize))
-                .foregroundStyle(BellTheme.ink)
-                .padding(.horizontal, 10).padding(.vertical, 6)
-                .background(BellTheme.canvas, in: RoundedRectangle(cornerRadius: 8))
-                .shadow(color: BellTheme.ink.opacity(0.12), radius: 6, y: 2)
-                .frame(maxWidth: 320)
-                .position(x: match.point.x, y: match.point.y - 28)
-                .allowsHitTesting(false)
-        }
-    }
-
-    private func nearestLabel(to point: CGPoint) -> (label: String, point: CGPoint)? {
-        let now = WorkGraphModel.now
-        return model.lines.values.compactMap { line -> (String, CGPoint, CGFloat)? in
-            guard line.endedAt == nil, let label = line.edge.label, !label.isEmpty, let geometry = path(line, now: now) else { return nil }
-            return (label, geometry.mid, hypot(geometry.mid.x - point.x, geometry.mid.y - point.y))
-        }
-        .filter { $0.2 < 40 }
-        .min { $0.2 < $1.2 }
-        .map { ($0.0, $0.1) }
-    }
-
     // MARK: Accessibility
 
     @ViewBuilder private func accessibilityItems(now: Double) -> some View {
-        ForEach(model.order, id: \.self) { id in
-            if let body = model.bodies[id], body.leavingAt == nil {
-                let minutes = max(0, Int((now - body.activeSince) / 60))
-                Text(body.node.working ? "\(body.node.name)、作業中、\(minutes)分前から" : "\(body.node.name)、依頼の相手")
-            }
+        // Canvasと同じ大きさの座標で、各メンバーの要素を描いたアイコンの位置に置く。
+        ZStack(alignment: .topLeading) {
+            nodeItems(now: now)
         }
+        .frame(width: model.size.width, height: model.size.height, alignment: .topLeading)
         ForEach(model.lines.values.filter { $0.endedAt == nil }.map(\.edge.id).sorted(), id: \.self) { id in
             if let edge = model.lines[id]?.edge {
                 let from = model.bodies[edge.from]?.node.name ?? edge.from
                 let to = model.bodies[edge.to]?.node.name ?? edge.to
                 Text(edge.label.map { "\(from)から\(to)へ依頼: \($0)" } ?? "\(from)から\(to)へ依頼")
+            }
+        }
+    }
+
+    private func nodeItems(now: Double) -> some View {
+        ForEach(model.order, id: \.self) { id in
+            if let body = model.bodies[id], body.leavingAt == nil {
+                let minutes = max(0, Int((now - body.activeSince) / 60))
+                let avatar = model.frames(body, at: now).avatar
+                Text(body.node.working ? "\(body.node.name)、作業中、\(minutes)分前から" : "\(body.node.name)、依頼の相手")
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityHint("チャットを開く")
+                    .accessibilityAction { open(id) }
+                    .frame(width: avatar.width, height: avatar.height)
+                    .position(x: avatar.midX, y: avatar.midY)
             }
         }
     }

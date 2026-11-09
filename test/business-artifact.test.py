@@ -72,6 +72,20 @@ class BusinessArtifacts(unittest.TestCase):
                 with self.assertRaises(ValueError): validate_business_archive(release, manifest, changed)
             with self.assertRaises(ValueError): validate_business_archive({**release, 'sourceCommit': 'b' * 40}, manifest, state)
 
+    def test_catalog_row_keeps_its_published_state_and_only_form_is_checked(self):
+        from update_catalog import validate_business_compatibility
+        base = dict(nodeMajor=26, parentProtocol=1, stateSchema=None, containerUpdate=None)
+        published = {**BUSINESS_STATE['usage'], 'secretEncoding': 'utf8-exclusive-0600'}
+        self.assertEqual(validate_business_compatibility('usage', {**base, 'stateCompatibility': published})['stateCompatibility'], published)
+        validate_business_compatibility('execution', {**base, 'stateCompatibility': 'bellteam.execution-state.v1'})
+        for bad in [None, {}, [], 'Bad State!', {'Key': 'v'}, {'k': {'nested': 1}}, {'k': -1}, {'k': True}, {'k': ['x\n']}, {f'k{i}': 'v' for i in range(33)}]:
+            with self.subTest(bad=bad), self.assertRaisesRegex(ValueError, 'UPDATE_MODULE_STATE_INCOMPATIBLE'):
+                validate_business_compatibility('usage', {**base, 'stateCompatibility': bad})
+        with self.assertRaises(ValueError): validate_business_compatibility('usage', {**base, 'parentProtocol': 2, 'stateCompatibility': published})
+        release = dict(componentId='usage', sourceCommit='a' * 40, platform=dict(os='linux', arch=self.arch), compatibility={**base, 'stateCompatibility': published})
+        _, manifest, _ = self.artifact('usage')
+        with self.assertRaisesRegex(ValueError, 'UPDATE_MODULE_ARCHIVE_INCOMPATIBLE'): validate_business_archive(release, manifest, BUSINESS_STATE['usage'])
+
     def test_trusted_image_state_must_match_after_official_signature(self):
         for component in BUSINESS_FILES:
             archive, manifest, _ = self.artifact(component)

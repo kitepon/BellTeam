@@ -229,6 +229,16 @@ BUSINESS_STATE = {
     'work-graph': dict(state='none'),
 }
 
+def state_form(value):
+    """Form of a published stateCompatibility value: a token, or up to 32 camelCase keys of tokens, small ints or token lists."""
+    token = lambda v: type(v) is str and re.fullmatch(r'[A-Za-z0-9._:,/+-]{1,128}', v) is not None
+    scalar = lambda v: token(v) or type(v) is int and 0 <= v < 2 ** 31
+    if type(value) is str:
+        return token(value)
+    return (type(value) is dict and 0 < len(value) <= 32 and all(re.fullmatch('[a-z][A-Za-z0-9]{0,63}', k) for k in value)
+            and all(scalar(v) or type(v) is list and len(v) <= 32 and all(token(i) for i in v) for v in value.values()))
+
+
 def validate_memory_state(value):
     fixed = dict(memoryUserVersion=0, knowledgeUserVersion=0,
         memoryRequiredSchemaSha256='aac945fb2c594987168317fd857233fb41274072ad6b0d032563459fb4b3733f',
@@ -271,16 +281,20 @@ def contract(component):
     return entry, runtime, required
 
 
-def validate_manifest(value, source=None, arch=None, *, component='web-gateway'):
+def validate_manifest(value, source=None, arch=None, *, component='web-gateway', state=None):
+    """state: the publisher passes a published row's own stateCompatibility; installers leave it None (this body's contract)."""
     require(type(value) is dict and set(value) == {'schema', 'component', 'sourceCommit', 'entry', 'runtime', 'files'})
     entry, fixed_runtime, required = contract(component)
+    if state is not None:
+        require(state_form(state) and (component == 'memory' or 'stateCompatibility' in fixed_runtime), 'MODULE_STATE_INVALID')
+        if component != 'memory': fixed_runtime = {**fixed_runtime, 'stateCompatibility': state}
     require(value['schema'] == f'bellteam.{component}.artifact.v1' and value['component'] == component)
     require(isinstance(value['sourceCommit'], str) and re.fullmatch('[a-f0-9]{40}', value['sourceCommit']))
     require(source is None or value['sourceCommit'] == source, 'GATEWAY_SOURCE_MISMATCH')
     require(value['entry'] == entry)
     runtime = value['runtime']
     require(type(runtime) is dict and set(runtime) == {*fixed_runtime, 'arch', *(['stateCompatibility'] if component == 'memory' else [])})
-    if component == 'memory': validate_memory_state(runtime['stateCompatibility'])
+    if component == 'memory': require(runtime['stateCompatibility'] == state) if state is not None else validate_memory_state(runtime['stateCompatibility'])
     require(runtime['arch'] in ['amd64', 'arm64'] and all(type(runtime[key]) is type(wanted)
             and runtime[key] == wanted for key, wanted in fixed_runtime.items()))
     require(arch is None or runtime['arch'] == arch, 'GATEWAY_ARCH_MISMATCH')
@@ -340,7 +354,7 @@ def write_archive(payload, output, source, arch, *, component='web-gateway', sta
     return manifest
 
 
-def check_archive(stream, source=None, arch=None, *, component='web-gateway'):
+def check_archive(stream, source=None, arch=None, *, component='web-gateway', state=None):
     stream.seek(0)
     found = set()
     total = 0
@@ -357,7 +371,7 @@ def check_archive(stream, source=None, arch=None, *, component='web-gateway'):
             if manifest is None:
                 require(name == 'manifest.json' and item.size <= MAX_MANIFEST)
                 metadata = body.read()
-                manifest = validate_manifest(json.loads(metadata), source, arch, component=component)
+                manifest = validate_manifest(json.loads(metadata), source, arch, component=component, state=state)
                 expected = {f['path']: f for f in manifest['files']}
             else:
                 require(name in expected and item.size == expected[name]['bytes'])

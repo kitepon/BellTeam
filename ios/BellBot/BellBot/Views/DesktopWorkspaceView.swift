@@ -111,6 +111,10 @@ struct DesktopWorkspaceView: View {
         .onChange(of: store.selectedTab) { _, tab in
             compactColumn = tab == 0 && selection == nil ? .sidebar : .detail
         }
+        .onChange(of: compactColumn) { _, column in
+            // 縮んだiPadの戻るは一覧の列へ移るだけでchatPathは残る。相関図から開いた会話なら一覧でなく相関図へ帰る。
+            if column == .sidebar, horizontalSizeClass == .compact, store.returnFromConversation() { compactColumn = .detail }
+        }
         #if !targetEnvironment(macCatalyst)
         .onChange(of: horizontalSizeClass, initial: true) { _, size in
             if size == .compact { inspectorVisible = false }

@@ -69,6 +69,24 @@ flowchart LR
 
 外側はstate/owner/settingsの実regular fileをSHA-size/mode/mtimeで検査し、fixture通信・lock・採用recordだけを比較から除く。秘密値は原本へ出さずhashだけを保持。旧close時→新spawn直前→restore後を一致させ、helperの受付済設定callbackを交換drain中に完了する。同Cの3世代・親/別business/HTTP gateway保持、tamper/source公開前拒否とprivate全体EX拒否も既有限手順内で確認する。phaseはfixture工程、runtimePhaseは実controller状態として分離する。製品変更・追加image・再署名・Host操作はしない。人工bootstrap/portでの実component検査であり、通常全bootstrap/public Update ledger/実SDK席の証明にはしない。
 
+## Catalog rows keep their own published state, 2026-11-09 JST
+
+Cause (Trony request, Web777 catalog publisher run 42572426013 at ffb64bea): the preflight `validate_catalog(strict=True)` failed with `UPDATE_MODULE_STATE_INCOMPATIBLE` on the two published `usage` rows (source 30b509d8). Those rows truthfully carry `secretEncoding: utf8-exclusive-0600`, the state of the artifact that is installed now. C5 (next section) moved this source's BUSINESS_STATE['usage'] to `stored-or-private-reference-v1`, and `validate_business_compatibility` required every catalog row to equal the reader's own current source state. So one module's source change rejected the whole catalog, Web included. The same check in an installed body would reject a future catalog that carries the new usage rows. That catalog-wide equality names no protection of its own: the stored state is protected per target at plan time, where the running body's validator (`assertUsageStateCompatibility` etc. in `container-update-host.py` plan) checks the target row against the installed consumer and refuses only that target.
+
+From this change on, the catalog check for usage/diagnostics/work-graph/execution checks only the form of `stateCompatibility`: a nonempty token (at most 128 characters), or an object of 1..32 lowercase-initial alphanumeric keys (at most 64 characters) whose values are tokens, nonnegative integers less than 2^31, or lists of at most 32 tokens. Tokens match `[A-Za-z0-9._:,/+-]{1,128}`. Exact keys, int/None ABI fields and nodeMajor/parentProtocol stay fixed. `validate_business_archive` still requires catalog row == signed archive manifest == the consumer being installed. Catalog bytes and rows are not rewritten.
+
+```mermaid
+flowchart LR
+  Row[catalog business row stateCompatibility] --> Form{well-formed?}
+  Form -->|no| Reject[catalog rejected]
+  Form -->|yes| Keep[row kept as published]
+  Keep --> Plan[plan in running body: target state == installed consumer?]
+  Plan -->|no| Refuse[refuse this target only]
+  Plan -->|yes| Archive[archive: row == signed manifest == consumer] --> Install[install]
+```
+
+Impact: `scripts/update_catalog.py:validate_business_compatibility` and `test/business-artifact.test.py`. Callers: `validate_catalog` (publisher preflight and readers through `verify-update-catalog.py`), `validate_business_archive` (archive/consumer equality unchanged). Installed bodies keep the old check until the next body. members/memory/conversation follow the same rule since 2026-11-09 ([update-catalog](update-catalog.md#published-rows-keep-their-own-state-all-compound-components-2026-11-09-jst)).
+
 ## C5 secret reference state and child closure (2026-11-09)
 
 Centi authorized these source-contract edits in Mika's C5 diff. `SecretRequests` and the usage process validators import `usage/secret-credentials.mjs`, which imports `usage/onepassword-source.mjs`; BUSINESS_FILES['usage'] includes both files in the child artifact. NativeSecretCredentials is reached only from the parent usage-assembly and stays outside the child artifact.

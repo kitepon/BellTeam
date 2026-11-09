@@ -17,25 +17,17 @@ function fakeClient(responses) {
 }
 
 const status = () => json({ trust: { provider: 'aiterm.known-hosts.v1', revision }, credential: { revision: 7, available: true } })
-const request = { target: { host: '192.168.1.12', user: 'kite', port: 22, os: 'macos' }, hostTrust: { provider: 'aiterm.known-hosts.v1', revision }, credential: { nativeKeyRef: 'owner-macbook', credentialRevision: 7 }, privateEnv: { BELLTEAM_MCP_TOKEN: 't' } }
+const request = { target: { host: '192.168.1.12', user: 'kite', port: 22, os: 'macos' }, hostTrust: { provider: 'aiterm.known-hosts.v1', revision }, credential: { nativeKeyRef: 'owner-macbook', credentialRevision: 7 } }
 
-test('opens over the remote-terminal tools and maps call/command/close/lost', async () => {
+test('opens a transient process for C8 commands and closes it', async () => {
   const client = fakeClient({ remote_terminal_status: status, remote_terminal_command: ({ op }) => json({ op, exit_code: 0, version: '2.0.0' }) })
   const native = createRemoteTerminalProcesses({ project: '/srv/bellteam', connectClient: async () => client, run: async () => {} })
   const session = await native.connect(request)
-  assert.deepEqual(client.calls[1], { name: 'remote_terminal_open', args: { ref: 'owner-macbook', target: request.target, trustRevision: revision, credentialRevision: 7, privateEnv: { BELLTEAM_MCP_TOKEN: 't' } } })
-  await session.callTool('agent_launch', { cwd: '/x' }, { private: { appendSystemPrompt: 'r' }, timeoutMs: 5 })
-  assert.deepEqual(client.calls[2], { name: 'remote_terminal_call', args: { name: 'agent_launch', args: { cwd: '/x' }, private: { appendSystemPrompt: 'r' }, timeoutMs: 5 } })
+  assert.deepEqual(client.calls[1], { name: 'remote_terminal_open', args: { ref: 'owner-macbook', target: request.target, trustRevision: revision, credentialRevision: 7 } })
   assert.equal((await session.command('claude_version')).version, '2.0.0')
-  const events = []
-  session.onEvent(event => events.push(event.type))
-  await client.fallbackNotificationHandler({ method: 'aiterm/remote-terminal-event', params: { type: 'ready' } })
-  client.onclose()
-  assert.deepEqual(events, ['ready', 'lost'])
-  events.length = 0
   await session.close()
   assert.equal(client.calls.at(-1).name, 'remote_terminal_close')
-  assert.deepEqual(events, [], 'own close is not a loss')
+  assert.equal(client.closed, true)
 })
 
 test('stale trust and tool errors become classified codes and close the process', async () => {

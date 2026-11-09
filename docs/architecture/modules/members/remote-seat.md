@@ -30,7 +30,7 @@ flowchart LR
 | pair rule | both empty or both set (`BOT_REMOTE_BINDING_INVALID`) | A member is either local or bound to one terminal folder |
 | `bindingRevision` (derived, not stored) | first 16 hex of sha256 of `JSON.stringify([terminalId, projectRoot])` | Returned by launchContext as `revision`; execution relaunches fresh at the next idle boundary when it changes |
 
-The fields are additive optional keys in `bellteam.bot.v8`, so a v8 reader that predates them still restores the file. Create/update/preview use the existing per-Bot serialized `#mutateProfile` path and the existing projection snapshot plus `watch` change notice (`topics: ['bots']`, the Bot ID). No new event channel. Local members (`terminalId: ''`) keep the existing launch path and file writes unchanged.
+The fields are additive optional keys in `bellteam.bot.v8`, so a v8 reader that predates them still restores the file. Create/update/preview use the existing per-Bot serialized `#mutateProfile` path and the existing projection snapshot plus `watch` change notice (`topics: ['bots']`, the Bot ID). No new event channel. Local members (`terminalId: ''`) keep the existing launch path and file writes unchanged. The three binding rejections are input errors: `src/members/errors.mjs` maps them to status 400 / `not_accepted` (only code, outcome and status cross the module wire).
 
 Limit: a pre-C1 members child writes `bot.json` without the two fields, so a rollback to such a version drops a saved binding on the next profile save. The Owner re-enters it after rollforward; no member data other than the binding is affected.
 

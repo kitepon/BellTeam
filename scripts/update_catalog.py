@@ -64,22 +64,21 @@ def validate_notifications_archive(release, manifest):
 
 
 def validate_members_compatibility(value):
-    from web_gateway_artifact import contract
+    from web_gateway_artifact import state_form
     exact(value, 'nodeMajor,parentProtocol,stateSchema,containerUpdate,stateCompatibility')
     require(type(value['nodeMajor']) is int and value['nodeMajor'] == 26
             and type(value['parentProtocol']) is int and value['parentProtocol'] == 1
             and value['stateSchema'] is None and value['containerUpdate'] is None)
-    require(type(value['stateCompatibility']) is dict
-            and value['stateCompatibility'] == contract('members')[1]['stateCompatibility'], 'UPDATE_MEMBERS_STATE_INCOMPATIBLE')
+    require(type(value['stateCompatibility']) is dict and state_form(value['stateCompatibility']), 'UPDATE_MEMBERS_STATE_INCOMPATIBLE')
     return value
 
 
 def validate_members_archive(release, manifest, consumer_state):
-    from web_gateway_artifact import contract, validate_manifest
+    from web_gateway_artifact import state_form, validate_manifest
     require(release['componentId'] == 'members')
     compatibility = validate_members_compatibility(release['compatibility'])
-    validate_manifest(manifest, release['sourceCommit'], release['platform']['arch'], component='members')
-    require(consumer_state == contract('members')[1]['stateCompatibility'], 'UPDATE_MEMBERS_CONSUMER_UNSUPPORTED')
+    require(type(consumer_state) is dict and state_form(consumer_state), 'UPDATE_MEMBERS_CONSUMER_UNSUPPORTED')
+    validate_manifest(manifest, release['sourceCommit'], release['platform']['arch'], component='members', state=compatibility['stateCompatibility'])
     runtime = manifest['runtime']
     require(release['platform']['os'] == runtime['os']
             and compatibility['nodeMajor'] == runtime['nodeMajor']
@@ -90,21 +89,21 @@ def validate_members_archive(release, manifest, consumer_state):
 
 
 def validate_memory_compatibility(value):
-    from web_gateway_artifact import validate_memory_state
+    from web_gateway_artifact import state_form
     exact(value, 'nodeMajor,parentProtocol,stateSchema,containerUpdate,stateCompatibility')
     require(type(value['nodeMajor']) is int and value['nodeMajor'] == 26
             and type(value['parentProtocol']) is int and value['parentProtocol'] == 1
-            and value['stateSchema'] is None and value['containerUpdate'] is None)
-    validate_memory_state(value['stateCompatibility'])
+            and value['stateSchema'] is None and value['containerUpdate'] is None
+            and type(value['stateCompatibility']) is dict and state_form(value['stateCompatibility']), 'MEMORY_STATE_INCOMPATIBLE')
     return value
 
 
 def validate_memory_archive(release, manifest, consumer_state):
-    from web_gateway_artifact import validate_manifest, validate_memory_state
+    from web_gateway_artifact import state_form, validate_manifest
     require(release['componentId'] == 'memory')
     compatibility = validate_memory_compatibility(release['compatibility'])
-    validate_manifest(manifest, release['sourceCommit'], release['platform']['arch'], component='memory')
-    validate_memory_state(consumer_state)
+    require(type(consumer_state) is dict and state_form(consumer_state), 'MEMORY_STATE_INCOMPATIBLE')
+    validate_manifest(manifest, release['sourceCommit'], release['platform']['arch'], component='memory', state=compatibility['stateCompatibility'])
     runtime = manifest['runtime']
     require(release['platform']['os'] == runtime['os']
             and compatibility['nodeMajor'] == runtime['nodeMajor']
@@ -115,13 +114,14 @@ def validate_memory_archive(release, manifest, consumer_state):
 
 
 def validate_business_compatibility(component, value):
-    from web_gateway_artifact import BUSINESS_STATE, contract
+    from web_gateway_artifact import BUSINESS_STATE, state_form
     require(component in (*BUSINESS_STATE, 'execution'), 'UPDATE_MODULE_COMPONENT_INVALID')
     exact(value, 'nodeMajor,parentProtocol,stateSchema,containerUpdate,stateCompatibility')
+    # A row keeps the state of its own published artifact; the installed consumer is matched per target at plan/archive time.
     require(type(value['nodeMajor']) is int and value['nodeMajor'] == 26
             and type(value['parentProtocol']) is int and value['parentProtocol'] == 1
             and value['stateSchema'] is None and value['containerUpdate'] is None
-            and value['stateCompatibility'] == contract(component)[1]['stateCompatibility'], 'UPDATE_MODULE_STATE_INCOMPATIBLE')
+            and state_form(value['stateCompatibility']), 'UPDATE_MODULE_STATE_INCOMPATIBLE')
     return value
 
 
@@ -140,21 +140,20 @@ def validate_business_archive(release, manifest, consumer_state):
 
 
 def validate_conversation_compatibility(value):
-    from web_gateway_artifact import contract
+    from web_gateway_artifact import state_form
     exact(value, 'nodeMajor,parentProtocol,stateSchema,containerUpdate,stateCompatibility')
     require(type(value['nodeMajor']) is int and value['nodeMajor'] == 26
             and type(value['parentProtocol']) is int and value['parentProtocol'] == 1
             and value['stateSchema'] is None and value['containerUpdate'] is None)
-    require(type(value['stateCompatibility']) is dict
-            and value['stateCompatibility'] == contract('conversation')[1]['stateCompatibility'], 'UPDATE_CONVERSATION_STATE_INCOMPATIBLE')
+    require(type(value['stateCompatibility']) is dict and state_form(value['stateCompatibility']), 'UPDATE_CONVERSATION_STATE_INCOMPATIBLE')
     return value
 
 def validate_conversation_archive(release, manifest, consumer_state):
-    from web_gateway_artifact import contract, validate_manifest
+    from web_gateway_artifact import state_form, validate_manifest
     require(release['componentId'] == 'conversation')
     compatibility = validate_conversation_compatibility(release['compatibility'])
-    validate_manifest(manifest, release['sourceCommit'], release['platform']['arch'], component='conversation')
-    require(consumer_state == contract('conversation')[1]['stateCompatibility'], 'UPDATE_CONVERSATION_CONSUMER_UNSUPPORTED')
+    require(type(consumer_state) is dict and state_form(consumer_state), 'UPDATE_CONVERSATION_CONSUMER_UNSUPPORTED')
+    validate_manifest(manifest, release['sourceCommit'], release['platform']['arch'], component='conversation', state=compatibility['stateCompatibility'])
     runtime = manifest['runtime']
     require(release['platform']['os'] == runtime['os']
             and compatibility['nodeMajor'] == runtime['nodeMajor']

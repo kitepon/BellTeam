@@ -2,9 +2,9 @@
 
 Owner: Crust (bot-9741b319). Assigned by the Owner on 2026-11-09 at 13:44 JST.
 
-**P0 contracts adopted by Trony; P1 core implemented** (registry + connection + C8 maintenance, see [P1 implementation](#p1-implementation-2026-11-09)). Not yet wired: Mika's resolver, Elegg's remote native adapter and Molly's common mount; the core takes them as injected ports. The first supported path is **macOS + Claude Code**; Windows, Linux and other CLIs follow later.
+**P0 contracts adopted by Trony; P1 implemented on the ONE launch path** (registry + launch target + reachability + C8 maintenance, see [P1 implementation](#p1-implementation-2026-11-09-one-launch-path)). Aiterm launches every seat, local or terminal; terminals hands execution the terminal target. The first supported path is **macOS + Claude Code**; Windows, Linux and other CLIs follow later.
 
-Canonical connections: [module.json](module.json), [overall function map](../../feature-map.md), [overall data flow](../../data-flow.md#proposed-remote-terminal-seats-p0), [ownership rules](../../module-ownership.md). Request: Trony's `remote-seat-plan-20261109.md`, F-SEAT-HOST. This module owns terminal registration, SSH/sudo secret references, reachability and the **only entry that opens or reopens a terminal connection**. Execution owns the seat lifecycle and delivery; Aiterm owns native PTY transport. A transport carries data; it is never a relay AI seat.
+Canonical connections: [module.json](module.json), [overall function map](../../feature-map.md), [overall data flow](../../data-flow.md#proposed-remote-terminal-seats-p0), [ownership rules](../../module-ownership.md). Request: Trony's `remote-seat-plan-20261109.md`, F-SEAT-HOST. This module owns terminal registration, SSH/sudo secret references, host trust records, reachability, sudo-use receipts, C8 Claude Code upkeep and the **terminal target execution passes to Aiterm**. Execution owns the seat lifecycle and delivery; Aiterm owns the SSH connection and native PTY transport. A transport carries data; it is never a relay AI seat.
 
 ## Function diagram
 
@@ -13,7 +13,7 @@ flowchart LR
   UI[Authorized terminal management via common HTTP/MCP]
   Registry[terminals.registry: target metadata and secret handles]
   Check[terminals.reachability: observed target availability]
-  Connect[terminals.connection: sole connection opener]
+  Connect[terminals.connection: terminal launch target]
   Privilege[terminals.privilege: scoped sudo use and receipt]
   State[(Terminal registry and nonsecret sudo receipts)]
   Secrets[usage.settings: proposed secret-input resolution extension]
@@ -24,13 +24,14 @@ flowchart LR
   Registry <--> State
   Check --> Registry
   Check --> Connect
-  Exec -->|terminalId, member binding, cwd, launch context| Connect
+  Exec -->|terminalId, memberId, projectRoot, harness| Connect
   Connect --> Registry
   Connect -->|opaque credential handles| Secrets
-  Secrets -->|private resolved value channel| Connect
-  Connect -->|verified target and private SSH credential| Native
+  Secrets -->|binding ref + revision| Connect
+  Connect -->|terminal target + cwd + accountOwner| Exec
+  Exec -->|agent_launch terminal + cwd, session_id calls| Native
+  Check -->|transient probe, C8 commands| Native
   Native <-->|PTY and process observations| Mac
-  Connect -->|opaque connection and observations| Exec
   Exec -->|bound sudo operation| Privilege
   Privilege --> Secrets
   Privilege --> Native
@@ -66,7 +67,7 @@ These names define P0 responsibilities, not implemented route or wire names. All
 | --- | --- | --- |
 | `registry` | List/get; register/update explicit target fields and opaque key handles; remove by terminalId -> saved nonsecret target projection or real save/validation error | API/MCP first in P1; Web/Apple UI in P2. Existing member fields without terminalId keep the local path. No probing or SSH connection as a side effect of a read |
 | `reachability` | `check(terminalId)` -> dated reachable/unreachable observation with a fixed nonsecret reason | Uses connection's same SSH target, trust and credential path. A successful check authenticates the target, then releases the probe resources; it does not launch Claude. Offline, asleep and unreachable are availability observations, not proof that a seat vanished |
-| `connection` | `open({terminalId, memberId, projectRoot, seatBinding, accountOwner})` -> opaque target-bound connection or a classified observation/error; close/release -> actual resource outcome | Validate current target revision, SSH identity, account domain and initial cwd. Execution then supplies its native launch plan through the bound connection; Aiterm starts the process with cwd already set. A nonexistent/inaccessible directory cannot fall back to home or a later `cd`. Read/send/observe/control use that same bound channel; every reconnect re-enters this port |
+| `connection` | `target({terminalId, memberId, projectRoot, harness})` -> terminal target + cwd + accountOwner, or a classified not-started error | Superseded by the ONE launch path ruling (see P1): validate current target revision, trust, credential binding and absolute cwd; execution passes the target to Aiterm's own launch, which starts the process with cwd already set and binds later calls by session. A nonexistent/inaccessible directory cannot fall back to home or a later `cd` |
 | `privilege` | Bound connection + member/seat identity + requested sudo operation -> actual result and nonsecret use receipt | Resolve optional sudo key only for this use, with no approval wait. No key supplied means ordinary SSH-user execution; never silently fall back to root or another credential. Optional sudo does not gate ordinary seat launch |
 
 `seatBinding` is execution's existing native seat/session identity and launch context, augmented with terminalId/projectRoot binding, not a new terminal-generated identity. Native handles and authorization stay opaque inside their owners. If the module runs as a child, common effects retain those resources and only typed references cross IPC; no Promise/callback/credential is serialized into a business DTO. Terminals' internal source/protocol and tests will be owned here; common mounting/controller and artifact supply remain Molly/Centi contracts, following the [work-graph precedent](../work-graph/README.md#process-placement-trony-ruling-2026-11-08). P0 does not prescribe another long-lived service or install helper.
@@ -79,9 +80,9 @@ These names define P0 responsibilities, not implemented route or wire names. All
 | T02 | App secret input -> Mika | 1Password reference first when connected; stored secret-input value remains optional fallback. Same choice applies to SSH, sudo and account login. Mika returns an opaque handle and change notification |
 | T03 | Members -> execution -> terminals.connection | Member ID, terminalId, absolute projectRoot, existing seat identity, selected slot/account domain. Members supplies launch instructions directly to execution; terminals does not generate them |
 | T04 | Terminals -> Mika -> private consumer | Handle + target/member/purpose context -> resolved SSH/sudo value for only the bound consumer. Mika may use server `op` or terminal-local `op` under its own contract; terminals never runs `op` |
-| T05 | Terminals -> Aiterm -> registered terminal | Structured SSH target, trusted host identity and private credential channel -> authenticated connection; errors expose fixed categories, not raw secret-bearing output |
-| T06 | Execution -> bound Aiterm channel -> Claude | Start with cwd = projectRoot, folder's own rules, launch-time BellTeam instructions, MCP connection/identity and selected target-owner account slot. No generated AGENTS/CLAUDE/MCP configuration writes to the user's repository or home |
-| T07 | Remote seat -> LAN common MCP -> existing providers | Authenticated existing seat identity -> messages, scoped memory/knowledge and proposed member-scoped docs operations; replies return directly to that seat. No relay seat |
+| T05 | Terminals -> execution -> Aiterm -> registered terminal | Terminal target (binding ref, structured SSH target, trust and credential revisions) -> Aiterm's authenticated connection at launch; errors expose fixed categories, not raw secret-bearing output |
+| T06 | Execution -> Aiterm launch with terminal target -> Claude | Start with cwd = projectRoot, folder's own rules, launch-time BellTeam instructions, MCP connection/identity and selected target-owner account slot. No generated AGENTS/CLAUDE/MCP configuration writes to the user's repository or home |
+| T07 | Remote seat -> SSH reverse forward -> container-loopback seat MCP -> existing providers | Authenticated existing seat identity -> messages, scoped memory/knowledge and proposed member-scoped docs operations; replies return directly to that seat. No relay seat |
 | T08 | Aiterm remote capture -> execution -> conversation/current-work | Terminal output/transcript and native turn references -> existing history append/current-work paths, bound to member + seat + turn + delivery where present. History persistence ACK and current-work projection remain distinct; no second terminals history writer |
 | T09 | Availability observer -> execution -> existing pending delivery | Reconnection/ready event -> resume delivery of original saved IDs. Message acceptance remains durable while the machine sleeps; terminals introduces no new delivery queue |
 | T10 | Seat sudo request -> terminals.privilege -> Mika/Aiterm -> receipt | Target-scoped sudo use, no approval wait -> every-use audit and actual result. Credentials use non-echoing private input and are absent from PTY capture |
@@ -137,9 +138,11 @@ All four Owner rulings are carried above: asleep input retained; terminal owner'
 
 ## Scope of verification and later acceptance
 
-### P1 implementation (2026-11-09)
+### P1 implementation (2026-11-09, ONE launch path)
 
-Settled peer contracts: Kiro #765 (execution remote-seat), Elegg aiterm-mcp `feat/remote-terminal-c3` remote-terminal.md f7022539 (native-held credential), Mika `feat/secret-onepassword-20261109` (native credential union), Molly #767 (in-parent mount), Belorta #768 (member terminalId/projectRoot).
+Trony ruling (Owner, 2026-11-09 16:1x JST): one launch path from the start. Aiterm's existing `agent_launch` (and `claude_agent` / `codex_agent` / `grok_agent`) takes an optional `terminal` target + `cwd` (Elegg, accepted shape below); execution (Kiro) uses that same call for every seat, and send/wait/transcript go through Aiterm by `session_id` like any local seat. terminals no longer wraps a live session: no `open`/`close`/bound `native`/`wait`. Remote seat MCP rides Elegg's SSH reverse forward (R12, terminal `127.0.0.1:P` stable per terminal) to Molly's container-loopback ingress.
+
+Settled peer contracts: Kiro #765 (execution uses `connection.target` + `watch`), Elegg aiterm-mcp remote-terminal.md (binding ref, `serve` tools, launch `terminal` argument), Mika #772 (native credential union `{nativeKeyRef, revision}`), Molly #767 (in-parent mount), Belorta #768 (member terminalId/projectRoot).
 
 ```mermaid
 flowchart LR
@@ -147,68 +150,72 @@ flowchart LR
   Core --> Reg[registry.mjs]
   Reg <-->|writeAtomic| D10[(stateRoot/terminals.json)]
   Reg -->|nonsecret change terminalId,revision| Conn[connection.mjs]
-  Exec[execution remote-seat #765] -->|open terminalId,memberId,projectRoot,seatBinding,accountOwner,credentials names->refs| Conn
-  Conn -->|internal target| Reg
+  Exec[execution #765] -->|target terminalId,memberId,projectRoot,harness| Conn
+  Conn -->|internal record| Reg
   Conn -->|withResolved sshKeyRef, terminalId+memberId+purpose| Mika[usage credentials C5]
   Mika -->|nativeKeyRef + revision only, inside callback| Conn
-  Conn -->|reveal credentialRef| Seat[Molly seatCredentials]
-  Conn -->|2nd slot login, accountOwner=owner only| Login[accountLoginEnvironment]
-  Conn -->|connect target,hostTrust,credential,privateEnv| Proc[remote-process.mjs]
-  Proc -->|seat command entry, UID1000 stdio MCP| RT[aiterm-remote-terminal: status/open/call/transcript/command/close]
-  RT -->|SSH with Aiterm-held key + known_hosts| Mac[Owner Mac: claude in projectRoot]
-  Conn -->|connectionRef + bound native: callTool / transcript.read| Exec
-  Conn -->|first agent_launch claude-code| Maint[maintenance: claude_version, claude_update or claude_install]
-  Maint --> RT
-  RT -->|event lost| Conn
-  Mika -->|watchCredentials available| Conn
+  Conn -->|terminal ref,target,trustRevision,credentialRevision + cwd + accountOwner| Exec
+  Exec -->|agent_launch terminal + cwd, then session_id calls| Aiterm[local Aiterm: routes the seat to the terminal]
+  Aiterm -->|bound SSH, R12 reverse forward for seat MCP| Mac[Owner Mac: claude in projectRoot]
+  Conn -->|harness claude-code: C8 claude_version, claude_update or claude_install| Proc[remote-process.mjs: transient aiterm-remote-terminal serve]
   Probe[non-AI availability observer: check retry] --> Conn
-  Conn -->|available terminalId| Exec
-  Core -->|watch terminalId,reachable,observedAt| Molly
+  Conn -->|check: open then close| Proc
+  Proc --> Mac
+  Mika -->|watchCredentials available| Conn
+  Conn -->|available terminalId| Core
+  Core -->|watch terminalId,reachable,observedAt| Exec
   Core -->|TERMINAL_TARGET_MISMATCH + action| Diag[diagnostics.record]
 ```
 
 | Port (`provides`) | P1 method | Result / classified failure |
 | --- | --- | --- |
-| mount | `createTerminalsCore({stateRoot, credentials, seatCredentials, report, seatProject?})`, exported from `src/bootstrap.mjs` | `{registry, reachability, connection, maintenance, watch, close}`; `credentials` may be null until Mika's facade lands (opens are then `CREDENTIAL_UNAVAILABLE`) |
-| `registry` | `list()`, `get(id)` (null if absent), `put(input)`, `remove(id)` | Nonsecret projection with `ingressUrl` and `maintenance` (last C8 outcome or null, in memory); errors `{code, status}`: `INVALID_TERMINAL` 400, `TERMINAL_NOT_FOUND` 404, `TERMINAL_EXISTS` 409, `HOST_KEY_FINGERPRINT_MISMATCH` 409, `INVALID_TERMINAL_STORE` 500 |
+| mount | `createTerminalsCore({stateRoot, credentials, report, seatProject?})`, exported from `src/bootstrap.mjs` | `{registry, reachability, connection, maintenance, watch, close}`; `credentials` may be null until Mika's facade lands (targets are then `CREDENTIAL_UNAVAILABLE`). An extra `seatCredentials` option from the mount is ignored (no secret passes through terminals any more) |
+| `registry` | `list()`, `get(id)` (null if absent), `put(input)`, `remove(id)` | Nonsecret projection with `ingressUrl` and `maintenance` (last C8 outcome or null, in memory); errors `{code, status, message}`: `INVALID_TERMINAL` 400, `TERMINAL_NOT_FOUND` 404, `TERMINAL_EXISTS` 409, `HOST_KEY_FINGERPRINT_MISMATCH` 409, `INVALID_TERMINAL_STORE` 500. Messages name the field, its expected form and the next action, and never echo the submitted value |
 | `registry` | `put({..., confirmHostKey: 'SHA256:...'})` | Owner's "confirm the new host key": Aiterm's `trust-confirm` scans once and writes only on an equal fingerprint, then the new trust revision is stored. Without it, a new record binds the trust Aiterm already holds (P1 pre-enrolled known_hosts) |
-| `connection` | `open({terminalId, memberId, projectRoot, seatBinding:{botId, sessionName}, accountOwner, credentials?})` | `{connectionRef, native}`; or `{code, effect:'not_started', reason?, action?}` with code `TERMINAL_UNAVAILABLE` / `CREDENTIAL_UNAVAILABLE` / `TARGET_MISMATCH` |
-| `connection` | `native.callTool(name, args, {private?, timeoutMs?})`, `native.transcript.read({sessionName, cursor, maxBytes?})` | Raw MCP result of the remote Aiterm tool, identical to local. `agent_launch` must carry `cwd === projectRoot` and `session_name === seatBinding.sessionName` or it is `TARGET_MISMATCH` without reaching the terminal. `CWD_UNAVAILABLE` / `CONNECTION_LOST` from the remote pass through |
-| `connection` | `close(connectionRef)`; `onAvailable(listener)` -> unsubscribe | Idempotent release; `listener({terminalId})` when the terminal is usable again |
-| `reachability` | `check(terminalId)` | `{terminalId, observedAt, reachable, reason, action?}`; opens and closes the remote process, never launches |
+| `connection` | `target({terminalId, memberId, projectRoot, harness})` | `{terminal: {ref, target: {host, user, port}, trustRevision, credentialRevision}, cwd: projectRoot, accountOwner: 'owner' / 'terminal-owner'}`. Execution passes `terminal` + `cwd` unchanged to Aiterm's launch and applies the Owner's 1st/2nd slot login only when `accountOwner === 'owner'`. Or `{code, effect:'not_started', reason?, action?}` with code `TERMINAL_UNAVAILABLE` / `CREDENTIAL_UNAVAILABLE` / `TARGET_MISMATCH` |
+| `connection` | `onAvailable(listener)` -> unsubscribe | `listener({terminalId})` when the terminal is usable again (core republishes it on `watch`) |
+| `reachability` | `check(terminalId)` | `{terminalId, observedAt, reachable, reason, action?}`; opens and closes one transient remote process, never launches |
 | `maintenance` (C8) | `last(terminalId)` | `{terminalId, observedAt, before, after, outcome:'current'/'updated'/'failed'}` |
-| watch | `watch(listener)` | `{terminalId, reachable, observedAt}` for Molly's surfaces |
+| watch | `watch(listener)` | `{terminalId, reachable, observedAt}` for execution's pending drain and Molly's surfaces |
 
-`credentials` on `open` (Kiro): `{BELLTEAM_MCP_TOKEN: credentialRef, CLAUDE_CODE_OAUTH_TOKEN?: {harness:'claude', slot}}`. Terminals resolves them into `privateEnv` (Molly `seatCredentials.reveal`; the slot login through the existing `accountLoginEnvironment`, only when the registry `accountOwner` is `owner`). Any other name, or a login for a non-Owner terminal, is `CREDENTIAL_UNAVAILABLE` and the Owner's token is never read. Values go only to Elegg's `privateEnv` over SSH stdin. Known limit: the default slot-login read (`accountLoginEnvironment`) runs in the parent (UID1001) while the token file is the seat user's (UID1000), so remote 2nd-slot launch is not accepted until a seat-user/native login supply exists; P1 acceptance uses the 1st slot.
+Aiterm launch argument (Elegg accepted, next aiterm-mcp release): `terminal` is strict (unknown keys, missing fields or a target differing from the binding -> `TERMINAL_INVALID` / `TARGET_MISMATCH`, never a local fallback); `cwd` is required with it (absolute path on that terminal, else `CWD_UNAVAILABLE` before any session); first scope `harness: claude-code` (others `TERMINAL_HARNESS_UNSUPPORTED`). Revisions are checked at launch; later calls bind by `session_id`.
 
 Rules the code enforces:
 
-- Native mapping: `HOST_TRUST_MISSING` / `HOST_TRUST_STALE` / `HOST_KEY_MISMATCH` / `HOST_KEY_FINGERPRINT_MISMATCH` -> `TARGET_MISMATCH`; `CREDENTIAL_UNUSABLE` / `CREDENTIAL_REVISION_STALE` / `AUTH_FAILED` -> `CREDENTIAL_UNAVAILABLE`; `UNREACHABLE` / `REMOTE_AITERM_*` / `CONNECTION_LOST` / anything unclassified -> `TERMINAL_UNAVAILABLE`. Only the code, Elegg's plain `action` and the host appear; raw native text is dropped. Every `TARGET_MISMATCH` at open is recorded through `report` with its action so the Owner sees it.
-- Missing `hostTrust`, `accountOwner` different from the registry, or a non-absolute `projectRoot` -> `TARGET_MISMATCH` before any process starts.
-- Credential and trust are Aiterm-held (UID1000). Mika's callback gives only `{nativeKeyRef, revision}` (a string value is reserved for a future key value and is refused by the P1 process adapter). Terminals keeps no copy; every open resolves again.
-- `HOST_TRUST_STALE`: terminals re-reads Aiterm's status and stores the new trust revision; that registry change emits `available` and execution re-opens.
-- Exits (no sticky state): a failed open for availability or credential records the terminal as wanted. Mika's `{available:true}` event for its handle, a registry change, or a successful observer `check` emits `available`. The observer is an in-process timer that runs `check` only while some wanted terminal is not yet usable (30 s, doubling to 5 min), stops on success or removal, and never wakes an AI. A `lost` event from the remote process marks the terminal wanted again.
-- A registry change closes that terminal's live connections (old revision) before emitting `available`.
-- Connection lifecycle:
+- Native mapping (check and C8 processes): `HOST_TRUST_MISSING` / `HOST_TRUST_STALE` / `HOST_KEY_MISMATCH` / `HOST_KEY_FINGERPRINT_MISMATCH` -> `TARGET_MISMATCH`; `CREDENTIAL_UNUSABLE` / `CREDENTIAL_REVISION_STALE` / `AUTH_FAILED` -> `CREDENTIAL_UNAVAILABLE`; `UNREACHABLE` / `REMOTE_AITERM_*` / `CONNECTION_LOST` / anything unclassified -> `TERMINAL_UNAVAILABLE`. Only the code, Elegg's plain `action` and the host appear; raw native text is dropped. Every `TARGET_MISMATCH` from `target` is recorded through `report` with its action so the Owner sees it.
+- Missing `hostTrust`, a non-absolute `projectRoot` or a missing `memberId` -> `TARGET_MISMATCH` before any process starts. `accountOwner` is returned from the registry, not asserted by the caller.
+- Credential and trust are Aiterm-held (UID1000). Mika's callback gives only `{nativeKeyRef, revision}`; the binding ref and revisions are public metadata and are what `terminal` carries. A string value (a future key value) is refused as `CREDENTIAL_UNAVAILABLE`. Every `target` resolves again.
+- `HOST_TRUST_STALE`: terminals re-reads Aiterm's status and stores the new trust revision; that registry change emits `available` and execution re-targets.
+- Exits (no sticky state): a failed `target` for availability or credential records the terminal as wanted. Mika's `{available:true}` event for its handle, a registry change, or a successful observer `check` emits `available`. The observer is an in-process timer that runs `check` only while some wanted terminal is not yet usable (30 s, doubling to 5 min), stops on success or removal, and never wakes an AI.
+- Staleness and lifecycle (`target` and `check` alike):
 
 ```mermaid
 stateDiagram-v2
-  [*] --> Opening: open (captures terminal generation before the registry read)
-  Opening --> Live: native.connect settled, generation unchanged, not disposed
-  Opening --> Discarded: registry change for the terminal or dispose during target read, credential resolution or connect
-  Discarded --> [*]: session closed, TERMINAL_UNAVAILABLE not_started (registry change already emitted available)
-  Live --> Closed: close(ref) / lost event / registry change / dispose
-  Closed --> [*]
+  [*] --> Reading: target / check (captures terminal generation before the registry read)
+  Reading --> Resolving: record read, generation unchanged, not disposed
+  Resolving --> Connecting: Mika binding resolved, generation unchanged, not disposed
+  Connecting --> Running: process connected, generation unchanged, not disposed (C8 commands or probe)
+  Running --> Closing: commands done
+  Running --> Discarding: registry change or dispose; checked before each C8 command, so no later command starts
+  Reading --> Discarded: registry change or dispose during the await
+  Resolving --> Discarded: registry change or dispose during the await
+  Connecting --> Discarding: registry change or dispose while connect was pending
+  Discarding --> Discarded: session closed (awaited), no command runs, no C8 record written
+  Closing --> [*]: session closed (awaited); target returned only if still current
+  Discarded --> [*]: TERMINAL_UNAVAILABLE not_started / check reachable:false (registry change already emitted available)
 ```
 
-  `dispose()` (core `close()`) is async: it stops the observer, marks the core disposed, waits for every in-flight `open` and `check` from its first step through its discard-close, then closes every live session (each UID1000 remote-terminal process) before resolving. Staleness is re-checked after each await and inside the credential callback, so no process starts after dispose or a registry change. `close` is tracked the same way, so a close already in flight (registry change or caller) is awaited too. After dispose, `open` and `check` start nothing and the observer cannot be re-armed.
-- C8: on the first `agent_launch` with `harness:'claude-code'` per connection, before forwarding it: `claude_version`, then `claude_update` (or the official `claude_install` when no CLI answers), then `claude_version`. The outcome is kept for `maintenance.last`. A failed update never blocks the launch, the installed CLI stays, running CLIs are untouched, and no version is pinned.
+  `dispose()` (core `close()`) stops the observer, marks the core disposed and waits for every in-flight `target` / `check` through its discard-close. After dispose nothing starts, no C8 command or record write begins, and the observer cannot be re-armed.
+- C8: on `target` with `harness:'claude-code'`, before returning: `claude_version`, then `claude_update` (or the official `claude_install` when no CLI answers), then `claude_version`, over one transient process. Concurrent launches on one terminal share the run. The outcome is kept for `maintenance.last`. A failed update never vetoes the target, the installed CLI stays, running CLIs are untouched, and no version is pinned. An unreachable terminal is reported as `TERMINAL_UNAVAILABLE` (the launch could not start either).
+- Known limit (inherited, P3): the Owner's 2nd-slot login is supplied by execution at launch; terminals no longer reads any login.
 
-Test double for execution: `test/helpers/terminals-native-double.mjs` (`fakeConnection`, plus `fakeNative` / `fakeSecrets` for the ports terminals consumes).
+- Misuse resistance (Owner 2026-11-09 「AIが使い方を間違えないように」): the MCP tool descriptions (`src/terminals-mcp.mjs`, member `terminalId`/`projectRoot` in `src/members/profiles-mcp.mjs`) state each field's meaning and form, that keys are given only as a 1Password reference or through the secret input card (never in an argument or message), that `projectRoot` is an absolute path on that terminal, and what each error means with its next action. The registry rejects malformed input with a message naming the field, its expected form and the next action, never echoing the value; a ref field holding something key-like (`-----BEGIN`, `op://`, `ssh-ed25519` ...) is refused with the secret-input instruction.
+
+Test double for execution: `test/helpers/terminals-native-double.mjs` (`fakeConnection` with `target`/`onAvailable`, plus `fakeNative` / `fakeSecrets` for the ports terminals consumes).
 
 #### Registry
 
-`src/terminals/registry.mjs:createTerminalRegistry({stateRoot, onChange?})` owns `<stateRoot>/terminals.json` using the existing `writeAtomic` helper. `terminalId` is either supplied as a lowercase slug at registration (for example `owner-macbook`, matching Mika's handle context) or generated. Methods: `list()`, `get(terminalId)`, `register(record)`, `update(terminalId, patch)`, `remove(terminalId)`. An internal `target(terminalId)` returns a cloned target with credential handles to the connection core only. The public get/list/mutation return excludes handles and exposes configured indicators. Records contain terminalId, host, user, port (default22), os (`macos`), accountOwner (`owner` or `terminal-owner`), sshKeyRef (opaque UUID), optional sudoKeyRef, hostTrust (`{provider, revision}` public nonsecret trust-provider reference), and increasing revision. A missing hostTrust is a target requiring trust enrollment, not implicit trust. No arbitrary private path or raw op:// belongs in this DTO.
+`src/terminals/registry.mjs:createTerminalRegistry({stateRoot, onChange?})` owns `<stateRoot>/terminals.json` using the existing `writeAtomic` helper. `terminalId` is either supplied as a lowercase slug at registration (for example `owner-macbook`, matching Mika's handle context) or generated. Methods: `list()`, `get(terminalId)`, `register(record)`, `update(terminalId, patch)`, `remove(terminalId)`. An internal `target(terminalId)` returns a cloned target with credential handles to the connection core only. The public get/list/mutation return excludes handles and exposes configured indicators. Records contain terminalId, host, user, port (default22), os (`macos`), accountOwner (`owner` or `terminal-owner`), optional sshKeyRef (opaque UUID; a terminal is registered first and its key bound later through Molly's `bind_terminal_key`, until then `target` is `CREDENTIAL_UNAVAILABLE` reason `SSH_KEY_UNSET`), optional sudoKeyRef, hostTrust (`{provider, revision}` public nonsecret trust-provider reference), and increasing revision. A missing hostTrust is a target requiring trust enrollment, not implicit trust. No arbitrary private path or raw op:// belongs in this DTO.
 
 Register/update validate exact fields and types before saving; unknown terminal returns null on read and a classified missing error on update. No implicit target substitution. Mutations serialize, load the current store, atomically save a copied next state, then publish one nonsecret change event; save failure preserves prior state and produces no success event. Re-reading on each operation allows corrected source state to recover without a sticky initialization failure. Remove is idempotent and emits only when a record was actually removed. The connection core subscribes to authoritative registry changes to close stale resources/re-evaluate desired bindings; registry never reads secret files, probes a terminal or launches a seat.
 

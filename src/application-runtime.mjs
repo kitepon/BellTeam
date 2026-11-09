@@ -7,7 +7,7 @@ import { createWebGatewayControl } from './web-gateway-control.mjs'
 import { createApplicationServices } from './application-services.mjs'
 import { createApplicationFeatures } from './application-features.mjs'
 import { createBellTeamServer } from './http-server.mjs'
-import { createRemoteSeatIngress, createSeatMcp, internalApi } from './seat-mcp.mjs'
+import { createRemoteSeatIngress, createRemoteSeatServer, createSeatMcp, internalApi } from './seat-mcp.mjs'
 import { createBugHubSecurity } from './bughub-security.mjs'
 import { LiveModelCatalog } from './model-catalog.mjs'
 import { runtimeHome } from './runtime-home.mjs'
@@ -78,8 +78,10 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
       services.members ? transport.membersAdmission.withLease(membersLease =>
         bootstrap.seatRuntime.configureMembersHarnesses(() => services.members.readCurrentBotIds({ membersLease }), aiterm,
           () => settings.configuration('callBridge'))) : bootstrap.seatRuntime.writeHarnessConfig(bots, aiterm, callBridge) } : {}) })
-  server = createBellTeamServer({ ...serverOptions, authMode: features.authMode, authorize: features.authorize,
-    remoteSeatMcp: createRemoteSeatIngress({ credentials: services.seatCredentials, bots, seatMcp: () => seatMcp }) })
+  server = createBellTeamServer({ ...serverOptions, authMode: features.authMode, authorize: features.authorize })
+  // Remote seats reach this only through Aiterm's SSH reverse forward (remote-seat-ingress.md RS05); never via 4180/18891.
+  const remoteSeatPort = Number(environment.BELLTEAM_REMOTE_SEAT_PORT ?? 4182)
+  const remoteSeatServer = createRemoteSeatServer(createRemoteSeatIngress({ credentials: services.seatCredentials, bots, seatMcp: () => seatMcp }))
   const seatMcp = createSeatMcp({
     bots,
     runTool: (from, operation) => services.conversationAssembly ? services.conversationAssembly.run({ kind: 'bot', botId: from }, operation) : operation(),
@@ -98,7 +100,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     },
     admitWork: () => aiControl.admit(),
     assertWorkAllowed: () => aiControl.assertEnabled(),
-    tools: { registry: bots, botView: bot => administration.view(bot), messenger, store, rooms, roomMessenger, memory, ownerProfile, userRules, bugHubSecurity: createBugHubSecurity({ root }), terminals: () => services.terminals, internalUrl: `http://127.0.0.1:${internalPort}`, ...internalApi(internalPort) },
+    tools: { registry: bots, botView: bot => administration.view(bot), messenger, store, rooms, roomMessenger, memory, ownerProfile, userRules, bugHubSecurity: createBugHubSecurity({ root }), terminals: () => services.terminals, terminalKeys: () => services.terminalKeys, internalUrl: `http://127.0.0.1:${internalPort}`, ...internalApi(internalPort) },
     callBridge: () => {
       const config = settings.configuration('callBridge')
       return config.enabled ? { url: config.url, headersFile: callBridgeHeaders } : null
@@ -138,6 +140,8 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
       const socketPath = join(socketDirectory, 'public.sock')
       await listen(server, socketPath); proceed()
       await listen(internalServer, internalPort, '127.0.0.1'); proceed()
+      // A failed remote-seat listener only leaves remote seats without MCP; the body keeps serving and the next start retries.
+      await listen(remoteSeatServer, remoteSeatPort, '127.0.0.1').catch(error => process.stderr.write(`REMOTE_SEAT_LISTEN_FAILED ${error.code ?? ''}\n`)); proceed()
       // Without this endpoint the installer records quiesce=unconfirmed and still stops; serving matters more.
       if (quiesceSocket) quiesceEndpoint = await listenBodyQuiesce({ path: quiesceSocket, ...(services.lifecycle?.quiesce ? { quiesce: services.lifecycle.quiesce } : {}) }).catch(error => {
         process.stderr.write(`BODY_QUIESCE_UNAVAILABLE ${error.code ?? ''}\n`)
@@ -182,7 +186,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
         () => webGatewayControl.close(),
         () => gateway?.close(),
         () => scheduler.stop(), () => idleSessions?.stop(), () => selfTurns.stop(), () => seatTurns?.stop(),
-        () => closeServer(server), () => closeServer(internalServer), () => features.close(),
+        () => closeServer(server), () => closeServer(internalServer), () => closeServer(remoteSeatServer), () => features.close(),
         // Before the providers they call (usage, diagnostics, native client) close.
         () => services.credentialRefresh?.stop(), () => services.terminals?.close?.(),
         () => bootstrap.seatRuntime?.memoryModule?.close(),
@@ -208,5 +212,5 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     })()
     return stopping
   }
-  return { services, features, server, internalServer, get gateway() { return gateway }, start, stop, close }
+  return { services, features, server, internalServer, remoteSeatServer, get gateway() { return gateway }, start, stop, close }
 }
