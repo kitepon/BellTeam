@@ -32,7 +32,7 @@ test('readTerminals tolerates older bodies and an unmounted core', async () => {
   assert.deepEqual(await readTerminals(async () => ({ terminals: [{ terminalId: 'a' }] })), { terminals: [{ terminalId: 'a' }] })
   const old = await readTerminals(failing({ status: 404 }))
   assert.equal(old.unsupported, true)
-  assert.match(old.message, /まだ端末に対応していません/)
+  assert.match(old.message, /端末は、本体を「Update」で更新すると使えます。/)
   assert.match((await readTerminals(failing({ status: 503, code: 'TERMINALS_UNAVAILABLE' }))).message, /動いていません/)
   await assert.rejects(readTerminals(failing(Object.assign(new Error('aborted'), { name: 'AbortError' }))))
 })
@@ -41,6 +41,7 @@ test('readTerminals tolerates older bodies and an unmounted core', async () => {
 class E {
   constructor(tag) { this.tagName = tag; this.children = []; this.handlers = {}; this.dataset = {}; this.value = ''; this.disabled = false; this.open = false; this.textContent = '' }
   addEventListener(name, fn) { (this.handlers[name] ??= []).push(fn) }
+  setAttribute(name, value) { this[name] = value }
   append(...nodes) { this.children.push(...nodes) }
   replaceChildren(...nodes) { this.children = nodes }
   querySelector(selector) { this.nodes ??= new Map(); if (!this.nodes.has(selector)) this.nodes.set(selector, new E('x')); return this.nodes.get(selector) }
@@ -115,4 +116,20 @@ test('host key draft: failure keeps it, a reopened dialog keeps its newer draft,
 
   v.trust().fire('submit'); await settle(); v.puts[2].resolve({}); await settle(); await settle()
   assert.equal(field(), '')
+})
+
+test('older body (404) is a neutral notice: icon, no refresh, 追加 disabled; 503 stays an error with refresh', async t => {
+  const previous = globalThis.document
+  globalThis.document = { createElement: tag => new E(tag) }
+  t.after(() => { globalThis.document = previous })
+  const { createTerminalsView } = await import('../web/terminals.js')
+  for (const [error, tone, hidden] of [[{ status: 404 }, 'terminals-info', true], [{ status: 503, code: 'TERMINALS_UNAVAILABLE' }, 'form-error', false]]) {
+    const dialog = new E('dialog')
+    await createTerminalsView(dialog, { api: async () => { throw error } }).open()
+    const notice = dialog.querySelector('[data-terminals-notice]')
+    assert.equal(notice.className, tone)
+    assert.equal(nodes(notice).some(node => node.className === 'terminals-info-icon'), tone === 'terminals-info')
+    assert.equal(Boolean(dialog.querySelector('[data-terminals-refresh]').hidden), hidden)
+    assert.equal(dialog.querySelector('[data-terminals-add]').disabled, true)
+  }
 })

@@ -873,6 +873,9 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 #terminals-dialog .text-button { color: var(--s-muted); }
 #terminals-dialog .text-button.primary { color: var(--s-accent); }
 #terminals-dialog .text-button:disabled { opacity: .5; }
+#terminals-dialog .terminals-info { display: flex; align-items: center; gap: 12px; margin: 0 0 16px; padding: 14px 16px; border: 1px solid var(--s-line); border-radius: 16px; background: var(--s-surface); color: var(--s-ink); font-size: 14px; line-height: 1.6; }
+#terminals-dialog .terminals-info-icon { display: grid; flex: none; place-items: center; width: 34px; height: 34px; border-radius: 11px; background: var(--s-accent-bg); color: var(--s-accent); }
+#terminals-dialog .terminals-info-icon::before { content: ""; width: 18px; height: 18px; background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 11v5M12 7.5v.5'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 11v5M12 7.5v.5'/%3E%3C/svg%3E") center / contain no-repeat; }
 #terminals-dialog .terminal-card, #terminals-dialog .terminal-form { display: grid; gap: 12px; margin: 0 0 16px; padding: 20px 22px; border: 1px solid var(--s-line); border-radius: 20px; background: var(--s-surface); }
 #terminals-dialog .terminal-form h4 { margin: 0; font-size: 16px; }
 .terminal-card .terminal-form { margin: 4px 0 0; padding: 16px; background: var(--s-soft); }

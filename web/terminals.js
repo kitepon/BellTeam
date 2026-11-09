@@ -43,7 +43,7 @@ export async function readTerminals(api, options) {
   catch (error) {
     if (error?.name === 'AbortError') throw error
     return { error, unsupported: error?.status === 404 || error?.status === 405,
-      message: error?.status === 404 || error?.status === 405 ? 'この本体は、まだ端末に対応していません。'
+      message: error?.status === 404 || error?.status === 405 ? '端末は、本体を「Update」で更新すると使えます。'
         : error?.code === 'TERMINALS_UNAVAILABLE' ? '端末の機能が、いま本体で動いていません。'
         : '端末の一覧を取得できませんでした。' }
   }
@@ -79,8 +79,11 @@ export function createTerminalsView(dialog, { api }) {
   const refreshButton = dialog.querySelector('[data-terminals-refresh]')
   let opened = null
 
-  const say = (text, detail = '') => {
+  // An older body (404/405) is an expected state: a neutral notice, not an error.
+  const say = (text, detail = '', tone = 'error') => {
     notice.replaceChildren()
+    notice.className = tone === 'info' ? 'terminals-info' : 'form-error'
+    if (text && tone === 'info') { const icon = element('span', '', 'terminals-info-icon'); icon.setAttribute('aria-hidden', 'true'); notice.append(icon) }
     if (text) notice.append(element('span', text))
     if (detail) { const more = element('details'); more.append(element('summary', '詳細'), element('code', detail)); notice.append(more) }
   }
@@ -105,7 +108,8 @@ export function createTerminalsView(dialog, { api }) {
     refreshButton.disabled = false
     current.unsupported = Boolean(result.error)
     addButton.disabled = current.unsupported
-    if (result.error) { current.terminals = []; say(result.message, result.unsupported ? '' : result.error.code ?? result.error.message) }
+    refreshButton.hidden = Boolean(result.unsupported)
+    if (result.error) { current.terminals = []; say(result.message, result.unsupported ? '' : result.error.code ?? result.error.message, result.unsupported ? 'info' : 'error') }
     else { current.terminals = result.terminals; say('') }
     render()
   }

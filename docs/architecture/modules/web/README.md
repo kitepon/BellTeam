@@ -102,6 +102,8 @@ Contracts consumed unchanged: [terminals registry](../terminals/README.md) (Crus
 flowchart TD
   Settings[設定: 端末 section] -->|端末を管理| Dialog["terminals.js #terminals-dialog"]
   Dialog --> List["GET /api/terminals<br/>404 → not supported / 503 → not running"]
+  List -->|404 / 405| Waiting["neutral notice (icon): 端末は、本体を「Update」で更新すると使えます。<br/>no 一覧を更新, 追加 disabled"]
+  List -->|503 / error| Failed["red notice + 詳細, 一覧を更新 kept"]
   List --> Cards["terminal cards<br/>user@host:port, owner, key badges, last check, C8 Claude Code"]
   Cards -->|届くか確かめる| Check["POST /api/terminals/:id/check<br/>observation kept in memory only"]
   Check --> Badge["terminalStatus(observation)<br/>plain words + tone"]
