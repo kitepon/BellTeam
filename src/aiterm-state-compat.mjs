@@ -48,7 +48,8 @@ export function selectResets(source, target) {
 export function applyResets(root, selection, line, now = new Date()) {
   const base = join(root, '.bellteam-reset'), stamp = now.toISOString().replace(/[-:.]/g, '')
   for (const { path } of selection?.resets ?? []) {
-    const from = join(root, path), to = join(base, stamp, path)
+    // Elegg: {uid} is the Aiterm process UID; apply runs as that UID (1000:1000).
+    const own = path.replaceAll('{uid}', String(process.getuid())), from = join(root, own), to = join(base, stamp, own)
     if (!existsSync(from)) continue
     mkdirSync(dirname(to), { recursive: true, mode: 0o700 })
     renameSync(from, to)

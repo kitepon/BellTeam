@@ -5,6 +5,15 @@ import { selectResets } from '../src/aiterm-state-compat.mjs'
 const declaration = stores => JSON.stringify({ schema: 'aiterm.state-compat.v1', stores })
 const target = declaration({ s: { path: 'a/s', writes: 'f2', reads: ['f2'], resets: ['f1'], legacy: [{ from: '0.60.0', through: '0.66.9', format: 'f1' }] } })
 
+// Byte content of aiterm-mcp 0.68.0 state-compat.json (Elegg 2026-11-09).
+const released = JSON.stringify({ schema: 'aiterm.state-compat.v1', stores: { 'state-root': { path: 'aiterm-mcp-{uid}', writes: 'v1', reads: ['v1'], resets: [],
+  legacy: [{ from: '0.63.17', through: '0.67.0', format: 'v1' }] } } })
+
+test('aiterm-mcp 0.68.0 declaration preserves every swap from 0.63.17 on', () => {
+  for (const version of ['0.63.17', '0.64.2', '0.67.0']) assert.deepEqual(selectResets({ version, declaration: null }, { declaration: released }), { resets: [], note: null })
+  assert.deepEqual(selectResets({ version: '0.68.0', declaration: released }, { declaration: released }), { resets: [], note: null })
+})
+
 test('only a source format the target declares in resets resets that store; everything else keeps state', () => {
   assert.deepEqual(selectResets({ version: '0.64.2', declaration: null }, { declaration: target }).resets, [{ store: 's', path: 'a/s', format: 'f1' }])
   // Old declaration wins over the version legacy map; numeric compare (0.10.0 > 0.9.0).

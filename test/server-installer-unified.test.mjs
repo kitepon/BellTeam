@@ -672,8 +672,8 @@ test('bundled updater body swap keeps the exact Aiterm backing across Aiterm rel
  {
   const d=await setup(),mcp=d.f.root+'/reader/'+targetImage.slice(7)+'/aiterm-mcp'
   await writeFile(mcp+'/state-compat.json',JSON.stringify({schema:'aiterm.state-compat.v1',stores:{
-   sessions:{path:'aiterm-mcp-1000/sessions',writes:'sessions.v2',reads:['sessions.v2'],resets:['sessions.v1'],legacy:[{from:'0.60.0',through:'0.66.9',format:'sessions.v1'}]},
-   hooks:{path:'aiterm-mcp-1000/hooks',writes:'hooks.v1',reads:['hooks.v1'],legacy:[{from:'0.60.0',through:'0.66.9',format:'hooks.v1'}]}}}))
+   sessions:{path:'aiterm-mcp-{uid}/sessions',writes:'sessions.v2',reads:['sessions.v2'],resets:['sessions.v1'],legacy:[{from:'0.60.0',through:'0.66.9',format:'sessions.v1'}]},
+   hooks:{path:'aiterm-mcp-{uid}/hooks',writes:'hooks.v1',reads:['hooks.v1'],legacy:[{from:'0.60.0',through:'0.66.9',format:'hooks.v1'}]}}}))
   for(const n of ['sessions','hooks']){await mkdir(d.f.root+'/'+d.volume+'/aiterm-mcp-1000/'+n,{recursive:true});await writeFile(d.f.root+'/'+d.volume+'/aiterm-mcp-1000/'+n+'/x',n)}
   const {stdout}=await d.f.run(['--no-pull'],d.worker),calls=(await d.f.calls()).slice(d.offset)
   assert.match(stdout,/^aiterm=preserved reset=sessions$/m)
