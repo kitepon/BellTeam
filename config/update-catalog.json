@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-09T22:27:08Z",
-  "expiresAt": "2026-11-16T22:27:08Z",
+  "publishedAt": "2026-11-09T23:00:23Z",
+  "expiresAt": "2026-11-16T23:00:23Z",
   "releases": [
     {
       "componentId": "usage",
@@ -425,8 +425,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "422dba434b96b84e8f9f3a33b27d358ada21de25",
-      "versionId": "d4237998b780cfd534cf71da1a54fb7ebfb55ec034850d9074bc67bb1cd5fd01",
+      "sourceCommit": "88b3bc29267747f720fa83581a9a489224d9f4f7",
+      "versionId": "b709db3a59ac7c67a202d94c95e3da704579360dab6b731cd59161ac5ee59ab8",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -434,16 +434,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T115925Z/web-gateway-422dba434b96b84e8f9f3a33b27d358ada21de25-linux-amd64.tar.gz",
-          "bytes": 5139941,
-          "sha256": "d4237998b780cfd534cf71da1a54fb7ebfb55ec034850d9074bc67bb1cd5fd01"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T225600Z/web-gateway-88b3bc29267747f720fa83581a9a489224d9f4f7-linux-amd64.tar.gz",
+          "bytes": 5159565,
+          "sha256": "b709db3a59ac7c67a202d94c95e3da704579360dab6b731cd59161ac5ee59ab8"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T115925Z/web-gateway-422dba434b96b84e8f9f3a33b27d358ada21de25-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11146,
-          "sha256": "bf95b319f8420e2de74df918e04ca2ab42e30cf0c5772ba5176c680e8b7098cd"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T225600Z/web-gateway-88b3bc29267747f720fa83581a9a489224d9f4f7-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10970,
+          "sha256": "81053eb9d46742e1b8da2e9d79100b56743d00ae3c8820fedb4766456080f84f"
         },
-        "signerCommit": "422dba434b96b84e8f9f3a33b27d358ada21de25"
+        "signerCommit": "88b3bc29267747f720fa83581a9a489224d9f4f7"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -452,13 +452,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "設定の「端末」から端末を管理でき、SSH鍵は複数行のまま貼り付けられます。初期設定が終わっていない時は案内を表示します。"
+        "設定の「追加機能」で1Password連携を設定できるようにし、案内を表示します。端末とメンバーのフォルダーを画面から登録できます。相関図の線や項目が、関係のないメンバーに重なりにくくなります。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "422dba434b96b84e8f9f3a33b27d358ada21de25",
-      "versionId": "da6149da91bfbc0377d14cd619eae476762db43c3b153df4de8e67681a97d395",
+      "sourceCommit": "88b3bc29267747f720fa83581a9a489224d9f4f7",
+      "versionId": "dbbb9f530d72508f48600cb9b44b86d58b9e32666546d60ab1ff9c5e46c673cc",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -466,16 +466,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T115925Z/web-gateway-422dba434b96b84e8f9f3a33b27d358ada21de25-linux-arm64.tar.gz",
-          "bytes": 5139941,
-          "sha256": "da6149da91bfbc0377d14cd619eae476762db43c3b153df4de8e67681a97d395"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T225600Z/web-gateway-88b3bc29267747f720fa83581a9a489224d9f4f7-linux-arm64.tar.gz",
+          "bytes": 5159565,
+          "sha256": "dbbb9f530d72508f48600cb9b44b86d58b9e32666546d60ab1ff9c5e46c673cc"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T115925Z/web-gateway-422dba434b96b84e8f9f3a33b27d358ada21de25-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11115,
-          "sha256": "5468c6f9b0a4fad9f6f97dcc8647fa79b11876dbbe0c19cef91ca83a308bdc2f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T225600Z/web-gateway-88b3bc29267747f720fa83581a9a489224d9f4f7-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11064,
+          "sha256": "d311d48a1f3d6f2056cc554a9f18683f66a8cb2ebb728adbb96cd56b83862134"
         },
-        "signerCommit": "422dba434b96b84e8f9f3a33b27d358ada21de25"
+        "signerCommit": "88b3bc29267747f720fa83581a9a489224d9f4f7"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -484,7 +484,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "設定の「端末」から端末を管理でき、SSH鍵は複数行のまま貼り付けられます。初期設定が終わっていない時は案内を表示します。"
+        "設定の「追加機能」で1Password連携を設定できるようにし、案内を表示します。端末とメンバーのフォルダーを画面から登録できます。相関図の線や項目が、関係のないメンバーに重なりにくくなります。"
       ]
     },
     {
