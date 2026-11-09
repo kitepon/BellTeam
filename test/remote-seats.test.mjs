@@ -106,3 +106,35 @@ test('lost connection: refused-before-send reopens once without credentials; in-
   await assert.rejects(seats.call(seat, 'pty_send', { session_id: seat.sessionName, text: 'b' }), { code: 'CONNECTION_LOST' })
   assert.equal(sends(), before)
 })
+
+test('C7: a completed remote turn hands the completed prefix to Throughline; only its ACK cursor stays', async () => {
+  const { seats } = fixture()
+  const commands = []
+  seats.seatCommand = async (process) => {
+    const [, script, args, ...parts] = process.args
+    assert.ok(script.includes("spawn('throughline'"))
+    const input = parts.join('')
+    commands.push({ args: JSON.parse(args), input: input ? JSON.parse(input) : null })
+    if (commands.length === 1) return { status: 'error', code: 'E_REMOTE_GAP', expectedCursor: { claudeSessionId: 'c1', offset: 0 } }
+    return { schema: 'throughline.remote_ingest.v1', status: 'ready', ackedCursor: { claudeSessionId: 'c1', offset: 12 } }
+  }
+  await seats.launch(bot, launchArgs, { slot: '1st' })
+  const seat = seats.seats.get('bot-aaaa1111-2nd-x1')
+  seat.launchId = 'a'.repeat(32)
+  const reads = []
+  let served = 0
+  seat.native.transcript = { read: async request => { reads.push(request.cursor); return served++ < 2
+    ? { entries: ['{"a":1}\n', '{"b":2}\n'], cursor: { claudeSessionId: 'c1', offset: 12 } } : { entries: [], cursor: request.cursor } } }
+  await seats.waitProcess(async () => null)({ args: ['--session', seat.sessionName] })
+  await new Promise(resolve => setImmediate(resolve))
+  while (seat.forwarding) await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(commands[0].args, ['remote-ingest', '--json'])
+  assert.equal(commands[0].input.launchId, 'a'.repeat(32))
+  assert.deepEqual(reads, [null]) // the gap stops this pass at Throughline's expected cursor
+  assert.deepEqual(seat.cursor, { claudeSessionId: 'c1', offset: 0 })
+  await seats.forward(seat)
+  assert.deepEqual(reads[1], { claudeSessionId: 'c1', offset: 0 })
+  assert.deepEqual(seat.cursor, { claudeSessionId: 'c1', offset: 12 })
+  seats.seatCommand = async () => { throw new Error('missing') }
+  assert.equal(await seats.handoffContext(bot.id), '')
+})

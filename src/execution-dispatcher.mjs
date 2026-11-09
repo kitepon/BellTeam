@@ -117,7 +117,8 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
   // Both remote ports or neither: a half-mounted parent keeps terminal-bound members queued (TERMINALS_UNAVAILABLE).
   const remoteSeats = ports.terminals?.connection && ports.ingress?.seatCredential && typeof ports.bots.launchContext === 'function'
     ? new RemoteSeats({ terminals: ports.terminals, ingress: ports.ingress,
-      launchContext: (...args) => ports.bots.launchContext(...args), emitQueue: item => transport.emitQueue(item) }) : null
+      launchContext: (...args) => ports.bots.launchContext(...args), emitQueue: item => transport.emitQueue(item),
+      seatCommand: ports.seat?.waitProcess ?? null }) : null
   const transport = createManagedTransport({
     ...ports.seat, accounts, remoteSeats,
     ...(remoteSeats ? { waitProcess: remoteSeats.waitProcess(ports.seat?.waitProcess ?? runWaitProcess) } : {}), ...Object.fromEntries(Object.entries(ports.storage ?? {}).filter(([key]) => key !== 'deliveryAnchor')), backgroundSummary,

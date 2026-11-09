@@ -11,11 +11,28 @@ const notStarted = error => {
   return error
 }
 
+// Throughline's public CLI runs on the server as the seat user (Rivalin remote-ingest.md, Throughline >= 0.17.0). The seat
+// runner passes argv only, so this bridge feeds the JSON pieces to the CLI's stdin and prints its one JSON result.
+export const THROUGHLINE_SCRIPT = `const { spawn } = require('node:child_process')
+const [args, ...parts] = process.argv.slice(1)
+let out = '', done = false
+const finish = text => { if (!done) { done = true; process.stdout.write(text) } }
+const child = spawn('throughline', JSON.parse(args), { stdio: ['pipe', 'pipe', 'ignore'] })
+child.stdout.setEncoding('utf8').on('data', chunk => { out += chunk })
+child.on('error', () => finish(JSON.stringify({ status: 'error', code: 'THROUGHLINE_UNAVAILABLE' })))
+child.on('close', () => finish(out || JSON.stringify({ status: 'error', code: 'THROUGHLINE_EMPTY' })))
+child.stdin.on('error', () => {})
+child.stdin.end(parts.join(''))`
+// One argv string is at most 128 KiB on Linux; pages stay well under the total argv limit.
+const ARG_PIECE = 96 * 1024, PAGE_BYTES = 1024 * 1024, PAGES_PER_TURN = 64
+const pieces = text => Array.from({ length: Math.ceil(text.length / ARG_PIECE) }, (_, index) => text.slice(index * ARG_PIECE, (index + 1) * ARG_PIECE))
+
 export const isRemoteBot = bot => typeof bot?.terminalId === 'string' && bot.terminalId !== ''
   && typeof bot.projectRoot === 'string' && bot.projectRoot !== ''
 
 export class RemoteSeats {
-  constructor({ terminals, ingress, launchContext, emitQueue = () => {} }) {
+  constructor({ terminals, ingress, launchContext, emitQueue = () => {}, seatCommand = null }) {
+    this.seatCommand = seatCommand
     this.terminals = terminals
     this.ingress = ingress
     this.launchContext = launchContext
@@ -35,8 +52,9 @@ export class RemoteSeats {
       const seen = await opened.native.callTool('pty_observe', { session_id: sessionName }).catch(() => null)
       let result
       if (seen?.structuredContent?.exists === true) {
-        result = { content: [], structuredContent: { schema: 'aiterm.agent-launch-result.v1', session_id: sessionName,
-          startup: { status: 'ready' }, fast: bot.fastMode === true, adopted: true } }
+          result = { content: [], structuredContent: { schema: 'aiterm.agent-launch-result.v1', session_id: sessionName,
+          startup: { status: 'ready' }, fast: bot.fastMode === true, adopted: true,
+          ...(typeof seen.structuredContent.launch_id === 'string' ? { launch_id: seen.structuredContent.launch_id } : {}) } }
       } else {
         await this.terminals.connection.close(opened.connectionRef).catch(() => {})
         opened = null
@@ -61,7 +79,8 @@ export class RemoteSeats {
       const previous = this.seatOf(bot.id)
       // Reissuing for the same name already replaced that token; revoking it would cut the new seat.
       if (previous) await this.release(previous, { keepCredential: previous.sessionName === sessionName })
-      this.seats.set(sessionName, { sessionName, ...opened })
+      const launchId = result?.structuredContent?.launch_id
+      this.seats.set(sessionName, { sessionName, ...opened, launchId: typeof launchId === 'string' ? launchId : null, cursor: null })
       return result
     } catch (error) {
       if (opened) await this.terminals.connection.close(opened.connectionRef).catch(() => {})
@@ -154,7 +173,50 @@ export class RemoteSeats {
       if (!args.includes('--session') || !seat) return local(process, signal)
       if (typeof seat.native.wait !== 'function')
         throw Object.assign(new Error('REMOTE_WAIT_UNAVAILABLE'), { code: 'REMOTE_WAIT_UNAVAILABLE' })
-      return seat.native.wait(process, { signal })
+      const result = await seat.native.wait(process, { signal })
+      if (['done', 'error', 'rate_limited'].includes(result?.outcome)) void this.forward(seat)
+      return result
+    }
+  }
+
+  // Throughline short-term memory for a remote member, read on the server. Missing memory never keeps a seat from starting.
+  async handoffContext(botId) {
+    try {
+      const result = await this.throughline(['remote-handoff-context', '--bot', botId, '--json'])
+      if (result?.schema === 'throughline.handoff_context.v1' && typeof result.context === 'string')
+        return result.status === 'ready' ? result.context.trim() : ''
+    } catch {}
+    process.stderr.write(`BellTeam remote seat: short-term memory unavailable: ${botId}\n`)
+    return ''
+  }
+
+  throughline(args, input = '') {
+    if (!this.seatCommand) return Promise.reject(Object.assign(new Error('THROUGHLINE_UNAVAILABLE'), { code: 'THROUGHLINE_UNAVAILABLE' }))
+    return this.seatCommand({ executable: globalThis.process.execPath, args: ['-e', THROUGHLINE_SCRIPT, JSON.stringify(args), ...pieces(input)] }, null)
+  }
+
+  // C7: after a native completion, hand the completed transcript prefix to Throughline; only its ACK cursor stays here.
+  // A gap or conflict moves to Throughline's expected cursor; anything else keeps the cursor for the next completion.
+  async forward(seat) {
+    if (seat.forwarding) { seat.forwardAgain = true; return }
+    if (!seat.launchId || typeof seat.native.transcript?.read !== 'function') return
+    seat.forwarding = true
+    try {
+      for (let page = 0; page < PAGES_PER_TURN; page++) {
+        const read = await seat.native.transcript.read({ sessionName: seat.sessionName, cursor: seat.cursor, maxBytes: PAGE_BYTES })
+        if (!Array.isArray(read?.entries) || !read.entries.length || !read.cursor) break
+        const result = await this.throughline(['remote-ingest', '--json'], JSON.stringify({ botId: seat.botId, sessionName: seat.sessionName,
+          launchId: seat.launchId, claudeSessionId: read.cursor.claudeSessionId, entries: read.entries, cursor: read.cursor }))
+        if (result?.status === 'ready' && result.ackedCursor) { seat.cursor = result.ackedCursor; continue }
+        if (result?.expectedCursor) seat.cursor = result.expectedCursor
+        process.stderr.write(`BellTeam remote seat: transcript not stored: ${seat.botId} ${typeof result?.code === 'string' ? result.code : 'FAILED'}\n`)
+        break
+      }
+    } catch (error) {
+      process.stderr.write(`BellTeam remote seat: transcript not stored: ${seat.botId} ${typeof error?.code === 'string' ? error.code : 'FAILED'}\n`)
+    } finally {
+      seat.forwarding = false
+      if (seat.forwardAgain) { seat.forwardAgain = false; void this.forward(seat) }
     }
   }
 

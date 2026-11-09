@@ -289,7 +289,8 @@ export class AitermTransport {
     await mkdir(bot.project, { recursive: true })
     const harness = HARNESS.get(bot.harness)
     if (!harness) throw new Error(`HARNESS_UNSUPPORTED: ${bot.harness}`)
-    const shortTermMemory = await this.handoffContext(bot.project)
+    const shortTermMemory = isRemoteBot(bot) && this.remoteSeats
+      ? await this.remoteSeats.handoffContext(bot.id) : await this.handoffContext(bot.project)
     await this.prepareStartup(bot, shortTermMemory, { membersLease })
     this.membersAdmission.assertLease(membersLease)
     const runtime = await this.captureLaunchRuntime()
