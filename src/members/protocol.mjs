@@ -71,7 +71,7 @@ const requests = {
   'removals.read': empty,
   'owner.read': empty, 'owner.update': value => object(value, { changes: ownerChanges }),
   'rules.read': empty, 'rules.update': value => object(value, { text: value => string(value, 20000) }),
-  'rules.botUpdate': value => object(value, { text: value => string(value, 20000), botId: id, instruction }),
+  'rules.botUpdate': value => object(value, { text: value => string(value, 20000), before: body, botId: id, instruction }),
   'rules.history': empty,
   'schedules.claimAfterTurn': value => object(value, turnClaim),
   'schedules.list': value => object(value, owner),

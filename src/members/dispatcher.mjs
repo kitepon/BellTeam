@@ -171,9 +171,9 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
         await refreshGlobalInstructions()
         return { text }
       }
-      // Instruction proof is checked by the parent profiles-mcp before this request (instructions.md).
+      // The Owner's approval is checked by the parent profiles-mcp before this request; before pins the approved diff (instructions.md).
       case 'rules.botUpdate': {
-        const { text, before } = await saveOwner(() => userRules.change(params.text, { actor: { kind: 'bot', botId: params.botId }, instruction: params.instruction }))
+        const { text, before } = await saveOwner(() => userRules.change(params.text, { actor: { kind: 'bot', botId: params.botId }, instruction: params.instruction, expectedBefore: params.before }))
         await refreshGlobalInstructions()
         return { text, before }
       }

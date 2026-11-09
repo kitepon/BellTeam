@@ -46,8 +46,9 @@ test('Owner write needs trusted context, and ordinary params cannot inject it', 
   assert.throws(() => f.dispatcher.validateRequest('rules.update', { text: 'rule', ownerWrite: true }, { ...context, ownerWrite: true }), /MEMBERS_INPUT_INVALID/)
   assert.deepEqual(await f.request('rules.update', { text: 'rule' }, { ...context, ownerWrite: true }), { text: 'rule\n' })
   const instruction = { messageId: 'm-1', at: '2026-11-10T00:00:00.000Z', quote: '変えて' }
-  assert.throws(() => f.dispatcher.validateRequest('rules.botUpdate', { text: 'rule2', botId: 'bot-a', instruction: { ...instruction, quote: ' ' } }, context), /MEMBERS_INPUT_INVALID/)
-  assert.deepEqual(await f.request('rules.botUpdate', { text: 'rule2', botId: 'bot-a', instruction }, context), { text: 'rule2\n', before: 'rule\n' })
+  assert.throws(() => f.dispatcher.validateRequest('rules.botUpdate', { text: 'rule2', before: 'rule\n', botId: 'bot-a', instruction: { ...instruction, quote: ' ' } }, context), /MEMBERS_INPUT_INVALID/)
+  await assert.rejects(f.request('rules.botUpdate', { text: 'rule2', before: 'other\n', botId: 'bot-a', instruction }, context), /USER_RULES_CHANGED/)
+  assert.deepEqual(await f.request('rules.botUpdate', { text: 'rule2', before: 'rule\n', botId: 'bot-a', instruction }, context), { text: 'rule2\n', before: 'rule\n' })
   assert.deepEqual((await f.request('rules.history', {}, context)).changes.map(change => change.actor), [{ kind: 'bot', botId: 'bot-a' }, { kind: 'owner' }])
 })
 

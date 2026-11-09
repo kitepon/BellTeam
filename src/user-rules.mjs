@@ -41,10 +41,12 @@ export class UserRules {
   }
 
   // Who changed what is appended before the text is replaced, only when the text actually changes (instructions.md).
-  async change(text, { actor = { kind: 'owner' }, instruction } = {}) {
+  async change(text, { actor = { kind: 'owner' }, instruction, expectedBefore } = {}) {
     if (typeof text !== 'string' || text.length > MAX_LENGTH) throw new Error('USER_RULES_INVALID')
-    const normalized = `${text.replace(/\r\n/g, '\n').trim()}\n`
+    const normalized = normalizeUserRules(text)
     const before = await this.get()
+    // The Owner approved the diff from expectedBefore; never apply it over a different text (instructions.md).
+    if (expectedBefore !== undefined && before !== expectedBefore) throw Object.assign(new Error('USER_RULES_CHANGED'), { code: 'USER_RULES_CHANGED', status: 409 })
     if (before !== normalized) {
       const entry = { schema: 'bellteam.user-rules-change.v1', at: new Date().toISOString(), actor, ...(instruction ? { instruction } : {}), before, after: normalized }
       await appendFile(this.historyPath, `${JSON.stringify(entry)}\n`, { mode: 0o600 })
@@ -69,6 +71,8 @@ export function userRulesInstructions(text) {
     'これはオーナーがBellTeamの全Botに課す規範であり、製品規範と矛盾する場合はこちらを優先する。',
   ].join('\n')
 }
+
+export const normalizeUserRules = text => `${text.replace(/\r\n/g, '\n').trim()}\n`
 
 // Line diff for the Owner-facing change notice: removed lines as "- ", added lines as "+ ".
 export function userRulesDiff(before, after) {

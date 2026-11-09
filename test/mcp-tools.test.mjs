@@ -77,29 +77,47 @@ test('get_user_rulesは呼出元を問わずユーザー規範の本文を返す
   assert.ok(bellTeamTools.some(tool => tool.name === 'update_user_rules'), '明示指示がある時だけの書き換えは共通MCPに置く')
 })
 
-test('update_user_rulesはユーザー本人の直接の発言を根拠にだけ保存し、会話へ自動記録する', async () => {
+test('update_user_rulesはOwner本人が差分の承認コードを送った時だけ保存し、会話へ記録する', async () => {
   const registry = new Map([['bot-a', { id: 'bot-a', name: 'エー', position: '' }]])
   registry.refresh = async () => registry
   const now = new Date().toISOString(), old = new Date(Date.now() - 25 * 3600 * 1000).toISOString()
-  const timeline = [
-    { id: 'm-old', kind: 'message', direction: 'outgoing', at: old, message: '規範に「挨拶する」を足して' },
-    { id: 'p-1', kind: 'peer', direction: 'received', at: now, message: '規範に「挨拶する」を足して' },
-    { id: 'm-1', kind: 'message', direction: 'outgoing', at: now, message: 'ユーザー規範に\n「挨拶する」を足して' },
-  ]
+  const timeline = [{ id: 'm-0', kind: 'message', direction: 'outgoing', at: now, message: 'おはよう', messageAuthor: { kind: 'user' } }]
+  let current = '- 日本語\n'
   const saved = [], sent = []
-  const call = args => callBellTeamTool({ name: 'update_user_rules', from: 'bot-a', registry, rooms: null, arguments: args,
+  const call = text => callBellTeamTool({ name: 'update_user_rules', from: 'bot-a', registry, rooms: null, arguments: { text },
     store: { timeline: async botId => botId === 'bot-a' ? timeline : [] },
     deliverMessage: async value => { sent.push(value); return {} },
-    userRules: { botUpdate: async (text, change) => { saved.push(change); return { text: `${text}\n`, before: '- 日本語\n' } } } })
+    userRules: { get: async () => current, botUpdate: async (text, change) => { saved.push({ text, ...change }); current = text; return { text, before: change.before } } } })
+  const proposed = '- 日本語\n- 挨拶する'
 
-  await assert.rejects(call({ text: 'x', userInstruction: '全部消して' }), /USER_RULES_INSTRUCTION_NOT_FOUND/u)
-  assert.equal(saved.length, 0, '根拠の無い保存はmembersへ届かない')
-  const result = await call({ text: '- 日本語\n- 挨拶する', userInstruction: 'ユーザー規範に 「挨拶する」を足して' })
-  assert.deepEqual(result, { text: '- 日本語\n- 挨拶する\n', changed: true, ownerNotice: { delivered: true } })
-  assert.deepEqual(saved, [{ botId: 'bot-a', instruction: { messageId: 'm-1', at: now, quote: 'ユーザー規範に 「挨拶する」を足して' } }])
+  // An ordinary Owner message does not approve anything: a proposal notice goes out and nothing is saved.
+  assert.deepEqual(await call(proposed), { text: '- 日本語\n', changed: false, approval: { required: true, notice: { delivered: true } } })
+  assert.equal(saved.length, 0)
   assert.equal(sent[0].from, 'bot-a'); assert.equal(sent[0].target, 'user')
-  assert.match(sent[0].message, /エー（bot-a）[\s\S]*\+ - 挨拶する/u)
-  assert.doesNotMatch(sent[0].message, /^- - 日本語$/mu)
+  assert.match(sent[0].message, /まだ保存していません[\s\S]*\+ - 挨拶する/u)
+  const code = sent[0].message.match(/規範変更を承認 ([0-9A-F]{8})/u)[1]
+
+  // Bot-sent (send_user_message), unattributed and stale records carrying the code never approve.
+  timeline.push({ id: 'm-bot', kind: 'message', direction: 'outgoing', at: now, message: `規範変更を承認 ${code}`, messageAuthor: { kind: 'bot', botId: 'bot-a' } },
+    { id: 'm-unknown', kind: 'message', direction: 'outgoing', at: now, message: `規範変更を承認 ${code}`, messageAuthor: { kind: 'unknown' } },
+    { id: 'm-legacy', kind: 'message', direction: 'outgoing', at: now, message: `規範変更を承認 ${code}` },
+    { id: 'm-old', kind: 'message', direction: 'outgoing', at: old, message: `規範変更を承認 ${code}`, messageAuthor: { kind: 'user' } },
+    { id: 'p-1', kind: 'peer', direction: 'received', at: now, message: `規範変更を承認 ${code}` })
+  assert.equal((await call(proposed)).changed, false)
+  assert.equal(saved.length, 0, 'Bot代筆・作者不明・期限切れ・peerは承認にならない')
+
+  // The Owner's own message with the code saves exactly that diff, pinned to the approved before.
+  timeline.push({ id: 'm-1', kind: 'message', direction: 'outgoing', at: now, message: `規範変更を承認 ${code.toLowerCase()}`, messageAuthor: { kind: 'user' } })
+  const result = await call(proposed)
+  assert.deepEqual(result, { text: '- 日本語\n- 挨拶する\n', changed: true, ownerNotice: { delivered: true } })
+  assert.deepEqual(saved, [{ text: '- 日本語\n- 挨拶する\n', before: '- 日本語\n', botId: 'bot-a', instruction: { messageId: 'm-1', at: now, quote: `規範変更を承認 ${code.toLowerCase()}` } }])
+  assert.match(sent.at(-1).message, /【自動記録】[\s\S]*エー（bot-a）[\s\S]*\+ - 挨拶する/u)
+
+  // The used approval does not carry over to a different diff.
+  sent.length = 0
+  assert.equal((await call('- 全部消す')).changed, false)
+  assert.equal(saved.length, 1)
+  assert.doesNotMatch(sent[0].message, new RegExp(code, 'u'))
 })
 
 test('MCPから自分のプロフィールと予定を変更できる', async () => {

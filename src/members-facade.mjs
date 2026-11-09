@@ -95,7 +95,7 @@ export function createMembersFacade({ request, callback, admission, projection }
     userRules: {
       get: async context => (await invoke('rules.read', {}, context)).text,
       update: async (text, context) => (await invoke('rules.update', { text }, context)).text,
-      botUpdate: (text, { botId, instruction }, context) => invoke('rules.botUpdate', { text, botId, instruction }, context),
+      botUpdate: (text, { before, botId, instruction }, context) => invoke('rules.botUpdate', { text, before, botId, instruction }, context),
       history: async context => (await invoke('rules.history', {}, context)).changes,
     },
   }

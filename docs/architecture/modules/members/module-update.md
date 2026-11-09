@@ -160,7 +160,7 @@ methodは下表の固定列挙。任意objectのメソッド名、関数、Map�
 | `profile.session` | `{botId,session}`、実行担当の内部callback限定。保存ACKまで旧native操作の処理範囲に含める |
 | `profile.startup` | `{botId,shortTermMemory}`。固定previous-sessionと個別指示を更新。ネイティブ起動は行わない |
 | `profile.remove` / `removal.state` | `{botId}`。前者は既202受付/背景削除、後者はactive/pending/absent。新規背景作業はdrainのactive集合に含む |
-| `owner.read/update` / `rules.read/update` | `{}`、`{changes}`、`{text}`。更新はOwner HTTP又は専用owner MCPの権限のみ。保存後生成までを追跡。世代の初回owner.readはその配置のtemplateでglobal指示を生成する。失敗しても読取は成功させ、次のowner.readで再試行、diagnosticは世代ごと1件。`rules.botUpdate {text,botId,instruction}`→`{text,before}`はownerWrite不要で、親profiles-mcpがユーザー発言の根拠を確認済みの時だけ送る。`rules.history {}`→`{changes}`はlease付き読取（read pinの固定6個は変えない）。[instructions](instructions.md) |
+| `owner.read/update` / `rules.read/update` | `{}`、`{changes}`、`{text}`。更新はOwner HTTP又は専用owner MCPの権限のみ。保存後生成までを追跡。世代の初回owner.readはその配置のtemplateでglobal指示を生成する。失敗しても読取は成功させ、次のowner.readで再試行、diagnosticは世代ごと1件。`rules.botUpdate {text,before,botId,instruction}`→`{text,before}`はownerWrite不要で、親profiles-mcpがOwner本人の承認を確認済みの時だけ送る。現在値≠beforeは`USER_RULES_CHANGED`(409)で書かない。`rules.history {}`→`{changes}`はlease付き読取（read pinの固定6個は変えない）。[instructions](instructions.md) |
 | `schedules.list/set/remove` | `{ownerKind:'bot'|'room',ownerId,input?|scheduleId?}`。roomは親の資格確認と唯一writerへ委譲 |
 | `schedules.run` | `{ownerKind,ownerId,scheduleId}`。既手動実行、nextRunAt/enabledを変更しない。受付不明を再送しない |
 | `schedules.prepareResume` | `{at}`。旧tick終端を待って期限内だけskip。AI OFF→ON前の既公開接点、失敗時はOFFを維持 |

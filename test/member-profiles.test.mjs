@@ -29,7 +29,7 @@ test('専用プロフィール受付は通常保存と実行設定の公開confi
   assert.equal(Object.hasOwn(viewed.bot, 'avatar'), false)
   assert.deepEqual(viewed.bot.configurationApplication, state)
   await assert.rejects(callMemberTool({ ...context, name: 'get_bot', args: { botId: 'absent' } }), /BOT_NOT_FOUND/u)
-  await assert.rejects(callMemberTool({ ...context, name: 'update_user_rules' }), /USER_RULES_INSTRUCTION_NOT_FOUND/u)
+  await assert.rejects(callMemberTool({ ...context, name: 'update_user_rules' }), /USER_RULES_INVALID/u)
   for (const tool of [...memberReadTools, ...memberWriteTools]) {
     assert.equal(bellTeamTools.filter(item => item.name === tool.name).length, 1)
     assert.equal(bellTeamTools.find(item => item.name === tool.name), tool)
