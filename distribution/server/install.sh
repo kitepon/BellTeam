@@ -488,10 +488,11 @@ if "$recovery" && [ "$direction" = to-server ] && [ -f "$saved/module-installer.
   esac
 fi
 if ! "$recovery" && [ -f "$saved/container-updater.json" ]; then
+  # The receiver reads config.json only at start; recreate it so a same-image rerun applies a changed channel.
   if ! docker compose --project-directory "$PWD" -f "$saved/container-updater.json" \
     run --pull never --rm --no-deps -T container-updater --configure < "$saved/normal.json" \
     || ! docker compose --project-directory "$PWD" -f "$saved/container-updater.json" \
-      up -d --wait --wait-timeout 300 --pull never; then
+      up -d --force-recreate --wait --wait-timeout 300 --pull never; then
     echo CONTAINER_UPDATER_START_FAILED >&2; exit 1
   fi
 fi
