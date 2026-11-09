@@ -69,6 +69,13 @@ test('a secret-key terminal hands the Mika handle, never a value; optional sudo 
   gate.resolve()
   await assert.rejects(stale, { code: 'TERMINAL_UNAVAILABLE' })
   assert.equal(suspended.native.calls.some(call => call.op === 'loadCredential'), false)
+  // The handle's revision changed between the target read and resolution: Mika refuses, nothing is loaded.
+  const refreshed = { ...cardSecrets, calls: [], async withResolved(handle, context, consume) {
+    if (context.expectedRevision !== 3) throw Object.assign(new Error('stale'), { code: 'SECRET_CREDENTIAL_STALE' })
+    return consume('NEWERBYTES') } }
+  const changed = setup(t, { target: { ...base, keySource: 'secret', bindingRef }, secrets: refreshed })
+  await assert.rejects(changed.connection.target(request), { code: 'CREDENTIAL_UNAVAILABLE' })
+  assert.equal(changed.native.calls.some(call => call.op === 'loadCredential'), false)
   const unbound = setup(t, { target: { ...base, keySource: 'secret' } })
   await assert.rejects(unbound.connection.target(request), { code: 'CREDENTIAL_UNAVAILABLE', reason: 'BINDING_UNSET' })
   const sudoDown = { ...fakeSecrets(), credential: (handle, context) => ({ handle, revision: 2, available: context.purpose !== 'terminal.sudo' }), withResolved: fakeSecrets().withResolved }

@@ -114,7 +114,8 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
       // A handle key must be in Aiterm before its own open (aiterm-mcp 0.67.0 credential-load); execution loads it the same way
       // before a launch. The value exists only inside Mika's callback and goes to Aiterm's stdin.
       if (binding.credential) {
-        await secrets.withResolved(target.sshKeyRef, { terminalId: target.terminalId, memberId: null, purpose: 'terminal.ssh' },
+        // expectedRevision (Mika, as Molly #813 uses it): bytes of a newer revision are never labelled with the target's revision.
+        await secrets.withResolved(target.sshKeyRef, { terminalId: target.terminalId, memberId: null, purpose: 'terminal.ssh', expectedRevision: binding.credential.revision },
           key => {
             if (!current()) throw failure('TERMINAL_UNAVAILABLE') // resolution may have spanned a revision or dispose
             return native.loadCredential({ ref: binding.ref, terminalId: target.terminalId, ...binding.credential, purpose: 'ssh-key', key })
