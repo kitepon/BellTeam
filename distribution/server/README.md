@@ -23,7 +23,7 @@ Webアプリとサーバーは無料です。初期設定の後も、すべて�
 | `COMPOSE_PROJECT_NAME` | この設置を識別するCompose project名。他の設置と異なる名前を使います |
 | `BELLTEAM_SERVER_STATE_VOLUME` | 本体の設定・会話などを保存する専用volume名 |
 | `BELLTEAM_AITERM_STATE_VOLUME` | AI実行の状態を保存する専用volume名 |
-| `BELLTEAM_UPDATE_CHANNEL` | 本体更新の候補の読み先。`stable`（既定）は正式版だけ。`candidate`は試験用の先行公開（GitHubのprerelease）も読む。試験の箱だけで使う |
+| `BELLTEAM_UPDATE_CHANNEL` | 本体更新の読み先。既定は`stable`（試験済みの正式版だけ）。`candidate`は試験前の先行版も読みます。先行版は未試験なので、試験用の設置だけで使ってください（下の「試験前の先行版を受け取る」） |
 | `BELLTEAM_SERVER_IMAGE` | 使用する公開イメージ。版を固定するときは配布元が示す`ghcr.io/kitepon/bellteam-server@sha256:…`の完全な参照を指定します |
 
 たとえば別の設置と保存先を分け、同じPCからだけ接続する場合の`.env`は次の形です。projectとvolumeの名前は、この設置専用の名前に変えてください。
@@ -148,6 +148,18 @@ iPhone・Macアプリからの通常の会話と予定操作は共通の月額�
 For an existing installation adopting the fixed Q-1 repair image, use the scoped [matched body and module-installer repair procedure](existing-install-repair.md). It preserves the captured storage/options and leaves `container-updater` unchanged; it costs one body restart and one installer replacement. This is separate from fresh installation and the full `install.sh`/Switch workflow.
 
 同梱版では、アプリのUpdateでBellTeam本体を選び、公開版と再起動の影響を確認して計画を作成します。実行中の作業を終え、表示された本体再起動を明示的に確認して実行してください。更新中は接続が切れます。再接続後は同じ操作の結果と実際に起動した版を確認します。結果不明の場合は同じ要求を再送せず、その操作結果を確認してください。
+
+#### 試験前の先行版を受け取る
+
+通常の設置は何も指定せず、既定の`stable`のまま使います。アプリのUpdateには試験済みの正式版だけが出ます。
+
+先行版を試す設置だけ、`.env`に次の1行を加えてから`sh install.sh`を実行します。
+
+```dotenv
+BELLTEAM_UPDATE_CHANNEL=candidate
+```
+
+この設置では、アプリのUpdateに試験前の先行版（GitHubのprerelease、image tag `candidate`）も出ます。先行版は**未試験**です。止まる、データの形が変わるなどの不具合がありえるので、普段使いの設置や大事なデータのある設置では使わないでください。先行版より新しい正式版が出ると、そちらが選ばれます。`stable`に戻すには、`.env`の行を消してから`sh install.sh`を実行します。戻しても、一度入れた先行版が自動で前の版に戻ることはありません。正式版の公開を待って更新してください。
 
 画面からの更新は、導入時に保存した追加設定と保存先を引き継ぎます。設置フォルダの`.env`やoverrideを書き換えた場合は、次の`sh install.sh`で変更を適用してください。画面から更新した後も、元の設置フォルダから公開installerを使って更新できます。
 
