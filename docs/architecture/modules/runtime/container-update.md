@@ -136,3 +136,21 @@ flowchart LR
 ```
 
 The failure path leaves the read immediately and releases its socket through the existing finish path. A later explicit plan can read again after the concrete connection/file problem is repaired; no persistent gate or retry is added. Same-source enforcement remains unchanged. Historical generic refusals cannot be retrospectively labeled timeout or source mismatch because their subreason was discarded.
+
+## Host catalog fetch retries transient GitHub failures (2026-11-09 JST)
+
+Cause (Web791+801, Centi's receipt): the official catalog `updates-20261109T075719Z` (cde9b78f, 31476 B) was published and the running body's reader accepts its bytes, but `POST /api/updates/catalog-check` returned `publication.status: failed`, `HOST_UPDATE_PUBLICATION_UNCONFIRMED`, and `/api/updates` kept catalog 17c61149. `container-update-host.py:_refresh_catalog` read the GitHub release list, `catalog.json` and its bundle with one 15 s request each; github.com was flapping 200/504 for these exact asset URLs (a cached 504 per URL string), and one failed read failed the whole check. That give-up named no protection.
+
+`fetch_publication` now retries transient failures (HTTP 408/425/429/500/502/503/504, network errors, timeout or truncated reads) with 2..15 s backoff in a retry scheduling window of 60 s per read; the last request retains the existing 15 s socket timeout. For `https://github.com/kitepon/BellTeam/releases/download/...` URLs every retry adds a one-off `?attempt=<n>-<ns>`: same host and path, and the bytes still go through the unchanged signature/verifier/pointer path. Other HTTP statuses and redirect-policy failures raise at once. After the window the check records `failed` as before; the 30-minute refresh timer and the next on-demand check are the exit.
+
+```mermaid
+flowchart LR
+  Read[GET list / catalog / bundle] -->|200| Verify[verify_and_install_catalog: signature + reader]
+  Read -->|transient| Wait{schedule next retry within 60 s?}
+  Wait -->|yes: sleep, release URL gets a one-off query| Read
+  Wait -->|no| Failed[refresh.json status failed]
+  Read -->|other status / redirect policy| Failed
+  Failed -.->|30 min timer or next catalog-check| Read
+```
+
+Impact: `scripts/container-update-host.py` (`fetch_publication`, `_refresh_catalog`) and its test. The host copy is installed from the body image, so this takes effect with the next approved body swap; until then the running host keeps the single read and recovers on the next timer/check that reaches GitHub cleanly.
