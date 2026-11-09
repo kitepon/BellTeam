@@ -30,6 +30,15 @@ test('supply plan binds distinct backing and exact old source, refuses unsupport
   assert.deepEqual(first.plan.targets, []);assert.equal(first.normal.services.bellteam.environment.BELLTEAM_RESUME_GENERATION, undefined)
 })
 
+test('a reset generation name carries only the newest generation suffix', async () => {
+  const grown = 'bellteam-aiterm-state' + '-bellteam-compose.Ab12Cd'.repeat(9)
+  const child = execFile(process.execPath, [join(repo, 'src/resume-install-plan.mjs'), '/install/.bellteam-compose.fixed'])
+  const output = new Promise((resolve, reject) => { let text = ''; child.stdout.on('data', d => { text += d }); child.on('close', code => code ? reject(code) : resolve(text)) })
+  child.stdin.end(JSON.stringify([model(grown), model(grown), runtime, null]))
+  const normal = JSON.parse((await output).trim().split('\n')[1])
+  assert.equal(normal.volumes.resume.name, 'bellteam-aiterm-state-bellteam-compose.fixed')
+})
+
 test('preserve plan keeps the exact old backing name and refuses any other mapping or an H1 target set', () => {
   const kept = planResumeInstall(model('old'), model('old'), runtime, null, '/install/.bellteam-compose.fixed', true)
   assert.equal(kept.plan.state_volume, 'old');assert.equal(kept.plan.source_volume, 'old');assert.deepEqual(kept.plan.targets, [])

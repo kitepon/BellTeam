@@ -42,7 +42,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     if (process.argv.length !== (preserve ? 4 : 3)) throw new Error('RESUME_INSTALL_PLAN_INVALID')
     const mount = normal.services.bellteam.volumes.find(item => item.target === RESUME_STATE_BASE)
     // A new install generation gets new backing even when Compose keeps its default name.
-    if (!preserve) normal.volumes[mount.source].name = `${stateWriterPlan(normal).resumeVolumes[0]}-${basename(process.argv[2]).slice(1)}`
+    // Earlier generation suffixes are dropped so the name stays under the 255-byte volume directory limit.
+    if (!preserve) normal.volumes[mount.source].name = `${stateWriterPlan(normal).resumeVolumes[0].replace(/(-bellteam-compose\.[A-Za-z0-9]+)+$/, '')}-${basename(process.argv[2]).slice(1)}`
     const result = planResumeInstall(normal, old, runtime, targets, process.argv[2], preserve)
     console.log(JSON.stringify(result.plan))
     console.log(JSON.stringify(result.normal, (_key, value) => typeof value === 'string' ? value.replaceAll('$', () => '$$') : value))

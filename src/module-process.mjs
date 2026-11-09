@@ -280,8 +280,15 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     state('starting')
     const saved = await readAdoption()
     if (saved) {
-      await prepare(saved.currentVersionId); await prepare(saved.previousVersionId)
-      currentVersionId = saved.currentVersionId; previousVersionId = saved.previousVersionId
+      // A release signed for another body's state format cannot run here; this body's bundled module can.
+      const adoptable = versionId => prepare(versionId).then(() => versionId, error => {
+        if (error?.code !== `${prefix}_STATE_INCOMPATIBLE`) throw error
+        console.error(JSON.stringify({ code: 'MODULE_ADOPTION_INCOMPATIBLE', component, versionId }))
+        return null
+      })
+      const current = await adoptable(saved.currentVersionId), previous = await adoptable(saved.previousVersionId)
+      if (current !== saved.currentVersionId || previous !== saved.previousVersionId) await writeAtomic(adoptionPath, record(current, previous))
+      currentVersionId = current; previousVersionId = previous
     }
     const ticket = closeAdmission('module_start')
     try {

@@ -262,6 +262,23 @@ test('adoption metadata with an invalid version fails closed before any child st
 })
 
 
+test('an adopted release with another state format starts the bundled module; other prepare failures still fail', async t => {
+  const f = await fixture(t), path = join(f.root, 'state/diagnostics-release.json')
+  const adopt = () => writeFile(path, JSON.stringify({ schema: 'bellteam.diagnostics.adoption.v1', currentVersionId: sha, previousVersionId: null }), { mode: 0o600 })
+  await adopt()
+  f.behavior.prepare = () => { throw Object.assign(new Error('x'), { code: 'DIAGNOSTICS_STATE_INCOMPATIBLE' }) }
+  t.mock.method(console, 'error', () => {})
+  await f.process.start()
+  assert.equal(f.children.length, 1); assert.equal(f.children[0].versionId, null)
+  assert.equal(f.process.snapshot().currentVersionId, null)
+  assert.deepEqual(JSON.parse(await readFile(path, 'utf8')), { schema: 'bellteam.diagnostics.adoption.v1', currentVersionId: null, previousVersionId: null })
+  const g = await fixture(t), other = join(g.root, 'state/diagnostics-release.json')
+  await writeFile(other, JSON.stringify({ schema: 'bellteam.diagnostics.adoption.v1', currentVersionId: sha, previousVersionId: null }), { mode: 0o600 })
+  g.behavior.prepare = () => { throw Object.assign(new Error('x'), { code: 'GATEWAY_RELEASE_CONTENT_CHANGED' }) }
+  await assert.rejects(g.process.start(), { code: 'GATEWAY_RELEASE_CONTENT_CHANGED' })
+  assert.equal(g.children.length, 0)
+})
+
 test('private exchange diagnostics retain candidate stage and only a closed safe code after old resume',async t=>{
  for(const [options,stage,code] of [
   [{failNew:true,restoreError:Object.assign(new Error('secret-message'),{code:'PRIVATE_SECRET',errors:[{secret:'hidden'}]})},'initialize',null],
