@@ -2,7 +2,7 @@
 export const SCHEMA = 'bellteam.work-graph.v1'
 export const ACCENTS = { violet: '#6147D4', rose: '#E86B94', indigo: '#4559C2', sky: '#47A1E3', mint: '#2EB29E', amber: '#E89E47' }
 export const accent = color => ACCENTS[color] ?? ACCENTS.violet
-const NAME_HEIGHT = 18, ENTER_MS = 700, LEAVE_MS = 600, GROW_MS = 350, END_MS = 300, REDUCED_MS = 200
+const NAME_HEIGHT = 18, ENTER_MS = 700, LEAVE_MS = 600, GROW_MS = 350, END_MS = 300, NEW_LABEL_MS = 3000, LABEL_FADE_MS = 400, REDUCED_MS = 200
 
 export function cubicBezier(x1, y1, x2, y2) {
   const at = (a, b, t) => 3 * a * t * (1 - t) ** 2 + 3 * b * t * t * (1 - t) + t ** 3
@@ -219,52 +219,54 @@ export function createGraphModel({ reduceMotion = false } = {}) {
         const opacity = edge.endAt ? Math.max(0, 1 - (now - edge.endAt) / END_MS) : 1
         lines.push({ edge, p0, p2, control, length, grow: easeOut(grow), opacity, dotsSince: edge.startAt + GROW_MS, color: accent(a.node.color) })
       }
-      const names = []
-      for (const item of drawn.values()) {
-        if (item.node.leaveAt && item.opacity <= 0) continue
-        const width = Math.min(item.side * 2.2, measure(item.node.name)), others = discs.filter(disc => disc.id !== item.node.botId)
-        const below = { x: item.x - width / 2, y: item.y + item.side / 2 + 9, w: width, h: 18 }
-        const over = { x: item.x - width / 2, y: item.y - item.side / 2 - 27, w: width, h: 18 }
-        const box = !others.some(disc => intersects(below, disc)) ? below : !others.some(disc => intersects(over, disc)) ? over : hover?.botId === item.node.botId ? below : null
-        if (box) names.push({ item, box, maxWidth: item.side * 2.2 })
-      }
-      // 描いている名前も札の障害物（隠れた名前は除く）。去る顔は円板と同じく数えない。
-      const nameBoxes = names.filter(({ item }) => !item.node.leaveAt).map(({ box }) => grown(box))
-      // 札は出始めを依頼ごとに一度だけ決め、線が終わるまで出し続ける（behavior-spec "Chip start"）。毎コマ決め直すと点いたり消えたりする。
+      // 札の出し方は依頼ごとに一度だけ決めて保つ（behavior-spec "Chip visibility"）。毎コマ決め直すと点いたり消えたりする。
       // 置き場所は古い依頼から。今の t が空いていれば動かさず、ふさがれば最初の空き t へ。どこも空かなければ今の t のまま blocked。
       const labels = [], blocked = [], above = [], placed = [], started = edge => Date.parse(edge.startedAt) || edge.startAt
       const order = [...lines].sort((a, b) => started(a.edge) - started(b.edge) || a.edge.startAt - b.edge.startAt || (a.edge.id < b.edge.id ? -1 : 1))
       const boxAt = (line, t, w, h) => { const p = pointAt(line, t); return { x: p.x - w / 2, y: p.y - h / 2, w, h } }
-      const free = box => !discs.some(disc => intersects(box, disc)) && !nameBoxes.some(name => intersects(box, name)) && !placed.some(other => intersects(box, grown(other)))
+      const free = box => !discs.some(disc => intersects(box, disc)) && !placed.some(other => intersects(box, grown(other)))
       for (const line of order) {
         const edge = line.edge
         const settled = [edge.from, edge.to].every(id => { const item = nodes.get(id); return !item || item.leaveAt || now - item.enterAt >= (reduceMotion ? REDUCED_MS : ENTER_MS) })
-        if (edge.label && !edge.chip && settled) edge.chip = { since: now, t: null, appearAt: null, nullAt: null, lines: null }
+        if (edge.label && !edge.chip && settled) edge.chip = { mode: live2.length > 10 || line.length < 120 ? 'brief' : 'shown', since: now, t: null, appearAt: null, nullAt: null, lines: null }
         const chip = edge.chip
         if (!chip) continue
         if (edge.label) { chip.nullAt = null; chip.lines = wrapLabel(edge.label, 168, measure) }
         else chip.nullAt ??= now
         const text = chip.lines, w = Math.min(180, Math.max(...text.map(measure)) + 12), h = text.length * 16 + 6
-        let alpha = line.opacity
+        const age = now - chip.since, window = chip.mode === 'shown' || age < NEW_LABEL_MS + LABEL_FADE_MS
+        let alpha = (chip.mode === 'brief' ? (age < NEW_LABEL_MS ? 1 : Math.max(0, 1 - (age - NEW_LABEL_MS) / LABEL_FADE_MS)) : 1) * line.opacity
         if (chip.nullAt !== null) alpha *= Math.max(0, 1 - (now - chip.nullAt) / END_MS)
-        // 消えた札だけが場所を返す。
-        if (alpha <= 0 && (chip.nullAt !== null || edge.endAt)) chip.t = null
+        // 短い窓が終わった札・消えた札は場所を返す。
+        if (!window || alpha <= 0 && (chip.nullAt !== null || edge.endAt)) chip.t = null
         else if (!edge.endAt && chip.nullAt === null) {
           const first = SLOTS.find(t => free(boxAt(line, t, w, h)))
           if (chip.t === null) { if (first !== undefined) { chip.t = first; chip.appearAt = now } }
           else if (!free(boxAt(line, chip.t, w, h))) chip.t = first ?? chip.t
         }
         const hovered = hover?.edgeId === edge.id && edge.label && !edge.endAt
-        if (chip.t === null) continue
+        if (chip.t === null) {
+          if (hovered) above.push({ edge, box: boxAt(line, 0.5, w, h), alpha: 1, lines: text, blocked: false })
+          continue
+        }
         const box = boxAt(line, chip.t, w, h), isBlocked = !free(box)
         placed.push(box)
-        // 最初に出る時いつも200msで現れる。
-        alpha *= Math.min(1, (now - chip.appearAt) / 200)
+        // shown は最初に出る時いつも200msで現れる。brief は空きを待った時だけ。
+        if (chip.mode === 'shown' || chip.appearAt > chip.since) alpha *= Math.min(1, (now - chip.appearAt) / 200)
         const item = { edge, box, alpha: hovered ? 1 : alpha, lines: text, blocked: isBlocked }
         if (hovered) above.push(item)
         else (isBlocked ? blocked : labels).push(item)
       }
       labels.push(...above)
+      const names = []
+      for (const item of drawn.values()) {
+        if (item.node.leaveAt && item.opacity <= 0) continue
+        const width = Math.min(item.side * 2.2, measure(item.node.name)), others = discs.filter(disc => disc.id !== item.node.botId)
+        const below = { x: item.x - width / 2, y: item.y + item.side / 2 + 9, w: width, h: 18 }
+        const above = { x: item.x - width / 2, y: item.y - item.side / 2 - 27, w: width, h: 18 }
+        const box = !others.some(disc => intersects(below, disc)) ? below : !others.some(disc => intersects(above, disc)) ? above : hover?.botId === item.node.botId ? below : null
+        if (box) names.push({ item, box, maxWidth: item.side * 2.2 })
+      }
       return { side: S, nodes: [...drawn.values()], lines, blocked, labels, names, empty: !live.length }
     },
     get firstSeen() { return firstSeen },
