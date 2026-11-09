@@ -14,7 +14,7 @@ flowchart LR
   Test -->|PASS| Stable[promote stage=stable :latest+:preview -> stable catalog]
 ```
 
-- `scripts/update_catalog.py publication_candidates(records, channel)`: `stable` (default) keeps draft:false + prerelease:false; `candidate` also accepts prerelease:true. The newest tag wins, so a later stable catalog supersedes a candidate one.
+- `scripts/update_catalog.py publication_candidates(records, channel)`: `stable` (default) keeps draft:false + prerelease:false; `candidate` also accepts prerelease:true. The newest tag wins over all listed rows (sorted by tag before the 10-row cut; GitHub's REST list order is not recency, 2026-11-10 Centi lab: the prerelease was the 14th catalog row and was dropped), so a later stable catalog supersedes a candidate one. The selector runs from the running body's image (`container-update-host.py _refresh_catalog` loads it from `code_root`), so the fix applies from a body that carries it.
 - The bundled container-updater writes `channel` from the install model's `BELLTEAM_UPDATE_CHANNEL` (compose default `stable`). Configs written before the channel existed have no `channel` key = stable. Module updaters keep reading stable.
 - Publisher: `UPDATE_CATALOG_PRERELEASE=true` compares the container row with `manifests/candidate` instead of `latest` and creates the release with `--prerelease`. Signing, attestation and verification are unchanged.
 - Limit: the channel is read by the updater of the body that the test install starts from, so it works only from a body that carries it (the fix body on). The 7c54 -> abe262ad transition used the one-time install-path test (Trony ruling b).
