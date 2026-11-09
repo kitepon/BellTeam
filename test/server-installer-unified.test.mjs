@@ -761,6 +761,7 @@ test('container updater configures the final normal after health and survives in
  const normalUp=calls.findIndex(c=>c.args.includes('up')&&c.compose===saved+'/normal.json')
  const containerUp=calls.findIndex(c=>c.args.includes('up')&&c.args.includes(saved+'/container-updater.json'))
  assert.ok(normalUp>=0&&configuredAt>normalUp&&containerUp>configuredAt)
+ assert.ok(calls[containerUp].args.includes('--force-recreate'))
  assert.equal(calls.some(c=>c.args.includes('container-updater')&&(c.args.includes('stop')||c.args.includes('rm')&&!c.args.includes('run'))),false)
  const failed=await fixture(t)
  await assert.rejects(failed.run([],{TEST_CONTAINER_UPDATER:'1',TEST_CONTAINER_CONFIG_FAIL:'1'}),
