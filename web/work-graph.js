@@ -1,5 +1,5 @@
 // 相関図の画面。データは GET /api/work-graph/events、見た目と動きは behavior-spec.md のとおり。
-import { accent, backoffMs, blinkOpacity, createGraphModel, edgeText, flowDots, nodeText, pointAt } from './work-graph-model.js?v=__ASSET_VERSION__'
+import { accent, backoffMs, blinkOpacity, createGraphModel, edgeText, flowDots, nodeAt, nodeText, pointAt } from './work-graph-model.js?v=__ASSET_VERSION__'
 
 const INK = '#21293D', MUTED = '#787D91', LINE = '#E6E3F0', CHIP = 'rgba(248, 248, 251, 0.92)'
 const NAME_FONT = '700 15px -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif'
@@ -73,13 +73,14 @@ export function createGraphStream({ fetch = globalThis.fetch, setTimeout = globa
   }
 }
 
-export function createWorkGraphView(dialog, { fetch = globalThis.fetch } = {}) {
+export function createWorkGraphView(dialog, { fetch = globalThis.fetch, onOpenMember = () => {} } = {}) {
   const stage = dialog.querySelector('[data-work-graph-stage]')
   const canvas = dialog.querySelector('canvas')
   const pill = dialog.querySelector('[data-work-graph-pill]')
   const empty = dialog.querySelector('[data-work-graph-empty]')
   const emptyText = empty.querySelector('p')
   const list = dialog.querySelector('[data-work-graph-a11y]')
+  const hint = dialog.querySelector('[data-work-graph-hint]')
   const reduceMotion = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
   let model = createGraphModel({ reduceMotion }), frameId = 0, last = 0, status = 'connecting', hover = null, open = false
   const images = new Map(), measures = new Map()
@@ -126,8 +127,19 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch } = {}) {
   }
   function describe() {
     const names = new Map([...model.nodes.values()].map(node => [node.botId, node.name]))
-    const items = [...[...model.nodes.values()].filter(node => !node.leaveAt).map(node => nodeText(node, now())), ...[...model.edges.values()].filter(edge => !edge.endAt).map(edge => edgeText(edge, names))]
-    list.replaceChildren(...items.map(text => Object.assign(document.createElement('li'), { textContent: text })))
+    const focused = list.contains(document.activeElement) ? document.activeElement.dataset.botId : null
+    const button = node => {
+      const item = Object.assign(document.createElement('button'), { type: 'button', textContent: nodeText(node, now()) })
+      item.dataset.botId = node.botId
+      item.setAttribute('aria-describedby', hint.id)
+      item.addEventListener('click', () => onOpenMember(node.botId))
+      return item
+    }
+    const nodes = [...model.nodes.values()].filter(node => !node.leaveAt).map(button)
+    const edges = [...model.edges.values()].filter(edge => !edge.endAt).map(edge => edgeText(edge, names))
+    list.replaceChildren(...nodes.map(item => { const li = document.createElement('li'); li.append(item); return li }), ...edges.map(text => Object.assign(document.createElement('li'), { textContent: text })))
+    // 一覧を描き直してもキーボードの位置を失わない。
+    if (focused) nodes.find(item => item.dataset.botId === focused)?.focus()
   }
   const stream = createGraphStream({
     fetch,
@@ -136,6 +148,15 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch } = {}) {
     onStatus: showStatus,
   })
   function roundRect(x, y, w, h, r) { context.beginPath(); context.roundRect ? context.roundRect(x, y, w, h, r) : context.rect(x, y, w, h) }
+  function chips(items) {
+    context.font = LABEL_FONT; context.textAlign = 'center'; context.textBaseline = 'middle'
+    for (const { box, alpha, lines } of items) {
+      context.globalAlpha = alpha
+      context.fillStyle = CHIP; roundRect(box.x, box.y, box.w, box.h, 8); context.fill()
+      context.fillStyle = MUTED
+      lines.forEach((line, i) => context.fillText(line, box.x + box.w / 2, box.y + 3 + 8 + i * 16))
+    }
+  }
   function draw(time) {
     frameId = 0
     if (!open) return
@@ -178,6 +199,8 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch } = {}) {
         }
       }
     }
+    // blocked の札だけは線のすぐ上、顔・名前・ほかの札の下。
+    chips(frame.blocked)
     for (const item of frame.nodes) {
       const { node, x, y, side } = item, color = accent(node.color), linked = node.state !== 'working'
       context.globalAlpha = item.opacity * (linked ? 0.55 : 1)
@@ -207,30 +230,41 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch } = {}) {
       context.fillStyle = item.node.state === 'working' ? INK : MUTED
       context.fillText(truncate(item.node.name, maxWidth, measure(NAME_FONT)), item.x, box.y)
     }
-    context.font = LABEL_FONT; context.textBaseline = 'middle'
-    for (const { box, alpha, lines } of frame.labels) {
-      context.globalAlpha = alpha
-      context.fillStyle = CHIP; roundRect(box.x, box.y, box.w, box.h, 8); context.fill()
-      context.fillStyle = MUTED
-      lines.forEach((line, i) => context.fillText(line, box.x + box.w / 2, box.y + 3 + 8 + i * 16))
-    }
+    chips(frame.labels)
     context.globalAlpha = 1; context.filter = 'none'
     if (model.firstSeen) paintEmpty()
     frameId = requestAnimationFrame(draw)
   }
   // 混んでいる時や隠れたラベル・名前は、ポインターを近づけた時だけ出す。
-  canvas.addEventListener('pointermove', event => {
+  const hit = event => {
     const box = canvas.getBoundingClientRect(), x = event.clientX - box.left, y = event.clientY - box.top
-    const frame = model.frame(now(), rectOf(), { wide: wide(), measure: measure(LABEL_FONT) })
-    const node = frame.nodes.find(item => Math.abs(item.x - x) <= item.side / 2 && Math.abs(item.y - y) <= item.side / 2)
-    let edgeId = null
-    if (!node) for (const line of frame.lines) {
+    const frame = model.frame(now(), rectOf(), { wide: wide(), hover, measure: measure(LABEL_FONT) })
+    return { frame, x, y, botId: nodeAt(frame, x, y) }
+  }
+  canvas.addEventListener('pointermove', event => {
+    const { frame, x, y, botId: node } = hit(event)
+    canvas.style.cursor = node ? 'pointer' : ''
+    const inside = ({ box }) => x >= box.x && x <= box.x + box.w && y >= box.y && y <= box.y + box.h
+    let edgeId = node ? null : (frame.labels.findLast(inside) ?? frame.blocked.findLast(inside))?.edge.id ?? null
+    if (!node && !edgeId) for (const line of frame.lines) {
       for (let i = 0; i <= 20; i++) { const p = pointAt(line, i / 20); if (Math.hypot(p.x - x, p.y - y) < 10) { edgeId = line.edge.id; break } }
       if (edgeId) break
     }
-    hover = node ? { botId: node.node.botId } : edgeId ? { edgeId } : null
+    hover = node ? { botId: node } : edgeId ? { edgeId } : null
   })
   canvas.addEventListener('pointerleave', () => { hover = null })
+  // タップ：押した時の相手を覚え、10px未満・500ms未満で離したらその子の会話を開く。離す前に図が変わっても同じ相手。
+  let press = null
+  canvas.addEventListener('pointerdown', event => {
+    const botId = event.isPrimary && event.button === 0 ? hit(event).botId : null
+    press = botId ? { botId, id: event.pointerId, x: event.clientX, y: event.clientY, at: event.timeStamp } : null
+  })
+  canvas.addEventListener('pointerup', event => {
+    const item = press
+    press = null
+    if (item && item.id === event.pointerId && Math.hypot(event.clientX - item.x, event.clientY - item.y) < 10 && event.timeStamp - item.at < 500) onOpenMember(item.botId)
+  })
+  canvas.addEventListener('pointercancel', () => { press = null })
   const visibility = () => { if (!open) return; if (document.hidden) stream.stop(); else stream.start() }
   const resize = () => model.heat()
   return {

@@ -67,6 +67,7 @@ export function readSnapshot(data) {
 
 // 矩形の中心から方向(ux,uy)へ出た線が、一辺sの正方形の縁に当たるまでの距離。
 const border = (s, ux, uy) => (s / 2) / Math.max(Math.abs(ux), Math.abs(uy), 1e-6)
+const SLOTS = [0.5, 0.45, 0.55, 0.4, 0.6, 0.35, 0.65, 0.3, 0.7]
 const grown = box => ({ x: box.x - 4, y: box.y - 4, w: box.w + 8, h: box.h + 8 })
 const intersects = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
 
@@ -218,27 +219,42 @@ export function createGraphModel({ reduceMotion = false } = {}) {
         const opacity = edge.endAt ? Math.max(0, 1 - (now - edge.endAt) / END_MS) : 1
         lines.push({ edge, p0, p2, control, length, grow: easeOut(grow), opacity, dotsSince: edge.startAt + GROW_MS, color: accent(a.node.color) })
       }
-      const crowded = live2.length > 10
-      // 札は古い依頼から置く（新しい依頼が来ても、置いた札は動かない）。どこにも置けない札は、指した時だけ一番上に出す。
-      const labels = [], above = [], started = edge => Date.parse(edge.startedAt) || edge.startAt
+      // 札の出し方は依頼ごとに一度だけ決めて保つ（behavior-spec "Chip visibility"）。毎コマ決め直すと点いたり消えたりする。
+      // 置き場所は古い依頼から。今の t が空いていれば動かさず、ふさがれば最初の空き t へ。どこも空かなければ今の t のまま blocked。
+      const labels = [], blocked = [], above = [], placed = [], started = edge => Date.parse(edge.startedAt) || edge.startAt
       const order = [...lines].sort((a, b) => started(a.edge) - started(b.edge) || a.edge.startAt - b.edge.startAt || (a.edge.id < b.edge.id ? -1 : 1))
+      const boxAt = (line, t, w, h) => { const p = pointAt(line, t); return { x: p.x - w / 2, y: p.y - h / 2, w, h } }
+      const free = box => !discs.some(disc => intersects(box, disc)) && !placed.some(other => intersects(box, grown(other)))
       for (const line of order) {
-        if (line.edge.endAt || !line.edge.label) continue
-        let alpha = 1
-        if (crowded || line.length < 120) {
-          const age = now - line.edge.startAt
-          alpha = age < NEW_LABEL_MS ? 1 : Math.max(0, 1 - (age - NEW_LABEL_MS) / LABEL_FADE_MS)
+        const edge = line.edge
+        const settled = [edge.from, edge.to].every(id => { const item = nodes.get(id); return !item || item.leaveAt || now - item.enterAt >= (reduceMotion ? REDUCED_MS : ENTER_MS) })
+        if (edge.label && !edge.chip && settled) edge.chip = { mode: live2.length > 10 || line.length < 120 ? 'brief' : 'shown', since: now, t: null, appearAt: null, nullAt: null, lines: null }
+        const chip = edge.chip
+        if (!chip) continue
+        if (edge.label) { chip.nullAt = null; chip.lines = wrapLabel(edge.label, 168, measure) }
+        else chip.nullAt ??= now
+        const text = chip.lines, w = Math.min(180, Math.max(...text.map(measure)) + 12), h = text.length * 16 + 6
+        const age = now - chip.since, window = chip.mode === 'shown' || age < NEW_LABEL_MS + LABEL_FADE_MS
+        let alpha = (chip.mode === 'brief' ? (age < NEW_LABEL_MS ? 1 : Math.max(0, 1 - (age - NEW_LABEL_MS) / LABEL_FADE_MS)) : 1) * line.opacity
+        if (chip.nullAt !== null) alpha *= Math.max(0, 1 - (now - chip.nullAt) / END_MS)
+        // 短い窓が終わった札・消えた札は場所を返す。
+        if (!window || alpha <= 0 && (chip.nullAt !== null || edge.endAt)) chip.t = null
+        else if (!edge.endAt && chip.nullAt === null) {
+          const first = SLOTS.find(t => free(boxAt(line, t, w, h)))
+          if (chip.t === null) { if (first !== undefined) { chip.t = first; chip.appearAt = now } }
+          else if (!free(boxAt(line, chip.t, w, h))) chip.t = first ?? chip.t
         }
-        if (hover?.edgeId === line.edge.id) alpha = 1
-        if (alpha <= 0) continue
-        const text = wrapLabel(line.edge.label, 168, measure), width = Math.min(180, Math.max(...text.map(measure)) + 12), height = text.length * 16 + 6
-        let place = null
-        for (const t of [0.5, 0.45, 0.55, 0.4, 0.6, 0.35, 0.65, 0.3, 0.7]) {
-          const p = pointAt(line, t), box = { x: p.x - width / 2, y: p.y - height / 2, w: width, h: height }
-          if (!discs.some(disc => intersects(box, disc)) && !labels.some(label => intersects(box, grown(label.box)))) { place = box; break }
+        const hovered = hover?.edgeId === edge.id && edge.label && !edge.endAt
+        if (chip.t === null) {
+          if (hovered) above.push({ edge, box: boxAt(line, 0.5, w, h), alpha: 1, lines: text, blocked: false })
+          continue
         }
-        if (place) labels.push({ edge: line.edge, box: place, alpha, lines: text })
-        else if (hover?.edgeId === line.edge.id) { const p = pointAt(line, 0.5); above.push({ edge: line.edge, box: { x: p.x - width / 2, y: p.y - height / 2, w: width, h: height }, alpha, lines: text }) }
+        const box = boxAt(line, chip.t, w, h), isBlocked = !free(box)
+        placed.push(box)
+        if (chip.appearAt > chip.since) alpha *= Math.min(1, (now - chip.appearAt) / 200)
+        const item = { edge, box, alpha: hovered ? 1 : alpha, lines: text, blocked: isBlocked }
+        if (hovered) above.push(item)
+        else (isBlocked ? blocked : labels).push(item)
       }
       labels.push(...above)
       const names = []
@@ -250,10 +266,18 @@ export function createGraphModel({ reduceMotion = false } = {}) {
         const box = !others.some(disc => intersects(below, disc)) ? below : !others.some(disc => intersects(above, disc)) ? above : hover?.botId === item.node.botId ? below : null
         if (box) names.push({ item, box, maxWidth: item.side * 2.2 })
       }
-      return { side: S, nodes: [...drawn.values()], lines, labels, names, empty: !live.length }
+      return { side: S, nodes: [...drawn.values()], lines, blocked, labels, names, empty: !live.length }
     },
     get firstSeen() { return firstSeen },
   }
+}
+
+// 押せる相手：描いている名前、または顔（44×44未満なら44×44へ広げる）。後に描いた顔が上。線・札・余白はnull。
+export function nodeAt(frame, x, y) {
+  const name = frame.names.find(({ box }) => x >= box.x && x <= box.x + box.w && y >= box.y && y <= box.y + box.h)
+  if (name) return name.item.node.botId
+  const item = frame.nodes.findLast(item => { const r = Math.max(item.side, 44) / 2; return Math.abs(item.x - x) <= r && Math.abs(item.y - y) <= r })
+  return item?.node.botId ?? null
 }
 
 // 線（直線か二次曲線）上の位置。tは0〜1。

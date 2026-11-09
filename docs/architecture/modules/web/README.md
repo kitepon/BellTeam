@@ -96,7 +96,7 @@ Source reach: `web/harness-accounts.js` (new), `web/harness-auth.js` (slot optio
 
 ## 相関図
 
-[相関図 page](work-graph.md): full-screen dialog drawing the work-graph contract with the shared behavior spec. Source reach: `web/work-graph-model.js`, `web/work-graph.js`, `web/index.html` (nav button + dialog), `web/application.js` (open), `web/styles.css`, `web/assets.mjs`, `test/web-work-graph.test.mjs`.
+[相関図 page](work-graph.md): full-screen dialog drawing the work-graph contract with the shared behavior spec. Source reach: `web/work-graph-model.js`, `web/work-graph.js`, `web/index.html` (nav button + dialog), `web/application.js` (open, tap -> notification route), `web/notification-navigation.js` (`open`), `web/styles.css`, `web/assets.mjs`, `test/web-work-graph.test.mjs`.
 
 ## 単独試験
 

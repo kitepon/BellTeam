@@ -37,5 +37,5 @@ export function createNotificationNavigation({onRoute,onNotice,onRoot=()=>{},bro
     pending=route;store();void apply()
   }
   browser.navigator?.serviceWorker?.addEventListener('message',receive)
-  return {async ready(){ready=true;await apply()},retry:apply,close(){ready=false;browser.navigator?.serviceWorker?.removeEventListener('message',receive)}}
+  return {async ready(){ready=true;await apply()},retry:apply,open(route){pending=route;return apply()},close(){ready=false;browser.navigator?.serviceWorker?.removeEventListener('message',receive)}}
 }
