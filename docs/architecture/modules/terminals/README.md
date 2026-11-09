@@ -158,6 +158,7 @@ flowchart LR
   Exec -->|agent_launch terminal + cwd, then session_id calls| Aiterm[local Aiterm: routes the seat to the terminal]
   Aiterm -->|bound SSH, R12 reverse forward for seat MCP| Mac[Owner Mac: claude in projectRoot]
   Conn -->|harness claude-code: C8 claude_version, claude_update or claude_install| Proc[remote-process.mjs: transient aiterm-remote-terminal serve]
+  Exec -->|observe terminalId after a launch connectivity failure| Probe
   Probe[non-AI availability observer: check retry] --> Conn
   Conn -->|check: open then close| Proc
   Proc --> Mac
@@ -173,6 +174,7 @@ flowchart LR
 | `registry` | `list()`, `get(id)` (null if absent), `put(input)`, `remove(id)`; `ingressUrl` removed (Molly #793: seat MCP target is the container origin Aiterm rewrites; a legacy stored value is dropped on read, an input value is rejected) | Nonsecret projection with `maintenance` (last C8 outcome or null, in memory); errors `{code, status, message}`: `INVALID_TERMINAL` 400, `TERMINAL_NOT_FOUND` 404, `TERMINAL_EXISTS` 409, `HOST_KEY_FINGERPRINT_MISMATCH` 409, `INVALID_TERMINAL_STORE` 500. Messages name the field, its expected form and the next action, and never echo the submitted value |
 | `registry` | `put({..., confirmHostKey: 'SHA256:...'})` | Owner's "confirm the new host key": Aiterm's `trust-confirm` scans once and writes only on an equal fingerprint, then the new trust revision is stored. Without it, a new record binds the trust Aiterm already holds (P1 pre-enrolled known_hosts) |
 | `connection` | `target({terminalId, memberId, projectRoot, harness})` | `{terminal: {ref, target: {host, user, port}, trustRevision, credentialRevision}, cwd: projectRoot, accountOwner: 'owner' / 'terminal-owner'}`. Execution passes `terminal` + `cwd` unchanged to Aiterm's launch and applies the Owner's 1st/2nd slot login only when `accountOwner === 'owner'`. Or `{code, effect:'not_started', reason?, action?}` with code `TERMINAL_UNAVAILABLE` / `CREDENTIAL_UNAVAILABLE` / `TARGET_MISMATCH` |
+| `connection` | `observe(terminalId)` (no result) | Execution calls it when Aiterm's launch, after a successful `target`, answers a connectivity code (`UNREACHABLE`, `SEAT_FORWARD_UNAVAILABLE`, `HOST_TRUST_STALE`, `CREDENTIAL_*`, `TERMINAL_UNAVAILABLE`). Arms the same non-AI observer as a failed `target` (same backoff, idempotent while armed, `TERMINAL_NOT_FOUND` ends it, inert after dispose); its exit is the `available` event. `HOST_KEY_MISMATCH` / `TARGET_MISMATCH` wait for the registry-change edge instead |
 | `connection` | `onAvailable(listener)` -> unsubscribe | `listener({terminalId})` when the terminal is usable again (core republishes it on `watch`) |
 | `reachability` | `check(terminalId)` | `{terminalId, observedAt, reachable, reason, action?}`; opens and closes one transient remote process, never launches |
 | `maintenance` (C8) | `last(terminalId)` | `{terminalId, observedAt, before, after, outcome:'current'/'updated'/'failed'}` |

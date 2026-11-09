@@ -201,6 +201,8 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
   return {
     target,
     check,
+    // Kiro #765: arms the same observer after Aiterm's launch answered a connectivity code; its exit is the available event.
+    observe(terminalId) { if (typeof terminalId === 'string') want(terminalId) },
     onAvailable(listener) { listeners.add(listener); return () => listeners.delete(listener) },
     maintenance: { last: terminalId => structuredClone(maintenance.get(terminalId) ?? null) },
     onRegistryChange,

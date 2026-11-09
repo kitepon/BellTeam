@@ -44,10 +44,11 @@ export function fakeSecrets({ unavailable = false } = {}) {
   }
 }
 
-// Stand-in for terminals.connection with the same target/onAvailable surface.
+// Stand-in for terminals.connection with the same target/observe/onAvailable surface.
 export function fakeConnection({ targetError, accountOwner = 'owner' } = {}) {
   const listeners = new Set()
   const calls = []
+  const observed = []
   return {
     calls,
     async target(request) {
@@ -55,6 +56,8 @@ export function fakeConnection({ targetError, accountOwner = 'owner' } = {}) {
       if (targetError) throw Object.assign(new Error(targetError), { code: targetError, effect: 'not_started' })
       return { terminal: { ref: `binding-${request.terminalId}`, target: { host: '192.168.1.12', user: 'kite', port: 22 }, trustRevision: `sha256:${'a'.repeat(64)}`, credentialRevision: 3 }, cwd: request.projectRoot, accountOwner }
     },
+    observed,
+    observe(terminalId) { observed.push(terminalId) },
     onAvailable(listener) { listeners.add(listener); return () => listeners.delete(listener) },
     emitAvailable(terminalId) { for (const listener of listeners) listener({ terminalId }) }
   }
