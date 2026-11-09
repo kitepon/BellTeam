@@ -93,14 +93,22 @@ test('設定反映のclose中に届いた次の送信は、閉じ終えてから
   assert.deepEqual(sent, ['old-session', 'new-session'])
 })
 
-test('設定反映のcloseが失敗したら、次の送信も旧登録へ渡さず理由を返す', async () => {
-  const transport = new AitermTransport({ client: { async call(name) {
-    assert.equal(name, 'pty_close')
-    throw new Error('CLOSE_FAILED')
-  } } })
-  const bot = { id: 'bot-a', session: 'old-session' }
+// configuration-delivery.md (Owner decision 2026-11-07): no unknown command outcome blocks a subsequent dispatch.
+test('設定反映のcloseが失敗しても、次の送信は旧closeの結果で止めず、通常どおり席へ渡す', async () => {
+  const calls = []
+  const transport = new AitermTransport({ client: { async call(name, args) {
+    calls.push([name, args])
+    if (name === 'pty_close') throw new Error('CLOSE_FAILED')
+    if (name === 'pty_send') return { structuredContent: { mode: 'agent_dispatch', event_cursor: 2, wait_process: { executable: '/node', args: ['wait'] } } }
+    if (name === 'pty_read') return { structuredContent: { schema: 'aiterm.pty-read-result.v1', mode: 'agent_transcript', text: '了解' } }
+    throw new Error(`unexpected ${name}`)
+  } }, handoffContext: noMemory, waitProcess: async () => ({ outcome: 'done' }) })
+  const bot = { id: 'bot-a', session: 'old-session', harness: 'codex', project: await mkdtemp(join(tmpdir(), 'bellteam-close-failed-')) }
   await assert.rejects(transport.stopForConfiguration(bot), /CLOSE_FAILED/u)
-  await assert.rejects(transport.turn(bot, '続ける'), { code: 'BOT_SESSION_UNCONFIRMED' })
+  await transport.turn(bot, '続ける')
+  assert.deepEqual(calls.map(([name]) => name).slice(0, 2), ['pty_close', 'pty_send'])
+  assert.equal(calls[1][1].session_id, 'old-session')
+  assert.equal(calls[1][1].text, '続ける')
 })
 
 test('記録中のセッションへ不達なら新規起動し、返されたIDを保存して一度だけ再送する', async () => {
@@ -168,7 +176,8 @@ test('起動の準備が終わらなかった席は残った端末を閉じ、�
   const client = {
     async call(name, args) {
       calls.push([name, args])
-      if (name === 'pty_list') return { content: [{ type: 'text', text: '(セッション無し)' }] }
+      // An unreadable observation launches and closes nothing first (delivery-details.md).
+      if (name === 'pty_observe') throw new Error('OBSERVE_UNAVAILABLE')
       if (name === 'pty_send' && launches < 2) throw new Error('SESSION_NOT_FOUND')
       if (name === 'agent_launch' && ++launches === 1) {
         // 認証が切れたCLIがサインインの画面で止まった時のAitermの返事（0.52.2）。端末は作られて残る。
@@ -191,7 +200,8 @@ test('起動の準備が終わらなかった席は残った端末を閉じ、�
     assert.match(error.publicMessage, /メッセージは送信されませんでした。.*AIの認証が切れている可能性があります。/u)
     return true
   })
-  assert.deepEqual(calls.map(call => call[0]), ['pty_send', 'pty_list', 'agent_launch', 'pty_close'])
+  // delivery-details.md: a refused send observes the seat (pty_observe), and an absent seat is launched.
+  assert.deepEqual(calls.map(call => call[0]), ['pty_send', 'pty_observe', 'agent_launch', 'pty_close'])
   assert.deepEqual(calls.at(-1), ['pty_close', { session_id: 'bot-a' }])
 
   // 認証し直した後の次の送信は、残った端末に邪魔されず、普通に起きる。
@@ -206,7 +216,8 @@ test('端末を作る前に失敗した起動は、端末を閉じず、理由�
   const client = {
     async call(name, args) {
       calls.push([name, args])
-      if (name === 'pty_list') return { content: [{ type: 'text', text: '(セッション無し)' }] }
+      // An unreadable observation launches and closes nothing first (delivery-details.md).
+      if (name === 'pty_observe') throw new Error('OBSERVE_UNAVAILABLE')
       if (name === 'pty_send') throw new Error('SESSION_NOT_FOUND')
       if (name === 'agent_launch') throw new Error('aiterm: PTY_BACKEND_FAILED')
       throw new Error(`unexpected ${name}`)
@@ -220,7 +231,7 @@ test('端末を作る前に失敗した起動は、端末を閉じず、理由�
     assert.equal(error.publicMessage, undefined)
     return true
   })
-  assert.deepEqual(calls.map(call => call[0]), ['pty_send', 'pty_list', 'agent_launch'])
+  assert.deepEqual(calls.map(call => call[0]), ['pty_send', 'pty_observe', 'agent_launch'])
 })
 
 test('BotのCLI名を五つのAiterm harnessへ変換する', async () => {
@@ -639,7 +650,8 @@ test('Aitermの送信失敗は待機に戻さずfailedとして返す', async ()
   const transport = new AitermTransport({
     client: { async call(name) {
       calls.push(name)
-      if (name === 'pty_list') return { content: [{ type: 'text', text: 'bot-b\tnode' }] }
+      // delivery-details.md: a live seat with a running turn keeps the refusal; nothing is closed or relaunched.
+      if (name === 'pty_observe') return { structuredContent: { schema: 'aiterm.pty-observe-result.v1', session_id: 'bot-b', exists: true, state: 'busy', launch_id: 'a'.repeat(32) } }
       throw new Error('STEER_NOT_QUEUED')
     } },
     handoffContext: noMemory,
@@ -650,8 +662,9 @@ test('Aitermの送信失敗は待機に戻さずfailedとして返す', async ()
   await assert.rejects(completion.accepted, /STEER_NOT_QUEUED/u)
   await assert.rejects(completion, /STEER_NOT_QUEUED/u)
   assert.deepEqual(statuses, ['failed'])
-  assert.deepEqual(calls, ['pty_send', 'pty_list'])
-  assert.deepEqual(transport.queueItems({ botId: bot.id }), [])
+  assert.deepEqual(calls, ['pty_send', 'pty_observe'])
+  // configuration-delivery.md: only the bounded failed row stays (never shown as processing).
+  assert.deepEqual(transport.queueItems({ botId: bot.id }).map(row => [row.status, row.message]), [['failed', '追加指示']])
 })
 
 test('Aitermが新規ターンを返したらBellTeamは前の完了を待たず受け付ける', async () => {
@@ -1150,10 +1163,12 @@ function runningTurn(turnId, cursor = 900) {
   }
 }
 
-test('BellTeamが始めていないターンを見つけたら、終わるまで処理中に出し、そのターンの合間の言葉だけを出す', async () => {
+test('BellTeamが始めていないターンを見つけたら、終わるまで処理中に出し、そのターンの合間の言葉だけを出す', async t => {
   const calls = []
   let finish
   const waiting = new Promise(resolve => { finish = resolve })
+  // A failed assertion must not leave the watched turn polling forever (the whole file then never exits).
+  t.after(() => finish({ outcome: 'done', turn_id: 'turn-x' }))
   const written = [
     { seq: 1, text: '子の結果を見るね', kind: 'interim', at: '2026-10-13T12:45:30.000Z', turn_id: 'turn-x' },
     { seq: 2, text: '次のターンの言葉', kind: 'interim', at: null, turn_id: 'turn-y' },
@@ -1176,7 +1191,7 @@ test('BellTeamが始めていないターンを見つけたら、終わるまで
   assert.deepEqual(calls[0], ['pty_list', {}, { meta: { 'aiterm/caller': 'BellTeam' } }])
   const item = {
     id: 'job-1', botId: 'bot-a', botName: 'リリーバイス', status: 'running', startedAt: '2026-10-13T12:45:27.000Z',
-    context: 'self', contextId: 'bot-a', groupId: 'g-1', target: 'bot-a',
+    context: 'self', contextId: 'bot-a', groupId: 'g-1', target: 'bot-a', steered: false,
   }
   assert.deepEqual(transport.queueItems({ botId: bot.id }), [item])
   // 追っている間にもう一度聞いても、同じターンを2つ追わない。
