@@ -242,6 +242,98 @@ final class TerminalsTests: XCTestCase {
         XCTAssertFalse(store.terminals.loading)
     }
 
+    private func setting(_ json: String) throws -> FeatureSetting { try JSONDecoder().decode(FeatureSetting.self, from: Data(json.utf8)) }
+
+    func testOnePasswordSettingDecodesWithAndWithoutGuideAndConnection() throws {
+        let connected = try setting(#"""
+        {"id":"onePassword","title":"1Password連携","enabled":true,"status":"enabled",
+         "fields":[{"key":"token","label":"サービスアカウントのトークン","secret":true,"value":"","configured":true}],"error":null,
+         "guide":{"steps":["作る","許可する"],"link":{"label":"手順","url":"https://developer.1password.com/docs/service-accounts/"}},
+         "connection":{"vaults":["Infra","Team"],"sshKeys":3}}
+        """#)
+        XCTAssertEqual(connected.guide?.steps, ["作る", "許可する"])
+        XCTAssertEqual(connected.guide?.openableLink?.url.absoluteString, "https://developer.1password.com/docs/service-accounts/")
+        XCTAssertEqual(connected.connection, OnePasswordConnection(vaults: ["Infra", "Team"], sshKeys: 3))
+        XCTAssertEqual(OnePasswordState.connectionLine(connected), "読める保管庫：Infra、Team　SSH鍵：3件")
+
+        // An older body has neither: decoding succeeds and the extras are simply absent.
+        let old = try setting(#"{"id":"onePassword","title":"1Password連携","enabled":false,"status":"unconfigured","fields":[],"error":null}"#)
+        XCTAssertNil(old.guide)
+        XCTAssertNil(old.connection)
+        XCTAssertNil(OnePasswordState.connectionLine(old))
+
+        // A malformed extra never fails the whole list.
+        let odd = try setting(#"{"id":"onePassword","title":"1Password連携","enabled":true,"status":"enabled","fields":[],"error":null,"guide":"text","connection":{"vaults":1}}"#)
+        XCTAssertNil(odd.guide)
+        XCTAssertNil(odd.connection)
+        XCTAssertEqual(OnePasswordState.connectionLine(odd), "1Passwordにつながっています。", "接続の内訳が無くても連携中の一行")
+        XCTAssertEqual(try JSONDecoder().decode(FeatureSettingsResponse.self, from: Data(#"{"settings":[]}"#.utf8)).settings.count, 0)
+    }
+
+    func testOnlyAnHttpsGuideLinkOpens() throws {
+        func link(_ url: String) throws -> Bool {
+            try setting(#"{"id":"onePassword","title":"t","enabled":false,"status":"unconfigured","fields":[],"error":null,"guide":{"steps":[],"link":{"label":"l","url":"\#(url)"}}}"#).guide?.openableLink != nil
+        }
+        XCTAssertTrue(try link("https://developer.1password.com/docs/"))
+        XCTAssertFalse(try link("http://developer.1password.com/docs/"))
+        XCTAssertFalse(try link("javascript:alert(1)"))
+        XCTAssertFalse(try link("https://"))
+    }
+
+    func testOnePasswordBadgeStateAndConnectionLine() throws {
+        func state(_ status: String, error: String = "null", connection: String = "null") throws -> (OnePasswordState, String?) {
+            let item = try setting(#"{"id":"onePassword","title":"t","enabled":true,"status":"\#(status)","fields":[],"error":\#(error),"connection":\#(connection)}"#)
+            return (OnePasswordState(item), OnePasswordState.connectionLine(item))
+        }
+        XCTAssertEqual(try state("enabled").0, .connected)
+        XCTAssertEqual(try state("disabled").0, .off)
+        XCTAssertEqual(try state("unconfigured").0, .off)
+        let rejected = try state("enabled", error: #"{"code":"ONEPASSWORD_TOKEN_REJECTED","message":"受け付けませんでした"}"#)
+        XCTAssertEqual(rejected.0, .failed, "反映エラーがあれば連携中にしない")
+        XCTAssertNil(rejected.1)
+        XCTAssertEqual(try state("enabled", connection: #"{"vaults":[],"sshKeys":0}"#).1,
+                       "読める保管庫：なし　SSH鍵が見つかりません。読める保管庫にSSH鍵を入れるか、サービスアカウントに鍵のある保管庫を足してください。")
+        XCTAssertEqual([OnePasswordState.connected, .off, .failed].map(\.badgeText), ["連携中", "未連携", "失敗"])
+    }
+
+    func testOnePasswordTokenMustStartWithOps() {
+        XCTAssertNil(OnePasswordState.tokenProblem("ops_eyJzaWduSW4"))
+        XCTAssertNil(OnePasswordState.tokenProblem("  ops_abc\n"))
+        XCTAssertNotNil(OnePasswordState.tokenProblem(""))
+        XCTAssertNotNil(OnePasswordState.tokenProblem("op://vault/item/field"))
+        XCTAssertNotNil(OnePasswordState.tokenProblem("OPS_abc"))
+    }
+
+    func testSettingTokenIsSentThroughTheOwnerPatch() throws {
+        let body = try JSONEncoder().encode(FeatureSettingUpdate(enabled: true, values: ["token": "ops_x"]))
+        XCTAssertEqual(try JSONSerialization.jsonObject(with: body) as? NSDictionary, ["enabled": true, "values": ["token": "ops_x"]])
+    }
+
+    func testSshKeyPickerDecodesAndSubmitsTheChosenReference() async throws {
+        let (store, session) = makeStore()
+        defer { session.invalidateAndCancel() }
+        TerminalsProtocol.respond(200, #"""
+        {"items":[{"title":"Mac mini 本番","vault":"Infra","reference":"op://v/i/private key?ssh-format=openssh"},{"title":"古い鍵","reference":"op://v/j/private key?ssh-format=openssh"}]}
+        """#)
+        let keys = try await store.api.onePasswordKeys(requestId: "r1")
+        XCTAssertEqual(keys.map(\.title), ["Mac mini 本番", "古い鍵"])
+        XCTAssertEqual(keys.map(\.vault), ["Infra", nil])
+        XCTAssertEqual(SecretSubmission.onePassword(reference: keys[0].reference).body,
+                       ["source": "onepassword", "reference": "op://v/i/private key?ssh-format=openssh"], "送信の形は変えない")
+        XCTAssertNil(SecretSubmission.referenceProblem(keys[0].reference))
+    }
+
+    func testSshKeyPickerStateAfterFailures() async {
+        let (store, session) = makeStore()
+        defer { session.invalidateAndCancel() }
+        for (status, expected) in [(404, OnePasswordKeyList.unsupported), (503, .failed), (500, .failed)] {
+            TerminalsProtocol.respond(status, #"{"error":"X"}"#)
+            do { _ = try await store.api.onePasswordKeys(requestId: "r1"); XCTFail("expected \(status) to throw") }
+            catch { XCTAssertEqual(OnePasswordKeyList.after(error), expected, "status \(status)") }
+        }
+        XCTAssertEqual(OnePasswordKeyList.after(URLError(.notConnectedToInternet)), .failed)
+    }
+
     private func makeStore() -> (AppStore, URLSession) {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [TerminalsProtocol.self]

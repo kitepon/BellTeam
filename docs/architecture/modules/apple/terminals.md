@@ -16,7 +16,8 @@ flowchart TD
   Detail --> HostKey["HostKeyConfirmSheet<br/>端末で読んだ指紋を入力"]
   Detail --> Keys["TerminalKeyRow（SSH鍵・sudo鍵）<br/>設定済み/未設定/設定待ち + 鍵の出どころ<br/>「設定する」「設定し直す」「外す」"]
   Keys --> KeyState["Terminal.key → TerminalKeyState<br/>旧本体は未対応の一行"]
-  Keys --> Card["SecretInputSheet（既存の秘密入力カード）<br/>1Password参照が先・保存値が代替"]
+  Keys --> Card["SecretInputSheet（既存の秘密入力カード）<br/>SSH鍵: 1Passwordの鍵から選ぶ / 鍵を貼り付けて保存する<br/>sudo: 1Password参照が先・保存値が代替"]
+  Card --> Items["BellAPI.onePasswordKeys<br/>GET /api/secret-requests/:id/onepassword-items（SSH鍵だけ）"]
   Card --> SecretAPI["BellAPI.finishSecretRequest<br/>保護session"]
   Form --> Rules["TerminalDraft.problem<br/>サーバーと同じ形の検査"]
   HostKey --> FP["HostKeyFingerprint.problem<br/>SHA256:+43文字"]
@@ -38,7 +39,7 @@ flowchart TD
 | `Core/Terminals.swift` | `Terminal`・`TerminalCheck`・`TerminalMaintenance`（新しい項目はすべて省略可で読む）、`TerminalKeyKind`・`TerminalKeyState`（鍵の行）、`TerminalDraft`（登録の検査とbody）、`MemberBinding`（組の規則とフォルダの検査）、`HostKeyFingerprint`、`TerminalReachabilityText`（確認結果の文）、`TerminalErrorText`（HTTPの符号から文） |
 | `Core/AppStore+Terminals.swift` | `TerminalDirectory`（`state`・`checks`・`checking`）を`AppStore.terminals`に保持。`refreshTerminals`・`saveTerminal`・`confirmHostKey`・`removeTerminal`・`checkTerminal`・`requestTerminalKey`・`removeTerminalKey`。サインアウトと接続先変更で空に戻す |
 | `Views/TerminalsView.swift` | 一覧・詳細・登録/編集・ホスト鍵の画面、鍵の行（`TerminalKeyRow`）と外す確認、メンバー編集の「端末とフォルダ」節 |
-| `Views/SecretRequestView.swift` | `SecretInputSheet`。端末の鍵でも会話の秘密要求と同じ入力欄を使う（[質問・秘密要求](requests-and-auth.md)） |
+| `Views/SecretRequestView.swift` | `SecretInputSheet`。端末の鍵でも会話の秘密要求と同じ入力欄を使う。SSH鍵は1Passwordの鍵の一覧（`OnePasswordKeyList`）から選べる（[質問・秘密要求](requests-and-auth.md)）。Macでは他の編集sheetと同じ大きさで開く |
 | `Views/ManagementView.swift` | BotEditorに節を置き、保存前に組の規則を検査し、対応サーバーの時だけ2項目を送る |
 | `Views/SettingsView.swift` | 設定の項目「端末」 |
 
@@ -51,7 +52,7 @@ flowchart TD
 | AT03 | 確認 -> `POST /api/terminals/:id/check` | `{reachable, reason, action?, observedAt}`を端末ごとに`checks`へ保持（アプリ内だけ）。席は起動しない |
 | AT04 | ホスト鍵 -> `PUT /api/terminals/:id` `{confirmHostKey:'SHA256:…'}` | オーナーが端末で読んだ指紋だけを送る。サーバーは一度scanし、等しい時だけ信用し直す。409 `HOST_KEY_FINGERPRINT_MISMATCH`は「指紋が違う」と表示して入力を残す |
 | AT05 | 削除 -> `DELETE /api/terminals/:id` | 確認ダイアログの後。メンバーの設定と保留中のメッセージは残ると表示 |
-| AT07 | 鍵の行「設定する」「設定し直す」 -> `POST /api/terminals/:id/keys/{ssh|sudo}`（本文は空の`{}`） | `{secretRequest:{id,label,inputOptions,…}}`。一覧を読み直して「設定待ち」にし、返った依頼で既存の秘密入力カードを開く。カードは`inputOptions.onePasswordAvailable`なら1Password参照を上・既定に、保存値を代替に出す。SSH鍵は複数行欄。カードから`POST /api/secret-requests/:id/submit`（`{source:'onepassword',reference}`または`{value}`）。閉じた時と完了時に一覧を読み直す。鍵の値・参照はこの画面にもHTTPの鍵の入口にも出ない |
+| AT07 | 鍵の行「設定する」「設定し直す」 -> `POST /api/terminals/:id/keys/{ssh|sudo}`（本文は空の`{}`） | `{secretRequest:{id,label,inputOptions,…}}`。一覧を読み直して「設定待ち」にし、返った依頼で既存の秘密入力カードを開く。カードは`inputOptions.onePasswordAvailable`なら1Password参照を上・既定に、保存値を代替に出す。SSH鍵は題を「1Passwordの鍵から選ぶ」/「鍵を貼り付けて保存する」とし、前者は`GET /api/secret-requests/:id/onepassword-items`（`{items:[{title,vault,reference}]}`）の名前と保管庫の一覧から選ぶ（旧本体で404なら貼り付けだけ。未接続の貼り付けは設定の「1Password連携」への短い案内付き）。貼り付けは複数行欄。カードから`POST /api/secret-requests/:id/submit`（`{source:'onepassword',reference}`または`{value}`）。閉じた時と完了時に一覧を読み直す。鍵の値・参照はこの画面にもHTTPの鍵の入口にも出ない |
 | AT08 | 鍵の行「外す」 -> `DELETE /api/terminals/:id/keys/{ssh|sudo}` | 確認ダイアログの後。サーバーが鍵を外し（設定待ちの依頼も取り消し）、一覧を読み直す |
 | AT06 | メンバー保存 -> `PATCH /api/bots/:id` / `POST /api/bots` | 対応サーバーの時だけ`terminalId`・`projectRoot`（このBellTeamは両方空）。400 `BOT_TERMINAL_ID_INVALID`・`BOT_PROJECT_ROOT_INVALID`・`BOT_REMOTE_BINDING_INVALID`は画面の検査と同じ文 |
 
@@ -68,6 +69,8 @@ sequenceDiagram
   Store->>T: GET /api/terminals（設定待ち）
   Store-->>Row: secretRequest
   Row->>Card: 開く（1Password参照が先）
+  Card->>S: GET /api/secret-requests/:id/onepassword-items（SSH鍵・接続済み）
+  S-->>Card: {items:[{title,vault,reference}]}｜404（旧本体）
   Card->>S: POST /api/secret-requests/:id/submit {source:'onepassword',reference} | {value}
   S-->>Card: {request}
   Card-->>Row: 完了 / 閉じる
@@ -129,7 +132,7 @@ stateDiagram-v2
 
 ## 試験と確認用の起動引数
 
-単体は`TerminalsTests`、iPhoneの画面は`TerminalsUITests`と[terminals-ui-server.mjs](../../../../test/helpers/terminals-ui-server.mjs)（[試験の対応表](tests.md#terminalsuitestsswift)）。DEBUGの`-bellbot-preview-terminals`はpreview名簿に2項目を付ける（無ければ旧本体の名簿）。`-bellbot-preview-terminal add | detail:<id> | check:<id> | hostkey:<id> | edit:<id> | setkey:<id>`（`setkey`はSSH鍵の入力欄を開く）は`-bellbot-preview-settings terminals`と組み合わせてその状態を開く。
+単体は`TerminalsTests`、iPhoneの画面は`TerminalsUITests`と[terminals-ui-server.mjs](../../../../test/helpers/terminals-ui-server.mjs)（[試験の対応表](tests.md#terminalsuitestsswift)）。DEBUGの`-bellbot-preview-terminals`はpreview名簿に2項目を付ける（無ければ旧本体の名簿）。`-bellbot-preview-terminal add | detail:<id> | check:<id> | hostkey:<id> | edit:<id> | setkey:<id>`（`setkey`はSSH鍵の入力欄を開く）は`-bellbot-preview-settings terminals`と組み合わせてその状態を開く。fixtureは`/test/mode?onepassword=1|0&picker=ok|empty|error|missing&setting=absent|off|connected|zero|rejected|cli`で1Passwordの状態（鍵の一覧、設定のバッジ）を切り替える。`-bellbot-preview-settings features -bellbot-preview-feature onePassword`は1Password連携のeditorを開く（[設定](settings-and-profile.md#1password連携onepasswordusage-838)）。
 
 ## 未調査
 

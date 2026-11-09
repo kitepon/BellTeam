@@ -1,7 +1,10 @@
 // Apple terminals screens (docs/architecture/modules/apple/terminals.md): artificial registry, check results and member PATCH rules.
 // Keys (terminals #811): POST/DELETE /api/terminals/:id/keys/{ssh|sudo} and the secret card's /api/secret-requests/:id/submit|cancel.
 // No SSH, keys or real terminals. Prints {"url"} on start; /test/reset,
-// /test/mode?terminals=ok|unsupported|unavailable&members=new|old&keys=ok|old|unavailable&onepassword=1|0, /test/proof, /test/fingerprint?id=.
+// /test/mode?terminals=ok|unsupported|unavailable&members=new|old&keys=ok|old|unavailable&onepassword=1|0
+//   &setting=absent|off|connected|zero|rejected|cli&picker=ok|empty|error|missing, /test/proof, /test/fingerprint?id=.
+// 1Password (usage #836/#838): GET|PATCH /api/settings (item onePassword: guide, connection, error), GET /api/secret-requests/:id/onepassword-items.
+// A token starting ops_good connects; any other ops_ token is rejected. The token itself is never kept, only its shape.
 import { createHash, randomUUID } from 'node:crypto'
 import { createServer } from 'node:http'
 import { readFile } from 'node:fs/promises'
@@ -16,7 +19,7 @@ const MEMBER_TERMINAL_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u
 let state
 function reset() {
   state = {
-    mode: { terminals: 'ok', members: 'new', keys: 'ok', onepassword: '1' },
+    mode: { terminals: 'ok', members: 'new', keys: 'ok', onepassword: '1', setting: 'off', picker: 'ok' },
     bots: structuredClone(fixture.bots).map((bot, index) => ({ ...bot, terminalId: index === 0 ? 'owner-macbook' : '', projectRoot: index === 0 ? '/Users/kite/work/app' : '' })),
     terminals: [
       { terminalId: 'owner-macbook', host: '192.168.1.12', user: 'kite', port: 22, os: 'macos', accountOwner: 'owner', sshKeyConfigured: true, sudoKeyConfigured: false, keySource: 'terminal-native', hostTrust: trust('owner-macbook'), revision: 4, maintenance: { terminalId: 'owner-macbook', observedAt: '2026-11-09T07:40:00Z', before: '2.1.30', after: '2.1.32', outcome: 'updated' } },
@@ -25,10 +28,38 @@ function reset() {
       { terminalId: 'office-imac', host: 'office-imac.local', user: 'kite', port: 22, os: 'macos', accountOwner: 'owner', sshKeyConfigured: true, sudoKeyConfigured: false, keySource: 'terminal-native', hostTrust: trust('office-imac'), revision: 3, maintenance: { terminalId: 'office-imac', observedAt: '2026-11-08T22:10:00Z', before: '2.1.29', after: '2.1.29', outcome: 'failed' } },
     ],
     requests: new Map(),
-    proof: { terminalReads: 0, puts: [], deletes: [], checks: [], botSaves: [], rejectedBotSaves: [], keyRequests: [], keyDeletes: [], secretSubmits: [] },
+    proof: { terminalReads: 0, puts: [], deletes: [], checks: [], botSaves: [], rejectedBotSaves: [], keyRequests: [], keyDeletes: [], secretSubmits: [], settingPatches: [], itemReads: 0 },
   }
 }
 reset()
+
+const VAULT = 'a'.repeat(26), ITEM = 'b'.repeat(26)
+const GUIDE = { steps: [
+  'サービスアカウントは、BellTeamが1Passwordの鍵を読むための専用の鍵束です。',
+  '1Passwordのウェブで「開発者」→「サービスアカウント」から作ります。',
+  '読ませたい保管庫だけを許可します（Personal / Private は共有できません）。',
+  '表示されるトークン（ops_で始まる）を、下の欄へ1回だけ貼ります。'],
+  link: { label: '1Passwordの手順を開く', url: 'https://developer.1password.com/docs/service-accounts/' } }
+const ERRORS = {
+  rejected: { code: 'ONEPASSWORD_TOKEN_REJECTED', message: '1Passwordがこのトークンを受け付けませんでした。トークンを作り直して貼り直すか、ネットワークを確かめてください。' },
+  cli: { code: 'ONEPASSWORD_CLI_MISSING', message: 'この本体に1Passwordの部品（op）がありません。本体を更新してください。' } }
+// The onePassword item as the settings list returns it; absent mode is an older body.
+function onePasswordItem() {
+  const mode = state.mode.setting
+  const connected = mode === 'connected' || mode === 'zero'
+  return { id: 'onePassword', title: '1Password連携', enabled: connected || mode === 'rejected' || mode === 'cli', status: mode === 'off' ? 'unconfigured' : connected || mode === 'rejected' || mode === 'cli' ? 'enabled' : 'disabled',
+    fields: [{ key: 'token', label: 'サービスアカウントのトークン', secret: true, value: '', configured: mode !== 'off' }],
+    error: ERRORS[mode] ?? null, guide: GUIDE,
+    ...(connected ? { connection: { vaults: ['Infra', 'Team'], sshKeys: mode === 'zero' ? 0 : 3 } } : {}) }
+}
+const settingsList = () => [
+  { id: 'notifications', title: '通知', enabled: true, status: 'enabled', fields: [], error: null },
+  { id: 'calendar', title: 'カレンダー', enabled: false, status: 'disabled', fields: [], error: null },
+  ...(state.mode.setting === 'absent' ? [] : [onePasswordItem()])]
+const ITEMS = [
+  { title: 'Mac mini 本番', vault: 'Infra', reference: `op://${VAULT}/${ITEM}/private key?ssh-format=openssh` },
+  { title: 'office-imac', vault: 'Infra', reference: `op://${VAULT}/${'c'.repeat(26)}/private key?ssh-format=openssh` },
+  { title: '個人用ノートPC', vault: 'Team', reference: `op://${'d'.repeat(26)}/${'e'.repeat(26)}/private key?ssh-format=openssh` }]
 
 const KINDS = { ssh: { purpose: 'terminal.ssh', configured: 'sshKeyConfigured', source: 'keySource', pending: 'sshKeyPending', label: 'SSH key' },
   sudo: { purpose: 'terminal.sudo', configured: 'sudoKeyConfigured', source: 'sudoKeySource', pending: 'sudoKeyPending', label: 'sudo password' } }
@@ -73,7 +104,7 @@ const server = createServer(async (request, response) => {
   // What the Owner would read on the terminal itself (the test plays the Owner).
   if (path === '/test/fingerprint') return send(200, { fingerprint: fingerprint(url.searchParams.get('id') ?? '') })
   if (path === '/test/mode') {
-    for (const key of ['terminals', 'members', 'keys', 'onepassword']) if (url.searchParams.has(key)) state.mode[key] = url.searchParams.get(key)
+    for (const key of ['terminals', 'members', 'keys', 'onepassword', 'setting', 'picker']) if (url.searchParams.has(key)) state.mode[key] = url.searchParams.get(key)
     return send(200, state.mode)
   }
   const bots = () => state.bots.map(bot => {
@@ -108,6 +139,23 @@ const server = createServer(async (request, response) => {
   if (path === '/api/queue' || path.endsWith('/queue')) return send(200, { items: [] })
   if (path.endsWith('/messages') || path.endsWith('/timeline')) return send(200, { messages: [], items: [], hasMore: false })
 
+  if (path === '/api/settings' && request.method === 'GET') return send(200, { settings: settingsList() })
+  if (path === '/api/settings/onePassword' && request.method === 'PATCH') {
+    const input = await body(request)
+    const token = input.values?.token
+    state.proof.settingPatches.push({ enabled: input.enabled, valueKeys: Object.keys(input.values ?? {}), tokenShape: token === undefined ? null : token.startsWith('ops_') ? 'ops_' : 'other' })
+    if (state.mode.setting === 'absent') return fail(404, 'NOT_FOUND')
+    if (!input.enabled) state.mode.setting = 'off'
+    else if (token !== undefined) state.mode.setting = token.startsWith('ops_good') ? 'connected' : 'rejected'
+    return send(200, { setting: onePasswordItem() })
+  }
+  const itemsMatch = /^\/api\/secret-requests\/([a-f0-9-]+)\/onepassword-items$/u.exec(path)
+  if (itemsMatch) {
+    state.proof.itemReads++
+    if (state.mode.picker === 'missing') return fail(404, 'NOT_FOUND')
+    if (state.mode.picker === 'error') return fail(503, 'SECRET_SOURCE_UNAVAILABLE')
+    return send(200, { items: state.mode.picker === 'empty' ? [] : ITEMS })
+  }
   const secretMatch = /^\/api\/secret-requests\/([a-f0-9-]+)(?:\/(submit|cancel))?$/u.exec(path)
   if (secretMatch) {
     const item = state.requests.get(secretMatch[1])
@@ -119,7 +167,7 @@ const server = createServer(async (request, response) => {
     state.proof.secretSubmits.push({ id: item.id, action: secretMatch[2], keys: Object.keys(input).sort(), source: input.source ?? null, referencePrefix: input.reference?.slice(0, 5) ?? null })
     if (item.status !== 'pending') return fail(409, 'SECRET_REQUEST_NOT_PENDING')
     if (secretMatch[2] === 'cancel') { item.status = 'cancelled'; return send(200, { request: item }) }
-    if (input.source === 'onepassword' ? !/^op:\/\/[a-z0-9]{26}\/[a-z0-9]{26}\/[^/?#]+$/u.test(input.reference ?? '') : typeof input.value !== 'string' || !input.value)
+    if (input.source === 'onepassword' ? !/^op:\/\/[a-z0-9]{26}\/[a-z0-9]{26}\/[^/?#]+(?:\?ssh-format=openssh)?$/u.test(input.reference ?? '') : typeof input.value !== 'string' || !input.value)
       return fail(400, input.source === 'onepassword' ? 'SECRET_REFERENCE_INVALID' : 'SECRET_VALUE_INVALID')
     item.status = 'submitted'
     // Mika binds, terminals applies the event for the pending request id.
@@ -146,7 +194,7 @@ const server = createServer(async (request, response) => {
       if (state.mode.keys === 'unavailable') return fail(503, 'CREDENTIAL_UNAVAILABLE', 'The secret input is not available now; try again later')
       const available = state.mode.onepassword === '1'
       const item = { id: randomUUID(), botId: null, roomId: null, toolId: 'terminal-key', terminalId: id, purpose: kind.purpose,
-        label: `${kind.label} for terminal ${id}`, message: `端末「${id}」の${kind === KINDS.ssh ? 'SSH鍵' : 'sudo認証情報'}を登録してください。値や1Password参照は、この専用欄へ入力してください。`,
+        label: `${kind.label} for terminal ${id}`, message: kind === KINDS.ssh ? `端末「${id}」で使うSSH鍵を登録してください。` : `端末「${id}」のsudo認証情報を登録してください。値や1Password参照は、この専用欄へ入力してください。`,
         at: new Date().toISOString(), status: 'pending', inputOptions: { preferred: available ? 'onepassword' : 'stored', onePasswordAvailable: available } }
       if (record[requestField]) state.requests.get(record[requestField]).status = 'cancelled'
       state.requests.set(item.id, item)

@@ -185,11 +185,17 @@ final class TerminalsUITests: XCTestCase {
         XCTAssertEqual(submit["source"] as? String, "onepassword")
         shot(app, "42-terminal-keys-sudo-set")
 
-        // ssh again with the stored value, closed before sending: the row waits and the old key stays.
+        // ssh again with 1Password connected: the picker lists the keys by name, then the paste path; closed before sending.
         XCTAssertTrue(scrollTo(app.buttons["set-key-ssh"], in: app))
         app.buttons["set-key-ssh"].tap()
-        XCTAssertTrue(app.textFields["secret-reference"].waitForExistence(timeout: 5))
-        app.buttons["値をBellTeamへ保存する"].tap()
+        XCTAssertTrue(app.buttons["secret-key-Mac mini 本番"].waitForExistence(timeout: 5), "鍵を名前で選ぶ")
+        XCTAssertTrue(app.buttons["1Passwordの鍵から選ぶ"].exists && app.buttons["鍵を貼り付けて保存する"].exists)
+        XCTAssertFalse(app.textFields["secret-reference"].exists, "参照を打たせない")
+        shot(app, "55-ssh-card-picker-list")
+        app.buttons["secret-key-Mac mini 本番"].tap()
+        XCTAssertTrue(app.buttons["secret-key-Mac mini 本番"].isSelected)
+        shot(app, "56-ssh-card-picker-selected")
+        app.buttons["鍵を貼り付けて保存する"].tap()
         let value = app.textViews["secret-value"]
         XCTAssertTrue(value.waitForExistence(timeout: 3), "SSH鍵は複数行の欄")
         shot(app, "43-terminal-key-secret-card-stored")
@@ -229,6 +235,120 @@ final class TerminalsUITests: XCTestCase {
         XCTAssertFalse(app.buttons["set-key-ssh"].exists)
         XCTAssertFalse(app.buttons["remove-key-ssh"].exists)
         shot(app, "46-terminal-keys-old-body")
+    }
+
+    func testSshKeyPickerSubmitsTheChosenReferenceAndFallsBack() async throws {
+        let app = launch(["-bellbot-preview-terminals", "-bellbot-preview-settings", "terminals", "-bellbot-preview-terminal", "setkey:owner-macbook"])
+        defer { app.terminate() }
+        let key = app.buttons["secret-key-office-imac"]
+        XCTAssertTrue(key.waitForExistence(timeout: 10))
+        XCTAssertTrue(key.label.contains("Infra"), "名前と保管庫を並べる")
+        XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "op://")).firstMatch.exists, "参照を画面に出さない")
+        XCTAssertFalse(app.buttons["登録して続ける"].isEnabled, "鍵を選ぶまで送れない")
+        key.tap()
+        app.buttons["登録して続ける"].tap()
+        XCTAssertTrue(scrollTo(app.descendants(matching: .any)["terminal-key-ssh"], in: app))
+        XCTAssertTrue(waitLabel(app, "terminal-key-ssh", contains: "BellTeamに預けた鍵"))
+        let proof = try await call("/test/proof")
+        let submit = (proof["secretSubmits"] as? [[String: Any]])?.last ?? [:]
+        XCTAssertEqual(submit["keys"] as? [String], ["reference", "source"])
+        XCTAssertEqual(submit["source"] as? String, "onepassword")
+        XCTAssertEqual(submit["referencePrefix"] as? String, "op://")
+        app.terminate()
+
+        // Not connected: only the paste path, with the short guide to 設定の「1Password連携」.
+        _ = try await call("/test/mode?onepassword=0")
+        var second = launch(["-bellbot-preview-terminals", "-bellbot-preview-settings", "terminals", "-bellbot-preview-terminal", "setkey:sleeping-mini"])
+        XCTAssertTrue(second.textViews["secret-value"].waitForExistence(timeout: 10))
+        XCTAssertFalse(second.buttons["1Passwordの鍵から選ぶ"].exists)
+        XCTAssertTrue(second.descendants(matching: .any)["secret-note"].label.contains("設定の「1Password連携」"))
+        shot(second, "57-ssh-card-paste-with-guide")
+        second.terminate()
+
+        // An older body without the key list: the paste path and one calm line, no choices.
+        _ = try await call("/test/mode?onepassword=1&picker=missing")
+        second = launch(["-bellbot-preview-terminals", "-bellbot-preview-settings", "terminals", "-bellbot-preview-terminal", "setkey:studio-mac"])
+        XCTAssertTrue(second.textViews["secret-value"].waitForExistence(timeout: 10))
+        XCTAssertTrue(second.descendants(matching: .any)["secret-picker-unsupported"].exists)
+        XCTAssertFalse(second.buttons["1Passwordの鍵から選ぶ"].exists)
+        shot(second, "58-ssh-card-old-body-fallback")
+        second.terminate()
+
+        // A failing list says so and can be read again; the paste choice stays.
+        _ = try await call("/test/mode?picker=error")
+        second = launch(["-bellbot-preview-terminals", "-bellbot-preview-settings", "terminals", "-bellbot-preview-terminal", "setkey:office-imac"])
+        defer { second.terminate() }
+        XCTAssertTrue(second.descendants(matching: .any)["secret-keys-failed"].waitForExistence(timeout: 10))
+        XCTAssertTrue(second.buttons["鍵を貼り付けて保存する"].exists)
+        shot(second, "59-ssh-card-picker-failed")
+    }
+
+    func testOnePasswordSettingBadgeGuideAndTokenCheck() async throws {
+        var app = launch(["-bellbot-preview-settings", "features"])
+        XCTAssertTrue(app.buttons["feature-row-onePassword"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["feature-row-onePassword"].label.contains("未連携"))
+        shot(app, "50-settings-features-onepassword")
+        app.buttons["feature-row-onePassword"].tap()
+        XCTAssertTrue(app.buttons["onepassword-guide-link"].waitForExistence(timeout: 5), "未連携の間は案内が開いている")
+        XCTAssertEqual(app.descendants(matching: .any)["onepassword-badge"].firstMatch.label, "未連携")
+        shot(app, "51-onepassword-not-connected-guide")
+
+        // The client check: no ops_ prefix is refused before anything is sent.
+        let token = app.secureTextFields["onepassword-token"]
+        XCTAssertTrue(scrollTo(token, in: app))
+        token.tap()
+        token.typeText("not-a-token")
+        app.buttons["onepassword-save"].tap()
+        XCTAssertTrue(app.staticTexts["サービスアカウントのトークン（ops_で始まる文字）を貼ってください。"].waitForExistence(timeout: 3))
+        var proof = try await call("/test/proof")
+        XCTAssertEqual((proof["settingPatches"] as? [Any])?.count, 0)
+
+        // A rejected token: the badge turns 失敗 and shows the server's own message.
+        token.clearAndType("ops_bad-token")
+        app.buttons["onepassword-save"].tap()
+        let failure = app.staticTexts["onepassword-error"]
+        XCTAssertTrue(scrollTo(failure, in: app, up: true))
+        XCTAssertTrue(failure.label.contains("受け付けませんでした"))
+        XCTAssertFalse(failure.label.contains("ONEPASSWORD"), "符号は出さない")
+        XCTAssertEqual(app.descendants(matching: .any)["onepassword-badge"].firstMatch.label, "失敗")
+        shot(app, "52-onepassword-failed-message")
+
+        // A good token: 連携中, the guide folds, and one line names the vaults and the key count. The token is never shown back.
+        XCTAssertTrue(scrollTo(token, in: app))
+        token.tap()
+        token.typeText("ops_good-token")
+        app.buttons["onepassword-save"].tap()
+        let line = app.staticTexts["onepassword-connection"]
+        XCTAssertTrue(scrollTo(line, in: app, up: true))
+        XCTAssertEqual(line.label, "読める保管庫：Infra、Team　SSH鍵：3件")
+        XCTAssertEqual(app.descendants(matching: .any)["onepassword-badge"].firstMatch.label, "連携中")
+        XCTAssertFalse(app.buttons["onepassword-guide-link"].exists, "連携後は「作り方を見る」の中")
+        XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "ops_good")).firstMatch.exists)
+        shot(app, "53-onepassword-connected-collapsed-guide")
+        proof = try await call("/test/proof")
+        let patches = proof["settingPatches"] as? [[String: Any]] ?? []
+        XCTAssertEqual(patches.count, 2)
+        XCTAssertEqual(patches.last?["valueKeys"] as? [String], ["token"])
+        XCTAssertEqual(patches.last?["tokenShape"] as? String, "ops_")
+        XCTAssertEqual(patches.last?["enabled"] as? Bool, true)
+        app.terminate()
+
+        // Connected with no SSH keys: the next action.
+        _ = try await call("/test/mode?setting=zero")
+        app = launch(["-bellbot-preview-settings", "features", "-bellbot-preview-feature", "onePassword"])
+        let zero = app.staticTexts["onepassword-connection"]
+        XCTAssertTrue(zero.waitForExistence(timeout: 10))
+        XCTAssertTrue(zero.label.contains("SSH鍵が見つかりません"), zero.label)
+        shot(app, "54-onepassword-connected-no-keys")
+        app.terminate()
+
+        // An older body without the item: nothing new in the list.
+        _ = try await call("/test/mode?setting=absent")
+        app = launch(["-bellbot-preview-settings", "features"])
+        defer { app.terminate() }
+        XCTAssertTrue(app.staticTexts["通知"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["feature-row-onePassword"].exists)
+        shot(app, "60-settings-features-old-body")
     }
 
     func testMemberEditorTerminalAndFolder() async throws {
@@ -331,5 +451,14 @@ final class TerminalsUITests: XCTestCase {
     private func call(_ path: String) async throws -> [String: Any] {
         let (data, _) = try await URLSession.shared.data(from: try XCTUnwrap(URL(string: server + path)))
         return try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
+    }
+}
+
+private extension XCUIElement {
+    /// Replaces a secure field's text (a secure field's value is hidden, so it is cleared by deleting what was typed).
+    func clearAndType(_ text: String) {
+        tap()
+        if let current = value as? String, !current.isEmpty { typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count)) }
+        typeText(text)
     }
 }

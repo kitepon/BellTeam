@@ -152,6 +152,12 @@ final class BellAPI {
         return try decode(SecretRequestResponse.self, from: responseData, path: path, method: "POST")
     }
 
+    /// SSH Key items the connected 1Password can read, for a pending terminal.ssh request. Owner only; 404 on an older body.
+    func onePasswordKeys(requestId: String) async throws -> [OnePasswordKey] {
+        let response: OnePasswordKeysResponse = try await get("/api/secret-requests/\(requestId)/onepassword-items")
+        return response.items
+    }
+
     func updateSetting(id: String, body: FeatureSettingUpdate) async throws -> FeatureSettingResponse {
         try await protectedJSON(path: "/api/settings/\(id)", method: "PATCH", body: body)
     }

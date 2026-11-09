@@ -195,6 +195,7 @@ struct TerminalDetailPage: View {
                 Task { await store.refreshTerminals() }
             }
             .environmentObject(store)
+            .bellEditorSheet()
         }
         .alert(removingKey.map { "「\(terminalId)」の\($0.title)を外しますか？" } ?? "",
                isPresented: Binding(get: { removingKey != nil }, set: { if !$0 { removingKey = nil } }), presenting: removingKey) { kind in
