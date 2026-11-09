@@ -51,7 +51,7 @@ export function renderSecretRequest(request, { api, sender, onComplete }) {
   return card
 }
 
-function openSecretInput(request, api, onComplete) {
+export function openSecretInput(request, api, onComplete) {
   const dialog = document.createElement('dialog')
   dialog.className = 'secret-dialog'
   dialog.dataset.requestId = request.id
