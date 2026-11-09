@@ -16,15 +16,16 @@ const NATIVE_CODES = {
 }
 
 // Evidence, not diagnosis (Elegg): the action names the likely fix without asserting the cause.
+// Shown to the Owner as is (Japanese, user rule); AIs read the same text through MCP.
 const ACTIONS = {
-  CONNECTION_REFUSED: "check that Remote Login is on in the Mac's Sharing settings, then check again",
-  AUTH_FAILED: "this key may not be on the Mac yet: authorize it with the Mac's login password"
+  CONNECTION_REFUSED: 'Macの「システム設定 > 一般 > 共有」で「リモートログイン」がオンか確かめてから、もう一度確かめてください',
+  AUTH_FAILED: 'この鍵がまだMacに入っていないかもしれません。「このMacにこの鍵を入れる」で、Macのログインパスワードを使って入れられます'
 }
 const FOLDER_ACTIONS = {
-  FOLDER_MISSING: 'create this folder, or choose an existing one',
-  FOLDER_NOT_DIRECTORY: 'this path is a file: choose a folder',
-  FOLDER_NOT_WRITABLE: 'choose a folder this Mac user can write to',
-  FOLDER_NOT_PERMITTED: 'the Mac refused access: choose a folder outside Desktop, Documents and Downloads, or allow full disk access for remote users in Remote Login settings'
+  FOLDER_MISSING: 'このフォルダはMacにありません。作るか、あるフォルダを選んでください',
+  FOLDER_NOT_DIRECTORY: 'これはファイルです。フォルダを選んでください',
+  FOLDER_NOT_WRITABLE: 'このMacのユーザーが書き込めるフォルダを選んでください',
+  FOLDER_NOT_PERMITTED: 'Macがこのフォルダを開かせてくれません。デスクトップ・書類・ダウンロードの外を選ぶか、リモートログインの「リモートユーザにフルディスクアクセスを許可」をオンにしてください'
 }
 const PROVISION_CODES = new Set(['REMOTE_AITERM_UNAVAILABLE', 'REMOTE_AITERM_TOO_OLD'])
 const CODE = /^[A-Z][A-Z0-9_]{0,63}$/
@@ -38,8 +39,7 @@ function classify(error, target) {
   const reason = NATIVE_CODES[error?.code] ? error.code : undefined
   const code = CONNECTION_CODES.includes(error?.code) ? error.code : NATIVE_CODES[error?.code] ?? 'TERMINAL_UNAVAILABLE'
   const action = code !== 'TARGET_MISMATCH' ? ACTIONS[reason]
-    : typeof error?.action === 'string' ? `${error.action} on ${target.host}`
-    : `confirm the host key of ${target.host}`
+    : `${target.host} のMacを確かめてください。そのMacでBellTeamアプリを開くと、自動で確かめます`
   return failure(code, action, reason)
 }
 
@@ -93,12 +93,12 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
   // keySource 'terminal-native' (default): Mika's callback gives Aiterm's binding ref + native key revision (public metadata).
   // keySource 'secret': the key stays a Mika handle; Aiterm's UID1000 server resolves it, terminals never sees the value.
   async function resolveBinding(target, memberId) {
-    if (!target.sshKeyRef) throw failure('CREDENTIAL_UNAVAILABLE', `set the SSH key of terminal ${target.terminalId}`, 'SSH_KEY_UNSET')
-    if (!target.hostTrust) throw failure('TARGET_MISMATCH', `confirm the host key of ${target.host}`, 'HOST_TRUST_MISSING')
+    if (!target.sshKeyRef) throw failure('CREDENTIAL_UNAVAILABLE', `端末 ${target.terminalId} のSSH鍵を設定してください`, 'SSH_KEY_UNSET')
+    if (!target.hostTrust) throw failure('TARGET_MISMATCH', `${target.host} のMacを確かめてください。そのMacでBellTeamアプリを開くと、自動で確かめます`, 'HOST_TRUST_MISSING')
     const context = purpose => ({ terminalId: target.terminalId, memberId, purpose })
     let binding
     if (target.keySource === 'secret') {
-      if (!target.bindingRef) throw failure('CREDENTIAL_UNAVAILABLE', `set the SSH key of terminal ${target.terminalId} again`, 'BINDING_UNSET')
+      if (!target.bindingRef) throw failure('CREDENTIAL_UNAVAILABLE', `端末 ${target.terminalId} のSSH鍵をもう一度設定してください`, 'BINDING_UNSET')
       const credential = await handleOf(target.sshKeyRef, context('terminal.ssh'))
       if (!credential?.available) throw failure('CREDENTIAL_UNAVAILABLE')
       binding = { ref: target.bindingRef, credential: { handle: credential.handle, revision: credential.revision } }
@@ -196,7 +196,7 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
     const record = await registry.target(terminalId).catch(() => null)
     if (!current()) throw failure('TERMINAL_UNAVAILABLE')
     if (!record) { if (typeof terminalId === 'string') want(terminalId); throw failure('TERMINAL_UNAVAILABLE') }
-    if (typeof projectRoot !== 'string' || !isAbsolute(projectRoot) || typeof memberId !== 'string') throw failure('TARGET_MISMATCH', 'set an absolute project folder for the member')
+    if (typeof projectRoot !== 'string' || !isAbsolute(projectRoot) || typeof memberId !== 'string') throw failure('TARGET_MISMATCH', 'メンバーのフォルダを、Mac上の / で始まる場所で設定してください')
     // TARGET_MISMATCH exits by registry revision (onRegistryChange), so only availability/credential failures are probed.
     try {
       const binding = await resolveBinding(record, memberId)

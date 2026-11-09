@@ -132,8 +132,9 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
   }
 
   // Key setting (Trony ruling): Mika's Owner secret card; the value never passes through terminals.
-  const KINDS = { ssh: { purpose: 'terminal.ssh', ref: 'sshKeyRef', source: 'keySource', request: 'sshKeyRequest', label: 'SSH key' },
-    sudo: { purpose: 'terminal.sudo', ref: 'sudoKeyRef', source: 'sudoKeySource', request: 'sudoKeyRequest', label: 'sudo password' } }
+  // label = the secret card heading the Owner reads (Japanese).
+  const KINDS = { ssh: { purpose: 'terminal.ssh', ref: 'sshKeyRef', source: 'keySource', request: 'sshKeyRequest', label: 'SSH鍵' },
+    sudo: { purpose: 'terminal.sudo', ref: 'sudoKeyRef', source: 'sudoKeySource', request: 'sudoKeyRequest', label: 'sudoパスワード' } }
   const PURPOSES = Object.fromEntries(Object.values(KINDS).map(kind => [kind.purpose, kind]))
   const keyError = (code, status, message) => Object.assign(new Error(message), { code, status })
 
@@ -157,7 +158,7 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
         : await native().register({ host: record.host, user: record.user, port: record.port })
           .catch(() => { throw keyError('TERMINAL_UNAVAILABLE', 503, 'Aiterm could not create the terminal binding; update Aiterm on BellTeam and try again') })
     }
-    const { secretRequest } = await credentials.requestTerminalKey({ terminalId, purpose: kind.purpose, label: `${kind.label} for terminal ${terminalId}` })
+    const { secretRequest } = await credentials.requestTerminalKey({ terminalId, purpose: kind.purpose, label: `端末 ${terminalId} の${kind.label}` })
     // Conditional on the snapshot's target: a target change by another writer (trust rebind) would make this binding wrong.
     const saved = await registry.update(terminalId, { ...Object.fromEntries(Object.entries(patch).filter(([key]) => key !== 'terminalId')), [kind.request]: secretRequest.id },
       stored => stored.host === record.host && stored.user === record.user && stored.port === record.port)
@@ -183,10 +184,10 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
     const record = await registry.target(terminalId)
     if (!record) throw keyError('TERMINAL_NOT_FOUND', 404, 'Terminal not found; list_terminals shows the registered terminalIds')
     // No password is asked before the host is trusted (secret exposure to the wrong target); exit: 「このMacを確かめる」.
-    if (!record.hostTrust) throw Object.assign(keyError('HOST_TRUST_MISSING', 409, 'Confirm this Mac first, then authorize the key'), { action: 'confirm this Mac (このMacを確かめる), then try again' })
-    if (!record.sshKeyRef) throw Object.assign(keyError('SSH_KEY_UNSET', 409, 'Set the SSH key first, then authorize it'), { action: `set the SSH key of terminal ${terminalId}` })
+    if (!record.hostTrust) throw Object.assign(keyError('HOST_TRUST_MISSING', 409, 'Confirm this Mac first, then authorize the key'), { action: '先にこのMacを確かめてください' })
+    if (!record.sshKeyRef) throw Object.assign(keyError('SSH_KEY_UNSET', 409, 'Set the SSH key first, then authorize it'), { action: '先にSSH鍵を設定してください' })
     const generation = connection.generation(terminalId)
-    const { secretRequest } = await credentials.requestTerminalKey({ terminalId, purpose: 'terminal.login', label: `Mac login password for terminal ${terminalId}` })
+    const { secretRequest } = await credentials.requestTerminalKey({ terminalId, purpose: 'terminal.login', label: `端末 ${terminalId} のMacのログインパスワード` })
     logins.set(terminalId, { requestId: secretRequest.id, generation })
     return { secretRequest }
   })
@@ -194,13 +195,17 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
     if (closing || typeof handle !== 'string' || available !== true) return
     const pending = logins.get(terminalId)
     const drop = () => Promise.resolve().then(() => credentials?.unbind?.(handle, { terminalId, purpose: 'terminal.login' })).catch(() => {})
-    if (!pending || pending.requestId !== requestId) return void drop()
-    logins.delete(terminalId)
+    if (!pending || pending.requestId !== requestId || pending.consuming) return void (pending?.requestId !== requestId && drop())
+    // Pending stays true until the outcome is recorded, so "pending false" alone means the outcome is readable (Admi).
+    pending.consuming = true
     const work = connection.authorize({ terminalId, generation: pending.generation, handle })
       .then(outcome => {
         // Mika revokes the handle on consume; an unconsumed one (stale target) is dropped explicitly.
         if (outcome === 'TERMINAL_CHANGED') void drop()
-        if (!logins.has(terminalId)) authorizations.set(terminalId, { requestId, outcome, observedAt: new Date().toISOString() })
+        // A newer request (new POST) owns the screen now; this outcome is not shown in its place.
+        if (logins.get(terminalId) !== pending) return
+        authorizations.set(terminalId, { requestId, outcome, observedAt: new Date().toISOString() })
+        logins.delete(terminalId)
       })
     inflight.add(work)
     work.finally(() => inflight.delete(work))

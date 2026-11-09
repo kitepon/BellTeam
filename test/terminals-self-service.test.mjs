@@ -56,9 +56,9 @@ test('check passes evidence reasons with a fix, and provisions a Mac without Ait
   native.connectError = Object.assign(new Error('x'), { code: 'CONNECTION_REFUSED' })
   const refused = await core.reachability.check('owner-macbook')
   assert.equal(refused.reason, 'CONNECTION_REFUSED')
-  assert.match(refused.action, /Remote Login/)
+  assert.match(refused.action, /リモートログイン/)
   native.connectError = Object.assign(new Error('x'), { code: 'AUTH_FAILED' })
-  assert.match((await core.reachability.check('owner-macbook')).action, /authorize/)
+  assert.match((await core.reachability.check('owner-macbook')).action, /このMacにこの鍵を入れる/)
 
   // Missing Aiterm: provision once, then reopen once.
   let opens = 0
@@ -154,4 +154,22 @@ test('HTTP: authorize and folder routes refuse secrets and malformed bodies', as
   assert.ok((await call('POST', '/api/terminals/owner-macbook/keys/ssh/authorize')).payload.secretRequest.id)
   assert.equal((await call('POST', '/api/terminals/owner-macbook/folder', '{"path":"/Users/kite/x","mode":"x"}')).error, 'INVALID_PATH')
   assert.equal((await call('POST', '/api/terminals/owner-macbook/folder', '{"path":"/Users/kite/x"}')).payload.reason, null)
+})
+
+test('authorize: pending stays true until the outcome is readable', async t => {
+  const { core, native, credentials } = await setup(t)
+  await core.registry.put({ ...mac, sshKeyRef: nativeHandle })
+  let release
+  native.authorizeKey = () => new Promise(resolve => { release = () => resolve({ result: 'ALREADY_AUTHORIZED' }) })
+  const { secretRequest } = await core.keys.authorize('owner-macbook')
+  credentials.emit({ terminalId: 'owner-macbook', purpose: 'terminal.login', handle: 'h1', revision: 1, available: true, requestId: secretRequest.id })
+  credentials.emit({ terminalId: 'owner-macbook', purpose: 'terminal.login', handle: 'h1', revision: 1, available: true, requestId: secretRequest.id })
+  await settle()
+  const during = await core.registry.get('owner-macbook')
+  assert.deepEqual([during.keyAuthorizationPending, during.keyAuthorization], [true, null])
+  release()
+  await settle()
+  const after = await core.registry.get('owner-macbook')
+  assert.deepEqual([after.keyAuthorizationPending, after.keyAuthorization.outcome], [false, 'ALREADY_AUTHORIZED'])
+  assert.equal(credentials.calls.filter(c => c.op === 'consume').length, 1, 'a repeated event is not consumed twice')
 })
