@@ -174,7 +174,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   // Remote seats (remote-seat-ingress.md): terminals core is an in-parent injectable; seat credentials are parent state.
   const seatCredentials = createSeatCredentials({ path: join(root, 'state/seat-credentials.json') })
   terminals = createTerminalsCore ? createTerminalsCore({ stateRoot: join(root, 'state'), credentials: usageAssembly?.credentials ?? null,
-    native: executionClient, seatCredentials: { reveal: ref => seatCredentials.reveal(ref) }, report: report => diagnostics.record(report) }) : null
+    seatCredentials: { reveal: ref => seatCredentials.reveal(ref) }, report: report => diagnostics.record(report) }) : null
   // Usage has no timer of its own; the parent drives refresh while a credential is unavailable (Mika C5).
   credentialRefresh = usageAssembly?.credentials?.refresh && usageAssembly.credentials.watch ? createCredentialRefresh({
     refresh: () => usageAssembly.credentials.refresh(), watch: listener => usageAssembly.credentials.watch(listener),
