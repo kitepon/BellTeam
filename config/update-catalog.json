@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-08T23:41:04Z",
-  "expiresAt": "2026-11-15T23:41:04Z",
+  "publishedAt": "2026-11-09T00:03:34Z",
+  "expiresAt": "2026-11-16T00:03:34Z",
   "releases": [
     {
       "componentId": "usage",
@@ -489,8 +489,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "84fcd018457f91451c4ee0cffa80bc0884c7154c",
-      "versionId": "b795528bc5639373e17d8608b463c55d8d898fb71ceef19a6467ca80c38dc07d",
+      "sourceCommit": "659998f813e600e356807a3fca8cab1c7133b195",
+      "versionId": "5d17ff5979310a5c91594949f0d1a6787567dfc24c0c5dda5c727ccd8311445b",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -498,16 +498,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T233909Z/execution-84fcd018457f91451c4ee0cffa80bc0884c7154c-linux-amd64.tar.gz",
-          "bytes": 3935757,
-          "sha256": "b795528bc5639373e17d8608b463c55d8d898fb71ceef19a6467ca80c38dc07d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T000125Z/execution-659998f813e600e356807a3fca8cab1c7133b195-linux-amd64.tar.gz",
+          "bytes": 3936095,
+          "sha256": "5d17ff5979310a5c91594949f0d1a6787567dfc24c0c5dda5c727ccd8311445b"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T233909Z/execution-84fcd018457f91451c4ee0cffa80bc0884c7154c-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10926,
-          "sha256": "7066049e239bb3860ec6a1134ad58d944fdab7c7f92cc8a0a29c58588b840004"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T000125Z/execution-659998f813e600e356807a3fca8cab1c7133b195-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10942,
+          "sha256": "7fb2d8266ddc1536ff368b16eea1fc804f6b6e0ad4cfa9cd1e83bc2fd55f0145"
         },
-        "signerCommit": "84fcd018457f91451c4ee0cffa80bc0884c7154c"
+        "signerCommit": "659998f813e600e356807a3fca8cab1c7133b195"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -517,13 +517,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "アカウントの使用上限に達したら、制限された旧席には手を加えず、もう一方のアカウントで新しい席を開始します。旧席のバックグラウンド作業は続き、Aitermのアイドル時間で終了します。新しい席は別のベンダー会話として始まり、Throughlineとdocsの引き継ぎを渡します。実行部品のみの配布で、本体は含みません。"
+        "二つ目のアカウントで起動する前に、一つ目の設定と共有jobs/stateを反映します。二つ目の席自身のOAuth・アカウント・キャッシュ情報は保ちます。一つ目の設定を読めない場合は直前のコピーで起動を続け、次の準備で再度更新します。すでに動いている二つ目の席には次の起動時に反映されます。claude.aiのアカウント所有コネクターはコピーしません。実行部品のみの配布で、本体は含みません。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "84fcd018457f91451c4ee0cffa80bc0884c7154c",
-      "versionId": "1e53ddf42501d57faf43135ca195a6f24d099cb8278ac0c57e9728c0f93830bf",
+      "sourceCommit": "659998f813e600e356807a3fca8cab1c7133b195",
+      "versionId": "af284b2cbf49c8da9b53413b04f51dec820bcd3129af38e6e250c61f4e33b94f",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -531,16 +531,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T233909Z/execution-84fcd018457f91451c4ee0cffa80bc0884c7154c-linux-arm64.tar.gz",
-          "bytes": 3935752,
-          "sha256": "1e53ddf42501d57faf43135ca195a6f24d099cb8278ac0c57e9728c0f93830bf"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T000125Z/execution-659998f813e600e356807a3fca8cab1c7133b195-linux-arm64.tar.gz",
+          "bytes": 3936091,
+          "sha256": "af284b2cbf49c8da9b53413b04f51dec820bcd3129af38e6e250c61f4e33b94f"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T233909Z/execution-84fcd018457f91451c4ee0cffa80bc0884c7154c-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10848,
-          "sha256": "f3eb6b03292b82ba850837880a5f638020f74e0728cf622c3eb036c54886b0bd"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T000125Z/execution-659998f813e600e356807a3fca8cab1c7133b195-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10879,
+          "sha256": "27da0f4f2763b558e6bbaead9d51d3e735064b7b1d120a6c6ecb561432999fe0"
         },
-        "signerCommit": "84fcd018457f91451c4ee0cffa80bc0884c7154c"
+        "signerCommit": "659998f813e600e356807a3fca8cab1c7133b195"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -550,7 +550,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "アカウントの使用上限に達したら、制限された旧席には手を加えず、もう一方のアカウントで新しい席を開始します。旧席のバックグラウンド作業は続き、Aitermのアイドル時間で終了します。新しい席は別のベンダー会話として始まり、Throughlineとdocsの引き継ぎを渡します。実行部品のみの配布で、本体は含みません。"
+        "二つ目のアカウントで起動する前に、一つ目の設定と共有jobs/stateを反映します。二つ目の席自身のOAuth・アカウント・キャッシュ情報は保ちます。一つ目の設定を読めない場合は直前のコピーで起動を続け、次の準備で再度更新します。すでに動いている二つ目の席には次の起動時に反映されます。claude.aiのアカウント所有コネクターはコピーしません。実行部品のみの配布で、本体は含みません。"
       ]
     },
     {
