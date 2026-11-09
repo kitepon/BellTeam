@@ -251,7 +251,8 @@ export function createGraphModel({ reduceMotion = false } = {}) {
         }
         const box = boxAt(line, chip.t, w, h), isBlocked = !free(box)
         placed.push(box)
-        if (chip.appearAt > chip.since) alpha *= Math.min(1, (now - chip.appearAt) / 200)
+        // shown は最初に出る時いつも200msで現れる。brief は空きを待った時だけ。
+        if (chip.mode === 'shown' || chip.appearAt > chip.since) alpha *= Math.min(1, (now - chip.appearAt) / 200)
         const item = { edge, box, alpha: hovered ? 1 : alpha, lines: text, blocked: isBlocked }
         if (hovered) above.push(item)
         else (isBlocked ? blocked : labels).push(item)
@@ -272,12 +273,23 @@ export function createGraphModel({ reduceMotion = false } = {}) {
   }
 }
 
-// 押せる相手：描いている名前、または顔（44×44未満なら44×44へ広げる）。後に描いた顔が上。線・札・余白はnull。
+// 押せる相手：描いている名前、または顔（44×44未満なら44×44へ広げる）。名前も顔も後に描いた方が上。線・札・余白はnull。
 export function nodeAt(frame, x, y) {
-  const name = frame.names.find(({ box }) => x >= box.x && x <= box.x + box.w && y >= box.y && y <= box.y + box.h)
+  const name = frame.names.findLast(({ box }) => x >= box.x && x <= box.x + box.w && y >= box.y && y <= box.y + box.h)
   if (name) return name.item.node.botId
   const item = frame.nodes.findLast(item => { const r = Math.max(item.side, 44) / 2; return Math.abs(item.x - x) <= r && Math.abs(item.y - y) <= r })
   return item?.node.botId ?? null
+}
+
+// タップ：押した時の相手を覚え、10px未満・500ms未満で離したらその相手を開く。押している間に一度でも10px以上動いたら取り消し。
+export function createTap(onTap) {
+  let press = null
+  return {
+    down(id, x, y, at, botId) { press = botId ? { id, x, y, at, botId } : null },
+    move(id, x, y) { if (press?.id === id && Math.hypot(x - press.x, y - press.y) >= 10) press = null },
+    up(id, x, y, at) { const item = press; press = null; if (item?.id === id && Math.hypot(x - item.x, y - item.y) < 10 && at - item.at < 500) onTap(item.botId) },
+    cancel() { press = null },
+  }
 }
 
 // 線（直線か二次曲線）上の位置。tは0〜1。

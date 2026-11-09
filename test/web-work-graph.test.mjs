@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { avatarSide, backoffMs, blinkOpacity, createGraphModel, edgeText, enterCurve, flowDots, nodeAt, nodeText, wrapLabel } from '../web/work-graph-model.js'
+import { avatarSide, backoffMs, blinkOpacity, createGraphModel, createTap, edgeText, enterCurve, flowDots, nodeAt, nodeText, wrapLabel } from '../web/work-graph-model.js'
 import { createGraphStream, parseFrames } from '../web/work-graph.js'
 
 const rect = { x: 24, y: 24, w: 800, h: 600 }
@@ -151,6 +151,8 @@ test('札の出し方は依頼ごとに一度だけ決めて保つ。shown は�
   two.snapshot(snapshot([node('a'), node('b')], [edge('a', 'b')]), 0, rect)
   for (let i = 0; i < 300; i++) two.step(1 / 60, rect, i * 16)
   assert.equal(two.frame(5000, rect).labels.length, 1)
+  // shown は最初に置かれた時も200msで現れる。
+  assert.ok(two.frame(5100, rect).labels[0].alpha < 1 && two.frame(5300, rect).labels[0].alpha === 1)
   assert.equal(two.edges.get('a:b').chip.mode, 'shown')
   // あとで混んでも（11本以上）shown のまま。text の変化は折り返しだけ。
   const more = Array.from({ length: 11 }, (_, i) => ({ type: 'edge-start', edge: edge('a', 'b', `x${i}`, null) }))
@@ -195,6 +197,17 @@ test('顔のタップ範囲：名前か44×44以上の四角。線・札・余�
   assert.equal(nodeAt(frame, 120, 100), 'b', 'the later drawn node is on top')
   assert.equal(nodeAt(frame, 300, 345), 'c', 'the name is part of the target')
   assert.equal(nodeAt(frame, 500, 500), null)
+  // 名前が重なったら、後に描いた（上に見えている）名前の子。
+  const both = { ...frame, names: [...frame.names, { item: item('d', 310, 300, 56), box: { x: 300, y: 337, w: 40, h: 18 } }] }
+  assert.equal(nodeAt(both, 310, 345), 'd')
+  // タップ：押した時の相手で開く。10px以上はみ出したら、戻ってきても開かない。長押しも開かない。
+  const opened = [], tap = createTap(botId => opened.push(botId))
+  tap.down(1, 0, 0, 0, 'a'); tap.move(1, 5, 0); tap.up(1, 6, 0, 400)
+  tap.down(1, 0, 0, 1000, 'b'); tap.move(1, 20, 0); tap.move(1, 0, 0); tap.up(1, 0, 0, 1200)
+  tap.down(1, 0, 0, 2000, 'c'); tap.up(1, 0, 0, 2500)
+  tap.down(1, 0, 0, 3000, null); tap.up(1, 0, 0, 3100)
+  tap.down(1, 0, 0, 4000, 'e'); tap.cancel(); tap.up(1, 0, 0, 4100)
+  assert.deepEqual(opened, ['a'])
 })
 
 test('タップした子の会話は、通知と同じ経路でメモリにだけ持って開く', async () => {

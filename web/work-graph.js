@@ -1,5 +1,5 @@
 // 相関図の画面。データは GET /api/work-graph/events、見た目と動きは behavior-spec.md のとおり。
-import { accent, backoffMs, blinkOpacity, createGraphModel, edgeText, flowDots, nodeAt, nodeText, pointAt } from './work-graph-model.js?v=__ASSET_VERSION__'
+import { accent, backoffMs, blinkOpacity, createGraphModel, createTap, edgeText, flowDots, nodeAt, nodeText, pointAt } from './work-graph-model.js?v=__ASSET_VERSION__'
 
 const INK = '#21293D', MUTED = '#787D91', LINE = '#E6E3F0', CHIP = 'rgba(248, 248, 251, 0.92)'
 const NAME_FONT = '700 15px -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif'
@@ -236,6 +236,7 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch, onOpenMe
     frameId = requestAnimationFrame(draw)
   }
   // 混んでいる時や隠れたラベル・名前は、ポインターを近づけた時だけ出す。
+  const tap = createTap(botId => onOpenMember(botId))
   const hit = event => {
     const box = canvas.getBoundingClientRect(), x = event.clientX - box.left, y = event.clientY - box.top
     const frame = model.frame(now(), rectOf(), { wide: wide(), hover, measure: measure(LABEL_FONT) })
@@ -243,6 +244,7 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch, onOpenMe
   }
   canvas.addEventListener('pointermove', event => {
     const { frame, x, y, botId: node } = hit(event)
+    tap.move(event.pointerId, event.clientX, event.clientY)
     canvas.style.cursor = node ? 'pointer' : ''
     const inside = ({ box }) => x >= box.x && x <= box.x + box.w && y >= box.y && y <= box.y + box.h
     let edgeId = node ? null : (frame.labels.findLast(inside) ?? frame.blocked.findLast(inside))?.edge.id ?? null
@@ -253,18 +255,10 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch, onOpenMe
     hover = node ? { botId: node } : edgeId ? { edgeId } : null
   })
   canvas.addEventListener('pointerleave', () => { hover = null })
-  // タップ：押した時の相手を覚え、10px未満・500ms未満で離したらその子の会話を開く。離す前に図が変わっても同じ相手。
-  let press = null
-  canvas.addEventListener('pointerdown', event => {
-    const botId = event.isPrimary && event.button === 0 ? hit(event).botId : null
-    press = botId ? { botId, id: event.pointerId, x: event.clientX, y: event.clientY, at: event.timeStamp } : null
-  })
-  canvas.addEventListener('pointerup', event => {
-    const item = press
-    press = null
-    if (item && item.id === event.pointerId && Math.hypot(event.clientX - item.x, event.clientY - item.y) < 10 && event.timeStamp - item.at < 500) onOpenMember(item.botId)
-  })
-  canvas.addEventListener('pointercancel', () => { press = null })
+  // タップの決まりは createTap（押した時の相手で開く）。
+  canvas.addEventListener('pointerdown', event => tap.down(event.pointerId, event.clientX, event.clientY, event.timeStamp, event.isPrimary && event.button === 0 ? hit(event).botId : null))
+  canvas.addEventListener('pointerup', event => tap.up(event.pointerId, event.clientX, event.clientY, event.timeStamp))
+  canvas.addEventListener('pointercancel', () => tap.cancel())
   const visibility = () => { if (!open) return; if (document.hidden) stream.stop(); else stream.start() }
   const resize = () => model.heat()
   return {
