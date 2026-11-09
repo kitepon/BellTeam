@@ -453,7 +453,8 @@ export function createWebApp({ client = createWebClient() } = {}) {
     roomHeading.textContent = 'ルーム'
     const empty = document.createElement('p')
     empty.className = 'search-empty'
-    empty.textContent = '該当するメンバー・ルームはありません。名前や役職を変えて検索してください。'
+    empty.textContent = rosterSearch.value.trim() ? '該当するメンバー・ルームはありません。名前や役職を変えて検索してください。'
+      : state.setup && state.setup.phase !== 'ready' ? 'まだメンバーはいません。上の「初回設定を続ける」から始められます。' : 'まだメンバーはいません。'
     botList.replaceChildren(...(botRows.length || roomRows.length ? [...botRows, roomHeading, ...roomRows] : [empty]))
   }
 

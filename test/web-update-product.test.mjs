@@ -112,7 +112,7 @@ test('failures appear as a plain-words banner; codes stay out of the normal surf
   assert.match(f.text(), /対応が必要です/); assert.match(f.text(), /担当に伝えてください/)
   assert.doesNotMatch(f.text(), /HOST_UPDATE_INSTALL_FAILED|install failed|44444444/)
   const r = fixture(t, structuredClone(value), plan, { failRead: true }); await r.center.start()
-  assert.match(r.text(), /更新情報を取得できません/); assert.ok(r.control('retry')); assert.doesNotMatch(r.text(), /NETWORK_DOWN/)
+  assert.match(r.text(), /更新情報を取得できません/); assert.ok(r.control('recheck')); assert.equal(r.control('retry'), undefined); assert.doesNotMatch(r.text(), /NETWORK_DOWN/)
 })
 
 test('save failure and unsupported plan are visible and never send Start', async t => {

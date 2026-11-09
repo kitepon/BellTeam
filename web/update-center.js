@@ -465,9 +465,9 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     let tone = 'danger', heading = ''
     if (readError) {
       heading = storageFailure ? 'この端末に更新の記録を保存できません' : '更新情報を読み取れませんでした'
-      lines.push(storageFailure ? 'ブラウザーの保存を許可してから、画面を開き直してください。' : '接続を確かめて、「もう一度確認」を押してください。')
+      lines.push(storageFailure ? 'ブラウザーの保存を許可してから、画面を開き直してください。' : '接続を確かめて、「再確認」を押してください。')
     }
-    if (operationReadError) { heading ||= '更新の結果を確認できませんでした'; lines.push('接続を確かめて、「もう一度確認」を押してください。更新は二重には始まりません。') }
+    if (operationReadError) { heading ||= '更新の結果を確認できませんでした'; lines.push('接続を確かめて、「再確認」を押してください。更新は二重には始まりません。') }
     if (operationMessage && !submitting) { heading ||= '更新を始められませんでした'; lines.push(operationMessage) }
     for (const item of components) {
       const state = states.get(item.id), status = componentStatus(item.status) ? item.status : null
@@ -485,11 +485,6 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     banner.dataset.tone = tone; banner.setAttribute('role', tone === 'ok' ? 'status' : 'alert')
     banner.append(element('strong', '', heading))
     for (const line of [...new Set(lines)]) banner.append(element('p', '', line))
-    if (readError || operationReadError) {
-      const retry = element('button', 'update-banner-action', 'もう一度確認'); retry.type = 'button'
-      retry.dataset.updateControl = 'retry'; retry.disabled = loading || submitting
-      retry.addEventListener('click', () => { void refresh() }); banner.append(retry)
-    }
     product.append(banner)
   }
   function renderCards(items, states, candidates, label) {
