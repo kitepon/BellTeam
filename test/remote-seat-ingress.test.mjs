@@ -180,3 +180,17 @@ test('bind_terminal_key: target from the record, handle becomes sshKeyRef, typed
   await assert.rejects(callTerminalTool({ name: 'bind_terminal_key', args: { terminalId: 'owner-macbook', ref, host: 'evil' }, terminals: () => core, terminalKeys: () => keys }), /TOOL_ARGUMENT_INVALID/)
   await assert.rejects(callTerminalTool({ name: 'bind_terminal_key', args: { terminalId: 'owner-macbook', ref }, terminals: () => core, terminalKeys: () => null }), { code: 'CREDENTIAL_UNAVAILABLE' })
 })
+
+test('credential refresh: unbound removes an unavailable handle and disarms its timer', async t => {
+  t.mock.timers.enable({ apis: ['setInterval'] })
+  const { createCredentialRefresh } = await import('../src/secret-credential-refresh.mjs')
+  let listener, calls = 0
+  const helper = createCredentialRefresh({ refresh: async () => { calls++ }, watch: next => { listener = next; return () => {} }, intervalMs: 1000 })
+  t.after(() => helper.stop())
+  listener({ handle: 'removed-handle', available: false, reason: 'availability' })
+  assert.equal(helper.pending, 1)
+  listener({ handle: 'removed-handle', available: false, reason: 'unbound' })
+  assert.equal(helper.pending, 0)
+  t.mock.timers.tick(5000); await Promise.resolve()
+  assert.equal(calls, 0)
+})

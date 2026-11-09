@@ -7,6 +7,7 @@ import { createUsageAuthority } from './usage/authority.mjs'
 import { createUsageFacade } from './usage/facade.mjs'
 import { createUsageProjection } from './usage/projection.mjs'
 import { NativeSecretCredentials } from './usage/native-secret-credentials.mjs'
+import { normalizeCredentialScope } from './usage/secret-credentials.mjs'
 
 // Bootstrap owns this one controller before constructing the remaining service graph.
 export function createUsageAssembly({ root, exchangeMutex, environment = {}, seatRuntime = false, getServices,
@@ -47,7 +48,44 @@ export function createUsageAssembly({ root, exchangeMutex, environment = {}, sea
     return context?.usageEffect ? { usageLease: context.usageLease, usageEffect: context.usageEffect, capturedAuthorization } : capturedAuthorization
   }
   const credentials = {
+    requestTerminalKey: input => facade.secretRequests.requestTerminalKey(input, systemContext('secrets.requestTerminalKey')),
     bind: (id, target) => facade.secretRequests.bindCredential(id, target, systemContext('secrets.bind')),
+    async current(target) {
+      target = normalizeCredentialScope(target)
+      let selection = await nativeCredentials.selection(target)
+      if (!selection.present) {
+        const retained = await facade.secretRequests.currentCredential(target, systemContext('secrets.current'))
+        if (!retained) return null
+        await nativeCredentials.selectCredential({ ...target, ...retained, reason: 'bound' })
+        selection = { present: true, credential: retained }
+      }
+      if (!selection.credential) return null
+      const selected = selection.credential
+      try {
+        const current = await credentials.credential(selected.handle, { ...target, memberId: null })
+        return { ...current, requestId: selected.requestId }
+      } catch (error) {
+        if (error.code === 'SECRET_SOURCE_UNAVAILABLE') return { ...selected, available: false }
+        if (error.code !== 'SECRET_CREDENTIAL_REVOKED') throw error
+        await nativeCredentials.selectCredential({ ...target, ...selected, available: false, reason: 'unbound' })
+        return null
+      }
+    },
+    async unbind(handle, target) {
+      target = normalizeCredentialScope({ terminalId: target?.terminalId, purpose: target?.purpose })
+      await nativeCredentials.ready()
+      if (handle === null) {
+        await facade.secretRequests.revokeTerminalRequests(target, systemContext('secrets.revokeTerminalRequests'))
+        const selection = await nativeCredentials.selection(target)
+        if (selection.credential && nativeCredentials.owns(selection.credential.handle)) await nativeCredentials.unbind(selection.credential.handle, target)
+        await nativeCredentials.clearSelection(target)
+        return null
+      }
+      if (!nativeCredentials.owns(handle)) return facade.secretRequests.unbindCredential(handle, target, systemContext('secrets.unbind'))
+      const result = await nativeCredentials.unbind(handle, target)
+      await facade.secretRequests.revokeTerminalRequests(target, systemContext('secrets.revokeTerminalRequests'))
+      return result
+    },
     async credential(handle, target) {
       await nativeCredentials.ready()
       return nativeCredentials.owns(handle) ? nativeCredentials.credential(handle, target)
@@ -55,6 +93,7 @@ export function createUsageAssembly({ root, exchangeMutex, environment = {}, sea
     },
     async withResolved(handle, target, consume) {
       await nativeCredentials.ready()
+      await nativeCredentials.assertSelected(handle, { terminalId: target?.terminalId, purpose: target?.purpose })
       return nativeCredentials.owns(handle) ? nativeCredentials.withResolved(handle, target, consume)
         : facade.secretRequests.withResolved(handle, target, consume, systemContext('secrets.resolve'))
     },
@@ -105,8 +144,11 @@ export function createUsageAssembly({ root, exchangeMutex, environment = {}, sea
       const current = inherited ? Object.freeze({ ...inherited, ...context }) : context
       return scope.run(current, () => onEffect(method, params, current))
     },
-    onProjection: (row, context) => context.phase === 'seed' ? projection.seed(row, context.generation)
-      : context.phase === 'snapshot' ? projection.accept(row, context.generation) : facade.accept(row, context.generation),
+    onProjection: async (row, context) => {
+      if (row.type === 'credential') await nativeCredentials.selectCredential(row.value)
+      return context.phase === 'seed' ? projection.seed(row, context.generation)
+        : context.phase === 'snapshot' ? projection.accept(row, context.generation) : facade.accept(row, context.generation)
+    },
     onSnapshotStart: context => projection.begin(context.generation),
     onSnapshotEnd: context => projection.commit(context.generation),
     onSnapshotAbort: context => projection.discard(context.generation),

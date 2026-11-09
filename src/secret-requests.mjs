@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
 import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { SecretCredentials } from './usage/secret-credentials.mjs'
+import { SecretCredentials, normalizeCredentialScope } from './usage/secret-credentials.mjs'
 
 // 秘密の値はこのクラスのsubmitだけが受け取り、一覧・通知・イベントへ渡さない。
 export class SecretRequests {
@@ -19,12 +19,13 @@ export class SecretRequests {
     this.cardTimelines = new CardTimelines(bots, 'secret_request')
     this.busy = new Set()
     this.events = new EventEmitter()
-    this.credentials = new SecretCredentials({ root, getRequest: id => this.get(id), onePassword, providers: secretProviders, retryMs: credentialRetryMs })
+    this.terminalKeyTail = Promise.resolve()
+    this.credentials = new SecretCredentials({ root, getRequest: id => this.getPrivate(id), onePassword, providers: secretProviders, retryMs: credentialRetryMs })
     this.credentials.watch(event => this.events.emit('credential', event))
     this.credentials.watchRecovery(event => this.events.emit('recovery', event))
     this.credentials.onePassword.watch(() => {
       for (const item of this.items.values()) {
-        this.cardTimelines.put(this.get(item.id))
+        if (item.botId !== null) this.cardTimelines.put(this.get(item.id))
         this.onSave(this.get(item.id))
       }
       this.events.emit('change', { all: true, topics: ['requests'], botIds: [], roomIds: [] })
@@ -39,15 +40,20 @@ export class SecretRequests {
       // 配送済みの状態は'queued'から'sent'へ改名した。改名前に保存した依頼も同じ意味で読む。
       if (item.notification === 'queued') item.notification = 'sent'
       this.items.set(item.id, item)
-      this.cardTimelines.put(item)
+      if (item.botId !== null) this.cardTimelines.put(item)
     }
     await this.credentials.initialize({ readOnly })
-    for (const item of this.items.values()) this.cardTimelines.put(this.get(item.id))
+    for (const item of this.items.values()) if (item.botId !== null) this.cardTimelines.put(this.get(item.id))
+  }
+
+  getPrivate(id) {
+    const item = this.items.get(id)
+    if (!item) throw new Error('SECRET_REQUEST_NOT_FOUND')
+    return { ...item }
   }
 
   get(id) {
-    const item = this.items.get(id)
-    if (!item) throw new Error('SECRET_REQUEST_NOT_FOUND')
+    const { terminalSuperseded, ...item } = this.getPrivate(id)
     return { ...item, inputOptions: this.credentials.inputOptions() }
   }
 
@@ -72,6 +78,52 @@ export class SecretRequests {
     return this.get(item.id)
   }
 
+  terminalKeyOperation(operation) {
+    const run = this.terminalKeyTail.then(operation)
+    this.terminalKeyTail = run.catch(() => {})
+    return run
+  }
+
+  requestTerminalKey({ terminalId, purpose, label }) {
+    return this.terminalKeyOperation(async () => {
+      const scope = normalizeCredentialScope({ terminalId, purpose })
+      if (!['terminal.ssh', 'terminal.sudo'].includes(scope.purpose) || typeof label !== 'string' || !label.trim() || label.length > 80) throw new Error('SECRET_REQUEST_INVALID')
+      await this.cancelTerminalRequests(scope)
+      const item = { id: randomUUID(), botId: null, roomId: null, toolId: 'terminal-key', ...scope,
+        label, message: `端末「${terminalId}」の${scope.purpose === 'terminal.ssh' ? 'SSH鍵' : 'sudo認証情報'}を登録してください。値や1Password参照は、この専用欄へ入力してください。`,
+        at: new Date().toISOString(), status: 'pending' }
+      await this.save(item)
+      return { secretRequest: this.get(item.id) }
+    })
+  }
+
+  async cancelTerminalRequests(scope) {
+    scope = normalizeCredentialScope(scope)
+    for (const item of this.items.values()) if (item.botId === null && item.terminalId === scope.terminalId && item.purpose === scope.purpose && !item.terminalSuperseded) {
+      await this.save({ ...item, terminalSuperseded: true,
+        ...(item.status === 'pending' ? { status: 'cancelled', notification: 'not_needed' } : {}) })
+    }
+  }
+
+  async currentCredential(scope) {
+    scope = normalizeCredentialScope(scope)
+    const latest = [...this.items.values()].find(item => item.botId === null && item.terminalId === scope.terminalId && item.purpose === scope.purpose && !item.terminalSuperseded && item.status === 'submitted')
+    if (latest && !this.credentials.hasRequestBinding(latest.id, scope)) await this.bindCredential(latest.id, scope)
+    return this.credentials.current(scope)
+  }
+  unbindCredential(handle, scope) {
+    return this.terminalKeyOperation(async () => {
+      const result = await this.credentials.unbind(handle, scope)
+      await this.cancelTerminalRequests(scope)
+      await this.credentials.unbindScope(scope)
+      return result
+    })
+  }
+  revokeTerminalRequests(scope) { return this.terminalKeyOperation(async () => {
+    await this.cancelTerminalRequests(scope)
+    await this.credentials.unbindScope(scope)
+  }) }
+
   timeline(target) { return this.cardTimelines.timeline(target) }
   timelineView(target) { return this.cardTimelines.view(target) }
 
@@ -87,6 +139,12 @@ export class SecretRequests {
   }
 
   async submit(id, value) {
+    if (this.get(id).botId === null && this.get(id).status === 'submitted') return this.terminalKeyOperation(async () => {
+      const item = this.getPrivate(id)
+      if (item.terminalSuperseded) throw new Error('SECRET_REQUEST_CLOSED')
+      await this.bindCredential(id, { terminalId: item.terminalId, purpose: item.purpose })
+      return this.get(id)
+    })
     if (value && typeof value === 'object' && !Array.isArray(value)) {
       if (Object.keys(value).sort().join(',') !== 'reference,source' || value.source !== 'onepassword') throw new Error('SECRET_VALUE_INVALID')
       return this.finish(id, async item => {
@@ -136,6 +194,11 @@ export class SecretRequests {
   }
 
   async finish(id, update, { notify = true } = {}) {
+    if (this.get(id).botId === null) return this.terminalKeyOperation(() => this.finishRequest(id, update, { notify: false }))
+    return this.finishRequest(id, update, { notify })
+  }
+
+  async finishRequest(id, update, { notify = true } = {}) {
     const item = this.get(id)
     if (item.status !== 'pending' || this.busy.has(id)) throw new Error('SECRET_REQUEST_CLOSED')
     this.busy.add(id)
@@ -143,6 +206,7 @@ export class SecretRequests {
       const result = await update(item)
       if (!notify) {
         await this.save({ ...result, notification: 'not_needed' })
+        if (result.botId === null && result.status === 'submitted') await this.bindCredential(id, { terminalId: result.terminalId, purpose: result.purpose })
         return this.get(id)
       }
       await this.save({ ...result, notification: 'pending' })
@@ -166,9 +230,9 @@ export class SecretRequests {
     await writeFile(`${path}.tmp`, JSON.stringify(item), { mode: 0o600 })
     await rename(`${path}.tmp`, path)
     this.items.set(item.id, item)
-    this.cardTimelines.put(this.get(item.id))
+    if (item.botId !== null) this.cardTimelines.put(this.get(item.id))
     this.onSave(this.get(item.id))
-    this.events.emit('change', { all: false, topics: ['requests'], botIds: [item.botId], roomIds: item.roomId ? [item.roomId] : [] })
+    this.events.emit('change', { all: false, topics: ['requests'], botIds: item.botId === null ? [] : [item.botId], roomIds: item.roomId ? [item.roomId] : [] })
   }
 }
 
