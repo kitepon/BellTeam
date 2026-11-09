@@ -20,6 +20,7 @@ Appleのpathは `ios/BellBot/BellBot/` 起点。Webは `web/` 起点。
 | 予定 | SchedulesView → GET schedules（404だけ個別fallback）、target schedules CRUD/run | schedule-editor | 選択会話のCRUD/runあり。全件一覧/横断入口が不足。欠落を空成功にしない |
 | Goal/実行制御 | GoalsView / ConversationView / SettingsView → goals、bot goal/stop/restart、ai-control | goals/member-stop/bot-editor/ai-control | 既存。受付とnative実適用を区別、失敗は再送せずGET確認 |
 | 秘密/質問 | SecretRequestView / OwnerQuestionView / BellAPI protected submit → secret-requests/owner-questions | secret-input/owner-question | 既存。秘密入力と質問URLをexportへ混ぜず、応答後除去/失敗時入力保持の既契約を維持。Webは `inputOptions` による1Password参照選択を持つ（conversation.md）。Appleの同等はベル |
+| 端末/動かす場所 | （未実装、Zizが担当） | terminals / bot-editor | F-SEAT-HOST P2。Webは端末一覧・登録・確認・ホスト鍵指紋・鍵の秘密入力と、メンバーの端末+フォルダ欄を持つ（README.md「Terminals and remote member binding」）。旧本体では隠す |
 | 通知 | BellNotifications / SettingsView → notifications、devices/unregister、APNs | eventsで画面内再同期 | APNs端末登録をbrowserへ転用不可。WebPush provider/APIは未供給。通知provider状態の表示は既GETで対応可能 |
 | 購読 | SubscriptionView / BillingStore / AppleSubscriptionAccess、StoreKit | 汎用feature設定のみ | native StoreKit購入をWeb完成機能として載せない。Apple原文でWeb無料。Web購入は不足機能に数えず、設定に無料/Apple専用購読を説明する |
 | 端末画面/設定画/記憶 | ConversationView screen、Appleにmemory/knowledge/character-sheet HTTP callerなし | bot-read-views/memory-view | Web既存機能を保持。Apple未実装部分をApple完成機能に数えない |
