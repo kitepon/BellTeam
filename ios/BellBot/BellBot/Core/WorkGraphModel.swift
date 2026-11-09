@@ -113,7 +113,7 @@ final class WorkGraphModel: ObservableObject {
         var endedAt: Double?
         /// 依頼が始まった時刻（サーバーの`startedAt`）。札を始まった順に置くために使う。
         var serverStart: Double?
-        /// 札の出し方。決めた後は変えない（behavior-spec.md「Edges」のchip visibility）。
+        /// 札。latch frameで一度だけ作り、辺が終わるまで残す（behavior-spec.md「Edges」）。
         var chip: Chip?
 
         init(edge: WorkGraphEdge, startedAt: Double) {
@@ -128,14 +128,9 @@ final class WorkGraphModel: ObservableObject {
         lines.sorted { ($0.serverStart ?? $0.startedAt, $0.edge.id) < ($1.serverStart ?? $1.startedAt, $1.edge.id) }
     }
 
-    /// 札の出し方。latch frame（labelがあり、両端の入場が終わった最初のコマ）で一度だけ決める。
-    enum ChipMode: Equatable { case brief, shown }
-
+    /// latch frame（labelがあり、両端の入場が終わった最初のコマ）で一度だけ作る。
     struct Chip: Equatable {
-        let mode: ChipMode
-        /// latch frameの時刻。briefの3秒はここから測る。
-        let since: Double
-        /// 置いた線の上の位置。nilは描かない（空きを待つ・briefの窓が終わった・消え終えた）。
+        /// 置いた線の上の位置。nilは描かない（空きを待つ・消え終えた）。
         var t: CGFloat?
         var appearAt: Double?
         /// labelがnullへ戻った時刻。300msで消す。
@@ -147,7 +142,6 @@ final class WorkGraphModel: ObservableObject {
     /// 描ける線1本。pointは線の上の位置t（0〜1）。
     struct EdgePath {
         let id: String
-        let length: CGFloat
         let point: (CGFloat) -> CGPoint
     }
 
@@ -514,18 +508,26 @@ final class WorkGraphModel: ObservableObject {
                 CGRect(x: look.point.x - width / 2, y: look.point.y + size / 2 + 6, width: width, height: BellTheme.listNameFontSize * 1.4))
     }
 
-    /// 1コマ分の札を決めて置く（behavior-spec.md「Edges」）。出し方は依頼ごとにlatch frameで一度だけ決めて保つ。
-    /// 置き場所は始まった順に、メンバーの四角（6pt広げる）と先に置いた札（blockedも含む）を避けた最初の空きt。今のtが空いていれば動かさず、
-    /// ふさがれば最初の空きtへ、どこも空かなければ今のtのままblocked。名前は障害物にしない（札が名前に重なってよい）。
+    /// 描いている名前の文字の四角。見えていない名前（不透明度0）は無し。置き場所の障害物に使う。
+    func nameText(_ body: Body, at now: Double) -> CGRect? {
+        guard appearance(body, at: now).opacity > 0 else { return nil }
+        let box = frames(body, at: now).name
+        let font = UIFont.systemFont(ofSize: BellTheme.listNameFontSize, weight: .semibold)
+        let width = min(box.width, ceil(NSAttributedString(string: body.node.name, attributes: [.font: font]).size().width))
+        return CGRect(x: box.midX - width / 2, y: box.minY, width: width, height: box.height)
+    }
+
+    /// 1コマ分の札を置く（behavior-spec.md「Edges」）。札はlatch frameで一度作り、辺が終わるまで残す。
+    /// 置き場所は始まった順に、メンバーの四角・描いている名前・先に置いた札（blockedも含む）をそれぞれ4pt広げて避けた最初の空きt。
+    /// 今のtが空いていれば動かさず、ふさがれば最初の空きtへ、どこも空かなければ今のtのままblocked。
     func layoutChips(_ paths: [EdgePath], size: (String) -> CGSize, hover: String?, now: Double) {
         self.paths = paths
         let enter = reduceMotion ? 0.2 : 0.7
-        let open = lines.values.filter { $0.endedAt == nil }.count
-        let discs = bodies.values.map { frames($0, at: now).avatar.insetBy(dx: -6, dy: -6) }
+        let fixed = bodies.values.flatMap { [frames($0, at: now).avatar] + [nameText($0, at: now)].compactMap { $0 } }
         var placed: [CGRect] = []
         func free(_ area: CGRect) -> Bool {
             let grown = area.insetBy(dx: -4, dy: -4)
-            return !discs.contains { $0.intersects(grown) } && !placed.contains { $0.intersects(grown) }
+            return !fixed.contains { $0.intersects(grown) } && !placed.contains { $0.intersects(grown) }
         }
         var layers = ChipLayers()
         let byId = Dictionary(paths.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
@@ -538,19 +540,17 @@ final class WorkGraphModel: ObservableObject {
             }
             var chip = line.chip
             if chip == nil, let label, line.endedAt == nil, landed {
-                chip = Chip(mode: open > 10 || path.length < 120 ? .brief : .shown, since: now, text: label)
+                chip = Chip(text: label)
             }
             guard var chip else { continue }
             if let label { chip.nullAt = nil; chip.text = label } else if chip.nullAt == nil { chip.nullAt = now }
             let chipSize = size(chip.text)
             let frame = { (t: CGFloat) in Self.chipFrame(at: path.point(t), size: chipSize) }
-            let age = now - chip.since
-            let window = chip.mode == .shown || age < 3.4
-            var opacity = chip.mode == .brief ? (age < 3 ? 1 : max(0, 1 - (age - 3) / 0.4)) : 1
+            var opacity = 1.0
             if let endedAt = line.endedAt { opacity *= max(0, 1 - (now - endedAt) / 0.3) }
             if let nullAt = chip.nullAt { opacity *= max(0, 1 - (now - nullAt) / 0.3) }
-            if !window || (opacity <= 0 && (chip.nullAt != nil || line.endedAt != nil)) {
-                chip.t = nil // briefの窓が終わった札・消え終えた札は場所を返す。
+            if opacity <= 0 && (chip.nullAt != nil || line.endedAt != nil) {
+                chip.t = nil // 消え終えた札は場所を返す。
             } else if line.endedAt == nil && chip.nullAt == nil {
                 let first = Self.chipSlots.first { free(frame($0).area) }
                 if let t = chip.t {
@@ -562,18 +562,11 @@ final class WorkGraphModel: ObservableObject {
             }
             lines[line.edge.id]?.chip = chip
             let hovered = hover == line.edge.id && label != nil && line.endedAt == nil
-            guard let t = chip.t else {
-                if hovered {
-                    let f = frame(0.5)
-                    layers.above.append(PlacedChip(id: line.edge.id, text: chip.text, anchor: path.point(0.5), tag: f.tag, area: f.area, opacity: 1, blocked: false))
-                }
-                continue
-            }
+            guard let t = chip.t else { continue }
             let f = frame(t)
             let blocked = !free(f.area)
             placed.append(f.area) // blockedの札も後の札の障害物（Webと同じ）。
-            // shownは最初に出る時いつも200msで現れる。briefは空きを待った時だけ。
-            if let appearAt = chip.appearAt, chip.mode == .shown || appearAt > chip.since { opacity *= min(1, (now - appearAt) / 0.2) }
+            if let appearAt = chip.appearAt { opacity *= min(1, (now - appearAt) / 0.2) } // 最初に出る時は200msで現れる。
             let item = PlacedChip(id: line.edge.id, text: chip.text, anchor: path.point(t), tag: f.tag, area: f.area,
                                   opacity: hovered ? 1 : opacity, blocked: blocked)
             if hovered { layers.above.append(item) } else if blocked { layers.blocked.append(item) } else { layers.unblocked.append(item) }

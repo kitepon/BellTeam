@@ -121,7 +121,7 @@ struct WorkGraphView: View {
         let live = model.connection == .live
         let lines = model.lines.values.sorted { $0.edge.id < $1.edge.id }
         model.layoutChips(lines.compactMap { line in
-            path(line, now: now).map { WorkGraphModel.EdgePath(id: line.edge.id, length: $0.length, point: $0.point) }
+            path(line, now: now).map { WorkGraphModel.EdgePath(id: line.edge.id, point: $0.point) }
         }, size: Self.chipSize, hover: hoveredEdge(now: now), now: now)
         for line in lines { drawEdge(&context, line, now: now, live: live) }
         // 置き場所の無い札（blocked）だけは線のすぐ上、メンバー・名前・ほかの札の下（behavior-spec.md「Edges」）。
