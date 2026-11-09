@@ -107,7 +107,7 @@ DELETE without a handle: callers always invoke `credentials.unbind(currentHandle
 Submission recovery: if source persistence succeeded but binding failed, a still-current Owner request can retry binding without overwriting its retained value, and current lookup can repair the missing binding. New requests privately supersede earlier cards so repair cannot reselect an old card. Child binding order is persisted for deterministic fallback reconstruction; the parent index remains authoritative once present.
 ### Missing optional executable during startup
 
-The fixed executable's filesystem path resolution is separate from secret-reference resolution. When neither the shared wrapper nor an op executable on PATH exists, refresh returns false without an unhandled rejection; stored input and application startup remain available. This repair stays within the existing optional-source unavailable/recovery contract and changes no I/O, state or connection.
+The fixed executable's filesystem path resolution is separate from secret-reference resolution. When no op executable is found (configured path or PATH), refresh returns false without an unhandled rejection; stored input and application startup remain available. This repair stays within the existing optional-source unavailable/recovery contract and changes no I/O, state or connection.
 
 Parent publication order is schema/generation/revision validation, then durable selection update, then the credential event. A rejected stale projection cannot mutate the selection index before its revision check.
 
@@ -124,3 +124,28 @@ A delayed null-delete passes its original opaque selection capture into native r
 ### Newly introduced stores after read-only restore
 
 Read-only initialization tolerates absent private source/credential directories and creates nothing during takeover. Once the resumed writer receives registerSource or saves a credential binding, that write operation creates its own directory recursively with 0700 before its existing exclusive/atomic 0600 write. This keeps older upgraded state usable without weakening read-only restore, changing values or overwriting existing files. The repaired range is the existing SecretCredentials source-registration/binding persistence contract; public I/O and v2 interpretation are unchanged.
+
+### Server op supply and existing SSH key picker (2026-11-09)
+
+Production cause: the server-side OnePasswordSource tried `/srv/bellteam/shared/tools/onepassword/bin/op` first. That path is the UID1000 bootstrap wrapper; the usage child (UID1001, env cleared by module-start to PATH/HOME/NODE_CHANNEL) cannot read its token and exits 3, so `whoami` failed and inputOptions.onePasswordAvailable stayed false. The child also never had a service account token. Box contract (Molly, #835): `/usr/local/bin/op` root:root 0755 in the body image, reached through the child's PATH; HOME `/run/bellteam-server` is a writable 0700 tmpfs used as op's config dir; the box stores or passes no token.
+
+| Component | Change |
+| --- | --- |
+| OnePasswordSource | Resolves `command` (tests), else `OP_CLI_PATH`, else `op` on PATH. No shared-wrapper step. `setToken(fn)` installs a private token reader; each `op` call receives `OP_SERVICE_ACCOUNT_TOKEN` only in that call's env (never argv, logs, files or errors). `listSshKeys()` runs `op vault list` then `op item list --vault <id> --categories "SSH Key"` per readable vault and returns `[{title,vault,reference}]` where reference is `op://<vault id>/<item id>/private key?ssh-format=openssh`. No key is created; failures are the fixed SECRET_SOURCE_UNAVAILABLE. |
+| SecretRequests | Reserved tool id `onepassword-service-account`: an ordinary Bot `request_secret` card whose Owner-submitted stored value (existing 0600 file) is the service account token. The newest submitted such request is the token; an op-reference submission for it is rejected. A successful token submission triggers `refreshAvailability()` so pending cards update inputOptions. `onePasswordItems(id)` lists SSH Key items for a pending request; unavailable source → 503. |
+| Usage IPC / HTTP | Owner-only `secrets.onePasswordItems {id}` → array of `{title,vault,reference}`. Owner HTTP `GET /api/secret-requests/:id/onepassword-items` → `{items}`; not served to internal (Bot) callers. Submit DTO is unchanged: `{source:'onepassword',reference}`. |
+| Web secret card | For `purpose: terminal.ssh` with 1Password connected, the reference field is a select filled from the items route (title and vault shown); other purposes keep the reference text field. The key textarea carries `data-1p-ignore` so browser autofill does not insert a public key. |
+
+```mermaid
+flowchart LR
+  Owner -->|token on reserved request_secret card| Requests[SecretRequests]
+  Requests -->|0600 stored value| Token[(state/secret-values/onepassword-service-account)]
+  Token -->|private reader, per-call env| OP[op on PATH /usr/local/bin/op]
+  Card[terminal.ssh card] -->|GET items, Owner only| Requests
+  Requests -->|listSshKeys| OP
+  OP -->|title, vault, ids only| Card
+  Card -->|existing submit: source+reference| Requests
+  Requests -->|registerSource / bind| Credentials[SecretCredentials]
+```
+
+Vault scope is the Owner's ruling (Trony 2026-11-09): the existing key is imported as an SSH Key item into a vault the service account already reads; access is not widened. Token state: no token → op unavailable → stored input remains (same self-exit: submitting the token card, or op recovering, flips availability).

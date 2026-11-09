@@ -15,10 +15,9 @@ test('missing optional op on PATH does not reject startup', () => {
     const require = createRequire(import.meta.url)
     const fsPromises = require('node:fs/promises')
     const originalAccess = fsPromises.access
+    const seen = []
     fsPromises.access = async function (path, ...args) {
-      if (String(path) === '/srv/bellteam/shared/tools/onepassword/bin/op') {
-        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
-      }
+      seen.push(String(path))
       return originalAccess.call(this, path, ...args)
     }
     syncBuiltinESMExports()
@@ -30,6 +29,7 @@ test('missing optional op on PATH does not reject startup', () => {
     })
     assert.equal(await source.refresh(), false)
     assert.equal(executeCalls, 0)
+    assert.deepEqual(seen, ['/nonexistent/op'])
     source.close()
     await new Promise(resolve => setImmediate(resolve))
   `
@@ -127,4 +127,24 @@ test('close prevents retry or late notifications', async t => {
   await new Promise(resolve => setTimeout(resolve, 15))
   assert.equal(calls, 2)
   assert.deepEqual(events, [{ available: true }])
+})
+
+test('token reaches op only through per-call env; SSH Key items become openssh references without creating keys', async t => {
+  const calls = []
+  const key = 'c'.repeat(26)
+  const source = createOnePasswordSource({ command: process.execPath, environment: { PATH: '/usr/local/bin' }, autoRetry: false, execute: async (_command, args, options) => {
+    calls.push({ args, token: options.env.OP_SERVICE_ACCOUNT_TOKEN, path: options.env.PATH })
+    if (args[0] === 'vault') return { stdout: Buffer.from(JSON.stringify([{ id: vault, name: '開発工場' }, { id: 'bad id', name: 'x' }])) }
+    if (args[0] === 'item') return { stdout: Buffer.from(JSON.stringify([{ id: key, title: 'MacBook key' }, { id: '../x', title: 'bad' }])) }
+    return { stdout: Buffer.from('{"user_uuid":"user-id"}') }
+  } })
+  t.after(() => source.close())
+  assert.equal(await source.refresh(), true)
+  assert.equal(calls[0].token, undefined)
+  source.setToken(async () => 'ops_synthetic-token')
+  assert.deepEqual(await source.listSshKeys(), [{ title: 'MacBook key', vault: '開発工場', reference: `op://${vault}/${key}/private key?ssh-format=openssh` }])
+  assert.deepEqual(calls.slice(1).map(call => call.args), [['vault', 'list', '--format', 'json'], ['item', 'list', '--vault', vault, '--categories', 'SSH Key', '--format', 'json']])
+  assert.ok(calls.slice(1).every(call => call.token === 'ops_synthetic-token' && call.path === '/usr/local/bin' && !call.args.join(' ').includes('ops_')))
+  source.setToken(async () => { throw new Error('ops_private') })
+  await assert.rejects(source.listSshKeys(), error => error.code === 'SECRET_SOURCE_UNAVAILABLE' && !error.message.includes('ops_'))
 })
