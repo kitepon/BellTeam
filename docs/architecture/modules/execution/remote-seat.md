@@ -138,4 +138,4 @@ Local seats (no `terminalId`): byte-for-byte today's path. Delivery ordering, du
 
 Test: `test/remote-seats.test.mjs` (launch names/references only, asleep → available edge, takeover, routing/list/wait, reconnect without resend, C7 forward with gap recovery and memory fallback).
 
-Still open: `native.wait` on the bound port (Elegg adapter + Crust bind); `supportsRemoteSeats` in the runtime loader (Molly); `uses` entries in module.json once terminals is on main; Throughline 0.17.0 supply (Owner release approval filed by Rivalin; Throughline PR #33 merged).
+Still open: `native.wait` on the bound port. Aiterm 0.65.0 ships `remote_terminal_wait({waitProcess})`; terminals' `bind` (Crust, `src/terminals/remote-process.mjs`) must expose it as `wait(waitProcess, {signal})` (abort cancels the MCP request). Until then a remote completion wait answers `REMOTE_WAIT_UNAVAILABLE` and nothing is forwarded. Throughline 0.17.0 is published (npm latest); the image installs `throughline@latest`.

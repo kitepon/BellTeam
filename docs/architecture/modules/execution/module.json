@@ -44,6 +44,18 @@
     {
       "module": "usage",
       "port": "settings"
+    },
+    {
+      "module": "terminals",
+      "port": "connection"
+    },
+    {
+      "module": "terminals",
+      "port": "reachability"
+    },
+    {
+      "module": "integration",
+      "port": "HTTP/MCP"
     }
   ],
   "source": [

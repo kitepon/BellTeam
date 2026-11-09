@@ -38,6 +38,9 @@ flowchart LR
   m_execution -->|"update"| m_runtime
   m_execution -->|"history"| m_conversation
   m_execution -->|"settings"| m_usage
+  m_execution -->|"connection"| m_terminals
+  m_execution -->|"reachability"| m_terminals
+  m_execution -->|"HTTP/MCP"| m_integration
   m_integration -->|"turn"| m_execution
   m_integration -->|"messages"| m_conversation
   m_integration -->|"registry"| m_members
