@@ -27,7 +27,9 @@ async function fixture(t, { native = {}, authorization = async () => {}, expiry 
   t.after(() => rm(root, { recursive: true, force: true }))
   const notifications = [], changes = [], calls = []
   const bots = new Map([['bot-synthetic', { id: 'bot-synthetic', name: '合成' }]])
-  const secrets = new SecretRequests({ root, bots, rooms: { refresh() {}, get() { return { memberIds: ['bot-synthetic'] } } }, notify: item => notifications.push(item) })
+  const secrets = new SecretRequests({ root, bots, rooms: { refresh() {}, get() { return { memberIds: ['bot-synthetic'] } } }, notify: item => notifications.push(item),
+    onePassword: { available: true, refresh: async () => {}, watch: () => () => {}, close() {}, resolve: async () => 'SYNTHETIC-CODE' } })
+  t.after(() => secrets.close())
   await secrets.initialize()
   secrets.watch(event => changes.push(event))
   const auth = Object.fromEntries(['start', 'status', 'respond', 'cleanup'].map(action => [action, async (args, options) => {
@@ -47,6 +49,18 @@ async function fixture(t, { native = {}, authorization = async () => {}, expiry 
   const journal = async () => (await readFile(join(runDirectory, context.runId + '.jsonl'), 'utf8')).trim().split('\n').map(JSON.parse)
   return { root, secrets, calls, notifications, changes, context, consumer, make, pending, request, guide, journal, runDirectory }
 }
+
+test('C5 original auth flow consumes a reference privately with the original binding and durable intent', async t => {
+  const f = await fixture(t), item = await f.request()
+  await f.guide(item)
+  const reference = `op://${'a'.repeat(26)}/${'b'.repeat(26)}/credential`
+  await f.secrets.submit(item.id, { source: 'onepassword', reference })
+  assert.equal(f.secrets.get(item.id).path, undefined)
+  assert.equal((await f.pending).outcome, 'confirmed')
+  assert.equal(f.calls.find(call => call.action === 'respond').args.response.value, 'SYNTHETIC-CODE')
+  assert.ok(!JSON.stringify([await f.journal(), f.notifications, f.changes]).includes(reference))
+  assert.ok(!(await f.journal()).some(record => JSON.stringify(record).includes('SYNTHETIC-CODE')))
+})
 
 test('whole flow exposes URL only in Owner guide and consumes once after durable intent', async t => {
   const f = await fixture(t)

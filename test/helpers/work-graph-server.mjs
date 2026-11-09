@@ -18,10 +18,12 @@ const base = {
     node('bot-five', 'エピネル', 'amber', 'working', 2),
   ],
   edges: [
-    edge('bot-one', 'bot-three', '資料の公開範囲を決めてほしい'),
-    edge('bot-two', 'bot-one', 'iPhoneとMacの画面写真を撮って送って'),
+    edge('bot-one', 'bot-three', '資料の公開範囲を決めてほしい。社外に出す章と社内だけの章を分けて、明日までに返事をください'),
+    edge('bot-two', 'bot-one', 'iPhoneとMacの画面写真を撮って送って。相関図の札が切れずに折り返し、ほかの札やアイコンに重ならないことも見てください'),
     edge('bot-one', 'bot-two', '比較表を更新', 'steered'),
-    edge('bot-four', 'bot-five', 'PR #646 の取り込み判定をお願いします'),
+    edge('bot-four', 'bot-five', 'PR #646 の取り込み判定をお願いします。会話一覧の土台をChatLayoutへ替えたので、上へ読み進めた時に位置が飛ばないことも実機で確かめてください'),
+    // 要約がまだ無い依頼（label null）は札を出さない。
+    edge('bot-five', 'bot-two', null),
   ],
 }
 const colors = ['violet', 'rose', 'indigo', 'sky', 'mint', 'amber']

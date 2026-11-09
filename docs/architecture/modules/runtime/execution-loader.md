@@ -17,7 +17,7 @@ flowchart LR
   Ports[同親live SDK / 同opaque gate / 保存ACK] --> Generation
 ```
 
-`loadExecutionFactory(versionId=null,{expectedRelease}={})`は`Object.freeze({versionId,sourceCommit,createExecutionDispatcher})`を返す。nullは/appの固定builtin、他は64桁SHAだけ。任意URL/path/entryは受けない。builtin sourceCommitは/app/distribution.jsonのroot0/no-follow/regular/nlink1/no-group-other-write/4KiB/schema/sourceCommit検査で取得し、未供給を推測しない。ロードはfactory関数の取得までで、engineを生成せず親portも渡さない。
+`loadExecutionFactory(versionId=null,{expectedRelease}={})`は`Object.freeze({versionId,sourceCommit,createExecutionDispatcher,supportsModelHandoff,supportsUpdateHold,supportsRemoteSeats})`を返す。3つの真偽値は、engineが公開するexport（`EXECUTION_METHODS.dispatch`の`administration.configureFromMcp`、`EXECUTION_UPDATE_HOLD_GATE === true`、`EXECUTION_REMOTE_SEATS === true`）だけから決める。親はこれが真の時だけ、対応する口を渡す（古いengineは知らない口のキーを拒むため）。`supportsRemoteSeats`は[遠隔席の入口](../integration/remote-seat-ingress.md)の`ports.terminals`/`ports.ingress`に当たる。nullは/appの固定builtin、他は64桁SHAだけ。任意URL/path/entryは受けない。builtin sourceCommitは/app/distribution.jsonのroot0/no-follow/regular/nlink1/no-group-other-write/4KiB/schema/sourceCommit検査で取得し、未供給を推測しない。ロードはfactory関数の取得までで、engineを生成せず親portも渡さない。
 
 signed版は既root installer receipt/manifest SHA/完全inventory/0555・0444を確認し、固定`/run/bellteam-maintenance/execution/releases/SHA/payload/src/execution-dispatcher.mjs`だけをimportする。Node26/P1とruntime.stateCompatibilityはbuiltinの`EXECUTION_STATE_COMPATIBILITY`実export文字列へ完全一致。新しいbusiness保存schemaは足さない。catalogは同source/platform/archiveと5key compatibility（stateSchema/containerUpdateはnull）を照合し、選択bundle自身のexportも照合する。importしたfactory関数をKiroへ返し、任意namespaceやSDK instanceをwireへ出さない。
 

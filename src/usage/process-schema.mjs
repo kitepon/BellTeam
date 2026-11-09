@@ -1,5 +1,6 @@
 import { HARNESS } from '../onboarding.mjs'
 import { backgroundInputValid } from './background-agent-settings.mjs'
+import { credentialContextValid, credentialScopeValid } from './secret-credentials.mjs'
 
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value)
 const text = value => typeof value === 'string' && value.length > 0 && !value.includes('\0')
@@ -39,7 +40,13 @@ export const usageMethods = {
   'auth.cancel': spec(shape({ harness }, { slot: accountSlot }), kinds.owner),
   'secrets.create': spec(shape({ toolId: text, label: text, message: text }, { roomId: value => value === null || id(value) }), kinds.bot),
   'secrets.get': cardRead,
-  'secrets.submit': spec(shape({ id, value: value => typeof value === 'string' }), kinds.owner),
+  'secrets.submit': spec(shape({ id, value: value => typeof value === 'string' || shape({ source: v => v === 'onepassword', reference: text })(value) }), kinds.owner),
+  'secrets.resolveRequest': spec(shape({ id }), kinds.system),
+  'secrets.bind': spec(shape({ id, scope: credentialScopeValid }), kinds.system),
+  'secrets.credential': spec(shape({ handle: id, context: credentialContextValid }), kinds.system),
+  'secrets.resolve': spec(shape({ handle: id, context: credentialContextValid }), kinds.system),
+  'secrets.replace': spec(shape({ handle: id, id, context: credentialContextValid }), kinds.system),
+  'secrets.refresh': spec(none, kinds.system),
   'secrets.cancel': spec(shape({ id }), kinds.owner),
   'secrets.withdraw': spec(shape({ id }), kinds.bot),
   'secrets.notifyOwnerGuide': spec(shape({ id }), kinds.system),

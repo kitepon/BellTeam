@@ -20,12 +20,13 @@ export const LAUNCH_VARIABLE = 'AITERM_AGENT_LAUNCH_ID'
 export const BELLTEAM_MCP_PATH = '/mcp'
 export const CALL_BRIDGE_MCP_PATH = '/mcp/call-bridge'
 export const CALLER_ID_HEADER = 'X-Call-Bridge-Caller-Id'
+export const REMOTE_SEAT_MCP_PATH = '/api/seat-mcp'
 
 const INSTRUCTIONS = 'BellTeamのBot、プロフィール、アバター、予定、直接会話、ルーム、長期記憶、RAGはこのMCPで扱う。セキュリティの問題（SEC番号の所見）の一覧・詳細・登録・編集・完了・再開は、bughub_で始まる道具でBugHubへ記録する。'
 
 // Bot ids the seat name can speak for: the name itself, then for an account seat
 // (`<botId>-<1st|2nd>-<base36>`, execution harness-accounts ACCOUNT_SLOTS) the Bot id before that suffix.
-function seatCandidates(value) {
+export function seatCandidates(value) {
   if (typeof value !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/u.test(value)) return []
   const account = /^(.+)-(?:1st|2nd)-[a-z0-9]+$/u.exec(value)?.[1]
   return account ? [value, account] : [value]
@@ -53,6 +54,25 @@ export function seatExecutionSource(request, bots) {
   const launch = sourceSession && typeof value === 'string' && /^[0-9a-f]{32}$/u.test(value)
     ? { session_id: sourceSession, launch_id: value } : null
   return { sourceSession, source: { launch, boundary: null } }
+}
+
+// LAN seat MCP on the public listener (remote-seat-ingress.md RS05-RS07). The seat name comes from the
+// credential binding, never from the caller's headers; the launch header stays today's runtime claim.
+export function createRemoteSeatIngress({ credentials, bots, seatMcp }) {
+  const seatKey = SEAT_HEADER.toLowerCase()
+  return async (request, response, url) => {
+    const binding = await credentials.verify(request.headers.authorization)
+    delete request.headers.authorization
+    delete request.headers[seatKey]
+    if (!binding) return reply(response, 400, { error: 'BELLTEAM_SEAT_UNRESOLVED' })
+    request.headers[seatKey] = binding.sessionName
+    let from
+    try { from = await resolveSeatBotId(request, bots) }
+    catch (error) { return reply(response, error.status ?? 503, { error: error.code ?? 'MEMBERS_UNAVAILABLE' }) }
+    if (from !== binding.botId) return reply(response, 400, { error: 'BELLTEAM_SEAT_UNRESOLVED' })
+    const path = url.pathname === REMOTE_SEAT_MCP_PATH ? BELLTEAM_MCP_PATH : CALL_BRIDGE_MCP_PATH
+    return seatMcp()(request, response, new URL(`${path}${url.search}`, url))
+  }
 }
 
 // 道具のうち、配送・設定・再起動は本体のAPIと同じ経路を通す。

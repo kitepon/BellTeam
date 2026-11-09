@@ -35,6 +35,10 @@ import { AiControl, stopRegisteredWork } from './ai-control.mjs'
 import { prepareModuleRelease } from './module-release.mjs'
 import { createDiagnosticsFacade } from './diagnostics-facade.mjs'
 import { createWorkGraphFacade, createWorkGraphEffects } from './work-graph-facade.mjs'
+import { createSeatCredentials } from './seat-credentials.mjs'
+import { createCredentialRefresh } from './secret-credential-refresh.mjs'
+import { REMOTE_SEAT_MCP_PATH, seatCandidates } from './seat-mcp.mjs'
+import { TERMINALS_UNAVAILABLE } from './http-terminals-api.mjs'
 import { createMessageViews } from './http-messages.mjs'
 import { Diagnostics, moduleRestartLimitProblems } from './diagnostics.mjs'
 import { BellTeamMemory } from './memory-service.mjs'
@@ -69,8 +73,8 @@ export const conversationDiagnosticPort = diagnostics => report => Promise.resol
   })
 
 // Construct the application graph without starting HTTP listeners or background loops.
-export async function createApplicationServices({ root, moduleChildExitReporter = createModuleChildExitReporter(), exchangeMutex = createModuleExchangeMutex(), aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, botEnvironments = null, olrwManagement = undefined, submittedSecretManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, notify = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory, createWorkGraphProcess: workGraphFactory, prepareWorkGraphRelease: prepareWorkGraph = (versionId, options) => prepareModuleRelease('work-graph', versionId, options), hostUpdateClient: hostClient, prepareDiagnosticsRelease: prepareDiagnostics = (versionId, options) => prepareModuleRelease('diagnostics', versionId, options), builtinSourceCommit = null, usageAssembly = null, attachUsageServices = () => {}, prepareUsageRelease: prepareUsage = (versionId, options) => prepareModuleRelease('usage', versionId, options), createConversationAssembly: conversationFactory, createExecutionAssembly: executionFactory, loadExecutionFactory: loadExecution = loadExecutionFactory, createExecutionAdoptionStore: adoptionFactory = createExecutionAdoptionStore, prepareExecutionRelease: prepareExecution = prepareExecutionRelease }) {
-  let members = null, diagnosticsModule = null, workGraphModule = null, workGraph = null, conversationAssembly = null, execution = null, executionClient, memory, rooms, assets, updateCenter, backgroundSummary, submittedSecretCaller = null, directMessages = null
+export async function createApplicationServices({ root, moduleChildExitReporter = createModuleChildExitReporter(), exchangeMutex = createModuleExchangeMutex(), aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, botEnvironments = null, olrwManagement = undefined, submittedSecretManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, notify = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory, createWorkGraphProcess: workGraphFactory, prepareWorkGraphRelease: prepareWorkGraph = (versionId, options) => prepareModuleRelease('work-graph', versionId, options), hostUpdateClient: hostClient, prepareDiagnosticsRelease: prepareDiagnostics = (versionId, options) => prepareModuleRelease('diagnostics', versionId, options), builtinSourceCommit = null, usageAssembly = null, attachUsageServices = () => {}, prepareUsageRelease: prepareUsage = (versionId, options) => prepareModuleRelease('usage', versionId, options), createConversationAssembly: conversationFactory, createExecutionAssembly: executionFactory, loadExecutionFactory: loadExecution = loadExecutionFactory, createExecutionAdoptionStore: adoptionFactory = createExecutionAdoptionStore, prepareExecutionRelease: prepareExecution = prepareExecutionRelease, createTerminalsCore = null }) {
+  let terminals = null, credentialRefresh = null, members = null, diagnosticsModule = null, workGraphModule = null, workGraph = null, conversationAssembly = null, execution = null, executionClient, memory, rooms, assets, updateCenter, backgroundSummary, submittedSecretCaller = null, directMessages = null
   let scheduleTurns = null
   const membersAdmission = new MembersAdmission()
   const executionHandoffSupport = new Map()
@@ -167,6 +171,28 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   const conversationPorts = { bots, settings, seatRuntime, aiControl, conversationUsage: createConversationUsage({ settings, notifications }) }
   if (conversationFactory) conversationAssembly = conversationFactory({ root, membersAdmission, exchangeMutex, onModuleChildExit: moduleChildExitReporter.observe, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit, getServices: () => conversationPorts,
     onDiagnostic: conversationDiagnosticPort(diagnostics), onState: state => { updateCenter?.notify(); if (state.phase === 'running' && state.available) directMessages?.requestDrain() } })
+  // Remote seats (remote-seat-ingress.md): terminals core is an in-parent injectable; seat credentials are parent state.
+  const seatCredentials = createSeatCredentials({ path: join(root, 'state/seat-credentials.json') })
+  terminals = createTerminalsCore ? createTerminalsCore({ stateRoot: join(root, 'state'), credentials: usageAssembly?.credentials ?? null,
+    seatCredentials: { reveal: ref => seatCredentials.reveal(ref) }, report: report => diagnostics.record(report) }) : null
+  // Usage has no timer of its own; the parent drives refresh while a credential is unavailable (Mika C5).
+  credentialRefresh = usageAssembly?.credentials?.refresh && usageAssembly.credentials.watch ? createCredentialRefresh({
+    refresh: () => usageAssembly.credentials.refresh(), watch: listener => usageAssembly.credentials.watch(listener),
+    ...(usageAssembly.credentials.watchRecovery ? { watchRecovery: listener => usageAssembly.credentials.watchRecovery(listener) } : {}),
+    report: error => diagnostics.record({ code: 'SECRET_CREDENTIAL_REFRESH_FAILED', module: 'integration', diagnostic_log: String(error?.code ?? 'UNKNOWN') }) }) : null
+  if (credentialRefresh && terminals) terminals.watch(event => { if (event?.reachable === true) void credentialRefresh.refreshNow() })
+  const seatCredential = Object.freeze({
+    async issue({ botId, sessionName, terminalId }) {
+      if (!seatCandidates(sessionName).includes(botId)) throw Object.assign(new Error('SEAT_CREDENTIAL_INVALID'), { code: 'SEAT_CREDENTIAL_INVALID', status: 400 })
+      if (!terminals) throw TERMINALS_UNAVAILABLE()
+      const terminal = await terminals.registry.get(terminalId)
+      if (!terminal) throw Object.assign(new Error('TERMINAL_NOT_FOUND'), { code: 'TERMINAL_NOT_FOUND', status: 404 })
+      if (typeof terminal.ingressUrl !== 'string' || !/^https?:\/\/[^/]+$/u.test(terminal.ingressUrl))
+        throw Object.assign(new Error('TERMINAL_INGRESS_UNSET'), { code: 'TERMINAL_INGRESS_UNSET', status: 409 })
+      return { url: `${terminal.ingressUrl}${REMOTE_SEAT_MCP_PATH}`, credentialRef: await seatCredentials.issue({ botId, sessionName, terminalId }) }
+    },
+    revoke: ({ sessionName }) => seatCredentials.revoke({ sessionName }),
+  })
   if (executionFactory) {
     const selection = adoptionFactory({ root }), selected = await selection.read()
     const queueListeners = new Set()
@@ -194,7 +220,11 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
       const factory = await loadExecution(...args)
       const supported = factory.supportsModelHandoff === true
       executionHandoffSupport.set(factory.versionId, supported)
+      // Older engines reject unknown port keys; remote-seat ports go only to engines that declare them.
+      const remote = factory.supportsRemoteSeats === true && terminals
+        ? { terminals: { connection: terminals.connection, watch: listener => terminals.watch(listener) }, ingress: { seatCredential } } : {}
       return Object.freeze({ ...factory, createExecutionDispatcher: input => {
+        input = { ...input, ports: { ...input.ports, ...remote } }
         if (supported) return factory.createExecutionDispatcher(input)
         const { deliveryAnchor, ...storage } = input.ports.storage
         return factory.createExecutionDispatcher({ ...input, ports: { ...input.ports, storage } })
@@ -287,6 +317,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     assertEnabled: () => aiControl.assertEnabled() })
   const secretRequests = usage ? { ...usage.secretRequests,
     notifyOwnerGuide: id => usage.secretRequests.notifyOwnerGuide(id, usageAssembly.systemContext('secrets.notifyOwnerGuide')),
+    resolveValue: id => usage.secretRequests.resolveValue(id, usageAssembly.systemContext('secrets.resolveRequest')),
   } : new SecretRequests({
     root, bots, rooms,
     onRequest: item => notifications.secret(item),
@@ -356,15 +387,15 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     notifications, secretRequests, ownerQuestions, bots, rooms,
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, refreshGlobalInstructions, assets,
-    scheduler, diagnostics, diagnosticsModule, workGraph, workGraphModule, accounts, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller, submittedSecretCaller,
+    scheduler, diagnostics, diagnosticsModule, workGraph, workGraphModule, accounts, terminals, seatCredentials, credentialRefresh, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller, submittedSecretCaller,
     // Saved direct input drains after listen (Z-c). Starting before the hold release is safe and needs no bound:
     // executionReady is false while held, and the release's hold.watch → requestDrain drains it.
     lifecycle: { ...execution?.lifecycle,
-      afterListenReady: async () => { directMessages.start(); await execution?.lifecycle?.afterListenReady?.() } },
+      afterListenReady: async () => { directMessages.start(); void credentialRefresh?.refreshNow(); await execution?.lifecycle?.afterListenReady?.() } },
   }
   } catch (error) {
     const failures = []
-    for (const close of [() => directMessages?.close(), () => submittedSecretCaller?.close(), () => backgroundSummary?.close(), () => moduleChildExitReporter.close(), () => updateCenter?.close(), () => seatRuntime?.memoryModule?.close(),
+    for (const close of [() => credentialRefresh?.stop(), () => terminals?.close?.(), () => directMessages?.close(), () => submittedSecretCaller?.close(), () => backgroundSummary?.close(), () => moduleChildExitReporter.close(), () => updateCenter?.close(), () => seatRuntime?.memoryModule?.close(),
       () => conversationAssembly?.close(), () => execution?.controller.close(), () => execution && executionClient?.close(),
       () => members?.controller.close(), () => usageAssembly?.close(), () => diagnosticsModule?.close(), () => workGraphModule?.close()]) {
       try { await close() } catch (cleanupError) { failures.push(cleanupError) }

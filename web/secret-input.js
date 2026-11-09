@@ -62,13 +62,56 @@ function openSecretInput(request, api, onComplete) {
   message.textContent = request.message
   const note = document.createElement('p')
   note.className = 'secret-note'
-  note.textContent = '値は会話に送信されません。BellTeamの利用者領域へ保存します。'
   const input = document.createElement('input')
   input.type = 'password'
   input.autocomplete = 'off'
   input.setAttribute('aria-label', request.label)
   input.spellcheck = false
   input.autocapitalize = 'none'
+  const reference = document.createElement('input')
+  reference.type = 'text'
+  reference.autocomplete = 'off'
+  reference.placeholder = 'op://保管庫/アイテム/フィールド'
+  reference.setAttribute('aria-label', `${request.label}の1Password参照`)
+  reference.spellcheck = false
+  reference.autocapitalize = 'none'
+  // usageが1Password接続済みと示した時だけ選択肢を出す。欠落時は旧serverと同じ値入力だけ。
+  const onePassword = request.inputOptions?.onePasswordAvailable === true
+  const sources = []
+  const radios = {}
+  if (onePassword) {
+    const fieldset = document.createElement('fieldset')
+    fieldset.className = 'secret-sources'
+    const legend = document.createElement('legend')
+    legend.textContent = '入力方法'
+    fieldset.append(legend)
+    for (const [value, text] of [['onepassword', '1Passwordの参照を使う'], ['stored', '値をBellTeamへ保存する']]) {
+      const choice = document.createElement('label')
+      const radio = radios[value] = document.createElement('input')
+      radio.type = 'radio'
+      radio.name = `secret-source-${request.id}`
+      radio.value = value
+      radio.addEventListener('change', () => select(value))
+      const caption = document.createElement('span')
+      caption.textContent = text
+      choice.append(radio, caption)
+      fieldset.append(choice)
+    }
+    sources.push(fieldset)
+  }
+  let source = 'stored'
+  function select(next) {
+    source = next
+    for (const [value, radio] of Object.entries(radios)) radio.checked = value === next
+    input.hidden = next !== 'stored'
+    reference.hidden = next !== 'onepassword'
+    if (next === 'stored') reference.value = ''
+    else input.value = ''
+    note.textContent = next === 'onepassword'
+      ? '参照は会話に送信されません。値は1Passwordから読み出します。'
+      : '値は会話に送信されません。BellTeamの利用者領域へ保存します。'
+  }
+  select(onePassword && request.inputOptions.preferred !== 'stored' ? 'onepassword' : 'stored')
   const error = document.createElement('p')
   error.className = 'secret-error'
   error.setAttribute('role', 'alert')
@@ -85,13 +128,13 @@ function openSecretInput(request, api, onComplete) {
   const actions = document.createElement('div')
   actions.className = 'secret-actions'
   actions.append(submit, decline, close)
-  form.append(title, message, renderOwnerGuide(request), note, input, error, actions)
+  form.append(title, message, renderOwnerGuide(request), ...sources, note, input, ...(onePassword ? [reference] : []), error, actions)
   dialog.append(form)
   document.body.append(dialog)
-  const clearWhenHidden = () => { if (document.hidden) input.value = '' }
+  const clearWhenHidden = () => { if (document.hidden) input.value = reference.value = '' }
   document.addEventListener('visibilitychange', clearWhenHidden)
   dialog.addEventListener('close', () => {
-    input.value = ''
+    input.value = reference.value = ''
     document.removeEventListener('visibilitychange', clearWhenHidden)
     dialog.remove()
   }, { once: true })
@@ -103,14 +146,19 @@ function openSecretInput(request, api, onComplete) {
       error.textContent = '秘密情報はHTTPS、またはlocalhost・LANのHTTP接続から登録してください。'
       return
     }
-    if (action === 'submit' && !input.value) {
+    if (action === 'submit' && source === 'stored' && !input.value) {
       error.textContent = '値を入力してください。'
+      return
+    }
+    if (action === 'submit' && source === 'onepassword' && !reference.value.trim().startsWith('op://')) {
+      error.textContent = '1Passwordの参照（op://で始まる）を入力してください。'
       return
     }
     sending = true
     submit.disabled = decline.disabled = close.disabled = true
     try {
-      const body = JSON.stringify(action === 'submit' ? { value: input.value } : {})
+      const body = JSON.stringify(action !== 'submit' ? {}
+        : source === 'onepassword' ? { source, reference: reference.value.trim() } : { value: input.value })
       input.value = ''
       // リダイレクト先へ秘密の本文を転送しない。
       const result = await api(`/api/secret-requests/${encodeURIComponent(request.id)}/${action}`, {
@@ -129,5 +177,5 @@ function openSecretInput(request, api, onComplete) {
   form.addEventListener('submit', event => { event.preventDefault(); void finish('submit') })
   decline.addEventListener('click', () => { void finish('cancel') })
   dialog.showModal()
-  input.focus()
+  ;(source === 'onepassword' ? reference : input).focus()
 }

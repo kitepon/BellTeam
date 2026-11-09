@@ -8,3 +8,8 @@ export function renderBotInstructions(profile, shortTermMemory = '') {
 export function renderGlobalInstructions(owner, rules, commonRules) {
   return `${ownerInstructions(owner)}\n\n${userRulesInstructions(rules)}\n\n${commonRules}`
 }
+
+// Remote seat C6 (modules/members/remote-seat.md): where the canonical files live when cwd is the user's folder.
+export function renderRemoteAccessNote(profile) {
+  return `# Remote seat\n\nThis seat runs on a registered terminal with cwd = \`${profile.projectRoot}\`. That folder and the terminal's home belong to the user; never create BellTeam AGENTS/CLAUDE/memory files there. Your canonical \`docs/\` and \`AGENTS.local.md\` stay in BellTeam: use the BellTeam MCP tools \`list_member_docs\`, \`read_member_doc\` and \`write_member_doc\` (paths \`AGENTS.local.md\` or \`docs/<relative>\`). Memory and knowledge use the existing BellTeam memory tools. Wherever these instructions mention "this project's docs/", read it as those tools.\n`
+}

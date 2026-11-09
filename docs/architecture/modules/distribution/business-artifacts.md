@@ -68,3 +68,9 @@ flowchart LR
 ```
 
 外側はstate/owner/settingsの実regular fileをSHA-size/mode/mtimeで検査し、fixture通信・lock・採用recordだけを比較から除く。秘密値は原本へ出さずhashだけを保持。旧close時→新spawn直前→restore後を一致させ、helperの受付済設定callbackを交換drain中に完了する。同Cの3世代・親/別business/HTTP gateway保持、tamper/source公開前拒否とprivate全体EX拒否も既有限手順内で確認する。phaseはfixture工程、runtimePhaseは実controller状態として分離する。製品変更・追加image・再署名・Host操作はしない。人工bootstrap/portでの実component検査であり、通常全bootstrap/public Update ledger/実SDK席の証明にはしない。
+
+## C5 secret reference state and child closure (2026-11-09)
+
+Centi authorized these source-contract edits in Mika's C5 diff. `SecretRequests` and the usage process validators import `usage/secret-credentials.mjs`, which imports `usage/onepassword-source.mjs`; BUSINESS_FILES['usage'] includes both files in the child artifact. NativeSecretCredentials is reached only from the parent usage-assembly and stays outside the child artifact.
+
+Private reference sources and opaque credential records extend the state interpretation: BUSINESS_STATE['usage'].secretEncoding and the usage export both become `stored-or-private-reference-v1`. Legacy stored values remain readable by the new code; old usage code cannot interpret a submitted reference record with no value path. Packaging, catalog descriptors and the installed consumer must advertise the same new encoding. Activation requires the compatible next parent/body and its native provider connection; the already signed/published catalog and selections are not rewritten by this source diff. Source adoption is neither publication nor live provider/SSH verification. The detailed data flow and guards are canonical in [usage secret credentials](../usage/secret-credentials.md).

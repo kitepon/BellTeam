@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-09T03:57:17Z",
-  "expiresAt": "2026-11-16T03:57:17Z",
+  "publishedAt": "2026-11-09T06:17:23Z",
+  "expiresAt": "2026-11-16T06:17:23Z",
   "releases": [
     {
       "componentId": "usage",
@@ -425,8 +425,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "dc50bdb61c7e8754644e9584e0c30c5508ef09e1",
-      "versionId": "97bf660b5d0e0dd9b356b44f3aa253891bc07d5d3a1ac98d537765b23ae00dfd",
+      "sourceCommit": "bebee5027ccc8543187f8c2c55a65d5c8c6c8890",
+      "versionId": "e0c1706765bc32b4d6e3678e022482fc149ecf2828c6e9bd14d74dca6f2343e3",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -434,16 +434,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T034913Z/web-gateway-dc50bdb61c7e8754644e9584e0c30c5508ef09e1-linux-amd64.tar.gz",
-          "bytes": 5086723,
-          "sha256": "97bf660b5d0e0dd9b356b44f3aa253891bc07d5d3a1ac98d537765b23ae00dfd"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T061028Z/web-gateway-bebee5027ccc8543187f8c2c55a65d5c8c6c8890-linux-amd64.tar.gz",
+          "bytes": 5113786,
+          "sha256": "e0c1706765bc32b4d6e3678e022482fc149ecf2828c6e9bd14d74dca6f2343e3"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T034913Z/web-gateway-dc50bdb61c7e8754644e9584e0c30c5508ef09e1-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10974,
-          "sha256": "fa448dc26f1edb73695506246cf1eee16b4742bd9a17fab45cfc0111a5b0afa0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T061028Z/web-gateway-bebee5027ccc8543187f8c2c55a65d5c8c6c8890-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10821,
+          "sha256": "014dac97cf00e71145cff89420c07db1134ca411d04a22aee4df1c6f17476235"
         },
-        "signerCommit": "dc50bdb61c7e8754644e9584e0c30c5508ef09e1"
+        "signerCommit": "bebee5027ccc8543187f8c2c55a65d5c8c6c8890"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -452,13 +452,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "相関図の線にラベルがない場合も、「null」と表示せず、依頼先だけを表示します。"
+        "Web相関図でメンバーをタップするとそのメンバーとのチャットを開き、チップを安定して表示します。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "dc50bdb61c7e8754644e9584e0c30c5508ef09e1",
-      "versionId": "8a96dd1fd570cc1abd645c7336796077be66b4b5b7721edd0803ac5456113998",
+      "sourceCommit": "bebee5027ccc8543187f8c2c55a65d5c8c6c8890",
+      "versionId": "b1b17c48e2d12b3670caaf57c178dd20f23c99715795503d40e07be43d995c04",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -466,16 +466,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T034913Z/web-gateway-dc50bdb61c7e8754644e9584e0c30c5508ef09e1-linux-arm64.tar.gz",
-          "bytes": 5086723,
-          "sha256": "8a96dd1fd570cc1abd645c7336796077be66b4b5b7721edd0803ac5456113998"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T061028Z/web-gateway-bebee5027ccc8543187f8c2c55a65d5c8c6c8890-linux-arm64.tar.gz",
+          "bytes": 5113786,
+          "sha256": "b1b17c48e2d12b3670caaf57c178dd20f23c99715795503d40e07be43d995c04"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T034913Z/web-gateway-dc50bdb61c7e8754644e9584e0c30c5508ef09e1-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11052,
-          "sha256": "df6ad087b8f7e4f677794633dd8076a5959c2382cc2dbebba867496c328a4432"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T061028Z/web-gateway-bebee5027ccc8543187f8c2c55a65d5c8c6c8890-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10688,
+          "sha256": "d8037c61a2e2e948dc7b37a475183bfad412c0d164aec8cf147ac5323f5733a1"
         },
-        "signerCommit": "dc50bdb61c7e8754644e9584e0c30c5508ef09e1"
+        "signerCommit": "bebee5027ccc8543187f8c2c55a65d5c8c6c8890"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -484,7 +484,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "相関図の線にラベルがない場合も、「null」と表示せず、依頼先だけを表示します。"
+        "Web相関図でメンバーをタップするとそのメンバーとのチャットを開き、チップを安定して表示します。"
       ]
     },
     {

@@ -41,6 +41,17 @@ export function createUsageFacade({ request, projection, toolsDirectory }) {
       ...cards('secret'), toolsDirectory,
       create: ({ botId, ...input }, context) => call('secrets.create', input, context),
       submit: (id, value, context) => call('secrets.submit', { id, value }, context),
+      resolveValue: (id, context) => call('secrets.resolveRequest', { id }, context),
+      bindCredential: (id, scope, context) => call('secrets.bind', { id, scope }, context),
+      credential: (handle, target, context) => call('secrets.credential', { handle, context: target }, context),
+      replaceCredential: (handle, id, target, context) => call('secrets.replace', { handle, id, context: target }, context),
+      async withResolved(handle, target, consume, context) {
+        let value = await call('secrets.resolve', { handle, context: target }, context)
+        try { return await consume(value) } finally { value = null }
+      },
+      watchCredentials(listener) { events.on('credential', listener); return () => events.off('credential', listener) },
+      watchRecovery(listener) { events.on('credentialRecovery', listener); return () => events.off('credentialRecovery', listener) },
+      refreshCredentials: context => call('secrets.refresh', {}, context),
       cancel: (id, context) => call('secrets.cancel', { id }, context),
       withdraw: (id, botId, context) => call('secrets.withdraw', { id }, context),
       notifyOwnerGuide: (id, context) => call('secrets.notifyOwnerGuide', { id }, context),
@@ -59,6 +70,8 @@ export function createUsageFacade({ request, projection, toolsDirectory }) {
     },
     accept(row, generation) {
       projection.accept(row, generation)
+      if (row.type === 'credential') events.emit('credential', structuredClone(row.value))
+      if (row.type === 'credentialRecovery') events.emit('credentialRecovery', structuredClone(row.value))
       if (row.type === 'event') {
         if (row.value.topics.includes('requests')) events.emit('secret', structuredClone(row.value))
         if (row.value.topics.includes('questions')) events.emit('question', structuredClone(row.value))

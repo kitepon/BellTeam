@@ -1,0 +1,30 @@
+{
+  "title": "端末接続",
+  "owner": "クラスト",
+  "botId": "bot-9741b319",
+  "scope": "Terminal registry, SSH/sudo secret handles, reachability, sole remote connection entry and terminal Claude Code maintenance. Lifecycle: execution; PTY: Aiterm; resolution: usage.",
+  "external": false,
+  "provides": [
+    "registry",
+    "reachability",
+    "connection",
+    "privilege",
+    "maintenance"
+  ],
+  "uses": [
+    {
+      "module": "usage",
+      "port": "settings"
+    },
+    {
+      "module": "aiterm",
+      "port": "native"
+    }
+  ],
+  "source": [
+    "src/terminals/core.mjs",
+    "src/terminals/registry.mjs",
+    "src/terminals/connection.mjs",
+    "src/terminals/remote-process.mjs"
+  ]
+}

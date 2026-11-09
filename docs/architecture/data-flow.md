@@ -10,6 +10,8 @@ Covered changes since the initial review: durable per-target direct delivery and
 
 Opaque authorization, leases, callbacks, SDK request context and actual-completion Promises stay within their owning process. They are not serialized as synthetic proof. Every arrow below names data or an explicit public request/result; returned acceptance, saved output, change notification and actual completion remain separate.
 
+The [adopted remote-terminal P0 design](#proposed-remote-terminal-seats-p0) is a separate **unimplemented design delta** for Mac + Claude. It does not change the production baseline or assert remote readiness. Trony adopted its P10/D10 and cross contracts; remote methods remain unimplemented; existing P1-P9/D1-D9 below retain their current meaning.
+
 ## Context
 
 The product boundary includes the body and its separately versioned updater companions; the diagram labels their distinct ownership below. Requests and responses are separate from SSE invalidation and provider/native outcomes.
@@ -45,7 +47,7 @@ Process IDs identify responsibilities, not execution order. Host composition can
 | P2 conversation / N102, parent assembly / Molly | Direct/Bridge input -> durable receipt; target-lane dispatch -> saved callbacks; history/Room operations -> pages and changes | One parent direct writer, separate existing Room ownership. Receipt fsync precedes queued acceptance; unknown input is not replayed. [Durable receipt](modules/conversation/durable-receipt.md), [parent receipt connection](modules/integration/message-receipt.md), [conversation](modules/conversation/README.md) |
 | P3 execution / Kiro; native / Elegg | Bound target input/configuration/resume/observation -> native acceptance, callbacks, tracked completion or read result | Dispatch ordering, desired settings and real execution references. Deferred settings do not block running-turn input. Screen failure is this tick's display availability, not proof of absence. [Configuration/delivery](modules/execution/configuration-delivery.md), [screen](modules/execution/screen-observation.md), [host factory](modules/execution/host-factory.md) |
 | P4 members / Belorta | Profile, schedule, instruction, membership and Owner-data requests -> registry projections and saved results | Members owns registry/project writes. A copied profile is not a second authoritative registry. [Members](modules/members/README.md) |
-| P5 usage / Mica; parent AI admission / execution | Settings/authentication/cards/notification requests -> stored settings, cards and provider results | Secrets remain with their consumers; only authorized display/card projections cross to P1. Update candidate -> notification child -> APNs status/apns-id -> per-attempt private receipt -> paged existing notification-status GET; parent additive IPC compatibility ships before the module. [Usage](modules/usage/README.md), [update receipt contract](modules/usage/update-push.md#saved-apns-update-attempt-receipts-2026-11-08) |
+| P5 usage / Mica; parent AI admission / execution | Settings/authentication/cards/notification requests -> stored settings, cards and provider results | Secret input owns stored/reference sources, opaque handles, revision and availability; authorized consumers receive only a resolved value or native-use capability. P1 receives only source-free cards and connection-dependent input options. [C5 secret credentials](modules/usage/secret-credentials.md). Update candidate -> notification child -> APNs status/apns-id -> per-attempt private receipt -> paged existing notification-status GET; parent additive IPC compatibility ships before the module. [Usage](modules/usage/README.md), [update receipt contract](modules/usage/update-push.md#saved-apns-update-attempt-receipts-2026-11-08) |
 | P6 memory / Biscuit | Scoped remember/search/knowledge requests -> saved records or search results | Personal/shared scope and DB writers remain memory-owned; no startup bulk-copy into another module. [Memory](modules/memory/README.md) |
 | P7a common updates / Molly | Owner plan/start/read/inspection requests -> bound parent operation and runtime projections | Parent plan/step/inspection ledger is distinct from runtime job storage and adopted release selections. [Common updater jobs](modules/integration/update-jobs.md), [inspection/close](modules/integration/README.md#同install-idのinspectionと明示close入口) |
 | P7b runtime / Epinel, distribution / Centi | Fixed release/plan/UUID/key -> installation, stored jobs, candidate readiness, receipts and fences | Companions, installer, shared child controller and recovery retain their own versions and writers. [Runtime jobs](modules/runtime/update-jobs.md), [installer](modules/runtime/module-installer.md), [shared child lifecycle](modules/runtime/module-process.md), [distribution](modules/distribution/README.md) |
@@ -169,7 +171,7 @@ State IDs below identify existing stores; they introduce no new persistence. Rel
 | D3a configuration intent/receipt audit | Execution's ConfigurationIntents and request handling | Per-Bot execution/configuration read; desired profile is D4 and receipt is not an admission lock |
 | D3b adopted release selections | Each controller's existing durable adoption callback/store; execution uses `state/execution-release.json` | Parent startup/controller selection and current/previous display. No selection file is copied into the update ledger or changed by merely loading a newer body |
 | D4 Bot/profile/schedule/project instructions | Members registry and ProjectFiles | Fresh member/profile projection to conversation, execution and public views; schedule claim/dispatch uses the members/scheduler contract |
-| D5 settings, questions, secret requests and AI-control state | Owning usage services; parent AI-control writer remains separately owned | Authorized settings/auth/card consumers; P1 gets only appropriate display projections, never an invented credential grant |
+| D5 settings, questions, secret requests and AI-control state | Owning usage services; parent AI-control writer remains separately owned | Authorized settings/auth/card consumers; private secret-sources, secret-credentials and parent-native credential records stay with usage. P1 receives appropriate display projections; credential authority is captured by the parent, never inferred from a handle or context DTO |
 | D6 memory/knowledge | Memory's existing scoped DB and knowledge writers | Scoped public read/search through its facade; runtime process/proxy does not acquire memory business ownership |
 | D7a verified release assets | Existing runtime/distribution installation paths | Owning release loaders/controllers validate manifest, selected code and compatibility; material availability is not adoption or runtime readiness |
 | D7b common update ledger | `createModuleUpdateExecutor` serialized atomic save in `state/update-ledger/ledger.json`; all mutating publicJobs, report flush and interrupted-read reconciliation saves share the executor-local owner with close | Common plan/operation/inspection/readback and terminal-report reconciliation; no direct mutation of runtime jobs |
@@ -184,6 +186,54 @@ This existing anchor is retained for its callers. The overall boundaries are P1/
 ## MH04–MH06 read-window修理のデータ寿命
 
 This existing anchor is retained for catalog/consumer references. A caller's deadline stops its own wait and rejects late preparation; the original read's authorization and actual completion remain tracked until real termination. Parent card/history context, native lease identity and opaque host callbacks are not replaced by serialized promises. See the [execution wait/completion contract](modules/execution/model-handoff.md) and [integration binding](modules/integration/model-handoff.md) for the exact supported fields and remaining limits; this overall composition introduces no cancellation RPC or new handoff schema.
+
+## Proposed remote terminal seats (P0)
+
+Canonical owner: [terminals / Crust](modules/terminals/README.md), public dependency descriptor [module.json](modules/terminals/module.json). This is the new P10 responsibility, not an implementation claim. Trony adopted contracts C1-C9 in the owner document; their remote extensions and incoming consumer edges remain unimplemented. Other owners update their own descriptors/diagrams as they implement them. The generated function map indexes terminals' proposed outgoing dependencies only.
+
+```mermaid
+flowchart LR
+  App[Authorized app / API / MCP]
+  P1[P1 common entry / LAN seat authentication]
+  P4[P4 members: terminalId, projectRoot, launch instructions]
+  P5[P5 Mika: secret input and resolution]
+  P3[P3 execution: identity, lifecycle, account slots, pending delivery]
+  P10[P10 proposed terminals: registry / reachability / connection / sudo]
+  D10[(D10 proposed terminal metadata / nonsecret sudo receipts)]
+  Native[Aiterm remote PTY adapter / Elegg]
+  Seat[Remote Mac Claude seat, initial cwd = member projectRoot]
+  Stores[Existing members docs / P6 memory / Throughline context]
+  P2[P2 existing history writer / P3 current-work projection]
+  App -->|RT01 target and opaque credential handles| P1
+  P1 -->|RT02 authorized registry mutation / saved result| P10
+  P10 <-->|RT03 terminal metadata and nonsecret use receipts| D10
+  App -->|RT04 op reference or stored secret input| P5
+  P4 -->|RT05 member binding and launch-time instructions| P3
+  P3 -->|RT06 bound terminal connection request| P10
+  P10 -->|RT07 opaque SSH/sudo handle and purpose| P5
+  P5 -->|RT08 private resolved credential channel| P10
+  P10 <-->|RT09 sole connection entry / target trust / availability| Native
+  P3 -->|RT10 launch/control via target-bound connection| Native
+  Native <-->|RT11 PTY, process and completion events| Seat
+  Seat -->|RT12 direct authenticated LAN MCP| P1
+  P1 <-->|RT13 member-scoped docs and memory/context| Stores
+  Native -->|RT14 bound transcript / turn / limit observations| P3
+  P3 -->|RT15 existing callbacks and work projection| P2
+  P10 -->|RT16 target availability / reconnect-ready event| P3
+  P3 -->|RT17 bound sudo request, no approval wait| P10
+```
+
+| Flow / ownership | Proposed data, storage and failure boundary |
+| --- | --- |
+| RT01-RT04 registry and secrets | P10 alone writes D10: `<stateRoot>/terminals.json` with host/user/port/OS, target account domain, trusted host identity/revision and opaque SSH/sudo handles. P5 owns the actual op:// or stored-value source and resolver, offering 1Password first when connected, fallback retained. Values never enter D10, registry JSON, argv, transcripts or logs. Registry save failure preserves prior state and reports the real failure |
+| RT05-RT11 launch | P4 owns member terminalId/projectRoot and launch instruction content. P3 selects the existing account slot within the terminal owner's account domain and keeps existing seat identity. P10 alone opens/reopens the SSH connection; Elegg owns native transport. Initial process cwd is projectRoot so the folder's rules load; BellTeam instructions/MCP options arrive at launch without writing the user's repository or home. Invalid cwd/target has no substitute target or directory. Target-bound RT10 operations cannot open a separate bypass connection |
+| RT12-RT13 direct MCP and documents | Remote seat talks directly to P1 over LAN, with Molly's trusted binding of existing seat identity to member/terminal/folder. Existing seat authority remains distinct from Owner authority. Canonical Bot docs/AGENTS.local remain in BellTeam's member project, accessed through a proposed member-scoped docs MCP interface; memory/knowledge stay in P6, handoff in its existing context provider. No relay AI, full home/repository sync or second remote memory store |
+| RT14-RT16 messages, history and recovery | Existing saved delivery IDs remain pending while the terminal sleeps. Non-AI availability observation resumes the existing P3/P2 drain when the terminal returns. Native capture/cursor/completion/limit events feed existing conversation history/current-work through P3, preserving existing writer ownership. Catch-up must not duplicate history or resend already delivered input. P10 owns no message queue or transcript store. A network/read failure is an observation, never proof of a vanished seat or an unknown-outcome lock |
+| RT17 sudo and account domain | P10 resolves the optional sudo handle only for a bound requested use; no approval wait; every use gets a nonsecret receipt in `<stateRoot>/terminal-sudo.jsonl` (D10). Ordinary work does not require sudo. P3/P5 must keep product Owner Claude credentials off non-Owner terminals and support the terminal owner's own 1st/2nd accounts; limit switch creates a fresh seat on the same terminal/folder |
+| Target protections and exits | The [P10 state diagram](modules/terminals/README.md#state-and-required-protections) names secret exposure, privilege escalation and wrong-target protection. Credential/channel revision or secret-source availability (such as 1Password becoming reachable again) re-evaluates credential-bearing work; a target mismatch is shown to the Owner in plain words with a concrete corrective action that creates an authoritative target/member/trust revision (such as confirming the new host key), which rebinds a desired launch; ordinary work continues without sudo; actual availability events reconnect. No sticky manual unlock or new approval gate |
+| CLI upkeep | C8 requires terminal Claude Code to follow official latest without pinning, with native setup/update at fresh launch and non-AI maintenance. Do not replace a running executable. Report update failure, preserve installed CLI and pending work. Crust leads terminal maintenance through terminals.connection, Elegg provides transport, and Centi owns product testing; this diagram claims neither the remote updater nor acceptance checks already exist |
+
+P1 first usable path is the Owner's Mac, existing key, no sudo, API/MCP configuration; P2 adds Web/Apple UI; P3 completes remote per-model account switching, sudo and non-Owner terminals/product testing. Ziz is rebuilt after all four Owner completion conditions are met, including remote account switching. Required C1-C9 include Belorta's field/instruction revisions, Kiro's lifecycle/account/seat identity, Elegg's private remote PTY, Molly's LAN MCP/runtime composition, Mika's 1Password resolution, remote docs/memory access, transcript catch-up and latest CLI maintenance. Trony adopted them; this docs-only diff changes no peer's implementation or private state.
 
 ## Coverage, inherited verification and concrete limits
 

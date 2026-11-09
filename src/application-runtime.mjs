@@ -7,7 +7,7 @@ import { createWebGatewayControl } from './web-gateway-control.mjs'
 import { createApplicationServices } from './application-services.mjs'
 import { createApplicationFeatures } from './application-features.mjs'
 import { createBellTeamServer } from './http-server.mjs'
-import { createSeatMcp, internalApi } from './seat-mcp.mjs'
+import { createRemoteSeatIngress, createSeatMcp, internalApi } from './seat-mcp.mjs'
 import { createBugHubSecurity } from './bughub-security.mjs'
 import { LiveModelCatalog } from './model-catalog.mjs'
 import { runtimeHome } from './runtime-home.mjs'
@@ -68,6 +68,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     diagnostics,
     administration,
     goals,
+    terminals: () => services.terminals,
   }
   const internalPort = Number(environment.BELLTEAM_INTERNAL_PORT ?? 4181)
   const callBridgeHeaders = bootstrap.callBridgeHeaders ?? join(root, 'shared/tools/call-bridge/headers')
@@ -77,7 +78,8 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
       services.members ? transport.membersAdmission.withLease(membersLease =>
         bootstrap.seatRuntime.configureMembersHarnesses(() => services.members.readCurrentBotIds({ membersLease }), aiterm,
           () => settings.configuration('callBridge'))) : bootstrap.seatRuntime.writeHarnessConfig(bots, aiterm, callBridge) } : {}) })
-  server = createBellTeamServer({ ...serverOptions, authMode: features.authMode, authorize: features.authorize })
+  server = createBellTeamServer({ ...serverOptions, authMode: features.authMode, authorize: features.authorize,
+    remoteSeatMcp: createRemoteSeatIngress({ credentials: services.seatCredentials, bots, seatMcp: () => seatMcp }) })
   const seatMcp = createSeatMcp({
     bots,
     runTool: (from, operation) => services.conversationAssembly ? services.conversationAssembly.run({ kind: 'bot', botId: from }, operation) : operation(),
@@ -96,7 +98,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     },
     admitWork: () => aiControl.admit(),
     assertWorkAllowed: () => aiControl.assertEnabled(),
-    tools: { registry: bots, botView: bot => administration.view(bot), messenger, store, rooms, roomMessenger, memory, ownerProfile, userRules, bugHubSecurity: createBugHubSecurity({ root }), internalUrl: `http://127.0.0.1:${internalPort}`, ...internalApi(internalPort) },
+    tools: { registry: bots, botView: bot => administration.view(bot), messenger, store, rooms, roomMessenger, memory, ownerProfile, userRules, bugHubSecurity: createBugHubSecurity({ root }), terminals: () => services.terminals, internalUrl: `http://127.0.0.1:${internalPort}`, ...internalApi(internalPort) },
     callBridge: () => {
       const config = settings.configuration('callBridge')
       return config.enabled ? { url: config.url, headersFile: callBridgeHeaders } : null
@@ -181,6 +183,8 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
         () => gateway?.close(),
         () => scheduler.stop(), () => idleSessions?.stop(), () => selfTurns.stop(), () => seatTurns?.stop(),
         () => closeServer(server), () => closeServer(internalServer), () => features.close(),
+        // Before the providers they call (usage, diagnostics, native client) close.
+        () => services.credentialRefresh?.stop(), () => services.terminals?.close?.(),
         () => bootstrap.seatRuntime?.memoryModule?.close(),
         () => services.conversationAssembly?.close(), () => transport.close(), () => services.execution && transport.client.close(), () => services.members?.controller.close(), () => notifications.close(), () => services.usageAssembly?.close(), () => services.diagnosticsModule?.close(), () => services.workGraphModule?.close(),
         () => socketDirectory && rm(socketDirectory, { recursive: true, force: true }),

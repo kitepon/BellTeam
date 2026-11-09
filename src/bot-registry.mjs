@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { lstatSync } from 'node:fs'
 import { lstat, mkdir, readFile, readdir, rename, rm, writeFile, stat } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve } from 'node:path'
@@ -19,7 +19,8 @@ const BOT_ID = /^[a-z0-9][a-z0-9-]{0,63}$/u
 const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._:/\[\]-]{0,199}$/u
 const COLORS = new Set(['rose', 'indigo', 'violet'])
 const HARNESSES = new Set(['claude', 'codex', 'grok', 'cursor', 'antigravity'])
-const PROFILE_FIELDS = new Set(['name', 'harness', 'model', 'reasoningEffort', 'fastMode', 'profileText', 'personality', 'speechStyle', 'position', 'role', 'avatar', 'avatarLarge', 'avatarSource', 'avatarLargeSource', 'avatarCrop', 'avatarLargeCrop', 'color'])
+const PROFILE_FIELDS = new Set(['name', 'harness', 'model', 'reasoningEffort', 'fastMode', 'profileText', 'personality', 'speechStyle', 'position', 'role', 'avatar', 'avatarLarge', 'avatarSource', 'avatarLargeSource', 'avatarCrop', 'avatarLargeCrop', 'color', 'terminalId', 'projectRoot'])
+const TERMINAL_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u
 
 export class BotRegistry extends Map {
   #profileMutations = new Map()
@@ -192,6 +193,8 @@ export class BotRegistry extends Map {
       avatarLargeSource: input.avatarLargeSource ?? '',
       avatarCrop: input.avatarCrop ?? null,
       avatarLargeCrop: input.avatarLargeCrop ?? null,
+      terminalId: input.terminalId ?? '',
+      projectRoot: input.projectRoot ?? '',
       session: id,
       project,
     })
@@ -647,6 +650,7 @@ export class BotRegistry extends Map {
       avatarLarge: profile.avatarLarge, avatarSource: profile.avatarSource, avatarLargeSource: profile.avatarLargeSource,
       avatarCrop: profile.avatarCrop, avatarLargeCrop: profile.avatarLargeCrop,
       harness: profile.harness, model: profile.model, reasoningEffort: profile.reasoningEffort, fastMode: profile.fastMode,
+      terminalId: profile.terminalId, projectRoot: profile.projectRoot,
     }
     await mkdir(this.statePath(profile.id), { recursive: true, mode: 0o700 })
     await writeAtomic(join(this.statePath(profile.id), 'bot.json'), value)
@@ -728,6 +732,7 @@ function normalizeProfile(value) {
       throw new Error(`BOT_${field.toUpperCase()}_INVALID`)
   }
   for (const field of ['avatar', 'avatarLarge', 'avatarSource', 'avatarLargeSource']) validateAvatar(value[field] ?? '')
+  const { terminalId, projectRoot } = normalizeRemoteBinding(value)
   const avatarCrop = normalizeAvatarCrop(value.avatarCrop, value.avatarSource, value.avatar)
   const avatarLargeCrop = normalizeAvatarCrop(value.avatarLargeCrop, value.avatarLargeSource, value.avatarLarge)
   return {
@@ -750,9 +755,26 @@ function normalizeProfile(value) {
     avatarLargeSource: value.avatarLargeSource ?? '',
     avatarCrop,
     avatarLargeCrop,
+    terminalId,
+    projectRoot,
     session,
     project: value.project,
   }
+}
+
+// C1 (remote-seat.md): a member is local ('', '') or bound to one terminal folder (P1 macOS: absolute POSIX path).
+function normalizeRemoteBinding(value) {
+  const terminalId = value.terminalId ?? '', projectRoot = value.projectRoot ?? ''
+  if (typeof terminalId !== 'string' || terminalId && !TERMINAL_ID.test(terminalId)) throw registryError('BOT_TERMINAL_ID_INVALID')
+  if (typeof projectRoot !== 'string' || projectRoot && (!projectRoot.startsWith('/') || projectRoot.includes('\0')
+    || Buffer.byteLength(projectRoot) > 4096 || projectRoot !== '/' && projectRoot.slice(1).split('/').some(part => !part || part === '.' || part === '..')))
+    throw registryError('BOT_PROJECT_ROOT_INVALID')
+  if (Boolean(terminalId) !== Boolean(projectRoot)) throw registryError('BOT_REMOTE_BINDING_INVALID')
+  return { terminalId, projectRoot }
+}
+
+export function remoteBindingRevision(profile) {
+  return createHash('sha256').update(JSON.stringify([profile.terminalId, profile.projectRoot])).digest('hex').slice(0, 16)
 }
 
 

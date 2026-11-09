@@ -3,6 +3,7 @@ import hashlib
 import importlib.util
 import json
 import platform
+import subprocess
 from pathlib import Path
 import sys
 import tempfile
@@ -21,6 +22,17 @@ class BusinessArtifacts(unittest.TestCase):
         required = {'payload/src/usage/background-agent-settings.mjs', 'payload/src/json-file.mjs'}
         _, manifest, _ = self.artifact('usage')
         self.assertTrue(required <= {row['path'] for row in manifest['files']})
+
+    def test_usage_secret_reference_closure_and_encoding(self):
+        _, manifest, _ = self.artifact('usage')
+        paths = {row['path'] for row in manifest['files']}
+        self.assertTrue({'payload/src/usage/secret-credentials.mjs',
+                         'payload/src/usage/onepassword-source.mjs'} <= paths)
+        self.assertNotIn('payload/src/usage/native-secret-credentials.mjs', paths)
+        exported = json.loads(subprocess.check_output(['node', '--input-type=module', '-e',
+            "import {USAGE_STATE_COMPATIBILITY as state} from './src/usage/state-compatibility.mjs'; process.stdout.write(JSON.stringify(state))"], cwd=ROOT))
+        self.assertEqual(BUSINESS_STATE['usage'], exported)
+        self.assertEqual(exported['secretEncoding'], 'stored-or-private-reference-v1')
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

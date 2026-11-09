@@ -7,7 +7,8 @@
   "provides": [
     "settings",
     "notify",
-    "auth"
+    "auth",
+    "secrets"
   ],
   "uses": [
     {
@@ -88,6 +89,9 @@
     "src/usage-entry.mjs",
     "src/usage-parent-effects.mjs",
     "src/usage/submitted-secret-consumer.mjs",
-    "src/usage/submitted-secret-rabbit-client.mjs"
+    "src/usage/submitted-secret-rabbit-client.mjs",
+    "src/usage/secret-credentials.mjs",
+    "src/usage/onepassword-source.mjs",
+    "src/usage/native-secret-credentials.mjs"
   ]
 }

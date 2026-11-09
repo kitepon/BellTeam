@@ -12,12 +12,13 @@
 flowchart LR
   m_conversation["会話・履歴 / N102"]
   m_diagnostics["診断 / シグナル"]
-  m_distribution["商用配布 / センチ"]
+  m_distribution["商用配布 / モリー"]
   m_execution["AI実行制御 / キロ"]
   m_integration["共通入口・結合実装 / モリー"]
   m_members["メンバー・予定 / ベロータ"]
   m_memory["記憶・知識 / ビスケット"]
   m_runtime["実行環境・更新復旧 / モリー"]
+  m_terminals["端末接続 / クラスト"]
   m_usage["利用設定・通知 / ミカ"]
   m_web["Webアプリ / アドミ"]
   m_work_graph["相関図 / アークレンジャー・ブラック"]
@@ -50,6 +51,10 @@ flowchart LR
   m_integration -->|"members-admission"| m_execution
   m_integration -->|"diagnostics"| m_diagnostics
   m_integration -->|"module-runner"| m_runtime
+  m_integration -->|"registry"| m_terminals
+  m_integration -->|"reachability"| m_terminals
+  m_integration -->|"connection"| m_terminals
+  m_integration -->|"secrets"| m_usage
   m_members -->|"stop"| m_execution
   m_members -->|"project-files"| m_runtime
   m_members -->|"cli-registration"| m_runtime
@@ -66,6 +71,7 @@ flowchart LR
   m_runtime -->|"image"| m_distribution
   m_runtime -->|"members-admission"| m_execution
   m_runtime -->|"runtime-artifact"| m_distribution
+  m_terminals -->|"settings"| m_usage
   m_usage -->|"registry"| m_members
   m_usage -->|"messages"| m_conversation
   m_usage -->|"cli-registration"| m_runtime
@@ -97,6 +103,7 @@ flowchart LR
   m_memory["記憶・知識 / ビスケット"]
   m_rtk["RTK / ドリリー"]
   m_runtime["実行環境・更新復旧 / モリー"]
+  m_terminals["端末接続 / クラスト"]
   m_testgate["testgate / シラツル"]
   m_throughline["Throughline / リヴァリン"]
   m_usage["利用設定・通知 / ミカ"]
@@ -115,6 +122,7 @@ flowchart LR
   m_runtime -->|"relay"| m_mcp_lazy
   m_runtime -->|"hook"| m_rtk
   m_runtime -->|"hook"| m_testgate
+  m_terminals -->|"native"| m_aiterm
   m_usage -->|"native"| m_aiterm
   m_windows -->|"HTTP/SSE"| m_integration
 ```
@@ -131,17 +139,18 @@ flowchart LR
 | [Caveat](modules/caveat/README.md) | ノア | public |
 | [会話・履歴](modules/conversation/README.md) | N102 | messages / history / membership-cleanup / room-access / durable-messages |
 | [診断](modules/diagnostics/README.md) | シグナル | diagnostics |
-| [商用配布](modules/distribution/README.md) | センチ | image / web-gateway-artifact / notifications-artifact / update-catalog / members-artifact / memory-artifact / conversation-artifact / runtime-artifact / work-graph-artifact |
+| [商用配布](modules/distribution/README.md) | モリー | image / web-gateway-artifact / notifications-artifact / update-catalog / members-artifact / memory-artifact / conversation-artifact / runtime-artifact / work-graph-artifact |
 | [AI実行制御](modules/execution/README.md) | キロ | turn / configuration / stop / observation / members-admission / accounts |
 | [共通入口・結合実装](modules/integration/README.md) | モリー | HTTP/MCP / HTTP/SSE / diagnostics |
 | [mcp-lazy](modules/mcp-lazy/README.md) | レオナ | relay |
-| [メンバー・予定](modules/members/README.md) | ベロータ | registry / schedules / instructions |
+| [メンバー・予定](modules/members/README.md) | ベロータ | registry / schedules / instructions / docs |
 | [記憶・知識](modules/memory/README.md) | ビスケット | memory |
 | [RTK](modules/rtk/README.md) | ドリリー | hook |
 | [実行環境・更新復旧](modules/runtime/README.md) | モリー | lifecycle / seat-process / project-files / cli-registration / module-runner / update / module-runner |
+| [端末接続](modules/terminals/README.md) | クラスト | registry / reachability / connection / privilege / maintenance |
 | [testgate](modules/testgate/README.md) | シラツル | hook |
 | [Throughline](modules/throughline/README.md) | リヴァリン | context |
-| [利用設定・通知](modules/usage/README.md) | ミカ | settings / notify / auth |
+| [利用設定・通知](modules/usage/README.md) | ミカ | settings / notify / auth / secrets |
 | [Webアプリ](modules/web/README.md) | アドミ | ui / assets |
 | [Windowsアプリ](modules/windows/README.md) | ベル（Windows） | public |
 | [相関図](modules/work-graph/README.md) | アークレンジャー・ブラック | work-graph |

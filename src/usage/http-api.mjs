@@ -3,6 +3,7 @@ import { SubscriptionAccessError } from '../subscriptions.mjs'
 import { webPushError, webPushFields, validateWebPushOrigin } from './web-push-schema.mjs'
 import { harnessAuthSlot, HarnessAuthError } from '../harness-auth.mjs'
 import { authCodeChallenge } from '../auth-ui.mjs'
+import { validateOnePasswordReference } from './onepassword-source.mjs'
 import { backgroundAgentError, backgroundInputValid } from './background-agent-settings.mjs'
 
 export function createUsageApi({ onboarding, internal, notify, harnessAuth, settings, secretRequests, subscriptions, bots, transport, notifications, ownerQuestions, authMode, assertWebPushOrigin, captureUsageContext, submittedSecretConsumer, captureSubmittedSecretContext }) {
@@ -173,8 +174,12 @@ export function createUsageApi({ onboarding, internal, notify, harnessAuth, sett
         return json(response, 400, { error: 'SECRET_REQUEST_INVALID' })
       }
       const body = await readJson(request, 131072)
+      if (action === 'submit' && body?.source === 'onepassword') {
+        try { validateOnePasswordReference(body.reference) }
+        catch { return json(response, 400, { error: 'SECRET_REFERENCE_INVALID' }) }
+      }
       const result = action === 'submit'
-        ? await secretRequests.submit(id, body?.value, await context('secrets.submit'))
+        ? await secretRequests.submit(id, body?.source === undefined ? body?.value : body, await context('secrets.submit'))
         : await secretRequests.cancel(id, await context('secrets.cancel'))
       return json(response, 200, { request: result })
     }

@@ -106,7 +106,7 @@ flowchart TD
 ```mermaid
 flowchart TD
   Input["Owner設定 / Bot update_settings"] --> Validate["項目・型・値・入力元を検証"]
-  Secret["提出済みbellteam-settings依頼"] --> Read["依頼Bot・提出状態を確認<br/>値ファイルを直接読む"]
+  Secret["提出済みbellteam-settings依頼"] --> Read["依頼Bot・提出状態を確認<br/>秘密入力の解決窓口から値を受け取る"]
   Read --> Validate
   Validate --> Save["設定の正本を保存"]
   Save --> Apply["onChangeで対象機能を適用"]
@@ -120,7 +120,7 @@ flowchart TD
   Pending -.-> View
 ```
 
-`FeatureSettings.update`は入力検証、秘密ファイルの参照、設定の保存、適用を接続する。公開`list`は秘密値を空文字にし、`configuration`は本体内の適用先にだけ実値を渡す。内部HTTPはsecret直値を許さず、MCPが確定したbotIdと提出済みrequestIdで読む。外部HTTPではOwnerのvaluesを受ける。
+`FeatureSettings.update`は入力検証、秘密入力による保存値・1Password参照の解決、設定の保存、適用を接続する。公開`list`は秘密値を空文字にし、`configuration`は本体内の適用先にだけ実値を渡す。内部HTTPはsecret直値を許さず、MCPが確定したbotIdと提出済みrequestIdで読む。外部HTTPではOwnerのvaluesを受ける。
 
 | 対象 | 状態の持ち主 / 呼ばれる関数 | 失敗後に残るもの |
 | --- | --- | --- |
@@ -182,3 +182,7 @@ flowchart LR
 ## Ordinary startup after member creation
 
 DFD: parent authoritative member creation → later system-authorized onboarding.prepareStartup({botId}) → existing members.read effect under same root context/inherited lease → authoritative parent refresh → closed identity list → child registry replacement → exact target lookup → existing instruction append. Initialization-only cached membership cannot authorize or reject this operation. Missing current target/refused refresh stops before append; unauthorized actors stop before the effect. No new port/store or stale fallback.
+
+## Secret source resolution (C5)
+
+[Secret credentials](secret-credentials.md) extends every secret submission to stored values or private 1Password references. It is canonical for the new function/data flow, target-bound handles, source recovery, and private consumer resolution. Existing stored file compatibility remains; managed consumers resolve through secret input instead of reading private source state.

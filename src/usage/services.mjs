@@ -9,6 +9,7 @@ import { Subscriptions } from '../subscriptions.mjs'
 import { authReceipt, authUi } from '../auth-ui.mjs'
 import { usageError, validateUsageRequest } from './process-schema.mjs'
 import { BackgroundAgentSettings } from './background-agent-settings.mjs'
+import { createOnePasswordSource } from './onepassword-source.mjs'
 
 const clone = value => structuredClone(value)
 const receiptKeys = ['loggedIn', 'slot', 'account_label', 'schema', 'status', 'session_id', 'url', 'user_code', 'input_required', 'message']
@@ -46,7 +47,7 @@ function volatileState(value) {
 }
 
 // Runtime owns the process/lock and supplies only fixed parent effects and registry ports.
-export function createUsageServices({ root, bots, rooms, effect, onProjection = () => {},
+export function createUsageServices({ root, bots, rooms, effect, onProjection = () => {}, onePassword, secretProviders,
   bridgeHeadersPath, environment = {}, seatRuntime = false, subscription = {} }) {
   let accepting = false, initialized = false, settingsReady = false, stopped = false, quiesced = false, wave = 0, revision = 0
   let settingsInitializing = false, initializing = false, subscriptionReady = false, subscriptionInitializing = false
@@ -90,8 +91,8 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
     projectFiles: { appendInstructions: (bot, text) => callEffect('onboarding.prepareStartup', { botId: bot.id, text }) },
     startConversation: (bot, message) => callEffect('onboarding.startConversation', { botId: bot.id, message }) })
   const background = (method, params) => { void callEffect(method, params).catch(() => {}) }
-  const secretRequests = new SecretRequests({ root, bots, rooms,
-    onSave: item => publish({ type: 'secret', value: item }),
+  const secretRequests = new SecretRequests({ root, bots, rooms, onePassword: onePassword ?? createOnePasswordSource({ autoRetry: false }), secretProviders, credentialRetryMs: 0,
+    onSave: item => { if (initialized) publish({ type: 'secret', value: item }) },
     onRequest: item => background('secret.created', { item }),
     notify: item => callEffect('secret.completed', { botId: item.botId, message: secretCompletionMessage(item) }) })
   const ownerQuestions = new OwnerQuestions({ root, bots,
@@ -133,6 +134,12 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
     'auth.cancel': ({ harness, slot }) => harnessAuth.cancel(harness, { slot }),
     'secrets.create': (params, actor) => secretRequests.create({ ...params, botId: actor.botId }),
     'secrets.get': ({ id }, actor) => getOwned(secretRequests, id, actor, 'SECRET_REQUEST_NOT_FOUND'),
+    'secrets.resolveRequest': ({ id }) => secretRequests.resolveValue(id),
+    'secrets.bind': ({ id, scope }) => secretRequests.bindCredential(id, scope),
+    'secrets.credential': ({ handle, context }) => secretRequests.credential(handle, context),
+    'secrets.resolve': ({ handle, context }) => secretRequests.withResolved(handle, context, value => value),
+    'secrets.replace': ({ handle, id, context }) => secretRequests.replaceCredential(handle, id, context),
+    'secrets.refresh': () => secretRequests.credentials.refreshAvailability(),
     'secrets.submit': ({ id, value }) => secretRequests.submit(id, value), 'secrets.cancel': ({ id }) => secretRequests.cancel(id),
     'secrets.withdraw': ({ id }, actor) => secretRequests.withdraw(id, actor.botId),
     'secrets.notifyOwnerGuide': ({ id }) => secretRequests.notifyOwnerGuide(id),
@@ -157,7 +164,9 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
   }
   const settingsProjection = () => ({ type: 'settings', epochs: Object.fromEntries(epochs), list: settings.list(), configurations: Object.fromEntries(settings.list().map(({ id }) => [id, settings.configuration(id)])), ...backgroundAgent.projection() })
   const baseProjection = () => [{ ...settingsProjection() }, { type: 'onboarding', value: onboarding.snapshot() }, { type: 'auth', value: harnessAuth.list() }, { type: 'subscription', value: subscriptions.status() }]
-  secretRequests.watch(event => publish({ type: 'event', value: event }))
+  secretRequests.watch(event => { if (initialized) publish({ type: 'event', value: event }) })
+  secretRequests.watchCredentials(value => { if (initialized) publish({ type: 'credential', value }) })
+  secretRequests.watchRecovery(value => { if (initialized) publish({ type: 'credentialRecovery', value }) })
   ownerQuestions.watch(event => publish({ type: 'event', value: event }))
   const dispatch = (method, params, actor) => {
     return track(() => effectScope.run({ effects: new Set() }, async () => {
@@ -229,13 +238,14 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
     },
     *snapshot() {
       if (!initialized || stopped) throw usageError('USAGE_UNAVAILABLE')
-      const rows = baseProjection(), secrets = [...secretRequests.items.values()], questions = [...ownerQuestions.items.values()], captured = revision
+      const rows = baseProjection(), secrets = [...secretRequests.items.keys()].map(id => secretRequests.get(id)), questions = [...ownerQuestions.items.values()], captured = revision
       for (const row of rows) yield clone({ ...row, revision: captured })
       for (const item of secrets) yield clone({ type: 'secret', value: item, revision: captured })
       for (const item of questions) yield clone({ type: 'question', value: item, revision: captured })
     },
     close() {
       if (!quiesced || pending.size) throw usageError('USAGE_NOT_QUIESCED', 409)
+      secretRequests.close()
       stopped = true; accepting = false; harnessAuth.sessions.clear(); harnessAuth.receipts.clear(); onboarding.auth = null
     },
   }

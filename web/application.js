@@ -128,7 +128,12 @@ export function createWebApp({ client = createWebClient() } = {}) {
   })
   document.querySelector('#all-schedules-button').addEventListener('click', () => { void allSchedules.open() })
   const workGraphDialog = document.querySelector('#work-graph-dialog')
-  const workGraph = createWorkGraphView(workGraphDialog, { fetch: fetchImage })
+  const workGraph = createWorkGraphView(workGraphDialog, { fetch: fetchImage, onOpenMember: async botId => {
+    // 相関図の顔タップは、通知と同じ経路でその子の会話を開く。全画面なら先に抜け、相関図を閉じてから。
+    if (document.fullscreenElement) await document.exitFullscreen().catch(() => {})
+    workGraphDialog.close()
+    await notifications.open({ kind: 'member', messageId: null, requestId: null, botId, roomId: null })
+  } })
   document.querySelector('#work-graph-button').addEventListener('click', () => workGraph.open())
   workGraphDialog.addEventListener('close', () => workGraph.close())
 
