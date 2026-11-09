@@ -54,6 +54,7 @@ final class TerminalsUITests: XCTestCase {
         app.buttons["check-terminal"].tap()
         XCTAssertTrue(waitLabel(app, "terminal-reachability", contains: "ホスト鍵"))
         shot(app, "05-terminal-detail-hostkey-changed")
+        openOtherHostKeyWays(app)
         XCTAssertTrue(scrollTo(app.buttons["confirm-host-key"], in: app))
         app.buttons["confirm-host-key"].tap()
         let field = app.descendants(matching: .any)["host-key-fingerprint"]
@@ -86,6 +87,7 @@ final class TerminalsUITests: XCTestCase {
         app.buttons["check-terminal"].tap()
         XCTAssertTrue(waitLabel(app, "terminal-reachability", contains: "ホスト鍵"))
         shot(app, "09-terminal-detail-hostkey-missing")
+        openOtherHostKeyWays(app)
         XCTAssertTrue(scrollTo(app.buttons["confirm-host-key"], in: app))
         app.buttons["confirm-host-key"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["host-key-fingerprint"].waitForExistence(timeout: 5))
@@ -145,6 +147,41 @@ final class TerminalsUITests: XCTestCase {
         app.navigationBars.buttons.element(boundBy: 0).tap()
         XCTAssertTrue(app.buttons["settings-row-terminals"].waitForExistence(timeout: 5), "設定の項目「端末」")
         shot(app, "00-settings-root")
+    }
+
+    /// The manual fingerprint sheet lives under 「ほかの方法」, folded.
+    private func openOtherHostKeyWays(_ app: XCUIApplication) {
+        let other = app.buttons["ほかの方法"]
+        XCTAssertTrue(scrollTo(other, in: app))
+        other.tap()
+    }
+
+    func testAttestHintAndOtherWaysOnAnUntrustedTerminal() async throws {
+        let app = launch(["-bellbot-preview-terminals", "-bellbot-preview-settings", "terminals", "-bellbot-preview-terminal", "detail:studio-mac"])
+        defer { app.terminate() }
+        let hint = app.descendants(matching: .any)["attest-hint"]
+        XCTAssertTrue(scrollTo(hint, in: app))
+        XCTAssertEqual(hint.label, "このMacでBellTeamアプリを開くと、自動で確かめます")
+        XCTAssertFalse(app.buttons["attest-this-mac"].exists, "iPhoneに「このMacを確かめる」は出さない")
+        XCTAssertFalse(app.buttons["confirm-host-key"].exists, "指紋を手で入れる操作は「ほかの方法」の中")
+        openOtherHostKeyWays(app)
+        XCTAssertTrue(scrollTo(app.buttons["confirm-host-key"], in: app))
+        shot(app, "60-terminal-detail-attest-hint-other-ways")
+        let trusts = try await call("/test/proof")["trusts"] as? [Any]
+        XCTAssertEqual(trusts?.count, 0, "iPhoneは確かめを送らない")
+    }
+
+    func testLoginPasswordCardIsOneHiddenFieldWithNoOnePasswordChoice() async throws {
+        let app = launch(["-bellbot-preview-terminals", "-bellbot-preview-settings", "terminals", "-bellbot-preview-terminal", "login:owner-macbook"])
+        defer { app.terminate() }
+        XCTAssertTrue(app.secureTextFields["secret-value"].waitForExistence(timeout: 10), "パスワード欄1つ")
+        XCTAssertEqual(app.descendants(matching: .any)["secret-note"].label, "このMacのログインパスワード（1回だけ使い、保存しません）")
+        XCTAssertFalse(app.descendants(matching: .any)["secret-source"].exists, "1Passwordの選択肢なし（接続済みでも）")
+        XCTAssertFalse(app.textFields["secret-reference"].exists)
+        XCTAssertFalse(app.textViews["secret-value"].exists, "鍵ではないので複数行欄にしない")
+        XCTAssertTrue(app.buttons["パスワードを渡す"].exists)
+        XCTAssertFalse(app.buttons["パスワードを渡す"].isEnabled, "貼るまで送れない")
+        shot(app, "61-login-password-card")
     }
 
     func testKeySettingThroughTheSecretCardAndRemoval() async throws {

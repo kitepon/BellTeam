@@ -241,6 +241,72 @@ struct TerminalPutBody: Encodable {
 
 struct HostKeyConfirmBody: Encodable { let confirmHostKey: String }
 
+/// S2: `POST /api/terminals/:id/trust` carries only the fingerprint read on that Mac itself (terminals #856).
+struct TerminalTrustBody: Encodable { let fingerprint: String }
+struct TerminalTrustResponse: Decodable { let terminal: Terminal }
+
+/// What the Mac app shows on a terminal's detail about its own attestation. Nothing here is stored on the server.
+struct TerminalTrustNote: Equatable {
+    var text: String
+    /// Remote Login is off here, so the line carries 「共有設定を開く」.
+    var offersSharingSettings = false
+}
+
+enum TerminalTrust {
+    enum Failure: Equatable {
+        /// 409 HOST_KEY_FINGERPRINT_MISMATCH: another machine answers at that address; nothing was written.
+        case notThisMac
+        /// 409 TERMINAL_CHANGED: the terminal changed during the check; read it again and attest once more.
+        case changed
+        /// 503 TERMINAL_UNAVAILABLE
+        case retryLater
+        /// 404 without a JSON error code: an older body has no trust route; the manual sheet stays, nothing alarming.
+        case olderBody
+        case other(String)
+    }
+
+    static func failure(_ error: Error) -> Failure {
+        guard case BellAPIError.httpStatus(let status, let message, _) = error else { return .other(BellAPIError.operationFailureMessage(error)) }
+        switch (status, TerminalErrorText.code(error)) {
+        case (404, let code) where code != "TERMINAL_NOT_FOUND": return .olderBody
+        case (409, "HOST_KEY_FINGERPRINT_MISMATCH"?): return .notThisMac
+        case (409, "TERMINAL_CHANGED"?): return .changed
+        case (503, "TERMINAL_UNAVAILABLE"?): return .retryLater
+        case (_, "TERMINAL_NOT_FOUND"?): return .other(TerminalErrorText.message(for: error))
+        // INVALID_TERMINAL and the rest: the design gives no wording, so the server's message is shown.
+        default: return .other(message ?? BellAPIError.operationFailureMessage(error))
+        }
+    }
+
+    /// nil for an older body: no line at all.
+    static func note(_ failure: Failure) -> TerminalTrustNote? {
+        switch failure {
+        case .notThisMac: TerminalTrustNote(text: "このアドレスで答えているのは、このMacではありません。ホストの入力を確かめてください。信用は何も書いていません。")
+        case .changed: TerminalTrustNote(text: "確かめている間に、端末の接続先が変わりました。もう一度「このMacを確かめる」を押してください。")
+        case .retryLater: TerminalTrustNote(text: "いまはBellTeamからこのMacを確かめられません。Macが起きていて同じネットワークにあるか確かめて、あとでもう一度押してください。")
+        case .olderBody: nil
+        case .other(let text): TerminalTrustNote(text: text)
+        }
+    }
+
+    /// The Mac's own sshd could not give a verified host key; no request goes to the server. 「ほかの方法」 stays available.
+    static func note(local error: Error) -> TerminalTrustNote {
+        let other = "「ほかの方法」で指紋を入れて確かめられます。"
+        switch error as? SSHHostKeyError {
+        case .connection("refused")?:
+            return TerminalTrustNote(text: "このMacのリモートログインがオフです。オンにしてから、もう一度確かめてください。", offersSharingSettings: true)
+        case .connection?:
+            return TerminalTrustNote(text: "このMacのSSHから答えが返りませんでした。少し待ってから、もう一度確かめてください。")
+        case .unsupported(let reason)?:
+            return TerminalTrustNote(text: "このMacのSSHからed25519のホスト鍵を読めませんでした（\(reason)）。\(other)")
+        case .badSignature?, .malformed?:
+            return TerminalTrustNote(text: "このMacのSSHの署名を確かめられませんでした。信用は何も書いていません。\(other)")
+        case nil:
+            return TerminalTrustNote(text: "このMacのホスト鍵を読めませんでした。\(other)")
+        }
+    }
+}
+
 struct TerminalKeyRequestResponse: Decodable { let secretRequest: SecretRequest }
 
 /// members C1: both empty (this BellTeam) or both set; projectRoot an absolute POSIX path.

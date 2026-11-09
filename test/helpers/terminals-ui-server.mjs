@@ -3,6 +3,9 @@
 // No SSH, keys or real terminals. Prints {"url"} on start; /test/reset,
 // /test/mode?terminals=ok|unsupported|unavailable&members=new|old&keys=ok|old|unavailable&onepassword=1|0
 //   &setting=absent|off|connected|zero|rejected|cli&picker=ok|empty|error|missing, /test/proof, /test/fingerprint?id=.
+// Host-key attest (terminals #856): POST /api/terminals/:id/trust {fingerprint}; /test/mode?trust=ok|mismatch|unavailable|changed|old
+//   (ok accepts any well-formed SHA256: value, changed answers TERMINAL_CHANGED once, old is an older body's 404) and thismac=1
+//   adds the terminal `this-mac` (host 127.0.0.1, no trust). /test/proof.trusts keeps each attest body.
 // 1Password (usage #836/#838): GET|PATCH /api/settings (item onePassword: guide, connection, error), GET /api/secret-requests/:id/onepassword-items.
 // A token starting ops_good connects; any other ops_ token is rejected. The token itself is never kept, only its shape.
 import { createHash, randomUUID } from 'node:crypto'
@@ -19,7 +22,7 @@ const MEMBER_TERMINAL_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u
 let state
 function reset() {
   state = {
-    mode: { terminals: 'ok', members: 'new', keys: 'ok', onepassword: '1', setting: 'off', picker: 'ok' },
+    mode: { terminals: 'ok', members: 'new', keys: 'ok', onepassword: '1', setting: 'off', picker: 'ok', trust: 'ok', thismac: '0' },
     bots: structuredClone(fixture.bots).map((bot, index) => ({ ...bot, terminalId: index === 0 ? 'owner-macbook' : '', projectRoot: index === 0 ? '/Users/kite/work/app' : '' })),
     terminals: [
       { terminalId: 'owner-macbook', host: '192.168.1.12', user: 'kite', port: 22, os: 'macos', accountOwner: 'owner', sshKeyConfigured: true, sudoKeyConfigured: false, keySource: 'terminal-native', hostTrust: trust('owner-macbook'), revision: 4, maintenance: { terminalId: 'owner-macbook', observedAt: '2026-11-09T07:40:00Z', before: '2.1.30', after: '2.1.32', outcome: 'updated' } },
@@ -28,7 +31,7 @@ function reset() {
       { terminalId: 'office-imac', host: 'office-imac.local', user: 'kite', port: 22, os: 'macos', accountOwner: 'owner', sshKeyConfigured: true, sudoKeyConfigured: false, keySource: 'terminal-native', hostTrust: trust('office-imac'), revision: 3, maintenance: { terminalId: 'office-imac', observedAt: '2026-11-08T22:10:00Z', before: '2.1.29', after: '2.1.29', outcome: 'failed' } },
     ],
     requests: new Map(),
-    proof: { terminalReads: 0, puts: [], deletes: [], checks: [], botSaves: [], rejectedBotSaves: [], keyRequests: [], keyDeletes: [], secretSubmits: [], settingPatches: [], itemReads: 0 },
+    proof: { terminalReads: 0, puts: [], deletes: [], checks: [], botSaves: [], rejectedBotSaves: [], keyRequests: [], keyDeletes: [], secretSubmits: [], settingPatches: [], itemReads: 0, trusts: [] },
   }
 }
 reset()
@@ -104,7 +107,9 @@ const server = createServer(async (request, response) => {
   // What the Owner would read on the terminal itself (the test plays the Owner).
   if (path === '/test/fingerprint') return send(200, { fingerprint: fingerprint(url.searchParams.get('id') ?? '') })
   if (path === '/test/mode') {
-    for (const key of ['terminals', 'members', 'keys', 'onepassword', 'setting', 'picker']) if (url.searchParams.has(key)) state.mode[key] = url.searchParams.get(key)
+    for (const key of ['terminals', 'members', 'keys', 'onepassword', 'setting', 'picker', 'trust', 'thismac']) if (url.searchParams.has(key)) state.mode[key] = url.searchParams.get(key)
+    if (state.mode.thismac === '1' && !state.terminals.some(item => item.terminalId === 'this-mac'))
+      state.terminals.push({ terminalId: 'this-mac', host: '127.0.0.1', user: 'kite', port: 22, os: 'macos', accountOwner: 'owner', sshKeyConfigured: false, sudoKeyConfigured: false, revision: 1, maintenance: null })
     return send(200, state.mode)
   }
   const bots = () => state.bots.map(bot => {
@@ -210,17 +215,32 @@ const server = createServer(async (request, response) => {
     return fail(405, 'METHOD_NOT_ALLOWED')
   }
 
-  const terminalsMatch = /^\/api\/terminals(?:\/([a-z0-9][a-z0-9-]{0,63})(\/check)?)?$/u.exec(path)
+  const terminalsMatch = /^\/api\/terminals(?:\/([a-z0-9][a-z0-9-]{0,63})(\/check|\/trust)?)?$/u.exec(path)
   if (terminalsMatch) {
     if (state.mode.terminals === 'unsupported') return fail(404, 'NOT_FOUND')
     if (state.mode.terminals === 'unavailable') return fail(503, 'TERMINALS_UNAVAILABLE')
-    const [, id, isCheck] = terminalsMatch
+    const [, id, sub] = terminalsMatch
+    const isCheck = sub === '/check'
     const index = id ? state.terminals.findIndex(item => item.terminalId === id) : -1
     if (!id && request.method === 'GET') { state.proof.terminalReads++; return send(200, { terminals: state.terminals.map(projection) }) }
     if (id && isCheck && request.method === 'POST') {
       const result = index < 0 ? { terminalId: id, observedAt: new Date().toISOString(), reachable: false, reason: 'TERMINAL_NOT_FOUND' } : check(state.terminals[index])
       state.proof.checks.push({ terminalId: id, reachable: result.reachable, reason: result.reason })
       return send(200, result)
+    }
+    if (id && sub === '/trust') {
+      if (request.method !== 'POST') return fail(405, 'METHOD_NOT_ALLOWED')
+      if (state.mode.trust === 'old') return fail(404, 'NOT_FOUND')
+      const input = await body(request)
+      state.proof.trusts.push({ terminalId: id, body: input })
+      if (Object.keys(input).join() !== 'fingerprint' || !/^SHA256:[A-Za-z0-9+/]{43}$/u.test(input.fingerprint))
+        return fail(400, 'INVALID_TERMINAL', 'Send only {fingerprint: "SHA256:..."} read on that Mac')
+      if (index < 0) return fail(404, 'TERMINAL_NOT_FOUND', 'Terminal not found; list_terminals shows the registered terminalIds')
+      if (state.mode.trust === 'mismatch') return fail(409, 'HOST_KEY_FINGERPRINT_MISMATCH', 'Host key did not match the confirmed fingerprint')
+      if (state.mode.trust === 'unavailable') return fail(503, 'TERMINAL_UNAVAILABLE', 'The host key cannot be checked now; make sure the Mac is awake on the same network and try again')
+      if (state.mode.trust === 'changed') { state.mode.trust = 'ok'; return fail(409, 'TERMINAL_CHANGED', 'The terminal changed while its host key was being checked; check it again') }
+      state.terminals[index] = { ...state.terminals[index], hostTrust: trust(`${id}-attested`), revision: state.terminals[index].revision + 1 }
+      return send(200, { terminal: projection(state.terminals[index]) })
     }
     if (id && request.method === 'GET') return index < 0 ? fail(404, 'TERMINAL_NOT_FOUND') : send(200, projection(state.terminals[index]))
     if (id && request.method === 'PUT') {

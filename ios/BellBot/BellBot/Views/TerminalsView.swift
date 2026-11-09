@@ -5,7 +5,8 @@ import SwiftUI
 private let unsupportedLine = "このBellTeamはまだ端末の登録に対応していません"
 
 #if DEBUG
-/// `-bellbot-preview-terminal add | detail:<id> | check:<id> | hostkey:<id> | edit:<id> | setkey:<id>` opens that state for screenshots.
+/// `-bellbot-preview-terminal add | addmac | detail:<id> | check:<id> | hostkey:<id> | edit:<id> | setkey:<id> | login:<id> | attest:<id> | otherways:<id>` opens that state for screenshots
+/// (`addmac` presses 「このMacを追加」, `attest` presses 「このMacを確かめる」 and opens 「ほかの方法」, `otherways` only opens it; `-bellbot-preview-remote-login off` makes the loopback probe answer off).
 enum TerminalPreviewRoute {
     static var value: (action: String, id: String?)? {
         let arguments = ProcessInfo.processInfo.arguments
@@ -15,6 +16,14 @@ enum TerminalPreviewRoute {
     }
 }
 #endif
+
+/// S1: opens System Settings > General > Sharing, where Remote Login is switched on.
+private struct SharingSettingsButton: View {
+    var body: some View {
+        Button("共有設定を開く", systemImage: "gearshape") { UIApplication.shared.open(ThisMac.sharingSettingsURL) }
+            .accessibilityIdentifier("open-sharing-settings")
+    }
+}
 
 /// One calm line for a BellTeam without the feature; never a red banner.
 struct TerminalsCalmLine: View {
@@ -77,7 +86,7 @@ struct TerminalListPage: View {
             await store.refreshTerminals()
             #if DEBUG
             if let route = TerminalPreviewRoute.value {
-                if route.action == "add" { adding = true } else { openID = route.id }
+                if route.action == "add" || route.action == "addmac" { adding = true } else { openID = route.id }
             }
             #endif
         }
@@ -163,10 +172,16 @@ struct TerminalDetailPage: View {
     @State private var removingKey: TerminalKeyKind?
     /// POST keys answered 404 without TERMINAL_NOT_FOUND: an older BellTeam without the route.
     @State private var keysRouteMissing = false
+    @State private var otherWaysOpen = false
+    #if DEBUG
+    /// `-bellbot-preview-terminal login:<id>`: the terminal.login card as Mika #855 sends it, without a route to ask for it yet.
+    @State private var loginPreview: SecretRequest?
+    #endif
 
     private var terminal: Terminal? { store.terminals.terminal(terminalId) }
     private var check: TerminalCheck? { store.terminals.checks[terminalId] }
     private var checking: Bool { store.terminals.checking.contains(terminalId) }
+    private var attesting: Bool { store.terminals.attesting.contains(terminalId) }
 
     var body: some View {
         Form {
@@ -197,6 +212,11 @@ struct TerminalDetailPage: View {
             .environmentObject(store)
             .bellEditorSheet()
         }
+        #if DEBUG
+        .sheet(item: $loginPreview) { request in
+            SecretInputSheet(request: request) { _ in }.environmentObject(store).bellEditorSheet()
+        }
+        #endif
         .alert(removingKey.map { "「\(terminalId)」の\($0.title)を外しますか？" } ?? "",
                isPresented: Binding(get: { removingKey != nil }, set: { if !$0 { removingKey = nil } }), presenting: removingKey) { kind in
             Button("外す", role: .destructive) { Task { await removeKey(kind) } }
@@ -219,6 +239,13 @@ struct TerminalDetailPage: View {
             case "hostkey": await runCheck(); confirmingHostKey = true
             case "edit": editing = true
             case "setkey": await setKey(.ssh)
+            case "otherways": otherWaysOpen = true
+            case "attest": await store.attestThisMac(id: terminalId); otherWaysOpen = true
+            case "login":
+                loginPreview = try? JSONDecoder().decode(SecretRequest.self, from: Data(#"""
+                {"id":"login-preview","botId":null,"roomId":null,"toolId":"terminal-key","purpose":"terminal.login","label":"Mac login password for terminal",
+                 "message":"このMacのログインパスワード（1回だけ使い、保存しません）","status":"pending","inputOptions":{"preferred":"stored","onePasswordAvailable":false}}
+                """#.utf8))
             default: break
             }
         }
@@ -271,10 +298,34 @@ struct TerminalDetailPage: View {
                 Label(hostKeyStatus(terminal), systemImage: needsHostKey(terminal) ? "exclamationmark.shield" : "checkmark.shield.fill")
                     .foregroundStyle(needsHostKey(terminal) ? .orange : BellTheme.mint)
             }
+            if ThisMac.isThisMac && ThisMac.owns(host: terminal.host) {
+                Button {
+                    Task { await store.attestThisMac(id: terminalId) }
+                } label: {
+                    HStack {
+                        Label("このMacを確かめる", systemImage: "checkmark.shield")
+                        if attesting { Spacer(); ProgressView() }
+                    }
+                }
+                .disabled(attesting || working)
+                .accessibilityIdentifier("attest-this-mac")
+            } else if !terminal.hostTrusted {
+                Text("このMacでBellTeamアプリを開くと、自動で確かめます")
+                    .font(BellTheme.detailFont).foregroundStyle(.secondary)
+                    .accessibilityIdentifier("attest-hint")
+            }
+            if let note = store.terminals.trustNotes[terminalId] {
+                Text(note.text).font(BellTheme.detailFont).accessibilityIdentifier("attest-note")
+                if note.offersSharingSettings { SharingSettingsButton() }
+            }
             if needsHostKey(terminal) {
-                Button("ホスト鍵を確かめる", systemImage: "key.viewfinder") { confirmingHostKey = true }
-                    .disabled(working)
-                    .accessibilityIdentifier("confirm-host-key")
+                DisclosureGroup("ほかの方法", isExpanded: $otherWaysOpen) {
+                    Text("そのMacにBellTeamアプリが無い時や、うまく確かめられない時は、端末で読んだ指紋を入れて確かめます。")
+                        .font(BellTheme.detailFont).foregroundStyle(.secondary)
+                    Button("ホスト鍵を確かめる", systemImage: "key.viewfinder") { confirmingHostKey = true }
+                        .disabled(working)
+                        .accessibilityIdentifier("confirm-host-key")
+                }
             }
         } header: {
             BellSectionHeader("ホスト鍵")
@@ -417,6 +468,9 @@ struct TerminalEditor: View {
     @State private var attempted = false
     @State private var saving = false
     @State private var errorText: String?
+    /// S1 (Mac only): what the loopback probe of port 22 said, and the line when no address could be read.
+    @State private var remoteLogin: ThisMac.RemoteLogin?
+    @State private var addressMissing = false
 
     init(initial: Terminal?) {
         self.initial = initial
@@ -428,6 +482,7 @@ struct TerminalEditor: View {
     var body: some View {
         NavigationStack {
             Form {
+                if initial == nil && ThisMac.isThisMac { thisMacSection }
                 Section {
                     if initial == nil {
                         field("端末ID", .terminalId, prompt: "owner-macbook", text: $draft.terminalId)
@@ -473,6 +528,9 @@ struct TerminalEditor: View {
                 if let errorText { Section { SettingsBanner(message: errorText) } }
             }
             .disabled(saving)
+            #if DEBUG
+            .task { if initial == nil, ThisMac.isThisMac, TerminalPreviewRoute.value?.action == "addmac" { await fillThisMac() } }
+            #endif
             .navigationTitle(initial == nil ? "端末を追加" : "端末を編集")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -483,6 +541,38 @@ struct TerminalEditor: View {
                 }
             }
         }
+    }
+
+    /// S1: fills this Mac's facts into the form (still editable) and says whether Remote Login answers on loopback.
+    private var thisMacSection: some View {
+        Section {
+            Button("このMacを追加", systemImage: "laptopcomputer") { Task { await fillThisMac() } }
+                .accessibilityIdentifier("add-this-mac")
+            if addressMissing {
+                Text("このMacのIPv4アドレスを読み取れませんでした。ホストを入れてください。").font(BellTheme.detailFont)
+            }
+            switch remoteLogin {
+            case .off?:
+                Text("このMacのリモートログインがオフです。BellTeamがSSHでつなぐには、オンにします。")
+                    .font(BellTheme.detailFont).accessibilityIdentifier("remote-login-off")
+                SharingSettingsButton()
+            case .unknown?:
+                Text("リモートログインがオンかどうかを確かめられませんでした。").font(BellTheme.detailFont).foregroundStyle(.secondary)
+            default: EmptyView()
+            }
+        } footer: {
+            Text("このMacのアドレスとユーザー名を入れます。入れたあとも直せます。").font(BellTheme.secondaryFont)
+        }
+    }
+
+    private func fillThisMac() async {
+        let host = ThisMac.primaryIPv4()
+        addressMissing = host == nil
+        if let host { draft.host = host }
+        draft.user = ThisMac.userName
+        draft.port = "22"
+        draft.accountOwner = "owner"
+        remoteLogin = await ThisMac.remoteLogin()
     }
 
     @ViewBuilder
@@ -509,7 +599,8 @@ struct TerminalEditor: View {
         saving = true
         defer { saving = false }
         do {
-            try await store.saveTerminal(id: draft.terminalId, draft: draft)
+            let saved = try await store.saveTerminal(id: draft.terminalId, draft: draft)
+            if initial == nil { store.attestThisMacOnce(saved) }
             dismiss()
         } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
         catch { errorText = TerminalErrorText.message(for: error) }

@@ -14,6 +14,10 @@ struct TerminalDirectory: Equatable {
     var loading = false
     var checks: [String: TerminalCheck] = [:]
     var checking: Set<String> = []
+    /// S2 on the Mac app: terminals being attested now, the line to show per terminal, and those already tried since launch.
+    var attesting: Set<String> = []
+    var trustNotes: [String: TerminalTrustNote] = [:]
+    var attested: Set<String> = []
     /// A later read failed while a list is shown: the list stays (last known registry) with this reason.
     var readError: String?
     var readSequence = 0
@@ -34,6 +38,7 @@ extension AppStore {
             guard sequence == terminals.readSequence else { return }
             terminals.state = .supported(response.terminals)
             terminals.readError = nil
+            if ThisMac.isThisMac { for terminal in response.terminals { attestThisMacOnce(terminal) } }
         } catch let error where BellAPIError.isAuthenticationError(error) { requireLogin(for: error) }
         catch {
             guard sequence == terminals.readSequence else { return }
@@ -58,21 +63,27 @@ extension AppStore {
 
     private func putTerminal<Body: Encodable>(id: String, body: Body) async throws -> Terminal {
         do {
-            var saved: Terminal = try await api.put("/api/terminals/\(id)", body: body)
-            var list = terminals.terminals
-            if let index = list.firstIndex(where: { $0.terminalId == id }) {
-                saved.maintenance = saved.maintenance ?? list[index].maintenance
-                list[index] = saved
-            } else { list.append(saved) }
-            terminals.state = .supported(list)
-            terminals.checks[id] = nil // target or trust changed; an older observation no longer describes it
-            return saved
+            let saved: Terminal = try await api.put("/api/terminals/\(id)", body: body)
+            return replaceTerminal(saved)
         } catch {
             if !BellAPIError.isAuthenticationError(error) {
                 api.diagnostics.report(error, path: "/api/terminals/:id", method: "PUT", observation: .write)
             }
             throw error
         }
+    }
+
+    @discardableResult
+    private func replaceTerminal(_ terminal: Terminal) -> Terminal {
+        var saved = terminal
+        var list = terminals.terminals
+        if let index = list.firstIndex(where: { $0.terminalId == saved.terminalId }) {
+            saved.maintenance = saved.maintenance ?? list[index].maintenance
+            list[index] = saved
+        } else { list.append(saved) }
+        terminals.state = .supported(list)
+        terminals.checks[saved.terminalId] = nil // target or trust changed; an older observation no longer describes it
+        return saved
     }
 
     func removeTerminal(id: String) async throws {
@@ -129,6 +140,45 @@ extension AppStore {
                 api.diagnostics.report(error, path: "/api/terminals/:id/check", method: "POST", observation: .write)
             }
             throw error
+        }
+    }
+}
+
+extension AppStore {
+    /// S2, once per launch and terminal: a terminal of this Mac that is not trusted yet is attested when the Mac app reads or saves it.
+    func attestThisMacOnce(_ terminal: Terminal) {
+        guard ThisMac.isThisMac, !terminal.hostTrusted, ThisMac.owns(host: terminal.host),
+              terminals.attested.insert(terminal.terminalId).inserted else { return }
+        let id = terminal.terminalId
+        Task { await attestThisMac(id: id) }
+    }
+
+    /// S2: read this Mac's host-key fingerprint over a loopback handshake and send only that to the server, which trusts it
+    /// only when Aiterm's own scan is equal. Every outcome becomes a line on the detail; nothing is thrown. TERMINAL_CHANGED is retried once.
+    func attestThisMac(id: String, fingerprint source: ((Int) async throws -> String)? = nil) async {
+        guard !terminals.attesting.contains(id) else { return }
+        terminals.attesting.insert(id)
+        terminals.trustNotes[id] = nil
+        defer { terminals.attesting.remove(id) }
+        for attempt in 1...2 {
+            guard let port = terminals.terminal(id)?.port else { return }
+            let fingerprint: String
+            do { fingerprint = try await (source ?? { try await ThisMac.hostKeyFingerprint(port: $0) })(port) }
+            catch { terminals.trustNotes[id] = TerminalTrust.note(local: error); return }
+            do {
+                let response: TerminalTrustResponse = try await api.post("/api/terminals/\(id)/trust", body: TerminalTrustBody(fingerprint: fingerprint))
+                replaceTerminal(response.terminal)
+                return
+            } catch let error where BellAPIError.isAuthenticationError(error) {
+                requireLogin(for: error)
+                return
+            } catch {
+                let failure = TerminalTrust.failure(error)
+                if failure == .changed, attempt == 1 { await refreshTerminals(); continue }
+                if failure != .olderBody { api.diagnostics.report(error, path: "/api/terminals/:id/trust", method: "POST", observation: .write) }
+                terminals.trustNotes[id] = TerminalTrust.note(failure)
+                return
+            }
         }
     }
 }
