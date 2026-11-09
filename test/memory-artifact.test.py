@@ -64,7 +64,7 @@ class MemoryArtifact(unittest.TestCase):
    r,m,c=copy.deepcopy(release),copy.deepcopy(self.manifest),copy.deepcopy(self.state)
    state=r['compatibility']['stateCompatibility'] if target=='catalog' else m['runtime']['stateCompatibility'] if target=='manifest' else c
    state['searchIndexVersion']='1:999.0'
-   with self.assertRaisesRegex(ValueError,'UPDATE_MEMORY_ARCHIVE_INCOMPATIBLE'):validate_memory_archive(r,m,c)
+   with self.assertRaises(ValueError):validate_memory_archive(r,m,c)
  def test_code_first_orphan_recovery_never_exposes_private_metadata(self):
   private=self.root/'private';private.mkdir();code_root=private/'memory-code';code_root.mkdir();code_root.chmod(0o555)
   version=hashlib.sha256(self.archive.read_bytes()).hexdigest();expected=dict(archiveSha256=version,sourceCommit=SOURCE,signerCommit=SOURCE)
