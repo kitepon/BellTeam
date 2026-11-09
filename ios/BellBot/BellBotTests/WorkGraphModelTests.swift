@@ -85,6 +85,91 @@ final class WorkGraphModelTests: XCTestCase {
         XCTAssertEqual(swap?.gain, 1)
     }
 
+    // MARK: Clearance（期待値はlayout-sim.mjsの同じ関数を同じ配置で実行して写した。札の四角だけはAppleの`chipFrame`（尖りを含む）に置き換えて実行）
+
+    /// sim の`nodeBox`（S 56、nameHeight 18、広げない）を中心からの相対にした四角。nameHeight 50なら高さ108。
+    private func simBox(nameHeight: CGFloat = 18) -> CGRect { CGRect(x: -44.8, y: -28, width: 89.6, height: 58 + nameHeight) }
+
+    private func assertForces(_ got: [CGVector], _ want: [(CGFloat, CGFloat)], _ message: String = "", line: UInt = #line) {
+        XCTAssertEqual(got.count, want.count, line: line)
+        for (g, w) in zip(got, want) {
+            XCTAssertEqual(g.dx, w.0, accuracy: 1e-7, message, line: line)
+            XCTAssertEqual(g.dy, w.1, accuracy: 1e-7, message, line: line)
+        }
+    }
+
+    func testSegmentHitsBoxMatchesTheReferenceSimulation() {
+        let box = CGRect(x: 0, y: 0, width: 10, height: 10)
+        func hits(_ a: (CGFloat, CGFloat), _ b: (CGFloat, CGFloat)) -> Bool {
+            WorkGraphModel.segmentHitsBox(CGPoint(x: a.0, y: a.1), CGPoint(x: b.0, y: b.1), box)
+        }
+        XCTAssertTrue(hits((-5, 5), (15, 5)), "通り抜ける線")
+        XCTAssertFalse(hits((-5, 15), (15, 15)), "上を通る線")
+        XCTAssertTrue(hits((5, 5), (50, 50)), "中から出る線")
+        XCTAssertFalse(hits((-5, -5), (15, -5)))
+        XCTAssertFalse(hits((11, -5), (11, 15)), "縦の線が横に外れる")
+    }
+
+    func testClearancePushesAnUnrelatedMemberOffTheLineLikeTheSimulation() {
+        let a = CGPoint(x: 100, y: 300), b = CGPoint(x: 500, y: 300), edge = [(a: 0, b: 1, chip: CGSize?.none)]
+        func run(_ c: CGPoint, nameHeight: CGFloat = 18) -> [CGVector] {
+            WorkGraphModel.clearance([a, b, c], extents: Array(repeating: simBox(nameHeight: nameHeight), count: 3), edges: edge)
+        }
+        // Cは線の下。Cを下へkc、両端は上へ半分ずつ（最近点が真ん中）。
+        assertForces(run(CGPoint(x: 300, y: 320)), [(0, -0.0015), (0, -0.0015), (0, 0.003)])
+        // 最近点が左寄り（t = 0.3125）なら、近い端が多く受ける。
+        assertForces(run(CGPoint(x: 150, y: 320)), [(0, -0.002625), (0, -0.000375), (0, 0.003)])
+        // 箱の中心がちょうど線の上なら、線の法線へ。
+        assertForces(run(CGPoint(x: 300, y: 290)), [(0, -0.0015), (0, -0.0015), (0, 0.003)])
+        // 箱が線に入らなければ押さない。
+        assertForces(run(CGPoint(x: 300, y: 420)), [(0, 0), (0, 0), (0, 0)])
+        // 名前の高さが箱の高さを決める：線の上にいるCは、nameHeight 18では届かず、40では名前が線に届いて上へ押される。
+        assertForces(run(CGPoint(x: 300, y: 240)), [(0, 0), (0, 0), (0, 0)])
+        assertForces(run(CGPoint(x: 300, y: 240), nameHeight: 40), [(0, 0.0015), (0, 0.0015), (0, -0.003)])
+    }
+
+    func testBlockedChipLengthensItsEdgeAndPushesMembersLikeTheSimulation() {
+        // 短い線（70pt）の札は、どのslotも自分の端に当たってふさがれる。
+        let p = [CGPoint(x: 100, y: 300), CGPoint(x: 170, y: 300), CGPoint(x: 135, y: 250)]
+        let boxes = Array(repeating: simBox(), count: 3)
+        let chip = CGSize(width: 100, height: 30)
+        XCTAssertNotNil(WorkGraphModel.blockedChip(p, boxes, 0, 1, chip))
+        assertForces(WorkGraphModel.clearance(p, extents: boxes, edges: [(0, 1, chip)]), [(-0.003, 0.003), (0.003, 0.003), (0, -0.006)],
+                     "端は線に沿って離れ、札に触れるCは札から離れる")
+        assertForces(WorkGraphModel.clearance(p, extents: boxes, edges: [(0, 1, nil)]), [(0, 0.0015), (0, 0.0015), (0, -0.003)], "札が無ければ線の押しだけ")
+        // 長い線の札は空きslotがありふさがれない。
+        let far = [CGPoint(x: 100, y: 300), CGPoint(x: 700, y: 300)]
+        XCTAssertNil(WorkGraphModel.blockedChip(far, [simBox(), simBox()], 0, 1, chip))
+    }
+
+    func testEveryBlockedChipActsWhenTwoRequestsRunBetweenTheSamePair() {
+        // A→BとB→Aの札はそれぞれ押す。Dに触れるのは大きい方（B→A）の札だけ。線の押しは二人で1回。
+        let p = [CGPoint(x: 100, y: 300), CGPoint(x: 170, y: 300), CGPoint(x: 240, y: 270)]
+        let boxes = Array(repeating: simBox(), count: 3)
+        let small = CGSize(width: 100, height: 30), large = CGSize(width: 200, height: 30)
+        XCTAssertNotNil(WorkGraphModel.blockedChip(p, boxes, 0, 1, small))
+        XCTAssertNotNil(WorkGraphModel.blockedChip(p, boxes, 1, 0, large))
+        // 各札が自分の端に触れて線を伸ばす（-0.003ずつ、計-0.006）。Dは大きい札の中心から押され、両端が半分ずつ受ける。
+        assertForces(WorkGraphModel.clearance(p, extents: boxes, edges: [(0, 1, small), (1, 0, large)]),
+                     [(-0.007499847, 0.000021426), (0.004500153, 0.000021426), (0.002999694, -0.000042853)],
+                     "両方向の札が働く")
+    }
+
+    func testBestSwapCountsAnEdgeThroughAMemberAsOneCrossing() {
+        let boxes = Array(repeating: simBox(), count: 4)
+        let q = points([(0, 0), (400, 0), (200, 10), (200, 200)])
+        XCTAssertNil(WorkGraphModel.bestSwap(q, [(0, 1)]), "交差は無い")
+        let swap = WorkGraphModel.bestSwap(q, [(0, 1)], clear: boxes)
+        XCTAssertEqual([swap?.pair.0, swap?.pair.1], [0, 2])
+        XCTAssertEqual(swap?.gain, 1, "線が通るメンバーを1交差に数える")
+        // 名前の高さで箱が変わる：メンバーが線の上にいて、nameHeight 18では名前が線に届かず、50では届く。
+        let r = points([(0, 0), (400, 0), (200, -60), (200, 200)])
+        XCTAssertNil(WorkGraphModel.bestSwap(r, [(0, 1)], clear: boxes))
+        let tall = WorkGraphModel.bestSwap(r, [(0, 1)], clear: Array(repeating: simBox(nameHeight: 50), count: 4))
+        XCTAssertEqual([tall?.pair.0, tall?.pair.1], [0, 2])
+        XCTAssertEqual(tall?.gain, 1)
+    }
+
     /// a=左上 b=右上 c=左下 d=右下。a>dとb>cが交差する。
     private func crossedModel() -> WorkGraphModel {
         let model = WorkGraphModel()

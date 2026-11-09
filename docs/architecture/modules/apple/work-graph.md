@@ -11,9 +11,12 @@ flowchart LR
   Model --> Stream["BellAPI.eventStream(path:)<br/>GET /api/work-graph/events"]
   Stream --> Model
   Model --> Sim["WorkGraphSimulation（純粋）<br/>力学・入退場・点滅位相・流れの点"]
-  Model -->|"30コマごと（step末尾）"| Uncross["WorkGraphModel.bestSwap(_:_:)<br/>直線の線の交差を数え、最も減る2人（同数は並び順の先）の位置と速度を入れ替える<br/>αは変えない"]
+  Model -->|"毎コマ（step、衝突の前）"| Clear["WorkGraphModel.clearanceForces<br/>関係ないメンバーの四角（アイコン＋描く名前、6pt広げる）を<br/>線と、ふさがれた札から押し出す（kc 0.003）<br/>線の両端は逆の押し、自分の端に当たる札は線を伸ばす"]
+  Chips -->|"札の大きさ（Chip.size）"| Clear
+  Model -->|"30コマごと（step末尾）"| Uncross["WorkGraphModel.bestSwap(_:_:clear:)<br/>直線の線の交差と、関係ないメンバーの四角（広げない）を通る線を各1回と数え、最も減る2人（同数は並び順の先）の位置と速度を入れ替える<br/>αは変えない"]
   Uncross -->|"入れ替えた2人: glideFrom・glideAt"| Look["WorkGraphModel.appearance<br/>描く位置はglideFromから新しい位置へ（enter曲線）<br/>動きを減らす設定は200msの出て入る"]
   Look --> View
+  View -->|"名前ごとに3ptのcanvas色の縁取り（8方向の同じ文字）を先に描く"| Halo["WorkGraphView.drawNode"]
   View --> Avatar["AvatarView（Canvas symbols）<br/>GET /api/bots/:id/avatar?v=avatarVersion"]
   View -->|"毎フレームの線・指しているメンバー・Macのポインタが乗る線"| Chips["WorkGraphModel.layoutChips<br/>札をlatch frameで一度だけ作り辺の終わりまで残す<br/>置き場所t・blocked・指した札・待つ札の見せ方（peek）<br/>名前の置き場所（下→上→隠す）と見せるメンバー"]
   View -->|"押下・指した位置"| Hit["WorkGraphModel.hit(at:)<br/>メンバー（44pt四方以上）＞札＞blockedの札＞線"]
@@ -28,7 +31,7 @@ flowchart LR
 
 | 部品 | 持つもの | 持たないもの |
 | --- | --- | --- |
-| `WorkGraphModel` | 描画中のnodes/edges（botId・edge id鍵）、epoch/version、各nodeの位置・速度・入退場の開始時刻、熱α、接続状態（接続中・再接続中・degraded・未対応）、再接続の待ち時間。各edgeの札（`Line.chip`：置いたt・現れた時刻・nullへ戻った時刻・最後の文）と、最後のフレームの札の層（`chips`）と線（タップ判定用）、iPhone/iPadで線をタップして札を見せている辺（`tappedEdge`） | 永続状態（無い）。HTTPの再試行の判断以外の通信 |
+| `WorkGraphModel` | 描画中のnodes/edges（botId・edge id鍵）、epoch/version、各nodeの位置・速度・入退場の開始時刻、熱α、接続状態（接続中・再接続中・degraded・未対応）、再接続の待ち時間。各edgeの札（`Line.chip`：置いたt・現れた時刻・nullへ戻った時刻・最後の文）と、最後のフレームの札の層（`chips`）と線（タップ判定用）、iPhone/iPadで線をタップして札を見せている辺（`tappedEdge`）。札の大きさ（`Chip.size`、`layoutChips`が毎コマ書く。clearanceが読む） | 永続状態（無い）。HTTPの再試行の判断以外の通信 |
 | `WorkGraphSimulation` | 1フレームの力計算と積分、入退場の補間、点滅の不透明度、流れの点の位置 | 状態の保持（引数で受けて返す） |
 | `WorkGraphView` | 1つのTimelineViewと1つのCanvas。描画順は辺→blockedの札→node（名前を含む）→重ならない札→指している札。札の文の測定（`chipSize`）と描画。アクセシビリティ要素の一覧。押下中の`WorkGraphPress`（`@State`。押している間だけtrueの`@GestureState`が戻る時に消す）とMacのポインタ位置（hover） | 位置・札の置き場所の計算（モデルが持つ）。会話を開く画面遷移（`AppStore.openConversation`が持つ） |
 | `WorkGraphPress` | 押した位置・時刻・押した時のbotId・10pt以上動いたか・今の指の位置（iPhone/iPadの札を出す位置）。タップの判定（`isTap`：10pt未満・500ms未満。メンバーも線も同じ） | 図の状態（押した後の変化を見ない） |
@@ -42,6 +45,7 @@ flowchart LR
 | 入退場 | member-enterは画面外の決まった角度から飛び込み、member-leaveは中心から外へ飛び去る。leave開始後のnodeは力を出さない |
 | 辺 | edge-startで線が依頼元から伸び、その後に点が依頼元から依頼先へ流れる。edge-endで薄れて消える |
 | 交差の解消 | behavior-spec.md「Uncrossing swaps」。`step`の末尾で、進めたコマ数（`dt × 60`）が30たまるごとに1回。開いた線（`endedAt`なし）で両端が退場中でないものを、A→BもB→Aも1本の直線として`crossings`/`bestSwap`（layout-sim.mjsの写し）に渡す。2本が端を共有すれば交差に数えない。線を持つ人を含む組ごとに、入れ替えて減る交差を数え、1以上減る中で最大の1組（同数はbotId順の先）の`position`と`velocity`を入れ替える（αは変えない）。減る組が無ければ入れ替えない。入れ替えた人は`glideFrom`（入れ替え前の描いた位置）と`glideAt`を持ち、`appearance`が700msでenter曲線に沿って新しい位置へ滑らせる。入場中の人は`glideFrom`を持たず、入場の補間のまま新しい位置へ向かう。動きを減らす設定では滑らせず、200msの前半は元の位置で消え、後半は新しい位置で現れる。線と札は描いた位置に従う |
+| clearance | behavior-spec.md「Clearance」、layout-sim.mjsの写し。`step`が毎コマ、ばね・斥力の後・積分の前に`clearanceForces`の力を足す（αで掛ける）。メンバーの四角＝アイコンの正方形と描く名前の文字の四角（`placeName`。隠れた名前は含めない）の合併。線の押しは開いた線ごと（A→BとB→Aは1本、二人で1回）、札の押しと線の伸びは札を持つ依頼ごと（A→BとB→Aの札はそれぞれ働く）に行う。両端でない退場中でないメンバーCについて、線がCの四角（6pt広げる）に入れば、Cを線の最近点から押し出し（kc = 0.003）、両端は逆向きに`1−t`・`t`で受ける（Cの中心が線の真上なら線の法線）。札がふさがれていれば（`layoutChips`が書いた`Chip.size`で、全slotが自分の端を含む全メンバーの四角にふさがる）、`t = 0.5`の札の四角（4pt広げる）がCの四角（広げない）に触れる時、Cを札の中心から押し出し両端は半分ずつ。ふさがれた札が自分の端に触れていれば両端を線に沿って離す。札を持たない線（`label`なし・消え際）は札の力が無い。衝突・境界・札の置き場所は変えない |
 | 熱 | 変更を適用した時と大きさが変わった時にα=1。毎フレーム減衰し、下限で漂い続ける |
 | 切断 | 通信の失敗・終了、または35秒無通信。最後の図を残し、点滅と流れを止め、彩度を落として`再接続中…`を出す。直ちに、その後1,2,4,8,15,15…秒（±20%）で再接続し、開いている間は諦めない |
 | degraded | 空でない間は図を出したまま`一部の情報を取得できていません`を出す |
@@ -55,7 +59,7 @@ flowchart LR
 ## 仕様との違い（Owner指示、2026-11-08）
 
 - 配置・大きさはbehavior-spec.mdの改訂（描画範囲Dで正規化した力、各軸の広がりに合わせた重力、`S×2.2`の衝突、人数による縮小）と同じ式で、`WorkGraphModel.step`に写している。数値は仕様と[layout-sim.mjs](../work-graph/layout-sim.mjs)が正本。
-- 線とアイコンを重ねない（Owner）：衝突の後に、つながっていない線から`S/2+10pt`より近いアイコンを線に垂直に押し出し（不足分の35%/フレーム）、線の両端を各7.5%逆へ動かす。
+- 線とアイコンを重ねない：以前のApple独自の押し出し（`S/2+10pt`の円、位置を直接動かす）は、behavior-spec.md「Clearance」の力（`clearanceForces`）に置き換えた。
 - 演出（Owner）：線は依頼元の会話の窓の色（`AvatarTone`、アバター画像からの代表色）を濃くした電線（淡い被覆7pt＋導線2.5pt）。中を同じ色相の明るい筋（破線16/30pt）が90pt/sで依頼元から依頼先へ走る。光はぼかさず太さの違う2本で描く。依頼の文は封筒の印・依頼元の色の左帯と縁・線を指す尖りの付いた白い札。札は最大180pt幅で、文は切らずに折り返し、行の高さ16ptで行数ぶん伸びる（behavior-spec.md、Owner裁定 2026-11-09）。封筒は1行目の高さに置く。
 - 描画は1秒30回（TimelineViewのminimumInterval）。毎表示フレームと毎フレームのぼかしで、Mac 115の相関図がCPUを94%使った。
 - 札の表示と置き場所は仕様（「Edges」）どおりで、上の「札」の行に書いた。札の形（線の上に浮かせ、下の尖りで線を指す）だけがApple独自で、置き場所の判定は尖りを含む範囲で行う。`label`がnull（要約がまだ無い）の線は札を出さない（読み上げは`<依頼元>から<依頼先>へ依頼`）。
@@ -74,6 +78,7 @@ flowchart LR
 - 同ファイル（名前）: 下が他のアイコンに重なる名前は顔の上へ移る・上下とも重なる名前は隠れて障害物にならず、その欄の押下はメンバーへ行く・指している間だけ見えて札がよけ、ほかのメンバーを指しても見えない。
 - 同ファイル: タップ範囲の44pt四方・10pt/500msの境目・線/札/空いた所で開かない・押した時のbotIdを退場後も保つ・取り消された押下の後の同じ位置の新しい押下は新しいメンバーを開く・最初の標本が10pt以上動いていれば動いた扱い・400〜500msの押下はタップで500ms以上は開かない・相関図から開いた会話で戻ると相関図のタブへ帰る（縮んだiPadの`returnFromConversation`を含む）。
 - 同ファイル（待つ札）: 待つ札の線をタップすると`t = 0.5`で最前面に出て置き場所は取らず、空いた所のタップで待つ状態へ戻る・別の線のタップで見せる札が移る（見せている札そのもののタップは動かさない）・メンバーのタップは線に奪われず見せている札を消す・終わった辺は押せず見せない・Macは線にポインタが乗る間だけ見せる・`isTap`の10pt/500msの境目。
+- 同ファイル（clearance）: layout-sim.mjsの`segmentHitsBox`/`nodeBox`/`chipAt`と、1コマの押しの向きと大きさ・ふさがれた札が自分の端に触れた時の線の伸び・`bestSwap`が線の通過を1交差に数えること・`nameHeight`の効きを同じ配置で実行して得た値と一致する。同じ二人の逆向きの依頼の札がどちらも働く（片方の札にだけ触れるメンバーも押される）。
 - 同ファイル（交差の解消）: layout-sim.mjsの`crossings`/`bestSwap`を実行して得た値を写した固定の配置（交差する正方形・減らない配置・同数の組・退場中を除く・5人全結合の交差が0にならない）で、数と選ばれる組が一致する・`step`が30コマごとに1組だけ入れ替えて位置と速度を渡しαは変えない・入れ替えた人の描いた位置が連続して700msで新しい位置に着く・動きを減らす設定は200msの出て入る。
 - `BellBotUITests/WorkGraphTapUITests.swift`（iPhone）: fixtureの相関図でハルを押すとハルの会話が開き、戻ると相関図のタブへ帰る。fixtureのURLは`TEST_RUNNER_BELLTEAM_WORK_GRAPH_FIXTURE_URL`。
 - 描画の画面写真は`test/helpers/work-graph-server.mjs`（契約どおりのsnapshotとchangeを流すfixture。長い依頼の文2本と`label`がnullの線を含む）で撮る。

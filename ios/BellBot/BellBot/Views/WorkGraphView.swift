@@ -323,7 +323,16 @@ struct WorkGraphView: View {
         }
         let name = layer.resolve(Text(body.node.name).font(.system(size: BellTheme.listNameFontSize, weight: .semibold))
             .foregroundColor(body.node.working ? BellTheme.ink : BellTheme.muted))
-        if !model.nameHidden(body, at: now) { layer.draw(name, in: model.frames(body, at: now).name) }
+        if !model.nameHidden(body, at: now) {
+            // 名前の縁取り（3pt幅の線と同じ）：canvas色の同じ文字を8方向へ1.5pt動かして先に描く。線と札が文字を横切らない（behavior-spec.md「Clearance」）。
+            let halo = layer.resolve(Text(body.node.name).font(.system(size: BellTheme.listNameFontSize, weight: .semibold)).foregroundColor(BellTheme.canvas))
+            let frame = model.frames(body, at: now).name
+            for k in 0..<8 {
+                let angle = Double(k) * .pi / 4
+                layer.draw(halo, in: frame.offsetBy(dx: 1.5 * cos(angle), dy: 1.5 * sin(angle)))
+            }
+            layer.draw(name, in: frame)
+        }
     }
 
     // MARK: Overlays
