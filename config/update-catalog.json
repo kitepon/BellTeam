@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-09T01:52:34Z",
-  "expiresAt": "2026-11-16T01:52:34Z",
+  "publishedAt": "2026-11-09T03:22:27Z",
+  "expiresAt": "2026-11-16T03:22:27Z",
   "releases": [
     {
       "componentId": "usage",
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "9f718613d65d09d716eae780af0d24a688609eb9",
-      "versionId": "sha256:773367581f57bc27fb26f697d3c1f1cd037438b08048359d6fbb239e4dbe5441",
+      "sourceCommit": "7c54e0e048c9873f5ff91382413862a0bf7efd70",
+      "versionId": "sha256:766cf3000cb5ffd4bad5564bed1b3adc6c91bf023b5cd9c60ca7d9a90f27eff9",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:773367581f57bc27fb26f697d3c1f1cd037438b08048359d6fbb239e4dbe5441"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:766cf3000cb5ffd4bad5564bed1b3adc6c91bf023b5cd9c60ca7d9a90f27eff9"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,21 +722,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "設定環境を変えず、選んだアカウントのログイン情報だけをCLIへ渡せるようにします。",
-        "ゲートウェイ切替時は、旧版の停止待ちが時間切れでも、新しい版への切替を続けます。"
+        "複数アカウントの席を正しく識別し、2つ目の席で操作を続けられるようにします。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "9f718613d65d09d716eae780af0d24a688609eb9",
-      "versionId": "sha256:773367581f57bc27fb26f697d3c1f1cd037438b08048359d6fbb239e4dbe5441",
+      "sourceCommit": "7c54e0e048c9873f5ff91382413862a0bf7efd70",
+      "versionId": "sha256:766cf3000cb5ffd4bad5564bed1b3adc6c91bf023b5cd9c60ca7d9a90f27eff9",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:773367581f57bc27fb26f697d3c1f1cd037438b08048359d6fbb239e4dbe5441"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:766cf3000cb5ffd4bad5564bed1b3adc6c91bf023b5cd9c60ca7d9a90f27eff9"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -745,8 +744,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "設定環境を変えず、選んだアカウントのログイン情報だけをCLIへ渡せるようにします。",
-        "ゲートウェイ切替時は、旧版の停止待ちが時間切れでも、新しい版への切替を続けます。"
+        "複数アカウントの席を正しく識別し、2つ目の席で操作を続けられるようにします。"
       ]
     }
   ],
