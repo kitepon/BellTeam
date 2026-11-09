@@ -105,3 +105,18 @@ test('without onePasswordAvailable === true the dialog is the existing value-onl
     assert.deepEqual(f.calls.at(-1).body, { value: 'synthetic-value' })
   }
 })
+
+test('terminal.ssh stored value is a multiline field sent byte-exact; sudo and other secrets keep the password input', async t => {
+  const f = fixture(t, ok)
+  const key = '-----BEGIN OPENSSH PRIVATE KEY-----\nsynthetic line one\nsynthetic line two  \n-----END OPENSSH PRIVATE KEY-----\n'
+  const ssh = f.open({ ...pending, botId: null, terminalId: 'owner-macbook', purpose: 'terminal.ssh', inputOptions: { preferred: 'onepassword', onePasswordAvailable: true } })
+  const area = ssh.querySelectorAll('textarea')[0], p = f.parts(ssh)
+  assert.equal(p.value, undefined); assert.equal(area.hidden, true); assert.equal(p.reference.hidden, false)
+  p.radios[1].handlers.change(); assert.equal(area.hidden, false)
+  area.value = key; p.submit(); await turn()
+  assert.deepEqual(f.calls.at(-1).body, { value: key }); assert.equal(area.value, '')
+  for (const purpose of ['terminal.sudo', undefined]) {
+    const dialog = f.open({ ...pending, purpose })
+    assert.equal(dialog.querySelectorAll('textarea').length, 0); assert.ok(f.parts(dialog).value)
+  }
+})
