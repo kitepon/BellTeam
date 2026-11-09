@@ -4,7 +4,10 @@ import { isIP } from 'node:net'
 import { join } from 'node:path'
 import { writeAtomic } from '../json-file.mjs'
 
-const fields = ['host', 'user', 'port', 'os', 'accountOwner', 'sshKeyRef', 'sudoKeyRef', 'hostTrust']
+const fields = ['host', 'user', 'port', 'os', 'accountOwner', 'sshKeyRef', 'sudoKeyRef', 'hostTrust', 'keySource', 'sudoKeySource', 'bindingRef', 'sshKeyRequest', 'sudoKeyRequest']
+// Set only by terminals itself (key setting, Aiterm binding); never taken from a caller's register/update input.
+export const INTERNAL_FIELDS = ['hostTrust', 'keySource', 'sudoKeySource', 'bindingRef', 'sshKeyRequest', 'sudoKeyRequest']
+const SOURCES = ['terminal-native', 'secret']
 const STATUS = { INVALID_TERMINAL: 400, TERMINAL_NOT_FOUND: 404, TERMINAL_EXISTS: 409, INVALID_TERMINAL_STORE: 500 }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const slug = /^[a-z0-9][a-z0-9-]{0,62}$/
@@ -28,7 +31,7 @@ function validate(record, stored = false) {
   if (!object(record)) throw invalid('Terminal fields must be one JSON object')
   if ('ingressUrl' in record) throw invalid('ingressUrl was removed: Aiterm routes the seat MCP over the terminal\'s SSH reverse forward. Omit it')
   const unknown = Object.keys(record).filter(key => !allowed.includes(key))
-  if (unknown.length) throw invalid(`Unknown terminal fields: ${unknown.join(', ')}. Allowed: terminalId, ${fields.filter(key => key !== 'hostTrust').join(', ')}, confirmHostKey`)
+  if (unknown.length) throw invalid(`Unknown terminal fields: ${unknown.join(', ')}. Allowed: terminalId, ${fields.filter(key => !INTERNAL_FIELDS.includes(key)).join(', ')}, confirmHostKey`)
   if (stored && (!slug.test(record.terminalId ?? '') || !Number.isSafeInteger(record.revision) || record.revision < 1)) throw invalid('Invalid terminal identity or revision')
   if (typeof record.host !== 'string' || !(isIP(record.host) || /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/i.test(record.host))) throw invalid('host must be the terminal\'s IP address or DNS name only (no user@, port, path or ssh options), for example 192.168.1.12')
   if (typeof record.user !== 'string' || !/^[a-z_][a-z0-9_.-]*[$]?$/i.test(record.user)) throw invalid('user must be the login user name on the terminal, for example kite')
@@ -38,13 +41,17 @@ function validate(record, stored = false) {
   // Optional: a terminal is registered first and its key bound later (bind_terminal_key); until then targets are CREDENTIAL_UNAVAILABLE.
   if (record.sshKeyRef !== undefined) checkRef('sshKeyRef', record.sshKeyRef, 'SSH key')
   if (record.sudoKeyRef !== undefined) checkRef('sudoKeyRef', record.sudoKeyRef, 'sudo password')
+  for (const field of ['keySource', 'sudoKeySource']) if (record[field] !== undefined && !SOURCES.includes(record[field])) throw invalid(`${field} must be terminal-native or secret`)
+  for (const field of ['bindingRef', 'sshKeyRequest', 'sudoKeyRequest']) if (record[field] !== undefined && (typeof record[field] !== 'string' || !uuid.test(record[field]))) throw invalid(`${field} must be a UUID`)
   // hostTrust is Elegg's public trust ref: {provider:'aiterm.known-hosts.v1', revision:'sha256:<64hex>'}; set by terminals, not callers.
   if (record.hostTrust !== undefined && (!object(record.hostTrust) || Object.keys(record.hostTrust).length !== 2 || typeof record.hostTrust.provider !== 'string' || !/^[a-z0-9][a-z0-9._-]*$/i.test(record.hostTrust.provider) || typeof record.hostTrust.revision !== 'string' || !/^sha256:[0-9a-f]{64}$/.test(record.hostTrust.revision))) throw invalid('hostTrust is set by terminals from the trusted host key; to trust a changed host key pass confirmHostKey with the SHA256: fingerprint the Owner confirmed')
 }
 
 function projection(record) {
-  const { sshKeyRef, sudoKeyRef, ...publicRecord } = record
-  return structuredClone({ ...publicRecord, sshKeyConfigured: Boolean(sshKeyRef), sudoKeyConfigured: Boolean(sudoKeyRef) })
+  const { sshKeyRef, sudoKeyRef, keySource, sudoKeySource, bindingRef: _binding, sshKeyRequest, sudoKeyRequest, ...publicRecord } = record
+  return structuredClone({ ...publicRecord, sshKeyConfigured: Boolean(sshKeyRef), sudoKeyConfigured: Boolean(sudoKeyRef),
+    keySource: sshKeyRef ? keySource ?? 'terminal-native' : null, sudoKeySource: sudoKeyRef ? sudoKeySource ?? 'secret' : null,
+    sshKeyPending: Boolean(sshKeyRequest), sudoKeyPending: Boolean(sudoKeyRequest) })
 }
 
 export function createTerminalRegistry({ stateRoot, onChange } = {}) {
@@ -102,14 +109,15 @@ export function createTerminalRegistry({ stateRoot, onChange } = {}) {
         return { changed: true, value: projection(record), event: { terminalId: record.terminalId, revision: record.revision, removed: false } }
       })
     },
-    update(terminalId, patch) {
+    // `expect(stored)` makes the write conditional inside the writer: false -> no change, result null.
+    update(terminalId, patch, expect) {
       return mutate(records => {
         if (!object(patch) || Object.keys(patch).some(key => !fields.includes(key))) throw invalid(`Unknown terminal fields. Allowed: ${fields.join(', ')}`)
         const index = records.findIndex(item => item.terminalId === terminalId)
         if (index < 0) throw invalid('Terminal not found; list_terminals shows the registered terminalIds', 'TERMINAL_NOT_FOUND')
+        if (expect && !expect(structuredClone(records[index]))) return { changed: false, value: null }
         const record = { ...records[index], ...structuredClone(patch), revision: records[index].revision + 1 }
-        if (record.sudoKeyRef === null) delete record.sudoKeyRef
-        if (record.hostTrust === null) delete record.hostTrust
+        for (const field of ['sshKeyRef', 'sudoKeyRef', 'hostTrust', ...INTERNAL_FIELDS]) if (record[field] === null) delete record[field]
         validate(record, true)
         records[index] = record
         return { changed: true, value: projection(record), event: { terminalId, revision: record.revision, removed: false } }
