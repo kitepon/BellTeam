@@ -46,20 +46,24 @@ Held in the existing in-memory `sessions` / `seatHarnesses` maps plus one `remot
 ## Calls execution makes (P1)
 
 1. `members.instructions.launchContext({botId, sessionName, shortTermMemory})` → `{text, revision}`. `text` = what members writes today into the local project (`AGENTS.md` with common rules, Owner info, user rules, member profile, `AGENTS.local.md`) plus `memory/previous-session.md` content, composed in memory. Members writes **nothing** for a remote member. `shortTermMemory` = today's `handoffContext` output. Failure → the launch returns `effect: 'not_started'` with the members error code.
-2. `ingress.seatCredential.issue({botId, sessionName, terminalId})` → `{url, credentialRef}` (C4, Molly). `url` = LAN MCP endpoint; `credentialRef` opaque, never a value in execution JSON. Revoked by `ingress.seatCredential.revoke({sessionName})` when execution closes or replaces the seat.
+2. `ingress.seatCredential.issue({botId, sessionName, terminalId})` → `{url, credentialRef}` (C4, Molly). `url` = LAN MCP endpoint; `credentialRef` opaque, never a value in execution JSON; the seat sends the resolved value as `Authorization: Bearer`. Revoked by `ingress.seatCredential.revoke({sessionName})` when execution closes or replaces the seat.
 3. `terminals.connection.open({terminalId, memberId: botId, projectRoot, seatBinding: {botId, sessionName}, accountOwner})` → `{connectionRef, native}` or a classified error. `native` is a bound port with the **same method surface as today's AitermClient native calls** (`callTool(name, args, options)` for `agent_launch`, `pty_send`, `pty_observe`, `pty_read`, `claude_turn`/wait, `agent_stop`, `pty_close`), plus `transcript.read(cursor)` (C7). Execution routes every native call for that Bot through this port instead of the shared client; all other execution logic is unchanged.
-4. Launch through `native.callTool('agent_launch', launchPlan, privateOptions)`:
+4. Launch through `native.callTool('agent_launch', launchPlan, { private })`:
 
 ```js
 launchPlan = { // same keys as today's local agent_launch args
   harness: 'claude-code', cwd: projectRoot, session_name: sessionName, trust_project: true,
   model, reasoning_effort, fast }
-privateOptions = { // never in argv, PTY capture, logs or the receipt
-  appendSystemPrompt: launchContext.text,          // Claude --append-system-prompt equivalent; Elegg picks the carrier
-  mcpServers: { bellteam: { type: 'http', url, credentialRef }, 'call-bridge': { type: 'http', url: url + '/call-bridge', credentialRef } },
-  claudeLogin: slot === '1st' ? null : slot,       // slot name only; the value is resolved in the private channel
+options.private = { // Elegg remote-terminal.md (aiterm-mcp feat/remote-terminal-c3): files in remote Aiterm's 0700 launch state only
+  appendSystemPrompt: launchContext.text,          // --append-system-prompt-file
+  mcpConfig: { mcpServers: { bellteam: { type: 'http', url, headers: {
+    Authorization: 'Bearer ${BELLTEAM_MCP_TOKEN}', 'X-Bellteam-Seat': '${AITERM_SESSION_ID}', 'X-Bellteam-Launch-Id': '${AITERM_AGENT_LAUNCH_ID}' } },
+    'call-bridge': { /* same headers, url + '/call-bridge' */ } } }, // --mcp-config; no secret value in it
+  env: ['BELLTEAM_MCP_TOKEN', ...(slot === '2nd' ? ['CLAUDE_CODE_OAUTH_TOKEN'] : [])], // names only
 }
 ```
+
+Values never pass through execution: at `open`, execution names `credentials = { BELLTEAM_MCP_TOKEN: credentialRef, CLAUDE_CODE_OAUTH_TOKEN: { harness: 'claude', slot: '2nd' } | absent }`; terminals resolves them inside its private resolution (`credentialRef` through Molly/Mika, the slot login through the existing seat-user `accountLoginEnvironment` read, only when `accountOwner` is `owner`) and hands them as `privateEnv` to Elegg's `openRemoteTerminal`. One connection per seat launch, so a slot switch (fresh seat) opens a fresh connection. A missing `projectRoot` returns `CWD_UNAVAILABLE` before any session exists; execution maps it to `not_started` like the other availability codes, its exit is the member's folder revision or the folder appearing.
 
 The receipt must stay `aiterm.agent-launch-result.v1` with `session_id === sessionName`, `launch_id`, `startup.status`, `fast`. Execution validates it exactly as today.
 
@@ -98,7 +102,7 @@ stateDiagram-v2
 | Live activity for member cards | `pty_observe` / SeatTurns observations, same schema | current-work, background summary (unchanged) |
 | Session transcript for short-term memory | `transcript.read({sessionName, cursor})` → `{entries: [...jsonl lines], cursor}`; cursor = `{claudeSessionId, offset}` of `~/.claude/projects/<cwd>/<id>.jsonl` on the terminal | Throughline ingest (proposed, Rivalin): execution forwards `{botId, sessionName, launchId, entries, cursor}` after each turn end and after reconnect; Throughline acks the cursor it stored; execution keeps only the last acked cursor in memory |
 
-Completion boundary (Rivalin 2026-11-09, Throughline ADR0002): `transcript.read` returns entries only through the end of the latest turn **the native adapter confirmed complete** for that Claude session (the same completion its `claude_turn` wait reports), never an unfinished tail, including after reconnect. Assistant presence, file mtime or process exit is not completion. Execution calls `transcript.read` only after it holds a native completion for that session; after a mid-turn reconnect it first waits that turn's completion through the bound port, then reads. Byte contract (Rivalin): each entry is a complete original JSONL line with its original line ending; `offset` is the exclusive UTF-8 byte offset; range start = end − Σ byteLength(entries).
+Completion boundary (Rivalin 2026-11-09, Throughline ADR0002): `transcript.read` returns entries only through the end of the latest turn **the native adapter confirmed complete** for that Claude session (the same completion its `claude_turn` wait reports), never an unfinished tail, including after reconnect. Assistant presence, file mtime or process exit is not completion. Elegg binds the offset to the Claude Stop hook (`agent_done` records transcript_path and the last complete line offset); with no completion recorded the read returns `[]` and the same cursor; a line flushed after Stop appears in the next completed read. Execution calls `transcript.read` only after it holds a native completion for that session; after a mid-turn reconnect it first waits that turn's completion through the bound port, then reads. Byte contract (Rivalin): each entry is a complete original JSONL line with its original line ending; `offset` is the exclusive UTF-8 byte offset; range start = end − Σ byteLength(entries).
 
 Reconnect reads from the last acked cursor, so nothing is duplicated and no delivered input is replayed. The terminal keeps no BellTeam history copy; history stays the conversation module's.
 
@@ -108,8 +112,8 @@ Local seats (no `terminalId`): byte-for-byte today's path. Delivery ordering, du
 
 ## Open contracts (owners)
 
-- terminals (Crust): `open` returns the bound native port above; `available(terminalId)` event; classified codes `TERMINAL_UNAVAILABLE`, `CREDENTIAL_UNAVAILABLE`, `TARGET_MISMATCH`.
-- Aiterm remote adapter (Elegg): `privateOptions` carrier (instructions, MCP config with credential, login) excluded from argv/capture; same receipts; `transcript.read`.
+- terminals (Crust): `open` returns the bound native port above; `available(terminalId)` event; classified codes `TERMINAL_UNAVAILABLE`, `CREDENTIAL_UNAVAILABLE`, `TARGET_MISMATCH` (plus Elegg's `CWD_UNAVAILABLE`, `CONNECTION_LOST`); `credentials` names resolved into `privateEnv`.
+- Aiterm remote adapter (Elegg): settled in aiterm-mcp `docs/architecture/remote-terminal.md` (b35eb48): `options.private`, same results, `transcript.read` completion boundary, `lost` event without auto-reconnect.
 - members (Belorta): `launchContext`.
 - common ingress (Molly): `seatCredential.issue/revoke`, LAN endpoint, verification of the credential against `{botId, sessionName, launchId}` instead of trusting `X-Bellteam-Seat`.
 - Throughline (Rivalin): ingest with cursor ack, and `handoffContext` reading that ingest for remote seats.
