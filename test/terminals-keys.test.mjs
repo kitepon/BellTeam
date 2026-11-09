@@ -10,6 +10,8 @@ import { fakeNative } from './helpers/terminals-native-double.mjs'
 
 const requestId = 'e1b2c3d4-1234-4234-8234-123456789abc'
 const requestB = 'e2b2c3d4-1234-4234-8234-123456789abc'
+const nativeHandle = 'a9b2c3d4-1234-4234-8234-123456789abc'
+const fingerprint = `SHA256:${'A'.repeat(43)}`
 const handle = 'f1b2c3d4-1234-4234-8234-123456789abc'
 const terminal = { terminalId: 'friend-mac', host: '192.168.1.40', user: 'yui', os: 'macos', accountOwner: 'terminal-owner' }
 
@@ -29,7 +31,8 @@ function fakeCredentials() {
     current(scope) { calls.push({ op: 'current', scope }); return typeof current === 'function' ? current() : current },
     async unbind(ref, scope) { calls.push({ op: 'unbind', ref, scope }) },
     credential(ref) { return { handle: ref, revision: 1, available: true } },
-    async withResolved() { throw new Error('a secret key is never resolved by terminals') }
+    // Native handle -> Aiterm ref (registerNative); a card handle -> its value, only for terminals' own credential-load.
+    async withResolved(ref, context, consume) { calls.push({ op: 'resolve', ref }); return consume(ref === nativeHandle ? { nativeKeyRef: 'native-binding', revision: 3 } : 'KEYBYTES') }
   }
 }
 
@@ -150,4 +153,39 @@ test('DELETE, replacement and a target change win over a late card; close joins 
   assert.equal(closed, false, 'close waits for reconciliation in flight')
   release()
   await closing
+})
+
+test('mounted core: a card key is loaded into Aiterm before its own check; a native terminal moved to a new host gets a new binding', async t => {
+  const stateRoot = await mkdtemp(join(tmpdir(), 'terminals-keys-core-'))
+  t.after(() => rm(stateRoot, { recursive: true, force: true }))
+  const native = fakeNative()
+  const credentials = fakeCredentials()
+  const core = createTerminalsCore({ stateRoot, credentials, adapter: native })
+  t.after(() => core.close())
+  const registered = 'd1b2c3d4-1234-4234-8234-123456789abc'
+
+  // Card key through the real core seam (lazy adapter forwards loadCredential).
+  await core.registry.put(terminal)
+  await core.keys.request('friend-mac', 'ssh')
+  credentials.emit({ terminalId: 'friend-mac', purpose: 'terminal.ssh', handle, revision: 1, available: true, reason: 'revision', requestId })
+  await settle()
+  await core.registry.put({ terminalId: 'friend-mac', confirmHostKey: fingerprint })
+  assert.equal(native.calls.find(call => call.op === 'confirmHostKey').ref, registered)
+  assert.equal((await core.reachability.check('friend-mac')).reachable, true)
+  const load = native.calls.findIndex(call => call.op === 'loadCredential')
+  assert.ok(load >= 0 && load < native.calls.findIndex(call => call.op === 'open'), 'key loaded before the open')
+  assert.deepEqual((({ op, ref, handle: h, purpose }) => ({ op, ref, h, purpose }))(native.calls[load]), { op: 'loadCredential', ref: registered, h: handle, purpose: 'ssh-key' })
+
+  // Native Owner terminal -> host change: the old native binding is neither reused nor auto-trusted.
+  await core.registry.put({ terminalId: 'owner-mac', host: '192.168.1.12', user: 'kite', os: 'macos', accountOwner: 'owner', sshKeyRef: nativeHandle })
+  assert.equal((await core.registry.get('owner-mac')).keySource, 'terminal-native')
+  const moved = await core.registry.put({ terminalId: 'owner-mac', host: '192.168.1.13' })
+  assert.deepEqual([moved.sshKeyConfigured, moved.keySource, moved.hostTrust], [false, null, undefined])
+  assert.deepEqual(credentials.calls.find(call => call.op === 'unbind'), { op: 'unbind', ref: nativeHandle, scope: { terminalId: 'owner-mac', purpose: 'terminal.ssh' } })
+  const trustsBefore = native.calls.filter(call => call.op === 'trust').length
+  await core.registry.put({ terminalId: 'owner-mac', user: 'kite' })
+  assert.equal(native.calls.filter(call => call.op === 'trust').length, trustsBefore, 'no auto-trust from the old binding')
+  await core.keys.request('owner-mac', 'ssh')
+  assert.deepEqual(native.calls.filter(call => call.op === 'register').at(-1).target, { host: '192.168.1.13', user: 'kite', port: 22 }, 'a new binding for the new target')
+  assert.equal(native.calls.some(call => call.op === 'confirmHostKey' && call.ref === 'native-binding'), false)
 })

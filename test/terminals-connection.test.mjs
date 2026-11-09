@@ -59,6 +59,16 @@ test('a secret-key terminal hands the Mika handle, never a value; optional sudo 
     'C8 open loads the key into Aiterm first (stdin), never into the target')
   assert.ok(secret.native.calls.findIndex(call => call.op === 'loadCredential') < secret.native.calls.findIndex(call => call.op === 'open'))
   assert.deepEqual(secret.native.calls.find(call => call.op === 'open').binding.credential, { handle: sshKeyRef, revision: 2 })
+  // Resolution suspended across a revision: no stale credential-load.
+  const gate = deferred()
+  const slow = { ...cardSecrets, calls: [], async withResolved(handle, context, consume) { await gate.promise; return consume('KEYBYTES') } }
+  const suspended = setup(t, { target: { ...base, keySource: 'secret', bindingRef }, secrets: slow })
+  const stale = suspended.connection.target(request)
+  await wait(1)
+  suspended.connection.onRegistryChange({ terminalId: 'owner-macbook', revision: 2, removed: false })
+  gate.resolve()
+  await assert.rejects(stale, { code: 'TERMINAL_UNAVAILABLE' })
+  assert.equal(suspended.native.calls.some(call => call.op === 'loadCredential'), false)
   const unbound = setup(t, { target: { ...base, keySource: 'secret' } })
   await assert.rejects(unbound.connection.target(request), { code: 'CREDENTIAL_UNAVAILABLE', reason: 'BINDING_UNSET' })
   const sudoDown = { ...fakeSecrets(), credential: (handle, context) => ({ handle, revision: 2, available: context.purpose !== 'terminal.sudo' }), withResolved: fakeSecrets().withResolved }

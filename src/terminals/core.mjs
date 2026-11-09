@@ -26,7 +26,7 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
     }
   }
   // Created lazily so a missing Aiterm release only makes targets/checks TERMINAL_UNAVAILABLE.
-  const lazyNative = { connect: request => native().connect(request), trust: ref => native().trust(ref) }
+  const lazyNative = { connect: request => native().connect(request), trust: ref => native().trust(ref), loadCredential: request => native().loadCredential(request) }
   const connection = createTerminalConnection({ registry, secrets, native: lazyNative, ...options })
   connection.onAvailable(({ terminalId }) => publish({ terminalId, reachable: true, observedAt: new Date().toISOString() }))
   const unwatchCredentials = credentials?.watchCredentials?.(event => { void applyKey(event).catch(() => {}); connection.onCredentialEvent(event) })
@@ -86,6 +86,11 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
     if (targetChanged) {
       if (confirmHostKey !== undefined) throw Object.assign(new Error('Change the target first, set its SSH key again, then confirm the host key of the new target'), { code: 'INVALID_TERMINAL', status: 400 })
       Object.assign(input, { bindingRef: null, hostTrust: null, sshKeyRequest: null, sudoKeyRequest: null })
+      // A native key is Aiterm's binding to the old target: not valid for the new one (a card key is, so it stays).
+      if (existing.sshKeyRef && existing.keySource !== 'secret' && !('sshKeyRef' in input)) {
+        await Promise.resolve(credentials?.unbind?.(existing.sshKeyRef, { terminalId: existing.terminalId, purpose: 'terminal.ssh' })).catch(() => {})
+        Object.assign(input, { sshKeyRef: null, keySource: null })
+      }
     }
     const next = { ...existing, ...input, terminalId: input.terminalId }
     if (confirmHostKey !== undefined) input.hostTrust = await confirm(next, confirmHostKey)

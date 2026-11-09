@@ -184,7 +184,7 @@ Aiterm launch argument (Elegg accepted, next aiterm-mcp release): `terminal` is 
 
 Rules the code enforces:
 
-- Native mapping (check and C8 processes): `HOST_TRUST_MISSING` / `HOST_TRUST_STALE` / `HOST_KEY_MISMATCH` / `HOST_KEY_FINGERPRINT_MISMATCH` -> `TARGET_MISMATCH`; `CREDENTIAL_UNUSABLE` / `CREDENTIAL_REVISION_STALE` / `AUTH_FAILED` / `CREDENTIAL_NOT_LOADED` / `CREDENTIAL_REQUIRED` -> `CREDENTIAL_UNAVAILABLE` (a handle key is loaded into Aiterm by Mika's `credential-load` stdin handoff, aiterm-mcp 0.67.0; terminals never loads it); `UNREACHABLE` / `REMOTE_AITERM_*` / `CONNECTION_LOST` / anything unclassified -> `TERMINAL_UNAVAILABLE`. Only the code, Elegg's plain `action` and the host appear; raw native text is dropped. Every `TARGET_MISMATCH` from `target` is recorded through `report` with its action so the Owner sees it.
+- Native mapping (check and C8 processes): `HOST_TRUST_MISSING` / `HOST_TRUST_STALE` / `HOST_KEY_MISMATCH` / `HOST_KEY_FINGERPRINT_MISMATCH` -> `TARGET_MISMATCH`; `CREDENTIAL_UNUSABLE` / `CREDENTIAL_REVISION_STALE` / `AUTH_FAILED` / `CREDENTIAL_NOT_LOADED` / `CREDENTIAL_REQUIRED` -> `CREDENTIAL_UNAVAILABLE` (aiterm-mcp 0.67.0: a handle key must be loaded by `credential-load` on stdin before an open; execution loads it before a launch, terminals before its own check/C8 open, rechecking generation/dispose immediately before the load); `UNREACHABLE` / `REMOTE_AITERM_*` / `CONNECTION_LOST` / anything unclassified -> `TERMINAL_UNAVAILABLE`. Only the code, Elegg's plain `action` and the host appear; raw native text is dropped. Every `TARGET_MISMATCH` from `target` is recorded through `report` with its action so the Owner sees it.
 - Missing `hostTrust`, a non-absolute `projectRoot` or a missing `memberId` -> `TARGET_MISMATCH` before any process starts. `accountOwner` is returned from the registry, not asserted by the caller.
 - Credential and trust are Aiterm-held (UID1000). Mika's callback gives only `{nativeKeyRef, revision}`; the binding ref and revisions are public metadata and are what `terminal` carries. A string value (a future key value) is refused as `CREDENTIAL_UNAVAILABLE`. Every `target` resolves again.
 - `HOST_TRUST_STALE`: terminals re-reads Aiterm's status and stores the new trust revision; that registry change emits `available` and execution re-targets.
@@ -254,7 +254,7 @@ stateDiagram-v2
   Pending --> NoKey: DELETE (unbind + clear) - a late R is ignored
   Configured --> NoKey: DELETE -> Mika unbind, then clear ref/source/request
   Pending --> Retarget: host/user/port changed -> request, bindingRef and hostTrust cleared; late R ignored
-  Configured --> Retarget: host/user/port changed -> bindingRef and hostTrust cleared
+  Configured --> Retarget: host/user/port changed -> bindingRef and hostTrust cleared; a native ssh key (Aiterm binding to the old target) is cleared and unbound, a card key stays
   Retarget --> Pending: POST keys/ssh -> new keyless Aiterm binding for the new target, then confirmHostKey
 ```
 

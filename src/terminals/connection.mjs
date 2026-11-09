@@ -115,8 +115,11 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
       // before a launch. The value exists only inside Mika's callback and goes to Aiterm's stdin.
       if (binding.credential) {
         await secrets.withResolved(target.sshKeyRef, { terminalId: target.terminalId, memberId: null, purpose: 'terminal.ssh' },
-          key => native.loadCredential({ ref: binding.ref, terminalId: target.terminalId, ...binding.credential, purpose: 'ssh-key', key }))
-          .catch(() => { throw Object.assign(new Error('x'), { code: 'CREDENTIAL_NOT_LOADED' }) })
+          key => {
+            if (!current()) throw failure('TERMINAL_UNAVAILABLE') // resolution may have spanned a revision or dispose
+            return native.loadCredential({ ref: binding.ref, terminalId: target.terminalId, ...binding.credential, purpose: 'ssh-key', key })
+          })
+          .catch(error => { throw error?.code === 'TERMINAL_UNAVAILABLE' ? error : Object.assign(new Error('x'), { code: 'CREDENTIAL_NOT_LOADED' }) })
         if (!current()) throw failure('TERMINAL_UNAVAILABLE')
       }
       session = await native.connect({
