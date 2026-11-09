@@ -23,6 +23,10 @@ export function usageResultValid(method, value, params = {}) {
   if (method === 'settings.update') return usageSettingValid(value) && value.id === params.id
   if (['settings.setError', 'onboarding.prepareStartup', 'secrets.notifyOwnerGuide'].includes(method)) return value === null
   if (method === 'secrets.refresh') return exact(value, ['recoveryNeeded']) && typeof value.recoveryNeeded === 'boolean'
+  if (method === 'secrets.revokeTerminalRequests') return value === null
+  if (method === 'secrets.requestTerminalKey') return exact(value, ['secretRequest']) && record('secret', value.secretRequest) && value.secretRequest.botId === null
+  if (method === 'secrets.current') return value === null || exact(value, ['handle', 'revision', 'available', 'requestId'])
+    && credentialDtoValid({ handle: value.handle, revision: value.revision, available: value.available }) && typeof value.requestId === 'string'
   if (method.startsWith('onboarding.')) return record('onboarding', value)
   if (method === 'auth.list') return record('auth', value)
   if (method.startsWith('auth.')) {
@@ -33,7 +37,7 @@ export function usageResultValid(method, value, params = {}) {
     return (legacy || scoped) && value.harness === params.harness && auth(value.auth)
   }
   if (['secrets.resolve', 'secrets.resolveRequest'].includes(method)) return typeof value === 'string' && value.length > 0 && Buffer.byteLength(value) <= 16384 && !value.includes('\0')
-  if (['secrets.bind', 'secrets.credential', 'secrets.replace'].includes(method)) return credentialDtoValid(value) && (!params.handle || value.handle === params.handle)
+  if (['secrets.bind', 'secrets.credential', 'secrets.replace', 'secrets.unbind'].includes(method)) return credentialDtoValid(value) && (!params.handle || value.handle === params.handle)
   if (method === 'secrets.timeline') return timeline('secret_request', value)
   if (method.startsWith('secrets.')) return record('secret', value) && (!params.id || value.id === params.id)
   if (method === 'questions.timeline') return timeline('owner_question', value)

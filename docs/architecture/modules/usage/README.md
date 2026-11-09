@@ -10,7 +10,7 @@ Rabbit認証consumerの未配布候補は[認証runとOwner案内の契約](olrw
 
 ## 機能内の正本
 
-[Secret credentials and 1Password](secret-credentials.md) owns C5 source/handle/revision/resolution and availability; terminals consume values through a private callback.
+[Secret credentials and 1Password](secret-credentials.md) owns C5 source/handle/revision/resolution and availability; Owner terminal key cards bind exact scope and requestId, current selections/revocation persist, and trusted execution consumes values through a private callback.
 
 [Claudeアカウント別の認証](harness-accounts.md)に slot query・認証進行の分離・private accounts.prepare と旧1st互換を置く。
 

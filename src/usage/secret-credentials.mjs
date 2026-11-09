@@ -7,10 +7,15 @@ import { createOnePasswordSource, validateOnePasswordReference } from './onepass
 
 const id = value => typeof value === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,199}$/u.test(value)
 const error = (code, status = 400) => Object.assign(new Error(code), { code, status })
+export function normalizeCredentialScope(value) {
+  if (!credentialScopeValid(value)) throw error('SECRET_CREDENTIAL_INVALID')
+  return { terminalId: value.terminalId, purpose: ({ 'ssh-key': 'terminal.ssh', 'sudo-key': 'terminal.sudo' })[value.purpose] ?? value.purpose }
+}
 export const credentialScopeValid = value => value && Object.keys(value).sort().join(',') === 'purpose,terminalId'
   && id(value.terminalId) && id(value.purpose)
-export const credentialContextValid = value => value && Object.keys(value).sort().join(',') === 'memberId,purpose,terminalId'
-  && credentialScopeValid({ terminalId: value.terminalId, purpose: value.purpose }) && (value.memberId === null || id(value.memberId))
+export const credentialContextValid = value => value && Object.keys(value).every(key => ['memberId', 'purpose', 'terminalId', 'expectedRevision'].includes(key))
+  && Object.hasOwn(value, 'memberId') && credentialScopeValid({ terminalId: value.terminalId, purpose: value.purpose }) && (value.memberId === null || id(value.memberId))
+  && (value.expectedRevision === undefined || Number.isSafeInteger(value.expectedRevision) && value.expectedRevision > 0)
 export const credentialDtoValid = value => value && Object.keys(value).sort().join(',') === 'available,handle,revision'
   && id(value.handle) && Number.isSafeInteger(value.revision) && value.revision > 0 && typeof value.available === 'boolean'
 
@@ -43,6 +48,7 @@ export class SecretCredentials {
   #announced = new Set()
   #recovery
   #closed = false
+  #bindingOrder = 0
   constructor({ root, getRequest, onePassword = createOnePasswordSource(), providers = {}, retryMs = 60000 }) {
     this.sourceDirectory = join(root, 'state/secret-sources')
     this.directory = join(root, 'state/secret-credentials')
@@ -67,8 +73,11 @@ export class SecretCredentials {
           if (record.kind === 'onepassword') validateOnePasswordReference(record.reference)
           else if (record.kind !== 'provider' || !id(record.providerId)) throw error('SECRET_STORAGE_INVALID', 503)
         } else if (record.handle !== key || !credentialScopeValid({ terminalId: record.terminalId, purpose: record.purpose })
-          || !id(record.requestId) || !Number.isSafeInteger(record.revision) || record.revision < 1) throw error('SECRET_STORAGE_INVALID', 503)
+          || !id(record.requestId) || !Number.isSafeInteger(record.revision) || record.revision < 1
+          || record.revoked !== undefined && typeof record.revoked !== 'boolean'
+          || record.bindingOrder !== undefined && (!Number.isSafeInteger(record.bindingOrder) || record.bindingOrder < 1)) throw error('SECRET_STORAGE_INVALID', 503)
         items.set(key, record)
+        if (items === this.#handles) this.#bindingOrder = Math.max(this.#bindingOrder, record.bindingOrder ?? 0)
       }
     }
     await this.onePassword.refresh()
@@ -128,34 +137,82 @@ export class SecretCredentials {
     if (!source) return true
     return source.kind === 'onepassword' ? this.onePassword.available : this.#providers.get(source.providerId)?.available === true
   }
-  #dto(record) { return { handle: record.handle, revision: record.revision, available: this.#available(record.requestId) } }
+  #dto(record) { return { handle: record.handle, revision: record.revision, available: !record.revoked && this.#available(record.requestId) } }
+  #event(record, reason) { return { ...this.#dto(record), terminalId: record.terminalId, purpose: record.purpose, requestId: record.requestId, reason } }
   #record(handle, context) {
+    context = credentialContextValid(context) ? { ...context, ...normalizeCredentialScope({ terminalId: context.terminalId, purpose: context.purpose }) } : context
     const record = this.#handles.get(handle)
     if (!credentialContextValid(context) || !record || context.terminalId !== record.terminalId || context.purpose !== record.purpose) throw error('SECRET_CREDENTIAL_FORBIDDEN', 403)
+    if (record.revoked) throw error('SECRET_CREDENTIAL_REVOKED', 403)
+    if (context.expectedRevision !== undefined && context.expectedRevision !== record.revision) throw error('SECRET_CREDENTIAL_STALE', 409)
     return record
   }
   bind(requestId, scope) {
     return this.#serialize(async () => {
-      if (!credentialScopeValid(scope)) throw error('SECRET_CREDENTIAL_INVALID')
-      this.#request(requestId)
-      const existing = [...this.#handles.values()].find(row => row.requestId === requestId && row.terminalId === scope.terminalId && row.purpose === scope.purpose)
-      if (existing) return this.#dto(existing)
-      const record = { handle: randomUUID(), requestId, ...scope, revision: 1 }
+      scope = normalizeCredentialScope(scope)
+      const item = this.#request(requestId)
+      if (item.terminalSuperseded) throw error('SECRET_REQUEST_CLOSED', 409)
+      if (item.botId === null && (item.terminalId !== scope.terminalId || item.purpose !== scope.purpose)) throw error('SECRET_CREDENTIAL_FORBIDDEN', 403)
+      const existing = [...this.#handles.values()].find(row => !row.revoked && row.requestId === requestId && row.terminalId === scope.terminalId && row.purpose === scope.purpose)
+      if (existing) {
+        this.#events.emit('change', this.#event(existing, 'bound'))
+        return this.#dto(existing)
+      }
+      if ([...this.#handles.values()].some(row => row.revoked && row.requestId === requestId && row.terminalId === scope.terminalId && row.purpose === scope.purpose)) throw error('SECRET_CREDENTIAL_REVOKED', 403)
+      const record = { handle: randomUUID(), requestId, ...scope, revision: 1, bindingOrder: ++this.#bindingOrder }
       await this.#save(record, true)
       this.#availability.set(requestId, this.#available(requestId))
-      this.#events.emit('change', { ...this.#dto(record), reason: 'revision' })
+      this.#events.emit('change', this.#event(record, 'bound'))
       this.#announced.add(record.handle)
       return this.#dto(record)
     })
   }
   credential(handle, context) { return this.#dto(this.#record(handle, context)) }
+  current(scope) {
+    scope = normalizeCredentialScope(scope)
+    const rows = [...this.#handles.values()].filter(row => row.terminalId === scope.terminalId && row.purpose === scope.purpose)
+      .sort((a, b) => (a.bindingOrder ?? 0) - (b.bindingOrder ?? 0))
+    const record = rows.at(-1)
+    return record && !record.revoked ? { ...this.#dto(record), requestId: record.requestId } : null
+  }
+  hasRequestBinding(requestId, scope) {
+    scope = normalizeCredentialScope(scope)
+    return [...this.#handles.values()].some(row => row.requestId === requestId && row.terminalId === scope.terminalId && row.purpose === scope.purpose)
+  }
+  unbind(handle, scope) {
+    return this.#serialize(async () => {
+      scope = normalizeCredentialScope(scope)
+      const record = this.#handles.get(handle)
+      if (!record || record.terminalId !== scope.terminalId || record.purpose !== scope.purpose) throw error('SECRET_CREDENTIAL_FORBIDDEN', 403)
+      const next = record.revoked ? record : { ...record, revoked: true, revision: record.revision + 1 }
+      if (!record.revoked) await this.#save(next)
+      this.#events.emit('change', this.#event(next, 'unbound'))
+      if (![...this.#handles.values()].some(row => !row.revoked && row.requestId === record.requestId)) this.#availability.delete(record.requestId)
+      this.#publishRecovery()
+      return this.#dto(next)
+    })
+  }
+  unbindScope(scope) {
+    return this.#serialize(async () => {
+      scope = normalizeCredentialScope(scope)
+      for (const record of this.#handles.values()) if (!record.revoked && record.terminalId === scope.terminalId && record.purpose === scope.purpose) {
+        const next = { ...record, revoked: true, revision: record.revision + 1 }
+        await this.#save(next)
+        this.#events.emit('change', this.#event(next, 'unbound'))
+        this.#availability.delete(record.requestId)
+      }
+      this.#publishRecovery()
+    })
+  }
   replace(handle, requestId, context) {
     return this.#serialize(async () => {
       const record = this.#record(handle, context)
-      this.#request(requestId)
-      const next = { ...record, requestId, revision: record.revision + 1 }
+      const item = this.#request(requestId)
+      if (item.terminalSuperseded) throw error('SECRET_REQUEST_CLOSED', 409)
+      if (item.botId === null && (item.terminalId !== record.terminalId || item.purpose !== record.purpose)) throw error('SECRET_CREDENTIAL_FORBIDDEN', 403)
+      const next = { ...record, requestId, revision: record.revision + 1, bindingOrder: ++this.#bindingOrder }
       await this.#save(next)
-      const event = { ...this.#dto(next), reason: 'revision' }
+      const event = this.#event(next, 'revision')
       this.#events.emit('change', event)
       this.#announced.add(handle)
       return this.#dto(next)
@@ -166,8 +223,8 @@ export class SecretCredentials {
     const before = this.#available(requestId)
     this.#availability.set(requestId, available)
     for (const record of this.#handles.values()) {
-      if (record.requestId === requestId && (before !== available || !this.#announced.has(record.handle))) {
-        this.#events.emit('change', { ...this.#dto(record), reason: 'availability' })
+      if (!record.revoked && record.requestId === requestId && (before !== available || !this.#announced.has(record.handle))) {
+        this.#events.emit('change', this.#event(record, 'availability'))
         this.#announced.add(record.handle)
       }
     }
@@ -216,13 +273,13 @@ export class SecretCredentials {
     await this.onePassword.refresh()
     const pending = new Set([...this.#availability].filter(([, available]) => !available).map(([id]) => id))
     if (!this.onePassword.available) for (const record of this.#handles.values()) {
-      if (this.#sources.get(record.requestId)?.kind === 'onepassword') pending.add(record.requestId)
+      if (!record.revoked && this.#sources.get(record.requestId)?.kind === 'onepassword') pending.add(record.requestId)
     }
     for (const requestId of pending) {
       try { await this.resolveRequest(requestId) } catch {}
     }
-    for (const record of this.#handles.values()) if (!this.#announced.has(record.handle)) {
-      this.#events.emit('change', { ...this.#dto(record), reason: 'availability' })
+    for (const record of this.#handles.values()) if (!record.revoked && !this.#announced.has(record.handle)) {
+      this.#events.emit('change', this.#event(record, 'availability'))
       this.#announced.add(record.handle)
     }
     return this.#publishRecovery()
