@@ -89,10 +89,12 @@ test('sendmessageは自然な宛名と本文だけを配達し、識別情報は
     from_identity: { id: 'bell-grok-a', name: 'あかり', position: '調査主任', role: '調査担当' },
     target_identity: { id: 'bell-grok-b', name: 'ゆず', position: '開発主任', role: '開発担当' },
     from: 'bell-grok-a', target: 'bell-grok-b', message: '応答してくれ', image: false, delivery: 'running',
+    messageAuthor: { kind: 'bot', botId: 'bell-grok-a' },
   })
   assert.deepEqual(records[2], {
     schema: 'bellteam.interim-word.v1', id: 'delivery-1', at: '2026-08-31T00:00:00.000Z',
     bot: 'bell-grok-b', group_id: 'delivery-1', text: 'あかりへ返しておいた', kind: 'answer',
+    messageAuthor: { kind: 'bot', botId: 'bell-grok-b' },
   })
   assert.deepEqual([records[1], records[3]].map(record => record.delivery), ['running', 'delivered'])
 })
@@ -231,8 +233,8 @@ test('ターン中の合間の言葉は受け取ったBotの会話画面の記�
   assert.equal(result.reply, '直したよ')
   const records = (await readFile(join(root, 'direct.jsonl'), 'utf8')).trim().split('\n').map(JSON.parse)
   assert.deepEqual(records.filter(record => record.schema === 'bellteam.interim-word.v1'), [
-    { schema: 'bellteam.interim-word.v1', id: 'id-2', at: '2026-09-28T01:00:05.000Z', bot: bot.id, group_id: 'id-1', text: 'ちょっと見てくるね', written_at: '2026-09-28T01:00:03.000Z' },
-    { schema: 'bellteam.interim-word.v1', id: 'id-3', at: '2026-09-28T01:00:05.000Z', bot: bot.id, group_id: 'id-1', text: 'あ、ここ壊れてた' },
+    { schema: 'bellteam.interim-word.v1', id: 'id-2', at: '2026-09-28T01:00:05.000Z', bot: bot.id, messageAuthor: { kind: 'bot', botId: bot.id }, group_id: 'id-1', text: 'ちょっと見てくるね', written_at: '2026-09-28T01:00:03.000Z' },
+    { schema: 'bellteam.interim-word.v1', id: 'id-3', at: '2026-09-28T01:00:05.000Z', bot: bot.id, messageAuthor: { kind: 'bot', botId: bot.id }, group_id: 'id-1', text: 'あ、ここ壊れてた' },
   ])
   assert.deepEqual((await messenger.store.timeline(bot.id)).map(item => [item.kind, item.message]), [
     ['message', '見てくれる？'], ['interim', 'ちょっと見てくるね'], ['interim', 'あ、ここ壊れてた'], ['message', '直したよ'],

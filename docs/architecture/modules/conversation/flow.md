@@ -66,6 +66,8 @@ flowchart LR
 
 ## 履歴を画面へ戻す
 
+Authorship is additive to this flow: the [message author writer/projection contract](durable-receipt.md#message-author-capture-and-history) preserves every existing display field while carrying `messageAuthor` through the existing timeline readers. Only captured Owner input is user-authored; legacy user-side records without proof are unknown.
+
 ```mermaid
 flowchart LR
   Direct["直接会話JSONL / 読取専用"] --> Validate["LF確定行ごとにJSON/schema検証<br/>物理行数とbyte位置を進める"]

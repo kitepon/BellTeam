@@ -140,6 +140,8 @@ function messageItem(record, direction) {
     id: record.delivery_id,
     kind: 'message',
     direction,
+    messageAuthor: record.from === 'user' ? record.messageAuthor ?? { kind: 'unknown' }
+      : record.from === 'scheduler' ? { kind: 'unknown' } : { kind: 'bot', botId: record.from },
     at: record.at,
     message: record.message,
     image: record.image === true,
@@ -159,6 +161,7 @@ function interimItem(record) {
     id: record.id,
     kind: record.kind === 'answer' ? 'message' : 'interim',
     direction: 'incoming',
+    messageAuthor: { kind: 'bot', botId: record.bot },
     at: record.at,
     message: record.text,
     image: false,
@@ -175,6 +178,8 @@ function peerItem(record, direction, peer) {
     direction,
     at: record.at,
     peer,
+    messageAuthor: record.from === 'scheduler' || record.from.startsWith('call-bridge:')
+      ? { kind: 'unknown' } : { kind: 'bot', botId: record.from },
     peerName: identity?.name ?? peer,
     peerPosition: identity?.position ?? '',
     peerRole: identity?.role ?? '',

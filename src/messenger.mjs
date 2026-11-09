@@ -251,10 +251,12 @@ export class BellTeamMessenger extends ConversationWriter {
     return { delivery: 'delivered', delivery_id: deliveryId, reply_id: replyId, from: target, target: 'user', reply }
   }
 
-  record({ deliveryId, from, target, message, images = [], imageAsset = null, imageAssets = [], delivery = 'delivered' }) {
+  record({ deliveryId, from, target, message, messageAuthor, images = [], imageAsset = null, imageAssets = [], delivery = 'delivered' }) {
     return {
       schema: 'bellteam.direct-message.v1', delivery_id: deliveryId, at: this.now(),
       from, target, from_identity: memberIdentity(this.bots, from), target_identity: memberIdentity(this.bots, target),
+      messageAuthor: from === 'user' ? messageAuthor ?? { kind: 'unknown' }
+        : from === 'scheduler' ? { kind: 'unknown' } : { kind: 'bot', botId: from },
       message, image: images.length > 0, ...(images.length ? { image_count: images.length } : {}), delivery,
       ...(imageAsset ? { image_asset: imageAsset } : {}),
       ...(imageAssets.length ? { image_assets: imageAssets } : {}),

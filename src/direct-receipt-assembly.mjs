@@ -123,17 +123,25 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
   }
   const receipts = new DurableMessageReceipts({ root, bots, assets, dispatch, onMessage, onTurnEnd,
     onPending: requestDrain, onError: report })
-  const capture = (method, input) => conversation?.captureReceipt(method, input)
+  const capture = (method, input) => {
+    let messageAuthor = { kind: 'unknown' }
+    const executionSource = conversation?.captureReceipt(method, input, actor => {
+      messageAuthor = actor.kind === 'owner' ? { kind: 'user' }
+        : actor.kind === 'bot' ? { kind: 'bot', botId: actor.botId } : { kind: 'unknown' }
+    })
+    return { executionSource, messageAuthor }
+  }
   const messenger = Object.assign(Object.create(legacy), {
     sendmessage(input, options) {
-      const source = capture(input.from === 'user' ? 'user.post' : 'direct.post', input)
+      const { executionSource, messageAuthor } = capture(input.from === 'user' ? 'user.post' : 'direct.post', input)
       const { executionSource: _untrusted, ...message } = input
-      return receipts.sendmessage({ ...message, ...(source ? { executionSource: source } : {}) }, options)
+      return receipts.sendmessage({ ...message, ...(executionSource ? { executionSource } : {}) },
+        { ...options, ...(input.from === 'user' ? { messageAuthor } : {}) })
     },
     enqueueUserTurn(input, options) {
       if (input.recordUser === false) return legacy.enqueueUserTurn(input, options)
-      const source = capture('user.post', input)
-      return receipts.enqueueUserTurn({ ...input, ...(source ? { executionSource: source } : {}) }, options)
+      const { executionSource, messageAuthor } = capture('user.post', input)
+      return receipts.enqueueUserTurn({ ...input, ...(executionSource ? { executionSource } : {}) }, { ...options, messageAuthor })
     },
     async receiveCallBridge(input) {
       capture('call.receive', input)
