@@ -141,7 +141,7 @@ flowchart LR
 | [実行環境・更新復旧](modules/runtime/README.md) | モリー | lifecycle / seat-process / project-files / cli-registration / module-runner / update / module-runner |
 | [testgate](modules/testgate/README.md) | シラツル | hook |
 | [Throughline](modules/throughline/README.md) | リヴァリン | context |
-| [利用設定・通知](modules/usage/README.md) | ミカ | settings / notify / auth |
+| [利用設定・通知](modules/usage/README.md) | ミカ | settings / notify / auth / secrets |
 | [Webアプリ](modules/web/README.md) | アドミ | ui / assets |
 | [Windowsアプリ](modules/windows/README.md) | ベル（Windows） | public |
 | [相関図](modules/work-graph/README.md) | アークレンジャー・ブラック | work-graph |

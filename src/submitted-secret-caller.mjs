@@ -43,7 +43,9 @@ export function createSubmittedSecretCaller({ root, secretRequests, usageAssembl
   }
   const consumer = createConsumer({
     secretRequests: { toolsDirectory: secretRequests.toolsDirectory,
-      read: id => completed(readMetadata(id, 'system')) },
+      read: id => completed(readMetadata(id, 'system')),
+      ...(secretRequests.resolveValue ? { resolveValue: id => completed(secretRequests.resolveValue(id,
+        usageAssembly?.systemContext('secrets.resolveRequest'))) } : {}) },
     runDirectory: join(root, 'state/submitted-secret-consumption'), context: SUBMITTED_SECRET,
     assertAuthorized, consume,
   })

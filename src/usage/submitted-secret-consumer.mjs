@@ -39,7 +39,7 @@ export function createSubmittedSecretConsumer({ secretRequests, runDirectory, co
       const item = await secretRequests.read(plan.requestId)
       const expected = join(secretRequests.toolsDirectory, plan.toolId, 'secrets', plan.requestId)
       if (item.id !== plan.requestId || item.botId !== plan.requesterBotId || item.toolId !== plan.toolId
-        || item.roomId !== plan.roomId || item.status !== 'submitted' || item.path !== expected) {
+        || item.roomId !== plan.roomId || item.status !== 'submitted' || !secretRequests.resolveValue && item.path !== expected) {
         return result(plan.requestId, 'not_issued', 'wrong_request')
       }
       await authorized()
@@ -60,19 +60,24 @@ export function createSubmittedSecretConsumer({ secretRequests, runDirectory, co
       reason = 'not_authorized'
       await authorized()
       reason = 'secret_unavailable'
-      if (await realpath(expected) !== expected) throw new Error('SECRET_CONSUMER_FILE_INVALID')
-      const file = await open(expected, constants.O_RDONLY | constants.O_NOFOLLOW)
       let value
-      try {
-        const stat = await file.stat()
-        if (!stat.isFile() || stat.nlink !== 1 || stat.uid !== process.getuid() || (stat.mode & 0o777) !== 0o600
-          || stat.size < 1 || stat.size > 8192) throw new Error('SECRET_CONSUMER_FILE_INVALID')
-        bytes = Buffer.alloc(8193)
-        const { bytesRead } = await file.read(bytes, 0, bytes.length, 0)
-        if (bytesRead !== stat.size || bytesRead > 8192) throw new Error('SECRET_CONSUMER_FILE_INVALID')
-        value = bytes.subarray(0, bytesRead).toString('utf8').trim()
-        if (!/^[!-~]+$/u.test(value)) throw new Error('SECRET_CONSUMER_VALUE_INVALID')
-      } finally { await file.close() }
+      if (typeof secretRequests.resolveValue === 'function') {
+        value = (await secretRequests.resolveValue(plan.requestId)).trim()
+        if (!/^[!-~]{1,8192}$/u.test(value)) throw new Error('SECRET_CONSUMER_VALUE_INVALID')
+      } else {
+        if (await realpath(expected) !== expected) throw new Error('SECRET_CONSUMER_FILE_INVALID')
+        const file = await open(expected, constants.O_RDONLY | constants.O_NOFOLLOW)
+        try {
+          const stat = await file.stat()
+          if (!stat.isFile() || stat.nlink !== 1 || stat.uid !== process.getuid() || (stat.mode & 0o777) !== 0o600
+            || stat.size < 1 || stat.size > 8192) throw new Error('SECRET_CONSUMER_FILE_INVALID')
+          bytes = Buffer.alloc(8193)
+          const { bytesRead } = await file.read(bytes, 0, bytes.length, 0)
+          if (bytesRead !== stat.size || bytesRead > 8192) throw new Error('SECRET_CONSUMER_FILE_INVALID')
+          value = bytes.subarray(0, bytesRead).toString('utf8').trim()
+          if (!/^[!-~]+$/u.test(value)) throw new Error('SECRET_CONSUMER_VALUE_INVALID')
+        } finally { await file.close() }
+      }
       reason = 'not_authorized'
       await authorized()
       const assertBeforeIssue = () => check()

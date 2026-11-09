@@ -1,6 +1,7 @@
 import { CardTimelines } from '../card-timelines.mjs'
 import { usageError } from './process-schema.mjs'
 import { backgroundRecordValid, backgroundAgentError } from './background-agent-settings.mjs'
+import { credentialDtoValid } from './secret-credentials.mjs'
 
 const object = value => value && typeof value === 'object' && !Array.isArray(value)
 const keys = (value, required, optional = []) => object(value) && required.every(key => Object.hasOwn(value, key)) && Object.keys(value).every(key => [...required, ...optional].includes(key))
@@ -35,11 +36,15 @@ export function usageProjectionRecordValid(row) {
   }
   if (!keys(row, ['type', 'revision', 'value']) || !object(row.value)) return false
   const item = row.value
-  if (row.type === 'secret') return keys(item, ['id', 'botId', 'roomId', 'toolId', 'label', 'message', 'at', 'status'], ['path', 'notification', 'withdrawn'])
+  if (row.type === 'credential') return keys(item, ['handle', 'revision', 'available', 'reason'])
+    && credentialDtoValid({ handle: item.handle, revision: item.revision, available: item.available }) && ['revision', 'availability'].includes(item.reason)
+  if (row.type === 'secret') return keys(item, ['id', 'botId', 'roomId', 'toolId', 'label', 'message', 'at', 'status'], ['path', 'notification', 'withdrawn', 'inputOptions'])
     && ['id', 'botId', 'toolId', 'label', 'message', 'at'].every(key => typeof item[key] === 'string') && (item.roomId === null || typeof item.roomId === 'string')
     && ['pending', 'submitted', 'cancelled'].includes(item.status) && (!Object.hasOwn(item, 'path') || typeof item.path === 'string')
     && (!Object.hasOwn(item, 'notification') || ['pending', 'sent', 'failed', 'not_needed'].includes(item.notification))
     && (!Object.hasOwn(item, 'withdrawn') || typeof item.withdrawn === 'boolean')
+    && (!Object.hasOwn(item, 'inputOptions') || keys(item.inputOptions, ['preferred', 'onePasswordAvailable'])
+      && ['stored', 'onepassword'].includes(item.inputOptions.preferred) && typeof item.inputOptions.onePasswordAvailable === 'boolean')
   if (row.type === 'question') return keys(item, ['id', 'botId', 'question', 'options', 'allowOther', 'at', 'status'], ['answer', 'answeredAt', 'other'])
     && ['id', 'botId', 'question', 'at'].every(key => typeof item[key] === 'string') && typeof item.allowOther === 'boolean' && Array.isArray(item.options) && item.options.every(value => typeof value === 'string')
     && ['open', 'answered'].includes(item.status) && (!Object.hasOwn(item, 'answer') || typeof item.answer === 'string') && (!Object.hasOwn(item, 'answeredAt') || typeof item.answeredAt === 'string')
@@ -59,7 +64,7 @@ export function usageProjectionRecordValid(row) {
 export function createUsageProjection({ bots }) {
   let generation = null, staging = null, current = null, revision = -1, bootstrap = null, bootstrapGeneration = null
   const seenGenerations = new Set()
-  const records = new Set(['settings', 'onboarding', 'auth', 'subscription', 'secret', 'question', 'event'])
+  const records = new Set(['settings', 'onboarding', 'auth', 'subscription', 'secret', 'question', 'event', 'credential'])
   const empty = () => ({ settings: null, onboarding: null, auth: null, subscription: null, secrets: new Map(), questions: new Map(),
     secretTimeline: new CardTimelines(bots, 'secret_request'), questionTimeline: new CardTimelines(bots, 'owner_question') })
   const copy = value => structuredClone(value)
@@ -76,7 +81,7 @@ export function createUsageProjection({ bots }) {
       if (!Array.isArray(row.list) || !row.configurations || row.list.length !== 6
         || row.list.some(item => typeof item.id !== 'string' || !Object.hasOwn(row.configurations, item.id))) throw usageError('USAGE_PROJECTION_INVALID')
       state.settings = copy(row)
-    } else if (row.type !== 'event') {
+    } else if (!['event', 'credential'].includes(row.type)) {
       if (!row.value || typeof row.value !== 'object') throw usageError('USAGE_PROJECTION_INVALID')
       state[row.type] = copy(row.value)
     }

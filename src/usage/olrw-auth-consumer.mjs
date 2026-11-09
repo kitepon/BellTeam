@@ -151,6 +151,13 @@ export function createOlrwAuthConsumer({ secretRequests, runDirectory, context, 
   }
   async function secretValue() {
     const item = secretRequests.get(state.requestId)
+    if (typeof secretRequests.resolveValue === 'function') {
+      if (item.id !== state.requestId || item.botId !== plan.requesterBotId || item.toolId !== plan.toolId
+        || item.roomId !== plan.roomId || item.status !== 'submitted') throw stop('wrong_request')
+      const value = await secretRequests.resolveValue(item.id)
+      if (typeof value !== 'string' || !/^[!-~]{1,8192}$/u.test(value)) throw stop('invalid_secret')
+      return value
+    }
     const expected = join(secretRequests.toolsDirectory, plan.toolId, 'secrets', state.requestId)
     if (item.id !== state.requestId || item.botId !== plan.requesterBotId || item.toolId !== plan.toolId
       || item.roomId !== plan.roomId || item.status !== 'submitted' || item.path !== expected

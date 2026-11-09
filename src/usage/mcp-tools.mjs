@@ -25,7 +25,7 @@ export function usageTools(objectSchema) {
     },
     {
       name: 'request_secret',
-      description: 'ユーザーへトークン・パスワードの専用入力カードを出す。秘密の値をこの道具の引数へ書かない。登録・取消後に通知が届く。値は利用者の永続領域へ保存され、通知には保存先だけが入る。',
+      description: 'ユーザーへトークン・パスワードの専用入力カードを出す。秘密の値や1Password参照をこの道具の引数へ書かない。カードは保存値または1Password参照を受け付ける。登録・取消後に通知が届く。利用するプログラムには秘密入力の承認済み窓口から解決値を直接渡し、値や参照を会話・ログ・Gitへ出さない。',
       inputSchema: objectSchema({
         toolId: { type: 'string', pattern: '^[a-z0-9][a-z0-9-]{0,63}$', description: '利用するツールのID（例: github）' },
         label: { type: 'string', minLength: 1, maxLength: 80, description: '入力する項目名（例: GitHubトークン）' },
@@ -35,7 +35,7 @@ export function usageTools(objectSchema) {
     },
     {
       name: 'get_secret_request',
-      description: '自分が依頼した秘密情報入力の状態と登録済みの保存先を確認する。値は返さない。',
+      description: '自分が依頼した秘密情報入力の状態と、保存値の場合は登録済みの保存先を確認する。値・1Password参照は返さない。',
       inputSchema: objectSchema({ requestId: { type: 'string' } }, ['requestId']),
     },
     {

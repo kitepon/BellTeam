@@ -1,6 +1,7 @@
 import { usageMethods } from './process-schema.mjs'
 import { usageProjectionRecordValid, usageSettingValid, usageConfigurationValid } from './projection.mjs'
 import { backgroundRecordValid } from './background-agent-settings.mjs'
+import { credentialDtoValid } from './secret-credentials.mjs'
 
 const object = value => value && typeof value === 'object' && !Array.isArray(value)
 const exact = (value, names) => object(value) && Object.keys(value).length === names.length && names.every(key => Object.hasOwn(value, key))
@@ -20,7 +21,7 @@ export function usageResultValid(method, value, params = {}) {
   if (method === 'settings.list') return Array.isArray(value) && value.length === 6 && new Set(value.map(item => item?.id)).size === 6 && value.every(usageSettingValid)
   if (method === 'settings.configuration') return usageConfigurationValid(params.id, value)
   if (method === 'settings.update') return usageSettingValid(value) && value.id === params.id
-  if (['settings.setError', 'onboarding.prepareStartup', 'secrets.notifyOwnerGuide'].includes(method)) return value === null
+  if (['settings.setError', 'onboarding.prepareStartup', 'secrets.notifyOwnerGuide', 'secrets.refresh'].includes(method)) return value === null
   if (method.startsWith('onboarding.')) return record('onboarding', value)
   if (method === 'auth.list') return record('auth', value)
   if (method.startsWith('auth.')) {
@@ -30,6 +31,8 @@ export function usageResultValid(method, value, params = {}) {
       && value.slot === slot && (value.account_label === null || typeof value.account_label === 'string')
     return (legacy || scoped) && value.harness === params.harness && auth(value.auth)
   }
+  if (['secrets.resolve', 'secrets.resolveRequest'].includes(method)) return typeof value === 'string' && value.length > 0 && Buffer.byteLength(value) <= 16384 && !value.includes('\0')
+  if (['secrets.bind', 'secrets.credential', 'secrets.replace'].includes(method)) return credentialDtoValid(value) && (!params.handle || value.handle === params.handle)
   if (method === 'secrets.timeline') return timeline('secret_request', value)
   if (method.startsWith('secrets.')) return record('secret', value) && (!params.id || value.id === params.id)
   if (method === 'questions.timeline') return timeline('owner_question', value)

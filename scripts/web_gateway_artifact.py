@@ -129,6 +129,8 @@ BUSINESS_FILES = {
         'src/usage/process-schema.mjs',
         'src/usage/projection.mjs',
         'src/usage/registry-ports.mjs',
+        'src/usage/secret-credentials.mjs',
+        'src/usage/onepassword-source.mjs',
         'src/usage/services.mjs',
         'src/usage/state-compatibility.mjs',
         'src/usage/web-push-schema.mjs',
@@ -222,7 +224,7 @@ EXECUTION_FILES = {'payload/' + name for name in (
 )}
 
 BUSINESS_STATE = {
-    'usage': dict(settingsFeatures=['routing','callBridge','cloudflare','diagnostics','notifications','webPush'], onboardingSchema='bellteam.onboarding.v1', subscriptionSchema='bellteam.subscription.v1', requestEncoding='json-files', secretEncoding='utf8-exclusive-0600', handoffSchema='bellteam.usage-volatile.v1'),
+    'usage': dict(settingsFeatures=['routing','callBridge','cloudflare','diagnostics','notifications','webPush'], onboardingSchema='bellteam.onboarding.v1', subscriptionSchema='bellteam.subscription.v1', requestEncoding='json-files', secretEncoding='stored-or-private-reference-v1', handoffSchema='bellteam.usage-volatile.v1'),
     'diagnostics': dict(diagnostics='unversioned-rows-array', investigations='optional-fingerprint-map'),
     'work-graph': dict(state='none'),
 }

@@ -6,6 +6,7 @@ import { createUsageProcess } from './usage-process.mjs'
 import { createUsageAuthority } from './usage/authority.mjs'
 import { createUsageFacade } from './usage/facade.mjs'
 import { createUsageProjection } from './usage/projection.mjs'
+import { NativeSecretCredentials } from './usage/native-secret-credentials.mjs'
 
 // Bootstrap owns this one controller before constructing the remaining service graph.
 export function createUsageAssembly({ root, exchangeMutex, environment = {}, seatRuntime = false, getServices,
@@ -38,6 +39,43 @@ export function createUsageAssembly({ root, exchangeMutex, environment = {}, sea
     } finally { if (lease) admission.finish(lease) }
   }
   const facade = createUsageFacade({ request, projection, toolsDirectory: join(root, 'state/secret-values') })
+  const nativeCredentials = new NativeSecretCredentials({ root })
+  const systemContext = (method, parentContext) => {
+    const capturedAuthorization = authority.capture(method, { kind: 'system', botId: null })
+    if (parentContext) capturedContexts.set(capturedAuthorization, parentContext)
+    const context = scope.getStore()
+    return context?.usageEffect ? { usageLease: context.usageLease, usageEffect: context.usageEffect, capturedAuthorization } : capturedAuthorization
+  }
+  const credentials = {
+    bind: (id, target) => facade.secretRequests.bindCredential(id, target, systemContext('secrets.bind')),
+    async credential(handle, target) {
+      await nativeCredentials.ready()
+      return nativeCredentials.owns(handle) ? nativeCredentials.credential(handle, target)
+        : facade.secretRequests.credential(handle, target, systemContext('secrets.credential'))
+    },
+    async withResolved(handle, target, consume) {
+      await nativeCredentials.ready()
+      return nativeCredentials.owns(handle) ? nativeCredentials.withResolved(handle, target, consume)
+        : facade.secretRequests.withResolved(handle, target, consume, systemContext('secrets.resolve'))
+    },
+    async replace(handle, source, target) {
+      await nativeCredentials.ready()
+      return nativeCredentials.owns(handle) ? nativeCredentials.replace(handle, source, target)
+        : facade.secretRequests.replaceCredential(handle, source, target, systemContext('secrets.replace'))
+    },
+    async refresh() {
+      const results = await Promise.allSettled([nativeCredentials.refresh(), facade.secretRequests.refreshCredentials(systemContext('secrets.refresh'))])
+      const failed = results.find(result => result.status === 'rejected')
+      if (failed) throw failed.reason
+    },
+    watch(listener) {
+      const child = facade.secretRequests.watchCredentials(listener), native = nativeCredentials.watch(listener)
+      return () => { child(); native() }
+    },
+    setNativeProvider: provider => nativeCredentials.setProvider(provider),
+    registerNative: (binding, target) => nativeCredentials.register(binding, target),
+  }
+  credentials.watchCredentials = credentials.watch
   controller = createProcess({ root, admission, exchangeMutex, onModuleChildExit, onModuleRestartLimit, authorizeActor: authority.authorizeActor, onState,
     probeCandidate: channel => {
       const token = authority.capture('onboarding.status', { kind: 'system', botId: null })
@@ -72,21 +110,16 @@ export function createUsageAssembly({ root, exchangeMutex, environment = {}, sea
     onSnapshotAbort: context => projection.discard(context.generation),
   })
   return {
-    controller, facade,
+    controller, facade, credentials,
     capture(method, actor, parentContext) {
       const token = authority.capture(method, actor)
       if (parentContext) capturedContexts.set(token, parentContext)
       return token
     },
-    systemContext(method, parentContext) {
-      const capturedAuthorization = authority.capture(method, { kind: 'system', botId: null })
-      if (parentContext) capturedContexts.set(capturedAuthorization, parentContext)
-      const context = scope.getStore()
-      return context?.usageEffect ? { usageLease: context.usageLease, usageEffect: context.usageEffect, capturedAuthorization } : capturedAuthorization
-    },
+    systemContext,
     initializeSettings: () => controller.start(),
     initializeSubscriptions: () => controller.initialize('subscriptions'),
     async initializeServices() { await controller.initialize('services'); await controller.activate() },
-    close: () => controller.close(),
+    close: () => { nativeCredentials.close(); return controller.close() },
   }
 }

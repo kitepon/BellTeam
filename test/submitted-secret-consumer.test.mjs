@@ -14,13 +14,15 @@ const challenge = { binding: { session_id: 'original-session', launch_id: null, 
   server_pid: 10, server_started: '1', pane_pid: 11, pane_started: '2' }, prompt_digest: 'a'.repeat(64) }
 const inputReceipt = { schema: 'bellteam.submitted-secret-input.v1', outcome: 'issued', authStatus: 'authenticated', httpStatus: 200 }
 
-async function fixture(t) {
+async function fixture(t, sourceInput) {
   const root = await mkdtemp(join(tmpdir(), 'submitted-secret-'))
   t.after(() => rm(root, { recursive: true, force: true }))
-  const service = new SecretRequests({ root, bots: new Map([['bot-centi', {}]]), rooms: new Map(), notify: async () => {} })
+  const service = new SecretRequests({ root, bots: new Map([['bot-centi', {}]]), rooms: new Map(), notify: async () => {},
+    onePassword: { available: true, refresh: async () => {}, watch: () => () => {}, close() {}, resolve: async () => '  synthetic-code\n' } })
+  t.after(() => service.close())
   await service.initialize()
   const item = await service.create({ botId: 'bot-centi', toolId: 'claude-code', label: 'Synthetic code', message: 'Synthetic fixture' })
-  await service.submit(item.id, '  synthetic-code\n')
+  await service.submit(item.id, sourceInput ?? '  synthetic-code\n')
   const context = { requestId: item.id, requesterBotId: 'bot-centi', toolId: 'claude-code', roomId: null }
   const runDirectory = join(root, 'state/submitted-secret-consumption')
   const admission = Object.freeze({})
@@ -31,6 +33,20 @@ async function fixture(t) {
     consume: async (payload, { assertBeforeIssue }) => { assertBeforeIssue(); calls++; assert.deepEqual(payload, { ...challenge, response: { kind: 'authorization_code', value: 'synthetic-code' } }); return inputReceipt } }
   return { root, service, context, options, admission, runDirectory, input: { requestId: item.id, challenge, admission }, counts: () => ({ metadataReads, calls }) }
 }
+
+test('C5 submitted reference resolution retains one-shot claim and requester checks without a value path', async t => {
+  const reference = `op://${'a'.repeat(26)}/${'b'.repeat(26)}/credential`
+  const f = await fixture(t, { source: 'onepassword', reference })
+  f.options.secretRequests.resolveValue = id => f.service.resolveValue(id)
+  assert.equal(f.service.get(f.context.requestId).path, undefined)
+  const receipt = await createSubmittedSecretConsumer(f.options).execute(f.input)
+  assert.equal(receipt.outcome, 'issued'); assert.equal(f.counts().calls, 1)
+  assert.equal((await createSubmittedSecretConsumer(f.options).execute(f.input)).reason, 'already_claimed')
+  const wrong = { ...f.options.secretRequests, read: async id => ({ ...f.service.get(id), botId: 'another' }) }
+  assert.equal((await createSubmittedSecretConsumer({ ...f.options, secretRequests: wrong }).execute(f.input)).reason, 'wrong_request')
+  const saved = await readFile(join(f.runDirectory, f.context.requestId + '.claim'), 'utf8')
+  assert.ok(!saved.includes(reference)); assert.ok(!saved.includes('synthetic-code'))
+})
 
 test('submitted: durable claim precedes consume; concurrent and restarted callers issue once without leaking', async t => {
   const f = await fixture(t)
