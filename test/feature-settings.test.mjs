@@ -20,7 +20,7 @@ function errorCode(code) {
 
 test('未設定で起動でき、全機能は未設定・無効で秘密の値を返さない', async t => {
   const { settings, root } = await fixture(t)
-  assert.deepEqual(settings.list().map(item => item.id), ['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'webPush'])
+  assert.deepEqual(settings.list().map(item => item.id), ['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'webPush', 'onePassword'])
   for (const item of settings.list()) {
     assert.equal(item.enabled, false)
     assert.equal(item.status, 'unconfigured')
@@ -42,7 +42,7 @@ test('既存envと通話Bearer値を初回だけ取り込み、保存後はenv�
   }
   const settings = new FeatureSettings({ root, environment })
   await settings.initialize()
-  assert.deepEqual(settings.list().map(item => item.status), ['enabled', 'enabled', 'enabled', 'enabled', 'unconfigured', 'unconfigured'])
+  assert.deepEqual(settings.list().map(item => item.status), ['enabled', 'enabled', 'enabled', 'enabled', 'unconfigured', 'unconfigured', 'unconfigured'])
   assert.deepEqual(settings.configuration('callBridge'), { enabled: true, url: environment.BELLTEAM_CALL_BRIDGE_MCP_URL, token: 'bridge-secret' })
   assert.equal(settings.configuration('cloudflare').publicUrl, '')
   const visible = JSON.stringify(settings.list())
@@ -215,4 +215,27 @@ test('通知relayURLは登録する接続先と同じHTTPS・LAN HTTP契約を�
     await assert.rejects(settings.update('notifications', { values: { relayUrl } }), errorCode('FEATURE_VALUE_INVALID'))
   }
   await assert.rejects(settings.update('notifications', { values: { relayUrl: '' } }), errorCode('FEATURE_UNCONFIGURED'))
+})
+
+test('1Password連携: 6項目の保存ファイルへ無効で足し、ops_トークンだけを受け、案内を返して値は返さない', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-settings-onepassword-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const path = join(root, 'shared/tools/bellteam-settings/settings.json')
+  const old = { routing: { enabled: false, apiKey: '' }, callBridge: { enabled: false, url: '', token: '' },
+    cloudflare: { enabled: false, teamDomain: '', audience: '', publicUrl: '' }, diagnostics: { enabled: false, key: '' },
+    notifications: { enabled: false, relayUrl: '' }, webPush: { enabled: false, subject: '' } }
+  await mkdir(join(root, 'shared/tools/bellteam-settings'), { recursive: true })
+  await writeFile(path, JSON.stringify(old), { mode: 0o600 })
+  const settings = new FeatureSettings({ root, environment: {} })
+  await settings.initialize()
+  assert.deepEqual(JSON.parse(await readFile(path, 'utf8')).onePassword, { enabled: false, token: '' })
+  const item = () => settings.list().find(row => row.id === 'onePassword')
+  assert.equal(item().status, 'unconfigured')
+  assert.ok(item().guide.steps.length >= 3 && item().guide.link.url.startsWith('https://'))
+  await assert.rejects(settings.update('onePassword', { enabled: true, values: { token: 'not-a-token' } }, { allowSecretValues: true }), errorCode('FEATURE_VALUE_INVALID'))
+  await settings.update('onePassword', { enabled: true, values: { token: 'ops_synthetic' } }, { allowSecretValues: true })
+  assert.equal(item().status, 'enabled'); assert.equal(item().fields[0].value, ''); assert.equal(item().fields[0].configured, true)
+  assert.equal(settings.configuration('onePassword').token, 'ops_synthetic')
+  settings.setError('onePassword', { code: 'ONEPASSWORD_TOKEN_REJECTED' })
+  assert.match(item().error.message, /トークンを貼り直してください/)
 })

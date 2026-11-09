@@ -144,6 +144,7 @@ test('token reaches op only through per-call env; SSH Key items become openssh r
   source.setToken(async () => 'ops_synthetic-token')
   assert.deepEqual(await source.listSshKeys(), [{ title: 'MacBook key', vault: '開発工場', reference: `op://${vault}/${key}/private key?ssh-format=openssh` }])
   assert.deepEqual(calls.slice(1).map(call => call.args), [['vault', 'list', '--format', 'json'], ['item', 'list', '--vault', vault, '--categories', 'SSH Key', '--format', 'json']])
+  assert.deepEqual((await source.inventory()).vaults, ['開発工場'])
   assert.ok(calls.slice(1).every(call => call.token === 'ops_synthetic-token' && call.path === '/usr/local/bin' && !call.args.join(' ').includes('ops_')))
   source.setToken(async () => { throw new Error('ops_private') })
   await assert.rejects(source.listSshKeys(), error => error.code === 'SECRET_SOURCE_UNAVAILABLE' && !error.message.includes('ops_'))

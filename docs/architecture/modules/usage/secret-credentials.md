@@ -132,14 +132,14 @@ Production cause: the server-side OnePasswordSource tried `/srv/bellteam/shared/
 | Component | Change |
 | --- | --- |
 | OnePasswordSource | Resolves `command` (tests), else `OP_CLI_PATH`, else `op` on PATH. No shared-wrapper step. `setToken(fn)` installs a private token reader; each `op` call receives `OP_SERVICE_ACCOUNT_TOKEN` only in that call's env (never argv, logs, files or errors). `listSshKeys()` runs `op vault list` then `op item list --vault <id> --categories "SSH Key"` per readable vault and returns `[{title,vault,reference}]` where reference is `op://<vault id>/<item id>/private key?ssh-format=openssh`. No key is created; failures are the fixed SECRET_SOURCE_UNAVAILABLE. |
-| SecretRequests | Reserved tool id `onepassword-service-account`: an ordinary Bot `request_secret` card whose Owner-submitted stored value (existing 0600 file) is the service account token. The newest submitted such request is the token; an op-reference submission for it is rejected. A successful token submission triggers `refreshAvailability()` so pending cards update inputOptions. `onePasswordItems(id)` lists SSH Key items for a pending request; unavailable source → 503. |
+| SecretRequests | `onePasswordItems(id)` lists SSH Key items for a pending request; unavailable source → 503. (The reserved `onepassword-service-account` card of the first version was removed on 2026-11-09; the token now comes from Settings, see below.) |
 | Usage IPC / HTTP | Owner-only `secrets.onePasswordItems {id}` → array of `{title,vault,reference}`. Owner HTTP `GET /api/secret-requests/:id/onepassword-items` → `{items}`; not served to internal (Bot) callers. Submit DTO is unchanged: `{source:'onepassword',reference}`. |
 | Web secret card | For `purpose: terminal.ssh` with 1Password connected, the reference field is a select filled from the items route (title and vault shown); other purposes keep the reference text field. The key textarea carries `data-1p-ignore` so browser autofill does not insert a public key. |
 
 ```mermaid
 flowchart LR
-  Owner -->|token on reserved request_secret card| Requests[SecretRequests]
-  Requests -->|0600 stored value| Token[(state/secret-values/onepassword-service-account)]
+  Owner -->|Settings 1Password連携: token once| Settings[FeatureSettings onePassword]
+  Settings -->|0600 settings.json, never listed back| Token[(token)]
   Token -->|private reader, per-call env| OP[op on PATH /usr/local/bin/op]
   Card[terminal.ssh card] -->|GET items, Owner only| Requests
   Requests -->|listSshKeys| OP
@@ -148,4 +148,29 @@ flowchart LR
   Requests -->|registerSource / bind| Credentials[SecretCredentials]
 ```
 
-Vault scope is the Owner's ruling (Trony 2026-11-09): the existing key is imported as an SSH Key item into a vault the service account already reads; access is not widened. Token state: no token → op unavailable → stored input remains (same self-exit: submitting the token card, or op recovering, flips availability).
+Vault scope is the Owner's ruling (Trony 2026-11-09): the existing key is imported as an SSH Key item into a vault the service account already reads; access is not widened. Token state: no token → op unavailable → stored input remains (same self-exit: saving the Settings token, or op recovering, flips availability).
+
+### Settings "1Password連携" token field (2026-11-09, Owner ask, Trony un-hold)
+
+Owner: 「1passwordを使うユーザー向けに、それを入力する欄が必要なんじゃないの？アプリ側に。」 Product bar (Trony): an ordinary 1Password user finishes it from the screen alone, and the token is never shown back.
+
+| Component | Contract |
+| --- | --- |
+| FeatureSettings | New feature `onePassword` (title 1Password連携), one secret field `token` (サービスアカウントのトークン, must start with `ops_`). Stored in the existing 0600 settings file. `list()` keeps secret values empty. The item carries a `guide` `{steps:[string], link:{label,url}}`: what a service account is, where it is made, which vault to allow (Personal/Private cannot be shared with a service account), paste once. Existing 6-feature files gain `onePassword` disabled on load (same late-feature migration as webPush), and `settingsFeatures` state compatibility adds `onePassword`. |
+| Usage services | `OnePasswordSource.setToken` reads `configuration('onePassword')`: token only while enabled. Saving the feature refreshes availability, then sets the feature error: `ONEPASSWORD_TOKEN_REJECTED` (whoami failed: wrong/revoked token or no network) or `ONEPASSWORD_CLI_MISSING` (no op in this body), each with a plain next action. A later availability change re-syncs the error and publishes settings. The source exposes `reason` (`missing`/`rejected`/null) only for this mapping. A save never fails because 1Password is unreachable. While connected, the item carries `connection {vaults:[name], sshKeys:n}` from `OnePasswordSource.inventory()` (names and a count only), computed inside a live operation: save, initialize, or a trusted `secrets.refresh` that finds it missing. It is cleared when disconnected. |
+| Parent | `settings.changed` for `onePassword` is accepted and has no parent-side apply (existing no-op branch). |
+| Web Settings | The `onePassword` header carries a badge with an icon: 連携中 green / 未連携 grey / 失敗 red (plain error message below). The guide sits behind 「作り方を見る」, open until connected. When connected, one line shows the readable vaults and the SSH key count (zero keys gives a next action). The token field is followed by the primary action 「保存して連携を確かめる」. Saving with a pasted token turns it on. Dark mode uses the owner-dialog tokens. |
+| Web SSH card | Plain wording: the request message is 「端末「…」で使うSSH鍵を登録してください。」, and the choices are 「1Passwordの鍵から選ぶ」 / 「鍵を貼り付けて保存する」. 1Password connected: the picker (#836). Not connected: the paste field shows a short guide (pasting an OpenSSH private key, or setting up 1Password連携 in Settings to pick from a list). |
+
+```mermaid
+flowchart LR
+  Owner[Owner / user] -->|PATCH /api/settings/onePassword {enabled,values:{token}}| FS[FeatureSettings onePassword]
+  FS -->|0600 settings.json| Store[(token)]
+  FS -->|onChange| Svc[usage services]
+  Svc -->|refreshAvailability| OP[op whoami, token in env only]
+  OP -->|available / reason| Svc
+  Svc -->|error code + plain message| FS
+  Svc -->|inventory: vault names + SSH key count| FS
+  FS -->|list: guide, status, error, connection, token empty| Screen[Settings badge 連携中/未連携/失敗]
+  OP -->|available| Cards[pending SSH cards: picker]
+```

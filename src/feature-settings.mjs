@@ -15,7 +15,24 @@ const features = [
   { id: 'diagnostics', title: '診断情報の連携', fields: [{ key: 'key', label: 'BugHubの合鍵', secret: true }] },
   { id: 'notifications', title: 'プッシュ通知', fields: [{ key: 'relayUrl', label: '通知中継URL', url: true }] },
   { id: 'webPush', title: 'ブラウザーの通知', fields: [{ key: 'subject', label: '通知運用の公開連絡先' }] },
+  { id: 'onePassword', title: '1Password連携', fields: [{ key: 'token', label: 'サービスアカウントのトークン', secret: true }],
+    guide: {
+      steps: [
+        '1Passwordに保存しているSSH鍵を、端末の鍵として一覧から選べるようになります。使わない場合は、鍵を貼り付けて登録できます。',
+        '「サービスアカウント」は、BellTeamのようなアプリが1Passwordを読むための専用の鍵です。1Passwordのアカウントで1回作ります。',
+        '1. 下の案内を開き、1Password.comで「サービスアカウントを作成」を選びます。名前は「BellTeam」など分かるものにします。',
+        '2. 読める保管庫に、SSH鍵を入れている保管庫を選び、「読み取り」を許可します。「個人」「プライベート」の保管庫は選べないので、鍵はほかの保管庫に入れてください。',
+        '3. 最後に表示されるトークン（ops_で始まる文字）をコピーし、下の欄に貼って保存します。トークンはこのあと画面に表示しません。',
+      ],
+      link: { label: 'サービスアカウントの作り方を開く（1Password）', url: 'https://developer.1password.com/docs/service-accounts/get-started/' },
+    } },
 ]
+// Features added after the first release; a stored file without them gains their disabled default.
+const lateFeatures = ['webPush', 'onePassword']
+const onePasswordErrors = {
+  ONEPASSWORD_TOKEN_REJECTED: 'このトークンで1Passwordに接続できませんでした。トークンを貼り直してください。サービスアカウントが無効になっていないか、通信ができるかも確かめてください。',
+  ONEPASSWORD_CLI_MISSING: 'この本体には1Passwordに接続する道具がありません。BellTeamを更新してください。',
+}
 
 export class FeatureSettingsError extends Error {
   constructor(code, status, message, cause) {
@@ -49,6 +66,9 @@ function validateValues(feature, values) {
     if (typeof value !== 'string' || value.includes('\0')) {
       throw new FeatureSettingsError('FEATURE_VALUE_INVALID', 400, '設定値は文字列で入力してください。')
     }
+    if (feature.id === 'onePassword' && value.trim() && !/^ops_\S+$/u.test(value.trim())) {
+      throw new FeatureSettingsError('FEATURE_VALUE_INVALID', 400, 'サービスアカウントのトークンは「ops_」で始まる文字です。1Passwordで表示されたトークンをそのまま貼ってください。')
+    }
     if (feature.id === 'webPush' && value !== '') {
       try { validateWebPushSubject(value) }
       catch { throw new FeatureSettingsError('FEATURE_VALUE_INVALID', 400, '通知運用の公開連絡先の形式が正しくありません。') }
@@ -76,6 +96,7 @@ export class FeatureSettings {
     this.onChange = onChange
     this.legacyAPNsConfigured = false
     this.errors = new Map()
+    this.connections = new Map()
     this.routingEpoch = 0
     this.settings = Object.fromEntries(features.map(feature => [feature.id, {
       enabled: false, ...Object.fromEntries(feature.fields.map(field => [field.key, ''])),
@@ -96,8 +117,9 @@ export class FeatureSettings {
       try {
         const settings = JSON.parse(text)
         if (!object(settings)) throw new Error('設定項目が一致しません。')
-        const legacy = !Object.hasOwn(settings, 'webPush') && Object.keys(settings).length === features.length - 1
-        const expected = legacy ? features.filter(feature => feature.id !== 'webPush') : features
+        const missing = features.filter(feature => !Object.hasOwn(settings, feature.id))
+        if (missing.some(feature => !lateFeatures.includes(feature.id))) throw new Error('設定項目が一致しません。')
+        const expected = features.filter(feature => Object.hasOwn(settings, feature.id))
         if (Object.keys(settings).length !== expected.length) throw new Error('設定項目が一致しません。')
         for (const feature of expected) {
           const entry = settings[feature.id]
@@ -107,8 +129,9 @@ export class FeatureSettings {
           validateValues(feature, values)
           if (enabled && !configured(feature, values, this.legacyAPNsConfigured)) throw new Error('有効な設定に必要な値がありません。')
         }
-        this.settings = legacy ? { ...settings, webPush: { enabled: false, subject: '' } } : settings
-        if (legacy && !readOnly) await this.save(this.settings)
+        this.settings = { ...settings, ...Object.fromEntries(missing.map(feature => [feature.id, {
+          enabled: false, ...Object.fromEntries(feature.fields.map(field => [field.key, ''])) }])) }
+        if (missing.length && !readOnly) await this.save(this.settings)
       } catch (cause) {
         throw new FeatureSettingsError('FEATURE_SETTINGS_INVALID', 500, '保存済みの設定を読み取れません。', cause)
       }
@@ -145,6 +168,8 @@ export class FeatureSettings {
         id: feature.id, title: feature.title, enabled: values.enabled,
         status: !configured(feature, values, this.legacyAPNsConfigured) ? 'unconfigured' : values.enabled ? 'enabled' : 'disabled',
         ...(this.errors.has(feature.id) ? { error: this.errors.get(feature.id) } : {}),
+        ...(this.connections.has(feature.id) ? { connection: structuredClone(this.connections.get(feature.id)) } : {}),
+        ...(feature.guide ? { guide: { steps: [...feature.guide.steps], link: { ...feature.guide.link } } } : {}),
         fields: feature.fields.map(field => ({
           key: field.key, label: field.label, secret: field.secret === true,
           value: field.secret ? '' : values[field.key], configured: Boolean(values[field.key].trim()),
@@ -162,9 +187,17 @@ export class FeatureSettings {
     return { enabled: this.settings.routing.enabled, epoch: this.routingEpoch }
   }
 
+  // What a connected feature can see (1Password: vault names and SSH key count); never a value.
+  setConnection(id, connection) {
+    definition(id)
+    if (connection) this.connections.set(id, connection)
+    else this.connections.delete(id)
+  }
+
   setError(id, error) {
     definition(id)
     if (!error) this.errors.delete(id)
+    else if (Object.hasOwn(onePasswordErrors, error.code)) this.errors.set(id, { code: error.code, message: onePasswordErrors[error.code] })
     else this.errors.set(id, { code: /^[A-Z_0-9]+$/u.test(error.code ?? '') ? error.code : 'FEATURE_APPLY_FAILED', message: '設定を保存しましたが、反映できませんでした。設定を確認して再度保存してください。' })
   }
 
