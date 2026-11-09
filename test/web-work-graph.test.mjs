@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { avatarSide, backoffMs, blinkOpacity, createGraphModel, createTap, edgeText, enterCurve, flowDots, nodeAt, nodeText, wrapLabel } from '../web/work-graph-model.js'
+import { avatarSide, backoffMs, bestSwap, blinkOpacity, createGraphModel, createTap, edgeText, enterCurve, flowDots, nodeAt, nodeText, wrapLabel } from '../web/work-graph-model.js'
 import { createGraphStream, parseFrames } from '../web/work-graph.js'
 
 const rect = { x: 24, y: 24, w: 800, h: 600 }
@@ -225,4 +225,49 @@ test('タップした子の会話は、通知と同じ経路でメモリにだ�
   fail = false
   await nav.retry()
   assert.deepEqual(routed, [route]); assert.equal(notices.at(-1), '')
+})
+
+test('交差を減らす入れ替え：bestSwap は layout-sim.mjs と同じ。30コマ目に一組だけ位置と速度を替え、700msで滑る', async () => {
+  const sim = await import('../docs/architecture/modules/work-graph/layout-sim.mjs')
+  let s = 9
+  const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647
+  let swaps = 0
+  for (let k = 0; k < 200; k++) {
+    const P = Array.from({ length: 10 }, () => ({ x: rnd() * 900, y: rnd() * 600 })), E = sim.denseEdges(10, k + 1)
+    if (k % 2) E.push(E[0].slice().reverse())
+    const mine = bestSwap(P, E)
+    assert.deepEqual(mine, sim.bestSwap(P, E))
+    if (mine) swaps++
+  }
+  assert.ok(swaps > 50)
+  // a-c と b-d が交差する並び。a と b を替えると交差が消える。
+  const model = createGraphModel()
+  model.snapshot(snapshot(['a', 'b', 'c', 'd'].map(id => node(id)), [edge('a', 'c'), edge('b', 'd'), edge('c', 'a', 'c:a2')]), 0, rect)
+  const at = { a: [200, 150], b: [600, 150], c: [600, 450], d: [200, 450] }
+  const heat = () => { for (const [id, [x, y]] of Object.entries(at)) Object.assign(model.nodes.get(id), { x, y, vu: 0, vv: 0 }) }
+  const t0 = 10000
+  for (let i = 0; i < 29; i++) { heat(); model.step(0, rect, t0) }
+  // 置き直した同じ場所なので、30コマ目の力は29コマ目と同じ。a に足した速度は b へ移る。
+  const a = model.nodes.get('a'), b = model.nodes.get('b'), force = [a.vu, b.vu]
+  heat(); a.vu = 0.01
+  model.step(0, rect, t0)
+  assert.deepEqual([a.x, a.y, b.x, b.y], [600, 150, 200, 150])
+  assert.ok(Math.abs(a.vu - force[1]) < 1e-12 && Math.abs(b.vu - (force[0] + 0.01 * 0.82)) < 1e-12)
+  const pos = now => model.frame(now, rect).nodes.find(item => item.node.botId === 'a')
+  assert.deepEqual([pos(t0).x, pos(t0).y], [200, 150])
+  assert.ok(Math.abs(pos(t0 + 350).x - (200 + 400 * enterCurve(0.5))) < 1e-6)
+  assert.deepEqual([pos(t0 + 700).x, pos(t0 + 700).opacity], [600, 1])
+  // 減らない時は替えない
+  for (let i = 0; i < 30; i++) model.step(0, rect, t0 + 800)
+  assert.deepEqual([a.x, b.x], [600, 200])
+  // Reduce Motion：前半は元の場所で消え、後半は新しい場所で現れる
+  const reduced = createGraphModel({ reduceMotion: true })
+  reduced.snapshot(snapshot(['a', 'b', 'c', 'd'].map(id => node(id)), [edge('a', 'c'), edge('b', 'd')]), 0, rect)
+  const put = () => { for (const [id, [x, y]] of Object.entries(at)) Object.assign(reduced.nodes.get(id), { x, y, vu: 0, vv: 0 }) }
+  for (let i = 0; i < 29; i++) { put(); reduced.step(0, rect, t0) }
+  reduced.step(0, rect, t0)
+  const ra = now => reduced.frame(now, rect).nodes.find(item => item.node.botId === 'a')
+  assert.deepEqual([ra(t0 + 50).x, ra(t0 + 50).opacity], [200, 0.5])
+  assert.deepEqual([ra(t0 + 150).x, ra(t0 + 150).opacity], [600, 0.5])
+  assert.equal(ra(t0 + 200).opacity, 1)
 })
