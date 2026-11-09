@@ -19,8 +19,9 @@ flowchart LR
   Ingress[http-server public: /api/seat-mcp]
   SeatMcp[seat-mcp: existing tools, bot authority]
   Owner[Owner HTTP /api/terminals]
-  Tools[MCP tools: list/register/remove/check_terminal]
+  Tools[MCP tools: list/register/remove/check_terminal, bind_terminal_key]
   Usage[usage credentials / Mika]
+  Status[aiterm-remote-terminal status --ref / Elegg, UID 1000]
   Exec -->|issue botId, sessionName, terminalId| Cred
   Cred -->|ingressUrl| Core
   Cred <--> Store
@@ -31,6 +32,8 @@ flowchart LR
   Private --> Native
   Native <--> Mac
   Core -->|handles| Usage
+  Usage -->|native provider status ref| Status
+  Tools -->|bind_terminal_key: registerNative| Usage
   Mac -->|Authorization: Bearer over LAN| Gateway
   Gateway --> Ingress
   Ingress -->|verify| Cred
@@ -55,6 +58,9 @@ flowchart LR
 | RS09 | Owner HTTP / bot MCP -> core.registry / reachability | Owner: `GET /api/terminals`, `GET/PUT/DELETE /api/terminals/:id`, `POST /api/terminals/:id/check` (internal callers 403). Bots: `list_terminals`, `register_terminal`, `remove_terminal`, `check_terminal`. Results are the core's nonsecret projections as-is |
 
 | RS10 | parent refresh helper -> `usageAssembly.credentials.refresh()` | Usage has no timer of its own (Mika C5). The parent watches `usageAssembly.credentials.watch` events `{handle, revision, available}`, and the source-free `{recoveryNeeded}` from each refresh result and the optional `credentials.watchRecovery`. While any handle is unavailable or `recoveryNeeded` is true (no handle needed, e.g. a pending card's 1Password source), one unref'd 60 s timer calls refresh; `recoveryNeeded: false` and restored handles disarm it; it also refreshes once after listen and when a terminal reports `reachable: true`. On body close (and on construction-failure cleanup) `stop()` runs before usage, diagnostics, the native client and terminals close, and resolves only after an in-flight refresh settles. A refresh or report-sink failure is contained (reported once, never an unhandled rejection). No AI polling, no consumer replay. Wired only when usage exposes `credentials.refresh` and `credentials.watch` ([secret-credential-refresh](../../../../src/secret-credential-refresh.mjs)) |
+
+| RS11 | usage native credentials -> parent provider -> `aiterm-remote-terminal status --ref <uuid>` | Wired once at assembly by `usageAssembly.credentials.setNativeProvider({status})` when both terminals and that seam exist. Each `status(ref)` runs the one-shot UID 1000 bin from aiterm-mcp >= 0.65.1 (`<package>/dist/remote-terminal-cli.js`, on the seat PATH beside `aiterm-mcp`) through the seat command entry (`createSeatProcessRunner(root)`, same seat project as terminals). Exit 0 prints one `aiterm.remote-binding-status.v1` line and exit 2 one `aiterm.remote-binding-error.v1` line; both JSON objects are returned as-is and usage validates them (ref/target/credential provider/revision/available; anything else is `SECRET_SOURCE_UNAVAILABLE`). Any other exit, signal, spawn failure or non-JSON output is `REMOTE_TERMINAL_STATUS_UNAVAILABLE`. No value or key bytes cross: status carries only ref, target and the credential revision/availability. Image before 0.65.1: the bin is missing, every status is unavailable, the handle stays unavailable and RS10 keeps refreshing |
+| RS12 | bot MCP `bind_terminal_key({terminalId, ref})` -> parent -> `usageAssembly.credentials.registerNative` -> `core.registry.put` | The legitimate live caller of `registerNative` (Mika C5). `ref` is an Aiterm-held key ref (uuid). The parent reads the terminal record and passes `{ref, target: {host, user, port}}` from it, never from the caller, with scope `{terminalId, purpose: 'terminal.ssh'}`. Usage asks RS11 for the status, saves a new handle row (`state/secret-native-credentials/<handle>.json`, usage's writer) and returns `{handle, revision, available}`. The parent then sets that handle as the terminal's `sshKeyRef` through the core's `put` (which reads host trust once). Returns `{credential, terminal}` (nonsecret). Errors: `TERMINAL_NOT_FOUND` 404, `CREDENTIAL_UNAVAILABLE` 503 (no terminals or usage seam), usage's `SECRET_CREDENTIAL_INVALID` / `SECRET_SOURCE_UNAVAILABLE` as-is; on a usage failure no terminal field changes. Same bot authority as `register_terminal`. A repeat call issues a new handle and replaces `sshKeyRef`; the old handle row stays unused |
 
 Credentials survive a body restart (hashes on disk), so a running remote seat keeps its MCP across a body swap.
 
@@ -98,5 +104,5 @@ Protection: a LAN caller cannot speak as a seat it was not launched as (privileg
 ## Limits
 
 - shortcut: LAN traffic is plain HTTP, so the bearer is visible to a LAN sniffer; acceptable on the Owner's LAN for P1, upgrade to TLS before non-Owner terminals (P3).
-- The P1 Owner Mac key (`bot-c2adbe04/integrations/ssh/id_ed25519_macbook`) is a UID 1000 0600 file; the body and usage child run as UID 1001 and cannot read it. The parent does not copy or re-permission it. It stays with Aiterm (UID 1000, Elegg), which already uses it with its ssh config; a parent-side fixed provider for it is not wired.
+- The P1 Owner Mac key (`bot-c2adbe04/integrations/ssh/id_ed25519_macbook`) is a UID 1000 0600 file; the body and usage child run as UID 1001 and cannot read it. The parent does not copy or re-permission it. It stays with Aiterm (UID 1000, Elegg), which already uses it with its ssh config; the parent only asks its status (RS11) and never holds the key.
 - Claude Code's `${VAR}` expansion inside `--mcp-config` headers is the same mechanism local seats use in their config file; the first remote launch on the Mac confirms it.
