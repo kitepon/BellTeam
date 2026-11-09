@@ -68,6 +68,16 @@ Integration: `vu = (vu + Fu × α) × 0.82`, `vv = (vv + Fv × α) × 0.82`, the
 
 `α` (heat): set to 1 on every applied change batch or window resize, then `α = max(0.04, α × 0.985)` each 1/60 s. The floor 0.04 keeps the layout drifting gently, so it re-arranges by itself and never freezes. Node pairs connected in both directions (A→B and B→A) count as one spring.
 
+### Uncrossing swaps
+
+Added 2026-11-10 after the Owner asked whether lines between members can avoid crossing each other. The forces above do not see crossings, so a layout can settle with edges crossing.
+
+- Every 30 simulation frames (0.5 s), count the crossings of the current edges as straight segments between node centers in points. A→B and B→A count as one segment. Two segments that share a node never count as crossing. Leaving nodes and their (already gone) edges take no part.
+- For every pair of non-leaving nodes where at least one has an edge, compute how many crossings would disappear if the two nodes traded places. Only segments touching one of the two nodes change, so count only those (`bestSwap()` in the simulation).
+- If some pair removes at least one crossing, swap the simulated positions and velocities of the pair that removes the most (ties: the first pair in node order by `botId`). At most one swap per check. No swap when nothing improves, so a swap never adds a crossing at that moment. `α` is not changed.
+- Drawing: each swapped node glides from its current drawn position to its new simulated position over 700 ms with the enter curve `cubic-bezier(0.2, 0.8, 0.2, 1)`, like Enter. Its edges and chips follow the drawn positions. A node that is still in its enter animation keeps its enter interpolation toward the new target.
+- Crossings cannot always reach zero (for example, 5 members all connected to each other). The swaps reduce them to what single trades allow. Reference numbers, 5 runs each with `n` random edges among `n` members: Web 1440×900 n=10: 5.8 → 0.2, n=16: 12.2 → 0.4, n=24: 28.4 → 1.2; iPhone portrait n=16: 14.0 → 0.6. Fill of each axis is unchanged (table below). One check with 24 members and 36 edges takes about 5 ms in Node, so it runs on the frame thread.
+
 Expected result, from the reference simulation [layout-sim.mjs](layout-sim.mjs) (`node layout-sim.mjs`; same constants as above, exported as `LAYOUT`):
 
 | Members | Fill of each axis |
@@ -134,7 +144,7 @@ No nodes: centered text `いま動いているメンバーはいません` in mu
 
 ## Accessibility and motion
 
-- Reduce Motion: no fly-in/out (fade 200 ms in place, spawn at a free spot near the center), no blink (static ring at 0.8), flow dots replaced by the static arrow.
+- Reduce Motion: no fly-in/out (fade 200 ms in place, spawn at a free spot near the center), an uncrossing swap fades each node out and in at its new place over 200 ms instead of gliding, no blink (static ring at 0.8), flow dots replaced by the static arrow.
 - Each node is an accessibility element with the button trait: `<name>、作業中、<n>分前から` (`linked`: `<name>、依頼の相手`), hint `チャットを開く`. Activating it (VoiceOver double-tap, keyboard Enter/Space on Web, Windows) does the same as a tap. Each edge: `<from>から<to>へ依頼: <label>`, or `<from>から<to>へ依頼` when `label` is null.
 
 ## Tap or click on a member: open that member's chat
