@@ -422,6 +422,9 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .feature-setting { padding: 16px 0; border-bottom: 1px solid #e8e4ee; }
 .feature-setting summary { cursor: pointer; font-weight: 600; }
 .feature-setting form { display: flex; flex-direction: column; gap: 14px; padding-top: 16px; }
+/* The form gap spaces its rows; an empty error line takes no height. */
+.feature-setting form .field, .feature-setting form .form-error { margin: 0; }
+.feature-setting form .form-error:empty { min-height: 0; }
 .feature-toggle { display: flex; align-items: center; gap: 10px; }
 .feature-guide { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 12px; background: #f6f3fd; line-height: 1.7; }
 .feature-guide p { margin: 0; }
@@ -805,6 +808,11 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 #owner-dialog .feature-badge.connected { background: var(--s-ok-bg); color: var(--s-ok); }
 #owner-dialog .feature-badge.off { background: var(--s-mute-bg); color: var(--s-muted); }
 #owner-dialog .feature-badge.failed { background: var(--s-danger-bg); color: var(--s-danger); }
+#owner-dialog .feature-result { margin: 0; padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.7; background: var(--s-mute-bg); color: var(--s-ink); }
+#owner-dialog .feature-result[data-state="checking"] { background: var(--s-info-bg); }
+#owner-dialog .feature-result[data-state="connected"] { background: var(--s-ok-bg); }
+#owner-dialog .feature-result[data-state="failed"] { background: var(--s-danger-bg); }
+#owner-dialog .feature-result[hidden] { display: none; }
 #owner-dialog .harness-auth-status { background: var(--s-mute-bg); color: var(--s-muted); border-radius: 999px; }
 #owner-dialog .harness-auth-status.authenticated { background: var(--s-ok-bg); color: var(--s-ok); }
 #owner-dialog .harness-auth-status.blocked, #owner-dialog .harness-auth-status.failed { background: var(--s-danger-bg); color: var(--s-danger); }
