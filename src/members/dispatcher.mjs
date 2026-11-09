@@ -3,10 +3,10 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readFile } from 'node:fs/promises'
-import { BotRegistry } from '../bot-registry.mjs'
+import { BotRegistry, remoteBindingRevision } from '../bot-registry.mjs'
 import { OwnerProfile } from '../owner-profile.mjs'
 import { UserRules } from '../user-rules.mjs'
-import { renderBotInstructions, renderGlobalInstructions } from './instructions.mjs'
+import { renderBotInstructions, renderGlobalInstructions, renderRemoteAccessNote } from './instructions.mjs'
 import { MEMBERS_STATE_COMPATIBILITY } from './state-compatibility.mjs'
 import { normalizeMembersError } from './errors.mjs'
 import { validateMembersRequest, validateMembersCallback, validateMembersControl, validateMembersContext,
@@ -81,9 +81,23 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
     renderReported = true
     try { await diagnostic({ code: 'MEMBERS_GLOBAL_INSTRUCTIONS_FAILED', module: 'members', diagnostic_log: /^[A-Z_0-9]{1,100}$/.test(code ?? '') ? code : 'UNKNOWN' }) } catch { /* Keep members available. */ }
   })
-  async function writeGlobal() {
+  async function globalBody() {
     const common = await readFile(new URL('../../config/common-agents.md', import.meta.url), 'utf8')
-    await call('global.writeInstructions', { body: renderGlobalInstructions(await ownerProfile.restore(), await userRules.restore(), common) })
+    return renderGlobalInstructions(await ownerProfile.restore(), await userRules.restore(), common)
+  }
+  async function writeGlobal() { await call('global.writeInstructions', { body: await globalBody() }) }
+  // Remote seat C1/C6: the in-memory equivalent of home AGENTS.md + project AGENTS.md; writes nothing.
+  async function launchContext({ botId, shortTermMemory }) {
+    const profile = await currentBot(botId)
+    if (!profile.terminalId) throw Object.assign(new Error('BOT_REMOTE_BINDING_MISSING'), { code: 'BOT_REMOTE_BINDING_MISSING', status: 409 })
+    const member = await call('project.composeInstructions', { botId, body: renderBotInstructions(profile, shortTermMemory.trim()) })
+    return { text: `${await globalBody()}\n\n${member}\n${renderRemoteAccessNote(profile)}`, revision: remoteBindingRevision(profile) }
+  }
+  async function currentBot(botId) {
+    await bots.refresh()
+    const bot = bots.get(botId)
+    if (!bot) throw Object.assign(new Error('BOT_NOT_FOUND'), { code: 'BOT_NOT_FOUND', status: 404 })
+    return bot
   }
   const track = operation => {
     const task = Promise.resolve().then(operation)
@@ -135,6 +149,10 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
         const bot = await bots.create(params.input, params.id === undefined ? {} : { id: params.id })
         return { bot }
       }
+      case 'profile.launchContext': return { launchContext: await launchContext(params) }
+      case 'docs.list': await currentBot(params.botId); return { files: await call('project.docs.list', { botId: params.botId }) }
+      case 'docs.read': await currentBot(params.botId); return call('project.docs.read', params)
+      case 'docs.write': await currentBot(params.botId); return call('project.docs.write', params)
       case 'profile.startup': await bots.prepareStartupContext(params.botId, params.shortTermMemory); return { prepared: true }
       case 'profile.session': return { bot: await bots.updateSession(params.botId, params.session) }
       case 'profile.fastMode': return { bot: await bots.updateFastMode(params.botId, params.fastMode) }
@@ -174,7 +192,7 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
     ;(callback ? validateMembersCallback : validateMembersRequest)(method, params, context)
     assertContext(context)
     return track(() => contexts.run(context, async () => {
-      const changesProjection = !['profiles.cli', 'profiles.read', 'profile.read', 'profile.preview', 'removals.read', 'owner.read', 'rules.read', 'schedules.list'].includes(method)
+      const changesProjection = !['profiles.cli', 'profiles.read', 'profile.read', 'profile.preview', 'removals.read', 'owner.read', 'rules.read', 'schedules.list', 'profile.launchContext', 'docs.list', 'docs.read', 'docs.write'].includes(method)
       try {
         const result = await execute(method, params)
         validateMembersResult(method, result)

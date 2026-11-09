@@ -68,6 +68,13 @@ export function createMembersFacade({ request, callback, admission, projection }
     previewUpdate: async (botId, changes, context) => (await invoke('profile.preview', { botId, changes }, context)).bot,
     update: async (botId, changes, context) => (await invoke('profile.update', { botId, changes }, context)).bot,
     prepareStartupContext: async (botId, shortTermMemory, context) => { await invoke('profile.startup', { botId, shortTermMemory }, context) },
+    // Remote seat C1/C6 (modules/members/remote-seat.md); execution calls this instead of prepareStartupContext.
+    launchContext: async (botId, { sessionName, shortTermMemory }, context) => (await invoke('profile.launchContext', { botId, sessionName, shortTermMemory }, context)).launchContext,
+    docs: {
+      list: async (botId, context) => (await invoke('docs.list', { botId }, context)).files,
+      read: (botId, path, context) => invoke('docs.read', { botId, path }, context),
+      write: (botId, path, content, context) => invoke('docs.write', { botId, path, content }, context),
+    },
     updateSession: async (botId, session, context) => (await invokeCallback('profile.session', { botId, session }, context)).bot,
     updateFastMode: async (botId, fastMode, context) => (await invokeCallback('profile.fastMode', { botId, fastMode }, context)).bot,
     listSchedules: async (botId, context) => (await invoke('schedules.list', { ownerKind: 'bot', ownerId: botId }, context)).schedules,

@@ -112,6 +112,46 @@ final class WorkGraphModelTests: XCTestCase {
         XCTAssertGreaterThan(gap, model.side(for: 3) / 2, "アイコンが線に重ならない")
     }
 
+    /// 札の文は切らずに折り返し、行の高さ16ptで行数ぶん伸びる（behavior-spec.md #733）。
+    @MainActor
+    func testLongLabelWrapsAtSixteenPointLines() {
+        let long = String(repeating: "会話一覧の位置が飛ばないことを確かめる", count: 4)
+        let width = WorkGraphView.labelMaxWidth - BellTheme.listDetailFontSize - 22
+        let height = ceil(WorkGraphView.labelText(long).boundingRect(with: CGSize(width: width, height: .greatestFiniteMagnitude),
+                                                                    options: .usesLineFragmentOrigin, context: nil).height)
+        XCTAssertGreaterThan(height, WorkGraphView.labelLineHeight * 3, "長い文は複数行になる")
+        XCTAssertEqual(height.truncatingRemainder(dividingBy: WorkGraphView.labelLineHeight), 0, "行の高さは16ptちょうど")
+        let short = ceil(WorkGraphView.labelText("比較表を更新").boundingRect(with: CGSize(width: width, height: .greatestFiniteMagnitude),
+                                                                     options: .usesLineFragmentOrigin, context: nil).height)
+        XCTAssertEqual(short, WorkGraphView.labelLineHeight)
+    }
+
+    /// 札は依頼が始まった順（古い順）に置く。snapshotで同時に届いても、サーバーの`startedAt`の順になる（behavior-spec.md #738）。
+    func testLabelOrderFollowsServerStartThenId() throws {
+        let json = #"[{"id":"a","from":"x","to":"y","label":"新","state":"running","startedAt":"2026-11-09T10:02:00.000Z"},{"id":"b","from":"x","to":"z","label":null,"state":"running","startedAt":"2026-11-09T10:00:00.000Z"},{"id":"c","from":"y","to":"z","label":"同時","state":"running","startedAt":"2026-11-09T10:02:00.000Z"}]"#
+        let edges = try JSONDecoder().decode([WorkGraphEdge].self, from: Data(json.utf8))
+        XCTAssertNil(edges[1].label)
+        let lines = edges.reversed().map { WorkGraphModel.Line(edge: $0, startedAt: 0) }
+        XCTAssertEqual(WorkGraphModel.labelOrder(lines).map(\.edge.id), ["b", "a", "c"])
+    }
+
+    /// 混んでいる時（10本超、または線が120pt未満）は、始まって3秒は札を出し、400msで消える（behavior-spec.md）。
+    func testCrowdedLabelShowsThreeSecondsThenFadesOverFourHundredMilliseconds() throws {
+        let edge = try JSONDecoder().decode(WorkGraphEdge.self, from: Data(#"{"id":"a","from":"x","to":"y","label":"札","state":"running","startedAt":"2026-11-09T10:00:00.000Z"}"#.utf8))
+        let line = WorkGraphModel.Line(edge: edge, startedAt: 9_999)
+        let start = try XCTUnwrap(line.serverStart)
+        XCTAssertEqual(WorkGraphModel.labelOpacity(line, crowded: true, now: start + 2.9), 1)
+        XCTAssertEqual(WorkGraphModel.labelOpacity(line, crowded: true, now: start + 3), 1)
+        XCTAssertEqual(WorkGraphModel.labelOpacity(line, crowded: true, now: start + 3.2), 0.5, accuracy: 1e-4)
+        XCTAssertEqual(WorkGraphModel.labelOpacity(line, crowded: true, now: start + 3.4), 0, accuracy: 1e-4)
+        XCTAssertEqual(WorkGraphModel.labelOpacity(line, crowded: true, now: start + 60), 0)
+        XCTAssertEqual(WorkGraphModel.labelOpacity(line, crowded: false, now: start + 60), 1)
+        // サーバーの時刻が無ければ受け取った時刻で測る。
+        var local = line
+        local.serverStart = nil
+        XCTAssertEqual(WorkGraphModel.labelOpacity(local, crowded: true, now: 9_999 + 3.2), 0.5, accuracy: 1e-9)
+    }
+
     func testDecodesContractChangesAndHelpers() throws {
         let json = #"{"epoch":"e","version":2,"degraded":[],"changes":[{"type":"member-enter","node":{"botId":"a","name":"A","color":"rose","avatarVersion":"","state":"working","activeSince":"2026-11-08T11:00:00.000Z"}},{"type":"edge-end","edgeId":"x"},{"type":"member-leave","botId":"b"},{"type":"future-kind"}]}"#
         let batch = try JSONDecoder().decode(WorkGraphBatch.self, from: Data(json.utf8))

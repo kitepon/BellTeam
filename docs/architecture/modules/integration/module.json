@@ -67,6 +67,18 @@
       "port": "module-runner"
     },
     {
+      "module": "terminals",
+      "port": "registry"
+    },
+    {
+      "module": "terminals",
+      "port": "reachability"
+    },
+    {
+      "module": "terminals",
+      "port": "connection"
+    },
+    {
       "module": "usage",
       "port": "secrets"
     }
@@ -118,6 +130,10 @@
     "src/json-file.mjs",
     "src/work-graph-facade.mjs",
     "src/http-accounts-api.mjs",
+    "src/seat-credentials.mjs",
+    "src/http-terminals-api.mjs",
+    "src/terminals-mcp.mjs",
+    "src/secret-credential-refresh.mjs",
     "src/submitted-secret-caller.mjs"
   ]
 }

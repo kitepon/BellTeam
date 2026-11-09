@@ -29,6 +29,7 @@ const profileFields = {
   color: value => { if (!['rose', 'indigo', 'violet'].includes(value)) fail() },
   avatar: validateAvatar, avatarLarge: validateAvatar, avatarSource: validateAvatar, avatarLargeSource: validateAvatar,
   avatarCrop: crop, avatarLargeCrop: crop,
+  terminalId: value => string(value, 128), projectRoot: value => string(value, 4096),
 }
 const changes = value => object(value, profileFields, [])
 const create = value => object(value, profileFields, ['name'])
@@ -42,6 +43,8 @@ const schedule = value => {
   if (value.targets !== undefined) ids(value.targets)
   normalizeSchedule({ ...value, id: value.id ?? 'validation' }, new Date())
 }
+const docPath = value => string(value, 4096)
+const docContent = value => string(value, 1024 * 1024)
 const owner = { ownerKind: value => { if (!['bot', 'room'].includes(value)) fail() }, ownerId: id }
 const claim = { ...owner, scheduleId: text, expectedRevision: revision, expectedNextRunAt: time, ranAt: time }
 const turnClaim = { botId: id, scheduleId: text, expectedRevision: revision, expectedAfterTurn: validateScheduleTurn, observedTurn: validateScheduleTurn, ranAt: time }
@@ -56,6 +59,10 @@ const requests = {
   'profile.preview': value => object(value, { botId: id, changes }),
   'profile.update': value => object(value, { botId: id, changes }),
   'profile.startup': value => object(value, { botId: id, shortTermMemory: body }),
+  'profile.launchContext': value => object(value, { botId: id, sessionName: value => { string(value, 200); if (!value) fail() }, shortTermMemory: body }),
+  'docs.list': value => object(value, { botId: id }),
+  'docs.read': value => object(value, { botId: id, path: docPath }),
+  'docs.write': value => object(value, { botId: id, path: docPath, content: docContent }),
   'profile.remove': value => object(value, { botId: id }),
   'removals.read': empty,
   'owner.read': empty, 'owner.update': value => object(value, { changes: ownerChanges }),
@@ -97,6 +104,10 @@ const effects = {
   'project.prepareStartupContext': value => object(value, { ...projectId, previousSession: body, body }),
   'project.appendInstructions': value => object(value, { ...projectId, text: body }),
   'global.writeInstructions': value => object(value, { body }),
+  'project.composeInstructions': value => object(value, { ...projectId, body }),
+  'project.docs.list': value => object(value, projectId),
+  'project.docs.read': value => object(value, { ...projectId, path: docPath }),
+  'project.docs.write': value => object(value, { ...projectId, path: docPath, content: docContent }),
   'cli.configure': value => object(value, { botIds: ids }),
   'schedules.currentTurn': value => object(value, { botId: id }),
   'models.read': value => object(value, { harness }),
@@ -141,6 +152,8 @@ const removalStates = value => object(value, { removals: values => {
   if (!Array.isArray(values)) fail()
   values.forEach(item => object(item, { botId: id, active: bool, hasIntent: value => { if (value !== true) fail() }, retired: bool }))
 } })
+const docFile = value => object(value, { path: docPath, size: revision, modifiedAt: time })
+const docFiles = value => { if (!Array.isArray(value)) fail(); value.forEach(docFile) }
 function checkMembersResult(method, value) {
   if (method === 'profiles.cli') { object(value, { botIds: ids }); return }
   if (method === 'profile.remove') {
@@ -149,6 +162,10 @@ function checkMembersResult(method, value) {
   }
   if (method === 'profiles.read') { object(value, { revision }); return }
   if (['profile.read', 'profile.create', 'profile.preview', 'profile.update', 'profile.session', 'profile.fastMode'].includes(method)) { object(value, { bot }); return }
+  if (method === 'profile.launchContext') { object(value, { launchContext: value => object(value, { text: body, revision: value => { if (!/^[a-f0-9]{16}$/u.test(value)) fail() } }) }); return }
+  if (method === 'docs.list') { object(value, { files: docFiles }); return }
+  if (method === 'docs.read') { object(value, { path: docPath, content: docContent, modifiedAt: time }); return }
+  if (method === 'docs.write') { docFile(value); return }
   if (method === 'profile.startup') { object(value, { prepared: value => { if (value !== true) fail() } }); return }
   if (method === 'removals.read') { removalStates(value); return }
   if (['rules.read', 'rules.update'].includes(method)) { object(value, { text: body }); return }
@@ -163,7 +180,10 @@ function checkMembersEffectResult(method, value) {
   if (method === 'schedules.currentTurn') { validateScheduleTurn(value); return }
   if (method === 'assets.prepareBotAssetRemoval') { string(value, 200); if (!value) fail(); return }
   if (method === 'assets.cancelBotAssetRemoval') { bool(value); return }
-  if (method === 'project.readPreviousSession') { body(value); return }
+  if (['project.readPreviousSession', 'project.composeInstructions'].includes(method)) { body(value); return }
+  if (method === 'project.docs.list') { docFiles(value); return }
+  if (method === 'project.docs.read') { object(value, { path: docPath, content: docContent, modifiedAt: time }); return }
+  if (method === 'project.docs.write') { docFile(value); return }
   if (method === 'models.read') {
     if (!value || typeof value !== 'object' || !Array.isArray(value.efforts) || value.efforts.some(item => typeof item !== 'string')
       || value.models !== undefined && !Array.isArray(value.models)) fail()

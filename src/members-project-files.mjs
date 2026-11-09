@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { composeProjectInstructions } from './project-instructions.mjs'
+import { listMemberDocs, readMemberDoc, writeMemberDoc } from './members/project-docs.mjs'
 
 const exec = promisify(execFile)
 const maximum = 16 * 1024 * 1024
@@ -20,10 +21,12 @@ export function validateMembersProjectRequest(operation, params) {
     'project.writeInstructions': 'botId,body',
     'project.prepareStartupContext': 'botId,body,previousSession',
     'project.appendInstructions': 'botId,text', 'global.writeInstructions': 'body',
+    'project.composeInstructions': 'botId,body',
+    'project.docs.list': 'botId', 'project.docs.read': 'botId,path', 'project.docs.write': 'botId,content,path',
   }
   if (!Object.hasOwn(fields, operation) || !exact(params, fields[operation])) fail()
   if (Object.hasOwn(params, 'botId') && !bot(params.botId)) fail()
-  for (const name of ['body', 'previousSession', 'text'])
+  for (const name of ['body', 'previousSession', 'text', 'path', 'content'])
     if (Object.hasOwn(params, name) && !text(params[name])) fail()
 }
 
@@ -105,6 +108,11 @@ export async function operateMembersProject({ root, home }, operation, params) {
     } catch (error) { if (error.code === 'ENOENT') return ''; throw error }
     finally { await fd?.close() }
   }
+  // Remote seat C1/C6 (modules/members/remote-seat.md): read-only compose and own-project docs.
+  if (operation === 'project.composeInstructions') return composeProjectInstructions(project, params.body)
+  if (operation === 'project.docs.list') return listMemberDocs(project)
+  if (operation === 'project.docs.read') return readMemberDoc(project, params.path)
+  if (operation === 'project.docs.write') return writeMemberDoc(project, params.path, params.content)
   if (operation === 'project.prepareStartupContext') {
     await directory(join(project, 'memory'), true)
     await file(join(project, 'memory/previous-session.md'), `${params.previousSession.trim()}\n`, 0o600)

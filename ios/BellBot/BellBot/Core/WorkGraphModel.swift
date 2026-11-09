@@ -20,6 +20,7 @@ struct WorkGraphEdge: Decodable, Equatable {
     let to: String
     let label: String?
     let state: String
+    var startedAt: String? = nil
     var steered: Bool { state == "steered" }
 }
 
@@ -79,6 +80,26 @@ final class WorkGraphModel: ObservableObject {
         var edge: WorkGraphEdge
         var startedAt: Double
         var endedAt: Double?
+        /// 依頼が始まった時刻（サーバーの`startedAt`）。札を始まった順に置くために使う。
+        var serverStart: Double?
+
+        init(edge: WorkGraphEdge, startedAt: Double) {
+            self.edge = edge
+            self.startedAt = startedAt
+            serverStart = edge.startedAt.flatMap(BellDate.parse)?.timeIntervalSinceReferenceDate
+        }
+    }
+
+    /// 札を置く順。依頼が始まった順（古い順）で、同時なら線のID順（behavior-spec.md #738）。
+    static func labelOrder(_ lines: [Line]) -> [Line] {
+        lines.sorted { ($0.serverStart ?? $0.startedAt, $0.edge.id) < ($1.serverStart ?? $1.startedAt, $1.edge.id) }
+    }
+
+    /// 混んでいる時（開いた依頼が10本超、または線が120pt未満）に札を出す濃さ。始まって3秒は1、その後400msで消える（behavior-spec.md）。
+    /// 混んでいなければ常に1。始まりはサーバーの`startedAt`で測り、無ければ受け取った時刻を使う。
+    static func labelOpacity(_ line: Line, crowded: Bool, now: Double) -> Double {
+        guard crowded else { return 1 }
+        return min(1, max(0, 1 - (now - (line.serverStart ?? line.startedAt) - 3) / 0.4))
     }
 
     @Published private(set) var connection = Connection.connecting
