@@ -96,6 +96,20 @@ admission.drainが明示busyを返した時は、子quiesceへ進まず同DRAIN_
 
 quiesce RPCは残りdrain時間を明示し、共通controller自身もその残時間のwithinで囲む。固有channelのACK/進捗によるcaller期限変更を実drain期限の延長にしない。期限後は元control.completionをactiveへ残し、旧resumeと子epoch検査を使い、遅着quiesceで新受付を再閉鎖しない。close/次交換はその実終端を待つ。
 
+## Adopted release from another body's state format (2026-11-09, K-36W2AY)
+
+A body swap can change a component's stateCompatibility (5b404cf0 usage `secretEncoding`). The adopted release was signed for the previous body, so `prepareRelease` rejects it with `<COMPONENT>_STATE_INCOMPATIBLE`, and before this fix that failed start and the whole body boot. Now `start` checks the adopted current and previous versions first. Each one rejected with exactly that code becomes builtin (`null`). The rewritten private record is saved before launch, and stderr gets one `MODULE_ADOPTION_INCOMPATIBLE` line with only component and versionId. Builtin is this body's own bundled module, so it matches the body by construction. It reads the old state the same way an upgrade with no adoption always has. Any other prepare failure (signature, inventory, content) still fails as before. Recovery rereads the rewritten record. The catalog filter already hides the incompatible release as an update target. A compatible release built for this body is adopted later by a normal exchange.
+
+```mermaid
+flowchart LR
+  Start[start / readAdoption] --> Check[prepare current, previous]
+  Check -->|ok| Keep[keep version]
+  Check -->|COMPONENT_STATE_INCOMPATIBLE| Builtin[null = bundled module / record rewritten / MODULE_ADOPTION_INCOMPATIBLE]
+  Check -->|other failure| Fail[start fails as before]
+  Keep --> Launch[launch restore]
+  Builtin --> Launch
+```
+
 private recordは既0600/no-follow/nlink1/所有/4KiB検査の`bellteam.<component>.adoption.v1`。module/allのdurable requestId ledgerや公開source identityはMollyが所有し、このrecordから捏造しない。reserveはcompletionを返し、実replace終端又はcancelまで同親mutexを保持できる。
 
 このsourceの限定fake-child境界と、各作者の実IPC fixture、Centi同imageの実UID/署名/OS交換は別の証拠。初回親組立とmountはimage導入が必要で、未登録moduleを既imageへ無再起動追加できるとは扱わない。導入後の登録済controller経由コード交換が対象。
