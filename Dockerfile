@@ -35,6 +35,16 @@ RUN curl -fsSL https://antigravity.google/cli/install.sh | bash -s -- --dir /usr
 ARG RTK_VERSION=v1.2.0
 RUN curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/master/install.sh | RTK_VERSION=$RTK_VERSION RTK_INSTALL_DIR=/usr/local/bin sh \
   && rtk --version
+# 1Password CLI for the usage module (UID1001, fixed PATH /usr/local/bin). Latest from 1Password's update feed (no GitHub API);
+# the binary runs only after its signature matches 1Password's signing key (fingerprint per developer.1password.com/docs/cli/get-started).
+ARG TARGETARCH
+RUN set -eu; arch=${TARGETARCH:-$(dpkg --print-architecture)}; work=$(mktemp -d); export GNUPGHOME=$work/g; mkdir -m 700 $GNUPGHOME \
+  && version=$(curl -fsSL https://app-updates.agilebits.com/check/1/0/CLI2/en/2.0.0/N | node -e 'const v=JSON.parse(require("fs").readFileSync(0)).version;if(!/^\d+\.\d+\.\d+$/.test(v))process.exit(1);console.log(v)') \
+  && curl -fsSL -o $work/op.zip "https://cache.agilebits.com/dist/1P/op2/pkg/v$version/op_linux_${arch}_v$version.zip" \
+  && curl -fsSL -o $work/key.asc https://downloads.1password.com/linux/keys/1password.asc \
+  && unzip -q $work/op.zip op op.sig -d $work && gpg -q --batch --import $work/key.asc \
+  && gpg --batch --status-fd 1 --verify $work/op.sig $work/op 2>/dev/null | grep -Eq '^\[GNUPG:\] VALIDSIG .* 3FEF9748469ADBE15DA7CA80AC2D62742012EA22$' \
+  && install -o root -g root -m 0755 $work/op /usr/local/bin/op && rm -rf $work && op --version
 COPY --from=mcp-lazy /out/mcp-lazy /usr/local/bin/mcp-lazy
 RUN mcp-lazy --version
 
