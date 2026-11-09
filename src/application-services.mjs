@@ -317,6 +317,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     assertEnabled: () => aiControl.assertEnabled() })
   const secretRequests = usage ? { ...usage.secretRequests,
     notifyOwnerGuide: id => usage.secretRequests.notifyOwnerGuide(id, usageAssembly.systemContext('secrets.notifyOwnerGuide')),
+    resolveValue: id => usage.secretRequests.resolveValue(id, usageAssembly.systemContext('secrets.resolveRequest')),
   } : new SecretRequests({
     root, bots, rooms,
     onRequest: item => notifications.secret(item),

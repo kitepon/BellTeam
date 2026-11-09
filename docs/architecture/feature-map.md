@@ -54,6 +54,7 @@ flowchart LR
   m_integration -->|"registry"| m_terminals
   m_integration -->|"reachability"| m_terminals
   m_integration -->|"connection"| m_terminals
+  m_integration -->|"secrets"| m_usage
   m_members -->|"stop"| m_execution
   m_members -->|"project-files"| m_runtime
   m_members -->|"cli-registration"| m_runtime
@@ -149,7 +150,7 @@ flowchart LR
 | [端末接続](modules/terminals/README.md) | クラスト | registry / reachability / connection / privilege / maintenance |
 | [testgate](modules/testgate/README.md) | シラツル | hook |
 | [Throughline](modules/throughline/README.md) | リヴァリン | context |
-| [利用設定・通知](modules/usage/README.md) | ミカ | settings / notify / auth |
+| [利用設定・通知](modules/usage/README.md) | ミカ | settings / notify / auth / secrets |
 | [Webアプリ](modules/web/README.md) | アドミ | ui / assets |
 | [Windowsアプリ](modules/windows/README.md) | ベル（Windows） | public |
 | [相関図](modules/work-graph/README.md) | アークレンジャー・ブラック | work-graph |

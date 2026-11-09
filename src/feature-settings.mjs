@@ -190,8 +190,8 @@ export class FeatureSettings {
         try {
           const request = secretRequests.get(input.secretRequestId)
           if (request.toolId !== 'bellteam-settings' || request.botId !== botId || request.status !== 'submitted'
-            || typeof request.path !== 'string' || !request.path) throw new Error('提出済みの対象依頼ではありません。')
-          values[secret.key] = await readFile(request.path, 'utf8')
+            || !secretRequests.resolveValue && (typeof request.path !== 'string' || !request.path)) throw new Error('提出済みの対象依頼ではありません。')
+          values[secret.key] = secretRequests.resolveValue ? await secretRequests.resolveValue(request.id) : await readFile(request.path, 'utf8')
           if (!values[secret.key].trim()) throw new Error('提出値が空です。')
           validateValues(feature, values)
         } catch (cause) {

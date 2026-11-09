@@ -77,3 +77,37 @@ test('public parent bootstrap retains the legacy subscription fields and refuses
     message: 'SUBSCRIPTION_DEVELOPER_ACCESS_UNAVAILABLE',
   })
 })
+
+test('C5 credentials facade captures system authority and routes native capabilities without exposing their source', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-credential-assembly-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  let ports
+  const calls = []
+  const childDto = { handle: 'child-handle', revision: 1, available: true }
+  const assembly = createUsageAssembly({ root, getServices: () => ({ bots: new Map() }), onEffect() {},
+    createProcess(value) {
+      ports = value
+      return { request(method, params, context) {
+        assert.deepEqual(value.authorizeActor(method, context.capturedAuthorization), { kind: 'system', botId: null })
+        calls.push({ method, params })
+        const result = Promise.resolve(method === 'secrets.resolve' ? 'synthetic-value' : method === 'secrets.refresh' ? null : childDto)
+        Object.defineProperty(result, 'completion', { value: result }); return result
+      }, close() {} }
+    } })
+  t.after(() => assembly.close())
+  const scope = { terminalId: 'owner-macbook', purpose: 'terminal.ssh' }, context = { ...scope, memberId: null }
+  assert.deepEqual(await assembly.credentials.bind('request-a', scope), childDto)
+  await assembly.credentials.withResolved(childDto.handle, context, value => assert.equal(value, 'synthetic-value'))
+  assert.equal(calls.at(-1).method, 'secrets.resolve')
+  const ref = '1f046271-3e79-4549-8f0b-79f2d6f729ae', revision = 'sha256:' + 'a'.repeat(64)
+  const target = { host: '192.0.2.2', user: 'synthetic', port: 22 }
+  assembly.credentials.setNativeProvider({ status: async current => ({ ref: current, target, credential: { provider: 'aiterm.native-ssh-key.v1', revision, available: true } }) })
+  const dto = await assembly.credentials.registerNative({ ref, target }, scope)
+  const count = calls.length
+  await assembly.credentials.withResolved(dto.handle, context, capability => assert.deepEqual(capability, { nativeKeyRef: ref, revision }))
+  assert.equal(calls.length, count)
+  assert.equal(JSON.stringify(dto).includes(ref), false)
+  assert.equal((await assembly.credentials.credential(dto.handle, context)).revision, 1)
+  await assembly.credentials.refresh()
+  assert.equal(calls.at(-1).method, 'secrets.refresh')
+})

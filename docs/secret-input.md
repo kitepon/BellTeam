@@ -46,3 +46,9 @@ MCPのform elicitationで秘密を返す実装ではない。MCPでは依頼と�
 `node --test test/secret-requests.test.mjs` で保存の永続性、二重送信、取消、ルーム、MCPの呼出元、HTTP認証、HTTPS、SSE、診断への値の混入を確認する。
 
 iPhoneの `SecretInputUITests` は `scripts/secret-input-smoke.mjs` が起動するローカルHTTPSサーバーにダミーの値を送る。新規の専用シミュレーターへ試験用証明書を追加し、`TEST_RUNNER_BELLTEAM_SECRET_SMOKE=1` を付けて実行する。終了後はそのシミュレーターを削除する。本番のユーザー設定や秘密の値は試験に使わない。
+
+## 1Passwordと秘密ハンドル
+
+すべての秘密入力カードは保存値に加え、`op://<vault id>/<item id>/<field>`を受け付ける。接続済みなら1Passwordを先に表示し、保存値を予備として選べる。参照は専用カードだけに入力し、MCP引数や通常チャットに書かない。1Passwordの参照から読んだ値は秘密入力の管理窓口で解決し、利用するプログラムへ直接渡す。1Password用の値ファイルは作らず、登録通知と履歴にも参照・値を含めない。
+
+端末は秘密の保存場所や1Password参照を受け取らず、端末と用途に結び付いたハンドルを使う。管理側で認可した利用者の文脈を付け、`usageAssembly.credentials.withResolved(handle,{terminalId,memberId,purpose},consume)`で値を渡す。値を表示・ログ・Git・PTY命令へ出さない。保存値の既存パスは互換として保ち、移動しない。詳細の正本は[secret credentials](architecture/modules/usage/secret-credentials.md)。

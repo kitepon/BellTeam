@@ -3,10 +3,11 @@ import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
 import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { SecretCredentials } from './usage/secret-credentials.mjs'
 
 // 秘密の値はこのクラスのsubmitだけが受け取り、一覧・通知・イベントへ渡さない。
 export class SecretRequests {
-  constructor({ root, bots, rooms, notify, onRequest = () => {}, onSave = () => {} }) {
+  constructor({ root, bots, rooms, notify, onRequest = () => {}, onSave = () => {}, onePassword, secretProviders, credentialRetryMs }) {
     this.directory = join(root, 'state/secret-requests')
     this.toolsDirectory = join(root, 'state/secret-values')
     this.bots = bots
@@ -18,6 +19,16 @@ export class SecretRequests {
     this.cardTimelines = new CardTimelines(bots, 'secret_request')
     this.busy = new Set()
     this.events = new EventEmitter()
+    this.credentials = new SecretCredentials({ root, getRequest: id => this.get(id), onePassword, providers: secretProviders, retryMs: credentialRetryMs })
+    this.credentials.watch(event => this.events.emit('credential', event))
+    this.credentials.watchRecovery(event => this.events.emit('recovery', event))
+    this.credentials.onePassword.watch(() => {
+      for (const item of this.items.values()) {
+        this.cardTimelines.put(this.get(item.id))
+        this.onSave(this.get(item.id))
+      }
+      this.events.emit('change', { all: true, topics: ['requests'], botIds: [], roomIds: [] })
+    })
   }
 
   async initialize({ readOnly = false } = {}) {
@@ -30,12 +41,14 @@ export class SecretRequests {
       this.items.set(item.id, item)
       this.cardTimelines.put(item)
     }
+    await this.credentials.initialize({ readOnly })
+    for (const item of this.items.values()) this.cardTimelines.put(this.get(item.id))
   }
 
   get(id) {
     const item = this.items.get(id)
     if (!item) throw new Error('SECRET_REQUEST_NOT_FOUND')
-    return { ...item }
+    return { ...item, inputOptions: this.credentials.inputOptions() }
   }
 
   async create({ botId, roomId = null, toolId, label, message }) {
@@ -74,6 +87,13 @@ export class SecretRequests {
   }
 
   async submit(id, value) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      if (Object.keys(value).sort().join(',') !== 'reference,source' || value.source !== 'onepassword') throw new Error('SECRET_VALUE_INVALID')
+      return this.finish(id, async item => {
+        await this.credentials.registerSource(id, value)
+        return { ...item, status: 'submitted' }
+      })
+    }
     if (typeof value !== 'string' || value.length === 0 || Buffer.byteLength(value) > 16384 || value.includes('\0')) {
       throw new Error('SECRET_VALUE_INVALID')
     }
@@ -86,6 +106,23 @@ export class SecretRequests {
       return { ...item, status: 'submitted', path }
     })
   }
+
+  // Only a trusted composition can register a fixed provider capability.
+  async submitProvider(id, providerId) {
+    return this.finish(id, async item => {
+      await this.credentials.registerSource(id, { source: 'provider', providerId })
+      return { ...item, status: 'submitted' }
+    })
+  }
+
+  resolveValue(id) { return this.credentials.resolveRequest(id) }
+  bindCredential(id, scope) { return this.credentials.bind(id, scope) }
+  credential(handle, context) { return this.credentials.credential(handle, context) }
+  replaceCredential(handle, id, context) { return this.credentials.replace(handle, id, context) }
+  withResolved(handle, context, consume) { return this.credentials.withResolved(handle, context, consume) }
+  watchCredentials(listener) { this.events.on('credential', listener); return () => this.events.off('credential', listener) }
+  watchRecovery(listener) { this.events.on('recovery', listener); return () => this.events.off('recovery', listener) }
+  close() { this.credentials.close() }
 
   async cancel(id) {
     return this.finish(id, async item => ({ ...item, status: 'cancelled' }))
@@ -129,8 +166,8 @@ export class SecretRequests {
     await writeFile(`${path}.tmp`, JSON.stringify(item), { mode: 0o600 })
     await rename(`${path}.tmp`, path)
     this.items.set(item.id, item)
-    this.cardTimelines.put(item)
-    this.onSave({ ...item })
+    this.cardTimelines.put(this.get(item.id))
+    this.onSave(this.get(item.id))
     this.events.emit('change', { all: false, topics: ['requests'], botIds: [item.botId], roomIds: item.roomId ? [item.roomId] : [] })
   }
 }
@@ -138,7 +175,7 @@ export class SecretRequests {
 export function secretCompletionMessage(item) {
   const destination = item.roomId ? `ルーム ${item.roomId} で依頼した` : 'あなたが依頼した'
   const result = item.status === 'submitted'
-    ? `登録されました。保存先: ${item.path}\n利用するプログラムからこのファイルを読み込み、標準入力や認証APIへ渡してください。本体と席のユーザーが異なる場合は、承認済みの管理経路で利用するプログラムへ直接渡してください。値を表示したり、会話・ツール出力・ログ・Gitへ書いたりしないでください。`
+    ? `登録されました。${item.path ? `保存先: ${item.path}\n利用するプログラムからこのファイルを読み込み、標準入力や認証APIへ渡してください。` : '利用するプログラムへ、秘密入力の承認済み解決窓口から直接渡してください。'}本体と席のユーザーが異なる場合は、承認済みの管理経路で利用するプログラムへ直接渡してください。値を表示したり、会話・ツール出力・ログ・Gitへ書いたりしないでください。`
     : '入力は取り消されました。'
   return `${destination}「${item.label}」の秘密情報入力（${item.id}）について、${result}`
 }

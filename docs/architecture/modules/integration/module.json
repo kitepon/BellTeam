@@ -77,6 +77,10 @@
     {
       "module": "terminals",
       "port": "connection"
+    },
+    {
+      "module": "usage",
+      "port": "secrets"
     }
   ],
   "source": [
@@ -129,6 +133,7 @@
     "src/seat-credentials.mjs",
     "src/http-terminals-api.mjs",
     "src/terminals-mcp.mjs",
-    "src/secret-credential-refresh.mjs"
+    "src/secret-credential-refresh.mjs",
+    "src/submitted-secret-caller.mjs"
   ]
 }
