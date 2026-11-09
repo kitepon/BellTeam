@@ -113,10 +113,12 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
     const record = { terminalId: target.terminalId, observedAt: now().toISOString(), before: null, after: null, outcome: 'failed' }
     try {
       await withProcess(target, binding, async session => {
+        // Each command starts only while current; a stale run stops before its next command (outcome unrecorded).
+        const command = op => { if (!current()) throw failure('TERMINAL_UNAVAILABLE'); return session.command(op) }
         try {
-          record.before = (await session.command('claude_version')).version ?? null
-          const step = await session.command(record.before ? 'claude_update' : 'claude_install')
-          record.after = (await session.command('claude_version')).version ?? null
+          record.before = (await command('claude_version')).version ?? null
+          const step = await command(record.before ? 'claude_update' : 'claude_install')
+          record.after = (await command('claude_version')).version ?? null
           if (step.exit_code === 0 && record.after) record.outcome = record.after === record.before ? 'current' : 'updated'
         } catch {}
       }, current)
@@ -137,6 +139,7 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
     const generation = generations.get(terminalId) ?? 0
     const current = () => !disposed && (generations.get(terminalId) ?? 0) === generation
     const record = await registry.target(terminalId).catch(() => null)
+    if (!current()) throw failure('TERMINAL_UNAVAILABLE')
     if (!record) { if (typeof terminalId === 'string') want(terminalId); throw failure('TERMINAL_UNAVAILABLE') }
     if (typeof projectRoot !== 'string' || !isAbsolute(projectRoot) || typeof memberId !== 'string') throw failure('TARGET_MISMATCH', 'set an absolute project folder for the member')
     // TARGET_MISMATCH exits by registry revision (onRegistryChange), so only availability/credential failures are probed.

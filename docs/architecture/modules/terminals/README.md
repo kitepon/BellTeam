@@ -196,6 +196,7 @@ stateDiagram-v2
   Resolving --> Connecting: Mika binding resolved, generation unchanged, not disposed
   Connecting --> Running: process connected, generation unchanged, not disposed (C8 commands or probe)
   Running --> Closing: commands done
+  Running --> Discarding: registry change or dispose; checked before each C8 command, so no later command starts
   Reading --> Discarded: registry change or dispose during the await
   Resolving --> Discarded: registry change or dispose during the await
   Connecting --> Discarding: registry change or dispose while connect was pending

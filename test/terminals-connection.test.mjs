@@ -196,4 +196,19 @@ test('a connect suspended across a registry change or dispose runs no C8 command
   assert.equal(native.calls.some(call => call.op === 'command'), false, 'no C8 command after dispose')
   assert.equal(connection.maintenance.last('owner-macbook'), null)
   assert.ok(native.sessions.every(session => session.closed))
+
+  // First claude_version suspended across a revision: no later C8 command starts, no stale record.
+  const later = fakeNative()
+  const versionGate = deferred()
+  const realLaterConnect = later.connect
+  later.connect = async req => { const session = await realLaterConnect(req); const command = session.command; session.command = async op => { const result = await command(op); if (op === 'claude_version') await versionGate.promise; return result }; return session }
+  const second = setup(t, { native: later })
+  const suspended = second.connection.target(request)
+  await wait(1)
+  second.connection.onRegistryChange({ terminalId: 'owner-macbook', revision: 2, removed: false })
+  versionGate.resolve()
+  await assert.rejects(suspended, { code: 'TERMINAL_UNAVAILABLE' })
+  assert.deepEqual(later.calls.filter(call => call.op === 'command').map(call => call.command), ['claude_version'])
+  assert.equal(second.connection.maintenance.last('owner-macbook'), null)
+  assert.ok(later.sessions.every(session => session.closed))
 })
