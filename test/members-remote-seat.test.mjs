@@ -95,4 +95,14 @@ test('member docs round-trip and reject paths outside docs/ or AGENTS.local.md',
   await symlink(join(project, 'docs/plan/a.md'), join(project, 'docs/alias.md'))
   await assert.rejects(readMemberDoc(project, 'docs/alias.md'), { code: 'MEMBERS_DOC_PATH_INVALID' })
   await assert.rejects(writeMemberDoc(project, 'docs/big.md', 'x'.repeat(1024 * 1024 + 1)), { code: 'MEMBERS_DOC_TOO_LARGE' })
+  assert.ok((await listMemberDocs(project)).every(file => !file.path.startsWith('docs/link/')), 'nested docs symlink is not descended')
+})
+
+test('member docs listing never follows a symlinked top-level docs directory', async t => {
+  const project = await mkdtemp(join(tmpdir(), 'members-docs-link-'))
+  const outside = await mkdtemp(join(tmpdir(), 'members-docs-outside-'))
+  t.after(() => Promise.all([rm(project, { recursive: true, force: true }), rm(outside, { recursive: true, force: true })]))
+  await writeFile(join(outside, 'secret.md'), 'outside')
+  await symlink(outside, join(project, 'docs'))
+  await assert.rejects(listMemberDocs(project), { code: 'MEMBERS_DOC_PATH_INVALID' })
 })

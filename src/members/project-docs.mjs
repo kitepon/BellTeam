@@ -46,11 +46,12 @@ export async function listMemberDocs(project) {
     if (local.isFile()) files.push(describe('AGENTS.local.md', local))
   } catch (error) { if (error.code !== 'ENOENT') throw error }
   const walk = async relative => {
-    let entries
-    try { entries = await readdir(join(project, relative), { withFileTypes: true }) } catch (error) {
+    // Same boundary as read/write: a symlinked or foreign-owned directory is never followed.
+    try { await ownedDirectory(join(project, relative), false) } catch (error) {
       if (error.code === 'ENOENT' && relative === 'docs') return
       throw error
     }
+    const entries = await readdir(join(project, relative), { withFileTypes: true })
     for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
       const path = `${relative}/${entry.name}`
       if (entry.isDirectory()) await walk(path)
