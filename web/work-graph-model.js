@@ -71,9 +71,51 @@ const SLOTS = [0.5, 0.45, 0.55, 0.4, 0.6, 0.35, 0.65, 0.3, 0.7]
 const grown = box => ({ x: box.x - 4, y: box.y - 4, w: box.w + 8, h: box.h + 8 })
 const intersects = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
 
+// 線の交差（behavior-spec "Uncrossing swaps"、layout-sim.mjs と同じ数え方）。端を共有する線は交差に数えない。
+const side = (a, b, c) => Math.sign((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x))
+const cross = (a, b, c, d) => side(a, b, c) * side(a, b, d) < 0 && side(c, d, a) * side(c, d, b) < 0
+const pairsOf = edges => [...new Set(edges.map(([a, b]) => a < b ? `${a},${b}` : `${b},${a}`))].map(k => k.split(',').map(Number))
+const crossCount = (P, list, all) => {
+  let c = 0
+  for (const [a, b] of list) for (const [e, f] of all) if (a !== e && a !== f && b !== e && b !== f && cross(P[a], P[b], P[e], P[f])) c++
+  return c
+}
+// 入れ替えると交差が一番多く減る2人（同数なら先の組）。減らないなら null。
+export function bestSwap(P, edges) {
+  const pairs = pairsOf(edges), touching = P.map((_, i) => pairs.filter(([a, b]) => a === i || b === i))
+  const local = (Q, i, j) => { const mine = [...new Set([...touching[i], ...touching[j]])]; return crossCount(Q, mine, pairs) - crossCount(Q, mine, mine) / 2 }
+  let best = null
+  for (let i = 0; i < P.length; i++) for (let j = i + 1; j < P.length; j++) {
+    if (!touching[i].length && !touching[j].length) continue
+    const Q = P.slice(); Q[i] = P[j]; Q[j] = P[i]
+    const gain = local(P, i, j) - local(Q, i, j)
+    if (gain > 0 && (!best || gain > best.gain)) best = { pair: [i, j], gain }
+  }
+  return best
+}
+
 export function createGraphModel({ reduceMotion = false } = {}) {
   const nodes = new Map(), edges = new Map()
-  let epoch = null, version = -1, degraded = [], alpha = 1, firstSeen = false
+  let epoch = null, version = -1, degraded = [], alpha = 1, firstSeen = false, steps = 0
+  const GLIDE_MS = reduceMotion ? REDUCED_MS : ENTER_MS
+  // 入れ替えた顔の描く位置：from から今の位置へ enter の曲線で700ms。Reduce Motion は前半 from で消え、後半新しい場所で現れる。
+  function drawnAt(node, now) {
+    const g = node.glide, t = g ? (now - g.at) / GLIDE_MS : 1
+    if (t >= 1) return { x: node.x, y: node.y, opacity: 1 }
+    if (reduceMotion) return t < 0.5 ? { ...g.from, opacity: 1 - 2 * t } : { x: node.x, y: node.y, opacity: 2 * t - 1 }
+    const k = enterCurve(t)
+    return { x: g.from.x + (node.x - g.from.x) * k, y: g.from.y + (node.y - g.from.y) * k, opacity: 1 }
+  }
+  // 30コマごとに一組だけ入れ替える。位置と速度を交換し、α は変えない（behavior-spec "Uncrossing swaps"）。
+  function uncross(live, now) {
+    const order = [...live].sort((a, b) => a.botId < b.botId ? -1 : a.botId > b.botId ? 1 : 0), index = new Map(order.map((node, i) => [node.botId, i]))
+    const list = [...edges.values()].filter(edge => !edge.endAt && index.has(edge.from) && index.has(edge.to)).map(edge => [index.get(edge.from), index.get(edge.to)])
+    const swap = bestSwap(order, list)
+    if (!swap) return
+    const [a, b] = swap.pair.map(i => order[i])
+    for (const node of [a, b]) if (reduceMotion || now - node.enterAt >= ENTER_MS) { const p = drawnAt(node, now); node.glide = { from: { x: p.x, y: p.y }, at: now } }
+    for (const key of ['x', 'y', 'vu', 'vv']) [a[key], b[key]] = [b[key], a[key]]
+  }
 
   function enter(node, now, rect) {
     const current = nodes.get(node.botId)
@@ -174,6 +216,7 @@ export function createGraphModel({ reduceMotion = false } = {}) {
         node.x = W < halfX * 2 ? cx : Math.min(rect.x + W - halfX, Math.max(rect.x + halfX, node.x))
         node.y = H < top + bottom ? cy : Math.min(rect.y + H - bottom, Math.max(rect.y + top, node.y))
       }
+      if (++steps % 30 === 0) uncross(live, now)
       alpha = Math.max(0.04, alpha * 0.985 ** (dt * 60))
     },
     // 描く物の一覧。edges → nodes → labels の順に描く。
@@ -188,18 +231,18 @@ export function createGraphModel({ reduceMotion = false } = {}) {
           const t = Math.min(1, (now - node.leaveAt) / (reduceMotion ? REDUCED_MS : LEAVE_MS))
           if (reduceMotion) opacity = 1 - t
           else {
-            node.leaveFrom ??= { x: node.x, y: node.y }
+            if (!node.leaveFrom) { const p = drawnAt(node, now); node.leaveFrom = { x: p.x, y: p.y } }
             const dx = node.leaveFrom.x - cx, dy = node.leaveFrom.y - cy, d = Math.hypot(dx, dy) || 1, k = leaveCurve(t)
             x = node.leaveFrom.x + (cx + dx / d * far - node.leaveFrom.x) * k; y = node.leaveFrom.y + (cy + dy / d * far - node.leaveFrom.y) * k
             opacity = t < 0.6 ? 1 : 1 - (t - 0.6) / 0.4
           }
         } else {
-          const t = Math.min(1, (now - node.enterAt) / (reduceMotion ? REDUCED_MS : ENTER_MS))
-          if (reduceMotion) opacity = t
+          const t = Math.min(1, (now - node.enterAt) / (reduceMotion ? REDUCED_MS : ENTER_MS)), p = drawnAt(node, now)
+          if (reduceMotion) { opacity = t * p.opacity; x = p.x; y = p.y }
           else if (t < 1) {
             const k = enterCurve(t), sx = cx + Math.cos(node.theta) * far, sy = cy + Math.sin(node.theta) * far
             x = sx + (node.x - sx) * k; y = sy + (node.y - sy) * k; scale = 0.6 + 0.4 * k; opacity = k
-          }
+          } else { x = p.x; y = p.y }
         }
         drawn.set(node.botId, { node, x, y, scale, opacity, side: S * scale })
       }
