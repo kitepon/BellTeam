@@ -634,7 +634,9 @@ class HostUpdater:
                 atomic(directory / 'operation.json', value)
             try:
                 self.progress(directory, 'downloading')
-                value.update(phase='applying', updatedAt=stamp()); atomic(directory / 'operation.json', value)
+                # Every operation.json replace happens under ledger.lock, so a locked reader never sees the rename mid-read.
+                with locked(self.state / 'ledger.lock', wait=True):
+                    value.update(phase='applying', updatedAt=stamp()); atomic(directory / 'operation.json', value)
                 outcome = self.execute(plan, directory)
                 value.update(outcome)
                 value['phase'] = 'completed' if value['execution'] == value['verification'] == 'succeeded' else 'failed'
