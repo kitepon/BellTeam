@@ -425,17 +425,10 @@ final class WorkGraphModel: ObservableObject {
         }
         // 関係ないメンバーを線と札から押し出す（behavior-spec.md「Clearance」）。
         var clearEdges: [(a: Int, b: Int, chip: CGSize?)] = []
-        var clearIndex: [String: Int] = [:]
         let slot = Dictionary(uniqueKeysWithValues: ids.enumerated().map { ($1, $0) })
         for line in Self.labelOrder(Array(lines.values)) where line.endedAt == nil {
             guard let a = slot[line.edge.from], let b = slot[line.edge.to], a != b else { continue }
-            let chip = line.chip.flatMap { $0.nullAt == nil && $0.size != .zero ? $0.size : nil }
-            if let k = clearIndex["\(min(a, b))|\(max(a, b))"] {
-                if clearEdges[k].chip == nil { clearEdges[k].chip = chip }
-            } else {
-                clearIndex["\(min(a, b))|\(max(a, b))"] = clearEdges.count
-                clearEdges.append((a, b, chip))
-            }
+            clearEdges.append((a, b, line.chip.flatMap { $0.nullAt == nil && $0.size != .zero ? $0.size : nil }))
         }
         let relative = ids.map { CGPoint(x: (u[$0]?.x ?? 0) * W, y: (u[$0]?.y ?? 0) * H) }
         let pushes = Self.clearance(relative, extents: extents(of: ids, at: relative, side: s, nameHeight: nameHeight), edges: clearEdges)
@@ -605,7 +598,8 @@ final class WorkGraphModel: ObservableObject {
     }
 
     /// 関係ないメンバーを線と、ふさがれた札から押し出す力（behavior-spec.md「Clearance」。layout-sim.mjsの`clearance`）。
-    /// `p`は点、`boxes`は各メンバーの四角（中心からの相対）、`edges`は重ならない線（`chip`はその札の大きさ、無ければnil）。
+    /// `p`は点、`boxes`は各メンバーの四角（中心からの相対）、`edges`は開いた依頼ごと（`chip`はその札の大きさ、無ければnil）。
+    /// 線の押しは二人ごとに1回（A→BとB→Aは1本）、札の押しと自分の端での線の伸びは札を持つ依頼ごとに行う。
     /// 力は点の向きの単位ベクトルに`kc`を掛けたもので、正規化座標の力にそのまま足す。
     static func clearance(_ p: [CGPoint], extents boxes: [CGRect], edges: [(a: Int, b: Int, chip: CGSize?)]) -> [CGVector] {
         let kc: CGFloat = 0.003
@@ -616,6 +610,7 @@ final class WorkGraphModel: ObservableObject {
             force[a].dx -= fu * (1 - ta); force[a].dy -= fv * (1 - ta)
             force[b].dx -= fu * ta; force[b].dy -= fv * ta
         }
+        var drawn = Set<[Int]>()
         for (a, b, size) in edges {
             let ex = p[b].x - p[a].x, ey = p[b].y - p[a].y, el = ex * ex + ey * ey == 0 ? 1 : ex * ex + ey * ey
             let chip = size.flatMap { blockedChip(p, boxes, a, b, $0) }
@@ -625,10 +620,11 @@ final class WorkGraphModel: ObservableObject {
                 force[a].dx -= kc * ex / d; force[a].dy -= kc * ey / d
                 force[b].dx += kc * ex / d; force[b].dy += kc * ey / d
             }
+            let newLine = drawn.insert([min(a, b), max(a, b)]).inserted
             for c in p.indices where c != a && c != b {
                 let plain = boxes[c].offsetBy(dx: p[c].x, dy: p[c].y), grown = plain.insetBy(dx: -6, dy: -6)
                 let cx = grown.midX, cy = grown.midY
-                if segmentHitsBox(p[a], p[b], grown) {
+                if newLine, segmentHitsBox(p[a], p[b], grown) {
                     let t = min(1, max(0, ((cx - p[a].x) * ex + (cy - p[a].y) * ey) / el))
                     var nx = cx - (p[a].x + t * ex), ny = cy - (p[a].y + t * ey)
                     if hypot(nx, ny) < 1e-6 { nx = -ey; ny = ex }

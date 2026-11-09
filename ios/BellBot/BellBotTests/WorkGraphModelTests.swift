@@ -142,6 +142,19 @@ final class WorkGraphModelTests: XCTestCase {
         XCTAssertNil(WorkGraphModel.blockedChip(far, [simBox(), simBox()], 0, 1, chip))
     }
 
+    func testEveryBlockedChipActsWhenTwoRequestsRunBetweenTheSamePair() {
+        // A→BとB→Aの札はそれぞれ押す。Dに触れるのは大きい方（B→A）の札だけ。線の押しは二人で1回。
+        let p = [CGPoint(x: 100, y: 300), CGPoint(x: 170, y: 300), CGPoint(x: 240, y: 270)]
+        let boxes = Array(repeating: simBox(), count: 3)
+        let small = CGSize(width: 100, height: 30), large = CGSize(width: 200, height: 30)
+        XCTAssertNotNil(WorkGraphModel.blockedChip(p, boxes, 0, 1, small))
+        XCTAssertNotNil(WorkGraphModel.blockedChip(p, boxes, 1, 0, large))
+        // 各札が自分の端に触れて線を伸ばす（-0.003ずつ、計-0.006）。Dは大きい札の中心から押され、両端が半分ずつ受ける。
+        assertForces(WorkGraphModel.clearance(p, extents: boxes, edges: [(0, 1, small), (1, 0, large)]),
+                     [(-0.007499847, 0.000021426), (0.004500153, 0.000021426), (0.002999694, -0.000042853)],
+                     "両方向の札が働く")
+    }
+
     func testBestSwapCountsAnEdgeThroughAMemberAsOneCrossing() {
         let boxes = Array(repeating: simBox(), count: 4)
         let q = points([(0, 0), (400, 0), (200, 10), (200, 200)])
