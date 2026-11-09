@@ -101,30 +101,37 @@ const boxesMeet = (r, q) => r.x0 < q.x1 && q.x0 < r.x1 && r.y0 < q.y1 && q.y0 < 
 const CLEARANCE = 0.003, CLEAR_GAP = 6, CHIP_GAP = 4
 
 // behavior-spec "Clearance"（layout-sim.mjs simulate() の clear 部分と同じ式）。P は点、返す力は正規化座標。
-// box(k, g): k 番の顔の箱を g だけ広げたもの。chip(a, b): その線の blocked の札の箱（4 広げた）か null。
-export function clearanceForces(P, pairs, { box, chip = () => null, kc = CLEARANCE }) {
+// box(k, g): k 番の顔の箱を g だけ広げたもの。pairs: 線（A→B と B→A は一本）。
+// chips: blocked の札ごとに {a, b, box}（4 広げた箱）。同じ二人の間の逆向きの依頼も、札はそれぞれ押す。
+export function clearanceForces(P, pairs, { box, chips = [], kc = CLEARANCE }) {
   const F = P.map(() => ({ u: 0, v: 0 }))
   const push = (c, a, b, ta, nx, ny) => {
     const d = Math.hypot(nx, ny) || 1, fu = kc * nx / d, fv = kc * ny / d
     F[c].u += fu; F[c].v += fv; F[a].u -= fu * (1 - ta); F[a].v -= fv * (1 - ta); F[b].u -= fu * ta; F[b].v -= fv * ta
   }
+  const center = (c, gap) => { const r = box(c, gap); return { r, x: P[c].x, y: (r.y0 + r.y1) / 2 } }
   for (const [a, b] of pairs) {
-    const blocked = chip(a, b), ex = P[b].x - P[a].x, ey = P[b].y - P[a].y, el = ex * ex + ey * ey || 1
-    if (blocked && [a, b].some(e => boxesMeet(blocked, box(e, 0)))) {
+    const ex = P[b].x - P[a].x, ey = P[b].y - P[a].y, el = ex * ex + ey * ey || 1
+    for (let c = 0; c < P.length; c++) {
+      if (c === a || c === b) continue
+      const { r, x: cx, y: cy } = center(c, CLEAR_GAP)
+      if (!segmentHitsBox(P[a], P[b], r)) continue
+      const t = Math.min(1, Math.max(0, ((cx - P[a].x) * ex + (cy - P[a].y) * ey) / el))
+      let nx = cx - (P[a].x + t * ex), ny = cy - (P[a].y + t * ey)
+      if (Math.hypot(nx, ny) < 1e-6) { nx = -ey; ny = ex }
+      push(c, a, b, t, nx, ny)
+    }
+  }
+  for (const { a, b, box: chip } of chips) {
+    if ([a, b].some(e => boxesMeet(chip, box(e, 0)))) {
       // 札が自分の両端の間に収まらない：線を伸ばす
-      const d = Math.sqrt(el), fu = kc * ex / d, fv = kc * ey / d
+      const ex = P[b].x - P[a].x, ey = P[b].y - P[a].y, d = Math.hypot(ex, ey) || 1, fu = kc * ex / d, fv = kc * ey / d
       F[a].u -= fu; F[a].v -= fv; F[b].u += fu; F[b].v += fv
     }
     for (let c = 0; c < P.length; c++) {
-      if (c === a || c === b) continue
-      const r = box(c, CLEAR_GAP), cx = P[c].x, cy = (r.y0 + r.y1) / 2
-      if (segmentHitsBox(P[a], P[b], r)) {
-        const t = Math.min(1, Math.max(0, ((cx - P[a].x) * ex + (cy - P[a].y) * ey) / el))
-        let nx = cx - (P[a].x + t * ex), ny = cy - (P[a].y + t * ey)
-        if (Math.hypot(nx, ny) < 1e-6) { nx = -ey; ny = ex }
-        push(c, a, b, t, nx, ny)
-      }
-      if (blocked && boxesMeet(blocked, box(c, 0))) push(c, a, b, 0.5, cx - (blocked.x0 + blocked.x1) / 2, cy - (blocked.y0 + blocked.y1) / 2)
+      if (c === a || c === b || !boxesMeet(chip, box(c, 0))) continue
+      const { x: cx, y: cy } = center(c, 0)
+      push(c, a, b, 0.5, cx - (chip.x0 + chip.x1) / 2, cy - (chip.y0 + chip.y1) / 2)
     }
   }
   return F
@@ -257,18 +264,17 @@ export function createGraphModel({ reduceMotion = false } = {}) {
         pull(a, b, d => ks * (d - L))
       }
       // Clearance: 線と blocked の札を、関係のない顔（円板＋描いた名前）からどける。
-      const index = new Map(live.map((node, i) => [node.botId, i])), P = live.map(node => ({ x: node.x, y: node.y })), chips = new Map()
+      // 線は二人ごとに一本、札は依頼ごとに一枚（同じ二人の逆向きの依頼も別の札）。
+      const index = new Map(live.map((node, i) => [node.botId, i])), P = live.map(node => ({ x: node.x, y: node.y })), pairs = new Map(), chips = []
       for (const edge of edges.values()) {
         if (edge.endAt || !index.has(edge.from) || !index.has(edge.to)) continue
-        const [a, b] = [index.get(edge.from), index.get(edge.to)].sort((x, y) => x - y), key = `${a},${b}`
-        if (!chips.has(key)) chips.set(key, null)
-        if (edge.chip?.blocked && !chips.get(key)) {
-          const mx = (P[a].x + P[b].x) / 2, my = (P[a].y + P[b].y) / 2, { w, h } = edge.chip
-          chips.set(key, { x0: mx - w / 2 - CHIP_GAP, x1: mx + w / 2 + CHIP_GAP, y0: my - h / 2 - CHIP_GAP, y1: my + h / 2 + CHIP_GAP })
-        }
+        const a = index.get(edge.from), b = index.get(edge.to)
+        pairs.set(a < b ? `${a},${b}` : `${b},${a}`, [Math.min(a, b), Math.max(a, b)])
+        if (!edge.chip?.blocked) continue
+        const mx = (P[a].x + P[b].x) / 2, my = (P[a].y + P[b].y) / 2, { w, h } = edge.chip
+        chips.push({ a, b, box: { x0: mx - w / 2 - CHIP_GAP, x1: mx + w / 2 + CHIP_GAP, y0: my - h / 2 - CHIP_GAP, y1: my + h / 2 + CHIP_GAP } })
       }
-      const clear = clearanceForces(P, [...chips.keys()].map(key => key.split(',').map(Number)),
-        { box: (k, g) => nodeBox(live[k], P[k], S, g), chip: (a, b) => chips.get(`${a},${b}`) })
+      const clear = clearanceForces(P, [...pairs.values()], { box: (k, g) => nodeBox(live[k], P[k], S, g), chips })
       live.forEach((node, i) => { force.get(node).u += clear[i].u; force.get(node).v += clear[i].v })
       for (const node of live) {
         const f = force.get(node), p = uv.get(node)

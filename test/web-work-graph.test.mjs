@@ -301,11 +301,13 @@ test('Clearance：segmentHitsBox と線が顔を通る数え方つきの bestSwa
   close(clearanceForces(P, [[0, 1]], { box: box(P) }), [[0, -kc * 0.5], [0, -kc * 0.5], [0, kc]])
   // blocked の札（中点、4 広げた箱）が c に重なる：c は札の中心から離れ、両端が半分ずつ受ける。線は c の箱に入らない
   P = [{ x: 0, y: 0 }, { x: 400, y: 0 }, { x: 200, y: 40 }]
-  const chip = () => sim.chipBox(P[0], P[1], 0.5)
-  close(clearanceForces(P, [[0, 1]], { box: box(P), chip }), [[0, -kc * 0.5], [0, -kc * 0.5], [0, kc]])
+  const chip = { a: 0, b: 1, box: sim.chipBox(P[0], P[1], 0.5) }
+  close(clearanceForces(P, [[0, 1]], { box: box(P), chips: [chip] }), [[0, -kc * 0.5], [0, -kc * 0.5], [0, kc]])
+  // 同じ二人の逆向きの依頼：線は一本だが、blocked の札は2枚とも押す
+  close(clearanceForces(P, [[0, 1]], { box: box(P), chips: [chip, { a: 1, b: 0, box: sim.chipBox(P[1], P[0], 0.5) }] }), [[0, -kc], [0, -kc], [0, 2 * kc]])
   // 札が自分の端に重なる：線を伸ばす
   P = [{ x: 0, y: 0 }, { x: 100, y: 0 }]
-  close(clearanceForces(P, [[0, 1]], { box: box(P), chip: () => sim.chipBox(P[0], P[1], 0.5) }), [[-kc, 0], [kc, 0]])
+  close(clearanceForces(P, [[0, 1]], { box: box(P), chips: [{ a: 0, b: 1, box: sim.chipBox(P[0], P[1], 0.5) }] }), [[-kc, 0], [kc, 0]])
   // 札が blocked でなければ、線に触れない顔は押さない
   P = [{ x: 0, y: 0 }, { x: 400, y: 0 }, { x: 200, y: 50 }]
   close(clearanceForces(P, [[0, 1]], { box: box(P) }), [[0, 0], [0, 0], [0, 0]])
@@ -315,16 +317,22 @@ test('Clearance をモデルで：描いた名前の箱を覚え、線の上の�
   const at = { a: [124, 324], b: [624, 324], c: [374, 330] }
   const run = withEdge => {
     const model = createGraphModel()
-    model.snapshot(snapshot(['a', 'b', 'c'].map(id => node(id)), withEdge ? [edge('a', 'b', 'a:b', 'とても長い依頼の名前'.repeat(4))] : []), 0, rect)
+    const long = 'とても長い依頼の名前'.repeat(4), list = withEdge ? [edge('a', 'b', 'a:b', long)] : []
+    // 同じ二人の逆向きの依頼（配達ごとの別の線と札）
+    if (withEdge === 'both') list.push(edge('b', 'a', 'b:a', long))
+    model.snapshot(snapshot(['a', 'b', 'c'].map(id => node(id)), list), 0, rect)
     for (const [id, [x, y]] of Object.entries(at)) Object.assign(model.nodes.get(id), { x, y, vu: 0, vv: 0 })
     model.frame(5000, rect)
     model.step(0, rect, 5000)
     return model
   }
-  const on = run(true), off = run(false), c = on.nodes.get('c')
+  const on = run(true), off = run(false), both = run('both'), c = on.nodes.get('c')
   assert.ok(c.nameRel && c.nameRel.y0 > 0, 'the name below c is remembered as part of its box')
   // 札は a・b・c の間に空きがなく blocked。線と札の両方が c の上にあるので、c は下へ（v が増える向き）2回押される。違いは押す力だけ。
   assert.equal(on.edges.get('a:b').chip.blocked, true, 'the chip has no free slot between a, b and c')
   assert.ok(Math.abs(c.vv - off.nodes.get('c').vv - 2 * 0.003 * 0.82) < 1e-12, `${c.vv - off.nodes.get('c').vv}`)
   assert.ok(on.edges.get('a:b').chip.w > 0 && on.edges.get('a:b').chip.h > 0)
+  // 逆向きの2本：線は二人で一本（1回）、blocked の札は2枚とも押す（2回）
+  assert.equal(both.edges.get('b:a').chip.blocked, true)
+  assert.ok(Math.abs(both.nodes.get('c').vv - off.nodes.get('c').vv - 3 * 0.003 * 0.82) < 1e-12, `${both.nodes.get('c').vv - off.nodes.get('c').vv}`)
 })
