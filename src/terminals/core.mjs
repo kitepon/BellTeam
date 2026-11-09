@@ -77,6 +77,6 @@ export function createTerminalsCore({ stateRoot, credentials = null, seatCredent
     connection,
     maintenance: connection.maintenance,
     watch(listener) { watchers.add(listener); return () => watchers.delete(listener) },
-    close() { unwatchCredentials?.(); connection.dispose() }
+    async close() { unwatchCredentials?.(); await connection.dispose() }
   }
 }

@@ -145,3 +145,35 @@ test('core mounts registry put/enroll, watch and target-mismatch reporting', asy
   native.connectError = undefined
   await assert.rejects(noCredentials.connection.open(request), { code: 'CREDENTIAL_UNAVAILABLE' })
 })
+
+test('dispose and registry change never leave or publish a stale connection', async t => {
+  const native = fakeNative()
+  const gate = native.connect
+  let release
+  const { connection } = setup(t, { native })
+  const live = await connection.open(request)
+  native.connect = async req => { await new Promise(resolve => { release = resolve }); return gate(req) }
+  const stale = connection.open(request)
+  await wait(1)
+  await connection.onRegistryChange({ terminalId: 'owner-macbook', revision: 2, removed: false })
+  release()
+  await assert.rejects(stale, { code: 'TERMINAL_UNAVAILABLE', effect: 'not_started' })
+  assert.equal(native.sessions.at(-1).closed, true, 'connection to the old revision is closed, not published')
+  assert.equal(native.sessions[0].closed, true)
+
+  const kept = await (native.connect = gate, connection.open(request))
+  native.connect = async req => { await new Promise(resolve => { release = resolve }); return gate(req) }
+  const inFlight = connection.open(request)
+  await wait(1)
+  const disposing = connection.dispose()
+  release()
+  await disposing
+  await assert.rejects(inFlight, { code: 'TERMINAL_UNAVAILABLE' })
+  assert.ok(native.sessions.every(session => session.closed), 'every remote process closed by dispose')
+  await assert.rejects(kept.native.callTool('pty_read', {}), { code: 'TERMINAL_UNAVAILABLE' })
+  const before = native.sessions.length
+  await assert.rejects(connection.open(request), { code: 'TERMINAL_UNAVAILABLE' })
+  assert.equal((await connection.check('owner-macbook')).reachable, false)
+  assert.equal(native.sessions.length, before, 'nothing starts after dispose')
+  void live
+})

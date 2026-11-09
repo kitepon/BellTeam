@@ -35,6 +35,9 @@ export function createTerminalConnection({ registry, secrets, native, seatCreden
   const wanted = new Map() // terminalId -> probe state
   const maintenance = new Map()
   const listeners = new Set()
+  const generations = new Map() // terminalId -> registry-change count; an open started before a change is stale
+  const opening = new Set()
+  let disposed = false
 
   function emitAvailable(terminalId) {
     clearTimeout(wanted.get(terminalId)?.timer)
@@ -133,13 +136,19 @@ export function createTerminalConnection({ registry, secrets, native, seatCreden
   }
 
   async function open({ terminalId, memberId, projectRoot, seatBinding, accountOwner, credentials } = {}) {
+    if (disposed) throw failure('TERMINAL_UNAVAILABLE')
     const target = await registry.target(terminalId).catch(() => null)
     if (!target) { if (typeof terminalId === 'string') want(terminalId); throw failure('TERMINAL_UNAVAILABLE') }
     if (accountOwner !== target.accountOwner) throw failure('TARGET_MISMATCH', `set the account owner of terminal ${terminalId} or the member binding`)
     if (typeof projectRoot !== 'string' || !isAbsolute(projectRoot) || typeof seatBinding?.sessionName !== 'string' || typeof memberId !== 'string') throw failure('TARGET_MISMATCH', 'set an absolute project folder and seat for the member')
     let session
     // TARGET_MISMATCH exits by registry revision (onRegistryChange), so only availability failures are probed.
-    try { session = await connectTarget(target, memberId, await resolvePrivateEnv(credentials, target)) } catch (error) { if (error.code !== 'TARGET_MISMATCH') want(terminalId); throw error }
+    const generation = generations.get(terminalId) ?? 0
+    const pending = connectTarget(target, memberId, await resolvePrivateEnv(credentials, target))
+    opening.add(pending)
+    try { session = await pending } catch (error) { if (error.code !== 'TARGET_MISMATCH' && !disposed) want(terminalId); throw error } finally { opening.delete(pending) }
+    // Registry revision or shutdown while connecting: never publish a connection to the old target.
+    if (disposed || (generations.get(terminalId) ?? 0) !== generation) { await session.close().catch(() => {}); throw failure('TERMINAL_UNAVAILABLE') }
     const connectionRef = randomUUID()
     connections.set(connectionRef, { terminalId, session })
     session.onEvent?.(event => { if (event?.type === 'lost' && connections.delete(connectionRef)) want(terminalId) })
@@ -156,6 +165,7 @@ export function createTerminalConnection({ registry, secrets, native, seatCreden
 
   async function check(terminalId) {
     const observation = { terminalId, observedAt: now().toISOString(), reachable: false, reason: null }
+    if (disposed) return { ...observation, reason: 'TERMINAL_UNAVAILABLE' }
     const target = await registry.target(terminalId).catch(() => null)
     if (!target) return { ...observation, reason: 'TERMINAL_NOT_FOUND' }
     try {
@@ -169,6 +179,7 @@ export function createTerminalConnection({ registry, secrets, native, seatCreden
 
   // Registry change: the old target revision is stale; close it, then let execution re-open.
   async function onRegistryChange({ terminalId, removed }) {
+    generations.set(terminalId, (generations.get(terminalId) ?? 0) + 1)
     for (const [ref, entry] of connections) if (entry.terminalId === terminalId) await close(ref).catch(() => {})
     if (removed) { clearTimeout(wanted.get(terminalId)?.timer); wanted.delete(terminalId); return }
     emitAvailable(terminalId)
@@ -190,6 +201,12 @@ export function createTerminalConnection({ registry, secrets, native, seatCreden
     maintenance: { last: terminalId => structuredClone(maintenance.get(terminalId) ?? null) },
     onRegistryChange,
     onCredentialEvent,
-    dispose() { for (const probe of wanted.values()) clearTimeout(probe.timer); wanted.clear() }
+    async dispose() {
+      disposed = true
+      for (const probe of wanted.values()) clearTimeout(probe.timer)
+      wanted.clear()
+      await Promise.allSettled([...opening])
+      await Promise.allSettled([...connections.keys()].map(close))
+    }
   }
 }

@@ -189,6 +189,19 @@ Rules the code enforces:
 - `HOST_TRUST_STALE`: terminals re-reads Aiterm's status and stores the new trust revision; that registry change emits `available` and execution re-opens.
 - Exits (no sticky state): a failed open for availability or credential records the terminal as wanted. Mika's `{available:true}` event for its handle, a registry change, or a successful observer `check` emits `available`. The observer is an in-process timer that runs `check` only while some wanted terminal is not yet usable (30 s, doubling to 5 min), stops on success or removal, and never wakes an AI. A `lost` event from the remote process marks the terminal wanted again.
 - A registry change closes that terminal's live connections (old revision) before emitting `available`.
+- Connection lifecycle:
+
+```mermaid
+stateDiagram-v2
+  [*] --> Opening: open (captures terminal generation)
+  Opening --> Live: native.connect settled, generation unchanged, not disposed
+  Opening --> Discarded: registry change for the terminal or dispose while connecting
+  Discarded --> [*]: session closed, TERMINAL_UNAVAILABLE not_started (registry change already emitted available)
+  Live --> Closed: close(ref) / lost event / registry change / dispose
+  Closed --> [*]
+```
+
+  `dispose()` (core `close()`) is async: it stops the observer, marks the core disposed, waits for in-flight opens to settle and closes every live session (each UID1000 remote-terminal process) before resolving. After dispose, `open` and `check` start nothing.
 - C8: on the first `agent_launch` with `harness:'claude-code'` per connection, before forwarding it: `claude_version`, then `claude_update` (or the official `claude_install` when no CLI answers), then `claude_version`. The outcome is kept for `maintenance.last`. A failed update never blocks the launch, the installed CLI stays, running CLIs are untouched, and no version is pinned.
 
 Test double for execution: `test/helpers/terminals-native-double.mjs` (`fakeConnection`, plus `fakeNative` / `fakeSecrets` for the ports terminals consumes).
