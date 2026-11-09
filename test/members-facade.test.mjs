@@ -91,6 +91,11 @@ test('an account seat name resolves to its Bot after the exact name is confirmed
   assert.deepEqual(read, ['bot-7b140b27-2nd-mw8hc4gr', 'bot-7b140b27'])
   assert.equal(await resolveSeatBotId(seat('bot-gone-2nd-mw8hc4gr'), bots), null)
   assert.equal(await resolveSeatBotId(seat('bot-7b140b27-2nd'), bots), null)
+  read.length = 0
+  assert.equal(await resolveSeatBotId(seat('bot-7b140b27-worker-mw8hc4gr'), bots), null)
+  assert.deepEqual(read, ['bot-7b140b27-worker-mw8hc4gr'])
+  const exact = { async readMember(id) { if (id === 'bot-x-1st-y') return { id }; throw missing() } }
+  assert.equal(await resolveSeatBotId(seat('bot-x-1st-y'), exact), 'bot-x-1st-y')
   const down = { async readMember(id) { if (id.endsWith('-mw8hc4gr')) throw missing(); throw Object.assign(new Error(), { status: 503 }) } }
   await assert.rejects(resolveSeatBotId(seat('bot-7b140b27-2nd-mw8hc4gr'), down), { status: 503 })
 })

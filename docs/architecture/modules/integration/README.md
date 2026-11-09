@@ -341,7 +341,7 @@ flowchart LR
   Assert --> Callback[同controller callback]
   Request --> Result[作者result validator / 不正はunknown]
   Callback --> Result
-  Seat[席名札 botId または botId-slot-base36] --> Fresh
+  Seat[席名札 botId または botId-1st/2nd-base36] --> Fresh
   Fresh[席MCP/transport requireMember] --> Read[profile.readをawait / 503と確認済404を区別]
   Read --> Request
   Display[会話既受付の表示名] --> Projection[旧名簿stale投影を維持]
@@ -351,7 +351,7 @@ flowchart LR
 
 Owner/rules更新ではcapturedAuthorizationを同channelへ渡し、子に値は送らない。未公開profile.remove/run/prepareResumeを推測で公開しない。通常bootstrapの初回移行後、application-servicesは同controllerをfeatures前にstartして全callerへ一facadeを渡す。初回bootstrapの旧BotRegistry/OwnerProfile/UserRulesは以後参照せず、専用Owner MCPもwriterを作らない。実物の独立交換受入は配布工程で確認する。
 
-席MCP入口はreadMemberがある場合にfresh本人確認をawaitし、503を未登録400へ丸めない。名札の候補は名札そのもの、次にアカウント席名`<botId>-<slot>-<base36>`（slotとbase36は`[a-z0-9]+`、名前の形はexecutionのharness-accountsが所有）の後ろ2区切りを外したBot IDの順で、最初に確認済みmemberのものを席Botとする。候補の503は丸めず投げ、確認済404だけ次の候補へ進む。seatExecutionSourceは本物のAiterm session名（後ろ付き）をsourceSession/launch.session_idに保つ。Map型の既builtinは既本人確認を保つ。HTTP上限16MiB/席MCP4MiBは変更しない。assembly requireMemberもfresh結果を取得し表示投影を本人性の代用にしない。
+席MCP入口はreadMemberがある場合にfresh本人確認をawaitし、503を未登録400へ丸めない。名札の候補は名札そのもの、次にアカウント席名`<botId>-(1st|2nd)-<base36>`（base36は`[a-z0-9]+`、slotはexecutionのACCOUNT_SLOTS、名前の形はexecutionのharness-accountsが所有）の後ろ2区切りを外したBot ID。他の後ろ付き名（席が起こした子など）は未解決のままの順で、最初に確認済みmemberのものを席Botとする。候補の503は丸めず投げ、確認済404だけ次の候補へ進む。seatExecutionSourceは本物のAiterm session名（後ろ付き）をsourceSession/launch.session_idに保つ。Map型の既builtinは既本人確認を保つ。HTTP上限16MiB/席MCP4MiBは変更しない。assembly requireMemberもfresh結果を取得し表示投影を本人性の代用にしない。
 
 ## 予定claimの共通組立て（結合候補）
 

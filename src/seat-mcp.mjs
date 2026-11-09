@@ -11,7 +11,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import { bellTeamTools, callBellTeamTool } from './mcp-tools.mjs'
 
 // 席の名札。各CLIの設定が、席のCLIの環境変数 AITERM_SESSION_ID をこのヘッダへ写す（harness-config.mjs）。
-// Aitermは席のCLIを Bot ID（アカウント席は `<botId>-<slot>-<base36>`）の名前のセッションで起こし、この変数をセッションごとに必ず付ける。
+// Aitermは席のCLIを Bot ID（アカウント席は `<botId>-<1st|2nd>-<base36>`）の名前のセッションで起こし、この変数をセッションごとに必ず付ける。
 // 席が起こした子は自分のセッション名を持つので、台帳に無い名札になる。
 export const SEAT_HEADER = 'X-Bellteam-Seat'
 export const SEAT_VARIABLE = 'AITERM_SESSION_ID'
@@ -24,10 +24,10 @@ export const CALLER_ID_HEADER = 'X-Call-Bridge-Caller-Id'
 const INSTRUCTIONS = 'BellTeamのBot、プロフィール、アバター、予定、直接会話、ルーム、長期記憶、RAGはこのMCPで扱う。セキュリティの問題（SEC番号の所見）の一覧・詳細・登録・編集・完了・再開は、bughub_で始まる道具でBugHubへ記録する。'
 
 // Bot ids the seat name can speak for: the name itself, then for an account seat
-// (`<botId>-<slot>-<base36>`, execution harness-accounts) the Bot id before that suffix.
+// (`<botId>-<1st|2nd>-<base36>`, execution harness-accounts ACCOUNT_SLOTS) the Bot id before that suffix.
 function seatCandidates(value) {
   if (typeof value !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/u.test(value)) return []
-  const account = /^(.+)-[a-z0-9]+-[a-z0-9]+$/u.exec(value)?.[1]
+  const account = /^(.+)-(?:1st|2nd)-[a-z0-9]+$/u.exec(value)?.[1]
   return account ? [value, account] : [value]
 }
 
