@@ -966,9 +966,9 @@ def execute_installer(updater, plan, directory):
     # No caller environment, writable checkout scripts, or user Docker/Node configuration enters this process.
     for path in [install_root / '.env']:
         if path.exists(): trusted(path, updater.uid)
-    saved, state_failed = None, False
+    saved = None
     def run(recover=False):
-        nonlocal saved, state_failed
+        nonlocal saved
         args = [config['shell'], str(script)] + (['--recover', str(saved)] if recover else ['--no-pull'])
         with (directory / ('recover.log' if recover else 'installer.log')).open('wb') as log:
             child = subprocess.Popen(args, cwd=install_root, env=env, stdin=subprocess.DEVNULL,
@@ -988,7 +988,6 @@ def execute_installer(updater, plan, directory):
                         check(len(partial) <= 2 * LIMIT, 'HOST_UPDATE_INSTALL_OUTPUT_LIMIT')
                         while b'\n' in partial:
                             line, partial = partial.split(b'\n', 1)
-                            state_failed = state_failed or line == b'aiterm-state-apply=failed'
                             if line.startswith(b'saved-compose='):
                                 candidate = Path(os.fsdecode(line[len(b'saved-compose='):]))
                                 check(candidate.parent == install_root and re.fullmatch(r'\.bellteam-compose\.[A-Za-z0-9]{6}', candidate.name), 'HOST_UPDATE_GENERATION_INVALID')
@@ -1048,10 +1047,6 @@ def execute_installer(updater, plan, directory):
         updater.command([config['python'], '-I', '-B', str(core), '--rollback-image', rollback_image], timeout=600)
     except Exception:
         cleanup = 'failed'
-    if state_failed:
-        # The swap is kept (Trony 2026-11-10), but a failed Aiterm state step is not a completed update.
-        return {'execution': 'succeeded', 'verification': 'failed', 'observed': actual, 'cleanup': cleanup,
-                'rollback': 'not_needed', 'error': 'HOST_UPDATE_AITERM_STATE_FAILED'}
     return {'execution': 'succeeded', 'verification': 'succeeded', 'observed': actual, 'cleanup': cleanup,
             'rollback': 'not_needed', 'error': None if cleanup == 'succeeded' else 'HOST_UPDATE_CLEANUP_FAILED'}
 

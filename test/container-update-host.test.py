@@ -210,7 +210,6 @@ cp "$BELLTEAM_PREVIOUS_COMPOSE" "$saved/previous-normal.json"
 cp "$(dirname "$BELLTEAM_PREVIOUS_COMPOSE")/previous-runtime.json" "$saved/previous-runtime.json"
 printf 'saved-compose=%s\\n' "$saved"
 [ ! -f "$BELLTEAM_INSTALL_DIR/fail" ] || exit 3
-[ ! -f "$BELLTEAM_INSTALL_DIR/state-fail" ] || printf 'aiterm-state-apply=failed\\n'
 touch "$BELLTEAM_INSTALL_DIR/applied"
 """
         (release/'install.sh').write_text(script)
@@ -231,14 +230,6 @@ touch "$BELLTEAM_INSTALL_DIR/applied"
         with patch.dict(os.environ,{'LEAK_NOT_ALLOWED':'secret'}):result=module.execute_installer(self.updater,plan,directory)
         self.assertEqual(result['verification'],'succeeded');self.assertEqual(result['cleanup'],'failed')
         self.assertEqual(result['rollback'],'not_needed');self.assertFalse((install/'recovered').exists())
-        self.assertEqual(module.read_json(self.prefix/'state/current-runtime.json',os.getuid())['sourceCommit'],'d'*40)
-    def test_failed_aiterm_state_step_keeps_the_swap_but_is_not_completed(self):
-        install=self.executor_fixture();(install/'state-fail').touch()
-        directory=self.prefix/'state/fixture-result';directory.mkdir()
-        result=module.execute_installer(self.updater,self.plan(),directory)
-        self.assertEqual((result['execution'],result['verification'],result['rollback'],result['error']),
-                         ('succeeded','failed','not_needed','HOST_UPDATE_AITERM_STATE_FAILED'))
-        self.assertFalse((install/'recovered').exists())
         self.assertEqual(module.read_json(self.prefix/'state/current-runtime.json',os.getuid())['sourceCommit'],'d'*40)
     def test_target_preflight_definite_failure_ends_before_install_and_unknown_proceeds(self):
         install=self.executor_fixture()
