@@ -86,6 +86,13 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch, onOpenMe
   const images = new Map(), measures = new Map()
   const context = canvas.getContext('2d')
   const now = () => Date.now()
+  // The canvas color: the dialog's own background gradient (styles.css .work-graph-dialog) mapped onto the canvas.
+  const backdrop = rect => {
+    const outer = dialog.getBoundingClientRect?.(), inner = stage.getBoundingClientRect(), top = outer ? inner.top - outer.top : 0
+    const gradient = context.createLinearGradient(0, -top, 0, (outer?.height ?? rect.height) - top)
+    gradient.addColorStop(0, '#ECE7FC'); gradient.addColorStop(0.4, '#F6F4FD'); gradient.addColorStop(1, '#FFFFFF')
+    return gradient
+  }
   const rectOf = () => {
     const box = stage.getBoundingClientRect()
     return { x: 24, y: 24, w: Math.max(1, box.width - 48), h: Math.max(1, box.height - 48), width: box.width, height: box.height }
@@ -225,10 +232,14 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch, onOpenMe
       context.restore()
     }
     context.textAlign = 'center'; context.textBaseline = 'top'; context.font = NAME_FONT
+    // 3px の縁取りを背景の色で（behavior-spec "Clearance"）。下に残った線や札が文字を切らない。
+    context.strokeStyle = backdrop(rect); context.lineWidth = 3; context.lineJoin = 'round'
     for (const { item, box, maxWidth } of frame.names) {
+      const text = truncate(item.node.name, maxWidth, measure(NAME_FONT))
       context.globalAlpha = item.opacity
+      context.strokeText(text, item.x, box.y)
       context.fillStyle = item.node.state === 'working' ? INK : MUTED
-      context.fillText(truncate(item.node.name, maxWidth, measure(NAME_FONT)), item.x, box.y)
+      context.fillText(text, item.x, box.y)
     }
     chips(frame.labels)
     context.globalAlpha = 1; context.filter = 'none'

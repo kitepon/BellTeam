@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { avatarSide, backoffMs, bestSwap, blinkOpacity, createGraphModel, createTap, edgeText, enterCurve, flowDots, nodeAt, nodeText, wrapLabel } from '../web/work-graph-model.js'
+import { avatarSide, backoffMs, bestSwap, blinkOpacity, clearanceForces, createGraphModel, segmentHitsBox, createTap, edgeText, enterCurve, flowDots, nodeAt, nodeText, wrapLabel } from '../web/work-graph-model.js'
 import { createGraphStream, parseFrames } from '../web/work-graph.js'
 
 const rect = { x: 24, y: 24, w: 800, h: 600 }
@@ -270,4 +270,69 @@ test('交差を減らす入れ替え：bestSwap は layout-sim.mjs と同じ。3
   assert.deepEqual([ra(t0 + 50).x, ra(t0 + 50).opacity], [200, 0.5])
   assert.deepEqual([ra(t0 + 150).x, ra(t0 + 150).opacity], [600, 0.5])
   assert.equal(ra(t0 + 200).opacity, 1)
+})
+
+test('Clearance：segmentHitsBox と線が顔を通る数え方つきの bestSwap は layout-sim.mjs と同じ。押す力は仕様の式', async () => {
+  const sim = await import('../docs/architecture/modules/work-graph/layout-sim.mjs')
+  let s = 21
+  const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647
+  for (let k = 0; k < 500; k++) {
+    const a = { x: rnd() * 300, y: rnd() * 300 }, b = k % 7 ? { x: rnd() * 300, y: rnd() * 300 } : { x: a.x, y: rnd() * 300 }
+    const x0 = rnd() * 250, y0 = rnd() * 250, box = { x0, x1: x0 + rnd() * 80, y0, y1: y0 + rnd() * 80 }
+    assert.equal(segmentHitsBox(a, b, box), sim.segmentHitsBox(a, b, box))
+  }
+  const S = 56, nameHeight = 18, clear = { box: (k, p) => sim.nodeBox(p, S, nameHeight, 0) }
+  let differs = 0
+  for (let k = 0; k < 200; k++) {
+    const P = Array.from({ length: 10 }, () => ({ x: rnd() * 900, y: rnd() * 600 })), E = sim.denseEdges(10, k + 1)
+    if (k % 2) E.push(E[0].slice().reverse())
+    const mine = bestSwap(P, E, clear)
+    assert.deepEqual(mine, sim.bestSwap(P, E, { S, nameHeight }))
+    if (JSON.stringify(mine) !== JSON.stringify(bestSwap(P, E))) differs++
+  }
+  assert.ok(differs > 20, `edges through a member changed ${differs} choices`)
+  // 押す力：a(0,0)→b(400,0)。c の箱（円板＋名前、+6）を線が通る。箱の中心は c.y + (2 + 18) / 2。
+  const kc = 0.003, box = (P, g) => (k, gap) => sim.nodeBox(P[k], S, nameHeight, gap ?? g)
+  const close = (got, want) => got.forEach((f, i) => assert.ok(Math.abs(f.u - want[i][0]) < 1e-12 && Math.abs(f.v - want[i][1]) < 1e-12, `node ${i}: ${f.u},${f.v} vs ${want[i]}`))
+  let P = [{ x: 0, y: 0 }, { x: 400, y: 0 }, { x: 100, y: 5 }, { x: 100, y: 300 }]
+  close(clearanceForces(P, [[0, 1]], { box: box(P) }), [[0, -kc * 0.75], [0, -kc * 0.25], [0, kc], [0, 0]])
+  // 箱の中心がちょうど線の上：線の法線（-ey, ex）へ
+  P = [{ x: 0, y: 0 }, { x: 400, y: 0 }, { x: 200, y: -10 }]
+  close(clearanceForces(P, [[0, 1]], { box: box(P) }), [[0, -kc * 0.5], [0, -kc * 0.5], [0, kc]])
+  // blocked の札（中点、4 広げた箱）が c に重なる：c は札の中心から離れ、両端が半分ずつ受ける。線は c の箱に入らない
+  P = [{ x: 0, y: 0 }, { x: 400, y: 0 }, { x: 200, y: 40 }]
+  const chip = { a: 0, b: 1, box: sim.chipBox(P[0], P[1], 0.5) }
+  close(clearanceForces(P, [[0, 1]], { box: box(P), chips: [chip] }), [[0, -kc * 0.5], [0, -kc * 0.5], [0, kc]])
+  // 同じ二人の逆向きの依頼：線は一本だが、blocked の札は2枚とも押す
+  close(clearanceForces(P, [[0, 1]], { box: box(P), chips: [chip, { a: 1, b: 0, box: sim.chipBox(P[1], P[0], 0.5) }] }), [[0, -kc], [0, -kc], [0, 2 * kc]])
+  // 札が自分の端に重なる：線を伸ばす
+  P = [{ x: 0, y: 0 }, { x: 100, y: 0 }]
+  close(clearanceForces(P, [[0, 1]], { box: box(P), chips: [{ a: 0, b: 1, box: sim.chipBox(P[0], P[1], 0.5) }] }), [[-kc, 0], [kc, 0]])
+  // 札が blocked でなければ、線に触れない顔は押さない
+  P = [{ x: 0, y: 0 }, { x: 400, y: 0 }, { x: 200, y: 50 }]
+  close(clearanceForces(P, [[0, 1]], { box: box(P) }), [[0, 0], [0, 0], [0, 0]])
+})
+
+test('Clearance をモデルで：描いた名前の箱を覚え、線の上の関係ない顔を押し出す。札の blocked と大きさを覚える', () => {
+  const at = { a: [124, 324], b: [624, 324], c: [374, 330] }
+  const run = withEdge => {
+    const model = createGraphModel()
+    const long = 'とても長い依頼の名前'.repeat(4), list = withEdge ? [edge('a', 'b', 'a:b', long)] : []
+    // 同じ二人の逆向きの依頼（配達ごとの別の線と札）
+    if (withEdge === 'both') list.push(edge('b', 'a', 'b:a', long))
+    model.snapshot(snapshot(['a', 'b', 'c'].map(id => node(id)), list), 0, rect)
+    for (const [id, [x, y]] of Object.entries(at)) Object.assign(model.nodes.get(id), { x, y, vu: 0, vv: 0 })
+    model.frame(5000, rect)
+    model.step(0, rect, 5000)
+    return model
+  }
+  const on = run(true), off = run(false), both = run('both'), c = on.nodes.get('c')
+  assert.ok(c.nameRel && c.nameRel.y0 > 0, 'the name below c is remembered as part of its box')
+  // 札は a・b・c の間に空きがなく blocked。線と札の両方が c の上にあるので、c は下へ（v が増える向き）2回押される。違いは押す力だけ。
+  assert.equal(on.edges.get('a:b').chip.blocked, true, 'the chip has no free slot between a, b and c')
+  assert.ok(Math.abs(c.vv - off.nodes.get('c').vv - 2 * 0.003 * 0.82) < 1e-12, `${c.vv - off.nodes.get('c').vv}`)
+  assert.ok(on.edges.get('a:b').chip.w > 0 && on.edges.get('a:b').chip.h > 0)
+  // 逆向きの2本：線は二人で一本（1回）、blocked の札は2枚とも押す（2回）
+  assert.equal(both.edges.get('b:a').chip.blocked, true)
+  assert.ok(Math.abs(both.nodes.get('c').vv - off.nodes.get('c').vv - 3 * 0.003 * 0.82) < 1e-12, `${both.nodes.get('c').vv - off.nodes.get('c').vv}`)
 })
