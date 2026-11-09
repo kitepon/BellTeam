@@ -5,6 +5,7 @@ import importlib.util
 import io
 from contextlib import redirect_stdout
 import json
+import os
 from pathlib import Path
 import sys
 import unittest
@@ -174,6 +175,7 @@ class CatalogTest(unittest.TestCase):
             with self.assertRaises(HTTPError): publication.download(url)
             self.assertEqual(fetch.call_count, 2)
 
+    @patch.dict(os.environ, {'UPDATE_CATALOG_PRERELEASE': 'false'})
     def test_publication_preflight_binds_stable_index_and_architecture_source(self):
         spec = importlib.util.spec_from_file_location('catalog_publication', ROOT / 'scripts/check-update-catalog-publication.py')
         publication = importlib.util.module_from_spec(spec); spec.loader.exec_module(publication)
@@ -185,9 +187,10 @@ class CatalogTest(unittest.TestCase):
         value = fixture(); release = value['releases'][0]
         release['versionId'] = 'sha256:'+hashlib.sha256(index).hexdigest()
         release['artifact']['reference'] = 'ghcr.io/kitepon/bellteam-server@'+release['versionId']
+        tag = 'latest'
         def fetch(url, headers=None):
             if 'token?' in url: return b'{"token":"fixture"}'
-            if url.endswith('manifests/latest'): return index
+            if url.endswith('manifests/'+tag): return index
             if url.endswith(manifest_digest): return manifest
             if url.endswith(config_digest): return config
             raise AssertionError(url)
@@ -196,6 +199,12 @@ class CatalogTest(unittest.TestCase):
              patch.object(publication, 'validate_catalog', side_effect=lambda v, **options: validate_catalog(v, now=NOW, **options)), redirect_stdout(io.StringIO()) as output:
             publication.main()
             self.assertEqual(json.loads(output.getvalue())['tag'], 'updates-20261103T000000Z')
+            # The publisher job sets UPDATE_CATALOG_PRERELEASE for this test run too; true binds the candidate tag instead.
+            with patch.dict(os.environ, {'UPDATE_CATALOG_PRERELEASE': 'true'}):
+                tag = 'candidate'; output.seek(0); output.truncate()
+                publication.main()
+                self.assertEqual(json.loads(output.getvalue())['tag'], 'updates-20261103T000000Z')
+            tag = 'latest'
             release['sourceCommit'] = 'e'*40
             with patch.object(Path, 'read_bytes', return_value=json.dumps(value).encode()), self.assertRaises(ValueError):
                 publication.main()
