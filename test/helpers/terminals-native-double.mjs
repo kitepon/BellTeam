@@ -13,6 +13,10 @@ export function fakeNative({ connectError, versions = ['1.0.0', '1.0.1'], update
     async trust(ref) { calls.push({ op: 'trust', ref }); return trust },
     async loadCredential({ key, ...request }) { calls.push({ op: 'loadCredential', ...request, keyLength: key.length }) },
     async register(target) { calls.push({ op: 'register', target }); return 'd1b2c3d4-1234-4234-8234-123456789abc' },
+    // Self-service (Elegg accepted contract 2026-11-10); tests replace these to inject outcomes.
+    async provision(request) { calls.push({ op: 'provision', ...request }); return { result: 'PROVISIONED' } },
+    async authorizeKey({ password, ...request }) { calls.push({ op: 'authorizeKey', ...request, passwordLength: password.length }); return { result: 'AUTHORIZED' } },
+    pathResult: (op, { path }) => ({ op, exists: true, directory: true, writable: true }),
     async confirmHostKey(ref, fingerprint) { calls.push({ op: 'confirmHostKey', ref, fingerprint }); return trust },
     async connect(request) {
       calls.push({ op: 'open', ...request })
@@ -20,8 +24,9 @@ export function fakeNative({ connectError, versions = ['1.0.0', '1.0.1'], update
       let version = 0
       const session = {
         closed: false,
-        async command(op) {
-          calls.push({ op: 'command', command: op })
+        async command(op, args) {
+          calls.push({ op: 'command', command: op, ...(args ? { args } : {}) })
+          if (op === 'path_status' || op === 'make_dir') return native.pathResult(op, args)
           if (op !== 'claude_version') return { op, exit_code: updateCode, version: null, output_tail: '' }
           return { op, exit_code: 0, version: versions[Math.min(version++, versions.length - 1)], output_tail: '' }
         },

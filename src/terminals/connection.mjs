@@ -12,8 +12,22 @@ const NATIVE_CODES = {
   CREDENTIAL_UNUSABLE: 'CREDENTIAL_UNAVAILABLE', CREDENTIAL_REVISION_STALE: 'CREDENTIAL_UNAVAILABLE', AUTH_FAILED: 'CREDENTIAL_UNAVAILABLE',
   // aiterm-mcp 0.67.0: a handle key not yet loaded by Mika's credential-load handoff; her availability event is the exit.
   CREDENTIAL_NOT_LOADED: 'CREDENTIAL_UNAVAILABLE', CREDENTIAL_REQUIRED: 'CREDENTIAL_UNAVAILABLE',
-  UNREACHABLE: 'TERMINAL_UNAVAILABLE', REMOTE_AITERM_UNAVAILABLE: 'TERMINAL_UNAVAILABLE', REMOTE_AITERM_TOO_OLD: 'TERMINAL_UNAVAILABLE', CONNECTION_LOST: 'TERMINAL_UNAVAILABLE'
+  UNREACHABLE: 'TERMINAL_UNAVAILABLE', CONNECTION_REFUSED: 'TERMINAL_UNAVAILABLE', REMOTE_AITERM_UNAVAILABLE: 'TERMINAL_UNAVAILABLE', REMOTE_AITERM_TOO_OLD: 'TERMINAL_UNAVAILABLE', CONNECTION_LOST: 'TERMINAL_UNAVAILABLE'
 }
+
+// Evidence, not diagnosis (Elegg): the action names the likely fix without asserting the cause.
+const ACTIONS = {
+  CONNECTION_REFUSED: "check that Remote Login is on in the Mac's Sharing settings, then check again",
+  AUTH_FAILED: "this key may not be on the Mac yet: authorize it with the Mac's login password"
+}
+const FOLDER_ACTIONS = {
+  FOLDER_MISSING: 'create this folder, or choose an existing one',
+  FOLDER_NOT_DIRECTORY: 'this path is a file: choose a folder',
+  FOLDER_NOT_WRITABLE: 'choose a folder this Mac user can write to',
+  FOLDER_NOT_PERMITTED: 'the Mac refused access: choose a folder outside Desktop, Documents and Downloads, or allow full disk access for remote users in Remote Login settings'
+}
+const PROVISION_CODES = new Set(['REMOTE_AITERM_UNAVAILABLE', 'REMOTE_AITERM_TOO_OLD'])
+const CODE = /^[A-Z][A-Z0-9_]{0,63}$/
 
 function failure(code, action, reason) {
   return Object.assign(new Error(MESSAGES[code]), { code, effect: 'not_started', ...(reason ? { reason } : {}), ...(action ? { action } : {}) })
@@ -23,7 +37,7 @@ function failure(code, action, reason) {
 function classify(error, target) {
   const reason = NATIVE_CODES[error?.code] ? error.code : undefined
   const code = CONNECTION_CODES.includes(error?.code) ? error.code : NATIVE_CODES[error?.code] ?? 'TERMINAL_UNAVAILABLE'
-  const action = code !== 'TARGET_MISMATCH' ? undefined
+  const action = code !== 'TARGET_MISMATCH' ? ACTIONS[reason]
     : typeof error?.action === 'string' ? `${error.action} on ${target.host}`
     : `confirm the host key of ${target.host}`
   return failure(code, action, reason)
@@ -105,29 +119,40 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
     try { return await secrets.credential(handle, context) } catch { return null }
   }
 
+  // A handle key must be in Aiterm before its own open (aiterm-mcp 0.67.0 credential-load); execution loads it the same way
+  // before a launch. The value exists only inside Mika's callback and goes to Aiterm's stdin.
+  async function loadKey(target, binding, current) {
+    if (!binding.credential) return
+    // expectedRevision (Mika, as Molly #813 uses it): bytes of a newer revision are never labelled with the target's revision.
+    await secrets.withResolved(target.sshKeyRef, { terminalId: target.terminalId, memberId: null, purpose: 'terminal.ssh', expectedRevision: binding.credential.revision },
+      key => {
+        if (!current()) throw failure('TERMINAL_UNAVAILABLE') // resolution may have spanned a revision or dispose
+        return native.loadCredential({ ref: binding.ref, terminalId: target.terminalId, ...binding.credential, purpose: 'ssh-key', key })
+      })
+      .catch(error => { throw error?.code === 'TERMINAL_UNAVAILABLE' ? error : Object.assign(new Error('x'), { code: 'CREDENTIAL_NOT_LOADED' }) })
+    if (!current()) throw failure('TERMINAL_UNAVAILABLE')
+  }
+
   // One transient remote process; closed before returning. Classified like a launch would be.
   // `current` is re-checked after every await; a process connected across a registry change or dispose is closed unused.
   async function withProcess(target, binding, run, current) {
     if (!current()) throw failure('TERMINAL_UNAVAILABLE')
     let session
     try {
-      // A handle key must be in Aiterm before its own open (aiterm-mcp 0.67.0 credential-load); execution loads it the same way
-      // before a launch. The value exists only inside Mika's callback and goes to Aiterm's stdin.
-      if (binding.credential) {
-        // expectedRevision (Mika, as Molly #813 uses it): bytes of a newer revision are never labelled with the target's revision.
-        await secrets.withResolved(target.sshKeyRef, { terminalId: target.terminalId, memberId: null, purpose: 'terminal.ssh', expectedRevision: binding.credential.revision },
-          key => {
-            if (!current()) throw failure('TERMINAL_UNAVAILABLE') // resolution may have spanned a revision or dispose
-            return native.loadCredential({ ref: binding.ref, terminalId: target.terminalId, ...binding.credential, purpose: 'ssh-key', key })
-          })
-          .catch(error => { throw error?.code === 'TERMINAL_UNAVAILABLE' ? error : Object.assign(new Error('x'), { code: 'CREDENTIAL_NOT_LOADED' }) })
-        if (!current()) throw failure('TERMINAL_UNAVAILABLE')
-      }
-      session = await native.connect({
+      await loadKey(target, binding, current)
+      const open = () => native.connect({
         target: { host: target.host, user: target.user, port: target.port, os: target.os },
         hostTrust: target.hostTrust,
         binding
       })
+      try { session = await open() } catch (error) {
+        // The Mac lacks Aiterm's remote side (or it is too old): provision once over the same trusted, keyed SSH, reopen once.
+        if (!PROVISION_CODES.has(error?.code) || typeof native.provision !== 'function') throw error
+        if (!current()) throw failure('TERMINAL_UNAVAILABLE')
+        try { await native.provision({ ref: binding.ref }) } catch { throw error }
+        if (!current()) throw failure('TERMINAL_UNAVAILABLE')
+        session = await open()
+      }
     } catch (error) {
       if (error?.code === 'HOST_TRUST_STALE') await rebindTrust(target, binding.ref)
       throw classify(error, target)
@@ -215,6 +240,60 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
     }
   }
 
+  // S5: members' folder check on save. Availability is a reason, never a throw, so an unchecked folder can still be saved.
+  const folder = request => {
+    const { terminalId, path, create = false } = request ?? {}
+    if (typeof path !== 'string' || !isAbsolute(path) || path.length > 1024 || (path !== '/' && path.endsWith('/')) || path.includes('\0') || path.split('/').includes('..') || typeof create !== 'boolean')
+      throw Object.assign(new Error('path must be an absolute folder path on that terminal, without a trailing / or ..'), { code: 'INVALID_PATH', status: 400 })
+    return track(() => folderNow(terminalId, path, create))
+  }
+  async function folderNow(terminalId, path, create) {
+    const observation = { terminalId, path, observedAt: now().toISOString(), exists: null, directory: null, writable: null, reason: null }
+    const done = reason => ({ ...observation, reason, ...(FOLDER_ACTIONS[reason] ? { action: FOLDER_ACTIONS[reason] } : {}) })
+    if (disposed) return done('TERMINAL_UNAVAILABLE')
+    const generation = generations.get(terminalId) ?? 0
+    const current = () => !disposed && (generations.get(terminalId) ?? 0) === generation
+    const record = await registry.target(terminalId).catch(() => null)
+    if (!current()) return done('TERMINAL_UNAVAILABLE')
+    if (!record) return done('TERMINAL_NOT_FOUND')
+    try {
+      const binding = await resolveBinding(record, null)
+      const status = await withProcess(record, binding, session => {
+        if (!current()) throw failure('TERMINAL_UNAVAILABLE')
+        return session.command(create ? 'make_dir' : 'path_status', { path })
+      }, current)
+      Object.assign(observation, { exists: Boolean(status?.exists), directory: Boolean(status?.directory), writable: Boolean(status?.writable) })
+      return done(!observation.exists ? 'FOLDER_MISSING' : !observation.directory ? 'FOLDER_NOT_DIRECTORY' : !observation.writable ? 'FOLDER_NOT_WRITABLE' : null)
+    } catch (error) {
+      if (error?.code === 'FOLDER_NOT_PERMITTED') return done('FOLDER_NOT_PERMITTED')
+      const reason = error?.reason ?? (CONNECTION_CODES.includes(error?.code) ? error.code : 'TERMINAL_UNAVAILABLE')
+      return { ...observation, reason, ...(error?.action ? { action: error.action } : {}) }
+    }
+  }
+
+  // S4: one-time Mac login password -> Aiterm authorize-key. Returns an outcome code; never throws, never keeps the value.
+  const authorize = request => track(() => authorizeNow(request ?? {}))
+  async function authorizeNow({ terminalId, generation, handle }) {
+    const current = () => !disposed && (generations.get(terminalId) ?? 0) === generation
+    const record = await registry.target(terminalId).catch(() => null)
+    if (!current() || !record) return 'TERMINAL_CHANGED'
+    try {
+      const binding = await resolveBinding(record, null)
+      await loadKey(record, binding, current)
+      if (!current()) return 'TERMINAL_CHANGED'
+      const result = await secrets.withResolved(handle, { terminalId, memberId: null, purpose: 'terminal.login' }, password => {
+        if (!current()) throw failure('TERMINAL_UNAVAILABLE', undefined, 'TERMINAL_CHANGED')
+        if (typeof password !== 'string') throw failure('CREDENTIAL_UNAVAILABLE')
+        return native.authorizeKey({ ref: binding.ref, password })
+      })
+      return result?.result === 'ALREADY_AUTHORIZED' ? 'ALREADY_AUTHORIZED' : 'AUTHORIZED'
+    } catch (error) {
+      const code = error?.reason ?? error?.code
+      if (typeof code === 'string' && (/^SECRET_/.test(code) || code === 'CREDENTIAL_NOT_LOADED')) return 'CREDENTIAL_UNAVAILABLE'
+      return typeof code === 'string' && CODE.test(code) ? code : 'TERMINAL_UNAVAILABLE'
+    }
+  }
+
   // Registry change: targets handed out before it are stale; execution re-targets on the available event.
   function onRegistryChange({ terminalId, removed }) {
     generations.set(terminalId, (generations.get(terminalId) ?? 0) + 1)
@@ -233,6 +312,9 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
   return {
     target,
     check,
+    folder,
+    authorize,
+    generation: terminalId => generations.get(terminalId) ?? 0,
     // Kiro #765: arms the same observer after Aiterm's launch answered a connectivity code; its exit is the available event.
     observe(terminalId) { if (typeof terminalId === 'string') want(terminalId) },
     onAvailable(listener) { listeners.add(listener); return () => listeners.delete(listener) },

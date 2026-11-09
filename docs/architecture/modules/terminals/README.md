@@ -333,6 +333,39 @@ S2 route (step 3, first part; Ziz builds against it): `POST /api/terminals/:id/t
 
 No MCP tool: only the app on that Mac can read the fingerprint, so an AI has nothing truthful to pass. `trust-confirm` exit 2 is read as its one JSON line and only `code` is kept (`UNREACHABLE` / `REMOTE_AITERM_UNAVAILABLE` -> 503, anything else -> 409); the existing `PUT confirmHostKey` shares this mapping.
 
+Step 3 terminals contracts (rest; built against Elegg's accepted contract and Mika #855, runnable once Elegg's release is live):
+
+```mermaid
+sequenceDiagram
+  participant App as App (Ziz / Admi)
+  participant T as terminals HTTP + core
+  participant M as Mika credentials
+  participant A as Aiterm UID1000
+  App->>T: POST /api/terminals/:id/keys/ssh/authorize (empty body)
+  T->>T: needs hostTrust (else 409 HOST_TRUST_MISSING, no card) and an SSH key (else 409 SSH_KEY_UNSET)
+  T->>M: requestTerminalKey({terminalId, purpose: terminal.login, label})
+  T-->>App: {secretRequest} (pending login request kept in memory with the binding ref and generation)
+  App->>M: existing secret dialog submit (paste only)
+  M-->>T: watchCredentials {purpose: terminal.login, handle, requestId}
+  T->>T: only the pending requestId, same generation; else unbind(handle) and drop
+  T->>A: card key: credential-load (as check does)
+  T->>M: withResolved(handle, {terminalId, memberId: null, purpose: terminal.login}) once
+  M-->>T: password inside the callback (Mika revokes the handle first)
+  T->>A: authorize-key --ref R, password on stdin
+  A-->>T: AUTHORIZED / ALREADY_AUTHORIZED, or exit 2 code
+  T->>T: keyAuthorization {requestId, outcome, observedAt} on the projection; success emits available
+  App->>T: GET terminal until keyAuthorizationPending is false, then POST check
+```
+
+| Port / route | Contract |
+| --- | --- |
+| `POST /api/terminals/:id/keys/ssh/authorize` -> `core.keys.authorize(id)` | Body must be empty (`KEY_IN_REQUEST_REFUSED` otherwise). 200 `{secretRequest}`; 404 `TERMINAL_NOT_FOUND`; 409 `HOST_TRUST_MISSING` (action: 「このMacを確かめる」 first; no password is asked); 409 `SSH_KEY_UNSET`; 503 `CREDENTIAL_UNAVAILABLE`. A new POST replaces the pending request (Mika drops the old value). Projection: `keyAuthorizationPending`, `keyAuthorization: {requestId, outcome, observedAt}` (memory only; outcome `AUTHORIZED` / `ALREADY_AUTHORIZED` / `PASSWORD_REJECTED` / `PASSWORD_AUTH_DISABLED` / `TERMINAL_CHANGED` / `TERMINAL_UNAVAILABLE` / `CREDENTIAL_UNAVAILABLE` / Aiterm's other code). After a restart the pending request is gone and Mika's login handle is revoked: the app asks again |
+| `POST /api/terminals/:id/folder {path, create?: true}` -> `core.folder({terminalId, path, create})` | `path` absolute, no trailing `/`, no `..` (400 `INVALID_PATH`). 200 `{terminalId, path, observedAt, exists, directory, writable, reason}`; `reason` null when usable, else `FOLDER_MISSING` / `FOLDER_NOT_DIRECTORY` / `FOLDER_NOT_WRITABLE` / `FOLDER_NOT_PERMITTED` / `TERMINAL_NOT_FOUND` / the check's reasons (`TERMINAL_UNAVAILABLE`, `CONNECTION_REFUSED`, `AUTH_FAILED`, ...) with `action`. Availability is a reason, never an HTTP error, so members can save an unchecked folder. `create` runs `make_dir` then reports fresh status. Same transient process as check (credential load, provision) |
+| check reasons and actions | `CONNECTION_REFUSED` (new) -> `TERMINAL_UNAVAILABLE` with reason kept and action "check that Remote Login is on in the Mac's Sharing settings"; `AUTH_FAILED` action "this key may not be on the Mac yet: authorize it with the Mac's login password". The same reason/action reach `target` failures |
+| provision | In every transient process (check, folder, C8 before a launch): an open answering `REMOTE_AITERM_UNAVAILABLE` / `REMOTE_AITERM_TOO_OLD` runs `aiterm-remote-terminal provision --ref R` once (key already loaded), then reopens once. A failed provision keeps the original reason; the next check retries |
+
+No MCP tool for authorize or folder: the password goes only into the card, and members calls `folder` itself on save.
+
 Guards added and their exits: `CONNECTION_REFUSED` (protects nothing; availability) exits on the next check once the Mac accepts SSH. `AUTH_FAILED` (credential to wrong target) exits on `AUTHORIZED` / `ALREADY_AUTHORIZED` or a new key. Authorize without trust (secret exposure: a password to an unverified host) exits on S2 trust. `FOLDER_*` (wrong folder) exits on a created/changed folder revision. No new sticky state.
 
 Owner split and order:
@@ -343,7 +376,7 @@ Owner split and order:
 | 2a | Elegg | Accepted counter-contract (`/srv/bellteam/bots/bot-c2adbe04/docs/aiterm-self-service-contract-20261110.md`): `CONNECTION_REFUSED`; `authorize-key --ref`; `path_status` / `make_dir`; pre-MCP `provision --ref` with a self-contained macOS runtime (replaces today's `brew install tmux` setup); `trust-confirm` answers `UNREACHABLE` on an empty scan | 1 |
 | 2b | Mika | Accepted, PR #855: `requestTerminalKey({terminalId, purpose:'terminal.login', label})`, paste only; value held only in usage memory; `withResolved` revokes the handle first and consumes once (a second call gets `SECRET_REQUEST_CLOSED` / `SECRET_CREDENTIAL_REVOKED` before any value); `PASSWORD_REJECTED` or a usage restart needs a new request | 1 |
 | 2c | Ziz | Feasible, no new dependency: S1 (getifaddrs IPv4, `NSUserName`, loopback 22 probe) and S2 by a loopback SSH handshake that stops after key exchange and verifies the ed25519 signature over H (the sandbox denies reading `/etc/ssh`). A failed signature posts nothing and falls back to the manual sheet. Builds against the S2 route | 1, S2 route |
-| 3 | Crust | terminals: `POST :id/trust`, `POST :id/keys/ssh/authorize`, `folder` port + HTTP/MCP, reason mapping, provisioning in check | 2a, 2b |
+| 3 | Crust | terminals: `POST :id/trust` (#856), `POST :id/keys/ssh/authorize`, `folder` port + HTTP, reason/action mapping, provisioning in transient processes | 2a, 2b |
 | 4 | Belorta | Member save calls `terminals.folder`; default folder; `FOLDER_*` passthrough | 3 |
 | 5 | Admi (Web), Ziz (Apple) | Screens: precondition line, reason actions, authorize button + card, trust auto-attest / 「このMacを確かめる」, folder prefill + create | 3, 4 (2c for Apple) |
 | 6 | Trony / Centi | Body cut, product acceptance on a Mac with Remote Login off and an unauthorized key, then the Owner's real run | 5 |
