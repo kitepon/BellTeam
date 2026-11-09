@@ -98,7 +98,7 @@ struct WorkGraphView: View {
 
     /// 依頼のラベルはアイコン・名前・他のラベルに重ねない（behavior-spec.md #738）。始まった順（古い順）に置くので、
     /// 新しい依頼が来ても置いた札は動かない。置いた札は4pt広げて障害物に加え、空きが無ければ出さない（全文は長押し・ポインタで最前面に出る）。
-    /// 多すぎる時（10本超）は始まって5秒以内の新しい依頼だけを出す。
+    /// 混んでいる時（10本超、または線が120pt未満）は始まって3秒だけ出し、400msで消える（`WorkGraphModel.labelOpacity`）。
     private func drawLabels(_ context: inout GraphicsContext, lines: [WorkGraphModel.Line], now: Double) {
         var occupied: [CGRect] = []
         for id in model.order {
@@ -110,11 +110,12 @@ struct WorkGraphView: View {
             occupied.append(CGRect(x: look.point.x - width / 2, y: look.point.y + size / 2 + 4, width: width, height: BellTheme.listNameFontSize * 1.5))
         }
         let open = lines.filter { $0.endedAt == nil }
-        let crowded = open.count > 10
+        let tooMany = open.count > 10
         for line in WorkGraphModel.labelOrder(open) {
-            guard !crowded || now - line.startedAt < 5, let label = line.edge.label, !label.isEmpty,
-                  let geometry = path(line, now: now), geometry.length >= 120,
+            guard let label = line.edge.label, !label.isEmpty, let geometry = path(line, now: now),
                   now - line.startedAt >= 0.35 else { continue }
+            let opacity = WorkGraphModel.labelOpacity(line, crowded: tooMany || geometry.length < 120, now: now)
+            guard opacity > 0 else { continue }
             let wire = WorkGraphColor.wire(tone(line.edge.from))
             // 札は最大180pt幅。文は切らずに折り返し、行の高さ16ptで行数ぶん伸びる（behavior-spec.md、Owner裁定 2026-11-09）。
             // 行の高さを決めて描くため、CanvasのTextではなく段落指定付きの文字列で測って描く。
@@ -132,7 +133,9 @@ struct WorkGraphView: View {
                 let area = tag.union(CGRect(x: at.x - 4, y: at.y - 7, width: 8, height: 7))
                 guard !occupied.contains(where: { $0.intersects(area.insetBy(dx: -4, dy: -4)) }) else { continue }
                 occupied.append(area)
-                drawTag(&context, tag: tag, point: at, wire: wire, icon: icon, iconSide: iconSide, text: text)
+                var faded = context
+                faded.opacity = opacity
+                drawTag(&faded, tag: tag, point: at, wire: wire, icon: icon, iconSide: iconSide, text: text)
                 break
             }
         }

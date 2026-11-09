@@ -135,6 +135,23 @@ final class WorkGraphModelTests: XCTestCase {
         XCTAssertEqual(WorkGraphModel.labelOrder(lines).map(\.edge.id), ["b", "a", "c"])
     }
 
+    /// 混んでいる時（10本超、または線が120pt未満）は、始まって3秒は札を出し、400msで消える（behavior-spec.md）。
+    func testCrowdedLabelShowsThreeSecondsThenFadesOverFourHundredMilliseconds() throws {
+        let edge = try JSONDecoder().decode(WorkGraphEdge.self, from: Data(#"{"id":"a","from":"x","to":"y","label":"札","state":"running","startedAt":"2026-11-09T10:00:00.000Z"}"#.utf8))
+        let line = WorkGraphModel.Line(edge: edge, startedAt: 9_999)
+        let start = try XCTUnwrap(line.serverStart)
+        XCTAssertEqual(WorkGraphModel.labelOpacity(line, crowded: true, now: start + 2.9), 1)
+        XCTAssertEqual(WorkGraphModel.labelOpacity(line, crowded: true, now: start + 3), 1)
+        XCTAssertEqual(WorkGraphModel.labelOpacity(line, crowded: true, now: start + 3.2), 0.5, accuracy: 1e-4)
+        XCTAssertEqual(WorkGraphModel.labelOpacity(line, crowded: true, now: start + 3.4), 0, accuracy: 1e-4)
+        XCTAssertEqual(WorkGraphModel.labelOpacity(line, crowded: true, now: start + 60), 0)
+        XCTAssertEqual(WorkGraphModel.labelOpacity(line, crowded: false, now: start + 60), 1)
+        // サーバーの時刻が無ければ受け取った時刻で測る。
+        var local = line
+        local.serverStart = nil
+        XCTAssertEqual(WorkGraphModel.labelOpacity(local, crowded: true, now: 9_999 + 3.2), 0.5, accuracy: 1e-9)
+    }
+
     func testDecodesContractChangesAndHelpers() throws {
         let json = #"{"epoch":"e","version":2,"degraded":[],"changes":[{"type":"member-enter","node":{"botId":"a","name":"A","color":"rose","avatarVersion":"","state":"working","activeSince":"2026-11-08T11:00:00.000Z"}},{"type":"edge-end","edgeId":"x"},{"type":"member-leave","botId":"b"},{"type":"future-kind"}]}"#
         let batch = try JSONDecoder().decode(WorkGraphBatch.self, from: Data(json.utf8))

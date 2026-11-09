@@ -95,6 +95,13 @@ final class WorkGraphModel: ObservableObject {
         lines.sorted { ($0.serverStart ?? $0.startedAt, $0.edge.id) < ($1.serverStart ?? $1.startedAt, $1.edge.id) }
     }
 
+    /// 混んでいる時（開いた依頼が10本超、または線が120pt未満）に札を出す濃さ。始まって3秒は1、その後400msで消える（behavior-spec.md）。
+    /// 混んでいなければ常に1。始まりはサーバーの`startedAt`で測り、無ければ受け取った時刻を使う。
+    static func labelOpacity(_ line: Line, crowded: Bool, now: Double) -> Double {
+        guard crowded else { return 1 }
+        return min(1, max(0, 1 - (now - (line.serverStart ?? line.startedAt) - 3) / 0.4))
+    }
+
     @Published private(set) var connection = Connection.connecting
     @Published private(set) var degraded = false
     @Published private(set) var isEmpty = true
