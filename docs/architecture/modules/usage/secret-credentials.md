@@ -120,3 +120,7 @@ The trusted parent callback is the key-byte delivery boundary; execution814 carr
 Owner terminal labels permit up to128 characters, covering the caller's fixed SSH/sudo prefix plus a valid63-character terminal ID without truncation. Retained terminal/purpose are unchanged; Bot-secret label limits stay as before.
 
 A delayed null-delete passes its original opaque selection capture into native revocation itself, not only the final clear. The native writer atomically checks that capture before marking a row revoked. A same-handle replacement or revision update invalidates the earlier delete intent and survives it; the new revision remains available through the trusted parent callback.
+
+### Newly introduced stores after read-only restore
+
+Read-only initialization tolerates absent private source/credential directories and creates nothing during takeover. Once the resumed writer receives registerSource or saves a credential binding, that write operation creates its own directory recursively with 0700 before its existing exclusive/atomic 0600 write. This keeps older upgraded state usable without weakening read-only restore, changing values or overwriting existing files. The repaired range is the existing SecretCredentials source-registration/binding persistence contract; public I/O and v2 interpretation are unchanged.
