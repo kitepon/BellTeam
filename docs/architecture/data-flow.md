@@ -215,7 +215,7 @@ flowchart LR
   P10 <-->|RT09 target trust / availability probe / C8 upkeep| Native
   P3 -->|RT10 agent_launch with terminal target + cwd, then session_id calls like a local seat| Native
   Native <-->|RT11 PTY, process and completion events| Seat
-  Seat -->|RT12 seat MCP over the SSH reverse forward| P1
+  Seat -->|RT12 seat MCP over the SSH reverse forward, terminal 127.0.0.1:P stable per terminal| P1
   P1 <-->|RT13 member-scoped docs and memory/context| Stores
   Native -->|RT14 bound transcript / turn / limit observations| P3
   P3 -->|RT15 existing callbacks and work projection| P2

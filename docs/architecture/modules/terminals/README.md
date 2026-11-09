@@ -140,7 +140,7 @@ All four Owner rulings are carried above: asleep input retained; terminal owner'
 
 ### P1 implementation (2026-11-09, ONE launch path)
 
-Trony ruling (Owner, 2026-11-09 16:1x JST): one launch path from the start. Aiterm's existing `agent_launch` (and `claude_agent` / `codex_agent` / `grok_agent`) takes an optional `terminal` target + `cwd` (Elegg, accepted shape below); execution (Kiro) uses that same call for every seat, and send/wait/transcript go through Aiterm by `session_id` like any local seat. terminals no longer wraps a live session: no `open`/`close`/bound `native`/`wait`. Remote seat MCP rides Elegg's SSH reverse forward (R12) to Molly's container-loopback ingress.
+Trony ruling (Owner, 2026-11-09 16:1x JST): one launch path from the start. Aiterm's existing `agent_launch` (and `claude_agent` / `codex_agent` / `grok_agent`) takes an optional `terminal` target + `cwd` (Elegg, accepted shape below); execution (Kiro) uses that same call for every seat, and send/wait/transcript go through Aiterm by `session_id` like any local seat. terminals no longer wraps a live session: no `open`/`close`/bound `native`/`wait`. Remote seat MCP rides Elegg's SSH reverse forward (R12, terminal `127.0.0.1:P` stable per terminal) to Molly's container-loopback ingress.
 
 Settled peer contracts: Kiro #765 (execution uses `connection.target` + `watch`), Elegg aiterm-mcp remote-terminal.md (binding ref, `serve` tools, launch `terminal` argument), Mika #772 (native credential union `{nativeKeyRef, revision}`), Molly #767 (in-parent mount), Belorta #768 (member terminalId/projectRoot).
 
@@ -187,8 +187,24 @@ Rules the code enforces:
 - Credential and trust are Aiterm-held (UID1000). Mika's callback gives only `{nativeKeyRef, revision}`; the binding ref and revisions are public metadata and are what `terminal` carries. A string value (a future key value) is refused as `CREDENTIAL_UNAVAILABLE`. Every `target` resolves again.
 - `HOST_TRUST_STALE`: terminals re-reads Aiterm's status and stores the new trust revision; that registry change emits `available` and execution re-targets.
 - Exits (no sticky state): a failed `target` for availability or credential records the terminal as wanted. Mika's `{available:true}` event for its handle, a registry change, or a successful observer `check` emits `available`. The observer is an in-process timer that runs `check` only while some wanted terminal is not yet usable (30 s, doubling to 5 min), stops on success or removal, and never wakes an AI.
-- Staleness: `target` captures the terminal's registry generation before the read and re-checks it after resolution and C8; a target read across a registry change is never returned (`TERMINAL_UNAVAILABLE`, and the change already emitted `available`).
-- `dispose()` (core `close()`) stops the observer, marks the core disposed and waits for every in-flight `target` / `check` including its process close. After dispose nothing starts and the observer cannot be re-armed.
+- Staleness and lifecycle (`target` and `check` alike):
+
+```mermaid
+stateDiagram-v2
+  [*] --> Reading: target / check (captures terminal generation before the registry read)
+  Reading --> Resolving: record read, generation unchanged, not disposed
+  Resolving --> Connecting: Mika binding resolved, generation unchanged, not disposed
+  Connecting --> Running: process connected, generation unchanged, not disposed (C8 commands or probe)
+  Running --> Closing: commands done
+  Reading --> Discarded: registry change or dispose during the await
+  Resolving --> Discarded: registry change or dispose during the await
+  Connecting --> Discarding: registry change or dispose while connect was pending
+  Discarding --> Discarded: session closed (awaited), no command runs, no C8 record written
+  Closing --> [*]: session closed (awaited); target returned only if still current
+  Discarded --> [*]: TERMINAL_UNAVAILABLE not_started / check reachable:false (registry change already emitted available)
+```
+
+  `dispose()` (core `close()`) stops the observer, marks the core disposed and waits for every in-flight `target` / `check` through its discard-close. After dispose nothing starts, no C8 command or record write begins, and the observer cannot be re-armed.
 - C8: on `target` with `harness:'claude-code'`, before returning: `claude_version`, then `claude_update` (or the official `claude_install` when no CLI answers), then `claude_version`, over one transient process. Concurrent launches on one terminal share the run. The outcome is kept for `maintenance.last`. A failed update never vetoes the target, the installed CLI stays, running CLIs are untouched, and no version is pinned. An unreachable terminal is reported as `TERMINAL_UNAVAILABLE` (the launch could not start either).
 - Known limit (inherited, P3): the Owner's 2nd-slot login is supplied by execution at launch; terminals no longer reads any login.
 

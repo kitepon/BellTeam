@@ -34,7 +34,7 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
   if (!registry?.target || typeof secrets?.withResolved !== 'function' || typeof native?.connect !== 'function') throw new TypeError('Invalid terminal connection configuration')
   const wanted = new Map() // terminalId -> probe state
   const maintenance = new Map()
-  const upkeep = new Map() // terminalId -> in-flight C8 run, shared by concurrent launches
+  const upkeep = new Map() // terminalId -> {generation, run}: in-flight C8 run shared by concurrent launches
   const listeners = new Set()
   const generations = new Map() // terminalId -> registry-change count; a target read across a change is stale
   const operations = new Set() // in-flight target/check runs, awaited by dispose
@@ -88,7 +88,8 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
   }
 
   // One transient remote process; closed before returning. Classified like a launch would be.
-  async function withProcess(target, binding, run, current = () => !disposed) {
+  // `current` is re-checked after every await; a process connected across a registry change or dispose is closed unused.
+  async function withProcess(target, binding, run, current) {
     if (!current()) throw failure('TERMINAL_UNAVAILABLE')
     let session
     try {
@@ -101,7 +102,10 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
       if (error?.code === 'HOST_TRUST_STALE') await rebindTrust(target, binding.ref)
       throw classify(error, target)
     }
-    try { return await run(session) } finally { await session.close().catch(() => {}) }
+    try {
+      if (!current()) throw failure('TERMINAL_UNAVAILABLE')
+      return await run(session)
+    } finally { await session.close().catch(() => {}) }
   }
 
   // C8: before a fresh Claude Code launch. A failed update never vetoes the launch; an unreachable terminal is reported as such.
@@ -116,7 +120,7 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
           if (step.exit_code === 0 && record.after) record.outcome = record.after === record.before ? 'current' : 'updated'
         } catch {}
       }, current)
-    } finally { maintenance.set(target.terminalId, record) }
+    } finally { if (current()) maintenance.set(target.terminalId, record) }
   }
 
   function track(run) {
@@ -138,10 +142,16 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
     // TARGET_MISMATCH exits by registry revision (onRegistryChange), so only availability/credential failures are probed.
     try {
       const binding = await resolveBinding(record, memberId)
+      if (!current()) throw failure('TERMINAL_UNAVAILABLE')
       if (harness === 'claude-code') {
-        const run = upkeep.get(terminalId) ?? maintain(record, binding, current).finally(() => upkeep.delete(terminalId))
-        upkeep.set(terminalId, run)
-        await run
+        // Shared only within one registry generation, so a launch never waits on a run against an older target.
+        let shared = upkeep.get(terminalId)
+        if (shared?.generation !== generation) {
+          const run = maintain(record, binding, current).finally(() => { if (upkeep.get(terminalId) === shared) upkeep.delete(terminalId) })
+          shared = { generation, run }
+          upkeep.set(terminalId, shared)
+        }
+        await shared.run
       }
       if (!current()) throw failure('TERMINAL_UNAVAILABLE')
       return {
@@ -156,10 +166,14 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
   async function checkNow(terminalId) {
     const observation = { terminalId, observedAt: now().toISOString(), reachable: false, reason: null }
     if (disposed) return { ...observation, reason: 'TERMINAL_UNAVAILABLE' }
+    const generation = generations.get(terminalId) ?? 0
+    const current = () => !disposed && (generations.get(terminalId) ?? 0) === generation
     const record = await registry.target(terminalId).catch(() => null)
+    if (!current()) return { ...observation, reason: 'TERMINAL_UNAVAILABLE' }
     if (!record) return { ...observation, reason: 'TERMINAL_NOT_FOUND' }
     try {
-      await withProcess(record, await resolveBinding(record, null), async () => {})
+      const binding = await resolveBinding(record, null)
+      await withProcess(record, binding, async () => {}, current)
       return { ...observation, reachable: true }
     } catch (error) {
       return { ...observation, reason: error.reason ?? error.code, ...(error.action ? { action: error.action } : {}) }

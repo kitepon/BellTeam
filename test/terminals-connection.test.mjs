@@ -162,3 +162,38 @@ test('a target read across a registry change is never handed out; dispose awaits
   await wait(20)
   assert.deepEqual(seen, [], 'no wanted terminal or observer after dispose')
 })
+
+test('a connect suspended across a registry change or dispose runs no C8 command and is closed before dispose resolves', async t => {
+  const native = fakeNative()
+  const realConnect = native.connect
+  let gate = deferred()
+  native.connect = async req => { const session = await realConnect(req); await gate.promise; return session }
+  const { connection } = setup(t, { native })
+  const revised = connection.target(request)
+  const probe = connection.check('owner-macbook')
+  await wait(1)
+  connection.onRegistryChange({ terminalId: 'owner-macbook', revision: 2, removed: false })
+  gate.resolve()
+  await assert.rejects(revised, { code: 'TERMINAL_UNAVAILABLE', effect: 'not_started' })
+  assert.equal((await probe).reachable, false)
+  assert.equal(native.calls.some(call => call.op === 'command'), false, 'no claude_* against the old revision')
+  assert.equal(connection.maintenance.last('owner-macbook'), null, 'no C8 record for a discarded run')
+  assert.ok(native.sessions.every(session => session.closed))
+
+  gate = deferred()
+  const closeGate = deferred()
+  native.connect = async req => { const session = await realConnect(req); const close = session.close; session.close = async () => { await closeGate.promise; return close() }; await gate.promise; return session }
+  const inFlight = connection.target(request)
+  await wait(1)
+  let disposed = false
+  const disposing = connection.dispose().then(() => { disposed = true })
+  gate.resolve()
+  await wait(1)
+  assert.equal(disposed, false, 'dispose waits for the discard-close')
+  closeGate.resolve()
+  await disposing
+  await assert.rejects(inFlight, { code: 'TERMINAL_UNAVAILABLE' })
+  assert.equal(native.calls.some(call => call.op === 'command'), false, 'no C8 command after dispose')
+  assert.equal(connection.maintenance.last('owner-macbook'), null)
+  assert.ok(native.sessions.every(session => session.closed))
+})
