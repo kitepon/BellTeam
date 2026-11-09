@@ -6,8 +6,11 @@ struct WorkGraphView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var model = WorkGraphModel()
-    @State private var pointer: CGPoint?
+    @State private var hover: CGPoint?
+    /// 押下の記録。ジェスチャのコールバックから読み書きするので@State（@GestureStateはコールバック内で読まない）。
     @State private var press: WorkGraphPress?
+    /// 押している間だけtrue。取消でも終了でも自動でfalseへ戻り、それを見て記録を消す。
+    @GestureState private var pressing = false
     #if targetEnvironment(macCatalyst)
     @Environment(\.openWindow) private var openWindow
     @State private var mainWindowError: String?
@@ -67,28 +70,27 @@ struct WorkGraphView: View {
         // アイコンか名前のタップ（Macは主ボタンのクリック）でそのメンバーの会話を開く。ポインタを重ねるだけでは開かない。
         // iPhone/iPadは指を置いている間（タップ・長押し）、その下の線の札を最前面に出す。長押し（500ms以上）は会話を開かない。
         .simultaneousGesture(DragGesture(minimumDistance: 0)
+            .updating($pressing) { _, pressing, _ in pressing = true }
+            // 新しい押下かどうかは位置でなく、記録がnilかどうか。時計は描画と同じWorkGraphModel.now（Value.timeはDateで、基準が別）。
             .onChanged { value in
-                if press?.start != value.startLocation {
-                    // 描画と同じ時計で測る（Value.timeは起動からの時刻で、描画の時刻と比べられない）。
-                    press = model.press(at: value.startLocation, time: WorkGraphModel.now)
-                } else { press?.move(to: value.location) }
-                #if !targetEnvironment(macCatalyst)
-                pointer = value.location
-                #endif
+                model.updatePress(&press, start: value.startLocation, location: value.location, time: WorkGraphModel.now)
             }
             .onEnded { value in
+                // 取り消された押下ではここへ来ない（記録は下のonChange(of: pressing)が消す）。
                 let id = press?.release(at: value.location, time: WorkGraphModel.now)
                 press = nil
-                #if !targetEnvironment(macCatalyst)
-                pointer = nil
-                #endif
                 if let id { open(id) }
             })
+        // 取消でも終了でもpressingがfalseへ戻るので、古い押下が次の押下へ残らない。
+        .onChange(of: pressing) { if !pressing { press = nil } }
         #if targetEnvironment(macCatalyst)
         .onContinuousHover { phase in
-            if case .active(let point) = phase { pointer = point } else { pointer = nil }
+            if case .active(let point) = phase { hover = point } else { hover = nil }
         }
         #endif
+        // 見えなくなる・背景へ回る時、ポインタと押下を残さない。
+        .onDisappear { hover = nil; press = nil }
+        .onChange(of: scenePhase) { hover = nil; press = nil }
     }
 
     // MARK: Drawing
@@ -136,7 +138,12 @@ struct WorkGraphView: View {
 
     /// 指している線か札（Macはポインタ、iPhone/iPadは置いた指）。メンバーの上なら無い。
     private func hoveredEdge(now: Double) -> String? {
-        switch pointer.flatMap({ model.hit(at: $0, now: now) }) {
+        #if targetEnvironment(macCatalyst)
+        let pointer = hover
+        #else
+        let pointer = press?.location
+        #endif
+        return switch pointer.flatMap({ model.hit(at: $0, now: now) }) {
         case .chip(let id), .edge(let id): id
         default: nil
         }

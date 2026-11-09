@@ -150,6 +150,30 @@ final class WorkGraphModelTests: XCTestCase {
         XCTAssertNil(WorkGraphPress(botId: nil, start: .zero, time: 0).release(at: .zero, time: 0.1), "空いた所は開かない")
     }
 
+    /// 取り消された押下（@GestureStateがnilへ戻る）の後、同じ位置の新しい押下は新しいメンバーを開く。
+    /// 最初の標本が既に10pt以上動いていれば、動いた扱い。
+    func testFreshPressAtTheSamePointOpensTheNewMemberAndFirstSampleCountsMove() throws {
+        let before = settled([node("a"), node("b")]), after = settled([node("c"), node("d")])
+        // 同じ位置に、前はa、後はcがいる。
+        var point: CGPoint?
+        for x in stride(from: 100.0, to: 800, by: 10) {
+            for y in stride(from: 100.0, to: 500, by: 10) where before.member(at: CGPoint(x: x, y: y), now: 10) == "a" && after.member(at: CGPoint(x: x, y: y), now: 10) == "c" {
+                point = CGPoint(x: x, y: y)
+            }
+        }
+        let p = try XCTUnwrap(point)
+        var press: WorkGraphPress?
+        before.updatePress(&press, start: p, location: p, time: 10)
+        XCTAssertEqual(press?.botId, "a")
+        press = nil // 取消: onEndedは来ず、@GestureStateが戻す
+        after.updatePress(&press, start: p, location: p, time: 11)
+        XCTAssertEqual(press?.botId, "c")
+        XCTAssertEqual(press?.release(at: p, time: 11.1), "c")
+        var wide: WorkGraphPress?
+        after.updatePress(&wide, start: p, location: CGPoint(x: p.x + 10, y: p.y), time: 11)
+        XCTAssertNil(wide?.release(at: p, time: 11.1), "最初の標本で10pt動いていれば開かない")
+    }
+
     /// 線・札・空いた所の上では会話を開かない。
     func testEdgesLabelsAndEmptySpaceDoNotOpen() throws {
         let model = settled([node("a"), node("b")], [edge("a", "b")])

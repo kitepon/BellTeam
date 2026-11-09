@@ -14,7 +14,7 @@ flowchart LR
   View --> Avatar["AvatarView（Canvas symbols）<br/>GET /api/bots/:id/avatar?v=avatarVersion"]
   View -->|"毎フレームの線"| Chips["WorkGraphModel.layoutChips<br/>札の出し方をlatch frameで一度だけ決める（brief/shown）<br/>置き場所t・blocked・指した札"]
   View -->|"押下・指した位置"| Hit["WorkGraphModel.hit(at:)<br/>メンバー（44pt四方以上）＞札＞blockedの札＞線"]
-  Hit -->|"member: botId（押した時に決める）"| Press["WorkGraphPress<br/>10pt未満・500ms未満ならタップ<br/>500ms以上は長押しで開かない"]
+  Hit -->|"member: botId（押した時に決める）"| Press["WorkGraphPress<br/>10pt未満・500ms未満ならタップ<br/>500ms以上は長押しで開かない<br/>@State（取消・終了・scene喪失でnilへ戻る）"]
   Hit -->|"chip / edge"| Chips
   Press -->|"ChatTarget.bot(botId)"| Route["AppStore.openConversation<br/>通知のタップと同じ会話の経路"]
   Route --> Chat["iPhone/iPad: 会話タブのConversationView<br/>戻ると相関図のタブへ（縮んだiPadは一覧の列へ戻る操作で）"]
@@ -25,8 +25,8 @@ flowchart LR
 | --- | --- | --- |
 | `WorkGraphModel` | 描画中のnodes/edges（botId・edge id鍵）、epoch/version、各nodeの位置・速度・入退場の開始時刻、熱α、接続状態（接続中・再接続中・degraded・未対応）、再接続の待ち時間。各edgeの札の決定（`Line.chip`：brief/shown・latch時刻・置いたt・現れた時刻・nullへ戻った時刻・最後の文）と、最後のフレームの札の層（`chips`）と線（タップ判定用） | 永続状態（無い）。HTTPの再試行の判断以外の通信 |
 | `WorkGraphSimulation` | 1フレームの力計算と積分、入退場の補間、点滅の不透明度、流れの点の位置 | 状態の保持（引数で受けて返す） |
-| `WorkGraphView` | 1つのTimelineViewと1つのCanvas。描画順は辺→blockedの札→node（名前を含む）→重ならない札→指している札。札の文の測定（`chipSize`）と描画。アクセシビリティ要素の一覧。押下中の`WorkGraphPress`と指している位置 | 位置・札の出し方と置き場所の計算（モデルが持つ）。会話を開く画面遷移（`AppStore.openConversation`が持つ） |
-| `WorkGraphPress` | 押した位置・時刻・押した時のbotId・10pt以上動いたか | 図の状態（押した後の変化を見ない） |
+| `WorkGraphView` | 1つのTimelineViewと1つのCanvas。描画順は辺→blockedの札→node（名前を含む）→重ならない札→指している札。札の文の測定（`chipSize`）と描画。アクセシビリティ要素の一覧。押下中の`WorkGraphPress`（`@State`。押している間だけtrueの`@GestureState`が戻る時に消す）とMacのポインタ位置（hover） | 位置・札の出し方と置き場所の計算（モデルが持つ）。会話を開く画面遷移（`AppStore.openConversation`が持つ） |
+| `WorkGraphPress` | 押した位置・時刻・押した時のbotId・10pt以上動いたか・今の指の位置（iPhone/iPadの札を出す位置） | 図の状態（押した後の変化を見ない） |
 
 ## 流れ
 
@@ -42,7 +42,7 @@ flowchart LR
 | 未対応 | 旧サーバーで404の時は`このサーバーでは相関図をまだ使えません`を出し、60秒に1回だけ確かめ直す（速い再試行はしない）。本体が入れ替わって次のsnapshotが届いたら描き始める。止まるのは取消と認証失敗（出口はログイン）だけ |
 | 読めない応答 | 図を残して`相関図の応答を読めませんでした。再接続しています…`を出し、同じ待ち時間で再接続を続ける |
 | 背景 | iOSで背景へ回る、Macで窓を閉じる時は接続を閉じる。戻ったら接続し、snapshotとの差分を描く |
-| メンバーのタップ | behavior-spec.md「Tap or click on a member」。押した時に`member(at:)`でbotIdを決める（描画と同じ`frames`の位置、アイコンと名前の各四角を44pt四方まで広げる）。タップ判定の順は`hit(at:)`の メンバー＞重ならない札＞blockedの札＞線 で、メンバーの範囲で始まった押下は上に札があってもメンバーへ行く。10pt未満の移動・500ms未満で離したら、そのbotIdで`AppStore.openConversation(.bot(botId))`。500ms以上は長押しで開かない（別の長押しジェスチャは持たない）。退場中のnodeも押せ、離すまでに消えても開く。削除済みBotは会話側の通常の扱い。時刻は描画と同じ`WorkGraphModel.now`で測る（`DragGesture.Value.time`は起動からの時刻）。iPhone/iPadは会話タブへ移り、その会話から戻ると相関図のタブへ帰る（iPhoneは`chatPath`が空になった時、縮んだiPadは`NavigationSplitView`が一覧の列へ戻った時に`AppStore.returnFromConversation`）。タブを離れた相関図は接続を閉じ、戻ると再接続して差分を描く。Macは相関図の窓を残し、本体の窓を前へ出す（閉じていれば`openWindow(id: "main")`で開く。前へ出せなかった時は相関図の窓に理由を出す）。ポインタを重ねるだけでは開かない |
+| メンバーのタップ | behavior-spec.md「Tap or click on a member」。押した時に`member(at:)`でbotIdを決める（描画と同じ`frames`の位置、アイコンと名前の各四角を44pt四方まで広げる）。タップ判定の順は`hit(at:)`の メンバー＞重ならない札＞blockedの札＞線 で、メンバーの範囲で始まった押下は上に札があってもメンバーへ行く。10pt未満の移動・500ms未満で離したら、そのbotIdで`AppStore.openConversation(.bot(botId))`。500ms以上は長押しで開かない（別の長押しジェスチャは持たない）。退場中のnodeも押せ、離すまでに消えても開く。削除済みBotは会話側の通常の扱い。押下の記録は`@State<WorkGraphPress?>`で持つ（ジェスチャのコールバックから`@GestureState`を読まない）。新しい押下かどうかは位置でなく、記録がnilかどうか（`WorkGraphModel.updatePress`が、nilなら押した位置でbotIdを決める）。取り消された押下はonEndedに来ないが、押している間だけtrueの`@GestureState`（`pressing`、`.updating`でtrueにする）が取消でも終了でもfalseへ戻り、`onChange(of: pressing)`が記録を消すので古い押下は次へ残らない（同じ位置に別のメンバーがいればそちらを開く）。離す時はonEndedが記録を読んで使い、すぐ消す。最初の標本が結合されて既に10pt以上動いていても、動いた扱い。見えなくなる・scenePhaseが変わる時はMacのポインタ（hover）と押下の記録を消す。時刻は描画と同じ`WorkGraphModel.now`（`Date`）で測る（`DragGesture.Value.time`もDateだが、押下と離しで同じ時計を使うため使わない）。iPhone/iPadは会話タブへ移り、その会話から戻ると相関図のタブへ帰る（iPhoneは`chatPath`が空になった時、縮んだiPadは`NavigationSplitView`が一覧の列へ戻った時に`AppStore.returnFromConversation`）。タブを離れた相関図は接続を閉じ、戻ると再接続して差分を描く。Macは相関図の窓を残し、本体の窓を前へ出す（閉じていれば`openWindow(id: "main")`で開く。前へ出せなかった時は相関図の窓に理由を出す）。ポインタを重ねるだけでは開かない |
 | 札 | behavior-spec.md「Edges」。`layoutChips`が毎フレーム、始まった順（サーバーの`startedAt`、同時なら線のID順、`labelOrder`）に処理する。latch frame（`label`があり、両端の入場700ms・動きを減らす設定で200msが終わった最初のフレーム。退場中・もういない端は終わった扱い）で一度だけ、開いた依頼が10本超か線が120pt未満ならbrief、それ以外はshownに決め、以後変えない。briefはlatch frameから3秒出て400msで消え、その後は指した時だけ最前面に出る（自分からは戻らない。窓の間に空きが無ければ一度も描かない）。shownは辺の終わり（線と一緒に300ms）まで残り、文が変われば折り返しだけ変わる。`label`がnullへ戻れば300msで消える。置き場所は`t = 0.5, 0.45, 0.55, 0.4, 0.6, 0.35, 0.65, 0.3, 0.7`の最初の空き（障害物はアイコンを6pt広げた四角と先に置いた札（blockedも含む）、候補の札を4pt広げて判定。名前は障害物にしない）。空くまでは描かず、shownは現れる時に200msで出る。今のtが空いていれば動かさず、ふさがれば最初の空きへ、どこも空かなければ今のtのままblocked（線のすぐ上・メンバーと重ならない札の下に描く。空けば戻る）。briefは消え終えると場所を返す。指す位置はMacがポインタ、iPhone/iPadは押している指（タップと長押し） |
 
 ## 仕様との違い（Owner指示、2026-11-08）
@@ -64,6 +64,6 @@ flowchart LR
 
 - `BellBotTests/WorkGraphModelTests.swift`: 変更の適用順・欠番での取り直し・snapshot差分で位置を保つ・leaveの猶予なし（サーバー側の責任）・力学1ステップの不変条件（境界・衝突）・札の文の折り返し（行の高さ16pt）・札を置く順（`startedAt`の古い順）。
 - 同ファイル（札）: latch frameは`label`と両端の入場の終わりを待つ（動きを減らす設定は200ms、退場中の端は終わった扱い）・brief/shownはlatch frameの混み具合で一度だけ決まる・briefの3秒表示と400msの消え方と、その後は指した時だけ出ること・窓の間に空きが無いbriefは描かない・shownは残り、文の変更は測り直しだけ、nullへ戻ると300msで消える・空いている間はtを保ち、ふさがれた時だけ最初の空きへ移る・名前には重なってよくアイコンには重ならない・空きが無ければ今のtのままblocked、空けば戻る・タップの順（メンバー＞札＞blockedの札＞線、上に札があってもメンバー）。
-- 同ファイル: タップ範囲の44pt四方・10pt/500msの境目・線/札/空いた所で開かない・押した時のbotIdを退場後も保つ・400〜500msの押下はタップで500ms以上は開かない・相関図から開いた会話で戻ると相関図のタブへ帰る（縮んだiPadの`returnFromConversation`を含む）。
+- 同ファイル: タップ範囲の44pt四方・10pt/500msの境目・線/札/空いた所で開かない・押した時のbotIdを退場後も保つ・取り消された押下の後の同じ位置の新しい押下は新しいメンバーを開く・最初の標本が10pt以上動いていれば動いた扱い・400〜500msの押下はタップで500ms以上は開かない・相関図から開いた会話で戻ると相関図のタブへ帰る（縮んだiPadの`returnFromConversation`を含む）。
 - `BellBotUITests/WorkGraphTapUITests.swift`（iPhone）: fixtureの相関図でハルを押すとハルの会話が開き、戻ると相関図のタブへ帰る。fixtureのURLは`TEST_RUNNER_BELLTEAM_WORK_GRAPH_FIXTURE_URL`。
 - 描画の画面写真は`test/helpers/work-graph-server.mjs`（契約どおりのsnapshotとchangeを流すfixture。長い依頼の文2本と`label`がnullの線を含む）で撮る。

@@ -68,14 +68,18 @@ struct WorkGraphPress: Equatable {
     let start: CGPoint
     let time: Double
     private(set) var moved = false
+    /// 指している位置（iPhone/iPadで押している間、下の線の札を出す位置）。
+    private(set) var location: CGPoint
 
     init(botId: String?, start: CGPoint, time: Double) {
         self.botId = botId
         self.start = start
         self.time = time
+        location = start
     }
 
     mutating func move(to point: CGPoint) {
+        location = point
         if hypot(point.x - start.x, point.y - start.y) >= 10 { moved = true }
     }
 
@@ -610,6 +614,14 @@ final class WorkGraphModel: ObservableObject {
 
     func press(at point: CGPoint, time: Double) -> WorkGraphPress {
         WorkGraphPress(botId: member(at: point, now: time), start: point, time: time)
+    }
+
+    /// ジェスチャの1回分の更新。`press`がnilなら新しい押下の最初の標本で、押した位置でbotIdを決める。
+    /// 最初の標本が既に10pt以上動いていても動いた扱い（結合された標本を捨てない）。
+    /// 新しい押下かどうかは位置でなく状態（記録は取消・終了・scene喪失でnilへ戻る）で決める。
+    func updatePress(_ press: inout WorkGraphPress?, start: CGPoint, location: CGPoint, time: Double) {
+        if press == nil { press = self.press(at: start, time: time) }
+        press?.move(to: location)
     }
 
     /// 点滅の不透明度。activeSinceから測るので、どのアプリでも同じメンバーは同じ位相になる。
