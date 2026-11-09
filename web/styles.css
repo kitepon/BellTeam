@@ -511,7 +511,7 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .settings-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 28px; }
 .settings-tabs button { min-height: 44px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 999px; background: white; font: inherit; font-size: 13px; cursor: pointer; }
 
-.profile-dialog #bot-configuration-status[data-state="notice"]:not(:empty) { background: #f5f5f7; color: #60606b; }
+.profile-dialog #bot-configuration-status[data-state="notice"]:not(:empty), .profile-dialog #bot-model-status[data-state="notice"]:not(:empty) { background: #f5f5f7; color: #60606b; }
 
 .chat-header { flex-wrap: wrap; }
 .current-work-detail { flex: 0 0 100%; min-width: 0; font-size: 13px; }

@@ -1,7 +1,7 @@
 import { openImageViewer } from './image-gallery.js?v=__ASSET_VERSION__'
 import { guardEditorClose, requestEditorClose } from './editor-close.js?v=__ASSET_VERSION__'
 import { createAvatarEditor } from './avatar-editor.js?v=__ASSET_VERSION__'
-import { applyAvatar, initials, escapeClass } from './view-format.js?v=__ASSET_VERSION__'
+import { applyAvatar, initials, escapeClass, modelChoices } from './view-format.js?v=__ASSET_VERSION__'
 import { FOLDER_UNCHECKED, folderRefusal, memberFolder, readTerminals, remoteBindingBody } from './terminals.js?v=__ASSET_VERSION__'
 
 export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, onStatus, onMemory, onSheets }) {
@@ -92,7 +92,7 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
     modelLoad?.abort()
     const controller = new AbortController()
     modelLoad = controller
-    models = {}
+    models = null
     owner = { bot }
     deleteBotButton.disabled = false
     restartSessionButton.disabled = false
@@ -127,7 +127,6 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
       botColor.value = bot.color ?? 'violet'
     }
     renderModelOptions(botHarness.value, bot?.model ?? '', bot?.reasoningEffort ?? '')
-    botModelStatus.textContent = 'モデル一覧を読み込んでいます…'
     avatar.reset(bot?.avatar)
     largeAvatar.reset(bot?.avatarLarge || (bot?.avatarLargeVersion ? `/api/bots/${bot.id}/avatar-large?v=${encodeURIComponent(bot.avatarLargeVersion)}` : ''))
     botAvatarFile.disabled = Boolean(bot)
@@ -164,6 +163,8 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
       }
     } catch (error) {
       if (controller.signal.aborted) return
+      models = {}
+      renderModelOptions(botHarness.value, bot?.model ?? '', bot?.reasoningEffort ?? '')
       botModelStatus.textContent = `モデル一覧を取得できません（${error.message}）`
     } finally {
       if (!controller.signal.aborted) {
@@ -206,13 +207,25 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
     }))
   }
   function renderModelOptions(harness, current, effort) {
-    const entry = models[harness]
+    const entry = models?.[harness]
     botModel.disabled = !entry || Boolean(entry.error)
     botReasoningEffort.disabled = botModel.disabled
+    botModelStatus.setAttribute('data-state', models ? 'error' : 'notice')
+    if (!models) {
+      // Before /api/models answers, show only the saved values and say so; nothing is judged yet.
+      botModelStatus.textContent = 'モデル一覧を読み込んでいます…'
+      selectOptions(botModel, [[current, `${current || 'CLIの既定'}（読み込み中…）`]])
+      selectOptions(botReasoningEffort, [[effort, `${effort || 'CLIの既定'}（読み込み中…）`]])
+      botModel.value = current
+      botReasoningEffort.value = effort
+      botModelCustomField.hidden = true
+      renderFastMode()
+      return
+    }
     botModelStatus.textContent = entry?.error?.message ?? ''
-    const candidates = (models[harness]?.models ?? []).map(model => model.id)
-    selectOptions(botModel, [['', 'CLIの既定'], ...candidates.map(model => [model, model]), [CUSTOM_MODEL, 'その他（手入力）']])
-    const listed = current === '' || candidates.includes(current)
+    const choices = modelChoices(entry?.models ?? [])
+    selectOptions(botModel, [['', 'CLIの既定'], ...choices, [CUSTOM_MODEL, 'その他（手入力）']])
+    const listed = current === '' || choices.some(([id]) => id === current)
     botModel.value = listed ? current : CUSTOM_MODEL
     botModelCustom.value = listed ? '' : current
     botModelCustomField.hidden = botModel.value !== CUSTOM_MODEL
@@ -221,7 +234,7 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
   // 一覧のモデルはそのモデルが受け付けるエフォート、既定と手入力はCLI全体の範囲を出す。
   // CursorはモデルIDとエフォートを連結して起動するので、モデル未指定ではエフォートを選べない。
   function selectableEfforts() {
-    const catalog = models[botHarness.value]
+    const catalog = models?.[botHarness.value]
     if (!catalog) return []
     const listed = catalog.models.find(model => model.id === botModel.value)
     if (listed) return listed.efforts
@@ -232,13 +245,13 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
     const efforts = selectableEfforts()
     const options = [['', 'CLIの既定'], ...efforts.map(effort => [effort, effort])]
     // 保存済みの値が候補から外れても黙って変えない。選び直すまで残す。
-    if (current && !efforts.includes(current)) options.push([current, `${current}（このモデルでは未対応）`])
+    if (current && !efforts.includes(current)) options.push([current, models?.[botHarness.value] ? `${current}（このモデルでは未対応）` : current])
     selectOptions(botReasoningEffort, options)
     botReasoningEffort.value = current
     renderFastMode()
   }
   function renderFastMode() {
-    const catalog = models[botHarness.value]
+    const catalog = models?.[botHarness.value]
     const model = selectedModel()
     const choice = catalog?.models.find(item => item.id === (model || catalog.defaultModel))
     const reason = !catalog ? 'モデルの対応をまだ確認できません。'

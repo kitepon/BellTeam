@@ -17,6 +17,12 @@ export function memberDisplay(member) {
   if (!member) return ''
   return member.position ? `${member.name} ${member.position}` : member.name
 }
+// Model list labels: the catalog's display_name (id when absent); a repeated name also shows its id. The value stays the id.
+export function modelChoices(models) {
+  const labels = models.map(model => model.display_name || model.id)
+  return models.map((model, i) => [model.id, labels.indexOf(labels[i]) === labels.lastIndexOf(labels[i]) || labels[i] === model.id ? labels[i] : `${labels[i]}（${model.id}）`])
+}
+
 export function formatTime(value) {
   if (!value) return ''
   return new Intl.DateTimeFormat('ja-JP', { hour: '2-digit', minute: '2-digit' }).format(new Date(value))
