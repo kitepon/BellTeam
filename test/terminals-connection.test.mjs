@@ -94,6 +94,15 @@ test('emits available on credential, observer and registry exits', async t => {
   assert.deepEqual(seen, ['owner-macbook', 'owner-macbook'], 'observer check succeeded once and stopped')
   connection.onRegistryChange({ terminalId: 'owner-macbook', revision: 2, removed: false })
   assert.equal(seen.length, 3)
+
+  // observe: execution arms the same observer after Aiterm's launch failed; idempotent while armed.
+  native.connectError = Object.assign(new Error('x'), { code: 'UNREACHABLE' })
+  connection.observe('owner-macbook')
+  connection.observe('owner-macbook')
+  await wait(8)
+  native.connectError = undefined
+  await wait(30)
+  assert.equal(seen.length, 4, 'one available edge for the armed observer')
 })
 
 test('core mounts registry put/enroll, watch and target-mismatch reporting', async t => {
