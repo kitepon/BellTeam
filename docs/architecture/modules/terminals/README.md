@@ -215,6 +215,42 @@ stateDiagram-v2
 
 Test double for execution: `test/helpers/terminals-native-double.mjs` (`fakeConnection` with `target`/`onAvailable`, plus `fakeNative` / `fakeSecrets` for the ports terminals consumes).
 
+#### Key setting from the app (Trony ruling 2026-11-09)
+
+Gap found by Admi: Owner HTTP had no key route, `bind_terminal_key` takes an Aiterm-held UUID the Owner never sees, Mika's `credentials.bind` had no live caller, and `target` accepted only a native key. Adopted route, owner terminals (HTTP + registry):
+
+```mermaid
+sequenceDiagram
+  participant App as Owner app (Admi / Ziz)
+  participant T as terminals HTTP + registry
+  participant M as Mika credentials
+  participant A as Aiterm UID1000 (Elegg)
+  App->>T: POST /api/terminals/:id/keys/ssh|sudo
+  T->>A: ssh, no binding yet: register --host --user --port (keyless; native terminals reuse the native binding ref)
+  T->>M: requestTerminalKey({terminalId, purpose, label}) (Owner origin, botId null)
+  M-->>T: {secretRequest: {id, label, inputOptions}}
+  T->>T: store sshKeyRequest / sudoKeyRequest (projection sshKeyPending / sudoKeyPending)
+  T-->>App: {secretRequest: {id, label, inputOptions}}
+  App->>M: existing secret dialog -> POST /api/secret-requests/:id/submit (1Password reference first)
+  M->>M: bind(requestId, {terminalId, purpose}) -> handle
+  M-->>T: watchCredentials {terminalId, purpose, handle, revision, available, reason}
+  T->>T: only while that key was requested: store sshKeyRef / sudoKeyRef + keySource 'secret', clear the request (registry change -> available)
+  Note over T,M: start: for a pending request, credentials.current({terminalId, purpose}) recovers a missed event
+  App->>T: DELETE /api/terminals/:id/keys/ssh|sudo
+  T->>M: unbind(handle, {terminalId, purpose}) then clear ref, source and request
+  Note over T,A: execution -> target -> {terminal: {ref: bindingRef, target, trustRevision, credential: {handle, revision}, sudoCredential?}}
+  A->>M: resolve handle inside the UID1000 server -> per-terminal in-memory ssh-agent
+```
+
+| Item | Contract |
+| --- | --- |
+| Registry fields | `sshKeyRef` / `sudoKeyRef` (Mika handles), `keySource` / `sudoKeySource`: `terminal-native` (Owner terminals, Aiterm-held key registered through Mika's registerNative; the default for a ref without a source) or `secret` (set through the secret card). op vs stored is never recorded. `bindingRef`: Aiterm's public binding (target + known_hosts + trust). `sshKeyRequest` / `sudoKeyRequest`: the pending secret request. All of these except the refs are internal: `put` refuses them from a caller. A native key bound through `bind_terminal_key` clears `keySource` and a pending ssh request. Projection: `sshKeyConfigured`, `sudoKeyConfigured`, `keySource`, `sudoKeySource`, `sshKeyPending`, `sudoKeyPending`; never a handle, key, password or op:// reference |
+| `target` | `terminal-native`: `{ref: nativeKeyRef, target, trustRevision, credentialRevision}` as today. `secret`: `{ref: bindingRef, target, trustRevision, credential: {handle, revision}}` (no credentialRevision). `sudoCredential: {handle, revision}` when a sudo key is set. terminals does not resolve a secret key value |
+| Check / C8 | Same target data through `remote_terminal_open` (Elegg accepts `credential` there too) |
+| HTTP (Owner) | `POST /api/terminals/:id/keys/{ssh,sudo}` -> `{secretRequest}`; a non-empty body is `400 KEY_IN_REQUEST_REFUSED` (the key goes only into the card). `DELETE` -> `{terminal}`. Errors: `INVALID_KEY_KIND` 400 (use ssh or sudo), `TERMINAL_NOT_FOUND` 404, `CREDENTIAL_UNAVAILABLE` 503 (secret input not mounted), `TERMINAL_UNAVAILABLE` 503 (Aiterm could not create the binding) |
+| Mika contract | `credentials.requestTerminalKey({terminalId, purpose, label})`, `watchCredentials` event `{terminalId, purpose, handle, revision, available, reason}`, `current({terminalId, purpose})`, `unbind(handle, {terminalId, purpose})`, `credential(handle, context)`. Purposes `terminal.ssh` / `terminal.sudo` (Mika aliases of ssh-key / sudo-key) |
+| Exits | A submitted key emits a registry change -> `available`. DELETE leaves the terminal registered; `target` then answers `CREDENTIAL_UNAVAILABLE` reason `SSH_KEY_UNSET` with action "set the SSH key of terminal X" until a new key is set |
+
 #### Registry
 
 `src/terminals/registry.mjs:createTerminalRegistry({stateRoot, onChange?})` owns `<stateRoot>/terminals.json` using the existing `writeAtomic` helper. `terminalId` is either supplied as a lowercase slug at registration (for example `owner-macbook`, matching Mika's handle context) or generated. Methods: `list()`, `get(terminalId)`, `register(record)`, `update(terminalId, patch)`, `remove(terminalId)`. An internal `target(terminalId)` returns a cloned target with credential handles to the connection core only. The public get/list/mutation return excludes handles and exposes configured indicators. Records contain terminalId, host, user, port (default22), os (`macos`), accountOwner (`owner` or `terminal-owner`), optional sshKeyRef (opaque UUID; a terminal is registered first and its key bound later through Molly's `bind_terminal_key`, until then `target` is `CREDENTIAL_UNAVAILABLE` reason `SSH_KEY_UNSET`), optional sudoKeyRef, hostTrust (`{provider, revision}` public nonsecret trust-provider reference), and increasing revision. A missing hostTrust is a target requiring trust enrollment, not implicit trust. No arbitrary private path or raw op:// belongs in this DTO.

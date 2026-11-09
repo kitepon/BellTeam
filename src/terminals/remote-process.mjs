@@ -38,13 +38,15 @@ export function createRemoteTerminalProcesses({ project, connectClient = () => s
     async trust(ref) { return (await status(ref))?.trust ?? null },
 
     // Transient process for reachability and C8 only; seats run through Aiterm's own agent_launch (Trony ruling 2026-11-09).
-    async connect({ target, hostTrust, credential }) {
-      if (!credential?.nativeKeyRef) throw Object.assign(new Error('Unsupported credential'), { code: 'CREDENTIAL_UNUSABLE' })
+    async connect({ target, hostTrust, binding }) {
+      if (typeof binding?.ref !== 'string' || !binding.ref) throw Object.assign(new Error('Unsupported credential'), { code: 'CREDENTIAL_UNUSABLE' })
       const { client, tool } = await start()
       try {
-        const current = await tool('remote_terminal_status', { ref: credential.nativeKeyRef })
+        const current = await tool('remote_terminal_status', { ref: binding.ref })
         if (current?.trust?.revision !== hostTrust.revision) throw Object.assign(new Error('Host trust revision changed'), { code: 'HOST_TRUST_STALE' })
-        await tool('remote_terminal_open', { ref: credential.nativeKeyRef, target, trustRevision: hostTrust.revision, credentialRevision: credential.credentialRevision ?? current.credential?.revision })
+        // Elegg: with `credential` (Mika handle) credentialRevision is omitted; without it, it is the native key revision.
+        const key = binding.credential ? { credential: binding.credential } : { credentialRevision: binding.credentialRevision ?? current.credential?.revision }
+        await tool('remote_terminal_open', { ref: binding.ref, target, trustRevision: hostTrust.revision, ...key, ...(binding.sudoCredential ? { sudoCredential: binding.sudoCredential } : {}) })
       } catch (error) { await client.close().catch(() => {}); throw error }
       return {
         command: op => tool('remote_terminal_command', { op }),
@@ -54,6 +56,14 @@ export function createRemoteTerminalProcesses({ project, connectClient = () => s
           return { closed: true }
         }
       }
+    },
+
+    // Keyless binding for a terminal whose key comes from the secret card (Elegg: Aiterm-owned empty known_hosts.d/<ref>).
+    async register({ host, user, port }) {
+      const { stdout } = await run('/usr/bin/env', [BIN, 'register', '--host', host, '--user', user, '--port', String(port)])
+      const ref = JSON.parse(String(stdout).trim())?.ref
+      if (typeof ref !== 'string' || !ref) throw Object.assign(new Error('Remote terminal binding failed'), { code: 'REMOTE_AITERM_UNAVAILABLE' })
+      return ref
     },
 
     // The Owner's "confirm the new host key": the UID1000 holder scans once and writes only if the fingerprint matches.

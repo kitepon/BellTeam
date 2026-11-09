@@ -44,6 +44,23 @@ test('target hands execution the Aiterm launch target and runs C8 once per Claud
   assert.equal(native.sessions.length, before + 1, 'concurrent launches share one upkeep run')
 })
 
+test('a secret-key terminal hands the Mika handle, never a value; optional sudo never gates', async t => {
+  const bindingRef = 'b1b2c3d4-1234-4234-8234-123456789abc'
+  const sudoKeyRef = 'c1b2c3d4-1234-4234-8234-123456789abc'
+  const secret = setup(t, { target: { ...base, keySource: 'secret', bindingRef, sudoKeyRef } })
+  const { terminal } = await secret.connection.target({ ...request, harness: 'codex' })
+  assert.deepEqual(terminal, { ref: bindingRef, target: { host: '192.168.1.12', user: 'kite', port: 22 }, trustRevision: hostTrust.revision,
+    credential: { handle: sshKeyRef, revision: 2 }, sudoCredential: { handle: sudoKeyRef, revision: 2 } })
+  assert.equal(secret.secrets.calls.some(call => call.op !== 'credential'), false, 'no withResolved: terminals never holds the key value')
+  await secret.connection.target(request)
+  assert.deepEqual(secret.native.calls.find(call => call.op === 'open').binding.credential, { handle: sshKeyRef, revision: 2 })
+  const unbound = setup(t, { target: { ...base, keySource: 'secret' } })
+  await assert.rejects(unbound.connection.target(request), { code: 'CREDENTIAL_UNAVAILABLE', reason: 'BINDING_UNSET' })
+  const sudoDown = { ...fakeSecrets(), credential: (handle, context) => ({ handle, revision: 2, available: context.purpose !== 'terminal.sudo' }), withResolved: fakeSecrets().withResolved }
+  const native = setup(t, { target: { ...base, sudoKeyRef }, secrets: sudoDown })
+  assert.equal('sudoCredential' in (await native.connection.target({ ...request, harness: 'codex' })).terminal, false)
+})
+
 test('installs when Claude is missing and a failed update still returns the target', async t => {
   const missing = setup(t, { native: fakeNative({ versions: [null, '2.0.0'] }) })
   await missing.connection.target(request)

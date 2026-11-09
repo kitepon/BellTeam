@@ -11,6 +11,7 @@ export function fakeNative({ connectError, versions = ['1.0.0', '1.0.1'], update
     sessions,
     connectError,
     async trust(ref) { calls.push({ op: 'trust', ref }); return trust },
+    async register(target) { calls.push({ op: 'register', target }); return 'd1b2c3d4-1234-4234-8234-123456789abc' },
     async confirmHostKey(ref, fingerprint) { calls.push({ op: 'confirmHostKey', ref, fingerprint }); return trust },
     async connect(request) {
       calls.push({ op: 'open', ...request })
@@ -40,6 +41,10 @@ export function fakeSecrets({ unavailable = false } = {}) {
       calls.push({ handle, context })
       if (unavailable) throw Object.assign(new Error('unavailable'), { code: 'SECRET_UNAVAILABLE' })
       return consume({ nativeKeyRef: `native-${handle}`, revision: 3 })
+    },
+    credential(handle, context) {
+      calls.push({ handle, context, op: 'credential' })
+      return { handle, revision: 2, available: !unavailable }
     }
   }
 }
