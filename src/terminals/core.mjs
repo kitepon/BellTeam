@@ -163,7 +163,8 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
   const removeKey = (terminalId, kindName) => serial(terminalId, () => removeKeyNow(terminalId, kindName))
   async function removeKeyNow(terminalId, kindName) {
     const { kind, record } = await keyTarget(terminalId, kindName)
-    if (record[kind.ref]) await credentials.unbind(record[kind.ref], { terminalId, purpose: kind.purpose })
+    // Mika: null = explicit scope cancel (pending cards and any raced binding), so a first pending request is cancelled too.
+    await credentials.unbind(record[kind.ref] ?? null, { terminalId, purpose: kind.purpose })
     return registry.update(terminalId, { [kind.ref]: null, [kind.source]: null, [kind.request]: null })
   }
 

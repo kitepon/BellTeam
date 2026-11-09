@@ -251,7 +251,7 @@ stateDiagram-v2
   Configured --> Pending: POST again (key stays until the new card binds)
   Pending --> Pending: POST again -> new id R2 replaces R (a late R is ignored)
   Pending --> Configured: event or current() with requestId == pending R -> ref + keySource secret, request cleared
-  Pending --> NoKey: DELETE (unbind + clear) - a late R is ignored
+  Pending --> NoKey: DELETE -> unbind(ref or null = scope cancel of pending cards) + clear; a late R is ignored
   Configured --> NoKey: DELETE -> Mika unbind, then clear ref/source/request
   Pending --> Retarget: host/user/port changed -> request, bindingRef and hostTrust cleared; late R ignored
   Configured --> Retarget: host/user/port changed -> bindingRef and hostTrust cleared; a native ssh key (Aiterm binding to the old target) is cleared and unbound, a card key stays
@@ -266,7 +266,7 @@ stateDiagram-v2
 | `target` | `terminal-native`: `{ref: nativeKeyRef, target, trustRevision, credentialRevision}` as today. `secret`: `{ref: bindingRef, target, trustRevision, credential: {handle, revision}}` (no credentialRevision). `sudoCredential: {handle, revision}` when a sudo key is set. The target carries no key value; execution (Kiro) resolves it in memory and runs Aiterm's `credential-load` before the launch (aiterm-mcp 0.67.0) |
 | Check / C8 | Same target data through `remote_terminal_open`. Before its own open terminals loads a handle key the same way: Mika's `withResolved` callback (context `expectedRevision` = the handle revision in the target, Mika's contract as Molly #813 uses it; a changed revision loads nothing) pipes the value to `aiterm-remote-terminal credential-load --ref --terminal-id --handle --revision --purpose ssh-key` on stdin (never argv, never kept); a failed load is `CREDENTIAL_UNAVAILABLE`, exited by Mika's availability event |
 | HTTP (Owner) | `POST /api/terminals/:id/keys/{ssh,sudo}` -> `{secretRequest}`; a non-empty body is `400 KEY_IN_REQUEST_REFUSED` (the key goes only into the card). `DELETE` -> `{terminal}`. Errors: `INVALID_KEY_KIND` 400 (use ssh or sudo), `TERMINAL_NOT_FOUND` 404, `CREDENTIAL_UNAVAILABLE` 503 (secret input not mounted), `TERMINAL_UNAVAILABLE` 503 (Aiterm could not create the binding) |
-| Mika contract | `credentials.requestTerminalKey({terminalId, purpose, label})`, `watchCredentials` event `{terminalId, purpose, handle, revision, available, reason, requestId}`, `current({terminalId, purpose})` -> `{handle, revision, available, requestId}`, `unbind(handle, {terminalId, purpose})`, `credential(handle, context)`. Purposes `terminal.ssh` / `terminal.sudo` (Mika aliases of ssh-key / sudo-key) |
+| Mika contract | `credentials.requestTerminalKey({terminalId, purpose, label})`, `watchCredentials` event `{terminalId, purpose, handle, revision, available, reason, requestId}`, `current({terminalId, purpose})` -> `{handle, revision, available, requestId}`, `unbind(handle | null, {terminalId, purpose})` (null = scope cancel), `credential(handle, context)`. Purposes `terminal.ssh` / `terminal.sudo` (Mika aliases of ssh-key / sudo-key) |
 | Exits | A submitted key emits a registry change -> `available`. DELETE leaves the terminal registered; `target` then answers `CREDENTIAL_UNAVAILABLE` reason `SSH_KEY_UNSET` with action "set the SSH key of terminal X" until a new key is set |
 
 #### Registry

@@ -119,6 +119,7 @@ test('DELETE, replacement and a target change win over a late card; close joins 
 
   await core.keys.request('friend-mac', 'ssh') // A
   await core.keys.remove('friend-mac', 'ssh')
+  assert.deepEqual(credentials.calls.findLast(call => call.op === 'unbind'), { op: 'unbind', ref: null, scope: { terminalId: 'friend-mac', purpose: 'terminal.ssh' } }, 'pending-only DELETE cancels the scope')
   late(requestId)
   await settle()
   assert.equal((await core.registry.get('friend-mac')).sshKeyConfigured, false, 'DELETE wins over the late card')
