@@ -137,6 +137,18 @@ flowchart LR
 
 The failure path leaves the read immediately and releases its socket through the existing finish path. A later explicit plan can read again after the concrete connection/file problem is repaired; no persistent gate or retry is added. Same-source enforcement remains unchanged. Historical generic refusals cannot be retrospectively labeled timeout or source mismatch because their subreason was discarded.
 
+## operation.json has one lock for every replace (2026-11-09 JST)
+
+Cause (found from intermittent `test_durable_acceptance…` errors): `read_json` opens the file and then compares the open file with `lstat` of the path; a concurrent `atomic` rename between the two makes the check fail with `HOST_UPDATE_TRUST`, which `read_operation` reports as `UNREADABLE`. Readers (`start`, `get`, `job`) hold `state/ledger.lock`, but the worker wrote `phase: applying` without it. A `start`/`get` arriving at that moment returned an error for a healthy operation.
+
+Every write of `operations/<id>/operation.json` now happens under `state/ledger.lock` (the `applying` write was the only one outside it), so a locked reader never overlaps a rename. No field, state or failure output changes.
+
+```mermaid
+flowchart LR
+  Worker[worker: accepted / applying / final] -->|ledger.lock| Op[(operation.json)]
+  Front[start / get / job] -->|ledger.lock| Op
+```
+
 ## Host catalog fetch retries transient GitHub failures (2026-11-09 JST)
 
 Cause (Web791+801, Centi's receipt): the official catalog `updates-20261109T075719Z` (cde9b78f, 31476 B) was published and the running body's reader accepts its bytes, but `POST /api/updates/catalog-check` returned `publication.status: failed`, `HOST_UPDATE_PUBLICATION_UNCONFIRMED`, and `/api/updates` kept catalog 17c61149. `container-update-host.py:_refresh_catalog` read the GitHub release list, `catalog.json` and its bundle with one 15 s request each; github.com was flapping 200/504 for these exact asset URLs (a cached 504 per URL string), and one failed read failed the whole check. That give-up named no protection.

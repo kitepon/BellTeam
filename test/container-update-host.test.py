@@ -150,13 +150,16 @@ class HostTest(unittest.TestCase):
         self.release.clear();plan=self.plan();identifier=str(uuid.uuid4())
         self.updater.start({'requestId':identifier,'planId':plan['planId'],'confirmContainerRestart':True})
         path=self.prefix/'state/operations'/identifier/'operation.json'
-        value=module.read_json(path,os.getuid())
-        until=module.time.monotonic()+2
-        while value['worker'] is None and module.time.monotonic()<until:
-            threading.Event().wait(.001);value=module.read_json(path,os.getuid())
-        self.assertIsNotNone(value['worker'])
+        # Read and tamper under ledger.lock like every real reader/writer. Wait until the worker has written its last
+        # pre-execute record ('applying') and is parked in execute(); tampering earlier is overwritten by that write.
+        def read():
+            with module.locked(self.updater.state/'ledger.lock',wait=True):return module.read_json(path,os.getuid())
+        value=read();until=module.time.monotonic()+2
+        while (value['worker'] is None or value.get('phase')!='applying') and module.time.monotonic()<until:
+            threading.Event().wait(.001);value=read()
+        self.assertIsNotNone(value['worker']);self.assertEqual(value['phase'],'applying')
         value['worker']['pid']=99999999
-        module.atomic(path,value)
+        with module.locked(self.updater.state/'ledger.lock',wait=True):module.atomic(path,value)
         result=self.updater.get(identifier)
         self.assertEqual(result['phase'],'failed');self.assertEqual(result['execution'],'failed')
         self.assertEqual(self.calls,[identifier])
