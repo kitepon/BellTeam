@@ -127,6 +127,8 @@ test('core mounts registry put/enroll, watch and target-mismatch reporting', asy
   await core.registry.put({ terminalId: 'owner-macbook', confirmHostKey: fingerprint })
   assert.deepEqual(native.calls[1], { op: 'confirmHostKey', ref: `native-${sshKeyRef}`, fingerprint })
   assert.equal(created.sshKeyConfigured, true)
+  assert.equal((await core.registry.get('owner-macbook')).maintenance, null)
+  assert.equal((await core.registry.list())[0].maintenance, null)
   assert.equal('sshKeyRef' in created, false)
   assert.deepEqual(events.map(event => [event.terminalId, event.reachable]), [['owner-macbook', true], ['owner-macbook', true]], 'each registry revision publishes availability')
   events.length = 0

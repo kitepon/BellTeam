@@ -67,7 +67,12 @@ export function createTerminalsCore({ stateRoot, credentials = null, seatCredent
   }
 
   return {
-    registry: { list: registry.list, get: registry.get, put, remove: registry.remove },
+    // C8 outcome rides on the projection so existing surfaces show it (Centi's acceptance reads it there).
+    registry: {
+      list: async () => (await registry.list()).map(item => ({ ...item, maintenance: connection.maintenance.last(item.terminalId) })),
+      get: async id => { const item = await registry.get(id); return item && { ...item, maintenance: connection.maintenance.last(id) } },
+      put, remove: registry.remove
+    },
     reachability: { check },
     connection,
     maintenance: connection.maintenance,
