@@ -97,6 +97,12 @@ else if(a[0]==='run'){
    catch{console.error('SERVER_STATE_PREVIOUS_MODEL_UNVERIFIED');process.exit(1);}
    process.stdout.write(fs.readFileSync(root+'/web-normal.json'));process.exit(0);
   }
+  const compat=a.indexOf('/app/src/aiterm-state-compat.mjs');
+  if(e.TEST_H1&&compat>=0){
+   const rest=a.slice(compat+1),src=k=>a.find(v=>v.endsWith(k))?.match(/source=([^,]+)/)[1];
+   if(rest[0]==='apply'){rest[1]=root+'/'+src(',target=/resume-state,volume-nocopy');rest[2]=src(',target=/aiterm-compat.json,readonly')??'';}
+   const r=spawnSync(process.execPath,[repo+'/src/aiterm-state-compat.mjs',...rest],{stdio:'inherit'});process.exit(r.status??98);
+  }
   let j=a.indexOf('-e');
   if(j>=0&&a[j+1].includes('mkdirSync("/runtime/server-only"')){
    const source=a[a.indexOf('--mount')+1].match(/^type=bind,source=(.*),target=\/runtime$/)[1];
@@ -624,7 +630,7 @@ test('H1公開2fileの通常reset導入をvolume未指定で繰り返し、保�
 })
 
 
-test('bundled updater body swap keeps the exact Aiterm backing without initialization; recover remounts it; pre-stop mismatch resets visibly',async t=>{
+test('bundled updater body swap keeps the exact Aiterm backing across Aiterm releases; resets only declared stores; recover remounts it; pre-stop mismatch resets visibly',async t=>{
  const targetImage='sha256:'+'e'.repeat(64)
  const setup=async()=>{
   const f=await fixture(t,{h1:true});
@@ -636,22 +642,21 @@ test('bundled updater body swap keeps the exact Aiterm backing without initializ
   await writeFile(handoff+'/previous-normal.json',JSON.stringify(normal))
   await writeFile(handoff+'/previous-runtime.json',JSON.stringify({Id:'d'.repeat(64),Image:currentImage}))
   normal.services.bellteam.image=targetImage;await writeFile(handoff+'/input-normal.json',JSON.stringify(normal))
-  for(const image of [currentImage,targetImage]){
-   const mcp=f.root+'/reader/'+image.slice(7)+'/aiterm-mcp';await mkdir(mcp+'/dist',{recursive:true});await writeFile(mcp+'/dist/index.js','reader')
-   await steer(mcp+'/node_modules/aiterm-steer-delivery','steer')
+  // Different Aiterm releases in the old and target bodies (0.64.2 -> 0.67.0, swap fb923ca4): no declaration keeps state.
+  for(const [image,version] of [[currentImage,'0.64.2'],[targetImage,'0.67.0']]){
+   const mcp=f.root+'/reader/'+image.slice(7)+'/aiterm-mcp';await mkdir(mcp+'/dist',{recursive:true});await writeFile(mcp+'/dist/index.js','reader '+version)
+   await writeFile(mcp+'/package.json',JSON.stringify({name:'aiterm-mcp',version}))
   }
   const worker={BELLTEAM_CONTAINER_UPDATE_WORKER:'1',BELLTEAM_PREVIOUS_COMPOSE:handoff+'/previous-normal.json',
    COMPOSE_FILE:handoff+'/input-normal.json',COMPOSE_PROJECT_NAME:'selected-project'}
   return {f,volume,worker,offset:(await f.calls()).length}
  }
  const initialized=c=>c.args.some(v=>String(v).includes('fs.chownSync'))
- async function steer(dir,content){
-  await mkdir(dir+'/dist',{recursive:true});await writeFile(dir+'/dist/index.js',content)
-  await writeFile(dir+'/package.json',JSON.stringify({name:'aiterm-steer-delivery',main:'./dist/index.js'}))
- }
+ const log=volume=>readFile(f.root+'/'+volume+'/.bellteam-reset/aiterm-state.log','utf8')
  const {f,volume,worker,offset}=await setup()
  const kept=await f.run(['--no-pull'],worker),saved=kept.stdout.match(/^saved-compose=(.*)$/m)[1],calls=(await f.calls()).slice(offset)
- assert.match(kept.stdout,/^aiterm=preserved$/m)
+ assert.match(kept.stdout,/^aiterm=preserved note=TARGET_UNDECLARED$/m)
+ assert.match(await log(volume),/ aiterm=preserved note=TARGET_UNDECLARED\n$/)
  assert.equal(JSON.parse(await readFile(saved+'/normal.json')).volumes['aiterm-state'].name,volume)
  const plan=JSON.parse(await readFile(saved+'/resume-plan.json'));assert.equal(plan.state_volume,volume);assert.equal(plan.source_volume,volume)
  assert.ok(calls.some(c=>c.args[0]==='stop'))
@@ -663,29 +668,41 @@ test('bundled updater body swap keeps the exact Aiterm backing without initializ
  assert.equal(JSON.parse(await readFile(saved+'/previous-normal.json')).volumes['aiterm-state'].name,volume)
  assert.equal(recovery.some(c=>c.args[0]==='volume'&&c.args[1]==='create'||initialized(c)),false)
  assert.equal(await readFile(f.root+'/'+volume+'/retained','utf8'),'native-state')
- // Before the stop any mismatch takes today's reset: new generation, normal initialization, old backing untouched.
- // steer: aiterm-mcp trees identical, the resolved aiterm-steer-delivery lies outside them and differs; unresolved: absent in the target.
- for(const failure of ['reader','writer','mount','steer','unresolved']){
+ // The target declares one legacy store format unreadable: only that store moves aside inside the same volume.
+ {
+  const d=await setup(),mcp=d.f.root+'/reader/'+targetImage.slice(7)+'/aiterm-mcp'
+  await writeFile(mcp+'/state-compat.json',JSON.stringify({schema:'aiterm.state-compat.v1',stores:{
+   sessions:{path:'aiterm-mcp-1000/sessions',writes:'sessions.v2',reads:['sessions.v2'],resets:['sessions.v1'],legacy:[{from:'0.60.0',through:'0.66.9',format:'sessions.v1'}]},
+   hooks:{path:'aiterm-mcp-1000/hooks',writes:'hooks.v1',reads:['hooks.v1'],legacy:[{from:'0.60.0',through:'0.66.9',format:'hooks.v1'}]}}}))
+  for(const n of ['sessions','hooks']){await mkdir(d.f.root+'/'+d.volume+'/aiterm-mcp-1000/'+n,{recursive:true});await writeFile(d.f.root+'/'+d.volume+'/aiterm-mcp-1000/'+n+'/x',n)}
+  const {stdout}=await d.f.run(['--no-pull'],d.worker),calls=(await d.f.calls()).slice(d.offset)
+  assert.match(stdout,/^aiterm=preserved reset=sessions$/m)
+  assert.equal(calls.some(c=>c.args[0]==='volume'&&c.args[1]==='create'||initialized(c)),false)
+  const root=d.f.root+'/'+d.volume
+  assert.equal(await readFile(root+'/aiterm-mcp-1000/hooks/x','utf8'),'hooks')
+  await assert.rejects(stat(root+'/aiterm-mcp-1000/sessions'))
+  const [stamp]=(await readdir(root+'/.bellteam-reset')).filter(n=>n!=='aiterm-state.log')
+  assert.equal(await readFile(root+'/.bellteam-reset/'+stamp+'/aiterm-mcp-1000/sessions/x','utf8'),'sessions')
+  assert.match(await readFile(root+'/.bellteam-reset/aiterm-state.log','utf8'),/ aiterm=preserved reset=sessions\n$/)
+ }
+ // Before the stop a binding mismatch takes today's reset: new generation, normal initialization, old backing untouched.
+ for(const failure of ['writer','mount']){
   const {f,volume,worker,offset}=await setup(),extra={...worker}
-  if(failure==='reader')await writeFile(f.root+'/reader/'+targetImage.slice(7)+'/aiterm-mcp/dist/index.js','changed reader')
   if(failure==='writer')extra.TEST_OTHER_VOLUME_USER='1'
-  if(failure==='steer'||failure==='unresolved')for(const image of [currentImage,targetImage]){
-   await rm(f.root+'/reader/'+image.slice(7)+'/aiterm-mcp/node_modules',{recursive:true})
-   if(failure==='steer'||image===currentImage)await steer(f.root+'/reader/'+image.slice(7)+'/node_modules/aiterm-steer-delivery',image===targetImage?'changed steer':'steer')
-  }
   if(failure==='mount'){const r=JSON.parse(await readFile(f.root+'/runtime.json'));r.Mounts[0].Source='/vm/other/_data';await writeFile(f.root+'/runtime.json',JSON.stringify(r))}
   const {stdout}=await f.run(['--no-pull'],extra),saved=stdout.match(/^saved-compose=(.*)$/m)[1]
-  assert.match(stdout,new RegExp('^aiterm=reset reason='+(['reader','steer','unresolved'].includes(failure)?'RESUME_STATE_READER_UNCONFIRMED':'RESUME_PRESERVE_UNCONFIRMED')+'$','m'),failure)
+  assert.match(stdout,/^aiterm=reset reason=RESUME_PRESERVE_UNCONFIRMED$/m,failure)
   const plan=JSON.parse(await readFile(saved+'/resume-plan.json')),calls=(await f.calls()).slice(offset)
   assert.equal(plan.source_volume,volume);assert.notEqual(plan.state_volume,volume)
   assert.equal(JSON.parse(await readFile(saved+'/normal.json')).volumes['aiterm-state'].name,plan.state_volume)
   assert.ok(calls.some(c=>c.args[0]==='volume'&&c.args[1]==='create'&&c.args.at(-1)===plan.state_volume),failure)
   assert.ok(calls.some(initialized),failure)
   assert.equal(await readFile(f.root+'/'+volume+'/retained','utf8'),'native-state')
+  assert.match(await readFile(f.root+'/'+plan.state_volume+'/.bellteam-reset/aiterm-state.log','utf8'),/ aiterm=reset reason=RESUME_PRESERVE_UNCONFIRMED\n$/,failure)
  }
  // After the stop a changed backing still refuses; the worker's existing --recover restarts the previous body on it.
  const late=await setup()
- await assert.rejects(late.f.run(['--no-pull'],{...late.worker,TEST_RECREATED:'1'}),e=>e.code===1&&/RESUME_PRESERVE_UNCONFIRMED/.test(e.stderr)&&/^aiterm=preserved$/m.test(e.stdout))
+ await assert.rejects(late.f.run(['--no-pull'],{...late.worker,TEST_RECREATED:'1'}),e=>e.code===1&&/RESUME_PRESERVE_UNCONFIRMED/.test(e.stderr)&&/^aiterm=preserved /m.test(e.stdout))
  const lateCalls=(await late.f.calls()).slice(late.offset)
  assert.ok(lateCalls.some(c=>c.args[0]==='stop'))
  assert.equal(lateCalls.some(c=>c.args[0]==='volume'&&c.args[1]==='create'||initialized(c)||c.args.includes('up')),false)

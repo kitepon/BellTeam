@@ -150,11 +150,11 @@ Exits: a signal during startup makes `start()` reject `STARTUP_INTERRUPTED` afte
 
 ## Same-backing Aiterm state on a bundled body swap (Z-c slice 3, 2026-11-08)
 
-Owner Molly. Contracts: [Epinel section 4](/srv/bellteam/bots/bot-0b867848/docs/z-c-runtime-quiesce-supervisor-contract-20261107.md) and [Elegg's caller shape B / retained stores](/srv/bellteam/bots/bot-c2adbe04/docs/aiterm-runtime-replacement-contract-20261107.md#agreed-caller-shape-b). Kiro's B replaces only the body and keeps the same actual Aiterm state backing, HOME and state/config paths; no H1 copy, no empty-volume initialization.
+Owner Molly. Reader selection: Elegg `aiterm.state-compat.v1` (contract decision Molly → Elegg 2026-11-09, `state-compat.json` at the aiterm-mcp package root). Contracts: [Epinel section 4](/srv/bellteam/bots/bot-0b867848/docs/z-c-runtime-quiesce-supervisor-contract-20261107.md) and [Elegg's caller shape B / retained stores](/srv/bellteam/bots/bot-c2adbe04/docs/aiterm-runtime-replacement-contract-20261107.md#agreed-caller-shape-b). Kiro's B replaces only the body and keeps the same actual Aiterm state backing, HOME and state/config paths; no H1 copy, no empty-volume initialization.
 
 Before this slice, every installer run named a new Aiterm volume `<resolved name>-bellteam-compose.<generation>` (in `resume-install-plan.mjs`), created it, and after the stop emptied-checked and chowned it (`resume_initialize`). The old volume was retained untouched but no longer mounted, so a bundled swap left every seat's native state behind.
 
-Selection is fixed, not caller input: the bundled worker already runs `install.sh --no-pull` with `BELLTEAM_CONTAINER_UPDATE_WORKER=1` and a frozen normal whose image alone changed. `resume_prepare` tries preserve exactly when that marker is set and no `BELLTEAM_RESUME_TARGETS_FILE` is given. Owner decision 2026-11-08: preserve never blocks a body swap. Any check that fails before the stop takes today's reset path (new generation name, create, normal initialization; the old volume stays untouched) and the installer prints `aiterm=reset reason=<code>`; success prints `aiterm=preserved`. The worker keeps both lines in its installer log. Manual/public installs, the legacy Host updater and H1 targets keep the reset or copy paths unchanged. `install-resume-state.sh` and `resume-install-plan.mjs` come from the target image, so preserve applies from the first swap *to* an image with this slice; the old body's `install.sh` already supplies `stopped_container` and `current-runtime.json`.
+Selection is fixed, not caller input: the bundled worker already runs `install.sh --no-pull` with `BELLTEAM_CONTAINER_UPDATE_WORKER=1` and a frozen normal whose image alone changed. `resume_prepare` tries preserve exactly when that marker is set and no `BELLTEAM_RESUME_TARGETS_FILE` is given. Owner decision 2026-11-08: preserve never blocks a body swap. Any binding check (plan, volume, mount, sole reference) that fails before the stop takes today's reset path (new generation name, create, normal initialization; the old volume stays untouched) and the installer prints `aiterm=reset reason=<code>`; success prints `aiterm=preserved`. The worker keeps both lines in its installer log. Manual/public installs, the legacy Host updater and H1 targets keep the reset or copy paths unchanged. `install-resume-state.sh` and `resume-install-plan.mjs` come from the target image, so preserve applies from the first swap *to* an image with this slice; the old body's `install.sh` already supplies `stopped_container` and `current-runtime.json`.
 
 ```mermaid
 flowchart TD
@@ -162,19 +162,18 @@ flowchart TD
   Plan --> Exists["volume exists, local, no options, project + aiterm-state labels, never created"]
   Exists --> Bind["old body inspect: one /srv/bellteam-aiterm mount, volume, same Name, local, RW, Source = volume Mountpoint"]
   Bind --> Only["docker ps -a --filter volume = exactly the old CID"]
-  Only --> Reader["reader closure SHA-256 in old body image = target image: aiterm-mcp tree incl. node_modules + resolved aiterm-steer-delivery package"]
-  Reader --> Record[record Name Driver Mountpoint CreatedAt]
+  Only --> Compat["state-compat: old image aiterm-mcp version + state-compat.json, target state-compat.json → stores whose source format the target lists in resets"]
+  Compat --> Record[record Name Driver Mountpoint CreatedAt]
   Record --> Stop[quiesce, stop exact CID, restart no, rm, writer check]
   Stop --> Recheck["resume_initialize: same Name Driver Mountpoint CreatedAt, no empty check, chmod or chown"]
-  Recheck --> Up[maintenance, Cursor, compose up on the same volume]
+  Recheck --> Aside["aiterm-state-compat apply: rename each reset store path to .bellteam-reset/stamp/path in the same volume; append the aiterm= line to .bellteam-reset/aiterm-state.log"]
+  Aside --> Up[maintenance, Cursor, compose up on the same volume]
   Plan -->|mismatch| Reset["existing reset plan: new generation, create, initialize; print aiterm=reset reason=RESUME_PRESERVE_UNCONFIRMED"]
   Exists -->|missing or foreign| Reset
   Bind -->|mismatch| Reset
   Only -->|another container| Reset
-  Reader -->|different or unresolvable| ResetReader["same reset; reason=RESUME_STATE_READER_UNCONFIRMED"]
-  Record --> Preserved["print aiterm=preserved"]
+  Record --> Preserved["print aiterm=preserved, or aiterm=preserved reset=store,… when stores reset"]
   Reset --> Stop
-  ResetReader --> Stop
   Recheck -->|changed| Halted["RESUME_PRESERVE_UNCONFIRMED after stop, install exits non-zero, worker runs existing --recover"]
 ```
 
@@ -182,18 +181,19 @@ flowchart TD
 | --- | --- | --- |
 | `planResumeInstall(..., preserve)` | new normal, previous normal, previous runtime, targets null → plan with `state_volume = source_volume`, normal with no `BELLTEAM_RESUME_GENERATION` | Wrong target backing. A throw (stderr suppressed) makes `resume_prepare` rerun the planner in reset mode from the saved input normal, before any Docker mutation. |
 | `resume_preserve_bind` | `current-runtime.json` (old body inspect), `docker volume inspect`, `docker ps -a --filter volume` → `aiterm-backing` identity line | Dual writers / wrong backing. Failure → reset path with `reason=RESUME_PRESERVE_UNCONFIRMED`. Volume identity is Name + Driver + Mountpoint + CreatedAt; Docker refuses to remove a volume while any container references it, and a recreate changes CreatedAt. Device/inode is not read: it needs a privileged mount and adds nothing over CreatedAt for local volumes. |
-| `resume_reader` | each image → SHA-256 over the sorted `aiterm-mcp` tree including `node_modules` (path, mode, symlink target, bytes), plus `aiterm-steer-delivery` resolved by Node's resolver from `aiterm-mcp/dist` (Elegg 2026-11-08: it reads/writes retained Codex/Cursor hook/delivery HOME state). Its location relative to the tree is hashed, and its package directory is hashed again when it lies outside the tree. Unresolvable in either image → reset with `RESUME_STATE_READER_UNCONFIRMED`. | A different Aiterm state reader opening retained records. Aiterm publishes no reader-compatibility range (Elegg), so only an identical tree preserves; anything else resets with `reason=RESUME_STATE_READER_UNCONFIRMED` until Elegg decides reader compatibility. This also makes `--recover` safe: the previous body reads records written by the same reader. |
+| `resume_state_source` + `aiterm-state-compat.mjs select` | old body image and target image → each `{version, declaration}` read from `/usr/local/lib/node_modules/aiterm-mcp/package.json` and `state-compat.json` (plain fs, no dist import) → `aiterm-compat.json` `{resets:[{store,path,format}], note}` | Retained state must survive Aiterm releases (Trony ruling 2026-11-09, swap fb923ca4 reset every seat on 0.64.2 → 0.67.0). Elegg's `aiterm.state-compat.v1` declaration decides: for each target store, the source format is the old declaration's `writes`, else the target `legacy` entry whose `from`–`through` range holds the old version. Only a source format listed in the target's `resets` resets that store. Version or closure inequality, a missing or malformed declaration, an unknown source format all keep the state (logged in `note`); the selection never fails the install. |
+| `aiterm-state-compat.mjs apply` (after the stop) | volume as `/resume-state`, `aiterm-compat.json`, the `aiterm=` line → renamed store paths, one appended line in `/srv/bellteam-aiterm/.bellteam-reset/aiterm-state.log` | Execution owner reads why seats restarted fresh from inside the body (uid 1000, same mount). Nothing is deleted: a reset store moves to `.bellteam-reset/<stamp>/<path>` and Aiterm initializes it as absent. Runs as 1000:1000, no network, no capabilities. A failure prints `aiterm-state-apply=failed` and the install continues (stopping here would cut every seat). The full-reset path appends its line to the new volume. |
 | `resume_initialize` (preserve) | recorded identity → recheck only | Recreated volume between `rm` and `up`. Still refuses: after the stop a reset would mount something nobody validated. The install exits non-zero with the old body removed; the worker's existing `--recover` restarts the previous image from `previous-normal.json` on that volume name. |
 
-Recovery: `--recover <generation>` is unchanged. After a preserved swap its `previous-normal.json` names the same volume, so it remounts the retained backing with no create or initialization, after the existing writer check that includes that volume. After a reset swap the old volume is retained under the existing previous-normal policy (never deleted, overwritten or cleaned up), and `--recover` mounts that recorded previous backing, not the new one. Unchanged: `resume_stopped`/`resume_capture` (no targets), the writer check, the stop proof, HOME/data/Cursor/private-state handling, and H1 checkpoint/restore. Residual: between the recheck and `compose up` a Host root actor could still swap the volume; not covered.
+Recovery: `--recover <generation>` is unchanged. After a preserved swap its `previous-normal.json` names the same volume, so it remounts the retained backing with no create or initialization, after the existing writer check that includes that volume. The previous Aiterm then reads what the target wrote; Aiterm's expand/contract rule (writers change only after supported recovery-image readers read them) owns that, and the installer does not gate recovery. After a reset swap the old volume is retained under the existing previous-normal policy (never deleted, overwritten or cleaned up), and `--recover` mounts that recorded previous backing, not the new one. Unchanged: `resume_stopped`/`resume_capture` (no targets), the writer check, the stop proof, HOME/data/Cursor/private-state handling, and H1 checkpoint/restore. Residual: between the recheck and `compose up` a Host root actor could still swap the volume; not covered.
 
 ```mermaid
 stateDiagram-v2
-  [*] --> Bound: plan + mount + sole-reference + reader checks pass, aiterm=preserved
-  [*] --> ResetPlanned: any pre-stop check fails, aiterm=reset reason=code
+  [*] --> Bound: plan + mount + sole-reference checks pass, aiterm=preserved (reset=stores per declaration)
+  [*] --> ResetPlanned: any pre-stop binding check fails, aiterm=reset reason=code
   ResetPlanned --> ResetStarted: existing reset path, new initialized volume, old volume untouched
   Bound --> Stopped: quiesce, exact stop, rm, writer check
-  Stopped --> Started: identity unchanged, compose up on same backing
+  Stopped --> Started: identity unchanged, declared stores moved aside, line logged, compose up on same backing
   Stopped --> Recovering: identity changed or later step fails
   Recovering --> Started: --recover, previous image on same backing
 ```

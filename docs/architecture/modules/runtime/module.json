@@ -89,6 +89,7 @@
     "src/resume-storage.mjs",
     "src/resume-boot.mjs",
     "src/resume-install-plan.mjs",
+    "src/aiterm-state-compat.mjs",
     "src/run-resume-store.mjs",
     "src/runtime-resume.mjs",
     "distribution/server/install-resume-state.sh",
