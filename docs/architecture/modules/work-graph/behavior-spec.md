@@ -107,8 +107,8 @@ The earlier values (`kr = 0.00009 × m³ × min(1, 6/n)`, `L = 0.38 × m`, gravi
 - `steered` edges: same flow at 0.75 opacity, plus the base line in the requester accent at 0.35.
 - Edge start: the base line grows from requester to receiver over 350 ms ease-out, then dots start. Edge end: line and dots fade out over 300 ms.
 - Label: when `label` is null there is no chip (the line and flow show alone until the summary arrives by `edge-update`). Otherwise `label` in a chip (fill canvas 0.92, corner 8 pt, padding 6×3 pt, `listDetailFontSize`, muted, max width 180 pt) near the path midpoint. The whole label is always shown: it wraps onto as many lines as it needs and is never truncated (Owner ruling 2026-11-09). The chip height grows with the lines (line height 16 pt).
-- Labels and names never cover a node disc, and label chips never cover each other. Place chips in edge start order (oldest first, so a placed chip does not jump when a newer edge arrives). A chip may not intersect any disc grown by 4 pt nor any chip already placed grown by 4 pt: try path positions `t = 0.5, 0.45, 0.55, 0.4, 0.6, … 0.3, 0.7`; if none is free, the label is hidden (shown on hover/tap, drawn above everything else). A name that would overlap another node's disc moves above its own avatar; if that overlaps too, it is hidden until hover/tap.
-- Crowded (more than 10 edges, or the path is shorter than 120 pt): only newly started edges show their label, for 3 s after `edge-start`, then fade out over 400 ms. All other labels show on hover (Mac/Web/Windows) or tap/long-press (iPhone).
+- Labels and names never cover a node disc, and label chips never cover each other. Place chips in edge start order (oldest first, so a placed chip does not jump when a newer edge arrives). A chip may not intersect any disc grown by 4 pt nor any chip already placed grown by 4 pt: try path positions `t = 0.5, 0.45, 0.55, 0.4, 0.6, … 0.3, 0.7`; if none is free, the label is hidden (shown on hover, or on tap of the edge line on iPhone, drawn above everything else). A name that would overlap another node's disc moves above its own avatar; if that overlaps too, it is hidden until hover (Mac/Web/Windows) or long-press on the node (iPhone).
+- Crowded (more than 10 edges, or the path is shorter than 120 pt): only newly started edges show their label, for 3 s after `edge-start`, then fade out over 400 ms. All other labels show on hover (Mac/Web/Windows) or tap/long-press on the edge line (iPhone). A tap on a node opens a chat instead (see below).
 
 ## Empty state
 
@@ -127,5 +127,16 @@ No nodes: centered text `いま動いているメンバーはいません` in mu
 ## Accessibility and motion
 
 - Reduce Motion: no fly-in/out (fade 200 ms in place, spawn at a free spot near the center), no blink (static ring at 0.8), flow dots replaced by the static arrow.
-- Each node is an accessibility element: `<name>、作業中、<n>分前から` (`linked`: `<name>、依頼の相手`). Each edge: `<from>から<to>へ依頼: <label>`, or `<from>から<to>へ依頼` when `label` is null.
-- Tap/click on a node: no action in this version.
+- Each node is an accessibility element with the button trait: `<name>、作業中、<n>分前から` (`linked`: `<name>、依頼の相手`), hint `チャットを開く`. Activating it (VoiceOver double-tap, keyboard Enter/Space on Web, Windows) does the same as a tap. Each edge: `<from>から<to>へ依頼: <label>`, or `<from>から<to>へ依頼` when `label` is null.
+
+## Tap or click on a member: open that member's chat
+
+Owner request 2026-11-09: 「相関図のキャラのアイコンをタップしたら、その子のチャットが開くようにしたいな。」
+
+- Target: the avatar disc and the name of any drawn node, `working` and `linked` alike. The hit area is at least 44×44 pt even when `S` shrinks below 44 pt.
+- A tap is a press and release that moves less than 10 pt and lasts less than 500 ms (Mac/Web/Windows: a primary click). A longer press on iPhone is a long-press and only shows the hidden name (see Edges). Hover never opens anything.
+- The member is fixed at press time: the app records the node's `botId` when the finger or pointer goes down. On release it opens the direct chat with that `botId`, even if the graph changed in between.
+- Opening reuses each app's existing route to one member's direct conversation, the same one a tap on that member's message notification uses (Apple `ConversationTarget.bot(botId)`, Web notification route). It is not a new screen. That route's own rules apply, such as Web keeping an unsaved input screen open and showing its notice.
+- The chat opens in the same app. iPhone/iPad: the app leaves the full-screen 相関図 page and shows the member's chat, as if it had been opened from the member list; Back or the nav returns to 相関図, which reconnects and diffs (Stream drop and recovery). Web: the same, and if the graph is in browser full screen, exit full screen first. Mac: the 相関図 window stays open as it is. The main window comes to the front (opened if it was closed) with that member's chat selected.
+- Member leaving during the tap: a node that is in its leave animation is still drawn and still tappable. If `member-leave` arrives between press and release, the chat still opens. Leaving the graph only means the member stopped working, and its chat still exists. If the Bot itself is gone (deleted), the chat route shows its usual "not found" handling. The graph adds no error of its own.
+- Taps on an edge line, a label chip or empty space do not open a chat.
