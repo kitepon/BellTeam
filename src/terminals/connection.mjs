@@ -286,7 +286,9 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
         if (typeof password !== 'string') throw failure('CREDENTIAL_UNAVAILABLE')
         return native.authorizeKey({ ref: binding.ref, password })
       })
-      return result?.result === 'ALREADY_AUTHORIZED' ? 'ALREADY_AUTHORIZED' : 'AUTHORIZED'
+      // Success only from Elegg's receipt for this binding; anything else on exit 0 is not claimed as authorized.
+      const valid = result?.schema === 'aiterm.remote-key-authorization.v1' && result.ref === binding.ref && ['AUTHORIZED', 'ALREADY_AUTHORIZED'].includes(result.result)
+      return valid ? result.result : 'AUTHORIZATION_UNCONFIRMED'
     } catch (error) {
       const code = error?.reason ?? error?.code
       if (typeof code === 'string' && (/^SECRET_/.test(code) || code === 'CREDENTIAL_NOT_LOADED')) return 'CREDENTIAL_UNAVAILABLE'

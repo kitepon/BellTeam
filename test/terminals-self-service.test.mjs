@@ -160,7 +160,7 @@ test('authorize: pending stays true until the outcome is readable', async t => {
   const { core, native, credentials } = await setup(t)
   await core.registry.put({ ...mac, sshKeyRef: nativeHandle })
   let release
-  native.authorizeKey = () => new Promise(resolve => { release = () => resolve({ result: 'ALREADY_AUTHORIZED' }) })
+  native.authorizeKey = ({ ref }) => new Promise(resolve => { release = () => resolve({ schema: 'aiterm.remote-key-authorization.v1', ref, result: 'ALREADY_AUTHORIZED' }) })
   const { secretRequest } = await core.keys.authorize('owner-macbook')
   credentials.emit({ terminalId: 'owner-macbook', purpose: 'terminal.login', handle: 'h1', revision: 1, available: true, requestId: secretRequest.id })
   credentials.emit({ terminalId: 'owner-macbook', purpose: 'terminal.login', handle: 'h1', revision: 1, available: true, requestId: secretRequest.id })
@@ -172,4 +172,18 @@ test('authorize: pending stays true until the outcome is readable', async t => {
   const after = await core.registry.get('owner-macbook')
   assert.deepEqual([after.keyAuthorizationPending, after.keyAuthorization.outcome], [false, 'ALREADY_AUTHORIZED'])
   assert.equal(credentials.calls.filter(c => c.op === 'consume').length, 1, 'a repeated event is not consumed twice')
+})
+
+test('authorize: success only from a valid receipt for this binding', async t => {
+  const { core, native, credentials } = await setup(t)
+  await core.registry.put({ ...mac, sshKeyRef: nativeHandle })
+  const receipts = [null, {}, { schema: 'aiterm.remote-key-authorization.v1', ref: 'other-binding', result: 'AUTHORIZED' },
+    { schema: 'aiterm.remote-key-authorization.v1', ref: 'native-binding', result: 'MAYBE' }]
+  for (const [index, receipt] of receipts.entries()) {
+    native.authorizeKey = async () => receipt
+    const { secretRequest } = await core.keys.authorize('owner-macbook')
+    credentials.emit({ terminalId: 'owner-macbook', purpose: 'terminal.login', handle: `h${index}`, revision: 1, available: true, requestId: secretRequest.id })
+    await settle()
+    assert.equal((await core.registry.get('owner-macbook')).keyAuthorization.outcome, 'AUTHORIZATION_UNCONFIRMED', JSON.stringify(receipt))
+  }
 })

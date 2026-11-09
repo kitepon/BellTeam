@@ -15,7 +15,7 @@ export function fakeNative({ connectError, versions = ['1.0.0', '1.0.1'], update
     async register(target) { calls.push({ op: 'register', target }); return 'd1b2c3d4-1234-4234-8234-123456789abc' },
     // Self-service (Elegg accepted contract 2026-11-10); tests replace these to inject outcomes.
     async provision(request) { calls.push({ op: 'provision', ...request }); return { result: 'PROVISIONED' } },
-    async authorizeKey({ password, ...request }) { calls.push({ op: 'authorizeKey', ...request, passwordLength: password.length }); return { result: 'AUTHORIZED' } },
+    async authorizeKey({ password, ...request }) { calls.push({ op: 'authorizeKey', ...request, passwordLength: password.length }); return { schema: 'aiterm.remote-key-authorization.v1', ref: request.ref, result: 'AUTHORIZED' } },
     pathResult: (op, { path }) => ({ op, exists: true, directory: true, writable: true }),
     async confirmHostKey(ref, fingerprint) { calls.push({ op: 'confirmHostKey', ref, fingerprint }); return trust },
     async connect(request) {
