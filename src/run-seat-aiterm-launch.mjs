@@ -12,16 +12,28 @@ try {
   const chunks = []
   for await (const chunk of process.stdin) chunks.push(chunk)
   const request = JSON.parse(Buffer.concat(chunks).toString())
-  if (request.launch?.cwd !== process.cwd() || Object.hasOwn(request.launch, 'env_vars'))
+  // A terminal launch (one launch path) runs the CLI on the terminal: cwd is that folder and only named private env crosses.
+  const terminal = request.launch && Object.hasOwn(request.launch, 'terminal')
+  const names = request.privateEnvNames, privateEnv = request.privateEnv ?? {}
+  const name = key => typeof key === 'string' && /^[A-Za-z_][A-Za-z0-9_]{0,127}$/.test(key)
+  if (!request.launch || Object.hasOwn(request.launch, 'env_vars')
+    || (terminal ? typeof request.launch.cwd !== 'string' || !request.launch.cwd.startsWith('/')
+      || !Array.isArray(names) || names.length < 1 || names.length > 16 || !names.every(name) || new Set(names).size !== names.length
+      || !privateEnv || typeof privateEnv !== 'object' || Array.isArray(privateEnv)
+      || !Object.entries(privateEnv).every(([key, value]) => names.includes(key) && key !== 'CLAUDE_CODE_OAUTH_TOKEN' && typeof value === 'string' && value.length > 0)
+      : request.launch.cwd !== process.cwd() || Object.hasOwn(request, 'privateEnvNames') || Object.hasOwn(request, 'privateEnv')))
     throw Error('SEAT_LAUNCH_ARGUMENTS')
   // The launch's captured runtime must be in this MCP process's env before it starts (Aiterm reads its own process.env).
   if (request.runtime) Object.assign(process.env, runtimeLaunchEnv(request.runtime, process.env.PATH))
   // harness-accounts.md: a 2nd seat differs only in its login; read here as the seat user, given only to this CLI's env.
   delete process.env.CLAUDE_CODE_OAUTH_TOKEN
   if (request.claudeLogin !== undefined) Object.assign(process.env, await accountLoginEnvironment(request.claudeLogin, process.env))
+  // stdin only: never argv, disk or log. The login token still comes only from claudeLogin.
+  Object.assign(process.env, privateEnv)
+  if (terminal && !names.every(key => typeof process.env[key] === 'string' && process.env[key])) throw Error('SEAT_LAUNCH_ARGUMENTS')
   client = new AitermClient({ command: request.command, args: request.args, env: process.env, ...(request.runtime ? { runtimeCapture: request.runtime } : {}) })
-  // Aiterm takes names and reads values from its own seat-owned MCP process.
-  const env_vars = Object.keys(process.env).filter(key => /^[A-Za-z_][A-Za-z0-9_]*$/.test(key))
+  // Aiterm takes names and reads values from its own seat-owned MCP process. A terminal gets only the named ones, never server PATH/HOME.
+  const env_vars = terminal ? [...names] : Object.keys(process.env).filter(key => /^[A-Za-z_][A-Za-z0-9_]*$/.test(key))
   // Only this launcher's Aiterm reads it (account roots, harness-accounts.md E1); it is not forwarded to the seat.
   if (typeof request.claudeConfigRoots === 'string' && request.claudeConfigRoots) process.env.AITERM_CLAUDE_CONFIG_ROOTS = request.claudeConfigRoots
   let response

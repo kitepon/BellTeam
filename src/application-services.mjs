@@ -205,11 +205,13 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
       if (!terminals) throw TERMINALS_UNAVAILABLE()
       const terminal = await terminals.registry.get(terminalId)
       if (!terminal) throw Object.assign(new Error('TERMINAL_NOT_FOUND'), { code: 'TERMINAL_NOT_FOUND', status: 404 })
-      if (typeof terminal.ingressUrl !== 'string' || !/^https?:\/\/[^/]+$/u.test(terminal.ingressUrl))
-        throw Object.assign(new Error('TERMINAL_INGRESS_UNSET'), { code: 'TERMINAL_INGRESS_UNSET', status: 409 })
-      return { url: `${terminal.ingressUrl}${REMOTE_SEAT_MCP_PATH}`, credentialRef: await seatCredentials.issue({ botId, sessionName, terminalId }) }
+      // The container target; Aiterm rewrites this origin to the terminal's reverse-forward end (RS05). ingressUrl is not read.
+      const origin = `http://127.0.0.1:${Number(environment.BELLTEAM_REMOTE_SEAT_PORT ?? 4182)}`
+      return { url: `${origin}${REMOTE_SEAT_MCP_PATH}`, credentialRef: await seatCredentials.issue({ botId, sessionName, terminalId }) }
     },
     revoke: ({ sessionName }) => seatCredentials.revoke({ sessionName }),
+    // RS03: only execution's seat launch call uses this, to put the value into the launcher's stdin privateEnv.
+    reveal: credentialRef => seatCredentials.reveal(credentialRef),
   })
   if (executionFactory) {
     const selection = adoptionFactory({ root }), selected = await selection.read()
