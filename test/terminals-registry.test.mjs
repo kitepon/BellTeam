@@ -91,3 +91,14 @@ test('malformed store is preserved and corrected source recovers on next operati
   await writeFile(path, '{"terminals":[]}')
   assert.equal((await registry.register(input)).revision, 1)
 })
+
+test('legacy ingressUrl is dropped on read and refused as input', async t => {
+  const { stateRoot, registry } = await fixture(t)
+  const legacy = { ...input, terminalId: 'owner-macbook', port: 22, revision: 1, ingressUrl: 'http://192.168.1.20:18891' }
+  await writeFile(join(stateRoot, 'terminals.json'), JSON.stringify({ terminals: [legacy] }))
+  assert.equal('ingressUrl' in (await registry.get('owner-macbook')), false)
+  await assert.rejects(registry.update('owner-macbook', { ingressUrl: 'http://x' }), { code: 'INVALID_TERMINAL' })
+  await assert.rejects(registry.register({ ...input, terminalId: 'other', ingressUrl: 'http://x' }), { message: /ingressUrl was removed/ })
+  await registry.update('owner-macbook', { user: 'kite' })
+  assert.equal(JSON.parse(await readFile(join(stateRoot, 'terminals.json'), 'utf8')).terminals[0].ingressUrl, undefined)
+})

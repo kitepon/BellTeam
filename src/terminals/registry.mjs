@@ -4,7 +4,7 @@ import { isIP } from 'node:net'
 import { join } from 'node:path'
 import { writeAtomic } from '../json-file.mjs'
 
-const fields = ['host', 'user', 'port', 'os', 'accountOwner', 'ingressUrl', 'sshKeyRef', 'sudoKeyRef', 'hostTrust']
+const fields = ['host', 'user', 'port', 'os', 'accountOwner', 'sshKeyRef', 'sudoKeyRef', 'hostTrust']
 const STATUS = { INVALID_TERMINAL: 400, TERMINAL_NOT_FOUND: 404, TERMINAL_EXISTS: 409, INVALID_TERMINAL_STORE: 500 }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const slug = /^[a-z0-9][a-z0-9-]{0,62}$/
@@ -26,6 +26,7 @@ function checkRef(field, value, label) {
 function validate(record, stored = false) {
   const allowed = stored ? [...fields, 'terminalId', 'revision'] : fields
   if (!object(record)) throw invalid('Terminal fields must be one JSON object')
+  if ('ingressUrl' in record) throw invalid('ingressUrl was removed: Aiterm routes the seat MCP over the terminal\'s SSH reverse forward. Omit it')
   const unknown = Object.keys(record).filter(key => !allowed.includes(key))
   if (unknown.length) throw invalid(`Unknown terminal fields: ${unknown.join(', ')}. Allowed: terminalId, ${fields.filter(key => key !== 'hostTrust').join(', ')}, confirmHostKey`)
   if (stored && (!slug.test(record.terminalId ?? '') || !Number.isSafeInteger(record.revision) || record.revision < 1)) throw invalid('Invalid terminal identity or revision')
@@ -39,7 +40,6 @@ function validate(record, stored = false) {
   if (record.sudoKeyRef !== undefined) checkRef('sudoKeyRef', record.sudoKeyRef, 'sudo password')
   // hostTrust is Elegg's public trust ref: {provider:'aiterm.known-hosts.v1', revision:'sha256:<64hex>'}; set by terminals, not callers.
   if (record.hostTrust !== undefined && (!object(record.hostTrust) || Object.keys(record.hostTrust).length !== 2 || typeof record.hostTrust.provider !== 'string' || !/^[a-z0-9][a-z0-9._-]*$/i.test(record.hostTrust.provider) || typeof record.hostTrust.revision !== 'string' || !/^sha256:[0-9a-f]{64}$/.test(record.hostTrust.revision))) throw invalid('hostTrust is set by terminals from the trusted host key; to trust a changed host key pass confirmHostKey with the SHA256: fingerprint the Owner confirmed')
-  if (record.ingressUrl !== undefined && (typeof record.ingressUrl !== 'string' || !/^https?:\/\/[a-z0-9.-]+(?::\d{1,5})?$/i.test(record.ingressUrl))) throw invalid('ingressUrl must be an http origin only, like http://127.0.0.1:4182 (no path); for SSH reverse-forward terminals Aiterm replaces it with the terminal\'s own loopback port')
 }
 
 function projection(record) {
@@ -63,6 +63,7 @@ export function createTerminalRegistry({ stateRoot, onChange } = {}) {
       if (!object(data) || Object.keys(data).length !== 1 || !Array.isArray(data.terminals)) throw invalid('Invalid terminal store')
       const ids = new Set()
       for (const record of data.terminals) {
+        delete record.ingressUrl // legacy field before the reverse-forward ingress (#793); dropped on read, gone on the next save
         validate(record, true)
         if (ids.has(record.terminalId)) throw invalid('Duplicate terminal identity')
         ids.add(record.terminalId)
@@ -109,7 +110,6 @@ export function createTerminalRegistry({ stateRoot, onChange } = {}) {
         const record = { ...records[index], ...structuredClone(patch), revision: records[index].revision + 1 }
         if (record.sudoKeyRef === null) delete record.sudoKeyRef
         if (record.hostTrust === null) delete record.hostTrust
-        if (record.ingressUrl === null) delete record.ingressUrl
         validate(record, true)
         records[index] = record
         return { changed: true, value: projection(record), event: { terminalId, revision: record.revision, removed: false } }

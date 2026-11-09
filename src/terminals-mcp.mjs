@@ -12,7 +12,6 @@ const fields = {
   port: { type: 'integer', minimum: 1, maximum: 65535, description: 'SSHのポート番号（整数、既定22）' },
   os: { type: 'string', enum: ['macos'], description: '端末のOS。今は macos だけ' },
   accountOwner: { type: 'string', enum: ['owner', 'terminal-owner'], description: 'その機械の持ち主。owner=オーナー本人の機械（オーナーのClaudeアカウントを使える）。terminal-owner=ほかの人の機械（その機械のClaudeログインを使い、オーナーのアカウントは渡らない）' },
-  ingressUrl: { type: ['string', 'null'], description: 'この端末の席が使うBellTeamの入口。SSH逆転送の端末ではAitermが端末ごとの口へ置き換えるので、どのhttpでもよい（例 http://127.0.0.1:4182）。nullで消す' },
   confirmHostKey: { type: 'string', pattern: '^SHA256:', description: '任意。ホスト鍵が変わったと言われた時だけ、オーナーが確かめた指紋（SHA256:で始まる）を渡す。一致した時だけ信用し直す。指紋を推測で入れない' },
   sshKeyRef: { type: 'string', description: `任意。秘密入力カードで入れたSSH鍵、または1Passwordの参照から発行された鍵の参照（UUID）だけを渡す。${NO_SECRET}鍵がまだ無ければ省き、あとでbind_terminal_keyで結ぶ` },
   sudoKeyRef: { type: 'string', description: `任意。秘密入力カードか1Passwordの参照から発行されたsudoパスワードの参照（UUID）。${NO_SECRET}` },
