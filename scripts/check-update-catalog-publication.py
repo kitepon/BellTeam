@@ -1,19 +1,39 @@
 #!/usr/bin/env python3
 """Require already-public fixed targets before formal catalog publication; never promote them."""
+from http.client import IncompleteRead
 import hashlib
 import json
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import time
 from urllib.parse import urlparse
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from update_catalog import MAX_CATALOG, strict_json, validate_catalog, validate_members_archive, validate_notifications_archive, validate_memory_archive, validate_conversation_archive, require
 
 
+TRANSIENT_HTTP = {408, 425, 429, 500, 502, 503, 504}
+RETRY_WINDOW = 240  # inside the job's 10 min; the next ordinary publisher run is the exit after it
+
+
 def download(url, headers=None, maximum=4 * MAX_CATALOG):
-    with urlopen(Request(url, headers=headers or {}), timeout=30) as response:
-        raw = response.read(maximum + 1)
+    deadline = time.monotonic() + RETRY_WINDOW
+    delay = 2
+    while True:
+        try:
+            with urlopen(Request(url, headers=headers or {}), timeout=30) as response:
+                raw = response.read(maximum + 1)
+            break
+        except HTTPError as error:
+            if error.code not in TRANSIENT_HTTP or time.monotonic() + delay > deadline:
+                raise
+        except (URLError, OSError, IncompleteRead):
+            if time.monotonic() + delay > deadline:
+                raise
+        time.sleep(delay)
+        delay = min(delay * 2, 30)
     require(len(raw) <= maximum, 'UPDATE_PUBLICATION_RESPONSE_LIMIT')
     return raw
 

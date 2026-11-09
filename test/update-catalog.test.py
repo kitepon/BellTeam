@@ -133,6 +133,33 @@ class CatalogTest(unittest.TestCase):
             official.assert_not_called()
 
 
+    def test_publication_download_recovers_transient_504_but_not_permanent_or_identity_failures(self):
+        from urllib.error import HTTPError
+        spec = importlib.util.spec_from_file_location('catalog_publication_retry', ROOT / 'scripts/check-update-catalog-publication.py')
+        publication = importlib.util.module_from_spec(spec); spec.loader.exec_module(publication)
+        url = 'https://github.com/kitepon/BellTeam/releases/download/memory-x/archive.tar.gz'
+        body = b'formal bytes'
+        def ok(): return __import__('contextlib').nullcontext(io.BytesIO(body))
+        def failure(code): return HTTPError(url, code, 'x', {}, None)
+        with patch.object(publication, 'urlopen', side_effect=[failure(504), failure(504), ok()]) as fetch, patch.object(publication.time, 'sleep') as sleep:
+            self.assertEqual(publication.download(url), body)
+            self.assertEqual([c.args[0].full_url for c in fetch.call_args_list], [url] * 3)
+            self.assertEqual(sleep.call_count, 2)
+        with patch.object(publication, 'urlopen', side_effect=[failure(404)]) as fetch, patch.object(publication.time, 'sleep') as sleep:
+            with self.assertRaises(HTTPError): publication.download(url)
+            self.assertEqual(fetch.call_count, 1); sleep.assert_not_called()
+        item = dict(url=url, bytes=len(body), sha256='0' * 64)
+        with patch.object(publication, 'urlopen', side_effect=[ok()]) as fetch, patch.object(publication.time, 'sleep') as sleep:
+            with self.assertRaisesRegex(ValueError, 'UPDATE_RELEASE_CONTENT_MISMATCH'): publication.download_asset(item)
+            self.assertEqual(fetch.call_count, 1); sleep.assert_not_called()
+        with patch.object(publication, 'urlopen', side_effect=[ok()]), patch.object(publication.time, 'sleep') as sleep:
+            with self.assertRaisesRegex(ValueError, 'UPDATE_PUBLICATION_RESPONSE_LIMIT'): publication.download(url, maximum=3)
+            sleep.assert_not_called()
+        with patch.object(publication, 'urlopen', side_effect=failure(504)) as fetch, patch.object(publication.time, 'sleep'), \
+             patch.object(publication.time, 'monotonic', side_effect=[0, 0, publication.RETRY_WINDOW]):
+            with self.assertRaises(HTTPError): publication.download(url)
+            self.assertEqual(fetch.call_count, 2)
+
     def test_publication_preflight_binds_stable_index_and_architecture_source(self):
         spec = importlib.util.spec_from_file_location('catalog_publication', ROOT / 'scripts/check-update-catalog-publication.py')
         publication = importlib.util.module_from_spec(spec); spec.loader.exec_module(publication)

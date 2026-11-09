@@ -22,7 +22,7 @@ Owner 2026-11-02指示による本体分担。機能を分離し、担当が自�
 | アドミ | Web | web全体の状態・操作・表示。サーバーの機能判定を画面へ複製しない |
 | モリー（2026-11-08まではエピネル） | 実行環境・更新復旧 | 全module共通交換runner/controller・世代/close-drain、bootstrap/supervisor/lifecycle、SeatRuntime/短命runner、CLI/hook登録、状態移行、installer、backup/restore、更新実行の製品コード |
 | ビスケット | 記憶・知識 | MemoryService/Search、記憶形式と検索索引、短期記憶の方針。DB実行proxyはエピネル |
-| センチ | 商用配布 | Docker/Compose/profile、package、候補CI、image/source受入、公式版発行・promotion。installerの動作実装はエピネルと接続 |
+| モリー | 商用配布 | Docker/Compose/profile、package、候補CI、image/source受入、公式版発行・promotionのコード（2026-11-08 Owner裁定、旧センチ）。センチは製品試験だけ |
 | モリー | 薄い親・共通入口 | 安定facade、共通HTTP/MCP dispatch、全module共通ledger/adapter組立、機能間接続・必要な結合試験と通常main統合 |
 | シグナル | diagnostics専任 | 診断factory/閉dispatcher、report/code/集約・唯一writer、同state restore、close-drain、管理GET契約。BugHubはフラジャイル |
 | トロニー | 全体設計・統合裁定 | 全体設計・公開契約/診断方針裁定、共通規範、全体図整合、優先順位、本番反映・Owner判断 |
@@ -71,4 +71,4 @@ Owner承認・トロニー伝達（2026-11-08）により、本体コンテナ�
 
 ## モジュール更新の現在の受渡し
 
-薄い親・安定facade・全module共通ledger/adapter組立はモリー、共通交換runner/controllerはエピネル。業務内部はwebアドミ、notifications/usageミカ、membersベロータ、conversation N102、executionキロ、memoryビスケット、diagnosticsシグナル、配布センチ。diagnosticsのFragile一時割当は撤回、BugHub担当は変えない。個別の入出力・同state writer・世代/close-drain・失敗出力は各moduleの正本、共通接続はintegrationの正本へ置く。既3controllerのadapter/共通ledgerを先行し、会話/usage/memory等の全納品を待つ条件にしない。未供給moduleは未対応を明示し、正本を読めない状態で成功へ投影しない。
+薄い親・安定facade・全module共通ledger/adapter組立はモリー、共通交換runner/controllerはモリー。業務内部はwebアドミ、notifications/usageミカ、membersベロータ、conversation N102、executionキロ、memoryビスケット、diagnosticsシグナル、配布モリー（製品試験センチ）。diagnosticsのFragile一時割当は撤回、BugHub担当は変えない。個別の入出力・同state writer・世代/close-drain・失敗出力は各moduleの正本、共通接続はintegrationの正本へ置く。既3controllerのadapter/共通ledgerを先行し、会話/usage/memory等の全納品を待つ条件にしない。未供給moduleは未対応を明示し、正本を読めない状態で成功へ投影しない。

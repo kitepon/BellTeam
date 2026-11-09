@@ -1,8 +1,8 @@
 {
   "title": "商用配布",
-  "owner": "センチ",
-  "botId": "bot-8bc1fb5d",
-  "scope": "配布構成・候補build・image/source受入・公開版発行とpromotion。設置/移行の実装はエピネル、本番実行はトロニー",
+  "owner": "モリー",
+  "botId": "bot-39be7047",
+  "scope": "配布構成・候補build・image/source受入・公開版発行とpromotionのコード（2026-11-08 Owner裁定で本体担当へ）。製品試験はセンチ、本番実行はトロニー",
   "external": false,
   "provides": [
     "image",
