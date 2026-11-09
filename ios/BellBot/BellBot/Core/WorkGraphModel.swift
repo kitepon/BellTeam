@@ -145,6 +145,8 @@ final class WorkGraphModel: ObservableObject {
         var nullAt: Double?
         /// 最後に届いたlabel。nullへ戻った後の消え際にも使う。
         var text: String
+        /// `layoutChips`が測った札の大きさ。clearanceが札の四角を決めるのに使う（まだ測っていなければ.zero）。
+        var size = CGSize.zero
     }
 
     /// 描ける線1本。pointは線の上の位置t（0〜1）。
@@ -421,6 +423,23 @@ final class WorkGraphModel: ObservableObject {
             guard u[line.edge.from] != nil, u[line.edge.to] != nil, pairs.insert(key).inserted else { continue }
             pull(line.edge.from, line.edge.to) { 0.02 * ($0 - length) }
         }
+        // 関係ないメンバーを線と札から押し出す（behavior-spec.md「Clearance」）。
+        var clearEdges: [(a: Int, b: Int, chip: CGSize?)] = []
+        var clearIndex: [String: Int] = [:]
+        let slot = Dictionary(uniqueKeysWithValues: ids.enumerated().map { ($1, $0) })
+        for line in Self.labelOrder(Array(lines.values)) where line.endedAt == nil {
+            guard let a = slot[line.edge.from], let b = slot[line.edge.to], a != b else { continue }
+            let chip = line.chip.flatMap { $0.nullAt == nil && $0.size != .zero ? $0.size : nil }
+            if let k = clearIndex["\(min(a, b))|\(max(a, b))"] {
+                if clearEdges[k].chip == nil { clearEdges[k].chip = chip }
+            } else {
+                clearIndex["\(min(a, b))|\(max(a, b))"] = clearEdges.count
+                clearEdges.append((a, b, chip))
+            }
+        }
+        let relative = ids.map { CGPoint(x: (u[$0]?.x ?? 0) * W, y: (u[$0]?.y ?? 0) * H) }
+        let pushes = Self.clearance(relative, extents: extents(of: ids, at: relative, side: s, nameHeight: nameHeight), edges: clearEdges)
+        for (i, id) in ids.enumerated() { force[id, default: .zero].dx += pushes[i].dx; force[id, default: .zero].dy += pushes[i].dy }
         // 各軸の広がりが88%より狭ければ重力を弱め、広ければ強める。
         func gravity(_ fill: CGFloat) -> CGFloat { 0.02 * min(50, max(0.001, pow(fill / 0.88, 16))) }
         let us = ids.compactMap { u[$0] }
@@ -452,30 +471,6 @@ final class WorkGraphModel: ObservableObject {
                 u[b] = CGPoint(x: pb.x + push * dx / dist / W, y: pb.y + push * dy / dist / H)
             }
         }
-        // 線とアイコンを重ねない（Owner）：つながっていない線に近すぎるアイコンを線から垂直に押し出し、線の両端は少し逆へ動かす。
-        let clearance = s * 0.5 + 10
-        for line in lines.values where line.endedAt == nil {
-            let a = line.edge.from, b = line.edge.to
-            guard let pa = u[a], let pb = u[b] else { continue }
-            let ax = pa.x * W, ay = pa.y * H, bx = pb.x * W, by = pb.y * H
-            let ex = bx - ax, ey = by - ay, length2 = ex * ex + ey * ey
-            guard length2 > 1 else { continue }
-            for k in ids where k != a && k != b {
-                guard let pk = u[k] else { continue }
-                let px = pk.x * W, py = pk.y * H
-                let t = min(0.95, max(0.05, ((px - ax) * ex + (py - ay) * ey) / length2))
-                let cx = ax + ex * t, cy = ay + ey * t
-                var nx = px - cx, ny = py - cy
-                var dist = hypot(nx, ny)
-                guard dist < clearance else { continue }
-                if dist < 0.01 { nx = -ey; ny = ex; dist = sqrt(length2) } // 線の真上なら線に垂直な向きへ
-                let push = (clearance - dist) * 0.5
-                let ux = nx / dist, uy = ny / dist
-                u[k] = CGPoint(x: pk.x + push * 0.7 * ux / W, y: pk.y + push * 0.7 * uy / H)
-                if let ca = u[a] { u[a] = CGPoint(x: ca.x - push * 0.15 * ux / W, y: ca.y - push * 0.15 * uy / H) }
-                if let cb = u[b] { u[b] = CGPoint(x: cb.x - push * 0.15 * ux / W, y: cb.y - push * 0.15 * uy / H) }
-            }
-        }
         for id in ids {
             guard var p = u[id] else { continue }
             p.x = min(1 - s / 2 / W, max(s / 2 / W, p.x))
@@ -501,7 +496,8 @@ final class WorkGraphModel: ObservableObject {
             if let a = index[line.edge.from], let b = index[line.edge.to], a != b { edges.insert([min(a, b), max(a, b)]) }
         }
         let points = ids.map { bodies[$0]?.position ?? .zero }
-        guard let best = Self.bestSwap(points, edges.sorted { $0.lexicographicallyPrecedes($1) }.map { ($0[0], $0[1]) }) else { return }
+        let boxes = extents(of: ids, at: points, side: side(for: ids.count), nameHeight: BellTheme.listNameFontSize * 1.4)
+        guard let best = Self.bestSwap(points, edges.sorted { $0.lexicographicallyPrecedes($1) }.map { ($0[0], $0[1]) }, clear: boxes) else { return }
         let a = ids[best.pair.0], b = ids[best.pair.1]
         guard var first = bodies[a], var second = bodies[b] else { return }
         let enter = reduceMotion ? 0.2 : 0.7
@@ -545,13 +541,26 @@ final class WorkGraphModel: ObservableObject {
     }
 
     /// 入れ替えると交差が最も減る2人（番号の小さい順に最初の組が勝つ）。1つも減らなければnil。layout-sim.mjsの`bestSwap`。
-    static func bestSwap(_ p: [CGPoint], _ edges: [(Int, Int)]) -> (pair: (Int, Int), gain: Int)? {
+    /// `clear`（各メンバーの四角。中心からの相対）を渡すと、関係ないメンバーの四角（広げない）を通る線も1交差に数える。
+    static func bestSwap(_ p: [CGPoint], _ edges: [(Int, Int)], clear: [CGRect]? = nil) -> (pair: (Int, Int), gain: Int)? {
         let pairs = uniquePairs(edges)
         let adjacent = p.indices.map { i in pairs.filter { $0.0 == i || $0.1 == i } }
+        func passes(_ q: [CGPoint], _ i: Int, _ j: Int) -> Int {
+            guard let clear else { return 0 }
+            func hit(_ a: Int, _ b: Int, _ k: Int) -> Bool {
+                k != a && k != b && segmentHitsBox(q[a], q[b], clear[k].offsetBy(dx: q[k].x, dy: q[k].y))
+            }
+            var count = 0
+            for (a, b) in pairs {
+                if a == i || a == j || b == i || b == j { for k in q.indices where hit(a, b, k) { count += 1 } }
+                else { if hit(a, b, i) { count += 1 }; if hit(a, b, j) { count += 1 } }
+            }
+            return count
+        }
         func local(_ q: [CGPoint], _ i: Int, _ j: Int) -> Int {
             var seen = Set<[Int]>(), mine: [(Int, Int)] = []
             for edge in adjacent[i] + adjacent[j] where seen.insert([edge.0, edge.1]).inserted { mine.append(edge) }
-            return crossCount(q, mine, pairs) - crossCount(q, mine, mine) / 2
+            return crossCount(q, mine, pairs) - crossCount(q, mine, mine) / 2 + passes(q, i, j)
         }
         var best: (pair: (Int, Int), gain: Int)?
         for i in p.indices {
@@ -563,6 +572,83 @@ final class WorkGraphModel: ObservableObject {
             }
         }
         return best
+    }
+
+    // MARK: Clearance
+
+    /// 線`ab`が四角`r`に入るか（layout-sim.mjsの`segmentHitsBox`。Liang-Barsky）。
+    static func segmentHitsBox(_ a: CGPoint, _ b: CGPoint, _ r: CGRect) -> Bool {
+        var t0: CGFloat = 0, t1: CGFloat = 1
+        let dx = b.x - a.x, dy = b.y - a.y
+        for (p, q) in [(-dx, a.x - r.minX), (dx, r.maxX - a.x), (-dy, a.y - r.minY), (dy, r.maxY - a.y)] {
+            if p == 0 { if q < 0 { return false }; continue }
+            let t = q / p
+            if p < 0 { if t > t1 { return false }; if t > t0 { t0 = t } } else { if t < t0 { return false }; if t < t1 { t1 = t } }
+        }
+        return true
+    }
+
+    /// 縁が接するだけの四角は触れたと数えない（layout-sim.mjsの`boxesMeet`）。
+    private static func boxesMeet(_ r: CGRect, _ q: CGRect) -> Bool {
+        r.minX < q.maxX && q.minX < r.maxX && r.minY < q.maxY && q.minY < r.maxY
+    }
+
+    /// 札の置き場所。全てのslotが自分の端を含むどのメンバーの四角（広げない）にもふさがれるなら、`t = 0.5`のふさがれた札の四角を返す。
+    /// 四角は札の尖りを含む範囲（`chipFrame`）を4pt広げたもの。layout-sim.mjsの`chipAt`。
+    static func blockedChip(_ p: [CGPoint], _ boxes: [CGRect], _ a: Int, _ b: Int, _ size: CGSize) -> CGRect? {
+        func area(_ t: CGFloat) -> CGRect {
+            chipFrame(at: CGPoint(x: p[a].x + (p[b].x - p[a].x) * t, y: p[a].y + (p[b].y - p[a].y) * t), size: size).area.insetBy(dx: -4, dy: -4)
+        }
+        let members = p.indices.map { boxes[$0].offsetBy(dx: p[$0].x, dy: p[$0].y) }
+        for t in chipSlots where !members.contains(where: { boxesMeet(area(t), $0) }) { return nil }
+        return area(0.5)
+    }
+
+    /// 関係ないメンバーを線と、ふさがれた札から押し出す力（behavior-spec.md「Clearance」。layout-sim.mjsの`clearance`）。
+    /// `p`は点、`boxes`は各メンバーの四角（中心からの相対）、`edges`は重ならない線（`chip`はその札の大きさ、無ければnil）。
+    /// 力は点の向きの単位ベクトルに`kc`を掛けたもので、正規化座標の力にそのまま足す。
+    static func clearance(_ p: [CGPoint], extents boxes: [CGRect], edges: [(a: Int, b: Int, chip: CGSize?)]) -> [CGVector] {
+        let kc: CGFloat = 0.003
+        var force = [CGVector](repeating: .zero, count: p.count)
+        func push(_ c: Int, _ a: Int, _ b: Int, _ ta: CGFloat, _ nx: CGFloat, _ ny: CGFloat) {
+            let d = hypot(nx, ny) == 0 ? 1 : hypot(nx, ny), fu = kc * nx / d, fv = kc * ny / d
+            force[c].dx += fu; force[c].dy += fv
+            force[a].dx -= fu * (1 - ta); force[a].dy -= fv * (1 - ta)
+            force[b].dx -= fu * ta; force[b].dy -= fv * ta
+        }
+        for (a, b, size) in edges {
+            let ex = p[b].x - p[a].x, ey = p[b].y - p[a].y, el = ex * ex + ey * ey == 0 ? 1 : ex * ex + ey * ey
+            let chip = size.flatMap { blockedChip(p, boxes, a, b, $0) }
+            if let chip, [a, b].contains(where: { boxesMeet(chip, boxes[$0].offsetBy(dx: p[$0].x, dy: p[$0].y)) }) {
+                // 札が自分の両端の間に収まらない：線を伸ばす。
+                let d = sqrt(el)
+                force[a].dx -= kc * ex / d; force[a].dy -= kc * ey / d
+                force[b].dx += kc * ex / d; force[b].dy += kc * ey / d
+            }
+            for c in p.indices where c != a && c != b {
+                let plain = boxes[c].offsetBy(dx: p[c].x, dy: p[c].y), grown = plain.insetBy(dx: -6, dy: -6)
+                let cx = grown.midX, cy = grown.midY
+                if segmentHitsBox(p[a], p[b], grown) {
+                    let t = min(1, max(0, ((cx - p[a].x) * ex + (cy - p[a].y) * ey) / el))
+                    var nx = cx - (p[a].x + t * ex), ny = cy - (p[a].y + t * ey)
+                    if hypot(nx, ny) < 1e-6 { nx = -ey; ny = ex }
+                    push(c, a, b, t, nx, ny)
+                }
+                if let chip, boxesMeet(chip, plain) { push(c, a, b, 0.5, cx - chip.midX, cy - chip.midY) }
+            }
+        }
+        return force
+    }
+
+    /// 各メンバーの四角（中心からの相対）：アイコンの正方形と、描いている名前の文字の四角（隠れた名前は含めない）の合併。
+    private func extents(of ids: [String], at points: [CGPoint], side s: CGFloat, nameHeight: CGFloat) -> [CGRect] {
+        let discs = points.map { CGRect(x: $0.x - s / 2, y: $0.y - s / 2, width: s, height: s) }
+        return ids.indices.map { i in
+            let name = Self.placeName(avatar: discs[i], name: bodies[ids[i]]?.node.name ?? "", width: s * 2.2, height: nameHeight,
+                                      others: discs.indices.filter { $0 != i }.map { discs[$0] })
+            let box = name.hidden ? discs[i] : discs[i].union(Self.textBox(name.frame, bodies[ids[i]]?.node.name ?? ""))
+            return box.offsetBy(dx: -points[i].x, dy: -points[i].y)
+        }
     }
 
     // MARK: Drawing helpers
@@ -613,19 +699,24 @@ final class WorkGraphModel: ObservableObject {
     /// 隠れた名前（`nameHidden`）の欄は下のままで、押せる範囲として残る（behavior-spec.md「Edges」）。
     func frames(_ body: Body, at now: Double) -> (avatar: CGRect, name: CGRect) {
         let avatar = avatarFrame(body, at: now)
-        let width = side(for: max(1, liveCount)) * 2.2, height = BellTheme.listNameFontSize * 1.4
-        let below = CGRect(x: avatar.midX - width / 2, y: avatar.maxY + 6, width: width, height: height)
-        let above = below.offsetBy(dx: 0, dy: -(avatar.height + 12 + height))
-        guard overlapsOtherDisc(below, body, at: now) else { return (avatar, below) }
-        return (avatar, overlapsOtherDisc(above, body, at: now) ? below : above)
+        return (avatar, placement(of: body, avatar: avatar, at: now).frame)
     }
 
-    /// 欄の文字の四角が、他のメンバーのアイコンを4pt広げた四角に重なるか。
-    private func overlapsOtherDisc(_ box: CGRect, _ body: Body, at now: Double) -> Bool {
-        let text = Self.textBox(box, body.node.name)
-        return bodies.values.contains {
-            $0.node.botId != body.node.botId && $0.leavingAt == nil && avatarFrame($0, at: now).insetBy(dx: -4, dy: -4).intersects(text)
+    private func placement(of body: Body, avatar: CGRect, at now: Double) -> (frame: CGRect, hidden: Bool) {
+        let others = bodies.values.filter { $0.node.botId != body.node.botId && $0.leavingAt == nil }.map { avatarFrame($0, at: now) }
+        return Self.placeName(avatar: avatar, name: body.node.name, width: side(for: max(1, liveCount)) * 2.2, height: BellTheme.listNameFontSize * 1.4, others: others)
+    }
+
+    /// 名前の欄を下→上の順で決める。下の文字が他のアイコン（4pt広げる）に重なるなら顔の上へ、上も重なるなら下のまま（`hidden`）。
+    static func placeName(avatar: CGRect, name: String, width: CGFloat, height: CGFloat, others: [CGRect]) -> (frame: CGRect, hidden: Bool) {
+        func covered(_ box: CGRect) -> Bool {
+            let text = textBox(box, name)
+            return others.contains { $0.insetBy(dx: -4, dy: -4).intersects(text) }
         }
+        let below = CGRect(x: avatar.midX - width / 2, y: avatar.maxY + 6, width: width, height: height)
+        if !covered(below) { return (below, false) }
+        let above = below.offsetBy(dx: 0, dy: -(avatar.height + 12 + height))
+        return covered(above) ? (below, true) : (above, false)
     }
 
     private static func textBox(_ box: CGRect, _ name: String) -> CGRect {
@@ -636,8 +727,7 @@ final class WorkGraphModel: ObservableObject {
 
     /// 上へ移っても他のアイコンに重なる名前は隠す。ポインタ（Mac）か指（iPhone/iPad）が載ったメンバーの名前だけ見せる。
     func nameHidden(_ body: Body, at now: Double) -> Bool {
-        let name = frames(body, at: now)
-        return body.node.botId != revealed && overlapsOtherDisc(name.name, body, at: now)
+        return body.node.botId != revealed && placement(of: body, avatar: avatarFrame(body, at: now), at: now).hidden
     }
 
     /// 描いている名前の文字の四角。見えていない名前（不透明度0・隠れた名前）は無し。置き場所の障害物に使う。
@@ -677,6 +767,7 @@ final class WorkGraphModel: ObservableObject {
             guard var chip else { continue }
             if let label { chip.nullAt = nil; chip.text = label } else if chip.nullAt == nil { chip.nullAt = now }
             let chipSize = size(chip.text)
+            chip.size = chipSize
             let frame = { (t: CGFloat) in Self.chipFrame(at: path.point(t), size: chipSize) }
             var opacity = 1.0
             if let endedAt = line.endedAt { opacity *= max(0, 1 - (now - endedAt) / 0.3) }
