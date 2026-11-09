@@ -70,7 +70,7 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
     if (typeof native.trust !== 'function' || typeof registry.update !== 'function' || !ref) return
     try {
       const trust = await native.trust(ref)
-      if (trust?.revision && trust.revision !== target.hostTrust.revision) await registry.update(target.terminalId, { hostTrust: { provider: trust.provider, revision: trust.revision } })
+      if (trust?.revision && trust.revision !== target.hostTrust.revision) await registry.update(target.terminalId, { hostTrust: { provider: trust.provider, revision: trust.revision } }, stored => stored.revision === target.revision)
     } catch {}
   }
 

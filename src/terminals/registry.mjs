@@ -109,11 +109,13 @@ export function createTerminalRegistry({ stateRoot, onChange } = {}) {
         return { changed: true, value: projection(record), event: { terminalId: record.terminalId, revision: record.revision, removed: false } }
       })
     },
-    update(terminalId, patch) {
+    // `expect(stored)` makes the write conditional inside the writer: false -> no change, result null.
+    update(terminalId, patch, expect) {
       return mutate(records => {
         if (!object(patch) || Object.keys(patch).some(key => !fields.includes(key))) throw invalid(`Unknown terminal fields. Allowed: ${fields.join(', ')}`)
         const index = records.findIndex(item => item.terminalId === terminalId)
         if (index < 0) throw invalid('Terminal not found; list_terminals shows the registered terminalIds', 'TERMINAL_NOT_FOUND')
+        if (expect && !expect(structuredClone(records[index]))) return { changed: false, value: null }
         const record = { ...records[index], ...structuredClone(patch), revision: records[index].revision + 1 }
         for (const field of ['sshKeyRef', 'sudoKeyRef', 'hostTrust', ...INTERNAL_FIELDS]) if (record[field] === null) delete record[field]
         validate(record, true)

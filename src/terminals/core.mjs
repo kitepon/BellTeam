@@ -56,21 +56,41 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
     }
   }
 
+  // Every read-then-write on one terminal (put, remove, key request/apply/remove) runs in this per-terminal order,
+  // so no snapshot is applied after a later DELETE, replacement or target change. close() joins what is in flight.
+  const queues = new Map()
+  const inflight = new Set()
+  let closing = false
+  function serial(terminalId, run) {
+    const operation = (queues.get(terminalId) ?? Promise.resolve()).then(run)
+    const settled = operation.catch(() => {})
+    queues.set(terminalId, settled)
+    inflight.add(settled)
+    settled.then(() => { inflight.delete(settled); if (queues.get(terminalId) === settled) queues.delete(terminalId) })
+    return operation
+  }
+
   async function put({ confirmHostKey, ...input } = {}) {
     const internal = INTERNAL_FIELDS.filter(field => field in input)
     if (internal.length) throw Object.assign(new Error(`${internal.join(', ')} is set by terminals itself; to trust a changed host key pass confirmHostKey, to set a key use the key setting`), { code: 'INVALID_TERMINAL', status: 400 })
-    return save(input, confirmHostKey)
+    return serial(input.terminalId, () => save(input, confirmHostKey))
   }
 
-  // Internal writes (key setting) may carry the internal fields.
+  // Internal writes (key setting) may carry the internal fields. Callers hold the terminal's serial slot.
   async function save(input, confirmHostKey) {
     const existing = input.terminalId ? await registry.target(input.terminalId) : null
     // A native key bound by bind_terminal_key replaces a secret key's source.
     if (existing && input.sshKeyRef && !('keySource' in input)) Object.assign(input, { keySource: null, sshKeyRequest: null })
+    // A new host/user/port is a new target: its Aiterm binding, trust and pending key requests belong to the old one.
+    const targetChanged = existing && ['host', 'user', 'port'].some(field => field in input && input[field] !== existing[field])
+    if (targetChanged) {
+      if (confirmHostKey !== undefined) throw Object.assign(new Error('Change the target first, set its SSH key again, then confirm the host key of the new target'), { code: 'INVALID_TERMINAL', status: 400 })
+      Object.assign(input, { bindingRef: null, hostTrust: null, sshKeyRequest: null, sudoKeyRequest: null })
+    }
     const next = { ...existing, ...input, terminalId: input.terminalId }
     if (confirmHostKey !== undefined) input.hostTrust = await confirm(next, confirmHostKey)
     // Bind Aiterm's already-held trust (P1 pre-enrolled known_hosts); none held leaves hostTrust missing -> TARGET_MISMATCH until confirmed.
-    else if (!input.hostTrust && !existing?.hostTrust && next.sshKeyRef && (next.keySource !== 'secret' || next.bindingRef)) {
+    else if (!targetChanged && !input.hostTrust && !next.hostTrust && next.sshKeyRef && (next.keySource !== 'secret' || next.bindingRef)) {
       const trust = await withBindingRef(next, ref => native().trust(ref)).catch(() => null)
       if (trust?.revision) input.hostTrust = { provider: trust.provider, revision: trust.revision }
     }
@@ -86,7 +106,7 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
   const keyError = (code, status, message) => Object.assign(new Error(message), { code, status })
 
   async function keyTarget(terminalId, kindName) {
-    const kind = KINDS[kindName]
+    const kind = Object.hasOwn(KINDS, kindName) ? KINDS[kindName] : null
     if (!kind) throw keyError('INVALID_KEY_KIND', 400, 'Key kind must be ssh or sudo')
     if (typeof credentials?.requestTerminalKey !== 'function') throw keyError('CREDENTIAL_UNAVAILABLE', 503, 'The secret input is not available now; try again later')
     const record = await registry.target(terminalId)
@@ -94,7 +114,8 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
     return { kind, record }
   }
 
-  async function requestKey(terminalId, kindName) {
+  const requestKey = (terminalId, kindName) => serial(terminalId, () => requestKeyNow(terminalId, kindName))
+  async function requestKeyNow(terminalId, kindName) {
     const { kind, record } = await keyTarget(terminalId, kindName)
     const patch = { terminalId }
     // Aiterm needs a binding for target + trust: reuse the native one, else create a keyless binding.
@@ -105,17 +126,20 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
           .catch(() => { throw keyError('TERMINAL_UNAVAILABLE', 503, 'Aiterm could not create the terminal binding; update Aiterm on BellTeam and try again') })
     }
     const { secretRequest } = await credentials.requestTerminalKey({ terminalId, purpose: kind.purpose, label: `${kind.label} for terminal ${terminalId}` })
-    await save({ ...patch, [kind.request]: secretRequest.id })
+    // Conditional on the snapshot's target: a target change by another writer (trust rebind) would make this binding wrong.
+    const saved = await registry.update(terminalId, { ...Object.fromEntries(Object.entries(patch).filter(([key]) => key !== 'terminalId')), [kind.request]: secretRequest.id },
+      stored => stored.host === record.host && stored.user === record.user && stored.port === record.port)
+    if (!saved) throw keyError('TERMINAL_CHANGED', 409, 'The terminal changed while the key was being requested; request the key again')
     return { secretRequest }
   }
 
-  // Mika's watchCredentials event after the card is submitted; applied only while terminals asked for that key.
-  async function applyKey({ terminalId, purpose, handle } = {}) {
-    const kind = PURPOSES[purpose]
-    if (!kind || typeof handle !== 'string') return
-    const record = await registry.target(terminalId).catch(() => null)
-    if (!record?.[kind.request] || record[kind.ref] === handle) return
-    await registry.update(terminalId, { [kind.ref]: handle, [kind.source]: 'secret', [kind.request]: null })
+  // Mika's watchCredentials event after the card is submitted; applied only for the request terminals is waiting for.
+  const applyKey = (event = {}) => closing ? Promise.resolve() : serial(event.terminalId, () => applyKeyNow(event))
+  async function applyKeyNow({ terminalId, purpose, handle, requestId } = {}) {
+    const kind = Object.hasOwn(PURPOSES, purpose) ? PURPOSES[purpose] : null
+    if (!kind || typeof handle !== 'string' || typeof requestId !== 'string') return
+    await registry.update(terminalId, { [kind.ref]: handle, [kind.source]: 'secret', [kind.request]: null }, stored => stored[kind.request] === requestId)
+      .catch(error => { if (error?.code !== 'TERMINAL_NOT_FOUND') throw error })
   }
 
   // Restart: an event missed while down is recovered from Mika's current handle.
@@ -126,12 +150,13 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
       for (const kind of Object.values(KINDS)) {
         if (!record?.[kind.request]) continue
         const current = await Promise.resolve(credentials.current({ terminalId: record.terminalId, purpose: kind.purpose })).catch(() => null)
-        if (current?.handle) await applyKey({ terminalId: record.terminalId, purpose: kind.purpose, handle: current.handle })
+        if (current?.handle) await applyKey({ terminalId: record.terminalId, purpose: kind.purpose, handle: current.handle, requestId: current.requestId })
       }
     }
   }
 
-  async function removeKey(terminalId, kindName) {
+  const removeKey = (terminalId, kindName) => serial(terminalId, () => removeKeyNow(terminalId, kindName))
+  async function removeKeyNow(terminalId, kindName) {
     const { kind, record } = await keyTarget(terminalId, kindName)
     if (record[kind.ref]) await credentials.unbind(record[kind.ref], { terminalId, purpose: kind.purpose })
     return registry.update(terminalId, { [kind.ref]: null, [kind.source]: null, [kind.request]: null })
@@ -143,19 +168,27 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
     return observation
   }
 
+  const ready = reconcileKeys().catch(() => {})
   return {
     // C8 outcome rides on the projection so existing surfaces show it (Centi's acceptance reads it there).
     registry: {
       list: async () => (await registry.list()).map(item => ({ ...item, maintenance: connection.maintenance.last(item.terminalId) })),
       get: async id => { const item = await registry.get(id); return item && { ...item, maintenance: connection.maintenance.last(id) } },
-      put, remove: registry.remove
+      put, remove: terminalId => serial(terminalId, () => registry.remove(terminalId))
     },
     reachability: { check },
     keys: { request: requestKey, remove: removeKey },
     connection,
     maintenance: connection.maintenance,
     watch(listener) { watchers.add(listener); return () => watchers.delete(listener) },
-    ready: reconcileKeys().catch(() => {}),
-    async close() { unwatchCredentials?.(); await connection.dispose() }
+    ready,
+    // Joins startup reconciliation and in-flight key work before the caller closes the credential provider.
+    async close() {
+      closing = true
+      unwatchCredentials?.()
+      await ready
+      while (inflight.size) await Promise.allSettled([...inflight])
+      await connection.dispose()
+    }
   }
 }

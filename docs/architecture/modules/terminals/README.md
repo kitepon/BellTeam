@@ -233,8 +233,8 @@ sequenceDiagram
   T-->>App: {secretRequest: {id, label, inputOptions}}
   App->>M: existing secret dialog -> POST /api/secret-requests/:id/submit (1Password reference first)
   M->>M: bind(requestId, {terminalId, purpose}) -> handle
-  M-->>T: watchCredentials {terminalId, purpose, handle, revision, available, reason}
-  T->>T: only while that key was requested: store sshKeyRef / sudoKeyRef + keySource 'secret', clear the request (registry change -> available)
+  M-->>T: watchCredentials {terminalId, purpose, handle, revision, available, reason, requestId}
+  T->>T: only when requestId is the pending request: store sshKeyRef / sudoKeyRef + keySource 'secret', clear the request (registry change -> available)
   Note over T,M: start: for a pending request, credentials.current({terminalId, purpose}) recovers a missed event
   App->>T: DELETE /api/terminals/:id/keys/ssh|sudo
   T->>M: unbind(handle, {terminalId, purpose}) then clear ref, source and request
@@ -242,13 +242,31 @@ sequenceDiagram
   A->>M: resolve handle inside the UID1000 server -> per-terminal in-memory ssh-agent
 ```
 
+Pending-key lifecycle (per terminal and kind). Every read-then-write on one terminal (put, remove, key request/apply/remove) runs in one per-terminal order, and each key write is conditional inside the registry writer:
+
+```mermaid
+stateDiagram-v2
+  [*] --> NoKey
+  NoKey --> Pending: POST keys/kind -> request id R stored (conditional on unchanged host/user/port; else 409 TERMINAL_CHANGED)
+  Configured --> Pending: POST again (key stays until the new card binds)
+  Pending --> Pending: POST again -> new id R2 replaces R (a late R is ignored)
+  Pending --> Configured: event or current() with requestId == pending R -> ref + keySource secret, request cleared
+  Pending --> NoKey: DELETE (unbind + clear) - a late R is ignored
+  Configured --> NoKey: DELETE -> Mika unbind, then clear ref/source/request
+  Pending --> Retarget: host/user/port changed -> request, bindingRef and hostTrust cleared; late R ignored
+  Configured --> Retarget: host/user/port changed -> bindingRef and hostTrust cleared
+  Retarget --> Pending: POST keys/ssh -> new keyless Aiterm binding for the new target, then confirmHostKey
+```
+
+`confirmHostKey` together with a target change is refused (confirm the new target after its binding exists). A trust rebind from the observer is conditional on the record revision it read. `core.close()` stops taking events, then joins startup reconciliation and every in-flight key operation before the mount closes the credential provider. Key kinds are only the own keys `ssh` / `sudo`; events apply only with `requestId` equal to the pending request (Mika adds `requestId` to the event and `current`).
+
 | Item | Contract |
 | --- | --- |
 | Registry fields | `sshKeyRef` / `sudoKeyRef` (Mika handles), `keySource` / `sudoKeySource`: `terminal-native` (Owner terminals, Aiterm-held key registered through Mika's registerNative; the default for a ref without a source) or `secret` (set through the secret card). op vs stored is never recorded. `bindingRef`: Aiterm's public binding (target + known_hosts + trust). `sshKeyRequest` / `sudoKeyRequest`: the pending secret request. All of these except the refs are internal: `put` refuses them from a caller. A native key bound through `bind_terminal_key` clears `keySource` and a pending ssh request. Projection: `sshKeyConfigured`, `sudoKeyConfigured`, `keySource`, `sudoKeySource`, `sshKeyPending`, `sudoKeyPending`; never a handle, key, password or op:// reference |
 | `target` | `terminal-native`: `{ref: nativeKeyRef, target, trustRevision, credentialRevision}` as today. `secret`: `{ref: bindingRef, target, trustRevision, credential: {handle, revision}}` (no credentialRevision). `sudoCredential: {handle, revision}` when a sudo key is set. terminals does not resolve a secret key value |
 | Check / C8 | Same target data through `remote_terminal_open` (Elegg accepts `credential` there too) |
 | HTTP (Owner) | `POST /api/terminals/:id/keys/{ssh,sudo}` -> `{secretRequest}`; a non-empty body is `400 KEY_IN_REQUEST_REFUSED` (the key goes only into the card). `DELETE` -> `{terminal}`. Errors: `INVALID_KEY_KIND` 400 (use ssh or sudo), `TERMINAL_NOT_FOUND` 404, `CREDENTIAL_UNAVAILABLE` 503 (secret input not mounted), `TERMINAL_UNAVAILABLE` 503 (Aiterm could not create the binding) |
-| Mika contract | `credentials.requestTerminalKey({terminalId, purpose, label})`, `watchCredentials` event `{terminalId, purpose, handle, revision, available, reason}`, `current({terminalId, purpose})`, `unbind(handle, {terminalId, purpose})`, `credential(handle, context)`. Purposes `terminal.ssh` / `terminal.sudo` (Mika aliases of ssh-key / sudo-key) |
+| Mika contract | `credentials.requestTerminalKey({terminalId, purpose, label})`, `watchCredentials` event `{terminalId, purpose, handle, revision, available, reason, requestId}`, `current({terminalId, purpose})` -> `{handle, revision, available, requestId}`, `unbind(handle, {terminalId, purpose})`, `credential(handle, context)`. Purposes `terminal.ssh` / `terminal.sudo` (Mika aliases of ssh-key / sudo-key) |
 | Exits | A submitted key emits a registry change -> `available`. DELETE leaves the terminal registered; `target` then answers `CREDENTIAL_UNAVAILABLE` reason `SSH_KEY_UNSET` with action "set the SSH key of terminal X" until a new key is set |
 
 #### Registry
