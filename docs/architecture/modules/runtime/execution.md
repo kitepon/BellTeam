@@ -60,7 +60,7 @@ flowchart TD
 | --- | --- | --- |
 | 操作のproxy | `SeatRuntime.call/projectFiles/memory` | serverの全環境や設定文書を渡さず、操作ごとの入力。response.errorはname/message/code/statusを復元 |
 | コマンド構成 | `seatCommandSpec/requireSeatProject` | 絶対project、mode、command/argsを検証。渡す環境は最小PATH。root-owned entryをcheckoutへ置換しない |
-| identity変更 | `scripts/seat-exec.c` | FD3以降・継承環境・groupsを除き、実効/実/保存UID/GIDを1000へ。変更後にだけNode/対象commandを実行 |
+| identity変更 | `scripts/seat-exec.c` | FD3以降・継承環境・groupsを除き、`oom_score_adj=1000`を設定（失敗しても起動は続ける）、実効/実/保存UID/GIDを1000へ。変更後にだけNode/対象commandを実行 |
 | env選択 | `run-seat-command` → `baseBotEnvironment/loadBotEnvironment` | configuredのみprojectのenv.shを評価。baseはsetupや短命操作用。env.shのJSON値を通常logへ出さない |
 | H1固定base | `fixedResumeBase/checkResumeEnvironment` | 信頼済み固定pathをclearenv後に適用し、configured読込後の逸脱は拒否。汎用dynamic envは許可しない |
 | 子の取消 | `run-seat-command.run/signalGroup` | detached process groupへsignal。250ms後のKILLを受信時に予約し、leader終了後もgroupが残れば待つ |
@@ -76,6 +76,32 @@ streamの役割は巨大な画像を全量JSONへ載せないこと。通常の`
 席のenv.shは席のUIDで動く。本体専用の診断合鍵は`runtimeEnvironment`が除き、bootstrapからの席呼出しでは固定C entryでも継承環境を除く。これを「全Botが互いのprojectから隔離される」と広げない。全席UID1000という既存の責任境界である。
 
 CLI登録・共有設定・hookの正本は[runtimeの登録図](cli-registration.md)。登録更新の所有と失敗の契約も同図で管理する。
+
+## Host memory exhaustion takes seats, not the body (Molly, 2026-11-10)
+
+Owner ruling 2026-11-04: the container is never taken down as a whole; only children are lost and restarted. Production 2026-11-10 08:45:18 JST broke it: with host RAM+swap full, the kernel OOM killer chose the body parent `node /app/src/supervisor.mjs` (UID1001, largest single RSS ~820MB, `oom_score_adj` 0). docker-init (PID1) exits with its only child, so Docker restarted the whole container and every seat lost its turn. Each seat CLI was smaller (~300MB) but there were ~40 of them at the same `oom_score_adj` 0.
+
+```mermaid
+flowchart TD
+  Init["PID1 docker-init<br/>exits when its child exits"] --> Parent["body parent supervisor.mjs UID1001<br/>oom_score_adj 0"]
+  Parent --> Modules["resident module children UID1001<br/>oom_score_adj 0<br/>parent restarts them 1s..30s"]
+  Parent --> Sudo["sudo -n (root, small)"]
+  Sudo --> SeatExec["bellteam-seat-exec (root)<br/>writes oom_score_adj=1000, then UID1000"]
+  SeatExec --> SeatTree["every seat-side process, inherited across fork/exec/daemonize:<br/>Aiterm execution server, tmux, claude/codex/grok/cursor CLIs,<br/>their tools (rg, tar, chrome), setup.sh, short seat operations"]
+  Pressure["host RAM+swap exhausted"] --> Pick{"kernel OOM victim:<br/>largest rss+swap + adj*total/1000"}
+  Pick -->|"first: any seat-side process (adj 1000)"| SeatTree
+  Pick -->|"only after no seat-side process is left"| Parent
+  SeatTree -->|"CLI killed"| SeatRecover["seat turn lost; existing failed-seat wake relaunches on next delivery"]
+  SeatTree -->|"Aiterm server killed"| AitermRecover["MCP stdio client onclose; next call respawns it through seat-exec"]
+```
+
+| Item | Contract |
+| --- | --- |
+| Where | One point: `seat-exec.c`, before dropping root. Every UID1000 process the body starts goes through it (`seatCommandSpec`). Children inherit the value across fork/exec/daemonize. Docker drops `CAP_SYS_RESOURCE`, so a seat process could write it back down to 0 itself; no BellTeam, Aiterm or CLI code does that (checked 2026-11-10 with the compiled entry: seat reads 1000). |
+| Body side | Parent and module children keep the kernel default 0. No negative value: the body runs without `CAP_SYS_RESOURCE`, and the Host's own processes keep their order relative to the body. |
+| Failure | Writing `/proc/self/oom_score_adj` failing (e.g. a kernel without procfs write) is ignored and the seat starts as before. It is a priority hint, not a guard. |
+| No new limit | Turn start, concurrency and container memory are unchanged. A Docker memory limit or Host swap/OS change is Host-owned (Emma). |
+| Not covered | If memory is still short after every seat-side process is gone, the body is next. The parent's own ~800MB+ RSS is a separate question, not changed here. |
 
 ## 設定保存へ管理済みstateだけを渡す
 
