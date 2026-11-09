@@ -84,3 +84,18 @@ test('1Password連携: 押下中は確かめ中と示し、PATCH応答の結果�
     assert.equal(refused.result, null); assert.equal(refused.error, '有効にするには必要な項目を登録してください。')
   } finally { globalThis.document = previous }
 })
+
+test('1Password連携: 失敗理由はカード内の結果行に一度だけ出し、上の警告を重ねない', () => {
+  const previous = globalThis.document
+  globalThis.document = { createElement: tag => new Element(tag), createTextNode: text => Object.assign(new Element('#text'), { textContent: text }) }
+  try {
+    const container = new Element('div')
+    const message = 'このトークンで1Passwordに接続できませんでした。トークンを貼り直してください。'
+    renderFeatureSettings(container, [{ id: 'onePassword', title: '1Password連携', enabled: true, status: 'enabled', error: { code: 'ONEPASSWORD_TOKEN_REJECTED', message },
+      fields: [{ key: 'token', label: 'トークン', secret: true, value: '', configured: true }] }], { api() {}, onChange() {} })
+    const descendants = element => [element, ...element.children.flatMap(descendants)]
+    const texts = descendants(container).map(item => item.textContent).filter(text => text.includes(message))
+    assert.deepEqual(texts, [`連携できませんでした。${message}`])
+    assert.equal(descendants(container).find(item => item.className === 'feature-result').hidden, false)
+  } finally { globalThis.document = previous }
+})
