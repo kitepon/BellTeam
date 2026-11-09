@@ -39,7 +39,7 @@ function validate(record, stored = false) {
   if (record.sudoKeyRef !== undefined) checkRef('sudoKeyRef', record.sudoKeyRef, 'sudo password')
   // hostTrust is Elegg's public trust ref: {provider:'aiterm.known-hosts.v1', revision:'sha256:<64hex>'}; set by terminals, not callers.
   if (record.hostTrust !== undefined && (!object(record.hostTrust) || Object.keys(record.hostTrust).length !== 2 || typeof record.hostTrust.provider !== 'string' || !/^[a-z0-9][a-z0-9._-]*$/i.test(record.hostTrust.provider) || typeof record.hostTrust.revision !== 'string' || !/^sha256:[0-9a-f]{64}$/.test(record.hostTrust.revision))) throw invalid('hostTrust is set by terminals from the trusted host key; to trust a changed host key pass confirmHostKey with the SHA256: fingerprint the Owner confirmed')
-  if (record.ingressUrl !== undefined && (typeof record.ingressUrl !== 'string' || !/^https?:\/\/[a-z0-9.-]+(?::\d{1,5})?$/i.test(record.ingressUrl))) throw invalid('ingressUrl must be an origin only, like http://192.168.1.10:18891 (no path)')
+  if (record.ingressUrl !== undefined && (typeof record.ingressUrl !== 'string' || !/^https?:\/\/[a-z0-9.-]+(?::\d{1,5})?$/i.test(record.ingressUrl))) throw invalid('ingressUrl must be an http origin only, like http://127.0.0.1:4182 (no path); for SSH reverse-forward terminals Aiterm replaces it with the terminal\'s own loopback port')
 }
 
 function projection(record) {

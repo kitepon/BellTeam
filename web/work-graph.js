@@ -235,7 +235,7 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch, onOpenMe
     if (model.firstSeen) paintEmpty()
     frameId = requestAnimationFrame(draw)
   }
-  // 混んでいる時や隠れたラベル・名前は、ポインターを近づけた時だけ出す。
+  // 隠れた名前はポインターを近づけた時だけ出す。指した札は一番上に描く。
   const tap = createTap(botId => onOpenMember(botId))
   const hit = event => {
     const box = canvas.getBoundingClientRect(), x = event.clientX - box.left, y = event.clientY - box.top
