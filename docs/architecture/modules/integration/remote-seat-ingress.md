@@ -83,23 +83,22 @@ Protection: a caller cannot speak as a seat it was not launched as (privilege es
 
 ## Mount (P1)
 
-- Terminals runs as an injectable in-parent core, no child process and no new service. Crust's PR adds `export { createTerminalsCore } from './terminals/core.mjs'` to `src/bootstrap.mjs`; `createApplicationServices` receives it and calls `createTerminalsCore({ stateRoot: <root>/state, credentials, seatCredentials, report })` once. Without it, the endpoints return `503 TERMINALS_UNAVAILABLE` and execution gets no `terminals` port.
+- Terminals runs as an injectable in-parent core, no child process and no new service. Crust's PR adds `export { createTerminalsCore } from './terminals/core.mjs'` to `src/bootstrap.mjs`; `createApplicationServices` receives it and calls `createTerminalsCore({ stateRoot: <root>/state, credentials, report })` once. Without it, the endpoints return `503 TERMINALS_UNAVAILABLE` and execution gets no `terminals` port.
 - `stateRoot` is `<BELLTEAM_ROOT>/state` (`/srv/bellteam/state`), written by the parent UID 1001. Use `writeAtomic` from `src/json-file.mjs`; one writer per file.
 - `credentials` is `usageAssembly.credentials`, usage's credential facade (Mika, C5) with system authority captured inside usage-assembly (null: opens return CREDENTIAL_UNAVAILABLE); `report` is `diagnostics.record`.
 - Execution gets `ports.terminals` (the core's `connection` and `watch`, as-is) and `ports.ingress = {seatCredential: {issue, revoke}}` only when its factory declares `supportsRemoteSeats === true` (older engines reject unknown port keys).
-- `createTerminalsCore` also receives `seatCredentials: {reveal}` for the private launch channel.
 - Child packaging (work-graph precedent) waits until terminals needs exchange without a body swap.
 
 ## Core interface the parent mounts (Crust)
 
-`createTerminalsCore({stateRoot, credentials, seatCredentials, report})` (Crust #771) returns the members below. `seatProject` defaults to `dirname(stateRoot)` = BellTeam root, the same seat project the parent's Aiterm client uses; terminals spawns Elegg's UID 1000 `aiterm-remote-terminal` itself through `seatCommandSpec`, so no native client is passed:
+`createTerminalsCore({stateRoot, credentials, report})` (Crust #771, trimmed in #792: terminals no longer reveals seat credentials) returns the members below. `seatProject` defaults to `dirname(stateRoot)` = BellTeam root, the same seat project the parent's Aiterm client uses; terminals spawns Elegg's UID 1000 `aiterm-remote-terminal` itself through `seatCommandSpec`, so no native client is passed:
 
 | Member | Used by | Shape |
 | --- | --- | --- |
 | `registry.list()` / `get(terminalId)` | HTTP, MCP, `seatCredential.issue` | nonsecret projections; `get` returns null when absent. `seatCredential.issue` only checks that the terminal exists; the projection's `ingressUrl` is no longer read (Crust may drop it) |
 | `registry.put(input)` / `remove(terminalId)` | HTTP, MCP | upsert by terminalId; `ingressUrl: null` clears; optional `confirmHostKey: 'SHA256:…'` confirms host trust. Validation and typed errors (`code` + `status`) are the core's |
 | `reachability.check(terminalId)` | HTTP, MCP | the core's observation DTO |
-| `connection` | execution `ports.terminals.connection` | passed as-is; methods are the terminals/execution contract (PR #765) |
+| `connection` | execution `ports.terminals.connection` | passed as-is (`target`, `onAvailable` since #792); methods are the terminals/execution contract (PR #765) |
 | `watch(listener)` | execution `ports.terminals.watch`, parent refresh helper | events with `terminalId`, `reachable`, `observedAt` |
 | `close()` | body close | optional |
 

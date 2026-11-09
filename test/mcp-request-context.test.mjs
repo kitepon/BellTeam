@@ -45,7 +45,9 @@ test('connection failure precedes call and carries no outcome', async () => {
 test('returned refusal remains returned; explicit not-sent recovery still runs once', async () => {
   let sends = 0, wakes = 0
   const client = new AitermClient()
-  client.client = { async callTool() {
+  client.client = { async callTool({ name }) {
+    // The recovery's own observation (delivery-details.md wake-first) is not a send.
+    if (name === 'pty_observe') return { content: [], structuredContent: { exists: false } }
     if (++sends === 1) return { isError: true, content: [{ type: 'text', text:
       'aiterm: AGENT_SESSION_REQUIRED: 文字列は送信していません。' }] }
     return { content: [], structuredContent: { mode: 'agent_steer' } }
