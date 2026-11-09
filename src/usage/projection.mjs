@@ -47,7 +47,7 @@ export function usageProjectionRecordValid(row) {
   if (row.type === 'secret') return keys(item, ['id', 'botId', 'roomId', 'toolId', 'label', 'message', 'at', 'status'], ['path', 'notification', 'withdrawn', 'inputOptions', 'terminalId', 'purpose'])
     && ['id', 'toolId', 'label', 'message', 'at'].every(key => typeof item[key] === 'string') && (item.roomId === null || typeof item.roomId === 'string')
     && (typeof item.botId === 'string' && !Object.hasOwn(item, 'terminalId') && !Object.hasOwn(item, 'purpose')
-      || item.botId === null && item.roomId === null && item.toolId === 'terminal-key' && ['terminal.ssh', 'terminal.sudo'].includes(item.purpose)
+      || item.botId === null && item.roomId === null && item.toolId === 'terminal-key' && ['terminal.ssh', 'terminal.sudo', 'terminal.login'].includes(item.purpose)
       && credentialScopeValid({ terminalId: item.terminalId, purpose: item.purpose }))
     && ['pending', 'submitted', 'cancelled'].includes(item.status) && (!Object.hasOwn(item, 'path') || typeof item.path === 'string')
     && (!Object.hasOwn(item, 'notification') || ['pending', 'sent', 'failed', 'not_needed'].includes(item.notification))

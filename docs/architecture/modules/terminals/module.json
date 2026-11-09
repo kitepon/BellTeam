@@ -8,9 +8,10 @@
     "registry",
     "reachability",
     "connection",
+    "trust",
+    "folder",
     "privilege",
-    "maintenance",
-    "folder"
+    "maintenance"
   ],
   "uses": [
     {

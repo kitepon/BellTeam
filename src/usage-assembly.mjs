@@ -94,7 +94,9 @@ export function createUsageAssembly({ root, exchangeMutex, environment = {}, sea
     async withResolved(handle, target, consume) {
       await nativeCredentials.ready()
       await nativeCredentials.assertSelected(handle, { terminalId: target?.terminalId, purpose: target?.purpose })
-      const deliver = value => nativeCredentials.withSelected(handle, { terminalId: target?.terminalId, purpose: target?.purpose }, () => consume(value))
+      // The child revokes a one-shot login handle before returning its value, so the selection fence would refuse it; login is never native.
+      const deliver = target?.purpose === 'terminal.login' ? consume
+        : value => nativeCredentials.withSelected(handle, { terminalId: target?.terminalId, purpose: target?.purpose }, () => consume(value))
       return nativeCredentials.owns(handle) ? nativeCredentials.withResolved(handle, target, deliver)
         : facade.secretRequests.withResolved(handle, target, deliver, systemContext('secrets.resolve'))
     },

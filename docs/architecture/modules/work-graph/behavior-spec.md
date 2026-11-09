@@ -78,6 +78,31 @@ Added 2026-11-10 after the Owner asked whether lines between members can avoid c
 - Drawing: each swapped node glides from its current drawn position to its new simulated position over 700 ms with the enter curve `cubic-bezier(0.2, 0.8, 0.2, 1)`, like Enter. Its edges and chips follow the drawn positions. A node that is still in its enter animation keeps its enter interpolation toward the new target.
 - Crossings cannot always reach zero (for example, 5 members all connected to each other). The swaps reduce them to what single trades allow. Reference numbers, 5 runs each with `n` random edges among `n` members: Web 1440×900 n=10: 5.8 → 0.2, n=16: 12.2 → 0.4, n=24: 28.4 → 1.2; iPhone portrait n=16: 14.0 → 0.6. Fill of each axis is unchanged (table below). One check with 24 members and 36 edges takes about 5 ms in Node, so it runs on the frame thread.
 
+### Clearance: edges and chips keep off other members
+
+Added 2026-11-10 after Trony judged Apple 123: an edge ran over an unrelated member's avatar (レオナ→モリー over ソラ), and chips sat on member names (「依頼1の確認」 on ケイ). Goal: a request's line and chip stay off every member that is not part of that request, so every name and every request stays readable.
+
+- Node box (points): the avatar disc's square plus the drawn name's text box under it (a hidden name does not count), both grown by `clearGap = 6` pt. Leaving nodes take no part.
+- Every frame, for every edge (A→B and B→A once) and every non-leaving node C that is neither end:
+  - Line: if the straight segment between the two node centers enters C's box, push C away from the segment's closest point to C's box center with force `kc = 0.003` (normalized units, same scale as the table above). The two ends take the opposite push, split by where the closest point lies (`1 − t` to the start, `t` to the end). If C's box center sits exactly on the line, push along the segment's normal.
+  - Chip: if the edge's chip is blocked (see Chip placement) and its box at `t = 0.5`, grown by 4 pt, meets C's box (not grown), push C away from the chip's center with `kc`, the two ends taking half each.
+- If a blocked chip's box also meets one of its own ends, push the two ends apart along the edge with `kc`, so the edge lengthens until a slot frees.
+- These pushes join the table's forces before integration (`α` scales them like the rest). They do not change collision, bounds or the chip rules.
+- The uncrossing swap counts each edge that runs through an unrelated node box (not grown) the same as one crossing, so a swap is also taken when it moves a member off a line.
+- Every drawn name gets a 3 pt halo in the canvas color (a stroke behind the text, Web `strokeText` with `lineWidth 3` before `fillText`; SwiftUI the same text drawn offset in the canvas color or `.shadow` with radius 0 in 8 directions). An edge or a blocked chip that is still under a name (drawn below it by the drawing order) can no longer cut through its letters.
+- Limit: when the screen has no room (for example 24 members and 24 open requests on an iPhone), some chips stay blocked. They follow the Owner's rulings as before: a drawn chip is never hidden, it stays below nodes and names, and it is read in full on hover or tap.
+
+Reference, `node layout-sim.mjs` (5 runs each, `n` random edges among `n` members; "blocked chips" uses a 120×22 pt chip and the Chip placement slots, own ends included):
+
+| Screen | n | Crossings | Edges through a member | Blocked chips |
+| --- | --- | --- | --- | --- |
+| Web 1440×900 | 16 | 12.2 → 0.8 | 2.2 → 0.0 | 0.0 → 0.0 |
+| Web 1440×900 | 24 | 28.4 → 2.4 | 6.8 → 0.0 | 0.6 → 0.0 |
+| iPhone portrait | 10 | 4.8 → 0.0 | 2.4 → 0.2 | 3.6 → 2.6 |
+| iPhone portrait | 16 | 14.0 → 0.8 | 9.0 → 0.0 | 11.2 → 7.2 |
+
+"Before" is the layout without uncrossing swaps and clearance; "after" has both. Fill of each axis moves by at most 0.01.
+
 Expected result, from the reference simulation [layout-sim.mjs](layout-sim.mjs) (`node layout-sim.mjs`; same constants as above, exported as `LAYOUT`):
 
 | Members | Fill of each axis |

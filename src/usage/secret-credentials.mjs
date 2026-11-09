@@ -49,7 +49,9 @@ export class SecretCredentials {
   #recovery
   #closed = false
   #bindingOrder = 0
-  constructor({ root, getRequest, onePassword = createOnePasswordSource(), providers = {}, retryMs = 60000 }) {
+  #takeOnce
+  constructor({ root, getRequest, onePassword = createOnePasswordSource(), providers = {}, retryMs = 60000, takeOnce = () => null }) {
+    this.#takeOnce = takeOnce
     this.sourceDirectory = join(root, 'state/secret-sources')
     this.directory = join(root, 'state/secret-credentials')
     this.toolsDirectory = join(root, 'state/secret-values')
@@ -76,7 +78,8 @@ export class SecretCredentials {
           || !id(record.requestId) || !Number.isSafeInteger(record.revision) || record.revision < 1
           || record.revoked !== undefined && typeof record.revoked !== 'boolean'
           || record.bindingOrder !== undefined && (!Number.isSafeInteger(record.bindingOrder) || record.bindingOrder < 1)) throw error('SECRET_STORAGE_INVALID', 503)
-        items.set(key, record)
+        // A restart lost the one-shot login value held in memory, so its handle can never resolve again.
+        items.set(key, items === this.#handles && record.purpose === 'terminal.login' ? { ...record, revoked: true } : record)
         if (items === this.#handles) this.#bindingOrder = Math.max(this.#bindingOrder, record.bindingOrder ?? 0)
       }
     }
@@ -265,6 +268,13 @@ export class SecretCredentials {
   async withResolved(handle, context, consume) {
     if (typeof consume !== 'function') throw error('SECRET_CREDENTIAL_INVALID')
     const record = this.#record(handle, context)
+    if (record.purpose === 'terminal.login') {
+      // Revoke before handing out: the value is used at most once, even when consume fails.
+      await this.unbind(handle, { terminalId: record.terminalId, purpose: record.purpose })
+      let value = this.#takeOnce(record.requestId)
+      if (!value) throw error('SECRET_REQUEST_CLOSED', 409)
+      try { return await consume(value) } finally { value = null }
+    }
     let value = await this.resolveRequest(record.requestId)
     try {
       if (this.#handles.get(handle) !== record) throw error('SECRET_CREDENTIAL_STALE', 409)

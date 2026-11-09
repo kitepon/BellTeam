@@ -2,7 +2,7 @@ import { openImageViewer } from './image-gallery.js?v=__ASSET_VERSION__'
 import { guardEditorClose, requestEditorClose } from './editor-close.js?v=__ASSET_VERSION__'
 import { createAvatarEditor } from './avatar-editor.js?v=__ASSET_VERSION__'
 import { applyAvatar, initials, escapeClass } from './view-format.js?v=__ASSET_VERSION__'
-import { readTerminals, remoteBindingBody } from './terminals.js?v=__ASSET_VERSION__'
+import { FOLDER_UNCHECKED, folderRefusal, memberFolder, readTerminals, remoteBindingBody } from './terminals.js?v=__ASSET_VERSION__'
 
 export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, onStatus, onMemory, onSheets }) {
   let owner = null, models = {}, modelLoad = null, saving = null, editRevision = 0
@@ -44,7 +44,16 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
   const botProjectRoot = dialog.querySelector('#bot-project-root')
   const botProjectRootField = dialog.querySelector('#bot-project-root-field')
   const botRemoteStatus = dialog.querySelector('#bot-remote-status')
-  botTerminal.addEventListener('change', () => { botProjectRootField.hidden = !botTerminal.value })
+  const botCreateFolder = dialog.querySelector('#bot-create-folder')
+  // Prefill an empty folder, or one still holding our own prefill; typed text is never replaced.
+  const prefillFolder = () => {
+    const user = owner?.terminals?.find(item => item.terminalId === botTerminal.value)?.user
+    if (!user || (botProjectRoot.value && botProjectRoot.value !== owner.prefill)) return
+    botProjectRoot.value = owner.prefill = memberFolder(user, botName.value)
+  }
+  botTerminal.addEventListener('change', () => { botProjectRootField.hidden = !botTerminal.value; botCreateFolder.hidden = true; prefillFolder() })
+  botName.addEventListener('input', () => { if (owner?.remote && botTerminal.value) prefillFolder() })
+  botCreateFolder.addEventListener('click', event => { void saveBot(event, { createFolder: true }) })
   const avatar = createAvatarEditor({ onChange: () => { editRevision++ }, retainSource:true, applyAvatar, initials, escapeClass,
     fileInput: botAvatarFile, preview: botAvatarPreview, cropEditor, canvas: avatarCrop, zoom: avatarZoom,
     nameInput: botName, colorInput: botColor, fallback: 'B', error: botFormError })
@@ -180,7 +189,10 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
     botProjectRoot.value = opened.bot?.projectRoot ?? ''
     botProjectRootField.hidden = !savedId
     botRemoteStatus.textContent = result.terminals.length ? '' : '端末はまだ登録されていません。設定の「端末」から登録できます。'
+    botCreateFolder.hidden = true
+    opened.terminals = result.terminals
     opened.remote = true
+    if (savedId) prefillFolder()
     botRemote.hidden = false
   }
 
@@ -249,7 +261,7 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
     renderEffortOptions(selectableEfforts().includes(botReasoningEffort.value) ? botReasoningEffort.value : '')
   })
 
-  async function saveBot(event) {
+  async function saveBot(event, { createFolder = false } = {}) {
     event.preventDefault()
     if (!owner || saving === owner || deletionPending()) return
     if (avatar.pending() || largeAvatar.pending()) { botFormError.textContent = '写真を読み込んでいます。表示を確認してから保存してください。'; return }
@@ -259,6 +271,7 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
     const current = () => owner === opened && revision === editRevision
     saving = opened
     botFormError.textContent = ''
+    botCreateFolder.hidden = true
     saveBotButton.disabled = true
     saveBotButton.textContent = opened.bot ? '保存中…' : '作成中…'
     const profile = {
@@ -273,15 +286,23 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
     opened.submission = { profile, revision }
     let accepted = false
     try {
+      // createFolder is a request-only flag (members S5): never saved, so it stays out of the verify snapshot.
       const result = await api(opened.bot ? `/api/bots/${opened.bot.id}` : '/api/bots', {
-        method: opened.bot ? 'PATCH' : 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(profile),
+        method: opened.bot ? 'PATCH' : 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(createFolder ? { ...profile, createFolder } : profile),
       })
       accepted = true
       opened.bot = result.bot
       await onSaved(result.bot, current)
-      if (current()) dialog.close()
+      // Saved without reaching the Mac: keep the dialog open so the quiet note is read.
+      if (result.bot?.folderCheck?.checked === false) { if (owner === opened) botRemoteStatus.textContent = FOLDER_UNCHECKED }
+      else if (current()) dialog.close()
     } catch (error) {
-      if (owner === opened) {
+      const refusal = !accepted && owner?.remote ? folderRefusal(error, profile.projectRoot ?? botProjectRoot.value.trim()) : null
+      if (owner === opened && refusal) {
+        // A definite refusal: nothing was saved, so there is nothing to verify.
+        botFormError.textContent = refusal
+        botCreateFolder.hidden = error.code !== 'FOLDER_MISSING'
+      } else if (owner === opened) {
         botFormError.textContent = accepted ? '保存しました。表示を更新できませんでした。' : `保存結果を確認できませんでした（${error.message}）。入力は残しています。`
         verifySaveButton.hidden = !opened.bot
       }

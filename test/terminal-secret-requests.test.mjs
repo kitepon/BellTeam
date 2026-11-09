@@ -222,9 +222,9 @@ test('longest valid terminal ID keeps complete SSH and sudo caller labels', asyn
   t.after(() => core.close())
   await core.ready
   await core.registry.put({ terminalId, host: '192.0.2.11', user: 'synthetic', os: 'macos', accountOwner: 'terminal-owner' })
-  for (const [kind, label, purpose] of [['ssh', 'SSH key', 'terminal.ssh'], ['sudo', 'sudo password', 'terminal.sudo']]) {
+  for (const [kind, label, purpose] of [['ssh', 'SSH鍵', 'terminal.ssh'], ['sudo', 'sudoパスワード', 'terminal.sudo']]) {
     const { secretRequest } = await core.keys.request(terminalId, kind)
-    assert.equal(secretRequest.label, `${label} for terminal ${terminalId}`)
+    assert.equal(secretRequest.label, `端末 ${terminalId} の${label}`)
     assert.equal(secretRequest.terminalId, terminalId)
     assert.equal(secretRequest.purpose, purpose)
   }

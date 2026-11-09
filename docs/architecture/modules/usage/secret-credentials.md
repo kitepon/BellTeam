@@ -174,3 +174,27 @@ flowchart LR
   FS -->|list: guide, status, error, connection, token empty| Screen[Settings badge 連携中/未連携/失敗]
   OP -->|available| Cards[pending SSH cards: picker]
 ```
+
+### One-shot terminal.login password (Crust S4, 2026-11-10)
+
+Terminals self-service ([terminals README S4](../terminals/README.md)) needs the Mac login password once to run Aiterm `authorize-key`. It reuses the Owner terminal key contract with a third purpose, `terminal.login`; no new method, route or DTO field.
+
+| Step | Contract |
+| --- | --- |
+| Create | `credentials.requestTerminalKey({terminalId, purpose:'terminal.login', label})` → `{secretRequest}`. Card message 「このMacのログインパスワード（1回だけ使い、保存しません）」. Creating a new one supersedes the scope: pending cards cancel, an unconsumed earlier value is dropped and its handle revoked. |
+| Input | `inputOptions` is always `{preferred:'stored', onePasswordAvailable:false}` (paste only; the password input already carries `data-1p-ignore`). The Web card (`web/secret-input.js`, my secret-input caller) shows the note 「このMacに鍵を入れるときに1回だけ使い、すぐに消します。保存せず、会話にも送信されません。」 for this purpose instead of the stored-value note 「BellTeamの利用者領域へ保存します」. A `{source:'onepassword'}` submit is refused with SECRET_VALUE_INVALID. |
+| Submit | The value is held only in the usage child's memory, keyed by requestId. Nothing is written under `state/secret-values`; the request record has no `path`. The existing bind runs, so terminals receives the usual `credential` event `{terminalId, purpose:'terminal.login', handle, revision, available, reason:'bound', requestId}` and `current(scope)` returns it. |
+| Consume | `withResolved(handle, {terminalId, memberId:null, purpose:'terminal.login'}, consume)` first revokes the handle (event reason `unbound`), then takes the value out of memory and hands it to `consume`. A second or concurrent call gets SECRET_REQUEST_CLOSED (409) before any value. The value is gone whether `consume` succeeds or fails; a rejected password needs a new card. The parent `withResolved` hands a `terminal.login` value straight to `consume` without the native selection fence, because the child's `unbound` projection tombstones the scope before the value returns (login is never native). |
+| Restart | A usage restart loses the value. Restored `terminal.login` handles load as revoked (in memory, no write), so `current(scope)` returns null and terminals asks for a new card. |
+
+```mermaid
+flowchart LR
+  T[terminals POST keys/ssh/authorize] -->|requestTerminalKey terminal.login| R[SecretRequests]
+  R --> C[Owner card: paste only]
+  C -->|submit value| M[(child memory: requestId -> value)]
+  M --> B[bind handle] -->|credential event bound + requestId| T
+  T -->|withResolved once| W[revoke handle, take value] -->|value| P[parent consume -> Aiterm authorize-key stdin]
+  W -->|credential event unbound| T
+```
+
+Protection: secret exposure (the password is never persisted, logged or reusable). Exit: every new request or Owner submit starts a fresh one-shot; nothing sticky.
