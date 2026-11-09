@@ -83,16 +83,11 @@ struct WorkGraphPress: Equatable {
         if hypot(point.x - start.x, point.y - start.y) >= 10 { moved = true }
     }
 
-    /// 離した時にタップ（10pt未満の移動・500ms未満）か。メンバーのタップも線のタップも同じ基準。
-    func isTap(at point: CGPoint, time end: Double) -> Bool {
-        var press = self
-        press.move(to: point)
-        return !press.moved && end - time < 0.5
-    }
-
     /// 離した時に開くメンバー。タップでなければnil。
     func release(at point: CGPoint, time end: Double) -> String? {
-        isTap(at: point, time: end) ? botId : nil
+        var press = self
+        press.move(to: point)
+        return !press.moved && end - time < 0.5 ? botId : nil
     }
 }
 
@@ -118,7 +113,7 @@ final class WorkGraphModel: ObservableObject {
         var endedAt: Double?
         /// 依頼が始まった時刻（サーバーの`startedAt`）。札を始まった順に置くために使う。
         var serverStart: Double?
-        /// 札。latch frameで一度だけ作り、辺が終わるまで残す（behavior-spec.md「Edges」）。
+        /// 札の出し方。決めた後は変えない（behavior-spec.md「Edges」のchip visibility）。
         var chip: Chip?
 
         init(edge: WorkGraphEdge, startedAt: Double) {
@@ -133,9 +128,14 @@ final class WorkGraphModel: ObservableObject {
         lines.sorted { ($0.serverStart ?? $0.startedAt, $0.edge.id) < ($1.serverStart ?? $1.startedAt, $1.edge.id) }
     }
 
-    /// latch frame（labelがあり、両端の入場が終わった最初のコマ）で一度だけ作る。
+    /// 札の出し方。latch frame（labelがあり、両端の入場が終わった最初のコマ）で一度だけ決める。
+    enum ChipMode: Equatable { case brief, shown }
+
     struct Chip: Equatable {
-        /// 置いた線の上の位置。nilは描かない（空きを待つ・消え終えた）。
+        let mode: ChipMode
+        /// latch frameの時刻。briefの3秒はここから測る。
+        let since: Double
+        /// 置いた線の上の位置。nilは描かない（空きを待つ・briefの窓が終わった・消え終えた）。
         var t: CGFloat?
         var appearAt: Double?
         /// labelがnullへ戻った時刻。300msで消す。
@@ -147,6 +147,7 @@ final class WorkGraphModel: ObservableObject {
     /// 描ける線1本。pointは線の上の位置t（0〜1）。
     struct EdgePath {
         let id: String
+        let length: CGFloat
         let point: (CGFloat) -> CGPoint
     }
 
@@ -183,12 +184,7 @@ final class WorkGraphModel: ObservableObject {
     @Published private(set) var connection = Connection.connecting
     @Published private(set) var degraded = false
     @Published private(set) var isEmpty = true
-    /// 試験がメンバーを置けるよう、setは閉じない。
-    var bodies: [String: Body] = [:]
-    /// iPhone/iPadで線をタップして札を見せている辺（次の別のタップまで）。
-    private(set) var tappedEdge: String?
-    /// 名前が隠れていても見せるメンバー（Macはポインタ、iPhone/iPadは指が載った相手）。`layoutChips`が毎フレーム受ける。
-    private(set) var revealed: String?
+    private(set) var bodies: [String: Body] = [:]
     private(set) var lines: [String: Line] = [:]
     private(set) var order: [String] = []
     private(set) var heat: Double = 1
@@ -508,64 +504,28 @@ final class WorkGraphModel: ObservableObject {
 
     func drawPosition(_ body: Body, at now: Double) -> CGPoint { appearance(body, at: now).point }
 
-    private func avatarFrame(_ body: Body, at now: Double) -> CGRect {
-        let look = appearance(body, at: now)
-        let size = side(for: max(1, liveCount)) * look.scale
-        return CGRect(x: look.point.x - size / 2, y: look.point.y - size / 2, width: size, height: size)
-    }
-
     /// 描いたアイコンの四角と名前の欄。描画とタップの判定が同じ位置を使う。
-    /// 名前は、下の文字が他のメンバーのアイコン（4pt広げる。退場中は除く）に重なるなら顔の上へ移る。
-    /// 隠れた名前（`nameHidden`）の欄は下のままで、押せる範囲として残る（behavior-spec.md「Edges」）。
     func frames(_ body: Body, at now: Double) -> (avatar: CGRect, name: CGRect) {
-        let avatar = avatarFrame(body, at: now)
-        let width = side(for: max(1, liveCount)) * 2.2, height = BellTheme.listNameFontSize * 1.4
-        let below = CGRect(x: avatar.midX - width / 2, y: avatar.maxY + 6, width: width, height: height)
-        let above = below.offsetBy(dx: 0, dy: -(avatar.height + 12 + height))
-        guard overlapsOtherDisc(below, body, at: now) else { return (avatar, below) }
-        return (avatar, overlapsOtherDisc(above, body, at: now) ? below : above)
+        let side = side(for: max(1, liveCount))
+        let look = appearance(body, at: now)
+        let size = side * look.scale
+        let width = side * 2.2
+        return (CGRect(x: look.point.x - size / 2, y: look.point.y - size / 2, width: size, height: size),
+                CGRect(x: look.point.x - width / 2, y: look.point.y + size / 2 + 6, width: width, height: BellTheme.listNameFontSize * 1.4))
     }
 
-    /// 欄の文字の四角が、他のメンバーのアイコンを4pt広げた四角に重なるか。
-    private func overlapsOtherDisc(_ box: CGRect, _ body: Body, at now: Double) -> Bool {
-        let text = Self.textBox(box, body.node.name)
-        return bodies.values.contains {
-            $0.node.botId != body.node.botId && $0.leavingAt == nil && avatarFrame($0, at: now).insetBy(dx: -4, dy: -4).intersects(text)
-        }
-    }
-
-    private static func textBox(_ box: CGRect, _ name: String) -> CGRect {
-        let font = UIFont.systemFont(ofSize: BellTheme.listNameFontSize, weight: .semibold)
-        let width = min(box.width, ceil(NSAttributedString(string: name, attributes: [.font: font]).size().width))
-        return CGRect(x: box.midX - width / 2, y: box.minY, width: width, height: box.height)
-    }
-
-    /// 上へ移っても他のアイコンに重なる名前は隠す。ポインタ（Mac）か指（iPhone/iPad）が載ったメンバーの名前だけ見せる。
-    func nameHidden(_ body: Body, at now: Double) -> Bool {
-        let name = frames(body, at: now)
-        return body.node.botId != revealed && overlapsOtherDisc(name.name, body, at: now)
-    }
-
-    /// 描いている名前の文字の四角。見えていない名前（不透明度0・隠れた名前）は無し。置き場所の障害物に使う。
-    func nameText(_ body: Body, at now: Double) -> CGRect? {
-        guard appearance(body, at: now).opacity > 0, !nameHidden(body, at: now) else { return nil }
-        return Self.textBox(frames(body, at: now).name, body.node.name)
-    }
-
-    /// 1コマ分の札を置く（behavior-spec.md「Edges」）。札はlatch frameで一度作り、辺が終わるまで残す。
-    /// 置き場所は始まった順に、メンバーの四角・描いている名前・先に置いた札（blockedも含む）をそれぞれ4pt広げて避けた最初の空きt。
-    /// 今のtが空いていれば動かさず、ふさがれば最初の空きtへ、どこも空かなければ今のtのままblocked。
-    /// `peek`は、空きを待つ札を`t = 0.5`で最前面に見せる辺（Macは線へのポインタ、iPhone/iPadは`tappedEdge`）。
-    func layoutChips(_ paths: [EdgePath], size: (String) -> CGSize, hover: String?, peek: String? = nil, reveal: String? = nil, now: Double) {
+    /// 1コマ分の札を決めて置く（behavior-spec.md「Edges」）。出し方は依頼ごとにlatch frameで一度だけ決めて保つ。
+    /// 置き場所は始まった順に、メンバーの四角（6pt広げる）と先に置いた札（blockedも含む）を避けた最初の空きt。今のtが空いていれば動かさず、
+    /// ふさがれば最初の空きtへ、どこも空かなければ今のtのままblocked。名前は障害物にしない（札が名前に重なってよい）。
+    func layoutChips(_ paths: [EdgePath], size: (String) -> CGSize, hover: String?, now: Double) {
         self.paths = paths
-        revealed = reveal
         let enter = reduceMotion ? 0.2 : 0.7
-        // 退場中のメンバーはアイコンも名前も障害物ではない（もう画面の外へ消えていく）。
-        let fixed = bodies.values.filter { $0.leavingAt == nil }.flatMap { [frames($0, at: now).avatar] + [nameText($0, at: now)].compactMap { $0 } }
+        let open = lines.values.filter { $0.endedAt == nil }.count
+        let discs = bodies.values.map { frames($0, at: now).avatar.insetBy(dx: -6, dy: -6) }
         var placed: [CGRect] = []
         func free(_ area: CGRect) -> Bool {
             let grown = area.insetBy(dx: -4, dy: -4)
-            return !fixed.contains { $0.intersects(grown) } && !placed.contains { $0.intersects(grown) }
+            return !discs.contains { $0.intersects(grown) } && !placed.contains { $0.intersects(grown) }
         }
         var layers = ChipLayers()
         let byId = Dictionary(paths.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
@@ -578,17 +538,19 @@ final class WorkGraphModel: ObservableObject {
             }
             var chip = line.chip
             if chip == nil, let label, line.endedAt == nil, landed {
-                chip = Chip(text: label)
+                chip = Chip(mode: open > 10 || path.length < 120 ? .brief : .shown, since: now, text: label)
             }
             guard var chip else { continue }
             if let label { chip.nullAt = nil; chip.text = label } else if chip.nullAt == nil { chip.nullAt = now }
             let chipSize = size(chip.text)
             let frame = { (t: CGFloat) in Self.chipFrame(at: path.point(t), size: chipSize) }
-            var opacity = 1.0
+            let age = now - chip.since
+            let window = chip.mode == .shown || age < 3.4
+            var opacity = chip.mode == .brief ? (age < 3 ? 1 : max(0, 1 - (age - 3) / 0.4)) : 1
             if let endedAt = line.endedAt { opacity *= max(0, 1 - (now - endedAt) / 0.3) }
             if let nullAt = chip.nullAt { opacity *= max(0, 1 - (now - nullAt) / 0.3) }
-            if opacity <= 0 && (chip.nullAt != nil || line.endedAt != nil) {
-                chip.t = nil // 消え終えた札は場所を返す。
+            if !window || (opacity <= 0 && (chip.nullAt != nil || line.endedAt != nil)) {
+                chip.t = nil // briefの窓が終わった札・消え終えた札は場所を返す。
             } else if line.endedAt == nil && chip.nullAt == nil {
                 let first = Self.chipSlots.first { free(frame($0).area) }
                 if let t = chip.t {
@@ -601,18 +563,17 @@ final class WorkGraphModel: ObservableObject {
             lines[line.edge.id]?.chip = chip
             let hovered = hover == line.edge.id && label != nil && line.endedAt == nil
             guard let t = chip.t else {
-                // 待っている札は、線を指している間だけ`t = 0.5`で最前面に出す。置き場所は取らない。
-                if peek == line.edge.id, label != nil, line.endedAt == nil {
+                if hovered {
                     let f = frame(0.5)
-                    layers.above.append(PlacedChip(id: line.edge.id, text: chip.text, anchor: path.point(0.5), tag: f.tag, area: f.area,
-                                                   opacity: 1, blocked: false))
+                    layers.above.append(PlacedChip(id: line.edge.id, text: chip.text, anchor: path.point(0.5), tag: f.tag, area: f.area, opacity: 1, blocked: false))
                 }
                 continue
             }
             let f = frame(t)
             let blocked = !free(f.area)
             placed.append(f.area) // blockedの札も後の札の障害物（Webと同じ）。
-            if let appearAt = chip.appearAt { opacity *= min(1, (now - appearAt) / 0.2) } // 最初に出る時は200msで現れる。
+            // shownは最初に出る時いつも200msで現れる。briefは空きを待った時だけ。
+            if let appearAt = chip.appearAt, chip.mode == .shown || appearAt > chip.since { opacity *= min(1, (now - appearAt) / 0.2) }
             let item = PlacedChip(id: line.edge.id, text: chip.text, anchor: path.point(t), tag: f.tag, area: f.area,
                                   opacity: hovered ? 1 : opacity, blocked: blocked)
             if hovered { layers.above.append(item) } else if blocked { layers.blocked.append(item) } else { layers.unblocked.append(item) }
@@ -634,18 +595,6 @@ final class WorkGraphModel: ObservableObject {
         }
         return nil
     }
-
-    /// 離したタップ（`WorkGraphPress.isTap`が真）の行き先で、札を見せる辺を決める。
-    /// 開いた線 → その辺（別の線なら移る）。見せている札 → そのまま。メンバー・空いた所・ほかの札 → 消す。
-    func tap(at point: CGPoint, now: Double) {
-        switch hit(at: point, now: now) {
-        case .edge(let id): tappedEdge = id
-        case .chip(let id) where id == tappedEdge: break
-        default: tappedEdge = nil
-        }
-    }
-
-    func clearTap() { tappedEdge = nil }
 
     /// 押した位置にいるメンバー（behavior-spec.md「Tap or click on a member」）。アイコンと名前が対象で、
     /// どちらも44pt四方より小さくしない。線・札・空いた所は対象外。退場中のnodeも描いている間は対象。
