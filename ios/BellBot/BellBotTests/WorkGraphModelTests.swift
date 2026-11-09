@@ -55,6 +55,116 @@ final class WorkGraphModelTests: XCTestCase {
         XCTAssertGreaterThan(closest, side, "アイコンが重ならない")
     }
 
+    // MARK: Uncrossing swaps（期待値はlayout-sim.mjsのcrossings()/bestSwap()を同じ配置で実行して写した）
+
+    private func points(_ xy: [(CGFloat, CGFloat)]) -> [CGPoint] { xy.map { CGPoint(x: $0.0, y: $0.1) } }
+
+    func testCrossingsAndBestSwapMatchTheReferenceSimulation() {
+        let square = points([(0, 0), (100, 0), (0, 100), (100, 100)])
+        XCTAssertEqual(WorkGraphModel.crossings(square, [(0, 3), (1, 2)]), 1)
+        XCTAssertEqual(WorkGraphModel.crossings(square, [(0, 3), (3, 0), (1, 2)]), 1, "A→BとB→Aは1本")
+        let swap = WorkGraphModel.bestSwap(square, [(0, 3), (1, 2)])
+        XCTAssertEqual([swap?.pair.0, swap?.pair.1], [0, 1])
+        XCTAssertEqual(swap?.gain, 1)
+        let parallel = points([(0, 0), (100, 0), (0, 50), (100, 50)])
+        XCTAssertEqual(WorkGraphModel.crossings(parallel, [(0, 1), (2, 3)]), 0)
+        XCTAssertNil(WorkGraphModel.bestSwap(parallel, [(0, 1), (2, 3)]), "交差が無ければ入れ替えない")
+        // 端を共有する線は交差に数えない。
+        XCTAssertEqual(WorkGraphModel.crossings(square, [(0, 3), (0, 2)]), 0)
+        // 5人全結合は0にならない：5本の交差が残り、1回の入れ替えでは減らない。
+        let clique = points([(0, 0), (200, 0), (300, 150), (100, 300), (-100, 150)])
+        let all = [(0, 1), (0, 2), (0, 3), (0, 4), (1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4)]
+        XCTAssertEqual(WorkGraphModel.crossings(clique, all), 5)
+        XCTAssertNil(WorkGraphModel.bestSwap(clique, all))
+    }
+
+    /// 同数の組が4つ（(0,2)(0,3)(1,2)(1,3)、どれも1減る）あっても、番号順で最初の(0,2)を選ぶ。
+    func testBestSwapTieGoesToTheFirstPair() {
+        let swap = WorkGraphModel.bestSwap(points([(0, 0), (100, 100), (100, 0), (0, 100)]), [(0, 1), (2, 3)])
+        XCTAssertEqual([swap?.pair.0, swap?.pair.1], [0, 2])
+        XCTAssertEqual(swap?.gain, 1)
+    }
+
+    /// a=左上 b=右上 c=左下 d=右下。a>dとb>cが交差する。
+    private func crossedModel() -> WorkGraphModel {
+        let model = WorkGraphModel()
+        model.apply(WorkGraphSnapshot(epoch: "e", version: 1, degraded: [], nodes: ["a", "b", "c", "d"].map { node($0) },
+                                      edges: [edge("a", "d"), edge("b", "c")]), at: -10)
+        let spots: [String: CGPoint] = ["a": CGPoint(x: 100, y: 100), "b": CGPoint(x: 300, y: 100), "c": CGPoint(x: 100, y: 300), "d": CGPoint(x: 300, y: 300)]
+        for (id, spot) in spots {
+            model.bodies[id]?.position = spot
+            model.bodies[id]?.velocity = CGVector(dx: spot.x / 1000, dy: spot.y / 1000)
+            model.bodies[id]?.enteredAt = -10
+        }
+        return model
+    }
+
+    func testUncrossSwapsPositionAndVelocityOfTheBestPair() {
+        let model = crossedModel()
+        model.uncross(at: 0)
+        XCTAssertEqual(model.bodies["a"]?.position, CGPoint(x: 300, y: 100))
+        XCTAssertEqual(model.bodies["b"]?.position, CGPoint(x: 100, y: 100))
+        XCTAssertEqual(model.bodies["a"]?.velocity, CGVector(dx: 0.3, dy: 0.1))
+        XCTAssertEqual(model.bodies["b"]?.velocity, CGVector(dx: 0.1, dy: 0.1))
+        XCTAssertEqual(model.bodies["c"]?.position, CGPoint(x: 100, y: 300))
+        XCTAssertNil(model.bodies["c"]?.glideFrom)
+        XCTAssertNotNil(model.bodies["a"]?.glideFrom)
+        model.uncross(at: 1)
+        XCTAssertEqual(model.bodies["a"]?.position, CGPoint(x: 300, y: 100), "交差が無くなれば入れ替えない")
+    }
+
+    func testLeavingMemberTakesNoPartInUncrossing() {
+        let model = crossedModel()
+        model.apply(WorkGraphBatch(epoch: "e", version: 2, degraded: [], changes: [.memberLeave("b")]), at: 0)
+        model.uncross(at: 0)
+        XCTAssertEqual(model.bodies["a"]?.position, CGPoint(x: 100, y: 100))
+        XCTAssertEqual(model.bodies["c"]?.position, CGPoint(x: 100, y: 300))
+        XCTAssertNil(model.bodies["a"]?.glideFrom)
+    }
+
+    func testStepChecksEvery30FramesAndKeepsHeat() {
+        let size = CGSize(width: 800, height: 800)
+        let model = crossedModel(), twin = WorkGraphModel()
+        twin.apply(WorkGraphSnapshot(epoch: "e", version: 1, degraded: [], nodes: ["a", "b", "c", "d"].map { node($0) }, edges: []), at: -10)
+        model.step(now: 0, size: size, insets: EdgeInsets())
+        twin.step(now: 0, size: size, insets: EdgeInsets())
+        for k in 1...14 {
+            model.step(now: Double(k) / 30, size: size, insets: EdgeInsets())
+            twin.step(now: Double(k) / 30, size: size, insets: EdgeInsets())
+        }
+        XCTAssertTrue(model.bodies.values.allSatisfy { $0.glideFrom == nil }, "28コマではまだ検査しない")
+        model.step(now: 15.0 / 30, size: size, insets: EdgeInsets())
+        twin.step(now: 15.0 / 30, size: size, insets: EdgeInsets())
+        XCTAssertEqual(model.bodies.values.filter { $0.glideFrom != nil }.count, 2, "30コマで1組だけ入れ替える")
+        XCTAssertEqual(model.heat, twin.heat, accuracy: 1e-12, "αは変えない")
+    }
+
+    func testSwappedMemberGlidesOver700msAndEnteringMemberDoesNot() {
+        let model = crossedModel()
+        model.bodies["b"]?.enteredAt = 0 // 入場中は滑らせず、入場の補間のまま新しい位置へ向かう
+        model.uncross(at: 0)
+        guard let a = model.bodies["a"] else { return XCTFail() }
+        XCTAssertEqual(model.drawPosition(a, at: 0).x, 100, accuracy: 1e-9, "入れ替えた瞬間は元の描いた位置")
+        let k = WorkGraphModel.bezier(0.5, 0.2, 0.8, 0.2, 1)
+        XCTAssertEqual(model.drawPosition(a, at: 0.35).x, 100 + 200 * k, accuracy: 1e-9)
+        XCTAssertEqual(model.drawPosition(a, at: 0.7).x, 300, accuracy: 1e-9)
+        XCTAssertEqual(model.appearance(a, at: 0.35).opacity, 1)
+        XCTAssertNil(model.bodies["b"]?.glideFrom)
+    }
+
+    func testReduceMotionFadesOutAndInInsteadOfGliding() {
+        let model = crossedModel()
+        model.reduceMotion = true
+        model.uncross(at: 0)
+        guard let a = model.bodies["a"] else { return XCTFail() }
+        XCTAssertEqual(model.appearance(a, at: 0.05).point, CGPoint(x: 100, y: 100))
+        XCTAssertEqual(model.appearance(a, at: 0.05).opacity, 0.5, accuracy: 1e-9)
+        XCTAssertEqual(model.appearance(a, at: 0.1).opacity, 0, accuracy: 1e-9)
+        XCTAssertEqual(model.appearance(a, at: 0.15).point, CGPoint(x: 300, y: 100))
+        XCTAssertEqual(model.appearance(a, at: 0.15).opacity, 0.5, accuracy: 1e-9)
+        XCTAssertEqual(model.appearance(a, at: 0.2).opacity, 1)
+    }
+
     /// behavior-spec.mdの参照シミュレーション（layout-sim.mjs）どおり、8〜30人で縦横とも約9割に広がる。
     func testLayoutFillsBothAxesLikeTheReferenceSimulation() {
         for (size, count) in [(CGSize(width: 1000, height: 668), 16), (CGSize(width: 393, height: 688), 8), (CGSize(width: 818, height: 1048), 30)] {
