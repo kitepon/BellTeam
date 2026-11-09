@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-09T09:41:37Z",
-  "expiresAt": "2026-11-16T09:41:37Z",
+  "publishedAt": "2026-11-09T12:05:53Z",
+  "expiresAt": "2026-11-16T12:05:53Z",
   "releases": [
     {
       "componentId": "usage",
@@ -425,8 +425,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "1c810479b691ff3c5633720156ac7dca79ad7c51",
-      "versionId": "ac2a36cfa9278afa2d66f3c60ba85df63cd0505a4e197a8f049d85462616e867",
+      "sourceCommit": "422dba434b96b84e8f9f3a33b27d358ada21de25",
+      "versionId": "d4237998b780cfd534cf71da1a54fb7ebfb55ec034850d9074bc67bb1cd5fd01",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -434,16 +434,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T075225Z/web-gateway-1c810479b691ff3c5633720156ac7dca79ad7c51-linux-amd64.tar.gz",
-          "bytes": 5116991,
-          "sha256": "ac2a36cfa9278afa2d66f3c60ba85df63cd0505a4e197a8f049d85462616e867"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T115925Z/web-gateway-422dba434b96b84e8f9f3a33b27d358ada21de25-linux-amd64.tar.gz",
+          "bytes": 5139941,
+          "sha256": "d4237998b780cfd534cf71da1a54fb7ebfb55ec034850d9074bc67bb1cd5fd01"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T075225Z/web-gateway-1c810479b691ff3c5633720156ac7dca79ad7c51-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10974,
-          "sha256": "95ac83be54fb26d7af31ee801d04643b46f260ef5d308a2bd3f80df37c71c526"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T115925Z/web-gateway-422dba434b96b84e8f9f3a33b27d358ada21de25-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11146,
+          "sha256": "bf95b319f8420e2de74df918e04ca2ab42e30cf0c5772ba5176c680e8b7098cd"
         },
-        "signerCommit": "1c810479b691ff3c5633720156ac7dca79ad7c51"
+        "signerCommit": "422dba434b96b84e8f9f3a33b27d358ada21de25"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -452,13 +452,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "相関図の依頼札を表示し、待機中の札は線にカーソルを合わせるかタップすると表示します。"
+        "設定の「端末」から端末を管理でき、SSH鍵は複数行のまま貼り付けられます。初期設定が終わっていない時は案内を表示します。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "1c810479b691ff3c5633720156ac7dca79ad7c51",
-      "versionId": "b4b4680adcb572d16d326bf7358085d2874f12deaba2410785e9d6cae46f9714",
+      "sourceCommit": "422dba434b96b84e8f9f3a33b27d358ada21de25",
+      "versionId": "da6149da91bfbc0377d14cd619eae476762db43c3b153df4de8e67681a97d395",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -466,16 +466,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T075225Z/web-gateway-1c810479b691ff3c5633720156ac7dca79ad7c51-linux-arm64.tar.gz",
-          "bytes": 5116991,
-          "sha256": "b4b4680adcb572d16d326bf7358085d2874f12deaba2410785e9d6cae46f9714"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T115925Z/web-gateway-422dba434b96b84e8f9f3a33b27d358ada21de25-linux-arm64.tar.gz",
+          "bytes": 5139941,
+          "sha256": "da6149da91bfbc0377d14cd619eae476762db43c3b153df4de8e67681a97d395"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T075225Z/web-gateway-1c810479b691ff3c5633720156ac7dca79ad7c51-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11146,
-          "sha256": "3864feb69761ef3443c69f62de4d1d7bb2a20f8c4b5642f35f9953c6d365e4e7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T115925Z/web-gateway-422dba434b96b84e8f9f3a33b27d358ada21de25-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11115,
+          "sha256": "5468c6f9b0a4fad9f6f97dcc8647fa79b11876dbbe0c19cef91ca83a308bdc2f"
         },
-        "signerCommit": "1c810479b691ff3c5633720156ac7dca79ad7c51"
+        "signerCommit": "422dba434b96b84e8f9f3a33b27d358ada21de25"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -484,7 +484,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "相関図の依頼札を表示し、待機中の札は線にカーソルを合わせるかタップすると表示します。"
+        "設定の「端末」から端末を管理でき、SSH鍵は複数行のまま貼り付けられます。初期設定が終わっていない時は案内を表示します。"
       ]
     },
     {
