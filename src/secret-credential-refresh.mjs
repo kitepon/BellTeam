@@ -5,7 +5,9 @@ export function createCredentialRefresh({ refresh, watch, intervalMs = 60_000, r
   let timer = null, running = null, stopped = false
   const run = () => {
     if (stopped || running) return running
-    running = Promise.resolve().then(refresh).catch(error => report(error)).finally(() => { running = null })
+    // Settles, never rejects: a failing report sink must not become an unhandled rejection.
+    running = Promise.resolve().then(refresh).catch(error => Promise.resolve().then(() => report(error)).catch(() => {}))
+      .finally(() => { running = null })
     return running
   }
   const arm = () => {
@@ -23,6 +25,7 @@ export function createCredentialRefresh({ refresh, watch, intervalMs = 60_000, r
     // Called on provider/terminal availability; a refresh already in flight is reused.
     refreshNow: run,
     get pending() { return unavailable.size },
-    stop() { stopped = true; if (timer) clearInterval(timer); timer = null; unwatch?.() },
+    // Resolves after any in-flight refresh settles, so callers can close providers afterwards.
+    stop() { stopped = true; if (timer) clearInterval(timer); timer = null; unwatch?.(); return running ?? Promise.resolve() },
   })
 }

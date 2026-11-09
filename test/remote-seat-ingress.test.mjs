@@ -89,3 +89,26 @@ test('credential refresh: timer only while a binding is unavailable, stops on cl
   assert.equal(calls, 1)
   assert.equal(listener, null)
 })
+
+test('credential refresh: rejected report is contained and stop waits for the in-flight refresh', async () => {
+  const { createCredentialRefresh } = await import('../src/secret-credential-refresh.mjs')
+  let release, finished = false
+  const unhandled = []
+  const onUnhandled = reason => unhandled.push(reason)
+  process.on('unhandledRejection', onUnhandled)
+  try {
+    const helper = createCredentialRefresh({ watch: () => () => {},
+      refresh: () => new Promise((_resolve, reject) => { release = () => reject(new Error('PROVIDER_DOWN')) }),
+      report: async () => { throw new Error('DIAGNOSTICS_CLOSED') } })
+    const inflight = helper.refreshNow()
+    const stopped = helper.stop().then(() => { finished = true })
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(finished, false)
+    release()
+    await stopped
+    await inflight
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(finished, true)
+    assert.deepEqual(unhandled, [])
+  } finally { process.off('unhandledRejection', onUnhandled) }
+})
