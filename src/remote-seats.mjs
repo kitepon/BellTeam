@@ -1,12 +1,14 @@
-// Remote seats (docs/architecture/modules/execution/remote-seat.md): a Bot whose member record names a terminal runs
-// its seat there. Only the destination of its native calls changes; every other execution path stays the same.
-import { textResult } from './aiterm-client.mjs'
+// Remote seats (docs/architecture/modules/execution/remote-seat.md, Owner ruling 2026-11-09: ONE launch path). A Bot whose
+// member record names a terminal launches through the same Aiterm agent_launch with terminals' target and its projectRoot;
+// every later call is the same session call as a local seat. This module only adds the launch inputs, the asleep-terminal
+// queue edge, the seat credential and C7 (Throughline) for the transcript that stays on the terminal.
 
 // Terminal, credential, folder and launch-context unavailability keeps the saved message queued (Owner 2026-11-09 13:38).
 const NOT_STARTED = new Set(['TERMINAL_UNAVAILABLE', 'CREDENTIAL_UNAVAILABLE', 'TARGET_MISMATCH', 'CWD_UNAVAILABLE',
   'BOT_REMOTE_BINDING_MISSING', 'MEMBERS_EFFECT_UNSUPPORTED', 'SEAT_CREDENTIAL_INVALID', 'TERMINAL_NOT_FOUND',
-  'TERMINAL_INGRESS_UNSET', 'TERMINALS_UNAVAILABLE'])
-const notStarted = error => {
+  'TERMINAL_INGRESS_UNSET', 'TERMINALS_UNAVAILABLE', 'UNREACHABLE', 'HOST_TRUST_STALE', 'HOST_KEY_MISMATCH',
+  'REMOTE_AITERM_TOO_OLD', 'SEAT_FORWARD_UNAVAILABLE'])
+export const notStarted = error => {
   if (NOT_STARTED.has(error?.code)) try { error.effect = 'not_started' } catch {}
   return error
 }
@@ -41,130 +43,105 @@ export function pieces(text) {
 
 export const isRemoteBot = bot => typeof bot?.terminalId === 'string' && bot.terminalId !== ''
   && typeof bot.projectRoot === 'string' && bot.projectRoot !== ''
+// The authoritative target of a seat: a change of either member field is a fresh launch at the next idle boundary.
+export const seatTarget = bot => isRemoteBot(bot) ? `${bot.terminalId}\n${bot.projectRoot}` : ''
 
 export class RemoteSeats {
-  constructor({ terminals, ingress, launchContext, emitQueue = () => {}, seatCommand = null }) {
+  // recorded(sessionName) reads the transport's launch record (D5), which keeps a remote seat's target, botId and launchId
+  // across a body restart.
+  constructor({ terminals, ingress, launchContext, emitQueue = () => {}, seatCommand = null, recorded = async () => null }) {
     this.seatCommand = seatCommand
+    this.recorded = recorded
     this.terminals = terminals
     this.ingress = ingress
     this.launchContext = launchContext
     this.emitQueue = emitQueue
-    this.seats = new Map() // sessionName -> {botId, terminalId, projectRoot, connectionRef, native}
-    this.waiting = new Map() // terminalId -> Set(botId) whose open was not started
+    this.seats = new Map() // sessionName -> {sessionName, botId, launchId, cursor}; cache of the launch record
+    this.waiting = new Map() // terminalId -> Set(botId) whose launch was not started
     this.unwatch = terminals.watch?.(event => this.available(event)) ?? (() => {})
   }
 
-  // Launch on the member's terminal. A seat already alive there under the same name (after a body restart, whose
-  // credential survives) is taken over instead of launched twice. Values never pass here: only names and references.
-  // checkpoint is the transport's existing stop/member/admission check, rerun after the async preparation.
-  async launch(bot, args, { shortTermMemory, context, slot, checkpoint = () => {} }) {
-    const sessionName = args.session_name, target = { botId: bot.id, terminalId: bot.terminalId, projectRoot: bot.projectRoot }
-    let opened = null, issued = false, launching = false
+  // The launch inputs for the same agent_launch: terminals' target unchanged, the member's folder, the launch context and the
+  // seat MCP config. Values never pass here; the credential stays a reference until the seat launcher's private env.
+  async prepare(bot, args, { shortTermMemory, context, slot, harness }) {
+    const sessionName = args.session_name
+    let issued = false
     try {
-      opened = await this.open(target, sessionName, null)
-      const seen = await opened.native.callTool('pty_observe', { session_id: sessionName }).catch(() => null)
-      let result
-      if (seen?.structuredContent?.exists === true) {
-          result = { content: [], structuredContent: { schema: 'aiterm.agent-launch-result.v1', session_id: sessionName,
-          startup: { status: 'ready' }, fast: bot.fastMode === true, adopted: true,
-          ...(typeof seen.structuredContent.launch_id === 'string' ? { launch_id: seen.structuredContent.launch_id } : {}) } }
-      } else {
-        await this.terminals.connection.close(opened.connectionRef).catch(() => {})
-        opened = null
-        const { text } = await this.launchContext(bot.id, { sessionName, shortTermMemory }, context)
-        const { url, credentialRef } = await this.ingress.seatCredential.issue({ botId: bot.id, sessionName, terminalId: bot.terminalId })
-        issued = true
-        const login = slot && slot !== '1st'
-        opened = await this.open(target, sessionName, { BELLTEAM_MCP_TOKEN: credentialRef,
-          ...(login ? { CLAUDE_CODE_OAUTH_TOKEN: { harness: 'claude', slot } } : {}) })
-        checkpoint()
-        launching = true
-        const headers = { Authorization: 'Bearer ${BELLTEAM_MCP_TOKEN}', 'X-Bellteam-Seat': '${AITERM_SESSION_ID}', 'X-Bellteam-Launch-Id': '${AITERM_AGENT_LAUNCH_ID}' }
-        result = await opened.native.callTool('agent_launch', { ...args, cwd: bot.projectRoot }, { private: {
-          appendSystemPrompt: text,
-          mcpConfig: { mcpServers: { bellteam: { type: 'http', url, headers }, 'call-bridge': { type: 'http', url: `${url}/call-bridge`, headers } } },
-          env: ['BELLTEAM_MCP_TOKEN', ...(login ? ['CLAUDE_CODE_OAUTH_TOKEN'] : [])],
-        } })
-        if (result?.isError) {
-          // A half-started remote seat is closed on its own terminal, never through the shared local client.
-          const leftover = result.structuredContent?.session_id
-          if (leftover) await opened.native.callTool('pty_close', { session_id: leftover }).catch(() => {})
-          throw Object.assign(new Error(textResult(result) || 'AITERM_LAUNCH_FAILED'), { code: result.structuredContent?.code ?? result.structuredContent?.error?.code })
-        }
+      const { terminal, cwd, accountOwner } = await this.terminals.connection.target({
+        terminalId: bot.terminalId, memberId: bot.id, projectRoot: bot.projectRoot, harness })
+      const { text } = await this.launchContext(bot.id, { sessionName, shortTermMemory }, context)
+      const { url, credentialRef } = await this.ingress.seatCredential.issue({ botId: bot.id, sessionName, terminalId: bot.terminalId })
+      issued = true
+      const headers = { Authorization: 'Bearer ${BELLTEAM_MCP_TOKEN}', 'X-Bellteam-Seat': '${AITERM_SESSION_ID}', 'X-Bellteam-Launch-Id': '${AITERM_AGENT_LAUNCH_ID}' }
+      // Owner ruling: the Owner's 1st/2nd login applies only on the Owner's terminals; others use the terminal's own login.
+      const claudeLogin = accountOwner === 'owner' && slot && slot !== '1st' ? slot : null
+      return {
+        args: { ...args, terminal, cwd, append_system_prompt: text,
+          mcp_config: { mcpServers: { bellteam: { type: 'http', url, headers }, 'call-bridge': { type: 'http', url: `${url}/call-bridge`, headers } } } },
+        claudeLogin,
+        // The seat launcher forwards exactly these names (Molly #793); the login value still comes only from claudeLogin.
+        privateEnv: { names: ['BELLTEAM_MCP_TOKEN', ...(claudeLogin ? ['CLAUDE_CODE_OAUTH_TOKEN'] : [])], resolve: async () => ({ BELLTEAM_MCP_TOKEN: await this.ingress.seatCredential.reveal(credentialRef) }) },
+        revoke: () => this.revoke(sessionName),
       }
-      // Only an entry of the same name is replaced; its token was already replaced by the reissue, so it is kept. Another seat
-      // of this Bot under another name (account-slot move, #750/#756) stays untouched until its explicit pty_close.
-      const previous = this.seats.get(sessionName)
-      if (previous) await this.release(previous, { keepCredential: true })
-      const launchId = result?.structuredContent?.launch_id
-      this.seats.set(sessionName, { sessionName, ...opened, launchId: typeof launchId === 'string' ? launchId : null, cursor: null })
-      return result
     } catch (error) {
-      if (opened) await this.terminals.connection.close(opened.connectionRef).catch(() => {})
-      // Nothing was launched with the credential issued here; an agent_launch already sent may be running, so its stays.
-      if (issued && !launching) await Promise.resolve(this.ingress.seatCredential.revoke({ sessionName })).catch(() => {})
-      if (NOT_STARTED.has(error?.code)) this.wait(target)
+      if (issued) await this.revoke(sessionName)
+      if (NOT_STARTED.has(error?.code)) this.wait(bot)
       throw notStarted(error)
     }
   }
 
-  async open({ botId, terminalId, projectRoot }, sessionName, credentials) {
-    const { connectionRef, native } = await this.terminals.connection.open({ terminalId, memberId: botId,
-      projectRoot, seatBinding: { botId, sessionName },
-      // shortcut: P1 serves only the Owner's terminals; P3 reads accountOwner from the terminals registry for others' machines.
-      accountOwner: 'owner', ...(credentials ? { credentials } : {}) })
-    return { botId, terminalId, projectRoot, connectionRef, native }
+  // After a successful launch receipt. Only an entry of the same name is replaced; another seat of this Bot under another name
+  // (account-slot move, #750/#756) stays until its explicit pty_close.
+  launched(bot, receipt) {
+    const sessionName = receipt?.session_id
+    if (typeof sessionName !== 'string') return
+    const launchId = receipt.launch_id
+    this.seats.set(sessionName, { sessionName, botId: bot.id, launchId: typeof launchId === 'string' ? launchId : null, cursor: null })
   }
 
-  async release(seat, { keepCredential = false } = {}) {
-    if (!seat) return
-    this.seats.delete(seat.sessionName)
-    await this.terminals.connection.close(seat.connectionRef).catch(() => {})
-    if (!keepCredential) await Promise.resolve(this.ingress.seatCredential.revoke({ sessionName: seat.sessionName })).catch(() => {})
+  // A remote seat by session name: this generation's entry, or rebuilt from the launch record after a body restart (the
+  // Throughline cursor then starts at null; its replay is idempotent).
+  async seatOf(sessionName) {
+    const held = this.seats.get(sessionName)
+    if (held) return held
+    const record = await Promise.resolve(this.recorded(sessionName)).catch(() => null)
+    if (!record?.target || typeof record.botId !== 'string') return null
+    const seat = { sessionName, botId: record.botId, launchId: typeof record.launchId === 'string' ? record.launchId : null, cursor: null }
+    this.seats.set(sessionName, seat)
+    return seat
   }
 
-  wait({ botId, terminalId }) {
+  async closed(sessionName) {
+    if (!await this.seatOf(sessionName)) return
+    this.seats.delete(sessionName)
+    await this.revoke(sessionName)
+  }
+
+  notStarted(error) { return notStarted(error) }
+
+  revoke(sessionName) { return Promise.resolve(this.ingress.seatCredential.revoke({ sessionName })).catch(() => {}) }
+
+  wait({ id, terminalId }) {
     const set = this.waiting.get(terminalId) ?? new Set()
-    set.add(botId)
+    set.add(id)
     this.waiting.set(terminalId, set)
   }
 
   // terminals' availability observer is the exit of every not-started state: the existing queue edge drains the same IDs.
   available(event) {
     if (event?.reachable !== true) return
-    const ids = new Set([...(this.waiting.get(event.terminalId) ?? []),
-      ...[...this.seats.values()].filter(seat => seat.terminalId === event.terminalId).map(seat => seat.botId)])
+    const ids = this.waiting.get(event.terminalId) ?? new Set()
     this.waiting.delete(event.terminalId)
     for (const id of ids) this.emitQueue({ bot: { id } })
   }
 
-  // A held seat survives a lost connection on the terminal; reopen without credentials (the launch already has them).
-  // Only a call refused before sending (connection gone) is retried once; an in-flight CONNECTION_LOST is never replayed.
-  // check (the send's admission check) runs right before each issue, including the one reissued after the reopen.
-  async call(seat, name, args, options, check = () => {}) {
-    const issue = native => { check(); return native.callTool(name, args, options) }
-    try { return await issue(seat.native) } catch (error) {
-      if (error?.code !== 'TERMINAL_UNAVAILABLE' || this.seats.get(seat.sessionName) !== seat) throw notStarted(error)
-    }
-    let reopened
-    try { reopened = await this.open(seat, seat.sessionName, null) }
-    catch (error) { if (NOT_STARTED.has(error?.code)) this.wait(seat); throw notStarted(error) }
-    Object.assign(seat, { connectionRef: reopened.connectionRef, native: reopened.native })
-    return issue(seat.native).catch(error => { throw notStarted(error) })
-  }
-
-  // The native port the transport sees: remote sessions route to their connection, all others to the shared client.
+  // A successful pty_close of a held remote seat revokes its credential; every other call passes unchanged.
   route(base) {
     const remote = this
     const routed = client => Object.create(client, {
       call: { value: async (name, args = {}, options = {}) => {
-        if (name === 'pty_list') return remote.list(await client.call(name, args, options))
-        const seat = remote.seats.get(args.session_id)
-        if (!seat) return client.call(name, args, options)
-        // The remote adapter takes only its own options; the send guard runs right before each issued input.
-        const result = await remote.call(seat, name, args, options.timeoutMs ? { timeoutMs: options.timeoutMs } : undefined,
-          typeof options.admissionCheck === 'function' ? options.admissionCheck : undefined)
-        if (name === 'pty_close' && !result?.isError) await remote.release(seat)
+        const result = await client.call(name, args, options)
+        if (name === 'pty_close' && !result?.isError && typeof args.session_id === 'string') await remote.closed(args.session_id)
         return result
       } },
       ...(typeof client.pin === 'function' ? { pin: { value: () => routed(client.pin()) } } : {}),
@@ -172,27 +149,13 @@ export class RemoteSeats {
     return routed(base)
   }
 
-  // Held remote seats are listed as running: the seat survives on the terminal while the connection is away.
-  list(result) {
-    if (!this.seats.size) return result
-    const names = [...this.seats.keys()]
-    const text = [textResult(result), ...names.map(name => `${name}\tremote`)].filter(Boolean).join('\n')
-    const structured = result?.structuredContent
-    return { ...result, content: [{ type: 'text', text }],
-      ...(structured && Array.isArray(structured.sessions)
-        ? { structuredContent: { ...structured, sessions: [...structured.sessions, ...names.map(session_id => ({ session_id }))] } } : {}) }
-  }
-
-  // A remote receipt's wait_process names the terminal's own aiterm-wait; it runs there through the bound connection.
+  // The same wait as a local seat; a completed remote turn then hands its transcript to Throughline (C7).
   waitProcess(local) {
     return async (process, signal) => {
+      const result = await local(process, signal)
       const args = Array.isArray(process?.args) ? process.args : []
-      const seat = this.seats.get(args[args.indexOf('--session') + 1])
-      if (!args.includes('--session') || !seat) return local(process, signal)
-      if (typeof seat.native.wait !== 'function')
-        throw Object.assign(new Error('REMOTE_WAIT_UNAVAILABLE'), { code: 'REMOTE_WAIT_UNAVAILABLE' })
-      const result = await seat.native.wait(process, { signal })
-      if (['done', 'error', 'rate_limited'].includes(result?.outcome)) void this.forward(seat)
+      const seat = args.includes('--session') ? await this.seatOf(args[args.indexOf('--session') + 1]) : null
+      if (seat && ['done', 'error', 'rate_limited'].includes(result?.outcome)) void this.forward(seat)
       return result
     }
   }
@@ -213,15 +176,22 @@ export class RemoteSeats {
     return this.seatCommand({ executable: globalThis.process.execPath, args: ['-e', THROUGHLINE_SCRIPT, JSON.stringify(args), ...pieces(input)] }, null)
   }
 
+  // Aiterm's transcript read, the same command for local and terminal seats (aiterm.transcript-read.v1).
+  transcript(seat) {
+    const cursor = seat.cursor
+    return this.seatCommand({ executable: 'aiterm-transcript-read', args: ['--session', seat.sessionName,
+      ...(cursor ? ['--cursor-session', cursor.claudeSessionId, '--offset', String(cursor.offset)] : []), '--max-bytes', String(PAGE_BYTES)] }, null)
+  }
+
   // C7: after a native completion, hand the completed transcript prefix to Throughline; only its ACK cursor stays here.
   // A gap or conflict moves to Throughline's expected cursor; anything else keeps the cursor for the next completion.
   async forward(seat) {
     if (seat.forwarding) { seat.forwardAgain = true; return }
-    if (!seat.launchId || typeof seat.native.transcript?.read !== 'function') return
+    if (!seat.launchId || !this.seatCommand) return
     seat.forwarding = true
     try {
       for (let page = 0; page < PAGES_PER_TURN; page++) {
-        const read = await seat.native.transcript.read({ sessionName: seat.sessionName, cursor: seat.cursor, maxBytes: PAGE_BYTES })
+        const read = await this.transcript(seat)
         if (!Array.isArray(read?.entries) || !read.entries.length || !read.cursor) break
         const result = await this.throughline(['remote-ingest', '--json'], JSON.stringify({ botId: seat.botId, sessionName: seat.sessionName,
           launchId: seat.launchId, claudeSessionId: read.cursor.claudeSessionId, entries: read.entries, cursor: read.cursor }))

@@ -1,117 +1,93 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { RemoteSeats, pieces } from '../src/remote-seats.mjs'
+import { AitermTransport } from '../src/aiterm-transport.mjs'
 
 const bot = { id: 'bot-aaaa1111', terminalId: 'mac-1', projectRoot: '/Users/quo/work/app', fastMode: false }
 const code = value => Object.assign(new Error(value), { code: value })
+const terminal = { ref: 'owner-macbook', target: { host: 'mac', user: 'quo', port: 22 }, trustRevision: 't1', credentialRevision: 'c1' }
 
-function fixture({ openErrors = [], exists = false, calls: callErrors = [], beforeOpen = async () => {} } = {}) {
+function fixture({ targetErrors = [], accountOwner = 'owner', onTarget = () => {} } = {}) {
   const log = [], watchers = new Set(), queued = []
-  const native = ref => ({
-    async callTool(name, args, options) {
-      log.push({ op: 'call', ref, name, args, options })
-      if (name === 'pty_observe') return { structuredContent: { exists } }
-      const failure = callErrors.shift()
-      if (failure) throw code(failure)
-      return { content: [{ type: 'text', text: 'ok' }], structuredContent: { session_id: args.session_name ?? args.session_id } }
-    },
-    async wait(process) { log.push({ op: 'wait', ref, process }); return { outcome: 'done' } },
-  })
-  let refs = 0
   const terminals = {
-    connection: {
-      async open(request) {
-        log.push({ op: 'open', request })
-        await beforeOpen(request)
-        const failure = openErrors.shift()
-        if (failure) throw Object.assign(code(failure), { effect: 'not_started' })
-        const ref = `c${++refs}`
-        return { connectionRef: ref, native: native(ref) }
-      },
-      async close(ref) { log.push({ op: 'close', ref }); return { closed: true } },
-    },
+    connection: { async target(request) {
+      log.push({ op: 'target', request })
+      onTarget(request)
+      const failure = targetErrors.shift()
+      if (failure) throw Object.assign(code(failure), { effect: 'not_started' })
+      return { terminal, cwd: request.projectRoot, accountOwner }
+    } },
     watch(listener) { watchers.add(listener); return () => watchers.delete(listener) },
   }
   const ingress = { seatCredential: {
-    async issue(request) { log.push({ op: 'issue', request }); return { url: 'http://box:4180/api/seat-mcp', credentialRef: { opaque: true } } },
+    async issue(request) { log.push({ op: 'issue', request }); return { url: 'http://127.0.0.1:4182/api/seat-mcp', credentialRef: { opaque: true } } },
     async revoke(request) { log.push({ op: 'revoke', request }) },
+    async reveal(ref) { log.push({ op: 'reveal', ref }); return 'secret-token' },
   } }
   const launchContext = async (botId, request) => { log.push({ op: 'context', botId, request }); return { text: 'RULES', revision: 'r1' } }
-  const seats = new RemoteSeats({ terminals, ingress, launchContext, emitQueue: item => queued.push(item.bot.id) })
-  return { seats, log, queued, emit: event => { for (const listener of watchers) listener(event) } }
+  const records = {}
+  const seats = new RemoteSeats({ terminals, ingress, launchContext, emitQueue: item => queued.push(item.bot.id), recorded: async name => records[name] ?? null })
+  return { seats, log, queued, records, emit: event => { for (const listener of watchers) listener(event) } }
 }
 
 const launchArgs = { harness: 'claude-code', cwd: '/srv/bellteam/bots/bot-aaaa1111', session_name: 'bot-aaaa1111-2nd-x1', model: 'opus' }
 
-test('remote launch: folder, context, MCP and login names only; the 2nd login is a reference', async () => {
+test('prepare: the same agent_launch args plus terminal target, folder, context and MCP names; 2nd login only on the Owner terminal', async () => {
   const { seats, log } = fixture()
-  const result = await seats.launch(bot, launchArgs, { shortTermMemory: 'prev', context: { membersLease: 'L' }, slot: '2nd' })
-  assert.equal(result.structuredContent.session_id, 'bot-aaaa1111-2nd-x1')
-  const launch = log.find(entry => entry.name === 'agent_launch')
-  assert.equal(launch.args.cwd, bot.projectRoot)
-  assert.equal(launch.options.private.appendSystemPrompt, 'RULES')
-  assert.deepEqual(launch.options.private.env, ['BELLTEAM_MCP_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN'])
-  assert.equal(launch.options.private.mcpConfig.mcpServers.bellteam.headers.Authorization, 'Bearer ${BELLTEAM_MCP_TOKEN}')
-  const opened = log.filter(entry => entry.op === 'open').at(-1).request
-  assert.deepEqual(opened.credentials.CLAUDE_CODE_OAUTH_TOKEN, { harness: 'claude', slot: '2nd' })
-  assert.deepEqual(log.find(entry => entry.op === 'context').request, { sessionName: 'bot-aaaa1111-2nd-x1', shortTermMemory: 'prev' })
-  assert.ok(seats.seats.has('bot-aaaa1111-2nd-x1'))
+  const prepared = await seats.prepare(bot, launchArgs, { shortTermMemory: 'prev', context: { membersLease: 'L' }, slot: '2nd', harness: 'claude-code' })
+  assert.deepEqual(prepared.args.terminal, terminal)
+  assert.equal(prepared.args.cwd, bot.projectRoot)
+  assert.equal(prepared.args.session_name, launchArgs.session_name)
+  assert.equal(prepared.args.append_system_prompt, 'RULES')
+  assert.equal(prepared.args.mcp_config.mcpServers.bellteam.headers.Authorization, 'Bearer ${BELLTEAM_MCP_TOKEN}')
+  assert.equal(JSON.stringify(prepared.args).includes('secret-token'), false)
+  assert.equal(prepared.claudeLogin, '2nd')
+  assert.deepEqual(prepared.privateEnv.names, ['BELLTEAM_MCP_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN'])
+  assert.equal(log.some(entry => entry.op === 'reveal'), false, 'the value is read only inside the launch call')
+  assert.deepEqual(await prepared.privateEnv.resolve(), { BELLTEAM_MCP_TOKEN: 'secret-token' })
+  assert.deepEqual(log.find(entry => entry.op === 'context').request, { sessionName: launchArgs.session_name, shortTermMemory: 'prev' })
+
+  const other = fixture({ accountOwner: 'user-b' })
+  const theirs = await other.seats.prepare(bot, launchArgs, { slot: '2nd', harness: 'claude-code' })
+  assert.equal(theirs.claudeLogin, null)
+  assert.deepEqual(theirs.privateEnv.names, ['BELLTEAM_MCP_TOKEN'])
 })
 
-test('asleep terminal: not started, then the availability event drains the same Bot', async () => {
-  const { seats, queued, emit } = fixture({ openErrors: ['TERMINAL_UNAVAILABLE'] })
-  await assert.rejects(seats.launch(bot, launchArgs, { slot: '1st' }), error => error.effect === 'not_started')
+test('asleep terminal: not started without a credential, then the availability event drains the same Bot', async () => {
+  const { seats, log, queued, emit } = fixture({ targetErrors: ['TERMINAL_UNAVAILABLE'] })
+  await assert.rejects(seats.prepare(bot, launchArgs, { slot: '1st' }), error => error.effect === 'not_started')
+  assert.equal(log.some(entry => entry.op === 'issue'), false)
   emit({ terminalId: 'mac-1', reachable: false })
   assert.deepEqual(queued, [])
   emit({ terminalId: 'mac-1', reachable: true })
   assert.deepEqual(queued, ['bot-aaaa1111'])
 })
 
-test('a seat alive on the terminal is taken over, no second launch and no new credential', async () => {
-  const { seats, log } = fixture({ exists: true })
-  const result = await seats.launch(bot, launchArgs, { slot: '1st' })
-  assert.equal(result.structuredContent.adopted, true)
-  assert.equal(log.some(entry => entry.name === 'agent_launch' || entry.op === 'issue'), false)
-})
-
-test('routing: remote session to its connection, local to the shared client, list merged, wait on the terminal', async () => {
-  const { seats, log } = fixture()
-  await seats.launch(bot, launchArgs, { slot: '1st' })
-  const local = []
-  const client = seats.route({ call: async (name, args) => { local.push(name); return name === 'pty_list'
-    ? { content: [{ type: 'text', text: 'bot-local\tx' }], structuredContent: { schema: 'aiterm.pty-list-result.v1', sessions: [{ session_id: 'bot-local' }] } } : {} } })
-  let checked = false
-  await client.call('pty_send', { session_id: 'bot-aaaa1111-2nd-x1', text: 'hi' }, { admissionCheck: () => { checked = true } })
-  await client.call('pty_send', { session_id: 'bot-local', text: 'hi' })
-  assert.equal(checked, true)
-  assert.deepEqual(local, ['pty_send'])
-  const list = await client.call('pty_list')
-  assert.deepEqual(list.structuredContent.sessions.map(row => row.session_id), ['bot-local', 'bot-aaaa1111-2nd-x1'])
-  const wait = seats.waitProcess(async () => 'local')
-  assert.equal(await wait({ args: ['--session', 'bot-local'] }), 'local')
-  assert.deepEqual(await wait({ args: ['--session', 'bot-aaaa1111-2nd-x1', '--cursor', '3'] }), { outcome: 'done' })
-  assert.ok(log.some(entry => entry.op === 'wait'))
-})
-
-test('lost connection: refused-before-send reopens once without credentials; in-flight loss is never resent', async () => {
-  const { seats, log } = fixture({ calls: [] })
-  await seats.launch(bot, launchArgs, { slot: '1st' })
-  const seat = seats.seats.get('bot-aaaa1111-2nd-x1')
-  const failing = (codes) => { const base = seat.native; seat.native = { ...base, callTool: async (...args) => { const next = codes.shift(); if (next) throw code(next); return base.callTool(...args) } } }
-  failing(['TERMINAL_UNAVAILABLE'])
-  await seats.call(seat, 'pty_send', { session_id: seat.sessionName, text: 'a' })
-  assert.equal(log.filter(entry => entry.op === 'open').at(-1).request.credentials, undefined)
-  const sends = () => log.filter(entry => entry.name === 'pty_send').length
-  const before = sends()
-  failing(['CONNECTION_LOST'])
-  await assert.rejects(seats.call(seat, 'pty_send', { session_id: seat.sessionName, text: 'b' }), { code: 'CONNECTION_LOST' })
-  assert.equal(sends(), before)
+test('credential release: a successful pty_close of a remote seat revokes it, also after a body restart; other names stay', async () => {
+  const { seats, log, records } = fixture()
+  seats.launched(bot, { session_id: launchArgs.session_name, launch_id: 'a'.repeat(32) })
+  seats.launched(bot, { session_id: 'bot-aaaa1111-1st-x2', launch_id: 'b'.repeat(32) })
+  records['bot-aaaa1111-1st-x9'] = { target: 'mac-1\n/Users/quo/work/app', botId: bot.id, launchId: 'c'.repeat(32) }
+  const client = seats.route({ call: async () => ({}) })
+  await client.call('pty_close', { session_id: launchArgs.session_name })
+  await client.call('pty_close', { session_id: 'bot-local' })
+  await client.call('pty_close', { session_id: 'bot-aaaa1111-1st-x9' })
+  assert.deepEqual(log.filter(entry => entry.op === 'revoke').map(entry => entry.request.sessionName), [launchArgs.session_name, 'bot-aaaa1111-1st-x9'])
+  assert.deepEqual([...seats.seats.keys()], ['bot-aaaa1111-1st-x2'])
 })
 
 test('C7: a completed remote turn hands the completed prefix to Throughline; only its ACK cursor stays', async () => {
   const { seats } = fixture()
-  const commands = []
-  seats.seatCommand = async (process) => {
+  const commands = [], reads = []
+  let served = 0
+  seats.seatCommand = async process => {
+    if (process.executable === 'aiterm-transcript-read') {
+      reads.push(process.args)
+      return served++ < 2 ? { schema: 'aiterm.transcript-read.v1', entries: ['{"a":1}\n', '{"b":2}\n'], cursor: { claudeSessionId: 'c1', offset: 12 } } : { entries: [] }
+    }
     const [, script, args, ...parts] = process.args
     assert.ok(script.includes("spawn('throughline'"))
     const input = parts.join('')
@@ -119,23 +95,20 @@ test('C7: a completed remote turn hands the completed prefix to Throughline; onl
     if (commands.length === 1) return { status: 'error', code: 'E_REMOTE_GAP', expectedCursor: { claudeSessionId: 'c1', offset: 0 } }
     return { schema: 'throughline.remote_ingest.v1', status: 'ready', ackedCursor: { claudeSessionId: 'c1', offset: 12 } }
   }
-  await seats.launch(bot, launchArgs, { slot: '1st' })
-  const seat = seats.seats.get('bot-aaaa1111-2nd-x1')
-  seat.launchId = 'a'.repeat(32)
-  const reads = []
-  let served = 0
-  seat.native.transcript = { read: async request => { reads.push(request.cursor); return served++ < 2
-    ? { entries: ['{"a":1}\n', '{"b":2}\n'], cursor: { claudeSessionId: 'c1', offset: 12 } } : { entries: [], cursor: request.cursor } } }
-  await seats.waitProcess(async () => null)({ args: ['--session', seat.sessionName] })
+  seats.launched(bot, { session_id: launchArgs.session_name, launch_id: 'a'.repeat(32) })
+  const seat = seats.seats.get(launchArgs.session_name)
+  const local = async () => ({ outcome: 'done' })
+  assert.deepEqual(await seats.waitProcess(local)({ args: ['/x/aiterm-wait.js', '--session', seat.sessionName] }), { outcome: 'done' })
   await new Promise(resolve => setImmediate(resolve))
   while (seat.forwarding) await new Promise(resolve => setImmediate(resolve))
   assert.deepEqual(commands[0].args, ['remote-ingest', '--json'])
   assert.equal(commands[0].input.launchId, 'a'.repeat(32))
-  assert.deepEqual(reads, [null]) // the gap stops this pass at Throughline's expected cursor
-  assert.deepEqual(seat.cursor, { claudeSessionId: 'c1', offset: 0 })
+  assert.deepEqual(reads[0], ['--session', seat.sessionName, '--max-bytes', '1048576'])
+  assert.deepEqual(seat.cursor, { claudeSessionId: 'c1', offset: 0 }) // the gap stops this pass at Throughline's expected cursor
   await seats.forward(seat)
-  assert.deepEqual(reads[1], { claudeSessionId: 'c1', offset: 0 })
+  assert.deepEqual(reads[1], ['--session', seat.sessionName, '--cursor-session', 'c1', '--offset', '0', '--max-bytes', '1048576'])
   assert.deepEqual(seat.cursor, { claudeSessionId: 'c1', offset: 12 })
+  assert.deepEqual(await seats.waitProcess(local)({ args: ['--session', 'bot-local'] }), { outcome: 'done' })
   seats.seatCommand = async () => { throw new Error('missing') }
   assert.equal(await seats.handoffContext(bot.id), '')
 })
@@ -152,36 +125,55 @@ test('argv pieces: at most 96 KiB UTF-8 bytes each, never inside a code point, j
   assert.deepEqual(pieces(''), [])
 })
 
-test('stop/admission change while open is suspended: no agent_launch, issued credential revoked', async () => {
-  let stopped = false
-  const { seats, log } = fixture({ beforeOpen: async request => { if (request.credentials) stopped = true } })
-  await assert.rejects(seats.launch(bot, launchArgs, { slot: '1st', checkpoint: () => { if (stopped) throw code('STOP_REQUESTED') } }), { code: 'STOP_REQUESTED' })
-  assert.equal(log.some(entry => entry.name === 'agent_launch'), false)
-  assert.ok(log.some(entry => entry.op === 'revoke' && entry.request.sessionName === launchArgs.session_name))
-  assert.equal(seats.seats.size, 0)
-})
+async function transportFixture(options = {}) {
+  const root = await mkdtemp(join(tmpdir(), 'remote-seat-'))
+  const calls = []
+  const client = { call: async (name, args, callOptions) => { calls.push({ name, args, options: callOptions })
+    return { content: [], structuredContent: { schema: 'aiterm.agent-launch-result.v1', session_id: args.session_name ?? args.session_id, launch_id: 'd'.repeat(32), startup: { status: 'ready' } } } } }
+  const membersAdmission = { assertLease() {}, withLease: fn => fn('L'), capture() {}, assertOpen() {} }
+  const remote = fixture(options)
+  const transport = new AitermTransport({ client, membersAdmission, remoteSeats: remote.seats, runtimeLaunchesPath: join(root, 'launches.json') })
+  transport.captureLaunchRuntime = async () => ({ generation: 'g1' })
+  const member = { ...bot, harness: 'claude', project: join(root, 'bot'), session: 'bot-aaaa1111' }
+  return { root, calls, transport, member, remote }
+}
 
-test('admission change while the reopen is suspended: the reissued send is not written', async () => {
+test('one launch path: the same agent_launch with terminal + cwd; the checkpoint reruns after the async preparation', async () => {
   let admitted = true
-  const { seats, log } = fixture({ beforeOpen: async request => { if (!request.credentials && log.some(entry => entry.name === 'agent_launch')) admitted = false } })
-  await seats.launch(bot, launchArgs, { slot: '1st' })
-  const seat = seats.seats.get(launchArgs.session_name)
-  const base = seat.native
-  seat.native = { ...base, callTool: async () => { throw code('TERMINAL_UNAVAILABLE') } }
-  const client = seats.route({ call: async () => ({}) })
-  await assert.rejects(client.call('pty_send', { session_id: seat.sessionName, text: 'x' },
-    { admissionCheck: () => { if (!admitted) throw code('ADMISSION_CHANGED') } }), { code: 'ADMISSION_CHANGED' })
-  assert.equal(log.some(entry => entry.name === 'pty_send'), false)
+  const { root, calls, transport, member, remote } = await transportFixture({ onTarget: () => { admitted = false } })
+  try {
+    await assert.rejects(transport.wakeNow(member, { membersLease: 'L', admissionCheck: () => { if (!admitted) throw code('ADMISSION_CHANGED') } }), { code: 'ADMISSION_CHANGED' })
+    assert.equal(calls.some(call => call.name === 'agent_launch'), false)
+    assert.ok(remote.log.some(entry => entry.op === 'revoke'), 'the unused credential is revoked')
+    admitted = true
+    remote.log.length = 0
+    const session = await transport.wakeNow(member, { membersLease: 'L', admissionCheck: () => {} })
+    const launch = calls.find(call => call.name === 'agent_launch')
+    assert.equal(session, 'bot-aaaa1111')
+    assert.deepEqual(launch.args.terminal, terminal)
+    assert.equal(launch.args.cwd, bot.projectRoot)
+    assert.deepEqual(launch.options.privateEnv.names, ['BELLTEAM_MCP_TOKEN'])
+    assert.equal(remote.log.some(entry => entry.op === 'revoke'), false)
+    assert.equal(remote.seats.seats.get('bot-aaaa1111').launchId, 'd'.repeat(32))
+  } finally { await rm(root, { recursive: true, force: true }) }
 })
 
-test('same Bot, different account slot: the old seat and its credential stay until its explicit close', async () => {
-  const { seats, log } = fixture()
-  await seats.launch(bot, launchArgs, { slot: '1st' })
-  await seats.launch(bot, { ...launchArgs, session_name: 'bot-aaaa1111-1st-x2' }, { slot: '1st' })
-  assert.deepEqual([...seats.seats.keys()], [launchArgs.session_name, 'bot-aaaa1111-1st-x2'])
-  assert.equal(log.some(entry => entry.op === 'revoke'), false)
-  const client = seats.route({ call: async () => ({}) })
-  await client.call('pty_close', { session_id: launchArgs.session_name })
-  assert.deepEqual(log.filter(entry => entry.op === 'revoke').map(entry => entry.request.sessionName), [launchArgs.session_name])
-  assert.deepEqual([...seats.seats.keys()], ['bot-aaaa1111-1st-x2'])
+test('target revision: an idle running seat on another terminal/folder relaunches through restart; unchanged target does not', async () => {
+  const { root, transport, member } = await transportFixture()
+  try {
+    await transport.wakeNow(member, { membersLease: 'L' })
+    await transport.runtimeLaunchQueue
+    assert.equal(await transport.seatTargetChanged(member), false)
+    assert.equal(await transport.seatTargetChanged({ ...member, projectRoot: '/Users/quo/work/other' }), true)
+    assert.equal(await transport.seatTargetChanged({ ...member, terminalId: '', projectRoot: '' }), true, 'remote -> local')
+    const restarted = []
+    transport.restart = async target => { restarted.push(target.projectRoot); return { botId: target.id, session: 'bot-aaaa1111' } }
+    transport.isRunning = async () => true
+    transport.captureStopVersion = () => 0
+    transport.requireStopVersion = () => {}
+    assert.equal(await transport.ensure(member), 'bot-aaaa1111')
+    assert.deepEqual(restarted, [])
+    assert.equal(await transport.ensure({ ...member, projectRoot: '/Users/quo/work/other' }), 'bot-aaaa1111')
+    assert.deepEqual(restarted, ['/Users/quo/work/other'])
+  } finally { await rm(root, { recursive: true, force: true }) }
 })

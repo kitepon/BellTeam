@@ -22,7 +22,7 @@ import { returnedMcpError } from './returned-mcp-error.mjs'
 import { launchFailureDetails } from './agent-launch-error.mjs'
 import { captureRuntime as captureSelectedRuntime } from './runtime-selection.mjs'
 import { writeAtomic } from './json-file.mjs'
-import { isRemoteBot } from './remote-seats.mjs'
+import { isRemoteBot, seatTarget } from './remote-seats.mjs'
 
 export { AitermClient } from './aiterm-client.mjs'
 export { runWaitProcess } from './aiterm-wait-process.mjs'
@@ -257,6 +257,9 @@ export class AitermTransport {
     this.requireStopVersion(bot.id, version)
     const running = await this.isRunning(bot)
     this.requireStopVersion(bot.id, version)
+    // remote-seat.md: a terminal/folder revision (or local <-> remote) relaunches on the new target at this idle boundary.
+    // A busy seat keeps today's delivery; the next ensure at idle moves it.
+    if (running && this.isIdle(bot.id) && await this.seatTargetChanged(bot)) return (await this.restart(bot)).session
     if (running) return this.session(bot)
     return this.wake(bot)
   }
@@ -297,15 +300,16 @@ export class AitermTransport {
     // Protects the wrong target: a terminal-bound member never starts in the server folder. Exit: an engine with the
     // terminals ports (next body start) drains the same queued ID.
     if (isRemoteBot(bot) && !this.remoteSeats) throw Object.assign(new Error('TERMINALS_UNAVAILABLE'), { code: 'TERMINALS_UNAVAILABLE', effect: 'not_started', status: 503 })
-    const launchOptions = isRemoteBot(bot) ? null : this.client.launchOptions
+    const launchOptions = this.client.launchOptions
       ? await this.client.launchOptions(bot.project, runtime) : { env: await loadBotEnvironment(bot.project) }
     let launch
     // harness-accounts.md: every seat runs on the 1st root; a 2nd seat differs only in the login the CLI gets (env token).
     const account = harness === 'claude-code' && this.accounts ? await this.accounts.selection('claude', bot.model) : null
+    let remote = null, issuedLaunch = false
     try {
       this.requireStopVersion(bot.id, version)
       admissionCheck?.()
-      const launchArgs = {
+      let launchArgs = {
         harness,
         cwd: bot.project,
         // An account seat (harness-accounts.md) keeps its own name; any other fresh launch uses the Bot id as before.
@@ -317,14 +321,27 @@ export class AitermTransport {
         // 既定はファストモードを使わない（オーナー裁定 2026-10-12）。共有の設定に残った値で起きないよう、必ず真偽で渡す。
         fast: bot.fastMode === true,
       }
-      // remote-seat.md: a member bound to a terminal launches there with its launch context instead of local files.
-      launch = isRemoteBot(bot)
-        ? await this.remoteSeats.launch(bot, launchArgs, { shortTermMemory, context: { membersLease }, slot: account?.slot ?? null,
-          checkpoint: () => { this.membersAdmission.assertLease(membersLease); this.requireStopVersion(bot.id, version); admissionCheck?.() } })
-        : await this.changeSession(bot, 'agent_launch', launchArgs, { ...launchOptions,
-          ...(account && account.slot !== '1st' ? { claudeLogin: account.slot } : {}), ...(execution ? { execution } : {}) })
+      // remote-seat.md (one launch path): a member bound to a terminal gets the terminal target, its folder, the launch context
+      // and the seat MCP config on the same agent_launch; the existing checkpoint reruns after that async preparation.
+      let claudeLogin = account && account.slot !== '1st' ? account.slot : null
+      if (isRemoteBot(bot)) {
+        remote = await this.remoteSeats.prepare(bot, launchArgs, { shortTermMemory, context: { membersLease }, slot: account?.slot ?? null, harness })
+        launchArgs = remote.args
+        claudeLogin = remote.claudeLogin
+        this.membersAdmission.assertLease(membersLease)
+        this.requireStopVersion(bot.id, version)
+        admissionCheck?.()
+      }
+      issuedLaunch = true
+      launch = await this.changeSession(bot, 'agent_launch', launchArgs, { ...launchOptions,
+        ...(claudeLogin ? { claudeLogin } : {}), ...(remote ? { privateEnv: remote.privateEnv } : {}), ...(execution ? { execution } : {}) })
+      if (remote) this.remoteSeats.launched(bot, launch?.structuredContent)
       if (account) void this.accounts.setSeat(bot.id, account.slot).catch(() => {})
     } catch (error) {
+      // A credential issued for a launch that was never issued is revoked; a launch possibly running keeps its own.
+      // Aiterm's classified terminal codes (UNREACHABLE, CWD_UNAVAILABLE, ...) keep the message queued until the terminal returns.
+      if (remote && issuedLaunch && this.remoteSeats.notStarted(error).effect === 'not_started') this.remoteSeats.wait(bot)
+      if (remote && (!issuedLaunch || ['not_started', 'not_issued'].includes(error?.effect))) await remote.revoke()
       // 起動の準備が終わらなかった席は、Aitermの端末だけが残る（認証が切れたCLIがサインインの画面で止まった時など。2026-10-05、Codex）。
       // 残すと席が「動いている」扱いになり、次の送信から起こし直せず、入力も受け付けない。BellTeamの席には、その画面へ答える人が居ない。
       // 残った端末を閉じて、次の送信がもう一度起こせるようにする。ここでは起こし直しも送り直しもしない（オーナー裁定 K-UTA3UC）。
@@ -346,7 +363,8 @@ export class AitermTransport {
     if (typeof session !== 'string' || !session) throw new Error(`AITERM_LAUNCH_RECEIPT_INVALID: ${bot.id}`)
     this.sessions.set(bot.id, session)
     this.seatHarnesses.set(bot.id, { session, harness })
-    await this.recordRuntimeLaunch(session, runtime, harness)
+    await this.recordRuntimeLaunch(session, runtime, harness,
+      remote ? { target: seatTarget(bot), botId: bot.id, launchId: launch.structuredContent.launch_id ?? null } : {})
     try {
       this.membersAdmission.assertLease(membersLease)
       await this.updateSession(bot.id, session, { membersLease })
@@ -415,15 +433,22 @@ export class AitermTransport {
   }
 
   // D5 live reference. shortcut: entries are overwritten per session, not removed at close; P8 over-retains closed launches.
-  recordRuntimeLaunch(sessionName, runtime, harness = null) {
+  recordRuntimeLaunch(sessionName, runtime, harness = null, seat = {}) {
     if (!this.runtimeLaunchesPath) return
     this.runtimeLaunchQueue = this.runtimeLaunchQueue.then(async () => {
       const launches = await this.readRuntimeLaunches()
-      launches[sessionName] = { generation: runtime.generation, capturedAt: this.now(), ...(harness ? { harness } : {}) }
+      launches[sessionName] = { generation: runtime.generation, capturedAt: this.now(), ...(harness ? { harness } : {}), ...seat }
       await mkdir(dirname(this.runtimeLaunchesPath), { recursive: true, mode: 0o700 })
       await writeAtomic(this.runtimeLaunchesPath, { schema: 'bellteam.runtime-launches.v1', launches })
     }).catch(() => this.reportError({ code: 'RUNTIME_LAUNCH_RECORD_UNAVAILABLE', module: 'execution' }))
     return this.runtimeLaunchQueue
+  }
+
+  // remote-seat.md: the recorded target of the running session ('' = local) differs from the member's terminal/folder now.
+  // No record (launched before records) = unchanged.
+  async seatTargetChanged(bot) {
+    const recorded = (await this.readRuntimeLaunches())[this.session(bot)]
+    return recorded ? (recorded.target ?? '') !== seatTarget(bot) : false
   }
 
   async restart(bot, { membersLease } = {}) {

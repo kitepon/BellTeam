@@ -118,7 +118,8 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
   const remoteSeats = ports.terminals?.connection && ports.ingress?.seatCredential && typeof ports.bots.launchContext === 'function'
     ? new RemoteSeats({ terminals: ports.terminals, ingress: ports.ingress,
       launchContext: (...args) => ports.bots.launchContext(...args), emitQueue: item => transport.emitQueue(item),
-      seatCommand: ports.seat?.waitProcess ?? null }) : null
+      seatCommand: ports.seat?.waitProcess ?? null,
+      recorded: async session => (await transport.readRuntimeLaunches())[session] ?? null }) : null
   const transport = createManagedTransport({
     ...ports.seat, accounts, remoteSeats,
     ...(remoteSeats ? { waitProcess: remoteSeats.waitProcess(ports.seat?.waitProcess ?? runWaitProcess) } : {}), ...Object.fromEntries(Object.entries(ports.storage ?? {}).filter(([key]) => key !== 'deliveryAnchor')), backgroundSummary,

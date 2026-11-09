@@ -1,32 +1,34 @@
 # Remote seats (C2 lifecycle, C7 capture)
 
-Owner: Kiro (execution). Request: Trony, 2026-11-09 (F-SEAT-HOST, `remote-seat-plan-20261109.md`). Cross contracts: [terminals](../terminals/README.md) C1–C9 (PR #764). Status: **P1 implemented in `src/remote-seats.mjs`** (see P1 implementation below). P1 scope is the Owner's Mac + Claude Code, no sudo, SSH key already registered.
+Owner: Kiro (execution). Request: Trony, 2026-11-09 (F-SEAT-HOST, `remote-seat-plan-20261109.md`). **Owner ruling 2026-11-09 16:1x JST: ONE launch path.** Cross contracts: [terminals](../terminals/README.md) (`connection.target`, `watch`; Crust), Aiterm `agent_launch` with `terminal` + `cwd` (Elegg, next Aiterm release), seat launcher + seat credential (Molly, PR #793), members `launchContext` (Belota, #768), Throughline 0.17.0 `remote-ingest` / `remote-handoff-context` (Rivalin). P1 scope: the Owner's Mac + Claude Code.
 
-A remote seat is the same BellTeam seat (same Bot, same session name, same delivery, same accounts logic) whose process runs on a registered terminal with `cwd = projectRoot`. Execution changes only **where** the native calls go and **what** it hands the launch instead of writing files. No relay seat, no new queue, no second history writer.
+A remote seat is the same BellTeam seat (same Bot, same session name, same delivery, same accounts logic) whose Claude process runs on a registered terminal with `cwd = projectRoot`. Execution launches it through **the same `agent_launch` call** as a local seat, adding the terminal target and folder. After the launch every call (`pty_send`, `pty_observe`, `pty_read`, `pty_key`, `claude_turn`, `agent_stop`, `pty_close`, the receipt's `wait_process`) is the same session call as a local seat. No routing, no bound port, no relay seat, no new queue, no second history writer.
 
 ## Function diagram
 
 ```mermaid
 flowchart LR
-  Conv[conversation durable receipt: queued original ID] -->|dispatch| Exec[execution transport: wake / submit / observe / stop]
-  Exec -->|member.terminalId null| Local[existing local path: AitermClient + project files]
-  Exec -->|member.terminalId set| Remote[remote seat path]
-  Remote -->|launchContext request| Members[members.instructions: launchContext]
-  Remote -->|handoff text| TL[throughline.context: existing handoffContext]
-  Remote -->|issue seat credential| Ingress[common MCP ingress C4: seat credential for session+launch]
-  Remote -->|selection model, accountDomain| Accounts[execution accounts: slot per model per domain]
-  Remote -->|open terminalId, memberId, projectRoot, seatBinding, accountDomain| Conn[terminals.connection]
-  Conn -->|bound native port| Remote
-  Remote -->|launch / send / observe / turn wait / stop / transcript read| Bound[bound native port = Aiterm remote adapter]
-  Bound --> Mac[Mac: claude in projectRoot, folder rules + appended BellTeam context, MCP over LAN]
-  Mac -->|MCP with seat credential| Ingress
-  Conn -->|available terminalId| Edge[execution available edge]
-  Edge -->|watchQueue botId| Conv
-  Bound -->|turn result / limit / transcript delta| Capture[existing completion path]
-  Capture --> History[conversation history writer N102: unchanged callback]
-  Capture --> CW[current-work: unchanged SeatTurns / summary]
-  Capture --> Limits[accounts.recordLimit: unchanged]
-  Capture -->|transcript delta + cursor| TLIngest[throughline ingest: proposed, Rivalin]
+  Conv[conversation durable receipt: queued original ID] -->|dispatch| Wake[execution wakeNow]
+  Wake -->|member.terminalId empty| Launch[same agent_launch through the seat launcher]
+  Wake -->|member.terminalId + projectRoot set| Prep[RemoteSeats.prepare]
+  Prep -->|target terminalId, memberId, projectRoot, harness| Term[terminals.connection.target]
+  Term -->|terminal, cwd, accountOwner / not_started| Prep
+  Prep -->|launchContext| Members[members.launchContext]
+  Prep -->|issue botId, sessionName, terminalId| Ingress[ingress.seatCredential]
+  Prep -->|args + terminal, cwd, append_system_prompt, mcp_config; privateEnv names; claudeLogin if Owner terminal| Check[existing checkpoint again: lease, stop version, admission]
+  Check --> Launch
+  Launch -->|reveal credentialRef inside the launch call| Ingress
+  Launch -->|stdin: launch, privateEnvNames, privateEnv| Seat[run-seat-aiterm-launch: env_vars = exactly the names]
+  Seat --> Aiterm[Aiterm agent_launch with terminal]
+  Aiterm --> Mac[terminal: claude in projectRoot, MCP over Aiterm reverse forward]
+  Mac -->|Bearer seat credential| Ingress
+  Term -->|watch reachable terminalId| Edge[RemoteSeats.available]
+  Edge -->|emitQueue botId| Conv
+  Aiterm -->|same receipts: wait_process, turn result, limit| Capture[existing completion path: history, current-work, accounts]
+  Capture -->|remote session completed| C7[RemoteSeats.forward]
+  C7 -->|aiterm-transcript-read as seat user| Aiterm
+  C7 -->|throughline remote-ingest| TL[Throughline server store]
+  TL -->|remote-handoff-context| Wake
 ```
 
 ## Seat binding (execution-owned, existing identity)
@@ -34,108 +36,70 @@ flowchart LR
 | Field | Source | Notes |
 | --- | --- | --- |
 | `botId` | members | unchanged |
-| `sessionName` | execution, today's rule | `bot-xxxx` or account seat `bot-xxxx-<1st\|2nd>-<base36>`; no terminal-specific scheme. MCP ingress already maps both to the Bot (`seat-mcp.mjs` `seatCandidates`) |
-| `launchId` | native launch receipt | 32 hex, today's `AITERM_AGENT_LAUNCH_ID` |
-| `terminalId`, `projectRoot` | members (C1) | captured at launch; a later change of either is a member revision: execution closes the old binding at the next idle boundary and launches fresh (never re-`cd`) |
-| `accountDomain` | terminals registry `accountOwner` | `owner` or `terminal:<terminalId>` |
-| `slot` | `accounts.selection('claude', model)` within `accountDomain` | see Accounts |
-| `connectionRef` | terminals.connection | opaque; held only in memory; every reconnect re-enters `open` |
+| `sessionName` | execution, today's rule | `bot-xxxx` or account seat `bot-xxxx-<1st\|2nd>-<base36>`; no terminal-specific scheme |
+| `launchId` | launch receipt | 32 hex, today's `AITERM_AGENT_LAUNCH_ID` |
+| `target` | member `terminalId` + `projectRoot` (`seatTarget(bot)`, `''` = local) | written into the existing launch record D5 (`execution-runtime-launches.json`: `{generation, capturedAt, harness, target, botId, launchId}`) for remote launches. Survives a body restart |
+| `accountOwner` | terminals `connection.target` result | `'owner'` = the Owner's 1st/2nd slots apply; anything else = the terminal's own Claude login |
 
-Held in the existing in-memory `sessions` / `seatHarnesses` maps plus one `remoteSeats: Map<botId, {terminalId, projectRoot, accountDomain, connectionRef}>`. Nothing new persisted by execution beyond today's session record.
+In memory: `RemoteSeats.seats: Map<sessionName, {sessionName, botId, launchId, cursor}>`, a cache of the launch record (rebuilt from it after a body restart; the generation exchange hands the same Map over so the Throughline cursor survives it).
 
-## Calls execution makes (P1)
+## Launch (`wakeNow` → `RemoteSeats.prepare` → `changeSession('agent_launch')`)
 
-1. `members.instructions.launchContext({botId, sessionName, shortTermMemory})` → `{text, revision}`. `text` = what members writes today into the local project (`AGENTS.md` with common rules, Owner info, user rules, member profile, `AGENTS.local.md`) plus `memory/previous-session.md` content, composed in memory. Members writes **nothing** for a remote member. `shortTermMemory` = today's `handoffContext` output. Failure → the launch returns `effect: 'not_started'` with the members error code.
-2. `ingress.seatCredential.issue({botId, sessionName, terminalId})` → `{url, credentialRef}` (C4, Molly). `url` = LAN MCP endpoint; `credentialRef` opaque, never a value in execution JSON; the seat sends the resolved value as `Authorization: Bearer`. Revoked by `ingress.seatCredential.revoke({sessionName})` when execution closes or replaces the seat.
-3. `terminals.connection.open({terminalId, memberId: botId, projectRoot, seatBinding: {botId, sessionName}, accountOwner})` → `{connectionRef, native}` or a classified error. `native` is a bound port with the **same method surface as today's AitermClient native calls** (`callTool(name, args, options)` for `agent_launch`, `pty_send`, `pty_observe`, `pty_read`, `claude_turn`/wait, `agent_stop`, `pty_close`), plus `transcript.read(cursor)` (C7). Execution routes every native call for that Bot through this port instead of the shared client; all other execution logic is unchanged.
-4. Launch through `native.callTool('agent_launch', launchPlan, { private })`:
+1. `terminals.connection.target({terminalId, memberId: botId, projectRoot, harness})` → `{terminal: {ref, target: {host, user, port}, trustRevision, credentialRevision}, cwd, accountOwner}`, passed unchanged. terminals runs its Claude upkeep inside it.
+2. `bots.launchContext(botId, {sessionName, shortTermMemory}, {membersLease})` → `{text}`; members writes nothing for a remote member. `shortTermMemory` = `throughline remote-handoff-context --bot <botId> --json` on the server (empty when unavailable; the seat still starts).
+3. `ingress.seatCredential.issue({botId, sessionName, terminalId})` → `{url, credentialRef}` (url = `http://127.0.0.1:4182/api/seat-mcp`; Aiterm rewrites the origin to the reverse forward).
+4. The transport's existing checkpoint (members lease, stop version, admission) runs again after these async steps.
+5. The same `agent_launch` args plus `terminal`, `cwd = projectRoot`, `append_system_prompt = text`, `mcp_config = {bellteam, call-bridge}` with headers `Authorization: Bearer ${BELLTEAM_MCP_TOKEN}`, `X-Bellteam-Seat: ${AITERM_SESSION_ID}`, `X-Bellteam-Launch-Id: ${AITERM_AGENT_LAUNCH_ID}` (names only). Launch options add `privateEnv = {names: ['BELLTEAM_MCP_TOKEN', + 'CLAUDE_CODE_OAUTH_TOKEN' when the Owner's 2nd slot applies], resolve}`. `AitermClient.call` resolves it (`seatCredential.reveal`) only inside the launch call and hands the seat launcher `privateEnvNames` + `privateEnv` on stdin (never argv, log or disk); the launcher forwards exactly those names as `env_vars` (no server PATH/HOME). The launcher still runs in the server member project; only a launch with `terminal` may have `cwd` ≠ that project.
+6. Receipt validated as today. Then `RemoteSeats.launched` caches `{botId, launchId}` and the launch record gets `target, botId, launchId`.
 
-```js
-launchPlan = { // same keys as today's local agent_launch args
-  harness: 'claude-code', cwd: projectRoot, session_name: sessionName, trust_project: true,
-  model, reasoning_effort, fast }
-options.private = { // Elegg remote-terminal.md (aiterm-mcp feat/remote-terminal-c3): files in remote Aiterm's 0700 launch state only
-  appendSystemPrompt: launchContext.text,          // --append-system-prompt-file
-  mcpConfig: { mcpServers: { bellteam: { type: 'http', url, headers: {
-    Authorization: 'Bearer ${BELLTEAM_MCP_TOKEN}', 'X-Bellteam-Seat': '${AITERM_SESSION_ID}', 'X-Bellteam-Launch-Id': '${AITERM_AGENT_LAUNCH_ID}' } },
-    'call-bridge': { /* same headers, url + '/call-bridge' */ } } }, // --mcp-config; no secret value in it
-  env: ['BELLTEAM_MCP_TOKEN', ...(slot === '2nd' ? ['CLAUDE_CODE_OAUTH_TOKEN'] : [])], // names only
-}
-```
+A credential issued for a launch that never issued `agent_launch` (or failed `not_started`/`not_issued`) is revoked. A successful `pty_close` of a remote session revokes its credential. Another seat of the same Bot under another name (account-slot move, #750/#756) is untouched until its own `pty_close`; a reissue for the same name replaces the token.
 
-Values never pass through execution: at `open`, execution names `credentials = { BELLTEAM_MCP_TOKEN: credentialRef, CLAUDE_CODE_OAUTH_TOKEN: { harness: 'claude', slot: '2nd' } | absent }`; terminals resolves them inside its private resolution (`credentialRef` through Molly/Mika, the slot login through the existing seat-user `accountLoginEnvironment` read, only when `accountOwner` is `owner`) and hands them as `privateEnv` to Elegg's `openRemoteTerminal`. One connection per seat launch, so a slot switch (fresh seat) opens a fresh connection. A missing `projectRoot` returns `CWD_UNAVAILABLE` before any session exists; execution maps it to `not_started` like the other availability codes, its exit is the member's folder revision or the folder appearing.
+Wrong-target guard (kept): a remote member with no terminals/ingress ports (older parent) throws `TERMINALS_UNAVAILABLE`, `effect: not_started`. Protects: starting in the server folder. Exit: the next body start with the ports drains the same queued ID.
 
-The receipt must stay `aiterm.agent-launch-result.v1` with `session_id === sessionName`, `launch_id`, `startup.status`, `fast`. Execution validates it exactly as today.
+## Target revision (member terminal/folder change)
+
+`ensure` (before a delivery): when the seat is running **and idle** and the launch record's `target` of the running session differs from `seatTarget(bot)` now (terminal or folder revision, or local ↔ remote), the existing `restart(bot)` closes it and launches fresh on the new target (never re-`cd`). A busy seat keeps today's delivery; the next idle `ensure` moves it. No record (launched before records existed) = unchanged. Account-slot seats on an unchanged target are not touched.
 
 ## Pending delivery while the terminal is away (Owner ruling 2026-11-09 13:38)
 
 ```mermaid
 stateDiagram-v2
   [*] --> Queued: conversation saved original ID
-  Queued --> Opening: drain -> execution dispatch
-  Opening --> Launched: open + launch ready
-  Opening --> Queued: TERMINAL_UNAVAILABLE / CREDENTIAL_UNAVAILABLE (effect not_started)
+  Queued --> Preparing: drain -> wakeNow
+  Preparing --> Launched: target + context + credential + agent_launch ready
+  Preparing --> Queued: not_started (terminals / members / ingress / Aiterm terminal codes)
   Launched --> Delivered: pty_send accepted (same ID once)
-  Queued --> Opening: terminals availability -> execution available edge -> watchQueue(botId) -> drain
-  Delivered --> Unknown: transport lost mid-turn
-  Unknown --> Observing: reconnect via open (same sessionName)
-  Observing --> Delivered: same seat alive, turn observed / transcript caught up
+  Queued --> Preparing: terminals watch reachable -> RemoteSeats.available -> emitQueue(botId) -> drain
+  Delivered --> Delivered: lost SSH is not a seat end; calls by session reconnect (Aiterm)
 ```
 
-- Unreachable/asleep/offline and credential-unavailable map to a top-level `{code, effect: 'not_started'}`. The durable receipt already returns such an ID to `queued` without a failed callback (`conversation/durable-receipt.md`). No failure is shown to the sender.
-- Exit is automatic: terminals' non-AI availability observer emits `available(terminalId)`; execution emits `watchQueue(botId)` for each idle Bot bound to that terminal (the existing running/available edge), and the existing drain claims the same original ID. No timer, no AI polling, no new queue.
-- Wrong target (`TARGET_MISMATCH`) is the same `not_started`; its exit is the Owner's corrective revision (terminals), after which the same edge fires.
-- A lost connection after `pty_send` acceptance is never a resend: the turn stays with its native references; reconnect re-opens and observes the same session. Execution does not replay the business input.
+Not-started codes: `TERMINAL_UNAVAILABLE`, `CREDENTIAL_UNAVAILABLE`, `TARGET_MISMATCH`, `TERMINAL_NOT_FOUND`, `TERMINALS_UNAVAILABLE`, `SEAT_CREDENTIAL_INVALID`, `BOT_REMOTE_BINDING_MISSING`, `MEMBERS_EFFECT_UNSUPPORTED`, and Aiterm's `CWD_UNAVAILABLE`, `UNREACHABLE`, `HOST_TRUST_STALE`, `HOST_KEY_MISMATCH`, `REMOTE_AITERM_TOO_OLD`, `SEAT_FORWARD_UNAVAILABLE`. The durable receipt returns the ID to `queued` without a failed callback. Exit: terminals' non-AI observer `watch` event `reachable: true` → `emitQueue` for the Bots recorded under that terminal. No timer, no AI polling, no new queue.
 
-## Accounts (C2, Owner rulings 2 and 4 of 13:38)
+## Accounts (Owner rulings 2 and 4 of 13:38)
 
-- `accountDomain = owner` (Owner's own terminals, P1): today's per-model selection, today's limit registry. 1st = the terminal's own Claude login (assumption to confirm on the Mac: it is the Owner's 1st account). 2nd = `claudeLogin: '2nd'`; the token is read by the seat-side launcher as today and travels only in the private credential channel to the Owner's terminal.
-- `accountDomain = terminal:<id>` (others' machines, P3): selection keyed by that domain; the Owner's slot tokens are never selected. Until that terminal owner registers a 2nd login, the seat runs on the terminal's own login and a limit waits for reset there.
-- Switch = fresh seat on the other slot on **the same terminal and projectRoot**, old seat retained under today's policy (`harness-accounts.md`).
-- Limit detection is unchanged: the bound port's turn wait must return the same `rate_limited` classification and limit text as local.
+- `accountOwner === 'owner'`: today's per-model selection; 2nd = `claudeLogin: '2nd'` read by the seat launcher as today, its name added to `privateEnvNames`.
+- Otherwise: the terminal's own Claude login; the Owner's slot tokens are never sent.
+- Switch = fresh seat on the other slot on the same terminal and projectRoot, old seat retained (`harness-accounts.md`). Limit detection is unchanged (same receipts).
 
 ## Capture (C7)
 
-| Need | Source on the bound port | Consumer (unchanged writer) |
-| --- | --- | --- |
-| Turn completion / answer / failure category incl. `rate_limited` | `claude_turn` wait result, same schema as local | delivery callback → conversation history (N102), accounts.recordLimit |
-| Live activity for member cards | `pty_observe` / SeatTurns observations, same schema | current-work, background summary (unchanged) |
-| Session transcript for short-term memory | `transcript.read({sessionName, cursor})` → `{entries: [...jsonl lines], cursor}`; cursor = `{claudeSessionId, offset}` of `~/.claude/projects/<cwd>/<id>.jsonl` on the terminal | Throughline ingest (proposed, Rivalin): execution forwards `{botId, sessionName, launchId, entries, cursor}` after each turn end and after reconnect; Throughline acks the cursor it stored; execution keeps only the last acked cursor in memory |
-
-Completion boundary (Rivalin 2026-11-09, Throughline ADR0002): `transcript.read` returns entries only through the end of the latest turn **the native adapter confirmed complete** for that Claude session (the same completion its `claude_turn` wait reports), never an unfinished tail, including after reconnect. Assistant presence, file mtime or process exit is not completion. Elegg binds the offset to the Claude Stop hook (`agent_done` records transcript_path and the last complete line offset); with no completion recorded the read returns `[]` and the same cursor; a line flushed after Stop appears in the next completed read. Execution calls `transcript.read` only after it holds a native completion for that session; after a mid-turn reconnect it first waits that turn's completion through the bound port, then reads. Byte contract (Rivalin): each entry is a complete original JSONL line with its original line ending; `offset` is the exclusive UTF-8 byte offset; range start = end − Σ byteLength(entries).
-
-Reconnect reads from the last acked cursor, so nothing is duplicated and no delivered input is replayed. The terminal keeps no BellTeam history copy; history stays the conversation module's.
+After a remote session's wait returns `done` / `error` / `rate_limited` (`RemoteSeats.waitProcess` wraps the same wait runner), `RemoteSeats.forward`: `aiterm-transcript-read --session S [--cursor-session ID --offset N] --max-bytes 1048576` as the seat user (`aiterm.transcript-read.v1`: whole lines through the latest Stop-recorded offset, `cursor = {claudeSessionId, offset}`) → `throughline remote-ingest --json` (stdin through a `node -e` bridge; argv pieces of at most 96 KiB UTF-8 bytes, cut only between code points; joined they are the exact JSON) → keep `ackedCursor` in memory. `E_REMOTE_GAP` / `E_REMOTE_CONFLICT` move to `expectedCursor`; other failures keep the cursor for the next completion. At most 64 pages per completion; one pass at a time per seat. Without a `launchId` nothing is forwarded. After a body restart the cursor starts at null; Throughline's replay is idempotent.
 
 ## Not changed
 
-Local seats (no `terminalId`): byte-for-byte today's path. Delivery ordering, durable receipt, history writer, current-work DTO, accounts registry schema.
+Local seats (no `terminalId`): today's path, including env forwarding. Delivery ordering, durable receipt, history writer, current-work DTO, accounts registry schema. `resumePreviouslyActive` skips remote members (the normal wake launches them on their terminal).
 
-## Open contracts (owners)
+## P1 implementation
 
-- terminals (Crust): `open` returns the bound native port above; `available(terminalId)` event; classified codes `TERMINAL_UNAVAILABLE`, `CREDENTIAL_UNAVAILABLE`, `TARGET_MISMATCH` (plus Elegg's `CWD_UNAVAILABLE`, `CONNECTION_LOST`); `credentials` names resolved into `privateEnv`.
-- Aiterm remote adapter (Elegg): settled in aiterm-mcp `docs/architecture/remote-terminal.md` (b35eb48): `options.private`, same results, `transcript.read` completion boundary, `lost` event without auto-reconnect.
-- members (Belorta): settled in PR #768: facade `bots.launchContext(botId, {sessionName, shortTermMemory}, context)` → `{text, revision}` under the normal members lease (`profile.launchContext`), writes nothing; `revision` = hash of `[terminalId, projectRoot]`; member fields `bot.terminalId` / `bot.projectRoot` (`''` = local). Errors `BOT_NOT_FOUND`, `BOT_REMOTE_BINDING_MISSING`, `MEMBERS_EFFECT_UNSUPPORTED` map to `not_started`.
-- common ingress (Molly): settled in PR #767 `integration/remote-seat-ingress.md`. Given to the engine only when its factory declares `supportsRemoteSeats === true`: `ports.ingress.seatCredential.issue/revoke`, `ports.terminals = {connection, watch}` (Crust's core as is; `watch` carries availability). The bearer binds `{botId, sessionName}`; reissue for the same sessionName replaces the old token, so a relaunch invalidates the previous seat. `launchId` stays today's format-checked header claim (not bound; not needed because one live token per sessionName). Rejected token = 400 `BELLTEAM_SEAT_UNRESOLVED`, exit = relaunch with a fresh token.
-- Throughline (Rivalin): ingest with cursor ack, and `handoffContext` reading that ingest for remote seats.
+| Piece | Where |
+| --- | --- |
+| Ports | `createExecutionDispatcher`: `ports.terminals = {connection, watch}`, `ports.ingress = {seatCredential: {issue, revoke, reveal}}`, `ports.bots.launchContext`; `EXECUTION_REMOTE_SEATS = true` → loader `supportsRemoteSeats` (#773). `RemoteSeats` exists only when all three are present |
+| Remote member | `isRemoteBot(bot)`, `seatTarget(bot)` (`src/remote-seats.mjs`) |
+| Launch inputs | `RemoteSeats.prepare` / `launched`; `AitermTransport.wakeNow` |
+| Private env | `AitermClient.call` option `privateEnv` (agent_launch with `terminal` only) |
+| Target revision | `AitermTransport.seatTargetChanged` + `ensure`; D5 record `target` |
+| Credential release | `RemoteSeats.route` (successful `pty_close`) |
+| Queue edge | `RemoteSeats.wait` / `available` |
+| C7 | `RemoteSeats.waitProcess` / `forward` / `handoffContext` |
 
-## P1 implementation (`src/remote-seats.mjs`)
-
-| Piece | Where | Behavior |
-| --- | --- | --- |
-| Ports | `createExecutionDispatcher` | `ports.terminals = {connection, watch}` and `ports.ingress = {seatCredential}` accepted; the engine exports `EXECUTION_REMOTE_SEATS = true`, which the runtime loader turns into `factory.supportsRemoteSeats` (Molly's mount, PR #767). `RemoteSeats` exists only when both ports and `ports.bots.launchContext` (members, PR #768) are present |
-| Remote member | `isRemoteBot(bot)` | `bot.terminalId` and `bot.projectRoot` both non-empty |
-| Launch | `AitermTransport.wakeNow` → `RemoteSeats.launch` | Today's launch args (session name, model, effort, fast, account slot from today's selection). Open without credentials, `pty_observe` the session: alive there = taken over (after a body restart; its credential survives), no second launch and no new credential. Otherwise `launchContext` → `seatCredential.issue` → `open` with `credentials` → the transport's existing checkpoint (members lease, stop version, admission) runs again after these async steps → `agent_launch` with `options.private`. A checkpoint or open failure before `agent_launch` revokes the credential it issued. Another held seat of the same Bot under a different name (an account-slot move, #750/#756) is left untouched until its explicit `pty_close`; only an entry of the same name is replaced (credential kept: the reissue already replaced it). A failed remote launch closes its half-started session on that terminal, never through the local client. Today's server-side `prepareStartup` still runs (it writes the server member project only) |
-| Wrong target guard | `wakeNow` | A remote member with no remote ports (older parent) throws `TERMINALS_UNAVAILABLE`, `effect: not_started`. Protects: starting in the server folder. Exit: the next body start with the ports drains the same queued ID |
-| Routing | `RemoteSeats.route(native)` | Session-addressed calls of a held remote seat go to its bound `native.callTool`; others to the shared client. `pty_list` lists held remote seats as running (the seat survives on the terminal). `admissionCheck` runs right before each issued send, again before the send reissued after a reopen. A successful `pty_close` releases the connection and revokes the credential |
-| Completion wait | `RemoteSeats.waitProcess(local)` | A receipt's `wait_process` with `--session <held remote seat>` runs through the bound `native.wait(process, {signal})` on the terminal (same JSON result as `aiterm-wait`); missing = `REMOTE_WAIT_UNAVAILABLE` |
-| Lost connection | `RemoteSeats.call` | `TERMINAL_UNAVAILABLE` refused before sending: reopen once without credentials and retry. In-flight `CONNECTION_LOST` is returned, never resent |
-| Pending while away | `RemoteSeats.wait/available` | Not-started codes record `terminalId → botIds`; `watch` event `reachable: true` emits the existing queue edge for those Bots and held seats there |
-| Generation exchange | export/import | The held seat Map is handed to the successor (same object, never serialized); retire only unsubscribes the watch |
-| Restart resume | `resumePreviouslyActive` | Skipped for remote members; the normal wake takes the seat over |
-| Short-term memory | `RemoteSeats.handoffContext` | `throughline remote-handoff-context --bot <botId> --json` on the server as the seat user (`ports.seat.waitProcess`). Unavailable (Throughline < 0.17.0, error) = empty memory and one stderr line; the seat still starts |
-| Transcript to Throughline (C7) | `RemoteSeats.forward` | After a remote wait returns `done`/`error`/`rate_limited`: `transcript.read({sessionName, cursor, maxBytes: 1 MiB})` → `throughline remote-ingest --json` (stdin through a `node -e` bridge, argv pieces of at most 96 KiB UTF-8 bytes, cut only between code points; joined they are the exact JSON) → keep `ackedCursor` in memory. `E_REMOTE_GAP`/`E_REMOTE_CONFLICT` move to `expectedCursor`; other failures keep the cursor for the next completion. At most 64 pages per completion; one pass at a time per seat. Needs the seat's `launchId` (launch receipt or observation); without it nothing is forwarded. After a body restart the cursor starts at null and Throughline's replay is idempotent |
-| Account owner | `RemoteSeats.open` | shortcut: P1 passes `accountOwner: 'owner'` (Owner's terminals only); a non-Owner terminal fails `TARGET_MISMATCH` in terminals. P3 needs a nonsecret registry read for the account domain |
-
-Test: `test/remote-seats.test.mjs` (launch names/references only, asleep → available edge, takeover, routing/list/wait, reconnect without resend, C7 forward with gap recovery and memory fallback, UTF-8 argv pieces, checkpoint after a suspended open/reopen, other-slot seat retention).
-
-Still open: `native.wait` on the bound port. Aiterm 0.65.0 ships `remote_terminal_wait({waitProcess})`; terminals' `bind` (Crust, `src/terminals/remote-process.mjs`) must expose it as `wait(waitProcess, {signal})` (abort cancels the MCP request). Until then a remote completion wait answers `REMOTE_WAIT_UNAVAILABLE` and nothing is forwarded. Throughline 0.17.0 is published (npm latest); the image installs `throughline@latest`.
+Test: `test/remote-seats.test.mjs`.
