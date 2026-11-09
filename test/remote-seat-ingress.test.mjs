@@ -112,3 +112,26 @@ test('credential refresh: rejected report is contained and stop waits for the in
     assert.deepEqual(unhandled, [])
   } finally { process.off('unhandledRejection', onUnhandled) }
 })
+
+test('credential refresh: recoveryNeeded without handles arms the timer until refresh reports recovery', async t => {
+  t.mock.timers.enable({ apis: ['setInterval'] })
+  const { createCredentialRefresh } = await import('../src/secret-credential-refresh.mjs')
+  const results = [{ recoveryNeeded: true }, { recoveryNeeded: true }, { recoveryNeeded: false }]
+  let calls = 0, recoveryListener
+  const helper = createCredentialRefresh({ refresh: async () => results[calls++], watch: () => () => {},
+    watchRecovery: listener => { recoveryListener = listener; return () => { recoveryListener = null } }, intervalMs: 1000 })
+  await helper.refreshNow()
+  assert.equal(helper.pending, 1)
+  const settle = async () => { for (let i = 0; i < 5; i++) await Promise.resolve() }
+  t.mock.timers.tick(1000); await settle()
+  t.mock.timers.tick(1000); await settle()
+  assert.equal(calls, 3)
+  assert.equal(helper.pending, 0)
+  t.mock.timers.tick(5000); await settle()
+  assert.equal(calls, 3)
+  recoveryListener({ recoveryNeeded: true })
+  t.mock.timers.tick(1000); await settle()
+  assert.equal(calls, 4)
+  await helper.stop()
+  assert.equal(recoveryListener, null)
+})

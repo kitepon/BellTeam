@@ -178,6 +178,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   // Usage has no timer of its own; the parent drives refresh while a credential is unavailable (Mika C5).
   credentialRefresh = usageAssembly?.credentials?.refresh && usageAssembly.credentials.watch ? createCredentialRefresh({
     refresh: () => usageAssembly.credentials.refresh(), watch: listener => usageAssembly.credentials.watch(listener),
+    ...(usageAssembly.credentials.watchRecovery ? { watchRecovery: listener => usageAssembly.credentials.watchRecovery(listener) } : {}),
     report: error => diagnostics.record({ code: 'SECRET_CREDENTIAL_REFRESH_FAILED', module: 'integration', diagnostic_log: String(error?.code ?? 'UNKNOWN') }) }) : null
   if (credentialRefresh && terminals) terminals.watch(event => { if (event?.reachable === true) void credentialRefresh.refreshNow() })
   const seatCredential = Object.freeze({
