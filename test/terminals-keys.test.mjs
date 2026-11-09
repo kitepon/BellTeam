@@ -50,7 +50,7 @@ test('the app sets a key through the secret card; terminals never sees the value
 
   const { secretRequest } = await core.keys.request('friend-mac', 'ssh')
   assert.equal(secretRequest.id, requestId)
-  assert.deepEqual(credentials.calls[0].input, { terminalId: 'friend-mac', purpose: 'terminal.ssh', label: 'SSH key for terminal friend-mac' })
+  assert.deepEqual(credentials.calls[0].input, { terminalId: 'friend-mac', purpose: 'terminal.ssh', label: '端末 friend-mac のSSH鍵' })
   assert.deepEqual(native.calls.find(call => call.op === 'register').target, { host: '192.168.1.40', user: 'yui', port: 22 }, 'keyless Aiterm binding')
   assert.equal((await core.registry.get('friend-mac')).sshKeyPending, true)
 

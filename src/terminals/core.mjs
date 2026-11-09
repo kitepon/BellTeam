@@ -26,10 +26,14 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
     }
   }
   // Created lazily so a missing Aiterm release only makes targets/checks TERMINAL_UNAVAILABLE.
-  const lazyNative = { connect: request => native().connect(request), trust: ref => native().trust(ref), loadCredential: request => native().loadCredential(request) }
+  const lazyNative = { connect: request => native().connect(request), trust: ref => native().trust(ref), loadCredential: request => native().loadCredential(request),
+    provision: request => native().provision(request), authorizeKey: request => native().authorizeKey(request) }
   const connection = createTerminalConnection({ registry, secrets, native: lazyNative, ...options })
   connection.onAvailable(({ terminalId }) => publish({ terminalId, reachable: true, observedAt: new Date().toISOString() }))
-  const unwatchCredentials = credentials?.watchCredentials?.(event => { void applyKey(event).catch(() => {}); connection.onCredentialEvent(event) })
+  const unwatchCredentials = credentials?.watchCredentials?.(event => {
+    if (event?.purpose === 'terminal.login') return void applyLogin(event)
+    void applyKey(event).catch(() => {}); connection.onCredentialEvent(event)
+  })
 
   const target = connection.target
   connection.target = async request => {
@@ -128,8 +132,9 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
   }
 
   // Key setting (Trony ruling): Mika's Owner secret card; the value never passes through terminals.
-  const KINDS = { ssh: { purpose: 'terminal.ssh', ref: 'sshKeyRef', source: 'keySource', request: 'sshKeyRequest', label: 'SSH key' },
-    sudo: { purpose: 'terminal.sudo', ref: 'sudoKeyRef', source: 'sudoKeySource', request: 'sudoKeyRequest', label: 'sudo password' } }
+  // label = the secret card heading the Owner reads (Japanese).
+  const KINDS = { ssh: { purpose: 'terminal.ssh', ref: 'sshKeyRef', source: 'keySource', request: 'sshKeyRequest', label: 'SSH鍵' },
+    sudo: { purpose: 'terminal.sudo', ref: 'sudoKeyRef', source: 'sudoKeySource', request: 'sudoKeyRequest', label: 'sudoパスワード' } }
   const PURPOSES = Object.fromEntries(Object.values(KINDS).map(kind => [kind.purpose, kind]))
   const keyError = (code, status, message) => Object.assign(new Error(message), { code, status })
 
@@ -153,7 +158,7 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
         : await native().register({ host: record.host, user: record.user, port: record.port })
           .catch(() => { throw keyError('TERMINAL_UNAVAILABLE', 503, 'Aiterm could not create the terminal binding; update Aiterm on BellTeam and try again') })
     }
-    const { secretRequest } = await credentials.requestTerminalKey({ terminalId, purpose: kind.purpose, label: `${kind.label} for terminal ${terminalId}` })
+    const { secretRequest } = await credentials.requestTerminalKey({ terminalId, purpose: kind.purpose, label: `端末 ${terminalId} の${kind.label}` })
     // Conditional on the snapshot's target: a target change by another writer (trust rebind) would make this binding wrong.
     const saved = await registry.update(terminalId, { ...Object.fromEntries(Object.entries(patch).filter(([key]) => key !== 'terminalId')), [kind.request]: secretRequest.id },
       stored => stored.host === record.host && stored.user === record.user && stored.port === record.port)
@@ -168,6 +173,42 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
     if (!kind || typeof handle !== 'string' || typeof requestId !== 'string') return
     await registry.update(terminalId, { [kind.ref]: handle, [kind.source]: 'secret', [kind.request]: null }, stored => stored[kind.request] === requestId)
       .catch(error => { if (error?.code !== 'TERMINAL_NOT_FOUND') throw error })
+  }
+
+  // S4 (Mika #855): one-time Mac login password -> Aiterm authorize-key. Pending requests and outcomes live in memory only:
+  // after a restart Mika's login handles are revoked, so the app simply asks again.
+  const logins = new Map() // terminalId -> {requestId, generation}
+  const authorizations = new Map() // terminalId -> {requestId, outcome, observedAt}
+  const authorizeKey = terminalId => serial(terminalId, async () => {
+    if (typeof credentials?.requestTerminalKey !== 'function') throw keyError('CREDENTIAL_UNAVAILABLE', 503, 'The secret input is not available now; try again later')
+    const record = await registry.target(terminalId)
+    if (!record) throw keyError('TERMINAL_NOT_FOUND', 404, 'Terminal not found; list_terminals shows the registered terminalIds')
+    // No password is asked before the host is trusted (secret exposure to the wrong target); exit: 「このMacを確かめる」.
+    if (!record.hostTrust) throw Object.assign(keyError('HOST_TRUST_MISSING', 409, 'Confirm this Mac first, then authorize the key'), { action: '先にこのMacを確かめてください' })
+    if (!record.sshKeyRef) throw Object.assign(keyError('SSH_KEY_UNSET', 409, 'Set the SSH key first, then authorize it'), { action: '先にSSH鍵を設定してください' })
+    const generation = connection.generation(terminalId)
+    const { secretRequest } = await credentials.requestTerminalKey({ terminalId, purpose: 'terminal.login', label: `端末 ${terminalId} のMacのログインパスワード` })
+    logins.set(terminalId, { requestId: secretRequest.id, generation })
+    return { secretRequest }
+  })
+  function applyLogin({ terminalId, handle, requestId, available } = {}) {
+    if (closing || typeof handle !== 'string' || available !== true) return
+    const pending = logins.get(terminalId)
+    const drop = () => Promise.resolve().then(() => credentials?.unbind?.(handle, { terminalId, purpose: 'terminal.login' })).catch(() => {})
+    if (!pending || pending.requestId !== requestId || pending.consuming) return void (pending?.requestId !== requestId && drop())
+    // Pending stays true until the outcome is recorded, so "pending false" alone means the outcome is readable (Admi).
+    pending.consuming = true
+    const work = connection.authorize({ terminalId, generation: pending.generation, handle })
+      .then(outcome => {
+        // Mika revokes the handle on consume; an unconsumed one (stale target) is dropped explicitly.
+        if (outcome === 'TERMINAL_CHANGED') void drop()
+        // A newer request (new POST) owns the screen now; this outcome is not shown in its place.
+        if (logins.get(terminalId) !== pending) return
+        authorizations.set(terminalId, { requestId, outcome, observedAt: new Date().toISOString() })
+        logins.delete(terminalId)
+      })
+    inflight.add(work)
+    work.finally(() => inflight.delete(work))
   }
 
   // Restart: an event missed while down is recovered from Mika's current handle.
@@ -197,16 +238,21 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
     return observation
   }
 
+  // In-memory observations ride on the projection so existing surfaces show them.
+  const withMemory = item => ({ ...item, maintenance: connection.maintenance.last(item.terminalId),
+    keyAuthorizationPending: logins.has(item.terminalId), keyAuthorization: structuredClone(authorizations.get(item.terminalId) ?? null) })
+
   const ready = reconcileKeys().catch(() => {})
   return {
     // C8 outcome rides on the projection so existing surfaces show it (Centi's acceptance reads it there).
     registry: {
-      list: async () => (await registry.list()).map(item => ({ ...item, maintenance: connection.maintenance.last(item.terminalId) })),
-      get: async id => { const item = await registry.get(id); return item && { ...item, maintenance: connection.maintenance.last(id) } },
+      list: async () => (await registry.list()).map(withMemory),
+      get: async id => { const item = await registry.get(id); return item && withMemory(item) },
       put, remove: terminalId => serial(terminalId, () => registry.remove(terminalId))
     },
     reachability: { check },
-    keys: { request: requestKey, remove: removeKey },
+    keys: { request: requestKey, remove: removeKey, authorize: authorizeKey },
+    folder: request => connection.folder(request),
     trust: { attest },
     connection,
     maintenance: connection.maintenance,

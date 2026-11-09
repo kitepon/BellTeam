@@ -18,14 +18,21 @@ async function readJson(request, empty) {
 
 export function createTerminalsApi({ terminals, internal }) {
   return async (request, response, url) => {
-    const match = /^\/api\/terminals(?:\/([a-z0-9][a-z0-9-]{0,63})(\/check|\/trust|\/keys\/([a-z]+))?)?$/u.exec(url.pathname)
+    const match = /^\/api\/terminals(?:\/([a-z0-9][a-z0-9-]{0,63})(\/check|\/trust|\/folder|\/keys\/([a-z]+)(\/authorize)?)?)?$/u.exec(url.pathname)
     if (!match) return false
     if (internal) return json(response, 403, { error: 'TERMINALS_OWNER_REQUIRED' })
     const core = terminals()
     if (!core) throw TERMINALS_UNAVAILABLE()
-    const [, id, sub, keyKind] = match
+    const [, id, sub, keyKind, authorize] = match
     const check = sub === '/check'
     const method = request.method
+    if (sub === '/folder') {
+      if (method !== 'POST') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
+      const body = await readJson(request, {})
+      if (body === null || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(key => key !== 'path' && key !== 'create'))
+        return json(response, 400, { error: 'INVALID_PATH', message: 'Send {path, create?} with an absolute folder path on that terminal' })
+      return json(response, 200, await core.folder({ terminalId: id, path: body.path, create: body.create ?? false }))
+    }
     if (sub === '/trust') {
       if (method !== 'POST') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
       const body = await readJson(request, {})
@@ -35,11 +42,12 @@ export function createTerminalsApi({ terminals, internal }) {
     }
     // Key setting (Trony ruling): the key is entered only in Mika's secret card; this route carries no key or reference.
     if (keyKind !== undefined) {
+      if (authorize && (method !== 'POST' || keyKind !== 'ssh')) return json(response, method !== 'POST' ? 405 : 400, { error: method !== 'POST' ? 'METHOD_NOT_ALLOWED' : 'INVALID_KEY_KIND' })
       if (method === 'POST') {
         const body = await readJson(request, {})
         if (body === null || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).length)
           return json(response, 400, { error: 'KEY_IN_REQUEST_REFUSED', message: 'Send no key, password or reference here; open the returned secret request and enter it there' })
-        return json(response, 200, await core.keys.request(id, keyKind))
+        return json(response, 200, await (authorize ? core.keys.authorize(id) : core.keys.request(id, keyKind)))
       }
       if (method === 'DELETE') return json(response, 200, { terminal: await core.keys.remove(id, keyKind) })
       return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })

@@ -21,6 +21,11 @@ function parse(result) {
   return value
 }
 
+// One-shot CLI: exit 0 = one JSON result line, exit 2 = one JSON error line; keep only its code, never raw text.
+function oneLine(stdout) {
+  try { return JSON.parse(String(stdout).trim().split('\n').pop()) } catch { return null }
+}
+
 export function createRemoteTerminalProcesses({ project, connectClient = () => stdioClient(project), run = createSeatProcessRunner(project) } = {}) {
   async function start() {
     let client
@@ -32,6 +37,13 @@ export function createRemoteTerminalProcesses({ project, connectClient = () => s
   async function status(ref) {
     const { client, tool } = await start()
     try { return await tool('remote_terminal_status', { ref }) } finally { await client.close().catch(() => {}) }
+  }
+
+  async function cli(args, input) {
+    const { stdout, code } = await run('/usr/bin/env', [BIN, ...args], { acceptNonzero: true, maxBuffer: 65536, ...(input !== undefined ? { input } : {}) })
+    const value = oneLine(stdout)
+    if (code !== 0) throw Object.assign(new Error('Remote terminal command failed'), { code: typeof value?.code === 'string' ? value.code : 'REMOTE_AITERM_UNAVAILABLE' })
+    return value
   }
 
   return {
@@ -49,7 +61,8 @@ export function createRemoteTerminalProcesses({ project, connectClient = () => s
         await tool('remote_terminal_open', { ref: binding.ref, target, trustRevision: hostTrust.revision, ...key, ...(binding.sudoCredential ? { sudoCredential: binding.sudoCredential } : {}) })
       } catch (error) { await client.close().catch(() => {}); throw error }
       return {
-        command: op => tool('remote_terminal_command', { op }),
+        // Elegg: claude_* take no args; path_status / make_dir take an absolute `path`.
+        command: (op, args = {}) => tool('remote_terminal_command', { ...args, op }),
         async close() {
           await tool('remote_terminal_close').catch(() => {})
           await client.close().catch(() => {})
@@ -72,15 +85,18 @@ export function createRemoteTerminalProcesses({ project, connectClient = () => s
       return ref
     },
 
+    // Pre-MCP bootstrap of the Mac's Aiterm side over the trusted, keyed SSH (Elegg accepted contract, 2026-11-10).
+    async provision({ ref }) { return cli(['provision', '--ref', ref]) },
+
+    // S4: one password-only attempt against the trusted host; the password is raw stdin only (never argv/env/logs).
+    async authorizeKey({ ref, password }) {
+      if (typeof password !== 'string') throw Object.assign(new Error('Unsupported credential'), { code: 'CREDENTIAL_UNUSABLE' })
+      return cli(['authorize-key', '--ref', ref], password)
+    },
+
     // The Owner's "confirm the new host key": the UID1000 holder scans once and writes only if the fingerprint matches.
     async confirmHostKey(ref, fingerprint) {
-      const { stdout, code } = await run('/usr/bin/env', [BIN, 'trust-confirm', '--ref', ref, '--fingerprint', fingerprint], { acceptNonzero: true, maxBuffer: 65536 })
-      // Exit 2 = one JSON error line; keep only its code (mismatch vs unreachable), never raw text.
-      if (code !== 0) {
-        let dto = null
-        try { dto = JSON.parse(String(stdout).trim().split('\n').pop()) } catch {}
-        throw Object.assign(new Error('Host key not confirmed'), { code: typeof dto?.code === 'string' ? dto.code : 'REMOTE_AITERM_UNAVAILABLE' })
-      }
+      await cli(['trust-confirm', '--ref', ref, '--fingerprint', fingerprint])
       return (await status(ref))?.trust ?? null
     }
   }
