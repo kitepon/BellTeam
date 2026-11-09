@@ -407,6 +407,7 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .secret-dialog { width: min(440px, calc(100vw - 32px)); box-sizing: border-box; border: 0; border-radius: 24px; padding: 24px; background: #fff; color: #29263b; box-shadow: 0 24px 90px #24203044; }
 .secret-dialog::backdrop { background: #24203066; }
 .secret-dialog h2 { font-size: 20px; }
+.secret-dialog textarea.secret-multiline { box-sizing: border-box; width: 100%; padding: 14px; border: 1px solid #cec5e8; border-radius: 12px; background: #faf8ff; color: #29263b; font: 13px/1.5 ui-monospace, monospace; resize: vertical; -webkit-text-security: disc; }
 .secret-dialog input { box-sizing: border-box; width: 100%; padding: 14px; border: 1px solid #cec5e8; border-radius: 12px; background: #faf8ff; color: #29263b; font-size: 16px; }
 .secret-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .secret-actions button[type=submit] { background: #6851c4; color: #fff; }
