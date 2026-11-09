@@ -198,7 +198,7 @@ flowchart LR
   P4[P4 members: terminalId, projectRoot, launch instructions]
   P5[P5 Mika: secret input and resolution]
   P3[P3 execution: identity, lifecycle, account slots, pending delivery]
-  P10[P10 proposed terminals: registry / reachability / connection / sudo]
+  P10[P10 terminals: registry / reachability / launch target / sudo]
   D10[(D10 proposed terminal metadata / nonsecret sudo receipts)]
   Native[Aiterm remote PTY adapter / Elegg]
   Seat[Remote Mac Claude seat, initial cwd = member projectRoot]
@@ -209,13 +209,13 @@ flowchart LR
   P10 <-->|RT03 terminal metadata and nonsecret use receipts| D10
   App -->|RT04 op reference or stored secret input| P5
   P4 -->|RT05 member binding and launch-time instructions| P3
-  P3 -->|RT06 bound terminal connection request| P10
+  P3 -->|RT06 terminal target request, target + cwd + accountOwner returned| P10
   P10 -->|RT07 opaque SSH/sudo handle and purpose| P5
   P5 -->|RT08 private resolved credential channel| P10
-  P10 <-->|RT09 sole connection entry / target trust / availability| Native
-  P3 -->|RT10 launch/control via target-bound connection| Native
+  P10 <-->|RT09 target trust / availability probe / C8 upkeep| Native
+  P3 -->|RT10 agent_launch with terminal target + cwd, then session_id calls like a local seat| Native
   Native <-->|RT11 PTY, process and completion events| Seat
-  Seat -->|RT12 direct authenticated LAN MCP| P1
+  Seat -->|RT12 seat MCP over the SSH reverse forward| P1
   P1 <-->|RT13 member-scoped docs and memory/context| Stores
   Native -->|RT14 bound transcript / turn / limit observations| P3
   P3 -->|RT15 existing callbacks and work projection| P2
@@ -226,12 +226,12 @@ flowchart LR
 | Flow / ownership | Proposed data, storage and failure boundary |
 | --- | --- |
 | RT01-RT04 registry and secrets | P10 alone writes D10: `<stateRoot>/terminals.json` with host/user/port/OS, target account domain, trusted host identity/revision and opaque SSH/sudo handles. P5 owns the actual op:// or stored-value source and resolver, offering 1Password first when connected, fallback retained. Values never enter D10, registry JSON, argv, transcripts or logs. Registry save failure preserves prior state and reports the real failure |
-| RT05-RT11 launch | P4 owns member terminalId/projectRoot and launch instruction content. P3 selects the existing account slot within the terminal owner's account domain and keeps existing seat identity. P10 alone opens/reopens the SSH connection; Elegg owns native transport. Initial process cwd is projectRoot so the folder's rules load; BellTeam instructions/MCP options arrive at launch without writing the user's repository or home. Invalid cwd/target has no substitute target or directory. Target-bound RT10 operations cannot open a separate bypass connection |
-| RT12-RT13 direct MCP and documents | Remote seat talks directly to P1 over LAN, with Molly's trusted binding of existing seat identity to member/terminal/folder. Existing seat authority remains distinct from Owner authority. Canonical Bot docs/AGENTS.local remain in BellTeam's member project, accessed through a proposed member-scoped docs MCP interface; memory/knowledge stay in P6, handoff in its existing context provider. No relay AI, full home/repository sync or second remote memory store |
+| RT05-RT11 launch | P4 owns member terminalId/projectRoot and launch instruction content. P3 selects the existing account slot within the terminal owner's account domain and keeps existing seat identity. P10 hands P3 the terminal target; Aiterm (Elegg) alone opens the SSH connection at launch (ONE launch path, Trony 2026-11-09). P10 opens a transient process only to probe reachability and run C8. Initial process cwd is projectRoot so the folder's rules load; BellTeam instructions/MCP options arrive at launch without writing the user's repository or home. Invalid cwd/target has no substitute target or directory. Later RT10 calls bind by session inside Aiterm; there is no second launch path |
+| RT12-RT13 direct MCP and documents | Remote seat talks directly to P1 through Elegg's SSH reverse forward to Molly's container-loopback ingress (no LAN listener), with Molly's trusted binding of existing seat identity to member/terminal/folder. Existing seat authority remains distinct from Owner authority. Canonical Bot docs/AGENTS.local remain in BellTeam's member project, accessed through a proposed member-scoped docs MCP interface; memory/knowledge stay in P6, handoff in its existing context provider. No relay AI, full home/repository sync or second remote memory store |
 | RT14-RT16 messages, history and recovery | Existing saved delivery IDs remain pending while the terminal sleeps. Non-AI availability observation resumes the existing P3/P2 drain when the terminal returns. Native capture/cursor/completion/limit events feed existing conversation history/current-work through P3, preserving existing writer ownership. Catch-up must not duplicate history or resend already delivered input. P10 owns no message queue or transcript store. A network/read failure is an observation, never proof of a vanished seat or an unknown-outcome lock |
 | RT17 sudo and account domain | P10 resolves the optional sudo handle only for a bound requested use; no approval wait; every use gets a nonsecret receipt in `<stateRoot>/terminal-sudo.jsonl` (D10). Ordinary work does not require sudo. P3/P5 must keep product Owner Claude credentials off non-Owner terminals and support the terminal owner's own 1st/2nd accounts; limit switch creates a fresh seat on the same terminal/folder |
 | Target protections and exits | The [P10 state diagram](modules/terminals/README.md#state-and-required-protections) names secret exposure, privilege escalation and wrong-target protection. Credential/channel revision or secret-source availability (such as 1Password becoming reachable again) re-evaluates credential-bearing work; a target mismatch is shown to the Owner in plain words with a concrete corrective action that creates an authoritative target/member/trust revision (such as confirming the new host key), which rebinds a desired launch; ordinary work continues without sudo; actual availability events reconnect. No sticky manual unlock or new approval gate |
-| CLI upkeep | C8 requires terminal Claude Code to follow official latest without pinning, with native setup/update at fresh launch and non-AI maintenance. Do not replace a running executable. Report update failure, preserve installed CLI and pending work. Crust leads terminal maintenance through terminals.connection, Elegg provides transport, and Centi owns product testing; this diagram claims neither the remote updater nor acceptance checks already exist |
+| CLI upkeep | C8 requires terminal Claude Code to follow official latest without pinning, with native setup/update at fresh launch and non-AI maintenance. Do not replace a running executable. Report update failure, preserve installed CLI and pending work. Crust leads terminal maintenance (run by `connection.target` before a Claude Code launch), Elegg provides transport, and Centi owns product testing; this diagram claims neither the remote updater nor acceptance checks already exist |
 
 P1 first usable path is the Owner's Mac, existing key, no sudo, API/MCP configuration; P2 adds Web/Apple UI; P3 completes remote per-model account switching, sudo and non-Owner terminals/product testing. Ziz is rebuilt after all four Owner completion conditions are met, including remote account switching. Required C1-C9 include Belorta's field/instruction revisions, Kiro's lifecycle/account/seat identity, Elegg's private remote PTY, Molly's LAN MCP/runtime composition, Mika's 1Password resolution, remote docs/memory access, transcript catch-up and latest CLI maintenance. Trony adopted them; this docs-only diff changes no peer's implementation or private state.
 

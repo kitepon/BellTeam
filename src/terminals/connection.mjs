@@ -1,6 +1,4 @@
-import { randomUUID } from 'node:crypto'
 import { isAbsolute } from 'node:path'
-import { accountLoginEnvironment } from '../aiterm-client.mjs'
 
 export const CONNECTION_CODES = ['TERMINAL_UNAVAILABLE', 'CREDENTIAL_UNAVAILABLE', 'TARGET_MISMATCH']
 const MESSAGES = {
@@ -8,7 +6,7 @@ const MESSAGES = {
   CREDENTIAL_UNAVAILABLE: 'Terminal credential is not available now',
   TARGET_MISMATCH: 'Terminal target does not match its registration'
 }
-// Elegg's RemoteTerminalError codes (aiterm-mcp remote-terminal.md, b35eb48 + f7022539 correction) -> execution's three codes.
+// Elegg's RemoteTerminalError codes (aiterm-mcp remote-terminal.md) -> execution's three codes.
 const NATIVE_CODES = {
   HOST_TRUST_MISSING: 'TARGET_MISMATCH', HOST_TRUST_STALE: 'TARGET_MISMATCH', HOST_KEY_MISMATCH: 'TARGET_MISMATCH', HOST_KEY_FINGERPRINT_MISMATCH: 'TARGET_MISMATCH',
   CREDENTIAL_UNUSABLE: 'CREDENTIAL_UNAVAILABLE', CREDENTIAL_REVISION_STALE: 'CREDENTIAL_UNAVAILABLE', AUTH_FAILED: 'CREDENTIAL_UNAVAILABLE',
@@ -29,14 +27,17 @@ function classify(error, target) {
   return failure(code, action, reason)
 }
 
-export function createTerminalConnection({ registry, secrets, native, seatCredentials = null, loginEnvironment = accountLoginEnvironment, now = () => new Date(), probeDelays = { first: 30_000, max: 300_000 } } = {}) {
+// Trony ruling (2026-11-09 16:1x JST): ONE launch path. Execution passes the returned `terminal` + `cwd` to Aiterm's own
+// agent_launch; send/wait/transcript go through Aiterm like a local seat. terminals opens a remote process only for
+// reachability (open -> close) and C8 upkeep (claude_* commands), never for a seat.
+export function createTerminalConnection({ registry, secrets, native, now = () => new Date(), probeDelays = { first: 30_000, max: 300_000 } } = {}) {
   if (!registry?.target || typeof secrets?.withResolved !== 'function' || typeof native?.connect !== 'function') throw new TypeError('Invalid terminal connection configuration')
-  const connections = new Map() // connectionRef -> {terminalId, session}
   const wanted = new Map() // terminalId -> probe state
   const maintenance = new Map()
+  const upkeep = new Map() // terminalId -> in-flight C8 run, shared by concurrent launches
   const listeners = new Set()
-  const generations = new Map() // terminalId -> registry-change count; an open started before a change is stale
-  const operations = new Set() // whole open/check lifecycles, awaited by dispose
+  const generations = new Map() // terminalId -> registry-change count; a target read across a change is stale
+  const operations = new Set() // in-flight target/check runs, awaited by dispose
   let disposed = false
 
   function emitAvailable(terminalId) {
@@ -64,81 +65,58 @@ export function createTerminalConnection({ registry, secrets, native, seatCreden
     schedule()
   }
 
-  // Aiterm's held known_hosts changed (Owner-confirmed trust-confirm); bind its new revision and let the registry change re-open.
-  async function rebindTrust(target, credential) {
-    if (typeof native.trust !== 'function' || typeof registry.update !== 'function' || !credential?.nativeKeyRef) return
+  // Aiterm's held known_hosts changed (Owner-confirmed trust-confirm); bind its new revision so the registry change re-targets.
+  async function rebindTrust(target, ref) {
+    if (typeof native.trust !== 'function' || typeof registry.update !== 'function' || !ref) return
     try {
-      const trust = await native.trust(credential.nativeKeyRef)
+      const trust = await native.trust(ref)
       if (trust?.revision && trust.revision !== target.hostTrust.revision) await registry.update(target.terminalId, { hostTrust: { provider: trust.provider, revision: trust.revision } })
     } catch {}
   }
 
-  async function connectTarget(target, memberId, privateEnv, current = () => !disposed) {
+  // Mika's callback gives Aiterm's binding ref + credential revision (public metadata); a string is a future key value, refused in P1.
+  async function resolveBinding(target, memberId) {
+    if (!target.sshKeyRef) throw failure('CREDENTIAL_UNAVAILABLE', `bind the SSH key of terminal ${target.terminalId} (bind_terminal_key)`, 'SSH_KEY_UNSET')
     if (!target.hostTrust) throw failure('TARGET_MISMATCH', `confirm the host key of ${target.host}`, 'HOST_TRUST_MISSING')
-    let credential = null
+    let binding
     try {
-      return await secrets.withResolved(target.sshKeyRef, { terminalId: target.terminalId, memberId, purpose: 'terminal.ssh' }, value => {
-        if (!current()) throw failure('TERMINAL_UNAVAILABLE') // disposed or target revised while resolving: start no process
-        // Mika's value union: a key value (future) or P1's native-held {nativeKeyRef, revision}; neither is kept after this call.
-        credential = typeof value === 'string' ? { privateKey: value } : { nativeKeyRef: value?.nativeKeyRef, credentialRevision: value?.revision }
-        return native.connect({
-          target: { host: target.host, user: target.user, port: target.port, os: target.os },
-          hostTrust: target.hostTrust,
-          credential,
-          ...(privateEnv ? { privateEnv } : {})
-        })
+      binding = await secrets.withResolved(target.sshKeyRef, { terminalId: target.terminalId, memberId, purpose: 'terminal.ssh' },
+        value => (typeof value === 'string' ? null : { ref: value?.nativeKeyRef, credentialRevision: value?.revision }))
+    } catch { throw failure('CREDENTIAL_UNAVAILABLE') }
+    if (typeof binding?.ref !== 'string' || !binding.ref) throw failure('CREDENTIAL_UNAVAILABLE')
+    return binding
+  }
+
+  // One transient remote process; closed before returning. Classified like a launch would be.
+  async function withProcess(target, binding, run, current = () => !disposed) {
+    if (!current()) throw failure('TERMINAL_UNAVAILABLE')
+    let session
+    try {
+      session = await native.connect({
+        target: { host: target.host, user: target.user, port: target.port, os: target.os },
+        hostTrust: target.hostTrust,
+        credential: { nativeKeyRef: binding.ref, credentialRevision: binding.credentialRevision }
       })
     } catch (error) {
-      if (!credential && !CONNECTION_CODES.includes(error?.code)) throw failure('CREDENTIAL_UNAVAILABLE')
-      if (error?.code === 'HOST_TRUST_STALE') await rebindTrust(target, credential)
+      if (error?.code === 'HOST_TRUST_STALE') await rebindTrust(target, binding.ref)
       throw classify(error, target)
-    } finally { credential = null }
+    }
+    try { return await run(session) } finally { await session.close().catch(() => {}) }
   }
 
-  async function maintain(terminalId, session) {
-    const record = { terminalId, observedAt: now().toISOString(), before: null, after: null, outcome: 'failed' }
+  // C8: before a fresh Claude Code launch. A failed update never vetoes the launch; an unreachable terminal is reported as such.
+  async function maintain(target, binding, current) {
+    const record = { terminalId: target.terminalId, observedAt: now().toISOString(), before: null, after: null, outcome: 'failed' }
     try {
-      record.before = (await session.command('claude_version')).version ?? null
-      const step = await session.command(record.before ? 'claude_update' : 'claude_install')
-      record.after = (await session.command('claude_version')).version ?? null
-      if (step.exit_code === 0 && record.after) record.outcome = record.after === record.before ? 'current' : 'updated'
-    } catch {}
-    maintenance.set(terminalId, record)
-  }
-
-  function bind(connectionRef, terminalId, projectRoot, sessionName, session) {
-    let maintained = false
-    return {
-      async callTool(name, args = {}, options) {
-        if (!connections.has(connectionRef)) throw failure('TERMINAL_UNAVAILABLE')
-        if (name === 'agent_launch') {
-          if (args.cwd !== projectRoot || args.session_name !== sessionName) throw failure('TARGET_MISMATCH', 'launch with the member folder and seat bound at open')
-          if (args.harness === 'claude-code' && !maintained) { maintained = true; await maintain(terminalId, session) }
-        }
-        return session.callTool(name, args, options)
-      },
-      transcript: { read: request => session.transcript.read(request) },
-      async wait(waitProcess, options) {
-        if (!connections.has(connectionRef)) throw failure('TERMINAL_UNAVAILABLE')
-        return session.wait(waitProcess, options)
-      }
-    }
-  }
-
-  // Kiro #765: names -> references only; values are resolved here and travel only in Elegg's privateEnv.
-  async function resolvePrivateEnv(credentials = {}, target) {
-    const env = {}
-    for (const [name, ref] of Object.entries(credentials ?? {})) {
-      if (name === 'BELLTEAM_MCP_TOKEN' && seatCredentials?.reveal) {
-        const token = await Promise.resolve(seatCredentials.reveal(ref)).catch(() => null)
-        if (typeof token !== 'string' || !token) throw failure('CREDENTIAL_UNAVAILABLE')
-        env[name] = token
-      } else if (name === 'CLAUDE_CODE_OAUTH_TOKEN' && target.accountOwner === 'owner' && ref?.harness === 'claude') {
-        // shortcut: parent UID1001 cannot read the seat user's token file; upgrade to a seat-user/native login supply before 2nd-slot acceptance.
-        Object.assign(env, await loginEnvironment(ref.slot).catch(() => { throw failure('CREDENTIAL_UNAVAILABLE') }))
-      } else throw failure('CREDENTIAL_UNAVAILABLE') // never read the Owner's login for another person's terminal
-    }
-    return Object.keys(env).length ? env : undefined
+      await withProcess(target, binding, async session => {
+        try {
+          record.before = (await session.command('claude_version')).version ?? null
+          const step = await session.command(record.before ? 'claude_update' : 'claude_install')
+          record.after = (await session.command('claude_version')).version ?? null
+          if (step.exit_code === 0 && record.after) record.outcome = record.after === record.before ? 'current' : 'updated'
+        } catch {}
+      }, current)
+    } finally { maintenance.set(target.terminalId, record) }
   }
 
   function track(run) {
@@ -148,59 +126,49 @@ export function createTerminalConnection({ registry, secrets, native, seatCreden
     return operation
   }
 
-  const open = request => track(() => openNow(request ?? {}))
-  async function openNow({ terminalId, memberId, projectRoot, seatBinding, accountOwner, credentials }) {
+  const target = request => track(() => targetNow(request ?? {}))
+  async function targetNow({ terminalId, memberId, projectRoot, harness }) {
     if (disposed) throw failure('TERMINAL_UNAVAILABLE')
-    // Generation is captured before the read, so a snapshot read across a registry change is never accepted.
+    // Generation is captured before the read, so a snapshot read across a registry change is never handed out.
     const generation = generations.get(terminalId) ?? 0
     const current = () => !disposed && (generations.get(terminalId) ?? 0) === generation
-    const target = await registry.target(terminalId).catch(() => null)
-    if (!target) { if (typeof terminalId === 'string') want(terminalId); throw failure('TERMINAL_UNAVAILABLE') }
-    if (accountOwner !== target.accountOwner) throw failure('TARGET_MISMATCH', `set the account owner of terminal ${terminalId} or the member binding`)
-    if (typeof projectRoot !== 'string' || !isAbsolute(projectRoot) || typeof seatBinding?.sessionName !== 'string' || typeof memberId !== 'string') throw failure('TARGET_MISMATCH', 'set an absolute project folder and seat for the member')
-    let session
-    // TARGET_MISMATCH exits by registry revision (onRegistryChange), so only availability failures are probed.
+    const record = await registry.target(terminalId).catch(() => null)
+    if (!record) { if (typeof terminalId === 'string') want(terminalId); throw failure('TERMINAL_UNAVAILABLE') }
+    if (typeof projectRoot !== 'string' || !isAbsolute(projectRoot) || typeof memberId !== 'string') throw failure('TARGET_MISMATCH', 'set an absolute project folder for the member')
+    // TARGET_MISMATCH exits by registry revision (onRegistryChange), so only availability/credential failures are probed.
     try {
-      const privateEnv = await resolvePrivateEnv(credentials, target)
+      const binding = await resolveBinding(record, memberId)
+      if (harness === 'claude-code') {
+        const run = upkeep.get(terminalId) ?? maintain(record, binding, current).finally(() => upkeep.delete(terminalId))
+        upkeep.set(terminalId, run)
+        await run
+      }
       if (!current()) throw failure('TERMINAL_UNAVAILABLE')
-      session = await connectTarget(target, memberId, privateEnv, current)
+      return {
+        terminal: { ref: binding.ref, target: { host: record.host, user: record.user, port: record.port }, trustRevision: record.hostTrust.revision, credentialRevision: binding.credentialRevision },
+        cwd: projectRoot,
+        accountOwner: record.accountOwner
+      }
     } catch (error) { if (error.code !== 'TARGET_MISMATCH' && current()) want(terminalId); throw error }
-    // Registry revision or shutdown while connecting: never publish a connection to the old target.
-    if (!current()) { await session.close().catch(() => {}); throw failure('TERMINAL_UNAVAILABLE') }
-    const connectionRef = randomUUID()
-    connections.set(connectionRef, { terminalId, session })
-    session.onEvent?.(event => { if (event?.type === 'lost' && connections.delete(connectionRef)) want(terminalId) })
-    return { connectionRef, native: bind(connectionRef, terminalId, projectRoot, seatBinding.sessionName, session) }
   }
-
-  // Tracked like open/check, so dispose also waits for a close already in flight (registry change or caller).
-  const close = connectionRef => track(async () => {
-    const entry = connections.get(connectionRef)
-    if (!entry) return { closed: false }
-    connections.delete(connectionRef)
-    await entry.session.close()
-    return { closed: true }
-  })
 
   const check = terminalId => track(() => checkNow(terminalId))
   async function checkNow(terminalId) {
     const observation = { terminalId, observedAt: now().toISOString(), reachable: false, reason: null }
     if (disposed) return { ...observation, reason: 'TERMINAL_UNAVAILABLE' }
-    const target = await registry.target(terminalId).catch(() => null)
-    if (!target) return { ...observation, reason: 'TERMINAL_NOT_FOUND' }
+    const record = await registry.target(terminalId).catch(() => null)
+    if (!record) return { ...observation, reason: 'TERMINAL_NOT_FOUND' }
     try {
-      const session = await connectTarget(target, null)
-      await session.close().catch(() => {})
+      await withProcess(record, await resolveBinding(record, null), async () => {})
       return { ...observation, reachable: true }
     } catch (error) {
       return { ...observation, reason: error.reason ?? error.code, ...(error.action ? { action: error.action } : {}) }
     }
   }
 
-  // Registry change: the old target revision is stale; close it, then let execution re-open.
-  async function onRegistryChange({ terminalId, removed }) {
+  // Registry change: targets handed out before it are stale; execution re-targets on the available event.
+  function onRegistryChange({ terminalId, removed }) {
     generations.set(terminalId, (generations.get(terminalId) ?? 0) + 1)
-    for (const [ref, entry] of connections) if (entry.terminalId === terminalId) await close(ref).catch(() => {})
     if (removed) { clearTimeout(wanted.get(terminalId)?.timer); wanted.delete(terminalId); return }
     emitAvailable(terminalId)
   }
@@ -208,14 +176,13 @@ export function createTerminalConnection({ registry, secrets, native, seatCreden
   async function onCredentialEvent({ handle, available }) {
     if (!available) return
     for (const terminalId of [...wanted.keys()]) {
-      const target = await registry.target(terminalId).catch(() => null)
-      if (target?.sshKeyRef === handle) emitAvailable(terminalId)
+      const record = await registry.target(terminalId).catch(() => null)
+      if (record?.sshKeyRef === handle) emitAvailable(terminalId)
     }
   }
 
   return {
-    open,
-    close,
+    target,
     check,
     onAvailable(listener) { listeners.add(listener); return () => listeners.delete(listener) },
     maintenance: { last: terminalId => structuredClone(maintenance.get(terminalId) ?? null) },
@@ -226,7 +193,6 @@ export function createTerminalConnection({ registry, secrets, native, seatCreden
       for (const probe of wanted.values()) clearTimeout(probe.timer)
       wanted.clear()
       while (operations.size) await Promise.allSettled([...operations])
-      await Promise.allSettled([...connections.keys()].map(close))
     }
   }
 }
