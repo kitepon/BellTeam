@@ -111,3 +111,25 @@ test('C5 credentials facade captures system authority and routes native capabili
   await assembly.credentials.refresh()
   assert.equal(calls.at(-1).method, 'secrets.refresh')
 })
+
+test('a one-shot terminal.login value reaches the consumer although the child revoked its handle during resolve', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-login-assembly-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const login = { terminalId: 'owner-macbook', purpose: 'terminal.login' }
+  let assembly
+  assembly = createUsageAssembly({ root, getServices: () => ({ bots: new Map() }), onEffect() {},
+    createProcess() {
+      return { request(method, params) {
+        const result = (async () => {
+          if (method !== 'secrets.resolve') return null
+          await assembly.credentials.unbind(null, login) // the revoke lands before the value, as the child's unbound projection does
+          return 'synthetic-login'
+        })()
+        Object.defineProperty(result, 'completion', { value: result }); return result
+      }, close() {} }
+    } })
+  t.after(() => assembly.close())
+  let got
+  await assembly.credentials.withResolved('child-handle', { ...login, memberId: null }, value => { got = value })
+  assert.equal(got, 'synthetic-login')
+})

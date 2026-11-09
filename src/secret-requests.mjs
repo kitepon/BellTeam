@@ -5,6 +5,8 @@ import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { SecretCredentials, normalizeCredentialScope } from './usage/secret-credentials.mjs'
 
+const LOGIN = 'terminal.login'
+
 // 秘密の値はこのクラスのsubmitだけが受け取り、一覧・通知・イベントへ渡さない。
 export class SecretRequests {
   constructor({ root, bots, rooms, notify, onRequest = () => {}, onSave = () => {}, onePassword, secretProviders, credentialRetryMs }) {
@@ -20,7 +22,10 @@ export class SecretRequests {
     this.busy = new Set()
     this.events = new EventEmitter()
     this.terminalKeyTail = Promise.resolve()
-    this.credentials = new SecretCredentials({ root, getRequest: id => this.getPrivate(id), onePassword, providers: secretProviders, retryMs: credentialRetryMs })
+    // terminal.login values live only here and are taken out once by withResolved.
+    this.loginValues = new Map()
+    const takeOnce = id => { const value = this.loginValues.get(id) ?? null; this.loginValues.delete(id); return value }
+    this.credentials = new SecretCredentials({ root, getRequest: id => this.getPrivate(id), onePassword, providers: secretProviders, retryMs: credentialRetryMs, takeOnce })
     this.credentials.watch(event => this.events.emit('credential', event))
     this.credentials.watchRecovery(event => this.events.emit('recovery', event))
     this.credentials.onePassword.watch(() => {
@@ -59,7 +64,7 @@ export class SecretRequests {
 
   get(id) {
     const { terminalSuperseded, ...item } = this.getPrivate(id)
-    return { ...item, inputOptions: this.credentials.inputOptions() }
+    return { ...item, inputOptions: item.purpose === LOGIN ? { preferred: 'stored', onePasswordAvailable: false } : this.credentials.inputOptions() }
   }
 
   async create({ botId, roomId = null, toolId, label, message }) {
@@ -92,10 +97,12 @@ export class SecretRequests {
   requestTerminalKey({ terminalId, purpose, label }) {
     return this.terminalKeyOperation(async () => {
       const scope = normalizeCredentialScope({ terminalId, purpose })
-      if (!['terminal.ssh', 'terminal.sudo'].includes(scope.purpose) || typeof label !== 'string' || !label.trim() || label.length > 128) throw new Error('SECRET_REQUEST_INVALID')
+      if (!['terminal.ssh', 'terminal.sudo', LOGIN].includes(scope.purpose) || typeof label !== 'string' || !label.trim() || label.length > 128) throw new Error('SECRET_REQUEST_INVALID')
       await this.cancelTerminalRequests(scope)
+      if (scope.purpose === LOGIN) await this.credentials.unbindScope(scope)
       const item = { id: randomUUID(), botId: null, roomId: null, toolId: 'terminal-key', ...scope,
-        label, message: `端末「${terminalId}」で使う${scope.purpose === 'terminal.ssh' ? 'SSH鍵' : 'sudoのパスワード'}を登録してください。`,
+        label, message: scope.purpose === LOGIN ? 'このMacのログインパスワード（1回だけ使い、保存しません）'
+          : `端末「${terminalId}」で使う${scope.purpose === 'terminal.ssh' ? 'SSH鍵' : 'sudoのパスワード'}を登録してください。`,
         at: new Date().toISOString(), status: 'pending' }
       await this.save(item)
       return { secretRequest: this.get(item.id) }
@@ -105,6 +112,7 @@ export class SecretRequests {
   async cancelTerminalRequests(scope) {
     scope = normalizeCredentialScope(scope)
     for (const item of this.items.values()) if (item.botId === null && item.terminalId === scope.terminalId && item.purpose === scope.purpose && !item.terminalSuperseded) {
+      this.loginValues.delete(item.id)
       await this.save({ ...item, terminalSuperseded: true,
         ...(item.status === 'pending' ? { status: 'cancelled', notification: 'not_needed' } : {}) })
     }
@@ -150,8 +158,9 @@ export class SecretRequests {
       await this.bindCredential(id, { terminalId: item.terminalId, purpose: item.purpose })
       return this.get(id)
     })
+    const login = this.get(id).purpose === LOGIN
     if (value && typeof value === 'object' && !Array.isArray(value)) {
-      if (Object.keys(value).sort().join(',') !== 'reference,source' || value.source !== 'onepassword') throw new Error('SECRET_VALUE_INVALID')
+      if (login || Object.keys(value).sort().join(',') !== 'reference,source' || value.source !== 'onepassword') throw new Error('SECRET_VALUE_INVALID')
       return this.finish(id, async item => {
         await this.credentials.registerSource(id, value)
         return { ...item, status: 'submitted' }
@@ -160,6 +169,10 @@ export class SecretRequests {
     if (typeof value !== 'string' || value.length === 0 || Buffer.byteLength(value) > 16384 || value.includes('\0')) {
       throw new Error('SECRET_VALUE_INVALID')
     }
+    if (login) return this.finish(id, async item => {
+      this.loginValues.set(item.id, value)
+      return { ...item, status: 'submitted' }
+    }).catch(failure => { if (this.getPrivate(id).status !== 'submitted') this.loginValues.delete(id); throw failure })
     return this.finish(id, async item => {
       const directory = join(this.toolsDirectory, item.toolId, 'secrets')
       await mkdir(directory, { recursive: true, mode: 0o700 })
