@@ -28,7 +28,7 @@ flowchart TD
 
 `SeatRuntime.configureHarnesses(bots, aiterm, callBridge)`はMCPとhookまで、`writeHarnessConfig`はMCP設定まで。両者は同じ本体実体のPromiseで順番を持ち、子の完了前に次の設定用子processを開始しない。メンバーの構造や記憶操作はこの順番へ入れない。先行失敗は呼出元へrejectし、その失敗で後続要求を止めない。待機中の台帳変更を古いproject一覧で上書きしないため、id/projectの投影は子の開始時に行う。
 
-共有JSONは`.claude.json`、`.cursor/mcp.json`、`.gemini/config/mcp_config.json`。同じdirectoryへ0600で完成文書を書いてrenameし、既存読者に空や途中のJSONを見せない。BellTeam管理MCPと既存のproject trust以外の項目は既存merge規則で保持する。3file全部の同時公開や停電時のfsync完了を保証する契約にはしていない。
+共有JSONは`.claude.json`、`.cursor/mcp.json`、`.gemini/config/mcp_config.json`。Claudeの2ndアカウントroot（`$HOME/.bellteam-accounts/claude/<slot>/`）へは書かない。そこの`.claude.json`は1stの`$HOME/.claude.json`へのlinkで、ここでrenameすると link が通常fileに置き換わり、1stの`oauthAccount`を持つ別fileになる（execution/harness-accounts.md「Deployment order」、2026-11-09 #754）。同じdirectoryへ0600で完成文書を書いてrenameし、既存読者に空や途中のJSONを見せない。BellTeam管理MCPと既存のproject trust以外の項目は既存merge規則で保持する。3file全部の同時公開や停電時のfsync完了を保証する契約にはしていない。
 
 本番の所有実体はbootstrapの一つ。子入口`run-seat-runtime`の2操作と、低層`harness-config`の関数はその実行部。`application-features`の直接writer既定は席proxyなしの互換構成と隔離試験に残る。独立した複数SeatRuntimeや複数本体を同じhomeへ向ける排他は提供しない。新しい本番callerは同じ登録窓口へ接続し、低層writerを別processで直接呼ばない。
 
