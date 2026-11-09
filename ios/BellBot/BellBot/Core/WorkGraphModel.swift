@@ -178,7 +178,10 @@ final class WorkGraphModel: ObservableObject {
     @Published private(set) var connection = Connection.connecting
     @Published private(set) var degraded = false
     @Published private(set) var isEmpty = true
-    private(set) var bodies: [String: Body] = [:]
+    /// 試験がメンバーを置けるよう、setは閉じない。
+    var bodies: [String: Body] = [:]
+    /// 名前が隠れていても見せるメンバー（Macはポインタ、iPhone/iPadは指が載った相手）。`layoutChips`が毎フレーム受ける。
+    private(set) var revealed: String?
     private(set) var lines: [String: Line] = [:]
     private(set) var order: [String] = []
     private(set) var heat: Double = 1
@@ -498,32 +501,59 @@ final class WorkGraphModel: ObservableObject {
 
     func drawPosition(_ body: Body, at now: Double) -> CGPoint { appearance(body, at: now).point }
 
-    /// 描いたアイコンの四角と名前の欄。描画とタップの判定が同じ位置を使う。
-    func frames(_ body: Body, at now: Double) -> (avatar: CGRect, name: CGRect) {
-        let side = side(for: max(1, liveCount))
+    private func avatarFrame(_ body: Body, at now: Double) -> CGRect {
         let look = appearance(body, at: now)
-        let size = side * look.scale
-        let width = side * 2.2
-        return (CGRect(x: look.point.x - size / 2, y: look.point.y - size / 2, width: size, height: size),
-                CGRect(x: look.point.x - width / 2, y: look.point.y + size / 2 + 6, width: width, height: BellTheme.listNameFontSize * 1.4))
+        let size = side(for: max(1, liveCount)) * look.scale
+        return CGRect(x: look.point.x - size / 2, y: look.point.y - size / 2, width: size, height: size)
     }
 
-    /// 描いている名前の文字の四角。見えていない名前（不透明度0）は無し。置き場所の障害物に使う。
-    func nameText(_ body: Body, at now: Double) -> CGRect? {
-        guard appearance(body, at: now).opacity > 0 else { return nil }
-        let box = frames(body, at: now).name
+    /// 描いたアイコンの四角と名前の欄。描画とタップの判定が同じ位置を使う。
+    /// 名前は、下の文字が他のメンバーのアイコン（4pt広げる。退場中は除く）に重なるなら顔の上へ移る。
+    /// 隠れた名前（`nameHidden`）の欄は下のままで、押せる範囲として残る（behavior-spec.md「Edges」）。
+    func frames(_ body: Body, at now: Double) -> (avatar: CGRect, name: CGRect) {
+        let avatar = avatarFrame(body, at: now)
+        let width = side(for: max(1, liveCount)) * 2.2, height = BellTheme.listNameFontSize * 1.4
+        let below = CGRect(x: avatar.midX - width / 2, y: avatar.maxY + 6, width: width, height: height)
+        let above = below.offsetBy(dx: 0, dy: -(avatar.height + 12 + height))
+        guard overlapsOtherDisc(below, body, at: now) else { return (avatar, below) }
+        return (avatar, overlapsOtherDisc(above, body, at: now) ? below : above)
+    }
+
+    /// 欄の文字の四角が、他のメンバーのアイコンを4pt広げた四角に重なるか。
+    private func overlapsOtherDisc(_ box: CGRect, _ body: Body, at now: Double) -> Bool {
+        let text = Self.textBox(box, body.node.name)
+        return bodies.values.contains {
+            $0.node.botId != body.node.botId && $0.leavingAt == nil && avatarFrame($0, at: now).insetBy(dx: -4, dy: -4).intersects(text)
+        }
+    }
+
+    private static func textBox(_ box: CGRect, _ name: String) -> CGRect {
         let font = UIFont.systemFont(ofSize: BellTheme.listNameFontSize, weight: .semibold)
-        let width = min(box.width, ceil(NSAttributedString(string: body.node.name, attributes: [.font: font]).size().width))
+        let width = min(box.width, ceil(NSAttributedString(string: name, attributes: [.font: font]).size().width))
         return CGRect(x: box.midX - width / 2, y: box.minY, width: width, height: box.height)
+    }
+
+    /// 上へ移っても他のアイコンに重なる名前は隠す。ポインタ（Mac）か指（iPhone/iPad）が載ったメンバーの名前だけ見せる。
+    func nameHidden(_ body: Body, at now: Double) -> Bool {
+        let name = frames(body, at: now)
+        return body.node.botId != revealed && overlapsOtherDisc(name.name, body, at: now)
+    }
+
+    /// 描いている名前の文字の四角。見えていない名前（不透明度0・隠れた名前）は無し。置き場所の障害物に使う。
+    func nameText(_ body: Body, at now: Double) -> CGRect? {
+        guard appearance(body, at: now).opacity > 0, !nameHidden(body, at: now) else { return nil }
+        return Self.textBox(frames(body, at: now).name, body.node.name)
     }
 
     /// 1コマ分の札を置く（behavior-spec.md「Edges」）。札はlatch frameで一度作り、辺が終わるまで残す。
     /// 置き場所は始まった順に、メンバーの四角・描いている名前・先に置いた札（blockedも含む）をそれぞれ4pt広げて避けた最初の空きt。
     /// 今のtが空いていれば動かさず、ふさがれば最初の空きtへ、どこも空かなければ今のtのままblocked。
-    func layoutChips(_ paths: [EdgePath], size: (String) -> CGSize, hover: String?, now: Double) {
+    func layoutChips(_ paths: [EdgePath], size: (String) -> CGSize, hover: String?, reveal: String? = nil, now: Double) {
         self.paths = paths
+        revealed = reveal
         let enter = reduceMotion ? 0.2 : 0.7
-        let fixed = bodies.values.flatMap { [frames($0, at: now).avatar] + [nameText($0, at: now)].compactMap { $0 } }
+        // 退場中のメンバーはアイコンも名前も障害物ではない（もう画面の外へ消えていく）。
+        let fixed = bodies.values.filter { $0.leavingAt == nil }.flatMap { [frames($0, at: now).avatar] + [nameText($0, at: now)].compactMap { $0 } }
         var placed: [CGRect] = []
         func free(_ area: CGRect) -> Bool {
             let grown = area.insetBy(dx: -4, dy: -4)

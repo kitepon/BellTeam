@@ -120,9 +120,10 @@ struct WorkGraphView: View {
     private func draw(_ context: inout GraphicsContext, now: Double) {
         let live = model.connection == .live
         let lines = model.lines.values.sorted { $0.edge.id < $1.edge.id }
+        let pointed = pointer.flatMap { model.hit(at: $0, now: now) }
         model.layoutChips(lines.compactMap { line in
             path(line, now: now).map { WorkGraphModel.EdgePath(id: line.edge.id, point: $0.point) }
-        }, size: Self.chipSize, hover: hoveredEdge(now: now), now: now)
+        }, size: Self.chipSize, hover: hoveredEdge(pointed), reveal: revealedMember(pointed), now: now)
         for line in lines { drawEdge(&context, line, now: now, live: live) }
         // 置き場所の無い札（blocked）だけは線のすぐ上、メンバー・名前・ほかの札の下（behavior-spec.md「Edges」）。
         drawChips(&context, model.chips.blocked)
@@ -136,17 +137,26 @@ struct WorkGraphView: View {
         drawChips(&context, model.chips.unblocked + model.chips.above)
     }
 
-    /// 指している線か札（Macはポインタ、iPhone/iPadは置いた指）。メンバーの上なら無い。
-    private func hoveredEdge(now: Double) -> String? {
+    /// 指している位置（Macはポインタ、iPhone/iPadは置いた指）。
+    private var pointer: CGPoint? {
         #if targetEnvironment(macCatalyst)
-        let pointer = hover
+        hover
         #else
-        let pointer = press?.location
+        press?.location
         #endif
-        return switch pointer.flatMap({ model.hit(at: $0, now: now) }) {
+    }
+
+    /// 指している線か札。メンバーの上なら無い。
+    private func hoveredEdge(_ hit: WorkGraphModel.Hit?) -> String? {
+        switch hit {
         case .chip(let id), .edge(let id): id
         default: nil
         }
+    }
+
+    /// 指しているメンバー。隠れた名前はこのメンバーの分だけ見せる（Mac: 重ねる、iPhone/iPad: 置いている間）。
+    private func revealedMember(_ hit: WorkGraphModel.Hit?) -> String? {
+        if case .member(let id) = hit { id } else { nil }
     }
 
     /// 札の出し方と置き場所は`WorkGraphModel.layoutChips`が決める。ここは描くだけ。
@@ -302,7 +312,7 @@ struct WorkGraphView: View {
         }
         let name = layer.resolve(Text(body.node.name).font(.system(size: BellTheme.listNameFontSize, weight: .semibold))
             .foregroundColor(body.node.working ? BellTheme.ink : BellTheme.muted))
-        layer.draw(name, in: model.frames(body, at: now).name)
+        if !model.nameHidden(body, at: now) { layer.draw(name, in: model.frames(body, at: now).name) }
     }
 
     // MARK: Overlays
