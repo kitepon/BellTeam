@@ -98,23 +98,25 @@ export function createOnePasswordSource({ command, environment = process.env, ex
   }
 
   // Lists existing SSH Key items only; nothing here creates or edits an item.
-  async function listSshKeys() {
+  async function inventory() {
     if (closed) throw unavailable()
     try {
-      const keys = []
+      const keys = [], vaults = []
       for (const vault of await listJson(['vault', 'list'])) {
         if (typeof vault?.id !== 'string' || !/^[a-z0-9]{26}$/u.test(vault.id)) continue
+        vaults.push(String(vault.name ?? '').slice(0, 200))
         for (const item of await listJson(['item', 'list', '--vault', vault.id, '--categories', 'SSH Key'])) {
           if (typeof item?.id !== 'string' || !/^[a-z0-9]{26}$/u.test(item.id)) continue
           keys.push({ title: String(item.title ?? '').slice(0, 200), vault: String(vault.name ?? '').slice(0, 200),
             reference: validateOnePasswordReference(`op://${vault.id}/${item.id}/${sshKeyField}`) })
         }
       }
-      return keys.sort((a, b) => a.title.localeCompare(b.title) || a.vault.localeCompare(b.vault))
+      return { vaults: vaults.sort(), keys: keys.sort((a, b) => a.title.localeCompare(b.title) || a.vault.localeCompare(b.vault)) }
     } catch {
       throw unavailable()
     }
   }
+  const listSshKeys = async () => (await inventory()).keys
 
   async function refresh() {
     if (closed) return false
@@ -163,6 +165,7 @@ export function createOnePasswordSource({ command, environment = process.env, ex
     refresh,
     resolve,
     listSshKeys,
+    inventory,
     setToken(reader) { if (typeof reader === 'function') token = reader },
     watch(listener) { events.on('change', listener); return () => events.off('change', listener) },
     close() {

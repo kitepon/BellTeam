@@ -157,10 +157,10 @@ Owner: 「1passwordを使うユーザー向けに、それを入力する欄が�
 | Component | Contract |
 | --- | --- |
 | FeatureSettings | New feature `onePassword` (title 1Password連携), one secret field `token` (サービスアカウントのトークン, must start with `ops_`). Stored in the existing 0600 settings file. `list()` keeps secret values empty. The item carries a `guide` `{steps:[string], link:{label,url}}`: what a service account is, where it is made, which vault to allow (Personal/Private cannot be shared with a service account), paste once. Existing 6-feature files gain `onePassword` disabled on load (same late-feature migration as webPush), and `settingsFeatures` state compatibility adds `onePassword`. |
-| Usage services | `OnePasswordSource.setToken` reads `configuration('onePassword')`: token only while enabled. Saving the feature refreshes availability, then sets the feature error: `ONEPASSWORD_TOKEN_REJECTED` (whoami failed: wrong/revoked token or no network) or `ONEPASSWORD_CLI_MISSING` (no op in this body), each with a plain next action. A later availability change re-syncs the error and publishes settings. The source exposes `reason` (`missing`/`rejected`/null) only for this mapping. A save never fails because 1Password is unreachable. |
+| Usage services | `OnePasswordSource.setToken` reads `configuration('onePassword')`: token only while enabled. Saving the feature refreshes availability, then sets the feature error: `ONEPASSWORD_TOKEN_REJECTED` (whoami failed: wrong/revoked token or no network) or `ONEPASSWORD_CLI_MISSING` (no op in this body), each with a plain next action. A later availability change re-syncs the error and publishes settings. The source exposes `reason` (`missing`/`rejected`/null) only for this mapping. A save never fails because 1Password is unreachable. While connected, the item carries `connection {vaults:[name], sshKeys:n}` from `OnePasswordSource.inventory()` (names and a count only), computed inside a live operation: save, initialize, or a trusted `secrets.refresh` that finds it missing. It is cleared when disconnected. |
 | Parent | `settings.changed` for `onePassword` is accepted and has no parent-side apply (existing no-op branch). |
-| Web Settings | The `onePassword` details shows the steps and the link, a password field, and the badge 連携中 (enabled, no error) / 未連携 (unconfigured or disabled) / 失敗 (error message). Saving with a pasted token turns it on. |
-| Web SSH card | 1Password connected: the picker (#836). Not connected: the paste field shows a short guide (pasting an OpenSSH private key, or setting up 1Password連携 in Settings to pick from a list). |
+| Web Settings | The `onePassword` header carries a badge with an icon: 連携中 green / 未連携 grey / 失敗 red (plain error message below). The guide sits behind 「作り方を見る」, open until connected. When connected, one line shows the readable vaults and the SSH key count (zero keys gives a next action). The token field is followed by the primary action 「保存して連携を確かめる」. Saving with a pasted token turns it on. Dark mode uses the owner-dialog tokens. |
+| Web SSH card | Plain wording: the request message is 「端末「…」で使うSSH鍵を登録してください。」, and the choices are 「1Passwordの鍵から選ぶ」 / 「鍵を貼り付けて保存する」. 1Password connected: the picker (#836). Not connected: the paste field shows a short guide (pasting an OpenSSH private key, or setting up 1Password連携 in Settings to pick from a list). |
 
 ```mermaid
 flowchart LR
@@ -170,6 +170,7 @@ flowchart LR
   Svc -->|refreshAvailability| OP[op whoami, token in env only]
   OP -->|available / reason| Svc
   Svc -->|error code + plain message| FS
-  FS -->|list: guide, status, error, token empty| Screen[Settings badge 連携中/未連携/失敗]
+  Svc -->|inventory: vault names + SSH key count| FS
+  FS -->|list: guide, status, error, connection, token empty| Screen[Settings badge 連携中/未連携/失敗]
   OP -->|available| Cards[pending SSH cards: picker]
 ```

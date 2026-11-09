@@ -96,6 +96,7 @@ export class FeatureSettings {
     this.onChange = onChange
     this.legacyAPNsConfigured = false
     this.errors = new Map()
+    this.connections = new Map()
     this.routingEpoch = 0
     this.settings = Object.fromEntries(features.map(feature => [feature.id, {
       enabled: false, ...Object.fromEntries(feature.fields.map(field => [field.key, ''])),
@@ -167,6 +168,7 @@ export class FeatureSettings {
         id: feature.id, title: feature.title, enabled: values.enabled,
         status: !configured(feature, values, this.legacyAPNsConfigured) ? 'unconfigured' : values.enabled ? 'enabled' : 'disabled',
         ...(this.errors.has(feature.id) ? { error: this.errors.get(feature.id) } : {}),
+        ...(this.connections.has(feature.id) ? { connection: structuredClone(this.connections.get(feature.id)) } : {}),
         ...(feature.guide ? { guide: { steps: [...feature.guide.steps], link: { ...feature.guide.link } } } : {}),
         fields: feature.fields.map(field => ({
           key: field.key, label: field.label, secret: field.secret === true,
@@ -183,6 +185,13 @@ export class FeatureSettings {
 
   routingState() {
     return { enabled: this.settings.routing.enabled, epoch: this.routingEpoch }
+  }
+
+  // What a connected feature can see (1Password: vault names and SSH key count); never a value.
+  setConnection(id, connection) {
+    definition(id)
+    if (connection) this.connections.set(id, connection)
+    else this.connections.delete(id)
   }
 
   setError(id, error) {

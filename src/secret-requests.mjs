@@ -95,7 +95,7 @@ export class SecretRequests {
       if (!['terminal.ssh', 'terminal.sudo'].includes(scope.purpose) || typeof label !== 'string' || !label.trim() || label.length > 128) throw new Error('SECRET_REQUEST_INVALID')
       await this.cancelTerminalRequests(scope)
       const item = { id: randomUUID(), botId: null, roomId: null, toolId: 'terminal-key', ...scope,
-        label, message: `端末「${terminalId}」の${scope.purpose === 'terminal.ssh' ? 'SSH鍵' : 'sudo認証情報'}を登録してください。値や1Password参照は、この専用欄へ入力してください。`,
+        label, message: `端末「${terminalId}」で使う${scope.purpose === 'terminal.ssh' ? 'SSH鍵' : 'sudoのパスワード'}を登録してください。`,
         at: new Date().toISOString(), status: 'pending' }
       await this.save(item)
       return { secretRequest: this.get(item.id) }

@@ -27,6 +27,7 @@ function fakeSource() {
     connected(value) { this.available = value; events.emit('change', { available: value }) },
     token: null, setToken(reader) { this.token = reader },
     keys: [{ title: 'MacBook key', vault: '開発工場', reference }], async listSshKeys() { return this.keys },
+    async inventory() { return { vaults: ['開発工場'], keys: this.keys } },
   }
 }
 
@@ -245,8 +246,11 @@ test('Settings 1Password連携 supplies the token to op only while enabled and r
   accept = true
   saved = await service.request('settings.update', { id: 'onePassword', input: { enabled: true } }, owner)
   assert.equal(saved.error, undefined); assert.equal(saved.status, 'enabled'); assert.equal(source.available, true)
+  assert.deepEqual(saved.connection, { vaults: ['開発工場'], sshKeys: 1 })
+  assert.equal(usageResultValid('settings.list', await service.request('settings.list', {}, owner)), true)
   await service.request('settings.update', { id: 'onePassword', input: { enabled: false } }, owner)
   assert.equal(await source.token(), null); assert.equal((await status()).status, 'disabled'); assert.equal((await status()).error, undefined)
+  assert.equal((await status()).connection, undefined)
 })
 
 test('the SSH card lists existing keys to the Owner only', async t => {

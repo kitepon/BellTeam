@@ -72,7 +72,7 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
   const settings = new FeatureSettings({ root, bridgeHeadersPath, environment,
     onChange: async (id, configuration) => {
       // A new or removed token connects 1Password now; the result is the feature's status, never a failed save.
-      if (id === 'onePassword') { await secretRequests.credentials.refreshAvailability().catch(() => {}); syncOnePassword() }
+      if (id === 'onePassword') { await secretRequests.credentials.refreshAvailability().catch(() => {}); syncOnePassword(); await onePasswordConnection() }
       const epoch = epochs.get(id) + 1; epochs.set(id, epoch)
       publish(settingsProjection())
       return callEffect('settings.changed', { id, configuration, epoch })
@@ -102,12 +102,24 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
     const { enabled, token } = settings.configuration('onePassword')
     return enabled && token.trim() ? token.trim() : null
   })
+  const onePasswordItem = () => settings.list().find(item => item.id === 'onePassword')
+  const onePasswordConnected = () => settings.configuration('onePassword').enabled && onePasswordSource.available
   const syncOnePassword = () => {
     const code = settings.configuration('onePassword').enabled && !onePasswordSource.available
       ? onePasswordSource.reason === 'missing' ? 'ONEPASSWORD_CLI_MISSING' : 'ONEPASSWORD_TOKEN_REJECTED' : null
-    if ((settings.list().find(item => item.id === 'onePassword').error?.code ?? null) === code) return false
+    const before = JSON.stringify(onePasswordItem())
     settings.setError('onePassword', code ? { code } : null)
-    return true
+    if (!onePasswordConnected()) settings.setConnection('onePassword', null)
+    return JSON.stringify(onePasswordItem()) !== before
+  }
+  // Runs only inside a live operation (save, initialize, trusted refresh) so its projection is accepted.
+  const onePasswordConnection = async () => {
+    if (!onePasswordConnected() || !onePasswordSource.inventory) return false
+    let connection = null
+    try { const { vaults, keys } = await onePasswordSource.inventory(); connection = { vaults, sshKeys: keys.length } } catch {}
+    const before = JSON.stringify(onePasswordItem())
+    settings.setConnection('onePassword', onePasswordConnected() ? connection : null)
+    return JSON.stringify(onePasswordItem()) !== before
   }
   onePasswordSource.watch(() => { if (syncOnePassword() && initialized) publish(settingsProjection()) })
   const ownerQuestions = new OwnerQuestions({ root, bots,
@@ -159,7 +171,11 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
     'secrets.credential': ({ handle, context }) => secretRequests.credential(handle, context),
     'secrets.resolve': ({ handle, context }) => secretRequests.withResolved(handle, context, value => value),
     'secrets.replace': ({ handle, id, context }) => secretRequests.replaceCredential(handle, id, context),
-    'secrets.refresh': () => secretRequests.credentials.refreshAvailability(),
+    'secrets.refresh': async () => {
+      const result = await secretRequests.credentials.refreshAvailability()
+      if ((syncOnePassword() | (!onePasswordItem().connection && await onePasswordConnection())) && initialized) publish(settingsProjection())
+      return result
+    },
     'secrets.submit': ({ id, value }) => secretRequests.submit(id, value), 'secrets.cancel': ({ id }) => secretRequests.cancel(id),
     'secrets.withdraw': ({ id }, actor) => secretRequests.withdraw(id, actor.botId),
     'secrets.notifyOwnerGuide': ({ id }) => secretRequests.notifyOwnerGuide(id),
@@ -228,7 +244,7 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
         for (const [id, code] of state.errors) settings.setError(id, { code })
         harnessAuth.sessions = state.sessions; harnessAuth.receipts = state.receipts; onboarding.auth = receipt(state.onboardingAuth, onboarding.state.authSession)
       }
-      syncOnePassword()
+      syncOnePassword(); await onePasswordConnection()
       initialized = true; accepting = true
     },
     request(method, params, actor) {

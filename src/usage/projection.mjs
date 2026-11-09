@@ -9,10 +9,12 @@ const fields = { routing: ['apiKey'], callBridge: ['url', 'token'], cloudflare: 
 const validGeneration = value => Number.isSafeInteger(value) && value >= 0 || typeof value === 'string' && value.length > 0 && value.length <= 200
 const secretKeys = new Set(['apiKey', 'token', 'key'])
 export function usageSettingValid(item) {
-  if (!keys(item, ['id', 'title', 'enabled', 'status', 'fields'], ['error', 'guide']) || !Object.hasOwn(fields, item.id)) return false
+  if (!keys(item, ['id', 'title', 'enabled', 'status', 'fields'], ['error', 'guide', 'connection']) || !Object.hasOwn(fields, item.id)) return false
   const names = fields[item.id]
   return typeof item.title === 'string' && typeof item.enabled === 'boolean' && ['enabled', 'disabled', 'unconfigured'].includes(item.status)
     && (!item.error || keys(item.error, ['code', 'message']) && typeof item.error.code === 'string' && typeof item.error.message === 'string')
+    && (!item.connection || keys(item.connection, ['vaults', 'sshKeys']) && Array.isArray(item.connection.vaults)
+      && item.connection.vaults.every(name => typeof name === 'string') && Number.isSafeInteger(item.connection.sshKeys) && item.connection.sshKeys >= 0)
     && (!item.guide || keys(item.guide, ['steps', 'link']) && Array.isArray(item.guide.steps) && item.guide.steps.every(step => typeof step === 'string')
       && keys(item.guide.link, ['label', 'url']) && typeof item.guide.link.label === 'string' && /^https:\/\//u.test(item.guide.link.url))
     && Array.isArray(item.fields) && item.fields.length === names.length && item.fields.every((field, index) => keys(field, ['key', 'label', 'secret', 'value', 'configured'])

@@ -96,7 +96,7 @@ export function openSecretInput(request, api, onComplete) {
     const legend = document.createElement('legend')
     legend.textContent = '入力方法'
     fieldset.append(legend)
-    for (const [value, text] of [['onepassword', picker ? '1Passwordの鍵から選ぶ' : '1Passwordの参照を使う'], ['stored', '値をBellTeamへ保存する']]) {
+    for (const [value, text] of [['onepassword', picker ? '1Passwordの鍵から選ぶ' : '1Passwordの参照を使う'], ['stored', picker ? '鍵を貼り付けて保存する' : '値をBellTeamへ保存する']]) {
       const choice = document.createElement('label')
       const radio = radios[value] = document.createElement('input')
       radio.type = 'radio'
@@ -119,7 +119,7 @@ export function openSecretInput(request, api, onComplete) {
     if (next === 'stored') reference.value = ''
     else input.value = ''
     note.textContent = next === 'onepassword'
-      ? '参照は会話に送信されません。値は1Passwordから読み出します。'
+      ? picker ? '選んだ鍵は、使うときに1Passwordから読み出します。鍵は会話に送られません。' : '参照は会話に送信されません。値は1Passwordから読み出します。'
       : multiline
         ? '秘密鍵（「-----BEGIN OPENSSH PRIVATE KEY-----」で始まる文字）をそのまま貼ってください。1Passwordを使っている場合は、設定の「1Password連携」を済ませると、ここで鍵を一覧から選べます。値は会話に送信されません。'
         : '値は会話に送信されません。BellTeamの利用者領域へ保存します。'
