@@ -1,14 +1,15 @@
 #!/bin/sh
 # Sourced by the installer; Docker/Compose inputs are already frozen.
 resume_prepare() {
-  resume_preserve= resume_reason=
+  resume_preserve= resume_line=
   cp "$saved/normal.json" "$staging/resume-input-normal.json" || return 1
   # Only the bundled updater's body swap tries to keep the old body's Aiterm backing; H1 targets keep their copy path.
   if [ "${BELLTEAM_CONTAINER_UPDATE_WORKER:-}" = 1 ] && [ -z "${BELLTEAM_RESUME_TARGETS_FILE:-}" ]; then
     # Any pre-stop mismatch takes the existing reset path, so preserve never blocks a body swap; the result is printed.
     if resume_plan preserve 2>/dev/null && resume_preserve_bind; then resume_preserve=preserve;fi
-    if [ -n "$resume_preserve" ]; then printf 'aiterm=preserved\n'
-    else printf 'aiterm=reset reason=%s\n' "${resume_reason:-RESUME_PRESERVE_UNCONFIRMED}";fi
+    if [ -n "$resume_preserve" ]; then resume_line="aiterm=preserved$(sed -n '2p' "$staging/aiterm-compat.out")"
+    else resume_line="aiterm=reset reason=RESUME_PRESERVE_UNCONFIRMED";fi
+    printf '%s\n' "$resume_line"
   fi
   [ -n "$resume_preserve" ] || resume_plan || return 1
   docker run --pull never --rm --network none --read-only --entrypoint /usr/local/bin/node "$image" -e '
@@ -66,7 +67,7 @@ resume_metadata() {
 }
 
 # Bind the retained backing to the exact old body before anything stops: same volume as its mount, no other
-# container referencing it, and the same aiterm-mcp reader tree in the old and target images.
+# container referencing it. Which stores the target cannot read comes from Aiterm's own declaration, never from inequality.
 resume_preserve_bind() {
   resume_metadata || return 1
   [ -n "$stopped_container" ] && [ -s "$staging/current-runtime.json" ] || return 1
@@ -80,25 +81,31 @@ try{const [[c],[v]]=JSON.parse(require("fs").readFileSync(0,"utf8")),[name,id]=p
   ||v.Name!==name||v.Driver!=="local"||typeof v.Mountpoint!=="string"||m[0].Source!==v.Mountpoint)throw Error();
  console.log(c.Image)}catch{process.exitCode=1}' "$resume_volume" "$stopped_container" > "$staging/aiterm-source-image" || return 1
   docker volume inspect --format '{{.Name}} {{.Driver}} {{.Mountpoint}} {{.CreatedAt}}' "$resume_volume" > "$staging/aiterm-backing" || return 1
-  source_reader=$(resume_reader "$(cat "$staging/aiterm-source-image")") || { resume_reason=RESUME_STATE_READER_UNCONFIRMED;return 1; }
-  target_reader=$(resume_reader "$image") || { resume_reason=RESUME_STATE_READER_UNCONFIRMED;return 1; }
-  [ "${#source_reader}" -eq 64 ] && [ "$source_reader" = "$target_reader" ] || { resume_reason=RESUME_STATE_READER_UNCONFIRMED;return 1; }
+  {
+    printf '[';resume_state_source "$(cat "$staging/aiterm-source-image")" || printf null
+    printf ',';resume_state_source "$image" || printf null;printf ']'
+  } | docker run --pull never --rm -i --network none --read-only --entrypoint /usr/local/bin/node "$image" \
+    /app/src/aiterm-state-compat.mjs select > "$staging/aiterm-compat.out" || printf '{"resets":[],"note":"SELECT_FAILED"}\n note=SELECT_FAILED\n' > "$staging/aiterm-compat.out"
+  sed -n '1p' "$staging/aiterm-compat.out" > "$staging/aiterm-compat.json"
 }
 
-resume_reader() {
-  # The state-owning closure: the whole aiterm-mcp tree (node_modules included) plus aiterm-steer-delivery as Node
-  # resolves it from aiterm-mcp/dist, hashed again when its package directory lies outside that tree.
+resume_state_source() {
+  # Plain reads only: aiterm-mcp version and its state-compat.json (Elegg aiterm.state-compat.v1); no dist import.
   docker run --pull never --rm --network none --read-only --entrypoint /usr/local/bin/node "$1" -e '
-const fs=require("fs"),path=require("path"),h=require("crypto").createHash("sha256"),r="/usr/local/lib/node_modules/aiterm-mcp";
-const walk=(base,d)=>{for(const n of fs.readdirSync(d).sort()){const p=path.join(d,n),s=fs.lstatSync(p),k=path.relative(base,p)+"\0"+(s.mode&0o7777)+"\0";
- if(s.isSymbolicLink())h.update("l\0"+k+fs.readlinkSync(p)+"\0");else if(s.isDirectory()){h.update("d\0"+k);walk(base,p)}
- else if(s.isFile())h.update("f\0"+k+s.size+"\0").update(fs.readFileSync(p));else throw Error()}};
-walk(r,r);
-let d=path.dirname(require("module").createRequire(r+"/dist/index.js").resolve("aiterm-steer-delivery"));
-while(!(fs.existsSync(d+"/package.json")&&JSON.parse(fs.readFileSync(d+"/package.json","utf8")).name==="aiterm-steer-delivery")){if(d==="/")throw Error();d=path.dirname(d)}
-const root=fs.realpathSync(r),steer=fs.realpathSync(d),inside=steer.startsWith(root+"/");
-h.update("s\0"+path.relative(root,steer)+"\0");if(!inside)walk(steer,steer);
-console.log(h.digest("hex"))'
+const fs=require("fs"),r="/usr/local/lib/node_modules/aiterm-mcp";let version=null,declaration=null;
+try{version=JSON.parse(fs.readFileSync(r+"/package.json","utf8")).version}catch{}
+try{const b=fs.readFileSync(r+"/state-compat.json");declaration=b.length<=65536?b.toString("utf8"):"{}"}catch{}
+process.stdout.write(JSON.stringify({version,declaration}))'
+}
+
+# One line per bundled swap inside the state volume, readable from the body; preserve also moves declared stores aside.
+resume_apply() {
+  [ -n "${resume_line-}" ] || return 0
+  set -- --mount "type=volume,source=$1,target=/resume-state,volume-nocopy"
+  [ -z "${resume_preserve-}" ] || set -- "$@" --mount "type=bind,source=$staging/aiterm-compat.json,target=/aiterm-compat.json,readonly"
+  docker run --pull never --rm --network none --read-only --user 1000:1000 --cap-drop ALL --security-opt no-new-privileges:true "$@" \
+    --entrypoint /usr/local/bin/node "$image" /app/src/aiterm-state-compat.mjs apply /resume-state /aiterm-compat.json "$resume_line" \
+    || printf 'aiterm-state-apply=failed\n'
 }
 
 resume_initialize() {
@@ -106,11 +113,13 @@ resume_initialize() {
     # The retained backing is never emptied or re-owned; it must still be the volume bound before the stop.
     [ "$(docker volume inspect --format '{{.Name}} {{.Driver}} {{.Mountpoint}} {{.CreatedAt}}' "$resume_volume")" = "$(cat "$staging/aiterm-backing")" ] \
       || { echo RESUME_PRESERVE_UNCONFIRMED >&2;return 1; }
+    resume_apply "$resume_volume"
     return 0
   fi
   docker run --pull never --rm --network none --read-only --user 0:0 --cap-drop ALL --cap-add CHOWN --cap-add DAC_OVERRIDE --cap-add FOWNER \
     --security-opt no-new-privileges:true --mount "type=volume,source=$resume_volume,target=/resume-state,volume-nocopy" --entrypoint /usr/local/bin/node "$image" -e '
-const fs=require("fs"),p="/resume-state";if(fs.readdirSync(p).length)process.exit(1);fs.chmodSync(p,0o700);fs.chownSync(p,1000,1000)'
+const fs=require("fs"),p="/resume-state";if(fs.readdirSync(p).length)process.exit(1);fs.chmodSync(p,0o700);fs.chownSync(p,1000,1000)' || return 1
+  resume_apply "$resume_volume"
 }
 
 resume_stopped() {
