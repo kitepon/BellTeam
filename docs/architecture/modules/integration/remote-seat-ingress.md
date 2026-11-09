@@ -26,6 +26,7 @@ flowchart LR
   Cred -->|registry.get: terminal exists| Core
   Cred <--> Store
   Cred -->|url, credentialRef| Exec
+  Exec -->|connection.target: terminalId, memberId, projectRoot, harness| Core
   Core -->|connection.target: terminal, cwd, accountOwner| Exec
   Exec -->|reveal credentialRef| Cred
   Cred -->|token only as privateEnv in launcher stdin JSON| Private
