@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { SecretRequests } from '../src/secret-requests.mjs'
+import { SecretCredentials } from '../src/usage/secret-credentials.mjs'
 import { createUsageServices } from '../src/usage/services.mjs'
 import { createUsageFacade } from '../src/usage/facade.mjs'
 import { createUsageProjection, usageProjectionRecordValid } from '../src/usage/projection.mjs'
@@ -26,6 +27,34 @@ function fakeSource() {
     connected(value) { this.available = value; events.emit('change', { available: value }) },
   }
 }
+
+test('read-only restore creates new secret stores only when writing', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-readonly-secret-credentials-'))
+  const source = fakeSource()
+  const requests = new Map([
+    ['11111111-1111-4111-8111-111111111111', { id: '11111111-1111-4111-8111-111111111111', status: 'submitted', botId: null, terminalId: scope.terminalId, purpose: scope.purpose, terminalSuperseded: false, toolId: input.toolId }],
+    ['22222222-2222-4222-8222-222222222222', { id: '22222222-2222-4222-8222-222222222222', status: 'submitted', botId: null, terminalId: scope.terminalId, purpose: scope.purpose, terminalSuperseded: false, toolId: input.toolId }],
+  ])
+  const credentials = new SecretCredentials({ root, getRequest: requestId => requests.get(requestId), onePassword: source })
+  t.after(async () => { credentials.close(); await rm(root, { recursive: true, force: true }) })
+
+  await credentials.initialize({ readOnly: true })
+  assert.deepEqual(await readdir(root), [])
+  await assert.rejects(stat(join(root, 'state')), { code: 'ENOENT' })
+
+  const first = '11111111-1111-4111-8111-111111111111'
+  const second = '22222222-2222-4222-8222-222222222222'
+  const firstDto = await credentials.bind(first, scope)
+  await credentials.registerSource(second, { source: 'onepassword', reference })
+  const secondDto = await credentials.bind(second, scope)
+  assert.equal(await credentials.resolveRequest(second), source.value)
+  for (const directory of [credentials.directory, credentials.sourceDirectory]) assert.equal((await stat(directory)).mode & 0o777, 0o700)
+  for (const directory of [credentials.directory, credentials.sourceDirectory]) {
+    for (const name of await readdir(directory)) assert.equal((await stat(join(directory, name))).mode & 0o777, 0o600)
+  }
+  assert.ok(firstDto.handle); assert.ok(secondDto.handle)
+})
+
 async function fixture(t, options = {}) {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-secret-credentials-'))
   const bots = new Map([['bot-a', { id: 'bot-a', name: 'A' }], ['bot-b', { id: 'bot-b', name: 'B' }]])

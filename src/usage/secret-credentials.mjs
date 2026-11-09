@@ -102,6 +102,7 @@ export class SecretCredentials {
   }
   async #save(record, fresh = false) {
     const path = join(this.directory, record.handle + '.json')
+    await mkdir(this.directory, { recursive: true, mode: 0o700 })
     if (fresh) await writeFile(path, JSON.stringify(record), { mode: 0o600, flag: 'wx' })
     else {
       await writeFile(path + '.tmp', JSON.stringify(record), { mode: 0o600 })
@@ -118,6 +119,7 @@ export class SecretCredentials {
     } else if (source?.source === 'provider' && this.#providers.has(source.providerId)) record = { kind: 'provider', providerId: source.providerId }
     else throw error('SECRET_VALUE_INVALID')
     const path = join(this.sourceDirectory, requestId + '.json')
+    await mkdir(this.sourceDirectory, { recursive: true, mode: 0o700 })
     try { await writeFile(path, JSON.stringify(record), { mode: 0o600, flag: 'wx' }) }
     catch (failure) {
       if (failure.code !== 'EEXIST') throw failure
