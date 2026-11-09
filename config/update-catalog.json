@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-09T00:23:13Z",
-  "expiresAt": "2026-11-16T00:23:13Z",
+  "publishedAt": "2026-11-09T00:50:22Z",
+  "expiresAt": "2026-11-16T00:50:22Z",
   "releases": [
     {
       "componentId": "usage",
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "d9f230fb4310afc3952e31260cadd5cc5fd278a9",
-      "versionId": "sha256:601473df0f527fdd312434b459fe9a381370f4c1a33de4c967af3c9b566c5149",
+      "sourceCommit": "9f718613d65d09d716eae780af0d24a688609eb9",
+      "versionId": "sha256:773367581f57bc27fb26f697d3c1f1cd037438b08048359d6fbb239e4dbe5441",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:601473df0f527fdd312434b459fe9a381370f4c1a33de4c967af3c9b566c5149"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:773367581f57bc27fb26f697d3c1f1cd037438b08048359d6fbb239e4dbe5441"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,21 +722,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "二つ目のアカウントの設定ファイルを本体から上書きしないようにします。",
-        "ゲートウェイ切替時は、旧版の停止待ちが時間切れでも、新しい版への切替を続けます。"
+        "CLI receives only its selected login in its environment.",
+        "Gateway drain no-veto."
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "d9f230fb4310afc3952e31260cadd5cc5fd278a9",
-      "versionId": "sha256:601473df0f527fdd312434b459fe9a381370f4c1a33de4c967af3c9b566c5149",
+      "sourceCommit": "9f718613d65d09d716eae780af0d24a688609eb9",
+      "versionId": "sha256:773367581f57bc27fb26f697d3c1f1cd037438b08048359d6fbb239e4dbe5441",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:601473df0f527fdd312434b459fe9a381370f4c1a33de4c967af3c9b566c5149"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:773367581f57bc27fb26f697d3c1f1cd037438b08048359d6fbb239e4dbe5441"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -745,8 +745,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "二つ目のアカウントの設定ファイルを本体から上書きしないようにします。",
-        "ゲートウェイ切替時は、旧版の停止待ちが時間切れでも、新しい版への切替を続けます。"
+        "CLI receives only its selected login in its environment.",
+        "Gateway drain no-veto."
       ]
     }
   ],
