@@ -42,6 +42,21 @@ export function remoteBindingBody(saved, terminalId, projectRoot) {
   return { body: { terminalId, projectRoot: root } }
 }
 
+// members S5 default folder; same slug rule as members-folder.mjs memberFolderSlug.
+export function memberFolder(user, name) {
+  const slug = String(name ?? '').trim().replace(/[/:\0]/gu, '-')
+  return `/Users/${user}/BellTeam/${slug && slug !== '.' && slug !== '..' ? slug : 'member'}`
+}
+
+// members S5 save refusals: the server message already carries the fix and the folder (terminals actions, Japanese).
+// null = not a folder refusal; a bare code (no message in the envelope) falls back to one plain line.
+export function folderRefusal(error, folder) {
+  if (error?.code === 'TERMINAL_NOT_FOUND') return 'この端末は登録されていません。'
+  if (!/^FOLDER_/u.test(error?.code ?? '')) return null
+  return error.message && error.message !== error.code ? error.message : `このフォルダは使えません（${folder}）。`
+}
+export const FOLDER_UNCHECKED = 'Macにつながらなかったので、フォルダはまだ確かめていません。席を起こす時にもう一度確かめます。'
+
 // GET /api/terminals with the tolerance every caller shares: older bodies (404) and an unmounted core (503).
 export async function readTerminals(api, options) {
   try { return { terminals: (await api('/api/terminals', options)).terminals ?? [] } }
@@ -162,7 +177,7 @@ export function createTerminalsView(dialog, { api }) {
     // onComplete also fires for 入力を断る; only a submitted password has an outcome to wait for.
     openSecretInput(request, api, done => { if (opened === current && done?.status === 'submitted') void awaitAuthorization(id, request.id) })
   })
-  // The server clears keyAuthorizationPending before it records the outcome, so the outcome must also name this request.
+  // Pending stays true until the outcome is recorded (#858); the requestId match also ignores an older outcome.
   // Exits: matching outcome, dialog closed, GET error, or AUTHORIZE_WAIT_LIMIT reads.
   async function awaitAuthorization(id, requestId) {
     const current = opened
