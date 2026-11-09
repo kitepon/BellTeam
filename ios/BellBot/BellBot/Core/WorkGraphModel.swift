@@ -110,6 +110,9 @@ final class WorkGraphModel: ObservableObject {
         var leavingAt: Double?
         var leaveFrom = CGPoint.zero
         var activeSince: Double
+        /// 交差を解くために入れ替わった時の、描いていた位置と時刻。入場中・退場中は持たない。
+        var glideFrom: CGPoint?
+        var glideAt = 0.0
     }
 
     struct Line {
@@ -196,6 +199,8 @@ final class WorkGraphModel: ObservableObject {
     private var epoch: String?
     private var version = 0
     private var lastStep: Double?
+    /// 交差を解く検査までに進めたコマ数（30たまるごとに1回）。
+    private var uncrossFrames = 0.0
     private(set) var size = CGSize.zero
     private var insets = EdgeInsets()
     /// 実際に描ける範囲（上下の安全域・タブを除く）。重心・間隔・境界はこの範囲で決める。
@@ -477,7 +482,87 @@ final class WorkGraphModel: ObservableObject {
             p.y = min(1 - (s / 2 + nameHeight) / H, max(s / 2 / H, p.y))
             bodies[id]?.position = CGPoint(x: d.minX + p.x * W, y: d.minY + p.y * H)
         }
+        uncrossFrames += frames
+        if uncrossFrames >= 30 {
+            uncrossFrames -= 30
+            uncross(at: now)
+        }
         heat = max(0.04, heat * pow(0.985, frames))
+    }
+
+    // MARK: Uncrossing swaps
+
+    /// 開いた線を直線とみなして交差を数え、最も減る2人の位置と速度を入れ替える。αは変えない（behavior-spec.md「Uncrossing swaps」）。
+    func uncross(at now: Double) {
+        let ids = order.filter { bodies[$0]?.leavingAt == nil }.sorted()
+        let index = Dictionary(uniqueKeysWithValues: ids.enumerated().map { ($1, $0) })
+        var edges = Set<[Int]>()
+        for line in lines.values where line.endedAt == nil {
+            if let a = index[line.edge.from], let b = index[line.edge.to], a != b { edges.insert([min(a, b), max(a, b)]) }
+        }
+        let points = ids.map { bodies[$0]?.position ?? .zero }
+        guard let best = Self.bestSwap(points, edges.sorted { $0.lexicographicallyPrecedes($1) }.map { ($0[0], $0[1]) }) else { return }
+        let a = ids[best.pair.0], b = ids[best.pair.1]
+        guard var first = bodies[a], var second = bodies[b] else { return }
+        let enter = reduceMotion ? 0.2 : 0.7
+        let drawnA = drawPosition(first, at: now), drawnB = drawPosition(second, at: now)
+        swap(&first.position, &second.position)
+        swap(&first.velocity, &second.velocity)
+        first.glideFrom = now - first.enteredAt >= enter ? drawnA : nil
+        second.glideFrom = now - second.enteredAt >= enter ? drawnB : nil
+        first.glideAt = now
+        second.glideAt = now
+        bodies[a] = first
+        bodies[b] = second
+    }
+
+    /// 2本の線が端を共有せずに真ん中で交わるか（layout-sim.mjsの`cross`）。
+    private static func crosses(_ a: CGPoint, _ b: CGPoint, _ c: CGPoint, _ d: CGPoint) -> Bool {
+        func side(_ p: CGPoint, _ q: CGPoint, _ r: CGPoint) -> CGFloat {
+            let cross = (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x)
+            return cross > 0 ? 1 : (cross < 0 ? -1 : 0)
+        }
+        return side(a, b, c) * side(a, b, d) < 0 && side(c, d, a) * side(c, d, b) < 0
+    }
+
+    /// `list`の線と`all`の線の交差の数（端を共有する組は除く。`list`同士は2回数える）。
+    private static func crossCount(_ p: [CGPoint], _ list: [(Int, Int)], _ all: [(Int, Int)]) -> Int {
+        var count = 0
+        for (a, b) in list { for (e, f) in all where a != e && a != f && b != e && b != f && crosses(p[a], p[b], p[e], p[f]) { count += 1 } }
+        return count
+    }
+
+    /// 線（点の番号の組。A→BとB→Aは1本にまとめる）が直線の時の交差の数。
+    static func crossings(_ p: [CGPoint], _ edges: [(Int, Int)]) -> Int {
+        let pairs = uniquePairs(edges)
+        return crossCount(p, pairs, pairs) / 2
+    }
+
+    private static func uniquePairs(_ edges: [(Int, Int)]) -> [(Int, Int)] {
+        var seen = Set<[Int]>(), result: [(Int, Int)] = []
+        for (a, b) in edges where seen.insert([min(a, b), max(a, b)]).inserted { result.append((min(a, b), max(a, b))) }
+        return result
+    }
+
+    /// 入れ替えると交差が最も減る2人（番号の小さい順に最初の組が勝つ）。1つも減らなければnil。layout-sim.mjsの`bestSwap`。
+    static func bestSwap(_ p: [CGPoint], _ edges: [(Int, Int)]) -> (pair: (Int, Int), gain: Int)? {
+        let pairs = uniquePairs(edges)
+        let adjacent = p.indices.map { i in pairs.filter { $0.0 == i || $0.1 == i } }
+        func local(_ q: [CGPoint], _ i: Int, _ j: Int) -> Int {
+            var seen = Set<[Int]>(), mine: [(Int, Int)] = []
+            for edge in adjacent[i] + adjacent[j] where seen.insert([edge.0, edge.1]).inserted { mine.append(edge) }
+            return crossCount(q, mine, pairs) - crossCount(q, mine, mine) / 2
+        }
+        var best: (pair: (Int, Int), gain: Int)?
+        for i in p.indices {
+            for j in (i + 1)..<max(p.count, i + 1) where !(adjacent[i].isEmpty && adjacent[j].isEmpty) {
+                var q = p
+                q.swapAt(i, j)
+                let gain = local(p, i, j) - local(q, i, j)
+                if gain > 0, best == nil || gain > best!.gain { best = ((i, j), gain) }
+            }
+        }
+        return best
     }
 
     // MARK: Drawing helpers
@@ -497,7 +582,16 @@ final class WorkGraphModel: ObservableObject {
         }
         if reduceMotion {
             let t = min(max((now - body.enteredAt) / 0.2, 0), 1)
+            // 交差を解く入れ替えは滑らせず、200msの前半に元の位置で消え、後半に新しい位置で現れる。
+            if let from = body.glideFrom, now - body.glideAt < 0.2 {
+                let swapT = (now - body.glideAt) / 0.2
+                return (swapT < 0.5 ? from : body.position, 1, t * abs(1 - 2 * swapT))
+            }
             return (body.position, 1, t)
+        }
+        if let from = body.glideFrom, now - body.glideAt < 0.7 {
+            let k = Self.bezier(max(0, (now - body.glideAt) / 0.7), 0.2, 0.8, 0.2, 1)
+            return (CGPoint(x: from.x + (body.position.x - from.x) * k, y: from.y + (body.position.y - from.y) * k), 1, 1)
         }
         let t = min(max((now - body.enteredAt) / 0.7, 0), 1)
         let k = Self.bezier(t, 0.2, 0.8, 0.2, 1)

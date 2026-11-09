@@ -11,6 +11,9 @@ flowchart LR
   Model --> Stream["BellAPI.eventStream(path:)<br/>GET /api/work-graph/events"]
   Stream --> Model
   Model --> Sim["WorkGraphSimulation（純粋）<br/>力学・入退場・点滅位相・流れの点"]
+  Model -->|"30コマごと（step末尾）"| Uncross["WorkGraphModel.bestSwap(_:_:)<br/>直線の線の交差を数え、最も減る2人（同数は並び順の先）の位置と速度を入れ替える<br/>αは変えない"]
+  Uncross -->|"入れ替えた2人: glideFrom・glideAt"| Look["WorkGraphModel.appearance<br/>描く位置はglideFromから新しい位置へ（enter曲線）<br/>動きを減らす設定は200msの出て入る"]
+  Look --> View
   View --> Avatar["AvatarView（Canvas symbols）<br/>GET /api/bots/:id/avatar?v=avatarVersion"]
   View -->|"毎フレームの線・指しているメンバー・Macのポインタが乗る線"| Chips["WorkGraphModel.layoutChips<br/>札をlatch frameで一度だけ作り辺の終わりまで残す<br/>置き場所t・blocked・指した札・待つ札の見せ方（peek）<br/>名前の置き場所（下→上→隠す）と見せるメンバー"]
   View -->|"押下・指した位置"| Hit["WorkGraphModel.hit(at:)<br/>メンバー（44pt四方以上）＞札＞blockedの札＞線"]
@@ -38,6 +41,7 @@ flowchart LR
 | 変更 | `change`はepochが一致し`version == 前回 + 1`の時だけ順に適用。それ以外（欠番・新epoch・解釈失敗）は接続を閉じて取り直す |
 | 入退場 | member-enterは画面外の決まった角度から飛び込み、member-leaveは中心から外へ飛び去る。leave開始後のnodeは力を出さない |
 | 辺 | edge-startで線が依頼元から伸び、その後に点が依頼元から依頼先へ流れる。edge-endで薄れて消える |
+| 交差の解消 | behavior-spec.md「Uncrossing swaps」。`step`の末尾で、進めたコマ数（`dt × 60`）が30たまるごとに1回。開いた線（`endedAt`なし）で両端が退場中でないものを、A→BもB→Aも1本の直線として`crossings`/`bestSwap`（layout-sim.mjsの写し）に渡す。2本が端を共有すれば交差に数えない。線を持つ人を含む組ごとに、入れ替えて減る交差を数え、1以上減る中で最大の1組（同数はbotId順の先）の`position`と`velocity`を入れ替える（αは変えない）。減る組が無ければ入れ替えない。入れ替えた人は`glideFrom`（入れ替え前の描いた位置）と`glideAt`を持ち、`appearance`が700msでenter曲線に沿って新しい位置へ滑らせる。入場中の人は`glideFrom`を持たず、入場の補間のまま新しい位置へ向かう。動きを減らす設定では滑らせず、200msの前半は元の位置で消え、後半は新しい位置で現れる。線と札は描いた位置に従う |
 | 熱 | 変更を適用した時と大きさが変わった時にα=1。毎フレーム減衰し、下限で漂い続ける |
 | 切断 | 通信の失敗・終了、または35秒無通信。最後の図を残し、点滅と流れを止め、彩度を落として`再接続中…`を出す。直ちに、その後1,2,4,8,15,15…秒（±20%）で再接続し、開いている間は諦めない |
 | degraded | 空でない間は図を出したまま`一部の情報を取得できていません`を出す |
@@ -70,5 +74,6 @@ flowchart LR
 - 同ファイル（名前）: 下が他のアイコンに重なる名前は顔の上へ移る・上下とも重なる名前は隠れて障害物にならず、その欄の押下はメンバーへ行く・指している間だけ見えて札がよけ、ほかのメンバーを指しても見えない。
 - 同ファイル: タップ範囲の44pt四方・10pt/500msの境目・線/札/空いた所で開かない・押した時のbotIdを退場後も保つ・取り消された押下の後の同じ位置の新しい押下は新しいメンバーを開く・最初の標本が10pt以上動いていれば動いた扱い・400〜500msの押下はタップで500ms以上は開かない・相関図から開いた会話で戻ると相関図のタブへ帰る（縮んだiPadの`returnFromConversation`を含む）。
 - 同ファイル（待つ札）: 待つ札の線をタップすると`t = 0.5`で最前面に出て置き場所は取らず、空いた所のタップで待つ状態へ戻る・別の線のタップで見せる札が移る（見せている札そのもののタップは動かさない）・メンバーのタップは線に奪われず見せている札を消す・終わった辺は押せず見せない・Macは線にポインタが乗る間だけ見せる・`isTap`の10pt/500msの境目。
+- 同ファイル（交差の解消）: layout-sim.mjsの`crossings`/`bestSwap`を実行して得た値を写した固定の配置（交差する正方形・減らない配置・同数の組・退場中を除く・5人全結合の交差が0にならない）で、数と選ばれる組が一致する・`step`が30コマごとに1組だけ入れ替えて位置と速度を渡しαは変えない・入れ替えた人の描いた位置が連続して700msで新しい位置に着く・動きを減らす設定は200msの出て入る。
 - `BellBotUITests/WorkGraphTapUITests.swift`（iPhone）: fixtureの相関図でハルを押すとハルの会話が開き、戻ると相関図のタブへ帰る。fixtureのURLは`TEST_RUNNER_BELLTEAM_WORK_GRAPH_FIXTURE_URL`。
 - 描画の画面写真は`test/helpers/work-graph-server.mjs`（契約どおりのsnapshotとchangeを流すfixture。長い依頼の文2本と`label`がnullの線を含む）で撮る。
