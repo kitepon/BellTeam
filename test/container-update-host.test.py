@@ -139,7 +139,7 @@ class HostTest(unittest.TestCase):
                'cleanup':'pending','rollback':'not_needed','observed':None,'updatedAt':module.stamp(),
                'worker':{'pid':99999999,'birth':'missing'}}
         module.atomic(path,value)
-        module.atomic(self.prefix/'state/jobs'/(identifier+'.json'),dict(schema='bellteam.update-job.v1',jobId=identifier,idempotencyKey=identifier,kind='container',target=dict(catalogSha256='a'*64,moduleId='container',versionId='b'*64),state='queued',reason=None,transitions=[dict(state='queued',atNs=str(module.time.time_ns()))],updatedAtNs=str(module.time.time_ns())))
+        module.atomic(self.prefix/'state/jobs'/(identifier+'.json'),dict(schema='bellteam.update-job.v1',jobId=identifier,idempotencyKey=identifier,kind='container',target=dict(catalogSha256='a'*64,moduleId='container',versionId='b'*64),state='queued',reason=None,transitions=[dict(state='queued',atNs=(now:=str(module.time.time_ns())))],updatedAtNs=now))
         entered=threading.Event();actual_locked=module.locked
         def entering_lock(*args,**kwargs):
             entered.set();return actual_locked(*args,**kwargs)
