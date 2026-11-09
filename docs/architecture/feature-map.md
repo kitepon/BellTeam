@@ -12,7 +12,7 @@
 flowchart LR
   m_conversation["会話・履歴 / N102"]
   m_diagnostics["診断 / シグナル"]
-  m_distribution["商用配布 / センチ"]
+  m_distribution["商用配布 / モリー"]
   m_execution["AI実行制御 / キロ"]
   m_integration["共通入口・結合実装 / モリー"]
   m_members["メンバー・予定 / ベロータ"]
@@ -139,7 +139,7 @@ flowchart LR
 | [Caveat](modules/caveat/README.md) | ノア | public |
 | [会話・履歴](modules/conversation/README.md) | N102 | messages / history / membership-cleanup / room-access / durable-messages |
 | [診断](modules/diagnostics/README.md) | シグナル | diagnostics |
-| [商用配布](modules/distribution/README.md) | センチ | image / web-gateway-artifact / notifications-artifact / update-catalog / members-artifact / memory-artifact / conversation-artifact / runtime-artifact / work-graph-artifact |
+| [商用配布](modules/distribution/README.md) | モリー | image / web-gateway-artifact / notifications-artifact / update-catalog / members-artifact / memory-artifact / conversation-artifact / runtime-artifact / work-graph-artifact |
 | [AI実行制御](modules/execution/README.md) | キロ | turn / configuration / stop / observation / members-admission / accounts |
 | [共通入口・結合実装](modules/integration/README.md) | モリー | HTTP/MCP / HTTP/SSE / diagnostics |
 | [mcp-lazy](modules/mcp-lazy/README.md) | レオナ | relay |
