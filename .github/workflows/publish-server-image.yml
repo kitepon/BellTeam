@@ -81,6 +81,8 @@ on:
       - scripts/install-container-update-code.py
       - scripts/cleanup-deploy-images.py
       - scripts/save-deploy-restore-point.py
+      - test/helpers/bundled-swap-real.sh
+      - test/helpers/bundled-swap-worker.py
       - .github/workflows/publish-server-image.yml
 
 concurrency:
@@ -376,8 +378,30 @@ jobs:
           name: server-image-ca-${{ matrix.arch }}-${{ github.run_attempt }}
           path: runtime/image-ca/
 
-  candidate:
+  bundled-swap:
+    # One real bundled swap (Trony 2026-11-10): current stable -> this image on real Docker, before any promotion.
     needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: node
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: 現行の安定版からこのimageへ実Dockerで本体を1回入れ替える
+        run: sh test/helpers/bundled-swap-real.sh "$IMAGE:latest" "$IMAGE:$GITHUB_SHA-amd64" "$GITHUB_SHA"
+      - name: 失敗時の入れ替え記録
+        if: failure()
+        run: |
+          for c in $(docker ps -aq --filter label=com.docker.compose.project=bundled-swap); do docker logs --tail 60 "$c" 2>&1 || true; done
+          head -c 20000 "$RUNNER_TEMP/bundled-swap/swap.json" 2>/dev/null || true
+  candidate:
+    needs: [build, bundled-swap]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
