@@ -122,10 +122,12 @@ class HostTest(unittest.TestCase):
         self.updater.start({'requestId':identifier,'planId':plan['planId'],'confirmContainerRestart':True})
         path=self.prefix/'state/operations'/identifier/'operation.json'
         value=module.read_json(path,os.getuid())
+        # Wait until the worker has written its last pre-execute record ('applying') and is parked in execute();
+        # tampering earlier races that write, which carries the real pid.
         until=module.time.monotonic()+2
-        while value['worker'] is None and module.time.monotonic()<until:
+        while (value['worker'] is None or value.get('phase')!='applying') and module.time.monotonic()<until:
             threading.Event().wait(.001);value=module.read_json(path,os.getuid())
-        self.assertIsNotNone(value['worker'])
+        self.assertIsNotNone(value['worker']);self.assertEqual(value['phase'],'applying')
         value['worker']['pid']=99999999
         module.atomic(path,value)
         result=self.updater.get(identifier)
