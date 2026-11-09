@@ -275,6 +275,67 @@ stateDiagram-v2
 | Mika contract | `credentials.requestTerminalKey({terminalId, purpose, label})`, `watchCredentials` event `{terminalId, purpose, handle, revision, available, reason, requestId}`, `current({terminalId, purpose})` -> `{handle, revision, available, requestId}`, `unbind(handle | null, {terminalId, purpose})` (null = scope cancel), `credential(handle, context)`. Purposes `terminal.ssh` / `terminal.sudo` (Mika aliases of ssh-key / sudo-key) |
 | Exits | A submitted key emits a registry change -> `available`. DELETE leaves the terminal registered; `target` then answers `CREDENTIAL_UNAVAILABLE` reason `SSH_KEY_UNSET` with action "set the SSH key of terminal X" until a new key is set |
 
+#### Self-service registration and assignment (Trony request 2026-11-10, design)
+
+Gap found on Apple 1.0.6 (122) and Web (Ziz `owner-steps.md`): a normal user cannot finish without internal knowledge. (1) Remote Login must already be on, unstated. (2) The chosen key's public key must already be in the Mac's `~/.ssh/authorized_keys`. (3) Host trust needs `ssh-keygen -lf` typed in Terminal. (4) The member folder must already exist, unchecked. Found while drawing this: (5) the Mac must already have Aiterm's remote side (`aiterm-mcp` and its runtime), else `REMOTE_AITERM_UNAVAILABLE`; (6) a folder under Desktop/Documents/Downloads is refused to SSH processes by macOS privacy (TCC) unless Remote Login's "full disk access for remote users" is on.
+
+Rule: the Owner finishes with only what the screens offer. No Terminal command, no key file or `op://` knowledge, no hidden precondition. Wrong-target protection stays (Aiterm writes trust only when its own scan equals a fingerprint obtained over an authenticated channel); the person no longer carries the fingerprint by hand. No secret value appears on a screen, in chat or in a terminals field. Key choice stays as ruled (K-R3VC55): pick from 1Password (Mika #836) or paste; no generated key, no pairing command.
+
+```mermaid
+flowchart LR
+  MacApp[Apple app running on that Mac / Ziz] -->|S1 this-Mac facts: host, user, Remote Login on/off, default folder| Form[Add / edit terminal screen: Ziz, Admi]
+  MacApp -->|S2 attest terminalId + host-key SHA256 read on the Mac itself| H[terminals HTTP]
+  Form -->|PUT target| H
+  H --> Reg[registry]
+  H -->|trust attest| Conn[connection]
+  Conn -->|trust-confirm --ref --fingerprint: scan, write only on equal| A[Aiterm UID1000 / Elegg]
+  Form -->|POST keys/ssh, card picker or paste| Mika[Mika credentials]
+  H -->|POST check| Chk[reachability.check]
+  Chk -->|open; refused / timeout / AUTH_FAILED / REMOTE_AITERM_*| A
+  Chk -->|REMOTE_AITERM_UNAVAILABLE or TOO_OLD: provision, then reopen| A
+  Chk -->|reason + action: REMOTE_LOGIN_OFF, KEY_NOT_AUTHORIZED, ...| Form
+  Form -->|POST authorize-key: one-time Mac login password card| Mika
+  Mika -->|S4 password once, inside withResolved, stdin only| Conn
+  Conn -->|authorize-key --ref: password auth over trusted host, append the loaded key's public key| A
+  Editor[Member editor: Ziz, Admi] -->|save terminalId + projectRoot| Mem[members / Belorta]
+  Mem -->|S5 folder inspect / create| Fold[terminals.folder]
+  Fold -->|path_status, make_dir over the bound SSH| A
+  A --> Mac[(Registered Mac)]
+```
+
+Screen flow (one path for Apple and Web; the Apple app on that Mac fills and confirms what it can):
+
+1. 端末を追加. On that Mac's Apple app, 「このMacを追加」 fills host (primary LAN IPv4), user, port 22, 自分の端末. If Remote Login is off (loopback port 22 refused), the screen says so and offers 「共有設定を開く」 (`x-apple.systempreferences:com.apple.Sharing-Settings.extension`). On Web/iPhone the form states the precondition in one line with the same words.
+2. 保存. The Mac app attests its host key at once (S2). Registered elsewhere, the terminal detail says 「このMacでBellTeamアプリを開くと、自動で確かめます」 and the Mac app offers 「このMacを確かめる」 (one press) for a terminal whose host is one of its own addresses. The manual fingerprint sheet stays only under 「ほかの方法」 for a Mac without the app.
+3. SSH鍵 → 設定する → 1Passwordの鍵から選ぶ (or paste). Then つながるか確かめる runs automatically.
+4. Check result in plain words with one button: `REMOTE_LOGIN_OFF` → 共有設定を開く (Mac app) / precondition text; `KEY_NOT_AUTHORIZED` → 「このMacにこの鍵を入れる」 → one-time card 「このMacのログインパスワード（1回だけ使い、保存しません）」; Aiterm missing/old → provisioned automatically, no button; `UNREACHABLE` → 「Macが起きていて、同じネットワークにあるか」.
+5. Member editor → 動かす場所 = terminal. フォルダ is prefilled `/Users/<user>/BellTeam/<member slug>` (editable; the Mac app may offer its folder picker). On save, a missing folder returns `FOLDER_MISSING` with 「このフォルダを作って保存」; a TCC-refused folder returns `FOLDER_NOT_PERMITTED` with 「Desktop/書類/ダウンロードの外を選ぶか、リモートログインの『フルディスクアクセス』をオン」.
+
+| Flow | From -> to | Payload / protection |
+| --- | --- | --- |
+| S1 | Apple app on the Mac -> its own form | Local facts only (IPv4 list, `NSUserName`, loopback TCP 22). Nothing secret. Editable; the server stores only what is saved |
+| S2 | Apple app on the Mac -> `POST /api/terminals/:id/trust {fingerprint}` (Owner session) -> connection -> Aiterm `trust-confirm` | `SHA256:` of the Mac's ed25519 host key, read on the Mac itself (sandbox read of `/etc/ssh/ssh_host_ed25519_key.pub` or a loopback SSH handshake to 127.0.0.1:22, Ziz's choice). Same authority as today's manual sheet. Aiterm scans from the server and writes only on equality, so another machine answering that address gets `HOST_KEY_FINGERPRINT_MISMATCH` (「このアドレスで答えているのは、このMacではありません」) |
+| S3 | check -> Aiterm open | New classification: connection refused -> `CONNECTION_REFUSED` (terminals reason `REMOTE_LOGIN_OFF`); `AUTH_FAILED` after a loaded key -> reason `KEY_NOT_AUTHORIZED`; `REMOTE_AITERM_UNAVAILABLE` / `TOO_OLD` -> `provision --ref` (C8-style upkeep, no user step), then one reopen |
+| S4 | App -> `POST /api/terminals/:id/keys/ssh/authorize` -> Mika one-shot request -> terminals `withResolved` once -> Aiterm `authorize-key --ref` stdin | Requires current trust (refused with `HOST_TRUST_MISSING` before any password is asked) and a loaded key. Aiterm uses password authentication against the trusted host only, appends the public key of the key it holds for that ref when absent (`~/.ssh` 0700, `authorized_keys` 0600), returns `AUTHORIZED` / `ALREADY_AUTHORIZED` / `PASSWORD_REJECTED` / `PASSWORD_AUTH_DISABLED`. The password is never stored, never in argv or logs; Mika discards it after the single consume |
+| S5 | Members save -> `terminals.folder({terminalId, path, create?})` -> Aiterm `path_status` / `make_dir` | Absolute path on that terminal. Result `{exists, directory, writable}` or `FOLDER_MISSING` / `FOLDER_NOT_DIRECTORY` / `FOLDER_NOT_PERMITTED` / `TERMINAL_UNAVAILABLE`. `create` runs only on the Owner's press. An unreachable terminal does not block the save: members saves and marks the folder unchecked; launch keeps `CWD_UNAVAILABLE` as the final guard |
+
+Guards added and their exits: `REMOTE_LOGIN_OFF` (protects nothing; availability) exits on the next check after Remote Login is on. `KEY_NOT_AUTHORIZED` (credential to wrong target) exits on `AUTHORIZED` or a new key. Authorize without trust (secret exposure: a password to an unverified host) exits on S2 trust. `FOLDER_*` (wrong folder) exits on a created/changed folder revision. No new sticky state.
+
+Owner split and order:
+
+| # | Owner | Part | Depends on |
+| --- | --- | --- | --- |
+| 1 | Crust | This design (README + overall DFD RT18-RT21) | — |
+| 2a | Elegg | `CONNECTION_REFUSED` classification; `authorize-key --ref` (password on stdin, public key from the ref's loaded/native key); `path_status` / `make_dir` ops; `provision --ref` (install/update the remote side with no user-installed prerequisite) | 1 |
+| 2b | Mika | One-shot login-password request for `terminal.login` purpose: card text above, value consumed once through `withResolved`, never stored, no handle kept | 1 |
+| 2c | Ziz | Feasibility + implementation of S1/S2 in the sandboxed Mac app (host-key read method, loopback 22 probe, IPv4, user) | 1 |
+| 3 | Crust | terminals: `POST :id/trust`, `POST :id/keys/ssh/authorize`, `folder` port + HTTP/MCP, reason mapping, provisioning in check | 2a, 2b |
+| 4 | Belorta | Member save calls `terminals.folder`; default folder; `FOLDER_*` passthrough | 3 |
+| 5 | Admi (Web), Ziz (Apple) | Screens: precondition line, reason actions, authorize button + card, trust auto-attest / 「このMacを確かめる」, folder prefill + create | 3, 4 (2c for Apple) |
+| 6 | Trony / Centi | Body cut, product acceptance on a Mac with Remote Login off and an unauthorized key, then the Owner's real run | 5 |
+
+Kiro (execution) and Molly (mount) need no change: launch already refuses a missing cwd, routes live in `http-terminals-api.mjs` / `terminals-mcp.mjs`. Skipped on purpose: Bonjour discovery of Macs, a remote folder browser, TOFU trust for Macs without the app (manual sheet stays as the fallback).
+
 #### Registry
 
 `src/terminals/registry.mjs:createTerminalRegistry({stateRoot, onChange?})` owns `<stateRoot>/terminals.json` using the existing `writeAtomic` helper. `terminalId` is either supplied as a lowercase slug at registration (for example `owner-macbook`, matching Mika's handle context) or generated. Methods: `list()`, `get(terminalId)`, `register(record)`, `update(terminalId, patch)`, `remove(terminalId)`. An internal `target(terminalId)` returns a cloned target with credential handles to the connection core only. The public get/list/mutation return excludes handles and exposes configured indicators. Records contain terminalId, host, user, port (default22), os (`macos`), accountOwner (`owner` or `terminal-owner`), optional sshKeyRef (opaque UUID; a terminal is registered first and its key bound later through Molly's `bind_terminal_key`, until then `target` is `CREDENTIAL_UNAVAILABLE` reason `SSH_KEY_UNSET`), optional sudoKeyRef, hostTrust (`{provider, revision}` public nonsecret trust-provider reference), and increasing revision. A missing hostTrust is a target requiring trust enrollment, not implicit trust. No arbitrary private path or raw op:// belongs in this DTO.
