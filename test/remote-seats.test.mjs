@@ -158,22 +158,47 @@ test('one launch path: the same agent_launch with terminal + cwd; the checkpoint
   } finally { await rm(root, { recursive: true, force: true }) }
 })
 
-test('target revision: an idle running seat on another terminal/folder relaunches through restart; unchanged target does not', async () => {
-  const { root, transport, member } = await transportFixture()
+test('target revision at the delivery: an idle seat on another target is closed and woken there; a running turn keeps it', async () => {
+  const { root, calls, transport, member } = await transportFixture()
   try {
     await transport.wakeNow(member, { membersLease: 'L' })
     await transport.runtimeLaunchQueue
     assert.equal(await transport.seatTargetChanged(member), false)
-    assert.equal(await transport.seatTargetChanged({ ...member, projectRoot: '/Users/quo/work/other' }), true)
     assert.equal(await transport.seatTargetChanged({ ...member, terminalId: '', projectRoot: '' }), true, 'remote -> local')
-    const restarted = []
-    transport.restart = async target => { restarted.push(target.projectRoot); return { botId: target.id, session: 'bot-aaaa1111' } }
-    transport.isRunning = async () => true
-    transport.captureStopVersion = () => 0
-    transport.requireStopVersion = () => {}
-    assert.equal(await transport.ensure(member), 'bot-aaaa1111')
-    assert.deepEqual(restarted, [])
-    assert.equal(await transport.ensure({ ...member, projectRoot: '/Users/quo/work/other' }), 'bot-aaaa1111')
-    assert.deepEqual(restarted, ['/Users/quo/work/other'])
+    const woken = [], sent = []
+    let state = 'idle'
+    transport.observeForDispatch = async () => ({ exists: true, state })
+    transport.wake = async target => { woken.push(target.projectRoot); return 'bot-aaaa1111' }
+    transport.sendToSession = async session => { sent.push(session); return { content: [], structuredContent: { mode: 'sent' } } }
+    const moved = { ...member, projectRoot: '/Users/quo/work/other' }
+    await transport.dispatch(member, 'same target', []).catch(() => {})
+    assert.deepEqual(woken, [], 'unchanged target: no relaunch')
+    state = 'busy'
+    await transport.dispatch(moved, 'busy', []).catch(() => {})
+    assert.deepEqual(woken, [], 'a running turn is never closed')
+    state = 'idle'
+    calls.length = 0
+    await transport.dispatch(moved, 'moved', []).catch(() => {})
+    assert.deepEqual(calls.map(call => call.name), ['pty_close'])
+    assert.deepEqual(woken, ['/Users/quo/work/other'])
+    assert.equal(sent.length, 3)
   } finally { await rm(root, { recursive: true, force: true }) }
+})
+
+test('agent_launch terminal codes after a good target: connectivity queues and arms the observer; a missing folder is a visible failure', () => {
+  const { seats } = fixture()
+  const observed = []
+  seats.terminals.connection.observe = terminalId => observed.push(terminalId)
+  const unreachable = code('UNREACHABLE')
+  seats.launchFailed(bot, unreachable)
+  assert.equal(unreachable.effect, 'not_started')
+  assert.deepEqual(observed, ['mac-1'])
+  const mismatch = code('HOST_KEY_MISMATCH')
+  seats.launchFailed(bot, mismatch)
+  assert.equal(mismatch.effect, 'not_started')
+  assert.deepEqual(observed, ['mac-1'], 'waits for the registry-change edge')
+  const folder = code('CWD_UNAVAILABLE')
+  seats.launchFailed(bot, folder)
+  assert.equal(folder.effect, undefined)
+  assert.deepEqual([...seats.waiting.get('mac-1')], ['bot-aaaa1111'])
 })

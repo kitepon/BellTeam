@@ -257,9 +257,6 @@ export class AitermTransport {
     this.requireStopVersion(bot.id, version)
     const running = await this.isRunning(bot)
     this.requireStopVersion(bot.id, version)
-    // remote-seat.md: a terminal/folder revision (or local <-> remote) relaunches on the new target at this idle boundary.
-    // A busy seat keeps today's delivery; the next ensure at idle moves it.
-    if (running && this.isIdle(bot.id) && await this.seatTargetChanged(bot)) return (await this.restart(bot)).session
     if (running) return this.session(bot)
     return this.wake(bot)
   }
@@ -339,8 +336,8 @@ export class AitermTransport {
       if (account) void this.accounts.setSeat(bot.id, account.slot).catch(() => {})
     } catch (error) {
       // A credential issued for a launch that was never issued is revoked; a launch possibly running keeps its own.
-      // Aiterm's classified terminal codes (UNREACHABLE, CWD_UNAVAILABLE, ...) keep the message queued until the terminal returns.
-      if (remote && issuedLaunch && this.remoteSeats.notStarted(error).effect === 'not_started') this.remoteSeats.wait(bot)
+      // Aiterm's connectivity codes keep the message queued and arm terminals' observer (remote-seat.md "Pending delivery").
+      if (remote && issuedLaunch) this.remoteSeats.launchFailed(bot, error)
       if (remote && (!issuedLaunch || ['not_started', 'not_issued'].includes(error?.effect))) await remote.revoke()
       // 起動の準備が終わらなかった席は、Aitermの端末だけが残る（認証が切れたCLIがサインインの画面で止まった時など。2026-10-05、Codex）。
       // 残すと席が「動いている」扱いになり、次の送信から起こし直せず、入力も受け付けない。BellTeamの席には、その画面へ答える人が居ない。
@@ -1389,6 +1386,24 @@ export class AitermTransport {
       check()
       let session = this.session(bot)
       let result
+      // remote-seat.md "Target revision": every member update path (HTTP administration or members' MCP update_bot) reaches
+      // this delivery, so the move happens here. An idle seat on another terminal/folder (or local <-> remote) is closed
+      // and woken on the new target; a running turn keeps today's delivery and the next delivery moves it.
+      if (await this.seatTargetChanged(bot)) {
+        const observed = await this.observeForDispatch(bot, check)
+        if (!(observed?.exists === true && (observed.state === 'busy' || observed.pending_child_deliveries > 0))) {
+          if (executionJob) executionJob.deliveryStage = 'BOT_LAUNCH_FAILED'
+          session = await this.memberOperation(bot, async lease => {
+            if (observed?.exists === true) {
+              await this.changeSession(bot, 'pty_close', { session_id: session })
+              await this.removeRetainedImages(bot.id)
+            }
+            check()
+            return this.wake(bot, { setupTest, membersLease: lease })
+          }, { membersLease })
+          check()
+        }
+      }
       try {
         if (executionJob) executionJob.deliveryStage = 'BOT_SEND_FAILED'
         if (executionJob) executionJob.nativeSession = session

@@ -3,13 +3,15 @@
 // every later call is the same session call as a local seat. This module only adds the launch inputs, the asleep-terminal
 // queue edge, the seat credential and C7 (Throughline) for the transcript that stays on the terminal.
 
-// Terminal, credential, folder and launch-context unavailability keeps the saved message queued (Owner 2026-11-09 13:38).
-const NOT_STARTED = new Set(['TERMINAL_UNAVAILABLE', 'CREDENTIAL_UNAVAILABLE', 'TARGET_MISMATCH', 'CWD_UNAVAILABLE',
-  'BOT_REMOTE_BINDING_MISSING', 'MEMBERS_EFFECT_UNSUPPORTED', 'SEAT_CREDENTIAL_INVALID', 'TERMINAL_NOT_FOUND',
-  'TERMINAL_INGRESS_UNSET', 'TERMINALS_UNAVAILABLE', 'UNREACHABLE', 'HOST_TRUST_STALE', 'HOST_KEY_MISMATCH',
-  'REMOTE_AITERM_TOO_OLD', 'SEAT_FORWARD_UNAVAILABLE'])
+// Terminal and credential unavailability keeps the saved message queued (Owner 2026-11-09 13:38). Each code has an exit:
+// terminals' observer (connectivity) or its registry-change edge (target/trust revision). A missing folder or a too old
+// Aiterm on the terminal has no observable exit, so it stays a visible delivery failure.
+const REACHABILITY = new Set(['TERMINAL_UNAVAILABLE', 'CREDENTIAL_UNAVAILABLE', 'UNREACHABLE', 'HOST_TRUST_STALE', 'SEAT_FORWARD_UNAVAILABLE'])
+const NOT_STARTED = new Set([...REACHABILITY, 'TARGET_MISMATCH', 'HOST_KEY_MISMATCH', 'TERMINAL_NOT_FOUND',
+  'BOT_REMOTE_BINDING_MISSING', 'MEMBERS_EFFECT_UNSUPPORTED', 'SEAT_CREDENTIAL_INVALID', 'TERMINALS_UNAVAILABLE'])
+const reachability = code => REACHABILITY.has(code) || typeof code === 'string' && code.startsWith('CREDENTIAL_')
 export const notStarted = error => {
-  if (NOT_STARTED.has(error?.code)) try { error.effect = 'not_started' } catch {}
+  if (NOT_STARTED.has(error?.code) || reachability(error?.code)) try { error.effect = 'not_started' } catch {}
   return error
 }
 
@@ -85,7 +87,8 @@ export class RemoteSeats {
       }
     } catch (error) {
       if (issued) await this.revoke(sessionName)
-      if (NOT_STARTED.has(error?.code)) this.wait(bot)
+      // terminals' own target() failure already armed its observer.
+      if (NOT_STARTED.has(error?.code) || reachability(error?.code)) this.wait(bot)
       throw notStarted(error)
     }
   }
@@ -117,7 +120,14 @@ export class RemoteSeats {
     await this.revoke(sessionName)
   }
 
-  notStarted(error) { return notStarted(error) }
+  // agent_launch (after a successful target) answered a terminal code: queue as not started; a connectivity code also arms
+  // terminals' non-AI observer, whose reachable event drains the same IDs.
+  launchFailed(bot, error) {
+    if (!NOT_STARTED.has(error?.code) && !reachability(error?.code)) return
+    notStarted(error)
+    this.wait(bot)
+    if (reachability(error.code)) this.terminals.connection.observe?.(bot.terminalId)
+  }
 
   revoke(sessionName) { return Promise.resolve(this.ingress.seatCredential.revoke({ sessionName })).catch(() => {}) }
 

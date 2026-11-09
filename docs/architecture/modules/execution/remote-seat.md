@@ -58,7 +58,7 @@ Wrong-target guard (kept): a remote member with no terminals/ingress ports (olde
 
 ## Target revision (member terminal/folder change)
 
-`ensure` (before a delivery): when the seat is running **and idle** and the launch record's `target` of the running session differs from `seatTarget(bot)` now (terminal or folder revision, or local ↔ remote), the existing `restart(bot)` closes it and launches fresh on the new target (never re-`cd`). A busy seat keeps today's delivery; the next idle `ensure` moves it. No record (launched before records existed) = unchanged. Account-slot seats on an unchanged target are not touched.
+Member updates reach the registry by two paths: the HTTP profile PATCH (`administration.update`) and members' MCP `update_bot`/`update_self`, which saves `terminalId`/`projectRoot` straight to the registry without execution. The delivery is the boundary both share, so the move is in `dispatch` (before the send): when the launch record's `target` of the current session differs from `seatTarget(bot)` now (terminal or folder revision, or local ↔ remote), `dispatch` observes the seat; an idle or absent seat is closed (`pty_close`; a remote close revokes its credential) and woken on the new target through the existing `memberOperation` + `wake`, then the message is sent there. A seat whose turn is running keeps today's delivery (the same rule as the wake-first recovery: never close a running turn); the next delivery moves it. No record (launched before records existed) = unchanged. Account-slot seats on an unchanged target are not touched.
 
 ## Pending delivery while the terminal is away (Owner ruling 2026-11-09 13:38)
 
@@ -73,7 +73,15 @@ stateDiagram-v2
   Delivered --> Delivered: lost SSH is not a seat end; calls by session reconnect (Aiterm)
 ```
 
-Not-started codes: `TERMINAL_UNAVAILABLE`, `CREDENTIAL_UNAVAILABLE`, `TARGET_MISMATCH`, `TERMINAL_NOT_FOUND`, `TERMINALS_UNAVAILABLE`, `SEAT_CREDENTIAL_INVALID`, `BOT_REMOTE_BINDING_MISSING`, `MEMBERS_EFFECT_UNSUPPORTED`, and Aiterm's `CWD_UNAVAILABLE`, `UNREACHABLE`, `HOST_TRUST_STALE`, `HOST_KEY_MISMATCH`, `REMOTE_AITERM_TOO_OLD`, `SEAT_FORWARD_UNAVAILABLE`. The durable receipt returns the ID to `queued` without a failed callback. Exit: terminals' non-AI observer `watch` event `reachable: true` → `emitQueue` for the Bots recorded under that terminal. No timer, no AI polling, no new queue.
+Not-started codes and their exits (the durable receipt returns the ID to `queued` without a failed callback; no timer, no AI polling, no new queue):
+
+| Codes | Raised by | Exit |
+| --- | --- | --- |
+| `TERMINAL_UNAVAILABLE`, `CREDENTIAL_UNAVAILABLE` / `CREDENTIAL_*`, `UNREACHABLE`, `HOST_TRUST_STALE`, `SEAT_FORWARD_UNAVAILABLE` | terminals `target()` (it arms its own observer) or Aiterm `agent_launch` after a successful target (`RemoteSeats.launchFailed` calls `terminals.connection.observe(terminalId)`, Crust) | terminals' non-AI observer → `watch` `reachable: true` → `emitQueue` for the Bots recorded under that terminal |
+| `TARGET_MISMATCH`, `HOST_KEY_MISMATCH`, `TERMINAL_NOT_FOUND` | terminals / Aiterm | the Owner's registry revision (terminals' registry-change edge emits the same `reachable: true` event) |
+| `TERMINALS_UNAVAILABLE` (no ports), `SEAT_CREDENTIAL_INVALID`, `BOT_REMOTE_BINDING_MISSING`, `MEMBERS_EFFECT_UNSUPPORTED` | execution / ingress / members before any terminal contact | the next body start with the ports / the member revision (the next delivery) |
+
+`CWD_UNAVAILABLE` (the folder is missing on the terminal) and `REMOTE_AITERM_TOO_OLD` have no observable exit, so they stay a visible delivery failure (not queued).
 
 ## Accounts (Owner rulings 2 and 4 of 13:38)
 
@@ -93,11 +101,13 @@ Local seats (no `terminalId`): today's path, including env forwarding. Delivery 
 
 | Piece | Where |
 | --- | --- |
-| Ports | `createExecutionDispatcher`: `ports.terminals = {connection, watch}`, `ports.ingress = {seatCredential: {issue, revoke, reveal}}`, `ports.bots.launchContext`; `EXECUTION_REMOTE_SEATS = true` → loader `supportsRemoteSeats` (#773). `RemoteSeats` exists only when all three are present |
+| Ports | `createExecutionDispatcher`: `ports.terminals = {connection: {target, observe}, watch}`, `ports.ingress = {seatCredential: {issue, revoke, reveal}}`, `ports.bots.launchContext`; `EXECUTION_REMOTE_SEATS = true` → loader `supportsRemoteSeats` (#773). `RemoteSeats` exists only when all three are present |
 | Remote member | `isRemoteBot(bot)`, `seatTarget(bot)` (`src/remote-seats.mjs`) |
 | Launch inputs | `RemoteSeats.prepare` / `launched`; `AitermTransport.wakeNow` |
 | Private env | `AitermClient.call` option `privateEnv` (agent_launch with `terminal` only) |
-| Target revision | `AitermTransport.seatTargetChanged` + `ensure`; D5 record `target` |
+| Target revision | `AitermTransport.seatTargetChanged` + `dispatch`; D5 record `target` |
+| Queue on launch failure | `RemoteSeats.launchFailed` (from `wakeNow`) |
+| Distribution | `scripts/web_gateway_artifact.py` `EXECUTION_FILES` includes `src/remote-seats.mjs` (54, Molly's authorization) |
 | Credential release | `RemoteSeats.route` (successful `pty_close`) |
 | Queue edge | `RemoteSeats.wait` / `available` |
 | C7 | `RemoteSeats.waitProcess` / `forward` / `handoffContext` |
