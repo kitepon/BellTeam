@@ -1,5 +1,29 @@
 # 正式Update catalogの信頼境界
 
+## Published rows keep their own state: all compound components, 2026-11-09 JST
+
+Trony request after #782: the members, memory and conversation rows had the same unnamed guard. Their catalog checks, and the publisher's re-verification of every already-published archive, compared each row with this source's current state (`contract(component)` / `src/memory/state-compatibility.mjs`). A state change in main (members just moved to `bellteam.bot.v8`, the remote-seat body changes more) would again reject the whole catalog before signing.
+
+From this change on:
+
+- Catalog check (`validate_catalog` -> `validate_members/memory/conversation_compatibility`, readers and publisher): the fixed ABI fields stay exact; `stateCompatibility` must only be well formed (`state_form` in `web_gateway_artifact.py`: a token, or up to 32 camelCase keys of tokens, non-negative ints or token lists). Usage/diagnostics/work-graph/execution already did this (#782).
+- Publisher re-verification (`check-update-catalog-publication.py`): each downloaded formal archive is checked against its own row: `check_archive(..., state=<row state>)` and `validate_*_archive(release, manifest, <row state>)` require row == signed manifest. Signature, source/signer, size/sha256 and formal-release checks are unchanged. `validate_members_source` / `validate_conversation_source` still check that main's own export matches its contract.
+- Installers and the running body keep the per-target guard: `check_archive` without `state` compares the manifest with the installing body's contract, and the container-update-host plan runs the body's own `assert*StateCompatibility` on the target row. That is where a state the body cannot read is refused (protection: no install over state the code cannot interpret), and only that target is refused.
+
+```mermaid
+flowchart LR
+  Row[published row state] --> Form{well formed?}
+  Form -->|no| Reject[catalog rejected]
+  Form -->|yes| Pub[publisher: signed archive manifest == row state]
+  Pub -->|mismatch| Refuse[refuse before signing]
+  Pub --> Sign[sign catalog]
+  Sign --> Plan[running body plan: row state == own consumer?]
+  Plan -->|no| One[refuse this target only]
+  Plan -->|yes| Install[installer: manifest == own contract] --> Done[install]
+```
+
+Impact: `scripts/web_gateway_artifact.py` (`state_form`; optional `state` on `validate_manifest`/`check_archive`, default unchanged), `scripts/update_catalog.py` (members/memory/conversation compatibility and archive checks; business imports `state_form`), `scripts/check-update-catalog-publication.py` (row state into the archive checks), tests of those artifacts. Callers of `check_archive` without `state` (installers, packagers, image probes) are unchanged. Installed bodies keep their old reader until the next body.
+
 ## Publisher preflight download: transient recovery, 2026-11-09 JST
 
 Cause (Centi classified, Trony ruling): Web766 publisher run 42566309359 attempts 1 and 2 failed on an intermittent github.com HTTP 504 for the unchanged formal memory archive URL, before OIDC/sign/upload; the same URL later returned 200. `check-update-catalog-publication.py:download` made one 30 s request and gave up. That give-up named no protection.

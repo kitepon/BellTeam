@@ -49,14 +49,16 @@ def verify_members_release(release):
     from module_artifact_verifier import policy_for, verify_signature
     from web_gateway_artifact import check_archive
     root = Path(__file__).resolve().parents[1]
-    state = validate_members_source(root)
+    validate_members_source(root)
+    # A published row is checked against its own signed archive, not against this source's current state.
+    state = release['compatibility']['stateCompatibility']
     artifact = release['artifact']
     with tempfile.TemporaryDirectory(prefix='members-publication-') as directory:
         archive = Path(directory) / 'archive.tar.gz'; archive.write_bytes(download_asset(artifact['archive']))
         bundle = Path(directory) / 'bundle.json'; bundle.write_bytes(download_asset(artifact['bundle']))
         with archive.open('rb') as a, bundle.open('rb') as b, (root / 'config/web-gateway-trusted-root.jsonl').open('rb') as t:
             verify_signature(a, b, t, policy_for('members'), source=release['sourceCommit'], signer=artifact['signerCommit'])
-            manifest, _ = check_archive(a, release['sourceCommit'], release['platform']['arch'], component='members')
+            manifest, _ = check_archive(a, release['sourceCommit'], release['platform']['arch'], component='members', state=state)
         validate_members_archive(release, manifest, state)
 
 
@@ -64,16 +66,14 @@ def verify_memory_release(release):
     from module_artifact_verifier import policy_for, verify_signature
     from web_gateway_artifact import check_archive
     root = Path(__file__).resolve().parents[1]
-    state = json.loads(subprocess.check_output(['node', '--input-type=module', '-e',
-        'const m = await import(process.argv[1]); console.log(JSON.stringify(m.MEMORY_STATE_COMPATIBILITY))',
-        (root / 'src/memory/state-compatibility.mjs').as_uri()], text=True))
+    state = release['compatibility']['stateCompatibility']
     artifact = release['artifact']
     with tempfile.TemporaryDirectory(prefix='memory-publication-') as directory:
         archive = Path(directory) / 'archive.tar.gz'; archive.write_bytes(download_asset(artifact['archive']))
         bundle = Path(directory) / 'bundle.json'; bundle.write_bytes(download_asset(artifact['bundle']))
         with archive.open('rb') as a, bundle.open('rb') as b, (root / 'config/web-gateway-trusted-root.jsonl').open('rb') as t:
             verify_signature(a, b, t, policy_for('memory'), source=release['sourceCommit'], signer=artifact['signerCommit'])
-            manifest, _ = check_archive(a, release['sourceCommit'], release['platform']['arch'], component='memory')
+            manifest, _ = check_archive(a, release['sourceCommit'], release['platform']['arch'], component='memory', state=state)
         validate_memory_archive(release, manifest, state)
 
 
@@ -96,14 +96,15 @@ def verify_conversation_release(release):
     from module_artifact_verifier import policy_for, verify_signature
     from web_gateway_artifact import check_archive
     root = Path(__file__).resolve().parents[1]
-    state = validate_conversation_source(root)
+    validate_conversation_source(root)
+    state = release['compatibility']['stateCompatibility']
     artifact = release['artifact']
     with tempfile.TemporaryDirectory(prefix='conversation-publication-') as directory:
         archive = Path(directory) / 'archive.tar.gz'; archive.write_bytes(download_asset(artifact['archive']))
         bundle = Path(directory) / 'bundle.json'; bundle.write_bytes(download_asset(artifact['bundle']))
         with archive.open('rb') as a, bundle.open('rb') as b, (root / 'config/web-gateway-trusted-root.jsonl').open('rb') as t:
             verify_signature(a, b, t, policy_for('conversation'), source=release['sourceCommit'], signer=artifact['signerCommit'])
-            manifest, _ = check_archive(a, release['sourceCommit'], release['platform']['arch'], component='conversation')
+            manifest, _ = check_archive(a, release['sourceCommit'], release['platform']['arch'], component='conversation', state=state)
         validate_conversation_archive(release, manifest, state)
 
 def main():

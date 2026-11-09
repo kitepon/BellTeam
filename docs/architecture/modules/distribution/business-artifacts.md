@@ -85,7 +85,7 @@ flowchart LR
   Plan -->|yes| Archive[archive: row == signed manifest == consumer] --> Install[install]
 ```
 
-Impact: `scripts/update_catalog.py:validate_business_compatibility` and `test/business-artifact.test.py`. Callers: `validate_catalog` (publisher preflight and readers through `verify-update-catalog.py`), `validate_business_archive` (archive/consumer equality unchanged). Installed bodies keep the old check until the next body. Not changed: members/memory/conversation catalog checks still compare with the reader's source (`shortcut` noted in code); they fire only when their state format changes.
+Impact: `scripts/update_catalog.py:validate_business_compatibility` and `test/business-artifact.test.py`. Callers: `validate_catalog` (publisher preflight and readers through `verify-update-catalog.py`), `validate_business_archive` (archive/consumer equality unchanged). Installed bodies keep the old check until the next body. members/memory/conversation follow the same rule since 2026-11-09 ([update-catalog](update-catalog.md#published-rows-keep-their-own-state-all-compound-components-2026-11-09-jst)).
 
 ## C5 secret reference state and child closure (2026-11-09)
 

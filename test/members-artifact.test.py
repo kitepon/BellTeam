@@ -166,7 +166,13 @@ class MembersArtifactTest(unittest.TestCase):
         from datetime import datetime,timezone
         now=datetime(2026,11,3,1,tzinfo=timezone.utc).timestamp()
         self.assertEqual(validate_catalog(self.catalog(),now=now)['releases'][0]['componentId'],'members')
-        changes=[lambda c:c.pop('stateCompatibility'),lambda c:c.update(extra=1),lambda c:c.update(stateCompatibility=None),lambda c:c.update(stateCompatibility={}),lambda c:c['stateCompatibility'].pop('initializedMarker'),lambda c:c['stateCompatibility'].update(extra='v1'),lambda c:c['stateCompatibility'].update(botProfileSchema='bellteam.bot.v9'),lambda c:c.update(nodeMajor='26'),lambda c:c.update(parentProtocol=True),lambda c:c.update(stateSchema=1),lambda c:c.update(containerUpdate=1)]
+        changes=[lambda c:c.pop('stateCompatibility'),lambda c:c.update(extra=1),lambda c:c.update(stateCompatibility=None),lambda c:c.update(stateCompatibility={}),lambda c:c['stateCompatibility'].update(extra={'nested':1}),lambda c:c.update(nodeMajor='26'),lambda c:c.update(parentProtocol=True),lambda c:c.update(stateSchema=1),lambda c:c.update(containerUpdate=1)]
+        # A published row keeps its own state: another well-formed state passes the catalog and is refused per target.
+        from update_catalog import validate_members_archive
+        for other in [lambda c:c['stateCompatibility'].pop('initializedMarker'),lambda c:c['stateCompatibility'].update(extra='v1'),lambda c:c['stateCompatibility'].update(botProfileSchema='bellteam.bot.v9')]:
+            catalog=json.loads(json.dumps(self.catalog()));other(catalog['releases'][0]['compatibility'])
+            validate_catalog(catalog,now=now)
+            with self.assertRaises(ValueError):validate_members_archive(catalog['releases'][0],self.manifest,self.manifest['runtime']['stateCompatibility'])
         for change in changes:
             catalog=json.loads(json.dumps(self.catalog()));change(catalog['releases'][0]['compatibility'])
             with self.subTest(catalog=catalog),self.assertRaises(ValueError):validate_catalog(catalog,now=now)
@@ -193,8 +199,9 @@ class MembersArtifactTest(unittest.TestCase):
         for change in [lambda m:m.update(sourceCommit='b'*40),lambda m:m['runtime'].update(arch='arm64' if ARCH=='amd64' else 'amd64'),lambda m:m['runtime']['stateCompatibility'].update(userRulesEncoding='utf16')]:
             manifest=json.loads(json.dumps(self.manifest));change(manifest)
             with self.assertRaises(ValueError):validate_members_archive(release,manifest,state)
-        for unknown in [{},{**state,'extra':'v1'},{**state,'botProfileSchema':'bellteam.bot.v9'}]:
-            with self.assertRaisesRegex(ValueError,'UPDATE_MEMBERS_CONSUMER_UNSUPPORTED'):validate_members_archive(release,self.manifest,unknown)
+        with self.assertRaisesRegex(ValueError,'UPDATE_MEMBERS_CONSUMER_UNSUPPORTED'):validate_members_archive(release,self.manifest,{})
+        for other in [{**state,'extra':'v1'},{**state,'botProfileSchema':'bellteam.bot.v9'}]:
+            with self.assertRaisesRegex(ValueError,'UPDATE_MEMBERS_ARCHIVE_INCOMPATIBLE'):validate_members_archive(release,self.manifest,other)
         spec=importlib.util.spec_from_file_location('members_publication',ROOT/'scripts/check-update-catalog-publication.py');publication=importlib.util.module_from_spec(spec);spec.loader.exec_module(publication)
         data=b'fixed archive';expected=dict(url=release['artifact']['archive']['url'],bytes=len(data),sha256=sha256(data))
         with patch('module_artifact_package.validate_members_source',return_value=state), patch('module_artifact_verifier.verify_signature') as official, patch.object(publication,'download_asset',side_effect=[self.archive.read_bytes(),b'{}']):
