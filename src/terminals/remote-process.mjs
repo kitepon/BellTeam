@@ -74,7 +74,13 @@ export function createRemoteTerminalProcesses({ project, connectClient = () => s
 
     // The Owner's "confirm the new host key": the UID1000 holder scans once and writes only if the fingerprint matches.
     async confirmHostKey(ref, fingerprint) {
-      await run('/usr/bin/env', [BIN, 'trust-confirm', '--ref', ref, '--fingerprint', fingerprint])
+      const { stdout, code } = await run('/usr/bin/env', [BIN, 'trust-confirm', '--ref', ref, '--fingerprint', fingerprint], { acceptNonzero: true, maxBuffer: 65536 })
+      // Exit 2 = one JSON error line; keep only its code (mismatch vs unreachable), never raw text.
+      if (code !== 0) {
+        let dto = null
+        try { dto = JSON.parse(String(stdout).trim().split('\n').pop()) } catch {}
+        throw Object.assign(new Error('Host key not confirmed'), { code: typeof dto?.code === 'string' ? dto.code : 'REMOTE_AITERM_UNAVAILABLE' })
+      }
       return (await status(ref))?.trust ?? null
     }
   }

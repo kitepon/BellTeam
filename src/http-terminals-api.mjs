@@ -18,7 +18,7 @@ async function readJson(request, empty) {
 
 export function createTerminalsApi({ terminals, internal }) {
   return async (request, response, url) => {
-    const match = /^\/api\/terminals(?:\/([a-z0-9][a-z0-9-]{0,63})(\/check|\/keys\/([a-z]+))?)?$/u.exec(url.pathname)
+    const match = /^\/api\/terminals(?:\/([a-z0-9][a-z0-9-]{0,63})(\/check|\/trust|\/keys\/([a-z]+))?)?$/u.exec(url.pathname)
     if (!match) return false
     if (internal) return json(response, 403, { error: 'TERMINALS_OWNER_REQUIRED' })
     const core = terminals()
@@ -26,6 +26,13 @@ export function createTerminalsApi({ terminals, internal }) {
     const [, id, sub, keyKind] = match
     const check = sub === '/check'
     const method = request.method
+    if (sub === '/trust') {
+      if (method !== 'POST') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
+      const body = await readJson(request, {})
+      if (body === null || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).join() !== 'fingerprint')
+        return json(response, 400, { error: 'INVALID_TERMINAL', message: 'Send only {fingerprint: "SHA256:..."} read on that Mac' })
+      return json(response, 200, await core.trust.attest(id, body.fingerprint))
+    }
     // Key setting (Trony ruling): the key is entered only in Mika's secret card; this route carries no key or reference.
     if (keyKind !== undefined) {
       if (method === 'POST') {
@@ -39,12 +46,12 @@ export function createTerminalsApi({ terminals, internal }) {
     }
     if (!id && method === 'GET') return json(response, 200, { terminals: await core.registry.list() })
     if (id && check && method === 'POST') return json(response, 200, await core.reachability.check(id))
-    if (id && !check && method === 'GET') {
+    if (id && !sub && method === 'GET') {
       const terminal = await core.registry.get(id)
       return terminal ? json(response, 200, terminal) : json(response, 404, { error: 'TERMINAL_NOT_FOUND' })
     }
-    if (id && !check && method === 'PUT') return json(response, 200, await core.registry.put({ ...await readJson(request), terminalId: id }))
-    if (id && !check && method === 'DELETE') return json(response, 200, await core.registry.remove(id))
+    if (id && !sub && method === 'PUT') return json(response, 200, await core.registry.put({ ...await readJson(request), terminalId: id }))
+    if (id && !sub && method === 'DELETE') return json(response, 200, await core.registry.remove(id))
     return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
   }
 }

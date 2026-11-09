@@ -319,6 +319,20 @@ Screen flow (one path for Apple and Web; the Apple app on that Mac fills and con
 | S4 | App -> `POST /api/terminals/:id/keys/ssh/authorize` -> Mika one-shot request -> terminals `withResolved` once -> Aiterm `authorize-key --ref` stdin | Requires current trust (refused with `HOST_TRUST_MISSING` before any password is asked) and a loaded key. Aiterm reads the password as raw UTF-8 stdin until EOF, uses one password-only attempt against the trusted host (strict binding known_hosts; no keyboard-interactive fallback), appends the public key of the key it holds for that ref when absent (`~/.ssh` 0700, `authorized_keys` 0600) -> `{schema:"aiterm.remote-key-authorization.v1", ref, result:"AUTHORIZED"/"ALREADY_AUTHORIZED"}`; failures exit 2 with `aiterm.remote-binding-error.v1` codes, including `PASSWORD_REJECTED` / `PASSWORD_AUTH_DISABLED` and distinct trust/key/network/write codes. The password is never stored, never in argv or logs; Mika discards it after the single consume |
 | S5 | Members save -> `terminals.folder({terminalId, path, create?})` -> Aiterm `path_status` / `make_dir` | Absolute path on that terminal. Aiterm `remote_terminal_command({op:"path_status"|"make_dir", path})` (absolute only; make_dir = mkdir -p then fresh status) -> `{op, exists, directory, writable}`; EPERM/EACCES (an inaccessible parent included) -> `FOLDER_NOT_PERMITTED`, never "missing". terminals maps to `FOLDER_MISSING` (false/false) / `FOLDER_NOT_DIRECTORY` (true/false) / `FOLDER_NOT_PERMITTED` / `TERMINAL_UNAVAILABLE`. `create` runs only on the Owner's press. An unreachable terminal does not block the save: members saves and marks the folder unchecked; launch keeps `CWD_UNAVAILABLE` as the final guard |
 
+S2 route (step 3, first part; Ziz builds against it): `POST /api/terminals/:id/trust {fingerprint: "SHA256:<43 base64>"}` (Owner session; any other body field is refused).
+
+| Result | Meaning / screen action |
+| --- | --- |
+| 200 `{terminal}` | Trusted. When the terminal has no Aiterm binding yet (no key set), terminals first creates and saves the keyless binding for this target (a failed scan is retried on it; the later key setting reuses it) |
+| 400 `INVALID_TERMINAL` | Not a `SHA256:` fingerprint, or extra fields |
+| 404 `TERMINAL_NOT_FOUND` | No such terminal |
+| 404 (no JSON `code`) | Older body without this route: keep the manual sheet |
+| 409 `HOST_KEY_FINGERPRINT_MISMATCH` | Aiterm's own scan of host:port did not present this key: another machine answers that address. Nothing is written |
+| 409 `TERMINAL_CHANGED` | host/user/port changed meanwhile; attest again |
+| 503 `TERMINAL_UNAVAILABLE` | Aiterm could not bind or scan now (Mac asleep/unreachable once Aiterm reports an empty scan as `UNREACHABLE`); retry later |
+
+No MCP tool: only the app on that Mac can read the fingerprint, so an AI has nothing truthful to pass. `trust-confirm` exit 2 is read as its one JSON line and only `code` is kept (`UNREACHABLE` / `REMOTE_AITERM_UNAVAILABLE` -> 503, anything else -> 409); the existing `PUT confirmHostKey` shares this mapping.
+
 Guards added and their exits: `CONNECTION_REFUSED` (protects nothing; availability) exits on the next check once the Mac accepts SSH. `AUTH_FAILED` (credential to wrong target) exits on `AUTHORIZED` / `ALREADY_AUTHORIZED` or a new key. Authorize without trust (secret exposure: a password to an unverified host) exits on S2 trust. `FOLDER_*` (wrong folder) exits on a created/changed folder revision. No new sticky state.
 
 Owner split and order:
@@ -328,7 +342,7 @@ Owner split and order:
 | 1 | Crust | This design (README + overall DFD RT18-RT21) | — |
 | 2a | Elegg | Accepted counter-contract (`/srv/bellteam/bots/bot-c2adbe04/docs/aiterm-self-service-contract-20261110.md`): `CONNECTION_REFUSED`; `authorize-key --ref`; `path_status` / `make_dir`; pre-MCP `provision --ref` with a self-contained macOS runtime (replaces today's `brew install tmux` setup); `trust-confirm` answers `UNREACHABLE` on an empty scan | 1 |
 | 2b | Mika | Accepted, PR #855: `requestTerminalKey({terminalId, purpose:'terminal.login', label})`, paste only; value held only in usage memory; `withResolved` revokes the handle first and consumes once (a second call gets `SECRET_REQUEST_CLOSED` / `SECRET_CREDENTIAL_REVOKED` before any value); `PASSWORD_REJECTED` or a usage restart needs a new request | 1 |
-| 2c | Ziz | Feasibility + implementation of S1/S2 in the sandboxed Mac app (host-key read method, loopback 22 probe, IPv4, user) | 1 |
+| 2c | Ziz | Feasible, no new dependency: S1 (getifaddrs IPv4, `NSUserName`, loopback 22 probe) and S2 by a loopback SSH handshake that stops after key exchange and verifies the ed25519 signature over H (the sandbox denies reading `/etc/ssh`). A failed signature posts nothing and falls back to the manual sheet. Builds against the S2 route | 1, S2 route |
 | 3 | Crust | terminals: `POST :id/trust`, `POST :id/keys/ssh/authorize`, `folder` port + HTTP/MCP, reason mapping, provisioning in check | 2a, 2b |
 | 4 | Belorta | Member save calls `terminals.folder`; default folder; `FOLDER_*` passthrough | 3 |
 | 5 | Admi (Web), Ziz (Apple) | Screens: precondition line, reason actions, authorize button + card, trust auto-attest / 「このMacを確かめる」, folder prefill + create | 3, 4 (2c for Apple) |

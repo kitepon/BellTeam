@@ -48,3 +48,12 @@ test('stale trust and tool errors become classified codes and close the process'
   await assert.rejects(createRemoteTerminalProcesses({ project: '/srv/bellteam', connectClient: async () => { throw new Error('spawn') } }).connect(request), { code: 'REMOTE_AITERM_UNAVAILABLE' })
   await assert.rejects(createRemoteTerminalProcesses({ project: '/srv/bellteam', connectClient: async () => fakeClient({}) }).connect({ ...request, binding: { privateKey: 'k' } }), { code: 'CREDENTIAL_UNUSABLE' })
 })
+
+test('trust-confirm exit 2 keeps only the Aiterm error code', async () => {
+  const fingerprint = `SHA256:${'A'.repeat(43)}`
+  const reply = code => async () => ({ code, stdout: code ? '{"schema":"aiterm.remote-binding-error.v1","code":"UNREACHABLE","message":"raw"}\n' : '' })
+  const failing = createRemoteTerminalProcesses({ project: '/srv/bellteam', connectClient: async () => fakeClient({ remote_terminal_status: status }), run: reply(2) })
+  await assert.rejects(failing.confirmHostKey('owner-macbook', fingerprint), error => error.code === 'UNREACHABLE' && error.message === 'Host key not confirmed')
+  const ok = createRemoteTerminalProcesses({ project: '/srv/bellteam', connectClient: async () => fakeClient({ remote_terminal_status: status }), run: reply(0) })
+  assert.equal((await ok.confirmHostKey('owner-macbook', fingerprint)).revision, revision)
+})
