@@ -10,7 +10,7 @@ const fields = {
   port: { type: 'integer', minimum: 1, maximum: 65535 },
   os: { type: 'string', enum: ['macos'] },
   accountOwner: { type: 'string', enum: ['owner', 'terminal-owner'] },
-  ingressUrl: { type: ['string', 'null'], description: 'この端末から見たBellTeamの入口。AitermのSSH逆転送の端末側（例 http://127.0.0.1:18891）。nullで消す' },
+  ingressUrl: { type: ['string', 'null'], description: 'この端末の席が使うBellTeamの入口。SSH逆転送の端末ではAitermが接続ごとの口へ置き換えるので、どのhttpでもよい（例 http://127.0.0.1:4182）。nullで消す' },
   confirmHostKey: { type: 'string', pattern: '^SHA256:', description: '任意。端末のホスト鍵の指紋を確かめて信用する' },
   sshKeyRef: { type: 'string', description: '秘密入力（ミカ）が発行した鍵の参照。鍵の値は渡さない' },
   sudoKeyRef: { type: 'string', description: '任意。秘密入力が発行したsudo鍵の参照' },
