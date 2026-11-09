@@ -44,6 +44,45 @@ test('target hands execution the Aiterm launch target and runs C8 once per Claud
   assert.equal(native.sessions.length, before + 1, 'concurrent launches share one upkeep run')
 })
 
+test('a secret-key terminal hands the Mika handle, never a value; optional sudo never gates', async t => {
+  const bindingRef = 'b1b2c3d4-1234-4234-8234-123456789abc'
+  const sudoKeyRef = 'c1b2c3d4-1234-4234-8234-123456789abc'
+  const cardSecrets = { ...fakeSecrets(), calls: [], credential(handle, context) { this.calls.push({ op: 'credential', handle, context }); return { handle, revision: 2, available: true } },
+    async withResolved(handle, context, consume) { this.calls.push({ op: 'resolve', handle, context }); return consume('KEYBYTES') } }
+  const secret = setup(t, { target: { ...base, keySource: 'secret', bindingRef, sudoKeyRef }, secrets: cardSecrets })
+  const { terminal } = await secret.connection.target({ ...request, harness: 'codex' })
+  assert.deepEqual(terminal, { ref: bindingRef, target: { host: '192.168.1.12', user: 'kite', port: 22 }, trustRevision: hostTrust.revision,
+    credential: { handle: sshKeyRef, revision: 2 }, sudoCredential: { handle: sudoKeyRef, revision: 2 } })
+  assert.equal(secret.secrets.calls.some(call => call.op !== 'credential'), false, 'the target itself resolves no key value')
+  await secret.connection.target(request)
+  assert.deepEqual(secret.native.calls.find(call => call.op === 'loadCredential'), { op: 'loadCredential', ref: bindingRef, terminalId: 'owner-macbook', handle: sshKeyRef, revision: 2, purpose: 'ssh-key', keyLength: 8 },
+    'C8 open loads the key into Aiterm first (stdin), never into the target')
+  assert.ok(secret.native.calls.findIndex(call => call.op === 'loadCredential') < secret.native.calls.findIndex(call => call.op === 'open'))
+  assert.deepEqual(secret.native.calls.find(call => call.op === 'open').binding.credential, { handle: sshKeyRef, revision: 2 })
+  // Resolution suspended across a revision: no stale credential-load.
+  const gate = deferred()
+  const slow = { ...cardSecrets, calls: [], async withResolved(handle, context, consume) { await gate.promise; return consume('KEYBYTES') } }
+  const suspended = setup(t, { target: { ...base, keySource: 'secret', bindingRef }, secrets: slow })
+  const stale = suspended.connection.target(request)
+  await wait(1)
+  suspended.connection.onRegistryChange({ terminalId: 'owner-macbook', revision: 2, removed: false })
+  gate.resolve()
+  await assert.rejects(stale, { code: 'TERMINAL_UNAVAILABLE' })
+  assert.equal(suspended.native.calls.some(call => call.op === 'loadCredential'), false)
+  // The handle's revision changed between the target read and resolution: Mika refuses, nothing is loaded.
+  const refreshed = { ...cardSecrets, calls: [], async withResolved(handle, context, consume) {
+    if (context.expectedRevision !== 3) throw Object.assign(new Error('stale'), { code: 'SECRET_CREDENTIAL_STALE' })
+    return consume('NEWERBYTES') } }
+  const changed = setup(t, { target: { ...base, keySource: 'secret', bindingRef }, secrets: refreshed })
+  await assert.rejects(changed.connection.target(request), { code: 'CREDENTIAL_UNAVAILABLE' })
+  assert.equal(changed.native.calls.some(call => call.op === 'loadCredential'), false)
+  const unbound = setup(t, { target: { ...base, keySource: 'secret' } })
+  await assert.rejects(unbound.connection.target(request), { code: 'CREDENTIAL_UNAVAILABLE', reason: 'BINDING_UNSET' })
+  const sudoDown = { ...fakeSecrets(), credential: (handle, context) => ({ handle, revision: 2, available: context.purpose !== 'terminal.sudo' }), withResolved: fakeSecrets().withResolved }
+  const native = setup(t, { target: { ...base, sudoKeyRef }, secrets: sudoDown })
+  assert.equal('sudoCredential' in (await native.connection.target({ ...request, harness: 'codex' })).terminal, false)
+})
+
 test('installs when Claude is missing and a failed update still returns the target', async t => {
   const missing = setup(t, { native: fakeNative({ versions: [null, '2.0.0'] }) })
   await missing.connection.target(request)

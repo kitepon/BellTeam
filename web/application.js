@@ -22,6 +22,7 @@ import { hasUnreadConversation, newestByRecent } from './activity-order.js?v=__A
 import { requestMemberStop } from './member-stop.js?v=__ASSET_VERSION__'
 import { createWebClient } from './client.js?v=__ASSET_VERSION__'
 import { goalsView } from './goals.js?v=__ASSET_VERSION__'
+import { createTerminalsView } from './terminals.js?v=__ASSET_VERSION__'
 import { createUpdateCenter } from './update-center.js?v=__ASSET_VERSION__'
 
 export function createWebApp({ client = createWebClient() } = {}) {
@@ -33,6 +34,8 @@ export function createWebApp({ client = createWebClient() } = {}) {
     buttons: [document.querySelector('#update-open'), document.querySelector('#update-open-mobile')] })
   const goals = goalsView(document.querySelector('#goals-dialog'), api, () => state.bots, document.querySelector('#chat-goal'))
   document.querySelector('#goals-button').addEventListener('click', () => { void goals.open() })
+  const terminals = createTerminalsView(document.querySelector('#terminals-dialog'), { api })
+  document.querySelector('#terminals-open').addEventListener('click', () => { void terminals.open() })
   const botList = document.querySelector('#bot-list')
   const rosterNotice = document.querySelector('#roster-notice')
   const rosterError = document.querySelector('#roster-error')

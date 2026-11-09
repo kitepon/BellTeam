@@ -77,9 +77,7 @@ struct WorkGraphView: View {
             }
             .onEnded { value in
                 // 取り消された押下ではここへ来ない（記録は下のonChange(of: pressing)が消す）。
-                let now = WorkGraphModel.now
-                let id = press?.release(at: value.location, time: now)
-                if let press, press.isTap(at: value.location, time: now) { model.tap(at: press.start, now: now) }
+                let id = press?.release(at: value.location, time: WorkGraphModel.now)
                 press = nil
                 if let id { open(id) }
             })
@@ -91,8 +89,8 @@ struct WorkGraphView: View {
         }
         #endif
         // 見えなくなる・背景へ回る時、ポインタと押下を残さない。
-        .onDisappear { hover = nil; press = nil; model.clearTap() }
-        .onChange(of: scenePhase) { hover = nil; press = nil; model.clearTap() }
+        .onDisappear { hover = nil; press = nil }
+        .onChange(of: scenePhase) { hover = nil; press = nil }
     }
 
     // MARK: Drawing
@@ -122,10 +120,9 @@ struct WorkGraphView: View {
     private func draw(_ context: inout GraphicsContext, now: Double) {
         let live = model.connection == .live
         let lines = model.lines.values.sorted { $0.edge.id < $1.edge.id }
-        let pointed = pointer.flatMap { model.hit(at: $0, now: now) }
         model.layoutChips(lines.compactMap { line in
-            path(line, now: now).map { WorkGraphModel.EdgePath(id: line.edge.id, point: $0.point) }
-        }, size: Self.chipSize, hover: hoveredEdge(pointed), peek: peekedEdge(pointed), reveal: revealedMember(pointed), now: now)
+            path(line, now: now).map { WorkGraphModel.EdgePath(id: line.edge.id, length: $0.length, point: $0.point) }
+        }, size: Self.chipSize, hover: hoveredEdge(now: now), now: now)
         for line in lines { drawEdge(&context, line, now: now, live: live) }
         // 置き場所の無い札（blocked）だけは線のすぐ上、メンバー・名前・ほかの札の下（behavior-spec.md「Edges」）。
         drawChips(&context, model.chips.blocked)
@@ -139,35 +136,17 @@ struct WorkGraphView: View {
         drawChips(&context, model.chips.unblocked + model.chips.above)
     }
 
-    /// 指している位置（Macはポインタ、iPhone/iPadは置いた指）。
-    private var pointer: CGPoint? {
+    /// 指している線か札（Macはポインタ、iPhone/iPadは置いた指）。メンバーの上なら無い。
+    private func hoveredEdge(now: Double) -> String? {
         #if targetEnvironment(macCatalyst)
-        hover
+        let pointer = hover
         #else
-        press?.location
+        let pointer = press?.location
         #endif
-    }
-
-    /// 指している線か札。メンバーの上なら無い。
-    private func hoveredEdge(_ hit: WorkGraphModel.Hit?) -> String? {
-        switch hit {
+        return switch pointer.flatMap({ model.hit(at: $0, now: now) }) {
         case .chip(let id), .edge(let id): id
         default: nil
         }
-    }
-
-    /// 待っている札を見せる辺。Macは線を指している間、iPhone/iPadは線をタップしてから次の別のタップまで。
-    private func peekedEdge(_ hit: WorkGraphModel.Hit?) -> String? {
-        #if targetEnvironment(macCatalyst)
-        hoveredEdge(hit)
-        #else
-        model.tappedEdge
-        #endif
-    }
-
-    /// 指しているメンバー。隠れた名前はこのメンバーの分だけ見せる（Mac: 重ねる、iPhone/iPad: 置いている間）。
-    private func revealedMember(_ hit: WorkGraphModel.Hit?) -> String? {
-        if case .member(let id) = hit { id } else { nil }
     }
 
     /// 札の出し方と置き場所は`WorkGraphModel.layoutChips`が決める。ここは描くだけ。
@@ -323,7 +302,7 @@ struct WorkGraphView: View {
         }
         let name = layer.resolve(Text(body.node.name).font(.system(size: BellTheme.listNameFontSize, weight: .semibold))
             .foregroundColor(body.node.working ? BellTheme.ink : BellTheme.muted))
-        if !model.nameHidden(body, at: now) { layer.draw(name, in: model.frames(body, at: now).name) }
+        layer.draw(name, in: model.frames(body, at: now).name)
     }
 
     // MARK: Overlays

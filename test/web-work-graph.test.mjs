@@ -46,7 +46,7 @@ test('大きさ・力学・境界は仕様の数値。多い時は小さくな�
   assert.ok(model.alpha >= 0.04)
 })
 
-test('ラベルは円板に重ならず、混んでいても出し続ける。名前と点と点滅の位相', () => {
+test('ラベルは円板に重ならず、混んでいる時は始まって3秒だけ。名前と点と点滅の位相', () => {
   const model = createGraphModel()
   model.snapshot(snapshot([node('a', 'working', 'アン'), node('b', 'linked', 'ベル')], [edge('a', 'b')]), 0, rect)
   for (let i = 0; i < 300; i++) model.step(1 / 60, rect, i * 16)
@@ -60,13 +60,10 @@ test('ラベルは円板に重ならず、混んでいても出し続ける。�
   const crowd = createGraphModel(), ids = Array.from({ length: 12 }, (_, i) => `n${i}`)
   crowd.snapshot(snapshot(ids.map(id => node(id)), ids.slice(1).map((id, i) => edge(ids[i], id))), 0, rect)
   for (let i = 0; i < 300; i++) crowd.step(1 / 60, rect, i * 16)
-  const first = crowd.frame(1000, rect).labels.map(label => label.edge.id)
-  assert.ok(first.length > 0)
-  // 11本以上でも3秒で消えない（Owner 2026-11-09「札はずっと出しておこう」）。
-  for (const t of [3500, 4500, 20000]) {
-    const shown = crowd.frame(t, rect)
-    for (const id of first) assert.ok([...shown.labels, ...shown.blocked].some(label => label.edge.id === id), `${id} at ${t}`)
-  }
+  assert.ok(crowd.frame(1000, rect).labels.length > 0)
+  assert.ok(crowd.frame(3500, rect).labels.length > 0, 'brief runs 3 s from the first frame with a label')
+  assert.equal(crowd.frame(4500, rect).labels.length, 0)
+  assert.equal(crowd.frame(4500, rect, { hover: { edgeId: 'n0:n1' } }).labels.length, 1)
   assert.equal(blinkOpacity(Date.parse('2026-11-08T12:00:00Z'), '2026-11-08T12:00:00Z'), 0.25 + 0.65 * 0.5)
   assert.ok(Math.abs(enterCurve(1) - 1) < 1e-9 && enterCurve(0) === 0)
   assert.equal(nodeText(node('a', 'working', 'アン'), Date.parse('2026-11-08T12:05:30Z')), 'アン、作業中、5分前から')
@@ -130,7 +127,7 @@ test('依頼ラベルは省略せず折り返し、伸びた札の大きさで�
   }
 })
 
-test('札どうしも名前とも重ならず、古い依頼から置く。置けない札は空くまで待ち、線を指した時だけ一番上に出す', () => {
+test('札どうしは重ならず、古い依頼から置く。置けない札は指した時だけ一番上に出す', () => {
   const long = '比較表を更新して、iPhone・Mac・Web・Windowsの4つの画面で相関図のラベルが省略されずに全部出ることを確かめてください'
   const ids = ['h', 'a', 'b', 'c', 'd', 'e', 'f']
   const model = createGraphModel(), small = { x: 24, y: 24, w: 312, h: 600 }
@@ -140,7 +137,6 @@ test('札どうしも名前とも重ならず、古い依頼から置く。置�
   const hit = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
   assert.ok(frame.labels.length > 0)
   frame.labels.forEach((a, i) => frame.labels.slice(i + 1).forEach(b => assert.ok(!hit(a.box, grow(b.box)), `${a.edge.id} / ${b.edge.id}`)))
-  for (const label of frame.labels) for (const name of frame.names) assert.ok(!hit(label.box, grow(name.box)), `${label.edge.id} over ${name.item.node.botId}`)
   const placed = frame.labels.map(label => label.edge.startedAt)
   assert.deepEqual(placed, [...placed].sort())
   const hidden = ids.slice(1).map(id => `h:${id}`).find(id => !frame.labels.some(label => label.edge.id === id))
@@ -148,26 +144,23 @@ test('札どうしも名前とも重ならず、古い依頼から置く。置�
   const hovered = model.frame(5000, small, { hover: { edgeId: hidden } }).labels
   assert.equal(hovered.at(-1).edge.id, hidden)
   assert.deepEqual(hovered.slice(0, -1).map(label => label.box), frame.labels.map(label => label.box))
-  assert.equal(model.edges.get(hidden).chip.t, null, 'it goes back to waiting')
-  // 置けた札を指すと一番上に描く。
-  const shown = frame.labels[0].edge.id
-  assert.equal(model.frame(5000, small, { hover: { edgeId: shown } }).labels.at(-1).edge.id, shown)
 })
 
-test('札の出始めは依頼ごとに一度だけ決めて保つ。混んでも消えず、空きが無ければ今の t で blocked', () => {
+test('札の出し方は依頼ごとに一度だけ決めて保つ。shown は混んでも消えず、空きが無ければ今の t で blocked', () => {
   const two = createGraphModel()
   two.snapshot(snapshot([node('a'), node('b')], [edge('a', 'b')]), 0, rect)
   for (let i = 0; i < 300; i++) two.step(1 / 60, rect, i * 16)
   assert.equal(two.frame(5000, rect).labels.length, 1)
-  // 最初に置かれた時は200msで現れる。
+  // shown は最初に置かれた時も200msで現れる。
   assert.ok(two.frame(5100, rect).labels[0].alpha < 1 && two.frame(5300, rect).labels[0].alpha === 1)
-  // あとで混んでも（11本以上）出たまま。text の変化は折り返しだけ。
+  assert.equal(two.edges.get('a:b').chip.mode, 'shown')
+  // あとで混んでも（11本以上）shown のまま。text の変化は折り返しだけ。
   const more = Array.from({ length: 11 }, (_, i) => ({ type: 'edge-start', edge: edge('a', 'b', `x${i}`, null) }))
   more.push({ type: 'edge-update', edge: edge('a', 'b', 'a:b', '別の依頼') })
   assert.equal(two.change({ epoch: 'e1', version: 2, degraded: [], changes: more }, 6000, rect), true)
   for (let t = 6000; t < 20000; t += 500) {
     const chip = two.frame(t, rect).labels.find(label => label.edge.id === 'a:b')
-    assert.ok(chip && chip.alpha === 1 && chip.lines[0] === '別の依頼', `chip at ${t}`)
+    assert.ok(chip && chip.alpha === 1 && chip.lines[0] === '別の依頼', `shown at ${t}`)
   }
   // 円板が今の t に来て空きが無くなったら、その t のまま blocked（線の上・顔の下に描く別の列）。
   const chip = two.edges.get('a:b').chip, a = two.nodes.get('a'), b = two.nodes.get('b')
@@ -185,6 +178,15 @@ test('札の出始めは依頼ごとに一度だけ決めて保つ。混んで�
   two.frame(22400, rect)
   assert.equal(chip.t, null)
   assert.equal(two.frame(23000, rect).labels.some(label => label.edge.id === 'a:b'), false)
+  // brief は窓が終わったら自分では戻らない（空いても）。
+  const crowd = createGraphModel(), ids = Array.from({ length: 12 }, (_, i) => `n${i}`)
+  crowd.snapshot(snapshot(ids.map(id => node(id)), ids.slice(1).map((id, i) => edge(ids[i], id))), 0, rect)
+  for (let i = 0; i < 300; i++) crowd.step(1 / 60, rect, i * 16)
+  crowd.frame(1000, rect)
+  crowd.change({ epoch: 'e1', version: 2, degraded: [], changes: ids.slice(2).map((id, i) => ({ type: 'edge-end', edgeId: `${ids[i + 1]}:${id}` })) }, 2000, rect)
+  crowd.step(1 / 60, rect, 2400)
+  assert.equal(crowd.frame(9000, rect).labels.length, 0)
+  assert.equal(crowd.edges.get('n0:n1').chip.mode, 'brief')
 })
 
 test('顔のタップ範囲：名前か44×44以上の四角。線・札・余白は null。後に描いた顔が上', () => {
@@ -199,15 +201,12 @@ test('顔のタップ範囲：名前か44×44以上の四角。線・札・余�
   const both = { ...frame, names: [...frame.names, { item: item('d', 310, 300, 56), box: { x: 300, y: 337, w: 40, h: 18 } }] }
   assert.equal(nodeAt(both, 310, 345), 'd')
   // タップ：押した時の相手で開く。10px以上はみ出したら、戻ってきても開かない。長押しも開かない。
-  // up の戻り値は「タップと認めたか」。線や余白のタップ（相手なし）も true、指の札の表示はこれだけで変える。
   const opened = [], tap = createTap(botId => opened.push(botId))
-  tap.down(1, 0, 0, 0, true, 'a'); tap.move(1, 5, 0); assert.equal(tap.up(1, 6, 0, 400), true)
-  tap.down(1, 0, 0, 1000, true, 'b'); tap.move(1, 20, 0); tap.move(1, 0, 0); assert.equal(tap.up(1, 0, 0, 1200), false)
-  tap.down(1, 0, 0, 2000, true, 'c'); assert.equal(tap.up(1, 0, 0, 2500), false)
-  tap.down(1, 0, 0, 3000, true, null); assert.equal(tap.up(1, 0, 0, 3100), true)
-  tap.down(1, 0, 0, 4000, true, 'e'); tap.cancel(); assert.equal(tap.up(1, 0, 0, 4100), false)
-  tap.down(1, 0, 0, 5000, false, null); assert.equal(tap.up(1, 0, 0, 5100), false)
-  tap.down(1, 0, 0, 6000, true, null); assert.equal(tap.up(2, 0, 0, 6100), false)
+  tap.down(1, 0, 0, 0, 'a'); tap.move(1, 5, 0); tap.up(1, 6, 0, 400)
+  tap.down(1, 0, 0, 1000, 'b'); tap.move(1, 20, 0); tap.move(1, 0, 0); tap.up(1, 0, 0, 1200)
+  tap.down(1, 0, 0, 2000, 'c'); tap.up(1, 0, 0, 2500)
+  tap.down(1, 0, 0, 3000, null); tap.up(1, 0, 0, 3100)
+  tap.down(1, 0, 0, 4000, 'e'); tap.cancel(); tap.up(1, 0, 0, 4100)
   assert.deepEqual(opened, ['a'])
 })
 

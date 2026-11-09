@@ -10,6 +10,8 @@ const MESSAGES = {
 const NATIVE_CODES = {
   HOST_TRUST_MISSING: 'TARGET_MISMATCH', HOST_TRUST_STALE: 'TARGET_MISMATCH', HOST_KEY_MISMATCH: 'TARGET_MISMATCH', HOST_KEY_FINGERPRINT_MISMATCH: 'TARGET_MISMATCH',
   CREDENTIAL_UNUSABLE: 'CREDENTIAL_UNAVAILABLE', CREDENTIAL_REVISION_STALE: 'CREDENTIAL_UNAVAILABLE', AUTH_FAILED: 'CREDENTIAL_UNAVAILABLE',
+  // aiterm-mcp 0.67.0: a handle key not yet loaded by Mika's credential-load handoff; her availability event is the exit.
+  CREDENTIAL_NOT_LOADED: 'CREDENTIAL_UNAVAILABLE', CREDENTIAL_REQUIRED: 'CREDENTIAL_UNAVAILABLE',
   UNREACHABLE: 'TERMINAL_UNAVAILABLE', REMOTE_AITERM_UNAVAILABLE: 'TERMINAL_UNAVAILABLE', REMOTE_AITERM_TOO_OLD: 'TERMINAL_UNAVAILABLE', CONNECTION_LOST: 'TERMINAL_UNAVAILABLE'
 }
 
@@ -70,21 +72,37 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
     if (typeof native.trust !== 'function' || typeof registry.update !== 'function' || !ref) return
     try {
       const trust = await native.trust(ref)
-      if (trust?.revision && trust.revision !== target.hostTrust.revision) await registry.update(target.terminalId, { hostTrust: { provider: trust.provider, revision: trust.revision } })
+      if (trust?.revision && trust.revision !== target.hostTrust.revision) await registry.update(target.terminalId, { hostTrust: { provider: trust.provider, revision: trust.revision } }, stored => stored.revision === target.revision)
     } catch {}
   }
 
-  // Mika's callback gives Aiterm's binding ref + credential revision (public metadata); a string is a future key value, refused in P1.
+  // keySource 'terminal-native' (default): Mika's callback gives Aiterm's binding ref + native key revision (public metadata).
+  // keySource 'secret': the key stays a Mika handle; Aiterm's UID1000 server resolves it, terminals never sees the value.
   async function resolveBinding(target, memberId) {
-    if (!target.sshKeyRef) throw failure('CREDENTIAL_UNAVAILABLE', `bind the SSH key of terminal ${target.terminalId} (bind_terminal_key)`, 'SSH_KEY_UNSET')
+    if (!target.sshKeyRef) throw failure('CREDENTIAL_UNAVAILABLE', `set the SSH key of terminal ${target.terminalId}`, 'SSH_KEY_UNSET')
     if (!target.hostTrust) throw failure('TARGET_MISMATCH', `confirm the host key of ${target.host}`, 'HOST_TRUST_MISSING')
+    const context = purpose => ({ terminalId: target.terminalId, memberId, purpose })
     let binding
-    try {
-      binding = await secrets.withResolved(target.sshKeyRef, { terminalId: target.terminalId, memberId, purpose: 'terminal.ssh' },
-        value => (typeof value === 'string' ? null : { ref: value?.nativeKeyRef, credentialRevision: value?.revision }))
-    } catch { throw failure('CREDENTIAL_UNAVAILABLE') }
-    if (typeof binding?.ref !== 'string' || !binding.ref) throw failure('CREDENTIAL_UNAVAILABLE')
+    if (target.keySource === 'secret') {
+      if (!target.bindingRef) throw failure('CREDENTIAL_UNAVAILABLE', `set the SSH key of terminal ${target.terminalId} again`, 'BINDING_UNSET')
+      const credential = await handleOf(target.sshKeyRef, context('terminal.ssh'))
+      if (!credential?.available) throw failure('CREDENTIAL_UNAVAILABLE')
+      binding = { ref: target.bindingRef, credential: { handle: credential.handle, revision: credential.revision } }
+    } else {
+      try {
+        binding = await secrets.withResolved(target.sshKeyRef, context('terminal.ssh'),
+          value => (typeof value === 'string' ? null : { ref: value?.nativeKeyRef, credentialRevision: value?.revision }))
+      } catch { throw failure('CREDENTIAL_UNAVAILABLE') }
+      if (typeof binding?.ref !== 'string' || !binding.ref) throw failure('CREDENTIAL_UNAVAILABLE')
+    }
+    // Optional sudo never gates an ordinary launch: an unavailable sudo key is simply not offered.
+    const sudo = target.sudoKeyRef ? await handleOf(target.sudoKeyRef, context('terminal.sudo')) : null
+    if (sudo?.available) binding.sudoCredential = { handle: sudo.handle, revision: sudo.revision }
     return binding
+  }
+
+  async function handleOf(handle, context) {
+    try { return await secrets.credential(handle, context) } catch { return null }
   }
 
   // One transient remote process; closed before returning. Classified like a launch would be.
@@ -93,10 +111,22 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
     if (!current()) throw failure('TERMINAL_UNAVAILABLE')
     let session
     try {
+      // A handle key must be in Aiterm before its own open (aiterm-mcp 0.67.0 credential-load); execution loads it the same way
+      // before a launch. The value exists only inside Mika's callback and goes to Aiterm's stdin.
+      if (binding.credential) {
+        // expectedRevision (Mika, as Molly #813 uses it): bytes of a newer revision are never labelled with the target's revision.
+        await secrets.withResolved(target.sshKeyRef, { terminalId: target.terminalId, memberId: null, purpose: 'terminal.ssh', expectedRevision: binding.credential.revision },
+          key => {
+            if (!current()) throw failure('TERMINAL_UNAVAILABLE') // resolution may have spanned a revision or dispose
+            return native.loadCredential({ ref: binding.ref, terminalId: target.terminalId, ...binding.credential, purpose: 'ssh-key', key })
+          })
+          .catch(error => { throw error?.code === 'TERMINAL_UNAVAILABLE' ? error : Object.assign(new Error('x'), { code: 'CREDENTIAL_NOT_LOADED' }) })
+        if (!current()) throw failure('TERMINAL_UNAVAILABLE')
+      }
       session = await native.connect({
         target: { host: target.host, user: target.user, port: target.port, os: target.os },
         hostTrust: target.hostTrust,
-        credential: { nativeKeyRef: binding.ref, credentialRevision: binding.credentialRevision }
+        binding
       })
     } catch (error) {
       if (error?.code === 'HOST_TRUST_STALE') await rebindTrust(target, binding.ref)
@@ -158,7 +188,9 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
       }
       if (!current()) throw failure('TERMINAL_UNAVAILABLE')
       return {
-        terminal: { ref: binding.ref, target: { host: record.host, user: record.user, port: record.port }, trustRevision: record.hostTrust.revision, credentialRevision: binding.credentialRevision },
+        terminal: { ref: binding.ref, target: { host: record.host, user: record.user, port: record.port }, trustRevision: record.hostTrust.revision,
+          ...(binding.credential ? { credential: binding.credential } : { credentialRevision: binding.credentialRevision }),
+          ...(binding.sudoCredential ? { sudoCredential: binding.sudoCredential } : {}) },
         cwd: projectRoot,
         accountOwner: record.accountOwner
       }

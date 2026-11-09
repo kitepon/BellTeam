@@ -3,7 +3,7 @@ import { json } from './http-response.mjs'
 
 export const TERMINALS_UNAVAILABLE = () => Object.assign(new Error('TERMINALS_UNAVAILABLE'), { code: 'TERMINALS_UNAVAILABLE', status: 503 })
 
-async function readJson(request) {
+async function readJson(request, empty) {
   const chunks = []
   let bytes = 0
   for await (const chunk of request) {
@@ -11,19 +11,32 @@ async function readJson(request) {
     if (bytes > 64 * 1024) throw Object.assign(new Error('REQUEST_TOO_LARGE'), { code: 'REQUEST_TOO_LARGE', status: 413 })
     chunks.push(chunk)
   }
+  if (!bytes && empty !== undefined) return empty
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8')) }
   catch { throw Object.assign(new Error('INVALID_JSON'), { code: 'INVALID_JSON', status: 400 }) }
 }
 
 export function createTerminalsApi({ terminals, internal }) {
   return async (request, response, url) => {
-    const match = /^\/api\/terminals(?:\/([a-z0-9][a-z0-9-]{0,63})(\/check)?)?$/u.exec(url.pathname)
+    const match = /^\/api\/terminals(?:\/([a-z0-9][a-z0-9-]{0,63})(\/check|\/keys\/([a-z]+))?)?$/u.exec(url.pathname)
     if (!match) return false
     if (internal) return json(response, 403, { error: 'TERMINALS_OWNER_REQUIRED' })
     const core = terminals()
     if (!core) throw TERMINALS_UNAVAILABLE()
-    const [, id, check] = match
+    const [, id, sub, keyKind] = match
+    const check = sub === '/check'
     const method = request.method
+    // Key setting (Trony ruling): the key is entered only in Mika's secret card; this route carries no key or reference.
+    if (keyKind !== undefined) {
+      if (method === 'POST') {
+        const body = await readJson(request, {})
+        if (body === null || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).length)
+          return json(response, 400, { error: 'KEY_IN_REQUEST_REFUSED', message: 'Send no key, password or reference here; open the returned secret request and enter it there' })
+        return json(response, 200, await core.keys.request(id, keyKind))
+      }
+      if (method === 'DELETE') return json(response, 200, { terminal: await core.keys.remove(id, keyKind) })
+      return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
+    }
     if (!id && method === 'GET') return json(response, 200, { terminals: await core.registry.list() })
     if (id && check && method === 'POST') return json(response, 200, await core.reachability.check(id))
     if (id && !check && method === 'GET') {
