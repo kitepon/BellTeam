@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-09T07:57:19Z",
-  "expiresAt": "2026-11-16T07:57:19Z",
+  "publishedAt": "2026-11-09T09:41:37Z",
+  "expiresAt": "2026-11-16T09:41:37Z",
   "releases": [
     {
       "componentId": "usage",
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "7c54e0e048c9873f5ff91382413862a0bf7efd70",
-      "versionId": "sha256:766cf3000cb5ffd4bad5564bed1b3adc6c91bf023b5cd9c60ca7d9a90f27eff9",
+      "sourceCommit": "5b404cf0c87c673ce9c9c86ba43d01432cfd70ac",
+      "versionId": "sha256:fc92f326c2de37dbe43a1eea47e876b7078163adbfe2fab431996e520f1c7d0d",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:766cf3000cb5ffd4bad5564bed1b3adc6c91bf023b5cd9c60ca7d9a90f27eff9"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:fc92f326c2de37dbe43a1eea47e876b7078163adbfe2fab431996e520f1c7d0d"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,20 +722,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "複数アカウントの席を正しく識別し、2つ目の席で操作を続けられるようにします。"
+        "LANにある端末（Macなど）で、メンバーの席を動かせるようにします。席とBellTeamのやりとりは、端末へのSSH接続の中だけを通ります。",
+        "更新の確認や部品の起動が、GitHubの一時的な不調や部品の名前の取り違えで止まらないように直します。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "7c54e0e048c9873f5ff91382413862a0bf7efd70",
-      "versionId": "sha256:766cf3000cb5ffd4bad5564bed1b3adc6c91bf023b5cd9c60ca7d9a90f27eff9",
+      "sourceCommit": "5b404cf0c87c673ce9c9c86ba43d01432cfd70ac",
+      "versionId": "sha256:fc92f326c2de37dbe43a1eea47e876b7078163adbfe2fab431996e520f1c7d0d",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:766cf3000cb5ffd4bad5564bed1b3adc6c91bf023b5cd9c60ca7d9a90f27eff9"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:fc92f326c2de37dbe43a1eea47e876b7078163adbfe2fab431996e520f1c7d0d"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -744,7 +745,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "複数アカウントの席を正しく識別し、2つ目の席で操作を続けられるようにします。"
+        "LANにある端末（Macなど）で、メンバーの席を動かせるようにします。席とBellTeamのやりとりは、端末へのSSH接続の中だけを通ります。",
+        "更新の確認や部品の起動が、GitHubの一時的な不調や部品の名前の取り違えで止まらないように直します。"
       ]
     }
   ],
