@@ -26,3 +26,15 @@ test('only a source format the target declares in resets resets that store; ever
     declaration({ s: { path: 'a' }, t: { path: 'a/b' } }), JSON.stringify({ schema: 'other', stores: {} })])
     assert.deepEqual(selectResets({ version: '0.64.2' }, { declaration: bad }), { resets: [], note: 'TARGET_DECLARATION_INVALID' })
 })
+
+test('apply reads the selection from stdin; empty applies none, malformed fails the step', async () => {
+  const { spawnSync } = await import('node:child_process'), { mkdtempSync, readFileSync, mkdirSync, existsSync } = await import('node:fs'), { tmpdir } = await import('node:os')
+  const cli = new URL('../src/aiterm-state-compat.mjs', import.meta.url).pathname, run = (root, input) => spawnSync(process.execPath, [cli, 'apply', root, 'aiterm=preserved'], { input })
+  const root = mkdtempSync(tmpdir() + '/compat-'), uid = String(process.getuid())
+  mkdirSync(`${root}/a/s-${uid}`, { recursive: true })
+  assert.equal(run(root, '').status, 0)
+  assert.match(readFileSync(`${root}/.bellteam-reset/aiterm-state.log`, 'utf8'), / aiterm=preserved\n$/)
+  assert.notEqual(run(root, '{').status, 0)
+  assert.equal(run(root, JSON.stringify({ resets: [{ store: 's', path: 'a/s-{uid}', format: 'f1' }], note: null })).status, 0)
+  assert.equal(existsSync(`${root}/a/s-${uid}`), false)
+})

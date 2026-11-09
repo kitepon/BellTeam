@@ -100,7 +100,7 @@ else if(a[0]==='run'){
   const compat=a.indexOf('/app/src/aiterm-state-compat.mjs');
   if(e.TEST_H1&&compat>=0){
    const rest=a.slice(compat+1),src=k=>a.find(v=>v.endsWith(k))?.match(/source=([^,]+)/)[1];
-   if(rest[0]==='apply'){rest[1]=root+'/'+src(',target=/resume-state,volume-nocopy');rest[2]=src(',target=/aiterm-compat.json,readonly')??'';}
+   if(rest[0]==='apply'){rest[1]=root+'/'+src(',target=/resume-state,volume-nocopy');if(!a.includes('-i')||a.some(v=>v.includes('/aiterm-compat.json')))process.exit(97);}
    const r=spawnSync(process.execPath,[repo+'/src/aiterm-state-compat.mjs',...rest],{stdio:'inherit'});process.exit(r.status??98);
   }
   let j=a.indexOf('-e');

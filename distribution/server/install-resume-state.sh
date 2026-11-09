@@ -101,10 +101,12 @@ process.stdout.write(JSON.stringify({version,declaration}))'
 # One line per bundled swap inside the state volume, readable from the body; preserve also moves declared stores aside.
 resume_apply() {
   [ -n "${resume_line-}" ] || return 0
-  set -- --mount "type=volume,source=$1,target=/resume-state,volume-nocopy"
-  [ -z "${resume_preserve-}" ] || set -- "$@" --mount "type=bind,source=$staging/aiterm-compat.json,target=/aiterm-compat.json,readonly"
-  docker run --pull never --rm --network none --read-only --user 1000:1000 --cap-drop ALL --security-opt no-new-privileges:true "$@" \
-    --entrypoint /usr/local/bin/node "$image" /app/src/aiterm-state-compat.mjs apply /resume-state /aiterm-compat.json "$resume_line" \
+  # The selection goes over stdin: staged files are root 0600 (umask 077) and uid 1000 cannot open a bind of them.
+  selection=/dev/null
+  [ -z "${resume_preserve-}" ] || selection=$staging/aiterm-compat.json
+  docker run --pull never --rm -i --network none --read-only --user 1000:1000 --cap-drop ALL --security-opt no-new-privileges:true \
+    --mount "type=volume,source=$1,target=/resume-state,volume-nocopy" \
+    --entrypoint /usr/local/bin/node "$image" /app/src/aiterm-state-compat.mjs apply /resume-state "$resume_line" < "$selection" \
     || printf 'aiterm-state-apply=failed\n'
 }
 
