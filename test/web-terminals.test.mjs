@@ -1,12 +1,19 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { keySourceOf, projectRootProblem, readTerminals, remoteBindingBody, terminalStatus } from '../web/terminals.js'
+import { authorizeText, keySourceOf, projectRootProblem, readTerminals, remoteBindingBody, terminalStatus } from '../web/terminals.js'
 
 test('check observation -> plain words; host trust reasons ask for the fingerprint', () => {
   assert.equal(terminalStatus(null).label, '未確認')
   assert.equal(terminalStatus({ reachable: true }).tone, 'ok')
   assert.equal(terminalStatus({ reachable: false, reason: 'SSH_KEY_UNSET' }).label, 'SSH鍵が未設定')
-  for (const reason of ['AUTH_FAILED', 'CREDENTIAL_UNAVAILABLE', 'CREDENTIAL_REVISION_STALE']) assert.equal(terminalStatus({ reachable: false, reason }).label, '鍵が使えません')
+  // Self-service step 4: evidence reasons offer the likely fix; AUTH_FAILED offers authorizing the key.
+  assert.deepEqual([terminalStatus({ reachable: false, reason: 'AUTH_FAILED' }).help, terminalStatus({ reachable: false, reason: 'AUTH_FAILED' }).authorize], ['この鍵がまだMacに入っていないかもしれません。', true])
+  assert.equal(terminalStatus({ reachable: false, reason: 'CONNECTION_REFUSED' }).help, 'Macのリモートログインがオンか確かめてください。')
+  assert.equal(terminalStatus({ reachable: false, reason: 'UNREACHABLE' }).help, 'Macが起きていて、同じネットワークにあるか確かめてください。')
+  assert.equal(terminalStatus({ reachable: false, reason: 'SOMETHING_NEW', action: 'do X' }).help, 'do X')
+  assert.deepEqual(['PASSWORD_REJECTED', 'PASSWORD_AUTH_DISABLED', 'TERMINAL_CHANGED', null].map(authorizeText),
+    ['パスワードが違いました。', 'このMacはパスワードでのログインを受け付けていません。', 'もう一度お試しください。', 'もう一度お試しください。'])
+  for (const reason of ['CREDENTIAL_UNAVAILABLE', 'CREDENTIAL_REVISION_STALE']) assert.equal(terminalStatus({ reachable: false, reason }).label, '鍵が使えません')
   for (const reason of ['HOST_TRUST_MISSING', 'HOST_KEY_MISMATCH', 'HOST_TRUST_STALE', 'TARGET_MISMATCH']) assert.equal(terminalStatus({ reachable: false, reason }).trust, true)
   for (const reason of ['UNREACHABLE', 'CONNECTION_LOST', 'TERMINAL_UNAVAILABLE', 'SOMETHING_NEW', null]) assert.equal(terminalStatus({ reachable: false, reason }).label, '届きません')
   assert.equal(terminalStatus({ reachable: false, reason: 'UNREACHABLE' }).reason, 'UNREACHABLE')
@@ -132,4 +139,63 @@ test('older body (404) is a neutral notice: icon, no refresh, 追加 disabled; 5
     assert.equal(Boolean(dialog.querySelector('[data-terminals-refresh]').hidden), hidden)
     assert.equal(dialog.querySelector('[data-terminals-add]').disabled, true)
   }
+})
+
+test('self-service: precondition line, auto trust with the manual sheet under ほかの方法, authorize key -> outcome -> check again', async t => {
+  const previous = { document: globalThis.document, location: globalThis.location }
+  const page = new E('body')
+  globalThis.document = { createElement: tag => new E(tag), body: page, addEventListener() {}, removeEventListener() {} }
+  globalThis.location = { href: 'https://bellteam.local/' }
+  t.after(() => { globalThis.document = previous.document; globalThis.location = previous.location })
+  E.prototype.focus = () => {}; E.prototype.remove = function () {}
+  const { createTerminalsView } = await import('../web/terminals.js')
+  const trusted = { ...mac, hostTrust: { provider: 'p', revision: 'r' } }
+  let list = [{ ...mac, sshKeyConfigured: false }], reads = [], requests = 0, authorizeError = null
+  const calls = []
+  const api = async (path, options = {}) => {
+    calls.push(`${options.method ?? 'GET'} ${path}`)
+    if (path === '/api/terminals') return { terminals: list }
+    if (path === '/api/terminals/a/check') return { reachable: false, reason: 'AUTH_FAILED', observedAt: '2026-11-10T00:00:00Z' }
+    if (path === '/api/terminals/a/keys/ssh/authorize') { assert.equal(options.body, undefined); if (authorizeError) throw authorizeError; return { secretRequest: { id: `r${++requests}`, label: 'L', message: 'このMacのログインパスワード（1回だけ使い、保存しません）', purpose: 'terminal.login', status: 'pending' } } }
+    if (path.startsWith('/api/secret-requests/')) return { request: { status: path.endsWith('/submit') ? 'submitted' : 'cancelled' } }
+    if (path === '/api/terminals/a') return reads.shift()
+    throw new Error(path)
+  }
+  const dialog = new E('dialog'), body = dialog.querySelector('[data-terminals-body]')
+  const text = () => nodes(body).map(node => node.textContent).join('|')
+  const click = label => nodes(body).find(node => node.tagName === 'button' && node.textContent === label).fire('click')
+  const submitPassword = async () => { const card = page.children.at(-1); nodes(card).find(node => node.type === 'password').value = 'pw'; nodes(card).find(node => node.tagName === 'form').fire('submit'); await settle(); await settle() }
+  await createTerminalsView(dialog, { api }).open()
+  // No host trust: the auto line, and the manual sheet only under ほかの方法 (key first there).
+  assert.match(text(), /このMacでBellTeamアプリを開くと、自動で確かめます。/)
+  const other = nodes(body).find(node => node.className === 'terminal-other')
+  assert.equal(other.children[0].textContent, 'ほかの方法'); assert.match(nodes(other).map(node => node.textContent).join(''), /先にSSH鍵を設定してください/)
+  dialog.querySelector('[data-terminals-add]').fire('click')
+  assert.match(text(), /Macの「システム設定 > 一般 > 共有」で「リモートログイン」をオンにしてください。/)
+
+  list = [trusted]; dialog.close(); await createTerminalsView(dialog, { api }).open()
+  assert.doesNotMatch(text(), /自動で確かめます|ほかの方法/)
+  click('届くか確かめる'); await settle(); await settle()
+  assert.match(text(), /この鍵がまだMacに入っていないかもしれません。/)
+  // 409 before any password card.
+  authorizeError = Object.assign(new Error('x'), { status: 409, code: 'HOST_TRUST_MISSING' })
+  click('このMacにこの鍵を入れる'); await settle(); await settle()
+  assert.match(nodes(dialog.querySelector('[data-terminals-notice]')).map(node => node.textContent).join(''), /先にこのMacを確かめてください。/)
+  assert.equal(page.children.length, 0); authorizeError = null
+  // Pending is cleared before the outcome is recorded: a stale outcome is ignored until this request's outcome appears.
+  reads = [{ keyAuthorizationPending: false, keyAuthorization: null }, { keyAuthorizationPending: false, keyAuthorization: { requestId: 'r1', outcome: 'PASSWORD_REJECTED' } }]
+  click('このMacにこの鍵を入れる'); await settle(); await settle()
+  assert.equal(page.children.at(-1).children[0].children[1].textContent, 'このMacのログインパスワード（1回だけ使い、保存しません）')
+  await submitPassword(); await new Promise(resolve => setTimeout(resolve, 1100)); await settle()
+  assert.match(text(), /パスワードが違いました。/)
+  reads = [{ keyAuthorizationPending: false, keyAuthorization: { requestId: 'r2', outcome: 'AUTHORIZED' } }]
+  const checks = calls.filter(call => call === 'POST /api/terminals/a/check').length
+  click('このMacにこの鍵を入れる'); await settle(); await settle(); await submitPassword(); await settle(); await settle()
+  assert.equal(calls.filter(call => call === 'POST /api/terminals/a/check').length, checks + 1)
+  assert.doesNotMatch(text(), /パスワードが違いました/)
+  // 入力を断る starts no wait.
+  const gets = calls.filter(call => call === 'GET /api/terminals/a').length
+  click('このMacにこの鍵を入れる'); await settle(); await settle()
+  nodes(page.children.at(-1)).find(node => node.textContent === '入力を断る').fire('click'); await settle(); await settle()
+  assert.equal(calls.filter(call => call === 'GET /api/terminals/a').length, gets)
 })

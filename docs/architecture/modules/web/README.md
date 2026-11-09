@@ -107,8 +107,16 @@ flowchart TD
   List --> Cards["terminal cards<br/>user@host:port, owner, key badges, last check, C8 Claude Code"]
   Cards -->|届くか確かめる| Check["POST /api/terminals/:id/check<br/>observation kept in memory only"]
   Check --> Badge["terminalStatus(observation)<br/>plain words + tone"]
-  Badge -->|host trust reason| Confirm["fingerprint input → PUT :id {confirmHostKey}"]
-  Cards -->|追加 / 編集| Form["PUT /api/terminals/:id {host,user,port,os:'macos',accountOwner}"]
+  Badge -->|no hostTrust or host trust reason| Auto["このMacでBellTeamアプリを開くと、自動で確かめます<br/>(Apple app on that Mac: POST :id/trust, S2)"]
+  Auto -->|ほかの方法| Confirm["fingerprint input → PUT :id {confirmHostKey}"]
+  Badge -->|AUTH_FAILED| Authorize["このMacにこの鍵を入れる<br/>POST :id/keys/ssh/authorize (empty body)"]
+  Authorize -->|secretRequest terminal.login| Login["existing secret dialog, paste only, card text from Mika"]
+  Authorize -->|409 HOST_TRUST_MISSING / SSH_KEY_UNSET| Before["先にこのMacを確かめてください / 先にSSH鍵を設定してください"]
+  Login -->|submitted| Wait["GET /api/terminals/:id every 1 s until keyAuthorizationPending false<br/>and keyAuthorization.requestId = this request (≤ 120 s)"]
+  Wait -->|AUTHORIZED / ALREADY_AUTHORIZED| Check
+  Wait -->|PASSWORD_REJECTED| Authorize
+  Wait -->|PASSWORD_AUTH_DISABLED / other / none| AuthText["plain sentence on the card"]
+  Cards -->|追加 / 編集| Form["PUT /api/terminals/:id {host,user,port,os:'macos',accountOwner}<br/>add form: Remote Login precondition line"]
   Cards -->|削除| Remove["DELETE /api/terminals/:id (confirm dialog)"]
   Cards -->|SSH鍵 / sudo鍵を設定| Key["POST /api/terminals/:id/keys/:purpose"]
   Key -->|secretRequest| Secret["existing secret dialog (secret-input.js openSecretInput)<br/>1Password first when connected → /api/secret-requests/:id/submit"]
@@ -123,14 +131,15 @@ flowchart TD
 
 | Function / edge | Input -> output and ownership |
 | --- | --- |
-| `terminalStatus(observation)` (pure) | `null` -> 未確認 (muted). `reachable` -> つながります (ok). `SSH_KEY_UNSET` -> SSH鍵が未設定 (attention). `CREDENTIAL_*` / `AUTH_FAILED` -> 鍵が使えません (danger). `HOST_TRUST_*` / `HOST_KEY_*` / `TARGET_MISMATCH` -> ホスト鍵の確認が必要 (danger, shows the fingerprint form). `REMOTE_AITERM_TOO_OLD` -> 端末のAitermが古い. `TERMINAL_NOT_FOUND` -> 登録がありません. Anything else -> 届きません: asleep or off the network; delivery resumes by itself. Raw codes only in the badge title. |
+| `terminalStatus(observation)` (pure) | `null` -> 未確認 (muted). `reachable` -> つながります (ok). `SSH_KEY_UNSET` -> SSH鍵が未設定 (attention). `AUTH_FAILED` -> 鍵が通りません (danger, 「この鍵がまだMacに入っていないかもしれません」 + 「このMacにこの鍵を入れる」). `CONNECTION_REFUSED` -> 届きません (「Macのリモートログインがオンか確かめてください」). `UNREACHABLE` -> 届きません (「Macが起きていて、同じネットワークにあるか確かめてください」). Reasons are evidence, not diagnoses: the sentence offers the likely fix without asserting the cause. `CREDENTIAL_*` -> 鍵が使えません (danger). `HOST_TRUST_*` / `HOST_KEY_*` / `TARGET_MISMATCH` -> ホスト鍵の確認が必要 (danger, shows the fingerprint form). `REMOTE_AITERM_TOO_OLD` -> 端末のAitermが古い. `TERMINAL_NOT_FOUND` -> 登録がありません. Anything else -> 届きません with the server's `action` text when present, else: asleep or off the network; delivery resumes by itself. Raw codes only in the badge title. |
 | Terminal card | Projection as served. Key badges: `sshKeyConfigured` / `sudoKeyConfigured` (absent -> 未確認, never guessed). Source per purpose, `keySourceOf(terminal, purpose)` (pure): SSH = `sshKeySource ?? keySource`; sudo = `sudoKeySource ?? 'secret'` (the native capability is SSH only, usage C5), so an SSH `terminal-native` key never decides the sudo row. `terminal-native` -> 端末の鍵, `secret` -> 秘密入力. `maintenance.after` -> Claude Code version line. `hostTrust` absent -> ホスト鍵 未登録. |
 | Register / edit | One PUT per tap with the fixed body; `terminalId` is a lowercase slug and read-only when editing; `os` is always `macos` (only supported OS). Error code -> plain sentence; the server message goes under 詳細. No retry. The form draft carries an input revision (bot-editor pattern): a save captures `{draft, revision}` and its success closes the form only when the same dialog still shows that draft at that revision. A newer add/edit/cancel or input after the tap is kept (「保存しました。そのあとに変えた入力は残しています。」); a failure keeps the draft. |
-| Host key confirm | Fingerprint must start with `SHA256:`; one `PUT {confirmHostKey}`; `HOST_KEY_FINGERPRINT_MISMATCH` -> 指紋が端末と一致しません. The Web never accepts a host key on its own. The typed fingerprint is cleared only on success, in the same open dialog, and only if the field still holds the submitted value; failed and newer input stay. |
+| Host key confirm | Without `hostTrust` (or on a host-trust reason) the card says 「このMacでBellTeamアプリを開くと、自動で確かめます」 (S2, Apple app on that Mac); the manual sheet sits under a closed 「ほかの方法」 and still needs the SSH key first (PUT confirmHostKey uses the key's binding). Fingerprint must start with `SHA256:`; one `PUT {confirmHostKey}`; `HOST_KEY_FINGERPRINT_MISMATCH` -> 指紋が端末と一致しません. The Web never accepts a host key on its own. The typed fingerprint is cleared only on success, in the same open dialog, and only if the field still holds the submitted value; failed and newer input stay. |
 | Keys | Setter calls the key route once and opens the existing secret dialog with the returned request; after it closes the list is read again. 404/405 -> setter disabled with a plain note until the dialog is reopened. Unbind asks first. |
+| Key authorize (self-service step 4, Crust #858, Mika #855) | Shown only after a check answered `AUTH_FAILED`. One `POST :id/keys/ssh/authorize` with no body -> `{secretRequest}` opened as-is in the existing secret dialog (`terminal.login` is paste only; Mika's card text). 409 `HOST_TRUST_MISSING` -> 先にこのMacを確かめてください; 409 `SSH_KEY_UNSET` -> 先にSSH鍵を設定してください. After submit: `GET :id` every 1 s while the same dialog is open, until `keyAuthorizationPending` is false and `keyAuthorization.requestId` equals this request (the server clears pending before it records the outcome). Self-exit: match, dialog closed, GET error, or 120 s (-> もう一度お試しください). `AUTHORIZED` / `ALREADY_AUTHORIZED` -> check runs once automatically; `PASSWORD_REJECTED` -> パスワードが違いました + the button again; `PASSWORD_AUTH_DISABLED` -> このMacはパスワードでのログインを受け付けていません; anything else -> もう一度お試しください. The password never passes through `terminals.js`. |
 | Member binding | Section shown only after `GET /api/terminals` succeeds. `projectRootProblem(path)` mirrors C1 (starts with `/`, no empty/`.`/`..` segment, no trailing `/`, ≤ 4096). Both empty or both set, checked before save. A bound terminal missing from the list stays selectable as 「(登録がありません)」 so the saved binding is never silently replaced. Fields go into the body only when they differ from the saved member (old bodies never see them). |
 
-Ownership: results apply only to the same open dialog (`opened` token); close/reopen drops late replies. No storage, polling, SSE or guard added; the server owns validation, trust and secrets.
+Ownership: results apply only to the same open dialog (`opened` token); close/reopen drops late replies. No storage, SSE or guard added; the only polling is the bounded key-authorize wait above. The server owns validation, trust and secrets.
 
 Source reach: `web/terminals.js` (new), `web/secret-input.js` (export `openSecretInput`), `web/bot-editor.js`, `web/application.js`, `web/index.html`, `web/styles.css`, `web/assets.mjs`, `test/web-terminals.test.mjs`.
 
