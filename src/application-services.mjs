@@ -39,6 +39,7 @@ import { createSeatCredentials } from './seat-credentials.mjs'
 import { createCredentialRefresh } from './secret-credential-refresh.mjs'
 import { REMOTE_SEAT_MCP_PATH, seatCandidates } from './seat-mcp.mjs'
 import { TERMINALS_UNAVAILABLE } from './http-terminals-api.mjs'
+import { createTerminalKeys } from './terminals-mcp.mjs'
 import { createMessageViews } from './http-messages.mjs'
 import { Diagnostics, moduleRestartLimitProblems } from './diagnostics.mjs'
 import { BellTeamMemory } from './memory-service.mjs'
@@ -73,6 +74,19 @@ export const conversationDiagnosticPort = diagnostics => report => Promise.resol
   })
 
 // Construct the application graph without starting HTTP listeners or background loops.
+const REMOTE_TERMINAL_STATUS_UNAVAILABLE = () => Object.assign(new Error('Remote terminal status unavailable'), { code: 'REMOTE_TERMINAL_STATUS_UNAVAILABLE' })
+
+// Exit 0 = aiterm.remote-binding-status.v1, exit 2 = aiterm.remote-binding-error.v1; both are returned as-is.
+export async function remoteTerminalStatus(project, ref, run = createSeatProcessRunner(project)) {
+  let result
+  try { result = await run('/usr/bin/env', ['aiterm-remote-terminal', 'status', '--ref', ref], { acceptNonzero: true, maxBuffer: 65536 }) } catch { throw REMOTE_TERMINAL_STATUS_UNAVAILABLE() }
+  if (result.signal || (result.code !== 0 && result.code !== 2)) throw REMOTE_TERMINAL_STATUS_UNAVAILABLE()
+  let value
+  try { value = JSON.parse(result.stdout) } catch { throw REMOTE_TERMINAL_STATUS_UNAVAILABLE() }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw REMOTE_TERMINAL_STATUS_UNAVAILABLE()
+  return value
+}
+
 export async function createApplicationServices({ root, moduleChildExitReporter = createModuleChildExitReporter(), exchangeMutex = createModuleExchangeMutex(), aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, botEnvironments = null, olrwManagement = undefined, submittedSecretManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, notify = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory, createWorkGraphProcess: workGraphFactory, prepareWorkGraphRelease: prepareWorkGraph = (versionId, options) => prepareModuleRelease('work-graph', versionId, options), hostUpdateClient: hostClient, prepareDiagnosticsRelease: prepareDiagnostics = (versionId, options) => prepareModuleRelease('diagnostics', versionId, options), builtinSourceCommit = null, usageAssembly = null, attachUsageServices = () => {}, prepareUsageRelease: prepareUsage = (versionId, options) => prepareModuleRelease('usage', versionId, options), createConversationAssembly: conversationFactory, createExecutionAssembly: executionFactory, loadExecutionFactory: loadExecution = loadExecutionFactory, createExecutionAdoptionStore: adoptionFactory = createExecutionAdoptionStore, prepareExecutionRelease: prepareExecution = prepareExecutionRelease, createTerminalsCore = null }) {
   let terminals = null, credentialRefresh = null, members = null, diagnosticsModule = null, workGraphModule = null, workGraph = null, conversationAssembly = null, execution = null, executionClient, memory, rooms, assets, updateCenter, backgroundSummary, submittedSecretCaller = null, directMessages = null
   let scheduleTurns = null
@@ -175,6 +189,10 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   const seatCredentials = createSeatCredentials({ path: join(root, 'state/seat-credentials.json') })
   terminals = createTerminalsCore ? createTerminalsCore({ stateRoot: join(root, 'state'), credentials: usageAssembly?.credentials ?? null,
     seatCredentials: { reveal: ref => seatCredentials.reveal(ref) }, report: report => diagnostics.record(report) }) : null
+  // RS11: native SSH credential status comes from Elegg's one-shot UID 1000 bin; usage validates the DTO.
+  if (terminals && usageAssembly?.credentials?.setNativeProvider) usageAssembly.credentials.setNativeProvider({ status: ref => remoteTerminalStatus(root, ref) })
+  // RS12: bind an Aiterm-held key ref to a registered terminal; the target comes from the record, never the caller.
+  const terminalKeys = terminals && usageAssembly?.credentials?.registerNative ? createTerminalKeys({ terminals, credentials: usageAssembly.credentials }) : null
   // Usage has no timer of its own; the parent drives refresh while a credential is unavailable (Mika C5).
   credentialRefresh = usageAssembly?.credentials?.refresh && usageAssembly.credentials.watch ? createCredentialRefresh({
     refresh: () => usageAssembly.credentials.refresh(), watch: listener => usageAssembly.credentials.watch(listener),
@@ -387,7 +405,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     notifications, secretRequests, ownerQuestions, bots, rooms,
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, refreshGlobalInstructions, assets,
-    scheduler, diagnostics, diagnosticsModule, workGraph, workGraphModule, accounts, terminals, seatCredentials, credentialRefresh, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller, submittedSecretCaller,
+    scheduler, diagnostics, diagnosticsModule, workGraph, workGraphModule, accounts, terminals, terminalKeys, seatCredentials, credentialRefresh, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller, submittedSecretCaller,
     // Saved direct input drains after listen (Z-c). Starting before the hold release is safe and needs no bound:
     // executionReady is false while held, and the release's hold.watch → requestDrain drains it.
     lifecycle: { ...execution?.lifecycle,

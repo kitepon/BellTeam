@@ -21,11 +21,30 @@ export const terminalTools = Object.freeze([
   { name: 'register_terminal', description: '端末を登録または更新する。鍵は秘密入力の参照だけを渡す。', inputSchema: objectSchema(fields, ['terminalId']) },
   { name: 'remove_terminal', description: '端末の登録を消し、その端末への接続を閉じる。', inputSchema: objectSchema({ terminalId: id }, ['terminalId']) },
   { name: 'check_terminal', description: '端末へ届くかを一度確かめる。席は起動しない。', inputSchema: objectSchema({ terminalId: id }, ['terminalId']) },
+  { name: 'bind_terminal_key', description: 'Aitermが持つSSH鍵の参照（ref）を登録済みの端末に結び、その端末の鍵として設定する。宛先は端末の登録から取る。鍵の値は扱わない。',
+    inputSchema: objectSchema({ terminalId: id, ref: { type: 'string', pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' } }, ['terminalId', 'ref']) },
 ])
 
-export async function callTerminalTool({ name, args = {}, terminals }) {
+export function createTerminalKeys({ terminals, credentials }) {
+  return Object.freeze({
+    async bind({ terminalId, ref }) {
+      const terminal = await terminals.registry.get(terminalId)
+      if (!terminal) throw Object.assign(new Error('TERMINAL_NOT_FOUND'), { code: 'TERMINAL_NOT_FOUND', status: 404 })
+      const credential = await credentials.registerNative({ ref, target: { host: terminal.host, user: terminal.user, port: terminal.port } }, { terminalId, purpose: 'terminal.ssh' })
+      return { credential, terminal: await terminals.registry.put({ terminalId, sshKeyRef: credential.handle }) }
+    }
+  })
+}
+
+export async function callTerminalTool({ name, args = {}, terminals, terminalKeys }) {
   const core = terminals?.()
   if (!core) throw TERMINALS_UNAVAILABLE()
+  if (name === 'bind_terminal_key') {
+    assertKeys(args, ['terminalId', 'ref'])
+    const keys = terminalKeys?.()
+    if (!keys) throw Object.assign(new Error('Native credentials unavailable'), { code: 'CREDENTIAL_UNAVAILABLE', status: 503 })
+    return keys.bind(args)
+  }
   if (name === 'list_terminals') { assertKeys(args, []); return { terminals: await core.registry.list() } }
   if (name === 'register_terminal') { assertKeys(args, Object.keys(fields)); return { terminal: await core.registry.put(args) } }
   assertKeys(args, ['terminalId'])

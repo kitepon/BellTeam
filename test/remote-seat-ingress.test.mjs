@@ -135,3 +135,35 @@ test('credential refresh: recoveryNeeded without handles arms the timer until re
   await helper.stop()
   assert.equal(recoveryListener, null)
 })
+
+test('native credential status: one-shot bin, exit 0/2 DTOs as-is, anything else unavailable', async () => {
+  const { remoteTerminalStatus } = await import('../src/application-services.mjs')
+  const ref = '725ca83c-f52f-4036-9390-8d9e4c482f14'
+  const calls = []
+  const runner = result => async (command, args, options) => { calls.push({ command, args, options }); if (result instanceof Error) throw result; return result }
+  const ok = { schema: 'aiterm.remote-binding-status.v1', ref }
+  assert.deepEqual(await remoteTerminalStatus('/x', ref, runner({ code: 0, signal: null, stdout: JSON.stringify(ok) + '\n' })), ok)
+  assert.deepEqual(calls[0], { command: '/usr/bin/env', args: ['aiterm-remote-terminal', 'status', '--ref', ref], options: { acceptNonzero: true, maxBuffer: 65536 } })
+  const error = { schema: 'aiterm.remote-binding-error.v1', code: 'REMOTE_BINDING_NOT_FOUND' }
+  assert.deepEqual(await remoteTerminalStatus('/x', ref, runner({ code: 2, signal: null, stdout: JSON.stringify(error) })), error)
+  for (const result of [{ code: 1, signal: null, stdout: '{}' }, { code: null, signal: 'SIGTERM', stdout: '' }, { code: 0, signal: null, stdout: 'not json' },
+    { code: 0, signal: null, stdout: '[]' }, { code: 0, signal: null, stdout: 'null' }, new Error('spawn ENOENT')])
+    await assert.rejects(remoteTerminalStatus('/x', ref, runner(result)), { code: 'REMOTE_TERMINAL_STATUS_UNAVAILABLE' })
+})
+
+test('bind_terminal_key: target from the record, handle becomes sshKeyRef, typed errors', async () => {
+  const { callTerminalTool, createTerminalKeys } = await import('../src/terminals-mcp.mjs')
+  const ref = '725ca83c-f52f-4036-9390-8d9e4c482f14'
+  const puts = [], registrations = []
+  const record = { terminalId: 'owner-macbook', host: '192.168.1.12', user: 'kite', port: 22 }
+  const core = { registry: { get: async id => (id === record.terminalId ? record : null), put: async input => { puts.push(input); return { ...record, sshKeyConfigured: true } } } }
+  const credentials = { registerNative: async (binding, scope) => { registrations.push({ binding, scope }); return { handle: 'h-1', revision: 1, available: true } } }
+  const keys = createTerminalKeys({ terminals: core, credentials })
+  const result = await callTerminalTool({ name: 'bind_terminal_key', args: { terminalId: 'owner-macbook', ref }, terminals: () => core, terminalKeys: () => keys })
+  assert.deepEqual(result.credential, { handle: 'h-1', revision: 1, available: true })
+  assert.deepEqual(registrations, [{ binding: { ref, target: { host: '192.168.1.12', user: 'kite', port: 22 } }, scope: { terminalId: 'owner-macbook', purpose: 'terminal.ssh' } }])
+  assert.deepEqual(puts, [{ terminalId: 'owner-macbook', sshKeyRef: 'h-1' }])
+  await assert.rejects(callTerminalTool({ name: 'bind_terminal_key', args: { terminalId: 'nope', ref }, terminals: () => core, terminalKeys: () => keys }), { code: 'TERMINAL_NOT_FOUND' })
+  await assert.rejects(callTerminalTool({ name: 'bind_terminal_key', args: { terminalId: 'owner-macbook', ref, host: 'evil' }, terminals: () => core, terminalKeys: () => keys }), /TOOL_ARGUMENT_INVALID/)
+  await assert.rejects(callTerminalTool({ name: 'bind_terminal_key', args: { terminalId: 'owner-macbook', ref }, terminals: () => core, terminalKeys: () => null }), { code: 'CREDENTIAL_UNAVAILABLE' })
+})
