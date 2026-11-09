@@ -106,11 +106,17 @@ test('update_user_rulesはOwner本人が差分の承認コードを送った時�
   assert.equal((await call(proposed)).changed, false)
   assert.equal(saved.length, 0, 'Bot代筆・作者不明・期限切れ・peerは承認にならない')
 
+  // A genuine Owner message that only mentions the code (refusal, question, extra words) is not the approval command.
+  for (const message of [`その ${code} は承認しない`, `${code} って何？`, `規範変更を承認 ${code} しないで`, `規範変更を承認しない ${code}`, code])
+    timeline.push({ id: `m-${message}`, kind: 'message', direction: 'outgoing', at: now, message, messageAuthor: { kind: 'user' } })
+  assert.equal((await call(proposed)).changed, false)
+  assert.equal(saved.length, 0, 'コードに触れただけのOwner発言は承認にならない')
+
   // The Owner's own message with the code saves exactly that diff, pinned to the approved before.
-  timeline.push({ id: 'm-1', kind: 'message', direction: 'outgoing', at: now, message: `規範変更を承認 ${code.toLowerCase()}`, messageAuthor: { kind: 'user' } })
+  timeline.push({ id: 'm-1', kind: 'message', direction: 'outgoing', at: now, message: `「規範変更を承認\u3000${code.toLowerCase()}」\n`, messageAuthor: { kind: 'user' } })
   const result = await call(proposed)
   assert.deepEqual(result, { text: '- 日本語\n- 挨拶する\n', changed: true, ownerNotice: { delivered: true } })
-  assert.deepEqual(saved, [{ text: '- 日本語\n- 挨拶する\n', before: '- 日本語\n', botId: 'bot-a', instruction: { messageId: 'm-1', at: now, quote: `規範変更を承認 ${code.toLowerCase()}` } }])
+  assert.deepEqual(saved, [{ text: '- 日本語\n- 挨拶する\n', before: '- 日本語\n', botId: 'bot-a', instruction: { messageId: 'm-1', at: now, quote: `「規範変更を承認\u3000${code.toLowerCase()}」\n` } }])
   assert.match(sent.at(-1).message, /【自動記録】[\s\S]*エー（bot-a）[\s\S]*\+ - 挨拶する/u)
 
   // The used approval does not carry over to a different diff.

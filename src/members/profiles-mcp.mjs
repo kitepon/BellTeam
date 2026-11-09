@@ -181,6 +181,8 @@ const APPROVAL_WINDOW_MS = 24 * 60 * 60 * 1000
 // Per-process key: a Bot cannot compute a code it was not shown; a body restart only means a new approval notice.
 const approvalKey = randomBytes(32)
 const approvalCode = (botId, before, after) => createHmac('sha256', approvalKey).update(JSON.stringify([botId, before, after])).digest('hex').slice(0, 8).toUpperCase()
+// The whole message must be the advertised command: whitespace (incl. U+3000) dropped, one optional 「」 pair, case-insensitive code.
+const approvalCommand = text => String(text ?? '').replace(/\s+/gu, '').replace(/^「(.*)」$/u, '$1').toUpperCase()
 const jst = at => `${new Date(at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })} JST`
 
 // Guard (instructions.md): protects the Owner's rules from being overwritten without the Owner's own approval of this exact diff.
@@ -194,7 +196,7 @@ async function updateUserRules({ args, from, registry, userRules, store, deliver
   // Only a message the authenticated Owner typed (conversation messageAuthor, #877) approves; Bot-sent and unattributed records never do.
   const approval = (await store.timeline(from)).findLast(item => item?.kind === 'message' && item.direction === 'outgoing'
     && item.messageAuthor?.kind === 'user' && now - Date.parse(item.at) <= APPROVAL_WINDOW_MS
-    && String(item.message ?? '').toUpperCase().includes(code))
+    && approvalCommand(item.message) === `規範変更を承認${code}`)
   const bot = registry.get(from)
   const diff = userRulesDiff(before, after)
   if (!approval) {

@@ -80,7 +80,7 @@ HTTPでは`healthz`だけ先に返し、`session`は認証判定を返す。そ�
 | `delete_bot` | `members.runDeleteBotTool` → internalApi.remove | [削除の公開契約](modules/members/deletion.md) |
 | `restart_session/set_fast_mode` | executionの既restart/configure | 実行設定と停止・再起動の責任はexecution |
 | `get_owner_profile/get_user_rules` | `members.callMemberTool` → 各正本service | 読取り |
-| `update_user_rules` | `members.callMemberTool` → 差分のcodeを直接会話timelineのOwner本人入力（`messageAuthor.kind=user`）で確認 → 無ければ承認のお願いを送る / 有ればmembers `rules.botUpdate`（before固定）→ 履歴・global再生成・Ownerへの自動記録 | Owner本人が差分を承認した時だけ保存。[instructions](modules/members/instructions.md) |
+| `update_user_rules` | `members.callMemberTool` → 直接会話timelineのOwner本人入力（`messageAuthor.kind=user`）の全文が承認の言葉`規範変更を承認 <code>`かを確認 → 無ければ承認のお願いを送る / 有ればmembers `rules.botUpdate`（before固定）→ 履歴・global再生成・Ownerへの自動記録 | Owner本人が差分を承認した時だけ保存。[instructions](modules/members/instructions.md) |
 | `remember/recall_memory/revise_memory/pin_memory/consolidate_growth/record_knowledge/search_knowledge` | memory serviceまたは席proxy | 最終argsのscope/botIdを子へ渡す。検証は記憶側 |
 | `set_schedule/list_schedules/remove_schedule` | `members/schedules-mcp` → BotRegistry | 省略botIdはfrom |
 | `create_room/list_rooms/get_room/update_room/delete_room/invite_to_room/leave_room` | RoomRegistry + MCP権限関数 | 作成者を参加者/代表へ。一覧は参加部屋。更新/削除は代表資格。invite/leaveをその判定と一括化しない |
