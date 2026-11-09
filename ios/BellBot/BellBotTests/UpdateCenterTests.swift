@@ -302,6 +302,23 @@ final class UpdateStoreTests: XCTestCase {
 /// Update画面の標準表示。状態ごとの見出しと、実画面の画像（試験結果に添付）を確かめる。
 @MainActor
 final class UpdateViewTests: XCTestCase {
+    func testFailedPhaseIsSettledEvenWhenExecutionSucceeded() async throws {
+        var example = try UpdateFixtures.examples()["execution_failed"]!
+        var operation = example["operation"] as! [String: Any]
+        operation["execution"] = "succeeded"
+        operation["verification"] = "failed"
+        operation["rollback"] = "not_needed"
+        operation["error"] = ["code": "HOST_UPDATE_AITERM_STATE_FAILED", "message": "Aiterm state apply failed"]
+        operation["phase"] = "failed"
+        example["operation"] = operation
+        let store = try await store(json: example)
+        XCTAssertEqual(UpdateContent(updates: store).heroText.1, "更新できませんでした")
+        let settled = try XCTUnwrap(store.inventory?.operation)
+        XCTAssertTrue(settled.isSettled)
+        XCTAssertFalse(settled.isCompleted)
+        XCTAssertEqual(settled.error?.code, "HOST_UPDATE_AITERM_STATE_FAILED")
+    }
+
     func testEachServerStateShowsOneSimpleStatus() async throws {
         let expected = ["restart_required": "BellTeam本体を更新できます", "no_update": "すべて最新です", "verified_completed": "更新しました",
                         "disconnected_unknown": "更新の結果を確認中", "execution_failed": "更新できませんでした",

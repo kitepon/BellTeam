@@ -210,8 +210,8 @@ struct UpdateOperation: Decodable, Equatable {
     let jobs: [UpdateJob]?
 
     var isCompleted: Bool { phase == .completed && admission == .accepted && execution == .succeeded && verification == .succeeded }
-    /// 結果が確定し、同じ要求を照会し続ける必要がない状態。unknownは確定ではない。
-    var isSettled: Bool { admission == .rejected || isCompleted || (phase == .failed && execution == .failed) }
+    /// 結果が確定し、同じ要求を照会し続ける必要がない状態。unknownは確定ではない。phase failedはexecutionがsucceededでも確定（Aiterm状態の適用失敗）。
+    var isSettled: Bool { admission == .rejected || isCompleted || phase == .failed }
 }
 
 /// runtimeの`bellteam.update-job.v1`。値は作り替えず、そのまま表示する。
