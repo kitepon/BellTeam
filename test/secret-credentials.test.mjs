@@ -25,6 +25,8 @@ function fakeSource() {
     async refresh() {}, close() {}, watch(listener) { events.on('change', listener); return () => events.off('change', listener) },
     async resolve(ref) { this.reads.push(ref); if (this.failed) throw new Error('PRIVATE ERROR ' + ref + this.value); return this.value },
     connected(value) { this.available = value; events.emit('change', { available: value }) },
+    token: null, setToken(reader) { this.token = reader },
+    keys: [{ title: 'MacBook key', vault: '開発工場', reference }], async listSshKeys() { return this.keys },
   }
 }
 
@@ -224,4 +226,30 @@ test('restored child handles announce initial availability and recover under the
   source.failed = false; source.connected(true)
   assert.deepEqual(await restored.credentials.refreshAvailability(), { recoveryNeeded: false })
   assert.deepEqual(events.at(-1), { ...dto, ...scope, requestId: item.id, available: true, reason: 'availability' })
+})
+
+test('the reserved token card feeds op privately and the SSH card lists existing keys to the Owner only', async t => {
+  const { bots, rooms, source, service } = await fixture(t)
+  let refreshes = 0
+  source.refresh = async () => { refreshes++ }
+  const token = await service.create({ ...input, toolId: 'onepassword-service-account', label: '1Password token' })
+  await assert.rejects(service.submit(token.id, { source: 'onepassword', reference }), /SECRET_VALUE_INVALID/)
+  assert.equal(await source.token(), null)
+  await service.submit(token.id, 'ops_synthetic-token\n')
+  assert.equal(await source.token(), 'ops_synthetic-token')
+  assert.equal(refreshes, 1)
+  const server = createBellTeamServer({ bots, rooms, secretRequests: service,
+    store: { timeline: async () => [], watch: async () => () => {} }, transport: {}, authorize: () => true })
+  server.listen(0, '127.0.0.1'); await once(server, 'listening')
+  t.after(() => { server.closeAllConnections(); server.close() })
+  const card = await service.create(input)
+  const url = `http://127.0.0.1:${server.address().port}/api/secret-requests/${card.id}/onepassword-items`
+  const listed = await fetch(url)
+  assert.equal(listed.status, 200)
+  assert.deepEqual(await listed.json(), { items: source.keys })
+  assert.equal(usageResultValid('secrets.onePasswordItems', source.keys), true)
+  assert.equal(usageResultValid('secrets.onePasswordItems', [{ ...source.keys[0], value: 'x' }]), false)
+  assert.equal((await fetch(url, { method: 'POST' })).status, 405)
+  await service.submit(card.id, { source: 'onepassword', reference: source.keys[0].reference })
+  assert.equal((await fetch(url)).status, 409)
 })

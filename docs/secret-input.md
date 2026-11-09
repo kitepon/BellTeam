@@ -51,4 +51,6 @@ iPhoneの `SecretInputUITests` は `scripts/secret-input-smoke.mjs` が起動す
 
 すべての秘密入力カードは保存値に加え、`op://<vault id>/<item id>/<field>`を受け付ける。接続済みなら1Passwordを先に表示し、保存値を予備として選べる。参照は専用カードだけに入力し、MCP引数や通常チャットに書かない。1Passwordの参照から読んだ値は秘密入力の管理窓口で解決し、利用するプログラムへ直接渡す。1Password用の値ファイルは作らず、登録通知と履歴にも参照・値を含めない。
 
+本体側のopは`/usr/local/bin/op`をPATHから使う。サービスアカウントのトークンは、予約した道具ID`onepassword-service-account`の秘密入力カードでオーナーが保存値として入れ、各op呼び出しの環境変数にだけ渡す。SSH鍵カードは、読める保管庫のSSH Key項目を名前で一覧し、選んだ項目の`op://<保管庫>/<項目>/private key?ssh-format=openssh`を登録する。鍵は作らない。
+
 端末は秘密の保存場所や1Password参照を受け取らず、端末と用途に結び付いたハンドルを使う。管理側で認可した利用者の文脈を付け、`usageAssembly.credentials.withResolved(handle,{terminalId,memberId,purpose},consume)`で値を渡す。値を表示・ログ・Git・PTY命令へ出さない。保存値の既存パスは互換として保ち、移動しない。詳細の正本は[secret credentials](architecture/modules/usage/secret-credentials.md)。

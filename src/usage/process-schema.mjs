@@ -45,6 +45,7 @@ export const usageMethods = {
   'secrets.revokeTerminalRequests': spec(shape({ scope: credentialScopeValid }), kinds.system),
   'secrets.get': cardRead,
   'secrets.submit': spec(shape({ id, value: value => typeof value === 'string' || shape({ source: v => v === 'onepassword', reference: text })(value) }), kinds.owner),
+  'secrets.onePasswordItems': spec(shape({ id }), kinds.owner),
   'secrets.resolveRequest': spec(shape({ id }), kinds.system),
   'secrets.bind': spec(shape({ id, scope: credentialScopeValid }), kinds.system),
   'secrets.credential': spec(shape({ handle: id, context: credentialContextValid }), kinds.system),

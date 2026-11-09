@@ -6,8 +6,9 @@ import { EventEmitter } from 'node:events'
 import { isAbsolute, resolve as resolvePath } from 'node:path'
 
 const execFile = promisify(nodeExecFile)
-const sharedCommand = '/srv/bellteam/shared/tools/onepassword/bin/op'
 const maxBuffer = 16384
+const listBuffer = 1048576
+const sshKeyField = 'private key?ssh-format=openssh'
 const timeout = 10000
 const unavailable = () => Object.assign(new Error('SECRET_SOURCE_UNAVAILABLE'), { code: 'SECRET_SOURCE_UNAVAILABLE', status: 503 })
 const invalidReference = () => Object.assign(new Error('SECRET_REFERENCE_INVALID'), { code: 'SECRET_REFERENCE_INVALID', status: 400 })
@@ -34,6 +35,7 @@ export function createOnePasswordSource({ command, environment = process.env, ex
   let flight = null
   let commandFlight = null
   let fixedCommand = null
+  let token = async () => null
   const events = new EventEmitter()
   const run = execute ?? ((file, args, options) => execFile(file, args, options))
 
@@ -55,11 +57,8 @@ export function createOnePasswordSource({ command, environment = process.env, ex
     if (fixedCommand) return fixedCommand
     if (!commandFlight) commandFlight = (async () => {
       const configured = command ?? environment.OP_CLI_PATH
-      if (configured) fixedCommand = await executable(configured)
-      else {
-        try { fixedCommand = await executable(sharedCommand) }
-        catch { fixedCommand = await executable('op') }
-      }
+      // The server child reaches the image's /usr/local/bin/op through PATH; it never uses the UID1000 shared wrapper.
+      fixedCommand = await executable(configured || 'op')
       return fixedCommand
     })().finally(() => { commandFlight = null })
     return commandFlight
@@ -80,9 +79,39 @@ export function createOnePasswordSource({ command, environment = process.env, ex
     retryTimer.unref?.()
   }
 
-  async function invoke(args) {
+  async function invoke(args, limit = maxBuffer) {
     const file = await selectedCommand()
-    return run(file, args, { env: environment, encoding: 'buffer', maxBuffer, timeout })
+    const secret = await token()
+    // The token lives only in this call's env: never argv, files, logs or errors.
+    const env = typeof secret === 'string' && secret ? { ...environment, OP_SERVICE_ACCOUNT_TOKEN: secret } : environment
+    return run(file, args, { env, encoding: 'buffer', maxBuffer: limit, timeout })
+  }
+
+  async function listJson(args) {
+    const result = await invoke([...args, '--format', 'json'], listBuffer)
+    const stdout = typeof result === 'string' ? result : result?.stdout
+    const rows = JSON.parse(Buffer.isBuffer(stdout) ? stdout.toString('utf8') : stdout)
+    if (!Array.isArray(rows)) throw unavailable()
+    return rows
+  }
+
+  // Lists existing SSH Key items only; nothing here creates or edits an item.
+  async function listSshKeys() {
+    if (closed) throw unavailable()
+    try {
+      const keys = []
+      for (const vault of await listJson(['vault', 'list'])) {
+        if (typeof vault?.id !== 'string' || !/^[a-z0-9]{26}$/u.test(vault.id)) continue
+        for (const item of await listJson(['item', 'list', '--vault', vault.id, '--categories', 'SSH Key'])) {
+          if (typeof item?.id !== 'string' || !/^[a-z0-9]{26}$/u.test(item.id)) continue
+          keys.push({ title: String(item.title ?? '').slice(0, 200), vault: String(vault.name ?? '').slice(0, 200),
+            reference: validateOnePasswordReference(`op://${vault.id}/${item.id}/${sshKeyField}`) })
+        }
+      }
+      return keys.sort((a, b) => a.title.localeCompare(b.title) || a.vault.localeCompare(b.vault))
+    } catch {
+      throw unavailable()
+    }
   }
 
   async function refresh() {
@@ -127,6 +156,8 @@ export function createOnePasswordSource({ command, environment = process.env, ex
     get available() { return available },
     refresh,
     resolve,
+    listSshKeys,
+    setToken(reader) { if (typeof reader === 'function') token = reader },
     watch(listener) { events.on('change', listener); return () => events.off('change', listener) },
     close() {
       closed = true

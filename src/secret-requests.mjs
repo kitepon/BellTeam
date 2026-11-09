@@ -3,7 +3,10 @@ import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
 import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { SecretCredentials, normalizeCredentialScope } from './usage/secret-credentials.mjs'
+import { SecretCredentials, normalizeCredentialScope, readPrivateSecret } from './usage/secret-credentials.mjs'
+
+// The Owner's stored value on this reserved tool card is the server's 1Password service account token.
+export const onePasswordTokenTool = 'onepassword-service-account'
 
 // 秘密の値はこのクラスのsubmitだけが受け取り、一覧・通知・イベントへ渡さない。
 export class SecretRequests {
@@ -23,6 +26,7 @@ export class SecretRequests {
     this.credentials = new SecretCredentials({ root, getRequest: id => this.getPrivate(id), onePassword, providers: secretProviders, retryMs: credentialRetryMs })
     this.credentials.watch(event => this.events.emit('credential', event))
     this.credentials.watchRecovery(event => this.events.emit('recovery', event))
+    this.credentials.onePassword.setToken?.(() => this.onePasswordToken())
     this.credentials.onePassword.watch(() => {
       for (const item of this.items.values()) {
         if (item.botId !== null) this.cardTimelines.put(this.get(item.id))
@@ -44,6 +48,18 @@ export class SecretRequests {
     }
     await this.credentials.initialize({ readOnly })
     for (const item of this.items.values()) if (item.botId !== null) this.cardTimelines.put(this.get(item.id))
+  }
+
+  async onePasswordToken() {
+    const item = [...this.items.values()].filter(row => row.toolId === onePasswordTokenTool && row.status === 'submitted' && row.path)
+      .sort((a, b) => a.at.localeCompare(b.at)).at(-1)
+    if (!item || item.path !== join(this.toolsDirectory, item.toolId, 'secrets', item.id)) return null
+    return (await readPrivateSecret(item.path)).trim()
+  }
+
+  async onePasswordItems(id) {
+    if (this.get(id).status !== 'pending') throw new Error('SECRET_REQUEST_CLOSED')
+    return this.credentials.onePassword.listSshKeys()
   }
 
   getPrivate(id) {
@@ -145,8 +161,9 @@ export class SecretRequests {
       await this.bindCredential(id, { terminalId: item.terminalId, purpose: item.purpose })
       return this.get(id)
     })
+    const token = this.get(id).toolId === onePasswordTokenTool
     if (value && typeof value === 'object' && !Array.isArray(value)) {
-      if (Object.keys(value).sort().join(',') !== 'reference,source' || value.source !== 'onepassword') throw new Error('SECRET_VALUE_INVALID')
+      if (token || Object.keys(value).sort().join(',') !== 'reference,source' || value.source !== 'onepassword') throw new Error('SECRET_VALUE_INVALID')
       return this.finish(id, async item => {
         await this.credentials.registerSource(id, value)
         return { ...item, status: 'submitted' }
@@ -155,7 +172,7 @@ export class SecretRequests {
     if (typeof value !== 'string' || value.length === 0 || Buffer.byteLength(value) > 16384 || value.includes('\0')) {
       throw new Error('SECRET_VALUE_INVALID')
     }
-    return this.finish(id, async item => {
+    const result = await this.finish(id, async item => {
       const directory = join(this.toolsDirectory, item.toolId, 'secrets')
       await mkdir(directory, { recursive: true, mode: 0o700 })
       const path = join(directory, item.id)
@@ -163,6 +180,9 @@ export class SecretRequests {
       await writeFile(path, value, { mode: 0o600, flag: 'wx' })
       return { ...item, status: 'submitted', path }
     })
+    // A new token connects 1Password now; pending cards receive the new inputOptions in this same operation.
+    if (token) await this.credentials.refreshAvailability().catch(() => {})
+    return result
   }
 
   // Only a trusted composition can register a fixed provider capability.

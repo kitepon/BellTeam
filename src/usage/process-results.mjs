@@ -38,6 +38,8 @@ export function usageResultValid(method, value, params = {}) {
   }
   if (['secrets.resolve', 'secrets.resolveRequest'].includes(method)) return typeof value === 'string' && value.length > 0 && Buffer.byteLength(value) <= 16384 && !value.includes('\0')
   if (['secrets.bind', 'secrets.credential', 'secrets.replace', 'secrets.unbind'].includes(method)) return credentialDtoValid(value) && (!params.handle || value.handle === params.handle)
+  if (method === 'secrets.onePasswordItems') return Array.isArray(value) && value.every(row => exact(row, ['title', 'vault', 'reference'])
+    && typeof row.title === 'string' && typeof row.vault === 'string' && typeof row.reference === 'string' && row.reference.startsWith('op://'))
   if (method === 'secrets.timeline') return timeline('secret_request', value)
   if (method.startsWith('secrets.')) return record('secret', value) && (!params.id || value.id === params.id)
   if (method === 'questions.timeline') return timeline('owner_question', value)

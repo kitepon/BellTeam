@@ -138,6 +138,7 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
     'secrets.unbind': ({ handle, scope }) => secretRequests.unbindCredential(handle, scope),
     'secrets.revokeTerminalRequests': ({ scope }) => secretRequests.revokeTerminalRequests(scope),
     'secrets.get': ({ id }, actor) => getOwned(secretRequests, id, actor, 'SECRET_REQUEST_NOT_FOUND'),
+    'secrets.onePasswordItems': ({ id }) => secretRequests.onePasswordItems(id),
     'secrets.resolveRequest': ({ id }) => secretRequests.resolveValue(id),
     'secrets.bind': ({ id, scope }) => secretRequests.bindCredential(id, scope),
     'secrets.credential': ({ handle, context }) => secretRequests.credential(handle, context),

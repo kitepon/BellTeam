@@ -67,13 +67,22 @@ export function openSecretInput(request, api, onComplete) {
   const input = document.createElement(multiline ? 'textarea' : 'input')
   if (multiline) { input.rows = 6; input.className = 'secret-multiline' } else input.type = 'password'
   input.autocomplete = 'off'
+  // Browser 1Password autofill would insert the public key here; the private key comes from the picker instead.
+  input.setAttribute('data-1p-ignore', '')
   input.setAttribute('aria-label', request.label)
   input.spellcheck = false
   input.autocapitalize = 'none'
-  const reference = document.createElement('input')
-  reference.type = 'text'
-  reference.autocomplete = 'off'
-  reference.placeholder = 'op://保管庫/アイテム/フィールド'
+  // An SSH key card picks an existing 1Password SSH Key item by name; other cards keep the typed reference.
+  const picker = multiline
+  const reference = document.createElement(picker ? 'select' : 'input')
+  if (picker) {
+    reference.className = 'secret-reference-picker'
+    reference.append(Object.assign(document.createElement('option'), { value: '', textContent: '1Passwordの鍵を読み込んでいます…', disabled: true, selected: true }))
+  } else {
+    reference.type = 'text'
+    reference.autocomplete = 'off'
+    reference.placeholder = 'op://保管庫/アイテム/フィールド'
+  }
   reference.setAttribute('aria-label', `${request.label}の1Password参照`)
   reference.spellcheck = false
   reference.autocapitalize = 'none'
@@ -87,7 +96,7 @@ export function openSecretInput(request, api, onComplete) {
     const legend = document.createElement('legend')
     legend.textContent = '入力方法'
     fieldset.append(legend)
-    for (const [value, text] of [['onepassword', '1Passwordの参照を使う'], ['stored', '値をBellTeamへ保存する']]) {
+    for (const [value, text] of [['onepassword', picker ? '1Passwordの鍵から選ぶ' : '1Passwordの参照を使う'], ['stored', '値をBellTeamへ保存する']]) {
       const choice = document.createElement('label')
       const radio = radios[value] = document.createElement('input')
       radio.type = 'radio'
@@ -117,6 +126,21 @@ export function openSecretInput(request, api, onComplete) {
   const error = document.createElement('p')
   error.className = 'secret-error'
   error.setAttribute('role', 'alert')
+  if (onePassword && picker) void loadKeys()
+  async function loadKeys() {
+    let items
+    try {
+      ({ items } = await api(`/api/secret-requests/${encodeURIComponent(request.id)}/onepassword-items`, {
+        method: 'GET', redirect: 'error', cache: 'no-store', credentials: 'same-origin' }))
+    } catch { items = null }
+    const placeholder = reference.children[0]
+    if (!Array.isArray(items)) placeholder.textContent = '1Passwordの鍵一覧を読めませんでした。閉じて開き直してください。'
+    else if (!items.length) placeholder.textContent = '1Passwordで読めるSSH鍵がありません。'
+    else placeholder.textContent = '鍵を選んでください'
+    for (const item of items ?? []) {
+      reference.append(Object.assign(document.createElement('option'), { value: item.reference, textContent: item.vault ? `${item.title}（${item.vault}）` : item.title }))
+    }
+  }
   const submit = document.createElement('button')
   submit.type = 'submit'
   submit.textContent = '登録して続ける'
@@ -153,7 +177,7 @@ export function openSecretInput(request, api, onComplete) {
       return
     }
     if (action === 'submit' && source === 'onepassword' && !reference.value.trim().startsWith('op://')) {
-      error.textContent = '1Passwordの参照（op://で始まる）を入力してください。'
+      error.textContent = picker ? '1Passwordの鍵を選んでください。' : '1Passwordの参照（op://で始まる）を入力してください。'
       return
     }
     sending = true

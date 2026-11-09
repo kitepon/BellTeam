@@ -45,6 +45,7 @@ export function createUsageFacade({ request, projection, toolsDirectory }) {
       unbindCredential: (handle, scope, context) => call('secrets.unbind', { handle, scope }, context),
       revokeTerminalRequests: (scope, context) => call('secrets.revokeTerminalRequests', { scope }, context),
       submit: (id, value, context) => call('secrets.submit', { id, value }, context),
+      onePasswordItems: (id, context) => call('secrets.onePasswordItems', { id }, context),
       resolveValue: (id, context) => call('secrets.resolveRequest', { id }, context),
       bindCredential: (id, scope, context) => call('secrets.bind', { id, scope }, context),
       credential: (handle, target, context) => call('secrets.credential', { handle, context: target }, context),
