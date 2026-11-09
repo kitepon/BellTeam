@@ -23,9 +23,21 @@ child.on('error', () => finish(JSON.stringify({ status: 'error', code: 'THROUGHL
 child.on('close', () => finish(out || JSON.stringify({ status: 'error', code: 'THROUGHLINE_EMPTY' })))
 child.stdin.on('error', () => {})
 child.stdin.end(parts.join(''))`
-// One argv string is at most 128 KiB on Linux; pages stay well under the total argv limit.
+// One argv string is at most 128 KiB (bytes) on Linux; pieces are cut by UTF-8 bytes between code points, so joined they are
+// the exact JSON. Pages stay well under the total argv limit.
 const ARG_PIECE = 96 * 1024, PAGE_BYTES = 1024 * 1024, PAGES_PER_TURN = 64
-const pieces = text => Array.from({ length: Math.ceil(text.length / ARG_PIECE) }, (_, index) => text.slice(index * ARG_PIECE, (index + 1) * ARG_PIECE))
+export function pieces(text) {
+  const out = []
+  let piece = '', bytes = 0
+  for (const char of text) {
+    const size = Buffer.byteLength(char)
+    if (bytes + size > ARG_PIECE) { out.push(piece); piece = ''; bytes = 0 }
+    piece += char
+    bytes += size
+  }
+  if (piece) out.push(piece)
+  return out
+}
 
 export const isRemoteBot = bot => typeof bot?.terminalId === 'string' && bot.terminalId !== ''
   && typeof bot.projectRoot === 'string' && bot.projectRoot !== ''
@@ -44,9 +56,10 @@ export class RemoteSeats {
 
   // Launch on the member's terminal. A seat already alive there under the same name (after a body restart, whose
   // credential survives) is taken over instead of launched twice. Values never pass here: only names and references.
-  async launch(bot, args, { shortTermMemory, context, slot }) {
+  // checkpoint is the transport's existing stop/member/admission check, rerun after the async preparation.
+  async launch(bot, args, { shortTermMemory, context, slot, checkpoint = () => {} }) {
     const sessionName = args.session_name, target = { botId: bot.id, terminalId: bot.terminalId, projectRoot: bot.projectRoot }
-    let opened = null
+    let opened = null, issued = false, launching = false
     try {
       opened = await this.open(target, sessionName, null)
       const seen = await opened.native.callTool('pty_observe', { session_id: sessionName }).catch(() => null)
@@ -60,9 +73,12 @@ export class RemoteSeats {
         opened = null
         const { text } = await this.launchContext(bot.id, { sessionName, shortTermMemory }, context)
         const { url, credentialRef } = await this.ingress.seatCredential.issue({ botId: bot.id, sessionName, terminalId: bot.terminalId })
+        issued = true
         const login = slot && slot !== '1st'
         opened = await this.open(target, sessionName, { BELLTEAM_MCP_TOKEN: credentialRef,
           ...(login ? { CLAUDE_CODE_OAUTH_TOKEN: { harness: 'claude', slot } } : {}) })
+        checkpoint()
+        launching = true
         const headers = { Authorization: 'Bearer ${BELLTEAM_MCP_TOKEN}', 'X-Bellteam-Seat': '${AITERM_SESSION_ID}', 'X-Bellteam-Launch-Id': '${AITERM_AGENT_LAUNCH_ID}' }
         result = await opened.native.callTool('agent_launch', { ...args, cwd: bot.projectRoot }, { private: {
           appendSystemPrompt: text,
@@ -76,14 +92,17 @@ export class RemoteSeats {
           throw Object.assign(new Error(textResult(result) || 'AITERM_LAUNCH_FAILED'), { code: result.structuredContent?.code ?? result.structuredContent?.error?.code })
         }
       }
-      const previous = this.seatOf(bot.id)
-      // Reissuing for the same name already replaced that token; revoking it would cut the new seat.
-      if (previous) await this.release(previous, { keepCredential: previous.sessionName === sessionName })
+      // Only an entry of the same name is replaced; its token was already replaced by the reissue, so it is kept. Another seat
+      // of this Bot under another name (account-slot move, #750/#756) stays untouched until its explicit pty_close.
+      const previous = this.seats.get(sessionName)
+      if (previous) await this.release(previous, { keepCredential: true })
       const launchId = result?.structuredContent?.launch_id
       this.seats.set(sessionName, { sessionName, ...opened, launchId: typeof launchId === 'string' ? launchId : null, cursor: null })
       return result
     } catch (error) {
       if (opened) await this.terminals.connection.close(opened.connectionRef).catch(() => {})
+      // Nothing was launched with the credential issued here; an agent_launch already sent may be running, so its stays.
+      if (issued && !launching) await Promise.resolve(this.ingress.seatCredential.revoke({ sessionName })).catch(() => {})
       if (NOT_STARTED.has(error?.code)) this.wait(target)
       throw notStarted(error)
     }
@@ -96,8 +115,6 @@ export class RemoteSeats {
       accountOwner: 'owner', ...(credentials ? { credentials } : {}) })
     return { botId, terminalId, projectRoot, connectionRef, native }
   }
-
-  seatOf(botId) { return [...this.seats.values()].find(seat => seat.botId === botId) ?? null }
 
   async release(seat, { keepCredential = false } = {}) {
     if (!seat) return
@@ -123,8 +140,9 @@ export class RemoteSeats {
 
   // A held seat survives a lost connection on the terminal; reopen without credentials (the launch already has them).
   // Only a call refused before sending (connection gone) is retried once; an in-flight CONNECTION_LOST is never replayed.
-  async call(seat, name, args, options) {
-    const issue = native => native.callTool(name, args, options)
+  // check (the send's admission check) runs right before each issue, including the one reissued after the reopen.
+  async call(seat, name, args, options, check = () => {}) {
+    const issue = native => { check(); return native.callTool(name, args, options) }
     try { return await issue(seat.native) } catch (error) {
       if (error?.code !== 'TERMINAL_UNAVAILABLE' || this.seats.get(seat.sessionName) !== seat) throw notStarted(error)
     }
@@ -143,9 +161,9 @@ export class RemoteSeats {
         if (name === 'pty_list') return remote.list(await client.call(name, args, options))
         const seat = remote.seats.get(args.session_id)
         if (!seat) return client.call(name, args, options)
-        // The remote adapter takes only its own options; the send guard runs right before the input is issued.
-        if (typeof options.admissionCheck === 'function') options.admissionCheck()
-        const result = await remote.call(seat, name, args, options.timeoutMs ? { timeoutMs: options.timeoutMs } : undefined)
+        // The remote adapter takes only its own options; the send guard runs right before each issued input.
+        const result = await remote.call(seat, name, args, options.timeoutMs ? { timeoutMs: options.timeoutMs } : undefined,
+          typeof options.admissionCheck === 'function' ? options.admissionCheck : undefined)
         if (name === 'pty_close' && !result?.isError) await remote.release(seat)
         return result
       } },

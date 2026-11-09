@@ -319,7 +319,8 @@ export class AitermTransport {
       }
       // remote-seat.md: a member bound to a terminal launches there with its launch context instead of local files.
       launch = isRemoteBot(bot)
-        ? await this.remoteSeats.launch(bot, launchArgs, { shortTermMemory, context: { membersLease }, slot: account?.slot ?? null })
+        ? await this.remoteSeats.launch(bot, launchArgs, { shortTermMemory, context: { membersLease }, slot: account?.slot ?? null,
+          checkpoint: () => { this.membersAdmission.assertLease(membersLease); this.requireStopVersion(bot.id, version); admissionCheck?.() } })
         : await this.changeSession(bot, 'agent_launch', launchArgs, { ...launchOptions,
           ...(account && account.slot !== '1st' ? { claudeLogin: account.slot } : {}), ...(execution ? { execution } : {}) })
       if (account) void this.accounts.setSeat(bot.id, account.slot).catch(() => {})

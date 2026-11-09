@@ -1,11 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { RemoteSeats } from '../src/remote-seats.mjs'
+import { RemoteSeats, pieces } from '../src/remote-seats.mjs'
 
 const bot = { id: 'bot-aaaa1111', terminalId: 'mac-1', projectRoot: '/Users/quo/work/app', fastMode: false }
 const code = value => Object.assign(new Error(value), { code: value })
 
-function fixture({ openErrors = [], exists = false, calls: callErrors = [] } = {}) {
+function fixture({ openErrors = [], exists = false, calls: callErrors = [], beforeOpen = async () => {} } = {}) {
   const log = [], watchers = new Set(), queued = []
   const native = ref => ({
     async callTool(name, args, options) {
@@ -22,6 +22,7 @@ function fixture({ openErrors = [], exists = false, calls: callErrors = [] } = {
     connection: {
       async open(request) {
         log.push({ op: 'open', request })
+        await beforeOpen(request)
         const failure = openErrors.shift()
         if (failure) throw Object.assign(code(failure), { effect: 'not_started' })
         const ref = `c${++refs}`
@@ -137,4 +138,50 @@ test('C7: a completed remote turn hands the completed prefix to Throughline; onl
   assert.deepEqual(seat.cursor, { claudeSessionId: 'c1', offset: 12 })
   seats.seatCommand = async () => { throw new Error('missing') }
   assert.equal(await seats.handoffContext(bot.id), '')
+})
+
+test('argv pieces: at most 96 KiB UTF-8 bytes each, never inside a code point, joined exactly', () => {
+  const text = JSON.stringify({ entries: ['日本語の記録'.repeat(30000), 'a😀'.repeat(40000), 'é'.repeat(70000)] })
+  const parts = pieces(text)
+  assert.ok(parts.length > 3)
+  for (const part of parts) {
+    assert.ok(Buffer.byteLength(part) <= 96 * 1024)
+    assert.equal(Buffer.from(part, 'utf8').toString('utf8'), part) // no lone surrogate
+  }
+  assert.equal(parts.join(''), text)
+  assert.deepEqual(pieces(''), [])
+})
+
+test('stop/admission change while open is suspended: no agent_launch, issued credential revoked', async () => {
+  let stopped = false
+  const { seats, log } = fixture({ beforeOpen: async request => { if (request.credentials) stopped = true } })
+  await assert.rejects(seats.launch(bot, launchArgs, { slot: '1st', checkpoint: () => { if (stopped) throw code('STOP_REQUESTED') } }), { code: 'STOP_REQUESTED' })
+  assert.equal(log.some(entry => entry.name === 'agent_launch'), false)
+  assert.ok(log.some(entry => entry.op === 'revoke' && entry.request.sessionName === launchArgs.session_name))
+  assert.equal(seats.seats.size, 0)
+})
+
+test('admission change while the reopen is suspended: the reissued send is not written', async () => {
+  let admitted = true
+  const { seats, log } = fixture({ beforeOpen: async request => { if (!request.credentials && log.some(entry => entry.name === 'agent_launch')) admitted = false } })
+  await seats.launch(bot, launchArgs, { slot: '1st' })
+  const seat = seats.seats.get(launchArgs.session_name)
+  const base = seat.native
+  seat.native = { ...base, callTool: async () => { throw code('TERMINAL_UNAVAILABLE') } }
+  const client = seats.route({ call: async () => ({}) })
+  await assert.rejects(client.call('pty_send', { session_id: seat.sessionName, text: 'x' },
+    { admissionCheck: () => { if (!admitted) throw code('ADMISSION_CHANGED') } }), { code: 'ADMISSION_CHANGED' })
+  assert.equal(log.some(entry => entry.name === 'pty_send'), false)
+})
+
+test('same Bot, different account slot: the old seat and its credential stay until its explicit close', async () => {
+  const { seats, log } = fixture()
+  await seats.launch(bot, launchArgs, { slot: '1st' })
+  await seats.launch(bot, { ...launchArgs, session_name: 'bot-aaaa1111-1st-x2' }, { slot: '1st' })
+  assert.deepEqual([...seats.seats.keys()], [launchArgs.session_name, 'bot-aaaa1111-1st-x2'])
+  assert.equal(log.some(entry => entry.op === 'revoke'), false)
+  const client = seats.route({ call: async () => ({}) })
+  await client.call('pty_close', { session_id: launchArgs.session_name })
+  assert.deepEqual(log.filter(entry => entry.op === 'revoke').map(entry => entry.request.sessionName), [launchArgs.session_name])
+  assert.deepEqual([...seats.seats.keys()], ['bot-aaaa1111-1st-x2'])
 })
