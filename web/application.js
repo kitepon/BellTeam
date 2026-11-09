@@ -41,6 +41,9 @@ export function createWebApp({ client = createWebClient() } = {}) {
   const rosterError = document.querySelector('#roster-error')
   const rosterRetry = document.querySelector('#roster-retry')
   rosterRetry.addEventListener('click', () => loadBots().catch(() => {}))
+  const setupNotice = document.querySelector('#setup-notice')
+  document.querySelector('#setup-resume').addEventListener('click', () => void resumeSetup())
+  let conversationsStarted = false
   const rosterSearch = document.querySelector('#roster-search')
   rosterSearch.addEventListener('input', renderBots)
   document.querySelector('#search-button').addEventListener('click', () => rosterSearch.focus())
@@ -304,21 +307,39 @@ export function createWebApp({ client = createWebClient() } = {}) {
     const setup = await api('/api/setup')
     state.setup = setup
     if (setup.phase !== 'ready') {
-      openOnboarding(setup, { api, onReady: startConversations })
+      showOnboarding(setup)
       return
     }
     await startConversations(setup)
   }
 
+  // 初回設定は守るものが無いので閉じられる。閉じたら一覧/Updateへ進み、案内から再開できる。
+  function showOnboarding(setup) {
+    setupNotice.hidden = true
+    openOnboarding(setup, { api, onReady: startConversations,
+      onLater: next => startConversations(next).catch(error => conversationComposer.showError(error.message)) })
+  }
+
+  async function resumeSetup() {
+    const setup = await api('/api/setup').catch(error => { conversationComposer.showError(error.message); return null })
+    if (!setup) return
+    if (setup.phase === 'ready') await startConversations(setup)
+    else showOnboarding(setup)
+  }
+
   async function startConversations(setup) {
     state.setup = setup
-    void updateCenter.start()
+    setupNotice.hidden = setup.phase === 'ready'
+    const first = !conversationsStarted
+    conversationsStarted = true
+    if (first) void updateCenter.start()
     const loaded = await loadBots().catch(error => { if (error.status !== 503) throw error; return false })
-    if (loaded && !setup.complete && setup.guideBotId) {
+    if (loaded && setup.phase === 'ready' && !setup.complete && setup.guideBotId) {
       const guide = state.bots.find(bot => bot.id === setup.guideBotId)
       if (!guide) throw new Error('案内役が見つかりません。')
       await selectBot(guide)
     }
+    if (!first) return
     void connectEvents()
     await notifications.ready()
   }
@@ -680,7 +701,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
         await loadFeatureSettings()
         if (ownerDialog.open) ownerEditor.refreshFeatureStatus(state.settings)
       }
-      if (payload.type === 'setup') state.setup = await api('/api/setup')
+      if (payload.type === 'setup') { state.setup = await api('/api/setup'); if (state.setup.phase === 'ready') setupNotice.hidden = true }
       if (state.selectedType === 'bot' && (payload.all || payload.botId === state.selected?.id || payload.botIds?.includes(state.selected?.id)))
         void goals.refreshOnEvent()
       await Promise.all([loadBots(), ...(eventAffectsTimeline(payload, state.selectedType, state.selected?.id) ? [loadMessages()] : [])])

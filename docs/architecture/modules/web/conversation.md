@@ -32,6 +32,21 @@ flowchart LR
   Read --> Success[最新一式成功で表示採用 / 案内を消す]
 ```
 
+### 初回設定はあとへ回せる
+
+`/api/setup`が`ready`でなければ`openOnboarding`の画面を出す。この画面は守る対象（データ消失・接続先違い・秘密・権限）を持たないので、閉じるのを止めない。Escと「あとで設定する」で閉じられる。閉じたら`onLater`→`startConversations`で一覧・Update・SSEを始め、一覧上に「初回設定を続ける」を出す。押すと`/api/setup`を読み直して同じ画面を開く。`ready`になった時（画面の開始操作、又はSSEのsetup通知）は案内を消す。`startConversations`は二度目以降、Update/SSE/通知を再開せず、一覧の再読と案内Botの自動選択だけを行う。案内Botの自動選択は`phase=ready`の時だけ。サーバーの初回設定状態とAPIは変えない。
+
+```mermaid
+stateDiagram-v2
+  [*] --> Onboarding: boot / setup.phase≠ready
+  [*] --> App: boot / ready
+  Onboarding --> App: 開始で ready (onReady)
+  Onboarding --> Later: Esc / あとで設定する (onLater)
+  Later --> Onboarding: 初回設定を続ける / GET setup
+  Later --> App: SSE setup で ready / 案内を消す
+  Later: 一覧・Update・SSE 稼働 / 案内表示
+```
+
 ## 開いた会話の結果だけを描く
 
 ### D1 failed-input display: function map and data flow

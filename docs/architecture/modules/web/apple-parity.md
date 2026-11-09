@@ -8,7 +8,7 @@ Appleのpathは `ios/BellBot/BellBot/` 起点。Webは `web/` 起点。
 
 | 機能 | Apple callerと公開API | 固定Webの実装 | 差分/保存・失敗・復帰 |
 | --- | --- | --- | --- |
-| 起動/認証/案内 | AppStore / LoginView / OnboardingView → session/setup/harness-auth | application/onboarding/harness-auth/auth-flow | あり。認証要求と接続失敗を分け、秘密は閉じる/非表示で消去 |
+| 起動/認証/案内 | AppStore / LoginView / OnboardingView → session/setup/harness-auth | application/onboarding/harness-auth/auth-flow | あり。認証要求と接続失敗を分け、秘密は閉じる/非表示で消去。Webの初回画面はEsc/「あとで設定する」で閉じ、Updateへ進める（Apple側の同等はベル） |
 | 一覧/検索 | HomeView / DesktopWorkspaceView、AppStore → GET bots/rooms | application | Web検索なし。Appleもnameのみ。今回役職とroom参加者役職を追加。選択/下書きはフィルタで消さない |
 | 今の仕事 | Home/Desktopはrecent.preview。仕事要約実装なし | recent本文 | Owner追加。両一覧currentWork契約/provider未供給。未取得表示。member稼働をroomへ帰属しない |
 | ルーム管理/返信者 | ManagementView RoomEditor → POST/PATCH/DELETE rooms、ConversationView target picker | room-editor/application | 既存CRUDあり。名前/役職で参加者絞込み・選択保持・未保存警告を追加 |

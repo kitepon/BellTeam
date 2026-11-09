@@ -22,7 +22,7 @@ flowchart LR
 
 | 公開窓口 | 入力 | 出力・所有 |
 | --- | --- | --- |
-| `ui` / `createWebApp({client})` | ブラウザーDOMとclientの`api/fetchImage/watchEvents` | `start()`。構築/importでは通信を始めず、startでsession→設定→setup→一覧→SSE。app.jsが一度呼ぶ |
+| `ui` / `createWebApp({client})` | ブラウザーDOMとclientの`api/fetchImage/watchEvents` | `start()`。構築/importでは通信を始めず、startでsession→設定→setup→一覧→SSE。setup未完了の初回画面は閉じられ、閉じても一覧→Update→SSEへ進む（[初回設定はあとへ回せる](conversation.md#初回設定はあとへ回せる)）。app.jsが一度呼ぶ |
 | `createWebClient({fetch,setTimeout,clearTimeout})` | 標準fetchとtimer（省略時はブラウザー） | `api(path,options)`はJSON/204とstatus付きError（公開されたcode/path/reasonも保持）、`fetchImage`はResponse、`watchEvents(onEvent,onError,onUpdates?)`は解除関数。人工fetchへ丸ごと差替可能 |
 | `assets` / `assets.mjs` | integrationからのimport | `webAssetFiles`（公開path→Web内ファイル）、`versionedWebAssets`（版置換対象）。HTTP認証/stream/headerはintegrationが持つ |
 

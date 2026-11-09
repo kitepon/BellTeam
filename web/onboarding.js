@@ -1,10 +1,9 @@
 import { authFlowView, renderAuthFlow } from './auth-flow.js?v=__ASSET_VERSION__'
 
-export function openOnboarding(initial, { api, onReady }) {
+export function openOnboarding(initial, { api, onReady, onLater }) {
   const dialog = document.createElement('dialog')
   dialog.className = 'sheet-dialog onboarding-dialog'
   dialog.setAttribute('aria-label', 'BellTeamの初回設定')
-  dialog.addEventListener('cancel', event => event.preventDefault())
   const content = document.createElement('div')
   content.className = 'sheet-body onboarding-body'
   dialog.append(content)
@@ -14,6 +13,7 @@ export function openOnboarding(initial, { api, onReady }) {
   let revision = 0
   let inputBlocked = false
   let stopped = false
+  let ready = false
   let timer
   let errorText = ''
   let password
@@ -30,6 +30,7 @@ export function openOnboarding(initial, { api, onReady }) {
     clear()
     document.removeEventListener('visibilitychange', visibility)
     dialog.remove()
+    if (!ready) void onLater?.(setup)
   }, { once: true })
   function button(label, action) {
     const item = document.createElement('button')
@@ -72,7 +73,7 @@ export function openOnboarding(initial, { api, onReady }) {
     try {
       setup = await action()
       inputBlocked = false
-      if (setup.phase === 'ready') { await onReady(setup); dialog.close(); return }
+      if (setup.phase === 'ready') { ready = true; await onReady(setup); dialog.close(); return }
     } catch (error) { errorText = error.message }
     finally { busy = false; if (!stopped) { render(); schedule() } }
   }
@@ -107,6 +108,9 @@ export function openOnboarding(initial, { api, onReady }) {
       content.append(change)
     }
     if (errorText) content.append(Object.assign(document.createElement('p'), { className: 'form-error', textContent: errorText }))
+    const later = Object.assign(document.createElement('button'), { type: 'button', className: 'text-button', textContent: 'あとで設定する' })
+    later.addEventListener('click', () => dialog.close())
+    content.append(later)
   }
   render()
   dialog.showModal()
