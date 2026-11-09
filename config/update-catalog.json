@@ -722,8 +722,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "CLI receives only its selected login in its environment.",
-        "Gateway drain no-veto."
+        "設定環境を変えず、選んだアカウントのログイン情報だけをCLIへ渡せるようにします。",
+        "ゲートウェイ切替時は、旧版の停止待ちが時間切れでも、新しい版への切替を続けます。"
       ]
     },
     {
@@ -745,8 +745,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "CLI receives only its selected login in its environment.",
-        "Gateway drain no-veto."
+        "設定環境を変えず、選んだアカウントのログイン情報だけをCLIへ渡せるようにします。",
+        "ゲートウェイ切替時は、旧版の停止待ちが時間切れでも、新しい版への切替を続けます。"
       ]
     }
   ],
