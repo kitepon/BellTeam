@@ -4,12 +4,12 @@
 
 Cause (Centi classified, Trony ruling): Web766 publisher run 42566309359 attempts 1 and 2 failed on an intermittent github.com HTTP 504 for the unchanged formal memory archive URL, before OIDC/sign/upload; the same URL later returned 200. `check-update-catalog-publication.py:download` made one 30 s request and gave up. That give-up named no protection.
 
-`download` now repeats the request on the same URL and headers when the failure is transient: HTTP 408/425/429/500/502/503/504, or a network/timeout/truncated-read error. It waits 2 s, doubling up to 30 s, for at most 240 s from the first request (inside the job's 10 min). Every other HTTP status (404, 401, 403, ...) is raised at once. Retry happens only before bytes are accepted; the byte cap, then `download_asset`'s size/sha256, then signature/archive/formal-release checks run unchanged on the bytes that arrived, and their failures are never retried. No API-only substitute URL, no rebuild/re-sign. When the window passes, the error is raised as before: the preflight refuses before signing (protection: never sign a catalog whose formal targets were not read), and the next ordinary publisher run from main is the exit.
+`download` now repeats the request on the same URL and headers when the failure is transient: HTTP 408/425/429/500/502/503/504, or a network/timeout/truncated-read error. New attempts are scheduled with a 2 s backoff doubling up to 30 s, within a 240 s retry window measured from the first request. The last request retains the existing 30 s timeout, and the workflow retains its 10 min job timeout. Every other HTTP status (404, 401, 403, ...) is raised at once. Retry happens only before bytes are accepted; the byte cap, then `download_asset`'s size/sha256, then signature/archive/formal-release checks run unchanged on the bytes that arrived, and their failures are never retried. No API-only substitute URL, no rebuild/re-sign. When the window passes, the error is raised as before: the preflight refuses before signing (protection: never sign a catalog whose formal targets were not read), and the next ordinary publisher run from main is the exit.
 
 ```mermaid
 flowchart LR
   Req[GET fixed public URL] -->|2xx| Cap[byte cap]
-  Req -->|408/425/429/5xx, network, timeout, truncated| Wait{within 240 s?}
+  Req -->|408/425/429/500/502/503/504, network, timeout, truncated| Wait{within 240 s?}
   Wait -->|yes: sleep 2..30 s| Req
   Wait -->|no| Refuse[raise: refuse before OIDC/sign/upload]
   Req -->|other HTTP status| Refuse

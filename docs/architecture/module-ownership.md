@@ -71,4 +71,4 @@ Owner承認・トロニー伝達（2026-11-08）により、本体コンテナ�
 
 ## モジュール更新の現在の受渡し
 
-薄い親・安定facade・全module共通ledger/adapter組立はモリー、共通交換runner/controllerはエピネル。業務内部はwebアドミ、notifications/usageミカ、membersベロータ、conversation N102、executionキロ、memoryビスケット、diagnosticsシグナル、配布モリー（製品試験センチ）。diagnosticsのFragile一時割当は撤回、BugHub担当は変えない。個別の入出力・同state writer・世代/close-drain・失敗出力は各moduleの正本、共通接続はintegrationの正本へ置く。既3controllerのadapter/共通ledgerを先行し、会話/usage/memory等の全納品を待つ条件にしない。未供給moduleは未対応を明示し、正本を読めない状態で成功へ投影しない。
+薄い親・安定facade・全module共通ledger/adapter組立はモリー、共通交換runner/controllerはモリー。業務内部はwebアドミ、notifications/usageミカ、membersベロータ、conversation N102、executionキロ、memoryビスケット、diagnosticsシグナル、配布モリー（製品試験センチ）。diagnosticsのFragile一時割当は撤回、BugHub担当は変えない。個別の入出力・同state writer・世代/close-drain・失敗出力は各moduleの正本、共通接続はintegrationの正本へ置く。既3controllerのadapter/共通ledgerを先行し、会話/usage/memory等の全納品を待つ条件にしない。未供給moduleは未対応を明示し、正本を読めない状態で成功へ投影しない。

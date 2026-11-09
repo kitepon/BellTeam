@@ -2,7 +2,7 @@
 
 責任者：モリー（2026-11-08 Owner裁定：本体・部品の入れ替え・image定義を含む）。センチは製品試験だけを持つ。
 
-配布構成・候補build・image/source受入・公開版発行とpromotion。設置/移行の実装はエピネル、本番実行はトロニー。
+配布構成・候補build・image/source受入・公開版発行とpromotion。設置/移行の実装はモリー、本番実行はトロニー。
 
 接続の正本は[module.json](module.json)。全体の[機能図](../../feature-map.md)と[担当・変更手順](../../module-ownership.md)から、呼出元と依存先を辿る。
 
