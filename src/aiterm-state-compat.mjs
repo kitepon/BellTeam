@@ -67,7 +67,8 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
     // Line 2 is the suffix of the installer's aiterm=preserved line.
     console.log(JSON.stringify(selection) + '\n' + (selection.note ? ` note=${selection.note}` : selection.resets.length ? ` reset=${selection.resets.map(r => r.store).join(',')}` : ''))
   } else if (mode === 'apply') {
-    const [root, file, line] = args
-    applyResets(root, file && existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : null, line)
+    // Selection on stdin; empty = none (reset path). A malformed selection throws: the installer reports the failed step.
+    const [root, line] = args, text = readFileSync(0, 'utf8').trim()
+    applyResets(root, text ? JSON.parse(text) : null, line)
   } else process.exit(2)
 }
