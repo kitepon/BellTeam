@@ -1,6 +1,6 @@
 # Remote seat ingress and terminals mount (C4, P1)
 
-Owner: Molly (integration). Contract C4 of [terminals](../terminals/README.md#cross-contracts-for-tronys-ruling), plan F-SEAT-HOST (Trony). P1 scope: Owner's Mac + Claude, existing key, no sudo, API/MCP configuration.
+Owner: Molly (integration). Contract C4 of [terminals](../terminals/README.md#cross-contracts-adopted-by-trony), plan F-SEAT-HOST (Trony). P1 scope: Owner's Mac + Claude, existing key, no sudo, API/MCP configuration.
 
 This document owns three parent pieces: the LAN seat MCP endpoint, the per-launch seat credential, and the in-parent mount of the terminals core (execution ports, HTTP/MCP surfaces). Terminal registry/reachability/connection internals are Crust's; remote PTY is Elegg's; credential resolution is Mika's; seat lifecycle is Kiro's.
 
