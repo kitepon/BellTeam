@@ -15,6 +15,7 @@ Object.assign(process,{getuid:()=>1000,geteuid:()=>1000,getgid:()=>1000,cwd:()=>
 registerHooks({
  resolve(specifier,context,next){return specifier==='./aiterm-client.mjs'?{url:'fixture:aiterm-client',shortCircuit:true}:next(specifier,context)},
  load(url,context,next){return url==='fixture:aiterm-client'?{format:'module',shortCircuit:true,source:
+  "export const runtimeLaunchEnv=()=>({}); export const accountLoginEnvironment=async()=>({});"+
   "export class AitermClient { async call(){throw Object.assign(new Error('synthetic refusal'),JSON.parse(process.env.FIXTURE_ERROR))} async close(){} }"}:next(url,context)}
 });
 await import(process.env.TEST_ENTRY);

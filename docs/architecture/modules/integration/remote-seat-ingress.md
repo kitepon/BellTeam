@@ -9,10 +9,10 @@ This document owns three parent pieces: the remote seat MCP endpoint (container 
 ```mermaid
 flowchart LR
   Exec[execution remote path / Kiro]
-  Cred[ingress.seatCredential: issue / revoke]
+  Cred[ingress.seatCredential: issue / reveal / revoke]
   Store[(state/seat-credentials.json: sha256 only)]
   Core[terminals core / Crust: registry, reachability, connection]
-  Private[parent-side private launch channel / Elegg]
+  Private[existing seat-user launcher / runtime / Elegg]
   Native[Aiterm remote adapter / Elegg]
   Mac[Remote Claude seat, cwd = projectRoot]
   Forward[Aiterm SSH reverse forward / Elegg: terminal 127.0.0.1:P stable per terminal -> container 127.0.0.1:4182]
@@ -23,13 +23,15 @@ flowchart LR
   Usage[usage credentials / Mika]
   Status[aiterm-remote-terminal status --ref / Elegg, UID 1000]
   Exec -->|issue botId, sessionName, terminalId| Cred
-  Cred -->|ingressUrl| Core
+  Cred -->|registry.get: terminal exists| Core
   Cred <--> Store
   Cred -->|url, credentialRef| Exec
-  Exec -->|open with credentials.BELLTEAM_MCP_TOKEN = credentialRef| Core
-  Core --> Private
-  Private -->|reveal credentialRef| Cred
-  Private --> Native
+  Exec -->|connection.target: terminalId, memberId, projectRoot, harness| Core
+  Core -->|connection.target: terminal, cwd, accountOwner| Exec
+  Exec -->|reveal credentialRef| Cred
+  Cred -->|token only as privateEnv in launcher stdin JSON| Private
+  Exec -->|agent_launch: terminal, cwd, privateEnvNames| Private
+  Private -->|environment names / Aiterm launch| Native
   Native <--> Mac
   Core -->|handles| Usage
   Usage -->|native provider status ref| Status
@@ -47,11 +49,11 @@ flowchart LR
 
 | ID | From -> to | Payload / persistence |
 | --- | --- | --- |
-| RS01 | execution -> `ingress.seatCredential.issue({botId, sessionName, terminalId})` | Called right before the remote launch. `sessionName` keeps today's forms (`<botId>` or `<botId>-<1st\|2nd>-<base36>`) and must resolve to `botId` by the existing account-seat rule (#759). Returns `{url, credentialRef}`: `url = <terminal.ingressUrl>/api/seat-mcp` (call-bridge at `url + '/call-bridge'`); `ingressUrl` is read from the terminal record (core `registry.get`). Errors: `SEAT_CREDENTIAL_INVALID` (400, bad input/name), `TERMINAL_NOT_FOUND` (404), `TERMINAL_INGRESS_UNSET` (409), save failure as-is |
-| RS02 | seat-credentials store | 256-bit random token; saved as sha256 + `{botId, sessionName, terminalId, issuedAt}` by `writeAtomic` (temp + rename, 0600). One per sessionName; a new issue replaces the old token. The token is never saved, logged or put in JSON |
-| RS03 | `credentialRef` | Opaque frozen object; `JSON.stringify` and `String` give `"[seat credential]"`. Only `seatCredentials.reveal(credentialRef)` returns the token, and only the parent-side private launch channel (Crust/Elegg, injected into `createTerminalsCore`) calls it, to set `Authorization: Bearer <token>` for both MCP servers inside Claude's in-memory MCP config. Nothing is written to the terminal's home or the user's repository; no `--strict-mcp-config`, so the folder's own MCP servers still load |
+| RS01 | execution -> `ingress.seatCredential.issue({botId, sessionName, terminalId})` | Called right before the remote launch. `sessionName` keeps today's forms (`<botId>` or `<botId>-<1st\|2nd>-<base36>`) and must resolve to `botId` by the existing account-seat rule (#759). The terminal must be registered (`registry.get`). Returns `{url, credentialRef}`: `url = http://127.0.0.1:${BELLTEAM_REMOTE_SEAT_PORT:-4182}/api/seat-mcp` (call-bridge at `url + '/call-bridge'`), the container target; Aiterm rewrites its origin to the terminal's reverse-forward end, so the terminal's `ingressUrl` is no longer read. Errors: `SEAT_CREDENTIAL_INVALID` (400, bad input/name), `TERMINAL_NOT_FOUND` (404), save failure as-is |
+| RS02 | seat-credentials store | 256-bit random token; saved as sha256 + `{botId, sessionName, terminalId, issuedAt}` by `writeAtomic` (temp + rename, 0600). One per sessionName; a new issue replaces the old token. The token is never saved, logged or exposed in public MCP/card/history JSON; the launcher-stdin `privateEnv` JSON request in RS03 is the only JSON exception |
+| RS03 | `credentialRef` -> `ingress.seatCredential.reveal(credentialRef)` -> seat launcher stdin | Opaque frozen object; `JSON.stringify` and `String` give `"[seat credential]"`. Only `reveal` returns the token. One launch path (Owner ruling 2026-11-09): execution calls `reveal` only inside its Aiterm seat launch call and puts the value into the launcher's stdin request as `privateEnv: {BELLTEAM_MCP_TOKEN}` with `privateEnvNames`; the launcher (`run-seat-aiterm-launch.mjs`, runtime) sets it in its own process env and passes only the names to Aiterm, which moves the mcp_config `Authorization: Bearer ${BELLTEAM_MCP_TOKEN}` header into the seat's environment. The token is never in argv, a file, the PTY, a log, or public MCP/card/history JSON; its launcher-stdin `privateEnv` request is the explicit JSON exception. Terminals no longer reveal |
 | RS04 | execution -> `ingress.seatCredential.revoke({sessionName})` | Seat closed or replaced -> credential removed (idempotent) |
-| RS05 | remote seat -> Aiterm SSH reverse forward -> remote seat listener | `POST/GET/DELETE /api/seat-mcp[/call-bridge]` (MCP Streamable HTTP, HTTP/1.1) with bearer. The parent serves these two paths on a dedicated listener bound to `127.0.0.1:${BELLTEAM_REMOTE_SEAT_PORT:-4182}` inside the body container; every other path is 404, so no other API is reachable through the forward. Elegg's `aiterm-remote-terminal serve` (UID 1000, same container) holds one reverse forward per terminal (one Aiterm process, lock in its state root) to `127.0.0.1:4182`, reconnecting while that terminal has seats. The terminal-side loopback port P is per terminal and stable: the first forward lets the terminal pick it, Aiterm records it in the binding and requests the same P on every reconnect, because a seat keeps the URL it was launched with while the SSH connection can be replaced. At `agent_launch`, serve rewrites scheme+host:port of every mcp_config server `url` to `http://127.0.0.1:P`, keeping path/query and headers. So the origin of RS01's `url` is replaced by Aiterm and never used by the seat; any http origin works (owner-macbook keeps `ingressUrl: http://127.0.0.1:4182`). A refused forward fails that launch with `SEAT_FORWARD_UNAVAILABLE` (the next open retries). Launch shape (one launch path, Owner ruling): Kiro calls Aiterm's normal `agent_launch`/`claude_agent` with `terminal: {ref, target, trustRevision, credentialRevision}` and `cwd`; the bearer goes in mcp_config as `Authorization: "Bearer ${NAME}"` with NAME in env_vars (or a literal header), and Aiterm moves header values out of the config file into the seat's environment, so the token is never in a file, argv, PTY or log. The public listener (gateway 4180 / host 18891) no longer serves `/api/seat-mcp`; there it needs the Owner session like any `/api/*`. A failed bind logs `REMOTE_SEAT_LISTEN_FAILED` and the body keeps serving (remote seats get no MCP until the next start) |
+| RS05 | remote seat -> Aiterm SSH reverse forward -> remote seat listener | `POST/GET/DELETE /api/seat-mcp[/call-bridge]` (MCP Streamable HTTP, HTTP/1.1) with bearer. The parent serves these two paths on a dedicated listener bound to `127.0.0.1:${BELLTEAM_REMOTE_SEAT_PORT:-4182}` inside the body container; every other path is 404, so no other API is reachable through the forward. Elegg's `aiterm-remote-terminal serve` (UID 1000, same container) holds one reverse forward per terminal (one Aiterm process, lock in its state root) to `127.0.0.1:4182`, reconnecting while that terminal has seats. The terminal-side loopback port P is per terminal and stable: the first forward lets the terminal pick it, Aiterm records it in the binding and requests the same P on every reconnect, because a seat keeps the URL it was launched with while the SSH connection can be replaced. At `agent_launch`, serve rewrites scheme+host:port of every mcp_config server `url` to `http://127.0.0.1:P`, keeping path/query and headers. So the origin of RS01's `url` (the container target) is replaced by Aiterm and never used by the seat. A refused forward fails that launch with `SEAT_FORWARD_UNAVAILABLE` (the next open retries). Launch shape (one launch path, Owner ruling): Kiro calls Aiterm's normal `agent_launch`/`claude_agent` with `terminal: {ref, target, trustRevision, credentialRevision}` and `cwd`; the bearer goes in mcp_config as `Authorization: "Bearer ${NAME}"` with NAME in env_vars (or a literal header), and Aiterm moves header values out of the config file into the seat's environment, so the token is never in a file, argv, PTY or log. The public listener (gateway 4180 / host 18891) no longer serves `/api/seat-mcp`; there it needs the Owner session like any `/api/*`. A failed bind logs `REMOTE_SEAT_LISTEN_FAILED` and the body keeps serving (remote seats get no MCP until the next start) |
 | RS06 | ingress -> `seatCredentials.verify` | bearer -> binding or null. Then the existing `resolveSeatBotId` on `binding.sessionName` must return `binding.botId` (member deleted -> rejected) |
 | RS07 | ingress -> seat-mcp | Client `X-Bellteam-Seat` and `Authorization` dropped; `X-Bellteam-Seat = binding.sessionName`; client `X-Bellteam-Launch-Id` kept only as today's runtime launch claim (format-checked, compared by execution, never proof). Path mapped to `/mcp[/call-bridge]`. `executionSource` keeps the same `{sourceSession, source: {launch}}` shape, so configureFromMcp/handoff work unchanged. Same tools and `{kind:'bot', botId}` authority as a local seat; no Owner authority |
 | RS08 | core `watch` -> execution | Availability events pass through unchanged (drain resume belongs to execution) |
@@ -94,7 +96,7 @@ Protection: a caller cannot speak as a seat it was not launched as (privilege es
 
 | Member | Used by | Shape |
 | --- | --- | --- |
-| `registry.list()` / `get(terminalId)` | HTTP, MCP, `seatCredential.issue` | nonsecret projections; `get` returns null when absent. The projection carries `ingressUrl` (`http(s)://host[:port]`, how this terminal reaches BellTeam; for a forwarded terminal any http origin, replaced by Aiterm with that terminal's forward end (RS05)) |
+| `registry.list()` / `get(terminalId)` | HTTP, MCP, `seatCredential.issue` | nonsecret projections; `get` returns null when absent. `seatCredential.issue` only checks that the terminal exists; the projection's `ingressUrl` is no longer read (Crust may drop it) |
 | `registry.put(input)` / `remove(terminalId)` | HTTP, MCP | upsert by terminalId; `ingressUrl: null` clears; optional `confirmHostKey: 'SHA256:…'` confirms host trust. Validation and typed errors (`code` + `status`) are the core's |
 | `reachability.check(terminalId)` | HTTP, MCP | the core's observation DTO |
 | `connection` | execution `ports.terminals.connection` | passed as-is; methods are the terminals/execution contract (PR #765) |
