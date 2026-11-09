@@ -59,6 +59,8 @@ const ERRORS = {
 }
 const errorText = error => ERRORS[error?.code] ?? '結果を確認できませんでした。一覧を更新して確かめてください。'
 const keyLabel = { ssh: 'SSH鍵', sudo: 'sudo鍵' }
+// Source of each purpose's key. The native (terminal-held) capability is SSH only (usage C5), so the shared keySource never describes sudo.
+export const keySourceOf = (terminal, purpose) => purpose === 'ssh' ? terminal?.sshKeySource ?? terminal?.keySource : terminal?.sudoKeySource ?? 'secret'
 const sourceLabel = { 'terminal-native': '端末の鍵', secret: '秘密入力' }
 
 const element = (tag, text, className) => {
@@ -119,8 +121,9 @@ export function createTerminalsView(dialog, { api }) {
   }
 
   const check = id => run(`check:${id}`, () => api(`/api/terminals/${id}/check`, { method: 'POST' }), observation => { opened.observations.set(id, observation); say('') })
-  const save = (id, fields) => run(`save:${id}`, () => api(`/api/terminals/${id}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(fields) }),
-    async () => { opened.editing = null; opened.draft = null; opened.observations.delete(id); say(''); await load() })
+  // done() runs only after a successful save, in the same open dialog; each caller decides whether its intent is still current.
+  const save = (id, fields, done) => run(`save:${id}`, () => api(`/api/terminals/${id}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(fields) }),
+    async () => { const current = opened; current.observations.delete(id); say(''); await load(); if (opened === current) done() })
   const remove = terminal => {
     if (!window.confirm(`端末「${terminal.terminalId}」の登録を消しますか？\nこの端末を使うメンバーの設定と、届いていない依頼は残ります。`)) return
     return run(`remove:${terminal.terminalId}`, () => api(`/api/terminals/${terminal.terminalId}`, { method: 'DELETE' }), async () => { opened.observations.delete(terminal.terminalId); await load() })
@@ -144,14 +147,15 @@ export function createTerminalsView(dialog, { api }) {
     const configured = terminal[`${purpose}KeyConfigured`]
     const row = element('div', undefined, 'terminal-key')
     row.append(element('span', keyLabel[purpose], 'terminal-key-name'))
-    row.append(configured === true ? badge(purpose === 'ssh' && sourceLabel[terminal.keySource] ? `設定済み · ${sourceLabel[terminal.keySource]}` : '設定済み', 'ok')
+    const source = keySourceOf(terminal, purpose)
+    row.append(configured === true ? badge(sourceLabel[source] ? `設定済み · ${sourceLabel[source]}` : '設定済み', 'ok')
       : configured === false ? badge(purpose === 'ssh' ? '未設定' : 'なし', purpose === 'ssh' ? 'attention' : 'muted') : badge('未確認', 'muted'))
     const busy = opened.busy.has(`key:${terminal.terminalId}`)
     if (opened.keyRoute) {
       const setter = button(configured ? '入れ直す' : '設定する', () => { void setKey(terminal, purpose) })
       setter.disabled = busy
       row.append(setter)
-      if (configured === true && terminal.keySource !== 'terminal-native') { const unbind = button('外す', () => { void unbindKey(terminal, purpose) }, 'text-button'); unbind.disabled = busy; row.append(unbind) }
+      if (configured === true && source !== 'terminal-native') { const unbind = button('外す', () => { void unbindKey(terminal, purpose) }, 'text-button'); unbind.disabled = busy; row.append(unbind) }
     }
     return row
   }
@@ -160,7 +164,7 @@ export function createTerminalsView(dialog, { api }) {
     const node = element('form', undefined, 'terminal-form')
     const field = (label, input, help = '') => { const wrap = element('label', undefined, 'field'); wrap.append(element('span', label), input); if (help) wrap.append(element('small', help, 'field-help')); return wrap }
     const input = (value, attributes) => { const node = element('input'); Object.assign(node, attributes); node.value = value ?? ''; return node }
-    const draft = opened.draft ?? (opened.draft = { terminalId: terminal?.terminalId ?? '', host: terminal?.host ?? '', user: terminal?.user ?? '', port: String(terminal?.port ?? 22), accountOwner: terminal?.accountOwner ?? 'owner' })
+    const draft = opened.draft ?? (opened.draft = { terminalId: terminal?.terminalId ?? '', host: terminal?.host ?? '', user: terminal?.user ?? '', port: String(terminal?.port ?? 22), accountOwner: terminal?.accountOwner ?? 'owner', revision: 0 })
     const id = input(draft.terminalId, { required: true, pattern: '[a-z0-9][a-z0-9\\-]{0,62}', maxLength: 63, placeholder: 'owner-macbook', disabled: Boolean(terminal), autocapitalize: 'none', spellcheck: false })
     const host = input(draft.host, { required: true, maxLength: 253, placeholder: '192.168.1.12', autocapitalize: 'none', spellcheck: false })
     const user = input(draft.user, { required: true, maxLength: 64, placeholder: 'kite', autocapitalize: 'none', spellcheck: false })
@@ -169,7 +173,7 @@ export function createTerminalsView(dialog, { api }) {
     for (const [value, label] of [['owner', '自分の機械（自分のClaudeアカウントで動かす）'], ['terminal-owner', 'ほかの人の機械（その機械のClaudeログインで動かす）']]) { const option = element('option', label); option.value = value; owner.append(option) }
     owner.value = draft.accountOwner
     // Typed values survive re-renders (busy state, a failed save) until the form is closed.
-    node.addEventListener('input', () => Object.assign(draft, { terminalId: id.value, host: host.value, user: user.value, port: port.value, accountOwner: owner.value }))
+    node.addEventListener('input', () => Object.assign(draft, { terminalId: id.value, host: host.value, user: user.value, port: port.value, accountOwner: owner.value, revision: draft.revision + 1 }))
     node.append(element('h4', terminal ? `「${terminal.terminalId}」を編集` : '端末を追加'),
       field('端末ID', id, '英小文字・数字・ハイフン。あとから変えられません。'), field('ホスト', host, 'IPアドレスかホスト名だけ。user@ やポートは入れません。'),
       field('ユーザー名', user), field('SSHのポート', port), field('機械の持ち主', owner), element('p', 'OSは今は macOS だけです。鍵は、登録したあとに「設定する」から入れます。', 'field-help'))
@@ -181,7 +185,12 @@ export function createTerminalsView(dialog, { api }) {
     node.addEventListener('submit', event => {
       event.preventDefault()
       const terminalId = terminal?.terminalId ?? id.value.trim()
-      void save(terminalId, { host: host.value.trim(), user: user.value.trim(), port: Number(port.value), os: 'macos', accountOwner: owner.value })
+      const revision = draft.revision
+      // Close only the form this save came from, unchanged since the tap (bot-editor pattern); newer add/edit/input stays.
+      void save(terminalId, { host: host.value.trim(), user: user.value.trim(), port: Number(port.value), os: 'macos', accountOwner: owner.value }, () => {
+        if (opened.draft === draft && draft.revision === revision) { opened.editing = null; opened.draft = null }
+        else say('保存しました。そのあとに変えた入力は残しています。')
+      })
     })
     return node
   }
@@ -200,7 +209,7 @@ export function createTerminalsView(dialog, { api }) {
       event.preventDefault()
       const fingerprint = input.value.trim()
       if (!fingerprint.startsWith('SHA256:')) { say('指紋は SHA256: から始まる形で入れてください。'); return }
-      void save(terminal.terminalId, { confirmHostKey: fingerprint }).then(() => opened?.trustDraft.delete(terminal.terminalId))
+      void save(terminal.terminalId, { confirmHostKey: fingerprint }, () => { if (opened.trustDraft.get(terminal.terminalId)?.trim() === fingerprint) opened.trustDraft.delete(terminal.terminalId) })
     })
     return node
   }
