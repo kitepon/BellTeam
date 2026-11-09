@@ -286,7 +286,8 @@ def publication_candidates(records, channel='stable'):
         if names.count('catalog.json') == names.count('catalog.json.sigstore.json') == 1:
             base = 'https://github.com/kitepon/BellTeam/releases/download/' + tag + '/catalog.json'
             found.append(dict(tag=tag, catalogUrl=base, bundleUrl=base + '.sigstore.json'))
-    return found[:10]
+    # GitHub's list order is not recency; pick the newest tags over all rows before the cut.
+    return sorted(found, key=lambda value: value['tag'], reverse=True)[:10]
 
 
 def discover_publications():

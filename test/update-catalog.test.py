@@ -111,6 +111,11 @@ class CatalogTest(unittest.TestCase):
         with self.assertRaises(ValueError): publication_candidates([record], 'preview')
         for channel in ('stable', 'candidate'):  # bool identity: 0/1 are malformed, not False/True
             self.assertEqual(publication_candidates([{**record, 'prerelease':0}, {**record, 'prerelease':1}], channel), [])
+        # The newest tag wins over all rows even when GitHub lists it after more than ten older catalogs.
+        rows = [{**record, 'tag_name': 'updates-202611%02dT000000Z' % day} for day in range(1, 13)]
+        newest = {**record, 'prerelease': True, 'tag_name': 'updates-20261113T000000Z'}
+        self.assertEqual(publication_candidates(rows + [newest], 'candidate')[0]['tag'], newest['tag_name'])
+        self.assertEqual(publication_candidates(rows + [newest])[0]['tag'], 'updates-20261112T000000Z')
 
     def test_publisher_and_pin_use_only_successful_certificate_subject(self):
         raw = json.dumps(fixture()).encode(); digest = hashlib.sha256(raw).hexdigest()
