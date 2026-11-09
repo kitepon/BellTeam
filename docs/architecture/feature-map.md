@@ -18,6 +18,7 @@ flowchart LR
   m_members["メンバー・予定 / ベロータ"]
   m_memory["記憶・知識 / ビスケット"]
   m_runtime["実行環境・更新復旧 / モリー"]
+  m_terminals["端末接続（P0設計） / クラスト"]
   m_usage["利用設定・通知 / ミカ"]
   m_web["Webアプリ / アドミ"]
   m_work_graph["相関図 / アークレンジャー・ブラック"]
@@ -66,6 +67,7 @@ flowchart LR
   m_runtime -->|"image"| m_distribution
   m_runtime -->|"members-admission"| m_execution
   m_runtime -->|"runtime-artifact"| m_distribution
+  m_terminals -->|"settings"| m_usage
   m_usage -->|"registry"| m_members
   m_usage -->|"messages"| m_conversation
   m_usage -->|"cli-registration"| m_runtime
@@ -97,6 +99,7 @@ flowchart LR
   m_memory["記憶・知識 / ビスケット"]
   m_rtk["RTK / ドリリー"]
   m_runtime["実行環境・更新復旧 / モリー"]
+  m_terminals["端末接続（P0設計） / クラスト"]
   m_testgate["testgate / シラツル"]
   m_throughline["Throughline / リヴァリン"]
   m_usage["利用設定・通知 / ミカ"]
@@ -115,6 +118,7 @@ flowchart LR
   m_runtime -->|"relay"| m_mcp_lazy
   m_runtime -->|"hook"| m_rtk
   m_runtime -->|"hook"| m_testgate
+  m_terminals -->|"native"| m_aiterm
   m_usage -->|"native"| m_aiterm
   m_windows -->|"HTTP/SSE"| m_integration
 ```
@@ -139,6 +143,7 @@ flowchart LR
 | [記憶・知識](modules/memory/README.md) | ビスケット | memory |
 | [RTK](modules/rtk/README.md) | ドリリー | hook |
 | [実行環境・更新復旧](modules/runtime/README.md) | モリー | lifecycle / seat-process / project-files / cli-registration / module-runner / update / module-runner |
+| [端末接続（P0設計）](modules/terminals/README.md) | クラスト | registry / reachability / connection / privilege |
 | [testgate](modules/testgate/README.md) | シラツル | hook |
 | [Throughline](modules/throughline/README.md) | リヴァリン | context |
 | [利用設定・通知](modules/usage/README.md) | ミカ | settings / notify / auth |
