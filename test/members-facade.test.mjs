@@ -82,6 +82,19 @@ test('seat identity uses fresh read and separates confirmed absence from unavail
   assert.equal(await resolveSeatBotId({ headers: { 'x-bellteam-seat': '../forged' } }, bots), null)
 })
 
+test('an account seat name resolves to its Bot after the exact name is confirmed absent', async () => {
+  const { resolveSeatBotId } = await import('../src/seat-mcp.mjs')
+  const seat = id => ({ headers: { 'x-bellteam-seat': id } }), read = []
+  const missing = () => Object.assign(new Error(), { code: 'BOT_NOT_FOUND', status: 404 })
+  const bots = { has: () => true, async readMember(id) { read.push(id); if (id !== 'bot-7b140b27') throw missing(); return { id } } }
+  assert.equal(await resolveSeatBotId(seat('bot-7b140b27-2nd-mw8hc4gr'), bots), 'bot-7b140b27')
+  assert.deepEqual(read, ['bot-7b140b27-2nd-mw8hc4gr', 'bot-7b140b27'])
+  assert.equal(await resolveSeatBotId(seat('bot-gone-2nd-mw8hc4gr'), bots), null)
+  assert.equal(await resolveSeatBotId(seat('bot-7b140b27-2nd'), bots), null)
+  const down = { async readMember(id) { if (id.endsWith('-mw8hc4gr')) throw missing(); throw Object.assign(new Error(), { status: 503 }) } }
+  await assert.rejects(resolveSeatBotId(seat('bot-7b140b27-2nd-mw8hc4gr'), down), { status: 503 })
+})
+
 test('removal and CLI queue read use closed methods with the same live effect context', async () => {
   const admission = new MembersAdmission(), lease = admission.enter(), effect = Object.freeze({}), calls = []
   const f = createMembersFacade({ admission, projection: {}, request: async (method, params, options) => {

@@ -11,7 +11,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import { bellTeamTools, callBellTeamTool } from './mcp-tools.mjs'
 
 // 席の名札。各CLIの設定が、席のCLIの環境変数 AITERM_SESSION_ID をこのヘッダへ写す（harness-config.mjs）。
-// Aitermは席のCLIを Bot ID と同じ名前のセッションで起こし、この変数をセッションごとに必ず付ける。
+// Aitermは席のCLIを Bot ID（アカウント席は `<botId>-<slot>-<base36>`）の名前のセッションで起こし、この変数をセッションごとに必ず付ける。
 // 席が起こした子は自分のセッション名を持つので、台帳に無い名札になる。
 export const SEAT_HEADER = 'X-Bellteam-Seat'
 export const SEAT_VARIABLE = 'AITERM_SESSION_ID'
@@ -23,23 +23,32 @@ export const CALLER_ID_HEADER = 'X-Call-Bridge-Caller-Id'
 
 const INSTRUCTIONS = 'BellTeamのBot、プロフィール、アバター、予定、直接会話、ルーム、長期記憶、RAGはこのMCPで扱う。セキュリティの問題（SEC番号の所見）の一覧・詳細・登録・編集・完了・再開は、bughub_で始まる道具でBugHubへ記録する。'
 
+// Bot ids the seat name can speak for: the name itself, then for an account seat
+// (`<botId>-<slot>-<base36>`, execution harness-accounts) the Bot id before that suffix.
+function seatCandidates(value) {
+  if (typeof value !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/u.test(value)) return []
+  const account = /^(.+)-[a-z0-9]+-[a-z0-9]+$/u.exec(value)?.[1]
+  return account ? [value, account] : [value]
+}
+
 export function seatBotId(request, bots) {
-  const value = request.headers[SEAT_HEADER.toLowerCase()]
-  return typeof value === 'string' && bots.has(value) ? value : null
+  return seatCandidates(request.headers[SEAT_HEADER.toLowerCase()]).find(id => bots.has(id)) ?? null
 }
 
 // Availability failures remain 503; only a confirmed missing member is unresolved.
 export async function resolveSeatBotId(request, bots) {
   if (typeof bots.readMember !== 'function') return seatBotId(request, bots)
-  const value = request.headers[SEAT_HEADER.toLowerCase()]
-  if (typeof value !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/u.test(value)) return null
-  try { return (await bots.readMember(value)).id === value ? value : null }
-  catch (error) { if (error.code === 'BOT_NOT_FOUND' && error.status === 404) return null; throw error }
+  for (const id of seatCandidates(request.headers[SEAT_HEADER.toLowerCase()])) {
+    try { if ((await bots.readMember(id)).id === id) return id }
+    catch (error) { if (error.code !== 'BOT_NOT_FOUND' || error.status !== 404) throw error }
+  }
+  return null
 }
 
 // A runtime claim captured at HTTP ingress, never a verified execution or a model argument.
+// sourceSession is the real Aiterm session name (an account seat keeps its suffix), not the Bot id.
 export function seatExecutionSource(request, bots) {
-  const sourceSession = seatBotId(request, bots)
+  const sourceSession = seatBotId(request, bots) ? request.headers[SEAT_HEADER.toLowerCase()] : null
   const value = request.headers[LAUNCH_HEADER.toLowerCase()]
   const launch = sourceSession && typeof value === 'string' && /^[0-9a-f]{32}$/u.test(value)
     ? { session_id: sourceSession, launch_id: value } : null
