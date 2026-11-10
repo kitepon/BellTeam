@@ -62,8 +62,9 @@ export function pieces(text) {
 }
 
 export const KEY_RELOAD = new Set(['CREDENTIAL_NOT_LOADED', 'CREDENTIAL_REVISION_STALE'])
-// Aiterm session calls (pty_close/pty_send/...) return the refusal only as text "aiterm: CODE: ..."; agent_launch has _meta.
-const reloadCode = error => error?.code
+// Aiterm >= 0.70.5 returns a session call's refusal code in _meta (error.aitermErrorCode); agent_launch has its own _meta.
+// shortcut: the text "aiterm: CODE: ..." is still read because a 0.70.4 container relay drops _meta; drop it once every body runs >= 0.70.5.
+const reloadCode = error => error?.code ?? error?.aitermErrorCode
   ?? (error?.aitermResponseReturned === true ? /^(?:aiterm: )?([A-Z][A-Z0-9_]+):/u.exec(String(error.message ?? ''))?.[1] : undefined)
 
 export const isRemoteBot = bot => typeof bot?.terminalId === 'string' && bot.terminalId !== ''

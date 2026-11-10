@@ -11,7 +11,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { runtimeEnvironment, runtimeEnvironmentKeys, runtimeHome } from './runtime-home.mjs'
 import { returnedExecutionError, ERROR_META } from './execution-error.mjs'
-import { LAUNCH_ERROR_META, authenticationPreflightFailure, launchRefusal, unpromptedLaunchActionRequired, resumeUnavailable } from './agent-launch-error.mjs'
+import { ERROR_CODE_META, errorCode, LAUNCH_ERROR_META, authenticationPreflightFailure, launchRefusal, unpromptedLaunchActionRequired, resumeUnavailable } from './agent-launch-error.mjs'
 import { captureMcpRequest } from './mcp-request-context.mjs'
 import { captureMcpError } from './returned-mcp-error.mjs'
 import { configurationConnection, configurationError, markConfigurationNotIssued, CONFIGURATION_SCHEMA } from './configuration-request.mjs'
@@ -226,6 +226,8 @@ export class AitermClient {
       if (detail) { error.mcp_error = detail; error.publicMessage = detail.message }
       // tool handlerがエラー結果を返し終えた事と、RPC timeout/通信断で結果が不明な事を区別する。
       error.aitermResponseReturned = true
+      const reason = errorCode(result._meta?.[ERROR_CODE_META])
+      if (reason) error.aitermErrorCode = reason
       if (name === 'agent_configure' && result.structuredContent?.schema === 'aiterm.agent-configure-error.v1') {
         const failure = result.structuredContent
         const valid = Object.keys(failure).sort().join(',') === 'effect,outcome,schema,session_id'
