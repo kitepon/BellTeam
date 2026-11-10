@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url'
 import test from 'node:test'
 import { diagnosticRequestContext } from '../src/diagnostic-request-context.mjs'
 import { captureMcpError } from '../src/returned-mcp-error.mjs'
-import { launchFailureDetails } from '../src/agent-launch-error.mjs'
+import { launchFailureDetails, launchRefusal } from '../src/agent-launch-error.mjs'
 
 const secret = 'synthetic-private-value'
 const launch = { cwd: '/synthetic-seat', prompt: secret }
@@ -75,4 +75,14 @@ test('seat launch fields: sanitized reportable MCP fields survive while private 
     const invalid = await crossBoundary(Object.assign(new Error('synthetic refusal'), { mcp_error: record }))
     assert.equal(invalid.mcp_error, undefined)
   }
+})
+
+test('seat launch fields: validated launchRefusal survives the fixed boundary, invalid or extra fields do not', async () => {
+  const refusal = { schema: 'aiterm.agent-launch-error.v1', harness: 'claude-code', code: 'CWD_UNAVAILABLE',
+    phase: 'terminal', effect: 'not_started', session_created: false, action: 'Choose an existing folder.' }
+  const value = await crossBoundary(Object.assign(new Error('synthetic refusal'), { code: 'CWD_UNAVAILABLE', launchRefusal: { ...refusal, ignored: secret } }))
+  assert.deepEqual(value.launchRefusal, refusal)
+  assert.deepEqual(launchRefusal(value.launchRefusal), refusal)
+  const invalid = await crossBoundary(Object.assign(new Error('synthetic refusal'), { launchRefusal: { ...refusal, session_created: true } }))
+  assert.equal(invalid.launchRefusal, undefined)
 })
