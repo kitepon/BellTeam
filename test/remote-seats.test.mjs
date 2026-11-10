@@ -344,6 +344,18 @@ test('launch notice: a not-started launch shows its code and action on the membe
   assert.equal(notified.length, 3)
 })
 
+test('launch notice: a launch refusal from terminals C8 in prepare shows its action, arms no wait', async () => {
+  const launchRefusal = { schema: 'aiterm.agent-launch-error.v1', harness: 'codex-cli', code: 'AGENT_AUTH_REQUIRED', phase: 'input',
+    effect: 'not_started', session_created: false, action: 'MacのCodex CLIにログインが必要です。ログインした後に送ったメッセージから起動します' }
+  const { seats } = fixture({ onTarget: () => { throw Object.assign(code('AGENT_AUTH_REQUIRED'), { effect: 'not_started', launchRefusal }) } })
+  let waited = 0
+  seats.wait = () => { waited += 1 }
+  const refusal = await seats.prepare(bot, { ...launchArgs, harness: 'codex-cli' }, { slot: '1st', harness: 'codex-cli' }).catch(error => error)
+  assert.equal(refusal.effect, 'not_started')
+  assert.deepEqual({ ...seats.launchNotice(bot), at: 0 }, { code: 'AGENT_AUTH_REQUIRED', action: launchRefusal.action, terminalId: 'mac-1', at: 0 })
+  assert.equal(waited, 0)
+})
+
 test('launch notice: transport.seatLaunch reads it for the current member; a body without remote seats answers null', () => {
   const remoteSeats = { launchNotice: member => member?.terminalId === 'mac-1' ? { code: 'TARGET_MISMATCH' } : null }
   const transport = new AitermTransport({ resolveBot: id => id === bot.id ? bot : null, remoteSeats })
