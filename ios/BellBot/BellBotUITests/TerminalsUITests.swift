@@ -435,7 +435,9 @@ final class TerminalsUITests: XCTestCase {
         XCTAssertFalse(app.textFields["member-project-root"].exists, "文字入力は「ほかの方法」の中だけ")
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4)).press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))) // show the terminal row above the folder
         shot(app, "20-member-editor-terminal")
-        app.buttons["ほかの方法"].tap()
+        let otherWays = app.buttons["ほかの方法"]
+        XCTAssertTrue(scrollTo(otherWays, in: app)) // on taller phones the drag above leaves it below the fold
+        otherWays.tap()
         let folder = app.textFields["member-project-root"]
         XCTAssertTrue(scrollTo(folder, in: app))
         XCTAssertEqual(folder.value as? String, "/Users/kite/work/app")
