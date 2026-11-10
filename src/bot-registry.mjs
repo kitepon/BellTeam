@@ -21,6 +21,7 @@ const COLORS = new Set(['rose', 'indigo', 'violet'])
 const HARNESSES = new Set(['claude', 'codex', 'grok', 'cursor', 'antigravity'])
 const PROFILE_FIELDS = new Set(['name', 'harness', 'model', 'reasoningEffort', 'fastMode', 'profileText', 'personality', 'speechStyle', 'position', 'role', 'avatar', 'avatarLarge', 'avatarSource', 'avatarLargeSource', 'avatarCrop', 'avatarLargeCrop', 'color', 'terminalId', 'projectRoot'])
 const TERMINAL_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u
+const WINDOWS_ROOT = /^[A-Za-z]:\\/u
 
 export class BotRegistry extends Map {
   #profileMutations = new Map()
@@ -176,7 +177,7 @@ export class BotRegistry extends Map {
     validateId(id)
     if (this.has(id)) throw new Error(`BOT_DUPLICATE: ${id}`)
     const createFolder = input.createFolder === true
-    input = await this.#defaultProjectRoot(input)
+    input = await this.#bindTerminal(input)
     const project = this.projectPath(id)
     const profile = normalizeProfile({
       id,
@@ -309,7 +310,7 @@ export class BotRegistry extends Map {
         images[source] = ''; images[crop] = null
       }
     }
-    let profile = normalizeProfile(await this.#defaultProjectRoot({ ...current, ...images }))
+    let profile = normalizeProfile(await this.#bindTerminal({ ...current, ...images }, current))
     if (['harness', 'model', 'reasoningEffort'].some(field => profile[field] !== current[field]))
       await this.validateEffort(profile)
     if (profile.fastMode && ['harness', 'model', 'fastMode'].some(field => profile[field] !== current[field])) {
@@ -323,14 +324,17 @@ export class BotRegistry extends Map {
     return candidate
   }
 
-  // S5: a terminal with an empty folder gets /Users/<terminal user>/BellTeam/<name slug>.
-  async #defaultProjectRoot(value) {
-    if (typeof value.terminalId !== 'string' || !TERMINAL_ID.test(value.terminalId) || value.projectRoot) return value
+  // S5 + OS rule (remote-seat.md): the bound terminal's os picks the folder form and the default folder.
+  async #bindTerminal(value, current) {
+    if (typeof value.terminalId !== 'string' || !TERMINAL_ID.test(value.terminalId)) return value
+    if (value.projectRoot && current && value.terminalId === current.terminalId && value.projectRoot === current.projectRoot) return value
     const terminal = await this.terminals.read(value.terminalId)
-    // undefined = the body offers no terminals: no default, so the binding check refuses an empty folder as before S5.
-    if (terminal === undefined) return value
-    if (!terminal) throw Object.assign(registryError('TERMINAL_NOT_FOUND'), { status: 404 })
-    return { ...value, projectRoot: `/Users/${terminal.user}/BellTeam/${memberFolderSlug(value.name)}` }
+    if (terminal === null) throw Object.assign(registryError('TERMINAL_NOT_FOUND'), { status: 404 })
+    // undefined = the body offers no terminals: no default (the pair rule refuses an empty folder) and POSIX only, as before.
+    const os = terminal?.os ?? 'macos'
+    if (!value.projectRoot) return terminal ? { ...value, projectRoot: defaultProjectRoot(os, terminal.user, memberFolderSlug(value.name)) } : value
+    if (typeof value.projectRoot === 'string' && WINDOWS_ROOT.test(value.projectRoot) !== (os === 'windows')) throw registryError('BOT_PROJECT_ROOT_INVALID')
+    return value
   }
 
   // S5: FOLDER_* and TERMINAL_NOT_FOUND refuse the save; any other reason saves the folder as unchecked.
@@ -725,7 +729,7 @@ export class BotRegistry extends Map {
 }
 
 export function memberFolderSlug(name) {
-  const slug = String(name ?? '').trim().replace(/[/:\0]/gu, '-')
+  const slug = String(name ?? '').trim().replace(/[/\\:\0]/gu, '-')
   return slug && slug !== '.' && slug !== '..' ? slug : 'member'
 }
 
@@ -796,15 +800,24 @@ function normalizeProfile(value) {
   }
 }
 
-// C1 (remote-seat.md): a member is local ('', '') or bound to one terminal folder (P1 macOS: absolute POSIX path).
+// C1 (remote-seat.md): a member is local ('', '') or bound to one terminal folder, POSIX or Windows `X:\` form.
 function normalizeRemoteBinding(value) {
   const terminalId = value.terminalId ?? '', projectRoot = value.projectRoot ?? ''
   if (typeof terminalId !== 'string' || terminalId && !TERMINAL_ID.test(terminalId)) throw registryError('BOT_TERMINAL_ID_INVALID')
-  if (typeof projectRoot !== 'string' || projectRoot && (!projectRoot.startsWith('/') || projectRoot.includes('\0')
-    || Buffer.byteLength(projectRoot) > 4096 || projectRoot !== '/' && projectRoot.slice(1).split('/').some(part => !part || part === '.' || part === '..')))
-    throw registryError('BOT_PROJECT_ROOT_INVALID')
+  if (typeof projectRoot !== 'string' || projectRoot && !validProjectRoot(projectRoot)) throw registryError('BOT_PROJECT_ROOT_INVALID')
   if (Boolean(terminalId) !== Boolean(projectRoot)) throw registryError('BOT_REMOTE_BINDING_INVALID')
   return { terminalId, projectRoot }
+}
+
+function validProjectRoot(path) {
+  const windows = WINDOWS_ROOT.test(path), root = windows ? path.slice(0, 3) : '/', rest = path.slice(root.length)
+  if (!windows && !path.startsWith('/') || path.includes('\0') || windows && /[/:]/u.test(path.slice(2)) || Buffer.byteLength(path) > 4096) return false
+  return !rest || rest.split(windows ? '\\' : '/').every(part => part && part !== '.' && part !== '..')
+}
+
+function defaultProjectRoot(os, user, slug) {
+  if (os === 'windows') return `C:\\Users\\${user}\\BellTeam\\${slug}`
+  return `${os === 'linux' ? '/home' : '/Users'}/${user}/BellTeam/${slug}`
 }
 
 export function remoteBindingRevision(profile) {
