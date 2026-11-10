@@ -2,7 +2,7 @@
 
 Owner of this page: N102 (conversation). [Module contract](README.md) / [overall data flow](../../data-flow.md#proposed-read-only-fork-inquiry) / [function map](../../feature-map.md).
 
-Status: **design only, no code**. Binding source: the Owner-agreed spec `/srv/bellteam/bots/bot-7b140b27/docs/fork-ask-design-20261110.md` (items 1–10) and Root's request of 2026-11-10 JST. Spec item 9 (receipt now, answer later as a message) supersedes the "answer as the tool result" wording in item 6. Nothing here replaces an agreed mechanism. Gaps the spec leaves open are listed under [Open decisions](#open-decisions-for-root) for Root, not filled silently.
+Status: **design only, no code**. Binding source: the Owner-agreed spec `/srv/bellteam/bots/bot-7b140b27/docs/fork-ask-design-20261110.md` (items 1–10) and Root's request of 2026-11-10 JST. Spec item 9 (receipt now, answer later as a message) supersedes the "answer as the tool result" wording in item 6. Nothing here replaces an agreed mechanism. Gaps the spec left open were ruled by Root on 2026-11-10 JST after the line-by-line review; see [Root rulings](#root-rulings-2026-11-10-jst).
 
 Base read for this design: `main` 814ac22f — `src/messenger.mjs` (`sendmessage`, `notificationCallbacks`, `startUserTurn`), `src/mcp-conversation-tools.mjs`, `src/mcp-tools.mjs` (`runBellTeamTool`), `src/seat-mcp.mjs` (`internalApi`), `src/http-delivery-api.mjs`, `src/work-graph/projection.mjs`.
 
@@ -72,6 +72,7 @@ sequenceDiagram
   C->>H: relay record target -> asker (seat fork, in_reply_to)
   C->>X: notify(askerBot, fork-answer envelope)
   X->>A: answer arrives as a message
+  Note over C,A: on failed/stopped after receipt: one FORK_FAILED message to A on the same relay path
   X->>N: close fork seat
 ```
 
@@ -93,14 +94,15 @@ Separate tool. `sendmessage` gets no flag and no change of meaning (spec items 6
 | --- | --- |
 | name | `ask_readonly` |
 | description (ja, shown to AIs) | 「宛先Botへ読み取り専用の質問を送る。宛先の本体は中断されず、作業の待ち行列にも入らない。本体の最新状態から作った分身が、本体の作業を待たずにすぐ答える。分身ができるのは読む・調べる・考える・答えることだけで、ファイル編集・PR・本番操作・他Botへの依頼・記憶/知識/予定/承認の書込み・試験やコマンドの実行はできない。作業が必要ならsendmessageを使う。受付をすぐ返し、回答はメッセージで届く。runningは受付済みなので再送しない。」 |
-| inputSchema | `{target: string(minLength 1) — Bot name or Bot ID, message: string(minLength 1)}`, both required. No `image` (not in the spec; see open decisions) |
+| inputSchema | `{target: string(minLength 1) — Bot name or Bot ID, message: string(minLength 1)}`, both required. No `image` (not in the spec; Root ruling 3) |
 | annotations | `readOnlyHint: false` for the tool itself (it creates a fork and a record); the fork's own tool set is the read-only one |
 | result | Same shape as `sendmessage`, plus the label: `{delivery:'running', delivery_id, fork_id, from, target, seat:'fork'}`. Returned once the fork is accepted, not after the answer |
-| errors | The existing `sendmessage` codes from `prepareDirect`: `SENDER_NOT_FOUND`, `BOT_NOT_FOUND`, `MESSAGE_REQUIRED`, access and admission errors. New: `FORK_TARGET_USER` (target=user, the Owner is not forked; use sendmessage), `FORK_UNAVAILABLE{reason}` from execution when a read-only fork cannot be launched with enforcement (see guard below). No fallback into the main queue |
+| errors | The existing `sendmessage` codes from `prepareDirect`: `SENDER_NOT_FOUND`, `BOT_NOT_FOUND`, `MESSAGE_REQUIRED`, access and admission errors. New: `FORK_TARGET_USER` (target=user, the Owner is not forked; use sendmessage), `FORK_UNAVAILABLE{reason:'readonly_unenforceable'}` from execution when a read-only fork cannot be launched with enforcement (see guard below). No fallback into the main queue |
 | answer message | Delivered to the asker as a direct message from the target Bot with `seat:{kind:'fork',fork_id}` and `in_reply_to: delivery_id`. Envelope: 「「<名前>（分身）」からあなたへ次のメッセージが届いています。」 + answer text |
+| failure after receipt | ONE message to the asker on the same relay path: 「「<名前>（分身）」からあなたへ次のメッセージが届いています。」 + `FORK_FAILED: <reason>` (status failed/stopped and the reason execution passed). The delivery row keeps its own failed/stopped status. Root ruling 2: one result, failure included |
 | concurrency | No limit in conversation or the tool; each call gets its own `fork_id` (spec item 10). Account limits surface as execution failures |
 
-Guard check (common rule guards.*): `FORK_UNAVAILABLE` protects against a fork that could write (named protection: overwriting existing state / requests to other Bots). Self-exit: the asker is told to use `sendmessage`, and the same call succeeds once execution reports the capability (e.g. remote after Elegg 0.70.5 + Kiro #946). It never queues the work itself (spec item 4).
+Guard check (common rule guards.*): `FORK_UNAVAILABLE` protects against a fork that could write (named protection: overwriting existing state / requests to other Bots). Self-exit: the asker is told to use `sendmessage`, and the same call succeeds once the harness launch profile is enforceable. It never queues the work itself (spec item 4). It is the only fork guard: incomplete remote display is not a protection and does not refuse a fork (Root change, guards.named-protection).
 
 ## Owner messages (spec item 8, Owner 2026-11-10 21:2x JST)
 
@@ -122,7 +124,7 @@ The fork is launched with a profile in which the forbidden effects do not exist 
 
 | Layer | Owner | Required capability |
 | --- | --- | --- |
-| Native tools | Elegg (Aiterm launch) | Claude: file read/search tools only (Read, Grep, Glob); no Bash, Edit/Write/NotebookEdit, Agent/Task, web fetch, Skill. Codex: read-only sandbox, approval never, no shell/exec tool. Local and remote use the same profile. Only the BellTeam seat MCP in fork mode is configured; other MCP servers (Approval Box, Aiterm, call-bridge, …) are absent |
+| Native tools | Elegg (Aiterm launch) | Claude: read tools only (Read, Grep, Glob, WebSearch, WebFetch); no Bash, Edit/Write/NotebookEdit, Agent/Task, Skill. Codex: read-only sandbox, approval never, no shell/exec tool; its read-only web search is allowed. Web reads change nothing and are allowed (Root ruling 5, Owner 「変えない行動は全部許す」); Bash stays out because it cannot be enforced read-only. Local and remote use the same profile. Only the BellTeam seat MCP in fork mode is configured; other MCP servers (Approval Box, Aiterm, call-bridge, …) are absent |
 | BellTeam MCP | Molly (common listing/dispatch) | The fork seat's credential carries `seat.kind='fork'`. Listing returns only tools whose definition is marked `annotations.readOnlyHint: true`; calls to any other tool are rejected at dispatch. Each tool owner marks its own read tools (list_messages, list_bots, get_self, recall_memory, search_knowledge, read_member_doc, …). `sendmessage`, `ask_readonly`, every write tool and Approval Box are not marked |
 | The one allowed effect | N102 | The fork does not send the reply itself. Its final answer reaches conversation through the existing `onAnswer` callback, and conversation relays it to the asker. The fork therefore needs no write tool at all |
 | CLI transcript | Elegg / Rivalin | The forked session file written by the CLI itself is the record of the fork conversation, labelled fork (below). It is not a user-visible effect |
@@ -138,19 +140,19 @@ If a harness cannot launch with this profile (for example Codex without a way to
 | observe | Same callback set as `notify` (`onStatus/onInterim/onAnswer/onTurnEnd`), so conversation reuses `notificationCallbacks` unchanged |
 | close | After turn-end (or failure) close the fork seat. No resume, no follow-up turn, no requeue |
 | read | Optional `seat:{kind:'fork',forkId}` on `queueItems()` rows for running forks, so `queue.read` (Molly) and 相関図 (Black) can label them. Rows without `seat` are main |
-| remote | Allowed only once in-turn words work remotely (Elegg 0.70.5 relay fix + Kiro #946 live). Before that, remote targets return `FORK_UNAVAILABLE{reason:'remote_words_pending'}` |
+| remote | Launches like a local fork. Until Elegg 0.70.5 relay fix + Kiro #946 are live, its in-turn words are missing exactly like a remote main seat's today; the final answer (or `FORK_FAILED`) still arrives. No refusal for this (Root change) |
 
 ## Records and display (spec items 5/6)
 
 - Inquiry, interim words, answer and relay are rows in the target's existing direct JSONL. Interim words and the answer already go to the target's timeline in today's `notificationCallbacks` (`appendInterimWords(botId=target)`). New optional fields only: `seat:{kind:'fork',fork_id}` and, on the relay row, `in_reply_to`. Rows without `seat` are main. Clients that do not know the field ignore it (unknown keys are ignored by Apple Codable, Web and Windows, as established for `messageAuthor`).
-- Web (Admi) and Apple (Rapi) show the label 「分身」 on rows with `seat.kind='fork'` in the target's chat, and the fork in 相関図 from the `seat` field. Work-graph projection is Black's (Root's list named Admi/Rapi for display; Black owns the projection core).
-- The main seat is not notified and gets no full fork text in its turn. It reads records (`list_messages`) and summaries. Throughline (Rivalin) must label forked CLI sessions as fork and must not inject one as the main seat's "previous session" short-term memory; it may contribute summaries. Summary policy for short-term memory is Biscuit's.
+- Web (Admi) and Apple (Rapi) show the label 「分身」 on rows with `seat.kind='fork'` in the target's chat, and the fork in 相関図 from the `seat` field. Work-graph projection is Black's (part owner confirmed, Root ruling 4).
+- The main seat is not notified and gets no full fork text in its turn. It reads records (`list_messages`) and summaries. Throughline (Rivalin, part owner confirmed by Root ruling 4) must label forked CLI sessions as fork and must not inject one as the main seat's "previous session" short-term memory; it may contribute summaries. Summary policy for short-term memory is Biscuit's.
 
 ## Refactor plan for reuse (spec item 7)
 
 | Code | Change |
 | --- | --- |
-| `messenger.mjs` | Extract `prepareDirect(input, opts) -> {deliveryId, bot, record, check, images}` from `sendmessage` unchanged. `sendmessage` = `prepareDirect` + existing notify block. Add `askReadonly` (= `prepareDirect` with `seat` + `transport.forkInquiry` + `notificationCallbacks` with `onAnswer` also calling relay) and `relayForkAnswer` (= `prepareDirect` from target to asker + `transport.notify`). `directEnvelope` gains the fork name suffix |
+| `messenger.mjs` | Extract `prepareDirect(input, opts) -> {deliveryId, bot, record, check, images}` from `sendmessage` unchanged. `sendmessage` = `prepareDirect` + existing notify block. Add `askReadonly` (= `prepareDirect` with `seat` + `transport.forkInquiry` + `notificationCallbacks` with `onAnswer` calling relay, and a failed/stopped `onStatus` or rejected launch after receipt calling relay once with `FORK_FAILED`) and `relayForkAnswer` (= `prepareDirect` from target to asker + `transport.notify`). `directEnvelope` gains the fork name suffix |
 | `mcp-conversation-tools.mjs` | Add the tool entry. Its handler reuses `resolveBotTarget` and the injected-delivery pattern (`deliverForkInquiry ?? messenger.askReadonly`) |
 | `http-delivery-api.mjs` | `POST /api/deliveries/fork` beside `/direct`, same body and auth |
 | `seat-mcp.mjs` `internalApi` (Molly) | `deliverForkInquiry` beside `deliverMessage` |
@@ -169,14 +171,17 @@ If a harness cannot launch with this profile (for example Codex without a way to
 | No concurrency limit (10 / 7) | Tool contract `concurrency` |
 | Owner messages always main, never forked, never load (8 / 8) | Owner messages section and diagram |
 | Reuse sendmessage code by refactor (7 / 9) | Refactor plan: `prepareDirect`, shared callbacks, shared resolution |
-| Remote needs Elegg 0.70.5 + Kiro #946 first (open point) | Lifecycle `remote` |
+| Remote in-turn words need Elegg 0.70.5 + Kiro #946 (open point) | Lifecycle `remote`: launches now, words appear once those are live |
 
-## Open decisions for Root
+## Root rulings (2026-11-10 JST)
 
-1. **Reply mechanism.** The spec says the answer "arrives as a message" but not who sends it. This design relays the fork's final answer through conversation, so the fork has no write tool at all. The alternative is to give the fork a `sendmessage` restricted to the asker. Relay is proposed because it keeps "only effect = reply" enforceable at launch.
-2. **Failure notice.** `sendmessage` records failures on the delivery but does not message the sender. With the same return path, a failed fork leaves the asker waiting for a message that never comes. Proposed: relay one failure message (`FORK_FAILED` + reason) to the asker the same way as an answer. Keep strict sendmessage parity instead?
-3. **Image input.** `sendmessage` accepts one `image`. Left out of `ask_readonly` because the spec does not mention it. Add for parity?
-4. **Contacts beyond Root's list.** Black (work-graph projection for the fork label in 相関図) and Rivalin (Throughline fork-session labelling, so the main gets summaries, not full text). Confirm these owners before work requests.
-5. **Web fetch in the fork.** "Investigate" could include reading the web; the profile excludes it by default. Allow read-only web search/fetch?
+Root checked the design line by line against spec items 1–10 and accepted it with one change and five rulings. They are applied above.
 
-No work requests have been sent to Kiro, Elegg, Molly, Admi, Rapi, Black or Rivalin. They follow Root's review. Elegg starts only after his current three jobs (CI off the Owner's Mac, `_meta` relay fix, 0.70.5).
+- Change: no `FORK_UNAVAILABLE{remote_words_pending}`. Remote forks launch like local ones. `readonly_unenforceable` stays.
+- 1. Reply = relay through conversation; the fork has no write tool.
+- 2. Failure = relay ONE `FORK_FAILED` message with the reason to the asker.
+- 3. No image input.
+- 4. Black (work-graph projection) and Rivalin (Throughline fork-session labelling) are part owners.
+- 5. Read-only web search/fetch is allowed in the fork; Bash stays out.
+
+Part owners receive their contract after this design is on `main`. Elegg starts after his current three jobs (CI off the Owner's Mac, `_meta` relay fix, 0.70.5).

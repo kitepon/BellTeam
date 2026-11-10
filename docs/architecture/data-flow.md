@@ -254,11 +254,11 @@ flowchart LR
   P2 -->|F4 forkInquiry, no main queue| P3[P3 execution: fork lifecycle from latest main session]
   P3 -->|F5 read-only fork launch| N[Aiterm native fork, local/remote]
   P3 -->|F6 status/interim/answer/turn-end| P2
-  P2 -->|F7 relay answer via existing notify| A
+  P2 -->|F7 relay answer or FORK_FAILED via existing notify| A
   O[Owner message] -->|unchanged: always main seat, never forked or counted as load| P3
 ```
 
-F5 for remote seats waits for Elegg 0.70.5 + Kiro #946. Until then execution returns `FORK_UNAVAILABLE`. No fallback into the main queue.
+Remote forks launch like local ones; until Elegg 0.70.5 + Kiro #946 are live their in-turn words are missing exactly like a remote main seat's, and the answer still arrives. A failure after receipt reaches the asker as one `FORK_FAILED` message on F7. The only refusal is `FORK_UNAVAILABLE{readonly_unenforceable}`. No fallback into the main queue.
 
 ## Coverage, inherited verification and concrete limits
 
