@@ -19,7 +19,8 @@ const NATIVE_CODES = {
 // Shown to the Owner as is (Japanese, user rule); AIs read the same text through MCP.
 const ACTIONS = {
   CONNECTION_REFUSED: 'Macの「システム設定 > 一般 > 共有」で「リモートログイン」がオンか確かめてから、もう一度確かめてください',
-  AUTH_FAILED: 'この鍵がまだMacに入っていないかもしれません。「このMacにこの鍵を入れる」で、Macのログインパスワードを使って入れられます'
+  AUTH_FAILED: 'この鍵がまだMacに入っていないかもしれません。「このMacにこの鍵を入れる」で、Macのログインパスワードを使って入れられます',
+  UNREACHABLE: 'Macが起きていて、BellTeamと同じネットワークにつながっているか確かめてから、もう一度お試しください'
 }
 const FOLDER_ACTIONS = {
   FOLDER_MISSING: 'このフォルダはMacにありません。作るか、あるフォルダを選んでください',

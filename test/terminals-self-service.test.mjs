@@ -161,6 +161,7 @@ test('folders: picker lists subfolders from home, opens one, and reports missing
   native.connectError = Object.assign(new Error('x'), { code: 'UNREACHABLE' })
   const offline = await core.folders({ terminalId: 'owner-macbook' })
   assert.deepEqual([offline.reason, offline.entries, offline.home], ['UNREACHABLE', [], null], 'offline is a reason, not an empty folder')
+  assert.match(offline.action, /Macが起きて/)
   assert.equal((await core.folders({ terminalId: 'nope' })).reason, 'TERMINAL_NOT_FOUND')
 })
 
