@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-10T01:20:59Z",
-  "expiresAt": "2026-11-17T01:20:59Z",
+  "publishedAt": "2026-11-10T02:06:37Z",
+  "expiresAt": "2026-11-17T02:06:37Z",
   "releases": [
     {
       "componentId": "usage",
@@ -489,8 +489,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "9d599591b4105ce73aef2d63c66c969525747446",
-      "versionId": "276db9f8fa39c8b982e93ee1e73988128a8c4377a26bbb3a97190663d5e57d1a",
+      "sourceCommit": "a5cd9272ff875dbe972e301ae175e3cdfa924a2d",
+      "versionId": "4a81fa0b246902b3d779bb98558fba735260d1d5add9010386792480e3ef0a77",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -498,16 +498,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T005945Z/execution-9d599591b4105ce73aef2d63c66c969525747446-linux-amd64.tar.gz",
-          "bytes": 3944400,
-          "sha256": "276db9f8fa39c8b982e93ee1e73988128a8c4377a26bbb3a97190663d5e57d1a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T020008Z/execution-a5cd9272ff875dbe972e301ae175e3cdfa924a2d-linux-amd64.tar.gz",
+          "bytes": 3945097,
+          "sha256": "4a81fa0b246902b3d779bb98558fba735260d1d5add9010386792480e3ef0a77"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T005945Z/execution-9d599591b4105ce73aef2d63c66c969525747446-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11275,
-          "sha256": "3c71618588722d87c94c4ddbceeb8c50f4eb42ed1bb13a9013b65b15b524d9af"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T020008Z/execution-a5cd9272ff875dbe972e301ae175e3cdfa924a2d-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11083,
+          "sha256": "cb63e218d4137c16efffb4b90f1203f3151b0f2795a3372a456d9fc3012603df"
         },
-        "signerCommit": "9d599591b4105ce73aef2d63c66c969525747446"
+        "signerCommit": "a5cd9272ff875dbe972e301ae175e3cdfa924a2d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -517,13 +517,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "端末（Macなど）に登録したメンバーの席を、BellTeamのコンテナの中ではなく、その端末で起動します。本体に入っているAI実行制御と同じ中身で、実行部品のみの配布です。本体は含みません。"
+        "端末の席が起動前に断られた時、その理由を本体へ伝え、メッセージを待ちのまま残せるようにします。実行部品のみの配布で、本体は含みません。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "9d599591b4105ce73aef2d63c66c969525747446",
-      "versionId": "f49be19f37985af0d1977734db577ea63600674a17b155cabcac2f4f675ef8e3",
+      "sourceCommit": "a5cd9272ff875dbe972e301ae175e3cdfa924a2d",
+      "versionId": "8a9957715311679f74b05134d390667553f564bdd2a69eef101d5a8bfb808862",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -531,16 +531,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T005945Z/execution-9d599591b4105ce73aef2d63c66c969525747446-linux-arm64.tar.gz",
-          "bytes": 3944399,
-          "sha256": "f49be19f37985af0d1977734db577ea63600674a17b155cabcac2f4f675ef8e3"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T020008Z/execution-a5cd9272ff875dbe972e301ae175e3cdfa924a2d-linux-arm64.tar.gz",
+          "bytes": 3945098,
+          "sha256": "8a9957715311679f74b05134d390667553f564bdd2a69eef101d5a8bfb808862"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T005945Z/execution-9d599591b4105ce73aef2d63c66c969525747446-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11255,
-          "sha256": "bc30841ba4a3377a6a4347e6308ca958519798ae2aa09e656c6c4cdd325df4c5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T020008Z/execution-a5cd9272ff875dbe972e301ae175e3cdfa924a2d-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11114,
+          "sha256": "8646b7604de33ac60929c4fd3813728fac47bb8827016004f85e789d32566513"
         },
-        "signerCommit": "9d599591b4105ce73aef2d63c66c969525747446"
+        "signerCommit": "a5cd9272ff875dbe972e301ae175e3cdfa924a2d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -550,7 +550,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "端末（Macなど）に登録したメンバーの席を、BellTeamのコンテナの中ではなく、その端末で起動します。本体に入っているAI実行制御と同じ中身で、実行部品のみの配布です。本体は含みません。"
+        "端末の席が起動前に断られた時、その理由を本体へ伝え、メッセージを待ちのまま残せるようにします。実行部品のみの配布で、本体は含みません。"
       ]
     },
     {
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "35a96390b1657e5bb6966034eb47e1ebf623c37a",
-      "versionId": "sha256:2c111d30c1bf3ab07dfbb358bf052c46763c4edb7e9149a6d7f5cef80095da28",
+      "sourceCommit": "a5cd9272ff875dbe972e301ae175e3cdfa924a2d",
+      "versionId": "sha256:709e5372e46c37551b5e59ea9e1bb6730c73eca4acb31296eaa8da2e3f0c7639",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:2c111d30c1bf3ab07dfbb358bf052c46763c4edb7e9149a6d7f5cef80095da28"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:709e5372e46c37551b5e59ea9e1bb6730c73eca4acb31296eaa8da2e3f0c7639"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,21 +722,23 @@
         "containerUpdate": 1
       },
       "changes": [
-        "メモリ不足のときに、本体より席の処理が終了対象へ選ばれやすくなるよう調整します。",
-        "本体の入れ替えで席の会話の状態を引き継げなかった時は、どの段階で失敗したかを入れ替えの結果に出します。"
+        "端末（Macなど）の席が起動できなかった時、届けるメッセージを失敗にせず待ちのまま残し、端末が使えるようになったら届けます。",
+        "席が起動できなかった理由を、メンバーの一覧で見られるようにします。",
+        "古いAI実行制御が端末の席をサーバーの中で起動しないようにします。",
+        "更新画面で、今の本体で使えない版を「使えない版」と表示します。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "35a96390b1657e5bb6966034eb47e1ebf623c37a",
-      "versionId": "sha256:2c111d30c1bf3ab07dfbb358bf052c46763c4edb7e9149a6d7f5cef80095da28",
+      "sourceCommit": "a5cd9272ff875dbe972e301ae175e3cdfa924a2d",
+      "versionId": "sha256:709e5372e46c37551b5e59ea9e1bb6730c73eca4acb31296eaa8da2e3f0c7639",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:2c111d30c1bf3ab07dfbb358bf052c46763c4edb7e9149a6d7f5cef80095da28"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:709e5372e46c37551b5e59ea9e1bb6730c73eca4acb31296eaa8da2e3f0c7639"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -745,8 +747,10 @@
         "containerUpdate": 1
       },
       "changes": [
-        "メモリ不足のときに、本体より席の処理が終了対象へ選ばれやすくなるよう調整します。",
-        "本体の入れ替えで席の会話の状態を引き継げなかった時は、どの段階で失敗したかを入れ替えの結果に出します。"
+        "端末（Macなど）の席が起動できなかった時、届けるメッセージを失敗にせず待ちのまま残し、端末が使えるようになったら届けます。",
+        "席が起動できなかった理由を、メンバーの一覧で見られるようにします。",
+        "古いAI実行制御が端末の席をサーバーの中で起動しないようにします。",
+        "更新画面で、今の本体で使えない版を「使えない版」と表示します。"
       ]
     }
   ],
