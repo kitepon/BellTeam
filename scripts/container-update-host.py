@@ -822,7 +822,7 @@ def execute_module_installer(updater, plan, directory):
     component = target['componentId']
     check(component in MODULES, 'HOST_MODULE_TARGET_INVALID')
     # Construct privileges and mounts here; never execute a model supplied by the application or image helper.
-    output = updater.command([updater.config['docker'], 'run', '--rm', '--init', '--network', 'none', '--read-only', '--user', '0:0',
+    try: output = updater.command([updater.config['docker'], 'run', '--rm', '--init', '--network', 'none', '--read-only', '--user', '0:0',
         '--cap-drop', 'ALL', '--cap-add', 'CHOWN', '--cap-add', 'DAC_OVERRIDE', '--cap-add', 'FOWNER',
         '--security-opt', 'no-new-privileges:true', '--cpus', '1', '--memory', '2g', '--memory-swap', '2g', '--pids-limit', '512',
         '--tmpfs', '/tmp:rw,nosuid,nodev,size=64m',
@@ -831,6 +831,11 @@ def execute_module_installer(updater, plan, directory):
         '--entrypoint', '/usr/bin/env', current['imageId'], '-i', 'PATH=/usr/local/bin:/usr/bin:/bin',
         '/usr/bin/python3', '-I', f'/app/scripts/install-{component}-release.py',
         target['versionId'], target['sourceCommit'], target['artifact']['signerCommit']], timeout=300)
+    except subprocess.CalledProcessError as error:
+        # The installer's last stderr line is its fixed failure code (e.g. USAGE_INSTALL_FAILED); keep it instead of a generic one.
+        lines = (error.stderr or b'').decode(errors='replace').strip().splitlines()
+        code = lines[-1] if lines and re.fullmatch('[A-Z][A-Z0-9_]{0,63}', lines[-1]) else 'HOST_MODULE_INSTALL_FAILED'
+        raise Failure(code) from error
     result = decode(output)
     check(exact(result, 'versionId,installed') and result['versionId'] == target['versionId'] and result['installed'] is True,
           'HOST_MODULE_INSTALL_FAILED')

@@ -164,4 +164,15 @@ class ModuleHostTest(unittest.TestCase):
         self.assertEqual(len(calls), 1)
 
 
+    def test_installer_failure_keeps_the_installers_own_code(self):
+        self.config['docker'] = '/fixture/docker'; self.updater.execute = self.updater.install
+        def command(args, **options):
+            raise subprocess.CalledProcessError(1, args, output=b'', stderr=b'noise\nDIAGNOSTICS_INSTALL_FAILED\n')
+        self.updater.command = command
+        plan = self.module_plan(); identifier = str(uuid.uuid4())
+        with patch.object(module, 'publication_opener', return_value=self.fake_opener()):
+            self.updater.start({'requestId': identifier, 'planId': plan['planId'], 'confirmContainerRestart': False}); self.join()
+        result = self.updater.get(identifier)
+        self.assertEqual((result['phase'], result['error']), ('failed', 'DIAGNOSTICS_INSTALL_FAILED'))
+
 if __name__ == '__main__': unittest.main()

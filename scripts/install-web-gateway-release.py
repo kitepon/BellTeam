@@ -156,7 +156,9 @@ def extract(archive, receipt, expected, destination, component='web-gateway'):
     if component in ('members', 'memory', 'usage', 'diagnostics', 'execution', 'conversation', 'work-graph'):
         spec = importlib.util.spec_from_file_location('artifact_contract', Path(__file__).with_name('web_gateway_artifact.py'))
         contract = importlib.util.module_from_spec(spec); spec.loader.exec_module(contract)
-        try: contract.validate_manifest(manifest, component=component)
+        # The verifier already matched memory/usage/diagnostics/execution/work-graph state to this image's JS export.
+        verified = manifest.get('runtime', {}).get('stateCompatibility') if component in ('memory', 'usage', 'diagnostics', 'execution', 'work-graph') else None
+        try: contract.validate_manifest(manifest, component=component, state=verified)
         except Exception: fail('GATEWAY_INSTALL_RECEIPT')
     files = {}
     if not isinstance(manifest.get('files'), list) or not 0 < len(manifest['files']) <= 20000:
