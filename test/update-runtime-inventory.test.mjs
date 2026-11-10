@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { once } from 'node:events'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -123,43 +123,40 @@ async function runtimeFixture(t, { fail = null } = {}) {
   return { executor, calls, exchanges, inventory }
 }
 
-test('a runtime plan/start admits kind runtime before acceptance and the worker, not the parent, completes it', async t => {
-  validateUpdateRequest('plan', { scope: 'component', componentId: 'runtime-codex' })
+test('CLI and Throughline runtimes are never offered or planned: every runtime updates with the body image (Owner 2026-11-08)', async t => {
   const f = await runtimeFixture(t)
   const notice = { state: 'unavailable', code: 'X', message: 'x' }
-  const row = { ...f.inventory.components[0], published: { version: sha('b'), sourceCommit: 'b'.repeat(40), digest: 'sha256:' + sha('b'), origin: 'published' },
-    comparison: { state: 'update_available', reason: null }, capability: { supported: false, reason: 'UPDATE_EXECUTOR_UNAVAILABLE' }, availability: { available: true, reason: null } }
-  const offered = await f.executor.snapshot({ components: [row], plans: [], operation: null, previousOperation: null, notice })
-  assert.deepEqual(offered.components[0].capability, { supported: true, reason: null })
-  await assert.rejects(f.executor.plan({ scope: 'component', componentId: 'runtime-codex', action: 'rollback' }, f.inventory), { code: 'UPDATE_ROLLBACK_UNSUPPORTED' })
-  const plan = await f.executor.plan({ scope: 'component', componentId: 'runtime-codex' }, f.inventory)
-  assert.deepEqual([plan.impact.containerRestart, plan.targets.map(target => target.componentId)], [false, ['runtime-codex']])
-  const requestId = randomUUID()
-  const accepted = await f.executor.start({ planId: plan.planId, requestId, confirmContainerRestart: false })
-  assert.deepEqual(accepted.jobs.map(job => [job.kind, job.target.moduleId]), [['runtime', 'runtime-codex']])
-  assert.deepEqual(f.calls.slice(0, 2).map(call => call[0]), ['plan', 'admit'])
-  await f.executor.close()
-  const result = await f.executor.operation(requestId)
-  assert.deepEqual([result.phase, result.jobs[0].state], ['completed', 'ready'])
-  assert.deepEqual(f.calls.map(call => call.slice(0, 2)), [['plan', 'runtime-codex'], ['admit', 'runtime'], ['start', accepted.jobs[0].jobId]])
-  assert.deepEqual(f.exchanges, [])
-  // A released reader (no runtime rows) never sees this runtime operation or plan.
-  const plain = await f.executor.snapshot({ components: [], plans: [], operation: null, previousOperation: null, notice })
-  assert.deepEqual([plain.operation, plain.plans], [null, []])
+  for (const id of ['runtime-codex', 'runtime-claude-code', 'runtime-throughline']) {
+    const row = { id, current: { version: 'builtin', sourceCommit: null, digest: null, origin: 'builtin' },
+      published: { version: sha('b'), sourceCommit: 'b'.repeat(40), digest: 'sha256:' + sha('b'), origin: 'published' },
+      comparison: { state: 'update_available', reason: null }, capability: { supported: false, reason: 'UPDATE_EXECUTOR_UNAVAILABLE' }, availability: { available: true, reason: null } }
+    const offered = await f.executor.snapshot({ components: [row], plans: [], operation: null, previousOperation: null, notice })
+    assert.deepEqual(offered.components[0].capability, { supported: false, reason: 'RUNTIME_BODY_IMAGE_ONLY' })
+    await assert.rejects(f.executor.plan({ scope: 'component', componentId: id }, { components: [row] }), { code: 'RUNTIME_BODY_IMAGE_ONLY' })
+  }
+  assert.deepEqual(f.calls, [])
 })
-
-test('a failed runtime job projects its stored reason without parent writes or replay', async t => {
-  const f = await runtimeFixture(t, { fail: 'RUNTIME_PROBE_FAILED' })
-  const plan = await f.executor.plan({ scope: 'component', componentId: 'runtime-codex' }, f.inventory)
-  const requestId = randomUUID()
-  await f.executor.start({ planId: plan.planId, requestId, confirmContainerRestart: false })
-  await f.executor.close()
-  const result = await f.executor.operation(requestId)
-  assert.deepEqual([result.phase, result.error.code, result.jobs[0].reason.code], ['failed', 'RUNTIME_PROBE_FAILED', 'RUNTIME_PROBE_FAILED'])
-  assert.equal(f.calls.filter(call => call[0] === 'start').length, 1)
-  assert.equal(f.calls.some(call => call[0] === 'updateJob'), false)
+test('a runtime plan saved before the body-only rule is refused at start before catalog, staging or admission', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'runtime-saved-plan-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const published = { version: sha('b'), sourceCommit: 'b'.repeat(40), digest: 'sha256:' + sha('b'), origin: 'published' }
+  const current = { version: 'builtin', sourceCommit: null, digest: null, origin: 'builtin' }
+  const plan = { planId: randomUUID(), scope: 'component', componentId: 'runtime-codex', action: 'update', expiresAt: '2099-01-01T00:00:00Z',
+    targets: [{ componentId: 'runtime-codex', current, published }], compatibility: { compatible: true, reason: null },
+    impact: { containerRestart: false, description: '次回起動から適用します。' }, capability: { supported: true, reason: null } }
+  const step = { componentId: 'runtime-codex', from: current, target: published, release: runtimeRelease('runtime-codex'), catalogSha256: sha('c'),
+    installPlan: { planId: randomUUID(), expiresAt: '2099-01-01T00:00:00Z' } }
+  await mkdir(join(root, 'state/update-ledger'), { recursive: true, mode: 0o700 })
+  await writeFile(join(root, 'state/update-ledger/ledger.json'), JSON.stringify({ schema: 'bellteam.module-update.ledger.v1',
+    plans: [{ plan, steps: [step], hostPlan: null }], operations: [] }) + '\n', { mode: 0o600 })
+  const calls = []
+  const moduleHost = new Proxy({}, { get: (_, name) => name === 'then' ? undefined : (...args) => { calls.push(name); return Promise.resolve(null) } })
+  const catalog = { select: async id => { calls.push(['select', id]); return selection(id) }, checkCatalog: async () => {} }
+  const executor = await createModuleUpdateExecutor({ root, catalog, moduleHost, adapters: {} })
+  t.after(() => executor.close())
+  await assert.rejects(executor.start({ planId: plan.planId, requestId: randomUUID(), confirmContainerRestart: false }), { code: 'RUNTIME_BODY_IMAGE_ONLY' })
+  assert.deepEqual(calls, [])
 })
-
 test('an all plan keeps its module and container steps only', async t => {
   const f = await runtimeFixture(t)
   const plan = await f.executor.plan({ scope: 'all' }, null)
