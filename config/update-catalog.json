@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-10T00:18:29Z",
-  "expiresAt": "2026-11-17T00:18:29Z",
+  "publishedAt": "2026-11-10T00:24:51Z",
+  "expiresAt": "2026-11-17T00:24:51Z",
   "releases": [
     {
       "componentId": "usage",
@@ -425,8 +425,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "98cb346e4d403498675c34a086e855df8b9117bd",
-      "versionId": "f492c3418a4c8313f00a0a99682b3f59287fcb600d078673a75e84a37b2a341d",
+      "sourceCommit": "35a96390b1657e5bb6966034eb47e1ebf623c37a",
+      "versionId": "647a01a6b598b61b0ea54cc97ceba96ea7661dab8c5159e39397478145121ff3",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -434,16 +434,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T232925Z/web-gateway-98cb346e4d403498675c34a086e855df8b9117bd-linux-amd64.tar.gz",
-          "bytes": 5160594,
-          "sha256": "f492c3418a4c8313f00a0a99682b3f59287fcb600d078673a75e84a37b2a341d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T002059Z/web-gateway-35a96390b1657e5bb6966034eb47e1ebf623c37a-linux-amd64.tar.gz",
+          "bytes": 5165414,
+          "sha256": "647a01a6b598b61b0ea54cc97ceba96ea7661dab8c5159e39397478145121ff3"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T232925Z/web-gateway-98cb346e4d403498675c34a086e855df8b9117bd-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11115,
-          "sha256": "5d9f05cf8cac1bcc7b2fda49979ad42b8898df9006aeba703cb5d14705c41872"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T002059Z/web-gateway-35a96390b1657e5bb6966034eb47e1ebf623c37a-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10923,
+          "sha256": "9fc9b8f0b148e3bf772494eacf268b0665ed4f78bee1e71ca8d968573ec85b28"
         },
-        "signerCommit": "98cb346e4d403498675c34a086e855df8b9117bd"
+        "signerCommit": "35a96390b1657e5bb6966034eb47e1ebf623c37a"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -452,13 +452,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "設定の「追加機能」で1Password連携を設定でき、案内と確認の結果をその場で表示します。モデルの選択肢を分かりやすい名前で表示します。端末とメンバーのフォルダーを画面から登録できます。相関図の線や項目が、関係のないメンバーに重なりにくくなります。"
+        "メンバーの保存を断られた時は「保存できませんでした」と理由を出し、「このフォルダを作って保存」はフォルダがない時だけ出します。sudo鍵も1Passwordから選べて、検索できます。秘密入力の画面が暗い表示に対応します。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "98cb346e4d403498675c34a086e855df8b9117bd",
-      "versionId": "9439550618b60277a20df859733a21d086982e70a637e63d561801b2a667a855",
+      "sourceCommit": "35a96390b1657e5bb6966034eb47e1ebf623c37a",
+      "versionId": "f9fe9828b811fd007476a415259fafcbb1d3608d8036c4e09933760fb6ad8a8e",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -466,16 +466,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T232925Z/web-gateway-98cb346e4d403498675c34a086e855df8b9117bd-linux-arm64.tar.gz",
-          "bytes": 5160594,
-          "sha256": "9439550618b60277a20df859733a21d086982e70a637e63d561801b2a667a855"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T002059Z/web-gateway-35a96390b1657e5bb6966034eb47e1ebf623c37a-linux-arm64.tar.gz",
+          "bytes": 5165414,
+          "sha256": "f9fe9828b811fd007476a415259fafcbb1d3608d8036c4e09933760fb6ad8a8e"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T232925Z/web-gateway-98cb346e4d403498675c34a086e855df8b9117bd-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11150,
-          "sha256": "b2b79814c9793592dfa81e22f104394cb3d220a3f09b72b96c519012178cfc69"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T002059Z/web-gateway-35a96390b1657e5bb6966034eb47e1ebf623c37a-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11111,
+          "sha256": "e3d3d14781d26ecb1cc82a39443ef76a8b7aa51cf1f99fef24ba0dd81de70501"
         },
-        "signerCommit": "98cb346e4d403498675c34a086e855df8b9117bd"
+        "signerCommit": "35a96390b1657e5bb6966034eb47e1ebf623c37a"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -484,7 +484,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "設定の「追加機能」で1Password連携を設定でき、案内と確認の結果をその場で表示します。モデルの選択肢を分かりやすい名前で表示します。端末とメンバーのフォルダーを画面から登録できます。相関図の線や項目が、関係のないメンバーに重なりにくくなります。"
+        "メンバーの保存を断られた時は「保存できませんでした」と理由を出し、「このフォルダを作って保存」はフォルダがない時だけ出します。sudo鍵も1Passwordから選べて、検索できます。秘密入力の画面が暗い表示に対応します。"
       ]
     },
     {
