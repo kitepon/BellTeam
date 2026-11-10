@@ -11,11 +11,12 @@ flowchart LR
   Pre --> GH[GitHub Release prerelease:true]
   GH -->|channel=candidate| Test[test install: BELLTEAM_UPDATE_CHANNEL=candidate / app Update]
   GH -.->|channel=stable ignores prerelease| Prod[production / unchanged]
+  Test -->|same BELLTEAM_UPDATE_CHANNEL| Modules[module-installer env -> ModuleUpdater config.channel]
   Test -->|PASS| Stable[promote stage=stable :latest+:preview -> stable catalog]
 ```
 
 - `scripts/update_catalog.py publication_candidates(records, channel)`: `stable` (default) keeps draft:false + prerelease:false; `candidate` also accepts prerelease:true. The newest tag wins over all listed rows (sorted by tag before the 10-row cut; GitHub's REST list order is not recency, 2026-11-10 Centi lab: the prerelease was the 14th catalog row and was dropped), so a later stable catalog supersedes a candidate one. The selector runs from the running body's image (`container-update-host.py _refresh_catalog` loads it from `code_root`), so the fix applies from a body that carries it.
-- The bundled container-updater writes `channel` from the install model's `BELLTEAM_UPDATE_CHANNEL` (compose default `stable`). Configs written before the channel existed have no `channel` key = stable. Module updaters keep reading stable.
+- The bundled container-updater writes `channel` from the install model's `BELLTEAM_UPDATE_CHANNEL` (compose default `stable`). Configs written before the channel existed have no `channel` key = stable. The module installer reads the same channel (2026-11-10, Centi lab FAIL: it always read stable, so a candidate module row could never be planned): `scripts/module-update-compose.mjs` copies only `BELLTEAM_UPDATE_CHANNEL` (`stable`|`candidate`, absent = no key) from the normal `bellteam` service environment into the `module-installer` service environment, and `module-update-service.py load()` puts it into the ModuleUpdater config as `channel` (absent = stable, any other value = `HOST_UPDATE_CHANNEL_INVALID`). `_refresh_catalog` already selects by `config.channel`. Like the container channel, it works from the body that carries it, because the installer runs from the body image.
 - Publisher: `UPDATE_CATALOG_PRERELEASE=true` compares the container row with `manifests/candidate` instead of `latest` and creates the release with `--prerelease`. Signing, attestation and verification are unchanged.
 - Limit: the channel is read by the updater of the body that the test install starts from, so it works only from a body that carries it (the fix body on). The 7c54 -> abe262ad transition used the one-time install-path test (Trony ruling b).
 

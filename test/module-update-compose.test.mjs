@@ -62,3 +62,16 @@ test('Z-b2 runtime-code: body reads it, the module-installer alone writes it, te
   const helper=moduleWorkerTerminationModel(normal).services['module-worker-termination']
   assert.equal(helper.volumes.some(m=>m.source==='runtime-code'),false)
 })
+
+test('module-installer reads the body update channel and nothing else of its environment', () => {
+  const normal = channel => ({name:'p',services:{bellteam:{image:'sha256:'+'a'.repeat(64),
+    environment:{SECRET:'body-only',...(channel === undefined ? {} : {BELLTEAM_UPDATE_CHANNEL:channel})},volumes:[
+    {type:'volume',source:'server-state',target:'/run/bellteam-maintenance',read_only:true,volume:{nocopy:true}}]}},
+    volumes:{'server-state':{name:'s',external:true}}})
+  const installer = channel => moduleInstallerModels(normal(channel)).backend.services['module-installer']
+  assert.deepEqual(installer('candidate').environment,{BELLTEAM_UPDATE_CHANNEL:'candidate'})
+  assert.deepEqual(installer('stable').environment,{BELLTEAM_UPDATE_CHANNEL:'stable'})
+  assert.equal(installer(undefined).environment,undefined)
+  assert.throws(()=>installer('nightly'),/MODULE_INSTALLER_MODEL_INVALID/)
+  assert.doesNotMatch(JSON.stringify(moduleInstallerModels(normal('candidate')).backend),/body-only/)
+})

@@ -41,8 +41,12 @@ export function moduleInstallerModels(input) {
     normal.volumes['runtime-code'] = { name:runtimeName }
     service.volumes.push({ type:'volume',source:'runtime-code',target:RUNTIME_ROOT,read_only:true })
   }
+  // update-catalog.md: the installer reads the body's update channel; nothing else of the body environment is copied.
+  const channel = Array.isArray(service.environment) ? undefined : service.environment?.BELLTEAM_UPDATE_CHANNEL
+  if (channel !== undefined && !['stable', 'candidate'].includes(channel)) throw Error('MODULE_INSTALLER_MODEL_INVALID')
   const backend = { name:project, services:{ 'module-installer': {
     image:service.image,init:true,restart:'unless-stopped',read_only:true,user:'0:0',
+    ...(channel ? { environment:{ BELLTEAM_UPDATE_CHANNEL:channel } } : {}),
     entrypoint:['/usr/bin/python3','-I','-B','/app/scripts/module-update-service.py'],
     cap_drop:['ALL'],cap_add:['CHOWN','DAC_OVERRIDE','FOWNER'],security_opt:['no-new-privileges:true'],
     cpus:1,mem_limit:'2g',memswap_limit:'2g',pids_limit:512,
