@@ -4,14 +4,19 @@ import { json } from './http-response.mjs'
 // An engine without the 'accounts' owner answers EXECUTION_REQUEST_INVALID; that body does not support accounts.
 const unsupported = error => error?.code === 'EXECUTION_REQUEST_INVALID'
 
-// Bot item 'account': the seat's slot, null for a seat without one, undefined when this body/engine has no accounts.
-export function readSeatAccount(transport, botId) {
-  if (typeof transport?.seatAccount !== 'function') return undefined
+// Bot item fields read synchronously from the engine: undefined (field absent) when this body/engine lacks the method,
+// null when unset or on another failure, otherwise a copy of the object.
+export function readSeatProjection(transport, method, botId) {
+  if (typeof transport?.[method] !== 'function') return undefined
   try {
-    const value = transport.seatAccount(botId)
+    const value = transport[method](botId)
     return value && typeof value === 'object' && !Array.isArray(value) ? structuredClone(value) : null
   } catch (error) { return unsupported(error) ? undefined : null }
 }
+
+// 'account' (harness-accounts.md): the seat's slot. 'seatLaunch' (remote-seat.md): the last not-started remote launch.
+export const readSeatAccount = (transport, botId) => readSeatProjection(transport, 'seatAccount', botId)
+export const readSeatLaunch = (transport, botId) => readSeatProjection(transport, 'seatLaunch', botId)
 
 export function createAccountsApi({ accounts }) {
   return async (request, response, url) => {
