@@ -57,7 +57,8 @@ export function wrapLabel(text, width, measure) {
 }
 // 分身（読み取り専用の fork）への依頼は seat.kind === 'fork'。seat の無い線は本体。
 export const isFork = edge => edge.seat?.kind === 'fork'
-export const chipText = edge => isFork(edge) ? (edge.label ? `分身: ${edge.label}` : '分身') : edge.label
+// 要約が無い線は分身でも札を出さない（behavior-spec Chip placement、#952）。
+export const chipText = edge => isFork(edge) && edge.label ? `分身: ${edge.label}` : edge.label
 export const edgeText = (edge, names) => `${names.get(edge.from) ?? edge.from}から${names.get(edge.to) ?? edge.to}${isFork(edge) ? '（分身）' : ''}へ依頼${edge.label ? `: ${edge.label}` : ''}`
 
 const validNode = node => node && typeof node.botId === 'string' && typeof node.name === 'string' && ['working', 'linked'].includes(node.state)
