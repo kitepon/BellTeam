@@ -40,4 +40,10 @@ test('本文が変わった保存だけを誰が・前後つきで履歴に残�
   assert.deepEqual({ ...latest, at: undefined }, { schema: 'bellteam.user-rules-change.v1', at: undefined, actor: { kind: 'bot', botId: 'bot-a' }, instruction, before: '- a\n', after: '- a\n- b\n' })
   assert.deepEqual([first.actor, first.before, first.after], [{ kind: 'owner' }, '', '- a\n'])
   assert.equal(userRulesDiff('x\ny\nz', 'x\nY\nz\nw'), '- y\n+ Y\n+ w')
+  // Max-size multiline proposal (20,000 chars, 10,000 lines each) stays linear and still lists every change.
+  const many = mark => Array.from({ length: 10_000 }, (_, i) => String.fromCharCode(mark + i % 2)).join('\n')
+  assert.equal(many(97).length, 19_999)
+  const big = userRulesDiff(many(97), many(99)).split('\n')
+  assert.equal(big.length, 20_000)
+  assert.deepEqual([big[0], big[9_999], big[10_000], big.at(-1)], ['- a', '- b', '+ c', '+ d'])
 })

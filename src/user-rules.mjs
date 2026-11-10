@@ -74,18 +74,27 @@ export function userRulesInstructions(text) {
 
 export const normalizeUserRules = text => `${text.replace(/\r\n/g, '\n').trim()}\n`
 
+const DIFF_CELLS = 1_000_000
+
 // Line diff for the Owner-facing change notice: removed lines as "- ", added lines as "+ ".
+// Common head/tail lines are skipped; the LCS runs only while the middle fits DIFF_CELLS (2 MB), else every
+// middle line is listed as removed then added: still the complete change, in linear time and memory.
 export function userRulesDiff(before, after) {
   const a = before.split('\n'), b = after.split('\n')
-  const lcs = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0))
-  for (let i = a.length - 1; i >= 0; i--) for (let j = b.length - 1; j >= 0; j--)
-    lcs[i][j] = a[i] === b[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1])
+  let start = 0, endA = a.length, endB = b.length
+  while (start < endA && start < endB && a[start] === b[start]) start++
+  while (endA > start && endB > start && a[endA - 1] === b[endB - 1]) { endA--; endB-- }
+  const n = endA - start, m = endB - start
+  if (n * m > DIFF_CELLS) return [...a.slice(start, endA).map(line => `- ${line}`), ...b.slice(start, endB).map(line => `+ ${line}`)].join('\n')
+  const width = m + 1, lcs = new Uint16Array((n + 1) * width)
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--)
+    lcs[i * width + j] = a[start + i] === b[start + j] ? lcs[(i + 1) * width + j + 1] + 1 : Math.max(lcs[(i + 1) * width + j], lcs[i * width + j + 1])
   const lines = []
   let i = 0, j = 0
-  while (i < a.length || j < b.length) {
-    if (i < a.length && j < b.length && a[i] === b[j]) { i++; j++ }
-    else if (i < a.length && (j === b.length || lcs[i + 1][j] >= lcs[i][j + 1])) lines.push(`- ${a[i++]}`)
-    else lines.push(`+ ${b[j++]}`)
+  while (i < n || j < m) {
+    if (i < n && j < m && a[start + i] === b[start + j]) { i++; j++ }
+    else if (i < n && (j === m || lcs[(i + 1) * width + j] >= lcs[i * width + j + 1])) lines.push(`- ${a[start + i++]}`)
+    else lines.push(`+ ${b[start + j++]}`)
   }
   return lines.join('\n')
 }
