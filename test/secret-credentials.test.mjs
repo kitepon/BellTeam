@@ -27,6 +27,7 @@ function fakeSource() {
     connected(value) { this.available = value; events.emit('change', { available: value }) },
     token: null, setToken(reader) { this.token = reader },
     keys: [{ title: 'MacBook key', vault: '開発工場', reference }], async listSshKeys() { return this.keys },
+    passwords: [{ title: 'Mac sudo', vault: '開発工場', reference: `op://${'a'.repeat(26)}/${'c'.repeat(26)}/password` }], async listPasswords() { return this.passwords },
     async inventory() { return { vaults: ['開発工場'], keys: this.keys } },
   }
 }
@@ -269,6 +270,13 @@ test('the SSH card lists existing keys to the Owner only', async t => {
   assert.equal((await fetch(url, { method: 'POST' })).status, 405)
   await service.submit(card.id, { source: 'onepassword', reference: source.keys[0].reference })
   assert.equal((await fetch(url)).status, 409)
+})
+
+test('the sudo card lists password items through the same route and DTO', async t => {
+  const { source, service } = await fixture(t)
+  const { secretRequest } = await service.requestTerminalKey({ terminalId: 'owner-macbook', purpose: 'terminal.sudo', label: '端末 owner-macbook のsudoパスワード' })
+  assert.deepEqual(await service.onePasswordItems(secretRequest.id), source.passwords)
+  assert.equal(usageResultValid('secrets.onePasswordItems', source.passwords), true)
 })
 
 test('terminal.login is paste-only, kept in memory, resolved exactly once and gone after restart', async t => {
