@@ -302,7 +302,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [UpdateStore.execute](../../../../ios/BellBot/BellBot/Core/UpdateStore.swift#L96) | 要求IDを保存してからPOST。4xxは確定、その他は受付不明で再送しない |
 | [UpdateStore.reset](../../../../ios/BellBot/BellBot/Core/UpdateStore.swift#L35) / [apply](../../../../ios/BellBot/BellBot/Core/UpdateStore.swift#L127) | 接続先変更時の表示破棄 / 照会結果の適用と確定時の保存ID消去 |
 | [UpdateBadge](../../../../ios/BellBot/BellBot/Views/UpdateView.swift#L4) | ロゴ右の印。`update_available`がある時だけ |
-| [UpdateView](../../../../ios/BellBot/BellBot/Views/UpdateView.swift#L24)、[componentCard](../../../../ios/BellBot/BellBot/Views/UpdateView.swift#L79) / [operationCard](../../../../ios/BellBot/BellBot/Views/UpdateView.swift#L104) / [planCard](../../../../ios/BellBot/BellBot/Views/UpdateView.swift#L118) | Update画面の表示と、対象選択・計画・実行の操作 |
+| [UpdateView](../../../../ios/BellBot/BellBot/Views/UpdateView.swift#L24)、[componentCard](../../../../ios/BellBot/BellBot/Views/UpdateView.swift#L79) / [operationCard](../../../../ios/BellBot/BellBot/Views/UpdateView.swift#L104) / [planCard](../../../../ios/BellBot/BellBot/Views/UpdateView.swift#L118) | Update画面の表示と、対象選択・計画・実行の操作。`UpdateContent.status`は全部が最新か`incompatible`で後者が1つ以上なら`.waiting(names)`（見出し「更新できるものはすべて最新です」、Webと同じ）、`badge(for:)`は`incompatible`を「使えない版」にする |
 | [BellUpdateRoute](../../../../ios/BellBot/BellBot/Core/BellNotifications.swift#L28) | push `kind=update`の3key完全一致の解析と接続先照合 |
 | [AppStore.openPendingUpdateNotification](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L889) | ready後に接続先一致の時だけUpdate画面を開きGET。`startEvents`の`updates`分岐は[AppStore.swift](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L736) |
 

@@ -50,6 +50,7 @@ BellBotTests 26ファイル、BellBotUITests 19ファイル、Tests 2ファイ�
 | [testUpdatesEventReadsOnlyTheInventory](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L397) | SSE `updates`でGET /api/updatesが1回、共通一覧（bots）は読まない |
 | [testTapOpensUpdateAndReadsWithoutAnyPost](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L411) | 一致するserverのタップで画面を開きGET、POSTは0回 |
 | [testTapForAnotherServerOpensNothingAndCallsNothing](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L423) | server不一致では開かず通信もせず、1件保留する |
+| testUpdateStatusTreatsAnIncompatiblePartAsWaitingNotUnknown | 状態の計算：全部最新=upToDate、最新+incompatible=waiting（名前の並び）、unknown/unavailableが混ざれば今までどおりunknown、更新できる機能があればavailable。waitingの見出し・一文・incompatibleの印「使えない版」 |
 | [testEachServerStateShowsOneSimpleStatus](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L290) | サーバーの有限例7種で標準画面の見出しが状態ごとに一つに決まる。幅390・820の実画面を試験結果へ画像で添付する |
 | [testUnconfirmedRequestKeepsCheckingButOffersAnotherFormalCandidate](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L310) | interruptedでは主操作は状況の確認のまま。正式な候補がある時だけ別の計画を選べ、無ければ出さない。POSTは0回 |
 | [testRejectionCodesStayInDetailsNotOnTheStandardScreen](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L328) | 内部の符号入りの計画拒否や実行失敗でも、標準面の案内に符号・元の説明を出さず、元の文はStoreに保持する |

@@ -468,6 +468,39 @@ final class UpdateViewTests: XCTestCase {
         XCTAssertEqual(UpdateContent(updates: lenient).partStatuses.map(\.component.id), ["notifications"])
     }
 
+    func testUpdateStatusTreatsAnIncompatiblePartAsWaitingNotUnknown() async throws {
+        let base = try XCTUnwrap(try UpdateFixtures.examples()["no_update"])
+        let first = try XCTUnwrap((base["components"] as? [[String: Any]])?.first)
+        func status(_ states: [String]) async throws -> UpdateContent.Status {
+            var example = base
+            example["components"] = states.enumerated().map { index, state -> [String: Any] in
+                var part = first
+                part["id"] = "part-\(index)"
+                part["name"] = "機能\(index)"
+                part["comparison"] = ["state": state, "reason": NSNull()]
+                part["capability"] = ["supported": true, "reason": NSNull()]
+                return part
+            }
+            return UpdateContent(updates: try await store(json: example)).status
+        }
+        let unknown = try await status(["up_to_date", "unknown"])
+        let unavailable = try await status(["incompatible", "unavailable"])
+        let available = try await status(["up_to_date", "incompatible", "update_available"])
+        let allLatest = try await status(["up_to_date", "up_to_date"])
+        let waiting = try await status(["up_to_date", "incompatible", "incompatible"])
+        XCTAssertEqual(allLatest, .upToDate)
+        XCTAssertEqual(waiting, .waiting(["機能1", "機能2"]))
+        if case .unknown = unknown, case .unknown = unavailable {} else { XCTFail("未確認が混ざれば今までどおり確認できません: \(unknown) \(unavailable)") }
+        XCTAssertEqual(available, .available, "更新できる機能があれば待ちにしない")
+
+        var example = base
+        example["components"] = [first, first.merging(["id": "part-1", "name": "Aiterm", "comparison": ["state": "incompatible", "reason": NSNull()]]) { $1 }]
+        let content = UpdateContent(updates: try await store(json: example))
+        XCTAssertEqual(content.heroText.1, "更新できるものはすべて最新です")
+        XCTAssertEqual(content.heroText.2, "Aitermは、いまの本体に合う版がまだありません。合う版が出ると、ここで更新できます。")
+        XCTAssertEqual(content.badge(for: try XCTUnwrap(content.updates.inventory?.components.last)).text, "使えない版")
+    }
+
     func testUnconfirmedRequestKeepsCheckingButOffersAnotherFormalCandidate() async throws {
         var interrupted = try XCTUnwrap(try UpdateFixtures.examples()["interrupted"])
         let plain = try await store(for: "interrupted")
