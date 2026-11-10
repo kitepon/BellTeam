@@ -875,11 +875,11 @@ final class TerminalsTests: XCTestCase {
         let full = try bot(seatLaunch: #"{"code":"TARGET_MISMATCH","action":"リモートログインをオンにしてください","terminalId":"mac","at":"2026-11-10T02:00:00Z"}"#)
         XCTAssertEqual(full.seatLaunch?.terminalId, "mac")
         XCTAssertEqual(full.seatLaunch?.at, "2026-11-10T02:00:00Z")
-        XCTAssertEqual(full.seatLaunch?.line, "Macで起動できません: リモートログインをオンにしてください")
+        XCTAssertEqual(full.seatLaunch?.line, "端末で起動できません：リモートログインをオンにしてください")
         for missing in [#"{"code":"TERMINAL_UNAVAILABLE"}"#, #"{"code":"TERMINAL_UNAVAILABLE","action":null}"#, #"{"code":"TERMINAL_UNAVAILABLE","action":"  "}"#] {
-            XCTAssertEqual(try bot(seatLaunch: missing).seatLaunch?.line, "Macで起動できません: TERMINAL_UNAVAILABLE", missing)
+            XCTAssertEqual(try bot(seatLaunch: missing).seatLaunch?.line, "端末で起動できません：TERMINAL_UNAVAILABLE", missing)
         }
-        XCTAssertNil(try bot(seatLaunch: "{}").seatLaunch?.line, "nothing to say: no line")
+        XCTAssertEqual(try bot(seatLaunch: "{}").seatLaunch?.line, "端末で起動できません。", "neither action nor code: the bare line (as Web)")
     }
 
     func testMalformedSeatLaunchIsAbsentAndDoesNotBreakTheBot() throws {
@@ -889,7 +889,7 @@ final class TerminalsTests: XCTestCase {
             XCTAssertNil(decoded.seatLaunch?.line, malformed)
         }
         let wrongField = try bot(seatLaunch: #"{"code":5,"action":"次の手順"}"#)
-        XCTAssertEqual(wrongField.seatLaunch?.line, "Macで起動できません: 次の手順", "a field of the wrong type reads as absent")
+        XCTAssertEqual(wrongField.seatLaunch?.line, "端末で起動できません：次の手順", "a field of the wrong type reads as absent")
     }
 
     // MARK: configurationApplication (execution configuration-requests.md "Application view")

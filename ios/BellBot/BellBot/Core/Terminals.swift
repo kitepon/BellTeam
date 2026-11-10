@@ -54,10 +54,10 @@ struct SeatLaunch: Decodable, Equatable {
         at = try? c.decodeIfPresent(String.self, forKey: .at)
     }
 
-    /// The one plain line: the action, or the code when the action is empty. nil when neither has text.
-    var line: String? {
+    /// The one plain line (execution remote-seat.md "Launch notice", same as Web): the action, or the code when the action is empty.
+    var line: String {
         let text = [action, code].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }.first { !$0.isEmpty }
-        return text.map { "Macで起動できません: \($0)" }
+        return text.map { "端末で起動できません：\($0)" } ?? "端末で起動できません。"
     }
 }
 

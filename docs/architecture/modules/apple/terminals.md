@@ -175,7 +175,7 @@ flowchart LR
 | sudo鍵 | あり | あり | 行を出さない |
 | `FOLDER_NOT_PERMITTED` | フルディスクアクセスの案内 | 開けるフォルダを選ぶ一文 | 同左 |
 
-Botの「Macで起動できません: …」（`SeatLaunch.line`）は[execution remote-seat](../execution/remote-seat.md)とWebで共通の文なので、ここでは変えない。
+Botの起動できない理由（`SeatLaunch.line`）は、どのOSでも「端末で起動できません：<action、無ければcode>」（両方無ければ「端末で起動できません。」。[execution remote-seat](../execution/remote-seat.md)「Launch notice」、Webと共通）。OSが関わる時は`action`がOSの名前を出す。
 
 ## データの流れ
 

@@ -445,7 +445,7 @@ goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`tes
 
 | 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
 | --- | --- |
-| testSeatLaunchDecodesAndReadsAsOneLine | Bot項目`seatLaunch`：欠落・`null`は無し、全項目ありは「Macで起動できません: <action>」、`action`が無い・`null`・空白だけは`code`、両方無しは行なし |
+| testSeatLaunchDecodesAndReadsAsOneLine | Bot項目`seatLaunch`：欠落・`null`は無し、全項目ありは「端末で起動できません：<action>」、`action`が無い・`null`・空白だけは`code`、両方無しは「端末で起動できません。」 |
 | testConfigurationApplicationLineFollowsTheWebEditor | `configurationApplication`の1行：新規メンバーは行なし、pending・accepted・failed（サーバーのmessage、messageなしは行なし）、記録なし・`null`・知らないstateは稼働中／停止中の既定文 |
 | testMalformedConfigurationApplicationIsAbsentAndDoesNotBreakTheBot | 文字列・数・配列・真偽でもBotは読め記録は無し、型違いの項目だけ無いものとして読む |
 | testPickerRowsKeepOnlyPasswordReferencesForSudoAndSearchByNameOrVault | 一覧の行：sudoは`/password`だけ（SSH鍵の参照は残らない）、SSHは全行、名前・保管庫（前後空白除去）の大文字小文字を区別しない絞り込み、件数文（N件／「…」に合う…がありません） |
@@ -983,7 +983,7 @@ Macの端末表示中の照会と非表示後の停止、小画像保存の結�
 | testOlderBodyWithoutTheFoldersRouteKeepsTheTextField | 経路が無い本体はシートで一文、閉じると文字入力の欄（保存済みのパス入り）が出て選ぶボタンは無い |
 | testMemberFolderMissingOffersToCreateAndSavesOnce | 端末を替えて保存→`FOLDER_MISSING`の文（フォームのフォルダ入り）と「このフォルダを作って保存」、断られた保存は残らない→ボタンで同じ保存＋`createFolder:true`、保存して閉じる |
 | testMemberFolderOtherRefusalsHaveNoCreateButton | `FOLDER_NOT_DIRECTORY`・`NOT_WRITABLE`・`NOT_PERMITTED`の文だけでボタンなし |
-| testSeatLaunchNoticeShowsOnTheMemberRowAndTheConversationHeader | `-bellbot-preview-seat-launch action|code`（名簿は内蔵の見本で、サーバーの応答ではない。読取は`TerminalsTests`）：一覧の行に「Macで起動できません: <action>」が1つだけ、会話ヘッダーにも同じ行、actionが無ければcode、引数なしなら出ない |
+| testSeatLaunchNoticeShowsOnTheMemberRowAndTheConversationHeader | `-bellbot-preview-seat-launch action|code`（名簿は内蔵の見本で、サーバーの応答ではない。読取は`TerminalsTests`）：一覧の行に「端末で起動できません：<action>」が1つだけ、会話ヘッダーにも同じ行、actionが無ければcode、引数なしなら出ない |
 | testMemberEditorTerminalAndFolder | 保存済みの端末とフォルダの読み取り専用の表示と「フォルダを選ぶ」（文字入力は畳んだ「ほかの方法」の中）、相対パスは画面で止めてPATCHしない、このBellTeamへ戻すと両方空で保存 |
 | testOldServerShowsOneCalmLineAndSendsNoNewFields | 一覧404とメンバー項目なしで一行の案内だけ、保存bodyに2項目を含めない |
 
