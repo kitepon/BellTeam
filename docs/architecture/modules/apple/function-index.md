@@ -82,7 +82,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [startGuide](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L373) | 初回開始POST、ready確認 |
 | [enterConversations](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L382) | 一覧取得・ready・SSE/購読/通知接続 |
 | [authorizeAIUse](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L394) | 初期guideと購読によるAI利用照会 |
-| [restartConversation(target:)](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L401) | authorizeAIUse後にEmptyBodyをPOSTしてAPIAcknowledgementを受領。DesktopInspector.profileとConversationDetailView.bodyのonRestartが呼び、成功・失敗の画面処理は各callerに残す |
+| [restartConversation(target:)](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L401) | authorizeAIUse後にEmptyBodyを`post(timeout: 180)`でPOSTしてAPIAcknowledgementを受領（サーバーは席が立ってから200、旧本体の202も成功）。DesktopInspector.profileとConversationDetailView.bodyのonRestartが呼び、失敗の画面処理は各callerに残す |
 | [activateNotifications](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L406) | APIと署名取引を通知singletonへ |
 | [refresh](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L410) | 4資源と画像の取得・一括適用 |
 | [withResolvedBotAvatars](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L429) | Bot名簿の画像解決要求を作る |
@@ -199,7 +199,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [DesktopInspector.bot / room](../../../../ios/BellBot/BellBot/Views/DesktopWorkspaceView.swift#L266) | target.idで共通一覧を参照 |
 | [DesktopInspector.body](../../../../ios/BellBot/BellBot/Views/DesktopWorkspaceView.swift#L269) | 端末画面/プロフィール切替と画像sheet |
 | [profileSmallImageSize](../../../../ios/BellBot/BellBot/Views/DesktopWorkspaceView.swift#L289) | platform別のプロフィール画像寸法 |
-| [profile](../../../../ios/BellBot/BellBot/Views/DesktopWorkspaceView.swift#L297) | 参加者、画像・本文、編集を接続。onRestartはAppStore.restartConversationを呼び、成功時error消去、失敗時operationFailureMessageと/restart・POST・.write診断 |
+| [profile](../../../../ios/BellBot/BellBot/Views/DesktopWorkspaceView.swift#L297) | 参加者、画像・本文、編集を接続。onRestartはAppStore.restartConversationを呼び、開始時にerror消去・成功でtrue、失敗時operationFailureMessageと/restart・POST・.write診断 |
 | [heading](../../../../ios/BellBot/BellBot/Views/DesktopWorkspaceView.swift#L358) | プロフィール見出し |
 
 ## Views/ManagementView.swift
@@ -284,7 +284,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [loadSettings](../../../../ios/BellBot/BellBot/Views/BotProfileComponents.swift#L389) | Bot画像情報GET・schema/lifetime検査 |
 | [adjust](../../../../ios/BellBot/BellBot/Views/BotProfileComponents.swift#L426) | 元画像または保持中選択から再調整 |
 | [adjustmentImage](../../../../ios/BellBot/BellBot/Views/BotProfileComponents.swift#L444) | variantのrender/source/cropを選ぶ |
-| [BotProfileAISection.body](../../../../ios/BellBot/BellBot/Views/BotProfileComponents.swift#L461) | AI設定表示・画面/再起動callback |
+| [BotProfileAISection.body](../../../../ios/BellBot/BellBot/Views/BotProfileComponents.swift#L461) | AI設定表示・画面/再起動callback。再起動は`onRestart: () async -> Bool`を待つ間「再起動しています…」で無効、成功は「会話を再起動しました。」の一行 |
 | [BotProfileDetails.body](../../../../ios/BellBot/BellBot/Views/BotProfileComponents.swift#L484) | 役職・背景・性格・口調・仕事 |
 | [BotProfileDetails.detail](../../../../ios/BellBot/BellBot/Views/BotProfileComponents.swift#L495) | 共通本文表示・空値は未設定 |
 

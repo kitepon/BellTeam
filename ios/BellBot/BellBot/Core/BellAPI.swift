@@ -214,9 +214,9 @@ final class BellAPI {
         return try decode(T.self, from: body, path: path, method: "GET", status: status)
     }
 
-    func post<Body: Encodable, T: Decodable>(_ path: String, body: Body) async throws -> T {
+    func post<Body: Encodable, T: Decodable>(_ path: String, body: Body, timeout: TimeInterval? = nil) async throws -> T {
         let payload = try JSONEncoder().encode(body)
-        return try decode(T.self, from: try await data(path: path, method: "POST", body: payload), path: path, method: "POST")
+        return try decode(T.self, from: try await data(path: path, method: "POST", body: payload, timeout: timeout), path: path, method: "POST")
     }
 
     @MainActor
@@ -328,14 +328,15 @@ final class BellAPI {
     }
 
     private func data(path: String, method: String, body: Data? = nil,
-                      callerContext: String? = nil) async throws -> Data {
-        try await dataWithStatus(path: path, method: method, body: body, callerContext: callerContext).0
+                      callerContext: String? = nil, timeout: TimeInterval? = nil) async throws -> Data {
+        try await dataWithStatus(path: path, method: method, body: body, callerContext: callerContext, timeout: timeout).0
     }
 
     private func dataWithStatus(path: String, method: String, body: Data? = nil,
-                                callerContext: String? = nil) async throws -> (Data, Int) {
+                                callerContext: String? = nil, timeout: TimeInterval? = nil) async throws -> (Data, Int) {
         do {
             var request = try request(path: path, method: method)
+            if let timeout { request.timeoutInterval = timeout }
             if let body {
                 request.httpBody = body
                 request.setValue("application/json", forHTTPHeaderField: "Content-Type")

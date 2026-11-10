@@ -178,15 +178,17 @@ flowchart TD
 ```mermaid
 flowchart TD
   Desktop["DesktopInspector.profile<br/>onRestartのTask"] --> Restart["AppStore.restartConversation(target:)<br/>Core/AppStore.swift:401"]
-  Detail["ConversationDetailView.body<br/>onRestartのTask"] --> Restart
+  Detail["ConversationDetailView.body<br/>onRestart"] --> Restart
+  Section["BotProfileAISection<br/>押す → 「再起動しています…」（無効）→ 結果"] --> Desktop
+  Section --> Detail
   Restart --> Access["authorizeAIUse(target:)<br/>購読・初期guideの確認"]
-  Access --> Post["BellAPI.post<br/>POST target.path + /restart・EmptyBody"]
-  Post --> Ack["APIAcknowledgement受領<br/>呼出画面へ戻る"]
+  Access --> Post["BellAPI.post(timeout: 180)<br/>POST target.path + /restart・EmptyBody<br/>サーバーは席が立ってから200"]
+  Post --> Ack["APIAcknowledgement受領（200・旧本体の202とも成功）<br/>onRestartはtrueを返し「会話を再起動しました。」"]
 ```
 
-利用権限確認またはPOSTのErrorはそのまま画面へ返す。Desktopは成功時に`errorText=nil`、失敗時に`operationFailureMessage`と`target.path + "/restart"`・POST・`.write`の診断を一回送る。詳細は成功時にdismiss、失敗時に`localizedDescription`だけを表示する。共通操作はUI状態・画面遷移・診断・refresh・再送を持たず、ackを再起動完了とは扱わない。
+利用権限確認またはPOSTのErrorはそのまま画面へ返す。Desktopは成功時に`errorText=nil`、失敗時に`operationFailureMessage`と`target.path + "/restart"`・POST・`.write`の診断を一回送る。詳細は失敗時に`localizedDescription`だけを表示する（成功でdismissしない。待つ間にsheetが閉じると結果が見えないため）。両画面とも`onRestart`は成功でtrueを返し、`BotProfileAISection`が待つ間のボタン（「再起動しています…」・無効）と成功の一行を持つ。共通操作はUI状態・画面遷移・診断・refresh・再送を持たない。サーバーの200は席が立った後なので、待ちの長さは要求のtimeoutだけが決める。
 
-直接試験は[BillingStoreTestsの再起動5関数](tests.md#billingstoretestsswift)に対応する。Mac実画面用の`profile-terminal-ui-server.mjs`には購読・再起動の503/200応答・要求と診断の記録・resetを追加済み。`DesktopWorkspaceUITests.testMacInspectorRestartFailureReportsOnceAndSuccessKeepsInspector`は失敗文言・診断一回・POST一回、再操作成功時のerror消去・inspector保持とPOST計二回・診断計一回を検査し、[親のMac確認記録](refactor-progress.md#次の作業)で通過している。
+直接試験は[BillingStoreTestsの再起動6関数](tests.md#billingstoretestsswift)に対応する。Mac実画面用の`profile-terminal-ui-server.mjs`には購読・再起動の503/200応答・要求と診断の記録・resetを追加済み。`DesktopWorkspaceUITests.testMacInspectorRestartFailureReportsOnceAndSuccessKeepsInspector`は失敗文言・診断一回・POST一回、再操作成功時のerror消去・inspector保持とPOST計二回・診断計一回を検査し、[親のMac確認記録](refactor-progress.md#次の作業)で通過している。
 
 ## 整理候補
 

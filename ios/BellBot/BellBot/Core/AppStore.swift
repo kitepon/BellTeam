@@ -473,7 +473,9 @@ final class AppStore: ObservableObject {
 
     func restartConversation(target: ChatTarget) async throws {
         try await authorizeAIUse(target: target)
-        let _: APIAcknowledgement = try await api.post(target.path + "/restart", body: EmptyBody())
+        // The server answers only after the new seat is up (a remote seat takes tens of seconds), so this one request waits longer than the 60 s default.
+        // 200 {restarted, session} and an older body's 202 {restarting} are both success.
+        let _: APIAcknowledgement = try await api.post(target.path + "/restart", body: EmptyBody(), timeout: 180)
     }
 
     func activateNotifications() async {

@@ -323,14 +323,14 @@ private struct DesktopInspector: View {
                 } else if let bot {
                     BotProfileAISection(bot: bot, errorText: errorText,
                                         onScreen: { showingScreen = true }, onRestart: {
-                        Task {
-                            do {
-                                try await store.restartConversation(target: target)
-                                errorText = nil
-                            } catch {
-                                errorText = BellAPIError.operationFailureMessage(error)
-                                store.api.diagnostics.report(error, path: target.path + "/restart", method: "POST", observation: .write)
-                            }
+                        errorText = nil
+                        do {
+                            try await store.restartConversation(target: target)
+                            return true
+                        } catch {
+                            errorText = BellAPIError.operationFailureMessage(error)
+                            store.api.diagnostics.report(error, path: target.path + "/restart", method: "POST", observation: .write)
+                            return false
                         }
                     })
                     heading("プロフィール")
