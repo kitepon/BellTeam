@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-10T00:43:30Z",
-  "expiresAt": "2026-11-17T00:43:30Z",
+  "publishedAt": "2026-11-10T01:00:22Z",
+  "expiresAt": "2026-11-17T01:00:22Z",
   "releases": [
     {
       "componentId": "usage",
@@ -489,8 +489,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "afa3abb58d89f2b1ad8704ebe4fe3e6fbc47348c",
-      "versionId": "f0534f8b01b0eed5bbb99bf16a852c12279906914886c469b393a28dd48e489f",
+      "sourceCommit": "9d599591b4105ce73aef2d63c66c969525747446",
+      "versionId": "276db9f8fa39c8b982e93ee1e73988128a8c4377a26bbb3a97190663d5e57d1a",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -498,16 +498,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T015115Z/execution-afa3abb58d89f2b1ad8704ebe4fe3e6fbc47348c-linux-amd64.tar.gz",
-          "bytes": 3935636,
-          "sha256": "f0534f8b01b0eed5bbb99bf16a852c12279906914886c469b393a28dd48e489f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T005945Z/execution-9d599591b4105ce73aef2d63c66c969525747446-linux-amd64.tar.gz",
+          "bytes": 3944400,
+          "sha256": "276db9f8fa39c8b982e93ee1e73988128a8c4377a26bbb3a97190663d5e57d1a"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T015115Z/execution-afa3abb58d89f2b1ad8704ebe4fe3e6fbc47348c-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10895,
-          "sha256": "535c9ea14a1a754b5a28e9950d978bf8e89582b9a8250e88b41fb0b3c9150666"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T005945Z/execution-9d599591b4105ce73aef2d63c66c969525747446-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11275,
+          "sha256": "3c71618588722d87c94c4ddbceeb8c50f4eb42ed1bb13a9013b65b15b524d9af"
         },
-        "signerCommit": "afa3abb58d89f2b1ad8704ebe4fe3e6fbc47348c"
+        "signerCommit": "9d599591b4105ce73aef2d63c66c969525747446"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -517,13 +517,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "二つ目のアカウントの席も一つ目と同じ設定で動き、ログインだけを二つ目のアカウントにします。設定のコピーやリンクは使いません。二つ目のログイン情報が無いか壊れている場合、その起動は失敗し、一つ目のログインで代わりに動くことはありません。動いている二つ目の席には次の起動時に反映されます。実行部品のみの配布で、本体は含みません。"
+        "端末（Macなど）に登録したメンバーの席を、BellTeamのコンテナの中ではなく、その端末で起動します。本体に入っているAI実行制御と同じ中身で、実行部品のみの配布です。本体は含みません。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "afa3abb58d89f2b1ad8704ebe4fe3e6fbc47348c",
-      "versionId": "f6f09ae81ce0257b97e2a6fc5527c00138b5d8b0655781e8b2629a63a520e56b",
+      "sourceCommit": "9d599591b4105ce73aef2d63c66c969525747446",
+      "versionId": "f49be19f37985af0d1977734db577ea63600674a17b155cabcac2f4f675ef8e3",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -531,16 +531,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T015115Z/execution-afa3abb58d89f2b1ad8704ebe4fe3e6fbc47348c-linux-arm64.tar.gz",
-          "bytes": 3935634,
-          "sha256": "f6f09ae81ce0257b97e2a6fc5527c00138b5d8b0655781e8b2629a63a520e56b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T005945Z/execution-9d599591b4105ce73aef2d63c66c969525747446-linux-arm64.tar.gz",
+          "bytes": 3944399,
+          "sha256": "f49be19f37985af0d1977734db577ea63600674a17b155cabcac2f4f675ef8e3"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261109T015115Z/execution-afa3abb58d89f2b1ad8704ebe4fe3e6fbc47348c-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10973,
-          "sha256": "a1ca6997c1eb40c84e8335cc6851375445d631f72c35cdb9f3e984b1a280aeb7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T005945Z/execution-9d599591b4105ce73aef2d63c66c969525747446-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11255,
+          "sha256": "bc30841ba4a3377a6a4347e6308ca958519798ae2aa09e656c6c4cdd325df4c5"
         },
-        "signerCommit": "afa3abb58d89f2b1ad8704ebe4fe3e6fbc47348c"
+        "signerCommit": "9d599591b4105ce73aef2d63c66c969525747446"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -550,7 +550,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "二つ目のアカウントの席も一つ目と同じ設定で動き、ログインだけを二つ目のアカウントにします。設定のコピーやリンクは使いません。二つ目のログイン情報が無いか壊れている場合、その起動は失敗し、一つ目のログインで代わりに動くことはありません。動いている二つ目の席には次の起動時に反映されます。実行部品のみの配布で、本体は含みません。"
+        "端末（Macなど）に登録したメンバーの席を、BellTeamのコンテナの中ではなく、その端末で起動します。本体に入っているAI実行制御と同じ中身で、実行部品のみの配布です。本体は含みません。"
       ]
     },
     {
