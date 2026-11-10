@@ -2,7 +2,7 @@ import { openImageViewer } from './image-gallery.js?v=__ASSET_VERSION__'
 import { guardEditorClose, requestEditorClose } from './editor-close.js?v=__ASSET_VERSION__'
 import { createAvatarEditor } from './avatar-editor.js?v=__ASSET_VERSION__'
 import { applyAvatar, initials, escapeClass, modelChoices } from './view-format.js?v=__ASSET_VERSION__'
-import { FOLDER_UNCHECKED, folderRefusal, memberFolder, readTerminals, remoteBindingBody } from './terminals.js?v=__ASSET_VERSION__'
+import { FOLDER_UNCHECKED, folderRefusal, memberFolder, osOf, readTerminals, remoteBindingBody } from './terminals.js?v=__ASSET_VERSION__'
 import { createFolderPicker } from './folder-picker.js?v=__ASSET_VERSION__'
 
 // Plain reason for a definite save refusal; an unknown code gets the generic sentence, never the code alone.
@@ -75,10 +75,11 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
   dialog.querySelector('#bot-folder-choose').addEventListener('click', () => { if (botTerminal.value) folderPicker.open(botTerminal.value) })
   botProjectRoot.addEventListener('input', showFolder)
   // Prefill an empty folder, or one still holding our own prefill; typed text is never replaced.
+  const chosenTerminal = () => owner?.terminals?.find(item => item.terminalId === botTerminal.value)
   const prefillFolder = () => {
-    const user = owner?.terminals?.find(item => item.terminalId === botTerminal.value)?.user
-    if (!user || (botProjectRoot.value && botProjectRoot.value !== owner.prefill)) return
-    botProjectRoot.value = owner.prefill = memberFolder(user, botName.value)
+    const terminal = chosenTerminal()
+    if (!terminal?.user || (botProjectRoot.value && botProjectRoot.value !== owner.prefill)) return
+    botProjectRoot.value = owner.prefill = memberFolder(terminal.user, botName.value, osOf(terminal))
     showFolder()
   }
   botTerminal.addEventListener('change', () => { botProjectRootField.hidden = !botTerminal.value; botCreateFolder.hidden = true; folderPicker.close(); prefillFolder(); showFolder() })
@@ -310,7 +311,7 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
     event.preventDefault()
     if (!owner || saving === owner || deletionPending()) return
     if (avatar.pending() || largeAvatar.pending()) { botFormError.textContent = '写真を読み込んでいます。表示を確認してから保存してください。'; return }
-    const remote = owner.remote ? remoteBindingBody(owner.bot, botTerminal.value, botProjectRoot.value) : { body: {} }
+    const remote = owner.remote ? remoteBindingBody(owner.bot, botTerminal.value, botProjectRoot.value, osOf(chosenTerminal())) : { body: {} }
     if (remote.error) { botFormError.textContent = remote.error; return }
     const opened = owner, revision = editRevision
     const current = () => owner === opened && revision === editRevision
@@ -339,7 +340,7 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
       accepted = true
       opened.bot = result.bot
       await onSaved(result.bot, current)
-      // Saved without reaching the Mac: keep the dialog open so the quiet note is read.
+      // Saved without reaching the terminal: keep the dialog open so the quiet note is read.
       if (result.bot?.folderCheck?.checked === false) { if (owner === opened) botRemoteStatus.textContent = FOLDER_UNCHECKED }
       else if (current()) dialog.close()
     } catch (error) {

@@ -4,22 +4,34 @@ import { openSecretInput } from './secret-input.js?v=__ASSET_VERSION__'
 // Owner routes once per tap. No key value, op:// reference or key handle ever passes through here.
 const TRUST = /^(HOST_TRUST_|HOST_KEY_|TARGET_MISMATCH$)/
 const CREDENTIAL = /^CREDENTIAL_/
+// terminals README "Windows and Linux terminals": the Owner declares os; a record without it is a Mac (older registry).
+const OS = { macos: { name: 'Mac', badge: 'macOS' }, linux: { name: 'Linux', badge: 'Linux' }, windows: { name: 'Windows', badge: 'Windows' } }
+export const osOf = terminal => OS[terminal?.os] ? terminal.os : 'macos'
+const osName = os => OS[os]?.name ?? OS.macos.name
+// Precondition for SSH on each OS (self-service step 1).
+export const REMOTE_LOGIN = {
+  macos: 'Macの「システム設定 > 一般 > 共有」で「リモートログイン」をオンにしてください。',
+  windows: 'Windowsの「設定 > システム > オプション機能」で「OpenSSH サーバー」を追加し、サービスの「OpenSSH SSH Server」を開始して、スタートアップの種類を「自動」にしてください。',
+  linux: 'Linuxに openssh-server を入れて、sudo systemctl enable --now ssh で sshd を開始してください。',
+}
+const REFUSED = { macos: 'Macのリモートログインがオンか確かめてください。', windows: 'WindowsでOpenSSH サーバー（sshd）が動いているか確かめてください。', linux: 'Linuxで sshd が動いているか確かめてください。' }
 
 // One observation from POST /check -> plain words. Raw codes stay in the title only.
-export function terminalStatus(observation) {
+export function terminalStatus(observation, os = 'macos') {
   if (!observation) return { tone: 'muted', label: '未確認', help: '「届くか確かめる」で、いまSSHで届くかを一度だけ確かめます。' }
   if (observation.reachable === true) return { tone: 'ok', label: 'つながります', help: '' }
   const reason = typeof observation.reason === 'string' ? observation.reason : ''
   if (reason === 'SSH_KEY_UNSET') return { tone: 'attention', label: 'SSH鍵が未設定', help: 'SSH鍵を設定すると、この端末で席を動かせます。', reason }
   // Reasons are evidence, not diagnoses: offer the likely fix without asserting the cause (terminals README step 4).
-  if (reason === 'AUTH_FAILED') return { tone: 'danger', label: '鍵が通りません', help: 'この鍵がまだMacに入っていないかもしれません。', reason, authorize: true }
-  if (reason === 'CONNECTION_REFUSED') return { tone: 'attention', label: '届きません', help: 'Macのリモートログインがオンか確かめてください。', reason }
-  if (reason === 'UNREACHABLE') return { tone: 'attention', label: '届きません', help: 'Macが起きていて、同じネットワークにあるか確かめてください。', reason }
+  const action = typeof observation.action === 'string' && observation.action.trim() ? observation.action : ''
+  if (reason === 'AUTH_FAILED') return { tone: 'danger', label: '鍵が通りません', help: `この鍵がまだ${osName(os)}に入っていないかもしれません。`, reason, authorize: true }
+  // terminals' action names the OS and its step; the Web words are for a body without it.
+  if (reason === 'CONNECTION_REFUSED') return { tone: 'attention', label: '届きません', help: action || (REFUSED[os] ?? REFUSED.macos), reason }
+  if (reason === 'UNREACHABLE') return { tone: 'attention', label: '届きません', help: action || `${osName(os)}が起きていて、同じネットワークにあるか確かめてください。`, reason }
   if (CREDENTIAL.test(reason)) return { tone: 'danger', label: '鍵が使えません', help: 'SSH鍵が端末に受け付けられませんでした。鍵を入れ直してください。', reason }
   if (TRUST.test(reason)) return { tone: 'danger', label: 'ホスト鍵の確認が必要', help: 'この端末をまだ信用していません。端末で指紋を確かめて、下に入れてください。', reason, trust: true }
   if (reason === 'REMOTE_AITERM_TOO_OLD') return { tone: 'attention', label: '端末のAitermが古い', help: '端末のAitermを新しくすると届くようになります。', reason }
   if (reason === 'TERMINAL_NOT_FOUND') return { tone: 'danger', label: '登録がありません', help: '一覧を更新してください。', reason }
-  const action = typeof observation.action === 'string' && observation.action.trim() ? observation.action : ''
   return { tone: 'attention', label: '届きません', help: action || '端末が眠っているか、ネットワークにつながっていません。起きれば、届いていない依頼から自動で再開します。', reason }
 }
 
@@ -28,12 +40,20 @@ export function seatLaunchText(seatLaunch) {
   if (!seatLaunch || typeof seatLaunch !== 'object') return null
   const action = typeof seatLaunch.action === 'string' ? seatLaunch.action.trim() : ''
   const code = typeof seatLaunch.code === 'string' ? seatLaunch.code.trim() : ''
-  return action || code ? `Macで起動できません：${action || code}` : 'Macで起動できません。'
+  return action || code ? `端末で起動できません：${action || code}` : '端末で起動できません。'
 }
 
 // members C1: '' or an absolute POSIX path without empty / . / .. segments and no trailing slash.
-export function projectRootProblem(path) {
+// windows: drive-absolute X:\... with \ only, no : after the drive (members #966 validProjectRoot), ≤ 4096 bytes like POSIX.
+export function projectRootProblem(path, os = 'macos') {
   if (path === '') return ''
+  if (os === 'windows') {
+    if (!/^[A-Za-z]:\\/u.test(path)) return 'フォルダは C:\\ のようにドライブから始まるパスで入れてください（例 C:\\Users\\kite\\work\\app）。'
+    if (/[/:]/u.test(path.slice(2))) return 'Windowsのフォルダは「\\」で区切ってください。「/」と、ドライブのあとの「:」は使えません。'
+    if (path.includes('\0') || new TextEncoder().encode(path).length > 4096) return 'フォルダのパスが長すぎるか、使えない文字を含んでいます。'
+    if (path.length > 3 && path.slice(3).split('\\').some(part => part === '' || part === '.' || part === '..')) return 'フォルダのパスに、空の区切り・「.」・「..」・最後の「\\」は使えません。'
+    return ''
+  }
   if (!path.startsWith('/')) return 'フォルダは / で始まる絶対パスで入れてください（例 /Users/kite/work/app）。'
   if (path.includes('\0') || new TextEncoder().encode(path).length > 4096) return 'フォルダのパスが長すぎるか、使えない文字を含んでいます。'
   if (path !== '/' && path.split('/').slice(1).some(part => part === '' || part === '.' || part === '..')) return 'フォルダのパスに、空の区切り・「.」・「..」・最後の「/」は使えません。'
@@ -41,27 +61,30 @@ export function projectRootProblem(path) {
 }
 
 // Member body part: only fields that differ from the saved member, so older bodies never receive them.
-export function remoteBindingBody(saved, terminalId, projectRoot) {
+export function remoteBindingBody(saved, terminalId, projectRoot, os = 'macos') {
   const root = terminalId ? projectRoot.trim() : ''
   if (Boolean(terminalId) !== Boolean(root)) return { error: terminalId ? '端末で動かすときは、フォルダも入れてください。' : '' }
-  const problem = projectRootProblem(root)
+  const problem = projectRootProblem(root, os)
   if (problem) return { error: problem }
   if ((saved?.terminalId ?? '') === terminalId && (saved?.projectRoot ?? '') === root) return { body: {} }
   return { body: { terminalId, projectRoot: root } }
 }
 
-// members S5 default folder; same slug rule as members-folder.mjs memberFolderSlug.
-export function memberFolder(user, name) {
-  const slug = String(name ?? '').trim().replace(/[/:\0]/gu, '-')
-  return `/Users/${user}/BellTeam/${slug && slug !== '.' && slug !== '..' ? slug : 'member'}`
+// members S5 default folder per os; same slug and roots as bot-registry memberFolderSlug / defaultProjectRoot (#966).
+export function memberFolder(user, name, os = 'macos') {
+  const slug = String(name ?? '').trim().replace(/[/:\\\0]/gu, '-')
+  const leaf = slug && slug !== '.' && slug !== '..' ? slug : 'member'
+  if (os === 'windows') return `C:\\Users\\${user}\\BellTeam\\${leaf}`
+  return `${os === 'linux' ? '/home' : '/Users'}/${user}/BellTeam/${leaf}`
 }
 
 // members S5 save refusals carry only the code (#859), so the Web words them (reference: terminals FOLDER_ACTIONS)
 // and names the folder from the form. null = not a folder refusal.
 const FOLDER_REFUSALS = {
-  FOLDER_MISSING: 'このフォルダはMacにありません。作るか、あるフォルダを選んでください',
+  FOLDER_MISSING: 'このフォルダは端末にありません。作るか、あるフォルダを選んでください',
   FOLDER_NOT_DIRECTORY: 'これはファイルです。フォルダを選んでください',
-  FOLDER_NOT_WRITABLE: 'このMacのユーザーが書き込めるフォルダを選んでください',
+  FOLDER_NOT_WRITABLE: 'この端末のユーザーが書き込めるフォルダを選んでください',
+  // macOS only (Full Disk Access); other OSes never send this code.
   FOLDER_NOT_PERMITTED: 'Macがこのフォルダを開かせてくれません。デスクトップ・書類・ダウンロードの外を選ぶか、リモートログインの「リモートユーザにフルディスクアクセスを許可」をオンにしてください',
 }
 export function folderRefusal(error, folder) {
@@ -69,7 +92,7 @@ export function folderRefusal(error, folder) {
   if (!/^FOLDER_/u.test(error?.code ?? '')) return null
   return `${FOLDER_REFUSALS[error.code] ?? 'このフォルダは使えません'}（${folder}）。`
 }
-export const FOLDER_UNCHECKED = 'Macにつながらなかったので、フォルダはまだ確かめていません。席を起こす時にもう一度確かめます。'
+export const FOLDER_UNCHECKED = '端末につながらなかったので、フォルダはまだ確かめていません。席を起こす時にもう一度確かめます。'
 
 // GET /api/terminals with the tolerance every caller shares: older bodies (404) and an unmounted core (503).
 export async function readTerminals(api, options) {
@@ -90,13 +113,12 @@ const ERRORS = {
   HOST_KEY_FINGERPRINT_MISMATCH: '指紋が端末のものと一致しません。端末でもう一度確かめてください。',
   CREDENTIAL_UNAVAILABLE: 'SSH鍵がまだ使えません。先に鍵を設定してください。',
   TERMINALS_UNAVAILABLE: '端末の機能が、いま本体で動いていません。',
-  HOST_TRUST_MISSING: '先にこのMacを確かめてください。',
+  HOST_TRUST_MISSING: '先にこの端末を確かめてください。',
   SSH_KEY_UNSET: '先にSSH鍵を設定してください。',
 }
 // keyAuthorization.outcome -> plain words; success runs the check again instead.
-const AUTHORIZE_TEXT = { PASSWORD_REJECTED: 'パスワードが違いました。', PASSWORD_AUTH_DISABLED: 'このMacはパスワードでのログインを受け付けていません。',
-  AUTHORIZATION_UNCONFIRMED: '入れられたか確かめられませんでした。もう一度お試しください。' }
-export const authorizeText = outcome => AUTHORIZE_TEXT[outcome] ?? 'もう一度お試しください。'
+const AUTHORIZE_TEXT = { PASSWORD_REJECTED: 'パスワードが違いました。', AUTHORIZATION_UNCONFIRMED: '入れられたか確かめられませんでした。もう一度お試しください。' }
+export const authorizeText = (outcome, os = 'macos') => outcome === 'PASSWORD_AUTH_DISABLED' ? `この${osName(os)}はパスワードでのログインを受け付けていません。` : AUTHORIZE_TEXT[outcome] ?? 'もう一度お試しください。'
 const AUTHORIZE_WAIT_MS = 1000
 const errorText = error => ERRORS[error?.code] ?? '結果を確認できませんでした。一覧を更新して確かめてください。'
 const keyLabel = { ssh: 'SSH鍵', sudo: 'sudo鍵' }
@@ -183,7 +205,7 @@ export function createTerminalsView(dialog, { api }) {
     const current = opened
     openSecretInput({ message: `端末「${terminal.terminalId}」の${keyLabel[purpose]}です。値はこの入力欄だけに入れてください。`, ...request }, api, () => { if (opened === current) void load() })
   })
-  // Self-service step 4: the Mac's login password goes only into Mika's card; this view waits for the outcome.
+  // Self-service step 4: the terminal's login password goes only into Mika's card; this view waits for the outcome.
   const authorizeKey = id => run(`authorize:${id}`, () => api(`/api/terminals/${id}/keys/ssh/authorize`, { method: 'POST' }), result => {
     const request = result.secretRequest
     if (!request?.id) { say('入力欄を開けませんでした。一覧を更新して確かめてください。'); return }
@@ -198,7 +220,8 @@ export function createTerminalsView(dialog, { api }) {
   async function awaitAuthorization(id, requestId) {
     const current = opened
     const observing = () => opened === current && current.authorizeRequest.get(id) === requestId
-    current.authorizing.set(id, { text: 'Macに鍵を入れています…', waiting: true }); render()
+    const os = osOf(current.terminals.find(item => item.terminalId === id))
+    current.authorizing.set(id, { text: `${osName(os)}に鍵を入れています…`, waiting: true }); render()
     let outcome = null
     for (let read = 0; !outcome; read++) {
       if (read) await new Promise(resolve => setTimeout(resolve, AUTHORIZE_WAIT_MS))
@@ -208,7 +231,7 @@ export function createTerminalsView(dialog, { api }) {
       if (terminal?.keyAuthorizationPending !== true && terminal?.keyAuthorization?.requestId === requestId) outcome = terminal.keyAuthorization.outcome
     }
     if (outcome === 'AUTHORIZED' || outcome === 'ALREADY_AUTHORIZED') { current.authorizing.delete(id); render(); await check(id); return }
-    current.authorizing.set(id, { text: authorizeText(outcome), retry: outcome === 'PASSWORD_REJECTED' }); render()
+    current.authorizing.set(id, { text: authorizeText(outcome, os), retry: outcome === 'PASSWORD_REJECTED' }); render()
   }
   const unbindKey = (terminal, purpose) => {
     if (!window.confirm(`端末「${terminal.terminalId}」の${keyLabel[purpose]}を外しますか？`)) return
@@ -236,7 +259,7 @@ export function createTerminalsView(dialog, { api }) {
     const node = element('form', undefined, 'terminal-form')
     const field = (label, input, help = '') => { const wrap = element('label', undefined, 'field'); wrap.append(element('span', label), input); if (help) wrap.append(element('small', help, 'field-help')); return wrap }
     const input = (value, attributes) => { const node = element('input'); Object.assign(node, attributes); node.value = value ?? ''; return node }
-    const draft = opened.draft ?? (opened.draft = { terminalId: terminal?.terminalId ?? '', host: terminal?.host ?? '', user: terminal?.user ?? '', port: String(terminal?.port ?? 22), accountOwner: terminal?.accountOwner ?? 'owner', revision: 0 })
+    const draft = opened.draft ?? (opened.draft = { terminalId: terminal?.terminalId ?? '', host: terminal?.host ?? '', user: terminal?.user ?? '', port: String(terminal?.port ?? 22), accountOwner: terminal?.accountOwner ?? 'owner', os: osOf(terminal), revision: 0 })
     const id = input(draft.terminalId, { required: true, pattern: '[a-z0-9][a-z0-9\\-]{0,62}', maxLength: 63, placeholder: 'owner-macbook', disabled: Boolean(terminal), autocapitalize: 'none', spellcheck: false })
     const host = input(draft.host, { required: true, maxLength: 253, placeholder: '192.168.1.12', autocapitalize: 'none', spellcheck: false })
     const user = input(draft.user, { required: true, maxLength: 64, placeholder: 'kite', autocapitalize: 'none', spellcheck: false })
@@ -244,14 +267,17 @@ export function createTerminalsView(dialog, { api }) {
     const owner = element('select')
     for (const [value, label] of [['owner', '自分の機械（自分のClaudeアカウントで動かす）'], ['terminal-owner', 'ほかの人の機械（その機械のClaudeログインで動かす）']]) { const option = element('option', label); option.value = value; owner.append(option) }
     owner.value = draft.accountOwner
+    const os = element('select')
+    for (const [value, { badge: label }] of Object.entries(OS)) { const option = element('option', label); option.value = value; os.append(option) }
+    os.value = draft.os
+    // Precondition first: SSH needs the OS's SSH server on (self-service step 1); follows the OS choice.
+    const precondition = element('p', REMOTE_LOGIN[draft.os], 'field-help')
     // Typed values survive re-renders (busy state, a failed save) until the form is closed.
-    node.addEventListener('input', () => Object.assign(draft, { terminalId: id.value, host: host.value, user: user.value, port: port.value, accountOwner: owner.value, revision: draft.revision + 1 }))
+    node.addEventListener('input', () => { Object.assign(draft, { terminalId: id.value, host: host.value, user: user.value, port: port.value, accountOwner: owner.value, os: os.value, revision: draft.revision + 1 }); precondition.textContent = REMOTE_LOGIN[os.value] })
     node.append(element('h4', terminal ? `「${terminal.terminalId}」を編集` : '端末を追加'))
-    // Precondition first: SSH needs Remote Login on (self-service step 1).
-    if (!terminal) node.append(element('p', 'Macの「システム設定 > 一般 > 共有」で「リモートログイン」をオンにしてください。', 'field-help'))
-    node.append(
+    node.append(field('OS', os), precondition,
       field('端末ID', id, '英小文字・数字・ハイフン。あとから変えられません。'), field('ホスト', host, 'IPアドレスかホスト名だけ。user@ やポートは入れません。'),
-      field('ユーザー名', user), field('SSHのポート', port), field('機械の持ち主', owner), element('p', 'OSは今は macOS だけです。鍵は、登録したあとに「設定する」から入れます。', 'field-help'))
+      field('ユーザー名', user), field('SSHのポート', port), field('機械の持ち主', owner), element('p', '鍵は、登録したあとに「設定する」から入れます。', 'field-help'))
     const actions = element('div', undefined, 'terminal-actions')
     const submit = element('button', terminal ? '保存' : '登録', 'primary'); submit.type = 'submit'
     submit.disabled = opened.busy.has(`save:${terminal?.terminalId ?? id.value}`)
@@ -262,7 +288,7 @@ export function createTerminalsView(dialog, { api }) {
       const terminalId = terminal?.terminalId ?? id.value.trim()
       const revision = draft.revision
       // Close only the form this save came from, unchanged since the tap (bot-editor pattern); newer add/edit/input stays.
-      void save(terminalId, { host: host.value.trim(), user: user.value.trim(), port: Number(port.value), os: 'macos', accountOwner: owner.value }, () => {
+      void save(terminalId, { host: host.value.trim(), user: user.value.trim(), port: Number(port.value), os: os.value, accountOwner: owner.value }, () => {
         if (opened.draft === draft && draft.revision === revision) { opened.editing = null; opened.draft = null }
         else say('保存しました。そのあとに変えた入力は残しています。')
       })
@@ -270,13 +296,13 @@ export function createTerminalsView(dialog, { api }) {
     return node
   }
 
-  function trustForm(terminal) {
+  function trustForm(terminal, os) {
     const node = element('form', undefined, 'terminal-trust')
     const input = element('input'); input.required = true; input.placeholder = 'SHA256:…'; input.autocapitalize = 'none'; input.spellcheck = false
     input.value = opened.trustDraft.get(terminal.terminalId) ?? ''
     input.addEventListener('input', () => opened.trustDraft.set(terminal.terminalId, input.value))
     const wrap = element('label', undefined, 'field'); wrap.append(element('span', 'ホスト鍵の指紋'), input,
-      element('small', '端末のターミナルで ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub を実行し、表示された SHA256: から始まる指紋を入れます。推測では入れないでください。', 'field-help'))
+      element('small', `${os === 'windows' ? '端末のPowerShellで ssh-keygen -lf C:\\ProgramData\\ssh\\ssh_host_ed25519_key.pub' : '端末のターミナルで ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub'} を実行し、表示された SHA256: から始まる指紋を入れます。推測では入れないでください。`, 'field-help'))
     const submit = element('button', 'この指紋を信用する', 'primary'); submit.type = 'submit'
     submit.disabled = opened.busy.has(`save:${terminal.terminalId}`)
     node.append(wrap, submit)
@@ -293,22 +319,24 @@ export function createTerminalsView(dialog, { api }) {
     const id = terminal.terminalId
     const node = element('section', undefined, 'terminal-card')
     node.dataset.terminalId = id
-    const status = terminalStatus(opened.observations.get(id))
+    const os = osOf(terminal)
+    const status = terminalStatus(opened.observations.get(id), os)
     const head = element('div', undefined, 'terminal-head')
     const title = element('div', undefined, 'terminal-title')
     title.append(element('strong', id), element('span', `${terminal.user}@${terminal.host}${terminal.port && terminal.port !== 22 ? `:${terminal.port}` : ''}`, 'terminal-target'))
     head.append(element('span', undefined, 'terminal-icon'), title, badge(status.label, status.tone, status.reason ?? ''))
     const meta = element('div', undefined, 'terminal-meta')
-    meta.append(badge('macOS', 'muted'), badge(terminal.accountOwner === 'terminal-owner' ? 'ほかの人の機械' : '自分の機械', 'muted'),
+    meta.append(badge(OS[os].badge, 'muted'), badge(terminal.accountOwner === 'terminal-owner' ? 'ほかの人の機械' : '自分の機械', 'muted'),
       terminal.hostTrust ? badge('ホスト鍵 登録済み', 'ok') : badge('ホスト鍵 未登録', 'attention'))
     node.append(head, meta)
     const needsTrust = status.trust || !terminal.hostTrust
-    if (needsTrust) node.append(element('p', 'このMacでBellTeamアプリを開くと、自動で確かめます。', 'field-help'))
+    // Only a Mac runs the BellTeam app that confirms the host key by itself (S2).
+    if (needsTrust && os === 'macos') node.append(element('p', 'このMacでBellTeamアプリを開くと、自動で確かめます。', 'field-help'))
     if (status.help && !status.trust) node.append(element('p', status.help, 'field-help'))
     const authorizing = opened.authorizing.get(id)
     if (authorizing) node.append(element('p', authorizing.text, 'field-help'))
     if ((status.authorize && !authorizing) || authorizing?.retry) {
-      const authorize = button('このMacにこの鍵を入れる', () => { void authorizeKey(id) }, 'primary')
+      const authorize = button(`この${osName(os)}にこの鍵を入れる`, () => { void authorizeKey(id) }, 'primary')
       authorize.disabled = opened.busy.has(`authorize:${id}`)
       const row = element('div', undefined, 'terminal-actions'); row.append(authorize); node.append(row)
     }
@@ -316,14 +344,19 @@ export function createTerminalsView(dialog, { api }) {
     if (observed) node.append(element('p', `確かめた時刻 ${new Date(observed).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`, 'terminal-time'))
     const claude = terminal.maintenance
     if (claude?.after || claude?.before) node.append(element('p', `Claude Code ${claude.after ?? claude.before}${claude.outcome === 'updated' ? '（最新に更新しました）' : claude.outcome === 'failed' ? '（更新できませんでした。入っている版で動きます）' : ''}`, 'terminal-time'))
-    node.append(keyRow(terminal, 'ssh'), keyRow(terminal, 'sudo'))
-    // Manual sheet for a Mac without the app; PUT confirmHostKey uses the SSH key's binding, so the key comes first there.
+    // windows has no sudo key (terminals refuses it as INVALID_TERMINAL).
+    node.append(keyRow(terminal, 'ssh'))
+    if (os !== 'windows') node.append(keyRow(terminal, 'sudo'))
+    // Manual sheet (a Mac without the app; the only way on Windows/Linux); PUT confirmHostKey uses the SSH key's binding, so the key comes first.
     if (needsTrust) {
-      const other = element('details', undefined, 'terminal-other')
-      other.append(element('summary', 'ほかの方法'), terminal.sshKeyConfigured === false
-        ? element('p', '先にSSH鍵を設定してください。そのあと、ホスト鍵の指紋を確かめます。', 'field-help') : trustForm(terminal))
-      if (opened.trustDraft.get(id)) other.open = true
-      node.append(other)
+      const manual = terminal.sshKeyConfigured === false
+        ? element('p', '先にSSH鍵を設定してください。そのあと、ホスト鍵の指紋を確かめます。', 'field-help') : trustForm(terminal, os)
+      if (os === 'macos') {
+        const other = element('details', undefined, 'terminal-other')
+        other.append(element('summary', 'ほかの方法'), manual)
+        if (opened.trustDraft.get(id)) other.open = true
+        node.append(other)
+      } else node.append(manual)
     }
     if (opened.editing === id) node.append(form(terminal))
     const actions = element('div', undefined, 'terminal-actions')

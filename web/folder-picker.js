@@ -3,13 +3,17 @@ import { folderRefusal } from './terminals.js?v=__ASSET_VERSION__'
 // S6 folder picker (terminals README "Folder picker"): the Owner picks a terminal folder on screen instead of typing it.
 export const OLD_BODY_TEXT = 'フォルダを画面で選ぶには、本体を「Update」で更新してください。下の「ほかの方法」からパスを入力することもできます。'
 
-export function folderNameProblem(name) {
+// Windows paths are X:\... (terminals README "Windows and Linux terminals"); the picker follows the served path's form.
+const windowsPath = path => /^[A-Za-z]:\\/u.test(path ?? '')
+// Entry names never contain / \ NUL, nor : on Windows.
+export function folderNameProblem(name, parent = '') {
   if (!name) return 'フォルダの名前を入れてください。'
-  if (name === '.' || name === '..' || /[/\0]/u.test(name)) return '「/」「.」「..」は名前に使えません。'
+  if (windowsPath(parent) && (name === '.' || name === '..' || /[/\\:\0]/u.test(name))) return '「/」「\\」「:」「.」「..」は名前に使えません。'
+  if (name === '.' || name === '..' || /[/\\\0]/u.test(name)) return '「/」「\\」「.」「..」は名前に使えません。'
   if (new TextEncoder().encode(name).length > 255) return '名前が長すぎます。'
   return ''
 }
-export const childPath = (parent, name) => parent === '/' ? `/${name}` : `${parent}/${name}`
+export const childPath = (parent, name) => windowsPath(parent) ? `${parent.replace(/\\$/u, '')}\\${name}` : parent === '/' ? `/${name}` : `${parent}/${name}`
 
 // A non-null reason is one sentence: folder reasons use the S5 words; the rest mean the terminal is not reachable now.
 export function folderReasonText(reason, action, path) {
@@ -83,7 +87,7 @@ export function createFolderPicker(root, { api, chosen, onChoose, onOldBody }) {
     show({ path: view.path, parent: view.parent, entries: view.entries ?? [], truncated: view.truncated === true })
   }
   async function create() {
-    const name = nameInput.value.trim(), problem = folderNameProblem(name)
+    const name = nameInput.value.trim(), problem = folderNameProblem(name, listed)
     if (problem) { createError.textContent = problem; return }
     if (listed == null) return
     const mine = seq, parent = listed, target = childPath(parent, name)

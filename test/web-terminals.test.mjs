@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { authorizeText, keySourceOf, projectRootProblem, readTerminals, remoteBindingBody, seatLaunchText, terminalStatus } from '../web/terminals.js'
+import { authorizeText, keySourceOf, memberFolder, projectRootProblem, readTerminals, remoteBindingBody, seatLaunchText, terminalStatus } from '../web/terminals.js'
 
 test('check observation -> plain words; host trust reasons ask for the fingerprint', () => {
   assert.equal(terminalStatus(null).label, '未確認')
@@ -11,6 +11,12 @@ test('check observation -> plain words; host trust reasons ask for the fingerpri
   assert.equal(terminalStatus({ reachable: false, reason: 'CONNECTION_REFUSED' }).help, 'Macのリモートログインがオンか確かめてください。')
   assert.equal(terminalStatus({ reachable: false, reason: 'UNREACHABLE' }).help, 'Macが起きていて、同じネットワークにあるか確かめてください。')
   assert.equal(terminalStatus({ reachable: false, reason: 'SOMETHING_NEW', action: 'do X' }).help, 'do X')
+  // Windows / Linux: the OS name in the words; terminals' action (it names the OS) wins over the Web fallback.
+  assert.equal(terminalStatus({ reachable: false, reason: 'CONNECTION_REFUSED' }, 'windows').help, 'WindowsでOpenSSH サーバー（sshd）が動いているか確かめてください。')
+  assert.equal(terminalStatus({ reachable: false, reason: 'CONNECTION_REFUSED', action: 'Linuxで sshd を開始してください。' }, 'linux').help, 'Linuxで sshd を開始してください。')
+  assert.equal(terminalStatus({ reachable: false, reason: 'UNREACHABLE' }, 'linux').help, 'Linuxが起きていて、同じネットワークにあるか確かめてください。')
+  assert.equal(terminalStatus({ reachable: false, reason: 'AUTH_FAILED' }, 'windows').help, 'この鍵がまだWindowsに入っていないかもしれません。')
+  assert.equal(authorizeText('PASSWORD_AUTH_DISABLED', 'windows'), 'このWindowsはパスワードでのログインを受け付けていません。')
   assert.deepEqual(['PASSWORD_REJECTED', 'PASSWORD_AUTH_DISABLED', 'AUTHORIZATION_UNCONFIRMED', 'TERMINAL_CHANGED', null].map(authorizeText),
     ['パスワードが違いました。', 'このMacはパスワードでのログインを受け付けていません。', '入れられたか確かめられませんでした。もう一度お試しください。', 'もう一度お試しください。', 'もう一度お試しください。'])
   for (const reason of ['CREDENTIAL_UNAVAILABLE', 'CREDENTIAL_REVISION_STALE']) assert.equal(terminalStatus({ reachable: false, reason }).label, '鍵が使えません')
@@ -22,6 +28,13 @@ test('check observation -> plain words; host trust reasons ask for the fingerpri
 test('projectRoot follows members C1', () => {
   for (const ok of ['', '/', '/Users/kite/work/app']) assert.equal(projectRootProblem(ok), '')
   for (const bad of ['Users/kite', '/Users//kite', '/Users/./kite', '/Users/../etc', '/Users/kite/', '/a\0b', `/${'a'.repeat(4096)}`]) assert.notEqual(projectRootProblem(bad), '', bad)
+  // windows (members #966): X:\... with \ only, no : after the drive, root X:\, no trailing \, <= 4096 bytes.
+  for (const ok of ['', 'C:\\', 'C:\\Users\\kite_\\BellTeam\\アドミ', 'd:\\work']) assert.equal(projectRootProblem(ok, 'windows'), '', ok)
+  for (const bad of ['/Users/kite', 'C:', 'C:/Users', 'C:\\Users/kite', 'C:\\Users\\', 'C:\\a\\\\b', 'C:\\a\\..\\b', 'C:\\a\0', 'C:\\a:b', `C:\\${'a'.repeat(4094)}`]) assert.notEqual(projectRootProblem(bad, 'windows'), '', bad)
+  assert.ok(remoteBindingBody(null, 'fox', '/Users/kite', 'windows').error)
+  assert.deepEqual(remoteBindingBody(null, 'fox', 'C:\\Users\\kite_\\app', 'windows'), { body: { terminalId: 'fox', projectRoot: 'C:\\Users\\kite_\\app' } })
+  assert.deepEqual([memberFolder('kite_', 'a\\b', 'windows'), memberFolder('kite', 'アドミ', 'linux'), memberFolder('kite', 'アドミ')],
+    ['C:\\Users\\kite_\\BellTeam\\a-b', '/home/kite/BellTeam/アドミ', '/Users/kite/BellTeam/アドミ'])
 })
 
 test('binding body: both or neither, only when changed', () => {
@@ -108,6 +121,32 @@ test('a suspended save keeps a newer edit; failure keeps the draft; an unchanged
   assert.equal(v.form(), undefined)
 })
 
+test('Windows / Linux: OS choice sends os and follows the precondition; card names the OS, no sudo on Windows, fingerprint sheet shown directly', async t => {
+  const fox = { ...mac, terminalId: 'fox', os: 'windows', user: 'kite_', sudoKeyConfigured: false }
+  const v = await view(t, [fox, { ...mac, terminalId: 'rabbit', os: 'linux', user: 'kite' }]); await v.open()
+  const card = id => v.all().find(node => node.dataset?.terminalId === id)
+  const text = node => nodes(node).map(item => item.textContent).join('|')
+  assert.match(text(card('fox')), /\|Windows\|/); assert.match(text(card('rabbit')), /\|Linux\|/)
+  assert.deepEqual(nodes(card('fox')).filter(node => node.className === 'terminal-key').length, 1)
+  assert.equal(nodes(card('rabbit')).filter(node => node.className === 'terminal-key').length, 2)
+  assert.doesNotMatch(text(card('fox')), /BellTeamアプリ|ほかの方法/)
+  assert.match(text(card('fox')), /PowerShellで ssh-keygen -lf C:\\ProgramData\\ssh\\ssh_host_ed25519_key\.pub/)
+  assert.match(text(card('rabbit')), /ssh-keygen -lf \/etc\/ssh\/ssh_host_ed25519_key\.pub/)
+
+  v.add()
+  const select = nodes(v.form()).find(node => node.tagName === 'select' && node.children.some(option => option.value === 'windows'))
+  assert.match(text(v.form()), /リモートログイン/)
+  select.value = 'windows'; v.typed(v.form(), 'owner-macbook', 'fox2')
+  assert.match(text(v.form()), /オプション機能」で「OpenSSH サーバー」を追加/); assert.doesNotMatch(text(v.form()), /macOS だけ|リモートログイン/)
+  select.value = 'linux'; v.form().fire('input'); assert.match(text(v.form()), /openssh-server/)
+  v.typed(v.form(), '192.168.1.12', '192.168.1.5'); v.typed(v.form(), 'kite', 'kite'); v.form().fire('submit'); await settle()
+  assert.equal(v.puts[0].body.os, 'linux')
+  v.puts[0].resolve({}); await settle(); await settle()
+  // Editing keeps the saved OS.
+  nodes(card('fox')).find(node => node.tagName === 'button' && node.textContent === '編集').fire('click')
+  v.form().fire('submit'); await settle(); assert.equal(v.puts[1].body.os, 'windows')
+})
+
 test('host key draft: failure keeps it, a reopened dialog keeps its newer draft, success in the same dialog clears it', async t => {
   const v = await view(t, [mac]); await v.open()
   const fingerprint = value => { nodes(v.trust()).find(node => node.placeholder === 'SHA256:…').value = value; nodes(v.trust()).find(node => node.placeholder === 'SHA256:…').fire('input') }
@@ -180,7 +219,7 @@ test('self-service: precondition line, auto trust with the manual sheet under �
   // 409 before any password card.
   authorizeError = Object.assign(new Error('x'), { status: 409, code: 'HOST_TRUST_MISSING' })
   click('このMacにこの鍵を入れる'); await settle(); await settle()
-  assert.match(nodes(dialog.querySelector('[data-terminals-notice]')).map(node => node.textContent).join(''), /先にこのMacを確かめてください。/)
+  assert.match(nodes(dialog.querySelector('[data-terminals-notice]')).map(node => node.textContent).join(''), /先にこの端末を確かめてください。/)
   assert.equal(page.children.length, 0); authorizeError = null
   // Pending is cleared before the outcome is recorded: a stale outcome is ignored until this request's outcome appears.
   reads = [{ keyAuthorizationPending: false, keyAuthorization: null }, { keyAuthorizationPending: false, keyAuthorization: { requestId: 'r1', outcome: 'PASSWORD_REJECTED' } }]
@@ -201,8 +240,8 @@ test('self-service: precondition line, auto trust with the manual sheet under �
 })
 
 test('seatLaunch -> one line; action first, else code; null/absent -> nothing', () => {
-  assert.equal(seatLaunchText({ code: 'HOST_KEY_UNTRUSTED', action: ' confirm the host key of 192.168.1.12 ', terminalId: 'mac', at: 'x' }), 'Macで起動できません：confirm the host key of 192.168.1.12')
-  assert.equal(seatLaunchText({ code: 'UNREACHABLE', action: '' }), 'Macで起動できません：UNREACHABLE')
-  assert.equal(seatLaunchText({}), 'Macで起動できません。')
+  assert.equal(seatLaunchText({ code: 'HOST_KEY_UNTRUSTED', action: ' confirm the host key of 192.168.1.12 ', terminalId: 'mac', at: 'x' }), '端末で起動できません：confirm the host key of 192.168.1.12')
+  assert.equal(seatLaunchText({ code: 'UNREACHABLE', action: '' }), '端末で起動できません：UNREACHABLE')
+  assert.equal(seatLaunchText({}), '端末で起動できません。')
   for (const value of [null, undefined, 'x']) assert.equal(seatLaunchText(value), null)
 })
