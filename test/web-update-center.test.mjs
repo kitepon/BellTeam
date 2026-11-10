@@ -71,7 +71,7 @@ test('inventory is the only data source; all actual components and independent/p
   assert.equal(f.calls.length, 0)
   await f.center.start()
   assert.deepEqual(f.calls, [['/api/updates?runtime=1']])
-  assert.equal(f.get('[data-update-components]').children.length, 10)
+  assert.equal(f.get('[data-update-components]').children.length, updateComponents.length + 1)
   f.select('members')
   assert.match(text(f.get('[data-update-detail]')), /個別更新に対応していません/)
   f.select('notifications')
@@ -634,4 +634,29 @@ test('refresh button asks for the catalog check first and still reads when the c
   f.get('[data-update-refresh]').handlers.click(); await settle(); await settle()
   assert.deepEqual(f.calls.map(([path, options]) => [path, options?.method]), [['/api/updates/catalog-check', 'POST'], ['/api/updates?runtime=1', undefined]])
   assert.equal(f.get('[data-update-components]').children.length, 2)
+})
+
+test('entry label and part list count only non-runtime update_available rows', async t => {
+  const { value } = executable(), base = value.components[0]
+  const product = { ...structuredClone(base), comparison: { state: 'up_to_date', reason: null } }
+  const runtime = runtimeUpdateComponents.map(([id, name, description]) => ({ ...structuredClone(base), id, name, description,
+    comparison: { state: 'update_available', reason: null }, runtimeApplication: { generationId: null, policy: 'next_launch' } }))
+  const usage = { ...structuredClone(base), id: 'usage', name: 'usage', comparison: { state: 'unavailable', reason: 'UPDATE_MODULE_CATALOG_INVALID' } }
+  value.components = [product, usage, ...runtime]
+  // Production shape (Trony 2026-11-10): every published row carries a verified publication check.
+  const publication = { catalog: { sha256: 'c'.repeat(64), publishedAt: '2026-11-10T01:20:59Z', expiresAt: '2026-12-10T01:20:59Z' },
+    check: { status: 'verified', checkedAt: '2026-11-10T02:04:18Z', error: null } }
+  for (const row of value.components) row.publication = structuredClone(publication)
+  value.notice = { state: 'ready', code: null, message: 'ok' }
+  value.operation = null; value.previousOperation = null
+  const f = fixture(t, async () => value)
+  await f.center.start()
+  assert.equal(validUpdateInventory(value), true)
+  assert.equal(f.opener.textContent, 'Update')
+  const rows = f.get('[data-update-components]').children.slice(1)
+  assert.ok(rows.every(row => !text(row).includes('更新あり')))
+  for (const row of rows.filter(row => row.dataset.component.startsWith('runtime-'))) assert.ok(text(row).includes('本体と一緒に更新'))
+  product.comparison = { state: 'update_available', reason: null }
+  await f.center.refresh()
+  assert.equal(f.opener.textContent, 'Update · 更新あり')
 })

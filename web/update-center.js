@@ -44,7 +44,8 @@ const publication = value => value === null || value && value.catalog && /^[a-f0
 const errorText = error => [...new Set([error?.code, error?.message, error?.path, error?.reason].filter(text))].join(' / ')
   || ([401, 403].includes(error?.status) ? '更新情報を読む権限がありません。'
     : error?.status === 404 ? 'この接続先では更新情報が未提供です。' : '更新情報を取得できませんでした。')
-const comparisonLabel = item => item.comparison.state === 'up_to_date' && item.publication?.check.status !== 'verified'
+// Owner rule: Aiterm/CLIs update only with the body release, so runtime rows never read as 更新あり.
+const comparisonLabel = item => isRuntime(item.id) ? '本体と一緒に更新' : item.comparison.state === 'up_to_date' && item.publication?.check.status !== 'verified'
   ? '受入済み版と一致 · 公開情報の取得確認が必要です' : comparisons[item.comparison.state]
 const componentStatus = value => value && text(value.line)
   && ['ok', 'updating', 'attention'].includes(value.tone) && typeof value.actionRequired === 'boolean' && nullableText(value.action)
@@ -155,7 +156,7 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     root.setAttribute('aria-busy', String(loading))
     notice.textContent = operationReadError || operationMessage || storageFailure || (loading ? '接続先の更新情報を確認しています。' : failure || inventory?.notice.message || '更新センターを開くと、接続先の情報を確認します。')
     const publicationUnknown = inventory?.components.some(item => item.published && item.publication?.check.status !== 'verified')
-    let suffix = inventory && !failure ? { ready: inventory.components.some(item => item.comparison.state === 'update_available') ? ' · 更新あり' : '', unavailable: ' · 利用不能', updating: ' · 更新中', attention: ' · 要確認' }[inventory.notice.state] : ''
+    let suffix = inventory && !failure ? { ready: inventory.components.some(item => !isRuntime(item.id) && item.comparison.state === 'update_available') ? ' · 更新あり' : '', unavailable: ' · 利用不能', updating: ' · 更新中', attention: ' · 要確認' }[inventory.notice.state] : ''
     if (publicationUnknown || operationReadError || previousResults.some(entry => entry.error)) suffix = ' · 要確認'
     for (const button of buttons) {
       button.textContent = `Update${suffix}`
