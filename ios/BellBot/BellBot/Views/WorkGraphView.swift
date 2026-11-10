@@ -213,11 +213,14 @@ struct WorkGraphView: View {
     /// 依頼の札：白地に依頼元の色の縁と左帯、封筒の印、線へ向かう尖り。影はぼかさず1枚ずらして描く。
     private func drawTag(_ context: inout GraphicsContext, tag: CGRect, point: CGPoint, wire: Color,
                          icon: GraphicsContext.ResolvedImage, iconSide: CGFloat, text: NSAttributedString) {
+        // 尖りは線の上に浮いた札（中心）だけ。点に縁を当てた札（上下左右）は札自身が点に接する。
         var tail = Path()
-        tail.move(to: CGPoint(x: point.x - 5, y: tag.maxY - 0.5))
-        tail.addLine(to: CGPoint(x: point.x, y: point.y - 1))
-        tail.addLine(to: CGPoint(x: point.x + 5, y: tag.maxY - 0.5))
-        tail.closeSubpath()
+        if point.y > tag.maxY {
+            tail.move(to: CGPoint(x: point.x - 5, y: tag.maxY - 0.5))
+            tail.addLine(to: CGPoint(x: point.x, y: point.y - 1))
+            tail.addLine(to: CGPoint(x: point.x + 5, y: tag.maxY - 0.5))
+            tail.closeSubpath()
+        }
         let shape = Path(roundedRect: tag, cornerRadius: 9)
         context.fill(Path(roundedRect: tag.offsetBy(dx: 0, dy: 1.5), cornerRadius: 9), with: .color(BellTheme.ink.opacity(0.08)))
         context.fill(tail, with: .color(wire))
