@@ -66,6 +66,27 @@ Owner ruling: a text-only settings page is rejected. Same markup sections, same 
 
 Source reach: `web/index.html` (section icon attributes), `web/styles.css`, `web/ai-control.js`, `web/owner-editor.js`. No public HTTP, storage, or save behavior changes; no guard added.
 
+## Terminal member not started (seatLaunch, 2026-11-10, Crust / Kiro #892)
+
+The Owner must see why a terminal member did not start. Kiro #892 adds Bot DTO `seatLaunch` (GET `/api/bots` items and the profile, next to `account`; Molly projects it): `null | {code, action, terminalId, at}`, set on every not-started remote launch, cleared on a successful launch on the terminal; set/clear emit topic `bots`, so the existing list re-read brings it.
+
+```mermaid
+flowchart LR
+  Bots["GET /api/bots item.seatLaunch"] --> Text["seatLaunchText (terminals.js, pure)"]
+  Text -->|object| Row["member row: one line under the name"]
+  Text -->|object, selected bot| Header["conversation header: #chat-seat-launch full-width line"]
+  Text -->|null / absent (older body)| None["nothing"]
+  Topic["SSE topic bots"] --> Reload["loadBots (existing)"] --> Bots
+```
+
+| Function / edge | Contract |
+| --- | --- |
+| `seatLaunchText(seatLaunch)` (terminals.js, pure) | object -> 「Macで起動できません：<action>」, with the trimmed `action` or, when it is empty, the `code`; no `action` and no `code` -> 「Macで起動できません。」. `null`, absent or not an object -> `null`. `action` is shown as served (terminals/Aiterm sentence; English on the live body c1c1e4a1 for some reasons). |
+| Member row | `renderBots` adds `<span class="seat-launch">` under the name when the text is non-null. |
+| Header | `#chat-seat-launch`, a full-width line in the chat header above 現在の仕事 (the name column is too narrow at 360 px): set in `selectBot` and on every `loadBots` for the selected bot; hidden for rooms, no selection, or null. |
+
+Source reach: `web/terminals.js`, `web/application.js`, `web/index.html`, `web/styles.css`, `test/web-terminals.test.mjs`. No request, storage or guard added.
+
 ## Claude 1st/2nd accounts (2026-11-08, Owner via Trony)
 
 Contract: [harness accounts](../execution/harness-accounts.md) (execution owns the registry and selection; Mika owns HarnessAuth slots; Molly owns the routes). The HTTP paths the Web calls are the canonical [Public HTTP](../execution/harness-accounts.md#public-http-fixed-2026-11-08-by-the-feature-owner-admis-web-shape-accepted) table there; the diagram below only names them. The Web only renders and calls those routes; it never picks a slot, parses a limit or computes a reset.

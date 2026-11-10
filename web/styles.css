@@ -542,6 +542,9 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .work-preview-line { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.7; }
 
 .deletion-state { display: block; font-size: 12px; line-height: 1.8; color: #976630; }
+.seat-launch { display: block; color: #976630; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.chat-seat-launch { flex: 0 0 100%; min-width: 0; margin: 0; font-size: 13px; }
+.seat-launch[hidden] { display: none; }
 
 .web-push-states { display: grid; grid-template-columns: 110px minmax(0,1fr); gap: 14px 16px; padding: 20px; border: 1px solid var(--line); border-radius: 16px; font-size: 14px; line-height: 1.8; }
 .web-push-states dt { font-weight: 650; color: #57535f; }

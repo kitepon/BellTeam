@@ -23,6 +23,14 @@ export function terminalStatus(observation) {
   return { tone: 'attention', label: '届きません', help: action || '端末が眠っているか、ネットワークにつながっていません。起きれば、届いていない依頼から自動で再開します。', reason }
 }
 
+// Bot DTO seatLaunch (Kiro #892) -> one plain line, or null when the member has no not-started remote launch.
+export function seatLaunchText(seatLaunch) {
+  if (!seatLaunch || typeof seatLaunch !== 'object') return null
+  const action = typeof seatLaunch.action === 'string' ? seatLaunch.action.trim() : ''
+  const code = typeof seatLaunch.code === 'string' ? seatLaunch.code.trim() : ''
+  return action || code ? `Macで起動できません：${action || code}` : 'Macで起動できません。'
+}
+
 // members C1: '' or an absolute POSIX path without empty / . / .. segments and no trailing slash.
 export function projectRootProblem(path) {
   if (path === '') return ''
