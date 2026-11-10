@@ -120,6 +120,8 @@ flowchart LR
 
 ## Read-only enforcement (spec item 3; launch, not instructions)
 
+**HOLD (Root, 2026-11-10 JST):** the enforcement method below, `FORK_UNAVAILABLE{readonly_unenforceable}` and the fork tool listing are on hold. The Owner will discuss how read-only is achieved from scratch (「ReadOnlyの実現方法はゼロから議論しましょう」). Do not implement against this section until Root's ruling replaces it. Receipt, fork lifecycle, answer relay and labels continue.
+
 The fork is launched with a profile in which the forbidden effects do not exist as tools. The envelope text is not part of enforcement.
 
 | Layer | Owner | Required capability |
