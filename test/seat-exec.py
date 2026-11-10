@@ -8,11 +8,11 @@ class SeatEntry(unittest.TestCase):
  def test_identity_environment_and_stdio(self):
   code="""import os,json,sys
 s=open('/proc/self/status').read().splitlines()
-print(json.dumps({'uid':os.getresuid(),'gid':os.getresgid(),'groups':os.getgroups(),'env':dict(os.environ),'input':sys.stdin.read(),'caps':[x for x in s if x.startswith(('CapEff:','CapPrm:','CapAmb:'))]}))
+print(json.dumps({'oom':open('/proc/self/oom_score_adj').read().strip(),'uid':os.getresuid(),'gid':os.getresgid(),'groups':os.getgroups(),'env':dict(os.environ),'input':sys.stdin.read(),'caps':[x for x in s if x.startswith(('CapEff:','CapPrm:','CapAmb:'))]}))
 """
   r=self.invoke('--','/usr/bin/python3','-I','-c',code,input='synthetic input\n',env={**os.environ,'BELLTEAM_SYNTHETIC_SERVER_SECRET':'synthetic-canary','NODE_OPTIONS':'synthetic-not-a-real-option'})
   self.assertEqual(r.returncode,0,r.stderr);d=json.loads(r.stdout)
-  self.assertEqual(d['uid'],[1000]*3);self.assertEqual(d['gid'],[1000]*3);self.assertEqual(d['groups'],[])
+  self.assertEqual(d['oom'],'1000');self.assertEqual(d['uid'],[1000]*3);self.assertEqual(d['gid'],[1000]*3);self.assertEqual(d['groups'],[])
   self.assertEqual(d['input'],'synthetic input\n');self.assertNotIn('BELLTEAM_SYNTHETIC_SERVER_SECRET',d['env']);self.assertNotIn('NODE_OPTIONS',d['env'])
   self.assertTrue(all(int(x.split()[1],16)==0 for x in d['caps']))
   self.assertEqual(d['env']['HOME'],'/home/bell');self.assertEqual(d['env']['DISABLE_AUTOUPDATER'],'1')
