@@ -84,13 +84,14 @@ stateDiagram-v2
   [*] --> Queued: conversation saved original ID
   Queued --> Preparing: drain -> wakeNow
   Preparing --> Launched: target + context + credential + agent_launch ready
-  Preparing --> Queued: not_started (terminals / members / ingress / Aiterm terminal codes)
+  Preparing --> Failed: not_started (terminals / members / ingress / Aiterm terminal codes): onStatus failed + remote-seat not-started proof
+  Failed --> Queued: durable receipt sees the proof bound to this deliveryId + target (integration message-receipt.md)
   Launched --> Delivered: pty_send accepted (same ID once)
   Queued --> Preparing: terminals watch reachable -> RemoteSeats.available -> emitQueue(botId) -> drain
   Delivered --> Delivered: lost SSH is not a seat end; calls by session reconnect (Aiterm)
 ```
 
-Not-started codes and their exits (the durable receipt returns the ID to `queued` without a failed callback; no timer, no AI polling, no new queue):
+Not-started codes and their exits. The delivery does call `onStatus('failed')` (history shows the attempt) and rejects; the error carries the remote-seat not-started proof below, and the durable receipt (Molly, integration) turns the same ID back to `queued` only on that proof. No timer, no AI polling, no new queue, no immediate wake: the exit column is what drains it again.
 
 | Codes | Raised by | Exit |
 | --- | --- | --- |
@@ -100,9 +101,27 @@ Not-started codes and their exits (the durable receipt returns the ID to `queued
 
 `CWD_UNAVAILABLE` (the folder is missing on the terminal) and `REMOTE_AITERM_TOO_OLD` have no observable exit, so they stay a visible delivery failure (not queued).
 
+### Remote-seat not-started proof (2026-11-10, Crust / Molly)
+
+Without it the parent wraps the invoked failure as `effect: 'unknown'` and the receipt never replays it (first real case: delivery 46427226, macbook `TARGET_MISMATCH`). Execution attaches one closed, delivery-bound field to the rejected error:
+
+```text
+error.remoteSeatNotStarted = {
+  schema: 'bellteam.remote-seat-not-started.v1',
+  code,        // one of the not-started codes in the table above (never CWD_UNAVAILABLE / REMOTE_AITERM_TOO_OLD)
+  deliveryId,  // the delivery's queue groupId (= durable receipt delivery_id)
+  botId,       // the target member
+  terminalId,  // the terminal the launch was for
+}
+```
+
+- Built by `remoteSeatNotStarted(bot, deliveryId, error)` (`src/remote-seats.mjs`) in `AitermTransport.submit`'s failure branch, next to the stale-generation marker and under the same conditions: no receipt, not stopped, `!job.inputMayHaveStarted` (no `pty_send` that may have reached the CLI), a `groupId`, a remote member, and `error.effect === 'not_started'` with a not-started code. `effect` is set only by `RemoteSeats.prepare` (before `agent_launch`), `RemoteSeats.launchFailed` (Aiterm answered a not-started code) or the `TERMINALS_UNAVAILABLE` guard.
+- Exact keys only, strings only; no message, host, key or path. The parent wrapper copies it unchanged (`Object.assign(..., error, {effect: 'unknown'})`).
+- Parent acceptance (Molly, PR #901): no observed acceptance (with or without the saved `failed`), exact schema/keys, `code` `^[A-Z][A-Z0-9_]{0,63}$`, `terminalId` 1-128 chars, `deliveryId === record.delivery_id` and `botId === record.target` → append `queued`; no `onPending`. Anything else keeps today's `unknown`. The receipt's "unknown is never replayed" guard (duplicate input) is unchanged.
+
 ## Launch notice for the Owner (2026-11-10, Crust / Trony)
 
-A not-started remote launch keeps the message queued with no failed callback, so the Owner would see nothing while it waits (first real case: macbook answered `HOST_TRUST_MISSING` → `TARGET_MISMATCH`, action "confirm the host key of 192.168.1.12"). Execution keeps the latest not-started outcome per member and projects it; it is information only and changes no queue, retry or guard.
+A not-started remote launch calls `onStatus('failed')` and rejects; when the code has an exit, the rejected error carries the remote-seat not-started proof and the durable receipt puts the same ID back to `queued` ("Pending delivery" above). Codes without an exit (`CWD_UNAVAILABLE`, `REMOTE_AITERM_TOO_OLD`) stay a visible delivery failure. While the ID waits queued, the history alone does not say why or what the Owner should do (first real case: macbook answered `HOST_TRUST_MISSING` → `TARGET_MISMATCH`, action "confirm the host key of 192.168.1.12"). Execution keeps the latest not-started outcome per member and projects it; it is information only and changes no queue, retry or guard.
 
 ```text
 transport.seatLaunch(botId)   (sync project method, like seatAccount)
@@ -146,7 +165,7 @@ Local seats (no `terminalId`): today's path, including env forwarding. Delivery 
 | Private env | `AitermClient.call` option `privateEnv` (agent_launch with `terminal` only) |
 | Target revision | `AitermTransport.seatTargetChanged` + `dispatch`; D5 record `target` |
 | App-set terminal key (R13) | `RemoteSeats.target` / `loadKey` / `reloadKey`; `wakeNow` launch retry; `RemoteSeats.route` session-call retry |
-| Queue on launch failure | `RemoteSeats.launchFailed` (from `wakeNow`) |
+| Queue on launch failure | `RemoteSeats.launchFailed` (from `wakeNow`); proof `remoteSeatNotStarted` (from `AitermTransport.submit` failure branch) |
 | Launch notice | `RemoteSeats.notice` / `launchNotice`; `AitermTransport.seatLaunch` (sync project method); handover `remoteNotices` |
 | Distribution | `scripts/web_gateway_artifact.py` `EXECUTION_FILES` includes `src/remote-seats.mjs` (54, Molly's authorization) |
 | Credential release | `RemoteSeats.route` (successful `pty_close`) |

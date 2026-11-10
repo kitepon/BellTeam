@@ -15,6 +15,11 @@ export const notStarted = error => {
   if (NOT_STARTED.has(error?.code) || reachability(error?.code)) try { error.effect = 'not_started' } catch {}
   return error
 }
+// remote-seat.md "Remote-seat not-started proof": the durable receipt requeues the same ID only on this delivery-bound field.
+export const remoteSeatNotStarted = (bot, deliveryId, error) =>
+  isRemoteBot(bot) && typeof deliveryId === 'string' && deliveryId && error?.effect === 'not_started'
+    && (NOT_STARTED.has(error.code) || reachability(error.code))
+    ? { schema: 'bellteam.remote-seat-not-started.v1', code: error.code, deliveryId, botId: bot.id, terminalId: bot.terminalId } : null
 
 // Throughline's public CLI runs on the server as the seat user (Rivalin remote-ingest.md, Throughline >= 0.17.0). The seat
 // runner passes argv only, so this bridge feeds the JSON pieces to the CLI's stdin and prints its one JSON result.

@@ -321,3 +321,34 @@ test('launch notice: transport.seatLaunch reads it for the current member; a bod
   assert.equal(transport.seatLaunch('bot-none'), null)
   assert.equal(new AitermTransport({ resolveBot: () => bot }).seatLaunch(bot.id), null)
 })
+
+test('not-started proof: a remote launch refused before agent_launch rejects with the delivery-bound proof; the failed status stays', async () => {
+  const { root, calls, transport, member } = await transportFixture({ targetErrors: ['TARGET_MISMATCH'] })
+  try {
+    transport.resolveBot = () => member
+    transport.membersAdmission.trackCompletion = () => {}
+    transport.observeForDispatch = async () => ({ exists: false })
+    transport.sendToSession = async () => { throw code('AGENT_SESSION_REQUIRED') }
+    const statuses = []
+    const error = await transport.notify(member, 'hello', { membersLease: 'L',
+      queue: { context: 'direct', contextId: member.id, groupId: 'd-46427226', target: member.id },
+      onStatus: async status => { statuses.push(status) } }).then(() => null, failure => failure)
+    assert.equal(error?.code, 'TARGET_MISMATCH')
+    assert.deepEqual(error.remoteSeatNotStarted, { schema: 'bellteam.remote-seat-not-started.v1', code: 'TARGET_MISMATCH',
+      deliveryId: 'd-46427226', botId: 'bot-aaaa1111', terminalId: 'mac-1' })
+    assert.ok(Object.keys(error).includes('remoteSeatNotStarted'), 'own enumerable: the parent wrapper copies it')
+    assert.deepEqual(statuses, ['failed'])
+    assert.equal(calls.some(call => call.name === 'agent_launch'), false)
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
+
+test('not-started proof: only a remote member, a delivery ID and a not-started code; no-exit codes and local seats get none', async () => {
+  const { remoteSeatNotStarted } = await import('../src/remote-seats.mjs')
+  const failure = value => Object.assign(code(value), { effect: 'not_started' })
+  assert.equal(remoteSeatNotStarted(bot, 'd-1', failure('UNREACHABLE')).code, 'UNREACHABLE')
+  assert.equal(remoteSeatNotStarted(bot, 'd-1', failure('CREDENTIAL_NOT_LOADED')).code, 'CREDENTIAL_NOT_LOADED')
+  assert.equal(remoteSeatNotStarted(bot, 'd-1', failure('CWD_UNAVAILABLE')), null)
+  assert.equal(remoteSeatNotStarted(bot, 'd-1', code('TARGET_MISMATCH')), null, 'no effect: not proven')
+  assert.equal(remoteSeatNotStarted({ ...bot, terminalId: '' }, 'd-1', failure('TARGET_MISMATCH')), null)
+  assert.equal(remoteSeatNotStarted(bot, undefined, failure('TARGET_MISMATCH')), null)
+})
