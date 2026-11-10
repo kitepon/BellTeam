@@ -14,7 +14,7 @@ export const conversationTools = Object.freeze([
   },
   {
     name: 'ask_readonly',
-    description: '宛先Botへ読み取り専用の質問を送る。宛先の本体は中断されず、作業の待ち行列にも入らない。本体の最新状態から作った分身が、本体の作業を待たずにすぐ答える。分身ができるのは読む・調べる・考える・答えることだけで、ファイル編集・PR・本番操作・他Botへの依頼・記憶/知識/予定/承認の書込み・試験やコマンドの実行はできない。作業が必要ならsendmessageを使う。受付をすぐ返し、回答はメッセージで届く。runningは受付済みなので再送しない。',
+    description: '宛先Botへ読み取り専用の質問を送る。宛先の本体は中断されず、作業の待ち行列にも入らない。本体の最新状態から作った分身が、本体の作業を待たずにすぐ答える。分身は宛先Botのプロジェクトフォルダ内へ一切書き込めない（ファイル・git・そこにあるDBの更新を含む）。それ以外の道具・コマンド・調べもの・他Botへの連絡は使える。作業が必要ならsendmessageを使う。受付をすぐ返し、回答はメッセージで届く。runningは受付済みなので再送しない。',
     inputSchema: objectSchema({
       target: { type: 'string', minLength: 1, description: '宛先Botの名前またはBot ID' },
       message: { type: 'string', minLength: 1, description: '読み取り専用の質問' },

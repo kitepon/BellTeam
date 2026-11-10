@@ -93,7 +93,7 @@ Separate tool. `sendmessage` gets no flag and no change of meaning (spec items 6
 | Field | Contract |
 | --- | --- |
 | name | `ask_readonly` |
-| description (ja, shown to AIs) | 「宛先Botへ読み取り専用の質問を送る。宛先の本体は中断されず、作業の待ち行列にも入らない。本体の最新状態から作った分身が、本体の作業を待たずにすぐ答える。分身ができるのは読む・調べる・考える・答えることだけで、ファイル編集・PR・本番操作・他Botへの依頼・記憶/知識/予定/承認の書込み・試験やコマンドの実行はできない。作業が必要ならsendmessageを使う。受付をすぐ返し、回答はメッセージで届く。runningは受付済みなので再送しない。」 |
+| description (ja, shown to AIs) | 「宛先Botへ読み取り専用の質問を送る。宛先の本体は中断されず、作業の待ち行列にも入らない。本体の最新状態から作った分身が、本体の作業を待たずにすぐ答える。分身は宛先Botのプロジェクトフォルダ内へ一切書き込めない（ファイル・git・そこにあるDBの更新を含む）。それ以外の道具・コマンド・調べもの・他Botへの連絡は使える。作業が必要ならsendmessageを使う。受付をすぐ返し、回答はメッセージで届く。runningは受付済みなので再送しない。」 |
 | inputSchema | `{target: string(minLength 1) — Bot name or Bot ID, message: string(minLength 1)}`, both required. No `image` (not in the spec; Root ruling 3) |
 | annotations | `readOnlyHint: false` for the tool itself (it creates a fork and a record); the fork's own tool set is the read-only one |
 | result | Same shape as `sendmessage`, plus the label: `{delivery:'running', delivery_id, fork_id, from, target, seat:'fork'}`. Returned once the fork is accepted, not after the answer |
@@ -120,7 +120,9 @@ flowchart LR
 
 ## Read-only enforcement (spec item 3; launch, not instructions)
 
-**HOLD (Root, 2026-11-10 JST):** the enforcement method below, `FORK_UNAVAILABLE{readonly_unenforceable}` and the fork tool listing are on hold. The Owner will discuss how read-only is achieved from scratch (「ReadOnlyの実現方法はゼロから議論しましょう」). Do not implement against this section until Root's ruling replaces it. Receipt, fork lifecycle, answer relay and labels continue.
+**HOLD (Root, 2026-11-10 JST):** the enforcement method below, `FORK_UNAVAILABLE{readonly_unenforceable}` and the fork tool listing are on hold and superseded in scope. What is restricted is decided (Owner 23:0x/23:1x JST, binding spec): only writes inside the Bot's project folder are banned (files, git, databases stored there such as SQLite, by any route: native tools, commands, MCP tools whose server writes there). Everything else is allowed: all tools, MCP servers, commands, web and messages to peers, and writes outside the project folder. Enforcement is by the OS/harness below the tools, not by instruction. Elegg measures the method, Molly lists the BellTeam MCP tools that write into the project folder, and Root brings the method to the Owner. Do not implement against the table below until that ruling replaces it. Receipt, fork lifecycle, answer relay and labels continue.
+
+Open decision for Root (conversation scope, follows from "messages to peers" being allowed): a fork is disposable and cannot receive a later message, so a reply to a `sendmessage` or the answer to an `ask_readonly` the fork itself sent would today reach the asking Bot's main seat (`relayForkAnswer` and peer replies notify `from`'s main seat). Not implemented until ruled.
 
 The fork is launched with a profile in which the forbidden effects do not exist as tools. The envelope text is not part of enforcement.
 
