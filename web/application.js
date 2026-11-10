@@ -22,7 +22,7 @@ import { hasUnreadConversation, newestByRecent } from './activity-order.js?v=__A
 import { requestMemberStop } from './member-stop.js?v=__ASSET_VERSION__'
 import { createWebClient } from './client.js?v=__ASSET_VERSION__'
 import { goalsView } from './goals.js?v=__ASSET_VERSION__'
-import { createTerminalsView } from './terminals.js?v=__ASSET_VERSION__'
+import { createTerminalsView, seatLaunchText } from './terminals.js?v=__ASSET_VERSION__'
 import { createUpdateCenter } from './update-center.js?v=__ASSET_VERSION__'
 
 export function createWebApp({ client = createWebClient() } = {}) {
@@ -54,6 +54,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
   const latestButton = document.querySelector('#scroll-to-latest')
   const chatName = document.querySelector('#chat-name')
   const chatStatus = document.querySelector('#chat-status')
+  const chatSeatLaunch = document.querySelector('#chat-seat-launch')
   const screenButton = document.querySelector('#screen-button')
   const screenPanel = document.querySelector('#screen-panel')
   const screenStatus = document.querySelector('#screen-status')
@@ -395,6 +396,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
         state.selected = current
         conversationTimeline.updateTarget({ type: state.selectedType, id: current.id, name: current.displayName ?? current.name })
         if (app.classList.contains('chat-open')) markConversationRead(state.selectedType, current)
+        renderSeatLaunch()
       }
       else clearSelection()
     }
@@ -411,6 +413,12 @@ export function createWebApp({ client = createWebClient() } = {}) {
     applyAvatar(ownerProfileButton, owner ?? { avatar: '' })
   }
 
+  function renderSeatLaunch() {
+    const text = state.selectedType === 'bot' ? seatLaunchText(state.selected?.seatLaunch) : null
+    chatSeatLaunch.textContent = text ?? ''
+    chatSeatLaunch.hidden = !text
+  }
+
   function openOwnerDialog() { return ownerEditor.open(state.owner) }
 
   function renderBots() {
@@ -424,9 +432,10 @@ export function createWebApp({ client = createWebClient() } = {}) {
       const preview = workLabel(bot.currentWork)
       const parts = workParts(bot.currentWork)
       const account = seatBadge(bot.account)
+      const seatLaunch = seatLaunchText(bot.seatLaunch)
       button.innerHTML = `
         <span class="avatar ${escapeClass(bot.color)}" data-avatar>${initials(bot.name)}<i class="presence ${bot.online ? 'online' : ''}"></i></span>
-        <span class="bot-copy"><span class="bot-name">${escapeHtml(bot.displayName)}</span>${bot.deleting || bot.deletionRequested ? '<span class="deletion-state">削除を受付・完了未確認</span>' : ''}</span>
+        <span class="bot-copy"><span class="bot-name">${escapeHtml(bot.displayName)}</span>${bot.deleting || bot.deletionRequested ? '<span class="deletion-state">削除を受付・完了未確認</span>' : ''}${seatLaunch ? `<span class="seat-launch">${escapeHtml(seatLaunch)}</span>` : ''}</span>
         <span class="bot-meta"><time class="bot-time" title="最終会話の時刻">${formatTime(bot.recent?.at)}</time>${parts.state ? `<span class="work-state">${escapeHtml(parts.state)}</span>` : ''}${account ? `<span class="account-slot-badge" title="${escapeHtml(account.title)}">${escapeHtml(account.text)}</span>` : ''}${unread ? '<i class="unread-dot" aria-label="未読"></i>' : ''}</span>
         <span class="bot-preview bot-work-preview" title="${escapeHtml(preview)}">${escapeHtml(parts.text)}</span>`
       applyAvatar(button.querySelector('[data-avatar]'), bot)
@@ -471,6 +480,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
     renderCurrentWork(document.querySelector('#current-work-detail'), 'bot', bot, state.bots)
     chatName.textContent = bot.displayName
     chatStatus.textContent = bot.online ? 'CLI接続あり' : 'CLI接続なし · 送信時に起動'
+    renderSeatLaunch()
     headerAvatar.className = `mini-avatar ${escapeClass(bot.color)}`
     headerAvatar.textContent = initials(bot.name)
     applyAvatar(headerAvatar, bot)
@@ -498,6 +508,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
     renderCurrentWork(document.querySelector('#current-work-detail'), 'room', room, state.bots)
     chatName.textContent = room.name
     chatStatus.textContent = `${room.memberIds.length}人`
+    renderSeatLaunch()
     headerAvatar.className = 'mini-avatar room-avatar'
     headerAvatar.textContent = initials(room.name)
     applyAvatar(headerAvatar, room)
@@ -524,6 +535,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
     app.classList.remove('chat-open')
     chatName.textContent = 'メンバーを選択'
     chatStatus.textContent = 'BellTeam'
+    renderSeatLaunch()
     headerAvatar.className = 'mini-avatar'
     headerAvatar.textContent = ''
     headerAvatar.style.backgroundImage = ''

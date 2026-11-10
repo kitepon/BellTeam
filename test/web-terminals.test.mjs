@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { authorizeText, keySourceOf, projectRootProblem, readTerminals, remoteBindingBody, terminalStatus } from '../web/terminals.js'
+import { authorizeText, keySourceOf, projectRootProblem, readTerminals, remoteBindingBody, seatLaunchText, terminalStatus } from '../web/terminals.js'
 
 test('check observation -> plain words; host trust reasons ask for the fingerprint', () => {
   assert.equal(terminalStatus(null).label, '未確認')
@@ -198,4 +198,11 @@ test('self-service: precondition line, auto trust with the manual sheet under �
   click('このMacにこの鍵を入れる'); await settle(); await settle()
   nodes(page.children.at(-1)).find(node => node.textContent === '入力を断る').fire('click'); await settle(); await settle()
   assert.equal(calls.filter(call => call === 'GET /api/terminals/a').length, gets)
+})
+
+test('seatLaunch -> one line; action first, else code; null/absent -> nothing', () => {
+  assert.equal(seatLaunchText({ code: 'HOST_KEY_UNTRUSTED', action: ' confirm the host key of 192.168.1.12 ', terminalId: 'mac', at: 'x' }), 'Macで起動できません：confirm the host key of 192.168.1.12')
+  assert.equal(seatLaunchText({ code: 'UNREACHABLE', action: '' }), 'Macで起動できません：UNREACHABLE')
+  assert.equal(seatLaunchText({}), 'Macで起動できません。')
+  for (const value of [null, undefined, 'x']) assert.equal(seatLaunchText(value), null)
 })
