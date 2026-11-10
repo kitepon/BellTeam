@@ -93,6 +93,34 @@ Protection: a caller cannot speak as a seat it was not launched as (privilege es
 - Execution gets `ports.terminals` (the core's `connection` and `watch`, as-is) and `ports.ingress = {seatCredential: {issue, revoke}}` only when its factory declares `supportsRemoteSeats === true` (older engines reject unknown port keys).
 - Child packaging (work-graph precedent) waits until terminals needs exchange without a body swap.
 
+### Old engine never launches a terminal-bound member locally (2026-11-10, Crust/Trony F-SEAT-HOST)
+
+Production 2026-11-10 09:33 JST: the selected execution release f0534f8b (source afa3abb5) does not declare remote seats, got no `terminals`/`ingress` ports, did not know `terminalId`, and launched the Owner's terminal member in the server folder inside the container. The new engine's own `TERMINALS_UNAVAILABLE` covers only new engine + parent without terminals.
+
+```mermaid
+flowchart TD
+  Load["loadFactory(versionId)"] --> Declares{"factory.supportsRemoteSeats === true?"}
+  Declares -->|yes| Ports["ports.terminals + ports.ingress (unchanged)"]
+  Declares -->|no| Wrap["ports.native = Object.create(native)<br/>call() checks agent_launch only"]
+  Wrap --> Launch["engine: native.call('agent_launch', {cwd: bot.project})"]
+  Wrap --> Pin["pin(): Object.create(native.pin())<br/>same check on the pinned call;<br/>generation, live getters, release inherited"]
+  Pin --> PinLaunch["engine operation lease: pinned.call('agent_launch', ...)"]
+  PinLaunch --> Member
+  Launch --> Member{"cwd is <root>/bots/<id> and<br/>bots.get(id).terminalId non-empty?"}
+  Member -->|no| Native["native.call as before"]
+  Member -->|yes| Refuse["throw REMOTE_SEAT_ENGINE_UNSUPPORTED<br/>effect not_started, status 503<br/>+ diagnostics.record once per refusal"]
+  Refuse --> Failed["engine records that delivery failed (its own stage code)<br/>visible on that member; no container seat"]
+  Failed -. exit .-> Install["a remote-capable engine is selected<br/>(next loadFactory takes the yes branch)"]
+  Install --> Next["next delivery launches on the terminal"]
+```
+
+| Item | Contract |
+| --- | --- |
+| Protects | Connection to the wrong target: a terminal-bound member's CLI running in the server folder inside the container. |
+| Exit | Selecting an engine that declares `EXECUTION_REMOTE_SEATS` (no wrap), or the Owner removing the member's `terminalId` (local launch is then correct). No timer, no manual unlock. |
+| Scope | Only `agent_launch`, through `native.call` or a pinned `native.pin().call` (the old engine's operation lease, [aiterm-generation-pin](../execution/aiterm-generation-pin.md)), whose `cwd` is a registered member project with a non-empty `terminalId`. Every other native call, other members and remote-capable engines are unchanged. The member's registry entry is left as is. |
+| Code | `REMOTE_SEAT_ENGINE_UNSUPPORTED`, message 「AI実行制御が古く、この席を端末で起こせません」. The old engine stores its own stage code (`BOT_LAUNCH_FAILED`/`BOT_DELIVERY_FAILED`) on the delivery; the parent's diagnostics record carries the specific code and member id. |
+
 ## Core interface the parent mounts (Crust)
 
 `createTerminalsCore({stateRoot, credentials, report})` (Crust #771, trimmed in #792: terminals no longer reveals seat credentials) returns the members below. `seatProject` defaults to `dirname(stateRoot)` = BellTeam root, the same seat project the parent's Aiterm client uses; terminals spawns Elegg's UID 1000 `aiterm-remote-terminal` itself through `seatCommandSpec`, so no native client is passed:

@@ -17,7 +17,7 @@ import { sendSessionStop } from './session-interruption.mjs'
 import { createMembersAssembly } from './members-assembly.mjs'
 import { MembersAdmission } from './members-admission.mjs'
 import { createMembersOwnerAuthorization } from './members-owner-authorization.mjs'
-import { join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { createConversationServices } from './conversation-services.mjs'
 import { CharacterSheets } from './character-sheets.mjs'
 import { BotAdministration } from './bot-administration.mjs'
@@ -111,6 +111,29 @@ export async function loadTerminalKey({ credentials, terminalId, memberId = null
       throw Object.assign(TERMINAL_KEY_LOAD_FAILED(typeof dto.code === 'string' ? dto.code : 'TERMINAL_KEY_LOAD_REFUSED', 409), { binding: dto })
     throw TERMINAL_KEY_LOAD_FAILED()
   })
+}
+
+// Protects the wrong target: an engine without remote seats would start a terminal-bound member in the server folder.
+// Exit: selecting an engine that declares EXECUTION_REMOTE_SEATS (no wrap), or the member losing its terminalId.
+export function refuseRemoteSeatLaunch({ native, bots, botsRoot, versionId = null, record = () => {} }) {
+  const guard = call => (name, args, ...rest) => {
+    const cwd = args?.cwd
+    const bot = name === 'agent_launch' && typeof cwd === 'string' && dirname(cwd) === botsRoot ? bots.get(basename(cwd)) : null
+    if (typeof bot?.terminalId !== 'string' || bot.terminalId === '') return call(name, args, ...rest)
+    void Promise.resolve().then(() => record({ code: 'REMOTE_SEAT_ENGINE_UNSUPPORTED', module: 'execution',
+      diagnostic_log: `bot ${bot.id} execution ${versionId ?? 'unknown'}` })).catch(() => {})
+    return Promise.reject(Object.assign(new Error('AI実行制御が古く、この席を端末で起こせません'),
+      { code: 'REMOTE_SEAT_ENGINE_UNSUPPORTED', effect: 'not_started', status: 503 }))
+  }
+  const wrapped = Object.create(native)
+  wrapped.call = guard((...args) => native.call(...args))
+  // The old engine's operation lease launches through native.pin() (aiterm-generation-pin.md). The pin is frozen with
+  // live getters and its own release; define call over it instead of copying.
+  if (typeof native.pin === 'function') wrapped.pin = (...args) => {
+    const pinned = native.pin(...args)
+    return Object.create(pinned, { call: { value: guard((...callArgs) => pinned.call(...callArgs)) } })
+  }
+  return wrapped
 }
 
 export async function createApplicationServices({ root, moduleChildExitReporter = createModuleChildExitReporter(), exchangeMutex = createModuleExchangeMutex(), aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, botEnvironments = null, olrwManagement = undefined, submittedSecretManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, notify = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory, createWorkGraphProcess: workGraphFactory, prepareWorkGraphRelease: prepareWorkGraph = (versionId, options) => prepareModuleRelease('work-graph', versionId, options), hostUpdateClient: hostClient, prepareDiagnosticsRelease: prepareDiagnostics = (versionId, options) => prepareModuleRelease('diagnostics', versionId, options), builtinSourceCommit = null, usageAssembly = null, attachUsageServices = () => {}, prepareUsageRelease: prepareUsage = (versionId, options) => prepareModuleRelease('usage', versionId, options), createConversationAssembly: conversationFactory, createExecutionAssembly: executionFactory, loadExecutionFactory: loadExecution = loadExecutionFactory, createExecutionAdoptionStore: adoptionFactory = createExecutionAdoptionStore, prepareExecutionRelease: prepareExecution = prepareExecutionRelease, createTerminalsCore = null }) {
@@ -274,6 +297,8 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
         ? { terminals: { connection: terminals.connection, watch: listener => terminals.watch(listener) }, ingress: { seatCredential } } : {}
       return Object.freeze({ ...factory, createExecutionDispatcher: input => {
         input = { ...input, ports: { ...input.ports, ...remote } }
+        if (factory.supportsRemoteSeats !== true) input.ports.native = refuseRemoteSeatLaunch({ native: input.ports.native, bots,
+          botsRoot: join(root, 'bots'), versionId: factory.versionId, record: report => diagnostics.record(report) })
         if (supported) return factory.createExecutionDispatcher(input)
         const { deliveryAnchor, ...storage } = input.ports.storage
         return factory.createExecutionDispatcher({ ...input, ports: { ...input.ports, storage } })
