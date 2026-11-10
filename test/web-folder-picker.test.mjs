@@ -8,6 +8,9 @@ test('folder picker words and name rules follow terminals S6', () => {
   for (const name of ['', '.', '..', 'a/b', 'a\0b', 'あ'.repeat(86)]) assert.notEqual(folderNameProblem(name), '', name)
   assert.equal(folderNameProblem('仕事'), '')
   assert.equal(childPath('/', 'a'), '/a'); assert.equal(childPath('/Users/kite', 'a'), '/Users/kite/a')
+  // Windows paths join with \ (root X:\ keeps one separator); names never hold \ (nor : on Windows).
+  assert.equal(childPath('C:\\', 'a'), 'C:\\a'); assert.equal(childPath('C:\\Users\\kite_', 'a'), 'C:\\Users\\kite_\\a')
+  assert.notEqual(folderNameProblem('a\\b', '/Users/kite'), ''); assert.notEqual(folderNameProblem('a:b', 'C:\\x'), ''); assert.equal(folderNameProblem('a:b', '/Users/kite'), '')
   assert.equal(folderReasonText('UNREACHABLE', 'Macが起きているか確かめてください。', '/x'), 'いまは端末に届きません。Macが起きているか確かめてください。')
   assert.equal(folderReasonText('UNREACHABLE', 'Macが起きていて、BellTeamと同じネットワークにつながっているか確かめてから、もう一度お試しください', '/x'), 'いまは端末に届きません。Macが起きていて、BellTeamと同じネットワークにつながっているか確かめてから、もう一度お試しください。')
   for (const reason of ['TERMINAL_UNAVAILABLE', 'REMOTE_AITERM_TOO_OLD', 'CREDENTIAL_UNAVAILABLE']) assert.equal(folderReasonText(reason, undefined, '/x'), 'いまは端末に届きません。')
