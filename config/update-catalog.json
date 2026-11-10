@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-09T23:33:00Z",
-  "expiresAt": "2026-11-16T23:33:00Z",
+  "publishedAt": "2026-11-10T00:18:29Z",
+  "expiresAt": "2026-11-17T00:18:29Z",
   "releases": [
     {
       "componentId": "usage",
@@ -555,8 +555,8 @@
     },
     {
       "componentId": "members",
-      "sourceCommit": "a2d87d19b7d542c758614b4fece1f5f1b42bac79",
-      "versionId": "50a331fca2a53b23714260c52b35b4d2929e3047f26acb0855016a9bb130eb6e",
+      "sourceCommit": "ed8672b29cf6be69a92d795d2849997abba31151",
+      "versionId": "a07ad6fe617ec685691b8445586854ff9103bcbe285fb151e4f79ea1619aa2a4",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -564,16 +564,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T042439Z/members-a2d87d19b7d542c758614b4fece1f5f1b42bac79-linux-amd64.tar.gz",
-          "bytes": 4332176,
-          "sha256": "50a331fca2a53b23714260c52b35b4d2929e3047f26acb0855016a9bb130eb6e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T001628Z/members-ed8672b29cf6be69a92d795d2849997abba31151-linux-amd64.tar.gz",
+          "bytes": 4420256,
+          "sha256": "a07ad6fe617ec685691b8445586854ff9103bcbe285fb151e4f79ea1619aa2a4"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T042439Z/members-a2d87d19b7d542c758614b4fece1f5f1b42bac79-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10808,
-          "sha256": "642506b166681d8e6af7fcc5dae15ace71c0f047229e6834dcdada6a44ee2248"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T001628Z/members-ed8672b29cf6be69a92d795d2849997abba31151-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10953,
+          "sha256": "7ccab3afe7fac2ae39197b64310931307ac1e8f007ee6c34b6c1822de0b07baf"
         },
-        "signerCommit": "a2d87d19b7d542c758614b4fece1f5f1b42bac79"
+        "signerCommit": "ed8672b29cf6be69a92d795d2849997abba31151"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -590,13 +590,13 @@
         }
       },
       "changes": [
-        "Botが、今のターンが終わったら一度だけ続きを始める予定を作れるようにします。"
+        "メンバーの設定で、端末とフォルダーを指定して保存できるようになります。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "a2d87d19b7d542c758614b4fece1f5f1b42bac79",
-      "versionId": "5f2aacdecf2073dfda32acf50029f4b84fb21b2f2ed369d3a9d46b42c0068505",
+      "sourceCommit": "ed8672b29cf6be69a92d795d2849997abba31151",
+      "versionId": "b78dfd9470784d542f052f0128ea07a2aec063d20feac14cdd96317da6da0c49",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -604,16 +604,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T042439Z/members-a2d87d19b7d542c758614b4fece1f5f1b42bac79-linux-arm64.tar.gz",
-          "bytes": 4332173,
-          "sha256": "5f2aacdecf2073dfda32acf50029f4b84fb21b2f2ed369d3a9d46b42c0068505"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T001628Z/members-ed8672b29cf6be69a92d795d2849997abba31151-linux-arm64.tar.gz",
+          "bytes": 4420255,
+          "sha256": "b78dfd9470784d542f052f0128ea07a2aec063d20feac14cdd96317da6da0c49"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T042439Z/members-a2d87d19b7d542c758614b4fece1f5f1b42bac79-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10933,
-          "sha256": "b2a86d09a59cd78faacac0cb3c486f83661297ce0213eb4bc1fee69ab7c13c88"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T001628Z/members-ed8672b29cf6be69a92d795d2849997abba31151-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10996,
+          "sha256": "c546c107e617476cc6d05c766fa0585e5eb916965433b866886548910cb4b66d"
         },
-        "signerCommit": "a2d87d19b7d542c758614b4fece1f5f1b42bac79"
+        "signerCommit": "ed8672b29cf6be69a92d795d2849997abba31151"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -630,7 +630,7 @@
         }
       },
       "changes": [
-        "Botが、今のターンが終わったら一度だけ続きを始める予定を作れるようにします。"
+        "メンバーの設定で、端末とフォルダーを指定して保存できるようになります。"
       ]
     },
     {
