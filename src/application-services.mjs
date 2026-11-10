@@ -61,6 +61,7 @@ import { Subscriptions } from './subscriptions.mjs'
 import { Onboarding } from './onboarding.mjs'
 import { HarnessAuth } from './harness-auth.mjs'
 import { attachOlrwOwnerQuestion } from './olrw-management-caller.mjs'
+import { remoteSeatPort } from './remote-seat-port.mjs'
 import { prepareOlrwManagement } from './olrw-management-loader.mjs'
 
 // Saving a report is observation; a store refusal must not fail the child's call, its quiesce or a module exchange.
@@ -248,6 +249,9 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     ...(usageAssembly.credentials.watchRecovery ? { watchRecovery: listener => usageAssembly.credentials.watchRecovery(listener) } : {}),
     report: error => diagnostics.record({ code: 'SECRET_CREDENTIAL_REFRESH_FAILED', module: 'integration', diagnostic_log: String(error?.code ?? 'UNKNOWN') }) }) : null
   if (credentialRefresh && terminals) terminals.watch(event => { if (event?.reachable === true) void credentialRefresh.refreshNow() })
+  // The runtime owns the listener (it holds seat MCP); it binds its ensure here before any launch can run.
+  let ensureRemoteSeatListener = null
+  const remoteSeatListener = Object.freeze({ bind: ensure => { ensureRemoteSeatListener = ensure }, ensure: async () => ensureRemoteSeatListener?.() })
   const seatCredential = Object.freeze({
     async issue({ botId, sessionName, terminalId }) {
       if (!seatCandidates(sessionName).includes(botId)) throw Object.assign(new Error('SEAT_CREDENTIAL_INVALID'), { code: 'SEAT_CREDENTIAL_INVALID', status: 400 })
@@ -255,7 +259,9 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
       const terminal = await terminals.registry.get(terminalId)
       if (!terminal) throw Object.assign(new Error('TERMINAL_NOT_FOUND'), { code: 'TERMINAL_NOT_FOUND', status: 404 })
       // The container target; Aiterm rewrites this origin to the terminal's reverse-forward end (RS05). ingressUrl is not read.
-      const origin = `http://127.0.0.1:${Number(environment.BELLTEAM_REMOTE_SEAT_PORT ?? 4182)}`
+      // RS05: the listener is retried here while it is down, so a seat is never launched toward a dead MCP.
+      await remoteSeatListener.ensure()
+      const origin = `http://127.0.0.1:${remoteSeatPort(environment)}`
       return { url: `${origin}${REMOTE_SEAT_MCP_PATH}`, credentialRef: await seatCredentials.issue({ botId, sessionName, terminalId }) }
     },
     revoke: ({ sessionName }) => seatCredentials.revoke({ sessionName }),
@@ -461,7 +467,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     notifications, secretRequests, ownerQuestions, bots, rooms,
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, refreshGlobalInstructions, assets,
-    scheduler, diagnostics, diagnosticsModule, workGraph, workGraphModule, accounts, terminals, terminalKeys, seatCredentials, credentialRefresh, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller, submittedSecretCaller,
+    scheduler, diagnostics, diagnosticsModule, workGraph, workGraphModule, accounts, terminals, terminalKeys, seatCredentials, remoteSeatListener, credentialRefresh, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller, submittedSecretCaller,
     // Saved direct input drains after listen (Z-c). Starting before the hold release is safe and needs no bound:
     // executionReady is false while held, and the release's hold.watch → requestDrain drains it.
     lifecycle: { ...execution?.lifecycle,

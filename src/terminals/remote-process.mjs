@@ -4,12 +4,13 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { seatCommandSpec } from '../seat-command.mjs'
 import { createSeatProcessRunner } from '../seat-process.mjs'
+import { remoteSeatPort } from '../remote-seat-port.mjs'
 
 const BIN = 'aiterm-remote-terminal'
 
 async function stdioClient(project) {
   const client = new Client({ name: 'bellteam-terminals', version: '0.1.0' }, { capabilities: {} })
-  await client.connect(new StdioClientTransport({ ...seatCommandSpec('/usr/bin/env', [BIN, 'serve'], { project }), stderr: 'ignore' }))
+  await client.connect(new StdioClientTransport({ ...seatCommandSpec('/usr/bin/env', [`BELLTEAM_REMOTE_SEAT_PORT=${remoteSeatPort()}`, BIN, 'serve'], { project }), stderr: 'ignore' }))
   return client
 }
 

@@ -12,6 +12,7 @@ import { createBugHubSecurity } from './bughub-security.mjs'
 import { LiveModelCatalog } from './model-catalog.mjs'
 import { runtimeHome } from './runtime-home.mjs'
 import { readServerSourceCommit } from './server-source.mjs'
+import { remoteSeatPort } from './remote-seat-port.mjs'
 import { listenBodyQuiesce } from './body-quiesce.mjs'
 
 // Fixed bounds for the optional lifecycle contacts (Z-c slice 2); the shutdown one leaves most of the 30 s stop grace to close().
@@ -80,7 +81,6 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
           () => settings.configuration('callBridge'))) : bootstrap.seatRuntime.writeHarnessConfig(bots, aiterm, callBridge) } : {}) })
   server = createBellTeamServer({ ...serverOptions, authMode: features.authMode, authorize: features.authorize })
   // Remote seats reach this only through Aiterm's SSH reverse forward (remote-seat-ingress.md RS05); never via 4180/18891.
-  const remoteSeatPort = Number(environment.BELLTEAM_REMOTE_SEAT_PORT ?? 4182)
   const remoteSeatServer = createRemoteSeatServer(createRemoteSeatIngress({ credentials: services.seatCredentials, bots, seatMcp: () => seatMcp }))
   const seatMcp = createSeatMcp({
     bots,
@@ -113,6 +113,16 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     server.listen(...args, () => { server.removeListener('error', failed); resolve() })
   })
   let stopRequested = false, started = false, starting = null, interrupt
+  // RS05: one bind at a time; a failure is recorded and leaves it unbound, so the next issue (or start) binds again.
+  let remoteSeatBinding = null, remoteSeatBound = false
+  const ensureRemoteSeatListener = () => remoteSeatBound ? Promise.resolve() : remoteSeatBinding ??= (stopRequested
+    ? Promise.reject(Object.assign(new Error('STARTUP_INTERRUPTED'), { code: 'STARTUP_INTERRUPTED' }))
+    : listen(remoteSeatServer, remoteSeatPort(environment), '127.0.0.1')).then(() => { remoteSeatBound = true }, error => {
+      process.stderr.write(`REMOTE_SEAT_LISTEN_FAILED ${error.code ?? ''}\n`)
+      try { diagnostics?.record({ code: 'REMOTE_SEAT_LISTEN_FAILED', module: 'integration', diagnostic_log: String(error?.code ?? 'UNKNOWN') }) } catch {}
+      throw Object.assign(new Error('REMOTE_SEAT_INGRESS_UNAVAILABLE'), { code: 'REMOTE_SEAT_INGRESS_UNAVAILABLE', status: 503, cause: error })
+    }).finally(() => { remoteSeatBinding = null })
+  services.remoteSeatListener?.bind(ensureRemoteSeatListener)
   const interrupted = new Promise(resolve => { interrupt = resolve })
   const proceed = () => {
     if (stopRequested) throw Object.assign(new Error('STARTUP_INTERRUPTED'), { code: 'STARTUP_INTERRUPTED' })
@@ -140,8 +150,8 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
       const socketPath = join(socketDirectory, 'public.sock')
       await listen(server, socketPath); proceed()
       await listen(internalServer, internalPort, '127.0.0.1'); proceed()
-      // A failed remote-seat listener only leaves remote seats without MCP; the body keeps serving and the next start retries.
-      await listen(remoteSeatServer, remoteSeatPort, '127.0.0.1').catch(error => process.stderr.write(`REMOTE_SEAT_LISTEN_FAILED ${error.code ?? ''}\n`)); proceed()
+      // A failed remote-seat listener does not stop the body; each remote launch retries it and fails visibly while it is down.
+      await ensureRemoteSeatListener().catch(() => {}); proceed()
       // Without this endpoint the installer records quiesce=unconfirmed and still stops; serving matters more.
       if (quiesceSocket) quiesceEndpoint = await listenBodyQuiesce({ path: quiesceSocket, ...(services.lifecycle?.quiesce ? { quiesce: services.lifecycle.quiesce } : {}) }).catch(error => {
         process.stderr.write(`BODY_QUIESCE_UNAVAILABLE ${error.code ?? ''}\n`)
