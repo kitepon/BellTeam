@@ -446,6 +446,9 @@ goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`tes
 | 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
 | --- | --- |
 | testSeatLaunchDecodesAndReadsAsOneLine | Bot項目`seatLaunch`：欠落・`null`は無し、全項目ありは「Macで起動できません: <action>」、`action`が無い・`null`・空白だけは`code`、両方無しは行なし |
+| testConfigurationApplicationLineFollowsTheWebEditor | `configurationApplication`の1行：新規メンバーは行なし、pending・accepted・failed（サーバーのmessage、messageなしは行なし）、記録なし・`null`・知らないstateは稼働中／停止中の既定文 |
+| testMalformedConfigurationApplicationIsAbsentAndDoesNotBreakTheBot | 文字列・数・配列・真偽でもBotは読め記録は無し、型違いの項目だけ無いものとして読む |
+| testPickerRowsKeepOnlyPasswordReferencesForSudoAndSearchByNameOrVault | 一覧の行：sudoは`/password`だけ（SSH鍵の参照は残らない）、SSHは全行、名前・保管庫（前後空白除去）の大文字小文字を区別しない絞り込み、件数文（N件／「…」に合う…がありません） |
 | testMalformedSeatLaunchIsAbsentAndDoesNotBreakTheBot | 文字列・数・配列・真偽の`seatLaunch`でもBotは読め行は出ない、型違いの項目だけ無いものとして読む |
 | testTerminalDecodesTheRegistryProjectionAndAnOlderPartialBody | 公開projection（鍵は設定済み表示だけ、hostTrust、C8）と、項目が欠けた旧い応答を既定値で読む |
 | testKeyFieldsDecodeAndMapToRowStates | `keySource`・`sudoKeySource`・`sshKeyPending`・`sudoKeyPending`の解読と鍵の行（未設定/設定待ち/設定済み、出どころの文、「設定する」/「設定し直す」、外せるか）。設定待ちでも今の鍵の出どころを残す。項目の無い旧い応答は未対応 |
@@ -960,7 +963,9 @@ Macの端末表示中の照会と非表示後の停止、小画像保存の結�
 | 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
 | --- | --- |
 | testTerminalListAddCheckAndHostKeyConfirm | 一覧の宛先・鍵の状態（`op://`無し）、つながる/眠っている/ホスト鍵変化/信用なし/鍵なしの確認結果、指紋の誤りは409で信用せず、端末で読んだ指紋だけを`confirmHostKey`で送る、追加の検査とbody（鍵の項目なし）、編集でIDを変えない、確認後の削除、設定の項目「端末」 |
-| testKeySettingThroughTheSecretCardAndRemoval | 鍵の行（設定済み+端末にある鍵、未設定+自分の端末では不要）、「設定する」で空のPOSTと秘密入力カード（1Password参照が上・既定、題は端末と鍵の種類）、参照を入れて登録→設定済み+BellTeamに預けた鍵、参照を画面に出さず、submitは`source`/`reference`だけ。SSH鍵の「設定し直す」は1Passwordの鍵の一覧（名前と保管庫）と貼り付けの二択で、貼り付けに替えると複数行欄、閉じると設定待ちで今の鍵を表示しsubmitなし。sudoを確認の後に外す（DELETE）。503 `CREDENTIAL_UNAVAILABLE`は平易な文でカードを開かない。旧い応答では鍵の行だけ一行の案内でボタンなし |
+| testKeySettingThroughTheSecretCardAndRemoval | 鍵の行（設定済み+端末にある鍵、未設定+自分の端末では不要）、「設定する」で空のPOSTと秘密入力カード（1Passwordが上・既定、sudoは「1Passwordのパスワードから選ぶ」の一覧、題は端末と鍵の種類）、一覧から選んで登録→設定済み+BellTeamに預けた鍵、参照を画面に出さず、submitは`source`/`reference`だけ。SSH鍵の「設定し直す」は1Passwordの鍵の一覧（名前と保管庫）と貼り付けの二択で、貼り付けに替えると複数行欄、閉じると設定待ちで今の鍵を表示しsubmitなし。sudoを確認の後に外す（DELETE）。503 `CREDENTIAL_UNAVAILABLE`は平易な文でカードを開かない。旧い応答では鍵の行だけ一行の案内でボタンなし |
+| testSudoPickerListsPasswordsSearchesAndFallsBack | sudoカードの一覧（`/password`の5件。旧本体がSSH鍵も返す`picker=sshkeys`でも鍵は数えない）、保管庫・名前で絞る、選択が見えなくなったら外れる、合わなければ「「…」に合うパスワードがありません」、選んで登録→submitは`source`/`reference`だけ。SSHカードにも検索欄。一覧404はパスワード入力だけ＋一行、503は「読めませんでした」と入力の選択を残す |
+| testShotsMemberConfigurationStatus | 画面写真だけ：メンバー編集の適用状態の1行（pending・accepted・failed。DEBUGの`-bellbot-preview-configuration <state>`が最初のメンバーへ入れる。記録なしは稼働中の既定文を確かめる） |
 | testSshKeyPickerSubmitsTheChosenReferenceAndFallsBack | SSH鍵カードの一覧（名前と保管庫、参照は出さない、選ぶまで送れない）→選んで登録→submitは`source`/`reference`だけ。未接続は貼り付けだけ＋設定の「1Password連携」への案内。一覧404は選択肢を隠して貼り付け＋一行。一覧503は「読めませんでした」と貼り付けの選択を残す |
 | testOnePasswordSettingBadgeGuideAndTokenCheck | 追加機能に1Password行（未連携）、案内が開いている、`ops_`でないtokenはPATCHせず止める、拒否されたtokenは失敗バッジと結果の一行「連携できませんでした。」+サーバーの文（符号なし）、受理で連携中・案内が畳まれ読める保管庫と鍵の数の一行、tokenを画面に返さない、PATCH2回・`values`は`token`だけ。鍵0件の次の一手、項目の無い旧本体は行が増えない |
 | testShotsOnePasswordResultLine | 画面写真だけ：未連携、確かめ中（PATCH応答を5秒保留）、失敗、成功（アプリはInfo.plistでLight固定のため暗い表示は無い）。fixtureの`/test/mode?patchdelay=<ms>` |

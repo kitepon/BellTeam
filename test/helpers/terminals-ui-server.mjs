@@ -2,7 +2,7 @@
 // Keys (terminals #811): POST/DELETE /api/terminals/:id/keys/{ssh|sudo} and the secret card's /api/secret-requests/:id/submit|cancel.
 // No SSH, keys or real terminals. Prints {"url"} on start; /test/reset,
 // /test/mode?terminals=ok|unsupported|unavailable&members=new|old&keys=ok|old|unavailable&onepassword=1|0
-//   &setting=absent|off|connected|zero|rejected|cli&picker=ok|empty|error|missing, /test/proof, /test/fingerprint?id=.
+//   &setting=absent|off|connected|zero|rejected|cli&picker=ok|empty|error|missing|sshkeys, /test/proof, /test/fingerprint?id=.
 // Host-key attest (terminals #856): POST /api/terminals/:id/trust {fingerprint}; /test/mode?trust=ok|mismatch|unavailable|changed|old
 //   (ok accepts any well-formed SHA256: value, changed answers TERMINAL_CHANGED once, old is an older body's 404) and thismac=1
 //   adds the terminal `this-mac` (host 127.0.0.1, no trust). /test/proof.trusts keeps each attest body.
@@ -99,6 +99,14 @@ const ITEMS = [
   { title: 'Mac mini 本番', vault: 'Infra', reference: `op://${VAULT}/${ITEM}/private key?ssh-format=openssh` },
   { title: 'office-imac', vault: 'Infra', reference: `op://${VAULT}/${'c'.repeat(26)}/private key?ssh-format=openssh` },
   { title: '個人用ノートPC', vault: 'Team', reference: `op://${'d'.repeat(26)}/${'e'.repeat(26)}/private key?ssh-format=openssh` }]
+
+// A sudo card lists password-field references (usage "Sudo password picker"); `picker=sshkeys` plays an older body that lists SSH keys for it too.
+const PASSWORDS = [
+  { title: 'Mac mini 本番', vault: 'Infra', reference: `op://${VAULT}/${ITEM}/password` },
+  { title: 'office-imac', vault: 'Infra', reference: `op://${VAULT}/${'c'.repeat(26)}/password` },
+  { title: '個人用ノートPC', vault: 'Team', reference: `op://${'d'.repeat(26)}/${'e'.repeat(26)}/password` },
+  { title: 'スタジオMac', vault: 'Team', reference: `op://${'d'.repeat(26)}/${'f'.repeat(26)}/password` },
+  { title: 'NAS 管理者', vault: 'Infra', reference: `op://${VAULT}/${'g'.repeat(26)}/password` }]
 
 const KINDS = { ssh: { purpose: 'terminal.ssh', configured: 'sshKeyConfigured', source: 'keySource', pending: 'sshKeyPending', label: 'SSH key' },
   sudo: { purpose: 'terminal.sudo', configured: 'sudoKeyConfigured', source: 'sudoKeySource', pending: 'sudoKeyPending', label: 'sudo password' } }
@@ -258,7 +266,8 @@ const server = createServer(async (request, response) => {
     state.proof.itemReads++
     if (state.mode.picker === 'missing') return fail(404, 'NOT_FOUND')
     if (state.mode.picker === 'error') return fail(503, 'SECRET_SOURCE_UNAVAILABLE')
-    return send(200, { items: state.mode.picker === 'empty' ? [] : ITEMS })
+    if (state.mode.picker === 'empty') return send(200, { items: [] })
+    return send(200, { items: state.requests.get(itemsMatch[1])?.purpose === 'terminal.sudo' ? state.mode.picker === 'sshkeys' ? [...ITEMS, ...PASSWORDS] : PASSWORDS : ITEMS })
   }
   const secretMatch = /^\/api\/secret-requests\/([a-f0-9-]+)(?:\/(submit|cancel))?$/u.exec(path)
   if (secretMatch) {

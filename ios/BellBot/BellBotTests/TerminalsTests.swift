@@ -850,6 +850,63 @@ final class TerminalsTests: XCTestCase {
         XCTAssertEqual(wrongField.seatLaunch?.line, "Macで起動できません: 次の手順", "a field of the wrong type reads as absent")
     }
 
+    // MARK: configurationApplication (execution configuration-requests.md "Application view")
+
+    private func bot(application: String?, online: Bool = false) throws -> Bot {
+        let extra = application.map { ",\"configurationApplication\":\($0)" } ?? ""
+        return try JSONDecoder().decode(Bot.self, from: Data("""
+        {"id":"b","name":"n","displayName":"n","harness":"claude","model":"","reasoningEffort":"","fastMode":false,"color":"c",
+         "profileText":"","personality":"","speechStyle":"","position":"","role":"","avatar":"","online":\(online)\(extra)}
+        """.utf8))
+    }
+
+    func testConfigurationApplicationLineFollowsTheWebEditor() throws {
+        XCTAssertNil(ConfigurationApplication.line(for: nil), "a new member has no line")
+        XCTAssertEqual(ConfigurationApplication.line(for: try bot(application: #"{"state":"pending","fields":["model"]}"#)),
+                       "現在の作業が終わった後に設定を反映します。適用はまだ確認できていません。")
+        XCTAssertEqual(ConfigurationApplication.line(for: try bot(application: #"{"state":"accepted"}"#)), "CLIが設定変更を受け付けました。")
+        let reason = "設定変更は反映されませんでした。席が応答しませんでした。保存した設定は、次に席を起こし直した時に使います。"
+        XCTAssertEqual(ConfigurationApplication.line(for: try bot(application: #"{"state":"failed","message":"\#(reason)","outcome":"not_applied"}"#)), reason)
+        XCTAssertNil(ConfigurationApplication.line(for: try bot(application: #"{"state":"failed"}"#)), "a failure without its message says nothing")
+        // No record (an older body) or an unknown state: the saved-desired-settings line, by whether the seat runs.
+        for application in [nil, "null", #"{"state":"later"}"#] {
+            XCTAssertEqual(ConfigurationApplication.line(for: try bot(application: application)), "次回の起動に使う希望設定です。", application ?? "absent")
+            XCTAssertEqual(ConfigurationApplication.line(for: try bot(application: application, online: true)),
+                           "保存した希望設定です。稼働中のCLIへの適用は未確認です。", application ?? "absent")
+        }
+    }
+
+    func testMalformedConfigurationApplicationIsAbsentAndDoesNotBreakTheBot() throws {
+        for malformed in ["\"boom\"", "7", "[1]", "true"] {
+            let decoded = try bot(application: malformed)
+            XCTAssertEqual(decoded.id, "b", malformed)
+            XCTAssertNil(decoded.configurationApplication, malformed)
+        }
+        let wrongField = try bot(application: #"{"state":"accepted","message":5}"#)
+        XCTAssertEqual(wrongField.configurationApplication, ConfigurationApplication(state: "accepted", message: nil), "a field of the wrong type reads as absent")
+    }
+
+    // MARK: 1Password picker rows (usage secret-credentials.md "Sudo password picker and picker search")
+
+    func testPickerRowsKeepOnlyPasswordReferencesForSudoAndSearchByNameOrVault() throws {
+        let keys = try JSONDecoder().decode(OnePasswordKeysResponse.self, from: Data(#"""
+        {"items":[{"title":"Mac mini 本番","vault":"Infra","reference":"op://v/i/password"},
+                  {"title":"古い鍵","vault":"Infra","reference":"op://v/j/private key?ssh-format=openssh"},
+                  {"title":"個人用 PC","vault":"Team","reference":"op://w/k/password"},
+                  {"title":"vaultなし","reference":"op://w/l/password"}]}
+        """#.utf8)).items
+        XCTAssertEqual(OnePasswordKey.choices(keys, sudo: true, search: "").map(\.title), ["Mac mini 本番", "個人用 PC", "vaultなし"],
+                       "an SSH-key reference never becomes a sudo password")
+        XCTAssertEqual(OnePasswordKey.choices(keys, sudo: false, search: "").map(\.title), keys.map(\.title), "the SSH picker keeps every row")
+        XCTAssertEqual(OnePasswordKey.choices(keys, sudo: true, search: "MAC").map(\.title), ["Mac mini 本番"], "name, ignoring case")
+        XCTAssertEqual(OnePasswordKey.choices(keys, sudo: true, search: " team ").map(\.title), ["個人用 PC"], "vault, trimmed")
+        XCTAssertEqual(OnePasswordKey.choices(keys, sudo: false, search: "infra").map(\.title), ["Mac mini 本番", "古い鍵"])
+        XCTAssertEqual(OnePasswordKey.choices(keys, sudo: true, search: "古い").map(\.title), [], "the filtered SSH key stays hidden")
+        XCTAssertEqual(OnePasswordKey.countLine(shown: 3, search: "", noun: "パスワード"), "3件から選んでください")
+        XCTAssertEqual(OnePasswordKey.countLine(shown: 0, search: " zzz ", noun: "パスワード"), "「zzz」に合うパスワードがありません")
+        XCTAssertEqual(OnePasswordKey.countLine(shown: 0, search: "zzz", noun: "鍵"), "「zzz」に合う鍵がありません")
+    }
+
     func testCreateSendsOnceListsTheParentAgainThenOpensTheNewFolder() async {
         var events: [String] = []
         let model = TerminalFolderPickerModel(read: { path in

@@ -49,6 +49,12 @@ extension AppStore {
                 ? "Macの「システム設定 > 一般 > 共有」で「リモートログイン」をオンにしてください" : nil
             bots[0].seatLaunch = SeatLaunch(code: "TARGET_MISMATCH", action: action, terminalId: "owner-macbook", at: "2026-11-10T02:00:00Z")
         }
+        // Configuration application record on the first member: `-bellbot-preview-configuration pending | accepted | failed`.
+        if let index = arguments.firstIndex(of: "-bellbot-preview-configuration"), arguments.indices.contains(index + 1) {
+            let state = arguments[index + 1]
+            bots[0].configurationApplication = ConfigurationApplication(state: state, message: state == "failed"
+                ? "設定変更は反映されませんでした。席が応答しませんでした。保存した設定は、次に席を起こし直した時に使います。" : nil)
+        }
         rooms = fixture.rooms
         owner = fixture.owner
         workingBotIDs = ["bot-one"]
