@@ -96,3 +96,7 @@ Private reference sources and opaque credential records extend the state interpr
 ## Owner key settings / revoked state v2
 
 Centi consent extends the usage source contract to `stored-or-private-reference-v2` in the usage export and BUSINESS_STATE together. V2 adds Owner-origin botId:null request scope, durable handle revocation and parent selection tombstones. An old v1 child must not restore this interpretation or resurrect a revoked selection. The existing child closure is reused; native/selection parent code stays outside it. Existing signed v1 descriptors retain their original meaning. Supply/activation still requires the compatible parent/body and matching v2 usage, under unchanged authorization.
+
+## 1Password settings feature in BUSINESS_STATE
+
+The usage export's `settingsFeatures` gained `onePassword` (9f4352e7, Settings 1Password連携), but BUSINESS_STATE['usage'] was not changed with it, so `test/business-artifact.test.py` (the first step of publish-usage.yml) and the packager's MODULE_SOURCE_STATE_INCOMPATIBLE check refused every usage archive from a body that carries it. BUSINESS_STATE['usage'] now lists the same seven features. Bodies whose usage export has seven features read only a seven-feature usage row as compatible; the published six-feature row stays `incompatible` for them. No state file, migration or catalog validator changes.
