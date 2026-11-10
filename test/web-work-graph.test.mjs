@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { avatarSide, backoffMs, bestSwap, blinkOpacity, chipBoxAt, CHIP_SPOTS, clearanceForces, createGraphModel, segmentHitsBox, createTap, edgeText, enterCurve, flowDots, nodeAt, nodeText, wrapLabel } from '../web/work-graph-model.js'
+import { avatarSide, backoffMs, bestSwap, blinkOpacity, chipBoxAt, CHIP_SPOTS, clearanceForces, createGraphModel, intoRect, segmentHitsBox, createTap, edgeText, enterCurve, flowDots, nodeAt, nodeText, wrapLabel } from '../web/work-graph-model.js'
 import { createGraphStream, parseFrames } from '../web/work-graph.js'
 
 const rect = { x: 24, y: 24, w: 800, h: 600 }
@@ -366,4 +366,35 @@ test('中央がふさがれた札は、同じ点の上下左右へ移る', () =>
   two.frame(20000, rect)
   assert.notDeepEqual(chip.spot, { t: 0.5, side: [0, 0] })
   assert.equal(two.frame(20000, rect).labels.some(label => label.edge.id === 'a:b'), true)
+})
+
+test('札は D の中：寄せ方は layout-sim.mjs intoArea と同じ。端の札は内側へ寄り、D より高い札は待って peek を送る', async () => {
+  const sim = await import('../docs/architecture/modules/work-graph/layout-sim.mjs')
+  const area = { W: 300, H: 200 }, D = { x: 0, y: 0, w: 300, h: 200 }
+  for (const [x, y, w, h] of [[-30, 50, 120, 22], [250, -10, 120, 22], [100, 190, 40, 30], [10, 10, 40, 30], [20, -50, 100, 400]]) {
+    const r = sim.intoArea({ x0: x - 4, x1: x + w + 4, y0: y - 4, y1: y + h + 4 }, area), box = intoRect({ x, y, w, h }, D)
+    assert.deepEqual([box.x - 4, box.x + w + 4, box.y - 4, box.y + h + 4], [r.x0, r.x1, r.y0, r.y1], `${x},${y}`)
+  }
+  // 画面の左端に沿う線：中央の札は右へ寄って D に入り、線の点を覆ったまま。
+  const two = createGraphModel()
+  two.snapshot(snapshot([node('a'), node('b')], [edge('a', 'b')]), 0, rect)
+  for (let i = 0; i < 300; i++) two.step(1 / 60, rect, i * 16)
+  Object.assign(two.nodes.get('a'), { x: rect.x + 10, y: 150 }); Object.assign(two.nodes.get('b'), { x: rect.x + 10, y: 550 })
+  const edgeChip = two.frame(5000, rect).labels[0]
+  assert.equal(edgeChip.box.x, rect.x + 4)
+  assert.ok(edgeChip.box.x <= rect.x + 10 && edgeChip.box.x + edgeChip.box.w + 4 <= rect.x + rect.w)
+  // D より高い札：幅は D − 8 まで、空き場所にならず待つ。peek は D の高さで D の上端から、最初の行から送れる。
+  const long = '比較表を更新して、iPhone・Mac・Web・Windowsの4つの画面で相関図のラベルが省略されずに全部出ることを確かめてください'.repeat(3)
+  const short = { x: 24, y: 24, w: 150, h: 120 }, tall = createGraphModel()
+  tall.snapshot(snapshot([node('a'), node('b')], [edge('a', 'b', 'a:b', long)]), 0, short)
+  for (let i = 0; i < 300; i++) tall.step(1 / 60, short, i * 16)
+  const waiting = tall.frame(5000, short)
+  assert.equal(waiting.labels.length, 0)
+  assert.equal(tall.edges.get('a:b').chip.spot, null)
+  const { w, h } = tall.edges.get('a:b').chip
+  assert.ok(w <= short.w - 8 && h + 8 > short.h)
+  const peek = tall.frame(5000, short, { hover: { edgeId: 'a:b' } }).labels[0]
+  assert.deepEqual([peek.box.y, peek.box.h, peek.scroll], [short.y + 4, short.h - 8, 0])
+  assert.ok(peek.box.x - 4 >= short.x && peek.box.x + peek.box.w + 4 <= short.x + short.w)
+  assert.equal(tall.frame(5000, short, { hover: { edgeId: 'a:b', scroll: 1e6 } }).labels[0].scroll, h + 8 - short.h)
 })
