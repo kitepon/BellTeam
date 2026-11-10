@@ -77,7 +77,7 @@ streamの役割は巨大な画像を全量JSONへ載せないこと。通常の`
 
 CLI登録・共有設定・hookの正本は[runtimeの登録図](cli-registration.md)。登録更新の所有と失敗の契約も同図で管理する。
 
-## Host memory exhaustion takes seats, not the body (Molly, 2026-11-10)
+## Host memory exhaustion: bias the OOM killer toward seats (Molly, 2026-11-10)
 
 Owner ruling 2026-11-04: the container is never taken down as a whole; only children are lost and restarted. Production 2026-11-10 08:45:18 JST broke it: with host RAM+swap full, the kernel OOM killer chose the body parent `node /app/src/supervisor.mjs` (UID1001, largest single RSS ~820MB, `oom_score_adj` 0). docker-init (PID1) exits with its only child, so Docker restarted the whole container and every seat lost its turn. Each seat CLI was smaller (~300MB) but there were ~40 of them at the same `oom_score_adj` 0.
 

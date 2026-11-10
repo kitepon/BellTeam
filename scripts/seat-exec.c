@@ -27,8 +27,8 @@ int main(int argc, char **argv) {
      * and dynamic input must be applied by the later seat-side adapter.
      */
     if (clearenv() != 0) return fail("ENVIRONMENT");
-    /* Under host memory exhaustion the kernel takes seat processes before the
-     * body parent, whose death would end the whole container. Best effort only. */
+    /* Bias the kernel OOM heuristic toward seat processes and away from the body
+     * parent, whose death ends the whole container. Not an order; best effort. */
     int oom = open("/proc/self/oom_score_adj", O_WRONLY | O_CLOEXEC);
     if (oom >= 0) {
         if (write(oom, "1000\n", 5) != 5) { /* keep starting the seat */ }
