@@ -2,7 +2,7 @@
 // Execution tests can use `fakeConnection()` as terminals.connection; terminals tests use the native/secrets doubles.
 
 // Shape of remote-process.mjs over Elegg's aiterm-remote-terminal (transient: reachability and C8 only).
-export function fakeNative({ connectError, versions = ['1.0.0', '1.0.1'], updateCode = 0, trustRevision = `sha256:${'b'.repeat(64)}` } = {}) {
+export function fakeNative({ connectError, versions = ['1.0.0', '1.0.1'], updateCode = 0, loggedIn = true, trustRevision = `sha256:${'b'.repeat(64)}` } = {}) {
   const calls = []
   const sessions = []
   const trust = { provider: 'aiterm.known-hosts.v1', revision: trustRevision }
@@ -29,7 +29,8 @@ export function fakeNative({ connectError, versions = ['1.0.0', '1.0.1'], update
           calls.push({ op: 'command', command: op, ...(args ? { args } : {}) })
           if (op === 'path_status' || op === 'make_dir') return native.pathResult(op, args)
           if (op === 'list_dirs') return native.listResult(args)
-          if (op !== 'claude_version') return { op, exit_code: updateCode, version: null, output_tail: '' }
+          if (op === 'cli_auth_status') return { op, harness: args.harness, logged_in: loggedIn }
+          if (op !== 'claude_version' && op !== 'cli_version') return { op, exit_code: updateCode, version: null, output_tail: '' }
           return { op, exit_code: 0, version: versions[Math.min(version++, versions.length - 1)], output_tail: '' }
         },
         async close() { session.closed = true; calls.push({ op: 'close' }); return { closed: true } }

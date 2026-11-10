@@ -6,6 +6,8 @@ import { join } from 'node:path'
 import { createTerminalConnection } from '../src/terminals/connection.mjs'
 import { createTerminalsCore } from '../src/terminals/core.mjs'
 import { fakeNative, fakeSecrets } from './helpers/terminals-native-double.mjs'
+import { launchRefusal } from '../src/agent-launch-error.mjs'
+import { notStarted } from '../src/remote-seats.mjs'
 
 const sshKeyRef = 'a1b2c3d4-1234-4234-8234-123456789abc'
 const hostTrust = { provider: 'aiterm.known-hosts.v1', revision: `sha256:${'a'.repeat(64)}` }
@@ -82,6 +84,28 @@ test('a secret-key terminal hands the Mika handle, never a value; optional sudo 
   const sudoDown = { ...fakeSecrets(), credential: (handle, context) => ({ handle, revision: 2, available: context.purpose !== 'terminal.sudo' }), withResolved: fakeSecrets().withResolved }
   const native = setup(t, { target: { ...base, sudoKeyRef }, secrets: sudoDown })
   assert.equal('sudoCredential' in (await native.connection.target({ ...request, harness: 'codex' })).terminal, false)
+})
+
+test('C8 covers the other harnesses with cli_* and refuses a logged-out codex/grok like Aiterm refuses the rest', async t => {
+  const { connection, native } = setup(t)
+  await connection.target({ ...request, harness: 'cursor-cli' })
+  assert.deepEqual(native.calls.filter(call => call.op === 'command').map(call => [call.command, call.args?.harness]),
+    [['cli_version', 'cursor-cli'], ['cli_update', 'cursor-cli'], ['cli_version', 'cursor-cli']], 'no auth check where Aiterm preflights')
+  assert.equal(connection.maintenance.last('owner-macbook', 'cursor-cli').loggedIn, null)
+  assert.equal(connection.maintenance.last('owner-macbook'), null, 'claude-code record untouched')
+  await connection.target({ ...request, harness: 'codex-cli' })
+  assert.equal(connection.maintenance.last('owner-macbook', 'codex-cli').loggedIn, true)
+
+  const out = setup(t, { native: fakeNative({ loggedIn: false }) })
+  const error = await out.connection.target({ ...request, harness: 'grok-cli' }).catch(error => error)
+  assert.equal(error.code, 'AGENT_AUTH_REQUIRED')
+  assert.equal(launchRefusal(error.launchRefusal)?.code, error.code, 'execution reads it as a launch refusal')
+  assert.equal(notStarted(error).effect, 'not_started')
+  assert.match(error.action, /^MacのGrok CLIにログインが必要です/)
+  await wait(20)
+  assert.equal(out.native.sessions.length, 1, 'no availability observer for a login')
+  const unclear = setup(t, { native: fakeNative({ loggedIn: 'maybe' }) })
+  assert.equal((await unclear.connection.target({ ...request, harness: 'codex-cli' })).cwd, request.projectRoot, 'unclear answer never vetoes')
 })
 
 test('installs when Claude is missing and a failed update still returns the target', async t => {
