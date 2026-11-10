@@ -29,7 +29,9 @@ export function validateWorkGraphEffect(method, params) {
 }
 
 const QUEUE_KEYS = ['status', 'context', 'contextId', 'groupId', 'from', 'target', 'image', 'steered', 'startedAt']
-const queueItem = item => workGraphObject(item, [...QUEUE_KEYS, 'requestSummary']) && strOrNull(item.requestSummary)
+// Optional fork seat label from execution (fork-inquiry.md); rows without `seat` are the main seat.
+const seat = value => value === undefined || workGraphObject(value, ['kind'], ['forkId']) && str(value.kind) && (value.forkId === undefined || strOrNull(value.forkId))
+const queueItem = item => workGraphObject(item, [...QUEUE_KEYS, 'requestSummary'], ['seat']) && strOrNull(item.requestSummary) && seat(item.seat)
   && str(item.status) && str(item.context) && strOrNull(item.contextId) && strOrNull(item.groupId) && strOrNull(item.from) && strOrNull(item.target)
   && typeof item.image === 'boolean' && typeof item.steered === 'boolean'
   && (item.startedAt === null || str(item.startedAt) || typeof item.startedAt === 'number')
@@ -82,7 +84,8 @@ export function validateWorkGraphReady(value) {
 
 const node = value => workGraphObject(value, ['botId', 'name', 'color', 'avatarVersion', 'state', 'activeSince'])
   && str(value.botId) && str(value.name) && str(value.color) && str(value.avatarVersion) && ['working', 'linked'].includes(value.state) && str(value.activeSince)
-const edge = value => workGraphObject(value, ['id', 'requestId', 'from', 'to', 'context', 'roomId', 'label', 'state', 'startedAt'])
+const edge = value => workGraphObject(value, ['id', 'requestId', 'from', 'to', 'context', 'roomId', 'label', 'state', 'startedAt'], ['seat'])
+  && (value.seat === undefined || workGraphObject(value.seat, ['kind', 'forkId']) && value.seat.kind === 'fork' && strOrNull(value.seat.forkId))
   && str(value.id) && str(value.requestId) && str(value.from) && str(value.to) && ['direct', 'room'].includes(value.context)
   && strOrNull(value.roomId) && strOrNull(value.label) && ['running', 'steered'].includes(value.state) && str(value.startedAt)
 const change = value => value && (value.type === 'member-enter' || value.type === 'member-update' ? workGraphObject(value, ['type', 'node']) && node(value.node)

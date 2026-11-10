@@ -21,6 +21,15 @@ test('edge rules: only running direct/room deliveries between two members', () =
   assert.deepEqual(nodes.map(node => [node.botId, node.state]), [['a', 'linked'], ['b', 'linked'], ['c', 'linked']])
 })
 
+test('fork inquiry: fork rows are fork edges; Owner rows stay dropped; fork is not main work', () => {
+  const queue = [job(), job({ groupId: 'k1', from: 'c', seat: { kind: 'fork', forkId: 'f1' } }), job({ groupId: 'k2', from: 'user', seat: { kind: 'fork', forkId: 'f2' } })]
+  const { edges, nodes } = project({ queue })
+  assert.deepEqual(edges.map(edge => [edge.id, edge.from, edge.to, edge.seat]), [['g1:b', 'a', 'b', undefined], ['k1:b', 'c', 'b', { kind: 'fork', forkId: 'f1' }]])
+  assert.equal(Object.hasOwn(edges[0], 'seat'), false)
+  assert.deepEqual(nodes.map(node => [node.botId, node.state]), [['a', 'linked'], ['b', 'linked'], ['c', 'linked']])
+  assert.deepEqual(project({ queue: [job({ seat: { kind: 'fork' } })] }).edges[0].seat, { kind: 'fork', forkId: null })
+})
+
 test('label: the once-per-request summary, else null (no chip); receiver work summary is not used', () => {
   const current = { b: { state: 'working', turnId: 't', summary: '別の作業', summaryStatus: 'current' } }
   const label = requestSummary => project({ queue: [job({ requestSummary })], turns: current }).edges[0].label
