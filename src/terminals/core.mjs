@@ -1,5 +1,6 @@
 import { dirname } from 'node:path'
 import { createTerminalRegistry, INTERNAL_FIELDS } from './registry.mjs'
+import { OS_LABEL } from './paths.mjs'
 import { createTerminalConnection } from './connection.mjs'
 import { createRemoteTerminalProcesses } from './remote-process.mjs'
 
@@ -57,7 +58,7 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
       return { provider: trust.provider, revision: trust.revision }
     } catch (error) {
       if (error?.code === 'UNREACHABLE' || error?.code === 'REMOTE_AITERM_UNAVAILABLE')
-        throw Object.assign(new Error('The host key cannot be checked now; make sure the Mac is awake on the same network and try again'), { code: 'TERMINAL_UNAVAILABLE', status: 503 })
+        throw Object.assign(new Error('The host key cannot be checked now; make sure the terminal is awake on the same network and try again'), { code: 'TERMINAL_UNAVAILABLE', status: 503 })
       throw Object.assign(new Error('Host key did not match the confirmed fingerprint'), { code: 'HOST_KEY_FINGERPRINT_MISMATCH', status: 409, ...(error?.action ? { action: error.action } : {}) })
     }
   }
@@ -184,10 +185,10 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
     const record = await registry.target(terminalId)
     if (!record) throw keyError('TERMINAL_NOT_FOUND', 404, 'Terminal not found; list_terminals shows the registered terminalIds')
     // No password is asked before the host is trusted (secret exposure to the wrong target); exit: 「このMacを確かめる」.
-    if (!record.hostTrust) throw Object.assign(keyError('HOST_TRUST_MISSING', 409, 'Confirm this Mac first, then authorize the key'), { action: '先にこのMacを確かめてください' })
+    if (!record.hostTrust) throw Object.assign(keyError('HOST_TRUST_MISSING', 409, 'Confirm this terminal first, then authorize the key'), { action: `先にこの${OS_LABEL[record.os] ?? '端末'}を確かめてください` })
     if (!record.sshKeyRef) throw Object.assign(keyError('SSH_KEY_UNSET', 409, 'Set the SSH key first, then authorize it'), { action: '先にSSH鍵を設定してください' })
     const generation = connection.generation(terminalId)
-    const { secretRequest } = await credentials.requestTerminalKey({ terminalId, purpose: 'terminal.login', label: `端末 ${terminalId} のMacのログインパスワード` })
+    const { secretRequest } = await credentials.requestTerminalKey({ terminalId, purpose: 'terminal.login', label: `端末 ${terminalId} の${OS_LABEL[record.os] ?? '端末'}のログインパスワード` })
     logins.set(terminalId, { requestId: secretRequest.id, generation })
     return { secretRequest }
   })

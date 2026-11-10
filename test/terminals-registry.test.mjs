@@ -21,7 +21,7 @@ test('validates target fields and rejects source references', async t => {
   for (const patch of [
     { sshKeyRef: 'op://vault/item/field' }, { sshKeyRef: '/private/key' },
     { host: 'host; touch /tmp/x' }, { user: 'alice -o ProxyCommand=x' },
-    { port: 0 }, { port: 65536 }, { os: 'linux' }, { accountOwner: 'other' },
+    { port: 0 }, { port: 65536 }, { os: 'freebsd' }, { os: 'windows', sudoKeyRef }, { accountOwner: 'other' },
     { unexpected: true }, { hostTrust: { provider: 'op://vault/item', revision: 1 } }
   ]) await assert.rejects(registry.register({ ...input, ...patch }), { code: 'INVALID_TERMINAL' })
   // A pasted key is refused with the next action, and its value is never echoed back.
@@ -31,6 +31,9 @@ test('validates target fields and rejects source references', async t => {
   assert.deepEqual(await registry.list(), [])
   const { sshKeyRef: _key, ...keyless } = input
   assert.equal((await registry.register(keyless)).sshKeyConfigured, false, 'key is bound later')
+  // Windows and Linux terminals register like a Mac (README "Windows and Linux terminals"); Linux keeps its sudo key.
+  assert.equal((await registry.register({ ...input, terminalId: 'fox', os: 'windows' })).os, 'windows')
+  assert.equal((await registry.register({ ...input, terminalId: 'rabbit', os: 'linux', sudoKeyRef })).sudoKeyConfigured, true)
 })
 
 test('persists revisions, redacts references and serializes updates', async t => {

@@ -10,7 +10,7 @@ const fields = {
   host: { type: 'string', minLength: 1, description: '端末のIPアドレスかホスト名だけ（例 192.168.1.12）。user@・ポート・パス・sshオプションは含めない' },
   user: { type: 'string', minLength: 1, description: '端末にログインするユーザー名（例 kite）' },
   port: { type: 'integer', minimum: 1, maximum: 65535, description: 'SSHのポート番号（整数、既定22）' },
-  os: { type: 'string', enum: ['macos'], description: '端末のOS。今は macos だけ' },
+  os: { type: 'string', enum: ['macos', 'linux', 'windows'], description: '端末のOS。macos / linux / windows。windowsではフォルダを C:\\Users\\... の形で書き、sudoKeyRefは使えない（管理者のアカウントで登録する）' },
   accountOwner: { type: 'string', enum: ['owner', 'terminal-owner'], description: 'その機械の持ち主。owner=オーナー本人の機械（オーナーのClaudeアカウントを使える）。terminal-owner=ほかの人の機械（その機械のClaudeログインを使い、オーナーのアカウントは渡らない）' },
   confirmHostKey: { type: 'string', pattern: '^SHA256:', description: '任意。ホスト鍵が変わったと言われた時だけ、オーナーが確かめた指紋（SHA256:で始まる）を渡す。一致した時だけ信用し直す。指紋を推測で入れない' },
   sshKeyRef: { type: 'string', description: `任意。秘密入力カードで入れたSSH鍵、または1Passwordの参照から発行された鍵の参照（UUID）だけを渡す。${NO_SECRET}鍵がまだ無ければ省き、あとでbind_terminal_keyで結ぶ` },

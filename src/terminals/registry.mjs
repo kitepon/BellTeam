@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { isIP } from 'node:net'
 import { join } from 'node:path'
 import { writeAtomic } from '../json-file.mjs'
+import { TERMINAL_OS } from './paths.mjs'
 
 const fields = ['host', 'user', 'port', 'os', 'accountOwner', 'sshKeyRef', 'sudoKeyRef', 'hostTrust', 'keySource', 'sudoKeySource', 'bindingRef', 'sshKeyRequest', 'sudoKeyRequest']
 // Set only by terminals itself (key setting, Aiterm binding); never taken from a caller's register/update input.
@@ -36,7 +37,9 @@ function validate(record, stored = false) {
   if (typeof record.host !== 'string' || !(isIP(record.host) || /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/i.test(record.host))) throw invalid('host must be the terminal\'s IP address or DNS name only (no user@, port, path or ssh options), for example 192.168.1.12')
   if (typeof record.user !== 'string' || !/^[a-z_][a-z0-9_.-]*[$]?$/i.test(record.user)) throw invalid('user must be the login user name on the terminal, for example kite')
   if (!Number.isInteger(record.port) || record.port < 1 || record.port > 65535) throw invalid('port must be an integer SSH port 1-65535 (default 22)')
-  if (record.os !== 'macos') throw invalid('os must be "macos" (the only supported terminal OS now)')
+  if (!TERMINAL_OS.includes(record.os)) throw invalid('os must be "macos", "linux" or "windows"')
+  // Windows has no sudo: privilege is the registered account's own rights (register an Administrators member).
+  if (record.os === 'windows' && (record.sudoKeyRef !== undefined || record.sudoKeyRequest !== undefined)) throw invalid('A Windows terminal takes no sudo key: register a user in the Administrators group instead, and remove sudoKeyRef')
   if (!['owner', 'terminal-owner'].includes(record.accountOwner)) throw invalid('accountOwner must be "owner" (the Owner\'s own machine: seats may use the Owner\'s Claude accounts) or "terminal-owner" (someone else\'s machine: seats use that machine\'s own Claude login)')
   // Optional: a terminal is registered first and its key bound later (bind_terminal_key); until then targets are CREDENTIAL_UNAVAILABLE.
   if (record.sshKeyRef !== undefined) checkRef('sshKeyRef', record.sshKeyRef, 'SSH key')

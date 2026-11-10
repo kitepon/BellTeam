@@ -1,4 +1,4 @@
-import { isAbsolute } from 'node:path'
+import { OS_LABEL, childPath, isEntryName, isTerminalPath, parentPath } from './paths.mjs'
 
 export const CONNECTION_CODES = ['TERMINAL_UNAVAILABLE', 'CREDENTIAL_UNAVAILABLE', 'TARGET_MISMATCH']
 const MESSAGES = {
@@ -17,17 +17,28 @@ const NATIVE_CODES = {
 
 // Evidence, not diagnosis (Elegg): the action names the likely fix without asserting the cause.
 // Shown to the Owner as is (Japanese, user rule); AIs read the same text through MCP.
+// The text names the terminal's OS and that OS's own step (README "Windows and Linux terminals").
+const label = os => OS_LABEL[os] ?? '端末'
+const REMOTE_LOGIN = {
+  macos: 'Macの「システム設定 > 一般 > 共有」で「リモートログイン」がオンか',
+  windows: 'Windowsの「設定 > システム > オプション機能」でOpenSSHサーバーが入っていて、サービスの「OpenSSH SSH Server」が開始しているか',
+  linux: 'Linuxにopenssh-serverが入っていて、sshサービスが動いているか'
+}
 const ACTIONS = {
-  CONNECTION_REFUSED: 'Macの「システム設定 > 一般 > 共有」で「リモートログイン」がオンか確かめてから、もう一度確かめてください',
-  AUTH_FAILED: 'この鍵がまだMacに入っていないかもしれません。「このMacにこの鍵を入れる」で、Macのログインパスワードを使って入れられます',
-  UNREACHABLE: 'Macが起きていて、BellTeamと同じネットワークにつながっているか確かめてから、もう一度お試しください'
+  CONNECTION_REFUSED: os => `${REMOTE_LOGIN[os] ?? '端末のSSHサーバーが動いているか'}確かめてから、もう一度確かめてください`,
+  AUTH_FAILED: os => `この鍵がまだ${label(os)}に入っていないかもしれません。「この${label(os)}にこの鍵を入れる」で、${label(os)}のログインパスワードを使って入れられます`,
+  UNREACHABLE: os => `${label(os)}が起きていて、BellTeamと同じネットワークにつながっているか確かめてから、もう一度お試しください`
 }
 const FOLDER_ACTIONS = {
-  FOLDER_MISSING: 'このフォルダはMacにありません。作るか、あるフォルダを選んでください',
-  FOLDER_NOT_DIRECTORY: 'これはファイルです。フォルダを選んでください',
-  FOLDER_NOT_WRITABLE: 'このMacのユーザーが書き込めるフォルダを選んでください',
-  FOLDER_NOT_PERMITTED: 'Macがこのフォルダを開かせてくれません。デスクトップ・書類・ダウンロードの外を選ぶか、リモートログインの「リモートユーザにフルディスクアクセスを許可」をオンにしてください'
+  FOLDER_MISSING: os => `このフォルダは${label(os)}にありません。作るか、あるフォルダを選んでください`,
+  FOLDER_NOT_DIRECTORY: () => 'これはファイルです。フォルダを選んでください',
+  FOLDER_NOT_WRITABLE: os => `この${label(os)}のユーザーが書き込めるフォルダを選んでください`,
+  FOLDER_NOT_PERMITTED: os => os === 'macos'
+    ? 'Macがこのフォルダを開かせてくれません。デスクトップ・書類・ダウンロードの外を選ぶか、リモートログインの「リモートユーザにフルディスクアクセスを許可」をオンにしてください'
+    : `この${label(os)}のユーザーではこのフォルダを開けません。ほかのフォルダを選んでください`
 }
+const trustAction = target => target.os === 'macos' ? `${target.host} のMacを確かめてください。そのMacでBellTeamアプリを開くと、自動で確かめます`
+  : `${target.host} の${label(target.os)}を確かめてください。Webの「端末」でこの端末の指紋を確かめて「この指紋を信用する」を押すと使えます`
 const PROVISION_CODES = new Set(['REMOTE_AITERM_UNAVAILABLE', 'REMOTE_AITERM_TOO_OLD'])
 const CODE = /^[A-Z][A-Z0-9_]{0,63}$/
 
@@ -39,8 +50,7 @@ function failure(code, action, reason) {
 function classify(error, target) {
   const reason = NATIVE_CODES[error?.code] ? error.code : undefined
   const code = CONNECTION_CODES.includes(error?.code) ? error.code : NATIVE_CODES[error?.code] ?? 'TERMINAL_UNAVAILABLE'
-  const action = code !== 'TARGET_MISMATCH' ? ACTIONS[reason]
-    : `${target.host} のMacを確かめてください。そのMacでBellTeamアプリを開くと、自動で確かめます`
+  const action = code !== 'TARGET_MISMATCH' ? ACTIONS[reason]?.(target.os) : trustAction(target)
   return failure(code, action, reason)
 }
 
@@ -95,7 +105,7 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
   // keySource 'secret': the key stays a Mika handle; Aiterm's UID1000 server resolves it, terminals never sees the value.
   async function resolveBinding(target, memberId) {
     if (!target.sshKeyRef) throw failure('CREDENTIAL_UNAVAILABLE', `端末 ${target.terminalId} のSSH鍵を設定してください`, 'SSH_KEY_UNSET')
-    if (!target.hostTrust) throw failure('TARGET_MISMATCH', `${target.host} のMacを確かめてください。そのMacでBellTeamアプリを開くと、自動で確かめます`, 'HOST_TRUST_MISSING')
+    if (!target.hostTrust) throw failure('TARGET_MISMATCH', trustAction(target), 'HOST_TRUST_MISSING')
     const context = purpose => ({ terminalId: target.terminalId, memberId, purpose })
     let binding
     if (target.keySource === 'secret') {
@@ -197,7 +207,8 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
     const record = await registry.target(terminalId).catch(() => null)
     if (!current()) throw failure('TERMINAL_UNAVAILABLE')
     if (!record) { if (typeof terminalId === 'string') want(terminalId); throw failure('TERMINAL_UNAVAILABLE') }
-    if (typeof projectRoot !== 'string' || !isAbsolute(projectRoot) || typeof memberId !== 'string') throw failure('TARGET_MISMATCH', 'メンバーのフォルダを、Mac上の / で始まる場所で設定してください')
+    if (!isTerminalPath(record.os, projectRoot) || typeof memberId !== 'string') throw failure('TARGET_MISMATCH', record.os === 'windows'
+      ? 'メンバーのフォルダを、Windows上の C:\\ のようなドライブで始まる場所で設定してください' : `メンバーのフォルダを、${label(record.os)}上の / で始まる場所で設定してください`)
     // TARGET_MISMATCH exits by registry revision (onRegistryChange), so only availability/credential failures are probed.
     try {
       const binding = await resolveBinding(record, memberId)
@@ -218,6 +229,7 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
           ...(binding.credential ? { credential: binding.credential } : { credentialRevision: binding.credentialRevision }),
           ...(binding.sudoCredential ? { sudoCredential: binding.sudoCredential } : {}) },
         cwd: projectRoot,
+        os: record.os,
         accountOwner: record.accountOwner
       }
     } catch (error) { if (error.code !== 'TARGET_MISMATCH' && current()) want(terminalId); throw error }
@@ -241,15 +253,16 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
     }
   }
 
-  const validPath = path => typeof path === 'string' && isAbsolute(path) && path.length <= 1024 && (path === '/' || !path.endsWith('/')) && !path.includes('\0') && !path.split('/').includes('..')
-  const invalidPath = () => Object.assign(new Error('path must be an absolute folder path on that terminal, without a trailing / or ..'), { code: 'INVALID_PATH', status: 400 })
+  // The OS is known only after the registry read: any OS form passes here, onFolder rechecks it against the terminal's os.
+  const validPath = path => ['macos', 'windows'].some(os => isTerminalPath(os, path))
+  const invalidPath = () => Object.assign(new Error('path must be an absolute folder path on that terminal (/... on Mac/Linux, C:\\... on Windows), without a trailing separator, . or ..'), { code: 'INVALID_PATH', status: 400 })
 
   // S5: members' folder check on save. Availability is a reason, never a throw, so an unchecked folder can still be saved.
   const folder = request => {
     const { terminalId, path, create = false } = request ?? {}
     if (!validPath(path) || typeof create !== 'boolean') throw invalidPath()
     const observation = { terminalId, path, observedAt: now().toISOString(), exists: null, directory: null, writable: null, reason: null }
-    return track(() => onFolder(terminalId, observation, create ? 'make_dir' : 'path_status', { path }, status => {
+    return track(() => onFolder(terminalId, observation, create ? 'make_dir' : 'path_status', { path }, (status, os) => {
       Object.assign(observation, { exists: Boolean(status?.exists), directory: Boolean(status?.directory), writable: Boolean(status?.writable) })
       return !observation.exists ? 'FOLDER_MISSING' : !observation.directory ? 'FOLDER_NOT_DIRECTORY' : !observation.writable ? 'FOLDER_NOT_WRITABLE' : null
     }))
@@ -260,17 +273,16 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
     const { terminalId, path = null } = request ?? {}
     if (path !== null && !validPath(path)) throw invalidPath()
     const observation = { terminalId, observedAt: now().toISOString(), home: null, path, parent: null, entries: [], truncated: false, reason: null }
-    return track(() => onFolder(terminalId, observation, 'list_dirs', path === null ? {} : { path }, listing => {
+    return track(() => onFolder(terminalId, observation, 'list_dirs', path === null ? {} : { path }, (listing, os) => {
       if (listing?.exists === false) return 'FOLDER_MISSING'
       if (listing?.directory === false) return 'FOLDER_NOT_DIRECTORY'
-      const at = typeof listing?.path === 'string' && validPath(listing.path) ? listing.path : null
+      const at = isTerminalPath(os, listing?.path) ? listing.path : null
       if (!at || !Array.isArray(listing.entries)) return 'TERMINAL_UNAVAILABLE'
-      const names = listing.entries.map(entry => entry?.name)
-        .filter(name => typeof name === 'string' && name && !name.startsWith('.') && !name.includes('/') && !name.includes('\0'))
+      const names = listing.entries.map(entry => entry?.name).filter(name => isEntryName(os, name) && !name.startsWith('.'))
       Object.assign(observation, {
-        home: typeof listing.home === 'string' && validPath(listing.home) ? listing.home : null,
-        path: at, parent: at === '/' ? null : at.slice(0, at.lastIndexOf('/')) || '/',
-        entries: names.slice(0, 500).map(name => ({ name, path: at === '/' ? `/${name}` : `${at}/${name}` })),
+        home: isTerminalPath(os, listing.home) ? listing.home : null,
+        path: at, parent: parentPath(os, at),
+        entries: names.slice(0, 500).map(name => ({ name, path: childPath(os, at, name) })),
         truncated: listing.truncated === true || names.length > 500
       })
       return null
@@ -278,20 +290,23 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
   }
 
   async function onFolder(terminalId, observation, op, args, read) {
-    const done = reason => ({ ...observation, reason, ...(FOLDER_ACTIONS[reason] ? { action: FOLDER_ACTIONS[reason] } : {}) })
+    let os
+    const done = reason => ({ ...observation, reason, ...(FOLDER_ACTIONS[reason] ? { action: FOLDER_ACTIONS[reason](os) } : {}) })
     if (disposed) return done('TERMINAL_UNAVAILABLE')
     const generation = generations.get(terminalId) ?? 0
     const current = () => !disposed && (generations.get(terminalId) ?? 0) === generation
     const record = await registry.target(terminalId).catch(() => null)
     if (!current()) return done('TERMINAL_UNAVAILABLE')
     if (!record) return done('TERMINAL_NOT_FOUND')
+    os = record.os
+    if (args.path !== undefined && !isTerminalPath(os, args.path)) throw invalidPath()
     try {
       const binding = await resolveBinding(record, null)
       const result = await withProcess(record, binding, session => {
         if (!current()) throw failure('TERMINAL_UNAVAILABLE')
         return session.command(op, args)
       }, current)
-      return done(read(result))
+      return done(read(result, os))
     } catch (error) {
       if (error?.code === 'FOLDER_NOT_PERMITTED') return done('FOLDER_NOT_PERMITTED')
       const reason = error?.reason ?? (CONNECTION_CODES.includes(error?.code) ? error.code : 'TERMINAL_UNAVAILABLE')
