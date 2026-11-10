@@ -18,7 +18,7 @@ async function readJson(request, empty) {
 
 export function createTerminalsApi({ terminals, internal }) {
   return async (request, response, url) => {
-    const match = /^\/api\/terminals(?:\/([a-z0-9][a-z0-9-]{0,63})(\/check|\/trust|\/folder|\/keys\/([a-z]+)(\/authorize)?)?)?$/u.exec(url.pathname)
+    const match = /^\/api\/terminals(?:\/([a-z0-9][a-z0-9-]{0,63})(\/check|\/trust|\/folders|\/folder|\/keys\/([a-z]+)(\/authorize)?)?)?$/u.exec(url.pathname)
     if (!match) return false
     if (internal) return json(response, 403, { error: 'TERMINALS_OWNER_REQUIRED' })
     const core = terminals()
@@ -26,6 +26,12 @@ export function createTerminalsApi({ terminals, internal }) {
     const [, id, sub, keyKind, authorize] = match
     const check = sub === '/check'
     const method = request.method
+    if (sub === '/folders') {
+      if (method !== 'GET') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
+      if ([...url.searchParams.keys()].some(key => key !== 'path') || url.searchParams.getAll('path').length > 1)
+        return json(response, 400, { error: 'INVALID_PATH', message: 'Send at most one ?path= with an absolute folder path on that terminal' })
+      return json(response, 200, await core.folders({ terminalId: id, path: url.searchParams.get('path') }))
+    }
     if (sub === '/folder') {
       if (method !== 'POST') return json(response, 405, { error: 'METHOD_NOT_ALLOWED' })
       const body = await readJson(request, {})

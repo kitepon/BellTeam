@@ -309,7 +309,7 @@ Screen flow (one path for Apple and Web; the Apple app on that Mac fills and con
 2. 保存. The Mac app attests its host key at once (S2). Registered elsewhere, the terminal detail says 「このMacでBellTeamアプリを開くと、自動で確かめます」 and the Mac app offers 「このMacを確かめる」 (one press) for a terminal whose host is one of its own addresses. The manual fingerprint sheet stays only under 「ほかの方法」 for a Mac without the app.
 3. SSH鍵 → 設定する → 1Passwordの鍵から選ぶ (or paste). Then つながるか確かめる runs automatically.
 4. Check result in plain words with one button. Reasons are evidence, not diagnoses, so the screen offers the likely fix without asserting the cause: `CONNECTION_REFUSED` → 「Macのリモートログインがオンか確かめてください」 + 共有設定を開く (Mac app); `AUTH_FAILED` → 「この鍵がまだMacに入っていないかもしれません」 + 「このMacにこの鍵を入れる」 → one-time card 「このMacのログインパスワード（1回だけ使い、保存しません）」; Aiterm missing/old → provisioned automatically, no button; `UNREACHABLE` → 「Macが起きていて、同じネットワークにあるか」.
-5. Member editor → 動かす場所 = terminal. フォルダ is prefilled `/Users/<user>/BellTeam/<member slug>` (editable; the Mac app may offer its folder picker). On save, a missing folder returns `FOLDER_MISSING` with 「このフォルダを作って保存」; a permission-refused folder (TCC is one possible cause) returns `FOLDER_NOT_PERMITTED` with 「Macがこのフォルダを開かせてくれません。Desktop/書類/ダウンロードの外を選ぶか、リモートログインの『フルディスクアクセス』をオンにしてください」.
+5. Member editor → 動かす場所 = terminal. フォルダ is prefilled `/Users/<user>/BellTeam/<member slug>` and changed only through the folder picker (S6 below); typing a path is a hidden fallback. On save, a missing folder returns `FOLDER_MISSING` with 「このフォルダを作って保存」; a permission-refused folder (TCC is one possible cause) returns `FOLDER_NOT_PERMITTED` with 「Macがこのフォルダを開かせてくれません。Desktop/書類/ダウンロードの外を選ぶか、リモートログインの『フルディスクアクセス』をオンにしてください」.
 
 | Flow | From -> to | Payload / protection |
 | --- | --- | --- |
@@ -381,7 +381,46 @@ Owner split and order:
 | 5 | Admi (Web), Ziz (Apple) | Screens: precondition line, reason actions, authorize button + card, trust auto-attest / 「このMacを確かめる」, folder prefill + create | 3, 4 (2c for Apple) |
 | 6 | Trony / Centi | Body cut, product acceptance on a Mac with Remote Login off and an unauthorized key, then the Owner's real run | 5 |
 
-Kiro (execution) and Molly (mount) need no change: launch already refuses a missing cwd, routes live in `http-terminals-api.mjs` / `terminals-mcp.mjs`. Skipped on purpose: Bonjour discovery of Macs, a remote folder browser, TOFU trust for Macs without the app (manual sheet stays as the fallback).
+Kiro (execution) and Molly (mount) need no change: launch already refuses a missing cwd, routes live in `http-terminals-api.mjs` / `terminals-mcp.mjs`. Skipped on purpose: Bonjour discovery of Macs, TOFU trust for Macs without the app (manual sheet stays as the fallback).
+
+#### Folder picker (S6, Owner request 2026-11-10 09:4x JST, design)
+
+Owner: 「リモートフォルダ指定を、テキスト入力させるのやめてくれ。」 The member editor's フォルダ for a terminal is chosen on screen from that terminal's real folders, not typed. One public route for every client; screens own the picker.
+
+```mermaid
+flowchart LR
+  Editor[Member editor picker: Admi Web, Ziz Apple] -->|S6 GET /api/terminals/:id/folders?path=| H[terminals HTTP]
+  H --> L[core.folders -> connection transient process]
+  L -->|remote_terminal_command list_dirs path? / credential load, provision as check| A[Aiterm UID1000 / Elegg]
+  A --> Mac[(Registered terminal)]
+  Editor -->|新しいフォルダ: POST :id/folder path=current/name, create| H
+  Editor -->|chosen path as projectRoot on save| Mem[members save, S5 check unchanged]
+  MacApp[Apple app on that same Mac] -.->|may use its native folder panel instead| Editor
+```
+
+| Route / port | Contract |
+| --- | --- |
+| `GET /api/terminals/:id/folders[?path=<abs>]` -> `core.folders({terminalId, path})` | `path` omitted = the terminal user's home. Else absolute, no trailing `/` (except `/`), no `..`; at most one `path` query (400 `INVALID_PATH`). Always 200 otherwise, like `folder`: `{terminalId, observedAt, home, path, parent, entries: [{name, path}], truncated, reason, action}`. `reason` null = listed: `entries` are the subfolders only (a symlink to a folder counts; names starting with `.` left out), ordered by name, at most 500 (`truncated: true` past that); `parent` = dirname, null at `/`. Otherwise `entries: []` and `reason` = `FOLDER_MISSING` / `FOLDER_NOT_DIRECTORY` / `FOLDER_NOT_PERMITTED` (that folder), `TERMINAL_NOT_FOUND`, or the check's availability reasons (`TERMINAL_UNAVAILABLE`, `UNREACHABLE`, `CONNECTION_REFUSED`, `AUTH_FAILED`, `HOST_TRUST_MISSING`, `CREDENTIAL_UNAVAILABLE`, ...) with the same `action` (one full Japanese sentence; absent for reasons terminals has no fix for, then the screen shows only its own sentence); `home` null when unknown. Read only; same transient process as `folder` |
+| Aiterm (Elegg, released in aiterm-mcp 0.70.0) | `remote_terminal_command({op: "list_dirs", path?})` -> `{op, home, path, exists, directory, entries: [{name}] \| null, truncated}`; `home` = the SSH user's home; a missing folder or a file answers `exists` / `directory` false with `entries: null` (-> `FOLDER_MISSING` / `FOLDER_NOT_DIRECTORY`), never an empty list; permission refusals -> `FOLDER_NOT_PERMITTED` as for `path_status`. Needs 0.70.0 on both sides: a terminal on an older Aiterm answers `REMOTE_AITERM_TOO_OLD`, which runs the existing `provision` once (server >= 0.69.0) and reopens |
+| Create | Existing `POST /api/terminals/:id/folder {path: <current>/<name>, create: true}`, then list `<current>` again and select the new folder. The picker refuses an empty name, `/`, `.`, `..` and more than 255 bytes before sending |
+
+Screen rules (Admi Web, Ziz Apple; Windows later):
+
+1. フォルダ shows the chosen path read-only with 「フォルダを選ぶ」. Typed input only under 「ほかの方法 > パスを入力」.
+2. The picker opens at the terminal user's home: current path on top, 「上へ」 (hidden at `/`), one row per subfolder (tap opens it), 「このフォルダにする」, 「新しいフォルダ」 (name field + 作る).
+3. A `reason` shows its `action` as one plain sentence with 「もう一度」; offline / unreachable says the terminal is not reachable now (no empty list that looks like "no folders"). `FOLDER_NOT_PERMITTED` on a row's folder (for example macOS privacy on Desktop/書類/ダウンロード) shows the same sentence as S5.
+4. The Apple app on that same Mac may use its native folder panel for 「このMac」 (same paths).
+5. Acceptance: 360 px shots of the picker: list, subfolder, create, offline.
+
+No new guard or state: listing writes nothing; an unreachable terminal is a reason with an exit on the next press. Save keeps S5 (`folder` check, `CWD_UNAVAILABLE` at launch).
+
+| # | Owner | Part | Depends on |
+| --- | --- | --- | --- |
+| 1 | Crust | This design (README S6 + overall DFD RT22) | — |
+| 2 | Elegg | `list_dirs` in the next Aiterm release: DONE in aiterm-mcp 0.70.0 (terminal side too, via provision) | 1 |
+| 3 | Crust | `GET :id/folders` + `core.folders` + double, tests | 1, 2 contract |
+| 4 | Admi (Web), Ziz (Apple) | Picker per the screen rules, 360 px shots | 3 (double first) |
+| 5 | Trony / Centi / Molly | Body cut + Aiterm release on the server, Owner run | 2, 3, 4 |
 
 #### Registry
 
