@@ -660,3 +660,21 @@ test('entry label and part list count only non-runtime update_available rows', a
   await f.center.refresh()
   assert.equal(f.opener.textContent, 'Update · 更新あり')
 })
+
+test('incompatible usage with every other part latest is named and asks for no action', async t => {
+  const { value } = executable(), base = value.components[0]
+  const product = { ...structuredClone(base), comparison: { state: 'up_to_date', reason: null } }
+  const runtime = runtimeUpdateComponents.map(([id, name, description]) => ({ ...structuredClone(base), id, name, description,
+    comparison: { state: 'update_available', reason: null }, runtimeApplication: { generationId: null, policy: 'next_launch' } }))
+  // Trony 2026-11-10, body a5cd9272: usage has no version for this body (incompatible), everything else 最新.
+  const usage = { ...structuredClone(base), id: 'usage', name: '利用設定', comparison: { state: 'incompatible', reason: null } }
+  value.components = [product, usage, ...runtime]
+  value.notice = { state: 'ready', code: null, message: 'ok' }
+  value.operation = null; value.previousOperation = null
+  const f = fixture(t, async () => value)
+  await f.center.start()
+  const header = text(f.get('[data-update-product]'))
+  assert.match(header, /更新できるものはすべて最新です/)
+  assert.match(header, /利用設定は、いまの本体に合う版がまだありません。合う版が出ると、ここで更新できます。/)
+  assert.doesNotMatch(header, /確認できません|「更新」を押してください/)
+})
