@@ -72,8 +72,9 @@ export async function writeHarnessConfig(bots, home = runtimeHome(), { callBridg
   const callBridgeEnabled = callBridge === undefined ? Boolean(process.env.BELLTEAM_CALL_BRIDGE_MCP_URL || defaultCallBridgeMcpUrl) : Boolean(callBridge.enabled)
   const seatUrl = path => `http://127.0.0.1:${internalPort}${path}`
   const seatServers = [['bellteam', BELLTEAM_MCP_PATH], ...(callBridgeEnabled ? [['call-bridge', CALL_BRIDGE_MCP_PATH]] : [])]
+  // ask_readonly from a fork waits for the answer with no limit of its own; 30 days keeps the CLI from cutting that wait.
   const tomlSeat = (header, tail = '') => seatServers.map(([id, path]) =>
-    `[mcp_servers.${id}]\nurl = "${seatUrl(path)}"\n${header}\nstartup_timeout_sec = 30\ntool_timeout_sec = 120\n${tail}`).join('\n')
+    `[mcp_servers.${id}]\nurl = "${seatUrl(path)}"\n${header}\nstartup_timeout_sec = 30\ntool_timeout_sec = 2592000\n${tail}`).join('\n')
   const jsonSeat = entry => Object.fromEntries(seatServers.map(([id, path]) => [id, entry(seatUrl(path))]))
   // Aitermの本体は `aiterm-setup` が書くものと同じ形（nodeの絶対path＋index.js）で起こす。同梱のaiterm-mcpを読めない環境では、PATH上の aiterm-mcp を起動先にする。
   // 中継（mcp-lazy）がある環境では、その本体を中継ごしに登録する。本体は席がAitermの道具を呼ぶまで起きない。
