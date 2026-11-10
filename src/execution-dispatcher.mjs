@@ -31,7 +31,7 @@ const asyncMethods = {
 }
 const syncMethods = {
   transport: ['session', 'currentWork', 'currentWorkBinding', 'shownInSelfTurn', 'consumeShownWords',
-    'isIdle', 'deliveryBots', 'queueItems', 'currentTurn', 'seatAccount'],
+    'isIdle', 'deliveryBots', 'queueItems', 'currentTurn', 'seatAccount', 'seatLaunch'],
   administration: ['view'],
 }
 export const EXECUTION_METHODS = Object.freeze({
@@ -118,6 +118,8 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
   const remoteSeats = ports.terminals?.connection && ports.ingress?.seatCredential && typeof ports.bots.launchContext === 'function'
     ? new RemoteSeats({ terminals: ports.terminals, ingress: ports.ingress,
       launchContext: (...args) => ports.bots.launchContext(...args), emitQueue: item => transport.emitQueue(item),
+      // No botIds: a change naming the Bot drains it, which would relaunch at once on the same failure.
+      notify: () => transport.activity.emitChange({ all: false, topics: ['bots'], botIds: [], roomIds: [] }),
       seatCommand: ports.seat?.waitProcess ?? null,
       recorded: async session => (await transport.readRuntimeLaunches())[session] ?? null }) : null
   const transport = createManagedTransport({
@@ -261,7 +263,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
       // Parent observer opaque handles refer to these exact objects; never serialize them.
       shownWords: new Map(transport.activity.shownWords),
       // Live remote seat connections stay with the successor (same Map, never serialized).
-      ...(remoteSeats ? { remoteSeats: remoteSeats.seats } : {}) }
+      ...(remoteSeats ? { remoteSeats: remoteSeats.seats, remoteNotices: remoteSeats.notices } : {}) }
     if (!handover) return result
     // Own turns finish here; the successor shares the registry and becomes the only activity-file writer.
     const completions = own([...transport.jobs, ...transport.watches.values()]).map(item => item.completion)
@@ -299,6 +301,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     idle.seen = m.idleSeen
     if (continuation) continuation.states = m.continuationStates
     if (remoteSeats && handoff.remoteSeats instanceof Map) remoteSeats.seats = handoff.remoteSeats
+    if (remoteSeats && handoff.remoteNotices instanceof Map) remoteSeats.notices = handoff.remoteNotices
   }
   async function retire() {
     if (phase === 'retired') return { closed: true }

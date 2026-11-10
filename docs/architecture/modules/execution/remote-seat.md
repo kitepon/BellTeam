@@ -24,6 +24,9 @@ flowchart LR
   Mac -->|Bearer seat credential| Ingress
   Term -->|watch reachable terminalId| Edge[RemoteSeats.available]
   Edge -->|emitQueue botId| Conv
+  Prep -->|not_started code, action| Notice[RemoteSeats.notices: botId -> launch notice]
+  Launch -->|success clears| Notice
+  Notice -->|transport.seatLaunch botId| DTO[Bot DTO seatLaunch -> Web/Apple member row]
   Aiterm -->|same receipts: wait_process, turn result, limit| Capture[existing completion path: history, current-work, accounts]
   Capture -->|remote session completed| C7[RemoteSeats.forward]
   C7 -->|aiterm-transcript-read as seat user| Aiterm
@@ -97,6 +100,28 @@ Not-started codes and their exits (the durable receipt returns the ID to `queued
 
 `CWD_UNAVAILABLE` (the folder is missing on the terminal) and `REMOTE_AITERM_TOO_OLD` have no observable exit, so they stay a visible delivery failure (not queued).
 
+## Launch notice for the Owner (2026-11-10, Crust / Trony)
+
+A not-started remote launch keeps the message queued with no failed callback, so the Owner would see nothing while it waits (first real case: macbook answered `HOST_TRUST_MISSING` → `TARGET_MISMATCH`, action "confirm the host key of 192.168.1.12"). Execution keeps the latest not-started outcome per member and projects it; it is information only and changes no queue, retry or guard.
+
+```text
+transport.seatLaunch(botId)   (sync project method, like seatAccount)
+  -> null | {code, action, terminalId, at}
+```
+
+| Field | Value |
+| --- | --- |
+| `code` | the not-started code (`TARGET_MISMATCH`, `TERMINAL_UNAVAILABLE`, `CREDENTIAL_UNAVAILABLE`, …; table above) |
+| `action` | terminals'/Aiterm's plain next step (`error.action`, at most 500 characters) or `null`. Raw native text, hosts' secrets and key values never appear (terminals already drops raw native text) |
+| `terminalId` | the terminal the launch was for |
+| `at` | ISO time of the failure |
+
+- Set by `RemoteSeats.notice` on every not-started remote launch: a failed `target`/context/credential step in `prepare`, or Aiterm's not-started code in `launchFailed`.
+- Cleared by `RemoteSeats.launched` (the launch on the terminal succeeded). Read as `null` once the member is no longer bound to that `terminalId` (moved to another terminal or to local), so no stale notice remains.
+- Each set/clear emits `{topics: ['bots'], botIds: []}` on the existing change stream, so Web/Apple re-read `/api/bots`. `botIds` stays empty on purpose: a change naming the Bot triggers the direct drain, which would relaunch at once and loop on the same failure.
+- The generation exchange hands the Map over with the seats Map.
+- Bot DTO key `seatLaunch` (same value; absent when the body or the engine has no `seatLaunch`): projected by the members list/profile next to `account`. Shown on the member row and the member's conversation header by Web (Admi) and Apple (Ziz) as a plain failure line: 「Macで起動できません: <action or code>」.
+
 ## Accounts (Owner rulings 2 and 4 of 13:38)
 
 - `accountOwner === 'owner'`: today's per-model selection; 2nd = `claudeLogin: '2nd'` read by the seat launcher as today, its name added to `privateEnvNames`.
@@ -122,6 +147,7 @@ Local seats (no `terminalId`): today's path, including env forwarding. Delivery 
 | Target revision | `AitermTransport.seatTargetChanged` + `dispatch`; D5 record `target` |
 | App-set terminal key (R13) | `RemoteSeats.target` / `loadKey` / `reloadKey`; `wakeNow` launch retry; `RemoteSeats.route` session-call retry |
 | Queue on launch failure | `RemoteSeats.launchFailed` (from `wakeNow`) |
+| Launch notice | `RemoteSeats.notice` / `launchNotice`; `AitermTransport.seatLaunch` (sync project method); handover `remoteNotices` |
 | Distribution | `scripts/web_gateway_artifact.py` `EXECUTION_FILES` includes `src/remote-seats.mjs` (54, Molly's authorization) |
 | Credential release | `RemoteSeats.route` (successful `pty_close`) |
 | Queue edge | `RemoteSeats.wait` / `available` |
