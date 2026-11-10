@@ -84,6 +84,27 @@ final class ConversationAppearanceTests: XCTestCase {
         XCTAssertEqual(unsaved.imageCount, 2)
     }
 
+    func testForkSeatDecodesLeniently() throws {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        func row(_ extra: String) throws -> TimelineMessage {
+            try decoder.decode(TimelineMessage.self, from: Data("""
+            {"id":"r","at":"2026-11-10T00:00:00Z","message":"本文"\(extra)}
+            """.utf8))
+        }
+        // The label shows only for kind "fork"; the relay row also carries in_reply_to, which is ignored.
+        XCTAssertTrue(try row(#","seat":{"kind":"fork","fork_id":"f1"}"#).isFork)
+        XCTAssertTrue(try row(#","seat":{"kind":"fork","fork_id":"f1"},"in_reply_to":"m1""#).isFork)
+        XCTAssertTrue(try row(#","seat":{"kind":"fork"}"#).isFork)
+        // Old bodies and the main seat: no key, null, or another kind. Wrong types never break decoding.
+        for extra in ["", #","seat":null"#, #","seat":{"kind":"main"}"#, #","seat":{"kind":"future","fork_id":"f1"}"#,
+                      #","seat":{}"#, #","seat":{"kind":7}"#, #","seat":"fork""#, #","seat":42"#, #","seat":["fork"]"#] {
+            let message = try row(extra)
+            XCTAssertFalse(message.isFork, extra)
+            XCTAssertEqual(message.message, "本文", extra)
+        }
+    }
+
     func testSelectedPartCopiesWithoutTheRestOfTheMessage() async throws {
         // 試験用の内容を先に書き、別プロセスのクリップボードを読む許可ダイアログを避ける。
         UIPasteboard.general.items = []
