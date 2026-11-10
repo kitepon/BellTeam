@@ -9,6 +9,8 @@ const MESSAGES = {
 // Elegg's RemoteTerminalError codes (aiterm-mcp remote-terminal.md) -> execution's three codes.
 const NATIVE_CODES = {
   HOST_TRUST_MISSING: 'TARGET_MISMATCH', HOST_TRUST_STALE: 'TARGET_MISMATCH', HOST_KEY_MISMATCH: 'TARGET_MISMATCH', HOST_KEY_FINGERPRINT_MISMATCH: 'TARGET_MISMATCH',
+  // Elegg 0.70.7/0.70.8: Aiterm probed a platform other than the registered os; exit = the Owner corrects os (registry change).
+  TERMINAL_OS_MISMATCH: 'TARGET_MISMATCH',
   CREDENTIAL_UNUSABLE: 'CREDENTIAL_UNAVAILABLE', CREDENTIAL_REVISION_STALE: 'CREDENTIAL_UNAVAILABLE', AUTH_FAILED: 'CREDENTIAL_UNAVAILABLE',
   // aiterm-mcp 0.67.0: a handle key not yet loaded by Mika's credential-load handoff; her availability event is the exit.
   CREDENTIAL_NOT_LOADED: 'CREDENTIAL_UNAVAILABLE', CREDENTIAL_REQUIRED: 'CREDENTIAL_UNAVAILABLE',
@@ -50,7 +52,8 @@ function failure(code, action, reason) {
 function classify(error, target) {
   const reason = NATIVE_CODES[error?.code] ? error.code : undefined
   const code = CONNECTION_CODES.includes(error?.code) ? error.code : NATIVE_CODES[error?.code] ?? 'TERMINAL_UNAVAILABLE'
-  const action = code !== 'TARGET_MISMATCH' ? ACTIONS[reason]?.(target.os) : trustAction(target)
+  const action = code !== 'TARGET_MISMATCH' ? ACTIONS[reason]?.(target.os)
+    : reason === 'TERMINAL_OS_MISMATCH' ? `${target.host} は登録したOS（${label(target.os)}）と違うOSでした。Webの「端末」でOSを直してください` : trustAction(target)
   return failure(code, action, reason)
 }
 

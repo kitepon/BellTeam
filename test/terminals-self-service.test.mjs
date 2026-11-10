@@ -182,6 +182,10 @@ test('Windows and Linux: native path forms for the picker, the folder check and 
   assert.match((await core.folders({ terminalId: 'fox' })).action, /OpenSSH/)
   native.connectError = null
   await assert.rejects(core.connection.target({ terminalId: 'fox', memberId: 'm', projectRoot: '/Users/kite/app', harness: 'claude-code' }), { code: 'TARGET_MISMATCH' })
+  native.connectError = Object.assign(new Error('x'), { code: 'TERMINAL_OS_MISMATCH' })
+  const wrongOs = await core.reachability.check('fox')
+  assert.deepEqual([wrongOs.reachable, wrongOs.reason], [false, 'TERMINAL_OS_MISMATCH'])
+  assert.match(wrongOs.action, /OSを直して/)
 })
 
 test('HTTP: authorize and folder routes refuse secrets and malformed bodies', async t => {
