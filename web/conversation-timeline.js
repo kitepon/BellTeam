@@ -266,7 +266,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
       details.className = 'peer-event'
       const verb = item.direction === 'sent' ? 'へメッセージを送りました' : 'からメッセージを受け取りました'
       const peer = item.peerPosition ? `${item.peerName} ${item.peerPosition}` : item.peerName
-      details.innerHTML = `<summary>${escapeHtml(peer)}${verb}</summary><div class="peer-detail"><strong>${formatDateTime(item.at)}</strong>${richTextHtml(item.message)}</div>`
+      details.innerHTML = `<summary>${seatLabel(item) ? '<span class="seat-label">分身</span>' : ''}${escapeHtml(peer)}${verb}</summary><div class="peer-detail"><strong>${formatDateTime(item.at)}</strong>${richTextHtml(item.message)}</div>`
       const failed = item.delivery === 'failed' && !trackingCompletionUnknown(item)
       if (!queued.length && !failed) return details
       const wrapper = document.createElement('div')
@@ -309,6 +309,8 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
       sender.textContent = item.sender
       bubble.append(sender)
     }
+    const fork = seatLabel(item)
+    if (fork) bubble.append(fork)
     if (item.audience) {
       const audience = document.createElement('small')
       audience.className = 'message-audience'
@@ -362,6 +364,15 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     if (queued.length) column.append(renderQueueStatus(queued))
     wrapper.append(column)
     return wrapper
+  }
+
+  // 読み取り専用の分身の行（fork inquiry "Records and display"）。seat の無い行は本体。
+  function seatLabel(item) {
+    if (item.seat?.kind !== 'fork') return null
+    const label = document.createElement('small')
+    label.className = 'seat-label'
+    label.textContent = '分身'
+    return label
   }
 
   function renderQueuedItem(item) {

@@ -185,6 +185,8 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .message-sender, .message-audience { display: block; margin-bottom: 4px; }
 .message-sender { font-size: 12px; }
 .message-audience { color: #8a8a90; font-size: 11px; }
+.seat-label { display: inline-block; margin-bottom: 4px; padding: 0 6px; border: 1px solid currentColor; border-radius: 8px; color: #6e6e76; font-size: 11px; font-weight: 600; line-height: 16px; }
+.peer-event .seat-label { margin-bottom: 0; }
 .message-time { margin: 5px 7px 0; color: #bbbcc1; font-size: 11px; }
 .message-time.failed { color: #c74747; }
 .message.outgoing .message-time { text-align: right; }

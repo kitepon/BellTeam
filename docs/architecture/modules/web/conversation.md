@@ -100,6 +100,24 @@ flowchart TD
 | 読取失敗 | `readHistory` | 同じ世代/読取のエラーを履歴末尾へ表示しfalseを返す。SSEの切断へ変換しない |
 | 画像 | `loadStoredMessageImages → messageImages.load → rerenderItem` | cacheが取得とURLを所有し、timelineが描画先の世代を所有する |
 
+### Fork rows (read-only fork inquiry, 2026-11-10, N102)
+
+Contract: [fork inquiry "Records and display"](../conversation/fork-inquiry.md#records-and-display) (N102). History items may carry the new optional key `seat:{kind:'fork', fork_id}` (inquiry, interim words, answer, and the relay row that also has `in_reply_to`). N102's projection passes it; the Web only reads it.
+
+```mermaid
+flowchart LR
+  Item["GET history item<br/>seat?.kind"] --> Fork{"'fork'?"}
+  Fork -->|yes| Label["renderItemElement: label 「分身」<br/>peer summary / message bubble"]
+  Fork -->|"no / absent (main, older body)"| Same["unchanged row"]
+```
+
+| Function | Contract |
+| --- | --- |
+| `seatLabel(item)` (conversation-timeline.js) | `item.seat?.kind === 'fork'` -> `<span class="seat-label">分身</span>`, else `null`. `fork_id` and `in_reply_to` are not read |
+| `renderItemElement` | peer row: label at the start of the summary line; message/interim bubble: label above the text, after the sender line. Rows without `seat` render exactly as before |
+
+No request, storage or guard added. Source reach: `web/conversation-timeline.js`, `web/styles.css`, `test/timeline-open-queue.test.mjs` (fork case).
+
 サーバーは`createMessageViews.sources → timelinePage/webMessage`で保存履歴とカード索引を合成する。部屋には秘密、直接会話には秘密と質問カードがある。`TimelineIndex`はページ検索、`ConversationStore/RoomHistory`は保存記録の読取であり、WebがJSONLを書き換える経路ではない。
 
 ## 秘密カードのOwner向け公式認証リンク
