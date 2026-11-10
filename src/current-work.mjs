@@ -213,8 +213,13 @@ export class CurrentWork {
     if (result?.schema !== 'aiterm.agent-wait-result.v1' || result.outcome !== 'done'
       || !text(result.session_id) || !launch(result.launch_id) || !text(result.turn_id)) return
     const done = point({ sessionId: result.session_id, launchId: result.launch_id, turnId: result.turn_id })
+    // Aiterm's done for this exact turn is a native observation: idle now (not unknown until the next read, which for a
+    // Mac seat is 10-20 s away); reads begun before it are fenced, and a later read showing this turn running is unknown.
     for (const record of this.records.values()) if (record.state === 'working' && point(record) === done) {
-      record.completed = done; this.unknown(record)
+      record.completed = done; record.barrier = ++this.seq; this.clearSummary(record)
+      Object.assign(record, { state: 'idle', turnId: null, startedAt: null, observedAt: this.now(), observedMono: this.monotonic() })
+      if (this.pending.has(record.botId)) this.finish(this.pending.get(record.botId), failure('UNAVAILABLE', 503))
+      this.changed(record)
     }
     this.schedule()
   }
