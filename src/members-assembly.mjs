@@ -34,7 +34,8 @@ export function createMembersAssembly({ root, seatRuntime, aiterm, settings, mod
         case 'schedules.currentTurn': value = dependencies().scheduleTurns.currentTurn(params.botId); break
         case 'models.read': value = await models.forHarness(params.harness); break
         // S5 (remote-seat.md): no terminals core, or a core without folder, answers null = not checked.
-        case 'terminals.read': { const terminal = await dependencies().terminals?.registry.get(params.terminalId); value = terminal ? { user: terminal.user } : null; break }
+        // os only when not macos: an older members child still reads macOS terminals; Windows/Linux need the members OS rule LIVE first.
+        case 'terminals.read': { const terminal = await dependencies().terminals?.registry.get(params.terminalId); value = terminal ? { user: terminal.user, ...(terminal.os && terminal.os !== 'macos' ? { os: terminal.os } : {}) } : null; break }
         case 'terminals.folder': {
           const core = dependencies().terminals
           if (typeof core?.folder !== 'function') { value = null; break }

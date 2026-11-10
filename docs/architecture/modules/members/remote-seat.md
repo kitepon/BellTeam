@@ -1,6 +1,6 @@
 # Remote seat member contracts (C1, C6)
 
-[Members owner document](README.md). Request: Trony, 2026-11-09 (F-SEAT-HOST). Cross contracts: [terminals C1/C6](../terminals/README.md#cross-contracts-adopted-by-trony), [execution remote seat](../execution/remote-seat.md) (Kiro, PR #765). P1 scope: Owner's Mac + Claude Code, configured by API/MCP.
+[Members owner document](README.md). Request: Trony, 2026-11-09 (F-SEAT-HOST). Cross contracts: [terminals C1/C6](../terminals/README.md#cross-contracts-adopted-by-trony), [execution remote seat](../execution/remote-seat.md) (Kiro, PR #765). P1 scope: Owner's Mac + Claude Code, configured by API/MCP; Windows and Linux terminals add only the folder form and default (OS rule below).
 
 Members owns the member binding fields, the launch-time instruction text and the member-scoped canonical docs interface. Execution decides when to launch and how to carry the text; terminals owns the target; Molly's ingress resolves the calling seat to `from`. Members never writes into a member's `projectRoot` or the terminal's home.
 
@@ -27,7 +27,7 @@ flowchart LR
 | Field | Value and validation | Owner and use |
 | --- | --- | --- |
 | `terminalId` | `''` (local seat) or terminals registry key: `^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$` | Saved by members; on a binding change the folder is checked through terminals before the save (S5 below); target is checked again by terminals at `connection.open` (missing binding is reported there, no silent substitute) |
-| `projectRoot` | `''` or absolute POSIX path (P1 macOS): starts with `/`, no NUL, no `.`/`..`/empty segments, no trailing `/` except `/`, at most 4096 bytes | The remote process starts with `cwd = projectRoot`. Members never reads or writes it |
+| `projectRoot` | `''` or an absolute path in the bound terminal's native form, at most 4096 bytes, no NUL, no `.`/`..`/empty segments, no trailing separator except the root. POSIX (`macos`, `linux`, and any terminal whose `os` is unknown): starts with `/`. `windows`: drive-absolute `X:\...` with `\` separators (`X:\` is the root; `/` is refused). A stored profile is read if it has either form; a save checks the form against the terminal's `os` (OS rule below) | The remote process starts with `cwd = projectRoot`. Members never reads or writes it |
 | pair rule | both empty or both set (`BOT_REMOTE_BINDING_INVALID`) | A member is either local or bound to one terminal folder |
 | `bindingRevision` (derived, not stored) | first 16 hex of sha256 of `JSON.stringify([terminalId, projectRoot])` | Returned by launchContext as `revision`; execution relaunches fresh at the next idle boundary when it changes |
 
@@ -38,7 +38,9 @@ Request: Crust, design #854, terminals contract PR #858 (`terminals.folder({term
 | Step | Rule |
 | --- | --- |
 | Flag | `createFolder` (boolean, optional) in `profile.create` input / `profile.update` / `profile.preview` changes (protocol). Never saved |
-| Default folder | `terminalId` set (valid form) and `projectRoot` empty or omitted -> effect `terminals.read {terminalId}` -> `{user}` or null; the folder becomes `/Users/<user>/BellTeam/<slug>`, slug = trimmed member name with `/`, `:` and NUL replaced by `-` (`member` if empty, `.` or `..`). Null -> `TERMINAL_NOT_FOUND` 404. Preview applies the same default; screens prefill by the same rule |
+| Terminal read | `terminalId` set (valid form) and either `projectRoot` empty/omitted, a create, or an update that changes `terminalId` or `projectRoot` -> effect `terminals.read {terminalId}` -> `{user, os?}` or null. Null -> `TERMINAL_NOT_FOUND` 404. `os` is sent by the body only when it is not `macos`; absent -> `macos`. Rollout: a members child older than this rule has a closed `terminals.read` result and refuses `os` (`MEMBERS_RESULT_INVALID`), so macOS terminals keep working with it but a Windows/Linux save fails. The members module containing this rule must be LIVE before a body serves Windows/Linux terminals |
+| OS rule | Windows terminals (Crust, 2026-11-10, terminals README "Windows and Linux terminals"): a `projectRoot` whose form (POSIX / `X:\`) does not match the terminal's `os` -> `BOT_PROJECT_ROOT_INVALID` 400. Read not offered (body older than S5) -> POSIX only, as before. Members keeps this form rule itself (no import from terminals) so each module releases alone; terminals checks its own full rule again at `terminals.folder` / launch |
+| Default folder | Empty `projectRoot` after the read -> `<home>/BellTeam/<slug>`: `macos` `/Users/<user>`, `linux` `/home/<user>`, `windows` `C:\Users\<user>` joined with `\`. Slug = trimmed member name with `/`, `\`, `:` and NUL replaced by `-` (`member` if empty, `.` or `..`). Preview applies the same default; screens prefill by the same rule |
 | When | After validation: create with a `terminalId`; update whose validated candidate has a `terminalId` that differs in terminal or folder from the current profile, or `createFolder: true`. Unrelated edits and local members make no terminal call |
 | Check | Effect `terminals.folder {terminalId, path: projectRoot, create: createFolder}` -> parent `core.folder`. `INVALID_PATH` -> `BOT_PROJECT_ROOT_INVALID` 400 |
 | Refuse | `FOLDER_MISSING` / `FOLDER_NOT_DIRECTORY` / `FOLDER_NOT_WRITABLE` / `FOLDER_NOT_PERMITTED` -> that code, status 409, `not_accepted`; `TERMINAL_NOT_FOUND` -> 404. Nothing is written. The screen offers 「このフォルダを作って保存」 = the same save with `createFolder: true` (the code is the contract; module IPC carries no message, the screen words it) |

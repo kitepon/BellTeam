@@ -203,7 +203,7 @@ function checkMembersEffectResult(method, value) {
       || value.models !== undefined && !Array.isArray(value.models)) fail()
     return
   }
-  if (method === 'terminals.read') { if (value != null) object(value, { user: value => string(value, 256) }); return }
+  if (method === 'terminals.read') { if (value != null) object(value, { user: value => string(value, 256), os: value => string(value, 16) }, ['user']); return }
   if (method === 'terminals.folder') {
     if (value != null) object(value, { terminalId: text, path: text, observedAt: time, exists: nullable(bool), directory: nullable(bool), writable: nullable(bool), reason: nullable(code), action: value => string(value, 1000) }, ['observedAt', 'reason'])
     return
