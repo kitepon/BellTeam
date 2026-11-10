@@ -27,6 +27,7 @@
     "src/terminals/core.mjs",
     "src/terminals/registry.mjs",
     "src/terminals/connection.mjs",
-    "src/terminals/remote-process.mjs"
+    "src/terminals/remote-process.mjs",
+    "src/terminals/paths.mjs"
   ]
 }
