@@ -1,4 +1,4 @@
-// Reference simulation of the 相関図 layout in behavior-spec.md. `node layout-sim.mjs` prints the per-axis fill, then crossings, edges through a member and blocked chips before and after uncrossing swaps and clearance.
+// Reference simulation of the 相関図 layout in behavior-spec.md. `node layout-sim.mjs` prints the per-axis fill, then crossings, edges through a member and blocked chips before and after uncrossing swaps and clearance, then chips without a clear spot before and after the chip spots.
 // Forces act on normalized coordinates (u = x/W, v = y/H), so every aspect ratio fills both axes alike.
 export const LAYOUT = Object.freeze({ repulsion: 0.005, spring: 0.02, springLength: 1.4, springMax: 0.7,
   gravity: 0.02, targetFill: 0.88, gravityExponent: 16, gravityMin: 0.001, gravityMax: 50, damping: 0.82, maxSpeed: 14, collision: 2.2,
@@ -44,27 +44,45 @@ export function segmentHitsBox(a, b, r) {
 }
 const boxesMeet = (r, q) => r.x0 < q.x1 && q.x0 < r.x1 && r.y0 < q.y1 && q.y0 < r.y1
 export const chipSlots = [0.5, 0.45, 0.55, 0.4, 0.6, 0.35, 0.65, 0.3, 0.7]
-export const chipBox = (a, b, t = 0.5, L = LAYOUT) => {
-  const x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t
+// Chip spots (Chip placement): every path position t = 0.5, 0.45, 0.55, ... 0.1, 0.9, and at each the chip centered on the point,
+// then above, below, left and right of it (side = the chip's offset in half sizes; above = its bottom edge on the point).
+export const chipSides = [[0, 0], [0, -1], [0, 1], [-1, 0], [1, 0]]
+export const chipSpots = [0.5, ...[1, 2, 3, 4, 5, 6, 7, 8].flatMap(k => [0.5 - k * 0.05, 0.5 + k * 0.05])]
+  .map(t => Math.round(t * 100) / 100).flatMap(t => chipSides.map(side => ({ t, side })))
+// The spots before 2026-11-10: centered on the path at t = 0.3 ... 0.7 only.
+export const centerSpots = chipSlots.map(t => ({ t, side: [0, 0] }))
+export const chipBox = (a, b, t = 0.5, L = LAYOUT, side = [0, 0]) => {
+  const x = a.x + (b.x - a.x) * t + side[0] * L.chipWidth / 2, y = a.y + (b.y - a.y) * t + side[1] * L.chipHeight / 2
   return { x0: x - L.chipWidth / 2 - L.chipGap, x1: x + L.chipWidth / 2 + L.chipGap, y0: y - L.chipHeight / 2 - L.chipGap, y1: y + L.chipHeight / 2 + L.chipGap }
 }
-// The chip of edge ab at its first slot clear of every node box (own ends included, as in Chip placement), or blocked at t = 0.5.
-export function chipAt(P, a, b, S, nameHeight, L = LAYOUT) {
-  for (const t of chipSlots) {
-    const box = chipBox(P[a], P[b], t, L)
-    if (P.every(p => !boxesMeet(box, nodeBox(p, S, nameHeight, 0, L)))) return { box, blocked: false }
+// The chip of edge ab at its first spot clear of every node box (own ends included) and of the boxes in `chips`, or blocked at t = 0.5.
+export function chipAt(P, a, b, S, nameHeight, L = LAYOUT, spots = chipSpots, chips = []) {
+  for (const { t, side } of spots) {
+    const box = chipBox(P[a], P[b], t, L, side)
+    if (P.every(p => !boxesMeet(box, nodeBox(p, S, nameHeight, 0, L))) && chips.every(c => !boxesMeet(box, c))) return { box, blocked: false }
   }
   return { box: chipBox(P[a], P[b], 0.5, L), blocked: true }
 }
+// Every edge's chip placed in edge order (older first), earlier chips being obstacles: how many find no clear spot
+// (they wait undrawn or stay blocked over a member or another chip).
+export function placeChips(P, edges, S, nameHeight, L = LAYOUT, spots = chipSpots) {
+  const placed = []
+  let blocked = 0
+  for (const [a, b] of pairsOf(edges)) {
+    const chip = chipAt(P, a, b, S, nameHeight, L, spots, placed.map(c => c.box))
+    if (chip.blocked) blocked++; else placed.push(chip)
+  }
+  return blocked
+}
 // Edges that run through a node (disc or name) they do not belong to, and chips that find no clear slot (blocked).
-export function clearanceFaults(P, edges, S, nameHeight, L = LAYOUT) {
+export function clearanceFaults(P, edges, S, nameHeight, L = LAYOUT, spots = chipSpots) {
   let passes = 0, chipHits = 0
   for (const [a, b] of pairsOf(edges)) for (let c = 0; c < P.length; c++) {
     if (c === a || c === b) continue
     if (segmentHitsBox(P[a], P[b], nodeBox(P[c], S, nameHeight, 0, L))) passes++
   }
-  for (const [a, b] of pairsOf(edges)) if (chipAt(P, a, b, S, nameHeight, L).blocked) chipHits++
-  return { passes, chipHits }
+  for (const [a, b] of pairsOf(edges)) if (chipAt(P, a, b, S, nameHeight, L, spots).blocked) chipHits++
+  return { passes, chipHits, chipFaults: placeChips(P, edges, S, nameHeight, L, spots) }
 }
 
 // The node pair whose swapped places remove the most crossings, or null when no swap removes any.
@@ -97,7 +115,7 @@ export function bestSwap(P, edges, clear = null) {
   return best
 }
 
-export function simulate({ W, H, n, edges, frames = 900, seed = 1, nameHeight = 18, L = LAYOUT, uncross = true, clear = true }) {
+export function simulate({ W, H, n, edges, frames = 900, seed = 1, nameHeight = 18, L = LAYOUT, uncross = true, clear = true, spots = chipSpots }) {
   let s = seed
   const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647
   const S = nodeSize(W, H, n), kr = L.repulsion / n, len = Math.min(L.springMax, L.springLength / Math.sqrt(n))
@@ -121,7 +139,7 @@ export function simulate({ W, H, n, edges, frames = 900, seed = 1, nameHeight = 
         F[c].u += fu; F[c].v += fv; F[a].u -= fu * (1 - ta); F[a].v -= fv * (1 - ta); F[b].u -= fu * ta; F[b].v -= fv * ta
       }
       for (const [a, b] of pairsOf(edges)) {
-        const chip = chipAt(P, a, b, S, nameHeight, L), ex = P[b].x - P[a].x, ey = P[b].y - P[a].y, el = ex * ex + ey * ey || 1
+        const chip = chipAt(P, a, b, S, nameHeight, L, spots), ex = P[b].x - P[a].x, ey = P[b].y - P[a].y, el = ex * ex + ey * ey || 1
         if (chip.blocked && [a, b].some(e => boxesMeet(chip.box, nodeBox(P[e], S, nameHeight, 0, L)))) {
           // the chip has no room between its own ends: lengthen the edge
           const d = Math.sqrt(el), fu = L.clearance * ex / d, fv = L.clearance * ey / d
@@ -168,7 +186,7 @@ export function simulate({ W, H, n, edges, frames = 900, seed = 1, nameHeight = 
   }
   const xs = nodes.map(nd => nd.u * W), ys = nodes.map(nd => nd.v * H)
   const P = nodes.map(nd => ({ x: nd.u * W, y: nd.v * H }))
-  return { crossings: crossings(P, edges), ...clearanceFaults(P, edges, S, nameHeight, L), swaps, fillX: (Math.max(...xs) - Math.min(...xs) + S) / W, fillY: (Math.max(...ys) - Math.min(...ys) + S + nameHeight) / H, size: S }
+  return { crossings: crossings(P, edges), ...clearanceFaults(P, edges, S, nameHeight, L, spots), swaps, fillX: (Math.max(...xs) - Math.min(...xs) + S) / W, fillY: (Math.max(...ys) - Math.min(...ys) + S + nameHeight) / H, size: S }
 }
 
 // n distinct random edges: a denser, cyclic graph than sampleEdges, for the crossing table.
@@ -201,9 +219,19 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const col = (runs, key) => mean(runs.map(r => r[key]))
     console.log(`${name.padEnd(16)} n=${String(n).padStart(2)} edges=${n} before -> after: crossings ${col(off, 'crossings')} -> ${col(on, 'crossings')}, edges through a member ${col(off, 'passes')} -> ${col(on, 'passes')}, blocked chips ${col(off, 'chipHits')} -> ${col(on, 'chipHits')}`)
   }
+  // chip spots: centered t = 0.3 ... 0.7 (before 2026-11-10) -> every t and side; chips over a member or another chip
+  for (const [name, [W, H]] of Object.entries({ 'web 1440x900': screens['web 1440x900'], 'iphone portrait': screens['iphone portrait'] })) for (const n of [10, 16, 24]) {
+    const seeds = [1, 2, 3, 4, 5], mean = list => (list.reduce((a, b) => a + b, 0) / seeds.length).toFixed(1)
+    const run = spots => seeds.map(seed => simulate({ W, H, n, edges: denseEdges(n, seed + 11), seed, spots }))
+    const old = run(centerSpots), now = run(chipSpots), col = (runs, key) => mean(runs.map(r => r[key]))
+    console.log(`${name.padEnd(16)} n=${String(n).padStart(2)} chips without a clear spot ${col(old, 'chipFaults')} -> ${col(now, 'chipFaults')}, edges through a member ${col(old, 'passes')} -> ${col(now, 'passes')}, crossings ${col(old, 'crossings')} -> ${col(now, 'crossings')}`)
+  }
   // self-checks: segment/box test, and a swap's gain is exactly the drop in crossings
   const box = { x0: 0, x1: 10, y0: 0, y1: 10 }
   if (!segmentHitsBox({ x: -5, y: 5 }, { x: 15, y: 5 }, box) || segmentHitsBox({ x: -5, y: 15 }, { x: 15, y: 15 }, box) || !segmentHitsBox({ x: 5, y: 5 }, { x: 50, y: 50 }, box)) throw new Error('segmentHitsBox')
+  if (chipSpots.length !== 85 || chipSpots[1].t !== 0.5 || chipSpots[5].t !== 0.45 || chipSpots.at(-1).t !== 0.9) throw new Error('chipSpots')
+  const up = chipBox({ x: 0, y: 0 }, { x: 100, y: 0 }, 0.5, LAYOUT, [0, -1])
+  if (up.y1 !== LAYOUT.chipGap || up.x0 !== 50 - LAYOUT.chipWidth / 2 - LAYOUT.chipGap) throw new Error('chipBox side')
   let s = 5
   const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647
   for (let k = 0; k < 100; k++) {
