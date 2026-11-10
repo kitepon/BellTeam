@@ -2,7 +2,7 @@
 
 Owner: Kiro (execution). Consumer: N102 [fork inquiry](../conversation/fork-inquiry.md) (`askReadonly`). Registry consumer: Molly [seat kind SK01/SK03/SK07](../integration/remote-seat-ingress.md#seat-kind-fork-seats-sk01-sk08). Native: Aiterm 0.70.6 `agent_launch` `fork_from` (Elegg, ADR 0140).
 
-Owner contract 2026-11-10 (via Root and Elegg): a fork may not write inside the project folder; everything else is allowed, with the main's tools and MCP. Aiterm enforces the ban below the tools (Linux Landlock, macOS sandbox-exec). Windows answers `READONLY_UNENFORCEABLE`.
+Owner contract 2026-11-10 (via Root and Elegg): a fork may not write inside the project folder; everything else is allowed, with the main's tools and MCP. Aiterm enforces the ban below the tools (Linux Landlock, macOS sandbox-exec, Windows x64 restricted token from Aiterm 0.70.8; `write_ban.method` names it). Execution accepts any `write_ban`; an Aiterm that cannot enforce the ban answers `READONLY_UNENFORCEABLE`.
 
 ## Function diagram
 
