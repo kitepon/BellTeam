@@ -251,9 +251,17 @@ struct BotEditor: View {
                         Text(reason).font(.footnote).foregroundStyle(.red)
                     }
                     if let line = ConfigurationApplication.line(for: liveBot) {
-                        Text(line).font(.footnote)
-                            .foregroundStyle(liveBot?.configurationApplication?.state == "failed" ? Color.red : BellTheme.muted)
-                            .accessibilityIdentifier("member-configuration-status")
+                        let state = liveBot?.configurationApplication?.state
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            if let symbol = ConfigurationApplication.symbol(for: liveBot) {
+                                Image(systemName: symbol).accessibilityHidden(true)
+                            }
+                            Text(line)
+                        }
+                        .font(.footnote)
+                        .foregroundStyle(state == "failed" ? Color.red : state == "accepted" ? Color.green : BellTheme.muted)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("member-configuration-status")
                     }
                 }
                 .disabled(deletionPending || deletionResultUnconfirmed)

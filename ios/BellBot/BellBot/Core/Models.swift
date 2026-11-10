@@ -58,6 +58,16 @@ struct ConfigurationApplication: Decodable, Equatable {
         default: return bot.online ? "保存した希望設定です。稼働中のCLIへの適用は未確認です。" : "次回の起動に使う希望設定です。"
         }
     }
+
+    /// SF Symbol in front of the line (Root 2026-11-10): pending = clock, accepted = check, failed = warning; nil = plain line.
+    static func symbol(for bot: Bot?) -> String? {
+        switch bot?.configurationApplication?.state {
+        case "pending": return "clock"
+        case "accepted": return "checkmark.circle.fill"
+        case "failed": return "exclamationmark.triangle.fill"
+        default: return nil
+        }
+    }
 }
 
 // 名前の下の1行。文言はWebのworkLabelと同じにする。
