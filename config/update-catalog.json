@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-10T03:29:46Z",
-  "expiresAt": "2026-11-17T03:29:46Z",
+  "publishedAt": "2026-11-10T03:46:06Z",
+  "expiresAt": "2026-11-17T03:46:06Z",
   "releases": [
     {
       "componentId": "usage",
@@ -489,8 +489,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "a5cd9272ff875dbe972e301ae175e3cdfa924a2d",
-      "versionId": "4a81fa0b246902b3d779bb98558fba735260d1d5add9010386792480e3ef0a77",
+      "sourceCommit": "82214b0b91ecbf1912d0bee794423990f28451b1",
+      "versionId": "4c53985e05ffae68383a77f9e7a461e9fd7978549fcccf8404efd70472522438",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -498,16 +498,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T020008Z/execution-a5cd9272ff875dbe972e301ae175e3cdfa924a2d-linux-amd64.tar.gz",
-          "bytes": 3945097,
-          "sha256": "4a81fa0b246902b3d779bb98558fba735260d1d5add9010386792480e3ef0a77"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T034533Z/execution-82214b0b91ecbf1912d0bee794423990f28451b1-linux-amd64.tar.gz",
+          "bytes": 3945667,
+          "sha256": "4c53985e05ffae68383a77f9e7a461e9fd7978549fcccf8404efd70472522438"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T020008Z/execution-a5cd9272ff875dbe972e301ae175e3cdfa924a2d-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11083,
-          "sha256": "cb63e218d4137c16efffb4b90f1203f3151b0f2795a3372a456d9fc3012603df"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T034533Z/execution-82214b0b91ecbf1912d0bee794423990f28451b1-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11036,
+          "sha256": "b14423762c27288c4d34054cd118ba1a6aa00bbefb6caad54e7a3a5c3c76397b"
         },
-        "signerCommit": "a5cd9272ff875dbe972e301ae175e3cdfa924a2d"
+        "signerCommit": "82214b0b91ecbf1912d0bee794423990f28451b1"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -517,13 +517,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "端末の席が起動前に断られた時、その理由を本体へ伝え、メッセージを待ちのまま残せるようにします。実行部品のみの配布で、本体は含みません。"
+        "Claude にログインしていない端末の席が起動しなかった時、ログインが必要なことを本体へ伝え、メッセージを待ちのまま残します。実行部品のみの配布で、本体は含みません。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "a5cd9272ff875dbe972e301ae175e3cdfa924a2d",
-      "versionId": "8a9957715311679f74b05134d390667553f564bdd2a69eef101d5a8bfb808862",
+      "sourceCommit": "82214b0b91ecbf1912d0bee794423990f28451b1",
+      "versionId": "36f1d1e83f510cb8d9851dcf8446d15a9f29ed2684e3d87ce97d594e3fc3d911",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -531,16 +531,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T020008Z/execution-a5cd9272ff875dbe972e301ae175e3cdfa924a2d-linux-arm64.tar.gz",
-          "bytes": 3945098,
-          "sha256": "8a9957715311679f74b05134d390667553f564bdd2a69eef101d5a8bfb808862"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T034533Z/execution-82214b0b91ecbf1912d0bee794423990f28451b1-linux-arm64.tar.gz",
+          "bytes": 3945669,
+          "sha256": "36f1d1e83f510cb8d9851dcf8446d15a9f29ed2684e3d87ce97d594e3fc3d911"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T020008Z/execution-a5cd9272ff875dbe972e301ae175e3cdfa924a2d-linux-arm64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T034533Z/execution-82214b0b91ecbf1912d0bee794423990f28451b1-linux-arm64.tar.gz.sigstore.json",
           "bytes": 11114,
-          "sha256": "8646b7604de33ac60929c4fd3813728fac47bb8827016004f85e789d32566513"
+          "sha256": "f7000c2ed038b9d8567258b7a96fc70eeb3e6b09258e161173b7b026bdd78da1"
         },
-        "signerCommit": "a5cd9272ff875dbe972e301ae175e3cdfa924a2d"
+        "signerCommit": "82214b0b91ecbf1912d0bee794423990f28451b1"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -550,7 +550,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "端末の席が起動前に断られた時、その理由を本体へ伝え、メッセージを待ちのまま残せるようにします。実行部品のみの配布で、本体は含みません。"
+        "Claude にログインしていない端末の席が起動しなかった時、ログインが必要なことを本体へ伝え、メッセージを待ちのまま残します。実行部品のみの配布で、本体は含みません。"
       ]
     },
     {
