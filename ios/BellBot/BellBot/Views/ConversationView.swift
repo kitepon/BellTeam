@@ -179,6 +179,15 @@ private struct ConversationContent: View {
         // 背景をZStackの子にすると、iPad横画面では入力欄もキーボードの安全領域へ広がる。
         .background { BellBackground() }
         .safeAreaInset(edge: .bottom, spacing: 0) { composer }
+        // The header line: the nav bar is too narrow for the reason, so it sits right under it and may wrap.
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if !target.isRoom, let line = bot?.seatLaunch?.line {
+                SeatLaunchLine(text: line, size: BellTheme.listDetailFontSize + 1, lines: 3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16).padding(.vertical, 6)
+                    .background(.regularMaterial)
+            }
+        }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .toolbar {

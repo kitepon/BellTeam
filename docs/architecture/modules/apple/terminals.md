@@ -2,7 +2,7 @@
 
 [全体図](overview.md) / [メンバー・ルーム編集](members-and-rooms.md) / [設定](settings-and-profile.md) / [関数索引](function-index.md) / [試験](tests.md)。以下の実装名は`ios/BellBot/BellBot/`からの相対名。
 
-使う契約：[terminals](../terminals/README.md)（registry・reachability・C8 maintenance）、[ingress RS09/RS12](../integration/remote-seat-ingress.md#data-flow)（HTTP `/api/terminals*`）、[terminals「Key setting from the app」](../terminals/README.md#key-setting-from-the-app-trony-ruling-2026-11-09)（`POST|DELETE /api/terminals/:id/keys/{ssh|sudo}`、projectionの`keySource`・`sudoKeySource`・`sshKeyPending`・`sudoKeyPending`）、[members C1](../members/remote-seat.md#c1-member-binding)（`terminalId`・`projectRoot`）、[secret credentials](../usage/secret-credentials.md#owner-terminal-key-settings)と[秘密の入力](../../../secret-input.md)（既存の秘密入力カード、`inputOptions`で1Password参照を先・保存値を代替、`POST /api/secret-requests/:id/submit`。値は一般の欄に書かない）。[terminals「Self-service registration and assignment」](../terminals/README.md#self-service-registration-and-assignment-trony-request-2026-11-10-design)のS1・S2（Crust #856の`POST /api/terminals/:id/trust`、本文は`{fingerprint}`だけ）と、[Mika #855](../usage/secret-credentials.md)の`terminal.login`の秘密入力（[質問・秘密要求](requests-and-auth.md)）。Step 4の鍵の導入（Crust #858の`POST /api/terminals/:id/keys/ssh/authorize`と、projectionの`keyAuthorizationPending`・`keyAuthorization`）と、step 5のメンバーのフォルダ（[Belorta #859](../members/remote-seat.md)の`createFolder`、拒否は`{error: code}`と状態だけ）も使う。Appleはこれらの利用側で、契約を変えない。
+使う契約：[terminals](../terminals/README.md)（registry・reachability・C8 maintenance）、[ingress RS09/RS12](../integration/remote-seat-ingress.md#data-flow)（HTTP `/api/terminals*`）、[terminals「Key setting from the app」](../terminals/README.md#key-setting-from-the-app-trony-ruling-2026-11-09)（`POST|DELETE /api/terminals/:id/keys/{ssh|sudo}`、projectionの`keySource`・`sudoKeySource`・`sshKeyPending`・`sudoKeyPending`）、[members C1](../members/remote-seat.md#c1-member-binding)（`terminalId`・`projectRoot`）、[execution remote-seat「Launch notice」](../execution/remote-seat.md)（Kiro #892）のBot項目`seatLaunch`（表示は[一覧とメンバー](members-and-rooms.md)と[会話](conversation.md)。試験ではDEBUGの`-bellbot-preview-seat-launch action|code`が名簿へ同じ値を入れる）、[secret credentials](../usage/secret-credentials.md#owner-terminal-key-settings)と[秘密の入力](../../../secret-input.md)（既存の秘密入力カード、`inputOptions`で1Password参照を先・保存値を代替、`POST /api/secret-requests/:id/submit`。値は一般の欄に書かない）。[terminals「Self-service registration and assignment」](../terminals/README.md#self-service-registration-and-assignment-trony-request-2026-11-10-design)のS1・S2（Crust #856の`POST /api/terminals/:id/trust`、本文は`{fingerprint}`だけ）と、[Mika #855](../usage/secret-credentials.md)の`terminal.login`の秘密入力（[質問・秘密要求](requests-and-auth.md)）。Step 4の鍵の導入（Crust #858の`POST /api/terminals/:id/keys/ssh/authorize`と、projectionの`keyAuthorizationPending`・`keyAuthorization`）と、step 5のメンバーのフォルダ（[Belorta #859](../members/remote-seat.md)の`createFolder`、拒否は`{error: code}`と状態だけ）も使う。step 6のフォルダ選び（[terminals「Folder picker」](../terminals/README.md#folder-picker-s6-owner-request-2026-11-10-0940-jst-design)、Crust #887）の`GET /api/terminals/:id/folders[?path=]`と、既存の`POST /api/terminals/:id/folder {path, create:true}`も使う（サーバーの経路はmainにある。試験は同じ形の試験用サーバーで行う）。Appleはこれらの利用側で、契約を変えない。
 
 ## 機能図
 
@@ -46,6 +46,17 @@ flowchart TD
   Authorize --> AuthAPI["POST /api/terminals/:id/keys/ssh/authorize（本文なし）<br/>→ terminal.login カード → GET /api/terminals/:id を待つ"]
   AuthAPI -->|"AUTHORIZED / ALREADY_AUTHORIZED"| Recheck["つながるか確かめるを自動で1回"]
   Section --> Prefill["MemberFolder.prefill<br/>/Users/端末のユーザー/BellTeam/名前のslug"]
+  Section -->|"読み取り専用のパス＋「フォルダを選ぶ」"| Picker["TerminalFolderPickerSheet（S6）<br/>いまの場所・上へ・サブフォルダ・このフォルダにする・新しいフォルダ"]
+  Section -->|"畳んだ「ほかの方法 > パスを入力」"| TypedPath["projectRootの文字入力<br/>旧本体（foldersUnsupported）は最初から出す"]
+  Picker --> PickerModel["TerminalFolderPickerModel<br/>content: loading / listed / failed / unsupported"]
+  PickerModel --> NameRule["TerminalFolderPicker.name<br/>空・/・.・..・/を含む・255バイト超は送らない"]
+  PickerModel --> FolderReason["TerminalFolderPicker.sentence<br/>reasonとactionを一文に"]
+  PickerModel --> FoldersAPI["AppStore.terminalFolders / createTerminalFolder"]
+  FoldersAPI --> FoldersGet["GET /api/terminals/:id/folders[?path=]<br/>pathなし=端末のユーザーのホーム。何も書かない"]
+  FoldersAPI --> FolderPost["POST /api/terminals/:id/folder {path:現在/名前, create:true}<br/>送るのは1回、自動で再送しない"]
+  FolderPost -->|"reason null"| Relist["現在の場所を読み直し、新しいフォルダを開く（＝選択）"]
+  FoldersGet -->|"404（TERMINAL_NOT_FOUND以外）・405"| Unsup["foldersUnsupported = true<br/>文字入力を残す"]
+  Picker -->|"このフォルダにする"| Chosen["projectRootに表示中のパスを入れて閉じる"]
   BotEditor -->|"409 {error: FOLDER_*}"| FolderWords["MemberFolder.refusal<br/>符号ごとの文＋フォームのフォルダ"]
   FolderWords -->|"FOLDER_MISSING"| Create["「このフォルダを作って保存」<br/>同じ保存＋createFolder:true"]
 ```
@@ -154,6 +165,8 @@ sequenceDiagram
 | AT10 | 追加画面「このMacを追加」 -> アプリ内だけ（HTTPなし） | getifaddrs・NSUserName・127.0.0.1:22のTCP。サーバーへは保存したものだけが行く（AT02） |
 | AT11 | 詳細「このMacにこの鍵を入れる」 -> `POST /api/terminals/:id/keys/ssh/authorize`（本文なし） | 200 `{secretRequest}`（`purpose:'terminal.login'`、labelはサーバーの日本語「端末 <id> のMacのログインパスワード」をそのまま題にする）。409・503・旧本体の404は文にして、カードを開かない。カードは貼り付けだけ。パスワードはカードから`POST /api/secret-requests/:id/submit`だけに行く |
 | AT12 | カード送信後 -> `GET /api/terminals/:id`（1秒間隔） | `keyAuthorizationPending:false`かつ`keyAuthorization.requestId`が依頼のidに一致したら`outcome`を文にする（上の表）。成功は`POST …/check`を自動で1回。読み取りの失敗は理由を出して続け、認証拒否だけ再ログインで止める。`GET`の応答は確認結果を消さずに一覧へ反映する |
+| AT13 | 「フォルダを選ぶ」・サブフォルダ・「上へ」・「もう一度」 -> `GET /api/terminals/:id/folders[?path=<絶対パス>]` | pathなしは端末のユーザーのホーム（最初は必ずホームで開く）。`path`のクエリ値を`/`以外の記号まで%エスケープして送る（`+`・`&`・`#`を含むフォルダ名のため）。200 `{terminalId, observedAt, home, path, parent, entries:[{name,path}], truncated, reason, action}`。`reason`が空なら`entries`を1行ずつ（タップで開く）、`parent`があれば「上へ」、`truncated`なら「フォルダが多いため、すべては表示していません。」の一行。`reason`があれば`entries`は空なので一覧を出さず、`UNREACHABLE`・`TERMINAL_UNAVAILABLE`・`CONNECTION_LOST`・`REMOTE_AITERM_*`は「いまこの端末に届きません…」、`FOLDER_NOT_PERMITTED`はメンバー保存と同じ文、その他はサーバーの`action`を一文＋「もう一度」（同じ場所を読み直す）。`reason`が空で`entries`も空なら「フォルダはありません」（「このフォルダにする」「新しいフォルダ」は使える）。404 `TERMINAL_NOT_FOUND`は「この端末は登録されていません。」、通信失敗・5xxは「フォルダの一覧を読み込めませんでした…」＋「もう一度」。404（`TERMINAL_NOT_FOUND`以外）・405は旧本体：`foldersUnsupported`を立て、メンバー編集は文字入力の欄を出す。次に読めたら外す。読むだけで何も書かない |
+| AT14 | 「新しいフォルダ」の「作る」 -> `POST /api/terminals/:id/folder {path:"<現在>/<名前>", create:true}` | 名前は前後の空白を除き、空・`/`・`.`・`..`・`/`を含む・NULを含む・255 UTF-8バイト超は送らずに文で止める。200で`reason`が空なら、現在の場所を読み直し（AT13）、続けて作ったフォルダを開く（＝選択。「このフォルダにする」はその中を指す）。`reason`があれば現在の場所に留まり、`action`/S5の文を欄の下に出して名前を残す。通信失敗は作れたか不明なので再送せず、「作れたか確かめられませんでした」と現在の場所の読み直しを出す |
 | AT08 | 鍵の行「外す」 -> `DELETE /api/terminals/:id/keys/{ssh|sudo}` | 確認ダイアログの後。サーバーが鍵を外し（設定待ちの依頼も取り消し）、一覧を読み直す |
 | AT06 | メンバー保存 -> `PATCH /api/bots/:id` / `POST /api/bots` | 対応サーバーの時だけ`terminalId`・`projectRoot`（このBellTeamは両方空）。400 `BOT_TERMINAL_ID_INVALID`・`BOT_PROJECT_ROOT_INVALID`・`BOT_REMOTE_BINDING_INVALID`は画面の検査と同じ文。409 `FOLDER_*`と404 `TERMINAL_NOT_FOUND`は`{error: code}`と状態だけ（#859）なので、アプリが符号ごとに文を持つ（下の表）。`createFolder:true`は「このフォルダを作って保存」を押した時だけ同じ本文に足す（`BotSettingsRequest.createFolder`。保存済みの設定には入れず、保存結果の照合にも使わない） |
 
@@ -219,6 +232,24 @@ stateDiagram-v2
 
 `CONNECTION_REFUSED`・`AUTH_FAILED`はサーバーの日本語の`action`をそのまま文にする（二度出さない）。それ以外の`action`は「サーバーの案内」として小さく添える。応答に指紋の項目は無い。`action`に`SHA256:`の指紋が含まれる時だけ「サーバーが示した指紋」として並べて見せ、入力した指紋との一致を表示する。どちらの場合も、オーナーが端末で読んだ指紋を入れない限り送らない。
 
+### フォルダ選びの状態（S6）
+
+```mermaid
+stateDiagram-v2
+  [*] --> Loading: シートを開く（ホーム）
+  Loading --> Listed: 200（reasonの有無によらず）
+  Loading --> Failed: 通信失敗・5xx・TERMINAL_NOT_FOUND
+  Loading --> Unsupported: 404（TERMINAL_NOT_FOUND以外）・405
+  Failed --> Loading: もう一度（同じ場所）
+  Listed --> Loading: サブフォルダ・上へ・もう一度（reasonあり）
+  Listed --> Listed: 作るの拒否（reasonあり・名前の誤り）は欄の下に文
+  Listed --> Loading: 作る成功（現在を読み直し、続けて新しいフォルダを開く）
+  Listed --> [*]: このフォルダにする（reasonなしのときだけ）→ projectRoot
+  Unsupported --> [*]: 閉じる（文字入力の欄が残る）
+```
+
+最新の要求だけが画面を更新する（連打した古い読みは捨てる）。ロックや二重実行の防止は置かず、読みは何度でも繰り返せる。
+
 ## メンバー編集「端末とフォルダ」
 
 | 状態 | 表示 |
@@ -227,6 +258,19 @@ stateDiagram-v2
 | メンバーの応答に`terminalId`が無い（旧本体） | 「このBellTeamはまだメンバーの端末設定に対応していません」の一行。項目を送らない |
 | 対応 | 「動かす場所」Picker（このBellTeam / 登録した端末）。端末を選ぶとフォルダ欄。このBellTeamに戻すと両方空 |
 | 保存済みの端末が一覧に無い | 「（登録が見つかりません）」付きで選択肢に残し、別の端末へ自動で替えない |
+
+### フォルダ選び（S6、Crust #887）
+
+端末を選ぶと、「フォルダ」は選んだパスを読み取り専用の文字で出し（空なら「未選択」）、下に「フォルダを選ぶ」を置く。パスの文字入力は畳んだ「ほかの方法」の中の「パスを入力」だけにある。次のprefill（`/Users/<user>/BellTeam/<slug>`）と保存の`FOLDER_*`の文・「このフォルダを作って保存」は変えない。選んだパスはprefillの対象外（打ち込んだ値と同じ扱い）。
+
+「フォルダを選ぶ」はシートを開き（シートは`BotEditor`が出す。Formの行から出すと編集画面ごと閉じるため）、必ず端末のユーザーのホームから始める（選択中のフォルダの親から始めるのは、親がまだ無い場合の扱いが要るので見送った）。上から：いまの場所（パス）・「上へ」（`parent`がある時）、「このフォルダにする」、サブフォルダの行、「新しいフォルダ」（名前欄＋「作る」）。「このフォルダにする」は表示中のパスを`projectRoot`に入れて閉じ、`reason`がある場所（読めない場所）には出さない。作ったフォルダは開く（選択＝以後の「このフォルダにする」はそのフォルダ）。ネイティブのフォルダ選択パネル（このMac用）は付けない（任意）。
+
+| 場所 | 画面 |
+| --- | --- |
+| 一覧できた | パス・上へ・行。空なら「フォルダはありません」。多すぎれば「フォルダが多いため、すべては表示していません。」 |
+| `reason`あり | 一文＋「もう一度」。届かない系は「いまこの端末に届きません。Macが起きていて同じネットワークにあるか確かめて、もう一度お試しください。」で空の一覧に見せない。「上へ」は残る |
+| 読み込み失敗 | 「フォルダの一覧を読み込めませんでした。つながりを確かめて、もう一度お試しください。」＋「もう一度」 |
+| 旧本体 | シートは「このBellTeamはまだ、フォルダを選ぶ画面に対応していません。」を出して閉じられ、メンバー編集は文字入力の欄を最初から出す |
 
 ### フォルダ（step 5、Belorta #859）
 
@@ -247,15 +291,17 @@ stateDiagram-v2
 
 ## 旧本体との互換
 
-すべての新しい項目は省略可で読む。旧本体では端末の一覧が404になり、メンバーに2項目が無いので、両方の節は一行の案内だけになる。端末の一覧はあるが鍵の入口が無い本体（projectionに`sshKeyPending`が無い）では、鍵の行だけが一行の案内になり、他の操作はそのまま使える。`BotSettings`の2項目は`nil`の時にencodeせず、保存結果の照合でも`nil`ならサーバーの現在値を採用する。`keyAuthorizationPending`・`keyAuthorization`が無い応答は「待ちなし・結果なし」と読む。`createFolder`は`true`の時だけ送る（ボタンはサーバーが`FOLDER_MISSING`を返した後にしか出ないので、旧本体へは送られない）。`authorize`の経路が無い本体（`TERMINAL_NOT_FOUND`以外の404）は一文で伝える。サーバーの`action`が無い確認結果は、アプリの同じ意味の文で出す。
+すべての新しい項目は省略可で読む。旧本体では端末の一覧が404になり、メンバーに2項目が無いので、両方の節は一行の案内だけになる。端末の一覧はあるが鍵の入口が無い本体（projectionに`sshKeyPending`が無い）では、鍵の行だけが一行の案内になり、他の操作はそのまま使える。`BotSettings`の2項目は`nil`の時にencodeせず、保存結果の照合でも`nil`ならサーバーの現在値を採用する。`keyAuthorizationPending`・`keyAuthorization`が無い応答は「待ちなし・結果なし」と読む。`createFolder`は`true`の時だけ送る（ボタンはサーバーが`FOLDER_MISSING`を返した後にしか出ないので、旧本体へは送られない）。フォルダの一覧の経路が無い本体（404が`TERMINAL_NOT_FOUND`以外、または405）はシートで一文だけ出し、メンバー編集はこれまでどおりの文字入力の欄を出す（保存の送信は変わらない）。`authorize`の経路が無い本体（`TERMINAL_NOT_FOUND`以外の404）は一文で伝える。サーバーの`action`が無い確認結果は、アプリの同じ意味の文で出す。
 
 ## 試験と確認用の起動引数
 
-単体は`TerminalsTests`、iPhoneの画面は`TerminalsUITests`と[terminals-ui-server.mjs](../../../../test/helpers/terminals-ui-server.mjs)（[試験の対応表](tests.md#terminalsuitestsswift)）。DEBUGの`-bellbot-preview-terminals`はpreview名簿に2項目を付ける（無ければ旧本体の名簿）。`-bellbot-preview-terminal add | addmac | detail:<id> | check:<id> | hostkey:<id> | edit:<id> | setkey:<id> | login:<id> | authorize:<id> | authorized:<id> | attest:<id>`（`authorize`は確認の後にMacのログインのカードを開く、`authorized`はそのカードを使い捨ての値で送って待ちと自動の確認まで進める。`-bellbot-preview-member-folder <terminalId>`は新規メンバーの編集で端末を選び、フォルダのprefillを見せて1回保存する。`setkey`はSSH鍵の入力欄を開く、`login`は`terminal.login`のカード、`addmac`は「このMacを追加」を押す、`attest`は「このMacを確かめる」を押す。`-bellbot-preview-remote-login off`で22番の確認をオフにする）は`-bellbot-preview-settings terminals`と組み合わせてその状態を開く。fixtureは`/test/mode?selfservice=1`（`locked-mac`=鍵がまだMacに無い、`closed-mac`=`CONNECTION_REFUSED`）と`authorize=authorized|already|rejected|disabled|unconfirmed|unavailable`（送信の一回後に結果が記録される）と`folder=ok|missing|notdir|notwritable|notpermitted|unchecked`（メンバー保存の`{error: code}`。`createFolder:true`で`missing`が通る）、`/test/mode?trust=ok|mismatch|unavailable|changed|old&thismac=1`（`POST /api/terminals/:id/trust`の結果と、ホスト127.0.0.1の端末`this-mac`）と`/test/mode?onepassword=1|0&picker=ok|empty|error|missing&setting=absent|off|connected|zero|rejected|cli`で1Passwordの状態（鍵の一覧、設定のバッジ）を切り替える。`-bellbot-preview-settings features -bellbot-preview-feature onePassword`は1Password連携のeditorを開く（[設定](settings-and-profile.md#1password連携onepasswordusage-838)）。
+単体は`TerminalsTests`、iPhoneの画面は`TerminalsUITests`と[terminals-ui-server.mjs](../../../../test/helpers/terminals-ui-server.mjs)（[試験の対応表](tests.md#terminalsuitestsswift)）。DEBUGの`-bellbot-preview-terminals`はpreview名簿に2項目を付ける（無ければ旧本体の名簿）。`-bellbot-preview-terminal add | addmac | detail:<id> | check:<id> | hostkey:<id> | edit:<id> | setkey:<id> | login:<id> | authorize:<id> | authorized:<id> | attest:<id>`（`authorize`は確認の後にMacのログインのカードを開く、`authorized`はそのカードを使い捨ての値で送って待ちと自動の確認まで進める。`-bellbot-preview-member-folder <terminalId>`は新規メンバーの編集で端末を選び、フォルダのprefillを見せて1回保存する。`setkey`はSSH鍵の入力欄を開く、`login`は`terminal.login`のカード、`addmac`は「このMacを追加」を押す、`attest`は「このMacを確かめる」を押す。`-bellbot-preview-remote-login off`で22番の確認をオフにする）は`-bellbot-preview-settings terminals`と組み合わせてその状態を開く。fixtureは`/test/mode?selfservice=1`（`locked-mac`=鍵がまだMacに無い、`closed-mac`=`CONNECTION_REFUSED`）と`authorize=authorized|already|rejected|disabled|unconfirmed|unavailable`（送信の一回後に結果が記録される）と`folder=ok|missing|notdir|notwritable|notpermitted|unchecked`（メンバー保存の`{error: code}`。`createFolder:true`で`missing`が通る）、`/test/mode?folders=ok|empty|truncated|offline|error|old`（`GET /api/terminals/:id/folders`と`POST …/folder`の二重。ホームは`/Users/<user>`、`Desktop`は`FOLDER_NOT_PERMITTED`、`offline`は`UNREACHABLE`、`error`は503、`old`は旧本体の404。作ったフォルダは`/test/reset`まで残り、`/test/proof.folderReads`・`folderCreates`に記録）と、`/test/mode?trust=ok|mismatch|unavailable|changed|old&thismac=1`（`POST /api/terminals/:id/trust`の結果と、ホスト127.0.0.1の端末`this-mac`）と`/test/mode?onepassword=1|0&picker=ok|empty|error|missing&setting=absent|off|connected|zero|rejected|cli`で1Passwordの状態（鍵の一覧、設定のバッジ）を切り替える。`-bellbot-preview-settings features -bellbot-preview-feature onePassword`は1Password連携のeditorを開く（[設定](settings-and-profile.md#1password連携onepasswordusage-838)）。
 
 ## 未調査
 
 - step 4・5は試験用サーバーだけで確認した。実際のCrust #858・Belorta #859・Mika #855・Aitermとの結合（実パスワードでの`authorize-key`、実端末でのフォルダ作成）は未確認。
+- フォルダ選びは試験用サーバーの二重（契約どおりの形）だけで確認した。サーバーの経路（Crust）とAitermの`list_dirs`（Elegg）との結合、実Macの`FOLDER_NOT_PERMITTED`は未確認。
+- Mac Catalystのネイティブなフォルダ選択パネルは付けていない（契約では任意）。
 - `keyAuthorizationPending`が戻らないまま（サーバー再起動で依頼が消えた等）の待ちは、詳細ページを離れるか「もう一度」を押すまで続ける（打ち切らない）。
 - メンバー保存の成功応答の`bot.folderCheck.checked === false`（端末につながらず未確認）は、アプリでは出していない。
 

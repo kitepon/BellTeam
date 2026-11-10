@@ -43,6 +43,12 @@ extension AppStore {
             bots[0].terminalId = "owner-macbook"
             bots[0].projectRoot = "/Users/kite/work/app"
         }
+        // Seat launch notice on the first member: `action` (code + a next step) or `code` (no action).
+        if let index = arguments.firstIndex(of: "-bellbot-preview-seat-launch"), arguments.indices.contains(index + 1) {
+            let action = arguments[index + 1] == "action"
+                ? "Macの「システム設定 > 一般 > 共有」で「リモートログイン」をオンにしてください" : nil
+            bots[0].seatLaunch = SeatLaunch(code: "TARGET_MISMATCH", action: action, terminalId: "owner-macbook", at: "2026-11-10T02:00:00Z")
+        }
         rooms = fixture.rooms
         owner = fixture.owner
         workingBotIDs = ["bot-one"]

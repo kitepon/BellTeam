@@ -79,6 +79,7 @@ struct BotEditor: View {
     @State private var projectRoot = ""
     /// members S5: the save was refused with FOLDER_MISSING; the button repeats it with `createFolder: true`.
     @State private var offersCreateFolder = false
+    @State private var showingFolderPicker = false
 
     init(initial: Bot?, closeWindow: (() -> Void)? = nil) {
         self.initial = initial
@@ -249,7 +250,7 @@ struct BotEditor: View {
                     }
                 }
                 .disabled(deletionPending || deletionResultUnconfirmed)
-                MemberTerminalSection(terminalId: $terminalId, projectRoot: $projectRoot,
+                MemberTerminalSection(terminalId: $terminalId, projectRoot: $projectRoot, showingPicker: $showingFolderPicker,
                                       memberFieldsAvailable: memberFieldsAvailable, memberName: name)
                     .disabled(deletionPending || deletionResultUnconfirmed)
                 Section(header: BellSectionHeader("プロフィール")) {
@@ -334,6 +335,10 @@ struct BotEditor: View {
                 saveResult = nil
                 submittedSettings = nil
                 offersCreateFolder = false // the refusal named the folder as it was; an edited form needs a new save first
+            }
+            .sheet(isPresented: $showingFolderPicker) {
+                TerminalFolderPickerSheet(terminalId: terminalId, store: store) { projectRoot = $0 }
+                    .environmentObject(store)
             }
             .sheet(item: $cropSource) { source in
                 AvatarCropEditor(image: source.image, variant: source.variant, initialCrop: source.initialCrop) { selected in

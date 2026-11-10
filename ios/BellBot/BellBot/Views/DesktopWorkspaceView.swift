@@ -174,7 +174,8 @@ struct DesktopWorkspaceView: View {
                     ForEach(visibleBots) { bot in
                         row(target: .bot(bot.id), name: bot.displayName, subtitle: CurrentWork.label(bot.currentWork),
                             avatar: bot.avatar, color: BellTheme.accent(bot.color), online: bot.online,
-                            working: store.workingBotIDs.contains(bot.id), fastMode: bot.fastMode)
+                            working: store.workingBotIDs.contains(bot.id), fastMode: bot.fastMode,
+                            seatLaunch: bot.seatLaunch?.line)
                     }
                     if visibleBots.isEmpty && visibleRooms.isEmpty { Text("見つかりませんでした").font(.footnote).padding() }
                 }
@@ -223,14 +224,14 @@ struct DesktopWorkspaceView: View {
     }
 
     private func row(target: ChatTarget, name: String, subtitle: String, avatar: String, color: Color,
-                     online: Bool, working: Bool = false, fastMode: Bool = false) -> some View {
+                     online: Bool, working: Bool = false, fastMode: Bool = false, seatLaunch: String? = nil) -> some View {
         Button {
             store.selectedTab = 0
             store.chatPath = [target]
             compactColumn = .detail
         } label: {
             SidebarRowLabel(name: name, subtitle: subtitle, avatar: avatar, color: color, isRoom: target.isRoom,
-                            online: online, working: working, fastMode: fastMode,
+                            online: online, working: working, fastMode: fastMode, seatLaunch: seatLaunch,
                             selected: selection == target && store.selectedTab == 0, metrics: .current)
             .contentShape(Rectangle())
         }
@@ -385,6 +386,7 @@ struct SidebarRowLabel: View {
     var online = false
     var working = false
     var fastMode = false
+    var seatLaunch: String?
     var selected = false
     var metrics: SidebarRowMetrics = .current
 
@@ -402,6 +404,7 @@ struct SidebarRowLabel: View {
                 // Members show their work summary on up to 2 lines; rooms keep a 1-line preview.
                 Text(subtitle).font(.system(size: metrics.detailFont)).foregroundStyle(BellTheme.muted)
                     .lineLimit(isRoom ? 1 : 2).fixedSize(horizontal: false, vertical: true)
+                if let seatLaunch { SeatLaunchLine(text: seatLaunch, size: metrics.detailFont) }
             }
             Spacer(minLength: 0)
         }

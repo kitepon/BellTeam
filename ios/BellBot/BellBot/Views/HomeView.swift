@@ -257,6 +257,7 @@ struct BotRow: View {
                     .foregroundStyle(BellTheme.muted)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
+                if let line = bot.seatLaunch?.line { SeatLaunchLine(text: line, size: Self.summaryFontSize) }
             }
         }
         .padding(.horizontal, Self.horizontalPadding)

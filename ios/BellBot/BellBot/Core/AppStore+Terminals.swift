@@ -23,6 +23,8 @@ struct TerminalDirectory: Equatable {
     /// A later read failed while a list is shown: the list stays (last known registry) with this reason.
     var readError: String?
     var readSequence = 0
+    /// S6: the folders route answered 404 / 405 (older body); the member editor keeps its text field. Cleared by the next good read.
+    var foldersUnsupported = false
 
     var terminals: [Terminal] { if case .supported(let list) = state { list } else { [] } }
     var supported: Bool { if case .supported = state { true } else { false } }
@@ -249,6 +251,33 @@ extension AppStore {
         catch let error where BellAPIError.isAuthenticationError(error) { requireLogin(for: error) }
         catch {
             terminals.authorizations[id] = .note(.init(text: "鍵はMacに入りました。つながるかは確かめられませんでした。「つながるか確かめる」を押してください。"))
+        }
+    }
+}
+
+extension AppStore {
+    /// S6: the folders of a terminal (no path = its user's home). Writes nothing; the picker shows a failure and asks again.
+    func terminalFolders(id: String, path: String?) async throws -> TerminalFolders {
+        let query = path.map { "?path=\(TerminalFolderPicker.query($0))" } ?? ""
+        do {
+            let result: TerminalFolders = try await api.get("/api/terminals/\(id)/folders\(query)")
+            terminals.foldersUnsupported = false
+            return result
+        } catch {
+            if BellAPIError.isAuthenticationError(error) { requireLogin(for: error); throw error }
+            if TerminalErrorText.isFoldersUnsupported(error) { terminals.foldersUnsupported = true; throw error }
+            api.diagnostics.report(error, path: "/api/terminals/:id/folders", method: "GET", observation: .read(error, retainedData: false))
+            throw error
+        }
+    }
+
+    /// S6 「新しいフォルダ」: the existing folder route with `create`. Not resent by the app; the picker lists the folder again.
+    func createTerminalFolder(id: String, path: String) async throws -> TerminalFolderStatus {
+        do { return try await api.post("/api/terminals/\(id)/folder", body: TerminalFolderCreateBody(path: path)) }
+        catch {
+            if BellAPIError.isAuthenticationError(error) { requireLogin(for: error) }
+            else { api.diagnostics.report(error, path: "/api/terminals/:id/folder", method: "POST", observation: .write) }
+            throw error
         }
     }
 }

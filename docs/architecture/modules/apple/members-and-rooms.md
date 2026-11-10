@@ -15,6 +15,7 @@ flowchart TD
   WideFilter --> WideOrder["recent.atの文字列降順"]
   PhoneOrder --> PhoneRows["RoomCard / BotRow"]
   WideOrder --> WideRows["row<br/>引数subtitleを表示"]
+  Models -->|"Bot.seatLaunch.line<br/>(null・欠落・不正は無し)"| Notice["SeatLaunchLine<br/>BotRow・SidebarRowLabel・会話ヘッダー"]
   PhoneRows --> Nav["ChatTargetを選択<br/>AppStore.chatPath"]
   WideRows --> Nav
 ```
@@ -27,6 +28,7 @@ flowchart TD
 | 現在の仕事 | `GET /api/bots`の`currentWork`。working+currentは本人の要約、working+staleは「作業中・要約期限切れ」、他のworkingは「作業中・要約未設定」、idleは「待機中」、unknown・欠落は「仕事状況を未取得」。文言はWebの`workLabel`と同じ。直近発言や予定promptは副題に使わない |
 | iPad/MacのRoom行 | rowへ`name`と`recent.preview ?? purpose`を渡す。purpose空時の固定文は無い |
 | RecentMessage.preview | messageの前後空白・改行を除き、空なら「画像」、本文の改行は半角空白へ置換。副題専用の追加HTTPなし |
+| 起動できない理由（`seatLaunch`） | `GET /api/bots`のBot項目`seatLaunch`（`null` \| `{code, action, terminalId, at}`。契約は[execution remote-seat](../execution/remote-seat.md)の「Launch notice」）。全項目を省略可で読み、型の違う項目は無いものとして扱い、`seatLaunch`自体が不正な値（文字列・数・配列など）でも名簿の読込は壊さず「無し」と同じ扱い。表示は赤い1行「Macで起動できません: <action>」で、`action`が空・空白だけ・無い時は`code`。両方空なら出さない。`null`・欠落（旧本体）でも出さない。置き場所はiPhoneのBotRowとiPad/Macの`SidebarRowLabel`（副題の下。Roomには無い）と、Botの会話ヘッダー（ナビゲーションバー直下に同じ行を最大3行で折り返して出す。状態語は残す）。変更はSSE topic `bots`（既存の`requestRefreshFromEvent`）で読み直す。新しい取得・状態・保存は無い |
 | 稼働丸・ファスト表示 | BotPresenceDotは`workingBotIDs.contains(id)`なら赤点滅、onlineなら緑、それ以外は灰色。fastModeはBotFastModeBadge。BotRowの日時は`BellDate.short(recent.at)` |
 | 画像の項目 | 一覧の`avatar`（Bot・Room・Owner）は省略可で、無ければ空として読む。画像は`avatarVersion`付きの個別URLから取る。他の画像本体の項目（avatarLarge等）は一覧から読まない |
 | 一覧上部・下部 | オンライン人数は`store.bots.filter(online).count`、ルーム件数はstore.rooms.count。iPhoneはOwnerの名前・画像、iPad/MacはOwner名も表示 |
@@ -54,7 +56,7 @@ HomeViewの並びは`BellDate.parse`で日時へ変換し、欠損・不正日�
 | BotEditorの@State | name/position/role/profileText/personality/speechStyle、harness/model/customModel/effort/fastMode/color、画像一式、保存結果・エラー、削除結果未確認 |
 | 初期値 | initでinitialの保存済みプロフィール・モデル等を代入。既存Botでも候補GETを待たずフォーム値を持つ |
 | AppStore.botEditorDrafts | 既存Botだけ、Bot IDをキーにBotEditorDraftを保存。settings変化や画像選択からpersistDraft。loadで復元。新規Botのdraftはこの辞書に書かない |
-| 端末とフォルダ | `terminalId`・`projectRoot`の@State。対応サーバー（端末一覧200かつメンバー応答に項目あり）の時だけ送り、保存前に組の規則を検査する。端末を選ぶとフォルダ欄を`/Users/<端末のユーザー>/BellTeam/<名前のslug>`で埋め、保存の`FOLDER_*`拒否（`{error: code}`だけ）は符号ごとの文とフォームのフォルダで出し、`FOLDER_MISSING`だけ「このフォルダを作って保存」（同じ保存＋`createFolder:true`、保存済みの設定には入れない）を出す。詳細は[端末](terminals.md#メンバー編集端末とフォルダ) |
+| 端末とフォルダ | `terminalId`・`projectRoot`の@State。対応サーバー（端末一覧200かつメンバー応答に項目あり）の時だけ送り、保存前に組の規則を検査する。端末を選ぶとフォルダ欄を`/Users/<端末のユーザー>/BellTeam/<名前のslug>`で埋め、保存の`FOLDER_*`拒否（`{error: code}`だけ）は符号ごとの文とフォームのフォルダで出し、`FOLDER_MISSING`だけ「このフォルダを作って保存」（同じ保存＋`createFolder:true`、保存済みの設定には入れない）を出す。フォルダ欄は選んだパスの読み取り専用表示＋「フォルダを選ぶ」（端末のホームから始まるシートで選ぶ・作る、[S6](terminals.md#フォルダ選びs6crust-887)）で、文字入力は畳んだ「ほかの方法 > パスを入力」の中だけ。フォルダの一覧の経路が無い旧本体は文字入力の欄を最初から出す。詳細は[端末](terminals.md#メンバー編集端末とフォルダ) |
 | モデル候補 | loadで`GET /api/models`、catalogとmodelErrorText。候補に無い保存済みmodelはcustomModelに保持して「その他」へ。Pickerの表示名は`ModelChoice.label`（`display_name`を前後空白除去し、null・欠落・空ならid）。選択値・tag・保存値・customModel判定は常にid |
 | CLI・モデル変更 | CLI変更でmodel/effortを空にする。モデル変更で候補に無いeffortを空にする。保存済みの非候補effortは現在値としてPickerへ追加 |
 | ファストモード | HarnessModels.fastModeUnavailableReasonがcatalog error、fastUnavailable、既定モデル/選択モデルのfastを参照。未知の非空モデルIDの可否は本体へ渡す。理由は赤字で出すが、モデル候補の読込中は進捗表示だけにして赤字を出さない |

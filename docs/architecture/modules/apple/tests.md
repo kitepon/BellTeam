@@ -443,6 +443,8 @@ goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`tes
 
 | 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
 | --- | --- |
+| testSeatLaunchDecodesAndReadsAsOneLine | Bot項目`seatLaunch`：欠落・`null`は無し、全項目ありは「Macで起動できません: <action>」、`action`が無い・`null`・空白だけは`code`、両方無しは行なし |
+| testMalformedSeatLaunchIsAbsentAndDoesNotBreakTheBot | 文字列・数・配列・真偽の`seatLaunch`でもBotは読め行は出ない、型違いの項目だけ無いものとして読む |
 | testTerminalDecodesTheRegistryProjectionAndAnOlderPartialBody | 公開projection（鍵は設定済み表示だけ、hostTrust、C8）と、項目が欠けた旧い応答を既定値で読む |
 | testKeyFieldsDecodeAndMapToRowStates | `keySource`・`sudoKeySource`・`sshKeyPending`・`sudoKeyPending`の解読と鍵の行（未設定/設定待ち/設定済み、出どころの文、「設定する」/「設定し直す」、外せるか）。設定待ちでも今の鍵の出どころを残す。項目の無い旧い応答は未対応 |
 | testTerminalKeyRequestDecodesTheSecretCardWithOnePasswordFirst | 鍵の入口の`{secretRequest:{id,label,inputOptions}}`だけの応答（`botId`なし→nil、pending）、全項目の応答、`inputOptions`の無いBotの依頼。1Passwordを先に開く条件、送信body（`{source:'onepassword',reference}` / `{value}`）、`op://`の検査 |
@@ -468,6 +470,16 @@ goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`tes
 | testRejectedOutcomeAsksAgainAndAFailedReadIsRetriedNotGivenUp | 読めない間は`readFailed`で待ち続け、次の読みで`PASSWORD_REJECTED`の文＋ボタン、確認は走らせない |
 | testANewerRequestOrACancelledPageEndsTheWaitQuietly | 同じ端末の新しい依頼が観測を置き換えると古い待ちは黙って終わり、キャンセルされた待ちは状態を触らない |
 | testMemberFolderDefaultAndPrefillFollowTheEditorRules | 既定のフォルダ（`/Users/<user>/BellTeam/<slug>`、`/`・`:`・NUL→`-`、空・`.`・`..`→`member`）、空・prefillのままの欄だけが名前・端末の変更に追従し、打ち込んだ値と保存済みの値は書き換えない |
+| testFoldersDecodeListedRefusedAndAnUnknownHome | 一覧の応答（`entries`・`truncated`・`parent`）、`reason`ありで`home:null`、`/`では`parent`なし、項目が欠けても読める |
+| testNewFolderNameRulesAndChildPath | 新しいフォルダの名前：空・空白だけ・`/`・`.`・`..`・`/`を含む・NUL・256バイトは止め、255バイトちょうど（日本語85字）は通す、前後の空白は除く。`/`直下の連結、クエリの%エスケープ（`+`・`&`・`#`・日本語） |
+| testReasonsBecomeOneSentenceAndUnreachableNeverReadsAsAnEmptyList | 届かない系はactionによらず「いまこの端末に届きません」、`FOLDER_NOT_PERMITTED`はS5と同じ文、他はサーバーのaction、無ければアプリの文 |
+| testOnlyAnOlderBodysFoldersRouteCountsAsUnsupported | 404（`TERMINAL_NOT_FOUND`以外）・405だけが旧本体。`TERMINAL_NOT_FOUND`・503・400は違う |
+| testStoreReadsTheFoldersWithTheEscapedPathAndFlagsAnOlderBody | pathなしはクエリなし、`+`を`%2B`で送る、旧本体の404で`foldersUnsupported`を立て、次に読めたら外す |
+| testPickerOpensAtHomeThenSubfolderAndUp | ホーム（pathなし）→サブフォルダ→`parent`の順に読む |
+| testPickerFailuresAreOneSentenceAndAgainReadsTheSamePath | 5xxは一文、「もう一度」は同じ場所を読み直す、旧本体は`unsupported`、`TERMINAL_NOT_FOUND`は登録なしの文 |
+| testCreateSendsOnceListsTheParentAgainThenOpensTheNewFolder | 作成の送信は1回（空白を除いた名前）→現在の場所を読み直す→作ったフォルダを開く |
+| testCreateRefusesBadNamesBeforeSendingAndShowsAServerReason | 誤った名前は送らず文、サーバーの`reason`は文にして現在の場所に留まり名前を残す |
+| testFailedCreateIsNotResentAndTheParentIsReadAgain | 通信失敗は再送せず、一覧を読み直して文を出す |
 | testMemberFolderRefusalsAreWordedPerCodeWithTheFormsFolder | `FOLDER_MISSING`（作成ボタンあり）・`NOT_DIRECTORY`・`NOT_WRITABLE`・`NOT_PERMITTED`の文＋フォームのフォルダ、未知の`FOLDER_*`は一行、`TERMINAL_NOT_FOUND`、他の符号と符号なしはnil、符号だけの本文から符号を読む |
 | testServerErrorsMapToTheSameMessagesWithoutEchoingTheServerText | `trace.serverErrorCode`から文を選び、英文の`message`を画面に出さない。404と405だけを未対応とし、503 `TERMINALS_UNAVAILABLE`は一時的な失敗とする |
 | testTrustBodyIsExactlyTheFingerprintAndTheReplyHoldsTheTerminal | `POST …/trust`の本文は`{fingerprint}`だけ、応答`{terminal}`は信用済みとして読む |
@@ -953,9 +965,14 @@ Macの端末表示中の照会と非表示後の停止、小画像保存の結�
 | testCheckReasonsRefusedAndAuthFailedOfferTheirLikelyFix | `closed-mac`（`CONNECTION_REFUSED`）の文はサーバーの案内を一度だけ出し、鍵を入れるボタンも共有設定も出さない。`locked-mac`（`AUTH_FAILED`）は「この鍵がまだMacに入っていないかもしれません」と「このMacにこの鍵を入れる」 |
 | testAuthorizeCardOutcomesAndTheAutomaticCheck | ボタン→カード（題はサーバーのlabel、貼り付け1欄）→送信→`PASSWORD_REJECTED`の文とボタンが残る→`AUTHORIZATION_UNCONFIRMED`の文→`AUTHORIZED`で確認が自動で走り「つながる」。要求の本文は空、パスワードはfixtureに残らない |
 | testAuthorizeDisabledGivesASentenceWithoutAButton | `PASSWORD_AUTH_DISABLED`は文だけでボタンなし |
+| testFolderPickerOpensAtHomeBrowsesCreatesAndChooses | 「フォルダを選ぶ」でホーム（pathなしの読み）から始まり、行・上へ・このフォルダにするがある→サブフォルダ→上へ→誤った名前（`..`）は送らず文→「scratch」を作ると親を読み直して開く（空の一行）、作成の本文は`{path, create:true}`だけ→このフォルダにするで読み取り専用のパスが替わり、保存で`projectRoot`が送られる。写真：ホーム・サブフォルダ・作成後・選んだ後 |
+| testFolderPickerReasonsOfflineAndReadFailureAskAgain | 届かない時は「いまこの端末に届きません」で空の一覧に見せず選べない→もう一度で読み直す→5xxは一文＋もう一度で同じ場所→`Desktop`は保存と同じ`FOLDER_NOT_PERMITTED`の文で「上へ」が残る |
+| testFolderPickerEmptyListStillChoosableAndTruncatedSaysSo | 空の一覧は「フォルダはありません」でも選べて作れる、`truncated`は一行 |
+| testOlderBodyWithoutTheFoldersRouteKeepsTheTextField | 経路が無い本体はシートで一文、閉じると文字入力の欄（保存済みのパス入り）が出て選ぶボタンは無い |
 | testMemberFolderMissingOffersToCreateAndSavesOnce | 端末を替えて保存→`FOLDER_MISSING`の文（フォームのフォルダ入り）と「このフォルダを作って保存」、断られた保存は残らない→ボタンで同じ保存＋`createFolder:true`、保存して閉じる |
 | testMemberFolderOtherRefusalsHaveNoCreateButton | `FOLDER_NOT_DIRECTORY`・`NOT_WRITABLE`・`NOT_PERMITTED`の文だけでボタンなし |
-| testMemberEditorTerminalAndFolder | 保存済みの端末とフォルダの表示、相対パスは画面で止めてPATCHしない、このBellTeamへ戻すと両方空で保存 |
+| testSeatLaunchNoticeShowsOnTheMemberRowAndTheConversationHeader | `-bellbot-preview-seat-launch action|code`（名簿は内蔵の見本で、サーバーの応答ではない。読取は`TerminalsTests`）：一覧の行に「Macで起動できません: <action>」が1つだけ、会話ヘッダーにも同じ行、actionが無ければcode、引数なしなら出ない |
+| testMemberEditorTerminalAndFolder | 保存済みの端末とフォルダの読み取り専用の表示と「フォルダを選ぶ」（文字入力は畳んだ「ほかの方法」の中）、相対パスは画面で止めてPATCHしない、このBellTeamへ戻すと両方空で保存 |
 | testOldServerShowsOneCalmLineAndSendsNoNewFields | 一覧404とメンバー項目なしで一行の案内だけ、保存bodyに2項目を含めない |
 
 ### WorkGraphTapUITests.swift

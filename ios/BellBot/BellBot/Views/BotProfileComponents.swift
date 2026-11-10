@@ -545,3 +545,19 @@ struct BotProfileDetails: View {
         }
     }
 }
+
+/// The one plain line for `Bot.seatLaunch` (apple/members-and-rooms.md). Shared by the member rows and the conversation header.
+struct SeatLaunchLine: View {
+    let text: String
+    let size: CGFloat
+    var lines = 2
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: size))
+            .foregroundStyle(.red)
+            .lineLimit(lines)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityIdentifier("seat-launch-line")
+    }
+}

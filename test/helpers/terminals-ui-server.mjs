@@ -11,6 +11,10 @@
 //   GET of the terminal (pending first), chosen by /test/mode?authorize=authorized|already|rejected|disabled|unconfirmed|unavailable.
 //   /test/mode?folder=ok|missing|notdir|notwritable|notpermitted|unchecked answers member saves (POST /api/bots, PATCH) with `{error: code}` only (#859);
 //   createFolder:true turns `missing` into a saved member. /test/proof.authorizes keeps each authorize call, folderChecks each member folder check.
+// Folder picker (terminals README S6, a double of the contract; the server route is not built yet): GET /api/terminals/:id/folders[?path=] and
+//   POST /api/terminals/:id/folder {path, create:true}. /test/mode?folders=ok|empty|truncated|offline|error|old: offline answers reason UNREACHABLE, error is a 503,
+//   old is an older body's 404. /Users/<user>/Desktop is FOLDER_NOT_PERMITTED, an unknown path FOLDER_MISSING; created folders stay until /test/reset.
+//   /test/proof.folderReads keeps each listed path (null = home), folderCreates each create body.
 // 1Password (usage #836/#838): GET|PATCH /api/settings (item onePassword: guide, connection, error), GET /api/secret-requests/:id/onepassword-items.
 // A token starting ops_good connects; any other ops_ token is rejected. The token itself is never kept, only its shape.
 import { createHash, randomUUID } from 'node:crypto'
@@ -24,10 +28,31 @@ const trust = id => ({ provider: 'aiterm.known-hosts.v1', revision: `sha256:${cr
 const TERMINAL_ID = /^[a-z0-9][a-z0-9-]{0,62}$/u
 const MEMBER_TERMINAL_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u
 
+// Subfolders per path (names only; hidden ones are never listed). Home of every fixture user is /Users/<user>.
+const FOLDERS = {
+  '/': ['Applications', 'Users', 'Volumes'],
+  '/Users': ['hana', 'kite'],
+  '/Users/kite': ['BellTeam', 'Desktop', 'Documents', 'work'],
+  '/Users/kite/BellTeam': [],
+  '/Users/kite/Desktop': [],
+  '/Users/kite/Documents': ['notes'],
+  '/Users/kite/Documents/notes': [],
+  '/Users/kite/work': ['app', 'docs', 'tools'],
+  '/Users/kite/work/app': ['src', 'tests'],
+  '/Users/kite/work/app/src': [],
+  '/Users/kite/work/app/tests': [],
+  '/Users/kite/work/docs': [],
+  '/Users/kite/work/tools': [],
+  '/Users/hana': ['projects'],
+  '/Users/hana/projects': [],
+}
+// truncated answers a short list with the flag set (the real route cuts at 500; a long list only slows the UI test)
+const MANY = Array.from({ length: 12 }, (_, index) => `folder-${String(index + 1).padStart(3, '0')}`)
+
 let state
 function reset() {
   state = {
-    mode: { terminals: 'ok', members: 'new', keys: 'ok', onepassword: '1', setting: 'off', picker: 'ok', trust: 'ok', thismac: '0', selfservice: '0', authorize: 'authorized', folder: 'ok' },
+    mode: { terminals: 'ok', members: 'new', keys: 'ok', onepassword: '1', setting: 'off', picker: 'ok', folders: 'ok', trust: 'ok', thismac: '0', selfservice: '0', authorize: 'authorized', folder: 'ok' },
     bots: structuredClone(fixture.bots).map((bot, index) => ({ ...bot, terminalId: index === 0 ? 'owner-macbook' : '', projectRoot: index === 0 ? '/Users/kite/work/app' : '' })),
     terminals: [
       { terminalId: 'owner-macbook', host: '192.168.1.12', user: 'kite', port: 22, os: 'macos', accountOwner: 'owner', sshKeyConfigured: true, sudoKeyConfigured: false, keySource: 'terminal-native', hostTrust: trust('owner-macbook'), revision: 4, maintenance: { terminalId: 'owner-macbook', observedAt: '2026-11-09T07:40:00Z', before: '2.1.30', after: '2.1.32', outcome: 'updated' } },
@@ -37,7 +62,8 @@ function reset() {
     ],
     requests: new Map(),
     createdFolders: new Set(),
-    proof: { terminalReads: 0, puts: [], deletes: [], checks: [], botSaves: [], rejectedBotSaves: [], keyRequests: [], keyDeletes: [], secretSubmits: [], settingPatches: [], itemReads: 0, trusts: [], authorizes: [], folderChecks: [] },
+    proof: { terminalReads: 0, puts: [], deletes: [], checks: [], botSaves: [], rejectedBotSaves: [], keyRequests: [], keyDeletes: [], secretSubmits: [], settingPatches: [], itemReads: 0, trusts: [], authorizes: [], folderChecks: [], folderReads: [], folderCreates: [] },
+    folderTree: new Map(Object.entries(FOLDERS).map(([key, names]) => [key, [...names]])),
   }
 }
 reset()
@@ -142,7 +168,7 @@ const server = createServer(async (request, response) => {
   // What the Owner would read on the terminal itself (the test plays the Owner).
   if (path === '/test/fingerprint') return send(200, { fingerprint: fingerprint(url.searchParams.get('id') ?? '') })
   if (path === '/test/mode') {
-    for (const key of ['terminals', 'members', 'keys', 'onepassword', 'setting', 'picker', 'trust', 'thismac', 'selfservice', 'authorize', 'folder']) if (url.searchParams.has(key)) state.mode[key] = url.searchParams.get(key)
+    for (const key of ['terminals', 'members', 'keys', 'onepassword', 'setting', 'picker', 'folders', 'trust', 'thismac', 'selfservice', 'authorize', 'folder']) if (url.searchParams.has(key)) state.mode[key] = url.searchParams.get(key)
     if (state.mode.thismac === '1' && !state.terminals.some(item => item.terminalId === 'this-mac'))
       state.terminals.push({ terminalId: 'this-mac', host: '127.0.0.1', user: 'kite', port: 22, os: 'macos', accountOwner: 'owner', sshKeyConfigured: false, sudoKeyConfigured: false, revision: 1, maintenance: null })
     if ((state.mode.thismac === '1' || state.mode.selfservice === '1') && !state.terminals.some(item => item.terminalId === 'locked-mac'))
@@ -298,6 +324,48 @@ const server = createServer(async (request, response) => {
       return send(200, { terminal: projection(record) })
     }
     return fail(405, 'METHOD_NOT_ALLOWED')
+  }
+
+  const foldersMatch = /^\/api\/terminals\/([a-z0-9][a-z0-9-]{0,63})\/(folders|folder)$/u.exec(path)
+  if (foldersMatch) {
+    const [, id, kind] = foldersMatch
+    if (state.mode.terminals !== 'ok' || state.mode.folders === 'old') return fail(404, 'NOT_FOUND')
+    if (state.mode.folders === 'error') return fail(503, 'TERMINAL_UNAVAILABLE', 'The folders cannot be read now')
+    const record = state.terminals.find(terminal => terminal.terminalId === id)
+    if (!record) return fail(404, 'TERMINAL_NOT_FOUND', 'Terminal not found; list_terminals shows the registered terminalIds')
+    const home = `/Users/${record.user}`
+    const unreachable = state.mode.folders === 'offline' || !check(record).reachable
+    const offline = { reason: 'UNREACHABLE', action: 'Macに届きませんでした。Macが起きていて同じネットワークにあるか確かめてください' }
+    const dirname = value => value === '/' ? null : value.slice(0, value.lastIndexOf('/')) || '/'
+    if (kind === 'folder') {
+      if (request.method !== 'POST') return fail(405, 'METHOD_NOT_ALLOWED')
+      const input = await body(request)
+      state.proof.folderCreates.push({ terminalId: id, body: input })
+      if (typeof input.path !== 'string' || !validRoot(input.path)) return fail(400, 'INVALID_PATH', 'path must be absolute without ..')
+      const status = { terminalId: id, path: input.path, observedAt: new Date().toISOString() }
+      if (unreachable) return send(200, { ...status, exists: false, directory: false, writable: false, ...offline })
+      const parent = dirname(input.path)
+      if (!input.create) return send(200, { ...status, exists: state.folderTree.has(input.path), directory: state.folderTree.has(input.path), writable: true, reason: state.folderTree.has(input.path) ? null : 'FOLDER_MISSING' })
+      if (!state.folderTree.has(parent ?? '')) return send(200, { ...status, exists: false, directory: false, writable: false, reason: 'FOLDER_MISSING', action: 'フォルダを作れる場所がありません' })
+      if (parent.endsWith('/Desktop')) return send(200, { ...status, exists: false, directory: false, writable: false, reason: 'FOLDER_NOT_PERMITTED', action: 'Macがこのフォルダを開かせてくれません' })
+      const names = state.folderTree.get(parent)
+      const name = input.path.slice(input.path.lastIndexOf('/') + 1)
+      if (!names.includes(name)) { names.push(name); names.sort(); state.folderTree.set(input.path, []) }
+      return send(200, { ...status, exists: true, directory: true, writable: true, reason: null })
+    }
+    if (request.method !== 'GET') return fail(405, 'METHOD_NOT_ALLOWED')
+    const asked = url.searchParams.get('path')
+    state.proof.folderReads.push(asked)
+    if (asked !== null && !validRoot(asked)) return fail(400, 'INVALID_PATH', 'path must be absolute without ..')
+    const target = asked ?? home
+    const view = { terminalId: id, observedAt: new Date().toISOString(), home: unreachable ? null : home, path: target, parent: dirname(target), entries: [], truncated: false }
+    if (unreachable) return send(200, { ...view, ...offline })
+    if (target.endsWith('/Desktop')) return send(200, { ...view, reason: 'FOLDER_NOT_PERMITTED', action: 'Macがこのフォルダを開かせてくれません' })
+    if (!state.folderTree.has(target)) return send(200, { ...view, reason: 'FOLDER_MISSING', action: 'このフォルダはMacにありません' })
+    let names = state.folderTree.get(target)
+    if (target === home && state.mode.folders === 'empty') names = []
+    if (target === home && state.mode.folders === 'truncated') names = MANY
+    return send(200, { ...view, entries: names.map(name => ({ name, path: target === '/' ? `/${name}` : `${target}/${name}` })), reason: null, action: null, ...(target === home && state.mode.folders === 'truncated' ? { truncated: true } : {}) })
   }
 
   const terminalsMatch = /^\/api\/terminals(?:\/([a-z0-9][a-z0-9-]{0,63})(\/check|\/trust)?)?$/u.exec(path)

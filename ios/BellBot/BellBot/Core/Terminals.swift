@@ -4,6 +4,35 @@ import Foundation
 
 struct TerminalsResponse: Decodable { let terminals: [Terminal] }
 
+/// Bot `seatLaunch` (execution remote-seat.md, #892): why a terminal member did not start. Every field is optional;
+/// a field of the wrong type reads as absent.
+struct SeatLaunch: Decodable, Equatable {
+    var code: String?
+    var action: String?
+    var terminalId: String?
+    var at: String?
+
+    private enum CodingKeys: String, CodingKey { case code, action, terminalId, at }
+
+    init(code: String? = nil, action: String? = nil, terminalId: String? = nil, at: String? = nil) {
+        self.code = code; self.action = action; self.terminalId = terminalId; self.at = at
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        code = try? c.decodeIfPresent(String.self, forKey: .code)
+        action = try? c.decodeIfPresent(String.self, forKey: .action)
+        terminalId = try? c.decodeIfPresent(String.self, forKey: .terminalId)
+        at = try? c.decodeIfPresent(String.self, forKey: .at)
+    }
+
+    /// The one plain line: the action, or the code when the action is empty. nil when neither has text.
+    var line: String? {
+        let text = [action, code].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }.first { !$0.isEmpty }
+        return text.map { "Macで起動できません: \($0)" }
+    }
+}
+
 struct Terminal: Decodable, Identifiable, Equatable {
     let terminalId: String
     var host = ""
@@ -419,7 +448,7 @@ enum MemberFolder {
         var offersCreate = false
     }
 
-    private static let words = [
+    static let words = [
         "FOLDER_MISSING": "このフォルダはMacにありません。作るか、あるフォルダを選んでください",
         "FOLDER_NOT_DIRECTORY": "これはファイルです。フォルダを選んでください",
         "FOLDER_NOT_WRITABLE": "このMacのユーザーが書き込めるフォルダを選んでください",
@@ -432,6 +461,171 @@ enum MemberFolder {
         if code == "TERMINAL_NOT_FOUND" { return Refusal(text: "この端末は登録されていません。") }
         guard code.hasPrefix("FOLDER_") else { return nil }
         return Refusal(text: "\(words[code] ?? "このフォルダは使えません")（\(folder)）。", offersCreate: code == "FOLDER_MISSING")
+    }
+}
+
+// S6 folder picker (terminals README "Folder picker"): the folders of a registered terminal are listed and chosen on screen.
+
+struct TerminalFolderEntry: Decodable, Equatable, Identifiable {
+    let name: String
+    let path: String
+    var id: String { path }
+}
+
+/// `GET /api/terminals/:id/folders[?path=]`. Every field but `entries` may be missing (an unknown home, a refused read).
+struct TerminalFolders: Decodable, Equatable {
+    var terminalId = ""
+    var observedAt: String?
+    var home: String?
+    var path: String?
+    /// nil at `/` (no 「上へ」).
+    var parent: String?
+    var entries: [TerminalFolderEntry] = []
+    var truncated = false
+    /// nil = listed. Otherwise `entries` is empty and `action` is the server's Japanese sentence.
+    var reason: String?
+    var action: String?
+}
+
+extension TerminalFolders {
+    private enum CodingKeys: String, CodingKey { case terminalId, observedAt, home, path, parent, entries, truncated, reason, action }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        terminalId = try container.decodeIfPresent(String.self, forKey: .terminalId) ?? ""
+        observedAt = try container.decodeIfPresent(String.self, forKey: .observedAt)
+        home = try container.decodeIfPresent(String.self, forKey: .home)
+        path = try container.decodeIfPresent(String.self, forKey: .path)
+        parent = try container.decodeIfPresent(String.self, forKey: .parent)
+        entries = try container.decodeIfPresent([TerminalFolderEntry].self, forKey: .entries) ?? []
+        truncated = try container.decodeIfPresent(Bool.self, forKey: .truncated) ?? false
+        reason = try container.decodeIfPresent(String.self, forKey: .reason)
+        action = try container.decodeIfPresent(String.self, forKey: .action)
+    }
+}
+
+/// `POST /api/terminals/:id/folder` answer; the picker reads only `reason` and `action` (reason nil = the folder is usable).
+struct TerminalFolderStatus: Decodable, Equatable {
+    var path: String?
+    var reason: String?
+    var action: String?
+}
+
+struct TerminalFolderCreateBody: Encodable {
+    let path: String
+    let create = true
+}
+
+enum TerminalFolderPicker {
+    static let emptyText = "フォルダはありません"
+    static let truncatedText = "フォルダが多いため、すべては表示していません。"
+    static let readFailedText = "フォルダの一覧を読み込めませんでした。つながりを確かめて、もう一度お試しください。"
+    static let unsupportedText = "このBellTeamはまだ、フォルダを選ぶ画面に対応していません。「ほかの方法」でパスを入力してください。"
+    static let unreachableText = "いまこの端末に届きません。Macが起きていて同じネットワークにあるか確かめて、もう一度お試しください。"
+    static let createFailedText = "フォルダを作れたか確かめられませんでした。一覧で確かめてください。"
+
+    /// The name is trimmed; the result is what is sent. nil problem = usable. The server only ever sees `<current>/<name>`.
+    static func name(_ raw: String) -> (name: String, problem: String?) {
+        let name = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let problem: String? =
+            name.isEmpty ? "フォルダの名前を入れてください。"
+            : name.contains("/") ? "名前に「/」は使えません。"
+            : name == "." || name == ".." ? "「.」と「..」は名前にできません。"
+            : name.contains("\0") ? "名前に使えない文字があります。"
+            : name.utf8.count > 255 ? "名前が長すぎます（255バイトまで）。"
+            : nil
+        return (name, problem)
+    }
+
+    static func childPath(of parent: String, name: String) -> String { parent == "/" ? "/\(name)" : "\(parent)/\(name)" }
+
+    /// One plain sentence for a `reason`. Unreachable reasons never read as an empty list; FOLDER_NOT_PERMITTED is S5's sentence.
+    static func sentence(reason: String, action: String?) -> String {
+        if reason == "TERMINAL_NOT_FOUND" { return "この端末は登録されていません。" }
+        if reason == "FOLDER_NOT_PERMITTED" { return folderWords(reason) }
+        let check = TerminalCheck(terminalId: "", reachable: false, reason: reason, action: action)
+        if check.problem == .unreachable { return unreachableText }
+        if let action = action?.trimmingCharacters(in: .whitespacesAndNewlines), !action.isEmpty { return action }
+        return MemberFolder.words[reason] != nil ? folderWords(reason) : check.explanation ?? folderWords(reason)
+    }
+
+    private static func folderWords(_ reason: String) -> String { (MemberFolder.words[reason] ?? "このフォルダは使えません") + "。" }
+
+    /// The query value: everything but unreserved characters and `/` is escaped (a folder may contain `+`, `&`, `#`).
+    static func query(_ path: String) -> String {
+        var allowed = CharacterSet.alphanumerics
+        allowed.insert(charactersIn: "-._~/")
+        return path.addingPercentEncoding(withAllowedCharacters: allowed) ?? path
+    }
+}
+
+/// The picker's state: what is shown, and the new-folder form. Reads write nothing; a create is sent once, never resent.
+@MainActor
+final class TerminalFolderPickerModel: ObservableObject {
+    enum Content: Equatable {
+        case loading
+        case listed(TerminalFolders)
+        /// The HTTP read failed (network / 5xx): one sentence and 「もう一度」.
+        case failed(String)
+        /// This BellTeam has no folders route (older body): the text field stays.
+        case unsupported
+    }
+
+    @Published private(set) var content = Content.loading
+    @Published var newName = ""
+    @Published private(set) var createNote: String?
+    @Published private(set) var creating = false
+    /// The path last asked for (nil = the terminal user's home); 「もう一度」 asks for it again.
+    private(set) var requested: String?
+    private var sequence = 0
+    private let read: (String?) async throws -> TerminalFolders
+    private let make: (String) async throws -> TerminalFolderStatus
+
+    init(read: @escaping (String?) async throws -> TerminalFolders, make: @escaping (String) async throws -> TerminalFolderStatus) {
+        self.read = read
+        self.make = make
+    }
+
+    /// Only the newest request writes `content`.
+    func open(_ path: String?) async {
+        sequence += 1
+        let mine = sequence
+        requested = path
+        content = .loading
+        if !creating { createNote = nil }
+        do {
+            let result = try await read(path)
+            if mine == sequence { content = .listed(result) }
+        } catch {
+            guard mine == sequence else { return }
+            if TerminalErrorText.isFoldersUnsupported(error) { content = .unsupported }
+            else if TerminalErrorText.code(error) == "TERMINAL_NOT_FOUND" { content = .failed("この端末は登録されていません。") }
+            else { content = .failed(TerminalFolderPicker.readFailedText) }
+        }
+    }
+
+    func reload() async { await open(requested) }
+
+    /// Create `<current>/<name>`, list `<current>` again, then open the new folder (that is the selection).
+    func createFolder() async {
+        guard !creating, case .listed(let current) = content, let directory = current.path else { return }
+        let (name, problem) = TerminalFolderPicker.name(newName)
+        if let problem { createNote = problem; return }
+        let path = TerminalFolderPicker.childPath(of: directory, name: name)
+        creating = true
+        createNote = nil
+        defer { creating = false }
+        do {
+            let status = try await make(path)
+            if let reason = status.reason { createNote = TerminalFolderPicker.sentence(reason: reason, action: status.action); return }
+        } catch {
+            createNote = TerminalFolderPicker.createFailedText
+            await open(directory)
+            return
+        }
+        newName = ""
+        await open(directory)
+        if case .listed = content { await open(path) }
     }
 }
 
@@ -481,6 +675,12 @@ enum TerminalErrorText {
     static func isUnsupported(_ error: Error) -> Bool {
         guard case BellAPIError.httpStatus(let status, _, _) = error else { return false }
         return status == 404 || status == 405
+    }
+
+    /// A folders route that answers 404 (no TERMINAL_NOT_FOUND) or 405 is a BellTeam without the picker (older body).
+    static func isFoldersUnsupported(_ error: Error) -> Bool {
+        guard case BellAPIError.httpStatus(let status, _, _) = error else { return false }
+        return status == 405 || (status == 404 && code(error) != "TERMINAL_NOT_FOUND")
     }
 
     /// A keys route that answers 404 without TERMINAL_NOT_FOUND is a BellTeam without it (older body).
