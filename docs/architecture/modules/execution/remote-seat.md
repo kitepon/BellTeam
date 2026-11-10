@@ -149,7 +149,7 @@ transport.seatLaunch(botId)   (sync project method, like seatAccount)
 - Cleared by `RemoteSeats.launched` (the launch on the terminal succeeded). Read as `null` once the member is no longer bound to that `terminalId` (moved to another terminal or to local), so no stale notice remains.
 - Each set/clear emits `{topics: ['bots'], botIds: []}` on the existing change stream, so Web/Apple re-read `/api/bots`. `botIds` stays empty on purpose: a change naming the Bot triggers the direct drain, which would relaunch at once and loop on the same failure.
 - The generation exchange hands the Map over with the seats Map.
-- Bot DTO key `seatLaunch` (same value; absent when the body or the engine has no `seatLaunch`): projected by the members list/profile next to `account`. Shown on the member row and the member's conversation header by Web (Admi) and Apple (Ziz) as a plain failure line: 「Macで起動できません: <action or code>」.
+- Bot DTO key `seatLaunch` (same value; absent when the body or the engine has no `seatLaunch`): projected by the members list/profile next to `account`. Shown on the member row and the member's conversation header by Web (Admi) and Apple (Ziz) as a plain failure line: 「端末で起動できません：<action or code>」 (full-width colon; with neither action nor code 「端末で起動できません。」; OS-neutral, Kiro 2026-11-10: the same line serves Mac, Windows and Linux terminals with no DTO `os`; where the OS matters the `action` already names it, e.g. 「Windowsのclaudeにログインが必要」).
 
 ## Accounts (Owner rulings 2 and 4 of 13:38)
 
