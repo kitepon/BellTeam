@@ -8,6 +8,16 @@ import { readImageBytes } from './message-assets.mjs'
 const fail = code => { throw Object.assign(new Error(code), { code }) }
 
 // One parent instance owns this log; child writers use its registered append effect.
+const remoteKeys = 'botId,code,deliveryId,schema,terminalId'
+// Closed proof from execution (remote-seat.md); bound to this receipt's ID and target, else null.
+export function remoteSeatNotStarted(error, deliveryId, botId) {
+  const value = error?.remoteSeatNotStarted
+  return value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).sort().join(',') === remoteKeys
+    && value.schema === 'bellteam.remote-seat-not-started.v1' && typeof value.code === 'string' && /^[A-Z][A-Z0-9_]{0,63}$/u.test(value.code)
+    && typeof value.terminalId === 'string' && value.terminalId.length > 0 && value.terminalId.length <= 128 && !value.terminalId.includes('\0')
+    && value.deliveryId === deliveryId && value.botId === botId ? value : null
+}
+
 export class DurableMessageReceipts extends BellTeamMessenger {
   constructor({ root, dispatch, onPending = () => {}, onError = error => console.error(error), ...options }) {
     super({ ...options, logPath: options.logPath ?? join(root, 'logs/direct-messages.jsonl'),
@@ -155,7 +165,9 @@ export class DurableMessageReceipts extends BellTeamMessenger {
       const staleTerminal = !observed && saved === 'failed' && executionError?.code === 'EXECUTION_STALE_GENERATION'
         && executionError.effect === 'not_started'
       const unsent = saved === 'failed' && executionError?.effect === 'not_started'
-      const delivery = staleTerminal ? 'queued' : !observed && error?.effect === 'not_started' ? 'queued'
+      // durable-receipt.md: a remote launch refused before anything started waits queued for terminals' available.
+      const remoteWaiting = !observed && ['failed', 'dispatching'].includes(saved) && remoteSeatNotStarted(error, deliveryId, record.target)
+      const delivery = staleTerminal || remoteWaiting ? 'queued' : !observed && error?.effect === 'not_started' ? 'queued'
         : unsent || (observed && saved !== 'dispatching') ? saved : 'unknown'
       if (latest?.delivery !== delivery) await this.appendDeliveryStatus(deliveryId, delivery)
       if (delivery !== 'queued') this.executionSources.delete(deliveryId)

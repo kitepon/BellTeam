@@ -44,6 +44,30 @@ flowchart LR
 
 This parent-source behavior is activated only with the next approved body-resident swap; it does not change or require child restore/writer logic. The integration ownership/reference is [typed stale-generation requeue](../integration/message-receipt.md#typed-terminal-stale-generation-requeue).
 
+### Remote seat not started requeue (2026-11-10, Crust F-SEAT-HOST)
+
+A remote launch refused before anything started (terminals `TARGET_MISMATCH` / `HOST_TRUST_MISSING`, Mac asleep, key not loaded) must stay queued until terminals reports the terminal available (Owner ruling 2026-11-09 13:38; [remote-seat](../execution/remote-seat.md) state `Queued`). Before this, the parent wrapper turned it into `effect=unknown` and `runSaved` saved `unknown`, never replayed.
+
+| Function | Input → output / state | Failure boundary |
+| --- | --- | --- |
+| Execution → error | The rejected error carries own field `remoteSeatNotStarted = {schema:'bellteam.remote-seat-not-started.v1', code, deliveryId, botId, terminalId}` (closed key set; Kiro) | Absent or invalid proof keeps the existing policy |
+| Parent assembly wrapper | `Object.assign(new Error, error, {effect:'unknown'})` keeps the own field, as it keeps `executionError` | — |
+| `remoteSeatNotStarted(error, deliveryId, botId)` | Exact schema, closed keys, `code` `^[A-Z][A-Z0-9_]{0,63}$`, `terminalId` 1–128 chars without NUL, `deliveryId`/`botId` equal to this receipt's ID and target → proof, else null | Wrong ID/target, extra keys, other schema → null (unknown path) |
+| `runSaved` classification | No acceptance observed, latest saved status `failed` (after the failed callback) or still `dispatching`, and a bound proof → append `queued` for the same ID | An observed acceptance or any other latest status keeps the existing rule. No `onPending`: the next attempt comes only from the existing `watchQueue` → `isIdle` → `requestDrain` path when execution emits `emitQueue(botId)` on terminals `available` |
+
+```mermaid
+flowchart LR
+  Launch[Remote agent_launch refused, not_started] --> Proof[error.remoteSeatNotStarted bound to deliveryId + botId]
+  Proof --> Wrap[Assembly wrapper effect=unknown keeps own field]
+  Wrap --> Run{runSaved: bound proof, no acceptance, latest failed or dispatching?}
+  Run -->|No| Existing[Existing policy: unknown is never replayed]
+  Run -->|Yes| Queued[Append queued for the same ID]
+  Queued -. exit .-> Available[terminals available -> emitQueue botId -> watchQueue -> isIdle -> requestDrain]
+  Available --> Lane[Same-ID target lane, ordinary dispatch]
+```
+
+Guard kept: "unknown is never replayed" protects against duplicate input. The proof is the remote case's self-exit; a terminal that never becomes available leaves the receipt queued (visible as waiting, with execution's `seatLaunch` notice saying why).
+
 既子 direct append → direct.log.append（既registered effect/lease）→ 同親append → 保存ACK → 子の既emit一回。子はdirect JSONLへ書かない。親の既direct log writer一個をMollyが組み立てgetServices.directReceiptsへ供給する。新口未接続はCONVERSATION_EFFECT_UNAVAILABLEで拒否しローカル第二writerへ退避しない。
 
 添付は同ID image_assetsに保存し、実行時に既assets.directory(owner)/fileを使う。user回答所有とBridgeの元session/event/seqは同ID recordに保持し、実行consumerへ渡す。recordUser=falseのonboardingはこの受領口へ無断で変換せず既経路。旧callback/native実参照の付替え0。

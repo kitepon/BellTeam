@@ -175,3 +175,22 @@ test('historical unknown receipt without a matching attempt proof is retained', 
   assert.deepEqual(f.pending, [])
   assert.equal((await f.receipts.store.records())[0].delivery, 'unknown')
 })
+
+test('a bound remote-seat not-started proof requeues; a wrong or missing proof stays unknown', async t => {
+  const proof = (over = {}) => ({ schema: 'bellteam.remote-seat-not-started.v1', code: 'TARGET_MISMATCH',
+    deliveryId: id, botId: target.id, terminalId: 'macbook', ...over })
+  const run = async (remoteSeatNotStarted, { callback = true } = {}) => {
+    const f = await fixture(t, async input => {
+      if (callback) await input.callbacks.onStatus('failed', Object.assign(new Error('refused'), { code: 'BOT_LAUNCH_FAILED' }))
+      throw Object.assign(new Error('wrapped invoked failure'), { effect: 'unknown', ...(remoteSeatNotStarted ? { remoteSeatNotStarted } : {}) })
+    })
+    return (await f.receipts.dispatchSaved(id)).delivery
+  }
+  assert.equal(await run(proof()), 'queued')
+  assert.equal(await run(proof(), { callback: false }), 'queued')
+  assert.equal(await run(null), 'unknown')
+  assert.equal(await run(proof({ deliveryId: '22222222-2222-4222-8222-222222222222' })), 'unknown')
+  assert.equal(await run(proof({ botId: 'bot-sender' })), 'unknown')
+  assert.equal(await run({ ...proof(), extra: 1 }), 'unknown')
+  assert.equal(await run(proof({ code: 'lower' })), 'unknown')
+})
