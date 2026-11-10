@@ -105,5 +105,7 @@ test('the Owner is never a fork target, and the tool carries no image input', as
   await assert.rejects(callConversationTool({ name: 'ask_readonly', args: { target: 'user', message: 'Q' }, from: asker.id, registry, messenger }), /FORK_TARGET_USER/)
   const tool = conversationTools.find(item => item.name === 'ask_readonly')
   assert.deepEqual(Object.keys(tool.inputSchema.properties), ['target', 'message'])
+  assert.deepEqual(conversationTools.filter(item => item.annotations?.readOnlyHint === true).map(item => item.name),
+    ['list_messages', 'list_rooms', 'get_room', 'list_queued_messages', 'list_room_messages'], 'only read tools are listed to fork seats')
   assert.match(tool.description, /読み取り専用/); assert.match(tool.description, /中断されず/); assert.match(tool.description, /sendmessage/)
 })

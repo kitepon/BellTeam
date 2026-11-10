@@ -30,16 +30,19 @@ export const conversationTools = Object.freeze([
   },
   {
     name: 'list_messages',
+    annotations: { readOnlyHint: true },
     description: '指定したBotのユーザー会話とBot間連絡の履歴を取得する。',
     inputSchema: objectSchema({ botId: { type: 'string', minLength: 1 } }, ['botId']),
   },
   {
     name: 'list_rooms',
+    annotations: { readOnlyHint: true },
     description: '自分が所属するBellTeamルームを一覧する。',
     inputSchema: objectSchema({}),
   },
   {
     name: 'get_room',
+    annotations: { readOnlyHint: true },
     description: 'ルーム名、目的、代表、メンバーを取得する。',
     inputSchema: objectSchema({ roomId: { type: 'string', minLength: 1 } }, ['roomId']),
   },
@@ -107,11 +110,13 @@ export const conversationTools = Object.freeze([
   },
   {
     name: 'list_queued_messages',
+    annotations: { readOnlyHint: true },
     description: 'BellTeamがAitermへ渡して処理中のメッセージを一覧する。botId指定時はそのBot宛てだけを返す。',
     inputSchema: objectSchema({ botId: { type: 'string', minLength: 1 } }),
   },
   {
     name: 'list_room_messages',
+    annotations: { readOnlyHint: true },
     description: '所属ルームの会話履歴を取得する。',
     inputSchema: objectSchema({ roomId: { type: 'string', minLength: 1 } }, ['roomId']),
   },
