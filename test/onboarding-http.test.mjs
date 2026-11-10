@@ -35,7 +35,7 @@ test('初期設定中は旧接続テストで案内会話を終えず、案内�
     transport: { async restart(bot) { restarted = bot.id } },
   })
   assert.equal((await fetch(`${base}/api/subscription/setup-test`, { method: 'POST', body: '{}' })).status, 409)
-  assert.equal((await fetch(`${base}/api/bots/${guide.id}/restart`, { method: 'POST' })).status, 202)
+  assert.equal((await fetch(`${base}/api/bots/${guide.id}/restart`, { method: 'POST' })).status, 200)
   assert.equal(restarted, guide.id)
 })
 

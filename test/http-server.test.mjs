@@ -83,7 +83,11 @@ test('Web APIはCloudflare Access認証を必須にし、一覧・会話取得�
     authorize: mockAuthorize,
     messenger: { async enqueueUserTurn(message) { sent.push(message); return { delivery: 'queued', delivery_id: 'delivery-1', queue_id: 'queue-1' } } },
     store: { async timeline() { return [{ id: '1', kind: 'message', direction: 'incoming', message: 'こんにちは', at: '2026-09-02T01:02:03.000Z' }] } },
-    transport: { async runningBots(list) { return new Set(list.map(value => value.id)) }, async restart(value) { restarted.push(value.id) } },
+    transport: { async runningBots(list) { return new Set(list.map(value => value.id)) }, async restart(value) {
+      restarted.push(value.id)
+      if (restarted.length === 2) throw Object.assign(new Error('RESTART_CLOSE_FAILED'), { code: 'RESTART_CLOSE_FAILED', reason: 'aiterm: remote close failed' })
+      return { botId: value.id, session: 'new-session' }
+    } },
   })
   server.listen(0, '127.0.0.1')
   await once(server, 'listening')
@@ -117,9 +121,14 @@ test('Web APIはCloudflare Access認証を必須にし、一覧・会話取得�
   assert.deepEqual(sent, [{ target: bot.id, message: '状況を教えて', images: [] }])
 
   const restartResponse = await fetch(`${base}/api/bots/${bot.id}/restart`, { method: 'POST', headers })
-  assert.equal(restartResponse.status, 202)
-  assert.deepEqual(await restartResponse.json(), { restarting: bot.id })
+  assert.equal(restartResponse.status, 200)
+  assert.deepEqual(await restartResponse.json(), { restarted: bot.id, session: 'new-session' })
   assert.deepEqual(restarted, [bot.id])
+  // The caller gets the reason when the old seat could not be closed (entrypoints.md).
+  const refused = await fetch(`${base}/api/bots/${bot.id}/restart`, { method: 'POST', headers })
+  assert.equal(refused.status, 502)
+  assert.deepEqual(await refused.json(), { error: 'BOT_RESTART_FAILED',
+    message: '前の会話を閉じられなかったため、再起動していません。前の会話はそのまま残っています（aiterm: remote close failed）。' })
 
   const image = { mime: 'image/png', data: 'iVBORw0KGgo=' }
   const imageResponse = await fetch(`${base}/api/bots/${bot.id}/messages`, {

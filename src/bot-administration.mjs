@@ -5,6 +5,15 @@ import { startMemberRemoval } from './members/deletion.mjs'
 import { executionFailureReport, reportExecutionFailure } from './execution-failure-report.mjs'
 import { automaticConfigurationApplication, automaticConfigurationView, validConfigurationOperationId, configurationOperationError } from './automatic-configuration-application.mjs'
 
+function restartFailure(error) {
+  const reason = String(error?.reason ?? error?.message ?? '').split('\n', 1)[0].slice(0, 300) || '理由不明'
+  const status = Number.isInteger(error?.status) && error.status >= 400 && error.status < 600 ? error.status : 502
+  return Object.assign(new Error('BOT_RESTART_FAILED', { cause: error }), { code: 'BOT_RESTART_FAILED', status,
+    publicMessage: error?.code === 'RESTART_CLOSE_FAILED'
+      ? `前の会話を閉じられなかったため、再起動していません。前の会話はそのまま残っています（${reason}）。`
+      : `会話を再起動できませんでした（${reason}）。` })
+}
+
 // Botの設定変更・停止・削除の業務判断。HTTP APIと、HTTP経由で届く席MCPのupdate_self/update_bot/delete_botが
 // 同じ判断を使う。応答の形と状態コードはHTTPが持ち、ここは保存と稼働中の席への反映の順序を決める。
 export class BotAdministration {
@@ -219,13 +228,16 @@ export class BotAdministration {
     }
   }
 
+  // The caller gets the outcome: the new seat, or the reason it did not start (entrypoints.md).
   restart(bot) {
     const application = this.applications.get(bot.id)
-    const pending = this.transport.restart(bot).then(() => {
+    const pending = this.transport.restart(bot).then(result => {
       if (this.applications.get(bot.id) === application) this.applications.delete(bot.id)
+      return result
     })
-      .catch(error => this.writeLog(`BellTeam restart error: ${error.stack ?? error.message}\n`))
-    this.trackCompletion(pending)
+    const logged = pending.catch(error => { this.writeLog(`BellTeam restart error: ${error.stack ?? error.message}\n`); throw restartFailure(error) })
+    this.trackCompletion(logged.catch(() => {}))
+    return logged
   }
 
   remove(botId) {

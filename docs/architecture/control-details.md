@@ -68,7 +68,7 @@ flowchart TD
 | 適用結果 | `apply/view` | 新しい更新が同じBotに来た場合、古いPromiseは新しい状態を書き換えない。失敗した同じ値の明示更新はreapply対象 |
 | 同一CLIの変更 | `reconfigure → changeSession(agent_configure)` | model/effort/fastの必要fieldsだけ。Cursorのeffortにはmodelも添付。保存済み値の取得だけで当ターン適用済みと言わない |
 | CLI切替/空へ戻す等 | `reconfigure → restartNow` | harness変更、既model/effortを空へ戻す、reapplyで空指定の場合はclose→wake。開始前に停止世代を再検証 |
-| 明示restart | `restart` | 同一Botの重複は既Promiseを返す。世代を進め、既発行の変更とwake返却だけ待つ。終わらないターンや未発行idle待ちを待たない。close成立後に旧jobs/watchを止め新席へ |
+| 明示restart | `restart` | 同一Botの重複は既Promiseを返す。世代を進め、既発行の変更とwake返却だけ待つ。終わらないターンや未発行idle待ちを待たない。close成立後に旧jobs/watchを止め新席へ。closeにAitermが失敗を返した時（`aitermResponseReturned`）は`RESTART_CLOSE_FAILED`（旧席は残る、起動0、Aitermの理由付き）で呼び手へ返す |
 | 任意機能設定の反映 | `ApplicationFeatures → stopForConfiguration` | 前のconfiguration Promiseの成功/失敗後に次のcloseを並べる。失敗記録は別に保持し、配送は[設定不明とidentity不明を分ける判定](modules/execution/configuration-delivery.md)を使う |
 | 削除の席終了 | `members.startMemberRemoval → transport.stop` | activeだけidle→close→画像掃除を使う。部屋整理・台帳cleanup・既pending再開・CLI同期の成否は[membersの正本](modules/members/deletion.md)。既pendingではnative停止を再発行しない |
 
@@ -78,7 +78,7 @@ flowchart TD
 
 機能：同Botの明示restartは既発行の変更/wake返却を待ち、captured旧sessionをcloseする。closeの同sessionへのtyped成功を確認するまで旧job/native未知と新配送拒否を保持する。確認後だけ、close対象に束縛した旧jobの実行枠とnative継続参照を退役し、新launchを一回起動する。元receipt/元unknown/保存失敗を成功へ変更せず、他Bot・新session・保存ACK/背景参照は解放しない。
 
-データフロー：Owner明示restart→既session/旧job snapshot→pty_close→同sessionのclosure証拠→旧job停止・旧native占有退役（歴史的unknown保持）→wake→新規配送。close欠測/失敗/相関不一致→旧占有維持・起動0。元本文/元jobの再発行は無い。
+データフロー：Owner明示restart→既session/旧job snapshot→pty_close→同sessionのclosure証拠→旧job停止・旧native占有退役（歴史的unknown保持）→wake→新規配送。close欠測/失敗/相関不一致→旧占有維持・起動0。Aitermが返したclose失敗は`restartNow`が`RESTART_CLOSE_FAILED`（effect not_started、`reason`=Aitermの文の1行目）で投げ、`BotAdministration.restart`→HTTP restart→`restart_session`まで同じ失敗を返す（2026-11-10、リモート席bot-ed14f4f7の07:35Z。旧実装はclose失敗後もwakeし、同名の既存席で`agent_launch`が拒否され、HTTPは先に202を返していた）。返りの無いclose（結果不明）は従来どおり記録して起動する。出口：理由を直した後の次のrestart、または次の配送。元本文/元jobの再発行は無い。
 
 現sourceはmarkStoppedのみでnativeUnconfirmedの占有が残る。直接反例でこの不足を固定し、closure証拠の必要形はAiterm公開契約と照合して実装する。公開Rootのrunning単独をこの条件の成立証拠にしない。
 

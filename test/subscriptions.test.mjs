@@ -168,7 +168,7 @@ for (const purchaseState of ['未購入', '失効', '通信エラー']) {
       method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
     })
     assert.equal((await send('/api/bots/bot/messages', { message: 'Webから送信' })).status, 200)
-    assert.equal((await send('/api/bots/bot/restart')).status, 202)
+    assert.equal((await send('/api/bots/bot/restart')).status, 200)
     assert.equal((await send('/api/bots/bot', { model: 'new-model' }, 'PATCH')).status, 200)
     await messenger.sendmessage({ from: other.id, target: bot.id, message: 'Bot間の配送' })
     assert.equal((await roomMessenger.sendroommessage({ from: 'user', room: room.id, message: 'ルームの相談' })).delivery, 'running')

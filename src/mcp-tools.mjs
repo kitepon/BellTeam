@@ -88,7 +88,7 @@ export const bellTeamTools = Object.freeze([
   },
   {
     name: 'restart_session',
-    description: 'BotのAIセッションを終了し、現在のCLI設定とMCP設定を読み直して起動する。botId省略時は自分。',
+    description: 'BotのAIセッションを終了し、現在のCLI設定とMCP設定を読み直して起動する。新しいセッションの起動まで待って結果を返し、できなかった時は理由を返す（前のセッションを閉じられなかった時は起動しない）。botId省略時は自分。',
     inputSchema: objectSchema({ botId: { type: 'string', minLength: 1 } }),
   },
   {

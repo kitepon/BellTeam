@@ -246,6 +246,21 @@ test('R13: CREDENTIAL_NOT_LOADED on a session call loads again and issues the sa
   await assert.rejects(client.call('pty_send', { session_id: 'bot-local', text: 'x' }), { code: 'CREDENTIAL_NOT_LOADED' })
 })
 
+test('R13: a pty_close refused as text only (after a body swap) loads the key and closes once more', async () => {
+  const { seats, loads } = keyFixture()
+  seats.launched(bot, { session_id: launchArgs.session_name, launch_id: 'a'.repeat(32) })
+  const issued = []
+  let refuse = 1
+  const client = seats.route({ call: async name => {
+    issued.push(name)
+    if (refuse-- > 0) throw Object.assign(new Error("aiterm: CREDENTIAL_NOT_LOADED: the terminal's credential is not loaded"), { aitermResponseReturned: true })
+    return { content: [] }
+  } })
+  await client.call('pty_close', { session_id: launchArgs.session_name })
+  assert.deepEqual(issued, ['pty_close', 'pty_close'])
+  assert.equal(loads.length, 1)
+})
+
 test('R13: CREDENTIAL_REVISION_STALE on agent_launch loads again and launches once more with the fresh terminal', async () => {
   const { root, calls, transport, member } = await transportFixture()
   try {

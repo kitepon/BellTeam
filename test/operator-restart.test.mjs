@@ -55,6 +55,17 @@ test('an unknown close result is recorded and does not block the operator launch
   assert.deepEqual(f.calls.map(c => c.name), ['pty_close', 'agent_launch'])
 })
 
+test('a close Aiterm answered as failed launches nothing and returns the reason', async t => {
+  const f = await fixture(t)
+  f.transport.client.call = async (name, args) => {
+    f.calls.push({ name, args })
+    if (name === 'pty_close') throw Object.assign(Error('aiterm: remote close failed\nremote=macbook'), { aitermResponseReturned: true })
+    return { structuredContent: { session_id: 'new-session' } }
+  }
+  await assert.rejects(f.transport.restart(f.bot), { code: 'RESTART_CLOSE_FAILED', effect: 'not_started', reason: 'aiterm: remote close failed' })
+  assert.deepEqual(f.calls.map(c => c.name), ['pty_close'])
+})
+
 test('旧配送をclose後に終了させ、再起動中の新配送は新個体へ一回だけ送る', async t => {
   const f = await fixture(t)
   let startWait; const waiting = new Promise(resolve => { startWait = resolve })
