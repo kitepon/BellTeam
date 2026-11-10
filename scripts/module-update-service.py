@@ -436,7 +436,11 @@ def load():
     for name in ['state', 'catalog']:
         (PREFIX / name).mkdir(mode=0o700, exist_ok=True)
         host.trusted(PREFIX / name, directory=True)
-    updater = ModuleUpdater(PREFIX, PRIVATE, {'release': source, 'platform': {'os': 'linux', 'arch': arch}, 'python': '/usr/bin/python3'})
+    # update-catalog.md: the same channel as the container updater; absent = stable.
+    channel = os.environ.get('BELLTEAM_UPDATE_CHANNEL', 'stable')
+    host.check(channel in ('stable', 'candidate'), 'HOST_UPDATE_CHANNEL_INVALID')
+    updater = ModuleUpdater(PREFIX, PRIVATE, {'release': source, 'platform': {'os': 'linux', 'arch': arch}, 'python': '/usr/bin/python3',
+                                              'channel': channel})
     updater.inspect_current()
     return updater
 
