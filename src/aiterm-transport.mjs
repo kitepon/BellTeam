@@ -1438,7 +1438,13 @@ export class AitermTransport {
         process.stderr.write(`BellTeam fork: turn failed: ${sessionName}: ${error.message}\n`)
         await Promise.resolve(onStatus?.('failed', { code: 'FORK_FAILED', delivery_error: { code: 'FORK_FAILED' }, reason: error?.code ?? error?.message ?? 'unknown' }))
           .catch(() => {})
-      } finally { await close() }
+      } finally {
+        // remote-seat.md C7: the fork's transcript once, labelled from the launch receipt, before its seat closes.
+        if (remote) await this.remoteSeats.forward({ sessionName, botId: bot.id, terminalId: bot.terminalId, projectRoot: bot.projectRoot,
+          launchId: typeof receipt.launch_id === 'string' ? receipt.launch_id : null, cursor: null,
+          fork: { parentSessionId: receipt.fork_of.vendor_session_id, forkId } })
+        await close()
+      }
     })()
     this.trackCompletion(background)
     this.activity.emit({ bot })

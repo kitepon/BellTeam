@@ -304,8 +304,10 @@ export class RemoteSeats {
       for (let page = 0; page < PAGES_PER_TURN; page++) {
         const read = await this.transcript(seat)
         if (!Array.isArray(read?.entries) || !read.entries.length || !read.cursor) break
-        const result = await this.throughline(['remote-ingest', '--json'], JSON.stringify({ botId: seat.botId, sessionName: seat.sessionName,
-          launchId: seat.launchId, claudeSessionId: read.cursor.claudeSessionId, entries: read.entries, cursor: read.cursor }))
+        // remote-seat.md C7: a fork goes as `--fork` (Throughline 0.17.0 refuses that argv and stores nothing).
+        const fork = seat.fork ? { sessionKind: 'fork', parentSessionId: seat.fork.parentSessionId, forkId: seat.fork.forkId } : {}
+        const result = await this.throughline(['remote-ingest', ...(seat.fork ? ['--fork'] : []), '--json'], JSON.stringify({ botId: seat.botId, sessionName: seat.sessionName,
+          launchId: seat.launchId, claudeSessionId: read.cursor.claudeSessionId, entries: read.entries, cursor: read.cursor, ...fork }))
         if (result?.status === 'ready' && result.ackedCursor) { seat.cursor = result.ackedCursor; continue }
         if (result?.expectedCursor) seat.cursor = result.expectedCursor
         process.stderr.write(`BellTeam remote seat: transcript not stored: ${seat.botId} ${typeof result?.code === 'string' ? result.code : 'FAILED'}\n`)
