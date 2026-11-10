@@ -403,6 +403,9 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     const product_ = components.filter(item => !isRuntime(item.id)), runtime = components.filter(item => isRuntime(item.id))
     const count = badge => product_.filter(item => states.get(item.id).badge === badge).length
     const candidates = components.filter(item => item.comparison.state === 'update_available' && item.capability.supported && states.get(item.id).badge !== '更新中')
+    // The header never counts runtime rows: Owner rule, Aiterm/CLIs update only with the body release.
+    const updatable = candidates.filter(item => !isRuntime(item.id))
+    const waiting = product_.filter(item => states.get(item.id).badge === '使えない版')
     const readError = failure || storageFailure
     const running = components.filter(item => states.get(item.id).badge === '更新中')
     let title, description = '', tone = 'ok'
@@ -414,12 +417,15 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
       ;[title, tone] = [`${names}を${selectedPlan.action === 'rollback' ? '戻します' : '更新します'}`, 'info']
     } else if (running.length) [title, tone] = ['更新しています', 'info']
     else if (count('要対応')) [title, tone] = ['対応が必要です', 'danger']
-    else if (candidates.filter(item => !isRuntime(item.id)).length) [title, tone] = [`${candidates.filter(item => !isRuntime(item.id)).length}つ更新できます`, 'accent']
+    else if (updatable.length) [title, tone] = [`${updatable.length}つ更新できます`, 'accent']
     else if (count('失敗')) [title, tone] = ['前回の更新に失敗したものがあります', 'danger']
     else if (product_.length && count('最新') === product_.length) title = 'すべて最新です'
+    // incompatible is known: the catalog has no version for this body yet, so nothing to press.
+    else if (waiting.length && count('最新') + waiting.length === product_.length) title = '更新できるものはすべて最新です'
     else [title, tone] = [inventory ? '一部の状態を確認できません' : '更新情報', 'muted']
     if (!selectedPlan && !readError && inventory) description = running.length ? '進み具合はこの画面で確認できます。閉じても更新は続きます。'
-      : title === 'すべて最新です' ? `${product_.length}つの機能はどれも最新版です。` : candidates.length ? '更新したい機能の「更新」を押してください。' : ''
+      : title === 'すべて最新です' ? `${product_.length}つの機能はどれも最新版です。`
+      : title === '更新できるものはすべて最新です' ? `${waiting.map(item => item.name).join('・')}は、いまの本体に合う版がまだありません。本体の更新を待ってください。` : updatable.length ? '更新したい機能の「更新」を押してください。' : ''
     product.replaceChildren()
     product.dataset.tone = tone
     const header = element('header', 'update-summary')
