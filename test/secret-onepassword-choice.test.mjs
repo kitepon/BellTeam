@@ -130,3 +130,37 @@ test('terminal.ssh stored value is a multiline field sent byte-exact; sudo and o
     assert.equal(dialog.querySelectorAll('textarea').length, 0); assert.ok(f.parts(dialog).value)
   }
 })
+
+test('sudo card picks a 1Password password like the SSH card; the search box narrows both pickers by title or vault', async t => {
+  const id = n => `op://${'a'.repeat(26)}/${n.repeat(26)}/password`
+  const items = [{ title: 'Mac sudo', vault: '開発工場', reference: id('b') }, { title: 'NAS admin', vault: '家', reference: id('c') }, { title: 'mac mini', vault: '家', reference: id('d') }]
+  const f = fixture(t, async (path, options) => options.method === 'GET' ? { items } : ok())
+  const sudo = f.open({ ...pending, botId: null, terminalId: 'owner-macbook', purpose: 'terminal.sudo', inputOptions: { preferred: 'onepassword', onePasswordAvailable: true } })
+  const p = f.parts(sudo), picker = sudo.querySelectorAll('select')[0], search = sudo.querySelectorAll('input').find(i => i.type === 'search')
+  assert.deepEqual(p.radios.map(r => r.parent.children[1].textContent), ['1Passwordのパスワードから選ぶ', 'パスワードを入力して保存する'])
+  assert.equal(sudo.querySelectorAll('textarea').length, 0); assert.ok(p.value)
+  await turn()
+  assert.deepEqual(f.calls[0], { path: '/api/secret-requests/request-a/onepassword-items', body: undefined })
+  assert.equal(search.hidden, false)
+  assert.equal(picker.children[0].textContent, '3件から選んでください')
+  picker.value = id('d')
+  search.value = 'MAC'; search.handlers.input()
+  assert.deepEqual(picker.children.slice(1).map(o => o.textContent), ['Mac sudo（開発工場）', 'mac mini（家）'])
+  assert.equal(picker.value, id('d'))
+  search.value = '開発'; search.handlers.input()
+  assert.deepEqual(picker.children.slice(1).map(o => o.value), [id('b')]); assert.equal(picker.value, '')
+  search.value = 'zzz'; search.handlers.input()
+  assert.equal(picker.children.length, 1); assert.equal(picker.children[0].textContent, '「zzz」に合うパスワードがありません')
+  p.submit(); assert.equal(p.error.textContent, '1Passwordのパスワードを選んでください。')
+  search.value = ''; search.handlers.input(); picker.value = id('c'); p.submit(); await turn()
+  assert.deepEqual(f.calls.at(-1).body, { source: 'onepassword', reference: id('c') })
+  assert.ok(!f.calls.some(call => JSON.stringify(call).includes('zzz')))
+  const ssh = f.open({ ...pending, botId: null, terminalId: 'owner-macbook', purpose: 'terminal.ssh', inputOptions: { preferred: 'onepassword', onePasswordAvailable: true } })
+  await turn()
+  const sshSearch = ssh.querySelectorAll('input').find(i => i.type === 'search'), sshPicker = ssh.querySelectorAll('select')[0]
+  sshSearch.value = 'nas'; sshSearch.handlers.input()
+  assert.deepEqual(sshPicker.children.slice(1).map(o => o.textContent), ['NAS admin（家）'])
+  f.parts(ssh).radios[1].handlers.change(); assert.equal(sshSearch.hidden, true)
+  const generic = f.open({ ...pending, inputOptions: { preferred: 'onepassword', onePasswordAvailable: true } })
+  assert.equal(generic.querySelectorAll('select').length, 0); assert.ok(!generic.querySelectorAll('input').some(i => i.type === 'search'))
+})

@@ -97,18 +97,18 @@ export function createOnePasswordSource({ command, environment = process.env, ex
     return rows
   }
 
-  // Lists existing SSH Key items only; nothing here creates or edits an item.
-  async function inventory() {
+  // Lists existing items of the given categories only; nothing here creates, edits or reads an item.
+  async function listItems(categories, field) {
     if (closed) throw unavailable()
     try {
       const keys = [], vaults = []
       for (const vault of await listJson(['vault', 'list'])) {
         if (typeof vault?.id !== 'string' || !/^[a-z0-9]{26}$/u.test(vault.id)) continue
         vaults.push(String(vault.name ?? '').slice(0, 200))
-        for (const item of await listJson(['item', 'list', '--vault', vault.id, '--categories', 'SSH Key'])) {
+        for (const item of await listJson(['item', 'list', '--vault', vault.id, '--categories', categories])) {
           if (typeof item?.id !== 'string' || !/^[a-z0-9]{26}$/u.test(item.id)) continue
           keys.push({ title: String(item.title ?? '').slice(0, 200), vault: String(vault.name ?? '').slice(0, 200),
-            reference: validateOnePasswordReference(`op://${vault.id}/${item.id}/${sshKeyField}`) })
+            reference: validateOnePasswordReference(`op://${vault.id}/${item.id}/${field}`) })
         }
       }
       return { vaults: vaults.sort(), keys: keys.sort((a, b) => a.title.localeCompare(b.title) || a.vault.localeCompare(b.vault)) }
@@ -116,7 +116,10 @@ export function createOnePasswordSource({ command, environment = process.env, ex
       throw unavailable()
     }
   }
+  const inventory = () => listItems('SSH Key', sshKeyField)
   const listSshKeys = async () => (await inventory()).keys
+  // Sudo passwords: Login and Password items, read later through their "password" field.
+  const listPasswords = async () => (await listItems('Login,Password', 'password')).keys
 
   async function refresh() {
     if (closed) return false
@@ -165,6 +168,7 @@ export function createOnePasswordSource({ command, environment = process.env, ex
     refresh,
     resolve,
     listSshKeys,
+    listPasswords,
     inventory,
     setToken(reader) { if (typeof reader === 'function') token = reader },
     watch(listener) { events.on('change', listener); return () => events.off('change', listener) },

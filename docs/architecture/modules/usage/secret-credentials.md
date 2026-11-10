@@ -150,6 +150,31 @@ flowchart LR
 
 Vault scope is the Owner's ruling (Trony 2026-11-09): the existing key is imported as an SSH Key item into a vault the service account already reads; access is not widened. Token state: no token → op unavailable → stored input remains (same self-exit: saving the Settings token, or op recovering, flips availability).
 
+### Sudo password picker and picker search (2026-11-10, Owner via Trony)
+
+Owner: 「Sudoも同じインターフェースにしたらいいのに。」「1paに鍵がたくさんある人向けに文字検索機能があった方がいい。」 Public contract unchanged: terminals `POST|DELETE /api/terminals/:id/keys/sudo` -> `credentials.bind` -> `sudoKeyRef`; the items route and its DTO `{items:[{title,vault,reference}]}` are the same for SSH and sudo, so the Apple app reads both with one decoder.
+
+| Component | Change |
+| --- | --- |
+| OnePasswordSource | One private lister walks readable vaults for given categories and a fixed field. `listSshKeys()` is unchanged (`SSH Key`, `private key?ssh-format=openssh`). New `listPasswords()` runs `op item list --vault <id> --categories Login,Password` and returns `[{title,vault,reference}]` with reference `op://<vault id>/<item id>/password`. No item is created or edited; values are never read while listing. `inventory()` (Settings count) is unchanged. |
+| SecretRequests | `onePasswordItems(id)` picks the lister by the pending request's purpose: `terminal.sudo` -> `listPasswords()`, every other purpose -> `listSshKeys()` (unchanged). `terminal.login` stays paste-only and never reaches the picker. |
+| Usage IPC / HTTP | Unchanged method, route, Owner-only rule and result validator. |
+| Web secret card | `terminal.sudo` uses the same picker as `terminal.ssh`: choices 「1Passwordのパスワードから選ぶ」 / 「パスワードを入力して保存する」, same notes pattern, same primary 「登録して続ける」. The value field stays the one-line password input. Both pickers get a search box (`type=search`, label 「名前や保管庫で絞り込む」) above the select; typing rebuilds the options to the items whose title or vault contains the text (case-insensitive). The first option reads 「N件から選んでください」. A selection that no longer matches is cleared; no match shows 「「…」に合う…がありません」. Search text is not secret and is not sent. Full width, usable at 360 px. The secret dialog gets dark-mode colors (same values as the settings sheet tokens), since it sits outside that sheet. |
+
+```mermaid
+flowchart LR
+  Sudo[terminal.sudo card] -->|GET items, Owner only| Requests
+  SSH[terminal.ssh card] -->|GET items, Owner only| Requests
+  Requests -->|purpose terminal.sudo: listPasswords| OP[op on PATH]
+  Requests -->|other purposes: listSshKeys| OP
+  OP -->|title, vault, ids only| Filter[Web search box: title/vault contains text]
+  Filter -->|visible options| Select[select]
+  Select -->|existing submit: source+reference| Requests
+  Requests -->|registerSource / bind sudoKeyRef| Credentials[SecretCredentials]
+```
+
+Failure paths are the existing ones: op unavailable -> 503 -> 「…一覧を読めませんでした」, and the paste/typed input stays available. A Login item without a `password` field fails only at resolution with the fixed SECRET_SOURCE_UNAVAILABLE (same as a deleted SSH item).
+
 ### Settings "1Password連携" token field (2026-11-09, Owner ask, Trony un-hold)
 
 Owner: 「1passwordを使うユーザー向けに、それを入力する欄が必要なんじゃないの？アプリ側に。」 Product bar (Trony): an ordinary 1Password user finishes it from the screen alone, and the token is never shown back.

@@ -52,8 +52,9 @@ export class SecretRequests {
   }
 
   async onePasswordItems(id) {
-    if (this.get(id).status !== 'pending') throw new Error('SECRET_REQUEST_CLOSED')
-    return this.credentials.onePassword.listSshKeys()
+    const { status, purpose } = this.get(id)
+    if (status !== 'pending') throw new Error('SECRET_REQUEST_CLOSED')
+    return purpose === 'terminal.sudo' ? this.credentials.onePassword.listPasswords() : this.credentials.onePassword.listSshKeys()
   }
 
   getPrivate(id) {

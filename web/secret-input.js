@@ -72,12 +72,24 @@ export function openSecretInput(request, api, onComplete) {
   input.setAttribute('aria-label', request.label)
   input.spellcheck = false
   input.autocapitalize = 'none'
-  // An SSH key card picks an existing 1Password SSH Key item by name; other cards keep the typed reference.
-  const picker = multiline
+  // Terminal SSH and sudo cards pick an existing 1Password item by name; other cards keep the typed reference.
+  const picker = multiline || request.purpose === 'terminal.sudo'
+  const noun = multiline ? '鍵' : 'パスワード'
   const reference = document.createElement(picker ? 'select' : 'input')
+  // Narrows a long item list by title or vault; the text is not secret and is never sent.
+  const search = document.createElement('input')
+  search.type = 'search'
+  search.className = 'secret-reference-search'
+  search.placeholder = '名前や保管庫で絞り込む'
+  search.setAttribute('aria-label', `${request.label}の1Password項目を名前や保管庫で絞り込む`)
+  search.autocomplete = 'off'
+  search.setAttribute('data-1p-ignore', '')
+  search.spellcheck = false
+  search.autocapitalize = 'none'
+  search.hidden = true
   if (picker) {
     reference.className = 'secret-reference-picker'
-    reference.append(Object.assign(document.createElement('option'), { value: '', textContent: '1Passwordの鍵を読み込んでいます…', disabled: true, selected: true }))
+    reference.append(Object.assign(document.createElement('option'), { value: '', textContent: `1Passwordの${noun}を読み込んでいます…`, disabled: true, selected: true }))
   } else {
     reference.type = 'text'
     reference.autocomplete = 'off'
@@ -96,7 +108,7 @@ export function openSecretInput(request, api, onComplete) {
     const legend = document.createElement('legend')
     legend.textContent = '入力方法'
     fieldset.append(legend)
-    for (const [value, text] of [['onepassword', picker ? '1Passwordの鍵から選ぶ' : '1Passwordの参照を使う'], ['stored', picker ? '鍵を貼り付けて保存する' : '値をBellTeamへ保存する']]) {
+    for (const [value, text] of [['onepassword', picker ? `1Passwordの${noun}から選ぶ` : '1Passwordの参照を使う'], ['stored', multiline ? '鍵を貼り付けて保存する' : picker ? 'パスワードを入力して保存する' : '値をBellTeamへ保存する']]) {
       const choice = document.createElement('label')
       const radio = radios[value] = document.createElement('input')
       radio.type = 'radio'
@@ -111,17 +123,21 @@ export function openSecretInput(request, api, onComplete) {
     sources.push(fieldset)
   }
   let source = 'stored'
+  let items = null
   function select(next) {
     source = next
     for (const [value, radio] of Object.entries(radios)) radio.checked = value === next
     input.hidden = next !== 'stored'
     reference.hidden = next !== 'onepassword'
+    search.hidden = !(next === 'onepassword' && items?.length)
     if (next === 'stored') reference.value = ''
     else input.value = ''
     note.textContent = next === 'onepassword'
-      ? picker ? '選んだ鍵は、使うときに1Passwordから読み出します。鍵は会話に送られません。' : '参照は会話に送信されません。値は1Passwordから読み出します。'
+      ? picker ? `選んだ${noun}は、使うときに1Passwordから読み出します。${noun}は会話に送られません。` : '参照は会話に送信されません。値は1Passwordから読み出します。'
       : multiline
         ? '秘密鍵（「-----BEGIN OPENSSH PRIVATE KEY-----」で始まる文字）をそのまま貼ってください。1Passwordを使っている場合は、設定の「1Password連携」を済ませると、ここで鍵を一覧から選べます。値は会話に送信されません。'
+        : picker
+          ? 'sudoのパスワードを入力してください。1Passwordを使っている場合は、設定の「1Password連携」を済ませると、ここで一覧から選べます。値は会話に送信されず、BellTeamの利用者領域へ保存します。'
         : request.purpose === 'terminal.login'
           ? 'このMacに鍵を入れるときに1回だけ使い、すぐに消します。保存せず、会話にも送信されません。'
           : '値は会話に送信されません。BellTeamの利用者領域へ保存します。'
@@ -132,19 +148,33 @@ export function openSecretInput(request, api, onComplete) {
   error.setAttribute('role', 'alert')
   if (onePassword && picker) void loadKeys()
   async function loadKeys() {
-    let items
+    let loaded
     try {
-      ({ items } = await api(`/api/secret-requests/${encodeURIComponent(request.id)}/onepassword-items`, {
+      ({ items: loaded } = await api(`/api/secret-requests/${encodeURIComponent(request.id)}/onepassword-items`, {
         method: 'GET', redirect: 'error', cache: 'no-store', credentials: 'same-origin' }))
-    } catch { items = null }
+    } catch { loaded = null }
+    items = Array.isArray(loaded) ? loaded : null
     const placeholder = reference.children[0]
-    if (!Array.isArray(items)) placeholder.textContent = '1Passwordの鍵一覧を読めませんでした。閉じて開き直してください。'
-    else if (!items.length) placeholder.textContent = '1Passwordで読めるSSH鍵がありません。'
-    else placeholder.textContent = '鍵を選んでください'
-    for (const item of items ?? []) {
+    if (!items) placeholder.textContent = `1Passwordの${noun}一覧を読めませんでした。閉じて開き直してください。`
+    else if (!items.length) placeholder.textContent = multiline ? '1Passwordで読めるSSH鍵がありません。' : '1Passwordで読めるパスワードがありません。'
+    search.hidden = reference.hidden || !items?.length
+    filter()
+  }
+  // Rebuilds the options instead of hiding them: iOS Safari ignores hidden on <option>.
+  function filter() {
+    if (!items?.length) return
+    const query = search.value.trim().toLocaleLowerCase()
+    const shown = items.filter(item => !query || `${item.title}\n${item.vault}`.toLocaleLowerCase().includes(query))
+    const chosen = reference.value
+    const placeholder = reference.children[0]
+    reference.replaceChildren(placeholder)
+    placeholder.textContent = shown.length ? `${shown.length}件から選んでください` : `「${search.value.trim()}」に合う${noun}がありません`
+    for (const item of shown) {
       reference.append(Object.assign(document.createElement('option'), { value: item.reference, textContent: item.vault ? `${item.title}（${item.vault}）` : item.title }))
     }
+    reference.value = shown.some(item => item.reference === chosen) ? chosen : ''
   }
+  search.addEventListener('input', filter)
   const submit = document.createElement('button')
   submit.type = 'submit'
   submit.textContent = '登録して続ける'
@@ -158,7 +188,7 @@ export function openSecretInput(request, api, onComplete) {
   const actions = document.createElement('div')
   actions.className = 'secret-actions'
   actions.append(submit, decline, close)
-  form.append(title, message, renderOwnerGuide(request), ...sources, note, input, ...(onePassword ? [reference] : []), error, actions)
+  form.append(title, message, renderOwnerGuide(request), ...sources, note, input, ...(onePassword ? picker ? [search, reference] : [reference] : []), error, actions)
   dialog.append(form)
   document.body.append(dialog)
   const clearWhenHidden = () => { if (document.hidden) input.value = reference.value = '' }
@@ -181,7 +211,7 @@ export function openSecretInput(request, api, onComplete) {
       return
     }
     if (action === 'submit' && source === 'onepassword' && !reference.value.trim().startsWith('op://')) {
-      error.textContent = picker ? '1Passwordの鍵を選んでください。' : '1Passwordの参照（op://で始まる）を入力してください。'
+      error.textContent = picker ? `1Passwordの${noun}を選んでください。` : '1Passwordの参照（op://で始まる）を入力してください。'
       return
     }
     sending = true

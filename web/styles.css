@@ -409,6 +409,7 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .secret-dialog h2 { font-size: 20px; }
 .secret-dialog textarea.secret-multiline { box-sizing: border-box; width: 100%; padding: 14px; border: 1px solid #cec5e8; border-radius: 12px; background: #faf8ff; color: #29263b; font: 13px/1.5 ui-monospace, monospace; resize: vertical; -webkit-text-security: disc; }
 .secret-dialog input, .secret-dialog select { box-sizing: border-box; width: 100%; padding: 14px; border: 1px solid #cec5e8; border-radius: 12px; background: #faf8ff; color: #29263b; font-size: 16px; }
+.secret-dialog input.secret-reference-search { margin-bottom: 8px; -webkit-appearance: none; appearance: none; }
 .secret-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .secret-actions button[type=submit] { background: #6851c4; color: #fff; }
 .secret-error { color: #b42336; font-size: 13px; }
@@ -894,6 +895,16 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .secret-sources legend { margin-bottom: 4px; font-size: 13px; color: #676076; }
 .secret-sources label { display: flex; align-items: center; gap: 8px; }
 .secret-dialog .secret-sources input { width: auto; padding: 0; accent-color: #6851c4; }
+/* The secret card dialog sits outside the settings sheets, so it takes the same dark values directly. */
+@media (prefers-color-scheme: dark) {
+  .secret-dialog { background: #1c1b22; color: #ecebf2; color-scheme: dark; }
+  .secret-dialog input, .secret-dialog select, .secret-dialog textarea.secret-multiline { border-color: #302e39; background: #15141a; color: #ecebf2; }
+  .secret-dialog .secret-note, .secret-dialog .secret-sources legend { color: #a29fae; }
+  .secret-dialog .secret-sources input { accent-color: #b4a5ff; }
+  .secret-dialog .secret-actions button { background: #2c2647; color: #b4a5ff; }
+  .secret-dialog .secret-actions button[type=submit] { background: #b4a5ff; color: #15121f; }
+  .secret-dialog .secret-error { color: #ff8f7c; }
+}
 
 /* Terminals sheet (F-SEAT-HOST P2): cards with status badges, same tokens as settings. */
 #terminals-dialog .sheet-header { background: var(--s-surface); border-color: var(--s-line); }

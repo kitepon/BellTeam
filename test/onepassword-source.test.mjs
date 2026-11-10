@@ -149,3 +149,16 @@ test('token reaches op only through per-call env; SSH Key items become openssh r
   source.setToken(async () => { throw new Error('ops_private') })
   await assert.rejects(source.listSshKeys(), error => error.code === 'SECRET_SOURCE_UNAVAILABLE' && !error.message.includes('ops_'))
 })
+
+test('sudo passwords list Login and Password items as password-field references', async t => {
+  const calls = []
+  const item = 'd'.repeat(26)
+  const source = createOnePasswordSource({ command: process.execPath, environment: { PATH: '/usr/local/bin' }, autoRetry: false, execute: async (_command, args) => {
+    calls.push(args)
+    if (args[0] === 'vault') return { stdout: Buffer.from(JSON.stringify([{ id: vault, name: '開発工場' }])) }
+    return { stdout: Buffer.from(JSON.stringify([{ id: item, title: 'Mac sudo' }])) }
+  } })
+  t.after(() => source.close())
+  assert.deepEqual(await source.listPasswords(), [{ title: 'Mac sudo', vault: '開発工場', reference: `op://${vault}/${item}/password` }])
+  assert.deepEqual(calls[1], ['item', 'list', '--vault', vault, '--categories', 'Login,Password', '--format', 'json'])
+})
