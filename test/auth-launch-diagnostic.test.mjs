@@ -70,3 +70,28 @@ test('文章や不完全なNative結果から認証原因や未発行を推測�
     assert.equal(f.calls(), 1)
   }
 })
+
+test('Aiterm >= 0.70.0: the launch refusal in _meta sets the code, the closed refusal and, for auth, the preflight', async () => {
+  const meta = (code, phase, effect) => ({ schema: 'aiterm.agent-launch-error.v1', harness: 'claude-code', code, phase, effect,
+    session_created: false, action: '端末に作業フォルダがありません。' })
+  const call = async value => {
+    const client = new AitermClient()
+    client.client = { async callTool() { return { isError: true, content: [{ type: 'text', text: 'aiterm: X: synthetic' }],
+      _meta: { 'aiterm/launch_error': value } } } }
+    return client.call('agent_launch').catch(e => e)
+  }
+  const cwd = await call(meta('CWD_UNAVAILABLE', 'terminal', 'not_started'))
+  assert.equal(cwd.code, 'CWD_UNAVAILABLE')
+  assert.deepEqual(cwd.launchRefusal, meta('CWD_UNAVAILABLE', 'terminal', 'not_started'))
+  assert.equal(cwd.agentLaunchError, undefined)
+  const auth = await call(meta(codes[0], 'authentication_preflight', 'not_issued'))
+  assert.equal(auth.code, codes[0])
+  assert.deepEqual(auth.agentLaunchError, detail(codes[0]))
+  for (const bad of [{ ...meta('CWD_UNAVAILABLE', 'terminal', 'not_started'), session_created: true },
+    { ...meta('CWD_UNAVAILABLE', 'terminal', 'not_started'), action: 'x'.repeat(501) },
+    { ...meta('CWD_UNAVAILABLE', 'terminal', 'not_started'), action: 'a\nb' }, { ...meta('cwd', 'terminal', 'not_started') }]) {
+    const error = await call(bad)
+    assert.equal(error.launchRefusal, undefined)
+    assert.equal(error.code, undefined)
+  }
+})

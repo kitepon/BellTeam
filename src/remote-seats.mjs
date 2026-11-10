@@ -2,11 +2,11 @@
 // member record names a terminal launches through the same Aiterm agent_launch with terminals' target and its projectRoot;
 // every later call is the same session call as a local seat. This module only adds the launch inputs, the asleep-terminal
 // queue edge, the seat credential and C7 (Throughline) for the transcript that stays on the terminal.
-import { authenticationPreflightCodes, authenticationPreflightFailure } from './agent-launch-error.mjs'
+import { authenticationPreflightCodes, authenticationPreflightFailure, launchRefusal } from './agent-launch-error.mjs'
 
 // Terminal and credential unavailability keeps the saved message queued (Owner 2026-11-09 13:38). Each code has an exit:
 // terminals' observer (connectivity) or its registry-change edge (target/trust revision). A missing folder or a too old
-// Aiterm on the terminal has no observable exit, so it stays a visible delivery failure.
+// Aiterm on the terminal stays a visible delivery failure unless Aiterm's launch refusal proves nothing started (below).
 const REACHABILITY = new Set(['TERMINAL_UNAVAILABLE', 'CREDENTIAL_UNAVAILABLE', 'UNREACHABLE', 'HOST_TRUST_STALE', 'SEAT_FORWARD_UNAVAILABLE',
   'TERMINAL_TARGET_CHANGED'])
 const NOT_STARTED = new Set([...REACHABILITY, 'TARGET_MISMATCH', 'HOST_KEY_MISMATCH', 'TERMINAL_NOT_FOUND',
@@ -18,16 +18,19 @@ const authNotReady = error => {
   const preflight = authenticationPreflightFailure(error?.agentLaunchError)
   return preflight !== null && preflight.code === error.code
 }
+// Aiterm >= 0.70.0: any other launch it refused before a seat existed (e.g. CWD_UNAVAILABLE, REMOTE_AITERM_TOO_OLD), with its
+// fixed plain action. Same exit as auth (common rule guards.give-up-is-a-guard): the member's next drain after the Owner's fix.
+const refused = error => { const value = launchRefusal(error?.launchRefusal); return value !== null && value.code === error.code ? value : null }
 // The Owner's plain next step for a terminal whose claude is not logged in (Trony's wording).
 export const LOGIN_ACTION = 'Macのclaudeにログインが必要'
 export const notStarted = error => {
-  if (NOT_STARTED.has(error?.code) || reachability(error?.code) || authNotReady(error)) try { error.effect = 'not_started' } catch {}
+  if (NOT_STARTED.has(error?.code) || reachability(error?.code) || authNotReady(error) || refused(error)) try { error.effect = 'not_started' } catch {}
   return error
 }
 // remote-seat.md "Remote-seat not-started proof": the durable receipt requeues the same ID only on this delivery-bound field.
 export const remoteSeatNotStarted = (bot, deliveryId, error) =>
   isRemoteBot(bot) && typeof deliveryId === 'string' && deliveryId && error?.effect === 'not_started'
-    && (NOT_STARTED.has(error.code) || reachability(error.code) || authenticationPreflightCodes.includes(error.code))
+    && (NOT_STARTED.has(error.code) || reachability(error.code) || authenticationPreflightCodes.includes(error.code) || refused(error))
     ? { schema: 'bellteam.remote-seat-not-started.v1', code: error.code, deliveryId, botId: bot.id, terminalId: bot.terminalId } : null
 
 // Throughline's public CLI runs on the server as the seat user (Rivalin remote-ingest.md, Throughline >= 0.17.0). The seat
@@ -198,6 +201,8 @@ export class RemoteSeats {
   // terminals' non-AI observer, whose reachable event drains the same IDs.
   launchFailed(bot, error) {
     if (authNotReady(error)) { notStarted(error); this.notice(bot, { code: error.code, action: LOGIN_ACTION }); return }
+    const refusal = refused(error)
+    if (refusal) { notStarted(error); this.notice(bot, refusal); return }
     // Aiterm >= 0.70.1: a logged-out claude stops at its first screen in a created session. Information only: a session
     // exists on the terminal, so this stays today's visible failure; the notice says what the Owner must do.
     const startup = error?.launch?.schema === 'aiterm.agent-launch-result.v1' ? error.launch.startup : null
