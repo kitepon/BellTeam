@@ -13,13 +13,19 @@ export function authenticationPreflightFailure(value) {
     phase: value.phase, effect: value.effect, session_created: false }
 }
 
+// Aiterm >= 0.70.5 R19: a refused call's leading symbolic code (reason only, never the effect), so callers need not parse text.
+export const ERROR_CODE_META = 'aiterm/error_code'
+export function errorCode(value) {
+  return value?.schema === 'aiterm.error-code.v1' && typeof value.code === 'string' && /^[A-Z][A-Z0-9_]{2,63}$/u.test(value.code) ? value.code : null
+}
+
 // Aiterm >= 0.70.0 (c493df6, Elegg): a launch refused before any seat exists carries this in result._meta (in _meta because
 // the SDK validates structuredContent even on isError). Codes that may have started get none, so its shape is the proof.
 export const LAUNCH_ERROR_META = 'aiterm/launch_error'
 export function launchRefusal(value) {
   if (value?.schema !== 'aiterm.agent-launch-error.v1' || typeof value.harness !== 'string' || !/^[a-z][a-z0-9-]{0,63}$/u.test(value.harness)
     || typeof value.code !== 'string' || !/^[A-Z][A-Z0-9_]{0,63}$/u.test(value.code)
-    || !['terminal', 'authentication_preflight'].includes(value.phase) || !['not_started', 'not_issued'].includes(value.effect)
+    || !['terminal', 'native_create', 'authentication_preflight'].includes(value.phase) || !['not_started', 'not_issued'].includes(value.effect)
     || value.session_created !== false || typeof value.action !== 'string' || !value.action.trim() || value.action.length > 500
     || /[\u0000-\u001f\u007f]/u.test(value.action)) return null
   return { schema: value.schema, harness: value.harness, code: value.code, phase: value.phase, effect: value.effect,
