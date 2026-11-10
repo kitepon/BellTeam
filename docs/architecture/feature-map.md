@@ -79,7 +79,6 @@ flowchart LR
   m_runtime -->|"members-admission"| m_execution
   m_runtime -->|"runtime-artifact"| m_distribution
   m_terminals -->|"settings"| m_usage
-  m_terminals -->|"remote-seat-port"| m_integration
   m_usage -->|"registry"| m_members
   m_usage -->|"messages"| m_conversation
   m_usage -->|"cli-registration"| m_runtime
