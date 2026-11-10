@@ -109,3 +109,33 @@ test('the Owner is never a fork target, and the tool carries no image input', as
     ['list_messages', 'list_rooms', 'get_room', 'list_queued_messages', 'list_room_messages'], 'only read tools are listed to fork seats')
   assert.match(tool.description, /読み取り専用/); assert.match(tool.description, /中断されず/); assert.match(tool.description, /sendmessage/)
 })
+
+test('ask_readonly from a fork seat waits and returns the answer as its result, with no relay to main', async t => {
+  let callbacks, envelope
+  const { messenger, notified, rows } = await setup(t, async (bot, text, options) => {
+    envelope = text; callbacks = options
+    setTimeout(() => callbacks.onAnswer('X is Y.'), 10)
+    return { delivery: 'running' }
+  })
+  const result = await messenger.askReadonly({ from: asker.id, target: owner.id, message: 'What is X?', askerSeat: { kind: 'fork', forkId: 'f-asker' } })
+  assert.deepEqual(result, { delivery: 'answered', answer: 'X is Y.', delivery_id: 'id-2', fork_id: 'id-1', from: asker.id, target: owner.id, seat: 'fork' })
+  assert.match(envelope, /「Asker（分身）」からあなたへ/)
+  await settle()
+  assert.equal(notified.length, 0, 'the asking fork gets the answer itself; main is not notified')
+  const inquiry = (await rows()).find(row => row.delivery_id === 'id-2' && row.schema === 'bellteam.direct-message.v1')
+  assert.deepEqual(inquiry.from_seat, { kind: 'fork', fork_id: 'f-asker' })
+
+  const failing = await setup(t, async (bot, text, options) => { setTimeout(() => options.onStatus('failed', { code: 'BOOM' }), 10); return { delivery: 'running' } })
+  const failed = await failing.messenger.askReadonly({ from: asker.id, target: owner.id, message: 'Q', askerSeat: { kind: 'fork', forkId: 'f-asker' } })
+  assert.equal(failed.answer, 'FORK_FAILED: BOOM')
+})
+
+test('sendmessage from a fork seat keeps its receipt and labels the record and envelope as the fork', async t => {
+  const { messenger, notified, rows } = await setup(t, async () => ({ delivery: 'running' }))
+  const receipt = await messenger.sendmessage({ from: asker.id, target: owner.id, message: 'please', askerSeat: { kind: 'fork', forkId: 'f-asker' } })
+  assert.deepEqual([receipt.delivery, receipt.from, receipt.target], ['running', asker.id, owner.id])
+  assert.match(notified[0].text, /「Asker（分身）」からあなたへ/)
+  const row = (await rows()).find(item => item.schema === 'bellteam.direct-message.v1')
+  assert.deepEqual(row.from_seat, { kind: 'fork', fork_id: 'f-asker' })
+  assert.equal(row.seat, undefined)
+})

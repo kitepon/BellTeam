@@ -13,6 +13,10 @@ export function directEnvelope(from, message, { fork = false } = {}) {
   return `「${name}${fork ? '（分身）' : ''}」からあなたへ次のメッセージが届いています。\n\n${message}`
 }
 
+function forkSeatLabel(seat) {
+  return seat?.kind === 'fork' && typeof seat.forkId === 'string' && seat.forkId ? { kind: 'fork', fork_id: seat.forkId } : null
+}
+
 export function userEnvelope(from, message) {
   return directEnvelope(from, message)
 }
@@ -32,8 +36,10 @@ export class BellTeamMessenger extends ConversationWriter {
   }
 
   // Botの送信（MCP）は画像1枚の `image`、ユーザーの送信は複数枚の `images` で渡す。
-  async sendmessage({ executionSource, ...input }, options = {}) {
-    const prepared = await this.prepareDirect(input, options)
+  // askerSeat は seat MCP が解決した分身の席だけが付ける（道具の引数からは来ない）。
+  async sendmessage({ executionSource, askerSeat, ...input }, options = {}) {
+    const fromSeat = forkSeatLabel(askerSeat)
+    const prepared = await this.prepareDirect(input, options, fromSeat ? { from_seat: fromSeat } : null)
     if (prepared.userTurn) return this.enqueueUserTurn(prepared.userTurn)
     return this.notifyDirect(prepared, { ...options, executionSource })
   }
@@ -73,7 +79,7 @@ export class BellTeamMessenger extends ConversationWriter {
     if (bot) {
       try { check() }
       catch (error) { await this.appendDeliveryStatus(deliveryId, 'stopped'); throw error }
-      delivery = await this.transport.notify(bot, directEnvelope(memberIdentity(this.bots, from), message, { fork: label?.seat?.kind === 'fork' }), {
+      delivery = await this.transport.notify(bot, directEnvelope(memberIdentity(this.bots, from), message, { fork: label?.seat?.kind === 'fork' || label?.from_seat?.kind === 'fork' }), {
         ...(admissionCheck ? { admissionCheck: () => { check(); admissionCheck() } } : {}),
         ...(membersLease === undefined ? {} : { membersLease }),
         ...(executionSource ? { executionSource } : {}),
@@ -89,21 +95,25 @@ export class BellTeamMessenger extends ConversationWriter {
   }
 
   // 読み取り専用の問い合わせ。宛先の本体の列には入れず、実行担当の分身へ渡す。受付をすぐ返し、回答は質問者へメッセージで届ける。
-  async askReadonly({ from, target, message, executionSource }) {
+  // 質問者が分身の時は、分身は後から届くメッセージを受け取れないので、回答を待って道具の結果で返す。
+  async askReadonly({ from, target, message, executionSource, askerSeat }) {
     if (target === 'user') throw new Error('FORK_TARGET_USER')
     const forkId = this.deliveryId()
     const seat = { kind: 'fork', fork_id: forkId }
-    const prepared = await this.prepareDirect({ from, target, message }, {}, { seat })
+    const fromSeat = forkSeatLabel(askerSeat)
+    const prepared = await this.prepareDirect({ from, target, message }, {}, { seat, ...(fromSeat ? { from_seat: fromSeat } : {}) })
     const { check, bot, deliveryId } = prepared
     try { check() }
     catch (error) { await this.appendDeliveryStatus(deliveryId, 'stopped'); throw error }
     const acceptance = Promise.withResolvers()
+    const answered = Promise.withResolvers()
     let relayed = false
     // 回答か失敗のどちらかを一通だけ質問者へ返す。受付前の失敗は道具のエラーとして返すので中継しない。
     // 受付の確定を待つので、実行側のcallbackからは待たずに呼ぶ。
     const relay = text => {
       if (relayed) return
       relayed = true
+      if (fromSeat) return answered.resolve(text)
       acceptance.promise
         .then(accepted => accepted && this.relayForkAnswer({ from: bot.id, target: from, message: text, forkId, deliveryId }))
         .catch(error => process.stderr.write(`BellTeam fork relay error: ${error.stack ?? error.message}\n`))
@@ -114,7 +124,7 @@ export class BellTeamMessenger extends ConversationWriter {
     const onInterim = words => this.appendInterimWords(bot.id, deliveryId, words, { seat })
     const onAnswer = text => this.appendInterimWords(bot.id, deliveryId, [{ text, kind: 'answer' }], { seat })
     try {
-      const result = await this.transport.forkInquiry(bot, directEnvelope(memberIdentity(this.bots, from), message), {
+      const result = await this.transport.forkInquiry(bot, directEnvelope(memberIdentity(this.bots, from), message, { fork: Boolean(fromSeat) }), {
         forkId, deliveryId, ...(executionSource ? { executionSource } : {}),
         onInterim,
         onStatus: async (status, error, tracking) => {
@@ -125,7 +135,9 @@ export class BellTeamMessenger extends ConversationWriter {
         onTurnEnd: () => relay('FORK_FAILED: NO_ANSWER'),
       })
       acceptance.resolve(true)
-      return { delivery: result?.delivery ?? 'running', delivery_id: deliveryId, fork_id: forkId, from, target: bot.id, seat: 'fork' }
+      const receipt = { delivery_id: deliveryId, fork_id: forkId, from, target: bot.id, seat: 'fork' }
+      if (fromSeat) return { delivery: 'answered', answer: await answered.promise, ...receipt }
+      return { delivery: result?.delivery ?? 'running', ...receipt }
     } catch (error) {
       acceptance.resolve(false)
       await this.appendDeliveryStatus(deliveryId, ['BOT_STOPPED', 'AI_GLOBAL_PAUSED'].includes(error.code) ? 'stopped' : 'failed', error)
