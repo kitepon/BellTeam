@@ -75,7 +75,7 @@ def authenticate(archive, bundle, trusted, policy, expectation, *, component='we
     verify_signature(archive, bundle, trusted, policy, source=expectation['sourceCommit'], signer=expectation['signerCommit'])
     arch = {'x86_64': 'amd64', 'aarch64': 'arm64'}.get(platform.machine())
     require(platform.system() == 'Linux' and arch is not None, 'GATEWAY_PLATFORM_INVALID')
-    manifest, manifest_sha = check_archive(archive, expectation['sourceCommit'], arch, component=component)
+    state = None
     if component in ('memory', 'usage', 'diagnostics', 'execution', 'work-graph'):
         # Read trusted image code, never code from the supplied archive.
         module, exported = {
@@ -85,10 +85,15 @@ def authenticate(archive, bundle, trusted, policy, expectation, *, component='we
             'work-graph': ('work-graph-protocol', 'WORK_GRAPH_STATE_COMPATIBILITY'),
             'execution': ('execution-dispatcher', 'EXECUTION_STATE_COMPATIBILITY'),
         }[component]
-        actual = json.loads(subprocess.check_output(['/usr/local/bin/node', '--input-type=module', '-e',
+        state = json.loads(subprocess.check_output(['/usr/local/bin/node', '--input-type=module', '-e',
             f'import {{ {exported} as s }} from "/app/src/{module}.mjs"; console.log(JSON.stringify(s))'],
             env={'PATH': '/usr/bin:/bin'}, text=True))
-        require(manifest['runtime']['stateCompatibility'] == actual, component.upper().replace('-', '_') + '_IMAGE_STATE_INCOMPATIBLE')
+    # The trusted image JS export is the one state truth; the archive's manifest must equal it exactly.
+    try: manifest, manifest_sha = check_archive(archive, expectation['sourceCommit'], arch, component=component, state=state)
+    except ValueError as error:
+        if state is not None and str(error) in ('MODULE_STATE_INVALID', 'MODULE_STATE_INCOMPATIBLE'):
+            raise ValueError(component.upper().replace('-', '_') + '_IMAGE_STATE_INCOMPATIBLE') from error
+        raise
     return dict(schema=f'bellteam.{component}.verification.v1', archiveSha256=digest,
         manifestSha256=manifest_sha, manifest=manifest,
         verification=dict(method='github-oidc-attestation', repositoryId=policy['repositoryId']))

@@ -100,3 +100,17 @@ Centi consent extends the usage source contract to `stored-or-private-reference-
 ## 1Password settings feature in BUSINESS_STATE
 
 The usage export's `settingsFeatures` gained `onePassword` (9f4352e7, Settings 1Password連携), but BUSINESS_STATE['usage'] was not changed with it, so `test/business-artifact.test.py` (the first step of publish-usage.yml) and the packager's MODULE_SOURCE_STATE_INCOMPATIBLE check refused every usage archive from a body that carries it. BUSINESS_STATE['usage'] now lists the same seven features. Bodies whose usage export has seven features read only a seven-feature usage row as compatible; the published six-feature row stays `incompatible` for them. No state file, migration or catalog validator changes.
+
+## Install verification reads one state truth (Mika, 22737f56 usage install)
+
+Cause: production usage install on body 22737f56 (Trony op 7a01dc5f) failed in `verifying` as HOST_UPDATE_EXECUTION_FAILED. Plan/preflight judged the target against the image JS export (`USAGE_STATE_COMPATIBILITY`, which had `onePassword`), but install verification judged the same manifest against the Python literal BUSINESS_STATE['usage'] (which did not), so plan said compatible while install could never pass.
+
+Data flow after this change (install side only):
+
+| Step | Reads state from | Contract |
+|---|---|---|
+| `module_artifact_verifier.authenticate` (memory/usage/diagnostics/execution/work-graph) | trusted image `/app/src/<module>.mjs` export, read **before** the archive | `check_archive(..., state=export)`; the manifest's `runtime.stateCompatibility` must equal it exactly; mismatch or bad form -> `<COMPONENT>_IMAGE_STATE_INCOMPATIBLE` |
+| `install-web-gateway-release.extract` (same five) | the verifier receipt's manifest state (already matched to the export) | `validate_manifest(..., state=verified)`; never the Python literal |
+| `container-update-host.execute_module_installer` | installer exit + last stderr line | non-zero exit -> `Failure(<installer code>)` (e.g. `USAGE_INSTALL_FAILED`), else `HOST_MODULE_INSTALL_FAILED`; no longer the generic HOST_UPDATE_EXECUTION_FAILED |
+
+`validate_manifest` with an explicit `state` now raises `MODULE_STATE_INCOMPATIBLE` on inequality. Members/conversation keep their contract() literals (no JS check at install). Packaging keeps the publish-time literal == source export check (MODULE_SOURCE_STATE_INCOMPATIBLE): a stale literal now fails loudly at publish, never silently at production install. No state file, catalog, migration or privilege changes.

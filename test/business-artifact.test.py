@@ -91,13 +91,18 @@ class BusinessArtifacts(unittest.TestCase):
             archive, manifest, _ = self.artifact(component)
             expected = dict(archiveSha256=hashlib.sha256(archive.read_bytes()).hexdigest(), sourceCommit='a' * 40, signerCommit='a' * 40)
             def output(command, **options):
-                return '26\n' if '-p' in command else json.dumps(BUSINESS_STATE[component])
+                return '26\n' if '-p' in command else json.dumps(manifest['runtime']['stateCompatibility'])
             with archive.open('rb') as a, archive.open('rb') as b, archive.open('rb') as t, patch.object(verifier, 'verify_signature') as signature, patch.object(verifier.subprocess, 'check_output', side_effect=output):
                 self.assertEqual(verifier.authenticate(a, b, t, verifier.policy_for(component), expected, component=component)['manifest'], manifest)
                 signature.assert_called_once()
             with archive.open('rb') as a, archive.open('rb') as b, archive.open('rb') as t, patch.object(verifier, 'verify_signature'), patch.object(verifier.subprocess, 'check_output', side_effect=['26\n', '{}']):
-                with self.assertRaisesRegex(ValueError, 'IMAGE_STATE_INCOMPATIBLE'):
+                with self.assertRaises(ValueError):
                     verifier.authenticate(a, b, t, verifier.policy_for(component), expected, component=component)
+            # A stale Python literal must not refuse an archive that matches the trusted image JS export (Mika, 22737f56 usage install).
+            stale = {component: {'stale': 'literal'}}
+            with archive.open('rb') as a, archive.open('rb') as b, archive.open('rb') as t, patch.object(verifier, 'verify_signature'), \
+                    patch.object(verifier.subprocess, 'check_output', side_effect=output), patch.dict(BUSINESS_STATE, stale):
+                self.assertEqual(verifier.authenticate(a, b, t, verifier.policy_for(component), expected, component=component)['manifest'], manifest)
 
     def test_unknown_component_cannot_select_signer(self):
         with self.assertRaises(ValueError): verifier.policy_for('arbitrary')

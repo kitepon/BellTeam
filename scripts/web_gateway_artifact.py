@@ -295,7 +295,8 @@ def validate_manifest(value, source=None, arch=None, *, component='web-gateway',
     require(value['entry'] == entry)
     runtime = value['runtime']
     require(type(runtime) is dict and set(runtime) == {*fixed_runtime, 'arch', *(['stateCompatibility'] if component == 'memory' else [])})
-    if component == 'memory': require(runtime['stateCompatibility'] == state) if state is not None else validate_memory_state(runtime['stateCompatibility'])
+    if component == 'memory': require(runtime['stateCompatibility'] == state, 'MODULE_STATE_INCOMPATIBLE') if state is not None else validate_memory_state(runtime['stateCompatibility'])
+    elif state is not None: require(runtime['stateCompatibility'] == state, 'MODULE_STATE_INCOMPATIBLE')
     require(runtime['arch'] in ['amd64', 'arm64'] and all(type(runtime[key]) is type(wanted)
             and runtime[key] == wanted for key, wanted in fixed_runtime.items()))
     require(arch is None or runtime['arch'] == arch, 'GATEWAY_ARCH_MISMATCH')
