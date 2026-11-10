@@ -15,6 +15,7 @@ export const bellTeamTools = Object.freeze([
     name: 'list_models',
     description: 'BellTeam内蔵のCLIが今返すモデルとエフォートをAitermから取得する。harness省略時は4種すべて。取得に失敗したCLIはerrorに理由を返す。AIのターンは起こさない。',
     inputSchema: objectSchema({ harness: { type: 'string', enum: ['claude', 'codex', 'grok', 'cursor', 'antigravity'] } }),
+    annotations: { readOnlyHint: true },
   },
   ...usageTools(objectSchema),
   ...memberReadTools,
@@ -35,6 +36,7 @@ export const bellTeamTools = Object.freeze([
       query: { type: 'string', minLength: 1 },
       scope: { type: 'string', enum: ['personal', 'shared'] },
     }, ['query']),
+    annotations: { readOnlyHint: true },
   },
   {
     name: 'revise_memory',
@@ -85,6 +87,7 @@ export const bellTeamTools = Object.freeze([
       query: { type: 'string', minLength: 1 },
       scope: { type: 'string', enum: ['personal', 'shared'] },
     }, ['query']),
+    annotations: { readOnlyHint: true },
   },
   {
     name: 'restart_session',
@@ -140,7 +143,7 @@ export async function callBellTeamTool({ internalUrl = '', ...context }) {
 }
 
 async function runBellTeamTool(context) {
-  const { name, arguments: args = {}, from, registry, botView = bot => bot, bugHubSecurity, messenger, store, rooms, roomMessenger, memory, ownerProfile, userRules, deliverMessage, deliverRoomMessage, listQueued, restart, remove, configure, getModels } = context
+  const { name, arguments: args = {}, from, registry, botView = bot => bot, bugHubSecurity, messenger, store, rooms, roomMessenger, memory, ownerProfile, userRules, deliverMessage, deliverForkInquiry, deliverRoomMessage, listQueued, restart, remove, configure, getModels } = context
   const tool = bellTeamTools.find(item => item.name === name)
   if (!tool) throw new Error(`TOOL_NOT_FOUND: ${name}`)
   assertKeys(args, Object.keys(tool.inputSchema.properties))
@@ -165,7 +168,7 @@ async function runBellTeamTool(context) {
   if (Object.hasOwn(scheduleToolHandlers, name)) return scheduleToolHandlers[name]({ registry, rooms, from, args })
   if (Object.hasOwn(usageToolHandlers, name)) return usageToolHandlers[name]({ ...context, args })
   if (conversationTools.some(tool => tool.name === name))
-    return callConversationTool({ name, args, from, registry, messenger, store, rooms, roomMessenger, deliverMessage, deliverRoomMessage, listQueued })
+    return callConversationTool({ name, args, from, registry, messenger, store, rooms, roomMessenger, deliverMessage, deliverForkInquiry, deliverRoomMessage, listQueued })
   if (name === 'remember') return withMemoryLengthNotice(await memory.remember({ botId: from, ...args, sourceRef: 'mcp' }), args.content)
   if (name === 'recall_memory') return memory.recallMemory({ botId: from, ...args })
   if (name === 'revise_memory') return withMemoryLengthNotice(await memory.reviseMemory({ botId: from, ...args }), args.content)

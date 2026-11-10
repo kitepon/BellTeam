@@ -67,7 +67,9 @@ export function createWorkGraphEffects({ bots, transport, messagePage }) {
     if (method === 'queue.read') return { items: (await transport.queueItems({})).map(item => ({ status: text(item.status), context: text(item.context),
       contextId: textOrNull(item.contextId), groupId: textOrNull(item.groupId), from: textOrNull(item.from), target: textOrNull(item.target),
       // Kiro's once-per-request Japanese summary; the raw body never leaves the parent.
-      requestSummary: textOrNull(item.requestSummary), image: Boolean(item.image), steered: item.steered === true, startedAt: item.startedAt ?? null })) }
+      requestSummary: textOrNull(item.requestSummary), image: Boolean(item.image), steered: item.steered === true, startedAt: item.startedAt ?? null,
+      // Execution's label for a running read-only fork (work-graph W4); absent = main seat.
+      ...(item.seat ? { seat: { kind: text(item.seat.kind), forkId: textOrNull(item.seat.forkId) } } : {}) })) }
     if (method === 'room.messages') {
       const page = await messagePage('rooms', params.roomId, new URL('http://work-graph.local/?limit=50'))
       return { items: (page?.items ?? []).map(item => ({ id: text(item.id), routing: item.routing && Array.isArray(item.routing.responders)

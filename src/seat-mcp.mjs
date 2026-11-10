@@ -26,8 +26,10 @@ const INSTRUCTIONS = 'BellTeamのBot、プロフィール、アバター、予�
 
 // Bot ids the seat name can speak for: the name itself, then for an account seat
 // (`<botId>-<1st|2nd>-<base36>`, execution harness-accounts ACCOUNT_SLOTS) the Bot id before that suffix.
+// A fork session name (`<mainSession>-fork-<12hex>`) never speaks by name; only execution's forkSeat registry
+// or a fork credential makes it a seat (remote-seat-ingress.md SK02).
 export function seatCandidates(value) {
-  if (typeof value !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/u.test(value)) return []
+  if (typeof value !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/u.test(value) || value.includes('-fork-')) return []
   const account = /^(.+)-(?:1st|2nd)-[a-z0-9]+$/u.exec(value)?.[1]
   return account ? [value, account] : [value]
 }
@@ -66,11 +68,13 @@ export function createRemoteSeatIngress({ credentials, bots, seatMcp }) {
     delete request.headers[seatKey]
     if (!binding) return reply(response, 400, { error: 'BELLTEAM_SEAT_UNRESOLVED' })
     request.headers[seatKey] = binding.sessionName
+    const path = url.pathname === REMOTE_SEAT_MCP_PATH ? BELLTEAM_MCP_PATH : CALL_BRIDGE_MCP_PATH
+    // SK03: a fork credential names its Bot; the fork name itself never resolves (SK02).
+    if (binding.kind === 'fork') return seatMcp()(request, response, new URL(`${path}${url.search}`, url), { botId: binding.botId })
     let from
     try { from = await resolveSeatBotId(request, bots) }
     catch (error) { return reply(response, error.status ?? 503, { error: error.code ?? 'MEMBERS_UNAVAILABLE' }) }
     if (from !== binding.botId) return reply(response, 400, { error: 'BELLTEAM_SEAT_UNRESOLVED' })
-    const path = url.pathname === REMOTE_SEAT_MCP_PATH ? BELLTEAM_MCP_PATH : CALL_BRIDGE_MCP_PATH
     return seatMcp()(request, response, new URL(`${path}${url.search}`, url))
   }
 }
@@ -107,6 +111,7 @@ export function internalApi(port, request = fetch, { executionSource } = {}) {
   }
   return {
     deliverMessage: value => call('/api/deliveries/direct', executionSource ? { ...value, executionSource } : value),
+    deliverForkInquiry: value => call('/api/deliveries/fork', executionSource ? { ...value, executionSource } : value),
     deliverRoomMessage: value => call('/api/deliveries/room', executionSource ? { ...value, executionSource } : value),
     listQueued: async botId => {
       const result = await call('/api/queue', undefined, 'GET')
@@ -127,17 +132,27 @@ export function internalApi(port, request = fetch, { executionSource } = {}) {
 }
 
 // tools: callBellTeamTool へ渡す依存（台帳・配送・記憶など）。callBridge: () => ({ url, headersFile }) または null。
-export function createSeatMcp({ bots, tools, toolsForSource = () => ({}), runTool = (_from, operation) => operation(), callBridge = () => null, assertWorkAllowed = () => {}, admitWork = () => assertWorkAllowed }) {
+// forkSeat(sessionName) -> {botId, forkId} | null: execution's live registry of local fork seats (SK01).
+export function createSeatMcp({ bots, tools, toolsForSource = () => ({}), runTool = (_from, operation) => operation(), callBridge = () => null, assertWorkAllowed = () => {}, admitWork = () => assertWorkAllowed, forkSeat = () => null }) {
   const relays = new Set()
-  const handle = async (request, response, url) => {
+  // fork: {botId} from a remote fork credential (SK03); otherwise the local registry is asked first (SK01).
+  const handle = async (request, response, url, fork = null) => {
     if (url.pathname !== BELLTEAM_MCP_PATH && url.pathname !== CALL_BRIDGE_MCP_PATH) return reply(response, 404, { error: 'NOT_FOUND' })
     // 名札が無い・展開前の文字列のまま・台帳に無い要求は、どちらの入口でも席を決めずに拒む。
     // 403 は返さない。Claude Code は 403 を「認証が要る」と判定して、全席共有の ~/.claude/mcp-needs-auth-cache.json へ
     // サーバー名で記録し、その後しばらく本物の席の接続まで飛ばす（2026-10-04、試験用の席1つで2席が道具なしで起きた）。
     let from
-    try { from = await resolveSeatBotId(request, bots) }
+    try {
+      if (!fork) {
+        const name = request.headers[SEAT_HEADER.toLowerCase()]
+        try { fork = typeof name === 'string' ? await forkSeat(name) ?? null : null }
+        catch { return reply(response, 503, { error: 'EXECUTION_UNAVAILABLE' }) }
+      }
+      from = fork ? await memberId(fork.botId, bots) : await resolveSeatBotId(request, bots)
+    }
     catch (error) { return reply(response, error.status ?? 503, { error: error.code ?? 'MEMBERS_UNAVAILABLE' }) }
     if (!from) return reply(response, 400, { error: 'BELLTEAM_SEAT_UNRESOLVED' })
+    if (fork && url.pathname === CALL_BRIDGE_MCP_PATH) return reply(response, 404, { error: 'FORK_READ_ONLY' })
     if (url.pathname === CALL_BRIDGE_MCP_PATH) {
       let check
       try { check = admitWork(); check() }
@@ -145,13 +160,15 @@ export function createSeatMcp({ bots, tools, toolsForSource = () => ({}), runToo
       return relayCallBridge(request, response, { from, callBridge, relays, assertWorkAllowed: check })
     }
     if (request.method !== 'POST') return reply(response, 405, { error: 'METHOD_NOT_ALLOWED' }, { allow: 'POST' })
-    const executionSource = seatExecutionSource(request, bots)
+    const executionSource = fork ? forkExecutionSource(request) : seatExecutionSource(request, bots)
     const scopedTools = { ...tools, ...toolsForSource(executionSource) }
     const server = new Server({ name: 'bellteam', version: '0.1.0' }, { capabilities: { tools: {},
       ...(scopedTools.configureFromMcp ? { experimental: { 'ai.aiterm/handoff.v1': { version: 1, tools: ['update_self'] } } } : {}),
     }, instructions: INSTRUCTIONS })
-    server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: bellTeamTools }))
+    // SK04: a fork lists and runs only tools their owners marked read-only.
+    server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: fork ? bellTeamTools.filter(readOnly) : bellTeamTools }))
     server.setRequestHandler(CallToolRequestSchema, async (call, fullExtra) => {
+      if (fork && !bellTeamTools.some(tool => tool.name === call.params.name && readOnly(tool))) throw new Error(`FORK_READ_ONLY: ${call.params.name}`)
       let handoffMetadata = null
       const configure = scopedTools.configureFromMcp ? async (botId, changes) => {
         const result = await scopedTools.configureFromMcp(botId, changes, {
@@ -178,6 +195,23 @@ export function createSeatMcp({ bots, tools, toolsForSource = () => ({}), runToo
   // 中継の流れは自分からは終わらない。本体を止める時にここで終える（CLIは再接続する）。
   handle.close = () => { for (const end of relays) end() }
   return handle
+}
+
+const readOnly = tool => tool.annotations?.readOnlyHint === true
+
+async function memberId(id, bots) {
+  if (typeof id !== 'string') return null
+  if (typeof bots.readMember !== 'function') return bots.has(id) ? id : null
+  try { return (await bots.readMember(id)).id === id ? id : null }
+  catch (error) { if (error.code === 'BOT_NOT_FOUND' && error.status === 404) return null; throw error }
+}
+
+// SK06: the fork's own session name; the launch header stays today's runtime claim.
+function forkExecutionSource(request) {
+  const sourceSession = request.headers[SEAT_HEADER.toLowerCase()]
+  const value = request.headers[LAUNCH_HEADER.toLowerCase()]
+  const launch = typeof value === 'string' && /^[0-9a-f]{32}$/u.test(value) ? { session_id: sourceSession, launch_id: value } : null
+  return { sourceSession, source: { launch, boundary: null } }
 }
 
 const RELAYED_REQUEST_HEADERS = ['accept', 'content-type', 'content-length', 'last-event-id', 'mcp-protocol-version', 'mcp-session-id', 'mcp-method', 'mcp-name']
