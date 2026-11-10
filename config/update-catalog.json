@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-10T22:55:41Z",
-  "expiresAt": "2026-11-17T22:55:41Z",
+  "publishedAt": "2026-11-10T23:43:07Z",
+  "expiresAt": "2026-11-17T23:43:07Z",
   "releases": [
     {
       "componentId": "usage",
@@ -491,8 +491,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "d9853a708e6659d3380226aceb91b4ca876cb19a",
-      "versionId": "cbe6eeb1f704a0c534b30a70c7f30a61ad66146feb82644af0a6b3e202b88909",
+      "sourceCommit": "651f86702b57306b8cff2bdb4cb22068e0d4d3d6",
+      "versionId": "f76332920ae7c90fb5533e4d532a938916205bc3a7f6d1aa9d5ca4755a713442",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T195845Z/execution-d9853a708e6659d3380226aceb91b4ca876cb19a-linux-amd64.tar.gz",
-          "bytes": 3950627,
-          "sha256": "cbe6eeb1f704a0c534b30a70c7f30a61ad66146feb82644af0a6b3e202b88909"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T234229Z/execution-651f86702b57306b8cff2bdb4cb22068e0d4d3d6-linux-amd64.tar.gz",
+          "bytes": 3951149,
+          "sha256": "f76332920ae7c90fb5533e4d532a938916205bc3a7f6d1aa9d5ca4755a713442"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T195845Z/execution-d9853a708e6659d3380226aceb91b4ca876cb19a-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11224,
-          "sha256": "2c698a1916c1b659158eb8a2d6b228082b80c6ebfa5a2e8a2c9e40e1706f620a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T234229Z/execution-651f86702b57306b8cff2bdb4cb22068e0d4d3d6-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11020,
+          "sha256": "bc3fd337d8094fba6b75f9d0e0a8a9957f4bbb3686457c29b6f7939ecd5c3f28"
         },
-        "signerCommit": "d9853a708e6659d3380226aceb91b4ca876cb19a"
+        "signerCommit": "651f86702b57306b8cff2bdb4cb22068e0d4d3d6"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "端末の席でCLIのログインが切れていて席を開けなかった時に、その理由をオーナーへ知らせます。"
+        "本体を起動し直したあと、Macの席は最初の操作を待たずにBellTeamの道具を使えるようになります。終わったターンは、すぐに待機中と表示されます。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "d9853a708e6659d3380226aceb91b4ca876cb19a",
-      "versionId": "fe1da2fd8b471bf3cc82a6d7e7a11a40b11e4e00f3ba6eefd496dff2752f9fa8",
+      "sourceCommit": "651f86702b57306b8cff2bdb4cb22068e0d4d3d6",
+      "versionId": "e19cbef79396da11e28bd3ff86a03c80a39c97c9ed9f684dde3b79a9b455c590",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T195845Z/execution-d9853a708e6659d3380226aceb91b4ca876cb19a-linux-arm64.tar.gz",
-          "bytes": 3950629,
-          "sha256": "fe1da2fd8b471bf3cc82a6d7e7a11a40b11e4e00f3ba6eefd496dff2752f9fa8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T234229Z/execution-651f86702b57306b8cff2bdb4cb22068e0d4d3d6-linux-arm64.tar.gz",
+          "bytes": 3951154,
+          "sha256": "e19cbef79396da11e28bd3ff86a03c80a39c97c9ed9f684dde3b79a9b455c590"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T195845Z/execution-d9853a708e6659d3380226aceb91b4ca876cb19a-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11318,
-          "sha256": "1712f62ae26d5dd60accc5c4aa8c60df2d80967aac568c15b3d5fcedcb5b5dcd"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T234229Z/execution-651f86702b57306b8cff2bdb4cb22068e0d4d3d6-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11036,
+          "sha256": "4b2f5bf3b58bebdedb223b6b7cab4e43fabde6702127a638f5d26775a723a60a"
         },
-        "signerCommit": "d9853a708e6659d3380226aceb91b4ca876cb19a"
+        "signerCommit": "651f86702b57306b8cff2bdb4cb22068e0d4d3d6"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,7 +552,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "端末の席でCLIのログインが切れていて席を開けなかった時に、その理由をオーナーへ知らせます。"
+        "本体を起動し直したあと、Macの席は最初の操作を待たずにBellTeamの道具を使えるようになります。終わったターンは、すぐに待機中と表示されます。"
       ]
     },
     {
