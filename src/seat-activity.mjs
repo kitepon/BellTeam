@@ -35,6 +35,8 @@ export class SeatActivity {
     this.configurationChanges = new PendingByBot()
     this.dispatches = new PendingByBot()
     this.waking = new PendingByBot()
+    // Running forks by fork session name -> {botId, forkId, row} (execution/fork.md); never a main job.
+    this.forks = new Map()
   }
 
   register(job) {

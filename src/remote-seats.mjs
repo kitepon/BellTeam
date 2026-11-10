@@ -93,13 +93,13 @@ export class RemoteSeats {
 
   // The launch inputs for the same agent_launch: terminals' target unchanged, the member's folder, the launch context and the
   // seat MCP config. Values never pass here; the credential stays a reference until the seat launcher's private env.
-  async prepare(bot, args, { shortTermMemory, context, slot, harness }) {
+  async prepare(bot, args, { shortTermMemory, context, slot, harness, kind = 'main' }) {
     const sessionName = args.session_name
     let issued = false
     try {
       const { terminal, cwd, accountOwner } = await this.target(bot, harness)
       const { text } = await this.launchContext(bot.id, { sessionName, shortTermMemory }, context)
-      const { url, credentialRef } = await this.ingress.seatCredential.issue({ botId: bot.id, sessionName, terminalId: bot.terminalId })
+      const { url, credentialRef } = await this.ingress.seatCredential.issue({ botId: bot.id, sessionName, terminalId: bot.terminalId, ...(kind === 'fork' ? { kind } : {}) })
       issued = true
       const headers = { Authorization: 'Bearer ${BELLTEAM_MCP_TOKEN}', 'X-Bellteam-Seat': '${AITERM_SESSION_ID}', 'X-Bellteam-Launch-Id': '${AITERM_AGENT_LAUNCH_ID}' }
       // Owner ruling: the Owner's 1st/2nd login applies only on the Owner's terminals; others use the terminal's own login.
@@ -125,7 +125,8 @@ export class RemoteSeats {
     } catch (error) {
       if (issued) await this.revoke(sessionName)
       // terminals' own target() failure already armed its observer.
-      if (NOT_STARTED.has(error?.code) || reachability(error?.code)) { this.wait(bot); this.notice(bot, error) }
+      // A fork's refusal goes back to its asker; the main seat's queue and launch notice are not touched (execution/fork.md).
+      if (kind !== 'fork' && (NOT_STARTED.has(error?.code) || reachability(error?.code))) { this.wait(bot); this.notice(bot, error) }
       throw notStarted(error)
     }
   }
