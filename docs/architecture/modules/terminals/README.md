@@ -157,7 +157,7 @@ flowchart LR
   Conn -->|terminal ref,target,trustRevision,credentialRevision + cwd + accountOwner| Exec
   Exec -->|agent_launch terminal + cwd, then session_id calls| Aiterm[local Aiterm: routes the seat to the terminal]
   Aiterm -->|bound SSH, R12 reverse forward for seat MCP| Mac[Owner Mac: claude in projectRoot]
-  Conn -->|harness claude-code: C8 claude_version, claude_update or claude_install| Proc[remote-process.mjs: transient aiterm-remote-terminal serve]
+  Conn -->|harness claude-code: C8 claude_version, claude_update or claude_install| Proc[remote-process.mjs: transient aiterm-remote-terminal serve, BELLTEAM_REMOTE_SEAT_PORT from remote-seat-port.mjs]
   Exec -->|observe terminalId after a launch connectivity failure| Probe
   Probe[non-AI availability observer: check retry] --> Conn
   Conn -->|check: open then close| Proc
