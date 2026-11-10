@@ -25,7 +25,7 @@ test('member editor: prefill, FOLDER_MISSING -> create and save again, other ref
   let answer = null
   const editor = createBotEditor(f.dialog, { ...callbacks, api: async (path, options) => {
     if (options?.method) { writes.push(JSON.parse(options.body)); return answer() }
-    if (path === '/api/terminals') return { terminals: [{ terminalId: 'mac', user: 'kite', host: 'h' }] }
+    if (path === '/api/terminals') return { terminals: [{ terminalId: 'mac', user: 'kite', host: 'h' }, { terminalId: 'fox', user: 'kite_', host: 'h', os: 'windows' }] }
     return path === '/api/models' ? { models } : { bot: bot('a') }
   } })
   await editor.open(bot('a')); await settle()
@@ -34,6 +34,9 @@ test('member editor: prefill, FOLDER_MISSING -> create and save again, other ref
   assert.equal(folder.value, '/Users/kite/BellTeam/アドミ')
   // The fake keeps one listener per event (the avatar preview owns name input here); terminal change runs the same refresh.
   name.value = 'a/b'; terminal.handlers.change(); assert.equal(folder.value, '/Users/kite/BellTeam/a-b')
+  // The prefill follows the chosen terminal's os (members #966 defaults).
+  terminal.value = 'fox'; terminal.handlers.change(); assert.equal(folder.value, 'C:\\Users\\kite_\\BellTeam\\a-b')
+  terminal.value = 'mac'; terminal.handlers.change(); assert.equal(folder.value, '/Users/kite/BellTeam/a-b')
   folder.value = '/Users/kite/work'; name.value = 'c'; terminal.handlers.change(); assert.equal(folder.value, '/Users/kite/work')
   folder.value = '/Users/kite/BellTeam/a-b'
 

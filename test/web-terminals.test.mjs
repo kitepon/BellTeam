@@ -28,9 +28,9 @@ test('check observation -> plain words; host trust reasons ask for the fingerpri
 test('projectRoot follows members C1', () => {
   for (const ok of ['', '/', '/Users/kite/work/app']) assert.equal(projectRootProblem(ok), '')
   for (const bad of ['Users/kite', '/Users//kite', '/Users/./kite', '/Users/../etc', '/Users/kite/', '/a\0b', `/${'a'.repeat(4096)}`]) assert.notEqual(projectRootProblem(bad), '', bad)
-  // windows: X:\... with \ only, root X:\, no trailing \, <= 1024 characters.
+  // windows (members #966): X:\... with \ only, no : after the drive, root X:\, no trailing \, <= 4096 bytes.
   for (const ok of ['', 'C:\\', 'C:\\Users\\kite_\\BellTeam\\アドミ', 'd:\\work']) assert.equal(projectRootProblem(ok, 'windows'), '', ok)
-  for (const bad of ['/Users/kite', 'C:', 'C:/Users', 'C:\\Users/kite', 'C:\\Users\\', 'C:\\a\\\\b', 'C:\\a\\..\\b', 'C:\\a\0', `C:\\${'a'.repeat(1022)}`]) assert.notEqual(projectRootProblem(bad, 'windows'), '', bad)
+  for (const bad of ['/Users/kite', 'C:', 'C:/Users', 'C:\\Users/kite', 'C:\\Users\\', 'C:\\a\\\\b', 'C:\\a\\..\\b', 'C:\\a\0', 'C:\\a:b', `C:\\${'a'.repeat(4094)}`]) assert.notEqual(projectRootProblem(bad, 'windows'), '', bad)
   assert.ok(remoteBindingBody(null, 'fox', '/Users/kite', 'windows').error)
   assert.deepEqual(remoteBindingBody(null, 'fox', 'C:\\Users\\kite_\\app', 'windows'), { body: { terminalId: 'fox', projectRoot: 'C:\\Users\\kite_\\app' } })
   assert.deepEqual([memberFolder('kite_', 'a\\b', 'windows'), memberFolder('kite', 'アドミ', 'linux'), memberFolder('kite', 'アドミ')],

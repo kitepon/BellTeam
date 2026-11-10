@@ -44,13 +44,13 @@ export function seatLaunchText(seatLaunch) {
 }
 
 // members C1: '' or an absolute POSIX path without empty / . / .. segments and no trailing slash.
-// windows: drive-absolute X:\... with \ only (terminals README "Windows and Linux terminals" Paths), at most 1024 characters.
+// windows: drive-absolute X:\... with \ only, no : after the drive (members #966 validProjectRoot), ≤ 4096 bytes like POSIX.
 export function projectRootProblem(path, os = 'macos') {
   if (path === '') return ''
   if (os === 'windows') {
     if (!/^[A-Za-z]:\\/u.test(path)) return 'フォルダは C:\\ のようにドライブから始まるパスで入れてください（例 C:\\Users\\kite\\work\\app）。'
-    if (path.includes('/')) return 'Windowsのフォルダは「\\」で区切ってください。「/」は使えません。'
-    if (path.includes('\0') || path.length > 1024) return 'フォルダのパスが長すぎるか、使えない文字を含んでいます。'
+    if (/[/:]/u.test(path.slice(2))) return 'Windowsのフォルダは「\\」で区切ってください。「/」と、ドライブのあとの「:」は使えません。'
+    if (path.includes('\0') || new TextEncoder().encode(path).length > 4096) return 'フォルダのパスが長すぎるか、使えない文字を含んでいます。'
     if (path.length > 3 && path.slice(3).split('\\').some(part => part === '' || part === '.' || part === '..')) return 'フォルダのパスに、空の区切り・「.」・「..」・最後の「\\」は使えません。'
     return ''
   }
@@ -70,7 +70,7 @@ export function remoteBindingBody(saved, terminalId, projectRoot, os = 'macos') 
   return { body: { terminalId, projectRoot: root } }
 }
 
-// members S5 default folder; slug rule of bot-registry memberFolderSlug plus \ (never in an entry name, terminals Paths).
+// members S5 default folder per os; same slug and roots as bot-registry memberFolderSlug / defaultProjectRoot (#966).
 export function memberFolder(user, name, os = 'macos') {
   const slug = String(name ?? '').trim().replace(/[/:\\\0]/gu, '-')
   const leaf = slug && slug !== '.' && slug !== '..' ? slug : 'member'
