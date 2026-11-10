@@ -44,6 +44,16 @@ const trustAction = target => target.os === 'macos' ? `${target.host} のMacを�
 const PROVISION_CODES = new Set(['REMOTE_AITERM_UNAVAILABLE', 'REMOTE_AITERM_TOO_OLD'])
 const CODE = /^[A-Z][A-Z0-9_]{0,63}$/
 
+// C8 harnesses (Owner via Root 2026-11-10). codex-cli and grok-cli have no Aiterm launch auth preflight (Kiro, 0.70.9).
+const CLI_NAMES = { 'claude-code': 'Claude Code', 'codex-cli': 'Codex CLI', 'grok-cli': 'Grok CLI', 'cursor-cli': 'Cursor CLI', 'antigravity-cli': 'Antigravity CLI' }
+const NO_LAUNCH_AUTH_CHECK = new Set(['codex-cli', 'grok-cli'])
+// Same shape as Aiterm's own launch refusal, so execution queues it like the other three harnesses' preflight (no execution change).
+function loginRequired(harness, os) {
+  const action = `${label(os)}の${CLI_NAMES[harness]}にログインが必要です。ログインした後に送ったメッセージから起動します`
+  const launchRefusal = { schema: 'aiterm.agent-launch-error.v1', harness, code: 'AGENT_AUTH_REQUIRED', phase: 'input', effect: 'not_started', session_created: false, action }
+  return Object.assign(new Error(action), { code: 'AGENT_AUTH_REQUIRED', effect: 'not_started', harness, action, launchRefusal })
+}
+
 function failure(code, action, reason) {
   return Object.assign(new Error(MESSAGES[code]), { code, effect: 'not_started', ...(reason ? { reason } : {}), ...(action ? { action } : {}) })
 }
@@ -59,12 +69,12 @@ function classify(error, target) {
 
 // Trony ruling (2026-11-09 16:1x JST): ONE launch path. Execution passes the returned `terminal` + `cwd` to Aiterm's own
 // agent_launch; send/wait/transcript go through Aiterm like a local seat. terminals opens a remote process only for
-// reachability (open -> close) and C8 upkeep (claude_* commands), never for a seat.
+// reachability (open -> close) and C8 upkeep (version/update/install, login for codex/grok), never for a seat.
 export function createTerminalConnection({ registry, secrets, native, now = () => new Date(), probeDelays = { first: 30_000, max: 300_000 } } = {}) {
   if (!registry?.target || typeof secrets?.withResolved !== 'function' || typeof native?.connect !== 'function') throw new TypeError('Invalid terminal connection configuration')
   const wanted = new Map() // terminalId -> probe state
   const maintenance = new Map()
-  const upkeep = new Map() // terminalId -> {generation, run}: in-flight C8 run shared by concurrent launches
+  const upkeep = new Map() // terminalId\0harness -> {generation, run}: in-flight C8 run shared by concurrent launches
   const listeners = new Set()
   const generations = new Map() // terminalId -> registry-change count; a target read across a change is stale
   const operations = new Set() // in-flight target/check runs, awaited by dispose
@@ -177,21 +187,28 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
     } finally { await session.close().catch(() => {}) }
   }
 
-  // C8: before a fresh Claude Code launch. A failed update never vetoes the launch; an unreachable terminal is reported as such.
-  async function maintain(target, binding, current) {
-    const record = { terminalId: target.terminalId, observedAt: now().toISOString(), before: null, after: null, outcome: 'failed' }
+  // C8: before a fresh launch of any of the five harnesses. A failed update never vetoes the launch; an unreachable terminal
+  // is reported as such. claude-code keeps Aiterm's claude_* aliases (any terminal Aiterm); the others need cli_* (>= 0.70.9).
+  async function maintain(target, binding, current, harness) {
+    const record = { terminalId: target.terminalId, harness, observedAt: now().toISOString(), before: null, after: null, outcome: 'failed', loggedIn: null }
     try {
       await withProcess(target, binding, async session => {
         // Each command starts only while current; a stale run stops before its next command (outcome unrecorded).
-        const command = op => { if (!current()) throw failure('TERMINAL_UNAVAILABLE'); return session.command(op) }
+        const command = name => {
+          if (!current()) throw failure('TERMINAL_UNAVAILABLE')
+          return harness === 'claude-code' ? session.command(`claude_${name}`) : session.command(`cli_${name}`, { harness })
+        }
         try {
-          record.before = (await command('claude_version')).version ?? null
-          const step = await command(record.before ? 'claude_update' : 'claude_install')
-          record.after = (await command('claude_version')).version ?? null
+          record.before = (await command('version')).version ?? null
+          const step = await command(record.before ? 'update' : 'install')
+          record.after = (await command('version')).version ?? null
           if (step.exit_code === 0 && record.after) record.outcome = record.after === record.before ? 'current' : 'updated'
         } catch {}
+        // Aiterm's launch preflight covers the other three; any error or non-boolean stays null and never vetoes.
+        if (NO_LAUNCH_AUTH_CHECK.has(harness)) try { const { logged_in } = await command('auth_status'); if (typeof logged_in === 'boolean') record.loggedIn = logged_in } catch {}
       }, current)
-    } finally { if (current()) maintenance.set(target.terminalId, record) }
+    } finally { if (current()) maintenance.set(`${target.terminalId}\0${harness}`, record) }
+    return record
   }
 
   function track(run) {
@@ -216,15 +233,18 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
     try {
       const binding = await resolveBinding(record, memberId)
       if (!current()) throw failure('TERMINAL_UNAVAILABLE')
-      if (harness === 'claude-code') {
+      if (Object.hasOwn(CLI_NAMES, harness)) {
         // Shared only within one registry generation, so a launch never waits on a run against an older target.
-        let shared = upkeep.get(terminalId)
+        const key = `${terminalId}\0${harness}`
+        let shared = upkeep.get(key)
         if (shared?.generation !== generation) {
-          const run = maintain(record, binding, current).finally(() => { if (upkeep.get(terminalId) === shared) upkeep.delete(terminalId) })
+          const run = maintain(record, binding, current, harness).finally(() => { if (upkeep.get(key) === shared) upkeep.delete(key) })
           shared = { generation, run }
-          upkeep.set(terminalId, shared)
+          upkeep.set(key, shared)
         }
-        await shared.run
+        const { loggedIn } = await shared.run
+        if (!current()) throw failure('TERMINAL_UNAVAILABLE')
+        if (loggedIn === false) throw loginRequired(harness, record.os)
       }
       if (!current()) throw failure('TERMINAL_UNAVAILABLE')
       return {
@@ -235,7 +255,7 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
         os: record.os,
         accountOwner: record.accountOwner
       }
-    } catch (error) { if (error.code !== 'TARGET_MISMATCH' && current()) want(terminalId); throw error }
+    } catch (error) { if (error.code !== 'TARGET_MISMATCH' && error.code !== 'AGENT_AUTH_REQUIRED' && current()) want(terminalId); throw error }
   }
 
   const check = terminalId => track(() => checkNow(terminalId))
@@ -367,7 +387,7 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
     // Kiro #765: arms the same observer after Aiterm's launch answered a connectivity code; its exit is the available event.
     observe(terminalId) { if (typeof terminalId === 'string') want(terminalId) },
     onAvailable(listener) { listeners.add(listener); return () => listeners.delete(listener) },
-    maintenance: { last: terminalId => structuredClone(maintenance.get(terminalId) ?? null) },
+    maintenance: { last: (terminalId, harness = 'claude-code') => structuredClone(maintenance.get(`${terminalId}\0${harness}`) ?? null) },
     onRegistryChange,
     onCredentialEvent,
     async dispose() {
