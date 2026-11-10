@@ -58,9 +58,12 @@ export const chipBox = (a, b, t = 0.5, L = LAYOUT, side = [0, 0]) => {
 // A chip box (grown by chipGap) inside the drawable rect D = { W, H }; no area = no limit (chips before the on-screen rule).
 export const onScreen = (box, area) => !area || (box.x0 >= 0 && box.y0 >= 0 && box.x1 <= area.W && box.y1 <= area.H)
 // The box slid inward just enough to lie inside `area` (a box that touches an on-screen point still touches it).
+// On an axis where the box is larger than the area (oversize chip), its start edge goes to the area's start edge instead;
+// such a box is never inside the area, so it is never a free slot (onScreen is false).
+const slide = (lo, hi, size) => hi - lo > size ? -lo : Math.max(0, -lo) - Math.max(0, hi - size)
 export const intoArea = (box, area) => {
   if (!area) return box
-  const dx = Math.max(0, -box.x0) - Math.max(0, box.x1 - area.W), dy = Math.max(0, -box.y0) - Math.max(0, box.y1 - area.H)
+  const dx = slide(box.x0, box.x1, area.W), dy = slide(box.y0, box.y1, area.H)
   return { x0: box.x0 + dx, x1: box.x1 + dx, y0: box.y0 + dy, y1: box.y1 + dy }
 }
 // The chip of edge ab at its first spot (slid inside `area`) clear of every node box (own ends included) and of the boxes in `chips`, or blocked at t = 0.5.
@@ -252,6 +255,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   // an edge hugging the left screen edge: the centered chip at t = 0.5 slides right to the screen edge and still covers its point
   const edgeChip = chipAt([{ x: 10, y: 100 }, { x: 10, y: 400 }], 0, 1, 20, 0, LAYOUT, chipSpots, [], { W: 300, H: 500 })
   if (edgeChip.blocked || edgeChip.box.x0 !== 0 || edgeChip.box.x0 > 10 || edgeChip.box.y0 !== 250 - LAYOUT.chipHeight / 2 - LAYOUT.chipGap) throw new Error('chip on screen')
+  // an oversize chip (taller than D): no free slot, blocked with its top edge on D's top and still on its own column
+  const tall = { ...LAYOUT, chipHeight: 600 }, bigChip = chipAt([{ x: 100, y: 100 }, { x: 200, y: 400 }], 0, 1, 20, 0, tall, chipSpots, [], { W: 300, H: 500 })
+  if (!bigChip.blocked || bigChip.box.y0 !== 0 || bigChip.box.x0 !== 150 - tall.chipWidth / 2 - tall.chipGap || onScreen(bigChip.box, { W: 300, H: 500 })) throw new Error('oversize chip')
+  if (placeChips([{ x: 100, y: 100 }, { x: 200, y: 400 }], [[0, 1]], 20, 0, tall, chipSpots, { W: 300, H: 500 }).blocked !== 1) throw new Error('oversize chip count')
   let s = 5
   const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647
   for (let k = 0; k < 100; k++) {
