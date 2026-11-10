@@ -21,7 +21,7 @@ flowchart TD
 
 | 機能 / app側caller | 実装と主な関数 | 所有・保存後の結果 |
 | --- | --- | --- |
-| Bot作成・編集 / `openBotDialog` | [bot-editor.js](../../../../web/bot-editor.js) `createBotEditor/open/saveBot` | owner.bot、saving、editRevision、avatar。保存時target/bodyを固定。成功後の一覧GET失敗でも返却Bot IDを保持し次の手動保存はPATCH |
+| Bot作成・編集 / `openBotDialog` | [bot-editor.js](../../../../web/bot-editor.js) `createBotEditor/open/saveBot` | owner.bot、saving、editRevision、avatar。保存時target/bodyを固定。成功後の一覧GET失敗でも返却Bot IDを保持し次の手動保存はPATCH。保存の失敗は2つに分ける：4xx（408を除く）は確定した拒否で何も保存されていない→「保存できませんでした。」＋`memberSaveRefusal`の平易な理由（未知のcodeも一般文、codeだけを出さない）、「保存結果を確認」は出さない。応答なし・408・5xxは結果不明→「保存結果を確認できませんでした。サーバーから確かな返事が届きませんでした。入力は残しています。」（生の例外文は出さない）＋「保存結果を確認」（GETだけ）。「このフォルダを作って保存」は`FOLDER_MISSING`の時だけ |
 | Botモデル・適用表示 / editor.open | 同上 `renderModelOptions/selectableEfforts/renderEffortOptions/renderBotConfigurationStatus` | models/AbortController。close/reopenで旧読取をabort。保存済み候補外effortは表示に残す。configurationApplicationと希望設定を区別。候補の表示名は`view-format.js` `modelChoices`（display_name、無ければid、同名はid併記）、保存値はid。`/api/models`応答前（models=null）は保存値だけを「読み込み中」と表示し、未対応と判定しない。読取失敗後は保存値をそのまま表示 |
 | Bot再起動・削除 / editorのbutton | 同上 `restart/remove` → appの`onRestarted/onDeleted/onStatus` | 操作時Botを固定。再起動202と削除202は背景受付。appが一覧・選択を更新する。表示更新失敗でも背景削除の受付と示す |
 | 部屋編集・削除 / `openRoomDialog` | [room-editor.js](../../../../web/room-editor.js) `open/saveRoom/remove/renderRoomRepresentativeOptions` | owner.room、参加者、代表、avatar。代表は選んだ参加者内。保存対象/bodyと再open後の結果所有を保持 |

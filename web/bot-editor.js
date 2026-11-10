@@ -4,6 +4,23 @@ import { createAvatarEditor } from './avatar-editor.js?v=__ASSET_VERSION__'
 import { applyAvatar, initials, escapeClass, modelChoices } from './view-format.js?v=__ASSET_VERSION__'
 import { FOLDER_UNCHECKED, folderRefusal, memberFolder, readTerminals, remoteBindingBody } from './terminals.js?v=__ASSET_VERSION__'
 
+// Plain reason for a definite save refusal; an unknown code gets the generic sentence, never the code alone.
+const SAVE_REFUSALS = {
+  MEMBERS_INPUT_INVALID: '本体がこの入力にまだ対応していないか、入力の形が違います。本体を「Update」で更新してから、もう一度保存してください。',
+  BOT_NAME_INVALID: '名前を確かめてください。',
+  BOT_DUPLICATE: '同じメンバーがもういます。名前を変えてください。',
+  BOT_PROJECT_EXISTS: '同じ名前の場所がもうあります。名前を変えてください。',
+  BOT_NOT_FOUND: 'このメンバーはもういません。一覧を更新してください。',
+  BOT_UPDATE_CONFLICT: 'ほかの画面で先に変更されました。開き直してから入力してください。',
+  BOT_HARNESS_INVALID: 'AIの設定（CLI・モデル・エフォート）を選び直してください。',
+  BOT_MODEL_INVALID: 'AIの設定（CLI・モデル・エフォート）を選び直してください。',
+  BOT_REASONING_EFFORT_INVALID: 'AIの設定（CLI・モデル・エフォート）を選び直してください。',
+  BOT_TERMINAL_ID_INVALID: '端末とフォルダを確かめてください。',
+  BOT_PROJECT_ROOT_INVALID: '端末とフォルダを確かめてください。',
+  BOT_REMOTE_BINDING_INVALID: '端末とフォルダを確かめてください。',
+}
+export const memberSaveRefusal = (error, folder) => folderRefusal(error, folder) ?? SAVE_REFUSALS[error?.code] ?? 'サーバーが入力を受け付けませんでした。入力を見直してから、もう一度保存してください。'
+
 export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, onStatus, onMemory, onSheets }) {
   let owner = null, models = {}, modelLoad = null, saving = null, editRevision = 0
   const botForm = dialog.querySelector('#bot-form')
@@ -285,6 +302,7 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
     saving = opened
     botFormError.textContent = ''
     botCreateFolder.hidden = true
+    verifySaveButton.hidden = true
     saveBotButton.disabled = true
     saveBotButton.textContent = opened.bot ? '保存中…' : '作成中…'
     const profile = {
@@ -310,13 +328,13 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
       if (result.bot?.folderCheck?.checked === false) { if (owner === opened) botRemoteStatus.textContent = FOLDER_UNCHECKED }
       else if (current()) dialog.close()
     } catch (error) {
-      const refusal = !accepted && owner?.remote ? folderRefusal(error, profile.projectRoot ?? botProjectRoot.value.trim()) : null
-      if (owner === opened && refusal) {
-        // A definite refusal: nothing was saved, so there is nothing to verify.
-        botFormError.textContent = refusal
+      // 4xx (not 408) is a definite refusal: nothing was saved, so there is nothing to verify.
+      const refused = !accepted && error?.status >= 400 && error.status < 500 && error.status !== 408
+      if (owner === opened && refused) {
+        botFormError.textContent = `保存できませんでした。${memberSaveRefusal(error, profile.projectRoot ?? botProjectRoot.value.trim())}`
         botCreateFolder.hidden = error.code !== 'FOLDER_MISSING'
       } else if (owner === opened) {
-        botFormError.textContent = accepted ? '保存しました。表示を更新できませんでした。' : `保存結果を確認できませんでした（${error.message}）。入力は残しています。`
+        botFormError.textContent = accepted ? '保存しました。表示を更新できませんでした。' : '保存結果を確認できませんでした。サーバーから確かな返事が届きませんでした。入力は残しています。'
         verifySaveButton.hidden = !opened.bot
       }
     } finally {

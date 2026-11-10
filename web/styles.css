@@ -501,6 +501,7 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .toggle-field input { width: 20px; height: 20px; }
 #bot-fast-status { margin-bottom: 24px; }
 .profile-dialog .upload-button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; text-align: center; line-height: 1.6; }
+.profile-dialog .upload-button[hidden] { display: none; }
 @media (max-width: 640px) { .profile-dialog .avatar-editor { flex-wrap: wrap; gap: 12px; } .profile-dialog .avatar-editor .upload-button { white-space: nowrap; } }
 
 .schedule-source { padding: 20px 0; border-top: 1px solid var(--line); }
