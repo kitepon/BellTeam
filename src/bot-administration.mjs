@@ -142,9 +142,14 @@ export class BotAdministration {
         application.state = 'failed'
         const notStarted = ['not_started', 'not_issued'].includes(error.effect)
           || error.agentConfigureResult?.outcome === 'not_applied' && error.agentConfigureResult?.effect === 'not_started'
-        application.outcome = notStarted ? 'not_applied' : 'outcome_unknown'
+        const notApplied = error.code === 'CONFIGURATION_NOT_APPLIED'
+        application.outcome = notStarted || notApplied ? 'not_applied' : 'outcome_unknown'
         application.effect = notStarted ? 'not_started' : 'possible'
-        application.message = notStarted
+        application.message = notApplied
+          ? ['設定変更は反映されませんでした。', typeof error.reason === 'string' ? error.reason : '',
+            notStarted ? '' : '後から一部が反映される可能性は、まだ除けていません。',
+            '保存した設定は、次に席を起こし直した時に使います。'].join('')
+          : notStarted
           ? '今回の設定変更は開始前に拒否されました。現在の動作設定は未確認です。'
           : '設定変更の結果を確認できません。一部が反映された可能性があります。'
         // RPC失敗は遠隔変更を取り消さない。開始前の拒否を確認できた時だけ元の希望へ戻す。
