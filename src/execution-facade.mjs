@@ -6,7 +6,7 @@ const failure = code => Object.assign(new Error(code), { code, status: 503, effe
 
 // Only these fixed parent callers cross into the current host engine.
 // Input methods are refused while a body update hold exists, also for a selected engine without its own gate.
-const INPUT_METHODS = new Set(['transport.turn', 'transport.notify', 'transport.notifyReport'])
+const INPUT_METHODS = new Set(['transport.turn', 'transport.notify', 'transport.notifyReport', 'transport.forkInquiry'])
 
 export function createExecutionFacade({ getController, client, membersAdmission, requestStop, watchQueue, hold = null }) {
   if (typeof getController !== 'function' || !client || !membersAdmission

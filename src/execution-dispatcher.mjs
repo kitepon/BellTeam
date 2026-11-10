@@ -24,14 +24,14 @@ const asyncMethods = {
   transport: ['isRunning', 'runningBots', 'screen', 'ensure', 'wake', 'restart', 'reconfigure',
     'reconcileConfiguration', 'stop', 'interrupt', 'interruptMany', 'reconcileLaunch', 'closeLaunch',
     'observe', 'goalTargets', 'closeIdle', 'stopForConfiguration', 'turn', 'setupTest', 'notify', 'notifyReport',
-    'idle', 'restartIfIdle', 'updateWorkSummary', 'seatTurns', 'watchSeatTurns', 'screenKey', 'screenApproval'],
+    'idle', 'restartIfIdle', 'updateWorkSummary', 'seatTurns', 'watchSeatTurns', 'screenKey', 'screenApproval', 'forkInquiry'],
   administration: ['configureFromMcp', 'update', 'reconcile', 'readConfigurationOperation', 'stop', 'restart', 'remove'],
   goals: ['list', 'inspect', 'mutate'],
   accounts: ['list', 'prepare'],
 }
 const syncMethods = {
   transport: ['session', 'currentWork', 'currentWorkBinding', 'shownInSelfTurn', 'consumeShownWords',
-    'isIdle', 'deliveryBots', 'queueItems', 'currentTurn', 'seatAccount', 'seatLaunch'],
+    'isIdle', 'deliveryBots', 'queueItems', 'currentTurn', 'seatAccount', 'seatLaunch', 'forkSeat'],
   administration: ['view'],
 }
 export const EXECUTION_METHODS = Object.freeze({
@@ -174,6 +174,8 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     transport.activity = activity
     // A predecessor older than the non-Codex word watch has no sent-cursor map.
     activity.sentCursors ??= new Map()
+    // A predecessor older than the fork port has no fork registry (execution/fork.md).
+    activity.forks ??= new Map()
     for (const key of ['active', 'jobs', 'watches', 'followedTurns', 'configurationChanges', 'dispatches', 'waking']) transport[key] = activity[key]
   }
   transport.activity.recoverCapacity = continuation ? context => continuation.failed(context) : null
@@ -183,7 +185,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
   })
   const engines = { transport, administration, goals,
     accounts: { list: () => accounts.list(), prepare: (harness, slot) => accounts.prepare(harness, slot) } }
-  const deliveryMethods = new Set(['transport.turn', 'transport.notify', 'transport.notifyReport', 'transport.setupTest'])
+  const deliveryMethods = new Set(['transport.turn', 'transport.notify', 'transport.notifyReport', 'transport.setupTest', 'transport.forkInquiry'])
   const invoke = (request, type) => {
     enterFor({ type, method: request?.method }); validateRequest(request, type)
     const [owner, method] = request.method.split('.')

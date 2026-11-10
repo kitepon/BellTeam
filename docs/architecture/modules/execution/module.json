@@ -10,7 +10,8 @@
     "stop",
     "observation",
     "members-admission",
-    "accounts"
+    "accounts",
+    "fork"
   ],
   "uses": [
     {

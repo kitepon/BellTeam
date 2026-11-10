@@ -191,7 +191,9 @@ export class AitermClient {
     if (boundConfiguration) configurationConnection(this, expectedConfiguration.sdk, expectedConfiguration.transport)
     if (boundAuth) authConnection(this, expectedAuthConnection)
     // An Aiterm without the account inputs would drop them silently and run on the wrong account.
+    // execution/fork.md: an Aiterm without fork_from would drop it and start a writable seat in the project folder.
     const accountInput = name === 'agent_launch' && Object.hasOwn(args, 'configuration_root') ? ['agent_launch', 'configuration_root', 'string']
+      : name === 'agent_launch' && Object.hasOwn(args, 'fork_from') ? ['agent_launch', 'fork_from', 'object']
       : name === 'pty_close' && args.hibernate === true ? ['pty_close', 'hibernate', 'boolean'] : null
     if (accountInput) {
       let supported = false
@@ -199,6 +201,8 @@ export class AitermClient {
         const tools = await callClient.listTools()
         supported = tools.tools.some(tool => tool.name === accountInput[0] && tool.inputSchema?.properties?.[accountInput[1]]?.type === accountInput[2])
       } catch { /* Nothing was issued by the capability read. */ }
+      if (!supported && accountInput[1] === 'fork_from')
+        throw Object.assign(new Error('FORK_UNAVAILABLE: readonly_unenforceable'), { code: 'FORK_UNAVAILABLE', reason: 'readonly_unenforceable', effect: 'not_started' })
       if (!supported) throw Object.assign(new Error('ACCOUNT_CAPABILITY_UNAVAILABLE'), { code: 'ACCOUNT_CAPABILITY_UNAVAILABLE', effect: 'not_started' })
     }
     if (name === 'agent_launch' && args.require_existing_resume === true) {

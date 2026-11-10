@@ -1,5 +1,5 @@
 import { CurrentWork, watchCurrentTurn, interimStartCursor } from './current-work.mjs'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { MembersAdmission } from './members-admission.mjs'
 import { configurationError } from './configuration-request.mjs'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
@@ -1356,14 +1356,93 @@ export class AitermTransport {
   }
 
   // requestSummary: the 相関図 edge label (current-work.md "Request summary"); null until ready, on failure, or on an older body.
-  queueItems(filter) {
-    const items = this.activity.items(filter), summary = this.backgroundSummary
+  queueItems(filter = {}) {
+    const forks = [...(this.activity.forks?.values() ?? [])].map(fork => fork.row).filter(row => !filter.botId || row.botId === filter.botId)
+      .filter(row => !filter.roomId || (row.context === 'room' && row.contextId === filter.roomId))
+    const items = [...this.activity.items(filter), ...forks], summary = this.backgroundSummary
     if (typeof summary?.requestSummary !== 'function') return items
     return items.map(item => ({ ...item, requestSummary: item.status === 'running' && item.groupId ? summary.requestSummary(item.groupId) : null }))
   }
 
   watchQueue(listener) {
     return this.activity.watch(listener)
+  }
+
+  // execution/fork.md SK01: {botId, forkId} of a running fork seat, else null.
+  forkSeat(sessionName) {
+    const fork = this.activity.forks?.get(sessionName)
+    return fork ? { botId: fork.botId, forkId: fork.forkId } : null
+  }
+
+  // execution/fork.md: a disposable fork of the main seat's latest saved conversation. Never the main queue, stop
+  // version, steer or wake. Resolves once the fork accepted its first input; the turn is followed in the background.
+  async forkInquiry(bot, envelope, { forkId, deliveryId = null, queue = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null } = {}) {
+    if (typeof forkId !== 'string' || !forkId || forkId.length > 200 || typeof envelope !== 'string' || !envelope.trim())
+      throw Object.assign(new Error('FORK_INVALID'), { code: 'FORK_INVALID', effect: 'not_started', status: 400 })
+    this.assertWorkAllowed()
+    const harness = HARNESS.get(bot.harness)
+    const main = this.session(bot)
+    const sessionName = `${main}-fork-${createHash('sha256').update(forkId).digest('hex').slice(0, 12)}`
+    const startedAt = this.now()
+    const row = { id: sessionName, botId: bot.id, botName: bot.displayName ?? bot.name ?? bot.id, status: 'running', startedAt,
+      context: 'direct', contextId: bot.id, groupId: deliveryId, target: bot.id, ...queue, steered: false, seat: { kind: 'fork', forkId } }
+    if (this.activity.forks.has(sessionName)) throw Object.assign(new Error('FORK_INVALID: fork_id is running'), { code: 'FORK_INVALID', effect: 'not_started', status: 409 })
+    // Registered before the launch: the fork's MCP calls in its first turn resolve as this Bot's fork (SK01).
+    this.activity.forks.set(sessionName, { botId: bot.id, forkId, row })
+    let remote = null, issued = false, receipt
+    const close = async () => {
+      if (issued) await this.client.call('pty_close', { session_id: sessionName }).catch(error =>
+        process.stderr.write(`BellTeam fork: close failed: ${sessionName}: ${error.message}\n`))
+      await remote?.revoke()
+      this.activity.forks.delete(sessionName)
+      this.activity.emit({ bot })
+    }
+    try {
+      const runtime = await this.captureLaunchRuntime()
+      const launchOptions = this.client.launchOptions
+        ? await this.client.launchOptions(bot.project, runtime) : { env: await loadBotEnvironment(bot.project) }
+      // The main's account: a 2nd-slot seat gets the same login (harness-accounts.md); Aiterm keeps the main's root.
+      const slot = this.claudeAccountBot(bot) ? this.accounts.seatSlot(bot.id) : null
+      let claudeLogin = slot && slot !== '1st' ? slot : null
+      // cwd = the main's folder: Aiterm accepts the same real path, the seat launcher requires it.
+      let args = { harness, cwd: bot.project, session_name: sessionName, prompt: envelope, fork_from: { session_id: main, fork_id: forkId } }
+      if (isRemoteBot(bot)) {
+        if (!this.remoteSeats) throw Object.assign(new Error('TERMINALS_UNAVAILABLE'), { code: 'TERMINALS_UNAVAILABLE', effect: 'not_started', status: 503 })
+        remote = await this.remoteSeats.prepare(bot, args, { shortTermMemory: '', context: {}, slot, harness, kind: 'fork' })
+        args = remote.args
+        claudeLogin = remote.claudeLogin
+      }
+      issued = true
+      const launch = await this.client.call('agent_launch', args, { ...launchOptions,
+        ...(claudeLogin ? { claudeLogin } : {}), ...(remote ? { privateEnv: remote.privateEnv } : {}) })
+      receipt = launch?.structuredContent
+      // Protects the project folder: only a launch Aiterm proved write-banned counts as a fork.
+      if (!receipt?.fork_of?.write_ban || !receipt.wait_process) throw forkUnavailable()
+      await onStatus?.('running')
+    } catch (error) {
+      // A receipt means a seat exists, whatever the error: it is closed.
+      if (!receipt && (error?.effect === 'not_started' || error?.effect === 'not_issued')) issued = false
+      await close()
+      if (error?.code === 'FORK_UNAVAILABLE') throw error
+      throw /READONLY_UNENFORCEABLE/u.test(`${error?.code} ${error?.aitermErrorCode} ${error?.message}`) ? forkUnavailable(error) : error
+    }
+    const background = (async () => {
+      const interim = onInterim ? this.followInterim(sessionName, receipt, onInterim) : null
+      try {
+        const completion = await this.waitUntilDone(receipt).finally(() => interim?.stop())
+        const text = await this.readTurnAnswer({ session: sessionName, receipt }, completion)
+        if (typeof text === 'string' && text.trim()) await onAnswer?.(text)
+        await onStatus?.('delivered')
+        onTurnEnd?.({ startedAt, endedAt: this.now() })
+      } catch (error) {
+        process.stderr.write(`BellTeam fork: turn failed: ${sessionName}: ${error.message}\n`)
+        await Promise.resolve(onStatus?.('failed', { code: 'FORK_FAILED', delivery_error: { code: 'FORK_FAILED' }, reason: error?.code ?? error?.message ?? 'unknown' }))
+          .catch(() => {})
+      } finally { await close() }
+    })()
+    this.trackCompletion(background)
+    this.activity.emit({ bot })
+    return { delivery: 'running', forkId }
   }
 
   emitQueue(item) {
@@ -1686,6 +1765,9 @@ function steerFollow(result) {
   if (reference?.schema !== 'aiterm.steer-ref.v1' || typeof reference.interim_from !== 'string') return null
   return { interimFrom: reference.interim_from }
 }
+
+const forkUnavailable = cause => Object.assign(new Error('FORK_UNAVAILABLE: readonly_unenforceable', cause ? { cause } : {}),
+  { code: 'FORK_UNAVAILABLE', reason: 'readonly_unenforceable', effect: 'not_started', status: 503 })
 
 function transcriptText(result, completion) {
   if (result?.structuredContent?.schema === 'aiterm.pty-read-result.v1'
