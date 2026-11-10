@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { avatarSide, backoffMs, bestSwap, blinkOpacity, clearanceForces, createGraphModel, segmentHitsBox, createTap, edgeText, enterCurve, flowDots, nodeAt, nodeText, wrapLabel } from '../web/work-graph-model.js'
+import { avatarSide, backoffMs, bestSwap, blinkOpacity, chipBoxAt, CHIP_SPOTS, clearanceForces, createGraphModel, segmentHitsBox, createTap, edgeText, enterCurve, flowDots, nodeAt, nodeText, wrapLabel } from '../web/work-graph-model.js'
 import { createGraphStream, parseFrames } from '../web/work-graph.js'
 
 const rect = { x: 24, y: 24, w: 800, h: 600 }
@@ -148,13 +148,13 @@ test('札どうしも名前とも重ならず、古い依頼から置く。置�
   const hovered = model.frame(5000, small, { hover: { edgeId: hidden } }).labels
   assert.equal(hovered.at(-1).edge.id, hidden)
   assert.deepEqual(hovered.slice(0, -1).map(label => label.box), frame.labels.map(label => label.box))
-  assert.equal(model.edges.get(hidden).chip.t, null, 'it goes back to waiting')
+  assert.equal(model.edges.get(hidden).chip.spot, null, 'it goes back to waiting')
   // 置けた札を指すと一番上に描く。
   const shown = frame.labels[0].edge.id
   assert.equal(model.frame(5000, small, { hover: { edgeId: shown } }).labels.at(-1).edge.id, shown)
 })
 
-test('札の出始めは依頼ごとに一度だけ決めて保つ。混んでも消えず、空きが無ければ今の t で blocked', () => {
+test('札の出始めは依頼ごとに一度だけ決めて保つ。混んでも消えず、空きが無ければ今の場所で blocked', () => {
   const two = createGraphModel()
   two.snapshot(snapshot([node('a'), node('b')], [edge('a', 'b')]), 0, rect)
   for (let i = 0; i < 300; i++) two.step(1 / 60, rect, i * 16)
@@ -176,14 +176,14 @@ test('札の出始めは依頼ごとに一度だけ決めて保つ。混んで�
   const frame = two.frame(21000, rect)
   assert.equal(frame.labels.some(label => label.edge.id === 'a:b'), false)
   assert.equal(frame.blocked.find(label => label.edge.id === 'a:b')?.blocked, true)
-  assert.notEqual(chip.t, null)
+  assert.notEqual(chip.spot, null)
   // label が null に戻ったら 300 ms で消え、場所を返す。
   Object.assign(a, { x: saved.ax, y: saved.ay })
   two.change({ epoch: 'e1', version: 3, degraded: [], changes: [{ type: 'edge-update', edge: edge('a', 'b', 'a:b', null) }] }, 22000, rect)
   two.frame(22000, rect)
   assert.ok(two.frame(22100, rect).labels.find(label => label.edge.id === 'a:b').alpha < 1)
   two.frame(22400, rect)
-  assert.equal(chip.t, null)
+  assert.equal(chip.spot, null)
   assert.equal(two.frame(23000, rect).labels.some(label => label.edge.id === 'a:b'), false)
 })
 
@@ -332,7 +332,38 @@ test('Clearance をモデルで：描いた名前の箱を覚え、線の上の�
   assert.equal(on.edges.get('a:b').chip.blocked, true, 'the chip has no free slot between a, b and c')
   assert.ok(Math.abs(c.vv - off.nodes.get('c').vv - 2 * 0.003 * 0.82) < 1e-12, `${c.vv - off.nodes.get('c').vv}`)
   assert.ok(on.edges.get('a:b').chip.w > 0 && on.edges.get('a:b').chip.h > 0)
-  // 逆向きの2本：線は二人で一本（1回）、blocked の札は2枚とも押す（2回）
+  // 逆向きの2本：線は二人で一本（1回）。曲がった a:b の札は点の上に空きを見つけ（Chip placement 2026-11-10）、押さない。blocked の b:a だけが押す（1回）。
+  // 2枚の blocked がそれぞれ押すことは、上の clearanceForces の手の例で確かめている。
+  assert.deepEqual([both.edges.get('a:b').chip.blocked, both.edges.get('a:b').chip.spot], [false, { t: 0.5, side: [0, -1] }])
   assert.equal(both.edges.get('b:a').chip.blocked, true)
-  assert.ok(Math.abs(both.nodes.get('c').vv - off.nodes.get('c').vv - 3 * 0.003 * 0.82) < 1e-12, `${both.nodes.get('c').vv - off.nodes.get('c').vv}`)
+  assert.ok(Math.abs(both.nodes.get('c').vv - off.nodes.get('c').vv - 2 * 0.003 * 0.82) < 1e-12, `${both.nodes.get('c').vv - off.nodes.get('c').vv}`)
+})
+
+test('札の置き場所は layout-sim.mjs chipSpots / chipBox と同じ（85か所、中央→上→下→左→右）', async () => {
+  const sim = await import('../docs/architecture/modules/work-graph/layout-sim.mjs')
+  assert.deepEqual(CHIP_SPOTS, sim.chipSpots)
+  assert.equal(CHIP_SPOTS.length, 85)
+  const a = { x: 100, y: 200 }, b = { x: 500, y: 260 }, line = { p0: a, p2: b, control: null }, w = 120, h = 22
+  const L = { ...sim.LAYOUT, chipWidth: w, chipHeight: h, chipGap: 0 }
+  for (const spot of CHIP_SPOTS) {
+    const r = sim.chipBox(a, b, spot.t, L, spot.side), box = chipBoxAt(line, spot, w, h)
+    for (const [got, want] of [[box.x, r.x0], [box.x + w, r.x1], [box.y, r.y0], [box.y + h, r.y1]]) assert.ok(Math.abs(got - want) < 1e-9, `${spot.t} ${spot.side}`)
+  }
+})
+
+test('中央がふさがれた札は、同じ点の上下左右へ移る', () => {
+  const two = createGraphModel()
+  two.snapshot(snapshot([node('a'), node('b')], [edge('a', 'b')]), 0, rect)
+  for (let i = 0; i < 300; i++) two.step(1 / 60, rect, i * 16)
+  two.frame(5000, rect)
+  const chip = two.edges.get('a:b').chip
+  assert.deepEqual(chip.spot, { t: 0.5, side: [0, 0] })
+  // 後から来た依頼の札が先に置かれることはないので、中央を名前でふさぐ：第三の顔を中点へ。
+  const a = two.nodes.get('a'), b = two.nodes.get('b')
+  two.change({ epoch: 'e1', version: 2, degraded: [], changes: [{ type: 'member-enter', node: node('c') }] }, 5000, rect)
+  const c = two.nodes.get('c')
+  Object.assign(c, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, enterAt: -10000 })
+  two.frame(20000, rect)
+  assert.notDeepEqual(chip.spot, { t: 0.5, side: [0, 0] })
+  assert.equal(two.frame(20000, rect).labels.some(label => label.edge.id === 'a:b'), true)
 })
