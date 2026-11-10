@@ -395,12 +395,21 @@ final class TerminalsUITests: XCTestCase {
         let picker = app.buttons["member-terminal-picker"]
         XCTAssertTrue(scrollTo(picker, in: app))
         XCTAssertTrue(picker.label.contains("owner-macbook"))
-        let folder = app.textFields["member-project-root"]
-        XCTAssertEqual(folder.value as? String, "/Users/kite/work/app")
+        let path = app.staticTexts["member-project-path"]
+        XCTAssertEqual(path.label, "フォルダ、/Users/kite/work/app", "選んだフォルダは読み取り専用の文字で見せる")
+        XCTAssertTrue(app.buttons["choose-member-folder"].exists)
+        XCTAssertFalse(app.textFields["member-project-root"].exists, "文字入力は「ほかの方法」の中だけ")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4)).press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))) // show the terminal row above the folder
         shot(app, "20-member-editor-terminal")
+        app.buttons["ほかの方法"].tap()
+        let folder = app.textFields["member-project-root"]
+        XCTAssertTrue(scrollTo(folder, in: app))
+        XCTAssertEqual(folder.value as? String, "/Users/kite/work/app")
+        shot(app, "20b-member-editor-other-ways-open")
 
         folder.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.5)).tap() // cursor at the end of the right-aligned text
-        folder.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 40) + "work/app\n")
+        folder.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 40))
+        folder.typeText("work/app")
         XCTAssertEqual(folder.value as? String, "work/app")
         let rule = "フォルダは「/」で始まる端末上の絶対パスにします"
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH %@", rule)).firstMatch.waitForExistence(timeout: 3))
@@ -411,7 +420,7 @@ final class TerminalsUITests: XCTestCase {
         XCTAssertEqual((proof["rejectedBotSaves"] as? [Any])?.count, 0)
 
         picker.tap()
-        app.buttons["このBellTeam"].tap()
+        menuChoice(app, "このBellTeam").tap()
         XCTAssertFalse(app.textFields["member-project-root"].exists, "このBellTeamではフォルダ欄を出さない")
         shot(app, "22-member-editor-local")
         app.buttons["save-member"].tap()
@@ -541,10 +550,10 @@ final class TerminalsUITests: XCTestCase {
         let picker = app.buttons["member-terminal-picker"]
         XCTAssertTrue(scrollTo(picker, in: app))
         picker.tap()
-        app.buttons["sleeping-mini（192.168.1.20）"].tap()
-        let folder = app.textFields["member-project-root"]
+        menuChoice(app, "sleeping-mini（192.168.1.20）").tap()
+        let folder = app.staticTexts["member-project-path"]
         XCTAssertTrue(folder.waitForExistence(timeout: 3))
-        XCTAssertEqual(folder.value as? String, "/Users/kite/work/app", "保存済みのフォルダは書き換えない")
+        XCTAssertEqual(folder.label, "フォルダ、/Users/kite/work/app", "保存済みのフォルダは書き換えない")
         app.buttons["save-member"].tap()
         let error = app.descendants(matching: .any)["member-save-error"]
         XCTAssertTrue(scrollTo(error, in: app))
@@ -581,6 +590,153 @@ final class TerminalsUITests: XCTestCase {
             XCTAssertFalse(app.buttons["create-member-folder"].exists, mode)
             app.terminate()
         }
+    }
+
+    // MARK: S6 folder picker (double of terminals README "Folder picker")
+
+    private func openPicker(_ app: XCUIApplication) {
+        let choose = app.buttons["choose-member-folder"]
+        XCTAssertTrue(scrollTo(choose, in: app))
+        choose.tap()
+    }
+
+    /// A choice of the terminal picker's menu, whatever element type this OS gives it.
+    private func menuChoice(_ app: XCUIApplication, _ title: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(NSPredicate(format: "label == %@ AND elementType != %d", title, XCUIElement.ElementType.staticText.rawValue)).firstMatch
+    }
+
+    private func element(_ app: XCUIApplication, _ id: String) -> XCUIElement { app.descendants(matching: .any)[id] }
+
+    private func waitPath(_ app: XCUIApplication, _ path: String) -> Bool { waitLabel(app, "folder-picker-path", contains: path) && element(app, "folder-picker-path").label == path }
+
+    func testFolderPickerOpensAtHomeBrowsesCreatesAndChooses() async throws {
+        let app = launch(["-bellbot-preview-terminals"])
+        defer { app.terminate() }
+        try openMemberEditor(app)
+        openPicker(app)
+        XCTAssertTrue(waitPath(app, "/Users/kite"), "端末のユーザーのホームで開く")
+        for name in ["BellTeam", "Desktop", "Documents", "work"] { XCTAssertTrue(app.buttons["folder-row-\(name)"].exists, name) }
+        XCTAssertTrue(app.buttons["folder-picker-up"].exists)
+        XCTAssertTrue(app.buttons["folder-picker-choose"].exists)
+        var proof = try await call("/test/proof")
+        XCTAssertEqual((proof["folderReads"] as? [Any])?.count, 1)
+        XCTAssertTrue((proof["folderReads"] as? [Any])?.first is NSNull, "最初はpathなし（ホーム）")
+        shot(app, "40-folder-picker-home")
+
+        app.buttons["folder-row-work"].tap()
+        XCTAssertTrue(waitPath(app, "/Users/kite/work"))
+        XCTAssertTrue(app.buttons["folder-row-app"].exists)
+        shot(app, "41-folder-picker-subfolder")
+        app.buttons["folder-row-app"].tap()
+        XCTAssertTrue(waitPath(app, "/Users/kite/work/app"))
+        app.buttons["folder-picker-up"].tap()
+        XCTAssertTrue(waitPath(app, "/Users/kite/work"), "上へ")
+
+        // A wrong name is refused before anything is sent.
+        let name = element(app, "folder-picker-new-name")
+        XCTAssertTrue(scrollTo(name, in: app))
+        name.tap()
+        name.typeText("..")
+        app.buttons["folder-picker-create"].tap()
+        XCTAssertTrue(element(app, "folder-picker-create-note").waitForExistence(timeout: 3))
+        proof = try await call("/test/proof")
+        XCTAssertEqual((proof["folderCreates"] as? [Any])?.count, 0)
+
+        name.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 2) + "scratch")
+        app.buttons["folder-picker-create"].tap()
+        XCTAssertTrue(waitPath(app, "/Users/kite/work/scratch"), "作ったフォルダを開く（選んだ状態）")
+        XCTAssertTrue(element(app, "folder-picker-empty").exists, "中身は空の一行")
+        shot(app, "42-folder-picker-created")
+        proof = try await call("/test/proof")
+        let creates = proof["folderCreates"] as? [[String: Any]] ?? []
+        XCTAssertEqual(creates.count, 1)
+        XCTAssertEqual(creates[0]["body"] as? [String: AnyHashable], ["path": "/Users/kite/work/scratch", "create": true])
+        let reads = (proof["folderReads"] as? [Any])?.suffix(2).compactMap { $0 as? String }
+        XCTAssertEqual(reads, ["/Users/kite/work", "/Users/kite/work/scratch"], "作った後に親を読み直してから、そのフォルダを開く")
+
+        app.buttons["folder-picker-choose"].tap()
+        let path = app.staticTexts["member-project-path"]
+        XCTAssertTrue(path.waitForExistence(timeout: 5))
+        XCTAssertEqual(path.label, "フォルダ、/Users/kite/work/scratch")
+        shot(app, "43-member-editor-folder-chosen")
+        app.buttons["save-member"].tap()
+        XCTAssertTrue(app.buttons["メンバーを編集"].waitForExistence(timeout: 10))
+        proof = try await call("/test/proof")
+        let saved = (proof["botSaves"] as? [[String: Any]])?.last?["body"] as? [String: Any] ?? [:]
+        XCTAssertEqual(saved["projectRoot"] as? String, "/Users/kite/work/scratch")
+        XCTAssertEqual(saved["terminalId"] as? String, "owner-macbook")
+    }
+
+    func testFolderPickerReasonsOfflineAndReadFailureAskAgain() async throws {
+        _ = try await call("/test/mode?folders=offline")
+        let app = launch(["-bellbot-preview-terminals"])
+        defer { app.terminate() }
+        try openMemberEditor(app)
+        openPicker(app)
+        let reason = element(app, "folder-picker-reason")
+        XCTAssertTrue(reason.waitForExistence(timeout: 10))
+        XCTAssertTrue(reason.label.hasPrefix("いまこの端末に届きません。"), reason.label)
+        XCTAssertFalse(element(app, "folder-picker-empty").exists, "届かない時に空の一覧に見せない")
+        XCTAssertFalse(app.buttons["folder-picker-choose"].exists)
+        shot(app, "44-folder-picker-offline")
+
+        _ = try await call("/test/mode?folders=ok")
+        app.buttons["folder-picker-retry"].tap()
+        XCTAssertTrue(waitPath(app, "/Users/kite"), "もう一度で読み直す")
+        XCTAssertFalse(element(app, "folder-picker-reason").exists)
+
+        // A failed HTTP read: one sentence, the same place again.
+        _ = try await call("/test/mode?folders=error")
+        app.buttons["folder-row-work"].tap()
+        XCTAssertTrue(reason.waitForExistence(timeout: 5))
+        XCTAssertEqual(reason.label, "フォルダの一覧を読み込めませんでした。つながりを確かめて、もう一度お試しください。")
+        _ = try await call("/test/mode?folders=ok")
+        app.buttons["folder-picker-retry"].tap()
+        XCTAssertTrue(waitPath(app, "/Users/kite/work"))
+
+        // macOS privacy: the same sentence as the save refusal, and 上へ still leads out.
+        app.buttons["folder-picker-up"].tap()
+        XCTAssertTrue(waitPath(app, "/Users/kite"))
+        app.buttons["folder-row-Desktop"].tap()
+        XCTAssertTrue(reason.waitForExistence(timeout: 5))
+        XCTAssertTrue(reason.label.hasPrefix("Macがこのフォルダを開かせてくれません。デスクトップ・書類・ダウンロードの外を選ぶか"), reason.label)
+        XCTAssertTrue(app.buttons["folder-picker-up"].exists)
+        shot(app, "45-folder-picker-not-permitted")
+    }
+
+    func testFolderPickerEmptyListStillChoosableAndTruncatedSaysSo() async throws {
+        _ = try await call("/test/mode?folders=empty")
+        let app = launch(["-bellbot-preview-terminals"])
+        defer { app.terminate() }
+        try openMemberEditor(app)
+        openPicker(app)
+        XCTAssertTrue(waitPath(app, "/Users/kite"))
+        XCTAssertEqual(element(app, "folder-picker-empty").label, "フォルダはありません")
+        XCTAssertTrue(app.buttons["folder-picker-choose"].exists)
+        XCTAssertTrue(element(app, "folder-picker-new-name").exists || scrollTo(element(app, "folder-picker-new-name"), in: app))
+        app.buttons["folder-picker-close"].tap()
+
+        _ = try await call("/test/mode?folders=truncated")
+        openPicker(app)
+        XCTAssertTrue(waitPath(app, "/Users/kite"))
+        XCTAssertTrue(scrollTo(element(app, "folder-picker-truncated"), in: app))
+        XCTAssertEqual(element(app, "folder-picker-truncated").label, "フォルダが多いため、すべては表示していません。")
+    }
+
+    func testOlderBodyWithoutTheFoldersRouteKeepsTheTextField() async throws {
+        _ = try await call("/test/mode?folders=old")
+        let app = launch(["-bellbot-preview-terminals"])
+        defer { app.terminate() }
+        try openMemberEditor(app)
+        openPicker(app)
+        XCTAssertTrue(element(app, "folder-picker-unsupported").waitForExistence(timeout: 10))
+        shot(app, "46-folder-picker-old-body")
+        app.buttons["folder-picker-close"].tap()
+        let folder = app.textFields["member-project-root"]
+        XCTAssertTrue(scrollTo(folder, in: app), "旧本体では文字入力の欄をそのまま出す")
+        XCTAssertEqual(folder.value as? String, "/Users/kite/work/app")
+        XCTAssertFalse(app.buttons["choose-member-folder"].exists)
+        shot(app, "47-member-editor-old-body-text-field")
     }
 
     private func launch(_ arguments: [String]) -> XCUIApplication {

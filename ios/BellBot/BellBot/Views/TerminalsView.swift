@@ -770,6 +770,8 @@ private struct HostKeyConfirmSheet: View {
 struct MemberTerminalSection: View {
     @Binding var terminalId: String
     @Binding var projectRoot: String
+    /// 「フォルダを選ぶ」: the editor presents the picker sheet (a sheet inside a Form row dismisses the editor).
+    @Binding var showingPicker: Bool
     /// The member DTO carries terminalId (nil = this BellTeam predates the member fields).
     let memberFieldsAvailable: Bool
     /// The member's name, for the folder prefill `/Users/<terminal user>/BellTeam/<slug>`.
@@ -808,12 +810,21 @@ struct MemberTerminalSection: View {
                             .font(.caption).foregroundStyle(.orange)
                     }
                     if !terminalId.isEmpty {
-                        LabeledContent("フォルダ") {
-                            TextField("フォルダ", text: $projectRoot, prompt: Text("/Users/kite/work/app"))
-                                .multilineTextAlignment(.trailing)
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-                                .accessibilityIdentifier("member-project-root")
+                        if store.terminals.foldersUnsupported {
+                            // Older body without the folders route: the typed field, as before the picker.
+                            LabeledContent("フォルダ") { pathField(prompt: "フォルダ") }
+                        } else {
+                            LabeledContent("フォルダ") {
+                                Text(projectRoot.isEmpty ? "未選択" : projectRoot)
+                                    .multilineTextAlignment(.trailing)
+                                    .foregroundStyle(projectRoot.isEmpty ? .secondary : .primary)
+                                    .accessibilityIdentifier("member-project-path")
+                            }
+                            Button("フォルダを選ぶ", systemImage: "folder") { showingPicker = true }
+                                .accessibilityIdentifier("choose-member-folder")
+                            DisclosureGroup("ほかの方法") {
+                                LabeledContent("パスを入力") { pathField(prompt: "パスを入力") }
+                            }
                         }
                         if let problem = MemberBinding.problem(terminalId: terminalId, projectRoot: projectRoot), !projectRoot.isEmpty {
                             Text(problem).font(.caption).foregroundStyle(.red)
@@ -839,10 +850,120 @@ struct MemberTerminalSection: View {
         .onChange(of: terminalId) { _, _ in applyPrefill() }
     }
 
+    private func pathField(prompt: String) -> some View {
+        TextField(prompt, text: $projectRoot, prompt: Text("/Users/kite/work/app"))
+            .multilineTextAlignment(.trailing)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+            .accessibilityIdentifier("member-project-root")
+    }
+
     private func applyPrefill() {
         guard !terminalId.isEmpty, let user = store.terminals.terminal(terminalId)?.user, !user.isEmpty,
               let next = MemberFolder.prefill(current: projectRoot, lastPrefill: prefilled, user: user, name: memberName) else { return }
         projectRoot = next
         prefilled = next
+    }
+}
+
+/// S6: pick a folder of the terminal on screen. Opens at the terminal user's home; reads write nothing.
+struct TerminalFolderPickerSheet: View {
+    let onChoose: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var model: TerminalFolderPickerModel
+
+    init(terminalId: String, store: AppStore, onChoose: @escaping (String) -> Void) {
+        self.onChoose = onChoose
+        _model = StateObject(wrappedValue: TerminalFolderPickerModel(
+            read: { try await store.terminalFolders(id: terminalId, path: $0) },
+            make: { try await store.createTerminalFolder(id: terminalId, path: $0) }))
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                switch model.content {
+                case .loading:
+                    Section { ProgressView("読み込んでいます…").accessibilityIdentifier("folder-picker-loading") }
+                case .unsupported:
+                    Section {
+                        Label(TerminalFolderPicker.unsupportedText, systemImage: "info.circle")
+                            .font(BellTheme.detailFont).foregroundStyle(.secondary)
+                            .accessibilityIdentifier("folder-picker-unsupported")
+                    }
+                case .failed(let text):
+                    Section { retry(text) }
+                case .listed(let folders):
+                    listed(folders)
+                }
+            }
+            .navigationTitle("フォルダを選ぶ")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) { Button("閉じる") { dismiss() }.accessibilityIdentifier("folder-picker-close") }
+            }
+            .task { await model.open(nil) }
+        }
+    }
+
+    private func retry(_ text: String) -> some View {
+        Group {
+            Text(text).font(BellTheme.detailFont).foregroundStyle(.red).accessibilityIdentifier("folder-picker-reason")
+            Button("もう一度") { Task { await model.reload() } }.accessibilityIdentifier("folder-picker-retry")
+        }
+    }
+
+    @ViewBuilder
+    private func listed(_ folders: TerminalFolders) -> some View {
+        let path = folders.path ?? model.requested
+        Section {
+            Text(path ?? "ホーム")
+                .font(.system(.footnote, design: .monospaced))
+                .accessibilityIdentifier("folder-picker-path")
+            if let parent = folders.parent {
+                Button("上へ", systemImage: "arrow.up") { Task { await model.open(parent) } }
+                    .accessibilityIdentifier("folder-picker-up")
+            }
+        } header: {
+            BellSectionHeader("いまの場所")
+        }
+        if let reason = folders.reason {
+            Section { retry(TerminalFolderPicker.sentence(reason: reason, action: folders.action)) }
+        } else if let path {
+            Section {
+                Button("このフォルダにする", systemImage: "checkmark.circle") { onChoose(path); dismiss() }
+                    .accessibilityIdentifier("folder-picker-choose")
+            }
+            Section {
+                if folders.entries.isEmpty {
+                    Text(TerminalFolderPicker.emptyText).foregroundStyle(.secondary).accessibilityIdentifier("folder-picker-empty")
+                }
+                ForEach(folders.entries) { entry in
+                    Button { Task { await model.open(entry.path) } } label: {
+                        HStack { Label(entry.name, systemImage: "folder"); Spacer(); Image(systemName: "chevron.right").foregroundStyle(.tertiary) }
+                    }
+                    .accessibilityIdentifier("folder-row-\(entry.name)")
+                }
+                if folders.truncated {
+                    Text(TerminalFolderPicker.truncatedText).font(.caption).foregroundStyle(.secondary)
+                        .accessibilityIdentifier("folder-picker-truncated")
+                }
+            } header: {
+                BellSectionHeader("フォルダ")
+            }
+            Section {
+                TextField("フォルダ名", text: $model.newName)
+                    .textInputAutocapitalization(.never).autocorrectionDisabled()
+                    .accessibilityIdentifier("folder-picker-new-name")
+                Button("作る", systemImage: "folder.badge.plus") { Task { await model.createFolder() } }
+                    .disabled(model.creating)
+                    .accessibilityIdentifier("folder-picker-create")
+                if let note = model.createNote {
+                    Text(note).font(.caption).foregroundStyle(.red).accessibilityIdentifier("folder-picker-create-note")
+                }
+            } header: {
+                BellSectionHeader("新しいフォルダ")
+            }
+        }
     }
 }

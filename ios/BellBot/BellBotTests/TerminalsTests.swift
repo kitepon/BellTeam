@@ -668,6 +668,183 @@ final class TerminalsTests: XCTestCase {
         XCTAssertFalse(try request(nil, onePassword: false).onePasswordOffered)
     }
 
+    // MARK: S6 folder picker
+
+    func testFoldersDecodeListedRefusedAndAnUnknownHome() throws {
+        let listed = try JSONDecoder().decode(TerminalFolders.self, from: Data(#"""
+        {"terminalId":"t","observedAt":"2026-11-10T00:00:00Z","home":"/Users/kite","path":"/Users/kite","parent":"/Users",
+         "entries":[{"name":"work","path":"/Users/kite/work"}],"truncated":true,"reason":null,"action":null}
+        """#.utf8))
+        XCTAssertEqual(listed.entries, [TerminalFolderEntry(name: "work", path: "/Users/kite/work")])
+        XCTAssertEqual(listed.parent, "/Users")
+        XCTAssertTrue(listed.truncated)
+        XCTAssertNil(listed.reason)
+
+        let refused = try JSONDecoder().decode(TerminalFolders.self, from: Data(#"""
+        {"terminalId":"t","observedAt":"x","home":null,"path":"/Users/kite","parent":"/Users","entries":[],"truncated":false,
+         "reason":"UNREACHABLE","action":"届きません"}
+        """#.utf8))
+        XCTAssertNil(refused.home)
+        XCTAssertEqual(refused.reason, "UNREACHABLE")
+        XCTAssertTrue(refused.entries.isEmpty)
+
+        let root = try JSONDecoder().decode(TerminalFolders.self, from: Data(#"{"terminalId":"t","path":"/","parent":null}"#.utf8))
+        XCTAssertNil(root.parent, "/ には「上へ」が無い")
+        XCTAssertTrue(root.entries.isEmpty)
+        XCTAssertFalse(root.truncated)
+    }
+
+    func testNewFolderNameRulesAndChildPath() {
+        XCTAssertEqual(TerminalFolderPicker.name("  app  ").name, "app")
+        XCTAssertNil(TerminalFolderPicker.name("日本語 フォルダ").problem)
+        for bad in ["", "   ", "/", ".", "..", "a/b", "/a", "a\0b", String(repeating: "a", count: 256), String(repeating: "あ", count: 86)] {
+            XCTAssertNotNil(TerminalFolderPicker.name(bad).problem, bad)
+        }
+        XCTAssertNil(TerminalFolderPicker.name(String(repeating: "a", count: 255)).problem, "255バイトちょうどは通る")
+        XCTAssertNil(TerminalFolderPicker.name(String(repeating: "あ", count: 85)).problem, "255バイト")
+        XCTAssertEqual(TerminalFolderPicker.childPath(of: "/", name: "x"), "/x")
+        XCTAssertEqual(TerminalFolderPicker.childPath(of: "/Users/kite", name: "x"), "/Users/kite/x")
+        XCTAssertEqual(TerminalFolderPicker.query("/Users/kite/a+b&c #d/日本"), "/Users/kite/a%2Bb%26c%20%23d/%E6%97%A5%E6%9C%AC")
+    }
+
+    func testReasonsBecomeOneSentenceAndUnreachableNeverReadsAsAnEmptyList() {
+        let unreachable = TerminalFolderPicker.unreachableText
+        for reason in ["UNREACHABLE", "TERMINAL_UNAVAILABLE", "CONNECTION_LOST", "REMOTE_AITERM_UNAVAILABLE"] {
+            XCTAssertEqual(TerminalFolderPicker.sentence(reason: reason, action: "届きませんでした"), unreachable, reason)
+        }
+        XCTAssertEqual(TerminalFolderPicker.sentence(reason: "FOLDER_NOT_PERMITTED", action: "x"), MemberFolder.words["FOLDER_NOT_PERMITTED"]! + "。", "S5と同じ文")
+        XCTAssertEqual(TerminalFolderPicker.sentence(reason: "CONNECTION_REFUSED", action: " リモートログインを確かめてください "), "リモートログインを確かめてください", "サーバーのactionをそのまま")
+        XCTAssertEqual(TerminalFolderPicker.sentence(reason: "FOLDER_MISSING", action: nil), MemberFolder.words["FOLDER_MISSING"]! + "。")
+        XCTAssertEqual(TerminalFolderPicker.sentence(reason: "TERMINAL_NOT_FOUND", action: nil), "この端末は登録されていません。")
+        XCTAssertFalse(TerminalFolderPicker.sentence(reason: "SOMETHING_NEW", action: nil).isEmpty)
+    }
+
+    func testOnlyAnOlderBodysFoldersRouteCountsAsUnsupported() {
+        func http(_ status: Int, _ code: String?) -> Error {
+            BellAPIError.httpStatus(status, code, nil)
+        }
+        XCTAssertTrue(TerminalErrorText.isFoldersUnsupported(http(404, nil)))
+        XCTAssertTrue(TerminalErrorText.isFoldersUnsupported(http(404, "NOT_FOUND")))
+        XCTAssertTrue(TerminalErrorText.isFoldersUnsupported(http(405, nil)))
+        XCTAssertFalse(TerminalErrorText.isFoldersUnsupported(http(404, "TERMINAL_NOT_FOUND")))
+        XCTAssertFalse(TerminalErrorText.isFoldersUnsupported(http(503, "TERMINAL_UNAVAILABLE")))
+        XCTAssertFalse(TerminalErrorText.isFoldersUnsupported(http(400, "INVALID_PATH")))
+    }
+
+    func testStoreReadsTheFoldersWithTheEscapedPathAndFlagsAnOlderBody() async throws {
+        let (store, session) = makeStore()
+        defer { session.invalidateAndCancel() }
+        TerminalsProtocol.respond([(200, #"{"terminalId":"owner-macbook","home":"/Users/kite","path":"/Users/kite","parent":"/Users","entries":[],"truncated":false,"reason":null}"#)])
+        let home = try await store.terminalFolders(id: "owner-macbook", path: nil)
+        XCTAssertEqual(home.path, "/Users/kite")
+        _ = try await store.terminalFolders(id: "owner-macbook", path: "/Users/kite/a+b")
+        XCTAssertEqual(TerminalsProtocol.paths, ["/api/terminals/owner-macbook/folders", "/api/terminals/owner-macbook/folders"])
+        XCTAssertEqual(TerminalsProtocol.queries, [nil, "path=/Users/kite/a%2Bb"])
+        XCTAssertFalse(store.terminals.foldersUnsupported)
+
+        TerminalsProtocol.respond([(404, #"{"error":"NOT_FOUND"}"#)])
+        do { _ = try await store.terminalFolders(id: "owner-macbook", path: nil); XCTFail("旧本体は404") }
+        catch { XCTAssertTrue(TerminalErrorText.isFoldersUnsupported(error)) }
+        XCTAssertTrue(store.terminals.foldersUnsupported, "旧本体なら文字入力の欄を残す")
+
+        TerminalsProtocol.respond([(200, #"{"terminalId":"owner-macbook","path":"/","parent":null}"#)])
+        _ = try await store.terminalFolders(id: "owner-macbook", path: "/")
+        XCTAssertFalse(store.terminals.foldersUnsupported, "次に読めたら外す")
+    }
+
+    func testPickerOpensAtHomeThenSubfolderAndUp() async throws {
+        let home = folders("/Users/kite", parent: "/Users", names: ["work"])
+        let pages = ["": home, "/Users/kite": home,
+                     "/Users/kite/work": folders("/Users/kite/work", parent: "/Users/kite", names: [])]
+        var asked: [String?] = []
+        let model = TerminalFolderPickerModel(read: { path in asked.append(path); return pages[path ?? ""]! }, make: { _ in TerminalFolderStatus() })
+        await model.open(nil)
+        guard case .listed(let listed) = model.content else { return XCTFail("ホームを一覧する") }
+        XCTAssertEqual(listed.entries.first?.path, "/Users/kite/work")
+        await model.open(listed.entries[0].path)
+        guard case .listed(let work) = model.content else { return XCTFail("サブフォルダを開く") }
+        XCTAssertEqual(work.parent, "/Users/kite")
+        await model.open(work.parent)
+        XCTAssertEqual(asked, [nil, "/Users/kite/work", "/Users/kite"])
+    }
+
+    func testPickerFailuresAreOneSentenceAndAgainReadsTheSamePath() async {
+        var failing = true
+        var asked: [String?] = []
+        let model = TerminalFolderPickerModel(read: { path in
+            asked.append(path)
+            if failing { throw BellAPIError.httpStatus(503, "TERMINAL_UNAVAILABLE", nil) }
+            return TerminalFolders(path: "/Users/kite/work")
+        }, make: { _ in TerminalFolderStatus() })
+        await model.open("/Users/kite/work")
+        XCTAssertEqual(model.content, .failed(TerminalFolderPicker.readFailedText))
+        failing = false
+        await model.reload()
+        XCTAssertEqual(asked, ["/Users/kite/work", "/Users/kite/work"], "「もう一度」は同じ場所を読み直す")
+        if case .listed = model.content {} else { XCTFail("読めたら一覧") }
+
+        let old = TerminalFolderPickerModel(read: { _ in throw BellAPIError.httpStatus(404, "NOT_FOUND", nil) }, make: { _ in TerminalFolderStatus() })
+        await old.open(nil)
+        XCTAssertEqual(old.content, .unsupported)
+        let gone = TerminalFolderPickerModel(read: { _ in throw BellAPIError.httpStatus(404, "TERMINAL_NOT_FOUND", nil) }, make: { _ in TerminalFolderStatus() })
+        await gone.open(nil)
+        XCTAssertEqual(gone.content, .failed("この端末は登録されていません。"))
+    }
+
+    func testCreateSendsOnceListsTheParentAgainThenOpensTheNewFolder() async {
+        var events: [String] = []
+        let model = TerminalFolderPickerModel(read: { path in
+            events.append("read \(path ?? "home")")
+            return TerminalFolders(path: path ?? "/Users/kite", parent: "/Users")
+        }, make: { path in events.append("create \(path)"); return TerminalFolderStatus(path: path) })
+        await model.open(nil)
+        model.newName = "  new app "
+        await model.createFolder()
+        XCTAssertEqual(events, ["read home", "create /Users/kite/new app", "read /Users/kite", "read /Users/kite/new app"])
+        XCTAssertEqual(model.newName, "")
+        XCTAssertNil(model.createNote)
+        guard case .listed(let opened) = model.content else { return XCTFail("作ったフォルダを開く") }
+        XCTAssertEqual(opened.path, "/Users/kite/new app")
+    }
+
+    func testCreateRefusesBadNamesBeforeSendingAndShowsAServerReason() async {
+        var created: [String] = []
+        var answer = TerminalFolderStatus()
+        let model = TerminalFolderPickerModel(read: { _ in TerminalFolders(path: "/Users/kite") }, make: { path in created.append(path); return answer })
+        await model.open(nil)
+        for bad in ["", "/", ".", "..", "a/b"] {
+            model.newName = bad
+            await model.createFolder()
+            XCTAssertNotNil(model.createNote, bad)
+        }
+        XCTAssertEqual(created, [], "名前の誤りはサーバーへ送らない")
+
+        answer = TerminalFolderStatus(path: "/Users/kite/x", reason: "FOLDER_NOT_PERMITTED", action: nil)
+        model.newName = "x"
+        await model.createFolder()
+        XCTAssertEqual(created, ["/Users/kite/x"])
+        XCTAssertEqual(model.createNote, MemberFolder.words["FOLDER_NOT_PERMITTED"]! + "。")
+        XCTAssertEqual(model.newName, "x", "作れなかった名前は残す")
+        guard case .listed(let stay) = model.content else { return XCTFail("拒否されても今の場所に留まる") }
+        XCTAssertEqual(stay.path, "/Users/kite")
+    }
+
+    func testFailedCreateIsNotResentAndTheParentIsReadAgain() async {
+        var creates = 0, reads = 0
+        let model = TerminalFolderPickerModel(read: { _ in reads += 1; return TerminalFolders(path: "/Users/kite") },
+                                              make: { _ in creates += 1; throw URLError(.notConnectedToInternet) })
+        await model.open(nil)
+        model.newName = "x"
+        await model.createFolder()
+        XCTAssertEqual(creates, 1)
+        XCTAssertEqual(reads, 2, "作れたか分からない時は一覧を読み直して見せる")
+        XCTAssertEqual(model.createNote, TerminalFolderPicker.createFailedText)
+    }
+
+    private func folders(_ path: String, parent: String?, names: [String]) -> TerminalFolders {
+        TerminalFolders(path: path, parent: parent, entries: names.map { TerminalFolderEntry(name: $0, path: "\(path)/\($0)") })
+    }
+
     private func makeStore() -> (AppStore, URLSession) {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [TerminalsProtocol.self]
@@ -686,6 +863,7 @@ private final class TerminalsProtocol: URLProtocol {
     private static var queue: [(Int, String)] = []
     private static var seenPaths: [String] = []
     private static var seenBodies: [String] = []
+    private static var seenQueries: [String?] = []
 
     static func respond(_ status: Int, _ body: String) {
         lock.lock(); defer { lock.unlock() }
@@ -700,10 +878,13 @@ private final class TerminalsProtocol: URLProtocol {
         queue = answers
         seenPaths = []
         seenBodies = []
+        seenQueries = []
     }
 
     static var paths: [String] { lock.lock(); defer { lock.unlock() }; return seenPaths }
     static var bodies: [String] { lock.lock(); defer { lock.unlock() }; return seenBodies }
+    /// The query as sent on the wire (still escaped), nil when there was none.
+    static var queries: [String?] { lock.lock(); defer { lock.unlock() }; return seenQueries }
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -723,6 +904,7 @@ private final class TerminalsProtocol: URLProtocol {
         if !Self.queue.isEmpty {
             (status, body) = Self.queue.count > 1 ? Self.queue.removeFirst() : Self.queue[0]
             Self.seenPaths.append(request.url!.path)
+            Self.seenQueries.append(URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.percentEncodedQuery)
             Self.seenBodies.append(sent.flatMap { String(data: $0, encoding: .utf8) } ?? "")
         }
         Self.lock.unlock()
