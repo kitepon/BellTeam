@@ -4,6 +4,34 @@ import Foundation
 
 struct TerminalsResponse: Decodable { let terminals: [Terminal] }
 
+/// terminals "Windows and Linux terminals": the registry's `os`. `Terminal.os` stays the raw string, so a value this app
+/// does not know is shown as sent and read with the POSIX path rule; every text defaults to macOS (the words before).
+enum TerminalOS: String, CaseIterable, Identifiable {
+    case macos, windows, linux
+
+    var id: String { rawValue }
+    var label: String {
+        switch self { case .macos: "macOS"; case .windows: "Windows"; case .linux: "Linux" }
+    }
+
+    /// The terminal as the noun of a sentence.
+    static func machine(_ os: String) -> String {
+        switch TerminalOS(rawValue: os) { case .macos?: "Mac"; case .windows?: "Windows PC"; case .linux?: "Linuxマシン"; case nil: "端末" }
+    }
+
+    /// The one step that lets BellTeam reach the terminal over SSH (terminals CONNECTION_REFUSED action, per OS).
+    static func sshStep(_ os: String) -> String {
+        switch TerminalOS(rawValue: os) {
+        case .windows?: "Windowsの「設定 > システム > オプション機能」でOpenSSH サーバーを追加し、sshdサービスを開始してください。"
+        case .linux?: "Linuxにopenssh-serverを入れて、sshdを開始してください（systemctl enable --now ssh）。"
+        default: "Macの「システム設定 > 一般 > 共有」で「リモートログイン」をオンにしてください。"
+        }
+    }
+
+    /// Windows has no sudo key (terminals: a `sudoKeyRef` on a `windows` record is refused).
+    static func usesSudoKey(_ os: String) -> Bool { os != TerminalOS.windows.rawValue }
+}
+
 /// Bot `seatLaunch` (execution remote-seat.md, #892): why a terminal member did not start. Every field is optional;
 /// a field of the wrong type reads as absent.
 struct SeatLaunch: Decodable, Equatable {
@@ -57,7 +85,7 @@ struct Terminal: Decodable, Identifiable, Equatable {
 
     var id: String { terminalId }
     var address: String { "\(user)@\(host):\(port)" }
-    var osLabel: String { os == "macos" ? "macOS" : os }
+    var osLabel: String { TerminalOS(rawValue: os)?.label ?? os }
     var ownerLabel: String { accountOwner == "terminal-owner" ? "その端末の持ち主" : "自分の端末" }
 
     private enum CodingKeys: String, CodingKey {
@@ -189,15 +217,18 @@ struct TerminalCheck: Decodable, Equatable {
 
     var summary: String { reachable ? "つながる" : "つながらない" }
 
-    var explanation: String? {
-        switch problem {
+    func explanation(os: String = "macos") -> String? {
+        let m = TerminalOS.machine(os)
+        return switch problem {
         case nil: nil
         // Reasons are evidence, not diagnoses (terminals README step 4): the sentence names the likely fix. The server's own
         // Japanese action text wins when the body carries it; older bodies get the same meaning from here.
-        case .refused?: action.flatMap(Self.text) ?? "Macが接続を断りました。Macの「システム設定 > 一般 > 共有」で「リモートログイン」がオンか確かめてください。"
-        case .authFailed?: action.flatMap(Self.text) ?? "この鍵がまだMacに入っていないかもしれません。"
+        case .refused?: action.flatMap(Self.text) ?? (os == TerminalOS.macos.rawValue
+            ? "Macが接続を断りました。Macの「システム設定 > 一般 > 共有」で「リモートログイン」がオンか確かめてください。"
+            : "\(m)が接続を断りました。\(TerminalOS.sshStep(os))")
+        case .authFailed?: action.flatMap(Self.text) ?? "この鍵がまだ\(m)に入っていないかもしれません。"
         case .unreachable?: reason == "UNREACHABLE"
-            ? "Macが届きませんでした。Macが起きていて、同じネットワークにあるか確かめてください。起きれば自動で再開します。"
+            ? "\(m)が届きませんでした。\(m)が起きていて、同じネットワークにあるか確かめてください。起きれば自動で再開します。"
             : "端末が眠っているか、ネットワークで届きません。端末が起きれば自動で再開します。"
         case .credential?: "SSH鍵がまだ無いか、使えません。下の「鍵」を確かめてください。"
         case .hostKey?: "この端末のホスト鍵をまだ信用していないか、鍵が変わりました。「ホスト鍵を確かめる」から指紋を確かめてください。"
@@ -249,12 +280,14 @@ struct TerminalDraft: Equatable {
     var host = ""
     var user = ""
     var port = "22"
+    /// Sent back as read, so an edit never turns a Windows or Linux terminal into macOS.
+    var os = TerminalOS.macos.rawValue
     var accountOwner = "owner"
 
     init() {}
     init(_ terminal: Terminal) {
         terminalId = terminal.terminalId; host = terminal.host; user = terminal.user
-        port = String(terminal.port); accountOwner = terminal.accountOwner
+        port = String(terminal.port); os = terminal.os; accountOwner = terminal.accountOwner
     }
 
     enum Field: Hashable { case terminalId, host, user, port }
@@ -287,7 +320,7 @@ struct TerminalDraft: Equatable {
     }
 
     var body: TerminalPutBody {
-        TerminalPutBody(host: host, user: user, port: Self.portNumber(port) ?? 0, os: "macos", accountOwner: accountOwner)
+        TerminalPutBody(host: host, user: user, port: Self.portNumber(port) ?? 0, os: os, accountOwner: accountOwner)
     }
 }
 
@@ -392,31 +425,33 @@ enum TerminalAuthorize {
         var retry: Bool { if case .note(let note) = self { note.retry } else { false } }
     }
 
-    static let waitingText = "Macに鍵を入れています…"
+    static func waitingText(os: String = "macos") -> String { "\(TerminalOS.machine(os))に鍵を入れています…" }
     static let readFailedText = "状態を読み込めませんでした。つながり直したら続けます…"
 
     /// nil = the key is on the Mac (AUTHORIZED / ALREADY_AUTHORIZED): the check runs by itself.
-    static func note(outcome: String?) -> Note? {
-        switch outcome ?? "" {
+    static func note(outcome: String?, os: String = "macos") -> Note? {
+        let m = TerminalOS.machine(os)
+        return switch outcome ?? "" {
         case "AUTHORIZED", "ALREADY_AUTHORIZED": nil
         case "PASSWORD_REJECTED": Note(text: "パスワードが違いました。", retry: true)
-        case "PASSWORD_AUTH_DISABLED": Note(text: "このMacはパスワードでのログインを受け付けていません。Macの設定を変えるか、鍵をほかの方法で入れてください。")
+        case "PASSWORD_AUTH_DISABLED": Note(text: "この\(m)はパスワードでのログインを受け付けていません。\(m)の設定を変えるか、鍵をほかの方法で入れてください。")
         case "AUTHORIZATION_UNCONFIRMED": Note(text: "入れられたか確かめられませんでした。もう一度お試しください", retry: true)
         case "TERMINAL_CHANGED": Note(text: "入れている間に、端末の接続先が変わりました。もう一度お試しください。", retry: true)
-        case "TERMINAL_UNAVAILABLE": Note(text: "Macにつながりませんでした。Macが起きていて同じネットワークにあるか確かめて、もう一度お試しください。", retry: true)
+        case "TERMINAL_UNAVAILABLE": Note(text: "\(m)につながりませんでした。\(m)が起きていて同じネットワークにあるか確かめて、もう一度お試しください。", retry: true)
         case "CREDENTIAL_UNAVAILABLE": Note(text: "SSH鍵が使えませんでした。下の「鍵」で設定し直してから、もう一度お試しください。")
-        default: Note(text: "Macに鍵を入れられませんでした。もう一度お試しください。", retry: true)
+        default: Note(text: "\(m)に鍵を入れられませんでした。もう一度お試しください。", retry: true)
         }
     }
 
     /// POST keys/ssh/authorize refusals that have wording; anything else is shown through `TerminalErrorText.message`.
-    static func refusal(_ error: Error) -> Note? {
+    static func refusal(_ error: Error, os: String = "macos") -> Note? {
         guard case BellAPIError.httpStatus(let status, _, _) = error else { return nil }
+        let m = TerminalOS.machine(os)
         switch (status, TerminalErrorText.code(error)) {
-        case (409, "HOST_TRUST_MISSING"?): return Note(text: "先にこのMacを確かめてください。ホスト鍵を確かめる前は、パスワードを聞きません。")
+        case (409, "HOST_TRUST_MISSING"?): return Note(text: "先にこの\(m)を確かめてください。ホスト鍵を確かめる前は、パスワードを聞きません。")
         case (409, "SSH_KEY_UNSET"?): return Note(text: "先にSSH鍵を設定してください。入れる鍵がまだありません。")
         case (503, "CREDENTIAL_UNAVAILABLE"?): return Note(text: "いまはパスワードの入力欄を開けません。少し待ってから、もう一度お試しください。", retry: true)
-        case (404, let code) where code != "TERMINAL_NOT_FOUND": return Note(text: "このBellTeamはまだ、アプリからMacに鍵を入れることに対応していません。")
+        case (404, let code) where code != "TERMINAL_NOT_FOUND": return Note(text: "このBellTeamはまだ、アプリから\(m)に鍵を入れることに対応していません。")
         default: return nil
         }
     }
@@ -428,17 +463,23 @@ enum MemberFolder {
     static let createTitle = "このフォルダを作って保存"
     static let uncheckedText = "Macにつながらなかったので、フォルダはまだ確かめていません。席を起こす時にもう一度確かめます。"
 
-    /// `/Users/<user>/BellTeam/<slug>`; slug = trimmed name with `/`, `:`, NUL -> `-`, `member` when empty, `.` or `..`.
-    static func defaultPath(user: String, name: String) -> String {
-        let slug = name.trimmingCharacters(in: .whitespacesAndNewlines)
-            .replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-").replacingOccurrences(of: "\0", with: "-")
-        return "/Users/\(user)/BellTeam/\(slug.isEmpty || slug == "." || slug == ".." ? "member" : slug)"
+    /// `<home>/BellTeam/<slug>` in the terminal's form: `/Users/<user>` (macOS), `/home/<user>` (Linux), `C:\Users\<user>` (Windows).
+    /// slug = trimmed name with `/`, `\`, `:`, NUL -> `-`, `member` when empty, `.` or `..`.
+    static func defaultPath(user: String, name: String, os: String = "macos") -> String {
+        var slug = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        for character in ["/", "\\", ":", "\0"] { slug = slug.replacingOccurrences(of: character, with: "-") }
+        if slug.isEmpty || slug == "." || slug == ".." { slug = "member" }
+        switch TerminalOS(rawValue: os) {
+        case .windows?: return "C:\\Users\\\(user)\\BellTeam\\\(slug)"
+        case .linux?: return "/home/\(user)/BellTeam/\(slug)"
+        default: return "/Users/\(user)/BellTeam/\(slug)"
+        }
     }
 
     /// The prefill follows name and terminal changes only while the field still holds the last prefill (or is empty); typed text stays.
-    static func prefill(current: String, lastPrefill: String?, user: String, name: String) -> String? {
+    static func prefill(current: String, lastPrefill: String?, user: String, name: String, os: String = "macos") -> String? {
         guard current.isEmpty || current == lastPrefill else { return nil }
-        let next = defaultPath(user: user, name: name)
+        let next = defaultPath(user: user, name: name, os: os)
         return next == current ? nil : next
     }
 
@@ -448,19 +489,26 @@ enum MemberFolder {
         var offersCreate = false
     }
 
-    static let words = [
-        "FOLDER_MISSING": "このフォルダはMacにありません。作るか、あるフォルダを選んでください",
-        "FOLDER_NOT_DIRECTORY": "これはファイルです。フォルダを選んでください",
-        "FOLDER_NOT_WRITABLE": "このMacのユーザーが書き込めるフォルダを選んでください",
-        "FOLDER_NOT_PERMITTED": "Macがこのフォルダを開かせてくれません。デスクトップ・書類・ダウンロードの外を選ぶか、リモートログインの「リモートユーザにフルディスクアクセスを許可」をオンにしてください",
-    ]
+    /// The Full Disk Access step is macOS only (terminals "Windows and Linux terminals").
+    static func words(_ code: String, os: String = "macos") -> String? {
+        let m = TerminalOS.machine(os)
+        return switch code {
+        case "FOLDER_MISSING": "このフォルダは\(m)にありません。作るか、あるフォルダを選んでください"
+        case "FOLDER_NOT_DIRECTORY": "これはファイルです。フォルダを選んでください"
+        case "FOLDER_NOT_WRITABLE": "この\(m)のユーザーが書き込めるフォルダを選んでください"
+        case "FOLDER_NOT_PERMITTED": os == TerminalOS.macos.rawValue
+            ? "Macがこのフォルダを開かせてくれません。デスクトップ・書類・ダウンロードの外を選ぶか、リモートログインの「リモートユーザにフルディスクアクセスを許可」をオンにしてください"
+            : "\(m)がこのフォルダを開かせてくれません。この\(m)のユーザーが開けるフォルダを選んでください"
+        default: nil
+        }
+    }
 
     /// nil = not a folder refusal. An unknown FOLDER_* code gets one plain line (a later server may add codes).
-    static func refusal(code: String?, folder: String) -> Refusal? {
+    static func refusal(code: String?, folder: String, os: String = "macos") -> Refusal? {
         guard let code else { return nil }
         if code == "TERMINAL_NOT_FOUND" { return Refusal(text: "この端末は登録されていません。") }
         guard code.hasPrefix("FOLDER_") else { return nil }
-        return Refusal(text: "\(words[code] ?? "このフォルダは使えません")（\(folder)）。", offersCreate: code == "FOLDER_MISSING")
+        return Refusal(text: "\(words(code, os: os) ?? "このフォルダは使えません")（\(folder)）。", offersCreate: code == "FOLDER_MISSING")
     }
 }
 
@@ -521,15 +569,20 @@ enum TerminalFolderPicker {
     static let truncatedText = "フォルダが多いため、すべては表示していません。"
     static let readFailedText = "フォルダの一覧を読み込めませんでした。つながりを確かめて、もう一度お試しください。"
     static let unsupportedText = "このBellTeamはまだ、フォルダを選ぶ画面に対応していません。「ほかの方法」でパスを入力してください。"
-    static let unreachableText = "いまこの端末に届きません。Macが起きていて同じネットワークにあるか確かめて、もう一度お試しください。"
+    static func unreachableText(os: String = "macos") -> String {
+        "いまこの端末に届きません。\(TerminalOS.machine(os))が起きていて同じネットワークにあるか確かめて、もう一度お試しください。"
+    }
     static let createFailedText = "フォルダを作れたか確かめられませんでした。一覧で確かめてください。"
 
-    /// The name is trimmed; the result is what is sent. nil problem = usable. The server only ever sees `<current>/<name>`.
-    static func name(_ raw: String) -> (name: String, problem: String?) {
+    /// The name is trimmed; the result is what is sent. nil problem = usable. The server only ever sees `childPath`.
+    /// terminals: an entry name never holds `/`, `\` (Windows also `:`) or NUL.
+    static func name(_ raw: String, os: String = "macos") -> (name: String, problem: String?) {
         let name = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         let problem: String? =
             name.isEmpty ? "フォルダの名前を入れてください。"
             : name.contains("/") ? "名前に「/」は使えません。"
+            : name.contains("\\") ? "名前に「\\」は使えません。"
+            : os == TerminalOS.windows.rawValue && name.contains(":") ? "名前に「:」は使えません。"
             : name == "." || name == ".." ? "「.」と「..」は名前にできません。"
             : name.contains("\0") ? "名前に使えない文字があります。"
             : name.utf8.count > 255 ? "名前が長すぎます（255バイトまで）。"
@@ -537,19 +590,23 @@ enum TerminalFolderPicker {
         return (name, problem)
     }
 
-    static func childPath(of parent: String, name: String) -> String { parent == "/" ? "/\(name)" : "\(parent)/\(name)" }
-
-    /// One plain sentence for a `reason`. Unreachable reasons never read as an empty list; FOLDER_NOT_PERMITTED is S5's sentence.
-    static func sentence(reason: String, action: String?) -> String {
-        if reason == "TERMINAL_NOT_FOUND" { return "この端末は登録されていません。" }
-        if reason == "FOLDER_NOT_PERMITTED" { return folderWords(reason) }
-        let check = TerminalCheck(terminalId: "", reachable: false, reason: reason, action: action)
-        if check.problem == .unreachable { return unreachableText }
-        if let action = action?.trimmingCharacters(in: .whitespacesAndNewlines), !action.isEmpty { return action }
-        return MemberFolder.words[reason] != nil ? folderWords(reason) : check.explanation ?? folderWords(reason)
+    /// Joined with the terminal's separator; a root (`/`, `X:\`) already ends with it.
+    static func childPath(of parent: String, name: String, os: String = "macos") -> String {
+        let separator = os == TerminalOS.windows.rawValue ? "\\" : "/"
+        return parent.hasSuffix(separator) ? "\(parent)\(name)" : "\(parent)\(separator)\(name)"
     }
 
-    private static func folderWords(_ reason: String) -> String { (MemberFolder.words[reason] ?? "このフォルダは使えません") + "。" }
+    /// One plain sentence for a `reason`. Unreachable reasons never read as an empty list; FOLDER_NOT_PERMITTED is S5's sentence.
+    static func sentence(reason: String, action: String?, os: String = "macos") -> String {
+        if reason == "TERMINAL_NOT_FOUND" { return "この端末は登録されていません。" }
+        if reason == "FOLDER_NOT_PERMITTED" { return folderWords(reason, os: os) }
+        let check = TerminalCheck(terminalId: "", reachable: false, reason: reason, action: action)
+        if check.problem == .unreachable { return unreachableText(os: os) }
+        if let action = action?.trimmingCharacters(in: .whitespacesAndNewlines), !action.isEmpty { return action }
+        return MemberFolder.words(reason) != nil ? folderWords(reason, os: os) : check.explanation(os: os) ?? folderWords(reason, os: os)
+    }
+
+    private static func folderWords(_ reason: String, os: String) -> String { (MemberFolder.words(reason, os: os) ?? "このフォルダは使えません") + "。" }
 
     /// The query value: everything but unreserved characters and `/` is escaped (a folder may contain `+`, `&`, `#`).
     static func query(_ path: String) -> String {
@@ -580,8 +637,11 @@ final class TerminalFolderPickerModel: ObservableObject {
     private var sequence = 0
     private let read: (String?) async throws -> TerminalFolders
     private let make: (String) async throws -> TerminalFolderStatus
+    /// The terminal's `os`: the new folder's name rule, separator and sentences.
+    let os: String
 
-    init(read: @escaping (String?) async throws -> TerminalFolders, make: @escaping (String) async throws -> TerminalFolderStatus) {
+    init(os: String = "macos", read: @escaping (String?) async throws -> TerminalFolders, make: @escaping (String) async throws -> TerminalFolderStatus) {
+        self.os = os
         self.read = read
         self.make = make
     }
@@ -609,15 +669,15 @@ final class TerminalFolderPickerModel: ObservableObject {
     /// Create `<current>/<name>`, list `<current>` again, then open the new folder (that is the selection).
     func createFolder() async {
         guard !creating, case .listed(let current) = content, let directory = current.path else { return }
-        let (name, problem) = TerminalFolderPicker.name(newName)
+        let (name, problem) = TerminalFolderPicker.name(newName, os: os)
         if let problem { createNote = problem; return }
-        let path = TerminalFolderPicker.childPath(of: directory, name: name)
+        let path = TerminalFolderPicker.childPath(of: directory, name: name, os: os)
         creating = true
         createNote = nil
         defer { creating = false }
         do {
             let status = try await make(path)
-            if let reason = status.reason { createNote = TerminalFolderPicker.sentence(reason: reason, action: status.action); return }
+            if let reason = status.reason { createNote = TerminalFolderPicker.sentence(reason: reason, action: status.action, os: os); return }
         } catch {
             createNote = TerminalFolderPicker.createFailedText
             await open(directory)
@@ -631,13 +691,14 @@ final class TerminalFolderPickerModel: ObservableObject {
 
 struct TerminalKeyRequestResponse: Decodable { let secretRequest: SecretRequest }
 
-/// members C1: both empty (this BellTeam) or both set; projectRoot an absolute POSIX path.
+/// members C1: both empty (this BellTeam) or both set; projectRoot an absolute path in the terminal's native form
+/// (terminals "Windows and Linux terminals": POSIX `/...`, Windows drive-absolute `X:\...`).
 enum MemberBinding {
-    static func problem(terminalId: String, projectRoot: String) -> String? {
+    static func problem(terminalId: String, projectRoot: String, os: String = "macos") -> String? {
         if !terminalId.isEmpty && terminalId.wholeMatch(of: /[A-Za-z0-9][A-Za-z0-9._-]{0,127}/) == nil {
             return TerminalErrorText.member("BOT_TERMINAL_ID_INVALID")
         }
-        if !projectRoot.isEmpty, let folder = folderProblem(projectRoot) { return folder }
+        if !projectRoot.isEmpty, let folder = folderProblem(projectRoot, os: os) { return folder }
         if terminalId.isEmpty != projectRoot.isEmpty {
             return terminalId.isEmpty ? TerminalErrorText.member("BOT_REMOTE_BINDING_INVALID")
                 : "フォルダを入れてください。端末で席が起動する場所です。"
@@ -645,7 +706,18 @@ enum MemberBinding {
         return nil
     }
 
-    static func folderProblem(_ path: String) -> String? {
+    static func folderProblem(_ path: String, os: String = "macos") -> String? {
+        if os == TerminalOS.windows.rawValue {
+            // `X:\` is the root; `/` is refused so one form travels; at most 1024 characters.
+            guard path.wholeMatch(of: /[A-Za-z]:\\[^\/\x00]*/) != nil, path.count <= 1024 else {
+                return TerminalErrorText.member("BOT_PROJECT_ROOT_INVALID", os: os)
+            }
+            let segments = path.dropFirst(3).split(separator: "\\", omittingEmptySubsequences: false)
+            if path.count > 3 && segments.contains(where: { $0.isEmpty || $0 == "." || $0 == ".." }) {
+                return TerminalErrorText.member("BOT_PROJECT_ROOT_INVALID", os: os)
+            }
+            return nil
+        }
         if !path.hasPrefix("/") || path.contains("\0") || path.utf8.count > 4096 { return TerminalErrorText.member("BOT_PROJECT_ROOT_INVALID") }
         if path != "/" && path.dropFirst().split(separator: "/", omittingEmptySubsequences: false)
             .contains(where: { $0.isEmpty || $0 == "." || $0 == ".." }) {
@@ -656,9 +728,11 @@ enum MemberBinding {
 }
 
 enum TerminalErrorText {
-    static func member(_ code: String) -> String? {
+    static func member(_ code: String, os: String = "macos") -> String? {
         switch code {
         case "BOT_TERMINAL_ID_INVALID": "端末の指定が正しくありません。一覧から端末を選び直してください。"
+        case "BOT_PROJECT_ROOT_INVALID" where os == TerminalOS.windows.rawValue:
+            "フォルダはドライブから始まる端末上の絶対パスにします（例 C:\\Users\\kite\\work\\app）。区切りは「\\」だけで、「/」「.」「..」や空の区切り、末尾の「\\」は使えません。"
         case "BOT_PROJECT_ROOT_INVALID": "フォルダは「/」で始まる端末上の絶対パスにします（例 /Users/kite/work/app）。「.」「..」や空の区切り、末尾の「/」は使えません。"
         case "BOT_REMOTE_BINDING_INVALID": "端末とフォルダは両方を指定します。BellTeamの中で動かす時は、両方を空にします。"
         default: nil

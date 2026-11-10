@@ -202,7 +202,7 @@ extension AppStore {
             return response.secretRequest
         } catch {
             if BellAPIError.isAuthenticationError(error) { throw error }
-            if let note = TerminalAuthorize.refusal(error) { terminals.authorizations[id] = .note(note); return nil }
+            if let note = TerminalAuthorize.refusal(error, os: terminals.terminal(id)?.os ?? TerminalOS.macos.rawValue) { terminals.authorizations[id] = .note(note); return nil }
             api.diagnostics.report(error, path: "/api/terminals/:id/keys/ssh/authorize", method: "POST", observation: .write)
             throw error
         }
@@ -244,13 +244,14 @@ extension AppStore {
                 terminals.authorizations[id] = .waiting(requestId: requestId, readFailed: true)
             }
         }
-        if let note = TerminalAuthorize.note(outcome: outcome) { terminals.authorizations[id] = .note(note); return }
+        let os = terminals.terminal(id)?.os ?? TerminalOS.macos.rawValue
+        if let note = TerminalAuthorize.note(outcome: outcome, os: os) { terminals.authorizations[id] = .note(note); return }
         terminals.authorizations[id] = nil
         terminals.checks[id] = nil
         do { try await checkTerminal(id: id) }
         catch let error where BellAPIError.isAuthenticationError(error) { requireLogin(for: error) }
         catch {
-            terminals.authorizations[id] = .note(.init(text: "鍵はMacに入りました。つながるかは確かめられませんでした。「つながるか確かめる」を押してください。"))
+            terminals.authorizations[id] = .note(.init(text: "鍵は\(TerminalOS.machine(os))に入りました。つながるかは確かめられませんでした。「つながるか確かめる」を押してください。"))
         }
     }
 }

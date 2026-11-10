@@ -464,6 +464,7 @@ goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`tes
 | testSshKeyPickerStateAfterFailures | 一覧404=未対応（貼り付けへ）、503・500・通信失敗=失敗 |
 | testMemberDecodesWithAndWithoutBindingFields | メンバーの`terminalId`・`projectRoot`が無い応答はnil、ある応答は値 |
 | testBindingFieldsAreSentOnlyWhenAvailable | nilの2項目は送らない、空文字は送る。照合では送っていない項目にサーバー値を採る |
+| testWindowsAndLinuxTerminalsKeepTheirOSPathsAndWords | `os`のwindows・linux・未知の値の表示、編集でosを保つ、Windowsのフォルダの形（`X:\`、`/`・空の区切り・`..`・UNC・1024文字超を拒否）、区切りの連結、名前の`\`と`:`、既定のフォルダ、OSごとの文 |
 | testPairRuleAndFolderFormMatchTheServer | 組の規則、端末IDの形、フォルダの絶対パス（相対・末尾/・//・.・..・NUL・4096バイト超を拒否） |
 | testTerminalDraftAndFingerprintFollowTheRegistryForms | 端末ID・ホスト・ユーザー・ポートの形、既存IDは検査しない、指紋の形、`action`内の指紋の抽出 |
 | testCheckReasonsBecomePlainJapanese | 確認結果の`reason`を分類（`CONNECTION_REFUSED`→refused、`AUTH_FAILED`→authFailed、他は従来）＋その他の平易な文へ |

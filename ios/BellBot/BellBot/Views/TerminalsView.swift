@@ -59,7 +59,7 @@ struct TerminalListPage: View {
             case .supported(let list):
                 Section {
                     if list.isEmpty {
-                        Text("まだ端末がありません。メンバーの席を動かすMacを登録します。")
+                        Text("まだ端末がありません。メンバーの席を動かすMac・Windows PC・Linuxマシンを登録します。")
                             .font(BellTheme.detailFont).foregroundStyle(.secondary)
                     }
                     ForEach(list) { terminal in
@@ -73,7 +73,7 @@ struct TerminalListPage: View {
                 } header: {
                     BellSectionHeader("登録した端末")
                 } footer: {
-                    Text("メンバーの席を、BellTeamの外のMacで動かす時に使います。鍵は状態だけを表示し、中身は表示しません。").font(BellTheme.secondaryFont)
+                    Text("メンバーの席を、BellTeamの外のMac・Windows PC・Linuxマシンで動かす時に使います。鍵は状態だけを表示し、中身は表示しません。").font(BellTheme.secondaryFont)
                 }
                 if let error = store.terminals.readError {
                     Section { SettingsBanner(message: "最新の一覧を読み込めませんでした。前に読んだ一覧を表示しています。", detail: error) }
@@ -299,7 +299,7 @@ struct TerminalDetailPage: View {
                     Spacer()
                     if let at = check?.observedAt { Text(BellDate.short(at)).font(.caption).foregroundStyle(.secondary) }
                 }
-                if let explanation = check?.explanation {
+                if let explanation = check?.explanation(os: terminal.os) {
                     Text(explanation).font(BellTheme.detailFont)
                 }
                 if let action = check?.extraAction {
@@ -364,7 +364,7 @@ struct TerminalDetailPage: View {
             Text("ホスト鍵は、つなぐ相手が本当にこの端末かを見分ける印です。端末で読んだ指紋と同じ時だけ信用します。").font(BellTheme.secondaryFont)
         }
         Section {
-            ForEach([TerminalKeyKind.ssh, .sudo]) { kind in
+            ForEach(TerminalOS.usesSudoKey(terminal.os) ? [TerminalKeyKind.ssh, .sudo] : [.ssh]) { kind in
                 TerminalKeyRow(kind: kind, terminal: terminal, routeMissing: keysRouteMissing, disabled: working) {
                     Task { await setKey(kind) }
                 } onRemove: { removingKey = kind }
@@ -407,7 +407,7 @@ struct TerminalDetailPage: View {
         case .waiting(_, let readFailed)?:
             HStack {
                 ProgressView()
-                Text(readFailed ? TerminalAuthorize.readFailedText : TerminalAuthorize.waitingText).font(BellTheme.detailFont)
+                Text(readFailed ? TerminalAuthorize.readFailedText : TerminalAuthorize.waitingText(os: terminal.os)).font(BellTheme.detailFont)
             }
             .accessibilityIdentifier("authorize-waiting")
         case .note(let note)?:
@@ -418,7 +418,7 @@ struct TerminalDetailPage: View {
             Button {
                 Task { await authorizeKey() }
             } label: {
-                Label("このMacにこの鍵を入れる", systemImage: "key.horizontal")
+                Label("この\(TerminalOS.machine(terminal.os))にこの鍵を入れる", systemImage: "key.horizontal")
             }
             .disabled(working || checking)
             .accessibilityIdentifier("authorize-key")
@@ -546,15 +546,18 @@ struct TerminalEditor: View {
     }
 
     private var problems: [TerminalDraft.Field: String] { draft.problems(isNew: initial == nil) }
+    /// 「このMacを追加」 only while a new macOS terminal is being added on the Mac app.
+    private var addsThisMac: Bool { initial == nil && ThisMac.isThisMac && draft.os == TerminalOS.macos.rawValue }
+    private var machine: String { TerminalOS.machine(draft.os) }
 
     var body: some View {
         NavigationStack {
             Form {
-                if initial == nil && ThisMac.isThisMac { thisMacSection }
-                // Step 1 off the Mac: the one precondition nobody can see from here, said before the form.
-                if initial == nil && !ThisMac.isThisMac {
+                if addsThisMac { thisMacSection }
+                // Step 1 off this Mac: the one precondition nobody can see from here, said before the form (per OS).
+                if initial == nil && !addsThisMac {
                     Section {
-                        Label("Macの「システム設定 > 一般 > 共有」で「リモートログイン」をオンにしてください。BellTeamがSSHでつなぐのに必要です。", systemImage: "info.circle")
+                        Label("\(TerminalOS.sshStep(draft.os))BellTeamがSSHでつなぐのに必要です。", systemImage: "info.circle")
                             .font(BellTheme.detailFont).foregroundStyle(.secondary)
                             .accessibilityElement(children: .combine)
                             .accessibilityIdentifier("remote-login-precondition")
@@ -576,11 +579,15 @@ struct TerminalEditor: View {
                     field("ホスト", .host, prompt: "192.168.1.12", text: $draft.host)
                     field("ユーザー", .user, prompt: "kite", text: $draft.user)
                     field("ポート", .port, prompt: "22", text: $draft.port, numeric: true)
-                    LabeledContent("OS", value: "macOS")
+                    Picker("OS", selection: $draft.os) {
+                        ForEach(TerminalOS.allCases) { Text($0.label).tag($0.rawValue) }
+                        if TerminalOS(rawValue: draft.os) == nil { Text(draft.os).tag(draft.os) }
+                    }
+                    .accessibilityIdentifier("terminal-os-picker")
                 } header: {
                     BellSectionHeader("SSHの接続先")
                 } footer: {
-                    Text("いまはmacOSの端末だけに対応しています。").font(BellTheme.secondaryFont)
+                    Text("端末のOSを選びます。フォルダのパスの形と、つなぐための案内がOSで変わります。").font(BellTheme.secondaryFont)
                 }
                 Section {
                     Picker("持ち主", selection: $draft.accountOwner) {
@@ -594,19 +601,20 @@ struct TerminalEditor: View {
                     BellSectionHeader("持ち主")
                 } footer: {
                     Text(draft.accountOwner == "owner"
-                         ? "あなた自身のMacです。メンバーはあなたのClaudeアカウントを使えます。"
-                         : "ほかの人のMacです。その端末のClaudeログインを使い、あなたのアカウントは渡りません。")
+                         ? "あなた自身の\(machine)です。メンバーはあなたのClaudeアカウントを使えます。"
+                         : "ほかの人の\(machine)です。その端末のClaudeログインを使い、あなたのアカウントは渡りません。")
                         .font(BellTheme.secondaryFont)
                 }
                 Section {
-                    Text("SSH鍵とsudo鍵は、登録した後に端末の画面で設定します。鍵の中身はここに入れません。")
+                    Text(TerminalOS.usesSudoKey(draft.os) ? "SSH鍵とsudo鍵は、登録した後に端末の画面で設定します。鍵の中身はここに入れません。"
+                         : "SSH鍵は、登録した後に端末の画面で設定します。Windowsはsudo鍵を使いません。鍵の中身はここに入れません。")
                         .font(BellTheme.detailFont).foregroundStyle(.secondary)
                 }
                 if let errorText { Section { SettingsBanner(message: errorText) } }
             }
             .disabled(saving)
             #if DEBUG
-            .task { if initial == nil, ThisMac.isThisMac, TerminalPreviewRoute.value?.action == "addmac" { await fillThisMac() } }
+            .task { if addsThisMac, TerminalPreviewRoute.value?.action == "addmac" { await fillThisMac() } }
             #endif
             .navigationTitle(initial == nil ? "端末を追加" : "端末を編集")
             .navigationBarTitleDisplayMode(.inline)
@@ -781,6 +789,7 @@ struct MemberTerminalSection: View {
     @State private var prefilled: String?
 
     private var savedMissing: Bool { !terminalId.isEmpty && store.terminals.terminal(terminalId) == nil }
+    private var terminalOS: String { store.terminals.terminal(terminalId)?.os ?? TerminalOS.macos.rawValue }
 
     var body: some View {
         Section {
@@ -826,7 +835,7 @@ struct MemberTerminalSection: View {
                                 LabeledContent("パスを入力") { pathField(prompt: "パスを入力") }
                             }
                         }
-                        if let problem = MemberBinding.problem(terminalId: terminalId, projectRoot: projectRoot), !projectRoot.isEmpty {
+                        if let problem = MemberBinding.problem(terminalId: terminalId, projectRoot: projectRoot, os: terminalOS), !projectRoot.isEmpty {
                             Text(problem).font(.caption).foregroundStyle(.red)
                         }
                     }
@@ -851,7 +860,7 @@ struct MemberTerminalSection: View {
     }
 
     private func pathField(prompt: String) -> some View {
-        TextField(prompt, text: $projectRoot, prompt: Text("/Users/kite/work/app"))
+        TextField(prompt, text: $projectRoot, prompt: Text(terminalOS == TerminalOS.windows.rawValue ? #"C:\Users\kite\work\app"# : "/Users/kite/work/app"))
             .multilineTextAlignment(.trailing)
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
@@ -860,7 +869,7 @@ struct MemberTerminalSection: View {
 
     private func applyPrefill() {
         guard !terminalId.isEmpty, let user = store.terminals.terminal(terminalId)?.user, !user.isEmpty,
-              let next = MemberFolder.prefill(current: projectRoot, lastPrefill: prefilled, user: user, name: memberName) else { return }
+              let next = MemberFolder.prefill(current: projectRoot, lastPrefill: prefilled, user: user, name: memberName, os: terminalOS) else { return }
         projectRoot = next
         prefilled = next
     }
@@ -875,6 +884,7 @@ struct TerminalFolderPickerSheet: View {
     init(terminalId: String, store: AppStore, onChoose: @escaping (String) -> Void) {
         self.onChoose = onChoose
         _model = StateObject(wrappedValue: TerminalFolderPickerModel(
+            os: store.terminals.terminal(terminalId)?.os ?? TerminalOS.macos.rawValue,
             read: { try await store.terminalFolders(id: terminalId, path: $0) },
             make: { try await store.createTerminalFolder(id: terminalId, path: $0) }))
     }
@@ -928,7 +938,7 @@ struct TerminalFolderPickerSheet: View {
             BellSectionHeader("いまの場所")
         }
         if let reason = folders.reason {
-            Section { retry(TerminalFolderPicker.sentence(reason: reason, action: folders.action)) }
+            Section { retry(TerminalFolderPicker.sentence(reason: reason, action: folders.action, os: model.os)) }
         } else if let path {
             Section {
                 Button("このフォルダにする", systemImage: "checkmark.circle") { onChoose(path); dismiss() }

@@ -448,7 +448,8 @@ struct BotEditor: View {
         guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             errorText = "名前を入力してください。"; return
         }
-        if bindingAvailable, let problem = MemberBinding.problem(terminalId: terminalId, projectRoot: projectRoot) {
+        let terminalOS = store.terminals.terminal(terminalId)?.os ?? TerminalOS.macos.rawValue
+        if bindingAvailable, let problem = MemberBinding.problem(terminalId: terminalId, projectRoot: projectRoot, os: terminalOS) {
             errorText = problem; return
         }
         saving = true
@@ -477,11 +478,11 @@ struct BotEditor: View {
             close()
         } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
         catch {
-            if bindingAvailable, let refusal = MemberFolder.refusal(code: TerminalErrorText.code(error), folder: projectRoot) {
+            if bindingAvailable, let refusal = MemberFolder.refusal(code: TerminalErrorText.code(error), folder: projectRoot, os: terminalOS) {
                 errorText = refusal.text
                 offersCreateFolder = refusal.offersCreate
             }
-            else if let code = TerminalErrorText.code(error), let text = TerminalErrorText.member(code) { errorText = text }
+            else if let code = TerminalErrorText.code(error), let text = TerminalErrorText.member(code, os: terminalOS) { errorText = text }
             else if case BellAPIError.httpStatus(_, let message?, _) = error { errorText = message }
             else { errorText = BellAPIError.operationFailureMessage(error) }
             store.api.diagnostics.report(error, path: "/api/bots", method: nil, observation: .write)

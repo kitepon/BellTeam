@@ -151,6 +151,48 @@ final class TerminalsTests: XCTestCase {
         }
     }
 
+    /// terminals "Windows and Linux terminals": os decodes, edits keep it, paths and texts follow it.
+    func testWindowsAndLinuxTerminalsKeepTheirOSPathsAndWords() throws {
+        let windows = try JSONDecoder().decode(Terminal.self, from: Data(#"{"terminalId":"fox","host":"192.168.1.11","user":"kite_","os":"windows"}"#.utf8))
+        let linux = try JSONDecoder().decode(Terminal.self, from: Data(#"{"terminalId":"rabbit","host":"192.168.1.5","user":"kite","os":"linux"}"#.utf8))
+        let future = try JSONDecoder().decode(Terminal.self, from: Data(#"{"terminalId":"x","os":"freebsd"}"#.utf8))
+        XCTAssertEqual([windows.osLabel, linux.osLabel, future.osLabel], ["Windows", "Linux", "freebsd"])
+        XCTAssertEqual(TerminalDraft(windows).body.os, "windows", "an edit never turns the terminal into macOS")
+        XCTAssertEqual(TerminalDraft(future).body.os, "freebsd")
+        XCTAssertEqual(TerminalDraft().body.os, "macos")
+        XCTAssertFalse(TerminalOS.usesSudoKey("windows"))
+        XCTAssertTrue(TerminalOS.usesSudoKey("linux"))
+
+        for ok in [#"C:\"#, #"C:\Users\kite_\work"#, #"d:\a b\c"#] {
+            XCTAssertNil(MemberBinding.problem(terminalId: "fox", projectRoot: ok, os: "windows"), ok)
+        }
+        for bad in ["/Users/kite", #"C:"#, #"C:\Users\"#, #"C:\Users\\x"#, #"C:\Users/kite"#, #"C:\a\..\b"#, #"\\server\share"#,
+                    "C:\\" + String(repeating: "a", count: 1022)] {
+            XCTAssertEqual(MemberBinding.problem(terminalId: "fox", projectRoot: bad, os: "windows"),
+                           TerminalErrorText.member("BOT_PROJECT_ROOT_INVALID", os: "windows"), bad)
+        }
+        XCTAssertNotNil(MemberBinding.problem(terminalId: "fox", projectRoot: #"C:\work"#), "macOS keeps the POSIX rule")
+        XCTAssertNil(MemberBinding.problem(terminalId: "rabbit", projectRoot: "/home/kite/work", os: "linux"))
+
+        XCTAssertEqual(TerminalFolderPicker.childPath(of: #"C:\"#, name: "work", os: "windows"), #"C:\work"#)
+        XCTAssertEqual(TerminalFolderPicker.childPath(of: #"C:\Users"#, name: "work", os: "windows"), #"C:\Users\work"#)
+        XCTAssertEqual(TerminalFolderPicker.childPath(of: "/", name: "work", os: "linux"), "/work")
+        XCTAssertEqual(TerminalFolderPicker.childPath(of: "/home/kite", name: "work"), "/home/kite/work")
+        XCTAssertNotNil(TerminalFolderPicker.name("a:b", os: "windows").problem)
+        XCTAssertNil(TerminalFolderPicker.name("a:b").problem)
+        XCTAssertNotNil(TerminalFolderPicker.name(#"a\b"#).problem, "no OS allows a backslash in a name")
+
+        XCTAssertEqual(MemberFolder.defaultPath(user: "kite_", name: "Rapi", os: "windows"), #"C:\Users\kite_\BellTeam\Rapi"#)
+        XCTAssertEqual(MemberFolder.defaultPath(user: "kite", name: #"a\b"#, os: "linux"), "/home/kite/BellTeam/a-b")
+        XCTAssertEqual(MemberFolder.defaultPath(user: "kite", name: "Rapi"), "/Users/kite/BellTeam/Rapi")
+
+        let refused = TerminalCheck(terminalId: "fox", reachable: false, reason: "CONNECTION_REFUSED")
+        XCTAssertEqual(refused.explanation(os: "windows"), "Windows PCが接続を断りました。" + TerminalOS.sshStep("windows"))
+        XCTAssertTrue(refused.explanation(os: "linux")?.contains("openssh-server") == true)
+        XCTAssertFalse(MemberFolder.words("FOLDER_NOT_PERMITTED", os: "linux")!.contains("フルディスクアクセス"), "Full Disk Access is macOS only")
+        XCTAssertEqual(TerminalAuthorize.waitingText(os: "windows"), "Windows PCに鍵を入れています…")
+    }
+
     func testTerminalDraftAndFingerprintFollowTheRegistryForms() {
         var draft = TerminalDraft()
         draft.terminalId = "owner-macbook"; draft.host = "192.168.1.12"; draft.user = "kite"; draft.port = "22"
@@ -184,7 +226,7 @@ final class TerminalsTests: XCTestCase {
         for (reason, expected) in reasons {
             let check = TerminalCheck(terminalId: "t", reachable: false, reason: reason)
             XCTAssertEqual(check.problem, expected, reason)
-            XCTAssertNotNil(check.explanation)
+            XCTAssertNotNil(check.explanation())
             XCTAssertEqual(check.summary, "つながらない")
         }
         let ok = TerminalCheck(terminalId: "t", reachable: true)
@@ -430,24 +472,24 @@ final class TerminalsTests: XCTestCase {
     func testRefusedAuthFailedAndUnreachableAreSentencesThatNameTheLikelyFix() {
         let serverRefused = "Macの「システム設定 > 一般 > 共有」で「リモートログイン」がオンか確かめてから、もう一度確かめてください"
         let refused = TerminalCheck(terminalId: "t", reachable: false, reason: "CONNECTION_REFUSED", action: serverRefused)
-        XCTAssertEqual(refused.explanation, serverRefused, "サーバーの日本語の案内をそのまま文にする")
+        XCTAssertEqual(refused.explanation(), serverRefused, "サーバーの日本語の案内をそのまま文にする")
         XCTAssertNil(refused.extraAction, "同じ案内を二行にしない")
         XCTAssertTrue(refused.offersSharingSettings)
         XCTAssertFalse(refused.offersAuthorize)
         // An older body carries no action: the app's own sentence says the same thing.
         let bare = TerminalCheck(terminalId: "t", reachable: false, reason: "CONNECTION_REFUSED")
-        XCTAssertTrue(bare.explanation?.contains("リモートログイン") == true)
-        XCTAssertTrue(TerminalCheck(terminalId: "t", reachable: false, reason: "CONNECTION_REFUSED", action: "  ").explanation?.contains("リモートログイン") == true, "空の案内は無いものとして扱う")
+        XCTAssertTrue(bare.explanation()?.contains("リモートログイン") == true)
+        XCTAssertTrue(TerminalCheck(terminalId: "t", reachable: false, reason: "CONNECTION_REFUSED", action: "  ").explanation()?.contains("リモートログイン") == true, "空の案内は無いものとして扱う")
 
         let serverAuth = "この鍵がまだMacに入っていないかもしれません。「このMacにこの鍵を入れる」で、Macのログインパスワードを使って入れられます"
         let auth = TerminalCheck(terminalId: "t", reachable: false, reason: "AUTH_FAILED", action: serverAuth)
-        XCTAssertEqual(auth.explanation, serverAuth)
+        XCTAssertEqual(auth.explanation(), serverAuth)
         XCTAssertNil(auth.extraAction)
         XCTAssertTrue(auth.offersAuthorize)
-        XCTAssertEqual(TerminalCheck(terminalId: "t", reachable: false, reason: "AUTH_FAILED").explanation, "この鍵がまだMacに入っていないかもしれません。")
+        XCTAssertEqual(TerminalCheck(terminalId: "t", reachable: false, reason: "AUTH_FAILED").explanation(), "この鍵がまだMacに入っていないかもしれません。")
 
         let unreachable = TerminalCheck(terminalId: "t", reachable: false, reason: "UNREACHABLE")
-        XCTAssertTrue(unreachable.explanation?.contains("起きていて、同じネットワーク") == true)
+        XCTAssertTrue(unreachable.explanation()?.contains("起きていて、同じネットワーク") == true)
         XCTAssertFalse(unreachable.offersAuthorize || unreachable.offersSharingSettings)
         // Other reasons keep the explanation and still show the server's action as a second line.
         let trust = TerminalCheck(terminalId: "t", reachable: false, reason: "HOST_TRUST_MISSING", action: "confirm the host key of h")
@@ -734,13 +776,13 @@ final class TerminalsTests: XCTestCase {
     }
 
     func testReasonsBecomeOneSentenceAndUnreachableNeverReadsAsAnEmptyList() {
-        let unreachable = TerminalFolderPicker.unreachableText
+        let unreachable = TerminalFolderPicker.unreachableText()
         for reason in ["UNREACHABLE", "TERMINAL_UNAVAILABLE", "CONNECTION_LOST", "REMOTE_AITERM_UNAVAILABLE"] {
             XCTAssertEqual(TerminalFolderPicker.sentence(reason: reason, action: "届きませんでした"), unreachable, reason)
         }
-        XCTAssertEqual(TerminalFolderPicker.sentence(reason: "FOLDER_NOT_PERMITTED", action: "x"), MemberFolder.words["FOLDER_NOT_PERMITTED"]! + "。", "S5と同じ文")
+        XCTAssertEqual(TerminalFolderPicker.sentence(reason: "FOLDER_NOT_PERMITTED", action: "x"), MemberFolder.words("FOLDER_NOT_PERMITTED")! + "。", "S5と同じ文")
         XCTAssertEqual(TerminalFolderPicker.sentence(reason: "CONNECTION_REFUSED", action: " リモートログインを確かめてください "), "リモートログインを確かめてください", "サーバーのactionをそのまま")
-        XCTAssertEqual(TerminalFolderPicker.sentence(reason: "FOLDER_MISSING", action: nil), MemberFolder.words["FOLDER_MISSING"]! + "。")
+        XCTAssertEqual(TerminalFolderPicker.sentence(reason: "FOLDER_MISSING", action: nil), MemberFolder.words("FOLDER_MISSING")! + "。")
         XCTAssertEqual(TerminalFolderPicker.sentence(reason: "TERMINAL_NOT_FOUND", action: nil), "この端末は登録されていません。")
         XCTAssertFalse(TerminalFolderPicker.sentence(reason: "SOMETHING_NEW", action: nil).isEmpty)
     }
@@ -939,7 +981,7 @@ final class TerminalsTests: XCTestCase {
         model.newName = "x"
         await model.createFolder()
         XCTAssertEqual(created, ["/Users/kite/x"])
-        XCTAssertEqual(model.createNote, MemberFolder.words["FOLDER_NOT_PERMITTED"]! + "。")
+        XCTAssertEqual(model.createNote, MemberFolder.words("FOLDER_NOT_PERMITTED")! + "。")
         XCTAssertEqual(model.newName, "x", "作れなかった名前は残す")
         guard case .listed(let stay) = model.content else { return XCTFail("拒否されても今の場所に留まる") }
         XCTAssertEqual(stay.path, "/Users/kite")

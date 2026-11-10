@@ -2,7 +2,7 @@
 
 [全体図](overview.md) / [メンバー・ルーム編集](members-and-rooms.md) / [設定](settings-and-profile.md) / [関数索引](function-index.md) / [試験](tests.md)。以下の実装名は`ios/BellBot/BellBot/`からの相対名。
 
-使う契約：[terminals](../terminals/README.md)（registry・reachability・C8 maintenance）、[ingress RS09/RS12](../integration/remote-seat-ingress.md#data-flow)（HTTP `/api/terminals*`）、[terminals「Key setting from the app」](../terminals/README.md#key-setting-from-the-app-trony-ruling-2026-11-09)（`POST|DELETE /api/terminals/:id/keys/{ssh|sudo}`、projectionの`keySource`・`sudoKeySource`・`sshKeyPending`・`sudoKeyPending`）、[members C1](../members/remote-seat.md#c1-member-binding)（`terminalId`・`projectRoot`）、[execution remote-seat「Launch notice」](../execution/remote-seat.md)（Kiro #892）のBot項目`seatLaunch`（表示は[一覧とメンバー](members-and-rooms.md)と[会話](conversation.md)。試験ではDEBUGの`-bellbot-preview-seat-launch action|code`が名簿へ同じ値を入れる）、[secret credentials](../usage/secret-credentials.md#owner-terminal-key-settings)と[秘密の入力](../../../secret-input.md)（既存の秘密入力カード、`inputOptions`で1Password参照を先・保存値を代替、`POST /api/secret-requests/:id/submit`。値は一般の欄に書かない）。[terminals「Self-service registration and assignment」](../terminals/README.md#self-service-registration-and-assignment-trony-request-2026-11-10-design)のS1・S2（Crust #856の`POST /api/terminals/:id/trust`、本文は`{fingerprint}`だけ）と、[Mika #855](../usage/secret-credentials.md)の`terminal.login`の秘密入力（[質問・秘密要求](requests-and-auth.md)）。Step 4の鍵の導入（Crust #858の`POST /api/terminals/:id/keys/ssh/authorize`と、projectionの`keyAuthorizationPending`・`keyAuthorization`）と、step 5のメンバーのフォルダ（[Belorta #859](../members/remote-seat.md)の`createFolder`、拒否は`{error: code}`と状態だけ）も使う。step 6のフォルダ選び（[terminals「Folder picker」](../terminals/README.md#folder-picker-s6-owner-request-2026-11-10-0940-jst-design)、Crust #887）の`GET /api/terminals/:id/folders[?path=]`と、既存の`POST /api/terminals/:id/folder {path, create:true}`も使う（サーバーの経路はmainにある。試験は同じ形の試験用サーバーで行う）。Appleはこれらの利用側で、契約を変えない。
+使う契約：[terminals](../terminals/README.md)（registry・reachability・C8 maintenance）、[ingress RS09/RS12](../integration/remote-seat-ingress.md#data-flow)（HTTP `/api/terminals*`）、[terminals「Key setting from the app」](../terminals/README.md#key-setting-from-the-app-trony-ruling-2026-11-09)（`POST|DELETE /api/terminals/:id/keys/{ssh|sudo}`、projectionの`keySource`・`sudoKeySource`・`sshKeyPending`・`sudoKeyPending`）、[members C1](../members/remote-seat.md#c1-member-binding)（`terminalId`・`projectRoot`）、[execution remote-seat「Launch notice」](../execution/remote-seat.md)（Kiro #892）のBot項目`seatLaunch`（表示は[一覧とメンバー](members-and-rooms.md)と[会話](conversation.md)。試験ではDEBUGの`-bellbot-preview-seat-launch action|code`が名簿へ同じ値を入れる）、[secret credentials](../usage/secret-credentials.md#owner-terminal-key-settings)と[秘密の入力](../../../secret-input.md)（既存の秘密入力カード、`inputOptions`で1Password参照を先・保存値を代替、`POST /api/secret-requests/:id/submit`。値は一般の欄に書かない）。[terminals「Self-service registration and assignment」](../terminals/README.md#self-service-registration-and-assignment-trony-request-2026-11-10-design)のS1・S2（Crust #856の`POST /api/terminals/:id/trust`、本文は`{fingerprint}`だけ）と、[Mika #855](../usage/secret-credentials.md)の`terminal.login`の秘密入力（[質問・秘密要求](requests-and-auth.md)）。Step 4の鍵の導入（Crust #858の`POST /api/terminals/:id/keys/ssh/authorize`と、projectionの`keyAuthorizationPending`・`keyAuthorization`）と、step 5のメンバーのフォルダ（[Belorta #859](../members/remote-seat.md)の`createFolder`、拒否は`{error: code}`と状態だけ）も使う。step 6のフォルダ選び（[terminals「Folder picker」](../terminals/README.md#folder-picker-s6-owner-request-2026-11-10-0940-jst-design)、Crust #887）の`GET /api/terminals/:id/folders[?path=]`と、既存の`POST /api/terminals/:id/folder {path, create:true}`も使う（サーバーの経路はmainにある。試験は同じ形の試験用サーバーで行う）。[terminals「Windows and Linux terminals」](../terminals/README.md#windows-and-linux-terminals-2026-11-10-owner-approved-order-via-root)の`os`（`macos`・`linux`・`windows`）とOSごとのパスの形にも従う（下の「WindowsとLinuxの端末」）。Appleはこれらの利用側で、契約を変えない。
 
 ## 機能図
 
@@ -11,7 +11,7 @@ flowchart TD
   SettingsRow["SettingsView: SettingsPage.terminals<br/>設定の「端末」"] --> List["TerminalListPage<br/>一覧・追加・未対応の一行"]
   EditorLink["BotEditor「端末とフォルダ」<br/>「端末を管理」"] --> List
   List --> Detail["TerminalDetailPage<br/>接続先・確認結果・ホスト鍵・鍵・C8"]
-  List --> Form["TerminalEditor<br/>ID・ホスト・ユーザー・ポート・OS・持ち主"]
+  List --> Form["TerminalEditor<br/>ID・ホスト・ユーザー・ポート・OS（macOS / Windows / Linux）・持ち主"]
   Detail --> Form
   Detail --> HostKey["HostKeyConfirmSheet<br/>端末で読んだ指紋を入力"]
   Detail --> Keys["TerminalKeyRow（SSH鍵・sudo鍵）<br/>設定済み/未設定/設定待ち + 鍵の出どころ<br/>「設定する」「設定し直す」「外す」"]
@@ -28,7 +28,7 @@ flowchart TD
   HostKey --> Store
   Keys --> Store
   Section["MemberTerminalSection<br/>このBellTeam / 登録した端末 + フォルダ"] --> Store
-  Section --> Pair["MemberBinding.problem<br/>組の規則・絶対パス"]
+  Section --> Pair["MemberBinding.problem(os:)<br/>組の規則・端末のOSの絶対パス"]
   BotEditor["BotEditor.save"] --> Pair
   BotEditor --> Members["BotSettings.terminalId / projectRoot<br/>対応サーバーだけ送る"]
   Store --> Errors["TerminalErrorText<br/>符号から平易な文"]
@@ -45,15 +45,15 @@ flowchart TD
   Reasons -->|"AUTH_FAILED"| Authorize["「このMacにこの鍵を入れる」（step 4）<br/>AppStore.requestKeyAuthorization / awaitKeyAuthorization"]
   Authorize --> AuthAPI["POST /api/terminals/:id/keys/ssh/authorize（本文なし）<br/>→ terminal.login カード → GET /api/terminals/:id を待つ"]
   AuthAPI -->|"AUTHORIZED / ALREADY_AUTHORIZED"| Recheck["つながるか確かめるを自動で1回"]
-  Section --> Prefill["MemberFolder.prefill<br/>/Users/端末のユーザー/BellTeam/名前のslug"]
+  Section --> Prefill["MemberFolder.prefill(os:)<br/>ホーム/BellTeam/名前のslug（OSの形）"]
   Section -->|"読み取り専用のパス＋「フォルダを選ぶ」"| Picker["TerminalFolderPickerSheet（S6）<br/>いまの場所・上へ・サブフォルダ・このフォルダにする・新しいフォルダ"]
   Section -->|"畳んだ「ほかの方法 > パスを入力」"| TypedPath["projectRootの文字入力<br/>旧本体（foldersUnsupported）は最初から出す"]
   Picker --> PickerModel["TerminalFolderPickerModel<br/>content: loading / listed / failed / unsupported"]
-  PickerModel --> NameRule["TerminalFolderPicker.name<br/>空・/・.・..・/を含む・255バイト超は送らない"]
+  PickerModel --> NameRule["TerminalFolderPicker.name(os:)<br/>空・.・..・/や\\を含む（Windowsは:も）・255バイト超は送らない"]
   PickerModel --> FolderReason["TerminalFolderPicker.sentence<br/>reasonとactionを一文に"]
   PickerModel --> FoldersAPI["AppStore.terminalFolders / createTerminalFolder"]
   FoldersAPI --> FoldersGet["GET /api/terminals/:id/folders[?path=]<br/>pathなし=端末のユーザーのホーム。何も書かない"]
-  FoldersAPI --> FolderPost["POST /api/terminals/:id/folder {path:現在/名前, create:true}<br/>送るのは1回、自動で再送しない"]
+  FoldersAPI --> FolderPost["POST /api/terminals/:id/folder {path:現在+端末の区切り+名前, create:true}<br/>送るのは1回、自動で再送しない"]
   FolderPost -->|"reason null"| Relist["現在の場所を読み直し、新しいフォルダを開く（＝選択）"]
   FoldersGet -->|"404（TERMINAL_NOT_FOUND以外）・405"| Unsup["foldersUnsupported = true<br/>文字入力を残す"]
   Picker -->|"このフォルダにする"| Chosen["projectRootに表示中のパスを入れて閉じる"]
@@ -151,12 +151,38 @@ sequenceDiagram
 | `AUTH_FAILED` | この鍵がまだMacに入っていないかもしれません | 「このMacにこの鍵を入れる」 |
 | `UNREACHABLE` | Macが届きませんでした。Macが起きていて、同じネットワークにあるか確かめてください。起きれば自動で再開します | なし |
 
+### WindowsとLinuxの端末
+
+`Terminal.os`は受け取った文字列のまま持つ（知らない値もそのまま表示し、POSIXのパスの規則で読む）。`TerminalOS`が名前・文の名詞・SSHの前提の一文・sudo鍵の有無を一箇所で持ち、どの文も`os`を渡さなければmacOSの文（これまでと同じ）になる。
+
+```mermaid
+flowchart LR
+  Read["GET /api/terminals の os"] --> Terminal["Terminal.os（文字列のまま）"]
+  Terminal --> Label["osLabel: macOS / Windows / Linux / そのまま"]
+  Terminal --> Draft["TerminalDraft.os → PUT body.os<br/>編集で別のOSへ戻さない"]
+  Form["TerminalEditor の OS の選択"] --> Draft
+  Terminal --> Words["TerminalOS.machine: Mac / Windows PC / Linuxマシン<br/>確認結果・鍵を入れる・フォルダの文"]
+  Terminal --> Path["MemberBinding.folderProblem・childPath・defaultPath<br/>POSIX / Windows X:\\"]
+  Terminal --> Sudo["Windowsはsudo鍵の行を出さない"]
+```
+
+| 項目 | macOS | Linux | Windows |
+| --- | --- | --- | --- |
+| 追加画面の前提の一行 | 「システム設定 > 一般 > 共有」の「リモートログイン」（Macアプリの「このMacを追加」はmacOSを選んだ時だけ） | openssh-serverを入れてsshdを開始 | 「設定 > システム > オプション機能」でOpenSSH サーバーを追加しsshdを開始 |
+| フォルダの形 | `/`で始まる絶対パス | 同左 | `X:\`で始まり区切りは`\`だけ。`/`・空の区切り・`.`・`..`・末尾の`\`（根の`X:\`以外）は拒否、1024文字まで |
+| 既定のフォルダ | `/Users/<user>/BellTeam/<slug>` | `/home/<user>/BellTeam/<slug>` | `C:\Users\<user>\BellTeam\<slug>` |
+| 新しいフォルダの名前 | `/`・`\`・NULは使えない | 同左 | 同左と`:` |
+| sudo鍵 | あり | あり | 行を出さない |
+| `FOLDER_NOT_PERMITTED` | フルディスクアクセスの案内 | 開けるフォルダを選ぶ一文 | 同左 |
+
+Botの「Macで起動できません: …」（`SeatLaunch.line`）は[execution remote-seat](../execution/remote-seat.md)とWebで共通の文なので、ここでは変えない。
+
 ## データの流れ
 
 | ID | 画面 -> HTTP | 送るもの / 戻り |
 | --- | --- | --- |
 | AT01 | 一覧・メンバー編集 -> `GET /api/terminals` | `{terminals:[…]}`。404・405（経路が無い旧本体。Webと同じ）だけ「未対応」として一行だけ出す（赤字なし）。503 `TERMINALS_UNAVAILABLE`（本体で端末の機能が動いていない）を含む他の失敗は理由と再読込で、読めていた一覧とメンバーの端末・フォルダ操作は残す。自動再試行はしない |
-| AT02 | 登録・編集 -> `PUT /api/terminals/:id` | `host`・`user`・`port`・`os`・`accountOwner`だけ。鍵の項目は送らない。応答の公開projectionを一覧へ反映。IDは登録時だけ入力し、編集では変えない |
+| AT02 | 登録・編集 -> `PUT /api/terminals/:id` | `host`・`user`・`port`・`os`（選んだ値。編集では読んだ値）・`accountOwner`だけ。鍵の項目は送らない。応答の公開projectionを一覧へ反映。IDは登録時だけ入力し、編集では変えない |
 | AT03 | 確認 -> `POST /api/terminals/:id/check` | `{reachable, reason, action?, observedAt}`を端末ごとに`checks`へ保持（アプリ内だけ）。席は起動しない |
 | AT04 | ホスト鍵 -> `PUT /api/terminals/:id` `{confirmHostKey:'SHA256:…'}` | オーナーが端末で読んだ指紋だけを送る。サーバーは一度scanし、等しい時だけ信用し直す。409 `HOST_KEY_FINGERPRINT_MISMATCH`は「指紋が違う」と表示して入力を残す |
 | AT05 | 削除 -> `DELETE /api/terminals/:id` | 確認ダイアログの後。メンバーの設定と保留中のメッセージは残ると表示 |
