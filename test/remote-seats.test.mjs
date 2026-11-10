@@ -10,7 +10,7 @@ const bot = { id: 'bot-aaaa1111', terminalId: 'mac-1', projectRoot: '/Users/quo/
 const code = value => Object.assign(new Error(value), { code: value })
 const terminal = { ref: 'owner-macbook', target: { host: 'mac', user: 'quo', port: 22 }, trustRevision: 't1', credentialRevision: 'c1' }
 
-function fixture({ targetErrors = [], accountOwner = 'owner', onTarget = () => {} } = {}) {
+function fixture({ targetErrors = [], accountOwner = 'owner', onTarget = () => {}, os } = {}) {
   const log = [], watchers = new Set(), queued = []
   const terminals = {
     connection: { async target(request) {
@@ -18,7 +18,7 @@ function fixture({ targetErrors = [], accountOwner = 'owner', onTarget = () => {
       onTarget(request)
       const failure = targetErrors.shift()
       if (failure) throw Object.assign(code(failure), { effect: 'not_started' })
-      return { terminal, cwd: request.projectRoot, accountOwner }
+      return { terminal, cwd: request.projectRoot, accountOwner, ...(os ? { os } : {}) }
     } },
     watch(listener) { watchers.add(listener); return () => watchers.delete(listener) },
   }
@@ -384,7 +384,8 @@ test('not-started proof: only a remote member, a delivery ID and a not-started c
 })
 
 test('Claude auth not ready on the terminal: not started with the delivery-bound proof and the login notice; a login screen is information only', async () => {
-  const { remoteSeatNotStarted, LOGIN_ACTION } = await import('../src/remote-seats.mjs')
+  const { remoteSeatNotStarted } = await import('../src/remote-seats.mjs')
+  const LOGIN_ACTION = 'Macのclaudeにログインが必要' // no target.os yet: Mac
   const { seats, queued } = fixture()
   const observed = []
   seats.terminals.connection.observe = terminalId => observed.push(terminalId)
@@ -407,10 +408,17 @@ test('Claude auth not ready on the terminal: not started with the delivery-bound
   assert.equal(screen.effect, undefined)
   assert.equal(remoteSeatNotStarted(bot, 'd-1', screen), null)
   assert.equal(seats.launchNotice(bot).code, 'VENDOR_ONBOARDING_REQUIRED')
+  for (const [os, name] of [['windows', 'Windows'], ['linux', 'Linux']]) {
+    const named = fixture({ os }).seats
+    await named.target(bot)
+    named.launchFailed(bot, preflight('CLAUDE_AUTH_NOT_AUTHENTICATED'))
+    assert.equal(named.launchNotice(bot).action, `${name}のclaudeにログインが必要`, 'the login text names the terminal\'s OS')
+  }
 })
 
 test('Aiterm launch refusal before any seat: not started with the proof and Aiterm\'s action; auth keeps the login text', async () => {
-  const { remoteSeatNotStarted, LOGIN_ACTION } = await import('../src/remote-seats.mjs')
+  const { remoteSeatNotStarted } = await import('../src/remote-seats.mjs')
+  const LOGIN_ACTION = 'Macのclaudeにログインが必要' // no target.os yet: Mac
   const { seats, queued } = fixture()
   const observed = []
   seats.terminals.connection.observe = terminalId => observed.push(terminalId)

@@ -55,6 +55,8 @@ In memory: `RemoteSeats.seats: Map<sessionName, {sessionName, botId, launchId, c
 5. The same `agent_launch` args plus `terminal`, `cwd = projectRoot`, `append_system_prompt = text`, `mcp_config = {bellteam, call-bridge}` with headers `Authorization: Bearer ${BELLTEAM_MCP_TOKEN}`, `X-Bellteam-Seat: ${AITERM_SESSION_ID}`, `X-Bellteam-Launch-Id: ${AITERM_AGENT_LAUNCH_ID}` (names only). Launch options add `privateEnv = {names: ['BELLTEAM_MCP_TOKEN', + 'CLAUDE_CODE_OAUTH_TOKEN' when the Owner's 2nd slot applies], resolve}`. `AitermClient.call` resolves it (`seatCredential.reveal`) only inside the launch call and hands the seat launcher `privateEnvNames` + `privateEnv` on stdin (never argv, log or disk); the launcher forwards exactly those names as `env_vars` (no server PATH/HOME). The launcher still runs in the server member project; only a launch with `terminal` may have `cwd` ≠ that project.
 6. Receipt validated as today. Then `RemoteSeats.launched` caches `{botId, launchId}` and the launch record gets `target, botId, launchId`.
 
+Every OS (Mac, Linux, Windows; Elegg/Crust 2026-11-10) uses this same launch with no per-OS branch: `cwd` is the terminal's native form (Windows `X:\...`) and passes through untouched, Aiterm picks the runtime from the terminal's actual platform, and a declared/actual mismatch is Aiterm's coded `TERMINAL_OS_MISMATCH` (a launch refusal, Launch notice). terminals' top-level `target.os` is read only for the Owner's login text (`loginAction`).
+
 A credential issued for a launch that never issued `agent_launch` (or failed `not_started`/`not_issued`) is revoked. A successful `pty_close` of a remote session revokes its credential. Another seat of the same Bot under another name (account-slot move, #750/#756) is untouched until its own `pty_close`; a reissue for the same name replaces the token.
 
 Wrong-target guard (kept): a remote member with no terminals/ingress ports (older parent) throws `TERMINALS_UNAVAILABLE`, `effect: not_started`. Protects: starting in the server folder. Exit: the next body start with the ports drains the same queued ID.
@@ -107,7 +109,7 @@ Without that refusal (Aiterm < 0.70.0, or a seat launcher that does not yet forw
 
 Seat launcher (Molly, runtime `cli-registration`): a remote launch runs through `run-seat-aiterm-launch.mjs`, whose fixed error projection forwards `code`, `agentLaunchError` and `launchRefusal` (re-validated by `launchRefusal()`, invalid dropped). The Claude auth row works with this execution alone; the other row needs a body carrying that launcher, and on an older body it degrades to the visible failure above.
 
-Login screen (Aiterm >= 0.70.1, Elegg): a slow auth check now proceeds, and a logged-out Claude stops at its first screen in a created session (`aiterm.agent-launch-result.v1`, `startup: {status: 'blocked', reason: 'vendor_onboarding_required'}`). A session exists on the terminal, so it is not a not-started launch: no proof, and the delivery stays today's visible failure. It does need a visible reason: `launchFailed` sets the Launch notice `{code: 'VENDOR_ONBOARDING_REQUIRED', action: 「Macのclaudeにログインが必要」}`.
+Login screen (Aiterm >= 0.70.1, Elegg): a slow auth check now proceeds, and a logged-out Claude stops at its first screen in a created session (`aiterm.agent-launch-result.v1`, `startup: {status: 'blocked', reason: 'vendor_onboarding_required'}`). A session exists on the terminal, so it is not a not-started launch: no proof, and the delivery stays today's visible failure. It does need a visible reason: `launchFailed` sets the Launch notice `{code: 'VENDOR_ONBOARDING_REQUIRED', action: loginAction(os)}` (「<OS>のclaudeにログインが必要」, below).
 
 ### Remote-seat not-started proof (2026-11-10, Crust / Molly)
 
@@ -139,7 +141,7 @@ transport.seatLaunch(botId)   (sync project method, like seatAccount)
 | Field | Value |
 | --- | --- |
 | `code` | the not-started code (`TARGET_MISMATCH`, `TERMINAL_UNAVAILABLE`, `CREDENTIAL_UNAVAILABLE`, …; table above) |
-| `action` | terminals'/Aiterm's plain next step (`error.action`, at most 500 characters) or `null`; for an Aiterm launch refusal its fixed `action` sentence; for `CLAUDE_AUTH_*` and `VENDOR_ONBOARDING_REQUIRED` the fixed Owner text 「Macのclaudeにログインが必要」 (`LOGIN_ACTION`, Trony's ruling; it takes precedence over Aiterm's auth sentence). Raw native text, hosts' secrets and key values never appear (terminals already drops raw native text) |
+| `action` | terminals'/Aiterm's plain next step (`error.action`, at most 500 characters) or `null`; for an Aiterm launch refusal its fixed `action` sentence; for `CLAUDE_AUTH_*` and `VENDOR_ONBOARDING_REQUIRED` the fixed Owner text 「<OS>のclaudeにログインが必要」 (`loginAction(os)`, Trony's ruling; it takes precedence over Aiterm's auth sentence). `<OS>` is `Mac` / `Windows` / `Linux` from terminals' top-level `target.os` (`macos` / `windows` / `linux`, Crust 2026-11-10), kept per terminal at the last `target`; with no `os` (a terminals module before it) it is `Mac`. Raw native text, hosts' secrets and key values never appear (terminals already drops raw native text) |
 | `terminalId` | the terminal the launch was for |
 | `at` | ISO time of the failure |
 
