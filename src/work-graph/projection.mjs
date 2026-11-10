@@ -20,7 +20,9 @@ export function projectGraph({ members, turns = {}, queue, responders = {}, prev
     const id = `${item.groupId}:${item.target}`
     edges.set(id, { id, requestId: item.groupId, from: item.from, to: item.target, context: item.context,
       roomId: item.context === 'room' ? item.contextId : null, label: edgeLabel(item),
-      state: item.steered ? 'steered' : 'running', startedAt: stamp(item.startedAt) ?? oldEdges.get(id)?.startedAt ?? iso(now) })
+      state: item.steered ? 'steered' : 'running', startedAt: stamp(item.startedAt) ?? oldEdges.get(id)?.startedAt ?? iso(now),
+      // A read-only fork inquiry is drawn as a fork edge; it is not main-seat work (fork-inquiry.md).
+      ...(item.seat?.kind === 'fork' ? { seat: { kind: 'fork', forkId: item.seat.forkId ?? null } } : {}) })
   }
   const linked = new Set([...edges.values()].flatMap(edge => [edge.from, edge.to]))
   const nodes = [], absent = {}

@@ -52,6 +52,9 @@ test('protocol: effect results are exact', () => {
   const { requestSummary, ...bodyOnly } = item
   bad(() => validateWorkGraphEffectResult('queue.read', { items: [{ ...bodyOnly, message: 'Admi -> Centi: raw body' }] }))
   bad(() => validateWorkGraphEffectResult('queue.read', { items: [{ ...item, requestSummary: 1 }] }))
+  validateWorkGraphEffectResult('queue.read', { items: [{ ...item, seat: { kind: 'fork', forkId: 'f1' } }, { ...item, seat: { kind: 'fork' } }] })
+  bad(() => validateWorkGraphEffectResult('queue.read', { items: [{ ...item, seat: 'fork' }] }))
+  bad(() => validateWorkGraphEffectResult('queue.read', { items: [{ ...item, seat: { kind: 'fork', forkId: 1 } }] }))
   bad(() => validateWorkGraphEffectResult('room.messages', { items: [{ id: 'm', routing: { responders: ['a'] } }] }))
   bad(() => validateWorkGraphEffectResult('nope', {}))
 })
@@ -63,6 +66,8 @@ test('protocol: root results, controls and ready', () => {
   validateWorkGraphResult('refresh', { batch: null, nextRefreshMs: null })
   validateWorkGraphResult('refresh', { batch: { ...head, changes: [{ type: 'member-enter', node }, { type: 'edge-start', edge }, { type: 'edge-end', edgeId: 'x' }, { type: 'member-leave', botId: 'a' }] }, nextRefreshMs: 0 })
   validateWorkGraphResult('snapshot', { schema: 'bellteam.work-graph.v1', ...head, version: 0, nodes: [node], edges: [edge] })
+  validateWorkGraphResult('snapshot', { schema: 'bellteam.work-graph.v1', ...head, version: 0, nodes: [node], edges: [{ ...edge, seat: { kind: 'fork', forkId: 'f1' } }] })
+  bad(() => validateWorkGraphResult('snapshot', { schema: 'bellteam.work-graph.v1', ...head, version: 0, nodes: [node], edges: [{ ...edge, seat: { kind: 'main', forkId: null } }] }))
   bad(() => validateWorkGraphResult('refresh', { batch: null, nextRefreshMs: -1 }))
   bad(() => validateWorkGraphResult('refresh', { batch: null }))
   bad(() => validateWorkGraphResult('refresh', { batch: { ...head, changes: [{ type: 'member-enter', node: { ...node, extra: 1 } }] }, nextRefreshMs: null }))
