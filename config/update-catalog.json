@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-10T02:49:59Z",
-  "expiresAt": "2026-11-17T02:49:59Z",
+  "publishedAt": "2026-11-10T03:13:06Z",
+  "expiresAt": "2026-11-17T03:13:06Z",
   "releases": [
     {
       "componentId": "usage",
@@ -425,8 +425,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "021ccba89629ea0969050768ca23f9cb83d7804f",
-      "versionId": "7896e06674fa445acc8d58e7f890e13fe063651d42557804e54475be2d267783",
+      "sourceCommit": "961b4cff8af36a2d5e7f7196f10cf4a6e35feb77",
+      "versionId": "db91bb65a1adc5e84a8d262f2544fd976a00f662f90ba055533dd1f0f26619a3",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -434,16 +434,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T011300Z/web-gateway-021ccba89629ea0969050768ca23f9cb83d7804f-linux-amd64.tar.gz",
-          "bytes": 5170010,
-          "sha256": "7896e06674fa445acc8d58e7f890e13fe063651d42557804e54475be2d267783"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T023817Z/web-gateway-961b4cff8af36a2d5e7f7196f10cf4a6e35feb77-linux-amd64.tar.gz",
+          "bytes": 5171263,
+          "sha256": "db91bb65a1adc5e84a8d262f2544fd976a00f662f90ba055533dd1f0f26619a3"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T011300Z/web-gateway-021ccba89629ea0969050768ca23f9cb83d7804f-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10786,
-          "sha256": "3cf2a321ad9ac8c919e0c552387c561ce553b95eb60ee5bd404b7caf53c8edd9"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T023817Z/web-gateway-961b4cff8af36a2d5e7f7196f10cf4a6e35feb77-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11111,
+          "sha256": "73828b109160f1276eaba88a492f39284205eabcad2571c616e47955da89c6eb"
         },
-        "signerCommit": "021ccba89629ea0969050768ca23f9cb83d7804f"
+        "signerCommit": "961b4cff8af36a2d5e7f7196f10cf4a6e35feb77"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -452,13 +452,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "メンバーのフォルダを画面で選べます。本体が古い時は『Update』での更新を案内し、パスを手で入力する欄を開きます。端末のメンバーが起動しなかった時は、本体が理由を伝えればメンバーの行と見出しに出します。作業グラフの印は線の途中や点の上下左右にも置けて、重なりにくくなります。"
+        "更新ボタンの『更新あり』は、本体と一緒に更新する部品を数えなくなります。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "021ccba89629ea0969050768ca23f9cb83d7804f",
-      "versionId": "a54e110bffe7df7d2d50a73bcee1b97d7fa641f3b549ad062e089eaa51de47b3",
+      "sourceCommit": "961b4cff8af36a2d5e7f7196f10cf4a6e35feb77",
+      "versionId": "b030811ac024c4248dd47ed07c6446f729e9f7d9b7131ffadb272c96047d2548",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -466,16 +466,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T011300Z/web-gateway-021ccba89629ea0969050768ca23f9cb83d7804f-linux-arm64.tar.gz",
-          "bytes": 5170010,
-          "sha256": "a54e110bffe7df7d2d50a73bcee1b97d7fa641f3b549ad062e089eaa51de47b3"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T023817Z/web-gateway-961b4cff8af36a2d5e7f7196f10cf4a6e35feb77-linux-arm64.tar.gz",
+          "bytes": 5171263,
+          "sha256": "b030811ac024c4248dd47ed07c6446f729e9f7d9b7131ffadb272c96047d2548"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T011300Z/web-gateway-021ccba89629ea0969050768ca23f9cb83d7804f-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11103,
-          "sha256": "80728d9d661a235607420523d68e4dd114652e64038e122b18dceb19902300d4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T023817Z/web-gateway-961b4cff8af36a2d5e7f7196f10cf4a6e35feb77-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11111,
+          "sha256": "f772c20f690e115a4629c6e0f3c1c384a1136a970841b5e73efcfee0bf5493d1"
         },
-        "signerCommit": "021ccba89629ea0969050768ca23f9cb83d7804f"
+        "signerCommit": "961b4cff8af36a2d5e7f7196f10cf4a6e35feb77"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -484,7 +484,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "メンバーのフォルダを画面で選べます。本体が古い時は『Update』での更新を案内し、パスを手で入力する欄を開きます。端末のメンバーが起動しなかった時は、本体が理由を伝えればメンバーの行と見出しに出します。作業グラフの印は線の途中や点の上下左右にも置けて、重なりにくくなります。"
+        "更新ボタンの『更新あり』は、本体と一緒に更新する部品を数えなくなります。"
       ]
     },
     {
