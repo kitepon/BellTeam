@@ -67,7 +67,14 @@ export function readSnapshot(data) {
 
 // 矩形の中心から方向(ux,uy)へ出た線が、一辺sの正方形の縁に当たるまでの距離。
 const border = (s, ux, uy) => (s / 2) / Math.max(Math.abs(ux), Math.abs(uy), 1e-6)
-const SLOTS = [0.5, 0.45, 0.55, 0.4, 0.6, 0.35, 0.65, 0.3, 0.7]
+// 札の置き場所（behavior-spec "Chip placement"、layout-sim.mjs chipSpots と同じ並び）：t = 0.5, 0.45, 0.55, … 0.1, 0.9 の各点で、
+// 中央 → 上（札の下端が点）→ 下 → 左（札の右端が点）→ 右。side は札の大きさの半分を単位にしたずれ（画面の上下左右）。
+export const CHIP_SIDES = [[0, 0], [0, -1], [0, 1], [-1, 0], [1, 0]]
+export const CHIP_SPOTS = [0.5, ...[1, 2, 3, 4, 5, 6, 7, 8].flatMap(k => [0.5 - k * 0.05, 0.5 + k * 0.05])]
+  .map(t => Math.round(t * 100) / 100).flatMap(t => CHIP_SIDES.map(side => ({ t, side })))
+const CENTER = { t: 0.5, side: [0, 0] }
+// 札の箱 {x, y, w, h}：線上の点 t から side の向きへ札の半分ずつずらす（layout-sim.mjs chipBox を広げる前と同じ）。
+export const chipBoxAt = (line, { t, side }, w, h) => { const p = pointAt(line, t); return { x: p.x + (side[0] - 1) * w / 2, y: p.y + (side[1] - 1) * h / 2, w, h } }
 // 顔の箱：一辺 S の円板の正方形と、前のコマで描いた名前の箱（顔からの差 nameRel）を合わせ、g 広げる。
 const nodeBox = (node, p, S, g) => {
   const r = node.nameRel, half = S / 2
@@ -361,15 +368,14 @@ export function createGraphModel({ reduceMotion = false } = {}) {
       // 描いている名前も札の障害物（隠れた名前は除く）。去る顔は円板と同じく数えない。
       const nameBoxes = names.filter(({ item }) => !item.node.leaveAt).map(({ box }) => grown(box))
       // 札は出始めを依頼ごとに一度だけ決め、線が終わるまで出し続ける（behavior-spec "Chip start"）。毎コマ決め直すと点いたり消えたりする。
-      // 置き場所は古い依頼から。今の t が空いていれば動かさず、ふさがれば最初の空き t へ。どこも空かなければ今の t のまま blocked。
+      // 置き場所は古い依頼から。今の場所が空いていれば動かさず、ふさがれば最初の空き場所へ。どこも空かなければ今の場所のまま blocked。
       const labels = [], blocked = [], above = [], placed = [], started = edge => Date.parse(edge.startedAt) || edge.startAt
       const order = [...lines].sort((a, b) => started(a.edge) - started(b.edge) || a.edge.startAt - b.edge.startAt || (a.edge.id < b.edge.id ? -1 : 1))
-      const boxAt = (line, t, w, h) => { const p = pointAt(line, t); return { x: p.x - w / 2, y: p.y - h / 2, w, h } }
       const free = box => !discs.some(disc => intersects(box, disc)) && !nameBoxes.some(name => intersects(box, name)) && !placed.some(other => intersects(box, grown(other)))
       for (const line of order) {
         const edge = line.edge
         const settled = [edge.from, edge.to].every(id => { const item = nodes.get(id); return !item || item.leaveAt || now - item.enterAt >= (reduceMotion ? REDUCED_MS : ENTER_MS) })
-        if (edge.label && !edge.chip && settled) edge.chip = { since: now, t: null, appearAt: null, nullAt: null, lines: null }
+        if (edge.label && !edge.chip && settled) edge.chip = { since: now, spot: null, appearAt: null, nullAt: null, lines: null }
         const chip = edge.chip
         if (!chip) continue
         if (edge.label) { chip.nullAt = null; chip.lines = wrapLabel(edge.label, 168, measure) }
@@ -380,20 +386,20 @@ export function createGraphModel({ reduceMotion = false } = {}) {
         let alpha = line.opacity
         if (chip.nullAt !== null) alpha *= Math.max(0, 1 - (now - chip.nullAt) / END_MS)
         // 消えた札だけが場所を返す。
-        if (alpha <= 0 && (chip.nullAt !== null || edge.endAt)) chip.t = null
+        if (alpha <= 0 && (chip.nullAt !== null || edge.endAt)) chip.spot = null
         else if (!edge.endAt && chip.nullAt === null) {
-          const first = SLOTS.find(t => free(boxAt(line, t, w, h)))
-          if (chip.t === null) { if (first !== undefined) { chip.t = first; chip.appearAt = now } }
-          else if (!free(boxAt(line, chip.t, w, h))) chip.t = first ?? chip.t
+          const first = CHIP_SPOTS.find(spot => free(chipBoxAt(line, spot, w, h)))
+          if (chip.spot === null) { if (first !== undefined) { chip.spot = first; chip.appearAt = now } }
+          else if (!free(chipBoxAt(line, chip.spot, w, h))) chip.spot = first ?? chip.spot
         }
         const hovered = hover?.edgeId === edge.id && edge.label && !edge.endAt
         // 空きを待つ札も、線を指している・タップした間は t = 0.5 で一番上に出す（behavior-spec #800）。
-        if (chip.t === null) {
+        if (chip.spot === null) {
           chip.blocked = !edge.endAt && chip.nullAt === null
-          if (hovered) above.push({ edge, box: boxAt(line, 0.5, w, h), alpha: 1, lines: text, blocked: false })
+          if (hovered) above.push({ edge, box: chipBoxAt(line, CENTER, w, h), alpha: 1, lines: text, blocked: false })
           continue
         }
-        const box = boxAt(line, chip.t, w, h), isBlocked = !free(box)
+        const box = chipBoxAt(line, chip.spot, w, h), isBlocked = !free(box)
         chip.blocked = isBlocked && !edge.endAt && chip.nullAt === null
         placed.push(box)
         // 最初に出る時いつも200msで現れる。
