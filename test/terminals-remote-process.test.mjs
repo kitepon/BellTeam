@@ -28,6 +28,10 @@ test('opens a transient process for C8 commands and closes it', async () => {
   assert.equal((await session.command('claude_version')).version, '2.0.0')
   await session.close()
   assert.equal(client.calls.at(-1).name, 'remote_terminal_close')
+  // linux/windows declare os as a sibling of the strict target; macOS sends none (older Aiterm keeps working).
+  const linux = fakeClient({ remote_terminal_status: status })
+  await (await createRemoteTerminalProcesses({ project: '/srv/bellteam', connectClient: async () => linux, run: async () => {} }).connect({ ...request, target: { ...opened, os: 'linux' } })).close()
+  assert.deepEqual(linux.calls[1].args, { ref: 'owner-macbook', target: opened, os: 'linux', trustRevision: revision, credentialRevision: 7 })
   assert.equal(client.closed, true)
 
   // A secret-key terminal: Mika handle instead of the native revision (Elegg: never both).

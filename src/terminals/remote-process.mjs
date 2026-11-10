@@ -60,7 +60,9 @@ export function createRemoteTerminalProcesses({ project, connectClient = () => s
         // Elegg: with `credential` (Mika handle) credentialRevision is omitted; without it, it is the native key revision.
         const key = binding.credential ? { credential: binding.credential } : { credentialRevision: binding.credentialRevision ?? current.credential?.revision }
         // Aiterm's open target is strict {host, user, port}; any other key fails validation (2026-11-10 macbook, Elegg).
-        await tool('remote_terminal_open', { ref: binding.ref, target: { host: target.host, user: target.user, port: target.port }, trustRevision: hostTrust.revision, ...key, ...(binding.sudoCredential ? { sudoCredential: binding.sudoCredential } : {}) })
+        // Elegg 0.70.7: declared `os` is a sibling of target. Sent only for linux/windows, so an older Aiterm (strict input) keeps serving macOS.
+        const os = target.os && target.os !== 'macos' ? { os: target.os } : {}
+        await tool('remote_terminal_open', { ref: binding.ref, target: { host: target.host, user: target.user, port: target.port }, ...os, trustRevision: hostTrust.revision, ...key, ...(binding.sudoCredential ? { sudoCredential: binding.sudoCredential } : {}) })
       } catch (error) { await client.close().catch(() => {}); throw error }
       return {
         // Elegg: claude_* take no args; path_status / make_dir take an absolute `path`.
