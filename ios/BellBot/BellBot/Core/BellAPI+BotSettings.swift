@@ -41,11 +41,12 @@ extension BellAPI {
     }
 
     func saveBotSettings(id: String, settings: BotSettings, originalFastMode: Bool,
-                         smallAvatarChanged: Bool = false, largeAvatarChanged: Bool = false) async throws -> BotSaveResult {
+                         smallAvatarChanged: Bool = false, largeAvatarChanged: Bool = false,
+                         createFolder: Bool = false) async throws -> BotSaveResult {
         do {
             let request = BotSettingsRequest(settings: settings, originalFastMode: originalFastMode,
                                              smallAvatarChanged: smallAvatarChanged,
-                                             largeAvatarChanged: largeAvatarChanged)
+                                             largeAvatarChanged: largeAvatarChanged, createFolder: createFolder)
             let _: APIAcknowledgement = try await patch("/api/bots/\(id)", body: request)
             return .saved
         } catch let error as URLError where error.code == .networkConnectionLost || error.code == .timedOut {

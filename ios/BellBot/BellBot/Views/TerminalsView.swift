@@ -5,8 +5,8 @@ import SwiftUI
 private let unsupportedLine = "このBellTeamはまだ端末の登録に対応していません"
 
 #if DEBUG
-/// `-bellbot-preview-terminal add | addmac | detail:<id> | check:<id> | hostkey:<id> | edit:<id> | setkey:<id> | login:<id> | attest:<id> | otherways:<id>` opens that state for screenshots
-/// (`addmac` presses 「このMacを追加」, `attest` presses 「このMacを確かめる」 and opens 「ほかの方法」, `otherways` only opens it; `-bellbot-preview-remote-login off` makes the loopback probe answer off).
+/// `-bellbot-preview-terminal add | addmac | detail:<id> | check:<id> | hostkey:<id> | edit:<id> | setkey:<id> | login:<id> | authorize:<id> | attest:<id> | otherways:<id>` opens that state for screenshots
+/// (`authorize` runs the check and opens the Mac-login card, `authorized` submits it with a throwaway value and waits for the outcome; `addmac` presses 「このMacを追加」, `attest` presses 「このMacを確かめる」 and opens 「ほかの方法」, `otherways` only opens it; `-bellbot-preview-remote-login off` makes the loopback probe answer off).
 enum TerminalPreviewRoute {
     static var value: (action: String, id: String?)? {
         let arguments = ProcessInfo.processInfo.arguments
@@ -150,6 +150,11 @@ private struct KeyRequestSheetItem: Identifiable {
     var id: String { request.id }
 }
 
+private struct LoginSheetItem: Identifiable {
+    let request: SecretRequest
+    var id: String { request.id }
+}
+
 private struct ReachabilityBadge: View {
     let check: TerminalCheck
     var font: Font = .caption
@@ -173,6 +178,9 @@ struct TerminalDetailPage: View {
     /// POST keys answered 404 without TERMINAL_NOT_FOUND: an older BellTeam without the route.
     @State private var keysRouteMissing = false
     @State private var otherWaysOpen = false
+    /// Step 4: the terminal.login card for 「このMacにこの鍵を入れる」, and the wait for its outcome (ends with the page).
+    @State private var loginSheet: LoginSheetItem?
+    @State private var awaiting: Task<Void, Never>?
     #if DEBUG
     /// `-bellbot-preview-terminal login:<id>`: the terminal.login card as Mika #855 sends it, without a route to ask for it yet.
     @State private var loginPreview: SecretRequest?
@@ -212,6 +220,20 @@ struct TerminalDetailPage: View {
             .environmentObject(store)
             .bellEditorSheet()
         }
+        .sheet(item: $loginSheet) { item in
+            // The server's own label (「端末 <id> のMacのログインパスワード」) is the field title; the card is paste only.
+            SecretInputSheet(request: item.request, title: item.request.label.isEmpty ? nil : item.request.label) { result in
+                guard result.status == "submitted" else { return }
+                awaiting?.cancel()
+                awaiting = Task { await store.awaitKeyAuthorization(id: terminalId, requestId: result.id) }
+            }
+            .environmentObject(store)
+            .bellEditorSheet()
+        }
+        .onDisappear {
+            awaiting?.cancel()
+            if case .waiting? = store.terminals.authorizations[terminalId] { store.terminals.authorizations[terminalId] = nil }
+        }
         #if DEBUG
         .sheet(item: $loginPreview) { request in
             SecretInputSheet(request: request) { _ in }.environmentObject(store).bellEditorSheet()
@@ -241,6 +263,14 @@ struct TerminalDetailPage: View {
             case "setkey": await setKey(.ssh)
             case "otherways": otherWaysOpen = true
             case "attest": await store.attestThisMac(id: terminalId); otherWaysOpen = true
+            case "authorize": await runCheck(); await authorizeKey()
+            case "authorized":
+                // The card's submit without typing: a throwaway value, then the real wait and automatic check.
+                await runCheck()
+                if let request = try? await store.requestKeyAuthorization(id: terminalId) {
+                    _ = try? await store.api.finishSecretRequest(id: request.id, submission: .value("preview-only"))
+                    await store.awaitKeyAuthorization(id: terminalId, requestId: request.id, interval: .milliseconds(200))
+                }
             case "login":
                 loginPreview = try? JSONDecoder().decode(SecretRequest.self, from: Data(#"""
                 {"id":"login-preview","botId":null,"roomId":null,"toolId":"terminal-key","purpose":"terminal.login","label":"Mac login password for terminal",
@@ -272,12 +302,13 @@ struct TerminalDetailPage: View {
                 if let explanation = check?.explanation {
                     Text(explanation).font(BellTheme.detailFont)
                 }
-                if let action = check?.action {
+                if let action = check?.extraAction {
                     Text("サーバーの案内: \(action)").font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
                 }
             }
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("terminal-reachability")
+            checkActions(terminal)
             Button {
                 Task { await runCheck() }
             } label: {
@@ -367,6 +398,42 @@ struct TerminalDetailPage: View {
         if let errorText { Section { SettingsBanner(message: errorText) } }
     }
 
+    /// Evidence is not a diagnosis, so each reason offers its likely fix as a button; the check below stays available.
+    @ViewBuilder
+    private func checkActions(_ terminal: Terminal) -> some View {
+        let state = store.terminals.authorizations[terminalId]
+        if check?.offersSharingSettings == true, ThisMac.isThisMac, ThisMac.owns(host: terminal.host) { SharingSettingsButton() }
+        switch state {
+        case .waiting(_, let readFailed)?:
+            HStack {
+                ProgressView()
+                Text(readFailed ? TerminalAuthorize.readFailedText : TerminalAuthorize.waitingText).font(BellTheme.detailFont)
+            }
+            .accessibilityIdentifier("authorize-waiting")
+        case .note(let note)?:
+            Text(note.text).font(BellTheme.detailFont).accessibilityIdentifier("authorize-note")
+        case nil: EmptyView()
+        }
+        if (state == nil && check?.offersAuthorize == true) || state?.retry == true {
+            Button {
+                Task { await authorizeKey() }
+            } label: {
+                Label("このMacにこの鍵を入れる", systemImage: "key.horizontal")
+            }
+            .disabled(working || checking)
+            .accessibilityIdentifier("authorize-key")
+        }
+    }
+
+    private func authorizeKey() async {
+        working = true
+        defer { working = false }
+        errorText = nil
+        do { if let request = try await store.requestKeyAuthorization(id: terminalId) { loginSheet = LoginSheetItem(request: request) } }
+        catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
+        catch { errorText = TerminalErrorText.message(for: error) }
+    }
+
     private func needsHostKey(_ terminal: Terminal) -> Bool { !terminal.hostTrusted || check?.problem == .hostKey }
     private func hostKeyStatus(_ terminal: Terminal) -> String {
         if check?.problem == .hostKey { return terminal.hostTrusted ? "変わりました" : "まだ確かめていません" }
@@ -375,6 +442,7 @@ struct TerminalDetailPage: View {
 
     private func runCheck() async {
         errorText = nil
+        if case .note? = store.terminals.authorizations[terminalId] { store.terminals.authorizations[terminalId] = nil }
         do { try await store.checkTerminal(id: terminalId) }
         catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
         catch { errorText = TerminalErrorText.message(for: error) }
@@ -483,6 +551,15 @@ struct TerminalEditor: View {
         NavigationStack {
             Form {
                 if initial == nil && ThisMac.isThisMac { thisMacSection }
+                // Step 1 off the Mac: the one precondition nobody can see from here, said before the form.
+                if initial == nil && !ThisMac.isThisMac {
+                    Section {
+                        Label("Macの「システム設定 > 一般 > 共有」で「リモートログイン」をオンにしてください。BellTeamがSSHでつなぐのに必要です。", systemImage: "info.circle")
+                            .font(BellTheme.detailFont).foregroundStyle(.secondary)
+                            .accessibilityElement(children: .combine)
+                            .accessibilityIdentifier("remote-login-precondition")
+                    }
+                }
                 Section {
                     if initial == nil {
                         field("端末ID", .terminalId, prompt: "owner-macbook", text: $draft.terminalId)
@@ -695,7 +772,11 @@ struct MemberTerminalSection: View {
     @Binding var projectRoot: String
     /// The member DTO carries terminalId (nil = this BellTeam predates the member fields).
     let memberFieldsAvailable: Bool
+    /// The member's name, for the folder prefill `/Users/<terminal user>/BellTeam/<slug>`.
+    let memberName: String
     @EnvironmentObject private var store: AppStore
+    /// The last folder this section filled in; the field follows name and terminal changes only while it still holds that value.
+    @State private var prefilled: String?
 
     private var savedMissing: Bool { !terminalId.isEmpty && store.terminals.terminal(terminalId) == nil }
 
@@ -715,7 +796,7 @@ struct MemberTerminalSection: View {
                 } else {
                     Picker("動かす場所", selection: Binding(get: { terminalId }, set: { next in
                         terminalId = next
-                        if next.isEmpty { projectRoot = "" }
+                        if next.isEmpty { projectRoot = ""; prefilled = nil }
                     })) {
                         Text("このBellTeam").tag("")
                         ForEach(list) { Text("\($0.terminalId)（\($0.host)）").tag($0.terminalId) }
@@ -754,5 +835,14 @@ struct MemberTerminalSection: View {
                     .font(BellTheme.secondaryFont)
             }
         }
+        .onChange(of: memberName) { _, _ in applyPrefill() }
+        .onChange(of: terminalId) { _, _ in applyPrefill() }
+    }
+
+    private func applyPrefill() {
+        guard !terminalId.isEmpty, let user = store.terminals.terminal(terminalId)?.user, !user.isEmpty,
+              let next = MemberFolder.prefill(current: projectRoot, lastPrefill: prefilled, user: user, name: memberName) else { return }
+        projectRoot = next
+        prefilled = next
     }
 }

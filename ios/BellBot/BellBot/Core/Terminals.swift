@@ -20,6 +20,9 @@ struct Terminal: Decodable, Identifiable, Equatable {
     var sudoKeySource: String?
     var sshKeyPending = false
     var sudoKeyPending = false
+    /// terminals #858: true from POST keys/ssh/authorize until the outcome is recorded; both fields are absent on an older body.
+    var keyAuthorizationPending = false
+    var keyAuthorization: KeyAuthorization?
     /// An older BellTeam's projection has no pending fields and no keys route.
     var keysRouteAvailable = false
 
@@ -30,7 +33,7 @@ struct Terminal: Decodable, Identifiable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case terminalId, host, user, port, os, accountOwner, sshKeyConfigured, sudoKeyConfigured, hostTrust, maintenance,
-             keySource, sudoKeySource, sshKeyPending, sudoKeyPending
+             keySource, sudoKeySource, sshKeyPending, sudoKeyPending, keyAuthorizationPending, keyAuthorization
     }
     private struct HostTrust: Decodable {}
 
@@ -54,6 +57,8 @@ struct Terminal: Decodable, Identifiable, Equatable {
         sshKeyPending = sshPending ?? false
         sudoKeyPending = try c.decodeIfPresent(Bool.self, forKey: .sudoKeyPending) ?? false
         keysRouteAvailable = sshPending != nil
+        keyAuthorizationPending = try c.decodeIfPresent(Bool.self, forKey: .keyAuthorizationPending) ?? false
+        keyAuthorization = try? c.decodeIfPresent(KeyAuthorization.self, forKey: .keyAuthorization)
     }
 
     func key(_ kind: TerminalKeyKind) -> TerminalKeyState {
@@ -135,14 +140,16 @@ struct TerminalCheck: Decodable, Equatable {
     var reason: String?
     var action: String?
 
-    enum Problem: Equatable { case unreachable, credential, hostKey, notFound, other }
+    enum Problem: Equatable { case unreachable, refused, authFailed, credential, hostKey, notFound, other }
 
     var problem: Problem? {
         guard !reachable else { return nil }
         switch reason ?? "" {
+        case "CONNECTION_REFUSED": return .refused
+        case "AUTH_FAILED": return .authFailed
         case "TERMINAL_UNAVAILABLE", "UNREACHABLE", "CONNECTION_LOST": return .unreachable
         case let code where code.hasPrefix("REMOTE_AITERM_"): return .unreachable
-        case "CREDENTIAL_UNAVAILABLE", "SSH_KEY_UNSET", "AUTH_FAILED": return .credential
+        case "CREDENTIAL_UNAVAILABLE", "SSH_KEY_UNSET": return .credential
         case let code where code.hasPrefix("CREDENTIAL_"): return .credential
         case "TARGET_MISMATCH": return .hostKey
         case let code where code.hasPrefix("HOST_TRUST_") || code.hasPrefix("HOST_KEY_"): return .hostKey
@@ -156,13 +163,37 @@ struct TerminalCheck: Decodable, Equatable {
     var explanation: String? {
         switch problem {
         case nil: nil
-        case .unreachable?: "端末が眠っているか、ネットワークで届きません。端末が起きれば自動で再開します。"
+        // Reasons are evidence, not diagnoses (terminals README step 4): the sentence names the likely fix. The server's own
+        // Japanese action text wins when the body carries it; older bodies get the same meaning from here.
+        case .refused?: action.flatMap(Self.text) ?? "Macが接続を断りました。Macの「システム設定 > 一般 > 共有」で「リモートログイン」がオンか確かめてください。"
+        case .authFailed?: action.flatMap(Self.text) ?? "この鍵がまだMacに入っていないかもしれません。"
+        case .unreachable?: reason == "UNREACHABLE"
+            ? "Macが届きませんでした。Macが起きていて、同じネットワークにあるか確かめてください。起きれば自動で再開します。"
+            : "端末が眠っているか、ネットワークで届きません。端末が起きれば自動で再開します。"
         case .credential?: "SSH鍵がまだ無いか、使えません。下の「鍵」を確かめてください。"
         case .hostKey?: "この端末のホスト鍵をまだ信用していないか、鍵が変わりました。「ホスト鍵を確かめる」から指紋を確かめてください。"
         case .notFound?: "この端末の登録が見つかりません。一覧を読み直してください。"
         case .other?: "つながらない理由を読み取れませんでした。少し待ってから、もう一度確かめてください。"
         }
     }
+
+    private static func text(_ action: String) -> String? {
+        let text = action.trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? nil : text
+    }
+
+    /// The server's action as a second line, only for reasons whose sentence above does not already carry it.
+    var extraAction: String? {
+        switch problem {
+        case .refused?, .authFailed?: nil
+        default: action.flatMap(Self.text)
+        }
+    }
+
+    /// 「このMacにこの鍵を入れる」 is offered when the key is rejected as not yet on the Mac.
+    var offersAuthorize: Bool { problem == .authFailed }
+    /// 「共有設定を開く」 is offered when the Mac refused the connection (on the Mac app, for this Mac's own terminals).
+    var offersSharingSettings: Bool { problem == .refused }
 
     /// A fingerprint only when the server's action text carries one; the response has no fingerprint field.
     var reportedFingerprint: String? {
@@ -304,6 +335,103 @@ enum TerminalTrust {
         case nil:
             return TerminalTrustNote(text: "このMacのホスト鍵を読めませんでした。\(other)")
         }
+    }
+}
+
+/// terminals #858 projection: the last key-authorization outcome (server memory only).
+struct KeyAuthorization: Decodable, Equatable {
+    var requestId: String?
+    var outcome: String?
+    var observedAt: String?
+}
+
+/// Self-service step 4 (terminals README S4): 「このMacにこの鍵を入れる」. The Mac's login password goes only into the
+/// terminal.login card; this type only words what the server reports.
+enum TerminalAuthorize {
+    /// What the screen shows after the password was submitted (or the request was refused).
+    struct Note: Equatable {
+        var text: String
+        /// The button asks again (a new request replaces the old one).
+        var retry = false
+    }
+
+    enum State: Equatable {
+        /// The card was submitted; the terminal is read until `keyAuthorizationPending` is false. `readFailed`: the last read failed and is retried.
+        case waiting(requestId: String, readFailed: Bool)
+        case note(Note)
+
+        var retry: Bool { if case .note(let note) = self { note.retry } else { false } }
+    }
+
+    static let waitingText = "Macに鍵を入れています…"
+    static let readFailedText = "状態を読み込めませんでした。つながり直したら続けます…"
+
+    /// nil = the key is on the Mac (AUTHORIZED / ALREADY_AUTHORIZED): the check runs by itself.
+    static func note(outcome: String?) -> Note? {
+        switch outcome ?? "" {
+        case "AUTHORIZED", "ALREADY_AUTHORIZED": nil
+        case "PASSWORD_REJECTED": Note(text: "パスワードが違いました。", retry: true)
+        case "PASSWORD_AUTH_DISABLED": Note(text: "このMacはパスワードでのログインを受け付けていません。Macの設定を変えるか、鍵をほかの方法で入れてください。")
+        case "AUTHORIZATION_UNCONFIRMED": Note(text: "入れられたか確かめられませんでした。もう一度お試しください", retry: true)
+        case "TERMINAL_CHANGED": Note(text: "入れている間に、端末の接続先が変わりました。もう一度お試しください。", retry: true)
+        case "TERMINAL_UNAVAILABLE": Note(text: "Macにつながりませんでした。Macが起きていて同じネットワークにあるか確かめて、もう一度お試しください。", retry: true)
+        case "CREDENTIAL_UNAVAILABLE": Note(text: "SSH鍵が使えませんでした。下の「鍵」で設定し直してから、もう一度お試しください。")
+        default: Note(text: "Macに鍵を入れられませんでした。もう一度お試しください。", retry: true)
+        }
+    }
+
+    /// POST keys/ssh/authorize refusals that have wording; anything else is shown through `TerminalErrorText.message`.
+    static func refusal(_ error: Error) -> Note? {
+        guard case BellAPIError.httpStatus(let status, _, _) = error else { return nil }
+        switch (status, TerminalErrorText.code(error)) {
+        case (409, "HOST_TRUST_MISSING"?): return Note(text: "先にこのMacを確かめてください。ホスト鍵を確かめる前は、パスワードを聞きません。")
+        case (409, "SSH_KEY_UNSET"?): return Note(text: "先にSSH鍵を設定してください。入れる鍵がまだありません。")
+        case (503, "CREDENTIAL_UNAVAILABLE"?): return Note(text: "いまはパスワードの入力欄を開けません。少し待ってから、もう一度お試しください。", retry: true)
+        case (404, let code) where code != "TERMINAL_NOT_FOUND": return Note(text: "このBellTeamはまだ、アプリからMacに鍵を入れることに対応していません。")
+        default: return nil
+        }
+    }
+}
+
+/// members S5 (Belorta #859): a refused member save carries only `{error: code}` and the status, so the app words each code
+/// (same words as terminals' action text and the Web editor) and names the form's folder.
+enum MemberFolder {
+    static let createTitle = "このフォルダを作って保存"
+    static let uncheckedText = "Macにつながらなかったので、フォルダはまだ確かめていません。席を起こす時にもう一度確かめます。"
+
+    /// `/Users/<user>/BellTeam/<slug>`; slug = trimmed name with `/`, `:`, NUL -> `-`, `member` when empty, `.` or `..`.
+    static func defaultPath(user: String, name: String) -> String {
+        let slug = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-").replacingOccurrences(of: "\0", with: "-")
+        return "/Users/\(user)/BellTeam/\(slug.isEmpty || slug == "." || slug == ".." ? "member" : slug)"
+    }
+
+    /// The prefill follows name and terminal changes only while the field still holds the last prefill (or is empty); typed text stays.
+    static func prefill(current: String, lastPrefill: String?, user: String, name: String) -> String? {
+        guard current.isEmpty || current == lastPrefill else { return nil }
+        let next = defaultPath(user: user, name: name)
+        return next == current ? nil : next
+    }
+
+    struct Refusal: Equatable {
+        var text: String
+        /// FOLDER_MISSING only: repeats the same save with `createFolder: true`.
+        var offersCreate = false
+    }
+
+    private static let words = [
+        "FOLDER_MISSING": "このフォルダはMacにありません。作るか、あるフォルダを選んでください",
+        "FOLDER_NOT_DIRECTORY": "これはファイルです。フォルダを選んでください",
+        "FOLDER_NOT_WRITABLE": "このMacのユーザーが書き込めるフォルダを選んでください",
+        "FOLDER_NOT_PERMITTED": "Macがこのフォルダを開かせてくれません。デスクトップ・書類・ダウンロードの外を選ぶか、リモートログインの「リモートユーザにフルディスクアクセスを許可」をオンにしてください",
+    ]
+
+    /// nil = not a folder refusal. An unknown FOLDER_* code gets one plain line (a later server may add codes).
+    static func refusal(code: String?, folder: String) -> Refusal? {
+        guard let code else { return nil }
+        if code == "TERMINAL_NOT_FOUND" { return Refusal(text: "この端末は登録されていません。") }
+        guard code.hasPrefix("FOLDER_") else { return nil }
+        return Refusal(text: "\(words[code] ?? "このフォルダは使えません")（\(folder)）。", offersCreate: code == "FOLDER_MISSING")
     }
 }
 

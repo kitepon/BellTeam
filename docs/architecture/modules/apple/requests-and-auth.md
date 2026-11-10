@@ -14,8 +14,9 @@ flowchart TD
   Question --> Access["AppStore.authorizeAIUse<br/>要求元Bot宛て"]
   Secret --> Sheet["SecretInputSheet<br/>秘密値・op://参照はsheet内だけ"]
   TerminalKey["TerminalDetailPage 鍵の行<br/>（terminals.md AT07）"] --> Sheet
+  TerminalAuthorize["TerminalDetailPage「このMacにこの鍵を入れる」<br/>（terminals.md AT11・AT12）"] --> Sheet
   Sheet --> Source["inputOptions.onePasswordAvailable<br/>1Password参照を先 / 保存値を代替"]
-  Sheet -->|"purpose terminal.login（Mika #855）"| Login["パスワード欄1つに貼るだけ<br/>1Passwordの選択肢・参照欄なし（inputOptionsを無視）<br/>文：このMacのログインパスワード（1回だけ使い、保存しません）"]
+  Sheet -->|"purpose terminal.login（Mika #855）"| Login["パスワード欄1つに貼るだけ<br/>1Passwordの選択肢・参照欄なし（inputOptionsを無視）<br/>文：このMacのログインパスワード（1回だけ使い、保存しません）<br/>題：サーバーのlabel（端末 （ID） のMacのログインパスワード）をそのまま"]
   Source -->|"purpose terminal.ssh"| Picker["鍵の選択: GET /api/secret-requests/:id/onepassword-items<br/>{items:[{title,vault,reference}]}（旧本体404は貼り付けへ）"]
   Sheet --> Access
   Access --> Answer["POST /api/owner-questions/:id/answer"]
@@ -30,7 +31,7 @@ flowchart TD
 | 選択回答 | choice、その他はtextをOwnerAnswerBodyへ。その他はtrim後が空ならボタン無効。送信中はボタン/入力を無効化。authorizeAIUse後にPOSTしresultへ応答question、error消去→refreshFromView。受付応答からBotの回答処理完了を判定しない |
 | 回答失敗 | 認証はrequireLogin。他はoperationFailureMessageとwrite診断、otherは残す。deferでsending解除。自動POST再送・個別質問GETによる照合はこのカードにはない |
 | SecretRequestCardState | 応答requestだけ保持。pendingなら入力を開く、それ以外はsubmitted=登録済み、その他=取消。notification=failedならAIへの通知失敗の案内を表示 |
-| SecretInputSheet | requestとonCompleteを受け、value/reference/useOnePassword/sending/errorを所有。`inputOptions.onePasswordAvailable`の時だけ入力方法を出し、1Passwordの参照を上・既定（`preferred:'stored'`の時は保存値を既定）、保存値を代替にする。欠落（旧本体）は保存値だけ。`purpose:'terminal.ssh'`は改行を保つ複数行欄、他はSecureField。すべてprivacySensitive。`purpose:'terminal.login'`（Mac上のSSHへ1回だけ使うログインパスワード、保存しない）は、`inputOptions`が何を言っても1Passwordの選択肢も参照欄も出さず、SecureField1つ（題「ログインパスワード」）と上の文、ボタン「パスワードを渡す」。判定は`SecretRequest.isLoginPassword`・`onePasswordOffered`。SSH鍵（`terminal.ssh`）で1Password接続済みの時は選択肢を「1Passwordの鍵から選ぶ」/「鍵を貼り付けて保存する」とし、前者は`onePasswordKeys`（`GET /api/secret-requests/:id/onepassword-items`）の`title`と`vault`の一覧から選ぶ（参照は送信まで画面に出さない・提出は従来どおり`{source:'onepassword',reference}`）。一覧が404（旧本体）なら選択肢を隠して貼り付けだけにし静かな一行を出す。他の失敗は「読めませんでした」と再読込、貼り付けの選択は残る。未接続の貼り付けにはWebと同じ短い案内（設定の「1Password連携」で一覧から選べる）。入力方法を替えると両方の欄を消す。通常会話draftに渡さない。閉じる操作はdismissだけでcancel POSTを呼ばない |
+| SecretInputSheet | requestとonCompleteを受け、value/reference/useOnePassword/sending/errorを所有。`inputOptions.onePasswordAvailable`の時だけ入力方法を出し、1Passwordの参照を上・既定（`preferred:'stored'`の時は保存値を既定）、保存値を代替にする。欠落（旧本体）は保存値だけ。`purpose:'terminal.ssh'`は改行を保つ複数行欄、他はSecureField。すべてprivacySensitive。`purpose:'terminal.login'`（Mac上のSSHへ1回だけ使うログインパスワード、保存しない）は、`inputOptions`が何を言っても1Passwordの選択肢も参照欄も出さず、SecureField1つ（題は呼び出し側が渡したサーバーのlabel。無ければ「ログインパスワード」）と上の文、ボタン「パスワードを渡す」。判定は`SecretRequest.isLoginPassword`・`onePasswordOffered`。SSH鍵（`terminal.ssh`）で1Password接続済みの時は選択肢を「1Passwordの鍵から選ぶ」/「鍵を貼り付けて保存する」とし、前者は`onePasswordKeys`（`GET /api/secret-requests/:id/onepassword-items`）の`title`と`vault`の一覧から選ぶ（参照は送信まで画面に出さない・提出は従来どおり`{source:'onepassword',reference}`）。一覧が404（旧本体）なら選択肢を隠して貼り付けだけにし静かな一行を出す。他の失敗は「読めませんでした」と再読込、貼り付けの選択は残る。未接続の貼り付けにはWebと同じ短い案内（設定の「1Password連携」で一覧から選べる）。入力方法を替えると両方の欄を消す。通常会話draftに渡さない。閉じる操作はdismissだけでcancel POSTを呼ばない |
 | 秘密の送信body | 保存値`{value}`、1Password`{source:'onepassword', reference}`（`op://`で始まらなければ送らず案内）、拒否`{}`。形の最終検査はサーバー（`SECRET_REFERENCE_INVALID`） |
 | 秘密登録/拒否 | Botの依頼（`botId`あり）はauthorizeAIUse成功後、端末の鍵（`botId:null`）はAI利用でないので許可判定なしで、submitなら`SecretSubmission`・拒否ならnilを退避し画面の欄を消す。nilはcancel、それ以外はsubmitへ。応答requestをonCompleteしてdismiss。AIへの通知成否はrequest.notificationの別項目 |
 | 秘密の失敗 | 許可判定失敗はerrorでreturn（この時点ではvalue消去前）。POSTの認証失敗はdismiss→requireLogin。他失敗は登録結果未確認の案内とsecretWrite診断、valueを復元しない。deferでsending解除 |

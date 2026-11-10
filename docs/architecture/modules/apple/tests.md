@@ -196,6 +196,8 @@ BellBotTests 26ファイル、BellBotUITests 19ファイル、Tests 2ファイ�
 | [testExplicitConfirmationAfterReconnectDoesNotWriteAgain](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L242) | 復帰後の明示確認はGETだけ、PATCHを増やさない |
 | [testAuthenticationFailureDuringConfirmationStillRequiresLogin](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L252) | 保存照合GETの401を認証エラーとして返す |
 | [testFastModeIsSentOnlyWhenChanged](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L261) | fastModeは変更時だけencode、true/false双方を確認 |
+| [testCreateFolderIsSentOnlyWhenPressedAndNeverEntersTheSavedSettings](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L279) | `createFolder`は`true`の時だけ本文に足し、旧い呼び出し・`false`では送らない |
+| [testSavingWithCreateFolderSendsOnePatchAndConfirmsAgainstTheSettingsOnly](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L291) | `createFolder:true`でもPATCH1回、保存結果の照合は設定だけで比べる |
 | [testEditorInputSurvivesReauthenticationAndExplicitSignOutClearsIt](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L280) | 編集/画像draftは再認証を保持、logoutで消去、編集だけではAppStore更新通知無し |
 | [testDefaultModelAndListedModelUseTheirFastCapability](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L395) | 既定/一覧モデルのfast可否と一覧外モデルを区別 |
 | [testAccountUnavailableReasonIsShown](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L409) | アカウントのfast利用不能理由を表示用に返す |
@@ -456,7 +458,17 @@ goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`tes
 | testBindingFieldsAreSentOnlyWhenAvailable | nilの2項目は送らない、空文字は送る。照合では送っていない項目にサーバー値を採る |
 | testPairRuleAndFolderFormMatchTheServer | 組の規則、端末IDの形、フォルダの絶対パス（相対・末尾/・//・.・..・NUL・4096バイト超を拒否） |
 | testTerminalDraftAndFingerprintFollowTheRegistryForms | 端末ID・ホスト・ユーザー・ポートの形、既存IDは検査しない、指紋の形、`action`内の指紋の抽出 |
-| testCheckReasonsBecomePlainJapanese | 確認結果の`reason`を4分類＋その他の平易な文へ |
+| testCheckReasonsBecomePlainJapanese | 確認結果の`reason`を分類（`CONNECTION_REFUSED`→refused、`AUTH_FAILED`→authFailed、他は従来）＋その他の平易な文へ |
+| testRefusedAuthFailedAndUnreachableAreSentencesThatNameTheLikelyFix | `CONNECTION_REFUSED`・`AUTH_FAILED`はサーバーの日本語の`action`をそのまま文にして二行目を出さず、空・無しはアプリの同じ意味の文。`UNREACHABLE`は「起きていて、同じネットワーク」。ボタンの出し分け（認証→鍵を入れる、拒否→共有設定）。他の理由は`action`を二行目に残す |
+| testAuthorizationFieldsDecodeAndAnOlderBodyHasNone | `keyAuthorizationPending`・`keyAuthorization{requestId,outcome,observedAt}`の解読、無い旧い応答は待ちなし・結果なし、崩れた値はnil |
+| testEveryAuthorizationOutcomeHasAPlainSentence | `AUTHORIZED`・`ALREADY_AUTHORIZED`は文なし（自動の確認）、`PASSWORD_REJECTED`・`AUTHORIZATION_UNCONFIRMED`の文とボタン、`PASSWORD_AUTH_DISABLED`・`CREDENTIAL_UNAVAILABLE`はボタンなし、他の符号・符号なしは一般の文＋ボタン |
+| testAuthorizeRefusalsGetWordsAndAnythingElseFallsThrough | 409 `HOST_TRUST_MISSING`・`SSH_KEY_UNSET`、503 `CREDENTIAL_UNAVAILABLE`、`TERMINAL_NOT_FOUND`以外の404の文。`TERMINAL_NOT_FOUND`・400・通信失敗は文にせず投げる |
+| testRequestingAuthorizationSendsAnEmptyBodyAndKeepsAWordedRefusal | `POST …/keys/ssh/authorize`の本文は`{}`、返ったカードはサーバーのlabelのまま、拒否は`authorizations`の文でカードなし、文の無い失敗は投げ、新しい依頼の前に古い文が消える |
+| testAuthorizedOutcomeEndsTheWaitAndRunsTheCheckByItself | 待ち中のGETで、古い依頼の結果と`pending`のままは終わらせず、一致した`ALREADY_AUTHORIZED`で終わり、古い確認結果を捨てて`POST …/check`を1回自動で行う |
+| testRejectedOutcomeAsksAgainAndAFailedReadIsRetriedNotGivenUp | 読めない間は`readFailed`で待ち続け、次の読みで`PASSWORD_REJECTED`の文＋ボタン、確認は走らせない |
+| testANewerRequestOrACancelledPageEndsTheWaitQuietly | 同じ端末の新しい依頼が観測を置き換えると古い待ちは黙って終わり、キャンセルされた待ちは状態を触らない |
+| testMemberFolderDefaultAndPrefillFollowTheEditorRules | 既定のフォルダ（`/Users/<user>/BellTeam/<slug>`、`/`・`:`・NUL→`-`、空・`.`・`..`→`member`）、空・prefillのままの欄だけが名前・端末の変更に追従し、打ち込んだ値と保存済みの値は書き換えない |
+| testMemberFolderRefusalsAreWordedPerCodeWithTheFormsFolder | `FOLDER_MISSING`（作成ボタンあり）・`NOT_DIRECTORY`・`NOT_WRITABLE`・`NOT_PERMITTED`の文＋フォームのフォルダ、未知の`FOLDER_*`は一行、`TERMINAL_NOT_FOUND`、他の符号と符号なしはnil、符号だけの本文から符号を読む |
 | testServerErrorsMapToTheSameMessagesWithoutEchoingTheServerText | `trace.serverErrorCode`から文を選び、英文の`message`を画面に出さない。404と405だけを未対応とし、503 `TERMINALS_UNAVAILABLE`は一時的な失敗とする |
 | testTrustBodyIsExactlyTheFingerprintAndTheReplyHoldsTheTerminal | `POST …/trust`の本文は`{fingerprint}`だけ、応答`{terminal}`は信用済みとして読む |
 | testTrustResultsMapEachServerCode | 409 `HOST_KEY_FINGERPRINT_MISMATCH`（このMacではありません）・409 `TERMINAL_CHANGED`・503 `TERMINAL_UNAVAILABLE`・404 `TERMINAL_NOT_FOUND`・400 `INVALID_TERMINAL`（サーバーのmessage）・符号なし/`NOT_FOUND`の404=旧本体（一行も出さない）・通信失敗 |
@@ -937,6 +949,12 @@ Macの端末表示中の照会と非表示後の停止、小画像保存の結�
 | testOnePasswordSettingBadgeGuideAndTokenCheck | 追加機能に1Password行（未連携）、案内が開いている、`ops_`でないtokenはPATCHせず止める、拒否されたtokenは失敗バッジとサーバーの文（符号なし）、受理で連携中・案内が畳まれ読める保管庫と鍵の数の一行、tokenを画面に返さない、PATCH2回・`values`は`token`だけ。鍵0件の次の一手、項目の無い旧本体は行が増えない |
 | testAttestHintAndOtherWaysOnAnUntrustedTerminal | iPhoneでは未信用の端末の詳細に「このMacでBellTeamアプリを開くと、自動で確かめます」を出し、「このMacを確かめる」は出さない。指紋を手で入れる操作は「ほかの方法」を開いた中にある |
 | testLoginPasswordCardIsOneHiddenFieldWithNoOnePasswordChoice | `terminal.login`のカード：パスワード欄1つ、入力方法の選択も参照欄も無く、「このMacのログインパスワード（1回だけ使い、保存しません）」を出す |
+| testAddFormOnIPhoneStatesTheRemoteLoginPrecondition | iPhoneの追加画面に「リモートログイン」をオンにする一行（前提）があり、「このMacを追加」は無い |
+| testCheckReasonsRefusedAndAuthFailedOfferTheirLikelyFix | `closed-mac`（`CONNECTION_REFUSED`）の文はサーバーの案内を一度だけ出し、鍵を入れるボタンも共有設定も出さない。`locked-mac`（`AUTH_FAILED`）は「この鍵がまだMacに入っていないかもしれません」と「このMacにこの鍵を入れる」 |
+| testAuthorizeCardOutcomesAndTheAutomaticCheck | ボタン→カード（題はサーバーのlabel、貼り付け1欄）→送信→`PASSWORD_REJECTED`の文とボタンが残る→`AUTHORIZATION_UNCONFIRMED`の文→`AUTHORIZED`で確認が自動で走り「つながる」。要求の本文は空、パスワードはfixtureに残らない |
+| testAuthorizeDisabledGivesASentenceWithoutAButton | `PASSWORD_AUTH_DISABLED`は文だけでボタンなし |
+| testMemberFolderMissingOffersToCreateAndSavesOnce | 端末を替えて保存→`FOLDER_MISSING`の文（フォームのフォルダ入り）と「このフォルダを作って保存」、断られた保存は残らない→ボタンで同じ保存＋`createFolder:true`、保存して閉じる |
+| testMemberFolderOtherRefusalsHaveNoCreateButton | `FOLDER_NOT_DIRECTORY`・`NOT_WRITABLE`・`NOT_PERMITTED`の文だけでボタンなし |
 | testMemberEditorTerminalAndFolder | 保存済みの端末とフォルダの表示、相対パスは画面で止めてPATCHしない、このBellTeamへ戻すと両方空で保存 |
 | testOldServerShowsOneCalmLineAndSendsNoNewFields | 一覧404とメンバー項目なしで一行の案内だけ、保存bodyに2項目を含めない |
 

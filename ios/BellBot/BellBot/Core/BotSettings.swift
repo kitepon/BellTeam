@@ -117,9 +117,11 @@ struct BotSettingsRequest: Encodable {
     var smallAvatarChanged = false
     var largeAvatarChanged = false
     var imageOnlyVariant: AvatarCropVariant? = nil
+    /// members S5: sent only as `true`, on the Owner's press of 「このフォルダを作って保存」. Never part of the saved settings.
+    var createFolder = false
 
     private enum CodingKeys: String, CodingKey {
-        case name, profileText, personality, speechStyle, position, role, avatar, color
+        case createFolder, name, profileText, personality, speechStyle, position, role, avatar, color
         case harness, model, reasoningEffort, fastMode
         case avatarLarge, avatarSource, avatarCrop, avatarLargeSource, avatarLargeCrop
         case terminalId, projectRoot
@@ -154,6 +156,7 @@ struct BotSettingsRequest: Encodable {
         }
         try body.encodeIfPresent(value.terminalId, forKey: .terminalId)
         try body.encodeIfPresent(value.projectRoot, forKey: .projectRoot)
+        if createFolder { try body.encode(true, forKey: .createFolder) }
     }
 }
 

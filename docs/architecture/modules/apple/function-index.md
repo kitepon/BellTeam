@@ -311,13 +311,13 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 
 | ファイル・型 | 機能 |
 | --- | --- |
-| [Core/Terminals.swift](../../../../ios/BellBot/BellBot/Core/Terminals.swift) | `Terminal`・`TerminalCheck`・`TerminalMaintenance`（新しい項目は省略可で読む）、`TerminalDraft`（登録の検査とPUT body）、`MemberBinding`（組の規則とフォルダ）、`HostKeyFingerprint`、`TerminalKeyKind`・`TerminalKeyState`・`Terminal.key(_:)`（鍵の行の状態と鍵の出どころの文）、`TerminalKeyRequestResponse`、`TerminalTrust`・`TerminalTrustBody`・`TerminalTrustResponse`・`TerminalTrustNote`（S2の結果と一行）、`TerminalErrorText`（`trace.serverErrorCode`から文、端末・鍵の入口の未対応の判定） |
-| [Core/AppStore+Terminals.swift](../../../../ios/BellBot/BellBot/Core/AppStore+Terminals.swift) | `TerminalDirectory`と`refreshTerminals`・`saveTerminal`・`confirmHostKey`・`removeTerminal`・`checkTerminal`・`requestTerminalKey`・`removeTerminalKey`、`attestThisMacOnce`・`attestThisMac`（S2）。`AppStore.terminals`はサインアウトと接続先変更で空に戻す |
+| [Core/Terminals.swift](../../../../ios/BellBot/BellBot/Core/Terminals.swift) | `Terminal`・`TerminalCheck`・`TerminalMaintenance`（新しい項目は省略可で読む）、`TerminalDraft`（登録の検査とPUT body）、`MemberBinding`（組の規則とフォルダ）、`HostKeyFingerprint`、`TerminalKeyKind`・`TerminalKeyState`・`Terminal.key(_:)`（鍵の行の状態と鍵の出どころの文）、`TerminalKeyRequestResponse`、`TerminalTrust`・`TerminalTrustBody`・`TerminalTrustResponse`・`TerminalTrustNote`（S2の結果と一行）、`KeyAuthorization`・`TerminalAuthorize`（step 4の結果・拒否の文と待ちの状態）、`MemberFolder`（step 5の既定のフォルダ・prefill・`FOLDER_*`の文）、`TerminalCheck.problem`の`refused`・`authFailed`、`TerminalErrorText`（`trace.serverErrorCode`から文、端末・鍵の入口の未対応の判定） |
+| [Core/AppStore+Terminals.swift](../../../../ios/BellBot/BellBot/Core/AppStore+Terminals.swift) | `TerminalDirectory`と`refreshTerminals`・`saveTerminal`・`confirmHostKey`・`removeTerminal`・`checkTerminal`・`requestTerminalKey`・`removeTerminalKey`、`attestThisMacOnce`・`attestThisMac`（S2）、`requestKeyAuthorization`・`awaitKeyAuthorization`（step 4、`terminals.authorizations`）。`AppStore.terminals`はサインアウトと接続先変更で空に戻す |
 | [Core/ThisMac.swift](../../../../ios/BellBot/BellBot/Core/ThisMac.swift) | S1/S2（Mac Catalystだけ）：`ThisMac.isThisMac`・`interfaces`・`primaryIPv4`・`userName`・`hostName`・`owns(host:)`・`remoteLogin`・`hostKeyFingerprint`、ブロッキングの`LoopbackSocket`（127.0.0.1、全体の期限） |
 | [Core/SSHHostKey.swift](../../../../ios/BellBot/BellBot/Core/SSHHostKey.swift) | `SSHWire`（string・mpint・packet・Reader）、`SSHHostKey`（`clientKexInit`・`ServerKexInit`・`ecdhInit`・`Reply`・`Exchange`・`fingerprint`・`format`）、`SSHHostKeyError`。NEWKEYS・認証は送らない |
-| [Views/TerminalsView.swift](../../../../ios/BellBot/BellBot/Views/TerminalsView.swift) | `TerminalListPage`・`TerminalDetailPage`・`TerminalEditor`・`HostKeyConfirmSheet`・`MemberTerminalSection`・`TerminalsCalmLine`、鍵の行`TerminalKeyRow`と秘密入力sheetの起動・外す確認。DEBUGの`-bellbot-preview-terminal`で状態を開く |
+| [Views/TerminalsView.swift](../../../../ios/BellBot/BellBot/Views/TerminalsView.swift) | `TerminalListPage`・`TerminalDetailPage`・`TerminalEditor`・`HostKeyConfirmSheet`・`MemberTerminalSection`・`TerminalsCalmLine`、鍵の行`TerminalKeyRow`と秘密入力sheetの起動・外す確認、確認結果の下の「このMacにこの鍵を入れる」（`checkActions`・`authorizeKey`、terminal.loginのカード）、追加画面のリモートログインの一行（Mac以外）、フォルダのprefill（`MemberTerminalSection.applyPrefill`）。DEBUGの`-bellbot-preview-terminal`で状態を開く |
 | [Bot.terminalId / projectRoot](../../../../ios/BellBot/BellBot/Core/Models.swift)、[BotSettings.withBinding](../../../../ios/BellBot/BellBot/Core/BotSettings.swift) | メンバーの2項目（nilは旧本体）。nilはencodeせず、照合ではサーバー値を採る |
-| [BotEditor](../../../../ios/BellBot/BellBot/Views/ManagementView.swift) | 「端末とフォルダ」節、保存前の組の規則、members符号の文 |
+| [BotEditor](../../../../ios/BellBot/BellBot/Views/ManagementView.swift) | 「端末とフォルダ」節、保存前の組の規則、members符号の文、`FOLDER_*`の文と「このフォルダを作って保存」（`createFolder:true`で同じ保存）。`BotSettingsRequest.createFolder`・`saveBotSettings(createFolder:)`は[BellAPI+BotSettings](../../../../ios/BellBot/BellBot/Core/BellAPI+BotSettings.swift) |
 | [SettingsPage.terminals](../../../../ios/BellBot/BellBot/Views/SettingsView.swift) | 設定の項目「端末」。`SettingsIconTile`と`SettingsBanner`をこの画面と共有 |
 
 ## その他の製品Swift：ファイル単位
@@ -404,7 +404,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [OnboardingTests.swift](../../../../ios/BellBot/BellBotTests/OnboardingTests.swift) | origin、初回認証decode、binding/digest、session、保護通信、反映エラー |
 | [RoomDeletionTests.swift](../../../../ios/BellBot/BellBotTests/RoomDeletionTests.swift) | 削除対象の選択/draftだけ整理、失敗時保持 |
 | [SecretTransportTests.swift](../../../../ios/BellBot/BellBotTests/SecretTransportTests.swift) | public HTTP拒否と秘密POST redirect拒否 |
-| [TerminalsTests.swift](../../../../ios/BellBot/BellBotTests/TerminalsTests.swift) | 端末・メンバー項目の新旧応答、鍵の項目と行の状態、鍵の秘密入力要求の解読と送信body、組の規則、フォルダ、指紋、確認結果の文、符号の文、未対応状態 |
+| [TerminalsTests.swift](../../../../ios/BellBot/BellBotTests/TerminalsTests.swift) | 端末・メンバー項目の新旧応答、鍵の項目と行の状態、鍵の秘密入力要求の解読と送信body、組の規則、フォルダ、指紋、確認結果の文（三つの理由）、符号の文、未対応状態、鍵の導入（結果と拒否の文・待ち・自動の確認）、メンバーのフォルダ（既定・prefill・`FOLDER_*`の文） |
 | [SelectableTextLayoutTests.swift](../../../../ios/BellBot/BellBotTests/SelectableTextLayoutTests.swift) | UITextView寸法・本文変更・幅変更のcache |
 
 ### BellBotUITests
@@ -429,7 +429,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [RoomDeletionUITests.swift](../../../../ios/BellBot/BellBotUITests/RoomDeletionUITests.swift) | 取消/失敗の保持、成功時一覧復帰とメンバー保持 |
 | [SecretInputUITests.swift](../../../../ios/BellBot/BellBotUITests/SecretInputUITests.swift) | 登録表示・値と入力欄の非表示・再起動後の表示。通常会話へのPOST件数は確認しない |
 | [ServerSetupUITests.swift](../../../../ios/BellBot/BellBotUITests/ServerSetupUITests.swift) | 接続後AI選択、未接続の導入ガイドとURL入力保持 |
-| [TerminalsUITests.swift](../../../../ios/BellBot/BellBotUITests/TerminalsUITests.swift) | iPhoneの端末一覧・追加・確認・ホスト鍵・削除、鍵の設定（秘密入力カード・1Password参照が先）と外す、メンバー編集の端末とフォルダ、旧本体の一行表示 |
+| [TerminalsUITests.swift](../../../../ios/BellBot/BellBotUITests/TerminalsUITests.swift) | iPhoneの端末一覧・追加・確認・ホスト鍵・削除、鍵の設定（秘密入力カード・1Password参照が先）と外す、メンバー編集の端末とフォルダ、旧本体の一行表示、追加画面の前提の一行、確認結果の理由、鍵をMacに入れる流れ、メンバーのフォルダの作成 |
 | [TabletWorkspaceUITests.swift](../../../../ios/BellBot/BellBotUITests/TabletWorkspaceUITests.swift) | iPad画像寸法、列/回転/draft、キーボード、共通編集sheet |
 
 ### Testsと構成

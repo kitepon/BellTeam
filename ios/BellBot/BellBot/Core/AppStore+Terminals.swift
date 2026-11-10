@@ -18,6 +18,8 @@ struct TerminalDirectory: Equatable {
     var attesting: Set<String> = []
     var trustNotes: [String: TerminalTrustNote] = [:]
     var attested: Set<String> = []
+    /// Step 4 on the detail: 「このMacにこの鍵を入れる」 waiting for the outcome, or the sentence after it. App memory only.
+    var authorizations: [String: TerminalAuthorize.State] = [:]
     /// A later read failed while a list is shown: the list stays (last known registry) with this reason.
     var readError: String?
     var readSequence = 0
@@ -74,7 +76,7 @@ extension AppStore {
     }
 
     @discardableResult
-    private func replaceTerminal(_ terminal: Terminal) -> Terminal {
+    private func replaceTerminal(_ terminal: Terminal, clearsCheck: Bool = true) -> Terminal {
         var saved = terminal
         var list = terminals.terminals
         if let index = list.firstIndex(where: { $0.terminalId == saved.terminalId }) {
@@ -82,7 +84,11 @@ extension AppStore {
             list[index] = saved
         } else { list.append(saved) }
         terminals.state = .supported(list)
-        terminals.checks[saved.terminalId] = nil // target or trust changed; an older observation no longer describes it
+        // target or trust changed; an older observation no longer describes it. A plain read of the same terminal keeps it.
+        if clearsCheck {
+            terminals.checks[saved.terminalId] = nil
+            if case .note? = terminals.authorizations[saved.terminalId] { terminals.authorizations[saved.terminalId] = nil }
+        }
         return saved
     }
 
@@ -91,6 +97,7 @@ extension AppStore {
             try await api.delete("/api/terminals/\(id)")
             terminals.state = .supported(terminals.terminals.filter { $0.terminalId != id })
             terminals.checks[id] = nil
+            terminals.authorizations[id] = nil
         } catch {
             if !BellAPIError.isAuthenticationError(error) {
                 api.diagnostics.report(error, path: "/api/terminals/:id", method: "DELETE", observation: .write)
@@ -179,6 +186,69 @@ extension AppStore {
                 terminals.trustNotes[id] = TerminalTrust.note(failure)
                 return
             }
+        }
+    }
+}
+
+extension AppStore {
+    /// Step 4 (terminals #858): an empty POST; the Mac's login password goes only into the returned terminal.login card.
+    /// nil = refused with wording (no trust yet, no key, older body): the sentence is in `terminals.authorizations`.
+    func requestKeyAuthorization(id: String) async throws -> SecretRequest? {
+        terminals.authorizations[id] = nil
+        do {
+            let response: TerminalKeyRequestResponse = try await api.post("/api/terminals/\(id)/keys/ssh/authorize", body: EmptyBody())
+            return response.secretRequest
+        } catch {
+            if BellAPIError.isAuthenticationError(error) { throw error }
+            if let note = TerminalAuthorize.refusal(error) { terminals.authorizations[id] = .note(note); return nil }
+            api.diagnostics.report(error, path: "/api/terminals/:id/keys/ssh/authorize", method: "POST", observation: .write)
+            throw error
+        }
+    }
+
+    /// After the card was submitted: read the terminal until `keyAuthorizationPending` is false and the outcome is this request's.
+    /// There is no cap and no give-up; a failed read is retried on the next tick. It ends with the outcome, a newer request
+    /// for this terminal (the observed one is replaced), or the caller's task being cancelled. A kept key runs the check by itself.
+    func awaitKeyAuthorization(id: String, requestId: String, interval: Duration = .seconds(1)) async {
+        func observing() -> Bool {
+            if case .waiting(let current, _)? = terminals.authorizations[id], current == requestId { return !Task.isCancelled }
+            return false
+        }
+        terminals.authorizations[id] = .waiting(requestId: requestId, readFailed: false)
+        var outcome: String?
+        var first = true
+        while outcome == nil {
+            if !first { try? await Task.sleep(for: interval) }
+            first = false
+            guard observing() else { return }
+            do {
+                let terminal: Terminal = try await api.get("/api/terminals/\(id)")
+                guard observing() else { return }
+                replaceTerminal(terminal, clearsCheck: false)
+                terminals.authorizations[id] = .waiting(requestId: requestId, readFailed: false)
+                if !terminal.keyAuthorizationPending, terminal.keyAuthorization?.requestId == requestId {
+                    outcome = terminal.keyAuthorization?.outcome ?? ""
+                }
+            } catch let error where BellAPIError.isAuthenticationError(error) {
+                if observing() { terminals.authorizations[id] = nil }
+                requireLogin(for: error)
+                return
+            } catch {
+                guard observing() else { return }
+                if TerminalErrorText.code(error) == "TERMINAL_NOT_FOUND" {
+                    terminals.authorizations[id] = .note(.init(text: TerminalErrorText.message(for: error)))
+                    return
+                }
+                terminals.authorizations[id] = .waiting(requestId: requestId, readFailed: true)
+            }
+        }
+        if let note = TerminalAuthorize.note(outcome: outcome) { terminals.authorizations[id] = .note(note); return }
+        terminals.authorizations[id] = nil
+        terminals.checks[id] = nil
+        do { try await checkTerminal(id: id) }
+        catch let error where BellAPIError.isAuthenticationError(error) { requireLogin(for: error) }
+        catch {
+            terminals.authorizations[id] = .note(.init(text: "鍵はMacに入りました。つながるかは確かめられませんでした。「つながるか確かめる」を押してください。"))
         }
     }
 }

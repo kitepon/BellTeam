@@ -43,7 +43,7 @@ final class TerminalsUITests: XCTestCase {
         // Unreachable: the plain reason, not the code.
         app.buttons["terminal-row-sleeping-mini"].tap()
         app.buttons["check-terminal"].tap()
-        XCTAssertTrue(waitLabel(app, "terminal-reachability", contains: "端末が眠っているか"))
+        XCTAssertTrue(waitLabel(app, "terminal-reachability", contains: "Macが起きていて、同じネットワーク"))
         XCTAssertFalse(app.descendants(matching: .any)["terminal-reachability"].label.contains("UNREACHABLE"))
         shot(app, "04-terminal-detail-unreachable")
         app.navigationBars.buttons.element(boundBy: 0).tap()
@@ -444,6 +444,143 @@ final class TerminalsUITests: XCTestCase {
         let saved = (try await call("/test/proof")["botSaves"] as? [[String: Any]])?.last?["body"] as? [String: Any] ?? [:]
         XCTAssertFalse(saved.keys.contains("terminalId"), "旧本体へ新しい項目を送らない")
         XCTAssertFalse(saved.keys.contains("projectRoot"))
+    }
+
+    func testAddFormOnIPhoneStatesTheRemoteLoginPrecondition() async throws {
+        let app = launch(["-bellbot-preview-terminals", "-bellbot-preview-settings", "terminals", "-bellbot-preview-terminal", "add"])
+        defer { app.terminate() }
+        let line = app.descendants(matching: .any)["remote-login-precondition"]
+        XCTAssertTrue(line.waitForExistence(timeout: 10))
+        XCTAssertTrue(line.label.contains("「リモートログイン」をオンにしてください"), line.label)
+        XCTAssertFalse(app.buttons["add-this-mac"].exists, "iPhoneに「このMacを追加」は出さない")
+        shot(app, "70-add-form-remote-login-line")
+    }
+
+    func testCheckReasonsRefusedAndAuthFailedOfferTheirLikelyFix() async throws {
+        _ = try await call("/test/mode?selfservice=1")
+        var app = launch(["-bellbot-preview-terminals", "-bellbot-preview-settings", "terminals", "-bellbot-preview-terminal", "check:closed-mac"])
+        XCTAssertTrue(waitLabel(app, "terminal-reachability", contains: "「リモートログイン」がオンか確かめてから"))
+        XCTAssertFalse(app.descendants(matching: .any)["terminal-reachability"].label.contains("サーバーの案内"), "同じ案内を二度出さない")
+        XCTAssertFalse(app.buttons["authorize-key"].exists)
+        XCTAssertFalse(app.buttons["open-sharing-settings"].exists, "iPhoneに共有設定は無い")
+        shot(app, "71-check-connection-refused")
+        app.terminate()
+
+        app = launch(["-bellbot-preview-terminals", "-bellbot-preview-settings", "terminals", "-bellbot-preview-terminal", "check:locked-mac"])
+        defer { app.terminate() }
+        XCTAssertTrue(waitLabel(app, "terminal-reachability", contains: "この鍵がまだMacに入っていないかもしれません"))
+        XCTAssertTrue(app.buttons["authorize-key"].waitForExistence(timeout: 3))
+        XCTAssertEqual(app.buttons["authorize-key"].label, "このMacにこの鍵を入れる")
+        shot(app, "72-check-auth-failed")
+    }
+
+    func testAuthorizeCardOutcomesAndTheAutomaticCheck() async throws {
+        let launchArguments = ["-bellbot-preview-terminals", "-bellbot-preview-settings", "terminals", "-bellbot-preview-terminal", "check:locked-mac"]
+        func openCard(_ app: XCUIApplication) -> Bool {
+            XCTAssertTrue(app.buttons["authorize-key"].waitForExistence(timeout: 10))
+            app.buttons["authorize-key"].tap()
+            return app.secureTextFields["secret-value"].waitForExistence(timeout: 5)
+        }
+        _ = try await call("/test/mode?selfservice=1&authorize=rejected")
+        let app = launch(launchArguments)
+        defer { app.terminate() }
+        XCTAssertTrue(openCard(app))
+        // The server's own label is the title; the card is one hidden paste-only field.
+        XCTAssertTrue(app.staticTexts["端末 locked-mac のMacのログインパスワード"].exists || app.navigationBars["端末 locked-mac のMacのログインパスワード"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["secret-source"].exists)
+        shot(app, "73-authorize-card")
+        app.secureTextFields["secret-value"].tap()
+        app.secureTextFields["secret-value"].typeText("dummy-login-password")
+        app.buttons["パスワードを渡す"].tap()
+        let note = app.descendants(matching: .any)["authorize-note"]
+        XCTAssertTrue(note.waitForExistence(timeout: 15))
+        XCTAssertEqual(note.label, "パスワードが違いました。")
+        XCTAssertTrue(app.buttons["authorize-key"].exists, "もう一度の操作が残る")
+        shot(app, "74-authorize-password-rejected")
+        var proof = try await call("/test/proof")
+        XCTAssertEqual((proof["authorizes"] as? [[String: Any]])?.first?["bodyKeys"] as? [String], [], "本文は空")
+        XCTAssertFalse(String(data: try JSONSerialization.data(withJSONObject: proof), encoding: .utf8)!.contains("dummy-login-password"), "パスワードはfixtureにも残らない")
+
+        // Unconfirmed asks again; then the key lands and the check runs by itself.
+        _ = try await call("/test/mode?authorize=unconfirmed")
+        XCTAssertTrue(openCard(app))
+        app.secureTextFields["secret-value"].tap()
+        app.secureTextFields["secret-value"].typeText("x")
+        app.buttons["パスワードを渡す"].tap()
+        XCTAssertTrue(waitLabel(app, "authorize-note", contains: "入れられたか確かめられませんでした。もう一度お試しください"))
+        shot(app, "75-authorize-unconfirmed")
+
+        _ = try await call("/test/mode?authorize=authorized")
+        XCTAssertTrue(openCard(app))
+        app.secureTextFields["secret-value"].tap()
+        app.secureTextFields["secret-value"].typeText("x")
+        app.buttons["パスワードを渡す"].tap()
+        XCTAssertTrue(waitLabel(app, "terminal-reachability", contains: "つながる"))
+        XCTAssertFalse(app.buttons["authorize-key"].exists)
+        XCTAssertFalse(note.exists)
+        shot(app, "76-authorize-authorized-check-ran")
+        proof = try await call("/test/proof")
+        XCTAssertEqual((proof["checks"] as? [[String: Any]])?.last?["reachable"] as? Bool, true, "確かめは自動で走る")
+    }
+
+    func testAuthorizeDisabledGivesASentenceWithoutAButton() async throws {
+        _ = try await call("/test/mode?selfservice=1&authorize=disabled")
+        let app = launch(["-bellbot-preview-terminals", "-bellbot-preview-settings", "terminals", "-bellbot-preview-terminal", "authorized:locked-mac"])
+        defer { app.terminate() }
+        let note = app.descendants(matching: .any)["authorize-note"]
+        XCTAssertTrue(note.waitForExistence(timeout: 15))
+        XCTAssertTrue(note.label.hasPrefix("このMacはパスワードでのログインを受け付けていません。"))
+        XCTAssertFalse(app.buttons["authorize-key"].exists)
+    }
+
+    func testMemberFolderMissingOffersToCreateAndSavesOnce() async throws {
+        _ = try await call("/test/mode?folder=missing")
+        let app = launch(["-bellbot-preview-terminals"])
+        defer { app.terminate() }
+        try openMemberEditor(app)
+        let picker = app.buttons["member-terminal-picker"]
+        XCTAssertTrue(scrollTo(picker, in: app))
+        picker.tap()
+        app.buttons["sleeping-mini（192.168.1.20）"].tap()
+        let folder = app.textFields["member-project-root"]
+        XCTAssertTrue(folder.waitForExistence(timeout: 3))
+        XCTAssertEqual(folder.value as? String, "/Users/kite/work/app", "保存済みのフォルダは書き換えない")
+        app.buttons["save-member"].tap()
+        let error = app.descendants(matching: .any)["member-save-error"]
+        XCTAssertTrue(scrollTo(error, in: app))
+        XCTAssertEqual(error.label, "このフォルダはMacにありません。作るか、あるフォルダを選んでください（/Users/kite/work/app）。")
+        let create = app.buttons["create-member-folder"]
+        XCTAssertTrue(create.exists)
+        XCTAssertEqual(create.label, "このフォルダを作って保存")
+        shot(app, "77-member-folder-missing-create")
+        var proof = try await call("/test/proof")
+        XCTAssertEqual((proof["botSaves"] as? [Any])?.count, 0, "断られた保存は残らない")
+        create.tap()
+        XCTAssertTrue(app.buttons["メンバーを編集"].waitForExistence(timeout: 10), "作って保存して閉じる")
+        proof = try await call("/test/proof")
+        let checks = proof["folderChecks"] as? [[String: Any]] ?? []
+        XCTAssertEqual(checks.map { $0["createFolder"] as? Bool }, [false, true])
+        let saved = (proof["botSaves"] as? [[String: Any]])?.last?["body"] as? [String: Any] ?? [:]
+        XCTAssertEqual(saved["createFolder"] as? Bool, true)
+        XCTAssertEqual(saved["terminalId"] as? String, "sleeping-mini")
+    }
+
+    func testMemberFolderOtherRefusalsHaveNoCreateButton() async throws {
+        let words = ["notdir": "これはファイルです。フォルダを選んでください（/Users/kite/work/app）。",
+                     "notwritable": "このMacのユーザーが書き込めるフォルダを選んでください（/Users/kite/work/app）。",
+                     "notpermitted": "Macがこのフォルダを開かせてくれません。"]
+        for (mode, prefix) in words.sorted(by: { $0.key < $1.key }) {
+            _ = try await call("/test/mode?folder=\(mode)")
+            let app = launch(["-bellbot-preview-terminals"])
+            try openMemberEditor(app)
+            XCTAssertTrue(scrollTo(app.buttons["member-terminal-picker"], in: app))
+            app.buttons["save-member"].tap()
+            let error = app.descendants(matching: .any)["member-save-error"]
+            XCTAssertTrue(scrollTo(error, in: app), mode)
+            XCTAssertTrue(error.label.hasPrefix(prefix), error.label)
+            XCTAssertFalse(app.buttons["create-member-folder"].exists, mode)
+            app.terminate()
+        }
     }
 
     private func launch(_ arguments: [String]) -> XCUIApplication {

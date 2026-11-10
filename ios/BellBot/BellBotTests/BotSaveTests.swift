@@ -276,6 +276,27 @@ final class BotSaveTests: XCTestCase {
         XCTAssertEqual(turnedOff["fastMode"] as? Bool, false)
     }
 
+    func testCreateFolderIsSentOnlyWhenPressedAndNeverEntersTheSavedSettings() throws {
+        func body(_ create: Bool?) throws -> [String: Any] {
+            let request = create.map { BotSettingsRequest(settings: newSettings, originalFastMode: false, createFolder: $0) }
+                ?? BotSettingsRequest(settings: newSettings, originalFastMode: false)
+            return try JSONSerialization.jsonObject(with: JSONEncoder().encode(request)) as! [String: Any]
+        }
+        XCTAssertNil(try body(nil)["createFolder"], "旧本体へは送らない")
+        XCTAssertNil(try body(false)["createFolder"])
+        XCTAssertEqual(try body(true)["createFolder"] as? Bool, true)
+        XCTAssertEqual(try body(true)["name"] as? String, newSettings.normalized.name, "同じ保存に作成の印が足されるだけ")
+    }
+
+    func testSavingWithCreateFolderSendsOnePatchAndConfirmsAgainstTheSettingsOnly() async throws {
+        let fixture = SaveFixture(saved: oldSettings, applyBeforeFailure: true)
+        let result = try await makeAPI(fixture).saveBotSettings(id: "member", settings: newSettings, originalFastMode: false,
+                                                                createFolder: true)
+        guard case .confirmed = result else { return XCTFail("作成の印は確認の比較に入れない") }
+        XCTAssertEqual(fixture.methods, ["PATCH", "GET"])
+        XCTAssertEqual(fixture.saved, newSettings.normalized)
+    }
+
     @MainActor
     func testEditorInputSurvivesReauthenticationAndExplicitSignOutClearsIt() async {
         let previousOpen = BellNotifications.shared.onOpen
