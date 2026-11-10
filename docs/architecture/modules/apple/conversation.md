@@ -10,6 +10,7 @@
 | --- | --- |
 | `ConversationView` | HomeViewのnavigationDestination、DesktopWorkspaceView、DebugのRootViewからChatTargetを受け、`ConversationContent(target:).id(target)`を生成 |
 | `ConversationContent` | timeline、queue、読取task、hasMore、送信待ち、停止結果、添付の表示用配列、選択宛先、エラー、sheet/gallery、書出し、末尾/新着を所有。名簿・routing設定・API・draftはAppStoreから取得 |
+| ヘッダー（`ConversationContent`のtoolbar principal） | 名前・fastバッジ・副題。副題はRoomなら「N人のルーム」、Botなら「オンライン/オフライン」。Botの`seatLaunch.line`があれば、ナビゲーションバーの直下（上端のsafeAreaInset）に赤い1行（「Macで起動できません: …」、最大3行で折り返す。バーの幅では理由が切れるため）を足す。出どころと規則は[一覧とメンバー](members-and-rooms.md)の「起動できない理由」 |
 | `AppStore.draft(for:)` → `ConversationDraft` | 宛先別の同じ参照を返す。本文、添付、宛先集合をメモリ保持。画面復帰時に添付と宛先を画面へ複製。添付代入と宛先変更は辞書内draftへ返す |
 | `ConversationTimelineState` | 受信履歴とローカル送信を別に保持。可視行は受信履歴＋未照合送信。受付IDが履歴に現れるとローカル送信を除去。本文の一致では照合しない |
 | `ConversationList.Coordinator` | 行ID、前回本文/queue/行素材（Botの名前・色・画像版）、既に表示した行、Markdown先読済みsource、末尾にいるか、過去取得要求の状態。一覧から親へ更新・過去取得・末尾状態をcallback。読んでいる位置は持たない（ChatLayoutの役目） |

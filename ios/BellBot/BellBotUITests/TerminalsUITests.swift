@@ -388,6 +388,40 @@ final class TerminalsUITests: XCTestCase {
         shot(app, "60-settings-features-old-body")
     }
 
+    func testSeatLaunchNoticeShowsOnTheMemberRowAndTheConversationHeader() throws {
+        func line(_ app: XCUIApplication, _ text: String) -> XCUIElement {
+            app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
+        }
+        func member(_ app: XCUIApplication) -> XCUIElement { app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "ユキ")).firstMatch }
+        func scrollList(_ element: XCUIElement, _ app: XCUIApplication) -> Bool {
+            for _ in 0..<6 {
+                if element.waitForExistence(timeout: 1) && element.isHittable { return true }
+                app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8)).press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)))
+            }
+            return element.exists
+        }
+        // The home list reads the app's own preview members, so the notice comes from -bellbot-preview-seat-launch (the decode is in TerminalsTests).
+        let action = "Macで起動できません: Macの「システム設定 > 一般 > 共有」で「リモートログイン」をオンにしてください"
+        var app = launch(["-bellbot-preview-terminals", "-bellbot-preview-seat-launch", "action"])
+        XCTAssertTrue(scrollList(line(app, action), app), "the member row shows the action")
+        XCTAssertEqual(app.staticTexts.matching(identifier: "seat-launch-line").count, 1, "only the member that did not start")
+        shot(app, "70-seatlaunch-member-row")
+        member(app).tap()
+        XCTAssertTrue(app.buttons["詳細"].waitForExistence(timeout: 5))
+        XCTAssertTrue(line(app, action).exists, "the conversation header shows the same line")
+        shot(app, "71-seatlaunch-conversation-header")
+        app.terminate()
+
+        app = launch(["-bellbot-preview-terminals", "-bellbot-preview-seat-launch", "code"])
+        XCTAssertTrue(scrollList(line(app, "Macで起動できません: TARGET_MISMATCH"), app), "no action: the code")
+        app.terminate()
+
+        app = launch(["-bellbot-preview-terminals"])
+        XCTAssertTrue(scrollList(member(app), app))
+        XCTAssertFalse(line(app, "Macで起動できません").exists, "null: no line")
+        app.terminate()
+    }
+
     func testMemberEditorTerminalAndFolder() async throws {
         let app = launch(["-bellbot-preview-terminals"])
         defer { app.terminate() }

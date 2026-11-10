@@ -4,6 +4,35 @@ import Foundation
 
 struct TerminalsResponse: Decodable { let terminals: [Terminal] }
 
+/// Bot `seatLaunch` (execution remote-seat.md, #892): why a terminal member did not start. Every field is optional;
+/// a field of the wrong type reads as absent.
+struct SeatLaunch: Decodable, Equatable {
+    var code: String?
+    var action: String?
+    var terminalId: String?
+    var at: String?
+
+    private enum CodingKeys: String, CodingKey { case code, action, terminalId, at }
+
+    init(code: String? = nil, action: String? = nil, terminalId: String? = nil, at: String? = nil) {
+        self.code = code; self.action = action; self.terminalId = terminalId; self.at = at
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        code = try? c.decodeIfPresent(String.self, forKey: .code)
+        action = try? c.decodeIfPresent(String.self, forKey: .action)
+        terminalId = try? c.decodeIfPresent(String.self, forKey: .terminalId)
+        at = try? c.decodeIfPresent(String.self, forKey: .at)
+    }
+
+    /// The one plain line: the action, or the code when the action is empty. nil when neither has text.
+    var line: String? {
+        let text = [action, code].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }.first { !$0.isEmpty }
+        return text.map { "Macで起動できません: \($0)" }
+    }
+}
+
 struct Terminal: Decodable, Identifiable, Equatable {
     let terminalId: String
     var host = ""

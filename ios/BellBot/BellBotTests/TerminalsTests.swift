@@ -791,6 +791,39 @@ final class TerminalsTests: XCTestCase {
         XCTAssertEqual(gone.content, .failed("この端末は登録されていません。"))
     }
 
+    // MARK: seatLaunch (execution remote-seat.md, #892)
+
+    private func bot(seatLaunch: String?) throws -> Bot {
+        let extra = seatLaunch.map { ",\"seatLaunch\":\($0)" } ?? ""
+        return try JSONDecoder().decode(Bot.self, from: Data("""
+        {"id":"b","name":"n","displayName":"n","harness":"claude","model":"","reasoningEffort":"","fastMode":false,"color":"c",
+         "profileText":"","personality":"","speechStyle":"","position":"","role":"","avatar":"","online":false\(extra)}
+        """.utf8))
+    }
+
+    func testSeatLaunchDecodesAndReadsAsOneLine() throws {
+        XCTAssertNil(try bot(seatLaunch: nil).seatLaunch, "an older body has no key")
+        XCTAssertNil(try bot(seatLaunch: "null").seatLaunch)
+        let full = try bot(seatLaunch: #"{"code":"TARGET_MISMATCH","action":"リモートログインをオンにしてください","terminalId":"mac","at":"2026-11-10T02:00:00Z"}"#)
+        XCTAssertEqual(full.seatLaunch?.terminalId, "mac")
+        XCTAssertEqual(full.seatLaunch?.at, "2026-11-10T02:00:00Z")
+        XCTAssertEqual(full.seatLaunch?.line, "Macで起動できません: リモートログインをオンにしてください")
+        for missing in [#"{"code":"TERMINAL_UNAVAILABLE"}"#, #"{"code":"TERMINAL_UNAVAILABLE","action":null}"#, #"{"code":"TERMINAL_UNAVAILABLE","action":"  "}"#] {
+            XCTAssertEqual(try bot(seatLaunch: missing).seatLaunch?.line, "Macで起動できません: TERMINAL_UNAVAILABLE", missing)
+        }
+        XCTAssertNil(try bot(seatLaunch: "{}").seatLaunch?.line, "nothing to say: no line")
+    }
+
+    func testMalformedSeatLaunchIsAbsentAndDoesNotBreakTheBot() throws {
+        for malformed in ["\"boom\"", "7", "[1]", "true"] {
+            let decoded = try bot(seatLaunch: malformed)
+            XCTAssertEqual(decoded.id, "b", malformed)
+            XCTAssertNil(decoded.seatLaunch?.line, malformed)
+        }
+        let wrongField = try bot(seatLaunch: #"{"code":5,"action":"次の手順"}"#)
+        XCTAssertEqual(wrongField.seatLaunch?.line, "Macで起動できません: 次の手順", "a field of the wrong type reads as absent")
+    }
+
     func testCreateSendsOnceListsTheParentAgainThenOpensTheNewFolder() async {
         var events: [String] = []
         let model = TerminalFolderPickerModel(read: { path in

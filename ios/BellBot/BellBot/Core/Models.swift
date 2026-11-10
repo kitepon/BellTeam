@@ -25,6 +25,8 @@ struct Bot: Decodable, Identifiable, Equatable {
     /// members C1. nil = this BellTeam's member DTO predates the fields; "" = runs inside this BellTeam.
     var terminalId: String? = nil
     var projectRoot: String? = nil
+    /// remote-seat.md "Launch notice" (#892). nil = no notice, an older body, or a malformed value.
+    var seatLaunch: SeatLaunch? = nil
 }
 
 // 名前の下の1行。文言はWebのworkLabelと同じにする。
@@ -50,7 +52,7 @@ extension Bot {
     private enum CodingKeys: String, CodingKey {
         case id, name, displayName, harness, model, reasoningEffort, fastMode, color, profileText, personality
         case speechStyle, position, role, avatar, avatarVersion, avatarLargeVersion, deleting, online, recent, currentWork, account
-        case terminalId, projectRoot
+        case terminalId, projectRoot, seatLaunch
     }
 
     init(from decoder: Decoder) throws {
@@ -78,6 +80,8 @@ extension Bot {
         account = try c.decodeIfPresent(BotAccount.self, forKey: .account)
         terminalId = try c.decodeIfPresent(String.self, forKey: .terminalId)
         projectRoot = try c.decodeIfPresent(String.self, forKey: .projectRoot)
+        // A malformed notice must not break the member list: read it as absent.
+        seatLaunch = try? c.decodeIfPresent(SeatLaunch.self, forKey: .seatLaunch)
     }
 }
 

@@ -443,6 +443,8 @@ goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`tes
 
 | 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
 | --- | --- |
+| testSeatLaunchDecodesAndReadsAsOneLine | Bot項目`seatLaunch`：欠落・`null`は無し、全項目ありは「Macで起動できません: <action>」、`action`が無い・`null`・空白だけは`code`、両方無しは行なし |
+| testMalformedSeatLaunchIsAbsentAndDoesNotBreakTheBot | 文字列・数・配列・真偽の`seatLaunch`でもBotは読め行は出ない、型違いの項目だけ無いものとして読む |
 | testTerminalDecodesTheRegistryProjectionAndAnOlderPartialBody | 公開projection（鍵は設定済み表示だけ、hostTrust、C8）と、項目が欠けた旧い応答を既定値で読む |
 | testKeyFieldsDecodeAndMapToRowStates | `keySource`・`sudoKeySource`・`sshKeyPending`・`sudoKeyPending`の解読と鍵の行（未設定/設定待ち/設定済み、出どころの文、「設定する」/「設定し直す」、外せるか）。設定待ちでも今の鍵の出どころを残す。項目の無い旧い応答は未対応 |
 | testTerminalKeyRequestDecodesTheSecretCardWithOnePasswordFirst | 鍵の入口の`{secretRequest:{id,label,inputOptions}}`だけの応答（`botId`なし→nil、pending）、全項目の応答、`inputOptions`の無いBotの依頼。1Passwordを先に開く条件、送信body（`{source:'onepassword',reference}` / `{value}`）、`op://`の検査 |
@@ -969,6 +971,7 @@ Macの端末表示中の照会と非表示後の停止、小画像保存の結�
 | testOlderBodyWithoutTheFoldersRouteKeepsTheTextField | 経路が無い本体はシートで一文、閉じると文字入力の欄（保存済みのパス入り）が出て選ぶボタンは無い |
 | testMemberFolderMissingOffersToCreateAndSavesOnce | 端末を替えて保存→`FOLDER_MISSING`の文（フォームのフォルダ入り）と「このフォルダを作って保存」、断られた保存は残らない→ボタンで同じ保存＋`createFolder:true`、保存して閉じる |
 | testMemberFolderOtherRefusalsHaveNoCreateButton | `FOLDER_NOT_DIRECTORY`・`NOT_WRITABLE`・`NOT_PERMITTED`の文だけでボタンなし |
+| testSeatLaunchNoticeShowsOnTheMemberRowAndTheConversationHeader | `-bellbot-preview-seat-launch action|code`（名簿は内蔵の見本で、サーバーの応答ではない。読取は`TerminalsTests`）：一覧の行に「Macで起動できません: <action>」が1つだけ、会話ヘッダーにも同じ行、actionが無ければcode、引数なしなら出ない |
 | testMemberEditorTerminalAndFolder | 保存済みの端末とフォルダの読み取り専用の表示と「フォルダを選ぶ」（文字入力は畳んだ「ほかの方法」の中）、相対パスは画面で止めてPATCHしない、このBellTeamへ戻すと両方空で保存 |
 | testOldServerShowsOneCalmLineAndSendsNoNewFields | 一覧404とメンバー項目なしで一行の案内だけ、保存bodyに2項目を含めない |
 
