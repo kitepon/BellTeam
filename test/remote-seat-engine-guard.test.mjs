@@ -17,3 +17,20 @@ test('an engine without remote seats cannot launch a terminal-bound member; ever
   assert.deepEqual(calls, [['agent_launch', '/srv/bellteam/bots/bot-local'], ['pty_send', '/srv/bellteam/bots/bot-mac']])
   assert.deepEqual(records, [{ code: 'REMOTE_SEAT_ENGINE_UNSUPPORTED', module: 'execution', diagnostic_log: 'bot bot-mac execution f0534f8b' }])
 })
+
+test('a pinned native keeps the check and its generation, live getters and release', async () => {
+  const calls = []
+  let released = 0, live = 'sdk-1'
+  const pinned = Object.freeze({ generation: 'g1', get client() { return live }, release: () => { released++ },
+    call: async (name, args) => { calls.push([name, args.cwd]); return 'pinned' } })
+  const native = { call: async () => 'native', pin: () => pinned }
+  const port = refuseRemoteSeatLaunch({ native, bots: { get: id => id === 'bot-mac' ? { id, terminalId: 'macbook' } : null },
+    botsRoot: '/srv/bellteam/bots' })
+  const lease = port.pin()
+  await assert.rejects(lease.call('agent_launch', { cwd: '/srv/bellteam/bots/bot-mac' }), { code: 'REMOTE_SEAT_ENGINE_UNSUPPORTED' })
+  assert.equal(await lease.call('agent_launch', { cwd: '/srv/bellteam/bots/bot-local' }), 'pinned')
+  live = 'sdk-2'
+  assert.equal(lease.generation, 'g1'); assert.equal(lease.client, 'sdk-2')
+  lease.release(); assert.equal(released, 1)
+  assert.deepEqual(calls, [['agent_launch', '/srv/bellteam/bots/bot-local']])
+})

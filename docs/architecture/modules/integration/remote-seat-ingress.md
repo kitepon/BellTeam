@@ -103,6 +103,9 @@ flowchart TD
   Declares -->|yes| Ports["ports.terminals + ports.ingress (unchanged)"]
   Declares -->|no| Wrap["ports.native = Object.create(native)<br/>call() checks agent_launch only"]
   Wrap --> Launch["engine: native.call('agent_launch', {cwd: bot.project})"]
+  Wrap --> Pin["pin(): Object.create(native.pin())<br/>same check on the pinned call;<br/>generation, live getters, release inherited"]
+  Pin --> PinLaunch["engine operation lease: pinned.call('agent_launch', ...)"]
+  PinLaunch --> Member
   Launch --> Member{"cwd is <root>/bots/<id> and<br/>bots.get(id).terminalId non-empty?"}
   Member -->|no| Native["native.call as before"]
   Member -->|yes| Refuse["throw REMOTE_SEAT_ENGINE_UNSUPPORTED<br/>effect not_started, status 503<br/>+ diagnostics.record once per refusal"]
@@ -115,7 +118,7 @@ flowchart TD
 | --- | --- |
 | Protects | Connection to the wrong target: a terminal-bound member's CLI running in the server folder inside the container. |
 | Exit | Selecting an engine that declares `EXECUTION_REMOTE_SEATS` (no wrap), or the Owner removing the member's `terminalId` (local launch is then correct). No timer, no manual unlock. |
-| Scope | Only `agent_launch` whose `cwd` is a registered member project with a non-empty `terminalId`. Every other native call, other members and remote-capable engines are unchanged. The member's registry entry is left as is. |
+| Scope | Only `agent_launch`, through `native.call` or a pinned `native.pin().call` (the old engine's operation lease, [aiterm-generation-pin](../execution/aiterm-generation-pin.md)), whose `cwd` is a registered member project with a non-empty `terminalId`. Every other native call, other members and remote-capable engines are unchanged. The member's registry entry is left as is. |
 | Code | `REMOTE_SEAT_ENGINE_UNSUPPORTED`, message 「AI実行制御が古く、この席を端末で起こせません」. The old engine stores its own stage code (`BOT_LAUNCH_FAILED`/`BOT_DELIVERY_FAILED`) on the delivery; the parent's diagnostics record carries the specific code and member id. |
 
 ## Core interface the parent mounts (Crust)

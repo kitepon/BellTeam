@@ -116,15 +116,22 @@ export async function loadTerminalKey({ credentials, terminalId, memberId = null
 // Protects the wrong target: an engine without remote seats would start a terminal-bound member in the server folder.
 // Exit: selecting an engine that declares EXECUTION_REMOTE_SEATS (no wrap), or the member losing its terminalId.
 export function refuseRemoteSeatLaunch({ native, bots, botsRoot, versionId = null, record = () => {} }) {
-  const wrapped = Object.create(native)
-  wrapped.call = (name, args, ...rest) => {
+  const guard = call => (name, args, ...rest) => {
     const cwd = args?.cwd
     const bot = name === 'agent_launch' && typeof cwd === 'string' && dirname(cwd) === botsRoot ? bots.get(basename(cwd)) : null
-    if (typeof bot?.terminalId !== 'string' || bot.terminalId === '') return native.call(name, args, ...rest)
+    if (typeof bot?.terminalId !== 'string' || bot.terminalId === '') return call(name, args, ...rest)
     void Promise.resolve().then(() => record({ code: 'REMOTE_SEAT_ENGINE_UNSUPPORTED', module: 'execution',
       diagnostic_log: `bot ${bot.id} execution ${versionId ?? 'unknown'}` })).catch(() => {})
     return Promise.reject(Object.assign(new Error('AI実行制御が古く、この席を端末で起こせません'),
       { code: 'REMOTE_SEAT_ENGINE_UNSUPPORTED', effect: 'not_started', status: 503 }))
+  }
+  const wrapped = Object.create(native)
+  wrapped.call = guard((...args) => native.call(...args))
+  // The old engine's operation lease launches through native.pin() (aiterm-generation-pin.md). The pin is frozen with
+  // live getters and its own release; define call over it instead of copying.
+  if (typeof native.pin === 'function') wrapped.pin = (...args) => {
+    const pinned = native.pin(...args)
+    return Object.create(pinned, { call: { value: guard((...callArgs) => pinned.call(...callArgs)) } })
   }
   return wrapped
 }
