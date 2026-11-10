@@ -157,11 +157,14 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch, onOpenMe
   function roundRect(x, y, w, h, r) { context.beginPath(); context.roundRect ? context.roundRect(x, y, w, h, r) : context.rect(x, y, w, h) }
   function chips(items) {
     context.font = LABEL_FONT; context.textAlign = 'center'; context.textBaseline = 'middle'
-    for (const { box, alpha, lines } of items) {
+    for (const { box, alpha, lines, scroll } of items) {
       context.globalAlpha = alpha
       context.fillStyle = CHIP; roundRect(box.x, box.y, box.w, box.h, 8); context.fill()
       context.fillStyle = MUTED
-      lines.forEach((line, i) => context.fillText(line, box.x + box.w / 2, box.y + 3 + 8 + i * 16))
+      // D より高い札の peek は箱の中だけに文字を描き、scroll だけ送る。
+      context.save(); if (scroll !== undefined) context.clip()
+      lines.forEach((line, i) => context.fillText(line, box.x + box.w / 2, box.y + 3 + 8 + i * 16 - (scroll ?? 0)))
+      context.restore()
     }
   }
   function draw(time) {
@@ -266,10 +269,25 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch, onOpenMe
   canvas.addEventListener('pointermove', event => {
     tap.move(event.pointerId, event.clientX, event.clientY)
     if (event.pointerType === 'touch') return
-    const point = hit(event)
+    const point = hit(event), next = hoverAt(point)
     canvas.style.cursor = point.botId ? 'pointer' : ''
-    hover = hoverAt(point)
+    // 同じ札を指している間は送った位置を保つ。ほかへ移ると最初の行から。
+    hover = next?.edgeId && next.edgeId === hover?.edgeId ? hover : next
   })
+  // D より高い札の peek：ホイール・トラックパッドで送る。指は peek の中から縦に動かして送る。
+  const peekOf = () => hover?.edgeId ? model.frame(now(), rectOf(), { wide: wide(), hover, measure: measure(LABEL_FONT) }).labels.find(item => item.edge.id === hover.edgeId && item.scroll !== undefined) : null
+  let drag = null
+  canvas.addEventListener('wheel', event => {
+    const peek = peekOf()
+    if (!peek) return
+    event.preventDefault()
+    hover.scroll = Math.max(0, peek.scroll + event.deltaY * (event.deltaMode === 1 ? 16 : 1))
+  }, { passive: false })
+  canvas.addEventListener('pointerdown', event => {
+    const peek = event.pointerType === 'touch' ? peekOf() : null, box = canvas.getBoundingClientRect(), x = event.clientX - box.left, y = event.clientY - box.top
+    drag = peek && x >= peek.box.x && x <= peek.box.x + peek.box.w && y >= peek.box.y && y <= peek.box.y + peek.box.h ? { id: event.pointerId, y: event.clientY, scroll: peek.scroll } : null
+  })
+  canvas.addEventListener('pointermove', event => { if (drag?.id === event.pointerId && hover?.edgeId) hover.scroll = Math.max(0, drag.scroll + drag.y - event.clientY) })
   canvas.addEventListener('pointerleave', event => { if (event.pointerType !== 'touch') hover = null })
   // タップの決まりは createTap（押した時の相手で開く）。
   canvas.addEventListener('pointerdown', event => { const primary = event.isPrimary && event.button === 0; tap.down(event.pointerId, event.clientX, event.clientY, event.timeStamp, primary, primary ? hit(event).botId : null) })
@@ -277,7 +295,8 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch, onOpenMe
     // 指の札の表示（peek）は、タップと認めた時だけ変える。
     if (tap.up(event.pointerId, event.clientX, event.clientY, event.timeStamp) && event.pointerType === 'touch') hover = hoverAt(hit(event))
   })
-  canvas.addEventListener('pointercancel', () => tap.cancel())
+  canvas.addEventListener('pointercancel', () => { tap.cancel(); drag = null })
+  canvas.addEventListener('pointerup', () => { drag = null })
   const visibility = () => { if (!open) return; if (document.hidden) stream.stop(); else stream.start() }
   const resize = () => model.heat()
   return {
