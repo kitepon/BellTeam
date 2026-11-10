@@ -135,6 +135,35 @@ test('authorize: no password before trust; one consume to authorize-key; stale o
   assert.ok(credentials.calls.some(c => c.op === 'unbind' && c.ref === 'h3'))
 })
 
+test('folders: picker lists subfolders from home, opens one, and reports missing, permission and availability as reasons', async t => {
+  const { core, native } = await setup(t)
+  await core.registry.put({ ...mac, sshKeyRef: nativeHandle })
+  assert.throws(() => core.folders({ terminalId: 'owner-macbook', path: 'Developer' }), { code: 'INVALID_PATH' })
+
+  const home = await core.folders({ terminalId: 'owner-macbook' })
+  assert.deepEqual([home.reason, home.home, home.path, home.parent, home.truncated], [null, '/Users/kite', '/Users/kite', '/Users', false])
+  assert.deepEqual(home.entries, [{ name: 'BellTeam', path: '/Users/kite/BellTeam' }, { name: 'Developer', path: '/Users/kite/Developer' }])
+  assert.deepEqual(native.calls.filter(c => c.command === 'list_dirs').map(c => c.args), [{}], 'home = no path')
+
+  native.listResult = ({ path }) => ({ op: 'list_dirs', home: '/Users/kite', path, entries: [{ name: '.git' }, { name: 'a/b' }, { name: 'app' }], truncated: false })
+  const sub = await core.folders({ terminalId: 'owner-macbook', path: '/Users/kite/Developer' })
+  assert.deepEqual([sub.path, sub.parent, sub.entries], ['/Users/kite/Developer', '/Users/kite', [{ name: 'app', path: '/Users/kite/Developer/app' }]], 'hidden and malformed names left out')
+  native.listResult = () => ({ op: 'list_dirs', home: '/', path: '/', entries: Array.from({ length: 501 }, (_, i) => ({ name: `d${i}` })), truncated: false })
+  const root = await core.folders({ terminalId: 'owner-macbook', path: '/' })
+  assert.deepEqual([root.parent, root.entries.length, root.entries[0].path, root.truncated], [null, 500, '/d0', true])
+
+  native.listResult = () => ({ op: 'list_dirs', exists: false, directory: false })
+  assert.equal((await core.folders({ terminalId: 'owner-macbook', path: '/Users/kite/gone' })).reason, 'FOLDER_MISSING')
+  native.listResult = () => { throw Object.assign(new Error('x'), { code: 'FOLDER_NOT_PERMITTED' }) }
+  const denied = await core.folders({ terminalId: 'owner-macbook', path: '/Users/kite/Desktop' })
+  assert.deepEqual([denied.reason, denied.entries], ['FOLDER_NOT_PERMITTED', []])
+  assert.ok(denied.action)
+  native.connectError = Object.assign(new Error('x'), { code: 'UNREACHABLE' })
+  const offline = await core.folders({ terminalId: 'owner-macbook' })
+  assert.deepEqual([offline.reason, offline.entries, offline.home], ['UNREACHABLE', [], null], 'offline is a reason, not an empty folder')
+  assert.equal((await core.folders({ terminalId: 'nope' })).reason, 'TERMINAL_NOT_FOUND')
+})
+
 test('HTTP: authorize and folder routes refuse secrets and malformed bodies', async t => {
   const { createTerminalsApi } = await import('../src/http-terminals-api.mjs')
   const { Readable } = await import('node:stream')
@@ -154,6 +183,10 @@ test('HTTP: authorize and folder routes refuse secrets and malformed bodies', as
   assert.ok((await call('POST', '/api/terminals/owner-macbook/keys/ssh/authorize')).payload.secretRequest.id)
   assert.equal((await call('POST', '/api/terminals/owner-macbook/folder', '{"path":"/Users/kite/x","mode":"x"}')).error, 'INVALID_PATH')
   assert.equal((await call('POST', '/api/terminals/owner-macbook/folder', '{"path":"/Users/kite/x"}')).payload.reason, null)
+  assert.equal((await call('GET', '/api/terminals/owner-macbook/folders?path=/Users/kite')).payload.path, '/Users/kite')
+  assert.equal((await call('GET', '/api/terminals/owner-macbook/folders')).payload.home, '/Users/kite')
+  assert.equal((await call('GET', '/api/terminals/owner-macbook/folders?depth=2')).error, 'INVALID_PATH')
+  assert.equal((await call('POST', '/api/terminals/owner-macbook/folders')).status, 405)
 })
 
 test('authorize: pending stays true until the outcome is readable', async t => {

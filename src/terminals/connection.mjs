@@ -240,15 +240,43 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
     }
   }
 
+  const validPath = path => typeof path === 'string' && isAbsolute(path) && path.length <= 1024 && (path === '/' || !path.endsWith('/')) && !path.includes('\0') && !path.split('/').includes('..')
+  const invalidPath = () => Object.assign(new Error('path must be an absolute folder path on that terminal, without a trailing / or ..'), { code: 'INVALID_PATH', status: 400 })
+
   // S5: members' folder check on save. Availability is a reason, never a throw, so an unchecked folder can still be saved.
   const folder = request => {
     const { terminalId, path, create = false } = request ?? {}
-    if (typeof path !== 'string' || !isAbsolute(path) || path.length > 1024 || (path !== '/' && path.endsWith('/')) || path.includes('\0') || path.split('/').includes('..') || typeof create !== 'boolean')
-      throw Object.assign(new Error('path must be an absolute folder path on that terminal, without a trailing / or ..'), { code: 'INVALID_PATH', status: 400 })
-    return track(() => folderNow(terminalId, path, create))
-  }
-  async function folderNow(terminalId, path, create) {
+    if (!validPath(path) || typeof create !== 'boolean') throw invalidPath()
     const observation = { terminalId, path, observedAt: now().toISOString(), exists: null, directory: null, writable: null, reason: null }
+    return track(() => onFolder(terminalId, observation, create ? 'make_dir' : 'path_status', { path }, status => {
+      Object.assign(observation, { exists: Boolean(status?.exists), directory: Boolean(status?.directory), writable: Boolean(status?.writable) })
+      return !observation.exists ? 'FOLDER_MISSING' : !observation.directory ? 'FOLDER_NOT_DIRECTORY' : !observation.writable ? 'FOLDER_NOT_WRITABLE' : null
+    }))
+  }
+
+  // S6: the member editor's folder picker. Read only; an unreachable terminal is a reason, never an empty list.
+  const folders = request => {
+    const { terminalId, path = null } = request ?? {}
+    if (path !== null && !validPath(path)) throw invalidPath()
+    const observation = { terminalId, observedAt: now().toISOString(), home: null, path, parent: null, entries: [], truncated: false, reason: null }
+    return track(() => onFolder(terminalId, observation, 'list_dirs', path === null ? {} : { path }, listing => {
+      if (listing?.exists === false) return 'FOLDER_MISSING'
+      if (listing?.directory === false) return 'FOLDER_NOT_DIRECTORY'
+      const at = typeof listing?.path === 'string' && validPath(listing.path) ? listing.path : null
+      if (!at || !Array.isArray(listing.entries)) return 'TERMINAL_UNAVAILABLE'
+      const names = listing.entries.map(entry => entry?.name)
+        .filter(name => typeof name === 'string' && name && !name.startsWith('.') && !name.includes('/') && !name.includes('\0'))
+      Object.assign(observation, {
+        home: typeof listing.home === 'string' && validPath(listing.home) ? listing.home : null,
+        path: at, parent: at === '/' ? null : at.slice(0, at.lastIndexOf('/')) || '/',
+        entries: names.slice(0, 500).map(name => ({ name, path: at === '/' ? `/${name}` : `${at}/${name}` })),
+        truncated: listing.truncated === true || names.length > 500
+      })
+      return null
+    }))
+  }
+
+  async function onFolder(terminalId, observation, op, args, read) {
     const done = reason => ({ ...observation, reason, ...(FOLDER_ACTIONS[reason] ? { action: FOLDER_ACTIONS[reason] } : {}) })
     if (disposed) return done('TERMINAL_UNAVAILABLE')
     const generation = generations.get(terminalId) ?? 0
@@ -258,12 +286,11 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
     if (!record) return done('TERMINAL_NOT_FOUND')
     try {
       const binding = await resolveBinding(record, null)
-      const status = await withProcess(record, binding, session => {
+      const result = await withProcess(record, binding, session => {
         if (!current()) throw failure('TERMINAL_UNAVAILABLE')
-        return session.command(create ? 'make_dir' : 'path_status', { path })
+        return session.command(op, args)
       }, current)
-      Object.assign(observation, { exists: Boolean(status?.exists), directory: Boolean(status?.directory), writable: Boolean(status?.writable) })
-      return done(!observation.exists ? 'FOLDER_MISSING' : !observation.directory ? 'FOLDER_NOT_DIRECTORY' : !observation.writable ? 'FOLDER_NOT_WRITABLE' : null)
+      return done(read(result))
     } catch (error) {
       if (error?.code === 'FOLDER_NOT_PERMITTED') return done('FOLDER_NOT_PERMITTED')
       const reason = error?.reason ?? (CONNECTION_CODES.includes(error?.code) ? error.code : 'TERMINAL_UNAVAILABLE')
@@ -315,6 +342,7 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
     target,
     check,
     folder,
+    folders,
     authorize,
     generation: terminalId => generations.get(terminalId) ?? 0,
     // Kiro #765: arms the same observer after Aiterm's launch answered a connectivity code; its exit is the available event.

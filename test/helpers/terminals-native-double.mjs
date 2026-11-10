@@ -17,6 +17,7 @@ export function fakeNative({ connectError, versions = ['1.0.0', '1.0.1'], update
     async provision(request) { calls.push({ op: 'provision', ...request }); return { result: 'PROVISIONED' } },
     async authorizeKey({ password, ...request }) { calls.push({ op: 'authorizeKey', ...request, passwordLength: password.length }); return { schema: 'aiterm.remote-key-authorization.v1', ref: request.ref, result: 'AUTHORIZED' } },
     pathResult: (op, { path }) => ({ op, exists: true, directory: true, writable: true }),
+    listResult: ({ path = '/Users/kite' } = {}) => ({ op: 'list_dirs', home: '/Users/kite', path, entries: [{ name: 'BellTeam' }, { name: 'Developer' }], truncated: false }),
     async confirmHostKey(ref, fingerprint) { calls.push({ op: 'confirmHostKey', ref, fingerprint }); return trust },
     async connect(request) {
       calls.push({ op: 'open', ...request })
@@ -27,6 +28,7 @@ export function fakeNative({ connectError, versions = ['1.0.0', '1.0.1'], update
         async command(op, args) {
           calls.push({ op: 'command', command: op, ...(args ? { args } : {}) })
           if (op === 'path_status' || op === 'make_dir') return native.pathResult(op, args)
+          if (op === 'list_dirs') return native.listResult(args)
           if (op !== 'claude_version') return { op, exit_code: updateCode, version: null, output_tail: '' }
           return { op, exit_code: 0, version: versions[Math.min(version++, versions.length - 1)], output_tail: '' }
         },

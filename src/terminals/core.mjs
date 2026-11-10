@@ -253,6 +253,7 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
     reachability: { check },
     keys: { request: requestKey, remove: removeKey, authorize: authorizeKey },
     folder: request => connection.folder(request),
+    folders: request => connection.folders(request),
     trust: { attest },
     connection,
     maintenance: connection.maintenance,
