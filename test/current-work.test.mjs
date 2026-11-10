@@ -128,3 +128,13 @@ test('expiry timer emits state invalidation without AI or a client read; same-ro
   f.clock = 15_000; t.mock.timers.tick(15_000)
   assert.equal(f.events.length, eventCount + 1); assert.equal(f.snapshot().state, 'unknown')
 })
+test('Aiterm 0.70.7 unread: a seat whose terminal was not read keeps its observation, is never absent, then expires', t => {
+  const f = fixture(t); f.observe(); assert.equal(f.snapshot().state, 'working')
+  f.observe({ ...data(), unread: [sessionId] })
+  assert.equal(f.snapshot().state, 'working')
+  assert.deepEqual(f.work.turn(botId).state, 'working', 'after_turn does not see an unread working seat as idle')
+  f.clock = 16_000; f.observe({ ...data(), unread: [sessionId] })
+  assert.equal(f.snapshot().state, 'unknown')
+  assert.equal(f.work.turn(botId).state, 'unknown')
+  f.observe(data()); assert.equal(f.work.turn(botId).state, 'idle', 'an answered read without the row is still absent')
+})

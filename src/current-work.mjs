@@ -164,11 +164,14 @@ export class CurrentWork {
     if (this.closed) return
     const valid = data?.schema === 'aiterm.seat-turns.v1' && !Object.hasOwn(data, 'error') && Array.isArray(data.seats)
     const rows = valid ? data.seats : []
+    // Aiterm >= 0.70.7: terminal-bound seats whose terminal was not read this time (current-work.md "unread").
+    const unread = new Set(valid && Array.isArray(data.unread) ? data.unread.filter(text) : [])
     for (const target of read.targets) {
       const record = this.record(target.botId)
       if (read.seq <= record.barrier || read.seq <= record.lastRead) continue
       record.lastRead = read.seq
       if (!target.current() || target.sessionId !== record.sessionId) { this.unknown(record); continue }
+      if (unread.has(target.sessionId)) continue
       const matches = rows.filter(row => row?.session_id === target.sessionId)
       // A valid read without this seat proves no turn can run (after_turn reads it as idle; the DTO stays unknown).
       const absent = valid && matches.length === 0
