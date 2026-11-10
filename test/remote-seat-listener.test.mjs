@@ -12,7 +12,7 @@ import { BotRegistry } from '../src/bot-registry.mjs'
 import { FeatureSettings } from '../src/feature-settings.mjs'
 import { OwnerProfile } from '../src/owner-profile.mjs'
 import { UserRules } from '../src/user-rules.mjs'
-import { remoteSeatPort } from '../src/remote-seat-port.mjs'
+import { createRemoteSeatListener, remoteSeatPort } from '../src/remote-seat-port.mjs'
 
 const appRoot = fileURLToPath(new URL('../', import.meta.url))
 
@@ -49,4 +49,23 @@ test('remote seat listener: a taken port fails visibly while it lasts, then the 
   assert.equal(runtime.remoteSeatServer.listening, true)
   await runtime.services.remoteSeatListener.ensure()
   assert.equal((await fetch(`http://127.0.0.1:${port}/nope`)).status, 404)
+})
+
+test('remote seat listener: a refused launch stays not started, and the first good bind republishes its terminal', async () => {
+  let up = false, binds = 0
+  const listener = createRemoteSeatListener({ retryMs: 5, now: () => 'T' })
+  listener.bind(async () => { binds += 1; if (!up) throw Object.assign(new Error('REMOTE_SEAT_INGRESS_UNAVAILABLE'), { code: 'REMOTE_SEAT_INGRESS_UNAVAILABLE' }) })
+  const events = []
+  listener.watch(event => events.push(event))
+  await assert.rejects(listener.ensureFor('term-1'), { code: 'SEAT_FORWARD_UNAVAILABLE', effect: 'not_started', status: 503 })
+  await new Promise(resolve => setTimeout(resolve, 20))
+  assert.ok(binds >= 2) // the non-AI retry keeps trying while the terminal waits
+  assert.deepEqual(events, [])
+  up = true
+  await new Promise(resolve => setTimeout(resolve, 20))
+  assert.deepEqual(events, [{ terminalId: 'term-1', reachable: true, observedAt: 'T' }])
+  const settled = binds
+  await new Promise(resolve => setTimeout(resolve, 20))
+  assert.equal(binds, settled) // nothing waits, so no more retries
+  listener.close()
 })

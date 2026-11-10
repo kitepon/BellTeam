@@ -21,6 +21,10 @@
     {
       "module": "aiterm",
       "port": "native"
+    },
+    {
+      "module": "integration",
+      "port": "remote-seat-port"
     }
   ],
   "source": [

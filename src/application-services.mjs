@@ -61,7 +61,7 @@ import { Subscriptions } from './subscriptions.mjs'
 import { Onboarding } from './onboarding.mjs'
 import { HarnessAuth } from './harness-auth.mjs'
 import { attachOlrwOwnerQuestion } from './olrw-management-caller.mjs'
-import { remoteSeatPort } from './remote-seat-port.mjs'
+import { createRemoteSeatListener, remoteSeatPort } from './remote-seat-port.mjs'
 import { prepareOlrwManagement } from './olrw-management-loader.mjs'
 
 // Saving a report is observation; a store refusal must not fail the child's call, its quiesce or a module exchange.
@@ -250,8 +250,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     report: error => diagnostics.record({ code: 'SECRET_CREDENTIAL_REFRESH_FAILED', module: 'integration', diagnostic_log: String(error?.code ?? 'UNKNOWN') }) }) : null
   if (credentialRefresh && terminals) terminals.watch(event => { if (event?.reachable === true) void credentialRefresh.refreshNow() })
   // The runtime owns the listener (it holds seat MCP); it binds its ensure here before any launch can run.
-  let ensureRemoteSeatListener = null
-  const remoteSeatListener = Object.freeze({ bind: ensure => { ensureRemoteSeatListener = ensure }, ensure: async () => ensureRemoteSeatListener?.() })
+  const remoteSeatListener = createRemoteSeatListener()
   const seatCredential = Object.freeze({
     async issue({ botId, sessionName, terminalId }) {
       if (!seatCandidates(sessionName).includes(botId)) throw Object.assign(new Error('SEAT_CREDENTIAL_INVALID'), { code: 'SEAT_CREDENTIAL_INVALID', status: 400 })
@@ -260,7 +259,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
       if (!terminal) throw Object.assign(new Error('TERMINAL_NOT_FOUND'), { code: 'TERMINAL_NOT_FOUND', status: 404 })
       // The container target; Aiterm rewrites this origin to the terminal's reverse-forward end (RS05). ingressUrl is not read.
       // RS05: the listener is retried here while it is down, so a seat is never launched toward a dead MCP.
-      await remoteSeatListener.ensure()
+      await remoteSeatListener.ensureFor(terminalId)
       const origin = `http://127.0.0.1:${remoteSeatPort(environment)}`
       return { url: `${origin}${REMOTE_SEAT_MCP_PATH}`, credentialRef: await seatCredentials.issue({ botId, sessionName, terminalId }) }
     },
@@ -300,7 +299,10 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
       executionHandoffSupport.set(factory.versionId, supported)
       // Older engines reject unknown port keys; remote-seat ports go only to engines that declare them.
       const remote = factory.supportsRemoteSeats === true && terminals
-        ? { terminals: { connection: terminals.connection, watch: listener => terminals.watch(listener) }, ingress: { seatCredential } } : {}
+        ? { terminals: { connection: terminals.connection, watch: listener => {
+          const off = [terminals.watch(listener), remoteSeatListener.watch(listener)]
+          return () => { for (const stop of off) stop?.() }
+        } }, ingress: { seatCredential } } : {}
       return Object.freeze({ ...factory, createExecutionDispatcher: input => {
         input = { ...input, ports: { ...input.ports, ...remote } }
         if (factory.supportsRemoteSeats !== true) input.ports.native = refuseRemoteSeatLaunch({ native: input.ports.native, bots,

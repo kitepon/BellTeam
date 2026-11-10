@@ -214,7 +214,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
   let stopping = null
   const stop = () => {
     stopping ??= (async () => {
-      stopRequested = true
+      stopRequested = true; services.remoteSeatListener?.close()
       interrupt()
       await contact('onShutdownSignal', SHUTDOWN_SIGNAL_MS, { phase: started ? 'running' : 'starting' })
       await starting?.catch(() => {})
