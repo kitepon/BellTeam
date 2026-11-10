@@ -26,6 +26,7 @@ let modelsDelayMs = 0
 let modelsCompletions = 0
 let botListReads = 0
 let restartFails = false
+let restartDelayMs = 0
 let restarts = []
 let diagnostics = []
 const eventSubscribers = new Set()
@@ -45,7 +46,7 @@ const server = createServer(async (request, response) => {
     profile = initialProfile(); screen = '履歴の最初の行\n履歴の次の行'; reads = []; writes = []
     legacyProfile = false; profileDelayMs = 0; userRulesDelayMs = 0; userRulesCompletions = 0
     modelsDelayMs = 0; modelsCompletions = 0; botListReads = 0
-    restartFails = false; restarts = []; diagnostics = []; screenFailures = 0
+    restartFails = false; restartDelayMs = 0; restarts = []; diagnostics = []; screenFailures = 0
     for (const subscriber of eventSubscribers) subscriber.end()
     eventSubscribers.clear()
     return json(response, { ok: true })
@@ -68,6 +69,8 @@ const server = createServer(async (request, response) => {
     return json(response, { ok: true })
   }
   if (url.pathname === '/test/restart-failure') { restartFails = true; return json(response, { ok: true }) }
+  // The server answers a restart only after the new seat is up: /test/restart-delay?ms= holds a 200 {restarted, session} that long.
+  if (url.pathname === '/test/restart-delay') { restartDelayMs = Number(url.searchParams.get('ms') || 0); return json(response, { ok: true }) }
   if (url.pathname === '/test/restart-success') { restartFails = false; return json(response, { ok: true }) }
   if (url.pathname === '/test/proof') return json(response, { reads, writes, screen, botListReads, userRulesCompletions, modelsCompletions, subscribers: eventSubscribers.size, restarts, diagnostics })
   if (url.pathname === '/test/refresh-bot') {
@@ -126,6 +129,10 @@ const server = createServer(async (request, response) => {
       return json(response, { ok: true }, 202)
     }
     restarts.push(entry)
+    if (restartDelayMs > 0 && !restartFails) {
+      await new Promise(resolve => setTimeout(resolve, restartDelayMs))
+      return json(response, { restarted: true, session: 'bot-one' })
+    }
     return restartFails
       ? json(response, { error: 'RESTART_FIXTURE_FAILED' }, 503)
       : json(response, { ok: true })

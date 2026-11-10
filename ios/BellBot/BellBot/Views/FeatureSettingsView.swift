@@ -91,10 +91,12 @@ private struct OnePasswordSettingEditor: View {
     @State private var loading = true
     @State private var loaded = false
     @State private var errorText: String?
+    @State private var result = OnePasswordResult.none
 
     private var current: FeatureSetting { store.featureSettings.first { $0.id == setting.id } ?? setting }
     private var state: OnePasswordState { OnePasswordState(current) }
     private var tokenField: FeatureField? { current.fields.first { $0.key == "token" && $0.secret } }
+    private var resultTint: Color { switch result { case .connected: .green; case .failed: .red; default: BellTheme.muted } }
 
     var body: some View {
         Form {
@@ -105,9 +107,6 @@ private struct OnePasswordSettingEditor: View {
                         Text(current.title).font(.headline)
                         Spacer()
                         OnePasswordBadge(state: state)
-                    }
-                    if let failure = current.error {
-                        Text(failure.message).foregroundStyle(.red).accessibilityIdentifier("onepassword-error")
                     }
                     if let line = OnePasswordState.connectionLine(current) {
                         Text(line).font(.subheadline).foregroundStyle(BellTheme.muted).accessibilityIdentifier("onepassword-connection")
@@ -139,13 +138,17 @@ private struct OnePasswordSettingEditor: View {
                         .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
                 }
                 Section {
+                    // The check's one result line (the failure reason is shown here only). An empty line takes no height.
+                    if result != .none {
+                        Text(result.text).font(.subheadline).foregroundStyle(resultTint)
+                            .accessibilityIdentifier("onepassword-result")
+                    }
                     Button { Task { await save() } } label: {
-                        Text("保存して連携を確かめる").frame(maxWidth: .infinity)
+                        Text(saving ? "連携を確かめています…" : "保存して連携を確かめる").frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(loading || saving)
                     .accessibilityIdentifier("onepassword-save")
-                    if saving { ProgressView("確かめています") }
                     if let errorText { Text(errorText).font(.footnote).foregroundStyle(.red).accessibilityIdentifier("onepassword-save-error") }
                 }
             }
@@ -163,6 +166,7 @@ private struct OnePasswordSettingEditor: View {
         .task { await load() }
         // The guide opens while not connected and folds once connected; a reader's own toggle is kept between changes.
         .onChange(of: state == .connected) { _, connected in guideOpen = !connected }
+        .onChange(of: store.featureSettings) { _, _ in result = result.refreshed(by: current) }
         .onChange(of: scenePhase) { _, next in if next != .active { token = "" } }
         .onDisappear { token = "" }
     }
@@ -175,6 +179,7 @@ private struct OnePasswordSettingEditor: View {
             guard let item = store.featureSettings.first(where: { $0.id == setting.id }) else { throw BellAPIError.invalidResponse }
             enabled = item.enabled || item.status == "unconfigured"
             guideOpen = OnePasswordState(item) != .connected
+            result = result.refreshed(by: item)
             loaded = true
             errorText = nil
         } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
@@ -191,16 +196,20 @@ private struct OnePasswordSettingEditor: View {
         defer { saving = false }
         token = ""
         errorText = nil
+        result = .checking
         do {
-            _ = try await store.api.updateSetting(id: setting.id, body: FeatureSettingUpdate(enabled: enabled, values: pasted.isEmpty ? [:] : ["token": pasted]))
+            let response = try await store.api.updateSetting(id: setting.id, body: FeatureSettingUpdate(enabled: enabled, values: pasted.isEmpty ? [:] : ["token": pasted]))
+            result = .saved(response.setting)
         } catch let error where BellAPIError.isAuthenticationError(error) {
+            result = .none
             store.requireLogin(for: error); return
         } catch {
+            result = .none
             errorText = BellAPIError.operationFailureMessage(error)
             store.api.diagnostics.report(error, path: "/api/settings/\(setting.id)", method: "PATCH", observation: .secretWrite)
             return
         }
-        // The result of the check is the reloaded item: the badge shows 連携中, 未連携 or 失敗.
+        // The badge follows the reloaded item; the result line stays the PATCH response's.
         do { try await store.refreshSettings() }
         catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
         catch { errorText = "保存しました。表示を更新できませんでした（\(error.localizedDescription)）" }

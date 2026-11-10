@@ -47,8 +47,9 @@ flowchart TD
 | 更新できる対象がある | 1つなら「<名前>を更新できます」、複数なら「<数>つ更新できます」 | 更新する（対象が1つならその計画、複数なら短い名前の候補から選ぶ） |
 | 直近の操作がcompleted | 更新しました（実際の対象名） | なし |
 | すべて公開版と一致 | すべて最新です | なし |
+| 全部が公開版と一致か`incompatible`（この本体に合う版がカタログにまだ無い）で、`incompatible`が1つ以上（Webの`waiting`、PR #906/#915と同じ） | 更新できるものはすべて最新です。一文は「<名前>（複数は「・」でつなぐ）は、いまの本体に合う版がまだありません。合う版が出ると、ここで更新できます。」（`Status.waiting`）。他に`unavailable`・`unknown`が1つでもあれば従来どおり「更新を確認できませんでした」 | なし |
 
-「機能」の行（`partRow`）は機能ごとに1行：機能別のSF Symbolの色付き角丸アイコン、名前、版の短い呼び名（`versionName`：内蔵版は「最初から入っている版」、ハッシュは見せず公開日、または「公開中の最新版」「今の版」）と最後に成功した更新の時刻（`status.latestJob`がsucceededの時だけ）、右端に状態の印（`badge(for:)`）。印は、今の操作の対象かtoneがupdatingなら「更新中」（進行中の印付き）、toneがattentionなら「失敗」（赤）、比較がup_to_dateなら「最新」（緑）、update_availableなら「更新あり」、それ以外は「確認できません」。toneがattentionの機能は、上の赤い帯（`attentionBanner`）に名前・`status.line`・`status.action`をそのまま出す。押すものは見出しの主ボタン1つだけで、すべて最新なら押すものは出さない。
+「機能」の行（`partRow`）は機能ごとに1行：機能別のSF Symbolの色付き角丸アイコン、名前、版の短い呼び名（`versionName`：内蔵版は「最初から入っている版」、ハッシュは見せず公開日、または「公開中の最新版」「今の版」）と最後に成功した更新の時刻（`status.latestJob`がsucceededの時だけ）、右端に状態の印（`badge(for:)`）。印は、今の操作の対象かtoneがupdatingなら「更新中」（進行中の印付き）、toneがattentionなら「失敗」（赤）、比較がup_to_dateなら「最新」（緑）、update_availableなら「更新あり」、incompatibleなら「使えない版」（Webと同じ）、それ以外は「確認できません」。toneがattentionの機能は、上の赤い帯（`attentionBanner`）に名前・`status.line`・`status.action`をそのまま出す。押すものは見出しの主ボタン1つだけで、すべて最新なら押すものは出さない。
 
 - 計画を取ったら「更新の前に」で対象名・停止の影響を見せ、再起動が要る時は確認を必須にして「更新を始める」。「やめる」は計画を閉じるだけ（`UpdateStore.discardPlan`）。
 - 「更新内容」は、更新できる・失敗した時だけ、公開版の`changes`をそのまま重複なしで出す。作文しない。

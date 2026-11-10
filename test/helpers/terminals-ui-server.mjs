@@ -17,11 +17,15 @@
 //   /test/proof.folderReads keeps each listed path (null = home), folderCreates each create body.
 // 1Password (usage #836/#838): GET|PATCH /api/settings (item onePassword: guide, connection, error), GET /api/secret-requests/:id/onepassword-items.
 // A token starting ops_good connects; any other ops_ token is rejected. The token itself is never kept, only its shape.
+// Screenshots (apple parity batch 1): /test/mode?patchdelay=<ms> holds the 1Password PATCH answer (the "checking" line);
+//   updates=waiting serves GET /api/updates with two up_to_date parts and one `incompatible` part (the update screen's waiting heading);
+//   GET /api/events is an open SSE stream that only says `ready` (the app then reads /api/updates).
 import { createHash, randomUUID } from 'node:crypto'
 import { createServer } from 'node:http'
 import { readFile } from 'node:fs/promises'
 
 const source = await readFile(new URL('../../ios/BellBot/BellBot/Core/PreviewFixtures.swift', import.meta.url), 'utf8')
+const updateExamples = JSON.parse(await readFile(new URL('../../ios/BellBot/BellBotTests/Fixtures/update-examples.json', import.meta.url), 'utf8'))
 const fixture = JSON.parse(source.match(/let source = """\n([\s\S]*?)\n\s*"""/u)[1])
 export const fingerprint = id => `SHA256:${createHash('sha256').update(id).digest('base64').replace(/=+$/u, '')}`
 const trust = id => ({ provider: 'aiterm.known-hosts.v1', revision: `sha256:${createHash('sha256').update(`trust-${id}`).digest('hex')}` })
@@ -52,7 +56,7 @@ const MANY = Array.from({ length: 12 }, (_, index) => `folder-${String(index + 1
 let state
 function reset() {
   state = {
-    mode: { terminals: 'ok', members: 'new', keys: 'ok', onepassword: '1', setting: 'off', picker: 'ok', folders: 'ok', trust: 'ok', thismac: '0', selfservice: '0', authorize: 'authorized', folder: 'ok' },
+    mode: { terminals: 'ok', members: 'new', keys: 'ok', onepassword: '1', setting: 'off', picker: 'ok', folders: 'ok', trust: 'ok', thismac: '0', selfservice: '0', authorize: 'authorized', folder: 'ok', patchdelay: '0', updates: 'none' },
     bots: structuredClone(fixture.bots).map((bot, index) => ({ ...bot, terminalId: index === 0 ? 'owner-macbook' : '', projectRoot: index === 0 ? '/Users/kite/work/app' : '' })),
     terminals: [
       { terminalId: 'owner-macbook', host: '192.168.1.12', user: 'kite', port: 22, os: 'macos', accountOwner: 'owner', sshKeyConfigured: true, sudoKeyConfigured: false, keySource: 'terminal-native', hostTrust: trust('owner-macbook'), revision: 4, maintenance: { terminalId: 'owner-macbook', observedAt: '2026-11-09T07:40:00Z', before: '2.1.30', after: '2.1.32', outcome: 'updated' } },
@@ -168,7 +172,7 @@ const server = createServer(async (request, response) => {
   // What the Owner would read on the terminal itself (the test plays the Owner).
   if (path === '/test/fingerprint') return send(200, { fingerprint: fingerprint(url.searchParams.get('id') ?? '') })
   if (path === '/test/mode') {
-    for (const key of ['terminals', 'members', 'keys', 'onepassword', 'setting', 'picker', 'folders', 'trust', 'thismac', 'selfservice', 'authorize', 'folder']) if (url.searchParams.has(key)) state.mode[key] = url.searchParams.get(key)
+    for (const key of ['terminals', 'members', 'keys', 'onepassword', 'setting', 'picker', 'folders', 'trust', 'thismac', 'selfservice', 'authorize', 'folder', 'patchdelay', 'updates']) if (url.searchParams.has(key)) state.mode[key] = url.searchParams.get(key)
     if (state.mode.thismac === '1' && !state.terminals.some(item => item.terminalId === 'this-mac'))
       state.terminals.push({ terminalId: 'this-mac', host: '127.0.0.1', user: 'kite', port: 22, os: 'macos', accountOwner: 'owner', sshKeyConfigured: false, sudoKeyConfigured: false, revision: 1, maintenance: null })
     if ((state.mode.thismac === '1' || state.mode.selfservice === '1') && !state.terminals.some(item => item.terminalId === 'locked-mac'))
@@ -227,10 +231,22 @@ const server = createServer(async (request, response) => {
   if (path === '/api/queue' || path.endsWith('/queue')) return send(200, { items: [] })
   if (path.endsWith('/messages') || path.endsWith('/timeline')) return send(200, { messages: [], items: [], hasMore: false })
 
+  if (path === '/api/events') {
+    response.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' })
+    response.write('event: ready\ndata: {}\n\n')
+    return
+  }
+  if (path === '/api/updates' && request.method === 'GET' && state.mode.updates === 'waiting') {
+    const base = updateExamples.no_update
+    const part = (id, name, comparison) => ({ ...base.components[0], id, name, comparison: { state: comparison, reason: null }, capability: { supported: true, reason: null } })
+    return send(200, { ...base, notice: { state: 'ready', code: null, message: '正式公開版と同じ版です。' },
+      components: [part('notifications', '通知', 'up_to_date'), part('members', 'メンバー', 'up_to_date'), part('usage', '利用状況', 'incompatible')] })
+  }
   if (path === '/api/settings' && request.method === 'GET') return send(200, { settings: settingsList() })
   if (path === '/api/settings/onePassword' && request.method === 'PATCH') {
     const input = await body(request)
     const token = input.values?.token
+    if (Number(state.mode.patchdelay) > 0) await new Promise(resolve => setTimeout(resolve, Number(state.mode.patchdelay)))
     state.proof.settingPatches.push({ enabled: input.enabled, valueKeys: Object.keys(input.values ?? {}), tokenShape: token === undefined ? null : token.startsWith('ops_') ? 'ops_' : 'other' })
     if (state.mode.setting === 'absent') return fail(404, 'NOT_FOUND')
     if (!input.enabled) state.mode.setting = 'off'

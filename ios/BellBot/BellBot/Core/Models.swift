@@ -631,6 +631,38 @@ enum OnePasswordState: Equatable {
         token.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("ops_") ? nil : "サービスアカウントのトークン（ops_で始まる文字）を貼ってください。"
     }
 }
+/// The result line above the 1Password主ボタン (Web `showOnePasswordResult`). Only a PATCH response speaks a result;
+/// a later settings refresh may show or hide a failure but never overwrites the line while a check runs.
+enum OnePasswordResult: Equatable {
+    case none, checking, connected(String), failed(String), off
+
+    var text: String {
+        switch self {
+        case .none: ""
+        case .checking: "1Passwordにつないで確かめています…"
+        case .connected(let detail): "連携できました。" + detail
+        case .failed(let message): "連携できませんでした。" + message
+        case .off: "連携を解除しました。"
+        }
+    }
+
+    /// The PATCH response `{setting}`. Unlike the header line, no connection means no detail here (same as Web).
+    static func saved(_ setting: FeatureSetting) -> OnePasswordResult {
+        switch OnePasswordState(setting) {
+        case .failed: .failed(setting.error?.message ?? "")
+        case .connected: .connected(setting.connection == nil ? "" : OnePasswordState.connectionLine(setting) ?? "")
+        case .off: .off
+        }
+    }
+
+    /// A settings refresh (or opening the screen): a failure is shown, a shown failure that cleared is hidden, the rest stays.
+    func refreshed(by setting: FeatureSetting) -> OnePasswordResult {
+        if self == .checking { return self }
+        if OnePasswordState(setting) == .failed { return .saved(setting) }
+        if case .failed = self { return .none }
+        return self
+    }
+}
 /// `GET /api/secret-requests/:id/onepassword-items`. The reference is only submitted, never shown.
 struct OnePasswordKey: Decodable, Identifiable, Equatable {
     let title: String

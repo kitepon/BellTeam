@@ -99,12 +99,14 @@ flowchart TD
 flowchart TD
   List["FeatureSettingsList<br/>onePassword行 = OnePasswordBadge + 平易なerror文"] --> Editor["OnePasswordSettingEditor<br/>Form（ヘッダ・案内・token・主ボタン）"]
   Editor --> Load["load: GET /api/settings<br/>enabled初期値 = enabled または 未設定"]
-  Load --> View["ヘッダ: バッジ（連携中/未連携/失敗）<br/>失敗: error.messageをそのまま<br/>連携中: 読める保管庫と鍵の数の一行<br/>案内: 未連携は開く、連携中は「作り方を見る」の中"]
+  Load --> View["ヘッダ: バッジ（連携中/未連携/失敗）<br/>連携中: 読める保管庫と鍵の数の一行<br/>案内: 未連携は開く、連携中は「作り方を見る」の中<br/>開いた時に失敗済みなら、結果の一行に1回だけ出す"]
   Editor --> Save["保存して連携を確かめる"]
   Save --> Check["OnePasswordState.tokenProblem<br/>ops_で始まらなければ送らない"]
-  Check --> Patch["updateSetting<br/>PATCH /api/settings/onePassword {enabled, values:{token}}"]
+  Check --> Patch["updateSetting<br/>PATCH /api/settings/onePassword {enabled, values:{token}}<br/>待つ間: ボタン「連携を確かめています…」（無効）＋結果の一行「1Passwordにつないで確かめています…」"]
+  Patch -->|"応答 {setting}"| Line["OnePasswordResult.saved<br/>結果の一行（主ボタンの上）: 連携できました。+保管庫の一行（緑）/ 連携できませんでした。+error.message（赤）/ 連携を解除しました。"]
   Patch --> Reload["GET /api/settings<br/>store.featureSettings更新 → バッジ再計算"]
-  Patch -->|"失敗"| Err["平易な文とsecretWrite診断（tokenは消去済み）"]
+  Reload -->|"OnePasswordResult.refreshed"| Line
+  Patch -->|"失敗（拒否を含む）"| Err["結果の一行は空。平易な文とsecretWrite診断（tokenは消去済み）"]
 ```
 
 | 状態・部品 | 内容 |
@@ -112,10 +114,11 @@ flowchart TD
 | `OnePasswordState` | `error`があれば失敗、無くて`status=='enabled'`なら連携中、他は未連携。バッジは連携中=緑・未連携=灰・失敗=赤。接続の一行は連携中だけ（`connection`が無ければ「1Passwordにつながっています。」、鍵0件はWebと同じ次の一手の文） |
 | 案内 | `guide.steps`を順に表示し、`link`は`https`の時だけ開く（`FeatureGuide.openableLink`）。連携の状態が変わった時だけ開閉し、読んでいる途中の案内は閉じない |
 | token欄 | `SecureField`、`privacySensitive`、保存後も画面に返さない（一覧のtokenは空）。非active・画面終了で消す。空のまま保存できるのは、設定済みで連携の切替だけの時 |
-| 保存 | `ops_`の検査（前後の空白は除く）→ PATCH → 一覧を読み直して結果をバッジで見せる。PATCH成功後に読み直しだけ失敗した時は「保存しました。表示を更新できませんでした」。非冪等の自動再送なし |
+| 保存 | `ops_`の検査（前後の空白は除く）→ PATCH → 一覧を読み直してバッジを更新。PATCH成功後に読み直しだけ失敗した時は「保存しました。表示を更新できませんでした」。非冪等の自動再送なし |
+| 結果の一行（`OnePasswordResult`、Webの`showOnePasswordResult`と同じ） | 主ボタンの上、空の時は高さを取らない。確かめる間は`checking`で、一覧の再取得は上書きしない。確かめた後はPATCH応答の`setting`だけで決める（連携できました。+`connection`があれば保管庫の一行 / 連携できませんでした。+`error.message` / 連携を解除しました。）。拒否された要求（HTTPエラー）は空にし、理由はフォームのerror。失敗の理由はこの一行にだけ出し、ヘッダには出さない。画面を開いた時と一覧の再取得では、失敗なら出し、消えた失敗は隠し、他は変えない（`refreshed(by:)`）。旧本体は`{setting}`の形が同じなので変化なし |
 | 旧本体 | `onePassword`項目が無い一覧は従来のまま（行も編集も増えない） |
 
-試験は`TerminalsTests`（読込・バッジ・`ops_`・https）と`TerminalsUITests.testOnePasswordSettingBadgeGuideAndTokenCheck`。
+試験は`TerminalsTests`（読込・バッジ・`ops_`・https・結果の一行）と`TerminalsUITests.testOnePasswordSettingBadgeGuideAndTokenCheck`。
 
 ## 仕事の要約を書くAI
 
@@ -175,15 +178,17 @@ flowchart TD
 ```mermaid
 flowchart TD
   Desktop["DesktopInspector.profile<br/>onRestartのTask"] --> Restart["AppStore.restartConversation(target:)<br/>Core/AppStore.swift:401"]
-  Detail["ConversationDetailView.body<br/>onRestartのTask"] --> Restart
+  Detail["ConversationDetailView.body<br/>onRestart"] --> Restart
+  Section["BotProfileAISection<br/>押す → 「再起動しています…」（無効）→ 結果"] --> Desktop
+  Section --> Detail
   Restart --> Access["authorizeAIUse(target:)<br/>購読・初期guideの確認"]
-  Access --> Post["BellAPI.post<br/>POST target.path + /restart・EmptyBody"]
-  Post --> Ack["APIAcknowledgement受領<br/>呼出画面へ戻る"]
+  Access --> Post["BellAPI.post(timeout: 180)<br/>POST target.path + /restart・EmptyBody<br/>サーバーは席が立ってから200"]
+  Post --> Ack["APIAcknowledgement受領（200・旧本体の202とも成功）<br/>onRestartはtrueを返し「会話を再起動しました。」"]
 ```
 
-利用権限確認またはPOSTのErrorはそのまま画面へ返す。Desktopは成功時に`errorText=nil`、失敗時に`operationFailureMessage`と`target.path + "/restart"`・POST・`.write`の診断を一回送る。詳細は成功時にdismiss、失敗時に`localizedDescription`だけを表示する。共通操作はUI状態・画面遷移・診断・refresh・再送を持たず、ackを再起動完了とは扱わない。
+利用権限確認またはPOSTのErrorはそのまま画面へ返す。Desktopは成功時に`errorText=nil`、失敗時に`operationFailureMessage`と`target.path + "/restart"`・POST・`.write`の診断を一回送る。詳細は失敗時に`localizedDescription`だけを表示する（成功でdismissしない。待つ間にsheetが閉じると結果が見えないため）。両画面とも`onRestart`は成功でtrueを返し、`BotProfileAISection`が待つ間のボタン（「再起動しています…」・無効）と成功の一行を持つ。共通操作はUI状態・画面遷移・診断・refresh・再送を持たない。サーバーの200は席が立った後なので、待ちの長さは要求のtimeoutだけが決める。
 
-直接試験は[BillingStoreTestsの再起動5関数](tests.md#billingstoretestsswift)に対応する。Mac実画面用の`profile-terminal-ui-server.mjs`には購読・再起動の503/200応答・要求と診断の記録・resetを追加済み。`DesktopWorkspaceUITests.testMacInspectorRestartFailureReportsOnceAndSuccessKeepsInspector`は失敗文言・診断一回・POST一回、再操作成功時のerror消去・inspector保持とPOST計二回・診断計一回を検査し、[親のMac確認記録](refactor-progress.md#次の作業)で通過している。
+直接試験は[BillingStoreTestsの再起動6関数](tests.md#billingstoretestsswift)に対応する。Mac実画面用の`profile-terminal-ui-server.mjs`には購読・再起動の503/200応答・要求と診断の記録・resetを追加済み。`DesktopWorkspaceUITests.testMacInspectorRestartFailureReportsOnceAndSuccessKeepsInspector`は失敗文言・診断一回・POST一回、再操作成功時のerror消去・inspector保持とPOST計二回・診断計一回を検査し、[親のMac確認記録](refactor-progress.md#次の作業)で通過している。
 
 ## 整理候補
 

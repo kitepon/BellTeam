@@ -300,7 +300,17 @@ final class BillingStoreTests: XCTestCase {
             let body = try XCTUnwrap(scenario.requests.first?.body)
             let object = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
             XCTAssertTrue(object.isEmpty)
+            XCTAssertGreaterThanOrEqual(try XCTUnwrap(scenario.requests.first?.timeout), 120, "新しい席が立つまで待つ（既定の60秒では足りない）")
         }
+    }
+
+    func testRestartConversationCountsAnOlderBodys202AsSuccess() async throws {
+        let scenario = BillingScenario(responses: [.restart(.legacyAccepted)])
+        let api = makeAPI(scenario)
+        let active = activeEntitlement
+        let billing = BillingStore(api: api, readAppleEntitlement: { AppleSubscriptionSnapshot(entitlement: active, transaction: nil) })
+        try await AppStore(api: api, billing: billing).restartConversation(target: .bot("restart-test"))
+        XCTAssertEqual(scenario.requests.count, 1)
     }
 
     func testRestartConversationPostFailuresPreserveErrorsWithoutRetry() async {
@@ -329,7 +339,7 @@ final class BillingStoreTests: XCTestCase {
                         return XCTFail("不正JSONのErrorをそのまま返す: \(error)")
                     }
                     XCTAssertTrue(context.codingPath.isEmpty)
-                case .success: XCTFail("成功応答はこの試験に含めない")
+                case .success, .legacyAccepted: XCTFail("成功応答はこの試験に含めない")
                 }
             }
             XCTAssertEqual(scenario.requests.map { $0.method + " " + $0.path }, ["POST /api/bots/restart-test/restart"])
@@ -397,11 +407,11 @@ final class BillingStoreTests: XCTestCase {
 }
 
 private final class BillingScenario {
-    enum RestartResponse { case success, timeout, unauthorized, invalidJSON }
+    enum RestartResponse { case success, legacyAccepted, timeout, unauthorized, invalidJSON }
     enum Response { case failure, mode(String), setup(complete: Bool), restart(RestartResponse) }
     private let lock = NSLock()
     private var responses: [Response]
-    private(set) var requests: [(method: String, path: String, body: Data?)] = []
+    private(set) var requests: [(method: String, path: String, body: Data?, timeout: TimeInterval)] = []
 
     init(responses: [Response]) { self.responses = responses }
 
@@ -410,7 +420,7 @@ private final class BillingScenario {
         defer { lock.unlock() }
         let method = request.httpMethod ?? ""
         let path = request.url?.path ?? ""
-        requests.append((method, path, try body(of: request)))
+        requests.append((method, path, try body(of: request), request.timeoutInterval))
         guard !responses.isEmpty else { throw URLError(.unsupportedURL) }
         switch (method, path, responses.removeFirst()) {
         case ("GET", "/api/subscription", .failure): throw URLError(.timedOut)
@@ -424,7 +434,8 @@ private final class BillingScenario {
                 """.utf8))
         case ("POST", let path, .restart(let response)) where path.hasSuffix("/restart"):
             switch response {
-            case .success: return (200, Data("{}".utf8))
+            case .success: return (200, Data(#"{"restarted":"restart-test","session":"s1"}"#.utf8))
+            case .legacyAccepted: return (202, Data(#"{"restarting":"restart-test"}"#.utf8))
             case .timeout: throw URLError(.timedOut)
             case .unauthorized: return (401, Data("{}".utf8))
             case .invalidJSON: return (200, Data("{".utf8))

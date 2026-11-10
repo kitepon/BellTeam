@@ -50,6 +50,7 @@ BellBotTests 26ファイル、BellBotUITests 19ファイル、Tests 2ファイ�
 | [testUpdatesEventReadsOnlyTheInventory](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L397) | SSE `updates`でGET /api/updatesが1回、共通一覧（bots）は読まない |
 | [testTapOpensUpdateAndReadsWithoutAnyPost](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L411) | 一致するserverのタップで画面を開きGET、POSTは0回 |
 | [testTapForAnotherServerOpensNothingAndCallsNothing](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L423) | server不一致では開かず通信もせず、1件保留する |
+| testUpdateStatusTreatsAnIncompatiblePartAsWaitingNotUnknown | 状態の計算：全部最新=upToDate、最新+incompatible=waiting（名前の並び）、unknown/unavailableが混ざれば今までどおりunknown、更新できる機能があればavailable。waitingの見出し・一文・incompatibleの印「使えない版」 |
 | [testEachServerStateShowsOneSimpleStatus](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L290) | サーバーの有限例7種で標準画面の見出しが状態ごとに一つに決まる。幅390・820の実画面を試験結果へ画像で添付する |
 | [testUnconfirmedRequestKeepsCheckingButOffersAnotherFormalCandidate](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L310) | interruptedでは主操作は状況の確認のまま。正式な候補がある時だけ別の計画を選べ、無ければ出さない。POSTは0回 |
 | [testRejectionCodesStayInDetailsNotOnTheStandardScreen](../../../../ios/BellBot/BellBotTests/UpdateCenterTests.swift#L328) | 内部の符号入りの計画拒否や実行失敗でも、標準面の案内に符号・元の説明を出さず、元の文はStoreに保持する |
@@ -143,7 +144,7 @@ BellBotTests 26ファイル、BellBotUITests 19ファイル、Tests 2ファイ�
 
 ### BillingStoreTests.swift
 
-対象：購読と本人権利、PR4の`AppStore.restartConversation(target:)`直接呼出し。補助型も同じファイルを読んだ。PR4の追加5関数とfixture拡張は固定source `22d56bfeb20263ee2e51ca0830a213ae6cb6aedf` からの変更。PR4実装時の文書更新ではビルド・試験は未実行だったが、[親の確認記録](refactor-progress.md#モデルの適用記録)では追加5関数を含む21件が通過している。
+対象：購読と本人権利、PR4の`AppStore.restartConversation(target:)`直接呼出し。補助型も同じファイルを読んだ。PR4の追加5関数（後に旧本体の202を成功とみなす1関数を追加）とfixture拡張は固定source `22d56bfeb20263ee2e51ca0830a213ae6cb6aedf` からの変更。PR4実装時の文書更新ではビルド・試験は未実行だったが、[親の確認記録](refactor-progress.md#モデルの適用記録)では追加5関数を含む21件が通過している。
 
 | 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
 | --- | --- |
@@ -164,7 +165,8 @@ BellBotTests 26ファイル、BellBotUITests 19ファイル、Tests 2ファイ�
 | [testFailedCheckDoesNotReportNoSubscription](../../../../ios/BellBot/BellBotTests/BillingStoreTests.swift#L222) | Apple照会失敗はunavailable、checking解除 |
 | [testRestoreKeepsCheckingThroughAuthenticationAndPreventsOverlap](../../../../ios/BellBot/BellBotTests/BillingStoreTests.swift#L232) | 復元の認証待ち全体をcheckingとし、復元/権利照会の重複を抑止 |
 | [testRestartConversationDeniedAccessDoesNotPost](../../../../ios/BellBot/BellBotTests/BillingStoreTests.swift#L261) | 本体subscription・本人権利なしは権限確認のErrorを返し、再起動POST0件 |
-| [testRestartConversationAuthorizedPostsEmptyJSONOnceToTarget](../../../../ios/BellBot/BellBotTests/BillingStoreTests.swift#L283) | 注入した本人権利の確認後、Bot/ルームそれぞれの正しいpathへ空JSONのPOST一回だけ |
+| [testRestartConversationAuthorizedPostsEmptyJSONOnceToTarget](../../../../ios/BellBot/BellBotTests/BillingStoreTests.swift#L283) | 注入した本人権利の確認後、Bot/ルームそれぞれの正しいpathへ空JSONのPOST一回だけ。要求のtimeoutIntervalは120秒以上 |
+| [testRestartConversationCountsAnOlderBodys202AsSuccess](../../../../ios/BellBot/BellBotTests/BillingStoreTests.swift) | 旧本体の202 `{restarting}`も成功 |
 | [testRestartConversationPostFailuresPreserveErrorsWithoutRetry](../../../../ios/BellBot/BellBotTests/BillingStoreTests.swift#L306) | POSTのtimeoutはURLError.timedOut、401はBellAPIError.unauthorized、不正JSONはDecodingError.dataCorruptedを保持し、各POST一回で再送・refreshなし |
 | [testRestartConversationInitialGuideRefreshesSetupBeforePost](../../../../ios/BellBot/BellBotTests/BillingStoreTests.swift#L339) | 保持中complete=trueからGET setupでfalseへ更新したguideは本人権利照会を免除。setup GET→restart POSTの順序 |
 | [testRestartConversationCompletedGuideRequiresPaidAccessAfterSetupRefresh](../../../../ios/BellBot/BellBotTests/BillingStoreTests.swift#L357) | 保持中complete=falseでもGET setupがtrueなら本人権利を照会。権利なしで拒否しPOST0件 |
@@ -452,6 +454,7 @@ goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`tes
 | testOnePasswordSettingDecodesWithAndWithoutGuideAndConnection | `guide`・`connection`あり、旧本体（無し）、崩れた値（nil・一覧を失敗させない）。接続の一行 |
 | testOnlyAnHttpsGuideLinkOpens | 案内リンクはhttpsだけ開く（http・javascript・host無しは開かない） |
 | testOnePasswordBadgeStateAndConnectionLine | 連携中/未連携/失敗の対応（errorがあれば連携中にしない）、バッジの文、鍵0件の次の一手 |
+| testOnePasswordResultLineComesOnlyFromThePatchResponse | 結果の一行：連携できました（保管庫の一行あり/なし）・連携できませんでした+理由・解除・拒否=空・確認中の文。開いた時の失敗は1回出す、確認中の再取得は上書きしない、消えた失敗は隠す |
 | testOnePasswordTokenMustStartWithOps | `ops_`で始まらないtokenを拒否（空・`op://`・大文字）、前後の空白は除く |
 | testSettingTokenIsSentThroughTheOwnerPatch | `{enabled, values:{token}}`のbody |
 | testSshKeyPickerDecodesAndSubmitsTheChosenReference | 鍵一覧の読込（`vault`省略可）と、送信body`{source:'onepassword',reference}`が変わらないこと |
@@ -911,6 +914,7 @@ Macの端末表示中の照会と非表示後の停止、小画像保存の結�
 | [testPhoneLargeCropSavesSquareSelectionAndKeepsSmallImage](../../../../ios/BellBot/BellBotUITests/ProfileTerminalUITests.swift#L462) | 大crop保存は大3keyだけ、正方形crop |
 | [testPhoneImageTargetsStaySeparateAndCancelDoesNotSave](../../../../ios/BellBot/BellBotUITests/ProfileTerminalUITests.swift#L501) | 小/大画像操作を分け取消だけなら0write |
 | [testTabletKeepsInspectorWithNewProfileContent](../../../../ios/BellBot/BellBotUITests/ProfileTerminalUITests.swift#L531) | iPad検索消去と詳細inspectorのAI/役職/再起動、sheet無し |
+| testShotsRestartProgressAndSuccess | 画面写真だけ：再起動の待ち「再起動しています…」と成功の一文「会話を再起動しました。」。fixtureの`/test/restart-delay?ms=`（200 `{restarted, session}`を保留） |
 
 ### RoomDeletionUITests.swift
 
@@ -958,7 +962,9 @@ Macの端末表示中の照会と非表示後の停止、小画像保存の結�
 | testTerminalListAddCheckAndHostKeyConfirm | 一覧の宛先・鍵の状態（`op://`無し）、つながる/眠っている/ホスト鍵変化/信用なし/鍵なしの確認結果、指紋の誤りは409で信用せず、端末で読んだ指紋だけを`confirmHostKey`で送る、追加の検査とbody（鍵の項目なし）、編集でIDを変えない、確認後の削除、設定の項目「端末」 |
 | testKeySettingThroughTheSecretCardAndRemoval | 鍵の行（設定済み+端末にある鍵、未設定+自分の端末では不要）、「設定する」で空のPOSTと秘密入力カード（1Password参照が上・既定、題は端末と鍵の種類）、参照を入れて登録→設定済み+BellTeamに預けた鍵、参照を画面に出さず、submitは`source`/`reference`だけ。SSH鍵の「設定し直す」は1Passwordの鍵の一覧（名前と保管庫）と貼り付けの二択で、貼り付けに替えると複数行欄、閉じると設定待ちで今の鍵を表示しsubmitなし。sudoを確認の後に外す（DELETE）。503 `CREDENTIAL_UNAVAILABLE`は平易な文でカードを開かない。旧い応答では鍵の行だけ一行の案内でボタンなし |
 | testSshKeyPickerSubmitsTheChosenReferenceAndFallsBack | SSH鍵カードの一覧（名前と保管庫、参照は出さない、選ぶまで送れない）→選んで登録→submitは`source`/`reference`だけ。未接続は貼り付けだけ＋設定の「1Password連携」への案内。一覧404は選択肢を隠して貼り付け＋一行。一覧503は「読めませんでした」と貼り付けの選択を残す |
-| testOnePasswordSettingBadgeGuideAndTokenCheck | 追加機能に1Password行（未連携）、案内が開いている、`ops_`でないtokenはPATCHせず止める、拒否されたtokenは失敗バッジとサーバーの文（符号なし）、受理で連携中・案内が畳まれ読める保管庫と鍵の数の一行、tokenを画面に返さない、PATCH2回・`values`は`token`だけ。鍵0件の次の一手、項目の無い旧本体は行が増えない |
+| testOnePasswordSettingBadgeGuideAndTokenCheck | 追加機能に1Password行（未連携）、案内が開いている、`ops_`でないtokenはPATCHせず止める、拒否されたtokenは失敗バッジと結果の一行「連携できませんでした。」+サーバーの文（符号なし）、受理で連携中・案内が畳まれ読める保管庫と鍵の数の一行、tokenを画面に返さない、PATCH2回・`values`は`token`だけ。鍵0件の次の一手、項目の無い旧本体は行が増えない |
+| testShotsOnePasswordResultLine | 画面写真だけ：未連携、確かめ中（PATCH応答を5秒保留）、失敗、成功（アプリはInfo.plistでLight固定のため暗い表示は無い）。fixtureの`/test/mode?patchdelay=<ms>` |
+| testShotUpdateWaiting | 画面写真だけ：全部最新＋`incompatible`1つのUpdate画面（見出し「更新できるものはすべて最新です」）。fixtureの`/test/mode?updates=waiting`と`GET /api/events`（readyだけ送る）、`GET /api/updates` |
 | testAttestHintAndOtherWaysOnAnUntrustedTerminal | iPhoneでは未信用の端末の詳細に「このMacでBellTeamアプリを開くと、自動で確かめます」を出し、「このMacを確かめる」は出さない。指紋を手で入れる操作は「ほかの方法」を開いた中にある |
 | testLoginPasswordCardIsOneHiddenFieldWithNoOnePasswordChoice | `terminal.login`のカード：パスワード欄1つ、入力方法の選択も参照欄も無く、「このMacのログインパスワード（1回だけ使い、保存しません）」を出す |
 | testAddFormOnIPhoneStatesTheRemoteLoginPrecondition | iPhoneの追加画面に「リモートログイン」をオンにする一行（前提）があり、「このMacを追加」は無い |

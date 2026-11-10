@@ -340,15 +340,19 @@ final class TerminalsUITests: XCTestCase {
         var proof = try await call("/test/proof")
         XCTAssertEqual((proof["settingPatches"] as? [Any])?.count, 0)
 
-        // A rejected token: the badge turns 失敗 and shows the server's own message.
+        // A rejected token: the badge turns 失敗 and the one result line shows the server's own message.
         token.clearAndType("ops_bad-token")
         app.buttons["onepassword-save"].tap()
-        let failure = app.staticTexts["onepassword-error"]
+        let failure = app.staticTexts["onepassword-result"]
         XCTAssertTrue(scrollTo(failure, in: app, up: true))
+        XCTAssertTrue(failure.label.hasPrefix("連携できませんでした。"))
         XCTAssertTrue(failure.label.contains("受け付けませんでした"))
         XCTAssertFalse(failure.label.contains("ONEPASSWORD"), "符号は出さない")
-        XCTAssertEqual(app.descendants(matching: .any)["onepassword-badge"].firstMatch.label, "失敗")
         shot(app, "52-onepassword-failed-message")
+        // The result line sits above the button, the badge in the header: scroll back up to read it.
+        let badge = app.descendants(matching: .any)["onepassword-badge"].firstMatch
+        XCTAssertTrue(scrollTo(badge, in: app, up: true))
+        XCTAssertEqual(badge.label, "失敗")
 
         // A good token: 連携中, the guide folds, and one line names the vaults and the key count. The token is never shown back.
         XCTAssertTrue(scrollTo(token, in: app))
@@ -420,6 +424,61 @@ final class TerminalsUITests: XCTestCase {
         XCTAssertTrue(scrollList(member(app), app))
         XCTAssertFalse(line(app, "Macで起動できません").exists, "null: no line")
         app.terminate()
+    }
+
+    /// Screenshots only (apple parity batch 1): the 1Password check's one result line in each state (the app is light-only: Info.plist UIUserInterfaceStyle=Light).
+    func testShotsOnePasswordResultLine() async throws {
+        func openEditor() -> XCUIApplication {
+            launch(["-bellbot-preview-settings", "features", "-bellbot-preview-feature", "onePassword"])
+        }
+        func check(_ app: XCUIApplication, token: String, shows prefix: String, shot name: String) {
+            let field = app.secureTextFields["onepassword-token"]
+            XCTAssertTrue(scrollTo(field, in: app))
+            field.tap()
+            field.typeText(token)
+            app.buttons["onepassword-save"].tap()
+            let result = app.staticTexts["onepassword-result"]
+            XCTAssertTrue(result.waitForExistence(timeout: 15))
+            let shown = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label BEGINSWITH %@", prefix), object: result)
+            XCTAssertEqual(XCTWaiter.wait(for: [shown], timeout: 15), .completed, result.label)
+            shot(app, name)
+        }
+        _ = try await call("/test/mode?patchdelay=0")
+        var app = openEditor()
+        XCTAssertTrue(app.buttons["onepassword-guide-link"].waitForExistence(timeout: 10))
+        shot(app, "1password-not-linked")
+        app.terminate()
+
+        // Checking, then the rejected token's failure line (one request held for 5 s).
+        _ = try await call("/test/mode?patchdelay=5000")
+        app = openEditor()
+        let field = app.secureTextFields["onepassword-token"]
+        XCTAssertTrue(scrollTo(field, in: app))
+        field.tap(); field.typeText("ops_bad-token")
+        app.buttons["onepassword-save"].tap()
+        let result = app.staticTexts["onepassword-result"]
+        XCTAssertTrue(result.waitForExistence(timeout: 5))
+        XCTAssertTrue(result.label.hasPrefix("1Passwordにつないで"), result.label)
+        shot(app, "1password-checking")
+        let failed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label BEGINSWITH %@", "連携できませんでした。"), object: result)
+        XCTAssertEqual(XCTWaiter.wait(for: [failed], timeout: 15), .completed, result.label)
+        shot(app, "1password-failure")
+        app.terminate()
+
+        _ = try await call("/test/mode?patchdelay=0")
+        app = openEditor()
+        check(app, token: "ops_good-token", shows: "連携できました。", shot: "1password-success")
+        app.terminate()
+    }
+
+    /// Screenshot only: the update screen when updatable parts are current and one part has no version for this body yet.
+    func testShotUpdateWaiting() async throws {
+        _ = try await call("/test/mode?updates=waiting")
+        let app = launch(["-bellbot-preview-events", "-bellbot-preview-settings", "update"])
+        defer { app.terminate() }
+        XCTAssertTrue(app.staticTexts["更新できるものはすべて最新です"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["使えない版"].exists)
+        shot(app, "update-waiting")
     }
 
     func testMemberEditorTerminalAndFolder() async throws {

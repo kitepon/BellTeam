@@ -86,7 +86,7 @@ flowchart TD
 | メンバー削除 | DELETE成功は受付としてpendingBotDeletionIDsへ | GET一覧で消失を確認するまで残す。失敗・結果不明は選択とdraftを保持 |
 | ルーム保存・削除 | 保存はRoomResponse、削除はDELETE成功 | 保存はapplySavedRoom、削除はapplyDeletedRoomを直ちに適用。詳細は[編集図](members-and-rooms.md) |
 | 個別停止 | `BotStopResponse.outcome`がBot ID、HTTP status、status、sessionPreservedを照合。202/stop_sentはsent、200/interruptedかつsessionPreserved=trueはconfirmed | sentとconfirmedを別表示。失敗はunconfirmed等を表示し履歴を再取得。自動でPOST再送しない |
-| 再起動 | `AppStore.restartConversation(target:)`（`Core/AppStore.swift:401`）がauthorizeAIUse後にEmptyBodyを`POST T/restart`し、APIAcknowledgementを受領 | callerはDesktopInspector.profileとConversationDetailView.bodyのonRestart。成功時は前者がerrorを消し後者がdismiss。失敗は元のErrorを返し、画面ごとの表示・診断に委ねる。refresh・再送・完了待ちは追加しない |
+| 再起動 | `AppStore.restartConversation(target:)`（`Core/AppStore.swift:401`）がauthorizeAIUse後にEmptyBodyを`POST T/restart`し、APIAcknowledgementを受領 | callerはDesktopInspector.profileとConversationDetailView.bodyのonRestart。待つ間は`BotProfileAISection`が「再起動しています…」で無効（要求のtimeoutは180秒、サーバーは席が立ってから200）。開始時に両者がerrorを消し、成功は「会話を再起動しました。」の一行。失敗は元のErrorを返し、画面ごとの表示・診断に委ねる。refresh・再送・完了待ちの照会は追加しない |
 | AI全体停止 | PATCH応答のAIControlを適用。stateはenabled/stopping/stopped/unconfirmed | PATCH失敗後はGETのみ。GET失敗ならaiControl=nil、エラーを表示。epoch/sequenceで古い応答を排除。更新中の読取要求は後続GETへ |
 | Owner・規範、追加機能 | 個別更新応答の後にもGETがある | Ownerの途中保存、追加機能の反映errorは[設定図](settings-and-profile.md) |
 | 予定run・goal・質問・秘密 | 予定runはack、goalはoutcome/snapshot、質問/秘密は更新された要求 | 各画面が保持する。予定runのackから実行終了を判定しない。goalのunconfirmedと変更通信失敗は再取得/明示更新の経路を持つ |

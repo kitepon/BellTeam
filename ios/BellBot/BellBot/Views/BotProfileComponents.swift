@@ -496,7 +496,10 @@ struct BotProfileAISection: View {
     let bot: Bot
     let errorText: String?
     let onScreen: () -> Void
-    let onRestart: () -> Void
+    /// Returns true when the restart succeeded. The server answers only after the new seat is up, so this can take a while.
+    let onRestart: () async -> Bool
+    @State private var restarting = false
+    @State private var note: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -512,8 +515,17 @@ struct BotProfileAISection: View {
             }
             Button("Botの画面を見る", systemImage: "terminal", action: onScreen)
                 .buttonStyle(.bordered)
-            Button("会話セッションを再起動", action: onRestart)
-                .buttonStyle(.bordered)
+            Button(restarting ? "再起動しています…" : "会話セッションを再起動") {
+                Task {
+                    restarting = true
+                    note = nil
+                    if await onRestart() { note = "会話を再起動しました。" }
+                    restarting = false
+                }
+            }
+            .buttonStyle(.bordered)
+            .disabled(restarting)
+            if let note { Text(note).font(.footnote).foregroundStyle(BellTheme.muted) }
             if let errorText { Text(errorText).font(.footnote).foregroundStyle(.red) }
         }
         .font(BellTheme.secondaryFont)

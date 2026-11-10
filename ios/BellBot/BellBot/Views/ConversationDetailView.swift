@@ -42,11 +42,13 @@ struct ConversationDetailView: View {
                         } else if let bot {
                             BotProfileAISection(bot: bot, errorText: errorText,
                                                 onScreen: { showingScreen = true }, onRestart: {
-                                Task {
-                                    do {
-                                        try await store.restartConversation(target: target)
-                                        dismiss()
-                                    } catch { errorText = error.localizedDescription }
+                                errorText = nil
+                                do {
+                                    try await store.restartConversation(target: target)
+                                    return true
+                                } catch {
+                                    errorText = error.localizedDescription
+                                    return false
                                 }
                             })
                             BotProfileDetails(bot: bot)

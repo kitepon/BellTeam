@@ -44,7 +44,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [HarnessAuthenticationOption.needsStartConfirmation](../../../../ios/BellBot/BellBot/Core/Models.swift#L445) | 警告を伴う開始確認の要否 |
 | [HarnessAuthenticationsResponse / HarnessAuthenticationResponse](../../../../ios/BellBot/BellBot/Core/Models.swift#L449) | AI再認証一覧・個別状態 |
 | [FeatureField.id](../../../../ios/BellBot/BellBot/Core/Models.swift#L460)、[FeatureSettingError](../../../../ios/BellBot/BellBot/Core/Models.swift#L462)、[FeatureSetting.statusText](../../../../ios/BellBot/BellBot/Core/Models.swift#L470) | 追加機能の項目・反映エラー・表示 |
-| `FeatureSetting.guide` / `connection`、`FeatureGuide`（`openableLink`はhttpsだけ）、`OnePasswordConnection`、`OnePasswordState`（バッジ・接続の一行・`tokenProblem`）、`OnePasswordKey` / `OnePasswordKeysResponse` / `OnePasswordKeyList`（`after(_:)`は404を未対応、他を失敗）（`Core/Models.swift`） | 1Password連携の案内・接続・状態・`ops_`検査と、SSH鍵の選択一覧（[図](settings-and-profile.md#1password連携onepasswordusage-838)）。`guide`・`connection`は読めなければnil |
+| `FeatureSetting.guide` / `connection`、`FeatureGuide`（`openableLink`はhttpsだけ）、`OnePasswordConnection`、`OnePasswordState`（バッジ・接続の一行・`tokenProblem`）、`OnePasswordResult`（結果の一行。`saved(_:)`はPATCH応答、`refreshed(by:)`は再取得）、`OnePasswordKey` / `OnePasswordKeysResponse` / `OnePasswordKeyList`（`after(_:)`は404を未対応、他を失敗）（`Core/Models.swift`） | 1Password連携の案内・接続・状態・`ops_`検査と、SSH鍵の選択一覧（[図](settings-and-profile.md#1password連携onepasswordusage-838)）。`guide`・`connection`は読めなければnil |
 | [FeatureSettingsResponse / FeatureSettingResponse / FeatureSettingUpdate / APIAcknowledgement](../../../../ios/BellBot/BellBot/Core/Models.swift#L475) | 追加機能HTTPと内容を持たないack |
 | [MessageSendAcknowledgement.messageID](../../../../ios/BellBot/BellBot/Core/Models.swift#L484) | BotのdeliveryIdとRoomのidを選ぶ |
 | [ImagePayload / SendMessageBody](../../../../ios/BellBot/BellBot/Core/Models.swift#L492) | 本文・画像・ルーム宛先の送信body |
@@ -82,7 +82,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [startGuide](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L373) | 初回開始POST、ready確認 |
 | [enterConversations](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L382) | 一覧取得・ready・SSE/購読/通知接続 |
 | [authorizeAIUse](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L394) | 初期guideと購読によるAI利用照会 |
-| [restartConversation(target:)](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L401) | authorizeAIUse後にEmptyBodyをPOSTしてAPIAcknowledgementを受領。DesktopInspector.profileとConversationDetailView.bodyのonRestartが呼び、成功・失敗の画面処理は各callerに残す |
+| [restartConversation(target:)](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L401) | authorizeAIUse後にEmptyBodyを`post(timeout: 180)`でPOSTしてAPIAcknowledgementを受領（サーバーは席が立ってから200、旧本体の202も成功）。DesktopInspector.profileとConversationDetailView.bodyのonRestartが呼び、失敗の画面処理は各callerに残す |
 | [activateNotifications](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L406) | APIと署名取引を通知singletonへ |
 | [refresh](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L410) | 4資源と画像の取得・一括適用 |
 | [withResolvedBotAvatars](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L429) | Bot名簿の画像解決要求を作る |
@@ -199,7 +199,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [DesktopInspector.bot / room](../../../../ios/BellBot/BellBot/Views/DesktopWorkspaceView.swift#L266) | target.idで共通一覧を参照 |
 | [DesktopInspector.body](../../../../ios/BellBot/BellBot/Views/DesktopWorkspaceView.swift#L269) | 端末画面/プロフィール切替と画像sheet |
 | [profileSmallImageSize](../../../../ios/BellBot/BellBot/Views/DesktopWorkspaceView.swift#L289) | platform別のプロフィール画像寸法 |
-| [profile](../../../../ios/BellBot/BellBot/Views/DesktopWorkspaceView.swift#L297) | 参加者、画像・本文、編集を接続。onRestartはAppStore.restartConversationを呼び、成功時error消去、失敗時operationFailureMessageと/restart・POST・.write診断 |
+| [profile](../../../../ios/BellBot/BellBot/Views/DesktopWorkspaceView.swift#L297) | 参加者、画像・本文、編集を接続。onRestartはAppStore.restartConversationを呼び、開始時にerror消去・成功でtrue、失敗時operationFailureMessageと/restart・POST・.write診断 |
 | [heading](../../../../ios/BellBot/BellBot/Views/DesktopWorkspaceView.swift#L358) | プロフィール見出し |
 
 ## Views/ManagementView.swift
@@ -252,7 +252,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | --- | --- |
 | [FeatureSettingsList.body](../../../../ios/BellBot/BellBot/Views/FeatureSettingsView.swift#L7) | 一覧GET・状態/反映errorと編集への遷移 |
 | `FeatureSettingsList`の1Password行・`FeatureSettingDestination`・`OnePasswordBadge` | 行のバッジとplainなerror文、editorの振り分け。DEBUG `-bellbot-preview-feature <id>`でそのeditorを開く |
-| `OnePasswordSettingEditor`（`load`・`save`） | 1Password連携のヘッダ・案内・token欄・主ボタン。`ops_`検査→PATCH→一覧再取得 |
+| `OnePasswordSettingEditor`（`load`・`save`） | 1Password連携のヘッダ・案内・token欄・結果の一行・主ボタン。`ops_`検査→結果の一行を確認中→PATCH→PATCH応答で結果の一行→一覧再取得。確認中はボタンが「連携を確かめています…」で無効 |
 | [FeatureSettingEditor.currentSetting](../../../../ios/BellBot/BellBot/Views/FeatureSettingsView.swift#L51) | 共通状態の現在値を選ぶ |
 | [FeatureSettingEditor.body](../../../../ios/BellBot/BellBot/Views/FeatureSettingsView.swift#L53) | 初回読取後の編集・再読込、secret消去タイミング |
 | [value(for:)](../../../../ios/BellBot/BellBot/Views/FeatureSettingsView.swift#L99) | key別の入力Binding |
@@ -284,7 +284,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [loadSettings](../../../../ios/BellBot/BellBot/Views/BotProfileComponents.swift#L389) | Bot画像情報GET・schema/lifetime検査 |
 | [adjust](../../../../ios/BellBot/BellBot/Views/BotProfileComponents.swift#L426) | 元画像または保持中選択から再調整 |
 | [adjustmentImage](../../../../ios/BellBot/BellBot/Views/BotProfileComponents.swift#L444) | variantのrender/source/cropを選ぶ |
-| [BotProfileAISection.body](../../../../ios/BellBot/BellBot/Views/BotProfileComponents.swift#L461) | AI設定表示・画面/再起動callback |
+| [BotProfileAISection.body](../../../../ios/BellBot/BellBot/Views/BotProfileComponents.swift#L461) | AI設定表示・画面/再起動callback。再起動は`onRestart: () async -> Bool`を待つ間「再起動しています…」で無効、成功は「会話を再起動しました。」の一行 |
 | [BotProfileDetails.body](../../../../ios/BellBot/BellBot/Views/BotProfileComponents.swift#L484) | 役職・背景・性格・口調・仕事 |
 | [BotProfileDetails.detail](../../../../ios/BellBot/BellBot/Views/BotProfileComponents.swift#L495) | 共通本文表示・空値は未設定 |
 
@@ -302,7 +302,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [UpdateStore.execute](../../../../ios/BellBot/BellBot/Core/UpdateStore.swift#L96) | 要求IDを保存してからPOST。4xxは確定、その他は受付不明で再送しない |
 | [UpdateStore.reset](../../../../ios/BellBot/BellBot/Core/UpdateStore.swift#L35) / [apply](../../../../ios/BellBot/BellBot/Core/UpdateStore.swift#L127) | 接続先変更時の表示破棄 / 照会結果の適用と確定時の保存ID消去 |
 | [UpdateBadge](../../../../ios/BellBot/BellBot/Views/UpdateView.swift#L4) | ロゴ右の印。`update_available`がある時だけ |
-| [UpdateView](../../../../ios/BellBot/BellBot/Views/UpdateView.swift#L24)、[componentCard](../../../../ios/BellBot/BellBot/Views/UpdateView.swift#L79) / [operationCard](../../../../ios/BellBot/BellBot/Views/UpdateView.swift#L104) / [planCard](../../../../ios/BellBot/BellBot/Views/UpdateView.swift#L118) | Update画面の表示と、対象選択・計画・実行の操作 |
+| [UpdateView](../../../../ios/BellBot/BellBot/Views/UpdateView.swift#L24)、[componentCard](../../../../ios/BellBot/BellBot/Views/UpdateView.swift#L79) / [operationCard](../../../../ios/BellBot/BellBot/Views/UpdateView.swift#L104) / [planCard](../../../../ios/BellBot/BellBot/Views/UpdateView.swift#L118) | Update画面の表示と、対象選択・計画・実行の操作。`UpdateContent.status`は全部が最新か`incompatible`で後者が1つ以上なら`.waiting(names)`（見出し「更新できるものはすべて最新です」、Webと同じ）、`badge(for:)`は`incompatible`を「使えない版」にする |
 | [BellUpdateRoute](../../../../ios/BellBot/BellBot/Core/BellNotifications.swift#L28) | push `kind=update`の3key完全一致の解析と接続先照合 |
 | [AppStore.openPendingUpdateNotification](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L889) | ready後に接続先一致の時だけUpdate画面を開きGET。`startEvents`の`updates`分岐は[AppStore.swift](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L736) |
 

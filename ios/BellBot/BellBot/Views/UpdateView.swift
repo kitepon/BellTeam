@@ -79,8 +79,9 @@ struct UpdateContent: View {
         switch status { case .available, .failed: true; default: false }
     }
 
-    enum Status {
-        case loading, unreachable, updating(String), unconfirmed, failed(String?), completed, available, upToDate, unknown(String)
+    enum Status: Equatable {
+        /// `waiting`: everything else is current and these parts have no version for this body yet (`incompatible`).
+        case loading, unreachable, updating(String), unconfirmed, failed(String?), completed, available, upToDate, waiting([String]), unknown(String)
     }
 
     var status: Status {
@@ -95,6 +96,8 @@ struct UpdateContent: View {
         if let operation, operation.isCompleted { return .completed }
         let components = updates.inventory?.components ?? []
         if !components.isEmpty, components.allSatisfy({ $0.comparison.state == .upToDate }) { return .upToDate }
+        let waiting = components.filter { $0.comparison.state == .incompatible }
+        if !waiting.isEmpty, components.allSatisfy({ [.upToDate, .incompatible].contains($0.comparison.state) }) { return .waiting(waiting.map(\.name)) }
         return .unknown(updates.inventory?.notice.message ?? "")
     }
 
@@ -150,6 +153,8 @@ struct UpdateContent: View {
         case .available: ("arrow.down.circle.fill", candidates.count == 1 ? "\(candidates[0].name)を更新できます" : "\(candidates.count)つ更新できます",
                           candidates.count == 1 ? "新しい版を使えます。" : "\(candidates.map(\.name).joined(separator: "・"))に新しい版があります。", BellTheme.violet)
         case .upToDate: ("checkmark.seal.fill", "すべて最新です", "今のところ、新しい更新はありません。", BellTheme.mint)
+        case .waiting(let names): ("checkmark.seal.fill", "更新できるものはすべて最新です",
+                                   "\(names.joined(separator: "・"))は、いまの本体に合う版がまだありません。合う版が出ると、ここで更新できます。", BellTheme.mint)
         case .unknown: ("questionmark.circle", "更新を確認できませんでした", "時間をおいて、もう一度確認してください。", BellTheme.muted)
         }
     }
@@ -298,10 +303,11 @@ struct UpdateContent: View {
     // MARK: 機能ごとの行（アイコン・名前・版・状態の印・最後の更新）
 
     enum PartBadge: Equatable {
-        case upToDate, available, updating, failed, unknown
+        case upToDate, available, updating, failed, incompatible, unknown
         var text: String {
             switch self {
             case .upToDate: "最新"
+            case .incompatible: "使えない版"
             case .available: "更新あり"
             case .updating: "更新中"
             case .failed: "失敗"
@@ -313,7 +319,7 @@ struct UpdateContent: View {
             case .upToDate: BellTheme.mint
             case .available, .updating: BellTheme.violet
             case .failed: .red
-            case .unknown: .secondary
+            case .incompatible, .unknown: .secondary
             }
         }
     }
@@ -329,6 +335,7 @@ struct UpdateContent: View {
         switch component.comparison.state {
         case .upToDate: return .upToDate
         case .updateAvailable: return .available
+        case .incompatible: return .incompatible
         default: return .unknown
         }
     }
