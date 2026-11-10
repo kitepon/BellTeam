@@ -52,7 +52,7 @@ async function fixture(t, scenario) {
     },
   } }
   const sqlite = 'data:text/javascript,' + encodeURIComponent('export const DatabaseSync=globalThis[' + JSON.stringify(key) + '].DatabaseSync')
-  const filesystem = 'data:text/javascript,' + encodeURIComponent('export const {mkdir,readFile,readdir,rm,writeFile}=globalThis[' + JSON.stringify(key) + '].fs')
+  const filesystem = 'data:text/javascript,' + encodeURIComponent('export const {copyFile,mkdir,mkdtemp,readFile,readdir,rm,stat,writeFile}=globalThis[' + JSON.stringify(key) + '].fs')
   const hook = registerHooks({ resolve(name, context, next) {
     if (context.parentURL === source.href && name === 'node:sqlite') return { url: sqlite, shortCircuit: true }
     if (context.parentURL === source.href && name === 'node:fs/promises') return { url: filesystem, shortCircuit: true }
