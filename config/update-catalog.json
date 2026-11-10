@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-10T00:24:51Z",
-  "expiresAt": "2026-11-17T00:24:51Z",
+  "publishedAt": "2026-11-10T00:31:15Z",
+  "expiresAt": "2026-11-17T00:31:15Z",
   "releases": [
     {
       "componentId": "usage",
@@ -705,15 +705,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "c1c1e4a1b538c47623256a49e9db1b3d7a564150",
-      "versionId": "sha256:8994b73c742368b940d5bccd4b3b3972ee80e106624ee84e3ce016caddd46f5f",
+      "sourceCommit": "35a96390b1657e5bb6966034eb47e1ebf623c37a",
+      "versionId": "sha256:2c111d30c1bf3ab07dfbb358bf052c46763c4edb7e9149a6d7f5cef80095da28",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8994b73c742368b940d5bccd4b3b3972ee80e106624ee84e3ce016caddd46f5f"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:2c111d30c1bf3ab07dfbb358bf052c46763c4edb7e9149a6d7f5cef80095da28"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -722,23 +722,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "本体を入れ替えても、席の会話の状態を引き継ぎます。Aiterm の版が上がっても、席が最初からやり直しになりません。",
-        "会話を引き継げなかった席には、最初からやり直したことを知らせてから起こします。",
-        "設定に「1Password連携」を加え、1Password に保存済みの SSH 鍵を端末の鍵のカードから選べるようにします。",
-        "試験用の設置で先行版を受け取る設定が、設置をやり直したときにすぐ効くようにし、公開されている最新の版を確実に選ぶようにします。"
+        "メモリ不足のときに、本体より席の処理が終了対象へ選ばれやすくなるよう調整します。",
+        "本体の入れ替えで席の会話の状態を引き継げなかった時は、どの段階で失敗したかを入れ替えの結果に出します。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "c1c1e4a1b538c47623256a49e9db1b3d7a564150",
-      "versionId": "sha256:8994b73c742368b940d5bccd4b3b3972ee80e106624ee84e3ce016caddd46f5f",
+      "sourceCommit": "35a96390b1657e5bb6966034eb47e1ebf623c37a",
+      "versionId": "sha256:2c111d30c1bf3ab07dfbb358bf052c46763c4edb7e9149a6d7f5cef80095da28",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8994b73c742368b940d5bccd4b3b3972ee80e106624ee84e3ce016caddd46f5f"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:2c111d30c1bf3ab07dfbb358bf052c46763c4edb7e9149a6d7f5cef80095da28"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -747,10 +745,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "本体を入れ替えても、席の会話の状態を引き継ぎます。Aiterm の版が上がっても、席が最初からやり直しになりません。",
-        "会話を引き継げなかった席には、最初からやり直したことを知らせてから起こします。",
-        "設定に「1Password連携」を加え、1Password に保存済みの SSH 鍵を端末の鍵のカードから選べるようにします。",
-        "試験用の設置で先行版を受け取る設定が、設置をやり直したときにすぐ効くようにし、公開されている最新の版を確実に選ぶようにします。"
+        "メモリ不足のときに、本体より席の処理が終了対象へ選ばれやすくなるよう調整します。",
+        "本体の入れ替えで席の会話の状態を引き継げなかった時は、どの段階で失敗したかを入れ替えの結果に出します。"
       ]
     }
   ],
