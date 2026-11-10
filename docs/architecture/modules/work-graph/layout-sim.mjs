@@ -55,34 +55,46 @@ export const chipBox = (a, b, t = 0.5, L = LAYOUT, side = [0, 0]) => {
   const x = a.x + (b.x - a.x) * t + side[0] * L.chipWidth / 2, y = a.y + (b.y - a.y) * t + side[1] * L.chipHeight / 2
   return { x0: x - L.chipWidth / 2 - L.chipGap, x1: x + L.chipWidth / 2 + L.chipGap, y0: y - L.chipHeight / 2 - L.chipGap, y1: y + L.chipHeight / 2 + L.chipGap }
 }
-// The chip of edge ab at its first spot clear of every node box (own ends included) and of the boxes in `chips`, or blocked at t = 0.5.
-export function chipAt(P, a, b, S, nameHeight, L = LAYOUT, spots = chipSpots, chips = []) {
+// A chip box (grown by chipGap) inside the drawable rect D = { W, H }; no area = no limit (chips before the on-screen rule).
+export const onScreen = (box, area) => !area || (box.x0 >= 0 && box.y0 >= 0 && box.x1 <= area.W && box.y1 <= area.H)
+// The box slid inward just enough to lie inside `area` (a box that touches an on-screen point still touches it).
+// On an axis where the box is larger than the area (oversize chip), its start edge goes to the area's start edge instead;
+// such a box is never inside the area, so it is never a free slot (onScreen is false).
+const slide = (lo, hi, size) => hi - lo > size ? -lo : Math.max(0, -lo) - Math.max(0, hi - size)
+export const intoArea = (box, area) => {
+  if (!area) return box
+  const dx = slide(box.x0, box.x1, area.W), dy = slide(box.y0, box.y1, area.H)
+  return { x0: box.x0 + dx, x1: box.x1 + dx, y0: box.y0 + dy, y1: box.y1 + dy }
+}
+// The chip of edge ab at its first spot (slid inside `area`) clear of every node box (own ends included) and of the boxes in `chips`, or blocked at t = 0.5.
+export function chipAt(P, a, b, S, nameHeight, L = LAYOUT, spots = chipSpots, chips = [], area = null) {
   for (const { t, side } of spots) {
-    const box = chipBox(P[a], P[b], t, L, side)
-    if (P.every(p => !boxesMeet(box, nodeBox(p, S, nameHeight, 0, L))) && chips.every(c => !boxesMeet(box, c))) return { box, blocked: false }
+    const box = intoArea(chipBox(P[a], P[b], t, L, side), area)
+    if (onScreen(box, area) && P.every(p => !boxesMeet(box, nodeBox(p, S, nameHeight, 0, L))) && chips.every(c => !boxesMeet(box, c))) return { box, blocked: false }
   }
-  return { box: chipBox(P[a], P[b], 0.5, L), blocked: true }
+  return { box: intoArea(chipBox(P[a], P[b], 0.5, L), area), blocked: true }
 }
 // Every edge's chip placed in edge order (older first), earlier chips being obstacles: how many find no clear spot
-// (they wait undrawn or stay blocked over a member or another chip).
-export function placeChips(P, edges, S, nameHeight, L = LAYOUT, spots = chipSpots) {
+// (they wait undrawn or stay blocked over a member or another chip), and how many placed chips leave `screen`.
+export function placeChips(P, edges, S, nameHeight, L = LAYOUT, spots = chipSpots, area = null, screen = area) {
   const placed = []
   let blocked = 0
   for (const [a, b] of pairsOf(edges)) {
-    const chip = chipAt(P, a, b, S, nameHeight, L, spots, placed.map(c => c.box))
+    const chip = chipAt(P, a, b, S, nameHeight, L, spots, placed.map(c => c.box), area)
     if (chip.blocked) blocked++; else placed.push(chip)
   }
-  return blocked
+  return { blocked, off: placed.filter(c => !onScreen(c.box, screen)).length }
 }
 // Edges that run through a node (disc or name) they do not belong to, and chips that find no clear slot (blocked).
-export function clearanceFaults(P, edges, S, nameHeight, L = LAYOUT, spots = chipSpots) {
+export function clearanceFaults(P, edges, S, nameHeight, L = LAYOUT, spots = chipSpots, area = null, screen = area) {
   let passes = 0, chipHits = 0
   for (const [a, b] of pairsOf(edges)) for (let c = 0; c < P.length; c++) {
     if (c === a || c === b) continue
     if (segmentHitsBox(P[a], P[b], nodeBox(P[c], S, nameHeight, 0, L))) passes++
   }
-  for (const [a, b] of pairsOf(edges)) if (chipAt(P, a, b, S, nameHeight, L, spots).blocked) chipHits++
-  return { passes, chipHits, chipFaults: placeChips(P, edges, S, nameHeight, L, spots) }
+  for (const [a, b] of pairsOf(edges)) if (chipAt(P, a, b, S, nameHeight, L, spots, [], area).blocked) chipHits++
+  const chips = placeChips(P, edges, S, nameHeight, L, spots, area, screen)
+  return { passes, chipHits, chipFaults: chips.blocked, chipsOff: chips.off }
 }
 
 // The node pair whose swapped places remove the most crossings, or null when no swap removes any.
@@ -115,7 +127,8 @@ export function bestSwap(P, edges, clear = null) {
   return best
 }
 
-export function simulate({ W, H, n, edges, frames = 900, seed = 1, nameHeight = 18, L = LAYOUT, uncross = true, clear = true, spots = chipSpots }) {
+export function simulate({ W, H, n, edges, frames = 900, seed = 1, nameHeight = 18, L = LAYOUT, uncross = true, clear = true, spots = chipSpots, keepOnScreen = true }) {
+  const screen = { W, H }, area = keepOnScreen ? screen : null
   let s = seed
   const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647
   const S = nodeSize(W, H, n), kr = L.repulsion / n, len = Math.min(L.springMax, L.springLength / Math.sqrt(n))
@@ -139,7 +152,7 @@ export function simulate({ W, H, n, edges, frames = 900, seed = 1, nameHeight = 
         F[c].u += fu; F[c].v += fv; F[a].u -= fu * (1 - ta); F[a].v -= fv * (1 - ta); F[b].u -= fu * ta; F[b].v -= fv * ta
       }
       for (const [a, b] of pairsOf(edges)) {
-        const chip = chipAt(P, a, b, S, nameHeight, L, spots), ex = P[b].x - P[a].x, ey = P[b].y - P[a].y, el = ex * ex + ey * ey || 1
+        const chip = chipAt(P, a, b, S, nameHeight, L, spots, [], area), ex = P[b].x - P[a].x, ey = P[b].y - P[a].y, el = ex * ex + ey * ey || 1
         if (chip.blocked && [a, b].some(e => boxesMeet(chip.box, nodeBox(P[e], S, nameHeight, 0, L)))) {
           // the chip has no room between its own ends: lengthen the edge
           const d = Math.sqrt(el), fu = L.clearance * ex / d, fv = L.clearance * ey / d
@@ -186,7 +199,7 @@ export function simulate({ W, H, n, edges, frames = 900, seed = 1, nameHeight = 
   }
   const xs = nodes.map(nd => nd.u * W), ys = nodes.map(nd => nd.v * H)
   const P = nodes.map(nd => ({ x: nd.u * W, y: nd.v * H }))
-  return { crossings: crossings(P, edges), ...clearanceFaults(P, edges, S, nameHeight, L, spots), swaps, fillX: (Math.max(...xs) - Math.min(...xs) + S) / W, fillY: (Math.max(...ys) - Math.min(...ys) + S + nameHeight) / H, size: S }
+  return { crossings: crossings(P, edges), ...clearanceFaults(P, edges, S, nameHeight, L, spots, area, screen), swaps, fillX: (Math.max(...xs) - Math.min(...xs) + S) / W, fillY: (Math.max(...ys) - Math.min(...ys) + S + nameHeight) / H, size: S }
 }
 
 // n distinct random edges: a denser, cyclic graph than sampleEdges, for the crossing table.
@@ -226,12 +239,26 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const old = run(centerSpots), now = run(chipSpots), col = (runs, key) => mean(runs.map(r => r[key]))
     console.log(`${name.padEnd(16)} n=${String(n).padStart(2)} chips without a clear spot ${col(old, 'chipFaults')} -> ${col(now, 'chipFaults')}, edges through a member ${col(old, 'passes')} -> ${col(now, 'passes')}, crossings ${col(old, 'crossings')} -> ${col(now, 'crossings')}`)
   }
+  // chips on screen (2026-11-10): spots leaving the drawing area allowed -> slid inside; chips off screen and chips without a clear spot
+  for (const [name, [W, H]] of Object.entries({ 'web 1440x900': screens['web 1440x900'], 'iphone portrait': screens['iphone portrait'] })) for (const n of [10, 16, 24]) {
+    const seeds = [1, 2, 3, 4, 5], mean = list => (list.reduce((a, b) => a + b, 0) / seeds.length).toFixed(1)
+    const run = keepOnScreen => seeds.map(seed => simulate({ W, H, n, edges: denseEdges(n, seed + 11), seed, keepOnScreen }))
+    const old = run(false), now = run(true), col = (runs, key) => mean(runs.map(r => r[key]))
+    console.log(`${name.padEnd(16)} n=${String(n).padStart(2)} chips off screen ${col(old, 'chipsOff')} -> ${col(now, 'chipsOff')}, chips without a clear spot ${col(old, 'chipFaults')} -> ${col(now, 'chipFaults')}`)
+  }
   // self-checks: segment/box test, and a swap's gain is exactly the drop in crossings
   const box = { x0: 0, x1: 10, y0: 0, y1: 10 }
   if (!segmentHitsBox({ x: -5, y: 5 }, { x: 15, y: 5 }, box) || segmentHitsBox({ x: -5, y: 15 }, { x: 15, y: 15 }, box) || !segmentHitsBox({ x: 5, y: 5 }, { x: 50, y: 50 }, box)) throw new Error('segmentHitsBox')
   if (chipSpots.length !== 85 || chipSpots[1].t !== 0.5 || chipSpots[5].t !== 0.45 || chipSpots.at(-1).t !== 0.9) throw new Error('chipSpots')
   const up = chipBox({ x: 0, y: 0 }, { x: 100, y: 0 }, 0.5, LAYOUT, [0, -1])
   if (up.y1 !== LAYOUT.chipGap || up.x0 !== 50 - LAYOUT.chipWidth / 2 - LAYOUT.chipGap) throw new Error('chipBox side')
+  // an edge hugging the left screen edge: the centered chip at t = 0.5 slides right to the screen edge and still covers its point
+  const edgeChip = chipAt([{ x: 10, y: 100 }, { x: 10, y: 400 }], 0, 1, 20, 0, LAYOUT, chipSpots, [], { W: 300, H: 500 })
+  if (edgeChip.blocked || edgeChip.box.x0 !== 0 || edgeChip.box.x0 > 10 || edgeChip.box.y0 !== 250 - LAYOUT.chipHeight / 2 - LAYOUT.chipGap) throw new Error('chip on screen')
+  // an oversize chip (taller than D): no free slot, blocked with its top edge on D's top and still on its own column
+  const tall = { ...LAYOUT, chipHeight: 600 }, bigChip = chipAt([{ x: 100, y: 100 }, { x: 200, y: 400 }], 0, 1, 20, 0, tall, chipSpots, [], { W: 300, H: 500 })
+  if (!bigChip.blocked || bigChip.box.y0 !== 0 || bigChip.box.x0 !== 150 - tall.chipWidth / 2 - tall.chipGap || onScreen(bigChip.box, { W: 300, H: 500 })) throw new Error('oversize chip')
+  if (placeChips([{ x: 100, y: 100 }, { x: 200, y: 400 }], [[0, 1]], 20, 0, tall, chipSpots, { W: 300, H: 500 }).blocked !== 1) throw new Error('oversize chip count')
   let s = 5
   const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647
   for (let k = 0; k < 100; k++) {
