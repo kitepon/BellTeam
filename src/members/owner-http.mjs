@@ -14,6 +14,7 @@ export function createOwnerApi({ ownerProfile, refreshGlobalInstructions, userRu
       return json(response, 200, { owner })
     }
     if (request.method === 'GET' && url.pathname === '/api/user-rules') return json(response, 200, { text: await userRules.get() })
+    if (request.method === 'GET' && url.pathname === '/api/user-rules/history') return json(response, 200, { changes: await userRules.history() })
     if (request.method === 'PUT' && url.pathname === '/api/user-rules') {
       const text = await userRules.update((await readJson(request)).text, context)
       await refreshGlobalInstructions()

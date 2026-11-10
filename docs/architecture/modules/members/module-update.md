@@ -39,7 +39,7 @@ Rootの全体設計に沿い、membersの台帳・規範生成・予定定義/�
 
 `src/members/protocol.mjs`のMEMBERS_REQUEST_METHODS/MEMBERS_CALLBACK_METHODS/MEMBERS_EFFECT_METHODSが現在の閉集合。validateMembersRequest/Callback/Effect/Result/EffectResult/Projection/Controlを同fileで公開。16MiB UTF8と既field制約を検証する。Result不正はunknownであり、保存前のnot_acceptedとは扱わない。
 
-- 現root：profiles.read、profile.read/create/preview/update/startup、removals.read、owner.read/update、rules.read/update、schedules.list/set/remove/claimDue/skipDue。profile.session/fastModeはcallbackだけ。profile.removeと予定run/prepareResumeは未接続で、未知methodを成功へ丸めない。
+- 現root：profiles.read、profile.read/create/preview/update/startup、removals.read、owner.read/update、rules.read/update/botUpdate/history、schedules.list/set/remove/claimDue/skipDue。profile.session/fastModeはcallbackだけ。profile.removeと予定run/prepareResumeは未接続で、未知methodを成功へ丸めない。
 - effect(method,params,context)：project.ensureRoot `{}`、claim/initialize/remove/readPreviousSession `{botId}`、writeInstructions `{botId,body}`、prepareStartupContext `{botId,previousSession,body}`、appendInstructions `{botId,text}`、global.writeInstructions `{body}`、cli.configure `{botIds}`、models.read `{harness}`、memory.ensureScope `{botId}`、room.schedules.list/set/remove/claimDue/skipDue（roomIdと既DTO）。任意path/home/env/関数を受けない。project読取は文字列、Roomは既snapshot/null、モデルはcatalog、その他runtime書込みはvoid/nullを返す。
 - projection(record,context)：ACKを待つsnapshot-start `{type,revision}`→profile `{type,revision,bot}`を一件ずつ→snapshot-end `{type,revision}`。画像4fieldは省きhasAvatar/hasAvatarLargeへ。generationはcontext。同revisionを全件受信後だけ親が採用。初回はleaseId:nullのinitialize context限定、以降はlive lease。
 - control.initialize `{generation}`と同generation/leaseId:nullの第3contextでread-restore/初期投影→`{stateCompatibility}`。resume/quiesce/exitは`{}`。root受付を閉じても旧lease callbackは通し、active処理と投影の終端後だけquiescedを返す。遅いquiesceはepochを照合し、resume後に再停止しない。disconnectもactiveをdrainし再送しない。
@@ -160,7 +160,7 @@ methodは下表の固定列挙。任意objectのメソッド名、関数、Map�
 | `profile.session` | `{botId,session}`、実行担当の内部callback限定。保存ACKまで旧native操作の処理範囲に含める |
 | `profile.startup` | `{botId,shortTermMemory}`。固定previous-sessionと個別指示を更新。ネイティブ起動は行わない |
 | `profile.remove` / `removal.state` | `{botId}`。前者は既202受付/背景削除、後者はactive/pending/absent。新規背景作業はdrainのactive集合に含む |
-| `owner.read/update` / `rules.read/update` | `{}`、`{changes}`、`{text}`。更新はOwner HTTP又は専用owner MCPの権限のみ。保存後生成までを追跡。世代の初回owner.readはその配置のtemplateでglobal指示を生成する。失敗しても読取は成功させ、次のowner.readで再試行、diagnosticは世代ごと1件 |
+| `owner.read/update` / `rules.read/update` | `{}`、`{changes}`、`{text}`。更新はOwner HTTP又は専用owner MCPの権限のみ。保存後生成までを追跡。世代の初回owner.readはその配置のtemplateでglobal指示を生成する。失敗しても読取は成功させ、次のowner.readで再試行、diagnosticは世代ごと1件。`rules.botUpdate {text,before,botId,instruction}`→`{text,before}`はownerWrite不要で、親profiles-mcpがOwner本人の承認を確認済みの時だけ送る。現在値≠beforeは`USER_RULES_CHANGED`(409)で書かない。`rules.history {}`→`{changes}`はlease付き読取（read pinの固定6個は変えない）。[instructions](instructions.md) |
 | `schedules.list/set/remove` | `{ownerKind:'bot'|'room',ownerId,input?|scheduleId?}`。roomは親の資格確認と唯一writerへ委譲 |
 | `schedules.run` | `{ownerKind,ownerId,scheduleId}`。既手動実行、nextRunAt/enabledを変更しない。受付不明を再送しない |
 | `schedules.prepareResume` | `{at}`。旧tick終端を待って期限内だけskip。AI OFF→ON前の既公開接点、失敗時はOFFを維持 |
