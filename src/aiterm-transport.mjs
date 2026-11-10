@@ -22,7 +22,7 @@ import { returnedMcpError } from './returned-mcp-error.mjs'
 import { launchFailureDetails } from './agent-launch-error.mjs'
 import { captureRuntime as captureSelectedRuntime } from './runtime-selection.mjs'
 import { writeAtomic } from './json-file.mjs'
-import { isRemoteBot, seatTarget, KEY_RELOAD } from './remote-seats.mjs'
+import { isRemoteBot, seatTarget, KEY_RELOAD, remoteSeatNotStarted } from './remote-seats.mjs'
 
 export { AitermClient } from './aiterm-client.mjs'
 export { runWaitProcess } from './aiterm-wait-process.mjs'
@@ -979,6 +979,10 @@ export class AitermTransport {
         // requeuing record owner (durable receipts) can deliver the same ID after the swap.
         if (!job.receipt && !job.stopped && !job.inputMayHaveStarted && SWAP_CODES.includes(error.code))
           error.executionError = swapNotStarted()
+        // remote-seat.md "Remote-seat not-started proof": the launch never reached the CLI, so the receipt may queue the same ID.
+        const remoteProof = !job.receipt && !job.stopped && !job.inputMayHaveStarted
+          ? remoteSeatNotStarted(this.resolveBot?.(bot.id) ?? bot, info.groupId, error) : null
+        if (remoteProof) error.remoteSeatNotStarted = remoteProof
         // Accepted input remains accepted when only its completion tracking fails.
         const tracking = job.receipt && !job.stopped && !job.nativeTerminal && !error.turnCompleted
           ? [{ schema: 'bellteam.delivery-tracking.v1', admission: 'accepted', completion: 'unknown' }] : []
