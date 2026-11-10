@@ -242,6 +242,24 @@ flowchart LR
 
 P1 first usable path is the Owner's Mac, existing key, no sudo, API/MCP configuration; P2 adds Web/Apple UI; P3 completes remote per-model account switching, sudo and non-Owner terminals/product testing. Ziz is rebuilt after all four Owner completion conditions are met, including remote account switching. Required C1-C9 include Belorta's field/instruction revisions, Kiro's lifecycle/account/seat identity, Elegg's private remote PTY, Molly's LAN MCP/runtime composition, Mika's 1Password resolution, remote docs/memory access, transcript catch-up and latest CLI maintenance. Trony adopted them; this docs-only diff changes no peer's implementation or private state.
 
+## Proposed read-only fork inquiry
+
+Canonical owner: [conversation / N102, fork inquiry](modules/conversation/fork-inquiry.md). **Unimplemented design delta** from the Owner-agreed spec of 2026-11-10 JST; it changes neither the production baseline nor any existing edge. Module descriptors change with each owner's implementation.
+
+```mermaid
+flowchart LR
+  A[Asker Bot main seat] -->|F1 ask_readonly target/message| P1[P1 seat MCP: fork seats list readOnly tools only]
+  P1 -->|F2 fork inquiry| P2[P2 conversation: shared prepareDirect, target history rows seat=fork]
+  P2 -->|F3 receipt running/delivery_id/fork_id| A
+  P2 -->|F4 forkInquiry, no main queue| P3[P3 execution: fork lifecycle from latest main session]
+  P3 -->|F5 read-only fork launch| N[Aiterm native fork, local/remote]
+  P3 -->|F6 status/interim/answer/turn-end| P2
+  P2 -->|F7 relay answer or FORK_FAILED via existing notify| A
+  O[Owner message] -->|unchanged: always main seat, never forked or counted as load| P3
+```
+
+Remote forks launch like local ones; until Elegg 0.70.5 + Kiro #946 are live their in-turn words are missing exactly like a remote main seat's, and the answer still arrives. A failure after receipt reaches the asker as one `FORK_FAILED` message on F7. The only refusal is `FORK_UNAVAILABLE{readonly_unenforceable}`. No fallback into the main queue.
+
 ## Coverage, inherited verification and concrete limits
 
 The composed owner contracts above cover the requested post-9fcc connections at body1731 plus the accepted A+B close-only delta in this diff. Existing author verification for per-target receipts, restart/resume/shared lifecycle, job/inspection/reporting, scoped updates, deferred input and target-only screen read is inherited; no internal source audit or successful test group was repeated for this documentation. The generated function map and module descriptors remain unchanged. This revision checks its own links and flow/store ownership, not runtime success.

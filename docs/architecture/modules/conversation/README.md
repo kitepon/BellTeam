@@ -16,6 +16,7 @@
 - [部屋定義と履歴](rooms.md)
 - [自主回答と報告](observation.md)
 - [通話の本体受付](calls.md)
+- [読み取り専用の分身への問い合わせ ask_readonly（設計のみ・未実装）](fork-inquiry.md)
 
 旧conversation-flow/delivery-details/observation-details/registry-details/boundary-detailsの担当章は上の正本への参照にした。実行の詳細とidleの判断は[実行担当](../execution/README.md)に残る。
 
