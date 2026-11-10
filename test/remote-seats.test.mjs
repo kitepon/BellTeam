@@ -347,7 +347,7 @@ test('not-started proof: only a remote member, a delivery ID and a not-started c
   const failure = value => Object.assign(code(value), { effect: 'not_started' })
   assert.equal(remoteSeatNotStarted(bot, 'd-1', failure('UNREACHABLE')).code, 'UNREACHABLE')
   assert.equal(remoteSeatNotStarted(bot, 'd-1', failure('CREDENTIAL_NOT_LOADED')).code, 'CREDENTIAL_NOT_LOADED')
-  assert.equal(remoteSeatNotStarted(bot, 'd-1', failure('CWD_UNAVAILABLE')), null)
+  assert.equal(remoteSeatNotStarted(bot, 'd-1', failure('CWD_UNAVAILABLE')), null, 'without Aiterm\'s launch refusal: not proven')
   assert.equal(remoteSeatNotStarted(bot, 'd-1', code('TARGET_MISMATCH')), null, 'no effect: not proven')
   assert.equal(remoteSeatNotStarted({ ...bot, terminalId: '' }, 'd-1', failure('TARGET_MISMATCH')), null)
   assert.equal(remoteSeatNotStarted(bot, undefined, failure('TARGET_MISMATCH')), null)
@@ -377,4 +377,31 @@ test('Claude auth not ready on the terminal: not started with the delivery-bound
   assert.equal(screen.effect, undefined)
   assert.equal(remoteSeatNotStarted(bot, 'd-1', screen), null)
   assert.equal(seats.launchNotice(bot).code, 'VENDOR_ONBOARDING_REQUIRED')
+})
+
+test('Aiterm launch refusal before any seat: not started with the proof and Aiterm\'s action; auth keeps the login text', async () => {
+  const { remoteSeatNotStarted, LOGIN_ACTION } = await import('../src/remote-seats.mjs')
+  const { seats, queued } = fixture()
+  const observed = []
+  seats.terminals.connection.observe = terminalId => observed.push(terminalId)
+  const refusal = (value, phase = 'terminal', effect = 'not_started', action = '端末に作業フォルダがありません。') => Object.assign(code(value), {
+    launchRefusal: { schema: 'aiterm.agent-launch-error.v1', harness: 'claude-code', code: value, phase, effect, session_created: false, action } })
+  for (const value of ['CWD_UNAVAILABLE', 'REMOTE_AITERM_TOO_OLD']) {
+    const error = refusal(value)
+    seats.launchFailed(bot, error)
+    assert.equal(error.effect, 'not_started')
+    assert.equal(remoteSeatNotStarted(bot, 'd-1', error).code, value)
+    assert.deepEqual({ ...seats.launchNotice(bot), at: 0 }, { code: value, action: '端末に作業フォルダがありません。', terminalId: 'mac-1', at: 0 })
+  }
+  const auth = Object.assign(refusal('CLAUDE_AUTH_NOT_AUTHENTICATED', 'authentication_preflight', 'not_issued', 'aiterm text'), {
+    agentLaunchError: { schema: 'aiterm.agent-launch-error.v1', harness: 'claude-code', code: 'CLAUDE_AUTH_NOT_AUTHENTICATED',
+      phase: 'authentication_preflight', effect: 'not_issued', session_created: false } })
+  seats.launchFailed(bot, auth)
+  assert.equal(seats.launchNotice(bot).action, LOGIN_ACTION)
+  const mismatched = Object.assign(refusal('CWD_UNAVAILABLE'), { code: 'OTHER' })
+  seats.launchFailed(bot, mismatched)
+  assert.equal(mismatched.effect, undefined, 'the refusal must name the thrown code')
+  assert.deepEqual(observed, [])
+  assert.equal(seats.waiting.size, 0)
+  assert.deepEqual(queued, [])
 })

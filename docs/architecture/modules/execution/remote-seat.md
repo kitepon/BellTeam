@@ -88,7 +88,7 @@ stateDiagram-v2
   Failed --> Queued: durable receipt sees the proof bound to this deliveryId + target (integration message-receipt.md)
   Launched --> Delivered: pty_send accepted (same ID once)
   Queued --> Preparing: terminals watch reachable -> RemoteSeats.available -> emitQueue(botId) -> drain
-  Queued --> Preparing: next drain of the member's queue (its next delivery or launch; Claude auth not ready)
+  Queued --> Preparing: next drain of the member's queue (its next delivery or launch; Claude auth not ready / Aiterm launch refusal)
   Delivered --> Delivered: lost SSH is not a seat end; calls by session reconnect (Aiterm)
 ```
 
@@ -99,9 +99,13 @@ Not-started codes and their exits. The delivery does call `onStatus('failed')` (
 | `TERMINAL_UNAVAILABLE`, `CREDENTIAL_UNAVAILABLE` / `CREDENTIAL_*`, `UNREACHABLE`, `HOST_TRUST_STALE`, `SEAT_FORWARD_UNAVAILABLE`, `TERMINAL_TARGET_CHANGED` (R13 retry) | terminals `target()` (it arms its own observer) or Aiterm `agent_launch` after a successful target (`RemoteSeats.launchFailed` calls `terminals.connection.observe(terminalId)`, Crust) | terminals' non-AI observer → `watch` `reachable: true` → `emitQueue` for the Bots recorded under that terminal |
 | `TARGET_MISMATCH`, `HOST_KEY_MISMATCH`, `TERMINAL_NOT_FOUND` | terminals / Aiterm | the Owner's registry revision (terminals' registry-change edge emits the same `reachable: true` event) |
 | `TERMINALS_UNAVAILABLE` (no ports), `SEAT_CREDENTIAL_INVALID`, `BOT_REMOTE_BINDING_MISSING`, `MEMBERS_EFFECT_UNSUPPORTED` | execution / ingress / members before any terminal contact | the next body start with the ports / the member revision (the next delivery) |
-| `CLAUDE_AUTH_NOT_AUTHENTICATED`, `CLAUDE_AUTH_STATUS_UNCONFIRMED`, `CLAUDE_AUTH_STATUS_TIMEOUT` (the last only from terminals with Aiterm < 0.70.1) | Aiterm `agent_launch` on the terminal: Claude auth preflight refused before any session (`aiterm.agent-launch-error.v1`, `phase: authentication_preflight`, `effect: not_issued`, `session_created: false`; `RemoteSeats.launchFailed`, only with that exact structure as `error.agentLaunchError`) | the next drain of the member's queue: its next delivery or launch attempt after the Owner logs in (the durable receipt drains every queued ID of the target in saved order, `durable-message-receipts.mjs` `drainTarget`). No terminals observer and no `wait()` entry: no event sees a login (Trony ruling 2026-11-10, common rule `guards.give-up-is-a-guard`) |
+| `CLAUDE_AUTH_NOT_AUTHENTICATED`, `CLAUDE_AUTH_STATUS_UNCONFIRMED`, `CLAUDE_AUTH_STATUS_TIMEOUT` (the last only from terminals with Aiterm < 0.70.1) | Aiterm `agent_launch` on the terminal: Claude auth preflight refused before any session (`aiterm.agent-launch-error.v1`, `phase: authentication_preflight`, `effect: not_issued`, `session_created: false`; `RemoteSeats.launchFailed`, only with that exact structure as `error.agentLaunchError`). `AitermClient.call` reads it from `structuredContent` (Aiterm < 0.70.0) or `result._meta["aiterm/launch_error"]` (Aiterm >= 0.70.0, c493df6) | the next drain of the member's queue: its next delivery or launch attempt after the Owner logs in (the durable receipt drains every queued ID of the target in saved order, `durable-message-receipts.mjs` `drainTarget`). No terminals observer and no `wait()` entry: no event sees a login (Trony ruling 2026-11-10, common rule `guards.give-up-is-a-guard`) |
 
-`CWD_UNAVAILABLE` (the folder is missing on the terminal) and `REMOTE_AITERM_TOO_OLD` have no observable exit, so they stay a visible delivery failure (not queued).
+| Any other code with Aiterm's launch refusal (e.g. `CWD_UNAVAILABLE`: the folder is missing on the terminal; `REMOTE_AITERM_TOO_OLD`) | Aiterm >= 0.70.0 `agent_launch`: refused before any seat exists, `result._meta["aiterm/launch_error"]` = `{schema: 'aiterm.agent-launch-error.v1', harness, code, phase: 'terminal' \| 'authentication_preflight', effect: 'not_started' \| 'not_issued', session_created: false, action}` (codes that may have started get none). `AitermClient.call` keeps it as `error.launchRefusal` (`launchRefusal`, `src/agent-launch-error.mjs`: exact values, `code` `^[A-Z][A-Z0-9_]{0,63}$`, `action` 1-500 chars, no control characters) and sets `error.code`; `RemoteSeats.launchFailed` uses it only when its `code` is the thrown code | the same next drain of the member's queue, after the Owner fixes the folder or updates the terminal (Crust/Elegg 2026-11-10, same ruling as the row above) |
+
+Without that refusal (Aiterm < 0.70.0, or a seat launcher that does not yet forward `launchRefusal` across its process boundary) `CWD_UNAVAILABLE` and `REMOTE_AITERM_TOO_OLD` stay today's visible delivery failure (not queued).
+
+Seat launcher (Molly, runtime `cli-registration`): a remote launch runs through `run-seat-aiterm-launch.mjs`, whose fixed error projection forwards `code` and `agentLaunchError` today, so the Claude auth row works with this execution alone. The other row needs that launcher to forward `launchRefusal` re-validated by `launchRefusal()`; until then it degrades to the visible failure above.
 
 Login screen (Aiterm >= 0.70.1, Elegg): a slow auth check now proceeds, and a logged-out Claude stops at its first screen in a created session (`aiterm.agent-launch-result.v1`, `startup: {status: 'blocked', reason: 'vendor_onboarding_required'}`). A session exists on the terminal, so it is not a not-started launch: no proof, and the delivery stays today's visible failure. It does need a visible reason: `launchFailed` sets the Launch notice `{code: 'VENDOR_ONBOARDING_REQUIRED', action: 「Macのclaudeにログインが必要」}`.
 
@@ -112,7 +116,7 @@ Without it the parent wraps the invoked failure as `effect: 'unknown'` and the r
 ```text
 error.remoteSeatNotStarted = {
   schema: 'bellteam.remote-seat-not-started.v1',
-  code,        // one of the not-started codes in the table above (never CWD_UNAVAILABLE / REMOTE_AITERM_TOO_OLD / VENDOR_ONBOARDING_REQUIRED)
+  code,        // one of the not-started codes in the table above (CWD_UNAVAILABLE / REMOTE_AITERM_TOO_OLD only with Aiterm's launch refusal; never VENDOR_ONBOARDING_REQUIRED)
   deliveryId,  // the delivery's queue groupId (= durable receipt delivery_id)
   botId,       // the target member
   terminalId,  // the terminal the launch was for
@@ -125,7 +129,7 @@ error.remoteSeatNotStarted = {
 
 ## Launch notice for the Owner (2026-11-10, Crust / Trony)
 
-A not-started remote launch calls `onStatus('failed')` and rejects; when the code has an exit, the rejected error carries the remote-seat not-started proof and the durable receipt puts the same ID back to `queued` ("Pending delivery" above). Codes without an exit (`CWD_UNAVAILABLE`, `REMOTE_AITERM_TOO_OLD`) stay a visible delivery failure. While the ID waits queued, the history alone does not say why or what the Owner should do (first real case: macbook answered `HOST_TRUST_MISSING` → `TARGET_MISMATCH`, action "confirm the host key of 192.168.1.12"). Execution keeps the latest not-started outcome per member and projects it; it is information only and changes no queue, retry or guard.
+A not-started remote launch calls `onStatus('failed')` and rejects; when the code has an exit, the rejected error carries the remote-seat not-started proof and the durable receipt puts the same ID back to `queued` ("Pending delivery" above). `CWD_UNAVAILABLE` and `REMOTE_AITERM_TOO_OLD` without Aiterm's launch refusal stay a visible delivery failure. While the ID waits queued, the history alone does not say why or what the Owner should do (first real case: macbook answered `HOST_TRUST_MISSING` → `TARGET_MISMATCH`, action "confirm the host key of 192.168.1.12"). Execution keeps the latest not-started outcome per member and projects it; it is information only and changes no queue, retry or guard.
 
 ```text
 transport.seatLaunch(botId)   (sync project method, like seatAccount)
@@ -135,7 +139,7 @@ transport.seatLaunch(botId)   (sync project method, like seatAccount)
 | Field | Value |
 | --- | --- |
 | `code` | the not-started code (`TARGET_MISMATCH`, `TERMINAL_UNAVAILABLE`, `CREDENTIAL_UNAVAILABLE`, …; table above) |
-| `action` | terminals'/Aiterm's plain next step (`error.action`, at most 500 characters) or `null`; for `CLAUDE_AUTH_*` and `VENDOR_ONBOARDING_REQUIRED` the fixed Owner text 「Macのclaudeにログインが必要」 (`LOGIN_ACTION`). Raw native text, hosts' secrets and key values never appear (terminals already drops raw native text) |
+| `action` | terminals'/Aiterm's plain next step (`error.action`, at most 500 characters) or `null`; for an Aiterm launch refusal its fixed `action` sentence; for `CLAUDE_AUTH_*` and `VENDOR_ONBOARDING_REQUIRED` the fixed Owner text 「Macのclaudeにログインが必要」 (`LOGIN_ACTION`, Trony's ruling; it takes precedence over Aiterm's auth sentence). Raw native text, hosts' secrets and key values never appear (terminals already drops raw native text) |
 | `terminalId` | the terminal the launch was for |
 | `at` | ISO time of the failure |
 
@@ -169,14 +173,14 @@ Local seats (no `terminalId`): today's path, including env forwarding. Delivery 
 | Private env | `AitermClient.call` option `privateEnv` (agent_launch with `terminal` only) |
 | Target revision | `AitermTransport.seatTargetChanged` + `dispatch`; D5 record `target` |
 | App-set terminal key (R13) | `RemoteSeats.target` / `loadKey` / `reloadKey`; `wakeNow` launch retry; `RemoteSeats.route` session-call retry |
-| Queue on launch failure | `RemoteSeats.launchFailed` (from `wakeNow`; Claude auth preflight via `authenticationPreflightFailure`, `src/agent-launch-error.mjs`); proof `remoteSeatNotStarted` (from `AitermTransport.submit` failure branch) |
+| Queue on launch failure | `RemoteSeats.launchFailed` (from `wakeNow`; Claude auth preflight via `authenticationPreflightFailure`, other Aiterm refusals via `launchRefusal`, `src/agent-launch-error.mjs`; `_meta` read in `AitermClient.call`); proof `remoteSeatNotStarted` (from `AitermTransport.submit` failure branch) |
 | Launch notice | `RemoteSeats.notice` / `launchNotice`; `AitermTransport.seatLaunch` (sync project method); handover `remoteNotices` |
 | Distribution | `scripts/web_gateway_artifact.py` `EXECUTION_FILES` includes `src/remote-seats.mjs` (54, Molly's authorization) |
 | Credential release | `RemoteSeats.route` (successful `pty_close`) |
 | Queue edge | `RemoteSeats.wait` / `available` |
 | C7 | `RemoteSeats.waitProcess` / `forward` / `handoffContext` |
 
-Test: `test/remote-seats.test.mjs`.
+Test: `test/remote-seats.test.mjs`; `_meta` reading: `test/auth-launch-diagnostic.test.mjs`.
 
 ## Deployment order
 

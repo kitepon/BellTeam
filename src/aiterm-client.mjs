@@ -11,7 +11,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { runtimeEnvironment, runtimeEnvironmentKeys, runtimeHome } from './runtime-home.mjs'
 import { returnedExecutionError, ERROR_META } from './execution-error.mjs'
-import { authenticationPreflightFailure, unpromptedLaunchActionRequired, resumeUnavailable } from './agent-launch-error.mjs'
+import { LAUNCH_ERROR_META, authenticationPreflightFailure, launchRefusal, unpromptedLaunchActionRequired, resumeUnavailable } from './agent-launch-error.mjs'
 import { captureMcpRequest } from './mcp-request-context.mjs'
 import { captureMcpError } from './returned-mcp-error.mjs'
 import { configurationConnection, configurationError, markConfigurationNotIssued, CONFIGURATION_SCHEMA } from './configuration-request.mjs'
@@ -240,7 +240,10 @@ export class AitermClient {
         ? resumeUnavailable(result._meta?.['aiterm/resume_unavailable'], args.session_name) : null
       if (unavailableResume) Object.assign(error, { code: unavailableResume.code, effect: unavailableResume.effect, resumeUnavailable: unavailableResume })
       if (['agent_launch', 'claude_agent'].includes(name)) {
-        const preflight = authenticationPreflightFailure(result.structuredContent)
+        const refusal = launchRefusal(result._meta?.[LAUNCH_ERROR_META])
+        if (refusal) Object.assign(error, { code: refusal.code, launchRefusal: refusal })
+        // Aiterm < 0.70.0 put the auth refusal in structuredContent; >= 0.70.0 puts it in _meta.
+        const preflight = authenticationPreflightFailure(result.structuredContent) ?? authenticationPreflightFailure(refusal)
         if (preflight) {
           error.agentLaunchError = preflight
           error.code = preflight.code
