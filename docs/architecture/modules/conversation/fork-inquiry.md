@@ -34,7 +34,7 @@ flowchart TD
     E3["transport.notify (existing)"]
   end
   subgraph Aiterm["aiterm / Elegg"]
-    N1["session fork from main session ref<br/>read-only launch profile (Claude / Codex, local / remote)"]
+    N1["session fork from main session ref<br/>project-folder write ban below the tools (Aiterm 0.70.6)"]
   end
   Owner["Owner message (HTTP / send_user_message)"] --> Main["startUserTurn -> transport.turn -> MAIN seat (unchanged)"]
   A1 --> I1 --> I2 --> C0 --> C3
@@ -89,7 +89,7 @@ sequenceDiagram
 | seat MCP → conversation | `{from, target, message, executionSource, askerSeat?}` over the existing internal HTTP, `/api/deliveries/fork` and `/api/deliveries/direct` | Molly: `askerSeat:{kind:'fork', forkId}` only from the resolved fork seat (execution registry or fork credential), never from tool arguments; absent for main seats. N102 handler in `http-delivery-api.mjs` |
 | conversation → direct JSONL | `bellteam.direct-message.v1` with optional `seat:{kind:'fork',fork_id}`; later interim/answer rows under the same `delivery_id`; relay row with `in_reply_to` | N102, `ConversationWriter` (sole writer, unchanged) |
 | conversation → execution | `forkInquiry(bot, envelope, {forkId, deliveryId, executionSource, onStatus, onInterim, onAnswer, onTurnEnd})` | Kiro: fork lifecycle, never the main dispatch queue |
-| execution → Aiterm | main session ref + read-only launch profile | Elegg: native fork and enforcement |
+| execution → Aiterm | `agent_launch {fork_from:{session_id, fork_id}}` (Aiterm 0.70.6) | Elegg: native fork and project-folder write ban |
 | conversation → asker | relay via existing `transport.notify(askerBot, …)` into the asker's own seat | Kiro, existing path |
 | target history → main seat | records and summaries the main reads on demand (`list_messages`, Throughline summaries); no notify, no injected full text | N102 records, Rivalin (Throughline) session labelling |
 
@@ -140,18 +140,16 @@ Known limit: conversation adds no wait limit, but a Codex seat's existing BellTe
 
 ## Read-only enforcement (spec item 3; launch, not instructions)
 
-**HOLD (Root, 2026-11-10 JST):** the enforcement method below and `FORK_UNAVAILABLE{readonly_unenforceable}` are on hold for Elegg's method. The fork tool listing is no longer held: the fork lists every tool (Root ruling, below). The restriction is the Owner's sentence, verbatim (「厳密にこれに従え」): 「プロジェクトフォルダ内の一切の書き込みを禁止。ファイルの書き込みのほか、プロジェクトフォルダ内にSQLなどがあればそれも更新も含めて禁止。それ以外は全て許可する。」 Binding spec reading (Owner 23:0x/23:1x JST): only writes inside the Bot's project folder are banned (files, git, databases stored there such as SQLite, by any route: native tools, commands, MCP tools whose server writes there). Everything else is allowed: all tools, MCP servers, commands, web and messages to peers, and writes outside the project folder. Enforcement is by the OS/harness below the tools, not by instruction. Elegg measures the method, Molly lists the BellTeam MCP tools that write into the project folder, and Root brings the method to the Owner. Do not implement against the table below until that ruling replaces it. Receipt, fork lifecycle, answer relay and labels continue.
+The restriction is the Owner's sentence, verbatim (「厳密にこれに従え」): 「プロジェクトフォルダ内の一切の書き込みを禁止。ファイルの書き込みのほか、プロジェクトフォルダ内にSQLなどがあればそれも更新も含めて禁止。それ以外は全て許可する。」 Only writes inside the Bot's project folder are banned (files, git, databases stored there such as SQLite, by any route: native tools, commands, MCP tools whose server writes there). Everything else is allowed: all tools, MCP servers, commands, web, messages to peers, and writes outside the project folder. Enforcement is by the OS/harness below the tools, not by instruction; the envelope text is not part of enforcement.
 
-The fork is launched with a profile in which the forbidden effects do not exist as tools. The envelope text is not part of enforcement.
-
-| Layer | Owner | Required capability |
+| Layer | Owner | Contract |
 | --- | --- | --- |
-| Native tools | Elegg (Aiterm launch) | Claude: read tools only (Read, Grep, Glob, WebSearch, WebFetch); no Bash, Edit/Write/NotebookEdit, Agent/Task, Skill. Codex: read-only sandbox, approval never, no shell/exec tool; its read-only web search is allowed. Web reads change nothing and are allowed (Root ruling 5, Owner 「変えない行動は全部許す」); Bash stays out because it cannot be enforced read-only. Local and remote use the same profile. Only the BellTeam seat MCP in fork mode is configured; other MCP servers (Approval Box, Aiterm, call-bridge, …) are absent |
+| Native tools and process tree | Elegg (Aiterm 0.70.6) | `agent_launch {agent:'claude-code'|'codex-cli', prompt, fork_from:{session_id:<main Aiterm seat>, fork_id?}, session_name?, terminal/remote? as the main}` forks the main's latest saved conversation with the main's tools and MCP, in the main's cwd. Every write inside that cwd is refused for the whole process tree (file tools, shell redirect, git, sqlite, anything): Linux Landlock, macOS sandbox-exec. Claude: `--resume <main> --fork-session`; Codex: `codex fork`. Receipt `fork_of {session_id, vendor_session_id, write_ban {path, method}}`; seat env `THROUGHLINE_SESSION_KIND=fork`, `THROUGHLINE_PARENT_SESSION_ID`, `THROUGHLINE_FORK_ID`. Refusals create no seat: `FORK_UNSUPPORTED`, `FORK_INVALID`, `FORK_SOURCE_UNAVAILABLE`, `READONLY_UNENFORCEABLE` (Windows), `REMOTE_AITERM_TOO_OLD`. A resumed fork keeps the ban; close with `pty_close` after the answer |
 | BellTeam MCP | Molly (common listing/dispatch, #963) | Canonical: [remote-seat-ingress SK04/SK07/SK08](../integration/remote-seat-ingress.md#seat-kind-fork-seats-sk01-sk08). `tools/list` = every tool (no `readOnlyHint` listing). `tools/call` refuses the project-folder writers (any Bot's folder) with `FORK_PROJECT_WRITE_REFUSED: <name>`; read tools that touch the project folder read a temporary copy. `sendmessage`, `ask_readonly` and call-bridge are allowed. Internal HTTP resolves a fork as its Bot on every method, and `POST /api/deliveries/direct|fork` carries `askerSeat` from the resolved seat only (SK08). Conversation's `readOnlyHint` marks stay as plain MCP hints |
-| The one allowed effect | N102 | The fork does not send the reply itself. Its final answer reaches conversation through the existing `onAnswer` callback, and conversation relays it to the asker. The fork therefore needs no write tool at all |
-| CLI transcript | Elegg / Rivalin | The forked session file written by the CLI itself is the record of the fork conversation, labelled fork (below). It is not a user-visible effect |
+| The answer | N102 | The fork's final answer reaches conversation through the existing `onAnswer` callback, and conversation relays it to the asker (or, for a fork asker, returns it as the tool result) |
+| CLI transcript | Elegg / Rivalin | The forked session file written by the CLI itself is the record of the fork conversation, labelled fork by the seat env above. It is not a user-visible effect |
 
-If a harness cannot launch with this profile (for example Codex without a way to remove process start), execution returns `FORK_UNAVAILABLE{reason:'readonly_unenforceable'}` for that harness. N102 does not narrow the spec or replace it with instructions. The decision goes back to Root/Owner.
+Execution (Kiro) maps an Aiterm launch refusal to `FORK_UNAVAILABLE{reason}`; `READONLY_UNENFORCEABLE` becomes `FORK_UNAVAILABLE{reason:'readonly_unenforceable'}`. N102 does not narrow the spec or replace it with instructions; the asker is told to use `sendmessage`.
 
 ## Fork lifecycle (execution public contract, Kiro)
 
