@@ -3,6 +3,7 @@ import { guardEditorClose, requestEditorClose } from './editor-close.js?v=__ASSE
 import { createAvatarEditor } from './avatar-editor.js?v=__ASSET_VERSION__'
 import { applyAvatar, initials, escapeClass, modelChoices } from './view-format.js?v=__ASSET_VERSION__'
 import { FOLDER_UNCHECKED, folderRefusal, memberFolder, readTerminals, remoteBindingBody } from './terminals.js?v=__ASSET_VERSION__'
+import { createFolderPicker } from './folder-picker.js?v=__ASSET_VERSION__'
 
 // Plain reason for a definite save refusal; an unknown code gets the generic sentence, never the code alone.
 const SAVE_REFUSALS = {
@@ -62,13 +63,25 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
   const botProjectRootField = dialog.querySelector('#bot-project-root-field')
   const botRemoteStatus = dialog.querySelector('#bot-remote-status')
   const botCreateFolder = dialog.querySelector('#bot-create-folder')
+  const botFolderPath = dialog.querySelector('#bot-folder-path')
+  const botFolderOther = dialog.querySelector('#bot-folder-other')
+  // The projectRoot input stays the one value the save sends; the read-only line and the picker only mirror / set it.
+  const showFolder = () => { botFolderPath.textContent = botProjectRoot.value || 'まだ選んでいません' }
+  const folderPicker = createFolderPicker(dialog.querySelector('#bot-folder-picker'), {
+    api, chosen: () => botProjectRoot.value,
+    onChoose(path, { close }) { botProjectRoot.value = path; editRevision++; botCreateFolder.hidden = true; showFolder(); if (close) folderPicker.close() },
+    onOldBody() { botFolderOther.open = true },
+  })
+  dialog.querySelector('#bot-folder-choose').addEventListener('click', () => { if (botTerminal.value) folderPicker.open(botTerminal.value) })
+  botProjectRoot.addEventListener('input', showFolder)
   // Prefill an empty folder, or one still holding our own prefill; typed text is never replaced.
   const prefillFolder = () => {
     const user = owner?.terminals?.find(item => item.terminalId === botTerminal.value)?.user
     if (!user || (botProjectRoot.value && botProjectRoot.value !== owner.prefill)) return
     botProjectRoot.value = owner.prefill = memberFolder(user, botName.value)
+    showFolder()
   }
-  botTerminal.addEventListener('change', () => { botProjectRootField.hidden = !botTerminal.value; botCreateFolder.hidden = true; prefillFolder() })
+  botTerminal.addEventListener('change', () => { botProjectRootField.hidden = !botTerminal.value; botCreateFolder.hidden = true; folderPicker.close(); prefillFolder(); showFolder() })
   botName.addEventListener('input', () => { if (owner?.remote && botTerminal.value) prefillFolder() })
   botCreateFolder.addEventListener('click', event => { void saveBot(event, { createFolder: true }) })
   const avatar = createAvatarEditor({ onChange: () => { editRevision++ }, retainSource:true, applyAvatar, initials, escapeClass,
@@ -154,6 +167,7 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
     owner.initialRevision = editRevision
     renderDeletionState()
     botRemote.hidden = true
+    folderPicker.close()
     if (!dialog.open) dialog.showModal()
     void loadRemote(owner, controller.signal)
     try {
@@ -211,6 +225,7 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
     opened.terminals = result.terminals
     opened.remote = true
     if (savedId) prefillFolder()
+    showFolder()
     botRemote.hidden = false
   }
 

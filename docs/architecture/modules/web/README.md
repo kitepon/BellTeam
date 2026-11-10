@@ -127,6 +127,10 @@ flowchart TD
   List2 -->|ok| Fields["select: BellTeamの中 / registered terminals + folder (absolute path)"]
   List2 -->|404 / 503 / error| Hidden["section hidden, fields never sent"]
   Fields -->|terminal chosen, folder empty or still the prefill| Prefill["memberFolder(user, name): /Users/<user>/BellTeam/<slug>"]
+  Fields -->|フォルダを選ぶ| Picker["folder-picker.js: GET /api/terminals/:id/folders[?path=] (home first)"]
+  Picker -->|reason null| Rows["rows open a subfolder; 上へ = parent; このフォルダにする -> folder field"]
+  Picker -->|新しいフォルダ name| Make["POST /api/terminals/:id/folder {path: current/name, create: true} -> relist current, choose the new path"]
+  Picker -->|reason / HTTP error| Why["one sentence + もう一度; offline = いまは端末に届きません, never an empty list"]
   Fields -->|changed only| Body["POST/PATCH /api/bots body adds terminalId + projectRoot (both or both '')"]
   Body -->|409 FOLDER_MISSING| Create["このフォルダを作って保存 → same save + createFolder: true"]
   Body -->|409 FOLDER_NOT_* / 404 TERMINAL_NOT_FOUND| FolderText["plain sentence + folder; nothing saved"]
@@ -148,7 +152,9 @@ flowchart TD
 
 Ownership: results apply only to the same open dialog (`opened` token); close/reopen drops late replies. No storage, SSE or guard added; the only polling is the key-authorize wait above, which lasts while the Owner keeps the dialog open. The server owns validation, trust and secrets.
 
-Source reach: `web/terminals.js` (new), `web/secret-input.js` (export `openSecretInput`), `web/bot-editor.js`, `web/application.js`, `web/index.html`, `web/styles.css`, `web/assets.mjs`, `test/web-terminals.test.mjs`, `test/web-member-folder.test.mjs`.
+| Folder picker (S6, Crust #887, Owner 2026-11-10 「リモートフォルダ指定を、テキスト入力させるのやめてくれ」) | フォルダ shows the chosen path read-only (`#bot-folder-path`, mirrors the `projectRoot` input) + 「フォルダを選ぶ」; the input itself sits under 「ほかの方法 > パスを入力」. `createFolderPicker` (`web/folder-picker.js`) owns only picker state `{terminalId, path, seq}`: each GET `/api/terminals/:id/folders[?path=]` (no path = the terminal user's home) bumps `seq` and an older reply is dropped. `reason` null -> current path, 「上へ」 when `parent` != null, one button row per entry (tap = list that path), empty -> 「この中にフォルダはありません。」, `truncated` -> 「最初の500件だけ表示しています。」, 「このフォルダにする」 writes the path to the input (same value the save already sends; S5 save check unchanged) and closes the picker. 「新しいフォルダ」 -> name + 作る: empty, containing `/` or NUL, `.`, `..` or more than 255 UTF-8 bytes is refused on screen; else POST `/api/terminals/:id/folder {path: <current>/<name>, create: true}` once; `reason` null -> relist current and choose the new path, else its sentence with the name kept. `reason` non-null -> no rows and no choose button: `FOLDER_*` -> the S5 words (`folderRefusal`), other reasons -> 「いまは端末に届きません。」 + the server `action`; every failure has 「もう一度」 (same request). HTTP 400 `INVALID_PATH` -> このパスは使えません, 404 `TERMINAL_NOT_FOUND` -> S5 sentence, 404/405 without that code (older body) -> 「フォルダを画面で選ぶには、本体を「Update」で更新してください。」 and 「パスを入力」 opens; network -> 「フォルダを読めませんでした。」. Terminal change or dialog reopen closes the picker and drops replies. Listing writes nothing; no guard. |
+
+Source reach: `web/folder-picker.js` (S6), `web/terminals.js` (new), `web/secret-input.js` (export `openSecretInput`), `web/bot-editor.js`, `web/application.js`, `web/index.html`, `web/styles.css`, `web/assets.mjs`, `test/web-terminals.test.mjs`, `test/web-member-folder.test.mjs`.
 
 ## 相関図
 

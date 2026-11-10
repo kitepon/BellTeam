@@ -255,7 +255,10 @@
         <label class="field"><span>役割</span><textarea id="bot-role" name="role" rows="5" maxlength="8000" placeholder="このBotが担当する仕事"></textarea></label>
         <section id="bot-remote" hidden><div class="form-section-heading"><h3>動かす場所</h3><p>BellTeamの中で動かすか、登録した端末の決まったフォルダで動かすかを選びます。</p></div>
         <label class="field"><span>端末</span><select id="bot-terminal" name="terminalId"></select></label>
-        <label class="field" id="bot-project-root-field"><span>フォルダ</span><input id="bot-project-root" name="projectRoot" maxlength="4096" placeholder="/Users/kite/work/app" autocapitalize="none" spellcheck="false"><small class="field-help">端末の上での絶対パスです。メンバーはこのフォルダで起動し、フォルダのルールを読みます。BellTeamのファイルはここに置きません。</small></label>
+        <div class="field" id="bot-project-root-field"><span>フォルダ</span><div class="folder-choice"><p class="folder-chosen" id="bot-folder-path"></p><button class="upload-button" id="bot-folder-choose" type="button">フォルダを選ぶ</button></div>
+        <div class="folder-picker" id="bot-folder-picker" hidden></div>
+        <small class="field-help">メンバーはこのフォルダで起動し、フォルダのルールを読みます。BellTeamのファイルはここに置きません。</small>
+        <details class="folder-other" id="bot-folder-other"><summary>ほかの方法</summary><label class="field"><span>パスを入力</span><input id="bot-project-root" name="projectRoot" maxlength="4096" placeholder="/Users/kite/work/app" autocapitalize="none" spellcheck="false"></label></details></div>
         <p class="field-help" id="bot-remote-status" role="status"></p></section>
         <label class="field"><span>テーマ色</span><select id="bot-color" name="color"><option value="violet">紫</option><option value="rose">ローズ</option><option value="indigo">インディゴ</option></select></label>
         <p class="form-error" id="bot-form-error" role="alert"></p><button class="upload-button" id="bot-create-folder" type="button" hidden>このフォルダを作って保存</button><button class="text-button" id="verify-bot-save" type="button" hidden>保存結果を確認</button>

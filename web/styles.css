@@ -502,6 +502,26 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 #bot-fast-status { margin-bottom: 24px; }
 .profile-dialog .upload-button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; text-align: center; line-height: 1.6; }
 .profile-dialog .upload-button[hidden] { display: none; }
+/* S6 folder picker inside the member editor. */
+.folder-choice { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.folder-chosen { flex: 1 1 180px; min-width: 0; margin: 0; padding: 11px 13px; border: 1px solid #dedee2; border-radius: 13px; background: #f7f7f8; font: 14px/1.5 ui-monospace, monospace; overflow-wrap: anywhere; }
+.folder-picker { display: grid; gap: 10px; padding: 14px; border: 1px solid #dedee2; border-radius: 16px; background: #fafafb; }
+.folder-picker[hidden] { display: none; }
+.folder-picker-head, .folder-picker-actions { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.folder-picker-actions[hidden], .folder-picker-create[hidden], .folder-picker button[hidden] { display: none; }
+.folder-picker-path { margin: 0; font: 700 13px/1.5 ui-monospace, monospace; overflow-wrap: anywhere; }
+.folder-picker-status { margin: 0; color: #666671; font-size: 13px; line-height: 1.7; }
+.folder-picker-status:empty { display: none; }
+.folder-picker-list { display: grid; max-height: 320px; overflow-y: auto; border-radius: 12px; background: #fff; }
+.folder-picker-list:empty { display: none; }
+.folder-picker-row { min-height: 44px; padding: 10px 14px; border: 0; border-bottom: 1px solid #eeeef1; background: transparent; text-align: left; font-size: 15px; overflow-wrap: anywhere; cursor: pointer; }
+.folder-picker-row:last-child { border-bottom: 0; }
+.folder-picker .upload-button.primary { background: #111; color: #fff; }
+.folder-picker-create { display: flex; flex-wrap: wrap; gap: 8px; }
+.folder-picker-create .folder-picker-name { flex: 1 1 160px; min-width: 0; min-height: 44px; padding: 10px 12px; border: 1px solid #dedee2; border-radius: 12px; }
+.folder-picker-create .folder-picker-status { flex-basis: 100%; }
+.folder-other summary { color: #666671; font-size: 13px; cursor: pointer; }
+.folder-other .field { margin: 10px 0 0; }
 @media (max-width: 640px) { .profile-dialog .avatar-editor { flex-wrap: wrap; gap: 12px; } .profile-dialog .avatar-editor .upload-button { white-space: nowrap; } }
 
 .schedule-source { padding: 20px 0; border-top: 1px solid var(--line); }
