@@ -107,6 +107,18 @@ Root: `RUNTIME_ROOT` = `/srv/bellteam/shared/tools/bellteam-runtime` inside the 
 
 The body keeps one Aiterm MCP connection for its whole lifetime, so an aiterm-mcp generation is always in use in the shared Aiterm state/tmux scope. Old and new aiterm-mcp must not share that scope (Aiterm owner rule), so it cannot be hot-replaced. The updater refuses it before any staging or selection: `HostUpdater.module_target` and the body's runtime plan both answer `RUNTIME_COHABITATION_UNSUPPORTED` (409), and the inventory row shows `capability:{supported:false, reason:"RUNTIME_COHABITATION_UNSUPPORTED"}`. aiterm-mcp keeps updating with the body image (Z-c path). runtime-codex, runtime-claude-code and runtime-throughline (0.16.56, Throughline owner decision) keep the hot-update path. No runtime-aiterm-mcp row needs to be published.
 
+## All runtimes update only with the body image (Owner ruling 2026-11-08 11:13 JST; enforced 2026-11-10)
+
+Owner: "Aiterm/CLIs updated only by latest npm install at each new body release; runtime hot-update (Z-b2) dropped; merged code stays unused." Until 2026-11-10 the runtime=1 inventory still offered `runtime-codex`, `runtime-claude-code` and `runtime-throughline` (the runtime catalog's first distribution, `capability.supported=true`), so Web showed an update button and 「更新あり」 (Trony/Admi).
+
+| Step | Contract |
+| --- | --- |
+| Inventory (`update-module-executor.mjs snapshot`) | Every runtime row: `capability {supported:false, reason:'RUNTIME_BODY_IMAGE_ONLY'}`; `runtime-aiterm-mcp` keeps `RUNTIME_COHABITATION_UNSUPPORTED`. Current/published/comparison stay as read (display only). |
+| Plan | `componentId` of any runtime → 409 with the same reason, before any catalog read, staging or job. |
+| Exit | A new body image carries the latest npm runtimes; nothing else changes them. |
+
+Rows P1–P8 below stay as the record of the merged, unused path.
+
 ## Stable launcher for registrations (P6, Molly)
 
 `/usr/local/bin/node /app/scripts/runtime-exec.mjs` serves global hook/MCP registrations that outlive one launch's capture.
