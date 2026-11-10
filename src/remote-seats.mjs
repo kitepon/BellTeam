@@ -161,12 +161,13 @@ export class RemoteSeats {
   // that has a recorded remote seat; Aiterm's keeper then rebuilds the seat MCP route without waiting for a Mac operation.
   async warm(launches) {
     const terminals = new Map()
-    for (const { botId, target, harness } of Object.values(launches ?? {})) {
+    for (const { botId, target } of Object.values(launches ?? {})) {
       const [terminalId, projectRoot] = typeof target === 'string' ? target.split('\n') : []
       if (terminalId && projectRoot && typeof botId === 'string' && !terminals.has(terminalId))
-        terminals.set(terminalId, { bot: { id: botId, terminalId, projectRoot }, harness })
+        terminals.set(terminalId, { id: botId, terminalId, projectRoot })
     }
-    await Promise.all([...terminals.values()].map(({ bot, harness }) => this.target(bot, harness ?? 'claude-code').catch(() => {})))
+    // No harness: terminals runs no C8 (CLI upkeep/login check), so a logged-out CLI cannot keep the key out (Epinel #996).
+    await Promise.all([...terminals.values()].map(bot => this.target(bot, null).catch(() => {})))
     return [...terminals.keys()]
   }
 
