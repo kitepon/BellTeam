@@ -89,3 +89,32 @@ test('deliverForkInquiry posts to the fork delivery route with the seat source',
   assert.deepEqual(await api.deliverForkInquiry({ from: 'bot-a', target: 'bot-b', message: 'm' }), { delivery: 'running' })
   assert.deepEqual(calls, [['http://127.0.0.1:4181/api/deliveries/fork', 'bot-a', { from: 'bot-a', target: 'bot-b', message: 'm', executionSource }]])
 })
+
+test('internal HTTP (SK07): a running fork reads as its Bot, never writes, and fails closed', async t => {
+  const runs = []
+  let fail = false
+  const transport = {
+    forkSeat: name => { if (fail) throw new Error('down'); return name === FORK ? { botId: 'bot-a', forkId: 'f1' } : null },
+    queueItems: () => [{ botId: 'bot-a' }],
+  }
+  const conversationAssembly = { run: (actor, operation, options) => { runs.push([actor, options?.executionSource?.sourceSession ?? null]); return operation() } }
+  const messenger = { sendmessage: () => assert.fail('fork reached the direct write path') }
+  const server = createBellTeamServer({ bots: registry(), authorize: async () => true, messenger, transport, store: {}, internal: true, conversationAssembly })
+  server.listen(0, '127.0.0.1')
+  await once(server, 'listening')
+  t.after(() => server.close())
+  const base = `http://127.0.0.1:${server.address().port}`
+  const call = (method, path, seat) => fetch(`${base}${path}`, { method, headers: { [SEAT_HEADER]: seat, ...(method === 'POST' ? { 'content-type': 'application/json' } : {}) }, ...(method === 'POST' ? { body: '{"from":"bot-a","target":"bot-a","message":"x"}' } : {}) })
+  const read = await call('GET', '/api/queue', FORK)
+  assert.equal(read.status, 200)
+  assert.deepEqual(runs.at(-1), [{ kind: 'bot', botId: 'bot-a' }, FORK])
+  const write = await call('POST', '/api/deliveries/direct', FORK)
+  assert.deepEqual([write.status, (await write.json()).error], [400, 'FORK_READ_ONLY'])
+  // An unknown fork name is no Bot; a main seat keeps its own identity.
+  await call('GET', '/api/queue', 'bot-a-fork-ffffffffffff')
+  assert.equal(runs.at(-1)[0], null)
+  await call('GET', '/api/queue', 'bot-a')
+  assert.deepEqual(runs.at(-1), [{ kind: 'bot', botId: 'bot-a' }, 'bot-a'])
+  fail = true
+  assert.equal((await call('GET', '/api/queue', FORK)).status, 503)
+})

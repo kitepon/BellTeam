@@ -48,6 +48,21 @@ export async function resolveSeatBotId(request, bots) {
   return null
 }
 
+// SK07: the internal HTTP API's seat. A running fork (execution's forkSeat registry) speaks for its Bot on GET
+// reads only; any other method from a fork name is FORK_READ_ONLY, so a fork never reaches a main-seat write path.
+export async function resolveInternalSeat(request, bots, forkSeat) {
+  const botId = await resolveSeatBotId(request, bots)
+  const name = request.headers[SEAT_HEADER.toLowerCase()]
+  if (botId || typeof forkSeat !== 'function' || typeof name !== 'string' || !name.includes('-fork-')) return { botId, fork: null }
+  let fork
+  try { fork = await forkSeat(name) ?? null }
+  catch { throw Object.assign(new Error('EXECUTION_UNAVAILABLE'), { code: 'EXECUTION_UNAVAILABLE', status: 503 }) }
+  if (!fork) return { botId: null, fork: null }
+  if (request.method !== 'GET') throw Object.assign(new Error('FORK_READ_ONLY'), { code: 'FORK_READ_ONLY', status: 400 })
+  const id = await memberId(fork.botId, bots)
+  return id ? { botId: id, fork } : { botId: null, fork: null }
+}
+
 // A runtime claim captured at HTTP ingress, never a verified execution or a model argument.
 // sourceSession is the real Aiterm session name (an account seat keeps its suffix), not the Bot id.
 export function seatExecutionSource(request, bots) {
@@ -207,7 +222,7 @@ async function memberId(id, bots) {
 }
 
 // SK06: the fork's own session name; the launch header stays today's runtime claim.
-function forkExecutionSource(request) {
+export function forkExecutionSource(request) {
   const sourceSession = request.headers[SEAT_HEADER.toLowerCase()]
   const value = request.headers[LAUNCH_HEADER.toLowerCase()]
   const launch = typeof value === 'string' && /^[0-9a-f]{32}$/u.test(value) ? { session_id: sourceSession, launch_id: value } : null
