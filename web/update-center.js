@@ -425,7 +425,7 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     else [title, tone] = [inventory ? '一部の状態を確認できません' : '更新情報', 'muted']
     if (!selectedPlan && !readError && inventory) description = running.length ? '進み具合はこの画面で確認できます。閉じても更新は続きます。'
       : title === 'すべて最新です' ? `${product_.length}つの機能はどれも最新版です。`
-      : title === '更新できるものはすべて最新です' ? `${waiting.map(item => item.name).join('・')}は、いまの本体に合う版がまだありません。本体の更新を待ってください。` : updatable.length ? '更新したい機能の「更新」を押してください。' : ''
+      : title === '更新できるものはすべて最新です' ? `${waiting.map(item => item.name).join('・')}は、いまの本体に合う版がまだありません。合う版が出ると、ここで更新できます。` : updatable.length ? '更新したい機能の「更新」を押してください。' : ''
     product.replaceChildren()
     product.dataset.tone = tone
     const header = element('header', 'update-summary')

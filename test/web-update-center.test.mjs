@@ -675,6 +675,6 @@ test('incompatible usage with every other part latest is named and asks for no a
   await f.center.start()
   const header = text(f.get('[data-update-product]'))
   assert.match(header, /更新できるものはすべて最新です/)
-  assert.match(header, /利用設定は、いまの本体に合う版がまだありません。本体の更新を待ってください。/)
+  assert.match(header, /利用設定は、いまの本体に合う版がまだありません。合う版が出ると、ここで更新できます。/)
   assert.doesNotMatch(header, /確認できません|「更新」を押してください/)
 })
