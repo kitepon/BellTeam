@@ -6,14 +6,14 @@ This file is the canonical implementation diagram. The design document stays the
 
 ## Targets
 
-Four fixed component IDs remain in the resolver/generation schema. Hot updates support the two CLIs and Throughline. `runtime-aiterm-mcp` is excluded: the body retains an Aiterm MCP connection for its lifetime, and different Aiterm closures are not certified to share its state/tmux scope. Molly's updater capability/plan contract is capability false with `RUNTIME_COHABITATION_UNSUPPORTED` before staging or selection commit. Aiterm updates with the body image through Z-c under its existing acceptance and operational conditions; this slice adds no parent reconnect protocol. No npm specifier, URL, shell or path crosses the public boundary.
+Four fixed component IDs remain in the resolver/generation schema. **Current contract: no runtime is hot-updated; all four update only with the body image** ([section below](#all-runtimes-update-only-with-the-body-image-owner-ruling-2026-11-08-1113-jst-enforced-2026-11-10); Owner 2026-11-08). Historical (superseded): hot updates were designed for the two CLIs and Throughline. `runtime-aiterm-mcp` was excluded from the start: the body retains an Aiterm MCP connection for its lifetime, and different Aiterm closures are not certified to share its state/tmux scope. Molly's updater capability/plan contract is capability false with `RUNTIME_COHABITATION_UNSUPPORTED` before staging or selection commit. Aiterm updates with the body image through Z-c under its existing acceptance and operational conditions; this slice adds no parent reconnect protocol. No npm specifier, URL, shell or path crosses the public boundary.
 
-| componentId | Package (closed map) | Entries resolved by P6 | Hot update |
+| componentId | Package (closed map) | Entries resolved by P6 | Hot update (current) |
 | --- | --- | --- | --- |
-| `runtime-aiterm-mcp` | `aiterm-mcp` | `bin/aiterm-mcp`, `dist` = `lib/node_modules/aiterm-mcp/dist` | Unsupported; body-image path |
-| `runtime-codex` | `@openai/codex` | `bin/codex` | Supported |
-| `runtime-claude-code` | `@anthropic-ai/claude-code` | `bin/claude` | Supported |
-| `runtime-throughline` | `throughline` | `bin/throughline` | Supported |
+| `runtime-aiterm-mcp` | `aiterm-mcp` | `bin/aiterm-mcp`, `dist` = `lib/node_modules/aiterm-mcp/dist` | No; body image (`RUNTIME_COHABITATION_UNSUPPORTED`) |
+| `runtime-codex` | `@openai/codex` | `bin/codex` | No; body image (`RUNTIME_BODY_IMAGE_ONLY`; designed hot update superseded) |
+| `runtime-claude-code` | `@anthropic-ai/claude-code` | `bin/claude` | No; body image (`RUNTIME_BODY_IMAGE_ONLY`; designed hot update superseded) |
+| `runtime-throughline` | `throughline` | `bin/throughline` | No; body image (`RUNTIME_BODY_IMAGE_ONLY`; designed hot update superseded) |
 
 P6 returns `builtin` paths (the image's `/usr/local` prefix) before a selection exists and for each component absent from an established generation vector, including Aiterm on the supported hot-update path. An unreadable/invalid established selection fails; it never falls back to builtin. Builtin CLI execution preserves the caller's PATH precedence.
 
@@ -115,6 +115,7 @@ Owner: "Aiterm/CLIs updated only by latest npm install at each new body release;
 | --- | --- |
 | Inventory (`update-module-executor.mjs snapshot`) | Every runtime row: `capability {supported:false, reason:'RUNTIME_BODY_IMAGE_ONLY'}`; `runtime-aiterm-mcp` keeps `RUNTIME_COHABITATION_UNSUPPORTED`. Current/published/comparison stay as read (display only). |
 | Plan | `componentId` of any runtime → 409 with the same reason, before any catalog read, staging or job. |
+| Start of a saved plan | A runtime plan saved before this rule (ledger plans survive a body swap) is refused at `start` with the same reason before catalog check, staging or admission. An operation already accepted earlier stays observable through the same requestId/idempotencyKey. |
 | Exit | A new body image carries the latest npm runtimes; nothing else changes them. |
 
 Rows P1–P8 below stay as the record of the merged, unused path.

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { once } from 'node:events'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -135,6 +135,27 @@ test('CLI and Throughline runtimes are never offered or planned: every runtime u
     await assert.rejects(f.executor.plan({ scope: 'component', componentId: id }, { components: [row] }), { code: 'RUNTIME_BODY_IMAGE_ONLY' })
   }
   assert.deepEqual(f.calls, [])
+})
+test('a runtime plan saved before the body-only rule is refused at start before catalog, staging or admission', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'runtime-saved-plan-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const published = { version: sha('b'), sourceCommit: 'b'.repeat(40), digest: 'sha256:' + sha('b'), origin: 'published' }
+  const current = { version: 'builtin', sourceCommit: null, digest: null, origin: 'builtin' }
+  const plan = { planId: randomUUID(), scope: 'component', componentId: 'runtime-codex', action: 'update', expiresAt: '2099-01-01T00:00:00Z',
+    targets: [{ componentId: 'runtime-codex', current, published }], compatibility: { compatible: true, reason: null },
+    impact: { containerRestart: false, description: '次回起動から適用します。' }, capability: { supported: true, reason: null } }
+  const step = { componentId: 'runtime-codex', from: current, target: published, release: runtimeRelease('runtime-codex'), catalogSha256: sha('c'),
+    installPlan: { planId: randomUUID(), expiresAt: '2099-01-01T00:00:00Z' } }
+  await mkdir(join(root, 'state/update-ledger'), { recursive: true, mode: 0o700 })
+  await writeFile(join(root, 'state/update-ledger/ledger.json'), JSON.stringify({ schema: 'bellteam.module-update.ledger.v1',
+    plans: [{ plan, steps: [step], hostPlan: null }], operations: [] }) + '\n', { mode: 0o600 })
+  const calls = []
+  const moduleHost = new Proxy({}, { get: (_, name) => name === 'then' ? undefined : (...args) => { calls.push(name); return Promise.resolve(null) } })
+  const catalog = { select: async id => { calls.push(['select', id]); return selection(id) }, checkCatalog: async () => {} }
+  const executor = await createModuleUpdateExecutor({ root, catalog, moduleHost, adapters: {} })
+  t.after(() => executor.close())
+  await assert.rejects(executor.start({ planId: plan.planId, requestId: randomUUID(), confirmContainerRestart: false }), { code: 'RUNTIME_BODY_IMAGE_ONLY' })
+  assert.deepEqual(calls, [])
 })
 test('an all plan keeps its module and container steps only', async t => {
   const f = await runtimeFixture(t)

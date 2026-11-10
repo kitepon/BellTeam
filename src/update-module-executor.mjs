@@ -518,6 +518,9 @@ export async function createModuleUpdateExecutor({ root, catalog, adapters, host
         requireValue(!active && !state.operations.some(hostPending), 'MODULE_EXCHANGE_BUSY', 409)
         const planned = findPlan(input.planId)
         requireValue(planned, 'UPDATE_PLAN_NOT_FOUND', 404)
+        // runtime-updates.md: a runtime plan saved before the body-only rule is refused like a new one; accepted work above stays observable.
+        const bodyOnly = planned.steps.map(step => bodyImageOnly(step.componentId)).find(Boolean)
+        requireValue(!bodyOnly, bodyOnly, 409)
         requireValue(Date.parse(planned.plan.expiresAt) > now(), 'UPDATE_PLAN_EXPIRED', 409)
         requireValue(!planned.plan.impact.containerRestart || input.confirmContainerRestart, 'UPDATE_RESTART_CONFIRMATION_REQUIRED', 409)
         requireValue(moduleHost?.admitJob || planned.steps.every(step => step.componentId === 'container'), 'UPDATE_JOB_READER_UNAVAILABLE')
