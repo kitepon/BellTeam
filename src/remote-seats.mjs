@@ -62,6 +62,9 @@ export function pieces(text) {
 }
 
 export const KEY_RELOAD = new Set(['CREDENTIAL_NOT_LOADED', 'CREDENTIAL_REVISION_STALE'])
+// Aiterm session calls (pty_close/pty_send/...) return the refusal only as text "aiterm: CODE: ..."; agent_launch has _meta.
+const reloadCode = error => error?.code
+  ?? (error?.aitermResponseReturned === true ? /^(?:aiterm: )?([A-Z][A-Z0-9_]+):/u.exec(String(error.message ?? ''))?.[1] : undefined)
 
 export const isRemoteBot = bot => typeof bot?.terminalId === 'string' && bot.terminalId !== ''
   && typeof bot.projectRoot === 'string' && bot.projectRoot !== ''
@@ -241,7 +244,7 @@ export class RemoteSeats {
         let result
         try { result = await client.call(name, args, options) } catch (error) {
           // Aiterm refuses before contacting the terminal, so the same call is issued once more after the load (R13).
-          if (!KEY_RELOAD.has(error?.code) || typeof args.session_id !== 'string' || !await remote.reloadKey(args.session_id)) throw error
+          if (!KEY_RELOAD.has(reloadCode(error)) || typeof args.session_id !== 'string' || !await remote.reloadKey(args.session_id)) throw error
           result = await client.call(name, args, options)
         }
         if (name === 'pty_close' && !result?.isError && typeof args.session_id === 'string') await remote.closed(args.session_id)

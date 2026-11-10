@@ -811,6 +811,10 @@ export class AitermTransport {
     catch (error) {
       if (['not_started', 'not_issued'].includes(error?.effect)) throw error
       await this.recordDeliveryFailure(bot.id, closedSession, 'BOT_LAUNCH_FAILED')
+      // control-details.md: a close Aiterm answered as failed keeps the old seat, so nothing is launched (it would meet the
+      // same name or add a second seat). A close with no answer stays today's recorded unknown and launches.
+      if (error?.aitermResponseReturned === true) throw Object.assign(new Error('RESTART_CLOSE_FAILED', { cause: error }), { code: 'RESTART_CLOSE_FAILED', effect: 'not_started',
+        reason: String(error?.message ?? '').split('\n', 1)[0].slice(0, 300) })
     }
     if (closure) onClosed(closure, closedSession)
     await this.removeRetainedImages(bot.id)

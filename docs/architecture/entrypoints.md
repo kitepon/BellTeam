@@ -46,7 +46,7 @@ HTTPでは`healthz`だけ先に返し、`session`は認証判定を返す。そ�
 | GET/POST `/bots` | `BotRegistry` / 一覧projection / `memory.ensureScope` | 作成時は台帳→personal記憶準備。一覧は稼働・履歴・設定反映を合成 |
 | GET/PATCH `/bots/:bot` | `members.createMemberProfileApi` → Administration/view | [プロフィール正本](modules/members/profiles.md)。設定保存と稼働反映を分ける |
 | DELETE `/bots/:bot` | `members.createMemberDeletionApi` → `BotAdministration.remove`委譲 | [削除契約](modules/members/deletion.md)。既pendingも同じ入口で再開、202は受付 |
-| POST `/bots/:bot/{stop,restart}` | `BotAdministration` → transport | 停止結果は確認して返す。restart202は背景開始 |
+| POST `/bots/:bot/{stop,restart}` | `BotAdministration` → transport | 停止結果は確認して返す。restartも新しい席の起動まで待ち、200 `{restarted, session}`、できなければ`BOT_RESTART_FAILED`と理由（旧席を閉じられなかった時は`RESTART_CLOSE_FAILED`、起動0）を返す |
 | GET `/bots/:bot/screen` | `transport.screen` | 既存席の観測。本文履歴と別 |
 | GET `/bots/:bot/{avatar,avatar-large,avatar-source,avatar-large-source}` | `sendAvatar` | 保存画像・版とcache応答 |
 | GET `/bots/:bot/character-sheet[/:file]` | `CharacterSheets`または席proxy | 正本の一覧・stream。HTTP切断時にreaderも止める |
@@ -78,7 +78,7 @@ HTTPでは`healthz`だけ先に返し、`session`は認証判定を返す。そ�
 | `list_bots/get_bot/get_self` | `members.callMemberTool` → registry / botView | MCP共通整形はアバター本体を除く |
 | `create_bot/update_bot/update_self/set_avatar` | `members.callMemberTool` → registry/configure | model/harness/effortは既configure、プロフィールだけはregistry直通。set_avatarは既画像pathを検証して更新 |
 | `delete_bot` | `members.runDeleteBotTool` → internalApi.remove | [削除の公開契約](modules/members/deletion.md) |
-| `restart_session/set_fast_mode` | executionの既restart/configure | 実行設定と停止・再起動の責任はexecution |
+| `restart_session/set_fast_mode` | executionの既restart/configure | 実行設定と停止・再起動の責任はexecution。restart_sessionはHTTP restartの結果（成功か理由付きの失敗）をそのまま返す |
 | `get_owner_profile/get_user_rules` | `members.callMemberTool` → 各正本service | 読取り |
 | `update_user_rules` | `members.callMemberTool` → 直接会話timelineのOwner本人入力（`messageAuthor.kind=user`）の全文が承認の言葉`規範変更を承認 <code>`かを確認 → 無ければ承認のお願いを送る / 有ればmembers `rules.botUpdate`（before固定）→ 履歴・global再生成・Ownerへの自動記録 | Owner本人が差分を承認した時だけ保存。[instructions](modules/members/instructions.md) |
 | `remember/recall_memory/revise_memory/pin_memory/consolidate_growth/record_knowledge/search_knowledge` | memory serviceまたは席proxy | 最終argsのscope/botIdを子へ渡す。検証は記憶側 |

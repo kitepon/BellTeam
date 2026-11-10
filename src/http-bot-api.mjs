@@ -64,8 +64,12 @@ export function createBotApi(options) {
       const botId = restartMatch[1]
       const bot = bots.get(botId)
       if (!bot) return json(response, 404, { error: 'BOT_NOT_FOUND' })
-      administration.restart(bot)
-      return json(response, 202, { restarting: botId })
+      try {
+        const result = await administration.restart(bot)
+        return json(response, 200, { restarted: botId, ...(typeof result?.session === 'string' ? { session: result.session } : {}) })
+      } catch (error) {
+        return json(response, error.status ?? 502, { error: 'BOT_RESTART_FAILED', message: error.publicMessage ?? '会話を再起動できませんでした。' })
+      }
     }
 
     const screenMatch = url.pathname.match(/^\/api\/bots\/([a-z0-9-]+)\/screen$/u)
