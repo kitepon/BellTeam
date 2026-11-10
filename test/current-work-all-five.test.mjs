@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { AitermTransport } from '../src/aiterm-transport.mjs'
 
 // Contracted producer rows; these fixtures do not claim live native acceptance.
-test('all five activity rows preserve parent waits and isolate the Codex watcher', async t => {
+test('all five activity rows preserve parent waits and keep null-start rows observation-only', async t => {
   let clock = 720_000
   const epoch = 1_800_000_000_000, calls = []
   const bots = ['codex', 'claude', 'grok', 'cursor', 'antigravity'].map(harness => ({
@@ -34,8 +34,9 @@ test('all five activity rows preserve parent waits and isolate the Codex watcher
   const poll = () => transport.seatTurns(bots)
 
   const legacy = await poll()
-  assert.deepEqual([...legacy.keys()], [bots[0].id])
+  assert.deepEqual([...legacy.keys()], bots.map(bot => bot.id))
   assert.strictEqual(legacy.get(bots[0].id), rows[0].turn)
+  assert.equal(legacy.get(bots[1].id).codex, false)
   assert.deepEqual(states(), bots.map(() => 'working'))
   const first = bindings()
   assert.ok(first.every(Boolean))
