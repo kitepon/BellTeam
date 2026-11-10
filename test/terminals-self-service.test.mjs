@@ -166,12 +166,11 @@ test('folders: picker lists subfolders from home, opens one, and reports missing
 })
 
 test('Windows and Linux: native path forms for the picker, the folder check and the launch target', async t => {
-  const { isTerminalPath, parentPath, defaultProjectRoot } = await import('../src/terminals/paths.mjs')
+  const { isTerminalPath, parentPath } = await import('../src/terminals/paths.mjs')
   for (const [os, path, ok] of [['windows', 'C:\\', true], ['windows', 'C:\\Users\\kite_', true], ['windows', 'C:/Users', false], ['windows', 'C:\\Users\\', false],
     ['windows', 'C:\\a\\..\\b', false], ['windows', '/home/kite', false], ['linux', '/home/kite', true], ['linux', 'C:\\Users', false], ['linux', '/home/', false]])
     assert.equal(isTerminalPath(os, path), ok, `${os} ${path}`)
   assert.deepEqual([parentPath('windows', 'C:\\Users'), parentPath('windows', 'C:\\'), parentPath('linux', '/home')], ['C:\\', null, '/'])
-  assert.deepEqual([defaultProjectRoot('windows', 'kite_', 'a'), defaultProjectRoot('linux', 'kite', 'a')], ['C:\\Users\\kite_\\BellTeam\\a', '/home/kite/BellTeam/a'])
 
   const { core, native } = await setup(t)
   await core.registry.put({ ...mac, terminalId: 'fox', os: 'windows', user: 'kite_', sshKeyRef: nativeHandle })

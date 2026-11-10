@@ -1,4 +1,4 @@
-// One path rule per terminal OS (terminals README "Windows and Linux terminals"); members uses the same rule.
+// One path rule per terminal OS (terminals README "Windows and Linux terminals"). Members keeps its own form check (Belorta #966); terminals rechecks at folder and launch.
 // macos/linux: POSIX absolute. windows: drive-absolute native form `X:\...` with backslashes only, `X:\` is the root.
 export const TERMINAL_OS = ['macos', 'linux', 'windows']
 export const OS_LABEL = { macos: 'Mac', linux: 'Linux', windows: 'Windows' }
@@ -24,9 +24,4 @@ export function parentPath(os, at) {
   if (isRoot(os, at)) return null
   const cut = at.lastIndexOf(separator(os))
   return windows(os) ? (cut <= 2 ? at.slice(0, 3) : at.slice(0, cut)) : (at.slice(0, cut) || '/')
-}
-
-export function defaultProjectRoot(os, user, slug) {
-  if (windows(os)) return `C:\\Users\\${user}\\BellTeam\\${slug}`
-  return `${os === 'linux' ? '/home' : '/Users'}/${user}/BellTeam/${slug}`
 }
