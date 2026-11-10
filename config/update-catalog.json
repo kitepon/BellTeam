@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-10T20:58:47Z",
-  "expiresAt": "2026-11-17T20:58:47Z",
+  "publishedAt": "2026-11-10T21:41:03Z",
+  "expiresAt": "2026-11-17T21:41:03Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "b6d2343c7da866c8b8d3714c25920a668d0b31a1",
-      "versionId": "sha256:6dd992a40180cb9319754ce0863668aa88ddd917967341dd365f09f5e7928f01",
+      "sourceCommit": "8954a70cc9c41d6b02cf9f86936b129b1e2d3459",
+      "versionId": "sha256:cde016bbf65588ea4fae5c7482d2a52ece153e7716c3b5d9f8f5982b2dddaf09",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6dd992a40180cb9319754ce0863668aa88ddd917967341dd365f09f5e7928f01"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:cde016bbf65588ea4fae5c7482d2a52ece153e7716c3b5d9f8f5982b2dddaf09"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "端末の席（Linux・Mac・Windows）で、Claude・Codex・Grok・Cursor・Antigravityの5つのCLIのログインを確かめられるようにします。CodexとGrokの席でログインが切れていたら、席を開く前に知らせます。Aiterm 0.70.10を入れて、端末の席の表示が「待機中」と「不明」のあいだでちらつかないようにします。"
+        "端末の席（Linux・Mac・Windows）で、Claude・Codex・Grok・Cursor・Antigravityの5つのCLIのログインを確かめられるようにします。CodexとGrokの席でログインが切れていたら、席を開く前に知らせます。Aiterm 0.70.11を入れて、端末の席の表示が「待機中」と「不明」のあいだでちらつかないようにし、Macなどの外の席の動きが毎回記録されるようにします。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "b6d2343c7da866c8b8d3714c25920a668d0b31a1",
-      "versionId": "sha256:6dd992a40180cb9319754ce0863668aa88ddd917967341dd365f09f5e7928f01",
+      "sourceCommit": "8954a70cc9c41d6b02cf9f86936b129b1e2d3459",
+      "versionId": "sha256:cde016bbf65588ea4fae5c7482d2a52ece153e7716c3b5d9f8f5982b2dddaf09",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6dd992a40180cb9319754ce0863668aa88ddd917967341dd365f09f5e7928f01"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:cde016bbf65588ea4fae5c7482d2a52ece153e7716c3b5d9f8f5982b2dddaf09"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "端末の席（Linux・Mac・Windows）で、Claude・Codex・Grok・Cursor・Antigravityの5つのCLIのログインを確かめられるようにします。CodexとGrokの席でログインが切れていたら、席を開く前に知らせます。Aiterm 0.70.10を入れて、端末の席の表示が「待機中」と「不明」のあいだでちらつかないようにします。"
+        "端末の席（Linux・Mac・Windows）で、Claude・Codex・Grok・Cursor・Antigravityの5つのCLIのログインを確かめられるようにします。CodexとGrokの席でログインが切れていたら、席を開く前に知らせます。Aiterm 0.70.11を入れて、端末の席の表示が「待機中」と「不明」のあいだでちらつかないようにし、Macなどの外の席の動きが毎回記録されるようにします。"
       ]
     }
   ],
