@@ -77,6 +77,7 @@
     "src/configuration-requests.mjs",
     "src/model-handoff.mjs",
     "src/aiterm-client.mjs",
+    "src/agent-launch-error.mjs",
     "src/mcp-request-context.mjs",
     "src/aiterm-wait-process.mjs",
     "src/execution-failure-report.mjs",
