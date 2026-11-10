@@ -327,6 +327,8 @@ export class BotRegistry extends Map {
   async #defaultProjectRoot(value) {
     if (typeof value.terminalId !== 'string' || !TERMINAL_ID.test(value.terminalId) || value.projectRoot) return value
     const terminal = await this.terminals.read(value.terminalId)
+    // undefined = the body offers no terminals: no default, so the binding check refuses an empty folder as before S5.
+    if (terminal === undefined) return value
     if (!terminal) throw Object.assign(registryError('TERMINAL_NOT_FOUND'), { status: 404 })
     return { ...value, projectRoot: `/Users/${terminal.user}/BellTeam/${memberFolderSlug(value.name)}` }
   }

@@ -32,6 +32,15 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
     validateMembersEffectResult(method, value)
     return value
   }
+  // S5 effects are newer than some bodies (remote-seat.md): after our own params check passes, a parent that rejects the
+  // method (MEMBERS_INPUT_INVALID) or has no handler (MEMBERS_EFFECT_UNSUPPORTED) offers no terminals, so answer `absent`.
+  const offered = async (method, params, absent) => {
+    validateMembersEffect(method, params, contexts.getStore())
+    try { return await call(method, params) } catch (error) {
+      if (['MEMBERS_INPUT_INVALID', 'MEMBERS_EFFECT_UNSUPPORTED'].includes(error?.code)) return absent
+      throw error
+    }
+  }
   const projectFiles = {
     ensureRoot: () => call('project.ensureRoot', {}),
     claim: project => call('project.claim', { botId: projectId(project) }),
@@ -54,7 +63,7 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
     botsRoot: join(root, 'bots'), stateRoot: join(root, 'state/bots'), projectFiles,
     currentTurn: botId => call('schedules.currentTurn', { botId }),
     models: { forHarness: harness => call('models.read', { harness }) },
-    terminals: { read: terminalId => call('terminals.read', { terminalId }), folder: request => call('terminals.folder', request) },
+    terminals: { read: terminalId => offered('terminals.read', { terminalId }, undefined), folder: request => offered('terminals.folder', request, null) },
     onChange: registry => call('cli.configure', { botIds: [...registry.keys()] }),
     assetRemoval: {
       prepareBotAssetRemoval: botId => call('assets.prepareBotAssetRemoval', { botId }),
