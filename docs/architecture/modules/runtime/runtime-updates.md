@@ -15,9 +15,11 @@ Four fixed component IDs remain in the resolver/generation schema. **Current con
 | `runtime-claude-code` | `@anthropic-ai/claude-code` | `bin/claude` | No; body image (`RUNTIME_BODY_IMAGE_ONLY`; designed hot update superseded) |
 | `runtime-throughline` | `throughline` | `bin/throughline` | No; body image (`RUNTIME_BODY_IMAGE_ONLY`; designed hot update superseded) |
 
-P6 returns `builtin` paths (the image's `/usr/local` prefix) before a selection exists and for each component absent from an established generation vector, including Aiterm on the supported hot-update path. An unreadable/invalid established selection fails; it never falls back to builtin. Builtin CLI execution preserves the caller's PATH precedence.
+P6 returns `builtin` paths (the image's `/usr/local` prefix) before a selection exists and for each component absent from an established generation vector. Under the current body-only contract no selection is created, so every component resolves to `builtin`. An unreadable/invalid established selection fails; it never falls back to builtin. Builtin CLI execution preserves the caller's PATH precedence.
 
 ## Functions
+
+> **Historical (superseded 2026-11-08).** Everything from here to "Delivery slices" records the dropped hot-update path (P1–P5, P7, P8, F-flows, job/updater/plan/start slices); the merged code stays unused and the inventory/plan/start refuse every runtime (see "All runtimes update only with the body image"). Still in use: P6 resolution (`captureRuntime`, always `builtin` now) and the stable launcher `runtime-exec.mjs`.
 
 | ID | Function: input → output | Owner |
 | --- | --- | --- |
@@ -105,7 +107,7 @@ Root: `RUNTIME_ROOT` = `/srv/bellteam/shared/tools/bellteam-runtime` inside the 
 
 ## runtime-aiterm-mcp updates only with the body image (Elegg decision, 2026-11-08)
 
-The body keeps one Aiterm MCP connection for its whole lifetime, so an aiterm-mcp generation is always in use in the shared Aiterm state/tmux scope. Old and new aiterm-mcp must not share that scope (Aiterm owner rule), so it cannot be hot-replaced. The updater refuses it before any staging or selection: `HostUpdater.module_target` and the body's runtime plan both answer `RUNTIME_COHABITATION_UNSUPPORTED` (409), and the inventory row shows `capability:{supported:false, reason:"RUNTIME_COHABITATION_UNSUPPORTED"}`. aiterm-mcp keeps updating with the body image (Z-c path). runtime-codex, runtime-claude-code and runtime-throughline (0.16.56, Throughline owner decision) keep the hot-update path. No runtime-aiterm-mcp row needs to be published.
+The body keeps one Aiterm MCP connection for its whole lifetime, so an aiterm-mcp generation is always in use in the shared Aiterm state/tmux scope. Old and new aiterm-mcp must not share that scope (Aiterm owner rule), so it cannot be hot-replaced. The updater refuses it before any staging or selection: `HostUpdater.module_target` and the body's runtime plan both answer `RUNTIME_COHABITATION_UNSUPPORTED` (409), and the inventory row shows `capability:{supported:false, reason:"RUNTIME_COHABITATION_UNSUPPORTED"}`. aiterm-mcp keeps updating with the body image (Z-c path). Historical (superseded by the Owner ruling 2026-11-08 11:13 JST, next section): runtime-codex, runtime-claude-code and runtime-throughline (0.16.56, Throughline owner decision) were to keep the hot-update path; they now update only with the body image too. No runtime-aiterm-mcp row needs to be published.
 
 ## All runtimes update only with the body image (Owner ruling 2026-11-08 11:13 JST; enforced 2026-11-10)
 
