@@ -115,6 +115,36 @@ final class ProfileTerminalUITests: XCTestCase {
         add(capture)
     }
 
+    /// Screenshots only (apple parity batch 1): the restart button waits with 再起動しています… and then the success note shows.
+    func testShotsRestartProgressAndSuccess() async throws {
+        continueAfterFailure = false
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .phone, "iPhoneの詳細画面を確認する試験です。")
+        let url = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_PROFILE_TERMINAL_URL"])
+        try await reset(url)
+        let (_, delayed) = try await URLSession.shared.data(from: try XCTUnwrap(URL(string: url + "/test/restart-delay?ms=5000")))
+        XCTAssertEqual((delayed as? HTTPURLResponse)?.statusCode, 200)
+        let app = XCUIApplication()
+        // -bellbot-preview-reporting connects the billing store; without it the restart is refused before it is sent.
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-profile-terminal", "-bellbot-preview-reporting",
+                               "-bellbot-preview-server", url]
+        app.launch()
+        defer { app.terminate() }
+        let bot = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "ユキ")).firstMatch
+        XCTAssertTrue(bot.waitForExistence(timeout: 10))
+        bot.tap()
+        app.buttons["詳細"].tap()
+        let restart = app.buttons["会話セッションを再起動"]
+        XCTAssertTrue(restart.waitForExistence(timeout: 5))
+        restart.tap()
+        let waiting = app.buttons["再起動しています…"]
+        XCTAssertTrue(waiting.waitForExistence(timeout: 3))
+        XCTAssertFalse(waiting.isEnabled)
+        shot(app, "restart-in-progress")
+        XCTAssertTrue(app.staticTexts["会話を再起動しました。"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["会話セッションを再起動"].isEnabled)
+        shot(app, "restart-success")
+    }
+
     func testOldProfileSchemaKeepsTextSaveAndDisablesNewImageEditing() async throws {
         try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .phone, "iPhoneの旧サーバー表示を確認する試験です。")
         continueAfterFailure = false
@@ -605,6 +635,13 @@ final class ProfileTerminalUITests: XCTestCase {
         let target = try XCTUnwrap(URL(string: url + "/test/reset"))
         let (_, response) = try await URLSession.shared.data(from: target)
         XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+    }
+
+    private func shot(_ app: XCUIApplication, _ name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "iphone-\(name)"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     private func screenReadCount(_ url: String) async throws -> Int {
