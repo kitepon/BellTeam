@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-10T16:57:54Z",
-  "expiresAt": "2026-11-17T16:57:54Z",
+  "publishedAt": "2026-11-10T18:55:25Z",
+  "expiresAt": "2026-11-17T18:55:25Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "03132a12107ed0cfb5c953d85c08b59f18994eed",
-      "versionId": "sha256:c1a745c2a2d6716187fad64883a4e23b8cb544480d947f081dbe8e194ff0d6ff",
+      "sourceCommit": "341a2900f02da290f5cd8d779838010de6db29b0",
+      "versionId": "sha256:d6a8d0f86979e0e6343bc7ac508aaf7b066933ac80080680ba07be941ecf5265",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c1a745c2a2d6716187fad64883a4e23b8cb544480d947f081dbe8e194ff0d6ff"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d6a8d0f86979e0e6343bc7ac508aaf7b066933ac80080680ba07be941ecf5265"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "分身が、ほかのBotの分身に読み取りだけの問い合わせをして答えを受け取れるようにします。分身はプロジェクトフォルダに書き込めません。CodexとGrokの席で、BellTeamの道具を待つ時間が120秒で切れないようにします。Aiterm 0.70.7を入れて、Linuxの端末の席とMacのCodexの席を動かせるようにします。"
+        "分身が、ほかのBotの分身に読み取りだけの問い合わせをして答えを受け取れるようにします。分身はプロジェクトフォルダに書き込めません。CodexとGrokの席で、BellTeamの道具を待つ時間が120秒で切れないようにします。Aiterm 0.70.9を入れて、Linux・Mac・Windowsの端末の席を動かせるようにします。Windowsの席の分身も、プロジェクトフォルダに書き込めません。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "03132a12107ed0cfb5c953d85c08b59f18994eed",
-      "versionId": "sha256:c1a745c2a2d6716187fad64883a4e23b8cb544480d947f081dbe8e194ff0d6ff",
+      "sourceCommit": "341a2900f02da290f5cd8d779838010de6db29b0",
+      "versionId": "sha256:d6a8d0f86979e0e6343bc7ac508aaf7b066933ac80080680ba07be941ecf5265",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c1a745c2a2d6716187fad64883a4e23b8cb544480d947f081dbe8e194ff0d6ff"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:d6a8d0f86979e0e6343bc7ac508aaf7b066933ac80080680ba07be941ecf5265"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "分身が、ほかのBotの分身に読み取りだけの問い合わせをして答えを受け取れるようにします。分身はプロジェクトフォルダに書き込めません。CodexとGrokの席で、BellTeamの道具を待つ時間が120秒で切れないようにします。Aiterm 0.70.7を入れて、Linuxの端末の席とMacのCodexの席を動かせるようにします。"
+        "分身が、ほかのBotの分身に読み取りだけの問い合わせをして答えを受け取れるようにします。分身はプロジェクトフォルダに書き込めません。CodexとGrokの席で、BellTeamの道具を待つ時間が120秒で切れないようにします。Aiterm 0.70.9を入れて、Linux・Mac・Windowsの端末の席を動かせるようにします。Windowsの席の分身も、プロジェクトフォルダに書き込めません。"
       ]
     }
   ],
