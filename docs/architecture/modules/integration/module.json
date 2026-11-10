@@ -7,7 +7,8 @@
   "provides": [
     "HTTP/MCP",
     "HTTP/SSE",
-    "diagnostics"
+    "diagnostics",
+    "remote-seat-port"
   ],
   "uses": [
     {
@@ -97,6 +98,7 @@
     "src/http-server.mjs",
     "src/mcp-tools.mjs",
     "src/seat-mcp.mjs",
+    "src/remote-seat-port.mjs",
     "src/http-errors.mjs",
     "src/http-gateway.mjs",
     "src/http-gateway-entry.mjs",

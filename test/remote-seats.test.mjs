@@ -23,7 +23,7 @@ function fixture({ targetErrors = [], accountOwner = 'owner', onTarget = () => {
     watch(listener) { watchers.add(listener); return () => watchers.delete(listener) },
   }
   const ingress = { seatCredential: {
-    async issue(request) { log.push({ op: 'issue', request }); return { url: 'http://127.0.0.1:4182/api/seat-mcp', credentialRef: { opaque: true } } },
+    async issue(request) { log.push({ op: 'issue', request }); return { url: 'http://127.0.0.1:4183/api/seat-mcp', credentialRef: { opaque: true } } },
     async revoke(request) { log.push({ op: 'revoke', request }) },
     async reveal(ref) { log.push({ op: 'reveal', ref }); return 'secret-token' },
   } }
