@@ -312,6 +312,32 @@ final class TerminalsTests: XCTestCase {
         XCTAssertEqual([OnePasswordState.connected, .off, .failed].map(\.badgeText), ["連携中", "未連携", "失敗"])
     }
 
+    func testOnePasswordResultLineComesOnlyFromThePatchResponse() throws {
+        func item(_ status: String, error: String = "null", connection: String = "null") throws -> FeatureSetting {
+            try setting(#"{"id":"onePassword","title":"t","enabled":true,"status":"\#(status)","fields":[],"error":\#(error),"connection":\#(connection)}"#)
+        }
+        let rejected = try item("enabled", error: #"{"code":"ONEPASSWORD_TOKEN_REJECTED","message":"受け付けませんでした"}"#)
+        let connected = try item("enabled", connection: #"{"vaults":["Infra"],"sshKeys":2}"#)
+        let bare = try item("enabled")
+        let off = try item("disabled")
+
+        XCTAssertEqual(OnePasswordResult.saved(connected).text, "連携できました。読める保管庫：Infra　SSH鍵：2件")
+        XCTAssertEqual(OnePasswordResult.saved(bare).text, "連携できました。", "接続の内訳が無ければ一行だけ（Webと同じ）")
+        XCTAssertEqual(OnePasswordResult.saved(rejected).text, "連携できませんでした。受け付けませんでした")
+        XCTAssertEqual(OnePasswordResult.saved(off).text, "連携を解除しました。")
+        XCTAssertEqual(OnePasswordResult.none.text, "", "拒否された要求は空（理由はフォームのerror）")
+        XCTAssertEqual(OnePasswordResult.checking.text, "1Passwordにつないで確かめています…")
+
+        // Opening on an already-failed state shows the failure once; a refresh never overwrites a running check.
+        XCTAssertEqual(OnePasswordResult.none.refreshed(by: rejected), .saved(rejected))
+        XCTAssertEqual(OnePasswordResult.checking.refreshed(by: rejected), .checking)
+        XCTAssertEqual(OnePasswordResult.checking.refreshed(by: connected), .checking)
+        // A refresh hides a failure that cleared, and leaves a spoken success or an empty line alone.
+        XCTAssertEqual(OnePasswordResult.saved(rejected).refreshed(by: connected), .none)
+        XCTAssertEqual(OnePasswordResult.saved(connected).refreshed(by: connected), .saved(connected))
+        XCTAssertEqual(OnePasswordResult.none.refreshed(by: off), .none)
+    }
+
     func testOnePasswordTokenMustStartWithOps() {
         XCTAssertNil(OnePasswordState.tokenProblem("ops_eyJzaWduSW4"))
         XCTAssertNil(OnePasswordState.tokenProblem("  ops_abc\n"))

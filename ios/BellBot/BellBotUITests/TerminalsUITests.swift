@@ -340,11 +340,12 @@ final class TerminalsUITests: XCTestCase {
         var proof = try await call("/test/proof")
         XCTAssertEqual((proof["settingPatches"] as? [Any])?.count, 0)
 
-        // A rejected token: the badge turns 失敗 and shows the server's own message.
+        // A rejected token: the badge turns 失敗 and the one result line shows the server's own message.
         token.clearAndType("ops_bad-token")
         app.buttons["onepassword-save"].tap()
-        let failure = app.staticTexts["onepassword-error"]
+        let failure = app.staticTexts["onepassword-result"]
         XCTAssertTrue(scrollTo(failure, in: app, up: true))
+        XCTAssertTrue(failure.label.hasPrefix("連携できませんでした。"))
         XCTAssertTrue(failure.label.contains("受け付けませんでした"))
         XCTAssertFalse(failure.label.contains("ONEPASSWORD"), "符号は出さない")
         XCTAssertEqual(app.descendants(matching: .any)["onepassword-badge"].firstMatch.label, "失敗")

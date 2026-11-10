@@ -44,7 +44,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [HarnessAuthenticationOption.needsStartConfirmation](../../../../ios/BellBot/BellBot/Core/Models.swift#L445) | 警告を伴う開始確認の要否 |
 | [HarnessAuthenticationsResponse / HarnessAuthenticationResponse](../../../../ios/BellBot/BellBot/Core/Models.swift#L449) | AI再認証一覧・個別状態 |
 | [FeatureField.id](../../../../ios/BellBot/BellBot/Core/Models.swift#L460)、[FeatureSettingError](../../../../ios/BellBot/BellBot/Core/Models.swift#L462)、[FeatureSetting.statusText](../../../../ios/BellBot/BellBot/Core/Models.swift#L470) | 追加機能の項目・反映エラー・表示 |
-| `FeatureSetting.guide` / `connection`、`FeatureGuide`（`openableLink`はhttpsだけ）、`OnePasswordConnection`、`OnePasswordState`（バッジ・接続の一行・`tokenProblem`）、`OnePasswordKey` / `OnePasswordKeysResponse` / `OnePasswordKeyList`（`after(_:)`は404を未対応、他を失敗）（`Core/Models.swift`） | 1Password連携の案内・接続・状態・`ops_`検査と、SSH鍵の選択一覧（[図](settings-and-profile.md#1password連携onepasswordusage-838)）。`guide`・`connection`は読めなければnil |
+| `FeatureSetting.guide` / `connection`、`FeatureGuide`（`openableLink`はhttpsだけ）、`OnePasswordConnection`、`OnePasswordState`（バッジ・接続の一行・`tokenProblem`）、`OnePasswordResult`（結果の一行。`saved(_:)`はPATCH応答、`refreshed(by:)`は再取得）、`OnePasswordKey` / `OnePasswordKeysResponse` / `OnePasswordKeyList`（`after(_:)`は404を未対応、他を失敗）（`Core/Models.swift`） | 1Password連携の案内・接続・状態・`ops_`検査と、SSH鍵の選択一覧（[図](settings-and-profile.md#1password連携onepasswordusage-838)）。`guide`・`connection`は読めなければnil |
 | [FeatureSettingsResponse / FeatureSettingResponse / FeatureSettingUpdate / APIAcknowledgement](../../../../ios/BellBot/BellBot/Core/Models.swift#L475) | 追加機能HTTPと内容を持たないack |
 | [MessageSendAcknowledgement.messageID](../../../../ios/BellBot/BellBot/Core/Models.swift#L484) | BotのdeliveryIdとRoomのidを選ぶ |
 | [ImagePayload / SendMessageBody](../../../../ios/BellBot/BellBot/Core/Models.swift#L492) | 本文・画像・ルーム宛先の送信body |
@@ -252,7 +252,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | --- | --- |
 | [FeatureSettingsList.body](../../../../ios/BellBot/BellBot/Views/FeatureSettingsView.swift#L7) | 一覧GET・状態/反映errorと編集への遷移 |
 | `FeatureSettingsList`の1Password行・`FeatureSettingDestination`・`OnePasswordBadge` | 行のバッジとplainなerror文、editorの振り分け。DEBUG `-bellbot-preview-feature <id>`でそのeditorを開く |
-| `OnePasswordSettingEditor`（`load`・`save`） | 1Password連携のヘッダ・案内・token欄・主ボタン。`ops_`検査→PATCH→一覧再取得 |
+| `OnePasswordSettingEditor`（`load`・`save`） | 1Password連携のヘッダ・案内・token欄・結果の一行・主ボタン。`ops_`検査→結果の一行を確認中→PATCH→PATCH応答で結果の一行→一覧再取得。確認中はボタンが「連携を確かめています…」で無効 |
 | [FeatureSettingEditor.currentSetting](../../../../ios/BellBot/BellBot/Views/FeatureSettingsView.swift#L51) | 共通状態の現在値を選ぶ |
 | [FeatureSettingEditor.body](../../../../ios/BellBot/BellBot/Views/FeatureSettingsView.swift#L53) | 初回読取後の編集・再読込、secret消去タイミング |
 | [value(for:)](../../../../ios/BellBot/BellBot/Views/FeatureSettingsView.swift#L99) | key別の入力Binding |
