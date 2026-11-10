@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { Readable } from 'node:stream'
-import { createAccountsApi, readSeatAccount } from '../src/http-accounts-api.mjs'
+import { createAccountsApi, readSeatAccount, readSeatLaunch } from '../src/http-accounts-api.mjs'
 
 function call(handler, method, path, body) {
   const request = Object.assign(Readable.from(body === undefined ? [] : [Buffer.from(body)]), { method, headers: { 'content-type': 'application/json' } })
@@ -26,4 +26,14 @@ test('seat account is the slot, null without one, undefined when unsupported', (
   assert.equal(readSeatAccount({ seatAccount: () => null }, 'a'), null)
   assert.equal(readSeatAccount({}, 'a'), undefined)
   assert.equal(readSeatAccount({ seatAccount: () => { throw Object.assign(new Error('x'), { code: 'EXECUTION_REQUEST_INVALID' }) } }, 'a'), undefined)
+})
+
+test('seat launch notice follows the same rule and is a copy', () => {
+  const notice = { code: 'TARGET_MISMATCH', action: 'confirm the host key of 192.168.1.12', terminalId: 'macbook', at: '2026-11-10T01:00:00Z' }
+  const read = readSeatLaunch({ seatLaunch: id => id === 'bot-mac' ? notice : null }, 'bot-mac')
+  assert.deepEqual(read, notice); assert.notEqual(read, notice)
+  assert.equal(readSeatLaunch({ seatLaunch: () => null }, 'a'), null)
+  assert.equal(readSeatLaunch({ seatAccount: () => null }, 'a'), undefined)
+  assert.equal(readSeatLaunch({ seatLaunch: () => { throw Object.assign(new Error('x'), { code: 'EXECUTION_REQUEST_INVALID' }) } }, 'a'), undefined)
+  assert.equal(readSeatLaunch({ seatLaunch: () => { throw new Error('other') } }, 'a'), null)
 })

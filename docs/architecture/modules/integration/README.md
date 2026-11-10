@@ -45,6 +45,8 @@ flowchart TD
   WorkGraph --> WGFacade["work-graph-facade / 子moduleへのrefresh・snapshot"]
   HTTP --> Accounts["http-accounts-api / GET accounts"]
   Accounts --> ExecAccounts["execution.accounts list"]
+  HTTP --> BotItems["members profiles-http / Bot items"]
+  BotItems --> SeatProjection["transport.seatAccount / seatLaunch (sync)"]
   HTTP --> Assets["http-assets"]
   Assets --> Web["web.assets"]
   MCP["mcp-tools / 本人・引数確認"] --> TalkTools["mcp-conversation-tools"]
@@ -69,7 +71,7 @@ LANの端末で動く席は、公開入口の`/api/seat-mcp`へ席ごとの合�
 
 ## Claudeの1st/2ndアカウント
 
-[harness-accounts](../execution/harness-accounts.md)の公開HTTPを親が持つ。`GET /api/accounts`は`execution.accounts.list()`をそのまま200で返す。アカウントの選択は上限だけで決まり、好みのルールは無い（オーナー裁定 2026-11-09）。`POST /api/accounts/rules`は削除済みで、他の未知の経路と同じ404になる。accountsが無い本体と、`EXECUTION_REQUEST_INVALID`を返す古いengineは404で、端末は旧カードを出す。Bot項目（GET `/api/bots`、`/api/bots/:id`）の`account`は`transport.seatAccount(botId)`の値（席に無ければnull）で、対応の無い本体では項目ごと出さない。`accounts`は同じ実体をusageServicesと予備HarnessAuthへも渡す（usageのprivate effect `auth.prepareAccount`）。台帳の変更は次節のSSE `settings`で知らせる。
+[harness-accounts](../execution/harness-accounts.md)の公開HTTPを親が持つ。`GET /api/accounts`は`execution.accounts.list()`をそのまま200で返す。アカウントの選択は上限だけで決まり、好みのルールは無い（オーナー裁定 2026-11-09）。`POST /api/accounts/rules`は削除済みで、他の未知の経路と同じ404になる。accountsが無い本体と、`EXECUTION_REQUEST_INVALID`を返す古いengineは404で、端末は旧カードを出す。Bot項目（GET `/api/bots`、`/api/bots/:id`）の`account`は`transport.seatAccount(botId)`の値（席に無ければnull）で、対応の無い本体では項目ごと出さない。同じ規則で`seatLaunch`は`transport.seatLaunch(botId)`の値（端末の席の起動が始まらずに終わった時の`{code, action, terminalId, at}`、無ければnull。起動の成功で消える。契約は[remote-seat](../execution/remote-seat.md)「Launch notice for the Owner」）。どちらも`readSeatProjection`：methodが無い・`EXECUTION_REQUEST_INVALID`は項目なし、その他の失敗はnull、値はstructuredClone。一覧で削除中の項目はnull。変更は既change stream `{topics:['bots']}`で端末が`/api/bots`を読み直す。`accounts`は同じ実体をusageServicesと予備HarnessAuthへも渡す（usageのprivate effect `auth.prepareAccount`）。台帳の変更は次節のSSE `settings`で知らせる。
 
 ## SSE topicの対応
 

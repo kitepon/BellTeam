@@ -35,7 +35,7 @@ flowchart TD
 | MCP読取 | get_bot/get_selfは既botViewを使い適用観測を保持。list_botsは従来どおりactive台帳のみ。avatar本文を外しURLへする共通整形と認証/引数keyの検証はintegrationが維持 |
 | 自動設定操作の表示 | HTTP一覧とget_self/get_botはexecution.viewのoptional `automaticConfigurationApplication`を保持する。HTTP単体profile GETも既viewを返す。閉DTO/同期snapshotの正本は[execution](../execution/automatic-configuration.md)。membersはDTOを生成・補完せず、欄不在とunknownをそのまま扱う。既configurationApplicationの意味・値を変えず、native作用や操作完了を推測しない |
 | avatar | 既resolveBotImagePath、PNG/JPEG/WebP/GIF検証、data URL化→registry.updateの順を維持。HTTPのavatar/large/source経路とfallback/etagは既共有画像窓口を使用 |
-| `profiles-http.mjs` | createMemberProfileApiがBot一覧/作成、GET/PATCH profile、avatar、character-sheet一覧/streamを所有。既createBotApiはこのhandlerへ委譲し、execution/memory/conversationの残る経路を保持 |
+| `profiles-http.mjs` | createMemberProfileApiがBot一覧/作成、GET/PATCH profile、avatar、character-sheet一覧/streamを所有。Bot項目の`account`/`seatLaunch`は親の`readSeatProjection`の値をそのまま載せる（未対応は項目なし）。既createBotApiはこのhandlerへ委譲し、execution/memory/conversationの残る経路を保持 |
 | HTTP更新/表示 | PATCHは既Administration.updateへ、GETと一覧の適用観測は既viewへ。返却/statusは既契約。モデルの稼働適用/Map/停止・再開はexecutionが持つ |
 | List | `GET /api/bots` always includes `avatar`, `avatarLarge`, `avatarSource`, and `avatarLargeSource` as empty strings for required-string client decoders; image bodies are never sent, preserving all four `*Version` fields and crop metadata. `?avatar=omit` is accepted as a no-op; no query enables inline images. Pending receipts remain deleting=true/online=false, with current membership rechecked after asynchronous reads |
 | Appleの一覧利用 | [Apple利用側](../apple/README.md)は既HTTPのdeletingを任意fieldとして読み、trueのBotを予定の期待集合へ含めない。[予定集合の契約](schedules.md#名簿と予定の対象集合)を参照。fieldなしは従来のactiveとして扱う |

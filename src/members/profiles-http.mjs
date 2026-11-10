@@ -1,5 +1,5 @@
 import { readCurrentWork } from '../current-work-contract.mjs'
-import { readSeatAccount } from '../http-accounts-api.mjs'
+import { readSeatAccount, readSeatLaunch } from '../http-accounts-api.mjs'
 import { json, readJson } from '../http-response.mjs'
 import { recentTimeline } from '../timeline-index.mjs'
 import { avatarVersion, sendAvatar } from '../http-assets.mjs'
@@ -62,6 +62,8 @@ export function createMemberProfileApi({ bots, transport, administration, memory
         // Bot DTO 'account' (harness-accounts.md): absent when the body or the engine has no accounts.
         const account = readSeatAccount(transport, item.id)
         if (account !== undefined) item.account = state === 'active' ? account : null
+        const seatLaunch = readSeatLaunch(transport, item.id)
+        if (seatLaunch !== undefined) item.seatLaunch = state === 'active' ? seatLaunch : null
         current.push(item)
       }
       return json(response, 200, { bots: current })
@@ -120,8 +122,8 @@ export function createMemberProfileApi({ bots, transport, administration, memory
       const bot = await readMember(botId)
       if (!bot) return json(response, 404, { error: 'BOT_NOT_FOUND' })
       if (request.method === 'GET') {
-        const view = administration.view?.(bot) ?? bot, account = readSeatAccount(transport, botId)
-        return json(response, 200, { bot: account === undefined ? view : { ...view, account } })
+        const view = administration.view?.(bot) ?? bot, account = readSeatAccount(transport, botId), seatLaunch = readSeatLaunch(transport, botId)
+        return json(response, 200, { bot: { ...view, ...(account === undefined ? {} : { account }), ...(seatLaunch === undefined ? {} : { seatLaunch }) } })
       }
       if (request.method === 'PATCH') return json(response, 200, await administration.update(botId, await readJson(request)))
     }
