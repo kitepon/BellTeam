@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-10T12:13:30Z",
-  "expiresAt": "2026-11-17T12:13:30Z",
+  "publishedAt": "2026-11-10T12:40:54Z",
+  "expiresAt": "2026-11-17T12:40:54Z",
   "releases": [
     {
       "componentId": "usage",
@@ -491,8 +491,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "06c99cd43a2d831b46ca584acb4c139f5fd7461e",
-      "versionId": "a3ff97e2be795da324262eca38edb7b0fa8f65e2599d38c709d295f08f440e5c",
+      "sourceCommit": "f1578cd3241a313b2cfdfe5d379b7168401aec76",
+      "versionId": "587ceef548a10d5d931e9b8e8d4d5dad423534b815afc63a1d0664c6ba985953",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T120033Z/execution-06c99cd43a2d831b46ca584acb4c139f5fd7461e-linux-amd64.tar.gz",
-          "bytes": 3947967,
-          "sha256": "a3ff97e2be795da324262eca38edb7b0fa8f65e2599d38c709d295f08f440e5c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T123002Z/execution-f1578cd3241a313b2cfdfe5d379b7168401aec76-linux-amd64.tar.gz",
+          "bytes": 3948163,
+          "sha256": "587ceef548a10d5d931e9b8e8d4d5dad423534b815afc63a1d0664c6ba985953"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T120033Z/execution-06c99cd43a2d831b46ca584acb4c139f5fd7461e-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11224,
-          "sha256": "cd11c108815c6314a606c049422627ff99e1dec24963e7fb4fedad3881b81a2d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T123002Z/execution-f1578cd3241a313b2cfdfe5d379b7168401aec76-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11083,
+          "sha256": "cfc9074c1d29838055bbac87ab853f5f50108e2e55b47b14557ab291416f9399"
         },
-        "signerCommit": "06c99cd43a2d831b46ca584acb4c139f5fd7461e"
+        "signerCommit": "f1578cd3241a313b2cfdfe5d379b7168401aec76"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "Aiterm 0.70.5 以降でも、箱の中の Claude や Grok の席が何をしているかを、Bot の一覧に表示し続けます。"
+        "席が起動や入力を断られた時に、Aiterm 0.70.5 が返す理由を読み取って伝えます。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "06c99cd43a2d831b46ca584acb4c139f5fd7461e",
-      "versionId": "5db952e14292c53b3bf80c85acffff2a8edfa1614efee4a0272d2febf0ca61df",
+      "sourceCommit": "f1578cd3241a313b2cfdfe5d379b7168401aec76",
+      "versionId": "53ab7c0dec4c55581c60d94b60fe049059524e5ff20334e2ddc7e82f0048c5e6",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T120033Z/execution-06c99cd43a2d831b46ca584acb4c139f5fd7461e-linux-arm64.tar.gz",
-          "bytes": 3947970,
-          "sha256": "5db952e14292c53b3bf80c85acffff2a8edfa1614efee4a0272d2febf0ca61df"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T123002Z/execution-f1578cd3241a313b2cfdfe5d379b7168401aec76-linux-arm64.tar.gz",
+          "bytes": 3948161,
+          "sha256": "53ab7c0dec4c55581c60d94b60fe049059524e5ff20334e2ddc7e82f0048c5e6"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T120033Z/execution-06c99cd43a2d831b46ca584acb4c139f5fd7461e-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11271,
-          "sha256": "5ef8c180c540b4c3686ef8b7db23a76cbba23b9f147fa5ab156f5a20e9a6afbb"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T123002Z/execution-f1578cd3241a313b2cfdfe5d379b7168401aec76-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11130,
+          "sha256": "c51f28a4786457e2b50ab4c7f706b60657862643c4f931355fac3528155aab60"
         },
-        "signerCommit": "06c99cd43a2d831b46ca584acb4c139f5fd7461e"
+        "signerCommit": "f1578cd3241a313b2cfdfe5d379b7168401aec76"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,7 +552,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "Aiterm 0.70.5 以降でも、箱の中の Claude や Grok の席が何をしているかを、Bot の一覧に表示し続けます。"
+        "席が起動や入力を断られた時に、Aiterm 0.70.5 が返す理由を読み取って伝えます。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "5e2b206b3d4786b0e15f31bed7108e42517a9e66",
-      "versionId": "sha256:004d0ad9d008d02ff4fc2a8c5050f01607fcb678f9ce1bf98a6882e834e98f96",
+      "sourceCommit": "f1578cd3241a313b2cfdfe5d379b7168401aec76",
+      "versionId": "sha256:55d34b6e5a63f4b725b90adc24cc0f6f8a6bda5fc09a44a5fcd7b4b15dda998a",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:004d0ad9d008d02ff4fc2a8c5050f01607fcb678f9ce1bf98a6882e834e98f96"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:55d34b6e5a63f4b725b90adc24cc0f6f8a6bda5fc09a44a5fcd7b4b15dda998a"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "本体を入れ替えたあと、Mac などの外の席を起動し直す時、本当に閉じて起動し直します。閉じるのを断られた時は、その理由を返します。"
+        "席をつなぐ Aiterm を 0.70.5 にしました。Mac などの外の席でも、作業中の言葉と途中の指示が届くようになります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "5e2b206b3d4786b0e15f31bed7108e42517a9e66",
-      "versionId": "sha256:004d0ad9d008d02ff4fc2a8c5050f01607fcb678f9ce1bf98a6882e834e98f96",
+      "sourceCommit": "f1578cd3241a313b2cfdfe5d379b7168401aec76",
+      "versionId": "sha256:55d34b6e5a63f4b725b90adc24cc0f6f8a6bda5fc09a44a5fcd7b4b15dda998a",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:004d0ad9d008d02ff4fc2a8c5050f01607fcb678f9ce1bf98a6882e834e98f96"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:55d34b6e5a63f4b725b90adc24cc0f6f8a6bda5fc09a44a5fcd7b4b15dda998a"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "本体を入れ替えたあと、Mac などの外の席を起動し直す時、本当に閉じて起動し直します。閉じるのを断られた時は、その理由を返します。"
+        "席をつなぐ Aiterm を 0.70.5 にしました。Mac などの外の席でも、作業中の言葉と途中の指示が届くようになります。"
       ]
     }
   ],
