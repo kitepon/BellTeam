@@ -480,10 +480,13 @@ final class WorkGraphModelTests: XCTestCase {
          straight("a2", x: 680, y: y, span: 40), straight("a3", x: 880, y: y, span: 40)]
     }
 
-    private func entering(_ nodes: [WorkGraphNode], _ edges: [WorkGraphEdge], reduceMotion: Bool = false) -> WorkGraphModel {
+    /// 札の試験の描画範囲D：図の外に置いた直線（x ≤ 1000、y ≤ 4000）がすべて収まる広さ（滑らせない）。
+    private let bigArea = CGSize(width: 2100, height: 5100)
+
+    private func entering(_ nodes: [WorkGraphNode], _ edges: [WorkGraphEdge], reduceMotion: Bool = false, size: CGSize? = nil) -> WorkGraphModel {
         let model = WorkGraphModel()
         model.reduceMotion = reduceMotion
-        model.step(now: 0, size: CGSize(width: 900, height: 600), insets: EdgeInsets())
+        model.step(now: 0, size: size ?? bigArea, insets: EdgeInsets())
         model.apply(WorkGraphSnapshot(epoch: "e", version: 1, degraded: [], nodes: nodes, edges: edges), at: 0)
         return model
     }
@@ -613,6 +616,168 @@ final class WorkGraphModelTests: XCTestCase {
         model.layoutChips([straight("a", y: 3000), b], size: chipSize, hover: nil, now: 3)
         XCTAssertEqual(try XCTUnwrap(model.lines["b"]?.chip?.t), 0.4, accuracy: 1e-9, "空いている間は動かない")
         XCTAssertEqual(model.lines["b"]?.chip?.side, CGVector(dx: -1, dy: 0))
+    }
+
+    // MARK: On screen（期待値はlayout-sim.mjsの`chipAt`/`intoArea`/`placeChips`の自己検査に対応。札の四角だけAppleの`chipFrame`（尖りを含む）に置き換える）
+
+    /// 描画範囲D = (24, 24, 300, 500)になる大きさ（四方24ptの内側）。
+    private let screenSize = CGSize(width: 348, height: 548)
+    private let screenD = CGRect(x: 24, y: 24, width: 300, height: 500)
+
+    private func line(_ id: String, from a: CGPoint, to b: CGPoint) -> WorkGraphModel.EdgePath {
+        WorkGraphModel.EdgePath(id: id) { t in CGPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t) }
+    }
+
+    /// 画面の左端に沿う線：t = 0.5の中心の札は右へ滑って縁がDの左端に着き、縦はそのまま。
+    func testEdgeHuggingTheLeftEdgeSlidesTheCenteredChipRightAndKeepsY() throws {
+        let d = CGRect(x: 0, y: 0, width: 300, height: 500), point = CGPoint(x: 10, y: 250)
+        let frame = WorkGraphModel.chipFrame(at: point, size: CGSize(width: 100, height: 26), within: d)
+        XCTAssertEqual(frame.area.insetBy(dx: -4, dy: -4).minX, 0)
+        XCTAssertEqual(frame.tag.minY, 250 - 26 - 7, "縦は動かない")
+        // モデルの経路でも同じ（D = screenD）。
+        let model = entering([], [edge("x", "y", id: "e")], size: screenSize)
+        model.layoutChips([line("e", from: CGPoint(x: 34, y: 124), to: CGPoint(x: 34, y: 424))], size: chipSize, hover: nil, now: 1)
+        let chip = try XCTUnwrap(model.chips.unblocked.first)
+        XCTAssertTrue(isCentered(model, "e"), "最初の空きspotは中心のまま")
+        XCTAssertEqual(chip.area.insetBy(dx: -4, dy: -4).minX, screenD.minX, accuracy: 1e-9)
+        XCTAssertEqual(chip.tag.minY, 274 - 26 - 7, accuracy: 1e-9)
+    }
+
+    /// 滑らせるのは外へ出る時だけ。収まっていれば動かさず、1pt出れば1pt戻す。
+    func testChipSlidesOnlyWhenItsGrownBoxLeavesTheArea() {
+        let d = CGRect(x: 0, y: 0, width: 300, height: 500), size = CGSize(width: 100, height: 26)
+        for side in WorkGraphModel.chipSides {
+            let point = CGPoint(x: 150, y: 250)
+            XCTAssertEqual(WorkGraphModel.chipFrame(at: point, size: size, side: side, within: d).area,
+                           WorkGraphModel.chipFrame(at: point, size: size, side: side).area, "\(side)は収まっているので動かない")
+        }
+        // 札（中心）の左端は 点.x − 50、4pt広げて点.x − 54。点.x = 53なら1pt出る。
+        let out = WorkGraphModel.chipFrame(at: CGPoint(x: 53, y: 250), size: size, within: d), raw = WorkGraphModel.chipFrame(at: CGPoint(x: 53, y: 250), size: size)
+        XCTAssertEqual(out.tag.minX - raw.tag.minX, 1, accuracy: 1e-9)
+        XCTAssertEqual(out.tag.minY, raw.tag.minY)
+        // 上端・下端・右端も縦横を別々に滑らせる。
+        let corner = WorkGraphModel.chipFrame(at: CGPoint(x: 298, y: 495), size: size, side: CGVector(dx: 1, dy: 1), within: d).area.insetBy(dx: -4, dy: -4)
+        XCTAssertEqual(corner.maxX, 300, accuracy: 1e-9)
+        XCTAssertEqual(corner.maxY, 500, accuracy: 1e-9)
+        XCTAssertTrue(WorkGraphModel.onScreen(corner, d))
+    }
+
+    /// 札の最大幅は180ptとDの幅 − 8ptの小さい方。
+    func testChipMaxWidthFollowsTheDrawableRect() {
+        XCTAssertEqual(WorkGraphView.chipMaxWidth(in: CGRect(x: 0, y: 0, width: 327, height: 600)), 180, "iPhone SE")
+        XCTAssertEqual(WorkGraphView.chipMaxWidth(in: CGRect(x: 0, y: 0, width: 150, height: 600)), 142)
+        let long = String(repeating: "とても長い依頼の文章", count: 8)
+        XCTAssertLessThanOrEqual(WorkGraphView.chipSize(long, maxWidth: 142).width, 142)
+        XCTAssertGreaterThan(WorkGraphView.chipSize(long, maxWidth: 142).height, WorkGraphView.chipSize(long).height, "狭ければ行が増えて高くなる")
+        XCTAssertGreaterThan(WorkGraphView.chipSize(long).width, 170)
+        XCTAssertLessThanOrEqual(WorkGraphView.chipSize(long).width, 180)
+    }
+
+    /// 滑らせた中心の札の尖りは、線の点を指したまま根元を縁に沿ってずらし、丸みの内側に収まる。
+    func testTailStillPointsAtThePathPointAfterASlide() {
+        let d = CGRect(x: 0, y: 0, width: 300, height: 500), size = CGSize(width: 100, height: 26)
+        for x in [10, 150, 290] as [CGFloat] {
+            let point = CGPoint(x: x, y: 250), f = WorkGraphModel.chipFrame(at: point, size: size, within: d)
+            let base = WorkGraphModel.tailBase(point, f.tag)
+            XCTAssertGreaterThanOrEqual(base, f.tag.minX + 14)
+            XCTAssertLessThanOrEqual(base, f.tag.maxX - 14)
+            XCTAssertGreaterThan(point.y, f.tag.maxY, "札は点の上にあり尖りがある")
+            XCTAssertTrue(f.area.contains(CGPoint(x: point.x, y: point.y - 0.5)), "尖りの先（線の点）は札の範囲の中")
+            XCTAssertTrue(f.area.contains(CGPoint(x: base, y: f.tag.maxY + 0.5)), "根元は札の下端")
+            XCTAssertTrue(WorkGraphModel.onScreen(f.area.insetBy(dx: -4, dy: -4), d))
+        }
+        let left = WorkGraphModel.chipFrame(at: CGPoint(x: 10, y: 250), size: size, within: d)
+        XCTAssertEqual(WorkGraphModel.tailBase(CGPoint(x: 10, y: 250), left.tag), left.tag.minX + 14, "点が札の外へ出たので根元は縁の内側で止まる")
+        XCTAssertEqual(WorkGraphModel.tailBase(CGPoint(x: 150, y: 250), WorkGraphModel.chipFrame(at: CGPoint(x: 150, y: 250), size: size).tag), 150, "滑らない札は点の真上")
+    }
+
+    private let tall: (String) -> CGSize = { _ in CGSize(width: 120, height: 600) }
+
+    /// Oversize chip：空きspotを持たない。待つ札は描かれず、描いていた札が折り返しで高くなれば、上端をDの上端に当てたまま同じ列でblockedになる。
+    func testOversizeChipHasNoFreeSlotAndStaysBlockedAtTheTopOfTheArea() throws {
+        let path = line("o", from: CGPoint(x: 100, y: 100), to: CGPoint(x: 200, y: 400))
+        let waiting = entering([], [edge("x", "y", id: "o")], size: screenSize)
+        waiting.layoutChips([path], size: tall, hover: nil, now: 1)
+        XCTAssertNil(waiting.lines["o"]?.chip?.t, "置き場所を取らず待つ")
+        XCTAssertTrue(drawn(waiting).isEmpty)
+
+        let model = entering([], [edge("x", "y", id: "o")], size: screenSize)
+        model.layoutChips([path], size: chipSize, hover: nil, now: 1)
+        XCTAssertEqual(model.chips.unblocked.map(\.id), ["o"])
+        model.layoutChips([path], size: tall, hover: nil, now: 2)
+        XCTAssertEqual(model.chips.blocked.map(\.id), ["o"], "描いていた札は消えずblockedで残る")
+        let chip = try XCTUnwrap(model.chips.blocked.first)
+        XCTAssertEqual(chip.area.insetBy(dx: -4, dy: -4).minY, screenD.minY, accuracy: 1e-9, "広げた上端がDの上端")
+        XCTAssertEqual(chip.tag.minX, 150 - 60, accuracy: 1e-9, "同じ列")
+        XCTAssertEqual(chip.tag.height, 600)
+        XCTAssertEqual(chip.content, 0, "blockedの札は送らず全体を描く")
+        XCTAssertTrue(drawn(model).count == 1)
+    }
+
+    /// Oversize chipの指し見せは高さDの箱で、1行目から開き、最後の行まで送れる。離すと次は1行目から。
+    func testOversizePeekIsAreaTallOpensAtTheFirstLineAndScrollsToTheLast() throws {
+        let path = line("o", from: CGPoint(x: 100, y: 100), to: CGPoint(x: 200, y: 400))
+        let model = entering([], [edge("x", "y", id: "o")], size: screenSize)
+        model.layoutChips([path], size: tall, hover: nil, now: 1)
+        model.layoutChips([path], size: tall, hover: nil, peek: "o", now: 1.1)
+        let peek = try XCTUnwrap(model.chips.above.first)
+        XCTAssertEqual(peek.tag.height, screenD.height - 8)
+        XCTAssertEqual(peek.area.insetBy(dx: -4, dy: -4).minY, screenD.minY, accuracy: 1e-9)
+        XCTAssertEqual(peek.area.insetBy(dx: -4, dy: -4).height, screenD.height, accuracy: 1e-9, "ちょうどDの高さ")
+        XCTAssertEqual(peek.tag.minX, 150 - 60, accuracy: 1e-9)
+        XCTAssertEqual(peek.content, 600)
+        XCTAssertEqual(peek.scroll, 0, "1行目から開く")
+        let inside = CGPoint(x: peek.area.midX, y: peek.area.midY)
+        XCTAssertEqual(model.hit(at: inside, now: 1.1), .chip("o"))
+        XCTAssertTrue(model.scrollPeek(by: 100, at: inside))
+        XCTAssertEqual(model.chips.above.first?.scroll, 100)
+        XCTAssertTrue(model.scrollPeek(by: 100_000, at: inside))
+        XCTAssertEqual(model.chips.above.first?.scroll, 600 - peek.tag.height, "最後の行まで送れて、それ以上は行かない")
+        XCTAssertTrue(model.scrollPeek(by: -100_000, at: inside))
+        XCTAssertEqual(model.chips.above.first?.scroll, 0)
+        XCTAssertFalse(model.scrollPeek(by: 10, at: CGPoint(x: 5, y: 5)), "箱の外では送らない")
+        model.scrollPeek(by: 40, at: inside)
+        model.layoutChips([path], size: tall, hover: nil, peek: "o", now: 1.2)
+        XCTAssertEqual(model.chips.above.first?.scroll, 40, "開いている間は送りを保つ")
+        model.layoutChips([path], size: tall, hover: nil, now: 1.3)
+        XCTAssertTrue(model.chips.above.isEmpty)
+        XCTAssertTrue(model.peekScroll.isEmpty)
+        model.layoutChips([path], size: tall, hover: nil, peek: "o", now: 1.4)
+        XCTAssertEqual(model.chips.above.first?.scroll, 0, "開き直すと1行目から")
+        // Oversizeでない札は送らない。
+        let small = entering([], [edge("x", "y", id: "s")], size: screenSize)
+        small.layoutChips([line("s", from: CGPoint(x: 100, y: 100), to: CGPoint(x: 200, y: 400))], size: chipSize, hover: "s", now: 1)
+        XCTAssertEqual(small.chips.above.first?.content, 0)
+        XCTAssertFalse(small.scrollPeek(by: 10, at: CGPoint(x: small.chips.above[0].area.midX, y: small.chips.above[0].area.midY)))
+    }
+
+    /// iPhone：箱の中で始めた縦のドラッグで送る。メンバーの範囲で始めた押下はメンバーへ行き、送らない。
+    func testDragInsideTheOversizePeekScrollsButAPressOnAMemberDoesNot() throws {
+        let taller: (String) -> CGSize = { _ in CGSize(width: 120, height: 900) } // Dの高さ652より高い
+        let model = entering([node("a")], [edge("x", "y", id: "o")], size: CGSize(width: 900, height: 700))
+        for t in stride(from: 0.0, to: 20.0, by: 1.0 / 30) { model.step(now: t, size: CGSize(width: 900, height: 700), insets: EdgeInsets()) }
+        let avatar = model.frames(try XCTUnwrap(model.bodies["a"]), at: 20).avatar, d = model.drawable
+        let path = line("o", from: CGPoint(x: avatar.midX + 5, y: d.minY + 100), to: CGPoint(x: avatar.midX + 5, y: d.minY + 300))
+        model.layoutChips([path], size: taller, hover: nil, peek: "o", now: 20)
+        let peek = try XCTUnwrap(model.chips.above.first)
+        XCTAssertTrue(peek.area.contains(CGPoint(x: avatar.midX, y: avatar.midY)))
+        let free = CGPoint(x: peek.area.minX + 3, y: d.maxY - 40)
+        XCTAssertNil(model.member(at: free, now: 20))
+        var drag: WorkGraphPress?
+        model.updatePress(&drag, start: free, location: free, time: 20, scrollsPeek: true)
+        model.updatePress(&drag, start: free, location: CGPoint(x: free.x, y: free.y - 30), time: 20.1, scrollsPeek: true)
+        XCTAssertEqual(model.chips.above.first?.scroll, 30, "指を上へ動かした分だけ文が上へ")
+        model.updatePress(&drag, start: free, location: CGPoint(x: free.x, y: free.y - 10), time: 20.2, scrollsPeek: true)
+        XCTAssertEqual(model.chips.above.first?.scroll, 10, "戻せば文も戻る")
+        XCTAssertTrue(try XCTUnwrap(drag).moved, "10pt以上動けばタップではない（開いた箱は閉じない）")
+        // メンバーの上から始めた押下。
+        let onMember = CGPoint(x: avatar.midX, y: avatar.midY)
+        var press: WorkGraphPress?
+        model.updatePress(&press, start: onMember, location: onMember, time: 21, scrollsPeek: true)
+        model.updatePress(&press, start: onMember, location: CGPoint(x: onMember.x, y: onMember.y - 50), time: 21.1, scrollsPeek: true)
+        XCTAssertEqual(press?.botId, "a")
+        XCTAssertEqual(model.chips.above.first?.scroll, 10, "メンバーへ行く押下は送らない")
+        XCTAssertEqual(model.hit(at: onMember, now: 21), .member("a"))
     }
 
     // MARK: Chip spots（期待値は layout-sim.mjs の chipSpots を、札の四角だけAppleの chipFrame（中心は尖りを含む）に置き換えて実行して写した）

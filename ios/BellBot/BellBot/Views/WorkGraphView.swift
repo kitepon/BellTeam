@@ -73,7 +73,7 @@ struct WorkGraphView: View {
             .updating($pressing) { _, pressing, _ in pressing = true }
             // 新しい押下かどうかは位置でなく、記録がnilかどうか。時計は描画と同じWorkGraphModel.now（Value.timeはDateで、基準が別）。
             .onChanged { value in
-                model.updatePress(&press, start: value.startLocation, location: value.location, time: WorkGraphModel.now)
+                model.updatePress(&press, start: value.startLocation, location: value.location, time: WorkGraphModel.now, scrollsPeek: Self.dragScrollsPeek)
             }
             .onEnded { value in
                 // 取り消された押下ではここへ来ない（記録は下のonChange(of: pressing)が消す）。
@@ -89,6 +89,7 @@ struct WorkGraphView: View {
         .onContinuousHover { phase in
             if case .active(let point) = phase { hover = point } else { hover = nil }
         }
+        .background(PeekScrollCatcher { point, delta in model.scrollPeek(by: delta, at: point) })
         #endif
         // 見えなくなる・背景へ回る時、ポインタと押下を残さない。
         .onDisappear { hover = nil; press = nil; model.clearTap() }
@@ -96,6 +97,15 @@ struct WorkGraphView: View {
     }
 
     // MARK: Drawing
+
+    /// 開いたOversize chipの文は、iPhone/iPadでは箱の中の縦のドラッグで送る。Macはトラックパッド・ホイール（`PeekScrollCatcher`）。
+    private static var dragScrollsPeek: Bool {
+        #if targetEnvironment(macCatalyst)
+        false
+        #else
+        true
+        #endif
+    }
 
     private var side: CGFloat { model.side(for: max(1, model.liveCount)) }
 
@@ -125,7 +135,7 @@ struct WorkGraphView: View {
         let pointed = pointer.flatMap { model.hit(at: $0, now: now) }
         model.layoutChips(lines.compactMap { line in
             path(line, now: now).map { WorkGraphModel.EdgePath(id: line.edge.id, point: $0.point) }
-        }, size: Self.chipSize, hover: hoveredEdge(pointed), peek: peekedEdge(pointed), reveal: revealedMember(pointed), now: now)
+        }, size: { Self.chipSize($0, maxWidth: Self.chipMaxWidth(in: model.drawable)) }, hover: hoveredEdge(pointed), peek: peekedEdge(pointed), reveal: revealedMember(pointed), now: now)
         for line in lines { drawEdge(&context, line, now: now, live: live) }
         // 置き場所の無い札（blocked）だけは線のすぐ上、メンバー・名前・ほかの札の下（behavior-spec.md「Edges」）。
         drawChips(&context, model.chips.blocked)
@@ -178,15 +188,18 @@ struct WorkGraphView: View {
             var faded = context
             faded.opacity = chip.opacity
             drawTag(&faded, tag: chip.tag, point: chip.anchor, wire: WorkGraphColor.wire(tone(model.lines[chip.id]?.edge.from ?? "")),
-                    icon: icon, iconSide: BellTheme.listDetailFontSize, text: Self.labelText(chip.text))
+                    icon: icon, iconSide: BellTheme.listDetailFontSize, text: Self.labelText(chip.text), content: chip.content, scroll: chip.scroll)
         }
     }
 
-    /// 札の大きさ。最大180pt幅で、文は切らずに折り返し、行の高さ16ptで行数ぶん伸びる（behavior-spec.md、Owner裁定 2026-11-09）。
+    /// 札の最大幅：180ptと、描画範囲Dの幅から8pt引いた幅の小さい方（behavior-spec.md「Label」）。
+    static func chipMaxWidth(in drawable: CGRect) -> CGFloat { min(labelMaxWidth, drawable.width - 8) }
+
+    /// 札の大きさ。最大幅（既定180pt）で、文は切らずに折り返し、行の高さ16ptで行数ぶん伸びる（behavior-spec.md、Owner裁定 2026-11-09）。
     /// 行の高さを決めて描くため、CanvasのTextではなく段落指定付きの文字列で測る。
-    static func chipSize(_ label: String) -> CGSize {
+    static func chipSize(_ label: String, maxWidth: CGFloat = labelMaxWidth) -> CGSize {
         let iconSide = BellTheme.listDetailFontSize
-        let textWidth = labelMaxWidth - iconSide - 22
+        let textWidth = maxWidth - iconSide - 22
         let bounds = labelText(label).boundingRect(with: CGSize(width: textWidth, height: .greatestFiniteMagnitude), options: .usesLineFragmentOrigin, context: nil)
         return CGSize(width: min(ceil(bounds.width), textWidth) + iconSide + 22, height: max(ceil(bounds.height), iconSide) + 10)
     }
@@ -212,13 +225,15 @@ struct WorkGraphView: View {
 
     /// 依頼の札：白地に依頼元の色の縁と左帯、封筒の印、線へ向かう尖り。影はぼかさず1枚ずらして描く。
     private func drawTag(_ context: inout GraphicsContext, tag: CGRect, point: CGPoint, wire: Color,
-                         icon: GraphicsContext.ResolvedImage, iconSide: CGFloat, text: NSAttributedString) {
+                         icon: GraphicsContext.ResolvedImage, iconSide: CGFloat, text: NSAttributedString, content: CGFloat = 0, scroll: CGFloat = 0) {
         // 尖りは線の上に浮いた札（中心）だけ。点に縁を当てた札（上下左右）は札自身が点に接する。
+        // 描画範囲Dへ滑らせた札は、根元を札の縁に沿ってずらし（丸みの内側まで）、先は線の点を指したままにする。
         var tail = Path()
         if point.y > tag.maxY {
-            tail.move(to: CGPoint(x: point.x - 5, y: tag.maxY - 0.5))
+            let base = WorkGraphModel.tailBase(point, tag)
+            tail.move(to: CGPoint(x: base - 5, y: tag.maxY - 0.5))
             tail.addLine(to: CGPoint(x: point.x, y: point.y - 1))
-            tail.addLine(to: CGPoint(x: point.x + 5, y: tag.maxY - 0.5))
+            tail.addLine(to: CGPoint(x: base + 5, y: tag.maxY - 0.5))
             tail.closeSubpath()
         }
         let shape = Path(roundedRect: tag, cornerRadius: 9)
@@ -231,10 +246,13 @@ struct WorkGraphView: View {
         bar.fill(Path(CGRect(x: tag.minX, y: tag.minY, width: 4, height: tag.height)), with: .color(wire))
         var tinted = icon
         tinted.shading = .color(wire)
+        // 高さDを超える札（Oversize chip）は、箱の中で文を`scroll`ぶん上へ送って見せる（箱の縁から3pt内側で切る）。
+        var inner = context
+        if content > 0 { inner.clip(to: Path(tag.insetBy(dx: 0, dy: 3))) }
         // 封筒は1行目の高さに置く（複数行でも札の真ん中へ流れない）。
-        context.draw(tinted, in: CGRect(x: tag.minX + 9, y: tag.minY + 5 + max(0, Self.labelLineHeight - iconSide) / 2, width: iconSide, height: iconSide))
-        let textRect = CGRect(x: tag.minX + 13 + iconSide, y: tag.minY + 5, width: tag.width - iconSide - 19, height: tag.height - 10)
-        context.withCGContext { cg in
+        inner.draw(tinted, in: CGRect(x: tag.minX + 9, y: tag.minY + 5 - scroll + max(0, Self.labelLineHeight - iconSide) / 2, width: iconSide, height: iconSide))
+        let textRect = CGRect(x: tag.minX + 13 + iconSide, y: tag.minY + 5 - scroll, width: tag.width - iconSide - 19, height: max(tag.height, content) - 10)
+        inner.withCGContext { cg in
             UIGraphicsPushContext(cg)
             text.draw(with: textRect, options: .usesLineFragmentOrigin, context: nil)
             UIGraphicsPopContext()
@@ -423,3 +441,44 @@ enum WorkGraphColor {
         return Color(hue: Double(h), saturation: Double(min(1, s * saturation)), brightness: Double(min(1, b * brightness)))
     }
 }
+
+#if targetEnvironment(macCatalyst)
+/// Macのトラックパッドとホイールのスクロールを受け、窓の座標（Canvasと同じ）の位置と送り量を渡す。
+/// 窓にだけ認識器を付ける（背景の見えない部品がクリックやホバーを奪わない）。触れる操作は受けない。
+private struct PeekScrollCatcher: UIViewRepresentable {
+    let onScroll: (CGPoint, CGFloat) -> Void
+
+    func makeUIView(context: Context) -> Catcher { Catcher(onScroll: onScroll) }
+    func updateUIView(_ view: Catcher, context: Context) { view.onScroll = onScroll }
+
+    final class Catcher: UIView {
+        var onScroll: (CGPoint, CGFloat) -> Void
+        private let pan = UIPanGestureRecognizer()
+
+        init(onScroll: @escaping (CGPoint, CGFloat) -> Void) {
+            self.onScroll = onScroll
+            super.init(frame: .zero)
+            isUserInteractionEnabled = false
+            pan.addTarget(self, action: #selector(scrolled))
+            pan.allowedScrollTypesMask = .all
+            pan.allowedTouchTypes = []
+            pan.cancelsTouchesInView = false
+        }
+
+        required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            pan.view?.removeGestureRecognizer(pan)
+            window?.addGestureRecognizer(pan)
+        }
+
+        @objc private func scrolled(_ pan: UIPanGestureRecognizer) {
+            guard pan.state == .changed else { return }
+            let delta = -pan.translation(in: self).y
+            pan.setTranslation(.zero, in: self)
+            if delta != 0 { onScroll(pan.location(in: self), delta) }
+        }
+    }
+}
+#endif

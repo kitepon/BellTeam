@@ -166,6 +166,10 @@ final class WorkGraphModel: ObservableObject {
         let area: CGRect
         let opacity: Double
         let blocked: Bool
+        /// 文の全体の高さ（`Chip.size.height`）。`tag`より高い札（Oversize chip）だけ入り、`tag`の中で`scroll`ぶん送って見せる。0は送らない札。
+        var content: CGFloat = 0
+        /// 文を上へ送った量（0〜`content − tag.height`）。最初は0で1行目から開く。
+        var scroll: CGFloat = 0
     }
 
     /// 描く順の札。blockedは線のすぐ上・メンバーの下、unblockedはメンバーの上、aboveは指している札で一番上。
@@ -199,18 +203,68 @@ final class WorkGraphModel: ObservableObject {
     }()
 
     /// 中心の札は線の上に少し浮かせ、下の尖りで線を指す。ほかの側は点に札の縁を当てる（layout-sim.mjsの`chipBox`の側の寄せ。尖りは無い）。
-    static func chipFrame(at point: CGPoint, size: CGSize, side: CGVector = .zero) -> (tag: CGRect, area: CGRect) {
+    /// `within`（描画範囲D）を渡すと、4pt広げた範囲がDに収まるよう内側へ必要なだけ滑らせる（layout-sim.mjsの`intoArea`）。
+    /// 滑らせた中心の札の尖りは、札の縁に沿って根元をずらし（角の丸みの内側まで）、先は線の点を指したまま。
+    static func chipFrame(at point: CGPoint, size: CGSize, side: CGVector = .zero, within area: CGRect? = nil) -> (tag: CGRect, area: CGRect) {
+        var tag: CGRect
         if side != .zero {
-            let tag = CGRect(x: point.x + side.dx * size.width / 2 - size.width / 2, y: point.y + side.dy * size.height / 2 - size.height / 2,
-                             width: size.width, height: size.height)
-            return (tag, tag)
+            tag = CGRect(x: point.x + side.dx * size.width / 2 - size.width / 2, y: point.y + side.dy * size.height / 2 - size.height / 2,
+                         width: size.width, height: size.height)
+        } else {
+            tag = CGRect(x: point.x - size.width / 2, y: point.y - size.height - 7, width: size.width, height: size.height)
         }
-        let tag = CGRect(x: point.x - size.width / 2, y: point.y - size.height - 7, width: size.width, height: size.height)
-        return (tag, tag.union(CGRect(x: point.x - 4, y: point.y - 7, width: 8, height: 7)))
+        var box = side != .zero ? tag : tag.union(tailBox(point, tag))
+        if let area {
+            let grown = box.insetBy(dx: -4, dy: -4), slid = intoArea(grown, area)
+            let dx = slid.minX - grown.minX, dy = slid.minY - grown.minY
+            if dx != 0 || dy != 0 {
+                tag = tag.offsetBy(dx: dx, dy: dy)
+                box = side != .zero ? tag : tag.union(tailBox(point, tag))
+            }
+        }
+        return (tag, box)
+    }
+
+    /// 尖りの根元の中心x：線の点の真上、札の縁の丸み（半径9pt＋根元の半幅5pt）の内側に収める。
+    static func tailBase(_ point: CGPoint, _ tag: CGRect) -> CGFloat {
+        let low = tag.minX + 14
+        return min(max(point.x, low), max(low, tag.maxX - 14))
+    }
+
+    /// 中心の札の尖りの範囲。札の下端が線の点より上にある時だけ（札が点を覆えば尖りは無い）。
+    private static func tailBox(_ point: CGPoint, _ tag: CGRect) -> CGRect {
+        guard point.y > tag.maxY else { return tag }
+        let base = tailBase(point, tag)
+        return CGRect(x: min(base, point.x) - 4, y: tag.maxY, width: abs(base - point.x) + 8, height: point.y - tag.maxY)
+    }
+
+    /// 四角を1軸ずつ`area`の内側へ必要なだけ滑らせた四角（layout-sim.mjsの`intoArea`/`slide`）。
+    /// 軸の長さが`area`より大きい四角は、始まりの縁を`area`の始まりに合わせる。
+    static func intoArea(_ box: CGRect, _ area: CGRect) -> CGRect {
+        func slide(_ lo: CGFloat, _ hi: CGFloat, _ start: CGFloat, _ end: CGFloat) -> CGFloat {
+            hi - lo > end - start ? start - lo : max(0, start - lo) - max(0, hi - end)
+        }
+        return box.offsetBy(dx: slide(box.minX, box.maxX, area.minX, area.maxX), dy: slide(box.minY, box.maxY, area.minY, area.maxY))
+    }
+
+    /// 四角が`area`に収まっているか（layout-sim.mjsの`onScreen`）。
+    static func onScreen(_ box: CGRect, _ area: CGRect) -> Bool {
+        box.minX >= area.minX - 1e-6 && box.minY >= area.minY - 1e-6 && box.maxX <= area.maxX + 1e-6 && box.maxY <= area.maxY + 1e-6
+    }
+
+    /// 4pt広げた札が`area`より高い（Oversize chip）。どう滑らせても収まらず、空きspotを持たない。
+    static func isOversize(_ size: CGSize, within area: CGRect) -> Bool { size.height + 8 > area.height }
+
+    /// Oversize chipの指し見せの範囲：`area`の上端に4pt広げた縁を当てた、ちょうど`area`の高さの箱（横は置き場所の列のまま）。
+    static func peekFrame(_ frame: (tag: CGRect, area: CGRect), within area: CGRect) -> (tag: CGRect, area: CGRect) {
+        let tag = CGRect(x: frame.tag.minX, y: area.minY + 4, width: frame.tag.width, height: area.height - 8)
+        return (tag, tag)
     }
 
     /// 最後のコマで描いた札と線。タップと指した位置の判定に使う。
     private(set) var chips = ChipLayers()
+    /// 最前面にあるOversize chipの文の送り量（辺のID鍵）。最前面から外れると消える。
+    private(set) var peekScroll: [String: CGFloat] = [:]
     private var paths: [EdgePath] = []
 
     @Published private(set) var connection = Connection.connecting
@@ -771,9 +825,11 @@ final class WorkGraphModel: ObservableObject {
         // 退場中のメンバーはアイコンも名前も障害物ではない（もう画面の外へ消えていく）。
         let fixed = bodies.values.filter { $0.leavingAt == nil }.flatMap { [frames($0, at: now).avatar] + [nameText($0, at: now)].compactMap { $0 } }
         var placed: [CGRect] = []
+        let d = drawable
+        // 空きspot：滑らせた後も4pt広げた範囲がDに収まり（Oversize chipは収まらない）、障害物に触れない。
         func free(_ area: CGRect) -> Bool {
             let grown = area.insetBy(dx: -4, dy: -4)
-            return !fixed.contains { $0.intersects(grown) } && !placed.contains { $0.intersects(grown) }
+            return Self.onScreen(grown, d) && !fixed.contains { $0.intersects(grown) } && !placed.contains { $0.intersects(grown) }
         }
         var layers = ChipLayers()
         let byId = Dictionary(paths.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
@@ -792,7 +848,15 @@ final class WorkGraphModel: ObservableObject {
             if let label { chip.nullAt = nil; chip.text = label } else if chip.nullAt == nil { chip.nullAt = now }
             let chipSize = size(chip.text)
             chip.size = chipSize
-            let frame = { (spot: Spot) in Self.chipFrame(at: path.point(spot.t), size: chipSize, side: spot.side) }
+            let frame = { (spot: Spot) in Self.chipFrame(at: path.point(spot.t), size: chipSize, side: spot.side, within: d) }
+            let oversize = Self.isOversize(chipSize, within: d)
+            /// 最前面に出す札の形。Oversize chipは高さDの箱で、文を送って見せる。
+            func shown(_ f: (tag: CGRect, area: CGRect), anchor: CGPoint, opacity: Double, blocked: Bool) -> PlacedChip {
+                guard oversize else { return PlacedChip(id: line.edge.id, text: chip.text, anchor: anchor, tag: f.tag, area: f.area, opacity: opacity, blocked: blocked) }
+                let p = Self.peekFrame(f, within: d)
+                return PlacedChip(id: line.edge.id, text: chip.text, anchor: anchor, tag: p.tag, area: p.area, opacity: opacity, blocked: blocked,
+                                  content: chipSize.height, scroll: min(max(0, peekScroll[line.edge.id] ?? 0), chipSize.height - p.tag.height))
+            }
             var opacity = 1.0
             if let endedAt = line.endedAt { opacity *= max(0, 1 - (now - endedAt) / 0.3) }
             if let nullAt = chip.nullAt { opacity *= max(0, 1 - (now - nullAt) / 0.3) }
@@ -812,9 +876,7 @@ final class WorkGraphModel: ObservableObject {
             guard let t = chip.t else {
                 // 待っている札は、線を指している間だけ`t = 0.5`で最前面に出す。置き場所は取らない。
                 if peek == line.edge.id, label != nil, line.endedAt == nil {
-                    let f = frame(Spot(t: 0.5, side: .zero))
-                    layers.above.append(PlacedChip(id: line.edge.id, text: chip.text, anchor: path.point(0.5), tag: f.tag, area: f.area,
-                                                   opacity: 1, blocked: false))
+                    layers.above.append(shown(frame(Spot(t: 0.5, side: .zero)), anchor: path.point(0.5), opacity: 1, blocked: false))
                 }
                 continue
             }
@@ -822,10 +884,17 @@ final class WorkGraphModel: ObservableObject {
             let blocked = !free(f.area)
             placed.append(f.area) // blockedの札も後の札の障害物（Webと同じ）。
             if let appearAt = chip.appearAt { opacity *= min(1, (now - appearAt) / 0.2) } // 最初に出る時は200msで現れる。
-            let item = PlacedChip(id: line.edge.id, text: chip.text, anchor: path.point(t), tag: f.tag, area: f.area,
-                                  opacity: hovered ? 1 : opacity, blocked: blocked)
-            if hovered { layers.above.append(item) } else if blocked { layers.blocked.append(item) } else { layers.unblocked.append(item) }
+            // Oversize chipは指している間に加え、tapで開いた指し見せ（iPhone）でも最前面の高さDの箱で見せる。
+            let peeked = hovered || (oversize && peek == line.edge.id && label != nil && line.endedAt == nil)
+            if peeked {
+                layers.above.append(shown(f, anchor: path.point(t), opacity: 1, blocked: blocked))
+            } else {
+                let item = PlacedChip(id: line.edge.id, text: chip.text, anchor: path.point(t), tag: f.tag, area: f.area, opacity: opacity, blocked: blocked)
+                if blocked { layers.blocked.append(item) } else { layers.unblocked.append(item) }
+            }
         }
+        // 最前面でなくなった札の送りは捨てる（次に開く時は1行目から）。
+        peekScroll = Dictionary(layers.above.filter { $0.content > 0 }.map { ($0.id, $0.scroll) }, uniquingKeysWith: { _, last in last })
         chips = layers
     }
 
@@ -856,6 +925,18 @@ final class WorkGraphModel: ObservableObject {
 
     func clearTap() { tappedEdge = nil }
 
+    /// 最前面のOversize chipのうち`point`を含む札の文を`delta`だけ上へ送る（下へ送るなら正）。全行が見える範囲で止まる。送ったらtrue。
+    /// Macはポインタを重ねたままのトラックパッド・ホイール、iPhoneは箱の中で始めた縦のドラッグが呼ぶ。
+    @discardableResult
+    func scrollPeek(by delta: CGFloat, at point: CGPoint) -> Bool {
+        guard let index = chips.above.lastIndex(where: { $0.content > $0.tag.height && $0.area.contains(point) }) else { return false }
+        let chip = chips.above[index]
+        let scroll = min(max(0, chip.scroll + delta), chip.content - chip.tag.height)
+        chips.above[index].scroll = scroll
+        peekScroll[chip.id] = scroll
+        return true
+    }
+
     /// 押した位置にいるメンバー（behavior-spec.md「Tap or click on a member」）。アイコンと名前が対象で、
     /// どちらも44pt四方より小さくしない。線・札・空いた所は対象外。退場中のnodeも描いている間は対象。
     func member(at point: CGPoint, now: Double) -> String? {
@@ -879,9 +960,12 @@ final class WorkGraphModel: ObservableObject {
     /// ジェスチャの1回分の更新。`press`がnilなら新しい押下の最初の標本で、押した位置でbotIdを決める。
     /// 最初の標本が既に10pt以上動いていても動いた扱い（結合された標本を捨てない）。
     /// 新しい押下かどうかは位置でなく状態（記録は取消・終了・scene喪失でnilへ戻る）で決める。
-    func updatePress(_ press: inout WorkGraphPress?, start: CGPoint, location: CGPoint, time: Double) {
+    /// `scrollsPeek`（iPhone）なら、メンバーの範囲でなく始まった押下の縦の動きで、始めた位置の最前面のOversize chipの文を送る。
+    func updatePress(_ press: inout WorkGraphPress?, start: CGPoint, location: CGPoint, time: Double, scrollsPeek: Bool = false) {
         if press == nil { press = self.press(at: start, time: time) }
+        let previous = press?.location ?? start
         press?.move(to: location)
+        if scrollsPeek, press?.botId == nil { scrollPeek(by: previous.y - location.y, at: start) }
     }
 
     /// 点滅の不透明度。activeSinceから測るので、どのアプリでも同じメンバーは同じ位相になる。
