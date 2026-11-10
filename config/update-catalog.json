@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-10T14:58:14Z",
-  "expiresAt": "2026-11-17T14:58:14Z",
+  "publishedAt": "2026-11-10T15:04:02Z",
+  "expiresAt": "2026-11-17T15:04:02Z",
   "releases": [
     {
       "componentId": "usage",
@@ -427,8 +427,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "27227d780a1648d247a15226a69607da2e4afd34",
-      "versionId": "23f8ba3e4c83d7844aa2e521f3d36d7e8553fcc1a3ee2dc253914378f51070fd",
+      "sourceCommit": "35dbde51a063c493460fea6679887e1574776d21",
+      "versionId": "2a0db57a24ae0f5e51b912e4cfab7cd32d018a2c0ab7722c4af640ae68c3a2e8",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +436,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T032814Z/web-gateway-27227d780a1648d247a15226a69607da2e4afd34-linux-amd64.tar.gz",
-          "bytes": 5172409,
-          "sha256": "23f8ba3e4c83d7844aa2e521f3d36d7e8553fcc1a3ee2dc253914378f51070fd"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T143356Z/web-gateway-35dbde51a063c493460fea6679887e1574776d21-linux-amd64.tar.gz",
+          "bytes": 5183148,
+          "sha256": "2a0db57a24ae0f5e51b912e4cfab7cd32d018a2c0ab7722c4af640ae68c3a2e8"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T032814Z/web-gateway-27227d780a1648d247a15226a69607da2e4afd34-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11252,
-          "sha256": "a2a7c69f55dfcbaaf804d7a69bdcced90a2e0efede49ea368d4a9d8f6a701876"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T143356Z/web-gateway-35dbde51a063c493460fea6679887e1574776d21-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11299,
+          "sha256": "a800b648a2a3bd4a19172feb9718b2acea47f49241201232f243c4d104179602"
         },
-        "signerCommit": "27227d780a1648d247a15226a69607da2e4afd34"
+        "signerCommit": "35dbde51a063c493460fea6679887e1574776d21"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,13 +454,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "相関図の札が画面の端からはみ出さなくなります。画面より長い札は、線を指すかタップすると画面の高さで開き、スクロールで続きを読めます。更新画面で、いまの本体に合う版がまだない機能があっても『確認できません』と出なくなり、待っている機能の名前を出します。"
+        "会話の画面で、分身の行に「分身」の札が付き、相関図では分身への線が点線になります。端末を登録する時に Mac・Windows・Linux を選べるようになり、Windows の C:\\ の形のフォルダも選べます。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "27227d780a1648d247a15226a69607da2e4afd34",
-      "versionId": "3d7adf365de2303d29241be3fcfe0c38149abe3ef1c112e6e0569e0e5e8512db",
+      "sourceCommit": "35dbde51a063c493460fea6679887e1574776d21",
+      "versionId": "baa33e87a6c64beb2eeb107270610a194c4e00ca4405c0418c85bfc5fb56b861",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -468,16 +468,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T032814Z/web-gateway-27227d780a1648d247a15226a69607da2e4afd34-linux-arm64.tar.gz",
-          "bytes": 5172409,
-          "sha256": "3d7adf365de2303d29241be3fcfe0c38149abe3ef1c112e6e0569e0e5e8512db"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T143356Z/web-gateway-35dbde51a063c493460fea6679887e1574776d21-linux-arm64.tar.gz",
+          "bytes": 5183148,
+          "sha256": "baa33e87a6c64beb2eeb107270610a194c4e00ca4405c0418c85bfc5fb56b861"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T032814Z/web-gateway-27227d780a1648d247a15226a69607da2e4afd34-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11099,
-          "sha256": "7cd1e08bd8b2e1208cc813f5440432e830836d80bd2728f55c6200337005b094"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T143356Z/web-gateway-35dbde51a063c493460fea6679887e1574776d21-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11346,
+          "sha256": "9892429d03d15c74ff3e33db65728a946fb37306996334c36d537f0e6b0d674e"
         },
-        "signerCommit": "27227d780a1648d247a15226a69607da2e4afd34"
+        "signerCommit": "35dbde51a063c493460fea6679887e1574776d21"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -486,13 +486,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "相関図の札が画面の端からはみ出さなくなります。画面より長い札は、線を指すかタップすると画面の高さで開き、スクロールで続きを読めます。更新画面で、いまの本体に合う版がまだない機能があっても『確認できません』と出なくなり、待っている機能の名前を出します。"
+        "会話の画面で、分身の行に「分身」の札が付き、相関図では分身への線が点線になります。端末を登録する時に Mac・Windows・Linux を選べるようになり、Windows の C:\\ の形のフォルダも選べます。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "f1578cd3241a313b2cfdfe5d379b7168401aec76",
-      "versionId": "587ceef548a10d5d931e9b8e8d4d5dad423534b815afc63a1d0664c6ba985953",
+      "sourceCommit": "712e1b0639b8b6fce55ef623f02930b6cf7ad6da",
+      "versionId": "21d721f2ee66e53fc93e1441c8c57f7741a0357b4ab478e1d37b99434755a446",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T123002Z/execution-f1578cd3241a313b2cfdfe5d379b7168401aec76-linux-amd64.tar.gz",
-          "bytes": 3948163,
-          "sha256": "587ceef548a10d5d931e9b8e8d4d5dad423534b815afc63a1d0664c6ba985953"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T145600Z/execution-712e1b0639b8b6fce55ef623f02930b6cf7ad6da-linux-amd64.tar.gz",
+          "bytes": 3948283,
+          "sha256": "21d721f2ee66e53fc93e1441c8c57f7741a0357b4ab478e1d37b99434755a446"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T123002Z/execution-f1578cd3241a313b2cfdfe5d379b7168401aec76-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11083,
-          "sha256": "cfc9074c1d29838055bbac87ab853f5f50108e2e55b47b14557ab291416f9399"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T145600Z/execution-712e1b0639b8b6fce55ef623f02930b6cf7ad6da-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11067,
+          "sha256": "a0a4215cbe57fce79e2ae9e662f9cdc590dfbf520af08623746ba0a59558392a"
         },
-        "signerCommit": "f1578cd3241a313b2cfdfe5d379b7168401aec76"
+        "signerCommit": "712e1b0639b8b6fce55ef623f02930b6cf7ad6da"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "席が起動や入力を断られた時に、Aiterm 0.70.5 が返す理由を読み取って伝えます。"
+        "Windows・Linuxの端末でログインを案内する時に、端末のOSの名前を出します。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "f1578cd3241a313b2cfdfe5d379b7168401aec76",
-      "versionId": "53ab7c0dec4c55581c60d94b60fe049059524e5ff20334e2ddc7e82f0048c5e6",
+      "sourceCommit": "712e1b0639b8b6fce55ef623f02930b6cf7ad6da",
+      "versionId": "74dfef182b335a8c0e507c801b5c86266d93ac02101d33aecea8b4c48f948cf0",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T123002Z/execution-f1578cd3241a313b2cfdfe5d379b7168401aec76-linux-arm64.tar.gz",
-          "bytes": 3948161,
-          "sha256": "53ab7c0dec4c55581c60d94b60fe049059524e5ff20334e2ddc7e82f0048c5e6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T145600Z/execution-712e1b0639b8b6fce55ef623f02930b6cf7ad6da-linux-arm64.tar.gz",
+          "bytes": 3948284,
+          "sha256": "74dfef182b335a8c0e507c801b5c86266d93ac02101d33aecea8b4c48f948cf0"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T123002Z/execution-f1578cd3241a313b2cfdfe5d379b7168401aec76-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11130,
-          "sha256": "c51f28a4786457e2b50ab4c7f706b60657862643c4f931355fac3528155aab60"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T145600Z/execution-712e1b0639b8b6fce55ef623f02930b6cf7ad6da-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11114,
+          "sha256": "46a78f51b6effc735233f2d545e1a1b07a7bebabee9b7c880899d46afad8df97"
         },
-        "signerCommit": "f1578cd3241a313b2cfdfe5d379b7168401aec76"
+        "signerCommit": "712e1b0639b8b6fce55ef623f02930b6cf7ad6da"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,13 +552,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "席が起動や入力を断られた時に、Aiterm 0.70.5 が返す理由を読み取って伝えます。"
+        "Windows・Linuxの端末でログインを案内する時に、端末のOSの名前を出します。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "ed8672b29cf6be69a92d795d2849997abba31151",
-      "versionId": "a07ad6fe617ec685691b8445586854ff9103bcbe285fb151e4f79ea1619aa2a4",
+      "sourceCommit": "35dbde51a063c493460fea6679887e1574776d21",
+      "versionId": "250987487ab008960a47d0e6e21a08660ff0fc7440861243844b2d9f56a299da",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -566,16 +566,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T001628Z/members-ed8672b29cf6be69a92d795d2849997abba31151-linux-amd64.tar.gz",
-          "bytes": 4420256,
-          "sha256": "a07ad6fe617ec685691b8445586854ff9103bcbe285fb151e4f79ea1619aa2a4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T143330Z/members-35dbde51a063c493460fea6679887e1574776d21-linux-amd64.tar.gz",
+          "bytes": 4436649,
+          "sha256": "250987487ab008960a47d0e6e21a08660ff0fc7440861243844b2d9f56a299da"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T001628Z/members-ed8672b29cf6be69a92d795d2849997abba31151-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10953,
-          "sha256": "7ccab3afe7fac2ae39197b64310931307ac1e8f007ee6c34b6c1822de0b07baf"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T143330Z/members-35dbde51a063c493460fea6679887e1574776d21-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11239,
+          "sha256": "1576204bcdfde4d3825bc87dd9ee11e65eba60f6692ab4f498bfe45ce2208a41"
         },
-        "signerCommit": "ed8672b29cf6be69a92d795d2849997abba31151"
+        "signerCommit": "35dbde51a063c493460fea6679887e1574776d21"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -592,13 +592,13 @@
         }
       },
       "changes": [
-        "メンバーの設定で、端末とフォルダーを指定して保存できるようになります。"
+        "メンバーの作業フォルダの書き方と既定のフォルダが、端末のOS（Mac・Windows・Linux）に合うようになります。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "ed8672b29cf6be69a92d795d2849997abba31151",
-      "versionId": "b78dfd9470784d542f052f0128ea07a2aec063d20feac14cdd96317da6da0c49",
+      "sourceCommit": "35dbde51a063c493460fea6679887e1574776d21",
+      "versionId": "602369080ab9f8753f435b2059b73c224fa207e2a69fdc9d7c937a4b98ccafc8",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -606,16 +606,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T001628Z/members-ed8672b29cf6be69a92d795d2849997abba31151-linux-arm64.tar.gz",
-          "bytes": 4420255,
-          "sha256": "b78dfd9470784d542f052f0128ea07a2aec063d20feac14cdd96317da6da0c49"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T143330Z/members-35dbde51a063c493460fea6679887e1574776d21-linux-arm64.tar.gz",
+          "bytes": 4436658,
+          "sha256": "602369080ab9f8753f435b2059b73c224fa207e2a69fdc9d7c937a4b98ccafc8"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T001628Z/members-ed8672b29cf6be69a92d795d2849997abba31151-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10996,
-          "sha256": "c546c107e617476cc6d05c766fa0585e5eb916965433b866886548910cb4b66d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T143330Z/members-35dbde51a063c493460fea6679887e1574776d21-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11278,
+          "sha256": "73946351782eea156b721124f2da6f9ef8f9a7df7e3b62e1fc8da99e9ce3d403"
         },
-        "signerCommit": "ed8672b29cf6be69a92d795d2849997abba31151"
+        "signerCommit": "35dbde51a063c493460fea6679887e1574776d21"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -632,7 +632,7 @@
         }
       },
       "changes": [
-        "メンバーの設定で、端末とフォルダーを指定して保存できるようになります。"
+        "メンバーの作業フォルダの書き方と既定のフォルダが、端末のOS（Mac・Windows・Linux）に合うようになります。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "f89f7d3bf11cc47fd81dd418925e538d00b0f461",
-      "versionId": "sha256:6c5eff3a25003880d7f1523bae328ff324240bd1051be25b7091217801a0989b",
+      "sourceCommit": "712e1b0639b8b6fce55ef623f02930b6cf7ad6da",
+      "versionId": "sha256:c943a33a03562c56cc8586d7931fcb87aae5ba5ce451577a67e287859f760ad3",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6c5eff3a25003880d7f1523bae328ff324240bd1051be25b7091217801a0989b"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c943a33a03562c56cc8586d7931fcb87aae5ba5ce451577a67e287859f760ad3"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "分身の席は全部の道具を使えます。Botのプロジェクトフォルダに書く操作だけを断ります。"
+        "WindowsとLinuxの端末を、OSを付けて登録・接続できるようにします。Macの動きは変わりません。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "f89f7d3bf11cc47fd81dd418925e538d00b0f461",
-      "versionId": "sha256:6c5eff3a25003880d7f1523bae328ff324240bd1051be25b7091217801a0989b",
+      "sourceCommit": "712e1b0639b8b6fce55ef623f02930b6cf7ad6da",
+      "versionId": "sha256:c943a33a03562c56cc8586d7931fcb87aae5ba5ce451577a67e287859f760ad3",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6c5eff3a25003880d7f1523bae328ff324240bd1051be25b7091217801a0989b"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c943a33a03562c56cc8586d7931fcb87aae5ba5ce451577a67e287859f760ad3"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "分身の席は全部の道具を使えます。Botのプロジェクトフォルダに書く操作だけを断ります。"
+        "WindowsとLinuxの端末を、OSを付けて登録・接続できるようにします。Macの動きは変わりません。"
       ]
     }
   ],
