@@ -21,8 +21,9 @@ const authNotReady = error => {
 // Aiterm >= 0.70.0: any other launch it refused before a seat existed (e.g. CWD_UNAVAILABLE, REMOTE_AITERM_TOO_OLD), with its
 // fixed plain action. Same exit as auth (common rule guards.give-up-is-a-guard): the member's next drain after the Owner's fix.
 const refused = error => { const value = launchRefusal(error?.launchRefusal); return value !== null && value.code === error.code ? value : null }
-// The Owner's plain next step for a terminal whose claude is not logged in (Trony's wording).
-export const LOGIN_ACTION = 'Macのclaudeにログインが必要'
+// The Owner's plain next step for a terminal whose claude is not logged in (Trony's wording), named by terminals' target.os.
+const OS_NAMES = { macos: 'Mac', windows: 'Windows', linux: 'Linux' }
+export const loginAction = os => `${OS_NAMES[os] ?? 'Mac'}のclaudeにログインが必要`
 export const notStarted = error => {
   if (NOT_STARTED.has(error?.code) || reachability(error?.code) || authNotReady(error) || refused(error)) try { error.effect = 'not_started' } catch {}
   return error
@@ -85,6 +86,7 @@ export class RemoteSeats {
     this.seats = new Map() // sessionName -> {sessionName, botId, terminalId, projectRoot, launchId, cursor}; cache of the launch record
     this.waiting = new Map() // terminalId -> Set(botId) whose launch was not started
     this.notices = new Map() // botId -> {code, action, terminalId, at}: the latest not-started launch, shown to the Owner
+    this.oses = new Map() // terminalId -> terminals' target.os at the last target (login text only)
     this.notify = notify
     this.unwatch = terminals.watch?.(event => this.available(event)) ?? (() => {})
   }
@@ -131,6 +133,7 @@ export class RemoteSeats {
   // terminals' target; an app-set key (terminal.credential) is loaded into Aiterm before the target is used (R13).
   async target({ id, terminalId, projectRoot }, harness = 'claude-code') {
     const target = await this.terminals.connection.target({ terminalId, memberId: id, projectRoot, harness })
+    if (target?.os) this.oses.set(terminalId, target.os)
     if (target?.terminal?.credential) {
       // terminals' target succeeded, so its observer is not armed; arm it so Mika's availability event drains the wait.
       try { await this.loadKey({ id, terminalId }, target.terminal) }
@@ -204,14 +207,14 @@ export class RemoteSeats {
   // agent_launch (after a successful target) answered a terminal code: queue as not started; a connectivity code also arms
   // terminals' non-AI observer, whose reachable event drains the same IDs.
   launchFailed(bot, error) {
-    if (authNotReady(error)) { notStarted(error); this.notice(bot, { code: error.code, action: LOGIN_ACTION }); return }
+    if (authNotReady(error)) { notStarted(error); this.notice(bot, { code: error.code, action: loginAction(this.oses.get(bot.terminalId)) }); return }
     const refusal = refused(error)
     if (refusal) { notStarted(error); this.notice(bot, refusal); return }
     // Aiterm >= 0.70.1: a logged-out claude stops at its first screen in a created session. Information only: a session
     // exists on the terminal, so this stays today's visible failure; the notice says what the Owner must do.
     const startup = error?.launch?.schema === 'aiterm.agent-launch-result.v1' ? error.launch.startup : null
     if (startup?.status === 'blocked' && startup.reason === 'vendor_onboarding_required') {
-      this.notice(bot, { code: 'VENDOR_ONBOARDING_REQUIRED', action: LOGIN_ACTION })
+      this.notice(bot, { code: 'VENDOR_ONBOARDING_REQUIRED', action: loginAction(this.oses.get(bot.terminalId)) })
       return
     }
     if (!NOT_STARTED.has(error?.code) && !reachability(error?.code)) return
