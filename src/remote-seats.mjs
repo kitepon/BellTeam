@@ -126,7 +126,10 @@ export class RemoteSeats {
       if (issued) await this.revoke(sessionName)
       // terminals' own target() failure already armed its observer.
       // A fork's refusal goes back to its asker; the main seat's queue and launch notice are not touched (execution/fork.md).
-      if (kind !== 'fork' && (NOT_STARTED.has(error?.code) || reachability(error?.code))) { this.wait(bot); this.notice(bot, error) }
+      // terminals' C8 auth check (codex/grok) refuses in Aiterm's shape: notice only, no observer (exit = the member's next drain).
+      const refusal = refused(error)
+      if (kind !== 'fork' && refusal) this.notice(bot, refusal)
+      else if (kind !== 'fork' && (NOT_STARTED.has(error?.code) || reachability(error?.code))) { this.wait(bot); this.notice(bot, error) }
       throw notStarted(error)
     }
   }

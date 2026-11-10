@@ -145,7 +145,7 @@ transport.seatLaunch(botId)   (sync project method, like seatAccount)
 | `terminalId` | the terminal the launch was for |
 | `at` | ISO time of the failure |
 
-- Set by `RemoteSeats.notice` on every not-started remote launch: a failed `target`/context/credential step in `prepare`, or Aiterm's not-started code in `launchFailed` (Claude auth preflight included), and on the login-screen failure above.
+- Set by `RemoteSeats.notice` on every not-started remote launch: a failed `target`/context/credential step in `prepare` (including a validated launch refusal from terminals' C8 auth check, e.g. `AGENT_AUTH_REQUIRED` for codex-cli/grok-cli: notice only, no wait/observer), or Aiterm's not-started code in `launchFailed` (Claude auth preflight included), and on the login-screen failure above.
 - Cleared by `RemoteSeats.launched` (the launch on the terminal succeeded). Read as `null` once the member is no longer bound to that `terminalId` (moved to another terminal or to local), so no stale notice remains.
 - Each set/clear emits `{topics: ['bots'], botIds: []}` on the existing change stream, so Web/Apple re-read `/api/bots`. `botIds` stays empty on purpose: a change naming the Bot triggers the direct drain, which would relaunch at once and loop on the same failure.
 - The generation exchange hands the Map over with the seats Map.
