@@ -5,6 +5,9 @@ export function createDeliveryApi({ messenger, roomMessenger, transport }) {
     if (request.method === 'POST' && url.pathname === '/api/deliveries/direct') {
       return json(response, 200, await messenger.sendmessage(await readJson(request)))
     }
+    if (request.method === 'POST' && url.pathname === '/api/deliveries/fork') {
+      return json(response, 200, await messenger.askReadonly(await readJson(request)))
+    }
     const resumeDeliveryMatch = url.pathname.match(/^\/api\/deliveries\/direct\/([a-f0-9-]+)\/resume$/u)
     if (request.method === 'POST' && resumeDeliveryMatch) {
       const { target } = await readJson(request)

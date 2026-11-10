@@ -7,10 +7,14 @@ import { deliveryExecutionRef } from './execution-bridge.mjs'
 import { ConversationWriter } from './conversation-writer.mjs'
 import { readImageBytes } from './message-assets.mjs'
 
-export function directEnvelope(from, message) {
+export function directEnvelope(from, message, { fork = false } = {}) {
   const identity = typeof from === 'string' ? { id: from, name: from, position: '', role: '' } : from
   const name = identity.id === 'user' ? 'オーナー' : identity.name
-  return `「${name}」からあなたへ次のメッセージが届いています。\n\n${message}`
+  return `「${name}${fork ? '（分身）' : ''}」からあなたへ次のメッセージが届いています。\n\n${message}`
+}
+
+function forkSeatLabel(seat) {
+  return seat?.kind === 'fork' && typeof seat.forkId === 'string' && seat.forkId ? { kind: 'fork', fork_id: seat.forkId } : null
 }
 
 export function userEnvelope(from, message) {
@@ -32,7 +36,17 @@ export class BellTeamMessenger extends ConversationWriter {
   }
 
   // Botの送信（MCP）は画像1枚の `image`、ユーザーの送信は複数枚の `images` で渡す。
-  async sendmessage({ from, target, message, image = null, images = image ? [image] : [], executionSource }, { membersLease, admissionCheck } = {}) {
+  // askerSeat は seat MCP が解決した分身の席だけが付ける（道具の引数からは来ない）。
+  async sendmessage({ executionSource, askerSeat, ...input }, options = {}) {
+    const fromSeat = forkSeatLabel(askerSeat)
+    const prepared = await this.prepareDirect(input, options, fromSeat ? { from_seat: fromSeat } : null)
+    if (prepared.userTurn) return this.enqueueUserTurn(prepared.userTurn)
+    return this.notifyDirect(prepared, { ...options, executionSource })
+  }
+
+  // sendmessage・ask_readonly・分身の回答中継が共有する、宛先の確認から記録の保存まで。
+  // label（分身の印）は入力本文からは受け取らない。
+  async prepareDirect({ from, target, message, image = null, images = image ? [image] : [] }, { membersLease, admissionCheck } = {}, label = null) {
     const check = target === 'user' ? () => {} : this.admitWork()
     await this.bots.refresh?.(membersLease === undefined ? undefined : { membersLease })
     if (!['user', 'scheduler'].includes(from) && !this.bots.has(from)) throw new Error(`SENDER_NOT_FOUND: ${from}`)
@@ -42,7 +56,7 @@ export class BellTeamMessenger extends ConversationWriter {
     if (typeof message !== 'string' || (message.length === 0 && !images.length)) throw new Error('MESSAGE_REQUIRED')
     images.forEach(validateImage)
 
-    if (from === 'user') return this.enqueueUserTurn({ target, message, images })
+    if (from === 'user') return { userTurn: { target, message, images } }
     if (bot) await this.requireAccess({ from, target })
     if (bot) admissionCheck?.()
 
@@ -54,14 +68,18 @@ export class BellTeamMessenger extends ConversationWriter {
       ? await this.assets.saveAll({ owner: from, id: deliveryId, images }) : []
     const record = this.record({
       deliveryId, from, target, message, images, imageAsset, imageAssets,
-      delivery: bot ? 'running' : 'delivered',
+      delivery: bot ? 'running' : 'delivered', label,
     })
     await this.append(record)
+    return { check, bot, deliveryId, from, target, message, images, label }
+  }
+
+  async notifyDirect({ check, bot, deliveryId, from, target, message, images, label }, { membersLease, admissionCheck, executionSource } = {}) {
     let delivery = null
     if (bot) {
       try { check() }
       catch (error) { await this.appendDeliveryStatus(deliveryId, 'stopped'); throw error }
-      delivery = await this.transport.notify(bot, directEnvelope(memberIdentity(this.bots, from), message), {
+      delivery = await this.transport.notify(bot, directEnvelope(memberIdentity(this.bots, from), message, { fork: label?.seat?.kind === 'fork' || label?.from_seat?.kind === 'fork' }), {
         ...(admissionCheck ? { admissionCheck: () => { check(); admissionCheck() } } : {}),
         ...(membersLease === undefined ? {} : { membersLease }),
         ...(executionSource ? { executionSource } : {}),
@@ -74,6 +92,62 @@ export class BellTeamMessenger extends ConversationWriter {
       })
     }
     return { delivery: delivery?.delivery ?? 'delivered', delivery_id: deliveryId, from, target }
+  }
+
+  // 読み取り専用の問い合わせ。宛先の本体の列には入れず、実行担当の分身へ渡す。受付をすぐ返し、回答は質問者へメッセージで届ける。
+  // 質問者が分身の時は、分身は後から届くメッセージを受け取れないので、回答を待って道具の結果で返す。
+  async askReadonly({ from, target, message, executionSource, askerSeat }) {
+    if (target === 'user') throw new Error('FORK_TARGET_USER')
+    const forkId = this.deliveryId()
+    const seat = { kind: 'fork', fork_id: forkId }
+    const fromSeat = forkSeatLabel(askerSeat)
+    const prepared = await this.prepareDirect({ from, target, message }, {}, { seat, ...(fromSeat ? { from_seat: fromSeat } : {}) })
+    const { check, bot, deliveryId } = prepared
+    try { check() }
+    catch (error) { await this.appendDeliveryStatus(deliveryId, 'stopped'); throw error }
+    const acceptance = Promise.withResolvers()
+    const answered = Promise.withResolvers()
+    let relayed = false
+    // 回答か失敗のどちらかを一通だけ質問者へ返す。受付前の失敗は道具のエラーとして返すので中継しない。
+    // 受付の確定を待つので、実行側のcallbackからは待たずに呼ぶ。
+    const relay = text => {
+      if (relayed) return
+      relayed = true
+      if (fromSeat) return answered.resolve(text)
+      acceptance.promise
+        .then(accepted => accepted && this.relayForkAnswer({ from: bot.id, target: from, message: text, forkId, deliveryId }))
+        .catch(error => process.stderr.write(`BellTeam fork relay error: ${error.stack ?? error.message}\n`))
+    }
+    // onTurnEndは報告確認へ渡さない。報告依頼は本体の席へ届き、本体を中断するため。
+    // 分身の途中経過と回答も宛先の会話へ残し、分身の印を付ける。
+    const { onStatus } = this.notificationCallbacks(bot.id, deliveryId, 'fork')
+    const onInterim = words => this.appendInterimWords(bot.id, deliveryId, words, { seat })
+    const onAnswer = text => this.appendInterimWords(bot.id, deliveryId, [{ text, kind: 'answer' }], { seat })
+    try {
+      const result = await this.transport.forkInquiry(bot, directEnvelope(memberIdentity(this.bots, from), message, { fork: Boolean(fromSeat) }), {
+        forkId, deliveryId, ...(executionSource ? { executionSource } : {}),
+        onInterim,
+        onStatus: async (status, error, tracking) => {
+          await onStatus(status, error, tracking)
+          if (['failed', 'stopped'].includes(status)) relay(`FORK_FAILED: ${error?.reason ?? error?.code ?? error?.message ?? status}`)
+        },
+        onAnswer: async text => { await onAnswer(text); relay(text?.trim() ? text : 'FORK_FAILED: NO_ANSWER') },
+        onTurnEnd: () => relay('FORK_FAILED: NO_ANSWER'),
+      })
+      acceptance.resolve(true)
+      const receipt = { delivery_id: deliveryId, fork_id: forkId, from, target: bot.id, seat: 'fork' }
+      if (fromSeat) return { delivery: 'answered', answer: await answered.promise, ...receipt }
+      return { delivery: result?.delivery ?? 'running', ...receipt }
+    } catch (error) {
+      acceptance.resolve(false)
+      await this.appendDeliveryStatus(deliveryId, ['BOT_STOPPED', 'AI_GLOBAL_PAUSED'].includes(error.code) ? 'stopped' : 'failed', error)
+      throw error
+    }
+  }
+
+  async relayForkAnswer({ from, target, message, forkId, deliveryId }) {
+    const label = { seat: { kind: 'fork', fork_id: forkId }, in_reply_to: deliveryId }
+    return this.notifyDirect(await this.prepareDirect({ from, target, message }, {}, label))
   }
 
   async receiveCallBridge({ event, session_id: sessionId, target_id: target, source_system: sourceSystem, source_id: sourceId, source_label: sourceLabel, message, reply_required: replyRequired = true, seq = null }) {
@@ -251,13 +325,14 @@ export class BellTeamMessenger extends ConversationWriter {
     return { delivery: 'delivered', delivery_id: deliveryId, reply_id: replyId, from: target, target: 'user', reply }
   }
 
-  record({ deliveryId, from, target, message, images = [], imageAsset = null, imageAssets = [], delivery = 'delivered' }) {
+  record({ deliveryId, from, target, message, images = [], imageAsset = null, imageAssets = [], delivery = 'delivered', label = null }) {
     return {
       schema: 'bellteam.direct-message.v1', delivery_id: deliveryId, at: this.now(),
       from, target, from_identity: memberIdentity(this.bots, from), target_identity: memberIdentity(this.bots, target),
       message, image: images.length > 0, ...(images.length ? { image_count: images.length } : {}), delivery,
       ...(imageAsset ? { image_asset: imageAsset } : {}),
       ...(imageAssets.length ? { image_assets: imageAssets } : {}),
+      ...(label ?? {}),
     }
   }
 

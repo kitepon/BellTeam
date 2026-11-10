@@ -30,6 +30,7 @@ flowchart LR
   m_conversation -->|"settings"| m_usage
   m_conversation -->|"auth"| m_usage
   m_conversation -->|"observation"| m_execution
+  m_conversation -->|"fork"| m_execution
   m_diagnostics -->|"module-runner"| m_runtime
   m_distribution -->|"update"| m_runtime
   m_execution -->|"diagnostics"| m_integration
@@ -144,7 +145,7 @@ flowchart LR
 | [call-bridge/grokbot-bridge](modules/bridge/README.md) | リター | public |
 | [BugHub](modules/bughub/README.md) | フラジャイル | public |
 | [Caveat](modules/caveat/README.md) | ノア | public |
-| [会話・履歴](modules/conversation/README.md) | N102 | messages / history / membership-cleanup / room-access / durable-messages |
+| [会話・履歴](modules/conversation/README.md) | N102 | messages / history / membership-cleanup / room-access / durable-messages / fork-inquiry |
 | [診断](modules/diagnostics/README.md) | シグナル | diagnostics |
 | [商用配布](modules/distribution/README.md) | モリー | image / web-gateway-artifact / notifications-artifact / update-catalog / members-artifact / memory-artifact / conversation-artifact / runtime-artifact / work-graph-artifact |
 | [AI実行制御](modules/execution/README.md) | キロ | turn / configuration / stop / observation / members-admission / accounts / fork |

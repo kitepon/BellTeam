@@ -71,13 +71,14 @@ export class ConversationWriter {
 
   // 合間の言葉は、そのBotと指揮官の会話画面に出すだけの記録。誰にも配送せず、返信の候補にも通知にもならない。
   // Bot同士の連絡や通話で始まったターンの最後の回答（kind: 'answer'）も、同じ記録として画面にだけ出す。
-  async appendInterimWords(botId, groupId, words) {
+  async appendInterimWords(botId, groupId, words, label = null) {
     for (const word of words) {
       await this.append({
         schema: 'bellteam.interim-word.v1', id: this.deliveryId(), at: this.now(),
         bot: botId, group_id: groupId, text: word.text,
         ...(word.kind === 'error' || word.kind === 'answer' ? { kind: word.kind } : {}),
         ...(word.at ? { written_at: word.at } : {}),
+        ...(label ?? {}),
       })
     }
   }

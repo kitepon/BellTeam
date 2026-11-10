@@ -13,6 +13,14 @@ export const conversationTools = Object.freeze([
     }, ['target', 'message']),
   },
   {
+    name: 'ask_readonly',
+    description: '宛先Botへ読み取り専用の質問を送る。宛先の本体は中断されず、作業の待ち行列にも入らない。本体の最新状態から作った分身が、本体の作業を待たずにすぐ答える。分身は宛先Botのプロジェクトフォルダ内へ一切書き込めない（ファイル・git・そこにあるDBの更新を含む）。それ以外の道具・コマンド・調べもの・他Botへの連絡は使える。作業が必要ならsendmessageを使う。受付をすぐ返し、回答はメッセージで届く。runningは受付済みなので再送しない。',
+    inputSchema: objectSchema({
+      target: { type: 'string', minLength: 1, description: '宛先Botの名前またはBot ID' },
+      message: { type: 'string', minLength: 1, description: '読み取り専用の質問' },
+    }, ['target', 'message']),
+  },
+  {
     name: 'send_user_message',
     description: 'ユーザーとして指定したBellTeam Botへメッセージを送り、ユーザーとの会話へ記録する。',
     inputSchema: objectSchema({
@@ -22,16 +30,19 @@ export const conversationTools = Object.freeze([
   },
   {
     name: 'list_messages',
+    annotations: { readOnlyHint: true },
     description: '指定したBotのユーザー会話とBot間連絡の履歴を取得する。',
     inputSchema: objectSchema({ botId: { type: 'string', minLength: 1 } }, ['botId']),
   },
   {
     name: 'list_rooms',
+    annotations: { readOnlyHint: true },
     description: '自分が所属するBellTeamルームを一覧する。',
     inputSchema: objectSchema({}),
   },
   {
     name: 'get_room',
+    annotations: { readOnlyHint: true },
     description: 'ルーム名、目的、代表、メンバーを取得する。',
     inputSchema: objectSchema({ roomId: { type: 'string', minLength: 1 } }, ['roomId']),
   },
@@ -99,18 +110,20 @@ export const conversationTools = Object.freeze([
   },
   {
     name: 'list_queued_messages',
+    annotations: { readOnlyHint: true },
     description: 'BellTeamがAitermへ渡して処理中のメッセージを一覧する。botId指定時はそのBot宛てだけを返す。',
     inputSchema: objectSchema({ botId: { type: 'string', minLength: 1 } }),
   },
   {
     name: 'list_room_messages',
+    annotations: { readOnlyHint: true },
     description: '所属ルームの会話履歴を取得する。',
     inputSchema: objectSchema({ roomId: { type: 'string', minLength: 1 } }, ['roomId']),
   },
 ])
 
 // 呼出元のidentity・引数キー・台帳refreshは共通MCP入口で確認する。
-export async function callConversationTool({ name, args, from, registry, messenger, store, rooms, roomMessenger, deliverMessage, deliverRoomMessage, listQueued }) {
+export async function callConversationTool({ name, args, from, registry, messenger, store, rooms, roomMessenger, deliverMessage, deliverForkInquiry, deliverRoomMessage, listQueued }) {
   if (name === 'sendmessage') {
     const { image, ...message } = args
     return (deliverMessage ?? (value => messenger.sendmessage(value)))({
@@ -118,6 +131,10 @@ export async function callConversationTool({ name, args, from, registry, messeng
       target: args.target === 'user' ? 'user' : resolveBotTarget(registry, args.target),
       image: image ? { path: await resolveBotImagePath(registry.get(from), image) } : null,
     })
+  }
+  if (name === 'ask_readonly') {
+    if (args.target === 'user') throw new Error('FORK_TARGET_USER')
+    return (deliverForkInquiry ?? (value => messenger.askReadonly(value)))({ from, message: args.message, target: resolveBotTarget(registry, args.target) })
   }
   if (name === 'send_user_message') return (deliverMessage ?? (value => messenger.sendmessage(value)))({
     from: 'user', ...args, target: resolveBotTarget(registry, args.target),

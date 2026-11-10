@@ -244,21 +244,22 @@ P1 first usable path is the Owner's Mac, existing key, no sudo, API/MCP configur
 
 ## Proposed read-only fork inquiry
 
-Canonical owner: [conversation / N102, fork inquiry](modules/conversation/fork-inquiry.md). **Unimplemented design delta** from the Owner-agreed spec of 2026-11-10 JST; it changes neither the production baseline nor any existing edge. Module descriptors change with each owner's implementation.
+Canonical owner: [conversation / N102, fork inquiry](modules/conversation/fork-inquiry.md). Design from the Owner-agreed spec of 2026-11-10 JST, adopted in #949. Conversation's side of F1–F3, F6 and F7 is implemented in source; F4/F5, fork-seat listing and client/work-graph/Throughline parts follow from their owners, and the feature becomes usable only when execution's `fork` port exists. No existing edge changes. Module descriptors change with each owner's implementation.
 
 ```mermaid
 flowchart LR
-  A[Asker Bot main seat] -->|F1 ask_readonly target/message| P1[P1 seat MCP: fork seats list readOnly tools only]
+  A[Asker Bot main or fork seat] -->|F1 ask_readonly target/message| P1[P1 seat MCP: all tools; fork calls carry askerSeat]
   P1 -->|F2 fork inquiry| P2[P2 conversation: shared prepareDirect, target history rows seat=fork]
   P2 -->|F3 receipt running/delivery_id/fork_id| A
   P2 -->|F4 forkInquiry, no main queue| P3[P3 execution: fork lifecycle from latest main session]
   P3 -->|F5 read-only fork launch| N[Aiterm native fork, local/remote]
   P3 -->|F6 status/interim/answer/turn-end| P2
-  P2 -->|F7 relay answer or FORK_FAILED via existing notify| A
+  P2 -->|F7 relay answer or FORK_FAILED via existing notify, main asker| A
+  P2 -->|F8 answer or FORK_FAILED as the tool result, fork asker| A
   O[Owner message] -->|unchanged: always main seat, never forked or counted as load| P3
 ```
 
-Remote forks launch like local ones; until Elegg 0.70.5 + Kiro #946 are live their in-turn words are missing exactly like a remote main seat's, and the answer still arrives. A failure after receipt reaches the asker as one `FORK_FAILED` message on F7. The only refusal is `FORK_UNAVAILABLE{readonly_unenforceable}`. No fallback into the main queue.
+Remote forks launch like local ones; until Elegg 0.70.5 + Kiro #946 are live their in-turn words are missing exactly like a remote main seat's, and the answer still arrives. A failure after receipt reaches the asker as one `FORK_FAILED` message on F7, or as the tool result on F8 when the asker is itself a fork. A fork's `sendmessage` keeps today's edges, labelled `from_seat` fork. The only refusal is `FORK_UNAVAILABLE{readonly_unenforceable}`. No fallback into the main queue.
 
 ## Coverage, inherited verification and concrete limits
 
