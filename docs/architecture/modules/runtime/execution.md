@@ -88,9 +88,9 @@ flowchart TD
   Parent --> Sudo["sudo -n (root, small)"]
   Sudo --> SeatExec["bellteam-seat-exec (root)<br/>writes oom_score_adj=1000, then UID1000"]
   SeatExec --> SeatTree["every seat-side process, inherited across fork/exec/daemonize:<br/>Aiterm execution server, tmux, claude/codex/grok/cursor CLIs,<br/>their tools (rg, tar, chrome), setup.sh, short seat operations"]
-  Pressure["host RAM+swap exhausted"] --> Pick{"kernel OOM victim:<br/>largest rss+swap + adj*total/1000"}
-  Pick -->|"first: any seat-side process (adj 1000)"| SeatTree
-  Pick -->|"only after no seat-side process is left"| Parent
+  Pressure["host RAM+swap exhausted"] --> Pick{"kernel OOM badness heuristic<br/>(oom_score_adj adjusts it, no fixed order)"}
+  Pick -->|"biased toward: seat-side processes (adj 1000)"| SeatTree
+  Pick -.->|"not immune: still possible"| Parent
   SeatTree -->|"CLI killed"| SeatRecover["seat turn lost; existing failed-seat wake relaunches on next delivery"]
   SeatTree -->|"Aiterm server killed"| AitermRecover["MCP stdio client onclose; next call respawns it through seat-exec"]
 ```
@@ -99,9 +99,10 @@ flowchart TD
 | --- | --- |
 | Where | One point: `seat-exec.c`, before dropping root. Every UID1000 process the body starts goes through it (`seatCommandSpec`). Children inherit the value across fork/exec/daemonize. Docker drops `CAP_SYS_RESOURCE`, so a seat process could write it back down to 0 itself; no BellTeam, Aiterm or CLI code does that (checked 2026-11-10 with the compiled entry: seat reads 1000). |
 | Body side | Parent and module children keep the kernel default 0. No negative value: the body runs without `CAP_SYS_RESOURCE`, and the Host's own processes keep their order relative to the body. |
-| Failure | Writing `/proc/self/oom_score_adj` failing (e.g. a kernel without procfs write) is ignored and the seat starts as before. It is a priority hint, not a guard. |
+| Effect | A priority bias toward seat processes in the kernel's OOM badness heuristic ([kernel contract](https://docs.kernel.org/6.12/filesystems/proc.html#oom-adj)). It does not guarantee a victim order and does not make the body immune. |
+| Failure | Writing `/proc/self/oom_score_adj` failing is ignored; the seat starts and the prior behavior (inherited value, 0) is retained. Not a guard. |
 | No new limit | Turn start, concurrency and container memory are unchanged. A Docker memory limit or Host swap/OS change is Host-owned (Emma). |
-| Not covered | If memory is still short after every seat-side process is gone, the body is next. The parent's own ~800MB+ RSS is a separate question, not changed here. |
+| Not covered | The body can still be chosen. The parent's own ~800MB+ RSS is a separate question, not changed here. |
 
 ## 設定保存へ管理済みstateだけを渡す
 
