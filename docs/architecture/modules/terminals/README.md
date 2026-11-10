@@ -433,3 +433,33 @@ Diagram delta: management -> registry validation -> existing atomic JSON writer 
 P0 checks only descriptor/public-port references, generated function-map consistency, local links and correspondence between this diagram and the overall proposed DFD. No runtime tests, key resolution, terminal connection, sudo, account login or deployment are part of this docs PR.
 
 Implementation must cover terminal registry round-trip and write failure; private-channel/credential redaction; trusted host and exact cwd binding; sleep/reconnect using the same pending receipt; initial folder + BellTeam rule loading; direct MCP seat identity; target-owner 1st/2nd relaunch; sudo-use receipt; and transcript/history/current-work recovery. Each owner tests only its changed boundary once; inherit peer verification. The product completion is the Owner's four conditions, followed by Ziz's rebuild, not merely successful SSH or this P0 PR.
+
+### Windows and Linux terminals (2026-11-10, Owner-approved order via Root)
+
+Goal: a Bot set to a Windows or a Linux terminal with harness `claude-code` launches there exactly like the Mac seat (folder rules, BellTeam instructions + seat MCP, delivery incl. wake of a dead seat, answer, `restart_session`), registered by the Owner through the normal Web/API steps. Live targets: **fox** (Windows, 192.168.1.11, user `kite_`, an Administrators member) and **rabbit** (Linux desktop, 192.168.1.5, user `kite`). No CI or test ever runs on the Owner's Mac. Other harnesses follow after this (parked branch `feat/terminals-c8-all-harness`).
+
+```mermaid
+flowchart LR
+  Owner[Owner: Web 端末 / API register_terminal os] -->|os macos/linux/windows| Reg[registry.mjs: os enum, per-OS path rule, sudo key only for macos/linux]
+  Reg --> Conn[connection.mjs]
+  Conn -->|open/command: path in the terminal's native form| Proc[remote-process.mjs: transient aiterm-remote-terminal serve]
+  Proc -->|Elegg: provision + serve per OS| Term[terminal: macOS / Linux x64,arm64 / Windows x64 OpenSSH]
+  Conn -->|target result adds top-level os| Exec[execution, Kiro: per-OS launch]
+  Exec -->|agent_launch terminal + cwd native form| Aiterm[Aiterm, Elegg: tmux on macOS/Linux, process runtime on Windows; R12 seat forward]
+  Aiterm --> Term
+  Conn -->|action text names Mac / Windows / Linux| Surfaces[Web Admi / Apple Rapi]
+```
+
+| Item | Rule (terminals owns unless named) |
+| --- | --- |
+| `os` | Registry accepts `macos` / `linux` / `windows`; the Owner declares it. Proposed (Elegg): Aiterm's remote open reports the terminal's actual platform and refuses a mismatch as `TERMINAL_OS_MISMATCH` -> terminals `TARGET_MISMATCH` (named protection: connection to the wrong target; exit: the Owner corrects `os` -> registry change -> `available`). |
+| Paths | `macos` / `linux`: POSIX absolute (`/...`). `windows`: drive-absolute native form `X:\...` (backslash; `X:\` is the root, `/` separators are refused so one form travels). All: no `..` segment, no NUL, no trailing separator except the root, at most 1024 characters. Folder picker parent/children are joined with the terminal's separator; entry names never contain `/`, `\` (windows also `:`) or NUL. `projectRoot`, `cwd` and every `path_status` / `make_dir` / `list_dirs` path use this form (Elegg returns the same form). |
+| `target` result | Adds top-level `os` (outside the strict `terminal` object, which stays `{ref, target:{host,user,port}, trustRevision, ...}`), so execution picks the per-OS launch without reading the registry. |
+| Privilege | `linux`: the existing `sudoKeyRef` + sudo-use receipts (sudo credential handed to Aiterm as on macOS). `windows`: no sudo; privilege is the registered account's own rights (an Administrators member's OpenSSH session is already elevated), so a `sudoKeyRef` on a `windows` record is refused as `INVALID_TERMINAL` (input validation, it would never be used). |
+| Owner text | Every terminals `action` names the terminal's OS (`Mac` / `Windows` / `Linux`) and gives that OS's step: `CONNECTION_REFUSED` macOS 「リモートログイン」, Windows 「設定 > システム > オプション機能」で OpenSSH サーバーを追加し sshd サービスを開始, Linux openssh-server を入れて sshd を開始. `FOLDER_NOT_PERMITTED`'s Full Disk Access text is macOS only. |
+| Key authorize | Same self-service route (login password only in Mika's card). Elegg: on Windows an Administrators member's key goes to `C:\ProgramData\ssh\administrators_authorized_keys` (OpenSSH default), others to `~\.ssh\authorized_keys`. |
+| Aiterm remote (Elegg) | provision + `aiterm-remote-terminal serve` for Linux (x64/arm64) and Windows (x64, OpenSSH default shell); `claude_version` / `claude_update` / `claude_install` with each OS's official installer; `path_status` / `make_dir` / `list_dirs` in native form; `agent_launch` with `terminal` + `cwd` on both OSes; R12 seat MCP reverse forward over Windows OpenSSH. |
+| Execution (Kiro) | Per-OS Claude launch on the terminal (instructions, MCP config, wake, `restart_session`) through the same `agent_launch`; reads `target.os`. |
+| Web (Admi) / Apple (Rapi) | OS choice at registration; texts from `action`; Apple must decode `os` linux/windows without breaking. |
+
+User steps (public, standard Docker/Host): Windows: enable OpenSSH Server and start `sshd` (Automatic); Linux: install `openssh-server`, `systemctl enable --now ssh`. Then in BellTeam Web 端末: add (OS, host, user, port) -> confirm the host key fingerprint -> 「この端末にこの鍵を入れる」 with the login password -> 確かめる -> member: this terminal, folder from 「フォルダを選ぶ」, harness Claude Code. Claude Code itself is installed and kept current by C8; the Owner's account login is supplied by execution's slot (accountOwner owner).
