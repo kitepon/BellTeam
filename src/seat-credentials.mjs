@@ -32,10 +32,12 @@ export function createSeatCredentials({ path }) {
     return run
   }
   return Object.freeze({
-    async issue({ botId, sessionName, terminalId }) {
+    // kind 'fork' marks a read-only fork seat (remote-seat-ingress.md SK03); older rows without kind are main.
+    async issue({ botId, sessionName, terminalId, kind = 'main' }) {
       if (![botId, sessionName, terminalId].every(value => typeof value === 'string' && SESSION.test(value))) throw invalid()
+      if (kind !== 'main' && kind !== 'fork') throw invalid()
       const token = randomBytes(32).toString('base64url')
-      await change(seats => { seats[sessionName] = { hash: hash(token), botId, terminalId, issuedAt: new Date().toISOString() } })
+      await change(seats => { seats[sessionName] = { hash: hash(token), botId, terminalId, ...(kind === 'fork' ? { kind } : {}), issuedAt: new Date().toISOString() } })
       const ref = Object.freeze({ toJSON: () => '[seat credential]', toString: () => '[seat credential]' })
       tokens.set(ref, token)
       return ref
@@ -49,13 +51,13 @@ export function createSeatCredentials({ path }) {
       if (!token) throw invalid()
       return token
     },
-    // Authorization header -> {botId, sessionName, terminalId} or null.
+    // Authorization header -> {botId, sessionName, terminalId, kind} or null.
     async verify(header) {
       const token = typeof header === 'string' ? /^Bearer ([A-Za-z0-9_-]{43})$/u.exec(header)?.[1] : null
       if (!token) return null
       const digest = hash(token)
       const entry = Object.entries((await load()).seats).find(([, seat]) => seat.hash === digest)
-      return entry ? { sessionName: entry[0], botId: entry[1].botId, terminalId: entry[1].terminalId } : null
+      return entry ? { sessionName: entry[0], botId: entry[1].botId, terminalId: entry[1].terminalId, kind: entry[1].kind ?? 'main' } : null
     },
   })
 }

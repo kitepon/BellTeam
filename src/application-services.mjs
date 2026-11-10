@@ -252,8 +252,10 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   // The runtime owns the listener (it holds seat MCP); it binds its ensure here before any launch can run.
   const remoteSeatListener = createRemoteSeatListener()
   const seatCredential = Object.freeze({
-    async issue({ botId, sessionName, terminalId }) {
-      if (!seatCandidates(sessionName).includes(botId)) throw Object.assign(new Error('SEAT_CREDENTIAL_INVALID'), { code: 'SEAT_CREDENTIAL_INVALID', status: 400 })
+    async issue({ botId, sessionName, terminalId, kind = 'main' }) {
+      // SK03: a fork's name is <mainSession>-fork-<12hex>; its main part must speak for botId.
+      const named = kind === 'fork' ? /^(.+)-fork-[0-9a-f]{12}$/u.exec(sessionName)?.[1] : sessionName
+      if (!seatCandidates(named).includes(botId)) throw Object.assign(new Error('SEAT_CREDENTIAL_INVALID'), { code: 'SEAT_CREDENTIAL_INVALID', status: 400 })
       if (!terminals) throw TERMINALS_UNAVAILABLE()
       const terminal = await terminals.registry.get(terminalId)
       if (!terminal) throw Object.assign(new Error('TERMINAL_NOT_FOUND'), { code: 'TERMINAL_NOT_FOUND', status: 404 })
@@ -261,7 +263,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
       // RS05: the listener is retried here while it is down, so a seat is never launched toward a dead MCP.
       await remoteSeatListener.ensureFor(terminalId)
       const origin = `http://127.0.0.1:${remoteSeatPort(environment)}`
-      return { url: `${origin}${REMOTE_SEAT_MCP_PATH}`, credentialRef: await seatCredentials.issue({ botId, sessionName, terminalId }) }
+      return { url: `${origin}${REMOTE_SEAT_MCP_PATH}`, credentialRef: await seatCredentials.issue({ botId, sessionName, terminalId, kind }) }
     },
     revoke: ({ sessionName }) => seatCredentials.revoke({ sessionName }),
     // RS03: only execution's seat launch call uses this, to put the value into the launcher's stdin privateEnv.

@@ -25,7 +25,7 @@ test('seat credential: hashed at rest, opaque ref, replace and revoke', async t 
   assert.equal((await readFile(path, 'utf8')).includes(token), false)
   // A fresh store (body restart) still verifies the running seat's token.
   const restarted = createSeatCredentials({ path })
-  assert.deepEqual(await restarted.verify(`Bearer ${token}`), { sessionName: 'bot-aa-2nd-k1', botId: 'bot-aa', terminalId: 'owner-macbook' })
+  assert.deepEqual(await restarted.verify(`Bearer ${token}`), { sessionName: 'bot-aa-2nd-k1', botId: 'bot-aa', terminalId: 'owner-macbook', kind: 'main' })
   assert.throws(() => restarted.reveal(ref), /SEAT_CREDENTIAL_INVALID/)
   const second = credentials.reveal(await credentials.issue({ botId: 'bot-aa', sessionName: 'bot-aa-2nd-k1', terminalId: 'owner-macbook' }))
   assert.equal(await credentials.verify(`Bearer ${token}`), null)

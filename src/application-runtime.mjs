@@ -99,6 +99,8 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
       }
     },
     admitWork: () => aiControl.admit(),
+    // SK01: engines without the registry have no fork seats.
+    forkSeat: name => typeof transport.forkSeat === 'function' ? transport.forkSeat(name) : null,
     assertWorkAllowed: () => aiControl.assertEnabled(),
     tools: { registry: bots, botView: bot => administration.view(bot), messenger, store, rooms, roomMessenger, memory, ownerProfile, userRules, bugHubSecurity: createBugHubSecurity({ root }), terminals: () => services.terminals, terminalKeys: () => services.terminalKeys, internalUrl: `http://127.0.0.1:${internalPort}`, ...internalApi(internalPort) },
     callBridge: () => {
