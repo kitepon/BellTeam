@@ -8,7 +8,8 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 
-import { bellTeamTools, callBellTeamTool } from './mcp-tools.mjs'
+import { bellTeamTools, callBellTeamTool, forkWritesProject } from './mcp-tools.mjs'
+import { readJson } from './http-response.mjs'
 
 // 席の名札。各CLIの設定が、席のCLIの環境変数 AITERM_SESSION_ID をこのヘッダへ写す（harness-config.mjs）。
 // Aitermは席のCLIを Bot ID（アカウント席は `<botId>-<1st|2nd>-<base36>`）の名前のセッションで起こし、この変数をセッションごとに必ず付ける。
@@ -48,8 +49,8 @@ export async function resolveSeatBotId(request, bots) {
   return null
 }
 
-// SK07: the internal HTTP API's seat. A running fork (execution's forkSeat registry) speaks for its Bot on GET
-// reads only; any other method from a fork name is FORK_READ_ONLY, so a fork never reaches a main-seat write path.
+// SK07: the internal HTTP API's seat. A running fork (execution's forkSeat registry) speaks for its Bot on every
+// method; its project-folder writes are refused per tool at the seat MCP (SK04), not here.
 export async function resolveInternalSeat(request, bots, forkSeat) {
   const botId = await resolveSeatBotId(request, bots)
   const name = request.headers[SEAT_HEADER.toLowerCase()]
@@ -58,7 +59,6 @@ export async function resolveInternalSeat(request, bots, forkSeat) {
   try { fork = await forkSeat(name) ?? null }
   catch { throw Object.assign(new Error('EXECUTION_UNAVAILABLE'), { code: 'EXECUTION_UNAVAILABLE', status: 503 }) }
   if (!fork) return { botId: null, fork: null }
-  if (request.method !== 'GET') throw Object.assign(new Error('FORK_READ_ONLY'), { code: 'FORK_READ_ONLY', status: 400 })
   const id = await memberId(fork.botId, bots)
   return id ? { botId: id, fork } : { botId: null, fork: null }
 }
@@ -167,7 +167,6 @@ export function createSeatMcp({ bots, tools, toolsForSource = () => ({}), runToo
     }
     catch (error) { return reply(response, error.status ?? 503, { error: error.code ?? 'MEMBERS_UNAVAILABLE' }) }
     if (!from) return reply(response, 400, { error: 'BELLTEAM_SEAT_UNRESOLVED' })
-    if (fork && url.pathname === CALL_BRIDGE_MCP_PATH) return reply(response, 404, { error: 'FORK_READ_ONLY' })
     if (url.pathname === CALL_BRIDGE_MCP_PATH) {
       let check
       try { check = admitWork(); check() }
@@ -176,14 +175,14 @@ export function createSeatMcp({ bots, tools, toolsForSource = () => ({}), runToo
     }
     if (request.method !== 'POST') return reply(response, 405, { error: 'METHOD_NOT_ALLOWED' }, { allow: 'POST' })
     const executionSource = fork ? forkExecutionSource(request) : seatExecutionSource(request, bots)
-    const scopedTools = { ...tools, ...toolsForSource(executionSource) }
+    const scopedTools = { ...tools, ...toolsForSource(executionSource), fork: Boolean(fork) }
     const server = new Server({ name: 'bellteam', version: '0.1.0' }, { capabilities: { tools: {},
       ...(scopedTools.configureFromMcp ? { experimental: { 'ai.aiterm/handoff.v1': { version: 1, tools: ['update_self'] } } } : {}),
     }, instructions: INSTRUCTIONS })
-    // SK04: a fork lists and runs only tools their owners marked read-only.
-    server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: fork ? bellTeamTools.filter(readOnly) : bellTeamTools }))
+    // SK04: a fork lists every tool; only a call that writes inside a Bot project folder is refused.
+    server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: bellTeamTools }))
     server.setRequestHandler(CallToolRequestSchema, async (call, fullExtra) => {
-      if (fork && !bellTeamTools.some(tool => tool.name === call.params.name && readOnly(tool))) throw new Error(`FORK_READ_ONLY: ${call.params.name}`)
+      if (fork && forkWritesProject(call.params.name, call.params.arguments)) throw new Error(`FORK_PROJECT_WRITE_REFUSED: ${call.params.name}`)
       let handoffMetadata = null
       const configure = scopedTools.configureFromMcp ? async (botId, changes) => {
         const result = await scopedTools.configureFromMcp(botId, changes, {
@@ -212,13 +211,23 @@ export function createSeatMcp({ bots, tools, toolsForSource = () => ({}), runToo
   return handle
 }
 
-const readOnly = tool => tool.annotations?.readOnlyHint === true
-
 async function memberId(id, bots) {
   if (typeof id !== 'string') return null
   if (typeof bots.readMember !== 'function') return bots.has(id) ? id : null
   try { return (await bots.readMember(id)).id === id ? id : null }
   catch (error) { if (error.code === 'BOT_NOT_FOUND' && error.status === 404) return null; throw error }
+}
+
+// SK08 (N102 fork-inquiry): askerSeat on a delivery POST comes only from the resolved seat; a body copy is dropped.
+export async function bindAskerSeat(request, fork) {
+  const body = await readJson(request)
+  if (body && typeof body === 'object' && !Array.isArray(body)) {
+    delete body.askerSeat
+    if (fork) body.askerSeat = { kind: 'fork', forkId: fork.forkId }
+  }
+  const bytes = Buffer.from(JSON.stringify(body))
+  // The delivery API reads the request with for-await; hand it the rewritten body instead of the consumed stream.
+  request[Symbol.asyncIterator] = async function* () { yield bytes }
 }
 
 // SK06: the fork's own session name; the launch header stays today's runtime claim.

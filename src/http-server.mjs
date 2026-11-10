@@ -1,4 +1,4 @@
-import { forkExecutionSource, resolveInternalSeat, seatExecutionSource } from './seat-mcp.mjs'
+import { bindAskerSeat, forkExecutionSource, resolveInternalSeat, seatExecutionSource } from './seat-mcp.mjs'
 import { createControlApi, createApplicationApi } from './http-application-api.mjs'
 import { createBotApi } from './http-bot-api.mjs'
 import { createScreenInputApi } from './http-screen-input-api.mjs'
@@ -125,6 +125,7 @@ export function createBellTeamServer({ bots, rooms, roomMessenger, authorize, me
       }
       if (conversationAssembly && url.pathname.startsWith('/api/')) {
         const { botId, fork } = internal ? await resolveInternalSeat(request, bots, forkSeat) : { botId: null, fork: null }
+        if (internal && request.method === 'POST' && ['/api/deliveries/direct', '/api/deliveries/fork'].includes(url.pathname)) await bindAskerSeat(request, fork)
         const actor = internal ? (botId ? { kind: 'bot', botId } : null) : { kind: 'owner' }
         return await conversationAssembly.run(actor, dispatchApi, internal && botId ? { executionSource: fork ? forkExecutionSource(request) : seatExecutionSource(request, bots) } : undefined)
       }

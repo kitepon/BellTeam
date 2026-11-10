@@ -53,6 +53,7 @@ flowchart TD
 | 成長へまとめる | `consolidateGrowth` | まずrememberでgrowthを保存。その後、同じDBの元IDを順にconsolidatedへ。無いIDとpinnedは飛ばす |
 | 記憶を探す | `recallMemory` → `searchMemories` | activeだけを返し、本文・kind・importance・metadataを公開。superseded/consolidatedは検索候補から外す |
 | DB接続 | `openMemory/closeDatabases` | SQLite WALとschema/索引を準備。初期化・実処理・rollback・closeの失敗を保持しAggregateErrorへ結合 |
+| 分身の読み取り | `recallMemory/searchKnowledge`（`readOnly: true`）→ `withStoreSnapshot` | 分身の席（seat MCP SK04）だけが渡す。プロジェクトフォルダ内は書かない（オーナー契約 2026-11-10、-wal/-shm も含む。mode=roで開いても-shmが書き換わると実測）。`memory.db`/`index.db` と `-wal` を同じ瞬間の写しとしてOSの一時フォルダへ複写し（複写の前後で ino・size・mtimeNs が変われば複写し直す）、写しを開いて検索し、写しを消す。無い置き場は作らず、空のメモリDBとして空の結果を返す。`ensureRag/ensureMemory` は呼ばない |
 
 `consolidateGrowth`全体は一つのtransactionではない。growth保存後に元記憶の整理で失敗しても、growthが未保存とは言えない。`remember/reviseMemory`のtransaction境界と同じ図へ潰さない。将来ここを変更するなら、重複記憶と原文/根拠の保持を記憶担当と合わせる。
 
@@ -64,6 +65,8 @@ flowchart TD
   Note --> Index["INDEX.mdへ項目を追記"]
   Index --> DB["documentsへupsert<br/>以前の節索引を除く"]
   Search["利用者が検索を要求<br/>searchKnowledge / recallMemory"]
+  Search -->|"readOnly（分身）"| Snapshot["一時フォルダへ写す<br/>プロジェクト内は書かない"]
+  Snapshot --> Sync
   Search --> Sync["検索前に必要な索引を更新<br/>ICU版・未索引の行を確認"]
   DB -.->|"知識検索の入力"| Sync
   Memory["記憶DB"] -.->|"両検索の入力"| Sync

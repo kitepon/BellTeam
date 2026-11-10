@@ -86,9 +86,11 @@ Protection: a caller cannot speak as a seat it was not launched as (privilege es
 
 `launchId` is not part of the binding: it is known only after the launch receipt, and today's launch header is already a runtime claim that execution compares.
 
-## Seat kind: read-only fork seats (SK01-SK07)
+## Seat kind: fork seats (SK01-SK08)
 
-For N102's read-only fork inquiry ([fork-inquiry](../conversation/fork-inquiry.md#read-only-enforcement-spec-item-3-launch-not-instructions), BellTeam MCP row). Kiro's fork launch supplies the kind; the seat MCP enforces it server-side. Contract agreed with Kiro 2026-11-10.
+For N102's fork inquiry ([fork-inquiry](../conversation/fork-inquiry.md), BellTeam MCP row). Kiro's fork launch supplies the kind; the seat MCP enforces it server-side. Contract agreed with Kiro 2026-11-10.
+
+Owner contract 2026-11-10 (Root rulings to Molly): 「プロジェクトフォルダ内の一切の書き込みを禁止。ファイルの書き込みのほか、プロジェクトフォルダ内にSQLなどがあればそれも更新も含めて禁止。それ以外は全て許可する。」 It covers every Bot's project folder (`/srv/bellteam/bots/*/`). A fork lists and calls every tool and reaches call-bridge like a main seat; only the BellTeam MCP calls whose server-side effect writes inside a project folder are refused.
 
 ```mermaid
 flowchart TD
@@ -100,11 +102,11 @@ flowchart TD
   Reg -->|"null / engine without forkSeat"| Main["existing seatCandidates / resolveSeatBotId (names with -fork- never resolve)"]
   Reg -->|throws| Unavail["503 EXECUTION_UNAVAILABLE (never main)"]
   ForkBot --> Path{"path"}
-  Path -->|call-bridge| Refuse["404 FORK_READ_ONLY"]
-  Path -->|/mcp| Fork["tools/list: only annotations.readOnlyHint === true<br/>tools/call other: error FORK_READ_ONLY: name"]
+  Path -->|call-bridge| Bridge["relayed as for main (SK05)"]
+  Path -->|/mcp| Fork["tools/list: every tool<br/>tools/call forkWritesProject: error FORK_PROJECT_WRITE_REFUSED: name<br/>recall_memory / search_knowledge: readOnly snapshot"]
   Fork -->|"internalApi, X-Bellteam-Seat = fork name"| Internal{"internal HTTP SK07: forkSeat hit?"}
-  Internal -->|GET| AsBot["actor bot botId, fork executionSource"]
-  Internal -->|other method| RO["400 FORK_READ_ONLY"]
+  Internal -->|any method| AsBot["actor bot botId, fork executionSource"]
+  AsBot -->|"POST /api/deliveries/direct|fork"| Asker["SK08 body.askerSeat = {kind:'fork', forkId}"]
   Main --> All["all tools, unchanged"]
 ```
 
@@ -113,18 +115,19 @@ flowchart TD
 | SK01 | execution -> parent `transport.forkSeat(sessionName)` | Live registry of every running fork, local and remote: `{botId, forkId}` from launch to close, else `null`. The seat MCP asks it for local seats; the internal HTTP API asks it for both (SK07). Sync or Promise. An engine without the method has no forks. A throw is `503 EXECUTION_UNAVAILABLE`, never a main fallback |
 | SK02 | `seatCandidates(name)` | A name containing `-fork-` yields no candidate, so a closed or unknown fork session is `400 BELLTEAM_SEAT_UNRESOLVED`, never main. Fork names are `<mainSession>-fork-<12hex>` (Kiro) |
 | SK03 | execution -> `seatCredential.issue({..., kind:'fork'})` -> verify | Remote forks: the credential carries the kind (RS01/RS02/RS06). Revoke at close is execution's (RS04) |
-| SK04 | seat MCP fork mode | `tools/list` = `bellTeamTools` whose `annotations.readOnlyHint === true`. `tools/call` of any other name throws `FORK_READ_ONLY: <name>` before any handler, refresh or internal call. Main seats are unchanged. Each tool owner marks its own read tools; `sendmessage`, `ask_readonly` and every write tool stay unmarked |
-| SK05 | seat MCP fork mode, call-bridge path | `404 FORK_READ_ONLY` (not 403: Claude Code caches 403 as needs-auth for the server name). The fork's launch profile has no call-bridge server either (Elegg) |
+| SK04 | seat MCP fork mode | `tools/list` = every `bellTeamTools` entry. `tools/call` where `forkWritesProject(name, args)` (`mcp-tools.mjs`) throws `FORK_PROJECT_WRITE_REFUSED: <name>` before any handler, refresh or internal call: always `write_member_doc`, `update_self`, `update_bot`, `set_avatar`, `set_fast_mode` (PATCH `/api/bots/:id` rewrites AGENTS.md/CLAUDE.md), `restart_session` (startup writes previous-session.md), `create_bot`, `delete_bot`; `remember`, `revise_memory`, `pin_memory`, `consolidate_growth`, `record_knowledge` unless `scope: 'shared'` (shared stores are outside every project). Every other call runs with `fork: true` in the tool context, so `recall_memory` / `search_knowledge` pass `readOnly: true` to memory (memory details, fork reads). Main seats are unchanged |
+| SK05 | seat MCP fork mode, call-bridge path | Relayed exactly as for a main seat (the Owner allows every MCP server) |
 | SK06 | fork `executionSource` | `{sourceSession: <fork session name>, source: {launch}}`, launch claim from `X-Bellteam-Launch-Id` as today |
-| SK07 | seat MCP tool -> `internalApi` -> internal HTTP (`http-server.mjs`, `resolveInternalSeat`) | Read tools that call the body API (`list_models` -> `GET /api/models`, `get_settings`, `list_queued_messages` -> `GET /api/queue`) send the fork session name as `X-Bellteam-Seat`. The internal resolver keeps the main rule first; a `-fork-` name is then looked up in `forkSeat`. A hit on `GET` runs as `{kind:'bot', botId}` with the fork's `executionSource` (SK06). A hit on any other method is `400 FORK_READ_ONLY`, so a fork never reaches a main-seat write path. A miss is no Bot (the existing `BELLTEAM_SEAT_UNRESOLVED`); a registry throw is `503 EXECUTION_UNAVAILABLE`. `submitted-secret-caller` stays main-only |
+| SK07 | seat MCP tool -> `internalApi` -> internal HTTP (`http-server.mjs`, `resolveInternalSeat`) | Read tools that call the body API (`list_models` -> `GET /api/models`, `get_settings`, `list_queued_messages` -> `GET /api/queue`) send the fork session name as `X-Bellteam-Seat`. The internal resolver keeps the main rule first; a `-fork-` name is then looked up in `forkSeat`. A hit on any method runs as `{kind:'bot', botId}` with the fork's `executionSource` (SK06); project-folder writes are refused per tool at SK04, so `sendmessage` / `ask_readonly` from a fork reach `/api/deliveries/direct|fork`. A miss is no Bot (the existing `BELLTEAM_SEAT_UNRESOLVED`); a registry throw is `503 EXECUTION_UNAVAILABLE`. `submitted-secret-caller` stays main-only |
+| SK08 | internal HTTP `POST /api/deliveries/direct` and `/api/deliveries/fork` (`bindAskerSeat`) | The body's `askerSeat` is always dropped, then set to `{kind:'fork', forkId}` only when SK07 resolved a fork (execution `forkSeat` registry; remote forks are in it too). A main seat or an unresolved caller never carries one. Consumer: N102's messenger (fork-inquiry "Messages sent by a fork seat") |
 
-Protection (guards.named-protection): a fork seat must not change state or ask other Bots (overwriting existing state, requests across seats). Self-exit: the refusal is per call; the asker uses `sendmessage` for work, and a main seat is never affected. No state is held, so nothing has to be unlocked.
+Protection (guards.named-protection): a fork must not overwrite existing state inside any Bot project folder (files, AGENTS.md, docs, memory/rag SQLite stores including -wal/-shm). Self-exit: the refusal is per call and holds no state; the asker sends work with `sendmessage` to the main seat, which is never affected.
 
 ### Parent wiring for `ask_readonly` (N102)
 
 - `internalApi(port).deliverForkInquiry(value)` -> `POST /api/deliveries/fork` with the same body and seat header as `deliverMessage` (`executionSource` added when known). It is passed to `callConversationTool` as `deliverForkInquiry`, beside `deliverMessage`.
 - The route is served by conversation's `createDeliveryApi` (`http-delivery-api.mjs`, N102), already mounted by `http-server.mjs`; the tool entry lives in `conversationTools` and is listed through `bellTeamTools` unchanged.
-- Integration's own read tools are marked `readOnlyHint: true`: `list_models`, `recall_memory`, `search_knowledge`.
+- `readOnlyHint: true` on `list_models`, `recall_memory`, `search_knowledge` stays as a plain MCP hint; it no longer selects the fork's tools (SK04).
 
 ## Mount (P1)
 

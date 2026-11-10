@@ -111,6 +111,14 @@ export const bellTeamTools = Object.freeze([
   ...terminalTools,
 ])
 
+// Owner 2026-11-10: a fork seat never writes inside any Bot project folder (/srv/bellteam/bots/*/), SQL stores included.
+// These tools always do (AGENTS.md/CLAUDE.md rewrite, docs, previous-session.md, project create/remove);
+// the store writers only in scope personal. Everything else stays open to a fork.
+const PROJECT_WRITERS = new Set(['write_member_doc', 'update_self', 'update_bot', 'set_avatar', 'set_fast_mode', 'restart_session', 'create_bot', 'delete_bot'])
+const PERSONAL_STORE_WRITERS = new Set(['remember', 'revise_memory', 'pin_memory', 'consolidate_growth', 'record_knowledge'])
+export const forkWritesProject = (name, args = {}) =>
+  PROJECT_WRITERS.has(name) || (PERSONAL_STORE_WRITERS.has(name) && args?.scope !== 'shared')
+
 // 長期記憶の1件は1つの話にする（2026-10-14 オーナー裁定）。直すたびに前の版へ足して伸びるので、長い物は拒まずに、返りで分ける様に知らせる。
 const MEMORY_SPLIT_NOTICE_CHARS = 2000
 
@@ -170,12 +178,12 @@ async function runBellTeamTool(context) {
   if (conversationTools.some(tool => tool.name === name))
     return callConversationTool({ name, args, from, registry, messenger, store, rooms, roomMessenger, deliverMessage, deliverForkInquiry, deliverRoomMessage, listQueued })
   if (name === 'remember') return withMemoryLengthNotice(await memory.remember({ botId: from, ...args, sourceRef: 'mcp' }), args.content)
-  if (name === 'recall_memory') return memory.recallMemory({ botId: from, ...args })
+  if (name === 'recall_memory') return memory.recallMemory({ botId: from, ...args, ...(context.fork ? { readOnly: true } : {}) })
   if (name === 'revise_memory') return withMemoryLengthNotice(await memory.reviseMemory({ botId: from, ...args }), args.content)
   if (name === 'pin_memory') return { memory: await memory.pinMemory({ botId: from, ...args }) }
   if (name === 'consolidate_growth') return { memory: await memory.consolidateGrowth({ botId: from, ...args }) }
   if (name === 'record_knowledge') return { knowledge: await memory.recordKnowledge({ botId: from, ...args }) }
-  if (name === 'search_knowledge') return memory.searchKnowledge({ botId: from, ...args })
+  if (name === 'search_knowledge') return memory.searchKnowledge({ botId: from, ...args, ...(context.fork ? { readOnly: true } : {}) })
   if (name === 'restart_session') {
     const botId = args.botId ?? from
     requireBot(registry, botId)

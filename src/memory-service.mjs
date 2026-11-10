@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 
@@ -15,6 +16,39 @@ function closeDatabases(databases, errors = []) {
   }
   if (errors.length === 1) throw errors[0]
   if (errors.length) throw new AggregateError(errors, 'MEMORY_DATABASE_CLOSE_FAILED')
+}
+
+// Even a mode=ro SQLite open rewrites -shm (measured 2026-11-10), so a fork reads private copies outside the project.
+// A missing store reads as an empty in-memory one and is never created.
+async function withStoreSnapshot(sources, read) {
+  const directory = await mkdtemp(join(tmpdir(), 'bellteam-fork-read-'))
+  try {
+    const copies = []
+    for (const source of sources) copies.push(await copyStable(source, join(directory, `${copies.length}.db`)))
+    return await read(copies)
+  } finally { await rm(directory, { recursive: true, force: true }) }
+}
+
+// db and -wal must come from one moment: copy again while a writer changes either between the two stamps.
+async function copyStable(source, target) {
+  for (;;) {
+    const before = await storeStamp(source)
+    if (!before) return ':memory:'
+    try {
+      await rm(`${target}-wal`, { force: true })
+      for (const suffix of ['', '-wal']) if (before[suffix]) await copyFile(`${source}${suffix}`, `${target}${suffix}`)
+    } catch (error) { if (error.code === 'ENOENT') continue; throw error }
+    if (JSON.stringify(before) === JSON.stringify(await storeStamp(source))) return target
+  }
+}
+
+async function storeStamp(source) {
+  const one = async path => {
+    try { const value = await stat(path, { bigint: true }); return `${value.ino}:${value.size}:${value.mtimeNs}` }
+    catch (error) { if (error.code === 'ENOENT') return null; throw error }
+  }
+  const db = await one(source)
+  return db && { '': db, '-wal': await one(`${source}-wal`) }
 }
 
 export class BellTeamMemory {
@@ -165,10 +199,17 @@ export class BellTeamMemory {
     return { ...growth, sourceMemoryIds: memoryIds }
   }
 
-  async recallMemory({ botId, query, scope = 'personal', limit = 20 }) {
+  // readOnly (fork seats, Owner 2026-11-10): nothing inside a project folder may change, SQLite -wal/-shm included.
+  async recallMemory({ botId, query, scope = 'personal', limit = 20, readOnly = false }) {
     const normalizedScope = normalizeScope(scope)
     const bot = normalizedScope === 'personal' ? requireBot(this.registry, botId) : null
-    const db = await this.openMemory(bot?.id ?? null, normalizedScope)
+    if (!readOnly) return this.#recall(bot, normalizedScope, query, limit)
+    const root = this.scopeRoot(bot?.id ?? null, normalizedScope)
+    return withStoreSnapshot([join(root, 'memory', 'memory.db')], ([memoryPath]) => this.#recall(bot, normalizedScope, query, limit, memoryPath))
+  }
+
+  async #recall(bot, normalizedScope, query, limit, memoryPath) {
+    const db = await this.openMemory(bot?.id ?? null, normalizedScope, memoryPath)
     const errors = []
     try {
       return {
@@ -219,15 +260,24 @@ export class BellTeamMemory {
 
   // ナレッジの検索は、ナレッジと長期記憶の両方から探す（オーナー裁定 2026-10-06）。記憶の検索は長期記憶だけ。
   // ナレッジを先、長期記憶を後に並べる。ナレッジは見出しで区切った節ごとに探し、文書ごとにいちばん近い節を返す。
-  async searchKnowledge({ botId, query, scope = 'personal', limit = 20 }) {
+  async searchKnowledge({ botId, query, scope = 'personal', limit = 20, readOnly = false }) {
     const normalizedScope = normalizeScope(scope)
     const bot = normalizedScope === 'personal' ? requireBot(this.registry, botId) : null
-    const ragRoot = await this.ensureRag(bot?.id ?? null, normalizedScope)
-    const knowledgeDb = openKnowledgeDb(join(ragRoot, 'index.db'))
+    if (!readOnly) {
+      const ragRoot = await this.ensureRag(bot?.id ?? null, normalizedScope)
+      return this.#search(bot, normalizedScope, query, limit, join(ragRoot, 'index.db'))
+    }
+    const root = this.scopeRoot(bot?.id ?? null, normalizedScope)
+    return withStoreSnapshot([join(root, 'rag', 'index.db'), join(root, 'memory', 'memory.db')],
+      ([knowledgePath, memoryPath]) => this.#search(bot, normalizedScope, query, limit, knowledgePath, memoryPath))
+  }
+
+  async #search(bot, normalizedScope, query, limit, knowledgePath, memoryPath) {
+    const knowledgeDb = openKnowledgeDb(knowledgePath)
     let memoryDb
     const errors = []
     try {
-      memoryDb = await this.openMemory(bot?.id ?? null, normalizedScope)
+      memoryDb = await this.openMemory(bot?.id ?? null, normalizedScope, memoryPath)
       return { scope: normalizedScope, items: searchKnowledgeItems(knowledgeDb, memoryDb, query, limit) }
     } catch (error) {
       errors.push(error)
@@ -265,9 +315,8 @@ export class BellTeamMemory {
     return { scope: normalizedScope, count }
   }
 
-  async openMemory(botId, scope) {
-    const directory = await this.ensureMemory(botId, scope)
-    const db = new DatabaseSync(join(directory, 'memory.db'))
+  async openMemory(botId, scope, path) {
+    const db = new DatabaseSync(path ?? join(await this.ensureMemory(botId, scope), 'memory.db'))
     try { db.exec(`
       PRAGMA journal_mode = WAL;
       CREATE TABLE IF NOT EXISTS raw_events (
