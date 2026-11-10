@@ -199,10 +199,13 @@ struct WorkGraphView: View {
     /// 行の高さを決めて描くため、CanvasのTextではなく段落指定付きの文字列で測る。
     static func chipSize(_ label: String, maxWidth: CGFloat = labelMaxWidth) -> CGSize {
         let iconSide = BellTheme.listDetailFontSize
-        let textWidth = maxWidth - iconSide - 22
+        let textWidth = textColumn(maxWidth)
         let bounds = labelText(label).boundingRect(with: CGSize(width: textWidth, height: .greatestFiniteMagnitude), options: .usesLineFragmentOrigin, context: nil)
         return CGSize(width: min(ceil(bounds.width), textWidth) + iconSide + 22, height: max(ceil(bounds.height), iconSide) + 10)
     }
+
+    /// 札の文の欄の幅（札の幅 − アイコン − 左右の余白22pt）。測る（`chipSize`）のも描く（`drawTag`）のもこの欄。
+    static func textColumn(_ tagWidth: CGFloat) -> CGFloat { tagWidth - BellTheme.listDetailFontSize - 22 }
 
     static let labelMaxWidth: CGFloat = 180
     static let labelLineHeight: CGFloat = 16
@@ -251,7 +254,7 @@ struct WorkGraphView: View {
         if content > 0 { inner.clip(to: Path(tag.insetBy(dx: 0, dy: 3))) }
         // 封筒は1行目の高さに置く（複数行でも札の真ん中へ流れない）。
         inner.draw(tinted, in: CGRect(x: tag.minX + 9, y: tag.minY + 5 - scroll + max(0, Self.labelLineHeight - iconSide) / 2, width: iconSide, height: iconSide))
-        let textRect = CGRect(x: tag.minX + 13 + iconSide, y: tag.minY + 5 - scroll, width: tag.width - iconSide - 19, height: max(tag.height, content) - 10)
+        let textRect = CGRect(x: tag.minX + 13 + iconSide, y: tag.minY + 5 - scroll, width: Self.textColumn(tag.width), height: max(tag.height, content) - 10)
         inner.withCGContext { cg in
             UIGraphicsPushContext(cg)
             text.draw(with: textRect, options: .usesLineFragmentOrigin, context: nil)
@@ -298,8 +301,10 @@ struct WorkGraphView: View {
         layer.opacity = fade * (line.edge.steered ? 0.75 : 1)
         let drawn = geometry.path.trimmedPath(from: 0, to: grow)
         // 外側の淡い被覆と、中の導線。
-        layer.stroke(drawn, with: .color(wire.opacity(0.18)), style: StrokeStyle(lineWidth: 7, lineCap: .round))
-        layer.stroke(drawn, with: .color(wire.opacity(0.9)), style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+        // 分身の辺は破線（6pt線・4pt隙間）。丸い端は7ptの被覆の隙間を埋めるので、破線の時は平らな端にする。
+        let dash = line.edge.baseDash, cap: CGLineCap = dash.isEmpty ? .round : .butt
+        layer.stroke(drawn, with: .color(wire.opacity(0.18)), style: StrokeStyle(lineWidth: 7, lineCap: cap, dash: dash))
+        layer.stroke(drawn, with: .color(wire.opacity(0.9)), style: StrokeStyle(lineWidth: 2.5, lineCap: cap, dash: dash))
         guard grow >= 1 else { return }
         // 受け手側の矢じり。
         let tip = geometry.point(1), back = geometry.point(max(0, 1 - 11 / max(geometry.length, 1)))
@@ -408,7 +413,7 @@ struct WorkGraphView: View {
             if let edge = model.lines[id]?.edge {
                 let from = model.bodies[edge.from]?.node.name ?? edge.from
                 let to = model.bodies[edge.to]?.node.name ?? edge.to
-                Text(edge.label.map { "\(from)から\(to)へ依頼: \($0)" } ?? "\(from)から\(to)へ依頼")
+                Text(edge.chipText.map { "\(from)から\(to)へ依頼: \($0)" } ?? "\(from)から\(to)へ依頼")
             }
         }
     }
