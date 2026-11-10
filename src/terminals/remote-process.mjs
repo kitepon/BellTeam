@@ -13,11 +13,12 @@ async function stdioClient(project) {
   return client
 }
 
-// Tool errors arrive as {code, message, action?} JSON; keep only those fields (no raw stderr).
+// Tool errors arrive as {code, message, action?} JSON; keep only those fields (no raw stderr). An uncoded error (e.g. the
+// SDK's input validation) is a call failure, not a missing remote Aiterm, so it never starts a provision run (Elegg).
 function parse(result) {
   let value = result?.structuredContent
   if (value === undefined) { try { value = JSON.parse(result?.content?.[0]?.text ?? 'null') } catch { value = null } }
-  if (result?.isError) throw Object.assign(new Error(typeof value?.message === 'string' ? value.message : 'Remote terminal failed'), { code: value?.code ?? 'REMOTE_AITERM_UNAVAILABLE', ...(typeof value?.action === 'string' ? { action: value.action } : {}) })
+  if (result?.isError) throw Object.assign(new Error(typeof value?.message === 'string' ? value.message : 'Remote terminal failed'), { code: value?.code ?? 'REMOTE_TERMINAL_CALL_FAILED', ...(typeof value?.action === 'string' ? { action: value.action } : {}) })
   return value
 }
 
@@ -58,7 +59,8 @@ export function createRemoteTerminalProcesses({ project, connectClient = () => s
         if (current?.trust?.revision !== hostTrust.revision) throw Object.assign(new Error('Host trust revision changed'), { code: 'HOST_TRUST_STALE' })
         // Elegg: with `credential` (Mika handle) credentialRevision is omitted; without it, it is the native key revision.
         const key = binding.credential ? { credential: binding.credential } : { credentialRevision: binding.credentialRevision ?? current.credential?.revision }
-        await tool('remote_terminal_open', { ref: binding.ref, target, trustRevision: hostTrust.revision, ...key, ...(binding.sudoCredential ? { sudoCredential: binding.sudoCredential } : {}) })
+        // Aiterm's open target is strict {host, user, port}; any other key fails validation (2026-11-10 macbook, Elegg).
+        await tool('remote_terminal_open', { ref: binding.ref, target: { host: target.host, user: target.user, port: target.port }, trustRevision: hostTrust.revision, ...key, ...(binding.sudoCredential ? { sudoCredential: binding.sudoCredential } : {}) })
       } catch (error) { await client.close().catch(() => {}); throw error }
       return {
         // Elegg: claude_* take no args; path_status / make_dir take an absolute `path`.

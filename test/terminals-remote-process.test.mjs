@@ -17,13 +17,14 @@ function fakeClient(responses) {
 }
 
 const status = () => json({ trust: { provider: 'aiterm.known-hosts.v1', revision }, credential: { revision: 7, available: true } })
-const request = { target: { host: '192.168.1.12', user: 'kite', port: 22, os: 'macos' }, hostTrust: { provider: 'aiterm.known-hosts.v1', revision }, binding: { ref: 'owner-macbook', credentialRevision: 7 } }
+const opened = { host: '192.168.1.12', user: 'kite', port: 22 }
+const request = { target: { ...opened, os: 'macos' }, hostTrust: { provider: 'aiterm.known-hosts.v1', revision }, binding: { ref: 'owner-macbook', credentialRevision: 7 } }
 
 test('opens a transient process for C8 commands and closes it', async () => {
   const client = fakeClient({ remote_terminal_status: status, remote_terminal_command: ({ op }) => json({ op, exit_code: 0, version: '2.0.0' }) })
   const native = createRemoteTerminalProcesses({ project: '/srv/bellteam', connectClient: async () => client, run: async () => {} })
   const session = await native.connect(request)
-  assert.deepEqual(client.calls[1], { name: 'remote_terminal_open', args: { ref: 'owner-macbook', target: request.target, trustRevision: revision, credentialRevision: 7 } })
+  assert.deepEqual(client.calls[1], { name: 'remote_terminal_open', args: { ref: 'owner-macbook', target: opened, trustRevision: revision, credentialRevision: 7 } })
   assert.equal((await session.command('claude_version')).version, '2.0.0')
   await session.close()
   assert.equal(client.calls.at(-1).name, 'remote_terminal_close')
@@ -36,7 +37,7 @@ test('opens a transient process for C8 commands and closes it', async () => {
   await createRemoteTerminalProcesses({ project: '/srv/bellteam', run: async (command, args, options) => { runs.push({ args, options }) } })
     .loadCredential({ ref: 'b', terminalId: 'friend-mac', handle: 'h', revision: 2, purpose: 'ssh-key', key: 'KEYBYTES' })
   assert.deepEqual(runs[0], { args: ['aiterm-remote-terminal', 'credential-load', '--ref', 'b', '--terminal-id', 'friend-mac', '--handle', 'h', '--revision', '2', '--purpose', 'ssh-key'], options: { input: 'KEYBYTES' } }, 'key on stdin only')
-  assert.deepEqual(keyed.calls[1].args, { ref: 'b', target: request.target, trustRevision: revision, credential: { handle: 'h', revision: 2 }, sudoCredential: { handle: 's', revision: 1 } })
+  assert.deepEqual(keyed.calls[1].args, { ref: 'b', target: opened, trustRevision: revision, credential: { handle: 'h', revision: 2 }, sudoCredential: { handle: 's', revision: 1 } })
 })
 
 test('stale trust and tool errors become classified codes and close the process', async () => {
@@ -46,6 +47,9 @@ test('stale trust and tool errors become classified codes and close the process'
   const mismatch = fakeClient({ remote_terminal_status: status, remote_terminal_open: () => ({ isError: true, ...json({ code: 'HOST_KEY_MISMATCH', message: 'Host key changed', action: 'confirm the new host key', stderr: 'raw' }) }) })
   await assert.rejects(createRemoteTerminalProcesses({ project: '/srv/bellteam', connectClient: async () => mismatch }).connect(request), error => error.code === 'HOST_KEY_MISMATCH' && error.action === 'confirm the new host key' && !('stderr' in error))
   await assert.rejects(createRemoteTerminalProcesses({ project: '/srv/bellteam', connectClient: async () => { throw new Error('spawn') } }).connect(request), { code: 'REMOTE_AITERM_UNAVAILABLE' })
+  // An uncoded tool error (SDK input validation text) is not a missing remote Aiterm: no provision trigger.
+  const invalid = fakeClient({ remote_terminal_status: status, remote_terminal_open: () => ({ isError: true, content: [{ type: 'text', text: 'MCP error -32602: Input validation error' }] }) })
+  await assert.rejects(createRemoteTerminalProcesses({ project: '/srv/bellteam', connectClient: async () => invalid }).connect(request), { code: 'REMOTE_TERMINAL_CALL_FAILED' })
   await assert.rejects(createRemoteTerminalProcesses({ project: '/srv/bellteam', connectClient: async () => fakeClient({}) }).connect({ ...request, binding: { privateKey: 'k' } }), { code: 'CREDENTIAL_UNUSABLE' })
 })
 
