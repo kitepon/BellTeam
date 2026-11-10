@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-10T15:29:27Z",
-  "expiresAt": "2026-11-17T15:29:27Z",
+  "publishedAt": "2026-11-10T16:30:15Z",
+  "expiresAt": "2026-11-17T16:30:15Z",
   "releases": [
     {
       "componentId": "usage",
@@ -183,8 +183,8 @@
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "54094fde34d271ee0e0d4f4853c6eb67b433045a",
-      "versionId": "e0cf9393844333b509c872a1800d51f9fa4b6a1b3a73b6b5e2bf9001cdc72239",
+      "sourceCommit": "06bfd087018b937a52c471619391a6aad8091777",
+      "versionId": "bf68d0630821b10db2dd41373a6920b646a4f1cbf0086c9cff870254eb423038",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -192,16 +192,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T214441Z/conversation-54094fde34d271ee0e0d4f4853c6eb67b433045a-linux-amd64.tar.gz",
-          "bytes": 3898035,
-          "sha256": "e0cf9393844333b509c872a1800d51f9fa4b6a1b3a73b6b5e2bf9001cdc72239"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T161134Z/conversation-06bfd087018b937a52c471619391a6aad8091777-linux-amd64.tar.gz",
+          "bytes": 3899886,
+          "sha256": "bf68d0630821b10db2dd41373a6920b646a4f1cbf0086c9cff870254eb423038"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T214441Z/conversation-54094fde34d271ee0e0d4f4853c6eb67b433045a-linux-amd64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T161134Z/conversation-06bfd087018b937a52c471619391a6aad8091777-linux-amd64.tar.gz.sigstore.json",
           "bytes": 10998,
-          "sha256": "96b9c721d7ea4b333a925c2f25ecb02f26575fd4dfe31a7ab45357e30fdddb18"
+          "sha256": "20aa6d3ee6ac30a5dbec167394c696ab8d5111122d995c9604383fc7bc1ba46d"
         },
-        "signerCommit": "54094fde34d271ee0e0d4f4853c6eb67b433045a"
+        "signerCommit": "06bfd087018b937a52c471619391a6aad8091777"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -232,13 +232,13 @@
         }
       },
       "changes": [
-        "ほかのBotが始めた会話の最後の返事が、会話の記録に返信として表示されるようにします。これまでの記録にも反映されます。"
+        "分身どうしの問い合わせと答えを、会話の記録に残します。"
       ]
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "54094fde34d271ee0e0d4f4853c6eb67b433045a",
-      "versionId": "4b0b8f5fed3b3dea6dc86e9a0049d6b46cee6c91ad88e5c9691ed4e525d3f085",
+      "sourceCommit": "06bfd087018b937a52c471619391a6aad8091777",
+      "versionId": "008b3f2cf16e5be140b385202661327d9998e516952cff23584fb9be269bf4fa",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -246,16 +246,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T214441Z/conversation-54094fde34d271ee0e0d4f4853c6eb67b433045a-linux-arm64.tar.gz",
-          "bytes": 3898035,
-          "sha256": "4b0b8f5fed3b3dea6dc86e9a0049d6b46cee6c91ad88e5c9691ed4e525d3f085"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T161134Z/conversation-06bfd087018b937a52c471619391a6aad8091777-linux-arm64.tar.gz",
+          "bytes": 3899887,
+          "sha256": "008b3f2cf16e5be140b385202661327d9998e516952cff23584fb9be269bf4fa"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T214441Z/conversation-54094fde34d271ee0e0d4f4853c6eb67b433045a-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10861,
-          "sha256": "aa00dcd5a5b6a766c1d2bc6209374f0726bbdbbeb4a33b2de12a674017f4dec4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T161134Z/conversation-06bfd087018b937a52c471619391a6aad8091777-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11049,
+          "sha256": "e9a66209bef6fa7ab19b223d140878bf7041d1cc4f9af9e235b59fb9cdc808ec"
         },
-        "signerCommit": "54094fde34d271ee0e0d4f4853c6eb67b433045a"
+        "signerCommit": "06bfd087018b937a52c471619391a6aad8091777"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -286,7 +286,7 @@
         }
       },
       "changes": [
-        "ほかのBotが始めた会話の最後の返事が、会話の記録に返信として表示されるようにします。これまでの記録にも反映されます。"
+        "分身どうしの問い合わせと答えを、会話の記録に残します。"
       ]
     },
     {
@@ -491,8 +491,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "712e1b0639b8b6fce55ef623f02930b6cf7ad6da",
-      "versionId": "21d721f2ee66e53fc93e1441c8c57f7741a0357b4ab478e1d37b99434755a446",
+      "sourceCommit": "73528aee0b53a68181e004eb468f72606890b822",
+      "versionId": "8fd0afc318c47946496197fd6b68099ce2bb81959d4a484272e3851d9a7f6f02",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T145600Z/execution-712e1b0639b8b6fce55ef623f02930b6cf7ad6da-linux-amd64.tar.gz",
-          "bytes": 3948283,
-          "sha256": "21d721f2ee66e53fc93e1441c8c57f7741a0357b4ab478e1d37b99434755a446"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T162344Z/execution-73528aee0b53a68181e004eb468f72606890b822-linux-amd64.tar.gz",
+          "bytes": 3950480,
+          "sha256": "8fd0afc318c47946496197fd6b68099ce2bb81959d4a484272e3851d9a7f6f02"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T145600Z/execution-712e1b0639b8b6fce55ef623f02930b6cf7ad6da-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11067,
-          "sha256": "a0a4215cbe57fce79e2ae9e662f9cdc590dfbf520af08623746ba0a59558392a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T162344Z/execution-73528aee0b53a68181e004eb468f72606890b822-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11036,
+          "sha256": "1c20b1d95378716ed6d1672119d44f3416adbd7a53640d02fb3a47d5df37f1e4"
         },
-        "signerCommit": "712e1b0639b8b6fce55ef623f02930b6cf7ad6da"
+        "signerCommit": "73528aee0b53a68181e004eb468f72606890b822"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "Windows・Linuxの端末でログインを案内する時に、端末のOSの名前を出します。"
+        "分身への読み取りだけの問い合わせを、相手の分身の席で受けて答えられるようにします。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "712e1b0639b8b6fce55ef623f02930b6cf7ad6da",
-      "versionId": "74dfef182b335a8c0e507c801b5c86266d93ac02101d33aecea8b4c48f948cf0",
+      "sourceCommit": "73528aee0b53a68181e004eb468f72606890b822",
+      "versionId": "8abc4fe93a3cdebc0bcd58f3e9be1dcf01f43521c5e2545e37c158c355a4d668",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T145600Z/execution-712e1b0639b8b6fce55ef623f02930b6cf7ad6da-linux-arm64.tar.gz",
-          "bytes": 3948284,
-          "sha256": "74dfef182b335a8c0e507c801b5c86266d93ac02101d33aecea8b4c48f948cf0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T162344Z/execution-73528aee0b53a68181e004eb468f72606890b822-linux-arm64.tar.gz",
+          "bytes": 3950486,
+          "sha256": "8abc4fe93a3cdebc0bcd58f3e9be1dcf01f43521c5e2545e37c158c355a4d668"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T145600Z/execution-712e1b0639b8b6fce55ef623f02930b6cf7ad6da-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11114,
-          "sha256": "46a78f51b6effc735233f2d545e1a1b07a7bebabee9b7c880899d46afad8df97"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T162344Z/execution-73528aee0b53a68181e004eb468f72606890b822-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11130,
+          "sha256": "3adfcbfbe0f4c7822e58014b26d935addbfec2a6f25c7c4ca2f027b616402e21"
         },
-        "signerCommit": "712e1b0639b8b6fce55ef623f02930b6cf7ad6da"
+        "signerCommit": "73528aee0b53a68181e004eb468f72606890b822"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,7 +552,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "Windows・Linuxの端末でログインを案内する時に、端末のOSの名前を出します。"
+        "分身への読み取りだけの問い合わせを、相手の分身の席で受けて答えられるようにします。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "712e1b0639b8b6fce55ef623f02930b6cf7ad6da",
-      "versionId": "sha256:c943a33a03562c56cc8586d7931fcb87aae5ba5ce451577a67e287859f760ad3",
+      "sourceCommit": "73528aee0b53a68181e004eb468f72606890b822",
+      "versionId": "sha256:8bfba122f9a2880db7725921afa4656a26c377cc3c46b768eebe2b2088769b4d",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c943a33a03562c56cc8586d7931fcb87aae5ba5ce451577a67e287859f760ad3"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8bfba122f9a2880db7725921afa4656a26c377cc3c46b768eebe2b2088769b4d"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "WindowsとLinuxの端末を、OSを付けて登録・接続できるようにします。Macの動きは変わりません。"
+        "分身が、ほかのBotの分身に読み取りだけの問い合わせをして答えを受け取れるようにします。分身はプロジェクトフォルダに書き込めません。CodexとGrokの席で、BellTeamの道具を待つ時間が120秒で切れないようにします。Aiterm 0.70.6を入れます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "712e1b0639b8b6fce55ef623f02930b6cf7ad6da",
-      "versionId": "sha256:c943a33a03562c56cc8586d7931fcb87aae5ba5ce451577a67e287859f760ad3",
+      "sourceCommit": "73528aee0b53a68181e004eb468f72606890b822",
+      "versionId": "sha256:8bfba122f9a2880db7725921afa4656a26c377cc3c46b768eebe2b2088769b4d",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:c943a33a03562c56cc8586d7931fcb87aae5ba5ce451577a67e287859f760ad3"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:8bfba122f9a2880db7725921afa4656a26c377cc3c46b768eebe2b2088769b4d"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "WindowsとLinuxの端末を、OSを付けて登録・接続できるようにします。Macの動きは変わりません。"
+        "分身が、ほかのBotの分身に読み取りだけの問い合わせをして答えを受け取れるようにします。分身はプロジェクトフォルダに書き込めません。CodexとGrokの席で、BellTeamの道具を待つ時間が120秒で切れないようにします。Aiterm 0.70.6を入れます。"
       ]
     }
   ],
