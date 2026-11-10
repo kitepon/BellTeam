@@ -157,6 +157,19 @@ export class RemoteSeats {
     if (receipt?.accepted !== true || receipt.handle !== handle || receipt.revision !== revision) throw unavailable()
   }
 
+  // Fresh body (remote-seat.md R13 "Body restart"): the key agent died with the container, so load the key once per terminal
+  // that has a recorded remote seat; Aiterm's keeper then rebuilds the seat MCP route without waiting for a Mac operation.
+  async warm(launches) {
+    const terminals = new Map()
+    for (const { botId, target, harness } of Object.values(launches ?? {})) {
+      const [terminalId, projectRoot] = typeof target === 'string' ? target.split('\n') : []
+      if (terminalId && projectRoot && typeof botId === 'string' && !terminals.has(terminalId))
+        terminals.set(terminalId, { bot: { id: botId, terminalId, projectRoot }, harness })
+    }
+    await Promise.all([...terminals.values()].map(({ bot, harness }) => this.target(bot, harness ?? 'claude-code').catch(() => {})))
+    return [...terminals.keys()]
+  }
+
   // A session call of a held remote seat refused because Aiterm's key agent is gone: load again for its terminal.
   async reloadKey(sessionName) {
     const seat = await this.seatOf(sessionName)

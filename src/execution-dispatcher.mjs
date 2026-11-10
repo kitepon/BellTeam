@@ -340,6 +340,8 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
         await accounts.load()
         void transport.reviewAccounts()
         if (!handoff) {
+          // Fresh body: reload the app-set terminal keys so Aiterm rebuilds the remote seats' MCP route (remote-seat.md R13).
+          if (remoteSeats) track(transport.readRuntimeLaunches().then(launches => remoteSeats.warm(launches))).catch(() => {})
           for (const reference of await transport.workState.takeRestartActivity()) {
             const bot = ports.bots.get(reference.botId)
             if (!bot) continue

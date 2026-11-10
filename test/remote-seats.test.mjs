@@ -233,6 +233,24 @@ test('R13: a refused load is not started, arms the observer and queues the Bot',
   assert.equal(log.some(entry => entry.op === 'issue'), false)
 })
 
+test('R13: a fresh body loads the key once per terminal with a recorded remote seat; local and malformed records load nothing; a refusal stops nothing', async () => {
+  const { seats, loads, observed } = keyFixture()
+  const launches = {
+    'bot-aaaa1111': { generation: 'g', target: 'mac-1\n/Users/quo/work/app', botId: 'bot-aaaa1111', harness: 'claude-code' },
+    'bot-bbbb2222': { generation: 'g', target: 'mac-1\n/Users/quo/work/other', botId: 'bot-bbbb2222', harness: 'codex-cli' },
+    'bot-cccc3333': { generation: 'g', target: 'win-1\nC:\\work', botId: 'bot-cccc3333' },
+    'bot-local': { generation: 'g', target: '' }, 'bot-old': { generation: 'g' }, 'bot-odd': { generation: 'g', target: 'mac-2\n/x' },
+  }
+  assert.deepEqual(await seats.warm(launches), ['mac-1', 'win-1'])
+  assert.deepEqual(loads.map(load => load.terminalId), ['mac-1', 'win-1'])
+  assert.equal(loads[0].memberId, 'bot-aaaa1111')
+  assert.deepEqual(await seats.warm({}), [])
+  const refused = keyFixture({ receipt: () => { throw code('TERMINAL_KEY_LOAD_UNAVAILABLE') } })
+  assert.deepEqual(await refused.seats.warm(launches), ['mac-1', 'win-1'])
+  assert.deepEqual(refused.observed, ['mac-1', 'win-1'])
+  assert.deepEqual(observed, [])
+})
+
 test('R13: CREDENTIAL_NOT_LOADED on a session call loads again and issues the same call once more', async () => {
   const { seats, loads } = keyFixture()
   seats.launched(bot, { session_id: launchArgs.session_name, launch_id: 'a'.repeat(32) })
