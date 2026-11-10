@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-10T12:50:46Z",
-  "expiresAt": "2026-11-17T12:50:46Z",
+  "publishedAt": "2026-11-10T14:09:31Z",
+  "expiresAt": "2026-11-17T14:09:31Z",
   "releases": [
     {
       "componentId": "usage",
@@ -101,8 +101,8 @@
     },
     {
       "componentId": "memory",
-      "sourceCommit": "19e739e5625d217ae769df7dad8350190b3f4585",
-      "versionId": "d9e3de1fc8e09c1255ac66955fce99a5a07dfd3d8c78b86fa34ab6b9f6007bf6",
+      "sourceCommit": "f89f7d3bf11cc47fd81dd418925e538d00b0f461",
+      "versionId": "11990868fc75b89203c32a4b6b4b38ae32ae0ab3d2751a45027fe527fd6b4592",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -110,16 +110,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T091740Z/memory-19e739e5625d217ae769df7dad8350190b3f4585-linux-amd64.tar.gz",
-          "sha256": "d9e3de1fc8e09c1255ac66955fce99a5a07dfd3d8c78b86fa34ab6b9f6007bf6",
-          "bytes": 12328
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T140336Z/memory-f89f7d3bf11cc47fd81dd418925e538d00b0f461-linux-amd64.tar.gz",
+          "sha256": "11990868fc75b89203c32a4b6b4b38ae32ae0ab3d2751a45027fe527fd6b4592",
+          "bytes": 13138
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T091740Z/memory-19e739e5625d217ae769df7dad8350190b3f4585-linux-amd64.tar.gz.sigstore.json",
-          "sha256": "92bbc9805688a7499082a0ec6a153da6dff3dc8607a36f69122da3c111457fe5",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T140336Z/memory-f89f7d3bf11cc47fd81dd418925e538d00b0f461-linux-amd64.tar.gz.sigstore.json",
+          "sha256": "7b2a20096e4a8251469cf10aa1f3ce14a4956c7b49f26305718fc2d4b040b75e",
           "bytes": 11023
         },
-        "signerCommit": "19e739e5625d217ae769df7dad8350190b3f4585"
+        "signerCommit": "f89f7d3bf11cc47fd81dd418925e538d00b0f461"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -137,13 +137,13 @@
         }
       },
       "changes": [
-        "記憶と知識を、保存した内容を保ちながら単独で更新できます。"
+        "分身の席が記憶と知識を探しても、プロジェクトフォルダのファイルを変えないようにします。"
       ]
     },
     {
       "componentId": "memory",
-      "sourceCommit": "19e739e5625d217ae769df7dad8350190b3f4585",
-      "versionId": "b94b59431cf717b75d907912284ab9f34850d5ec382cc49ba2a1e610ed029d37",
+      "sourceCommit": "f89f7d3bf11cc47fd81dd418925e538d00b0f461",
+      "versionId": "85d9187d68edbef6291af853f5ef3c63e3e07123c39fcfa1a50aabfa4b3f6f39",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -151,16 +151,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T091740Z/memory-19e739e5625d217ae769df7dad8350190b3f4585-linux-arm64.tar.gz",
-          "sha256": "b94b59431cf717b75d907912284ab9f34850d5ec382cc49ba2a1e610ed029d37",
-          "bytes": 12329
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T140336Z/memory-f89f7d3bf11cc47fd81dd418925e538d00b0f461-linux-arm64.tar.gz",
+          "sha256": "85d9187d68edbef6291af853f5ef3c63e3e07123c39fcfa1a50aabfa4b3f6f39",
+          "bytes": 13138
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261104T091740Z/memory-19e739e5625d217ae769df7dad8350190b3f4585-linux-arm64.tar.gz.sigstore.json",
-          "sha256": "3a4ccad42ec8c275a51702a2cbfc90510acadf3d6770025a6114765cca20c8e5",
-          "bytes": 10929
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T140336Z/memory-f89f7d3bf11cc47fd81dd418925e538d00b0f461-linux-arm64.tar.gz.sigstore.json",
+          "sha256": "029d7ac4c311a4f1ee117c5e96dfbfa26ca18922e68d4380984c23e4c75bca54",
+          "bytes": 10976
         },
-        "signerCommit": "19e739e5625d217ae769df7dad8350190b3f4585"
+        "signerCommit": "f89f7d3bf11cc47fd81dd418925e538d00b0f461"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -178,7 +178,7 @@
         }
       },
       "changes": [
-        "記憶と知識を、保存した内容を保ちながら単独で更新できます。"
+        "分身の席が記憶と知識を探しても、プロジェクトフォルダのファイルを変えないようにします。"
       ]
     },
     {
@@ -637,8 +637,8 @@
     },
     {
       "componentId": "work-graph",
-      "sourceCommit": "173c5aaba3023f30ad2f89fb6b6b01be7d3411fc",
-      "versionId": "5ea59f3b9dfc0ac8aecc754154d56ef0862e23705132fa2cf43e8d710ba8c2c6",
+      "sourceCommit": "f89f7d3bf11cc47fd81dd418925e538d00b0f461",
+      "versionId": "ff7554fb9850f8f8dfd370beeedc1403fb504992b709d336aa829f992e5120ec",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -646,16 +646,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T224512Z/work-graph-173c5aaba3023f30ad2f89fb6b6b01be7d3411fc-linux-amd64.tar.gz",
-          "bytes": 3820680,
-          "sha256": "5ea59f3b9dfc0ac8aecc754154d56ef0862e23705132fa2cf43e8d710ba8c2c6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T140325Z/work-graph-f89f7d3bf11cc47fd81dd418925e538d00b0f461-linux-amd64.tar.gz",
+          "bytes": 3820955,
+          "sha256": "ff7554fb9850f8f8dfd370beeedc1403fb504992b709d336aa829f992e5120ec"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T224512Z/work-graph-173c5aaba3023f30ad2f89fb6b6b01be7d3411fc-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11142,
-          "sha256": "96cf10020c34e24ddf0221700cd6e865ce7ac5c8186cbbe42401e5416b57bb7a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T140325Z/work-graph-f89f7d3bf11cc47fd81dd418925e538d00b0f461-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10907,
+          "sha256": "fb65c2542995b62f5cf3f083344b4c378c903e4fedd7824e4f7e9e26cdc3a997"
         },
-        "signerCommit": "173c5aaba3023f30ad2f89fb6b6b01be7d3411fc"
+        "signerCommit": "f89f7d3bf11cc47fd81dd418925e538d00b0f461"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -667,13 +667,13 @@
         }
       },
       "changes": [
-        "相関図の依頼ラベルは文字列か空欄で返し、「依頼を処理中」の印を表示しないようにします。"
+        "相関図で、分身が答えている依頼を点線で表示できるようにします。"
       ]
     },
     {
       "componentId": "work-graph",
-      "sourceCommit": "173c5aaba3023f30ad2f89fb6b6b01be7d3411fc",
-      "versionId": "2794f26f0d30eaf410b932b5d141bc77feedb538cab7217afa237ec77a1fcbdc",
+      "sourceCommit": "f89f7d3bf11cc47fd81dd418925e538d00b0f461",
+      "versionId": "fe49b859ef47255267c0a13bb74015780cc621ac6d672d0388ad48e7251519ec",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -681,16 +681,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T224512Z/work-graph-173c5aaba3023f30ad2f89fb6b6b01be7d3411fc-linux-arm64.tar.gz",
-          "bytes": 3820680,
-          "sha256": "2794f26f0d30eaf410b932b5d141bc77feedb538cab7217afa237ec77a1fcbdc"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T140325Z/work-graph-f89f7d3bf11cc47fd81dd418925e538d00b0f461-linux-arm64.tar.gz",
+          "bytes": 3820955,
+          "sha256": "fe49b859ef47255267c0a13bb74015780cc621ac6d672d0388ad48e7251519ec"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T224512Z/work-graph-173c5aaba3023f30ad2f89fb6b6b01be7d3411fc-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11095,
-          "sha256": "04473cb1c2305b72449222e01faa52b8f6ae3ef89a7ff74ab7e5831261ec9ce8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T140325Z/work-graph-f89f7d3bf11cc47fd81dd418925e538d00b0f461-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11005,
+          "sha256": "b0d6c64aa15491ce488cb676ddf8b984772a5b71ffcae33f2d8107169601311f"
         },
-        "signerCommit": "173c5aaba3023f30ad2f89fb6b6b01be7d3411fc"
+        "signerCommit": "f89f7d3bf11cc47fd81dd418925e538d00b0f461"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -702,20 +702,20 @@
         }
       },
       "changes": [
-        "相関図の依頼ラベルは文字列か空欄で返し、「依頼を処理中」の印を表示しないようにします。"
+        "相関図で、分身が答えている依頼を点線で表示できるようにします。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "f1578cd3241a313b2cfdfe5d379b7168401aec76",
-      "versionId": "sha256:55d34b6e5a63f4b725b90adc24cc0f6f8a6bda5fc09a44a5fcd7b4b15dda998a",
+      "sourceCommit": "f89f7d3bf11cc47fd81dd418925e538d00b0f461",
+      "versionId": "sha256:6c5eff3a25003880d7f1523bae328ff324240bd1051be25b7091217801a0989b",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:55d34b6e5a63f4b725b90adc24cc0f6f8a6bda5fc09a44a5fcd7b4b15dda998a"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6c5eff3a25003880d7f1523bae328ff324240bd1051be25b7091217801a0989b"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席をつなぐ Aiterm を 0.70.5 にしました。Mac などの外の席でも、作業中の言葉と途中の指示が届くようになります。"
+        "分身の席は全部の道具を使えます。Botのプロジェクトフォルダに書く操作だけを断ります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "f1578cd3241a313b2cfdfe5d379b7168401aec76",
-      "versionId": "sha256:55d34b6e5a63f4b725b90adc24cc0f6f8a6bda5fc09a44a5fcd7b4b15dda998a",
+      "sourceCommit": "f89f7d3bf11cc47fd81dd418925e538d00b0f461",
+      "versionId": "sha256:6c5eff3a25003880d7f1523bae328ff324240bd1051be25b7091217801a0989b",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:55d34b6e5a63f4b725b90adc24cc0f6f8a6bda5fc09a44a5fcd7b4b15dda998a"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6c5eff3a25003880d7f1523bae328ff324240bd1051be25b7091217801a0989b"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "席をつなぐ Aiterm を 0.70.5 にしました。Mac などの外の席でも、作業中の言葉と途中の指示が届くようになります。"
+        "分身の席は全部の道具を使えます。Botのプロジェクトフォルダに書く操作だけを断ります。"
       ]
     }
   ],
