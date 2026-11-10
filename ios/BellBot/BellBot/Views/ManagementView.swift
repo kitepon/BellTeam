@@ -123,6 +123,8 @@ struct BotEditor: View {
         }
         return selected.fastModeUnavailableReason(model: selectedModel)
     }
+    /// The bots SSE refresh replaces store.bots, so the configuration line follows the live record, not the Bot the editor opened with.
+    private var liveBot: Bot? { initial.map { opened in store.bots.first { $0.id == opened.id } ?? opened } }
     private var deletionPending: Bool {
         initial.map { store.pendingBotDeletionIDs.contains($0.id) } ?? false
     }
@@ -247,6 +249,11 @@ struct BotEditor: View {
                     // 読み込み中は上の進捗表示が状態を示す。赤字は読み込めない・選べない理由だけに使う。
                     if let reason = fastModeUnavailableReason, !loadingModels {
                         Text(reason).font(.footnote).foregroundStyle(.red)
+                    }
+                    if let line = ConfigurationApplication.line(for: liveBot) {
+                        Text(line).font(.footnote)
+                            .foregroundStyle(liveBot?.configurationApplication?.state == "failed" ? Color.red : BellTheme.muted)
+                            .accessibilityIdentifier("member-configuration-status")
                     }
                 }
                 .disabled(deletionPending || deletionResultUnconfirmed)

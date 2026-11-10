@@ -27,6 +27,37 @@ struct Bot: Decodable, Identifiable, Equatable {
     var projectRoot: String? = nil
     /// remote-seat.md "Launch notice" (#892). nil = no notice, an older body, or a malformed value.
     var seatLaunch: SeatLaunch? = nil
+    /// execution configuration-requests.md "Application view". nil = no record, an older body, or a malformed value.
+    var configurationApplication: ConfigurationApplication? = nil
+}
+
+/// What happened to the last settings change of a running member (`pending` | `accepted` | `failed`). Both fields are optional;
+/// a field of the wrong type reads as absent.
+struct ConfigurationApplication: Decodable, Equatable {
+    var state: String?
+    var message: String?
+
+    private enum CodingKeys: String, CodingKey { case state, message }
+
+    init(state: String? = nil, message: String? = nil) { self.state = state; self.message = message }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        state = try? c.decodeIfPresent(String.self, forKey: .state)
+        message = try? c.decodeIfPresent(String.self, forKey: .message)
+    }
+
+    /// The member editor's status line, worded as the Web editor's `renderBotConfigurationStatus`. nil for a new member
+    /// and for a `failed` record without a message.
+    static func line(for bot: Bot?) -> String? {
+        guard let bot else { return nil }
+        switch bot.configurationApplication?.state {
+        case "pending": return "現在の作業が終わった後に設定を反映します。適用はまだ確認できていません。"
+        case "failed": return bot.configurationApplication?.message.flatMap { $0.isEmpty ? nil : $0 }
+        case "accepted": return "CLIが設定変更を受け付けました。"
+        default: return bot.online ? "保存した希望設定です。稼働中のCLIへの適用は未確認です。" : "次回の起動に使う希望設定です。"
+        }
+    }
 }
 
 // 名前の下の1行。文言はWebのworkLabelと同じにする。
@@ -52,7 +83,7 @@ extension Bot {
     private enum CodingKeys: String, CodingKey {
         case id, name, displayName, harness, model, reasoningEffort, fastMode, color, profileText, personality
         case speechStyle, position, role, avatar, avatarVersion, avatarLargeVersion, deleting, online, recent, currentWork, account
-        case terminalId, projectRoot, seatLaunch
+        case terminalId, projectRoot, seatLaunch, configurationApplication
     }
 
     init(from decoder: Decoder) throws {
@@ -82,6 +113,7 @@ extension Bot {
         projectRoot = try c.decodeIfPresent(String.self, forKey: .projectRoot)
         // A malformed notice must not break the member list: read it as absent.
         seatLaunch = try? c.decodeIfPresent(SeatLaunch.self, forKey: .seatLaunch)
+        configurationApplication = try? c.decodeIfPresent(ConfigurationApplication.self, forKey: .configurationApplication)
     }
 }
 
@@ -671,6 +703,23 @@ struct OnePasswordKey: Decodable, Identifiable, Equatable {
     var id: String { reference }
 }
 struct OnePasswordKeysResponse: Decodable { let items: [OnePasswordKey] }
+extension OnePasswordKey {
+    /// The picker's rows, as the Web card (secret-input.js): a sudo picker keeps only references ending in /password
+    /// (an older body lists SSH keys for every purpose); the search matches the name or the vault, ignoring case.
+    static func choices(_ keys: [OnePasswordKey], sudo: Bool, search: String) -> [OnePasswordKey] {
+        let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        return keys.filter { key in
+            (!sudo || key.reference.hasSuffix("/password"))
+                && (query.isEmpty || "\(key.title)\n\(key.vault ?? "")".localizedCaseInsensitiveContains(query))
+        }
+    }
+
+    /// The first line above the rows. `noun` is 鍵 or パスワード.
+    static func countLine(shown: Int, search: String, noun: String) -> String {
+        shown > 0 ? "\(shown)件から選んでください"
+            : "「\(search.trimmingCharacters(in: .whitespacesAndNewlines))」に合う\(noun)がありません"
+    }
+}
 /// What the SSH key picker shows. An absent route (older body) falls back to pasting a key.
 enum OnePasswordKeyList: Equatable {
     case loading, loaded([OnePasswordKey]), failed, unsupported

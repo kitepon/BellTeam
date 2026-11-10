@@ -56,6 +56,7 @@ struct SecretInputSheet: View {
     @State private var sending = false
     @State private var errorText: String?
     @State private var keyList = OnePasswordKeyList.loading
+    @State private var search = ""
 
     init(request: SecretRequest, title: String? = nil, onComplete: @escaping (SecretRequest) -> Void) {
         self.request = request
@@ -68,8 +69,11 @@ struct SecretInputSheet: View {
     private var login: Bool { request.isLoginPassword }
     /// An OpenSSH private key is multiline; a SecureField would drop its newlines. The value is sent as typed.
     private var multiline: Bool { request.purpose == "terminal.ssh" }
-    /// An SSH key card with 1Password connected picks an existing SSH Key item by name; other cards type a reference.
-    private var picker: Bool { multiline && onePasswordOffered && keyList != .unsupported }
+    private var sudo: Bool { request.purpose == "terminal.sudo" }
+    /// 鍵 for the SSH card, パスワード for the sudo card.
+    private var noun: String { multiline ? "鍵" : "パスワード" }
+    /// An SSH key or sudo card with 1Password connected picks an existing item by name; other cards type a reference.
+    private var picker: Bool { (multiline || sudo) && onePasswordOffered && keyList != .unsupported }
     private var ready: Bool { useOnePassword ? !reference.trimmingCharacters(in: .whitespaces).isEmpty : !value.isEmpty }
 
     var body: some View {
@@ -79,17 +83,18 @@ struct SecretInputSheet: View {
                     if !request.message.isEmpty, !(login && request.message == SecretRequest.loginPasswordText) { SelectableText(request.message) }
                     Text(note).font(.footnote).foregroundStyle(BellTheme.muted)
                         .accessibilityIdentifier("secret-note")
-                    if multiline, onePasswordOffered, keyList == .unsupported {
-                        Text("この版のサーバーには1Passwordの鍵の一覧がありません。鍵を貼り付けて保存してください。")
+                    if multiline || sudo, onePasswordOffered, keyList == .unsupported {
+                        Text(multiline ? "この版のサーバーには1Passwordの鍵の一覧がありません。鍵を貼り付けて保存してください。"
+                             : "この版のサーバーには1Passwordのパスワードの一覧がありません。パスワードを入力して保存してください。")
                             .font(.footnote).foregroundStyle(BellTheme.muted)
                             .accessibilityIdentifier("secret-picker-unsupported")
                     }
                 }
-                if onePasswordOffered, !(multiline && keyList == .unsupported) {
+                if onePasswordOffered, !((multiline || sudo) && keyList == .unsupported) {
                     Section("入力方法") {
                         Picker("入力方法", selection: $useOnePassword) {
-                            Text(multiline ? "1Passwordの鍵から選ぶ" : "1Passwordの参照を使う").tag(true)
-                            Text(multiline ? "鍵を貼り付けて保存する" : "値をBellTeamへ保存する").tag(false)
+                            Text(multiline ? "1Passwordの鍵から選ぶ" : sudo ? "1Passwordのパスワードから選ぶ" : "1Passwordの参照を使う").tag(true)
+                            Text(multiline ? "鍵を貼り付けて保存する" : sudo ? "パスワードを入力して保存する" : "値をBellTeamへ保存する").tag(false)
                         }
                         .pickerStyle(.inline)
                         .labelsHidden()
@@ -144,6 +149,10 @@ struct SecretInputSheet: View {
             .interactiveDismissDisabled(sending)
             .task(id: picker) { if picker { await loadKeys() } }
             .onChange(of: useOnePassword) { _, _ in clear() }
+            // A selection the search no longer shows is cleared, as on the Web card.
+            .onChange(of: search) { _, _ in
+                if case .loaded(let keys) = keyList, !OnePasswordKey.choices(keys, sudo: sudo, search: search).contains(where: { $0.reference == reference }) { reference = "" }
+            }
             .onChange(of: scenePhase) { _, phase in if phase != .active { clear() } }
             .onDisappear { clear() }
         }
@@ -152,7 +161,8 @@ struct SecretInputSheet: View {
     /// Wording shared with the Web card. Not connected, the paste path says how to get the list.
     private var note: String {
         if login { return SecretRequest.loginPasswordText }
-        if useOnePassword { return picker ? "選んだ鍵は、使うときに1Passwordから読み出します。鍵は会話に送られません。" : "参照は会話に送信されません。値は1Passwordから読み出します。" }
+        if useOnePassword { return picker ? "選んだ\(noun)は、使うときに1Passwordから読み出します。\(noun)は会話に送られません。" : "参照は会話に送信されません。値は1Passwordから読み出します。" }
+        if sudo { return "sudoのパスワードを入力してください。1Passwordを使っている場合は、設定の「1Password連携」を済ませると、ここで一覧から選べます。値は会話に送信されず、BellTeamの利用者領域へ保存します。" }
         return multiline
             ? "秘密鍵（「-----BEGIN OPENSSH PRIVATE KEY-----」で始まる文字）をそのまま貼ってください。1Passwordを使っている場合は、設定の「1Password連携」を済ませると、ここで鍵を一覧から選べます。値は会話に送信されません。"
             : "値は会話に送信されません。BellTeamの利用者領域へ保存します。"
@@ -161,12 +171,22 @@ struct SecretInputSheet: View {
     @ViewBuilder private var keyPicker: some View {
         switch keyList {
         case .loading:
-            ProgressView("1Passwordの鍵を読み込んでいます…").accessibilityIdentifier("secret-keys-loading")
+            ProgressView("1Passwordの\(noun)を読み込んでいます…").accessibilityIdentifier("secret-keys-loading")
         case .loaded(let keys) where keys.isEmpty:
-            Text("1Passwordで読めるSSH鍵がありません。").foregroundStyle(BellTheme.muted)
+            Text(multiline ? "1Passwordで読めるSSH鍵がありません。" : "1Passwordで読めるパスワードがありません。").foregroundStyle(BellTheme.muted)
                 .accessibilityIdentifier("secret-keys-empty")
         case .loaded(let keys):
-            ForEach(keys) { key in
+            let shown = OnePasswordKey.choices(keys, sudo: sudo, search: search)
+            // Narrows a long list by name or vault; the text is not secret and is never sent.
+            TextField("名前や保管庫で絞り込む", text: $search)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .accessibilityIdentifier("secret-key-search")
+                .disabled(sending)
+            Text(OnePasswordKey.countLine(shown: shown.count, search: search, noun: noun))
+                .font(.footnote).foregroundStyle(BellTheme.muted)
+                .accessibilityIdentifier("secret-key-count")
+            ForEach(shown) { key in
                 Button {
                     reference = key.reference
                 } label: {
@@ -184,7 +204,7 @@ struct SecretInputSheet: View {
                 .accessibilityAddTraits(reference == key.reference ? .isSelected : [])
             }
         case .failed:
-            Text("1Passwordの鍵一覧を読めませんでした。").foregroundStyle(.red).accessibilityIdentifier("secret-keys-failed")
+            Text("1Passwordの\(noun)一覧を読めませんでした。").foregroundStyle(.red).accessibilityIdentifier("secret-keys-failed")
             Button("もう一度読み込む") { Task { await loadKeys() } }
         case .unsupported:
             EmptyView()
@@ -193,7 +213,7 @@ struct SecretInputSheet: View {
 
     private func loadKeys() async {
         keyList = .loading
-        do { keyList = .loaded(try await store.api.onePasswordKeys(requestId: request.id)) }
+        do { keyList = .loaded(OnePasswordKey.choices(try await store.api.onePasswordKeys(requestId: request.id), sudo: sudo, search: "")) }
         catch let error where BellAPIError.isAuthenticationError(error) { dismiss(); store.requireLogin(for: error) }
         catch {
             keyList = OnePasswordKeyList.after(error)

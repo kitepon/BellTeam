@@ -16,7 +16,9 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 
 | 型・関数・算出値 | 機能 |
 | --- | --- |
-| [Bot](../../../../ios/BellBot/BellBot/Core/Models.swift#L3)（`seatLaunch`は不正値を「無し」として読む）、[Room](../../../../ios/BellBot/BellBot/Core/Models.swift#L25)、[Owner](../../../../ios/BellBot/BellBot/Core/Models.swift#L36) | 名簿・OwnerのHTTP応答素材。画像版とBotのdeletingも保持 |
+| [Bot](../../../../ios/BellBot/BellBot/Core/Models.swift#L3)（`seatLaunch`・`configurationApplication`は不正値を「無し」として読む）、[Room](../../../../ios/BellBot/BellBot/Core/Models.swift#L25)、[Owner](../../../../ios/BellBot/BellBot/Core/Models.swift#L36) | 名簿・OwnerのHTTP応答素材。画像版とBotのdeletingも保持 |
+| `ConfigurationApplication`（`Core/Models.swift`、Bot項目`configurationApplication`の`state`・`message`を省略可で読む）、`ConfigurationApplication.line(for:)` | メンバー編集画面「AI」節の適用状態の1行（新規は無し、記録なしは稼働中か停止中の既定文、[図](members-and-rooms.md)） |
+| `OnePasswordKey.choices(_:sudo:search:)`・`OnePasswordKey.countLine(shown:search:noun:)`（`Core/Models.swift`） | 秘密入力の一覧の行：sudoは`/password`で終わる参照だけ、名前か保管庫の大文字小文字を区別しない絞り込み、先頭の「N件から選んでください」（[図](requests-and-auth.md)） |
 | [OwnerLink.id](../../../../ios/BellBot/BellBot/Core/Models.swift#L49)、[Member.title](../../../../ios/BellBot/BellBot/Core/Models.swift#L58) | リンクの識別と返信者表示名 |
 | [Delivery](../../../../ios/BellBot/BellBot/Core/Models.swift#L61)、[RoomRouting](../../../../ios/BellBot/BellBot/Core/Models.swift#L115) | 配送とルームの返信者判定結果 |
 | [RecentMessage.preview](../../../../ios/BellBot/BellBot/Core/Models.swift#L74) | 一覧の副題用本文・画像表示 |
@@ -362,7 +364,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [BellBot/Views/OnboardingView.swift](../../../../ios/BellBot/BellBot/Views/OnboardingView.swift) | 初回AI選択・typed認証・guide開始・3秒poll |
 | [BellBot/Views/OwnerQuestionView.swift](../../../../ios/BellBot/BellBot/Views/OwnerQuestionView.swift) | OwnerQuestionCardState/Card、回答、FlowButtons/FlowLayout |
 | [BellBot/Views/SchedulesView.swift](../../../../ios/BellBot/BellBot/Views/SchedulesView.swift) | ScheduleRefreshState、一覧・対象差分・CRUD/run、ScheduleEditorの頻度/宛先。既存[予定一覧図](schedule-list.md)を再利用 |
-| [BellBot/Views/SecretRequestView.swift](../../../../ios/BellBot/BellBot/Views/SecretRequestView.swift) | 秘密要求カード状態、SecretInputSheetの入力方法（1Password参照が先・保存値が代替。SSH鍵は1Passwordの鍵の一覧から選ぶ・旧本体は貼り付けへ）・submit/cancel・値と参照の消去 |
+| [BellBot/Views/SecretRequestView.swift](../../../../ios/BellBot/BellBot/Views/SecretRequestView.swift) | 秘密要求カード状態、SecretInputSheetの入力方法（1Password参照が先・保存値が代替。SSH鍵・sudoは1Passwordの一覧から検索して選ぶ・旧本体は貼り付け・入力へ）・submit/cancel・値と参照の消去 |
 | [BellBot/Views/SelectableText.swift](../../../../ios/BellBot/BellBot/Views/SelectableText.swift) | 選択可能UITextView、MeasuredTextViewの幅別寸法cache |
 | [BellBot/Views/ServerInstallationGuide.swift](../../../../ios/BellBot/BellBot/Views/ServerInstallationGuide.swift) | 同梱Markdown、依頼文のコピー/共有、導入ガイドへのLink |
 | [BellBot/Views/SubscriptionView.swift](../../../../ios/BellBot/BellBot/Views/SubscriptionView.swift) | SubscriptionCard/Content、価格・権利・購入/復元/再確認・リンク |

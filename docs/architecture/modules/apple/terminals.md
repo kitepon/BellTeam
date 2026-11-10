@@ -16,8 +16,8 @@ flowchart TD
   Detail --> HostKey["HostKeyConfirmSheet<br/>端末で読んだ指紋を入力"]
   Detail --> Keys["TerminalKeyRow（SSH鍵・sudo鍵）<br/>設定済み/未設定/設定待ち + 鍵の出どころ<br/>「設定する」「設定し直す」「外す」"]
   Keys --> KeyState["Terminal.key → TerminalKeyState<br/>旧本体は未対応の一行"]
-  Keys --> Card["SecretInputSheet（既存の秘密入力カード）<br/>SSH鍵: 1Passwordの鍵から選ぶ / 鍵を貼り付けて保存する<br/>sudo: 1Password参照が先・保存値が代替"]
-  Card --> Items["BellAPI.onePasswordKeys<br/>GET /api/secret-requests/:id/onepassword-items（SSH鍵だけ）"]
+  Keys --> Card["SecretInputSheet（既存の秘密入力カード）<br/>SSH鍵: 1Passwordの鍵から選ぶ / 鍵を貼り付けて保存する<br/>sudo: 1Passwordのパスワードから選ぶ（/passwordの参照だけ） / パスワードを入力して保存する<br/>どちらも検索欄「名前や保管庫で絞り込む」"]
+  Card --> Items["BellAPI.onePasswordKeys<br/>GET /api/secret-requests/:id/onepassword-items（SSH鍵・sudo共通）"]
   Card --> SecretAPI["BellAPI.finishSecretRequest<br/>保護session"]
   Form --> Rules["TerminalDraft.problem<br/>サーバーと同じ形の検査"]
   HostKey --> FP["HostKeyFingerprint.problem<br/>SHA256:+43文字"]
@@ -97,7 +97,7 @@ flowchart TD
 | `Core/ThisMac.swift` | Mac専用の事実：`isThisMac`、`interfaces`・`primaryIPv4`・`userName`・`hostName`・`owns(host:)`、22番の`remoteLogin`、`hostKeyFingerprint`（ブロッキングの`LoopbackSocket`、全体の期限つき）。秘密は扱わない |
 | `Core/SSHHostKey.swift` | SSHの配線（`SSHWire`：string・mpint・packet・Reader）と交換ハッシュ・署名検証・指紋（`SSHHostKey.fingerprint`）。署名が有効なときだけ値を返し、他は`SSHHostKeyError` |
 | `Views/TerminalsView.swift` | 一覧・詳細・登録/編集・ホスト鍵の画面、鍵の行（`TerminalKeyRow`）と外す確認、メンバー編集の「端末とフォルダ」節。Macだけ：追加画面の「このMacを追加」、詳細の「このMacを確かめる」、ホスト鍵の節の「ほかの方法」、`CONNECTION_REFUSED`の「共有設定を開く」。Mac以外の追加画面：リモートログインの前提の一行。詳細：三つの理由の文、「このMacにこの鍵を入れる」と待ち・結果の文、メンバー編集のフォルダ（prefill・拒否の文・「このフォルダを作って保存」） |
-| `Views/SecretRequestView.swift` | `SecretInputSheet`。`purpose:'terminal.login'`は1つのパスワード欄に貼るだけ（1Passwordの選択肢・参照欄なし）で、文は「このMacのログインパスワード（1回だけ使い、保存しません）」。端末の鍵でも会話の秘密要求と同じ入力欄を使う。SSH鍵は1Passwordの鍵の一覧（`OnePasswordKeyList`）から選べる（[質問・秘密要求](requests-and-auth.md)）。Macでは他の編集sheetと同じ大きさで開く |
+| `Views/SecretRequestView.swift` | `SecretInputSheet`。`purpose:'terminal.login'`は1つのパスワード欄に貼るだけ（1Passwordの選択肢・参照欄なし）で、文は「このMacのログインパスワード（1回だけ使い、保存しません）」。端末の鍵でも会話の秘密要求と同じ入力欄を使う。SSH鍵とsudoは1Passwordの一覧（`OnePasswordKeyList`、sudoは`/password`の参照だけ）から検索して選べる（[質問・秘密要求](requests-and-auth.md)）。Macでは他の編集sheetと同じ大きさで開く |
 | `Views/ManagementView.swift` | BotEditorに節を置き、保存前に組の規則を検査し、対応サーバーの時だけ2項目を送る。保存の拒否が`FOLDER_*`ならフォームのフォルダ入りの文を出し、`FOLDER_MISSING`だけ「このフォルダを作って保存」（同じ保存＋`createFolder:true`）を出す。フォームを編集するとボタンは消える |
 | `Views/SettingsView.swift` | 設定の項目「端末」 |
 
@@ -160,7 +160,7 @@ sequenceDiagram
 | AT03 | 確認 -> `POST /api/terminals/:id/check` | `{reachable, reason, action?, observedAt}`を端末ごとに`checks`へ保持（アプリ内だけ）。席は起動しない |
 | AT04 | ホスト鍵 -> `PUT /api/terminals/:id` `{confirmHostKey:'SHA256:…'}` | オーナーが端末で読んだ指紋だけを送る。サーバーは一度scanし、等しい時だけ信用し直す。409 `HOST_KEY_FINGERPRINT_MISMATCH`は「指紋が違う」と表示して入力を残す |
 | AT05 | 削除 -> `DELETE /api/terminals/:id` | 確認ダイアログの後。メンバーの設定と保留中のメッセージは残ると表示 |
-| AT07 | 鍵の行「設定する」「設定し直す」 -> `POST /api/terminals/:id/keys/{ssh|sudo}`（本文は空の`{}`） | `{secretRequest:{id,label,inputOptions,…}}`。一覧を読み直して「設定待ち」にし、返った依頼で既存の秘密入力カードを開く。カードは`inputOptions.onePasswordAvailable`なら1Password参照を上・既定に、保存値を代替に出す。SSH鍵は題を「1Passwordの鍵から選ぶ」/「鍵を貼り付けて保存する」とし、前者は`GET /api/secret-requests/:id/onepassword-items`（`{items:[{title,vault,reference}]}`）の名前と保管庫の一覧から選ぶ（旧本体で404なら貼り付けだけ。未接続の貼り付けは設定の「1Password連携」への短い案内付き）。貼り付けは複数行欄。カードから`POST /api/secret-requests/:id/submit`（`{source:'onepassword',reference}`または`{value}`）。閉じた時と完了時に一覧を読み直す。鍵の値・参照はこの画面にもHTTPの鍵の入口にも出ない |
+| AT07 | 鍵の行「設定する」「設定し直す」 -> `POST /api/terminals/:id/keys/{ssh|sudo}`（本文は空の`{}`） | `{secretRequest:{id,label,inputOptions,…}}`。一覧を読み直して「設定待ち」にし、返った依頼で既存の秘密入力カードを開く。カードは`inputOptions.onePasswordAvailable`なら1Password参照を上・既定に、保存値を代替に出す。SSH鍵は題を「1Passwordの鍵から選ぶ」/「鍵を貼り付けて保存する」とし、前者は`GET /api/secret-requests/:id/onepassword-items`（`{items:[{title,vault,reference}]}`）の名前と保管庫の一覧から選ぶ（旧本体で404なら貼り付けだけ。未接続の貼り付けは設定の「1Password連携」への短い案内付き）。貼り付けは複数行欄。sudoも同じ一覧（`/password`で終わる参照だけ）から「1Passwordのパスワードから選ぶ」/「パスワードを入力して保存する」で選び、どちらの一覧にも検索欄「名前や保管庫で絞り込む」がある（入力側はSecureField1つ）。カードから`POST /api/secret-requests/:id/submit`（`{source:'onepassword',reference}`または`{value}`）。閉じた時と完了時に一覧を読み直す。鍵の値・参照はこの画面にもHTTPの鍵の入口にも出ない |
 | AT09 | 詳細「このMacを確かめる」・保存後・一覧を読んだ後 -> `POST /api/terminals/:id/trust`（本文は`{"fingerprint":"SHA256:…"}`だけ） | 指紋は`ThisMac.hostKeyFingerprint`が127.0.0.1:端末のポートで読み、署名が有効だった値だけ。200 `{terminal}`は一覧の該当を置換。400 `INVALID_TERMINAL`はサーバーのmessage。404 `TERMINAL_NOT_FOUND`は「登録が見つかりません」、それ以外の404は旧本体で何も言わない。409 `HOST_KEY_FINGERPRINT_MISMATCH`は「このアドレスで答えているのは、このMacではありません」で何も書かれない。409 `TERMINAL_CHANGED`は一覧を読み直して1回だけやり直す。503 `TERMINAL_UNAVAILABLE`は「あとでもう一度」。自動再送はこの1回だけ（認証拒否は中断して再ログイン）。結果は詳細の一行（アプリ内だけ） |
 | AT10 | 追加画面「このMacを追加」 -> アプリ内だけ（HTTPなし） | getifaddrs・NSUserName・127.0.0.1:22のTCP。サーバーへは保存したものだけが行く（AT02） |
 | AT11 | 詳細「このMacにこの鍵を入れる」 -> `POST /api/terminals/:id/keys/ssh/authorize`（本文なし） | 200 `{secretRequest}`（`purpose:'terminal.login'`、labelはサーバーの日本語「端末 <id> のMacのログインパスワード」をそのまま題にする）。409・503・旧本体の404は文にして、カードを開かない。カードは貼り付けだけ。パスワードはカードから`POST /api/secret-requests/:id/submit`だけに行く |
