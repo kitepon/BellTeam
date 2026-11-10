@@ -21,7 +21,7 @@ function center(catalog) {
 }
 test('trusted selected module records map to inventory without enabling plans or changing availability', async () => {
   const calls = [], state = await center(async id => { calls.push(id); return selection(id) }).snapshot()
-  assert.deepEqual(calls, [...ids, 'memory', 'diagnostics', 'usage', 'execution'])
+  assert.deepEqual(calls, [...ids, 'memory', 'diagnostics', 'usage', 'execution', 'conversation', 'work-graph'])
   for (const id of ids) {
     const component = state.components.find(value => value.id === id)
     assert.equal(component.published.version, 'b'.repeat(64))
@@ -47,11 +47,17 @@ test('missing module catalog stays null and does not turn missing data into late
 test('members five keys and actual six state values are exact; old modules keep four keys', async () => {
   const mutations = [
     value => { delete value.release.compatibility.stateCompatibility },
-    value => { value.release.compatibility.stateCompatibility.scheduleSchema = 'unknown' },
     value => { value.release.compatibility.stateCompatibility.extra = 1 },
     value => { value.release.compatibility.nodeMajor = '26' },
-    value => { value.release.compatibility.stateSchema = 1 },
   ]
+  // module-process.md: a well-formed row built for another body is incompatible, not an invalid catalog.
+  for (const mutate of [value => { value.release.compatibility.stateCompatibility.scheduleSchema = 'unknown' },
+    value => { value.release.compatibility.stateSchema = 1 }]) {
+    const state = await center(async id => { const value = selection(id); if (id === 'members') mutate(value); return value }).snapshot()
+    const component = state.components.find(value => value.id === 'members')
+    assert.deepEqual(component.comparison, { state: 'incompatible', reason: 'UPDATE_INCOMPATIBLE' })
+    assert.equal(component.capability.reason, 'UPDATE_INCOMPATIBLE')
+  }
   for (const mutate of mutations) {
     const state = await center(async id => { const value = selection(id); if (id === 'members') mutate(value); return value }).snapshot()
     const component = state.components.find(value => value.id === 'members')
@@ -74,4 +80,17 @@ test('no published release is distinct from incompatible module metadata', async
   const member = state.components.find(value => value.id === 'members'), web = state.components.find(value => value.id === 'web-gateway')
   assert.equal(member.published, null); assert.notEqual(member.publication, null)
   assert.equal(web.comparison.state, 'incompatible'); assert.equal(web.capability.supported, false)
+})
+test('production usage row built for an older body is incompatible, not invalid', async () => {
+  const { USAGE_STATE_COMPATIBILITY } = await import('../src/usage/state-compatibility.mjs')
+  const { moduleReleaseCompatible } = await import('../src/update-module-catalog.mjs')
+  const value = selection('members'), url = value.release.artifact.archive.url.replace('/members-', '/usage-')
+  Object.assign(value.release, { componentId: 'usage', compatibility: { nodeMajor: 26, parentProtocol: 1, stateSchema: null, containerUpdate: null,
+    stateCompatibility: { ...USAGE_STATE_COMPATIBILITY, secretEncoding: 'utf8-exclusive-0600', settingsFeatures: ['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'webPush'] } } })
+  Object.assign(value.release.artifact, { archive: { ...value.release.artifact.archive, url }, bundle: { ...value.release.artifact.bundle, url: url + '.sigstore.json' } })
+  const selected = await createModuleUpdateCatalog({ client: { catalog: async () => value } }).select('usage')
+  assert.equal(selected.release.componentId, 'usage')
+  assert.equal(moduleReleaseCompatible('usage', selected.release), false)
+  value.release.compatibility.stateCompatibility = { ...USAGE_STATE_COMPATIBILITY, extra: 1 }
+  await assert.rejects(createModuleUpdateCatalog({ client: { catalog: async () => value } }).select('usage'), { code: 'UPDATE_MODULE_CATALOG_INVALID' })
 })

@@ -110,6 +110,25 @@ flowchart LR
   Builtin --> Launch
 ```
 
+### Catalog row built for another body is incompatible, not invalid (2026-11-10, Trony)
+
+Production since 35a96390: the stable catalog's usage rows (source 30b509d8, `secretEncoding: utf8-exclusive-0600`, no `onePassword` feature) differ from this body's `USAGE_STATE_COMPATIBILITY`. `update-module-catalog.mjs selection()` required that equality as row validity, so the row threw `UPDATE_MODULE_CATALOG_INVALID` and the inventory showed usage `unavailable` instead of `incompatible`.
+
+| Step | Contract |
+| --- | --- |
+| `selection(value, id)` | Validates shape only: closed keys, numeric ranges, and `stateCompatibility` with exactly this body's key set (a string for execution). A well-formed row never fails for its compatibility values (nodeMajor, parentProtocol, stateSchema, containerUpdate, stateCompatibility values). |
+| `moduleReleaseCompatible(id, release)` (unchanged) | nodeMajor 26, parentProtocol, stateSchema/containerUpdate null, `stateCompatibility` deep-equal to this body → compatible. |
+| Inventory snapshot (unchanged) | incompatible → `comparison {state:'incompatible', reason:'UPDATE_INCOMPATIBLE'}`, `capability.supported=false`; plan → `UPDATE_INCOMPATIBLE` 409. Web shows 「使えない版」 and no 「更新あり」. |
+
+```mermaid
+flowchart LR
+  Row[catalog row for id] --> Shape{selection: shape valid?}
+  Shape -->|no| Invalid[unavailable / UPDATE_MODULE_CATALOG_INVALID]
+  Shape -->|yes| Compat{moduleReleaseCompatible with this body?}
+  Compat -->|no| Incompatible[incompatible / UPDATE_INCOMPATIBLE]
+  Compat -->|yes| Compare[up_to_date / update_available]
+```
+
 private recordは既0600/no-follow/nlink1/所有/4KiB検査の`bellteam.<component>.adoption.v1`。module/allのdurable requestId ledgerや公開source identityはMollyが所有し、このrecordから捏造しない。reserveはcompletionを返し、実replace終端又はcancelまで同親mutexを保持できる。
 
 このsourceの限定fake-child境界と、各作者の実IPC fixture、Centi同imageの実UID/署名/OS交換は別の証拠。初回親組立とmountはimage導入が必要で、未登録moduleを既imageへ無再起動追加できるとは扱わない。導入後の登録済controller経由コード交換が対象。

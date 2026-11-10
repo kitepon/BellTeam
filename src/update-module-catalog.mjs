@@ -9,6 +9,9 @@ import { MEMBERS_STATE_COMPATIBILITY } from './members/state-compatibility.mjs'
 import { runtimeComponentIds } from './update-center-contract.mjs'
 
 const ids = ['web-gateway', 'notifications', 'members', 'memory', 'diagnostics', 'usage', 'execution', 'conversation', 'work-graph']
+const stateIds = ['members', 'memory', 'diagnostics', 'usage', 'execution', 'conversation', 'work-graph']
+const stateCompatibility = id => ({ members: MEMBERS_STATE_COMPATIBILITY, memory: MEMORY_STATE_COMPATIBILITY, diagnostics: DIAGNOSTICS_STATE_COMPATIBILITY,
+  'work-graph': WORK_GRAPH_STATE_COMPATIBILITY, usage: USAGE_STATE_COMPATIBILITY, conversation: CONVERSATION_STATE_COMPATIBILITY, execution: EXECUTION_STATE_COMPATIBILITY })[id]
 const hex = (value, length) => typeof value === 'string' && new RegExp(`^[a-f0-9]{${length}}$`).test(value)
 const date = value => typeof value === 'string' && Number.isFinite(Date.parse(value))
 const exact = (value, keys) => value && typeof value === 'object' && !Array.isArray(value)
@@ -43,10 +46,15 @@ function selection(value, id) {
       && Number.isInteger(compatibility.nodeMajor) && typeof compatibility.libc === 'string')
     return value
   }
-  requireValue(exact(compatibility, ['members', 'memory', 'diagnostics', 'usage', 'execution', 'conversation', 'work-graph'].includes(id) ? 'nodeMajor,parentProtocol,stateSchema,containerUpdate,stateCompatibility' : 'nodeMajor,parentProtocol,stateSchema,containerUpdate'))
+  requireValue(exact(compatibility, stateIds.includes(id) ? 'nodeMajor,parentProtocol,stateSchema,containerUpdate,stateCompatibility' : 'nodeMajor,parentProtocol,stateSchema,containerUpdate'))
   requireValue(['nodeMajor', 'parentProtocol', 'stateSchema', 'containerUpdate'].every(key => compatibility[key] === null || Number.isInteger(compatibility[key]) && compatibility[key] > 0 && compatibility[key] <= 65535))
-  if (['members', 'memory', 'diagnostics', 'usage', 'execution', 'conversation', 'work-graph'].includes(id)) requireValue(compatibility.nodeMajor === 26 && compatibility.parentProtocol === 1 && compatibility.stateSchema === null
-    && compatibility.containerUpdate === null && isDeepStrictEqual(compatibility.stateCompatibility, id === 'members' ? MEMBERS_STATE_COMPATIBILITY : id === 'memory' ? MEMORY_STATE_COMPATIBILITY : id === 'diagnostics' ? DIAGNOSTICS_STATE_COMPATIBILITY : id === 'work-graph' ? WORK_GRAPH_STATE_COMPATIBILITY : id === 'usage' ? USAGE_STATE_COMPATIBILITY : id === 'conversation' ? CONVERSATION_STATE_COMPATIBILITY : EXECUTION_STATE_COMPATIBILITY))
+  // module-process.md: same keys as this body's stateCompatibility is a valid row; different values are decided by
+  // moduleReleaseCompatible as 'incompatible' (a row built for another body), never as an invalid catalog.
+  if (stateIds.includes(id)) {
+    const expected = stateCompatibility(id), actual = compatibility.stateCompatibility
+    requireValue(typeof expected === 'string' ? typeof actual === 'string' && actual.length > 0 && actual.length <= 256
+      : exact(actual, Object.keys(expected).join(',')))
+  }
   return value
 }
 
@@ -55,7 +63,7 @@ export function moduleReleaseCompatible(id, release) {
   if (runtimeComponentIds.includes(id)) return value?.runtimeProtocol === 1 && value.nodeMajor === 26 && value.libc === 'glibc'
   return value?.nodeMajor === 26 && value.containerUpdate === null
     && value.parentProtocol === (id === 'notifications' ? 2 : 1)
-    && (['members', 'memory', 'diagnostics', 'usage', 'execution', 'conversation', 'work-graph'].includes(id) ? isDeepStrictEqual(value.stateCompatibility, id === 'members' ? MEMBERS_STATE_COMPATIBILITY : id === 'memory' ? MEMORY_STATE_COMPATIBILITY : id === 'diagnostics' ? DIAGNOSTICS_STATE_COMPATIBILITY : id === 'work-graph' ? WORK_GRAPH_STATE_COMPATIBILITY : id === 'usage' ? USAGE_STATE_COMPATIBILITY : id === 'conversation' ? CONVERSATION_STATE_COMPATIBILITY : EXECUTION_STATE_COMPATIBILITY) && value.stateSchema === null
+    && (stateIds.includes(id) ? isDeepStrictEqual(value.stateCompatibility, stateCompatibility(id)) && value.stateSchema === null
       : value.stateSchema === (id === 'notifications' ? 2 : 1))
 }
 
