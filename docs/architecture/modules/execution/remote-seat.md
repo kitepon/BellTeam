@@ -105,7 +105,7 @@ Not-started codes and their exits. The delivery does call `onStatus('failed')` (
 
 Without that refusal (Aiterm < 0.70.0, or a seat launcher that does not yet forward `launchRefusal` across its process boundary) `CWD_UNAVAILABLE` and `REMOTE_AITERM_TOO_OLD` stay today's visible delivery failure (not queued).
 
-Seat launcher (Molly, runtime `cli-registration`): a remote launch runs through `run-seat-aiterm-launch.mjs`, whose fixed error projection forwards `code` and `agentLaunchError` today, so the Claude auth row works with this execution alone. The other row needs that launcher to forward `launchRefusal` re-validated by `launchRefusal()`; until then it degrades to the visible failure above.
+Seat launcher (Molly, runtime `cli-registration`): a remote launch runs through `run-seat-aiterm-launch.mjs`, whose fixed error projection forwards `code`, `agentLaunchError` and `launchRefusal` (re-validated by `launchRefusal()`, invalid dropped). The Claude auth row works with this execution alone; the other row needs a body carrying that launcher, and on an older body it degrades to the visible failure above.
 
 Login screen (Aiterm >= 0.70.1, Elegg): a slow auth check now proceeds, and a logged-out Claude stops at its first screen in a created session (`aiterm.agent-launch-result.v1`, `startup: {status: 'blocked', reason: 'vendor_onboarding_required'}`). A session exists on the terminal, so it is not a not-started launch: no proof, and the delivery stays today's visible failure. It does need a visible reason: `launchFailed` sets the Launch notice `{code: 'VENDOR_ONBOARDING_REQUIRED', action: 「Macのclaudeにログインが必要」}`.
 
