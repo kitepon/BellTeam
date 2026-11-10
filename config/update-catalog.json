@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-10T04:31:55Z",
-  "expiresAt": "2026-11-17T04:31:55Z",
+  "publishedAt": "2026-11-10T05:14:13Z",
+  "expiresAt": "2026-11-17T05:14:13Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "95f66baf899c4c2a36c8d46047dbdffcde62055e",
-      "versionId": "sha256:6d61d0271ab87c9e8d0c2f85dac8b3df4beabb158531f833494ed50b2303b7aa",
+      "sourceCommit": "8788b05a5ba8c5ec522be2fbe918fc443773bd25",
+      "versionId": "sha256:b714de86730f1243421b41980e1dbcca114aa1cf1f5539defaffbb8c7b135d37",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6d61d0271ab87c9e8d0c2f85dac8b3df4beabb158531f833494ed50b2303b7aa"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b714de86730f1243421b41980e1dbcca114aa1cf1f5539defaffbb8c7b135d37"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,21 +724,22 @@
         "containerUpdate": 1
       },
       "changes": [
-        "端末（Macなど）の席が起動前に断られた時（フォルダが無い、Aitermが古いなど）、その理由と次にすることを本体へ伝えます。",
-        "Aitermを0.70.1にします（Claudeの利用規約画面で止まる、設定確認の環境の直し）。"
+        "Macなどの端末の席が、BellTeamの道具（メッセージや記憶）を使えるようにします。道具の入口が、診断用の入口と同じ番号を取り合っていたのを分けました。",
+        "道具の入口が開けない間に届いたメッセージは消さずに待たせ、開けたら自動で送り直します。",
+        "使用量などの部品を入れる時の検査が、本体と同じ決まりだけを見るようにします。失敗した時は、どの部品で失敗したかが残ります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "95f66baf899c4c2a36c8d46047dbdffcde62055e",
-      "versionId": "sha256:6d61d0271ab87c9e8d0c2f85dac8b3df4beabb158531f833494ed50b2303b7aa",
+      "sourceCommit": "8788b05a5ba8c5ec522be2fbe918fc443773bd25",
+      "versionId": "sha256:b714de86730f1243421b41980e1dbcca114aa1cf1f5539defaffbb8c7b135d37",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:6d61d0271ab87c9e8d0c2f85dac8b3df4beabb158531f833494ed50b2303b7aa"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b714de86730f1243421b41980e1dbcca114aa1cf1f5539defaffbb8c7b135d37"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -747,8 +748,9 @@
         "containerUpdate": 1
       },
       "changes": [
-        "端末（Macなど）の席が起動前に断られた時（フォルダが無い、Aitermが古いなど）、その理由と次にすることを本体へ伝えます。",
-        "Aitermを0.70.1にします（Claudeの利用規約画面で止まる、設定確認の環境の直し）。"
+        "Macなどの端末の席が、BellTeamの道具（メッセージや記憶）を使えるようにします。道具の入口が、診断用の入口と同じ番号を取り合っていたのを分けました。",
+        "道具の入口が開けない間に届いたメッセージは消さずに待たせ、開けたら自動で送り直します。",
+        "使用量などの部品を入れる時の検査が、本体と同じ決まりだけを見るようにします。失敗した時は、どの部品で失敗したかが残ります。"
       ]
     }
   ],
