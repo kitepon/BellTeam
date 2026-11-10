@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-10T03:29:46Z",
-  "expiresAt": "2026-11-17T03:29:46Z",
+  "publishedAt": "2026-11-10T03:51:02Z",
+  "expiresAt": "2026-11-17T03:51:02Z",
   "releases": [
     {
       "componentId": "usage",
@@ -425,8 +425,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "961b4cff8af36a2d5e7f7196f10cf4a6e35feb77",
-      "versionId": "db91bb65a1adc5e84a8d262f2544fd976a00f662f90ba055533dd1f0f26619a3",
+      "sourceCommit": "27227d780a1648d247a15226a69607da2e4afd34",
+      "versionId": "23f8ba3e4c83d7844aa2e521f3d36d7e8553fcc1a3ee2dc253914378f51070fd",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -434,16 +434,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T023817Z/web-gateway-961b4cff8af36a2d5e7f7196f10cf4a6e35feb77-linux-amd64.tar.gz",
-          "bytes": 5171263,
-          "sha256": "db91bb65a1adc5e84a8d262f2544fd976a00f662f90ba055533dd1f0f26619a3"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T032814Z/web-gateway-27227d780a1648d247a15226a69607da2e4afd34-linux-amd64.tar.gz",
+          "bytes": 5172409,
+          "sha256": "23f8ba3e4c83d7844aa2e521f3d36d7e8553fcc1a3ee2dc253914378f51070fd"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T023817Z/web-gateway-961b4cff8af36a2d5e7f7196f10cf4a6e35feb77-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11111,
-          "sha256": "73828b109160f1276eaba88a492f39284205eabcad2571c616e47955da89c6eb"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T032814Z/web-gateway-27227d780a1648d247a15226a69607da2e4afd34-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11252,
+          "sha256": "a2a7c69f55dfcbaaf804d7a69bdcced90a2e0efede49ea368d4a9d8f6a701876"
         },
-        "signerCommit": "961b4cff8af36a2d5e7f7196f10cf4a6e35feb77"
+        "signerCommit": "27227d780a1648d247a15226a69607da2e4afd34"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -452,13 +452,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "更新ボタンの『更新あり』は、本体と一緒に更新する部品を数えなくなります。"
+        "相関図の札が画面の端からはみ出さなくなります。画面より長い札は、線を指すかタップすると画面の高さで開き、スクロールで続きを読めます。更新画面で、いまの本体に合う版がまだない機能があっても『確認できません』と出なくなり、待っている機能の名前を出します。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "961b4cff8af36a2d5e7f7196f10cf4a6e35feb77",
-      "versionId": "b030811ac024c4248dd47ed07c6446f729e9f7d9b7131ffadb272c96047d2548",
+      "sourceCommit": "27227d780a1648d247a15226a69607da2e4afd34",
+      "versionId": "3d7adf365de2303d29241be3fcfe0c38149abe3ef1c112e6e0569e0e5e8512db",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -466,16 +466,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T023817Z/web-gateway-961b4cff8af36a2d5e7f7196f10cf4a6e35feb77-linux-arm64.tar.gz",
-          "bytes": 5171263,
-          "sha256": "b030811ac024c4248dd47ed07c6446f729e9f7d9b7131ffadb272c96047d2548"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T032814Z/web-gateway-27227d780a1648d247a15226a69607da2e4afd34-linux-arm64.tar.gz",
+          "bytes": 5172409,
+          "sha256": "3d7adf365de2303d29241be3fcfe0c38149abe3ef1c112e6e0569e0e5e8512db"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T023817Z/web-gateway-961b4cff8af36a2d5e7f7196f10cf4a6e35feb77-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11111,
-          "sha256": "f772c20f690e115a4629c6e0f3c1c384a1136a970841b5e73efcfee0bf5493d1"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T032814Z/web-gateway-27227d780a1648d247a15226a69607da2e4afd34-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11099,
+          "sha256": "7cd1e08bd8b2e1208cc813f5440432e830836d80bd2728f55c6200337005b094"
         },
-        "signerCommit": "961b4cff8af36a2d5e7f7196f10cf4a6e35feb77"
+        "signerCommit": "27227d780a1648d247a15226a69607da2e4afd34"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -484,7 +484,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "更新ボタンの『更新あり』は、本体と一緒に更新する部品を数えなくなります。"
+        "相関図の札が画面の端からはみ出さなくなります。画面より長い札は、線を指すかタップすると画面の高さで開き、スクロールで続きを読めます。更新画面で、いまの本体に合う版がまだない機能があっても『確認できません』と出なくなり、待っている機能の名前を出します。"
       ]
     },
     {
