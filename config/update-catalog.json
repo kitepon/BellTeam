@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-10T07:16:53Z",
-  "expiresAt": "2026-11-17T07:16:53Z",
+  "publishedAt": "2026-11-10T07:28:09Z",
+  "expiresAt": "2026-11-17T07:28:09Z",
   "releases": [
     {
       "componentId": "usage",
