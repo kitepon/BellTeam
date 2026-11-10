@@ -69,7 +69,7 @@ test('a failure after receipt relays ONE FORK_FAILED message with the reason', a
   let callbacks
   const { messenger, notified } = await setup(t, async (bot, text, options) => { callbacks = options; return { delivery: 'running' } })
   await messenger.askReadonly({ from: asker.id, target: owner.id, message: 'Q' })
-  await callbacks.onStatus('failed', { code: 'NATIVE_EXITED' })
+  await callbacks.onStatus('failed', { code: 'FORK_FAILED', delivery_error: { code: 'FORK_FAILED' }, reason: 'NATIVE_EXITED' })
   callbacks.onTurnEnd({})
   await settle(); await settle()
   assert.equal(notified.length, 1)

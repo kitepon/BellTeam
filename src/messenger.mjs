@@ -129,7 +129,7 @@ export class BellTeamMessenger extends ConversationWriter {
         onInterim,
         onStatus: async (status, error, tracking) => {
           await onStatus(status, error, tracking)
-          if (['failed', 'stopped'].includes(status)) relay(`FORK_FAILED: ${error?.code ?? error?.message ?? status}`)
+          if (['failed', 'stopped'].includes(status)) relay(`FORK_FAILED: ${error?.reason ?? error?.code ?? error?.message ?? status}`)
         },
         onAnswer: async text => { await onAnswer(text); relay(text?.trim() ? text : 'FORK_FAILED: NO_ANSWER') },
         onTurnEnd: () => relay('FORK_FAILED: NO_ANSWER'),

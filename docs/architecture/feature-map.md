@@ -30,6 +30,7 @@ flowchart LR
   m_conversation -->|"settings"| m_usage
   m_conversation -->|"auth"| m_usage
   m_conversation -->|"observation"| m_execution
+  m_conversation -->|"fork"| m_execution
   m_diagnostics -->|"module-runner"| m_runtime
   m_distribution -->|"update"| m_runtime
   m_execution -->|"diagnostics"| m_integration

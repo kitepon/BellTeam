@@ -153,6 +153,8 @@ Execution (Kiro) maps an Aiterm launch refusal to `FORK_UNAVAILABLE{reason}`; `R
 
 ## Fork lifecycle (execution public contract, Kiro)
 
+Canonical: [execution fork port](../execution/fork.md) (#975). Failure after accept arrives as `onStatus('failed', {code:'FORK_FAILED', reason})`; conversation relays `FORK_FAILED: <reason>` (falls back to `code`).
+
 | Step | Contract |
 | --- | --- |
 | open | `transport.forkInquiry(bot, envelope, opts)`: resolve the target's **main** session ref at call time (latest persisted state, including the running turn as far as the CLI has written it), ask Aiterm for a read-only fork, send `envelope` as its first input. Must not enter, reorder or wait on the main dispatch queue; must not steer or interrupt the main seat |

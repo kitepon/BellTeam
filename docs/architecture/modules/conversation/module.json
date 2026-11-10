@@ -48,6 +48,10 @@
     {
       "module": "execution",
       "port": "observation"
+    },
+    {
+      "module": "execution",
+      "port": "fork"
     }
   ],
   "source": [
