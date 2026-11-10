@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-10T05:28:56Z",
-  "expiresAt": "2026-11-17T05:28:56Z",
+  "publishedAt": "2026-11-10T07:16:53Z",
+  "expiresAt": "2026-11-17T07:16:53Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "8788b05a5ba8c5ec522be2fbe918fc443773bd25",
-      "versionId": "sha256:b714de86730f1243421b41980e1dbcca114aa1cf1f5539defaffbb8c7b135d37",
+      "sourceCommit": "78c94f816431c7ddb07f48f2277d1abe62fc12f6",
+      "versionId": "sha256:5eb48f489c18f17204d75f3c102de831f29adc16d02f06489b959f918558438e",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b714de86730f1243421b41980e1dbcca114aa1cf1f5539defaffbb8c7b135d37"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:5eb48f489c18f17204d75f3c102de831f29adc16d02f06489b959f918558438e"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,22 +724,21 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Macなどの端末の席が、BellTeamの道具（メッセージや記憶）を使えるようにします。道具の入口が、診断用の入口と同じ番号を取り合っていたのを分けました。",
-        "道具の入口が開けない間に届いたメッセージは消さずに待たせ、開けたら自動で送り直します。",
-        "使用量などの部品を入れる時の検査が、本体と同じ決まりだけを見るようにします。失敗した時は、どの部品で失敗したかが残ります。"
+        "Macなどの端末の席が、BellTeamの道具（メッセージや記憶）を使えるようにします。席へつなぐ道の行き先を、本体が渡す住所から決めるようにしました（Aiterm 0.70.3）。",
+        "道を見張る役が止まっても、ほかの役が約1分で引き継ぎます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "8788b05a5ba8c5ec522be2fbe918fc443773bd25",
-      "versionId": "sha256:b714de86730f1243421b41980e1dbcca114aa1cf1f5539defaffbb8c7b135d37",
+      "sourceCommit": "78c94f816431c7ddb07f48f2277d1abe62fc12f6",
+      "versionId": "sha256:5eb48f489c18f17204d75f3c102de831f29adc16d02f06489b959f918558438e",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b714de86730f1243421b41980e1dbcca114aa1cf1f5539defaffbb8c7b135d37"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:5eb48f489c18f17204d75f3c102de831f29adc16d02f06489b959f918558438e"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,9 +747,8 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Macなどの端末の席が、BellTeamの道具（メッセージや記憶）を使えるようにします。道具の入口が、診断用の入口と同じ番号を取り合っていたのを分けました。",
-        "道具の入口が開けない間に届いたメッセージは消さずに待たせ、開けたら自動で送り直します。",
-        "使用量などの部品を入れる時の検査が、本体と同じ決まりだけを見るようにします。失敗した時は、どの部品で失敗したかが残ります。"
+        "Macなどの端末の席が、BellTeamの道具（メッセージや記憶）を使えるようにします。席へつなぐ道の行き先を、本体が渡す住所から決めるようにしました（Aiterm 0.70.3）。",
+        "道を見張る役が止まっても、ほかの役が約1分で引き継ぎます。"
       ]
     }
   ],
