@@ -11,6 +11,8 @@ Owner: Kiro. Owner/Trony D-steer contract, 2026-11-07. Preserve saved model/effo
 | Applied receipt | Only a terminal applied native receipt, persisted by ConfigurationIntents, proves application. Saved desired settings and a skipped busy apply are never promoted to applied. Existing storage validation stays; audit I/O failure is visible and is not a global seat lock. |
 | Delivery | Saved original input does not require an applied audit record or a new configuration request. It steers while explicit settings are deferred. New launch receives desired settings through the launch contract. |
 | Reconcile | Explicit same-ID historical inspection only; does not replay apply or original message. Failed/unknown records do not block new input. |
+| Returned refusal | Aiterm records the terminal result before it returns an `isError` reply, and the host client throws that reply without its receipt. ConfigurationRequests then reads the same ID once with `reconcile`; it never applies again. A terminal `not_applied` becomes `CONFIGURATION_NOT_APPLIED`, with effect `not_started` when `later_effect` is `excluded` and `possible` otherwise, plus Aiterm's own explanation (the reply text after its first line) as `reason`. Any other read keeps the original error, so it stays outcome-unknown. The same mapping applies when Aiterm returns a terminal `not_applied` without `isError`. |
+| Application view | BotAdministration reports `CONFIGURATION_NOT_APPLIED` as outcome `not_applied` with the effect above. The message says the change was not applied, gives the reason, and says the saved settings are used at the seat's next launch. Saved desired settings stay as saved. |
 | Aiterm generation | apply and reconcile are single `agent_configure` RPCs on the current generation; not pinned across requests ([aiterm-generation-pin.md](aiterm-generation-pin.md)). |
 
 ```mermaid
@@ -22,6 +24,7 @@ stateDiagram-v2
   Saved --> Applying: no existing turn
   Applying --> Applied: native applied and audit persisted
   Applying --> Failed: native rejection or recorded application failure
+  Applying --> Failed: returned refusal, terminal not_applied read by same-ID reconcile
   Applied --> NextDelivery: same acceptance order
   Failed --> [*]: failure visible; independent input remains possible
   NextDelivery --> [*]

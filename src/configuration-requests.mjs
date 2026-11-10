@@ -30,14 +30,30 @@ export class ConfigurationRequests {
     try { await this.intents.publish(botId, intent); published = true }
     catch { this.auditWarning(botId, id) }
     const { session_id, ...request } = binding
-    const result = await this.client.call('agent_configure', { action: 'apply', session_id, request,
-      ...Object.fromEntries(Object.entries(requested).filter(([, value]) => value !== null)) })
+    let result, refusal = null
+    try {
+      result = await this.client.call('agent_configure', { action: 'apply', session_id, request,
+        ...Object.fromEntries(Object.entries(requested).filter(([, value]) => value !== null)) })
+    } catch (error) {
+      // Aiterm returned its error after recording the terminal result; read that record by the same ID, never apply again.
+      if (error?.aitermResponseReturned !== true) throw error
+      refusal = error
+      result = await this.client.call('agent_configure', { action: 'reconcile', session_id, request }).catch(() => { throw refusal })
+    }
     let receipt
     try { receipt = configurationReceipt(result?.structuredContent, binding) }
-    catch { this.auditWarning(botId, id); return null }
+    catch { this.auditWarning(botId, id); if (refusal) throw refusal; return null }
     latest.receipt = receipt
     try { if (published) latest.persisted = Boolean(await this.intents.saveTerminal(botId, receipt, 'apply')) }
     catch { this.auditWarning(botId, id) }
+    if (receipt.request_state === 'terminal' && receipt.outcome === 'not_applied') {
+      const error = configurationError('CONFIGURATION_NOT_APPLIED', receipt.later_effect === 'excluded' ? 'not_started' : 'possible')
+      // Aiterm's reply is "aiterm: <CODE> vendor=… session=…" then its own explanation for people.
+      const reason = String(refusal?.publicMessage ?? refusal?.message ?? '').split('\n').slice(1).join('\n').trim()
+      if (reason) error.reason = reason
+      throw error
+    }
+    if (refusal) throw refusal
     return receipt
   }
 

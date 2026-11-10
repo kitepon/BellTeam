@@ -575,10 +575,7 @@ export class AitermTransport {
     this.requireStopVersion(bot.id, stopVersion)
     if (!/^[a-f0-9]{32}$/u.test(observed?.launch_id ?? ''))
       return { request_state: 'not_recorded', outcome: 'outcome_unknown' }
-    const receipt = await this.configurationRequests.apply(bot.id, session_id, observed.launch_id, settings, requestId)
-    if (receipt?.request_state === 'terminal' && receipt.outcome === 'not_applied' && receipt.later_effect === 'excluded')
-      throw configurationError('CONFIGURATION_NOT_APPLIED', 'not_started')
-    return receipt
+    return this.configurationRequests.apply(bot.id, session_id, observed.launch_id, settings, requestId)
   }
 
   async reconcileConfiguration(bot, id) {
