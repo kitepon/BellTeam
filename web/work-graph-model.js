@@ -55,7 +55,10 @@ export function wrapLabel(text, width, measure) {
   }
   return lines
 }
-export const edgeText = (edge, names) => `${names.get(edge.from) ?? edge.from}から${names.get(edge.to) ?? edge.to}へ依頼${edge.label ? `: ${edge.label}` : ''}`
+// 分身（読み取り専用の fork）への依頼は seat.kind === 'fork'。seat の無い線は本体。
+export const isFork = edge => edge.seat?.kind === 'fork'
+export const chipText = edge => isFork(edge) ? (edge.label ? `分身: ${edge.label}` : '分身') : edge.label
+export const edgeText = (edge, names) => `${names.get(edge.from) ?? edge.from}から${names.get(edge.to) ?? edge.to}${isFork(edge) ? '（分身）' : ''}へ依頼${edge.label ? `: ${edge.label}` : ''}`
 
 const validNode = node => node && typeof node.botId === 'string' && typeof node.name === 'string' && ['working', 'linked'].includes(node.state)
 const validEdge = edge => edge && typeof edge.id === 'string' && typeof edge.from === 'string' && typeof edge.to === 'string'
@@ -380,11 +383,11 @@ export function createGraphModel({ reduceMotion = false } = {}) {
       for (const line of order) {
         const edge = line.edge
         const settled = [edge.from, edge.to].every(id => { const item = nodes.get(id); return !item || item.leaveAt || now - item.enterAt >= (reduceMotion ? REDUCED_MS : ENTER_MS) })
-        if (edge.label && !edge.chip && settled) edge.chip = { since: now, spot: null, appearAt: null, nullAt: null, lines: null }
+        if (chipText(edge) && !edge.chip && settled) edge.chip = { since: now, spot: null, appearAt: null, nullAt: null, lines: null }
         const chip = edge.chip
         if (!chip) continue
         const max = Math.min(180, rect.w - 8)
-        if (edge.label) { chip.nullAt = null; chip.lines = wrapLabel(edge.label, max - 12, measure) }
+        if (chipText(edge)) { chip.nullAt = null; chip.lines = wrapLabel(chipText(edge), max - 12, measure) }
         else chip.nullAt ??= now
         const text = chip.lines, w = Math.min(max, Math.max(...text.map(measure)) + 12), h = text.length * 16 + 6
         const at = spot => intoRect(chipBoxAt(line, spot, w, h), rect), oversize = h + 8 > rect.h
@@ -401,7 +404,7 @@ export function createGraphModel({ reduceMotion = false } = {}) {
           if (chip.spot === null) { if (first !== undefined) { chip.spot = first; chip.appearAt = now } }
           else if (!free(at(chip.spot))) chip.spot = first ?? chip.spot
         }
-        const hovered = hover?.edgeId === edge.id && edge.label && !edge.endAt
+        const hovered = hover?.edgeId === edge.id && chipText(edge) && !edge.endAt
         // 空きを待つ札も、線を指している・タップした間は t = 0.5 で一番上に出す（behavior-spec #800）。
         if (chip.spot === null) {
           chip.blocked = !edge.endAt && chip.nullAt === null

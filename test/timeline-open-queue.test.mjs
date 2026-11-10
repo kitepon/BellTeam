@@ -286,3 +286,23 @@ test('writer-to-HTTP wire fixture renders accepted direct, existing peer details
   assert.doesNotMatch(room.text(), /完了未確認の宛先あり|受付済み/u)
   assert.equal(JSON.stringify(wire), before, 'the consumer must preserve original failed values and evidence')
 })
+
+test('fork rows (seat.kind fork) carry the 分身 label; rows without seat stay main', async t => {
+  const items = [
+    { id: 'ask', kind: 'peer', direction: 'received', peerName: 'アン', message: 'q', at: '2026-11-10T00:00:00Z', seat: { kind: 'fork', fork_id: 'f1' } },
+    { id: 'words', kind: 'interim', direction: 'incoming', message: 'w', at: '2026-11-10T00:00:01Z', seat: { kind: 'fork', fork_id: 'f1' } },
+    { id: 'relay', kind: 'peer', direction: 'sent', peerName: 'アン', message: 'a', at: '2026-11-10T00:00:02Z', seat: { kind: 'fork', fork_id: 'f1' }, in_reply_to: 'ask' },
+    { id: 'main', kind: 'message', direction: 'incoming', message: 'm', at: '2026-11-10T00:00:03Z' },
+    { id: 'main-peer', kind: 'peer', direction: 'received', peerName: 'アン', message: 'p', at: '2026-11-10T00:00:04Z' },
+  ]
+  const f = fixture(t, () => ({ items, has_more: false }))
+  await f.open('b')
+  const row = id => f.timeline.children[0].children.find(child => child.dataset.id === id)
+  const labels = node => [...(node.className === 'seat-label' ? [node.textContent] : []), ...node.children.flatMap(labels)]
+  const html = node => [node.innerHTML ?? '', ...node.children.map(html)].join('')
+  assert.match(html(row('ask')), /<summary><span class="seat-label">分身<\/span>アンからメッセージを受け取りました/)
+  assert.match(html(row('relay')), /<summary><span class="seat-label">分身<\/span>アンへメッセージを送りました/)
+  assert.deepEqual(labels(row('words')), ['分身'])
+  assert.deepEqual(labels(row('main')), [])
+  assert.doesNotMatch(html(row('main-peer')), /seat-label/)
+})

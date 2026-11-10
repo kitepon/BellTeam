@@ -1,5 +1,5 @@
 // 相関図の画面。データは GET /api/work-graph/events、見た目と動きは behavior-spec.md のとおり。
-import { accent, backoffMs, blinkOpacity, createGraphModel, createTap, edgeText, flowDots, nodeAt, nodeText, pointAt } from './work-graph-model.js?v=__ASSET_VERSION__'
+import { accent, backoffMs, blinkOpacity, createGraphModel, createTap, edgeText, flowDots, isFork, nodeAt, nodeText, pointAt } from './work-graph-model.js?v=__ASSET_VERSION__'
 
 const INK = '#21293D', MUTED = '#787D91', LINE = '#E6E3F0', CHIP = 'rgba(248, 248, 251, 0.92)'
 const NAME_FONT = '700 15px -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif'
@@ -194,8 +194,10 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch, onOpenMe
         else for (let i = 1; i <= 16; i++) { const p = pointAt(line, line.grow * i / 16); context.lineTo(p.x, p.y) }
         context.stroke()
       }
+      if (isFork(line.edge)) context.setLineDash([6, 4])
       stroke(LINE)
       if (line.edge.state === 'steered') { context.globalAlpha = line.opacity * 0.35; stroke(line.color); context.globalAlpha = line.opacity }
+      context.setLineDash([])
       if (line.grow >= 1) {
         const back = pointAt(line, Math.max(0, 1 - 10 / Math.max(line.length, 10))), angle = Math.atan2(end.y - back.y, end.x - back.x)
         context.fillStyle = line.color

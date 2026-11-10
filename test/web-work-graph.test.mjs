@@ -398,3 +398,17 @@ test('札は D の中：寄せ方は layout-sim.mjs intoArea と同じ。端の�
   assert.ok(peek.box.x - 4 >= short.x && peek.box.x + peek.box.w + 4 <= short.x + short.w)
   assert.equal(tall.frame(5000, short, { hover: { edgeId: 'a:b', scroll: 1e6 } }).labels[0].scroll, h + 8 - short.h)
 })
+
+test('分身への線（seat.kind fork）：札は「分身: 要約」、要約なしでも「分身」、本体の線は今まで通り', () => {
+  const fork = { seat: { kind: 'fork', forkId: 'f1' } }
+  const model = createGraphModel()
+  model.snapshot(snapshot([node('a'), node('b'), node('c')], [{ ...edge('a', 'b'), ...fork }, { ...edge('c', 'b', 'c:b', null), ...fork }, edge('a', 'c', 'a:c', null)]), 0, rect)
+  for (let i = 0; i < 120; i++) model.step(1 / 60, rect, i * 16)
+  const shown = model.frame(1000, rect), lines = id => [...shown.labels, ...shown.blocked].find(label => label.edge.id === id)?.lines
+  assert.deepEqual(lines('a:b'), ['分身: 依頼'])
+  assert.deepEqual(lines('c:b'), ['分身'])
+  assert.equal(lines('a:c'), undefined)
+  const names = new Map([['a', 'アン'], ['b', 'ベル']])
+  assert.equal(edgeText({ ...edge('a', 'b'), ...fork }, names), 'アンからベル（分身）へ依頼: 依頼')
+  assert.equal(edgeText({ ...edge('a', 'b', 'a:b', null), ...fork }, names), 'アンからベル（分身）へ依頼')
+})
