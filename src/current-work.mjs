@@ -12,6 +12,11 @@ const launch = value => typeof value === 'string' && /^[0-9a-f]{32}$/u.test(valu
 const text = value => typeof value === 'string' && value.length > 0 && value.length <= 256
 const keys = (value, names) => value && typeof value === 'object' && !Array.isArray(value)
   && Object.keys(value).sort().join(',') === [...names].sort().join(',')
+// Aiterm interim-words start token on a non-Codex running row (Aiterm 0.70.5 A-1b); returns its completion cursor c, else null.
+export const interimStartCursor = value => {
+  const match = typeof value === 'string' ? /^v1:(\d{1,15}):[bu]:\d{1,15}$/u.exec(value) : null
+  return match ? Number(match[1]) : null
+}
 const point = value => JSON.stringify([value.sessionId, value.launchId, value.turnId])
 const failure = (kind, status) => Object.assign(new Error(`CURRENT_WORK_${kind}`), { code: `CURRENT_WORK_${kind}`, status })
 
@@ -172,7 +177,8 @@ export class CurrentWork {
       const running = turn?.state === 'running' && text(turn.turn_id) && (row.harness === 'codex-cli'
         || keys(turn, ['state', 'turn_id', 'started_at', 'event_cursor', 'interim_from', 'wait_process'])
           && typeof turn.started_at === 'string' && Number.isFinite(Date.parse(turn.started_at))
-          && turn.event_cursor === null && turn.interim_from === null && turn.wait_process === null)
+          && turn.event_cursor === null && (turn.interim_from === null || interimStartCursor(turn.interim_from) !== null)
+          && turn.wait_process === null)
       const idle = turn?.state === 'idle' && Object.keys(turn).length === 1
       if (!valid || !HARNESSES.has(row?.harness) || row.harness !== (target.harness ?? 'codex-cli')
         || !launch(row?.launch_id) || !running && !idle) {

@@ -172,6 +172,8 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     // Same live registry: stop/queue/steer/isIdle keep seeing turns the previous engine still follows.
     const activity = handoff.activity
     transport.activity = activity
+    // A predecessor older than the non-Codex word watch has no sent-cursor map.
+    activity.sentCursors ??= new Map()
     for (const key of ['active', 'jobs', 'watches', 'followedTurns', 'configurationChanges', 'dispatches', 'waking']) transport[key] = activity[key]
   }
   transport.activity.recoverCapacity = continuation ? context => continuation.failed(context) : null
@@ -256,7 +258,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
       requests: { pending: requests.pending, latest: requests.latest },
       applications: administration.applications, automaticConfigurationOperations: administration.automaticConfigurationOperations,
       work: { records: transport.workState.records, seq: transport.workState.seq, restartActivity: transport.workState.restartActivity },
-      followedTurns: transport.followedTurns, retainedImages: transport.retainedImages, failedDeliveries: transport.activity.failed,
+      followedTurns: transport.followedTurns, sentCursors: transport.activity.sentCursors, retainedImages: transport.retainedImages, failedDeliveries: transport.activity.failed,
       idleSeen: idle.seen, continuationStates: continuation?.states ?? new Map(),
     })
     const result = { stateCompatibility: COMPATIBILITY, generation, metadata,
@@ -295,6 +297,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     transport.retainedImages = m.retainedImages
     if (!handoff.activity) {
       for (const entry of m.followedTurns) transport.followedTurns.set(...entry)
+      for (const entry of m.sentCursors ?? []) transport.activity.sentCursors.set(...entry)
       transport.activity.failed = m.failedDeliveries ?? new Map()
       transport.activity.shownWords = handoff.shownWords
     }

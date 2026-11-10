@@ -1,4 +1,4 @@
-import { CurrentWork, watchCurrentTurn } from './current-work.mjs'
+import { CurrentWork, watchCurrentTurn, interimStartCursor } from './current-work.mjs'
 import { randomUUID } from 'node:crypto'
 import { MembersAdmission } from './members-admission.mjs'
 import { configurationError } from './configuration-request.mjs'
@@ -1073,6 +1073,11 @@ export class AitermTransport {
     // 次の送信もこの印を使うため、追跡担当の選択と設定は同期で行う。
     const follower = steered ? this.activity.follower(job.bot.id) : null
     job.follows = followed && !follower
+    const { event_cursor: cursor, launch_id: launchId } = delivery.receipt
+    // current-work.md "Non-Codex word watch": a span whose start token is not past this cursor holds this sent turn.
+    if (Number.isInteger(cursor)) this.activity.sentCursors.set(job.bot.id, { launchId, cursor })
+    // Aiterm dispatches only to an idle seat, so a word watch's turn is over; its token reads would take this turn's words.
+    if (!steered) { const watch = this.activity.watches.get(job.bot.id); if (watch?.wordsOnly) watch.end() }
     return { steered, followed, follower }
   }
 
@@ -1202,7 +1207,9 @@ export class AitermTransport {
     if (!data) return null
     if (data.schema !== 'aiterm.seat-turns.v1' || data.error || !Array.isArray(data.seats))
       throw new Error(`AITERM_SEAT_TURNS_INVALID: ${data.error ?? data.schema}`)
-    return new Map(data.seats.filter(seat => seat?.harness === 'codex-cli').map(seat => [seat.session_id, seat.turn]))
+    // Codex rows keep the watch/wait contract; other rows carry their launch for the word-watch start check.
+    return new Map(data.seats.filter(seat => seat?.session_id).map(seat => [seat.session_id, seat.harness === 'codex-cli' || !seat.turn
+      ? seat.turn : { ...seat.turn, codex: false, launch_id: seat.launch_id }]))
   }
 
   // BellTeamが始めていないターン（Aitermの子の結果で始まったターンなど）を見つけて追う。
@@ -1225,13 +1232,14 @@ export class AitermTransport {
       const watch = this.activity.watches.get(bot.id)
       // 追っているターンがもう動いていない。止められたターンでは、Aitermの待ちは返らない（完了の印だけを待つ）。
       // nullは「分からない」なので、追い続ける。
+      const watchable = turn?.state === 'running' && (turn.codex !== false || this.wordWatchable(bot.id, turn))
       if (watch && turn?.state === 'running' && turn.turn_id !== watch.turnId) {
-        if (allowNew()) this.watchTurn(bot, session, turn, { onInterim, groupId, lease })
+        if (allowNew() && watchable) this.watchTurn(bot, session, turn, { onInterim, groupId, lease })
         watch.end()
         continue
       }
       if (watch && (turn === undefined || turn?.state === 'idle')) watch.end()
-      if (allowNew() && turn?.state === 'running' && this.isIdle(bot.id) && this.activity.followedTurns.get(bot.id) !== turn.turn_id)
+      if (allowNew() && watchable && this.isIdle(bot.id) && this.activity.followedTurns.get(bot.id) !== turn.turn_id)
         this.watchTurn(bot, session, turn, { onInterim, groupId, lease })
     }
     return true
@@ -1246,9 +1254,18 @@ export class AitermTransport {
       throw Object.assign(new Error('CONVERSATION_NOT_ACCEPTED'), { code: 'CONVERSATION_NOT_ACCEPTED', status: 503, effect: 'not_started' })
   }
 
+  // current-work.md "Non-Codex word watch": a start token, and no BellTeam-sent turn of this launch inside the span.
+  wordWatchable(botId, turn) {
+    const start = interimStartCursor(turn.interim_from), sent = this.activity.sentCursors.get(botId)
+    return start !== null && !(sent && sent.launchId === turn.launch_id && sent.cursor >= start)
+  }
+
   watchTurn(bot, session, turn, { onInterim, groupId, lease = null }) {
     try { this.assertConversationOccupation(bot.id) } catch { return null }
     const watch = new SeatTurnWatch({ id: this.activeId(), bot, turn, groupId: groupId(), now: this.now() })
+    // A non-Codex span has no waiter; its readInterim answer carries the token's cursor instead of the null event_cursor.
+    const wordsOnly = watch.wordsOnly = turn.codex === false
+    const receipt = wordsOnly ? { ...turn, event_cursor: interimStartCursor(turn.interim_from) } : turn
     let operationLease, conversationDelivery, words = onInterim
     if (this.conversationAdmission) {
       operationLease = this.conversationAdmission.tryEnter(undefined, watch.id)
@@ -1270,11 +1287,11 @@ export class AitermTransport {
         await words(bot.id, watch.info.groupId, value)
         watch.shown.words.push(...value.filter(word => word.kind !== 'error').map(word => word.text.trim()).filter(Boolean))
       } : null
-      const interim = say ? this.followInterim(session, turn, say, { from: turn.interim_from, turnId: turn.turn_id, client: lease?.client }) : null
+      const interim = say ? this.followInterim(session, receipt, say, { from: turn.interim_from, turnId: turn.turn_id, client: lease?.client }) : null
       let turnCompleted = false
       try {
         let failure = null
-        await Promise.race([watch.ended, this.waitUntilDone(turn, watch.stop.signal)
+        await Promise.race([watch.ended, wordsOnly ? watch.ended : this.waitUntilDone(turn, watch.stop.signal)
           .then(() => { turnCompleted = true }, error => { failure = error; turnCompleted = error.turnCompleted === true })])
         const seen = await interim?.stop()
         if (!failure || watch.stop.signal.aborted) return

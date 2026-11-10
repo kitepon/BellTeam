@@ -25,6 +25,8 @@ export class SeatActivity {
     this.watches = new Map()
     // 席ごとの、最後に終わりまで追ったターン。Aitermへ聞いた後に終わったターンを、もう一度追い始めない。
     this.followedTurns = new Map()
+    // 席ごとの、最後に受理された送信のAiterm完了位置 {launchId, cursor}（current-work.md "Non-Codex word watch"）。
+    this.sentCursors = new Map()
     // 席ごとの、最後に追ったターンで合間の言葉として出した文。回答の頭から外すのに使う（self-turns.mjs）。
     this.shownWords = new Map()
     this.listeners = new Set()
