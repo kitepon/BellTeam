@@ -54,7 +54,7 @@ export const seatTarget = bot => isRemoteBot(bot) ? `${bot.terminalId}\n${bot.pr
 export class RemoteSeats {
   // recorded(sessionName) reads the transport's launch record (D5), which keeps a remote seat's target, botId and launchId
   // across a body restart.
-  constructor({ terminals, ingress, launchContext, emitQueue = () => {}, seatCommand = null, recorded = async () => null }) {
+  constructor({ terminals, ingress, launchContext, emitQueue = () => {}, notify = () => {}, seatCommand = null, recorded = async () => null }) {
     this.seatCommand = seatCommand
     this.recorded = recorded
     this.terminals = terminals
@@ -63,6 +63,8 @@ export class RemoteSeats {
     this.emitQueue = emitQueue
     this.seats = new Map() // sessionName -> {sessionName, botId, terminalId, projectRoot, launchId, cursor}; cache of the launch record
     this.waiting = new Map() // terminalId -> Set(botId) whose launch was not started
+    this.notices = new Map() // botId -> {code, action, terminalId, at}: the latest not-started launch, shown to the Owner
+    this.notify = notify
     this.unwatch = terminals.watch?.(event => this.available(event)) ?? (() => {})
   }
 
@@ -100,7 +102,7 @@ export class RemoteSeats {
     } catch (error) {
       if (issued) await this.revoke(sessionName)
       // terminals' own target() failure already armed its observer.
-      if (NOT_STARTED.has(error?.code) || reachability(error?.code)) this.wait(bot)
+      if (NOT_STARTED.has(error?.code) || reachability(error?.code)) { this.wait(bot); this.notice(bot, error) }
       throw notStarted(error)
     }
   }
@@ -143,6 +145,20 @@ export class RemoteSeats {
     const launchId = receipt.launch_id
     this.seats.set(sessionName, { sessionName, botId: bot.id, terminalId: bot.terminalId, projectRoot: bot.projectRoot,
       launchId: typeof launchId === 'string' ? launchId : null, cursor: null })
+    if (this.notices.delete(bot.id)) this.notify()
+  }
+
+  // remote-seat.md "Launch notice": the message stays queued with no failed callback, so the Owner sees the code and the
+  // plain next step on the member instead. Only the code and terminals'/Aiterm's action text are kept.
+  notice(bot, error) {
+    const action = typeof error?.action === 'string' && error.action.trim() ? error.action.trim().slice(0, 500) : null
+    this.notices.set(bot.id, { code: error.code, action, terminalId: bot.terminalId, at: new Date().toISOString() })
+    this.notify()
+  }
+
+  launchNotice(bot) {
+    const notice = this.notices.get(bot?.id)
+    return notice && isRemoteBot(bot) && bot.terminalId === notice.terminalId ? { ...notice } : null
   }
 
   // A remote seat by session name: this generation's entry, or rebuilt from the launch record after a body restart (the
@@ -170,6 +186,7 @@ export class RemoteSeats {
     if (!NOT_STARTED.has(error?.code) && !reachability(error?.code)) return
     notStarted(error)
     this.wait(bot)
+    this.notice(bot, error)
     if (reachability(error.code)) this.terminals.connection.observe?.(bot.terminalId)
   }
 

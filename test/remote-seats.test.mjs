@@ -295,3 +295,29 @@ test('R13: an accountOwner change during the reload launches nothing more and ne
     assert.deepEqual(k.observed, ['mac-1'])
   } finally { await rm(root, { recursive: true, force: true }) }
 })
+
+test('launch notice: a not-started launch shows its code and action on the member until a launch succeeds; no drain', async () => {
+  const notified = []
+  const { seats, queued } = fixture({ targetErrors: ['TARGET_MISMATCH'] })
+  seats.notify = () => notified.push('bots')
+  const mismatch = await seats.prepare(bot, launchArgs, { slot: '1st' }).catch(error => error)
+  assert.equal(mismatch.effect, 'not_started')
+  const notice = seats.launchNotice(bot)
+  assert.deepEqual({ ...notice, at: typeof notice.at }, { code: 'TARGET_MISMATCH', action: null, terminalId: 'mac-1', at: 'string' })
+  seats.launchFailed(bot, Object.assign(code('UNREACHABLE'), { action: '  confirm the host key of 192.168.1.12  ' }))
+  assert.equal(seats.launchNotice(bot).action, 'confirm the host key of 192.168.1.12')
+  assert.equal(seats.launchNotice({ ...bot, terminalId: 'mac-2' }), null, 'another terminal')
+  assert.equal(seats.launchNotice({ ...bot, terminalId: '', projectRoot: '' }), null, 'moved to local')
+  assert.deepEqual(queued, [], 'the notice never names the Bot on the queue stream')
+  seats.launched(bot, { session_id: launchArgs.session_name, launch_id: 'a'.repeat(32) })
+  assert.equal(seats.launchNotice(bot), null)
+  assert.equal(notified.length, 3)
+})
+
+test('launch notice: transport.seatLaunch reads it for the current member; a body without remote seats answers null', () => {
+  const remoteSeats = { launchNotice: member => member?.terminalId === 'mac-1' ? { code: 'TARGET_MISMATCH' } : null }
+  const transport = new AitermTransport({ resolveBot: id => id === bot.id ? bot : null, remoteSeats })
+  assert.deepEqual(transport.seatLaunch(bot.id), { code: 'TARGET_MISMATCH' })
+  assert.equal(transport.seatLaunch('bot-none'), null)
+  assert.equal(new AitermTransport({ resolveBot: () => bot }).seatLaunch(bot.id), null)
+})

@@ -1579,6 +1579,11 @@ export class AitermTransport {
     void this.accounts.turnSucceeded('claude', this.accounts.seatSlot(bot.id) ?? '1st', bot.model).catch(() => {})
   }
 
+  // remote-seat.md "Launch notice": the latest not-started remote launch of this member, or null.
+  seatLaunch(botId) {
+    return this.remoteSeats?.launchNotice(this.resolveBot?.(botId)) ?? null
+  }
+
   seatAccount(botId) {
     const bot = this.resolveBot?.(botId), slot = this.claudeAccountBot(bot) ? this.accounts.seatSlot(botId) : null
     // shortcut: preferredSlot is always '1st' (no rules); drop it once Web, Apple and Windows stop reading it.
