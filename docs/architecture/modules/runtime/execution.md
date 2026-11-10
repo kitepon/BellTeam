@@ -101,8 +101,35 @@ flowchart TD
 | Body side | Parent and module children keep the kernel default 0. No negative value: the body runs without `CAP_SYS_RESOURCE`, and the Host's own processes keep their order relative to the body. |
 | Effect | A priority bias toward seat processes in the kernel's OOM badness heuristic ([kernel contract](https://docs.kernel.org/6.12/filesystems/proc.html#oom-adj)). It does not guarantee a victim order and does not make the body immune. |
 | Failure | Writing `/proc/self/oom_score_adj` failing is ignored; the seat starts and the prior behavior (inherited value, 0) is retained. Not a guard. |
-| No new limit | Turn start, concurrency and container memory are unchanged. A Docker memory limit or Host swap/OS change is Host-owned (Emma). |
+| No new limit | Turn start and concurrency are unchanged. The box memory bound is the next section (body container owner, Molly, since 2026-11-11). Host swap/OS changes stay Host-owned (Emma). |
 | Not covered | The body can still be chosen. The parent's own ~800MB+ RSS is a separate question, not changed here. |
+
+## Box memory bound: BellTeam's demand stays inside its own cgroup (Molly, 2026-11-11)
+
+Production 2026-11-09..11 (Trony, Emma's host assessment r20): the host OOM killer fired 30 times in 48 h. The body container had no memory bound (`HostConfig.Memory` 0, cgroup `memory.max` max), so one runaway seat-side process (a `node` at 5.4-8.0 GB anon killed 7 times on 11-09 14:15-14:18 JST; a `grep` at 3.8 GB on 11-10 10:46) plus the other seats pushed the whole host into global OOM. The kernel then also chose processes outside BellTeam (the nightly backup `tar`, spotter, dbus, systemd). The seat bias above only orders victims; it never stops BellTeam's demand from reaching the host.
+
+```mermaid
+flowchart TD
+  Override["install dir compose.override.yaml<br/>services.bellteam.mem_limit + memswap_limit"] --> Install["sh install.sh (manual install)<br/>docker compose config"]
+  Install --> Normal["updater private installation/normal.json<br/>(bellteam service incl. mem_limit)"]
+  Normal --> AppUpdate["app Update body swap<br/>input-normal.json = normal with only image replaced"]
+  AppUpdate --> Normal
+  Normal --> Box["bellteam container cgroup<br/>memory.max = mem_limit, swap = memswap_limit - mem_limit"]
+  Box --> Charge["charged inside the box: body, modules, every seat tree,<br/>their tools, box /tmp tmpfs (shmem)"]
+  Charge -->|"reaches memory.max"| Reclaim["kernel reclaims the box's own page cache first"]
+  Reclaim -->|"still over"| MemcgOOM{"memcg OOM: candidates are tasks in the box only"}
+  MemcgOOM -->|"biased toward seat side (adj 1000): usually the runaway tool"| SeatTree["seat-side process killed;<br/>recovery as in the section above"]
+  MemcgOOM -.->|"not immune"| Parent["body parent"]
+  Box -.->|"never a candidate"| Host["host processes and other products"]
+```
+
+| Item | Contract |
+| --- | --- |
+| Carrier | The bound is installation configuration, not image content. It lives in the install directory's `compose.override.yaml` (the documented place in `distribution/server/README.md`) and enters `installation/normal.json` only through `sh install.sh`. App Update replaces only `services.bellteam.image` in that model; `module-update-compose.mjs` and `container-update-compose.mjs` add their mounts in place and keep every other key, so the bound survives every later body swap. A new image's `compose.yaml` never changes it. |
+| Production value | `mem_limit: 18g`, `memswap_limit: 18g` (no box swap). Host 29265 MiB RAM + 8 GiB swap; other products about 3.3 GiB; observed box peak 15.43 GiB including page cache, light load 7.6 GiB. 18 GiB keeps the box above its observed peak and leaves the host RAM for its own jobs without host swap. Change by editing the override and running `sh install.sh` again. |
+| At the bound | Reclaim, then memcg OOM inside the box. Host processes and other products are not candidates for an OOM the box caused. No turn is refused, queued or stopped by BellTeam; only the kernel's victim (normally the largest seat-side process) is lost, and the existing seat recovery applies. Not a guard. |
+| Distributed default | None. `compose.yaml` keeps no `mem_limit`, because the right value depends on the machine; the README already tells installers to set it in the override. |
+| Not covered | Memory written on the host outside the box (for example host `/tmp` tmpfs files created over ssh) is Host-owned. A box that needs more than the bound loses seat-side processes until the value is raised. |
 
 ## 設定保存へ管理済みstateだけを渡す
 
