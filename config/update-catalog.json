@@ -1,12 +1,12 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-10T03:51:02Z",
-  "expiresAt": "2026-11-17T03:51:02Z",
+  "publishedAt": "2026-11-10T03:58:49Z",
+  "expiresAt": "2026-11-17T03:58:49Z",
   "releases": [
     {
       "componentId": "usage",
-      "sourceCommit": "30b509d8ef7b41df56733e01948ae58c828460dc",
-      "versionId": "05477d516d56dd02c9b4f840501988384c00eb14bf2316af1a08a5704e6b03d9",
+      "sourceCommit": "27227d780a1648d247a15226a69607da2e4afd34",
+      "versionId": "f7decffe26072f1638f72f49b5eeda39cfcfd1bb73663b0b1cc7c2c45aea88fb",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -14,16 +14,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T211157Z/usage-30b509d8ef7b41df56733e01948ae58c828460dc-linux-amd64.tar.gz",
-          "bytes": 67399,
-          "sha256": "05477d516d56dd02c9b4f840501988384c00eb14bf2316af1a08a5704e6b03d9"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T032825Z/usage-27227d780a1648d247a15226a69607da2e4afd34-linux-amd64.tar.gz",
+          "bytes": 78229,
+          "sha256": "f7decffe26072f1638f72f49b5eeda39cfcfd1bb73663b0b1cc7c2c45aea88fb"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T211157Z/usage-30b509d8ef7b41df56733e01948ae58c828460dc-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10905,
-          "sha256": "7430bc77bfbf15cc6bafa5630f23d8197f91e1c0d558c38b72e44a19b48da47f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T032825Z/usage-27227d780a1648d247a15226a69607da2e4afd34-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11050,
+          "sha256": "c67de45b10ed01ebb3b57c025222e9ded0e2a4233268b84aafcdd337302b0541"
         },
-        "signerCommit": "30b509d8ef7b41df56733e01948ae58c828460dc"
+        "signerCommit": "27227d780a1648d247a15226a69607da2e4afd34"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -34,26 +34,27 @@
           "handoffSchema": "bellteam.usage-volatile.v1",
           "onboardingSchema": "bellteam.onboarding.v1",
           "requestEncoding": "json-files",
-          "secretEncoding": "utf8-exclusive-0600",
+          "secretEncoding": "stored-or-private-reference-v2",
           "settingsFeatures": [
             "routing",
             "callBridge",
             "cloudflare",
             "diagnostics",
             "notifications",
-            "webPush"
+            "webPush",
+            "onePassword"
           ],
           "subscriptionSchema": "bellteam.subscription.v1"
         }
       },
       "changes": [
-        "Claudeの再ログイン中も、保存済みのログイン情報が使える間は、アカウント名を残したまま「認証中」と表示します。"
+        "利用設定の部品が、いまの本体に合う版になり、『更新』で入れられるようになります。"
       ]
     },
     {
       "componentId": "usage",
-      "sourceCommit": "30b509d8ef7b41df56733e01948ae58c828460dc",
-      "versionId": "3185285a205e8a9a5e7fc4139ccb848237997ffd91c5bdbaedcbf8a36a9a32b8",
+      "sourceCommit": "27227d780a1648d247a15226a69607da2e4afd34",
+      "versionId": "461892850ba37ac6a01ba4c6572baf2031c2568af8b5d8512dd56747d8cde4da",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -61,16 +62,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T211157Z/usage-30b509d8ef7b41df56733e01948ae58c828460dc-linux-arm64.tar.gz",
-          "bytes": 67399,
-          "sha256": "3185285a205e8a9a5e7fc4139ccb848237997ffd91c5bdbaedcbf8a36a9a32b8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T032825Z/usage-27227d780a1648d247a15226a69607da2e4afd34-linux-arm64.tar.gz",
+          "bytes": 78229,
+          "sha256": "461892850ba37ac6a01ba4c6572baf2031c2568af8b5d8512dd56747d8cde4da"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T211157Z/usage-30b509d8ef7b41df56733e01948ae58c828460dc-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10862,
-          "sha256": "68bd23e2afd7c6b1f04c83d7fa30e0af7bb8d4a7aee9fe22b5dc56bd36ab2525"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T032825Z/usage-27227d780a1648d247a15226a69607da2e4afd34-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11093,
+          "sha256": "c03293160227c2c6bbf8e64221efdd1c1ab0ed6d9c5a3e6b7657b803ef963896"
         },
-        "signerCommit": "30b509d8ef7b41df56733e01948ae58c828460dc"
+        "signerCommit": "27227d780a1648d247a15226a69607da2e4afd34"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -81,20 +82,21 @@
           "handoffSchema": "bellteam.usage-volatile.v1",
           "onboardingSchema": "bellteam.onboarding.v1",
           "requestEncoding": "json-files",
-          "secretEncoding": "utf8-exclusive-0600",
+          "secretEncoding": "stored-or-private-reference-v2",
           "settingsFeatures": [
             "routing",
             "callBridge",
             "cloudflare",
             "diagnostics",
             "notifications",
-            "webPush"
+            "webPush",
+            "onePassword"
           ],
           "subscriptionSchema": "bellteam.subscription.v1"
         }
       },
       "changes": [
-        "Claudeの再ログイン中も、保存済みのログイン情報が使える間は、アカウント名を残したまま「認証中」と表示します。"
+        "利用設定の部品が、いまの本体に合う版になり、『更新』で入れられるようになります。"
       ]
     },
     {
