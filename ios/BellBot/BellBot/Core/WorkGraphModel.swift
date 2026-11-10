@@ -140,6 +140,8 @@ final class WorkGraphModel: ObservableObject {
     struct Chip: Equatable {
         /// 置いた線の上の位置。nilは描かない（空きを待つ・消え終えた）。
         var t: CGFloat?
+        /// その位置のどちら側か（`Spot.side`）。`t`がある間だけ意味を持つ。
+        var side = CGVector.zero
         var appearAt: Double?
         /// labelがnullへ戻った時刻。300msで消す。
         var nullAt: Double?
@@ -173,10 +175,36 @@ final class WorkGraphModel: ObservableObject {
         var above: [PlacedChip] = []
     }
 
-    static let chipSlots: [CGFloat] = [0.5, 0.45, 0.55, 0.4, 0.6, 0.35, 0.65, 0.3, 0.7]
+    /// 札の置き場所：線の上の位置`t`と、その点のどちら側か（`side`は札の大きさの半分を単位にした画面上の向き。(0,-1)が上）。
+    struct Spot: Equatable {
+        let t: CGFloat
+        let side: CGVector
+    }
 
-    /// 札は線の上に少し浮かせ、下の尖りで線を指す。
-    static func chipFrame(at point: CGPoint, size: CGSize) -> (tag: CGRect, area: CGRect) {
+    /// 同じ位置で試す順：点に中心・上（札の下端が点）・下（上端が点）・左（右端が点）・右（左端が点）。
+    static let chipSides: [CGVector] = [CGVector(dx: 0, dy: 0), CGVector(dx: 0, dy: -1), CGVector(dx: 0, dy: 1), CGVector(dx: -1, dy: 0), CGVector(dx: 1, dy: 0)]
+
+    /// 札の置き場所85個（layout-sim.mjsの`chipSpots`）：`t = 0.5, 0.45, 0.55, … 0.1, 0.9`の17位置を中央に近い順に、位置ごとに5つの側。
+    static let chipSpots: [Spot] = {
+        var positions: [CGFloat] = [0.5]
+        for k in 1...8 {
+            let step = CGFloat(k) * 0.05
+            positions.append(0.5 - step)
+            positions.append(0.5 + step)
+        }
+        return positions.flatMap { position -> [Spot] in
+            let t = (position * 100).rounded() / 100
+            return chipSides.map { Spot(t: t, side: $0) }
+        }
+    }()
+
+    /// 中心の札は線の上に少し浮かせ、下の尖りで線を指す。ほかの側は点に札の縁を当てる（layout-sim.mjsの`chipBox`の側の寄せ。尖りは無い）。
+    static func chipFrame(at point: CGPoint, size: CGSize, side: CGVector = .zero) -> (tag: CGRect, area: CGRect) {
+        if side != .zero {
+            let tag = CGRect(x: point.x + side.dx * size.width / 2 - size.width / 2, y: point.y + side.dy * size.height / 2 - size.height / 2,
+                             width: size.width, height: size.height)
+            return (tag, tag)
+        }
         let tag = CGRect(x: point.x - size.width / 2, y: point.y - size.height - 7, width: size.width, height: size.height)
         return (tag, tag.union(CGRect(x: point.x - 4, y: point.y - 7, width: 8, height: 7)))
     }
@@ -586,14 +614,14 @@ final class WorkGraphModel: ObservableObject {
         r.minX < q.maxX && q.minX < r.maxX && r.minY < q.maxY && q.minY < r.maxY
     }
 
-    /// 札の置き場所。全てのslotが自分の端を含むどのメンバーの四角（広げない）にもふさがれるなら、`t = 0.5`のふさがれた札の四角を返す。
-    /// 四角は札の尖りを含む範囲（`chipFrame`）を4pt広げたもの。layout-sim.mjsの`chipAt`。
+    /// 札の置き場所。全てのspotが自分の端を含むどのメンバーの四角（広げない）にもふさがれるなら、`t = 0.5`中心のふさがれた札の四角を返す。
+    /// 四角は札の範囲（`chipFrame`。中心の札は尖りを含む）を4pt広げたもの。layout-sim.mjsの`chipAt`。
     static func blockedChip(_ p: [CGPoint], _ boxes: [CGRect], _ a: Int, _ b: Int, _ size: CGSize) -> CGRect? {
-        func area(_ t: CGFloat) -> CGRect {
-            chipFrame(at: CGPoint(x: p[a].x + (p[b].x - p[a].x) * t, y: p[a].y + (p[b].y - p[a].y) * t), size: size).area.insetBy(dx: -4, dy: -4)
+        func area(_ t: CGFloat, _ side: CGVector = .zero) -> CGRect {
+            chipFrame(at: CGPoint(x: p[a].x + (p[b].x - p[a].x) * t, y: p[a].y + (p[b].y - p[a].y) * t), size: size, side: side).area.insetBy(dx: -4, dy: -4)
         }
         let members = p.indices.map { boxes[$0].offsetBy(dx: p[$0].x, dy: p[$0].y) }
-        for t in chipSlots where !members.contains(where: { boxesMeet(area(t), $0) }) { return nil }
+        for spot in chipSpots where !members.contains(where: { boxesMeet(area(spot.t, spot.side), $0) }) { return nil }
         return area(0.5)
     }
 
@@ -733,8 +761,8 @@ final class WorkGraphModel: ObservableObject {
     }
 
     /// 1コマ分の札を置く（behavior-spec.md「Edges」）。札はlatch frameで一度作り、辺が終わるまで残す。
-    /// 置き場所は始まった順に、メンバーの四角・描いている名前・先に置いた札（blockedも含む）をそれぞれ4pt広げて避けた最初の空きt。
-    /// 今のtが空いていれば動かさず、ふさがれば最初の空きtへ、どこも空かなければ今のtのままblocked。
+    /// 置き場所は始まった順に、メンバーの四角・描いている名前・先に置いた札（blockedも含む）をそれぞれ4pt広げて避けた最初の空きspot（位置と側）。
+    /// 今のspotが空いていれば動かさず、ふさがれば最初の空きspotへ、どこも空かなければ今のspotのままblocked。
     /// `peek`は、空きを待つ札を`t = 0.5`で最前面に見せる辺（Macは線へのポインタ、iPhone/iPadは`tappedEdge`）。
     func layoutChips(_ paths: [EdgePath], size: (String) -> CGSize, hover: String?, peek: String? = nil, reveal: String? = nil, now: Double) {
         self.paths = paths
@@ -764,18 +792,18 @@ final class WorkGraphModel: ObservableObject {
             if let label { chip.nullAt = nil; chip.text = label } else if chip.nullAt == nil { chip.nullAt = now }
             let chipSize = size(chip.text)
             chip.size = chipSize
-            let frame = { (t: CGFloat) in Self.chipFrame(at: path.point(t), size: chipSize) }
+            let frame = { (spot: Spot) in Self.chipFrame(at: path.point(spot.t), size: chipSize, side: spot.side) }
             var opacity = 1.0
             if let endedAt = line.endedAt { opacity *= max(0, 1 - (now - endedAt) / 0.3) }
             if let nullAt = chip.nullAt { opacity *= max(0, 1 - (now - nullAt) / 0.3) }
             if opacity <= 0 && (chip.nullAt != nil || line.endedAt != nil) {
                 chip.t = nil // 消え終えた札は場所を返す。
             } else if line.endedAt == nil && chip.nullAt == nil {
-                let first = Self.chipSlots.first { free(frame($0).area) }
+                let first = Self.chipSpots.first { free(frame($0).area) }
                 if let t = chip.t {
-                    if !free(frame(t).area) { chip.t = first ?? t }
+                    if !free(frame(Spot(t: t, side: chip.side)).area), let first { (chip.t, chip.side) = (first.t, first.side) }
                 } else if let first {
-                    chip.t = first
+                    (chip.t, chip.side) = (first.t, first.side)
                     chip.appearAt = now
                 }
             }
@@ -784,13 +812,13 @@ final class WorkGraphModel: ObservableObject {
             guard let t = chip.t else {
                 // 待っている札は、線を指している間だけ`t = 0.5`で最前面に出す。置き場所は取らない。
                 if peek == line.edge.id, label != nil, line.endedAt == nil {
-                    let f = frame(0.5)
+                    let f = frame(Spot(t: 0.5, side: .zero))
                     layers.above.append(PlacedChip(id: line.edge.id, text: chip.text, anchor: path.point(0.5), tag: f.tag, area: f.area,
                                                    opacity: 1, blocked: false))
                 }
                 continue
             }
-            let f = frame(t)
+            let f = frame(Spot(t: t, side: chip.side))
             let blocked = !free(f.area)
             placed.append(f.area) // blockedの札も後の札の障害物（Webと同じ）。
             if let appearAt = chip.appearAt { opacity *= min(1, (now - appearAt) / 0.2) } // 最初に出る時は200msで現れる。
