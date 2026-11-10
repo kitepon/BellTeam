@@ -1,8 +1,8 @@
-# Read-only fork inquiry (`ask_readonly`) — design, unimplemented
+# Read-only fork inquiry (`ask_readonly`)
 
 Owner of this page: N102 (conversation). [Module contract](README.md) / [overall data flow](../../data-flow.md#proposed-read-only-fork-inquiry) / [function map](../../feature-map.md).
 
-Status: **design only, no code**. Binding source: the Owner-agreed spec `/srv/bellteam/bots/bot-7b140b27/docs/fork-ask-design-20261110.md` (items 1–10) and Root's request of 2026-11-10 JST. Spec item 9 (receipt now, answer later as a message) supersedes the "answer as the tool result" wording in item 6. Nothing here replaces an agreed mechanism. Gaps the spec left open were ruled by Root on 2026-11-10 JST after the line-by-line review; see [Root rulings](#root-rulings-2026-11-10-jst).
+Status: design adopted on main fd61b8e5 (#949). The conversation part is implemented against the contracts below. Execution (`transport.forkInquiry`), Aiterm fork/profile, fork-seat MCP listing, client labels, work-graph and Throughline parts belong to their owners and are not in this module's code. Binding source: the Owner-agreed spec `/srv/bellteam/bots/bot-7b140b27/docs/fork-ask-design-20261110.md` (items 1–10) and Root's request of 2026-11-10 JST. Spec item 9 (receipt now, answer later as a message) supersedes the "answer as the tool result" wording in item 6. Nothing here replaces an agreed mechanism. Gaps the spec left open were ruled by Root on 2026-11-10 JST after the line-by-line review; see [Root rulings](#root-rulings-2026-11-10-jst).
 
 Base read for this design: `main` 814ac22f — `src/messenger.mjs` (`sendmessage`, `notificationCallbacks`, `startUserTurn`), `src/mcp-conversation-tools.mjs`, `src/mcp-tools.mjs` (`runBellTeamTool`), `src/seat-mcp.mjs` (`internalApi`), `src/http-delivery-api.mjs`, `src/work-graph/projection.mjs`.
 
@@ -137,7 +137,7 @@ If a harness cannot launch with this profile (for example Codex without a way to
 | --- | --- |
 | open | `transport.forkInquiry(bot, envelope, opts)`: resolve the target's **main** session ref at call time (latest persisted state, including the running turn as far as the CLI has written it), ask Aiterm for a read-only fork, send `envelope` as its first input. Must not enter, reorder or wait on the main dispatch queue; must not steer or interrupt the main seat |
 | accept | Resolve with `{delivery:'running', forkId}` once the fork accepted its input; reject with `FORK_UNAVAILABLE{reason}` or existing launch errors |
-| observe | Same callback set as `notify` (`onStatus/onInterim/onAnswer/onTurnEnd`), so conversation reuses `notificationCallbacks` unchanged |
+| observe | Same callback set as `notify` (`onStatus/onInterim/onAnswer/onTurnEnd`). Conversation reuses `notificationCallbacks` for status/interim/answer. A fork's `onTurnEnd` does not go to TurnReports: its report request would be sent to the main seat and interrupt it (spec item 2); conversation uses turn-end only to relay `FORK_FAILED: NO_ANSWER` when no answer came |
 | close | After turn-end (or failure) close the fork seat. No resume, no follow-up turn, no requeue |
 | read | Optional `seat:{kind:'fork',forkId}` on `queueItems()` rows for running forks, so `queue.read` (Molly) and 相関図 (Black) can label them. Rows without `seat` are main |
 | remote | Launches like a local fork. Until Elegg 0.70.5 relay fix + Kiro #946 are live, its in-turn words are missing exactly like a remote main seat's today; the final answer (or `FORK_FAILED`) still arrives. No refusal for this (Root change) |
@@ -152,11 +152,11 @@ If a harness cannot launch with this profile (for example Codex without a way to
 
 | Code | Change |
 | --- | --- |
-| `messenger.mjs` | Extract `prepareDirect(input, opts) -> {deliveryId, bot, record, check, images}` from `sendmessage` unchanged. `sendmessage` = `prepareDirect` + existing notify block. Add `askReadonly` (= `prepareDirect` with `seat` + `transport.forkInquiry` + `notificationCallbacks` with `onAnswer` calling relay, and a failed/stopped `onStatus` or rejected launch after receipt calling relay once with `FORK_FAILED`) and `relayForkAnswer` (= `prepareDirect` from target to asker + `transport.notify`). `directEnvelope` gains the fork name suffix |
+| `messenger.mjs` | Extract `prepareDirect(input, opts, label) -> {check, bot, deliveryId, from, target, message, images, label} or {userTurn}` and `notifyDirect(prepared, opts)` from `sendmessage` unchanged; `label` is a third parameter and never read from the input body. `sendmessage` = `prepareDirect` + `notifyDirect`. Add `askReadonly` (= `prepareDirect` with `seat` + `transport.forkInquiry` + `notificationCallbacks` with `onAnswer` calling relay, and a failed/stopped `onStatus` or rejected launch after receipt calling relay once with `FORK_FAILED`) and `relayForkAnswer` (= `prepareDirect` from target to asker + `notifyDirect`). The relay waits until the receipt settles and is never awaited inside execution callbacks; a rejected launch resolves it as not accepted, so only the tool error is returned. `directEnvelope` gains the fork name suffix |
 | `mcp-conversation-tools.mjs` | Add the tool entry. Its handler reuses `resolveBotTarget` and the injected-delivery pattern (`deliverForkInquiry ?? messenger.askReadonly`) |
 | `http-delivery-api.mjs` | `POST /api/deliveries/fork` beside `/direct`, same body and auth |
 | `seat-mcp.mjs` `internalApi` (Molly) | `deliverForkInquiry` beside `deliverMessage` |
-| `module.json` | Lands with the implementation PR: `provides` gains `fork-inquiry`; `uses` gains execution `fork`. Not changed in this design diff, because execution has no `fork` port yet and the generated map must reference existing ports |
+| `module.json` | `provides` gains `fork-inquiry`. `uses` gains execution `fork` in the same diff as Kiro's port, because the generated map accepts only existing ports |
 
 ## Spec traceability
 

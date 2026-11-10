@@ -9,7 +9,8 @@
     "history",
     "membership-cleanup",
     "room-access",
-    "durable-messages"
+    "durable-messages",
+    "fork-inquiry"
   ],
   "uses": [
     {

@@ -244,7 +244,7 @@ P1 first usable path is the Owner's Mac, existing key, no sudo, API/MCP configur
 
 ## Proposed read-only fork inquiry
 
-Canonical owner: [conversation / N102, fork inquiry](modules/conversation/fork-inquiry.md). **Unimplemented design delta** from the Owner-agreed spec of 2026-11-10 JST; it changes neither the production baseline nor any existing edge. Module descriptors change with each owner's implementation.
+Canonical owner: [conversation / N102, fork inquiry](modules/conversation/fork-inquiry.md). Design from the Owner-agreed spec of 2026-11-10 JST, adopted in #949. Conversation's side of F1–F3, F6 and F7 is implemented in source; F4/F5, fork-seat listing and client/work-graph/Throughline parts follow from their owners, and the feature becomes usable only when execution's `fork` port exists. No existing edge changes. Module descriptors change with each owner's implementation.
 
 ```mermaid
 flowchart LR

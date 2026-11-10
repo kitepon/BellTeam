@@ -13,6 +13,14 @@ export const conversationTools = Object.freeze([
     }, ['target', 'message']),
   },
   {
+    name: 'ask_readonly',
+    description: '宛先Botへ読み取り専用の質問を送る。宛先の本体は中断されず、作業の待ち行列にも入らない。本体の最新状態から作った分身が、本体の作業を待たずにすぐ答える。分身ができるのは読む・調べる・考える・答えることだけで、ファイル編集・PR・本番操作・他Botへの依頼・記憶/知識/予定/承認の書込み・試験やコマンドの実行はできない。作業が必要ならsendmessageを使う。受付をすぐ返し、回答はメッセージで届く。runningは受付済みなので再送しない。',
+    inputSchema: objectSchema({
+      target: { type: 'string', minLength: 1, description: '宛先Botの名前またはBot ID' },
+      message: { type: 'string', minLength: 1, description: '読み取り専用の質問' },
+    }, ['target', 'message']),
+  },
+  {
     name: 'send_user_message',
     description: 'ユーザーとして指定したBellTeam Botへメッセージを送り、ユーザーとの会話へ記録する。',
     inputSchema: objectSchema({
@@ -110,7 +118,7 @@ export const conversationTools = Object.freeze([
 ])
 
 // 呼出元のidentity・引数キー・台帳refreshは共通MCP入口で確認する。
-export async function callConversationTool({ name, args, from, registry, messenger, store, rooms, roomMessenger, deliverMessage, deliverRoomMessage, listQueued }) {
+export async function callConversationTool({ name, args, from, registry, messenger, store, rooms, roomMessenger, deliverMessage, deliverForkInquiry, deliverRoomMessage, listQueued }) {
   if (name === 'sendmessage') {
     const { image, ...message } = args
     return (deliverMessage ?? (value => messenger.sendmessage(value)))({
@@ -118,6 +126,10 @@ export async function callConversationTool({ name, args, from, registry, messeng
       target: args.target === 'user' ? 'user' : resolveBotTarget(registry, args.target),
       image: image ? { path: await resolveBotImagePath(registry.get(from), image) } : null,
     })
+  }
+  if (name === 'ask_readonly') {
+    if (args.target === 'user') throw new Error('FORK_TARGET_USER')
+    return (deliverForkInquiry ?? (value => messenger.askReadonly(value)))({ from, message: args.message, target: resolveBotTarget(registry, args.target) })
   }
   if (name === 'send_user_message') return (deliverMessage ?? (value => messenger.sendmessage(value)))({
     from: 'user', ...args, target: resolveBotTarget(registry, args.target),
