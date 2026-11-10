@@ -15,7 +15,9 @@ export const childPath = (parent, name) => parent === '/' ? `/${name}` : `${pare
 export function folderReasonText(reason, action, path) {
   if (/^FOLDER_/u.test(reason)) return folderRefusal({ code: reason }, path)
   if (reason === 'TERMINAL_NOT_FOUND') return 'この端末は登録されていません。'
-  return `いまは端末に届きません。${typeof action === 'string' ? action.trim() : ''}`.trim()
+  // action is one sentence when present (Crust #887); absent -> the first sentence alone.
+  const text = typeof action === 'string' ? action.trim() : ''
+  return `いまは端末に届きません。${text}${text && !/[。！？]$/u.test(text) ? '。' : ''}`
 }
 export function folderErrorText(error) {
   if (error?.code === 'INVALID_PATH') return 'このパスは使えません。'
