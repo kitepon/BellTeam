@@ -146,6 +146,7 @@ function messageItem(record, direction) {
     ...(record.image_count ? { image_count: record.image_count } : {}),
     imageAsset: record.image_asset ?? null,
     imageAssets: record.image_assets ?? [],
+    ...(record.seat ? { seat: record.seat } : {}),
     delivery: record.delivery ?? 'delivered',
     ...(deliveryError(record.delivery, record.delivery_error) ? { delivery_error: deliveryError(record.delivery, record.delivery_error) } : {}),
     ...(deliveryTracking(record.delivery, record.delivery_tracking) ? { deliveryTracking: deliveryTracking(record.delivery, record.delivery_tracking) } : {}),
@@ -164,6 +165,7 @@ function interimItem(record) {
     image: false,
     imageAsset: null,
     delivery: 'delivered',
+    ...(record.seat ? { seat: record.seat } : {}),
   }
 }
 
@@ -183,6 +185,7 @@ function peerItem(record, direction, peer) {
     ...(record.image_count ? { image_count: record.image_count } : {}),
     imageAsset: record.image_asset ?? null,
     imageAssets: record.image_assets ?? [],
+    ...(record.seat ? { seat: record.seat } : {}),
     delivery: record.delivery ?? 'delivered',
     ...(deliveryError(record.delivery, record.delivery_error) ? { delivery_error: deliveryError(record.delivery, record.delivery_error) } : {}),
     ...(deliveryTracking(record.delivery, record.delivery_tracking) ? { deliveryTracking: deliveryTracking(record.delivery, record.delivery_tracking) } : {}),

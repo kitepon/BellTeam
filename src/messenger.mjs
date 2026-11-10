@@ -109,7 +109,10 @@ export class BellTeamMessenger extends ConversationWriter {
         .catch(error => process.stderr.write(`BellTeam fork relay error: ${error.stack ?? error.message}\n`))
     }
     // onTurnEndは報告確認へ渡さない。報告依頼は本体の席へ届き、本体を中断するため。
-    const { onStatus, onInterim, onAnswer } = this.notificationCallbacks(bot.id, deliveryId, 'fork')
+    // 分身の途中経過と回答も宛先の会話へ残し、分身の印を付ける。
+    const { onStatus } = this.notificationCallbacks(bot.id, deliveryId, 'fork')
+    const onInterim = words => this.appendInterimWords(bot.id, deliveryId, words, { seat })
+    const onAnswer = text => this.appendInterimWords(bot.id, deliveryId, [{ text, kind: 'answer' }], { seat })
     try {
       const result = await this.transport.forkInquiry(bot, directEnvelope(memberIdentity(this.bots, from), message), {
         forkId, deliveryId, ...(executionSource ? { executionSource } : {}),

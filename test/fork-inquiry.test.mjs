@@ -56,6 +56,13 @@ test('ask_readonly returns the receipt at once, labels target rows and relays th
   assert.ok(saved.some(row => row.schema === 'bellteam.interim-word.v1' && row.bot === owner.id && row.group_id === 'id-2' && row.kind === 'answer'))
   const relayRow = saved.find(row => row.schema === 'bellteam.direct-message.v1' && row.in_reply_to === 'id-2')
   assert.deepEqual([relayRow.from, relayRow.target, relayRow.seat.kind, relayRow.message], [owner.id, asker.id, 'fork', 'X is Y.'])
+  assert.ok(saved.filter(row => row.schema === 'bellteam.interim-word.v1').every(row => row.seat?.kind === 'fork'))
+
+  // History items keep the label for clients (inquiry, interim, answer and relay); main rows stay without seat.
+  const items = await messenger.store.timeline(owner.id)
+  const forkItems = items.filter(item => item.seat?.kind === 'fork')
+  assert.deepEqual(forkItems.map(item => [item.kind, item.direction]).sort(),
+    [['interim', 'incoming'], ['message', 'incoming'], ['peer', 'received'], ['peer', 'sent']].sort())
 })
 
 test('a failure after receipt relays ONE FORK_FAILED message with the reason', async t => {
