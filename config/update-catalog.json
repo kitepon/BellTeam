@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-10T01:10:14Z",
-  "expiresAt": "2026-11-17T01:10:14Z",
+  "publishedAt": "2026-11-10T01:20:59Z",
+  "expiresAt": "2026-11-17T01:20:59Z",
   "releases": [
     {
       "componentId": "usage",
@@ -425,8 +425,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "35a96390b1657e5bb6966034eb47e1ebf623c37a",
-      "versionId": "647a01a6b598b61b0ea54cc97ceba96ea7661dab8c5159e39397478145121ff3",
+      "sourceCommit": "021ccba89629ea0969050768ca23f9cb83d7804f",
+      "versionId": "7896e06674fa445acc8d58e7f890e13fe063651d42557804e54475be2d267783",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -434,16 +434,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T002059Z/web-gateway-35a96390b1657e5bb6966034eb47e1ebf623c37a-linux-amd64.tar.gz",
-          "bytes": 5165414,
-          "sha256": "647a01a6b598b61b0ea54cc97ceba96ea7661dab8c5159e39397478145121ff3"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T011300Z/web-gateway-021ccba89629ea0969050768ca23f9cb83d7804f-linux-amd64.tar.gz",
+          "bytes": 5170010,
+          "sha256": "7896e06674fa445acc8d58e7f890e13fe063651d42557804e54475be2d267783"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T002059Z/web-gateway-35a96390b1657e5bb6966034eb47e1ebf623c37a-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10923,
-          "sha256": "9fc9b8f0b148e3bf772494eacf268b0665ed4f78bee1e71ca8d968573ec85b28"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T011300Z/web-gateway-021ccba89629ea0969050768ca23f9cb83d7804f-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10786,
+          "sha256": "3cf2a321ad9ac8c919e0c552387c561ce553b95eb60ee5bd404b7caf53c8edd9"
         },
-        "signerCommit": "35a96390b1657e5bb6966034eb47e1ebf623c37a"
+        "signerCommit": "021ccba89629ea0969050768ca23f9cb83d7804f"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -452,13 +452,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "メンバーの保存を断られた時は「保存できませんでした」と理由を出し、「このフォルダを作って保存」はフォルダがない時だけ出します。sudo鍵も1Passwordから選べて、検索できます。秘密入力の画面が暗い表示に対応します。"
+        "メンバーのフォルダを画面で選べます。本体が古い時は『Update』での更新を案内し、パスを手で入力する欄を開きます。端末のメンバーが起動しなかった時は、本体が理由を伝えればメンバーの行と見出しに出します。作業グラフの印は線の途中や点の上下左右にも置けて、重なりにくくなります。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "35a96390b1657e5bb6966034eb47e1ebf623c37a",
-      "versionId": "f9fe9828b811fd007476a415259fafcbb1d3608d8036c4e09933760fb6ad8a8e",
+      "sourceCommit": "021ccba89629ea0969050768ca23f9cb83d7804f",
+      "versionId": "a54e110bffe7df7d2d50a73bcee1b97d7fa641f3b549ad062e089eaa51de47b3",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -466,16 +466,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T002059Z/web-gateway-35a96390b1657e5bb6966034eb47e1ebf623c37a-linux-arm64.tar.gz",
-          "bytes": 5165414,
-          "sha256": "f9fe9828b811fd007476a415259fafcbb1d3608d8036c4e09933760fb6ad8a8e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T011300Z/web-gateway-021ccba89629ea0969050768ca23f9cb83d7804f-linux-arm64.tar.gz",
+          "bytes": 5170010,
+          "sha256": "a54e110bffe7df7d2d50a73bcee1b97d7fa641f3b549ad062e089eaa51de47b3"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T002059Z/web-gateway-35a96390b1657e5bb6966034eb47e1ebf623c37a-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11111,
-          "sha256": "e3d3d14781d26ecb1cc82a39443ef76a8b7aa51cf1f99fef24ba0dd81de70501"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T011300Z/web-gateway-021ccba89629ea0969050768ca23f9cb83d7804f-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11103,
+          "sha256": "80728d9d661a235607420523d68e4dd114652e64038e122b18dceb19902300d4"
         },
-        "signerCommit": "35a96390b1657e5bb6966034eb47e1ebf623c37a"
+        "signerCommit": "021ccba89629ea0969050768ca23f9cb83d7804f"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -484,7 +484,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "メンバーの保存を断られた時は「保存できませんでした」と理由を出し、「このフォルダを作って保存」はフォルダがない時だけ出します。sudo鍵も1Passwordから選べて、検索できます。秘密入力の画面が暗い表示に対応します。"
+        "メンバーのフォルダを画面で選べます。本体が古い時は『Update』での更新を案内し、パスを手で入力する欄を開きます。端末のメンバーが起動しなかった時は、本体が理由を伝えればメンバーの行と見出しに出します。作業グラフの印は線の途中や点の上下左右にも置けて、重なりにくくなります。"
       ]
     },
     {
