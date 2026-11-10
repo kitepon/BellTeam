@@ -136,7 +136,7 @@ A fork may message peers (Owner 23:0x). It is disposable and cannot receive a la
 
 `askerSeat` is accepted only on the internal delivery body that Molly's seat MCP builds from the resolved seat. It is never a tool argument (the tool schemas reject extra keys).
 
-Known limit: conversation adds no wait limit, but a Codex seat's existing BellTeam MCP `tool_timeout_sec = 120` (`src/harness-config.mjs`) ends the asking fork's wait after 120 s. A later answer is still saved in the target's history and is not relayed to main. Claude seats keep the CLI's own MCP tool timeout.
+Wait limit: conversation adds none. Codex and Grok seats register the BellTeam and call-bridge MCP with `tool_timeout_sec = 2592000` (30 days, `src/harness-config.mjs`), so the CLI does not cut the asking fork's wait (it was 120 s before). Claude seats keep the CLI's own MCP tool timeout.
 
 ## Read-only enforcement (spec item 3; launch, not instructions)
 
