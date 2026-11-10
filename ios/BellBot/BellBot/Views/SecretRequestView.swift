@@ -61,10 +61,11 @@ struct SecretInputSheet: View {
         self.request = request
         self.title = title
         self.onComplete = onComplete
-        _useOnePassword = State(initialValue: request.inputOptions?.opensWithOnePassword == true)
+        _useOnePassword = State(initialValue: request.opensWithOnePassword)
     }
 
-    private var onePasswordOffered: Bool { request.inputOptions?.onePasswordAvailable == true }
+    private var onePasswordOffered: Bool { request.onePasswordOffered }
+    private var login: Bool { request.isLoginPassword }
     /// An OpenSSH private key is multiline; a SecureField would drop its newlines. The value is sent as typed.
     private var multiline: Bool { request.purpose == "terminal.ssh" }
     /// An SSH key card with 1Password connected picks an existing SSH Key item by name; other cards type a reference.
@@ -75,7 +76,7 @@ struct SecretInputSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    if !request.message.isEmpty { SelectableText(request.message) }
+                    if !request.message.isEmpty, !(login && request.message == SecretRequest.loginPasswordText) { SelectableText(request.message) }
                     Text(note).font(.footnote).foregroundStyle(BellTheme.muted)
                         .accessibilityIdentifier("secret-note")
                     if multiline, onePasswordOffered, keyList == .unsupported {
@@ -96,7 +97,7 @@ struct SecretInputSheet: View {
                         .accessibilityIdentifier("secret-source")
                     }
                 }
-                Section(title ?? request.label) {
+                Section(title ?? (login ? "ログインパスワード" : request.label)) {
                     if useOnePassword, picker {
                         keyPicker
                     } else if useOnePassword {
@@ -116,7 +117,7 @@ struct SecretInputSheet: View {
                             .accessibilityIdentifier("secret-value")
                             .disabled(sending)
                     } else {
-                        SecureField(title ?? request.label, text: $value)
+                        SecureField(title ?? (login ? "ログインパスワード" : request.label), text: $value)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                             .privacySensitive()
@@ -125,7 +126,7 @@ struct SecretInputSheet: View {
                     }
                 }
                 Section {
-                    Button("登録して続ける") { Task { await finish(submit: true) } }
+                    Button(login ? "パスワードを渡す" : "登録して続ける") { Task { await finish(submit: true) } }
                         .disabled(sending || !ready)
                     Button("入力を断る", role: .destructive) { Task { await finish(submit: false) } }
                         .disabled(sending)
@@ -133,7 +134,7 @@ struct SecretInputSheet: View {
                     if let errorText { Text(errorText).foregroundStyle(.red).font(.footnote) }
                 }
             }
-            .navigationTitle(title ?? request.label)
+            .navigationTitle(title ?? (login ? "ログインパスワード" : request.label))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -150,6 +151,7 @@ struct SecretInputSheet: View {
 
     /// Wording shared with the Web card. Not connected, the paste path says how to get the list.
     private var note: String {
+        if login { return SecretRequest.loginPasswordText }
         if useOnePassword { return picker ? "選んだ鍵は、使うときに1Passwordから読み出します。鍵は会話に送られません。" : "参照は会話に送信されません。値は1Passwordから読み出します。" }
         return multiline
             ? "秘密鍵（「-----BEGIN OPENSSH PRIVATE KEY-----」で始まる文字）をそのまま貼ってください。1Passwordを使っている場合は、設定の「1Password連携」を済ませると、ここで鍵を一覧から選べます。値は会話に送信されません。"

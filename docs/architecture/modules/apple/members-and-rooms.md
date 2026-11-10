@@ -54,7 +54,7 @@ HomeViewの並びは`BellDate.parse`で日時へ変換し、欠損・不正日�
 | BotEditorの@State | name/position/role/profileText/personality/speechStyle、harness/model/customModel/effort/fastMode/color、画像一式、保存結果・エラー、削除結果未確認 |
 | 初期値 | initでinitialの保存済みプロフィール・モデル等を代入。既存Botでも候補GETを待たずフォーム値を持つ |
 | AppStore.botEditorDrafts | 既存Botだけ、Bot IDをキーにBotEditorDraftを保存。settings変化や画像選択からpersistDraft。loadで復元。新規Botのdraftはこの辞書に書かない |
-| 端末とフォルダ | `terminalId`・`projectRoot`の@State。対応サーバー（端末一覧200かつメンバー応答に項目あり）の時だけ送り、保存前に組の規則を検査する。詳細は[端末](terminals.md#メンバー編集端末とフォルダ) |
+| 端末とフォルダ | `terminalId`・`projectRoot`の@State。対応サーバー（端末一覧200かつメンバー応答に項目あり）の時だけ送り、保存前に組の規則を検査する。端末を選ぶとフォルダ欄を`/Users/<端末のユーザー>/BellTeam/<名前のslug>`で埋め、保存の`FOLDER_*`拒否（`{error: code}`だけ）は符号ごとの文とフォームのフォルダで出し、`FOLDER_MISSING`だけ「このフォルダを作って保存」（同じ保存＋`createFolder:true`、保存済みの設定には入れない）を出す。詳細は[端末](terminals.md#メンバー編集端末とフォルダ) |
 | モデル候補 | loadで`GET /api/models`、catalogとmodelErrorText。候補に無い保存済みmodelはcustomModelに保持して「その他」へ。Pickerの表示名は`ModelChoice.label`（`display_name`を前後空白除去し、null・欠落・空ならid）。選択値・tag・保存値・customModel判定は常にid |
 | CLI・モデル変更 | CLI変更でmodel/effortを空にする。モデル変更で候補に無いeffortを空にする。保存済みの非候補effortは現在値としてPickerへ追加 |
 | ファストモード | HarnessModels.fastModeUnavailableReasonがcatalog error、fastUnavailable、既定モデル/選択モデルのfastを参照。未知の非空モデルIDの可否は本体へ渡す。理由は赤字で出すが、モデル候補の読込中は進捗表示だけにして赤字を出さない |

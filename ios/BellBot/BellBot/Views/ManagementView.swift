@@ -77,6 +77,8 @@ struct BotEditor: View {
     @State private var submittedSettings: BotSettings?
     @State private var terminalId = ""
     @State private var projectRoot = ""
+    /// members S5: the save was refused with FOLDER_MISSING; the button repeats it with `createFolder: true`.
+    @State private var offersCreateFolder = false
 
     init(initial: Bot?, closeWindow: (() -> Void)? = nil) {
         self.initial = initial
@@ -248,7 +250,7 @@ struct BotEditor: View {
                 }
                 .disabled(deletionPending || deletionResultUnconfirmed)
                 MemberTerminalSection(terminalId: $terminalId, projectRoot: $projectRoot,
-                                      memberFieldsAvailable: memberFieldsAvailable)
+                                      memberFieldsAvailable: memberFieldsAvailable, memberName: name)
                     .disabled(deletionPending || deletionResultUnconfirmed)
                 Section(header: BellSectionHeader("プロフィール")) {
                     profileField("背景・見た目・関係性", text: $profileText)
@@ -292,7 +294,11 @@ struct BotEditor: View {
                         Button("保存結果を確認") { Task { await confirmSave() } }.disabled(saving)
                     }
                 }
-                if let errorText { Text(errorText).font(.footnote).foregroundStyle(.red) }
+                if let errorText { Text(errorText).font(.footnote).foregroundStyle(.red).accessibilityIdentifier("member-save-error") }
+                if offersCreateFolder {
+                    Button(MemberFolder.createTitle, systemImage: "folder.badge.plus") { Task { await save(createFolder: true) } }
+                        .accessibilityIdentifier("create-member-folder")
+                }
             }
             .disabled(saving)
             .scrollContentBackground(.hidden)
@@ -311,10 +317,23 @@ struct BotEditor: View {
             }
             .task { await load() }
             .task { await store.refreshTerminals() }
+            #if DEBUG
+            // `-bellbot-preview-member-folder <terminalId>`: picks that terminal, lets the folder prefill, and saves once.
+            .task {
+                let arguments = ProcessInfo.processInfo.arguments
+                guard let index = arguments.firstIndex(of: "-bellbot-preview-member-folder"), arguments.indices.contains(index + 1) else { return }
+                while !store.terminals.supported { try? await Task.sleep(for: .milliseconds(100)) }
+                if name.isEmpty { name = "ハル" }
+                terminalId = arguments[index + 1]
+                try? await Task.sleep(for: .milliseconds(400))
+                await save()
+            }
+            #endif
             .onChange(of: settings) { _, _ in
                 persistDraft()
                 saveResult = nil
                 submittedSettings = nil
+                offersCreateFolder = false // the refusal named the folder as it was; an edited form needs a new save first
             }
             .sheet(item: $cropSource) { source in
                 AvatarCropEditor(image: source.image, variant: source.variant, initialCrop: source.initialCrop) { selected in
@@ -412,7 +431,7 @@ struct BotEditor: View {
             appearanceLoaded: appearanceLoaded)
     }
 
-    private func save() async {
+    private func save(createFolder: Bool = false) async {
         guard !deletionPending && !deletionResultUnconfirmed else { return }
         guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             errorText = "名前を入力してください。"; return
@@ -424,6 +443,7 @@ struct BotEditor: View {
         defer { saving = false }
         errorText = nil
         saveResult = nil
+        offersCreateFolder = false
         let request = settings
         submittedSettings = request
         do {
@@ -431,12 +451,13 @@ struct BotEditor: View {
                 saveResult = try await store.api.saveBotSettings(id: initial.id, settings: request,
                                                                  originalFastMode: initial.fastMode,
                                                                  smallAvatarChanged: smallAvatarChanged,
-                                                                 largeAvatarChanged: largeAvatarChanged)
+                                                                 largeAvatarChanged: largeAvatarChanged,
+                                                                 createFolder: createFolder)
                 guard case .saved? = saveResult else { return }
             } else {
                 let body = BotSettingsRequest(settings: request, originalFastMode: false,
                                               smallAvatarChanged: smallAvatarChanged,
-                                              largeAvatarChanged: largeAvatarChanged)
+                                              largeAvatarChanged: largeAvatarChanged, createFolder: createFolder)
                 let _: APIAcknowledgement = try await store.api.post("/api/bots", body: body)
                 saveResult = .saved
             }
@@ -444,7 +465,11 @@ struct BotEditor: View {
             close()
         } catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
         catch {
-            if let code = TerminalErrorText.code(error), let text = TerminalErrorText.member(code) { errorText = text }
+            if bindingAvailable, let refusal = MemberFolder.refusal(code: TerminalErrorText.code(error), folder: projectRoot) {
+                errorText = refusal.text
+                offersCreateFolder = refusal.offersCreate
+            }
+            else if let code = TerminalErrorText.code(error), let text = TerminalErrorText.member(code) { errorText = text }
             else if case BellAPIError.httpStatus(_, let message?, _) = error { errorText = message }
             else { errorText = BellAPIError.operationFailureMessage(error) }
             store.api.diagnostics.report(error, path: "/api/bots", method: nil, observation: .write)

@@ -3,6 +3,14 @@
 // No SSH, keys or real terminals. Prints {"url"} on start; /test/reset,
 // /test/mode?terminals=ok|unsupported|unavailable&members=new|old&keys=ok|old|unavailable&onepassword=1|0
 //   &setting=absent|off|connected|zero|rejected|cli&picker=ok|empty|error|missing, /test/proof, /test/fingerprint?id=.
+// Host-key attest (terminals #856): POST /api/terminals/:id/trust {fingerprint}; /test/mode?trust=ok|mismatch|unavailable|changed|old
+//   (ok accepts any well-formed SHA256: value, changed answers TERMINAL_CHANGED once, old is an older body's 404) and thismac=1
+//   adds the terminal `this-mac` (host 127.0.0.1, no trust). /test/proof.trusts keeps each attest body.
+// Self-service step 4/5 (terminals #858, members #859): thismac=1 or selfservice=1 adds `locked-mac` (key not on the Mac yet: check answers AUTH_FAILED until authorized)
+//   and `closed-mac` (CONNECTION_REFUSED). POST /api/terminals/:id/keys/ssh/authorize -> a terminal.login card; its submit records the outcome after one more
+//   GET of the terminal (pending first), chosen by /test/mode?authorize=authorized|already|rejected|disabled|unconfirmed|unavailable.
+//   /test/mode?folder=ok|missing|notdir|notwritable|notpermitted|unchecked answers member saves (POST /api/bots, PATCH) with `{error: code}` only (#859);
+//   createFolder:true turns `missing` into a saved member. /test/proof.authorizes keeps each authorize call, folderChecks each member folder check.
 // 1Password (usage #836/#838): GET|PATCH /api/settings (item onePassword: guide, connection, error), GET /api/secret-requests/:id/onepassword-items.
 // A token starting ops_good connects; any other ops_ token is rejected. The token itself is never kept, only its shape.
 import { createHash, randomUUID } from 'node:crypto'
@@ -19,7 +27,7 @@ const MEMBER_TERMINAL_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u
 let state
 function reset() {
   state = {
-    mode: { terminals: 'ok', members: 'new', keys: 'ok', onepassword: '1', setting: 'off', picker: 'ok' },
+    mode: { terminals: 'ok', members: 'new', keys: 'ok', onepassword: '1', setting: 'off', picker: 'ok', trust: 'ok', thismac: '0', selfservice: '0', authorize: 'authorized', folder: 'ok' },
     bots: structuredClone(fixture.bots).map((bot, index) => ({ ...bot, terminalId: index === 0 ? 'owner-macbook' : '', projectRoot: index === 0 ? '/Users/kite/work/app' : '' })),
     terminals: [
       { terminalId: 'owner-macbook', host: '192.168.1.12', user: 'kite', port: 22, os: 'macos', accountOwner: 'owner', sshKeyConfigured: true, sudoKeyConfigured: false, keySource: 'terminal-native', hostTrust: trust('owner-macbook'), revision: 4, maintenance: { terminalId: 'owner-macbook', observedAt: '2026-11-09T07:40:00Z', before: '2.1.30', after: '2.1.32', outcome: 'updated' } },
@@ -28,7 +36,8 @@ function reset() {
       { terminalId: 'office-imac', host: 'office-imac.local', user: 'kite', port: 22, os: 'macos', accountOwner: 'owner', sshKeyConfigured: true, sudoKeyConfigured: false, keySource: 'terminal-native', hostTrust: trust('office-imac'), revision: 3, maintenance: { terminalId: 'office-imac', observedAt: '2026-11-08T22:10:00Z', before: '2.1.29', after: '2.1.29', outcome: 'failed' } },
     ],
     requests: new Map(),
-    proof: { terminalReads: 0, puts: [], deletes: [], checks: [], botSaves: [], rejectedBotSaves: [], keyRequests: [], keyDeletes: [], secretSubmits: [], settingPatches: [], itemReads: 0 },
+    createdFolders: new Set(),
+    proof: { terminalReads: 0, puts: [], deletes: [], checks: [], botSaves: [], rejectedBotSaves: [], keyRequests: [], keyDeletes: [], secretSubmits: [], settingPatches: [], itemReads: 0, trusts: [], authorizes: [], folderChecks: [] },
   }
 }
 reset()
@@ -66,10 +75,11 @@ const KINDS = { ssh: { purpose: 'terminal.ssh', configured: 'sshKeyConfigured', 
 
 // Same public shape as registry.mjs publicView; keys=old drops the #811 fields (an older body).
 const projection = record => {
-  const { hostTrust, keySource, sudoKeySource, sshKeyRequest, sudoKeyRequest, ...rest } = record
+  const { hostTrust, keySource, sudoKeySource, sshKeyRequest, sudoKeyRequest, loginRequest, authorized, pollsLeft, keyAuthorization, ...rest } = record
   const keys = state.mode.keys === 'old' ? {} : {
     keySource: record.sshKeyConfigured ? keySource ?? 'terminal-native' : null, sudoKeySource: record.sudoKeyConfigured ? sudoKeySource ?? 'secret' : null,
-    sshKeyPending: Boolean(sshKeyRequest), sudoKeyPending: Boolean(sudoKeyRequest) }
+    sshKeyPending: Boolean(sshKeyRequest), sudoKeyPending: Boolean(sudoKeyRequest),
+    ...(state.mode.keys === 'old' ? {} : { keyAuthorizationPending: Boolean(loginRequest), keyAuthorization: keyAuthorization ?? null }) }
   return { ...rest, ...keys, ...(hostTrust ? { hostTrust } : {}) }
 }
 
@@ -79,6 +89,9 @@ function check(record) {
   if (!record.sshKeyConfigured) return { ...base, reason: 'SSH_KEY_UNSET', action: `bind the SSH key of terminal ${record.terminalId} (bind_terminal_key)` }
   if (!record.hostTrust) return { ...base, reason: 'HOST_TRUST_MISSING', action: `confirm the host key of ${record.host}` }
   if (record.terminalId === 'sleeping-mini') return { ...base, reason: 'UNREACHABLE' }
+  if (record.terminalId === 'closed-mac') return { ...base, reason: 'CONNECTION_REFUSED', action: 'Macの「システム設定 > 一般 > 共有」で「リモートログイン」がオンか確かめてから、もう一度確かめてください' }
+  if (record.terminalId === 'locked-mac' && !record.authorized)
+    return { ...base, reason: 'AUTH_FAILED', action: 'この鍵がまだMacに入っていないかもしれません。「このMacにこの鍵を入れる」で、Macのログインパスワードを使って入れられます' }
   if (record.terminalId === 'office-imac' && record.revision < 4) return { ...base, reason: 'HOST_KEY_MISMATCH', action: `confirm the new host key ${fingerprint('office-imac')} on ${record.host}` }
   return { ...base, reachable: true }
 }
@@ -86,6 +99,31 @@ function check(record) {
 function validRoot(path) {
   return typeof path === 'string' && path.startsWith('/') && !path.includes('\0') && Buffer.byteLength(path) <= 4096
     && (path === '/' || !path.slice(1).split('/').some(part => !part || part === '.' || part === '..'))
+}
+
+const OUTCOMES = { authorized: 'AUTHORIZED', already: 'ALREADY_AUTHORIZED', rejected: 'PASSWORD_REJECTED', disabled: 'PASSWORD_AUTH_DISABLED', unconfirmed: 'AUTHORIZATION_UNCONFIRMED', unavailable: 'TERMINAL_UNAVAILABLE' }
+// The outcome is recorded one read after the submit, so the app sees keyAuthorizationPending true first (#858).
+function settleAuthorization(record) {
+  if (!record?.loginRequest || record.pollsLeft === undefined) return
+  if (record.pollsLeft > 0) { record.pollsLeft--; return }
+  const outcome = OUTCOMES[state.mode.authorize] ?? 'AUTHORIZED'
+  record.keyAuthorization = { requestId: record.loginRequest, outcome, observedAt: new Date().toISOString() }
+  if (outcome === 'AUTHORIZED' || outcome === 'ALREADY_AUTHORIZED') record.authorized = true
+  record.loginRequest = null
+  delete record.pollsLeft
+}
+
+// members S5 (#859): a refused save carries only {error: code}. createFolder turns FOLDER_MISSING into a created folder.
+const FOLDER_CODES = { missing: 'FOLDER_MISSING', notdir: 'FOLDER_NOT_DIRECTORY', notwritable: 'FOLDER_NOT_WRITABLE', notpermitted: 'FOLDER_NOT_PERMITTED' }
+function folderRefusal(bot, input) {
+  const terminalId = input.terminalId ?? bot.terminalId, projectRoot = input.projectRoot ?? bot.projectRoot
+  const create = input.createFolder === true
+  if (!terminalId || !projectRoot) return null
+  state.proof.folderChecks.push({ terminalId, projectRoot, createFolder: create })
+  const code = FOLDER_CODES[state.mode.folder]
+  if (!code || state.createdFolders.has(projectRoot)) return null
+  if (create && code === 'FOLDER_MISSING') { state.createdFolders.add(projectRoot); return null }
+  return code
 }
 
 async function body(request) {
@@ -104,7 +142,13 @@ const server = createServer(async (request, response) => {
   // What the Owner would read on the terminal itself (the test plays the Owner).
   if (path === '/test/fingerprint') return send(200, { fingerprint: fingerprint(url.searchParams.get('id') ?? '') })
   if (path === '/test/mode') {
-    for (const key of ['terminals', 'members', 'keys', 'onepassword', 'setting', 'picker']) if (url.searchParams.has(key)) state.mode[key] = url.searchParams.get(key)
+    for (const key of ['terminals', 'members', 'keys', 'onepassword', 'setting', 'picker', 'trust', 'thismac', 'selfservice', 'authorize', 'folder']) if (url.searchParams.has(key)) state.mode[key] = url.searchParams.get(key)
+    if (state.mode.thismac === '1' && !state.terminals.some(item => item.terminalId === 'this-mac'))
+      state.terminals.push({ terminalId: 'this-mac', host: '127.0.0.1', user: 'kite', port: 22, os: 'macos', accountOwner: 'owner', sshKeyConfigured: false, sudoKeyConfigured: false, revision: 1, maintenance: null })
+    if ((state.mode.thismac === '1' || state.mode.selfservice === '1') && !state.terminals.some(item => item.terminalId === 'locked-mac'))
+      state.terminals.push(
+        { terminalId: 'locked-mac', host: '192.168.1.40', user: 'kite', port: 22, os: 'macos', accountOwner: 'owner', sshKeyConfigured: true, sudoKeyConfigured: false, keySource: 'secret', hostTrust: trust('locked-mac'), revision: 1, maintenance: null },
+        { terminalId: 'closed-mac', host: '192.168.1.41', user: 'kite', port: 22, os: 'macos', accountOwner: 'owner', sshKeyConfigured: true, sudoKeyConfigured: false, keySource: 'secret', hostTrust: trust('closed-mac'), revision: 1, maintenance: null })
     return send(200, state.mode)
   }
   const bots = () => state.bots.map(bot => {
@@ -113,6 +157,21 @@ const server = createServer(async (request, response) => {
     return old
   })
   if (path === '/api/bots' && request.method === 'GET') return send(200, { bots: bots() })
+  if (path === '/api/bots' && request.method === 'POST') {
+    const input = await body(request)
+    const { createFolder, ...fields } = input
+    const bot = { ...structuredClone(state.bots[1]), id: `bot-new-${state.bots.length}`, terminalId: '', projectRoot: '', ...fields }
+    let code = null
+    if (bot.terminalId && !MEMBER_TERMINAL_ID.test(bot.terminalId)) code = 'BOT_TERMINAL_ID_INVALID'
+    else if (bot.projectRoot && !validRoot(bot.projectRoot)) code = 'BOT_PROJECT_ROOT_INVALID'
+    else if (Boolean(bot.terminalId) !== Boolean(bot.projectRoot)) code = 'BOT_REMOTE_BINDING_INVALID'
+    if (code) { state.proof.rejectedBotSaves.push({ body: input, code }); return send(400, { error: code }) }
+    const refusal = folderRefusal({ terminalId: '', projectRoot: '' }, input)
+    if (refusal) { state.proof.rejectedBotSaves.push({ body: input, code: refusal }); return send(409, { error: refusal }) }
+    state.proof.botSaves.push({ body: input })
+    state.bots.push(bot)
+    return send(200, { ok: true })
+  }
   const botMatch = /^\/api\/bots\/([a-z0-9-]+)$/u.exec(path)
   if (botMatch && request.method === 'GET') {
     const bot = bots().find(item => item.id === botMatch[1])
@@ -129,8 +188,11 @@ const server = createServer(async (request, response) => {
     else if (projectRoot && !validRoot(projectRoot)) code = 'BOT_PROJECT_ROOT_INVALID'
     else if (Boolean(terminalId) !== Boolean(projectRoot)) code = 'BOT_REMOTE_BINDING_INVALID'
     if (code) { state.proof.rejectedBotSaves.push({ body: input, code }); return fail(400, code) }
+    const refusal = folderRefusal(bot, input)
+    if (refusal) { state.proof.rejectedBotSaves.push({ body: input, code: refusal }); return send(409, { error: refusal }) }
     state.proof.botSaves.push({ body: input })
-    Object.assign(bot, input)
+    const { createFolder, ...fields } = input
+    Object.assign(bot, fields)
     return send(200, { ok: true })
   }
   if (path === '/api/rooms') return send(200, { rooms: fixture.rooms })
@@ -166,10 +228,20 @@ const server = createServer(async (request, response) => {
     // Proof keeps only the shape: which source and whether a value came, never the dummy value itself.
     state.proof.secretSubmits.push({ id: item.id, action: secretMatch[2], keys: Object.keys(input).sort(), source: input.source ?? null, referencePrefix: input.reference?.slice(0, 5) ?? null })
     if (item.status !== 'pending') return fail(409, 'SECRET_REQUEST_NOT_PENDING')
-    if (secretMatch[2] === 'cancel') { item.status = 'cancelled'; return send(200, { request: item }) }
+    if (secretMatch[2] === 'cancel') {
+      item.status = 'cancelled'
+      const login = state.terminals.find(terminal => terminal.loginRequest === item.id)
+      if (login) { login.loginRequest = null; delete login.pollsLeft }
+      return send(200, { request: item })
+    }
     if (input.source === 'onepassword' ? !/^op:\/\/[a-z0-9]{26}\/[a-z0-9]{26}\/[^/?#]+(?:\?ssh-format=openssh)?$/u.test(input.reference ?? '') : typeof input.value !== 'string' || !input.value)
       return fail(400, input.source === 'onepassword' ? 'SECRET_REFERENCE_INVALID' : 'SECRET_VALUE_INVALID')
     item.status = 'submitted'
+    if (item.purpose === 'terminal.login') {
+      const login = state.terminals.find(terminal => terminal.terminalId === item.terminalId)
+      if (login?.loginRequest === item.id) login.pollsLeft = 1
+      return send(200, { request: item })
+    }
     // Mika binds, terminals applies the event for the pending request id.
     const record = state.terminals.find(terminal => terminal.terminalId === item.terminalId)
     const kind = Object.values(KINDS).find(value => value.purpose === item.purpose)
@@ -178,10 +250,28 @@ const server = createServer(async (request, response) => {
     return send(200, { request: item })
   }
 
-  const keyMatch = /^\/api\/terminals\/([a-z0-9][a-z0-9-]{0,63})\/keys\/([a-z]+)$/u.exec(path)
+  const keyMatch = /^\/api\/terminals\/([a-z0-9][a-z0-9-]{0,63})\/keys\/([a-z]+)(\/authorize)?$/u.exec(path)
   if (keyMatch) {
     if (state.mode.terminals !== 'ok' || state.mode.keys === 'old') return fail(404, 'NOT_FOUND')
-    const [, id, kindName] = keyMatch
+    const [, id, kindName, authorize] = keyMatch
+    if (authorize) {
+      if (request.method !== 'POST' || kindName !== 'ssh') return fail(request.method !== 'POST' ? 405 : 400, request.method !== 'POST' ? 'METHOD_NOT_ALLOWED' : 'INVALID_KEY_KIND')
+      const input = await body(request)
+      state.proof.authorizes.push({ terminalId: id, bodyKeys: Object.keys(input) })
+      if (Object.keys(input).length) return fail(400, 'KEY_IN_REQUEST_REFUSED', 'Send no key, password or reference here; open the returned secret request and enter it there')
+      const target = state.terminals.find(terminal => terminal.terminalId === id)
+      if (!target) return fail(404, 'TERMINAL_NOT_FOUND', 'Terminal not found; list_terminals shows the registered terminalIds')
+      if (!target.hostTrust) return fail(409, 'HOST_TRUST_MISSING', 'Confirm the host key of this terminal first')
+      if (!target.sshKeyConfigured) return fail(409, 'SSH_KEY_UNSET', 'Set the SSH key of this terminal first')
+      if (state.mode.keys === 'unavailable') return fail(503, 'CREDENTIAL_UNAVAILABLE', 'The secret input is not available now; try again later')
+      const item = { id: randomUUID(), botId: null, roomId: null, toolId: 'terminal-key', terminalId: id, purpose: 'terminal.login',
+        label: `端末 ${id} のMacのログインパスワード`, message: '', at: new Date().toISOString(), status: 'pending', inputOptions: { preferred: 'stored', onePasswordAvailable: false } }
+      if (target.loginRequest) state.requests.get(target.loginRequest).status = 'cancelled'
+      state.requests.set(item.id, item)
+      Object.assign(target, { loginRequest: item.id })
+      delete target.pollsLeft
+      return send(200, { secretRequest: item })
+    }
     const kind = Object.hasOwn(KINDS, kindName) ? KINDS[kindName] : null
     if (!kind) return fail(400, 'INVALID_KEY_KIND', 'Key kind must be ssh or sudo')
     const record = state.terminals.find(terminal => terminal.terminalId === id)
@@ -210,19 +300,34 @@ const server = createServer(async (request, response) => {
     return fail(405, 'METHOD_NOT_ALLOWED')
   }
 
-  const terminalsMatch = /^\/api\/terminals(?:\/([a-z0-9][a-z0-9-]{0,63})(\/check)?)?$/u.exec(path)
+  const terminalsMatch = /^\/api\/terminals(?:\/([a-z0-9][a-z0-9-]{0,63})(\/check|\/trust)?)?$/u.exec(path)
   if (terminalsMatch) {
     if (state.mode.terminals === 'unsupported') return fail(404, 'NOT_FOUND')
     if (state.mode.terminals === 'unavailable') return fail(503, 'TERMINALS_UNAVAILABLE')
-    const [, id, isCheck] = terminalsMatch
+    const [, id, sub] = terminalsMatch
+    const isCheck = sub === '/check'
     const index = id ? state.terminals.findIndex(item => item.terminalId === id) : -1
-    if (!id && request.method === 'GET') { state.proof.terminalReads++; return send(200, { terminals: state.terminals.map(projection) }) }
+    if (!id && request.method === 'GET') { state.proof.terminalReads++; state.terminals.forEach(settleAuthorization); return send(200, { terminals: state.terminals.map(projection) }) }
     if (id && isCheck && request.method === 'POST') {
       const result = index < 0 ? { terminalId: id, observedAt: new Date().toISOString(), reachable: false, reason: 'TERMINAL_NOT_FOUND' } : check(state.terminals[index])
       state.proof.checks.push({ terminalId: id, reachable: result.reachable, reason: result.reason })
       return send(200, result)
     }
-    if (id && request.method === 'GET') return index < 0 ? fail(404, 'TERMINAL_NOT_FOUND') : send(200, projection(state.terminals[index]))
+    if (id && sub === '/trust') {
+      if (request.method !== 'POST') return fail(405, 'METHOD_NOT_ALLOWED')
+      if (state.mode.trust === 'old') return fail(404, 'NOT_FOUND')
+      const input = await body(request)
+      state.proof.trusts.push({ terminalId: id, body: input })
+      if (Object.keys(input).join() !== 'fingerprint' || !/^SHA256:[A-Za-z0-9+/]{43}$/u.test(input.fingerprint))
+        return fail(400, 'INVALID_TERMINAL', 'Send only {fingerprint: "SHA256:..."} read on that Mac')
+      if (index < 0) return fail(404, 'TERMINAL_NOT_FOUND', 'Terminal not found; list_terminals shows the registered terminalIds')
+      if (state.mode.trust === 'mismatch') return fail(409, 'HOST_KEY_FINGERPRINT_MISMATCH', 'Host key did not match the confirmed fingerprint')
+      if (state.mode.trust === 'unavailable') return fail(503, 'TERMINAL_UNAVAILABLE', 'The host key cannot be checked now; make sure the Mac is awake on the same network and try again')
+      if (state.mode.trust === 'changed') { state.mode.trust = 'ok'; return fail(409, 'TERMINAL_CHANGED', 'The terminal changed while its host key was being checked; check it again') }
+      state.terminals[index] = { ...state.terminals[index], hostTrust: trust(`${id}-attested`), revision: state.terminals[index].revision + 1 }
+      return send(200, { terminal: projection(state.terminals[index]) })
+    }
+    if (id && request.method === 'GET') { if (index >= 0) settleAuthorization(state.terminals[index]); return index < 0 ? fail(404, 'TERMINAL_NOT_FOUND') : send(200, projection(state.terminals[index])) }
     if (id && request.method === 'PUT') {
       const input = await body(request)
       state.proof.puts.push({ terminalId: id, body: input })

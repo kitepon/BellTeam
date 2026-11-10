@@ -196,6 +196,8 @@ BellBotTests 26ファイル、BellBotUITests 19ファイル、Tests 2ファイ�
 | [testExplicitConfirmationAfterReconnectDoesNotWriteAgain](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L242) | 復帰後の明示確認はGETだけ、PATCHを増やさない |
 | [testAuthenticationFailureDuringConfirmationStillRequiresLogin](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L252) | 保存照合GETの401を認証エラーとして返す |
 | [testFastModeIsSentOnlyWhenChanged](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L261) | fastModeは変更時だけencode、true/false双方を確認 |
+| [testCreateFolderIsSentOnlyWhenPressedAndNeverEntersTheSavedSettings](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L279) | `createFolder`は`true`の時だけ本文に足し、旧い呼び出し・`false`では送らない |
+| [testSavingWithCreateFolderSendsOnePatchAndConfirmsAgainstTheSettingsOnly](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L291) | `createFolder:true`でもPATCH1回、保存結果の照合は設定だけで比べる |
 | [testEditorInputSurvivesReauthenticationAndExplicitSignOutClearsIt](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L280) | 編集/画像draftは再認証を保持、logoutで消去、編集だけではAppStore更新通知無し |
 | [testDefaultModelAndListedModelUseTheirFastCapability](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L395) | 既定/一覧モデルのfast可否と一覧外モデルを区別 |
 | [testAccountUnavailableReasonIsShown](../../../../ios/BellBot/BellBotTests/BotSaveTests.swift#L409) | アカウントのfast利用不能理由を表示用に返す |
@@ -456,9 +458,47 @@ goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`tes
 | testBindingFieldsAreSentOnlyWhenAvailable | nilの2項目は送らない、空文字は送る。照合では送っていない項目にサーバー値を採る |
 | testPairRuleAndFolderFormMatchTheServer | 組の規則、端末IDの形、フォルダの絶対パス（相対・末尾/・//・.・..・NUL・4096バイト超を拒否） |
 | testTerminalDraftAndFingerprintFollowTheRegistryForms | 端末ID・ホスト・ユーザー・ポートの形、既存IDは検査しない、指紋の形、`action`内の指紋の抽出 |
-| testCheckReasonsBecomePlainJapanese | 確認結果の`reason`を4分類＋その他の平易な文へ |
+| testCheckReasonsBecomePlainJapanese | 確認結果の`reason`を分類（`CONNECTION_REFUSED`→refused、`AUTH_FAILED`→authFailed、他は従来）＋その他の平易な文へ |
+| testRefusedAuthFailedAndUnreachableAreSentencesThatNameTheLikelyFix | `CONNECTION_REFUSED`・`AUTH_FAILED`はサーバーの日本語の`action`をそのまま文にして二行目を出さず、空・無しはアプリの同じ意味の文。`UNREACHABLE`は「起きていて、同じネットワーク」。ボタンの出し分け（認証→鍵を入れる、拒否→共有設定）。他の理由は`action`を二行目に残す |
+| testAuthorizationFieldsDecodeAndAnOlderBodyHasNone | `keyAuthorizationPending`・`keyAuthorization{requestId,outcome,observedAt}`の解読、無い旧い応答は待ちなし・結果なし、崩れた値はnil |
+| testEveryAuthorizationOutcomeHasAPlainSentence | `AUTHORIZED`・`ALREADY_AUTHORIZED`は文なし（自動の確認）、`PASSWORD_REJECTED`・`AUTHORIZATION_UNCONFIRMED`の文とボタン、`PASSWORD_AUTH_DISABLED`・`CREDENTIAL_UNAVAILABLE`はボタンなし、他の符号・符号なしは一般の文＋ボタン |
+| testAuthorizeRefusalsGetWordsAndAnythingElseFallsThrough | 409 `HOST_TRUST_MISSING`・`SSH_KEY_UNSET`、503 `CREDENTIAL_UNAVAILABLE`、`TERMINAL_NOT_FOUND`以外の404の文。`TERMINAL_NOT_FOUND`・400・通信失敗は文にせず投げる |
+| testRequestingAuthorizationSendsAnEmptyBodyAndKeepsAWordedRefusal | `POST …/keys/ssh/authorize`の本文は`{}`、返ったカードはサーバーのlabelのまま、拒否は`authorizations`の文でカードなし、文の無い失敗は投げ、新しい依頼の前に古い文が消える |
+| testAuthorizedOutcomeEndsTheWaitAndRunsTheCheckByItself | 待ち中のGETで、古い依頼の結果と`pending`のままは終わらせず、一致した`ALREADY_AUTHORIZED`で終わり、古い確認結果を捨てて`POST …/check`を1回自動で行う |
+| testRejectedOutcomeAsksAgainAndAFailedReadIsRetriedNotGivenUp | 読めない間は`readFailed`で待ち続け、次の読みで`PASSWORD_REJECTED`の文＋ボタン、確認は走らせない |
+| testANewerRequestOrACancelledPageEndsTheWaitQuietly | 同じ端末の新しい依頼が観測を置き換えると古い待ちは黙って終わり、キャンセルされた待ちは状態を触らない |
+| testMemberFolderDefaultAndPrefillFollowTheEditorRules | 既定のフォルダ（`/Users/<user>/BellTeam/<slug>`、`/`・`:`・NUL→`-`、空・`.`・`..`→`member`）、空・prefillのままの欄だけが名前・端末の変更に追従し、打ち込んだ値と保存済みの値は書き換えない |
+| testMemberFolderRefusalsAreWordedPerCodeWithTheFormsFolder | `FOLDER_MISSING`（作成ボタンあり）・`NOT_DIRECTORY`・`NOT_WRITABLE`・`NOT_PERMITTED`の文＋フォームのフォルダ、未知の`FOLDER_*`は一行、`TERMINAL_NOT_FOUND`、他の符号と符号なしはnil、符号だけの本文から符号を読む |
 | testServerErrorsMapToTheSameMessagesWithoutEchoingTheServerText | `trace.serverErrorCode`から文を選び、英文の`message`を画面に出さない。404と405だけを未対応とし、503 `TERMINALS_UNAVAILABLE`は一時的な失敗とする |
+| testTrustBodyIsExactlyTheFingerprintAndTheReplyHoldsTheTerminal | `POST …/trust`の本文は`{fingerprint}`だけ、応答`{terminal}`は信用済みとして読む |
+| testTrustResultsMapEachServerCode | 409 `HOST_KEY_FINGERPRINT_MISMATCH`（このMacではありません）・409 `TERMINAL_CHANGED`・503 `TERMINAL_UNAVAILABLE`・404 `TERMINAL_NOT_FOUND`・400 `INVALID_TERMINAL`（サーバーのmessage）・符号なし/`NOT_FOUND`の404=旧本体（一行も出さない）・通信失敗 |
+| testALocalFailureGivesANoteAndNeverAFingerprint | 拒否はリモートログインがオフ＋「共有設定を開く」、時間切れ・ed25519なし・署名不正・形の崩れは一行と「ほかの方法」 |
+| testAttestSendsTheReadFingerprintAndReplacesTheTerminal | 端末のポートで読んだ指紋を`/trust`へ`{fingerprint}`だけで送り、応答で一覧の端末を置換（信用済み）、`attesting`が空に戻る |
+| testAttestMismatchWritesNothingAndSaysItIsNotThisMac | 409 mismatchは端末を信用にせず、詳細の一行は「このアドレスで答えているのは、このMacではありません」 |
+| testAttestAfterTerminalChangedReadsTheListAndTriesOnceMore | 409 `TERMINAL_CHANGED`→一覧を読み直して指紋を読み直し1回だけやり直す。2回続けたら止めて「もう一度」の一行 |
+| testAttestOlderBodyAndUnavailableAndLocalFailure | 旧本体の404は一行なし、503は「あとでもう一度」、署名を確かめられない鍵はPOSTしない |
+| testTheLoginPasswordCardIsPasteOnlyWhateverTheServerOffers | `purpose:'terminal.login'`は`inputOptions`が1Passwordを勧めても選択肢も参照欄も出さない。`terminal.ssh`は従来どおり |
 | testUnsupportedServerShowsTheCalmStateAndKeepsAListOnALaterFailure | URLProtocolで404/405→未対応、初回503→失敗（再読込あり、未対応ではない）、200→一覧、後の503・500は一覧を残して`readError` |
+
+### SSHHostKeyTests.swift
+
+対象：S2のSSH鍵交換と自分のアドレスの判定（[図](terminals.md)）。記録は2026-11-10に、このMacのOpenSSH_10.5へ`SSHHostKey`で1回つないだ実物（バナー・両方のKEXINIT・返信・使い捨てのX25519鍵）。同じMacの`ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`が同じ指紋を示した。
+
+| 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
+| --- | --- |
+| testWireEncodesStringsAndMpints | uint32・string・mpint（0、上位ビットで0バイト先頭、先頭の0を落とす。RFC 4251の例） |
+| testPacketRoundTripsWithValidPadding | 平文パケットの長さが8の倍数・パディング4以上、payloadの往復、崩れたbodyは拒否 |
+| testReaderReadsFieldsAndRefusesShortData | name-list・uint32・byteの読みと不足の拒否 |
+| testClientKexInitOffersOnlyEd25519AndCurve25519 | 送るKEXINITはcurve25519の2種とssh-ed25519だけ |
+| testRecordedServerOffersWhatTheClientNeeds | 記録したsshdのKEXINITからcurve25519-sha256を選ぶ |
+| testNegotiationNamesWhatIsMissing | ed25519なし・curve25519なし・推測パケットは型付きの`unsupported` |
+| testEcdhInitCarriesTheEphemeralPublicKey | KEX_ECDH_INITは30番＋32バイトの公開鍵 |
+| testRecordedHandshakeVerifiesAndGivesTheSshKeygenFingerprint | 記録でH=SHA256(V_C,V_S,I_C,I_S,K_S,Q_C,Q_S,K)の署名が通り、指紋が`ssh-keygen`と同じ |
+| testFingerprintHasTheSha256FormTheServerChecks | `SHA256:`＋43文字・`=`なし・`HostKeyFingerprint.problem`が通る |
+| testABadSignatureOrAnAlteredExchangeGivesNoFingerprint | 署名の1ビット、別のバナー、別のホスト鍵に替えた返信はどれも`badSignature`で指紋を返さない |
+| testOtherHostKeyTypesAndBrokenRepliesAreTypedErrors | ssh-rsa・短い/別番号/崩れた返信は型付きの失敗 |
+| testPrimaryIPv4PrefersEn0AndSkipsLoopbackAndLinkLocal | S1のホストはen0優先、127.・169.254.を飛ばす、無ければnil |
+| testOwnsMatchesOnlyThisMacsAddressesAndNames | 自分のIPv4/IPv6（綴り違い・ゾーン付き）・127.0.0.1・::1・localhost・ホスト名（.localの有無）だけがこのMac。別の名前・IPは解決せず不一致 |
 
 ## BellBotUITests
 
@@ -907,6 +947,14 @@ Macの端末表示中の照会と非表示後の停止、小画像保存の結�
 | testKeySettingThroughTheSecretCardAndRemoval | 鍵の行（設定済み+端末にある鍵、未設定+自分の端末では不要）、「設定する」で空のPOSTと秘密入力カード（1Password参照が上・既定、題は端末と鍵の種類）、参照を入れて登録→設定済み+BellTeamに預けた鍵、参照を画面に出さず、submitは`source`/`reference`だけ。SSH鍵の「設定し直す」は1Passwordの鍵の一覧（名前と保管庫）と貼り付けの二択で、貼り付けに替えると複数行欄、閉じると設定待ちで今の鍵を表示しsubmitなし。sudoを確認の後に外す（DELETE）。503 `CREDENTIAL_UNAVAILABLE`は平易な文でカードを開かない。旧い応答では鍵の行だけ一行の案内でボタンなし |
 | testSshKeyPickerSubmitsTheChosenReferenceAndFallsBack | SSH鍵カードの一覧（名前と保管庫、参照は出さない、選ぶまで送れない）→選んで登録→submitは`source`/`reference`だけ。未接続は貼り付けだけ＋設定の「1Password連携」への案内。一覧404は選択肢を隠して貼り付け＋一行。一覧503は「読めませんでした」と貼り付けの選択を残す |
 | testOnePasswordSettingBadgeGuideAndTokenCheck | 追加機能に1Password行（未連携）、案内が開いている、`ops_`でないtokenはPATCHせず止める、拒否されたtokenは失敗バッジとサーバーの文（符号なし）、受理で連携中・案内が畳まれ読める保管庫と鍵の数の一行、tokenを画面に返さない、PATCH2回・`values`は`token`だけ。鍵0件の次の一手、項目の無い旧本体は行が増えない |
+| testAttestHintAndOtherWaysOnAnUntrustedTerminal | iPhoneでは未信用の端末の詳細に「このMacでBellTeamアプリを開くと、自動で確かめます」を出し、「このMacを確かめる」は出さない。指紋を手で入れる操作は「ほかの方法」を開いた中にある |
+| testLoginPasswordCardIsOneHiddenFieldWithNoOnePasswordChoice | `terminal.login`のカード：パスワード欄1つ、入力方法の選択も参照欄も無く、「このMacのログインパスワード（1回だけ使い、保存しません）」を出す |
+| testAddFormOnIPhoneStatesTheRemoteLoginPrecondition | iPhoneの追加画面に「リモートログイン」をオンにする一行（前提）があり、「このMacを追加」は無い |
+| testCheckReasonsRefusedAndAuthFailedOfferTheirLikelyFix | `closed-mac`（`CONNECTION_REFUSED`）の文はサーバーの案内を一度だけ出し、鍵を入れるボタンも共有設定も出さない。`locked-mac`（`AUTH_FAILED`）は「この鍵がまだMacに入っていないかもしれません」と「このMacにこの鍵を入れる」 |
+| testAuthorizeCardOutcomesAndTheAutomaticCheck | ボタン→カード（題はサーバーのlabel、貼り付け1欄）→送信→`PASSWORD_REJECTED`の文とボタンが残る→`AUTHORIZATION_UNCONFIRMED`の文→`AUTHORIZED`で確認が自動で走り「つながる」。要求の本文は空、パスワードはfixtureに残らない |
+| testAuthorizeDisabledGivesASentenceWithoutAButton | `PASSWORD_AUTH_DISABLED`は文だけでボタンなし |
+| testMemberFolderMissingOffersToCreateAndSavesOnce | 端末を替えて保存→`FOLDER_MISSING`の文（フォームのフォルダ入り）と「このフォルダを作って保存」、断られた保存は残らない→ボタンで同じ保存＋`createFolder:true`、保存して閉じる |
+| testMemberFolderOtherRefusalsHaveNoCreateButton | `FOLDER_NOT_DIRECTORY`・`NOT_WRITABLE`・`NOT_PERMITTED`の文だけでボタンなし |
 | testMemberEditorTerminalAndFolder | 保存済みの端末とフォルダの表示、相対パスは画面で止めてPATCHしない、このBellTeamへ戻すと両方空で保存 |
 | testOldServerShowsOneCalmLineAndSendsNoNewFields | 一覧404とメンバー項目なしで一行の案内だけ、保存bodyに2項目を含めない |
 
@@ -979,7 +1027,7 @@ fixtureは起動していない。本体型のimport先は読まず、fixtureが
 | `BELLTEAM_SCROLL_FIXTURE_URL` → [conversation-scroll-server.mjs](../../../../test/helpers/conversation-scroll-server.mjs) | 60行の混合Markdown/短文、35短文、before/after/limit、旧remaining_before無し、過去GET500、短page。append/対象通知のSSE、要求queryと診断codeをproofへ |
 | `BELLTEAM_GOALS_FIXTURE_URL` → [goals-ui-server.mjs](../../../../test/helpers/goals-ui-server.mjs) | FULL/TAGGED/GROK/GROK_SIGNED_TOKENS/GROK_DETAIL/GROK_CLEAR/GROK_ACTIVE_NO_CLEAR/CHAT/CHAT_LONG（`GOALS_FIXTURE_`接頭辞、値1）で応答を選ぶ。binding/capability/単独項目を検査。unconfirmed/応答破棄/旧一覧保留/GET失敗/field変更、read/writeのproof |
 | `BELLTEAM_PROFILE_TERMINAL_URL` → [profile-terminal-ui-server.mjs](../../../../test/helpers/profile-terminal-ui-server.mjs) | BellPortraitのsmall/large/source/crop、旧schema、1万行端末、遅延profile/rules/models、Bot更新SSE、画像3項目PATCH、従来のread/write/完了数を保持。developer購読、再起動POSTの503/200切替、diagnostics POST受信と202応答を追加。proofのrestarts/diagnosticsへmethod/path/bodyを記録しresetで初期化 |
-| `BELLTEAM_TERMINALS_FIXTURE_URL` → [terminals-ui-server.mjs](../../../../test/helpers/terminals-ui-server.mjs) | PreviewFixturesの名簿に`terminalId`・`projectRoot`を付け、人工の端末4台（つながる/眠っている/信用なし/ホスト鍵変化）を返す。check・PUT（`confirmHostKey`は端末ごとの人工指紋と一致した時だけ信用）・DELETE・メンバーPATCHの組の規則。鍵の`POST|DELETE /api/terminals/:id/keys/{ssh|sudo}`（本文ありは400 `KEY_IN_REQUEST_REFUSED`）と秘密入力の`GET /api/secret-requests/:id`・`submit`・`cancel`（submitで設定待ちの依頼だけを設定済み・`secret`にする）。`/test/mode`で一覧404・503、旧メンバー応答、`keys=old`（#811の項目なし・鍵の入口404）・`keys=unavailable`（503 `CREDENTIAL_UNAVAILABLE`）・`onepassword=0`、`/test/proof`へPUT/DELETE/check/保存body・鍵の要求/外す・submitの形（項目名・source・参照の先頭5文字だけ）、`/test/fingerprint`はオーナーが端末で読む指紋の代わり。SSH・鍵・実端末へ接続しない |
+| `BELLTEAM_TERMINALS_FIXTURE_URL` → [terminals-ui-server.mjs](../../../../test/helpers/terminals-ui-server.mjs) | PreviewFixturesの名簿に`terminalId`・`projectRoot`を付け、人工の端末4台（つながる/眠っている/信用なし/ホスト鍵変化）を返す。check・PUT（`confirmHostKey`は端末ごとの人工指紋と一致した時だけ信用）・DELETE・メンバーPATCHの組の規則。鍵の`POST|DELETE /api/terminals/:id/keys/{ssh|sudo}`（本文ありは400 `KEY_IN_REQUEST_REFUSED`）と秘密入力の`GET /api/secret-requests/:id`・`submit`・`cancel`（submitで設定待ちの依頼だけを設定済み・`secret`にする）。`POST /api/terminals/:id/trust`（本文が`{fingerprint}`だけで`SHA256:`＋43文字の時だけ受け、`/test/mode?trust=ok|mismatch|unavailable|changed|old`で200/409/503/409→200/旧本体404、`thismac=1`でホスト127.0.0.1の`this-mac`、`/test/proof.trusts`に本文）、`/test/mode`で一覧404・503、旧メンバー応答、`keys=old`（#811の項目なし・鍵の入口404）・`keys=unavailable`（503 `CREDENTIAL_UNAVAILABLE`）・`onepassword=0`、`/test/proof`へPUT/DELETE/check/保存body・鍵の要求/外す・submitの形（項目名・source・参照の先頭5文字だけ）、`/test/fingerprint`はオーナーが端末で読む指紋の代わり。SSH・鍵・実端末へ接続しない |
 | `BELLTEAM_NETWORK_PROBE_URL` → [network-lifecycle-server.mjs](../../../../test/helpers/network-lifecycle-server.mjs) | developer購読、20秒POST/8秒予定GET/fast1秒、開始/完了/close時刻・同時数/peak・全GET記録。HTTP受付IDを返すがGET履歴は空 |
 | `BELLTEAM_REPORTING_PROBE_URL` → [bughub-ui-probe.mjs](../../../../test/fixtures/bughub-ui-probe.mjs) | 設定初回/後続503、予定/会話/queue無応答、POST切断/500/503/保留受付、停止502/202、SSE502→ready、保存後応答喪失。要求時刻/closed/imageCount、受信診断をproofへ。人工本文は診断へ含めないassertを試験が持つ |
 | `BELLTEAM_APPLE_INTEGRATION_URL` → [apple-integration-server.mjs](../../../../test/helpers/apple-integration-server.mjs) | 人工Bot/認証/未来予定と製品HTTP/SSEを接続。新着/配送状態/room/queue/秘密/質問/予定の制御、旧/不正JSON/未知topic注入、再接続、sourceRevision/要求/frame/変更元/CLI記録。中継はGET/HEADとdiagnosticsだけ受理。終了でstream/2server/一時rootを整理 |

@@ -177,7 +177,7 @@ final class TerminalsTests: XCTestCase {
     func testCheckReasonsBecomePlainJapanese() {
         let reasons: [(String, TerminalCheck.Problem)] = [
             ("TERMINAL_UNAVAILABLE", .unreachable), ("UNREACHABLE", .unreachable), ("REMOTE_AITERM_TOO_OLD", .unreachable),
-            ("CREDENTIAL_UNAVAILABLE", .credential), ("SSH_KEY_UNSET", .credential), ("AUTH_FAILED", .credential),
+            ("CREDENTIAL_UNAVAILABLE", .credential), ("SSH_KEY_UNSET", .credential), ("AUTH_FAILED", .authFailed), ("CONNECTION_REFUSED", .refused),
             ("TARGET_MISMATCH", .hostKey), ("HOST_TRUST_MISSING", .hostKey), ("HOST_TRUST_STALE", .hostKey),
             ("TERMINAL_NOT_FOUND", .notFound), ("SOMETHING_NEW", .other),
         ]
@@ -350,6 +350,324 @@ final class TerminalsTests: XCTestCase {
         XCTAssertEqual(OnePasswordKeyList.after(URLError(.notConnectedToInternet)), .failed)
     }
 
+
+    // MARK: S2 trust and the terminal.login card
+
+    private func failure(_ status: Int, _ code: String?, _ message: String?) -> Error {
+        var trace = BellRequestTrace(route: "/api/terminals/:id/trust", method: "POST", startedAt: Date(), failedAt: Date(),
+                                     appStateAtStart: "active", attempts: 1, metrics: nil)
+        trace.serverErrorCode = code
+        return BellAPIError.httpStatus(status, message, trace)
+    }
+
+    func testTrustBodyIsExactlyTheFingerprintAndTheReplyHoldsTheTerminal() throws {
+        let fingerprint = "SHA256:" + String(repeating: "A", count: 43)
+        XCTAssertEqual(try JSONSerialization.jsonObject(with: JSONEncoder().encode(TerminalTrustBody(fingerprint: fingerprint))) as? NSDictionary,
+                       ["fingerprint": fingerprint])
+        let reply = try JSONDecoder().decode(TerminalTrustResponse.self, from: Data(#"""
+        {"terminal":{"terminalId":"this-mac","host":"192.168.1.101","hostTrust":{"provider":"aiterm.known-hosts.v1","revision":"sha256:00"}}}
+        """#.utf8))
+        XCTAssertTrue(reply.terminal.hostTrusted)
+    }
+
+    func testTrustResultsMapEachServerCode() {
+        XCTAssertEqual(TerminalTrust.failure(failure(409, "HOST_KEY_FINGERPRINT_MISMATCH", "Host key did not match")), .notThisMac)
+        XCTAssertEqual(TerminalTrust.note(.notThisMac)?.text.hasPrefix("このアドレスで答えているのは、このMacではありません"), true)
+        XCTAssertEqual(TerminalTrust.failure(failure(409, "TERMINAL_CHANGED", "changed")), .changed)
+        XCTAssertEqual(TerminalTrust.failure(failure(503, "TERMINAL_UNAVAILABLE", "later")), .retryLater)
+        XCTAssertEqual(TerminalTrust.note(.retryLater)?.text.contains("あとでもう一度"), true)
+        XCTAssertEqual(TerminalTrust.failure(failure(404, "TERMINAL_NOT_FOUND", "Terminal not found")),
+                       .other("この端末の登録が見つかりません。一覧を読み直してください。"))
+        XCTAssertEqual(TerminalTrust.failure(failure(400, "INVALID_TERMINAL", "Send only {fingerprint}")), .other("Send only {fingerprint}"), "文言の無い符号はサーバーの message を出す")
+        // An older body: the route does not exist (404 without TERMINAL_NOT_FOUND), whether or not a code or JSON came back.
+        XCTAssertEqual(TerminalTrust.failure(failure(404, "NOT_FOUND", "NOT_FOUND")), .olderBody)
+        XCTAssertEqual(TerminalTrust.failure(failure(404, nil, nil)), .olderBody)
+        XCTAssertNil(TerminalTrust.note(.olderBody), "旧本体では何も言わず、ほかの方法を残す")
+        guard case .other = TerminalTrust.failure(URLError(.notConnectedToInternet)) else { return XCTFail("通信失敗はその他") }
+    }
+
+    func testALocalFailureGivesANoteAndNeverAFingerprint() {
+        let refused = TerminalTrust.note(local: SSHHostKeyError.connection("refused"))
+        XCTAssertTrue(refused.offersSharingSettings)
+        XCTAssertTrue(refused.text.contains("リモートログインがオフ"))
+        let errors: [SSHHostKeyError] = [.connection("timeout"), .unsupported("no ed25519"), .badSignature, .malformed("x")]
+        for error in errors {
+            let note = TerminalTrust.note(local: error)
+            XCTAssertFalse(note.offersSharingSettings)
+            XCTAssertFalse(note.text.isEmpty)
+        }
+        XCTAssertTrue(TerminalTrust.note(local: SSHHostKeyError.badSignature).text.contains("ほかの方法"))
+    }
+
+    // MARK: self-service step 4/5 (terminals #858, members #859)
+
+    func testRefusedAuthFailedAndUnreachableAreSentencesThatNameTheLikelyFix() {
+        let serverRefused = "Macの「システム設定 > 一般 > 共有」で「リモートログイン」がオンか確かめてから、もう一度確かめてください"
+        let refused = TerminalCheck(terminalId: "t", reachable: false, reason: "CONNECTION_REFUSED", action: serverRefused)
+        XCTAssertEqual(refused.explanation, serverRefused, "サーバーの日本語の案内をそのまま文にする")
+        XCTAssertNil(refused.extraAction, "同じ案内を二行にしない")
+        XCTAssertTrue(refused.offersSharingSettings)
+        XCTAssertFalse(refused.offersAuthorize)
+        // An older body carries no action: the app's own sentence says the same thing.
+        let bare = TerminalCheck(terminalId: "t", reachable: false, reason: "CONNECTION_REFUSED")
+        XCTAssertTrue(bare.explanation?.contains("リモートログイン") == true)
+        XCTAssertTrue(TerminalCheck(terminalId: "t", reachable: false, reason: "CONNECTION_REFUSED", action: "  ").explanation?.contains("リモートログイン") == true, "空の案内は無いものとして扱う")
+
+        let serverAuth = "この鍵がまだMacに入っていないかもしれません。「このMacにこの鍵を入れる」で、Macのログインパスワードを使って入れられます"
+        let auth = TerminalCheck(terminalId: "t", reachable: false, reason: "AUTH_FAILED", action: serverAuth)
+        XCTAssertEqual(auth.explanation, serverAuth)
+        XCTAssertNil(auth.extraAction)
+        XCTAssertTrue(auth.offersAuthorize)
+        XCTAssertEqual(TerminalCheck(terminalId: "t", reachable: false, reason: "AUTH_FAILED").explanation, "この鍵がまだMacに入っていないかもしれません。")
+
+        let unreachable = TerminalCheck(terminalId: "t", reachable: false, reason: "UNREACHABLE")
+        XCTAssertTrue(unreachable.explanation?.contains("起きていて、同じネットワーク") == true)
+        XCTAssertFalse(unreachable.offersAuthorize || unreachable.offersSharingSettings)
+        // Other reasons keep the explanation and still show the server's action as a second line.
+        let trust = TerminalCheck(terminalId: "t", reachable: false, reason: "HOST_TRUST_MISSING", action: "confirm the host key of h")
+        XCTAssertEqual(trust.extraAction, "confirm the host key of h")
+        XCTAssertNil(TerminalCheck(terminalId: "t", reachable: true).extraAction)
+    }
+
+    func testAuthorizationFieldsDecodeAndAnOlderBodyHasNone() throws {
+        func terminal(_ json: String) throws -> Terminal { try JSONDecoder().decode(Terminal.self, from: Data(json.utf8)) }
+        let waiting = try terminal(#"{"terminalId":"a","keyAuthorizationPending":true,"keyAuthorization":null}"#)
+        XCTAssertTrue(waiting.keyAuthorizationPending)
+        XCTAssertNil(waiting.keyAuthorization)
+        let done = try terminal(#"{"terminalId":"a","keyAuthorizationPending":false,"keyAuthorization":{"requestId":"r1","outcome":"PASSWORD_REJECTED","observedAt":"2026-11-10T01:00:00Z"}}"#)
+        XCTAssertFalse(done.keyAuthorizationPending)
+        XCTAssertEqual(done.keyAuthorization, KeyAuthorization(requestId: "r1", outcome: "PASSWORD_REJECTED", observedAt: "2026-11-10T01:00:00Z"))
+        let old = try terminal(#"{"terminalId":"a","sshKeyConfigured":true}"#)
+        XCTAssertFalse(old.keyAuthorizationPending)
+        XCTAssertNil(old.keyAuthorization)
+        XCTAssertNil(try terminal(#"{"terminalId":"a","keyAuthorization":"odd"}"#).keyAuthorization, "読めない形は無いものとして扱う")
+    }
+
+    func testEveryAuthorizationOutcomeHasAPlainSentence() {
+        XCTAssertNil(TerminalAuthorize.note(outcome: "AUTHORIZED"))
+        XCTAssertNil(TerminalAuthorize.note(outcome: "ALREADY_AUTHORIZED"))
+        XCTAssertEqual(TerminalAuthorize.note(outcome: "PASSWORD_REJECTED"), .init(text: "パスワードが違いました。", retry: true))
+        XCTAssertEqual(TerminalAuthorize.note(outcome: "AUTHORIZATION_UNCONFIRMED"), .init(text: "入れられたか確かめられませんでした。もう一度お試しください", retry: true))
+        let disabled = TerminalAuthorize.note(outcome: "PASSWORD_AUTH_DISABLED")
+        XCTAssertTrue(disabled?.text.hasPrefix("このMacはパスワードでのログインを受け付けていません。") == true)
+        XCTAssertEqual(disabled?.retry, false, "もう一度押しても同じ")
+        XCTAssertEqual(TerminalAuthorize.note(outcome: "CREDENTIAL_UNAVAILABLE")?.retry, false)
+        for code in ["TERMINAL_CHANGED", "TERMINAL_UNAVAILABLE", "SOMETHING_NEW", nil, ""] {
+            let note = TerminalAuthorize.note(outcome: code)
+            XCTAssertEqual(note?.retry, true, code ?? "nil")
+            XCTAssertFalse(note?.text.isEmpty ?? true)
+        }
+    }
+
+    func testAuthorizeRefusalsGetWordsAndAnythingElseFallsThrough() {
+        XCTAssertTrue(TerminalAuthorize.refusal(failure(409, "HOST_TRUST_MISSING", "x"))?.text.hasPrefix("先にこのMacを確かめてください") == true)
+        XCTAssertTrue(TerminalAuthorize.refusal(failure(409, "SSH_KEY_UNSET", "x"))?.text.hasPrefix("先にSSH鍵を設定してください") == true)
+        XCTAssertEqual(TerminalAuthorize.refusal(failure(503, "CREDENTIAL_UNAVAILABLE", "x"))?.retry, true)
+        XCTAssertEqual(TerminalAuthorize.refusal(failure(404, "NOT_FOUND", nil))?.text, "このBellTeamはまだ、アプリからMacに鍵を入れることに対応していません。")
+        XCTAssertNil(TerminalAuthorize.refusal(failure(404, "TERMINAL_NOT_FOUND", "x")), "登録が無いのは旧本体ではない")
+        XCTAssertNil(TerminalAuthorize.refusal(failure(400, "KEY_IN_REQUEST_REFUSED", "x")))
+        XCTAssertNil(TerminalAuthorize.refusal(URLError(.notConnectedToInternet)))
+    }
+
+    func testRequestingAuthorizationSendsAnEmptyBodyAndKeepsAWordedRefusal() async throws {
+        let (store, session) = makeStore()
+        defer { session.invalidateAndCancel() }
+        store.terminals.state = .supported([try untrusted()])
+        let card = #"{"secretRequest":{"id":"login-1","label":"端末 this-mac のMacのログインパスワード","purpose":"terminal.login","inputOptions":{"preferred":"stored","onePasswordAvailable":false}}}"#
+        TerminalsProtocol.respond([(200, card)])
+        let request = try await store.requestKeyAuthorization(id: "this-mac")
+        XCTAssertEqual(request?.id, "login-1")
+        XCTAssertEqual(request?.label, "端末 this-mac のMacのログインパスワード", "サーバーのラベルをそのまま見せる")
+        XCTAssertEqual(request?.isLoginPassword, true)
+        XCTAssertEqual(TerminalsProtocol.paths, ["/api/terminals/this-mac/keys/ssh/authorize"])
+        XCTAssertEqual(TerminalsProtocol.bodies, ["{}"])
+
+        TerminalsProtocol.respond([(409, #"{"error":"HOST_TRUST_MISSING","message":"Confirm the host key first"}"#)])
+        let refused = try await store.requestKeyAuthorization(id: "this-mac")
+        XCTAssertNil(refused)
+        XCTAssertTrue(store.terminals.authorizations["this-mac"]?.retry == false)
+        guard case .note(let note)? = store.terminals.authorizations["this-mac"] else { return XCTFail("信用が無い時は文で伝える") }
+        XCTAssertTrue(note.text.hasPrefix("先にこのMacを確かめてください"))
+
+        // An error with no wording is thrown for the screen's own message.
+        TerminalsProtocol.respond([(400, #"{"error":"KEY_IN_REQUEST_REFUSED","message":"x"}"#)])
+        do { _ = try await store.requestKeyAuthorization(id: "this-mac"); XCTFail("文言の無い失敗は投げる") }
+        catch { XCTAssertEqual(TerminalErrorText.code(error), "KEY_IN_REQUEST_REFUSED") }
+        XCTAssertNil(store.terminals.authorizations["this-mac"], "新しい要求の前に古い文は消える")
+    }
+
+    func testAuthorizedOutcomeEndsTheWaitAndRunsTheCheckByItself() async throws {
+        let (store, session) = makeStore()
+        defer { session.invalidateAndCancel() }
+        store.terminals.state = .supported([try untrusted()])
+        store.terminals.checks["this-mac"] = TerminalCheck(terminalId: "this-mac", reachable: false, reason: "AUTH_FAILED")
+        let pending = #"{"terminalId":"this-mac","host":"192.168.1.101","user":"kite","keyAuthorizationPending":true,"keyAuthorization":null}"#
+        // An older request's outcome does not end this wait; the pending flag alone does not either.
+        let stale = #"{"terminalId":"this-mac","host":"192.168.1.101","user":"kite","keyAuthorizationPending":false,"keyAuthorization":{"requestId":"old","outcome":"PASSWORD_REJECTED"}}"#
+        let done = #"{"terminalId":"this-mac","host":"192.168.1.101","user":"kite","keyAuthorizationPending":false,"keyAuthorization":{"requestId":"r2","outcome":"ALREADY_AUTHORIZED"}}"#
+        let reachable = #"{"terminalId":"this-mac","reachable":true,"observedAt":"2026-11-10T01:00:00Z"}"#
+        TerminalsProtocol.respond([(200, pending), (200, stale), (200, done), (200, reachable)])
+        await store.awaitKeyAuthorization(id: "this-mac", requestId: "r2", interval: .milliseconds(5))
+        XCTAssertEqual(TerminalsProtocol.paths, ["/api/terminals/this-mac", "/api/terminals/this-mac", "/api/terminals/this-mac", "/api/terminals/this-mac/check"])
+        XCTAssertNil(store.terminals.authorizations["this-mac"])
+        XCTAssertEqual(store.terminals.checks["this-mac"]?.reachable, true, "古い AUTH_FAILED ではなく新しい確認が残る")
+        XCTAssertEqual(store.terminals.terminal("this-mac")?.keyAuthorization?.outcome, "ALREADY_AUTHORIZED")
+    }
+
+    func testRejectedOutcomeAsksAgainAndAFailedReadIsRetriedNotGivenUp() async throws {
+        let (store, session) = makeStore()
+        defer { session.invalidateAndCancel() }
+        store.terminals.state = .supported([try untrusted()])
+        let rejected = #"{"terminalId":"this-mac","host":"192.168.1.101","keyAuthorizationPending":false,"keyAuthorization":{"requestId":"r3","outcome":"PASSWORD_REJECTED"}}"#
+        TerminalsProtocol.respond([(503, #"{"error":"TERMINALS_UNAVAILABLE"}"#), (200, rejected)])
+        let wait = Task { await store.awaitKeyAuthorization(id: "this-mac", requestId: "r3", interval: .milliseconds(20)) }
+        try await Task.sleep(for: .milliseconds(5))
+        XCTAssertEqual(store.terminals.authorizations["this-mac"], .waiting(requestId: "r3", readFailed: true), "読めない間は理由を出して待ち続ける")
+        await wait.value
+        XCTAssertEqual(store.terminals.authorizations["this-mac"], .note(.init(text: "パスワードが違いました。", retry: true)))
+        XCTAssertEqual(TerminalsProtocol.paths, ["/api/terminals/this-mac", "/api/terminals/this-mac"], "確認は走らせない")
+    }
+
+    func testANewerRequestOrACancelledPageEndsTheWaitQuietly() async throws {
+        let (store, session) = makeStore()
+        defer { session.invalidateAndCancel() }
+        store.terminals.state = .supported([try untrusted()])
+        TerminalsProtocol.respond([(200, #"{"terminalId":"this-mac","keyAuthorizationPending":true}"#)])
+        let first = Task { await store.awaitKeyAuthorization(id: "this-mac", requestId: "r4", interval: .milliseconds(20)) }
+        try await Task.sleep(for: .milliseconds(50))
+        let second = Task { await store.awaitKeyAuthorization(id: "this-mac", requestId: "r5", interval: .milliseconds(20)) }
+        await first.value // r5 replaced the observed request, so r4 ends without a word
+        XCTAssertEqual(store.terminals.authorizations["this-mac"], .waiting(requestId: "r5", readFailed: false))
+        second.cancel()
+        await second.value
+        XCTAssertEqual(store.terminals.authorizations["this-mac"], .waiting(requestId: "r5", readFailed: false), "ページを閉じた側が片付ける")
+    }
+
+    func testMemberFolderDefaultAndPrefillFollowTheEditorRules() {
+        XCTAssertEqual(MemberFolder.defaultPath(user: "kite", name: "ハル"), "/Users/kite/BellTeam/ハル")
+        XCTAssertEqual(MemberFolder.defaultPath(user: "kite", name: " a/b:c\0d "), "/Users/kite/BellTeam/a-b-c-d")
+        for name in ["", " ", ".", ".."] { XCTAssertEqual(MemberFolder.defaultPath(user: "kite", name: name), "/Users/kite/BellTeam/member", name) }
+        // Empty field: filled. Field still holding the last prefill: follows. Typed text: kept.
+        XCTAssertEqual(MemberFolder.prefill(current: "", lastPrefill: nil, user: "kite", name: "ハル"), "/Users/kite/BellTeam/ハル")
+        XCTAssertEqual(MemberFolder.prefill(current: "/Users/kite/BellTeam/ハル", lastPrefill: "/Users/kite/BellTeam/ハル", user: "kite", name: "ナギ"), "/Users/kite/BellTeam/ナギ")
+        XCTAssertEqual(MemberFolder.prefill(current: "/Users/kite/BellTeam/ハル", lastPrefill: "/Users/kite/BellTeam/ハル", user: "hana", name: "ハル"), "/Users/hana/BellTeam/ハル", "端末を替えたらユーザーも替わる")
+        XCTAssertNil(MemberFolder.prefill(current: "/Users/kite/work/app", lastPrefill: "/Users/kite/BellTeam/ハル", user: "kite", name: "ナギ"))
+        XCTAssertNil(MemberFolder.prefill(current: "/Users/kite/work/app", lastPrefill: nil, user: "kite", name: "ナギ"), "保存済みのフォルダは書き換えない")
+        XCTAssertNil(MemberFolder.prefill(current: "/Users/kite/BellTeam/ハル", lastPrefill: "/Users/kite/BellTeam/ハル", user: "kite", name: "ハル"), "変わらない時は何もしない")
+    }
+
+    func testMemberFolderRefusalsAreWordedPerCodeWithTheFormsFolder() {
+        let folder = "/Users/kite/BellTeam/ハル"
+        let missing = MemberFolder.refusal(code: "FOLDER_MISSING", folder: folder)
+        XCTAssertEqual(missing, .init(text: "このフォルダはMacにありません。作るか、あるフォルダを選んでください（\(folder)）。", offersCreate: true))
+        XCTAssertEqual(MemberFolder.createTitle, "このフォルダを作って保存")
+        XCTAssertEqual(MemberFolder.refusal(code: "FOLDER_NOT_DIRECTORY", folder: folder),
+                       .init(text: "これはファイルです。フォルダを選んでください（\(folder)）。"))
+        XCTAssertEqual(MemberFolder.refusal(code: "FOLDER_NOT_WRITABLE", folder: folder),
+                       .init(text: "このMacのユーザーが書き込めるフォルダを選んでください（\(folder)）。"))
+        let permitted = MemberFolder.refusal(code: "FOLDER_NOT_PERMITTED", folder: folder)
+        XCTAssertEqual(permitted?.text, "Macがこのフォルダを開かせてくれません。デスクトップ・書類・ダウンロードの外を選ぶか、リモートログインの「リモートユーザにフルディスクアクセスを許可」をオンにしてください（\(folder)）。")
+        XCTAssertEqual(permitted?.offersCreate, false, "作っても開けないので作らせない")
+        XCTAssertEqual(MemberFolder.refusal(code: "FOLDER_NEW", folder: folder), .init(text: "このフォルダは使えません（\(folder)）。"), "知らない FOLDER_ は一行で")
+        XCTAssertEqual(MemberFolder.refusal(code: "TERMINAL_NOT_FOUND", folder: folder)?.text, "この端末は登録されていません。")
+        XCTAssertNil(MemberFolder.refusal(code: "BOT_PROJECT_ROOT_INVALID", folder: folder))
+        XCTAssertNil(MemberFolder.refusal(code: nil, folder: folder))
+        // #859 answers `{error: code}` only: the code alone (as message or as the trace's code) is enough.
+        XCTAssertEqual(TerminalErrorText.code(BellAPIError.httpStatus(409, "FOLDER_MISSING")), "FOLDER_MISSING")
+    }
+
+
+    private func untrusted(_ id: String = "this-mac") throws -> Terminal {
+        try JSONDecoder().decode(Terminal.self, from: Data(#"{"terminalId":"\#(id)","host":"192.168.1.101","user":"kite","port":22}"#.utf8))
+    }
+
+    private let trustedReply = #"{"terminal":{"terminalId":"this-mac","host":"192.168.1.101","user":"kite","port":22,"hostTrust":{"provider":"aiterm.known-hosts.v1","revision":"sha256:01"}}}"#
+    private let fingerprint = "SHA256:" + String(repeating: "B", count: 43)
+
+    func testAttestSendsTheReadFingerprintAndReplacesTheTerminal() async throws {
+        let (store, session) = makeStore()
+        defer { session.invalidateAndCancel() }
+        store.terminals.state = .supported([try untrusted()])
+        TerminalsProtocol.respond([(200, trustedReply)])
+        var seenPort = 0
+        await store.attestThisMac(id: "this-mac") { port in seenPort = port; return self.fingerprint }
+        XCTAssertEqual(seenPort, 22)
+        XCTAssertEqual(TerminalsProtocol.paths, ["/api/terminals/this-mac/trust"])
+        XCTAssertEqual(TerminalsProtocol.bodies, [#"{"fingerprint":"\#(fingerprint)"}"#])
+        XCTAssertEqual(store.terminals.terminal("this-mac")?.hostTrusted, true)
+        XCTAssertNil(store.terminals.trustNotes["this-mac"])
+        XCTAssertTrue(store.terminals.attesting.isEmpty)
+    }
+
+    func testAttestMismatchWritesNothingAndSaysItIsNotThisMac() async throws {
+        let (store, session) = makeStore()
+        defer { session.invalidateAndCancel() }
+        store.terminals.state = .supported([try untrusted()])
+        TerminalsProtocol.respond([(409, #"{"error":"HOST_KEY_FINGERPRINT_MISMATCH","message":"Host key did not match the confirmed fingerprint"}"#)])
+        await store.attestThisMac(id: "this-mac") { _ in self.fingerprint }
+        XCTAssertEqual(store.terminals.terminal("this-mac")?.hostTrusted, false)
+        XCTAssertTrue(store.terminals.trustNotes["this-mac"]?.text.hasPrefix("このアドレスで答えているのは、このMacではありません") == true)
+        XCTAssertTrue(store.terminals.attesting.isEmpty)
+    }
+
+    func testAttestAfterTerminalChangedReadsTheListAndTriesOnceMore() async throws {
+        let (store, session) = makeStore()
+        defer { session.invalidateAndCancel() }
+        store.terminals.state = .supported([try untrusted()])
+        let changed = (409, #"{"error":"TERMINAL_CHANGED","message":"changed"}"#)
+        TerminalsProtocol.respond([changed, (200, #"{"terminals":[{"terminalId":"this-mac","host":"192.168.1.101","user":"kite","port":22}]}"#), (200, trustedReply)])
+        var reads = 0
+        await store.attestThisMac(id: "this-mac") { _ in reads += 1; return self.fingerprint }
+        XCTAssertEqual(reads, 2)
+        XCTAssertEqual(TerminalsProtocol.paths, ["/api/terminals/this-mac/trust", "/api/terminals", "/api/terminals/this-mac/trust"])
+        XCTAssertEqual(store.terminals.terminal("this-mac")?.hostTrusted, true)
+
+        // Changed twice: no third try, the line says to press again.
+        store.terminals.state = .supported([try untrusted()])
+        TerminalsProtocol.respond([changed, (200, #"{"terminals":[{"terminalId":"this-mac","host":"192.168.1.101"}]}"#), changed])
+        await store.attestThisMac(id: "this-mac") { _ in self.fingerprint }
+        XCTAssertEqual(store.terminals.terminal("this-mac")?.hostTrusted, false)
+        XCTAssertTrue(store.terminals.trustNotes["this-mac"]?.text.contains("もう一度") == true)
+    }
+
+    func testAttestOlderBodyAndUnavailableAndLocalFailure() async throws {
+        let (store, session) = makeStore()
+        defer { session.invalidateAndCancel() }
+        store.terminals.state = .supported([try untrusted()])
+        TerminalsProtocol.respond([(404, #"{"error":"NOT_FOUND"}"#)])
+        await store.attestThisMac(id: "this-mac") { _ in self.fingerprint }
+        XCTAssertNil(store.terminals.trustNotes["this-mac"], "旧本体は何も言わない")
+
+        TerminalsProtocol.respond([(503, #"{"error":"TERMINAL_UNAVAILABLE","message":"later"}"#)])
+        await store.attestThisMac(id: "this-mac") { _ in self.fingerprint }
+        XCTAssertTrue(store.terminals.trustNotes["this-mac"]?.text.contains("あとでもう一度") == true)
+
+        TerminalsProtocol.respond([(200, trustedReply)])
+        await store.attestThisMac(id: "this-mac") { _ in throw SSHHostKeyError.badSignature }
+        XCTAssertTrue(TerminalsProtocol.paths.isEmpty, "検証できない鍵は送らない")
+        XCTAssertEqual(store.terminals.terminal("this-mac")?.hostTrusted, false)
+        XCTAssertTrue(store.terminals.trustNotes["this-mac"]?.text.contains("ほかの方法") == true)
+    }
+
+    func testTheLoginPasswordCardIsPasteOnlyWhateverTheServerOffers() throws {
+        func request(_ purpose: String?, onePassword: Bool) throws -> SecretRequest {
+            try JSONDecoder().decode(SecretRequest.self, from: Data(#"""
+            {"id":"r","botId":null,"label":"Mac login password","message":"","status":"pending",\#(purpose.map { #""purpose":"\#($0)","# } ?? "")
+             "inputOptions":{"preferred":"\#(onePassword ? "onepassword" : "stored")","onePasswordAvailable":\#(onePassword)}}
+            """#.utf8))
+        }
+        let login = try request("terminal.login", onePassword: true)
+        XCTAssertTrue(login.isLoginPassword)
+        XCTAssertFalse(login.onePasswordOffered, "1Passwordの選択肢も参照欄も出さない")
+        XCTAssertFalse(login.opensWithOnePassword)
+        XCTAssertEqual(SecretRequest.loginPasswordText, "このMacのログインパスワード（1回だけ使い、保存しません）")
+        let ssh = try request("terminal.ssh", onePassword: true)
+        XCTAssertFalse(ssh.isLoginPassword)
+        XCTAssertTrue(ssh.onePasswordOffered)
+        XCTAssertTrue(ssh.opensWithOnePassword)
+        XCTAssertFalse(try request(nil, onePassword: false).onePasswordOffered)
+    }
+
     private func makeStore() -> (AppStore, URLSession) {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [TerminalsProtocol.self]
@@ -365,19 +683,48 @@ private final class TerminalsProtocol: URLProtocol {
     private static let lock = NSLock()
     private static var status = 200
     private static var body = "{}"
+    private static var queue: [(Int, String)] = []
+    private static var seenPaths: [String] = []
+    private static var seenBodies: [String] = []
 
     static func respond(_ status: Int, _ body: String) {
         lock.lock(); defer { lock.unlock() }
         self.status = status
         self.body = body
+        queue = []
     }
+
+    /// Answers the next requests in this order (then repeats the last) and forgets the requests seen so far.
+    static func respond(_ answers: [(Int, String)]) {
+        lock.lock(); defer { lock.unlock() }
+        queue = answers
+        seenPaths = []
+        seenBodies = []
+    }
+
+    static var paths: [String] { lock.lock(); defer { lock.unlock() }; return seenPaths }
+    static var bodies: [String] { lock.lock(); defer { lock.unlock() }; return seenBodies }
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
+        var sent = request.httpBody
+        if sent == nil, let stream = request.httpBodyStream {
+            stream.open()
+            var data = Data()
+            var chunk = [UInt8](repeating: 0, count: 1024)
+            while stream.hasBytesAvailable { let count = stream.read(&chunk, maxLength: chunk.count); if count <= 0 { break }; data.append(chunk, count: count) }
+            stream.close()
+            sent = data
+        }
         Self.lock.lock()
-        let status = Self.status, body = Self.body
+        var status = Self.status, body = Self.body
+        if !Self.queue.isEmpty {
+            (status, body) = Self.queue.count > 1 ? Self.queue.removeFirst() : Self.queue[0]
+            Self.seenPaths.append(request.url!.path)
+            Self.seenBodies.append(sent.flatMap { String(data: $0, encoding: .utf8) } ?? "")
+        }
         Self.lock.unlock()
         let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: "HTTP/1.1",
                                        headerFields: ["Content-Type": "application/json"])!

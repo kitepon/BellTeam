@@ -718,6 +718,13 @@ struct SecretRequest: Decodable, Identifiable, Equatable {
 
     private enum CodingKeys: String, CodingKey { case id, botId, roomId, toolId, label, message, status, notification, purpose, inputOptions }
 
+    /// Mika #855: the Mac's login password for one authorize-key run, `terminal.login`. Pasted into one hidden field and never stored.
+    var isLoginPassword: Bool { purpose == "terminal.login" }
+    static let loginPasswordText = "このMacのログインパスワード（1回だけ使い、保存しません）"
+    /// A login password is paste only: no 1Password choice and no reference field, whatever `inputOptions` says.
+    var onePasswordOffered: Bool { !isLoginPassword && inputOptions?.onePasswordAvailable == true }
+    var opensWithOnePassword: Bool { onePasswordOffered && inputOptions?.opensWithOnePassword == true }
+
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)
