@@ -117,7 +117,11 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
   let remoteSeatBinding = null, remoteSeatBound = false
   const ensureRemoteSeatListener = () => remoteSeatBound ? Promise.resolve() : remoteSeatBinding ??= (stopRequested
     ? Promise.reject(Object.assign(new Error('STARTUP_INTERRUPTED'), { code: 'STARTUP_INTERRUPTED' }))
-    : listen(remoteSeatServer, remoteSeatPort(environment), '127.0.0.1')).then(() => { remoteSeatBound = true }, error => {
+    : listen(remoteSeatServer, remoteSeatPort(environment), '127.0.0.1')).then(async () => {
+      // A bind that lands after close() began is undone, never left serving a disposed body.
+      if (stopRequested) { await closeServer(remoteSeatServer).catch(() => {}); throw Object.assign(new Error('STARTUP_INTERRUPTED'), { code: 'STARTUP_INTERRUPTED' }) }
+      remoteSeatBound = true
+    }, error => {
       process.stderr.write(`REMOTE_SEAT_LISTEN_FAILED ${error.code ?? ''}\n`)
       try { diagnostics?.record({ code: 'REMOTE_SEAT_LISTEN_FAILED', module: 'integration', diagnostic_log: String(error?.code ?? 'UNKNOWN') }) } catch {}
       throw Object.assign(new Error('REMOTE_SEAT_INGRESS_UNAVAILABLE'), { code: 'REMOTE_SEAT_INGRESS_UNAVAILABLE', status: 503, cause: error })
@@ -184,6 +188,8 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
   let closing = null
   const close = () => {
     closing ??= (async () => {
+      // Both close paths: no further startup step or remote seat bind/retry once disposal begins.
+      stopRequested = true; services.remoteSeatListener?.close()
       const errors = []
       for (const stop of [
         () => quiesceEndpoint?.close(),

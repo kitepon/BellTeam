@@ -69,3 +69,24 @@ test('remote seat listener: a refused launch stays not started, and the first go
   assert.equal(binds, settled) // nothing waits, so no more retries
   listener.close()
 })
+
+test('remote seat listener: close() while a terminal waits or a bind is in flight stops every retry, bind and event', async () => {
+  let binds = 0, release
+  const listener = createRemoteSeatListener({ retryMs: 5 })
+  const events = []
+  listener.watch(event => events.push(event))
+  listener.bind(async () => { binds += 1; throw Object.assign(new Error('down'), { code: 'REMOTE_SEAT_INGRESS_UNAVAILABLE' }) })
+  await assert.rejects(listener.ensureFor('waiting'), { code: 'SEAT_FORWARD_UNAVAILABLE' })
+  listener.bind(() => new Promise(resolve => { binds += 1; release = resolve }))
+  await new Promise(resolve => setTimeout(resolve, 15)) // the retry is now in flight
+  const inflight = listener.ensureFor('second')
+  listener.close()
+  release()
+  await assert.rejects(inflight, error => error.code === 'SEAT_FORWARD_UNAVAILABLE' && error.cause?.code === 'STARTUP_INTERRUPTED')
+  const settled = binds
+  await new Promise(resolve => setTimeout(resolve, 30))
+  assert.equal(binds, settled)
+  assert.deepEqual(events, [])
+  await assert.rejects(listener.ensure(), { code: 'STARTUP_INTERRUPTED' })
+  assert.equal(binds, settled)
+})
