@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-10T07:28:09Z",
-  "expiresAt": "2026-11-17T07:28:09Z",
+  "publishedAt": "2026-11-10T07:44:32Z",
+  "expiresAt": "2026-11-17T07:44:32Z",
   "releases": [
     {
       "componentId": "usage",
@@ -491,8 +491,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "95f66baf899c4c2a36c8d46047dbdffcde62055e",
-      "versionId": "36e9a505ab2e1a6ab08ec834e090a10a3bcb636d09732c3363791a89a3ef3f74",
+      "sourceCommit": "d5ea1167f87bf4f2a6f2a1bfa169b774c91f8545",
+      "versionId": "c91b197089b6a61055707086c17ee7c90b4de7417b33678bb70807bac878697e",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T040704Z/execution-95f66baf899c4c2a36c8d46047dbdffcde62055e-linux-amd64.tar.gz",
-          "bytes": 3946224,
-          "sha256": "36e9a505ab2e1a6ab08ec834e090a10a3bcb636d09732c3363791a89a3ef3f74"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T074400Z/execution-d5ea1167f87bf4f2a6f2a1bfa169b774c91f8545-linux-amd64.tar.gz",
+          "bytes": 3946539,
+          "sha256": "c91b197089b6a61055707086c17ee7c90b4de7417b33678bb70807bac878697e"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T040704Z/execution-95f66baf899c4c2a36c8d46047dbdffcde62055e-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10989,
-          "sha256": "80635f6a1c5bef96603289f1bd9d2ed20776ec9ce22afb420f533c634a487ea0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T074400Z/execution-d5ea1167f87bf4f2a6f2a1bfa169b774c91f8545-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11224,
+          "sha256": "df5e06683a57390d7394437f78bb651e2bb87313fa1078d3e4aee9a034affef4"
         },
-        "signerCommit": "95f66baf899c4c2a36c8d46047dbdffcde62055e"
+        "signerCommit": "d5ea1167f87bf4f2a6f2a1bfa169b774c91f8545"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "Claude にログインしていない端末の席が起動しなかった時、ログインが必要なことを本体へ伝え、メッセージを待ちのまま残します（Aiterm 0.70.0 以降の知らせ方にも対応）。"
+        "端末の席のモデルや設定の切り替えを Aiterm が断った時、「結果が分からない」ではなく「適用されなかった」として、Aiterm が示した理由をそのまま伝えます。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "95f66baf899c4c2a36c8d46047dbdffcde62055e",
-      "versionId": "c92b1b2b324f00bff9ef629eacd2b2238523680b287d49815cd8378ca7873540",
+      "sourceCommit": "d5ea1167f87bf4f2a6f2a1bfa169b774c91f8545",
+      "versionId": "a67661d7b47ecdbf7b0ed8a8c6870f45079a984ca48db31423e72194b5f8ebd2",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T040704Z/execution-95f66baf899c4c2a36c8d46047dbdffcde62055e-linux-arm64.tar.gz",
-          "bytes": 3946228,
-          "sha256": "c92b1b2b324f00bff9ef629eacd2b2238523680b287d49815cd8378ca7873540"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T074400Z/execution-d5ea1167f87bf4f2a6f2a1bfa169b774c91f8545-linux-arm64.tar.gz",
+          "bytes": 3946538,
+          "sha256": "a67661d7b47ecdbf7b0ed8a8c6870f45079a984ca48db31423e72194b5f8ebd2"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T040704Z/execution-95f66baf899c4c2a36c8d46047dbdffcde62055e-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11083,
-          "sha256": "9177f01a587c61cd4f31aa07b098e18c08aa2bc4ed58d1d0c182cf37d279f08d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T074400Z/execution-d5ea1167f87bf4f2a6f2a1bfa169b774c91f8545-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10946,
+          "sha256": "2edbcc1a4e4e567a1e1996329fa5d98784e1f353c847be76ec66ca6ef60574cf"
         },
-        "signerCommit": "95f66baf899c4c2a36c8d46047dbdffcde62055e"
+        "signerCommit": "d5ea1167f87bf4f2a6f2a1bfa169b774c91f8545"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,7 +552,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "Claude にログインしていない端末の席が起動しなかった時、ログインが必要なことを本体へ伝え、メッセージを待ちのまま残します（Aiterm 0.70.0 以降の知らせ方にも対応）。"
+        "端末の席のモデルや設定の切り替えを Aiterm が断った時、「結果が分からない」ではなく「適用されなかった」として、Aiterm が示した理由をそのまま伝えます。"
       ]
     },
     {
