@@ -22,8 +22,11 @@ flowchart LR
   OK --> W["background (tracked): followInterim, waitUntilDone, readTurnAnswer"]
   W -->|done| D["onAnswer(text), onStatus delivered, onTurnEnd"]
   W -->|failed| X["onStatus failed {code FORK_FAILED, reason}"]
-  D --> Z["pty_close(name); revoke remote credential; forks.delete(name)"]
-  X --> Z
+  D --> T{"remote?"}
+  X --> T
+  T -->|"yes: RemoteSeats.forward(forkSeat) once"| TL["throughline remote-ingest --fork --json<br/>{sessionKind fork, parentSessionId = fork_of.vendor_session_id, forkId}"]
+  TL --> Z["pty_close(name); revoke remote credential; forks.delete(name)"]
+  T -->|local: Aiterm seat env labels it| Z
   U --> Z
   E --> Z
   Q[transport.queueItems] -->|"running forks as rows + seat {kind: fork, forkId}"| R
@@ -44,6 +47,7 @@ flowchart LR
 | observe | `followInterim` -> `onInterim`; `waitUntilDone(receipt)`; `readTurnAnswer({session, receipt})` -> `onAnswer(text)` when non-empty; `onStatus('delivered')`; `onTurnEnd({startedAt, endedAt})` |
 | failure after accept | `onStatus('failed', {code:'FORK_FAILED', delivery_error:{code:'FORK_FAILED'}, reason})`. Conversation relays its one `FORK_FAILED` message |
 | failure before accept | Reject. `FORK_UNAVAILABLE{reason:'readonly_unenforceable'}` (`effect: not_started`) for Aiterm's `READONLY_UNENFORCEABLE`, an Aiterm whose `agent_launch` has no `fork_from`, or a receipt without `write_ban`; other errors as they are |
+| remote transcript | Once after the turn (answer or failure), before close: `RemoteSeats.forward` with the fork labels ([remote-seat C7](remote-seat.md#capture-c7)). Throughline 0.17.0 refuses the `--fork` argv and stores nothing. Local forks are labelled by Aiterm's seat env (`THROUGHLINE_SESSION_KIND` etc.) |
 | close | Always `pty_close(name)` after the turn end or any failure once a launch was issued; remote credential revoked; registry entry removed. No resume, no follow-up turn, no requeue |
 | read | `queueItems()` adds one row per running fork: `{id: name, botId, botName, status:'running', startedAt, ...queue, steered:false, seat:{kind:'fork', forkId}}`. `forkSeat(name)` -> `{botId, forkId}` while the entry exists, else `null` |
 | main unaffected | Forks are not in `jobs`/`active`/`watches`: `isIdle`, stop, steer, idle close and current work of the main ignore them |

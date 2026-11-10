@@ -7,7 +7,7 @@ import { AitermTransport } from '../src/aiterm-transport.mjs'
 import { RemoteSeats } from '../src/remote-seats.mjs'
 
 const banned = { session_id: 'bot-aaaa1111', vendor_session_id: 'v1', write_ban: { path: '/p', method: 'landlock' } }
-const receiptOf = (args, extra = {}) => ({ schema: 'aiterm.agent-launch-result.v1', session_id: args.session_name, input_id: 'a'.repeat(32),
+const receiptOf = (args, extra = {}) => ({ schema: 'aiterm.agent-launch-result.v1', session_id: args.session_name, launch_id: 'b'.repeat(32), input_id: 'a'.repeat(32),
   event_cursor: 1, wait_process: { command: 'wait', args: ['--session', args.session_name] }, initial_prompt: { status: 'started' }, fork_of: banned, ...extra })
 
 async function fixture({ launch = args => ({ structuredContent: receiptOf(args) }), wait = async () => ({ outcome: 'done' }), remoteSeats = null, bot = {} } = {}) {
@@ -83,6 +83,11 @@ test('remote fork: credential kind fork, same MCP config shape, no launch notice
     ingress: { seatCredential: { issue: async request => { log.push(['issue', request]); return { url: 'http://127.0.0.1:4183/api/seat-mcp', credentialRef: {} } },
       revoke: async request => { log.push(['revoke', request]) }, reveal: async () => 'token' } },
     launchContext: async () => ({ text: 'RULES' }),
+    seatCommand: async ({ executable, args }) => {
+      if (executable === 'aiterm-transcript-read') return log.some(entry => entry[0] === 'ingest') ? { entries: [] } : { entries: ['{}'], cursor: { claudeSessionId: 'c1', offset: 2 } }
+      log.push(['ingest', JSON.parse(args[2]), JSON.parse(args.slice(3).join(''))])
+      return { status: 'ready', ackedCursor: { claudeSessionId: 'c1', offset: 2 } }
+    },
   })
   const { root, calls, tracked, transport, member } = await fixture({ remoteSeats, bot: { terminalId: 'mac-1', projectRoot: '/Users/q/app' } })
   try {
@@ -94,6 +99,14 @@ test('remote fork: credential kind fork, same MCP config shape, no launch notice
     assert.ok(launch.args.mcp_config.mcpServers.bellteam)
     assert.equal(launch.args.cwd, '/Users/q/app')
     assert.deepEqual(launch.options.privateEnv.names, ['BELLTEAM_MCP_TOKEN'])
+    // C7: the fork transcript goes once as `--fork` with labels from the receipt, before close and revoke.
+    const ingest = log.find(entry => entry[0] === 'ingest')
+    assert.deepEqual(ingest[1], ['remote-ingest', '--fork', '--json'])
+    assert.equal(ingest[2].sessionKind, 'fork')
+    assert.equal(ingest[2].parentSessionId, 'v1')
+    assert.equal(ingest[2].forkId, 'f-4')
+    assert.equal(ingest[2].sessionName, launch.args.session_name)
+    assert.ok(log.indexOf(ingest) < log.findIndex(entry => entry[0] === 'revoke'))
     assert.deepEqual(log.at(-1), ['revoke', { sessionName: launch.args.session_name }])
     assert.equal(remoteSeats.seats.size, 0, 'a fork is not a remote main seat')
   } finally { await rm(root, { recursive: true, force: true }) }
