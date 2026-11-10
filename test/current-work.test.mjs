@@ -64,12 +64,13 @@ test('invalid schema, duplicate rows, absent launch and failed observation are u
     f.observe(invalid); assert.equal(f.snapshot().state, 'unknown'); assert.equal(f.snapshot().observedAt, last)
   }
 })
-test('terminal same-turn invalidates and fences reads; another turn done does not clear current work', async t => {
+test('terminal same-turn reads idle at once and fences reads; another turn done does not clear current work', async t => {
   const f = fixture(t); f.observe(); await report(f); const old = f.read()
   const done = { schema: 'aiterm.agent-wait-result.v1', outcome: 'done', session_id: sessionId, launch_id: launchId, turn_id: 'other' }
   f.work.completedTurn(done); assert.equal(f.snapshot().summaryStatus, 'current')
-  f.work.completedTurn({ ...done, turn_id: 'turn-a' }); assert.equal(f.snapshot().state, 'unknown')
-  f.work.endRead(old, data(row())); f.observe(); assert.equal(f.snapshot().state, 'unknown')
+  f.work.completedTurn({ ...done, turn_id: 'turn-a' }); assert.equal(f.snapshot().state, 'idle'); assert.equal(f.snapshot().summary, null)
+  f.work.endRead(old, data(row())); assert.equal(f.snapshot().state, 'idle')
+  f.observe(); assert.equal(f.snapshot().state, 'unknown')
   f.observe(data(row('turn-b'))); assert.equal(f.snapshot().state, 'working'); assert.equal(f.snapshot().summary, null)
 })
 test('stop acceptance clears summary to unknown and ignores an in-flight pre-stop observation', async t => {
