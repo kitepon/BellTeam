@@ -26,26 +26,21 @@ for (const firstKind of ['session', 'avatar']) {
     const held = new Promise(resolve => { entered = resolve })
     const unblock = new Promise(resolve => { release = resolve })
     const write = registry.writeProfile.bind(registry)
-    let firstWrite = true
+    let firstWrite = true, blocked = true, overlappingWrite = false
     registry.writeProfile = async profile => {
       if (firstWrite) { firstWrite = false; entered(); await unblock }
+      else if (blocked) overlappingWrite = true
       return write(profile)
     }
     const session = () => registry.updateSession('member', 'new-session')
     const avatar = () => registry.update('member', { avatar: nextAvatar })
     const first = firstKind === 'session' ? session() : avatar()
     await held
-    let overlappingRead = false
-    const refresh = registry.refresh.bind(registry)
-    let blocked = true
-    registry.refresh = async () => {
-      if (blocked) overlappingRead = true
-      return refresh()
-    }
     const second = firstKind === 'session' ? avatar() : session()
     try {
-      await Promise.resolve()
-      assert.equal(overlappingRead, false, 'a second mutation must read after the held write completes')
+      // profile.update previews outside the save lock by contract (module-update.md); only its write is serialized.
+      await new Promise(resolve => setTimeout(resolve, 20))
+      assert.equal(overlappingWrite, false, 'a second mutation must write after the held write completes')
     } finally {
       blocked = false
       release()
