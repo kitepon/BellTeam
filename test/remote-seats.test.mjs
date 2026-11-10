@@ -352,3 +352,29 @@ test('not-started proof: only a remote member, a delivery ID and a not-started c
   assert.equal(remoteSeatNotStarted({ ...bot, terminalId: '' }, 'd-1', failure('TARGET_MISMATCH')), null)
   assert.equal(remoteSeatNotStarted(bot, undefined, failure('TARGET_MISMATCH')), null)
 })
+
+test('Claude auth not ready on the terminal: not started with the delivery-bound proof and the login notice; a login screen is information only', async () => {
+  const { remoteSeatNotStarted, LOGIN_ACTION } = await import('../src/remote-seats.mjs')
+  const { seats, queued } = fixture()
+  const observed = []
+  seats.terminals.connection.observe = terminalId => observed.push(terminalId)
+  const preflight = value => Object.assign(code(value), { agentLaunchError: { schema: 'aiterm.agent-launch-error.v1', harness: 'claude-code',
+    code: value, phase: 'authentication_preflight', effect: 'not_issued', session_created: false } })
+  const auth = preflight('CLAUDE_AUTH_NOT_AUTHENTICATED')
+  seats.launchFailed(bot, auth)
+  assert.equal(auth.effect, 'not_started')
+  assert.equal(remoteSeatNotStarted(bot, 'd-1', auth).code, 'CLAUDE_AUTH_NOT_AUTHENTICATED')
+  assert.deepEqual({ ...seats.launchNotice(bot), at: 0 }, { code: 'CLAUDE_AUTH_NOT_AUTHENTICATED', action: LOGIN_ACTION, terminalId: 'mac-1', at: 0 })
+  assert.deepEqual(observed, [], 'no terminals observer: the next drain of the member is the exit')
+  assert.equal(seats.waiting.size, 0)
+  assert.deepEqual(queued, [])
+  const unproven = code('CLAUDE_AUTH_STATUS_TIMEOUT')
+  seats.launchFailed(bot, unproven)
+  assert.equal(unproven.effect, undefined, 'a code without the Aiterm preflight structure is not proven')
+  const screen = Object.assign(new Error('blocked'), { launch: { schema: 'aiterm.agent-launch-result.v1', session_id: 's',
+    startup: { status: 'blocked', reason: 'vendor_onboarding_required' } } })
+  seats.launchFailed(bot, screen)
+  assert.equal(screen.effect, undefined)
+  assert.equal(remoteSeatNotStarted(bot, 'd-1', screen), null)
+  assert.equal(seats.launchNotice(bot).code, 'VENDOR_ONBOARDING_REQUIRED')
+})
