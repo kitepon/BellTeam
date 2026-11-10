@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-10T09:26:40Z",
-  "expiresAt": "2026-11-17T09:26:40Z",
+  "publishedAt": "2026-11-10T12:00:58Z",
+  "expiresAt": "2026-11-17T12:00:58Z",
   "releases": [
     {
       "componentId": "usage",
@@ -491,8 +491,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "5e2b206b3d4786b0e15f31bed7108e42517a9e66",
-      "versionId": "908612f318d9e65bafc885eaa719d5d796c90b6a7f2560affc31854872adaa10",
+      "sourceCommit": "06c99cd43a2d831b46ca584acb4c139f5fd7461e",
+      "versionId": "a3ff97e2be795da324262eca38edb7b0fa8f65e2599d38c709d295f08f440e5c",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T085406Z/execution-5e2b206b3d4786b0e15f31bed7108e42517a9e66-linux-amd64.tar.gz",
-          "bytes": 3947170,
-          "sha256": "908612f318d9e65bafc885eaa719d5d796c90b6a7f2560affc31854872adaa10"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T120033Z/execution-06c99cd43a2d831b46ca584acb4c139f5fd7461e-linux-amd64.tar.gz",
+          "bytes": 3947967,
+          "sha256": "a3ff97e2be795da324262eca38edb7b0fa8f65e2599d38c709d295f08f440e5c"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T085406Z/execution-5e2b206b3d4786b0e15f31bed7108e42517a9e66-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11036,
-          "sha256": "98f0959f0dc6d5d336770bda82791ee4c126a1f18b7d1ab04ccebe7b519e9304"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T120033Z/execution-06c99cd43a2d831b46ca584acb4c139f5fd7461e-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11224,
+          "sha256": "cd11c108815c6314a606c049422627ff99e1dec24963e7fb4fedad3881b81a2d"
         },
-        "signerCommit": "5e2b206b3d4786b0e15f31bed7108e42517a9e66"
+        "signerCommit": "06c99cd43a2d831b46ca584acb4c139f5fd7461e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "本体を入れ替えたあと、Mac などの外の席を起動し直す時、本当に閉じて起動し直します。閉じるのを断られた時は、その理由を返します。"
+        "Aiterm 0.70.5 以降でも、箱の中の Claude や Grok の席が何をしているかを、Bot の一覧に表示し続けます。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "5e2b206b3d4786b0e15f31bed7108e42517a9e66",
-      "versionId": "a35e50b6f5b35f61c3bf72e579ae5a75058e28b5ae7dafaf6610f081c4fe1764",
+      "sourceCommit": "06c99cd43a2d831b46ca584acb4c139f5fd7461e",
+      "versionId": "5db952e14292c53b3bf80c85acffff2a8edfa1614efee4a0272d2febf0ca61df",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T085406Z/execution-5e2b206b3d4786b0e15f31bed7108e42517a9e66-linux-arm64.tar.gz",
-          "bytes": 3947173,
-          "sha256": "a35e50b6f5b35f61c3bf72e579ae5a75058e28b5ae7dafaf6610f081c4fe1764"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T120033Z/execution-06c99cd43a2d831b46ca584acb4c139f5fd7461e-linux-arm64.tar.gz",
+          "bytes": 3947970,
+          "sha256": "5db952e14292c53b3bf80c85acffff2a8edfa1614efee4a0272d2febf0ca61df"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T085406Z/execution-5e2b206b3d4786b0e15f31bed7108e42517a9e66-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10973,
-          "sha256": "e427dc2e18adf6a818d1f217060b23c2a9d39d71fdc1f42567028dfb2c24dfe3"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T120033Z/execution-06c99cd43a2d831b46ca584acb4c139f5fd7461e-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11271,
+          "sha256": "5ef8c180c540b4c3686ef8b7db23a76cbba23b9f147fa5ab156f5a20e9a6afbb"
         },
-        "signerCommit": "5e2b206b3d4786b0e15f31bed7108e42517a9e66"
+        "signerCommit": "06c99cd43a2d831b46ca584acb4c139f5fd7461e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,7 +552,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "本体を入れ替えたあと、Mac などの外の席を起動し直す時、本当に閉じて起動し直します。閉じるのを断られた時は、その理由を返します。"
+        "Aiterm 0.70.5 以降でも、箱の中の Claude や Grok の席が何をしているかを、Bot の一覧に表示し続けます。"
       ]
     },
     {
