@@ -153,7 +153,8 @@ export function openSecretInput(request, api, onComplete) {
       ({ items: loaded } = await api(`/api/secret-requests/${encodeURIComponent(request.id)}/onepassword-items`, {
         method: 'GET', redirect: 'error', cache: 'no-store', credentials: 'same-origin' }))
     } catch { loaded = null }
-    items = Array.isArray(loaded) ? loaded : null
+    // An older body lists SSH keys for every purpose; the sudo picker keeps only password-field references.
+    items = Array.isArray(loaded) ? loaded.filter(item => multiline || /\/password$/u.test(item?.reference ?? '')) : null
     const placeholder = reference.children[0]
     if (!items) placeholder.textContent = `1Passwordの${noun}一覧を読めませんでした。閉じて開き直してください。`
     else if (!items.length) placeholder.textContent = multiline ? '1Passwordで読めるSSH鍵がありません。' : '1Passwordで読めるパスワードがありません。'

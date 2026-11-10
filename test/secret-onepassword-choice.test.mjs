@@ -164,3 +164,22 @@ test('sudo card picks a 1Password password like the SSH card; the search box nar
   const generic = f.open({ ...pending, inputOptions: { preferred: 'onepassword', onePasswordAvailable: true } })
   assert.equal(generic.querySelectorAll('select').length, 0); assert.ok(!generic.querySelectorAll('input').some(i => i.type === 'search'))
 })
+
+test('an older body that lists SSH keys for sudo leaves no selectable password; password references still work', async t => {
+  const ssh = { title: 'MacBook key', vault: '開発工場', reference: `op://${'a'.repeat(26)}/${'b'.repeat(26)}/private key?ssh-format=openssh` }
+  const password = { title: 'Mac sudo', vault: '開発工場', reference: `op://${'a'.repeat(26)}/${'c'.repeat(26)}/password` }
+  let items = [ssh]
+  const f = fixture(t, async (path, options) => options.method === 'GET' ? { items } : ok())
+  const sudo = { ...pending, botId: null, terminalId: 'owner-macbook', purpose: 'terminal.sudo', inputOptions: { preferred: 'onepassword', onePasswordAvailable: true } }
+  const old = f.open(sudo); await turn()
+  const picker = old.querySelectorAll('select')[0]
+  assert.deepEqual(picker.children.map(o => o.value), [''])
+  assert.equal(picker.children[0].textContent, '1Passwordで読めるパスワードがありません。')
+  const p = f.parts(old)
+  p.submit(); assert.equal(f.calls.length, 1); assert.equal(p.error.textContent, '1Passwordのパスワードを選んでください。')
+  p.radios[1].handlers.change(); p.value.value = 'synthetic-sudo'; p.submit(); await turn()
+  assert.deepEqual(f.calls.at(-1).body, { value: 'synthetic-sudo' })
+  items = [ssh, password]
+  const fresh = f.open(sudo); await turn()
+  assert.deepEqual(fresh.querySelectorAll('select')[0].children.slice(1).map(o => o.value), [password.reference])
+})

@@ -173,6 +173,8 @@ flowchart LR
   Requests -->|registerSource / bind sudoKeyRef| Credentials[SecretCredentials]
 ```
 
+Mixed versions: the Web ships independently, and an older body returns SSH Key references for every purpose. The sudo picker therefore keeps only references ending in `/password`; against an older body it lists nothing selectable (「1Passwordで読めるパスワードがありません。」) and the typed input stays available, so an SSH private-key reference never becomes `sudoKeyRef`. The SSH picker is unchanged.
+
 Failure paths are the existing ones: op unavailable -> 503 -> 「…一覧を読めませんでした」, and the paste/typed input stays available. A Login item without a `password` field fails only at resolution with the fixed SECRET_SOURCE_UNAVAILABLE (same as a deleted SSH item).
 
 ### Settings "1Password連携" token field (2026-11-09, Owner ask, Trony un-hold)
