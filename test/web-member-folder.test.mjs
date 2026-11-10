@@ -39,7 +39,7 @@ test('member editor: prefill, FOLDER_MISSING -> create and save again, other ref
 
   answer = () => { throw Object.assign(new Error('FOLDER_MISSING'), { code: 'FOLDER_MISSING', status: 409 }) }
   await f.submit('bot-form')
-  assert.match(f.get('bot-form-error').textContent, /^このフォルダはMacにありません。作るか、あるフォルダを選んでください（\/Users\/kite\/BellTeam\/a-b）。$/u)
+  assert.match(f.get('bot-form-error').textContent, /^保存できませんでした。このフォルダはMacにありません。作るか、あるフォルダを選んでください（\/Users\/kite\/BellTeam\/a-b）。$/u)
   assert.equal(create.hidden, false); assert.equal(f.get('verify-bot-save').hidden, true)
   assert.equal(writes[0].createFolder, undefined)
 
@@ -53,4 +53,24 @@ test('member editor: prefill, FOLDER_MISSING -> create and save again, other ref
   answer = () => { throw Object.assign(new Error('FOLDER_NOT_PERMITTED'), { code: 'FOLDER_NOT_PERMITTED', status: 409 }) }
   await f.submit('bot-form')
   assert.match(f.get('bot-form-error').textContent, /開かせてくれません/); assert.equal(create.hidden, true)
+
+  // Owner 09:03: an old members module refused createFolder. A definite refusal is not "result unknown".
+  const verify = f.get('verify-bot-save')
+  for (const [error, text] of [
+    [{ code: 'MEMBERS_INPUT_INVALID', status: 400 }, '保存できませんでした。本体がこの入力にまだ対応していないか、入力の形が違います。本体を「Update」で更新してから、もう一度保存してください。'],
+    [{ code: 'SOMETHING_NEW', status: 422 }, '保存できませんでした。サーバーが入力を受け付けませんでした。入力を見直してから、もう一度保存してください。'],
+  ]) {
+    answer = () => { throw Object.assign(new Error(error.code), error) }
+    await f.submit('bot-form')
+    assert.equal(f.get('bot-form-error').textContent, text); assert.equal(create.hidden, true); assert.equal(verify.hidden, true)
+  }
+  // No answer / 5xx stays "unknown" with the GET-only check.
+  for (const error of [new TypeError('Failed to fetch'), Object.assign(new Error('HTTP_502'), { status: 502 })]) {
+    answer = () => { throw error }
+    await f.submit('bot-form')
+    assert.match(f.get('bot-form-error').textContent, /^保存結果を確認できませんでした/); assert.equal(create.hidden, true); assert.equal(verify.hidden, false)
+  }
+  // A later refusal is about a different submission: the earlier GET check goes away.
+  answer = () => { throw Object.assign(new Error('MEMBERS_INPUT_INVALID'), { code: 'MEMBERS_INPUT_INVALID', status: 400 }) }
+  await f.submit('bot-form'); assert.equal(verify.hidden, true)
 })
