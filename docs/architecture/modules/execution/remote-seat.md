@@ -121,7 +121,7 @@ error.remoteSeatNotStarted = {
 
 ## Launch notice for the Owner (2026-11-10, Crust / Trony)
 
-A not-started remote launch calls `onStatus('failed')` and rejects; when the code has an exit, the rejected error carries the remote-seat not-started proof and the durable receipt puts the same ID back to `queued` ("Pending delivery" above). Codes without an exit (`CWD_UNAVAILABLE`, `REMOTE_AITERM_TOO_OLD`) stay a visible delivery failure. Either way the history alone does not say why or what the Owner should do (first real case: macbook answered `HOST_TRUST_MISSING` → `TARGET_MISMATCH`, action "confirm the host key of 192.168.1.12"). Execution keeps the latest not-started outcome per member and projects it; it is information only and changes no queue, retry or guard.
+A not-started remote launch calls `onStatus('failed')` and rejects; when the code has an exit, the rejected error carries the remote-seat not-started proof and the durable receipt puts the same ID back to `queued` ("Pending delivery" above). Codes without an exit (`CWD_UNAVAILABLE`, `REMOTE_AITERM_TOO_OLD`) stay a visible delivery failure. While the ID waits queued, the history alone does not say why or what the Owner should do (first real case: macbook answered `HOST_TRUST_MISSING` → `TARGET_MISMATCH`, action "confirm the host key of 192.168.1.12"). Execution keeps the latest not-started outcome per member and projects it; it is information only and changes no queue, retry or guard.
 
 ```text
 transport.seatLaunch(botId)   (sync project method, like seatAccount)
