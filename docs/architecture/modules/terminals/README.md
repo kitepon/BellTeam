@@ -401,7 +401,7 @@ flowchart LR
 | Route / port | Contract |
 | --- | --- |
 | `GET /api/terminals/:id/folders[?path=<abs>]` -> `core.folders({terminalId, path})` | `path` omitted = the terminal user's home. Else absolute, no trailing `/` (except `/`), no `..`; at most one `path` query (400 `INVALID_PATH`). Always 200 otherwise, like `folder`: `{terminalId, observedAt, home, path, parent, entries: [{name, path}], truncated, reason, action}`. `reason` null = listed: `entries` are the subfolders only (a symlink to a folder counts; names starting with `.` left out), ordered by name, at most 500 (`truncated: true` past that); `parent` = dirname, null at `/`. Otherwise `entries: []` and `reason` = `FOLDER_MISSING` / `FOLDER_NOT_DIRECTORY` / `FOLDER_NOT_PERMITTED` (that folder), `TERMINAL_NOT_FOUND`, or the check's availability reasons (`TERMINAL_UNAVAILABLE`, `UNREACHABLE`, `CONNECTION_REFUSED`, `AUTH_FAILED`, `HOST_TRUST_MISSING`, `CREDENTIAL_UNAVAILABLE`, ...) with the same `action` (one full Japanese sentence; absent for reasons terminals has no fix for, then the screen shows only its own sentence); `home` null when unknown. Read only; same transient process as `folder` |
-| Aiterm (Elegg) | `remote_terminal_command({op: "list_dirs", path?})` -> `{op, home, path, entries: [{name}], truncated}`; `home` = the SSH user's home; ENOENT / ENOTDIR / EPERM-EACCES -> the same distinctions as `path_status` |
+| Aiterm (Elegg, released in aiterm-mcp 0.70.0) | `remote_terminal_command({op: "list_dirs", path?})` -> `{op, home, path, exists, directory, entries: [{name}] \| null, truncated}`; `home` = the SSH user's home; a missing folder or a file answers `exists` / `directory` false with `entries: null` (-> `FOLDER_MISSING` / `FOLDER_NOT_DIRECTORY`), never an empty list; permission refusals -> `FOLDER_NOT_PERMITTED` as for `path_status`. Needs 0.70.0 on both sides: a terminal on an older Aiterm answers `REMOTE_AITERM_TOO_OLD`, which runs the existing `provision` once (server >= 0.69.0) and reopens |
 | Create | Existing `POST /api/terminals/:id/folder {path: <current>/<name>, create: true}`, then list `<current>` again and select the new folder. The picker refuses an empty name, `/`, `.`, `..` and more than 255 bytes before sending |
 
 Screen rules (Admi Web, Ziz Apple; Windows later):
@@ -417,7 +417,7 @@ No new guard or state: listing writes nothing; an unreachable terminal is a reas
 | # | Owner | Part | Depends on |
 | --- | --- | --- | --- |
 | 1 | Crust | This design (README S6 + overall DFD RT22) | — |
-| 2 | Elegg | `list_dirs` in the next Aiterm release (server side; says whether the terminal side needs an update) | 1 |
+| 2 | Elegg | `list_dirs` in the next Aiterm release: DONE in aiterm-mcp 0.70.0 (terminal side too, via provision) | 1 |
 | 3 | Crust | `GET :id/folders` + `core.folders` + double, tests | 1, 2 contract |
 | 4 | Admi (Web), Ziz (Apple) | Picker per the screen rules, 360 px shots | 3 (double first) |
 | 5 | Trony / Centi / Molly | Body cut + Aiterm release on the server, Owner run | 2, 3, 4 |
