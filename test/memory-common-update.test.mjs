@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto'
 import { createMemoryProcess } from '../src/memory-process.mjs'
 import { MEMORY_STATE_COMPATIBILITY } from '../src/memory/state-compatibility.mjs'
 import { createModuleUpdateAdapters } from '../src/update-module-adapters.mjs'
-import { createModuleUpdateCatalog } from '../src/update-module-catalog.mjs'
+import { createModuleUpdateCatalog, moduleReleaseCompatible } from '../src/update-module-catalog.mjs'
 import { createModuleUpdateExecutor } from '../src/update-module-executor.mjs'
 import { createUpdateCenter } from '../src/update-center.mjs'
 import { validateUpdates } from '../src/update-center-contract.mjs'
@@ -30,8 +30,12 @@ test('memory catalog accepts only the actual seven fields and never derives a bu
   const memory = state.components.find(component => component.id === 'memory')
   assert.equal(memory.current, null); assert.equal(memory.availability.available, true); assert.equal(memory.published.version, versionId)
   assert.equal(validateUpdates(state).valid, true)
+  // A different value is a release for another body: well formed, decided as incompatible (module-process.md).
+  const other = structuredClone(selected()); other.release.compatibility.stateCompatibility.searchIndexVersion = 'different-icu'
+  assert.equal((await createModuleUpdateCatalog({ client: { catalog: async () => other } }).select('memory')).release.versionId, versionId)
+  assert.equal(moduleReleaseCompatible('memory', other.release), false)
   for (const mutate of [value => { delete value.release.compatibility.stateCompatibility.searchIndexVersion },
-    value => { value.release.compatibility.stateCompatibility.extra = true }, value => { value.release.compatibility.stateCompatibility.searchIndexVersion = 'different-icu' }]) {
+    value => { value.release.compatibility.stateCompatibility.extra = true }]) {
     const bad = structuredClone(selected()); mutate(bad)
     const invalid = createModuleUpdateCatalog({ client: { catalog: async () => bad } })
     await assert.rejects(invalid.select('memory'), { code: 'UPDATE_MODULE_CATALOG_INVALID' })
