@@ -30,6 +30,7 @@ test('target hands execution the Aiterm launch target and runs C8 once per Claud
   assert.deepEqual(await connection.target(request), {
     terminal: { ref: `native-${sshKeyRef}`, target: { host: '192.168.1.12', user: 'kite', port: 22 }, trustRevision: hostTrust.revision, credentialRevision: 3 },
     cwd: '/Users/kite/work/app',
+    os: 'macos',
     accountOwner: 'owner'
   })
   assert.deepEqual(secrets.calls[0], { handle: sshKeyRef, context: { terminalId: 'owner-macbook', memberId: 'bot-1', purpose: 'terminal.ssh' } })

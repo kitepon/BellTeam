@@ -165,6 +165,25 @@ test('folders: picker lists subfolders from home, opens one, and reports missing
   assert.equal((await core.folders({ terminalId: 'nope' })).reason, 'TERMINAL_NOT_FOUND')
 })
 
+test('Windows and Linux: native path forms for the picker, the folder check and the launch target', async t => {
+  const { isTerminalPath, parentPath } = await import('../src/terminals/paths.mjs')
+  for (const [os, path, ok] of [['windows', 'C:\\', true], ['windows', 'C:\\Users\\kite_', true], ['windows', 'C:/Users', false], ['windows', 'C:\\Users\\', false],
+    ['windows', 'C:\\a\\..\\b', false], ['windows', '/home/kite', false], ['linux', '/home/kite', true], ['linux', 'C:\\Users', false], ['linux', '/home/', false]])
+    assert.equal(isTerminalPath(os, path), ok, `${os} ${path}`)
+  assert.deepEqual([parentPath('windows', 'C:\\Users'), parentPath('windows', 'C:\\'), parentPath('linux', '/home')], ['C:\\', null, '/'])
+
+  const { core, native } = await setup(t)
+  await core.registry.put({ ...mac, terminalId: 'fox', os: 'windows', user: 'kite_', sshKeyRef: nativeHandle })
+  native.listResult = () => ({ op: 'list_dirs', home: 'C:\\Users\\kite_', path: 'C:\\Users\\kite_', entries: [{ name: 'Developer' }, { name: 'a\\b' }, { name: 'c:' }], truncated: false })
+  const home = await core.folders({ terminalId: 'fox' })
+  assert.deepEqual([home.reason, home.home, home.parent, home.entries], [null, 'C:\\Users\\kite_', 'C:\\Users', [{ name: 'Developer', path: 'C:\\Users\\kite_\\Developer' }]])
+  await assert.rejects(core.folders({ terminalId: 'fox', path: '/Users/kite' }), { code: 'INVALID_PATH' }, 'a POSIX path is not a Windows folder')
+  native.connectError = Object.assign(new Error('x'), { code: 'CONNECTION_REFUSED' })
+  assert.match((await core.folders({ terminalId: 'fox' })).action, /OpenSSH/)
+  native.connectError = null
+  await assert.rejects(core.connection.target({ terminalId: 'fox', memberId: 'm', projectRoot: '/Users/kite/app', harness: 'claude-code' }), { code: 'TARGET_MISMATCH' })
+})
+
 test('HTTP: authorize and folder routes refuse secrets and malformed bodies', async t => {
   const { createTerminalsApi } = await import('../src/http-terminals-api.mjs')
   const { Readable } = await import('node:stream')
