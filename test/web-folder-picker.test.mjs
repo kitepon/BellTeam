@@ -13,7 +13,11 @@ test('folder picker words and name rules follow terminals S6', () => {
   assert.notEqual(folderNameProblem('a\\b', '/Users/kite'), ''); assert.notEqual(folderNameProblem('a:b', 'C:\\x'), ''); assert.equal(folderNameProblem('a:b', '/Users/kite'), '')
   assert.equal(folderReasonText('UNREACHABLE', 'Macが起きているか確かめてください。', '/x'), 'いまは端末に届きません。Macが起きているか確かめてください。')
   assert.equal(folderReasonText('UNREACHABLE', 'Macが起きていて、BellTeamと同じネットワークにつながっているか確かめてから、もう一度お試しください', '/x'), 'いまは端末に届きません。Macが起きていて、BellTeamと同じネットワークにつながっているか確かめてから、もう一度お試しください。')
-  for (const reason of ['TERMINAL_UNAVAILABLE', 'REMOTE_AITERM_TOO_OLD', 'CREDENTIAL_UNAVAILABLE']) assert.equal(folderReasonText(reason, undefined, '/x'), 'いまは端末に届きません。')
+  for (const reason of ['TERMINAL_UNAVAILABLE', 'TARGET_MISMATCH', 'CREDENTIAL_UNAVAILABLE', 'CONNECTION_REFUSED', 'AUTH_FAILED', 'HOST_TRUST_MISSING']) assert.equal(folderReasonText(reason, undefined, '/x'), 'いまは端末に届きません。', reason)
+  // Crust #1011, rabbit 2026-11-11: a reached terminal's command failure shows its action alone, never 「届きません」.
+  const reached = 'Linuxにはつながりましたが、LinuxのAitermがフォルダの操作をできませんでした（COMMAND_FAILED）。Aitermを入れ直してください'
+  assert.equal(folderReasonText('COMMAND_FAILED', reached, '/x'), `${reached}。`)
+  assert.equal(folderReasonText('REMOTE_AITERM_TOO_OLD', undefined, '/x'), '端末でフォルダを読めませんでした。')
   assert.match(folderReasonText('FOLDER_NOT_PERMITTED', 'x', '/Users/kite/Desktop'), /^Macがこのフォルダを開かせてくれません。.*（\/Users\/kite\/Desktop）。$/u)
   assert.equal(folderErrorText({ status: 400, code: 'INVALID_PATH' }), 'このパスは使えません。')
   assert.equal(folderErrorText({ status: 404, code: 'TERMINAL_NOT_FOUND' }), 'この端末は登録されていません。')

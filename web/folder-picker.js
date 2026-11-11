@@ -1,4 +1,4 @@
-import { folderRefusal } from './terminals.js?v=__ASSET_VERSION__'
+import { folderRefusal, sentence, unreachableReason } from './terminals.js?v=__ASSET_VERSION__'
 
 // S6 folder picker (terminals README "Folder picker"): the Owner picks a terminal folder on screen instead of typing it.
 export const OLD_BODY_TEXT = 'フォルダを画面で選ぶには、本体を「Update」で更新してください。下の「ほかの方法」からパスを入力することもできます。'
@@ -15,13 +15,14 @@ export function folderNameProblem(name, parent = '') {
 }
 export const childPath = (parent, name) => windowsPath(parent) ? `${parent.replace(/\\$/u, '')}\\${name}` : parent === '/' ? `/${name}` : `${parent}/${name}`
 
-// A non-null reason is one sentence: folder reasons use the S5 words; the rest mean the terminal is not reachable now.
+// A non-null reason is one sentence: folder reasons use the S5 words; connection reasons say the terminal is not reachable now;
+// a reached terminal's failure (e.g. COMMAND_FAILED) shows its action alone (terminals S6 screen rule 3).
 export function folderReasonText(reason, action, path) {
   if (/^FOLDER_/u.test(reason)) return folderRefusal({ code: reason }, path)
   if (reason === 'TERMINAL_NOT_FOUND') return 'この端末は登録されていません。'
-  // action is one sentence when present (Crust #887); absent -> the first sentence alone.
-  const text = typeof action === 'string' ? action.trim() : ''
-  return `いまは端末に届きません。${text}${text && !/[。！？]$/u.test(text) ? '。' : ''}`
+  // action is one sentence when present (Crust #887); absent -> the screen's own sentence alone.
+  if (unreachableReason(reason)) return `いまは端末に届きません。${sentence(action)}`
+  return sentence(action) || '端末でフォルダを読めませんでした。'
 }
 export function folderErrorText(error) {
   if (error?.code === 'INVALID_PATH') return 'このパスは使えません。'
