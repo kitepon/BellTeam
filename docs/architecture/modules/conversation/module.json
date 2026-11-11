@@ -63,6 +63,7 @@
     "src/message-assets.mjs",
     "src/timeline-index.mjs",
     "src/self-turns.mjs",
+    "src/conversation/dispatcher.mjs",
     "src/observer-check.mjs",
     "src/turn-reports.mjs",
     "src/call-bridge-server.mjs",
