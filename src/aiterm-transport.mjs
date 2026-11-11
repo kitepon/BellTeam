@@ -39,6 +39,9 @@ const HARNESS = new Map([
 ])
 // 合間の言葉を取りに行く間隔。Aitermのpty_observeは画面本文を読まない軽い呼び出し。
 const INTERIM_INTERVAL_MS = 3000
+// pty_list current_command of a listed seat that is not running (Aiterm agent lifecycle/resume states and "vanished").
+// shortcut: a state name Aiterm adds later reads as a running seat (goal read failure shape), extend this set when one appears.
+const dormantSeats = new Set(['stopping', 'hibernated', 'resuming', 'failed', 'unknown', 'vanished'])
 // 起こした直後の席へ同じ文を送る回数の上限（sendToWokenSession）。
 const WOKEN_SEND_ATTEMPTS = 3
 // Pre-input refusals of a live seat that clear by themselves (slow readiness, previous input still being taken).
@@ -727,7 +730,9 @@ export class AitermTransport {
     }
     return new Map(bots.flatMap(bot => {
       const session = this.session(bot), row = sessions.get(session)
-      return row ? [[bot.id, { session_id: session, ...(Object.hasOwn(row, 'launch_id') ? { launch_id: row.launch_id } : {}) }]] : []
+      // A dormant row is a seat that is not running now (the next send resumes it), so it is no goal target.
+      return row && !dormantSeats.has(row.current_command)
+        ? [[bot.id, { session_id: session, ...(Object.hasOwn(row, 'launch_id') ? { launch_id: row.launch_id } : {}) }]] : []
     }))
   }
 
