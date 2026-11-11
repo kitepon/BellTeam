@@ -107,3 +107,27 @@ test('発行済み旧起動の返却を待ってその個体を閉じ、後着�
   f.closeResolve(); await pending
   assert.deepEqual(f.calls.map(c => c.name), ['pty_close', 'agent_launch'])
 })
+
+test('member DELETE closes a turn that never ends (first-run screen) and ends its delivery, like restart (lab 2026-11-12)', async t => {
+  const f = await fixture(t)
+  let startWait; const waiting = new Promise(resolve => { startWait = resolve })
+  f.transport.waitProcess = async (_process, signal) => {
+    startWait(); await new Promise(resolve => signal.addEventListener('abort', resolve, { once: true }))
+    return { outcome: 'done' }
+  }
+  const original = f.transport.client.call
+  f.transport.client.call = async (name, args) => {
+    if (name === 'pty_send') { f.calls.push({ name, args }); return { structuredContent: { mode: 'agent_dispatch', event_cursor: 1, wait_process: { executable: '/synthetic/wait', args: [] } } } }
+    if (name === 'pty_list') return { structuredContent: { sessions: [] } }
+    return original(name, args)
+  }
+  const stuck = f.transport.turn(f.bot, 'turn at the first-run screen').catch(error => error)
+  await stuck.accepted; await waiting
+  const deleting = f.transport.stop(f.bot, undefined, { allSessions: true })
+  await f.entered
+  f.closeResolve(); await deleting
+  await stuck
+  await f.transport.idle(f.bot.id)
+  assert.equal(f.transport.isIdle(f.bot.id), true)
+  assert.deepEqual(f.calls.map(c => c.name), ['pty_send', 'pty_close'])
+})
