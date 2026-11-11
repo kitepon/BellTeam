@@ -14,7 +14,9 @@ const inputFor = session => ({ binding: makeBinding(session), prompt_digest: 'a'
 
 function clientWith(call) {
   const calls = []
-  return { calls, client: { async call(name, args) { calls.push({ name, args }); return call(args) } } }
+  // Aiterm >= 0.70.20 echoes the token-login mode on every 2nd result.
+  const echo = (args, result) => args.login && result?.structuredContent ? { ...result, structuredContent: { ...result.structuredContent, login: args.login } } : result
+  return { calls, client: { async call(name, args) { calls.push({ name, args }); return echo(args, await call(args)) } } }
 }
 
 test('no slot remains 1st; Claude receipts carry slot and native label without exposing configuration root', async () => {
@@ -246,4 +248,39 @@ test('relogin becomes blocked when stored credentials are removed and never carr
   status = 'blocked'
   await legacy.status('claude')
   assert.equal(legacy.receipts.get('claude').loggedIn, false)
+})
+
+test('2nd login writes oauth-token through Aiterm: every 2nd action carries login + token_file, 1st carries none', async () => {
+  const { calls, client } = clientWith(args => ({ structuredContent: receipt(args.configuration_root.endsWith('/2nd') ? 'second-session' : 'first-session') }))
+  const auth = new HarnessAuth({ bots: new Map(), client,
+    accounts: { async prepare(_harness, slot) { return { configurationRoot: `/synthetic/${slot}` } } } })
+  await auth.start('claude')
+  await auth.start('claude', { slot: '2nd' })
+  await auth.status('claude', { slot: '2nd' })
+  await auth.input('claude', inputFor('second-session'), { slot: '2nd' })
+  await auth.cancel('claude', { slot: '2nd' })
+  const second = calls.filter(({ args }) => args.configuration_root === '/synthetic/2nd')
+  assert.deepEqual(second.map(({ args }) => args.action), ['start', 'status', 'respond', 'cancel'])
+  assert.ok(second.every(({ args }) => args.login === 'oauth_token' && args.token_file === '/synthetic/2nd/oauth-token'))
+  assert.ok(calls.filter(({ args }) => args.configuration_root === '/synthetic/1st').every(({ args }) => !('login' in args) && !('token_file' in args)))
+})
+
+test('2nd refuses an Aiterm without the oauth_token echo and a failed 2nd cancel cannot block the next start', async () => {
+  let echo = false, cancelFails = false
+  const calls = []
+  const client = { async call(_name, args) {
+    calls.push(args)
+    if (args.action === 'cancel' && cancelFails) throw Object.assign(new Error('rejected'), { code: 'AGENT_AUTH_LOGIN_REJECTED' })
+    return { structuredContent: receipt('second-session', echo ? { login: 'oauth_token' } : { status: 'authenticated', session_id: null }) }
+  } }
+  const auth = new HarnessAuth({ bots: new Map(), client,
+    accounts: { async prepare(_harness, slot) { return { configurationRoot: `/synthetic/${slot}` } } } })
+  await assert.rejects(auth.start('claude', { slot: '2nd' }), { code: 'HARNESS_AUTH_LOGIN_UNSUPPORTED', status: 409 })
+  await assert.rejects(auth.status('claude', { slot: '2nd' }), { code: 'HARNESS_AUTH_LOGIN_UNSUPPORTED' })
+  echo = true
+  assert.equal((await auth.start('claude', { slot: '2nd' })).auth.session_id, 'second-session')
+  cancelFails = true
+  const restarted = await auth.start('claude', { slot: '2nd' })
+  assert.equal(restarted.auth.session_id, 'second-session')
+  assert.deepEqual(calls.slice(-2).map(args => args.action), ['cancel', 'start'])
 })
