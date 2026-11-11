@@ -139,7 +139,8 @@ export class HarnessAccounts {
         renew: (value.renew ?? []).filter(botId => typeof botId === 'string'),
         pending: Object.fromEntries(Object.entries(value.pending ?? {}).filter(([, entry]) => ACCOUNT_HARNESSES.includes(entry?.harness)
           && ACCOUNT_SLOTS.includes(entry.slot) && (entry.deliveryId === null || typeof entry.deliveryId === 'string')
-          && (entry.escaped === undefined || (Array.isArray(entry.escaped) && entry.escaped.every(session => typeof session === 'string'))))),
+          && (entry.stopped === undefined || (Array.isArray(entry.stopped) && entry.stopped.every(session => typeof session === 'string'))))
+          .map(([botId, { escaped: _, ...entry }]) => [botId, entry])),
       }
     } catch (error) { if (error.code !== 'ENOENT') this.log(`BellTeam accounts: registry unreadable, starting empty (${error.code ?? 'INVALID'})`) }
     // Re-arm after a restart or a body exchange; an entry whose time passed clears now.
@@ -198,11 +199,12 @@ export class HarnessAccounts {
 
   // harness-accounts.md "account recovery": a member whose turn ended on a limit while no other slot was free.
   pendingFor(botId) { return this.state.pending[botId] ?? null }
-  // escaped: held seats already given their one Esc whose cancellation is not yet confirmed (never pressed again).
+  // stopped: held seats already given their one Esc (Aiterm's stop key) whose cancellation is not yet confirmed (never pressed
+  // again). `escaped` from execution dc4b63be is dropped on load: its pty_key Esc was refused on every held seat, nothing was pressed.
   setPending(botId, { harness, slot, deliveryId = null, escaped }) {
     return this.update(state => {
-      const kept = escaped ?? state.pending[botId]?.escaped
-      return { ...state, pending: { ...state.pending, [botId]: { harness, slot, deliveryId, since: new Date(this.now()).toISOString(), ...kept?.length ? { escaped: kept } : {} } } }
+      const kept = escaped ?? state.pending[botId]?.stopped
+      return { ...state, pending: { ...state.pending, [botId]: { harness, slot, deliveryId, since: new Date(this.now()).toISOString(), ...kept?.length ? { stopped: kept } : {} } } }
     })
   }
   dropPending(botId) {

@@ -1873,10 +1873,21 @@ export class AitermTransport {
   }
 
   // One Esc cancels Claude Code's automatic continue (checked 2026-11-11). Never a second one: two open the rewind menu.
+  // The Esc is Aiterm's stop key (agent_stop: Escape for Claude). pty_key refuses every key but C-c while the limited turn's
+  // Aiterm operation is open, and a held turn keeps it open (production 2026-11-12 00:57 JST, every hold refused).
   // Re-reads classify it like confirmRelease: 'released' (cancel notice), 'continued' (read without hold and notice: the
-  // turn went on by itself), else 'unconfirmed' (still held or unreadable).
+  // turn went on by itself), else 'unconfirmed' (still held or unreadable). 'unsent': Aiterm did not send the key.
   async releaseLimitHold(session) {
-    await this.client.call('pty_key', { session_id: session, key: 'Escape' })
+    let target
+    try { target = (await sendSessionStop(this.client, [session])).targets.find(item => item.session_id === session) }
+    catch (error) {
+      process.stderr.write(`BellTeam accounts: limit hold stop key not sent: ${session} ${error?.code ?? error?.message ?? 'UNKNOWN'}\n`)
+      return 'unsent'
+    }
+    if (target?.status === 'failed') {
+      process.stderr.write(`BellTeam accounts: limit hold stop key not sent: ${session} ${target.error ?? 'FAILED'}\n`)
+      return 'unsent'
+    }
     for (let read = 0; read < 10; read++) {
       await new Promise(resolve => setTimeout(resolve, this.holdReleasePollMs))
       const outcome = await this.holdOutcome(session)
@@ -1942,7 +1953,7 @@ export class AitermTransport {
 
   // harness-accounts.md "account recovery" with a free slot: a held seat is a boundary, so this never waits for its span.
   async recoverMember(bot, slot, held, record) {
-    const current = this.session(bot), holding = [], pressed = new Set(record?.escaped ?? [])
+    const current = this.session(bot), holding = [], pressed = new Set(record?.stopped ?? [])
     // A known hold that cannot be read now still holds as far as anyone knows. A seat already pressed (by an earlier engine)
     // goes to the confirmation as it is: its screen alone cannot tell a cancelled hold from a turn continued at its reset.
     for (const session of new Set([...held, ...pressed, current])) {
@@ -1961,19 +1972,20 @@ export class AitermTransport {
     this.accountRecoveries.add(bot.id)
     try {
       const release = holding.filter(session => !(ownTurn && session === current))
-      if (release.some(session => !pressed.has(session))) {
-        // Written before the Esc: the continuation and the one-Esc rule survive a restart or an exchange during the cancellation.
-        const escaped = [...new Set([...pressed, ...release])]
-        await this.accounts.setPending(bot.id, { harness: 'claude', slot: record?.slot ?? this.accounts.seatSlot(bot.id) ?? '1st',
-          deliveryId: record?.deliveryId ?? null, escaped })
-      }
-      const unconfirmed = []
+      const entry = escaped => ({ harness: 'claude', slot: record?.slot ?? this.accounts.seatSlot(bot.id) ?? '1st',
+        deliveryId: record?.deliveryId ?? null, escaped })
+      // Written before the Esc: the continuation and the one-Esc rule survive a restart or an exchange during the cancellation.
+      if (release.some(session => !pressed.has(session))) await this.accounts.setPending(bot.id, entry([...new Set([...pressed, ...release])]))
+      const unconfirmed = [], unsent = []
       let continued = false
       for (const session of release) {
         const outcome = pressed.has(session) ? 'unconfirmed' : await this.releaseLimitHold(session)
-        if (outcome === 'unconfirmed') unconfirmed.push(session)
+        if (outcome === 'unconfirmed' || outcome === 'unsent') unconfirmed.push(session)
+        if (outcome === 'unsent') unsent.push(session)
         if (outcome === 'continued') continued = true
       }
+      // A key Aiterm did not send was never pressed: it is not recorded as pressed. Its seat is only re-read below.
+      if (unsent.length) await this.accounts.setPending(bot.id, entry([...new Set([...pressed, ...release])].filter(session => !unsent.includes(session))))
       if (unconfirmed.length) {
         const outcome = await this.confirmRelease(bot, unconfirmed)
         if (outcome === 'closed') return
