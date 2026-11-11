@@ -64,7 +64,6 @@ export async function seatFiles(op, ...args) {
       return typeof value === 'string' && value ? value : null
     } catch { return null }
   }
-  if (op === 'loggedIn') return Boolean((await present(args[0]))?.isFile())
   // The token file's mtime only (one login per slot); never its content.
   if (op === 'stamp') { const entry = await present(args[0]); return entry?.isFile() ? entry.mtimeMs : null }
   if (op === 'usage') {
@@ -207,14 +206,11 @@ export class HarnessAccounts {
 
   signedOutEntry(harness, slot, stamp) { return this.state.signedOut.find(entry => entry.harness === harness && entry.slot === slot && entry.stamp === stamp) ?? null }
 
-  // Logged in = the slot's token, unless it failed authentication at this very mtime. Legacy 1st (no token yet): the root's
-  // own login, as before one login per slot; it ends with the Owner's first 1st login in the card. Never refuses a launch.
+  // Logged in = the slot's token, unless it failed authentication at this very mtime. No token = not logged in, the 1st too:
+  // the root's .credentials.json can be present and expired (2026-11-11), so it never shows the 1st as logged in.
   async loggedIn(harness, slot) {
     const stamp = await this.stamp(harness, slot)
-    if (stamp !== null) return !this.signedOutEntry(harness, slot, stamp)
-    if (slot !== '1st') return false
-    const path = join(this.root(harness, slot), '.credentials.json')
-    try { return Boolean((await present(path))?.isFile()) } catch { return this.seat('loggedIn', path).then(Boolean, () => false) }
+    return stamp !== null && !this.signedOutEntry(harness, slot, stamp)
   }
 
   // E6 on a seat of `slot`. Returns 'signed_out' (the slot is marked; move like a limit), 'stale' (the seat ran an older
