@@ -161,7 +161,7 @@ flowchart LR
 
 会話の全体closeは正式`admission.drainForClose(ticket,{timeoutMs=60000})`を使い、両世代の実参照が残る間は未確認でも待つ。実参照0で元未確認をrejectし、期限のbusyは既DRAIN_TIMEOUTとして失敗する。正常交換は既drainの即時未確認拒否を維持。現在子が無い場合も全体closeは同口で退役実参照を回収し、未確認又はbusyをclosed成功へ変えずunavailableと元例外を返す。既admissionに同口が無い場合のcloseは互換を維持する。
 
-module-child-restartは既controller排他へ接続し初回1秒、連続失敗2/4/8/16/最大30秒、正常60秒で初期化。回数による恒久停止無し、closeでtimer取消。members/notifications/web-gatewayも採用版と固有初期化を保持し同timerを使う。親/他子/Dockerは再起動しない。終了logは固定MODULE_CHILD_EXITED/component/整数exitCode/閉signalのみ、stderrは最大8KiBのrawを全chunkの4KiB区間ごとに処理し、大chunk中央/区間境界の固定4codeも検出する。任意本文を保存/公開しない。常駐子のstdout/stderrはpipeで排出し、inheritで本文を親logへ流さない。
+module-child-restartは既controller排他へ接続し初回1秒、連続失敗2/4/8/16/最大30秒、正常60秒で初期化。回数による恒久停止無し、closeでtimer取消。members/notifications/web-gatewayも採用版と固有初期化を保持し同timerを使う。親/他子/Dockerは再起動しない。終了logは固定MODULE_CHILD_EXITED/component/整数exitCode/閉signalのみ、stderrは最大8KiBのrawを全chunkの4KiB区間ごとに処理し、大chunk中央/区間境界の固定4codeも検出する。任意本文を保存/公開しない（伏字済みの有限控えだけは「子のstderrを担当が読める控え」）。常駐子のstdout/stderrはpipeで排出し、inheritで本文を親logへ流さない。
 
 ```mermaid
 flowchart LR
@@ -220,6 +220,29 @@ flowchart LR
   Close --> Existing[既incoming reaped待ち・同採用版の再生成]
 ```
 
+
+## 子のstderrを担当が読める控え（2026-11-12 a03）
+
+子の中のエラー（例：会話子の`BellTeam fork relay error: <stack>`）は、上の観察が固定codeだけを拾って本文を捨てるので、誰も読めなかった（a01の原因はコードを読んで探した）。module-processが持つ5子（conversation/usage/diagnostics/work-graph/lattice）について、stderrの完全な行を有限・伏字済みで控える。上の固定code観察・終了DTO・console固定出力は変えない。
+
+```mermaid
+flowchart LR
+  Child[子のstderr pipe] --> Observe[observeModuleChild / 4KiB区間・完全な行]
+  Observe --> Mask[1行300字まで / 引用の中身と40字以上の連続英数字を伏せる]
+  Mask --> Ring[componentごとの末尾200行 / 記憶]
+  Ring --> File["logs/module-stderr/<component>.log / 0644 / 最大1回/秒 tmp→rename"]
+  File --> Readers[担当のBot / トロニー / 同じコンテナの読取]
+```
+
+| 項目 | 契約 |
+| --- | --- |
+| ML01 | 行は`{"at":ISO,"child":childSequence,"line":伏字済み}`のJSON。空行は控えない。 |
+| ML02 | 伏字：`'…'` `"…"` `` `…` ``の中身を`…`、`[A-Za-z0-9+=_-]`の40字以上の連続を`[redacted]`。そのあと300字で切る。会話本文・JSON値・token・鍵・hashは残らない。UUID（36字）とファイル位置は残る。 |
+| ML03 | 控えは子のprocessをまたいで同じファイルの末尾200行。本体の再起動では前の内容を読み直さず、最初の書込で置き換わる。 |
+| ML04 | 書込の失敗は捨てる（子・交換・再起動・終了報告へ伝えない）。書く場所は`<root>/logs/module-stderr/`（0755）。`logs/`は0711のままで、ファイル名を知る者だけが読む。 |
+| ML05 | 守るもの：秘密と本文の露出（ML02）。止まる仕組みは無い。 |
+
+shortcut: ML02の伏字は形で判断する。子が引用なしの本文や40字未満の秘密をstderrへ出すようになったら、子の側でcode化する。
 
 ## 旧exit前のdrain timeout
 

@@ -1,5 +1,5 @@
 import { probeModuleReady } from './module-ready-probe.mjs'
-import { createModuleChildRestart, reportModuleChildExit, observeModuleChild, reportConversationChildExitOrigin } from './module-child-restart.mjs'
+import { createChildStderrLog, createModuleChildRestart, reportModuleChildExit, observeModuleChild, reportConversationChildExitOrigin } from './module-child-restart.mjs'
 import { moduleExchangeDiagnostic, moduleRecoveryLog, moduleTerminationLog } from './module-exchange-diagnostic.mjs'
 import { spawn } from 'node:child_process'
 import { constants } from 'node:fs'
@@ -32,6 +32,7 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     || startPaused && component !== 'usage'
     || investigationsFile !== null && typeof investigationsFile !== 'string') throw failure('MODULE_OPTIONS_INVALID', 400)
   const prefix = component.toUpperCase().replaceAll('-', '_'), adoptionPath = join(root, `state/${component}-release.json`)
+  const stderrLog = createChildStderrLog(join(root, `logs/module-stderr/${component}.log`))
   const fail = (suffix, status) => failure(`${prefix}_${suffix}`, status)
   let instance = null, currentVersionId = null, previousVersionId = null, generation = null
   let initialized = false, closed = false, available = false, phase = 'unavailable', exchanging = false
@@ -156,11 +157,11 @@ export function createModuleProcess({ component, root, createChannel, prepareRel
     const child = spawnProcess(`/usr/local/libexec/bellteam-${component}-start`, [versionId ?? 'builtin'], {
       env, serialization: 'advanced', stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
     })
-    // Pipes are drained without retaining or publishing arbitrary child output.
+    // Pipes are drained; only masked complete stderr lines are kept (module-process.md ML01-ML05).
     child.stdout?.resume(); child.stderr?.resume()
     childSequence = Math.min(Number.MAX_SAFE_INTEGER, childSequence + 1)
     const target = { sequence: childSequence, versionId, child, generation: nextGeneration, ticket, ended: false, resumed: false, channel: null }
-    target.stderrObservation = observeModuleChild(child)
+    target.stderrObservation = observeModuleChild(child, line => stderrLog.append(target.sequence, line))
     instance = target
     const osClosed = waitNotificationsChildClose(child)
     const terminationEvidence = new Set()
