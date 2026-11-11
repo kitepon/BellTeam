@@ -1,5 +1,5 @@
 import { execFile, spawn } from 'node:child_process'
-import { mkdir, mkdtemp, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, mkdtemp, open, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -29,6 +29,22 @@ export function createLatticeCli({ bin, chartsRoot = '/srv/bellteam/state/lattic
   const failed = (error, missing = ['ENOENT', 'ENOTDIR']) => { if (missing.includes(error?.code)) return null; throw Object.assign(latticeError('LATTICE_UNAVAILABLE', 503), { detail: error?.code ?? 'EIO' }) }
   const isDir = path => stat(path).then(info => info.isDirectory(), error => failed(error) ?? false)
   const nameFile = id => join(dir(id), '.bellteam-chart.json')
+  // Named protection: a chart dir or sidecar that is a symlink would let the server uid write or run outside the charts root.
+  // Self-exit: the call fails LATTICE_UNAVAILABLE (detail ELINK) and writes nothing; once the link is replaced by a real dir, the next call works.
+  const linkError = () => Object.assign(latticeError('LATTICE_UNAVAILABLE', 503), { detail: 'ELINK' })
+  const realDir = async id => {
+    const info = await lstat(dir(id)).catch(error => failed(error))
+    if (info && (info.isSymbolicLink() || !info.isDirectory())) throw linkError()
+    return Boolean(info)
+  }
+  const readMeta = async id => {
+    const link = await lstat(nameFile(id)).catch(error => failed(error))
+    if (link?.isSymbolicLink()) return { name: null, createdBy: null }
+    const text = await readFile(nameFile(id), 'utf8').catch(error => failed(error))
+    let value = null
+    try { value = text === null ? null : JSON.parse(text) } catch {}
+    return { name: validLatticeName(value?.name) ? value.name : null, createdBy: typeof value?.createdBy === 'string' && /^[a-z0-9][a-z0-9-]{0,63}$/u.test(value.createdBy) ? value.createdBy : null }
+  }
 
   const spawnRun = (args, cwd, env) => new Promise((resolve, reject) => {
     const out = [], err = []
@@ -58,25 +74,37 @@ export function createLatticeCli({ bin, chartsRoot = '/srv/bellteam/state/lattic
       return (await Promise.all(ids.map(async id => await isDir(join(dir(id), '.lattice')) ? id : null))).filter(Boolean).sort()
     },
     exists: async id => LATTICE_PROJECT_ID.test(id) && await isDir(join(dir(id), '.lattice')),
-    // The chart's display name, kept beside Lattice's store; Lattice has no project name of its own.
-    async name(id) {
-      const text = await readFile(nameFile(id), 'utf8').catch(error => failed(error))
-      if (text === null) return null
-      try { const value = JSON.parse(text)?.name; return validLatticeName(value) ? value : null } catch { return null }
-    },
-    async setName(id, name) {
+    // The chart's display name and creator, kept beside Lattice's store; Lattice has neither. A malformed field is absent.
+    meta: readMeta,
+    async setMeta(id, patch) {
+      if (!await realDir(id)) throw linkError()
+      const next = { ...await readMeta(id), ...patch }
       const temp = `${nameFile(id)}.${process.pid}.tmp`
-      await writeFile(temp, JSON.stringify({ name }) + '\n', { mode: 0o600 })
-      await rename(temp, nameFile(id))
+      // wx: never follow or reuse an existing path; rename replaces a sidecar link itself, never its target.
+      const file = await open(temp, 'wx', 0o600)
+      // From here the temp is ours: on any failure remove it, so the next save in this process is not stuck on EEXIST.
+      try {
+        try { await file.writeFile(JSON.stringify(Object.fromEntries(Object.entries(next).filter(([, item]) => item !== null))) + '\n') } finally { await file.close() }
+        await rename(temp, nameFile(id))
+      } catch (error) { await rm(temp, { force: true }); throw error }
     },
+    // Only for a dir this invocation created (ensure() said created) that still holds no Lattice store.
+    async prune(id) {
+      if (!LATTICE_PROJECT_ID.test(id) || !await realDir(id) || await isDir(join(dir(id), '.lattice'))) return
+      await rm(dir(id), { recursive: true, force: true })
+    },
+    // Returns {created}: true only when this call made the chart dir (a plain mkdir, so an existing path is never claimed).
     async ensure(id) {
       await mkdir(home, { recursive: true, mode: 0o700 })
-      await mkdir(dir(id), { recursive: true, mode: 0o700 })
-      if (await isDir(join(dir(id), '.git'))) return
-      await promisify(execFile)('git', ['init', '-q'], { cwd: dir(id), env: { PATH: process.env.PATH, HOME: home, GIT_CONFIG_NOSYSTEM: '1' } })
+      await mkdir(chartsRoot, { recursive: true, mode: 0o700 })
+      const created = await mkdir(dir(id), { mode: 0o700 }).then(() => true, error => { if (error.code === 'EEXIST') return false; throw error })
+      if (!created) await realDir(id)
+      if (!await isDir(join(dir(id), '.git'))) await promisify(execFile)('git', ['init', '-q'], { cwd: dir(id), env: { PATH: process.env.PATH, HOME: home, GIT_CONFIG_NOSYSTEM: '1' } })
+      return { created }
     },
     async run({ id, args, env = {}, input = null }) {
       checkSeatArgs(args, input)
+      if (!await realDir(id)) throw Object.assign(latticeError('LATTICE_UNAVAILABLE', 503), { detail: 'ENOENT' })
       const full = { PATH: process.env.PATH, HOME: home, LATTICE_DASHBOARD_AUTOSTART: '0', GIT_CONFIG_NOSYSTEM: '1', ...env }
       if (input === null) return spawnRun(args, dir(id), full)
       const temp = await mkdtemp(join(tmpdir(), 'lattice-input-'))

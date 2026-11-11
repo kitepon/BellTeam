@@ -15,7 +15,8 @@ export function projectChart({ read, members = [], previous = null }) {
   const live = members.filter(member => !member.deleting), bots = new Set(live.map(member => member.id))
   const named = new Map(live.map(member => [String(member.name).toLowerCase(), member.id]))
   // The authored lane names a member by Bot id or by name; anything else stays plain lane text for the screens.
-  const assigned = lane => !lane ? null : bots.has(lane) ? lane : named.get(lane.toLowerCase()) ?? null
+  // `owner` is the reserved value for the Owner (指揮官), who has no Bot id.
+  const assigned = lane => !lane ? null : bots.has(lane) ? lane : ['owner', '指揮官'].includes(lane.toLowerCase()) ? 'owner' : named.get(lane.toLowerCase()) ?? null
   const cards = new Map(), deps = [], cross = [], removed = new Set(), phases = [], parents = new Map()
   let first = null, updatedAt = null
   for (const member of list(read?.store?.members)) {
@@ -40,7 +41,7 @@ export function projectChart({ read, members = [], previous = null }) {
       const taskId = text(task?.task_id), entry = states.get(taskId)
       const status = entry === undefined ? 'pending' : String(entry?.status).replace('_', '-')
       if (!taskId || !STATUS.includes(status)) continue
-      const lane = text(task.lane), start = starts.get(taskId)
+      const lane = task.lane === 'main' ? null : text(task.lane), start = starts.get(taskId) // `main` is Lattice's default lane, not an owner
       cards.set(`${key}/${taskId}`, { id: `${key}/${taskId}`, plan: key, taskId, title: text(task.title) ?? taskId,
         doneCondition: text(task.done_condition), designMemo: text(task.design_memo), state: status, lane,
         producer: (status === 'done' || status === 'retired') && lane ? assigned(lane) : start?.agent ?? assigned(lane), startedAt: start?.at ?? null, changedAt: changed.get(taskId) ?? null,
@@ -94,7 +95,7 @@ export function projectChart({ read, members = [], previous = null }) {
   }).sort((a, b) => (a.since ? Date.parse(a.since) : Infinity) - (b.since ? Date.parse(b.since) : Infinity) || (a.waitingCard + a.forCard).localeCompare(b.waitingCard + b.forCard))
   const all = [...cards.values()], count = state => all.filter(card => card.state === state).length
   return { state, verifiedAt: stamp(read?.verified_at), cards: all, edges, waits, phases,
-    memberIds: [...new Set([...all.map(card => card.producer), ...waits.map(wait => wait.waiter)].filter(Boolean))].sort(),
+    memberIds: [...new Set([...all.map(card => card.producer), ...waits.map(wait => wait.waiter)].filter(id => id && id !== 'owner'))].sort(),
     counts: { total: all.length, done: count('done') + count('retired'), working: count('in-progress'), blocked: count('blocked'),
       waiting: new Set(edges.filter(edge => edge.waiting).map(edge => edge.to)).size },
     createdBy: first?.agent ?? previous?.createdBy ?? null, updatedAt: updatedAt ?? previous?.updatedAt ?? null }

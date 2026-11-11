@@ -115,7 +115,7 @@ export function createChartStream({ fetch, url, setTimeout: later = globalThis.s
 }
 
 export function createLatticeChart(dialog, {
-  api, fetchImage, openChat: openMemberChat = () => {}, getMember = () => null, mode: startMode = 'tree',
+  api, fetchImage, openChat: openMemberChat = () => {}, getMember = () => null, getOwner = () => null, mode: startMode = 'tree',
   setTimeout: later = globalThis.setTimeout, clearTimeout: clear = globalThis.clearTimeout, random = Math.random, now = Date.now,
   requestFrame = callback => globalThis.requestAnimationFrame(callback), cancelFrame = id => globalThis.cancelAnimationFrame(id),
 } = {}) {
@@ -251,7 +251,7 @@ export function createLatticeChart(dialog, {
       onSnapshot(data) {
         if (data?.schema !== SCHEMA) throw new Error('SCHEMA')
         const before = snapshot
-        snapshot = data
+        snapshot = { ...data, owner: getOwner() } // the Owner profile names the reserved owner value
         paintChart(diffSnapshots(before, data))
       },
       onStatus(kind) {

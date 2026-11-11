@@ -6,7 +6,7 @@ Owner: Flora (bot-7e777fe5); the shell registration lines (`index.html`, `applic
 
 ```mermaid
 flowchart TD
-  Nav["header: 工程表 circle button #lattice-button<br/>(next to 相関図)"] -->|open| View["lattice-chart.js createLatticeChart(dialog, {api, fetchImage, openChat, getMember})<br/>full-screen dialog #lattice-dialog, no router"]
+  Nav["header: 工程表 circle button #lattice-button<br/>(next to 相関図)"] -->|open| View["lattice-chart.js createLatticeChart(dialog, {api, fetchImage, openChat, getMember, getOwner})<br/>full-screen dialog #lattice-dialog, no router"]
   View -->|"api GET /api/lattice/charts<br/>on open, every 10 s while 一覧 is shown"| List["一覧<br/>cards: name, 統括, ring done/total, active faces, 待ち N; 新しい工程表 (not tappable)"]
   List -->|"one chart only (first read)<br/>or tap a card"| Chart
   View -->|"fetchImage GET /api/lattice/charts/:id/events<br/>(stream reader; parseFrames from work-graph.js)"| Stream["createChartStream<br/>snapshot only, 35 s silence = drop,<br/>backoff 1,2,4…30 s forever while open"]
@@ -31,7 +31,7 @@ flowchart TD
 | `bannerFor`, `degradedPills`, `MESSAGES` | `unverified` -> amber banner, `last_verified` -> grey banner with the time in JST and the chart dimmed, both with 統括と話す; `degraded` -> 最新の記録を読み直しています… / メンバー情報を読み直しています… | same |
 | `diffSnapshots(prev, next)` | added / removed / state-changed / completed cards, added / removed edges (by card id and `from>to`) -> animation | same |
 | `createChartStream({fetch, url, ...})` | `fetchImage(url)` stream reader; frames with `parseFrames` (work-graph.js); only `snapshot` events; non-OK or bad JSON or other schema -> `unreadable`, end of stream or 35 s silence -> `drop`, both retry with the backoff; 404 + `LATTICE_CHART_NOT_FOUND` -> `notfound`, other 404 -> `missing` (both stop) | `web/lattice-chart.js` |
-| `createLatticeChart(dialog, {api, fetchImage, openChat, getMember})` | `open()` / `close()`. `getMember(botId)` (application.js, from `state.bots`) names the faces on 一覧, where the list read has only ids; the chart itself uses `members` of the snapshot | same |
+| `createLatticeChart(dialog, {api, fetchImage, openChat, getMember, getOwner})` | `open()` / `close()`. `getMember(botId)` (application.js, from `state.bots`) names the faces on 一覧, where the list read has only ids; the chart itself uses `members` of the snapshot. `getOwner()` (application.js `state.owner`) names the reserved owner value `"owner"` (fallback 指揮官), face from `/api/owner/avatar`, no chat, not in the rail | same |
 | Cards | one `<button>` per card kept by id; position by `transform` (spring `cubic-bezier(.34, 1.3, .5, 1)`, .45 s); state glyph + badge text + producer face (rotating arc while 作業中); label 「<title>、<state>、つくっている <producer>」; new card scale .92 -> 1 in 300 ms; a card that becomes 完了 blooms five petals (700 ms) | same |
 | 一覧 back | 一覧 reached from a chart (switcher) shows 「← <chart name>」 at the top; it and Esc reopen that chart (state diagram `List --> Chart: back`). Opening the dialog fresh has no back target | `web/lattice-chart.js` + `styles.css` |
 | `historyRows(snapshot, now)` | 過去ログ: finished cards newest `doneAt` first (null last), grouped by JST day (今日 / 昨日 / M月D日), each `{id, title, owner, info, time HH:MM, label}`; `layoutTree` and `layoutChart` skip `archived` cards (a phase with only archived cards is skipped; an archived parent passes its children to the phase) | `web/lattice-chart-model.js` (pure) |

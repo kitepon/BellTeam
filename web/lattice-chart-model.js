@@ -5,6 +5,7 @@ export const RED = '#E0533D'
 export const SCHEMA = 'bellteam.lattice-chart.v1'
 export const UNKNOWN_MEMBER = '名簿にないメンバー'
 export const UNASSIGNED = '担当なし'
+export const OWNER_ID = 'owner', OWNER_FALLBACK = '指揮官'
 
 export const MESSAGES = {
   reconnect: '工程表に再接続しています…',
@@ -57,6 +58,8 @@ export function memberLookup(snapshot) {
   const roster = new Map((snapshot?.members ?? []).map(member => [member.botId, member]))
   return botId => {
     if (!botId) return null
+    // The Owner (指揮官) has no Bot id; the view puts the Owner profile on the snapshot as `owner`.
+    if (botId === OWNER_ID) return { botId, name: snapshot?.owner?.name || OWNER_FALLBACK, color: 'amber', avatarVersion: '', known: true, owner: true, avatar: snapshot?.owner?.avatar ? '/api/owner/avatar' : '' }
     const member = roster.get(botId)
     return member ? { botId, name: member.name, color: member.color, avatarVersion: member.avatarVersion ?? '', known: true } : { botId, name: UNKNOWN_MEMBER, color: 'unknown', avatarVersion: '', known: false }
   }
@@ -248,7 +251,7 @@ export function waitRows(snapshot, now) {
       headline: waiting?.title ?? '', ownerText: waiter ? `担当 ${waiter.name}` : UNASSIGNED,
       length: sinceText(wait.since, now),
       emphasized: wait.producerState === 'blocked', info: stateInfo(wait.producerState ?? awaited?.state),
-      canChat: Boolean(producer?.known),
+      canChat: Boolean(producer?.known && !producer.owner),
       label: `「${waiting?.title ?? ''}」（${waiter ? `担当 ${waiter.name}` : UNASSIGNED}）は、「${title}」が終わるのを待っています。つくっているのは${nameOf(producer)}、${state}`,
       waitingTitle: waiting?.title ?? '',
     }
@@ -265,7 +268,7 @@ export function edgeChipText(snapshot, edge) {
 // 左のレール：担当ごとの顔と、作業中・止まり・待ちの数。
 export function railItems(snapshot, layout) {
   const cards = snapshot.cards ?? [], waits = snapshot.waits ?? []
-  return layout.lanes.filter(lane => lane.botId).map(lane => ({
+  return layout.lanes.filter(lane => lane.botId && !lane.member?.owner).map(lane => ({
     botId: lane.botId, member: lane.member,
     working: cards.some(card => card.producer === lane.botId && card.state === 'in-progress'),
     blocked: cards.some(card => card.producer === lane.botId && card.state === 'blocked'),
