@@ -2,7 +2,7 @@
 // Every root call runs on one serialized chain; while any chart has subscribers, one timer drives a root 'refresh'.
 const unavailable = () => Object.assign(new Error('LATTICE_UNAVAILABLE'), { code: 'LATTICE_UNAVAILABLE', status: 503 })
 // Request errors the caller can act on keep their code; anything else means the child is not serving.
-const PASS = new Set(['LATTICE_CHART_NOT_FOUND', 'LATTICE_PROJECT_INVALID', 'LATTICE_INPUT_CONFLICT', 'LATTICE_COMMAND_NOT_SEAT_SURFACE', 'LATTICE_INVALID'])
+const PASS = new Set(['LATTICE_CHART_NOT_FOUND', 'LATTICE_PROJECT_INVALID', 'LATTICE_INPUT_CONFLICT', 'LATTICE_COMMAND_NOT_SEAT_SURFACE', 'LATTICE_INVALID', 'LATTICE_NAME_INVALID'])
 const SLICE = 50
 
 export function createLatticeFacade({ controller, retryMs = 2000, setTimer = setTimeout, clearTimer = clearTimeout }) {
@@ -45,8 +45,8 @@ export function createLatticeFacade({ controller, retryMs = 2000, setTimer = set
   return {
     charts: () => call('charts', {}),
     chart: projectId => call('chart', { projectId }),
-    async run({ from, projectId, args, input = null }) {
-      const value = await call('run', { from, projectId, args, input })
+    async run({ from, projectId, args, input = null, name }) {
+      const value = await call('run', { from, projectId, args, input, ...(name !== undefined && { name }) })
       // The run may have written the chart; its subscribers get the new snapshot now, not at the next tick.
       if (subscribers.has(projectId)) void call('refresh', { projectIds: [projectId] }).then(result => publish(result?.snapshots), () => {})
       return value

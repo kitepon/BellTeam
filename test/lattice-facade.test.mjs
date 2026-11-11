@@ -24,13 +24,13 @@ function fixture({ respond = () => null } = {}) {
 test('root calls share one chain in call order', async () => {
   const f = fixture()
   const release = f.hold()
-  const results = [f.facade.charts(), f.facade.chart('alpha'), f.facade.run({ from: 'bot-a', projectId: 'alpha', args: ['status'] })]
+  const results = [f.facade.charts(), f.facade.chart('alpha'), f.facade.run({ from: 'bot-a', projectId: 'alpha', args: ['status'] }), f.facade.run({ from: 'bot-a', projectId: 'alpha', args: [], name: '工程表' })]
   await tick()
   assert.deepEqual(f.calls.map(([method]) => method), ['charts'])
   release()
-  assert.deepEqual((await Promise.all(results)).map(value => value.method), ['charts', 'chart', 'run'])
+  assert.deepEqual((await Promise.all(results)).map(value => value.method), ['charts', 'chart', 'run', 'run'])
   assert.deepEqual(f.calls.map(([method, params]) => [method, params]), [['charts', {}], ['chart', { projectId: 'alpha' }],
-    ['run', { from: 'bot-a', projectId: 'alpha', args: ['status'], input: null }]])
+    ['run', { from: 'bot-a', projectId: 'alpha', args: ['status'], input: null }], ['run', { from: 'bot-a', projectId: 'alpha', args: [], input: null, name: '工程表' }]])
 })
 
 test('subscribers get only their chart; the loop follows nextRefreshMs and stops with the last subscriber', async () => {
