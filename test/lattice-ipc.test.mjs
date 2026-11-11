@@ -36,6 +36,8 @@ test('protocol: request validators are exact', () => {
     { input: [] }, { input: 'x' }, { input: undefined }, { extra: 1 }]) bad(() => validateLatticeRequest('run', { ...run, ...patch }, context), 'LATTICE_INVALID')
   validateLatticeRequest('run', { ...run, args: ['x'.repeat(8192)] }, context)
   validateLatticeRequest('run', { ...run, args: Array(200).fill('a') }, context)
+  validateLatticeRequest('run', { ...run, args: [], name: 'Lattice組込' }, context)
+  for (const name of ['', ' a', 'a ', 'a\nb', 'x'.repeat(41), 5, null]) bad(() => validateLatticeRequest('run', { ...run, name }, context), 'LATTICE_NAME_INVALID')
   bad(() => validateLatticeRequest('run', { ...run, projectId: 'Bad' }, context), 'LATTICE_PROJECT_INVALID')
 })
 
@@ -53,11 +55,11 @@ test('protocol: effect and its result', () => {
 
 const card = { id: 'p1/t1', plan: 'p1', taskId: 't1', title: 'A', doneCondition: null, designMemo: null, state: 'ready', lane: null, producer: null,
   startedAt: null, changedAt: null, blockedReason: null, depth: 0 }
-const snapshot = { schema: 'bellteam.lattice-chart.v1', epoch: 'e', version: 1, at: '2026-11-11T10:00:00.000Z', projectId: 'alpha', coordinator: false, state: 'verified',
+const snapshot = { schema: 'bellteam.lattice-chart.v1', epoch: 'e', version: 1, at: '2026-11-11T10:00:00.000Z', projectId: 'alpha', name: null, createdBy: null, coordinator: false, state: 'verified',
   verifiedAt: null, degraded: [], members: [{ botId: 'a', name: 'A', color: 'sky', avatarVersion: '' }], cards: [card],
   edges: [{ from: 'p1/t1', to: 'p1/t2', waiting: true }],
   waits: [{ waiter: null, waitingCard: 'p1/t2', forCard: 'p1/t1', producer: 'a', producerState: 'ready', since: null }] }
-const summary = { projectId: 'alpha', coordinator: true, createdBy: null, counts: { total: 1, done: 0, working: 0, waiting: 0, blocked: 0 }, activeMembers: [], updatedAt: null, state: 'unavailable' }
+const summary = { projectId: 'alpha', name: null, coordinator: true, createdBy: null, counts: { total: 1, done: 0, working: 0, waiting: 0, blocked: 0 }, activeMembers: [], updatedAt: null, state: 'unavailable' }
 
 test('protocol: root results are exact', () => {
   validateLatticeResult('chart', snapshot)
@@ -167,7 +169,7 @@ import { createLatticeChildChannel } from '${base}/src/lattice-ipc.mjs'
 const read = { state: 'verified', verified_at: '2026-11-11T10:00:00.000Z', store: { members: [{ plan: { plan_key: 'p1', tasks: [{ task_id: 't1', title: 'A' }] },
   tasks: [{ task_id: 't1', status: 'in-progress' }], journal: { events: [{ kind: 'start', task_id: 't1', actor: { agent: 'a' }, recorded_at: '2026-11-11T10:00:00.000Z' }] }, plan_scoped: { events: [] } }] } }
 const ok = value => ({ exitCode: 0, stdout: JSON.stringify(value), stderr: '' })
-const cli = { list: async () => ['alpha'], exists: async id => id === 'alpha', ensure: async () => {},
+const cli = { list: async () => ['alpha'], exists: async id => id === 'alpha', ensure: async () => {}, name: async () => 'Lattice組込', setName: async () => {},
   run: async ({ args, env }) => args.join(' ') === 'todo display source --json' ? ok({ n: 1 }) : args.join(' ') === 'todo display read --json' ? ok(read) : ok({ args, seat: env.LATTICE_SEAT_ID }) }
 createLatticeChildChannel({ dispatcher: createLatticeDispatcher({ core: createLatticeCore({ cli }) }), versionId: null })
 `

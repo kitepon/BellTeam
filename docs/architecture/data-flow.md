@@ -53,6 +53,7 @@ Process IDs identify responsibilities, not execution order. Host composition can
 | P7b runtime / Epinel, distribution / Centi | Fixed release/plan/UUID/key -> installation, stored jobs, candidate readiness, receipts and fences | Companions, installer, shared child controller and recovery retain their own versions and writers. [Runtime jobs](modules/runtime/update-jobs.md), [installer](modules/runtime/module-installer.md), [shared child lifecycle](modules/runtime/module-process.md), [distribution](modules/distribution/README.md) |
 | P8 diagnostics / Signal | Allowlisted caller/restart observations -> serialized diagnostic records and closed problem projections | No inference of missing historical evidence; read/write failures remain explicit. [Diagnostics](modules/diagnostics/README.md), [restart problems](modules/diagnostics/module-restart-limit.md) |
 | P9 work-graph / Black (child); facade, effects and mount / Molly | Owner `GET /api/work-graph` and `/api/work-graph/events` -> body facade -> root `refresh`/`snapshot` on the work-graph module child -> snapshot and versioned SSE change batches | Own module child, module-only exchange. The child reads providers only through parent effects inside a root call: members.registry, execution.observation (turns, queue), conversation.history (room responders). No persistent state; a new child is a new epoch. Edges are live Bot-to-Bot delivery processing, not task completion. [Work graph](modules/work-graph/README.md), [shared app motion spec](modules/work-graph/behavior-spec.md) |
+| P11 lattice / Flora (child); facade, effects, mount and MCP registration / Molly | Owner `GET /api/lattice/charts[/:projectId[/events]]` and authenticated seat MCP `lattice {project, name?, args, input?}` -> P1 -> body lattice facade -> root `charts`/`chart`/`refresh`/`run` on the lattice module child -> chart list, snapshot and versioned SSE snapshots; run result `{exitCode, result, stdout, stderr}` | Own module child, module-only exchange. `from` is the Bot id from the seat's authentication, never a tool argument. The child alone writes D11, only through the bundled Lattice CLI (seat commands) and its chart-name file; it reads members only through the `members.list` parent effect inside a root call. A failed read keeps the last snapshot with `degraded`; an I/O error on the charts root is 503 `LATTICE_UNAVAILABLE`, never "no charts"; nothing is cached, so the next call recovers. [Lattice](modules/lattice/README.md), [parent side](modules/runtime/lattice-child.md), [screen spec](modules/lattice/screen-spec.md) |
 
 The L-1 addition composes the existing P7a candidate input with P5 notification-owned saved APNs attempt receipts and P1 existing authenticated status reads. Its parent compatibility and module activation order is defined in the linked update-receipt contract; this source diff does not assert production activation.
 
@@ -107,6 +108,30 @@ flowchart TB
 | Configuration and screen | P1 also calls P3 directly for its authorized management/observation interfaces. Same-harness deferred settings stay tracked but ordinary input skips that deferred barrier; the eventual apply joins the same per-Bot acceptance chain. A screen GET performs one target `pty_read`, without `pty_list`; success, including empty success, yields online, while a call failure logs the original server error and returns offline/empty for that tick. This does not prove that the session is missing |
 
 Direct entrypoints and error framing: [HTTP conversation](../../src/http-conversation-api.mjs), [stable receipt assembly](../../src/direct-receipt-assembly.mjs), [durable receipts](../../src/durable-message-receipts.mjs), [HTTP screen caller](../../src/http-bot-api.mjs). These links locate composition points, not a second copy of their contracts.
+
+## Lattice process charts (P11)
+
+```mermaid
+flowchart LR
+  Seat[Authenticated seat MCP]
+  Apps[Owner apps: Web / Apple / Windows]
+  P1[P1 HTTP mount and MCP registration]
+  F[Body lattice facade: serialized root calls, refresh timer, SSE subscribers]
+  C[P11 lattice child: core, projection, CLI runner]
+  P4[P4 members registry]
+  D11[(D11 chart stores and chart names)]
+  Seat -->|LT1 lattice project, name?, args, input?; from = seat Bot id| P1
+  Apps -->|LT2 GET charts / chart / events| P1
+  P1 -->|LT3 run / charts / chart / subscribe| F
+  F -->|LT4 root run, charts, chart, refresh| C
+  C -->|LT5 members.list effect inside a root call| F
+  F -->|LT6 bots.listForClient| P4
+  C <-->|LT7 Lattice CLI seat commands, display read/source; name file| D11
+  C -->|LT8 run result, chart list, snapshot with name/createdBy/degraded| F
+  F -->|LT9 tool result; JSON; SSE snapshot on version change| P1
+```
+
+LT1-LT9 compose the [lattice module contract](modules/lattice/README.md) with the [parent side](modules/runtime/lattice-child.md); neither is redrawn here. Screens show the chart name (fallback 「作った人の工程表」 / 名前のない工程表), never `projectId`.
 
 ## Startup, restart/resume and child loss
 
@@ -178,6 +203,7 @@ State IDs below identify existing stores; they introduce no new persistence. Rel
 | D7c runtime jobs and install receipts/fences | Updater companion's own atomic storage/installer writer | Existing body clients -> common projection; saved companion source/binding and actual disk error remain visible, separate from parent code version |
 | D8 diagnostics and restart-limit problem records | Diagnostics/Signal serialized writer | Closed diagnostic/problem projection; historical missing fields are not reconstructed |
 | D9 active-only restart references | Execution writer, `state/execution-activity.json` | Cold resume selection and hot handoff; consumed references are not a new queued-input store |
+| D11 Lattice chart stores and chart names | P11 lattice child: Lattice CLI writes `/srv/bellteam/state/lattice/<projectId>/.lattice/**`; the child writes `.bellteam-chart.json` `{name}` beside it; Lattice HOME `/srv/bellteam/state/lattice-home/` | P11 `todo display read/source` -> projection -> P1 chart list/snapshot (display name, never the project id, on screens). Not copied into another store |
 
 ## 親execution境界の詳細対応
 

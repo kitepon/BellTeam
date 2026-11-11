@@ -10,7 +10,7 @@ const BASE = Date.parse('2026-11-11T12:00:00Z'), minutesAgo = n => new Date(BASE
 const TRONY = 'bot-7b140b27', MOLLY = 'bot-39be7047', FLORA = 'bot-7e777fe5', GHOST = 'bot-ghost0001'
 const card = (id, state, producer, depth, extra = {}) => ({ id: `p1/${id}`, plan: 'p1', taskId: id, title: `工程${id}`, doneCondition: '', designMemo: '', state, lane: 'x', producer, startedAt: null, changedAt: minutesAgo(1), blockedReason: null, depth, ...extra })
 const fixture = (extra = {}) => ({
-  schema: 'bellteam.lattice-chart.v1', epoch: 'e1', version: 1, at: minutesAgo(0), projectId: 'bellteam', coordinator: true, state: 'verified', verifiedAt: minutesAgo(0), degraded: [],
+  schema: 'bellteam.lattice-chart.v1', epoch: 'e1', version: 1, at: minutesAgo(0), projectId: 'bellteam', name: 'BellTeam開発', createdBy: TRONY, coordinator: true, state: 'verified', verifiedAt: minutesAgo(0), degraded: [],
   members: [{ botId: TRONY, name: 'トロニー', color: 'indigo', avatarVersion: 'v1' }, { botId: MOLLY, name: 'モリー', color: 'mint', avatarVersion: '' }, { botId: FLORA, name: 'フローラ', color: 'violet', avatarVersion: '' }],
   cards: [
     card('t01', 'done', TRONY, 0, { title: '公開契約の裁定' }),
@@ -27,7 +27,8 @@ const fixture = (extra = {}) => ({
   ],
   ...extra,
 })
-const chartsList = (...ids) => ({ schema: 'bellteam.lattice-charts.v1', at: '', charts: ids.map((projectId, i) => ({ projectId, coordinator: i === 0, createdBy: TRONY, counts: { total: 6, done: 2, working: 1, waiting: 2, blocked: 1 }, activeMembers: [MOLLY, GHOST], updatedAt: minutesAgo(3), state: 'verified' })) })
+const NAMES = { bellteam: 'BellTeam開発', gone: '消えた工程表', a: '設計' }
+const chartsList = (...ids) => ({ schema: 'bellteam.lattice-charts.v1', at: '', charts: ids.map((projectId, i) => ({ projectId, name: NAMES[projectId] ?? null, coordinator: i === 0, createdBy: TRONY, counts: { total: 6, done: 2, working: 1, waiting: 2, blocked: 1 }, activeMembers: [MOLLY, GHOST], updatedAt: minutesAgo(3), state: 'verified' })) })
 
 // ---- model ----
 test('配置：担当ごとのレーン（担当なしは最後）、depth ごとの列、同じ担当・同じ列は縦に積む', () => {
@@ -82,7 +83,8 @@ test('件数・強調・レール・詳細・一覧の項目', () => {
   assert.deepEqual(detail.previous.map(item => item.id), ['p1/t01', 'p1/t02']); assert.deepEqual(detail.next, [])
   assert.equal(detail.startedText, 'まだ着手されていません'); assert.equal(detailOf(fixture(), 'p1/t02', BASE).startedText, '着手 11月11日 20:48 JST')
   assert.equal(detailOf(fixture(), 'nope', BASE), null)
-  const items = listItems(chartsList('a', 'b'), id => id === MOLLY ? { botId: id, name: 'モリー', color: 'mint', avatar: '', known: true } : null)
+  const items = listItems(chartsList('a', 'b'), id => id === MOLLY ? { botId: id, name: 'モリー', color: 'mint', avatar: '', known: true } : id === TRONY ? { botId: id, name: 'トロニー', known: true } : null)
+  assert.deepEqual(items.map(item => item.name), ['設計', 'トロニーの工程表'], '名前が無ければ作った人の工程表')
   assert.equal(items[0].coordinator, true); assert.equal(items[0].waitingText, '待ち 2'); assert.equal(items[0].members[1].name, UNKNOWN_MEMBER)
   assert.equal(coordinatorBotId(chartsList('a', 'b')), TRONY); assert.equal(coordinatorBotId({ charts: [] }), null)
   assert.equal(cardLabel(fixture().cards[1], memberLookup(fixture())(MOLLY)), '部品の配置と保存場所、作業中、つくっている モリー')
@@ -187,7 +189,7 @@ test('開く：一覧（統括が先頭）→ 工程表。札は状態の記号�
   ui.view.open(); await flush()
   assert.equal(ui.dialog.open, true)
   const cards = byClass(ui.body, 'lattice-cc').filter(el => el.tagName === 'button')
-  assert.equal(cards.length, 2); assert.match(textOf(cards[0]), /bellteam.*統括/u); assert.match(textOf(cards[0]), /待ち 2/u)
+  assert.equal(cards.length, 2); assert.match(textOf(cards[0]), /BellTeam開発.*統括/u); assert.match(textOf(cards[0]), /待ち 2/u)
   assert.match(textOf(ui.body), /工程表はメンバーがLatticeでつくります。権限も参加登録もなく、誰でも開けます。/u)
   assert.equal(net.calls.some(u => u.includes(MOLLY)), true, '一覧の顔は fetchImage で取る')
   cards[0].click(); await flush()
@@ -227,7 +229,7 @@ test('工程表が一つだけなら、そのまま工程表へ。会話を開�
   ui.dialog.close(); assert.equal(ui.dialog.open, false)
   ui.view.open(); await flush(); feed2.snapshot(fixture()); await flush()
   assert.equal(byClass(ui.body, 'lattice-card').length, 6)
-  buttonByText(ui.body, 'bellteam').click(); await flush()
+  buttonByText(ui.body, 'BellTeam開発').click(); await flush()
   assert.equal(byClass(ui.body, 'lattice-cc').filter(el => el.tagName === 'button').length, 1, '切替は一覧へ')
   ui.view.close()
 })
@@ -276,7 +278,7 @@ test('工程表が見つからない（404 LATTICE_CHART_NOT_FOUND）は案内�
   const net = router({ streams: [{ ok: false, status: 404, json: async () => ({ error: 'LATTICE_CHART_NOT_FOUND' }) }] })
   const ui = setup(t, { api: async () => chartsList('gone', 'other'), fetchImage: net.fetchImage })
   ui.view.open(); await flush()
-  buttonByText(ui.body, 'gone').click(); await flush()
+  buttonByText(ui.body, '消えた工程表').click(); await flush()
   assert.equal(textOf(ui.body).includes('この工程表は見つかりません。'), true); assert.equal(textOf(ui.body).includes('LATTICE'), false)
   await ui.advance(60000); assert.equal(net.calls.filter(u => u.includes('/events')).length, 1)
   buttonByText(ui.body, '一覧へ戻る').click(); await flush()
@@ -284,7 +286,7 @@ test('工程表が見つからない（404 LATTICE_CHART_NOT_FOUND）は案内�
   ui.view.close()
   // 本文のない404（古いサーバー）は「使えません」。
   const older = router({ streams: [{ ok: false, status: 404, json: async () => { throw new Error('html') } }] }), old = setup(t, { api: async () => chartsList('a', 'b'), fetchImage: older.fetchImage })
-  old.view.open(); await flush(); buttonByText(old.body, 'a').click(); await flush()
+  old.view.open(); await flush(); buttonByText(old.body, '設計').click(); await flush()
   assert.equal(textOf(old.body).includes('このサーバーではまだ工程表を使えません。'), true)
   old.view.close()
 })
@@ -351,8 +353,15 @@ test('画面に出る文字と読み上げに、id・コード・パスは出な
   const forbidden = /bot-[0-9a-z]{6,}|p1\/t\d|LATTICE_|\/api\/|unverified|degraded|lattice-read|blob:/u
   const seen = () => [textOf(ui.body), textOf(ui.pill), ...all(ui.body).flatMap(el => ['aria-label', 'title'].map(k => el.attrs.get(k)).filter(Boolean))].join('\n')
   assert.doesNotMatch(seen(), forbidden); assert.match(seen(), /名簿にないメンバー/u, '一覧の顔：名簿に引けない子')
-  buttonByText(ui.body, 'bellteam').click(); await flush(); feed.snapshot(fixture({ state: 'unverified', degraded: ['members'] })); await flush()
+  const projectIds = /bellteam|(?<![a-z])other(?![a-z])/u
+  const listCards = byClass(ui.body, 'lattice-cc').filter(el => el.tagName === 'button')
+  assert.deepEqual(listCards.map(el => el.dataset.focusKey), ['bellteam', 'other'])
+  assert.doesNotMatch(seen(), projectIds, '一覧の札：プロジェクトIDではなく名前')
+  assert.match(textOf(listCards[0]), /BellTeam開発/u); assert.match(textOf(listCards[1]), /名前のない工程表/u, '名前が無く作った人も引けない')
+  buttonByText(ui.body, 'BellTeam開発').click(); await flush(); feed.snapshot(fixture({ state: 'unverified', degraded: ['members'] })); await flush()
   const shown = seen()
+  assert.doesNotMatch(shown, projectIds, '工程表の上端：プロジェクトIDではなく名前')
+  assert.equal(all(ui.body).some(el => el.attrs.get('aria-label') === 'BellTeam開発、工程表の一覧へ'), true)
   assert.doesNotMatch(shown, forbidden); assert.match(shown, /名簿にないメンバー/u)
   byClass(ui.body, 'lattice-card').find(el => el.dataset.cardId === 'p1/t04').click()
   assert.doesNotMatch(seen(), forbidden)

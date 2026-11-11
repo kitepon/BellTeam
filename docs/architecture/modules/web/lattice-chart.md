@@ -41,7 +41,7 @@ Nav: `#lattice-button` (stroke-only inline SVG, `aria-label` / `title` 工程表
 
 ## Data ownership
 
-The view holds only in-memory drawing state (the last list, the snapshot, one DOM element per card, the avatar Blob URLs, the highlighted member, the open card). Nothing is stored; every Blob URL is revoked on close. The server stays the source; a reconnect, a new `epoch` and a first read all start from a fresh snapshot diffed against the drawing. No code, reason, path or raw id is put on the screen or in a spoken label (blockedReason and designMemo are the plain sentences Lattice carries).
+The view holds only in-memory drawing state (the last list, the snapshot, one DOM element per card, the avatar Blob URLs, the highlighted member, the open card). Nothing is stored; every Blob URL is revoked on close. The server stays the source; a reconnect, a new `epoch` and a first read all start from a fresh snapshot diffed against the drawing. Charts are named by `chartName` (`name`, else 「<作った人>の工程表」 through `getMember(createdBy)`, else 名前のない工程表); the project id is used only in API paths and `data-focus-key`. No code, reason, path or raw id is put on the screen or in a spoken label (blockedReason and designMemo are the plain sentences Lattice carries).
 
 ## Failure handling
 

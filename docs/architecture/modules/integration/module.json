@@ -90,6 +90,14 @@
     {
       "module": "usage",
       "port": "secrets"
+    },
+    {
+      "module": "lattice",
+      "port": "lattice-seat"
+    },
+    {
+      "module": "lattice",
+      "port": "lattice-chart"
     }
   ],
   "source": [

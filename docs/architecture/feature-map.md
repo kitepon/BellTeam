@@ -62,6 +62,8 @@ flowchart LR
   m_integration -->|"trust"| m_terminals
   m_integration -->|"folder"| m_terminals
   m_integration -->|"secrets"| m_usage
+  m_integration -->|"lattice-seat"| m_lattice
+  m_integration -->|"lattice-chart"| m_lattice
   m_lattice -->|"registry"| m_members
   m_members -->|"stop"| m_execution
   m_members -->|"project-files"| m_runtime

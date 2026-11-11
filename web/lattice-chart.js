@@ -3,7 +3,7 @@ import { parseFrames } from './work-graph.js?v=__ASSET_VERSION__'
 import { applyAvatar } from './view-format.js?v=__ASSET_VERSION__'
 import {
   MESSAGES, SCHEMA, UNASSIGNED, accent, backoffMs, bannerFor, chartCounts, coordinatorBotId, degradedPills, detailOf, diffSnapshots, edgeChipText, edgeGeometry,
-  flowPositions, highlightSets, layoutChart, listItems, listSignature, memberLookup, particleOpacity, pointOnEdge, railItems, stateInfo, waitRows, cardLabel, cardNote, minutesSince, RED,
+  flowPositions, highlightSets, layoutChart, chartName, listItems, listSignature, memberLookup, particleOpacity, pointOnEdge, railItems, stateInfo, waitRows, cardLabel, cardNote, minutesSince, RED,
 } from './lattice-chart-model.js?v=__ASSET_VERSION__'
 
 const GLYPHS = {
@@ -194,7 +194,7 @@ export function createLatticeChart(dialog, {
       show('list', h('div', { class: 'lattice-list' },
         h('div', { class: 'lattice-grid' },
           ...items.map(item => h('button', { class: `lattice-cc${item.coordinator ? ' pin' : ''}`, type: 'button', 'aria-label': item.label, dataset: { focusKey: item.projectId }, on: { click: () => openChart(item.projectId) } },
-            h('span', { class: 'nm' }, item.coordinator && glyph('crown', 'lattice-crown'), h('b', { text: item.projectId }), item.coordinator && h('span', { class: 'lattice-badge', text: '統括' })),
+            h('span', { class: 'nm' }, item.coordinator && glyph('crown', 'lattice-crown'), h('b', { text: item.name }), item.coordinator && h('span', { class: 'lattice-badge', text: '統括' })),
             ringEl(item.fraction, 40, `${item.done}/${item.total}`),
             h('span', { class: 'co' }, ...item.members.map(member => avatar(member, 22))),
             h('span', { class: `wt${item.waiting ? '' : ' z'}` }, glyph('hour'), item.waitingText),
@@ -305,8 +305,9 @@ export function createLatticeChart(dialog, {
 
   function paintToolbar(counts) {
     const members = lookup(), coordinatorId = coordinatorBotId(list), coordinator = snapshot.coordinator && coordinatorId ? members(coordinatorId) : null
-    ui.switcher.setAttribute('aria-label', `${chartId}、工程表の一覧へ`)
-    fill(ui.switcher, snapshot.coordinator && glyph('crown', 'lattice-crown'), h('b', { text: chartId }),
+    const name = chartName(snapshot, getMember)
+    ui.switcher.setAttribute('aria-label', `${name}、工程表の一覧へ`)
+    fill(ui.switcher, snapshot.coordinator && glyph('crown', 'lattice-crown'), h('b', { text: name }),
       snapshot.coordinator && h('span', { class: 'lattice-coord' }, h('span', { class: 'lattice-badge', text: '統括' }), coordinator?.known && [avatar(coordinator, 16), h('strong', { text: coordinator.name })]), glyph('chev'))
     const fraction = counts.total ? counts.done / counts.total : 0
     fill(ui.summary, ringEl(fraction, 30), h('span', { class: 't' }, `${counts.done}/${counts.total}`, h('small', { text: '完了' })))

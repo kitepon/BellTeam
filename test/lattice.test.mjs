@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -121,7 +121,9 @@ function rig(extra = {}) {
   const clock = { now: Date.parse('2026-11-11T10:00:00.000Z') }
   const reply = value => ({ exitCode: 0, stdout: JSON.stringify(value), stderr: '' })
   const cli = { charts: ['alpha'], reads: { alpha: chartRead() }, source: { alpha: 1 }, fail: new Set(), calls: [], runs: [], ensured: [], out: reply({ ok: true }),
-    list: async () => [...cli.charts], exists: async id => cli.charts.includes(id),
+    list: async () => [...cli.charts], exists: async id => cli.charts.includes(id), names: {},
+    name: async id => { if (cli.fail.has('name')) throw Object.assign(new Error('x'), { code: 'LATTICE_UNAVAILABLE' }); return cli.names[id] ?? null },
+    setName: async (id, name) => { cli.names[id] = name },
     ensure: async id => { cli.ensured.push(id); if (!cli.charts.includes(id)) cli.charts.push(id) },
     async run({ id, args, env, input }) {
       const key = args.join(' ')
@@ -148,12 +150,27 @@ test('core: snapshot shape, members only for producers and waiters, coordinator 
   const x = rig()
   x.world.members = roster(['bot-a', 'bot-b', 'bot-z'])
   const snapshot = await x.chart()
-  assert.deepEqual(Object.keys(snapshot), ['schema', 'epoch', 'version', 'at', 'projectId', 'coordinator', 'state', 'verifiedAt', 'degraded', 'members', 'cards', 'edges', 'waits'])
+  assert.deepEqual(Object.keys(snapshot), ['schema', 'epoch', 'version', 'at', 'projectId', 'name', 'createdBy', 'coordinator', 'state', 'verifiedAt', 'degraded', 'members', 'cards', 'edges', 'waits'])
   assert.deepEqual([snapshot.schema, snapshot.epoch, snapshot.version, snapshot.coordinator, snapshot.degraded], ['bellteam.lattice-chart.v1', x.core.epoch, 1, true, []])
   assert.deepEqual(snapshot.members, [{ botId: 'bot-a', name: 'BOT-A', color: 'sky', avatarVersion: 'v1' }])
   assert.equal(snapshot.waits[0].waiter, null)
   const other = rig(); other.cli.reads.alpha = chartRead({ agent: 'bot-b' })
   assert.equal((await other.chart()).coordinator, false)
+})
+
+test('core: a chart name is set by a seat, read beside the store, and a failed name read is degraded and recovers', async () => {
+  const x = rig()
+  assert.deepEqual([(await x.chart()).name, (await x.chart()).createdBy], [null, 'bot-7b140b27'])
+  assert.deepEqual(await x.core.run({ from: 'bot-a', projectId: 'alpha', args: [], input: null, name: 'Lattice組込' }), { exitCode: 0, result: { name: 'Lattice組込' }, stdout: null, stderr: '' })
+  assert.deepEqual(x.cli.runs, [], 'naming alone runs no Lattice command')
+  const named = await x.chart()
+  assert.deepEqual([named.name, named.version, (await x.core.charts({}, x.effect)).charts[0].name], ['Lattice組込', 2, 'Lattice組込'])
+  await assert.rejects(x.core.run({ from: 'bot-a', projectId: 'alpha', args: [], input: null }), { code: 'LATTICE_COMMAND_NOT_SEAT_SURFACE' })
+  x.cli.fail.add('name'); x.clock.now += 31000
+  const failed = await x.chart()
+  assert.deepEqual([failed.name, failed.degraded], ['Lattice組込', ['lattice-read']])
+  x.cli.fail.delete('name'); x.clock.now += 31000
+  assert.deepEqual((await x.chart()).degraded, [])
 })
 
 test('core: memo follows the source token, the ceiling and runs', async () => {
@@ -248,7 +265,7 @@ test('core: charts lists every chart, coordinator first then newest update', asy
   Object.assign(x.cli.source, { beta: 1, gamma: 1, empty: 1 })
   const list = await x.core.charts({}, x.effect)
   assert.deepEqual([list.schema, list.charts.map(chart => chart.projectId)], ['bellteam.lattice-charts.v1', ['alpha', 'beta', 'gamma', 'empty']])
-  assert.deepEqual(list.charts[0], { projectId: 'alpha', coordinator: true, createdBy: 'bot-7b140b27', counts: { total: 2, done: 0, working: 1, waiting: 1, blocked: 0 },
+  assert.deepEqual(list.charts[0], { projectId: 'alpha', name: null, coordinator: true, createdBy: 'bot-7b140b27', counts: { total: 2, done: 0, working: 1, waiting: 1, blocked: 0 },
     activeMembers: ['bot-a'], updatedAt: at(2), state: 'verified' })
   assert.equal(x.world.effects, 1)
   x.cli.charts = ['alpha']; await x.core.charts({}, x.effect)
@@ -305,6 +322,23 @@ test('cli: real process runs in the chart dir with exactly the agreed env, then 
   assert.equal(existsSync(withInput.argv[3]), false)
   const loud = await cli.run({ id: 'alpha', args: ['help'] })
   assert.equal(loud.stderr.length, 4096)
+  assert.equal(await cli.name('alpha'), null)
+  await cli.setName('alpha', '工程表'); assert.equal(await cli.name('alpha'), '工程表')
+  await writeFile(join(chartsRoot, 'alpha', '.bellteam-chart.json'), '{"name":"\\u0007"}'); assert.equal(await cli.name('alpha'), null, 'a malformed name is no name')
+})
+
+test('cli: a missing charts root is no charts; a permission error is LATTICE_UNAVAILABLE, not "no charts", and recovers', async t => {
+  const { bin, chartsRoot, home } = await scratch(t)
+  const cli = createLatticeCli({ bin, chartsRoot, home })
+  assert.deepEqual([await cli.list(), await cli.exists('alpha')], [[], false])
+  await mkdir(join(chartsRoot, 'alpha', '.lattice'), { recursive: true })
+  await chmod(chartsRoot, 0o000)
+  try {
+    await assert.rejects(cli.list(), { code: 'LATTICE_UNAVAILABLE', status: 503, detail: 'EACCES' })
+    await assert.rejects(cli.exists('alpha'), { code: 'LATTICE_UNAVAILABLE', detail: 'EACCES' })
+    await assert.rejects(cli.name('alpha'), { code: 'LATTICE_UNAVAILABLE' })
+  } finally { await chmod(chartsRoot, 0o700) }
+  assert.deepEqual([await cli.list(), await cli.exists('alpha')], [['alpha'], true])
 })
 
 test('cli: allowlist and input conflict', async t => {
@@ -429,11 +463,13 @@ test('http-api: SSE sends the first snapshot, then only newer versions or a new 
 test('mcp: one tool with a strict schema; the handler runs the chart for the calling Bot', async () => {
   assert.deepEqual(latticeTools.map(tool => tool.name), ['lattice'])
   const { inputSchema, description } = latticeTools[0]
-  assert.deepEqual([inputSchema.required, inputSchema.additionalProperties, Object.keys(inputSchema.properties)], [['project', 'args'], false, ['project', 'args', 'input']])
+  assert.deepEqual([inputSchema.required, inputSchema.additionalProperties, Object.keys(inputSchema.properties)], [['project', 'args'], false, ['project', 'name', 'args', 'input']])
   for (const word of ['session-context', 'plan', 'todo', 'next_action', '--input', 'bellteam']) assert.ok(description.includes(word), word)
   const calls = []
   const lattice = { run: async params => { calls.push(params); return { exitCode: 0 } } }
   await latticeToolHandlers.lattice({ lattice, from: 'bot-a', args: { project: 'p', args: ['status'] } })
   await latticeToolHandlers.lattice({ lattice, from: 'bot-a', args: { project: 'p', args: ['plan', 'create'], input: { a: 1 } } })
-  assert.deepEqual(calls, [{ from: 'bot-a', projectId: 'p', args: ['status'], input: null }, { from: 'bot-a', projectId: 'p', args: ['plan', 'create'], input: { a: 1 } }])
+  await latticeToolHandlers.lattice({ lattice, from: 'bot-a', args: { project: 'p', name: '工程', args: [] } })
+  assert.deepEqual(calls, [{ from: 'bot-a', projectId: 'p', args: ['status'], input: null }, { from: 'bot-a', projectId: 'p', args: ['plan', 'create'], input: { a: 1 } },
+    { from: 'bot-a', projectId: 'p', args: [], input: null, name: '工程' }])
 })

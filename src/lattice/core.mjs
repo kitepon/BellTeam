@@ -35,11 +35,11 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     if (!memo) memos.set(id, memo = { token: null, readAt: 0, version: 0, key: null, content: null, projection: null, dirty: true, logged: null })
     const current = await token(id)
     if (memo.content && !memo.dirty && current !== null && current === memo.token && now() - memo.readAt < ceilingMs) return memo
-    let read
-    try { read = await lattice(id, ['todo', 'display', 'read', '--json']) } catch (error) {
+    let read, name
+    try { [read, name] = await Promise.all([lattice(id, ['todo', 'display', 'read', '--json']), cli.name(id)]) } catch (error) {
       memo.dirty = true
       if (memo.logged !== error.code) { memo.logged = error.code; log(`lattice-read ${id} ${error.code ?? 'LATTICE_CLI_FAILED'}`) }
-      const base = memo.content ?? { coordinator: false, state: 'unavailable', verifiedAt: null, members: [], cards: [], edges: [], waits: [] }
+      const base = memo.content ?? { name: null, createdBy: null, coordinator: false, state: 'unavailable', verifiedAt: null, members: [], cards: [], edges: [], waits: [] }
       commit(id, memo, { ...base, degraded: [...new Set([...base.degraded ?? [], 'lattice-read'])].sort() })
       return memo
     }
@@ -47,7 +47,7 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     const projection = projectChart({ read, members: roster, previous: memo.projection })
     const known = new Map(roster.filter(member => !member.deleting).map(member => [member.id, member]))
     Object.assign(memo, { token: current, readAt: now(), dirty: false, logged: null, projection })
-    commit(id, memo, { coordinator: projection.createdBy === coordinatorId, state: projection.state, verifiedAt: projection.verifiedAt,
+    commit(id, memo, { name, createdBy: projection.createdBy, coordinator: projection.createdBy === coordinatorId, state: projection.state, verifiedAt: projection.verifiedAt,
       degraded: rosterBad ? ['members'] : [],
       members: projection.memberIds.filter(botId => known.has(botId)).map(botId => ({ botId, name: known.get(botId).name, color: known.get(botId).color,
         avatarVersion: known.get(botId).avatarVersion })),
@@ -72,8 +72,8 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     async charts(params, effect) {
       const ids = await cli.list()
       for (const id of memos.keys()) if (!ids.includes(id)) memos.delete(id)
-      const charts = (await syncAll(ids, effect)).map((memo, i) => ({ projectId: ids[i], coordinator: memo.content.coordinator,
-        createdBy: memo.projection?.createdBy ?? null,
+      const charts = (await syncAll(ids, effect)).map((memo, i) => ({ projectId: ids[i], name: memo.content.name, coordinator: memo.content.coordinator,
+        createdBy: memo.content.createdBy,
         counts: memo.projection?.counts ?? { total: 0, done: 0, working: 0, waiting: 0, blocked: 0 },
         activeMembers: [...new Set(memo.content.cards.filter(card => card.state === 'in-progress' && card.producer).map(card => card.producer))].sort(),
         updatedAt: memo.projection?.updatedAt ?? null, state: memo.content.state }))
@@ -89,19 +89,24 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     // Returns each chart whose version moved since it was last returned here, so a read by another caller is never lost to subscribers.
     async refresh({ projectIds }, effect) {
       const ids = []
-      for (const id of projectIds) if (await cli.exists(id)) ids.push(id)
+      // An exists() I/O error keeps the chart in the round, where its read reports degraded:['lattice-read'] instead of dropping it.
+      for (const id of projectIds) if (await cli.exists(id).catch(() => true)) ids.push(id)
       const snapshots = []
       ;(await syncAll(ids, effect)).forEach((memo, i) => {
         if (memo.version !== memo.pushed) { memo.pushed = memo.version; snapshots.push(snapshotOf(ids[i], memo)) }
       })
       return { snapshots, nextRefreshMs: refreshMs }
     },
-    async run({ from, projectId, args, input }) {
-      checkSeatArgs(args, input)
+    // `name` alone (args []) only names the chart; with args it names it and then runs the command.
+    async run({ from, projectId, args, input, name }) {
+      const naming = name !== undefined
+      if (!(naming && args.length === 0 && input === null)) checkSeatArgs(args, input)
       await cli.ensure(projectId)
-      const result = await cli.run({ id: projectId, args, env: { LATTICE_SEAT_ID: from }, input })
+      if (naming) await cli.setName(projectId, name)
       const memo = memos.get(projectId)
       if (memo) memo.dirty = true
+      if (args.length === 0) return { exitCode: 0, result: { name }, stdout: null, stderr: '' }
+      const result = await cli.run({ id: projectId, args, env: { LATTICE_SEAT_ID: from }, input })
       const value = parse(result.stdout)
       return { exitCode: result.exitCode, result: value === undefined ? null : value, stdout: value === undefined ? result.stdout.slice(0, STDOUT_KEPT) : null, stderr: result.stderr }
     },

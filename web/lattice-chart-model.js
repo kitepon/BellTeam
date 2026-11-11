@@ -241,19 +241,23 @@ export function diffSnapshots(prev, next) {
   return out
 }
 
+// 工程表の名前：付いた名前、無ければ「作った人の工程表」。IDは画面に出さない。
+export const chartName = (chart, getMember = () => null) => chart?.name ?? (chart?.createdBy && getMember(chart.createdBy)?.name ? `${getMember(chart.createdBy).name}の工程表` : '名前のない工程表')
+
 // 一覧：統括の工程表が先頭（サーバーの並びのまま）。active は名簿から引けた分だけ顔にし、引けない子は「?」。
 export function listItems(list, getMember = () => null) {
   return (list.charts ?? []).map(chart => {
     const members = (chart.activeMembers ?? []).slice(0, 4).map(botId => getMember(botId) ?? { botId, name: UNKNOWN_MEMBER, color: 'unknown', avatar: '', known: false })
     const { done = 0, total = 0, waiting = 0 } = chart.counts ?? {}
+    const name = chartName(chart, getMember)
     return {
-      projectId: chart.projectId, coordinator: Boolean(chart.coordinator), done, total, waiting, members,
+      projectId: chart.projectId, name, coordinator: Boolean(chart.coordinator), done, total, waiting, members,
       fraction: total ? Math.min(1, done / total) : 0,
       waitingText: `待ち ${waiting}`,
       updated: chart.updatedAt ? `更新 ${formatJst(chart.updatedAt)}` : '',
-      label: `${chart.projectId}${chart.coordinator ? '、統括の工程表' : ''}、完了 ${done}/${total}、待ち ${waiting}${members.length ? `、動いているのは${members.map(member => member.name).join('、')}` : ''}`,
+      label: `${name}${chart.coordinator ? '、統括の工程表' : ''}、完了 ${done}/${total}、待ち ${waiting}${members.length ? `、動いているのは${members.map(member => member.name).join('、')}` : ''}`,
     }
   })
 }
 export const coordinatorBotId = list => (list?.charts ?? []).find(chart => chart.coordinator && chart.createdBy)?.createdBy ?? null
-export const listSignature = list => JSON.stringify((list.charts ?? []).map(chart => [chart.projectId, chart.coordinator, chart.counts, chart.activeMembers, chart.updatedAt, chart.state]))
+export const listSignature = list => JSON.stringify((list.charts ?? []).map(chart => [chart.projectId, chart.name, chart.createdBy, chart.coordinator, chart.counts, chart.activeMembers, chart.updatedAt, chart.state]))
