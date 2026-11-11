@@ -17,6 +17,7 @@ import { BotRegistry } from '../src/bot-registry.mjs'
 import { OwnerProfile } from '../src/owner-profile.mjs'
 import { UserRules } from '../src/user-rules.mjs'
 import { createSyntheticNotificationsProcess } from './helpers/notifications-process.mjs'
+import { createFixtureJobClient } from './fixtures/update-job-client.mjs'
 
 test('usage staged parent assembly authenticates HTTP and seat callers and uses one controller for durable updates', { timeout: 20000 }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'usage-common-')), children = []
@@ -48,7 +49,7 @@ test('usage staged parent assembly authenticates HTTP and seat callers and uses 
   await usageAssembly.initializeSettings()
   assert.equal(usageAssembly.controller.snapshot().phase, 'initializing')
   assert.equal(usageAssembly.facade.settings.list().length, 7)
-  const hostUpdateClient = { capabilities: async () => ({ supported: false, reason: 'HOST_UPDATE_UNAVAILABLE', currentRequestId: null, previousRequestId: null }),
+  const hostUpdateClient = { ...createFixtureJobClient(root), jobs: async () => ({ jobs: [] }), capabilities: async () => ({ supported: false, reason: 'HOST_UPDATE_UNAVAILABLE', currentRequestId: null, previousRequestId: null }),
     catalog: async id => {
       const url = `https://github.com/kitepon/BellTeam/releases/download/updates-20261104T000000Z/usage-${source}-linux-amd64.tar.gz`
       return { schema: 'bellteam.update-catalog.selection.v1', catalogSha256: 'd'.repeat(64), publishedAt: '2026-11-04T00:00:00Z', expiresAt: '2099-01-01T00:00:00Z',
