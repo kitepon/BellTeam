@@ -68,7 +68,7 @@ public sealed class LatticeChartTests
             [new("3", "2", false), new("1", "4", true)]) with { Phases = [new("ph", null), new("empty", "空")] };
         var tree = LatticeChart.Tree(snapshot, "工程表");
         var node = tree.Nodes.ToDictionary(item => item.Key);
-        Assert.Equal((LatticeChart.UnnamedPhase, 1, 3, "blocked"), (node["phase:ph"].Label, node["phase:ph"].Done, node["phase:ph"].Total, node["phase:ph"].Tone));
+        Assert.Equal((LatticeChart.UnnamedPhase, 1, 2, "blocked"), (node["phase:ph"].Label, node["phase:ph"].Done, node["phase:ph"].Total, node["phase:ph"].Tone));
         Assert.Equal(("pending", 0), (node["phase:empty"].Tone, node["phase:empty"].Total));
         Assert.Equal((1, 4), (node["root"].Done, node["root"].Total));
         Assert.Equal(node["1"].X + LatticeChart.TreeCardWidth + LatticeChart.TreeGap, node["2"].X);
@@ -77,6 +77,29 @@ public sealed class LatticeChartTests
         Assert.Equal([false, true], tree.Arcs.Select(arc => arc.Waiting));
         Assert.True(tree.Arcs.All(arc => arc.Bulge > Math.Max(arc.X0, arc.X1 - 6)));
         Assert.Equal(["1", "2", "3", "4"], tree.Cards.Keys.Order());
+    }
+
+    [Fact]
+    public void ArchivedCardsLeaveTheTreeAndLanesButStayCountedAndInTheHistory()
+    {
+        var snapshot = Snapshot([Card("1", "done", "bot-a") with { Phase = "old", Archived = true, DoneAt = Now.AddHours(-1) }, Card("2", "pending", "bot-k") with { Phase = "new", Parent = "3" },
+            Card("3", "retired", "bot-k") with { Phase = "new", Archived = true, DoneAt = Now.AddHours(-30) }, Card("4", "done", "bot-a") with { Phase = "new", DoneAt = Now.AddDays(-3) }, Card("5", "done", null)])
+            with { Phases = [new("old", "済んだ"), new("new", "今の")] };
+        var tree = LatticeChart.Tree(snapshot, "工程表");
+        Assert.Equal(["2", "4", "5"], tree.Cards.Keys.Order());
+        Assert.DoesNotContain(tree.Nodes, node => node.Key == "phase:old");
+        Assert.Contains(tree.Links, link => link.From == "phase:new" && link.To == "2");
+        var node = tree.Nodes.ToDictionary(item => item.Key);
+        Assert.Equal((4, 5), (node["root"].Done, node["root"].Total));
+        Assert.Equal((2, 3), (node["phase:new"].Done, node["phase:new"].Total));
+        Assert.Equal(["2", "4", "5"], LatticeChart.Layout(snapshot).Cards.Keys.Order());
+        Assert.Equal(5, LatticeChart.Counts(snapshot).Total);
+        var log = LatticeChart.History(snapshot, Now);
+        Assert.Equal(4, log.Count);
+        Assert.Equal(["今日", "昨日", "11月8日", "日時の分からない工程"], log.Groups.Select(group => group.Heading));
+        Assert.Equal(("1", "20:00", "工程1、完了、今日 20:00、アドミ"), (log.Groups[0].Rows[0].Id, log.Groups[0].Rows[0].Time, log.Groups[0].Rows[0].Label));
+        Assert.Equal(("5", "", "工程5、完了、担当なし"), (log.Groups[3].Rows[0].Id, log.Groups[3].Rows[0].Time, log.Groups[3].Rows[0].Label));
+        Assert.Equal(0, LatticeChart.History(Snapshot([Card("9", "pending", null)]), Now).Count);
     }
 
     [Fact]
@@ -223,6 +246,37 @@ public sealed class LatticeChartTests
         var second = (CancellationTokenSource)runField.GetValue(chart)!;
         Assert.NotSame(first, second);
         chart.Stop(); window.Close();
+    });
+
+    [Fact]
+    public void HistoryKeepsTheSelectedCardTheHighlightAndThePositionAcrossViews() => RunSta(() =>
+    {
+        using var workspace = new Workspace(origin => new BellApi(origin, new LatticeFixture("chart")));
+        Await(workspace.ConnectAsync("http://localhost", listen: false));
+        var window = new LatticeWindow(workspace, _ => Task.CompletedTask) { Rendering = true };
+        try
+        {
+            LatticeChartPage.View = "lanes";
+            window.Sync(); Until(() => window.ListSettled);
+            window.OpenChart("lattice"); var chart = window.Chart!;
+            Until(() => chart.Feed.Snapshot is not null);
+            var root = (FrameworkElement)window.Content; root.Measure(new Size(1360, 860)); root.Arrange(new Rect(0, 0, 1360, 860)); root.UpdateLayout();
+            chart.Highlight("bot-admi"); chart.OpenDetail("p1/t03", morph: false);
+            chart.SetView("history"); root.UpdateLayout();
+            var rows = LogicalTree.Find<Button>(window.Content).Where(button => System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "lattice-history-row").ToList();
+            Assert.Equal(3, rows.Count);
+            var selected = Assert.Single(rows, button => ((Border)button.Content).BorderThickness.Top == 2);
+            Assert.StartsWith("旧・組込案の比較", System.Windows.Automation.AutomationProperties.GetName(selected));
+            Assert.Equal([1d], rows.Where(button => button.Opacity == 1).Select(button => button.Opacity));   // only アドミ's card stays lit
+            Assert.Same(selected, rows.Single(button => button.Opacity == 1));
+            var at = chart.CardRect("p1/t03");
+            Assert.False(at.IsEmpty);
+            Assert.True(at.Y > chart.CardRect("p1/t01").Y);
+            chart.Highlight(null); chart.CloseDetail();
+            Assert.All(rows, button => Assert.Equal((1d, 1d), (button.Opacity, ((Border)button.Content).BorderThickness.Top)));
+            chart.Stop();
+        }
+        finally { LatticeChartPage.View = "tree"; window.Close(); }
     });
 
     private static void Pump() { var frame = new DispatcherFrame(); Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => frame.Continue = false)); Dispatcher.PushFrame(frame); }

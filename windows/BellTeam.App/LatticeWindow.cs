@@ -46,7 +46,7 @@ public sealed class LatticeWindow : Window
         pill.HorizontalAlignment = HorizontalAlignment.Center; pill.VerticalAlignment = VerticalAlignment.Bottom; pill.Margin = new Thickness(0, 0, 0, 18); pill.Visibility = Visibility.Collapsed; pill.IsHitTestVisible = false;
         System.Windows.Automation.AutomationProperties.SetAutomationId(pillText, "lattice-list-status");
         root.Children.Add(page); root.Children.Add(pill); Content = root;
-        Resources.Add(typeof(System.Windows.Controls.Primitives.ScrollBar), ThinScrollBar);
+        Resources.Add(typeof(System.Windows.Controls.Primitives.ScrollBar), ThinScrollBar());
         ShowList();
         SourceInitialized += (_, _) => UseMica();
         IsVisibleChanged += (_, _) => Sync(); StateChanged += (_, _) => Sync();
@@ -220,7 +220,8 @@ public sealed class LatticeWindow : Window
     }
 
     // Fluent-style thin scroll bars: a rounded thumb on a clear track, no arrow buttons.
-    private static readonly Style ThinScrollBar = (Style)System.Windows.Markup.XamlReader.Parse("""
+    // One per window: a Style belongs to the thread that parsed it, so a shared static breaks a window on another dispatcher.
+    private static Style ThinScrollBar() => (Style)System.Windows.Markup.XamlReader.Parse("""
         <Style xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" TargetType="ScrollBar">
           <Setter Property="Width" Value="10"/><Setter Property="MinWidth" Value="10"/><Setter Property="Background" Value="Transparent"/>
           <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ScrollBar"><Grid Background="Transparent"><Track x:Name="PART_Track" IsDirectionReversed="True"><Track.Thumb><Thumb><Thumb.Template><ControlTemplate TargetType="Thumb"><Border CornerRadius="3" Background="#40212938" Margin="2"/></ControlTemplate></Thumb.Template></Thumb></Track.Thumb></Track></Grid></ControlTemplate></Setter.Value></Setter>
@@ -256,8 +257,11 @@ internal sealed class LatticeChartPage : Grid
     private CancellationTokenSource? run;
     internal LatticeBoard Board { get; }
     internal LatticeTreeView Tree { get; }
-    // ツリー / 担当: ツリー by default, remembered while the app is open (screen-spec "ツリー").
-    internal static bool ShowTree { get; set; } = true;
+    // ツリー / 担当 / 過去ログ ("tree" / "lanes" / "history"): ツリー by default, remembered while the app is open (screen-spec "ツリー").
+    internal static string View { get; set; } = "tree";
+    private readonly StackPanel history = new() { Margin = new Thickness(20, 14, 20, 24), Width = 680, HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly Dictionary<string, FrameworkElement> historyRows = [];
+    private readonly Dictionary<string, Border> historyFrames = [];
     private readonly ScrollViewer scroller;
     private readonly Grid stage = new();
     private readonly StackPanel toolbar = new() { Orientation = Orientation.Horizontal };
@@ -290,7 +294,7 @@ internal sealed class LatticeChartPage : Grid
         Board.CardOpened += id => OpenDetail(id);
         Tree = new LatticeTreeView(window.Avatar);
         Tree.CardOpened += id => OpenDetail(id);
-        scroller = new ScrollViewer { Content = ShowTree ? Tree : Board, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, PanningMode = PanningMode.Both, Padding = new Thickness(0, 4, 0, 0) };
+        scroller = new ScrollViewer { Content = View == "tree" ? Tree : Board, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, PanningMode = PanningMode.Both, Padding = new Thickness(0, 4, 0, 0) };
         scroller.ScrollChanged += (_, e) => Board.ScrolledTo(e.HorizontalOffset);
         // A click on empty canvas clears the member highlight (screen-spec user path).
         scroller.PreviewMouseLeftButtonDown += (_, e) => { if (e.OriginalSource is ScrollViewer or LatticeBoard or LatticeTreeView or ScrollContentPresenter && HighlightedMember is not null) Highlight(null); };
@@ -353,8 +357,9 @@ internal sealed class LatticeChartPage : Grid
             if (!board.Children.Contains(scroller)) { board.Children.Clear(); board.Children.Add(scroller); board.Children.Add(fade); board.Children.Add(detailHost); }
             // The lanes are laid out in both views: the rail reads its members from them.
             Board.Show(snapshot, Feed.LastDiff, now); Board.Highlight(HighlightedMember); Board.Select(SelectedCard);
-            if (ShowTree) { Tree.Show(snapshot, ChartName); Tree.Highlight(HighlightedMember); Tree.Select(SelectedCard); }
-            scroller.Content = ShowTree ? Tree : Board;
+            if (View == "tree") { Tree.Show(snapshot, ChartName); Tree.Highlight(HighlightedMember); Tree.Select(SelectedCard); }
+            if (View == "history") RenderHistory(snapshot, now);
+            scroller.Content = View switch { "tree" => Tree, "history" => history, _ => Board };
         }
         var live = Feed.Connection == LatticeConnection.Live;
         Board.Flowing = live;
@@ -399,7 +404,7 @@ internal sealed class LatticeChartPage : Grid
         var livePill = Pill(Row(dot, Spaced(Text(live ? "ライブ" : "再接続中", 12, live ? Color.FromRgb(0x1F, 0x86, 0x76) : Muted, FontWeights.SemiBold), 6)), live ? Color.FromRgb(0x2E, 0xB3, 0x9E) : Muted, 0x1F);
         livePill.Margin = new Thickness(14, 0, 0, 0); toolbar.Children.Add(livePill);
         if (snapshot is null or { State: "unavailable" }) return;
-        toolbar.Children.Add(ViewSwitch());
+        toolbar.Children.Add(ViewSwitch(LatticeChart.History(snapshot, window.Now()).Count));
         var counts = LatticeChart.Counts(snapshot);
         var ring = new LatticeRing(counts.Done, counts.Total, 40) { Margin = new Thickness(26, 0, 0, 0) }; toolbar.Children.Add(ring);
         toolbar.Children.Add(Spaced(new StackPanel { Children = { Text("完了", 11, Muted), Text($"{counts.Done} / {counts.Total}", 14, Ink, FontWeights.SemiBold) }, VerticalAlignment = VerticalAlignment.Center }, 8));
@@ -407,28 +412,66 @@ internal sealed class LatticeChartPage : Grid
         toolbar.Children.Add(Counter(Shape(HourglassGeometry, 11, Violet), "待ち", counts.Waiting, Violet, 8));
         toolbar.Children.Add(Counter(Shape(OctagonGeometry, 13, Red), "止まり", counts.Blocked, Red, 8));
     }
-    /// <summary>The segmented control ツリー / 担当.</summary>
-    private Border ViewSwitch()
+    /// <summary>The segmented control ツリー / 担当 / 過去ログ N.</summary>
+    private Border ViewSwitch(int finished)
     {
-        Button Segment(string label, bool tree)
+        Button Segment(string label, string view)
         {
-            var on = ShowTree == tree;
+            var on = View == view;
             var face = new Border { Child = Text(label, 12.5, on ? Ink : Muted, on ? FontWeights.SemiBold : FontWeights.Normal), CornerRadius = new CornerRadius(8), Padding = new Thickness(14, 5, 14, 5), Background = on ? Brush(Colors.White) : Brushes.Transparent };
             if (on) face.Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Ink, Opacity = .08, BlurRadius = 6, ShadowDepth = 1, Direction = 270 };
             var button = Plain(face, label + (on ? "、表示中" : "で表示"));
-            System.Windows.Automation.AutomationProperties.SetAutomationId(button, tree ? "lattice-view-tree" : "lattice-view-lanes");
-            button.Click += (_, _) => SetView(tree);
+            System.Windows.Automation.AutomationProperties.SetAutomationId(button, "lattice-view-" + view);
+            button.Click += (_, _) => SetView(view);
             return button;
         }
-        var segments = new Border { Child = Row(Segment("ツリー", true), Segment("担当", false)), CornerRadius = new CornerRadius(10), Padding = new Thickness(3), Background = Brush(Muted, 0x1F), Margin = new Thickness(14, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        var segments = new Border { Child = Row(Segment("ツリー", "tree"), Segment("担当", "lanes"), Segment($"過去ログ {finished}", "history")), CornerRadius = new CornerRadius(10), Padding = new Thickness(3), Background = Brush(Muted, 0x1F), Margin = new Thickness(14, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
         return segments;
     }
-    /// <summary>Switches the center between the tree and the lanes; 詳細, highlight and the selected card's scroll position carry over.</summary>
-    internal void SetView(bool tree)
+    /// <summary>Switches the center between the tree, the lanes and 過去ログ; 詳細, highlight and the selected card's scroll position carry over.</summary>
+    internal void SetView(string view)
     {
-        if (ShowTree == tree) return;
-        ShowTree = tree; Render();
+        if (View == view) return;
+        View = view; Render();
         if (SelectedCard is { } selected) { scroller.UpdateLayout(); ScrollToCard(selected); }
+    }
+
+    /// <summary>過去ログ: finished cards under JST day headings, newest first; a row opens 詳細.</summary>
+    private void RenderHistory(LatticeSnapshot snapshot, DateTimeOffset now)
+    {
+        history.Children.Clear(); historyRows.Clear(); historyFrames.Clear();
+        var log = LatticeChart.History(snapshot, now);
+        if (log.Count == 0) { var none = Text("まだ終わった工程はありません。", 14, Muted); none.Margin = new Thickness(4, 10, 0, 0); history.Children.Add(none); return; }
+        foreach (var group in log.Groups)
+        {
+            var heading = Text(group.Heading, 12.5, Muted, FontWeights.SemiBold); heading.Margin = new Thickness(4, 10, 0, 8); history.Children.Add(heading);
+            foreach (var row in group.Rows)
+            {
+                var dock = new DockPanel();
+                var time = Text(row.Time, 12, Muted); time.Margin = new Thickness(14, 0, 0, 0); DockPanel.SetDock(time, Dock.Right); dock.Children.Add(time);
+                var name = Text(LatticeChart.NameOf(row.Owner), 12, Muted); name.Margin = new Thickness(6, 0, 0, 0); DockPanel.SetDock(name, Dock.Right); dock.Children.Add(name);
+                var face = new LatticeAvatar(row.Owner, 20, window.Avatar) { Margin = new Thickness(12, 0, 0, 0) }; DockPanel.SetDock(face, Dock.Right); dock.Children.Add(face);
+                var glyph = StateGlyph(row.Card.State, 14, Violet); glyph.Margin = new Thickness(0, 0, 10, 0); DockPanel.SetDock(glyph, Dock.Left); dock.Children.Add(glyph);
+                var title = Text(LatticeChart.Title(row.Card), 13.5, Ink, FontWeights.SemiBold); if (row.Card.State == "retired") title.TextDecorations = TextDecorations.Strikethrough;
+                dock.Children.Add(title);
+                var frame = new Border { Child = dock, CornerRadius = new CornerRadius(10), Padding = new Thickness(12, 8, 12, 8), Margin = new Thickness(0, 0, 0, 6), Background = Brush(Colors.White, 0xD9), BorderBrush = Brush(LatticeLook.Line), BorderThickness = new Thickness(1) };
+                var button = Plain(frame, row.Label); var id = row.Id; button.Click += (_, _) => OpenDetail(id);
+                System.Windows.Automation.AutomationProperties.SetAutomationId(button, "lattice-history-row");
+                historyRows[id] = button; historyFrames[id] = frame; history.Children.Add(button);
+            }
+        }
+        ApplyHistory();
+    }
+    /// <summary>The selected card's ring and the member highlight on 過去ログ rows, as the tree and the lanes show them.</summary>
+    private void ApplyHistory()
+    {
+        var on = HighlightedMember is { } member && Feed.Snapshot is { } snapshot ? LatticeChart.Highlight(snapshot, member).Cards : null;
+        foreach (var (id, row) in historyRows)
+        {
+            row.Opacity = on is not null && !on.Contains(id) ? .28 : 1;
+            var selected = id == SelectedCard; var frame = historyFrames[id];
+            frame.BorderBrush = Brush(selected ? Violet : LatticeLook.Line); frame.BorderThickness = new Thickness(selected ? 2 : 1); frame.Padding = selected ? new Thickness(11, 7, 11, 7) : new Thickness(12, 8, 12, 8);
+        }
     }
 
     private static Border Counter(UIElement glyph, string label, int count, Color color, double left)
@@ -477,7 +520,7 @@ internal sealed class LatticeChartPage : Grid
             rail.Children.Add(button);
         }
     }
-    internal void Highlight(string? botId) { HighlightedMember = botId; Board.Highlight(botId); Tree.Highlight(botId); if (Feed.Snapshot is { } snapshot) { RenderRail(snapshot); RenderWaits(snapshot, window.Now()); } }
+    internal void Highlight(string? botId) { HighlightedMember = botId; Board.Highlight(botId); Tree.Highlight(botId); ApplyHistory(); if (Feed.Snapshot is { } snapshot) { RenderRail(snapshot); RenderWaits(snapshot, window.Now()); } }
 
     private void RenderWaits(LatticeSnapshot snapshot, DateTimeOffset now)
     {
@@ -517,30 +560,37 @@ internal sealed class LatticeChartPage : Grid
         }
     }
 
-    /// <summary>工程へ移動: the board scrolls to the awaited card and opens its detail.</summary>
+    /// <summary>工程へ移動: the board scrolls to the card when it is drawn (not archived, not 過去ログ) and opens its detail either way.</summary>
     internal void GoTo(string cardId)
     {
-        if (!ScrollToCard(cardId)) return;
+        ScrollToCard(cardId);
         OpenDetail(cardId);
     }
-    private Rect CardRect(string id) => ShowTree ? Tree.CardRect(id) : Board.CardRect(id);
-    private FrameworkElement? CardElement(string id) => ShowTree ? Tree.CardElement(id) : Board.CardElement(id);
+    internal Rect CardRect(string id) => View switch { "tree" => Tree.CardRect(id), "lanes" => Board.CardRect(id), _ => HistoryRect(id) };
+    // A 過去ログ row's place in the scrolled content (the panel's margin included); empty before layout or for an unfinished card.
+    private Rect HistoryRect(string id)
+    {
+        if (!historyRows.TryGetValue(id, out var row) || row.ActualHeight == 0 || !row.IsDescendantOf(history)) return Rect.Empty;
+        var at = row.TranslatePoint(new Point(), history);
+        return new Rect(at.X + history.Margin.Left, at.Y + history.Margin.Top, row.ActualWidth, row.ActualHeight);
+    }
+    private FrameworkElement? CardElement(string id) => View switch { "tree" => Tree.CardElement(id), "lanes" => Board.CardElement(id), _ => historyRows.GetValueOrDefault(id) };
     private bool ScrollToCard(string cardId)
     {
         var rect = CardRect(cardId); if (rect.IsEmpty) return false;
-        // The lanes keep their names at the left edge; the tree has none.
-        if (ShowTree) { scroller.ScrollToHorizontalOffset(Math.Max(0, rect.X - 40)); scroller.ScrollToVerticalOffset(Math.Max(0, rect.Y - 60)); scroller.UpdateLayout(); }
+        // The lanes keep their names at the left edge; the tree and 過去ログ have none.
+        if (View is "tree" or "history") { scroller.ScrollToHorizontalOffset(Math.Max(0, rect.X - 40)); scroller.ScrollToVerticalOffset(Math.Max(0, rect.Y - 60)); scroller.UpdateLayout(); }
         else ScrollBoard(rect.X, rect.Y);
         return true;
     }
     /// <summary>Brings a board point near the top left, clear of the lane names.</summary>
     internal void ScrollBoard(double x, double y) { scroller.ScrollToHorizontalOffset(Math.Max(0, x - LatticeChart.LabelWidth - 40)); scroller.ScrollToVerticalOffset(Math.Max(0, y - 60)); scroller.UpdateLayout(); }
 
-    internal void OpenDetail(string cardId, bool morph = true) { SelectedCard = cardId; Board.Select(cardId); Tree.Select(cardId); ShowDetail(cardId, morph); }
+    internal void OpenDetail(string cardId, bool morph = true) { SelectedCard = cardId; Board.Select(cardId); Tree.Select(cardId); ApplyHistory(); ShowDetail(cardId, morph); }
     internal bool CloseDetail()
     {
         if (SelectedCard is null) return false;
-        var card = SelectedCard; SelectedCard = null; detailHost.Content = null; Board.Select(null); Tree.Select(null);
+        var card = SelectedCard; SelectedCard = null; detailHost.Content = null; Board.Select(null); Tree.Select(null); ApplyHistory();
         CardElement(card)?.Focus();
         return true;
     }
