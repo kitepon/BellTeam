@@ -191,3 +191,36 @@ test('a send receipt returning after confirmed close consumes that original sess
   assert.equal(calls.filter(call => call.name === 'pty_send').length, 1)
   assert.equal(calls.find(call => call.name === 'pty_send').args.session_id, 'old-session')
 })
+
+// control-details.md "受付後の追跡失敗の自己退役": a valid read begun after the failure, showing no turn, retires the occupation.
+const seatRead = (transport, bot, turn) => {
+  const read = transport.workState.beginRead([{ botId: bot.id, sessionId: 'old-session', harness: 'codex-cli', current: () => true }])
+  return () => transport.workState.endRead(read, { schema: 'aiterm.seat-turns.v1', unread: [],
+    seats: turn ? [{ session_id: 'old-session', launch_id: 'a'.repeat(32), harness: 'codex-cli', turn }] : [] })
+}
+for (const [name, turn] of [['idle', { state: 'idle' }], ['absent', null]]) {
+  test(`unknown native completion self-exits on a later ${name} read, keeping the unknown history`, async () => {
+    const f = await acceptedFixture(), failure = Error('AITERM_WAIT_INVALID')
+    const early = seatRead(f.transport, f.bot, turn)
+    f.waiting.reject(failure)
+    await assert.rejects(f.result, error => error === failure); await tick()
+    assert.equal(f.gate.snapshot().unconfirmed, true)
+    // A read begun before the failure, a running read and an unread read prove nothing.
+    early(); await tick()
+    seatRead(f.transport, f.bot, { state: 'running', turn_id: 't-1' })(); await tick()
+    const read = f.transport.workState.beginRead([{ botId: f.bot.id, sessionId: 'old-session', harness: 'codex-cli', current: () => true }])
+    f.transport.workState.endRead(read, { schema: 'aiterm.seat-turns.v1', seats: [], unread: ['old-session'] }); await tick()
+    assert.equal(f.transport.activity.idle(f.bot.id), false)
+    assert.throws(() => f.transport.assertConversationOccupation(f.bot.id), { code: 'CONVERSATION_NOT_ACCEPTED' })
+
+    seatRead(f.transport, f.bot, turn)(); await tick(); await tick()
+    assert.equal(f.transport.activity.idle(f.bot.id), true)
+    assert.doesNotThrow(() => f.transport.assertConversationOccupation(f.bot.id))
+    assert.equal(f.job.nativeUnconfirmed, failure, 'history keeps the unknown completion')
+    assert.equal(f.job.nativeClosure, undefined)
+    assert.equal(f.gate.snapshot().unconfirmed, false)
+    assert.equal(f.gate.snapshot().active, 0)
+    assert.deepEqual(f.statuses.map(value => value.delivery), ['running', 'failed'])
+    assert.deepEqual(f.calls, [], 'no close, no wake, no resend')
+  })
+}

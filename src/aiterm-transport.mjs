@@ -139,7 +139,8 @@ export class AitermTransport {
       this.activity.emitChange({ all: false, topics: ['accounts'], botIds: [], roomIds: [] })
       void this.reviewAccounts()
     }) ?? null
-    this.workState = new CurrentWork({ now, activityPath, reportActivity: () => this.reportError({ code: 'RESTART_ACTIVITY_UNAVAILABLE', module: 'execution' }), notify: id => this.activity.emit({ bot: { id } }) })
+    this.unconfirmedJobs = new Map() // job -> {botId, session, seq, retire}: accepted deliveries whose completion is unknown
+    this.workState = new CurrentWork({ now, activityPath, reportActivity: () => this.reportError({ code: 'RESTART_ACTIVITY_UNAVAILABLE', module: 'execution' }), notify: id => this.activity.emit({ bot: { id } }), observed: () => this.retireSettledUnconfirmed() })
     this.restarts = new Map()
     this.sessionState = new BotSessionState({
       assertWorkAllowed: () => this.assertWorkAllowed(),
@@ -910,7 +911,15 @@ export class AitermTransport {
             return native
           }, error => {
             job.nativeTerminal = error.turnCompleted === true
-            if (!job.nativeTerminal) job.nativeUnconfirmed = error
+            if (!job.nativeTerminal) {
+              job.nativeUnconfirmed = error
+              // control-details.md "受付後の追跡失敗の自己退役": the next valid read showing no turn on this session retires it.
+              this.unconfirmedJobs.set(job, { botId: bot.id, session: delivery.session, seq: this.workState.seq, retire: async () => {
+                if (job.conversationDelivery) this.conversationAdmission?.confirmNativeSettled?.(job.conversationDelivery, delivery.receipt)
+                this.activity.release(job); job.native.release()
+                if (!this.retainUntrackedImages(job, delivery, followed, parent)) await this.removeTemporaryImages(delivery?.imageFiles)
+              } })
+            }
             throw error
           })
           job.nativeCompletion.catch(() => {})
@@ -1376,6 +1385,16 @@ export class AitermTransport {
 
   // execution/fork.md: a disposable fork of the main seat's latest saved conversation. Never the main queue, stop
   // version, steer or wake. Resolves once the fork accepted its first input; the turn is followed in the background.
+  retireSettledUnconfirmed() {
+    for (const [job, mark] of this.unconfirmedJobs) {
+      if (job.nativeClosure) { this.unconfirmedJobs.delete(job); continue }
+      if (!this.workState.settledAfter(mark.botId, mark.session, mark.seq)) continue
+      this.unconfirmedJobs.delete(job)
+      job.nativeSettled = true
+      void mark.retire().catch(() => {})
+    }
+  }
+
   async forkInquiry(bot, envelope, { forkId, deliveryId = null, queue = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null } = {}) {
     if (typeof forkId !== 'string' || !forkId || forkId.length > 200 || typeof envelope !== 'string' || !envelope.trim())
       throw Object.assign(new Error('FORK_INVALID'), { code: 'FORK_INVALID', effect: 'not_started', status: 400 })
