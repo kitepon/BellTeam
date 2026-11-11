@@ -140,7 +140,9 @@ Request: Emma (host owner) for Sora's optional Plaud OAuth vault adapter (K-XQ4S
 ```mermaid
 flowchart TD
   HostUnit["host owner (Emma): ramfs submounts under<br/>/run/bellteam-host-credentials/&lt;bot-id&gt;/{credential,relogin}"] --> HostRoot["host /run/bellteam-host-credentials<br/>(host /run tmpfs, shared propagation; root 0755)"]
-  Normal["updater private installation/normal.json<br/>services.bellteam.volumes += parent bind"] --> AppUpdate["app Update body swap (recreate)"]
+  Normal["updater private installation/normal.json<br/>services.bellteam.volumes += parent bind"] --> Check{"verify_model_mounts: every model mount<br/>matches a running mount"}
+  Check -->|"today: new target has no match"| Refused["HOST_UPDATE_STORAGE_BINDING<br/>(nothing stopped)"]
+  Check -->|"after updater change: new bind target allowed"| AppUpdate["app Update body swap (recreate)"]
   AppUpdate --> Box["bellteam container: /run/bellteam-host-credentials<br/>bind, propagation rslave, create_host_path true"]
   HostRoot -->|"mount / umount propagate host -> box (rslave)"| Box
   Box --> Consumer["consumer Bot tool (uid 1000) reads credential (ro),<br/>writes only its relogin ramfs (rw)"]
@@ -149,7 +151,8 @@ flowchart TD
 
 | Item | Contract |
 | --- | --- |
-| Carrier | Installation configuration, like the memory bound above: one entry in `installation/normal.json` `services.bellteam.volumes`: `{type: bind, source: /run/bellteam-host-credentials, target: /run/bellteam-host-credentials, bind: {propagation: rslave, create_host_path: true}}`. App Update keeps it (only `image` is replaced). Adding or changing it needs one recreate; production adds it with the next approved body swap, never a separate restart. Not in the public `compose.yaml` (no distributed default). |
+| Carrier | Installation configuration, like the memory bound above: one entry in `installation/normal.json` `services.bellteam.volumes`: `{type: bind, source: /run/bellteam-host-credentials, target: /run/bellteam-host-credentials, bind: {propagation: rslave, create_host_path: true}}`. Not in the public `compose.yaml` (no distributed default). |
+| Blocked today (2026-11-11) | App Update cannot add a mount. `verify_model_mounts` (`scripts/container-update-host.py`) requires every `normal.json` mount to match a mount of the running container (destination, type, RW, source; volume name/subpath/nocopy); a new target has no counterpart, so the swap is refused with `HOST_UPDATE_STORAGE_BINDING` before any stop (production 10:29:54Z, request 573ddbb2; bind removed from `normal.json`, swap then retried). Needed first: an updater contract change that accepts a model bind whose target the running container lacks (it binds no existing data), while every current mount must still match exactly. After that change is live, the bind is added with the next approved body swap (one recreate, never a separate restart), and App Update keeps it (only `image` is replaced). |
 | Live after that | The host mounts or unmounts ramfs under the parent at any time; the box sees it at once (rslave). The box cannot propagate mounts back to the host. Host reboot: `/run` is empty again and `create_host_path` recreates an empty directory so the box still starts; the consumer sees no credential until the host owner remounts it. |
 | Paths | Per consumer `/run/bellteam-host-credentials/<bot-id>/credential` (ro ramfs, files 0400 uid 1000) and `/run/bellteam-host-credentials/<bot-id>/relogin` (rw ramfs, 0700 uid 1000). Same path inside and outside. The host owner owns ownership, modes, ramfs verification and teardown. |
 | UID limit | Every seat and Bot tool in the box runs as uid 1000 (`bell`); the server is uid 1001. The box has no per-Bot uid, so a file readable by one Bot's tool is readable by every Bot seat in the box. The mount keeps the secret out of env, argv, image and persistent disk; it does not isolate Bots from each other. |
