@@ -64,8 +64,11 @@ public static class AccountText
         => (list?.Claude?.AllLimited ?? []).Select(item => "両方のアカウントで" + LimitText(item.Scope, item.EarliestResetAt, now)).ToArray();
     // Mac ClaudeAccountsCard: the account name only when the server sends one; the login state is the row's badge.
     public static string? Login(AccountSlot slot) => string.IsNullOrWhiteSpace(slot.Label) ? null : slot.Label;
-    public static string State(AccountSlot slot, DateTimeOffset now)
-        => slot.Limits.Length != 0 ? string.Join("・", slot.Limits.Select(item => LimitText(item.Scope, item.ResetAt, now))) : slot.LoggedIn == true ? "利用できます" : "—";
+    // Mac AccountText.bothLimited: the card's own banner wording (the member-list banner keeps BannerTexts, same as Web).
+    public static string[] CardBannerTexts(AccountsResponse? list, DateTimeOffset now)
+        => (list?.Claude?.AllLimited ?? []).Select(item => $"1stアカウントと2ndアカウントがどちらも{(string.IsNullOrEmpty(item.Scope) || item.Scope == "all" ? "上限中" : char.ToUpperInvariant(item.Scope[0]) + item.Scope[1..] + "が上限中")}です（{(ResetTime(item.EarliestResetAt, now) is { } time ? time + "に解除" : "解除時刻不明")}）").ToArray();
+    // Mac AccountText.seats: the members' names; nothing when no seat uses the slot.
+    public static string? Seats(AccountSlot slot, Func<string, string?> name) => slot.Seats.Length == 0 ? null : "使用中: " + string.Join("、", slot.Seats.Select(id => name(id) ?? id));
     // The seat's slot on the member card; nothing for an absent/null account or another harness.
     public static string? SeatText(SeatAccount? account) => account?.Harness == "claude" ? SlotTitle(account.Slot) : null;
 }
