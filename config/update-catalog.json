@@ -1,12 +1,12 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-11T08:43:59Z",
-  "expiresAt": "2026-11-18T08:43:59Z",
+  "publishedAt": "2026-11-11T09:43:59Z",
+  "expiresAt": "2026-11-18T09:43:59Z",
   "releases": [
     {
       "componentId": "usage",
-      "sourceCommit": "165a4d1e5b41977820cd4a1894626a71ae04fac2",
-      "versionId": "dfa4291c96ccd671bbf21ea64926297e8cea25aedf9b55fc6c7667985c66d91f",
+      "sourceCommit": "414a4c9e463d4ba7c11a6b256ba682737422f654",
+      "versionId": "4b71624ea65b5912920373b152bdf54ccda42b5f1a63982c45780cc2cae7c17b",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -14,16 +14,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T065521Z/usage-165a4d1e5b41977820cd4a1894626a71ae04fac2-linux-amd64.tar.gz",
-          "bytes": 78679,
-          "sha256": "dfa4291c96ccd671bbf21ea64926297e8cea25aedf9b55fc6c7667985c66d91f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T090504Z/usage-414a4c9e463d4ba7c11a6b256ba682737422f654-linux-amd64.tar.gz",
+          "bytes": 78986,
+          "sha256": "4b71624ea65b5912920373b152bdf54ccda42b5f1a63982c45780cc2cae7c17b"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T065521Z/usage-165a4d1e5b41977820cd4a1894626a71ae04fac2-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11097,
-          "sha256": "7a89dd73f0363f53cf975a71b04cb26d3b9b28e3f0292711b794b8f17a24c1f2"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T090504Z/usage-414a4c9e463d4ba7c11a6b256ba682737422f654-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11062,
+          "sha256": "101c0f58bec69cd8ae1208c2e7f4385684dbbc2a36fe39a3f92cf4a2e39acf18"
         },
-        "signerCommit": "165a4d1e5b41977820cd4a1894626a71ae04fac2"
+        "signerCommit": "414a4c9e463d4ba7c11a6b256ba682737422f654"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -48,13 +48,13 @@
         }
       },
       "changes": [
-        "2つ目のClaudeアカウントのログインで、席が使うログイン情報（oauth-token）を作るようになりました。"
+        "1つ目のClaudeアカウントも、2つ目と同じく席が使うログイン情報（oauth-token）でログインするようになりました。"
       ]
     },
     {
       "componentId": "usage",
-      "sourceCommit": "165a4d1e5b41977820cd4a1894626a71ae04fac2",
-      "versionId": "cbb75e088e1e4cd42e2bee602a069b9c375bf9105e2b16aca1e308ad3b0fbc08",
+      "sourceCommit": "414a4c9e463d4ba7c11a6b256ba682737422f654",
+      "versionId": "d9073ff4f15905c144cec388bee9592b3eb809bb99b90abfaa72b15eb9c95a64",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -62,16 +62,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T065521Z/usage-165a4d1e5b41977820cd4a1894626a71ae04fac2-linux-arm64.tar.gz",
-          "bytes": 78679,
-          "sha256": "cbb75e088e1e4cd42e2bee602a069b9c375bf9105e2b16aca1e308ad3b0fbc08"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T090504Z/usage-414a4c9e463d4ba7c11a6b256ba682737422f654-linux-arm64.tar.gz",
+          "bytes": 78986,
+          "sha256": "d9073ff4f15905c144cec388bee9592b3eb809bb99b90abfaa72b15eb9c95a64"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T065521Z/usage-165a4d1e5b41977820cd4a1894626a71ae04fac2-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11011,
-          "sha256": "88d1e5372a345d1599adc0a6d07e9d42c9e8aff0edee34d49f830c3a2f286da6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T090504Z/usage-414a4c9e463d4ba7c11a6b256ba682737422f654-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10905,
+          "sha256": "8d6a6d2c5e93d424c3bf0e227e55aa97da746e6a028063af3c193b67005ddf34"
         },
-        "signerCommit": "165a4d1e5b41977820cd4a1894626a71ae04fac2"
+        "signerCommit": "414a4c9e463d4ba7c11a6b256ba682737422f654"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -96,7 +96,7 @@
         }
       },
       "changes": [
-        "2つ目のClaudeアカウントのログインで、席が使うログイン情報（oauth-token）を作るようになりました。"
+        "1つ目のClaudeアカウントも、2つ目と同じく席が使うログイン情報（oauth-token）でログインするようになりました。"
       ]
     },
     {
@@ -291,8 +291,8 @@
     },
     {
       "componentId": "notifications",
-      "sourceCommit": "c42bb7890d0d42b5d97bbc114926955e68b9ff3e",
-      "versionId": "99afae5efe01fab0f2aa4c310fc34a9177aec5cf66afc68225d0d465c73f5768",
+      "sourceCommit": "608a7bae86a141225a5e19fc5b0347992905923c",
+      "versionId": "a111880d47c8f13ddbe5e8692c6b0daf2ddc29e4d543813521a89b37d1477198",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -300,16 +300,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T052115Z/notifications-c42bb7890d0d42b5d97bbc114926955e68b9ff3e-linux-amd64.tar.gz",
-          "bytes": 4329967,
-          "sha256": "99afae5efe01fab0f2aa4c310fc34a9177aec5cf66afc68225d0d465c73f5768"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T092552Z/notifications-608a7bae86a141225a5e19fc5b0347992905923c-linux-amd64.tar.gz",
+          "bytes": 4442272,
+          "sha256": "a111880d47c8f13ddbe5e8692c6b0daf2ddc29e4d543813521a89b37d1477198"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T052115Z/notifications-c42bb7890d0d42b5d97bbc114926955e68b9ff3e-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11131,
-          "sha256": "407ce63e8a91a2e9dedaccfa3f169a9319e8b9120fb17e3a1b704a9173862e5a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T092552Z/notifications-608a7bae86a141225a5e19fc5b0347992905923c-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11272,
+          "sha256": "c81af911a713c62ad4e165dd7d1ce207e3391416f9e6d51af7770f638e79e9f2"
         },
-        "signerCommit": "c42bb7890d0d42b5d97bbc114926955e68b9ff3e"
+        "signerCommit": "608a7bae86a141225a5e19fc5b0347992905923c"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -318,13 +318,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "通知を送った時刻と結果を保存し、後から確認できるようにします。"
+        "通知の鍵（APNs）を、鍵ごとに.p8ファイルか1Passwordの参照から読めるようになりました。読めないときは通知が未設定と表示され、通知以外は止まりません。"
       ]
     },
     {
       "componentId": "notifications",
-      "sourceCommit": "c42bb7890d0d42b5d97bbc114926955e68b9ff3e",
-      "versionId": "f80e556656f3c4e1f0b88e4cdaf3a8b56934ba92e94f45db2bbaa8e7e0d166c8",
+      "sourceCommit": "608a7bae86a141225a5e19fc5b0347992905923c",
+      "versionId": "ae3fc4bb7123df4c4e2a6358861e89b6e0ab2a52b3b99b25a4cdab33bc590d84",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -332,16 +332,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T052115Z/notifications-c42bb7890d0d42b5d97bbc114926955e68b9ff3e-linux-arm64.tar.gz",
-          "bytes": 4329968,
-          "sha256": "f80e556656f3c4e1f0b88e4cdaf3a8b56934ba92e94f45db2bbaa8e7e0d166c8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T092552Z/notifications-608a7bae86a141225a5e19fc5b0347992905923c-linux-arm64.tar.gz",
+          "bytes": 4442268,
+          "sha256": "ae3fc4bb7123df4c4e2a6358861e89b6e0ab2a52b3b99b25a4cdab33bc590d84"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261108T052115Z/notifications-c42bb7890d0d42b5d97bbc114926955e68b9ff3e-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11213,
-          "sha256": "bb1523981d0a7df02a5a4aa24f7ec3c1f49932cabcd2ba03f7b380e9922e352c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T092552Z/notifications-608a7bae86a141225a5e19fc5b0347992905923c-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11272,
+          "sha256": "ac8c629e7f1b2411d0719c5f100cb138f841c8886cc6ba105f3a0804f199e71a"
         },
-        "signerCommit": "c42bb7890d0d42b5d97bbc114926955e68b9ff3e"
+        "signerCommit": "608a7bae86a141225a5e19fc5b0347992905923c"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -350,7 +350,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "通知を送った時刻と結果を保存し、後から確認できるようにします。"
+        "通知の鍵（APNs）を、鍵ごとに.p8ファイルか1Passwordの参照から読めるようになりました。読めないときは通知が未設定と表示され、通知以外は止まりません。"
       ]
     },
     {
@@ -491,8 +491,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "966c6ea973e1e2096fabeda7fe29e8cf1a2d8c96",
-      "versionId": "1b21ee8e42ff161fe85b90616132f107e62ae0ad8acac4a3a17cf475eca40b4e",
+      "sourceCommit": "414a4c9e463d4ba7c11a6b256ba682737422f654",
+      "versionId": "c4c9eab4e26acd54f73561a1587a9cc86480b833b3785bd9ce32e2023eac0a31",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T051856Z/execution-966c6ea973e1e2096fabeda7fe29e8cf1a2d8c96-linux-amd64.tar.gz",
-          "bytes": 3952531,
-          "sha256": "1b21ee8e42ff161fe85b90616132f107e62ae0ad8acac4a3a17cf475eca40b4e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T090707Z/execution-414a4c9e463d4ba7c11a6b256ba682737422f654-linux-amd64.tar.gz",
+          "bytes": 3954458,
+          "sha256": "c4c9eab4e26acd54f73561a1587a9cc86480b833b3785bd9ce32e2023eac0a31"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T051856Z/execution-966c6ea973e1e2096fabeda7fe29e8cf1a2d8c96-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11177,
-          "sha256": "42c8f24c14d0df2b6d62d2e97415e5fddbfe56f6ccf7ba54b60994c2ac9a1c1f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T090707Z/execution-414a4c9e463d4ba7c11a6b256ba682737422f654-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10926,
+          "sha256": "3eee0393280464fc594a56b2edb7b19aab34363fc76f8fe8b7976c82e103c6bc"
         },
-        "signerCommit": "966c6ea973e1e2096fabeda7fe29e8cf1a2d8c96"
+        "signerCommit": "414a4c9e463d4ba7c11a6b256ba682737422f654"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "新しく入れたBellTeamで、Claudeの席が起動前に必ず失敗していた問題を直しました。メンバーを削除した時、すべての端末に残っているそのメンバーのAIの席（アカウント移動で残った1stの席も含む）を閉じるようにしました。"
+        "1st・2nd とも、席はアカウントごとのログインで起動するようになりました。ログイン切れを検知すると、別のアカウントの新しい席で続きを進めます（Aiterm 0.70.23 以降）。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "966c6ea973e1e2096fabeda7fe29e8cf1a2d8c96",
-      "versionId": "87668b6e943a2d779d4362e52201a6146e51fd72075a11f32a4f9c0ca8372db7",
+      "sourceCommit": "414a4c9e463d4ba7c11a6b256ba682737422f654",
+      "versionId": "930edeaecff7eb1be07c88b580765a7ef095b7072633b178d259c2edc0984612",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T051856Z/execution-966c6ea973e1e2096fabeda7fe29e8cf1a2d8c96-linux-arm64.tar.gz",
-          "bytes": 3952527,
-          "sha256": "87668b6e943a2d779d4362e52201a6146e51fd72075a11f32a4f9c0ca8372db7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T090707Z/execution-414a4c9e463d4ba7c11a6b256ba682737422f654-linux-arm64.tar.gz",
+          "bytes": 3954457,
+          "sha256": "930edeaecff7eb1be07c88b580765a7ef095b7072633b178d259c2edc0984612"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T051856Z/execution-966c6ea973e1e2096fabeda7fe29e8cf1a2d8c96-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10989,
-          "sha256": "b80f2d8ab07bc84fae65c81eaf1f823be86b17cde6fa5cacbf44b31857e398d1"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T090707Z/execution-414a4c9e463d4ba7c11a6b256ba682737422f654-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11012,
+          "sha256": "3d2eb8a5c1c001becb2c34d6f38fd391a0572396eba25203526e064022ffdb94"
         },
-        "signerCommit": "966c6ea973e1e2096fabeda7fe29e8cf1a2d8c96"
+        "signerCommit": "414a4c9e463d4ba7c11a6b256ba682737422f654"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,7 +552,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "新しく入れたBellTeamで、Claudeの席が起動前に必ず失敗していた問題を直しました。メンバーを削除した時、すべての端末に残っているそのメンバーのAIの席（アカウント移動で残った1stの席も含む）を閉じるようにしました。"
+        "1st・2nd とも、席はアカウントごとのログインで起動するようになりました。ログイン切れを検知すると、別のアカウントの新しい席で続きを進めます（Aiterm 0.70.23 以降）。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "eec7cab4cb4afb49c09b06d911105d887a620241",
-      "versionId": "sha256:efeadf0a2ad11f9934d7aace8db7cd808d2349d635b99bd94fde76621bb85990",
+      "sourceCommit": "608a7bae86a141225a5e19fc5b0347992905923c",
+      "versionId": "sha256:f07c4dccb59786ea9b770419088269d33ae2ae053546056e6545a4200072f05b",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:efeadf0a2ad11f9934d7aace8db7cd808d2349d635b99bd94fde76621bb85990"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:f07c4dccb59786ea9b770419088269d33ae2ae053546056e6545a4200072f05b"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "2つ目のClaudeアカウントでログインした時、席が使うログイン情報（oauth-token）を作るようになります。外部の席で、起動の直後にBellTeamの道具がつながらなくなる問題を直します（Aiterm 0.70.21）。WindowsのBellTeamアプリが、自分のPCを端末として登録し、自分で確かめられるようになります。"
+        "Claudeの席を起動する前のログインの確かめをやめ、ログアウトしているClaudeは自分のログイン画面で止まるようになります。外部の席の転送が途中で切れることがある問題を直します。ログイン切れを検知して別のアカウントの席へ移れるようにします（Aiterm 0.70.23）。1つ目のClaudeアカウントも席専用のログイン情報（oauth-token）でログインできるよう、本体側を合わせます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "eec7cab4cb4afb49c09b06d911105d887a620241",
-      "versionId": "sha256:efeadf0a2ad11f9934d7aace8db7cd808d2349d635b99bd94fde76621bb85990",
+      "sourceCommit": "608a7bae86a141225a5e19fc5b0347992905923c",
+      "versionId": "sha256:f07c4dccb59786ea9b770419088269d33ae2ae053546056e6545a4200072f05b",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:efeadf0a2ad11f9934d7aace8db7cd808d2349d635b99bd94fde76621bb85990"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:f07c4dccb59786ea9b770419088269d33ae2ae053546056e6545a4200072f05b"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "2つ目のClaudeアカウントでログインした時、席が使うログイン情報（oauth-token）を作るようになります。外部の席で、起動の直後にBellTeamの道具がつながらなくなる問題を直します（Aiterm 0.70.21）。WindowsのBellTeamアプリが、自分のPCを端末として登録し、自分で確かめられるようになります。"
+        "Claudeの席を起動する前のログインの確かめをやめ、ログアウトしているClaudeは自分のログイン画面で止まるようになります。外部の席の転送が途中で切れることがある問題を直します。ログイン切れを検知して別のアカウントの席へ移れるようにします（Aiterm 0.70.23）。1つ目のClaudeアカウントも席専用のログイン情報（oauth-token）でログインできるよう、本体側を合わせます。"
       ]
     }
   ],
