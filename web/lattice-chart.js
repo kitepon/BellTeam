@@ -452,6 +452,8 @@ export function createLatticeChart(dialog, {
       h('div', { class: 'wp-h' }, h('h3', {}, glyph('hour'), '待ちの流れ', h('span', { class: 'n', text: String(rows.length) })), h('p', { text: '誰が何を待っていて、誰がつくっているか' })),
       rows.length ? h('ul', { class: 'wp-l' }, ...rows.map(row => h('li', { class: `wr${row.emphasized ? ' em' : ''}`, role: 'group', 'aria-label': row.label, dataset: { wait: row.key } },
         h('div', { class: 'l1' }, avatar(row.waiter, 20), h('span', { text: row.headline }), h('span', { class: 'w', text: `待ち ${row.length}` })),
+        h('div', { class: 'ow', text: row.ownerText }),
+        h('div', { class: 'mk', text: 'この工程が終わるのを待っています' }),
         h('div', { class: 'l2' }, glyph(row.info.glyph), h('b', { text: row.title })),
         h('div', { class: 'l3' }, h('span', { class: 'mk2', text: 'つくっている' }), avatar(row.producer, 18), h('b', { text: row.producer ? row.producer.name : UNASSIGNED }),
           h('span', { class: `stp tone-${row.info.tone}` }, glyph(row.info.glyph), row.state)),

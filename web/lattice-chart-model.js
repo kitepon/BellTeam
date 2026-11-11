@@ -222,11 +222,11 @@ export function waitRows(snapshot, now) {
     const title = awaited?.title ?? '', state = producerStateText({ ...awaited, state: wait.producerState ?? awaited?.state }, producer, now)
     return {
       key: `${wait.waitingCard}>${wait.forCard}`, waiter, producer, title, state, forCard: wait.forCard, waitingCard: wait.waitingCard,
-      headline: `${waiter ? waiter.name : '担当未定'}が待っている`,
+      headline: waiting?.title ?? '', ownerText: waiter ? `担当 ${waiter.name}` : UNASSIGNED,
       length: sinceText(wait.since, now),
       emphasized: wait.producerState === 'blocked', info: stateInfo(wait.producerState ?? awaited?.state),
       canChat: Boolean(producer?.known),
-      label: `${waiter ? waiter.name : '担当未定'}が${title}を待っています。つくっているのは${nameOf(producer)}、${state}`,
+      label: `「${waiting?.title ?? ''}」（${waiter ? `担当 ${waiter.name}` : UNASSIGNED}）は、「${title}」が終わるのを待っています。つくっているのは${nameOf(producer)}、${state}`,
       waitingTitle: waiting?.title ?? '',
     }
   })
@@ -235,7 +235,8 @@ export function waitRows(snapshot, now) {
 // 待っている辺ごとの札「◯◯が待っています」。待つ側 = 後ろの札の担当。
 export function edgeChipText(snapshot, edge) {
   const to = (snapshot.cards ?? []).find(card => card.id === edge.to)
-  return `${ownerLookup(snapshot)(to)?.name ?? '担当未定'}が待っています`
+  const owner = ownerLookup(snapshot)(to)
+  return owner ? `${owner.name}が待っています` : '次の工程が待っています'
 }
 
 // 左のレール：担当ごとの顔と、作業中・止まり・待ちの数。

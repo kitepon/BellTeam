@@ -1168,7 +1168,9 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .lattice-waits .wr.dim { opacity: .35; }
 .lattice-waits .l1 { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; }
 .lattice-waits .l1 span:nth-child(2) { flex: 1; }
-.lattice-waits .l1 .w { font-size: 11px; font-weight: 600; color: var(--l-muted); }
+.lattice-waits .l1 .w { font-size: 11px; font-weight: 600; color: var(--l-muted); white-space: nowrap; }
+.lattice-waits .ow { margin: 2px 0 0 27px; font-size: 11px; color: var(--l-muted); }
+.lattice-waits .mk { margin-top: 8px; font-size: 11px; font-weight: 600; color: var(--l-muted); }
 .lattice-waits .em .l1 .w { color: var(--l-red); }
 .lattice-waits .l2 { display: flex; align-items: center; gap: 7px; margin: 6px 0; padding: 6px 10px; border-radius: 9px; background: var(--l-canvas); box-shadow: inset 0 0 0 .5px var(--l-line); font-size: 12.5px; }
 .lattice-waits .l2 .lattice-g { font-size: 14px; flex: none; }
