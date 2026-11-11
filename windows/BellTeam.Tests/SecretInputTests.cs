@@ -75,7 +75,11 @@ public sealed class SecretInputTests
         var login = new SecretInputModel(Terminal("terminal.login"));
         Assert.False(login.ChoicesShown); Assert.False(login.UseOnePassword);
         Assert.Equal("パスワードを渡す", login.SubmitLabel);
-        Assert.Equal("このMacのログインパスワード（1回だけ使い、保存しません）", login.Note);
+        // The server words the login note per terminal OS (Crust/Mika S4); the card is found by purpose, never by wording.
+        Assert.Equal("入力してください", login.Note);
+        const string windows = "このPCのログインパスワード（1回だけ使い、保存しません）。Microsoftアカウントでサインインしているときは、そのパスワードです（PINではありません）。";
+        Assert.Equal(windows, new SecretInputModel(Request($$""","purpose":"terminal.login","message":"{{windows}}" """)).Note);
+        Assert.Equal("このMacのログインパスワード（1回だけ使い、保存しません）", new SecretInputModel(Request(""","purpose":"terminal.login","message":"" """)).Note);
         Assert.DoesNotContain("登録", oneTime.SubmitLabel + login.SubmitLabel);
     }
 

@@ -92,7 +92,7 @@ public sealed class SecretInputWindow : Window
         Reference.TextChanged += (_, _) => { model.Reference = Reference.Text; UpdateButtons(); };
         Search.TextChanged += (_, _) => { model.SetSearch(Search.Text); RefreshKeys(); UpdateButtons(); };
 
-        var message = request.Message.Length == 0 || request.IsLoginPassword && request.Message == SecretRequest.LoginPasswordText ? null : SecretCard.CardBody(request.Message);
+        var message = request.Message.Length == 0 || request.IsLoginPassword ? null : SecretCard.CardBody(request.Message); // a login card shows the message as its note (purpose, not wording)
         if (message is not null) message.Margin = new Thickness(-2, 0, 0, 0);
         top = new GroupCard(); if (message is not null) top.Add(SettingsUi.Row(message, 50)); top.Add(SettingsUi.Row(note, 46));
         unsupportedRow = SettingsUi.Row(unsupported); top.Add(unsupportedRow);

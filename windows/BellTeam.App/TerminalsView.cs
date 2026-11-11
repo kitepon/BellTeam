@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -16,7 +17,7 @@ internal static class TerminalParts
     private static Brush Frozen(byte r, byte g, byte b) { var brush = new SolidColorBrush(Color.FromRgb(r, g, b)); brush.Freeze(); return brush; }
 
     // Segoe Fluent Icons for the SF Symbols the Mac uses.
-    public const string Check = "\uEC61", Ring = "\uEA3A", Waiting = "\uE823", Bolt = "\uE945", ShieldOk = "\uE83D", ShieldWarn = "\uEA18", KeyGlyph = "\uE8D7", Remove = "\uE738", Trash = "\uE74D", Plus = "\uE710", Info = "\uE946", Chevron = "\uE76C";
+    public const string Check = "\uEC61", Ring = "\uEA3A", Waiting = "\uE823", Bolt = "\uE945", ShieldOk = "\uE83D", ShieldWarn = "\uEA18", KeyGlyph = "\uE8D7", Remove = "\uE738", Trash = "\uE74D", Plus = "\uE710", Info = "\uE946", Chevron = "\uE76C", Laptop = "\uE7F8", Gear = "\uE713";
 
     // An older body (Unsupported) still reports configured / missing.
     public static (string Text, string Glyph, Brush Color) KeyLook(TerminalKeyState state, bool configured) => state.Status switch
@@ -26,6 +27,17 @@ internal static class TerminalParts
         TerminalKeyStatus.Missing => (state.Text, Ring, Orange),
         _ => configured ? ("設定済み", Check, Mint) : ("未設定", Ring, Orange)
     };
+
+    // 16c: the Mac's 「共有設定を開く」. The settings page opens through the shell; a failure is said, not hidden.
+    public static Button OptionalFeaturesButton(Workspace workspace)
+    {
+        var button = Bordered(Gear, "オプション機能を開く", () =>
+        {
+            try { Process.Start(new ProcessStartInfo(ThisPcFacts.OptionalFeaturesUri) { UseShellExecute = true }); }
+            catch (Exception) { workspace.ReportActionError("設定を開けませんでした。Windowsの「設定 > システム > オプション機能」を開いてください。"); }
+        });
+        button.HorizontalAlignment = HorizontalAlignment.Left; button.Margin = new Thickness(0, 8, 0, 0); return button;
+    }
 
     // Mac BellDate.short.
     public static string ShortTime(string? iso) => DateTimeOffset.TryParse(iso, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var at) ? Timeline.ShortTime(at, DateTimeOffset.Now) : "";
@@ -165,7 +177,7 @@ internal sealed class TerminalDetailView : Grid, IDisposable
     private readonly StackPanel body = new() { Margin = new Thickness(20, 28, 20, 24), MaxWidth = 720 };
     private readonly Grid alertLayer = new() { Background = new SolidColorBrush(Color.FromArgb(0x59, 0, 0, 0)), Visibility = Visibility.Collapsed };
     private string? errorText;
-    private bool working, keysRouteMissing, otherWaysOpen, disposed;
+    private bool working, keysRouteMissing, otherWaysOpen, disposed, ownsPc;
     private CancellationTokenSource? awaiting;
     public Button EditButton { get; }
     // Render seams.
@@ -210,6 +222,7 @@ internal sealed class TerminalDetailView : Grid, IDisposable
         EditButton.IsEnabled = Current is not null && !working;
         body.Children.Clear();
         if (Current is not { } terminal) { body.Children.Add(FormSection(null, new GroupCard(Row(TerminalParts.Calm("この端末の登録が見つかりません。一覧へ戻って読み直してください。"))))); return; }
+        ownsPc = model.OwnsHost(terminal);
         body.Children.Add(FormSection("接続先", new GroupCard(Row(LabeledRow("ホスト", terminal.Host)), Row(LabeledRow("ユーザー", terminal.User)), Row(LabeledRow("ポート", terminal.Port.ToString(CultureInfo.InvariantCulture))), Row(LabeledRow("OS", terminal.OsLabel)), Row(LabeledRow("持ち主", terminal.OwnerLabel)))));
         body.Children.Add(FormSection("つながるか", ReachabilityGroup(terminal), "SSHで一度だけつないで、すぐに閉じます。メンバーの席は起動しません。"));
         body.Children.Add(FormSection("ホスト鍵", HostKeyGroup(terminal), "ホスト鍵は、つなぐ相手が本当にこの端末かを見分ける印です。端末で読んだ指紋と同じ時だけ信用します。"));
@@ -238,6 +251,7 @@ internal sealed class TerminalDetailView : Grid, IDisposable
         System.Windows.Automation.AutomationProperties.SetName(block, "つながるか: " + (check?.Summary ?? "まだ確かめていません"));
         group.Add(Row(block));
         // Evidence is not a diagnosis, so each reason offers its likely fix as a button; the check below stays available.
+        if (ownsPc && check?.Problem == TerminalCheck.ProblemKind.Refused) group.Add(Row(TerminalParts.OptionalFeaturesButton(workspace)));
         model.Authorizations.TryGetValue(id, out var state);
         switch (state)
         {
@@ -261,7 +275,22 @@ internal sealed class TerminalDetailView : Grid, IDisposable
         line.Children.Add(Text("ホスト鍵", 13));
         var value = TerminalParts.IconLabel(warn ? TerminalParts.ShieldWarn : TerminalParts.ShieldOk, status, warn ? Orange : TerminalParts.Mint); Grid.SetColumn(value, 1); line.Children.Add(value);
         group.Add(Row(line));
-        if (HostKeyReported)
+        // 16c S2: the terminal is this PC, so this app can read the host key itself. For another PC the server's own action (under 「つながるか」) says to open the app there.
+        model.TrustNotes.TryGetValue(id, out var note);
+        if (ownsPc)
+        {
+            var attest = TerminalParts.IconRow(TerminalParts.ShieldOk, "このPCを確かめる", Violet, model.Attesting.Contains(id) || working ? null : () => _ = model.AttestAsync(id));
+            if (model.Attesting.Contains(id)) { var busy = Text("確かめています…", 12, Secondary); busy.HorizontalAlignment = HorizontalAlignment.Right; Grid.SetColumn(busy, 1); attest.Children.Add(busy); }
+            group.Add(Row(attest));
+        }
+        if (note is not null)
+        {
+            var lines = new StackPanel { Children = { Text(note.Text, 14, Ink) } };
+            if (note.OffersOptionalFeatures) lines.Children.Add(TerminalParts.OptionalFeaturesButton(workspace));
+            System.Windows.Automation.AutomationProperties.SetName(lines, note.Text);
+            group.Add(Row(lines));
+        }
+        if (HostKeyReported || note?.OffersOtherWays == true)
         {
             var other = new StackPanel();
             other.Children.Add(Text($"その{TerminalOS.Machine(terminal.Os)}にBellTeamアプリが無い時や、うまく確かめられない時は、端末で読んだ指紋を入れて確かめます。", 14, Secondary));
@@ -396,16 +425,29 @@ internal sealed class TerminalEditorView : EditorFormView
     private readonly TextBlock ownerFooter;
     private readonly StackPanel errorHost = new();
     private bool attempted;
+    // 16c S1 「このPCを追加」: what the fill and the loopback answer said, and the owner choices it sets.
+    private readonly StackPanel thisPcLines = new();
+    private readonly Workspace app;
+    private readonly Dictionary<string, RadioButton> ownerChoices = [];
+    private Border? thisPcRow;
+    private StackPanel? preconditionSection;
+    private OpenSshState? openSsh;
+    private bool addressMissing, domainAccount, pcAdded;
 
     public TerminalEditorView(Workspace workspace, TerminalsModel model, Terminal? initial) : base(workspace)
     {
-        this.model = model; this.initial = initial; draft = initial is null ? new TerminalDraft() : new TerminalDraft(initial);
+        app = workspace; this.model = model; this.initial = initial; draft = initial is null ? new TerminalDraft() : new TerminalDraft(initial);
         // Step 1 off this PC: the one precondition nobody can see from here, said before the form (per OS).
+        if (initial is null && model.Pc is not null)
+        {
+            thisPcRow = Row(thisPcLines); thisPcRow.Visibility = Visibility.Collapsed;
+            Form.Children.Add(FormSection(null, new GroupCard(Row(TerminalParts.IconRow(TerminalParts.Laptop, "このPCを追加", Violet, () => _ = AddThisPcAsync())), thisPcRow), "このPCのアドレスとユーザー名を入れます。入れたあとも直せます。"));
+        }
         if (initial is null)
         {
             var line = new Grid(); line.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(26) }); line.ColumnDefinitions.Add(new ColumnDefinition());
             line.Children.Add(Glyph(TerminalParts.Info, 16, Secondary)); Grid.SetColumn(precondition, 1); line.Children.Add(precondition);
-            Form.Children.Add(FormSection(null, new GroupCard(Row(line))));
+            Form.Children.Add(preconditionSection = FormSection(null, new GroupCard(Row(line))));
         }
         if (initial is null)
         {
@@ -426,7 +468,7 @@ internal sealed class TerminalEditorView : EditorFormView
         {
             var choice = SecretInputWindow.ChoiceButton(); choice.GroupName = "terminal-owner"; choice.FontSize = 13; choice.Content = label; choice.IsChecked = draft.AccountOwner == value;
             System.Windows.Automation.AutomationProperties.SetName(choice, label);
-            choice.Checked += (_, _) => { draft.AccountOwner = value; Sync(); }; owner.Add(choice);
+            choice.Checked += (_, _) => { draft.AccountOwner = value; Sync(); }; owner.Add(choice); ownerChoices[value] = choice;
         }
         var ownerSection = FormSection("持ち主", owner, "-"); ownerFooter = (TextBlock)ownerSection.Children[^1];
         Form.Children.Add(ownerSection);
@@ -448,6 +490,8 @@ internal sealed class TerminalEditorView : EditorFormView
     {
         var machine = TerminalOS.Machine(draft.Os);
         precondition.Text = $"{TerminalOS.SshStep(draft.Os)}BellTeamがSSHでつなぐのに必要です。";
+        // Once this PC was added, the section below says the same step when it is needed.
+        if (preconditionSection is not null) preconditionSection.Visibility = pcAdded && draft.Os == TerminalOS.Windows ? Visibility.Collapsed : Visibility.Visible;
         ownerFooter.Text = draft.AccountOwner == "owner" ? $"あなた自身の{machine}です。メンバーはあなたのClaudeアカウントを使えます。" : $"ほかの人の{machine}です。その端末のClaudeログインを使い、あなたのアカウントは渡りません。";
         keysNote.Text = TerminalOS.UsesSudoKey(draft.Os) ? "SSH鍵とsudo鍵は、登録した後に端末の画面で設定します。鍵の中身はここに入れません。" : "SSH鍵は、登録した後に端末の画面で設定します。Windowsはsudo鍵を使いません。鍵の中身はここに入れません。";
     }
@@ -461,6 +505,35 @@ internal sealed class TerminalEditorView : EditorFormView
             caption.Text = shown ? text! : ""; caption.Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
         }
     }
+    // S1: fills this PC's facts into the form (still editable) and says whether OpenSSH Server answers on loopback. A loopback answer does not prove LAN reach (the firewall); the reachability check is the proof.
+    internal async Task AddThisPcAsync()
+    {
+        var pc = model.Pc!;
+        var host = ThisPcFacts.PrimaryIPv4(pc.Interfaces()); addressMissing = host is null;
+        var user = ThisPcFacts.SshUser(pc); domainAccount = user.Length == 0;
+        pcAdded = true; OsPicker.SelectedValue = TerminalOS.Windows;
+        if (host is not null) Box(TerminalField.Host).Text = host;
+        Box(TerminalField.User).Text = user; Box(TerminalField.Port).Text = "22"; ownerChoices["owner"].IsChecked = true;
+        openSsh = null; ShowPc(); Sync();
+        try { openSsh = await pc.OpenSshAsync(22, Token); }
+        catch (OperationCanceledException) when (Token.IsCancellationRequested) { return; }
+        ShowPc();
+    }
+
+    private void ShowPc()
+    {
+        thisPcLines.Children.Clear();
+        void Line(string text, Brush? color = null) => thisPcLines.Children.Add(Text(text, 14, color ?? Ink, null, new Thickness(0, thisPcLines.Children.Count == 0 ? 0 : 6, 0, 0)));
+        if (addressMissing) Line(ThisPcFacts.AddressMissingText);
+        if (domainAccount) Line(ThisPcFacts.DomainUserText);
+        switch (openSsh)
+        {
+            case OpenSshState.Off: Line(ThisPcFacts.OpenSshOffText); Line(ThisPcFacts.OpenSshOffStep, Secondary); thisPcLines.Children.Add(TerminalParts.OptionalFeaturesButton(app)); break;
+            case OpenSshState.Unknown: Line(ThisPcFacts.OpenSshUnknownText, Secondary); break;
+        }
+        thisPcRow!.Visibility = thisPcLines.Children.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+    }
+
     private void SetError(string? message)
     {
         errorHost.Children.Clear();
@@ -471,9 +544,12 @@ internal sealed class TerminalEditorView : EditorFormView
     {
         attempted = true; SetError(null); ShowProblems();
         if (draft.Problems(initial is null).Count != 0) { SetError("赤字の欄を直してください。"); return; }
-        try { await model.SaveAsync(draft.TerminalId, draft, Token); }
+        Terminal saved;
+        try { saved = await model.SaveAsync(draft.TerminalId, draft, Token); }
         catch (OperationCanceledException) when (Token.IsCancellationRequested) { throw; }
         catch (Exception error) { SetError(TerminalErrorText.Message(error)); return; }
+        // S2 once right after a new terminal was saved; the model attests only an untrusted terminal whose host is this PC.
+        if (initial is null) _ = model.AttestOnce(saved);
         Close();
     });
 }
