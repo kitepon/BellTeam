@@ -178,6 +178,26 @@ test('an admission-refused relay leaves no relay row, so a restarted process sti
   assert.equal((await first.rows()).filter(row => row.in_reply_to === 'id-2').length, 1)
 })
 
+for (const recovery of ['resume', 'restart']) test(`a global stop during the relay preparation awaits leaves no relay row; ${recovery} relays it once`, async t => {
+  let callbacks, paused = false
+  const first = await setup(t, async (bot, text, options) => { callbacks = options; return { delivery: 'running' } })
+  // Like the real checker: captured at start, refuses if a stop happened since.
+  first.messenger.admitWork = () => () => { if (paused) throw Object.assign(new Error('AI_GLOBAL_PAUSED'), { code: 'AI_GLOBAL_PAUSED' }) }
+  await first.messenger.askReadonly({ from: asker.id, target: owner.id, message: 'Q' })
+  first.messenger.requireAccess = async () => { throw new Error('ACCESS_LOST') } // live relay lost before its row
+  await callbacks.onAnswer('A.')
+  await settle()
+  first.messenger.requireAccess = async () => { paused = true } // the stop lands inside prepareDirect's access await
+  assert.deepEqual(await first.messenger.sweepForkNotices(), { relayed: 0, owed: 1 })
+  assert.ok(!(await first.rows()).some(row => row.in_reply_to), 'no relay row after a stop during preparation')
+  paused = false
+  const sweeper = recovery === 'resume' ? (first.messenger.requireAccess = async () => {}, first.messenger)
+    : new BellTeamMessenger({ bots: first.messenger.bots, logPath: first.messenger.store.logPath, transport: { async notify() { return { delivery: 'running' } } } })
+  assert.deepEqual(await sweeper.sweepForkNotices(), { relayed: 1, owed: 0 })
+  assert.deepEqual(await sweeper.sweepForkNotices(), { relayed: 0, owed: 0 })
+  assert.equal((await first.rows()).filter(row => row.in_reply_to === 'id-2').length, 1)
+})
+
 test('a sweep relay says how old it is; overlapping sweeps relay it once; an error after handover is never resent', async t => {
   const clock = ['2026-11-11T11:30:00.000Z']
   let callbacks
