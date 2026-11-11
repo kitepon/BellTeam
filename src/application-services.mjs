@@ -35,6 +35,7 @@ import { AiControl, stopRegisteredWork } from './ai-control.mjs'
 import { prepareModuleRelease } from './module-release.mjs'
 import { createDiagnosticsFacade } from './diagnostics-facade.mjs'
 import { createWorkGraphFacade, createWorkGraphEffects } from './work-graph-facade.mjs'
+import { createLatticeFacade, createLatticeEffects } from './lattice-facade.mjs'
 import { createSeatCredentials } from './seat-credentials.mjs'
 import { createCredentialRefresh } from './secret-credential-refresh.mjs'
 import { REMOTE_SEAT_MCP_PATH, seatCandidates } from './seat-mcp.mjs'
@@ -137,8 +138,8 @@ export function refuseRemoteSeatLaunch({ native, bots, botsRoot, versionId = nul
   return wrapped
 }
 
-export async function createApplicationServices({ root, moduleChildExitReporter = createModuleChildExitReporter(), exchangeMutex = createModuleExchangeMutex(), aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, botEnvironments = null, olrwManagement = undefined, submittedSecretManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, notify = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory, createWorkGraphProcess: workGraphFactory, prepareWorkGraphRelease: prepareWorkGraph = (versionId, options) => prepareModuleRelease('work-graph', versionId, options), hostUpdateClient: hostClient, prepareDiagnosticsRelease: prepareDiagnostics = (versionId, options) => prepareModuleRelease('diagnostics', versionId, options), builtinSourceCommit = null, usageAssembly = null, attachUsageServices = () => {}, prepareUsageRelease: prepareUsage = (versionId, options) => prepareModuleRelease('usage', versionId, options), createConversationAssembly: conversationFactory, createExecutionAssembly: executionFactory, loadExecutionFactory: loadExecution = loadExecutionFactory, createExecutionAdoptionStore: adoptionFactory = createExecutionAdoptionStore, prepareExecutionRelease: prepareExecution = prepareExecutionRelease, createTerminalsCore = null }) {
-  let terminals = null, credentialRefresh = null, members = null, diagnosticsModule = null, workGraphModule = null, workGraph = null, conversationAssembly = null, execution = null, executionClient, memory, rooms, assets, updateCenter, backgroundSummary, submittedSecretCaller = null, directMessages = null
+export async function createApplicationServices({ root, moduleChildExitReporter = createModuleChildExitReporter(), exchangeMutex = createModuleExchangeMutex(), aiterm, bots, ownerProfile, refreshGlobalInstructions, settings, userRules, environment = process.env, client, seatRuntime = null, botEnvironments = null, olrwManagement = undefined, submittedSecretManagement = undefined, createNotificationsProcess: createProcess = createNotificationsProcess, gateway = () => null, models = null, notify = null, createMembersProcess: membersFactory, createDiagnosticsProcess: diagnosticsFactory, createWorkGraphProcess: workGraphFactory, prepareWorkGraphRelease: prepareWorkGraph = (versionId, options) => prepareModuleRelease('work-graph', versionId, options), createLatticeProcess: latticeFactory, prepareLatticeRelease: prepareLattice = (versionId, options) => prepareModuleRelease('lattice', versionId, options), hostUpdateClient: hostClient, prepareDiagnosticsRelease: prepareDiagnostics = (versionId, options) => prepareModuleRelease('diagnostics', versionId, options), builtinSourceCommit = null, usageAssembly = null, attachUsageServices = () => {}, prepareUsageRelease: prepareUsage = (versionId, options) => prepareModuleRelease('usage', versionId, options), createConversationAssembly: conversationFactory, createExecutionAssembly: executionFactory, loadExecutionFactory: loadExecution = loadExecutionFactory, createExecutionAdoptionStore: adoptionFactory = createExecutionAdoptionStore, prepareExecutionRelease: prepareExecution = prepareExecutionRelease, createTerminalsCore = null }) {
+  let terminals = null, credentialRefresh = null, members = null, diagnosticsModule = null, workGraphModule = null, workGraph = null, latticeModule = null, lattice = null, conversationAssembly = null, execution = null, executionClient, memory, rooms, assets, updateCenter, backgroundSummary, submittedSecretCaller = null, directMessages = null
   let scheduleTurns = null
   const membersAdmission = new MembersAdmission()
   const executionHandoffSupport = new Map()
@@ -429,14 +430,21 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     workGraph = createWorkGraphFacade({ controller: workGraphModule, bots, rooms, transport })
     void workGraphModule.start().catch(() => {})
   }
+  if (latticeFactory) {
+    // Optional module like work-graph: the routes and the seat tool answer LATTICE_UNAVAILABLE until the child is available.
+    latticeModule = latticeFactory({ root, exchangeMutex, prepareRelease: prepareLattice, onEffect: createLatticeEffects({ bots }),
+      onModuleChildExit: moduleChildExitReporter.observe, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit, onState: () => updateCenter?.notify() })
+    lattice = createLatticeFacade({ controller: latticeModule })
+    void latticeModule.start().catch(() => {})
+  }
   const updateClients = hostClient ? { container: hostClient, module: hostClient } : await createUpdateClients()
   const hostUpdate = createHostUpdateAdapter({ root, client: updateClients.container })
   const moduleCatalog = createModuleUpdateCatalog({ client: updateClients.module })
   const moduleExecutor = await createModuleUpdateExecutor({ root, catalog: moduleCatalog, host: hostUpdate, moduleHost: updateClients.module,
     adapters: createModuleUpdateAdapters({ gateway, builtinSourceCommit, notifications, members, memory: seatRuntime?.memoryModule, diagnostics: diagnosticsModule,
-      prepareDiagnostics, workGraph: workGraphModule, prepareWorkGraph, usage: usageAssembly?.controller, prepareUsage, conversation: conversationAssembly?.controller, prepareConversation: (versionId, options) => prepareModuleRelease('conversation', versionId, options), execution: execution?.controller, prepareExecution }), notify: change => updateCenter?.notify(change) })
+      prepareDiagnostics, workGraph: workGraphModule, prepareWorkGraph, lattice: latticeModule, prepareLattice, usage: usageAssembly?.controller, prepareUsage, conversation: conversationAssembly?.controller, prepareConversation: (versionId, options) => prepareModuleRelease('conversation', versionId, options), execution: execution?.controller, prepareExecution }), notify: change => updateCenter?.notify(change) })
   updateCenter = createUpdateCenter({ gateway, builtinSourceCommit, notifications, members, host: hostUpdate, moduleCatalog, moduleExecutor,
-    onCatalogCheckError: error => { void Promise.resolve(diagnostics.record({ code: 'UPDATE_CATALOG_CHECK_FAILED', module: 'update', diagnostic_log: /^[A-Z][A-Z0-9_]{0,99}$/.test(error?.code ?? '') ? error.code : 'UNKNOWN' })).catch(() => {}) }, jobReader: createUpdateJobReader(updateClients), problemReader: async () => moduleRestartLimitProblems(await diagnostics.list('all', 1000)), memory: seatRuntime?.memoryModule, diagnostics: diagnosticsModule, workGraph: workGraphModule, usage: usageAssembly?.controller, conversation: conversationAssembly?.controller, execution: execution?.controller, captureRuntime })
+    onCatalogCheckError: error => { void Promise.resolve(diagnostics.record({ code: 'UPDATE_CATALOG_CHECK_FAILED', module: 'update', diagnostic_log: /^[A-Z][A-Z0-9_]{0,99}$/.test(error?.code ?? '') ? error.code : 'UNKNOWN' })).catch(() => {}) }, jobReader: createUpdateJobReader(updateClients), problemReader: async () => moduleRestartLimitProblems(await diagnostics.list('all', 1000)), memory: seatRuntime?.memoryModule, diagnostics: diagnosticsModule, workGraph: workGraphModule, lattice: latticeModule, usage: usageAssembly?.controller, conversation: conversationAssembly?.controller, execution: execution?.controller, captureRuntime })
   Object.assign(usageServices, { bots, rooms, transport, messenger, notifications, settings, updateCenter, conversationAssembly, backgroundSummary, accounts })
   if (usageAssembly) await usageAssembly.initializeServices()
   // Missing or corrupt summary settings must not prevent the main application from starting.
@@ -471,7 +479,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     notifications, secretRequests, ownerQuestions, bots, rooms,
     roomMessenger, messenger, store, transport, memory,
     ownerProfile, userRules, characterSheets, refreshGlobalInstructions, assets,
-    scheduler, diagnostics, diagnosticsModule, workGraph, workGraphModule, accounts, terminals, terminalKeys, seatCredentials, remoteSeatListener, credentialRefresh, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller, submittedSecretCaller,
+    scheduler, diagnostics, diagnosticsModule, workGraph, workGraphModule, lattice, latticeModule, accounts, terminals, terminalKeys, seatCredentials, remoteSeatListener, credentialRefresh, idleSessions, selfTurns, seatTurns, administration, goals, olrwAuthCaller, submittedSecretCaller,
     // Saved direct input drains after listen (Z-c). Starting before the hold release is safe and needs no bound:
     // executionReady is false while held, and the release's hold.watch → requestDrain drains it.
     lifecycle: { ...execution?.lifecycle,
@@ -481,7 +489,7 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     const failures = []
     for (const close of [() => credentialRefresh?.stop(), () => terminals?.close?.(), () => directMessages?.close(), () => submittedSecretCaller?.close(), () => backgroundSummary?.close(), () => moduleChildExitReporter.close(), () => updateCenter?.close(), () => seatRuntime?.memoryModule?.close(),
       () => conversationAssembly?.close(), () => execution?.controller.close(), () => execution && executionClient?.close(),
-      () => members?.controller.close(), () => usageAssembly?.close(), () => diagnosticsModule?.close(), () => workGraphModule?.close()]) {
+      () => members?.controller.close(), () => usageAssembly?.close(), () => diagnosticsModule?.close(), () => workGraphModule?.close(), () => latticeModule?.close()]) {
       try { await close() } catch (cleanupError) { failures.push(cleanupError) }
     }
     if (failures.length) throw new AggregateError([error, ...failures], 'APPLICATION_SERVICES_FAILED')

@@ -83,8 +83,9 @@ RUN /usr/sbin/groupadd -g 1001 bellteam-server \
   && cc -O2 -Wall -Wextra -Werror scripts/diagnostics-start.c -o /usr/local/libexec/bellteam-diagnostics-start \
   && cc -O2 -Wall -Wextra -Werror scripts/conversation-start.c -o /usr/local/libexec/bellteam-conversation-start \
   && cc -O2 -Wall -Wextra -Werror scripts/work-graph-start.c -o /usr/local/libexec/bellteam-work-graph-start \
-  && chown root:root /usr/local/libexec/bellteam-notifications-start /usr/local/libexec/bellteam-members-start /usr/local/libexec/bellteam-usage-start /usr/local/libexec/bellteam-diagnostics-start /usr/local/libexec/bellteam-conversation-start /usr/local/libexec/bellteam-work-graph-start \
-  && chmod 0755 /usr/local/libexec/bellteam-notifications-start /usr/local/libexec/bellteam-members-start /usr/local/libexec/bellteam-usage-start /usr/local/libexec/bellteam-diagnostics-start /usr/local/libexec/bellteam-conversation-start /usr/local/libexec/bellteam-work-graph-start \
+  && cc -O2 -Wall -Wextra -Werror scripts/lattice-start.c -o /usr/local/libexec/bellteam-lattice-start \
+  && chown root:root /usr/local/libexec/bellteam-notifications-start /usr/local/libexec/bellteam-members-start /usr/local/libexec/bellteam-usage-start /usr/local/libexec/bellteam-diagnostics-start /usr/local/libexec/bellteam-conversation-start /usr/local/libexec/bellteam-work-graph-start /usr/local/libexec/bellteam-lattice-start \
+  && chmod 0755 /usr/local/libexec/bellteam-notifications-start /usr/local/libexec/bellteam-members-start /usr/local/libexec/bellteam-usage-start /usr/local/libexec/bellteam-diagnostics-start /usr/local/libexec/bellteam-conversation-start /usr/local/libexec/bellteam-work-graph-start /usr/local/libexec/bellteam-lattice-start \
   && chown root:root /usr/local/libexec/bellteam-seat-exec /usr/local/libexec/bellteam-server-start \
   && chmod 0755 /usr/local/libexec/bellteam-seat-exec /usr/local/libexec/bellteam-server-start \
   && printf 'bellteam-server ALL=(root) NOPASSWD: /usr/local/libexec/bellteam-seat-exec -- *\n' > /etc/sudoers.d/bellteam-server \

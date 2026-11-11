@@ -43,6 +43,8 @@ flowchart TD
   HTTP --> Schedules["members.createScheduleApi"]
   HTTP --> WorkGraph["work-graph.createWorkGraphApi / Owner GET snapshot・SSE"]
   WorkGraph --> WGFacade["work-graph-facade / 子moduleへのrefresh・snapshot"]
+  HTTP --> Lattice["lattice.createLatticeApi / Owner GET charts・chart・SSE"]
+  Lattice --> LFacade["lattice-facade / 子moduleへのcharts・chart・refresh・run（1本の直列chain）"]
   HTTP --> Accounts["http-accounts-api / GET accounts"]
   Accounts --> ExecAccounts["execution.accounts list"]
   HTTP --> BotItems["members profiles-http / Bot items"]
@@ -54,12 +56,14 @@ flowchart TD
   MCP --> DeleteTool["members.deleteBotTool / runDeleteBotTool"]
   MCP --> ProfileTools["members.memberReadTools/memberWriteTools/callMemberTool"]
   MCP --> ScheduleTools["members.botScheduleTools/roomScheduleTools/scheduleToolHandlers"]
+  MCP --> LatticeTool["lattice.latticeTools/latticeToolHandlers / from=呼んだ席のBot"]
+  LatticeTool --> LFacade
   Assembly["application-services / 同じservice実体を接続"] --> TalkFactory["conversation-services"]
   Assembly --> Runtime["同じSeatRuntimeのCLI登録"]
   Features["application-features / 互換export"] --> Apply["usage.createApplicationFeatures"]
 ```
 
-登録順、同じAdministration/service実体、会話と秘密・質問の保存後の部分失敗、MCP公開schemaを統合境界で確認する。membersの削除/予定/プロフィール/画像/Owner個別受付は各公開窓口へ渡し、共通整形・認証・エラー変換と登録をここが持つ。削除の既pending受付とCLI同期失敗の独立はmembersの意図した契約変更。相関図（work-graph）は独立更新の子moduleとして動かす（[親側の図](../runtime/work-graph-child.md)）。既featureApisの末尾のhandlerへ`{facade, internal}`だけを渡し、facadeが子へのrefresh/snapshotと、bots/rooms/transport/messagePageの読取effectを持つ。親は状態を持たず、内部席は403を本人handlerが返す。モデル適用等の残る業務分離は各担当の継続範囲で、全機能の分離完了とは扱わない。
+登録順、同じAdministration/service実体、会話と秘密・質問の保存後の部分失敗、MCP公開schemaを統合境界で確認する。membersの削除/予定/プロフィール/画像/Owner個別受付は各公開窓口へ渡し、共通整形・認証・エラー変換と登録をここが持つ。削除の既pending受付とCLI同期失敗の独立はmembersの意図した契約変更。相関図（work-graph）は独立更新の子moduleとして動かす（[親側の図](../runtime/work-graph-child.md)）。既featureApisの末尾のhandlerへ`{facade, internal}`だけを渡し、facadeが子へのrefresh/snapshotと、bots/rooms/transport/messagePageの読取effectを持つ。親は状態を持たず、内部席は403を本人handlerが返す。Lattice工程表（lattice）も同じ形の独立更新子module（[親側の図](../runtime/lattice-child.md)）。HTTPは既featureApisのwork-graphの次へ`createLatticeApi({facade, internal})`を置き、MCPは`latticeTools`を道具一覧の末尾へ足して`latticeToolHandlers.lattice({lattice: facade, from, args})`へ渡す。`from`は席の認証から決めたBot idで、道具引数からは取らない。forkの席も親Botとして呼べる（工程表はBot project folderの外）。facadeが無い本体では道具は`LATTICE_UNAVAILABLE`を返す。モデル適用等の残る業務分離は各担当の継続範囲で、全機能の分離完了とは扱わない。
 
 共通MCP全体説明は対象範囲と、設定された設置のSEC所見をBugHubへ記録する案内を持つ。道具の引数・既定値・効果・返却は各description、道具を持ち出す場面・順序はcommon-agents.mdへ置く。v4の共通規範を先に採用してから説明の重複を除き、schema/handler/保存と公開接続は変えない。
 

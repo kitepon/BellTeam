@@ -9,6 +9,7 @@ import { memberReadTools, memberWriteTools, callMemberTool } from './members/pro
 export { resolveBotImagePath } from './bot-image-path.mjs'
 import { deleteBotTool, runDeleteBotTool } from './members/deletion.mjs'
 import { terminalTools, callTerminalTool } from './terminals-mcp.mjs'
+import { latticeTools, latticeToolHandlers } from './lattice/mcp.mjs'
 
 export const bellTeamTools = Object.freeze([
   {
@@ -109,6 +110,7 @@ export const bellTeamTools = Object.freeze([
   ...roomScheduleTools,
   ...bugHubSecurityTools,
   ...terminalTools,
+  ...latticeTools,
 ])
 
 // Owner 2026-11-10: a fork seat never writes inside any Bot project folder (/srv/bellteam/bots/*/), SQL stores included.
@@ -175,6 +177,11 @@ async function runBellTeamTool(context) {
       deliverMessage: deliverMessage ?? (value => messenger.sendmessage(value)) })
   if (Object.hasOwn(scheduleToolHandlers, name)) return scheduleToolHandlers[name]({ registry, rooms, from, args })
   if (Object.hasOwn(usageToolHandlers, name)) return usageToolHandlers[name]({ ...context, args })
+  if (Object.hasOwn(latticeToolHandlers, name)) {
+    if (!context.lattice) throw Object.assign(new Error('LATTICE_UNAVAILABLE'), { code: 'LATTICE_UNAVAILABLE', status: 503 })
+    // from is the seat resolved by seat-mcp (a fork resolves to its parent Bot), never a tool argument.
+    return latticeToolHandlers[name]({ lattice: context.lattice, from, args })
+  }
   if (conversationTools.some(tool => tool.name === name))
     return callConversationTool({ name, args, from, registry, messenger, store, rooms, roomMessenger, deliverMessage, deliverForkInquiry, deliverRoomMessage, listQueued })
   if (name === 'remember') return withMemoryLengthNotice(await memory.remember({ botId: from, ...args, sourceRef: 'mcp' }), args.content)

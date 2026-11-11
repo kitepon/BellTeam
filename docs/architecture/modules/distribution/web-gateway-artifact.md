@@ -28,7 +28,7 @@ packagerは固定Git treeからsrc/web/package/lockと購読用public JSON2file�
 
 root expectationのwriterは通常installerのprivileged operatorから64/40/40hexを受けたroothelper。入力はarchiveSha256/sourceCommit/signerCommitの3fieldで、incoming側期待JSONを読まない。公式verifierへはroot-owned通常fileと固定policyをO_NOFOLLOWで開き、同FDを/proc/self/fdでghへ渡す。GH_TOKENや本体の環境を渡さない。内容検査前に期待archiveSHAと公式crypto/repoIDを検証する。
 
-公開packagerの--archはamd64/arm64。native workflowは対応runner自身を必須とし、ローカルのcross-arch入力はlockにinstall script/CPU/OS制約がなく、インストール出力にnative binaryがないJS依存だけを許す。native依存が増えたら対応runnerで作成する。署名していないローカル入力はnative両arch受入へ代用しない。
+公開packagerの--archはamd64/arm64。native workflowは対応runner自身を必須とし、ローカルのcross-arch入力はlockにinstall script/CPU/OS制約がなく、インストール出力にnative binaryがないJS依存だけを許す。native binaryは`.node`、ELF（`\x7fELF`）、PE（`MZ`）で判定する。WebAssembly（`\0asm`）はarchに依存しないので許す（2026-11-11、latticeが収録するtree-sitter-wasms・web-tree-sitter）。native依存が増えたら対応runnerで作成する。署名していないローカル入力はnative両arch受入へ代用しない。
 
 検証fixtureはtest/web-gateway-artifact.test.py、既収録境界はtest/server-distribution.test.mjs。正の単体試験はmock wiringの検査で、crypto成功へ加算しない。実OIDC workflowはsource採否後の固定run原本で別に記録する。
 
