@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   UNKNOWN_MEMBER, backoffMs, bannerFor, chartCounts, coordinatorBotId, degradedPills, detailOf, diffSnapshots, edgeChipText, edgeGeometry, flowPositions, formatJst, highlightSets,
-  layoutChart, layoutTree, listItems, memberLookup, ownerLookup, pointOnEdge, railItems, sinceText, waitRows, cardLabel,
+  layoutChart, layoutTree, historyRows, listItems, memberLookup, ownerLookup, pointOnEdge, railItems, sinceText, waitRows, cardLabel,
 } from '../web/lattice-chart-model.js'
 import { createChartStream, createLatticeChart } from '../web/lattice-chart.js'
 
@@ -68,6 +68,22 @@ test('ツリー：工程表 -> まとまり -> 工程（親の下）、葉は一
   assert.ok(tree.width > node('p1/t03').x + node('p1/t03').w)
   const old = layoutTree(fixture(), 'x')
   assert.equal(old.nodes.filter(n => n.kind === 'card').every(n => n.x === old.nodes[0].x + old.nodes[0].w + 36), true, 'phases の無い古い一枚は工程表の直下に並ぶ')
+})
+
+test('消えた工程（archived）はツリーにも担当にも描かず、過去ログに新しい順・日ごとに並ぶ', () => {
+  const snap = fixture({ phases: [{ id: 'p1/a', title: '下調べ' }, { id: 'p1/b', title: '部品' }],
+    cards: fixture().cards.map(c => ({ ...c, phase: c.id === 'p1/t01' ? 'p1/a' : 'p1/b', parent: c.id === 'p1/t03' ? 'p1/t01' : null,
+      archived: c.id === 'p1/t01', doneAt: c.id === 'p1/t01' ? minutesAgo(30) : c.id === 'p1/t06' ? minutesAgo(60 * 30) : null })) })
+  const tree = layoutTree(snap, 'x'), keys = tree.nodes.map(n => n.key)
+  assert.equal(keys.includes('p1/t01'), false); assert.equal(keys.includes('phase:p1/a'), false, '中身が全部消えたまとまりは描かない')
+  assert.equal(tree.links.find(l => l.to === 'p1/t03').from, 'phase:p1/b', '消えた親の子は自分のまとまりへ')
+  assert.equal(layoutChart(snap).cards.has('p1/t01'), false)
+  assert.deepEqual(chartCounts(snap).total, 6, '数には残る')
+  assert.deepEqual([tree.nodes[0].done, tree.nodes[0].total, tree.nodes.find(n => n.key === 'phase:p1/b').total], [2, 6, 5], 'ツリーの完了数も消えた工程を数える')
+  const past = historyRows(snap, BASE)
+  assert.equal(past.count, 2)
+  assert.deepEqual(past.groups.map(g => [g.heading, g.rows.map(r => r.title)]), [['今日', ['公開契約の裁定']], ['昨日', ['古い案']]])
+  assert.match(past.groups[0].rows[0].label, /公開契約の裁定、完了、今日 \d\d:\d\d、トロニー/u)
 })
 
 test('配置：担当ごとのレーン（担当なしは最後）、depth ごとの列、同じ担当・同じ列は縦に積む', () => {
@@ -350,6 +366,20 @@ test('ツリーが最初の表示：小さな箱をタップで詳細、ツリ�
   assert.equal(byClass(ui.body, 'lattice-card').length, 6)
   assert.equal(byClass(ui.body, 'lattice-tree')[0].hidden, true)
   assert.match(textOf(byClass(ui.body, 'lattice-sheet')[0]), /部品の配置と保存場所/u, '詳細は切り替えても開いたまま')
+})
+
+test('過去ログ：切り替えで終わった工程を新しい順に出し、行のタップで詳細', async t => {
+  const feed = sse(), net = router({ streams: [feed] })
+  const ui = setup(t, { api: async () => chartsList('bellteam'), fetchImage: net.fetchImage, mode: 'tree' })
+  ui.view.open(); await flush()
+  feed.snapshot(fixture({ cards: fixture().cards.map(c => ({ ...c, archived: c.id === 'p1/t01', doneAt: c.id === 'p1/t01' ? minutesAgo(5) : null })) })); await flush()
+  assert.equal(byClass(ui.body, 'lattice-tbox').some(el => el.dataset.cardId === 'p1/t01'), false, '消えた工程はツリーに出ない')
+  const tab = buttonByText(ui.body, '過去ログ'); assert.equal(textOf(tab), '過去ログ 2')
+  tab.click(); await flush()
+  const rows = byClass(ui.body, 'lattice-hrow')
+  assert.deepEqual(rows.map(el => el.dataset.cardId), ['p1/t01', 'p1/t06'])
+  rows[0].click(); await flush()
+  assert.match(textOf(byClass(ui.body, 'lattice-sheet')[0]), /公開契約の裁定/u)
 })
 
 test('詳細：札で開く（設計メモ・終了条件・前の工程/次の工程）、前後をたどる、閉じる・Esc で戻る', async t => {

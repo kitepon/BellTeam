@@ -74,7 +74,7 @@ const COL_W = 232, LABEL_W = 116, TOP = 14, LANE_MIN = 108, LANE_GAP = 8, LANE_P
 export const cardHeight = card => finished(card.state) ? CARD_DONE_H : CARD_H
 
 export function layoutChart(snapshot) {
-  const ownerOf = ownerLookup(snapshot), cards = snapshot.cards ?? []
+  const ownerOf = ownerLookup(snapshot), cards = (snapshot.cards ?? []).filter(card => !card.archived)
   const keys = new Map(), owners = new Map([[null, null]])
   for (const card of cards) {
     const owner = ownerOf(card), key = owner ? owner.botId ?? `lane:${owner.name}` : null
@@ -120,9 +120,11 @@ export function phaseTone(cards) {
   return cards.length && cards.every(card => finished(card.state)) ? 'done' : 'pending'
 }
 export function layoutTree(snapshot, name = '') {
-  const cards = snapshot.cards ?? [], byId = new Map(cards.map(card => [card.id, card])), phaseIds = new Set((snapshot.phases ?? []).map(phase => phase.id))
+  // 消えた工程（archived）は描かない。中身が全部消えたまとまりも描かず、消えた親の子はそのまとまりへ。
+  const cards = (snapshot.cards ?? []).filter(card => !card.archived), byId = new Map(cards.map(card => [card.id, card]))
+  const phaseIds = new Set((snapshot.phases ?? []).map(phase => phase.id).filter(id => !(snapshot.cards ?? []).some(card => card.phase === id) || cards.some(card => card.phase === id)))
   const nodes = new Map([['root', { key: 'root', kind: 'root', label: name, w: TREE.ROOT_W, children: [] }]])
-  for (const phase of snapshot.phases ?? []) nodes.set(`phase:${phase.id}`, { key: `phase:${phase.id}`, kind: 'phase', id: phase.id, label: phase.title ?? UNNAMED_PHASE, w: TREE.PHASE_W, children: [] })
+  for (const phase of (snapshot.phases ?? []).filter(phase => phaseIds.has(phase.id))) nodes.set(`phase:${phase.id}`, { key: `phase:${phase.id}`, kind: 'phase', id: phase.id, label: phase.title ?? UNNAMED_PHASE, w: TREE.PHASE_W, children: [] })
   for (const card of cards) nodes.set(card.id, { key: card.id, kind: 'card', id: card.id, card, w: TREE.CARD_W, children: [] })
   const parentOf = card => card.parent && byId.has(card.parent) ? card.parent : card.phase && phaseIds.has(card.phase) ? `phase:${card.phase}` : 'root'
   for (const node of nodes.values()) if (node.kind === 'phase') nodes.get('root').children.push(node.key)
@@ -139,9 +141,10 @@ export function layoutTree(snapshot, name = '') {
     return node
   }
   place('root', TREE.LEFT)
-  const under = key => { const node = nodes.get(key); return node.kind === 'card' ? [node.card, ...node.children.flatMap(under)] : node.children.flatMap(under) }
+  // 完了数は消えた工程も数える（上の「◯/◯ 完了」と合わせる）。
+  const all = snapshot.cards ?? []
   for (const node of nodes.values()) if (node.kind !== 'card') {
-    const inside = under(node.key)
+    const inside = node.kind === 'root' ? all : all.filter(card => card.phase === node.id)
     Object.assign(node, { done: inside.filter(card => finished(card.state)).length, total: inside.length, tone: phaseTone(inside) })
   }
   const mid = node => node.y + node.h / 2
@@ -160,6 +163,26 @@ export function layoutTree(snapshot, name = '') {
   const list = [...nodes.values()].map(({ children, ...node }) => node)
   return { nodes: list, links, arcs, cards: new Map(list.filter(node => node.kind === 'card').map(node => [node.id, node])),
     width: reach + 24, height: TREE.TOP + Math.max(1, row) * TREE.ROW + 16 }
+}
+
+// 過去ログ：終わった工程を新しい順に、JSTの日ごと（今日 / 昨日 / M月D日）。
+const JST_DAY = new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: 'numeric', day: 'numeric' })
+const JST_TIME = new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+export function historyRows(snapshot, now) {
+  const ownerOf = ownerLookup(snapshot), day = value => JST_DAY.format(new Date(value))
+  const today = day(now), yesterday = day(now - 86400000)
+  const rows = (snapshot.cards ?? []).filter(card => finished(card.state))
+    .toSorted((a, b) => (b.doneAt ? Date.parse(b.doneAt) : -Infinity) - (a.doneAt ? Date.parse(a.doneAt) : -Infinity) || a.id.localeCompare(b.id))
+  const groups = []
+  for (const card of rows) {
+    const at = card.doneAt && !Number.isNaN(Date.parse(card.doneAt)) ? card.doneAt : null, key = at ? day(at) : ''
+    const heading = !at ? '日時の分からない工程' : key === today ? '今日' : key === yesterday ? '昨日' : key.replace(/^\d+\/(\d+)\/(\d+)$/u, '$1月$2日')
+    if (groups.at(-1)?.heading !== heading) groups.push({ heading, rows: [] })
+    const owner = ownerOf(card), info = stateInfo(card.state), time = at ? JST_TIME.format(new Date(at)) : ''
+    groups.at(-1).rows.push({ id: card.id, title: card.title, owner, info, time,
+      label: `${card.title}、${info.badge}${time ? `、${heading} ${time}` : ''}、${nameOf(owner)}` })
+  }
+  return { count: rows.length, groups }
 }
 
 // 辺は右中央から左中央への滑らかな曲線。

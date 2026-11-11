@@ -3,7 +3,7 @@ import { parseFrames } from './work-graph.js?v=__ASSET_VERSION__'
 import { applyAvatar } from './view-format.js?v=__ASSET_VERSION__'
 import {
   MESSAGES, SCHEMA, UNASSIGNED, accent, backoffMs, bannerFor, chartCounts, coordinatorBotId, degradedPills, detailOf, diffSnapshots, edgeChipText, edgeGeometry,
-  flowPositions, highlightSets, layoutChart, layoutTree, chartName, listItems, listSignature, memberLookup, ownerLookup, particleOpacity, pointOnEdge, railItems, stateInfo, waitRows, cardLabel, cardNote, minutesSince, RED,
+  flowPositions, highlightSets, layoutChart, layoutTree, historyRows, chartName, listItems, listSignature, memberLookup, ownerLookup, particleOpacity, pointOnEdge, railItems, stateInfo, waitRows, cardLabel, cardNote, minutesSince, RED,
 } from './lattice-chart-model.js?v=__ASSET_VERSION__'
 
 const GLYPHS = {
@@ -275,9 +275,10 @@ export function createLatticeChart(dialog, {
     treeSvg.append(svg('defs', {}, ...['arrow', 'arrow-wait'].map(id => svg('marker', { id: `lattice-${id}`, viewBox: '0 0 8 8', refX: 7, refY: 4, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' },
       svg('path', { d: 'M0 0L8 4L0 8z', class: id })))), treeLinks, treeArcs)
     const treeBoxes = h('div', { class: 'lattice-tree-boxes' }), tree = h('div', { class: 'lattice-tree' }, treeSvg, treeBoxes)
-    const canvas = h('div', { class: 'lattice-canvas', on: { click: event => { if (highlight && !event.target.closest?.('.lattice-card, .lattice-tbox')) { highlight = null; applyHighlight(); paintRail() } } } }, plane, tree)
+    const history = h('div', { class: 'lattice-history' })
+    const canvas = h('div', { class: 'lattice-canvas', on: { click: event => { if (highlight && !event.target.closest?.('.lattice-card, .lattice-tbox')) { highlight = null; applyHighlight(); paintRail() } } } }, plane, tree, history)
     const modeBtn = (value, label) => h('button', { type: 'button', 'aria-pressed': String(mode === value), dataset: { mode: value, focusKey: `mode:${value}` }, on: { click: () => setMode(value) } }, label)
-    const modes = h('div', { class: 'lattice-seg', role: 'group', 'aria-label': '表示' }, modeBtn('tree', 'ツリー'), modeBtn('lanes', '担当'))
+    const modes = h('div', { class: 'lattice-seg', role: 'group', 'aria-label': '表示' }, modeBtn('tree', 'ツリー'), modeBtn('lanes', '担当'), modeBtn('history', '過去ログ'))
     const switcher = h('button', { class: 'lattice-switcher', type: 'button', on: { click: goList } })
     const live = h('span', { class: 'lattice-live', hidden: true }, h('i', { class: 'ldot' }), 'ライブ')
     const summary = h('div', { class: 'lattice-sum' }), counters = h('div', { class: 'lattice-cnt' })
@@ -288,7 +289,7 @@ export function createLatticeChart(dialog, {
     const root = h('div', { class: 'lattice-chart', hidden: true }, h('div', { class: 'lattice-toolbar' }, switcher, live, modes, h('span', { class: 'lattice-spacer' }), summary, counters), banner, main, empty, sheet)
     body.replaceChildren(loadingEl, root)
     view = 'chart'
-    ui = { root, switcher, live, modes, tree, treeSvg, treeLinks, treeArcs, treeBoxes, summary, counters, banner, rail, canvas, plane, lanes, cards, chips, edgesSvg, defs, edgeLayer, flowLayer, waits, main, empty, sheet, loading: loadingEl }
+    ui = { root, switcher, live, modes, history, tree, treeSvg, treeLinks, treeArcs, treeBoxes, summary, counters, banner, rail, canvas, plane, lanes, cards, chips, edgesSvg, defs, edgeLayer, flowLayer, waits, main, empty, sheet, loading: loadingEl }
   }
 
   function paintChart(diff) {
@@ -304,9 +305,14 @@ export function createLatticeChart(dialog, {
     if (unavailable || blank) { fill(ui.empty, note(unavailable ? MESSAGES.unavailable : MESSAGES.noCards, 'list')); detailId = null; stopFrames() }
     else {
       const layout = layoutChart(snapshot)
-      ui.plane.hidden = mode !== 'lanes'; ui.tree.hidden = mode !== 'tree'
-      for (const button of ui.modes.children) button.setAttribute('aria-pressed', String(button.dataset.mode === mode))
-      if (mode === 'tree') { paintTree(); particles = [] } else paintPlane(layout, diff)
+      ui.plane.hidden = mode !== 'lanes'; ui.tree.hidden = mode !== 'tree'; ui.history.hidden = mode !== 'history'
+      const past = historyRows(snapshot, now())
+      for (const button of ui.modes.children) {
+        button.setAttribute('aria-pressed', String(button.dataset.mode === mode))
+        if (button.dataset.mode === 'history') button.textContent = `過去ログ ${past.count}`
+      }
+      if (mode === 'lanes') paintPlane(layout, diff)
+      else { particles = []; if (mode === 'tree') paintTree(); else paintHistory(past) }
       paintRail(layout)
       paintWaits()
     }
@@ -345,6 +351,21 @@ export function createLatticeChart(dialog, {
       treeEls.set(card.id, el)
       return el
     })))
+  }
+
+  // 過去ログ：終わった工程を新しい順に、日ごとの見出しで。タップで詳細。
+  function paintHistory(past) {
+    treeEls.clear()
+    keepFocus(ui.history, () => fill(ui.history, past.count
+      ? h('div', { class: 'lattice-hist' }, ...past.groups.map(group => h('section', {}, h('h4', { text: group.heading }),
+        ...group.rows.map(row => {
+          const el = h('button', { class: `lattice-hrow is-${row.info.tone}${detailId === row.id ? ' sel' : ''}`, type: 'button', 'aria-label': row.label, dataset: { cardId: row.id, focusKey: `h:${row.id}` },
+            on: { click: () => openDetail(row.id, treeEls.get(row.id)) } },
+          glyph(row.info.glyph), h('span', { class: 'ti', text: row.title }), row.owner ? avatar(row.owner, 18) : null, h('span', { class: 'nm', text: row.owner ? row.owner.name : UNASSIGNED }), h('time', { text: row.time }))
+          treeEls.set(row.id, el)
+          return el
+        }))))
+      : h('p', { class: 'lattice-hist-none', text: 'まだ終わった工程はありません。' })))
   }
 
   function paintToolbar(counts) {
@@ -476,7 +497,7 @@ export function createLatticeChart(dialog, {
   function closeDetail() {
     const id = detailId
     detailId = null; paintDetail(); applyCardSelection()
-    const els = mode === 'tree' ? treeEls : cardEls
+    const els = mode === 'lanes' ? cardEls : treeEls
     els.get(id)?.focus?.()
   }
   function applyCardSelection() { for (const [id, el] of [...cardEls, ...treeEls]) el.classList.toggle('sel', id === detailId) }
@@ -511,11 +532,10 @@ export function createLatticeChart(dialog, {
   }
   // 札へ運ぶ：中央へ寄せて詳細を開く。
   function goTo(id, keepSheet = false) {
-    const el = (mode === 'tree' ? treeEls : cardEls).get(id)
-    if (!el) return
-    const canvas = ui.canvas, place = (mode === 'tree' ? treePlaces : places).get(id)
+    const el = (mode === 'lanes' ? cardEls : treeEls).get(id)
+    const canvas = ui.canvas, place = el && (mode === 'tree' ? treePlaces : mode === 'lanes' ? places : null)?.get(id)
     if (place) canvas.scrollTo?.({ left: Math.max(0, place.x - ((canvas.clientWidth ?? 0) - place.w) / 2), top: Math.max(0, place.y - ((canvas.clientHeight ?? 0) - place.h) / 2), behavior: reduceMotion() ? 'auto' : 'smooth' })
-    detailId = id; paintDetail(keepSheet ? undefined : el.getBoundingClientRect?.()); applyCardSelection()
+    detailId = id; paintDetail(keepSheet ? undefined : el?.getBoundingClientRect?.()); applyCardSelection()
     if (keepSheet) focusClose()
   }
 

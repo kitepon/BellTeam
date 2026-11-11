@@ -45,7 +45,8 @@ export function projectChart({ read, members = [], previous = null }) {
         doneCondition: text(task.done_condition), designMemo: text(task.design_memo), state: status, lane,
         producer: (status === 'done' || status === 'retired') && lane ? assigned(lane) : start?.agent ?? assigned(lane), startedAt: start?.at ?? null, changedAt: changed.get(taskId) ?? null,
         blockedReason: status === 'blocked' ? text(entry.blocked_reason) : null, depth: 0,
-        phase: phaseIds.has(task.phase_id) ? `${key}/${task.phase_id}` : null, parent: null })
+        phase: phaseIds.has(task.phase_id) ? `${key}/${task.phase_id}` : null, parent: null,
+        doneAt: status === 'done' ? stamp(entry?.done_at) ?? changed.get(taskId) ?? null : status === 'retired' ? changed.get(taskId) ?? null : null, archived: false })
       if (text(task.parent_task_id)) parents.set(`${key}/${taskId}`, `${key}/${task.parent_task_id}`)
     }
     for (const dep of list(plan.hard_dependencies)) deps.push([ref(dep?.from), ref(dep?.to)])
@@ -72,6 +73,10 @@ export function projectChart({ read, members = [], previous = null }) {
   }
   for (const card of cards.values()) {
     if (card.state === 'pending' && (before.get(card.id) ?? []).every(id => finished(cards.get(id)))) card.state = 'ready'
+  }
+  // Archived = finished and no next card is still unstarted (Owner 2026-11-12); the screens leave it to 過去ログ.
+  for (const card of cards.values()) {
+    card.archived = finished(card) && (next.get(card.id) ?? []).every(id => !['pending', 'ready'].includes(cards.get(id).state))
   }
   const open = new Map([...cards.keys()].map(id => [id, (before.get(id) ?? []).length]))
   for (const queue = [...open].filter(([, n]) => n === 0).map(([id]) => id); queue.length;) {

@@ -1115,6 +1115,21 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .lattice-tbox.is-retired { border-style: dashed; background: transparent; color: #A1A4B4; }
 .lattice-tbox.is-retired .ti { text-decoration: line-through; }
 
+.lattice-history[hidden] { display: none; }
+.lattice-hist { max-width: 720px; padding: 16px 20px 32px; }
+.lattice-hist h4 { margin: 14px 0 6px; font-size: 12px; font-weight: 700; color: var(--l-muted); }
+.lattice-hrow { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; margin: 0 0 4px; padding: 0 12px; border: 1px solid var(--l-line); border-radius: 10px; background: var(--l-surface); color: var(--l-ink); font: inherit; text-align: left; cursor: pointer; }
+.lattice-hrow .ti { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; font-weight: 600; }
+.lattice-hrow > .lattice-g { flex: none; font-size: 14px; color: #7DA89F; }
+.lattice-hrow.is-retired > .lattice-g { color: #A1A4B4; }
+.lattice-hrow.is-retired .ti { text-decoration: line-through; color: #A1A4B4; }
+.lattice-hrow .nm { flex: none; font-size: 11px; color: var(--l-muted); }
+.lattice-hrow time { flex: none; width: 40px; text-align: right; font-size: 11px; color: var(--l-muted); font-variant-numeric: tabular-nums; }
+.lattice-hrow:hover { box-shadow: var(--l-shadow); }
+.lattice-hrow:focus-visible { outline: 2px solid var(--l-violet); outline-offset: 2px; }
+.lattice-hrow.sel { box-shadow: 0 0 0 2px var(--l-violet); }
+.lattice-hist-none { padding: 32px 20px; color: var(--l-muted); }
+
 /* cards */
 .lattice-card { position: absolute; left: 0; top: 0; z-index: 3; display: block; padding: 10px 11px; border: 1px solid var(--l-line); border-radius: 16px; background: var(--l-surface); box-shadow: var(--l-shadow); color: var(--l-ink); font: inherit; text-align: left; overflow: hidden;
   transition: transform .45s var(--l-ease), height .45s var(--l-ease), background .45s var(--l-ease), border-color .45s var(--l-ease), box-shadow .45s var(--l-ease), opacity .3s; }

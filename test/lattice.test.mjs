@@ -42,7 +42,7 @@ test('projection: cards, ready, producer (start beats lane), edges, waits, depth
   assert.deepEqual(Object.keys(cards), ['p1/t1', 'p1/t2', 'p1/t3', 'p1/t4', 'p1/t5', 'p1/t6', 'p1/t7'])
   assert.deepEqual(Object.values(cards).map(card => card.state), ['done', 'ready', 'in-progress', 'pending', 'blocked', 'retired', 'pending'])
   assert.deepEqual(cards['p1/t3'], { id: 'p1/t3', plan: 'p1', taskId: 't3', title: 'C', doneCondition: 'done when', designMemo: 'memo', state: 'in-progress',
-    lane: null, producer: 'bot-b', startedAt: at(10), changedAt: at(10), blockedReason: null, depth: 0, phase: null, parent: null })
+    lane: null, producer: 'bot-b', startedAt: at(10), changedAt: at(10), blockedReason: null, depth: 0, phase: null, parent: null, doneAt: null, archived: false })
   assert.deepEqual([cards['p1/t4'].producer, cards['p1/t4'].startedAt, cards['p1/t4'].changedAt], ['bot-c', null, at(12)])
   assert.deepEqual([cards['p1/t5'].producer, cards['p1/t5'].blockedReason, cards['p1/t1'].title, cards['p1/t2'].title], [null, 'x', 'A', 't2'])
   assert.deepEqual(result.edges, [{ from: 'p1/t1', to: 'p1/t2', waiting: false }, { from: 'p1/t3', to: 'p1/t4', waiting: true },
@@ -87,6 +87,18 @@ test('projection: tree = phases in plan order, card phase, parent (existing, not
   assert.deepEqual(result.phases, [{ id: 'p1/ph1', title: '部品' }, { id: 'p1/ph2', title: null }])
   assert.deepEqual(result.cards.map(card => [card.taskId, card.phase, card.parent]),
     [['a', 'p1/ph1', null], ['b', 'p1/ph1', 'p1/a'], ['c', null, null], ['d', null, 'p1/e'], ['e', null, null], ['f', null, null]])
+})
+
+test('projection: doneAt, and a finished card is archived once no next card is unstarted (Owner 2026-11-12)', () => {
+  const plan = planMember({ tasks: ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map(task_id => ({ task_id })),
+    states: [['a', 'done'], ['b', 'done'], ['c', 'pending'], ['d', 'in-progress'], ['e', 'retired'], ['f', 'done'], ['g', 'done']],
+    deps: [{ from: ref('p1', 'a'), to: ref('p1', 'c') }, { from: ref('p1', 'b'), to: ref('p1', 'd') }, { from: ref('p1', 'f'), to: ref('p1', 'g') }],
+    events: [{ kind: 'done', task_id: 'e', actor: { agent: 'x' }, recorded_at: at(7) }, { kind: 'done', task_id: 'g', actor: { agent: 'x' }, recorded_at: at(9) }] })
+  plan.tasks.find(task => task.task_id === 'a').done_at = at(3)
+  const cards = byId(projectChart({ read: readOf([plan]), members: [] }))
+  assert.deepEqual(Object.values(cards).map(card => [card.taskId, card.archived]),
+    [['a', false], ['b', true], ['c', false], ['d', false], ['e', true], ['f', true], ['g', true]], 'a waits for c to start; b and f have started/finished next cards; e and g have none')
+  assert.deepEqual([cards['p1/a'].doneAt, cards['p1/b'].doneAt, cards['p1/e'].doneAt, cards['p1/g'].doneAt, cards['p1/d'].doneAt], [at(3), null, at(7), at(9), null])
 })
 
 test('projection: cross-plan edges minus tombstones', () => {
