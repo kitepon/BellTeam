@@ -181,10 +181,70 @@ test('limit end: a later input recorded after the limit end, its seat without a 
     row('bot-elegg', '2026-11-11T12:51:33.000Z', END('2026-11-11T12:51:56.000Z', 'cancelled')),
     row('bot-n102', '2026-11-11T12:53:25.000Z', END('2026-11-11T12:53:29.000Z', 'cancelled')),
   ] })
-  await accounts.recordInput('bot-elegg')
+  await accounts.recordInput('bot-elegg', '2026-11-11T16:14:58.000Z')
   await accounts.load()
   await review()
   assert.deepEqual(sent.map(input => input.target), ['bot-n102'], 'only the member with no later input is continued')
+})
+
+// The real caller: #notify records the accepted input. One clock: the engine, Aiterm and the Claude CLI run in one container,
+// so the engine's time, last_input_at and limit_end.at (the CLI's transcript record) are read from the same host clock.
+async function acceptedInput(t, { rows, onSend = () => {} }) {
+  const now = { at: Date.UTC(2026, 10, 11, 21, 50) }
+  const { accounts } = await registry(t, now)
+  t.after(() => accounts.close())
+  const logs = []
+  accounts.log = line => logs.push(line)
+  const listed = new Map(rows)
+  const client = { async call(name, args) {
+    if (name === 'pty_list') return { content: [{ type: 'text', text: [...listed.keys()].map(id => `${id}\tclaude`).join('\n') }],
+      structuredContent: { sessions: [...listed.values()].map(value => ({ harness: 'claude-code', ...value })) } }
+    if (name === 'pty_send') { onSend({ now, listed, args }); return { structuredContent: { mode: 'agent_dispatch', event_cursor: 1, wait_process: { executable: '/node', args: ['wait'] } } } }
+    throw Error(`unexpected ${name}`)
+  } }
+  const bots = new Map([['bot-elegg', { id: 'bot-elegg', session: 'bot-elegg-1st-later', harness: 'claude', model: 'opus', project: '/tmp' }]])
+  const transport = new AitermTransport({ client, accounts, resolveBot: id => bots.get(id), handoffContext: async () => '', waitProcess: async () => ({ outcome: 'done' }) })
+  return { now, accounts, transport, logs, bot: bots.get('bot-elegg'), listed }
+}
+
+test('accepted input via #notify: visible to recovery while its write waits, and after a failed write (logged, written with the next input)', async t => {
+  const old = END('2026-11-11T12:51:56.000Z', 'cancelled')
+  const { accounts, transport, logs, bot } = await acceptedInput(t, { rows: [
+    row('bot-elegg', '2026-11-11T12:51:33.000Z', old), row('bot-elegg-1st-later', null),
+  ] })
+  assert.equal(transport.continuationDue('bot-elegg', old), true, 'before: the old limit row is the last turn (its later seat has no input row)')
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  accounts.writing = gate
+  await transport.notify(bot, 'later work')
+  assert.equal(transport.continuationDue('bot-elegg', old), false, 'the accepted input is visible while the registry write waits')
+  const statePath = accounts.statePath
+  accounts.statePath = join(statePath, 'not-a-dir', 'state.json')
+  release()
+  await accounts.writing
+  await transport.idle(bot.id)
+  assert.match(logs.join('\n'), /accepted input not written: bot-elegg/u)
+  assert.equal(transport.continuationDue('bot-elegg', old), false, 'a failed write stays visible to this engine')
+  accounts.statePath = statePath
+  await accounts.recordInput('bot-other', '2026-11-11T21:55:00.000Z')
+  assert.ok(JSON.parse(await readFile(statePath, 'utf8')).inputs['bot-elegg'], 'the next write carries the input whose write failed')
+})
+
+// Production 2026-11-11 13:00Z: f81920b8's limit end came 0.77 s after its input. A time taken after the slow acceptance would be
+// later than that limit end and suppress the turn's own continuation; the time is taken before the input is typed.
+test('accepted input via #notify: the turn\'s own limit end, even before a slow acceptance returns, is still continued', async t => {
+  const { accounts, transport, bot, listed } = await acceptedInput(t, { rows: [row('bot-elegg-1st-later', null)], onSend: ({ now, listed }) => {
+    const sent = now.at
+    listed.set('bot-elegg-1st-later', { session_id: 'bot-elegg-1st-later', last_input_at: new Date(sent + 200).toISOString(),
+      limit_end: END(new Date(sent + 770).toISOString(), 'cancelled') })
+    now.at += 5000
+  } })
+  await transport.notify(bot, 'work that hits the limit')
+  await transport.idle(bot.id)
+  await accounts.writing
+  const end = listed.get('bot-elegg-1st-later').limit_end
+  assert.ok(Date.parse(accounts.inputAt('bot-elegg')) < Date.parse(end.at), 'the recorded input began before its own limit end')
+  assert.equal(transport.continuationDue('bot-elegg', end), true)
 })
 
 // Production 2026-11-12 01:14 JST: the handed-over dc4b63be engine launched a second Elegg seat from its stale registry copy.
