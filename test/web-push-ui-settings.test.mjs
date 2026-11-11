@@ -28,7 +28,7 @@ function fixture(options={}) {
 }
 test('opening and foreground refresh never request permission, install SW, subscribe or save',async()=>{
  const f=fixture();await f.view.open();await f.view.refresh()
- assert.equal(f.node('enable').disabled,false);assert.equal(f.node('enable').textContent,'通知を準備する')
+ assert.equal(f.node('enable').disabled,false);assert.equal(f.node('enable').textContent,'このブラウザーで受け取る')
  assert.equal(f.state.permissions,0);assert.equal(f.state.workerRegistrations,0);assert.equal(f.state.subscriptions,0)
  assert(f.state.apiCalls.every(c=>!c.body))
 })
@@ -40,7 +40,7 @@ test('explicit preparation keeps user consent in a later click; lost save respon
  assert.equal(f.state.apiCalls.filter(c=>c.path.endsWith('/subscriptions')).length,1)
  const request=f.state.apiCalls.find(c=>c.path.endsWith('/subscriptions')).body
  assert.deepEqual(Object.keys(request),['subscription','applicationServerKey']);assert.equal(Object.hasOwn(request,'origin'),false)
- assert.match(f.text(),/照会で確認/);assert.match(f.text(),/配信結果は未確認/)
+ assert.match(f.text(),/照会で確認/);assert.match(f.text(),/このブラウザーに通知が届きます/)
  assert.equal(f.node('enable').disabled,true);assert.doesNotMatch(f.text(),/private-fixture-endpoint/)
 })
 test('missing backend, denial, insecure and iOS Home Screen requirements remain distinct and cannot subscribe',async()=>{
@@ -53,7 +53,7 @@ test('missing backend, denial, insecure and iOS Home Screen requirements remain 
   await f.click('enable');assert.equal(f.state.permissions,0);assert.equal(f.state.workerRegistrations,0)
   if(mode==='ios')assert.match(f.text(),/ホーム画面/)
   if(mode==='insecure')assert.match(f.text(),/HTTPS/)
-  if(mode==='unavailable')assert.match(f.text(),/未接続/)
+  if(mode==='unavailable')assert.match(f.text(),/通知の設定を読めませんでした/)
  }
  const f=fixture({installed:true,permissionReply:'denied'});await f.view.open();await f.click('enable')
  assert.equal(f.state.permissions,1);assert.equal(f.state.subscriptions,0)
@@ -64,19 +64,19 @@ test('server removal failure still unsubscribes browser; retry touches only unfi
  assert.match(f.text(),/サーバー側の解除は未確認/);assert.match(f.text(),/ブラウザー側は解除済み/)
  f.view.close();await f.view.open();f.state.unregisterFails=false;await f.click('remove')
  assert.equal(f.state.unsubscribes,1);assert.equal(f.state.saved,false)
- assert.match(f.text(),/登録解除を確認/);assert.doesNotMatch(f.text(),/private-fixture-endpoint/)
+ assert.match(f.text(),/もう通知を受け取りません/);assert.doesNotMatch(f.text(),/private-fixture-endpoint/)
 })
 test('browser removal failure preserves confirmed server removal and never reissues its mutation on retry',async()=>{
  const f=fixture({installed:true,existing:true,saved:true,browserFails:true});await f.view.open();await f.click('remove')
  assert.match(f.text(),/サーバー側は解除済み/);assert.match(f.text(),/ブラウザー側の解除は未確認/)
  f.state.browserFails=false;await f.click('remove')
  assert.equal(f.state.apiCalls.filter(c=>c.path.endsWith('/unregister')).length,1)
- assert.equal(f.state.unsubscribes,2);assert.match(f.text(),/登録解除を確認/)
+ assert.equal(f.state.unsubscribes,2);assert.match(f.text(),/もう通知を受け取りません/)
 })
 test('key mismatch and provider apply error disable registration without discarding the existing subscription',async()=>{
  const f=fixture({installed:true,existing:true});f.state.sub.options.applicationServerKey=new Uint8Array(65).buffer
  await f.view.open();assert.equal(f.node('enable').disabled,true);assert.equal(f.node('remove').disabled,false)
- assert.match(f.text(),/公開鍵/);assert.equal(f.state.unsubscribes,0)
+ assert.match(f.text(),/通知の鍵が変わりました/);assert.equal(f.state.unsubscribes,0)
  const g=fixture({status:{...status,error:{code:'WEB_PUSH_KEYS_INVALID',message:'safe'}}});await g.view.open();assert.equal(g.node('enable').disabled,true)
  assert(validPushStatus(status));assert.equal(validPushStatus({...status,publicKey:'bad'}),false)
 })
@@ -84,7 +84,7 @@ test('an old status read cannot enable a reopened settings view',async()=>{
  const pending=deferred();let count=0
  const f=fixture({api:async()=>++count===1?pending.promise:{...status,enabled:false}})
  const first=f.view.open();f.view.close();await f.view.open();pending.resolve(status);await first
- assert.equal(f.node('enable').disabled,true);assert.match(f.text(),/Web通知は無効/)
+ assert.equal(f.node('enable').disabled,true);assert.match(f.text(),/まだできていません/)
 })
 
 test('supplier statuses retain disabled/error distinction; invalid keys are never treated as ready',async()=>{
@@ -92,10 +92,10 @@ test('supplier statuses retain disabled/error distinction; invalid keys are neve
  const values=JSON.parse(await readFile(new URL('fixtures/web-push-public.json',import.meta.url),'utf8'))
  for(const value of Object.values(values.status))assert(validPushStatus(value))
  const f=fixture({status:values.status.unavailable});await f.view.open()
- assert.match(f.node('server').textContent,/エラー/);assert.equal(f.node('enable').disabled,true)
+ assert.match(f.node('summary').textContent,/エラー/);assert.equal(f.node('enable').disabled,true)
 })
 
 test('Owner authentication refusal is distinct from browser permission and never enables subscription',async()=>{
  const f=fixture({api:async()=>{throw Object.assign(Error('private'),{status:403})}});await f.view.open()
- assert.match(f.node('server').textContent,/オーナーの認証/);assert.equal(f.node('enable').disabled,true);assert.equal(f.state.permissions,0)
+ assert.match(f.node('summary').textContent,/オーナーの認証/);assert.equal(f.node('enable').disabled,true);assert.equal(f.state.permissions,0)
 })

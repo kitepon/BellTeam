@@ -1,5 +1,5 @@
 import { modelChoices } from './view-format.js?v=__ASSET_VERSION__'
-const harnesses = [['claude','Claude Code'],['codex','Codex'],['grok','Grok'],['cursor','Cursor'],['antigravity','Antigravity']]
+const harnesses = [['claude','Claude'],['codex','Codex'],['grok','Grok'],['cursor','Cursor'],['antigravity','Antigravity']]
 const exact = (value, keys) => value && typeof value === 'object' && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value,key))
 function validRecord(value) {
   if (!exact(value,['revision','selection'])) return false
@@ -9,9 +9,22 @@ function validRecord(value) {
     && exact(choice,['harness','model','reasoningEffort']) && harnesses.some(([id]) => id === choice.harness)
     && typeof choice.model === 'string' && choice.model.length > 0 && typeof choice.reasoningEffort === 'string'
 }
+// 考える深さ。値は保存のまま、見せる言葉だけを変える。知らない値はそのまま。
+export const effortLabel = value => ({ minimal:'最小', low:'低い', medium:'普通', high:'高い', xhigh:'とても高い', max:'最大' })[value] ?? value
 const same = (a,b) => a && b && ['harness','model','reasoningEffort'].every(key => a[key] === b[key])
 
-export function createBackgroundAgentSettings(root, api) {
+const UNAVAILABLE = 'この版では、要約を書くAIを選べません。'
+// 選んでいる値を、表示名だけで言う（設定のホームの一行）。
+function summaryText(opened) {
+  if (!opened?.record) return opened?.failure ? '確認できません' : '確認しています'
+  const choice = opened.record.selection
+  if (!choice) return 'まだ選んでいません'
+  const name = harnesses.find(([id]) => id === choice.harness)?.[1] ?? choice.harness
+  const entry = opened.models?.[choice.harness]?.models?.find?.(item => item?.id === choice.model)
+  return [name, entry ? (entry.display_name || entry.id) : '', choice.reasoningEffort ? effortLabel(choice.reasoningEffort) : 'AIの標準'].filter(Boolean).join(' · ')
+}
+
+export function createBackgroundAgentSettings(root, api, { onChange = () => {} } = {}) {
   const find = name => root.querySelector(`[data-background-${name}]`)
   const harness=find('harness'), model=find('model'), effort=find('effort'), save=find('save'), reload=find('reload'), modelReload=find('models-reload')
   const saved=find('saved'), status=find('status'), error=find('error')
@@ -28,23 +41,29 @@ export function createBackgroundAgentSettings(root, api) {
     const opened=active
     if (!opened) return
     const draft=opened.draft, models=candidates(opened), selected=models.find(item=>item.id === draft.model)
-    options(harness, [['','ハーネスを選択'],...harnesses], draft.harness)
+    options(harness, [['','AIを選択'],...harnesses], draft.harness)
     const modelOptions=[['','モデルを選択'],...modelChoices(models)]
-    if (draft.model && !selected) modelOptions.push([draft.model,`${draft.model}（現在の候補にありません）`])
+    // 候補を読み終えるまでは、保存した値を判定しない。
+    if (draft.model && !selected) modelOptions.push([draft.model, opened.modelsLoading || !opened.models ? '保存したモデル（読み込み中）' : '保存したモデル（いまは選べません）'])
     options(model,modelOptions,draft.model)
-    const efforts=selected?.efforts ?? [], effortOptions=selected && !efforts.length ? [['','CLIの既定（エフォート指定なし）']] : [['','エフォートを選択'],...efforts.map(value=>[value,value])]
-    if (draft.reasoningEffort && !efforts.includes(draft.reasoningEffort)) effortOptions.push([draft.reasoningEffort,`${draft.reasoningEffort}（現在の候補にありません）`])
+    const efforts=selected?.efforts ?? [], effortOptions=selected && !efforts.length ? [['','AIの標準']] : [['','考える深さを選択'],...efforts.map(value=>[value,effortLabel(value)])]
+    if (draft.reasoningEffort && !efforts.includes(draft.reasoningEffort)) effortOptions.push([draft.reasoningEffort,`${effortLabel(draft.reasoningEffort)}（いまは選べません）`])
     options(effort,effortOptions,draft.reasoningEffort)
     harness.disabled = !opened.known || opened.saving
     model.disabled = harness.disabled || !models.length
     effort.disabled = harness.disabled || !selected || !efforts.length
     save.disabled = harness.disabled || !selected || (efforts.length ? !efforts.includes(draft.reasoningEffort) : draft.reasoningEffort !== '')
     reload.disabled = opened.saving
+    // 読み直しのボタンは、読めなかった時だけ、その文の隣に出す。
+    reload.hidden = !opened.failure || !opened.known && opened.failure === UNAVAILABLE
     modelReload.disabled = opened.modelsLoading || opened.saving
-    saved.textContent = opened.record ? opened.record.selection ? `保存済み：${opened.record.selection.harness} / ${opened.record.selection.model} / ${opened.record.selection.reasoningEffort || 'CLIの既定'}` : 'まだ設定されていません。' : '保存済みの設定は未取得です。'
-    status.textContent = opened.saving ? '設定を保存しています…' : opened.message
-    const unavailable=draft.harness && !models.length && !opened.modelsLoading ? 'このハーネスのモデル候補を取得できません。候補を再取得してください。' : ''
-    error.textContent = [opened.failure,opened.modelsFailure,unavailable,draft.model && !selected && !opened.modelsLoading ? '現在の候補にない設定です。候補を再取得して選び直してください。' : ''].filter(Boolean).join(' ')
+    const unavailable=draft.harness && opened.models && !models.length && !opened.modelsLoading ? 'このAIのモデルの候補を読めませんでした。「候補を読み直す」を押してください。' : ''
+    modelReload.hidden = !opened.modelsFailure && !unavailable
+    saved.textContent = summaryText(opened)
+    save.textContent = opened.saving ? '保存しています…' : '保存'
+    status.textContent = opened.saving ? '' : opened.message
+    error.textContent = [opened.failure,opened.modelsFailure,unavailable,draft.model && !selected && opened.models && !opened.modelsLoading ? '保存したモデルは、いまは選べません。選び直して保存してください。' : ''].filter(Boolean).join(' ')
+    onChange(summaryText(opened))
   }
   async function refresh(message='') {
     const opened=active
@@ -54,7 +73,7 @@ export function createBackgroundAgentSettings(root, api) {
       const result=await api('/api/settings')
       if (active !== opened || read !== opened.read) return
       if (!Object.hasOwn(result,'backgroundAgent')) {
-        opened.known=false;opened.failure='この版では背景エージェントの設定を利用できません。';render();return
+        opened.known=false;opened.failure=UNAVAILABLE;render();return
       }
       if (!validRecord(result.backgroundAgent)) throw Error('INVALID_BACKGROUND_AGENT_SETTINGS')
       opened.record=result.backgroundAgent;opened.known=true;opened.failure=''
@@ -63,7 +82,7 @@ export function createBackgroundAgentSettings(root, api) {
       render()
     } catch {
       if (active !== opened || read !== opened.read) return
-      opened.known=false;opened.failure='設定を取得できませんでした。入力を保持しています。状態を更新して確認してください。'
+      opened.known=false;opened.failure='いまの設定を読めませんでした。「もう一度読み込む」を押してください。入力は残しています。'
       if (message) opened.message=message
       render()
     }
@@ -77,7 +96,7 @@ export function createBackgroundAgentSettings(root, api) {
       if (active !== opened) return
       if (!result?.models || typeof result.models !== 'object') throw Error('INVALID_MODELS')
       opened.models=result.models
-    } catch { if (active === opened) { opened.models=null;opened.modelsFailure='モデル候補を取得できませんでした。候補を再取得してください。' } }
+    } catch { if (active === opened) { opened.models=null;opened.modelsFailure='モデルの候補を読めませんでした。「候補を読み直す」を押してください。' } }
     finally { if (active === opened) { opened.modelsLoading=false;render() } }
   }
   for (const [field,name] of [[harness,'harness'],[model,'model'],[effort,'reasoningEffort']]) field.addEventListener('change',()=>{
@@ -85,7 +104,7 @@ export function createBackgroundAgentSettings(root, api) {
     active.draft[name]=field.value
     if (name === 'harness') active.draft.model=''
     if (name !== 'reasoningEffort') active.draft.reasoningEffort=''
-    active.dirty=true;active.message='未保存の変更があります。';render()
+    active.dirty=true;active.message='まだ保存していません。';render()
   })
   root.addEventListener('submit',async event=>{
     event.preventDefault()
@@ -100,28 +119,29 @@ export function createBackgroundAgentSettings(root, api) {
       if (!exact(result,['backgroundAgent']) || !validRecord(result.backgroundAgent) || !same(result.backgroundAgent.selection,choice)) throw Error('INVALID_SAVE_RESPONSE')
       opened.record=result.backgroundAgent
       if (same(opened.draft,choice)) opened.dirty=false
-      message='設定を保存しました。要約の生成状況は各メンバーの現在の仕事で確認できます。'
+      message='保存しました。'
     } catch (failure) {
       if (active !== opened) return
-      message=failure.status === 409 ? '別の画面で設定が変更されました。保存済みの設定と入力を確認してください。' : `保存結果を確認しています。${failure.message ?? ''}`
+      const said=/^[A-Z0-9_]+$/u.test(failure.message ?? '') ? '' : failure.message ?? ''
+      message=failure.status === 409 ? '別の画面で設定が変わりました。いまの設定を読み直したので、選び直して保存してください。'
+        : failure.status >= 400 && failure.status < 500 && failure.status !== 408 ? `保存できませんでした。${said}` : `保存できたか確かめています。${said}`
     } finally {
       if (active === opened) { opened.saving=false;opened.message=message;render() }
     }
     if (active !== opened) return
     await refresh(message)
     if (active === opened && opened.known && opened.dirty && same(opened.record.selection,choice)) {
-      opened.message='選んだ設定が保存されています。要約の動作は未確認です。';render()
+      opened.message='選んだ設定は保存されています。';render()
     }
   })
   reload.addEventListener('click',()=>{ if (!active?.saving) void refresh() })
   modelReload.addEventListener('click',()=>{ void loadModels() })
   return {
     async open() {
-      active={record:null,known:false,draft:{harness:'',model:'',reasoningEffort:''},models:null,modelsLoading:false,read:0,saving:false,dirty:false,message:'設定を確認しています…',failure:'',modelsFailure:''}
+      active={record:null,known:false,draft:{harness:'',model:'',reasoningEffort:''},models:null,modelsLoading:false,read:0,saving:false,dirty:false,message:'',failure:'',modelsFailure:''}
       const opened=active
       render();await Promise.all([refresh(),loadModels()])
-      if (active === opened && opened.message === '設定を確認しています…') { opened.message='';render() }
     },
-    close() { active=null }, refresh, dirty:()=>Boolean(active?.dirty), busy:()=>Boolean(active?.saving),
+    close() { active=null }, refresh, summary: () => summaryText(active), dirty:()=>Boolean(active?.dirty), busy:()=>Boolean(active?.saving),
   }
 }

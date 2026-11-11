@@ -181,7 +181,7 @@ stateDiagram-v2
 
 ## 4. Settings (build first)
 
-Same structure as Apple: a **home list of items** and **one page per item**. PC: the list is the left column of the settings dialog, the page on the right. Phone: the list, tap opens the page, 「戻る」 returns. There is no global 「保存」 in the header (P5); the header has 「閉じる」 and the title 「設定」.
+Same structure as Apple: a **home list of items** and **one page per item**. PC: the list is the left column of the settings dialog, the page on the right, and プロフィール opens first. Phone: the list, tap opens the page, 「戻る」 returns. Implemented in `settings-home.js` (list, pages, 要対応 band), `owner-editor.js` (each item's reads, lines and saves), `user-rules-view.js` (rules read view). There is no global 「保存」 in the header (P5); the header has 「閉じる」 and the title 「設定」.
 
 ### 4.1 Function map of Settings
 
@@ -214,7 +214,7 @@ flowchart TD
 | AIの認証 | Worst state: 「すべて使えます」 / 「Claude 2つ目のログインが必要」 / 「Claude 上限中（21:30まで）」 | `GET /api/harness-auth`, `GET /api/harness-auth/:h[?slot=2nd]`, `GET /api/accounts` | `POST /api/harness-auth/:h/{start,input,cancel}[?slot=2nd]` | harness-auth.js, harness-accounts.js, auth-flow.js |
 | 仕事の要約を書くAI | 「Claude Code · Haiku · 低」 (display names) | `GET /api/settings` `backgroundAgent`, `GET /api/models` | `PATCH /api/settings/backgroundAgent` | background-agent-settings.js |
 | 全体停止 | 「動作中」 / 「停止中」 | `GET /api/ai-control` | `PATCH /api/ai-control` | ai-control.js |
-| 端末 | 「3台」 / 「3台・1台つながりません」 | `GET /api/terminals` | (terminals dialog) | terminals.js |
+| 端末 | 「Mac・Windows・Linux」 when none; 「3台」 / 「3台・1台つながりません」 | `GET /api/terminals` | (terminals dialog) | terminals.js |
 | 1Password | 「連携中」 / 「未連携」 / 「失敗」 | `GET /api/settings` `onePassword` | `PATCH /api/settings/onePassword` | onboarding.js feature renderer |
 | 通知 | 「このブラウザーに届きます」 / 「このブラウザーは未登録」 / 「通知の送り先が未設定」 | `GET /api/web-push/status`, `POST /api/web-push/status`, `GET /api/notifications`, browser permission | `POST /api/web-push/subscriptions`, `POST /api/web-push/unregister` | web-push.js, owner-editor.js |
 | 追加機能 | 「2つ使っています」 | `GET /api/settings` | `PATCH /api/settings/:id` | onboarding.js feature renderer |
@@ -309,18 +309,18 @@ stateDiagram-v2
 | --- | --- | --- |
 | checking | 確認中 (gray, spinner) | none |
 | unknown | 確認できません (amber) | 「確認する」 |
-| done | 使えます (green); with a limit: 「上限中（21:30まで）」 amber in the same badge | 「認証し直す」 (quiet, not primary) |
+| done | 認証済み (green) | no primary; the row opens its detail (chevron). 「認証し直す」 is a quiet button inside the detail |
 | needsLogin | ログインが必要 (amber) | 「認証する」 (primary) |
-| failed | 失敗 (amber) + one plain sentence | 「認証し直す」 |
+| failed | 失敗 (amber) + one plain sentence | 「認証し直す」 (primary) |
 | waitingSite | 認証の途中 (purple) | 「ログイン画面を開く」 (primary) / code box with 「コピー」 for device_code, 「やめる」 |
 | waitingCode | コード待ち (purple) | code field + 「認証コードを送る」, 「やめる」 |
 | confirming | 確認中 (purple) | none |
 
 - ⚠W43 (S5) While `確認中`, rows already draw 「認証する」 and 「状態を更新」 (disabled), reading as logged out (`harness-auth.js:110-144`). → No buttons in checking.
-- ⚠W44 (S5) Claude 1st shows 「ログイン済み」 + green 「認証済み」 next to red 「Fableのみ上限中 (…)・上限中 (…)」 and a primary 「ログインし直す」; two sources (accounts vs harness-auth) decide two badges (`harness-accounts.js:89-94`). → One badge per slot from the stage function; a limit is part of the same badge; the limit text is written once.
+- ⚠W44 (S5) Claude 1st shows 「ログイン済み」 + green 「認証済み」 next to red 「Fableのみ上限中 (…)・上限中 (…)」 and a primary 「ログインし直す」; two sources (accounts vs harness-auth) decide two badges (`harness-accounts.js:89-94`). → The login badge comes only from the stage function. The usage limit is separate: ONE line under the badge, 「上限中・11/13 17:00 に戻ります（いまは2つ目で動いています）」 (Root review 2026-11-11, same as Apple). Only ログインが必要 / 失敗 / 途中 rows carry a primary button.
 - ⚠W45 (S5) 「状態を更新」 appears 7 times. → One 「すべて確認し直す」 at the page top; per-row 「確認する」 only in unknown.
-- ⚠W46 (S5) The 2nd account's e-mail address is shown in clear (`slot.label`). → 「1つ目のアカウント」 / 「2つ目のアカウント」; the address is masked (`k•••@gmail.com`) and full only inside サポート用の詳細.
-- ⚠W47 (S5) 「Claude · 50人が使用」 and the slot counts (0 + 77) disagree. → One count per slot from `seats`; the AI line says 「Claudeを使うメンバー 50人」 only from `/api/harness-auth` `members`, and the slot lines say 「この枠で動いている 0人」 (both words are about different things and are named so).
+- W46 (S5, ruled by Trony 2026-11-11) Slots are named 「1つ目のアカウント」 / 「2つ目のアカウント」. On the AIの認証 page only, each slot shows its account e-mail (`slot.label`) as its label, so the Owner knows which Google account to sign in with. No other list shows the address.
+- ⚠W47 (S5) 「Claude · 50人が使用」 and the slot counts (0 + 77) disagree. → The AI heading says 「52人が使用」 from `/api/harness-auth` `members` only; slot rows show no member count and no names (same as Apple).
 - ⚠W48 Raw error text from the server (`errorText`) is shown in the row. → Plain sentence; the code under サポート用の詳細.
 
 ### 4.5 仕事の要約を書くAI
@@ -381,7 +381,8 @@ stateDiagram-v2
   ServerOff --> FeatureCard: 「通知の送り先を設定する」 (opens that 追加機能 card directly)
   FeatureCard --> NRead: saved, back
   Denied --> NRead: 「ブラウザーの設定で許可してから、確かめ直す」
-  NotRegistered --> Registering: 「このブラウザーで受け取る」 (asks permission, subscribes, registers)
+  NotRegistered --> Prepared: 「このブラウザーで受け取る」 (installs the notification worker only)
+  Prepared --> Registering: 「通知を許可する」 (the browser asks; subscribe; register)
   Registering --> On: registered
   Registering --> NFail: failed (reason under the button + 「もう一度」)
   NFail --> Registering: retry
@@ -389,7 +390,7 @@ stateDiagram-v2
   Removing --> NotRegistered: removed
 ```
 
-- ⚠W58 (S8) Today a five-row table of jargon (利用環境 / 通知の許可 / ブラウザー / 通知サーバー / サーバー登録) and two buttons, often both disabled with no reason; registering is two presses (prepare, then allow) (`web-push.js:38-58`). → The five states above, one badge, one sentence, one button; prepare + allow + register is one press.
+- ⚠W58 (S8) Today a five-row table of jargon (利用環境 / 通知の許可 / ブラウザー / 通知サーバー / サーバー登録) and two buttons, often both disabled with no reason (`web-push.js:38-58`). → The states above, one badge, one sentence, and only the button of that state (the others are not drawn). Preparing and allowing stay two presses on the same button, because the browser's permission prompt needs a fresh user press after the worker install wait (existing consent rule); the sentence between them says what the next press does.
 - The iPhone app line (from `GET /api/notifications`): 「iPhoneアプリへの通知: 設定済み」 / 「未設定」 + 「設定する」 (opens the プッシュ通知 feature card). The old separate 「通知」 section with its own 「状態を更新」 goes away.
 
 ### 4.9 接続, 表示, 利用と購読, 端末, アップデート
@@ -539,13 +540,13 @@ stateDiagram-v2
 
 | Shown in both | Shared decision |
 | --- | --- |
-| Settings structure | Home list + one page per item, the 要対応 band, items in the order of 4.1 (Apple's order with チームの決まり split from プロフィール). Proposed to Rapi. |
+| Settings structure | Home list + one page per item, the 要対応 band, items in the order of 4.1, チームの決まり its own item (Rapi: yes, Apple U7b). A row inside a page (an AI, a terminal) opens inside the page; the item list stays (Apple B17). |
 | Settings state vocabulary | Apple section 3 badges and colors, as in section 0 here. |
 | AI auth stages | Apple's `AuthenticationProgress` stages and labels (4.4). The Web adopts them as written. |
-| Account slots | 「1つ目のアカウント」/「2つ目のアカウント」, masked address. Proposed to Rapi. |
+| Account slots | 「1つ目のアカウント」/「2つ目のアカウント」 (Rapi: yes). The e-mail is the slot label on the AIの認証 page only (Trony ruling). Login badge and the one-line limit 「上限中・… に戻ります（いまは2つ目で動いています）」 are separate; a usable row has no primary button; 「52人が使用」 without names. |
 | Notifications | One 通知 item: browser (Web) or this device (Apple), plus a direct link to the sender's feature card. |
 | Update state words | update center title = Settings row = header pill (Apple update.md is the canonical list of words). |
-| Roster row | Name, role or summary, one state badge, real last-activity time, no account pill. Proposed to Rapi. |
+| Roster row | Name, role or summary, one state badge, real last-activity time, no account pill (Rapi: yes). |
 
 ## 10. Open points (need another owner)
 

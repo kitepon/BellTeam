@@ -535,8 +535,6 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .large-avatar-section .avatar-editor { margin: 20px 0 0; }
 #bot-appearance-status { margin: 12px 0 24px; }
 
-.settings-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 28px; }
-.settings-tabs button { min-height: 44px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 999px; background: white; font: inherit; font-size: 13px; cursor: pointer; }
 
 .profile-dialog #bot-configuration-status[data-state="notice"]:not(:empty), .profile-dialog #bot-model-status[data-state="notice"]:not(:empty) { background: #f5f5f7; color: #60606b; }
 
@@ -802,9 +800,6 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 #owner-dialog .text-button.primary { color: var(--s-accent); }
 #owner-dialog .text-button:disabled { color: var(--s-muted); opacity: .55; }
 #owner-dialog .sheet-body { padding-top: 0; }
-#owner-dialog .settings-tabs { position: sticky; top: 0; z-index: 1; margin: 0 -32px 8px; padding: 16px 32px 12px; background: color-mix(in srgb, var(--s-bg) 88%, transparent); backdrop-filter: blur(12px); }
-#owner-dialog .settings-tabs button { border-color: var(--s-line); background: var(--s-surface); color: var(--s-ink); font-weight: 650; }
-#owner-dialog .settings-tabs button:hover { border-color: var(--s-accent); color: var(--s-accent); }
 #owner-dialog .owner-profile-fields, #owner-dialog .feature-settings-section { position: relative; margin: 16px 0 0; padding: 22px 24px; border: 1px solid var(--s-line); border-radius: 20px; background: var(--s-surface); }
 #owner-dialog .owner-profile-fields { margin-top: 8px; }
 #owner-dialog .form-section-heading { margin-top: 0; }
@@ -871,8 +866,6 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 #owner-dialog [data-settings-icon="card"] { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='14' rx='2.5'/%3E%3Cpath d='M3 10h18M7 15h4'/%3E%3C/svg%3E"); }
 #owner-dialog [data-settings-icon="terminal"] { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='5' width='16' height='11' rx='2'/%3E%3Cpath d='M2.5 19h19M8 9l2 1.5L8 12M12 12h3'/%3E%3C/svg%3E"); }
 @media (max-width: 640px) {
-  #owner-dialog .settings-tabs { margin: 0 -20px 6px; padding: 12px 20px 10px; flex-wrap: nowrap; overflow-x: auto; }
-  #owner-dialog .settings-tabs button { flex: none; }
   #owner-dialog .owner-profile-fields, #owner-dialog .feature-settings-section { padding: 18px; border-radius: 18px; }
   #owner-dialog .form-section-heading h3, #owner-dialog .feature-settings-section > h3 { font-size: 17px; }
 }
@@ -1243,3 +1236,117 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
   .lattice-dialog *, .lattice-dialog *::before, .lattice-dialog *::after { animation: none !important; transition: none !important; }
 }
 .lattice-dialog [hidden] { display: none !important; }
+/* Settings: home list + one page per item (user-paths.md 4). PC: list left, page right. Phone: list, then the page. */
+#owner-dialog [data-settings-icon="rules"] { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 3h9l4 4v14H6z'/%3E%3Cpath d='M9 11h7M9 15h7M9 7h3'/%3E%3C/svg%3E"); }
+#owner-dialog [data-settings-icon="vault"] { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='16' rx='3'/%3E%3Ccircle cx='12' cy='12' r='3.5'/%3E%3Cpath d='M12 8.5V7M15.5 12H17'/%3E%3C/svg%3E"); }
+#owner-dialog [data-settings-icon="update"] { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 11a8 8 0 1 0-2.3 5.7'/%3E%3Cpath d='M20 5v6h-6'/%3E%3C/svg%3E"); }
+#owner-dialog [data-settings-icon="link"] { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1'/%3E%3Cpath d='M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1'/%3E%3C/svg%3E"); }
+#owner-dialog { --s-warn: #9a5b00; --s-warn-bg: #fcefd9; }
+@media (prefers-color-scheme: dark) { #owner-dialog { --s-warn: #f3b75a; --s-warn-bg: #3a2b13; } }
+#owner-dialog.settings-dialog { width: min(980px, calc(100% - 28px)); }
+#owner-dialog .owner-settings-layout { display: grid; grid-template-rows: auto minmax(0, 1fr); max-height: inherit; }
+#owner-dialog .settings-shell { display: grid; grid-template-columns: 300px minmax(0, 1fr); min-height: 0; }
+#owner-dialog .settings-home { overflow-y: auto; padding: 16px 12px 24px; border-right: 1px solid var(--s-line); background: var(--s-surface); }
+#owner-dialog .settings-pages { overflow-y: auto; padding: 24px 28px 40px; }
+#owner-dialog .settings-back { visibility: hidden; justify-self: start; }
+#owner-dialog .sheet-header > :last-child { justify-self: end; }
+#owner-dialog .settings-items { display: grid; gap: 2px; }
+#owner-dialog .settings-item { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 8px 10px; border: 0; border-radius: 14px; background: transparent; color: var(--s-ink); font: inherit; text-align: left; cursor: pointer; }
+#owner-dialog .settings-item:hover { background: var(--s-soft); }
+#owner-dialog .settings-item[aria-current="page"] { background: var(--s-accent-bg); }
+#owner-dialog .settings-item-icon { width: 36px; height: 36px; border-radius: 11px; background: var(--s-accent-bg); position: relative; }
+#owner-dialog .settings-item-icon::after { content: ""; position: absolute; inset: 8px; background: var(--s-accent); -webkit-mask: var(--icon) center / contain no-repeat; mask: var(--icon) center / contain no-repeat; }
+#owner-dialog .settings-item-text { display: grid; min-width: 0; }
+#owner-dialog .settings-item-name { font-size: 14px; font-weight: 700; }
+#owner-dialog .settings-item-line { overflow: hidden; color: var(--s-muted); font-size: 12px; white-space: nowrap; text-overflow: ellipsis; }
+#owner-dialog .settings-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; background: var(--s-mute-bg); color: var(--s-muted); font-size: 11px; font-weight: 750; white-space: nowrap; }
+#owner-dialog .settings-badge[hidden] { display: none; }
+#owner-dialog .tone-ok { background: var(--s-ok-bg); color: var(--s-ok); }
+#owner-dialog .tone-attention { background: var(--s-warn-bg); color: var(--s-warn); }
+#owner-dialog .tone-info, #owner-dialog .tone-accent { background: var(--s-accent-bg); color: var(--s-accent); }
+#owner-dialog .tone-muted, #owner-dialog .tone-none { background: var(--s-mute-bg); color: var(--s-muted); }
+#owner-dialog .settings-attention { display: grid; gap: 6px; margin: 0 0 12px; }
+#owner-dialog .settings-attention[hidden] { display: none; }
+#owner-dialog .settings-attention-row { display: grid; gap: 2px; padding: 10px 12px; border: 0; border-radius: 12px; font: inherit; text-align: left; cursor: pointer; }
+#owner-dialog .settings-attention-name { font-size: 12px; font-weight: 750; }
+#owner-dialog .settings-attention-line { font-size: 13px; }
+#owner-dialog .settings-page > h3 { position: relative; display: flex; align-items: center; gap: 14px; min-height: 44px; margin: 0 0 6px; font-size: 20px; font-weight: 750; letter-spacing: -.02em; }
+#owner-dialog .settings-page > h3::before { content: ""; width: 44px; height: 44px; flex: none; border-radius: 14px; background: var(--s-accent-bg); }
+#owner-dialog .settings-page > h3::after { content: ""; position: absolute; left: 11px; top: 50%; width: 22px; height: 22px; margin-top: -11px; background: var(--s-accent); -webkit-mask: var(--icon) center / contain no-repeat; mask: var(--icon) center / contain no-repeat; }
+#owner-dialog .settings-lead { margin: 0 0 18px; color: var(--s-muted); font-size: 13px; line-height: 1.8; }
+#owner-dialog .settings-card, #owner-dialog .owner-profile-fields, #owner-dialog #feature-settings > div > .feature-setting, #owner-dialog #onepassword-settings .feature-setting, #owner-dialog #harness-auth > div > .harness-auth { margin: 0 0 14px; padding: 18px 20px; border: 1px solid var(--s-line); border-radius: 18px; background: var(--s-surface); }
+#owner-dialog .settings-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+#owner-dialog .settings-card-head h4 { margin: 0; font-size: 15px; }
+#owner-dialog .settings-current { margin: 6px 0 10px; color: var(--s-ink); font-size: 14px; line-height: 1.7; }
+#owner-dialog .settings-done { margin: 0; color: var(--s-ok); font-size: 13px; font-weight: 650; }
+#owner-dialog .settings-done:empty { display: none; }
+#owner-dialog .settings-page-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 14px; }
+#owner-dialog .settings-page-actions button[hidden], #owner-dialog .settings-save button[hidden] { display: none; }
+#owner-dialog .settings-save { position: sticky; bottom: -40px; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; margin: 18px -20px -18px; padding: 14px 20px; border-top: 1px solid var(--s-line); border-radius: 0 0 18px 18px; background: color-mix(in srgb, var(--s-surface) 94%, transparent); backdrop-filter: blur(10px); }
+#owner-dialog .settings-save .form-error, #owner-dialog .settings-save .settings-done { flex: 1 1 100%; margin: 0; }
+#owner-dialog .settings-page button, #owner-dialog .settings-save button { min-height: 40px; padding: 8px 16px; border: 1px solid var(--s-line); border-radius: 12px; background: var(--s-soft); color: var(--s-ink); font: inherit; font-size: 13px; font-weight: 650; cursor: pointer; }
+#owner-dialog .settings-page button.primary, #owner-dialog .harness-auth .secret-actions button.primary, #owner-dialog .auth-open { border-color: var(--s-accent); background: var(--s-accent); color: var(--s-on-accent); }
+#owner-dialog .harness-auth .secret-actions button:first-child:not(.primary) { border-color: var(--s-line); background: var(--s-soft); color: var(--s-ink); }
+#owner-dialog .settings-page button:disabled { opacity: .5; cursor: default; }
+#owner-dialog .retry-button { justify-self: start; }
+#owner-dialog .inline-retry { justify-self: start; }
+#owner-dialog .settings-fold summary { cursor: pointer; font-weight: 700; }
+#owner-dialog .settings-fold[open] summary { margin-bottom: 12px; }
+#owner-dialog .settings-empty, #owner-dialog .rules-empty, #owner-dialog .settings-loading { color: var(--s-muted); font-size: 14px; }
+/* AI auth rows: name + one badge; the stage sentence and only that stage's buttons. */
+#owner-dialog .harness-auth-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+#owner-dialog .harness-auth-head h4, #owner-dialog .harness-auth-head h5 { margin: 0; font-size: 15px; }
+#owner-dialog .slot-label { margin: 2px 0 0; color: var(--s-muted); font-size: 12px; overflow-wrap: anywhere; }
+#owner-dialog .harness-auth-status { margin: 0; padding: 3px 12px; border-radius: 999px; font-size: 12px; font-weight: 750; white-space: nowrap; }
+#owner-dialog .harness-auth-status.tone-ok { background: var(--s-ok-bg); color: var(--s-ok); }
+#owner-dialog .harness-auth-status.tone-attention { background: var(--s-warn-bg); color: var(--s-warn); }
+#owner-dialog .harness-auth-status.tone-info { background: var(--s-accent-bg); color: var(--s-accent); }
+#owner-dialog .harness-auth-status.tone-muted { background: var(--s-mute-bg); color: var(--s-muted); }
+#owner-dialog .auth-stage-text { color: var(--s-ink) !important; }
+#owner-dialog .auth-more summary { color: var(--s-muted); font-size: 13px; cursor: pointer; list-style: none; }
+#owner-dialog .auth-more summary::-webkit-details-marker { display: none; }
+#owner-dialog .auth-more summary::after { content: " ›"; }
+#owner-dialog .auth-more[open] summary::after { content: " ⌄"; }
+#owner-dialog .harness-auth-body button.primary:not(:disabled) { border-color: var(--s-accent); background: var(--s-accent); color: var(--s-on-accent); }
+#owner-dialog .harness-auth-body .field + button { margin: 0 0 10px; }
+#owner-dialog .auth-more[open] summary { margin-bottom: 8px; }
+#owner-dialog .auth-open { display: inline-flex; align-items: center; min-height: 40px; margin: 0 0 10px; padding: 8px 16px; border-radius: 12px; font-size: 13px; font-weight: 650; text-decoration: none; }
+#owner-dialog .auth-code-box { display: flex; align-items: center; gap: 12px; margin: 0 0 10px; padding: 12px 16px; border: 1px solid var(--s-line); border-radius: 12px; background: var(--s-soft); }
+#owner-dialog .auth-code-box .auth-user-code { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: .08em; }
+#owner-dialog .account-slot { padding: 14px; }
+#owner-dialog .account-limit { margin: 0; padding: 8px 12px; border-radius: 10px; background: var(--s-warn-bg); color: var(--s-warn); font-size: 13px; white-space: pre-line; }
+#owner-dialog .account-limit[hidden] { display: none; }
+/* Feature cards: name, badge, one sentence, 設定する / 変更; the form only inside the opened card. */
+#owner-dialog .feature-setting summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; list-style: none; }
+#owner-dialog .feature-setting summary::-webkit-details-marker { display: none; }
+#owner-dialog .feature-name { font-size: 15px; font-weight: 700; }
+#owner-dialog .feature-sentence { grid-column: 1; color: var(--s-muted); font-size: 13px; font-weight: 400; }
+#owner-dialog .feature-action { grid-column: 2; grid-row: 1 / 3; align-self: center; padding: 6px 14px; border: 1px solid var(--s-line); border-radius: 12px; background: var(--s-soft); font-size: 13px; }
+#owner-dialog .feature-setting summary .feature-badge { grid-column: 1; justify-self: start; }
+#owner-dialog .feature-setting[open] .feature-action { visibility: hidden; }
+#owner-dialog .feature-badge.tone-ok { background: var(--s-ok-bg); color: var(--s-ok); }
+#owner-dialog .feature-badge.tone-attention { background: var(--s-warn-bg); color: var(--s-warn); }
+#owner-dialog .feature-badge.tone-muted { background: var(--s-mute-bg); color: var(--s-muted); }
+/* Readable rules view. */
+#owner-dialog .rule-section { margin: 0 0 18px; }
+#owner-dialog .rule-section-title { margin: 0 0 8px; color: var(--s-muted); font-size: 12px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+#owner-dialog .rule-card { margin: 0 0 10px; padding: 14px 16px; border: 1px solid var(--s-line); border-radius: 14px; background: var(--s-surface); }
+#owner-dialog .rule-id { margin: 0 0 8px; color: var(--s-muted); font-size: 12px; font-weight: 650; }
+#owner-dialog .rule-clause { display: grid; grid-template-columns: 5.5em minmax(0, 1fr); gap: 10px; margin: 0 0 6px; }
+#owner-dialog .rule-clause.rule-plain { grid-template-columns: minmax(0, 1fr); }
+#owner-dialog .rule-key { align-self: start; padding: 2px 8px; border-radius: 8px; background: var(--s-soft); color: var(--s-ink); font-size: 12px; font-weight: 700; text-align: center; }
+#owner-dialog .rule-never .rule-key { background: var(--s-warn-bg); color: var(--s-warn); }
+#owner-dialog .rule-do .rule-key { background: var(--s-accent-bg); color: var(--s-accent); }
+#owner-dialog .rule-text { margin: 0; font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; }
+#owner-dialog .rules-format { margin: 12px 0; color: var(--s-muted); font-size: 13px; }
+#owner-dialog .rules-format summary { cursor: pointer; }
+@media (max-width: 780px) {
+  #owner-dialog.settings-dialog { width: 100%; }
+  #owner-dialog .settings-shell { grid-template-columns: minmax(0, 1fr); }
+  #owner-dialog .settings-home { border-right: 0; background: transparent; }
+  #owner-dialog[data-settings-view="page"] .settings-home, #owner-dialog[data-settings-view="home"] .settings-pages { display: none; }
+  #owner-dialog[data-settings-view="page"] .settings-back { visibility: visible; }
+  #owner-dialog .settings-pages { padding: 18px 16px 32px; }
+  #owner-dialog .settings-card, #owner-dialog .owner-profile-fields { padding: 16px; }
+  #owner-dialog .settings-save { margin: 16px -16px -16px; padding: 12px 16px; }
+}

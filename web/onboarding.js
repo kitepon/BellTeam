@@ -117,16 +117,43 @@ export function openOnboarding(initial, { api, onReady, onLater }) {
   schedule()
 }
 
-function featureSettingTitle(setting) {
-  return `${setting.title} · ${setting.error ? '反映エラー' : { enabled: '有効', disabled: '無効', unconfigured: '未設定' }[setting.status]}`
+// 機能ごとの一文。サーバーの title は名前だけなので、何をする機能かをここで言う。
+const FEATURE_SENTENCES = {
+  routing: 'ルームで、誰が返事をするかをAIが選びます。', callBridge: 'ほかのチームのメンバーと話せるようにします。',
+  cloudflare: '外からこのBellTeamを開けるようにします。', diagnostics: '困った時の情報を、担当へ送れるようにします。',
+  notifications: 'iPhoneアプリへ通知を送ります。', webPush: 'ブラウザーへ通知を送ります。', onePassword: '1Passwordの鍵やパスワードを使えるようにします。',
+}
+// 必須の欄が空のまま「使っています」と言わない。required が無い旧本体では判定しない。
+export const missingRequired = setting => (setting.fields ?? []).some(field => field.required === true && !field.configured)
+export function featureState(setting) {
+  if (setting.error) return { key: 'failed', badge: 'エラー', tone: 'attention' }
+  if (setting.status === 'enabled' && missingRequired(setting)) return { key: 'missing', badge: '設定が足りません', tone: 'attention' }
+  return ({ enabled: { key: 'on', badge: '使っています', tone: 'ok' }, disabled: { key: 'off', badge: '使っていません', tone: 'muted' } })[setting.status] ?? { key: 'unset', badge: '未設定', tone: 'muted' }
 }
 // 1Password連携は接続の結果を、見出しのバッジ（連携中・未連携・失敗）で示す。
 const onePasswordState = setting => setting.error ? 'failed' : setting.status === 'enabled' ? 'connected' : 'off'
 function renderFeatureSummary(summary, setting) {
-  if (setting.id !== 'onePassword') { summary.textContent = featureSettingTitle(setting); return }
-  const state = onePasswordState(setting)
-  const badge = Object.assign(document.createElement('span'), { className: `feature-badge ${state}`, textContent: { connected: '連携中', off: '未連携', failed: '失敗' }[state] })
-  summary.replaceChildren(document.createTextNode(setting.title), badge)
+  const name = Object.assign(document.createElement('span'), { className: 'feature-name', textContent: setting.title })
+  const sentence = Object.assign(document.createElement('span'), { className: 'feature-sentence', textContent: FEATURE_SENTENCES[setting.id] ?? '' })
+  let badge
+  if (setting.id === 'onePassword') {
+    const state = onePasswordState(setting)
+    badge = Object.assign(document.createElement('span'), { className: `feature-badge ${state}`, textContent: { connected: '連携中', off: '未連携', failed: '失敗' }[state] })
+  } else {
+    const state = featureState(setting)
+    badge = Object.assign(document.createElement('span'), { className: `feature-badge tone-${state.tone}`, textContent: state.badge })
+  }
+  const action = Object.assign(document.createElement('span'), { className: 'feature-action', textContent: setting.status === 'unconfigured' && !setting.error ? '設定する' : '変更' })
+  summary.replaceChildren(name, badge, sentence, action)
+}
+// 符号は閉じた「詳細」へ。文は平易な一文だけ見せる。
+function setFailure(node, message, code) {
+  node.replaceChildren(Object.assign(document.createElement('span'), { textContent: message }))
+  if (code) {
+    const more = document.createElement('details')
+    more.append(Object.assign(document.createElement('summary'), { textContent: '詳細' }), Object.assign(document.createElement('code'), { textContent: code }))
+    node.append(more)
+  }
 }
 function onePasswordConnectionText(setting) {
   if (onePasswordState(setting) !== 'connected') return ''
@@ -158,7 +185,6 @@ function showOnePasswordResult(result, setting, { saved = false } = {}) {
   Object.assign(result, { textContent: onePasswordResultText(setting), hidden: false })
   result.dataset.state = state
 }
-const featureErrorText = setting => setting.id === 'onePassword' ? setting.error.message : `${setting.error.code}: ${setting.error.message}`
 
 function renderFeatureGuide(guide) {
   const box = document.createElement('div')
@@ -198,10 +224,13 @@ export function refreshFeatureSettingsStatus(container, settings) {
         failure.setAttribute('role', 'alert')
         details.append(failure)
       }
-      failure.textContent = featureErrorText(setting)
+      setFailure(failure, setting.error.message, setting.error.code)
     } else failure?.remove()
   }
 }
+
+// 入力したまま保存していない機能があるか（設定を閉じる・ほかの項目へ移る時に聞く）。
+export const featureFormsDirty = container => [...(container?.querySelectorAll?.('form[data-dirty]') ?? [])].length > 0
 
 export function renderFeatureSettings(container, settings, { api, onChange }) {
   container.replaceChildren()
@@ -219,7 +248,7 @@ export function renderFeatureSettings(container, settings, { api, onChange }) {
     // 1Password連携は、トークンを貼って保存すれば連携する。解除はチェックを外して保存する。
     const onePassword = setting.id === 'onePassword'
     enabled.checked = setting.enabled || onePassword && setting.status === 'unconfigured'
-    toggle.append(enabled, document.createTextNode(onePassword ? '1Passwordと連携する' : '有効にする'))
+    toggle.append(enabled, document.createTextNode(onePassword ? '1Passwordと連携する' : 'この機能を使う'))
     if (onePassword) form.append(Object.assign(document.createElement('p'), { className: 'feature-connection' }))
     if (setting.guide) {
       const guide = Object.assign(document.createElement('details'), { className: 'feature-guide-toggle' })
@@ -240,6 +269,7 @@ export function renderFeatureSettings(container, settings, { api, onChange }) {
       input.autocapitalize = 'none'
       input.spellcheck = false
       if (field.secret) input.placeholder = field.configured ? '登録済み・変更するときだけ入力' : '未設定'
+      if (field.required === true) input.setAttribute('aria-required', 'true')
       if (onePassword) input.setAttribute('data-1p-ignore', '')
       inputs.push({ field, input })
       label.append(input)
@@ -250,24 +280,25 @@ export function renderFeatureSettings(container, settings, { api, onChange }) {
     error.setAttribute('role', 'alert')
     const save = document.createElement('button')
     save.type = 'submit'
-    save.textContent = onePassword ? '保存して連携を確かめる' : 'この機能を保存'
-    if (onePassword) save.className = 'primary'
-    const result = onePassword ? Object.assign(document.createElement('p'), { className: 'feature-result', hidden: true }) : null
+    save.textContent = onePassword ? '保存して連携を確かめる' : '保存'
+    save.className = 'primary'
+    const result = Object.assign(document.createElement('p'), { className: 'feature-result', hidden: true })
+    form.addEventListener('input', () => { form.dataset.dirty = '1' })
     result?.setAttribute('role', 'status')
-    form.append(...[error, result, save].filter(Boolean))
+    form.append(error, result, save)
     form.addEventListener('submit', async event => {
       event.preventDefault()
       if (save.disabled) return
       save.disabled = true
       error.textContent = ''
-      if (result) {
+      if (!onePassword) { save.textContent = '保存しています…'; result.hidden = true; result.dataset.state = '' }
+      if (onePassword) {
         save.textContent = '連携を確かめています…'
         save.setAttribute('aria-busy', 'true')
         Object.assign(result, { textContent: '1Passwordにつないで確かめています…', hidden: false })
         result.dataset.state = 'checking'
       }
       const values = Object.fromEntries(inputs.filter(({ field, input }) => !field.secret || input.value).map(({ field, input }) => [field.key, input.value]))
-      for (const { field, input } of inputs) if (field.secret) input.value = ''
       const submittedEnabled = enabled.checked
       let saved = false
       try {
@@ -276,8 +307,12 @@ export function renderFeatureSettings(container, settings, { api, onChange }) {
           redirect: 'error', cache: 'no-store', credentials: 'same-origin',
         })
         saved = true
-        if (result && response?.setting) showOnePasswordResult(result, response.setting, { saved: true })
-        else if (result) { result.hidden = true; result.dataset.state = '' }
+        // 秘密の値は、保存できたと分かってから消す。失敗した時は貼り直させない。
+        for (const { field, input } of inputs) if (field.secret) input.value = ''
+        delete form.dataset.dirty
+        if (onePassword && response?.setting) showOnePasswordResult(result, response.setting, { saved: true })
+        else if (onePassword) { result.hidden = true; result.dataset.state = '' }
+        else { Object.assign(result, { textContent: '保存しました。', hidden: false }); result.dataset.state = 'connected' }
         await onChange()
       } catch (cause) {
         if (setting.id === 'cloudflare' && submittedEnabled && (cause.status === 401 || cause.status === 403 || cause instanceof TypeError)) {
@@ -287,11 +322,12 @@ export function renderFeatureSettings(container, settings, { api, onChange }) {
           login.textContent = '再読み込みしてログイン'
           login.addEventListener('click', () => location.reload())
           error.append(login)
-        } else error.textContent = saved ? `保存しました。表示を更新できませんでした（${cause.message}）` : cause.message
-        if (result && !saved) { result.hidden = true; result.dataset.state = '' }
+        } else if (saved) error.textContent = '保存しました。表示を新しくできなかったので、設定を開き直すと確かめられます。'
+        else setFailure(error, /^[A-Z0-9_]+$/u.test(cause.message ?? '') ? '保存できませんでした。入力を確かめて、もう一度保存してください。' : `保存できませんでした。${cause.message}`, /^[A-Z0-9_]+$/u.test(cause.message ?? '') ? cause.message : '')
+        if (!saved) { result.hidden = true; result.dataset.state = '' }
       } finally {
         save.disabled = false
-        if (result) { save.textContent = '保存して連携を確かめる'; save.removeAttribute('aria-busy') }
+        if (onePassword) { save.textContent = '保存して連携を確かめる'; save.removeAttribute('aria-busy') } else save.textContent = '保存'
       }
     })
     details.append(summary)
@@ -299,7 +335,7 @@ export function renderFeatureSettings(container, settings, { api, onChange }) {
       const failure = document.createElement('p')
       failure.className = 'form-error feature-application-error'
       failure.setAttribute('role', 'alert')
-      failure.textContent = featureErrorText(setting)
+      setFailure(failure, setting.error.message, setting.error.code)
       details.append(failure)
     }
     details.append(form)

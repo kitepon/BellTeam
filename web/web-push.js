@@ -19,7 +19,7 @@ export function pushEnvironment(browser) {
   return {supported:!reason,reason,permission:['default','granted','denied'].includes(browser.Notification?.permission) ? browser.Notification.permission : 'unknown'}
 }
 
-export function createWebPushSettings(root, api, browser=globalThis) {
+export function createWebPushSettings(root, api, browser=globalThis, { onChange=()=>{} }={}) {
   const node=key=>root.querySelector(`[data-web-push-${key}]`)
   const enable=node('enable'),remove=node('remove'),reload=node('refresh')
   let active=false,busy=false,read=0,status=null,serverKnown=false,serverFailure='',subscription=null,registration=null,browserKnown=false,registered=null,cleanup=null,message=''
@@ -35,26 +35,40 @@ export function createWebPushSettings(root, api, browser=globalThis) {
     return result.registered
   }
   const keyMismatch=()=>Boolean(subscription && status?.publicKey && encodeKey(subscription.options?.applicationServerKey) !== status.publicKey)
+  // 状態をひとつに決めて、札・一文・その状態のボタンだけを出す（user-paths.md 4.8）。
+  function state(environment) {
+    const expired=subscription?.expirationTime != null && subscription.expirationTime <= Date.now()
+    if (!environment.supported) return { key:'unsupported', badge:'使えません', tone:'muted', line:environment.reason }
+    if (cleanup) return { key:'cleanup', badge:'解除の途中', tone:'attention', line:'解除が終わっていません。「解除をもう一度」を押してください。' }
+    if (!serverKnown) return { key:'unknown', badge:'確認できません', tone:'attention', line:serverFailure || '通知の設定を読めませんでした。「確かめ直す」を押してください。' }
+    if (status.error) return { key:'serverError', badge:'エラー', tone:'attention', line:'通知の送り先の設定でエラーが起きています。設定を確かめてください。' }
+    if (!status.enabled || !status.configured) return { key:'serverOff', badge:'未設定', tone:'muted', line:'ブラウザーへの通知を送る設定が、まだできていません。' }
+    if (environment.permission === 'denied') return { key:'denied', badge:'ブロック中', tone:'attention', line:'ブラウザーが通知をブロックしています。ブラウザーの設定で許可してから「確かめ直す」を押してください。' }
+    if (keyMismatch()) return { key:'mismatch', badge:'要対応', tone:'attention', line:'通知の鍵が変わりました。いったん受け取るのをやめて、もう一度登録してください。' }
+    if (expired) return { key:'expired', badge:'要対応', tone:'attention', line:'通知の登録の期限が切れました。いったん受け取るのをやめて、もう一度登録してください。' }
+    if (registered === true) return { key:'on', badge:'受け取ります', tone:'ok', line:'このブラウザーに通知が届きます。' }
+    if (!browserKnown) return { key:'unknown', badge:'確認できません', tone:'attention', line:'このブラウザーの通知の状態を読めませんでした。「確かめ直す」を押してください。' }
+    return { key:'off', badge:'未登録', tone:'', line: registration && !subscription ? '準備ができました。「通知を許可する」を押すと、ブラウザーが許可を求めます。' : 'このブラウザーは、まだ通知を受け取りません。' }
+  }
   function render() {
     if (!active) return
-    const environment=pushEnvironment(browser)
-    node('environment').textContent=environment.supported ? 'Web通知に対応しています。' : environment.reason
-    node('permission').textContent=({default:'まだ許可していません',granted:'許可済み',denied:'ブラウザー設定で拒否されています',unknown:'未確認'})[environment.permission]
-    node('browser').textContent=!browserKnown ? '購読を確認できません' : subscription ? 'このブラウザーに購読があります' : 'このブラウザーに購読はありません'
-    node('server').textContent=!serverKnown ? serverFailure || '通知サーバーは未接続・未確認です' : status.error ? '通知サーバーの設定でエラーが発生しています' : !status.enabled ? 'Web通知は無効です' : !status.configured ? '通知サーバーの準備が完了していません' : '通知サーバーの準備ができています'
-    node('registration').textContent=registered === true ? 'サーバーに登録されています（配信結果は未確認）' : registered === false ? 'この購読はサーバーに登録されていません' : browserKnown && !subscription && !cleanup ? '照会対象の購読はありません' : '登録は未確認です'
-    let hint=message
-    if (!hint && environment.permission === 'denied') hint='ブラウザーまたは端末の設定で通知を許可してから、状態を更新してください。'
-    if (!hint && keyMismatch()) hint='公開鍵が変わっているか、購読の鍵を確認できません。解除してから明示的に登録し直してください。'
-    if (!hint && serverKnown && !status.enabled) hint='追加機能でWeb通知を有効にしてから、このブラウザーを登録してください。'
-    node('notice').textContent=busy ? '通知の設定を処理しています…閉じても結果を確認できます。' : hint
-    const expired=subscription?.expirationTime != null && subscription.expirationTime <= Date.now()
-    if (expired && !busy) node('notice').textContent='購読の期限が切れています。解除してから登録し直してください。'
-    enable.disabled=busy || !environment.supported || environment.permission === 'denied' || !serverKnown || !status.enabled || !status.configured || Boolean(status.error) || !browserKnown || Boolean(cleanup) || keyMismatch() || expired || registered === true
-    enable.textContent=!registration ? '通知を準備する' : subscription ? 'サーバーへ登録する' : '通知を許可・登録する'
+    const environment=pushEnvironment(browser), current=state(environment)
+    const badge=node('state'), line=node('summary')
+    if (badge) { badge.textContent=busy ? '処理中' : current.badge; badge.className=`settings-badge tone-${busy ? 'info' : current.tone}` }
+    if (line) line.textContent=current.line
+    node('notice').textContent=busy ? '通知の設定を処理しています…閉じても結果を確認できます。' : message
+    const show=(button,visible)=>{ button.hidden=!visible }
+    show(enable,['off'].includes(current.key))
+    enable.disabled=busy || current.key !== 'off'
+    enable.textContent=!registration ? 'このブラウザーで受け取る' : subscription ? 'サーバーへ登録する' : '通知を許可する'
+    show(remove,['on','mismatch','expired','cleanup'].includes(current.key) || Boolean(subscription && current.key === 'off'))
     remove.disabled=busy || !cleanup && !subscription
-    remove.textContent=cleanup ? '未完了の解除を再試行' : 'このブラウザーの登録を解除'
+    remove.textContent=cleanup ? '解除をもう一度' : 'このブラウザーでは受け取らない'
+    show(reload,['unknown','denied','serverError'].includes(current.key))
     reload.disabled=busy
+    const feature=node('feature')
+    if (feature) feature.hidden=!['serverOff','serverError'].includes(current.key)
+    onChange({ line: current.key === 'on' ? 'このブラウザーに届きます' : current.key === 'off' ? 'このブラウザーは未登録' : current.key === 'serverOff' ? '通知の送り先が未設定' : current.line, badge: current.badge, tone: current.tone === 'ok' ? 'ok' : current.tone === 'attention' ? 'attention' : '' })
   }
   async function refresh() {
     if (!active || busy) return
@@ -83,7 +97,7 @@ export function createWebPushSettings(root, api, browser=globalThis) {
       if (!registration) {
         registration=await browser.navigator.serviceWorker.register('/sw.js',{scope:'/',type:'module',updateViaCache:'none'})
         await browser.navigator.serviceWorker.ready
-        message='通知の準備ができました。続けて「通知を許可・登録する」を押してください。'
+        message=''
         return
       }
       // Preparation and consent use separate clicks so network waits cannot consume user activation.
@@ -98,14 +112,14 @@ export function createWebPushSettings(root, api, browser=globalThis) {
       try {
         const result=await post('/api/web-push/subscriptions',body)
         if (!exact(result,['registered']) || result.registered !== true) throw Error('INVALID_REGISTRATION')
-        registered=true;message='サーバーへの登録を確認しました。通知の配信・端末表示はまだ確認していません。'
+        registered=true;message='登録しました。このブラウザーに通知が届きます。'
       } catch (error) {
         try { registered=await lookup(next.endpoint) } catch { registered=null }
         message=registered === true ? '応答は途切れましたが、サーバーへの登録を照会で確認しました。'
           : error.status === 403 ? 'この接続元では登録できません。認証と公開URLを確認してください。ブラウザーの購読は残っています。'
           : 'サーバーへの登録を確認できませんでした。ブラウザーの購読を保持しています。再登録は自動で行いません。'
       }
-    } catch { message='ブラウザーの通知設定を完了できませんでした。状態を更新して確認してください。' }
+    } catch { message='ブラウザーの通知の設定を終えられませんでした。「確かめ直す」を押してください。' }
     finally { busy=false;render();if(active)await refresh() }
   }
   async function unregister() {
@@ -128,7 +142,7 @@ export function createWebPushSettings(root, api, browser=globalThis) {
           }
         } catch {}
       }
-      if (attempt.serverDone && attempt.browserDone) { cleanup=null;subscription=null;registered=false;message='ブラウザーとサーバーの登録解除を確認しました。通知の許可自体は端末の設定に残ることがあります。' }
+      if (attempt.serverDone && attempt.browserDone) { cleanup=null;subscription=null;registered=false;message='このブラウザーでは、もう通知を受け取りません。' }
       else message=`${attempt.serverDone ? 'サーバー側は解除済み' : 'サーバー側の解除は未確認'}。${attempt.browserDone ? 'ブラウザー側は解除済み' : 'ブラウザー側の解除は未確認'}。未完了の部分だけ再試行できます。`
     } finally { busy=false;render();if(active)await refresh() }
   }

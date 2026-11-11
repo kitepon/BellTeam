@@ -161,76 +161,143 @@
       <div class="lattice-body" data-lattice-body></div>
     </div>
   </dialog>
-  <dialog class="sheet-dialog profile-dialog" id="owner-dialog">
+  <dialog class="sheet-dialog profile-dialog settings-dialog" id="owner-dialog" aria-labelledby="settings-title" data-settings-view="page">
     <div class="owner-settings-layout">
       <header class="sheet-header">
-        <button class="text-button" type="button" data-close-dialog="owner-dialog">キャンセル</button>
-        <h2>設定</h2>
-        <button class="text-button primary" type="submit" form="owner-form">保存</button>
+        <button class="text-button settings-back" type="button" data-settings-back>戻る</button>
+        <h2 id="settings-title" data-settings-title>設定</h2>
+        <button class="text-button" type="button" data-close-dialog="owner-dialog">閉じる</button>
       </header>
-      <div class="sheet-body">
-        <nav class="settings-tabs" aria-label="設定の項目"><button type="button" data-settings-section="owner-form">プロフィール</button><button type="button" data-settings-section="settings-ai">AIと動作</button><button type="button" data-settings-section="settings-features">追加機能</button></nav>
-        <form id="owner-form">
-        <div class="owner-profile-fields" data-settings-icon="profile">
-          <div class="form-section-heading"><p class="eyebrow">YOUR PROFILE</p><h3>オーナーのプロフィール</h3><p>名前や写真、メンバーに共有する情報を編集します。上部の保存でプロフィールと規範を保存します。</p></div>
-          <div class="avatar-editor"><div class="avatar owner-avatar" id="owner-avatar-preview">O</div><label class="upload-button">画像を選ぶ<input id="owner-avatar-file" type="file" accept="image/*"></label></div>
-          <div class="crop-editor" id="owner-crop-editor" hidden>
-            <canvas id="owner-avatar-crop" width="512" height="512" tabindex="0" aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight" aria-label="オーナーアバターの切り抜き位置"></canvas>
-            <label class="zoom-field"><span>拡大・縮小</span><input id="owner-avatar-zoom" type="range" min="1" max="3" step="0.01" value="1"></label>
-            <p>画像をドラッグして、使いたい部分を枠に合わせてね。</p>
-          </div>
-          <label class="field"><span>名前</span><input id="owner-name" required maxlength="100" placeholder="あなたの名前"></label>
-          <label class="field"><span>プロフィール</span><textarea id="owner-description" rows="5" maxlength="8000" placeholder="仕事、関心、BellTeamに知っておいてほしいこと"></textarea></label>
-          <label class="field"><span>XのプロフィールURL</span><input id="owner-x-url" type="url" maxlength="2048" inputmode="url" placeholder="https://x.com/account"></label>
-          <label class="field"><span>GitHubのプロフィールURL</span><input id="owner-github-url" type="url" maxlength="2048" inputmode="url" placeholder="https://github.com/account"></label>
-          <section class="owner-links-section">
-            <div class="owner-links-header"><span>その他の情報源</span><button id="add-owner-link" type="button">追加</button></div>
-            <div class="owner-links" id="owner-links"></div>
+      <div class="settings-shell">
+        <nav class="settings-home" aria-label="設定の項目">
+          <div class="settings-attention" data-settings-attention role="status" hidden></div>
+          <div class="settings-items" data-settings-items></div>
+        </nav>
+        <div class="sheet-body settings-pages">
+          <section class="settings-page" data-settings-page="profile" data-settings-icon="profile" hidden>
+            <h3>プロフィール</h3>
+            <p class="settings-lead">名前や写真、メンバーに伝えたいあなたのこと。</p>
+            <form id="owner-form" class="owner-profile-fields">
+              <div class="avatar-editor"><div class="avatar owner-avatar" id="owner-avatar-preview">O</div><label class="upload-button">画像を選ぶ<input id="owner-avatar-file" type="file" accept="image/*"></label></div>
+              <div class="crop-editor" id="owner-crop-editor" hidden>
+                <canvas id="owner-avatar-crop" width="512" height="512" tabindex="0" aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight" aria-label="オーナーアバターの切り抜き位置"></canvas>
+                <label class="zoom-field"><span>拡大・縮小</span><input id="owner-avatar-zoom" type="range" min="1" max="3" step="0.01" value="1"></label>
+                <p>画像をドラッグして、使いたい部分を枠に合わせてね。</p>
+              </div>
+              <label class="field"><span>名前</span><input id="owner-name" required maxlength="100" placeholder="あなたの名前"></label>
+              <label class="field"><span>プロフィール</span><textarea id="owner-description" rows="5" maxlength="8000" placeholder="仕事、関心、BellTeamに知っておいてほしいこと"></textarea></label>
+              <label class="field"><span>XのプロフィールURL</span><input id="owner-x-url" type="url" maxlength="2048" inputmode="url" placeholder="https://x.com/account"></label>
+              <label class="field"><span>GitHubのプロフィールURL</span><input id="owner-github-url" type="url" maxlength="2048" inputmode="url" placeholder="https://github.com/account"></label>
+              <section class="owner-links-section">
+                <div class="owner-links-header"><span>その他の情報源</span><button id="add-owner-link" type="button">追加</button></div>
+                <div class="owner-links" id="owner-links"></div>
+              </section>
+              <div class="settings-save"><p class="form-error" id="owner-form-error" role="alert"></p><p class="settings-done" id="owner-form-status" role="status"></p><button class="primary" id="owner-save" type="submit">保存</button></div>
+            </form>
           </section>
-          <label class="field"><span>全メンバーに共有する規範</span><small class="field-help">すべてのBotに適用し、製品規範より優先します。</small><textarea id="user-rules" rows="8" maxlength="20000" placeholder="- 全Botに守らせたいこと"></textarea></label>
-          <p class="form-error" id="owner-form-error" role="alert"></p>
+          <section class="settings-page" data-settings-page="rules" data-settings-icon="rules" hidden>
+            <h3>チームの決まり</h3>
+            <p class="settings-lead">すべてのメンバーが守る決まりです。製品の決まりより優先します。</p>
+            <p class="form-error" id="rules-load-error" role="alert"></p>
+            <div class="rules-view" id="rules-view"></div>
+            <p class="settings-done" id="rules-status" role="status"></p>
+            <div class="settings-page-actions"><button type="button" id="rules-edit" hidden>文章で編集</button></div>
+            <form id="rules-form" hidden>
+              <label class="field"><span>決まりの全文</span><textarea id="user-rules" rows="16" maxlength="20000" placeholder="- 全メンバーに守らせたいこと" disabled></textarea></label>
+              <div class="settings-save"><p class="form-error" id="rules-error" role="alert"></p><button type="button" id="rules-cancel">やめる</button><button class="primary" id="rules-save" type="submit" disabled>保存</button></div>
+            </form>
+          </section>
+          <section class="settings-page" data-settings-page="ai" data-settings-icon="key" hidden>
+            <h3>AIの認証</h3>
+            <p class="settings-lead">認証が切れたAIは、それを使うメンバーが起動できません。ここから公式サイトで認証し直せます。</p>
+            <div class="settings-page-actions"><button type="button" id="auth-recheck">すべて確認し直す</button></div>
+            <p class="form-error" id="harness-auth-error" role="alert"></p>
+            <div id="harness-auth"></div>
+          </section>
+          <section class="settings-page" data-settings-page="summary" data-settings-icon="summary" hidden>
+            <h3>仕事の要約を書くAI</h3>
+            <p class="settings-lead">一覧に出る「いまの仕事」の要約を、このAIが書きます。</p>
+            <form id="background-agent-form" class="settings-card">
+              <p class="settings-current" data-background-saved>確認しています</p>
+              <label class="field"><span>AI</span><select data-background-harness disabled></select></label>
+              <label class="field"><span>モデル</span><select data-background-model disabled></select></label>
+              <button type="button" class="inline-retry" data-background-models-reload hidden>候補を読み直す</button>
+              <label class="field"><span>考える深さ</span><select data-background-effort disabled></select></label>
+              <div class="settings-save"><p class="form-error" data-background-error role="alert"></p><button type="button" data-background-reload hidden>もう一度読み込む</button><p class="settings-done" data-background-status role="status" aria-live="polite"></p><button class="primary" type="submit" data-background-save disabled>保存</button></div>
+            </form>
+          </section>
+          <section class="settings-page" data-settings-page="stop" data-settings-icon="power" hidden>
+            <h3>全体停止</h3>
+            <p class="settings-lead">オンにすると、全員の動作と予定の実行を止めます。オフにすると、新しい依頼から再開します。</p>
+            <div id="ai-control" class="settings-card" data-state="unknown">
+              <label><input type="checkbox" role="switch" disabled hidden> 全体停止</label>
+              <p role="status">状態を確認しています…</p>
+              <button type="button">確認し直す</button>
+            </div>
+          </section>
+          <section class="settings-page" data-settings-page="terminals" data-settings-icon="terminal" hidden>
+            <h3>端末</h3>
+            <p class="settings-lead">メンバーを、LANにある自分のMac・Windows・Linuxの決まったフォルダで動かせます。</p>
+            <div class="settings-page-actions"><button class="primary" type="button" id="terminals-open">端末を開く</button></div>
+          </section>
+          <section class="settings-page" data-settings-page="onePassword" data-settings-icon="vault" hidden>
+            <h3>1Password</h3>
+            <p class="settings-lead">1Passwordの鍵やパスワードを、メンバーが使えるようにします。値は会話へ送られません。</p>
+            <p class="settings-empty" id="onepassword-empty" hidden>この本体では、1Password連携を使えません。</p>
+            <div id="onepassword-settings"></div>
+          </section>
+          <section class="settings-page web-push-settings" data-settings-page="notifications" data-settings-icon="bell" hidden>
+            <h3>通知</h3>
+            <p class="settings-lead">新しい返事や、あなたへの質問を知らせます。</p>
+            <div class="settings-card" id="web-push-settings">
+              <div class="settings-card-head"><h4>このブラウザー</h4><span class="settings-badge" data-web-push-state>確認中</span></div>
+              <p class="settings-current" data-web-push-summary>確かめています…</p>
+              <p class="settings-done" data-web-push-notice role="status" aria-live="polite"></p>
+              <div class="settings-page-actions"><button class="primary" type="button" data-web-push-enable hidden disabled>このブラウザーで受け取る</button><button type="button" data-web-push-feature data-open-feature="webPush" hidden>通知の送り先を設定する</button><button type="button" data-web-push-remove hidden disabled>このブラウザーでは受け取らない</button><button type="button" data-web-push-refresh hidden>確かめ直す</button></div>
+              <p class="field-help">iPhone・iPadでは、ホーム画面に追加したBellTeamから設定してください。</p>
+            </div>
+            <div class="settings-card">
+              <div class="settings-card-head"><h4>iPhoneアプリ</h4></div>
+              <p class="settings-current" id="notification-status" role="status">確かめています…</p>
+              <div class="settings-page-actions"><button type="button" id="apple-notification-setup" data-open-feature="notifications" hidden>通知の送り先を設定する</button></div>
+            </div>
+          </section>
+          <section class="settings-page" data-settings-page="features" data-settings-icon="puzzle" hidden>
+            <h3>追加機能</h3>
+            <p class="settings-lead">使いたい機能だけを設定します。秘密の値は会話へ送られません。案内役との会話でも設定できます。</p>
+            <p class="form-error" id="feature-settings-error" role="alert"></p>
+            <div id="feature-settings"></div>
+          </section>
+          <section class="settings-page" data-settings-page="updates" data-settings-icon="update" hidden>
+            <h3>アップデート</h3>
+            <p class="settings-lead">BellTeamの本体と機能を、新しい版にします。</p>
+            <div class="settings-page-actions"><button class="primary" type="button" id="updates-open">更新センターを開く</button></div>
+          </section>
+          <section class="settings-page" data-settings-page="connection" data-settings-icon="link" hidden>
+            <h3>接続</h3>
+            <div class="settings-card">
+              <p class="settings-current" id="connection-mode">確かめています…</p>
+              <p id="access-logout" hidden><a href="/cdn-cgi/access/logout">Cloudflare Accessからログアウト</a><br><small>ほかのAccessアプリからもログアウトします。</small></p>
+            </div>
+            <details class="settings-card settings-fold">
+              <summary>ほかのサーバーへ</summary>
+              <label class="field"><span>開くサーバーのURL</span><input id="server-address" type="url" inputmode="url" placeholder="https://bellteam.example.com" autocomplete="off"></label>
+              <div class="settings-page-actions"><button type="button" id="server-open">新しいタブで開く</button></div>
+              <p id="server-error" class="field-help" role="status"></p>
+            </details>
+          </section>
+          <section class="settings-page" data-settings-page="display" data-settings-icon="display" hidden>
+            <h3>表示</h3>
+            <div class="settings-card">
+              <label class="field"><span>会話を開くときの動き</span><select id="conversation-motion"><option value="rise">下から浮き上がる</option><option value="fade">フェードイン</option></select></label>
+              <p class="field-help" id="motion-status" role="status"></p>
+            </div>
+          </section>
+          <section class="settings-page" data-settings-page="billing" data-settings-icon="card" hidden>
+            <h3>利用と購読</h3>
+            <p class="settings-lead">Web版は無料です。Appleアプリの月額購読は、Appleアプリの設定で購入・復元・管理できます。サーバーとAIは、ご自身の契約で使います。</p>
+          </section>
         </div>
-      </form>
-      <section class="feature-settings-section" id="settings-ai" data-settings-icon="summary">
-        <h3>仕事の要約</h3>
-        <p>BellTeam全体で一人の背景エージェントが、メンバーの現在の仕事を要約します。</p>
-        <form id="background-agent-form">
-          <p class="field-help" data-background-saved>保存済みの設定は未取得です。</p>
-          <label class="field"><span>ハーネス</span><select data-background-harness disabled></select></label>
-          <label class="field"><span>モデル</span><select data-background-model disabled></select></label>
-          <label class="field"><span>エフォート</span><select data-background-effort disabled></select></label>
-          <p class="form-error" data-background-error role="alert"></p>
-          <p class="field-help" data-background-status role="status" aria-live="polite"></p>
-          <div class="web-push-actions"><button type="submit" data-background-save disabled>要約の設定を保存</button><button type="button" data-background-reload>状態を更新</button><button type="button" data-background-models-reload>候補を再取得</button></div>
-        </form>
-      </section>
-      <section class="feature-settings-section" data-settings-icon="power">
-        <h3>BellTeam全体の停止</h3>
-        <div id="ai-control" data-state="unknown">
-          <label><input type="checkbox" role="switch" disabled hidden> 全体停止</label>
-          <p role="status">状態を確認しています…</p>
-          <button type="button">状態を更新</button>
-        </div>
-        <p>ONでメンバーの動作と予定の実行を止めます。OFFで新しい依頼から再開します。</p>
-      </section>
-      <section class="feature-settings-section" data-settings-icon="key">
-        <h3>AIの認証</h3>
-        <p>AIの認証が切れると、そのAIを使うメンバーは起動できなくなります。ここから公式サイトで認証をやり直せます。</p>
-        <p class="form-error" id="harness-auth-error" role="alert"></p>
-        <div id="harness-auth"></div>
-      </section>
-      <section class="feature-settings-section" id="settings-features" data-settings-icon="puzzle">
-        <h3>追加機能</h3>
-        <p>未設定の機能は無効です。案内役との会話でも設定できます。秘密の値は会話へ送られません。</p>
-        <p id="connection-mode"></p>
-        <p class="form-error" id="feature-settings-error" role="alert"></p>
-        <div id="feature-settings"></div>
-      </section>
-      <section class="feature-settings-section" id="settings-terminals" data-settings-icon="terminal"><h3>端末</h3><p>メンバーを、LANにある自分のMac・Windows・Linuxの決まったフォルダで動かせます。端末を登録して、SSH鍵を設定します。</p><div class="web-push-actions"><button type="button" id="terminals-open">端末を管理</button></div></section>
-      <section class="feature-settings-section" data-settings-icon="display"><h3>表示と接続</h3><label class="field"><span>会話を開くときの動き</span><select id="conversation-motion"><option value="rise">下から浮き上がる</option><option value="fade">フェードイン</option></select></label><p class="field-help" id="motion-status" role="status"></p><label class="field"><span>接続先のURL</span><input id="server-address" type="url" inputmode="url" placeholder="https://bellteam.example.com" autocomplete="off"></label><button class="text-button" id="server-open" type="button">別のサーバーを開く</button><p id="server-error" class="field-help" role="status"></p><p>現在の入力はこのタブに残し、新しいタブで接続します。</p><p id="access-logout" hidden><a href="/cdn-cgi/access/logout">Cloudflare Accessからログアウト</a><br><small>他のAccessアプリのセッションからもログアウトします。</small></p></section>
-      <section class="feature-settings-section web-push-settings" id="web-push-settings" data-settings-icon="bell"><h3>ブラウザー通知</h3><p>新しい返信や入力依頼を、この端末で受け取れます。サーバーの設定と端末の許可・登録を分けて確認します。</p><dl class="web-push-states"><dt>利用環境</dt><dd data-web-push-environment>確認前</dd><dt>通知の許可</dt><dd data-web-push-permission>未確認</dd><dt>ブラウザー</dt><dd data-web-push-browser>未確認</dd><dt>通知サーバー</dt><dd data-web-push-server>未接続・未確認</dd><dt>サーバー登録</dt><dd data-web-push-registration>未確認</dd></dl><p data-web-push-notice role="status" aria-live="polite" class="field-help"></p><div class="web-push-actions"><button type="button" data-web-push-enable disabled>通知を準備する</button><button type="button" data-web-push-remove disabled>登録を解除</button><button type="button" data-web-push-refresh>状態を更新</button></div><p class="field-help">iPhone・iPadはホーム画面に追加したBellTeamから設定してください。登録できても、配信や端末への表示が完了したことは示しません。</p></section>
-      <section class="feature-settings-section" data-settings-icon="phone"><h3>通知</h3><p id="notification-status" role="status">通知の設定は未取得です。</p><button class="text-button" id="notification-refresh" type="button">状態を更新</button><p>Webを開いている間は新しい会話と入力依頼を画面へ反映します。閉じた後の通知は、上のブラウザー通知の対応・許可・登録状態を確認してください。</p></section>
-      <section class="feature-settings-section" data-settings-icon="card"><h3>利用と購読</h3><p>Web版は無料です。Appleアプリの月額購読は、Appleアプリ内の設定で購入・復元・管理できます。サーバーとAIはご自身の契約で利用します。</p></section>
       </div>
     </div>
   </dialog>

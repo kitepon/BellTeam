@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { bannerTexts, limitText, seatBadge, slotView } from '../web/harness-accounts.js'
+import { bannerTexts, limitText, seatBadge, slotLimitLines, slotView } from '../web/harness-accounts.js'
 import { renderHarnessAuth } from '../web/harness-auth.js'
 
 const now = Date.parse('2026-11-08T12:00:00Z') // 21:00 JST
@@ -22,12 +22,16 @@ const list = {
 }
 
 test('枠・両方上限・席の印は accounts.list() と Bot項目だけから決める', () => {
-  assert.deepEqual(slotView(list.harnesses[0].slots[0], now), { slot: '1st', title: '1stアカウント', login: 'first@example.test', state: 'Fableのみ上限中 (23:00に解除)', limited: true, seats: 2, separate: false })
-  assert.deepEqual(slotView(list.harnesses[0].slots[1], now), { slot: '2nd', title: '2ndアカウント', login: '未ログイン', state: '', limited: false, seats: 0, separate: true })
+  assert.deepEqual(slotView(list.harnesses[0].slots[0], now), { slot: '1st', title: '1つ目のアカウント', login: 'first@example.test', state: 'Fableのみ上限中 (23:00に解除)', limited: true, seats: 2, separate: false })
+  assert.deepEqual(slotView(list.harnesses[0].slots[1], now), { slot: '2nd', title: '2つ目のアカウント', login: '未ログイン', state: '', limited: false, seats: 0, separate: true })
   assert.equal(slotView({ slot: '1st' }, now).login, 'ログイン状態は未確認')
   assert.deepEqual(bannerTexts(list, now), ['両方のアカウントでFableのみ上限中 (解除時刻不明)'])
   assert.deepEqual(bannerTexts(null), [])
-  assert.deepEqual(seatBadge({ harness: 'claude', slot: '2nd', preferredSlot: '1st' }), { text: '2ndアカウント', title: '2ndアカウントで動作中' })
+  assert.deepEqual(seatBadge({ harness: 'claude', slot: '2nd', preferredSlot: '1st' }), { text: '2つ目のアカウント', title: '2つ目のアカウントで動作中' })
+  // 上限は一行。もう一方が使える時だけ、どちらで動いているかを添える（Appleと同じ文）。
+  assert.deepEqual(slotLimitLines(list.harnesses[0].slots[0], list.harnesses[0].slots[1], now), ['Fableが上限中・23:00 に戻ります'])
+  assert.deepEqual(slotLimitLines(list.harnesses[0].slots[0], { slot: '2nd', loggedIn: true, limits: [] }, now), ['Fableが上限中・23:00 に戻ります（いまは2つ目で動いています）'])
+  assert.deepEqual(slotLimitLines({ limits: [{ scope: 'all', resetAt: null }] }, null, now), ['上限中・戻る時刻は分かりません'])
   assert.equal(seatBadge(undefined), null)
   assert.equal(seatBadge(null), null)
 })
@@ -59,9 +63,11 @@ test('Claudeは1st/2ndの2行。ログインは枠ごとに ?slot=、切替ス�
     const section = await renderHarnessAuth(container, { api })
     await settle()
     const all = descendants(container)
-    assert.deepEqual(all.filter(item => item.tag === 'h5').map(item => item.textContent), ['1stアカウント', '2ndアカウント'])
+    assert.deepEqual(all.filter(item => item.tag === 'h5').map(item => item.textContent), ['1つ目のアカウント', '2つ目のアカウント'])
     assert.ok(calls.includes('GET /api/harness-auth/claude') && calls.includes('GET /api/harness-auth/claude?slot=2nd'))
-    assert.ok(all.some(item => item.tag === 'dd' && /^Fableのみ上限中 \((\d+\/\d+ )?\d{2}:\d{2}に解除\)$/.test(item.textContent)))
+    assert.ok(all.some(item => item.className === 'account-limit' && /^Fableが上限中・(\d+\/\d+ )?\d{2}:\d{2} に戻ります$/.test(item.textContent)))
+    // この画面でだけ、どのアカウントかが分かるようにメールアドレスを枠の名前の下に出す。
+    assert.ok(all.some(item => item.className === 'slot-label' && item.textContent === 'first@example.test'))
     assert.ok(!all.some(item => item.attributes.role === 'switch' || /Fableを2ndアカウントで使う/.test(item.textContent)))
     const start = all.find(item => item.tag === 'button' && item.textContent === 'ログイン')
     await start.listeners.click[0]()
