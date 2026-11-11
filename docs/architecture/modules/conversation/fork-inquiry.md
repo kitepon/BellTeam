@@ -148,6 +148,20 @@ Every post-accept outcome (answer, failure, delivered, or none: interrupted) is 
 Late and duplicate notices (production 2026-11-12 06:49 JST, from Trony): the first sweep after the swap relayed four answers saved 9-15 h earlier (relays lost by the pre-owed child) with nothing saying so; they read as current. Every one went out twice: the sweep iterated a snapshot of `owed` while an overlapping sweep was still relaying, and a relay that failed after its handover was kept owed. Nothing was re-asked: each text is the saved answer row. Fix: the `FORK_LATE` line, the claim before relay, and no resend after handover (rows above).
 
 
+## Live relay members lease (production defect 2026-11-12)
+
+Every live answer relay in production failed before its relay row (02:16Z, 06:16Z, 11:3xZ, 22:54:20Z); the owed sweep delivered it about 5 s later with a `FORK_LATE` line. The child's `relay error` stderr line reaches no readable log (Trony, docker logs 2026-11-12).
+
+Cause (code path, N102): the relay runs inside the fork's `delivery.answer` callback. A callback record reuses its root's options (`conversation-ipc` `attach`/`enriched`), so its effects carry the `fork.ask` root's `operationContext.membersLease`. `conversation-assembly` `invoke` tracks that members lease only on the root channel completion, which resolves with the root result (`conversation-channel` `finish`): the receipt returned the lease at 22:54:16Z. The conversation lease stays alive through the registered fork delivery; the members lease does not. So `members.profiles.read` (`prepareDirect` → `bots.refresh`) → `services.bots.refresh(operationContext)` → `members-facade` `withLease({lease})` → `assertLease` throws, before the relay row. `execution.notify` → `member(id, context.operationContext)` would fail the same way. The sweep works because its own root is still running while it relays. `execution.report` from `turn.end` already re-enters members with a fresh lease for exactly this reason.
+
+| Effect issued from a fork callback (`rootMethod` `fork.ask`, callback record) | Contract | Owner |
+| --- | --- | --- |
+| `members.profiles.read` | Never use the root's members lease after the root result. Read profiles with no `membersLease`, so the members read pin applies (`profiles.read` is a read-pin method) | Molly `src/conversation-parent-effects.mjs` |
+| `execution.assertAccess` | Unchanged: its `check()` uses the conversation lease (kept by the delivery), the root's `admissionCheck` and `aiControl` | — |
+| `execution.notify` | Re-enter members with a fresh lease, the same as `execution.report`: `transport.membersAdmission.withLease(membersLease => deliver({ membersLease }))` | Kiro `src/conversation-execution-effects.mjs` |
+
+The conversation child (`messenger.mjs`) is unchanged. No new method, field or guard. Proof (each owner, scoped): a `fork.ask` root whose result has returned, then a `delivery.answer` callback relays once through `members.profiles.read` + `execution.notify` and writes one relay row with no `FORK_LATE` line. Done when a live production `ask_readonly` answer arrives without `FORK_LATE`.
+
 ## New MCP tool contract (N102)
 
 Separate tool. `sendmessage` gets no flag and no change of meaning (spec items 6, 9).
