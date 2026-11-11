@@ -62,7 +62,7 @@ test('seat MCP reads work state but neither lists nor invokes the main-agent sum
     await client.connect(new StreamableHTTPClientTransport(new URL(base + '/mcp'), { requestInit: { headers: { [SEAT_HEADER]: bot.id, [LAUNCH_HEADER]: launchId } } })); return client
   }
   const client = await connect(launch), self = JSON.parse((await client.callTool({ name: 'get_self', arguments: {} })).content[0].text).bot
-  assert.equal(self.currentWork.state, 'working'); assert.equal(self.currentWorkBinding.launchId, launch); assert.deepEqual(calls, ['pty_list'])
+  assert.equal(self.currentWork.state, 'working'); assert.equal(self.currentWorkBinding, null, 'the self writer and its binding were removed (ee8437f3)'); assert.deepEqual(calls, ['pty_list'])
   const other = JSON.parse((await client.callTool({ name: 'get_bot', arguments: { botId: bot.id } })).content[0].text).bot
   assert.equal(Object.hasOwn(other, 'currentWorkBinding'), false)
   assert.equal((await client.listTools()).tools.some(tool => tool.name === 'update_work_summary'), false)

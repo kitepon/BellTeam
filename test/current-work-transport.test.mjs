@@ -38,10 +38,10 @@ test('normal stop acceptance invalidates synchronously and sent is not idle', as
   assert.equal(transport.currentWork(bot).state, 'unknown'); assert.equal(transport.currentWork(bot).summary, null)
   assert.equal((await stopping).status, 'stop_sent'); assert.equal(transport.currentWork(bot).state, 'unknown')
 })
-test('existing matching wait done invalidates the turn without inventing idle; uncertainty is retained', async t => {
+test('existing matching wait done reads idle at once (2bc28412); a later read still showing that turn running is unknown', async t => {
   const { transport } = fixture(t, { waitProcess: async () => ({ schema: 'aiterm.agent-wait-result.v1', outcome: 'done', session_id: bot.id, launch_id: launchId, turn_id: 'turn-a' }) })
   await transport.seatTurns([bot]); assert.equal(transport.currentWork(bot).state, 'working')
-  await transport.waitUntilDone({ wait_process: {} }); assert.equal(transport.currentWork(bot).state, 'unknown')
+  await transport.waitUntilDone({ wait_process: {} }); assert.equal(transport.currentWork(bot).state, 'idle')
   await transport.seatTurns([bot]); assert.equal(transport.currentWork(bot).state, 'unknown')
 })
 test('an old in-flight observer cannot restore status after stop or a new launch', async t => {
