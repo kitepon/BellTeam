@@ -157,6 +157,10 @@ test('folders: picker lists subfolders from home, opens one, and reports missing
   native.listResult = () => { throw Object.assign(new Error('x'), { code: 'FOLDER_NOT_PERMITTED' }) }
   const denied = await core.folders({ terminalId: 'owner-macbook', path: '/Users/kite/Desktop' })
   assert.deepEqual([denied.reason, denied.entries], ['FOLDER_NOT_PERMITTED', []])
+  native.listResult = () => { throw Object.assign(new Error('x'), { code: 'COMMAND_FAILED' }) }
+  const broken = await core.folders({ terminalId: 'owner-macbook' })
+  assert.deepEqual([broken.reason, broken.entries], ['COMMAND_FAILED', []], 'a reached terminal is not reported unreachable')
+  assert.match(broken.action, /つながりましたが.*COMMAND_FAILED/)
   assert.ok(denied.action)
   native.connectError = Object.assign(new Error('x'), { code: 'UNREACHABLE' })
   const offline = await core.folders({ terminalId: 'owner-macbook' })
