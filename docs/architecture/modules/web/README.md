@@ -4,6 +4,8 @@
 
 [接続情報](module.json)から[全体図](../../feature-map.md)を生成する。[担当・変更手順](../../module-ownership.md)に従い、使用先の[integration](../integration/README.md)と[公開HTTP入口](../../entrypoints.md)を読む。現行の内部図はこのmoduleの[会話・履歴・SSE](conversation.md)と[編集・画像・Goal](management.md)だけで管理する。
 
+利用者から見た画面の正本は[機能図（画面→機能→公開HTTP）](user-functions.md)と[利用者の導線（状態遷移・押した後に見えるもの・壊れた導線）](user-paths.md)。
+
 ## 起動・通信・公開登録
 
 ```mermaid
