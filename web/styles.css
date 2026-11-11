@@ -247,6 +247,22 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .composer { display: flex; gap: 12px; align-items: end; padding: 14px clamp(20px, 4vw, 54px) max(18px, env(safe-area-inset-bottom)); background: linear-gradient(transparent, #fff 25%); }
 .add-button { width: 48px; height: 48px; flex: none; background: #f4f4f5; }
 .composer-stack { display: grid; flex: 1; min-width: 0; gap: 8px; }
+.composer-stack { position: relative; }
+.composer-error-close { position: absolute; top: -6px; right: 0; width: 32px; height: 32px; border: 0; border-radius: 50%; background: transparent; color: #8a5200; font-size: 18px; cursor: pointer; }
+#composer-error { padding-right: 36px; }
+#composer-error[hidden] + .composer-error-close { display: none; }
+/* Conversation states (user-paths.md 3.1): loading, empty, failure with retry in place, older page. */
+.timeline-loading { display: grid; gap: 14px; padding: 18px 0; }
+.timeline-loading p { margin: 0; color: var(--muted); font-size: 13px; text-align: center; }
+.skeleton-bubble { width: 52%; height: 44px; border-radius: 20px; background: #f0f0f2; animation: skeleton-pulse 1.4s ease-in-out infinite; }
+.skeleton-bubble.is-right { justify-self: end; width: 38%; }
+@media (prefers-reduced-motion: reduce) { .skeleton-bubble { animation: none; } }
+.timeline-empty { margin: 28px auto; color: var(--muted); font-size: 14px; text-align: center; }
+.timeline-older { margin: 8px 0; color: var(--muted); font-size: 12px; text-align: center; }
+.inline-error { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin: 14px 0; padding: 12px 14px; border-radius: 14px; background: #fcefd9; color: #8a5200; font-size: 13px; }
+.inline-error p { margin: 0; }
+.inline-error button { min-height: 36px; padding: 6px 14px; border: 0; border-radius: 10px; background: #fff; color: #8a5200; font-weight: 750; cursor: pointer; }
+.inline-error button:disabled { opacity: .6; cursor: progress; }
 .attachment-previews { display: flex; flex-wrap: wrap; gap: 12px; padding-top: 7px; }
 .attachment-previews[hidden] { display: none; }
 .attachment-preview { position: relative; width: 76px; height: 76px; }
@@ -585,8 +601,7 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .current-work-detail section { padding: 16px 0; border-bottom: 1px solid var(--line); }
 .current-work-detail h3 { margin: 0 0 8px; font-size: 15px; }
 .current-work-detail section p { margin: 0 0 12px; line-height: 1.8; overflow-wrap: anywhere; }
-.current-work-detail dl { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 6px; font-size: 12px; color: #6b6871; }
-.current-work-detail dd { margin: 0; }
+.current-work-detail .current-work-time { margin: 0; color: var(--muted); font-size: 12px; }
 .seat-launch { display: block; color: #976630; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
 .chat-seat-launch { flex: 0 0 100%; min-width: 0; margin: 0; font-size: 13px; }
 .seat-launch[hidden] { display: none; }

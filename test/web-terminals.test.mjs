@@ -280,7 +280,7 @@ test('self-service: precondition line, auto trust with the manual sheet under �
 
 test('seatLaunch -> one line; action first, else code; null/absent -> nothing', () => {
   assert.equal(seatLaunchText({ code: 'HOST_KEY_UNTRUSTED', action: ' confirm the host key of 192.168.1.12 ', terminalId: 'mac', at: 'x' }), '端末で起動できません：confirm the host key of 192.168.1.12')
-  assert.equal(seatLaunchText({ code: 'UNREACHABLE', action: '' }), '端末で起動できません：UNREACHABLE')
+  assert.equal(seatLaunchText({ code: 'UNREACHABLE', action: '' }), '端末で起動できません。')
   assert.equal(seatLaunchText({}), '端末で起動できません。')
   for (const value of [null, undefined, 'x']) assert.equal(seatLaunchText(value), null)
 })

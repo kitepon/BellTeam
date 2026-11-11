@@ -1,16 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
-import { currentWork, workLabel, participantWork, renderCurrentWork } from '../web/current-work.js'
+import { currentWork, participantWork, renderCurrentWork, ago } from '../web/current-work.js'
 const examples=JSON.parse(await readFile(new URL('fixtures/web-current-work.json',import.meta.url)))
 test('all six supplied finite currentWork states retain their distinct meanings',()=>{
  for(const value of Object.values(examples.currentWork))assert.deepEqual(currentWork(value),value)
  const w=examples.currentWork
- assert.equal(workLabel(w.workingCurrent),w.workingCurrent.summary)
- assert.equal(workLabel(w.workingMissing),'作業中・要約未取得')
- assert.equal(workLabel(w.workingStale),'作業中・要約期限切れ')
- assert.equal(workLabel(w.idle),'待機中')
- assert.equal(workLabel(w.unknownLastObservation),'仕事状況を未取得')
 })
 test('generated and legacy summaries retain their sources while unknown sources remain unknown',()=>{
  const legacy=examples.currentWork.workingCurrent
@@ -26,37 +21,30 @@ test('generated and legacy summaries retain their sources while unknown sources 
  const bots=[{id:'a',name:'生成',currentWork:generated},{id:'b',name:'旧自己申告',currentWork:legacy}]
  const room={memberIds:['a','b'],currentWork:{scope:'participants',members:bots.map(bot=>({botId:bot.id,currentWork:bot.currentWork}))}}
  renderCurrentWork(root,'bot',bots[0],bots)
- assert.match(summary.textContent,/設定画面を更新しています/)
- assert.match(body.innerHTML,/<dt>要約の生成元<\/dt><dd>自動生成<\/dd>/)
- assert.doesNotMatch(body.innerHTML,/本人が記載した要約/)
+ assert.equal(root.hidden,false)
+ assert.match(summary.textContent,/^いまの仕事: 設定画面を更新しています。（/)
+ assert.match(body.innerHTML,/最終更新 /)
+ assert.doesNotMatch(body.innerHTML,/自動生成|本人記載|実行状態|<dt>/)
  renderCurrentWork(root,'room',room,bots)
- assert.match(body.innerHTML,/<dd>自動生成<\/dd>/)
- assert.match(body.innerHTML,/<dd>本人記載<\/dd>/)
- assert.match(body.innerHTML,/参加者それぞれ/)
- renderCurrentWork(root,'bot',{...bots[0],currentWork:stale},bots)
- assert.match(body.innerHTML,/要約期限切れ/)
- assert.doesNotMatch(body.innerHTML,/設定画面を更新しています/)
- renderCurrentWork(root,'bot',{...bots[0],currentWork:{...generated,source:'future_agent'}},bots)
- assert.match(body.innerHTML,/仕事状況を未取得/)
- assert.doesNotMatch(body.innerHTML,/自動生成|本人記載|設定画面を更新しています/)
+ assert.equal(summary.textContent,'いまの仕事: 生成 ほか1人')
+ assert.match(body.innerHTML,/<h3>旧自己申告<\/h3>/)
+ // Stale, unknown or missing summaries show nothing (P4).
+ for(const currentWork of [stale,{...generated,source:'future_agent'},undefined]){renderCurrentWork(root,'bot',{...bots[0],currentWork},bots);assert.equal(root.hidden,true)}
+ renderCurrentWork(root,'bot',null,bots);assert.equal(root.hidden,true)
 })
 test('background summary freshness is independent from all three observed execution states',()=>{
  const generated={...examples.currentWork.workingCurrent,source:'background_agent'}
  for(const state of ['working','idle','unknown'])for(const summaryStatus of ['current','missing','stale']){
   const value={...generated,state,summaryStatus,summary:summaryStatus==='current'?generated.summary:null,summaryUpdatedAt:summaryStatus==='missing'?null:generated.summaryUpdatedAt,source:summaryStatus==='missing'?null:'background_agent'}
   assert.deepEqual(currentWork(value),value)
-  if(summaryStatus==='current')assert.match(workLabel(value),new RegExp(generated.summary))
  }
  const unobserved={...generated,state:'unknown',observedAt:null}
  assert.deepEqual(currentWork(unobserved),unobserved)
- assert.match(workLabel(unobserved),/実行状態未取得/)
- assert.doesNotMatch(workLabel(unobserved),/作業中/)
- assert.match(workLabel({...generated,state:'idle'}),/待機中/)
- const summary={},body={},root={querySelector:selector=>selector==='summary'?summary:body}
+ // A current summary is shown even while the execution state is unobserved.
+ const summary={},root={hidden:true,querySelector:selector=>selector==='summary'?summary:{}}
  renderCurrentWork(root,'bot',{name:'非対応native',currentWork:unobserved},[])
- assert.match(body.innerHTML,/<dt>実行状態<\/dt><dd>実行状態未取得<\/dd>/)
- assert.match(body.innerHTML,/共通APIの接続を確認しています/)
- assert.match(body.innerHTML,/<dt>最終観測<\/dt><dd>未取得<\/dd>/)
+ assert.equal(root.hidden,false)
+ assert.match(summary.textContent,/共通APIの接続を確認しています/)
  for(const state of ['idle','unknown'])for(const summaryStatus of ['current','stale'])assert.equal(currentWork({...generated,state,summaryStatus,summary:summaryStatus==='current'?generated.summary:null,source:'self_reported'}).summaryStatus,'missing')
  assert.equal(currentWork({...generated,state:'idle',observedAt:null}).summaryStatus,'missing')
 })
@@ -71,4 +59,11 @@ test('Room uses only its participant projection and never infers room work',()=>
  assert.equal(participantWork(room,bots).length,3)
  const duplicate={...room,currentWork:{scope:'participants',members:[{botId:'a',currentWork:examples.currentWork.workingCurrent},{botId:'a',currentWork:examples.currentWork.workingCurrent}]}}
  assert.equal(participantWork(duplicate,bots)[0].work.state,'unknown')
+})
+test('ago words',()=>{
+ const now=Date.parse('2026-11-12T00:00:00Z')
+ assert.equal(ago('2026-11-11T23:59:40Z',now),'たった今')
+ assert.equal(ago('2026-11-11T23:55:00Z',now),'5分前')
+ assert.equal(ago('2026-11-11T21:00:00Z',now),'3時間前')
+ assert.equal(ago('2026-11-09T00:00:00Z',now),'3日前')
 })

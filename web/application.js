@@ -245,7 +245,8 @@ export function createWebApp({ client = createWebClient() } = {}) {
     if (!targetMenu.hidden && !targetPicker.contains(event.target)) toggleTargetMenu(false)
   })
 
-  document.querySelector('#back-button').addEventListener('click', () => app.classList.remove('chat-open'))
+  // Leaving the conversation on a phone also stops the 1 s screen reads (W28).
+  document.querySelector('#back-button').addEventListener('click', () => { closeScreen(); app.classList.remove('chat-open') })
   ownerProfileButton.addEventListener('click', openOwnerDialog)
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) void updateCenter.refresh()
@@ -304,6 +305,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
     conversationComposer.addImages(images)
   })
   composer.addEventListener('submit', sendMessage)
+  document.querySelector('#composer-error-close').addEventListener('click', () => conversationComposer.showError(''))
   stopButton.addEventListener('click', () => { if (state.selectedType === 'bot' && state.selected) void stopMember(state.selected.id) })
 
   async function boot() {

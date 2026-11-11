@@ -289,7 +289,7 @@ test('chat and list share pause, resume, objective edit and clear results with e
   await new Promise(resolve => setImmediate(resolve))
   assert.equal(f.objective('a'), '新しい目的'); assert.equal(f.summary.title, '新しい目的')
   await f.button('a', '削除').events.click[0]()
-  assert.equal(f.row('a'), undefined); assert.equal(f.summary.textContent, '目標未設定')
+  assert.equal(f.row('a'), undefined); assert.equal(f.summary.textContent, '')
   assert.deepEqual(writes.map(input => input.action), ['pause', 'resume', 'edit', 'clear'])
   assert.ok(writes.every(input => input.binding.threadId === 'A'))
 })
@@ -311,14 +311,14 @@ test('chat read failure and omitted goal remain unknown without stale controls o
   await f.view.select('a'); assert.ok(f.chatButton('一時停止'))
   assert.doesNotMatch(f.summary.textContent, /0秒/)
   result = Error('artificial read failure'); await f.view.refreshSelected()
-  assert.match(f.summary.textContent, /状態を取得できません/)
+  assert.equal(f.summary.textContent, '') // W23: a failed read shows nothing in the chip
   assert.equal(f.chatButton('一時停止'), undefined)
   result = { snapshot: { botId: 'a', availability: 'available' } }; await f.view.refreshSelected()
-  assert.match(f.summary.textContent, /状態を取得できません/)
+  assert.equal(f.summary.textContent, '') // W23: a failed read shows nothing in the chip
   assert.doesNotMatch(f.chatBody.all().map(node => node.textContent).join('\n'), /ゴールなし/)
 })
 
-test('chat shows an idle seat as 休止中, not a read failure; a missing reason stays a read failure', async () => {
+test('chat shows an idle seat as 休止中; any other unavailable read shows nothing in the chip', async () => {
   const idle = '休止中です。メッセージを送ると再開します。'
   let result = { snapshot: { botId: 'a', availability: 'unavailable', reason: 'seat_idle', message: idle } }
   const f = fixture(async () => result, ['a'], true)
@@ -328,13 +328,13 @@ test('chat shows an idle seat as 休止中, not a read failure; a missing reason
   for (const reason of ['read_failed', undefined]) {
     result = { snapshot: { botId: 'a', availability: 'unavailable', ...(reason ? { reason } : {}), message: 'ゴールの状態を取得できません。' } }
     await f.view.refreshSelected()
-    assert.equal(f.summary.textContent, 'ゴール · 状態を取得できません')
+    assert.equal(f.summary.textContent, '')
   }
   // seat_idle counts only together with availability=unavailable.
   for (const availability of [undefined, 'bogus']) {
     result = { snapshot: { botId: 'a', ...(availability ? { availability } : {}), reason: 'seat_idle', message: idle } }
     await f.view.refreshSelected()
-    assert.equal(f.summary.textContent, 'ゴール · 状態を取得できません')
+    assert.equal(f.summary.textContent, '')
   }
 })
 
@@ -383,7 +383,7 @@ test('reselecting during a mutation cannot apply a precommit read after confirme
     await mutation
     oldRead.resolve({ snapshot: active }); await reselected
     assert.equal(f.chatButton('一時停止'), undefined)
-    assert.match(f.summary.textContent, /状態を取得できません/)
+    assert.equal(f.summary.textContent, '') // W23: a failed read shows nothing in the chip
     assert.equal(writes, 1)
     await f.view.refreshSelected()
     assert.ok(f.chatButton('再開')); assert.equal(f.chatRefresh.disabled, false)
