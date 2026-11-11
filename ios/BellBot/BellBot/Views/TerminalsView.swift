@@ -40,6 +40,7 @@ struct TerminalsCalmLine: View {
 struct TerminalListPage: View {
     var showsHeader = true
     @EnvironmentObject private var store: AppStore
+    @Environment(\.settingsNavigator) private var navigator
     @State private var adding = false
     @State private var openID: String?
 
@@ -64,7 +65,7 @@ struct TerminalListPage: View {
                             .font(BellTheme.detailFont).foregroundStyle(.secondary)
                     }
                     ForEach(list) { terminal in
-                        NavigationLink { TerminalDetailPage(terminalId: terminal.terminalId) } label: {
+                        SettingsNavLink(title: terminal.terminalId, chevron: true) { TerminalDetailPage(terminalId: terminal.terminalId) } label: {
                             TerminalRow(terminal: terminal, check: store.terminals.checks[terminal.terminalId])
                         }
                         .accessibilityIdentifier("terminal-row-\(terminal.terminalId)")
@@ -87,7 +88,9 @@ struct TerminalListPage: View {
             await store.refreshTerminals()
             #if DEBUG
             if let route = TerminalPreviewRoute.value {
-                if route.action == "add" || route.action == "addmac" { adding = true } else { openID = route.id }
+                if route.action == "add" || route.action == "addmac" { adding = true }
+                else if let navigator, let id = route.id { navigator.push(title: id, AnyView(TerminalDetailPage(terminalId: id).environmentObject(store))) }
+                else { openID = route.id }
             }
             #endif
         }

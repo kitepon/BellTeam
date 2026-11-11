@@ -1,6 +1,6 @@
 import SwiftUI
 
-private let backgroundAgentHarnesses = [("codex", "Codex"), ("claude", "Claude"), ("grok", "Grok"), ("cursor", "Cursor"), ("antigravity", "Antigravity")]
+let backgroundAgentHarnesses = [("codex", "Codex"), ("claude", "Claude"), ("grok", "Grok"), ("cursor", "Cursor"), ("antigravity", "Antigravity")]
 
 /// 保存できる組合せかを、モデル候補だけから判定する。候補に無い値を別の値で埋めない。
 struct BackgroundAgentChoices {
@@ -24,35 +24,8 @@ struct BackgroundAgentChoices {
     }
 }
 
-struct BackgroundAgentSettingsCard: View {
-    @EnvironmentObject private var store: AppStore
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 13) {
-            Label("仕事の要約を書くAI", systemImage: "text.badge.star").font(.headline)
-            Text("メンバー一覧に出る「今の仕事」を、チームで一人のAIがまとめます。")
-                .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
-            NavigationLink {
-                BackgroundAgentEditor()
-            } label: {
-                HStack { Text(summary); Spacer() }.padding(.vertical, 6)
-            }
-            .disabled(store.backgroundAgent == nil)
-            .accessibilityIdentifier("background-agent-settings")
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(20).bellCard()
-    }
-
-    private var summary: String {
-        guard let record = store.backgroundAgent else { return "このサーバーの版では設定できません。" }
-        guard let selection = record.selection else { return "未設定" }
-        return [selection.harness, selection.model, selection.reasoningEffort.isEmpty ? "CLIの既定" : selection.reasoningEffort]
-            .joined(separator: " · ")
-    }
-}
-
-private struct BackgroundAgentEditor: View {
+/// 仕事の要約を書くAI: its own settings item; the page is this editor under the item's head.
+struct BackgroundAgentEditor: View {
     @EnvironmentObject private var store: AppStore
     @State private var catalog: [String: HarnessModels] = [:]
     @State private var loading = true
@@ -70,6 +43,7 @@ private struct BackgroundAgentEditor: View {
 
     var body: some View {
         Form {
+            Section { SettingsPageHeader(page: .summary) }.listRowBackground(Color.clear)
             if loading {
                 ProgressView("モデル候補を読み込んでいます…")
             } else if store.backgroundAgent == nil {

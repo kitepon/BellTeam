@@ -45,7 +45,7 @@ final class InstalledConversationUITests: XCTestCase {
         XCTAssertTrue(app.buttons["settings-profile"].waitForExistence(timeout: 10))
         app.buttons["settings-row-notifications"].tap()
 
-        let registered = app.staticTexts["返信・入力要求を通知します"]
+        let registered = app.staticTexts["返信・入力要求がこの端末に届きます"]
         let settingsScroll = app.scrollViews.firstMatch
         for _ in 0..<4 {
             if registered.isHittable { break }

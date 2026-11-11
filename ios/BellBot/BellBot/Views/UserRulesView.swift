@@ -1,0 +1,119 @@
+import SwiftUI
+
+/// チームの決まり: the rules text read as rules, with 編集する opening the full-text editor.
+/// The text lives in SettingsHomeState (`GET /api/user-rules`), so the home row, this page and the editor share one value.
+struct UserRulesPage: View {
+    @EnvironmentObject private var store: AppStore
+    @EnvironmentObject private var home: SettingsHomeState
+    @State private var editing = false
+
+    var body: some View {
+        SettingsCardPage(page: .rules) {
+            if home.rulesText != nil {
+                SettingsMainButton(title: "編集する", identifier: "rules-edit") { editing = true }
+            } else if home.rulesUnreadable {
+                SettingsMainButton(title: "読み直す", identifier: "rules-reload") { Task { await home.loadRules() } }
+            }
+        } content: {
+            if let text = home.rulesText { UserRulesDocumentView(document: UserRulesDocument.parse(text)) }
+            else if !home.rulesUnreadable { ProgressView() }
+        }
+        .task { await home.loadRules() }
+        .sheet(isPresented: $editing) { UserRulesEditor(initial: home.rulesText ?? "").environmentObject(store).environmentObject(home).bellEditorSheet() }
+    }
+}
+
+private struct UserRulesDocumentView: View {
+    let document: UserRulesDocument
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if document.isEmpty {
+                Text("まだ決まりがありません。「編集する」から書けます。").font(BellTheme.detailFont).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            ForEach(Array(document.sections.enumerated()), id: \.offset) { _, section in
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(section.topic).font(.headline)
+                    if let note = section.note { Text(note).font(BellTheme.secondaryFont).foregroundStyle(.secondary) }
+                    ForEach(Array(section.rules.enumerated()), id: \.offset) { _, rule in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(rule.id).font(.subheadline.weight(.semibold))
+                            ForEach(Array(rule.clauses.enumerated()), id: \.offset) { _, clause in
+                                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                                    Text(clause.label).font(.caption.weight(.semibold)).foregroundStyle(BellTheme.violet)
+                                        .frame(width: 92, alignment: .leading)
+                                    Text(clause.text).font(BellTheme.detailFont).frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16).bellCard()
+            }
+            if !document.plainLines.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Array(document.plainLines.enumerated()), id: \.offset) { _, line in
+                        Text(line).font(BellTheme.detailFont).frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding(16).bellCard()
+            }
+        }
+    }
+}
+
+/// The full-text editor: 保存 sends the whole text (`PUT /api/user-rules`); the result and a failure appear right under the button.
+private struct UserRulesEditor: View {
+    @EnvironmentObject private var store: AppStore
+    @EnvironmentObject private var home: SettingsHomeState
+    @Environment(\.dismiss) private var dismiss
+    @State private var text: String
+    @State private var saving = false
+    @State private var errorText: String?
+
+    init(initial: String) { _text = State(initialValue: initial) }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextEditor(text: $text).frame(minHeight: 260)
+                        .accessibilityIdentifier("rules-text")
+                } header: {
+                    BellSectionHeader("決まりの全文")
+                } footer: {
+                    Text("チーム全員が、あなたについて守る指示です。").font(BellTheme.secondaryFont)
+                }
+                Section {
+                    Button { Task { await save() } } label: { Text(saving ? "保存しています…" : "保存").frame(maxWidth: .infinity) }
+                        .buttonStyle(.borderedProminent).tint(BellTheme.violet).controlSize(.large)
+                        .disabled(saving)
+                        .accessibilityIdentifier("rules-save")
+                    if let errorText { SettingsBanner(message: errorText) }
+                }
+            }
+            .navigationTitle("チームの決まり")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .topBarLeading) { Button("キャンセル") { dismiss() }.disabled(saving) } }
+        }
+    }
+
+    private func save() async {
+        saving = true
+        errorText = nil
+        defer { saving = false }
+        do {
+            let response: UserRulesResponse = try await store.api.put("/api/user-rules", body: UserRulesRequest(text: text))
+            home.rulesSaved(response.text)
+            dismiss()
+        } catch let error where BellAPIError.isAuthenticationError(error) {
+            store.requireLogin(for: error)
+        } catch {
+            errorText = "決まりを保存できませんでした。入力は残っています。プロフィールには影響しません。\(BellAPIError.operationFailureMessage(error))"
+            store.api.diagnostics.report(error, path: "/api/user-rules", method: "PUT", observation: .write)
+        }
+    }
+}

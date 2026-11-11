@@ -2,6 +2,7 @@ import SwiftUI
 
 struct FeatureSettingsList: View {
     @EnvironmentObject private var store: AppStore
+    @Environment(\.settingsNavigator) private var navigator
     @State private var errorText: String?
     #if DEBUG
     @State private var previewOpen: String?
@@ -9,23 +10,20 @@ struct FeatureSettingsList: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 13) {
-            Label("追加機能", systemImage: "slider.horizontal.3").font(.headline)
             Text("未設定の機能は無効です。案内役との会話でも設定できます。")
                 .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
-            ForEach(store.featureSettings) { setting in
-                NavigationLink {
-                    FeatureSettingDestination(setting: setting)
+            // 1Password is its own settings item.
+            ForEach(store.featureSettings.filter { $0.id != "onePassword" }) { setting in
+                SettingsNavLink(title: setting.title) {
+                    FeatureSettingEditor(setting: setting)
                 } label: {
-                    let onePassword = setting.id == "onePassword"
                     VStack(alignment: .leading, spacing: 5) {
                         HStack {
                             Text(setting.title); Spacer()
-                            if onePassword { OnePasswordBadge(state: OnePasswordState(setting)) }
-                            else { Text(setting.statusText).foregroundStyle(setting.error == nil ? BellTheme.muted : .red) }
+                            Text(setting.statusText).foregroundStyle(setting.error == nil ? BellTheme.muted : .red)
                         }
                         if let failure = setting.error {
-                            // 1Password carries a plain message of its own; the code stays out of sight.
-                            Text(onePassword ? failure.message : "\(failure.code): \(failure.message)")
+                            Text("\(failure.code): \(failure.message)")
                                 .font(BellTheme.secondaryFont).foregroundStyle(.red)
                         }
                     }.padding(.vertical, 6)
@@ -37,7 +35,7 @@ struct FeatureSettingsList: View {
         .padding(20).bellCard()
         #if DEBUG
         .navigationDestination(item: $previewOpen) { id in
-            if let setting = store.featureSettings.first(where: { $0.id == id }) { FeatureSettingDestination(setting: setting) }
+            if let setting = store.featureSettings.first(where: { $0.id == id }) { FeatureSettingEditor(setting: setting) }
         }
         #endif
         .task {
@@ -50,16 +48,67 @@ struct FeatureSettingsList: View {
             #if DEBUG
             // `-bellbot-preview-feature <id>` opens that feature's editor for screenshots.
             let arguments = ProcessInfo.processInfo.arguments
-            if let index = arguments.firstIndex(of: "-bellbot-preview-feature"), arguments.indices.contains(index + 1) { previewOpen = arguments[index + 1] }
+            if let index = arguments.firstIndex(of: "-bellbot-preview-feature"), arguments.indices.contains(index + 1) {
+                let id = arguments[index + 1]
+                if let navigator, let setting = store.featureSettings.first(where: { $0.id == id }) {
+                    navigator.push(title: setting.title, AnyView(FeatureSettingEditor(setting: setting).environmentObject(store)))
+                } else { previewOpen = id }
+            }
             #endif
         }
     }
 }
 
-private struct FeatureSettingDestination: View {
-    let setting: FeatureSetting
+/// 1Password: its own settings item. The editor needs the server's item, so the page reads it first; a server without it says so.
+struct OnePasswordPage: View {
+    @EnvironmentObject private var store: AppStore
+    @State private var answered = false
+    @State private var errorText: String?
+
     var body: some View {
-        if setting.id == "onePassword" { OnePasswordSettingEditor(setting: setting) } else { FeatureSettingEditor(setting: setting) }
+        if let setting = store.featureSettings.first(where: { $0.id == "onePassword" }) {
+            OnePasswordSettingEditor(setting: setting)
+        } else {
+            Form {
+                Section { SettingsPageHeader(page: .onepassword) }.listRowBackground(Color.clear)
+                if !answered { ProgressView() }
+                else if let errorText {
+                    Section {
+                        Text("設定を読み込めませんでした").font(.headline)
+                        Text(errorText).font(.footnote).foregroundStyle(.red)
+                        Button("再読み込み") { Task { await load() } }
+                    }
+                } else {
+                    Section { TerminalsCalmLine(text: "このサーバーでは1Passwordの連携を設定できません", identifier: "onepassword-unsupported") }
+                }
+            }
+            .task { await load() }
+        }
+    }
+
+    private func load() async {
+        defer { answered = true }
+        do { try await store.refreshSettings(); errorText = nil }
+        catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
+        catch {
+            errorText = error.localizedDescription
+            store.api.diagnostics.report(error, path: "/api/settings", method: "GET", observation: .read(error, retainedData: !store.featureSettings.isEmpty))
+        }
+    }
+}
+
+/// The 通知の送信 (or any feature) editor in a sheet, for a button that must open it directly.
+struct FeatureSettingSheet: View {
+    let setting: FeatureSetting
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            FeatureSettingEditor(setting: setting)
+                .toolbar { ToolbarItem(placement: .topBarLeading) { Button("閉じる") { dismiss() } } }
+        }
+        // A sheet closes by dismiss(), not by popping the settings pane behind it.
+        .environment(\.settingsNavigator, nil)
     }
 }
 
@@ -79,7 +128,7 @@ struct OnePasswordBadge: View {
 }
 
 /// 1Password連携: paste the service-account token once. The guide, badge and connection line come from the server's item.
-private struct OnePasswordSettingEditor: View {
+struct OnePasswordSettingEditor: View {
     let setting: FeatureSetting
     @EnvironmentObject private var store: AppStore
     @Environment(\.openURL) private var openURL
@@ -110,6 +159,8 @@ private struct OnePasswordSettingEditor: View {
                     }
                     if let line = OnePasswordState.connectionLine(current) {
                         Text(line).font(.subheadline).foregroundStyle(BellTheme.muted).accessibilityIdentifier("onepassword-connection")
+                    } else if state == .off {
+                        Text("まだ連携していません。").font(.subheadline).foregroundStyle(BellTheme.muted)
                     }
                 }
                 if let guide = current.guide {
@@ -216,10 +267,11 @@ private struct OnePasswordSettingEditor: View {
     }
 }
 
-private struct FeatureSettingEditor: View {
+struct FeatureSettingEditor: View {
     let setting: FeatureSetting
     @EnvironmentObject private var store: AppStore
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.settingsNavigator) private var navigator
     @Environment(\.scenePhase) private var scenePhase
     @State private var enabled = false
     @State private var values: [String: String] = [:]
@@ -314,7 +366,7 @@ private struct FeatureSettingEditor: View {
             let session: SessionResponse = try await store.api.get("/api/session")
             store.authMode = session.authMode
             try await store.refreshSettings()
-            if currentSetting.error == nil { dismiss() }
+            if currentSetting.error == nil { if let navigator { navigator.pop() } else { dismiss() } }
         } catch let error where BellAPIError.isAuthenticationError(error) {
             store.requireLogin(for: error)
         } catch {

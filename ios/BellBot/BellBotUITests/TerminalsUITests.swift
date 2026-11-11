@@ -420,11 +420,10 @@ final class TerminalsUITests: XCTestCase {
     }
 
     func testOnePasswordSettingBadgeGuideAndTokenCheck() async throws {
-        var app = launch(["-bellbot-preview-settings", "features"])
-        XCTAssertTrue(app.buttons["feature-row-onePassword"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["feature-row-onePassword"].label.contains("未連携"))
-        shot(app, "50-settings-features-onepassword")
-        app.buttons["feature-row-onePassword"].tap()
+        // 1Password is its own settings item (settings-row-onepassword), no longer a row of 追加機能.
+        var app = launch(["-bellbot-preview-settings", "onepassword"])
+        XCTAssertTrue(app.descendants(matching: .any)["onepassword-badge"].firstMatch.waitForExistence(timeout: 10))
+        shot(app, "50-settings-onepassword")
         XCTAssertTrue(app.buttons["onepassword-guide-link"].waitForExistence(timeout: 5), "未連携の間は案内が開いている")
         XCTAssertEqual(app.descendants(matching: .any)["onepassword-badge"].firstMatch.label, "未連携")
         shot(app, "51-onepassword-not-connected-guide")
@@ -475,7 +474,7 @@ final class TerminalsUITests: XCTestCase {
 
         // Connected with no SSH keys: the next action.
         _ = try await call("/test/mode?setting=zero")
-        app = launch(["-bellbot-preview-settings", "features", "-bellbot-preview-feature", "onePassword"])
+        app = launch(["-bellbot-preview-settings", "onepassword"])
         let zero = app.staticTexts["onepassword-connection"]
         XCTAssertTrue(zero.waitForExistence(timeout: 10))
         XCTAssertTrue(zero.label.contains("SSH鍵が見つかりません"), zero.label)
@@ -528,7 +527,7 @@ final class TerminalsUITests: XCTestCase {
     /// Screenshots only (apple parity batch 1): the 1Password check's one result line in each state (the app is light-only: Info.plist UIUserInterfaceStyle=Light).
     func testShotsOnePasswordResultLine() async throws {
         func openEditor() -> XCUIApplication {
-            launch(["-bellbot-preview-settings", "features", "-bellbot-preview-feature", "onePassword"])
+            launch(["-bellbot-preview-settings", "onepassword"])
         }
         func check(_ app: XCUIApplication, token: String, shows prefix: String, shot name: String) {
             let field = app.secureTextFields["onepassword-token"]

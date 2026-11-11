@@ -5,13 +5,19 @@ struct AuthenticationInstructions: View {
     let auth: SetupAuthentication
     @Binding var code: String
     let busy: Bool
+    /// The settings login screen already says the state in its own words; it shows the server's title and message only when true (onboarding).
+    var showsServerText = true
+    /// The code is being sent: the send button says so.
+    var sending = false
     let onRespond: (AuthenticationReply.Response, AuthenticationUI) -> Void
 
     var body: some View {
         if let ui = auth.authUi {
             VStack(alignment: .leading, spacing: 12) {
-                Text(ui.title).font(.headline)
-                Text(ui.message).font(.subheadline)
+                if showsServerText {
+                    Text(ui.title).font(.headline)
+                    Text(ui.message).font(.subheadline)
+                }
                 if let url = ui.officialURL {
                     Link("公式サイトを開く", destination: url)
                         .accessibilityIdentifier("harness-auth-link")
@@ -32,7 +38,7 @@ struct AuthenticationInstructions: View {
                             .textContentType(.oneTimeCode)
                             .disabled(busy)
                             .accessibilityIdentifier("harness-auth-input")
-                        Button("認証コードを送る") {
+                        Button(sending ? "送っています…" : "認証コードを送る") {
                             onRespond(.authorizationCode(code), ui)
                         }
                         .disabled(busy || code.isEmpty)
@@ -51,7 +57,7 @@ struct AuthenticationInstructions: View {
                         .font(.footnote).foregroundStyle(.red)
                 }
             }
-        } else if let message = auth.message, !message.isEmpty {
+        } else if showsServerText, let message = auth.message, !message.isEmpty {
             Text(message).font(.subheadline)
         }
     }

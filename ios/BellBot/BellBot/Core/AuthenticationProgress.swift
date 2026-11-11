@@ -38,14 +38,16 @@ enum AuthenticationProgress: Equatable {
         }
     }
 
-    var tint: Color {
+    var tone: SettingsTone {
         switch self {
         case .done: .green
-        case .waitingSite, .waitingCode, .confirming, .sendingCode: BellTheme.violet
+        case .waitingSite, .waitingCode, .confirming, .sendingCode: .violet
         case .failed, .needsLogin, .unknown: .orange
-        case .checking: BellTheme.muted
+        case .checking: .gray
         }
     }
+
+    var tint: Color { tone.color }
 
     /// 行の主ボタン。利用者の操作が要る段階だけ。使える（done）・確認中・読めない間は出さない（行を押せば画面で読み直せる）。
     var action: String? {
