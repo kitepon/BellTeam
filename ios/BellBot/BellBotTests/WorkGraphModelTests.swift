@@ -463,6 +463,84 @@ final class WorkGraphModelTests: XCTestCase {
         XCTAssertEqual(WorkGraphModel.labelOrder(lines).map(\.edge.id), ["b", "a", "c"])
     }
 
+    // MARK: Fork edges (README「Projection rules > Fork edge」/ behavior-spec.md「Fork edges」)
+
+    private func decodeEdges(_ json: String) throws -> [WorkGraphEdge] { try JSONDecoder().decode([WorkGraphEdge].self, from: Data(json.utf8)) }
+
+    /// `seat`は任意。fork（forkIdは文字列かnull）だけforkで、seatなし・型違い・未知のkind・文字列でないforkIdは本体の席。どれでも辺の読み込みは壊れない。
+    func testForkSeatDecodesLeniently() throws {
+        let base = #""from":"x","to":"y","label":"L","state":"running""#
+        let edges = try decodeEdges("[" + [
+            #"{"id":"a",\#(base),"seat":{"kind":"fork","forkId":"f-1"}}"#,
+            #"{"id":"b",\#(base),"seat":{"kind":"fork","forkId":null}}"#,
+            #"{"id":"c",\#(base)}"#,
+            #"{"id":"d",\#(base),"seat":"fork"}"#,
+            #"{"id":"e",\#(base),"seat":{"kind":"other","forkId":"f-1"}}"#,
+            #"{"id":"f",\#(base),"seat":{"kind":"fork","forkId":7}}"#,
+            #"{"id":"g",\#(base),"seat":null}"#,
+            #"{"id":"h",\#(base),"seat":{"forkId":"f-1"}}"#,
+        ].joined(separator: ",") + "]")
+        XCTAssertEqual(edges.map(\.isFork), [true, true, false, false, false, false, false, false])
+        XCTAssertEqual(edges[0].fork?.forkId, "f-1")
+        XCTAssertNil(edges[1].fork?.forkId, "forkIdがnullのforkもfork")
+        XCTAssertEqual(edges.map(\.label), Array(repeating: "L", count: 8), "ほかの項目は変わらない")
+        // edge-start / edge-updateのedgeも同じ読み方。
+        let change = try JSONDecoder().decode(WorkGraphChange.self, from: Data(#"{"type":"edge-start","edge":{"id":"a",\#(base),"seat":{"kind":"fork","forkId":"f-1"}}}"#.utf8))
+        guard case .edgeStart(let started) = change else { return XCTFail("edge-start") }
+        XCTAssertTrue(started.isFork)
+    }
+
+    /// 札の文は「分身：」＋labelの1つの文。本体の席はlabelのまま、labelがnull・空なら分身の辺でも札なし。
+    func testForkChipTextIsOneTextAndNullLabelHasNoChip() throws {
+        let fork = WorkGraphEdge(id: "f", requestId: "r", from: "a", to: "b", label: "設計を見て", state: "running", fork: WorkGraphForkSeat(forkId: nil))
+        let main = edge("a", "b", label: "設計を見て")
+        XCTAssertEqual(fork.chipText, "分身：設計を見て")
+        XCTAssertEqual(main.chipText, "設計を見て")
+        XCTAssertNil(WorkGraphEdge(id: "f", requestId: "r", from: "a", to: "b", label: nil, state: "running", fork: WorkGraphForkSeat(forkId: "x")).chipText)
+        XCTAssertNil(WorkGraphEdge(id: "f", requestId: "r", from: "a", to: "b", label: "", state: "running", fork: WorkGraphForkSeat(forkId: "x")).chipText)
+        // 「分身：」はlabelと一緒に測る（別の札・別の幅にしない）。
+        XCTAssertEqual(WorkGraphView.chipSize("分身：設計を見て").width, WorkGraphView.chipSize(fork.chipText!).width)
+        XCTAssertGreaterThan(WorkGraphView.chipSize(fork.chipText!).width, WorkGraphView.chipSize(main.chipText!).width)
+        // layoutChipsが置く札の文も同じ。nullのlabelの分身の辺は札を作らない。
+        let nullFork = WorkGraphEdge(id: "n", requestId: "r", from: "a", to: "c", label: nil, state: "running", fork: WorkGraphForkSeat(forkId: nil))
+        let model = entering([node("a"), node("b"), node("c")], [fork, nullFork])
+        model.layoutChips([straight("f"), straight("n", y: 3000)], size: chipSize, hover: nil, now: 1)
+        XCTAssertEqual(drawn(model).map(\.text), ["分身：設計を見て"])
+        XCTAssertNil(model.lines["n"]?.chip)
+    }
+
+    /// 分身の辺はメンバーを作業中にしない。`working`はサーバーの`node.state`だけで決まり、辺からは導かない（分身の辺の受け手は`linked`のまま）。
+    func testForkEdgeDoesNotMakeAMemberWorking() {
+        let model = WorkGraphModel()
+        model.step(now: 0, size: CGSize(width: 800, height: 600), insets: EdgeInsets())
+        let fork = WorkGraphEdge(id: "f", requestId: "r", from: "a", to: "b", label: "L", state: "running", fork: WorkGraphForkSeat(forkId: "x"))
+        model.apply(WorkGraphSnapshot(epoch: "e", version: 1, degraded: [], nodes: [node("a"), node("b", "linked")], edges: [fork]), at: 0)
+        XCTAssertEqual(model.lines["f"]?.edge.isFork, true)
+        XCTAssertEqual(model.bodies["b"]?.node.working, false)
+        model.apply(WorkGraphBatch(epoch: "e", version: 2, degraded: [], changes: [.edgeUpdate(fork)]), at: 1)
+        XCTAssertEqual(model.bodies["b"]?.node.working, false)
+        XCTAssertEqual(model.bodies["a"]?.node.working, true)
+    }
+
+    /// 破線（6pt線・4pt隙間）は分身の辺だけ。本体の席は実線。
+    func testOnlyForkEdgesAreDashed() {
+        XCTAssertEqual(WorkGraphEdge(id: "f", requestId: nil, from: "a", to: "b", label: nil, state: "steered", fork: WorkGraphForkSeat(forkId: nil)).baseDash, [6, 4], "steeredの分身も同じ破線")
+        XCTAssertEqual(edge("a", "b").baseDash, [])
+    }
+
+    /// 札を測る文の欄と描く文の欄は同じ幅（以前は描く欄が3pt広く、最大幅の札では折り返しが測った高さとずれ得た）。
+    @MainActor
+    func testChipTextColumnIsTheSameWhenMeasuredAndDrawn() {
+        for label in ["比較表を更新", "分身：" + String(repeating: "会話一覧の位置が飛ばないこと", count: 5), "分身：iPhone and Mac screenshots of the work graph chip wrapping at the edge"] {
+            let size = WorkGraphView.chipSize(label)
+            let column = WorkGraphView.textColumn(size.width)
+            let height = ceil(WorkGraphView.labelText(label).boundingRect(with: CGSize(width: column, height: .greatestFiniteMagnitude),
+                                                                          options: .usesLineFragmentOrigin, context: nil).height)
+            XCTAssertEqual(height + 10, size.height, "\(label): 描く欄で折り返した高さが測った高さと同じ")
+            XCTAssertLessThanOrEqual(size.width, WorkGraphView.labelMaxWidth)
+        }
+    }
+
     // MARK: Chips (behavior-spec.md「Edges」: decided once per edge at the latch frame)
 
     private let chipSize: (String) -> CGSize = { _ in CGSize(width: 100, height: 26) }

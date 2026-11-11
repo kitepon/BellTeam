@@ -7,7 +7,7 @@ const fixture = JSON.parse(source.match(/let source = """\n([\s\S]*?)\n\s*"""/u)
 
 const minutesAgo = minutes => new Date(Date.now() - minutes * 60_000).toISOString()
 const node = (botId, name, color, state, minutes) => ({ botId, name, color, avatarVersion: '', state, activeSince: minutesAgo(minutes) })
-const edge = (from, to, label, state = 'running') => ({ id: `req-${from}-${to}:${to}`, requestId: `req-${from}-${to}`, from, to, context: 'direct', roomId: null, label, state, startedAt: minutesAgo(1) })
+const edge = (from, to, label, state = 'running', seat) => ({ id: `req-${from}-${to}:${to}`, requestId: `req-${from}-${to}`, from, to, context: 'direct', roomId: null, label, state, startedAt: minutesAgo(1), ...(seat ? { seat } : {}) })
 
 const base = {
   nodes: [
@@ -33,6 +33,15 @@ const crowd = {
   nodes: names.map((name, index) => node(`crowd-${index}`, name, colors[index % colors.length], index % 5 === 4 ? 'linked' : 'working', index)),
   edges: Array.from({ length: 10 }, (_, index) => edge(`crowd-${index}`, `crowd-${(index * 7 + 3) % 24}`, `依頼${index + 1}の確認`)),
 }
+// 分身の辺（seat.kind 'fork'）1本と通常の辺1本。ナギは分身の問い合わせを受けるだけなので working にならない。
+const fork = {
+  nodes: [node('bot-one', 'ユキ', 'indigo', 'working', 3), node('bot-two', 'ハル', 'violet', 'working', 1),
+    node('bot-three', 'ナギ', 'rose', 'linked', 0), node('bot-four', 'キロ', 'mint', 'working', 7)],
+  edges: [
+    edge('bot-one', 'bot-two', '比較表を更新'),
+    edge('bot-four', 'bot-three', 'この設計で公開範囲に問題がないか、読み取り専用で見てほしい', 'running', { kind: 'fork', forkId: 'fork-1' }),
+  ],
+}
 const extra = node('bot-six', 'センチ', 'sky', 'working', 0)
 const extraEdge = edge('bot-five', 'bot-six', '版114のコンテナを作って配布して')
 
@@ -44,7 +53,7 @@ let streams = []
 let ticker = null
 
 const snapshot = () => ({ schema: 'bellteam.work-graph.v1', epoch, version, at: new Date().toISOString(),
-  degraded: mode === 'degraded' ? ['responders'] : [], ...(mode === 'empty' ? { nodes: [], edges: [] } : mode === 'crowd' ? crowd : graph) })
+  degraded: mode === 'degraded' ? ['responders'] : [], ...(mode === 'empty' ? { nodes: [], edges: [] } : mode === 'crowd' ? crowd : mode === 'fork' ? fork : graph) })
 
 function publish(changes) {
   version += 1

@@ -21,7 +21,46 @@ struct WorkGraphEdge: Decodable, Equatable {
     let label: String?
     let state: String
     var startedAt: String? = nil
+    /// `seat: {kind: "fork", forkId}`の辺（読み取り専用の分身への問い合わせ）。nilは本体の席（`seat`なし）。
+    var fork: WorkGraphForkSeat? = nil
     var steered: Bool { state == "steered" }
+    var isFork: Bool { fork != nil }
+    /// 土台の線の破線（6pt線・4pt隙間）。本体の席は実線（空）。
+    var baseDash: [CGFloat] { isFork ? [6, 4] : [] }
+    /// 札の文。分身の辺は「分身：」＋label（1つの文として折り返し・測る）。labelがnull・空なら札なし。
+    var chipText: String? {
+        label.flatMap { $0.isEmpty ? nil : (isFork ? "分身：" : "") + $0 }
+    }
+}
+
+struct WorkGraphForkSeat: Decodable, Equatable {
+    let forkId: String?
+
+    private enum Key: String, CodingKey { case kind, forkId }
+
+    init(forkId: String?) { self.forkId = forkId }
+
+    /// kindがforkでない・forkIdが文字列でない形は投げる。呼び出し側（`WorkGraphEdge`）が`try?`で「seatなし」として読む。
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Key.self)
+        guard try c.decode(String.self, forKey: .kind) == "fork" else {
+            throw DecodingError.dataCorruptedError(forKey: .kind, in: c, debugDescription: "not a fork seat")
+        }
+        forkId = try c.decodeIfPresent(String.self, forKey: .forkId)
+    }
+}
+
+extension WorkGraphEdge {
+    private enum Key: String, CodingKey { case id, requestId, from, to, label, state, startedAt, seat }
+
+    /// `seat`は任意で、読めなければ（型違い・未知のkind）本体の席として読む。ほかの項目は従来どおり必須／任意。
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Key.self)
+        self.init(id: try c.decode(String.self, forKey: .id), requestId: try c.decodeIfPresent(String.self, forKey: .requestId),
+                  from: try c.decode(String.self, forKey: .from), to: try c.decode(String.self, forKey: .to),
+                  label: try c.decodeIfPresent(String.self, forKey: .label), state: try c.decode(String.self, forKey: .state),
+                  startedAt: try c.decodeIfPresent(String.self, forKey: .startedAt), fork: try? c.decode(WorkGraphForkSeat.self, forKey: .seat))
+    }
 }
 
 struct WorkGraphSnapshot: Decodable {
@@ -835,7 +874,7 @@ final class WorkGraphModel: ObservableObject {
         let byId = Dictionary(paths.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         for line in Self.labelOrder(lines.values.filter { byId[$0.edge.id] != nil }) {
             guard let path = byId[line.edge.id] else { continue }
-            let label = line.edge.label.flatMap { $0.isEmpty ? nil : $0 }
+            let label = line.edge.chipText
             // 入場中の位置では決めない。退場中・もういない端は入場を終えた扱い。
             let landed = [line.edge.from, line.edge.to].allSatisfy { id in
                 bodies[id].map { $0.leavingAt != nil || now - $0.enteredAt >= enter } ?? true

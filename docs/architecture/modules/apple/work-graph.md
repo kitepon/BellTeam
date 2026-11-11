@@ -10,6 +10,10 @@ flowchart LR
   View --> Model["Core/WorkGraphModel.swift<br/>WorkGraphModel（参照型・botId鍵）<br/>描画中の図・シミュレーション・接続状態"]
   Model --> Stream["BellAPI.eventStream(path:)<br/>GET /api/work-graph/events"]
   Stream --> Model
+  Stream -->|"snapshot.edges[] と edge-start / edge-update の edge"| Decode["WorkGraphEdge.init(from:)<br/>seat は任意・寛容に読む：seat.kind == fork の object だけ fork（forkId は文字列かnull）<br/>seat が無い・型が違う・未知のkind・forkId が文字列でない → 無し（本体の席の辺。読み込みは壊れない）"]
+  Decode -->|"fork あり"| Fork["WorkGraphEdge.isFork<br/>baseDash = 6pt 線・4pt 隙間（本体の席は実線）<br/>chipText = 「分身：」＋label（labelがnull・空なら札なし）"]
+  Fork -->|"baseDash（被覆と導線の2本とも。butt端）"| View
+  Fork -->|"chipText（測る文＝描く文）"| Chips
   Model --> Sim["WorkGraphSimulation（純粋）<br/>力学・入退場・点滅位相・流れの点"]
   Model -->|"毎コマ（step、衝突の前）"| Clear["WorkGraphModel.clearanceForces<br/>関係ないメンバーの四角（アイコン＋描く名前、6pt広げる）を<br/>線と、ふさがれた札から押し出す（kc 0.003）<br/>線の両端は逆の押し、自分の端に当たる札は線を伸ばす"]
   Chips -->|"札の大きさ（Chip.size）"| Clear
@@ -20,7 +24,7 @@ flowchart LR
   View --> Avatar["AvatarView（Canvas symbols）<br/>GET /api/bots/:id/avatar?v=avatarVersion"]
   View -->|"毎フレームの線・指しているメンバー・Macのポインタが乗る線"| Chips["WorkGraphModel.layoutChips<br/>札をlatch frameで一度だけ作り辺の終わりまで残す<br/>置き場所（位置tと側。85個。札の枠を4pt広げた範囲を描画範囲Dの内側へ滑らせてから障害物を調べる。Dより高い札はOversize＝空きspotなし）・blocked・指した札・待つ札の見せ方（peek。Oversizeは高さDの箱で文を送る）<br/>名前の置き場所（下→上→隠す）と見せるメンバー"]
   Drawable["WorkGraphModel.drawable（描画範囲D）<br/>安全域・タブを除き四方24pt内側"] -->|"D"| Chips
-  Drawable -->|"札の最大幅 = min(180pt, D幅 − 8pt)"| Measure["WorkGraphView.chipSize(_:maxWidth:)<br/>折り返して高さが決まる（行の高さ16pt）"]
+  Drawable -->|"札の最大幅 = min(180pt, D幅 − 8pt)"| Measure["WorkGraphView.chipSize(_:maxWidth:)<br/>折り返して高さが決まる（行の高さ16pt）<br/>文の欄の幅は textColumn(札の幅) = 札の幅 − アイコン − 22pt。測る時も描く時（drawTag）も同じ欄"]
   Measure -->|"札の大きさ（折り返しで高くなればOversizeになる）"| Chips
   Wheel["Mac: PeekScrollCatcher<br/>窓のトラックパッド・ホイール（触れる操作は受けない）"] -->|"scrollPeek(by:at:) ポインタが最前面のOversizeの箱の中"| Chips
   Press -->|"iPhone: updatePress(scrollsPeek:) 箱の中で始めた縦のドラッグ。メンバーの範囲で始めた押下は送らない"| Chips
@@ -49,6 +53,7 @@ flowchart LR
 | 変更 | `change`はepochが一致し`version == 前回 + 1`の時だけ順に適用。それ以外（欠番・新epoch・解釈失敗）は接続を閉じて取り直す |
 | 入退場 | member-enterは画面外の決まった角度から飛び込み、member-leaveは中心から外へ飛び去る。leave開始後のnodeは力を出さない |
 | 辺 | edge-startで線が依頼元から伸び、その後に点が依頼元から依頼先へ流れる。edge-endで薄れて消える |
+| 分身の辺 | work-graph README「Projection rules > Fork edge」、behavior-spec.md「Edges and the flow effect > Fork edges」。`seat: {kind: "fork", forkId}`を持つ辺（読み取り専用の分身への問い合わせ）。経路・流れ・矢じり・steeredの見た目・始まりと終わり・札の置き場所は本体の席の辺と同じで、違うのは2点だけ。土台の線（被覆7ptと導線2.5ptの2本）を破線（6pt線・4pt隙間。丸い端だと隙間が埋まるので端は平ら）にする。札の文は「分身：」＋`label`の1つの文として折り返し、測る（`chipText`）。`label`がnullなら札なし（破線だけが分身の印）。分身の辺は`working`にしない：`working`はサーバーが送る`node.state`だけで決まり、クライアントは辺から導かない。`seat`が無い辺は本体の席。`seat`が読めない形（型違い・未知のkind・文字列でない`forkId`）でも辺は本体の席として読み、図は壊れない |
 | 交差の解消 | behavior-spec.md「Uncrossing swaps」。`step`の末尾で、進めたコマ数（`dt × 60`）が30たまるごとに1回。開いた線（`endedAt`なし）で両端が退場中でないものを、A→BもB→Aも1本の直線として`crossings`/`bestSwap`（layout-sim.mjsの写し）に渡す。2本が端を共有すれば交差に数えない。線を持つ人を含む組ごとに、入れ替えて減る交差を数え、1以上減る中で最大の1組（同数はbotId順の先）の`position`と`velocity`を入れ替える（αは変えない）。減る組が無ければ入れ替えない。入れ替えた人は`glideFrom`（入れ替え前の描いた位置）と`glideAt`を持ち、`appearance`が700msでenter曲線に沿って新しい位置へ滑らせる。入場中の人は`glideFrom`を持たず、入場の補間のまま新しい位置へ向かう。動きを減らす設定では滑らせず、200msの前半は元の位置で消え、後半は新しい位置で現れる。線と札は描いた位置に従う |
 | clearance | behavior-spec.md「Clearance」、layout-sim.mjsの写し。`step`が毎コマ、ばね・斥力の後・積分の前に`clearanceForces`の力を足す（αで掛ける）。メンバーの四角＝アイコンの正方形と描く名前の文字の四角（`placeName`。隠れた名前は含めない）の合併。線の押しは開いた線ごと（A→BとB→Aは1本、二人で1回）、札の押しと線の伸びは札を持つ依頼ごと（A→BとB→Aの札はそれぞれ働く）に行う。両端でない退場中でないメンバーCについて、線がCの四角（6pt広げる）に入れば、Cを線の最近点から押し出し（kc = 0.003）、両端は逆向きに`1−t`・`t`で受ける（Cの中心が線の真上なら線の法線）。札がふさがれていれば（`layoutChips`が書いた`Chip.size`で、全spot（85個）が自分の端を含む全メンバーの四角にふさがる）、`t = 0.5`中心の札の四角（4pt広げる）がCの四角（広げない）に触れる時、Cを札の中心から押し出し両端は半分ずつ。ふさがれた札が自分の端に触れていれば両端を線に沿って離す。札を持たない線（`label`なし・消え際）は札の力が無い。衝突・境界・札の置き場所は変えない |
 | 熱 | 変更を適用した時と大きさが変わった時にα=1。毎フレーム減衰し、下限で漂い続ける |
@@ -79,6 +84,7 @@ flowchart LR
 ## 試験
 
 - `BellBotTests/WorkGraphModelTests.swift`: 変更の適用順・欠番での取り直し・snapshot差分で位置を保つ・leaveの猶予なし（サーバー側の責任）・力学1ステップの不変条件（境界・衝突）・札の文の折り返し（行の高さ16pt）・札を置く順（`startedAt`の古い順）。
+- 同ファイル（分身の辺）: `seat`がforkの辺を読む（forkId文字列・null・無し）・`seat`なしは本体の席・型違い／未知のkind／文字列でないforkIdの`seat`は無しとして読み辺は壊れない（snapshotとedge-startの両方）・`chipText`が「分身：」＋labelで、本体の席は`label`のまま・labelがnull・空なら札なし（分身の辺でも）・分身の辺を含むsnapshotでメンバーの`working`が変わらない・`baseDash`が分身だけ6pt/4pt・札を測る文と描く文の欄の幅が同じ（`textColumn`で測った高さが`chipSize`の高さと一致する）。
 - 同ファイル（札）: latch frameは`label`と両端の入場の終わりを待つ（動きを減らす設定は200ms、退場中の端は終わった扱い）・混んだ図（11本）でも短い線（120pt未満）でも3秒後・60秒後も出続け、辺の終わりに300msで消える・空きが無い札は期限なく待ち、空いたコマで200msで現れる・文の変更は測り直しだけ、nullへ戻ると300msで消える・空いている間は今のspotを保ち、ふさがれた時だけ最初の空きへ移る・置き場所は85個で並びと側の寄せがlayout-sim.mjsの`chipSpots`/`chipBox`と一致し、中心がふさがれた時の行き先（上・下・左・右）と同じ線の5本の広がり方がsimと同じ手順の値に一致する・描いている名前とアイコンには重ならない・不透明度0の名前は障害物にならず、見えたらふさがれて移る・退場中のメンバーのアイコンも名前も障害物でない・空きが無ければ今のspotのままblocked、空けば戻る・タップの順（メンバー＞札＞blockedの札＞線、上に札があってもメンバー）。
 - 同ファイル（名前）: 下が他のアイコンに重なる名前は顔の上へ移る・上下とも重なる名前は隠れて障害物にならず、その欄の押下はメンバーへ行く・指している間だけ見えて札がよけ、ほかのメンバーを指しても見えない。
 - 同ファイル: タップ範囲の44pt四方・10pt/500msの境目・線/札/空いた所で開かない・押した時のbotIdを退場後も保つ・取り消された押下の後の同じ位置の新しい押下は新しいメンバーを開く・最初の標本が10pt以上動いていれば動いた扱い・400〜500msの押下はタップで500ms以上は開かない・相関図から開いた会話で戻ると相関図のタブへ帰る（縮んだiPadの`returnFromConversation`を含む）。
@@ -87,4 +93,4 @@ flowchart LR
 - 同ファイル（交差の解消）: layout-sim.mjsの`crossings`/`bestSwap`を実行して得た値を写した固定の配置（交差する正方形・減らない配置・同数の組・退場中を除く・5人全結合の交差が0にならない）で、数と選ばれる組が一致する・`step`が30コマごとに1組だけ入れ替えて位置と速度を渡しαは変えない・入れ替えた人の描いた位置が連続して700msで新しい位置に着く・動きを減らす設定は200msの出て入る。
 - 同ファイル（画面内）: layout-sim.mjsの自己検査と同じ配置（左端に沿う線の中心の札がt = 0.5で右へ滑りx0 = Dの左端・縦そのまま、Oversizeが空きspotを持たずblockedで上端がDの上端・同じ列・描く札1枚）・滑らせるのは外へ出る時だけ（収まる5つの側は動かず、1pt出れば1pt戻る）・最大幅が180ptとD幅 − 8ptの小さい方・滑らせた後も尖りの根元が丸みの内側で先が線の点を指す・Oversizeの指し見せが高さD・1行目から開き最後の行まで送れ外れれば捨てる・iPhoneのドラッグで送りメンバーから始めた押下は送らない。札の試験は図の外に置いた線をDに収めるため、Dを大きく取る（`bigArea`）。
 - `BellBotUITests/WorkGraphTapUITests.swift`（iPhone）: fixtureの相関図でハルを押すとハルの会話が開き、戻ると相関図のタブへ帰る。fixtureのURLは`TEST_RUNNER_BELLTEAM_WORK_GRAPH_FIXTURE_URL`。
-- 描画の画面写真は`test/helpers/work-graph-server.mjs`（契約どおりのsnapshotとchangeを流すfixture。長い依頼の文2本と`label`がnullの線を含む）で撮る。
+- 描画の画面写真は`test/helpers/work-graph-server.mjs`（契約どおりのsnapshotとchangeを流すfixture。長い依頼の文2本と`label`がnullの線を含む）で撮る。分身の辺は`/test/reset?mode=fork`の後に起動する（通常の辺1本と`seat.kind: fork`の辺1本。`-bellbot-preview-work-graph`で相関図を開く）。
