@@ -40,14 +40,14 @@ export function usageEffectValid(method, params, context, rootParams = {}) {
   if (method === 'members.read') return exact(params, '') && (context.kind === 'control' && context.method === 'initialize' && ['services', 'restore'].includes(context.mode)
     || context.kind === 'root' && ['secrets.create', 'questions.create', 'onboarding.prepareStartup'].includes(context.method))
   if (context.kind !== 'root') return false
-  if (method === 'auth.prepareAccount') return exact(params, 'harness,slot') && params.harness === 'claude'
+  if (method === 'auth.prepareAccount') return (exact(params, 'harness,slot') || exact(params, 'harness,slot,tokenFile') && params.tokenFile === true) && params.harness === 'claude'
     && ['1st', '2nd'].includes(params.slot) && params.harness === rootParams.harness && params.slot === (rootParams.slot ?? '1st')
     && ['auth.start', 'auth.status', 'auth.input', 'auth.cancel'].includes(context.method)
   if (method === 'auth.listAccounts') return exact(params, '')
     && ['auth.start', 'auth.status', 'auth.input'].includes(context.method) && rootParams.harness === 'claude'
   if (method === 'auth.call') return named(params, ['harness', 'action'], ['session_id', 'relogin', 'expected_binding', 'expected_prompt_digest', 'response', 'configuration_root', 'login', 'token_file'])
     && Object.hasOwn(params, 'login') === Object.hasOwn(params, 'token_file')
-    && (!Object.hasOwn(params, 'login') || params.login === 'oauth_token' && rootParams.harness === 'claude' && rootParams.slot === '2nd'
+    && (!Object.hasOwn(params, 'login') || params.login === 'oauth_token' && rootParams.harness === 'claude'
       && params.harness === HARNESS.claude && typeof params.token_file === 'string' && isAbsolute(params.token_file) && !params.token_file.includes('\0'))
     && Object.values(HARNESS).includes(params.harness) && authActions[context.method]?.includes(params.action)
     && (!params.session_id || text(params.session_id)) && (!Object.hasOwn(params, 'relogin') || typeof params.relogin === 'boolean')
@@ -73,8 +73,8 @@ export function usageEffectResultValid(method, value) {
   if (method === 'members.read') return Array.isArray(value) && value.every(metadata)
   if (method === 'onboarding.ensureGuide') return metadata(value) && value.id === GUIDE_BOT_ID
   if (method === 'rooms.read') return Array.isArray(value) && value.every(room => exact(room, 'id,memberIds') && text(room.id) && Array.isArray(room.memberIds) && room.memberIds.every(text))
-  if (method === 'auth.prepareAccount') return exact(value, 'configurationRoot') && typeof value.configurationRoot === 'string'
-    && isAbsolute(value.configurationRoot) && !value.configurationRoot.includes('\0')
+  if (method === 'auth.prepareAccount') return named(value, ['configurationRoot'], ['tokenFile'])
+    && [value.configurationRoot, value.tokenFile ?? '/'].every(path => typeof path === 'string' && isAbsolute(path) && !path.includes('\0'))
   if (method === 'auth.listAccounts') return exact(value, 'harnesses') && Array.isArray(value.harnesses) && value.harnesses.length <= 1
     && value.harnesses.every(row => exact(row, 'harness,slots') && row.harness === 'claude' && Array.isArray(row.slots) && row.slots.length <= 2
       && row.slots.every(slot => exact(slot, 'slot,loggedIn,label') && ['1st', '2nd'].includes(slot.slot)

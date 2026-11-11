@@ -284,3 +284,31 @@ test('2nd refuses an Aiterm without the oauth_token echo and a failed 2nd cancel
   assert.equal(restarted.auth.session_id, 'second-session')
   assert.deepEqual(calls.slice(-2).map(args => args.action), ['cancel', 'start'])
 })
+
+test('one login per slot: both slots log in from prepared tokenFile with a slot-named unsupported error and forgiving cancel', async () => {
+  let echo = true, cancelFails = false
+  const calls = []
+  const client = { async call(_name, args) {
+    calls.push(args)
+    if (args.action === 'cancel' && cancelFails) throw Object.assign(new Error('rejected'), { code: 'AGENT_AUTH_LOGIN_REJECTED' })
+    return { structuredContent: receipt(`${(args.configuration_root ?? '/default').split('/').pop()}-session`, echo ? { login: 'oauth_token' } : {}) }
+  } }
+  const auth = new HarnessAuth({ bots: new Map(), client, accounts: { async prepare(_harness, slot) {
+    return { configurationRoot: `/synthetic/${slot}`, history: 'shared', tokenFile: `/home/synthetic/.bellteam-accounts/claude/${slot}/oauth-token` } } } })
+  await auth.start('claude')
+  await auth.start('claude', { slot: '2nd' })
+  for (const slot of ['1st', '2nd'])
+    assert.ok(calls.filter(args => args.configuration_root === `/synthetic/${slot}`)
+      .every(args => args.login === 'oauth_token' && args.token_file === `/home/synthetic/.bellteam-accounts/claude/${slot}/oauth-token`))
+  cancelFails = true
+  assert.equal((await auth.start('claude')).auth.session_id, '1st-session')
+  echo = false
+  await assert.rejects(auth.status('claude'), { code: 'HARNESS_AUTH_LOGIN_UNSUPPORTED', message: /1つ目のアカウント/ })
+  await assert.rejects(auth.status('claude', { slot: '2nd' }), { message: /2つ目のアカウント/ })
+  const invalid = new HarnessAuth({ bots: new Map(), client, accounts: { async prepare() { return { configurationRoot: '/synthetic/1st', tokenFile: 'oauth-token' } } } })
+  await assert.rejects(invalid.status('claude'), { code: 'HARNESS_AUTH_ACCOUNTS_UNAVAILABLE' })
+  const before = calls.length
+  const legacy = new HarnessAuth({ bots: new Map(), client })
+  await legacy.status('claude')
+  assert.ok(!('login' in calls[before]) && !('token_file' in calls[before]))
+})

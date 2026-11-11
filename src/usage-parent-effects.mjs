@@ -52,7 +52,8 @@ export function createUsageParentEffects({ getServices, getFeatures, seatRuntime
         if (params.harness !== 'claude' || !['1st', '2nd'].includes(params.slot) || !context.method.startsWith('auth.')) throw usageError('USAGE_EFFECT_INVALID')
         if (!services.accounts?.prepare) throw usageError('HARNESS_AUTH_ACCOUNTS_UNAVAILABLE')
         const prepared = await complete(services.accounts.prepare(params.harness, params.slot))
-        result = { configurationRoot: prepared?.configurationRoot }
+        // tokenFile only for a child that asked; an older child's result check accepts configurationRoot alone.
+        result = { configurationRoot: prepared?.configurationRoot, ...(params.tokenFile === true && prepared?.tokenFile !== undefined ? { tokenFile: prepared.tokenFile } : {}) }
         break
       }
       case 'auth.listAccounts': {
