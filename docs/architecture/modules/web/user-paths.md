@@ -429,7 +429,7 @@ stateDiagram-v2
 - ✓W63 Inside 詳細: hashes, UUIDs, English kickers (`PRODUCT UPDATE`), `状態: ready`, codes, text overflowing cards, a disabled 「更新を実行できません」 with a generic reason. → Built so far: no English kicker; a job row says 「状態: 切り替え中」 etc. (順番待ち / 取り込み中 / 確認中 / 切り替え中 / 完了 / 失敗) and the failure message, with job ID, raw state and code under its own サポート用の詳細. Target, still open: 詳細 reuses the card layout; ids and codes only under サポート用の詳細 with a copy button; the run control appears only in UPlan; a disabled control always carries its real reason.
 - Header pill and Settings row use the same title (section 2.1, 4.1).
 - Theme (O2, Trony): the update center uses the app tokens, the same values as the Settings cards (violet primary), light and dark.
-- Request identity (job ledger contract, Root 2026-11-07): a kept or unknown older request is never a browser guard; server capability and admission decide. A 4xx answer to the start POST means nothing was admitted, so its new request ID is dropped and only the kept history stays; a lost or 5xx answer keeps the ID for same-ID reads.
+- Request identity (job ledger contract, Root 2026-11-07): a kept or unknown older request is never a browser guard; server capability and admission decide. A failed start POST (any status) keeps its new request ID, because the job ledger can persist a step before a later 4xx; the same-ID read drops it only on proof that nothing was stored (404 `UPDATE_OPERATION_NOT_FOUND`), and any other answer keeps it for later same-ID reads.
 
 ## 6. Schedules, goals, work graph
 

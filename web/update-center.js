@@ -653,13 +653,9 @@ export function createUpdateCenter({ root, api, buttons, storage, onSummary = ()
     } catch (error) {
       if (disposed) return
       planned = null; confirmed = false
-      // A 4xx answer is a definite refusal: nothing was admitted, so the new ID is dropped and only the kept history stays.
-      // A lost or 5xx answer keeps the ID, because the request may have been admitted.
-      if (error?.status >= 400 && error.status < 500) {
-        pending = null; ownResult = null; operationReadError = ''
-        try { saveRequests(null, previousResults) } catch { storageFailure = '保持した要求の結果を保存できません。新しい更新は開始できません。' }
-        operationMessage = `更新は受け付けられませんでした（${errorText(error)}）。状態を確かめて、もう一度計画を確認してください。`
-      } else { operationReadError = errorText(error); operationMessage = '' }
+      // Any failed start keeps the ID: the job ledger can persist a step before a later 4xx (Root, job ledger contract).
+      // The same-ID read below drops it only when the server proves nothing was stored.
+      operationReadError = errorText(error); operationMessage = ''
     } finally {
       submitting = false
       if (!disposed) { render(); await refresh() }
@@ -706,7 +702,15 @@ export function createUpdateCenter({ root, api, buttons, storage, onSummary = ()
       try {
         if (result.status !== 'fulfilled') throw result.reason
         applyOperation(result.value?.operation, request)
-      } catch (error) { operationReadError = errorText(error); operationMessage = '' }
+      } catch (error) {
+        // Proof of non-admission: the server has no operation under this ID at all. Anything else (5xx, other 404s, a malformed
+        // answer) is not proof, so the ID stays for later same-ID reads.
+        if (error?.status === 404 && error.code === 'UPDATE_OPERATION_NOT_FOUND') {
+          pending = null; ownResult = null; operationReadError = ''
+          try { saveRequests(null, previousResults) } catch { storageFailure = '保持した要求の結果を保存できません。新しい更新は開始できません。' }
+          operationMessage = '更新は受け付けられませんでした。状態を確かめて、もう一度計画を確認してください。'
+        } else { operationReadError = errorText(error); operationMessage = '' }
+      }
       if (eventError) operationReadError = eventError
     }))
     for (const entry of previousResults) reads.push(readLatest(`/api/updates/operations/${entry.requestId}`, response => {

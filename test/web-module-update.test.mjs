@@ -354,11 +354,12 @@ test('unknown UI restores old history after a rejected new operation without res
     if (path === '/api/updates?runtime=1') return value
     if (path.endsWith('/plans')) return { plan }
     if (path === '/api/updates/operations') throw Object.assign(Error('MODULE_EXCHANGE_BUSY'), { status: 409 })
+    if (!path.endsWith(oldId)) throw Object.assign(Error('UPDATE_OPERATION_NOT_FOUND'), { status: 404, code: 'UPDATE_OPERATION_NOT_FOUND' })
     return { operation: old }
   }, saved)
   await f.center.start(); f.select('notifications'); f.control('execute').handlers.click(); await settle()
   f.control('execute').handlers.click(); await settle()
-  // 409 = nothing admitted: the new ID is dropped; the old one stays as a reference.
+  // 409 and the lookup proves nothing stored (UPDATE_OPERATION_NOT_FOUND): the new ID is dropped; the old one stays as a reference.
   assert.deepEqual(JSON.parse(saved.getItem(key)), { previous: [{ requestId: oldId, planId: old.plan.planId }] })
   assert.match(text(f.detail()), /受け付けられませんでした/)
   assert.equal(f.calls.filter(call => call.path === '/api/updates/operations').length, 1)
@@ -402,4 +403,39 @@ test('unknown UI preserves multiple prior requests as kept history across a new 
   applyEarlier = true; await f.center.refresh()
   assert.deepEqual(JSON.parse(saved.getItem(key)).previous.map(result => result.requestId), [earlier.requestId, oldId])
   assert.equal(f.calls.filter(call => call.path === '/api/updates/operations').length, 1)
+})
+
+test('a 4xx after a step was admitted keeps the request ID; the same-ID lookup shows the stored job (job ledger contract)', async t => {
+  const { value, plan } = example(), saved = storage()
+  let input
+  const f = fixture(t, async (path, options) => {
+    if (path === '/api/updates?runtime=1') return value
+    if (path.endsWith('/plans')) return { plan }
+    if (path === '/api/updates/operations') { input = JSON.parse(options.body); throw Object.assign(Error('MODULE_EXCHANGE_BUSY'), { status: 409, code: 'MODULE_EXCHANGE_BUSY' }) }
+    // The first step's receipt was persisted before the later step was refused.
+    return { operation: { ...operation(plan, input.requestId), admission: 'pending' } }
+  }, saved)
+  await f.center.start(); f.select('notifications'); f.control('execute').handlers.click(); await settle()
+  f.control('execute').handlers.click(); await settle()
+  assert.equal(JSON.parse(saved.getItem(key)).requestId, input.requestId)
+  assert.ok(f.calls.some(call => call.path === `/api/updates/operations/${input.requestId}`))
+  assert.match(text(f.detail()), /状態: 切り替え中/)
+  assert.equal(f.calls.filter(call => call.path === '/api/updates/operations').length, 1)
+})
+
+test('a 4xx whose lookup is not proof (5xx, a 404 without the not-found code) keeps the request ID', async t => {
+  for (const failure of [Object.assign(Error('down'), { status: 503 }), Object.assign(Error('NOT_FOUND'), { status: 404, code: 'NOT_FOUND' })]) {
+    const { value, plan } = example(), saved = storage()
+    let input
+    const f = fixture(t, async (path, options) => {
+      if (path === '/api/updates?runtime=1') return value
+      if (path.endsWith('/plans')) return { plan }
+      if (path === '/api/updates/operations') { input = JSON.parse(options.body); throw Object.assign(Error('PLAN_STALE'), { status: 409 }) }
+      throw failure
+    }, saved)
+    await f.center.start(); f.select('notifications'); f.control('execute').handlers.click(); await settle()
+    f.control('execute').handlers.click(); await settle()
+    assert.equal(JSON.parse(saved.getItem(key)).requestId, input.requestId, failure.message)
+    f.center.close()
+  }
 })

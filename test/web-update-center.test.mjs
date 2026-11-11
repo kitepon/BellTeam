@@ -439,10 +439,12 @@ test('409 rejects the old plan without a retry, and expired plans cannot start',
   const f = fixture(t, async path => {
     if (path === '/api/updates?runtime=1') return value
     if (path.endsWith('/plans')) return { plan: fixedPlan }
+    // The same-ID read proves nothing was stored under the new ID.
+    if (path.startsWith('/api/updates/operations/')) throw Object.assign(Error('UPDATE_OPERATION_NOT_FOUND'), { status: 404, code: 'UPDATE_OPERATION_NOT_FOUND' })
     throw Object.assign(Error(), { status: 409 })
   }, storage)
   await obtainPlan(f); confirm(f); control(f, 'execute').handlers.click(); await settle()
-  // 409 = not admitted: the new request ID is not kept as a lookup (nothing was accepted).
+  // 409 + the lookup's UPDATE_OPERATION_NOT_FOUND = definitely not admitted: the new ID is not kept.
   assert.equal(storage.getItem(requestKey), null)
   assert.match(whole(f), /受け付けられませんでした/)
   assert.equal(f.calls.filter(([path]) => path === '/api/updates/operations').length, 1)
