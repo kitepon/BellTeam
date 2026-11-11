@@ -229,6 +229,21 @@ public partial class App : Application
                 WritePng(window, 1280, 820, startupOutput);
                 model.Dispose(); Shutdown(0); return;
             }
+            if (e.Args is ["--render-secret", var secretScene, var secretAddress, var secretOutput])
+            {
+                // The secret input window for the first secret request of bot-one, read from the mock server (GET only). Nothing is typed or sent.
+                var model = new Workspace(); await model.ConnectAsync(secretAddress, listen: false);
+                if (model.ConnectionError is { } secretFailure) throw new BellApiException(secretFailure);
+                await model.SelectAsync(model.Entries.FirstOrDefault(entry => entry.Target.Id == "bot-one") ?? throw new BellApiException("指定した会話がありません。"));
+                var request = model.Messages.Select(item => item.Message.SecretRequest).FirstOrDefault(item => item is not null) ?? throw new BellApiException("秘密の依頼がありません。");
+                var secretWindow = new SecretInputWindow(request, submission => model.FinishSecretAsync(request.Id, submission), () => model.SecretKeysAsync(request.Id), _ => { });
+                await secretWindow.KeysReady;
+                if (secretScene.EndsWith("-search", StringComparison.Ordinal)) secretWindow.SearchForRender("infra"); else if (secretScene.EndsWith("-vault", StringComparison.Ordinal)) secretWindow.SearchForRender("team");
+                var secretRoot = (FrameworkElement)secretWindow.Content;
+                secretRoot.Measure(new Size(secretWindow.Width, double.PositiveInfinity)); var secretHeight = (int)Math.Ceiling(Math.Min(secretRoot.DesiredSize.Height, 1500));
+                WritePng(secretWindow, (int)secretWindow.Width, secretHeight, secretOutput);
+                model.Dispose(); Shutdown(0); return;
+            }
             if (e.Args is ["--render-workgraph", var graphAddress, var graphOutput])
             {
                 // The work graph read from the mock server (GET only): the real stream and model, with a virtual clock so 12 s of simulation is stepped at 60 Hz without waiting.
@@ -269,7 +284,7 @@ public partial class App : Application
                 Shutdown(0);
                 return;
             }
-            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-inspector <member|member-small|restart-busy|restart-success|room|sheet-small|sheet-large|sheet-unsupported|pending|pending-sheet> <URL> <会話ID> <PNG>、--render-screen <keys|approval|digits|sent|empty|offline|failed> <URL> <会話ID> <PNG>、--render-conversation <member|room|fork|secret|echo|states|stop|stop-notice|stop-member|draft|peer-sheet|stack|empty|failed> <URL> <会話ID> <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|features|notifications|connection|display|billing|update|about|stop>|schedules|updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>、--render-startup <opening|setup|guide|failure|login|onboarding-choose|onboarding-waiting|banner> <URL> <PNG>、--render-editor <member|settings|profile|feature|schedules|new-schedule|authentication> <URL> <ID> <PNG>、--render-editors <new-member|new-room|room|room-delete-alert|crop|member|member-delete-alert|member-delete-pending|member-delete-unconfirmed> <URL> <ID> <PNG> のいずれかです。");
+            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-inspector <member|member-small|restart-busy|restart-success|room|sheet-small|sheet-large|sheet-unsupported|pending|pending-sheet> <URL> <会話ID> <PNG>、--render-screen <keys|approval|digits|sent|empty|offline|failed> <URL> <会話ID> <PNG>、--render-conversation <member|room|fork|secret|echo|states|stop|stop-notice|stop-member|draft|peer-sheet|stack|empty|failed> <URL> <会話ID> <PNG>、--render-secret <ssh-search|sudo-list|sudo-vault|reference|onetime|login|old> <URL> <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|features|notifications|connection|display|billing|update|about|stop>|schedules|updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>、--render-startup <opening|setup|guide|failure|login|onboarding-choose|onboarding-waiting|banner> <URL> <PNG>、--render-editor <member|settings|profile|feature|schedules|new-schedule|authentication> <URL> <ID> <PNG>、--render-editors <new-member|new-room|room|room-delete-alert|crop|member|member-delete-alert|member-delete-pending|member-delete-unconfirmed> <URL> <ID> <PNG> のいずれかです。");
 
             MainWindow? main = null;
             instance = new SingleInstance(() => Dispatcher.Invoke(() => { main!.WindowState = main.WindowState == WindowState.Minimized ? WindowState.Normal : main.WindowState; main.Show(); main.Activate(); }));

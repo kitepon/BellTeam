@@ -604,7 +604,8 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
         }
         return await (api ?? throw new BellApiException("接続先を設定してください。")).ImageAsync(path, token);
     }
-    public async Task<SecretRequest> FinishSecretAsync(string id, string? value) => await (api ?? throw new BellApiException("接続先を設定してください。")).FinishSecretAsync(id, value, connection!.Token);
+    public async Task<SecretRequest> FinishSecretAsync(string id, SecretSubmission? submission) => await (api ?? throw new BellApiException("接続先を設定してください。")).FinishSecretAsync(id, submission, connection!.Token);
+    public async Task<OnePasswordKey[]?> SecretKeysAsync(string id) => await new SecretRequestApi(api ?? throw new BellApiException("接続先を設定してください。")).KeysAsync(id, connection!.Token);
     public async Task<OwnerQuestion> AnswerAsync(string id, string? choice, string? text) => await (api ?? throw new BellApiException("接続先を設定してください。")).AnswerAsync(id, choice, text, connection!.Token);
     public void ReturnToProfile()
     {

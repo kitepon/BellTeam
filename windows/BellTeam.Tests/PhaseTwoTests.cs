@@ -60,13 +60,13 @@ public sealed class PhaseTwoTests
             try
             {
                 Console.SetOut(output); Console.SetError(output);
-                var error = await Assert.ThrowsAsync<BellApiException>(() => api.FinishSecretAsync("request-a", FakeSecret));
+                var error = await Assert.ThrowsAsync<BellApiException>(() => api.FinishSecretAsync("request-a", SecretSubmission.Value(FakeSecret)));
                 Assert.DoesNotContain(FakeSecret, error.ToString()); Assert.Null(error.InnerException);
             }
             finally { Console.SetOut(oldOut); Console.SetError(oldError); }
             Assert.DoesNotContain(FakeSecret, output.ToString());
         }
-        else Assert.Equal("submitted", (await api.FinishSecretAsync("request-a", FakeSecret)).Status);
+        else Assert.Equal("submitted", (await api.FinishSecretAsync("request-a", SecretSubmission.Value(FakeSecret))).Status);
     }
 
     [Fact]
@@ -102,7 +102,7 @@ public sealed class PhaseTwoTests
         try
         {
             using var api = new BellApi(new($"http://127.0.0.1:{port}/"));
-            var error = await Assert.ThrowsAsync<BellApiException>(() => api.FinishSecretAsync("request-a", FakeSecret));
+            var error = await Assert.ThrowsAsync<BellApiException>(() => api.FinishSecretAsync("request-a", SecretSubmission.Value(FakeSecret)));
             Assert.DoesNotContain(FakeSecret, error.ToString()); Assert.Equal(1, attempts);
         }
         finally { stop.Cancel(); await serve; }
@@ -229,7 +229,7 @@ public sealed class PhaseTwoTests
         RunSta(() =>
         {
             var request = JsonSerializer.Deserialize<SecretResponse>(SecretJson, BellApi.Json)!.Request;
-            var window = new SecretInputWindow(request, value => { Assert.Equal(FakeSecret, value); return Task.FromException<SecretRequest>(new InvalidOperationException(FakeSecret)); }, _ => throw new InvalidOperationException());
+            var window = new SecretInputWindow(request, submission => { Assert.Equal(FakeSecret, submission!.Body["value"]); return Task.FromException<SecretRequest>(new InvalidOperationException(FakeSecret)); }, () => throw new InvalidOperationException(), _ => throw new InvalidOperationException());
             window.Input.Password = FakeSecret;
             window.SubmitAsync(true).GetAwaiter().GetResult();
             Assert.Equal("", window.Input.Password); Assert.DoesNotContain(FakeSecret, window.ErrorText.Text);
