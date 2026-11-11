@@ -32,12 +32,12 @@ class ContainerUpdater(host.HostUpdater):
     def module_target(self, *_args):
         raise host.Failure('HOST_MODULE_INSTALL_UNAVAILABLE', 400)
 
-    def assert_model_binding(self, current, normal=None):
+    def assert_model_binding(self, current, normal=None, new_binds=False):
         normal = normal or host.read_json(self.prefix / 'installation/normal.json', limit=host.CATALOG_LIMIT)
         # Compose saves literal dollars escaped; inspect reports the resolved path.
         normal = host.decode(json.dumps(normal).replace('$$', '$'))
         storage = self.storage_metadata(current['containerId'])
-        host.verify_model_mounts(normal, storage['mounts'], storage['specs'])
+        host.verify_model_mounts(normal, storage['mounts'], storage['specs'], new_binds)
 
     def worker_name(self, identifier):
         return self.config['projectName'] + '-container-worker-' + host.request_id(identifier)

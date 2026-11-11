@@ -51,7 +51,7 @@ def main():
           "p=Path("+repr(str(prefix))+");s=importlib.util.spec_from_file_location('core',"+repr(str(runtime))+");m=importlib.util.module_from_spec(s);s.loader.exec_module(m)\n"+
           "v=json.loads((p/'fixture.json').read_text())\n"+
           "def execute(plan,directory):\n until=time.monotonic()+60\n while not (p/'state/release-worker').exists():\n  if time.monotonic()>until:raise RuntimeError()\n  time.sleep(.02)\n return dict(execution='succeeded',verification='succeeded',cleanup='succeeded',rollback='not_needed',observed=v['current'],error=None)\n"+
-          "u=m.HostUpdater(p,v['config'],inspect=lambda:v['current'],execute=execute);u.assert_model_binding=lambda *args:None\n"+
+          "u=m.HostUpdater(p,v['config'],inspect=lambda:v['current'],execute=execute);u.assert_model_binding=lambda *args,**_:None\n"+
           "if len(sys.argv)==3 and sys.argv[1]=='--worker':u.worker(sys.argv[2])\n"+
           "else:\n path=p/'socket/update.sock'\n if path.exists():path.unlink()\n server=m.Server(str(path),u);os.chown(path,0,1001);os.chmod(path,0o660);server.serve_forever()\n")
         peer=prefix/'peer.py'

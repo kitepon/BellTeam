@@ -31,7 +31,7 @@ class BundledModuleTests(unittest.TestCase):
             updater = service.ModuleUpdater(prefix, prefix, config, uid=os.getuid(), inspect=lambda: current,
                 execute=lambda *_args: calls.append('install') or dict(execution='succeeded', verification='succeeded',
                     cleanup='succeeded', rollback='not_needed', observed=current, error=None))
-            updater.assert_model_binding = lambda observed: self.assertEqual(observed, current)
+            updater.assert_model_binding = lambda observed, **_: self.assertEqual(observed, current)
             updater.module_volume = lambda *_args: current['privateVolume']
             target = {'componentId': 'usage', 'versionId': 'b' * 64}
             updater.planned_target = lambda plan: target
@@ -68,7 +68,7 @@ class BundledModuleTests(unittest.TestCase):
             (incoming / 'archive.tar.gz').write_bytes(Path(archive).read_bytes()); (incoming / 'bundle.json').write_text('{}')
             config = {'release': 'a' * 40, 'platform': {'os': 'linux', 'arch': 'amd64'}}
             updater = service.ModuleUpdater(prefix, prefix, config, uid=os.getuid())
-            updater.assert_model_binding = lambda *_args: None
+            updater.assert_model_binding = lambda *_args, **_: None
             updater.inspect_current = lambda: {'sourceCommit': 'a' * 40}
             target = {'componentId': 'runtime-codex', 'versionId': expected['archiveSha256'], 'sourceCommit': expected['sourceCommit'],
                       'artifact': {'signerCommit': expected['signerCommit']}}

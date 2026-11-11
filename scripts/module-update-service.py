@@ -106,7 +106,7 @@ class ModuleUpdater(host.HostUpdater):
         return {'sourceCommit': self.config['release'], 'platform': self.config['platform'],
                 'privateVolume': {'device': str(info.st_dev), 'inode': str(info.st_ino)}}
 
-    def assert_model_binding(self, current, normal=None):
+    def assert_model_binding(self, current, normal=None, new_binds=False):
         host.check(current == self.inspect_current(), 'HOST_MODULE_STORAGE_BINDING')
 
     def module_volume(self, current, directory):

@@ -26,7 +26,7 @@ class ReconciliationInspection(unittest.TestCase):
         self.volume = dict(device=str(info.st_dev), inode=str(info.st_ino))
         self.current = dict(sourceCommit='a'*40, platform=dict(os='linux', arch='amd64'), privateVolume=self.volume)
         self.updater.inspect_current = lambda: self.current
-        self.updater.assert_model_binding = lambda value: self.assertEqual(value, self.current)
+        self.updater.assert_model_binding = lambda value, **_: self.assertEqual(value, self.current)
         self.request = '53d582f5-2dc1-4e5d-810c-1f03ee06f7be'; self.plan_id = '5cd4bfd1-9baf-409c-aeb9-e1c0c4b49716'
         self.directory = self.updater.state / 'operations' / self.request; self.directory.mkdir(mode=0o700)
         self.target = dict(componentId='execution', versionId='b'*64, sourceCommit='c'*40,
