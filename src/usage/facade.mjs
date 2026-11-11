@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events'
+import { terminalOs } from './process-schema.mjs'
 
 // Request context is a parent-captured capability; caller fields never grant authority.
 export function createUsageFacade({ request, projection, toolsDirectory }) {
@@ -40,7 +41,12 @@ export function createUsageFacade({ request, projection, toolsDirectory }) {
     secretRequests: {
       ...cards('secret'), toolsDirectory,
       create: ({ botId, ...input }, context) => call('secrets.create', input, context),
-      requestTerminalKey: (input, context) => call('secrets.requestTerminalKey', input, context),
+      // An older usage child refuses os before accepting; ask once more without it (Mac text) so body and usage update in either order.
+      requestTerminalKey: ({ os, ...input }, context) => os === undefined ? call('secrets.requestTerminalKey', input, context)
+        : call('secrets.requestTerminalKey', { ...input, os }, context).catch(error => {
+          if (error?.code !== 'USAGE_INPUT_INVALID' || error.outcome !== 'not_accepted' || !terminalOs(os)) throw error
+          return call('secrets.requestTerminalKey', input, context)
+        }),
       currentCredential: (scope, context) => call('secrets.current', { scope }, context),
       unbindCredential: (handle, scope, context) => call('secrets.unbind', { handle, scope }, context),
       revokeTerminalRequests: (scope, context) => call('secrets.revokeTerminalRequests', { scope }, context),

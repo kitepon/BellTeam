@@ -8,6 +8,13 @@ import { SecretCredentials, normalizeCredentialScope } from './usage/secret-cred
 const LOGIN = 'terminal.login'
 
 // 秘密の値はこのクラスのsubmitだけが受け取り、一覧・通知・イベントへ渡さない。
+// Without os (older terminals callers) the card keeps the Mac text.
+const LOGIN_MESSAGES = {
+  macos: 'このMacのログインパスワード（1回だけ使い、保存しません）',
+  windows: 'このPCのログインパスワード（1回だけ使い、保存しません）。Microsoftアカウントでサインインしているときは、そのパスワードです（PINではありません）。',
+  linux: 'このLinuxのログインパスワード（1回だけ使い、保存しません）',
+}
+
 export class SecretRequests {
   constructor({ root, bots, rooms, notify, onRequest = () => {}, onSave = () => {}, onePassword, secretProviders, credentialRetryMs }) {
     this.directory = join(root, 'state/secret-requests')
@@ -95,14 +102,15 @@ export class SecretRequests {
     return run
   }
 
-  requestTerminalKey({ terminalId, purpose, label }) {
+  requestTerminalKey({ terminalId, purpose, label, os }) {
     return this.terminalKeyOperation(async () => {
       const scope = normalizeCredentialScope({ terminalId, purpose })
-      if (!['terminal.ssh', 'terminal.sudo', LOGIN].includes(scope.purpose) || typeof label !== 'string' || !label.trim() || label.length > 128) throw new Error('SECRET_REQUEST_INVALID')
+      if (!['terminal.ssh', 'terminal.sudo', LOGIN].includes(scope.purpose) || typeof label !== 'string' || !label.trim() || label.length > 128
+        || os !== undefined && (scope.purpose !== LOGIN || !Object.hasOwn(LOGIN_MESSAGES, os))) throw new Error('SECRET_REQUEST_INVALID')
       await this.cancelTerminalRequests(scope)
       if (scope.purpose === LOGIN) await this.credentials.unbindScope(scope)
       const item = { id: randomUUID(), botId: null, roomId: null, toolId: 'terminal-key', ...scope,
-        label, message: scope.purpose === LOGIN ? 'このMacのログインパスワード（1回だけ使い、保存しません）'
+        label, message: scope.purpose === LOGIN ? LOGIN_MESSAGES[os ?? 'macos']
           : `端末「${terminalId}」で使う${scope.purpose === 'terminal.ssh' ? 'SSH鍵' : 'sudoのパスワード'}を登録してください。`,
         at: new Date().toISOString(), status: 'pending' }
       await this.save(item)

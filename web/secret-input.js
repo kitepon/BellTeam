@@ -142,7 +142,7 @@ export function openSecretInput(request, api, onComplete) {
         : picker
           ? 'sudoのパスワードを入力してください。1Passwordを使っている場合は、設定の「1Password連携」を済ませると、ここで一覧から選べます。値は会話に送信されず、BellTeamの利用者領域へ保存します。'
         : request.purpose === 'terminal.login'
-          ? 'このMacに鍵を入れるときに1回だけ使い、すぐに消します。保存せず、会話にも送信されません。'
+          ? 'この端末に鍵を入れるときに1回だけ使い、すぐに消します。保存せず、会話にも送信されません。'
         : oneTime
           ? '1回だけ使い、使い終わったら消します。保存せず、会話にも送られません。'
           : '値は会話に送信されません。BellTeamの利用者領域へ保存します。'

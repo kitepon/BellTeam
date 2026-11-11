@@ -245,3 +245,34 @@ test('delayed null-delete preserves same-handle native replacement', async t => 
   assert.deepEqual(await credentials.current(scope), { ...updated, requestId: null })
   assert.equal(await credentials.withResolved(updated.handle, { ...context, expectedRevision: updated.revision }, capability => capability.nativeKeyRef), replacement.ref)
 })
+
+test('terminal.login card text follows the terminal os; os is refused elsewhere and an older child gets one retry without it', async t => {
+  const { service } = await fixture(t)
+  const { validateUsageRequest } = await import('../src/usage/process-schema.mjs')
+  const { createUsageFacade } = await import('../src/usage/facade.mjs')
+  const login = { terminalId: 'synthetic-terminal', purpose: 'terminal.login', label: 'login' }
+  const message = async os => (await service.requestTerminalKey({ ...login, ...(os ? { os } : {}) })).secretRequest.message
+  assert.equal(await message(), 'このMacのログインパスワード（1回だけ使い、保存しません）')
+  assert.equal(await message('macos'), 'このMacのログインパスワード（1回だけ使い、保存しません）')
+  assert.equal(await message('windows'), 'このPCのログインパスワード（1回だけ使い、保存しません）。Microsoftアカウントでサインインしているときは、そのパスワードです（PINではありません）。')
+  assert.equal(await message('linux'), 'このLinuxのログインパスワード（1回だけ使い、保存しません）')
+  await assert.rejects(service.requestTerminalKey({ ...login, os: 'beos' }), /SECRET_REQUEST_INVALID/u)
+  await assert.rejects(service.requestTerminalKey({ ...scope, label: 'ssh', os: 'linux' }), /SECRET_REQUEST_INVALID/u)
+  const system = { kind: 'system', botId: null }
+  assert.doesNotThrow(() => validateUsageRequest('secrets.requestTerminalKey', { ...login, os: 'windows' }, system))
+  for (const params of [{ ...login, os: 'beos' }, { ...scope, label: 'ssh', os: 'linux' }])
+    assert.throws(() => validateUsageRequest('secrets.requestTerminalKey', params, system), /USAGE_INPUT_INVALID/u)
+  const calls = []
+  let old = true
+  const facade = createUsageFacade({ projection: {}, request: async (method, params) => {
+    calls.push(params)
+    if (old && params.os) throw Object.assign(new Error('USAGE_INPUT_INVALID'), { code: 'USAGE_INPUT_INVALID', outcome: 'not_accepted', status: 400 })
+    return { secretRequest: { id: 'x' } }
+  } })
+  await facade.secretRequests.requestTerminalKey({ ...login, os: 'windows' })
+  assert.deepEqual(calls, [{ ...login, os: 'windows' }, login])
+  old = false; calls.length = 0
+  await facade.secretRequests.requestTerminalKey({ ...login, os: 'linux' })
+  await facade.secretRequests.requestTerminalKey(login)
+  assert.deepEqual(calls, [{ ...login, os: 'linux' }, login])
+})
