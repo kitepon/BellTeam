@@ -77,9 +77,10 @@ async function view(t, terminals) {
   globalThis.document = { createElement: tag => new E(tag) }
   t.after(() => { globalThis.document = previous })
   const { createTerminalsView } = await import('../web/terminals.js')
-  const dialog = new E('dialog'), puts = []
+  const dialog = new E('dialog'), puts = [], checks = []
   const api = async (path, options) => {
     if (options?.method === 'PUT') { const d = deferred(); puts.push({ path, body: JSON.parse(options.body), ...d }); return d.promise }
+    if (path.endsWith('/check')) { checks.push(path); return { reachable: false, reason: 'HOST_KEY_MISMATCH', observedAt: '2026-11-11T00:00:00Z' } }
     return { terminals }
   }
   const terminalsView = createTerminalsView(dialog, { api })
@@ -87,7 +88,7 @@ async function view(t, terminals) {
   const all = () => nodes(body)
   const click = text => all().find(node => node.tagName === 'button' && node.textContent === text).fire('click')
   const typed = (form, placeholder, value) => { nodes(form).find(node => node.placeholder === placeholder).value = value; form.fire('input') }
-  return { dialog, body, all, click, typed, puts, open: () => terminalsView.open(), add: () => dialog.querySelector('[data-terminals-add]').fire('click'),
+  return { dialog, body, all, click, typed, puts, checks, open: () => terminalsView.open(), add: () => dialog.querySelector('[data-terminals-add]').fire('click'),
     form: () => all().find(node => node.className === 'terminal-form'), trust: () => all().find(node => node.className === 'terminal-trust'),
     notice: () => nodes(dialog.querySelector('[data-terminals-notice]')).map(node => node.textContent).join('') }
 }
@@ -129,6 +130,9 @@ test('Windows / Linux: OS choice sends os and follows the precondition; card nam
   assert.match(text(card('fox')), /\|Windows\|/); assert.match(text(card('rabbit')), /\|Linux\|/)
   assert.deepEqual(nodes(card('fox')).filter(node => node.className === 'terminal-key').length, 1)
   assert.equal(nodes(card('rabbit')).filter(node => node.className === 'terminal-key').length, 2)
+  // First use is trusted by the body (accept-new, #1000): no sheet until a check reports a trust reason.
+  assert.doesNotMatch(text(card('fox')), /ホスト鍵の指紋/)
+  for (const id of ['fox', 'rabbit']) { nodes(card(id)).find(node => node.tagName === 'button' && node.textContent === '届くか確かめる').fire('click'); await settle(); await settle() }
   assert.doesNotMatch(text(card('fox')), /BellTeamアプリ|ほかの方法/)
   assert.match(text(card('fox')), /PowerShellで ssh-keygen -lf C:\\ProgramData\\ssh\\ssh_host_ed25519_key\.pub/)
   assert.match(text(card('rabbit')), /ssh-keygen -lf \/etc\/ssh\/ssh_host_ed25519_key\.pub/)
@@ -149,19 +153,43 @@ test('Windows / Linux: OS choice sends os and follows the precondition; card nam
 
 test('host key draft: failure keeps it, a reopened dialog keeps its newer draft, success in the same dialog clears it', async t => {
   const v = await view(t, [mac]); await v.open()
+  const changed = async () => { v.click('届くか確かめる'); await settle(); await settle() }
   const fingerprint = value => { nodes(v.trust()).find(node => node.placeholder === 'SHA256:…').value = value; nodes(v.trust()).find(node => node.placeholder === 'SHA256:…').fire('input') }
   const field = () => nodes(v.trust()).find(node => node.placeholder === 'SHA256:…').value
-  fingerprint('SHA256:old'); v.trust().fire('submit'); await settle()
+  const old = `SHA256:${'o'.repeat(43)}`, fresh = `SHA256:${'n'.repeat(43)}`
+  await changed()
+  fingerprint(old); v.trust().fire('submit'); await settle()
   v.puts[0].reject(Object.assign(new Error('x'), { code: 'HOST_KEY_FINGERPRINT_MISMATCH' })); await settle(); await settle()
-  assert.equal(field(), 'SHA256:old')
+  assert.equal(field(), old)
 
   v.trust().fire('submit'); await settle()
-  v.dialog.close(); await v.open(); fingerprint('SHA256:new')
+  v.dialog.close(); await v.open(); await changed(); fingerprint(fresh)
   v.puts[1].resolve({}); await settle(); await settle()
-  assert.equal(field(), 'SHA256:new')
+  assert.equal(field(), fresh)
 
   v.trust().fire('submit'); await settle(); v.puts[2].resolve({}); await settle(); await settle()
-  assert.equal(field(), '')
+  // A successful confirm drops the observation, so the sheet goes away; the next trust reason shows it empty.
+  assert.equal(v.trust(), undefined); await changed(); assert.equal(field(), '')
+})
+
+test('accept-new (#1000): no sheet without a trust reason; errors sit next to the tapped button; the whole ssh-keygen line is accepted', async t => {
+  const v = await view(t, [{ ...mac, os: 'windows' }]); await v.open()
+  const text = node => nodes(node).map(item => item.textContent).join('|')
+  assert.equal(v.trust(), undefined)
+  v.click('届くか確かめる'); await settle(); await settle()
+  assert.ok(v.trust(), 'a changed key shows the sheet')
+  const paste = value => { const input = nodes(v.trust()).find(node => node.placeholder === 'SHA256:…'); input.value = value; input.fire('input') }
+  // Owner case 2026-11-11 (fox-windows): nothing left the page and the reason went to the off-screen top notice.
+  paste('not a fingerprint'); v.trust().fire('submit'); await settle()
+  assert.equal(v.puts.length, 0)
+  assert.match(text(v.trust()), /指紋が見つかりません/); assert.equal(v.notice(), '')
+  const fp = `SHA256:qJ0Ez4Y1f/${'A'.repeat(33)}`
+  paste(`256 ${fp} kite_@fox (ED25519)`); v.trust().fire('submit'); await settle()
+  assert.equal(v.puts[0].body.confirmHostKey, fp)
+  assert.match(text(v.trust()), /確かめています…/)
+  v.puts[0].reject(Object.assign(new Error('Host key did not match'), { code: 'HOST_KEY_FINGERPRINT_MISMATCH' })); await settle(); await settle()
+  const error = nodes(v.trust()).find(node => node.className === 'form-error terminal-error')
+  assert.equal(error.role, 'alert'); assert.match(text(error), /指紋が端末のものと一致しません/); assert.equal(v.notice(), '')
 })
 
 test('older body (404) is a neutral notice: icon, no refresh, 追加 disabled; 503 stays an error with refresh', async t => {
@@ -189,12 +217,12 @@ test('self-service: precondition line, auto trust with the manual sheet under �
   E.prototype.focus = () => {}; E.prototype.remove = function () {}
   const { createTerminalsView } = await import('../web/terminals.js')
   const trusted = { ...mac, hostTrust: { provider: 'p', revision: 'r' } }
-  let list = [{ ...mac, sshKeyConfigured: false }], reads = [], requests = 0, authorizeError = null
+  let list = [{ ...mac, sshKeyConfigured: false }], reads = [], requests = 0, authorizeError = null, checkReason = 'HOST_KEY_MISMATCH'
   const calls = []
   const api = async (path, options = {}) => {
     calls.push(`${options.method ?? 'GET'} ${path}`)
     if (path === '/api/terminals') return { terminals: list }
-    if (path === '/api/terminals/a/check') return { reachable: false, reason: 'AUTH_FAILED', observedAt: '2026-11-10T00:00:00Z' }
+    if (path === '/api/terminals/a/check') return { reachable: false, reason: checkReason, observedAt: '2026-11-10T00:00:00Z' }
     if (path === '/api/terminals/a/keys/ssh/authorize') { assert.equal(options.body, undefined); if (authorizeError) throw authorizeError; return { secretRequest: { id: `r${++requests}`, label: 'L', message: 'このMacのログインパスワード（1回だけ使い、保存しません）', purpose: 'terminal.login', status: 'pending' } } }
     if (path.startsWith('/api/secret-requests/')) return { request: { status: path.endsWith('/submit') ? 'submitted' : 'cancelled' } }
     if (path === '/api/terminals/a') return reads.shift()
@@ -205,21 +233,24 @@ test('self-service: precondition line, auto trust with the manual sheet under �
   const click = label => nodes(body).find(node => node.tagName === 'button' && node.textContent === label).fire('click')
   const submitPassword = async () => { const card = page.children.at(-1); nodes(card).find(node => node.type === 'password').value = 'pw'; nodes(card).find(node => node.tagName === 'form').fire('submit'); await settle(); await settle() }
   await createTerminalsView(dialog, { api }).open()
-  // No host trust: the auto line, and the manual sheet only under ほかの方法 (key first there).
+  // No host trust and no trust reason: nothing to confirm (the body trusts first use, #1000).
+  assert.doesNotMatch(text(), /自動で確かめます|ほかの方法/)
+  // A changed key: the auto line, and the manual sheet only under ほかの方法 (key first there).
+  click('届くか確かめる'); await settle(); await settle()
   assert.match(text(), /このMacでBellTeamアプリを開くと、自動で確かめます。/)
   const other = nodes(body).find(node => node.className === 'terminal-other')
   assert.equal(other.children[0].textContent, 'ほかの方法'); assert.match(nodes(other).map(node => node.textContent).join(''), /先にSSH鍵を設定してください/)
   dialog.querySelector('[data-terminals-add]').fire('click')
   assert.match(text(), /Macの「システム設定 > 一般 > 共有」で「リモートログイン」をオンにしてください。/)
 
-  list = [trusted]; dialog.close(); await createTerminalsView(dialog, { api }).open()
+  list = [trusted]; checkReason = 'AUTH_FAILED'; dialog.close(); await createTerminalsView(dialog, { api }).open()
   assert.doesNotMatch(text(), /自動で確かめます|ほかの方法/)
   click('届くか確かめる'); await settle(); await settle()
   assert.match(text(), /この鍵がまだMacに入っていないかもしれません。/)
   // 409 before any password card.
   authorizeError = Object.assign(new Error('x'), { status: 409, code: 'HOST_TRUST_MISSING' })
   click('このMacにこの鍵を入れる'); await settle(); await settle()
-  assert.match(nodes(dialog.querySelector('[data-terminals-notice]')).map(node => node.textContent).join(''), /先にこの端末を確かめてください。/)
+  assert.match(text(), /このMacにこの鍵を入れる\|\|先にこの端末を確かめてください。/)
   assert.equal(page.children.length, 0); authorizeError = null
   // Pending is cleared before the outcome is recorded: a stale outcome is ignored until this request's outcome appears.
   reads = [{ keyAuthorizationPending: false, keyAuthorization: null }, { keyAuthorizationPending: false, keyAuthorization: { requestId: 'r1', outcome: 'PASSWORD_REJECTED' } }]

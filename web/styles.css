@@ -963,6 +963,7 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 #terminals-dialog button.primary:not(.text-button):not(:disabled) { border-color: var(--s-accent); background: var(--s-accent); color: var(--s-on-accent); }
 #terminals-dialog button:disabled { opacity: .5; cursor: default; }
 #terminals-dialog .text-button.danger { color: var(--s-danger); margin-left: auto; }
+.terminal-error { margin: 0; }
 .terminal-trust { display: grid; gap: 10px; padding: 14px; border-left: 4px solid var(--s-danger); border-radius: 12px; background: var(--s-danger-bg); min-width: 0; }
 #terminals-dialog .field > span:first-child { color: var(--s-ink); }
 #terminals-dialog .field input, #terminals-dialog .field select { border-color: var(--s-line); background: var(--s-field); color: var(--s-ink); }
