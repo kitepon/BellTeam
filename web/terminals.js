@@ -46,11 +46,10 @@ export function checkTime(iso) {
 // The card badge from the last check: this dialog's press ({observedAt}) or the server's record `lastCheck` ({checkedAt}); null = never checked.
 export function checkBadge(check) {
   if (!check) return { tone: 'muted', label: '未確認' }
-  if (check.reachable === true) {
-    const time = checkTime(check.observedAt ?? check.checkedAt)
-    return { tone: 'ok', label: time ? `${time} につながりました` : 'つながりました' }
-  }
-  return { tone: 'attention', label: 'つながりません', action: sentence(check.action) }
+  // A failed check shows its time too, so the user can tell how old the failure is (W82).
+  const time = checkTime(check.observedAt ?? check.checkedAt)
+  if (check.reachable === true) return { tone: 'ok', label: time ? `${time} につながりました` : 'つながりました' }
+  return { tone: 'attention', label: time ? `${time} につながりませんでした` : 'つながりません', action: sentence(check.action) }
 }
 
 // Terminal id from the name the Owner typed: lowercase ascii / digits / hyphen, <= 63, /^[a-z0-9][a-z0-9-]{0,62}$/.

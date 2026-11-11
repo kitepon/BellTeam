@@ -292,6 +292,8 @@ test('badge from the last check: reachable with JST time, not reachable amber wi
   assert.deepEqual(checkBadge({ reachable: true, observedAt: '2026-11-11T11:48:00Z' }), { tone: 'ok', label: '11/11 20:48 につながりました' })
   assert.deepEqual(checkBadge({ reachable: false, reason: 'UNREACHABLE', action: 'Macが起きているか確かめてください', checkedAt: 'x' }), { tone: 'attention', label: 'つながりません', action: 'Macが起きているか確かめてください。' })
   assert.deepEqual(checkBadge({ reachable: false, reason: 'UNREACHABLE' }), { tone: 'attention', label: 'つながりません', action: '' })
+  assert.deepEqual(checkBadge({ reachable: false, reason: 'UNREACHABLE', checkedAt: '2026-11-11T11:00:00Z' }), { tone: 'attention', label: '11/11 20:00 につながりませんでした', action: '' })
+  assert.deepEqual(checkBadge({ reachable: false, reason: 'UNREACHABLE', observedAt: '2026-11-11T11:48:00Z' }), { tone: 'attention', label: '11/11 20:48 につながりませんでした', action: '' })
   assert.deepEqual(checkBadge(null), { tone: 'muted', label: '未確認' })
 })
 
@@ -303,7 +305,7 @@ test('card badges follow lastCheck; a press here wins; one help line on top; add
   const card = id => v.all().find(node => node.dataset?.terminalId === id)
   const badges = id => nodes(card(id)).filter(node => /terminal-badge/.test(node.className ?? '')).map(node => [node.textContent, node.className])
   assert.deepEqual(badges('ok-mac')[0], ['11/11 20:48 につながりました', 'terminal-badge ok'])
-  assert.deepEqual(badges('bad-mac')[0], ['つながりません', 'terminal-badge attention'])
+  assert.deepEqual(badges('bad-mac')[0], ['11/11 20:00 につながりませんでした', 'terminal-badge attention'])
   assert.deepEqual(badges('terminal-3')[0], ['未確認', 'terminal-badge muted'])
   const text = node => nodes(node).map(item => item.textContent).join('|')
   assert.match(text(card('bad-mac')), /Macを起こしてください。/)
@@ -382,7 +384,7 @@ test('add sheet: in front of the list, header 追加 hidden, steps for the OS, c
   list = [{ ...mac, terminalId: 'kite-mac' }]; observation = { reachable: false, reason: 'UNREACHABLE', observedAt: '2026-11-11T11:48:00Z' }
   add.fire('click'); typed('192.168.1.12', '10.0.0.9'); typed('kite', 'kite'); typed('例：自分のMac', '書斎'); form().fire('submit'); await settle(); await settle()
   assert.ok(calls.some(call => call.startsWith('PUT /api/terminals/terminal-1 ')))
-  assert.match(text(form()), /つながりません\|.*登録はできています/)
+  assert.match(text(form()), /11\/11 20:48 につながりませんでした\|.*登録はできています/)
   assert.ok(nodes(form()).some(node => node.tagName === 'button' && node.textContent === 'もう一度確かめる'))
   assert.ok(nodes(form()).some(node => node.tagName === 'button' && node.textContent === '閉じる'))
 })
