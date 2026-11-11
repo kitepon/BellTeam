@@ -700,14 +700,14 @@ flowchart LR
 
 新しい公開HTTP/MCP schema・保存writerを増やさない。公開operation UUIDと各設置stepのUUIDは別に耐久保存する。catalog/互換が固定され、既readerがENOENTとなった更新だけHost planへ渡す。改竄・不適合・権限エラーは設置で隠さない。戻しは既配置だけ使う。Host plan/operationはcatalog・component・source・SHA・planId・requestIdを照合し、containerRestart:falseを確認する。失敗/unknown/応答不整合ではreplaceせず、未確定Hostがある間は新更新を拒否する。再起動時は保存済みUUIDの結果照会だけ許し、既設置済みと判明しても中断moduleのreplaceは自動再発行しない。Hostが明示的に未受付と返した設置はfailedとして確定し、未知の受付と区別する。初回Host機構と同image installerの導入・本番承認は別条件。
 
-会話子のStore固定診断はdispatcher→厳密なIPC union→親onDiagnostic→同Diagnostics writerへ保存する。MESSAGE_LOG_INVALIDのcode/物理line/byte offset/length/固定reasonだけを渡し、本文や自由例外を診断へ含めない。CONVERSATION_OBSERVATION_FAILEDは固定code表(moduleはconversation)に載り、子のexact {code, reason}（reasonはcode形の語だけ。子が対象ごと・reason変化ごとに1回だけ送る）をMESSAGE_LOG_INVALIDと同じくdiagnostic_logのJSONとして保存する。行は既存どおりcode:moduleで1行に集約され、occurrence_countと最後のreasonが残る。旧fallback Storeも同じ診断writerへ接続する。
+会話子のStore固定診断はdispatcher→厳密なIPC union→親onDiagnostic→同Diagnostics writerへ保存する。MESSAGE_LOG_INVALIDのcode/物理line/byte offset/length/固定reasonだけを渡し、本文や自由例外を診断へ含めない。CONVERSATION_OBSERVATION_FAILEDは固定code表(moduleはconversation)に載り、子のexact {code, reason}（reasonはcode形の語だけ。子が対象ごと・reason変化ごとに1回だけ送る）をMESSAGE_LOG_INVALIDと同じくdiagnostic_logのJSONとして保存する。行は既存どおりcode:moduleで1行に集約され、occurrence_countと最後のreasonが残る。module modeではfacadeのrecordは選択中のdiagnostics子へ渡り、子は自分のdiagnostics.mjsの固定code表で検証する。このcodeを含まない旧diagnostics子は拒否する（stderrのUNRECORDEDだけで会話処理は失敗しない）。配備順: このcodeを含むdiagnostics実装（新本体builtin、または同sourceから作ったdiagnostics module）を先に有効にし、その後でreasonを送る新conversation moduleへ交換する。本体#1071+#1072は新conversation moduleより前。旧fallback Storeも同じ診断writerへ接続する。
 
 ### 会話子診断の受領と保存結果の分離
 
 ```mermaid
 flowchart LR
   Child["会話子 diagnostic(code-only / MESSAGE_LOG_INVALID位置 / CONVERSATION_OBSERVATION_FAILED reason)"] -->|"既IPC union検証"| Port["application-services: conversationDiagnosticPort"]
-  Port -->|"code/module:conversation[/diagnostic_log: MESSAGE_LOG_INVALID・OBSERVATION_FAILEDのJSON]"| Record["Diagnostics.record: 固定code表とmoduleを検証"]
+  Port -->|"code/module:conversation[/diagnostic_log: MESSAGE_LOG_INVALID・OBSERVATION_FAILEDのJSON]"| Record["Diagnostics.record（module mode: 選択中diagnostics子のdiagnostics.mjs）: 固定code表とmoduleを検証。OBSERVATION_FAILEDを含む実装が先に有効"]
   Record -->|"保存"| Store["logs/diagnostics.json"]
   Record -.->|"拒否・利用不可"| Stderr["stderr: CONVERSATION_DIAGNOSTIC_UNRECORDED {reportCode, reason}"]
   Port -->|"常に acknowledged"| Child
