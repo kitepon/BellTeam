@@ -140,13 +140,13 @@ export class BellTeamMessenger extends ConversationWriter {
         queue: { context: 'direct', contextId: bot.id, groupId: deliveryId, from, fromName: asker.name, target: bot.id, message },
         onInterim,
         onStatus: async (status, error, tracking) => {
+          const failure = ['failed', 'stopped'].includes(status) && !relayed
+            ? `FORK_FAILED: ${error?.reason ?? error?.code ?? error?.message ?? status}` : null
+          // The outcome row precedes the failed/stopped status and the relay: every durable boundary still owes the
+          // notice, and failed/stopped without it means a refusal before accept (fork-inquiry.md "Owed notice").
+          if (failure) await this.appendInterimWords(bot.id, deliveryId, [{ text: failure, kind: 'error' }], { seat })
           await onStatus(status, error, tracking)
-          if (['failed', 'stopped'].includes(status) && !relayed) {
-            const text = `FORK_FAILED: ${error?.reason ?? error?.code ?? error?.message ?? status}`
-            // Durable before the relay, so a lost relay or process still owes it (fork-inquiry.md "Owed notice").
-            await this.appendInterimWords(bot.id, deliveryId, [{ text, kind: 'error' }], { seat })
-            await relay(text)
-          }
+          if (failure) await relay(failure)
           if (status === 'delivered') await relay('FORK_FAILED: NO_ANSWER')
         },
         onAnswer: async text => { await onAnswer(text); await relay(text?.trim() ? text : 'FORK_FAILED: NO_ANSWER') },
