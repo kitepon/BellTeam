@@ -493,40 +493,48 @@ export class AitermTransport {
     this.assertWorkAllowed()
     // 明示再起動は、終了できないターンからも席を戻す操作。旧設定の
     // idle待ちを無効にし、旧CLIを閉じてから保存済み設定で起動する。
-    this.sessionState.invalidate(bot.id)
-    const version = this.captureStopVersion(bot)
-    const previousJobs = [...this.activity.jobs].filter(job => job.bot.id === bot.id)
-    const previousWatch = this.activity.watches.get(bot.id)
-    const previousChanges = [...(this.sessionChanges.get(bot.id) ?? [])]
-    const previousWake = this.activity.waking.get(bot.id)
+    const retiring = this.retireSeatWork(bot)
+    const { version } = retiring
     const pending = (async () => {
       await this.requireMember(bot, { membersLease })
       this.membersAdmission.assertLease(membersLease)
       if (this.executionBridge) await this.awaitUnboundAdmission(bot, version)
-      // 発行済みの起動・設定RPCが後から新個体へ届かないよう、その返却だけを
-      // 待つ。ターンの完了や、まだ発行していない旧idle待ちは待たない。
-      await Promise.allSettled([...previousChanges, ...(previousWake ? [previousWake] : [])])
+      await retiring.issued
       this.requireStopVersion(bot.id, version)
-      const session = await this.restartNow(bot, version, (closure, closedSession) => {
-        if (!confirmedSessionClosure(closure, closedSession)) return
-        for (const job of previousJobs) {
-          if (job.nativeSession === closedSession) {
-            if (job.receipt && job.conversationDelivery && job.nativeCompletion && !job.nativeTerminal)
-              this.conversationAdmission?.confirmNativeClosure?.(job.conversationDelivery, job.receipt, closure)
-            job.nativeClosure = structuredClone(closure.structuredContent)
-            const release = () => { this.activity.release(job); job.native?.release() }
-            job.completion.then(release, release)
-          }
-          job.markStopped()
-        }
-        previousWatch?.end()
-      }, membersLease)
+      const session = await this.restartNow(bot, version, retiring.closed, membersLease)
       return { botId: bot.id, session }
     })()
     this.restarts.set(bot.id, pending)
     const clear = () => { if (this.restarts.get(bot.id) === pending) this.restarts.delete(bot.id) }
     pending.then(clear, clear)
     return this.activity.configurationChanges.track(bot.id, pending)
+  }
+
+  // Explicit restart and member DELETE end a turn that may never finish (Claude first-run screen, lab 2026-11-12).
+  // The stop generation moves now; only issued launch/configure RPCs are awaited, never the turn or an unissued idle wait.
+  // closed(closure, session) retires the old jobs and watch once Aiterm confirmed that session's close.
+  retireSeatWork(bot) {
+    this.sessionState.invalidate(bot.id)
+    const version = this.captureStopVersion(bot)
+    const previousJobs = [...this.activity.jobs].filter(job => job.bot.id === bot.id)
+    const previousWatch = this.activity.watches.get(bot.id)
+    const previousChanges = [...(this.sessionChanges.get(bot.id) ?? [])]
+    const previousWake = this.activity.waking.get(bot.id)
+    const closed = (closure, closedSession) => {
+      if (!confirmedSessionClosure(closure, closedSession)) return
+      for (const job of previousJobs) {
+        if (job.nativeSession === closedSession) {
+          if (job.receipt && job.conversationDelivery && job.nativeCompletion && !job.nativeTerminal)
+            this.conversationAdmission?.confirmNativeClosure?.(job.conversationDelivery, job.receipt, closure)
+          job.nativeClosure = structuredClone(closure.structuredContent)
+          const release = () => { this.activity.release(job); job.native?.release() }
+          job.completion.then(release, release)
+        }
+        job.markStopped()
+      }
+      previousWatch?.end()
+    }
+    return { version, closed, issued: Promise.allSettled([...previousChanges, ...(previousWake ? [previousWake] : [])]) }
   }
 
   reconfigure(current, next, options = {}) {
@@ -607,14 +615,18 @@ export class AitermTransport {
   }
 
   async stop(bot, version = this.captureStopVersion(bot), { membersLease, expected = this.membersAdmission.capture(), allSessions = false } = {}) {
+    // harness-accounts.md "Member DELETE": deletion does not wait for the running turn; it closes like an explicit restart.
+    const retiring = allSessions ? this.retireSeatWork(bot) : null
+    if (retiring) version = retiring.version
     if (this.executionBridge) await this.awaitUnboundAdmission(bot, version)
     // harness-accounts.md: a stop ends the member's interrupted turn, so no continuation is sent for it later.
     if (this.claudeAccountBot(bot)) await this.accounts.setStopped(bot.id).catch(() => {})
-    await this.idle(bot.id)
+    await (retiring ? retiring.issued : this.idle(bot.id))
     return this.memberOperation(bot, async () => {
       this.requireStopVersion(bot.id, version)
       const current = this.session(bot)
       const result = await this.changeSession(bot, 'pty_close', { session_id: current })
+      retiring?.closed(result, current)
       await this.removeRetainedImages(bot.id)
       if (allSessions) await this.closeMemberSessions(bot, current)
       return result

@@ -70,7 +70,7 @@ flowchart TD
 | CLI切替/空へ戻す等 | `reconfigure → restartNow` | harness変更、既model/effortを空へ戻す、reapplyで空指定の場合はclose→wake。開始前に停止世代を再検証 |
 | 明示restart | `restart` | 同一Botの重複は既Promiseを返す。世代を進め、既発行の変更とwake返却だけ待つ。終わらないターンや未発行idle待ちを待たない。close成立後に旧jobs/watchを止め新席へ。closeにAitermが失敗を返した時（`aitermResponseReturned`）は`RESTART_CLOSE_FAILED`（旧席は残る、起動0、Aitermの理由付き）で呼び手へ返す |
 | 任意機能設定の反映 | `ApplicationFeatures → stopForConfiguration` | 前のconfiguration Promiseの成功/失敗後に次のcloseを並べる。失敗記録は別に保持し、配送は[設定不明とidentity不明を分ける判定](modules/execution/configuration-delivery.md)を使う |
-| 削除の席終了 | `members.startMemberRemoval → transport.stop` | activeだけidle→close→画像掃除を使う。部屋整理・台帳cleanup・既pending再開・CLI同期の成否は[membersの正本](modules/members/deletion.md)。既pendingではnative停止を再発行しない |
+| 削除の席終了 | `members.startMemberRemoval → transport.stop(allSessions)` | activeだけ明示restartと同じ`retireSeatWork`：世代を進め、既発行の変更とwake返却だけ待ち、終わらないターン（Claude初回画面など、lab 2026-11-12）を待たずclose→close成立後に旧jobs/watchを止める→画像掃除→同メンバーの全席close。起動はしない。部屋整理・台帳cleanup・既pending再開・CLI同期の成否は[membersの正本](modules/members/deletion.md)。既pendingではnative停止を再発行しない |
 
 設定適用Map、SeatActivity.configurationChanges、sessionChanges、BotRegistry保存値は、それぞれ表示・配送の待合せ・発行済み変更・次回起動の希望という異なる所有を持つ。ひとつの「設定状態」へまとめて待合せの意味を失わせない。
 

@@ -8,7 +8,7 @@ flowchart TD
   Target -->|"不在"| Missing["404 / BOT_NOT_FOUND<br/>副作用なし"]
   Target -->|"active"| Accepted["202 / deleting:id<br/>受付のみ・背景で実行"]
   Target -->|"既pending"| Resume["202 / deleting:id<br/>同じ削除意図の再開"]
-  Accepted --> Stop["execution.stop allSessions<br/>全端末の同メンバー席を終了（1st/2nd）"]
+  Accepted --> Stop["execution.stop allSessions<br/>実行中ターンを待たず現席close・旧配送を停止<br/>全端末の同メンバー席を終了（1st/2nd）"]
   Stop --> Rooms["conversation.membership-cleanup<br/>部屋・予定targetsから外す"]
   Rooms --> Gate["対象Bot画像の新save停止・旧save終端"]
   Gate --> Record["receipt保存・active Map退役<br/>stateを.deletingへrename"]
