@@ -159,18 +159,21 @@ struct ChatGoalBar: View {
 
     private var snapshot: GoalSnapshot? { goals.currentSnapshot(for: botId) }
     private var bot: Bot? { store.bots.first { $0.id == botId } }
-    /// The pill: what the goal is, or that it could not be read. No pill while the seat is idle or the bot has no goal feature.
+    /// The pill, always a whole sentence: the goal's state, that there is none, or that it could not be read.
+    /// An idle seat has no running goal, so it says 設定されていません. Only a bot without the goal feature has no pill.
     private var pill: (title: String, symbol: String, tint: Color)? {
-        if goals.needsRefresh { return ("ゴールを確認できません", "exclamationmark.triangle.fill", .orange) }
+        let unread = ("ゴールの状態を確認できません", "exclamationmark.triangle.fill", Color.orange)
+        let none = ("ゴールは設定されていません", "target", BellTheme.muted)
+        if goals.needsRefresh { return unread }
         guard goals.loaded else {
-            return ("ゴールを確認中", "hourglass", BellTheme.muted)
+            return ("ゴールを確認しています", "hourglass", BellTheme.muted)
         }
-        guard let snapshot else { return ("ゴールを確認できません", "exclamationmark.triangle.fill", .orange) }
-        if snapshot.seatIdle { return nil }
+        guard let snapshot else { return unread }
+        if snapshot.seatIdle { return none }
         switch snapshot.availability {
         case .unsupported: return nil
-        case .unavailable: return ("ゴールを確認できません", "exclamationmark.triangle.fill", .orange)
-        case .available: return (snapshot.goal?.statusTitle ?? "ゴール未設定", "target", BellTheme.violet)
+        case .unavailable: return unread
+        case .available: return snapshot.goal.map { ($0.statusTitle, "target", BellTheme.violet) } ?? none
         }
     }
     /// The one failure sentence for the expanded card: a failed read is said plainly once, never twice.
@@ -340,7 +343,7 @@ private struct GoalCard: View {
                     .foregroundStyle(BellTheme.muted)
             } else {
                 if presentation == .page || snapshot.goal == nil {
-                    Text(snapshot.goal?.statusTitle ?? "ゴール未設定")
+                    Text(snapshot.goal?.statusTitle ?? "ゴールは設定されていません")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(BellTheme.violet)
                 }
