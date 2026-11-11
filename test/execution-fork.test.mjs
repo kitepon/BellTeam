@@ -111,3 +111,50 @@ test('remote fork: credential kind fork, same MCP config shape, no launch notice
     assert.equal(remoteSeats.seats.size, 0, 'a fork is not a remote main seat')
   } finally { await rm(root, { recursive: true, force: true }) }
 })
+
+// fork.md B7: from the conversation child, callbacks and lifetime come from the registered delivery.
+const admissionStub = log => ({
+  claimNative: (lease, binding) => log.push(['claim', binding]),
+  callbacks: () => ({ onStatus: async status => log.push(['status', status]), onAnswer: async text => log.push(['answer', text]) }),
+  trackCompletion: (lease, completion) => { log.push(['track']); completion.then(() => log.push(['tracked-done'])) },
+  finish: () => log.push(['finish']),
+})
+
+test('conversation delivery: registered callbacks, lease tracks the background and finishes after close', async () => {
+  const { root, calls, tracked, transport, member } = await fixture()
+  try {
+    const log = [], lease = {}
+    transport.conversationAdmission = admissionStub(log)
+    const result = await transport.forkInquiry(member, 'question', { forkId: 'f-c1', deliveryId: 'd-c1', conversationDelivery: lease,
+      admissionCheck: () => log.push(['admission']) })
+    assert.deepEqual(result, { delivery: 'running', forkId: 'f-c1' })
+    await Promise.all(tracked)
+    await new Promise(resolve => setImmediate(resolve))
+    assert.deepEqual(log.filter(([kind]) => kind !== 'admission').map(([kind, value]) => value === undefined ? kind : [kind, value]), [
+      ['claim', { deliveryId: 'd-c1', target: member.id, kind: 'notify' }], ['status', 'running'], 'track',
+      ['answer', 'the answer'], ['status', 'delivered'], 'tracked-done', 'finish'])
+    assert.equal(log.filter(([kind]) => kind === 'admission').length, 2, 'checked at entry and just before agent_launch')
+    assert.equal(calls.at(-1).name, 'pty_close')
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
+
+test('conversation delivery: a refusal before accept keeps its code and finishes the lease; raw callbacks are refused', async () => {
+  const launch = () => { throw Object.assign(new Error('FORK_SOURCE_UNAVAILABLE'), { code: 'FORK_SOURCE_UNAVAILABLE', effect: 'not_started', status: 409 }) }
+  const { root, transport, member } = await fixture({ launch })
+  try {
+    const log = []
+    transport.conversationAdmission = admissionStub(log)
+    await assert.rejects(transport.forkInquiry(member, 'question', { forkId: 'f-c2', deliveryId: 'd-c2', conversationDelivery: {} }),
+      { code: 'FORK_SOURCE_UNAVAILABLE', status: 409 })
+    assert.deepEqual(log.at(-1), ['finish'])
+    assert.equal(transport.queueItems({}).length, 0)
+    await assert.rejects(transport.forkInquiry(member, 'question', { forkId: 'f-c3', deliveryId: 'd-c3', conversationDelivery: {}, onStatus: () => {} }),
+      { code: 'CONVERSATION_NOT_ACCEPTED' })
+    const refused = []
+    transport.conversationAdmission = admissionStub(refused)
+    await assert.rejects(transport.forkInquiry(member, 'question', { forkId: 'f-c4', deliveryId: 'd-c4', conversationDelivery: {},
+      admissionCheck: () => { throw Object.assign(new Error('AI_CONTROL_DISABLED'), { code: 'AI_CONTROL_DISABLED', status: 503 }) } }),
+      { code: 'AI_CONTROL_DISABLED', status: 503 })
+    assert.deepEqual(refused.at(-1), ['finish'])
+  } finally { await rm(root, { recursive: true, force: true }) }
+})

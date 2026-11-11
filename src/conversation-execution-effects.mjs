@@ -102,6 +102,17 @@ export function createConversationExecutionEffects({ getServices, getController,
           ? transport.membersAdmission.withLease(membersLease => deliver({ membersLease }))
           : deliver(context.operationContext)
       }
+      // fork.md B7: a fork is a delivery like notify; its callbacks and lifetime are the registered delivery's.
+      case 'execution.fork': {
+        check()
+        admission.assertDelivery(context.conversationDelivery, { deliveryId: params.deliveryId, target: params.target })
+        admission.assertCurrentLease(context.conversationDelivery, { generation: context.generation, correlation: context.operationId })
+        const bot = await member(params.target)
+        const result = await transport.forkInquiry(bot, params.message, { forkId: params.forkId, deliveryId: params.deliveryId,
+          queue: params.queue, conversationDelivery: context.conversationDelivery, membersLease: context.operationContext.membersLease,
+          admissionCheck: context.admissionCheck, ...(context.executionSource ? { executionSource: context.executionSource } : {}) })
+        return { delivery: result.delivery, forkId: result.forkId }
+      }
       // These effects are consumed by conversation-ipc before onExecution.
       default: invalid()
     }
