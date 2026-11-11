@@ -15,6 +15,7 @@ flowchart LR
   m_distribution["商用配布 / モリー"]
   m_execution["AI実行制御 / キロ"]
   m_integration["共通入口・結合実装 / モリー"]
+  m_lattice["Lattice工程表 / フローラ"]
   m_members["メンバー・予定 / ベロータ"]
   m_memory["記憶・知識 / ビスケット"]
   m_runtime["実行環境・更新復旧 / モリー"]
@@ -61,6 +62,7 @@ flowchart LR
   m_integration -->|"trust"| m_terminals
   m_integration -->|"folder"| m_terminals
   m_integration -->|"secrets"| m_usage
+  m_lattice -->|"registry"| m_members
   m_members -->|"stop"| m_execution
   m_members -->|"project-files"| m_runtime
   m_members -->|"cli-registration"| m_runtime
@@ -90,6 +92,7 @@ flowchart LR
   m_usage -->|"seat-process"| m_runtime
   m_usage -->|"accounts"| m_execution
   m_web -->|"HTTP/SSE"| m_integration
+  m_web -->|"lattice-chart"| m_lattice
   m_work_graph -->|"observation"| m_execution
   m_work_graph -->|"registry"| m_members
   m_work_graph -->|"history"| m_conversation
@@ -150,6 +153,7 @@ flowchart LR
 | [商用配布](modules/distribution/README.md) | モリー | image / web-gateway-artifact / notifications-artifact / update-catalog / members-artifact / memory-artifact / conversation-artifact / runtime-artifact / work-graph-artifact |
 | [AI実行制御](modules/execution/README.md) | キロ | turn / configuration / stop / observation / members-admission / accounts / fork |
 | [共通入口・結合実装](modules/integration/README.md) | モリー | HTTP/MCP / HTTP/SSE / diagnostics / remote-seat-port |
+| [Lattice工程表](modules/lattice/README.md) | フローラ | lattice-chart / lattice-seat |
 | [mcp-lazy](modules/mcp-lazy/README.md) | レオナ | relay |
 | [メンバー・予定](modules/members/README.md) | ベロータ | registry / schedules / instructions / docs |
 | [記憶・知識](modules/memory/README.md) | ビスケット | memory |

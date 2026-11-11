@@ -25,6 +25,8 @@
             <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><path d="m12 12 7-7"/></svg>
           </button>
           <button class="circle-button" id="work-graph-button" type="button" aria-label="相関図" title="相関図"><svg viewBox="0 0 24 24"><circle cx="6" cy="7" r="2.5"/><circle cx="18" cy="7" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M8.5 7h7M7.3 9.2l3.4 6.6M16.7 9.2l-3.4 6.6"/></svg></button>
+          <!-- Lattice工程表 (web/lattice-chart.js) -->
+          <button class="circle-button" id="lattice-button" type="button" aria-label="工程表" title="工程表"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="9" height="3.5" rx="1.2"/><rect x="9" y="10.5" width="12" height="3.5" rx="1.2"/><rect x="6" y="16" width="8" height="3.5" rx="1.2"/></svg></button>
           <button class="circle-button" id="search-button" type="button" aria-label="名前・役職を検索">
             <svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>
           </button>
@@ -149,6 +151,14 @@
       <div class="work-graph-empty" data-work-graph-empty><span aria-hidden="true"></span><p>いま動いているメンバーはいません</p></div>
       <ul class="sr-only" data-work-graph-a11y aria-label="相関図のメンバーと依頼"></ul>
       <span class="sr-only" id="work-graph-open-hint" data-work-graph-hint>チャットを開く</span>
+    </div>
+  </dialog>
+  <!-- Lattice工程表 (web/lattice-chart.js) -->
+  <dialog class="lattice-dialog" id="lattice-dialog" aria-label="工程表">
+    <header class="lattice-header"><button class="text-button" type="button" data-close-dialog="lattice-dialog">閉じる</button><h2>工程表</h2><span></span></header>
+    <div class="lattice-stage">
+      <p class="lattice-pill" data-lattice-pill role="status" hidden></p>
+      <div class="lattice-body" data-lattice-body></div>
     </div>
   </dialog>
   <dialog class="sheet-dialog profile-dialog" id="owner-dialog">

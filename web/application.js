@@ -11,6 +11,7 @@ import { createMemoryView } from './memory-view.js?v=__ASSET_VERSION__'
 import { createScreenView, createCharacterSheetView } from './bot-read-views.js?v=__ASSET_VERSION__'
 import { createScheduleEditor } from './schedule-editor.js?v=__ASSET_VERSION__'
 import { createWorkGraphView } from './work-graph.js?v=__ASSET_VERSION__'
+import { createLatticeChart } from './lattice-chart.js?v=__ASSET_VERSION__'
 import { bannerTexts, seatBadge } from './harness-accounts.js?v=__ASSET_VERSION__'
 import { createConversationTimeline } from './conversation-timeline.js?v=__ASSET_VERSION__'
 import { applyAvatar, initials, memberDisplay, formatTime, escapeClass, escapeHtml } from './view-format.js?v=__ASSET_VERSION__'
@@ -143,6 +144,17 @@ export function createWebApp({ client = createWebClient() } = {}) {
   } })
   document.querySelector('#work-graph-button').addEventListener('click', () => workGraph.open())
   workGraphDialog.addEventListener('close', () => workGraph.close())
+  // Lattice工程表：会話を開くは相関図と同じ経路（通知の member route）。
+  const latticeDialog = document.querySelector('#lattice-dialog')
+  const lattice = createLatticeChart(latticeDialog, { api, fetchImage,
+    getMember: id => { const bot = state.bots.find(item => item.id === id); return bot ? { botId: id, name: bot.name, color: bot.color, avatar: bot.avatar, known: true } : null },
+    openChat: async botId => {
+      if (document.fullscreenElement) await document.exitFullscreen().catch(() => {})
+      latticeDialog.close()
+      await notifications.open({ kind: 'member', messageId: null, requestId: null, botId, roomId: null })
+    } })
+  document.querySelector('#lattice-button').addEventListener('click', () => lattice.open())
+  latticeDialog.addEventListener('close', () => lattice.close())
 
   const roomEditor = createRoomEditor(roomDialog, { api, getBots: () => state.bots,
     onSaved: async (room, current) => {

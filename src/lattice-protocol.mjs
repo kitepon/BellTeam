@@ -1,0 +1,118 @@
+export const LATTICE_PROTOCOL_VERSION = 1
+export const LATTICE_STATE_COMPATIBILITY = Object.freeze({ state: 'none' })
+export const LATTICE_METHODS = Object.freeze(['charts', 'chart', 'refresh', 'run'])
+export const LATTICE_EFFECTS = Object.freeze(['members.list'])
+export const LATTICE_PROJECT_ID = /^[a-z0-9][a-z0-9-]{0,62}$/u
+export const latticeError = (code, status = 400) => Object.assign(new Error(code), { code, status, outcome: 'not_accepted' })
+export const latticeObject = (value, required, optional = []) => value && typeof value === 'object' && !Array.isArray(value)
+  && required.every(key => Object.hasOwn(value, key)) && Object.keys(value).every(key => required.includes(key) || optional.includes(key))
+export const validLatticeGeneration = value => typeof value === 'string' && value.length > 0 && value.length <= 128 && !/[\s\0]/u.test(value)
+
+const str = value => typeof value === 'string'
+const strOrNull = value => value === null || str(value)
+const list = (value, each) => Array.isArray(value) && value.every(each)
+const count = value => Number.isInteger(value) && value >= 0
+const validId = value => str(value) && LATTICE_PROJECT_ID.test(value)
+const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value)
+const invalid = () => { throw latticeError('LATTICE_IPC_INVALID', 503) }
+const need = condition => { if (!condition) invalid() }
+
+export function validateLatticeRequest(method, params, context) {
+  const check = condition => { if (!condition) throw latticeError('LATTICE_INVALID') }
+  const project = id => { if (!validId(id)) throw latticeError('LATTICE_PROJECT_INVALID') }
+  check(latticeObject(context, ['generation']) && validLatticeGeneration(context.generation))
+  check(LATTICE_METHODS.includes(method))
+  if (method === 'charts') check(latticeObject(params, []))
+  else if (method === 'chart') { check(latticeObject(params, ['projectId'])); project(params.projectId) }
+  else if (method === 'refresh') {
+    check(latticeObject(params, ['projectIds']) && Array.isArray(params.projectIds) && params.projectIds.length >= 1 && params.projectIds.length <= 50
+      && new Set(params.projectIds).size === params.projectIds.length)
+    params.projectIds.forEach(project)
+  } else {
+    check(latticeObject(params, ['from', 'projectId', 'args', 'input']) && str(params.from) && params.from.length >= 1 && params.from.length <= 128)
+    project(params.projectId)
+    check(Array.isArray(params.args) && params.args.length <= 200 && params.args.every(arg => str(arg) && arg.length <= 8192)
+      && (params.input === null || plain(params.input)))
+  }
+}
+
+export function validateLatticeEffect(method, params) {
+  if (!LATTICE_EFFECTS.includes(method) || !latticeObject(params, [])) throw latticeError('LATTICE_INVALID')
+}
+
+export function validateLatticeEffectResult(method, value) {
+  if (method === 'members.list') need(latticeObject(value, ['members']) && list(value.members, member =>
+    latticeObject(member, ['id', 'name', 'color', 'avatarVersion', 'deleting']) && str(member.id) && str(member.name)
+    && str(member.color) && str(member.avatarVersion) && typeof member.deleting === 'boolean'))
+  else invalid()
+}
+
+const controls = new Set(['initialize', 'quiesce', 'resume', 'exit'])
+export function assertLatticeStateCompatibility(value) {
+  if (!latticeObject(value, Object.keys(LATTICE_STATE_COMPATIBILITY))
+    || Object.entries(LATTICE_STATE_COMPATIBILITY).some(([key, expected]) => value[key] !== expected))
+    throw latticeError('LATTICE_STATE_INCOMPATIBLE', 503)
+}
+
+export function validateLatticeControl(method, params) {
+  if (!controls.has(method) || (method === 'initialize'
+    ? !latticeObject(params, ['generation', 'mode']) || !validLatticeGeneration(params.generation) || !['bootstrap', 'restore'].includes(params.mode)
+    : !latticeObject(params, []))) throw latticeError('LATTICE_CONTROL_INVALID')
+}
+
+export function validateLatticeControlResult(method, value) {
+  if (method === 'initialize') {
+    need(latticeObject(value, ['stateCompatibility']))
+    assertLatticeStateCompatibility(value.stateCompatibility)
+  } else need(method === 'quiesce' ? latticeObject(value, ['quiesced']) && typeof value.quiesced === 'boolean'
+    : method === 'resume' ? latticeObject(value, ['resumed']) && value.resumed === true
+      : method === 'exit' && latticeObject(value, ['closed']) && value.closed === true)
+}
+
+export function validateLatticeReady(value) {
+  if (!latticeObject(value, ['versionId', 'protocolVersion', 'stateCompatibility'])
+    || value.versionId !== null && (!str(value.versionId) || !/^[a-f0-9]{64}$/u.test(value.versionId))
+    || value.protocolVersion !== LATTICE_PROTOCOL_VERSION) throw latticeError('LATTICE_READY_INVALID', 503)
+  assertLatticeStateCompatibility(value.stateCompatibility)
+}
+
+const DISPLAY_STATES = ['verified', 'unverified', 'last_verified', 'unavailable']
+const CARD_STATES = ['pending', 'ready', 'in-progress', 'blocked', 'done', 'retired']
+const card = value => latticeObject(value, ['id', 'plan', 'taskId', 'title', 'doneCondition', 'designMemo', 'state', 'lane', 'producer',
+  'startedAt', 'changedAt', 'blockedReason', 'depth']) && ['id', 'plan', 'taskId', 'title'].every(key => str(value[key]))
+  && ['doneCondition', 'designMemo', 'lane', 'producer', 'startedAt', 'changedAt', 'blockedReason'].every(key => strOrNull(value[key]))
+  && CARD_STATES.includes(value.state) && count(value.depth)
+const edge = value => latticeObject(value, ['from', 'to', 'waiting']) && str(value.from) && str(value.to) && typeof value.waiting === 'boolean'
+const wait = value => latticeObject(value, ['waiter', 'waitingCard', 'forCard', 'producer', 'producerState', 'since'])
+  && strOrNull(value.waiter) && str(value.waitingCard) && str(value.forCard) && strOrNull(value.producer)
+  && CARD_STATES.includes(value.producerState) && strOrNull(value.since)
+const member = value => latticeObject(value, ['botId', 'name', 'color', 'avatarVersion']) && Object.values(value).every(str)
+const counts = value => latticeObject(value, ['total', 'done', 'working', 'waiting', 'blocked']) && Object.values(value).every(count)
+const snapshot = value => latticeObject(value, ['schema', 'epoch', 'version', 'at', 'projectId', 'coordinator', 'state', 'verifiedAt', 'degraded',
+  'members', 'cards', 'edges', 'waits']) && value.schema === 'bellteam.lattice-chart.v1' && str(value.epoch) && value.epoch.length > 0
+  && Number.isInteger(value.version) && value.version >= 1 && str(value.at) && validId(value.projectId) && typeof value.coordinator === 'boolean'
+  && DISPLAY_STATES.includes(value.state) && strOrNull(value.verifiedAt) && list(value.degraded, item => ['lattice-read', 'members'].includes(item))
+  && list(value.members, member) && list(value.cards, card) && list(value.edges, edge) && list(value.waits, wait)
+const summary = value => latticeObject(value, ['projectId', 'coordinator', 'createdBy', 'counts', 'activeMembers', 'updatedAt', 'state'])
+  && validId(value.projectId) && typeof value.coordinator === 'boolean' && strOrNull(value.createdBy) && counts(value.counts)
+  && list(value.activeMembers, str) && strOrNull(value.updatedAt) && DISPLAY_STATES.includes(value.state)
+
+export function validateLatticeResult(method, value) {
+  if (method === 'charts') need(latticeObject(value, ['schema', 'at', 'charts']) && value.schema === 'bellteam.lattice-charts.v1'
+    && str(value.at) && list(value.charts, summary))
+  else if (method === 'chart') need(snapshot(value))
+  else if (method === 'refresh') need(latticeObject(value, ['snapshots', 'nextRefreshMs']) && list(value.snapshots, snapshot) && count(value.nextRefreshMs))
+  else if (method === 'run') need(latticeObject(value, ['exitCode', 'result', 'stdout', 'stderr'])
+    && (value.exitCode === null || Number.isInteger(value.exitCode)) && strOrNull(value.stdout) && str(value.stderr))
+  else invalid()
+}
+
+const knownErrors = new Map([
+  ['LATTICE_INVALID', 400], ['LATTICE_CONTROL_INVALID', 400], ['LATTICE_CHART_NOT_FOUND', 404], ['LATTICE_PROJECT_INVALID', 400],
+  ['LATTICE_INPUT_CONFLICT', 400], ['LATTICE_COMMAND_NOT_SEAT_SURFACE', 400], ['LATTICE_NOT_ACCEPTED', 503], ['LATTICE_UNAVAILABLE', 503],
+  ['LATTICE_NOT_QUIESCED', 503], ['LATTICE_EFFECT_FAILED', 503],
+])
+export function latticeWireError(error, outcome) {
+  const code = knownErrors.has(error?.code) ? error.code : knownErrors.has(error?.message) ? error.message : 'LATTICE_OPERATION_FAILED'
+  return { code, status: knownErrors.get(code) ?? 503, outcome }
+}
