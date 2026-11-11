@@ -76,7 +76,8 @@ export function createConversationParentChannel(child, { generation, admission, 
     validateConversationEffect(method, params, record.context)
     const rootMethod = (record.root ?? record).method
     const allowed = {
-      'execution.notify': ['direct.post', 'room.post', 'room.reply', 'delivery.resume', 'call.receive'],
+      'execution.notify': ['direct.post', 'room.post', 'room.reply', 'delivery.resume', 'call.receive', 'fork.ask'],
+      'execution.fork': ['fork.ask'],
       'execution.turn': ['user.post', 'user.turn'],
       'execution.reconcile': ['delivery.resume'], 'execution.closeLaunch': ['delivery.closeLaunch'],
       'runtime.room.context': ['room.post', 'room.reply'],
@@ -112,7 +113,7 @@ export function createConversationParentChannel(child, { generation, admission, 
       const state = backgrounds.get(params.backgroundId)
       check(state?.record === record)
       background.endRequested(params.backgroundId, record.context); value = { requested: true }
-    } else if (['execution.notify', 'execution.turn', 'execution.report'].includes(method)) {
+    } else if (['execution.notify', 'execution.turn', 'execution.report', 'execution.fork'].includes(method)) {
       const source = method === 'execution.report' ? admission.deliveryFor(record.lease, { deliveryId: params.sourceDeliveryId, target: params.target }) : null
       if (source) {
         const sourceRecord = deliveries.get(source)?.record
@@ -310,7 +311,7 @@ export function createConversationChildChannel({ dispatcher, endpoint = process,
     const record = captured(context)
     if (kind === 'effect') validateConversationEffect(method, params, context)
     else validEvent(params)
-    if (kind === 'effect' && ['execution.notify', 'execution.turn', 'execution.report'].includes(method)) {
+    if (kind === 'effect' && ['execution.notify', 'execution.turn', 'execution.report', 'execution.fork'].includes(method)) {
       const binding = { generation, operationId: context.operationId, deliveryId: params.deliveryId, target: params.target }, key = bindingKey(binding)
       check(!deliveries.has(key)); deliveries.set(key, { record, finish: hold(record) })
     }

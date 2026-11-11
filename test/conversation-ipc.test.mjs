@@ -233,8 +233,9 @@ for (const background of [false, true]) test(`not-issued report keeps real relea
   await h.parent.control('quiesce')
 })
 
-async function setup(t, { effect = () => {}, event = async () => {}, dispatcher: factory = createConversationDispatcher, forked = false } = {}) {
+async function setup(t, { effect = () => {}, event = async () => {}, dispatcher: factory = createConversationDispatcher, forked = false, bots = [] } = {}) {
   const fixture = JSON.parse(await readFile(new URL('../src/conversation/probe-fixture.json', import.meta.url), 'utf8'))
+  fixture.bots.push(...bots)
   const root = await mkdtemp(join(tmpdir(), 'conversation-channel-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   for (const [relative, value] of Object.entries(fixture.files)) {
@@ -330,6 +331,25 @@ test('retired conversation channel rejects old entry while a restored writer ser
   assert.equal(newEffects, 1); assert.equal(oldEnded, false)
   actual.resolve(); await oldDone
   assert.equal(h.admission.snapshot().active, 0)
+})
+
+test('fork.ask root carries execution.fork as a registered delivery and its answer relay as execution.notify', { timeout: 4000 }, async t => {
+  const h = await setup(t, { bots: [{ id: 'bot-asker', name: 'Asker' }], effect: (method, params, context) => {
+    if (method !== 'execution.fork') return
+    h.native.push({ delivery: context.conversationDelivery, context, params }); return { delivery: 'running', forkId: params.forkId }
+  } })
+  const target = h.fixture.bots[0].id
+  const receipt = await h.request('fork.ask', { from: 'bot-asker', target, message: 'What is X?' }, { kind: 'bot', botId: 'bot-asker' })
+  assert.equal(receipt.delivery, 'running')
+  const [fork] = h.native
+  assert.equal(fork.params.forkId, receipt.fork_id); assert.equal(fork.context.rootMethod, 'fork.ask'); assert(fork.delivery)
+  await h.admission.invoke(fork.delivery, 'delivery.answer', { text: 'X is Y.' })
+  await h.admission.invoke(fork.delivery, 'delivery.status', { delivery: 'delivered', error: null, tracking: null })
+  while (h.native.length < 2) await new Promise(resolve => setImmediate(resolve))
+  const [, relay] = h.native
+  assert.equal(relay.context.rootMethod, 'fork.ask'); assert.equal(relay.params.target, 'bot-asker'); assert.match(relay.params.message, /X is Y\./u)
+  for (const entry of h.native) h.admission.finish(entry.delivery)
+  h.admission.finish(h.lease)
 })
 
 test('native deadline hook is bound to the original RPC and delivery, not another RPC or caller options', async t => {
