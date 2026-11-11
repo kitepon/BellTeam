@@ -270,6 +270,10 @@ test('工程表が一つだけなら、そのまま工程表へ。会話を開�
   assert.equal(byClass(ui.body, 'lattice-card').length, 6)
   buttonByText(ui.body, 'BellTeam開発').click(); await flush()
   assert.equal(byClass(ui.body, 'lattice-cc').filter(el => el.tagName === 'button').length, 1, '切替は一覧へ')
+  const back = byClass(ui.body, 'lattice-back')[0]
+  assert.equal(back.getAttribute('aria-label'), 'BellTeam開発へ戻る', '一覧から来た工程表へ戻れる')
+  back.click(); await flush()
+  assert.equal(byClass(ui.body, 'lattice-cc').length, 0); assert.equal(byClass(ui.body, 'lattice-back').length, 0)
   ui.view.close()
 })
 

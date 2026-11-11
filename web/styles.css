@@ -1206,6 +1206,8 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 
 /* 一覧と空の画面 */
 .lattice-list { padding: 8px 20px 28px; }
+.lattice-back { display: inline-flex; align-items: center; gap: 6px; height: 32px; margin: 0 0 12px; padding: 0 12px 0 8px; border: 0; border-radius: 16px; background: var(--l-soft); color: var(--l-ink); font: inherit; font-size: 13px; font-weight: 650; cursor: pointer; }
+.lattice-back:focus-visible { outline: 2px solid var(--l-violet); outline-offset: 2px; }
 .lattice-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
 .lattice-cc { position: relative; display: block; min-height: 150px; padding: 14px 15px; border: 0; border-radius: 20px; background: var(--l-surface); box-shadow: 0 0 0 .5px rgba(33,41,61,.12), 0 10px 24px -14px rgba(33,41,61,.3); color: var(--l-ink); font: inherit; text-align: left; }
 .lattice-cc.pin { background: linear-gradient(160deg, var(--l-surface), #F3EFFF); box-shadow: 0 0 0 1.2px rgba(97,71,212,.4), 0 14px 30px -14px rgba(97,71,212,.5); }
