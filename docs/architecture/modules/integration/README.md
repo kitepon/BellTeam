@@ -73,6 +73,35 @@ flowchart TD
 
 LANの端末で動く席は、公開入口の`/api/seat-mcp`へ席ごとの合言葉で直接つなぐ。内部入口:4181はloopbackのまま。合言葉の発行・確認・失効、端末coreの親への組立て、Owner HTTPとMCP道具の窓口は[remote-seat-ingress](remote-seat-ingress.md)が正本。
 
+## 席のMCPのセッションと道具一覧の更新（C5）
+
+本体の更新を越えて動き続ける席のCLIが、古い道具一覧を持ち続けないための接続。`src/seat-mcp.mjs`の`/mcp`（内部入口と`/api/seat-mcp`の両方）が持つ。
+
+```mermaid
+stateDiagram-v2
+  [*] --> Stateless: POST、mcp-session-idなし、initialize以外（本版より前に接続した席）
+  Stateless --> Stateless: 要求ごとにServerを作り、応答後に閉じる（従来どおり）
+  [*] --> Session: POST initialize、mcp-session-idなし
+  Session --> Session: POST/GET/DELETE、同じid・同じ席（名札・Bot・forkが初期化時と同じ）
+  Session --> Gone: DELETE / 6時間要求なし / 本体停止（handle.close）
+  Session --> Gone: 本体の再起動（idは記憶だけにある）
+  Gone --> NotFound: 消えたid・別の席が出したid
+  NotFound --> Session: 404を受けたCLIが初期化し直し、tools/listを読み直す
+```
+
+| 項目 | 契約 |
+| --- | --- |
+| SM01 | `initialize`は`sessionIdGenerator`付きのtransportで受け、idと席（名札の値・解決したBot・fork）を記憶の表に置く。応答の能力は`tools: {listChanged: true}`。 |
+| SM02 | idのある要求は、表にあり、かつ要求ごとに解決した席が初期化時と同じ時だけ、そのtransportへ渡す。GET（SSE）とDELETEもここで受ける。 |
+| SM03 | 表に無いid・席の違うidは404（JSON-RPC `-32001 Session not found`）。仕様どおりのクライアントは初期化し直し、新しい本体の道具一覧を読む。本体の再起動で表は空になる。 |
+| SM04 | idの無い`initialize`以外のPOSTは従来の状態なしの受け口で答える。本版より前に接続した席の互換。この席は次の本体更新まで古い一覧のまま（初回だけ、席の再起動か予備策Bが要る）。idの無いGETは405。 |
+| SM05 | 道具一覧は`bellTeamTools`（freeze済み）で、プロセスの中では変わらない。一覧が変わるのは本体の再起動だけで、SM03で届く。`notifications/tools/list_changed`を送る契機はプロセス内に無い。 |
+| SM06 | 一覧のdigest（`SEAT_TOOLS_DIGEST`、道具一覧JSONのsha256）を`initialize`応答の`capabilities.experimental['ai.bellteam/tools.v1'].digest`に載せる。予備策B（executionが、digestの変わった席を待機中に休止・再開する）だけが読む。 |
+| SM07 | 6時間要求の無いセッションは、次の`initialize`の時に閉じる。開いたSSEも閉じ、CLIは再接続の404から初期化し直す。`handle.close()`は中継と全セッションを閉じる。 |
+
+失敗の扱い：席の解決の失敗（400/503）は従来どおりセッションより前で返す。セッションは記憶だけに置き、保存しない。
+shortcut: SM07の6時間は、席の数（数十）での記憶の上限が要らない値。席が数百を越えたら上限数を加える。
+
 ## Claudeの1st/2ndアカウント
 
 [harness-accounts](../execution/harness-accounts.md)の公開HTTPを親が持つ。`GET /api/accounts`は`execution.accounts.list()`をそのまま200で返す。アカウントの選択は上限だけで決まり、好みのルールは無い（オーナー裁定 2026-11-09）。`POST /api/accounts/rules`は削除済みで、他の未知の経路と同じ404になる。accountsが無い本体と、`EXECUTION_REQUEST_INVALID`を返す古いengineは404で、端末は旧カードを出す。Bot項目（GET `/api/bots`、`/api/bots/:id`）の`account`は`transport.seatAccount(botId)`の値（席に無ければnull）で、対応の無い本体では項目ごと出さない。同じ規則で`seatLaunch`は`transport.seatLaunch(botId)`の値（端末の席の起動が始まらずに終わった時の`{code, action, terminalId, at}`、無ければnull。起動の成功で消える。契約は[remote-seat](../execution/remote-seat.md)「Launch notice for the Owner」）。どちらも`readSeatProjection`：methodが無い・`EXECUTION_REQUEST_INVALID`は項目なし、その他の失敗はnull、値はstructuredClone。一覧で削除中の項目はnull。変更は既change stream `{topics:['bots']}`で端末が`/api/bots`を読み直す。`accounts`は同じ実体をusageServicesと予備HarnessAuthへも渡す（usageのprivate effect `auth.prepareAccount`）。台帳の変更は次節のSSE `settings`で知らせる。

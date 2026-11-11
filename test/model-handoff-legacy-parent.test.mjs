@@ -109,7 +109,7 @@ test('parent starts with closed legacy storage, follows exchanges and rejects a 
   }
   const initialize = id => request(id, 'initialize', { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'fixture', version: '1' } })
   const update = id => request(id, 'tools/call', { name: 'update_self', arguments: { model: 'fixture' } })
-  assert.equal((await initialize('old')).result.capabilities.experimental, undefined)
+  assert.equal((await initialize('old')).result.capabilities.experimental['ai.aiterm/handoff.v1'], undefined)
   const old = await update(1)
   assert.equal(old.result._meta, undefined); assert.equal(normalCalls, 1); assert.equal(handoffCalls, 0)
   await runtime.services.execution.controller.replace('builtin')
@@ -131,7 +131,7 @@ test('parent starts with closed legacy storage, follows exchanges and rejects a 
   assert.match(JSON.stringify(rejected), /EXECUTION_NOT_ACCEPTING/)
   assert.equal(normalCalls, 1); assert.equal(handoffCalls, 1)
   assert.equal(oldConstructs, 2); assert.equal(runtime.services.modelHandoffGeneration(), null)
-  assert.equal((await initialize('old-again')).result.capabilities.experimental, undefined)
+  assert.equal((await initialize('old-again')).result.capabilities.experimental['ai.aiterm/handoff.v1'], undefined)
   assert.equal((await update(4)).result._meta, undefined)
   assert.equal(normalCalls, 2); assert.equal(handoffCalls, 1)
   await assert.rejects(runtime.services.execution.controller.replace(brokenId), /EXECUTION_REPLACE_ROLLBACK/)
