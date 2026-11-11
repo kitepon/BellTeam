@@ -3,6 +3,14 @@ import { guardEditorClose } from './editor-close.js?v=__ASSET_VERSION__'
 import { createAvatarEditor } from './avatar-editor.js?v=__ASSET_VERSION__'
 import { applyAvatar, initials, escapeClass, escapeHtml } from './view-format.js?v=__ASSET_VERSION__'
 
+const roomReasons = {
+  ROOM_NAME_INVALID: 'ルーム名を入れてください（100文字まで）。',
+  ROOM_PURPOSE_INVALID: '目的が長すぎます（8000文字まで）。',
+  ROOM_MEMBERS_INVALID: 'いないメンバーが含まれています。一覧を読み込み直してから選び直してください。',
+  ROOM_REPRESENTATIVE_INVALID: '代表は参加メンバーから選んでください。',
+}
+export const roomSaveError = error => roomReasons[error?.code] ?? roomReasons[error?.message] ?? '保存できませんでした。通信を確かめて、もう一度保存してください。'
+
 export function createRoomEditor(dialog, { api, getBots, onSaved, onDeleted }) {
   let owner = null, saving = null, editRevision = 0
   const roomForm = dialog.querySelector('#room-form')
@@ -12,6 +20,7 @@ export function createRoomEditor(dialog, { api, getBots, onSaved, onDeleted }) {
   const memberSearch = dialog.querySelector('#room-member-search')
   const memberCount = dialog.querySelector('#room-member-count')
   const roomMembers = dialog.querySelector('#room-members')
+  const memberChips = dialog.querySelector('#room-member-chips')
   const roomRepresentative = dialog.querySelector('#room-representative')
   const roomFormError = dialog.querySelector('#room-form-error')
   const roomAvatarFile = dialog.querySelector('#room-avatar-file')
@@ -28,7 +37,7 @@ export function createRoomEditor(dialog, { api, getBots, onSaved, onDeleted }) {
   roomForm.addEventListener('submit', saveRoom)
   roomForm.addEventListener('input', event => { if (event?.target !== memberSearch) editRevision++ })
   roomForm.addEventListener('change', event => { if (event?.target !== memberSearch) editRevision++ })
-  roomMembers.addEventListener('change', () => renderRoomRepresentativeOptions())
+  roomMembers.addEventListener('change', () => { renderRoomRepresentativeOptions(); renderChips() })
   deleteRoomButton.addEventListener('click', remove)
   memberSearch.addEventListener('input', filterMembers)
   guardEditorClose(dialog, () => Boolean(owner && (editRevision !== owner.initialRevision || avatar.changed())), () => Boolean(owner && saving === owner))
@@ -45,31 +54,56 @@ export function createRoomEditor(dialog, { api, getBots, onSaved, onDeleted }) {
     roomPurpose.value = room?.purpose ?? ''
     avatar.reset(room?.avatar ?? '')
     memberSearch.value = ''
+    // W78: name once (role small beside it), a check like the 返信する人 picker.
     roomMembers.replaceChildren(...getBots().map(bot => {
       const label = document.createElement('label')
+      label.className = 'target-row'
       label.dataset.memberId = bot.id
-      label.innerHTML = `<input type="checkbox" value="${escapeHtml(bot.id)}" ${room?.memberIds.includes(bot.id) ? 'checked' : ''}><span>${escapeHtml(bot.displayName)}<small>${escapeHtml(bot.position || '役職未設定')}</small></span>`
+      label.innerHTML = `<input type="checkbox" value="${escapeHtml(bot.id)}" ${room?.memberIds.includes(bot.id) ? 'checked' : ''}><span>${escapeHtml(bot.name ?? bot.displayName)}${bot.position ? `<small>${escapeHtml(bot.position)}</small>` : ''}</span><i class="target-check"></i>`
       return label
     }))
     renderRoomRepresentativeOptions(room?.representativeId ?? '')
+    renderChips()
     filterMembers()
     owner.initialRevision = editRevision
     if (!dialog.open) dialog.showModal()
   }
 
+  // W78: without a search only the first 30 unchosen members are listed; chosen ones are the chips above.
+  const LIST_LIMIT = 30
   function filterMembers() {
+    const query = memberSearch.value.trim()
+    let shown = 0, matching = 0
     for (const label of roomMembers.children) {
       const bot = getBots().find(item => item.id === label.dataset.memberId)
-      label.hidden = !bot || !matchesMemberQuery(bot, memberSearch.value)
+      const match = Boolean(bot) && matchesMemberQuery(bot, query)
+      if (match) matching++
+      label.hidden = !match || (!query && shown >= LIST_LIMIT)
+      if (!label.hidden) shown++
     }
-    memberCount.textContent = `${roomMembers.querySelectorAll('input:checked').length}人を選択中 · ${[...roomMembers.children].filter(label => !label.hidden).length}人を表示`
+    const chosen = roomMembers.querySelectorAll('input:checked').length
+    memberCount.textContent = `${chosen}人を選択中` + (shown < matching ? ` · ${matching}人のうち${shown}人を表示。名前で探すと絞り込めます。` : '')
+  }
+
+  function renderChips() {
+    memberChips.replaceChildren(...[...roomMembers.querySelectorAll('input:checked')].map(input => {
+      const bot = getBots().find(item => item.id === input.value)
+      const chip = document.createElement('button')
+      chip.type = 'button'
+      chip.className = 'member-chip'
+      chip.setAttribute('aria-label', `${bot?.name ?? input.value}を外す`)
+      chip.innerHTML = `<span class="mini-face ${escapeClass(bot?.color)}">${escapeHtml((bot?.name ?? '?').slice(0, 1))}</span>${escapeHtml(bot?.name ?? input.value)}<i aria-hidden="true">×</i>`
+      if (bot) applyAvatar(chip.querySelector('.mini-face'), bot)
+      chip.addEventListener('click', () => { input.checked = false; editRevision++; renderRoomRepresentativeOptions(); renderChips() })
+      return chip
+    }))
   }
 
   function renderRoomRepresentativeOptions(preferred = roomRepresentative.value) {
     const selectedIds = [...roomMembers.querySelectorAll('input:checked')].map(input => input.value)
     roomRepresentative.replaceChildren(new Option('代表なし', ''), ...selectedIds.map(id => {
       const bot = getBots().find(item => item.id === id)
-      return new Option(bot?.displayName ?? id, id)
+      return new Option(bot?.name ?? bot?.displayName ?? id, id)
     }))
     roomRepresentative.value = selectedIds.includes(preferred) ? preferred : ''
     filterMembers()
@@ -98,8 +132,9 @@ export function createRoomEditor(dialog, { api, getBots, onSaved, onDeleted }) {
       opened.room = result.room
       await onSaved(result.room, current)
       if (current()) dialog.close()
-    } catch {
-      if (owner === opened) roomFormError.textContent = accepted ? '保存しました。表示を更新できませんでした。' : '保存できませんでした。名前とメンバーを確認してね。'
+    } catch (error) {
+      // W79: the server's reason in plain words, next to 保存.
+      if (owner === opened) roomFormError.textContent = accepted ? '保存しました。表示を更新できませんでした。' : roomSaveError(error)
     } finally {
       if (saving === opened) saving = null
       if (owner === opened) roomSubmit.disabled = false

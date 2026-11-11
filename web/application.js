@@ -203,7 +203,6 @@ export function createWebApp({ client = createWebClient() } = {}) {
       } catch { if (state.selected?.id === bot.id) conversationComposer.showError('再起動操作後の表示を更新できませんでした。') }
     }, 1000),
     onStatus: (bot, message) => { if (state.selectedType === 'bot' && state.selected?.id === bot.id) chatStatus.textContent = message },
-    onMemory: bot => memoryView.open(bot), onSheets: bot => characterSheets.open(bot),
   })
 
   const ownerEditor = createOwnerEditor(ownerDialog, { api,
@@ -261,6 +260,9 @@ export function createWebApp({ client = createWebClient() } = {}) {
     if (state.selectedType === 'room') openRoomDialog(state.selected)
   })
   document.querySelector('#schedule-button').addEventListener('click', openScheduleDialog)
+  // 7.1: 記憶と知識 and キャラクターシート live in the member's 「…」 menu, not in the edit form.
+  document.querySelector('#memory-button').addEventListener('click', () => { if (state.selectedType === 'bot' && state.selected) void memoryView.open(state.selected) })
+  document.querySelector('#character-sheet-button').addEventListener('click', () => { if (state.selectedType === 'bot' && state.selected) void characterSheets.open(state.selected) })
   // 「…」 menu (W24): closes after a choice, on an outside click and on Esc.
   const chatMore = document.querySelector('#chat-more')
   chatMore.addEventListener('click', event => { if (event.target.closest('.chat-more-menu button')) chatMore.open = false })
@@ -583,6 +585,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
     applyAvatar(headerAvatar, bot)
     editBotButton.disabled = false
     screenButton.hidden = false
+    chat.classList.remove('is-room')
     if (!screenPanel.hidden) void screenView.open(bot)
     markConversationRead('bot', bot)
     renderBots()
@@ -596,6 +599,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
     void goals.select(null)
     closeScreen()
     screenButton.hidden = true
+    chat.classList.add('is-room')
     state.selected = room
     state.selectedType = 'room'
     conversationComposer.select({ type: 'room', id: room.id, name: room.name })

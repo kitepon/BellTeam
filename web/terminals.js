@@ -35,6 +35,36 @@ export function terminalStatus(observation, os = 'macos') {
   return { tone: 'attention', label: '届きません', help: action || '端末が眠っているか、ネットワークにつながっていません。起きれば、届いていない依頼から自動で再開します。', reason }
 }
 
+// "11/11 20:48" in JST, or '' for a time that cannot be read.
+export function checkTime(iso) {
+  const at = new Date(iso)
+  if (Number.isNaN(at.getTime())) return ''
+  const part = Object.fromEntries(new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(at).map(item => [item.type, item.value]))
+  return `${part.month}/${part.day} ${part.hour}:${part.minute}`
+}
+
+// The card badge from the last check: this dialog's press ({observedAt}) or the server's record `lastCheck` ({checkedAt}); null = never checked.
+export function checkBadge(check) {
+  if (!check) return { tone: 'muted', label: '未確認' }
+  if (check.reachable === true) {
+    const time = checkTime(check.observedAt ?? check.checkedAt)
+    return { tone: 'ok', label: time ? `${time} につながりました` : 'つながりました' }
+  }
+  return { tone: 'attention', label: 'つながりません', action: sentence(check.action) }
+}
+
+// Terminal id from the name the Owner typed: lowercase ascii / digits / hyphen, <= 63, /^[a-z0-9][a-z0-9-]{0,62}$/.
+// No ascii at all -> terminal-<n>. An id already registered (`taken`) gets -2, -3 ... so a new terminal never overwrites another.
+export function terminalIdFromName(name, taken = []) {
+  const slug = String(name ?? '').normalize('NFKC').toLowerCase().replace(/[^a-z0-9]+/gu, '-').replace(/^-+|-+$/gu, '').slice(0, 63).replace(/-+$/u, '')
+  const used = new Set(taken)
+  const suffixed = (base, from) => { for (let n = from; ; n++) { const id = `${base.slice(0, 62 - String(n).length)}-${n}`; if (!used.has(id)) return id } }
+  return !slug ? suffixed('terminal', 1) : used.has(slug) ? suffixed(slug, 2) : slug
+}
+
+// Registered terminals have no separate name: the id is the name the Owner typed. A generated id (terminal-<n>) reads as the OS and user instead.
+export const friendlyName = terminal => /^terminal-\d+$/u.test(terminal.terminalId) ? `${osName(osOf(terminal))}（${terminal.user}）` : terminal.terminalId
+
 // Bot DTO seatLaunch (Kiro #892) -> one plain line, or null when the member has no not-started remote launch.
 export function seatLaunchText(seatLaunch) {
   if (!seatLaunch || typeof seatLaunch !== 'object') return null
@@ -116,7 +146,7 @@ export async function readTerminals(api, options) {
 
 const ERRORS = {
   INVALID_TERMINAL: '入力の形が違います。下の詳細にある欄を直してください。',
-  TERMINAL_EXISTS: '同じIDの端末がもうあります。',
+  TERMINAL_EXISTS: '同じ名前の端末がもうあります。',
   TERMINAL_NOT_FOUND: 'その端末は登録されていません。一覧を更新してください。',
   HOST_KEY_FINGERPRINT_MISMATCH: '指紋が端末のものと一致しません。端末でもう一度確かめてください。',
   CREDENTIAL_UNAVAILABLE: 'SSH鍵がまだ使えません。先に鍵を設定してください。',
@@ -131,10 +161,13 @@ const AUTHORIZE_WAIT_MS = 1000
 // The SHA256 token out of whatever the Owner pasted: the bare fingerprint or the whole `ssh-keygen -lf` line (256 SHA256:… user@host (ED25519)).
 export const fingerprintOf = text => /(?:^|\s)(SHA256:[A-Za-z0-9+/]{43})(?=\s|$)/u.exec(String(text ?? ''))?.[1] ?? null
 const errorText = error => ERRORS[error?.code] ?? '結果を確認できませんでした。一覧を更新して確かめてください。'
-const keyLabel = { ssh: 'SSH鍵', sudo: 'sudo鍵' }
+const keyLabel = { ssh: 'SSH鍵', sudo: '管理者の鍵' }
 // Source of each purpose's key. The native (terminal-held) capability is SSH only (usage C5), so the shared keySource never describes sudo.
 export const keySourceOf = (terminal, purpose) => purpose === 'ssh' ? terminal?.sshKeySource ?? terminal?.keySource : terminal?.sudoKeySource ?? 'secret'
-const sourceLabel = { 'terminal-native': '端末の鍵', secret: '秘密入力' }
+// One line at the top of the list instead of the same sentence on every card (W82).
+const LIST_HELP = 'つながるかどうかは、起動した時と登録を変えた時にも調べています。いま調べ直したい時は、端末ごとの「届くか確かめる」を押してください。'
+// A new terminal has no key yet: its first check answers this, and the next step is the card's key button, not another check.
+const keyNext = reason => reason === 'SSH_KEY_UNSET' || reason === 'CREDENTIAL_UNAVAILABLE'
 
 const element = (tag, text, className) => {
   const node = document.createElement(tag)
@@ -217,7 +250,7 @@ export function createTerminalsView(dialog, { api }) {
   const save = (key, id, fields, done) => run(key, () => api(`/api/terminals/${id}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(fields) }),
     async () => { const current = opened; current.observations.delete(id); say(''); await load(); if (opened === current) done() })
   const remove = terminal => {
-    if (!window.confirm(`端末「${terminal.terminalId}」の登録を消しますか？\nこの端末を使うメンバーの設定と、届いていない依頼は残ります。`)) return
+    if (!window.confirm(`端末「${friendlyName(terminal)}」の登録を消しますか？\nこの端末を使うメンバーの設定と、届いていない依頼は残ります。`)) return
     return run(`remove:${terminal.terminalId}`, () => api(`/api/terminals/${terminal.terminalId}`, { method: 'DELETE' }), async () => { opened.observations.delete(terminal.terminalId); await load() })
   }
   const setKey = (terminal, purpose) => run(`key:${terminal.terminalId}`, async () => {
@@ -228,7 +261,7 @@ export function createTerminalsView(dialog, { api }) {
     const request = result.secretRequest
     if (!request?.id) { fail(`key:${terminal.terminalId}`, '鍵の入力欄を開けませんでした。一覧を更新して確かめてください。'); return }
     const current = opened
-    openSecretInput({ message: `端末「${terminal.terminalId}」の${keyLabel[purpose]}です。値はこの入力欄だけに入れてください。`, ...request }, api, () => { if (opened === current) void load() })
+    openSecretInput({ message: `端末「${friendlyName(terminal)}」の${keyLabel[purpose]}です。値はこの入力欄だけに入れてください。`, ...request }, api, () => { if (opened === current) void load() })
   })
   // Self-service step 4: the terminal's login password goes only into Mika's card; this view waits for the outcome.
   const authorizeKey = id => run(`authorize:${id}`, () => api(`/api/terminals/${id}/keys/ssh/authorize`, { method: 'POST' }), result => {
@@ -259,67 +292,111 @@ export function createTerminalsView(dialog, { api }) {
     current.authorizing.set(id, { text: authorizeText(outcome, os), retry: outcome === 'PASSWORD_REJECTED' }); render()
   }
   const unbindKey = (terminal, purpose) => {
-    if (!window.confirm(`端末「${terminal.terminalId}」の${keyLabel[purpose]}を外しますか？`)) return
+    if (!window.confirm(`端末「${friendlyName(terminal)}」の${keyLabel[purpose]}を外しますか？`)) return
     return run(`key:${terminal.terminalId}`, () => api(`/api/terminals/${terminal.terminalId}/keys/${purpose}`, { method: 'DELETE' }), () => load())
   }
 
   function keyRow(terminal, purpose) {
     const configured = terminal[`${purpose}KeyConfigured`]
     const row = element('div', undefined, 'terminal-key')
-    row.append(element('span', keyLabel[purpose], 'terminal-key-name'))
+    const tone = configured === true ? 'ok' : configured === false && purpose === 'ssh' ? 'attention' : 'muted'
+    row.append(element('span', `${purpose === 'ssh' ? '鍵' : '管理者の鍵'}: ${configured === true ? '設定済み' : configured === false ? '未設定' : '未確認'}`, `terminal-key-name ${tone}`))
     const source = keySourceOf(terminal, purpose)
-    row.append(configured === true ? badge(sourceLabel[source] ? `設定済み · ${sourceLabel[source]}` : '設定済み', 'ok')
-      : configured === false ? badge(purpose === 'ssh' ? '未設定' : 'なし', purpose === 'ssh' ? 'attention' : 'muted') : badge('未確認', 'muted'))
     const busy = opened.busy.has(`key:${terminal.terminalId}`)
     if (opened.keyRoute) {
       const setter = button(configured ? '入れ直す' : '設定する', () => { void setKey(terminal, purpose) })
       setter.disabled = busy
       row.append(setter)
-      if (configured === true && source !== 'terminal-native') { const unbind = button('外す', () => { void unbindKey(terminal, purpose) }, 'text-button'); unbind.disabled = busy; row.append(unbind) }
+      if (configured === true && source !== 'terminal-native') { const unbind = button('外す', () => { void unbindKey(terminal, purpose) }, 'terminal-quiet'); unbind.disabled = busy; row.append(unbind) }
     }
     return row
   }
 
+  // W83: OS -> its steps -> address -> check -> name (new) / OS -> steps -> address -> save (edit). The id comes from the name.
   function form(terminal = null) {
     const node = element('form', undefined, 'terminal-form')
     const field = (label, input, help = '') => { const wrap = element('label', undefined, 'field'); wrap.append(element('span', label), input); if (help) wrap.append(element('small', help, 'field-help')); return wrap }
     const input = (value, attributes) => { const node = element('input'); Object.assign(node, attributes); node.value = value ?? ''; return node }
-    const draft = opened.draft ?? (opened.draft = { terminalId: terminal?.terminalId ?? '', host: terminal?.host ?? '', user: terminal?.user ?? '', port: String(terminal?.port ?? 22), accountOwner: terminal?.accountOwner ?? 'owner', os: osOf(terminal), revision: 0 })
-    const id = input(draft.terminalId, { required: true, pattern: '[a-z0-9][a-z0-9\\-]{0,62}', maxLength: 63, placeholder: 'owner-macbook', disabled: Boolean(terminal), autocapitalize: 'none', spellcheck: false })
+    const draft = opened.draft ?? (opened.draft = { host: terminal?.host ?? '', user: terminal?.user ?? '', port: String(terminal?.port ?? 22), accountOwner: terminal?.accountOwner ?? 'owner', os: osOf(terminal), name: '', nameAuto: true, registered: null, result: null, revision: 0 })
     const host = input(draft.host, { required: true, maxLength: 253, placeholder: '192.168.1.12', autocapitalize: 'none', spellcheck: false })
     const user = input(draft.user, { required: true, maxLength: 64, placeholder: 'kite', autocapitalize: 'none', spellcheck: false })
     const port = input(draft.port, { type: 'number', min: 1, max: 65535, required: true, inputMode: 'numeric' })
+    const name = input(draft.name, { required: true, maxLength: 60, placeholder: '例：自分のMac', disabled: Boolean(draft.registered) })
     const owner = element('select')
     for (const [value, label] of [['owner', '自分の機械（自分のClaudeアカウントで動かす）'], ['terminal-owner', 'ほかの人の機械（その機械のClaudeログインで動かす）']]) { const option = element('option', label); option.value = value; owner.append(option) }
     owner.value = draft.accountOwner
     const os = element('select')
     for (const [value, { badge: label }] of Object.entries(OS)) { const option = element('option', label); option.value = value; os.append(option) }
     os.value = draft.os
-    // Precondition first: SSH needs the OS's SSH server on (self-service step 1); follows the OS choice.
-    const precondition = element('p', REMOTE_LOGIN[draft.os], 'field-help')
+    // SSH needs the OS's SSH server on (self-service step 1); the step follows the OS choice.
+    const steps = element('ol', undefined, 'terminal-steps'), first = element('li', REMOTE_LOGIN[draft.os])
+    steps.append(first, element('li', 'その機械のIPアドレス（なければ機械の名前）と、ログインするユーザー名を、下に入れます。'))
+    // The name starts as 「<user>の<OS>」 until the Owner types one; the id is derived from it.
+    const suggested = () => user.value.trim() ? `${user.value.trim()}の${osName(os.value)}` : ''
     // Typed values survive re-renders (busy state, a failed save) until the form is closed.
-    node.addEventListener('input', () => { Object.assign(draft, { terminalId: id.value, host: host.value, user: user.value, port: port.value, accountOwner: owner.value, os: os.value, revision: draft.revision + 1 }); precondition.textContent = REMOTE_LOGIN[os.value] })
-    node.append(element('h4', terminal ? `「${terminal.terminalId}」を編集` : '端末を追加'))
-    node.append(field('OS', os), precondition,
-      field('端末ID', id, '英小文字・数字・ハイフン。あとから変えられません。'), field('ホスト', host, 'IPアドレスかホスト名だけ。user@ やポートは入れません。'),
-      field('ユーザー名', user), field('SSHのポート', port), field('機械の持ち主', owner), element('p', '鍵は、登録したあとに「設定する」から入れます。', 'field-help'))
+    node.addEventListener('input', () => {
+      if (!terminal && draft.nameAuto && name.value !== draft.name) draft.nameAuto = false
+      Object.assign(draft, { host: host.value, user: user.value, port: port.value, accountOwner: owner.value, os: os.value, revision: draft.revision + 1 })
+      if (!terminal) { if (draft.nameAuto) name.value = suggested(); draft.name = name.value }
+      first.textContent = REMOTE_LOGIN[os.value]
+    })
+    const more = element('details', undefined, 'terminal-advanced')
+    more.append(element('summary', 'くわしい設定'), field('SSHのポート', port, '変えていなければ 22 のままにします。'), field('機械の持ち主', owner))
+    node.append(element('h4', terminal ? `「${friendlyName(terminal)}」を編集` : '端末を追加'))
+    node.append(field('OS', os), element('p', 'この機械で、先にこれを済ませてください。', 'field-help'), steps, field('機械のアドレス', host, 'IPアドレスか機械の名前だけを入れます。'), field('ユーザー名', user), more)
     const actions = element('div', undefined, 'terminal-actions')
     const key = `form:${terminal?.terminalId ?? 'new'}`
-    const submit = element('button', terminal ? '保存' : '登録', 'primary'); submit.type = 'submit'
-    submit.disabled = opened.busy.has(key)
-    actions.append(submit, button('やめる', () => { opened.editing = null; opened.draft = null; opened.errors.delete(key); render() }, 'text-button'))
-    node.append(actions, ...errorNode(key))
+    const busy = opened.busy.has(key)
+    const cancel = () => { opened.editing = null; opened.draft = null; opened.errors.delete(key); render() }
+    if (terminal) {
+      const submit = element('button', '保存', 'primary'); submit.type = 'submit'; submit.disabled = busy
+      actions.append(submit, button('やめる', cancel, 'terminal-quiet'))
+      node.append(element('p', '鍵は、登録したあとに「設定する」から入れます。', 'field-help'), actions, ...errorNode(key))
+    } else {
+      const outcome = draft.result && addResult(draft.result, draft.os)
+      const submit = element('button', busy ? '確かめています…' : outcome ? (outcome.done ? '完了' : 'もう一度確かめる') : 'つながるか確かめる', 'primary')
+      submit.type = outcome?.done && !busy ? 'button' : 'submit'; submit.disabled = busy
+      if (outcome?.done) submit.addEventListener('click', cancel)
+      actions.append(submit)
+      node.append(actions, ...errorNode(key))
+      if (outcome) { const result = element('div', undefined, `terminal-result ${outcome.tone}`); result.setAttribute('role', 'status'); result.append(...outcome.lines.map(line => element('p', line))); node.append(result) }
+      node.append(field('名前', name, 'つながるか確かめると、この名前で登録します。そのあとは変えられません。'), button(draft.registered ? '閉じる' : 'やめる', cancel, 'terminal-quiet'))
+    }
     node.addEventListener('submit', event => {
       event.preventDefault()
-      const terminalId = terminal?.terminalId ?? id.value.trim()
       const revision = draft.revision
-      // Close only the form this save came from, unchanged since the tap (bot-editor pattern); newer add/edit/input stays.
-      void save(key, terminalId, { host: host.value.trim(), user: user.value.trim(), port: Number(port.value), os: os.value, accountOwner: owner.value }, () => {
-        if (opened.draft === draft && draft.revision === revision) { opened.editing = null; opened.draft = null }
-        else say('保存しました。そのあとに変えた入力は残しています。')
+      const fields = { host: host.value.trim(), user: user.value.trim(), port: Number(port.value), os: os.value, accountOwner: owner.value }
+      if (terminal) {
+        // Close only the form this save came from, unchanged since the tap (bot-editor pattern); newer add/edit/input stays.
+        void save(key, terminal.terminalId, fields, () => {
+          if (opened.draft === draft && draft.revision === revision) { opened.editing = null; opened.draft = null }
+          else say('保存しました。そのあとに変えた入力は残しています。')
+        })
+        return
+      }
+      // A new terminal must be registered before it can be checked: PUT, then the check, in one tap.
+      const current = opened, id = draft.registered ?? terminalIdFromName(name.value, current.terminals.map(item => item.terminalId))
+      void run(key, async () => {
+        await api(`/api/terminals/${id}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(fields) })
+        draft.registered = id; current.observations.delete(id); draft.result = null
+        await load()
+        return api(`/api/terminals/${id}/check`, { method: 'POST' })
+      }, observation => {
+        current.observations.set(id, observation); say('')
+        if (opened.draft === draft && draft.revision === revision) { draft.result = observation; render() }
+        else say('登録しました。そのあとに変えた入力は残しています。')
       })
     })
     return node
+  }
+
+  // After the add sheet's check: what happened and whether the sheet is finished.
+  function addResult(observation, os) {
+    const status = terminalStatus(observation, os), badge = checkBadge(observation)
+    if (badge.tone === 'ok') return { done: true, tone: 'ok', lines: [badge.label, '一覧に登録しました。'] }
+    if (keyNext(status.reason)) return { done: true, tone: 'attention', lines: ['登録しました。まだSSH鍵がありません。', '「完了」で一覧へ戻り、この端末の「設定する」から鍵を入れてください。'] }
+    if (status.trust) return { done: true, tone: 'attention', lines: ['登録しました。ホスト鍵の確認が残っています。', '「完了」で一覧へ戻り、この端末の案内に沿って確かめてください。'] }
+    return { done: false, tone: 'attention', lines: [badge.label, badge.action || status.help, '登録はできています。直してから、もう一度確かめられます。'].filter(Boolean) }
   }
 
   function trustForm(terminal, os) {
@@ -349,22 +426,32 @@ export function createTerminalsView(dialog, { api }) {
     const node = element('section', undefined, 'terminal-card')
     node.dataset.terminalId = id
     const os = osOf(terminal)
-    const status = terminalStatus(opened.observations.get(id), os)
+    // This dialog's own press wins; otherwise the check the server recorded (it also runs at start and after each change).
+    const pressed = opened.observations.get(id), seen = pressed ?? terminal.lastCheck ?? null
+    const status = terminalStatus(seen, os), shown = checkBadge(seen)
     const head = element('div', undefined, 'terminal-head')
+    const icon = element('span', undefined, `terminal-icon is-${os}`); icon.setAttribute('aria-hidden', 'true')
     const title = element('div', undefined, 'terminal-title')
-    title.append(element('strong', id), element('span', `${terminal.user}@${terminal.host}${terminal.port && terminal.port !== 22 ? `:${terminal.port}` : ''}`, 'terminal-target'))
-    head.append(element('span', undefined, 'terminal-icon'), title, badge(status.label, status.tone, status.reason ?? ''))
+    title.append(element('strong', friendlyName(terminal)))
+    head.append(icon, title, badge(shown.label, shown.tone, status.reason ?? ''))
     const meta = element('div', undefined, 'terminal-meta')
     meta.append(badge(OS[os].badge, 'muted'), badge(terminal.accountOwner === 'terminal-owner' ? 'ほかの人の機械' : '自分の機械', 'muted'),
       terminal.hostTrust ? badge('ホスト鍵 登録済み', 'ok') : badge('ホスト鍵 未登録', 'attention'))
-    node.append(head, meta)
+    // The address is support information: closed by default.
+    const details = element('details', undefined, 'terminal-details')
+    details.append(element('summary', '詳細'), element('code', `${terminal.user}@${terminal.host}${terminal.port && terminal.port !== 22 ? `:${terminal.port}` : ''}`))
+    node.append(head, meta, details)
     // First use is trusted by the body like ssh accept-new (terminals #1000, Owner ruling 2026-11-11): the sheet is only for a check
     // that reports a trust reason (a changed key, or an older body that still needs the Owner's fingerprint).
-    const needsTrust = Boolean(status.trust)
+    // Only a check pressed here adopts first-use trust, so a recorded trust reason alone never asks for the fingerprint.
+    const needsTrust = Boolean(pressed && status.trust)
     // The Mac / Windows app attests only a terminal without hostTrust (S2); a changed key on a trusted one needs the manual sheet (Crust #1020, #1035).
     const appAttests = needsTrust && (os === 'macos' || os === 'windows') && !terminal.hostTrust
     if (appAttests) node.append(element('p', `この${os === 'windows' ? 'PC' : 'Mac'}でBellTeamアプリを開くと、自動で確かめます。`, 'field-help'))
-    if (status.help && !status.trust) node.append(element('p', status.help, 'field-help'))
+    // Never-checked cards say nothing: the list's one help line covers them.
+    if (seen && status.help && !status.trust) node.append(element('p', status.help, 'field-help'))
+    if (seen && shown.action && shown.action !== status.help && !status.trust) node.append(element('p', shown.action, 'field-help'))
+    if (seen && status.trust && !pressed) node.append(element('p', '「届くか確かめる」を押すと、この端末を確かめます。', 'field-help'))
     const authorizing = opened.authorizing.get(id)
     if (authorizing) node.append(element('p', authorizing.text, 'field-help'))
     if ((status.authorize && !authorizing) || authorizing?.retry) {
@@ -372,8 +459,6 @@ export function createTerminalsView(dialog, { api }) {
       authorize.disabled = opened.busy.has(`authorize:${id}`)
       const row = element('div', undefined, 'terminal-actions'); row.append(authorize); node.append(row, ...errorNode(`authorize:${id}`))
     }
-    const observed = opened.observations.get(id)?.observedAt
-    if (observed) node.append(element('p', `確かめた時刻 ${new Date(observed).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`, 'terminal-time'))
     const claude = terminal.maintenance
     if (claude?.after || claude?.before) node.append(element('p', `Claude Code ${claude.after ?? claude.before}${claude.outcome === 'updated' ? '（最新に更新しました）' : claude.outcome === 'failed' ? '（更新できませんでした。入っている版で動きます）' : ''}`, 'terminal-time'))
     // windows has no sudo key (terminals refuses it as INVALID_TERMINAL).
@@ -395,7 +480,7 @@ export function createTerminalsView(dialog, { api }) {
     const actions = element('div', undefined, 'terminal-actions')
     const checkButton = button(opened.busy.has(`check:${id}`) ? '確かめています…' : '届くか確かめる', () => { void check(id) }, 'primary')
     checkButton.disabled = opened.busy.has(`check:${id}`)
-    const removeButton = button('登録を消す', () => { void remove(terminal) }, 'text-button danger')
+    const removeButton = button('登録を消す', () => { void remove(terminal) }, 'terminal-quiet danger')
     removeButton.disabled = opened.busy.has(`remove:${id}`)
     actions.append(checkButton, button('編集', () => { opened.editing = id; opened.draft = null; render() }), removeButton)
     node.append(actions, ...errorNode(`check:${id}`), ...errorNode(`remove:${id}`))
@@ -405,7 +490,9 @@ export function createTerminalsView(dialog, { api }) {
   function render() {
     if (!opened) return
     body.replaceChildren()
-    if (opened.editing === 'new') body.append(form())
+    addButton.hidden = opened.editing === 'new'
+    if (opened.editing === 'new') { const sheet = element('div', undefined, 'terminal-sheet'); sheet.append(form()); body.append(sheet) }
+    if (opened.terminals.length) body.append(element('p', LIST_HELP, 'terminals-help'))
     if (!opened.unsupported && !opened.terminals.length && opened.editing !== 'new') body.append(element('p', 'まだ端末はありません。「追加」から、メンバーを動かす機械を登録できます。', 'terminal-empty'))
     for (const terminal of opened.terminals) body.append(card(terminal))
   }

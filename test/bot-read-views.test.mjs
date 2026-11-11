@@ -42,13 +42,13 @@ test('late character sheet bytes after close create no URL and old list cannot p
  assert.equal(creates,0)
  const old=deferred();const fresh=createCharacterSheetView(dialog,list,{api:path=>path.includes('/a/')?old.promise:Promise.resolve({sheets:[]})})
  const first=fresh.open({id:'a'});await fresh.open({id:'b'});old.resolve({sheets:[{file:'old'}]});await first
- assert.equal(list.children.length,1);assert.equal(list.children[0].textContent,'まだ置かれていない。')
+ assert.equal(list.children.length,1);const empty=list.children[0];assert.equal(empty.className,'character-sheet-empty');assert.deepEqual(empty.children.map(n=>n.textContent),[undefined,'キャラクターシートはまだありません。オーナーが選んだ1枚がここに出ます。']);assert.doesNotMatch(JSON.stringify(empty.children.map(n=>n.textContent)),/assets|正本/)
 })
 test('partial character sheet failure releases prior URLs and close does not release twice',async t=>{
  platform(t);const revoked=[];t.mock.method(URL,'createObjectURL',()=> 'blob:a');t.mock.method(URL,'revokeObjectURL',url=>revoked.push(url))
  const dialog=new Element(),list=new Element()
  const view=createCharacterSheetView(dialog,list,{api:async()=>({sheets:[{file:'one',url:'/one'},{file:'two',url:'/two'}]}),fetchImage:async path=>new Response(new Blob(['x']),{status:path==='/one'?200:500})})
- await view.open({id:'a'});assert.deepEqual(revoked,['blob:a']);assert.match(list.children[0].textContent,/読めません/)
+ await view.open({id:'a'});assert.deepEqual(revoked,['blob:a']);assert.match(list.children[0].textContent,/読めません/);assert.equal(list.children[1].textContent,'もう一度読む')
  dialog.close();assert.deepEqual(revoked,['blob:a'])
 })
 
@@ -128,4 +128,14 @@ test('a stopped member gets no key bar and the panel says it starts with the nex
  const view=createScreenView({panel,status,text,input,header:{offsetHeight:80},api:async path=>path.endsWith('/approval')?{status:'none'}:{online:false,screen:''}})
  await view.open({id:'a',name:'トロニー',displayName:'トロニー 本番'})
  assert.equal(input.hidden,true);assert.equal(status.textContent,'トロニーは止まっています。次のメッセージで起動します')
+})
+
+test('character sheet captions are the date only, and absent when the data has none; no file names on the surface',async t=>{
+ platform(t);t.mock.method(URL,'createObjectURL',()=> 'blob:a');t.mock.method(URL,'revokeObjectURL',()=>{})
+ const dialog=new Element(),list=new Element()
+ const view=createCharacterSheetView(dialog,list,{api:async()=>({sheets:[{file:'front.png',url:'/a',updatedAt:'2026-11-08T03:12:45.000Z'},{file:'back.png',url:'/b'}]}),fetchImage:async()=>new Response(new Blob(['x']))})
+ await view.open({id:'a'})
+ const [dated,plain]=list.children
+ assert.equal(dated.children[1].textContent,'2026/11/8');assert.equal(plain.children.length,1)
+ assert.ok(!JSON.stringify([dated.children[0].alt,plain.children[0].alt]).match(/png/))
 })

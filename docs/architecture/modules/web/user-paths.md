@@ -6,7 +6,7 @@ Input for this document: the production capture and review by Trony (2026-11-11,
 
 Apple keeps the same structure for Settings in [apple/settings-user-flow.md](../apple/settings-user-flow.md) (Rapi, branch `rapi/apple-auth-states`). Where both apps show the same thing, the words, badges and order are the same (section 9).
 
-Marks: **⚠Wn** = broken today (main 1e835b36), to be fixed. **✓Wn** = fixed (W5-W18, W21 and W24 in step 2a, branch `feat/web-home-roster-20261112`; W19-W20, W22-W23 and W25-W28 in step 2b-1, branch `feat/web-member-chat-20261112`; W29-W36 in step 2b-2, branch `feat/web-cards-room-20261112`; W60-W63 in step 3, branch `feat/web-update-center-20261112`; W64-W72 in step 4a, branch `feat/web-schedules-editors-20261112`). **→** = target. A transition without ⚠ already works and stays.
+Marks: **⚠Wn** = broken today (main 1e835b36), to be fixed. **✓Wn** = fixed (W5-W18, W21 and W24 in step 2a, branch `feat/web-home-roster-20261112`; W19-W20, W22-W23 and W25-W28 in step 2b-1, branch `feat/web-member-chat-20261112`; W29-W36 in step 2b-2, branch `feat/web-cards-room-20261112`; W60-W63 in step 3, branch `feat/web-update-center-20261112`; W64-W72 in step 4a, branch `feat/web-schedules-editors-20261112`; W73-W83 in step 4b, branch `feat/web-editors-20261112`). **→** = target. A transition without ⚠ already works and stays.
 
 ## 0. Rules every screen follows (acceptance bar)
 
@@ -487,25 +487,25 @@ stateDiagram-v2
   MForm --> MDelete: 「メンバーを削除」 (asks)
 ```
 
-- ⚠W73 Save is in the header and every error at the bottom of a 2,700 px form (review §7, inventory §5.1). → Sticky bottom bar with 「保存」 and the error line; the header keeps 「キャンセル」 only.
-- ⚠W74 「セッションを再起動」 has no confirmation and its failure is written only to the chat header behind the modal (`bot-editor.js:377-386`). → Label 「会話をやり直す」, confirmation, result in the bar.
-- ⚠W75 Help texts in system words (「保存した希望設定と、稼働中の適用状態を区別して表示します」, 「CLIの既定（読み込み中…）」); no badge for the applied state. → A badge 「反映済み」 / 「反映待ち」 / 「反映できませんでした」 next to the AI section title, one plain sentence.
-- ⚠W76 The add form on PC has no 動かす場所 section while the phone has one. → The section shows whenever `GET /api/terminals` works, on every width (check the PC read path).
-- ⚠W77 Mojibake 「電��」 in a stored profile text. → Report to the members owner with the bot id (server data), Web shows the text as served.
-- 記憶と知識 and キャラクターシート move to the member's 「…」 menu in the chat (they are not part of the form).
+- ✓W73 Save is in the header and every error at the bottom of a 2,700 px form (review §7, inventory §5.1). → Sticky bottom bar with 「保存」 and the error line; the header keeps 「キャンセル」 only. Built: `.editor-savebar` (member and room editors) also holds 「保存結果を確認」 and 「このフォルダを作って保存」.
+- ✓W74 「セッションを再起動」 has no confirmation and its failure is written only to the chat header behind the modal (`bot-editor.js:377-386`). → Label 「会話をやり直す」, confirmation, result in the bar. Built: asks with the member's name; the button says 「やり直しています…」; a failure is written in the save bar; success closes the editor and the chat header says 「会話をやり直しました」.
+- ✓W75 Help texts in system words (「保存した希望設定と、稼働中の適用状態を区別して表示します」, 「CLIの既定（読み込み中…）」); no badge for the applied state. → A badge 「反映済み」 / 「反映待ち」 / 「反映できませんでした」 next to the AI section title, one plain sentence. Built: labels 「AI」 / 「モデル」 / 「考える深さ」, 「標準」 instead of 「CLIの既定」; an offline member with no pending change has no badge and 「次に動き出す時から、この設定で動きます。」; the 端末 choice shows the terminal name only.
+- ✓W76 The add form on PC has no 動かす場所 section while the phone has one. → The section shows whenever `GET /api/terminals` works, on every width (check the PC read path). Checked: the read path has no width condition; the step 4b Chromium review shows the section on the PC add form when `/api/terminals` answers. Not reproduced; if it recurs, the cause is the terminals read, not the layout.
+- ⚠W77 Mojibake 「電��」 in a stored profile text. → Report to the members owner with the bot id (server data), Web shows the text as served. Reported to ベロータ 2026-11-12: bot-7b140b27 profileText, bot-12338c15 speechStyle, bot-7696018a speechStyle contain U+FFFD.
+- ✓ 記憶と知識 and キャラクターシート moved to the member's 「…」 menu in the chat (hidden in rooms); the form no longer has them.
 
 ### 7.2 Room editor and add room
 
-- ⚠W78 140 native checkbox rows, role printed twice, save only at the top, 10,000 px scroll; 代表 at the very end, unexplained (review §7). → Selected members as avatar chips at the top, a search field, only matching members listed (max 30 until searched), sticky bottom save bar with the error line; 「代表（このルームの窓口になる人）」 right under the chips.
-- ⚠W79 Generic failure 「保存できませんでした。名前とメンバーを確認してね。」. → The server's reason in plain words, next to the save button.
+- ✓W78 140 native checkbox rows, role printed twice, save only at the top, 10,000 px scroll; 代表 at the very end, unexplained (review §7). → Selected members as avatar chips at the top, a search field, only matching members listed (max 30 until searched), sticky bottom save bar with the error line; 「代表（このルームの窓口になる人）」 right under the chips. Built: a chip removes its member on tap; the list shows names once with the role small beside them, 30 rows until a search.
+- ✓W79 Generic failure 「保存できませんでした。名前とメンバーを確認してね。」. → The server's reason in plain words, next to the save button. Built: `roomSaveError` maps ROOM_NAME_INVALID / ROOM_PURPOSE_INVALID / ROOM_MEMBERS_INVALID / ROOM_REPRESENTATIVE_INVALID; anything else asks to check the connection and save again.
 
 ### 7.3 Memory and knowledge
 
-- ⚠W80 Four stacked forms with no list; success text lands in the next panel; all failures at the bottom; the memory kind shown as raw English (`fact`) (`memory-view.js:47-67`). → Two tabs 記憶 / 知識. Each: search on top, the result list in place, one 「追加」 that opens a small form in front; result next to its button; kind in Japanese. Title: just the name.
+- ✓W80 Four stacked forms with no list; success text lands in the next panel; all failures at the bottom; the memory kind shown as raw English (`fact`) (`memory-view.js:47-67`). → Two tabs 記憶 / 知識. Each: search on top, the result list in place, one 「追加」 that opens a small form in front; result next to its button; kind in Japanese. Title: just the name. Built: `web/memory-view.js` + `#memory-dialog`: tabs 記憶 / 知識; per tab the search form, a 「追加」 button with its result line beside it, and the list in place; the add form is a sheet inside the dialog (`#remember-sheet` / `#knowledge-sheet`). Kinds map to Japanese in `memoryKindLabel` (unknown -> その他); a failed read or write shows one plain sentence beside its own button (the raw message is only the element title). Scope words are 「このメンバー」 / 「チーム共通」. Request paths and bodies are unchanged.
 
 ### 7.4 Character sheet
 
-- ⚠W81 Shows the path `assets/character-sheet/` and the word 正本, then 「まだ置かれていない。」 (dead end). → 「キャラクターシートはまだありません。オーナーが選んだ1枚がここに出ます。」 with an empty-image placeholder; images with a plain caption (date only).
+- ✓W81 Shows the path `assets/character-sheet/` and the word 正本, then 「まだ置かれていない。」 (dead end). → 「キャラクターシートはまだありません。オーナーが選んだ1枚がここに出ます。」 with an empty-image placeholder; images with a plain caption (date only). Built: `createCharacterSheetView`: empty state is a placeholder image plus the one sentence; the caption is the JST date only (none when `updatedAt` is missing); the title reads 「<名前>のキャラクターシート」; a failed read shows a plain sentence with 「もう一度読む」.
 
 ### 7.5 Add sheet
 
@@ -513,8 +513,8 @@ Works; add icons to both choices; word 「メンバー」 everywhere instead of 
 
 ### 7.6 Terminals
 
-- ⚠W82 Every card shows 「未確認」 until the user presses 「届くか確かめる」; raw `kite@192.168.1.12`, 「設定済み・秘密入力」; the same help sentence on every card; 「外す」 looks like text; one icon for every OS (review §8). → Badge reflects the last server-recorded check with its time (「11/11 20:48 につながりました」), 「未確認」 only when never checked; OS icons; friendly name on top, address under 詳細; key rows 「鍵: 設定済み」; one help line at the top; 「外す」 as a quiet button.
-- ⚠W83 The add form: header 「追加」 stays visible; 端末ID / ホスト / SSHのポート need internal knowledge; 「やめる」 is plain text. → A sheet in front: OS -> the exact steps for that OS -> address -> 「つながるか確かめる」 -> name; the id is derived from the name.
+- ✓W82 Every card shows 「未確認」 until the user presses 「届くか確かめる」; raw `kite@192.168.1.12`, 「設定済み・秘密入力」; the same help sentence on every card; 「外す」 looks like text; one icon for every OS (review §8). → Badge reflects the last server-recorded check with its time (「11/11 20:48 につながりました」), 「未確認」 only when never checked; OS icons; friendly name on top, address under 詳細; key rows 「鍵: 設定済み」; one help line at the top; 「外す」 as a quiet button. Built: `web/terminals.js`: the card badge is `checkBadge(pressed ?? lastCheck)`; a check pressed in the dialog wins over the server's record. A recorded trust reason never opens the fingerprint sheet by itself (only a press here does, accept-new #1000). Registered terminals carry no separate name, so the top line is the id the Owner's name became (`terminal-<n>` reads as 「Mac（user）」). OS icons are CSS-mask glyphs; the sudo key row reads 「管理者の鍵」.
+- ✓W83 The add form: header 「追加」 stays visible; 端末ID / ホスト / SSHのポート need internal knowledge; 「やめる」 is plain text. → A sheet in front: OS -> the exact steps for that OS -> address -> 「つながるか確かめる」 -> name; the id is derived from the name. Built: `#terminals-dialog`: the add form is a sheet over the list (`.terminal-sheet`, header 追加 hidden). A new terminal cannot be checked before it exists, so 「つながるか確かめる」 does PUT `/api/terminals/:id` (same body as before) and then POST `…/check` in one tap; the name is prefilled as 「<user>の<OS>」 and locks after that tap (the id is fixed then). `terminalIdFromName` never reuses a registered id (-2, -3 …). A first check usually answers 「鍵がありません」, so that state offers 「完了」 and the card's 「設定する」 is the next step. Port and 機械の持ち主 sit under a closed 「くわしい設定」.
 
 ## 8. Onboarding (first run)
 

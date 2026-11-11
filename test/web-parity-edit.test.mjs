@@ -88,7 +88,7 @@ test('model select shows display names while saving ids, and says loading instea
  assert.deepEqual(labels('bot-reasoning-effort'),['high（読み込み中…）'])
  assert.match(f.get('bot-model-status').textContent,/読み込んでいます/)
  answer();await opened
- assert.deepEqual(labels('bot-model'),['CLIの既定','Fable 5.2','Opus 5.5（opus）','Opus 5.5（claude-opus-5-5）','plain','その他（手入力）'])
+ assert.deepEqual(labels('bot-model'),['標準','Fable 5.2','Opus 5.5（opus）','Opus 5.5（claude-opus-5-5）','plain','その他（手入力）'])
  assert.equal(f.get('bot-model').value,'fable')
  assert.equal(f.get('bot-model-status').textContent,'')
  await f.submit('bot-form')
