@@ -32,11 +32,12 @@ export function openOnboarding(initial, { api, onReady, onLater }) {
     dialog.remove()
     if (!ready) void onLater?.(setup)
   }, { once: true })
-  function button(label, action) {
+  let choosing = false // 「別のAIを選ぶ」 shows the AI tiles again without changing anything yet.
+  function button(label, action, primary = false) {
     const item = document.createElement('button')
     item.type = 'button'
-    item.className = label === '認証を確認して始める' ? 'solid-button' : 'setup-action'
-    item.textContent = label
+    item.className = primary ? 'primary-button' : 'setup-action'
+    item.textContent = busy && primary ? `${label}…` : label
     item.disabled = busy
     item.addEventListener('click', () => void perform(action))
     return item
@@ -77,38 +78,68 @@ export function openOnboarding(initial, { api, onReady, onLater }) {
     } catch (error) { errorText = error.message }
     finally { busy = false; if (!stopped) { render(); schedule() } }
   }
+  // W84: a stepper (1 AIを選ぶ / 2 ログイン / 3 始める) and one primary button per stage, as in user-paths.md section 8.
   function render() {
     clear()
+    const name = setup.harnesses.find(h => h.id === setup.harness)?.name ?? 'AI'
+    const view = setup.auth ? authFlowView(setup.auth) : null
+    const picking = setup.phase === 'select_harness' || choosing
+    const step = picking ? 1 : view?.stage === 'complete' ? 3 : 2
     const title = document.createElement('h2')
     title.textContent = 'BellTeamを始める'
-    const note = document.createElement('p')
-    note.textContent = '最初に使うAIを選んで公式サイトで認証します。設定は、そのあと案内役と会話しながら進められます。'
-    content.replaceChildren(title, note)
-    if (setup.phase === 'select_harness') {
+    const steps = document.createElement('ol')
+    steps.className = 'setup-steps'
+    for (const [index, label] of ['AIを選ぶ', 'ログイン', '始める'].entries()) {
+      const item = Object.assign(document.createElement('li'), { textContent: label })
+      if (index + 1 === step) { item.className = 'is-current'; item.setAttribute('aria-current', 'step') } else if (index + 1 < step) item.className = 'is-done'
+      steps.append(item)
+    }
+    content.replaceChildren(title, steps)
+    if (picking) {
+      content.append(Object.assign(document.createElement('p'), { textContent: '最初に使うAIを選んでください。選ぶと、そのAIの公式ログインが始まります。' }))
       const cards = document.createElement('div')
       cards.className = 'harness-cards'
-      for (const harness of setup.harnesses) cards.append(button(harness.name, () => post('harness', { harness: harness.id })))
+      for (const harness of setup.harnesses) cards.append(button(harness.name, () => { choosing = false; return post('harness', { harness: harness.id }) }))
       content.append(cards)
+      if (choosing) {
+        const back = Object.assign(document.createElement('button'), { type: 'button', className: 'text-button', textContent: `${name}のまま進める` })
+        back.addEventListener('click', () => { choosing = false; render() })
+        content.append(back)
+      }
     } else {
-      const name = document.createElement('h3')
-      name.textContent = setup.harnesses.find(h => h.id === setup.harness)?.name ?? '公式認証'
-      content.append(name)
-      const auth = setup.auth
-      if (auth) {
-        const flow = renderAuthFlow(inputBlocked ? { auth_ui: { stage: 'unavailable', title: '認証結果を確認してください', message: '同じ入力を繰り返さず、状態を更新してください。', binding: null } } : auth, { name: setup.harnesses.find(h => h.id === setup.harness)?.name ?? '公式', busy,
+      content.append(Object.assign(document.createElement('h3'), { textContent: `${name}にログイン` }))
+      const restart = () => post('harness', { harness: setup.harness }) // choosing the same AI again starts a new login
+      if (view?.stage === 'complete') {
+        content.append(Object.assign(document.createElement('p'), { textContent: 'ログインできました。「始める」を押すと、案内役との会話が開きます。' }), button('始める', () => post('start'), true))
+      } else if (view?.stage === 'not_started') {
+        content.append(Object.assign(document.createElement('p'), { textContent: `${name}の公式サイトでログインします。` }), button('ログインを始める', restart, true))
+      } else if (view?.stage === 'unavailable' || view?.stage === 'failed' || inputBlocked) {
+        content.append(Object.assign(document.createElement('p'), { textContent: view?.message || 'ログインの途中で止まりました。もう一度試してください。', className: 'form-error' }), button('もう一度試す', restart, true))
+      } else if (setup.auth) {
+        const flow = renderAuthFlow(setup.auth, { name, busy, sendLabel: 'ログインを完了', sendClass: 'primary-button',
           respond: input => perform(async () => { try { return await post('auth/input', input) } catch (error) { inputBlocked = true; throw error } }),
         })
         password = flow.password
         content.append(...flow.elements)
+        // Back from the login site (open_url / device_code / waiting): one check that never starts the conversation by itself.
+        if (['open_url', 'device_code', 'waiting'].includes(view?.stage)) content.append(button('ログインを確かめる', () => api('/api/setup')))
       }
-      content.append(button('認証を確認して始める', () => post('start')), button('認証の状態を更新', () => api('/api/setup')))
-      const change = document.createElement('details')
-      change.append(Object.assign(document.createElement('summary'), { textContent: '使うAIを変更' }))
-      for (const harness of setup.harnesses) change.append(button(harness.name, () => post('harness', { harness: harness.id })))
-      content.append(change)
+      const other = Object.assign(document.createElement('button'), { type: 'button', className: 'text-button', textContent: '別のAIを選ぶ' })
+      other.disabled = busy
+      other.addEventListener('click', () => { choosing = true; render() })
+      content.append(other)
     }
-    if (errorText) content.append(Object.assign(document.createElement('p'), { className: 'form-error', textContent: errorText }))
-    const later = Object.assign(document.createElement('button'), { type: 'button', className: 'text-button', textContent: 'あとで設定する' })
+    // W85: a failed read or action says so here and carries its own retry, which also restarts the 3 s check.
+    if (errorText) {
+      const box = Object.assign(document.createElement('div'), { className: 'inline-error' })
+      box.append(Object.assign(document.createElement('p'), { textContent: errorText }))
+      const again = Object.assign(document.createElement('button'), { type: 'button', textContent: 'もう一度試す' })
+      again.disabled = busy
+      again.addEventListener('click', () => void perform(() => api('/api/setup')))
+      box.append(again)
+      content.append(box)
+    }
+    const later = Object.assign(document.createElement('button'), { type: 'button', className: 'text-button setup-later', textContent: 'あとで設定する' })
     later.addEventListener('click', () => dialog.close())
     content.append(later)
   }

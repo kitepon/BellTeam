@@ -586,6 +586,22 @@ body:has(dialog[open]) .scroll-latest { display: none; }
 
 .onboarding-dialog { max-width: 560px; }
 .onboarding-dialog > .onboarding-body { display: flex; flex-direction: column; gap: 18px; }
+/* W84-W86: stepper, one primary per stage, and a sheet that fits or scrolls (no outline around the dialog). */
+.onboarding-dialog { max-height: calc(100dvh - 16px); overflow-y: auto; outline: none; }
+.onboarding-dialog:focus, .onboarding-dialog:focus-visible { outline: none; }
+.onboarding-body h2, .onboarding-body h3, .onboarding-body p { margin: 0; }
+.setup-steps { display: flex; gap: 6px; margin: 0; padding: 0; list-style: none; counter-reset: step; }
+.setup-steps li { flex: 1; padding: 8px 6px; border-radius: 10px; background: #f4f4f6; color: #77777d; font-size: 12px; font-weight: 700; text-align: center; counter-increment: step; }
+.setup-steps li::before { content: counter(step) " "; }
+.setup-steps li.is-current { background: #6851c4; color: #fff; }
+.setup-steps li.is-done { background: #ece8fb; color: #5b45b8; }
+.onboarding-body .primary-button, .onboarding-body .auth-open { align-self: flex-start; }
+.onboarding-body .auth-open { display: inline-flex; align-items: center; min-height: 44px; padding: 10px 20px; border-radius: 12px; background: #6851c4; color: #fff; font-weight: 700; text-decoration: none; }
+.onboarding-body .text-button { align-self: flex-start; }
+.onboarding-body .text-button.setup-later { align-self: center; margin-top: 4px; }
+.onboarding-body .auth-code-box { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.onboarding-body .auth-code-box button { min-height: 40px; padding: 8px 16px; border: 0; border-radius: 10px; background: #f3f0fb; color: #5b45b8; font: inherit; font-weight: 700; cursor: pointer; }
+@media (max-width: 480px) { .harness-cards { grid-template-columns: 1fr 1fr; gap: 10px; } .harness-cards button { padding: 18px 10px; font-size: 16px; } }
 .harness-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .harness-cards button { padding: 24px 16px; border: 1px solid var(--line, #ddd); border-radius: 18px; background: #f6f3ff; font-size: 18px; font-weight: 600; }
 .auth-user-code { font-family: monospace; font-size: 20px; user-select: all; }
