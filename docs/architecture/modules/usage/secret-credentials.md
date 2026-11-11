@@ -248,3 +248,11 @@ flowchart LR
 ```
 
 Protection: secret exposure (a one-time value is never persisted or reusable). Exit: the Bot asks a new card; nothing sticky.
+
+### APNs key reference consumer in the notifications child (2026-11-11, security incident, Trony; Owner: 「限定はやめてくれ」)
+
+| Function | Contract |
+| --- | --- |
+| OnePasswordSource | Second consumer: `onePasswordKeyReader` in `src/push-notifications.mjs` builds a short-lived source (`autoRetry:false`) per key load, calls only `resolve(reference)`, then closes it. Validator and fixed `SECRET_SOURCE_UNAVAILABLE` are unchanged. A 1Password reference is one option per key; `.p8` files stay a supported source. |
+| Token | The reader's token function reads `shared/tools/bellteam-settings/settings.json` → `onePassword` on each call and returns the token only while enabled. FeatureSettings stays the only writer; the token lives only in that `op` call's env. |
+| Exposure | The value, reference and token never reach DTOs, diagnostics, status or logs; failures are fixed codes. Canonical flow: [notification-process](notification-process.md#apns鍵の取得元fileか1password参照2026-11-11-セキュリティ事故). |

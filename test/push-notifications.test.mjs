@@ -368,3 +368,50 @@ test('同時に送る通知は同じ認証トークンを使い、期限まで�
   assert.equal(tokens.length, 4)
   assert.equal(new Set(tokens).size, 1)
 })
+
+test('APNs keys come per key from a .p8 file or a 1Password reference; an unreadable reference leaves APNs unconfigured until the next direct apply', async t => {
+  const { mkdir } = await import('node:fs/promises')
+  const { exportPKCS8 } = await import('jose')
+  const { onePasswordKeyReader } = await import('../src/push-notifications.mjs')
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-apns-keys-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const pem = await exportPKCS8((await generateKeyPair('ES256', { extractable: true })).privateKey)
+  const reference = `op://${'v'.repeat(26)}/${'i'.repeat(26)}/notesPlain`
+  await mkdir(join(root, 'shared/tools/apns'), { recursive: true })
+  await mkdir(join(root, 'shared/tools/bellteam-settings'), { recursive: true })
+  await writeFile(join(root, 'shared/tools/bellteam-settings/settings.json'), JSON.stringify({ onePassword: { enabled: true, token: ' ops_SYNTHETIC ' } }))
+  await writeFile(join(root, 'shared/tools/apns/dev.p8'), pem)
+  const config = keys => writeFile(join(root, 'shared/tools/apns/config.json'), JSON.stringify({ teamId: 'TEAM123456', topic: 'dev.example.bellteam', keys }))
+  let stored = null, tokens = [], closed = 0
+  const readKeys = onePasswordKeyReader(root, { create: () => {
+    let token
+    return { setToken: reader => { token = reader }, close: () => { closed++ },
+      resolve: async ref => { tokens.push(await token()); if (ref !== reference || stored === null) throw new Error('SECRET_SOURCE_UNAVAILABLE'); return stored } }
+  } })
+  const reports = []
+  const service = new PushNotifications({ root, bots: new Map(), diagnostics: { record: async item => { reports.push(item) } }, readKeys })
+  await config({ development: { keyId: 'KEY1234567', file: 'dev.p8' }, production: { keyId: 'KEY7654321', reference } })
+  await service.initialize()
+  await assert.rejects(service.configure({ enabled: true, relayUrl: '' }), { code: 'APNS_KEY_UNAVAILABLE' })
+  assert.equal(service.status().configured, false)
+  assert.equal(service.status().error.code, 'APNS_KEY_UNAVAILABLE')
+  assert.match(service.status().error.message, /1Password連携/u)
+  assert.deepEqual(reports.at(-1), { code: 'SERVER_PUSH_UNAVAILABLE', module: 'notifications', diagnostic_log: 'APNS_KEY_UNAVAILABLE' })
+  assert.deepEqual(tokens, ['ops_SYNTHETIC'])
+  stored = 'not a key'
+  await assert.rejects(service.configure({ enabled: true, relayUrl: '' }), { code: 'APNS_KEY_INVALID' })
+  stored = `\n${pem.replace(/\n/gu, '')}\n`
+  const status = await service.configure({ enabled: true, relayUrl: '' })
+  assert.deepEqual([status.configured, status.environments, status.error], [true, ['development', 'production'], undefined])
+  assert.equal(closed, 3)
+  assert.ok(!JSON.stringify([reports, service.status()]).includes('SYNTHETIC') && !JSON.stringify(reports).includes(reference))
+  await config({ production: { keyId: 'KEY7654321', reference: 'op://Private/APNs/key' } })
+  await assert.rejects(service.configure({ enabled: true, relayUrl: '' }), { code: 'APNS_KEY_REFERENCE_INVALID' })
+  for (const bad of [{ keyId: 'KEY7654321', file: 'dev.p8', reference }, { keyId: 'KEY7654321' }, 'dev.p8']) {
+    await config({ production: bad })
+    await assert.rejects(service.configure({ enabled: true, relayUrl: '' }), /APNS_CONFIG_INVALID/u)
+  }
+  await config({ development: { keyId: 'KEY1234567', file: 'dev.p8' } })
+  assert.deepEqual((await service.configure({ enabled: true, relayUrl: '' })).environments, ['development'])
+  await service.close()
+})

@@ -70,7 +70,7 @@ flowchart TD
 
 | 接点 | 基準sourceと関数 | 現行入出力・順序 |
 | --- | --- | --- |
-| 構築/初期化 | `src/application-services.mjs:36` → `src/push-notifications.mjs:10,22` | root/bots/diagnosticsを共有。旧APNs設定を読んでdirectProviderを保持、端末fileをMapへ読む。起動時設定applyは後段 |
+| 構築/初期化 | `src/notifications-entry.mjs` → `createNotificationsDispatcher` → `src/push-notifications.mjs` `initialize` / `loadDirect` | root/diagnosticsを共有。APNs設定を読み、鍵ごとに`.p8`ファイルか1Password参照から鍵を得てdirectProviderを保持、端末fileをMapへ読む。起動時設定applyは後段。直送のconfigureは2回目以降に設定を読み直す。詳細は[APNs鍵の1Password参照](#apns鍵の取得元fileか1password参照2026-11-11-セキュリティ事故) |
 | status | `src/usage/http-api.mjs:63` → Push `:37` | GET `/api/notifications`。同期で `{configured,environments,error?}`。token/取引/鍵を返さない |
 | configure | `src/usage/application-features.mjs:47,73` → Push `:42` | `{enabled,relayUrl}`。providerを外す→現inflight待ち→旧provider.close→OFF/直送復帰/relay status実照会。成功時status、失敗時診断後throw |
 | register | usage HTTP `:65` → Push `:66` | `{token,environment,server,previousToken?,signedTransaction?}`、32,768 byte上限。検証・環境照合→旧token除去/Map更新→save→`{registered:true}` |
@@ -91,6 +91,7 @@ flowchart TD
 | `state/push-devices.json` と `.tmp` | 通知だけが書く。devices Mapとsavingを同じ子へ移す。親の新旧Push実体を同時に残さない |
 | provider/directProvider/request/error/inflight | 通知だけが保持。APNsのkeys/token署名Promise/connections、relay URL/environmentsも子内。MapやPromiseを親へ投影しない |
 | `shared/tools/apns/config.json` とconfigに列挙された `.p8` | 通知の固定読取範囲。APNs.createはteam/topic/key名・形式を検証。設定内容/鍵をDTO・診断・親envへ出さない |
+| `shared/tools/bellteam-settings/settings.json` の `onePassword` | FeatureSettings（usage子）が唯一writer。通知子はAPNs鍵の1Password参照を解く時だけ `{enabled,token}` を読む（読取専用・保持しない） |
 | `shared/tools/bellteam-settings/settings.json` | FeatureSettingsのwriterを親へ残す。通知設定の保存と子への適用は別結果 |
 | botsとroom、質問/秘密のitem/file | 元所有者に残す。通知は表示名と既IDだけを入力で受ける |
 | `logs/diagnostics.json` | integrationの唯一writerを維持。子は最小診断DTOを送る |
@@ -215,3 +216,32 @@ runtime案のUID1001固定は寿命/協調writerの分離を提供する。同UI
 追加のEpi f02e958にあるOS exit/IPC切断/所有pipe回収のbarrierへ試験も接続し、親からIPC切断後にusage送信をdrainして終了する実process反例を加えた。親切断後60秒はNode event loopが進む場合の上限であり、停止したevent loopを保証するものではない（Root追補・runtime担当境界）。
 
 新単体試験ではfield射影/既filter、DTO拒否、4payload、保存/reload/失効保存、送信中quiesce/resume、保存失敗、実ConversationWriter/SecretRequests/OwnerQuestionsの保存継続、disabled/設定適用失敗とstate/鍵不正、buffer件数/bytes、ACK不明再送0、HTTP互換を扱う。既直接のpush/usage module/application runtimeは初回21件を継承し、code補完後に影響するpush/外部relayだけ再確認する。実UID1001/正規C entry/署名archiveのprobe・固定版交換と共通assemblyの受入はEpi/Centi/Mollyの工程へ接続する。
+
+## APNs鍵の取得元：fileか1Password参照（2026-11-11 セキュリティ事故）
+
+依頼：トロニー。APNs鍵 `AuthKey_366AK82X99`（production）と `AuthKey_PT4F464NK4`（development）は乗っ取られたPCと同期していたため盗まれたものとして扱う。Owner裁定（同日「限定はやめてくれ」）：config.json + `.p8` fileは恒久的な正式経路のまま。1Password参照は鍵ごとに選べる追加の選択肢で、唯一の取得元にしない。Ownerの本番は1Password参照を選び、実通知の確認後に `.p8` を消す。
+
+```mermaid
+flowchart LR
+  Config[shared/tools/apns/config.json: teamId / topic / keys.env.keyId + file または reference] --> Load[PushNotifications.loadDirect]
+  Load -->|file| P8[config横の .p8 読取]
+  Load -->|reference| Reader[onePasswordKeyReader: 読む時だけのOnePasswordSource.resolve]
+  Settings[settings.json onePassword: enabled / token 読取専用] --> Reader
+  P8 --> Create[APNsProvider.create: importPKCS8 ES256]
+  Reader --> Create
+  Create -->|成功| Direct[directProvider]
+  Create -->|1Passwordから鍵を得られない| NotConfigured[provider無し + keyError固定code]
+  NotConfigured --> Configure[直送configure: keyErrorを投げる→SERVER_PUSH_UNAVAILABLE診断 / status.error平易文]
+  Configure -->|次の直送configure / 子の再起動| Load
+```
+
+| 項目 | 契約 |
+| --- | --- |
+| config.json | `keys.<development\|production>` は鍵ごとに `{keyId, file}`（config横の `.p8`）か `{keyId, reference}`（`op://<vault id>/<item id>/<field>`、値は `.p8` の全文。改行が落ちても読める）のどちらか一方。teamId/topic/keyId/file名と「どちらか一方」の不正は従来どおり `APNS_CONFIG_INVALID` |
+| 1Password参照の失敗 | 参照の形式不正 `APNS_KEY_REFERENCE_INVALID`、1Passwordに届かない・読めない `APNS_KEY_UNAVAILABLE`、値が鍵でない `APNS_KEY_INVALID`。子は落ちず、APNsは未設定（configured=false）、status.errorは平易文。relay・Web Push・端末登録fileはそのまま。fileの読取り失敗は従来どおり |
+| 1Password接続 | `onePasswordKeyReader` は読む時だけ `createOnePasswordSource({autoRetry:false})` を作り、`resolve(reference)` だけを呼んでcloseする。tokenは呼ぶたびに `settings.json` の `onePassword`（enabled時のtokenだけ）を読み、その `op` 呼出しのenvだけに置く。FeatureSettingsが唯一writer |
+| 自力の出口 | 直送の `configure` は、子の起動直後の1回目を除き毎回config.jsonと鍵を読み直す。直した後は通知設定を保存し直すか、子の再起動（module更新を含む）で戻る |
+| 秘密の扱い | 鍵の値・参照・tokenはDTO・診断・status・ログへ出さない。KeyObjectはメモリだけ |
+| 互換 | file設定は何も変えずに動く。`APNsProvider.create(config, directory)` の外部呼出し（`services/notifications/index.mjs`）はfileで動く（referenceは `readKeys` を渡す呼出しだけ） |
+| file→1Password | `.p8` の全文を1Passwordのアイテムへ保存→config.jsonの該当keyの `file` を `reference` へ置き換え（keyIdはそのkeyのもの）→通知設定を保存し直す（または子の再起動）→実通知を確認→`.p8` を消す |
+| 配布 | 変更fileは `src/push-notifications.mjs`（notifications module archive、全src）。IPC・state・parentProtocolは不変なので、notifications moduleの更新だけで入れ替わり、本体の再起動は要らない |
