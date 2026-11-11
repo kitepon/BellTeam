@@ -14,8 +14,8 @@ test('light bot list uses versioned images without embedding image data', async 
   const calls = []
   const state = { selected: null, readReceipts: {} }
   const api = async path => { calls.push(path); return path.startsWith('/api/bots') ? { bots: [{ id: 'bot-a', avatarVersion: '123', avatar: '' }, { id: 'bot-b', avatarVersion: '' }] } : path === '/api/rooms' ? { rooms: [] } : { owner: {} } }
-  const ctx = { catalogueRead: 0, state, api, renderCurrentWork() {}, updateSendButton() {}, document:{querySelector(){}}, rosterLoaded: false, renderRosterError() {}, renderChatStatus() {}, renderBots() {}, rosterRetry: {}, rosterError: {}, rosterNotice: {}, conversationKey: (type, id) => `${type}:${id}` }
-  vm.runInNewContext(extract('async function loadBots()', '\n  function renderSeatLaunch()'), ctx)
+  const ctx = { catalogueRead: 0, state, api, renderCurrentWork() {}, updateSendButton() {}, document:{querySelector(){}}, rosterLoaded: false, ownerReads: 0, ownerApplied: 0, renderRosterError() {}, renderChatStatus() {}, renderBots() {}, rosterRetry: {}, rosterError: {}, rosterNotice: {}, conversationKey: (type, id) => `${type}:${id}` }
+  vm.runInNewContext(source.match(/ {2}function applyOwner[^\n]+/u)[0] + '\n' + extract('async function loadBots()', '\n  function renderSeatLaunch()'), ctx)
   await ctx.loadBots()
   assert(calls.includes('/api/bots?avatar=omit'))
   assert.equal(state.bots[0].avatar, '/api/bots/bot-a/avatar?v=123')

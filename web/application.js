@@ -84,7 +84,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
   const targetButton = document.querySelector('#target-button')
   const targetMenu = document.querySelector('#target-menu')
 
-  let catalogueRead = 0
+  let catalogueRead = 0, ownerReads = 0, ownerApplied = 0
   const state = {
     setup: null,
     owner: null,
@@ -208,7 +208,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
 
   const ownerEditor = createOwnerEditor(ownerDialog, { api,
     onOpenUpdates: button => updateCenter.open(button), updateSummary: () => updateCenter.summary(),
-    onOwner: owner => { catalogueRead++; state.owner = owner },
+    onOwner: owner => { catalogueRead++; applyOwner(owner, ++ownerReads) },
     onSettings: (settings, authMode) => {
       state.settings = settings
       state.authMode = authMode
@@ -381,8 +381,11 @@ export function createWebApp({ client = createWebClient() } = {}) {
     banner.textContent = texts.join(' / ')
   }
 
+  // The owner value from the read that STARTED last wins, whatever order the reads finish in (list read, Settings read, saved profile).
+  function applyOwner(owner, started) { if (started > ownerApplied) { ownerApplied = started; state.owner = owner } }
+
   async function loadBots() {
-    const read = ++catalogueRead
+    const read = ++catalogueRead, ownerStarted = ++ownerReads
     rosterRetry.disabled = true
     rosterRetry.textContent = '読み込んでいます…'
     let botResult, roomResult, ownerResult
@@ -408,7 +411,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
     for (const id of state.pendingDeletionIds ?? []) if (!listedIds.has(id)) state.pendingDeletionIds.delete(id)
     state.bots = botResult.bots.map(bot => ({ ...bot, deletionRequested:state.pendingDeletionIds?.has(bot.id) ?? false, avatar: bot.avatarVersion ? `/api/bots/${encodeURIComponent(bot.id)}/avatar?v=${encodeURIComponent(bot.avatarVersion)}` : '' }))
     state.rooms = roomResult.rooms
-    state.owner = ownerResult.owner
+    applyOwner(ownerResult.owner, ownerStarted)
     const conversationKeys = new Set([...state.bots.map(bot => conversationKey('bot', bot.id)), ...state.rooms.map(room => conversationKey('room', room.id))])
     const obsoleteReceipts = Object.keys(state.readReceipts).filter(key => !conversationKeys.has(key))
     if (obsoleteReceipts.length) {
@@ -443,12 +446,12 @@ export function createWebApp({ client = createWebClient() } = {}) {
   async function openOwnerDialog() {
     let owner = state.owner
     if (!owner) {
-      const read = catalogueRead
+      const started = ++ownerReads
       ownerProfileButton.disabled = true
       try { owner = (await api('/api/owner')).owner ?? null } catch {}
       finally { ownerProfileButton.disabled = false }
-      // A list read or a profile save that started meanwhile is newer than this read: it is never overwritten.
-      if (!state.owner && read === catalogueRead) state.owner = owner
+      // A list read or profile save that started later wins; an older list read finishing later never overwrites this one.
+      if (owner) applyOwner(owner, started)
       owner = state.owner ?? owner
     }
     if (owner) return ownerEditor.open(owner)
