@@ -55,6 +55,45 @@ public sealed class WorkGraphViewTests
         second.Close();
     });
 
+    [Fact]
+    public void AGraphFromAnotherServerIsDroppedAndNeverOpensTheNewServersChat() => RunSta(() =>
+    {
+        using var workspace = new Workspace(origin => new BellApi(origin, new StubHandler((request, _) => Task.FromResult(StubHandler.Json(request.RequestUri!.AbsolutePath switch
+        {
+            "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/bots" => "{\"bots\":[{\"id\":\"a\",\"name\":\"ハル\",\"displayName\":\"ハル\"}]}",
+            "/api/owner" => ApiTests.Owner, "/api/queue" => ApiTests.EmptyQueue, "/api/rooms" => ApiTests.Rooms, _ => ApiTests.Page
+        })))));
+        Await(workspace.ConnectAsync("http://server-a/", listen: false));
+        var opened = new List<string>();
+        var window = new WorkGraphWindow(workspace, id => { opened.Add(workspace.Server + id); return Task.CompletedTask; });
+        var old = window.Graph;
+        old.Model.Apply(new WorkGraphSnapshot("e", 1, [], [Node("a", "ハル")], []), WorkGraphModel.Now);
+        old.OpenMember!("a");
+        Assert.Equal(["http://server-a/a"], opened);
+
+        // Another server with the same botId: before its first snapshot the old graph is gone and its nodes open nothing.
+        Await(workspace.ConnectAsync("http://server-b/", listen: false));
+        Assert.Equal("http://server-b/", window.Origin);
+        Assert.NotSame(old, window.Graph);
+        Assert.Empty(window.Graph.Model.Bodies);
+        old.OpenMember!("a");
+        Assert.Equal(["http://server-a/a"], opened);
+
+        // After server B's own snapshot its member opens server B's chat.
+        window.Graph.Model.Apply(new WorkGraphSnapshot("f", 1, [], [Node("a", "ハル")], []), WorkGraphModel.Now);
+        window.Graph.OpenMember!("a");
+        Assert.Equal(["http://server-a/a", "http://server-b/a"], opened);
+
+        // Reconnecting to the same server keeps the drawn graph.
+        var kept = window.Graph;
+        Await(workspace.ConnectAsync("http://server-b/", listen: false));
+        Assert.Same(kept, window.Graph);
+        window.Close();
+    });
+
+    private static void Pump() { var frame = new DispatcherFrame(); Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => frame.Continue = false)); Dispatcher.PushFrame(frame); }
+    private static void Await(Task task) { var until = DateTime.UtcNow.AddSeconds(5); while (!task.IsCompleted) { if (DateTime.UtcNow > until) throw new TimeoutException(); Pump(); Thread.Sleep(1); } task.GetAwaiter().GetResult(); }
+
     private static WorkGraphNode Node(string id, string name, string state = "working") => new(id, name, "violet", "", state, null);
     private static WorkGraphEdge Edge(string id, string from, string to, string? label, WorkGraphForkSeat? fork = null) => new(id, null, from, to, label, "running", null, fork);
 
