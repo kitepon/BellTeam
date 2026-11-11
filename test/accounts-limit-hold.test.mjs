@@ -259,3 +259,15 @@ test('one continuation: quiesce during the move -> no send; the successor sends 
   await review()
   assert.deepEqual(sent.map(input => input.target), ['bot-elegg'])
 })
+
+// Epinel #1100: a stop after the limit end wins at the serialized input boundary, also when it lands during the move.
+test('one continuation: a stop during the move -> no send; a keyed delivery after the stop is refused not_started', async t => {
+  const { sent, review, transport, accounts, deliver, switched } = await recovery(t, { rows: [row('bot-elegg', '2026-11-11T12:51:33.000Z', END('2026-11-11T12:51:56.000Z', 'cancelled'))] })
+  const move = transport.switchAccount
+  transport.switchAccount = async bot => { await move(bot); await accounts.setStopped(bot.id) }
+  await review()
+  assert.deepEqual([switched, sent], [['bot-elegg'], []])
+  await assert.rejects(deliver({ from: 'scheduler', target: 'bot-elegg', message: '続けてください。（継続キー: 2026-11-11T12:51:56.000Z）' }, 'd-late'),
+    error => error.effect === 'not_started' && /stopped/u.test(error.message))
+  assert.deepEqual(sent, [])
+})

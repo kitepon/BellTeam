@@ -1951,7 +1951,8 @@ export class AitermTransport {
       const move = (this.accounts.seatSlot(bot.id) ?? '1st') !== slot || await this.accounts.renewDue(bot.id, 'claude', bot.model)
       if (!allowed()) return
       if (move) await this.switchAccount(bot)
-      if (!allowed()) return
+      // A stop during the move ended that work: no send (the input boundary refuses a keyed delivery after it too).
+      if (!allowed() || !this.continuationDue(bot.id, end)) return
       await this.continuation?.resume(bot, { slot, limitEnd: end.at, deliveryId: this.continuation.states.get(bot.id)?.deliveryId ?? null })
     } finally { this.accountRecoveries.delete(bot.id) }
   }

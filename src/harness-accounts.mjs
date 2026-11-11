@@ -209,11 +209,13 @@ export class HarnessAccounts {
   intendResume(botId, at) {
     return this.update(state => state.resumed[botId]?.at === at ? state : { ...state, resumed: { ...state.resumed, [botId]: { at, deliveryId: null } } })
   }
-  // 'claimed' (this delivery owns the continuation), 'duplicate' (another delivery does), 'obsolete' (a newer limit end exists).
+  // 'claimed' (this delivery owns the continuation), 'duplicate' (another delivery does), 'obsolete' (a newer limit end exists),
+  // 'stopped' (the member was stopped after that limit end: the stop ended that work).
   async claimResume(botId, at, deliveryId) {
     let outcome = 'claimed'
     await this.update(state => {
       const entry = state.resumed[botId]
+      if (Date.parse(state.stops[botId] ?? '') >= Date.parse(at)) { outcome = 'stopped'; return state }
       if (entry && Date.parse(entry.at) > Date.parse(at)) { outcome = 'obsolete'; return state }
       if (entry?.at === at && entry.deliveryId && entry.deliveryId !== deliveryId) { outcome = 'duplicate'; return state }
       if (entry?.at === at && entry.deliveryId === deliveryId) return state
