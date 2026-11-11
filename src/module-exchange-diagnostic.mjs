@@ -1,4 +1,4 @@
-const components = ['usage', 'diagnostics', 'conversation', 'work-graph']
+const components = ['usage', 'diagnostics', 'conversation', 'work-graph', 'lattice']
 const stages = ['spawn', 'channel', 'initialize', 'ready', 'adoption', 'resume']
 const rollbackStages = ['candidate_cleanup', 'prepare', ...stages]
 const systemCodes = ['ENOENT', 'EACCES', 'EPERM', 'EIO', 'ENOSPC', 'EROFS', 'EMFILE', 'ENFILE', 'EEXIST', 'EINVAL', 'ERR_MODULE_NOT_FOUND', 'ERR_REQUIRE_ASYNC_MODULE']

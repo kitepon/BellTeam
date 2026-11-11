@@ -90,6 +90,14 @@
     {
       "module": "usage",
       "port": "secrets"
+    },
+    {
+      "module": "lattice",
+      "port": "lattice-seat"
+    },
+    {
+      "module": "lattice",
+      "port": "lattice-chart"
     }
   ],
   "source": [
@@ -139,6 +147,7 @@
     "src/background-summary-assembly.mjs",
     "src/json-file.mjs",
     "src/work-graph-facade.mjs",
+    "src/lattice-facade.mjs",
     "src/http-accounts-api.mjs",
     "src/seat-credentials.mjs",
     "src/http-terminals-api.mjs",

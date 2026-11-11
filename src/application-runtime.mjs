@@ -38,6 +38,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     notificationsReleaseControl: notifications.controller,
     updateCenter: services.updateCenter,
     workGraph: services.workGraph,
+    lattice: services.lattice,
     accounts: services.accounts,
     membersAuthorization: services.membersAuthorization,
     usageAssembly: services.usageAssembly,
@@ -102,7 +103,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
     // SK01: engines without the registry have no fork seats.
     forkSeat: name => typeof transport.forkSeat === 'function' ? transport.forkSeat(name) : null,
     assertWorkAllowed: () => aiControl.assertEnabled(),
-    tools: { registry: bots, botView: bot => administration.view(bot), messenger, store, rooms, roomMessenger, memory, ownerProfile, userRules, bugHubSecurity: createBugHubSecurity({ root }), terminals: () => services.terminals, terminalKeys: () => services.terminalKeys, internalUrl: `http://127.0.0.1:${internalPort}`, ...internalApi(internalPort) },
+    tools: { registry: bots, botView: bot => administration.view(bot), messenger, store, rooms, roomMessenger, memory, ownerProfile, userRules, bugHubSecurity: createBugHubSecurity({ root }), terminals: () => services.terminals, terminalKeys: () => services.terminalKeys, internalUrl: `http://127.0.0.1:${internalPort}`, lattice: services.lattice, ...internalApi(internalPort) },
     callBridge: () => {
       const config = settings.configuration('callBridge')
       return config.enabled ? { url: config.url, headersFile: callBridgeHeaders } : null
@@ -208,7 +209,7 @@ export async function createApplicationRuntime({ root, appRoot, bootstrap, envir
         // Before the providers they call (usage, diagnostics, native client) close.
         () => services.credentialRefresh?.stop(), () => services.terminals?.close?.(),
         () => bootstrap.seatRuntime?.memoryModule?.close(),
-        () => services.conversationAssembly?.close(), () => transport.close(), () => services.execution && transport.client.close(), () => services.members?.controller.close(), () => notifications.close(), () => services.usageAssembly?.close(), () => services.diagnosticsModule?.close(), () => services.workGraphModule?.close(),
+        () => services.conversationAssembly?.close(), () => transport.close(), () => services.execution && transport.client.close(), () => services.members?.controller.close(), () => notifications.close(), () => services.usageAssembly?.close(), () => services.diagnosticsModule?.close(), () => services.workGraphModule?.close(), () => services.latticeModule?.close(),
         () => socketDirectory && rm(socketDirectory, { recursive: true, force: true }),
       ]) {
         try { await stop() } catch (error) { errors.push(error) }

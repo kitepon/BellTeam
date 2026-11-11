@@ -17,7 +17,9 @@ import { BotSessionState } from './bot-session-state.mjs'
 import { DeliveryJob } from './delivery-job.mjs'
 import { SeatActivity, SeatTurnWatch } from './seat-activity.mjs'
 import { executionFailureReport, reportExecutionFailure } from './execution-failure-report.mjs'
-import { recoverableTurnFailure } from './capacity-continuation.mjs'
+import { continuationKeyOf, recoverableTurnFailure } from './capacity-continuation.mjs'
+import { isLimitText } from './claude-limit-text.mjs'
+import { ACCOUNT_SLOTS } from './harness-accounts.mjs'
 import { returnedMcpError } from './returned-mcp-error.mjs'
 import { launchFailureDetails } from './agent-launch-error.mjs'
 import { captureRuntime as captureSelectedRuntime } from './runtime-selection.mjs'
@@ -135,6 +137,14 @@ export class AitermTransport {
     this.accounts = accounts
     this.remoteSeats = remoteSeats
     this.accountMoves = new Map()
+    // Members whose account recovery is sending their continuation: the observer keeps their old watch until it is sent.
+    this.accountRecoveries = new Set()
+    this.reviewedRecovery = null
+    this.holdReleasePollMs = 300
+    // Limit holds this engine pressed (`<session>@<limit_end.at>`): never a second Esc on one hold.
+    this.pressedHolds = new Set()
+    // Continuation deliveries between their claim and the end of their job (harness-accounts.md "one continuation").
+    this.continuationClaims = new Set()
     this.accountsUnsubscribe = accounts?.watch(() => {
       this.activity.emitChange({ all: false, topics: ['accounts'], botIds: [], roomIds: [] })
       void this.reviewAccounts()
@@ -483,40 +493,48 @@ export class AitermTransport {
     this.assertWorkAllowed()
     // 明示再起動は、終了できないターンからも席を戻す操作。旧設定の
     // idle待ちを無効にし、旧CLIを閉じてから保存済み設定で起動する。
-    this.sessionState.invalidate(bot.id)
-    const version = this.captureStopVersion(bot)
-    const previousJobs = [...this.activity.jobs].filter(job => job.bot.id === bot.id)
-    const previousWatch = this.activity.watches.get(bot.id)
-    const previousChanges = [...(this.sessionChanges.get(bot.id) ?? [])]
-    const previousWake = this.activity.waking.get(bot.id)
+    const retiring = this.retireSeatWork(bot)
+    const { version } = retiring
     const pending = (async () => {
       await this.requireMember(bot, { membersLease })
       this.membersAdmission.assertLease(membersLease)
       if (this.executionBridge) await this.awaitUnboundAdmission(bot, version)
-      // 発行済みの起動・設定RPCが後から新個体へ届かないよう、その返却だけを
-      // 待つ。ターンの完了や、まだ発行していない旧idle待ちは待たない。
-      await Promise.allSettled([...previousChanges, ...(previousWake ? [previousWake] : [])])
+      await retiring.issued
       this.requireStopVersion(bot.id, version)
-      const session = await this.restartNow(bot, version, (closure, closedSession) => {
-        if (!confirmedSessionClosure(closure, closedSession)) return
-        for (const job of previousJobs) {
-          if (job.nativeSession === closedSession) {
-            if (job.receipt && job.conversationDelivery && job.nativeCompletion && !job.nativeTerminal)
-              this.conversationAdmission?.confirmNativeClosure?.(job.conversationDelivery, job.receipt, closure)
-            job.nativeClosure = structuredClone(closure.structuredContent)
-            const release = () => { this.activity.release(job); job.native?.release() }
-            job.completion.then(release, release)
-          }
-          job.markStopped()
-        }
-        previousWatch?.end()
-      }, membersLease)
+      const session = await this.restartNow(bot, version, retiring.closed, membersLease)
       return { botId: bot.id, session }
     })()
     this.restarts.set(bot.id, pending)
     const clear = () => { if (this.restarts.get(bot.id) === pending) this.restarts.delete(bot.id) }
     pending.then(clear, clear)
     return this.activity.configurationChanges.track(bot.id, pending)
+  }
+
+  // Explicit restart and member DELETE end a turn that may never finish (Claude first-run screen, lab 2026-11-12).
+  // The stop generation moves now; only issued launch/configure RPCs are awaited, never the turn or an unissued idle wait.
+  // closed(closure, session) retires the old jobs and watch once Aiterm confirmed that session's close.
+  retireSeatWork(bot) {
+    this.sessionState.invalidate(bot.id)
+    const version = this.captureStopVersion(bot)
+    const previousJobs = [...this.activity.jobs].filter(job => job.bot.id === bot.id)
+    const previousWatch = this.activity.watches.get(bot.id)
+    const previousChanges = [...(this.sessionChanges.get(bot.id) ?? [])]
+    const previousWake = this.activity.waking.get(bot.id)
+    const closed = (closure, closedSession) => {
+      if (!confirmedSessionClosure(closure, closedSession)) return
+      for (const job of previousJobs) {
+        if (job.nativeSession === closedSession) {
+          if (job.receipt && job.conversationDelivery && job.nativeCompletion && !job.nativeTerminal)
+            this.conversationAdmission?.confirmNativeClosure?.(job.conversationDelivery, job.receipt, closure)
+          job.nativeClosure = structuredClone(closure.structuredContent)
+          const release = () => { this.activity.release(job); job.native?.release() }
+          job.completion.then(release, release)
+        }
+        job.markStopped()
+      }
+      previousWatch?.end()
+    }
+    return { version, closed, issued: Promise.allSettled([...previousChanges, ...(previousWake ? [previousWake] : [])]) }
   }
 
   reconfigure(current, next, options = {}) {
@@ -597,12 +615,18 @@ export class AitermTransport {
   }
 
   async stop(bot, version = this.captureStopVersion(bot), { membersLease, expected = this.membersAdmission.capture(), allSessions = false } = {}) {
+    // harness-accounts.md "Member DELETE": deletion does not wait for the running turn; it closes like an explicit restart.
+    const retiring = allSessions ? this.retireSeatWork(bot) : null
+    if (retiring) version = retiring.version
     if (this.executionBridge) await this.awaitUnboundAdmission(bot, version)
-    await this.idle(bot.id)
+    // harness-accounts.md: a stop ends the member's interrupted turn, so no continuation is sent for it later.
+    if (this.claudeAccountBot(bot)) await this.accounts.setStopped(bot.id).catch(() => {})
+    await (retiring ? retiring.issued : this.idle(bot.id))
     return this.memberOperation(bot, async () => {
       this.requireStopVersion(bot.id, version)
       const current = this.session(bot)
       const result = await this.changeSession(bot, 'pty_close', { session_id: current })
+      retiring?.closed(result, current)
       await this.removeRetainedImages(bot.id)
       if (allSessions) await this.closeMemberSessions(bot, current)
       return result
@@ -805,8 +829,15 @@ export class AitermTransport {
   notify(bot, message, options = {}) { return this.#notify(bot, message, options) }
 
   async #notify(bot, message, { images = [], queue = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, executionSource, recoveredExecution, membersLease, conversationDelivery, admissionCheck, summaryAuthority } = {}, report = false) {
+    const claim = await this.claimContinuation(bot, message, queue)
     const completion = this.submit(bot, message, { summaryAuthority, images, info: queue, onStatus, onInterim, onAnswer, onTurnEnd, executionSource, recoveredExecution, membersLease, conversationDelivery, admissionCheck })
     completion.catch(error => process.stderr.write(`BellTeam Aiterm delivery error: ${error.stack ?? error.message}\n`))
+    if (claim) {
+      completion.then(() => {}, () => {}).finally(() => this.continuationClaims.delete(claim.deliveryId))
+      completion.accepted.catch(error => {
+        if (error?.effect === 'not_started') return this.accounts.releaseResume(bot.id, claim.at, claim.deliveryId).catch(() => {})
+      })
+    }
     if (!report) return completion.accepted
     return completion.accepted.catch(async error => {
       if (await completion.reportNotIssued) return { report: 'unavailable', reason: 'not_issued' }
@@ -1256,7 +1287,7 @@ export class AitermTransport {
     const turns = await this.#seatTurns(bots, lease.client)
     if (!turns) return false
     for (const bot of bots) {
-      if (versions.get(bot.id) !== this.stopVersions.get(bot.id)) continue
+      if (versions.get(bot.id) !== this.stopVersions.get(bot.id) || this.accountRecoveries.has(bot.id)) continue
       const session = this.session(bot)
       const turn = turns.get(session)
       const watch = this.activity.watches.get(bot.id)
@@ -1314,6 +1345,9 @@ export class AitermTransport {
       // The observer's lifetime is registered before the first native waiter/interim read.
       await Promise.resolve()
       const say = words ? async value => {
+        // harness-accounts.md: a self-started turn's limit reaches BellTeam only as this word (no wait result).
+        const limit = this.claudeAccountBot(bot) ? value.find(word => word.kind === 'error' && isLimitText(word.text)) : null
+        if (limit) void this.accounts.recordLimit({ harness: 'claude', slot: this.accounts.seatSlot(bot.id) ?? '1st', model: bot.model, text: limit.text }).catch(() => {})
         await words(bot.id, watch.info.groupId, value)
         watch.shown.words.push(...value.filter(word => word.kind !== 'error').map(word => word.text.trim()).filter(Boolean))
       } : null
@@ -1792,30 +1826,147 @@ export class AitermTransport {
   }
 
   // After a registry change: seats whose effective slot differs move at their next idle boundary. A running turn is never stopped.
-  async reviewAccounts() {
-    if (!this.accounts) return
-    for (const [botId, slot] of Object.entries(this.accounts.state.seats)) {
+  // Limit-ended members get the account recovery (harness-accounts.md "limit end"), from one pty_list per review.
+  reviewAccounts() {
+    // One review at a time: a second one during the list would move a member twice.
+    const run = (this.accountReview ?? Promise.resolve()).then(() => this.reviewAccountsNow())
+    this.accountReview = run.catch(() => {})
+    return run
+  }
+
+  async reviewAccountsNow() {
+    // An engine that is not running (starting, quiescing, handed over) leaves moves to the running one.
+    if (!this.accounts || this.accountRecoveryAllowed?.() === false) return
+    const ends = await this.limitEnds().catch(error => {
+      process.stderr.write(`BellTeam accounts: limit end review unavailable: ${error?.code ?? error?.message ?? 'UNKNOWN'}\n`)
+      return new Map()
+    })
+    for (const botId of new Set([...Object.keys(this.accounts.state.seats), ...ends.keys()])) {
       const bot = this.resolveBot?.(botId)
       // Every recorded seat, also one launched by an earlier engine (the session map starts empty after an exchange).
       if (!this.claudeAccountBot(bot) || this.accountMoves.has(botId)) continue
-      if (slot !== await this.accounts.effectiveSlot('claude', bot.model) || await this.accounts.renewDue(botId, 'claude', bot.model)) this.moveAtBoundary(botId)
+      const seats = ends.get(botId) ?? []
+      if (this.recoveryDue(botId, seats) || (this.accounts.seatSlot(botId) ?? '1st') !== await this.accounts.effectiveSlot('claude', bot.model)
+        || await this.accounts.renewDue(botId, 'claude', bot.model)) this.moveAtBoundary(botId, seats)
     }
   }
 
-  moveAtBoundary(botId) {
+  // A member's turn ended on an account limit (CapacityContinuation): its recovery now or when a slot frees.
+  recoverAccount(botId) {
+    if (this.accountMoves.has(botId)) return
+    const run = this.limitEnds().then(ends => ends.get(botId) ?? [], () => [])
+    this.accountMoves.set(botId, run)
+    void run.then(seats => { this.accountMoves.delete(botId); this.moveAtBoundary(botId, seats) })
+  }
+
+  // harness-accounts.md "one continuation": the input boundary of every delivery. A scheduler message carrying a continuation key
+  // claims that limit end durably before any effect; a second delivery for it (a resend after a crash or a refusal, or the
+  // parent's redelivery) is refused here, never input. Returns the claim, or null for any other delivery.
+  async claimContinuation(bot, message, queue) {
+    const at = queue?.from === 'scheduler' && this.claudeAccountBot(bot) ? continuationKeyOf(message) : null
+    if (!at || typeof queue.groupId !== 'string') return null
+    this.continuationClaims.add(queue.groupId)
+    const outcome = await this.accounts.claimResume(bot.id, at, queue.groupId).catch(error => { this.continuationClaims.delete(queue.groupId); throw error })
+    if (outcome !== 'claimed') this.continuationClaims.delete(queue.groupId)
+    if (outcome !== 'claimed') throw Object.assign(new Error(`CONTINUATION_DUPLICATE: ${outcome}`), { code: 'CONTINUATION_SUPERSEDED', effect: 'not_started' })
+    return { at, deliveryId: queue.groupId }
+  }
+
+  // Aiterm 0.70.26 limit end (harness-accounts.md): the Claude rows of account members, current and old seats, by member.
+  // Seat names: <botId> or <botId>-<slot>-<base36>. A row without the fields (older Aiterm) gives nothing: no screen inference.
+  async limitEnds() {
+    const listed = (await this.client.call('pty_list', {}))?.structuredContent?.sessions
+    if (!Array.isArray(listed)) throw Object.assign(new Error('AITERM_SESSIONS_UNAVAILABLE'), { code: 'AITERM_SESSIONS_UNAVAILABLE' })
+    const ends = new Map(), suffix = new RegExp(`^(.+)-(?:${ACCOUNT_SLOTS.join('|')})-[a-z0-9]+$`, 'u')
+    for (const seat of listed) {
+      if (seat?.harness !== 'claude-code' || typeof seat.session_id !== 'string' || !('limit_end' in seat)) continue
+      const botId = suffix.exec(seat.session_id)?.[1] ?? seat.session_id
+      if (!this.claudeAccountBot(this.resolveBot?.(botId))) continue
+      ends.set(botId, [...(ends.get(botId) ?? []), { session: seat.session_id, lastInputAt: seat.last_input_at ?? null, end: seat.limit_end ?? null }])
+    }
+    return ends
+  }
+
+  // An armed hold to cancel, or a last turn (greatest last_input_at) cut by a limit with nothing after it and no stop since.
+  recoveryDue(botId, seats) {
+    if (seats.some(seat => seat.end?.hold === 'armed' && !this.pressedHolds.has(`${seat.session}@${seat.end.at}`))) return true
+    return this.continuationDue(botId, lastTurn(seats)?.end)
+  }
+
+  // Due while the last turn is still that limit end: no claim yet, or a claim no live delivery carries any more (its input never
+  // reached the seat, or Aiterm would show a newer last_input_at). Giving such a claim back is safe: the input boundary admits
+  // one delivery per limit end, so a late redelivery of the old one is refused.
+  continuationDue(botId, end) {
+    if (!end || end.continued || Date.parse(this.accounts.stoppedAt(botId) ?? '') >= Date.parse(end.at)) return false
+    const resumed = this.accounts.resumed(botId)
+    return !(resumed?.at === end.at && resumed.deliveryId && this.continuationLive(resumed.deliveryId))
+  }
+
+  continuationLive(deliveryId) {
+    return this.continuationClaims.has(deliveryId) || [...this.activity.jobs].some(job => job.info?.groupId === deliveryId)
+  }
+
+  moveAtBoundary(botId, seats = []) {
     const pending = (async () => {
       for (;;) {
+        const bot = this.resolveBot?.(botId)
+        // A handed-over engine (quiescing) stops here: its registry copy is stale, and the successor reviews the member itself
+        // (production 2026-11-12 01:14 JST: the retiring dc4b63be engine launched a second seat for Elegg next to the successor's).
+        if (!this.claudeAccountBot(bot) || this.accountRecoveryAllowed?.() === false) return
+        // No usable slot is free: nothing moves. A hold continues at its own reset, a move would only leave it behind,
+        // and the next registry change reviews again.
+        const slot = await this.accounts.freeSlot('claude', bot.model)
+        if (!slot) return
+        if (this.recoveryDue(botId, seats)) return await this.recoverMember(bot, slot, seats)
+        if ((this.accounts.seatSlot(botId) ?? '1st') === slot && !await this.accounts.renewDue(botId, 'claude', bot.model)) return
+        if (this.isIdle(botId) && !this.activity.configurationChanges.has(botId)) return await this.switchAccount(bot)
         await Promise.all(this.activity.of(botId).map(turn => (turn.nativeCompletion ?? turn.completion)?.catch(() => {})))
         await this.activity.configurationChanges.get(botId)?.catch(() => {})
-        const bot = this.resolveBot?.(botId)
-        if (!this.claudeAccountBot(bot)
-          || this.accounts.seatSlot(botId) === await this.accounts.effectiveSlot('claude', bot.model) && !await this.accounts.renewDue(botId, 'claude', bot.model)) return
-        if (!this.isIdle(botId)) continue
-        return await this.switchAccount(bot)
       }
     })().catch(error => process.stderr.write(`BellTeam accounts: seat move unconfirmed: ${botId} ${error?.code ?? 'UNKNOWN'}\n`))
       .finally(() => this.accountMoves.delete(botId))
     this.accountMoves.set(botId, pending)
+  }
+
+  // harness-accounts.md "account recovery" with a free slot. Aiterm closed the limit-ended turn, so the seat is at a boundary.
+  async recoverMember(bot, slot, seats) {
+    // One Esc per armed hold and engine (two open Claude Code's rewind menu); Aiterm's next list confirms it.
+    const allowed = () => this.accountRecoveryAllowed?.() !== false
+    const armed = seats.filter(seat => seat.end?.hold === 'armed' && !this.pressedHolds.has(`${seat.session}@${seat.end.at}`))
+    for (const seat of armed) {
+      if (!allowed()) return
+      this.pressedHolds.add(`${seat.session}@${seat.end.at}`)
+      await this.client.call('pty_key', { session_id: seat.session, key: 'Escape' })
+        .catch(error => process.stderr.write(`BellTeam accounts: limit hold key not sent: ${seat.session} ${error?.code ?? error?.message ?? 'UNKNOWN'}\n`))
+    }
+    let rows = seats
+    for (let read = 0; armed.length && read < 10 && (read === 0 || rows.some(seat => seat.end?.hold === 'armed')); read++) {
+      await new Promise(resolve => setTimeout(resolve, this.holdReleasePollMs))
+      rows = (await this.limitEnds()).get(bot.id) ?? []
+    }
+    // A hold still armed would continue its turn at its reset next to the continuation: none now (two turns over one work).
+    if (rows.some(seat => seat.end?.hold === 'armed')) {
+      process.stderr.write(`BellTeam accounts: limit hold still armed, no continuation: ${bot.id}\n`)
+      return
+    }
+    const end = lastTurn(rows)?.end
+    if (!this.continuationDue(bot.id, end)) return
+    // Each effect is fenced right before it: a handed-over (quiescing) engine stops, and the intent left behind never
+    // suppresses the successor's send (only a claim at the input boundary does).
+    if (!allowed()) return
+    const resumed = this.accounts.resumed(bot.id)
+    if (resumed?.at === end.at && resumed.deliveryId) await this.accounts.releaseResume(bot.id, end.at, resumed.deliveryId)
+    if (!allowed()) return
+    await this.accounts.intendResume(bot.id, end.at)
+    this.accountRecoveries.add(bot.id)
+    try {
+      const move = (this.accounts.seatSlot(bot.id) ?? '1st') !== slot || await this.accounts.renewDue(bot.id, 'claude', bot.model)
+      if (!allowed()) return
+      if (move) await this.switchAccount(bot)
+      // A stop during the move ended that work: no send (the input boundary refuses a keyed delivery after it too).
+      if (!allowed() || !this.continuationDue(bot.id, end)) return
+      await this.continuation?.resume(bot, { slot, limitEnd: end.at, deliveryId: this.continuation.states.get(bot.id)?.deliveryId ?? null })
+    } finally { this.accountRecoveries.delete(bot.id) }
   }
 
   async close() {
@@ -1885,4 +2036,9 @@ export function cleanScreen(text, maxLines = 25) {
   while (collapsed.at(-1) === '') collapsed.pop()
   while (collapsed[0] === '') collapsed.shift()
   return collapsed.slice(-maxLines).join('\n')
+}
+
+// harness-accounts.md "limit end": the member's last turn is its seat with the greatest last_input_at (null is oldest).
+function lastTurn(seats) {
+  return seats.reduce((last, seat) => !last || Date.parse(seat.lastInputAt ?? '') > Date.parse(last.lastInputAt ?? '') || (!last.lastInputAt && seat.lastInputAt) ? seat : last, null)
 }

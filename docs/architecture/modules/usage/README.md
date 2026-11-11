@@ -50,7 +50,7 @@ flowchart TD
 | 窓口 | 入力・既caller | 出力・失敗の意味 |
 | --- | --- | --- |
 | auth | Web/Appleのsetup/harness-auth HTTP、席MCP complete_setup → 内部HTTP。Onboarding/HarnessAuthへ委譲 | 公開段階・auth_ui・typed失敗。内部のsetup/harness・setup/auth/inputとharness-auth変更は拒否し、setup/start・completeは維持。Aitermの本人性やvendor認証内部を所有しない |
-| settings | GET/PATCH settings、get_settings/update_settings → FeatureSettings | 公開値は秘密を伏せる。内部は本人の提出済みsecretRequestIdだけ。保存後の適用失敗はFEATURE_APPLY_FAILEDで保存値と公開エラーが残る |
+| settings | GET/PATCH settings、get_settings/update_settings → FeatureSettings | 公開値は秘密を伏せる。各fieldは`required`（有効化に必須か）を持つ。詳細は[flows](flows.md#任意機能設定を保存したことと適用できたことを分ける)。内部は本人の提出済みsecretRequestIdだけ。保存後の適用失敗はFEATURE_APPLY_FAILEDで保存値と公開エラーが残る |
 | notify | Messenger/RoomMessengerのdirect/roomとカード作成のsecret/question callback、notifications端末HTTP | 本文/秘密値なしの通知。通知失敗を会話保存失敗へ変換しない。端末表示完了は保証しない |
 | 質問/秘密 | ask_owner/request_secret/get_secret_request/cancel_secret_requestとowner-questions/secret-requests HTTP | 作成は内部、提出/回答は公開。Bot取下げは本人のpending依頼。秘密はsubmitted + notification failedを返し、質問はanswered保存後の会話受付例外をそのまま共通HTTPエラー変換へ渡す |
 | 購読 | Appleのsubscription GET/verify/refresh/setup-test | 外部検証/保存結果、期限と購読状態。動作確認はexecution.turnを使用。WebのAI利用可否を購読で止めない |

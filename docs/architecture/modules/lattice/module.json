@@ -1,0 +1,28 @@
+{
+  "title": "Lattice工程表",
+  "owner": "フローラ",
+  "botId": "bot-7e777fe5",
+  "scope": "Latticeの取り込み・プロジェクトごとの工程表の保管・席のlattice道具・アプリ向け読取口（独立module子）。Lattice本体はスノーホワイト、描画は各アプリ",
+  "external": false,
+  "provides": [
+    "lattice-chart",
+    "lattice-seat"
+  ],
+  "uses": [
+    {
+      "module": "members",
+      "port": "registry"
+    }
+  ],
+  "source": [
+    "src/lattice/http-api.mjs",
+    "src/lattice/mcp.mjs",
+    "src/lattice/core.mjs",
+    "src/lattice/cli.mjs",
+    "src/lattice/projection.mjs",
+    "src/lattice-protocol.mjs",
+    "src/lattice-ipc.mjs",
+    "src/lattice-dispatcher.mjs",
+    "src/lattice-entry.mjs"
+  ]
+}

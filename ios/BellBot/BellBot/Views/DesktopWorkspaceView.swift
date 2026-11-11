@@ -42,6 +42,7 @@ struct DesktopWorkspaceView: View {
                 case 2: SettingsView()
                 case 3: GoalsView()
                 case 4: WorkGraphView()
+                case 5: LatticeHomeView(returnTab: 5)
                 default:
                     if let selection {
                         #if targetEnvironment(macCatalyst)
@@ -99,6 +100,7 @@ struct DesktopWorkspaceView: View {
             // -bellbot-open-work-graph は試料データにせず、実サーバーのまま窓を開く（色・画像の確認用）。
             let arguments = ProcessInfo.processInfo.arguments
             if arguments.contains("-bellbot-preview-work-graph") || arguments.contains("-bellbot-open-work-graph") { openWindow(id: "work-graph") }
+            if arguments.contains("-bellbot-open-lattice") { openWindow(id: "lattice") }
         }
         #endif
         .sheet(item: $store.notificationSecret) { request in
@@ -198,6 +200,16 @@ struct DesktopWorkspaceView: View {
                 } label: { Label("相関図", systemImage: "point.3.connected.trianglepath.dotted") }
                     .keyboardShortcut("4", modifiers: .command)
                     .accessibilityIdentifier("open-work-graph")
+                Spacer()
+                Button {
+                    #if targetEnvironment(macCatalyst)
+                    openWindow(id: "lattice")
+                    #else
+                    store.selectedTab = 5; compactColumn = .detail
+                    #endif
+                } label: { Label("工程表", systemImage: "list.bullet.indent") }
+                    .keyboardShortcut("5", modifiers: .command)
+                    .accessibilityIdentifier("open-lattice")
                 Spacer()
                 Button { store.selectedTab = 2; compactColumn = .detail } label: { Label("設定", systemImage: "gearshape") }
                     .keyboardShortcut(",", modifiers: .command)

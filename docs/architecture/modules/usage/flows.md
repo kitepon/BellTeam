@@ -125,6 +125,8 @@ flowchart TD
 | 対象 | 状態の持ち主 / 呼ばれる関数 | 失敗後に残るもの |
 | --- | --- | --- |
 | 設定正本 | `FeatureSettings.save` → `shared/tools/bellteam-settings/settings.json` | save後のonChange失敗でも設定は残る。`errors`はメモリ、公開値に適用失敗を付ける |
+| 必須項目（2026-11-11 Trony依頼・Admi合意） | `FeatureSettings.list` → `fields[].required` | 有効化に要る項目は`required:true`。`configured`の判定と同じ規則で、cloudflare.publicUrlと、旧APNs設定がある間のnotifications.relayUrlだけfalse。足りない項目は`required && !configured`。保存値・status・PATCHは変えない。旧本体の応答にkeyが無ければ画面は「不明」とし、何も主張しない |
+| 必須項目の親検証 | 親`usage/projection.mjs:usageSettingValid` | 親の閉検証は`required`を任意booleanとして受ける（旧子のkey無しも通す）。旧親は新子の行を拒否するため、親の変更を含む本体releaseを新usage moduleより先に入れる。module単独更新では配らない |
 | 初期取込み | `initialize` | 保存済みJSON優先。無い時だけ環境・旧APNs設定・橋headerから作る |
 | 起動時適用 | `createApplicationFeatures.initialize` | diagnostics/callBridge/notificationsの各失敗を記録し、他の適用を続ける |
 | Cloudflare | `configureCloudflare/authMode/authorize` | localと公開JWT認証の選択。JWT検証は`cloudflareAccessAuthorizer` |

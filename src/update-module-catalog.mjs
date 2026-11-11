@@ -4,14 +4,15 @@ import { isDeepStrictEqual } from 'node:util'
 import { USAGE_STATE_COMPATIBILITY } from './usage/state-compatibility.mjs'
 import { DIAGNOSTICS_STATE_COMPATIBILITY } from './diagnostics-protocol.mjs'
 import { WORK_GRAPH_STATE_COMPATIBILITY } from './work-graph-protocol.mjs'
+import { LATTICE_STATE_COMPATIBILITY } from './lattice-protocol.mjs'
 import { MEMORY_STATE_COMPATIBILITY } from './memory/state-compatibility.mjs'
 import { MEMBERS_STATE_COMPATIBILITY } from './members/state-compatibility.mjs'
 import { runtimeComponentIds } from './update-center-contract.mjs'
 
-const ids = ['web-gateway', 'notifications', 'members', 'memory', 'diagnostics', 'usage', 'execution', 'conversation', 'work-graph']
-const stateIds = ['members', 'memory', 'diagnostics', 'usage', 'execution', 'conversation', 'work-graph']
+const ids = ['web-gateway', 'notifications', 'members', 'memory', 'diagnostics', 'usage', 'execution', 'conversation', 'work-graph', 'lattice']
+const stateIds = ['members', 'memory', 'diagnostics', 'usage', 'execution', 'conversation', 'work-graph', 'lattice']
 const stateCompatibility = id => ({ members: MEMBERS_STATE_COMPATIBILITY, memory: MEMORY_STATE_COMPATIBILITY, diagnostics: DIAGNOSTICS_STATE_COMPATIBILITY,
-  'work-graph': WORK_GRAPH_STATE_COMPATIBILITY, usage: USAGE_STATE_COMPATIBILITY, conversation: CONVERSATION_STATE_COMPATIBILITY, execution: EXECUTION_STATE_COMPATIBILITY })[id]
+  'work-graph': WORK_GRAPH_STATE_COMPATIBILITY, lattice: LATTICE_STATE_COMPATIBILITY, usage: USAGE_STATE_COMPATIBILITY, conversation: CONVERSATION_STATE_COMPATIBILITY, execution: EXECUTION_STATE_COMPATIBILITY })[id]
 const hex = (value, length) => typeof value === 'string' && new RegExp(`^[a-f0-9]{${length}}$`).test(value)
 const date = value => typeof value === 'string' && Number.isFinite(Date.parse(value))
 const exact = (value, keys) => value && typeof value === 'object' && !Array.isArray(value)

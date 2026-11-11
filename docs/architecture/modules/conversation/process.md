@@ -170,9 +170,21 @@ eventは`{type:'changed',topics,all,botIds,roomIds}`だけで、本文/資格/�
 
 ## 会話固有channel/entryの所有変更
 
-diagnosticは既channelの子送信/親受信で同じ固定unionを検証し、MESSAGE_LOG_INVALIDだけexact {code,line,offset,length,reason}（lineは1以上、offset/lengthは0以上のsafe整数、reasonはnul/syntax/schema）を許し、他はcode-onlyを維持して本文/自由例外/stderrを転送せず親onDiagnosticへ渡す。
+diagnosticは既channelの子送信/親受信で同じ固定unionを検証し、MESSAGE_LOG_INVALIDだけexact {code,line,offset,length,reason}（lineは1以上、offset/lengthは0以上のsafe整数、reasonはnul/syntax/schema）を許す。CONVERSATION_OBSERVATION_FAILEDはexact {code,reason}（reasonは`^[A-Z][A-Z0-9_]{0,99}$`の固定分類）を許し、旧子のcode-onlyも受ける。他はcode-onlyを維持して本文/自由例外/stderrを転送せず親onDiagnosticへ渡す。親portがreasonを保存するかは本体のDiagnostics登録（Molly）が持つ。
 
-Root21:55分担により会話固有parent/child adapterと薄いentryはN102が所有。Epiの共通module-streams、input budget、background/delivery-release、C/locks/controllerをそのまま使用し複製しない。同lease/correlationで複数の順次・同時rootを許し、各RPCの数値封筒idと親captured method/authorityを個別に保持する。reverse effect/eventの封筒sourceは元RPC id、wire root/callback context自体は既4/5fieldのまま。同operationIdだけで別methodの権限へ広げない。
+Root21:55分担により会話固有parent/child adapterと薄いentryはN102が所有。Epiの共通module-streams、input budget、background/delivery-release、C/locks/controllerをそのまま使用し複製しない。同lease/correlationで複数の順次・同時rootを許し、各RPCの数値封筒idと親captured method/authorityを個別に保持する。
+
+### 呼び出し封筒idの順序（2026-11-11 部屋投稿で会話子が落ちた欠陥）
+
+封筒idは送り手ごとの奇偶（親は奇数、子は偶数）で増える。旧`call()`はidを同期で取り、call封筒はparams長の計測`await encodedLength(params)`の後に送っていた。計測のtick数はparamsのJSON部品数で増えるので、同じmacrotaskで出た二つの呼び出しは大きさ順に出ることがある。部屋の18席fan-outでは、一つのAiterm stdio chunkが二席の応答を同時に解決する。すると親→子のcallback（delivery.words×3の後にdelivery.words×1、またはdelivery.status running）が逆順に届き、子の受け手`id > incoming`がCONVERSATION_IPC_INVALIDで経路を落としていた（Molly再現、608a7bae）。
+
+| 側 | 契約 |
+| --- | --- |
+| 送り手 | 各call封筒は、直前に発行した呼び出しの封筒が送られるまで待つ。発行順＝送信順。計測は待たずに先に進める |
+| 受け手 | 正しい奇偶で、未受理で、受理済み最大idから2048未満下までのidを受ける。同じidの再受理、奇偶違い、窓より下は従来どおりCONVERSATION_IPC_INVALID。受理済みidの記録は窓の外を捨てる（上限つき） |
+| 混在 | 旧送り手（修正前の本体の親）と新受け手（会話moduleの子）は逆順でも落ちない。会話moduleだけの公開で直る。送り手の修正は本体builtinと次の本体列車で入る |
+
+子quiesceの`Promise.all(callbacks())`は診断呼び出しの拒否を待つが、失敗にはしない。診断は観測だけで、旧親が新しい診断形（例: {code,reason}）を拒否しても、交換を止める保護は無い（98486a1cと同じ理由）。reverse effect/eventの封筒sourceは元RPC id、wire root/callback context自体は既4/5fieldのまま。同operationIdだけで別methodの権限へ広げない。
 
 親optionsのconversationLease/capturedAuthority/operationContext/admissionCheckは同identityで親に保持し、onEffectへconversationDeliveryを加える。native前registerDelivery/delivery-release、report derive、observer source、背景runBackground/deferredとACKをadapterが結合し、transportのclaimNative/finishは重ねない。root64のslotはuser.turnの実acceptedで解放、元RPC completion/保存参照は完走まで残す。historyは別streamをawait onChunk(Buffer)へ送る。独立control capabilityをdata credit待ちにせず、切断/期限で実completionをresolveしない。
 

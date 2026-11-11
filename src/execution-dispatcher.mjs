@@ -85,7 +85,8 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     return track(value)
   }
   const native = Object.create(ports.native)
-  const nativeMethods = new Set(['pty_list', 'pty_read', 'pty_observe', 'pty_send', 'pty_close',
+  // pty_key: the Owner's screen key (screen-input.md) and the Esc that cancels a limit hold (harness-accounts.md).
+  const nativeMethods = new Set(['pty_list', 'pty_read', 'pty_observe', 'pty_send', 'pty_close', 'pty_key',
     'agent_launch', 'agent_configure', 'agent_stop', 'agent_goal'])
   native.call = (name, ...args) => {
     alive()
@@ -155,6 +156,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     recover(context)
   }
   transport.continuation = continuation
+  transport.accountRecoveryAllowed = () => phase === 'running'
   const originalWatch = transport.watchSeatTurns.bind(transport)
   transport.watchSeatTurns = (bots, options) => originalWatch(bots, { ...options, allowNew: () => phase === 'running' })
   const observer = new SeatTurns({ bots: ports.bots, transport,
@@ -323,6 +325,8 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
       clearTimeout(transport.workState.timer); transport.workState.timer = null
       // Never call Transport.close(): it closes the shared native client and aborts watches.
       phase = 'retired'
+      // harness-accounts.md: a retired engine's reset timer must not write its stale registry at a later reset.
+      accounts.close()
       if (continuation) await continuation.close()
       return { closed: true }
     } catch (error) {
@@ -338,7 +342,6 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
       initialization = (async () => {
         // Re-arm the exact-time reset timers from the registry (restart and engine exchange alike).
         await accounts.load()
-        void transport.reviewAccounts()
         if (!handoff) {
           // Fresh body: reload the app-set terminal keys so Aiterm rebuilds the remote seats' MCP route (remote-seat.md R13).
           if (remoteSeats) track(transport.readRuntimeLaunches().then(launches => remoteSeats.warm(launches))).catch(() => {})
@@ -368,6 +371,8 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
         }
         initialized = true; phase = 'running'; transport.workState.schedule(); startProducers()
         for (const context of deferredRecovery.splice(0)) recover(context)
+        // Account moves and recovery send messages through the parent, so they start once this engine accepts work.
+        void transport.reviewAccounts()
         return { stateCompatibility: COMPATIBILITY }
       })()
       try { return await initialization }

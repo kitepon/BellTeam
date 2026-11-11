@@ -1,0 +1,10 @@
+{
+  "name": "bellteam-lattice-module",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Child-only dependencies of the lattice module payload (docs/architecture/modules/runtime/lattice-child.md). @quolu/lattice 0.85.5 is the minimum: the first release with todo display read/source.",
+  "dependencies": {
+    "@quolu/lattice": "0.85.5"
+  }
+}

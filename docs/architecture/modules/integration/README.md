@@ -43,6 +43,8 @@ flowchart TD
   HTTP --> Schedules["members.createScheduleApi"]
   HTTP --> WorkGraph["work-graph.createWorkGraphApi / Owner GET snapshot・SSE"]
   WorkGraph --> WGFacade["work-graph-facade / 子moduleへのrefresh・snapshot"]
+  HTTP --> Lattice["lattice.createLatticeApi / Owner GET charts・chart・SSE"]
+  Lattice --> LFacade["lattice-facade / 子moduleへのcharts・chart・refresh・run（1本の直列chain）"]
   HTTP --> Accounts["http-accounts-api / GET accounts"]
   Accounts --> ExecAccounts["execution.accounts list"]
   HTTP --> BotItems["members profiles-http / Bot items"]
@@ -54,12 +56,14 @@ flowchart TD
   MCP --> DeleteTool["members.deleteBotTool / runDeleteBotTool"]
   MCP --> ProfileTools["members.memberReadTools/memberWriteTools/callMemberTool"]
   MCP --> ScheduleTools["members.botScheduleTools/roomScheduleTools/scheduleToolHandlers"]
+  MCP --> LatticeTool["lattice.latticeTools/latticeToolHandlers / from=呼んだ席のBot"]
+  LatticeTool --> LFacade
   Assembly["application-services / 同じservice実体を接続"] --> TalkFactory["conversation-services"]
   Assembly --> Runtime["同じSeatRuntimeのCLI登録"]
   Features["application-features / 互換export"] --> Apply["usage.createApplicationFeatures"]
 ```
 
-登録順、同じAdministration/service実体、会話と秘密・質問の保存後の部分失敗、MCP公開schemaを統合境界で確認する。membersの削除/予定/プロフィール/画像/Owner個別受付は各公開窓口へ渡し、共通整形・認証・エラー変換と登録をここが持つ。削除の既pending受付とCLI同期失敗の独立はmembersの意図した契約変更。相関図（work-graph）は独立更新の子moduleとして動かす（[親側の図](../runtime/work-graph-child.md)）。既featureApisの末尾のhandlerへ`{facade, internal}`だけを渡し、facadeが子へのrefresh/snapshotと、bots/rooms/transport/messagePageの読取effectを持つ。親は状態を持たず、内部席は403を本人handlerが返す。モデル適用等の残る業務分離は各担当の継続範囲で、全機能の分離完了とは扱わない。
+登録順、同じAdministration/service実体、会話と秘密・質問の保存後の部分失敗、MCP公開schemaを統合境界で確認する。membersの削除/予定/プロフィール/画像/Owner個別受付は各公開窓口へ渡し、共通整形・認証・エラー変換と登録をここが持つ。削除の既pending受付とCLI同期失敗の独立はmembersの意図した契約変更。相関図（work-graph）は独立更新の子moduleとして動かす（[親側の図](../runtime/work-graph-child.md)）。既featureApisの末尾のhandlerへ`{facade, internal}`だけを渡し、facadeが子へのrefresh/snapshotと、bots/rooms/transport/messagePageの読取effectを持つ。親は状態を持たず、内部席は403を本人handlerが返す。Lattice工程表（lattice）も同じ形の独立更新子module（[親側の図](../runtime/lattice-child.md)）。HTTPは既featureApisのwork-graphの次へ`createLatticeApi({facade, internal})`を置き、MCPは`latticeTools`を道具一覧の末尾へ足して`latticeToolHandlers.lattice({lattice: facade, from, args})`へ渡す。`from`は席の認証から決めたBot idで、道具引数からは取らない。forkの席も親Botとして呼べる（工程表はBot project folderの外）。facadeが無い本体では道具は`LATTICE_UNAVAILABLE`を返す。モデル適用等の残る業務分離は各担当の継続範囲で、全機能の分離完了とは扱わない。
 
 共通MCP全体説明は対象範囲と、設定された設置のSEC所見をBugHubへ記録する案内を持つ。道具の引数・既定値・効果・返却は各description、道具を持ち出す場面・順序はcommon-agents.mdへ置く。v4の共通規範を先に採用してから説明の重複を除き、schema/handler/保存と公開接続は変えない。
 
@@ -700,14 +704,14 @@ flowchart LR
 
 新しい公開HTTP/MCP schema・保存writerを増やさない。公開operation UUIDと各設置stepのUUIDは別に耐久保存する。catalog/互換が固定され、既readerがENOENTとなった更新だけHost planへ渡す。改竄・不適合・権限エラーは設置で隠さない。戻しは既配置だけ使う。Host plan/operationはcatalog・component・source・SHA・planId・requestIdを照合し、containerRestart:falseを確認する。失敗/unknown/応答不整合ではreplaceせず、未確定Hostがある間は新更新を拒否する。再起動時は保存済みUUIDの結果照会だけ許し、既設置済みと判明しても中断moduleのreplaceは自動再発行しない。Hostが明示的に未受付と返した設置はfailedとして確定し、未知の受付と区別する。初回Host機構と同image installerの導入・本番承認は別条件。
 
-会話子のStore固定診断はdispatcher→厳密なIPC union→親onDiagnostic→同Diagnostics writerへ保存する。MESSAGE_LOG_INVALIDのcode/物理line/byte offset/length/固定reasonだけを渡し、本文や自由例外を診断へ含めない。旧fallback Storeも同じ診断writerへ接続する。
+会話子のStore固定診断はdispatcher→厳密なIPC union→親onDiagnostic→同Diagnostics writerへ保存する。MESSAGE_LOG_INVALIDのcode/物理line/byte offset/length/固定reasonだけを渡し、本文や自由例外を診断へ含めない。CONVERSATION_OBSERVATION_FAILEDは固定code表(moduleはconversation)に載り、子のexact {code, reason}（reasonはcode形の語だけ。子が対象ごと・reason変化ごとに1回だけ送る）をMESSAGE_LOG_INVALIDと同じくdiagnostic_logのJSONとして保存する。行は既存どおりcode:moduleで1行に集約され、occurrence_countと最後のreasonが残る。module modeではfacadeのrecordは選択中のdiagnostics子へ渡り、子は自分のdiagnostics.mjsの固定code表で検証する。このcodeを含まない旧diagnostics子は拒否する（stderrのUNRECORDEDだけで会話処理は失敗しない）。配備順: このcodeを含むdiagnostics実装（新本体builtin、または同sourceから作ったdiagnostics module）を先に有効にし、その後でreasonを送る新conversation moduleへ交換する。本体#1071+#1072は新conversation moduleより前。旧fallback Storeも同じ診断writerへ接続する。
 
 ### 会話子診断の受領と保存結果の分離
 
 ```mermaid
 flowchart LR
-  Child["会話子 diagnostic(code-only / MESSAGE_LOG_INVALID位置)"] -->|"既IPC union検証"| Port["application-services: conversationDiagnosticPort"]
-  Port -->|"code/module:conversation[/diagnostic_log]"| Record["Diagnostics.record: 固定code表とmoduleを検証"]
+  Child["会話子 diagnostic(code-only / MESSAGE_LOG_INVALID位置 / CONVERSATION_OBSERVATION_FAILED reason)"] -->|"既IPC union検証"| Port["application-services: conversationDiagnosticPort"]
+  Port -->|"code/module:conversation[/diagnostic_log: MESSAGE_LOG_INVALID・OBSERVATION_FAILEDのJSON]"| Record["Diagnostics.record（module mode: 選択中diagnostics子のdiagnostics.mjs）: 固定code表とmoduleを検証。OBSERVATION_FAILEDを含む実装が先に有効"]
   Record -->|"保存"| Store["logs/diagnostics.json"]
   Record -.->|"拒否・利用不可"| Stderr["stderr: CONVERSATION_DIAGNOSTIC_UNRECORDED {reportCode, reason}"]
   Port -->|"常に acknowledged"| Child

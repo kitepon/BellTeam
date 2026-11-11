@@ -69,6 +69,7 @@
     "src/execution-bridge.mjs",
     "src/capacity-continuation.mjs",
     "src/harness-accounts.mjs",
+"src/claude-limit-text.mjs",
     "src/remote-seats.mjs",
     "src/current-work.mjs",
     "src/members-admission.mjs",

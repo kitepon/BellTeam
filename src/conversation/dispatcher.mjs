@@ -149,7 +149,7 @@ export function createConversationDispatcher({ root, effect, event, trackBackgro
     shown: botId => invoke('execution.shown.read', { botId }),
     consumeShown: (botId, shown) => invoke('execution.shown.consume', { botId, shownId: shown.shownId }),
     appendAnswer: (botId, groupId, text) => messenger.appendInterimWords(botId, groupId, [{ text, kind: 'answer' }]),
-    afterTurn, report: () => { void Promise.resolve(diagnostic({ code: 'CONVERSATION_OBSERVATION_FAILED' })).catch(() => {}) } })
+    afterTurn, report: (_message, { reason } = {}) => { void Promise.resolve(diagnostic({ code: 'CONVERSATION_OBSERVATION_FAILED', reason: reason ?? 'OBSERVATION_FAILED' })).catch(() => {}) } })
 
   function assertContext(context) {
     if (!initialized || exiting || context.generation !== generation) throw failure('CONVERSATION_UNAVAILABLE')
@@ -271,6 +271,7 @@ export function createConversationDispatcher({ root, effect, event, trackBackgro
       }
       case 'direct.post': return messenger.sendmessage(params)
       case 'fork.ask': return messenger.askReadonly(params)
+      case 'fork.sweep': return messenger.sweepForkNotices()
       case 'user.post': case 'user.turn': {
         const state = current(), completion = messenger.userTurn(params)
         state.userSaved = track(completion.then(async result => { await background.awaitStarted(state.context); return result }))

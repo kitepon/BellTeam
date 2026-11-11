@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-11T10:24:41Z",
-  "expiresAt": "2026-11-18T10:24:41Z",
+  "publishedAt": "2026-11-11T18:38:04Z",
+  "expiresAt": "2026-11-18T18:38:04Z",
   "releases": [
     {
       "componentId": "usage",
@@ -183,8 +183,8 @@
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "09f11556c14bed91ee94575b9e4f22b014423d51",
-      "versionId": "7a15fef9e547b6bb6f2efe863605a020673893cb34bf206ed9296e8132865037",
+      "sourceCommit": "3de2d504f72852d6f0ca12393950b17d5985a5fc",
+      "versionId": "6d47011bfaff715ee2082a54c40909872001cfc666656936745a80a84afce29b",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -192,16 +192,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T004340Z/conversation-09f11556c14bed91ee94575b9e4f22b014423d51-linux-amd64.tar.gz",
-          "bytes": 3900711,
-          "sha256": "7a15fef9e547b6bb6f2efe863605a020673893cb34bf206ed9296e8132865037"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T122945Z/conversation-3de2d504f72852d6f0ca12393950b17d5985a5fc-linux-amd64.tar.gz",
+          "bytes": 3902780,
+          "sha256": "6d47011bfaff715ee2082a54c40909872001cfc666656936745a80a84afce29b"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T004340Z/conversation-09f11556c14bed91ee94575b9e4f22b014423d51-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10955,
-          "sha256": "f2858e229e3744a98ad6ac081b1eee884b7213e96182c3c340447c1a949d39a4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T122945Z/conversation-3de2d504f72852d6f0ca12393950b17d5985a5fc-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11127,
+          "sha256": "129f5bea75b0fce2934bdcce8fc59f7c101ce2f78c19b3db5f62b789861d6330"
         },
-        "signerCommit": "09f11556c14bed91ee94575b9e4f22b014423d51"
+        "signerCommit": "3de2d504f72852d6f0ca12393950b17d5985a5fc"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -232,13 +232,13 @@
         }
       },
       "changes": [
-        "分身への問い合わせ（ask_readonly）が内部エラーで失敗していたのを直し、分身の答えが質問した人へメッセージで届くようにします。"
+        "人数の多いルームに投稿しても、会話の部品が止まらなくなりました。返事が届いているのに失敗と返ることもなくなります。"
       ]
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "09f11556c14bed91ee94575b9e4f22b014423d51",
-      "versionId": "ed13d50eac53dc881a73b147470c2a0c4506842c55cd833f172690bf4144ecac",
+      "sourceCommit": "3de2d504f72852d6f0ca12393950b17d5985a5fc",
+      "versionId": "13b4412263c48ae46a6086281e6aea9dc0c1a83b6584e8e4ba68da7244353b72",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -246,16 +246,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T004340Z/conversation-09f11556c14bed91ee94575b9e4f22b014423d51-linux-arm64.tar.gz",
-          "bytes": 3900711,
-          "sha256": "ed13d50eac53dc881a73b147470c2a0c4506842c55cd833f172690bf4144ecac"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T122945Z/conversation-3de2d504f72852d6f0ca12393950b17d5985a5fc-linux-arm64.tar.gz",
+          "bytes": 3902780,
+          "sha256": "13b4412263c48ae46a6086281e6aea9dc0c1a83b6584e8e4ba68da7244353b72"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T004340Z/conversation-09f11556c14bed91ee94575b9e4f22b014423d51-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11127,
-          "sha256": "d23d2dbf156a0344e53b3586c98830b2b6c8d6c49935f9908a8e5c699fcdf7d1"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T122945Z/conversation-3de2d504f72852d6f0ca12393950b17d5985a5fc-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11190,
+          "sha256": "d8c01a9eda7f93261c60b6d2cd34814f732e7bb4f490f7a263519495d9b368ac"
         },
-        "signerCommit": "09f11556c14bed91ee94575b9e4f22b014423d51"
+        "signerCommit": "3de2d504f72852d6f0ca12393950b17d5985a5fc"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -286,7 +286,7 @@
         }
       },
       "changes": [
-        "分身への問い合わせ（ask_readonly）が内部エラーで失敗していたのを直し、分身の答えが質問した人へメッセージで届くようにします。"
+        "人数の多いルームに投稿しても、会話の部品が止まらなくなりました。返事が届いているのに失敗と返ることもなくなります。"
       ]
     },
     {
@@ -427,8 +427,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "eec7cab4cb4afb49c09b06d911105d887a620241",
-      "versionId": "843269f9457a5363764673d6ed802abd583deb9d4821d333ba075cce3613b302",
+      "sourceCommit": "bfa089b9aafeac791df422d056bdef760d3f6b70",
+      "versionId": "73d484ca1cf3acda9adf9daa629a341b0df5a7f2de472c6fe1fc4768a743f982",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +436,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T071502Z/web-gateway-eec7cab4cb4afb49c09b06d911105d887a620241-linux-amd64.tar.gz",
-          "bytes": 5195747,
-          "sha256": "843269f9457a5363764673d6ed802abd583deb9d4821d333ba075cce3613b302"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T143506Z/web-gateway-bfa089b9aafeac791df422d056bdef760d3f6b70-linux-amd64.tar.gz",
+          "bytes": 5240164,
+          "sha256": "73d484ca1cf3acda9adf9daa629a341b0df5a7f2de472c6fe1fc4768a743f982"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T071502Z/web-gateway-eec7cab4cb4afb49c09b06d911105d887a620241-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11158,
-          "sha256": "bbdc8b40c9ec4efec7c4cf0da4f2fe5f2fd4c011d24ca43925531fb83f627208"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T143506Z/web-gateway-bfa089b9aafeac791df422d056bdef760d3f6b70-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11287,
+          "sha256": "48f220c82be516af9b76b4a90f978685760ad568c8e85dabd8138ce4747a20d7"
         },
-        "signerCommit": "eec7cab4cb4afb49c09b06d911105d887a620241"
+        "signerCommit": "bfa089b9aafeac791df422d056bdef760d3f6b70"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,13 +454,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "端末の画面で、まだ確かめていないWindowsの端末に「このPCでBellTeamアプリを開くと、自動で確かめます。」と出て、指紋を手で入れる欄は「ほかの方法」の中に入りました。"
+        "画面上部の「工程表」ボタンから、Botが作った工程表の一覧を開き、作業中・待ちの様子とその流れを見られるようになります。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "eec7cab4cb4afb49c09b06d911105d887a620241",
-      "versionId": "f35736bff7910f0db95732564d64212df1a7799dcd8cc753a31ca9144bf0cfe5",
+      "sourceCommit": "bfa089b9aafeac791df422d056bdef760d3f6b70",
+      "versionId": "b96a715a7fd2b8f7de9ce51698d0403a28a1b9f57d5545e776a0abb6caf77157",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -468,16 +468,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T071502Z/web-gateway-eec7cab4cb4afb49c09b06d911105d887a620241-linux-arm64.tar.gz",
-          "bytes": 5195747,
-          "sha256": "f35736bff7910f0db95732564d64212df1a7799dcd8cc753a31ca9144bf0cfe5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T143506Z/web-gateway-bfa089b9aafeac791df422d056bdef760d3f6b70-linux-arm64.tar.gz",
+          "bytes": 5240164,
+          "sha256": "b96a715a7fd2b8f7de9ce51698d0403a28a1b9f57d5545e776a0abb6caf77157"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T071502Z/web-gateway-eec7cab4cb4afb49c09b06d911105d887a620241-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11017,
-          "sha256": "4d2f8fbb478645899c07a417a04d19a4f9bbc332f61ffbe2c0991f255e5412b5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T143506Z/web-gateway-bfa089b9aafeac791df422d056bdef760d3f6b70-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11287,
+          "sha256": "c46a2b650d2a566cac767faa437921fe265a15f160185679b7f506e5500fd4cd"
         },
-        "signerCommit": "eec7cab4cb4afb49c09b06d911105d887a620241"
+        "signerCommit": "bfa089b9aafeac791df422d056bdef760d3f6b70"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -486,13 +486,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "端末の画面で、まだ確かめていないWindowsの端末に「このPCでBellTeamアプリを開くと、自動で確かめます。」と出て、指紋を手で入れる欄は「ほかの方法」の中に入りました。"
+        "画面上部の「工程表」ボタンから、Botが作った工程表の一覧を開き、作業中・待ちの様子とその流れを見られるようになります。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "414a4c9e463d4ba7c11a6b256ba682737422f654",
-      "versionId": "c4c9eab4e26acd54f73561a1587a9cc86480b833b3785bd9ce32e2023eac0a31",
+      "sourceCommit": "e4180d5177fc7bd35f49132bf4e295a647f0e103",
+      "versionId": "d0acdcb76da3d206f81064db68e48ffd4ecd90438a3a4abd5d5c386c5429024d",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T090707Z/execution-414a4c9e463d4ba7c11a6b256ba682737422f654-linux-amd64.tar.gz",
-          "bytes": 3954458,
-          "sha256": "c4c9eab4e26acd54f73561a1587a9cc86480b833b3785bd9ce32e2023eac0a31"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T183603Z/execution-e4180d5177fc7bd35f49132bf4e295a647f0e103-linux-amd64.tar.gz",
+          "bytes": 3959550,
+          "sha256": "d0acdcb76da3d206f81064db68e48ffd4ecd90438a3a4abd5d5c386c5429024d"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T090707Z/execution-414a4c9e463d4ba7c11a6b256ba682737422f654-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10926,
-          "sha256": "3eee0393280464fc594a56b2edb7b19aab34363fc76f8fe8b7976c82e103c6bc"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T183603Z/execution-e4180d5177fc7bd35f49132bf4e295a647f0e103-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11020,
+          "sha256": "d0ab50cee791f133294331147571cf2273baefc9ebf3bcef1ebace4d29e12fd4"
         },
-        "signerCommit": "414a4c9e463d4ba7c11a6b256ba682737422f654"
+        "signerCommit": "e4180d5177fc7bd35f49132bf4e295a647f0e103"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "1st・2nd とも、席はアカウントごとのログインで起動するようになりました。ログイン切れを検知すると、別のアカウントの新しい席で続きを進めます（Aiterm 0.70.23 以降）。"
+        "作業が終わらないまま止まっているメンバー（ログインが切れたClaudeなど）も、削除できるようにしました。削除のときに席を閉じ、古い届け物を終わらせます。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "414a4c9e463d4ba7c11a6b256ba682737422f654",
-      "versionId": "930edeaecff7eb1be07c88b580765a7ef095b7072633b178d259c2edc0984612",
+      "sourceCommit": "e4180d5177fc7bd35f49132bf4e295a647f0e103",
+      "versionId": "4e95fa2a4976cf49aac16d41879f5bf0d6f5e50c5d9480be3547ad88ed00e1ee",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T090707Z/execution-414a4c9e463d4ba7c11a6b256ba682737422f654-linux-arm64.tar.gz",
-          "bytes": 3954457,
-          "sha256": "930edeaecff7eb1be07c88b580765a7ef095b7072633b178d259c2edc0984612"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T183603Z/execution-e4180d5177fc7bd35f49132bf4e295a647f0e103-linux-arm64.tar.gz",
+          "bytes": 3959555,
+          "sha256": "4e95fa2a4976cf49aac16d41879f5bf0d6f5e50c5d9480be3547ad88ed00e1ee"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T090707Z/execution-414a4c9e463d4ba7c11a6b256ba682737422f654-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11012,
-          "sha256": "3d2eb8a5c1c001becb2c34d6f38fd391a0572396eba25203526e064022ffdb94"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T183603Z/execution-e4180d5177fc7bd35f49132bf4e295a647f0e103-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11161,
+          "sha256": "b806b4c366216948d1845bbb1fb570b58d9919e174987b892b7c77408d26beea"
         },
-        "signerCommit": "414a4c9e463d4ba7c11a6b256ba682737422f654"
+        "signerCommit": "e4180d5177fc7bd35f49132bf4e295a647f0e103"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,7 +552,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "1st・2nd とも、席はアカウントごとのログインで起動するようになりました。ログイン切れを検知すると、別のアカウントの新しい席で続きを進めます（Aiterm 0.70.23 以降）。"
+        "作業が終わらないまま止まっているメンバー（ログインが切れたClaudeなど）も、削除できるようにしました。削除のときに席を閉じ、古い届け物を終わらせます。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "608a7bae86a141225a5e19fc5b0347992905923c",
-      "versionId": "sha256:f07c4dccb59786ea9b770419088269d33ae2ae053546056e6545a4200072f05b",
+      "sourceCommit": "401b1255206089370da6a17c81d7c8c8ec60617b",
+      "versionId": "sha256:b5a77dcbc2bcb3a24e3d5167e3fe2183a85f8f8c3e76431171ec1e53f48d4b0c",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:f07c4dccb59786ea9b770419088269d33ae2ae053546056e6545a4200072f05b"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b5a77dcbc2bcb3a24e3d5167e3fe2183a85f8f8c3e76431171ec1e53f48d4b0c"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Claudeの席を起動する前のログインの確かめをやめ、ログアウトしているClaudeは自分のログイン画面で止まるようになります。外部の席の転送が途中で切れることがある問題を直します。ログイン切れを検知して別のアカウントの席へ移れるようにします（Aiterm 0.70.23）。1つ目のClaudeアカウントも席専用のログイン情報（oauth-token）でログインできるよう、本体側を合わせます。"
+        "工程表（Lattice）の部品を受け入れられるようにします。会話の部品へ送る呼び出しを順番どおりに送り、分身への問い合わせの答えや失敗の知らせが途中で失われないようにします。端末の一覧に、最後に接続を確かめた結果を出します。設定の各項目で、有効にするのに必要かどうかを示せるようにします。Aiterm 0.70.27 に上げ、本体の再起動で端末が消えたClaudeの席も一覧に残し、次に送った時にその席を引き継ぎます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "608a7bae86a141225a5e19fc5b0347992905923c",
-      "versionId": "sha256:f07c4dccb59786ea9b770419088269d33ae2ae053546056e6545a4200072f05b",
+      "sourceCommit": "401b1255206089370da6a17c81d7c8c8ec60617b",
+      "versionId": "sha256:b5a77dcbc2bcb3a24e3d5167e3fe2183a85f8f8c3e76431171ec1e53f48d4b0c",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:f07c4dccb59786ea9b770419088269d33ae2ae053546056e6545a4200072f05b"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b5a77dcbc2bcb3a24e3d5167e3fe2183a85f8f8c3e76431171ec1e53f48d4b0c"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Claudeの席を起動する前のログインの確かめをやめ、ログアウトしているClaudeは自分のログイン画面で止まるようになります。外部の席の転送が途中で切れることがある問題を直します。ログイン切れを検知して別のアカウントの席へ移れるようにします（Aiterm 0.70.23）。1つ目のClaudeアカウントも席専用のログイン情報（oauth-token）でログインできるよう、本体側を合わせます。"
+        "工程表（Lattice）の部品を受け入れられるようにします。会話の部品へ送る呼び出しを順番どおりに送り、分身への問い合わせの答えや失敗の知らせが途中で失われないようにします。端末の一覧に、最後に接続を確かめた結果を出します。設定の各項目で、有効にするのに必要かどうかを示せるようにします。Aiterm 0.70.27 に上げ、本体の再起動で端末が消えたClaudeの席も一覧に残し、次に送った時にその席を引き継ぎます。"
       ]
     }
   ],

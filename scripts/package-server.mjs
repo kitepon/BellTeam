@@ -21,18 +21,18 @@ try {
     'Dockerfile', '.dockerignore', 'package.json', 'package-lock.json', 'src', 'web', 'integrations',
     'config/common-agents.md', 'config/setup-guide.json', 'config/ponytail-LICENSE',
     'config/web-gateway-verification.json', 'config/web-gateway-trusted-root.jsonl',
-    'config/notifications-verification.json', 'config/members-verification.json', 'config/memory-verification.json', 'config/usage-verification.json', 'config/diagnostics-verification.json', 'config/work-graph-verification.json', 'config/execution-verification.json', 'config/conversation-verification.json', 'config/update-catalog-verification.json',
+    'config/notifications-verification.json', 'config/members-verification.json', 'config/memory-verification.json', 'config/usage-verification.json', 'config/diagnostics-verification.json', 'config/work-graph-verification.json', 'config/lattice-verification.json', 'config/execution-verification.json', 'config/conversation-verification.json', 'config/update-catalog-verification.json',
     'docs/bot-environment.md', 'docs/onboarding.md',
     'services/subscriptions/product.json', 'services/subscriptions/endpoints.json',
-    'distribution/server',
+    'distribution/server', 'distribution/lattice/package.json', 'distribution/lattice/package-lock.json',
     'compose.cursor-update.yaml', 'compose.state-maintenance.json', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh',
-    'scripts/module-start.c', 'scripts/conversation-start.c', 'scripts/usage-start.c', 'scripts/diagnostics-start.c', 'scripts/work-graph-start.c',
+    'scripts/module-start.c', 'scripts/conversation-start.c', 'scripts/usage-start.c', 'scripts/diagnostics-start.c', 'scripts/work-graph-start.c', 'scripts/lattice-start.c',
     'scripts/seat-exec.c', 'scripts/server-start.c', 'scripts/notifications-start.c', 'scripts/members-start.c',
     'scripts/assert-state-writers-stopped.sh',
     'scripts/install-sce-headers.py',
     'scripts/verify-web-gateway.py', 'scripts/web_gateway_artifact.py',
-    'scripts/verify-notifications.py', 'scripts/verify-members.py', 'scripts/verify-memory.py', 'scripts/verify-usage.py', 'scripts/verify-diagnostics.py', 'scripts/verify-work-graph.py', 'scripts/verify-execution.py', 'scripts/verify-conversation.py', 'scripts/module_artifact_verifier.py',
-    'scripts/install-web-gateway-release.py', 'scripts/install-notifications-release.py', 'scripts/install-members-release.py', 'scripts/install-memory-release.py', 'scripts/install-usage-release.py', 'scripts/install-diagnostics-release.py', 'scripts/install-work-graph-release.py', 'scripts/install-execution-release.py', 'scripts/install-conversation-release.py',
+    'scripts/verify-notifications.py', 'scripts/verify-members.py', 'scripts/verify-memory.py', 'scripts/verify-usage.py', 'scripts/verify-diagnostics.py', 'scripts/verify-work-graph.py', 'scripts/verify-lattice.py', 'scripts/verify-execution.py', 'scripts/verify-conversation.py', 'scripts/module_artifact_verifier.py',
+    'scripts/install-web-gateway-release.py', 'scripts/install-notifications-release.py', 'scripts/install-members-release.py', 'scripts/install-memory-release.py', 'scripts/install-usage-release.py', 'scripts/install-diagnostics-release.py', 'scripts/install-work-graph-release.py', 'scripts/install-lattice-release.py', 'scripts/install-execution-release.py', 'scripts/install-conversation-release.py',
     'scripts/verify-update-catalog.py', 'scripts/update_catalog.py',
     'scripts/module-update-service.py', 'scripts/module-update-compose.mjs', 'scripts/module-worker-termination.py', 'scripts/body-preflight.mjs',
     'scripts/container-update-service.py', 'scripts/container-update-compose.mjs',
@@ -55,9 +55,12 @@ try {
   await chmod(join(output, 'install.sh'), 0o755)
   await chmod(join(output, 'bridge/install.sh'), 0o755)
   await rename(join(output, 'distribution/server/updater'), join(output, 'updater'))
+  await rename(join(output, 'distribution/lattice'), join(output, 'lattice-manifests'))
   await rm(join(output, 'distribution'), { recursive: true })
   await mkdir(join(output, 'distribution/server'), { recursive: true })
   await rename(join(output, 'updater'), join(output, 'distribution/server/updater'))
+  // Dockerfile installs the builtin lattice child's pinned CLI from these two manifests.
+  await rename(join(output, 'lattice-manifests'), join(output, 'distribution/lattice'))
   // Dockerfile uses the same two source paths in repository and public contexts.
   for (const name of ['install-resume-state.sh', 'compose.aiterm-checkpoint.yaml'])
     await copyFile(join(output, name), join(output, 'distribution/server', name))

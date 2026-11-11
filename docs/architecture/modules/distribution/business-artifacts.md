@@ -1,6 +1,6 @@
-# usage・diagnostics・work-graphの固定配布
+# usage・diagnostics・work-graph・latticeの固定配布
 
-配布センチ。業務はMika/Signal、reader・固定C・controllerは[Epi](../runtime/module-release.md)、親assemblyと通常mainはMolly。既archive/公式OIDC/root設置/catalogの閉集合へusage・diagnostics・work-graph（相関図、業務Black、親Molly）だけを追加する。
+配布センチ。業務はMika/Signal、reader・固定C・controllerは[Epi](../runtime/module-release.md)、親assemblyと通常mainはMolly。既archive/公式OIDC/root設置/catalogの閉集合へusage・diagnostics・work-graph（相関図、業務Black、親Molly）・lattice（Lattice工程表、業務Flora、親Molly）だけを追加する。
 
 ```mermaid
 flowchart LR
@@ -10,7 +10,7 @@ flowchart LR
   Atomic --> Pack
   Pack --> Archive[完全inventory / P1 / 本人実互換]
   Archive --> Probe[無作用又は人工状態 / 固定C1001 / OS終端]
-  Probe --> Sign[component専用main OIDC / publish-usage・publish-diagnostics・publish-work-graph]
+  Probe --> Sign[component専用main OIDC / publish-usage・publish-diagnostics・publish-work-graph・publish-lattice]
   Sign --> Root[既検証 / private SHとcomponent EX / NOREPLACE]
   Root --> Reader[Epi完全inventory reader]
   Reader --> Generation[本人wrapper / 共通controller / 親assembly]
@@ -22,11 +22,13 @@ usageはentryから到達する固定inventory（設定guideとsubscriptions JSO
 
 work-graphはBUSINESS_FILES['work-graph']の固定closure（entryから到達する全src: entry/dispatcher/ipc/locks/protocol/work-graph/core/projectionと共通module-ipc/locks/streams、package/lock）で、state fileを持たない（stateCompatibility {state:'none'}）。署名前probeはscripts/probe-work-graph-runtime.mjsを使い、人工state/logsだけを準備する。親probeの補助src（notifications-ipcとweb-push-schema）はusage/diagnosticsと同じ一時親directoryに置く。
 
-実互換はusage/state-compatibility.mjs、work-graph-protocol.mjs又はdiagnostics-protocol.mjsの本人exportへ一致させ、Node26/P1、catalog stateSchemaとcontainerUpdateはnull。別のstate番号は作らない。署名policyは各専用workflowのrefs/heads/main、repositoryId1404510084、source/signer/archiveを固定。検証前のarchive JavaScript実行は禁止し、信頼済imageのexportと比較する。
+latticeはBUSINESS_FILES['lattice']の固定closure（entryから到達する全src: entry/dispatcher/ipc/locks/protocol/lattice/core・cli・projectionと共通module-ipc/locks/streams、package/lock）で、state fileを持たない（stateCompatibility {state:'none'}）。body専用のlattice/http-api・mcpは収録しない。package/lockだけは本体rootのものではなく、同source commitの`distribution/lattice/package.json`・`package-lock.json`で置き換えてから同じ`npm ci --omit=dev`を実行し、`@quolu/lattice`とその依存（tree-sitter-wasms・web-tree-sitterの`.wasm`を含む）だけを収録する。本体rootの依存へは足さない。`@quolu/lattice`の版は`todo display source/read`入りの最小版0.85.5に固定する。署名前probeはscripts/probe-lattice-runtime.mjsで、人工state/logsだけを準備し、親probeの補助srcはwork-graphと同じ一時親directoryに置く。
+
+実互換はusage/state-compatibility.mjs、work-graph-protocol.mjs、lattice-protocol.mjs又はdiagnostics-protocol.mjsの本人exportへ一致させ、Node26/P1、catalog stateSchemaとcontainerUpdateはnull。別のstate番号は作らない。署名policyは各専用workflowのrefs/heads/main、repositoryId1404510084、source/signer/archiveを固定。検証前のarchive JavaScript実行は禁止し、信頼済imageのexportと比較する。
 
 既root helperがprivate0750のSH/component EXを取り、署名・同source/platform/互換/完全inventoryを検査しimmutable0555/0444のcomponent/releases/SHAへNOREPLACE公開する。normalのstate/親席/他moduleには触れず、readerやcontrollerの採用は別工程。実Host操作・catalog公開は実施しない。
 
-署名前probeは既membersのroot作業割当/Node固定mount/cleanupを再利用し、usage・diagnostics・work-graphだけの固定C wrapperを実UID1001/advanced IPCへ接続する。人工state/logsとusage設定leafだけを準備し実資格を使わない。親probeの補助srcは別のroot一時directoryに置き、子/appのarchive closure不足を補完しない。本人の無引数probeでready/initialize/resume/quiesce/exit/OScloseを確認し、成功後だけOIDCへ進む。原stdout/stderrを残し全一時root/Node mountを回収。これはunsigned builtin入口の確認であり別bundleへの交換/本番ではない。
+署名前probeは既membersのroot作業割当/Node固定mount/cleanupを再利用し、usage・diagnostics・work-graph・latticeだけの固定C wrapperを実UID1001/advanced IPCへ接続する。人工state/logsとusage設定leafだけを準備し実資格を使わない。親probeの補助srcは別のroot一時directoryに置き、子/appのarchive closure不足を補完しない。本人の無引数probeでready/initialize/resume/quiesce/exit/OScloseを確認し、成功後だけOIDCへ進む。原stdout/stderrを残し全一時root/Node mountを回収。これはunsigned builtin入口の確認であり別bundleへの交換/本番ではない。
 
 ## 診断の同image署名交換fixture
 
@@ -109,8 +111,8 @@ Data flow after this change (install side only):
 
 | Step | Reads state from | Contract |
 |---|---|---|
-| `module_artifact_verifier.authenticate` (memory/usage/diagnostics/execution/work-graph) | trusted image `/app/src/<module>.mjs` export, read **before** the archive | `check_archive(..., state=export)`; the manifest's `runtime.stateCompatibility` must equal it exactly; mismatch or bad form -> `<COMPONENT>_IMAGE_STATE_INCOMPATIBLE` |
-| `install-web-gateway-release.extract` (same five) | the verifier receipt's manifest state (already matched to the export) | `validate_manifest(..., state=verified)`; never the Python literal |
+| `module_artifact_verifier.authenticate` (memory/usage/diagnostics/execution/work-graph/lattice) | trusted image `/app/src/<module>.mjs` export, read **before** the archive | `check_archive(..., state=export)`; the manifest's `runtime.stateCompatibility` must equal it exactly; mismatch or bad form -> `<COMPONENT>_IMAGE_STATE_INCOMPATIBLE` |
+| `install-web-gateway-release.extract` (same six) | the verifier receipt's manifest state (already matched to the export) | `validate_manifest(..., state=verified)`; never the Python literal |
 | `container-update-host.execute_module_installer` | installer exit + last stderr line | non-zero exit -> `Failure(<installer code>)` (e.g. `USAGE_INSTALL_FAILED`), else `HOST_MODULE_INSTALL_FAILED`; no longer the generic HOST_UPDATE_EXECUTION_FAILED |
 
 `validate_manifest` with an explicit `state` now raises `MODULE_STATE_INCOMPATIBLE` on inequality. Members/conversation keep their contract() literals (no JS check at install). Packaging keeps the publish-time literal == source export check (MODULE_SOURCE_STATE_INCOMPATIBLE): a stale literal now fails loudly at publish, never silently at production install. No state file, catalog, migration or privilege changes.

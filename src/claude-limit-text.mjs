@@ -60,3 +60,8 @@ export function parseLimitText(text, { now = Date.now(), timeZone = 'UTC' } = {}
   const trusted = at !== null && at > now && at - now <= MAX_AHEAD
   return { scope, resetAt: trusted ? new Date(at).toISOString() : null, zone, parsedAt: at === null ? null : new Date(at).toISOString() }
 }
+
+// A Claude limit line as Aiterm classifies it (claudeFailureCategory), or Claude Code's own limit notice.
+export function isLimitText(text) {
+  return /^\s*(?:You've (?:reached your [^.\r\n]{1,80} limit\b|hit your (?:[a-z0-9-]+ ){0,3}limit\b)|Usage limit reached\b)/iu.test(String(text ?? ''))
+}

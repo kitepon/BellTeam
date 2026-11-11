@@ -120,7 +120,7 @@ flowchart TD
 - refreshはbusyならthrow。sequenceを進め、成功でneedsRefreshを消す。pollはbusy/needsRefresh中はreturnし、GET後に取消とsequenceを確認。古い成功/失敗は採用しない。
 - start/respond/cancelはperformがbusyを立て、mutationでsequenceを進める。start応答でstartedを決定。respondは失敗でneedsRefreshを立て、明示更新まで操作を止める。
 - cancelはPOST応答をauthへ直接適用せず、started=falseにした後GETをperformの戻り値にする。GETが失敗すると画面errorとなる。
-- viewのpollingはactive・waiting・error無し・非busyだけ。view task/scene変更でpoll taskが取消され、inputはscene非active/auth変更/終了/run開始で消える。画面を閉じるだけではcancel POSTを呼ばない。
+- viewのpollingはactive・進行中の段階（`AuthenticationProgress.inProgress`：waitingSite/waitingCode/confirming。status=waitingでもstage=failedは失敗で読み直さない）・error無し・非busyだけ。view task/scene変更でpoll taskが取消され、inputはscene非active/auth変更/終了/run開始で消える。画面を閉じるだけではcancel POSTを呼ばない。
 - 変更の結果不明はoperationFailureMessage。自動POST再送はない。公式のauthenticatedは取得応答の状態であり、AppleがCLIの認証を自ら判定した値ではない。
 
 ### 表示する認証の段階（状態機械）
@@ -166,7 +166,7 @@ stateDiagram-v2
 
 - 行の主ボタン（紫の丸）は利用者の操作が要る段階（needsLogin・failed・waitingSite・waitingCode）だけ（Root review 2026-11-11 A）。Claudeの行はログインの札と別に、上限を1行（`AccountText.limitLine`：「上限中・11/13 17:00に戻ります（いまは2ndで動いています）」）、使用中は人数だけ（`AccountText.seats`：「52人が使用」）。
 - 札の色：done=緑、waitingSite/waitingCode/confirming=紫（進行中）、needsLogin/failed/unknown=橙、checking=灰。完了の見た目（緑・「認証済み」）は`done`だけ。
-- 進行中の行（waitingSite/waitingCode/confirming）は画面がactiveの間3秒ごとに読み直す。SSEの`eventRevision`でも読み直す。
+- 進行中の行（waitingSite/waitingCode/confirming）は、行も認証画面も同じ`inProgress`で、画面がactiveの間3秒ごとに読み直す。SSEの`eventRevision`でも読み直す。
 - 認証画面：サーバーの`session_id`がある時は「やめる」を出し（ローカルの`started`と論理和。旧本体は`started`のみ）、開始ボタンの文を「最初からやり直す」にする。`session_id`が無く`stage=unavailable`の時（状態を見ただけ）はAitermの案内（`auth_ui`のtitle/message）を出さず、サーバーの`message`だけを出す。
 
 ## 整理候補

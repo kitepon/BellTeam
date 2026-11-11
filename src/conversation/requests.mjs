@@ -52,7 +52,7 @@ export function validateConversationRequest(method, params, context) {
 export function validateConversationInput(method, params, actor) {
   assertConversationRootAuthority(method, actor)
   switch (method) {
-    case 'rooms.list': case 'observation.poll': return fields(params, {})
+    case 'rooms.list': case 'observation.poll': case 'fork.sweep': return fields(params, {})
     case 'room.read': case 'room.schedules.list': case 'room.remove':
     case 'history.listRoomMessages': return fields(params, { roomId })
     case 'room.authorize': return fields(params, { roomId, requirement: oneOf('member', 'representative') })

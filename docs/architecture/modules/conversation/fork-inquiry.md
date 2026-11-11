@@ -27,6 +27,7 @@ flowchart TD
     C5["relayForkAnswer = prepareDirect + transport.notify<br/>from=target, seat=fork, in_reply_to -> asker main"]
     C6["asker is a fork (askerSeat): ask_readonly waits,<br/>answer or FORK_FAILED = tool result, no relay to main"]
     C7["sendmessage with askerSeat: today's receipt,<br/>record from_seat, envelope 「名前（分身）」"]
+    C8["sweepForkNotices (root fork.sweep, observer tick)<br/>owed notice: relay failed, or inquiry left by a lost process"]
   end
   subgraph Execution["execution / Kiro"]
     E1["transport.forkInquiry(bot, envelope, opts)<br/>no main queue, no main interruption"]
@@ -48,6 +49,8 @@ flowchart TD
   E2 -->|callbacks| C4
   C4 -->|onAnswer, main asker| C5 --> E3
   C4 -->|onAnswer, fork asker| C6
+  C5 -.->|relay failed| C8
+  Tick["parent 5 s observer tick (Molly)"] --> C8 --> C5
 ```
 
 One code path, three uses: `prepareDirect` is the body of today's `sendmessage` from `bots.refresh` up to `append(record)`, moved out as-is. `sendmessage` keeps its exact behaviour, errors and return. `askReadonly` and `relayForkAnswer` call the same function. The dispatch differs: `transport.notify` for main or `transport.forkInquiry` for a fork. No copy of resolution, validation, access, record or callback code (spec item 7).
@@ -79,6 +82,7 @@ sequenceDiagram
   C->>X: notify(askerBot, fork-answer envelope)
   X->>A: answer arrives as a message
   Note over C,A: on failed/stopped after receipt: one FORK_FAILED message to A on the same relay path
+  Note over C,A: relay failed, or the process holding the fork was lost: the next fork.sweep relays the owed notice once (see Owed notice)
   Note over M,A: asker is a fork seat (askerSeat): the tool call stays open and its result is the answer or FORK_FAILED; no relay record or notify to A's main
   X->>N: close fork seat
 ```
@@ -122,7 +126,25 @@ flowchart LR
 | B4r | The child writes through effect `direct.log.append`; `validateDirectLogRecord` accepts the optional fork fields: `seat` / `from_seat` `{kind:'fork', fork_id}` and `in_reply_to` on direct messages, `seat` on interim words | N102 `src/direct-log-record.mjs` |
 | B8 | `captureReceipt('direct.post')` accepts `askerSeat`; `DurableMessageReceipts` stores `from_seat:{kind:'fork', fork_id}` on the receipt record; dispatch builds the 「（分身）」 envelope from the saved `from_seat` | N102 `src/direct-receipt-assembly.mjs`, `src/durable-message-receipts.mjs` |
 
-Conversation side, same diff: a fork's empty answer relays `FORK_FAILED: NO_ANSWER` on the `delivered` status (the transport reports the answer before `delivered`), so the fork registers no `turn.end` and never enters the child's turn-end report path. `FORK_TARGET_USER` is typed (400). `fork.ask` has no durable receipt: a fork is disposable, so after a body restart mid-inquiry nothing is replayed and no answer arrives (the asker can ask again).
+Conversation side, same diff: a fork's empty answer relays `FORK_FAILED: NO_ANSWER` on the `delivered` status (the transport reports the answer before `delivered`), so the fork registers no `turn.end` and never enters the child's turn-end report path. `FORK_TARGET_USER` is typed (400). `fork.ask` has no durable receipt and the fork is never replayed. The asker's ONE notice is still owed after a lost relay or a lost process: see [Owed notice](#owed-notice-production-defect-2026-11-11).
+
+## Owed notice (production defect 2026-11-11)
+
+Two production forks ended with nothing reaching the asker. Trony -> Molly `cb93d74d` (06:16Z) saved its answer row, but no relay row exists; the relay error went only to the child's stderr. Emma -> Mast `a20edaeb` (06:45Z) was still `running` when the body was swapped (06:49Z). The fork died, and no status, answer or failure ever arrived. Root cause: the asker's notice lived only in the memory of the process running the fork's callbacks. Any loss (relay error, child exit, module exchange, body restart) ended the inquiry silently. Ruling (Trony 2026-11-11): a fork that ends without an answer or a failure reaching the asker is a defect.
+
+The relay row (`in_reply_to = inquiry delivery_id`) is the durable "notice issued" mark. An inquiry with a main asker (no `from_seat`) and no relay row owes ONE notice. Its later delivery is the ordinary message path's (same as any `sendmessage`).
+
+| Step | Contract | Owner |
+| --- | --- | --- |
+| live | `askReadonly` (main asker) holds the inquiry in `forkNotices.live` until its relay settles. A refusal before accept is the tool error and owes nothing | N102 `messenger.mjs` |
+| outcome row | A post-accept `failed`/`stopped` first appends its notice text as the fork's interim row (`kind:'error'`, `seat` fork, `group_id` = inquiry), then its failed/stopped status, then relays. A loss after the outcome row (status still `running`) or after the status both leave the row, and the sweep prefers it. The answer row plays the same part for an answer. A refusal before accept writes no such row (it is the tool error) | N102 `messenger.mjs` |
+| relay failed | The text (answer or `FORK_FAILED: …`) moves to `forkNotices.owed`; stderr keeps the error | N102 |
+| sweep | Root `fork.sweep` (actor `observer`, params `{}`, result `{relayed, owed}`) runs `messenger.sweepForkNotices()`. The first sweep of a child process scans the direct log once and adds every inquiry without a relay row that this process does not hold live: saved answer row (`seat` fork, `kind:'answer'`) -> that answer (blank -> `FORK_FAILED: NO_ANSWER`); saved failure row (`seat` fork, `kind:'error'`) -> its text; status `delivered` -> `FORK_FAILED: NO_ANSWER`; `running`/`steered` -> `FORK_FAILED: INTERRUPTED` (its process is gone). Then each owed notice goes through `relayForkAnswer` once. Success removes it. `SENDER_NOT_FOUND`/`BOT_NOT_FOUND` (Bot deleted) drop it. Any other error keeps it for the next sweep | N102 `messenger.mjs`, `conversation/{authority,requests,results,dispatcher}.mjs`, facade `sweepForks` |
+| effects | `execution.notify` is allowed under root `fork.sweep` (the relay), with the same delivery registration as under `fork.ask` | N102 `src/conversation-ipc.mjs` |
+| trigger | The parent calls `facade.sweepForks()` on the existing 5 s conversation tick, in flight at most once, guarded on the root result (not its completion, which lasts as long as the relayed delivery). It never blocks `observation.poll`. A refusal with outcome `not_accepted` (older child) is silent; any other failure writes stderr `{code:'FORK_SWEEP_FAILED', reason}` once per reason change (a success resets it), and the next tick retries. Stop waits for the sweep in flight | Molly `src/application-services.mjs` `createForkSweepTick` |
+
+Every post-accept outcome (answer, failure, delivered, or none: interrupted) is durable before its relay, so no window loses the notice (Trony 2026-11-11: no documented limit).
+
 
 ## New MCP tool contract (N102)
 

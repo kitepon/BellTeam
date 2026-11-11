@@ -5,7 +5,8 @@ import { dirname } from 'node:path'
 import { writeAtomic } from './json-file.mjs'
 import { performance } from 'node:perf_hooks'
 
-const NATIVE_MS = 15_000, SUMMARY_MS = 600_000
+// READ_MS: a read in flight younger than this holds the 15 s expiry; the read itself settles the row (current-work.md "read hold").
+const NATIVE_MS = 15_000, SUMMARY_MS = 600_000, READ_MS = 60_000
 const HARNESSES = new Set(['codex-cli', 'claude-code', 'grok-cli', 'cursor-cli', 'antigravity-cli'])
 const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u.test(value)
 const launch = value => typeof value === 'string' && /^[0-9a-f]{32}$/u.test(value)
@@ -51,7 +52,7 @@ export class CurrentWork {
   constructor({ now = () => new Date().toISOString(), monotonic = () => performance.now(), notify = () => {}, observed = () => {}, activityPath = null, reportActivity = () => {} } = {}) {
     this.now = now; this.monotonic = monotonic; this.notify = notify; this.observed = () => { try { observed() } catch {} }
     this.activityPath = activityPath; this.reportActivity = () => { try { Promise.resolve(reportActivity()).catch(() => {}) } catch {} }; this.restartActivity = new Map(); this.activityQueue = Promise.resolve(); this.activityPending = 0
-    this.records = new Map(); this.pending = new Map(); this.seq = 0; this.closed = false; this.timer = null
+    this.records = new Map(); this.pending = new Map(); this.reads = new Map(); this.seq = 0; this.closed = false; this.timer = null
   }
   saveActivity() {
     if (!this.activityPath) return this.activityQueue
@@ -99,7 +100,7 @@ export class CurrentWork {
     if (!this.records.has(botId)) this.records.set(botId, {
       botId, sessionId: null, launchId: null, turnId: null, startedAt: null, revision: randomUUID(), state: 'unknown',
       observedAt: null, observedMono: null, summary: null, summaryStatus: 'missing', summaryUpdatedAt: null,
-      summaryMono: null, lastRead: 0, barrier: 0, completed: null, settledSeq: 0,
+      summaryMono: null, lastRead: 0, barrier: 0, completed: null, settledSeq: 0, absentMono: null,
     })
     return this.records.get(botId)
   }
@@ -116,7 +117,7 @@ export class CurrentWork {
   unknown(record, barrier = true) {
     if (barrier) record.barrier = ++this.seq
     const changed = record.state !== 'unknown' || record.launchId !== null || record.summaryStatus !== 'missing'
-    record.state = 'unknown'; record.launchId = null; record.turnId = null; record.startedAt = null; record.observedMono = null
+    record.state = 'unknown'; record.launchId = null; record.turnId = null; record.startedAt = null; record.observedMono = null; record.absentMono = null
     this.clearSummary(record)
     if (this.pending.has(record.botId)) this.finish(this.pending.get(record.botId), failure('UNAVAILABLE', 503))
     if (changed) this.changed(record)
@@ -129,16 +130,24 @@ export class CurrentWork {
     this.expire(record)
     return record
   }
+  // Start of the newest read still in flight and younger than READ_MS, else null.
+  holding(now = this.monotonic()) {
+    const starts = [...this.reads.values()].filter(start => now - start < READ_MS)
+    return starts.length ? Math.max(...starts) : null
+  }
   expire(record) {
     const now = this.monotonic()
-    if (record.state !== 'unknown' && now - record.observedMono >= NATIVE_MS) this.unknown(record)
+    if (record.state !== 'unknown' && now - record.observedMono >= NATIVE_MS) { if (this.holding(now) === null) this.unknown(record) }
     else if (record.summaryStatus === 'current' && now - record.summaryMono >= SUMMARY_MS) {
       record.summary = null; record.summaryStatus = 'stale'; this.changed(record)
     }
   }
   snapshot(botId, sessionId, available = true) {
-    const record = this.sync(botId, sessionId, available)
-    return { state: record.state, summary: record.summary, summaryStatus: record.summaryStatus,
+    const record = this.sync(botId, sessionId, available), now = this.monotonic()
+    // Trony 2026-11-11: no live seat reads idle in the DTO too, while that read is fresh (same 15 s / read hold as a row).
+    const absentIdle = record.state === 'unknown' && record.absent && record.absentMono !== null
+      && (now - record.absentMono < NATIVE_MS || this.holding(now) !== null)
+    return { state: absentIdle ? 'idle' : record.state, summary: record.summary, summaryStatus: record.summaryStatus,
       summaryUpdatedAt: record.summaryUpdatedAt, observedAt: record.observedAt,
       source: record.summaryStatus === 'missing' ? null : 'self_reported' }
   }
@@ -158,9 +167,12 @@ export class CurrentWork {
   }
   beginRead(targets) {
     for (const target of targets) this.sync(target.botId, target.sessionId, target.current())
-    return { seq: ++this.seq, targets }
+    const read = { seq: ++this.seq, targets }
+    this.reads.set(read.seq, this.monotonic())
+    return read
   }
   endRead(read, data) {
+    this.reads.delete(read.seq)
     if (this.closed) return
     const valid = data?.schema === 'aiterm.seat-turns.v1' && !Object.hasOwn(data, 'error') && Array.isArray(data.seats)
     const rows = valid ? data.seats : []
@@ -186,7 +198,10 @@ export class CurrentWork {
       const idle = turn?.state === 'idle' && Object.keys(turn).length === 1
       if (!valid || !HARNESSES.has(row?.harness) || row.harness !== (target.harness ?? 'codex-cli')
         || !launch(row?.launch_id) || !running && !idle) {
-        this.unknown(record); continue
+        this.unknown(record)
+        // A fresh valid read without the row: the DTO reads idle until it ages (snapshot); any later unknown() clears it.
+        if (absent) { record.observedAt = this.now(); record.absentMono = this.monotonic() }
+        continue
       }
       const next = { sessionId: target.sessionId, launchId: row.launch_id, turnId: running ? turn.turn_id : null }
       if (running && record.completed === point(next)) { this.unknown(record); continue }
@@ -277,8 +292,9 @@ export class CurrentWork {
   schedule() {
     clearTimeout(this.timer); this.timer = null
     if (this.closed) return
+    const hold = this.holding(), held = hold === null ? -Infinity : hold + READ_MS
     const deadlines = [...this.records.values()].flatMap(record => [
-      ...(record.state !== 'unknown' ? [record.observedMono + NATIVE_MS] : []),
+      ...(record.state !== 'unknown' ? [Math.max(record.observedMono + NATIVE_MS, held)] : []),
       ...(record.summaryStatus === 'current' ? [record.summaryMono + SUMMARY_MS] : []),
     ])
     if (!deadlines.length) return

@@ -161,6 +161,7 @@ public partial class MainWindow : Window, IInspectorHost
     private void Schedules_Click(object sender, RoutedEventArgs e) => ShowSchedules();
     private void Goals_Click(object sender, RoutedEventArgs e) => ShowGoals();
     private void WorkGraph_Click(object sender, RoutedEventArgs e) => ShowWorkGraph();
+    private void Lattice_Click(object sender, RoutedEventArgs e) => ShowLattice();
     private void Settings_Click(object sender, RoutedEventArgs e) => ShowSettings();
     private void Updates_Click(object sender, RoutedEventArgs e) => ShowUpdates();
     // The sidebar Update badge (and an update notification) opens the Update sheet, as on the Mac.
@@ -285,6 +286,20 @@ public partial class MainWindow : Window, IInspectorHost
         if (window.WindowState == WindowState.Minimized) window.WindowState = WindowState.Normal;
         window.Show(); window.Activate();
         return window;
+    }
+    // Mac openWindow(id: "lattice"): the 工程表 window, one at a time. 会話を開く and 統括と話す open the chat here; the 工程表 window stays (screen-spec user path).
+    public LatticeWindow? ShowLattice()
+    {
+        if (!model.Connected) return null;
+        var window = LatticeWindow.Open(model, OpenFromLatticeAsync);
+        if (window.WindowState == WindowState.Minimized) window.WindowState = WindowState.Normal;
+        window.Show(); window.Activate();
+        return window;
+    }
+    public async Task OpenFromLatticeAsync(string botId)
+    {
+        if (page?.CanNavigateAway == false) { model.ReportActionError("操作が終わってから会話を開いてください。"); return; }
+        await OpenConversationAsync(new ChatTarget(botId, false), "工程表のメンバーの会話が見つかりません。メンバーとルームの一覧を更新してください。");
     }
     public void ShowGoals() { if (!model.Connected) return; var editor = new GoalsWindow(model, this); if (ShowPage(editor)) PageReady = editor.InitializeAsync(); }
     private void UpdateGoalBar() => GoalBar.Attach(model, model.Connected && model.Selected is { Target: { IsRoom: false } target } ? target.Id : null, this);
@@ -577,6 +592,7 @@ public partial class MainWindow : Window, IInspectorHost
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.D2) { ShowSchedules(); e.Handled = true; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.D3) { ShowGoals(); e.Handled = true; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.D4) { ShowWorkGraph(); e.Handled = true; }
+        if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.D5) { ShowLattice(); e.Handled = true; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.OemComma) { ShowSettings(); e.Handled = true; }
         if (e.Key == Key.K && Keyboard.Modifiers == ModifierKeys.Control) { SearchBox.Focus(); SearchBox.SelectAll(); e.Handled = true; }
         if (e.Key == Key.I && Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift)) { ToggleInspector(); e.Handled = true; }

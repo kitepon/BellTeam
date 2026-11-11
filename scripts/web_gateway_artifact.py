@@ -165,6 +165,22 @@ BUSINESS_FILES = {
         'src/work-graph/core.mjs',
         'src/work-graph/projection.mjs',
     )},
+    # package/lock come from distribution/lattice (module_artifact_package.py), not the body's root.
+    'lattice': {'payload/' + name for name in (
+        'package-lock.json',
+        'package.json',
+        'src/lattice-dispatcher.mjs',
+        'src/lattice-entry.mjs',
+        'src/lattice-ipc.mjs',
+        'src/lattice-locks.mjs',
+        'src/lattice-protocol.mjs',
+        'src/lattice/cli.mjs',
+        'src/lattice/core.mjs',
+        'src/lattice/projection.mjs',
+        'src/module-ipc.mjs',
+        'src/module-locks.mjs',
+        'src/module-streams.mjs',
+    )},
 }
 
 EXECUTION_FILES = {'payload/' + name for name in (
@@ -228,6 +244,7 @@ BUSINESS_STATE = {
     'usage': dict(settingsFeatures=['routing','callBridge','cloudflare','diagnostics','notifications','webPush','onePassword'], onboardingSchema='bellteam.onboarding.v1', subscriptionSchema='bellteam.subscription.v1', requestEncoding='json-files', secretEncoding='stored-or-private-reference-v2', handoffSchema='bellteam.usage-volatile.v1'),
     'diagnostics': dict(diagnostics='unversioned-rows-array', investigations='optional-fingerprint-map'),
     'work-graph': dict(state='none'),
+    'lattice': dict(state='none'),
 }
 
 def state_form(value):
@@ -253,7 +270,7 @@ def validate_memory_state(value):
 
 
 def contract(component):
-    require(component in ('web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics', 'execution', 'conversation', 'work-graph'), 'MODULE_COMPONENT_INVALID')
+    require(component in ('web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics', 'execution', 'conversation', 'work-graph', 'lattice'), 'MODULE_COMPONENT_INVALID')
     entry = 'payload/src/execution-dispatcher.mjs' if component == 'execution' else 'payload/src/run-memory-runtime.mjs' if component == 'memory' else ENTRY if component == 'web-gateway' else f'payload/src/{component}-entry.mjs'
     runtime = dict(os='linux', nodeMajor=26, parentProtocol=1)
     # Install accepts the module's own signed file list; only the public entry contract is fixed here.

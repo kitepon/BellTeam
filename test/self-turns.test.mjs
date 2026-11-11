@@ -9,7 +9,7 @@ import { SelfTurns, readObserverTurns } from '../src/self-turns.mjs'
 const bots = new Map([['bot-r', { id: 'bot-r', project: '/srv/bellteam/bots/bot-r' }]])
 const turn = (key, start, assistant, completed) => ({ source_sha256: key, turn_start: start, assistant, completed_at: completed, host: 'claude', truncated: false })
 
-async function feed(pages, { changed = async () => true, state = null, shown = () => null } = {}) {
+async function feed(pages, { changed = async () => true, state = null, shown = () => null, read = null } = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'self-turns-'))
   const statePath = join(dir, 'self-turns.json')
   if (state) state = Object.fromEntries(Object.entries(state).map(([id, value]) => [id, { project: bots.get(id).project, checkToken: 'tloc1.prior', ...value }]))
@@ -29,10 +29,10 @@ async function feed(pages, { changed = async () => true, state = null, shown = (
         token: change || item.after === null ? `tloc1.fixture${generation}` : item.after,
       })) }
     },
-    read: async request => { reads.push(request); return pages.shift() },
+    read: async request => { reads.push(request); return read ? read(request) : pages.shift() },
     appendAnswer: async (...args) => answers.push(args),
     afterTurn: value => turns.push(value),
-    report: message => reported.push(message),
+    report: (message, detail) => reported.push(detail ? { message, ...detail } : message),
     groupId: () => 'g-1',
   })
   await service.initialize()
@@ -228,4 +228,25 @@ test('Throughlineへv2で全文を求め、v2でない返事は受け取らな�
   assert.deepEqual(calls, [['throughline', ['observer-read', '--project', '/p', '--wire', 'v2', '--limit', '100', '--json', '--after-cursor', 'c1', '--through-cursor', 'c2', '--page-token', 't']]])
   const old = async () => ({ stdout: JSON.stringify({ schema: 'throughline.observer_read.v1', status: 'delta', turns: [] }) })
   await assert.rejects(readObserverTurns({ project: '/p' }, { run: old }), /THROUGHLINE_OBSERVER_READ_INVALID/)
+})
+
+test('同じ理由で失敗し続けるBotは理由つきで1回だけ報告し、成功した後の失敗はまた報告する', async () => {
+  let failing = true
+  const { service, reported, cleanup } = await feed([], {
+    state: { 'bot-r': { cursor: 'c1', seen: [], lastCompletedAt: 0 } },
+    read: () => {
+      if (failing) throw Object.assign(new Error('source changed at /private/path'), { code: 'CONVERSATION_OBSERVER_SOURCE_CHANGED' })
+      return { status: 'delta', throughCursor: 'c2', turns: [] }
+    },
+  })
+  for (let i = 0; i < 3; i++) await service.poll()
+  assert.deepEqual(reported, [{ message: 'BellTeam self turns: bot-r OBSERVER_CONSUME_FAILED', reason: 'CONVERSATION_OBSERVER_SOURCE_CHANGED' }])
+  failing = false
+  await service.poll()
+  failing = true
+  await service.poll()
+  await service.poll()
+  assert.equal(reported.length, 2)
+  assert.equal(reported[1].reason, 'CONVERSATION_OBSERVER_SOURCE_CHANGED')
+  await cleanup()
 })

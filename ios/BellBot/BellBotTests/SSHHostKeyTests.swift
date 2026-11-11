@@ -140,8 +140,8 @@ final class SSHHostKeyTests: XCTestCase {
         ThisMac.Interface(name: "en5", address: "169.254.10.2", isIPv6: false),
         ThisMac.Interface(name: "en5", address: "10.0.0.9", isIPv6: false),
         ThisMac.Interface(name: "en0", address: "192.168.1.101", isIPv6: false),
-        ThisMac.Interface(name: "en0", address: "2400:2412:d24a:d000:865:3c6e:9cdb:3317", isIPv6: true),
-        ThisMac.Interface(name: "en0", address: "fe80::8fa:3d67:2339:77c8", isIPv6: true),
+        ThisMac.Interface(name: "en0", address: "2001:db8:a:b:865:c:d:e", isIPv6: true),
+        ThisMac.Interface(name: "en0", address: "fe80::a:b:c:d", isIPv6: true),
     ]
 
     func testPrimaryIPv4PrefersEn0AndSkipsLoopbackAndLinkLocal() {
@@ -153,8 +153,8 @@ final class SSHHostKeyTests: XCTestCase {
 
     func testOwnsMatchesOnlyThisMacsAddressesAndNames() {
         func owns(_ host: String) -> Bool { ThisMac.owns(host: host, interfaces: interfaces, hostName: "MacBook-Air.local") }
-        for host in ["192.168.1.101", "127.0.0.1", "::1", "localhost", "LOCALHOST", "10.0.0.9", "fe80::8fa:3d67:2339:77c8%en0",
-                     "2400:2412:d24a:d000:0865:3c6e:9cdb:3317", "macbook-air.local", "MacBook-Air", "macbook-air.local"] {
+        for host in ["192.168.1.101", "127.0.0.1", "::1", "localhost", "LOCALHOST", "10.0.0.9", "fe80::a:b:c:d%en0",
+                     "2001:db8:a:b:0865:c:d:e", "macbook-air.local", "MacBook-Air", "macbook-air.local"] {
             XCTAssertTrue(owns(host), host)
         }
         for host in ["192.168.1.102", "office-imac.local", "studio-mac", "", "192.168.1", "fe80::1", "example.com", "macbook-air.example.com"] {

@@ -27,7 +27,7 @@ async function fixture(t, { failures = 1, onAuth = () => {}, changeFailure = x =
   bots.refresh = async () => {}
   bots.previewUpdate = async (id, changes) => ({ ...bots.get(id), ...changes })
   bots.update = async (id, changes) => { const value = { ...bots.get(id), ...changes }; bots.set(id, value); return value }
-  let sends = 0, enabled = true
+  let sends = 0, enabled = true, last = null
   const client = { launchOptions: async () => ({}), async call(name, args, options = {}) {
     options.admissionCheck?.(); calls.push({ name, args, login: options.claudeLogin ?? null })
     if (name === 'pty_send') {
@@ -35,13 +35,18 @@ async function fixture(t, { failures = 1, onAuth = () => {}, changeFailure = x =
       const current = bots.get(bot.id), receipt = { mode: 'agent_dispatch', session_id: args.session_id, launch_id: 'a'.repeat(32),
         vendor: current.harness, event_cursor: sends, ...(current.harness === 'claude' ? { input_id: String(sends).padStart(32, '0') } : {}),
         wait_process: { executable: 'synthetic', args: [String(sends)] } }
-      receipts.set(sends, receipt)
+      receipts.set(sends, receipt); last = { session: args.session_id, n: sends }
       return { structuredContent: receipt }
     }
     if (name === 'pty_close') { if (closeUnknown) throw Error('lost close result'); return { structuredContent: { session_id: args.session_id } } }
     if (name === 'agent_launch') return { structuredContent: { schema: 'aiterm.agent-launch-result.v1', session_id: args.session_name ?? bot.id, startup: { status: 'ready' }, initial_prompt: { status: 'not_requested' } } }
     if (name === 'pty_read') return { structuredContent: { schema: 'aiterm.pty-read-result.v1', mode: 'agent_transcript', text: '', turn_id: `turn-${sends}` } }
     if (name === 'pty_observe') return { structuredContent: { words: [], event_cursor: sends } }
+    // Aiterm 0.70.26 limit end (harness-accounts.md): the seat of the last send, cut by a limit when that send's wait failed.
+    if (name === 'pty_list') return { structuredContent: { sessions: last ? [{ session_id: last.session, harness: 'claude-code',
+      last_input_at: new Date(Date.UTC(2026, 10, 12, 0, 0, last.n)).toISOString(),
+      limit_end: last.n <= failures && bots.get(bot.id).harness === 'claude'
+        ? { at: new Date(Date.UTC(2026, 10, 12, 0, 0, last.n, 500)).toISOString(), reset_at: null, continued: false, hold: null } : null }] : [] } }
     throw Error(`unexpected ${name}`)
   } }
   const transport = new AitermTransport({ client, handoffContext: async () => '', accounts, resolveBot: id => bots.get(id),
@@ -52,6 +57,7 @@ async function fixture(t, { failures = 1, onAuth = () => {}, changeFailure = x =
       return n <= failures ? changeFailure(observation(receipt)) : { outcome: 'done', turn_id: `turn-${n}` }
     } })
   transport.isRunning = async () => true
+  transport.holdReleasePollMs = 1
   const admin = new BotAdministration({ bots, transport, writeLog() {} })
   const messenger = new BellTeamMessenger({ bots, transport, logPath: join(root, 'messages.jsonl') })
   const recovery = new CapacityContinuation({ bots, administration: admin, messenger, accounts, transport,
@@ -64,7 +70,7 @@ async function fixture(t, { failures = 1, onAuth = () => {}, changeFailure = x =
   transport.continuation = recovery
   t.after(() => transport.close())
   const start = () => messenger.sendmessage({ from: 'scheduler', target: bot.id, message: 'ORIGINAL_PRIVATE_BODY' })
-  const settle = async () => { for (let i = 0; i < 100; i++) { await new Promise(resolve => setTimeout(resolve, 2)); if (!recovery.pending.size && !transport.jobs.size) return } throw Error('recovery did not settle') }
+  const settle = async () => { for (let i = 0; i < 100; i++) { await new Promise(resolve => setTimeout(resolve, 2)); if (!recovery.pending.size && !transport.jobs.size && !transport.accountMoves.size) return } throw Error('recovery did not settle') }
   return { root, bot, bots, calls, transport, admin, recovery, start, settle }
 }
 

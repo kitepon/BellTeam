@@ -28,7 +28,7 @@ CATALOG_LIMIT = 1024 * 1024
 TERMINAL = {'completed', 'failed'}
 JOB_STATES = ['queued', 'downloading', 'verifying', 'swapping', 'ready', 'failed']
 JOB_RETAIN = 256
-MODULES = {'web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics', 'conversation', 'execution', 'work-graph'}
+MODULES = {'web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics', 'conversation', 'execution', 'work-graph', 'lattice'}
 # Z-b2 fixed runtime targets; same set as runtime_update.COMPONENTS (docs/architecture/modules/runtime/runtime-updates.md).
 RUNTIMES = {'runtime-aiterm-mcp', 'runtime-codex', 'runtime-claude-code', 'runtime-throughline'}
 POINTERS = ['current.json', 'module-current.json', 'runtime-current.json']
@@ -743,7 +743,7 @@ class HostUpdater:
 const [normal,current,target]=JSON.parse(await text(process.stdin)),id=target.componentId;
 if(Number(process.versions.node.split('.')[0])!==26||target.platform.os!==process.platform||target.platform.arch!==({x64:'amd64',arm64:'arm64'})[process.arch])throw Error('platform');
 if(!(await lstat('/app/scripts/install-'+id+'-release.py')).isFile())throw Error('installer');
-const validators={members:['/app/src/members/state-compatibility.mjs','assertMembersStateCompatibility'],memory:['/app/src/memory/state-compatibility.mjs','assertMemoryStateCompatibility'],conversation:['/app/src/conversation/state-compatibility.mjs','assertConversationStateCompatibility'],usage:['/app/src/usage/state-compatibility.mjs','assertUsageStateCompatibility'],diagnostics:['/app/src/diagnostics-protocol.mjs','assertDiagnosticsStateCompatibility'],'work-graph':['/app/src/work-graph-protocol.mjs','assertWorkGraphStateCompatibility']};
+const validators={members:['/app/src/members/state-compatibility.mjs','assertMembersStateCompatibility'],memory:['/app/src/memory/state-compatibility.mjs','assertMemoryStateCompatibility'],conversation:['/app/src/conversation/state-compatibility.mjs','assertConversationStateCompatibility'],usage:['/app/src/usage/state-compatibility.mjs','assertUsageStateCompatibility'],diagnostics:['/app/src/diagnostics-protocol.mjs','assertDiagnosticsStateCompatibility'],'work-graph':['/app/src/work-graph-protocol.mjs','assertWorkGraphStateCompatibility'],lattice:['/app/src/lattice-protocol.mjs','assertLatticeStateCompatibility']};
 if(Object.hasOwn(validators,id)){const [path,name]=validators[id];(await import(path))[name](target.compatibility.stateCompatibility)}
 if(id==='execution'&&(await import('/app/src/execution-dispatcher.mjs')).EXECUTION_STATE_COMPATIBILITY!==target.compatibility.stateCompatibility)throw Error('compatibility');
 const plan=webGatewayInstallPlan(normal,current,id);console.log(JSON.stringify({privateVolume:plan.volumes['server-state'].name}));"""

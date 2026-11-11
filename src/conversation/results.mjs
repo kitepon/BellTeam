@@ -74,6 +74,7 @@ export function validateConversationResult(method, value) {
     case 'assets.saveAll': if (!array(asset)(value)) invalid(); return true
     case 'call.receive': return fields(value, { delivery: oneOf('queued', 'running', 'steered', 'delivered'), delivery_id: nonempty, target: id })
     case 'observation.poll': case 'display.words': return fields(value, { applied: value => value === true })
+    case 'fork.sweep': return fields(value, { relayed: integer, owed: integer })
     default: invalid()
   }
 }

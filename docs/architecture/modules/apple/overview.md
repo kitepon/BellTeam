@@ -14,12 +14,13 @@ flowchart TD
   Root --> Onboarding["onboarding: OnboardingView<br/>公式AI認証・案内役"]
   Root --> Failure["checking / failure<br/>待機・接続失敗・手動再開"]
   Root --> Ready["ready"]
-  Ready --> Phone["iPhone: BellTabs<br/>会話・予定・ゴール・設定"]
+  Ready --> Phone["iPhone: BellTabs<br/>会話・予定・ゴール・相関図（工程表との切り替え）・設定"]
   Ready --> Wide["iPad / Mac Catalyst<br/>DesktopWorkspaceView"]
   Wide --> Sidebar["一覧・検索<br/>chatPath / selectedTabを更新"]
   Wide --> Detail["会話または予定・ゴール・設定"]
   Wide --> Inspector["プロフィール・端末画面<br/>iPadはinspector、MacはHStack"]
   App --> EditorWindow["Macのmember-editor WindowGroup<br/>共通BotEditor"]
+  App --> LatticeWindow["Macのlattice WindowGroup<br/>工程表（lattice-chart.md）"]
 ```
 
 入口は [BellBotApp.swift](../../../../ios/BellBot/BellBot/App/BellBotApp.swift#L4)、配置は [DesktopWorkspaceView.swift](../../../../ios/BellBot/BellBot/Views/DesktopWorkspaceView.swift#L25)。iPadのcompact幅では一覧・詳細を切替え、詳細パネルを閉じる。Macは個別Botの会話とプロフィールを等幅にし、ルーム詳細は固定幅。iPhoneの詳細はシート。全画面が同じ`AppStore`、通信・編集部品を使う。
@@ -30,8 +31,8 @@ flowchart TD
 flowchart TD
   List["一覧・検索<br/>HomeView / DesktopWorkspaceView"] --> Selection["AppStore.chatPath / selectedTab"]
   Selection --> Chat["ConversationView<br/>履歴・送信・添付・宛先・停止・書出し"]
-  Selection --> Pages["予定 / GoalsView / 相関図 / SettingsView<br/>Macの相関図はwork-graph WindowGroup"]
-  Open["AppStore.openConversation<br/>通知のタップ・相関図のメンバーのタップ"] --> Selection
+  Selection --> Pages["予定 / GoalsView / 相関図 / 工程表 / SettingsView<br/>Macの相関図はwork-graph、工程表はlattice WindowGroup"]
+  Open["AppStore.openConversation<br/>通知のタップ・相関図のメンバーのタップ・工程表の会話を開く"] --> Selection
   Edit["BotEditor / RoomEditor / ProfileEditor<br/>画像・追加機能の編集"] --> HTTP["BellAPI<br/>HTTP応答を呼出元へ返す"]
   Chat --> HTTP
   Pages --> HTTP

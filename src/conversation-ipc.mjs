@@ -19,9 +19,11 @@ const validEvent = value => {
   for (const key of ['botIds', 'roomIds']) check(Array.isArray(value[key]) && value[key].every(id => typeof id === 'string' && /^[a-z0-9][a-z0-9-]{0,127}$/u.test(id)))
 }
 const validDiagnostic = value => {
-  const corruption = value?.code === 'MESSAGE_LOG_INVALID'
-  check(exact(value, corruption ? 'code,line,offset,length,reason' : 'code')
+  const corruption = value?.code === 'MESSAGE_LOG_INVALID', observation = value?.code === 'CONVERSATION_OBSERVATION_FAILED'
+  // A retained child still sends the observation failure code-only.
+  check((exact(value, corruption ? 'code,line,offset,length,reason' : 'code') || observation && exact(value, 'code,reason'))
     && typeof value.code === 'string' && /^[A-Z][A-Z0-9_]{0,99}$/u.test(value.code))
+  if (observation && Object.hasOwn(value, 'reason')) check(typeof value.reason === 'string' && /^[A-Z][A-Z0-9_]{0,99}$/u.test(value.reason))
   if (corruption) check(Number.isSafeInteger(value.line) && value.line >= 1
     && Number.isSafeInteger(value.offset) && value.offset >= 0 && Number.isSafeInteger(value.length) && value.length >= 0
     && ['nul', 'syntax', 'schema'].includes(value.reason))
@@ -76,7 +78,7 @@ export function createConversationParentChannel(child, { generation, admission, 
     validateConversationEffect(method, params, record.context)
     const rootMethod = (record.root ?? record).method
     const allowed = {
-      'execution.notify': ['direct.post', 'room.post', 'room.reply', 'delivery.resume', 'call.receive', 'fork.ask'],
+      'execution.notify': ['direct.post', 'room.post', 'room.reply', 'delivery.resume', 'call.receive', 'fork.ask', 'fork.sweep'],
       'execution.fork': ['fork.ask'],
       'execution.turn': ['user.post', 'user.turn'],
       'execution.reconcile': ['delivery.resume'], 'execution.closeLaunch': ['delivery.closeLaunch'],
@@ -243,7 +245,8 @@ export function createConversationChildChannel({ dispatcher, endpoint = process,
   const contexts = new Map(), deliveries = new Map(), backgroundContexts = new Map(), waiters = new Set()
   const hold = record => { record.refs++; return () => { if (--record.refs === 0) { contexts.delete(record.context); for (const wake of waiters) wake(); waiters.clear() } } }
   const captured = context => { const record = contexts.get(context); check(record && context.generation === generation); return record }
-  const callbacks = () => [...peer.pending.values()].map(task => task.completion.promise)
+  // A refused diagnostic is observation only; it never fails quiesce or a module exchange (process.md).
+  const callbacks = () => [...peer.pending.values()].map(task => task.kind === 'diagnostic' ? task.completion.promise.catch(() => {}) : task.completion.promise)
   peer = createConversationPeer(endpoint, { side: 'child',
     validateResult: (kind, method, value, task) => {
       if (kind === 'accepted') return validateConversationResult('user.post', value)
