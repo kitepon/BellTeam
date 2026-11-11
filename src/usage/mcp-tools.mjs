@@ -25,12 +25,13 @@ export function usageTools(objectSchema) {
     },
     {
       name: 'request_secret',
-      description: 'ユーザーへトークン・パスワードの専用入力カードを出す。秘密の値や1Password参照をこの道具の引数へ書かない。カードは保存値または1Password参照を受け付ける。登録・取消後に通知が届く。利用するプログラムには秘密入力の承認済み窓口から解決値を直接渡し、値や参照を会話・ログ・Gitへ出さない。',
+      description: 'ユーザーへトークン・パスワードの専用入力カードを出す。秘密の値や1Password参照をこの道具の引数へ書かない。カードは保存値または1Password参照を受け付ける。1回だけ使う値（ログインコードなど）はoneTime=trueにする。その値は保存されず、承認済み窓口で1回解決すると消える。登録・取消後に通知が届く。利用するプログラムには秘密入力の承認済み窓口から解決値を直接渡し、値や参照を会話・ログ・Gitへ出さない。',
       inputSchema: objectSchema({
         toolId: { type: 'string', pattern: '^[a-z0-9][a-z0-9-]{0,63}$', description: '利用するツールのID（例: github）' },
         label: { type: 'string', minLength: 1, maxLength: 80, description: '入力する項目名（例: GitHubトークン）' },
         message: { type: 'string', minLength: 1, maxLength: 1000, description: 'ユーザーへの依頼文。必要な理由・用途を書く。秘密の値を書かない。' },
         roomId: { type: 'string', description: 'ルームで依頼するときだけ、そのルームID' },
+        oneTime: { type: 'boolean', description: '1回だけ使う値ならtrue。保存せずメモリだけに置き、最初の解決で消す。1Password参照は受け付けない。' },
       }, ['toolId', 'label', 'message']),
     },
     {

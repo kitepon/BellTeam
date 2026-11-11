@@ -6,7 +6,7 @@ Owner: Mika. Consumer: terminals (Crust), existing settings/auth consumers. Pare
 
 | Component | Responsibility and public interface |
 | --- | --- |
-| SecretRequests | All request_secret slots accept legacy stored string or `{source:'onepassword',reference:'op://<vault id>/<item id>/<field>'}`. Public request metadata never contains reference/source/value. Pending input options prefer 1Password when connected, with stored input as fallback. |
+| SecretRequests | All request_secret slots except `oneTime` (see below) accept legacy stored string or `{source:'onepassword',reference:'op://<vault id>/<item id>/<field>'}`. Public request metadata never contains reference/source/value. Pending input options prefer 1Password when connected, with stored input as fallback. |
 | SecretCredentials | Own private request source records, opaque terminal-scoped handles, revisions, value resolution and availability. `bind(requestId,{terminalId,purpose})` returns `{handle,revision,available}`. The parent exports `usageAssembly.credentials = {requestTerminalKey,bind,current,unbind,credential,withResolved,replace,refresh,watch,watchRecovery}` and captures system authority internally. `credential(handle,context)` and `withResolved(handle,{terminalId,memberId,purpose},consume)` require a parent-authorized context; consumer callback receives only the value. `replace(handle,requestId,context)` increments revision. |
 | OnePasswordSource | Fixed executable, argument-array `op read --no-newline` with captured stdout only. No shell, value argv, stderr/error forwarding, value cache or value file. `available`, `refresh()`, `watch(listener)`, `close()`; private refresh is invoked by a parent-owned helper after provider availability/recovery, never AI polling. Server op or a terminal-local provider uses the same private interface. |
 | Private fixed providers | Parent registers provider capabilities under opaque private IDs. Configuration and key paths stay with secret input/provider owner, not terminal DTOs. No caller-supplied path/command. P1 existing Owner Mac key remains native-held for `owner-macbook` / `terminal.ssh`; authorized parent supplies only the native status/use capability described below. |
@@ -225,3 +225,26 @@ flowchart LR
 ```
 
 Protection: secret exposure (the password is never persisted, logged or reusable). Exit: every new request or Owner submit starts a fresh one-shot; nothing sticky.
+
+### One-time Bot request value (`oneTime`, Admi/Centi, 2026-11-11)
+
+A Bot's `request_secret` may ask for a value that is used once (for example a Claude login code). It reuses the terminal.login memory-only path; no new route or method.
+
+| Step | Contract |
+| --- | --- |
+| Create | `request_secret` / `secrets.create` accept optional `oneTime: boolean`. Only `true` is recorded; the public request carries `oneTime: true`, absent otherwise. |
+| Input | `inputOptions` is always `{preferred:'stored', onePasswordAvailable:false}`. A `{source:'onepassword'}` submit is refused with SECRET_VALUE_INVALID. The Web card shows only the typed input, never 「保存」. |
+| Submit | The value is held only in the usage child's memory, keyed by requestId. Nothing is written under `state/secret-values`; the request record has no `path`. The completion notification therefore points the Bot to the approved resolver (for example `consume-claude-code`), not to a file. |
+| Consume | `resolveValue(id)` takes the value out of memory once. A second or concurrent call gets SECRET_REQUEST_CLOSED; the value is gone whether the consumer succeeds or fails. |
+| Retention | Until the first resolve, or until the usage child restarts (then the value is lost and resolve gets SECRET_REQUEST_CLOSED). Cancelling or withdrawing a pending card never held a value. |
+
+```mermaid
+flowchart LR
+  Bot[Bot request_secret oneTime:true] --> R[SecretRequests]
+  R --> C[Owner card: typed input only]
+  C -->|submit value| M[(child memory: requestId -> value)]
+  Consumer[approved resolver e.g. consume-claude-code] -->|resolveValue once| M
+  M -->|value, then deleted| Consumer
+```
+
+Protection: secret exposure (a one-time value is never persisted or reusable). Exit: the Bot asks a new card; nothing sticky.

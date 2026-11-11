@@ -24,7 +24,7 @@ flowchart TD
 | --- | --- | --- | --- |
 | 依頼 | MCP `request_secret` → `internalApi.requestSecret` → `createControlApi` → `createUsageApi` → `SecretRequests.create` | Bot台帳・任意roomの参加者を読む。`state/secret-requests/<id>.json`へ保存 | 検証失敗は作成前に返す。保存後に`onRequest`を呼ぶ |
 | カード | `create/get/initialize/save` → `CardTimelines.put` → `timelineView` | itemをBot/room別の表示索引へ投影 | 索引は正本ではない。値そのものを含まない |
-| 値の提出 | Web `openSecretInput.finish` / Apple → public HTTP → `submit` → `finish` | `busy`で同じ依頼の同時処理を抑え、`state/secret-values/<toolId>/secrets/<id>`を0600/`wx`で新規作成 | 値・NUL・byte長を検証。既存ファイルを上書きしない |
+| 値の提出 | Web `openSecretInput.finish` / Apple → public HTTP → `submit` → `finish` | `busy`で同じ依頼の同時処理を抑え、`state/secret-values/<toolId>/secrets/<id>`を0600/`wx`で新規作成。`oneTime`の依頼はファイルを作らずchildのメモリだけに置き、`resolveValue`の1回目で取り出して消す | 値・NUL・byte長を検証。既存ファイルを上書きしない。`oneTime`は1Password参照を拒否 |
 | Owner取消 | public HTTP → `cancel` → `finish` | 状態だけを変更し、依頼Botへ通知 | 値ファイルは作らない |
 | Bot取下げ | MCP `cancel_secret_request` → internal HTTP → `withdraw` → `finish` | `botId`一致・pendingを確認。取消と`not_needed`を保存 | 自分への新しい配送を起こさない |
 | 結果を知らせる | `finish` → 組立ての`notify` → `secretCompletionMessage` → `messenger.enqueueUserTurn` | `path`と結果を通常会話へ保存。秘密値は渡さない | ここでの`sent`は会話の受付まで。通知例外は`failed`として保存して返す |

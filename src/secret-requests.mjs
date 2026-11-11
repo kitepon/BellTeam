@@ -22,7 +22,7 @@ export class SecretRequests {
     this.busy = new Set()
     this.events = new EventEmitter()
     this.terminalKeyTail = Promise.resolve()
-    // terminal.login values live only here and are taken out once by withResolved.
+    // terminal.login and oneTime values live only here and are taken out once (withResolved / resolveValue).
     this.loginValues = new Map()
     const takeOnce = id => { const value = this.loginValues.get(id) ?? null; this.loginValues.delete(id); return value }
     this.credentials = new SecretCredentials({ root, getRequest: id => this.getPrivate(id), onePassword, providers: secretProviders, retryMs: credentialRetryMs, takeOnce })
@@ -65,15 +65,15 @@ export class SecretRequests {
 
   get(id) {
     const { terminalSuperseded, ...item } = this.getPrivate(id)
-    return { ...item, inputOptions: item.purpose === LOGIN ? { preferred: 'stored', onePasswordAvailable: false } : this.credentials.inputOptions() }
+    return { ...item, inputOptions: item.purpose === LOGIN || item.oneTime ? { preferred: 'stored', onePasswordAvailable: false } : this.credentials.inputOptions() }
   }
 
-  async create({ botId, roomId = null, toolId, label, message }) {
+  async create({ botId, roomId = null, toolId, label, message, oneTime = false }) {
     await this.bots.refresh?.()
     if (!this.bots.has(botId)) throw new Error('BOT_NOT_FOUND')
     if (typeof toolId !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/u.test(toolId)
       || typeof label !== 'string' || !label.trim() || label.length > 80
-      || typeof message !== 'string' || !message.trim() || message.length > 1000) {
+      || typeof message !== 'string' || !message.trim() || message.length > 1000 || typeof oneTime !== 'boolean') {
       throw new Error('SECRET_REQUEST_INVALID')
     }
     if (roomId !== null) {
@@ -82,7 +82,7 @@ export class SecretRequests {
     }
     const item = {
       id: randomUUID(), botId, roomId, toolId, label, message,
-      at: new Date().toISOString(), status: 'pending',
+      at: new Date().toISOString(), status: 'pending', ...(oneTime ? { oneTime } : {}),
     }
     await this.save(item)
     this.onRequest(this.get(item.id))
@@ -159,7 +159,7 @@ export class SecretRequests {
       await this.bindCredential(id, { terminalId: item.terminalId, purpose: item.purpose })
       return this.get(id)
     })
-    const login = this.get(id).purpose === LOGIN
+    const login = this.get(id).purpose === LOGIN || this.get(id).oneTime === true
     if (value && typeof value === 'object' && !Array.isArray(value)) {
       if (login || Object.keys(value).sort().join(',') !== 'reference,source' || value.source !== 'onepassword') throw new Error('SECRET_VALUE_INVALID')
       return this.finish(id, async item => {
@@ -192,7 +192,13 @@ export class SecretRequests {
     })
   }
 
-  resolveValue(id) { return this.credentials.resolveRequest(id) }
+  resolveValue(id) {
+    if (!this.getPrivate(id).oneTime) return this.credentials.resolveRequest(id)
+    const value = this.loginValues.get(id)
+    this.loginValues.delete(id)
+    if (!value) return Promise.reject(new Error('SECRET_REQUEST_CLOSED'))
+    return Promise.resolve(value)
+  }
   bindCredential(id, scope) { return this.credentials.bind(id, scope) }
   credential(handle, context) { return this.credentials.credential(handle, context) }
   replaceCredential(handle, id, context) { return this.credentials.replace(handle, id, context) }
