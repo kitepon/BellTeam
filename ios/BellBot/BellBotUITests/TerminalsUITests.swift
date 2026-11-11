@@ -209,7 +209,7 @@ final class TerminalsUITests: XCTestCase {
         app.buttons["set-key-sudo"].tap()
         let choice = app.buttons["secret-key-Mac mini 本番"]
         XCTAssertTrue(choice.waitForExistence(timeout: 5), "1Passwordが接続済みならパスワードを名前で選ぶ")
-        let onePassword = app.buttons["1Passwordのパスワードから選ぶ"], stored = app.buttons["パスワードを入力して保存する"]
+        let onePassword = app.buttons["1Passwordから選ぶ"], stored = app.buttons["ここに入力する"]
         XCTAssertTrue(onePassword.exists && stored.exists)
         XCTAssertLessThan(onePassword.frame.minY, stored.frame.minY, "1Passwordが上")
         XCTAssertFalse(app.textFields["secret-reference"].exists, "参照を打たせない")
@@ -233,13 +233,13 @@ final class TerminalsUITests: XCTestCase {
         XCTAssertTrue(scrollTo(app.buttons["set-key-ssh"], in: app))
         app.buttons["set-key-ssh"].tap()
         XCTAssertTrue(app.buttons["secret-key-Mac mini 本番"].waitForExistence(timeout: 5), "鍵を名前で選ぶ")
-        XCTAssertTrue(app.buttons["1Passwordの鍵から選ぶ"].exists && app.buttons["鍵を貼り付けて保存する"].exists)
+        XCTAssertTrue(app.buttons["1Passwordから選ぶ"].exists && app.buttons["ここに貼り付ける"].exists)
         XCTAssertFalse(app.textFields["secret-reference"].exists, "参照を打たせない")
         shot(app, "55-ssh-card-picker-list")
         app.buttons["secret-key-Mac mini 本番"].tap()
         XCTAssertTrue(app.buttons["secret-key-Mac mini 本番"].isSelected)
         shot(app, "56-ssh-card-picker-selected")
-        app.buttons["鍵を貼り付けて保存する"].tap()
+        app.buttons["ここに貼り付ける"].tap()
         let value = app.textViews["secret-value"]
         XCTAssertTrue(value.waitForExistence(timeout: 3), "SSH鍵は複数行の欄")
         shot(app, "43-terminal-key-secret-card-stored")
@@ -304,7 +304,7 @@ final class TerminalsUITests: XCTestCase {
         _ = try await call("/test/mode?onepassword=0")
         var second = launch(["-bellbot-preview-terminals", "-bellbot-preview-settings", "terminals", "-bellbot-preview-terminal", "setkey:sleeping-mini"])
         XCTAssertTrue(second.textViews["secret-value"].waitForExistence(timeout: 10))
-        XCTAssertFalse(second.buttons["1Passwordの鍵から選ぶ"].exists)
+        XCTAssertFalse(second.buttons["1Passwordから選ぶ"].exists)
         XCTAssertTrue(second.descendants(matching: .any)["secret-note"].label.contains("設定の「1Password連携」"))
         shot(second, "57-ssh-card-paste-with-guide")
         second.terminate()
@@ -314,7 +314,7 @@ final class TerminalsUITests: XCTestCase {
         second = launch(["-bellbot-preview-terminals", "-bellbot-preview-settings", "terminals", "-bellbot-preview-terminal", "setkey:studio-mac"])
         XCTAssertTrue(second.textViews["secret-value"].waitForExistence(timeout: 10))
         XCTAssertTrue(second.descendants(matching: .any)["secret-picker-unsupported"].exists)
-        XCTAssertFalse(second.buttons["1Passwordの鍵から選ぶ"].exists)
+        XCTAssertFalse(second.buttons["1Passwordから選ぶ"].exists)
         shot(second, "58-ssh-card-old-body-fallback")
         second.terminate()
 
@@ -323,7 +323,7 @@ final class TerminalsUITests: XCTestCase {
         second = launch(["-bellbot-preview-terminals", "-bellbot-preview-settings", "terminals", "-bellbot-preview-terminal", "setkey:office-imac"])
         defer { second.terminate() }
         XCTAssertTrue(second.descendants(matching: .any)["secret-keys-failed"].waitForExistence(timeout: 10))
-        XCTAssertTrue(second.buttons["鍵を貼り付けて保存する"].exists)
+        XCTAssertTrue(second.buttons["ここに貼り付ける"].exists)
         shot(second, "59-ssh-card-picker-failed")
     }
 
@@ -387,7 +387,7 @@ final class TerminalsUITests: XCTestCase {
         openSudoCard(app)
         XCTAssertTrue(app.secureTextFields["secret-value"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.descendants(matching: .any)["secret-picker-unsupported"].exists)
-        XCTAssertFalse(app.buttons["1Passwordのパスワードから選ぶ"].exists)
+        XCTAssertFalse(app.buttons["1Passwordから選ぶ"].exists)
         shot(app, "64-sudo-card-old-body-fallback")
         app.terminate()
 
@@ -397,7 +397,7 @@ final class TerminalsUITests: XCTestCase {
         defer { app.terminate() }
         openSudoCard(app)
         XCTAssertTrue(app.descendants(matching: .any)["secret-keys-failed"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["パスワードを入力して保存する"].exists)
+        XCTAssertTrue(app.buttons["ここに入力する"].exists)
     }
 
     /// Screenshots only (apple parity batch 2): the member editor's configuration status line in each state.

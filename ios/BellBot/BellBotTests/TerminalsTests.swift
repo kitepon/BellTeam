@@ -752,6 +752,23 @@ final class TerminalsTests: XCTestCase {
         XCTAssertFalse(try request(nil, onePassword: false).onePasswordOffered)
     }
 
+    func testAOneTimeRequestOffersNoOnePasswordAndAnOlderBodyIsNotOneTime() throws {
+        func request(oneTime: String) throws -> SecretRequest {
+            try JSONDecoder().decode(SecretRequest.self, from: Data(#"""
+            {"id":"r","botId":"b","label":"code","message":"","status":"pending",\#(oneTime)
+             "inputOptions":{"preferred":"onepassword","onePasswordAvailable":true}}
+            """#.utf8))
+        }
+        let once = try request(oneTime: #""oneTime":true,"#)
+        XCTAssertTrue(once.isOneTime)
+        XCTAssertFalse(once.onePasswordOffered, "1回だけの値に1Passwordの選択肢は出さない")
+        XCTAssertFalse(once.opensWithOnePassword)
+        XCTAssertEqual(SecretRequest.oneTimeText, "1回だけ使い、使い終わったら消します。保存せず、会話にも送られません。")
+        let older = try request(oneTime: "")
+        XCTAssertFalse(older.isOneTime)
+        XCTAssertTrue(older.onePasswordOffered)
+    }
+
     // MARK: S6 folder picker
 
     func testFoldersDecodeListedRefusedAndAnUnknownHome() throws {

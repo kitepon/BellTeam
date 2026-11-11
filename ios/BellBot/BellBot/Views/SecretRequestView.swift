@@ -93,8 +93,8 @@ struct SecretInputSheet: View {
                 if onePasswordOffered, !((multiline || sudo) && keyList == .unsupported) {
                     Section("入力方法") {
                         Picker("入力方法", selection: $useOnePassword) {
-                            Text(multiline ? "1Passwordの鍵から選ぶ" : sudo ? "1Passwordのパスワードから選ぶ" : "1Passwordの参照を使う").tag(true)
-                            Text(multiline ? "鍵を貼り付けて保存する" : sudo ? "パスワードを入力して保存する" : "値をBellTeamへ保存する").tag(false)
+                            Text(picker ? "1Passwordから選ぶ" : "1Passwordから読み出す").tag(true)
+                            Text(multiline ? "ここに貼り付ける" : "ここに入力する").tag(false)
                         }
                         .pickerStyle(.inline)
                         .labelsHidden()
@@ -131,7 +131,7 @@ struct SecretInputSheet: View {
                     }
                 }
                 Section {
-                    Button(login ? "パスワードを渡す" : "登録して続ける") { Task { await finish(submit: true) } }
+                    Button(login ? "パスワードを渡す" : request.isOneTime ? "渡して続ける" : "登録して続ける") { Task { await finish(submit: true) } }
                         .disabled(sending || !ready)
                     Button("入力を断る", role: .destructive) { Task { await finish(submit: false) } }
                         .disabled(sending)
@@ -161,6 +161,7 @@ struct SecretInputSheet: View {
     /// Wording shared with the Web card. Not connected, the paste path says how to get the list.
     private var note: String {
         if login { return SecretRequest.loginPasswordText }
+        if request.isOneTime { return SecretRequest.oneTimeText }
         if useOnePassword { return picker ? "選んだ\(noun)は、使うときに1Passwordから読み出します。\(noun)は会話に送られません。" : "参照は会話に送信されません。値は1Passwordから読み出します。" }
         if sudo { return "sudoのパスワードを入力してください。1Passwordを使っている場合は、設定の「1Password連携」を済ませると、ここで一覧から選べます。値は会話に送信されず、BellTeamの利用者領域へ保存します。" }
         return multiline
