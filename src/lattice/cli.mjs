@@ -1,5 +1,5 @@
 import { execFile, spawn } from 'node:child_process'
-import { lstat, mkdir, mkdtemp, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, mkdtemp, open, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -81,8 +81,12 @@ export function createLatticeCli({ bin, chartsRoot = '/srv/bellteam/state/lattic
       const next = { ...await readMeta(id), ...patch }
       const temp = `${nameFile(id)}.${process.pid}.tmp`
       // wx: never follow or reuse an existing path; rename replaces a sidecar link itself, never its target.
-      await writeFile(temp, JSON.stringify(Object.fromEntries(Object.entries(next).filter(([, item]) => item !== null))) + '\n', { mode: 0o600, flag: 'wx' })
-      await rename(temp, nameFile(id))
+      const file = await open(temp, 'wx', 0o600)
+      // From here the temp is ours: on any failure remove it, so the next save in this process is not stuck on EEXIST.
+      try {
+        try { await file.writeFile(JSON.stringify(Object.fromEntries(Object.entries(next).filter(([, item]) => item !== null))) + '\n') } finally { await file.close() }
+        await rename(temp, nameFile(id))
+      } catch (error) { await rm(temp, { force: true }); throw error }
     },
     // Only for a dir this invocation created (ensure() said created) that still holds no Lattice store.
     async prune(id) {

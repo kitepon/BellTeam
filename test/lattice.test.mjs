@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
 import { existsSync } from 'node:fs'
 import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
-import { createRequire } from 'node:module'
+import { createRequire, syncBuiltinESMExports } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -438,6 +438,26 @@ test('storage: only a dir this run created is pruned; an existing store-less dir
   assert.deepEqual(await cli.meta('side'), { name: null, createdBy: null })
   await cli.setMeta('side', { name: '中' })
   assert.deepEqual([await readFile(join(outside, 'meta.json'), 'utf8'), (await cli.meta('side')).name], ['{"name":"外"}', '中'])
+})
+
+test('storage: a failed sidecar save removes only its own temp, so the next save succeeds once the fault is repaired (Epinel 2026-11-12)', async t => {
+  const { bin, chartsRoot, home } = await scratch(t)
+  const cli = createLatticeCli({ bin, chartsRoot, home })
+  const sidecar = join(chartsRoot, 'alpha', '.bellteam-chart.json'), temp = `${sidecar}.${process.pid}.tmp`
+  await mkdir(join(chartsRoot, 'alpha', '.lattice'), { recursive: true })
+  // 1. rename fails (filesystem fault, e.g. EIO): the error surfaces and our temp is gone
+  const fsp = createRequire(import.meta.url)('node:fs/promises')
+  const fault = t.mock.method(fsp, 'rename', async () => { throw Object.assign(new Error('EIO'), { code: 'EIO' }) }); syncBuiltinESMExports()
+  await assert.rejects(cli.setMeta('alpha', { name: '工程表' }), { code: 'EIO' })
+  assert.equal(existsSync(temp), false, 'the temp this call created is removed')
+  // 2. fault repaired: the next save in the same process succeeds
+  fault.mock.restore(); syncBuiltinESMExports()
+  await cli.setMeta('alpha', { name: '工程表' })
+  assert.deepEqual(await cli.meta('alpha'), { name: '工程表', createdBy: null })
+  // 3. a temp someone else left at the same path is refused (wx) and kept as it was
+  await writeFile(temp, 'theirs')
+  await assert.rejects(cli.setMeta('alpha', { createdBy: 'bot-a' }), { code: 'EEXIST' })
+  assert.equal(await readFile(temp, 'utf8'), 'theirs', 'a pre-existing temp is never removed')
 })
 
 test('cli: a missing charts root is no charts; a permission error is LATTICE_UNAVAILABLE, not "no charts", and recovers', async t => {
