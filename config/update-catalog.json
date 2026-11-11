@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-11T22:30:00Z",
-  "expiresAt": "2026-11-18T22:30:00Z",
+  "publishedAt": "2026-11-11T22:40:00Z",
+  "expiresAt": "2026-11-18T22:40:00Z",
   "releases": [
     {
       "componentId": "usage",
@@ -185,8 +185,8 @@
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "3de2d504f72852d6f0ca12393950b17d5985a5fc",
-      "versionId": "6d47011bfaff715ee2082a54c40909872001cfc666656936745a80a84afce29b",
+      "sourceCommit": "655cad881bba58cc2f57939f19b6d3353b968f57",
+      "versionId": "d220f5df17d609e37f39966598abb1d6925e0c46a9ce6fd69cfcbc09adfb5964",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -194,16 +194,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T122945Z/conversation-3de2d504f72852d6f0ca12393950b17d5985a5fc-linux-amd64.tar.gz",
-          "bytes": 3902780,
-          "sha256": "6d47011bfaff715ee2082a54c40909872001cfc666656936745a80a84afce29b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T222415Z/conversation-655cad881bba58cc2f57939f19b6d3353b968f57-linux-amd64.tar.gz",
+          "bytes": 3903649,
+          "sha256": "d220f5df17d609e37f39966598abb1d6925e0c46a9ce6fd69cfcbc09adfb5964"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T122945Z/conversation-3de2d504f72852d6f0ca12393950b17d5985a5fc-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11127,
-          "sha256": "129f5bea75b0fce2934bdcce8fc59f7c101ce2f78c19b3db5f62b789861d6330"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T222415Z/conversation-655cad881bba58cc2f57939f19b6d3353b968f57-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11233,
+          "sha256": "6f011d50a5fa557242f36c76ad5b919ebde1dacf734b221ccb4653a9081db562"
         },
-        "signerCommit": "3de2d504f72852d6f0ca12393950b17d5985a5fc"
+        "signerCommit": "655cad881bba58cc2f57939f19b6d3353b968f57"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -234,13 +234,15 @@
         }
       },
       "changes": [
-        "人数の多いルームに投稿しても、会話の部品が止まらなくなりました。返事が届いているのに失敗と返ることもなくなります。"
+        "ルームへの投稿と返信は、全員への配達を送り出した時点で結果を返すようになりました。",
+        "ルームの配達が断られた時の記録を、1件だけ確実に残すようになりました。",
+        "分身の返事が遅れて届いた時は「遅れて届いた」と分かる形で一度だけ伝え、引き継ぎの後には送り直しません。"
       ]
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "3de2d504f72852d6f0ca12393950b17d5985a5fc",
-      "versionId": "13b4412263c48ae46a6086281e6aea9dc0c1a83b6584e8e4ba68da7244353b72",
+      "sourceCommit": "655cad881bba58cc2f57939f19b6d3353b968f57",
+      "versionId": "6c7b99af60690a09a424237cdaad209ab2faad2d505e409d62b3a84c38d9e7b3",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -248,16 +250,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T122945Z/conversation-3de2d504f72852d6f0ca12393950b17d5985a5fc-linux-arm64.tar.gz",
-          "bytes": 3902780,
-          "sha256": "13b4412263c48ae46a6086281e6aea9dc0c1a83b6584e8e4ba68da7244353b72"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T222415Z/conversation-655cad881bba58cc2f57939f19b6d3353b968f57-linux-arm64.tar.gz",
+          "bytes": 3903649,
+          "sha256": "6c7b99af60690a09a424237cdaad209ab2faad2d505e409d62b3a84c38d9e7b3"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T122945Z/conversation-3de2d504f72852d6f0ca12393950b17d5985a5fc-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11190,
-          "sha256": "d8c01a9eda7f93261c60b6d2cd34814f732e7bb4f490f7a263519495d9b368ac"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T222415Z/conversation-655cad881bba58cc2f57939f19b6d3353b968f57-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10998,
+          "sha256": "685b3d7e8492a528aeb6a45c25c386ea6df90aaa307cf6df3d808cc77e2d2beb"
         },
-        "signerCommit": "3de2d504f72852d6f0ca12393950b17d5985a5fc"
+        "signerCommit": "655cad881bba58cc2f57939f19b6d3353b968f57"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -288,7 +290,9 @@
         }
       },
       "changes": [
-        "人数の多いルームに投稿しても、会話の部品が止まらなくなりました。返事が届いているのに失敗と返ることもなくなります。"
+        "ルームへの投稿と返信は、全員への配達を送り出した時点で結果を返すようになりました。",
+        "ルームの配達が断られた時の記録を、1件だけ確実に残すようになりました。",
+        "分身の返事が遅れて届いた時は「遅れて届いた」と分かる形で一度だけ伝え、引き継ぎの後には送り直しません。"
       ]
     },
     {
