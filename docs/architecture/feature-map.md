@@ -115,7 +115,7 @@ flowchart LR
   m_testgate["testgate / シラツル"]
   m_throughline["Throughline / リヴァリン"]
   m_usage["利用設定・通知 / ミカ"]
-  m_windows["Windowsアプリ / ベル（Windows）"]
+  m_windows["Windowsアプリ / アニス"]
   m_apple -->|"HTTP/SSE"| m_integration
   m_approval_box -->|"native"| m_aiterm
   m_bridge -->|"messages"| m_conversation
@@ -160,7 +160,7 @@ flowchart LR
 | [Throughline](modules/throughline/README.md) | リヴァリン | context |
 | [利用設定・通知](modules/usage/README.md) | ミカ | settings / notify / auth / secrets |
 | [Webアプリ](modules/web/README.md) | アドミ | ui / assets |
-| [Windowsアプリ](modules/windows/README.md) | ベル（Windows） | public |
+| [Windowsアプリ](modules/windows/README.md) | アニス | public |
 | [相関図](modules/work-graph/README.md) | アークレンジャー・ブラック | work-graph |
 
 変更前に担当図と接続先の図を読み、図の変更要否と作業範囲を確認する。個別図・接続の変更後は `node scripts/render-feature-map.mjs` で再生成する。

@@ -1,6 +1,6 @@
 # Windowsアプリの機能図と作業手順
 
-担当はベル（Windows）。この文書をWindows製品内部の機能図の正本とする。本体側の接続登録は[Windowsアプリ](architecture/modules/windows/README.md)、担当と変更手順は[機能担当と変更の手順](architecture/module-ownership.md)を参照する。
+担当はアニス（`bot-0d7da1c1`）。この文書をWindows製品内部の機能図の正本とする。本体側の接続登録は[Windowsアプリ](architecture/modules/windows/README.md)、担当と変更手順は[機能担当と変更の手順](architecture/module-ownership.md)を参照する。
 
 ## 現在の接続と所有
 
@@ -119,6 +119,44 @@ flowchart LR
 
 - 状態の所有：会話・メンバー・予定・ゴール・追加機能・全体停止など本体の状態は、共通入口のAPIだけで読み書きする。Windowsが持つのは、このPCの設定（接続先・窓・起動中の通知・会話の開き方・Updateの要求ID）とログイン情報だけ。
 - 新しいCoreの窓口（`ScreenInputApi`・`GoalsApi`・`SettingsApi`の追加分）は、Mac版が使う同じAPIを呼ぶ。サーバーの変更は要らない。
+### Macの追従で足す部分（2026-11-11、作る前の図）
+
+[差分一覧](windows-mac-parity-gaps.md)の「Macの追従」13〜19の置き場所。各PRがこの図に沿って足し、作り終えたら上の図へ移す。
+
+```mermaid
+flowchart LR
+  subgraph AppNew[BellTeam.App]
+    N1[相関図の窓 13b<br/>サイドバー下部の相関図 Ctrl+4・別窓 最小480×360<br/>毎フレームの描画・クリックで会話・ホバーで札・ホイールで箱の送り]
+    N2[秘密の入力カード 14<br/>1Passwordから選ぶ・読み出す / ここに入力する・貼り付ける<br/>一回だけの値・検索欄]
+    N3[設定 追加機能 1Password連携 15]
+    N4[設定 端末 16a<br/>一覧・詳細・編集・ホスト鍵・鍵の行・理由の文・鍵の導入]
+    N5[メンバー編集 端末とフォルダ 16b<br/>フォルダ選びのシート]
+    N6[このPCを追加 16c<br/>S1・S2のWindows版。細部はクラストと決める]
+    N7[状態の行 17<br/>起動できない理由・設定の適用・表示名・再起動の待ち・分身]
+  end
+  subgraph CoreNew[BellTeam.Core]
+    W1[WorkGraphModel 13a<br/>図の状態・シミュレーション・札の置き場所・入れ替え・clearance<br/>永続状態なし]
+    W2[SecretRequestApi 14<br/>onepassword-items・submit]
+    W3[TerminalsApi 16<br/>端末・確かめ・鍵・フォルダ]
+  end
+  N1 --> W1
+  N2 --> W2
+  N3 --> C6x[SettingsApi]
+  N4 --> W3
+  N4 --> N2
+  N5 --> W3
+  N6 --> W3
+  N7 --> C1x[Workspace・ManagementApi]
+  W1 -->|"GET /api/work-graph/events（SSE。窓が見えている間だけ）"| APIx[共通入口 HTTP API・SSE]
+  W2 -->|"GET /api/secret-requests/{id}/onepassword-items・POST …/submit"| APIx
+  W3 -->|"/api/terminals*（ingress RS09/RS12：一覧・登録・確かめ・trust・keys/{ssh,sudo}・keys/ssh/authorize・folders・folder）"| APIx
+  C6x -->|"PATCH /api/settings/onePassword"| APIx
+  C1x -->|"/api/bots（seatLaunch・configurationApplication）・/api/models（display_name）・restart（180秒）・messages（seat）"| APIx
+```
+
+- 相関図の窓はWindowsの状態を何も保存しない。描画中の図はWorkGraphModelだけが持ち、窓を閉じたら捨てる。
+- 端末と鍵の値はこのPCに置かない。鍵・パスワードは秘密の入力カードから本体へ送るだけで、一般の欄やログへ書かない。
+
 - 失敗の扱い：理由を表示する。接続の失敗（起動の失敗の画面と新着のSSE）は、Mac・Webと同じ段階で自動に再接続する。新着は、切れた時（「更新の接続が切れました。再接続しています。」）と、つながらない・429・5xx（「更新へ接続できません。再接続しています。」）で続け、30秒を超えて保てた接続の後は段階を最初に戻す。止めるのは認証が必要・取り消し・ログアウトの時だけで、形式の異常など想定外の失敗も理由を添えて再接続を続ける。その他の操作の失敗（送信など）は自動で繰り返さない。例外はMac版と同じ定期の読み取り（Botの画面と許可の確認は1秒ごと、AIの認証待ちは3秒ごと）で、表示している間だけ動かす。
 
 ## 変更時の手順
