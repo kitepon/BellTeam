@@ -94,8 +94,10 @@ public sealed record GoalNativeHistory(string Terminal, ClaudeGoalStatus Native)
 }
 
 public sealed record GoalSnapshot(string BotId, GoalAvailability Availability, GoalCapabilities Capabilities, GoalFieldCapabilities FieldCapabilities, GoalBinding? Binding,
-    NativeGoal? Goal, GoalNativeHistory? NativeHistory, string? ObservedAt, string? Message)
+    NativeGoal? Goal, GoalNativeHistory? NativeHistory, string? ObservedAt, string? Message, string? Reason = null)
 {
+    // "seat_idle": the seat is simply not running (the next message resumes it). Any other or missing reason is a read failure.
+    public bool IsIdle => Availability == GoalAvailability.Unavailable && Reason == "seat_idle";
     // Mac GoalCard / GoalsView rules for which buttons exist.
     public bool CanCreate => Goal is null && Capabilities.Create && FieldCapabilities.Create.Objective;
     public bool CanEdit => Goal is not null && Capabilities.Edit && (FieldCapabilities.Edit.Objective || FieldCapabilities.Edit.TokenBudget);
@@ -119,7 +121,7 @@ public sealed record GoalSnapshot(string BotId, GoalAvailability Availability, G
         }
     }
     public string PageFootnote => (Capabilities.Pause || Capabilities.Resume ? "一時停止したゴールは再開できます。" : "") + (Capabilities.Clear ? "取り消すとゴールは消えます。" : "") + "今の処理を中断するには会話の停止ボタンを使ってください。";
-    public string UnavailableMessage => Message ?? (Availability == GoalAvailability.Unsupported ? "このメンバーではゴール機能を使えません。" : "ゴールの状態を取得できません。");
+    public string UnavailableMessage => Message ?? (Availability == GoalAvailability.Unsupported ? "このメンバーではゴール機能を使えません。" : IsIdle ? "休止中です。メッセージを送ると再開します。" : "ゴールの状態を取得できません。");
     public string? HistoryText => NativeHistory is { } history ? $"前のゴール：{history.Title} · {history.Native.Condition}" : null;
     public string? ObservedText => ObservedAt is { } at ? "取得 " + GoalText.Date(at) : null;
     // Chat pill: the elapsed text beside the status, only for an available snapshot with a goal.
@@ -161,7 +163,7 @@ public static class GoalParser
         return new GoalSnapshot(Text(item, "botId"), availability,
             new GoalCapabilities(Flag(capabilities, "inspect"), Flag(capabilities, "create"), Flag(capabilities, "edit"), Flag(capabilities, "pause"), Flag(capabilities, "resume"), Flag(capabilities, "clear")),
             new GoalFieldCapabilities(Fields("create"), Fields("edit")), binding,
-            Find(item, "goal") is { } goal ? Goal(goal) : null, history, OptText(item, "observedAt"), OptText(item, "message"));
+            Find(item, "goal") is { } goal ? Goal(goal) : null, history, OptText(item, "observedAt"), OptText(item, "message"), OptText(item, "reason"));
     }
 
     private static string Terminal(string value) => value is "cleared" or "achieved" ? value : throw Bad("（terminal）");
