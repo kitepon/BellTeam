@@ -192,7 +192,9 @@ public sealed partial class SettingsWindow
         {
             if (AccountText.SlotTitle(slot.Slot) is not { } slotTitle) continue;
             var names = new StackPanel { VerticalAlignment = VerticalAlignment.Center }; names.Children.Add(Text(slotTitle, 14, Ink));
-            var lines = new List<(string Term, string Value, Brush Color)> { ("アカウント", AccountText.Login(slot), Muted), ("状態", AccountText.State(slot, now), slot.Limits.Length != 0 ? Orange : Muted), ("使用中", slot.Seats.Length + "人", Muted) };
+            var lines = new List<(string Term, string Value, Brush Color)>();
+            if (AccountText.Login(slot) is { } account) lines.Add(("アカウント", account, Muted));
+            lines.AddRange([("状態", AccountText.State(slot, now), slot.Limits.Length != 0 ? Orange : Muted), ("使用中", slot.Seats.Length + "人", Muted)]);
             if (slot.History == "separate") lines.Add(("会話の履歴", "1stアカウントと分かれています", Muted));
             foreach (var (term, value, color) in lines) names.Children.Add(Text(term + "　" + value, 12, color, null, new Thickness(0, 2, 0, 0)));
             var (row, state) = AuthRow(names, harness, auth, slot.Slot, Reload, token); row.Margin = new Thickness(0);

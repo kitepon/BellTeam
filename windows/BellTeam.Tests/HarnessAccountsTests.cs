@@ -101,8 +101,12 @@ public sealed class HarnessAccountsTests
         var list = JsonSerializer.Deserialize<AccountsResponse>(Both, BellApi.Json)!;
         var first = list.Claude!.Slots[0]; var second = list.Claude.Slots[1];
         Assert.Equal("first@example.com", AccountText.Login(first)); Assert.Equal("Fableのみ上限中 (23:00に解除)", AccountText.State(first, Now));
-        Assert.Equal("未ログイン", AccountText.Login(second)); Assert.Equal("—", AccountText.State(second, Now));
-        Assert.Equal("ログイン状態は未確認", AccountText.Login(new AccountSlot { Slot = "2nd" })); Assert.Equal("ログイン済み", AccountText.Login(new AccountSlot { Slot = "2nd", LoggedIn = true }));
+        // Mac f37b05a4: the name only when sent; the login state is the row's badge (認証済み／未認証／確認できません).
+        Assert.Null(AccountText.Login(second)); Assert.Equal("—", AccountText.State(second, Now));
+        Assert.Null(AccountText.Login(new AccountSlot { Slot = "2nd", LoggedIn = true }));
+        Assert.Equal(("認証済み", "認証し直す"), (HarnessRowState.FromSlot("authenticated").Title, HarnessRowState.FromSlot("authenticated").Action));
+        Assert.Equal(("未認証", "認証する"), (HarnessRowState.FromSlot("blocked").Title, HarnessRowState.FromSlot("blocked").Action));
+        Assert.Equal(("確認できません", "確認する"), (HarnessRowState.FromSlot(null).Title, HarnessRowState.FromSlot(null).Action));
         Assert.Equal("利用できます", AccountText.State(new AccountSlot { Slot = "2nd", LoggedIn = true }, Now));
     }
 
@@ -171,7 +175,7 @@ public sealed class HarnessAccountsTests
             Assert.Contains(texts, text => text.StartsWith("両方のアカウントで上限中 ("));
             Assert.Contains("状態　上限中 (解除時刻不明)", texts);
             var buttons = Descendants<Button>(window).Select(button => button.Content as string).ToArray();
-            Assert.Equal(2, buttons.Count(label => label == "ログインし直す")); Assert.Contains("認証し直す", buttons); // Codex keeps its row
+            Assert.Equal(3, buttons.Count(label => label == "認証し直す")); Assert.DoesNotContain("ログインし直す", buttons); // both slots and the Codex row share the wording
             Assert.Empty(posts); window.Close();
         });
     }

@@ -62,8 +62,8 @@ public static class AccountText
     }
     public static string[] BannerTexts(AccountsResponse? list, DateTimeOffset now)
         => (list?.Claude?.AllLimited ?? []).Select(item => "両方のアカウントで" + LimitText(item.Scope, item.EarliestResetAt, now)).ToArray();
-    // A value the server did not send is 未確認, never a guess.
-    public static string Login(AccountSlot slot) => slot.LoggedIn switch { true => string.IsNullOrEmpty(slot.Label) ? "ログイン済み" : slot.Label, false => "未ログイン", _ => "ログイン状態は未確認" };
+    // Mac ClaudeAccountsCard: the account name only when the server sends one; the login state is the row's badge.
+    public static string? Login(AccountSlot slot) => string.IsNullOrWhiteSpace(slot.Label) ? null : slot.Label;
     public static string State(AccountSlot slot, DateTimeOffset now)
         => slot.Limits.Length != 0 ? string.Join("・", slot.Limits.Select(item => LimitText(item.Scope, item.ResetAt, now))) : slot.LoggedIn == true ? "利用できます" : "—";
     // The seat's slot on the member card; nothing for an absent/null account or another harness.
