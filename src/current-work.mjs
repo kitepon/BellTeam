@@ -117,7 +117,7 @@ export class CurrentWork {
   unknown(record, barrier = true) {
     if (barrier) record.barrier = ++this.seq
     const changed = record.state !== 'unknown' || record.launchId !== null || record.summaryStatus !== 'missing'
-    record.state = 'unknown'; record.launchId = null; record.turnId = null; record.startedAt = null; record.observedMono = null
+    record.state = 'unknown'; record.launchId = null; record.turnId = null; record.startedAt = null; record.observedMono = null; record.absentMono = null
     this.clearSummary(record)
     if (this.pending.has(record.botId)) this.finish(this.pending.get(record.botId), failure('UNAVAILABLE', 503))
     if (changed) this.changed(record)
@@ -125,7 +125,7 @@ export class CurrentWork {
   invalidate(botId) { this.finishedActivity(botId, this.restartActivity.get(botId)); this.unknown(this.record(botId)); this.schedule() }
   sync(botId, sessionId, available = true) {
     const record = this.record(botId)
-    if (record.sessionId !== sessionId) { this.unknown(record); record.sessionId = sessionId; record.absent = false; record.absentMono = null; record.settledSeq = 0 }
+    if (record.sessionId !== sessionId) { this.unknown(record); record.sessionId = sessionId; record.absent = false; record.settledSeq = 0 }
     if (!available || this.closed) this.unknown(record)
     this.expire(record)
     return record
@@ -187,7 +187,6 @@ export class CurrentWork {
       const matches = rows.filter(row => row?.session_id === target.sessionId)
       // A valid read without this seat proves no turn can run (after_turn reads it as idle; the DTO stays unknown).
       const absent = valid && matches.length === 0
-      if (absent) { record.observedAt = this.now(); record.absentMono = this.monotonic() } else record.absentMono = null
       if (record.absent !== absent) { record.absent = absent; try { this.notify(record.botId) } catch {} }
       if (absent) record.settledSeq = read.seq
       const row = matches.length === 1 ? matches[0] : null, turn = row?.turn
@@ -199,7 +198,10 @@ export class CurrentWork {
       const idle = turn?.state === 'idle' && Object.keys(turn).length === 1
       if (!valid || !HARNESSES.has(row?.harness) || row.harness !== (target.harness ?? 'codex-cli')
         || !launch(row?.launch_id) || !running && !idle) {
-        this.unknown(record); continue
+        this.unknown(record)
+        // A fresh valid read without the row: the DTO reads idle until it ages (snapshot); any later unknown() clears it.
+        if (absent) { record.observedAt = this.now(); record.absentMono = this.monotonic() }
+        continue
       }
       const next = { sessionId: target.sessionId, launchId: row.launch_id, turnId: running ? turn.turn_id : null }
       if (running && record.completed === point(next)) { this.unknown(record); continue }

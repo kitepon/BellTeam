@@ -148,6 +148,11 @@ test('no live seat (valid read without the row) reads idle in the DTO while fres
   assert.equal(f.snapshot().observedAt, new Date(1_800_000_001_000).toISOString()); assert.equal(f.work.turn(botId).state, 'idle')
   f.clock = 16_000; assert.equal(f.snapshot().state, 'unknown'); assert.equal(f.work.turn(botId).state, 'idle')
   f.observe(); assert.equal(f.snapshot().state, 'working')
+  // Invalidation (stop) and a stale target clear that freshness: unknown, not idle.
+  f.clock = 20_000; f.observe(data()); assert.equal(f.snapshot().state, 'idle')
+  f.work.invalidate(botId); assert.equal(f.snapshot().state, 'unknown')
+  f.observe(data()); assert.equal(f.snapshot().state, 'idle')
+  f.current = false; f.observe(data()); assert.equal(f.snapshot().state, 'unknown')
 })
 test('Aiterm 0.70.7 unread: a seat whose terminal was not read keeps its observation, is never absent, then expires', t => {
   const f = fixture(t); f.observe(); assert.equal(f.snapshot().state, 'working')
