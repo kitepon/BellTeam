@@ -69,6 +69,12 @@ test('projection: a lane naming a member (Bot id or name, Latin case-insensitive
   assert.deepEqual(projectChart({ read: readOf([plan]), members }).cards.map(card => [card.lane, card.producer]), [['キロ', 'bot-k'], ['n102', 'bot-n'], ['kiro', null]])
 })
 
+test('projection: a lane owner / 指揮官 is the reserved Owner value, never a member id', () => {
+  const plan = planMember({ tasks: [{ task_id: 'a', lane: 'owner' }, { task_id: 'b', lane: 'Owner' }, { task_id: 'c', lane: '指揮官' }], states: [['a', 'pending'], ['b', 'pending'], ['c', 'pending']] })
+  const result = projectChart({ read: readOf([plan]), members: [] })
+  assert.deepEqual([result.cards.map(card => card.producer), result.memberIds], [['owner', 'owner', 'owner'], []])
+})
+
 test('projection: a finished card with a lane shows the lane owner, not the coordinator who closed it', () => {
   const start = id => ({ kind: 'start', task_id: id, actor: { agent: 'bot-co' }, recorded_at: at(5) })
   const plan = planMember({ tasks: [{ task_id: 'a', lane: 'キロ' }, { task_id: 'b', lane: 'kiro' }, { task_id: 'c' }, { task_id: 'd', lane: 'キロ' }],

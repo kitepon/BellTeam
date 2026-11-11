@@ -86,6 +86,20 @@ test('消えた工程（archived）はツリーにも担当にも描かず、過
   assert.match(past.groups[0].rows[0].label, /公開契約の裁定、完了、今日 \d\d:\d\d、トロニー/u)
 })
 
+test('指揮官（owner）は名前と顔で出し、会話もレールも無し', () => {
+  const snap = fixture({ owner: { name: 'クオ', avatar: 'data:x' },
+    cards: [card('a', 'pending', 'owner', 0, { title: '端末を更新' }), card('b', 'pending', MOLLY, 1)],
+    edges: [{ from: 'p1/a', to: 'p1/b', waiting: true }],
+    waits: [{ waiter: MOLLY, waitingCard: 'p1/b', forCard: 'p1/a', producer: 'owner', producerState: 'pending', since: minutesAgo(3) }] })
+  const owner = memberLookup(snap)('owner')
+  assert.deepEqual([owner.name, owner.owner, owner.avatar], ['クオ', true, '/api/owner/avatar'])
+  assert.equal(memberLookup(fixture())('owner').name, '指揮官', 'プロフィール未取得なら指揮官')
+  const [row] = waitRows(snap, BASE)
+  assert.deepEqual([row.producer.name, row.canChat], ['クオ', false]); assert.match(row.state, /担当 クオ/)
+  assert.deepEqual(railItems(snap, layoutChart(snap)).map(item => item.botId), [MOLLY], 'レールはメンバーだけ')
+  assert.deepEqual(layoutChart(snap).lanes.map(lane => lane.member?.name), ['クオ', 'モリー'])
+})
+
 test('配置：担当ごとのレーン（担当なしは最後）、depth ごとの列、同じ担当・同じ列は縦に積む', () => {
   const layout = layoutChart(fixture())
   assert.deepEqual(layout.lanes.map(lane => lane.botId), [TRONY, FLORA, MOLLY, GHOST, null], '名簿の名前順、名簿にいない担当、担当なし')

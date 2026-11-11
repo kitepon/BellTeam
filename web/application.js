@@ -150,6 +150,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
   const latticeDialog = document.querySelector('#lattice-dialog')
   const lattice = createLatticeChart(latticeDialog, { api, fetchImage,
     getMember: id => { const bot = state.bots.find(item => item.id === id); return bot ? { botId: id, name: bot.displayName ?? bot.name, color: bot.color, avatar: bot.avatar, known: true } : null },
+    getOwner: () => state.owner,
     openChat: async botId => {
       if (document.fullscreenElement) await document.exitFullscreen().catch(() => {})
       latticeDialog.close()
