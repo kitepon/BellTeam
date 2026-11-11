@@ -56,6 +56,15 @@ extension AppStore {
             bots[0].configurationApplication = ConfigurationApplication(state: state, message: state == "failed"
                 ? "設定変更は反映されませんでした。席が応答しませんでした。保存した設定は、次に席を起こし直した時に使います。" : nil)
         }
+        // 工程表の試料（test/helpers/lattice-ui-server.mjs）の担当を名簿に入れる。
+        if arguments.contains("-bellbot-preview-lattice") {
+            let members = [("bot-trony", "トロニー", "indigo"), ("bot-molly", "モリー", "mint"), ("bot-kiro", "キロ", "sky"),
+                           ("bot-admi", "アドミ", "amber"), ("bot-rapi", "ラピ", "rose"), ("bot-flora", "フローラ", "violet")]
+            bots = members.map { id, name, color in
+                Bot(id: id, name: name, displayName: name, harness: "claude", model: "", reasoningEffort: "", fastMode: false, color: color,
+                    profileText: "", personality: "", speechStyle: "", position: "", role: "", avatar: "", online: true, recent: nil)
+            }
+        }
         rooms = fixture.rooms
         owner = fixture.owner
         workingBotIDs = ["bot-one"]

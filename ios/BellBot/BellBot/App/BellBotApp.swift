@@ -22,6 +22,15 @@ struct BellBotApp: App {
         }
         .windowResizability(.contentMinSize)
 
+        WindowGroup("工程表", id: "lattice") {
+            LatticeHomeView()
+                .environmentObject(store)
+                .tint(BellTheme.violet)
+                .frame(minWidth: 720, minHeight: 520)
+        }
+        .defaultSize(width: 1360, height: 860)
+        .windowResizability(.contentMinSize)
+
         WindowGroup("メンバーを編集", id: "member-editor", for: String.self) { $botID in
             if let botID, let bot = store.bots.first(where: { $0.id == botID }) {
                 MemberEditorWindow(bot: bot)
@@ -217,6 +226,33 @@ private struct RootView: View {
     }
 }
 
+/// iPhoneの「相関図」タブ：相関図と工程表を上の切り替えで行き来する（タブを6つにしない）。
+private struct TeamBoardTab: View {
+    enum Board: String, CaseIterable { case graph = "相関図", lattice = "工程表" }
+    @SceneStorage("team-board") private var board = Board.graph
+
+    var body: some View {
+        ZStack {
+            switch board {
+            case .graph: WorkGraphView()
+            case .lattice: LatticeHomeView(returnTab: 4)
+            }
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            Picker("表示", selection: $board) {
+                ForEach(Board.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 220)
+            .padding(.vertical, 6)
+            .accessibilityIdentifier("team-board-picker")
+        }
+        #if DEBUG
+        .onAppear { if ProcessInfo.processInfo.arguments.contains("-bellbot-open-lattice") { board = .lattice } }
+        #endif
+    }
+}
+
 private struct BellTabs: View {
     @EnvironmentObject private var store: AppStore
 
@@ -231,13 +267,16 @@ private struct BellTabs: View {
             GoalsView()
                 .tabItem { Label("ゴール", systemImage: "target") }
                 .tag(3)
-            WorkGraphView()
+            TeamBoardTab()
                 .tabItem { Label("相関図", systemImage: "point.3.connected.trianglepath.dotted") }
                 .tag(4)
             SettingsView()
                 .tabItem { Label("設定", systemImage: "person.crop.circle") }
                 .tag(2)
         }
+        #if DEBUG
+        .onAppear { if ProcessInfo.processInfo.arguments.contains("-bellbot-open-lattice") { store.selectedTab = 4 } }
+        #endif
         .sheet(item: $store.notificationSecret) { request in
             SecretInputSheet(request: request) { _ in store.eventRevision += 1 }
                 .environmentObject(store)
