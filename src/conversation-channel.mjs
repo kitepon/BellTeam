@@ -32,6 +32,7 @@ const safeError = (error, side) => {
     ...(side === 'child' ? conversationCallbackFailureFields(normalizeConversationCallbackError(error)) : {}),
     ...(side === 'child' && pending ? { effect: 'not_started', normalInputPending: pending } : {}) }
 }
+const CALL_ID_WINDOW = 2048
 const exitFailureCodes = new Set(['IPC_INVALID', 'IPC_DISCONNECTED', 'IPC_TIMEOUT', 'IPC_ACK_TIMEOUT', 'IPC_SEND_FAILED',
   'CHILD_EXITED', 'BACKGROUND_UNCONFIRMED', 'DELIVERY_RELEASE_UNCONFIRMED', 'PROTOCOL_UNCONFIRMED'].map(code => `CONVERSATION_${code}`))
 const historyMethods = ['history.listMessages', 'history.listRoomMessages', 'history.page', 'history.recentBatch']
@@ -44,10 +45,21 @@ async function encodedLength(value) {
 
 // Only conversation envelopes live here; byte/credit/UTF8 handling is Epi's shared stream implementation.
 export function createConversationPeer(endpoint, { side, accept, validateResult, onControl, onDisconnect, afterResponse = async () => {} }) {
-  let sequence = side === 'parent' ? -1 : 0, sent = 0, received = 0, incoming = 0, dead = false, ordinaryStreams = 0
+  let sequence = side === 'parent' ? -1 : 0, sent = 0, received = 0, dead = false, ordinaryStreams = 0
   const pending = new Map(), running = new Map(), counts = Object.fromEntries([...kinds].map(kind => [kind, 0]))
   const inbound = { ...counts }, waiters = new Set(), budget = createConversationInputBudget(), incomingWork = new Set()
-  let streams, exitOriginReported = false
+  let streams, exitOriginReported = false, announced = Promise.resolve()
+  // Older senders may emit call ids slightly out of order (process.md "呼び出し封筒idの順序"): accept the sender's
+  // parity once, within a bounded window below the highest accepted id; replays and stale ids still fail.
+  let highestCall = 0
+  const acceptedCalls = new Set()
+  const freshCall = id => {
+    if (!Number.isSafeInteger(id) || id <= 0 || id % 2 !== (side === 'child' ? 1 : 0)
+      || id <= highestCall - CALL_ID_WINDOW || acceptedCalls.has(id)) return false
+    acceptedCalls.add(id); highestCall = Math.max(highestCall, id)
+    if (acceptedCalls.size > CALL_ID_WINDOW) for (const old of acceptedCalls) if (old <= highestCall - CALL_ID_WINDOW) acceptedCalls.delete(old)
+    return true
+  }
   const exitOrigin = (origin, cause) => {
     if (side !== 'child' || exitOriginReported) return
     exitOriginReported = true
@@ -163,8 +175,7 @@ export function createConversationPeer(endpoint, { side, accept, validateResult,
       const value = frame.capability, id = frame.operation
       if (value?.type === 'call') {
         channelCheck(exactChannelKeys(value, value.stream ? 'type,kind,method,context,source,stream,length' : 'type,kind,method,context,source,stream,params')
-          && kinds.has(value.kind) && typeof value.method === 'string' && value.method.length <= 128 && id > incoming)
-        incoming = id
+          && kinds.has(value.kind) && typeof value.method === 'string' && value.method.length <= 128 && freshCall(id))
         if (inbound[value.kind] >= (['root', 'effect', 'callback', 'event'].includes(value.kind) ? MODULE_CONCURRENCY : 16)) {
           await control(id, { type: 'error', kind: value.kind, error: safeError(conversationChannelError('CONVERSATION_IPC_CAPACITY', 'not_accepted'), side) }); return
         }
@@ -264,14 +275,23 @@ export function createConversationPeer(endpoint, { side, accept, validateResult,
       if (typeof context === 'function') task.context = context(task.id)
       beforeSend?.(task.completion.promise, task.context, task.id)
       pending.set(task.id, task)
+      // The receiver requires increasing call ids, and measuring a body takes a params-sized number of ticks:
+      // each call frame waits for the frame of the call issued before it.
+      const previous = announced, turn = deferred(); announced = turn.promise
       void (async () => {
         counts[kind]++
         const inline = ['event', 'diagnostic'].includes(kind) || kind === 'control' && method !== 'initialize'
-        const lane = inline ? null : streamLane(kind), length = inline ? null : await encodedLength(params)
-        task.ack = setTimeout(() => task.acknowledgement.reject(conversationChannelError('CONVERSATION_IPC_ACK_TIMEOUT')), 5000); task.ack.unref?.()
-        touch(task)
-        await control(task.id, { type: 'call', kind, method, context: task.context, source, stream: lane,
-          ...(inline ? { params } : { length }) })
+        const lane = inline ? null : streamLane(kind)
+        let length = null, sent
+        try {
+          if (!inline) length = await encodedLength(params)
+          await previous
+          task.ack = setTimeout(() => task.acknowledgement.reject(conversationChannelError('CONVERSATION_IPC_ACK_TIMEOUT')), 5000); task.ack.unref?.()
+          touch(task)
+          sent = control(task.id, { type: 'call', kind, method, context: task.context, source, stream: lane,
+            ...(inline ? { params } : { length }) })
+        } finally { turn.resolve() }
+        await sent
         await task.acknowledgement.promise
         if (lane) await write(encodeConversationJson(params), { lane, operation: task.id, length })
         task.body.resolve()
