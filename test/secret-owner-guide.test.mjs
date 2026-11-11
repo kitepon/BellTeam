@@ -80,7 +80,8 @@ test('missing/malformed/nonofficial URLs preserve input controls without creatin
     assert.equal(card.querySelectorAll('a').length, 0)
     assert.equal(dialog.querySelectorAll('a').length, 0)
     assert.equal(dialog.querySelector('input').type, 'password')
-    assert.equal(dialog.querySelectorAll('button').length, 3)
+    // 表示 (in the field), the primary, 入力を断る and 今はしない (W31).
+    assert.equal(dialog.querySelectorAll('button').length, 4)
     dialog.close()
   }
 })
@@ -91,7 +92,7 @@ test('closed cards never show links and retain submitted/notification failure an
     const card = f.render({ ...pending, status, notification: 'failed', ownerGuide: { url: `${origins[0]}/oauth/authorize` } })
     assert.equal(card.querySelectorAll('a').length, 0)
     assert.equal(card.querySelectorAll('button').length, 0)
-    assert.match(text(card), status === 'submitted' ? /登録済み/ : /入力を取り消しました/)
+    assert.match(text(card), status === 'submitted' ? /渡しました/ : /取り消しました/)
     assert.match(text(card), /AIへの通知に失敗/)
   }
 })
@@ -121,7 +122,7 @@ for (const action of ['submit', 'cancel']) test(`explicit ${action} keeps existi
   document.hidden = true; f.events.get('visibilitychange')(); assert.equal(input.value, '')
   input.value = 'synthetic-input'
   if (action === 'submit') dialog.querySelector('form').handlers.submit({ preventDefault() {} })
-  else dialog.querySelectorAll('button')[1].handlers.click()
+  else dialog.querySelectorAll('button').find(button => button.textContent === '入力を断る').handlers.click()
   await turn()
   assert.equal(calls.length, 1)
   assert.equal(calls[0].path, `/api/secret-requests/request-a/${action}`)

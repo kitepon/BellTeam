@@ -3,7 +3,7 @@ import { renderCurrentWork } from './current-work.js?v=__ASSET_VERSION__'
 import { memberRow, memberState, roomRow, rowTime } from './roster-view.js?v=__ASSET_VERSION__'
 import { animateConversation } from './view-preferences.js?v=__ASSET_VERSION__'
 import { createSchedulesOverview } from './schedules-overview.js?v=__ASSET_VERSION__'
-import { matchesMemberQuery, matchesRoomQuery } from './roster-search.js?v=__ASSET_VERSION__'
+import { matchesMemberQuery, matchesRoomQuery, matchesRosterQuery } from './roster-search.js?v=__ASSET_VERSION__'
 import { requestEditorClose } from './editor-close.js?v=__ASSET_VERSION__'
 import { createOwnerEditor } from './owner-editor.js?v=__ASSET_VERSION__'
 import { createBotEditor } from './bot-editor.js?v=__ASSET_VERSION__'
@@ -658,6 +658,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
     return chosen && chosen.size > 0 ? [...chosen] : null
   }
 
+  // W35: 「返信する人」 popover (bottom sheet on a phone): 自動で選ぶ on top, avatar rows with a check, search over 8, 決定, Esc.
   function renderTargetPicker(room) {
     targetPicker.hidden = false
     toggleTargetMenu(false)
@@ -665,29 +666,48 @@ export function createWebApp({ client = createWebClient() } = {}) {
     const chosen = state.roomTargets.get(room.id) ?? new Set()
     for (const id of [...chosen]) if (!room.memberIds.includes(id)) chosen.delete(id)
     state.roomTargets.set(room.id, chosen)
+    const title = Object.assign(document.createElement('h3'), { className: 'target-menu-title', textContent: '返信する人' })
     const note = document.createElement('p')
     note.className = 'target-menu-note'
-    note.textContent = routingEnabled() ? '未選択なら返信者を自動選択。発言は全員に届きます。' : '自動選択は未設定です。返信するメンバーを選んでください。発言は全員に届きます。'
-    targetMenu.replaceChildren(note, ...room.memberIds.map(id => {
+    note.textContent = routingEnabled() ? '選ばなければ、返信する人を自動で選びます。発言は全員に届きます。' : '返信する人を選んでください。発言は全員に届きます。'
+    const rows = []
+    const row = (label, avatar, checked, onChange) => {
+      const item = document.createElement('label')
+      item.className = 'target-row'
+      const input = Object.assign(document.createElement('input'), { type: 'checkbox', checked })
+      input.addEventListener('change', () => onChange(input.checked))
+      item.append(input, ...(avatar ? [avatar] : []), Object.assign(document.createElement('span'), { textContent: label }), Object.assign(document.createElement('i'), { className: 'target-check' }))
+      return { item, input }
+    }
+    const auto = routingEnabled() ? row('自動で選ぶ', null, chosen.size === 0, checked => {
+      if (checked) { chosen.clear(); for (const entry of rows) entry.input.checked = false }
+      else auto.input.checked = chosen.size === 0
+      renderTargetButton(room)
+    }) : null
+    for (const id of room.memberIds) {
       const bot = state.bots.find(item => item.id === id)
-      const label = document.createElement('label')
-      const input = document.createElement('input')
-      input.type = 'checkbox'
-      input.value = id
-      input.checked = chosen.has(id)
-      input.addEventListener('change', () => {
-        if (input.checked) chosen.add(id); else chosen.delete(id)
-        renderTargetButton(room)
-      })
       const avatar = document.createElement('span')
       avatar.className = `mini-avatar ${escapeClass(bot?.color ?? '')}`
       avatar.textContent = initials(bot?.name ?? id)
       if (bot) applyAvatar(avatar, bot)
-      const name = document.createElement('span')
-      name.textContent = bot?.displayName ?? id
-      label.append(input, avatar, name)
-      return label
-    }))
+      const entry = row(bot?.name ?? id, avatar, chosen.has(id), checked => {
+        if (checked) chosen.add(id); else chosen.delete(id)
+        if (auto) auto.input.checked = chosen.size === 0
+        renderTargetButton(room)
+      })
+      entry.item.dataset.name = bot?.name ?? id
+      rows.push(entry)
+    }
+    const search = Object.assign(document.createElement('input'), { type: 'search', className: 'target-search', placeholder: '名前で探す' })
+    search.setAttribute('aria-label', '返信する人を名前で探す')
+    search.hidden = room.memberIds.length <= 8
+    search.addEventListener('input', () => { for (const entry of rows) entry.item.hidden = !matchesRosterQuery(search.value, entry.item.dataset.name) })
+    const done = Object.assign(document.createElement('button'), { type: 'button', className: 'primary-button target-done', textContent: '決定' })
+    done.addEventListener('click', () => { toggleTargetMenu(false); targetButton.focus() })
+    const list = document.createElement('div')
+    list.className = 'target-list'
+    list.append(...(auto ? [auto.item] : []), ...rows.map(entry => entry.item))
+    targetMenu.replaceChildren(title, note, search, list, done)
     renderTargetButton(room)
   }
 
@@ -696,7 +716,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
     const bots = chosen.map(id => state.bots.find(item => item.id === id)).filter(Boolean)
     targetButton.replaceChildren()
     if (bots.length === 0) {
-      targetButton.append(Object.assign(document.createElement('span'), { textContent: routingEnabled() ? '自動選択' : '返信者を選択' }))
+      targetButton.append(Object.assign(document.createElement('span'), { textContent: routingEnabled() ? '返信: 自動' : '返信する人を選ぶ' }))
       return
     }
     const avatar = document.createElement('span')
@@ -712,6 +732,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
     targetMenu.hidden = !open
     targetButton.setAttribute('aria-expanded', String(open))
   }
+  document.addEventListener('keydown', event => { if (event.key === 'Escape' && !targetMenu.hidden) { toggleTargetMenu(false); targetButton.focus() } })
 
   const conversationTimeline = createConversationTimeline({ timeline, latestButton, api, messageImages,
     getBot: id => state.bots.find(bot => bot.id === id),

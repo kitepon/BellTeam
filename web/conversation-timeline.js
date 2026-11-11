@@ -357,7 +357,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     if (fork) bubble.append(fork)
     if (item.audience) {
       const audience = document.createElement('small')
-      audience.className = 'message-audience'
+      audience.className = `message-audience${item.audienceTone ? ` is-${item.audienceTone}` : ''}`
       audience.textContent = item.audience
       bubble.append(audience)
     }
@@ -435,7 +435,9 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
       const row = document.createElement('div')
       const label = document.createElement('span')
       const failed = item.status === 'failed'
-      label.textContent = `${item.botName} · ${failed ? '配達失敗' : item.status === 'queued' ? '送信待ち' : '処理中'}`
+      // W34: one plain line per member; a working one is animated and has a labelled 停止.
+      label.textContent = failed ? `${item.botName}に届きませんでした` : item.status === 'queued' ? `${item.botName}への送信待ち` : `${item.botName}が作業中`
+      if (!failed && item.status !== 'queued') label.className = 'queue-working'
       row.append(label)
       if (failed) {
         label.className = 'form-error'
@@ -450,7 +452,8 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
       }
       const stop = document.createElement('button')
       stop.type = 'button'
-      stop.textContent = '■'
+      stop.className = 'queue-stop'
+      stop.textContent = '停止'
       stop.title = `${item.botName}の動作を停止`
       stop.setAttribute('aria-label', stop.title)
       stop.dataset.stopBotId = item.botId
@@ -465,12 +468,13 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
   function roomTimelineItem(record) {
     if (record.secret_request) return record
     const routing = record.routing
-    const responderNames = routing?.responders?.map(id => memberDisplay(record.room.members.find(member => member.id === id) ?? { id, name: id })) ?? []
+    const responderNames = routing?.responders?.map(id => (record.room.members.find(member => member.id === id) ?? { name: id }).name) ?? []
     const deliveries = record.deliveries ?? []
+    // W33: no delivery word until a delivery exists.
     const delivery = routing?.status === 'failed' || deliveries.some(item => item.delivery === 'failed') ? 'failed'
       : deliveries.some(item => item.delivery === 'running') ? 'running'
         : deliveries.some(item => item.delivery === 'queued') ? 'queued'
-          : deliveries.some(item => item.delivery === 'stopped') ? 'stopped' : 'delivered'
+          : deliveries.some(item => item.delivery === 'stopped') ? 'stopped' : deliveries.length ? 'delivered' : ''
     const failures = deliveries.filter(item => item.delivery === 'failed')
     const tracking = routing?.status !== 'failed' && failures.length && failures.every(trackingCompletionUnknown)
       ? failures[0].deliveryTracking : undefined
@@ -480,10 +484,12 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
       direction: record.sender.id === 'user' ? 'outgoing' : 'incoming',
       senderId: record.sender.id,
       sender: memberDisplay(record.sender),
-      audience: routing?.status === 'ready' ? `返信: ${responderNames.join('、') || 'なし'}`
+      // W32: a responder chip only when there are responders.
+      audience: routing?.status === 'ready' ? responderNames.length ? `↩ ${responderNames.join('、')}` : ''
         : routing?.status === 'pending' ? '返信者を判定中'
           : routing?.status === 'failed' ? '返信者の判定に失敗'
             : '',
+      audienceTone: routing?.status === 'pending' ? 'pending' : routing?.status === 'failed' ? 'failed' : '',
       at: record.at,
       message: record.message,
       image: record.image,

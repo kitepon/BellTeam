@@ -6,7 +6,7 @@ Input for this document: the production capture and review by Trony (2026-11-11,
 
 Apple keeps the same structure for Settings in [apple/settings-user-flow.md](../apple/settings-user-flow.md) (Rapi, branch `rapi/apple-auth-states`). Where both apps show the same thing, the words, badges and order are the same (section 9).
 
-Marks: **⚠Wn** = broken today (main 1e835b36), to be fixed. **✓Wn** = fixed (W5-W18, W21 and W24 in step 2a, branch `feat/web-home-roster-20261112`; W19-W20, W22-W23 and W25-W28 in step 2b-1, branch `feat/web-member-chat-20261112`). **→** = target. A transition without ⚠ already works and stays.
+Marks: **⚠Wn** = broken today (main 1e835b36), to be fixed. **✓Wn** = fixed (W5-W18, W21 and W24 in step 2a, branch `feat/web-home-roster-20261112`; W19-W20, W22-W23 and W25-W28 in step 2b-1, branch `feat/web-member-chat-20261112`; W29-W36 in step 2b-2, branch `feat/web-cards-room-20261112`). **→** = target. A transition without ⚠ already works and stays.
 
 ## 0. Rules every screen follows (acceptance bar)
 
@@ -166,21 +166,21 @@ stateDiagram-v2
 
 | Card | Today | → Target |
 | --- | --- | --- |
-| Owner question, pending | Purple card, answer chips | Amber 「要対応」 badge, question icon, the chips. |
-| Owner question, answered | Same purple card, only 「回答: はい」 differs (review §2) ⚠W29 | Muted card, green check, 「はい と答えました」. |
-| Secret request, pending | Purple card with `TypeSafe / typesafe` (raw tool id) ⚠W30 | Key icon, amber 「要対応」, the service display name only, 「入力する」. |
+| Owner question, pending | Purple card, answer chips | Heading 「トロニーからの質問」, question icon, amber 「要対応」 badge, the chips. A failed answer says 「答えを送れませんでした。もう一度選んでください。」 under the chips (no raw message). |
+| Owner question, answered | Same purple card, only 「回答: はい」 differs (review §2) ✓W29 | Muted card, green check, 「はい と答えました」. |
+| Secret request, pending | Purple card with `TypeSafe / typesafe` (raw tool id) ✓W30 | Key icon, 「トロニーが「TypeSafe」を求めています」, amber 「要対応」, the request's sentence, primary 「入力する」. No tool id. |
 | Secret request, done | 「登録済み」 in the same card | Muted, green check, 「渡しました」 / 「取り消しました」. |
-| Secret input dialog | No field label; 「利用者領域へ保存します」; three equal buttons; phone 「最新へ ↓」 floats over the modal (review §2) ⚠W31 | Field label + placeholder, show/hide, one primary 「渡して続ける」 / 「登録して続ける」, quiet 「今はしない」. Floating chat controls hide while any modal is open. |
+| Secret input dialog | No field label; 「利用者領域へ保存します」; three equal buttons; phone 「最新へ ↓」 floats over the modal (review §2) ✓W31 | Field label (the request label, or 「秘密鍵」) + placeholder, 「表示」/「隠す」 for a password, one primary 「渡して続ける」 / 「登録して続ける」, quiet 「今はしない」 (closes; the request stays pending), and a small 「入力を断る」 (cancels the request) at the right. 「BellTeamに保存します」. Floating chat controls hide while any modal is open. |
 
 ### 3.3 Room chat
 
 | Spot | Today | → Target |
 | --- | --- | --- |
-| Bubble meta | 「返信: なし」 on every bubble, also when `responders` is absent (`tl:424, 439`) ⚠W32 | A small 「↩ トロニー」 chip only when there are responders. 「返信者を判定中」 as a small spinner. 「返信者の判定に失敗」 stays (amber). |
-| Delivery | An empty or absent `deliveries` list shows 「配達済み」 (`tl` room aggregate) ⚠W33 | No delivery word until a delivery exists. |
-| Queue lines | 「モリー … · 処理中 ■」 stay after the reply; the `■` is unexplained (review §3) ⚠W34 | One animated 「モリーが作業中」 line per working member, with a labelled 「停止」 button; removed when the queue entry ends (re-read on the reply event). |
-| Reply-target picker | Runs off the top of the viewport; native checkboxes; no done button; no Esc (`app:564-617`) ⚠W35 | Anchored popover inside the viewport (bottom sheet on phone) titled 「返信する人」: 「自動で選ぶ」 row on top, avatar rows with a check, search when more than 8, 「決定」. Esc closes. |
-| Phone composer | Input squashed by `+` and 「自動選択」 ⚠W36 | The target chip moves above the input. |
+| Bubble meta | 「返信: なし」 on every bubble, also when `responders` is absent (`tl:424, 439`) ✓W32 | A small 「↩ トロニー」 chip only when there are responders. 「返信者を判定中」 as a small spinner. 「返信者の判定に失敗」 stays (amber). |
+| Delivery | An empty or absent `deliveries` list shows 「配達済み」 (`tl` room aggregate) ✓W33 | No delivery word until a delivery exists. |
+| Queue lines | 「モリー … · 処理中 ■」 stay after the reply; the `■` is unexplained (review §3) ✓W34 | One animated 「モリーが作業中」 line per working member, with a labelled 「停止」 button; removed when the queue entry ends (re-read on the reply event). |
+| Reply-target picker | Runs off the top of the viewport; native checkboxes; no done button; no Esc (`app:564-617`) ✓W35 | Anchored popover inside the viewport (max 60% height, scrolls; bottom sheet on phone) titled 「返信する人」: 「自動で選ぶ」 row on top when routing is on (checked when nobody is chosen; checking it clears the choice), avatar rows with a check, search when more than 8, 「決定」. Esc closes. The chip says 「返信: 自動」 / 「返信する人を選ぶ」 / the chosen names. |
+| Phone composer | Input squashed by `+` and 「自動選択」 ✓W36 | The target chip moves above the input. |
 
 ## 4. Settings (build first)
 

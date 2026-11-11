@@ -1,16 +1,22 @@
 // Botがオーナーへ選択を求めるカード。押した答えは通常のオーナーからのメッセージとしてBotへ届く。
 export function renderOwnerQuestion(question, { api, sender, onAnswered }) {
   const card = document.createElement('section')
-  card.className = 'owner-question'
-  const heading = document.createElement('strong')
-  heading.textContent = `${sender} · 選んでほしいこと`
+  const answered = question.status === 'answered'
+  // W29: pending = question icon + amber 要対応; answered = muted card with a green check.
+  card.className = `owner-question${answered ? ' is-done' : ''}`
+  const heading = document.createElement('div')
+  heading.className = 'card-heading'
+  const icon = Object.assign(document.createElement('span'), { className: 'card-icon', textContent: '?' })
+  icon.setAttribute('aria-hidden', 'true')
+  heading.append(icon, Object.assign(document.createElement('strong'), { textContent: `${sender}からの質問` }))
+  if (!answered) heading.append(Object.assign(document.createElement('span'), { className: 'state-badge is-attention', textContent: '要対応' }))
   const message = document.createElement('p')
   message.textContent = question.question
   card.append(heading, message)
-  if (question.status === 'answered') {
+  if (answered) {
     const answer = document.createElement('p')
-    answer.className = 'owner-question-answer'
-    answer.textContent = `回答: ${question.answer}`
+    answer.className = 'owner-question-answer card-done'
+    answer.textContent = `「${question.answer}」と答えました`
     card.append(answer)
     return card
   }
@@ -33,7 +39,7 @@ export function renderOwnerQuestion(question, { api, sender, onAnswered }) {
       })
       onAnswered(result.question)
     } catch (failure) {
-      error.textContent = `送れませんでした（${failure.message}）`
+      error.textContent = '答えを送れませんでした。もう一度選んでください。'
       error.hidden = false
       sending = false
       controls.forEach(control => { control.disabled = false })

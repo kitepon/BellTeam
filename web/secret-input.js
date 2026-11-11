@@ -25,19 +25,25 @@ export function renderSecretRequest(request, { api, sender, onComplete }) {
   for (const dialog of document.querySelectorAll('.secret-dialog')) {
     if (dialog.dataset.requestId === request.id) dialog.querySelector('.secret-owner-guide').replaceWith(renderOwnerGuide(request))
   }
+  const pending = request.status === 'pending'
   const card = document.createElement('section')
-  card.className = 'secret-request'
-  const heading = document.createElement('strong')
-  heading.textContent = `${sender} · 秘密情報の入力`
+  // W30: key icon, amber 要対応 while pending, the service name only (no tool id); done = muted with a check.
+  card.className = `secret-request${pending ? '' : ' is-done'}`
+  const heading = document.createElement('div')
+  heading.className = 'card-heading'
+  const icon = document.createElement('span')
+  icon.className = 'card-icon'
+  icon.setAttribute('aria-hidden', 'true')
+  icon.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3M15 8l2 2"/></svg>'
+  heading.append(icon, Object.assign(document.createElement('strong'), { textContent: `${sender}が「${request.label}」を求めています` }))
+  if (pending) heading.append(Object.assign(document.createElement('span'), { className: 'state-badge is-attention', textContent: '要対応' }))
   const message = document.createElement('p')
   message.textContent = request.message
-  const label = document.createElement('p')
-  label.className = 'secret-label'
-  label.textContent = `${request.label} / ${request.toolId}`
-  card.append(heading, message, label)
-  if (request.status !== 'pending') {
+  card.append(heading, message)
+  if (!pending) {
     const status = document.createElement('p')
-    status.textContent = request.status === 'submitted' ? '登録済み' : '入力を取り消しました'
+    status.className = 'card-done'
+    status.textContent = request.status === 'submitted' ? '渡しました' : '取り消しました'
     if (request.notification === 'failed') status.textContent += '。AIへの通知に失敗しました。チャットで完了を知らせてください。'
     card.append(status)
     return card
@@ -45,7 +51,8 @@ export function renderSecretRequest(request, { api, sender, onComplete }) {
   card.append(renderOwnerGuide(request))
   const button = document.createElement('button')
   button.type = 'button'
-  button.textContent = '安全な入力欄を開く'
+  button.className = 'primary-button'
+  button.textContent = '入力する'
   button.addEventListener('click', () => openSecretInput(request, api, onComplete))
   card.append(button)
   return card
@@ -68,6 +75,20 @@ export function openSecretInput(request, api, onComplete) {
   const oneTime = request.purpose === 'terminal.login' || request.oneTime === true
   const input = document.createElement(multiline ? 'textarea' : 'input')
   if (multiline) { input.rows = 6; input.className = 'secret-multiline' } else input.type = 'password'
+  // W31: a visible field label and placeholder; a password field can be shown while typing.
+  input.placeholder = multiline ? '-----BEGIN OPENSSH PRIVATE KEY-----' : 'ここに入力'
+  const field = document.createElement('label')
+  field.className = 'secret-field'
+  field.append(Object.assign(document.createElement('span'), { textContent: multiline ? '秘密鍵' : request.label }))
+  const reveal = document.createElement('button')
+  reveal.type = 'button'
+  reveal.className = 'secret-reveal'
+  reveal.textContent = '表示'
+  reveal.hidden = multiline
+  reveal.addEventListener('click', () => {
+    input.type = input.type === 'password' ? 'text' : 'password'
+    reveal.textContent = input.type === 'password' ? '表示' : '隠す'
+  })
   input.autocomplete = 'off'
   // Browser 1Password autofill would insert the public key here; the private key comes from the picker instead.
   input.setAttribute('data-1p-ignore', '')
@@ -130,7 +151,7 @@ export function openSecretInput(request, api, onComplete) {
   function select(next) {
     source = next
     for (const [value, radio] of Object.entries(radios)) radio.checked = value === next
-    input.hidden = next !== 'stored'
+    field.hidden = input.hidden = next !== 'stored'
     reference.hidden = next !== 'onepassword'
     search.hidden = !(next === 'onepassword' && items?.length)
     if (next === 'stored') reference.value = ''
@@ -140,12 +161,12 @@ export function openSecretInput(request, api, onComplete) {
       : multiline
         ? '秘密鍵（「-----BEGIN OPENSSH PRIVATE KEY-----」で始まる文字）をそのまま貼ってください。1Passwordを使っている場合は、設定の「1Password連携」を済ませると、ここで鍵を一覧から選べます。値は会話に送信されません。'
         : picker
-          ? 'sudoのパスワードを入力してください。1Passwordを使っている場合は、設定の「1Password連携」を済ませると、ここで一覧から選べます。値は会話に送信されず、BellTeamの利用者領域へ保存します。'
+          ? 'sudoのパスワードを入力してください。1Passwordを使っている場合は、設定の「1Password連携」を済ませると、ここで一覧から選べます。値は会話に送信されず、BellTeamに保存します。'
         : request.purpose === 'terminal.login'
           ? 'この端末に鍵を入れるときに1回だけ使い、すぐに消します。保存せず、会話にも送信されません。'
         : oneTime
           ? '1回だけ使い、使い終わったら消します。保存せず、会話にも送られません。'
-          : '値は会話に送信されません。BellTeamの利用者領域へ保存します。'
+          : '値は会話に送信されません。BellTeamに保存します。'
   }
   select(onePassword && request.inputOptions.preferred !== 'stored' ? 'onepassword' : 'stored')
   const error = document.createElement('p')
@@ -183,18 +204,25 @@ export function openSecretInput(request, api, onComplete) {
   search.addEventListener('input', filter)
   const submit = document.createElement('button')
   submit.type = 'submit'
+  submit.className = 'primary-button'
   submit.textContent = oneTime ? '渡して続ける' : '登録して続ける'
   const decline = document.createElement('button')
   decline.type = 'button'
+  decline.className = 'text-button secret-decline'
   decline.textContent = '入力を断る'
   const close = document.createElement('button')
   close.type = 'button'
-  close.textContent = '閉じる'
+  close.className = 'text-button'
+  close.textContent = '今はしない'
   close.addEventListener('click', () => dialog.close())
   const actions = document.createElement('div')
   actions.className = 'secret-actions'
-  actions.append(submit, decline, close)
-  form.append(title, message, renderOwnerGuide(request), ...sources, note, input, ...(onePassword ? picker ? [search, reference] : [reference] : []), error, actions)
+  actions.append(submit, close, decline)
+  const row = document.createElement('div')
+  row.className = 'secret-input-row'
+  row.append(input, reveal)
+  field.append(row)
+  form.append(title, message, renderOwnerGuide(request), ...sources, note, field, ...(onePassword ? picker ? [search, reference] : [reference] : []), error, actions)
   dialog.append(form)
   document.body.append(dialog)
   const clearWhenHidden = () => { if (document.hidden) input.value = reference.value = '' }
