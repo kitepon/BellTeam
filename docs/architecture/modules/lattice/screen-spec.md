@@ -24,6 +24,47 @@ Colors: BellTheme (Apple `BellTheme`, Web `:root` tokens, Windows theme): member
 
 ## User path (state transitions)
 
+State diagram (canonical for all three apps; the table below gives each transition's trigger and detail; Owner 2026-11-12: function diagram, data flow and, for UI, a state diagram). Every state has a way out that the user can take, and every failure state also leaves on its own.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Loading: open (Apple nav / Web 工程表 button / Windows nav)
+  Loading --> List: list read, 0 or 2+ charts
+  Loading --> Chart: list read, exactly 1 chart (first open only)
+  Loading --> OldServer: list 404
+  Loading --> Reconnecting: 503 / network
+  Reconnecting --> Loading: backoff 1,2,4..30 s
+  OldServer --> [*]: 閉じる
+  List --> Chart: tap a chart card
+  List --> Chart: back (when 一覧 was opened from a chart)
+  List --> [*]: close / app navigation
+  state Chart {
+    [*] --> Tree
+    Tree --> Lanes: ツリー / 担当
+    Lanes --> Tree: ツリー / 担当
+    Tree --> Detail: tap a box
+    Lanes --> Detail: tap a card
+    Detail --> Detail: 前の工程 / 次の工程
+    Detail --> Tree: close / swipe / Esc (came from Tree)
+    Detail --> Lanes: close / swipe / Esc (came from Lanes)
+    Lanes --> Lanes: member highlight on / off
+    Tree --> Tree: member highlight on / off
+  }
+  Chart --> Chart: 待ちの流れ 工程へ移動 (opens that card's 詳細)
+  Chart --> List: chart switcher / すべての工程表
+  Chart --> Conversation: 会話を開く / 統括と話す
+  Conversation --> Chart: back (Web: reopening 工程表 resumes this chart)
+  Chart --> ChartReconnecting: 503 / 35 s silence
+  ChartReconnecting --> Chart: next snapshot
+  Chart --> NotFound: 404 LATTICE_CHART_NOT_FOUND
+  NotFound --> List: 一覧へ戻る
+  Chart --> Unavailable: state unavailable / no cards
+  Unavailable --> Chart: readable snapshot
+  Unavailable --> List: 一覧へ戻る
+  Chart --> [*]: close
+```
+
+
 Every button leads to exactly one next view; every failure view says what happened, what happens next, and what the user can do, and is left without a code.
 
 | From | User action | Next |
