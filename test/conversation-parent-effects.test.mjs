@@ -100,3 +100,15 @@ test('missing completion and invalid DTOs refuse before effects; upstream failur
   const bad = createConversationParentEffects({ getServices: () => ({}), onExecution: () => ({ allowed: true, extra: 'private' }) })
   await assert.rejects(bad('execution.assertAccess', {}, ctx), { code: 'CONVERSATION_EFFECT_INVALID' })
 })
+
+test('a fork callback reads profiles with the members read pin, not the root lease the root result already returned', async () => {
+  const stale = { generation: 1, id: 'root-lease' }
+  const ctx = { generation: 'generation-a', operationId: 'operation-a', deliveryId: 'delivery-a', target: 'bot-a', callbackKind: 'delivery.answer',
+    rootMethod: 'fork.ask', operationContext: { membersLease: stale, capturedAuthorization: 'auth' } }
+  let seen
+  const services = { bots: { refresh: async value => { seen = value }, values: () => [{ id: 'bot-a', name: 'A' }] } }
+  const adapter = createConversationParentEffects({ getServices: () => services })
+  assert.deepEqual(await adapter('members.profiles.read', {}, ctx), { bots: [{ id: 'bot-a', name: 'A' }] })
+  assert.deepEqual(seen, { capturedAuthorization: 'auth' })
+  assert.equal(ctx.operationContext.membersLease, stale)
+})

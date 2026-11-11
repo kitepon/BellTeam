@@ -37,7 +37,10 @@ export function createConversationParentEffects({ getServices, observerEffects, 
         break
       case 'members.profiles.read': {
         if (typeof services.bots?.refresh !== 'function') unavailable()
-        await services.bots.refresh(context.operationContext)
+        // fork-inquiry.md "Live relay members lease": a callback (fork delivery.answer) reuses the root's members lease,
+        // which the root result already returned; without it profiles.read takes the members read pin.
+        const { membersLease, ...readContext } = context.operationContext ?? {}
+        await services.bots.refresh(Object.hasOwn(context, 'callbackKind') ? readContext : context.operationContext)
         result = { bots: [...services.bots.values()].map(({ id, name, displayName, position, role }) => ({ id, name,
           ...(displayName === undefined ? {} : { displayName }), ...(position === undefined ? {} : { position }),
           ...(role === undefined ? {} : { role }) })) }
