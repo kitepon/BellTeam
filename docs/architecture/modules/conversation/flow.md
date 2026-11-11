@@ -62,7 +62,9 @@ flowchart LR
   Each --> State["参加者ごとの配送状態を保存"]
 ```
 
-自動選定の有効/無効と明示targetsの優先を維持する。全員への配達と「誰が返事するか」は別の判断。一部の配送が失敗した時は保存済み投稿を取り消さず `posted_with_failed_deliveries` として返す。失敗本文の自動再送はしない。
+自動選定の有効/無効と明示targetsの優先を維持する。全員への配達と「誰が返事するか」は別の判断。投稿（room.post / room.reply）は、記録・返信者の決定・全員への配送の発行が済んだ時点で返す。各席の受付は待たない（Trony裁定2026-11-11、18人の投稿が44秒かかり、親の60秒の呼び出し期限を越えると投稿済みでもエラーが返り二重投稿を招くため）。返却は `{id, room, targets, delivery}` のまま、`delivery` は配送先があれば `running`、無ければ `posted`、同じ返信の再送は `already_posted`。各席の結果は従来どおり部屋の記録の配送状態行に残り、後から受付を拒否された席は `failed`（停止・全体停止は `stopped`）の配送状態行を足す。保存済み投稿は取り消さず、失敗本文の自動再送はしない。
+
+公開互換（Owner規範：配布済みクライアントを壊さない）：配布済みWeb（28d5bfbb）、Apple 1.0.6（133）、Windows 0.4.6はルーム投稿の返却から `id` だけを読む（Web `result.delivery_id ?? result.id`、Apple `MessageSendAcknowledgement.id`、Windows `id`）。`delivery` の値は既存の集合の中だけで返し、新しい値は足さない。`posted_with_failed_deliveries` / `steered` / `failedTargets` は返さなくなるが、結果検証と道具の説明は旧値を読める形のまま残す（追加を先、削除は後）。
 
 ## 履歴を画面へ戻す
 

@@ -189,8 +189,9 @@ test('same-room posts retain order, partial fanout and assigned reply/silent aut
   await settle(); assert.deepEqual(order, ['first'])
   firstContext.resolve(); const [a] = await Promise.all([first, second])
   assert.deepEqual(order, ['first', 'second'])
-  assert.equal(a.delivery, 'posted_with_failed_deliveries')
-  assert.deepEqual(a.failedTargets, [{ id: 'bot-other', error: 'target unavailable' }])
+  // flow.md: returned once issued; bot-other's refusal lands in the room record, not in the result.
+  assert.equal(a.delivery, 'running')
+  assert.equal(a.failedTargets, undefined)
   assert.equal(h.native.length, 4)
   assert.deepEqual(await h.dispatch('room.silent', { roomId: room, messageId: a.id }, { kind: 'bot', botId: 'bot-other' }), { delivery: 'suppressed' })
   await assert.rejects(h.dispatch('room.reply', { roomId: room, messageId: a.id, message: 'no', images: [] }, { kind: 'bot', botId: 'bot-other' }), /NOT_ASSIGNED/)

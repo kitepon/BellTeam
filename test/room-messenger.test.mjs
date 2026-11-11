@@ -274,7 +274,7 @@ test('同じ部屋の連続発言はThroughline記録と判定の順序を保つ
   assert.deepEqual(seen, ['一通目', '二通目'])
 })
 
-test('返信の一部配送が失敗しても投稿済みを返し、同じ発言への再送を重複投稿しない', async () => {
+test('返信は配送の受付を待たずに投稿済みを返し、拒否された席は記録に残し、同じ発言への再送を重複投稿しない', async () => {
   const bot = { id: 'bot-a', name: 'あかり', role: '担当' }
   const room = { id: 'room-work', name: '開発室', purpose: '', representativeId: null, memberIds: [bot.id] }
   const records = []
@@ -293,11 +293,31 @@ test('返信の一部配送が失敗しても投稿済みを返し、同じ発�
   const first = await messenger.sendroommessage(input)
   const second = await messenger.sendroommessage(input)
 
-  assert.deepEqual(first, {
-    id: 'reply-1', room: room.id, targets: [], delivery: 'posted_with_failed_deliveries',
-    failedTargets: [{ id: bot.id, error: 'AITERM_UNRESOLVED_TURN' }],
-  })
+  assert.deepEqual(first, { id: 'reply-1', room: room.id, targets: [], delivery: 'running' })
   assert.deepEqual(second, { id: 'reply-1', room: room.id, targets: [], delivery: 'already_posted' })
   assert.equal(deliveries, 1)
+  await new Promise(resolve => setImmediate(resolve))
+  const refused = records.find(record => record.schema === 'bellteam.room-delivery-status.v1' && record.target === bot.id)
+  assert.equal(refused?.delivery, 'failed', 'the refused seat is recorded in the room record')
   assert.equal(records.filter(record => record.schema === 'bellteam.room-message.v1').length, 1)
+})
+
+test('部屋の投稿は全席への配送を発行した時点で返り、受付の遅い席を待たない', async () => {
+  const bots = [{ id: 'bot-a', name: 'あかり' }, { id: 'bot-b', name: 'ぼたん' }]
+  const room = { id: 'room-work', name: '開発室', purpose: '', representativeId: null, memberIds: bots.map(bot => bot.id) }
+  const records = [], issued = []
+  const rooms = new Map([[room.id, room]])
+  rooms.refresh = async () => rooms
+  rooms.appendMessage = async (_id, record) => records.push(record)
+  rooms.messages = async () => records.filter(record => record.schema === 'bellteam.room-message.v1')
+  const slow = Promise.withResolvers()
+  const messenger = new RoomMessenger({
+    rooms, bots: new Map(bots.map(bot => [bot.id, bot])), messageId: () => 'post-1',
+    transport: { notify(bot) { issued.push(bot.id); return bot.id === 'bot-b' ? slow.promise : Promise.resolve({ delivery: 'running' }) } },
+    roomTurns: async () => [{ speaker: 'オーナー', text: 'こんにちは' }], chooseResponder: async () => ['bot-a'],
+  })
+  const result = await messenger.sendroommessage({ from: 'user', room: room.id, message: 'こんにちは' })
+  assert.deepEqual(result, { id: 'post-1', room: room.id, targets: ['bot-a'], delivery: 'running' })
+  assert.deepEqual(issued, ['bot-a', 'bot-b'], 'both deliveries issued before the post returned')
+  slow.resolve({ delivery: 'running' })
 })
