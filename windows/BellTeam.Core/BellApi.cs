@@ -84,14 +84,14 @@ public sealed class BellApi : IDisposable
         using var response = await client.SendAsync(request, timeout.Token);
         await ValidateAsync(response, timeout.Token);
     }
-    public async Task<SecretRequest> FinishSecretAsync(string id, string? value, CancellationToken token = default)
+    public async Task<SecretRequest> FinishSecretAsync(string id, SecretSubmission? submission, CancellationToken token = default)
     {
         // 専用POST。値を例外・診断へ含めず、リダイレクト先へ本文を渡さない。
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/secret-requests/{Uri.EscapeDataString(id)}/{(value is null ? "cancel" : "submit")}")
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/secret-requests/{Uri.EscapeDataString(id)}/{(submission is null ? "cancel" : "submit")}")
             {
-                Content = JsonContent.Create(value is null ? new Dictionary<string, string>() : new Dictionary<string, string> { ["value"] = value }, options: Json)
+                Content = JsonContent.Create(submission?.Body ?? [], options: Json)
             };
             request.Headers.CacheControl = new CacheControlHeaderValue { NoStore = true };
             return (await JsonAsync<SecretResponse>(request, token)).Request;

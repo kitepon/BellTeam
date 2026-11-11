@@ -23,7 +23,7 @@ public sealed class SecretCard(Workspace workspace, string author) : StackPanel
         {
             var open = new Button { Content = "安全な入力欄を開く", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) };
             open.SetResourceReference(StyleProperty, "MacBorderedButton");
-            open.Click += (_, _) => new SecretInputWindow(request, value => workspace.FinishSecretAsync(request.Id, value), Update) { Owner = Window.GetWindow(this) }.ShowDialog();
+            open.Click += (_, _) => Open(request);
             Children.Add(open);
         }
         else if (request.Status == "submitted") Children.Add(CardStatus("\uE73E", "登録済み"));
@@ -31,6 +31,8 @@ public sealed class SecretCard(Workspace workspace, string author) : StackPanel
         else Children.Add(CardText("不明な入力状態: " + request.Status, error: true));
         if (request.Notification == "failed") Children.Add(CardText("AIへの通知に失敗しました。チャットで完了を知らせてください。", size: 14, error: true));
     }
+    internal SecretInputWindow CreateInput(SecretRequest request) => new(request, submission => workspace.FinishSecretAsync(request.Id, submission), () => workspace.SecretKeysAsync(request.Id), Update) { Owner = Window.GetWindow(this) };
+    private void Open(SecretRequest request) => CreateInput(request).ShowDialog();
     private static readonly FontFamily Icons = new("Segoe Fluent Icons, Segoe MDL2 Assets");
     internal static FrameworkElement CardTitle(string glyph, string text) => new StackPanel
     {
@@ -48,53 +50,206 @@ public sealed class SecretCard(Workspace workspace, string author) : StackPanel
     internal static TextBox CardBody(string text) => new() { Text = text, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, FontSize = 18, BorderThickness = new Thickness(0), Background = Brushes.Transparent, Padding = new Thickness(0), Margin = new Thickness(0) };
 }
 
+// Mac SecretInputSheet: a grouped form. The message and the note, the input method, the field or the 1Password list, then the buttons.
+// All the parts exist from the start and only their visibility changes, so focus and typing survive a change of method.
 public sealed class SecretInputWindow : Window
 {
-    internal PasswordBox Input { get; } = new() { Margin = new Thickness(0, 8, 0, 8), Padding = new Thickness(10) };
-    internal TextBlock ErrorText { get; } = SecretCard.CardText("", error: true);
-    private readonly Func<string?, Task<SecretRequest>> finish;
+    private readonly SecretInputModel model;
+    private readonly Func<SecretSubmission?, Task<SecretRequest>> finish;
+    private readonly Func<Task<OnePasswordKey[]?>> loadKeys;
     private readonly Action<SecretRequest> completed;
-    private readonly Button submit = new() { Content = "登録して続ける" };
-    private readonly Button decline = new() { Content = "入力を断る" };
-    private readonly Button close = new() { Content = "閉じる" };
-    private bool sending;
-    public SecretInputWindow(SecretRequest request, Func<string?, Task<SecretRequest>> finish, Action<SecretRequest> completed)
+    internal PasswordBox Input { get; } = new() { Style = null, BorderThickness = new Thickness(0), Background = Brushes.Transparent, Padding = new Thickness(0), FontSize = 16, Foreground = SettingsUi.Ink, VerticalAlignment = VerticalAlignment.Center };
+    internal TextBox Paste { get; }
+    internal TextBox Reference { get; }
+    internal TextBox Search { get; }
+    internal TextBlock ErrorText { get; } = SettingsUi.Text("", 14, SettingsUi.Red);
+    internal Task KeysReady { get; private set; } = Task.CompletedTask;
+    private readonly Grid inputField = new(), pasteField, referenceField, searchField;
+    private readonly TextBlock note = SettingsUi.Text("", 14, SettingsUi.Secondary), unsupported = SettingsUi.Text("", 14, SettingsUi.Secondary), pickerStatus = SettingsUi.Text("", 16, SettingsUi.Muted), count = SettingsUi.Text("", 14, SettingsUi.Secondary);
+    private readonly UIElement unsupportedRow, errorRow;
+    private readonly GroupCard top, buttons;
+    private readonly FrameworkElement statusRow, searchRow, countRow, retryRow, choices;
+    private readonly Border pickerCard, referenceCard, pasteCard, passwordCard;
+    private readonly RadioButton onePasswordChoice = ChoiceButton(), inputChoice = ChoiceButton();
+    private readonly StackPanel keysHost = new();
+    private readonly Button submit = RowButton("", SettingsUi.Violet), decline = RowButton("入力を断る", SettingsUi.Red), close = new() { Content = "閉じる" };
+    private bool sending, syncing;
+    public SecretInputWindow(SecretRequest request, Func<SecretSubmission?, Task<SecretRequest>> finish, Func<Task<OnePasswordKey[]?>> loadKeys, Action<SecretRequest> completed)
     {
-        this.finish = finish; this.completed = completed;
-        Title = request.Label; Width = 560; SizeToContent = SizeToContent.Height; MaxHeight = SystemParameters.WorkArea.Height; WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        var panel = new StackPanel { Margin = new Thickness(24) };
-        panel.Children.Add(SecretCard.CardBody(request.Message));
-        panel.Children.Add(SecretCard.CardText("値は会話に送信されません。BellTeamの利用者領域へ保存します。", size: 14, muted: true));
-        panel.Children.Add(SecretCard.CardText(request.Label, bold: true));
-        panel.Children.Add(Input); panel.Children.Add(ErrorText);
-        var buttons = new WrapPanel(); buttons.Children.Add(submit); buttons.Children.Add(decline); buttons.Children.Add(close); panel.Children.Add(buttons);
-        Content = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-        Input.PasswordChanged += (_, _) => submit.IsEnabled = !sending && Input.Password.Length != 0;
-        submit.IsEnabled = false;
-        submit.Click += async (_, _) => await SubmitAsync(true);
-        decline.Click += async (_, _) => await SubmitAsync(false);
+        this.finish = finish; this.loadKeys = loadKeys; this.completed = completed; model = new SecretInputModel(request);
+        Title = request.Label; Width = 720; SizeToContent = SizeToContent.Height; MaxHeight = SystemParameters.WorkArea.Height; WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        Background = SettingsUi.Canvas;
+        (searchField, Search) = BigField("名前や保管庫で絞り込む");
+        (referenceField, Reference) = BigField("op://保管庫/アイテム/フィールド");
+        // The Mac TextEditor has no hint; the box keeps its own name for screen readers.
+        (pasteField, Paste) = SettingsUi.Field("", "", multiline: true, minHeight: 120); Paste.FontFamily = new FontFamily("Consolas, Yu Gothic UI"); System.Windows.Automation.AutomationProperties.SetName(Paste, request.Label);
+        // The Mac SecureField: the label is the hint.
+        var hint = SettingsUi.Text(request.Label, 16, SettingsUi.Secondary); hint.IsHitTestVisible = false; hint.VerticalAlignment = VerticalAlignment.Center;
+        System.Windows.Automation.AutomationProperties.SetName(Input, request.Label);
+        inputField.Children.Add(Input); inputField.Children.Add(hint);
+        Input.PasswordChanged += (_, _) => { hint.Visibility = Input.Password.Length == 0 ? Visibility.Visible : Visibility.Collapsed; UpdateButtons(); };
+        Paste.TextChanged += (_, _) => UpdateButtons();
+        Reference.TextChanged += (_, _) => { model.Reference = Reference.Text; UpdateButtons(); };
+        Search.TextChanged += (_, _) => { model.SetSearch(Search.Text); RefreshKeys(); UpdateButtons(); };
+
+        var message = request.Message.Length == 0 || request.IsLoginPassword && request.Message == SecretRequest.LoginPasswordText ? null : SecretCard.CardBody(request.Message);
+        if (message is not null) message.Margin = new Thickness(-2, 0, 0, 0);
+        top = new GroupCard(); if (message is not null) top.Add(SettingsUi.Row(message, 50)); top.Add(SettingsUi.Row(note, 46));
+        unsupportedRow = SettingsUi.Row(unsupported); top.Add(unsupportedRow);
+        onePasswordChoice.GroupName = inputChoice.GroupName = "source";
+        onePasswordChoice.Checked += (_, _) => ChooseSource(true); inputChoice.Checked += (_, _) => ChooseSource(false);
+        choices = SettingsUi.FormSection("入力方法", new GroupCard(onePasswordChoice, inputChoice));
+
+        statusRow = SettingsUi.Row(pickerStatus); searchRow = SettingsUi.Row(searchField);
+        retryRow = Divided(SettingsUi.Row(EditorFormView.LinkButton("もう一度読み込む", () => KeysReady = LoadKeysAsync()))); countRow = Divided(SettingsUi.Row(count));
+        pickerCard = Card(statusRow, retryRow, searchRow, countRow, keysHost); referenceCard = Card(SettingsUi.Row(referenceField)); pasteCard = Card(SettingsUi.Row(pasteField)); passwordCard = Card(SettingsUi.Row(inputField));
+        var value = new StackPanel { Children = { pickerCard, referenceCard, pasteCard, passwordCard } };
+
+        errorRow = SettingsUi.Row(ErrorText);
+        submit.Click += async (_, _) => await SubmitAsync(true); decline.Click += async (_, _) => await SubmitAsync(false);
+        buttons = new GroupCard(submit, decline, errorRow);
+        var form = new StackPanel { Margin = new Thickness(20, 4, 20, 28), Children = { top, choices, SettingsUi.FormSection(request.Label, value), SettingsUi.FormSection(null, buttons) } };
+
+        close.SetResourceReference(StyleProperty, "SheetPillButton"); close.HorizontalAlignment = HorizontalAlignment.Left; close.VerticalAlignment = VerticalAlignment.Center; close.Margin = new Thickness(12, 0, 0, 0);
         close.Click += (_, _) => Close();
-        Deactivated += (_, _) => Input.Clear();
-        Closed += (_, _) => Input.Clear();
+        var heading = SettingsUi.Text(request.Label, 15, SettingsUi.Ink, FontWeights.SemiBold); heading.HorizontalAlignment = HorizontalAlignment.Center; heading.VerticalAlignment = VerticalAlignment.Center;
+        var header = new Grid { Height = 52, Children = { heading, close } }; DockPanel.SetDock(header, Dock.Top);
+        Content = new DockPanel { Children = { header, new ScrollViewer { Content = form, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } } };
+
+        Deactivated += (_, _) => ClearFields();
+        Closed += (_, _) => ClearFields();
         Closing += (_, args) => { if (sending) args.Cancel = true; };
+        Refresh();
+        if (model.Picker) KeysReady = LoadKeysAsync();
     }
+
+    private static StackPanel Divided(UIElement row) => new() { Children = { Divider(), row } };
+    private static Border Divider() => new() { Height = 1, Background = SettingsUi.Hairline, Margin = new Thickness(20, 0, 0, 0) };
+    // The Mac Form field at body size.
+    private static (Grid, TextBox) BigField(string hint)
+    {
+        var (grid, box) = SettingsUi.Field(hint, ""); box.FontSize = 16; ((TextBlock)grid.Children[1]).FontSize = 16; grid.Margin = new Thickness(-2, 0, 0, 0); return (grid, box);
+    }
+    private static Border Card(params UIElement[] rows) { var stack = new StackPanel(); foreach (var row in rows) stack.Children.Add(row); return new Border { Child = stack, Background = Brushes.White, CornerRadius = new CornerRadius(10) }; }
+
+    // The value as typed: a pasted key keeps its newlines and nothing is trimmed.
+    internal string Value => model.Multiline ? Paste.Text : Input.Password;
+    private void ClearFields()
+    {
+        Input.Clear(); Paste.Clear(); Reference.Clear(); model.Reference = "";
+        RefreshKeys(); UpdateButtons();
+    }
+    private void ChooseSource(bool onePassword)
+    {
+        if (syncing || model.UseOnePassword == onePassword) return;
+        model.UseOnePassword = onePassword; ClearFields(); Refresh();
+    }
+
+    private async Task LoadKeysAsync()
+    {
+        model.Loading(); Refresh();
+        try { model.KeysLoaded(await loadKeys()); }
+        catch (Exception) { model.KeysFailed(); }
+        Refresh();
+    }
+
+    // Brings every part in line with the model.
+    private void Refresh()
+    {
+        syncing = true;
+        note.Text = model.Note;
+        unsupported.Text = model.UnsupportedLine ?? ""; top.SetVisible(unsupportedRow, model.UnsupportedLine is not null);
+        choices.Visibility = model.ChoicesShown ? Visibility.Visible : Visibility.Collapsed;
+        onePasswordChoice.Content = model.OnePasswordChoice; inputChoice.Content = model.InputChoice;
+        onePasswordChoice.IsChecked = model.UseOnePassword; inputChoice.IsChecked = !model.UseOnePassword;
+        syncing = false;
+        pickerCard.Visibility = model.UseOnePassword && model.Picker ? Visibility.Visible : Visibility.Collapsed;
+        referenceCard.Visibility = model.UseOnePassword && !model.Picker ? Visibility.Visible : Visibility.Collapsed;
+        pasteCard.Visibility = !model.UseOnePassword && model.Multiline ? Visibility.Visible : Visibility.Collapsed;
+        passwordCard.Visibility = !model.UseOnePassword && !model.Multiline ? Visibility.Visible : Visibility.Collapsed;
+        var list = model.Keys;
+        statusRow.Visibility = list == KeyListState.Loaded && model.HasKeys ? Visibility.Collapsed : Visibility.Visible;
+        pickerStatus.Text = list switch { KeyListState.Loading => model.LoadingLine, KeyListState.Failed => model.FailedLine, _ => model.EmptyLine };
+        pickerStatus.Foreground = list == KeyListState.Failed ? SettingsUi.Red : SettingsUi.Muted;
+        retryRow.Visibility = list == KeyListState.Failed ? Visibility.Visible : Visibility.Collapsed;
+        searchRow.Visibility = countRow.Visibility = keysHost.Visibility = model.HasKeys ? Visibility.Visible : Visibility.Collapsed;
+        RefreshKeys(); UpdateButtons();
+    }
+    private void RefreshKeys()
+    {
+        keysHost.Children.Clear();
+        if (!model.HasKeys) return;
+        count.Text = model.CountLine;
+        foreach (var key in model.Shown)
+        {
+            var title = SettingsUi.Text(key.Title, 16); var content = new StackPanel { Children = { title } };
+            if (!string.IsNullOrEmpty(key.Vault)) content.Children.Add(SettingsUi.Text(key.Vault, 13, SettingsUi.Secondary, null, new Thickness(0, 2, 0, 0)));
+            var choice = ChoiceButton(); choice.GroupName = "keys"; choice.Content = content; choice.IsChecked = model.Reference == key.Reference;
+            System.Windows.Automation.AutomationProperties.SetName(choice, key.Title + (string.IsNullOrEmpty(key.Vault) ? "" : "（" + key.Vault + "）"));
+            choice.Checked += (_, _) => { model.Reference = key.Reference; UpdateButtons(); };
+            keysHost.Children.Add(new StackPanel { Children = { new Border { Height = 1, Background = SettingsUi.Hairline, Margin = new Thickness(20, 0, 0, 0) }, choice } });
+        }
+    }
+    private void UpdateButtons()
+    {
+        submit.Content = model.SubmitLabel; System.Windows.Automation.AutomationProperties.SetName(submit, model.SubmitLabel);
+        submit.IsEnabled = !sending && model.Ready(Value); decline.IsEnabled = !sending;
+        // The Mac Form button: a greyed label when it cannot be used.
+        submit.Foreground = submit.IsEnabled ? SettingsUi.Violet : DisabledGrey; decline.Foreground = decline.IsEnabled ? SettingsUi.Red : DisabledGrey;
+        buttons.SetVisible(errorRow, ErrorText.Text.Length != 0);
+    }
+
     internal async Task SubmitAsync(bool register)
     {
-        if (sending || register && Input.Password.Length == 0) return;
-        sending = true; submit.IsEnabled = decline.IsEnabled = close.IsEnabled = Input.IsEnabled = false;
-        var value = register ? Input.Password : null;
-        Input.Clear(); ErrorText.Text = "";
+        if (sending) return;
+        SecretSubmission? submission = null;
+        if (register)
+        {
+            var value = Value;
+            if (!model.Ready(value)) return;
+            if (model.UseOnePassword && SecretSubmission.ReferenceProblem(model.Reference) is { } problem) { ErrorText.Text = problem; UpdateButtons(); return; }
+            submission = model.UseOnePassword ? SecretSubmission.OnePassword(model.Reference) : SecretSubmission.Value(value);
+        }
+        sending = true; close.IsEnabled = false; ErrorText.Text = "";
+        foreach (var field in new UIElement[] { Input, Paste, Reference, Search, inputChoice, onePasswordChoice, keysHost }) field.IsEnabled = false;
+        ClearFields();
         SecretRequest result;
-        try { result = await finish(value); }
+        try { result = await finish(submission); }
         catch (Exception)
         {
             // 入力値を含み得る例外の本文・スタックを画面やログへ渡さない。
             ErrorText.Text = "登録結果を確認できませんでした。閉じて最新の状態を確認してください。";
             return;
         }
-        finally { sending = false; decline.IsEnabled = close.IsEnabled = Input.IsEnabled = true; submit.IsEnabled = Input.Password.Length != 0; }
+        finally
+        {
+            sending = false; close.IsEnabled = true;
+            foreach (var field in new UIElement[] { Input, Paste, Reference, Search, inputChoice, onePasswordChoice, keysHost }) field.IsEnabled = true;
+            UpdateButtons();
+        }
         completed(result); Close();
     }
+
+    // Render seam: the text typed into the search box.
+    internal void SearchForRender(string text) => Search.Text = text;
+
+    private static RadioButton ChoiceButton()
+    {
+        var choice = new RadioButton { Template = ChoiceTemplate, FontSize = 16, Foreground = SettingsUi.Ink, Cursor = System.Windows.Input.Cursors.Hand, HorizontalContentAlignment = HorizontalAlignment.Stretch };
+        return choice;
+    }
+    private static readonly Brush DisabledGrey = new SolidColorBrush(Color.FromRgb(0xC7, 0xC7, 0xCC));
+    private static Button RowButton(string label, Brush color) => new() { Content = label, Template = RowButtonTemplate, Foreground = color, FontSize = 16, Cursor = System.Windows.Input.Cursors.Hand };
+    private const string Presentation = "xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"";
+    // A selectable row of a grouped list: the content on the left and a violet check on the right when chosen (Mac checkmark rows).
+    private static readonly ControlTemplate ChoiceTemplate = (ControlTemplate)System.Windows.Markup.XamlReader.Parse(
+        $"<ControlTemplate {Presentation} TargetType=\"RadioButton\"><Border x:Name=\"Chrome\" Background=\"Transparent\" Padding=\"20,11\"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width=\"*\"/><ColumnDefinition Width=\"Auto\"/></Grid.ColumnDefinitions>"
+        + "<ContentPresenter VerticalAlignment=\"Center\"/><TextBlock x:Name=\"Mark\" Grid.Column=\"1\" Text=\"&#xE73E;\" FontFamily=\"Segoe Fluent Icons, Segoe MDL2 Assets\" FontSize=\"16\" Foreground=\"#6147D4\" VerticalAlignment=\"Center\" Visibility=\"Collapsed\"/></Grid></Border>"
+        + "<ControlTemplate.Triggers><Trigger Property=\"IsChecked\" Value=\"True\"><Setter TargetName=\"Mark\" Property=\"Visibility\" Value=\"Visible\"/></Trigger><Trigger Property=\"IsKeyboardFocused\" Value=\"True\"><Setter TargetName=\"Chrome\" Property=\"Background\" Value=\"#146147D4\"/></Trigger></ControlTemplate.Triggers></ControlTemplate>");
+    // A plain text row of a grouped list (Mac Form Button): a coloured label that fades when disabled.
+    private static readonly ControlTemplate RowButtonTemplate = (ControlTemplate)System.Windows.Markup.XamlReader.Parse(
+        $"<ControlTemplate {Presentation} TargetType=\"Button\"><Border x:Name=\"Chrome\" Background=\"Transparent\" Padding=\"20,12\"><ContentPresenter HorizontalAlignment=\"Left\" VerticalAlignment=\"Center\"/></Border>"
+        + "<ControlTemplate.Triggers><Trigger Property=\"IsKeyboardFocused\" Value=\"True\"><Setter TargetName=\"Chrome\" Property=\"Background\" Value=\"#146147D4\"/></Trigger></ControlTemplate.Triggers></ControlTemplate>");
 }
 
 public sealed class QuestionCard(Workspace workspace, string author) : StackPanel

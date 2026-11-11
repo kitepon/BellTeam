@@ -111,6 +111,20 @@ public sealed record SecretRequest
     public required string Message { get; init; }
     public required string Status { get; init; }
     public string? Notification { get; init; }
+    // usage secret-credentials: `terminal.ssh` | `terminal.sudo` | `terminal.login` for a terminal key; absent for a Bot request.
+    public string? Purpose { get; init; }
+    // Absent on an older body: the input field only.
+    [JsonConverter(typeof(SecretInputOptionsReader))] public SecretInputOptions? InputOptions { get; init; }
+    // usage #1025: true for a value used once and never stored; absent otherwise.
+    [JsonConverter(typeof(LenientTrueReader))] public bool OneTime { get; init; }
+    public bool IsLoginPassword => Purpose == "terminal.login";
+    public bool IsOneTime => OneTime;
+    // A value used once never offers 1Password and never says it is saved or registered.
+    public bool UsedOnce => IsLoginPassword || OneTime;
+    public bool OnePasswordOffered => !UsedOnce && InputOptions?.OnePasswordAvailable == true;
+    public bool OpensWithOnePassword => OnePasswordOffered && InputOptions?.OpensWithOnePassword == true;
+    public const string LoginPasswordText = "このMacのログインパスワード（1回だけ使い、保存しません）";
+    public const string OneTimeText = "1回だけ使い、使い終わったら消します。保存せず、会話にも送られません。";
 }
 public sealed record OwnerQuestion
 {

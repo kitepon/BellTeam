@@ -46,7 +46,7 @@ flowchart LR
   end
   subgraph Sheets[主窓に重ねるシート 720×540〜820×680]
     MemberSheet[メンバーを追加] --- RoomSheet[ルームを作る・編集] --- GoalSheet[ゴールの編集] --- ScheduleSheet[予定の追加・編集]
-    ImageSheet[小画像・大画像の操作] --- Crop[切り抜き 680×520] --- PeerSheet[メンバー間の連絡] --- SecretSheet[秘密の入力]
+    ImageSheet[小画像・大画像の操作] --- Crop[切り抜き 680×520] --- PeerSheet[メンバー間の連絡] --- SecretSheet[秘密の入力<br/>会話のカードから開くモーダル窓 720幅]
   end
   Inspector -->|メンバーを編集| MemberWindow[メンバー編集の別窓 1120×900]
   Conversation --> Gallery[画像の閲覧<br/>主窓いっぱいの黒い覆い・×・n / N・‹ ›・64のサムネイル]
@@ -87,6 +87,7 @@ flowchart LR
     A6[設定の各ページ]
     A7[Update]
     A8[相関図の窓<br/>WorkGraphWindow・WorkGraphCanvas・WorkGraphText<br/>毎フレームの描画・入力・読み上げ。状態は持たない]
+    A9[秘密の入力の窓 14<br/>SecretInputWindow（会話のカードから開くモーダル）<br/>1Passwordから選ぶ・読み出す / ここに入力する・貼り付ける<br/>一回だけの値（1Passwordを出さない・渡して続ける）・検索欄・一覧<br/>欄は送信・閉じる・窓が非アクティブで消す]
   end
   subgraph Core[BellTeam.Core 通信とモデル]
     C1[Workspace・BellApi<br/>一覧・会話・送信・SSE<br/>メンバーのseatLaunch・configurationApplicationと行のseatは寛容に読む（不正な型は無しとして扱い、一覧・履歴を壊さない）]
@@ -99,6 +100,7 @@ flowchart LR
     C10[WorkGraphModel・WorkGraphSimulation<br/>相関図の図の状態・シミュレーション・札の置き場所・入れ替え・clearance・当たり判定<br/>永続状態なし。文字の測り方は画面から受け取る]
     C7[UpdateCenter]
     C8[LocalSettings<br/>接続先・窓・通知・会話の開き方・要求ID]
+    C11[SecretRequestApi・SecretInputModel 14<br/>inputOptions・oneTimeは寛容に読む（型違いは無し）<br/>onepassword-items（404は旧本体）・検索と絞り込み・文言・送信の本文]
   end
   A1 --> C1
   A2 --> C1
@@ -111,6 +113,8 @@ flowchart LR
   A6 --> C8
   A7 --> C7
   A8 --> C10
+  A2 -->|"秘密のカード「安全な入力欄を開く」"| A9
+  A9 --> C11
   A8 -->|"アバター（既存の画像キャッシュ）"| C1
   C1 -->|"/api/session・bots（currentWork・seatLaunch・configurationApplication）・rooms・messages（seat）・queue・events"| API[共通入口 HTTP API・SSE]
   C2 -->|"/api/bots・rooms・avatar・avatar-large・export・restart（応答は新しい席が立ってから。要求の待ちは180秒、再送しない）・stop・models（display_name。選ぶ値と保存する値はid）"| API
@@ -121,6 +125,7 @@ flowchart LR
   C7 -->|"/api/updates・plans・operations"| API
   C9 -->|"GET /api/accounts（404は旧本体。上限だけで席のアカウントが決まり、設定する規則は無い）"| API
   C10 -->|"GET /api/work-graph/events（BellApi.WorkGraphEventsAsync。snapshot・changeの名前付きイベント。35秒無音・切断・読めない応答は再接続、404は60秒ごとに確かめ直す、ログインが必要なら止まる）"| API
+  C11 -->|"GET /api/secret-requests/{id}/onepassword-items（{items:[{title,vault,reference}]}。404は旧本体で入力欄だけ）・POST …/submit（{value}か{source:onepassword,reference}。op://で始まらない参照は送らない）・POST …/cancel（{}）。値は専用POSTだけで、一般の欄・ログ・例外へ出さない"| API
 ```
 
 - 状態の所有：会話・メンバー・予定・ゴール・追加機能・全体停止など本体の状態は、共通入口のAPIだけで読み書きする。Windowsが持つのは、このPCの設定（接続先・窓・起動中の通知・会話の開き方・Updateの要求ID）とログイン情報だけ。
@@ -129,28 +134,25 @@ flowchart LR
 - メンバーを開くと`MainWindow.OpenFromWorkGraphAsync`が、通知と同じ会話の開き方（`OpenConversationAsync`）で本体の窓の会話を開く。相関図の窓は残る。
 - メンバーの状態の行（W-MAC 17）：Coreは`/api/bots`の`seatLaunch`・`configurationApplication`と`messages`の`seat`を、型の違う値を「無し」として読む（`MemberState.cs`）。画面は、サイドバーの行と会話の上端に赤い「端末で起動できません：…」、メンバー編集の「AI」の最後に状態の印付きの1行、時刻の前の「分身」の札を出す。モデル候補は`display_name`（空ならid）を見せ、選ぶ値と保存する値はid。再起動は1回だけ送り、待ちは180秒。新しい状態の保存は無い。
 - 1Password連携の設定（W-MAC 15）：追加機能の一覧の`onePassword`行に状態のバッジ（連携中・未連携・失敗）と平易な失敗の文を出し、開くと専用のページ（`SettingsOnePassword.cs`）になる。状態・結果の一行・`ops_`の検査・https限定の案内リンクはCoreの`OnePassword.cs`。`guide`・`connection`は型の違う値を「無し」として読み、旧本体・崩れた本体でも一覧を壊さない（`onePassword`項目が無ければ何も足さない）。tokenは`PasswordBox`で、保存後も戻さず、ページを離れる・窓が非アクティブになる時に消す。保存は`PATCH /api/settings/onePassword`を1回だけ送り（自動再送なし）、応答の`setting`だけで結果の一行を決め、成功後に一覧を読み直してバッジを更新する。
+- 秘密の入力の窓（W-MAC 14）：`inputOptions.onePasswordAvailable`の時だけ入力方法を出し、1Passwordを上・既定にする（`preferred:'stored'`なら入力側が既定）。言い方は値の出どころだけを言う（1Passwordから選ぶ／読み出す、ここに入力する／貼り付ける）。保存するかどうかは欄の下の注意文だけが言う。`terminal.login`と`oneTime`は1Passwordを出さず「渡して続ける」。`terminal.ssh`・`terminal.sudo`は`onepassword-items`の一覧から選ぶ（sudoは`/password`で終わる参照だけ。検索欄は題名・保管庫名、選択が外れたら解除）。`terminal.ssh`の入力は改行を保つ複数行の欄。値の欄と選択は、送信の直前・閉じた時・窓が非アクティブになった時に消す。検索語は秘密でなく送らない。状態と文言は`SecretInputModel`（Core）、窓は描くだけ。
+
 ### Macの追従で足す部分（2026-11-11、作る前の図）
 
-[差分一覧](windows-mac-parity-gaps.md)の「Macの追従」14〜19の置き場所。各PRがこの図に沿って足し、作り終えたら上の図へ移す。
+[差分一覧](windows-mac-parity-gaps.md)の「Macの追従」14〜19の置き場所（14は上の図へ移した）。各PRがこの図に沿って足し、作り終えたら上の図へ移す。
 
 ```mermaid
 flowchart LR
   subgraph AppNew[BellTeam.App]
-    N2[秘密の入力カード 14<br/>1Passwordから選ぶ・読み出す / ここに入力する・貼り付ける<br/>一回だけの値・検索欄]
-    N4[設定 端末 16a<br/>一覧・詳細・編集・ホスト鍵・鍵の行・理由の文・鍵の導入]
+    N4[設定 端末 16a<br/>一覧・詳細・編集・ホスト鍵・鍵の行・理由の文・鍵の導入<br/>鍵の設定は導入済みの秘密の入力の窓（14）を使う]
     N5[メンバー編集 端末とフォルダ 16b<br/>フォルダ選びのシート]
     N6[このPCを追加 16c<br/>S1・S2のWindows版。細部はクラストと決める]
   end
   subgraph CoreNew[BellTeam.Core]
-    W2[SecretRequestApi 14<br/>onepassword-items・submit]
     W3[TerminalsApi 16<br/>端末・確かめ・鍵・フォルダ]
   end
-  N2 --> W2
   N4 --> W3
-  N4 --> N2
   N5 --> W3
   N6 --> W3
-  W2 -->|"GET /api/secret-requests/{id}/onepassword-items・POST …/submit"| APIx
   W3 -->|"/api/terminals*（ingress RS09/RS12：一覧・登録・確かめ・trust・keys/{ssh,sudo}・keys/ssh/authorize・folders・folder）"| APIx
 ```
 
