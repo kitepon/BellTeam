@@ -1873,15 +1873,26 @@ export class AitermTransport {
   }
 
   // One Esc cancels Claude Code's automatic continue (checked 2026-11-11). Never a second one: two open the rewind menu.
-  // true only when the screen is read without the hold afterwards; held or unreadable is unconfirmed.
+  // Re-reads classify it like confirmRelease: 'released' (cancel notice), 'continued' (read without hold and notice: the
+  // turn went on by itself), else 'unconfirmed' (still held or unreadable).
   async releaseLimitHold(session) {
     await this.client.call('pty_key', { session_id: session, key: 'Escape' })
     for (let read = 0; read < 10; read++) {
       await new Promise(resolve => setTimeout(resolve, this.holdReleasePollMs))
-      if (await this.limitHeld(session) === false) return true
+      const outcome = await this.holdOutcome(session)
+      if (outcome) return outcome
     }
     process.stderr.write(`BellTeam accounts: limit hold cancellation unconfirmed after Esc: ${session}\n`)
-    return false
+    return 'unconfirmed'
+  }
+
+  // A pressed seat's screen: 'released' with the cancel notice, 'continued' without hold and notice, null held or unreadable.
+  async holdOutcome(session) {
+    let screen
+    try { screen = textResult(await this.client.call('pty_read', { session_id: session, screen: true, raw: true, timeout: 0, lines: 40 })) }
+    catch { return null }
+    if (claudeLimitHold(screen) !== null) return null
+    return claudeHoldCancelled(screen) ? 'released' : 'continued'
   }
 
   // harness-accounts.md "unconfirmed cancellation": seats whose one Esc is not confirmed. Re-read only, never a second Esc,
@@ -1897,12 +1908,12 @@ export class AitermTransport {
       const listed = await this.client.call('pty_list', {}).then(result => result?.structuredContent?.sessions, () => null)
       for (const session of [...open]) {
         if (Array.isArray(listed) && !listed.some(seat => seat?.session_id === session && seat.current_command !== 'hibernated')) { open.delete(session); continue }
-        let screen = null
-        try { screen = textResult(await this.client.call('pty_read', { session_id: session, screen: true, raw: true, timeout: 0, lines: 40 })) } catch {}
-        if (screen === null || claudeLimitHold(screen) !== null) {
+        const outcome = await this.holdOutcome(session)
+        if (outcome === 'released') { open.delete(session); continue }
+        if (!outcome) {
           if (clock() < until) continue
           process.stderr.write(`BellTeam accounts: limit hold past its longest reset, taken as continued: ${session}\n`)
-        } else if (claudeHoldCancelled(screen)) { open.delete(session); continue }
+        }
         open.delete(session); continued = true
       }
     }
@@ -1957,13 +1968,19 @@ export class AitermTransport {
           deliveryId: record?.deliveryId ?? null, escaped })
       }
       const unconfirmed = []
-      for (const session of release) if (pressed.has(session) || !await this.releaseLimitHold(session)) unconfirmed.push(session)
+      let continued = false
+      for (const session of release) {
+        const outcome = pressed.has(session) ? 'unconfirmed' : await this.releaseLimitHold(session)
+        if (outcome === 'unconfirmed') unconfirmed.push(session)
+        if (outcome === 'continued') continued = true
+      }
       if (unconfirmed.length) {
         const outcome = await this.confirmRelease(bot, unconfirmed)
         if (outcome === 'closed') return
-        // The held turn went on by itself on that seat: a continuation elsewhere would run a second turn over the same work.
-        if (outcome === 'continued') return await this.accounts.dropPending(bot.id)
+        if (outcome === 'continued') continued = true
       }
+      // The held turn went on by itself on that seat: a continuation elsewhere would run a second turn over the same work.
+      if (continued) return await this.accounts.dropPending(bot.id)
       if (!ownTurn) {
         if (holding.includes(current) || (this.accounts.seatSlot(bot.id) ?? '1st') !== slot || renew) await this.switchAccount(bot)
         await this.continuation?.resume(bot, { slot, deliveryId: record?.deliveryId ?? this.continuation.states.get(bot.id)?.deliveryId ?? null })

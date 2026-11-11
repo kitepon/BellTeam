@@ -165,7 +165,7 @@ test('unconfirmed cancellation: pending kept, one Esc only, recovery after the c
   const after = ['unreadable', HELD, CANCELLED]
   let confirming = false, cancelSeen = false, waiting = null
   const release = transport.releaseLimitHold.bind(transport)
-  transport.releaseLimitHold = async session => { const released = await release(session); confirming = !released; return released }
+  transport.releaseLimitHold = async session => { const outcome = await release(session); confirming = outcome === 'unconfirmed'; return outcome }
   hooks.key = session => session === 'bot-elegg'
   hooks.read = session => {
     if (session !== 'bot-elegg' || !confirming) return null
@@ -189,12 +189,24 @@ test('unconfirmed cancellation: a hold that continued by itself at its reset get
   screens.set('bot-elegg', HELD)
   let confirming = false
   const release = transport.releaseLimitHold.bind(transport)
-  transport.releaseLimitHold = async session => { const released = await release(session); confirming = !released; return released }
+  transport.releaseLimitHold = async session => { const outcome = await release(session); confirming = outcome === 'unconfirmed'; return outcome }
   hooks.key = session => session === 'bot-elegg'
   // Still held through the Esc's reads, then running without hold or cancel notice: Claude Code continued the turn.
   hooks.read = session => session === 'bot-elegg' && confirming ? '✻ Working… (esc to interrupt)\n────────\n❯\n────────\n  ⏵⏵ on' : null
   await review()
   // No continuation message. A later move back to the 1st is the ordinary idle-boundary return (it waits for a watched turn).
   assert.deepEqual(sent, [])
+  assert.equal(accounts.pendingFor('bot-elegg'), null)
+})
+
+// Epinel #1088: the Esc's own first re-read shows neither the hold nor the cancel notice: the turn went on by itself.
+test('first read after the Esc without hold and cancel notice: no continuation, pending dropped', async t => {
+  const { calls, sent, review, accounts, screens, hooks } = await recovery(t, { held: false, limited: ['2nd'] })
+  screens.set('bot-elegg', HELD)
+  await accounts.setPending('bot-elegg', { harness: 'claude', slot: '2nd', deliveryId: 'elegg-original' })
+  hooks.key = session => { if (session === 'bot-elegg') { screens.set(session, '✻ Working… (esc to interrupt)\n────────\n❯\n────────\n  ⏵⏵ on'); return true } }
+  await review()
+  assert.equal(calls.filter(([name, args]) => name === 'pty_key' && args.session_id === 'bot-elegg').length, 1)
+  assert.equal(sent.filter(input => input.target === 'bot-elegg').length, 0)
   assert.equal(accounts.pendingFor('bot-elegg'), null)
 })
