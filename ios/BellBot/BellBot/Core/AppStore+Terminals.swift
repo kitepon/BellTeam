@@ -144,6 +144,8 @@ extension AppStore {
         do {
             let result: TerminalCheck = try await api.post("/api/terminals/\(id)/check", body: EmptyBody())
             terminals.checks[id] = result
+            // The server adopts a first host key during the check; read the list so the adopted hostTrust shows.
+            if terminals.terminal(id)?.hostTrusted == false { await refreshTerminals() }
         } catch {
             if !BellAPIError.isAuthenticationError(error) {
                 api.diagnostics.report(error, path: "/api/terminals/:id/check", method: "POST", observation: .write)

@@ -156,9 +156,15 @@ final class TerminalsUITests: XCTestCase {
         other.tap()
     }
 
-    func testAttestHintAndOtherWaysOnAnUntrustedTerminal() async throws {
+    func testAttestHintAndOtherWaysAppearOnlyAfterACheckReportsAHostKeyReason() async throws {
         let app = launch(["-bellbot-preview-terminals", "-bellbot-preview-settings", "terminals", "-bellbot-preview-terminal", "detail:studio-mac"])
         defer { app.terminate() }
+        // Untrusted but not checked: the server accepts a first host key by itself, so nothing is asked of the Owner yet.
+        XCTAssertTrue(scrollTo(app.buttons["check-terminal"], in: app))
+        XCTAssertFalse(app.descendants(matching: .any)["attest-hint"].exists, "確認結果にホスト鍵の理由が無い間は案内を出さない")
+        XCTAssertFalse(app.buttons["ほかの方法"].exists, "確認結果にホスト鍵の理由が無い間は「ほかの方法」を出さない")
+        app.buttons["check-terminal"].tap()
+        XCTAssertTrue(waitLabel(app, "terminal-reachability", contains: "ホスト鍵"))
         let hint = app.descendants(matching: .any)["attest-hint"]
         XCTAssertTrue(scrollTo(hint, in: app))
         XCTAssertEqual(hint.label, "このMacでBellTeamアプリを開くと、自動で確かめます")

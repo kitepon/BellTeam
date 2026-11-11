@@ -326,8 +326,8 @@ struct TerminalDetailPage: View {
         }
         Section {
             LabeledContent("ホスト鍵") {
-                Label(hostKeyStatus(terminal), systemImage: needsHostKey(terminal) ? "exclamationmark.shield" : "checkmark.shield.fill")
-                    .foregroundStyle(needsHostKey(terminal) ? .orange : BellTheme.mint)
+                Label(hostKeyStatus(terminal), systemImage: !terminal.hostTrusted || hostKeyReported ? "exclamationmark.shield" : "checkmark.shield.fill")
+                    .foregroundStyle(!terminal.hostTrusted || hostKeyReported ? .orange : BellTheme.mint)
             }
             if ThisMac.isThisMac && ThisMac.owns(host: terminal.host) {
                 Button {
@@ -340,7 +340,7 @@ struct TerminalDetailPage: View {
                 }
                 .disabled(attesting || working)
                 .accessibilityIdentifier("attest-this-mac")
-            } else if !terminal.hostTrusted {
+            } else if !terminal.hostTrusted && hostKeyReported {
                 Text("このMacでBellTeamアプリを開くと、自動で確かめます")
                     .font(BellTheme.detailFont).foregroundStyle(.secondary)
                     .accessibilityIdentifier("attest-hint")
@@ -349,7 +349,7 @@ struct TerminalDetailPage: View {
                 Text(note.text).font(BellTheme.detailFont).accessibilityIdentifier("attest-note")
                 if note.offersSharingSettings { SharingSettingsButton() }
             }
-            if needsHostKey(terminal) {
+            if hostKeyReported {
                 DisclosureGroup("ほかの方法", isExpanded: $otherWaysOpen) {
                     Text("そのMacにBellTeamアプリが無い時や、うまく確かめられない時は、端末で読んだ指紋を入れて確かめます。")
                         .font(BellTheme.detailFont).foregroundStyle(.secondary)
@@ -434,7 +434,8 @@ struct TerminalDetailPage: View {
         catch { errorText = TerminalErrorText.message(for: error) }
     }
 
-    private func needsHostKey(_ terminal: Terminal) -> Bool { !terminal.hostTrusted || check?.problem == .hostKey }
+    /// The server accepts a terminal's first host key by itself; only a check that reports a host-trust reason asks the Owner for the manual fingerprint.
+    private var hostKeyReported: Bool { check?.problem == .hostKey }
     private func hostKeyStatus(_ terminal: Terminal) -> String {
         if check?.problem == .hostKey { return terminal.hostTrusted ? "変わりました" : "まだ確かめていません" }
         return terminal.hostTrusted ? "信用しています" : "まだ確かめていません"
