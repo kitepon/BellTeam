@@ -6,7 +6,7 @@ using static BellTeam.Core.WorkGraphSimulation;
 namespace BellTeam.Core;
 
 // 相関図 (work graph) data contract (docs/architecture/modules/work-graph/README.md) and motion (behavior-spec.md).
-// Port of Mac Core/WorkGraphModel.swift. Unknown keys and wrong-typed optional keys are ignored; a required key of the wrong type throws JsonException.
+// Port of Mac Core/WorkGraphModel.swift. Unknown keys are ignored. Only `seat` is read leniently (a wrong type means no seat); any other key of the wrong type throws JsonException.
 
 public sealed record WorkGraphNode(string BotId, string Name, string Color, string? AvatarVersion, string State, string? ActiveSince)
 {

@@ -160,6 +160,7 @@ public partial class MainWindow : Window, IInspectorHost
     private void OpenMenu_Click(object sender, RoutedEventArgs e) { if (sender is Button { ContextMenu: { } menu } button) { menu.PlacementTarget = button; menu.IsOpen = true; } }
     private void Schedules_Click(object sender, RoutedEventArgs e) => ShowSchedules();
     private void Goals_Click(object sender, RoutedEventArgs e) => ShowGoals();
+    private void WorkGraph_Click(object sender, RoutedEventArgs e) => ShowWorkGraph();
     private void Settings_Click(object sender, RoutedEventArgs e) => ShowSettings();
     private void Updates_Click(object sender, RoutedEventArgs e) => ShowUpdates();
     // The sidebar Update badge (and an update notification) opens the Update sheet, as on the Mac.
@@ -275,6 +276,15 @@ public partial class MainWindow : Window, IInspectorHost
         }
         catch (OperationCanceledException) when (model.ConnectionToken.IsCancellationRequested) { }
         catch (Exception) { if (model.Server == server) UpdateBadge.Visibility = Visibility.Collapsed; }
+    }
+    // Mac openWindow(id: "work-graph"): its own window; a second open brings the existing one forward. A click on a member opens that chat here (OpenFromWorkGraphAsync).
+    public WorkGraphWindow? ShowWorkGraph()
+    {
+        if (!model.Connected) return null;
+        var window = WorkGraphWindow.Open(model, OpenFromWorkGraphAsync);
+        if (window.WindowState == WindowState.Minimized) window.WindowState = WindowState.Normal;
+        window.Show(); window.Activate();
+        return window;
     }
     public void ShowGoals() { if (!model.Connected) return; var editor = new GoalsWindow(model, this); if (ShowPage(editor)) PageReady = editor.InitializeAsync(); }
     private void UpdateGoalBar() => GoalBar.Attach(model, model.Connected && model.Selected is { Target: { IsRoom: false } target } ? target.Id : null, this);
@@ -515,8 +525,18 @@ public partial class MainWindow : Window, IInspectorHost
         if (server != model.Server || !model.Connected) { model.ReportActionError(target is null ? "通知の接続先へ接続してから、更新センターを開いてください。" : "通知の接続先へ接続してから、会話を開いてください。"); return; }
         if (page?.CanNavigateAway == false) { model.ReportActionError("操作が終わってから通知を開いてください。"); return; }
         if (target is null) { if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal; Show(); Activate(); ShowUpdates(); return; }
+        await OpenConversationAsync(target, "通知の会話が見つかりません。メンバーとルームの一覧を更新してください。");
+    }
+    // The 相関図 window opens a member's chat through the same path as a notification (Mac AppStore.openConversation).
+    public async Task OpenFromWorkGraphAsync(string botId)
+    {
+        if (page?.CanNavigateAway == false) { model.ReportActionError("操作が終わってから会話を開いてください。"); return; }
+        await OpenConversationAsync(new ChatTarget(botId, false), "相関図のメンバーの会話が見つかりません。メンバーとルームの一覧を更新してください。");
+    }
+    private async Task OpenConversationAsync(ChatTarget target, string missing)
+    {
         var entry = model.Conversations.FirstOrDefault(item => item.Target == target);
-        if (entry is null) { model.ReportActionError("通知の会話が見つかりません。メンバーとルームの一覧を更新してください。"); return; }
+        if (entry is null) { model.ReportActionError(missing); return; }
         ShowConversation(); if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal; Show(); Activate(); await model.SelectAsync(entry);
     }
     private void Inspector_Click(object sender, RoutedEventArgs e) => ToggleInspector();
@@ -555,6 +575,7 @@ public partial class MainWindow : Window, IInspectorHost
         if (StartupHost.Visibility == Visibility.Visible) return;
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.D2) { ShowSchedules(); e.Handled = true; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.D3) { ShowGoals(); e.Handled = true; }
+        if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.D4) { ShowWorkGraph(); e.Handled = true; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.OemComma) { ShowSettings(); e.Handled = true; }
         if (e.Key == Key.K && Keyboard.Modifiers == ModifierKeys.Control) { SearchBox.Focus(); SearchBox.SelectAll(); e.Handled = true; }
         if (e.Key == Key.I && Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift)) { ToggleInspector(); e.Handled = true; }

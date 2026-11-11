@@ -25,7 +25,7 @@ flowchart LR
 ```mermaid
 flowchart LR
   subgraph Main[主窓 1280×820・最小1100×640]
-    Sidebar[サイドバー 幅320〜420<br/>BellTeam・＋▾ メンバーを追加/ルームを作成<br/>Updateバッジ（更新がある時だけ）<br/>検索 Ctrl+K<br/>ルーム・メンバーの行: アバター57.6・2行の今の仕事・在席の点・ファスト<br/>予定 Ctrl+2・ゴール Ctrl+3・設定 Ctrl+,<br/>N人オンライン・利用者名]
+    Sidebar[サイドバー 幅320〜420<br/>BellTeam・＋▾ メンバーを追加/ルームを作成<br/>Updateバッジ（更新がある時だけ）<br/>検索 Ctrl+K<br/>ルーム・メンバーの行: アバター57.6・2行の今の仕事・在席の点・ファスト<br/>予定 Ctrl+2・ゴール Ctrl+3・相関図 Ctrl+4・設定 Ctrl+,<br/>N人オンライン・利用者名]
     Detail[詳細の領域]
     Status[接続状態の帯]
   end
@@ -33,6 +33,7 @@ flowchart LR
   Sidebar -->|予定| Schedules[予定のページ]
   Sidebar -->|ゴール| Goals[ゴールのページ]
   Sidebar -->|設定| Settings
+  Sidebar -->|相関図 Ctrl+4| WorkGraphWindow[相関図の別窓 題名「相関図」・最小480×360・1つだけ（2回目は前へ出す）<br/>窓が見えている間だけ新着を受け取る・毎フレームの描画<br/>メンバーのクリック・Tabと矢印で選んでEnter・Spaceで本体の窓を前へ出してその会話を開く<br/>線へのホバーで待っている札・ホイールで箱の中の文を送る<br/>読み上げ: メンバーと依頼の要素]
   Sidebar -->|Updateバッジ| UpdateSheet[Updateシート]
   Detail --> Conversation[会話<br/>帯・吹き出し・受付確認中の仮の吹き出し・配送状態・Bot間の連絡・画像<br/>秘密入力・問い・処理中の帯と止める<br/>返信先・ゴールのカプセル・入力欄]
   Detail --> Inspector[詳細パネル Ctrl+Shift+I<br/>メンバー: 大画像と小画像・AIと操作・プロフィール・メンバーを編集<br/>ルーム: 共有する仕事・参加メンバー・ルームを編集]
@@ -85,6 +86,7 @@ flowchart LR
     A5[予定]
     A6[設定の各ページ]
     A7[Update]
+    A8[相関図の窓<br/>WorkGraphWindow・WorkGraphCanvas・WorkGraphText<br/>毎フレームの描画・入力・読み上げ。状態は持たない]
   end
   subgraph Core[BellTeam.Core 通信とモデル]
     C1[Workspace・BellApi<br/>一覧・会話・送信・SSE]
@@ -108,6 +110,8 @@ flowchart LR
   A6 --> C9
   A6 --> C8
   A7 --> C7
+  A8 --> C10
+  A8 -->|"アバター（既存の画像キャッシュ）"| C1
   C1 -->|"/api/session・bots・rooms（currentWork）・messages・queue・events"| API[共通入口 HTTP API・SSE]
   C2 -->|"/api/bots・rooms・avatar・avatar-large・export・restart・stop・models"| API
   C3 -->|"/api/bots/{id}/screen・screen/key・screen/approval"| API
@@ -121,14 +125,15 @@ flowchart LR
 
 - 状態の所有：会話・メンバー・予定・ゴール・追加機能・全体停止など本体の状態は、共通入口のAPIだけで読み書きする。Windowsが持つのは、このPCの設定（接続先・窓・起動中の通知・会話の開き方・Updateの要求ID）とログイン情報だけ。
 - 新しいCoreの窓口（`ScreenInputApi`・`GoalsApi`・`SettingsApi`の追加分）は、Mac版が使う同じAPIを呼ぶ。サーバーの変更は要らない。
+- 相関図の窓はWindowsの状態を何も保存しない。描画中の図はWorkGraphModelだけが持ち、窓を閉じたら捨てる。窓を閉じるか最小化している間は新着を受け取らず、開き直すと新しいsnapshotを今の図と突き合わせて動かす。接続が替わる（ログインし直し・接続先の変更）と、その接続の新着へ取り直す。
+- メンバーを開くと`MainWindow.OpenFromWorkGraphAsync`が、通知と同じ会話の開き方（`OpenConversationAsync`）で本体の窓の会話を開く。相関図の窓は残る。
 ### Macの追従で足す部分（2026-11-11、作る前の図）
 
-[差分一覧](windows-mac-parity-gaps.md)の「Macの追従」13〜19の置き場所。各PRがこの図に沿って足し、作り終えたら上の図へ移す。
+[差分一覧](windows-mac-parity-gaps.md)の「Macの追従」14〜19の置き場所。各PRがこの図に沿って足し、作り終えたら上の図へ移す。
 
 ```mermaid
 flowchart LR
   subgraph AppNew[BellTeam.App]
-    N1[相関図の窓 13b<br/>サイドバー下部の相関図 Ctrl+4・別窓 最小480×360<br/>毎フレームの描画・クリックで会話・ホバーで札・ホイールで箱の送り]
     N2[秘密の入力カード 14<br/>1Passwordから選ぶ・読み出す / ここに入力する・貼り付ける<br/>一回だけの値・検索欄]
     N3[設定 追加機能 1Password連携 15]
     N4[設定 端末 16a<br/>一覧・詳細・編集・ホスト鍵・鍵の行・理由の文・鍵の導入]
@@ -137,11 +142,9 @@ flowchart LR
     N7[状態の行 17<br/>起動できない理由・設定の適用・表示名・再起動の待ち・分身]
   end
   subgraph CoreNew[BellTeam.Core]
-    W1[WorkGraphModel<br/>13aで作成済み。上のC10]
     W2[SecretRequestApi 14<br/>onepassword-items・submit]
     W3[TerminalsApi 16<br/>端末・確かめ・鍵・フォルダ]
   end
-  N1 --> W1
   N2 --> W2
   N3 --> C6x[SettingsApi]
   N4 --> W3
@@ -149,14 +152,12 @@ flowchart LR
   N5 --> W3
   N6 --> W3
   N7 --> C1x[Workspace・ManagementApi]
-  W1 -->|"GET /api/work-graph/events（SSE。窓が見えている間だけ）"| APIx[共通入口 HTTP API・SSE]
   W2 -->|"GET /api/secret-requests/{id}/onepassword-items・POST …/submit"| APIx
   W3 -->|"/api/terminals*（ingress RS09/RS12：一覧・登録・確かめ・trust・keys/{ssh,sudo}・keys/ssh/authorize・folders・folder）"| APIx
   C6x -->|"PATCH /api/settings/onePassword"| APIx
   C1x -->|"/api/bots（seatLaunch・configurationApplication）・/api/models（display_name）・restart（180秒）・messages（seat）"| APIx
 ```
 
-- 相関図の窓はWindowsの状態を何も保存しない。描画中の図はWorkGraphModelだけが持ち、窓を閉じたら捨てる。
 - 端末と鍵の値はこのPCに置かない。鍵・パスワードは秘密の入力カードから本体へ送るだけで、一般の欄やログへ書かない。
 
 - 失敗の扱い：理由を表示する。接続の失敗（起動の失敗の画面と新着のSSE）は、Mac・Webと同じ段階で自動に再接続する。新着は、切れた時（「更新の接続が切れました。再接続しています。」）と、つながらない・429・5xx（「更新へ接続できません。再接続しています。」）で続け、30秒を超えて保てた接続の後は段階を最初に戻す。止めるのは認証が必要・取り消し・ログアウトの時だけで、形式の異常など想定外の失敗も理由を添えて再接続を続ける。その他の操作の失敗（送信など）は自動で繰り返さない。例外はMac版と同じ定期の読み取り（Botの画面と許可の確認は1秒ごと、AIの認証待ちは3秒ごと）で、表示している間だけ動かす。
