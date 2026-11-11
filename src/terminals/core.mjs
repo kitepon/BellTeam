@@ -203,7 +203,7 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
     if (typeof credentials?.requestTerminalKey !== 'function') throw keyError('CREDENTIAL_UNAVAILABLE', 503, 'The secret input is not available now; try again later')
     const record = await registry.target(terminalId)
     if (!record) throw keyError('TERMINAL_NOT_FOUND', 404, 'Terminal not found; list_terminals shows the registered terminalIds')
-    // No password is asked before the host is trusted (secret exposure to the wrong target); exit: 「このMacを確かめる」.
+    // No password is asked before the host is trusted (secret exposure to the wrong target); exit: 「このMacを確かめる」 / 「このPCを確かめる」.
     if (!record.hostTrust) throw Object.assign(keyError('HOST_TRUST_MISSING', 409, 'Confirm this terminal first, then authorize the key'), { action: `先にこの${OS_LABEL[record.os] ?? '端末'}を確かめてください` })
     if (!record.sshKeyRef) throw Object.assign(keyError('SSH_KEY_UNSET', 409, 'Set the SSH key first, then authorize it'), { action: '先にSSH鍵を設定してください' })
     const generation = connection.generation(terminalId)
