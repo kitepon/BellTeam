@@ -446,7 +446,7 @@ goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`tes
 
 | 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
 | --- | --- |
-| testSeatLaunchDecodesAndReadsAsOneLine | Bot項目`seatLaunch`：欠落・`null`は無し、全項目ありは「Macで起動できません: <action>」、`action`が無い・`null`・空白だけは`code`、両方無しは行なし |
+| testSeatLaunchDecodesAndReadsAsOneLine | Bot項目`seatLaunch`：欠落・`null`は無し、全項目ありは「端末で起動できません：<action>」、`action`が無い・`null`・空白だけは`code`、両方無しは「端末で起動できません。」 |
 | testConfigurationApplicationLineFollowsTheWebEditor | `configurationApplication`の1行：新規メンバーは行なし、pending・accepted・failed（サーバーのmessage、messageなしは行なし）、記録なし・`null`・知らないstateは稼働中／停止中の既定文 |
 | testConfigurationApplicationLineCarriesAStateMark | 状態の印：pending=clock、accepted=checkmark.circle.fill、failed=exclamationmark.triangle.fill、記録なし・`null`・知らないstateは印なし |
 | testMalformedConfigurationApplicationIsAbsentAndDoesNotBreakTheBot | 文字列・数・配列・真偽でもBotは読め記録は無し、型違いの項目だけ無いものとして読む |
@@ -466,6 +466,7 @@ goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`tes
 | testSshKeyPickerStateAfterFailures | 一覧404=未対応（貼り付けへ）、503・500・通信失敗=失敗 |
 | testMemberDecodesWithAndWithoutBindingFields | メンバーの`terminalId`・`projectRoot`が無い応答はnil、ある応答は値 |
 | testBindingFieldsAreSentOnlyWhenAvailable | nilの2項目は送らない、空文字は送る。照合では送っていない項目にサーバー値を採る |
+| testWindowsAndLinuxTerminalsKeepTheirOSPathsAndWords | `os`のwindows・linux・未知の値の表示、編集でosを保つ、Windowsのフォルダの形（`X:\`、`/`・空の区切り・`..`・UNC・1024文字超を拒否）、区切りの連結、名前の`\`と`:`、既定のフォルダ、OSごとの文 |
 | testPairRuleAndFolderFormMatchTheServer | 組の規則、端末IDの形、フォルダの絶対パス（相対・末尾/・//・.・..・NUL・4096バイト超を拒否） |
 | testTerminalDraftAndFingerprintFollowTheRegistryForms | 端末ID・ホスト・ユーザー・ポートの形、既存IDは検査しない、指紋の形、`action`内の指紋の抽出 |
 | testCheckReasonsBecomePlainJapanese | 確認結果の`reason`を分類（`CONNECTION_REFUSED`→refused、`AUTH_FAILED`→authFailed、他は従来）＋その他の平易な文へ |
@@ -984,7 +985,7 @@ Macの端末表示中の照会と非表示後の停止、小画像保存の結�
 | testOlderBodyWithoutTheFoldersRouteKeepsTheTextField | 経路が無い本体はシートで一文、閉じると文字入力の欄（保存済みのパス入り）が出て選ぶボタンは無い |
 | testMemberFolderMissingOffersToCreateAndSavesOnce | 端末を替えて保存→`FOLDER_MISSING`の文（フォームのフォルダ入り）と「このフォルダを作って保存」、断られた保存は残らない→ボタンで同じ保存＋`createFolder:true`、保存して閉じる |
 | testMemberFolderOtherRefusalsHaveNoCreateButton | `FOLDER_NOT_DIRECTORY`・`NOT_WRITABLE`・`NOT_PERMITTED`の文だけでボタンなし |
-| testSeatLaunchNoticeShowsOnTheMemberRowAndTheConversationHeader | `-bellbot-preview-seat-launch action|code`（名簿は内蔵の見本で、サーバーの応答ではない。読取は`TerminalsTests`）：一覧の行に「Macで起動できません: <action>」が1つだけ、会話ヘッダーにも同じ行、actionが無ければcode、引数なしなら出ない |
+| testSeatLaunchNoticeShowsOnTheMemberRowAndTheConversationHeader | `-bellbot-preview-seat-launch action|code`（名簿は内蔵の見本で、サーバーの応答ではない。読取は`TerminalsTests`）：一覧の行に「端末で起動できません：<action>」が1つだけ、会話ヘッダーにも同じ行、actionが無ければcode、引数なしなら出ない |
 | testMemberEditorTerminalAndFolder | 保存済みの端末とフォルダの読み取り専用の表示と「フォルダを選ぶ」（文字入力は畳んだ「ほかの方法」の中）、相対パスは画面で止めてPATCHしない、このBellTeamへ戻すと両方空で保存 |
 | testOldServerShowsOneCalmLineAndSendsNoNewFields | 一覧404とメンバー項目なしで一行の案内だけ、保存bodyに2項目を含めない |
 

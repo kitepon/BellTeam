@@ -498,7 +498,7 @@ final class TerminalsUITests: XCTestCase {
             return element.exists
         }
         // The home list reads the app's own preview members, so the notice comes from -bellbot-preview-seat-launch (the decode is in TerminalsTests).
-        let action = "Macで起動できません: Macの「システム設定 > 一般 > 共有」で「リモートログイン」をオンにしてください"
+        let action = "端末で起動できません：Macの「システム設定 > 一般 > 共有」で「リモートログイン」をオンにしてください"
         var app = launch(["-bellbot-preview-terminals", "-bellbot-preview-seat-launch", "action"])
         XCTAssertTrue(scrollList(line(app, action), app), "the member row shows the action")
         XCTAssertEqual(app.staticTexts.matching(identifier: "seat-launch-line").count, 1, "only the member that did not start")
@@ -510,12 +510,12 @@ final class TerminalsUITests: XCTestCase {
         app.terminate()
 
         app = launch(["-bellbot-preview-terminals", "-bellbot-preview-seat-launch", "code"])
-        XCTAssertTrue(scrollList(line(app, "Macで起動できません: TARGET_MISMATCH"), app), "no action: the code")
+        XCTAssertTrue(scrollList(line(app, "端末で起動できません：TARGET_MISMATCH"), app), "no action: the code")
         app.terminate()
 
         app = launch(["-bellbot-preview-terminals"])
         XCTAssertTrue(scrollList(member(app), app))
-        XCTAssertFalse(line(app, "Macで起動できません").exists, "null: no line")
+        XCTAssertFalse(line(app, "端末で起動できません").exists, "null: no line")
         app.terminate()
     }
 
