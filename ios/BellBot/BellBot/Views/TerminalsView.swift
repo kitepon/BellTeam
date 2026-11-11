@@ -556,7 +556,7 @@ private struct TerminalKeyRow: View {
                         .accessibilityIdentifier("set-key-\(kind.rawValue)")
                     if state.removable {
                         Button("外す", systemImage: "minus.circle", role: .destructive, action: onRemove)
-                            .tint(.red)
+                            .tint(.red).foregroundStyle(.red)
                             .accessibilityIdentifier("remove-key-\(kind.rawValue)")
                     }
                 }

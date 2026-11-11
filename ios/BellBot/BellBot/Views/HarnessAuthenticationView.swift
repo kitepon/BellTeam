@@ -234,6 +234,13 @@ struct HarnessAuthenticationView: View {
                     Text(progress.detail).foregroundStyle(progress.tone == .green ? BellTheme.ink : progress.tint)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("harness-auth-status")
+                    if progress == .done {
+                        // 認証済みの画面で「いつ使うのか」を一文で。押す理由が無い時に押させない。
+                        Label(flow.slot == nil && flow.harness.id != "claude" ? "\(flow.harness.usageText)。メンバーが認証の誤りで止まった時や、別のアカウントに替える時に認証し直します。"
+                              : "メンバーが認証の誤りで止まった時や、別のアカウントに替える時に認証し直します。", systemImage: "info.circle")
+                            .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     controls
                 }
                 .padding(.vertical, 4)
