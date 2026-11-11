@@ -38,7 +38,7 @@ export const usageMethods = {
   'auth.start': spec(shape({ harness }, { slot: accountSlot }), kinds.owner),
   'auth.input': spec(shape({ harness, input: object }, { slot: accountSlot }), kinds.owner),
   'auth.cancel': spec(shape({ harness }, { slot: accountSlot }), kinds.owner),
-  'secrets.create': spec(shape({ toolId: text, label: text, message: text }, { roomId: value => value === null || id(value) }), kinds.bot),
+  'secrets.create': spec(shape({ toolId: text, label: text, message: text }, { roomId: value => value === null || id(value), oneTime: value => typeof value === 'boolean' }), kinds.bot),
   'secrets.requestTerminalKey': spec(shape({ terminalId: id, purpose: text, label: text }), kinds.system),
   'secrets.current': spec(shape({ scope: credentialScopeValid }), kinds.system),
   'secrets.unbind': spec(shape({ handle: id, scope: credentialScopeValid }), kinds.system),
