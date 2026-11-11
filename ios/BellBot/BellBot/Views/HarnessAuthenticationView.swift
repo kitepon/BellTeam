@@ -425,7 +425,11 @@ private struct ClaudeAccountsCard: View {
                 if let line = accounts.limitLine(for: slot) {
                     Text(line).font(BellTheme.secondaryFont).foregroundStyle(.orange)
                 }
-                if !slot.seats.isEmpty {
+                // 数はBot項目のaccountから（見出しの人数と1つ目・2つ目の和が一致する）。旧本体は従来のseats。
+                if let users = AccountText.slotUsers(store.bots.map(\.account), harness: harness.id, slot: slot.slot) {
+                    Text(AccountText.slotUsersLine(users)).font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
+                        .accessibilityIdentifier("harness-auth-claude-\(slot.slot)-users")
+                } else if !slot.seats.isEmpty {
                     Text(AccountText.seats(slot.seats)).font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
                 }
             }

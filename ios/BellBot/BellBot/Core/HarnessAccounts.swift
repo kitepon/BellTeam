@@ -88,7 +88,20 @@ enum AccountText {
     }
 
     /// 行の下の一行：そのアカウントで動いているメンバーの数だけ（名前は並べない。Root review 2026-11-11）。
+    /// 旧本体（Bot項目に`account`が無い）だけが使う。`seats`は最後に起動した記録で、今は別のAIのメンバーも含む。
     static func seats(_ ids: [String]) -> String { "\(ids.count)人が使用" }
+
+    /// いまそのアカウントで動いているメンバーの数。Bot項目の`account`（本体の`transport.seatAccount`）だけで数える。
+    /// 見出しの「N人が使用」（そのAIのメンバー）と、1つ目・2つ目の数の和が一致する（Root 2026-11-12：数が合わないと不具合に見える）。
+    /// どのBotにも`account`が無い旧本体ではnil（呼び出し側は従来の`seats`の行）。
+    static func slotUsers(_ accounts: [BotAccount?], harness: String, slot: String) -> Int? {
+        guard accounts.contains(where: { $0 != nil }) else { return nil }
+        return accounts.filter { $0?.harness == harness && $0?.slot == slot }.count
+    }
+
+    static func slotUsersLine(_ count: Int) -> String {
+        count == 0 ? "いまこのアカウントで動いているメンバーはいません" : "いま\(count)人がこのアカウントで動いています"
+    }
 
     /// ログインの札とは別に、上限を1行で。「上限中・11/13 17:00に戻ります（いまは2ndで動いています）」。
     /// 全モデルの上限があればその時刻、モデル別だけなら「Fable・Opusが上限中」と最も早い時刻。
