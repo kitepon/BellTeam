@@ -6,6 +6,13 @@
 
 `HTTP / MCP → LiveModelCatalog.list → forHarness → AitermClient.call(agent_models)`。`list`はCLIごとにallSettledし、一つのCLIの失敗を他の候補へ広げない。`forHarness`は短命clientを作り、schema/harness/efforts/models/fast_unavailableを確認してfinallyでcloseする。close自体の失敗も上位へ返り得る。
 
+Claudeの一覧は、席と同じログインで取る（Trony a04、2026-11-12）。Aitermの既定ログイン（`~/.claude/.credentials.json`）は席の枠ログイン（1st/2nd の`CLAUDE_CODE_OAUTH_TOKEN`）と別アカウントで、一覧が食い違った（既定：`claude-fable-5-1[1m]`、枠：`fable`＝Fable 5.2、`claude-fable-5-1`）。`agent_configure`は席の`/model`画面で選ぶので、一覧に出ても適用できなかった。
+
+- members（Belorta）：`LiveModelCatalog.forHarness('claude')`は有効なClaude枠（新しい席が起きる枠）を`claudeLogin`として渡す。
+- execution（Kiro）：`AitermClient.call('agent_models', args, {claudeLogin})`は、1st/2ndの時だけ引数`claude_login`を足す。tokenは渡さない。
+- Aiterm（Elegg）：`agent_models`の`claude_login`で、その枠の`oauth-token`（`AITERM_CLAUDE_CONFIG_ROOTS`）を使って一覧を取る。`agent_configure`の照合用一覧も、席の起動ログインで取る。`claude_login`が無い時は従来どおり。
+- 順序は問わない：AitermClientは`agent_models`の入力に`claude_login`があるかを`listTools`で確かめ、無いAitermには付けない（従来の既定ログインの一覧）。
+
 検証はBotRegistryの作成/設定変更とWebの編集候補から使う。空配列を成功した候補一覧の代わりにせず、errorを同じCLIの結果へ載せる。モデル候補は永続化も自動再試行もしない。model/effortの変換と取得元はAitermが所有する。
 
 `cursor-models.mjs`の旧CLI文字列parserは現在のsrc/web/scriptsにcallerがなく、対応testだけが参照する。これを現在のモデル一覧図の途中へ入れない。別repoからの利用を今回の検索だけで否定はしないので、接続整理のために削除する必要はない。

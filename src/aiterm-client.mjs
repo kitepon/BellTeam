@@ -146,6 +146,8 @@ export class AitermClient {
       || Object.hasOwn(options, 'expectedAuthServerVersion')
       || Object.hasOwn(options, 'env') || Object.hasOwn(options, 'launchProject')))
       throw Object.assign(new Error('AITERM_AUTH_CONNECTION_ARGUMENTS'), { code: 'AITERM_AUTH_CONNECTION_ARGUMENTS', effect: 'not_issued' })
+    // boundary-details.md (a04): the Claude list is read with the seat's slot login; only the slot name crosses, never the token.
+    if (name === 'agent_models' && ACCOUNT_LOGINS.includes(claudeLogin)) args = { ...args, claude_login: claudeLogin }
     if (this.seatProject !== null) requireSeatProject(this.seatProject)
     if (Object.hasOwn(options, 'launchProject')) {
       requireSeatProject(launchProject)
@@ -206,6 +208,14 @@ export class AitermClient {
       if (!supported && accountInput[1] === 'fork_from')
         throw Object.assign(new Error('FORK_UNAVAILABLE: readonly_unenforceable'), { code: 'FORK_UNAVAILABLE', reason: 'readonly_unenforceable', effect: 'not_started' })
       if (!supported) throw Object.assign(new Error('ACCOUNT_CAPABILITY_UNAVAILABLE'), { code: 'ACCOUNT_CAPABILITY_UNAVAILABLE', effect: 'not_started' })
+    }
+    if (name === 'agent_models' && Object.hasOwn(args, 'claude_login')) {
+      let supported = false
+      try {
+        supported = (await callClient.listTools()).tools.some(tool => tool.name === 'agent_models' && tool.inputSchema?.properties?.claude_login?.type === 'string')
+      } catch { /* Nothing was issued by the capability read. */ }
+      // shortcut: an Aiterm without claude_login reads the list with its own login (the behaviour before a04); require it once every body carries it.
+      if (!supported) { const { claude_login: _login, ...rest } = args; args = rest }
     }
     if (name === 'agent_launch' && args.require_existing_resume === true) {
       let supported = false
