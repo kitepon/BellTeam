@@ -25,7 +25,7 @@ final class ProfileTerminalUITests: XCTestCase {
         bot.tap()
         app.buttons["詳細"].tap()
         let effort = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label CONTAINS %@", "希望エフォート")).firstMatch
+            .matching(NSPredicate(format: "label CONTAINS %@", "で動きます")).firstMatch
         XCTAssertTrue(effort.waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["担当する仕事"].exists)
         XCTAssertTrue(app.buttons["Botの画面を見る"].exists)
@@ -625,7 +625,7 @@ final class ProfileTerminalUITests: XCTestCase {
         XCTAssertEqual(app.sheets.count, 0)
         XCTAssertTrue(app.staticTexts["AIと操作"].waitForExistence(timeout: 5))
         let effort = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label CONTAINS %@", "希望エフォート")).firstMatch
+            .matching(NSPredicate(format: "label CONTAINS %@", "で動きます")).firstMatch
         XCTAssertTrue(effort.exists)
         XCTAssertTrue(app.staticTexts["担当する仕事"].exists)
         XCTAssertTrue(app.buttons["会話セッションを再起動"].exists)

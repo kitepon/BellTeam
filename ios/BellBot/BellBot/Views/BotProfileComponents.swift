@@ -504,6 +504,26 @@ private struct BotProfileAvatarActions: View {
 
 struct BotProfileAISection: View {
     let bot: Bot
+
+    /// Name, icon and color per AI; an unknown harness shows its own id with a generic icon.
+    private var look: (name: String, symbol: String, tint: Color) {
+        switch bot.harness {
+        case "claude": ("Claude", "sparkle", .orange)
+        case "codex": ("Codex", "chevron.left.forwardslash.chevron.right", .indigo)
+        case "grok": ("Grok", "bolt.fill", .gray)
+        case "cursor": ("Cursor", "cursorarrow.rays", .teal)
+        case "antigravity": ("Antigravity", "atom", .blue)
+        default: (bot.harness, "cpu", BellTheme.violet)
+        }
+    }
+    private var summary: String {
+        switch (bot.model.isEmpty, bot.reasoningEffort.isEmpty) {
+        case (true, true): "モデルとエフォートはCLIの既定で動きます"
+        case (true, false): "モデルはCLIの既定で動きます"
+        case (false, true): "エフォートはCLIの既定で動きます"
+        case (false, false): "選んだモデルとエフォートで動きます"
+        }
+    }
     let errorText: String?
     let onScreen: () -> Void
     /// Returns true when the restart succeeded. The server answers only after the new seat is up, so this can take a while.
@@ -512,20 +532,33 @@ struct BotProfileAISection: View {
     @State private var note: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             Text("AIと操作").font(BellTheme.secondaryFont.weight(.bold))
                 .foregroundStyle(BellTheme.muted)
-            LabeledContent("ハーネス", value: bot.harness)
-            LabeledContent("希望モデル", value: bot.model.isEmpty ? "CLIの既定" : bot.model)
-            LabeledContent("希望エフォート", value: bot.reasoningEffort.isEmpty ? "CLIの既定" : bot.reasoningEffort)
-            // 旧本体はaccountを返さない。その時は行を出さない。
-            if let account = bot.account {
-                LabeledContent("アカウント", value: AccountText.slotName(account.slot))
-                    .accessibilityIdentifier("bot-account-slot")
+            HStack(spacing: 12) {
+                SettingsIconTile(symbol: look.symbol, tint: look.tint, side: 40)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(look.name).font(.headline).foregroundStyle(BellTheme.ink)
+                    Text(summary).font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
+                }
             }
-            Button("Botの画面を見る", systemImage: "terminal", action: onScreen)
-                .buttonStyle(.bordered)
-            Button(restarting ? "再起動しています…" : "会話セッションを再起動") {
+            .accessibilityElement(children: .combine)
+            // The saved preferences as badges; the CLI's own default is said once in the summary, not as a badge.
+            FlowBadges {
+                if !bot.model.isEmpty { BellBadge(text: bot.model, tone: .violet, symbol: "cpu") }
+                if !bot.reasoningEffort.isEmpty { BellBadge(text: "エフォート \(EffortText.label(bot.reasoningEffort))", tone: .gray, symbol: "gauge.with.dots.needle.67percent") }
+                // 旧本体はaccountを返さない。その時は出さない。
+                if let account = bot.account {
+                    BellBadge(text: AccountText.slotName(account.slot), tone: .green, symbol: "person.crop.circle")
+                        .accessibilityIdentifier("bot-account-slot")
+                }
+                if bot.fastMode { BellBadge(text: "ファスト", tone: .orange, symbol: "bolt.fill") }
+            }
+            Button(action: onScreen) {
+                Label("Botの画面を見る", systemImage: "terminal").frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bellPrimary)
+            Button(restarting ? "再起動しています…" : "会話セッションを再起動", systemImage: "arrow.counterclockwise") {
                 Task {
                     restarting = true
                     note = nil
@@ -533,10 +566,10 @@ struct BotProfileAISection: View {
                     restarting = false
                 }
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.borderless)
             .disabled(restarting)
-            if let note { Text(note).font(.footnote).foregroundStyle(BellTheme.muted) }
-            if let errorText { Text(errorText).font(.footnote).foregroundStyle(.red) }
+            if let note { Label(note, systemImage: "checkmark.circle.fill").font(.footnote).foregroundStyle(.green) }
+            if let errorText { Label(errorText, systemImage: "exclamationmark.triangle.fill").font(.footnote).foregroundStyle(.red) }
         }
         .font(BellTheme.secondaryFont)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -588,6 +621,17 @@ private struct ProfileDetailCard: View {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(tint.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+/// Badges that wrap onto the next line instead of clipping.
+private struct FlowBadges<Content: View>: View {
+    @ViewBuilder var content: Content
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 6) { content }
+            VStack(alignment: .leading, spacing: 6) { content }
+        }
     }
 }
 
