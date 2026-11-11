@@ -40,6 +40,7 @@ struct LatticeChartScreen: View {
         self.leave = leave
         #if DEBUG
         _selected = State(initialValue: LatticeDebugOpen.card)
+        if let center = LatticeDebugOpen.center { _center = SceneStorage(wrappedValue: center, "lattice-center") }
         #endif
     }
 
@@ -643,6 +644,12 @@ enum LatticeDebugOpen {
         let arguments = ProcessInfo.processInfo.arguments
         guard let index = arguments.firstIndex(of: "-bellbot-lattice-card"), arguments.indices.contains(index + 1) else { return nil }
         return arguments[index + 1]
+    }
+    /// -bellbot-lattice-view tree|lanes|history opens that center (screenshots and UI tests).
+    static var center: LatticeCenter? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let index = arguments.firstIndex(of: "-bellbot-lattice-view"), arguments.indices.contains(index + 1) else { return nil }
+        return ["tree": .tree, "lanes": .lanes, "history": .history][arguments[index + 1]]
     }
 }
 #endif
