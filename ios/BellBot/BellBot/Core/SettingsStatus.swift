@@ -29,6 +29,7 @@ struct AIAuthEntry: Equatable {
     let progress: AuthenticationProgress
     /// The account's e-mail label (Claude slots), shown only on its own login screen.
     var accountLabel: String? = nil
+    var limitLine: String? = nil
     var signedOut = false
 }
 
@@ -109,7 +110,7 @@ enum SettingsSummary {
         let state = OnePasswordState(setting)
         switch state {
         case .connected:
-            let line = setting.connection.map { "読める保管庫 \($0.vaults.count)件・SSH鍵 \($0.sshKeys)件" } ?? "1Passwordにつながっています"
+            let line = setting.connection.map { "保管庫\($0.vaults.count)件・SSH鍵\($0.sshKeys)件" } ?? "つながっています"
             return SettingsStatus(line: line, badge: state.badgeText, tone: .green)
         case .off:
             return SettingsStatus(line: "まだ連携していません", badge: state.badgeText, tone: .gray)
@@ -123,13 +124,13 @@ enum SettingsSummary {
 
     static func notifications(_ state: NotificationState, failed: Bool = false) -> SettingsStatus {
         switch state {
-        case .serverOff: SettingsStatus(line: "サーバーで通知の送信が無効です", badge: "サーバーで無効", tone: .gray)
-        case .osOff: SettingsStatus(line: "この端末の通知がオフです", badge: "OSでオフ", tone: .gray)
+        case .serverOff: SettingsStatus(line: "サーバーで無効です", badge: "サーバーで無効", tone: .gray)
+        case .osOff: SettingsStatus(line: "端末の通知がオフです", badge: "OSでオフ", tone: .gray)
         case .unregistered where failed:
-            SettingsStatus(line: "この端末を通知先に登録できませんでした", badge: "失敗", tone: .orange,
+            SettingsStatus(line: "登録できませんでした", badge: "失敗", tone: .orange,
                            needsAttention: true, attentionRoute: .page(.notifications))
-        case .unregistered: SettingsStatus(line: "この端末はまだ通知を受け取る登録をしていません", badge: "未登録", tone: .violet)
-        case .registered: SettingsStatus(line: "返信・入力要求がこの端末に届きます", badge: "届きます", tone: .green)
+        case .unregistered: SettingsStatus(line: "この端末に届きません", badge: "未登録", tone: .violet)
+        case .registered: SettingsStatus(line: "この端末に届きます", badge: "届きます", tone: .green)
         }
     }
 
@@ -219,9 +220,9 @@ enum SettingsSummary {
     // MARK: 利用と課金
 
     static func billing(_ presentation: SubscriptionPresentation, developer: Bool) -> SettingsStatus {
-        if developer { return SettingsStatus(line: "このサーバーでは購読の購入は不要です", badge: "開発者", tone: .green) }
+        if developer { return SettingsStatus(line: "開発者として利用中", badge: "開発者", tone: .green) }
         switch presentation {
-        case .checking: return SettingsStatus(line: "購読を確認しています", badge: "確認中", tone: .violet)
+        case .checking: return SettingsStatus(line: "購読を確認中", badge: "確認中", tone: .violet)
         case .active: return SettingsStatus(line: "購読中です", badge: "有効", tone: .green)
         case .inactive: return SettingsStatus(line: "購読していません", badge: "未設定", tone: .gray)
         // An unread subscription (older body, not connected yet) keeps the calm line instead of saying it cannot be read.

@@ -16,11 +16,11 @@ struct UserRulesDocument: Equatable {
             switch word {
             case "YOU": base = "あなたは"
             case "PURPOSE": base = "目的"
-            case "FACT": base = "事実"
+            case "FACT": base = "前提"
             case "WHEN": base = "いつ"
-            case "DO": base = "すること"
-            case "MAY": base = "してよいこと"
-            case "NEVER": base = "してはいけないこと"
+            case "DO": base = "する"
+            case "MAY": base = "してよい"
+            case "NEVER": base = "しない"
             case "WHY": base = "理由"
             case "DEFAULT": base = "既定"
             default: base = keyword
@@ -33,6 +33,11 @@ struct UserRulesDocument: Equatable {
     struct Rule: Equatable {
         let id: String
         var clauses: [Clause] = []
+
+        /// The clause that titles the rule's card: its PURPOSE, else its first clause. The id is never shown.
+        var headline: Clause? { clauses.first { $0.keyword == "PURPOSE" } ?? clauses.first }
+        /// The clauses under the title.
+        var details: [Clause] { clauses.filter { $0 != headline } }
     }
 
     struct Section: Equatable {

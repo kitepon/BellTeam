@@ -216,3 +216,24 @@ struct BellBadge: View {
         .accessibilityElement(children: .combine)
     }
 }
+
+/// The one primary button, drawn explicitly: violet with white text, a lighter violet when it cannot be pressed.
+/// borderedProminent follows the window's key state and turns gray on an inactive Mac window; the main action must never look disabled.
+struct BellPrimaryButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.body.weight(.semibold))
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 11).padding(.horizontal, 16)
+            .background(BellTheme.violet.opacity(isEnabled ? (configuration.isPressed ? 0.8 : 1) : 0.38),
+                        in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
+extension ButtonStyle where Self == BellPrimaryButtonStyle {
+    static var bellPrimary: BellPrimaryButtonStyle { BellPrimaryButtonStyle() }
+}

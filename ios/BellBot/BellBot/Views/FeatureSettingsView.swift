@@ -161,7 +161,7 @@ struct FeatureSettingSheet: View {
 
     var body: some View {
         NavigationStack {
-            FeatureSettingEditor(setting: setting)
+            FeatureSettingEditor(setting: setting, showsTitle: false)
                 .toolbar { ToolbarItem(placement: .topBarLeading) { Button("閉じる") { dismiss() } } }
         }
         // A sheet closes by dismiss(), not by popping the settings pane behind it.
@@ -206,15 +206,19 @@ struct OnePasswordSettingEditor: View {
                     SettingsSubHeader(symbol: current.look.symbol, tint: current.look.tint, title: current.title, line: current.look.summary) {
                         OnePasswordBadge(state: state)
                     }
-                    if let line = OnePasswordState.connectionLine(current) {
-                        Text(line).font(.subheadline).foregroundStyle(BellTheme.muted).accessibilityIdentifier("onepassword-connection")
-                    } else if state == .off {
-                        Text("まだ連携していません。").font(.subheadline).foregroundStyle(BellTheme.muted)
+                }
+                .listRowBackground(Color.clear)
+                if let line = OnePasswordState.connectionLine(current) {
+                    Section {
+                        Text(line).font(.subheadline).foregroundStyle(BellTheme.muted).fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("onepassword-connection")
                     }
+                } else if state == .off {
+                    Section { Text("まだ連携していません。").font(.subheadline).foregroundStyle(BellTheme.muted) }
                 }
                 if let guide = current.guide {
                     Section {
-                        DisclosureGroup("作り方を見る", isExpanded: $guideOpen) {
+                        DisclosureGroup(isExpanded: $guideOpen) {
                             VStack(alignment: .leading, spacing: 10) {
                                 ForEach(Array(guide.steps.enumerated()), id: \.offset) { _, step in Text(step).font(.subheadline) }
                                 if let link = guide.openableLink {
@@ -222,6 +226,8 @@ struct OnePasswordSettingEditor: View {
                                         .accessibilityIdentifier("onepassword-guide-link")
                                 }
                             }.padding(.vertical, 6)
+                        } label: {
+                            Text("作り方を見る").padding(.leading, 8)
                         }
                     }
                 }
@@ -241,16 +247,17 @@ struct OnePasswordSettingEditor: View {
                     // The check's one result line (the failure reason is shown here only). An empty line takes no height.
                     if result != .none {
                         Text(result.text).font(.subheadline).foregroundStyle(resultTint)
+                            .fixedSize(horizontal: false, vertical: true)
                             .accessibilityIdentifier("onepassword-result")
+                            .listRowBackground(Color.clear)
                     }
-                    Button { Task { await save() } } label: {
-                        Text(saving ? "連携を確かめています…" : "保存して連携を確かめる").frame(maxWidth: .infinity)
+                    SettingsMainButton(title: "保存して連携を確かめる", busyTitle: "連携を確かめています…", busy: saving, identifier: "onepassword-save") { Task { await save() } }
+                        .disabled(loading)
+                        .settingsButtonRow()
+                    if let errorText {
+                        Text(errorText).font(.footnote).foregroundStyle(.red).accessibilityIdentifier("onepassword-save-error")
+                            .listRowBackground(Color.clear)
                     }
-                    .buttonStyle(.borderedProminent).tint(BellTheme.violet).controlSize(.large)
-                    .settingsButtonRow()
-                    .disabled(loading || saving)
-                    .accessibilityIdentifier("onepassword-save")
-                    if let errorText { Text(errorText).font(.footnote).foregroundStyle(.red).accessibilityIdentifier("onepassword-save-error") }
                 }
             }
             if loading { ProgressView() }
@@ -319,6 +326,8 @@ struct OnePasswordSettingEditor: View {
 
 struct FeatureSettingEditor: View {
     let setting: FeatureSetting
+    /// A sheet already shows the name in its own title bar.
+    var showsTitle = true
     @EnvironmentObject private var store: AppStore
     @Environment(\.dismiss) private var dismiss
     @Environment(\.settingsNavigator) private var navigator
@@ -341,8 +350,8 @@ struct FeatureSettingEditor: View {
     var body: some View {
         Form {
             Section {
-                SettingsSubHeader(symbol: currentSetting.look.symbol, tint: currentSetting.look.tint, title: currentSetting.title,
-                                  line: currentSetting.look.summary) { FeatureBadge(setting: currentSetting) }
+                SettingsSubHeader(symbol: currentSetting.look.symbol, tint: currentSetting.look.tint,
+                                  title: showsTitle ? currentSetting.title : "", line: currentSetting.look.summary) { FeatureBadge(setting: currentSetting) }
             }
             .listRowBackground(Color.clear)
             if loaded {

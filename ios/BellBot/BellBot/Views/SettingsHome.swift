@@ -100,7 +100,7 @@ final class SettingsHomeState: ObservableObject {
     /// Every harness, and Claude's accounts when /api/accounts lists them; each login read with its own GET like the AI list does.
     private func loadAI() async {
         guard let store else { return }
-        struct Target { let option: HarnessAuthenticationOption; let slot: String?; let name: String; let signedOut: Bool; let label: String? }
+        struct Target { let option: HarnessAuthenticationOption; let slot: String?; let name: String; let signedOut: Bool; let label: String?; let limitLine: String? }
         do {
             let list: HarnessAuthenticationsResponse = try await store.api.get("/api/harness-auth")
             var claude: HarnessAccounts?
@@ -116,10 +116,10 @@ final class SettingsHomeState: ObservableObject {
                 if option.id == "claude", let claude {
                     for slot in claude.slots {
                         targets.append(Target(option: option, slot: slot.slot == "1st" ? nil : slot.slot,
-                                              name: "\(option.name) \(AccountText.slotName(slot.slot))", signedOut: slot.signedOutAt != nil, label: slot.label))
+                                              name: "\(option.name) \(AccountText.slotName(slot.slot))", signedOut: slot.signedOutAt != nil, label: slot.label, limitLine: claude.limitLine(for: slot)))
                     }
                 } else {
-                    targets.append(Target(option: option, slot: nil, name: option.name, signedOut: false, label: nil))
+                    targets.append(Target(option: option, slot: nil, name: option.name, signedOut: false, label: nil, limitLine: nil))
                 }
             }
             var entries: [AIAuthEntry] = []
@@ -133,7 +133,7 @@ final class SettingsHomeState: ObservableObject {
                 catch let error where BellAPIError.isAuthenticationError(error) { throw error }
                 catch { store.api.diagnostics.report(error, path: "/api/harness-auth", method: "GET", observation: .read(error, retainedData: false)) }
                 entries.append(AIAuthEntry(harnessID: target.option.id, name: target.name, slot: target.slot, progress: progress,
-                                           accountLabel: target.label, signedOut: target.signedOut))
+                                           accountLabel: target.label, limitLine: target.limitLine, signedOut: target.signedOut))
             }
             harnessOptions = Dictionary(list.harnesses.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
             aiEntries = entries

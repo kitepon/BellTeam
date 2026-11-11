@@ -170,7 +170,7 @@ struct UpdateContent: View {
             Button {
                 if candidates.count == 1 { Task { await updates.makePlan(componentID: candidates[0].id) } } else { choosing = true }
             } label: { Text("更新する").foregroundStyle(.white).frame(maxWidth: .infinity) }
-                .buttonStyle(.borderedProminent).tint(BellTheme.violet).controlSize(.large)
+                .buttonStyle(.bellPrimary)
                 .disabled(!updates.canStartPlan)
                 .accessibilityIdentifier("update-start")
         case .failed where updates.plan == nil && !candidates.isEmpty:
@@ -178,7 +178,7 @@ struct UpdateContent: View {
             Button {
                 if candidates.count == 1 { Task { await updates.makePlan(componentID: candidates[0].id) } } else { choosing = true }
             } label: { Text("もう一度更新する").foregroundStyle(.white).frame(maxWidth: .infinity) }
-                .buttonStyle(.borderedProminent).tint(BellTheme.violet).controlSize(.large)
+                .buttonStyle(.bellPrimary)
                 .disabled(!updates.canStartPlan)
                 .accessibilityIdentifier("update-start")
         case .unreachable, .unconfirmed, .failed, .unknown:
@@ -247,7 +247,7 @@ struct UpdateContent: View {
                 Button { Task { await updates.execute(confirmContainerRestart: confirmedRestart) } } label: {
                     Text(wording.button).foregroundStyle(.white).frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent).tint(BellTheme.violet).controlSize(.large)
+                .buttonStyle(.bellPrimary)
                 .disabled(!ready || (plan.impact.containerRestart && !confirmedRestart))
                 .accessibilityIdentifier("update-execute")
             }
@@ -346,17 +346,33 @@ struct UpdateContent: View {
         if current.origin == .builtin { return "最初から入っている版" }
         let isHash = current.version.count >= 12 && current.version.allSatisfy(\.isHexDigit)
         if !isHash { return "版 \(current.version)" }
-        if component.comparison.state == .upToDate, let published = component.publication?.catalog.publishedAt,
-           let date = BellDate.parse(published) {
-            return "\(date.formatted(.dateTime.month().day().hour().minute())) 公開の版"
-        }
+        if let date = publishedDate(component) { return "\(Self.short(date))に公開された版" }
         return component.comparison.state == .upToDate ? "公開中の最新版" : "今の版"
     }
 
+    private static func short(_ date: Date) -> String { date.formatted(.dateTime.month().day().hour().minute()) }
+
+    /// 今の版が公開中の最新版と一致する時だけの、その版の公開時刻。
+    private static func publishedDate(_ component: UpdateComponent) -> Date? {
+        guard component.comparison.state == .upToDate, let published = component.publication?.catalog.publishedAt else { return nil }
+        return BellDate.parse(published)
+    }
+
     /// 最後に成功した更新の時刻。サーバーが最新のジョブを返す時だけ出す。
-    static func lastUpdated(_ component: UpdateComponent) -> String? {
-        guard let job = component.status?.latestJob, job.outcome == .succeeded, let date = BellDate.parse(job.at) else { return nil }
-        return "\(date.formatted(.dateTime.month().day().hour().minute())) に更新"
+    private static func installedDate(_ component: UpdateComponent) -> Date? {
+        guard let job = component.status?.latestJob, job.outcome == .succeeded else { return nil }
+        return BellDate.parse(job.at)
+    }
+
+    /// 行の二行目。公開時刻より前の「更新」は、公開前に入れたことになるので言わない：
+    /// 「…に公開された版を…に入れました」は入れた時刻が公開時刻以後の時だけ、そうでなければ「…に公開された版」だけ。
+    static func versionLine(_ component: UpdateComponent) -> String {
+        let name = versionName(component)
+        guard let installed = installedDate(component) else { return name }
+        if let published = publishedDate(component) {
+            return installed >= published ? "\(Self.short(published))に公開された版を\(Self.short(installed))に入れました" : name
+        }
+        return "\(name) · \(Self.short(installed)) に更新"
     }
 
     static func icon(for id: String) -> String {
@@ -418,7 +434,6 @@ struct UpdateContent: View {
 
     private func partRow(_ component: UpdateComponent) -> some View {
         let badge = badge(for: component)
-        let updated = Self.lastUpdated(component)
         return HStack(spacing: 12) {
             Image(systemName: Self.icon(for: component.id))
                 .font(.system(size: 15, weight: .semibold)).foregroundStyle(.white)
@@ -427,7 +442,7 @@ struct UpdateContent: View {
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(component.name).font(.body.weight(.medium))
-                Text([Self.versionName(component), updated].compactMap { $0 }.joined(separator: " · "))
+                Text(Self.versionLine(component))
                     .font(.footnote).foregroundStyle(.secondary).lineLimit(2)
             }
             Spacer(minLength: 8)

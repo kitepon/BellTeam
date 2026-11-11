@@ -172,7 +172,7 @@ struct HarnessAuthenticationDestination: View {
         if let option = home.harnessOptions[harnessID] {
             let entry = home.aiEntries?.first { $0.harnessID == harnessID && $0.slot == slot }
             HarnessAuthenticationView(harness: option, api: store.api, slot: slot, title: entry?.name,
-                                      accountLabel: entry?.accountLabel, signedOut: entry?.signedOut ?? false)
+                                      accountLabel: entry?.accountLabel, limitLine: entry?.limitLine, signedOut: entry?.signedOut ?? false)
         } else {
             ProgressView()
         }
@@ -196,12 +196,15 @@ struct HarnessAuthenticationView: View {
     @State private var acted = false
     private let title: String
     private let accountLabel: String?
+    private let limitLine: String?
     private let signedOut: Bool
 
-    init(harness: HarnessAuthenticationOption, api: BellAPI, slot: String? = nil, title: String? = nil, accountLabel: String? = nil, signedOut: Bool = false) {
+    init(harness: HarnessAuthenticationOption, api: BellAPI, slot: String? = nil, title: String? = nil, accountLabel: String? = nil,
+         limitLine: String? = nil, signedOut: Bool = false) {
         _flow = StateObject(wrappedValue: HarnessAuthenticationFlow(harness: harness, api: api, slot: slot))
         self.title = title ?? harness.name
         self.accountLabel = accountLabel
+        self.limitLine = limitLine
         self.signedOut = signedOut
     }
 
@@ -224,6 +227,10 @@ struct HarnessAuthenticationView: View {
             .listRowBackground(Color.clear)
             Section {
                 VStack(alignment: .leading, spacing: 12) {
+                    if let limitLine {
+                        Label(limitLine, systemImage: "exclamationmark.triangle.fill").font(BellTheme.detailFont).foregroundStyle(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     Text(progress.detail).foregroundStyle(progress.tone == .green ? BellTheme.ink : progress.tint)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("harness-auth-status")
@@ -313,7 +320,7 @@ struct HarnessAuthenticationView: View {
                     .accessibilityIdentifier("harness-auth-start")
             } else {
                 Button(action: press) { Text(label).frame(maxWidth: .infinity) }
-                    .buttonStyle(.borderedProminent).tint(BellTheme.violet)
+                    .buttonStyle(.bellPrimary)
                     .disabled(blocked)
                     .accessibilityIdentifier("harness-auth-start")
             }
@@ -388,17 +395,13 @@ private struct ClaudeAccountsCard: View {
                 SettingsNavLink(title: "\(harness.name) \(AccountText.slotName(slot.slot))") {
                     HarnessAuthenticationView(harness: harness, api: store.api, slot: slot.slot == "1st" ? nil : slot.slot,
                                               title: "\(harness.name) \(AccountText.slotName(slot.slot))", accountLabel: slot.label,
-                                              signedOut: slot.signedOutAt != nil)
+                                              limitLine: accounts.limitLine(for: slot), signedOut: slot.signedOutAt != nil)
                 } label: { row(slot) }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("harness-auth-claude-\(slot.slot)")
             }
         }
         .padding(.vertical, 6)
-    }
-
-    private var secondAvailable: Bool {
-        accounts.slots.contains { $0.slot == "2nd" && $0.loggedIn == true && !$0.limits.contains { $0.scope == "all" } }
     }
 
     private func row(_ slot: AccountSlot) -> some View {
@@ -410,7 +413,7 @@ private struct ClaudeAccountsCard: View {
                     Text(label).font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
                 }
                 // ログインの札とは別の1行。1stが上限で2ndが使える時は、いま2ndで動いていると添える。
-                if let line = AccountText.limitLine(slot.limits, runningOnOther: slot.slot == "1st" && secondAvailable ? "2つ目" : nil) {
+                if let line = accounts.limitLine(for: slot) {
                     Text(line).font(BellTheme.secondaryFont).foregroundStyle(.orange)
                 }
                 if !slot.seats.isEmpty {

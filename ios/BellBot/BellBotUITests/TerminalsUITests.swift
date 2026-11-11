@@ -102,7 +102,7 @@ final class TerminalsUITests: XCTestCase {
         XCTAssertTrue(id.waitForExistence(timeout: 5))
         id.tap(); id.typeText("Bad ID")
         app.buttons["save-terminal"].tap()
-        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH %@", "端末IDは英小文字")).firstMatch.waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH %@", "端末の名前は英小文字")).firstMatch.waitForExistence(timeout: 3))
         let putsBeforeAdd = try await call("/test/proof")["puts"] as? [Any]
         XCTAssertEqual(putsBeforeAdd?.count, 2, "形の違う登録は送らない（2件はホスト鍵の誤りと正しい指紋）")
         shot(app, "11-terminal-add-invalid")
@@ -129,7 +129,7 @@ final class TerminalsUITests: XCTestCase {
         // Edit keeps the ID fixed.
         app.buttons["edit-terminal"].tap()
         XCTAssertTrue(app.buttons["save-terminal"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.textFields["terminal-field-端末ID"].exists, "端末IDは変えられない")
+        XCTAssertFalse(app.textFields["terminal-field-端末ID"].exists, "端末の名前は変えられない")
         shot(app, "14-terminal-edit")
         app.buttons["キャンセル"].tap()
 

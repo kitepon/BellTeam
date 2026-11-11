@@ -32,26 +32,24 @@ private struct UserRulesDocumentView: View {
                 Text("まだ決まりがありません。「編集する」から書けます。").font(BellTheme.detailFont).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
+            // Sections are only grouping in the text; the cards are the rules, each titled by its own purpose (the ids stay out of sight).
             ForEach(Array(document.sections.enumerated()), id: \.offset) { _, section in
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(section.topic).font(.headline)
-                    if let note = section.note { Text(note).font(BellTheme.secondaryFont).foregroundStyle(.secondary) }
-                    ForEach(Array(section.rules.enumerated()), id: \.offset) { _, rule in
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(rule.id).font(.subheadline.weight(.semibold))
-                            ForEach(Array(rule.clauses.enumerated()), id: \.offset) { _, clause in
-                                HStack(alignment: .firstTextBaseline, spacing: 10) {
-                                    Text(clause.label).font(.caption.weight(.semibold)).foregroundStyle(BellTheme.violet)
-                                        .frame(width: 92, alignment: .leading)
-                                    Text(clause.text).font(BellTheme.detailFont).frame(maxWidth: .infinity, alignment: .leading)
-                                }
+                ForEach(Array(section.rules.enumerated()), id: \.offset) { _, rule in
+                    VStack(alignment: .leading, spacing: 10) {
+                        if let headline = rule.headline {
+                            Text(headline.text).font(.headline).fixedSize(horizontal: false, vertical: true)
+                        }
+                        ForEach(Array(rule.details.enumerated()), id: \.offset) { _, clause in
+                            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                                BellBadge(text: clause.label, tone: .violet)
+                                Text(clause.text).font(BellTheme.detailFont).fixedSize(horizontal: false, vertical: true)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                             }
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16).bellCard()
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(16).bellCard()
             }
             if !document.plainLines.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {

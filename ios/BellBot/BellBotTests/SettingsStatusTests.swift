@@ -94,7 +94,7 @@ final class SettingsStatusTests: XCTestCase {
         let off = try setting(#"{"id":"onePassword","title":"1Password連携","enabled":false,"status":"unconfigured","fields":[]}"#)
         XCTAssertEqual(SettingsSummary.onePassword(off).badge, "未連携")
         let on = try setting(#"{"id":"onePassword","title":"1Password連携","enabled":true,"status":"enabled","fields":[],"connection":{"vaults":["A","B"],"sshKeys":2}}"#)
-        XCTAssertEqual(SettingsSummary.onePassword(on).line, "読める保管庫 2件・SSH鍵 2件")
+        XCTAssertEqual(SettingsSummary.onePassword(on).line, "保管庫2件・SSH鍵2件")
         let failed = try setting(#"{"id":"onePassword","title":"1Password連携","enabled":true,"status":"enabled","fields":[],"error":{"code":"X","message":"tokenが失効しました。"}}"#)
         XCTAssertEqual(SettingsSummary.onePassword(failed).line, "tokenが失効しました。")
         XCTAssertTrue(SettingsSummary.onePassword(failed).needsAttention)
@@ -173,11 +173,13 @@ final class SettingsStatusTests: XCTestCase {
         XCTAssertEqual(review.id, "models.review")
         XCTAssertEqual(review.clauses.map(\.keyword), ["WHEN", "DO", "WHY"])
         XCTAssertEqual(review.clauses[1].text, "review model, effort and fastMode with get_self.", "an indented continuation joins its clause")
-        XCTAssertEqual(review.clauses.map(\.label), ["いつ", "すること", "理由"])
+        XCTAssertEqual(review.clauses.map(\.label), ["いつ", "する", "理由"])
         let fallback = document.sections[0].rules[1].clauses[0]
         XCTAssertEqual(fallback.keyword, "DEFAULT (codex)")
         XCTAssertEqual(fallback.label, "既定 (codex)")
-        XCTAssertEqual(document.sections[1].rules[0].clauses[0].label, "してはいけないこと")
+        XCTAssertEqual(document.sections[1].rules[0].clauses[0].label, "しない")
+        XCTAssertEqual(review.headline?.keyword, "WHEN", "目的が無い決まりは最初の節が題になる")
+        XCTAssertEqual(review.details.map(\.keyword), ["DO", "WHY"])
     }
 
     func testPlainBulletsStayPlainAndEmptyIsEmpty() {
@@ -191,6 +193,6 @@ final class SettingsStatusTests: XCTestCase {
     func testRuleWithoutSectionGetsItsTopicFromItsId() {
         let document = UserRulesDocument.parse("RULE style.polite\n  PURPOSE: 丁寧に話す\n  MAY: くだけてよい")
         XCTAssertEqual(document.sections.map(\.topic), ["style"])
-        XCTAssertEqual(document.sections[0].rules[0].clauses.map(\.label), ["目的", "してよいこと"])
+        XCTAssertEqual(document.sections[0].rules[0].clauses.map(\.label), ["目的", "してよい"])
     }
 }

@@ -377,7 +377,7 @@ struct SettingsMainButton: View {
 
     var body: some View {
         Button(action: action) { Text(busy ? (busyTitle ?? title) : title).frame(maxWidth: .infinity) }
-            .buttonStyle(.borderedProminent).tint(BellTheme.violet).controlSize(.large)
+            .buttonStyle(.bellPrimary)
             .disabled(busy)
             .accessibilityIdentifier(identifier)
     }
@@ -395,7 +395,7 @@ struct SettingsSubHeader<Trailing: View>: View {
         HStack(alignment: .top, spacing: 14) {
             SettingsIconTile(symbol: symbol, tint: tint, side: 44)
             VStack(alignment: .leading, spacing: 4) {
-                Text(title).font(.title3.bold()).fixedSize(horizontal: false, vertical: true)
+                if !title.isEmpty { Text(title).font(.title3.bold()).fixedSize(horizontal: false, vertical: true) }
                 if let line {
                     Text(line).font(BellTheme.detailFont).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
@@ -762,6 +762,35 @@ private struct ProfileEditor: View {
         } catch {
             errorText = "プロフィールは保存しました。画面の表示を更新できませんでした。\(BellAPIError.operationFailureMessage(error))"
             store.api.diagnostics.report(error, path: "/api/owner", method: "GET", observation: .read(error, retainedData: store.owner != nil))
+        }
+    }
+}
+
+/// Wraps its children into rows like text: the same flow on every page (badges in one row when they fit, a second row when not).
+struct SettingsFlowLayout: Layout {
+    var spacing: CGFloat = 8
+
+    private func rows(_ width: CGFloat, _ subviews: Subviews) -> [(origin: CGPoint, size: CGSize)] {
+        var result: [(CGPoint, CGSize)] = []
+        var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0
+        for view in subviews {
+            let size = view.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > width { y += rowHeight + spacing; x = 0; rowHeight = 0 }
+            result.append((CGPoint(x: x, y: y), size))
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+        return result
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let placed = rows(proposal.width ?? .infinity, subviews)
+        return CGSize(width: placed.map { $0.origin.x + $0.size.width }.max() ?? 0, height: placed.map { $0.origin.y + $0.size.height }.max() ?? 0)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        for (view, place) in zip(subviews, rows(bounds.width, subviews)) {
+            view.place(at: CGPoint(x: bounds.minX + place.origin.x, y: bounds.minY + place.origin.y), proposal: ProposedViewSize(place.size))
         }
     }
 }

@@ -296,10 +296,7 @@ struct TerminalDetailPage: View {
         // Hero: what the terminal is and its three states side by side.
         Section {
             SettingsSubHeader(symbol: "desktopcomputer", tint: .cyan, title: terminalId, line: "\(terminal.osLabel) · \(terminal.ownerLabel)")
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 8) { heroBadges(terminal) }
-                VStack(alignment: .leading, spacing: 6) { heroBadges(terminal) }
-            }
+            SettingsFlowLayout { heroBadges(terminal) }
         }
         .listRowBackground(Color.clear)
         Section(header: BellSectionHeader("接続先")) {
@@ -313,30 +310,36 @@ struct TerminalDetailPage: View {
             }
             .font(BellTheme.detailFont)
         }
-        Section {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    ReachabilityBadge(check: check)
-                    Spacer()
-                    if let at = check?.observedAt { Text(BellDate.short(at)).font(.caption).foregroundStyle(.secondary) }
+        // The hero badge already says 「まだ確かめていません」; this card exists only once there is a result (or a key request) to explain.
+        if check != nil || store.terminals.authorizations[terminalId] != nil {
+            Section(header: BellSectionHeader("つながるか")) {
+                if let check {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            ReachabilityBadge(check: check)
+                            Spacer()
+                            if let at = check.observedAt { Text(BellDate.short(at)).font(.caption).foregroundStyle(.secondary) }
+                        }
+                        if let explanation = check.explanation(os: terminal.os) {
+                            Text(explanation).font(BellTheme.detailFont).fixedSize(horizontal: false, vertical: true)
+                        }
+                        if let action = check.extraAction {
+                            Text("サーバーの案内: \(action)").font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                        }
+                    }
+                    .padding(.vertical, 2)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("terminal-reachability")
                 }
-                if let explanation = check?.explanation(os: terminal.os) {
-                    Text(explanation).font(BellTheme.detailFont)
-                }
-                if let action = check?.extraAction {
-                    Text("サーバーの案内: \(action)").font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
-                }
+                checkActions(terminal)
             }
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("terminal-reachability")
-            checkActions(terminal)
+        }
+        Section {
             SettingsMainButton(title: "つながるか確かめる", busyTitle: "確かめています…", busy: checking, identifier: "check-terminal") {
                 Task { await runCheck() }
             }
             .disabled(working)
             .settingsButtonRow()
-        } header: {
-            BellSectionHeader("つながるか")
         } footer: {
             Text("SSHで一度だけつないで、すぐに閉じます。メンバーの席は起動しません。").font(BellTheme.secondaryFont)
         }
@@ -345,7 +348,8 @@ struct TerminalDetailPage: View {
                 Label(hostKeyStatus(terminal), systemImage: !terminal.hostTrusted || hostKeyReported ? "exclamationmark.shield" : "checkmark.shield.fill")
                     .foregroundStyle(!terminal.hostTrusted || hostKeyReported ? .orange : BellTheme.mint)
             }
-            if ThisMac.isThisMac && ThisMac.owns(host: terminal.host) {
+            // Already trusted (and not reported changed): nothing to confirm, so the button is not offered.
+            if ThisMac.isThisMac && ThisMac.owns(host: terminal.host) && (!terminal.hostTrusted || hostKeyReported) {
                 Button {
                     Task { await store.attestThisMac(id: terminalId) }
                 } label: {
@@ -420,6 +424,8 @@ struct TerminalDetailPage: View {
         }
         Section {
             Button("端末の登録を消す", systemImage: "trash", role: .destructive) { confirmingRemoval = true }
+                .buttonStyle(.bordered).tint(.red)
+                .settingsButtonRow()
                 .disabled(working)
                 .accessibilityIdentifier("remove-terminal")
         }
@@ -550,6 +556,7 @@ private struct TerminalKeyRow: View {
                         .accessibilityIdentifier("set-key-\(kind.rawValue)")
                     if state.removable {
                         Button("外す", systemImage: "minus.circle", role: .destructive, action: onRemove)
+                            .tint(.red)
                             .accessibilityIdentifier("remove-key-\(kind.rawValue)")
                     }
                 }
@@ -587,6 +594,11 @@ struct TerminalEditor: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    SettingsSubHeader(symbol: "desktopcomputer", tint: .cyan, title: initial?.terminalId ?? "端末を追加",
+                                      line: initial == nil ? "メンバーの席を動かす、外のMac・Windows PC・Linuxマシンを登録します。" : "接続先と持ち主を直します。")
+                }
+                .listRowBackground(Color.clear)
                 if addsThisMac { thisMacSection }
                 // Step 1 off this Mac: the one precondition nobody can see from here, said before the form (per OS).
                 if initial == nil && !addsThisMac {
@@ -599,14 +611,14 @@ struct TerminalEditor: View {
                 }
                 Section {
                     if initial == nil {
-                        field("端末ID", .terminalId, prompt: "owner-macbook", text: $draft.terminalId)
+                        field("端末の名前（あとで変えられません）", .terminalId, prompt: "owner-macbook", text: $draft.terminalId, identifier: "端末ID")
                     } else {
-                        LabeledContent("端末ID", value: draft.terminalId)
+                        LabeledContent("端末の名前", value: draft.terminalId)
                     }
                 } header: {
                     BellSectionHeader("端末")
                 } footer: {
-                    Text(initial == nil ? "あとから変えられない名前です。英小文字・数字・ハイフンで付けます。" : "端末IDは変えられません。")
+                    Text(initial == nil ? "英小文字・数字・ハイフンで付けます。" : "名前は変えられません。")
                         .font(BellTheme.secondaryFont)
                 }
                 Section {
@@ -644,8 +656,14 @@ struct TerminalEditor: View {
                          : "SSH鍵は、登録した後に端末の画面で設定します。Windowsはsudo鍵を使いません。鍵の中身はここに入れません。")
                         .font(BellTheme.detailFont).foregroundStyle(.secondary)
                 }
-                if let errorText { Section { SettingsBanner(message: errorText) } }
+                // The one primary button; a failure is written right under it.
+                Section {
+                    SettingsMainButton(title: "保存", busyTitle: "保存しています…", busy: saving, identifier: "save-terminal") { Task { await save() } }
+                        .settingsButtonRow()
+                    if let errorText { SettingsBanner(message: errorText) }
+                }
             }
+            .settingsSubPage()
             .disabled(saving)
             #if DEBUG
             .task { if addsThisMac, TerminalPreviewRoute.value?.action == "addmac" { await fillThisMac() } }
@@ -654,10 +672,6 @@ struct TerminalEditor: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { Button("キャンセル") { dismiss() }.disabled(saving) }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("保存") { Task { await save() } }.fontWeight(.semibold).disabled(saving)
-                        .accessibilityIdentifier("save-terminal")
-                }
             }
         }
     }
@@ -695,7 +709,7 @@ struct TerminalEditor: View {
     }
 
     @ViewBuilder
-    private func field(_ title: String, _ key: TerminalDraft.Field, prompt: String, text: Binding<String>, numeric: Bool = false) -> some View {
+    private func field(_ title: String, _ key: TerminalDraft.Field, prompt: String, text: Binding<String>, numeric: Bool = false, identifier: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             LabeledContent(title) {
                 TextField(title, text: text, prompt: Text(prompt))
@@ -703,7 +717,7 @@ struct TerminalEditor: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .keyboardType(numeric ? .numberPad : .asciiCapable)
-                    .accessibilityIdentifier("terminal-field-\(title)")
+                    .accessibilityIdentifier("terminal-field-\(identifier ?? title)")
             }
             if let problem = problems[key], attempted || !text.wrappedValue.isEmpty {
                 Text(problem).font(.caption).foregroundStyle(.red)
