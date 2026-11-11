@@ -607,6 +607,9 @@ final class GoalsUITests: XCTestCase {
         _ = try await fixtureCall(server: url, path: "/test/next?mode=unconfirmed")
         let pill = app.buttons["chat-goal-pill"]
         XCTAssertTrue(pill.waitForExistence(timeout: 10))
+        // Open the card only after the goal is read (while 確認しています the card has no actions).
+        let active = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", "進行中"), object: pill)
+        XCTAssertEqual(XCTWaiter.wait(for: [active], timeout: 10), .completed)
         pill.tap()
         let pause = app.buttons["goal-pause-bot-one"]
         XCTAssertTrue(pause.waitForExistence(timeout: 5))
