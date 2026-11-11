@@ -75,6 +75,11 @@ test('projection: a lane owner / 指揮官 is the reserved Owner value, never a 
   assert.deepEqual([result.cards.map(card => card.producer), result.memberIds], [['owner', 'owner', 'owner'], []])
 })
 
+test("projection: Lattice's default lane main is no lane (担当なし)", () => {
+  const plan = planMember({ tasks: [{ task_id: 'a', lane: 'main' }, { task_id: 'b', lane: 'mainline' }], states: [['a', 'pending'], ['b', 'pending']] })
+  assert.deepEqual(projectChart({ read: readOf([plan]), members: [] }).cards.map(card => card.lane), [null, 'mainline'])
+})
+
 test('projection: a finished card with a lane shows the lane owner, not the coordinator who closed it', () => {
   const start = id => ({ kind: 'start', task_id: id, actor: { agent: 'bot-co' }, recorded_at: at(5) })
   const plan = planMember({ tasks: [{ task_id: 'a', lane: 'キロ' }, { task_id: 'b', lane: 'kiro' }, { task_id: 'c' }, { task_id: 'd', lane: 'キロ' }],

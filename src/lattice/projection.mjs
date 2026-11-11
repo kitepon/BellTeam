@@ -41,7 +41,7 @@ export function projectChart({ read, members = [], previous = null }) {
       const taskId = text(task?.task_id), entry = states.get(taskId)
       const status = entry === undefined ? 'pending' : String(entry?.status).replace('_', '-')
       if (!taskId || !STATUS.includes(status)) continue
-      const lane = text(task.lane), start = starts.get(taskId)
+      const lane = task.lane === 'main' ? null : text(task.lane), start = starts.get(taskId) // `main` is Lattice's default lane, not an owner
       cards.set(`${key}/${taskId}`, { id: `${key}/${taskId}`, plan: key, taskId, title: text(task.title) ?? taskId,
         doneCondition: text(task.done_condition), designMemo: text(task.design_memo), state: status, lane,
         producer: (status === 'done' || status === 'retired') && lane ? assigned(lane) : start?.agent ?? assigned(lane), startedAt: start?.at ?? null, changedAt: changed.get(taskId) ?? null,
