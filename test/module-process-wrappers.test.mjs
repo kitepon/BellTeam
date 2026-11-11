@@ -10,6 +10,9 @@ import { createUsageAuthority } from '../src/usage/authority.mjs'
 import { createUsageProjection } from '../src/usage/projection.mjs'
 import { MembersAdmission } from '../src/members-admission.mjs'
 
+// routing, callBridge, cloudflare, diagnostics, notifications, webPush, onePassword (9f4352e7 added the 7th).
+const SETTINGS_FEATURES = 7
+
 async function fixture(t, component) {
   const root = await mkdtemp(join(tmpdir(), 'module-wrapper-')), children = []
   await mkdir(join(root, 'state'))
@@ -54,18 +57,22 @@ test('usage wrapper stages bootstrap, activates real resume and restores a fixed
     const start = await controller.start()
     assert.equal(start.phase, 'initializing'); assert.equal(start.available, false)
     assert.equal(projection.configuration('routing').enabled, false)
-    await assert.rejects(controller.request('settings.list', {}), /NOT_ACCEPTING/)
+    // module-process.md hold contract (0a88b7bb): a request before activation waits for running(), then retries once.
+    let early = 'pending'
+    const held = controller.request('settings.list', {}).then(() => { early = 'resolved' }, error => { early = error.code })
+    await new Promise(resolve => setTimeout(resolve, 50)); assert.equal(early, 'pending')
     await controller.initialize('subscriptions'); await controller.initialize('services')
     await controller.activate()
     assert.equal(controller.snapshot().available, true)
+    await held; assert.equal(early, 'MEMBERS_NOT_ACCEPTED') // retried without a usage lease
     const read = () => admission.withLease(async lease => {
       const token = authority.capture('settings.list', { kind: 'owner', botId: null })
       try { return await controller.request('settings.list', {}, { usageLease: lease, capturedAuthorization: token }) }
       finally { authority.release(token) }
     })
-    assert.equal((await read()).length, 6)
+    assert.equal((await read()).length, 7)
     await controller.replace('a'.repeat(64))
-    assert.equal((await read()).length, 6)
+    assert.equal((await read()).length, 7)
     assert.equal(controller.snapshot().currentVersionId, 'a'.repeat(64))
   } finally { await controller.close() }
   assert.equal(f.children.length, 2)
@@ -86,20 +93,24 @@ test('automatic recovery restores usage services without a handoff', { timeout: 
     const start = await controller.start()
     assert.equal(start.phase, 'initializing'); assert.equal(start.available, false)
     assert.equal(projection.configuration('routing').enabled, false)
-    await assert.rejects(controller.request('settings.list', {}), /NOT_ACCEPTING/)
+    // module-process.md hold contract (0a88b7bb): a request before activation waits for running(), then retries once.
+    let early = 'pending'
+    const held = controller.request('settings.list', {}).then(() => { early = 'resolved' }, error => { early = error.code })
+    await new Promise(resolve => setTimeout(resolve, 50)); assert.equal(early, 'pending')
     await controller.initialize('subscriptions'); await controller.initialize('services')
     await controller.activate()
     assert.equal(controller.snapshot().available, true)
+    await held; assert.equal(early, 'MEMBERS_NOT_ACCEPTED') // retried without a usage lease
     const read = () => admission.withLease(async lease => {
       const token = authority.capture('settings.list', { kind: 'owner', botId: null })
       try { return await controller.request('settings.list', {}, { usageLease: lease, capturedAuthorization: token }) }
       finally { authority.release(token) }
     })
-    assert.equal((await read()).length, 6)
+    assert.equal((await read()).length, 7)
     f.children[0].kill('SIGKILL')
     await new Promise(resolve => setTimeout(resolve, 1400))
     assert.equal(controller.snapshot().available, true)
-    assert.equal((await read()).length, 6)
+    assert.equal((await read()).length, 7)
     assert.equal(controller.snapshot().currentVersionId, null)
   } finally { await controller.close() }
   assert.equal(f.children.length, 2)
