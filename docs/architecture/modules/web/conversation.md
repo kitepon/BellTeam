@@ -147,10 +147,10 @@ usage（ミカ）が source/reference/handle/revision/resolution の正本を持
 flowchart TD
   Item["履歴 item.secret_request<br/>inputOptions は usage が付与"] --> Open["Web secret-input<br/>安全な入力欄を開く"]
   Open --> Avail{"inputOptions.onePasswordAvailable === true"}
-  Avail -->|"true"| Choice["選択: 1Password参照（先頭）/ 値を保存<br/>preferred='stored' の時だけ保存を既定、他は1Password"]
+  Avail -->|"true"| Choice["選択（どちらも値の出どころ）: 1Passwordから（先頭）/ ここに入力<br/>preferred='stored' の時だけ入力を既定、他は1Password"]
   Avail -->|"欠落・false・不正"| Stored["既存の値入力だけ（旧server互換）"]
   Choice -->|"1Password"| Ref["参照欄 op://…（text, autocomplete off）"]
-  Choice -->|"値を保存"| Stored
+  Choice -->|"ここに入力"| Stored
   Ref -->|"op:// で始まる"| PostRef["POST submit {source:'onepassword', reference}"]
   Stored --> PostVal["POST submit {value}"]
   PostRef --> Done["onComplete(result.request) → カードは状態だけ"]
@@ -163,6 +163,8 @@ flowchart TD
 端末鍵（Mika `credentials.requestTerminalKey`、2026-11-09）: `request.purpose === 'terminal.ssh'` の時だけ、値欄は複数行の `textarea`（OpenSSH秘密鍵の改行を保つ。autocomplete/spellcheck/autocapitalize off、`-webkit-text-security: disc` で伏せ字）。値はtrim・改行変換をせずそのまま `{value}` で一回送る。`terminal.sudo` と他の秘密は既存の一行password欄。1Password参照欄・既定選択・消去規則・submit経路は変えない。fixtureは `test/secret-onepassword-choice.test.mjs`。
 
 端末鍵の1Password選択（Mika、2026-11-10、Owner要望）: `terminal.ssh` と `terminal.sudo` は、参照欄の代わりに `GET /api/secret-requests/:id/onepassword-items` の一覧から選ぶ `select` を出す（sudoはusageがLogin/Passwordのパスワード欄を返す）。sudoの選択肢は「1Passwordのパスワードから選ぶ」/「パスワードを入力して保存する」、値欄は一行password欄のまま。両方のselectの上に検索欄（`type=search`、「名前や保管庫で絞り込む」）を置き、入力のたびに題名か保管庫名に文字を含む項目だけへ選択肢を作り直す（大文字小文字を区別しない）。合わなくなった選択は外す。検索文字は秘密ではなく、送信しない。submit本文・消去規則は変えない。旧本体はどの用途にもSSH鍵の一覧を返すので、sudoのselectは参照が `/password` で終わる項目だけを残す（旧本体では選べる項目が無く、入力欄はそのまま使える）。
+
+入力方法の言い方（Trony経由のOwner指摘、2026-11-11 14時台JST「対称性がない」）: 二つの選択肢はどちらも「値をどこから出すか」で言う。1Password側は picker なら「1Passwordから選ぶ」、`op://` 参照欄なら「1Passwordから読み出す」。入力側は「ここに入力する」（`terminal.ssh` は「ここに貼り付ける」）。保存するかどうかは選択肢に書かず、下の note だけが言う。一回だけ使う値（`purpose === 'terminal.login'`、または usage が付ける `oneTime === true`）は「保存」「登録」を一切言わない: note は login が既存文、`oneTime`（usage、Mika #1025: 値はusage子のメモリだけに置き最初の解決で消える、ディスクへ書かない）は「1回だけ使い、使い終わったら消します。保存せず、会話にも送られません。」、submit は「渡して続ける」。それ以外の submit は「登録して続ける」のまま。submit本文・消去規則・既定選択は変えない。
 
 ## 受付後の追跡故障を未達へ読み替えない
 
