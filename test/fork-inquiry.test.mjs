@@ -144,9 +144,9 @@ test('sendmessage from a fork seat keeps its receipt and labels the record and e
 test('a failed relay stays owed and the next fork.sweep relays it once (fork-inquiry Owed notice)', async t => {
   let callbacks, refuse = true
   const { messenger, notified } = await setup(t, async (bot, text, options) => { callbacks = options; return { delivery: 'running' } })
-  const notify = messenger.transport.notify
-  messenger.transport.notify = async (...args) => { if (refuse) throw Object.assign(new Error('AI_GLOBAL_PAUSED'), { code: 'AI_GLOBAL_PAUSED' }); return notify(...args) }
   await messenger.askReadonly({ from: asker.id, target: owner.id, message: 'Q' })
+  // Refused before handover (admission check): still owed. A refusal after handover is not resent (test below).
+  messenger.admitWork = () => () => { if (refuse) throw Object.assign(new Error('AI_GLOBAL_PAUSED'), { code: 'AI_GLOBAL_PAUSED' }) }
   await callbacks.onAnswer('A.')
   await settle()
   assert.equal(notified.length, 0)
@@ -156,7 +156,72 @@ test('a failed relay stays owed and the next fork.sweep relays it once (fork-inq
   assert.deepEqual(await messenger.sweepForkNotices(), { relayed: 1, owed: 0 })
   assert.deepEqual(await messenger.sweepForkNotices(), { relayed: 0, owed: 0 })
   assert.equal(notified.length, 1)
-  assert.match(notified[0].text, /「Owner Bot（分身）」からあなたへ次のメッセージが届いています。\n\nA\.$/)
+  assert.match(notified[0].text, /「Owner Bot（分身）」からあなたへ次のメッセージが届いています。\n\nFORK_LATE: asked .+ JST, answered .+ JST, relayed \d+m later\. It shows the target's state at that time, not now\.\n\nA\.$/)
+})
+
+test('an admission-refused relay leaves no relay row, so a restarted process still owes it and relays it once', async t => {
+  let callbacks
+  const first = await setup(t, async (bot, text, options) => { callbacks = options; return { delivery: 'running' } })
+  await first.messenger.askReadonly({ from: asker.id, target: owner.id, message: 'Q' })
+  first.messenger.admitWork = () => () => { throw Object.assign(new Error('AI_GLOBAL_PAUSED'), { code: 'AI_GLOBAL_PAUSED' }) }
+  await callbacks.onAnswer('A.')
+  await settle()
+  assert.deepEqual(await first.messenger.sweepForkNotices(), { relayed: 0, owed: 1 })
+  assert.ok(!(await first.rows()).some(row => row.in_reply_to), 'no relay row, stopped or otherwise')
+  const notified = []
+  const restarted = new BellTeamMessenger({ bots: first.messenger.bots, logPath: first.messenger.store.logPath,
+    transport: { async notify(bot, text) { notified.push(text); return { delivery: 'running' } } } })
+  assert.deepEqual(await restarted.sweepForkNotices(), { relayed: 1, owed: 0 })
+  assert.deepEqual(await restarted.sweepForkNotices(), { relayed: 0, owed: 0 })
+  assert.equal(notified.length, 1)
+  assert.match(notified[0], /\n\nA\.$/)
+  assert.equal((await first.rows()).filter(row => row.in_reply_to === 'id-2').length, 1)
+})
+
+for (const recovery of ['resume', 'restart']) test(`a global stop during the relay preparation awaits leaves no relay row; ${recovery} relays it once`, async t => {
+  let callbacks, paused = false
+  const first = await setup(t, async (bot, text, options) => { callbacks = options; return { delivery: 'running' } })
+  // Like the real checker: captured at start, refuses if a stop happened since.
+  first.messenger.admitWork = () => () => { if (paused) throw Object.assign(new Error('AI_GLOBAL_PAUSED'), { code: 'AI_GLOBAL_PAUSED' }) }
+  await first.messenger.askReadonly({ from: asker.id, target: owner.id, message: 'Q' })
+  first.messenger.requireAccess = async () => { throw new Error('ACCESS_LOST') } // live relay lost before its row
+  await callbacks.onAnswer('A.')
+  await settle()
+  first.messenger.requireAccess = async () => { paused = true } // the stop lands inside prepareDirect's access await
+  assert.deepEqual(await first.messenger.sweepForkNotices(), { relayed: 0, owed: 1 })
+  assert.ok(!(await first.rows()).some(row => row.in_reply_to), 'no relay row after a stop during preparation')
+  paused = false
+  const sweeper = recovery === 'resume' ? (first.messenger.requireAccess = async () => {}, first.messenger)
+    : new BellTeamMessenger({ bots: first.messenger.bots, logPath: first.messenger.store.logPath, transport: { async notify() { return { delivery: 'running' } } } })
+  assert.deepEqual(await sweeper.sweepForkNotices(), { relayed: 1, owed: 0 })
+  assert.deepEqual(await sweeper.sweepForkNotices(), { relayed: 0, owed: 0 })
+  assert.equal((await first.rows()).filter(row => row.in_reply_to === 'id-2').length, 1)
+})
+
+test('a sweep relay says how old it is; overlapping sweeps relay it once; an error after handover is never resent', async t => {
+  const clock = ['2026-11-11T11:30:00.000Z']
+  let callbacks
+  const first = await setup(t, async (bot, text, options) => { callbacks = options; return { delivery: 'running' } })
+  first.messenger.now = () => clock[0]
+  await first.messenger.askReadonly({ from: asker.id, target: owner.id, message: 'Q' })
+  clock[0] = '2026-11-11T11:31:20.000Z'
+  first.messenger.requireAccess = async () => { throw new Error('AI_GLOBAL_PAUSED') } // relay lost before its row
+  await callbacks.onAnswer('Old answer.')
+  await settle()
+  // New process 10 h later: two ticks overlap while the first relay is still being handed over.
+  const notified = [], release = Promise.withResolvers()
+  const second = new BellTeamMessenger({ bots: first.messenger.bots, logPath: first.messenger.store.logPath, now: () => '2026-11-11T21:51:00.000Z',
+    transport: { async notify(bot, text) { notified.push(text); await release.promise; throw Object.assign(new Error('TIMEOUT'), { code: 'TIMEOUT' }) } } })
+  const a = second.sweepForkNotices()
+  await settle()
+  assert.deepEqual(await second.sweepForkNotices(), { relayed: 0, owed: 0 }, 'claimed by the sweep in flight')
+  release.resolve()
+  assert.deepEqual(await a, { relayed: 1, owed: 0 }, 'handed over: the relay row is the issued notice, the timeout is not resent')
+  assert.deepEqual(await second.sweepForkNotices(), { relayed: 0, owed: 0 })
+  assert.equal(notified.length, 1)
+  assert.match(notified[0], /\n\nFORK_LATE: asked 2026-11-11 20:30 JST, answered 2026-11-11 20:31 JST, relayed 10h20m later\. It shows the target's state at that time, not now\.\n\nOld answer\.$/)
+  const relayRows = (await first.rows()).filter(row => row.schema === 'bellteam.direct-message.v1' && row.in_reply_to === 'id-2')
+  assert.equal(relayRows.length, 1)
 })
 
 test('a new process sweeps inquiries the lost one left: saved answer, interrupted, never a refusal or a fork asker', async t => {

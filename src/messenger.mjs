@@ -106,6 +106,7 @@ export class BellTeamMessenger extends ConversationWriter {
     const prepared = await this.prepareDirect({ from, target, message }, {}, { seat, ...(fromSeat ? { from_seat: fromSeat } : {}) })
     const { check, bot, deliveryId } = prepared
     const asker = memberIdentity(this.bots, from)
+    const askedAt = this.now()
     if (!fromSeat) this.forkNotices.live.add(deliveryId)
     try { check() }
     catch (error) { this.forkNotices.live.delete(deliveryId); await this.appendDeliveryStatus(deliveryId, 'stopped'); throw error }
@@ -119,7 +120,7 @@ export class BellTeamMessenger extends ConversationWriter {
       if (relayed) return
       relayed = true
       if (fromSeat) return answered.resolve(text)
-      const notice = { from: bot.id, target: from, message: text, forkId, deliveryId }
+      const notice = { from: bot.id, target: from, message: text, forkId, deliveryId, askedAt, answeredAt: this.now() }
       return acceptance.promise
         .then(accepted => accepted && this.relayForkAnswer(notice))
         .then(() => this.forkNotices.live.delete(deliveryId), error => {
@@ -173,21 +174,34 @@ export class BellTeamMessenger extends ConversationWriter {
     }
     let relayed = 0
     for (const [deliveryId, notice] of [...notices.owed]) {
+      // Claim before relaying: an overlapping sweep iterating its own snapshot skips it.
+      if (!notices.owed.delete(deliveryId)) continue
       try {
-        await this.relayForkAnswer(notice)
-        notices.owed.delete(deliveryId); relayed++
+        await this.relayForkAnswer({ ...notice, message: lateForkNotice(notice, this.now()) })
+        relayed++
       } catch (error) {
-        // A deleted Bot can never be told; any other refusal is retried on the next sweep.
-        if (/^(SENDER|BOT)_NOT_FOUND/u.test(error.message ?? '')) notices.owed.delete(deliveryId)
-        else process.stderr.write(`BellTeam fork sweep error: ${error.code ?? String(error.message).split(':')[0]}\n`)
+        // Refused before handover. A deleted Bot can never be told; anything else is retried on the next sweep.
+        if (!/^(SENDER|BOT)_NOT_FOUND/u.test(error.message ?? '')) notices.owed.set(deliveryId, notice)
+        process.stderr.write(`BellTeam fork sweep error: ${error.code ?? String(error.message).split(':')[0]}\n`)
       }
     }
     return { relayed, owed: notices.owed.size }
   }
 
+  // Every refusal (admission, access, unknown Bot) comes before the relay row, so it throws and the notice stays owed,
+  // durably too: a restart's scan finds no relay row. Once the row exists the relay is handed over and never resent.
   async relayForkAnswer({ from, target, message, forkId, deliveryId }) {
+    const admission = this.admitWork()
+    admission()
     const label = { seat: { kind: 'fork', fork_id: forkId }, in_reply_to: deliveryId }
-    return this.notifyDirect(await this.prepareDirect({ from, target, message }, {}, label))
+    // prepareDirect runs admissionCheck after its awaits (refresh, access) and right before the row is appended.
+    const prepared = await this.prepareDirect({ from, target, message }, { admissionCheck: admission }, label)
+    prepared.check = () => {} // a check after the row would leave a stopped relay row that settles the inquiry
+    try { return await this.notifyDirect(prepared) }
+    catch (error) {
+      process.stderr.write(`BellTeam fork relay handed over with error: ${error.code ?? String(error.message).split(':')[0]}\n`)
+      return { delivery: 'unknown', delivery_id: prepared.deliveryId }
+    }
   }
 
   async receiveCallBridge({ event, session_id: sessionId, target_id: target, source_system: sourceSystem, source_id: sourceId, source_label: sourceLabel, message, reply_required: replyRequired = true, seq = null }) {
@@ -392,6 +406,17 @@ function validateImage(image) {
   if (typeof image.data !== 'string' || !/^[a-z0-9+/=]+$/iu.test(image.data)) throw new Error('IMAGE_INVALID')
 }
 
+// A sweep relay is late by definition: say when it was asked and answered, so it never reads as current.
+export function lateForkNotice({ message, askedAt, answeredAt }, now) {
+  const age = Math.max(0, Math.round((Date.parse(now) - Date.parse(answeredAt ?? askedAt)) / 60000))
+  const later = age >= 60 ? `${Math.floor(age / 60)}h${String(age % 60).padStart(2, '0')}m` : `${age}m`
+  return `FORK_LATE: asked ${jst(askedAt)}, answered ${answeredAt ? jst(answeredAt) : 'never'}, relayed ${later} later. It shows the target's state at that time, not now.\n\n${message}`
+}
+
+function jst(iso) {
+  return `${new Date(Date.parse(iso) + 9 * 3600000).toISOString().slice(0, 16).replace('T', ' ')} JST`
+}
+
 // An inquiry with a main asker and no relay row owes its notice. A post-accept failure saved its text as a fork
 // `error` row first; a failed/stopped inquiry without one was refused before accept (already the tool error).
 export function owedForkNotices(entries) {
@@ -399,17 +424,17 @@ export function owedForkNotices(entries) {
   for (const entry of entries) {
     if (entry.schema === 'bellteam.direct-message.v1' && typeof entry.in_reply_to === 'string') relayed.add(entry.in_reply_to)
     if (entry.schema === 'bellteam.interim-word.v1' && entry.seat?.kind === 'fork' && ['answer', 'error'].includes(entry.kind)
-      && !(entry.kind === 'error' ? failures : answers).has(entry.group_id)) (entry.kind === 'error' ? failures : answers).set(entry.group_id, entry.text)
+      && !(entry.kind === 'error' ? failures : answers).has(entry.group_id)) (entry.kind === 'error' ? failures : answers).set(entry.group_id, entry)
   }
   for (const entry of entries) {
     if (entry.schema !== 'bellteam.direct-message.v1' || entry.seat?.kind !== 'fork' || entry.in_reply_to || entry.from_seat
       || relayed.has(entry.delivery_id)) continue
-    const answer = answers.get(entry.delivery_id)
-    const message = answer !== undefined ? (answer.trim() ? answer : 'FORK_FAILED: NO_ANSWER')
-      : failures.has(entry.delivery_id) ? failures.get(entry.delivery_id)
+    const outcome = answers.get(entry.delivery_id) ?? failures.get(entry.delivery_id)
+    const message = outcome ? (outcome.text?.trim() ? outcome.text : 'FORK_FAILED: NO_ANSWER')
       : entry.delivery === 'delivered' ? 'FORK_FAILED: NO_ANSWER'
         : ['running', 'steered'].includes(entry.delivery) ? 'FORK_FAILED: INTERRUPTED' : null
-    if (message) owed.push({ from: entry.target, target: entry.from, message, forkId: entry.seat.fork_id, deliveryId: entry.delivery_id })
+    if (message) owed.push({ from: entry.target, target: entry.from, message, forkId: entry.seat.fork_id, deliveryId: entry.delivery_id,
+      askedAt: entry.at, ...(outcome ? { answeredAt: outcome.at } : {}) })
   }
   return owed
 }
