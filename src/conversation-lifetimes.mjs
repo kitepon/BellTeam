@@ -234,7 +234,8 @@ export class ConversationLifetimes {
     this.assertDelivery(lease)
     const result = {}
     for (const [name, kind, callback] of [
-      ['onStatus', 'delivery.status', (delivery, error, tracking) => this.invoke(lease, 'delivery.status', { delivery, error, tracking })],
+      ['onStatus', 'delivery.status', (delivery, error, tracking, { steered = false } = {}) => this.invoke(lease, 'delivery.status',
+        { delivery, error, tracking, ...(steered && delivery === 'delivered' ? { steered: true } : {}) })],
       ['onInterim', 'delivery.words', words => this.invoke(lease, 'delivery.words', { words })],
       ['onAnswer', 'delivery.answer', text => this.invoke(lease, 'delivery.answer', { text })],
       ['onTurnEnd', 'turn.end', ({ startedAt, endedAt }) => this.invoke(lease, 'turn.end', { startedAt, endedAt })],

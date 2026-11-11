@@ -159,3 +159,21 @@ test('delivery completion cannot be captured from an operation, forged token or 
     gate.finish(root); await tick()
   }
 })
+// Trony 2026-11-12: a steered input's final status stays 'delivered' and carries the additive steered:true; other statuses never do.
+test('onStatus passes steered:true only with the final delivered status', async () => {
+  const gate = new ConversationLifetimes(), sent = []
+  await gate.withLease(async lease => {
+    const delivery = register(gate, lease, { dispatch: async (kind, params) => { sent.push([kind, params]); return { applied: true } } })
+    const { onStatus } = gate.callbacks(delivery)
+    await onStatus('running', null, null, { steered: true })
+    await onStatus('delivered', null, null, { steered: true })
+    await onStatus('delivered')
+    gate.finish(delivery)
+    return { accepted: true }
+  })
+  assert.deepEqual(sent.map(([, params]) => params), [
+    { delivery: 'running', error: null, tracking: null },
+    { delivery: 'delivered', error: null, tracking: null, steered: true },
+    { delivery: 'delivered', error: undefined, tracking: undefined },
+  ])
+})

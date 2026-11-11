@@ -307,6 +307,24 @@ test('起こしている途中の席へ次の文が重なっても、前の送�
   assert.deepEqual(calls.filter(([name]) => name === 'pty_send').map(([, args]) => args.text), ['1通目', '1通目', '2通目'].map(text => text))
 })
 
+// Trony 2026-11-12: a steered input ends 'delivered' with steered:true; the input that started the turn ends plain 'delivered'.
+test('差し込んだ文の最終statusはdeliveredのままsteered:trueを添え、ターンを始めた文には添えない', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'bellteam-steered-status-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const { client } = wakingClaudeClient()
+  let finish
+  const done = new Promise(resolve => { finish = resolve })
+  const transport = new AitermTransport({ client, handoffContext: async () => '', waitProcess: async () => { await done; return { outcome: 'done' } } })
+  const bot = { id: 'bot-a', session: 'bot-a', harness: 'claude', project: root }
+  const first = [], second = []
+  assert.deepEqual(await transport.notify(bot, '1通目', { onStatus: (...args) => { first.push(args) } }), { delivery: 'running' })
+  assert.deepEqual(await transport.notify(bot, '2通目', { onStatus: (...args) => { second.push(args) } }), { delivery: 'steered' })
+  finish()
+  await transport.idle(bot.id)
+  assert.deepEqual(first.at(-1), ['delivered'])
+  assert.deepEqual(second.at(-1), ['delivered', null, null, { steered: true }])
+})
+
 test('前の送信が失敗しても、同じ席への次の送信は止めない', async () => {
   let sends = 0
   const transport = new AitermTransport({
