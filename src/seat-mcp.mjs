@@ -1,12 +1,13 @@
 // 席のCLIがHTTPでつなぐMCPの入口。supervisorの内部入口（loopback）だけで開く。
 // 席ごとにnodeを起こさないよう、bellteamの道具と通話ブリッジへの中継をここで受ける。
+import { createHash, randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { createServer, request as httpRequest } from 'node:http'
 import { request as httpsRequest } from 'node:https'
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { CallToolRequestSchema, ListToolsRequestSchema, isInitializeRequest } from '@modelcontextprotocol/sdk/types.js'
 
 import { bellTeamTools, callBellTeamTool, forkWritesProject } from './mcp-tools.mjs'
 import { readJson } from './http-response.mjs'
@@ -22,6 +23,11 @@ export const BELLTEAM_MCP_PATH = '/mcp'
 export const CALL_BRIDGE_MCP_PATH = '/mcp/call-bridge'
 export const CALLER_ID_HEADER = 'X-Call-Bridge-Caller-Id'
 export const REMOTE_SEAT_MCP_PATH = '/api/seat-mcp'
+
+// SM06: the tool list is frozen per process, so its digest changes only with a body restart (integration README C5).
+export const SEAT_TOOLS_DIGEST = createHash('sha256').update(JSON.stringify(bellTeamTools)).digest('hex')
+// SM07: idle sessions are closed on the next initialize.
+export const SEAT_SESSION_IDLE_MS = 6 * 60 * 60 * 1000
 
 const INSTRUCTIONS = 'BellTeamのBot、プロフィール、アバター、予定、直接会話、ルーム、長期記憶、RAGはこのMCPで扱う。セキュリティの問題（SEC番号の所見）の一覧・詳細・登録・編集・完了・再開は、bughub_で始まる道具でBugHubへ記録する。'
 
@@ -148,8 +154,42 @@ export function internalApi(port, request = fetch, { executionSource } = {}) {
 
 // tools: callBellTeamTool へ渡す依存（台帳・配送・記憶など）。callBridge: () => ({ url, headersFile }) または null。
 // forkSeat(sessionName) -> {botId, forkId} | null: execution's live registry of local fork seats (SK01).
-export function createSeatMcp({ bots, tools, toolsForSource = () => ({}), runTool = (_from, operation) => operation(), callBridge = () => null, assertWorkAllowed = () => {}, admitWork = () => assertWorkAllowed, forkSeat = () => null }) {
+export function createSeatMcp({ bots, tools, toolsForSource = () => ({}), runTool = (_from, operation) => operation(), callBridge = () => null, assertWorkAllowed = () => {}, admitWork = () => assertWorkAllowed, forkSeat = () => null, now = Date.now }) {
   const relays = new Set()
+  // SM01: session id -> { transport, seat, lastSeen }; memory only, so a body restart empties it (SM03).
+  const sessions = new Map()
+  const createServer = ({ from, fork, executionSource }) => {
+    const scopedTools = { ...tools, ...toolsForSource(executionSource), fork: Boolean(fork) }
+    const server = new Server({ name: 'bellteam', version: '0.1.0' }, { capabilities: { tools: { listChanged: true },
+      experimental: { 'ai.bellteam/tools.v1': { digest: SEAT_TOOLS_DIGEST },
+        ...(scopedTools.configureFromMcp ? { 'ai.aiterm/handoff.v1': { version: 1, tools: ['update_self'] } } : {}) },
+    }, instructions: INSTRUCTIONS })
+    // SK04: a fork lists every tool; only a call that writes inside a Bot project folder is refused.
+    server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: bellTeamTools }))
+    server.setRequestHandler(CallToolRequestSchema, async (call, fullExtra) => {
+      if (fork && forkWritesProject(call.params.name, call.params.arguments)) throw new Error(`FORK_PROJECT_WRITE_REFUSED: ${call.params.name}`)
+      let handoffMetadata = null
+      const configure = scopedTools.configureFromMcp ? async (botId, changes) => {
+        const result = await scopedTools.configureFromMcp(botId, changes, {
+          schema: 'bellteam.mcp-configuration-ingress.v1', actor: { kind: 'bot', botId: from },
+          toolName: call.params.name, originalMcpRequestId: fullExtra.requestId,
+          expectedLaunch: executionSource.source.launch,
+          nativeCall: call.params._meta?.['ai.aiterm/handoff.v1'] ?? null,
+          signal: fullExtra.signal, budget: null,
+        })
+        handoffMetadata = result.handoffMetadata
+        return result.value
+      } : scopedTools.configure
+      const value = await runTool(from, () => callBellTeamTool({ ...scopedTools, configure, name: call.params.name, arguments: call.params.arguments, from }))
+      return { content: [{ type: 'text', text: JSON.stringify(value) }],
+        ...(handoffMetadata && !fullExtra.signal.aborted ? { _meta: { 'ai.aiterm/handoff.v1': handoffMetadata } } : {}),
+      }
+    })
+    return server
+  }
+  const closeIdle = () => {
+    for (const [id, session] of sessions) if (now() - session.lastSeen > SEAT_SESSION_IDLE_MS) { sessions.delete(id); session.transport.close().catch(() => {}) }
+  }
   // fork: {botId} from a remote fork credential (SK03); otherwise the local registry is asked first (SK01).
   const handle = async (request, response, url, fork = null) => {
     if (url.pathname !== BELLTEAM_MCP_PATH && url.pathname !== CALL_BRIDGE_MCP_PATH) return reply(response, 404, { error: 'NOT_FOUND' })
@@ -173,41 +213,40 @@ export function createSeatMcp({ bots, tools, toolsForSource = () => ({}), runToo
       catch (error) { return reply(response, error.status ?? 502, { error: error.code ?? 'CALL_BRIDGE_UNAVAILABLE' }) }
       return relayCallBridge(request, response, { from, callBridge, relays, assertWorkAllowed: check })
     }
-    if (request.method !== 'POST') return reply(response, 405, { error: 'METHOD_NOT_ALLOWED' }, { allow: 'POST' })
     const executionSource = fork ? forkExecutionSource(request) : seatExecutionSource(request, bots)
-    const scopedTools = { ...tools, ...toolsForSource(executionSource), fork: Boolean(fork) }
-    const server = new Server({ name: 'bellteam', version: '0.1.0' }, { capabilities: { tools: {},
-      ...(scopedTools.configureFromMcp ? { experimental: { 'ai.aiterm/handoff.v1': { version: 1, tools: ['update_self'] } } } : {}),
-    }, instructions: INSTRUCTIONS })
-    // SK04: a fork lists every tool; only a call that writes inside a Bot project folder is refused.
-    server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: bellTeamTools }))
-    server.setRequestHandler(CallToolRequestSchema, async (call, fullExtra) => {
-      if (fork && forkWritesProject(call.params.name, call.params.arguments)) throw new Error(`FORK_PROJECT_WRITE_REFUSED: ${call.params.name}`)
-      let handoffMetadata = null
-      const configure = scopedTools.configureFromMcp ? async (botId, changes) => {
-        const result = await scopedTools.configureFromMcp(botId, changes, {
-          schema: 'bellteam.mcp-configuration-ingress.v1', actor: { kind: 'bot', botId: from },
-          toolName: call.params.name, originalMcpRequestId: fullExtra.requestId,
-          expectedLaunch: executionSource.source.launch,
-          nativeCall: call.params._meta?.['ai.aiterm/handoff.v1'] ?? null,
-          signal: fullExtra.signal, budget: null,
-        })
-        handoffMetadata = result.handoffMetadata
-        return result.value
-      } : scopedTools.configure
-      const value = await runTool(from, () => callBellTeamTool({ ...scopedTools, configure, name: call.params.name, arguments: call.params.arguments, from }))
-      return { content: [{ type: 'text', text: JSON.stringify(value) }],
-        ...(handoffMetadata && !fullExtra.signal.aborted ? { _meta: { 'ai.aiterm/handoff.v1': handoffMetadata } } : {}),
-      }
-    })
-    // 接続ごとの状態を持たない。要求ごとに受け口を作り、応答を返したら閉じる。
+    // The session belongs to the seat that opened it: same seat name, Bot and fork.
+    const seat = JSON.stringify([request.headers[SEAT_HEADER.toLowerCase()] ?? null, from, fork?.forkId ?? fork?.botId ?? null])
+    const sessionId = request.headers['mcp-session-id']
+    if (typeof sessionId === 'string') {
+      const session = sessions.get(sessionId)
+      // SM03: unknown (body restarted, closed) or another seat's id -> 404; the client initializes again and re-lists.
+      if (!session || session.seat !== seat) return reply(response, 404, { jsonrpc: '2.0', error: { code: -32001, message: 'Session not found' }, id: null })
+      session.lastSeen = now()
+      return session.transport.handleRequest(request, response, request.method === 'POST' ? await readBody(request) : undefined)
+    }
+    if (request.method !== 'POST') return reply(response, 405, { error: 'METHOD_NOT_ALLOWED' }, { allow: 'POST' })
+    const body = await readBody(request)
+    const server = createServer({ from, fork, executionSource })
+    if (isInitializeRequest(body)) {
+      // SM01: a session per initialize.
+      closeIdle()
+      const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: randomUUID, enableJsonResponse: true,
+        onsessioninitialized: id => { sessions.set(id, { transport, seat, lastSeen: now() }) } })
+      transport.onclose = () => { if (transport.sessionId) sessions.delete(transport.sessionId); server.close().catch(() => {}) }
+      await server.connect(transport)
+      return transport.handleRequest(request, response, body)
+    }
+    // SM04: a seat connected before sessions existed keeps the stateless path: one server per request.
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true })
     response.once('close', () => { server.close().catch(() => {}) })
     await server.connect(transport)
-    await transport.handleRequest(request, response, await readBody(request))
+    await transport.handleRequest(request, response, body)
   }
-  // 中継の流れは自分からは終わらない。本体を止める時にここで終える（CLIは再接続する）。
-  handle.close = () => { for (const end of relays) end() }
+  // 中継の流れは自分からは終わらない。本体を止める時にここで終える（CLIは再接続する）。セッションのSSEも閉じる（SM07）。
+  handle.close = () => {
+    for (const end of relays) end()
+    for (const [id, session] of sessions) { sessions.delete(id); session.transport.close().catch(() => {}) }
+  }
   return handle
 }
 

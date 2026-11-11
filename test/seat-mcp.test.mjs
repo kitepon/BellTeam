@@ -10,7 +10,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 
 import { createBellTeamServer } from '../src/http-server.mjs'
-import { SEAT_HEADER, createSeatMcp, internalApi } from '../src/seat-mcp.mjs'
+import { SEAT_HEADER, SEAT_SESSION_IDLE_MS, SEAT_TOOLS_DIGEST, createSeatMcp, internalApi } from '../src/seat-mcp.mjs'
 
 const registry = () => Object.assign(new Map([['bot-a', { id: 'bot-a', name: 'A' }], ['bot-b', { id: 'bot-b', name: 'B' }]]), { async refresh() {} })
 
@@ -203,4 +203,49 @@ test('道具が使う本体のAPIは、内部入口の同じ経路を呼ぶ', as
     ['http://127.0.0.1:4181/api/bots/bot-a', 'PATCH', '{"model":"m"}'],
     ['http://127.0.0.1:4181/api/bots/bot-a', 'DELETE', undefined],
   ])
+})
+
+// integration README C5 (SM01-SM04, SM06): sessions let a seat that outlives a body restart re-list tools.
+test('初期化した席はセッションを持ち、本体の再起動後と別の席のidは404で初期化し直させる', async t => {
+  const bots = registry()
+  let current = createSeatMcp({ bots, tools: { registry: bots } })
+  const base = await listen(t, createBellTeamServer({ bots, authorize: async () => true, messenger: {}, transport: {}, store: {}, internal: true, seatMcp: Object.assign((...args) => current(...args), { close: () => current.close() }) }))
+  const client = await connect(t, `${base}/mcp`, 'bot-a')
+  const sessionId = client.transport.sessionId
+  assert.match(sessionId, /^[0-9a-f-]{36}$/u)
+  assert.equal(client.getServerCapabilities().tools.listChanged, true)
+  assert.equal(client.getServerCapabilities().experimental['ai.bellteam/tools.v1'].digest, SEAT_TOOLS_DIGEST)
+  assert.equal(JSON.parse((await client.callTool({ name: 'get_self', arguments: {} })).content[0].text).bot.id, 'bot-a')
+  const post = (seat, id) => fetch(`${base}/mcp`, { method: 'POST', body: JSON.stringify({ jsonrpc: '2.0', id: 9, method: 'tools/list' }),
+    headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2025-06-18', [SEAT_HEADER]: seat, ...(id ? { 'mcp-session-id': id } : {}) } })
+  assert.equal((await post('bot-a', sessionId)).status, 200)
+  // Another seat cannot use the id.
+  const foreign = await post('bot-b', sessionId)
+  assert.equal(foreign.status, 404)
+  assert.equal((await foreign.json()).error.code, -32001)
+  // SM04: no id and not initialize = the stateless path of seats connected before sessions.
+  assert.equal((await post('bot-b')).status, 200)
+  // A body restart: a new handle has no sessions.
+  current.close()
+  current = createSeatMcp({ bots, tools: { registry: bots } })
+  assert.equal((await post('bot-a', sessionId)).status, 404)
+  const again = await connect(t, `${base}/mcp`, 'bot-a')
+  assert.notEqual(again.transport.sessionId, sessionId)
+  assert.ok((await again.listTools()).tools.some(tool => tool.name === 'lattice'))
+})
+
+test('6時間要求の無いセッションは、次の初期化で閉じる', async t => {
+  const bots = registry()
+  let clock = 0
+  const base = await internalServer(t, createSeatMcp({ bots, tools: { registry: bots }, now: () => clock }))
+  const headers = { 'content-type': 'application/json', accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2025-06-18', [SEAT_HEADER]: 'bot-a' }
+  const initialize = { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '0' } } }
+  // A raw initialize opens no GET stream, so lastSeen stays at the clock of this request.
+  const opened = await fetch(`${base}/mcp`, { method: 'POST', headers, body: JSON.stringify(initialize) })
+  const sessionId = opened.headers.get('mcp-session-id')
+  assert.ok(sessionId)
+  clock = SEAT_SESSION_IDLE_MS + 1
+  assert.equal((await fetch(`${base}/mcp`, { method: 'POST', headers: { ...headers, [SEAT_HEADER]: 'bot-b' }, body: JSON.stringify(initialize) })).status, 200)
+  const response = await fetch(`${base}/mcp`, { method: 'POST', body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' }), headers: { ...headers, 'mcp-session-id': sessionId } })
+  assert.equal(response.status, 404)
 })
