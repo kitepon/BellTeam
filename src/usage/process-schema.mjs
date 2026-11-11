@@ -8,6 +8,7 @@ const id = value => text(value) && value.length <= 200
 const feature = value => ['routing', 'callBridge', 'cloudflare', 'diagnostics', 'notifications', 'webPush', 'onePassword'].includes(value)
 const harness = value => Object.hasOwn(HARNESS, value)
 const accountSlot = value => ['1st', '2nd'].includes(value)
+export const terminalOs = value => ['macos', 'linux', 'windows'].includes(value)
 const none = value => object(value) && Object.keys(value).length === 0
 const shape = (required, optional = {}) => value => object(value)
   && Object.keys(value).every(key => Object.hasOwn(required, key) || Object.hasOwn(optional, key))
@@ -39,7 +40,8 @@ export const usageMethods = {
   'auth.input': spec(shape({ harness, input: object }, { slot: accountSlot }), kinds.owner),
   'auth.cancel': spec(shape({ harness }, { slot: accountSlot }), kinds.owner),
   'secrets.create': spec(shape({ toolId: text, label: text, message: text }, { roomId: value => value === null || id(value), oneTime: value => typeof value === 'boolean' }), kinds.bot),
-  'secrets.requestTerminalKey': spec(shape({ terminalId: id, purpose: text, label: text }), kinds.system),
+  'secrets.requestTerminalKey': spec(value => shape({ terminalId: id, purpose: text, label: text }, { os: terminalOs })(value)
+    && (!Object.hasOwn(value, 'os') || value.purpose === 'terminal.login'), kinds.system),
   'secrets.current': spec(shape({ scope: credentialScopeValid }), kinds.system),
   'secrets.unbind': spec(shape({ handle: id, scope: credentialScopeValid }), kinds.system),
   'secrets.revokeTerminalRequests': spec(shape({ scope: credentialScopeValid }), kinds.system),
