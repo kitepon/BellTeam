@@ -80,6 +80,7 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
   const listeners = new Set()
   const generations = new Map() // terminalId -> registry-change count; a target read across a change is stale
   const operations = new Set() // in-flight target/check runs, awaited by dispose
+  const lastChecks = new Map() // terminalId -> last current-revision check {reachable, reason, action?, checkedAt}; in memory
   let disposed = false
 
   function emitAvailable(terminalId) {
@@ -269,13 +270,17 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
     const record = await registry.target(terminalId).catch(() => null)
     if (!current()) return { ...observation, reason: 'TERMINAL_UNAVAILABLE' }
     if (!record) return { ...observation, reason: 'TERMINAL_NOT_FOUND' }
+    let result
     try {
       const binding = await resolveBinding(record, null)
       await withProcess(record, binding, async () => {}, current)
-      return { ...observation, reachable: true }
+      result = { ...observation, reachable: true }
     } catch (error) {
-      return { ...observation, reason: error.reason ?? error.code, ...(error.action ? { action: error.action } : {}) }
+      result = { ...observation, reason: error.reason ?? error.code, ...(error.action ? { action: error.action } : {}) }
     }
+    // A check that crossed a registry change describes the old record; only a current one becomes lastCheck.
+    if (current()) lastChecks.set(terminalId, { reachable: result.reachable, reason: result.reason, ...(result.action ? { action: result.action } : {}), checkedAt: result.observedAt })
+    return result
   }
 
   // The OS is known only after the registry read: any OS form passes here, onFolder rechecks it against the terminal's os.
@@ -370,6 +375,7 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
   // Registry change: targets handed out before it are stale; execution re-targets on the available event.
   function onRegistryChange({ terminalId, removed }) {
     generations.set(terminalId, (generations.get(terminalId) ?? 0) + 1)
+    lastChecks.delete(terminalId)
     if (removed) { clearTimeout(wanted.get(terminalId)?.timer); wanted.delete(terminalId); return }
     emitAvailable(terminalId)
   }
@@ -392,6 +398,7 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
     // Kiro #765: arms the same observer after Aiterm's launch answered a connectivity code; its exit is the available event.
     observe(terminalId) { if (typeof terminalId === 'string') want(terminalId) },
     onAvailable(listener) { listeners.add(listener); return () => listeners.delete(listener) },
+    lastCheck: terminalId => structuredClone(lastChecks.get(terminalId) ?? null),
     maintenance: { last: (terminalId, harness = 'claude-code') => structuredClone(maintenance.get(`${terminalId}\0${harness}`) ?? null) },
     onRegistryChange,
     onCredentialEvent,

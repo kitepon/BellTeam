@@ -51,7 +51,7 @@ Proposed durable store: `<stateRoot>/terminals.json`, one terminals-owned writer
 | `accountOwner` | Target account domain: product Owner or that terminal's owner; set with registration, never inferred from a host name. Other people's machines cannot receive the product Owner's Claude credentials |
 | `sshKeyRef`, optional `sudoKeyRef` | Opaque handles issued by Mika's secret input. Mika retains the underlying `op://<vault id>/<item id>/<field>` or stored-value reference. Terminals never stores the resolved value or parses/resolves `op://` itself |
 | Trusted SSH host identity and target revision | Nonsecret known-host identity for the registered host; target/key-reference changes invalidate cached connections. Registration/bootstrap of that identity is part of C3 below; a scan alone is not trusted identity |
-| Last reachability observation | In-memory `{terminalId, observedAt, reachable, reason}`; a past success is not current readiness or CLI startup proof |
+| Last reachability observation | In-memory per terminal, on list/get as `lastCheck` `{reachable, reason, action?, checkedAt}` or null ([last check](#last-check-on-the-list-trony-request-2026-11-11)); a past success is not current readiness or CLI startup proof |
 | Live connection resources | Owned by terminals; underlying remote PTY/native resources owned by Aiterm. Execution holds an opaque scoped reference, never an SSH key or a mutable registry object |
 | Sudo-use receipts | `<stateRoot>/terminal-sudo.jsonl`: terminal/member/seat identity, operation correlation, requested/started/completed timestamps, outcome. No secret, stdin, environment or arbitrary command/output body. Record every use, including failure; record audit failure separately without pretending no use occurred |
 
@@ -160,6 +160,8 @@ flowchart LR
   Conn -->|any of the 5 harnesses: C8 cli_version, cli_update or cli_install, then cli_auth_status for codex-cli/grok-cli, each with harness; claude-code keeps claude_*| Proc[remote-process.mjs: transient aiterm-remote-terminal serve]
   Exec -->|observe terminalId after a launch connectivity failure| Probe
   Probe[non-AI availability observer: check retry] --> Conn
+  Core -->|self-check at start + after each registry change, observation only| Conn
+  Conn -->|lastCheck per terminal, in memory| Core
   Conn -->|check: open then close| Proc
   Proc --> Mac
   Mika -->|watchCredentials available| Conn
@@ -171,13 +173,13 @@ flowchart LR
 | Port (`provides`) | P1 method | Result / classified failure |
 | --- | --- | --- |
 | mount | `createTerminalsCore({stateRoot, credentials, report, seatProject?})`, exported from `src/bootstrap.mjs` | `{registry, reachability, connection, maintenance, watch, close}`; `credentials` may be null until Mika's facade lands (targets are then `CREDENTIAL_UNAVAILABLE`). An extra `seatCredentials` option from the mount is ignored (no secret passes through terminals any more) |
-| `registry` | `list()`, `get(id)` (null if absent), `put(input)`, `remove(id)`; `ingressUrl` removed (Molly #793: seat MCP target is the container origin Aiterm rewrites; a legacy stored value is dropped on read, an input value is rejected) | Nonsecret projection with `maintenance` (last `claude-code` C8 outcome or null, in memory; shape unchanged for Web/Apple); errors `{code, status, message}`: `INVALID_TERMINAL` 400, `TERMINAL_NOT_FOUND` 404, `TERMINAL_EXISTS` 409, `HOST_KEY_FINGERPRINT_MISMATCH` 409, `INVALID_TERMINAL_STORE` 500. Messages name the field, its expected form and the next action, and never echo the submitted value |
+| `registry` | `list()`, `get(id)` (null if absent), `put(input)`, `remove(id)`; `ingressUrl` removed (Molly #793: seat MCP target is the container origin Aiterm rewrites; a legacy stored value is dropped on read, an input value is rejected) | Nonsecret projection with `lastCheck` (last check or null, in memory; see [last check](#last-check-on-the-list-trony-request-2026-11-11)) and `maintenance` (last `claude-code` C8 outcome or null, in memory; shape unchanged for Web/Apple); errors `{code, status, message}`: `INVALID_TERMINAL` 400, `TERMINAL_NOT_FOUND` 404, `TERMINAL_EXISTS` 409, `HOST_KEY_FINGERPRINT_MISMATCH` 409, `INVALID_TERMINAL_STORE` 500. Messages name the field, its expected form and the next action, and never echo the submitted value |
 | `registry` | `put({..., confirmHostKey: 'SHA256:...'})` | Owner's "confirm the new host key" (only after a changed key): Aiterm's `trust-confirm` scans once and writes only on an equal fingerprint, then the new trust revision is stored. Without it, a record with no trust gets first-use trust (below) |
 | first-use trust (accept-new) | save, SSH key applied, `check` — whenever the record has a binding and no `hostTrust` | Like OpenSSH `StrictHostKeyChecking accept-new` (Owner ruling 2026-11-11): bind the trust Aiterm already holds for the binding (never overwritten); if none, `ssh-keyscan -t ed25519` the target once, pass that fingerprint to `trust-confirm` (Aiterm's own scan must be equal) and store the revision. Scan or confirm failure leaves `hostTrust` missing (next save/check retries). Only a later key change stops (`HOST_KEY_MISMATCH` -> `TARGET_MISMATCH`, the Owner confirms the new key) |
 | `connection` | `target({terminalId, memberId, projectRoot, harness})` | `{terminal: {ref, target: {host, user, port}, trustRevision, credentialRevision}, cwd: projectRoot, accountOwner: 'owner' / 'terminal-owner'}`. Execution passes `terminal` + `cwd` unchanged to Aiterm's launch and applies the Owner's 1st/2nd slot login only when `accountOwner === 'owner'`. Or `{code, effect:'not_started', reason?, action?}` with code `TERMINAL_UNAVAILABLE` / `CREDENTIAL_UNAVAILABLE` / `TARGET_MISMATCH` / `AGENT_AUTH_REQUIRED` (C8 `cli_auth_status` answered logged-out for `codex-cli` / `grok-cli`; carries `launchRefusal` in Aiterm's own launch-refusal shape, phase `input`, so execution reads it like Aiterm's refusal; exit = the member's next drain, see C8) |
 | `connection` | `observe(terminalId)` (no result) | Execution calls it when Aiterm's launch, after a successful `target`, answers a connectivity code (`UNREACHABLE`, `SEAT_FORWARD_UNAVAILABLE`, `HOST_TRUST_STALE`, `CREDENTIAL_*`, `TERMINAL_UNAVAILABLE`). Arms the same non-AI observer as a failed `target` (same backoff, idempotent while armed, `TERMINAL_NOT_FOUND` ends it, inert after dispose); its exit is the `available` event. `HOST_KEY_MISMATCH` / `TARGET_MISMATCH` wait for the registry-change edge instead |
 | `connection` | `onAvailable(listener)` -> unsubscribe | `listener({terminalId})` when the terminal is usable again (core republishes it on `watch`) |
-| `reachability` | `check(terminalId)` | `{terminalId, observedAt, reachable, reason, action?}`; opens and closes one transient remote process, never launches |
+| `reachability` | `check(terminalId)` | `{terminalId, observedAt, reachable, reason, action?}`; opens and closes one transient remote process, never launches. Every check on the current record (press, observer, self-check) becomes that terminal's `lastCheck` |
 | `maintenance` (C8) | `last(terminalId, harness = 'claude-code')` | `{terminalId, harness, observedAt, before, after, outcome:'current'/'updated'/'failed', loggedIn: true/false/null}` (`loggedIn` is null for harnesses Aiterm checks itself at launch) |
 | watch | `watch(listener)` | `{terminalId, reachable, observedAt}` for execution's pending drain and Molly's surfaces |
 
@@ -484,3 +486,18 @@ flowchart LR
 | Web (Admi) / Apple (Rapi) / Windows app (Anis) | OS choice at registration; texts from `action`; Apple must decode `os` linux/windows without breaking. The Windows app adds this PC itself and attests its host key ([Self-service registration](#self-service-registration-and-assignment-trony-request-2026-11-10-design)). |
 
 User steps (public, standard Docker/Host): Windows: enable OpenSSH Server and start `sshd` (Automatic); Linux: install `openssh-server`, `systemctl enable --now ssh`. Then in BellTeam Web 端末: add (OS, host, user, port) -> confirm the host key fingerprint -> 「この端末にこの鍵を入れる」 with the login password -> 確かめる -> member: this terminal, folder from 「フォルダを選ぶ」, harness Claude Code. Claude Code itself is installed and kept current by C8; the Owner's account login is supplied by execution's slot (accountOwner owner).
+
+## Last check on the list (Trony request 2026-11-11)
+
+Owner order 11/11 (settings redesign): each item shows its state without a press. Web (Admi, W82) and Apple (Rapi, B6) read the server's last check instead of a result held only in the screen that pressed 届くか確かめる. Overall DFD RT23.
+
+| Item | Contract |
+| --- | --- |
+| Field | `lastCheck` on every `registry.list()` / `get()` item (HTTP `GET /api/terminals`, `GET /api/terminals/:id`, MCP `list_terminals`). Additive; no other field changes |
+| Shape | `null` = 未確認 (never checked since start, or the record changed since). Otherwise `{reachable: true, reason: null, checkedAt}` = つながる, `{reachable: false, reason, action?, checkedAt}` = つながらない. `reason`/`action` are the same as `check`'s (MCP `check_terminal` list). `checkedAt` is ISO UTC, equal to that check's `observedAt` |
+| Recorded by | `connection.check` itself: the Owner's press (`POST /api/terminals/:id/check`, `check_terminal`), the non-AI observer after a launch failure, and the server's own check. A check that crossed a registry change is not recorded (it describes the old record) |
+| Server's own check | Once per registered terminal after start (after key reconciliation), and once after each registry change of that terminal (register, edit, key, trust). Coalesced per terminal: a change during a running self-check runs one more after it. Observation only: no first-use trust, no `watch` event; the press keeps both. No timer, no AI wake |
+| Cleared | A registry change (and removal) drops the old result at once (`null`) until the self-check ends; a server restart starts every terminal at `null` (in memory only; nothing new on disk) |
+| Not claimed | `lastCheck` is a past observation: a later sleep shows only on the next check. A screen shows `checkedAt` with it. A press still returns the fresh observation directly |
+
+State: `null` --start or registry change--> self-check --> `{reachable, ...}`; any later check on the current record --> new `{reachable, ...}`; registry change --> `null` (and one self-check). No guard: nothing is refused or stopped.

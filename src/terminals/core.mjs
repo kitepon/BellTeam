@@ -15,7 +15,7 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
   let remote = adapter
   const native = () => (remote ??= createRemoteTerminalProcesses({ project: seatProject }))
 
-  const registry = createTerminalRegistry({ stateRoot, onChange: event => connection.onRegistryChange(event) })
+  const registry = createTerminalRegistry({ stateRoot, onChange: event => { connection.onRegistryChange(event); if (!event.removed) recheck(event.terminalId) } })
   const secrets = {
     withResolved(handle, context, consume) {
       if (typeof credentials?.withResolved !== 'function') throw Object.assign(new Error('Credential input unavailable'), { code: 'CREDENTIAL_UNAVAILABLE' })
@@ -259,11 +259,29 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
     return observation
   }
 
+  // Server's own check (Trony 11/11 settings redesign): once per terminal at start and after each registry change,
+  // so lastCheck shows state without a press. No timer: later changes come from checks that run anyway (press, launch observer).
+  const rechecks = new Map() // terminalId -> true when another change arrived while its self-check ran
+  function recheck(terminalId) {
+    if (closing) return
+    if (rechecks.has(terminalId)) return void rechecks.set(terminalId, true)
+    rechecks.set(terminalId, false)
+    // Observation only: no first-use trust and no watch event, so a save keeps its own trust/key flow.
+    const work = connection.check(terminalId).catch(() => {}).finally(() => {
+      const again = rechecks.get(terminalId)
+      rechecks.delete(terminalId)
+      if (again) recheck(terminalId)
+    })
+    inflight.add(work)
+    work.finally(() => inflight.delete(work))
+  }
+
   // In-memory observations ride on the projection so existing surfaces show them.
-  const withMemory = item => ({ ...item, maintenance: connection.maintenance.last(item.terminalId),
+  const withMemory = item => ({ ...item, lastCheck: connection.lastCheck(item.terminalId), maintenance: connection.maintenance.last(item.terminalId),
     keyAuthorizationPending: logins.has(item.terminalId), keyAuthorization: structuredClone(authorizations.get(item.terminalId) ?? null) })
 
   const ready = reconcileKeys().catch(() => {})
+  ready.then(() => registry.list()).then(items => { for (const item of items) recheck(item.terminalId) }).catch(() => {})
   return {
     // C8 outcome rides on the projection so existing surfaces show it (Centi's acceptance reads it there).
     registry: {

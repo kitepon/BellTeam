@@ -188,12 +188,23 @@ test('core mounts registry put/enroll, watch and target-mismatch reporting', asy
   assert.equal(created.hostTrust.revision, `sha256:${'b'.repeat(64)}`, 'binds the trust Aiterm already holds')
   assert.deepEqual(native.calls[0], { op: 'trust', ref: `native-${sshKeyRef}` })
   await core.registry.put({ terminalId: 'owner-macbook', confirmHostKey: fingerprint })
-  assert.deepEqual(native.calls[1], { op: 'confirmHostKey', ref: `native-${sshKeyRef}`, fingerprint })
+  assert.deepEqual(native.calls.find(call => call.op === 'confirmHostKey'), { op: 'confirmHostKey', ref: `native-${sshKeyRef}`, fingerprint })
   assert.equal(created.sshKeyConfigured, true)
   assert.equal((await core.registry.get('owner-macbook')).maintenance, null)
   assert.equal('sshKeyRef' in created, false)
   assert.deepEqual(events.map(event => [event.terminalId, event.reachable]), [['owner-macbook', true], ['owner-macbook', true]], 'each registry revision publishes availability')
-  assert.equal((await core.reachability.check('owner-macbook')).reachable, true)
+  const checked = await core.reachability.check('owner-macbook')
+  assert.equal(checked.reachable, true)
+  assert.deepEqual((await core.registry.get('owner-macbook')).lastCheck, { reachable: true, reason: null, checkedAt: checked.observedAt }, 'the last check rides on the projection')
+  native.connectError = Object.assign(new Error('x'), { code: 'UNREACHABLE' })
+  const asleep = await core.reachability.check('owner-macbook')
+  assert.deepEqual((await core.registry.list())[0].lastCheck, { reachable: false, reason: 'UNREACHABLE', action: asleep.action, checkedAt: asleep.observedAt })
+  native.connectError = undefined
+  await core.registry.put({ terminalId: 'owner-macbook', accountOwner: 'terminal-owner' })
+  await wait(5)
+  assert.equal((await core.registry.get('owner-macbook')).lastCheck.reachable, true, 'the server re-checks the changed terminal on its own')
+  await core.registry.put({ terminalId: 'owner-macbook', accountOwner: 'owner' })
+  await wait(5)
 
   native.connectError = Object.assign(new Error('x'), { code: 'HOST_KEY_MISMATCH', action: 'confirm the new host key' })
   await assert.rejects(core.connection.target(request), { code: 'TARGET_MISMATCH' })
@@ -202,6 +213,9 @@ test('core mounts registry put/enroll, watch and target-mismatch reporting', asy
   t.after(() => noCredentials.close())
   native.connectError = undefined
   await assert.rejects(noCredentials.connection.target(request), { code: 'CREDENTIAL_UNAVAILABLE' })
+  await noCredentials.ready
+  await wait(5)
+  assert.equal((await noCredentials.registry.get('owner-macbook')).lastCheck.reachable, false, 'a started server checks each registered terminal once')
 })
 
 test('a target read across a registry change is never handed out; dispose awaits in-flight runs', async t => {
