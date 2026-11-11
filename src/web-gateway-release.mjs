@@ -6,13 +6,14 @@ import { createRequire } from 'node:module'
 import { assertMembersStateCompatibility } from './members/state-compatibility.mjs'
 import { assertMemoryStateCompatibility } from './memory/state-compatibility.mjs'
 
-const moduleEntries = Object.freeze({ usage: 'usage-entry', diagnostics: 'diagnostics-entry', conversation: 'conversation-entry', 'work-graph': 'work-graph-entry' })
+const moduleEntries = Object.freeze({ usage: 'usage-entry', diagnostics: 'diagnostics-entry', conversation: 'conversation-entry', 'work-graph': 'work-graph-entry', lattice: 'lattice-entry' })
 const requireModule = createRequire(import.meta.url)
 export function assertBusinessModuleCompatibility(component, value) {
   // Resolve only the selected module so independent installations remain loadable.
   if (component === 'usage') return requireModule('./usage/state-compatibility.mjs').assertUsageStateCompatibility(value)
   if (component === 'diagnostics') return requireModule('./diagnostics-protocol.mjs').assertDiagnosticsStateCompatibility(value)
   if (component === 'work-graph') return requireModule('./work-graph-protocol.mjs').assertWorkGraphStateCompatibility(value)
+  if (component === 'lattice') return requireModule('./lattice-protocol.mjs').assertLatticeStateCompatibility(value)
   if (component === 'conversation') return requireModule('./conversation/state-compatibility.mjs').assertConversationStateCompatibility(value)
   throw failure('MODULE_RELEASE_COMPONENT_INVALID')
 }
@@ -71,6 +72,8 @@ function validateManifest(manifest, component, executionCompatibility) {
     ? ['usage/channel', 'usage/channel-dispatcher', 'usage/services', 'usage/state-compatibility', 'usage-locks']
     : component === 'work-graph'
     ? ['work-graph-ipc', 'work-graph-dispatcher', 'work-graph-protocol', 'work-graph/projection']
+    : component === 'lattice'
+    ? ['lattice-ipc', 'lattice-dispatcher', 'lattice-protocol', 'lattice/core']
     : ['diagnostics-ipc', 'diagnostics-dispatcher', 'diagnostics-protocol', 'diagnostics-locks']
   for (const required of [manifest.entry, ...(memory ? ['payload/src/memory/dispatcher.mjs', 'payload/src/memory/state-compatibility.mjs', 'payload/src/memory-service.mjs', 'payload/src/memory-search.mjs'] : ['payload/package.json', 'payload/package-lock.json', ...(module ? [...moduleFiles, ...(execution ? [] : conversation ? ['module-streams'] : ['module-ipc', 'module-streams', 'module-locks'])].map(name => `payload/src/${name}.mjs`) : members ? ['payload/config/common-agents.md', 'payload/src/members/state-compatibility.mjs'] : notifications ? [] : ['payload/web/assets.mjs'])])])
     if (!names.has(required)) throw failure('GATEWAY_RELEASE_INVENTORY_INVALID')
@@ -165,6 +168,6 @@ async function prepareRelease(component, versionId, { signal } = {}, executionCo
   signal?.throwIfAborted()
   return { versionId, appRoot: join(codeDirectory, 'payload'), protocolVersion: component === 'notifications' ? 2 : 1,
     sourceCommit: manifest.sourceCommit, platform: { os: manifest.runtime.os, arch: manifest.runtime.arch },
-    ...(['members', 'memory', 'usage', 'diagnostics', 'conversation', 'execution', 'work-graph'].includes(component) ? { stateCompatibility: manifest.runtime.stateCompatibility } : component === 'notifications' ? { stateSchema: 2 } : {}),
+    ...(['members', 'memory', 'usage', 'diagnostics', 'conversation', 'execution', 'work-graph', 'lattice'].includes(component) ? { stateCompatibility: manifest.runtime.stateCompatibility } : component === 'notifications' ? { stateSchema: 2 } : {}),
     ...(component === 'conversation' ? { stateSchema: null } : {}) }
 }

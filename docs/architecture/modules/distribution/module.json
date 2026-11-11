@@ -13,7 +13,8 @@
     "memory-artifact",
     "conversation-artifact",
     "runtime-artifact",
-    "work-graph-artifact"
+    "work-graph-artifact",
+    "lattice-artifact"
   ],
   "uses": [
     {
@@ -71,6 +72,12 @@
     "config/runtime-releases.json",
     ".github/workflows/publish-runtime.yml",
     ".github/workflows/publish-work-graph.yml",
-    "test/helpers/business-artifact-probe.py"
+    "test/helpers/business-artifact-probe.py",
+    ".github/workflows/publish-lattice.yml",
+    "scripts/package-lattice.py",
+    "scripts/probe-lattice-runtime.mjs",
+    "config/lattice-verification.json",
+    "distribution/lattice/package.json",
+    "distribution/lattice/package-lock.json"
   ]
 }

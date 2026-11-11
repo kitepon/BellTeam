@@ -164,6 +164,12 @@
     "src/work-graph-locks.mjs",
     "src/work-graph-install-plan.mjs",
     "scripts/install-work-graph-release.py",
-    "scripts/verify-work-graph.py"
+    "scripts/verify-work-graph.py",
+    "scripts/lattice-start.c",
+    "src/lattice-process.mjs",
+    "src/lattice-locks.mjs",
+    "src/lattice-install-plan.mjs",
+    "scripts/install-lattice-release.py",
+    "scripts/verify-lattice.py"
   ]
 }

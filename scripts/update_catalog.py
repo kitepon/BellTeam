@@ -161,7 +161,7 @@ def validate_conversation_archive(release, manifest, consumer_state):
             'UPDATE_CONVERSATION_ARCHIVE_INCOMPATIBLE')
     return manifest
 
-CATALOG_COMPONENTS = ('container', 'web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics', 'execution', 'conversation', 'work-graph')
+CATALOG_COMPONENTS = ('container', 'web-gateway', 'notifications', 'members', 'memory', 'usage', 'diagnostics', 'execution', 'conversation', 'work-graph', 'lattice')
 
 
 def validate_catalog(value, *, now=None, strict=False, ignored=None):
@@ -195,7 +195,7 @@ def validate_catalog(value, *, now=None, strict=False, ignored=None):
         require(platform['os'] == 'linux' and platform['arch'] in ['amd64', 'arm64'])
         key = component, platform['arch']; require(key not in seen); seen.add(key)
         compatibility = release['compatibility']
-        if component in ('usage', 'diagnostics', 'execution', 'work-graph'):
+        if component in ('usage', 'diagnostics', 'execution', 'work-graph', 'lattice'):
             validate_business_compatibility(component, compatibility)
         elif component == 'notifications':
             validate_notifications_compatibility(compatibility)

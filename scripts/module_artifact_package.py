@@ -70,9 +70,13 @@ def main(component):
                 else:
                     target.parent.mkdir(parents=True, exist_ok=True)
                     target.write_bytes(tar.extractfile(item).read())
-        if component not in ('diagnostics', 'execution', 'conversation', 'work-graph'):
+        if component not in ('diagnostics', 'execution', 'conversation', 'work-graph', 'lattice'):
             (payload / 'src/distribution-profile.mjs').write_bytes(subprocess.check_output(
                 ['git', 'show', source + ':distribution/server/distribution-profile.mjs'], cwd=repo))
+        if component == 'lattice':
+            # The bundled Lattice CLI is the child's own dependency; the body's root package.json does not carry it.
+            for name in ('package.json', 'package-lock.json'):
+                (payload / name).write_bytes(subprocess.check_output(['git', 'show', f'{source}:distribution/lattice/{name}'], cwd=repo))
         if component == 'members':
             validate_members_source(payload)
         if component == 'conversation':
@@ -96,10 +100,11 @@ def main(component):
             for path in (payload / 'node_modules').rglob('*'):
                 if path.is_file():
                     with path.open('rb') as file: magic = file.read(4)
-                    require(path.suffix != '.node' and magic not in [b'\x7fELF', b'\x00asm']
+                    # WebAssembly (\0asm) is architecture-neutral (lattice's tree-sitter grammars); .node, ELF and PE stay refused.
+                    require(path.suffix != '.node' and magic != b'\x7fELF'
                             and not magic.startswith(b'MZ'), 'GATEWAY_NATIVE_RUNNER_REQUIRED')
         if component in BUSINESS_FILES or component == 'execution':
-            module, exported = ('src/execution-dispatcher.mjs', 'EXECUTION_STATE_COMPATIBILITY') if component == 'execution' else ('src/usage/state-compatibility.mjs', 'USAGE_STATE_COMPATIBILITY') if component == 'usage' else ('src/work-graph-protocol.mjs', 'WORK_GRAPH_STATE_COMPATIBILITY') if component == 'work-graph' else ('src/diagnostics-protocol.mjs', 'DIAGNOSTICS_STATE_COMPATIBILITY')
+            module, exported = ('src/execution-dispatcher.mjs', 'EXECUTION_STATE_COMPATIBILITY') if component == 'execution' else ('src/usage/state-compatibility.mjs', 'USAGE_STATE_COMPATIBILITY') if component == 'usage' else ('src/work-graph-protocol.mjs', 'WORK_GRAPH_STATE_COMPATIBILITY') if component == 'work-graph' else ('src/lattice-protocol.mjs', 'LATTICE_STATE_COMPATIBILITY') if component == 'lattice' else ('src/diagnostics-protocol.mjs', 'DIAGNOSTICS_STATE_COMPATIBILITY')
             actual = json.loads(subprocess.check_output(['node', '--input-type=module', '-e',
                 'const m = await import(process.argv[1]); console.log(JSON.stringify(m[process.argv[2]]))',
                 (payload / module).as_uri(), exported], env={'PATH': os.environ['PATH']}, text=True))
