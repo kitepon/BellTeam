@@ -81,6 +81,7 @@ const formatDate = value => new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/T
 
 const cardIcons = ['container', 'web-gateway', 'notifications', 'members', 'conversation', 'execution', 'usage', 'memory', 'diagnostics']
 const jobSteps = { queued: 1, downloading: 2, verifying: 3, swapping: 4 }
+const jobStateText = { queued: '順番待ち', downloading: '取り込み中', verifying: '確認中', swapping: '切り替え中', ready: '完了', failed: '失敗' }
 const stepText = { queued: '順番を待っています', downloading: '新しい版を取り込んでいます', verifying: '新しい版を確かめています', swapping: '新しい版に切り替えています' }
 const shortTime = value => new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
 // People-facing version name (dated when a time is known); hashes and the server line stay in 詳細.
@@ -103,10 +104,10 @@ export function cardState(item, records = []) {
     .reduce((latest, job) => !latest || BigInt(job.updatedAtNs) > BigInt(latest.updatedAtNs) ? job : latest, null)
   const job = record ? { state: record.state, outcome: record.state === 'ready' ? 'succeeded' : record.state === 'failed' ? 'failed' : 'running', at: new Date(Number(BigInt(record.updatedAtNs) / 1000000n)).toISOString(), reason: record.reason }
     : status?.latestJob ? { state: status.latestJob.state, outcome: status.latestJob.outcome, at: status.latestJob.at, reason: status.latestJob.reason } : null
-  const serving = item.id === 'container' || item.availability.available === true
   if (job?.outcome === 'running') return { badge: '更新中', tone: 'info', job, step: jobSteps[job.state] ?? 1 }
   if (status?.tone === 'attention') return { badge: '要対応', tone: 'danger', job, step: 0 }
-  if (job?.outcome === 'failed' && (swappedThenFailed(job) || !(serving && item.comparison.state === 'up_to_date'))) return { badge: '失敗', tone: 'danger', job, step: 0 }
+  // W60: the newest failed job always reads 失敗, even on a serving, up-to-date part; a later success becomes the newest job and clears it.
+  if (job?.outcome === 'failed') return { badge: '失敗', tone: 'danger', job, step: 0 }
   // Owner rule: Aiterm/CLIs update only with the body release.
   if (isRuntime(item.id)) return { badge: '本体と一緒に更新', tone: 'neutral', job, step: 0 }
   const [badge, tone] = { update_available: ['更新あり', 'accent'], up_to_date: ['最新', 'ok'], incompatible: ['使えない版', 'muted'] }[item.comparison.state] ?? ['確認できません', 'muted']
@@ -224,7 +225,6 @@ export function createUpdateCenter({ root, api, buttons, storage, onSummary = ()
       Array.from(list.children).find(row => row.dataset.component === selected)?.focus()
     })
     detail.append(back)
-    detail.append(element('p', 'update-kicker', selected === 'all' ? 'PRODUCT UPDATE' : selected === 'container' ? 'CONTAINER' : 'MODULE UPDATE'))
     detail.append(element('h3', 'update-detail-title', component?.name ?? '製品全体のアップデート'))
     detail.append(element('p', 'update-detail-description', component?.description ?? '各機能の状態を確認し、互換性のある更新計画を選びます。'))
     if (isRuntime(selected)) detail.append(element('p', 'update-detail-description', runtimeApplicationText))
@@ -260,7 +260,7 @@ export function createUpdateCenter({ root, api, buttons, storage, onSummary = ()
     if (displayPlan?.action === 'rollback') changes.append(element('p', '', '成功確認済みの交換のコードを戻します。対象と影響は下の計画を確認してください。'))
     else if (changed.some(item => item.changes.length)) for (const item of changed) for (const change of item.changes) changes.append(element('p', '', selected === 'all' ? `${item.name}: ${change}` : change))
     else changes.append(element('p', '', '正式版の変更内容を取得できていません。'))
-    detail.append(changes)
+    if (selectedPlan) detail.append(changes) // W62: only while a plan is shown
     const impact = element('section', 'update-impact')
     impact.append(element('h4', '', '対象と影響'), element('p', '', displayPlan?.impact.description ?? '更新計画が未提供のため、実際の更新対象と影響は確認できません。'))
     if (displayPlan?.impact.containerRestart) impact.append(element('p', 'update-failure', 'コンテナの再起動が必要です。実行前に中断の影響を確認してください。'))
@@ -379,9 +379,13 @@ export function createUpdateCenter({ root, api, buttons, storage, onSummary = ()
       const row = element('article', 'update-job')
       row.dataset.jobId = record.jobId
       const name = inventory?.components.find(item => item.id === record.target.moduleId)?.name ?? record.target.moduleId
-      row.append(element('p', '', name), element('p', 'update-result-state', `状態: ${record.state}`),
-        element('p', '', `ジョブID: ${record.jobId}`))
-      if (record.reason) row.append(element('p', 'update-failure', `${record.reason.code} / ${record.reason.message}`))
+      row.append(element('p', '', name), element('p', 'update-result-state', `状態: ${jobStateText[record.state]}`))
+      if (record.reason) row.append(element('p', 'update-failure', record.reason.message))
+      // W63: ids and codes only under サポート用の詳細.
+      const support = element('details', 'update-support'), fields = element('dl', '')
+      support.append(element('summary', '', 'サポート用の詳細'))
+      for (const [label, value] of [['ジョブID', record.jobId], ['状態', record.state], ['コード', record.reason?.code]]) if (value) fields.append(element('dt', '', label), element('dd', '', value))
+      support.append(fields); row.append(support)
       parent.append(row)
     }
   }
@@ -486,7 +490,7 @@ export function createUpdateCenter({ root, api, buttons, storage, onSummary = ()
     for (const item of components) {
       const state = states.get(item.id), status = componentStatus(item.status) ? item.status : null
       if (state.badge === '要対応') { heading ||= `${item.name}が使えません`; lines.push(`${item.name}: ${status?.action ?? 'この機能は今使えません。「詳細」の内容を担当に伝えてください。'}`) }
-      if (state.badge === '失敗') { heading ||= '前回の更新ができませんでした'; lines.push(`${item.name}: ${item.availability.available === false ? 'この機能は今使えません。「詳細」の内容を担当に伝えてください。' : swappedThenFailed(state.job) ? '新しい版で動いていますが、席の状態を整える手順で失敗しました。「詳細」の内容を担当に伝えてください。' : '元の版のまま動いています。' + (item.comparison.state === 'update_available' ? '「もう一度更新」でやり直せます。' : '対応は不要です。')}`) }
+      if (state.badge === '失敗') { heading ||= '前回の更新ができませんでした'; lines.push(`${item.name}: ${item.availability.available === false ? 'この機能は今使えません。「詳細」の内容を担当に伝えてください。' : swappedThenFailed(state.job) ? '新しい版で動いていますが、席の状態を整える手順で失敗しました。「詳細」の内容を担当に伝えてください。' : item.id === 'container' ? '本体の更新は途中で止まりました。本番は前の版のまま動いています。' + (item.comparison.state === 'update_available' ? '「もう一度更新」でやり直せます。' : '「詳細」の内容を担当に伝えてください。') : '前の版のまま動いています。' + (item.comparison.state === 'update_available' ? '「もう一度更新」でやり直せます。' : '対応は不要です。')}`) }
     }
     for (const problem of inventory?.problems ?? []) if (problem.status === 'open') {
       heading ||= `${name(problem.moduleId)}が再起動を繰り返しています`; lines.push(`${name(problem.moduleId)}: 「詳細」の内容を担当に伝えてください。`)
@@ -515,7 +519,9 @@ export function createUpdateCenter({ root, api, buttons, storage, onSummary = ()
       const version = versionName(item, state.job), line = element('p', 'update-card-version')
       line.append(element('span', 'update-card-version-name', version.name))
       if (version.origin) line.append(element('span', 'update-card-origin', version.origin))
-      if (item.comparison.state === 'update_available') line.append(element('span', 'update-card-next', item.publication ? `新しい版 ${shortTime(item.publication.catalog.publishedAt)}` : '新しい版あり'))
+      // W61: runtime parts take effect at the next launch; they never carry a 新しい版 chip.
+      if (isRuntime(item.id)) line.append(element('span', 'update-card-runtime', '次回起動で反映'))
+      else if (item.comparison.state === 'update_available') line.append(element('span', 'update-card-next', item.publication ? `新しい版 ${shortTime(item.publication.catalog.publishedAt)}` : '新しい版あり'))
       card.append(top, element('h4', 'update-card-name', item.name), line, element('p', 'update-card-description', item.description))
       if (state.step) {
         const progress = element('div', 'update-progress'); progress.setAttribute('role', 'progressbar')
@@ -646,7 +652,14 @@ export function createUpdateCenter({ root, api, buttons, storage, onSummary = ()
       applyOperation(value.operation, request)
     } catch (error) {
       if (disposed) return
-      operationReadError = errorText(error); operationMessage = ''; planned = null; confirmed = false
+      planned = null; confirmed = false
+      // A 4xx answer is a definite refusal: nothing was admitted, so the new ID is dropped and only the kept history stays.
+      // A lost or 5xx answer keeps the ID, because the request may have been admitted.
+      if (error?.status >= 400 && error.status < 500) {
+        pending = null; ownResult = null; operationReadError = ''
+        try { saveRequests(null, previousResults) } catch { storageFailure = '保持した要求の結果を保存できません。新しい更新は開始できません。' }
+        operationMessage = `更新は受け付けられませんでした（${errorText(error)}）。状態を確かめて、もう一度計画を確認してください。`
+      } else { operationReadError = errorText(error); operationMessage = '' }
     } finally {
       submitting = false
       if (!disposed) { render(); await refresh() }

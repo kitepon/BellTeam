@@ -671,19 +671,20 @@ body:has(dialog[open]) .scroll-latest { display: none; }
 
 /* Update center: tokens first so dark mode only swaps values. */
 .update-center {
-  --u-bg: #f6f7f3; --u-surface: #fff; --u-soft: #eff1ea; --u-ink: #1f2621; --u-muted: #6b7366; --u-line: #e2e5dc;
-  --u-primary: #26352b; --u-on-primary: #f4f8ed; --u-focus: #719740;
-  --u-ok: #237a47; --u-ok-bg: #e2f2e7; --u-accent: #1f5fc4; --u-accent-bg: #e3ecfb;
-  --u-info: #9a5b00; --u-info-bg: #fcefd9; --u-danger: #b8382a; --u-danger-bg: #fbe6e2; --u-mute: #687064; --u-mute-bg: #eceee8;
+  /* O2 (Trony): the app's own tokens, the same values as the Settings cards. */
+  --u-bg: #f4f4f7; --u-surface: #fff; --u-soft: #f1f0f6; --u-ink: #17161c; --u-muted: #6a6874; --u-line: #e6e4ec;
+  --u-primary: #6851c4; --u-on-primary: #fff; --u-focus: #8156b4;
+  --u-ok: #1f7a46; --u-ok-bg: #e1f3e8; --u-accent: #6851c4; --u-accent-bg: #ece8fb;
+  --u-info: #9a5b00; --u-info-bg: #fcefd9; --u-danger: #b8382a; --u-danger-bg: #fbe8e5; --u-mute: #6a6874; --u-mute-bg: #ecebf0;
   width: min(1000px, calc(100vw - 48px)); max-width: none; max-height: calc(100dvh - 48px); padding: 0; border: 1px solid var(--u-line); border-radius: 26px;
   background: var(--u-bg); color: var(--u-ink); box-shadow: 0 32px 120px #111b2440; overflow: auto;
 }
 @media (prefers-color-scheme: dark) {
   .update-center {
-    --u-bg: #141815; --u-surface: #1d221e; --u-soft: #252b26; --u-ink: #e8ece5; --u-muted: #9ca596; --u-line: #2e352f;
-    --u-primary: #d4e7b8; --u-on-primary: #17200f; --u-focus: #a9d27a;
-    --u-ok: #74d396; --u-ok-bg: #1b3324; --u-accent: #93b8ff; --u-accent-bg: #1c2944;
-    --u-info: #f3b75a; --u-info-bg: #3a2b13; --u-danger: #ff8f7c; --u-danger-bg: #43221d; --u-mute: #a3ab9d; --u-mute-bg: #2a302b;
+    --u-bg: #121116; --u-surface: #1c1b22; --u-soft: #26242e; --u-ink: #ecebf2; --u-muted: #a29fae; --u-line: #302e39;
+    --u-primary: #b4a5ff; --u-on-primary: #15121f; --u-focus: #b4a5ff;
+    --u-ok: #74d396; --u-ok-bg: #1b3324; --u-accent: #b4a5ff; --u-accent-bg: #2c2647;
+    --u-info: #f3b75a; --u-info-bg: #3a2b13; --u-danger: #ff8f7c; --u-danger-bg: #43221d; --u-mute: #a29fae; --u-mute-bg: #2a2931;
     box-shadow: 0 32px 120px #000a;
   }
 }
@@ -838,6 +839,8 @@ body:has(dialog[open]) .scroll-latest { display: none; }
 @keyframes update-enter { from { opacity: 0; transform: translateY(10px) scale(.99); } to { opacity: 1; transform: none; } }
 @keyframes update-pulse { 50% { opacity: .35; } }
 .update-center[open] { animation: update-enter .22s ease-out; }
+.update-card-runtime { display: inline-flex; align-items: center; gap: 4px; color: var(--u-muted); font-size: 12px; }
+.update-card-runtime::before { content: "◷"; }
 @media (max-width: 780px) {
   .chat-header { flex-wrap: wrap; }
   .update-center { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); border-radius: 22px; }
