@@ -103,7 +103,9 @@ Order: coordinator charts first (`coordinator` = `createdBy` is the coordinator 
   "members": [{ "botId": "bot-39be7047", "name": "モリー", "color": "mint", "avatarVersion": "…" }],
   "cards": [{ "id": "p1/t03", "plan": "p1", "taskId": "t03", "title": "部品の配置と保存場所",
               "doneCondition": "…", "designMemo": "…", "state": "in-progress", "lane": "molly",
-              "producer": "bot-39be7047", "startedAt": "…", "changedAt": "…", "blockedReason": null, "depth": 1 }],
+              "producer": "bot-39be7047", "startedAt": "…", "changedAt": "…", "blockedReason": null, "depth": 1,
+              "phase": "p1/ph2", "parent": null }],
+  "phases": [{ "id": "p1/ph2", "title": "部品" }],
   "edges": [{ "from": "p1/t03", "to": "p1/t05", "waiting": true }],
   "waits": [{ "waiter": "bot-7e777fe5", "waitingCard": "p1/t05", "forCard": "p1/t03",
               "producer": "bot-39be7047", "producerState": "in-progress", "since": "…" }] }
@@ -111,6 +113,7 @@ Order: coordinator charts first (`coordinator` = `createdBy` is the coordinator 
 
 - `state`: Lattice's display state as is: `verified | unverified | last_verified | unavailable`. `verifiedAt` from Lattice. No codes, reasons, paths or raw ids are sent for display (Trony ruling 2026-11-11: plain sentences only; codes go to the child's diagnostic log).
 - `degraded`: `lattice-read` (the last read failed; the previous snapshot is kept), `members` (last roster kept).
+- `phases`, card `phase` / `parent` (added 2026-11-12 for the process tree, Owner request): the plan's phases in plan order (`title` may be null; apps then show 名前のないまとまり), the card's phase id or null, and its parent card id or null. Optional on the wire: a child that predates them sends none, and apps treat missing as `[]` / null.
 - `members`: only members referenced by `producer`/`waiter`. A Bot id not in the roster is omitted here; apps draw it as 名簿にないメンバー.
 - Errors: 404 `LATTICE_CHART_NOT_FOUND`, 503 `LATTICE_UNAVAILABLE`, 405 other methods.
 
@@ -125,6 +128,7 @@ Input: one `lattice.todo_display_read_result.v1`. For `verified` / `last_verifie
 - **Card** per `plan.tasks[]`: `id = plan_key/task_id`; `title` (fallback task id), `doneCondition`, `designMemo`, `lane`. `state` = Lattice status; `pending` becomes `ready` when every predecessor is `done` or `retired`.
 - **Producer**: `actor.agent` of the task's latest `start` event (= the Bot id through `LATTICE_SEAT_ID`); before any start, the authored `lane` when it names a member: equal to a member Bot id, or to a member's name (Latin letters compared case-insensitively); otherwise null. A finished card (`done` / `retired`) with a `lane` takes the lane's member (or null) and ignores the starter: Lattice refuses `todo done` on a pending task and a seat can only act under its own Bot id, so a coordinator closing a task that its owner already finished runs `todo start` + `todo done` under the coordinator's name; Lattice keeps that record (who ran each command), and the screen keeps showing the authored owner instead of reassigning the card (Trony question 2026-11-12). The coordinator adds a `todo note` saying who finished it.
 - **Owner on screen (all apps; Trony defect 2026-11-12)**: a card's owner is its `producer` (face + name); else its authored `lane` text as written (the plan author's assignment: drawn as text with its initial, its own swimlane after the member lanes, no chat, not in the member rail); else 担当なし. 待ちの流れ and edge chips use the same rule: the waiter is the owner of the waiting card, the producer the owner of the awaited card. Authors who want a face write the member's Bot id or name in `lane` (the seat tool description says so). `startedAt` = that start's `recorded_at`; `changedAt` = the task's latest event time.
+- **Tree** (Owner 2026-11-12): `phases` = `plan.phases[]` with a `phase_id` (`id = plan_key/phase_id`, `title`); card `phase` = its `phase_id` when that phase exists, else null; card `parent` = `plan_key/parent_task_id` when that card exists, is not the card itself and does not close a parent cycle, else null.
 - **Edges**: `plan.hard_dependencies` (`from` -> `to`), `plan.joins` (each `after` -> `before`), and cross-plan `plan_scoped.events` of kind `cross_plan_dependency` minus `cross_plan_dependency_removed` tombstones. An edge with an unknown end, a self edge, or one closing a cycle is dropped. `waiting` = predecessor not finished and successor not finished.
 - **Waits**: one per waiting edge whose successor is not `retired`: `waiter` = successor's producer, `producer` = predecessor's producer, `producerState` = predecessor's state, `since` = the later of the predecessor's and the successor's `changedAt`. Sorted oldest `since` first.
 - **Depth**: longest path from a root over the kept edges.
@@ -140,6 +144,8 @@ Input: one `lattice.todo_display_read_result.v1`. For `verified` / `last_verifie
 | `chart` | `{projectId}` | `bellteam.lattice-chart.v1` (or error `LATTICE_CHART_NOT_FOUND`, 404) |
 | `refresh` | `{projectIds}` (1-50) | `{snapshots:[chart snapshots whose version changed], nextRefreshMs}` (2000 while any chart is asked) |
 | `run` | `{from, projectId, args, input, name?}` (`input` object or null; `name` 1-40 plain characters, `args` may be `[]` only with `name`) | `{exitCode, result, stdout, stderr}` |
+
+Snapshot validation (`validateLatticeResult`, both ends) accepts `phases` and card `phase` / `parent` as optional keys, so a body with this validator takes both older and newer children. A child that sends them needs a body with this validator: they ship together in one body train (the builtin child follows the body image), never as a module-only exchange onto an older body.
 
 Effect: `members.list {}` only, accepted only inside a pending root call. Controls `initialize {generation, mode}`, `quiesce`, `resume`, `exit` and `validateLatticeReady` exactly as work-graph. Root calls run one at a time. Only fixed error codes cross the wire.
 

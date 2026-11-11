@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   UNKNOWN_MEMBER, backoffMs, bannerFor, chartCounts, coordinatorBotId, degradedPills, detailOf, diffSnapshots, edgeChipText, edgeGeometry, flowPositions, formatJst, highlightSets,
-  layoutChart, listItems, memberLookup, ownerLookup, pointOnEdge, railItems, sinceText, waitRows, cardLabel,
+  layoutChart, layoutTree, listItems, memberLookup, ownerLookup, pointOnEdge, railItems, sinceText, waitRows, cardLabel,
 } from '../web/lattice-chart-model.js'
 import { createChartStream, createLatticeChart } from '../web/lattice-chart.js'
 
@@ -49,6 +49,25 @@ test('担当：着手前でも工程表に書かれた担当（lane）の文字�
   assert.equal(edgeChipText(snap, snap.edges[0]), 'kiroが待っています')
   assert.match(detailOf(snap, 'p1/a', BASE).stateText, /担当 kiro/)
   assert.match(cardLabel(snap.cards[0], owner), /つくっている kiro/)
+})
+
+test('ツリー：工程表 -> まとまり -> 工程（親の下）、葉は一行ずつ、親は子の真ん中、依存は右の弧', () => {
+  const snap = fixture({ phases: [{ id: 'p1/a', title: '設計' }, { id: 'p1/b', title: null }],
+    cards: fixture().cards.map(c => ({ ...c, phase: ['p1/t01', 'p1/t02', 'p1/t03'].includes(c.id) ? 'p1/a' : c.id === 'p1/t04' ? 'p1/b' : null, parent: c.id === 'p1/t03' ? 'p1/t02' : null })) })
+  const tree = layoutTree(snap, 'BellTeam開発'), node = key => tree.nodes.find(n => n.key === key)
+  assert.deepEqual([node('root').label, node('phase:p1/a').label, node('phase:p1/b').label], ['BellTeam開発', '設計', '名前のないまとまり'])
+  assert.ok(node('phase:p1/a').x > node('root').x && node('p1/t01').x > node('phase:p1/a').x && node('p1/t03').x > node('p1/t02').x, '子は親の右')
+  assert.equal(node('p1/t05').x, node('phase:p1/a').x, 'まとまりの無い工程は工程表の直下')
+  const leaves = ['p1/t01', 'p1/t03', 'p1/t04', 'p1/t05', 'p1/t06'].map(id => node(id).y)
+  assert.deepEqual(leaves, [...leaves].sort((a, b) => a - b)); assert.equal(new Set(leaves).size, 5, '葉は一行ずつ')
+  assert.equal(node('p1/t02').y, node('p1/t03').y, '子が一つなら同じ高さ')
+  assert.equal(node('phase:p1/a').y, (node('p1/t01').y + node('p1/t02').y) / 2, '親は子の真ん中')
+  assert.deepEqual([node('phase:p1/a').done, node('phase:p1/a').total, node('phase:p1/a').tone, node('phase:p1/b').tone], [1, 3, 'in-progress', 'blocked'])
+  assert.deepEqual(tree.arcs.map(a => [a.key, a.waiting]), [['p1/t01>p1/t03', false], ['p1/t02>p1/t03', true], ['p1/t04>p1/t05', true]])
+  assert.equal(tree.links.length, tree.nodes.length - 1, '根以外はどれも一本の線で親につながる')
+  assert.ok(tree.width > node('p1/t03').x + node('p1/t03').w)
+  const old = layoutTree(fixture(), 'x')
+  assert.equal(old.nodes.filter(n => n.kind === 'card').every(n => n.x === old.nodes[0].x + old.nodes[0].w + 36), true, 'phases の無い古い一枚は工程表の直下に並ぶ')
 })
 
 test('配置：担当ごとのレーン（担当なしは最後）、depth ごとの列、同じ担当・同じ列は縦に積む', () => {
@@ -159,7 +178,7 @@ const textOf = el => el.textContent
 const byClass = (root, name) => all(root).filter(el => el.className.split(' ').includes(name))
 const buttonByText = (root, text) => all(root).find(el => el.tagName === 'button' && textOf(el).includes(text))
 
-function setup(t, { api, fetchImage, reduce = false, getMember = () => null } = {}) {
+function setup(t, { api, fetchImage, reduce = false, getMember = () => null, mode = 'lanes' } = {}) {
   const saved = Object.fromEntries(['document', 'matchMedia'].map(k => [k, Object.getOwnPropertyDescriptor(globalThis, k)]))
   globalThis.document = { createElement: tag => new El(tag), createElementNS: (ns, tag) => new El(tag), createTextNode: s => new Text(s), addEventListener() {}, removeEventListener() {}, activeElement: null, hidden: false }
   globalThis.matchMedia = () => ({ matches: reduce })
@@ -171,7 +190,7 @@ function setup(t, { api, fetchImage, reduce = false, getMember = () => null } = 
   const clock = { now: BASE, next: 1, timers: new Map() }
   const frames = [], opened = []
   const view = createLatticeChart(dialog, {
-    api, fetchImage, getMember, openChat: botId => opened.push(botId), now: () => clock.now,
+    api, fetchImage, getMember, mode, openChat: botId => opened.push(botId), now: () => clock.now,
     setTimeout: (fn, ms) => { const id = clock.next++; clock.timers.set(id, { fn, at: clock.now + ms }); return id }, clearTimeout: id => clock.timers.delete(id), random: () => 0.5,
     requestFrame: fn => { frames.push(fn); return frames.length }, cancelFrame() {},
   })
@@ -309,6 +328,24 @@ test('工程表が見つからない（404 LATTICE_CHART_NOT_FOUND）は案内�
   old.view.open(); await flush(); buttonByText(old.body, '設計').click(); await flush()
   assert.equal(textOf(old.body).includes('このサーバーではまだ工程表を使えません。'), true)
   old.view.close()
+})
+
+test('ツリーが最初の表示：小さな箱をタップで詳細、ツリー / 担当 で切り替え', async t => {
+  const feed = sse(), net = router({ streams: [feed] })
+  const ui = setup(t, { api: async () => chartsList('bellteam'), fetchImage: net.fetchImage, mode: 'tree' })
+  ui.view.open(); await flush()
+  feed.snapshot(fixture({ phases: [{ id: 'p1/a', title: '設計' }], cards: fixture().cards.map(c => ({ ...c, phase: 'p1/a', parent: null })) })); await flush()
+  const boxes = byClass(ui.body, 'lattice-tbox')
+  assert.equal(boxes.length, 6); assert.equal(byClass(ui.body, 'lattice-card').length, 0)
+  assert.match(textOf(ui.body), /設計/u)
+  const t02 = boxes.find(el => el.dataset.cardId === 'p1/t02')
+  assert.equal(t02.getAttribute('aria-label'), '部品の配置と保存場所、作業中、つくっている モリー')
+  t02.click(); await flush()
+  assert.match(textOf(byClass(ui.body, 'lattice-sheet')[0]), /部品の配置と保存場所/u)
+  buttonByText(ui.body, '担当').click(); await flush()
+  assert.equal(byClass(ui.body, 'lattice-card').length, 6)
+  assert.equal(byClass(ui.body, 'lattice-tree')[0].hidden, true)
+  assert.match(textOf(byClass(ui.body, 'lattice-sheet')[0]), /部品の配置と保存場所/u, '詳細は切り替えても開いたまま')
 })
 
 test('詳細：札で開く（設計メモ・終了条件・前の工程/次の工程）、前後をたどる、閉じる・Esc で戻る', async t => {

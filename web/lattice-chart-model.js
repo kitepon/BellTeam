@@ -111,6 +111,57 @@ export function layoutChart(snapshot) {
   return { lanes, cards: placed, order, width: LABEL_W + 16 + (maxDepth + 1) * COL_W + 24, height: y + 56 }
 }
 
+// ツリー：工程表 -> まとまり（phase）-> 工程（parent があればその下）。葉が一行ずつ、親は子の真ん中。依存は箱の右の弧。
+export const TREE = { ROW: 40, BOX_H: 32, GAP: 36, TOP: 16, LEFT: 16, ROOT_W: 168, PHASE_W: 196, CARD_W: 300 }
+export const UNNAMED_PHASE = '名前のないまとまり'
+export function phaseTone(cards) {
+  if (cards.some(card => card.state === 'blocked')) return 'blocked'
+  if (cards.some(card => card.state === 'in-progress')) return 'in-progress'
+  return cards.length && cards.every(card => finished(card.state)) ? 'done' : 'pending'
+}
+export function layoutTree(snapshot, name = '') {
+  const cards = snapshot.cards ?? [], byId = new Map(cards.map(card => [card.id, card])), phaseIds = new Set((snapshot.phases ?? []).map(phase => phase.id))
+  const nodes = new Map([['root', { key: 'root', kind: 'root', label: name, w: TREE.ROOT_W, children: [] }]])
+  for (const phase of snapshot.phases ?? []) nodes.set(`phase:${phase.id}`, { key: `phase:${phase.id}`, kind: 'phase', id: phase.id, label: phase.title ?? UNNAMED_PHASE, w: TREE.PHASE_W, children: [] })
+  for (const card of cards) nodes.set(card.id, { key: card.id, kind: 'card', id: card.id, card, w: TREE.CARD_W, children: [] })
+  const parentOf = card => card.parent && byId.has(card.parent) ? card.parent : card.phase && phaseIds.has(card.phase) ? `phase:${card.phase}` : 'root'
+  for (const node of nodes.values()) if (node.kind === 'phase') nodes.get('root').children.push(node.key)
+  for (const card of cards) nodes.get(parentOf(card)).children.push(card.id)
+  let row = 0, right = 0
+  const place = (key, x, seen = new Set()) => {
+    const node = nodes.get(key)
+    seen.add(key)
+    node.x = x; right = Math.max(right, x + node.w)
+    const kids = node.children.filter(child => !seen.has(child))
+    for (const child of kids) place(child, x + node.w + TREE.GAP, seen)
+    node.y = kids.length ? (nodes.get(kids[0]).y + nodes.get(kids.at(-1)).y) / 2 : TREE.TOP + row++ * TREE.ROW
+    node.h = TREE.BOX_H
+    return node
+  }
+  place('root', TREE.LEFT)
+  const under = key => { const node = nodes.get(key); return node.kind === 'card' ? [node.card, ...node.children.flatMap(under)] : node.children.flatMap(under) }
+  for (const node of nodes.values()) if (node.kind !== 'card') {
+    const inside = under(node.key)
+    Object.assign(node, { done: inside.filter(card => finished(card.state)).length, total: inside.length, tone: phaseTone(inside) })
+  }
+  const mid = node => node.y + node.h / 2
+  const links = [...nodes.values()].flatMap(node => node.children.map(child => {
+    const to = nodes.get(child), x0 = node.x + node.w, x1 = to.x, bend = (x1 - x0) / 2
+    return { from: node.key, to: child, d: `M${x0} ${mid(node)}C${x0 + bend} ${mid(node)} ${x1 - bend} ${mid(to)} ${x1} ${mid(to)}` }
+  }))
+  let reach = right
+  const arcs = (snapshot.edges ?? []).filter(edge => nodes.has(edge.from) && nodes.has(edge.to) && nodes.get(edge.from).kind === 'card' && nodes.get(edge.to).kind === 'card').map(edge => {
+    const a = nodes.get(edge.from), b = nodes.get(edge.to), x0 = a.x + a.w, x1 = b.x + b.w
+    const bulge = Math.max(x0, x1) + 24 + Math.min(160, Math.abs(mid(b) - mid(a)) * 0.3)
+    reach = Math.max(reach, bulge)
+    return { key: `${edge.from}>${edge.to}`, from: edge.from, to: edge.to, waiting: edge.waiting,
+      d: `M${x0} ${mid(a)}C${bulge} ${mid(a)} ${bulge} ${mid(b)} ${x1 + 6} ${mid(b)}` }
+  })
+  const list = [...nodes.values()].map(({ children, ...node }) => node)
+  return { nodes: list, links, arcs, cards: new Map(list.filter(node => node.kind === 'card').map(node => [node.id, node])),
+    width: reach + 24, height: TREE.TOP + Math.max(1, row) * TREE.ROW + 16 }
+}
+
 // 辺は右中央から左中央への滑らかな曲線。
 export function edgeGeometry(from, to) {
   const p0 = { x: from.x + from.w, y: from.y + from.h / 2 }, p3 = { x: to.x, y: to.y + to.h / 2 }

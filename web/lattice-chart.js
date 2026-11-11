@@ -3,7 +3,7 @@ import { parseFrames } from './work-graph.js?v=__ASSET_VERSION__'
 import { applyAvatar } from './view-format.js?v=__ASSET_VERSION__'
 import {
   MESSAGES, SCHEMA, UNASSIGNED, accent, backoffMs, bannerFor, chartCounts, coordinatorBotId, degradedPills, detailOf, diffSnapshots, edgeChipText, edgeGeometry,
-  flowPositions, highlightSets, layoutChart, chartName, listItems, listSignature, memberLookup, ownerLookup, particleOpacity, pointOnEdge, railItems, stateInfo, waitRows, cardLabel, cardNote, minutesSince, RED,
+  flowPositions, highlightSets, layoutChart, layoutTree, chartName, listItems, listSignature, memberLookup, ownerLookup, particleOpacity, pointOnEdge, railItems, stateInfo, waitRows, cardLabel, cardNote, minutesSince, RED,
 } from './lattice-chart-model.js?v=__ASSET_VERSION__'
 
 const GLYPHS = {
@@ -115,7 +115,7 @@ export function createChartStream({ fetch, url, setTimeout: later = globalThis.s
 }
 
 export function createLatticeChart(dialog, {
-  api, fetchImage, openChat: openMemberChat = () => {}, getMember = () => null,
+  api, fetchImage, openChat: openMemberChat = () => {}, getMember = () => null, mode: startMode = 'tree',
   setTimeout: later = globalThis.setTimeout, clearTimeout: clear = globalThis.clearTimeout, random = Math.random, now = Date.now,
   requestFrame = callback => globalThis.requestAnimationFrame(callback), cancelFrame = id => globalThis.cancelAnimationFrame(id),
 } = {}) {
@@ -124,7 +124,8 @@ export function createLatticeChart(dialog, {
   const reduceMotion = () => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
   let isOpen = false, view = 'loading', status = 'connecting', list = null, listShown = '', listNote = null, listToken = 0, listAttempt = 0, listTimer = null
   let resumeId = null, places = new Map(), chartId = null, snapshot = null, ui = null, stream = null, highlight = null, detailId = null, frameId = 0, tickTimer = null, particles = []
-  const cardEls = new Map(), entering = new Set(), avatars = new Map(), timers = new Set()
+  const cardEls = new Map(), treeEls = new Map(), entering = new Set(), avatars = new Map(), timers = new Set()
+  let mode = startMode, treePlaces = new Map() // ツリー / 担当。ページが生きている間だけ覚える。
   const after = (fn, ms) => { const id = later(() => { timers.delete(id); fn() }, ms); timers.add(id); return id }
   const lookup = () => memberLookup(snapshot)
   // 会話を開くと工程表のダイアログは閉じる。戻って開き直したら、その工程表から続ける。
@@ -236,7 +237,7 @@ export function createLatticeChart(dialog, {
     if (list) { view = 'list'; paintList() } else show('loading', loading())
     paintPills(); void loadList()
   }
-  function clearChart() { chartId = null; snapshot = null; highlight = null; detailId = null; cardEls.clear(); entering.clear(); particles = []; ui = null }
+  function clearChart() { chartId = null; snapshot = null; highlight = null; detailId = null; cardEls.clear(); treeEls.clear(); entering.clear(); particles = []; ui = null }
   function openChart(id) {
     clear(listTimer); listToken++
     clearChart(); chartId = id; status = 'connecting'
@@ -266,7 +267,13 @@ export function createLatticeChart(dialog, {
     edgesSvg.append(defs, edgeLayer, flowLayer)
     const lanes = h('div', { class: 'lattice-lanes' }), cards = h('div', { class: 'lattice-cards' }), chips = h('div', { class: 'lattice-chips' })
     const plane = h('div', { class: 'lattice-plane' }, lanes, edgesSvg, cards, chips)
-    const canvas = h('div', { class: 'lattice-canvas', on: { click: event => { if (highlight && !event.target.closest?.('.lattice-card')) { highlight = null; applyHighlight(); paintRail() } } } }, plane)
+    const treeSvg = svg('svg', { class: 'lattice-tree-svg', 'aria-hidden': 'true' }), treeLinks = svg('g', { class: 'links' }), treeArcs = svg('g', { class: 'arcs' })
+    treeSvg.append(svg('defs', {}, ...['arrow', 'arrow-wait'].map(id => svg('marker', { id: `lattice-${id}`, viewBox: '0 0 8 8', refX: 7, refY: 4, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' },
+      svg('path', { d: 'M0 0L8 4L0 8z', class: id })))), treeLinks, treeArcs)
+    const treeBoxes = h('div', { class: 'lattice-tree-boxes' }), tree = h('div', { class: 'lattice-tree' }, treeSvg, treeBoxes)
+    const canvas = h('div', { class: 'lattice-canvas', on: { click: event => { if (highlight && !event.target.closest?.('.lattice-card, .lattice-tbox')) { highlight = null; applyHighlight(); paintRail() } } } }, plane, tree)
+    const modeBtn = (value, label) => h('button', { type: 'button', 'aria-pressed': String(mode === value), dataset: { mode: value, focusKey: `mode:${value}` }, on: { click: () => setMode(value) } }, label)
+    const modes = h('div', { class: 'lattice-seg', role: 'group', 'aria-label': '表示' }, modeBtn('tree', 'ツリー'), modeBtn('lanes', '担当'))
     const switcher = h('button', { class: 'lattice-switcher', type: 'button', on: { click: goList } })
     const live = h('span', { class: 'lattice-live', hidden: true }, h('i', { class: 'ldot' }), 'ライブ')
     const summary = h('div', { class: 'lattice-sum' }), counters = h('div', { class: 'lattice-cnt' })
@@ -274,10 +281,10 @@ export function createLatticeChart(dialog, {
     const main = h('div', { class: 'lattice-main' }, rail, canvas, waits)
     const empty = h('div', { class: 'lattice-empty-slot', hidden: true })
     const loadingEl = loading()
-    const root = h('div', { class: 'lattice-chart', hidden: true }, h('div', { class: 'lattice-toolbar' }, switcher, live, h('span', { class: 'lattice-spacer' }), summary, counters), banner, main, empty, sheet)
+    const root = h('div', { class: 'lattice-chart', hidden: true }, h('div', { class: 'lattice-toolbar' }, switcher, live, modes, h('span', { class: 'lattice-spacer' }), summary, counters), banner, main, empty, sheet)
     body.replaceChildren(loadingEl, root)
     view = 'chart'
-    ui = { root, switcher, live, summary, counters, banner, rail, canvas, plane, lanes, cards, chips, edgesSvg, defs, edgeLayer, flowLayer, waits, main, empty, sheet, loading: loadingEl }
+    ui = { root, switcher, live, modes, tree, treeSvg, treeLinks, treeArcs, treeBoxes, summary, counters, banner, rail, canvas, plane, lanes, cards, chips, edgesSvg, defs, edgeLayer, flowLayer, waits, main, empty, sheet, loading: loadingEl }
   }
 
   function paintChart(diff) {
@@ -293,7 +300,9 @@ export function createLatticeChart(dialog, {
     if (unavailable || blank) { fill(ui.empty, note(unavailable ? MESSAGES.unavailable : MESSAGES.noCards, 'list')); detailId = null; stopFrames() }
     else {
       const layout = layoutChart(snapshot)
-      paintPlane(layout, diff)
+      ui.plane.hidden = mode !== 'lanes'; ui.tree.hidden = mode !== 'tree'
+      for (const button of ui.modes.children) button.setAttribute('aria-pressed', String(button.dataset.mode === mode))
+      if (mode === 'tree') { paintTree(); particles = [] } else paintPlane(layout, diff)
       paintRail(layout)
       paintWaits()
     }
@@ -301,6 +310,37 @@ export function createLatticeChart(dialog, {
     applyHighlight()
     paintPills()
     ensureFrames(); ensureTick()
+  }
+
+  function setMode(value) {
+    if (value === mode || !snapshot) return
+    mode = value
+    paintChart({ ...diffSnapshots(snapshot, snapshot), first: true })
+  }
+
+  // ツリー：箱は小さく（状態の記号・一行の題名・担当の顔）、タップで詳細。依存は右の弧、待っている弧は色付きで矢印が待つ側へ。
+  function paintTree() {
+    const tree = layoutTree(snapshot, chartName(snapshot, getMember)), owners = ownerLookup(snapshot)
+    treePlaces = tree.cards
+    for (const el of [ui.tree, ui.treeBoxes]) { el.style.width = `${tree.width}px`; el.style.height = `${tree.height}px` }
+    ui.treeSvg.setAttribute('width', tree.width); ui.treeSvg.setAttribute('height', tree.height)
+    ui.treeLinks.replaceChildren(...tree.links.map(link => svg('path', { d: link.d, class: 'tl' })))
+    ui.treeArcs.replaceChildren(...tree.arcs.map(arc => svg('path', { d: arc.d, class: `ta${arc.waiting ? ' waiting' : ''}`, 'data-edge': arc.key, 'marker-end': `url(#lattice-${arc.waiting ? 'arrow-wait' : 'arrow'})` })))
+    const at = node => ({ transform: `translate(${node.x}px, ${node.y}px)`, width: `${node.w}px`, height: `${node.h}px` })
+    treeEls.clear()
+    keepFocus(ui.treeBoxes, () => fill(ui.treeBoxes, ...tree.nodes.map(node => {
+      if (node.kind !== 'card') {
+        const info = stateInfo(node.tone)
+        return h('div', { class: `lattice-tnode ${node.kind} is-${info.tone}`, style: at(node), role: 'group', 'aria-label': `${node.label}、完了 ${node.done}/${node.total}` },
+          node.kind === 'root' ? ringEl(node.total ? node.done / node.total : 0, 18) : glyph(info.glyph), h('b', { text: node.label }), h('small', { text: `${node.done}/${node.total}` }))
+      }
+      const card = node.card, owner = owners(card), info = stateInfo(card.state)
+      const el = h('button', { class: `lattice-tbox is-${info.tone}${detailId === card.id ? ' sel' : ''}`, type: 'button', style: { ...at(node), '--a': owner?.known === false ? UNKNOWN_COLOR : accent(owner?.color) },
+        dataset: { cardId: card.id, focusKey: `t:${card.id}` }, 'aria-label': cardLabel(card, owner), title: card.title, on: { click: () => openDetail(card.id, treeEls.get(card.id)) } },
+      glyph(info.glyph), h('span', { class: 'ti', text: card.title }), owner ? avatar(owner, 18) : h('span', { class: 'na', text: UNASSIGNED }))
+      treeEls.set(card.id, el)
+      return el
+    })))
   }
 
   function paintToolbar(counts) {
@@ -430,9 +470,10 @@ export function createLatticeChart(dialog, {
   function closeDetail() {
     const id = detailId
     detailId = null; paintDetail(); applyCardSelection()
-    cardEls.get(id)?.focus?.()
+    const els = mode === 'tree' ? treeEls : cardEls
+    els.get(id)?.focus?.()
   }
-  function applyCardSelection() { for (const [id, el] of cardEls) el.classList.toggle('sel', id === detailId) }
+  function applyCardSelection() { for (const [id, el] of [...cardEls, ...treeEls]) el.classList.toggle('sel', id === detailId) }
   function paintDetail(from) {
     if (!ui) return
     const detail = detailId && snapshot ? detailOf(snapshot, detailId, now()) : null
@@ -464,9 +505,9 @@ export function createLatticeChart(dialog, {
   }
   // 札へ運ぶ：中央へ寄せて詳細を開く。
   function goTo(id, keepSheet = false) {
-    const el = cardEls.get(id)
+    const el = (mode === 'tree' ? treeEls : cardEls).get(id)
     if (!el) return
-    const canvas = ui.canvas, place = places.get(id)
+    const canvas = ui.canvas, place = (mode === 'tree' ? treePlaces : places).get(id)
     if (place) canvas.scrollTo?.({ left: Math.max(0, place.x - ((canvas.clientWidth ?? 0) - place.w) / 2), top: Math.max(0, place.y - ((canvas.clientHeight ?? 0) - place.h) / 2), behavior: reduceMotion() ? 'auto' : 'smooth' })
     detailId = id; paintDetail(keepSheet ? undefined : el.getBoundingClientRect?.()); applyCardSelection()
     if (keepSheet) focusClose()
@@ -476,10 +517,10 @@ export function createLatticeChart(dialog, {
   function applyHighlight() {
     if (!ui || !snapshot) return
     const sets = highlightSets(snapshot, highlight)
-    for (const [id, el] of cardEls) el.classList.toggle('dim', Boolean(sets) && !sets.cards.has(id))
+    for (const [id, el] of [...cardEls, ...treeEls]) el.classList.toggle('dim', Boolean(sets) && !sets.cards.has(id))
     for (const row of ui.waits.querySelectorAll?.('[data-wait]') ?? []) row.classList.toggle('dim', Boolean(sets) && !sets.waits.has(row.dataset.wait))
     const lit = key => !sets || sets.cards.has(key.split('>')[0]) || sets.cards.has(key.split('>')[1])
-    for (const item of [...(ui.edgeLayer.children ?? []), ...(ui.chips.children ?? [])]) { const key = item.getAttribute?.('data-edge') ?? item.dataset?.edge; if (key) item.classList.toggle('dim', !lit(key)) }
+    for (const item of [...(ui.edgeLayer.children ?? []), ...(ui.chips.children ?? []), ...(ui.treeArcs.children ?? [])]) { const key = item.getAttribute?.('data-edge') ?? item.dataset?.edge; if (key) item.classList.toggle('dim', !lit(key)) }
   }
 
   // ---- 動き：待ちの辺の粒（requestAnimationFrame）、30 秒ごとの分の更新。動きを減らす設定では粒も回転も無し。
