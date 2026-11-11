@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-10T23:49:41Z",
-  "expiresAt": "2026-11-17T23:49:41Z",
+  "publishedAt": "2026-11-11T00:54:00Z",
+  "expiresAt": "2026-11-18T00:54:00Z",
   "releases": [
     {
       "componentId": "usage",
@@ -183,8 +183,8 @@
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "03132a12107ed0cfb5c953d85c08b59f18994eed",
-      "versionId": "92608a739f367009755fdc7137053359ba4572aba2007825e00eb335302d45c8",
+      "sourceCommit": "09f11556c14bed91ee94575b9e4f22b014423d51",
+      "versionId": "7a15fef9e547b6bb6f2efe863605a020673893cb34bf206ed9296e8132865037",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -192,16 +192,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T165326Z/conversation-03132a12107ed0cfb5c953d85c08b59f18994eed-linux-amd64.tar.gz",
-          "bytes": 3899888,
-          "sha256": "92608a739f367009755fdc7137053359ba4572aba2007825e00eb335302d45c8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T004340Z/conversation-09f11556c14bed91ee94575b9e4f22b014423d51-linux-amd64.tar.gz",
+          "bytes": 3900711,
+          "sha256": "7a15fef9e547b6bb6f2efe863605a020673893cb34bf206ed9296e8132865037"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T165326Z/conversation-03132a12107ed0cfb5c953d85c08b59f18994eed-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11139,
-          "sha256": "9bb547283b0a5ac5636b22fb909bd6e2f14c6c9a84b59e736930ed935d952285"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T004340Z/conversation-09f11556c14bed91ee94575b9e4f22b014423d51-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10955,
+          "sha256": "f2858e229e3744a98ad6ac081b1eee884b7213e96182c3c340447c1a949d39a4"
         },
-        "signerCommit": "03132a12107ed0cfb5c953d85c08b59f18994eed"
+        "signerCommit": "09f11556c14bed91ee94575b9e4f22b014423d51"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -232,13 +232,13 @@
         }
       },
       "changes": [
-        "分身どうしの問い合わせと答えを、会話の記録に残します。"
+        "分身への問い合わせ（ask_readonly）が内部エラーで失敗していたのを直し、分身の答えが質問した人へメッセージで届くようにします。"
       ]
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "03132a12107ed0cfb5c953d85c08b59f18994eed",
-      "versionId": "69775875375e5de025e8340b1bb54015732e8af38c0b8bf6d53781d7234b7d47",
+      "sourceCommit": "09f11556c14bed91ee94575b9e4f22b014423d51",
+      "versionId": "ed13d50eac53dc881a73b147470c2a0c4506842c55cd833f172690bf4144ecac",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -246,16 +246,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T165326Z/conversation-03132a12107ed0cfb5c953d85c08b59f18994eed-linux-arm64.tar.gz",
-          "bytes": 3899889,
-          "sha256": "69775875375e5de025e8340b1bb54015732e8af38c0b8bf6d53781d7234b7d47"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T004340Z/conversation-09f11556c14bed91ee94575b9e4f22b014423d51-linux-arm64.tar.gz",
+          "bytes": 3900711,
+          "sha256": "ed13d50eac53dc881a73b147470c2a0c4506842c55cd833f172690bf4144ecac"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T165326Z/conversation-03132a12107ed0cfb5c953d85c08b59f18994eed-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11186,
-          "sha256": "69326395befc12f9bd86d333513010fa76f26d593f89d094739d0ec9f14c72af"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T004340Z/conversation-09f11556c14bed91ee94575b9e4f22b014423d51-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11127,
+          "sha256": "d23d2dbf156a0344e53b3586c98830b2b6c8d6c49935f9908a8e5c699fcdf7d1"
         },
-        "signerCommit": "03132a12107ed0cfb5c953d85c08b59f18994eed"
+        "signerCommit": "09f11556c14bed91ee94575b9e4f22b014423d51"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -286,7 +286,7 @@
         }
       },
       "changes": [
-        "分身どうしの問い合わせと答えを、会話の記録に残します。"
+        "分身への問い合わせ（ask_readonly）が内部エラーで失敗していたのを直し、分身の答えが質問した人へメッセージで届くようにします。"
       ]
     },
     {
@@ -427,8 +427,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "35dbde51a063c493460fea6679887e1574776d21",
-      "versionId": "2a0db57a24ae0f5e51b912e4cfab7cd32d018a2c0ab7722c4af640ae68c3a2e8",
+      "sourceCommit": "7d701282630def8129babbf99daa4327d4685f12",
+      "versionId": "5010b5280b9e2693d7bcdebc4af920e890ea798df723f5753c406b10ae3c195a",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +436,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T143356Z/web-gateway-35dbde51a063c493460fea6679887e1574776d21-linux-amd64.tar.gz",
-          "bytes": 5183148,
-          "sha256": "2a0db57a24ae0f5e51b912e4cfab7cd32d018a2c0ab7722c4af640ae68c3a2e8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T003319Z/web-gateway-7d701282630def8129babbf99daa4327d4685f12-linux-amd64.tar.gz",
+          "bytes": 5191774,
+          "sha256": "5010b5280b9e2693d7bcdebc4af920e890ea798df723f5753c406b10ae3c195a"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T143356Z/web-gateway-35dbde51a063c493460fea6679887e1574776d21-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11299,
-          "sha256": "a800b648a2a3bd4a19172feb9718b2acea47f49241201232f243c4d104179602"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T003319Z/web-gateway-7d701282630def8129babbf99daa4327d4685f12-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11150,
+          "sha256": "cfa5853fe7893a2bf9b903b511b057b9f0e85d8bfb799d5c13f7f7a7bc910985"
         },
-        "signerCommit": "35dbde51a063c493460fea6679887e1574776d21"
+        "signerCommit": "7d701282630def8129babbf99daa4327d4685f12"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,13 +454,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "会話の画面で、分身の行に「分身」の札が付き、相関図では分身への線が点線になります。端末を登録する時に Mac・Windows・Linux を選べるようになり、Windows の C:\\ の形のフォルダも選べます。"
+        "端末の登録で、初めての端末の指紋の入力が要らなくなりました。指紋を入れる画面は、端末の鍵が変わった時だけ出ます。端末の画面で失敗した時は、押したボタンのすぐ下に理由が出ます。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "35dbde51a063c493460fea6679887e1574776d21",
-      "versionId": "baa33e87a6c64beb2eeb107270610a194c4e00ca4405c0418c85bfc5fb56b861",
+      "sourceCommit": "7d701282630def8129babbf99daa4327d4685f12",
+      "versionId": "c90e26dfd8a3ae4602aab6bea617747e94a2db654e2d72fa36739679996781ac",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -468,16 +468,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T143356Z/web-gateway-35dbde51a063c493460fea6679887e1574776d21-linux-arm64.tar.gz",
-          "bytes": 5183148,
-          "sha256": "baa33e87a6c64beb2eeb107270610a194c4e00ca4405c0418c85bfc5fb56b861"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T003319Z/web-gateway-7d701282630def8129babbf99daa4327d4685f12-linux-arm64.tar.gz",
+          "bytes": 5191774,
+          "sha256": "c90e26dfd8a3ae4602aab6bea617747e94a2db654e2d72fa36739679996781ac"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T143356Z/web-gateway-35dbde51a063c493460fea6679887e1574776d21-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11346,
-          "sha256": "9892429d03d15c74ff3e33db65728a946fb37306996334c36d537f0e6b0d674e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T003319Z/web-gateway-7d701282630def8129babbf99daa4327d4685f12-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11005,
+          "sha256": "5ed4535ad1eda52d3bf5b41a9a7469283db463e611b99762307e116e85fc9011"
         },
-        "signerCommit": "35dbde51a063c493460fea6679887e1574776d21"
+        "signerCommit": "7d701282630def8129babbf99daa4327d4685f12"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -486,13 +486,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "会話の画面で、分身の行に「分身」の札が付き、相関図では分身への線が点線になります。端末を登録する時に Mac・Windows・Linux を選べるようになり、Windows の C:\\ の形のフォルダも選べます。"
+        "端末の登録で、初めての端末の指紋の入力が要らなくなりました。指紋を入れる画面は、端末の鍵が変わった時だけ出ます。端末の画面で失敗した時は、押したボタンのすぐ下に理由が出ます。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "651f86702b57306b8cff2bdb4cb22068e0d4d3d6",
-      "versionId": "f76332920ae7c90fb5533e4d532a938916205bc3a7f6d1aa9d5ca4755a713442",
+      "sourceCommit": "09f11556c14bed91ee94575b9e4f22b014423d51",
+      "versionId": "731d9c2a8bad5a02c35180d0ccf606dd52cd3640354d70448047c91cc28a2316",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T234229Z/execution-651f86702b57306b8cff2bdb4cb22068e0d4d3d6-linux-amd64.tar.gz",
-          "bytes": 3951149,
-          "sha256": "f76332920ae7c90fb5533e4d532a938916205bc3a7f6d1aa9d5ca4755a713442"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T004142Z/execution-09f11556c14bed91ee94575b9e4f22b014423d51-linux-amd64.tar.gz",
+          "bytes": 3952022,
+          "sha256": "731d9c2a8bad5a02c35180d0ccf606dd52cd3640354d70448047c91cc28a2316"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T234229Z/execution-651f86702b57306b8cff2bdb4cb22068e0d4d3d6-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11020,
-          "sha256": "bc3fd337d8094fba6b75f9d0e0a8a9957f4bbb3686457c29b6f7939ecd5c3f28"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T004142Z/execution-09f11556c14bed91ee94575b9e4f22b014423d51-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11224,
+          "sha256": "b3b086a1d681a9d88b25b3cccf5bc074567b9a6d035cca115e1b5f19d1c60344"
         },
-        "signerCommit": "651f86702b57306b8cff2bdb4cb22068e0d4d3d6"
+        "signerCommit": "09f11556c14bed91ee94575b9e4f22b014423d51"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "本体を起動し直したあと、Macの席は最初の操作を待たずにBellTeamの道具を使えるようになります。終わったターンは、すぐに待機中と表示されます。"
+        "受け付けたあと完了が分からなくなった配送でも、席が空いたと確かめられたら席を手放します。分身への問い合わせを分身の席へ届け、断られた時は理由の分かるエラーを返します。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "651f86702b57306b8cff2bdb4cb22068e0d4d3d6",
-      "versionId": "e19cbef79396da11e28bd3ff86a03c80a39c97c9ed9f684dde3b79a9b455c590",
+      "sourceCommit": "09f11556c14bed91ee94575b9e4f22b014423d51",
+      "versionId": "42312c138cb30fda235515eb6585bf866bb99e026fd69cd43c87906071d2eddc",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T234229Z/execution-651f86702b57306b8cff2bdb4cb22068e0d4d3d6-linux-arm64.tar.gz",
-          "bytes": 3951154,
-          "sha256": "e19cbef79396da11e28bd3ff86a03c80a39c97c9ed9f684dde3b79a9b455c590"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T004142Z/execution-09f11556c14bed91ee94575b9e4f22b014423d51-linux-arm64.tar.gz",
+          "bytes": 3952023,
+          "sha256": "42312c138cb30fda235515eb6585bf866bb99e026fd69cd43c87906071d2eddc"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T234229Z/execution-651f86702b57306b8cff2bdb4cb22068e0d4d3d6-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11036,
-          "sha256": "4b2f5bf3b58bebdedb223b6b7cab4e43fabde6702127a638f5d26775a723a60a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T004142Z/execution-09f11556c14bed91ee94575b9e4f22b014423d51-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10942,
+          "sha256": "e1b010358d1edbaf41371f5d9e6a4f0633261bee9a01fb6924d74761df36c0f1"
         },
-        "signerCommit": "651f86702b57306b8cff2bdb4cb22068e0d4d3d6"
+        "signerCommit": "09f11556c14bed91ee94575b9e4f22b014423d51"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,7 +552,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "本体を起動し直したあと、Macの席は最初の操作を待たずにBellTeamの道具を使えるようになります。終わったターンは、すぐに待機中と表示されます。"
+        "受け付けたあと完了が分からなくなった配送でも、席が空いたと確かめられたら席を手放します。分身への問い合わせを分身の席へ届け、断られた時は理由の分かるエラーを返します。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "3c34970d6a531675a2e3a1b6c938e03cec572755",
-      "versionId": "sha256:9de81256b30caf66747306c9f2613af547f24034872775d0c386f63e54736784",
+      "sourceCommit": "09f11556c14bed91ee94575b9e4f22b014423d51",
+      "versionId": "sha256:3ed669bbf9c4d542931d16c5d233823774ff95af5a4c1b75a2eecc113706930f",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:9de81256b30caf66747306c9f2613af547f24034872775d0c386f63e54736784"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3ed669bbf9c4d542931d16c5d233823774ff95af5a4c1b75a2eecc113706930f"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "端末の席（Linux・Mac・Windows）で、Claude・Codex・Grok・Cursor・Antigravityの5つのCLIのログインを確かめられるようにします。CodexとGrokの席でログインが切れていたら、席を開く前に知らせます。Aiterm 0.70.12を入れて、端末の席の表示が「待機中」と「不明」のあいだでちらつかないようにし、Macなどの外の席の動きが毎回記録されるようにします。Macなどの外の席で、本体を立ち上げ直したあとにBellTeamの道具と通話が使えなくなる問題を直します。"
+        "端末を初めて登録する時に、指紋の確認が要らなくなります（sshのaccept-newと同じで、鍵が変わった時だけ止まります）。分身への問い合わせ（ask_readonly）が内部エラーで失敗する問題を直します。Aiterm 0.70.14を入れます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "3c34970d6a531675a2e3a1b6c938e03cec572755",
-      "versionId": "sha256:9de81256b30caf66747306c9f2613af547f24034872775d0c386f63e54736784",
+      "sourceCommit": "09f11556c14bed91ee94575b9e4f22b014423d51",
+      "versionId": "sha256:3ed669bbf9c4d542931d16c5d233823774ff95af5a4c1b75a2eecc113706930f",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:9de81256b30caf66747306c9f2613af547f24034872775d0c386f63e54736784"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3ed669bbf9c4d542931d16c5d233823774ff95af5a4c1b75a2eecc113706930f"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "端末の席（Linux・Mac・Windows）で、Claude・Codex・Grok・Cursor・Antigravityの5つのCLIのログインを確かめられるようにします。CodexとGrokの席でログインが切れていたら、席を開く前に知らせます。Aiterm 0.70.12を入れて、端末の席の表示が「待機中」と「不明」のあいだでちらつかないようにし、Macなどの外の席の動きが毎回記録されるようにします。Macなどの外の席で、本体を立ち上げ直したあとにBellTeamの道具と通話が使えなくなる問題を直します。"
+        "端末を初めて登録する時に、指紋の確認が要らなくなります（sshのaccept-newと同じで、鍵が変わった時だけ止まります）。分身への問い合わせ（ask_readonly）が内部エラーで失敗する問題を直します。Aiterm 0.70.14を入れます。"
       ]
     }
   ],
