@@ -47,7 +47,7 @@ test('usage staged parent assembly authenticates HTTP and seat callers and uses 
   t.after(() => usageAssembly.close())
   await usageAssembly.initializeSettings()
   assert.equal(usageAssembly.controller.snapshot().phase, 'initializing')
-  assert.equal(usageAssembly.facade.settings.list().length, 6)
+  assert.equal(usageAssembly.facade.settings.list().length, 7)
   const hostUpdateClient = { capabilities: async () => ({ supported: false, reason: 'HOST_UPDATE_UNAVAILABLE', currentRequestId: null, previousRequestId: null }),
     catalog: async id => {
       const url = `https://github.com/kitepon/BellTeam/releases/download/updates-20261104T000000Z/usage-${source}-linux-amd64.tar.gz`

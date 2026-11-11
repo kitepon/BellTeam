@@ -182,14 +182,48 @@ test('usage handoff retains second-slot sessions and native label without replay
   await restored.quiesce(); restored.close()
 })
 
-test('auth.call carries login + token_file only together and only for a Claude 2nd root call', async () => {
+test('auth.call carries login + token_file only together and only for a Claude root call', async () => {
   const { usageEffectValid } = await import('../src/usage/channel-protocol.mjs')
   const params = { harness: 'claude-code', action: 'start', relogin: true, configuration_root: '/s/2nd', login: 'oauth_token', token_file: '/s/2nd/oauth-token' }
   const second = { harness: 'claude', slot: '2nd' }
   assert.equal(usageEffectValid('auth.call', params, context, second), true)
   const { token_file, ...noFile } = params
   assert.equal(usageEffectValid('auth.call', noFile, context, second), false)
-  assert.equal(usageEffectValid('auth.call', params, context, { harness: 'claude' }), false)
+  assert.equal(usageEffectValid('auth.call', params, context, { harness: 'codex' }), false)
   assert.equal(usageEffectValid('auth.call', { ...params, token_file: 'oauth-token' }, context, second), false)
   assert.equal(usageEffectValid('auth.call', { ...params, login: 'auth_login' }, context, second), false)
+})
+
+test('tokenFile crosses the private effect only when the child asks, and an older body falls back to the root alone', async () => {
+  const flagged = { harness: 'claude', slot: '1st', tokenFile: true }
+  assert.equal(usageEffectValid('auth.prepareAccount', flagged, context, { harness: 'claude' }), true)
+  assert.equal(usageEffectValid('auth.prepareAccount', { ...flagged, tokenFile: false }, context, { harness: 'claude' }), false)
+  assert.equal(usageEffectResultValid('auth.prepareAccount', { configurationRoot: '/s/1st', tokenFile: '/s/oauth-token' }), true)
+  assert.equal(usageEffectResultValid('auth.prepareAccount', { configurationRoot: '/s/1st', tokenFile: 'oauth-token' }), false)
+  const call = { harness: 'claude-code', action: 'start', configuration_root: '/s/1st', login: 'oauth_token', token_file: '/s/1st-token' }
+  assert.equal(usageEffectValid('auth.call', call, context, { harness: 'claude' }), true)
+  const services = { accounts: { async prepare() { return { configurationRoot: '/s/1st', history: 'shared', tokenFile: '/s/1st-token' } } } }
+  const effect = createUsageParentEffects({ getServices: () => services })
+  assert.deepEqual(await effect('auth.prepareAccount', flagged, context), { configurationRoot: '/s/1st', tokenFile: '/s/1st-token' })
+  assert.deepEqual(await effect('auth.prepareAccount', { harness: 'claude', slot: '1st' }, context), { configurationRoot: '/s/1st' })
+
+  for (const old of [false, true]) {
+    const root = await mkdtemp(join(tmpdir(), 'bellteam-auth-token-usage-'))
+    const calls = []
+    const service = createUsageServices({ root, bots: new Map(), rooms: new Map(), effect: async (method, params) => {
+      calls.push({ method, params })
+      if (method === 'auth.prepareAccount') {
+        if (old && params.tokenFile) throw Object.assign(new Error('USAGE_IPC_INVALID'), { code: 'USAGE_IPC_INVALID', outcome: 'not_accepted', status: 503 })
+        return { configurationRoot: '/s/1st', ...(params.tokenFile ? { tokenFile: '/s/1st-token' } : {}) }
+      }
+      if (method === 'auth.call') return { structuredContent: { schema: 'aiterm.agent-auth-result.v1', ...(params.login ? { login: 'oauth_token' } : {}), status: 'authenticated' } }
+      if (method === 'auth.listAccounts') return { harnesses: [] }
+    } })
+    await service.initializeSettings(); await service.initialize()
+    await service.request('auth.status', { harness: 'claude' }, owner)
+    const native = calls.findLast(item => item.method === 'auth.call').params
+    assert.equal(native.token_file, old ? undefined : '/s/1st-token')
+    assert.equal(calls.filter(item => item.method === 'auth.prepareAccount').length, old ? 2 : 1)
+    await service.quiesce(); service.close(); await rm(root, { recursive: true, force: true })
+  }
 })

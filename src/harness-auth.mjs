@@ -118,22 +118,25 @@ export class HarnessAuth {
 
   async end(harness, slot) {
     const key = harnessAuthKey(harness, slot)
-    // 2nd: a session from the older auth-login mode is refused by the token mode; forgetting it lets the next start run.
-    try { await this.call(harness, 'cancel', {}, slot) } catch (error) { if (slot !== '2nd') throw error }
+    // Claude: a session from the older auth-login mode is refused by the token mode; forgetting it lets the next start run.
+    try { await this.call(harness, 'cancel', {}, slot) } catch (error) { if (harness !== 'claude') throw error }
     this.sessions.delete(key)
     this.receipts.delete(key)
   }
 
   async call(harness, action, options = {}, slot = '1st', previous = this.receipts.get(harnessAuthKey(harness, slot))) {
     const key = harnessAuthKey(harness, slot)
-    let configurationRoot
+    let configurationRoot, tokenFile
     if (harness === 'claude') {
       try {
         if (!this.accounts?.prepare) throw new HarnessAuthError('HARNESS_AUTH_ACCOUNTS_UNAVAILABLE', 503, 'アカウントの保存場所を用意できませんでした。少し待ってから、もう一度お試しください。')
         const prepared = await this.accounts.prepare(harness, slot)
         if (typeof prepared?.configurationRoot !== 'string' || !isAbsolute(prepared.configurationRoot) || prepared.configurationRoot.includes('\0'))
           throw new HarnessAuthError('HARNESS_AUTH_ACCOUNTS_INVALID', 502, '認証先のアカウントを確認できませんでした。')
+        if (prepared.tokenFile !== undefined && (typeof prepared.tokenFile !== 'string' || !isAbsolute(prepared.tokenFile) || prepared.tokenFile.includes('\0')))
+          throw new HarnessAuthError('HARNESS_AUTH_ACCOUNTS_INVALID', 502, '認証先のアカウントを確認できませんでした。')
         configurationRoot = prepared.configurationRoot
+        tokenFile = prepared.tokenFile
       } catch (error) {
         if (slot === '1st' && ['HARNESS_AUTH_ACCOUNTS_UNAVAILABLE', 'EXECUTION_REQUEST_INVALID'].includes(error?.code)) configurationRoot = undefined
         else throw new HarnessAuthError('HARNESS_AUTH_ACCOUNTS_UNAVAILABLE', 503, 'アカウントの保存場所を用意できませんでした。少し待ってから、もう一度お試しください。')
@@ -147,8 +150,10 @@ export class HarnessAuth {
         account = accounts?.harnesses?.find(value => value.harness === harness)?.slots?.find(value => value.slot === slot)
       } catch {}
     }
-    // 2nd seats log in only from <2nd root>/oauth-token (execution harness-accounts.md, Login per slot); Aiterm writes it via setup-token.
-    const tokenLogin = harness === 'claude' && slot === '2nd' ? { login: 'oauth_token', token_file: join(configurationRoot, 'oauth-token') } : {}
+    // One login per slot (execution harness-accounts.md): every seat logs in from the slot's oauth-token; Aiterm writes it via setup-token.
+    // A body older than PR #1048 gives no tokenFile: 1st keeps the CLI login, 2nd keeps its previous root path.
+    if (harness === 'claude' && !tokenFile && slot === '2nd') tokenFile = join(configurationRoot, 'oauth-token')
+    const tokenLogin = tokenFile ? { login: 'oauth_token', token_file: tokenFile } : {}
     const session = this.sessions.get(key)
     const cwd = [...this.bots.values()].find(bot => bot.harness === harness)?.project
     const result = await this.client.call('agent_auth', {
@@ -158,9 +163,9 @@ export class HarnessAuth {
       ...(cwd ? { cwd } : {}),
     }, this.client.authOptions?.() ?? { env: runtimeEnvironment() })
     const receipt = authReceipt(result, session, () => new HarnessAuthError('HARNESS_AUTH_RESPONSE_INVALID', 502, 'Aitermの公式認証の応答を読み取れません。'))
-    // An older Aiterm drops login/token_file and would run `claude auth login`, which never makes the 2nd usable.
+    // An older Aiterm drops login/token_file and would run `claude auth login`, which never makes the slot usable for seats.
     if (tokenLogin.login && receipt.login !== 'oauth_token')
-      throw new HarnessAuthError('HARNESS_AUTH_LOGIN_UNSUPPORTED', 409, 'このサーバーのAitermは、2つ目のアカウントのログインに対応していません。BellTeamを更新してください。')
+      throw new HarnessAuthError('HARNESS_AUTH_LOGIN_UNSUPPORTED', 409, `このサーバーのAitermは、${slot === '2nd' ? '2つ目' : '1つ目'}のアカウントのログインに対応していません。BellTeamを更新してください。`)
     if (harness === 'claude' && receipt.account_label !== undefined && receipt.account_label !== null && typeof receipt.account_label !== 'string')
       throw new HarnessAuthError('HARNESS_AUTH_RESPONSE_INVALID', 502, 'Aitermの公式認証の応答を読み取れません。')
     const active = action !== 'cancel' && receipt.status !== 'authenticated' && Boolean(session || receipt.session_id)

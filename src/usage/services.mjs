@@ -190,7 +190,12 @@ export function createUsageServices({ root, bots, rooms, effect, onProjection = 
     'subscriptions.completeSetup': ({ botId }) => subscriptions.completeSetup(botId),
     'subscriptions.runSetupTest': ({ botId }) => subscriptions.runSetupTest(botId, () => callEffect('subscription.setupTest', { botId })),
   }
-  const harnessAuth = new HarnessAuth({ bots, client, accounts: { prepare: (harness, slot) => callEffect('auth.prepareAccount', { harness, slot }),
+  const harnessAuth = new HarnessAuth({ bots, client, accounts: { prepare: async (harness, slot) => {
+    try { return await callEffect('auth.prepareAccount', { harness, slot, tokenFile: true }) }
+    // A body older than one-login-per-slot refuses the flag before running it; the root alone keeps that body's login.
+    catch (error) { if (error?.code !== 'USAGE_IPC_INVALID' || error.outcome !== 'not_accepted') throw error }
+    return callEffect('auth.prepareAccount', { harness, slot })
+  },
     list: () => callEffect('auth.listAccounts', {}) } })
   const publish = record => {
     const row = clone({ ...record, revision: ++revision }), previous = projectionTail
