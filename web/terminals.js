@@ -361,9 +361,9 @@ export function createTerminalsView(dialog, { api }) {
     // First use is trusted by the body like ssh accept-new (terminals #1000, Owner ruling 2026-11-11): the sheet is only for a check
     // that reports a trust reason (a changed key, or an older body that still needs the Owner's fingerprint).
     const needsTrust = Boolean(status.trust)
-    // The Mac app attests only a terminal without hostTrust (S2); a changed key on a trusted Mac needs the manual sheet (Crust #1020).
-    const appAttests = needsTrust && os === 'macos' && !terminal.hostTrust
-    if (appAttests) node.append(element('p', 'このMacでBellTeamアプリを開くと、自動で確かめます。', 'field-help'))
+    // The Mac / Windows app attests only a terminal without hostTrust (S2); a changed key on a trusted one needs the manual sheet (Crust #1020, #1035).
+    const appAttests = needsTrust && (os === 'macos' || os === 'windows') && !terminal.hostTrust
+    if (appAttests) node.append(element('p', `この${os === 'windows' ? 'PC' : 'Mac'}でBellTeamアプリを開くと、自動で確かめます。`, 'field-help'))
     if (status.help && !status.trust) node.append(element('p', status.help, 'field-help'))
     const authorizing = opened.authorizing.get(id)
     if (authorizing) node.append(element('p', authorizing.text, 'field-help'))
@@ -380,7 +380,7 @@ export function createTerminalsView(dialog, { api }) {
     node.append(keyRow(terminal, 'ssh'))
     if (os !== 'windows') node.append(keyRow(terminal, 'sudo'))
     node.append(...errorNode(`key:${id}`))
-    // Manual sheet (a Mac without the app; the only way on Windows/Linux); PUT confirmHostKey uses the SSH key's binding, so the key comes first.
+    // Manual sheet (a Mac / PC without the app; the only way on Linux); PUT confirmHostKey uses the SSH key's binding, so the key comes first.
     if (needsTrust) {
       const manual = terminal.sshKeyConfigured === false
         ? element('p', '先にSSH鍵を設定してください。そのあと、ホスト鍵の指紋を確かめます。', 'field-help') : trustForm(terminal, os)

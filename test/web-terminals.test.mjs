@@ -122,7 +122,7 @@ test('a suspended save keeps a newer edit; failure keeps the draft; an unchanged
   assert.equal(v.form(), undefined)
 })
 
-test('Windows / Linux: OS choice sends os and follows the precondition; card names the OS, no sudo on Windows, fingerprint sheet shown directly', async t => {
+test('Windows / Linux: OS choice sends os and follows the precondition; card names the OS, no sudo on Windows, app line + ほかの方法 on Windows, sheet directly on Linux', async t => {
   const fox = { ...mac, terminalId: 'fox', os: 'windows', user: 'kite_', sudoKeyConfigured: false }
   const v = await view(t, [fox, { ...mac, terminalId: 'rabbit', os: 'linux', user: 'kite' }]); await v.open()
   const card = id => v.all().find(node => node.dataset?.terminalId === id)
@@ -133,7 +133,10 @@ test('Windows / Linux: OS choice sends os and follows the precondition; card nam
   // First use is trusted by the body (accept-new, #1000): no sheet until a check reports a trust reason.
   assert.doesNotMatch(text(card('fox')), /ホスト鍵の指紋/)
   for (const id of ['fox', 'rabbit']) { nodes(card(id)).find(node => node.tagName === 'button' && node.textContent === '届くか確かめる').fire('click'); await settle(); await settle() }
-  assert.doesNotMatch(text(card('fox')), /BellTeamアプリ|ほかの方法/)
+  // Untrusted Windows: the Windows app attests it (S2, #1035); the sheet sits under ほかの方法. Linux has no app.
+  assert.match(text(card('fox')), /このPCでBellTeamアプリを開くと、自動で確かめます。/)
+  assert.equal(nodes(card('fox')).find(node => node.className === 'terminal-other').children[0].textContent, 'ほかの方法')
+  assert.doesNotMatch(text(card('rabbit')), /BellTeamアプリ|ほかの方法/)
   assert.match(text(card('fox')), /PowerShellで ssh-keygen -lf C:\\ProgramData\\ssh\\ssh_host_ed25519_key\.pub/)
   assert.match(text(card('rabbit')), /ssh-keygen -lf \/etc\/ssh\/ssh_host_ed25519_key\.pub/)
 
