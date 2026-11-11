@@ -42,6 +42,7 @@ async function fixture(t, { failures = 1, onAuth = () => {}, changeFailure = x =
     if (name === 'agent_launch') return { structuredContent: { schema: 'aiterm.agent-launch-result.v1', session_id: args.session_name ?? bot.id, startup: { status: 'ready' }, initial_prompt: { status: 'not_requested' } } }
     if (name === 'pty_read') return { structuredContent: { schema: 'aiterm.pty-read-result.v1', mode: 'agent_transcript', text: '', turn_id: `turn-${sends}` } }
     if (name === 'pty_observe') return { structuredContent: { words: [], event_cursor: sends } }
+    if (name === 'pty_list') return { structuredContent: { sessions: [] } }
     throw Error(`unexpected ${name}`)
   } }
   const transport = new AitermTransport({ client, handoffContext: async () => '', accounts, resolveBot: id => bots.get(id),
@@ -52,6 +53,7 @@ async function fixture(t, { failures = 1, onAuth = () => {}, changeFailure = x =
       return n <= failures ? changeFailure(observation(receipt)) : { outcome: 'done', turn_id: `turn-${n}` }
     } })
   transport.isRunning = async () => true
+  transport.holdReleasePollMs = 1
   const admin = new BotAdministration({ bots, transport, writeLog() {} })
   const messenger = new BellTeamMessenger({ bots, transport, logPath: join(root, 'messages.jsonl') })
   const recovery = new CapacityContinuation({ bots, administration: admin, messenger, accounts, transport,
@@ -64,7 +66,7 @@ async function fixture(t, { failures = 1, onAuth = () => {}, changeFailure = x =
   transport.continuation = recovery
   t.after(() => transport.close())
   const start = () => messenger.sendmessage({ from: 'scheduler', target: bot.id, message: 'ORIGINAL_PRIVATE_BODY' })
-  const settle = async () => { for (let i = 0; i < 100; i++) { await new Promise(resolve => setTimeout(resolve, 2)); if (!recovery.pending.size && !transport.jobs.size) return } throw Error('recovery did not settle') }
+  const settle = async () => { for (let i = 0; i < 100; i++) { await new Promise(resolve => setTimeout(resolve, 2)); if (!recovery.pending.size && !transport.jobs.size && !transport.accountMoves.size) return } throw Error('recovery did not settle') }
   return { root, bot, bots, calls, transport, admin, recovery, start, settle }
 }
 

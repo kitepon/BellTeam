@@ -110,7 +110,7 @@ export class HarnessAccounts {
     timers = { set: setTimeout, clear: clearTimeout }, timeZone = process.env.TZ || 'UTC', log = line => process.stderr.write(`${line}\n`) }) {
     Object.assign(this, { home, statePath, seat, readUsage, now, timers, timeZone, log })
     this.labels = new Map()
-    this.state = { schema: SCHEMA, limits: [], seats: {}, logins: {}, signedOut: [], renew: [] }
+    this.state = { schema: SCHEMA, limits: [], seats: {}, logins: {}, signedOut: [], renew: [], pending: {} }
     this.listeners = new Set()
     this.resetTimers = new Map()
     this.reread = null
@@ -137,6 +137,9 @@ export class HarnessAccounts {
         logins: Object.fromEntries(Object.entries(value.logins ?? {}).filter(([, stamp]) => stamp === null || Number.isFinite(stamp))),
         signedOut: (value.signedOut ?? []).filter(entry => ACCOUNT_HARNESSES.includes(entry?.harness) && ACCOUNT_SLOTS.includes(entry.slot) && Number.isFinite(entry.stamp)),
         renew: (value.renew ?? []).filter(botId => typeof botId === 'string'),
+        pending: Object.fromEntries(Object.entries(value.pending ?? {}).filter(([, entry]) => ACCOUNT_HARNESSES.includes(entry?.harness)
+          && ACCOUNT_SLOTS.includes(entry.slot) && (entry.deliveryId === null || typeof entry.deliveryId === 'string')
+          && (entry.escaped === undefined || (Array.isArray(entry.escaped) && entry.escaped.every(session => typeof session === 'string'))))),
       }
     } catch (error) { if (error.code !== 'ENOENT') this.log(`BellTeam accounts: registry unreadable, starting empty (${error.code ?? 'INVALID'})`) }
     // Re-arm after a restart or a body exchange; an entry whose time passed clears now.
@@ -154,9 +157,13 @@ export class HarnessAccounts {
   watch(listener) { this.listeners.add(listener); return () => this.listeners.delete(listener) }
   emit() { for (const listener of this.listeners) { try { listener() } catch {} } }
 
-  // A failed write keeps the previous state in memory and on disk.
-  save(next) {
+  // A failed write keeps the previous state in memory and on disk. `change` computes the next state from the state current
+  // inside the serialized write (two clears at one resetAt must not restore each other, production 2026-11-11 22:25 JST);
+  // it returns the same object for no change.
+  update(change) {
     const run = this.writing.then(async () => {
+      const next = change(this.state)
+      if (next === this.state) return
       await writeAtomic(this.statePath, next)
       this.state = next
       this.emit()
@@ -181,10 +188,38 @@ export class HarnessAccounts {
   // The slot each Claude seat was last launched on (kept across restarts and engine exchanges).
   seatSlot(botId) { return this.state.seats[botId] ?? null }
   // stamp: the token file's mtime the seat was launched with (null: legacy 1st), so a failure names the login it really used.
-  async setSeat(botId, slot, stamp = this.state.logins[botId] ?? null) {
-    const renew = this.state.renew.filter(id => id !== botId)
-    if (this.state.seats[botId] === slot && (this.state.logins[botId] ?? null) === stamp && renew.length === this.state.renew.length) return
-    await this.save({ ...this.state, seats: { ...this.state.seats, [botId]: slot }, logins: { ...this.state.logins, [botId]: stamp }, renew })
+  async setSeat(botId, slot, stamp) {
+    await this.update(state => {
+      const login = stamp === undefined ? state.logins[botId] ?? null : stamp, renew = state.renew.filter(id => id !== botId)
+      if (state.seats[botId] === slot && (state.logins[botId] ?? null) === login && renew.length === state.renew.length) return state
+      return { ...state, seats: { ...state.seats, [botId]: slot }, logins: { ...state.logins, [botId]: login }, renew }
+    })
+  }
+
+  // harness-accounts.md "account recovery": a member whose turn ended on a limit while no other slot was free.
+  pendingFor(botId) { return this.state.pending[botId] ?? null }
+  // escaped: held seats already given their one Esc whose cancellation is not yet confirmed (never pressed again).
+  setPending(botId, { harness, slot, deliveryId = null, escaped }) {
+    return this.update(state => {
+      const kept = escaped ?? state.pending[botId]?.escaped
+      return { ...state, pending: { ...state.pending, [botId]: { harness, slot, deliveryId, since: new Date(this.now()).toISOString(), ...kept?.length ? { escaped: kept } : {} } } }
+    })
+  }
+  dropPending(botId) {
+    return this.update(state => {
+      if (!state.pending[botId]) return state
+      const { [botId]: _, ...pending } = state.pending
+      return { ...state, pending }
+    })
+  }
+
+  // What can let a held or pending member move: limits, sign-outs and pending entries (not seat-only writes).
+  recoveryKey() { return JSON.stringify([this.state.limits, this.state.signedOut, this.state.pending]) }
+
+  // The effective slot when it is logged in and not limited for the model, else null (every usable slot limited).
+  async freeSlot(harness, model) {
+    const slot = await this.effectiveSlot(harness, model)
+    return !this.limitFor(harness, slot, model).length && await this.loggedIn(harness, slot) ? slot : null
   }
 
   // Display label: the e-mail of the slot's own login (not a credential). Read as the seat user, cached until a new login.
@@ -218,24 +253,31 @@ export class HarnessAccounts {
   async recordSignedOut({ harness, slot, botId, text }) {
     const stamp = await this.stamp(harness, slot)
     if (stamp === null) return null
-    const renew = [...new Set([...this.state.renew, botId])]
-    if ((this.state.logins[botId] ?? null) !== stamp) { await this.save({ ...this.state, renew }); return 'stale' }
-    const previous = this.signedOutEntry(harness, slot, stamp)
-    const entry = previous ?? { harness, slot, since: new Date(this.now()).toISOString(), stamp, text: String(text ?? '').slice(0, 300) }
-    if (!previous) this.log(`BellTeam accounts: ${harness} ${slot} signed out: ${entry.text}`)
-    await this.save({ ...this.state, renew, signedOut: [...this.state.signedOut.filter(value => value !== previous), entry] })
+    let outcome
+    await this.update(state => {
+      const renew = [...new Set([...state.renew, botId])]
+      if ((state.logins[botId] ?? null) !== stamp) { outcome = 'stale'; return { ...state, renew } }
+      outcome = 'signed_out'
+      const previous = state.signedOut.find(entry => entry.harness === harness && entry.slot === slot && entry.stamp === stamp)
+      const entry = previous ?? { harness, slot, since: new Date(this.now()).toISOString(), stamp, text: String(text ?? '').slice(0, 300) }
+      if (!previous) this.log(`BellTeam accounts: ${harness} ${slot} signed out: ${entry.text}`)
+      return { ...state, renew, signedOut: [...state.signedOut.filter(value => value !== previous), entry] }
+    })
     this.syncReread()
-    return 'signed_out'
+    return outcome
   }
 
   // The self-exit of signed out: a different token mtime is a new login. Called by list() and the 10-minute re-read.
   async refreshSignedOut() {
-    const kept = []
+    const renewed = []
     for (const entry of this.state.signedOut) {
       const stamp = await this.stamp(entry.harness, entry.slot)
-      if (stamp === null || stamp === entry.stamp) kept.push(entry)
+      if (stamp !== null && stamp !== entry.stamp) renewed.push(this.key(entry) + entry.stamp)
     }
-    if (kept.length !== this.state.signedOut.length) await this.save({ ...this.state, signedOut: kept }).then(() => this.syncReread(), () => {})
+    if (renewed.length) await this.update(state => {
+      const kept = state.signedOut.filter(entry => !renewed.includes(this.key(entry) + entry.stamp))
+      return kept.length === state.signedOut.length ? state : { ...state, signedOut: kept }
+    }).then(() => this.syncReread(), () => {})
   }
 
   // Seats that must start again on their effective slot even when it is the same one (a running CLI keeps its env token).
@@ -280,8 +322,7 @@ export class HarnessAccounts {
     scope ??= 'all'
     const entry = { harness, slot, scope, since: new Date(this.now()).toISOString(), resetAt, resetSource, text: String(text ?? '').slice(0, 300) }
     this.log(`BellTeam accounts: ${harness} ${slot} limited for ${scope} until ${resetAt ?? 'unknown'} (source ${resetSource ?? 'none'}, zone ${parsed.zone}, parsed ${parsed.parsedAt ?? 'none'}): ${entry.text}`)
-    const limits = [...this.state.limits.filter(value => !(value.harness === harness && value.slot === slot && value.scope === scope)), entry]
-    await this.save({ ...this.state, limits })
+    await this.update(state => ({ ...state, limits: [...state.limits.filter(value => this.key(value) !== this.key(entry)), entry] }))
     this.arm(entry)
     this.syncReread()
     return structuredClone(entry)
@@ -313,9 +354,10 @@ export class HarnessAccounts {
   }
 
   async clear(entry) {
-    const limits = this.state.limits.filter(value => this.key(value) !== this.key(entry) || value.since !== entry.since)
-    if (limits.length === this.state.limits.length) return
-    await this.save({ ...this.state, limits })
+    await this.update(state => {
+      const limits = state.limits.filter(value => this.key(value) !== this.key(entry) || value.since !== entry.since)
+      return limits.length === state.limits.length ? state : { ...state, limits }
+    })
     this.syncReread()
   }
 
@@ -333,8 +375,9 @@ export class HarnessAccounts {
       if (!row) continue
       if (row.percent < 100) await this.clear(entry).catch(() => {})
       else if (row.resetsAt && this.trusted(row.resetsAt)) {
-        const next = { ...entry, resetAt: row.resetsAt, resetSource: 'usage' }
-        await this.save({ ...this.state, limits: this.state.limits.map(value => value === entry ? next : value) }).then(() => this.arm(next), () => {})
+        const next = { ...entry, resetAt: row.resetsAt, resetSource: 'usage' }, same = value => this.key(value) === this.key(entry) && value.since === entry.since
+        await this.update(state => state.limits.some(same) ? { ...state, limits: state.limits.map(value => same(value) ? next : value) } : state)
+          .then(() => this.arm(next), () => {})
       }
     }
   }
