@@ -41,6 +41,25 @@ public sealed class LatticeChartTests
     }
 
     [Fact]
+    public void AnAuthoredLaneIsTheOwnerWhenNobodyStartedItInItsOwnLaneAfterTheMembers()
+    {
+        var snapshot = Snapshot([Card("1", "in-progress", "bot-k"), Card("2", "pending", null, 1) with { Lane = "root" }, Card("3", "ready", null, 1) with { Lane = "anis" }, Card("4", "pending", null, 2), Card("5", "pending", "bot-ghost", 2)],
+            [new("1", "2", true), new("2", "4", true)], [new(null, "2", "1", "bot-k", "in-progress", Now.AddMinutes(-9)), new(null, "4", "2", null, "pending", Now.AddMinutes(-3))]);
+        var layout = LatticeChart.Layout(snapshot);
+        Assert.Equal(["キロ", "anis", "root", LatticeChart.UnknownMember, LatticeChart.Unassigned], layout.Lanes.Select(lane => LatticeChart.NameOf(lane.Member)));
+        Assert.Equal(["bot-k", null, null, "bot-ghost", null], layout.Lanes.Select(lane => lane.BotId));
+        Assert.Equal(["bot-k", "bot-ghost"], LatticeChart.Rail(snapshot, layout).Select(item => item.BotId));
+        var rows = LatticeChart.WaitRows(snapshot, Now);
+        Assert.Equal("rootが待っている", rows[0].Headline);
+        Assert.Equal("担当未定が待っている", rows[1].Headline);
+        Assert.Equal("未着手: 担当 root", rows[1].StateText);
+        Assert.False(rows[1].CanChat);
+        Assert.Equal("rootが待っています", LatticeChart.EdgeChip(snapshot, new("1", "2", true)));
+        Assert.Equal("担当 anis", LatticeChart.CardNote(snapshot.Cards[2], LatticeChart.Owner(snapshot)(snapshot.Cards[2])));
+        Assert.Equal("root", LatticeChart.Detail(snapshot, "2", Now)!.Producer!.Name);
+    }
+
+    [Fact]
     public void WaitRowsAreOldestFirstEmphasizeABlockedProducerAndNeverChatWithAnUnknownMember()
     {
         var snapshot = Snapshot([Card("1", "blocked", "bot-a", reason: "登録点が未定"), Card("2", "pending", "bot-k", 1), Card("3", "in-progress", "bot-ghost"), Card("4", "pending", "bot-k", 1)],
