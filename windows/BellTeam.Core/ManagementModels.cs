@@ -26,7 +26,15 @@ public sealed record BotSettings
     public bool Matches(Dictionary<string, object?> changes) { var fields = Normalized.Fields(); return changes.All(change => Equals(fields[change.Key], change.Value)); }
 }
 public sealed record BotSettingsResponse { public required BotSettings Bot { get; init; } public bool Applying { get; init; } }
-public sealed record ModelChoice { public required string Id { get; init; } public required string[] Efforts { get; init; } public bool Fast { get; init; } }
+public sealed record ModelChoice
+{
+    public required string Id { get; init; }
+    public required string[] Efforts { get; init; }
+    public bool Fast { get; init; }
+    [JsonPropertyName("display_name")] public string? DisplayName { get; init; }
+    // The picker label (Mac ModelChoice.label): the trimmed display name, else the id. The value chosen and saved is always the id.
+    [JsonIgnore] public string Label => string.IsNullOrWhiteSpace(DisplayName) ? Id : DisplayName.Trim();
+}
 public sealed record ApiFailure { public required string Code { get; init; } public required string Message { get; init; } }
 public sealed record HarnessModels { public required ModelChoice[] Models { get; init; } public required string[] Efforts { get; init; } public string? DefaultModel { get; init; } public ApiFailure? Error { get; init; } public ApiFailure? FastUnavailable { get; init; } }
 public sealed record ModelsResponse { public required Dictionary<string, HarnessModels> Models { get; init; } }

@@ -14,6 +14,8 @@ public sealed record ConversationEntry(ChatTarget Target, string Name, string Su
     public string Presence => Bot is { Online: true } ? "●" : "";
     public bool FastMode => Bot?.FastMode == true;
     public bool IsMember => Bot is not null;
+    // The red line under a member's summary and on top of its conversation; null for a room and for a member with no notice.
+    public string? SeatLaunchLine => Bot?.SeatLaunch?.Line;
     public string PreviewText => TextContent.Normalize(Subtitle).Replace('\n', ' ');
     // Mac BotPresenceDot: red (pulsing in the row template) while working, mint when online, the line colour when offline.
     public System.Windows.Media.Brush PresenceBrush => Working ? WorkingBrush : Bot?.Online == true ? OnlineBrush : OfflineBrush;

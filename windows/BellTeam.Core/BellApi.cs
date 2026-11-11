@@ -70,12 +70,12 @@ public sealed class BellApi : IDisposable
         var (result, status) = await JsonWithStatusAsync<BotStopResponse>(request, token);
         return result.Outcome(status, botId) ?? throw new BellApiException("BellTeamからの応答を読み取れませんでした。");
     }
-    public async Task<T> PostAsync<T>(string path, object body, CancellationToken token = default)
-        => await WriteAsync<T>(HttpMethod.Post, path, body, token);
-    public async Task<T> WriteAsync<T>(HttpMethod method, string path, object body, CancellationToken token = default)
+    public async Task<T> PostAsync<T>(string path, object body, CancellationToken token = default, TimeSpan? limit = null)
+        => await WriteAsync<T>(HttpMethod.Post, path, body, token, limit);
+    public async Task<T> WriteAsync<T>(HttpMethod method, string path, object body, CancellationToken token = default, TimeSpan? limit = null)
     {
         using var request = new HttpRequestMessage(method, path) { Content = JsonContent.Create(body, options: Json) };
-        return await JsonAsync<T>(request, token);
+        return await JsonAsync<T>(request, token, limit);
     }
     public async Task DeleteAsync(string path, CancellationToken token = default)
     {
@@ -125,11 +125,11 @@ public sealed class BellApi : IDisposable
         return JsonSerializer.SerializeToUtf8Bytes(document, new JsonSerializerOptions(Json) { WriteIndented = true });
     }
 
-    private async Task<T> JsonAsync<T>(HttpRequestMessage request, CancellationToken token) => (await JsonWithStatusAsync<T>(request, token)).Value;
-    private async Task<(T Value, int Status)> JsonWithStatusAsync<T>(HttpRequestMessage request, CancellationToken token)
+    private async Task<T> JsonAsync<T>(HttpRequestMessage request, CancellationToken token, TimeSpan? limit = null) => (await JsonWithStatusAsync<T>(request, token, limit)).Value;
+    private async Task<(T Value, int Status)> JsonWithStatusAsync<T>(HttpRequestMessage request, CancellationToken token, TimeSpan? limit = null)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
-        timeout.CancelAfter(TimeSpan.FromSeconds(30));
+        timeout.CancelAfter(limit ?? TimeSpan.FromSeconds(30));
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         using var response = await client.SendAsync(request, timeout.Token);
         await ValidateAsync(response, timeout.Token);

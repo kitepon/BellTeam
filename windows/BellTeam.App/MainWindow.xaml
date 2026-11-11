@@ -23,7 +23,7 @@
           <ListBox.ItemTemplate><DataTemplate>
             <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="57.6"/><ColumnDefinition/></Grid.ColumnDefinitions>
               <Grid Width="57.6" Height="57.6" VerticalAlignment="Center"><local:AvatarTile Entry="{Binding}" Workspace="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" Width="57.6" Height="57.6"/><Ellipse x:Name="Presence" Width="9" Height="9" HorizontalAlignment="Right" VerticalAlignment="Bottom" Stroke="White" StrokeThickness="2" Fill="{Binding PresenceBrush}" Visibility="{Binding IsMember, Converter={StaticResource Visible}}" AutomationProperties.Name="{Binding PresenceLabel}"/></Grid>
-              <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center"><TextBlock TextTrimming="CharacterEllipsis"><Run Text="{Binding Name, Mode=OneWay}" FontSize="16" FontWeight="SemiBold"/><Run Text="{Binding FastModeBadge, Mode=OneWay}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource Violet}"/></TextBlock><TextBlock x:Name="Summary" Text="{Binding PreviewText}" Foreground="{StaticResource Muted}" FontSize="11" LineHeight="15" LineStackingStrategy="BlockLineHeight" MaxHeight="30" Margin="0,3,0,0" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"/></StackPanel>
+              <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center"><TextBlock TextTrimming="CharacterEllipsis"><Run Text="{Binding Name, Mode=OneWay}" FontSize="16" FontWeight="SemiBold"/><Run Text="{Binding FastModeBadge, Mode=OneWay}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource Violet}"/></TextBlock><TextBlock x:Name="Summary" Text="{Binding PreviewText}" Foreground="{StaticResource Muted}" FontSize="11" LineHeight="15" LineStackingStrategy="BlockLineHeight" MaxHeight="30" Margin="0,3,0,0" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"/><!-- Mac SidebarRowLabel: the seat launch notice, a red line (2 lines at most) under the summary. --><TextBlock x:Name="SeatLaunch" Text="{Binding SeatLaunchLine}" Foreground="#FF3B30" FontSize="11" LineHeight="15" LineStackingStrategy="BlockLineHeight" MaxHeight="30" Margin="0,3,0,0" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding SeatLaunchLine}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></StackPanel>
             </Grid>
             <DataTemplate.Triggers>
               <DataTrigger Binding="{Binding IsMember}" Value="False"><Setter TargetName="Summary" Property="MaxHeight" Value="15"/></DataTrigger>
@@ -35,8 +35,13 @@
     </Border>
     <GridSplitter Grid.Column="0" Width="5" HorizontalAlignment="Right" Background="Transparent" ResizeBehavior="CurrentAndNext" AutomationProperties.Name="サイドバーの幅"/>
     <Grid x:Name="ConversationArea" Grid.Column="1" Background="{StaticResource ConversationBackground}">
-      <Grid.RowDefinitions><RowDefinition Height="52"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+      <Grid.RowDefinitions><RowDefinition Height="Auto" MinHeight="52"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
       <!-- Mac shows no avatar+name row here: the window title says BellTeam and the toolbar band only carries the corner buttons below. -->
+      <!-- Mac ConversationView top inset: a member's seat launch notice right under that band, red, up to 3 lines (the band is too narrow for the reason). -->
+      <Border x:Name="SeatLaunchBar" Grid.Row="0" Margin="0,52,0,0" Padding="16,6" Background="#CCFFFFFF" VerticalAlignment="Top" AutomationProperties.Name="起動できない理由">
+        <Border.Style><Style TargetType="Border"><Style.Triggers><DataTrigger Binding="{Binding Selected.SeatLaunchLine}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></Border.Style>
+        <TextBlock Text="{Binding Selected.SeatLaunchLine}" Foreground="#FF3B30" FontSize="13" LineHeight="18" LineStackingStrategy="BlockLineHeight" MaxHeight="54" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"/>
+      </Border>
       <ScrollViewer x:Name="MessageScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="18,20,18,18" AutomationProperties.Name="会話" AllowDrop="True" PreviewDragOver="Images_DragOver" Drop="Images_Drop">
         <Grid MinHeight="{Binding ViewportHeight, ElementName=MessageScroll}"><StackPanel VerticalAlignment="Bottom">
           <Button Content="以前のメッセージを読む" Visibility="{Binding HasMore, Converter={StaticResource Visible}}" Click="Older_Click"/>

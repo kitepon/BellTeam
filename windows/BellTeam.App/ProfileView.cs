@@ -53,6 +53,8 @@ internal static class InspectorUi
         var button = new Button { Content = Label(text, glyph, Brushes.White, size), Template = Template(7), Background = Violet, Padding = new Thickness(16, 7, 16, 7), HorizontalAlignment = HorizontalAlignment.Stretch, Cursor = System.Windows.Input.Cursors.Hand };
         System.Windows.Automation.AutomationProperties.SetName(button, text); return button;
     }
+    // Changes the text of a button made by Bordered (its label is the last child of the content panel).
+    public static void Relabel(Button button, string text) { ((TextBlock)((Panel)button.Content).Children[^1]).Text = text; System.Windows.Automation.AutomationProperties.SetName(button, text); }
     public static TextBlock Note(string text, Brush color) => new() { Text = text, FontSize = 13, Foreground = color, TextWrapping = TextWrapping.Wrap };
     public static UIElement Progress(string text)
     {
@@ -82,7 +84,6 @@ public sealed class ProfileView : StackPanel
     private string? rendered;
     private int epoch;
     private bool largeError;
-    private string? restartError;
     private StackPanel? status;
     private AvatarImageSession? session;
     private (string Id, string Small, string? Large)? versions;
@@ -247,18 +248,39 @@ public sealed class ProfileView : StackPanel
             System.Windows.Automation.AutomationProperties.SetName(row, label + "　" + value); card.Children.Add(row);
         }
         var screen = InspectorUi.Bordered("Botの画面を見る", ""); screen.Margin = new Thickness(0, 12, 0, 0); screen.Click += async (_, _) => await workspace.OpenScreenAsync(); card.Children.Add(screen);
-        var restart = InspectorUi.Bordered("会話セッションを再起動"); restart.Margin = new Thickness(0, 12, 0, 0); card.Children.Add(restart);
-        var error = InspectorUi.Note(restartError ?? "", InspectorUi.Red); error.Margin = new Thickness(0, 12, 0, 0); error.Visibility = restartError is null ? Visibility.Collapsed : Visibility.Visible; card.Children.Add(error);
-        restart.Click += async (_, _) =>
-        {
-            restart.IsEnabled = false; var token = workspace.ConnectionToken; restartError = null; error.Visibility = Visibility.Collapsed;
-            try { await workspace.Management.RestartBotAsync(entry.Target.Id, token); await workspace.RefreshManagementAsync(); }
-            catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-            catch (Exception failure) { restartError = failure.Message; error.Text = failure.Message; error.Visibility = Visibility.Visible; }
-            finally { restart.IsEnabled = true; }
-        };
+        restartButton = InspectorUi.Bordered("会話セッションを再起動"); restartButton.Margin = new Thickness(0, 12, 0, 0); card.Children.Add(restartButton);
+        restartNote = InspectorUi.Note("", InspectorUi.Muted); restartNote.Margin = new Thickness(0, 12, 0, 0); card.Children.Add(restartNote);
+        restartError = InspectorUi.Note("", InspectorUi.Red); restartError.Margin = new Thickness(0, 12, 0, 0); card.Children.Add(restartError);
+        var id = entry.Target.Id; restartButton.Click += async (_, _) => await RestartAsync(workspace, id);
+        RenderRestart(id);
         var frame = SettingsUi.Card(card); frame.Padding = new Thickness(16); return frame;
     }
+
+    // Mac BotProfileAISection.onRestart: one POST that the server answers after the new seat is up (180 s). Meanwhile the button reads 「再起動しています…」 and is off;
+    // a success is one line, a failure keeps the server's message. Never sent again, and the state belongs to the member it was started for.
+    private sealed record RestartState(string Id, bool Busy = false, string? Note = null, string? Error = null);
+    private RestartState? restart;
+    private Button? restartButton;
+    private TextBlock? restartNote, restartError;
+    internal async Task RestartAsync(Workspace workspace, string id)
+    {
+        if (restart is { Busy: true } && restart.Id == id) return;
+        var token = workspace.ConnectionToken; restart = new(id, Busy: true); RenderRestart(id);
+        try { await workspace.Management.RestartBotAsync(id, token); await workspace.RefreshManagementAsync(); restart = new(id, Note: "会話を再起動しました。"); }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { restart = null; }
+        catch (Exception failure) { restart = new(id, Error: failure.Message); }
+        RenderRestart(id);
+    }
+    private void RenderRestart(string id)
+    {
+        if (restartButton is null || Workspace?.Selected?.Target.Id != id) return;
+        var state = restart is { } current && current.Id == id ? current : null;
+        InspectorUi.Relabel(restartButton, state?.Busy == true ? "再起動しています…" : "会話セッションを再起動"); restartButton.IsEnabled = state?.Busy != true;
+        restartNote!.Text = state?.Note ?? ""; restartNote.Visibility = state?.Note is null ? Visibility.Collapsed : Visibility.Visible;
+        restartError!.Text = state?.Error ?? ""; restartError.Visibility = state?.Error is null ? Visibility.Collapsed : Visibility.Visible;
+    }
+    // Render seam: the in-progress and success states of the restart, which would need a POST the mock never answers.
+    internal void SetRestartForRender(string id, bool busy) { restart = busy ? new(id, Busy: true) : new(id, Note: "会話を再起動しました。"); RenderRestart(id); }
 
     private UIElement EditButton(Workspace workspace, ConversationEntry entry)
     {
