@@ -128,6 +128,25 @@ final class LatticeChartTests: XCTestCase {
         XCTAssertEqual(LatticeText.cardNote(cards[2], owner: nil), LatticePerson.unassigned)
     }
 
+    /// screen-spec "Owner as an owner": the reserved producer "owner" is the app's Owner, never the raw word.
+    func testReservedOwnerIsDrawnAsTheOwnerProfile() throws {
+        let json = """
+        {"schema":"bellteam.lattice-chart.v1","epoch":"e1","version":1,"projectId":"p","state":"verified","members":[],
+         "cards":[{"id":"p/a","title":"承認","state":"ready","producer":"owner","depth":0}],"edges":[],"waits":[]}
+        """
+        let snapshot = try JSONDecoder().decode(LatticeChartSnapshot.self, from: Data(json.utf8))
+        defer { LatticePerson.ownerName = nil }
+        LatticePerson.ownerName = nil
+        let unnamed = try XCTUnwrap(LatticePerson.lookup(snapshot)("owner"))
+        XCTAssertEqual(unnamed.name, "指揮官", "名前が分からない間は指揮官")
+        XCTAssertEqual(unnamed.initial, "指")
+        XCTAssertTrue(unnamed.isOwner)
+        XCTAssertFalse(unnamed.known, "会話は開けない")
+        LatticePerson.ownerName = "クオ"
+        XCTAssertEqual(LatticePerson.lookup(snapshot)("owner")?.name, "クオ")
+        XCTAssertEqual(LatticeLayout(snapshot).lanes.map(\.id), ["owner"], "メンバーと同じく自分のレーン")
+    }
+
     func testDetailLinksAndPlainMemo() throws {
         let detail = try XCTUnwrap(LatticeDetail(try snapshot(), cardId: "p1/t08", now: now))
         XCTAssertEqual(detail.previous.map(\.id), ["p1/t04", "p1/t06", "p1/t07"])
