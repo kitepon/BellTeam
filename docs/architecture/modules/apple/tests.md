@@ -503,6 +503,7 @@ goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`tes
 | testAttestAfterTerminalChangedReadsTheListAndTriesOnceMore | 409 `TERMINAL_CHANGED`→一覧を読み直して指紋を読み直し1回だけやり直す。2回続けたら止めて「もう一度」の一行 |
 | testAttestOlderBodyAndUnavailableAndLocalFailure | 旧本体の404は一行なし、503は「あとでもう一度」、署名を確かめられない鍵はPOSTしない |
 | testTheLoginPasswordCardIsPasteOnlyWhateverTheServerOffers | `purpose:'terminal.login'`は`inputOptions`が1Passwordを勧めても選択肢も参照欄も出さない。`terminal.ssh`は従来どおり |
+| testAOneTimeRequestOffersNoOnePasswordAndAnOlderBodyIsNotOneTime | `oneTime:true`（usage #1025）は1Passwordの選択肢を出さず、文は「1回だけ使い、使い終わったら消します。保存せず、会話にも送られません。」。`oneTime`の無い旧本体は従来どおり |
 | testUnsupportedServerShowsTheCalmStateAndKeepsAListOnALaterFailure | URLProtocolで404/405→未対応、初回503→失敗（再読込あり、未対応ではない）、200→一覧、後の503・500は一覧を残して`readError` |
 
 ### SSHHostKeyTests.swift
@@ -970,7 +971,7 @@ Macの端末表示中の照会と非表示後の停止、小画像保存の結�
 | 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
 | --- | --- |
 | testTerminalListAddCheckAndHostKeyConfirm | 一覧の宛先・鍵の状態（`op://`無し）、つながる/眠っている/ホスト鍵変化/信用なし/鍵なしの確認結果、指紋の誤りは409で信用せず、端末で読んだ指紋だけを`confirmHostKey`で送る、追加の検査とbody（鍵の項目なし）、編集でIDを変えない、確認後の削除、設定の項目「端末」 |
-| testKeySettingThroughTheSecretCardAndRemoval | 鍵の行（設定済み+端末にある鍵、未設定+自分の端末では不要）、「設定する」で空のPOSTと秘密入力カード（1Passwordが上・既定、sudoは「1Passwordのパスワードから選ぶ」の一覧、題は端末と鍵の種類）、一覧から選んで登録→設定済み+BellTeamに預けた鍵、参照を画面に出さず、submitは`source`/`reference`だけ。SSH鍵の「設定し直す」は1Passwordの鍵の一覧（名前と保管庫）と貼り付けの二択で、貼り付けに替えると複数行欄、閉じると設定待ちで今の鍵を表示しsubmitなし。sudoを確認の後に外す（DELETE）。503 `CREDENTIAL_UNAVAILABLE`は平易な文でカードを開かない。旧い応答では鍵の行だけ一行の案内でボタンなし |
+| testKeySettingThroughTheSecretCardAndRemoval | 鍵の行（設定済み+端末にある鍵、未設定+自分の端末では不要）、「設定する」で空のPOSTと秘密入力カード（1Passwordが上・既定、sudoは「1Passwordから選ぶ」の一覧、題は端末と鍵の種類）、一覧から選んで登録→設定済み+BellTeamに預けた鍵、参照を画面に出さず、submitは`source`/`reference`だけ。SSH鍵の「設定し直す」は1Passwordの鍵の一覧（名前と保管庫）と貼り付けの二択で、貼り付けに替えると複数行欄、閉じると設定待ちで今の鍵を表示しsubmitなし。sudoを確認の後に外す（DELETE）。503 `CREDENTIAL_UNAVAILABLE`は平易な文でカードを開かない。旧い応答では鍵の行だけ一行の案内でボタンなし |
 | testSudoPickerListsPasswordsSearchesAndFallsBack | sudoカードの一覧（`/password`の5件。旧本体がSSH鍵も返す`picker=sshkeys`でも鍵は数えない）、保管庫・名前で絞る、選択が見えなくなったら外れる、合わなければ「「…」に合うパスワードがありません」、選んで登録→submitは`source`/`reference`だけ。SSHカードにも検索欄。一覧404はパスワード入力だけ＋一行、503は「読めませんでした」と入力の選択を残す |
 | testShotsMemberConfigurationStatus | 画面写真だけ：メンバー編集の適用状態の1行（pending・accepted・failed。DEBUGの`-bellbot-preview-configuration <state>`が最初のメンバーへ入れる。記録なしは稼働中の既定文を確かめる） |
 | testSshKeyPickerSubmitsTheChosenReferenceAndFallsBack | SSH鍵カードの一覧（名前と保管庫、参照は出さない、選ぶまで送れない）→選んで登録→submitは`source`/`reference`だけ。未接続は貼り付けだけ＋設定の「1Password連携」への案内。一覧404は選択肢を隠して貼り付け＋一行。一覧503は「読めませんでした」と貼り付けの選択を残す |

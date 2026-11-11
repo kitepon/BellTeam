@@ -859,14 +859,18 @@ struct SecretRequest: Decodable, Identifiable, Equatable {
     var purpose: String?
     /// usage secret credentials: 1Password is offered first when connected. Absent on an older body (stored value only).
     var inputOptions: SecretInputOptions?
+    /// usage #1025: `true` for a value used once and never stored; absent otherwise.
+    var oneTime: Bool?
 
-    private enum CodingKeys: String, CodingKey { case id, botId, roomId, toolId, label, message, status, notification, purpose, inputOptions }
+    private enum CodingKeys: String, CodingKey { case id, botId, roomId, toolId, label, message, status, notification, purpose, inputOptions, oneTime }
 
     /// Mika #855: the Mac's login password for one authorize-key run, `terminal.login`. Pasted into one hidden field and never stored.
     var isLoginPassword: Bool { purpose == "terminal.login" }
     static let loginPasswordText = "このMacのログインパスワード（1回だけ使い、保存しません）"
-    /// A login password is paste only: no 1Password choice and no reference field, whatever `inputOptions` says.
-    var onePasswordOffered: Bool { !isLoginPassword && inputOptions?.onePasswordAvailable == true }
+    /// A login password or a one-time value is typed only: no 1Password choice and no reference field, whatever `inputOptions` says.
+    var isOneTime: Bool { oneTime == true }
+    static let oneTimeText = "1回だけ使い、使い終わったら消します。保存せず、会話にも送られません。"
+    var onePasswordOffered: Bool { !isLoginPassword && !isOneTime && inputOptions?.onePasswordAvailable == true }
     var opensWithOnePassword: Bool { onePasswordOffered && inputOptions?.opensWithOnePassword == true }
 
     init(from decoder: Decoder) throws {
@@ -882,6 +886,7 @@ struct SecretRequest: Decodable, Identifiable, Equatable {
         notification = try c.decodeIfPresent(String.self, forKey: .notification)
         purpose = try c.decodeIfPresent(String.self, forKey: .purpose)
         inputOptions = try? c.decodeIfPresent(SecretInputOptions.self, forKey: .inputOptions)
+        oneTime = try? c.decodeIfPresent(Bool.self, forKey: .oneTime)
     }
 }
 
