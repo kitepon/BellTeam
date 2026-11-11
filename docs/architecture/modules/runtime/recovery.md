@@ -34,7 +34,7 @@ flowchart TD
 | --- | --- | --- |
 | 設定固定 | `distribution/server/install.sh` | imageのIDを固定しimage内の保守/Cursor scriptを抽出。normal/maintenanceの同世代JSONはprivate。後から.envやtagが変わっても途中で選び直さない |
 | 初回storage | installerのpermission probe/volume照合 | UID1000の実読取拒否が成立するHostはlocal bind volume、拒否されない共有folderはEngine内volume。既volumeのname/driver/labels/optionsが違えば停止 |
-| 旧model回収 | `capture_previous` | 実旧CIDのlabels/working directory/hashで旧normalを証明する。新旧設置dirが異なっても保存先が一致すれば保持できる。証明不能や必須保存先不一致は旧本体を停止せず拒否 |
+| 旧model回収 | `capture_previous` | 実旧CIDのlabels/working directory/hashで旧normalを証明する。受け付ける旧config_filesは`<working>/compose.yaml`、`.bellteam-compose.*/normal.json|previous-normal.json`、公開修理手順（existing-install-repair.md）が残す`<install>/.bellteam-repair.*/normal.json`。新旧設置dirが異なっても保存先が一致すれば保持できる。証明不能や必須保存先不一致は旧本体を停止せず拒否 |
 | recover | installer `--recover` | 保存した旧model/旧imageが存在することを停止前に確認。現在データを旧配置へ戻す場合もあり、古いbackupへ巻き戻す操作ではない |
 | writer確認 | `assert-state-writers-stopped.sh → stateWriterPlan/Volumes/Sources/assertStateWritersStopped` | 全containerの稼働/restart policyとRW mount、volume実体、canonical pathを比較。Hostユーザーからobserved bind/deviceが不可視なら、同固定imageの短命metadata readerでdaemon rootをRO mountし、全pathをそのroot内で再解決する。絶対symlinkもdaemon root内で辿り、既存observedの欠測/danglingは拒否、plannedだけ未作成末尾を許す。capabilityはDAC_READ_SEARCHだけ、networkなし・rootfs RO・no-new-privileges。Host chmod/sudo/daemon設定変更は要求しない。通常のHost解決が可能なら既経路を使う。Docker socketはreaderへ渡さず、env/資格内容を証拠へ複製しない |
 | writerの限界 | `participates/volumePaths` | stoppedContainerのunless-stoppedだけを特例扱い。未知driver/metadata/aliasは成功へしない。snapshotだけでは保守中の新writerを防げないためlock/data sealと組合せる |
