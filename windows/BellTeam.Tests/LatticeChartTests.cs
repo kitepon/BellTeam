@@ -50,13 +50,33 @@ public sealed class LatticeChartTests
         Assert.Equal(["bot-k", null, null, "bot-ghost", null], layout.Lanes.Select(lane => lane.BotId));
         Assert.Equal(["bot-k", "bot-ghost"], LatticeChart.Rail(snapshot, layout).Select(item => item.BotId));
         var rows = LatticeChart.WaitRows(snapshot, Now);
-        Assert.Equal("rootが待っている", rows[0].Headline);
-        Assert.Equal("担当未定が待っている", rows[1].Headline);
+        Assert.Equal(("工程2", "担当 root"), (rows[0].Headline, rows[0].OwnerText));
+        Assert.Equal(("工程4", LatticeChart.Unassigned), (rows[1].Headline, rows[1].OwnerText));
+        Assert.Equal("「工程4」（担当なし）は、「工程2」が終わるのを待っています。つくっているのはroot、未着手: 担当 root", rows[1].Label);
+        Assert.Equal("次の工程が待っています", LatticeChart.EdgeChip(snapshot, new("2", "4", true)));
         Assert.Equal("未着手: 担当 root", rows[1].StateText);
         Assert.False(rows[1].CanChat);
         Assert.Equal("rootが待っています", LatticeChart.EdgeChip(snapshot, new("1", "2", true)));
         Assert.Equal("担当 anis", LatticeChart.CardNote(snapshot.Cards[2], LatticeChart.Owner(snapshot)(snapshot.Cards[2])));
         Assert.Equal("root", LatticeChart.Detail(snapshot, "2", Now)!.Producer!.Name);
+    }
+
+    [Fact]
+    public void TheTreeHangsCardsFromParentThenPhaseThenTheChartAndArcsTheDependencies()
+    {
+        var snapshot = Snapshot([Card("1", "blocked", "bot-a") with { Phase = "ph" }, Card("2", "in-progress", "bot-k") with { Parent = "1" }, Card("3", "done", null) with { Phase = "ph" }, Card("4", "pending", null) with { Parent = "4" }],
+            [new("3", "2", false), new("1", "4", true)]) with { Phases = [new("ph", null), new("empty", "空")] };
+        var tree = LatticeChart.Tree(snapshot, "工程表");
+        var node = tree.Nodes.ToDictionary(item => item.Key);
+        Assert.Equal((LatticeChart.UnnamedPhase, 1, 3, "blocked"), (node["phase:ph"].Label, node["phase:ph"].Done, node["phase:ph"].Total, node["phase:ph"].Tone));
+        Assert.Equal(("pending", 0), (node["phase:empty"].Tone, node["phase:empty"].Total));
+        Assert.Equal((1, 4), (node["root"].Done, node["root"].Total));
+        Assert.Equal(node["1"].X + LatticeChart.TreeCardWidth + LatticeChart.TreeGap, node["2"].X);
+        Assert.Equal(node["2"].Y, node["1"].Y);
+        Assert.Contains(tree.Links, link => link.From == "root" && link.To == "4");
+        Assert.Equal([false, true], tree.Arcs.Select(arc => arc.Waiting));
+        Assert.True(tree.Arcs.All(arc => arc.Bulge > Math.Max(arc.X0, arc.X1 - 6)));
+        Assert.Equal(["1", "2", "3", "4"], tree.Cards.Keys.Order());
     }
 
     [Fact]
@@ -70,7 +90,7 @@ public sealed class LatticeChartTests
         Assert.True(rows[0].Emphasized);
         Assert.Equal("止まり: 登録点が未定", rows[0].StateText);
         Assert.Equal("52分", rows[0].Length);
-        Assert.Equal("キロが工程1を待っています。つくっているのはアドミ、止まり: 登録点が未定", rows[0].Label);
+        Assert.Equal("「工程2」（担当 キロ）は、「工程1」が終わるのを待っています。つくっているのはアドミ、止まり: 登録点が未定", rows[0].Label);
         Assert.True(rows[0].CanChat);
         Assert.False(rows[1].CanChat);
         Assert.Equal(LatticeChart.UnknownMember, rows[1].Producer!.Name);

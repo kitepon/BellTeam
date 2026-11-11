@@ -10,11 +10,13 @@ namespace BellTeam.App;
 /// Render seam for the 工程表 window (--render-lattice): an in-process server in the lattice module's app contract shape, with the same charts as the Apple fixture
 /// (test/helpers/lattice-ui-server.mjs on Rapi's branch). Times are relative to now. Scenes pick the state, the list, the stream, an unknown producer and
 /// authored lanes (「authored」: cards nobody started carry the plan's lane text and no producer, as production plans write kiro / anis / root).
+/// Every scene carries phases (one untitled) and one nested card (t05 under t04) for the tree; t11 has no phase and hangs from the chart.
 /// </summary>
 internal sealed class LatticeFixture(string scene) : HttpMessageHandler
 {
     private static readonly (string Id, string Name, string Color)[] Members = [("bot-trony", "トロニー", "indigo"), ("bot-molly", "モリー", "mint"), ("bot-kiro", "キロ", "sky"), ("bot-admi", "アドミ", "amber"), ("bot-rapi", "ラピ", "rose"), ("bot-flora", "フローラ", "violet")];
     private static readonly string[][] Edges = [["t01", "t07"], ["t02", "t04"], ["t04", "t08"], ["t05", "t08"], ["t07", "t08"], ["t08", "t09"], ["t06", "t10"], ["t09", "t11"], ["t10", "t11"]];
+    private static readonly (string Id, string? Title, string[] Tasks)[] Phases = [("ph1", "下調べ", ["t01", "t02", "t03"]), ("ph2", "部品", ["t04", "t05", "t06", "t07", "t08"]), ("ph3", null, ["t09", "t10"])];
     private static readonly Dictionary<string, int> Since = new() { ["t06"] = 52, ["t04"] = 41, ["t07"] = 36, ["t05"] = 24, ["t08"] = 18, ["t09"] = 6, ["t10"] = 3 };
     private int streams;
     private string State => scene switch { "unverified" => "unverified", "last-verified" => "last_verified", "unavailable" => "unavailable", _ => "verified" };
@@ -23,7 +25,7 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
     private object[] Cards()
     {
         object Card(string id, string title, string state, string? producer, int depth, string done = "", string memo = "", double? started = null, string? reason = null, string? authored = null)
-            => new { id = $"p1/{id}", plan = "p1", taskId = id, title, state, lane = scene == "authored" && authored is not null ? authored : producer, producer = scene == "authored" && authored is not null ? null : producer, depth, doneCondition = done, designMemo = memo, startedAt = started is { } at ? Ago(at) : null, changedAt = Ago(60), blockedReason = reason };
+            => new { id = $"p1/{id}", plan = "p1", taskId = id, title, state, phase = Phases.FirstOrDefault(phase => phase.Tasks.Contains(id)).Id is { } ph ? $"p1/{ph}" : null, parent = id == "t05" ? "p1/t04" : null, lane = scene == "authored" && authored is not null ? authored : producer, producer = scene == "authored" && authored is not null ? null : producer, depth, doneCondition = done, designMemo = memo, startedAt = started is { } at ? Ago(at) : null, changedAt = Ago(60), blockedReason = reason };
         return [
             Card("t01", "決定済み仕様の確認", "done", "bot-flora", 0, "仕様の要点を一覧にする"),
             Card("t02", "Latticeの読取口の確認", "done", "bot-flora", 0, "読取の2つの入口を確かめる"),
@@ -55,7 +57,7 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
             schema = "bellteam.lattice-chart.v1", epoch = "fixture", version = 1, at = Ago(0), projectId, name = name.Name, createdBy = name.CreatedBy, coordinator = projectId == "lattice",
             state = State, verifiedAt = Ago(State == "last_verified" ? 46 : 0), degraded = scene == "degraded" ? new[] { "lattice-read", "members" } : [],
             members = Members.Where(member => referenced.Contains(member.Id)).Select(member => new { botId = member.Id, name = member.Name, color = member.Color, avatarVersion = "" }),
-            cards, edges = Edges.Select(edge => new { from = $"p1/{edge[0]}", to = $"p1/{edge[1]}", waiting = !Finished(edge[0]) && !Finished(edge[1]) }), waits
+            cards, phases = Phases.Select(phase => new { id = $"p1/{phase.Id}", title = phase.Title }), edges = Edges.Select(edge => new { from = $"p1/{edge[0]}", to = $"p1/{edge[1]}", waiting = !Finished(edge[0]) && !Finished(edge[1]) }), waits
         };
     }
     private static readonly Dictionary<string, (string? Name, string CreatedBy)> Names = new()
