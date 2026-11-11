@@ -214,6 +214,10 @@ SECTION completion
   RULE completion.schedule-kind
     DO: command schedule when no AI is needed; prompt schedule when judgment or repair is.
     DO: monitoring an external change with no peer to report it = a helper program that detects the change and wakes the AI. NEVER: wake the AI every tick to monitor, unless unavoidable.
+  RULE completion.fail-fast
+    WHEN: a test, build, release or helper runs without you (background, CI, schedule) and you wait for its result
+    DO: make it end and wake you at the first failure of any step it waits on, not only on success or a timeout.
+    WHY: a failed step that only ends at a timeout leaves every waiting peer stopped (2026-11-11 Owner: 「途中で失敗したらAIが気付ける仕組みで試験をしようよ」).
 
 SECTION character-sheet
   RULE sheet.reference
