@@ -157,13 +157,6 @@ export function createUpdateCenter({ root, api, buttons, storage, onSummary = ()
     refreshButton.disabled = loading
     root.setAttribute('aria-busy', String(loading))
     notice.textContent = operationReadError || operationMessage || storageFailure || (loading ? '接続先の更新情報を確認しています。' : failure || inventory?.notice.message || '更新センターを開くと、接続先の情報を確認します。')
-    const publicationUnknown = inventory?.components.some(item => item.published && item.publication?.check.status !== 'verified')
-    let suffix = inventory && !failure ? { ready: inventory.components.some(item => !isRuntime(item.id) && item.comparison.state === 'update_available') ? ' · 更新あり' : '', unavailable: ' · 利用不能', updating: ' · 更新中', attention: ' · 要確認' }[inventory.notice.state] : ''
-    if (publicationUnknown || operationReadError || previousResults.some(entry => entry.error)) suffix = ' · 要確認'
-    for (const button of buttons) {
-      button.textContent = `Update${suffix}`
-      button.setAttribute('aria-label', button.textContent + ' 更新センターを開く')
-    }
     get('[data-update-observed]').textContent = inventory ? `取得 ${new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date(inventory.observedAt))} JST` : '情報を確認できていません'
     const focused = document.activeElement?.dataset?.component
     const focusedControl = document.activeElement?.dataset?.updateControl
@@ -410,21 +403,29 @@ export function createUpdateCenter({ root, api, buttons, storage, onSummary = ()
     const waiting = product_.filter(item => states.get(item.id).badge === '使えない版')
     const readError = failure || storageFailure
     const running = components.filter(item => states.get(item.id).badge === '更新中')
-    let title, description = '', tone = 'ok'
-    if (readError) [title, tone] = ['更新情報を取得できません', 'danger']
+    // badge = the header entry (user-paths.md 2.1): hidden when latest or not yet known.
+    let title, description = '', tone = 'ok', badge = ''
+    if (readError) [title, tone, badge] = ['更新情報を取得できません', 'danger', '確認できません']
     else if (loading && !inventory) [title, tone] = ['更新を確認しています', 'info']
-    else if (submitting) [title, tone] = ['更新を受け付けています', 'info']
+    else if (submitting) [title, tone, badge] = ['更新を受け付けています', 'info', '更新中']
     else if (selectedPlan) {
       const names = selectedPlan.targets.map(target => components.find(item => item.id === target.componentId)?.name ?? '選択した項目').join('・')
-      ;[title, tone] = [`${names}を${selectedPlan.action === 'rollback' ? '戻します' : '更新します'}`, 'info']
-    } else if (running.length) [title, tone] = ['更新しています', 'info']
-    else if (count('要対応')) [title, tone] = ['対応が必要です', 'danger']
-    else if (updatable.length) [title, tone] = [`${updatable.length}つ更新できます`, 'accent']
-    else if (count('失敗')) [title, tone] = ['前回の更新に失敗したものがあります', 'danger']
+      ;[title, tone, badge] = [`${names}を${selectedPlan.action === 'rollback' ? '戻します' : '更新します'}`, 'info', updatable.length ? `更新 ${updatable.length}件` : '']
+    } else if (running.length) [title, tone, badge] = ['更新しています', 'info', '更新中']
+    else if (count('要対応')) [title, tone, badge] = ['対応が必要です', 'danger', '要対応']
+    else if (updatable.length) [title, tone, badge] = [`${updatable.length}つ更新できます`, 'accent', `更新 ${updatable.length}件`]
+    else if (count('失敗')) [title, tone, badge] = ['前回の更新に失敗したものがあります', 'danger', '更新に失敗']
     else if (product_.length && count('最新') === product_.length) title = 'すべて最新です'
     // incompatible is known: the catalog has no version for this body yet, so nothing to press.
     else if (waiting.length && count('最新') + waiting.length === product_.length) title = '更新できるものはすべて最新です'
+    // A row whose state is unknown is not a failed read (P4): the center and the Settings row say it, the header stays quiet.
     else [title, tone] = [inventory ? '一部の状態を確認できません' : '更新情報', 'muted']
+    for (const button of buttons) {
+      button.textContent = badge
+      button.hidden = !badge
+      button.dataset.tone = badge.startsWith('更新 ') ? 'accent' : badge === '更新中' ? 'info' : 'attention'
+      button.setAttribute('aria-label', `${badge} 更新センターを開く`)
+    }
     if (!selectedPlan && !readError && inventory) description = running.length ? '進み具合はこの画面で確認できます。閉じても更新は続きます。'
       : title === 'すべて最新です' ? `${product_.length}つの機能はどれも最新版です。`
       : title === '更新できるものはすべて最新です' ? `${waiting.map(item => item.name).join('・')}は、いまの本体に合う版がまだありません。合う版が出ると、ここで更新できます。` : updatable.length ? '更新したい機能の「更新」を押してください。' : ''

@@ -18,38 +18,30 @@
   <main class="app" id="app">
     <aside class="roster" id="roster">
       <header class="roster-header">
-        <button class="brand-mark" id="owner-profile-button" type="button" aria-label="設定を開く">O</button>
+        <button class="tool-button" id="owner-profile-button" type="button" title="設定を開く"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/><circle cx="12" cy="12" r="6.5"/></svg><span>設定</span></button>
         <div class="header-actions">
-          <button class="circle-button" id="all-schedules-button" type="button" aria-label="すべての予定" title="すべての予定"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg></button>
-          <button class="circle-button" id="goals-button" type="button" aria-label="ゴール一覧" title="ゴール一覧">
-            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><path d="m12 12 7-7"/></svg>
-          </button>
-          <button class="circle-button" id="work-graph-button" type="button" aria-label="相関図" title="相関図"><svg viewBox="0 0 24 24"><circle cx="6" cy="7" r="2.5"/><circle cx="18" cy="7" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M8.5 7h7M7.3 9.2l3.4 6.6M16.7 9.2l-3.4 6.6"/></svg></button>
+          <button class="tool-button" id="all-schedules-button" type="button" title="すべての予定"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg><span>予定</span></button>
+          <button class="tool-button" id="goals-button" type="button" title="ゴール一覧"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><path d="m12 12 7-7"/></svg><span>ゴール</span></button>
+          <button class="tool-button" id="work-graph-button" type="button" title="相関図"><svg viewBox="0 0 24 24"><circle cx="6" cy="7" r="2.5"/><circle cx="18" cy="7" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M8.5 7h7M7.3 9.2l3.4 6.6M16.7 9.2l-3.4 6.6"/></svg><span>相関図</span></button>
           <!-- Lattice工程表 (web/lattice-chart.js) -->
-          <button class="circle-button" id="lattice-button" type="button" aria-label="工程表" title="工程表"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="9" height="3.5" rx="1.2"/><rect x="9" y="10.5" width="12" height="3.5" rx="1.2"/><rect x="6" y="16" width="8" height="3.5" rx="1.2"/></svg></button>
-          <button class="circle-button" id="search-button" type="button" aria-label="名前・役職を検索">
-            <svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>
-          </button>
-          <button class="circle-button" id="add-button" type="button" aria-label="追加">
-            <svg viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></svg>
-          </button>
+          <button class="tool-button" id="lattice-button" type="button" title="工程表"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="9" height="3.5" rx="1.2"/><rect x="9" y="10.5" width="12" height="3.5" rx="1.2"/><rect x="6" y="16" width="8" height="3.5" rx="1.2"/></svg><span>工程表</span></button>
+          <button class="tool-button" id="add-button" type="button" title="メンバーやルームを追加"><svg viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></svg><span>追加</span></button>
         </div>
       </header>
       <section class="roster-title">
-        <div class="update-brand"><p class="eyebrow">BellTeam</p><button id="update-open" class="update-entry" type="button" aria-label="Update 更新センターを開く">Update <span aria-hidden="true">↗</span></button></div>
         <h1>メンバー</h1>
+        <button id="update-open" class="update-entry" type="button" hidden></button>
       </section>
       <label class="roster-search"><span class="sr-only">メンバー・ルームを名前や役職で検索</span><input id="roster-search" type="search" placeholder="名前・役職で検索" autocomplete="off"></label>
-      <div id="roster-notice" class="roster-notice field-help" role="status" hidden><p id="roster-error"></p><button id="roster-retry" class="text-button" type="button">一覧を再取得</button></div>
+      <div id="roster-notice" class="roster-notice" role="status" hidden><p id="roster-error">最新の一覧を読み込めませんでした</p><button id="roster-retry" class="text-button" type="button">再読み込み</button></div>
       <section id="setup-notice" class="setup-notice" role="status" hidden><span class="setup-notice-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 20h14M7 16.5 16.5 7a2.1 2.1 0 0 0-3-3L4 13.5V17h3.5z"/></svg></span><p class="setup-notice-text">初回設定がまだ済んでいません</p><button id="setup-resume" class="setup-notice-action" type="button">初回設定を続ける</button></section>
       <p id="accounts-banner" class="accounts-banner" role="status" hidden></p>
-      <div class="bot-list" id="bot-list" aria-live="polite"></div>
+      <div class="bot-list" id="bot-list" aria-live="polite"><p class="sr-only">読み込んでいます</p><div class="bot-row skeleton" aria-hidden="true"><span class="avatar"></span><span class="bot-copy"><span></span><span></span></span></div><div class="bot-row skeleton" aria-hidden="true"><span class="avatar"></span><span class="bot-copy"><span></span><span></span></span></div><div class="bot-row skeleton" aria-hidden="true"><span class="avatar"></span><span class="bot-copy"><span></span><span></span></span></div></div>
       <details id="retained-inputs" class="retained-inputs" hidden></details>
     </aside>
 
     <section class="chat empty" id="chat">
       <header class="chat-header">
-        <div class="update-brand update-brand-mobile"><span class="eyebrow">BellTeam</span><button id="update-open-mobile" class="update-entry" type="button" aria-label="Update 更新センターを開く">Update <span aria-hidden="true">↗</span></button></div>
         <button class="circle-button back-button" id="back-button" type="button" aria-label="一覧へ戻る">
           <svg viewBox="0 0 24 24"><path d="m15 4-8 8 8 8"/></svg>
         </button>
@@ -63,21 +55,21 @@
         <button class="circle-button header-tool" id="screen-button" type="button" aria-label="Botの画面" hidden>
           <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 20h8"/></svg>
         </button>
-        <button class="circle-button header-tool" id="export-button" type="button" aria-label="会話を書き出す" title="会話をJSONで保存">
-          <svg viewBox="0 0 24 24"><path d="M12 3v12m-4-4 4 4 4-4M4 15v5h16v-5"/></svg>
-        </button>
-        <button class="circle-button header-tool" id="schedule-button" type="button" aria-label="自動実行予定">
-          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg>
-        </button>
+        <details class="chat-more" id="chat-more">
+          <summary class="circle-button header-tool" aria-label="その他の操作" title="その他の操作"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg></summary>
+          <div class="chat-more-menu">
+            <button id="schedule-button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg>自動実行</button>
+            <button id="export-button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 15v5h16v-5"/></svg>会話を書き出す</button>
+          </div>
+        </details>
         <p class="seat-launch chat-seat-launch" id="chat-seat-launch" hidden></p>
         <details class="current-work-detail" id="current-work-detail" hidden><summary>現在の仕事</summary><div data-work-body></div></details>
       </header>
       <div class="screen-panel" id="screen-panel" hidden><div class="screen-bar"><span class="screen-status" id="screen-status"></span><button class="screen-close" id="screen-close" type="button">閉じる</button></div><pre class="screen-text" id="screen-text"></pre><div class="screen-input" id="screen-input" hidden></div></div>
 
       <div class="empty-state" id="empty-state">
-        <div class="empty-bell">B</div>
-        <h2>話す相手を選んでね</h2>
-        <p>メンバーとの会話と、裏で交わされた連絡を一つの流れで確認できる。</p>
+        <div class="empty-illustration" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h11a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-4 3v-3H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"/><path d="M19 9h1a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-1v3l-3.5-3H12"/></svg></div>
+        <h2>左の一覧から、話す相手を選んでください。</h2>
       </div>
 
       <div class="timeline" id="timeline" aria-live="polite"></div>
@@ -406,8 +398,8 @@
         <h2>追加</h2><span class="header-spacer"></span>
       </header>
       <div class="sheet-body action-list">
-        <button id="action-add-bot" type="button"><strong>Botを追加</strong><span>専用プロジェクトとAIを作る</span></button>
-        <button id="action-add-room" type="button"><strong>ルームを作る</strong><span>複数のBotで仕事を共有する</span></button>
+        <button id="action-add-bot" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="8" r="4"/><path d="M3 20a7 7 0 0 1 14 0M19 8v6M16 11h6"/></svg><strong>メンバーを追加</strong><span>専用プロジェクトとAIを作る</span></button>
+        <button id="action-add-room" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><path d="M2 20a6 6 0 0 1 12 0M10 20a6 6 0 0 1 12 0"/></svg><strong>ルームを作る</strong><span>複数のメンバーで仕事を共有する</span></button>
       </div>
     </div>
   </dialog>

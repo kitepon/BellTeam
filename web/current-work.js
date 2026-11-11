@@ -22,11 +22,6 @@ export function workLabel(value) {
   return work.state === 'working' ? work.summary ?? (work.summaryStatus === 'stale' ? '作業中・要約期限切れ' : '作業中・要約未取得')
     : work.state === 'idle' ? '待機中' : '仕事状況を未取得'
 }
-// List rows show the state of a current summary in the time column, so the summary alone keeps its 2 lines.
-export function workParts(value) {
-  const work = currentWork(value)
-  return work.summaryStatus === 'current' && work.state !== 'working' ? { text: work.summary, state: stateLabel[work.state] } : { text: workLabel(value), state: '' }
-}
 export function participantWork(room, bots) {
   const input = room.currentWork?.scope === 'participants' && Array.isArray(room.currentWork.members) ? room.currentWork.members : []
   return room.memberIds.flatMap(id => {
@@ -35,13 +30,6 @@ export function participantWork(room, bots) {
     const matches = input.filter(item => item?.botId === id)
     return [{ name:bot.name ?? bot.displayName, work:currentWork(matches.length === 1 ? matches[0].currentWork : null) }]
   })
-}
-export function roomWorkPreview(room, bots) {
-  const members = participantWork(room,bots), available = members.filter(member => member.work.summaryStatus === 'current')
-  const shown = available.slice(0,2)
-  return `<span class="work-scope">参加者の現在の仕事</span>${shown.length
-    ? shown.map(member => `<span class="work-preview-line">${escapeHtml(member.name)}: ${escapeHtml(workLabel(member.work))}</span>`).join('') + (members.length > shown.length ? `<span class="work-more">ほか${members.length-shown.length}人</span>` : '')
-    : '<span class="work-preview-line">参加者の仕事要約を未取得</span>'}`
 }
 const time = value => value ? new Intl.DateTimeFormat('ja-JP',{timeZone:'Asia/Tokyo',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(new Date(value))+' JST' : '未取得'
 const sourceLabel = source => source === 'background_agent' ? '自動生成' : source === 'self_reported' ? '本人記載' : '未取得'

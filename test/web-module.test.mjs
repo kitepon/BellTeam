@@ -67,9 +67,10 @@ test('initial members 503 keeps the existing SSE available for readonly recovery
   const f = fixture(t, { failList: true })
   await f.app.start()
   assert.equal(f.calls.filter(call => call.path === '/api/events').length, 1)
-  assert.equal(f.get('roster-notice').hidden, false)
-  assert.match(f.get('roster-error').textContent, /新しい操作を受け付けられません/)
-  assert.equal(f.get('bot-list').children.length, 0)
+  // Nothing read yet: the list itself is the error card with its own retry (user-paths.md 2.2 RError).
+  assert.equal(f.get('roster-notice').hidden, true)
+  assert.equal(f.get('bot-list').children.length, 1)
+  assert.match(f.get('bot-list').children[0].querySelector('p').textContent, /いま応答できません/)
   f.setListFailure(false)
   f.emit({ type: 'ready', all: true }); await settle()
   assert.equal(f.get('roster-notice').hidden, true)

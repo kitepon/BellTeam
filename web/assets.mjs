@@ -24,6 +24,7 @@ export const webAssetFiles = new Map([
   ['/conversation-composer.js', 'conversation-composer.js'],
   ['/avatar-editor.js', 'avatar-editor.js'],
   ['/roster-search.js', 'roster-search.js'],
+  ['/roster-view.js', 'roster-view.js'],
   ['/editor-close.js', 'editor-close.js'],
   ['/message-images.js', 'message-images.js'],
   ['/conversation-timeline.js', 'conversation-timeline.js'],
@@ -57,4 +58,4 @@ export const webAssetFiles = new Map([
   ['/icons/icon-512.png', 'icons/icon-512.png'],
 ])
 
-export const versionedWebAssets = new Set(['background-agent-settings.js', 'sw.js', 'notification-worker.js', 'notification-navigation.js', 'current-work.js', 'schedules-overview.js', 'index.html', 'app.js', 'application.js', 'update-center.js', 'client.js', 'owner-editor.js', 'bot-editor.js', 'room-editor.js', 'schedule-editor.js', 'conversation-timeline.js', 'conversation-composer.js', 'harness-auth.js', 'work-graph.js', 'lattice-chart.js', 'harness-accounts.js', 'onboarding.js', 'rich-text.js', 'secret-input.js', 'terminals.js', 'folder-picker.js'])
+export const versionedWebAssets = new Set(['background-agent-settings.js', 'sw.js', 'notification-worker.js', 'notification-navigation.js', 'current-work.js', 'roster-view.js', 'schedules-overview.js', 'index.html', 'app.js', 'application.js', 'update-center.js', 'client.js', 'owner-editor.js', 'bot-editor.js', 'room-editor.js', 'schedule-editor.js', 'conversation-timeline.js', 'conversation-composer.js', 'harness-auth.js', 'work-graph.js', 'lattice-chart.js', 'harness-accounts.js', 'onboarding.js', 'rich-text.js', 'secret-input.js', 'terminals.js', 'folder-picker.js'])
