@@ -310,6 +310,18 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [BellUpdateRoute](../../../../ios/BellBot/BellBot/Core/BellNotifications.swift#L28) | push `kind=update`の3key完全一致の解析と接続先照合 |
 | [AppStore.openPendingUpdateNotification](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L889) | ready後に接続先一致の時だけUpdate画面を開きGET。`startEvents`の`updates`分岐は[AppStore.swift](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L736) |
 
+## メンバーの記憶と知識・キャラクターシート
+
+追加時点のファイル。契約と流れは[記憶と知識・キャラクターシート](memory-and-sheets.md)。
+
+| ファイル・型 | 機能 |
+| --- | --- |
+| [Core/MemoryKnowledge.swift](../../../../ios/BellBot/BellBot/Core/MemoryKnowledge.swift) | `MemoryKind`（9種類のWebと同じ語・アイコン、`label(forRaw:)`は知らない種類をそのまま）、`MemoryScope`、`MemoryItem`・`KnowledgeItem`（`rowText`、必要な2項目だけを省略可で読む）、`MemoryBody`・`KnowledgeBody`、`MemberToolRoutes`（経路と`encodeURIComponent`相当の%エスケープ）、`MemberToolError.isUnsupported`（405、または`BOT_NOT_FOUND`以外の404）、`MemoryScreenModel`（`remember`・`saveKnowledge`・`recall`・`searchKnowledge`、送信中の二重送信なし、最新の検索だけが結果を書く、失敗の1行は1つ、`unsupported`） |
+| [Core/CharacterSheets.swift](../../../../ios/BellBot/BellBot/Core/CharacterSheets.swift) | `CharacterSheetListResponse`、`CharacterSheetCaption`（「file（日時）」・空の文・失敗の文）、`CharacterSheetModel`（一覧→`BellAPI.image`を順に1枚ずつ、`content`は`loading/sheets/unsupported/failed`） |
+| [Views/MemoryKnowledgeView.swift](../../../../ios/BellBot/BellBot/Views/MemoryKnowledgeView.swift) | `MemberToolScreen`（入口の題・アイコン・DEBUGの`-bellbot-preview-member-screen memory\|sheets`）、`MemberToolRows`、`MemberToolDestination`、`MemberMemoryScreen`（四つの節）、`CharacterSheetScreen`・`SheetCard`、種類のバッジ`KindBadge` |
+| [BotEditor](../../../../ios/BellBot/BellBot/Views/ManagementView.swift) | 既存メンバーに`MemberToolRows`、`NavigationStack(path: $toolPath)`と`navigationDestination(for: MemberToolScreen.self)` |
+| [TerminalsCalmLine](../../../../ios/BellBot/BellBot/Views/TerminalsView.swift) | 未対応の一行。`identifier`（既定`terminals-unsupported`）を追加し、記憶と知識・キャラクターシートでも使う |
+
 ## 端末の登録とメンバーの端末・フォルダ
 
 追加時点のファイル。契約と流れは[端末](terminals.md)。
@@ -410,6 +422,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [OnboardingTests.swift](../../../../ios/BellBot/BellBotTests/OnboardingTests.swift) | origin、初回認証decode、binding/digest、session、保護通信、反映エラー |
 | [RoomDeletionTests.swift](../../../../ios/BellBot/BellBotTests/RoomDeletionTests.swift) | 削除対象の選択/draftだけ整理、失敗時保持 |
 | [SecretTransportTests.swift](../../../../ios/BellBot/BellBotTests/SecretTransportTests.swift) | public HTTP拒否と秘密POST redirect拒否 |
+| [MemoryKnowledgeTests.swift](../../../../ios/BellBot/BellBotTests/MemoryKnowledgeTests.swift) | 種類の語と順・知らない種類、結果の行の文、検索語の%エスケープ、旧本体の判定、記憶・知識の送信規則（1回だけ・送信中は押せない・変えた文は消さない・失敗の1行・最新の検索・未対応）、キャラクターシートの日時・一覧と画像の読み・空・失敗・未対応 |
 | [TerminalsTests.swift](../../../../ios/BellBot/BellBotTests/TerminalsTests.swift) | 端末・メンバー項目の新旧応答、鍵の項目と行の状態、鍵の秘密入力要求の解読と送信body、組の規則、フォルダ、指紋、確認結果の文（三つの理由）、符号の文、未対応状態、鍵の導入（結果と拒否の文・待ち・自動の確認）、メンバーのフォルダ（既定・prefill・`FOLDER_*`の文） |
 | [SelectableTextLayoutTests.swift](../../../../ios/BellBot/BellBotTests/SelectableTextLayoutTests.swift) | UITextView寸法・本文変更・幅変更のcache |
 
@@ -435,6 +448,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [RoomDeletionUITests.swift](../../../../ios/BellBot/BellBotUITests/RoomDeletionUITests.swift) | 取消/失敗の保持、成功時一覧復帰とメンバー保持 |
 | [SecretInputUITests.swift](../../../../ios/BellBot/BellBotUITests/SecretInputUITests.swift) | 登録表示・値と入力欄の非表示・再起動後の表示。通常会話へのPOST件数は確認しない |
 | [ServerSetupUITests.swift](../../../../ios/BellBot/BellBotUITests/ServerSetupUITests.swift) | 接続後AI選択、未接続の導入ガイドとURL入力保持 |
+| [MemoryKnowledgeUITests.swift](../../../../ios/BellBot/BellBotUITests/MemoryKnowledgeUITests.swift) | iPhoneのメンバー編集から記憶と知識（空・記憶した後・検索結果・知識の検索・失敗の行・旧本体）とキャラクターシート（2枚・空・画像の失敗・旧本体）を開く。閉じて開き直すと結果が残らない |
 | [TerminalsUITests.swift](../../../../ios/BellBot/BellBotUITests/TerminalsUITests.swift) | iPhoneの端末一覧・追加・確認・ホスト鍵・削除、鍵の設定（秘密入力カード・1Password参照が先）と外す、メンバー編集の端末とフォルダ、旧本体の一行表示、追加画面の前提の一行、確認結果の理由、鍵をMacに入れる流れ、メンバーのフォルダの作成 |
 | [TabletWorkspaceUITests.swift](../../../../ios/BellBot/BellBotUITests/TabletWorkspaceUITests.swift) | iPad画像寸法、列/回転/draft、キーボード、共通編集sheet |
 

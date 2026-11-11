@@ -80,6 +80,8 @@ struct BotEditor: View {
     /// members S5: the save was refused with FOLDER_MISSING; the button repeats it with `createFolder: true`.
     @State private var offersCreateFolder = false
     @State private var showingFolderPicker = false
+    /// 「記憶と知識」「キャラクターシート」 pushed on this editor's own stack (existing members only).
+    @State private var toolPath: [MemberToolScreen] = []
 
     init(initial: Bot?, closeWindow: (() -> Void)? = nil) {
         self.initial = initial
@@ -100,6 +102,9 @@ struct BotEditor: View {
         _appearanceLoaded = State(initialValue: initial == nil)
         _terminalId = State(initialValue: initial?.terminalId ?? "")
         _projectRoot = State(initialValue: initial?.projectRoot ?? "")
+        #if DEBUG
+        if initial != nil, let screen = MemberToolScreen.preview { _toolPath = State(initialValue: [screen]) }
+        #endif
     }
 
     /// members C1 fields are sent only when this BellTeam has the terminals registry and the member DTO carries them.
@@ -135,7 +140,7 @@ struct BotEditor: View {
     private var canEditVariantImages: Bool { appearanceLoaded && appearanceSchemaAvailable }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $toolPath) {
             Form {
                 Section(header: BellSectionHeader("メンバー")) {
                     if initial == nil {
@@ -276,6 +281,7 @@ struct BotEditor: View {
                 }
                 .disabled(deletionPending || deletionResultUnconfirmed)
                 if initial != nil {
+                    MemberToolRows().disabled(deletionPending || deletionResultUnconfirmed)
                     Section {
                         if deletionPending || deletionResultUnconfirmed {
                             Text(deletionPending
@@ -321,6 +327,9 @@ struct BotEditor: View {
             .background(BellBackground())
             .navigationTitle(initial == nil ? "メンバーを追加" : "メンバーを編集")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(for: MemberToolScreen.self) { screen in
+                if let initial { MemberToolDestination(screen: screen, bot: initial) }
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button(hasSavedResult || deletionPending || deletionResultUnconfirmed ? "閉じる" : "キャンセル") { close() }.disabled(saving)

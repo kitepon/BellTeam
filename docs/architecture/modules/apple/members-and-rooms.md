@@ -61,6 +61,7 @@ HomeViewの並びは`BellDate.parse`で日時へ変換し、欠損・不正日�
 | モデル候補 | loadで`GET /api/models`、catalogとmodelErrorText。候補に無い保存済みmodelはcustomModelに保持して「その他」へ。Pickerの表示名は`ModelChoice.label`（`display_name`を前後空白除去し、null・欠落・空ならid）。選択値・tag・保存値・customModel判定は常にid |
 | CLI・モデル変更 | CLI変更でmodel/effortを空にする。モデル変更で候補に無いeffortを空にする。保存済みの非候補effortは現在値としてPickerへ追加 |
 | ファストモード | HarnessModels.fastModeUnavailableReasonがcatalog error、fastUnavailable、既定モデル/選択モデルのfastを参照。未知の非空モデルIDの可否は本体へ渡す。理由は赤字で出すが、モデル候補の読込中は進捗表示だけにして赤字を出さない |
+| 記憶とキャラクターシート | 既存メンバーだけに節「記憶とキャラクターシート」の2行（`MemberToolRows`）。`BotEditor`の`NavigationStack(path: $toolPath)`へ`MemberToolScreen`を積み、`MemberMemoryScreen`・`CharacterSheetScreen`が開く。編集中の入力は残る。削除の受付中・結果不明は2行とも無効（Webと同じ）。詳細は[記憶と知識・キャラクターシート](memory-and-sheets.md) |
 | 画像 | BotEditor内の画像UIは新規作成時に表示。小/大のrender/source/cropと変更flagを持つ。既存Botの画像操作はBotProfileComponentsを使用 |
 | 画像schema状態 | 新規ではappearanceLoaded=true、store.botsにavatarLargeVersion付きBotがいればappearanceSchemaAvailable=true。既存ではappearanceLoadedをdraftから復元する経路がある。loadのHTTPはモデル候補GETであり、Bot画像情報のGETではない |
 
