@@ -147,7 +147,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
   // Lattice工程表：会話を開くは相関図と同じ経路（通知の member route）。
   const latticeDialog = document.querySelector('#lattice-dialog')
   const lattice = createLatticeChart(latticeDialog, { api, fetchImage,
-    getMember: id => { const bot = state.bots.find(item => item.id === id); return bot ? { botId: id, name: bot.name, color: bot.color, avatar: bot.avatar, known: true } : null },
+    getMember: id => { const bot = state.bots.find(item => item.id === id); return bot ? { botId: id, name: bot.displayName ?? bot.name, color: bot.color, avatar: bot.avatar, known: true } : null },
     openChat: async botId => {
       if (document.fullscreenElement) await document.exitFullscreen().catch(() => {})
       latticeDialog.close()
