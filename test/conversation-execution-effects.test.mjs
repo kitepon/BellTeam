@@ -121,3 +121,26 @@ test('execution.fork (fork.md B7): same delivery binding and guard as notify, fo
   f.services.transport.forkInquiry = async () => { throw Object.assign(new Error('FORK_UNAVAILABLE'), { code: 'FORK_UNAVAILABLE', status: 503, effect: 'not_started' }) }
   await assert.rejects(f.effect('execution.fork', params, f.context), { code: 'FORK_UNAVAILABLE', status: 503 })
 })
+// fork-inquiry.md "Live relay members lease" (production 2026-11-12): the fork.ask root returned, so its members lease ended; the
+// answer relay's execution.notify (a fork callback) re-enters members once with a fresh lease, like execution.report.
+test('fork answer relay: execution.notify after the fork.ask root returned uses a fresh members lease and succeeds once', async () => {
+  const f = fixture(); let calls = 0
+  f.context.rootMethod = 'fork.ask'
+  f.context.conversationDelivery = f.admission.registerDelivery(f.lease, { deliveryId: 'delivery-a', target: f.bot.id, kinds: [], dispatch() {} })
+  const root = f.context.operationContext.membersLease
+  f.members.finish(root)
+  assert.throws(() => f.members.assertLease(root), 'the root lease is returned with the root result')
+  f.services.bots.readMember = async (id, membersContext) => { f.members.assertLease(membersContext.membersLease) }
+  f.services.transport.membersAdmission = f.members
+  f.services.transport.notify = async (bot, message, options) => {
+    calls++; assert.equal(bot, f.bot); assert.notEqual(options.membersLease, root)
+    f.members.assertLease(options.membersLease)
+    assert.equal(options.operationContext, f.context.operationContext, 'the conversation context is kept, only the members lease is fresh')
+    return { delivery: 'running' }
+  }
+  assert.deepEqual(await f.effect('execution.notify', f.params, f.context), { delivery: 'running' }); assert.equal(calls, 1)
+  // Any other root keeps its own members lease (unchanged): a direct.post notify on the ended lease is refused.
+  f.context.rootMethod = 'direct.post'
+  await assert.rejects(f.effect('execution.notify', f.params, f.context)); assert.equal(calls, 1)
+  f.admission.finish(f.context.conversationDelivery); f.admission.finish(f.lease)
+})
