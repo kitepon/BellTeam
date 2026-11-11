@@ -263,6 +263,7 @@ Macの[settings-and-profile「1Password連携」](architecture/modules/apple/set
 - 全部が公開版と一致か`incompatible`で、`incompatible`が1つ以上：「更新できるものはすべて最新です」と「<名前>は、いまの本体に合う版がまだありません。合う版が出ると、ここで更新できます。」。他に確かめられない機能があれば従来の「更新を確認できませんでした」。
 - 機能の印：`incompatible`は「使えない版」（Windowsは今「互換性を確認できません」）。
 - phase failedは、executionの値に関わらず確定として扱い、「更新できませんでした」と本体の理由を出す。
+- 18 対応済み：`UpdateScreen`に待ちの状態（`UpdateKind.Waiting`、ミントの印）と`UpdateBadge.Incompatible`（「使えない版」）を足した。phase failedの確定は、Windowsが前から`Failure`で同じ扱いをしていた。「詳細」の比較の文（「互換性を確認できません」）はMacと同じなので変えない。写真（Windows ← Mac）：[待ちの状態](assets/windows-mac-gaps/windows/pr18-update-waiting.png) ← [Mac](assets/windows-mac-gaps/mac/apple-parity-batch1-20261110--mac-update-waiting.png)。設定の一覧の「端末」の行は16aで足す。
 
 ### 19. Claudeの2アカウントの照合 — S
 

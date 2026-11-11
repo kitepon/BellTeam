@@ -270,6 +270,11 @@ public sealed class UpdateCenterTests
         // A publication check the server reports as unconfirmed is never shown as "latest".
         var unconfirmed = "{\"catalog\":{\"sha256\":\"" + new string('a', 64) + "\",\"publishedAt\":\"2026-11-08T04:00:00Z\",\"expiresAt\":\"2026-11-09T04:00:00Z\"},\"check\":{\"status\":\"unconfirmed\",\"checkedAt\":null,\"error\":null}}";
         Assert.Equal(UpdateKind.Unknown, Hero(Inventory("update-center-current", node => node["components"]![0]!["publication"] = JsonNode.Parse(unconfirmed))).Kind);
+        // Mac Status.waiting: the rest is current and some parts have no version for this body yet; anything unconfirmed keeps the old wording.
+        static void AddIncompatible(JsonNode node, string id, string name) { var part = node["components"]![0]!.DeepClone(); part["id"] = id; part["name"] = name; part["comparison"]!["state"] = "incompatible"; node["components"]!.AsArray().Add(part); }
+        Assert.Equal((UpdateKind.Waiting, "更新できるものはすべて最新です", "通知・利用設定は、いまの本体に合う版がまだありません。合う版が出ると、ここで更新できます。"),
+            Hero(Inventory("update-center-current", node => { AddIncompatible(node, "notifications", "通知"); AddIncompatible(node, "usage", "利用設定"); })));
+        Assert.Equal(UpdateKind.Unknown, Hero(Inventory("update-center-current", node => { AddIncompatible(node, "notifications", "通知"); node["components"]![0]!["comparison"]!["state"] = "unavailable"; })).Kind);
         // Several candidates are counted, then named.
         Assert.Equal(("2つ更新できます", "BellTeam本体・利用設定に新しい版があります。"), UpdateScreen.Hero(UpdateKind.Available, Inventory("update-center", node => { var second = node["components"]![0]!.DeepClone(); second["id"] = "usage"; second["name"] = "利用設定"; node["components"]!.AsArray().Add(second); }), null));
     }
@@ -286,6 +291,8 @@ public sealed class UpdateCenterTests
         Assert.Equal(UpdateBadge.Updating, UpdateScreen.Badge(toned.Components[0], null));
         var unknown = Inventory("update-center", node => node["components"]![0]!["comparison"]!["state"] = "unavailable");
         Assert.Equal(UpdateBadge.Unknown, UpdateScreen.Badge(unknown.Components[0], null)); Assert.Equal("確認できません", UpdateScreen.BadgeText(UpdateBadge.Unknown));
+        var incompatible = Inventory("update-center", node => node["components"]![0]!["comparison"]!["state"] = "incompatible");
+        Assert.Equal(UpdateBadge.Incompatible, UpdateScreen.Badge(incompatible.Components[0], null)); Assert.Equal("使えない版", UpdateScreen.BadgeText(UpdateBadge.Incompatible));
         // An unreadable per-part status only drops that status (the Mac LenientField).
         var broken = Inventory("update-center-mixed", node => node["components"]![0]!["status"]!["tone"] = "bogus");
         Assert.Null(broken.Components[0].Part); Assert.Equal(UpdateBadge.UpToDate, UpdateScreen.Badge(broken.Components[0], null));
