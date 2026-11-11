@@ -9,7 +9,7 @@ using static BellTeam.App.LatticeLook;
 namespace BellTeam.App;
 
 /// <summary>
-/// The swimlanes: one lane per producer, cards in columns by depth, edges as smooth curves under them. Waiting edges carry an accent gradient and particles flowing to the
+/// The swimlanes: one lane per owner (producer, else the authored lane text, else 担当なし), cards in columns by depth, edges as smooth curves under them. Waiting edges carry an accent gradient and particles flowing to the
 /// waiter (one per 600 ms, 1.4 s travel) and a 「◯◯が待っています」 chip. The lane names stay at the left edge while the board scrolls sideways (cards pass under them).
 /// Holds no state of its own beyond the drawing: the window gives it each snapshot.
 /// </summary>
@@ -74,11 +74,11 @@ internal sealed class LatticeBoard : Canvas
             if (spot is not { } place) continue;   // no free place: the curve and its particles still show the wait, and 待ちの流れ names it
             taken.Add(place); SetLeft(chip, place.X); SetTop(chip, place.Y); chip.Tag = edge; Children.Add(chip);
         }
-        var lookup = LatticeChart.Lookup(next);
+        var ownerOf = LatticeChart.Owner(next);
         foreach (var card in next.Cards.Where(card => Layout.Cards.ContainsKey(card.Id)))
         {
-            var at = Layout.Cards[card.Id]; var view = CardView(card, lookup(card.Producer), now);
-            var button = Plain(view, LatticeChart.CardLabel(card, lookup(card.Producer))); button.Width = at.Width; button.Height = at.Height; button.Tag = card.Id;
+            var at = Layout.Cards[card.Id]; var owner = ownerOf(card); var view = CardView(card, owner, now);
+            var button = Plain(view, LatticeChart.CardLabel(card, owner)); button.Width = at.Width; button.Height = at.Height; button.Tag = card.Id;
             button.Click += (_, _) => CardOpened?.Invoke(card.Id);
             System.Windows.Automation.AutomationProperties.SetAutomationId(button, "lattice-card");
             SetLeft(button, at.X); SetTop(button, at.Y); Children.Add(button); cards[card.Id] = button;
@@ -157,8 +157,9 @@ internal sealed class LatticeBoard : Canvas
             shell.Child = Row(StateGlyph(card.State, 18, accent), Spaced(new StackPanel { Children = { title, Text(info.Badge, 10.5, Muted) } }, 8));
             return grid;
         }
-        var stack = new DockPanel { LastChildFill = true };
-        var top = new DockPanel { Margin = new Thickness(0, 0, 0, 5) }; DockPanel.SetDock(top, Dock.Top);
+        // Card body (screen-spec): badge row, title up to 2 lines, note line, stacked so the note never overlaps the title.
+        var stack = new StackPanel();
+        var top = new DockPanel { Margin = new Thickness(0, 0, 0, 5) };
         var badgeColor = card.State switch { "blocked" => Red, "in-progress" or "ready" => accent, _ => Muted };
         var badge = Row(StateGlyph(card.State, 14, accent), Spaced(Text(info.Badge, 11, badgeColor, FontWeights.SemiBold), 5));
         top.Children.Add(badge);
@@ -171,9 +172,9 @@ internal sealed class LatticeBoard : Canvas
             var right = Row(minutes, face); right.HorizontalAlignment = HorizontalAlignment.Right; top.Children.Add(right);
         }
         stack.Children.Add(top);
+        stack.Children.Add(new TextBlock { Text = LatticeChart.Title(card), FontSize = 13.5, FontWeight = FontWeights.SemiBold, Foreground = Brush(Ink), TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, LineHeight = 18, LineStackingStrategy = LineStackingStrategy.BlockLineHeight, MaxHeight = 36 });
         var note = LatticeChart.CardNote(card, producer);
-        if (note.Length > 0) { var line = Text(note, 11, card.State == "blocked" ? Red : Muted); DockPanel.SetDock(line, Dock.Bottom); line.Margin = new Thickness(0, 3, 0, 0); stack.Children.Add(line); }
-        stack.Children.Add(new TextBlock { Text = LatticeChart.Title(card), FontSize = 13.5, FontWeight = FontWeights.SemiBold, Foreground = Brush(Ink), TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Top, LineHeight = 18, LineStackingStrategy = LineStackingStrategy.BlockLineHeight });
+        if (note.Length > 0) { var line = Text(note, 11, card.State == "blocked" ? Red : Muted); line.TextTrimming = TextTrimming.CharacterEllipsis; line.Margin = new Thickness(0, 3, 0, 0); stack.Children.Add(line); }
         shell.Child = stack;
         return grid;
     }
@@ -184,8 +185,8 @@ internal sealed class LatticeBoard : Canvas
         protected override void OnRender(DrawingContext context)
         {
             if (board.snapshot is not { } snapshot) return;
-            var layout = board.Layout; var lookup = LatticeChart.Lookup(snapshot); var now = board.Clock();
-            var producers = snapshot.Cards.GroupBy(card => card.Id).ToDictionary(group => group.Key, group => group.First());
+            var layout = board.Layout; var now = board.Clock();
+            var producers = snapshot.Cards.GroupBy(card => card.Id).ToDictionary(group => group.Key, group => group.First()); var ownerOf = LatticeChart.Owner(snapshot);
             foreach (var edge in snapshot.Edges)
             {
                 if (!layout.Cards.TryGetValue(edge.From, out var from) || !layout.Cards.TryGetValue(edge.To, out var to)) continue;
@@ -194,7 +195,7 @@ internal sealed class LatticeBoard : Canvas
                 var geometry = new PathGeometry([figure]);
                 var dim = board.highlight is { } on && !on.Waits.Contains($"{edge.To}>{edge.From}") && !(on.Cards.Contains(edge.From) && on.Cards.Contains(edge.To));
                 if (!edge.Waiting) { context.DrawGeometry(null, new Pen(Brush(Muted, dim ? (byte)0x1A : (byte)0x40), 1.2), geometry); continue; }
-                var producer = producers.GetValueOrDefault(edge.From)?.Producer; var color = lookup(producer) is { Known: true } person ? Accent(person.Color) : Violet;
+                var color = ownerOf(producers.GetValueOrDefault(edge.From)) is { Known: true } person ? Accent(person.Color) : Violet;
                 var opacity = dim ? .22 : 1;
                 var gradient = new LinearGradientBrush(Color.FromArgb((byte)(0x66 * opacity), color.R, color.G, color.B), Color.FromArgb((byte)(0xF0 * opacity), Violet.R, Violet.G, Violet.B), new Point(curve.X0, 0), new Point(curve.X3, 0)) { MappingMode = BrushMappingMode.Absolute };
                 context.DrawGeometry(null, new Pen(gradient, 2.6) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round }, geometry);

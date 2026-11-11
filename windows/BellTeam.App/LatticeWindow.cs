@@ -463,9 +463,11 @@ internal sealed class LatticeChartPage : Grid
     internal void GoTo(string cardId)
     {
         var rect = Board.CardRect(cardId); if (rect.IsEmpty) return;
-        scroller.ScrollToHorizontalOffset(Math.Max(0, rect.X - LatticeChart.LabelWidth - 40)); scroller.ScrollToVerticalOffset(Math.Max(0, rect.Y - 60));
+        ScrollBoard(rect.X, rect.Y);
         OpenDetail(cardId);
     }
+    /// <summary>Brings a board point near the top left, clear of the lane names.</summary>
+    internal void ScrollBoard(double x, double y) { scroller.ScrollToHorizontalOffset(Math.Max(0, x - LatticeChart.LabelWidth - 40)); scroller.ScrollToVerticalOffset(Math.Max(0, y - 60)); scroller.UpdateLayout(); }
 
     internal void OpenDetail(string cardId, bool morph = true) { SelectedCard = cardId; Board.Select(cardId); ShowDetail(cardId, morph); }
     internal bool CloseDetail()

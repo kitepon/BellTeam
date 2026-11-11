@@ -102,7 +102,7 @@ internal static class LatticeLook
     public static FrameworkElement Spinner(double size = 14) => Arc(size, Violet, 2);
 }
 
-/// <summary>A member's face: the avatar image when the roster has one, else the initial on the accent; 「?」 for 名簿にないメンバー and 「–」 for 担当なし.</summary>
+/// <summary>A member's face: the avatar image when the roster has one, else the initial on the accent; an authored lane text's initial on grey; 「?」 for 名簿にないメンバー and 「–」 for 担当なし.</summary>
 internal sealed class LatticeAvatar : Grid
 {
     public LatticeAvatar(LatticePerson? person, double size, Func<string, string, Task<System.Windows.Media.Imaging.BitmapSource>>? load)
@@ -110,7 +110,7 @@ internal sealed class LatticeAvatar : Grid
         Width = Height = size; VerticalAlignment = VerticalAlignment.Center; IsHitTestVisible = false;
         var accent = person is { Known: true } ? LatticeLook.Accent(person.Color) : Color.FromRgb(0xA4, 0xA7, 0xB6);
         var face = new Border { CornerRadius = new CornerRadius(size * .31), Background = new LinearGradientBrush(Color.FromArgb(190, accent.R, accent.G, accent.B), accent, 45), BorderBrush = Brushes.White, BorderThickness = new Thickness(size > 30 ? 2 : 1.5) };
-        var initial = person is null ? "–" : !person.Known ? "?" : person.Name.Length > 0 ? person.Name[..1] : "?";
+        var initial = person is null ? "–" : !person.Known && !person.Authored ? "?" : person.Name.Length > 0 ? person.Name[..1] : "?";
         face.Child = new TextBlock { Text = initial, FontSize = size * .42, FontWeight = FontWeights.Bold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
         Children.Add(face);
         System.Windows.Automation.AutomationProperties.SetName(this, LatticeChart.NameOf(person));

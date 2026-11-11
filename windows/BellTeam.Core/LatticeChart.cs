@@ -45,6 +45,7 @@ public sealed record LatticeCard
     public string? DesignMemo { get; init; }
     public string State { get; init; } = "pending";
     public string? Producer { get; init; }
+    public string? Lane { get; init; }
     public DateTimeOffset? StartedAt { get; init; }
     public DateTimeOffset? ChangedAt { get; init; }
     public string? BlockedReason { get; init; }
@@ -53,8 +54,9 @@ public sealed record LatticeCard
 public sealed record LatticeEdge(string From, string To, bool Waiting);
 public sealed record LatticeWait(string? Waiter, string WaitingCard, string ForCard, string? Producer, string? ProducerState, DateTimeOffset? Since);
 
-/// <summary>A member as drawn: the roster entry, or 名簿にないメンバー (Known false, drawn as 「?」 and never opened as a chat).</summary>
-public sealed record LatticePerson(string BotId, string Name, string? Color, string AvatarVersion, bool Known);
+/// <summary>A member as drawn: the roster entry, or 名簿にないメンバー (Known false, drawn as 「?」 and never opened as a chat).
+/// Authored: the plan's written lane text with no member behind it (BotId "", drawn with its initial, never a chat, not in the member rail).</summary>
+public sealed record LatticePerson(string BotId, string Name, string? Color, string AvatarVersion, bool Known, bool Authored = false);
 public sealed record LatticeStateInfo(string Badge, string Tone);
 public sealed record LatticeLane(string? BotId, LatticePerson? Member, double Y, double Height);
 public sealed record LatticePlaced(double X, double Y, double Width, double Height, int Depth, int Lane);
@@ -109,16 +111,23 @@ public static class LatticeChart
             : new LatticePerson(botId, UnknownMember, null, "", false);
     }
     public static string NameOf(LatticePerson? member) => member?.Name ?? Unassigned;
+    /// <summary>A card's owner on screen (lattice README "Owner on screen"): its producer, else its authored lane text as written, else null (担当なし).</summary>
+    public static Func<LatticeCard?, LatticePerson?> Owner(LatticeSnapshot snapshot)
+    {
+        var lookup = Lookup(snapshot);
+        return card => card?.Producer is { Length: > 0 } producer ? lookup(producer) : card?.Lane is { Length: > 0 } lane ? new LatticePerson("", lane, null, "", false, true) : null;
+    }
 
-    // Lanes per producer (known by name, then unknown, then 担当なし), columns by depth; cards of one lane and depth stack.
-    public const double CardWidth = 168, CardHeight = 96, CardDoneHeight = 50, ColumnWidth = 236, LabelWidth = 132, Top = 14, LaneMin = 116, LaneGap = 10, LanePad = 10, StackGap = 10;
+    // Lanes per owner (known members by name, then authored lane texts by name, then unknown members, then 担当なし), columns by depth; cards of one lane and depth stack.
+    public const double CardWidth = 168, CardHeight = 108, CardDoneHeight = 50, ColumnWidth = 236, LabelWidth = 132, Top = 14, LaneMin = 116, LaneGap = 10, LanePad = 10, StackGap = 10;
     public static double HeightOf(LatticeCard card) => Finished(card.State) ? CardDoneHeight : CardHeight;
     public static LatticeLayout Layout(LatticeSnapshot snapshot)
     {
-        var lookup = Lookup(snapshot);
-        var groups = snapshot.Cards.GroupBy(card => card.Producer ?? "").ToDictionary(group => group.Key, group => group.ToList());
-        int Rank(string key) => key.Length == 0 ? 2 : lookup(key)!.Known ? 0 : 1;
-        var order = groups.Keys.OrderBy(Rank).ThenBy(key => Rank(key) == 0 ? lookup(key)!.Name : "", StringComparer.Create(CultureInfo.GetCultureInfo("ja-JP"), false)).ThenBy(key => key, StringComparer.Ordinal).ToList();
+        var ownerOf = Owner(snapshot); var owners = new Dictionary<string, LatticePerson?>();
+        string Key(LatticeCard card) { var owner = ownerOf(card); var key = owner is null ? "" : owner.Authored ? "lane:" + owner.Name : owner.BotId; owners[key] = owner; return key; }
+        var groups = snapshot.Cards.GroupBy(Key).ToDictionary(group => group.Key, group => group.ToList());
+        int Rank(string key) => owners[key] is not { } owner ? 3 : owner.Known ? 0 : owner.Authored ? 1 : 2;
+        var order = groups.Keys.OrderBy(Rank).ThenBy(key => Rank(key) < 2 ? owners[key]!.Name : "", StringComparer.Create(CultureInfo.GetCultureInfo("ja-JP"), false)).ThenBy(key => key, StringComparer.Ordinal).ToList();
         var lanes = new List<LatticeLane>(); var placed = new Dictionary<string, LatticePlaced>();
         double y = Top; var maxDepth = 0;
         foreach (var key in order)
@@ -132,7 +141,7 @@ public static class LatticeChart
                 var top = y + (height - Stack(list)) / 2;
                 foreach (var card in list) { placed[card.Id] = new(LabelWidth + 16 + depth * ColumnWidth, top, CardWidth, HeightOf(card), depth, lanes.Count); top += HeightOf(card) + StackGap; }
             }
-            lanes.Add(new(key.Length == 0 ? null : key, lookup(key), y, height));
+            lanes.Add(new(owners[key] is { Authored: false } member ? member.BotId : null, owners[key], y, height));
             y += height + LaneGap;
         }
         var reading = placed.OrderBy(pair => pair.Value.Lane).ThenBy(pair => pair.Value.Depth).ThenBy(pair => pair.Value.Y).Select(pair => pair.Key).ToList();
@@ -190,19 +199,20 @@ public static class LatticeChart
 
     public static IReadOnlyList<LatticeWaitRow> WaitRows(LatticeSnapshot snapshot, DateTimeOffset now)
     {
-        var lookup = Lookup(snapshot); var cards = snapshot.Cards.GroupBy(card => card.Id).ToDictionary(group => group.Key, group => group.First());
+        var lookup = Lookup(snapshot); var ownerOf = Owner(snapshot); var cards = snapshot.Cards.GroupBy(card => card.Id).ToDictionary(group => group.Key, group => group.First());
         return snapshot.Waits.OrderBy(wait => wait.Since ?? DateTimeOffset.MaxValue).Select(wait =>
         {
-            var waiter = lookup(wait.Waiter); var producer = lookup(wait.Producer); cards.TryGetValue(wait.ForCard, out var awaited);
+            cards.TryGetValue(wait.ForCard, out var awaited); cards.TryGetValue(wait.WaitingCard, out var waiting);
+            var waiter = wait.Waiter is { Length: > 0 } ? lookup(wait.Waiter) : ownerOf(waiting); var producer = wait.Producer is { Length: > 0 } ? lookup(wait.Producer) : ownerOf(awaited);
             var state = wait.ProducerState ?? awaited?.State; var title = Title(awaited); var stateText = ProducerStateText(awaited, state, producer, now);
             var waiterName = waiter?.Name ?? "担当未定";
             return new LatticeWaitRow($"{wait.WaitingCard}>{wait.ForCard}", waiter, producer, title, stateText, wait.ForCard, wait.WaitingCard, $"{waiterName}が待っている",
                 SinceText(wait.Since, now), state == "blocked", StateInfo(state), producer?.Known == true, $"{waiterName}が{title}を待っています。つくっているのは{NameOf(producer)}、{stateText}");
         }).ToList();
     }
-    /// <summary>The chip on a waiting edge: 「◯◯が待っています」, the waiter being the producer of the later card.</summary>
+    /// <summary>The chip on a waiting edge: 「◯◯が待っています」, the waiter being the owner of the later card.</summary>
     public static string EdgeChip(LatticeSnapshot snapshot, LatticeEdge edge)
-        => $"{(snapshot.Cards.FirstOrDefault(card => card.Id == edge.To)?.Producer is { } producer ? Lookup(snapshot)(producer)!.Name : "担当未定")}が待っています";
+        => $"{Owner(snapshot)(snapshot.Cards.FirstOrDefault(card => card.Id == edge.To))?.Name ?? "担当未定"}が待っています";
 
     public static IReadOnlyList<LatticeRailItem> Rail(LatticeSnapshot snapshot, LatticeLayout layout)
         => layout.Lanes.Where(lane => lane.BotId is not null).Select(lane => new LatticeRailItem(lane.BotId!, lane.Member!,
@@ -218,9 +228,9 @@ public static class LatticeChart
     {
         var cards = snapshot.Cards.GroupBy(card => card.Id).ToDictionary(group => group.Key, group => group.First());
         if (!cards.TryGetValue(cardId, out var card)) return null;
-        var lookup = Lookup(snapshot);
-        LatticeLink? Link(string id) => cards.TryGetValue(id, out var other) ? new(id, Title(other), other.State, lookup(other.Producer), ProducerStateText(other, other.State, lookup(other.Producer), now)) : null;
-        return new(card, lookup(card.Producer), StateInfo(card.State), ProducerStateText(card, card.State, lookup(card.Producer), now),
+        var ownerOf = Owner(snapshot);
+        LatticeLink? Link(string id) => cards.TryGetValue(id, out var other) ? new(id, Title(other), other.State, ownerOf(other), ProducerStateText(other, other.State, ownerOf(other), now)) : null;
+        return new(card, ownerOf(card), StateInfo(card.State), ProducerStateText(card, card.State, ownerOf(card), now),
             snapshot.Edges.Where(edge => edge.To == cardId).Select(edge => Link(edge.From)).OfType<LatticeLink>().ToList(),
             snapshot.Edges.Where(edge => edge.From == cardId).Select(edge => Link(edge.To)).OfType<LatticeLink>().ToList(),
             card.StartedAt is { } started ? $"着手 {FormatJst(started)} JST" : "まだ着手されていません");
