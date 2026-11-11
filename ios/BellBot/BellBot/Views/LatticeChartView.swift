@@ -16,6 +16,8 @@ struct LatticeChartScreen: View {
     let returnTab: Int
     /// 別の工程表へ（nilは一覧へ）。
     let switchTo: (String?) -> Void
+    /// Leaves a chart that cannot be shown (not found, older server, unavailable) for the root 一覧; back does not return to it.
+    let leave: () -> Void
     @State private var selected: String?
     @State private var focus: String?
     @State private var scrollTarget: String?
@@ -29,11 +31,13 @@ struct LatticeChartScreen: View {
     @State private var columnAnchor = CGPoint.zero
     @Namespace private var namespace
 
-    init(projectId: String, list: LatticeChartsModel, returnTab: Int, switchTo: @escaping (String?) -> Void) {
+    init(projectId: String, list: LatticeChartsModel, returnTab: Int, switchTo: @escaping (String?) -> Void,
+         leave: @escaping () -> Void) {
         _model = StateObject(wrappedValue: LatticeChartModel(projectId: projectId))
         self.list = list
         self.returnTab = returnTab
         self.switchTo = switchTo
+        self.leave = leave
         #if DEBUG
         _selected = State(initialValue: LatticeDebugOpen.card)
         #endif
@@ -87,10 +91,10 @@ struct LatticeChartScreen: View {
         switch model.connection {
         case .notFound:
             LatticeEmptyState(symbol: "questionmark.folder", title: LatticeText.notFound, detail: "",
-                              action: ("一覧へ戻る", { switchTo(nil) }))
+                              action: ("一覧へ戻る", { leave() }))
         case .unsupported:
             LatticeEmptyState(symbol: "camera.macro", title: LatticeText.oldServer, detail: LatticeText.oldServerNext,
-                              action: ("閉じる", { switchTo(nil) }))
+                              action: ("閉じる", { leave() }))
         case .failed(let text):
             LatticeEmptyState(symbol: "person.crop.circle.badge.exclamationmark", title: text, detail: "")
         default:
@@ -210,7 +214,7 @@ struct LatticeChartScreen: View {
 
     private func unavailable() -> some View {
         LatticeEmptyState(symbol: "camera.macro", title: LatticeText.unavailable, detail: LatticeText.unavailableNext,
-                          action: ("一覧へ戻る", { switchTo(nil) }))
+                          action: ("一覧へ戻る", { leave() }))
             .accessibilityIdentifier("lattice-unavailable")
     }
 

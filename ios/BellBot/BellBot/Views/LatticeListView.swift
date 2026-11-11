@@ -239,9 +239,9 @@ struct LatticeHomeView: View {
                 .navigationDestination(for: LatticeRoute.self) { route in
                     switch route {
                     case .chart(let id):
-                        LatticeChartScreen(projectId: id, list: list, returnTab: returnTab) { next in
+                        LatticeChartScreen(projectId: id, list: list, returnTab: returnTab, switchTo: { next in
                             if let next { path = [.chart(next)] } else if path.last != .list { path.append(.list) }
-                        }
+                        }, leave: { path = [] })
                         .id(id)
                     case .list:
                         // Opening the chart we came from is the back button; another chart replaces the stack.
