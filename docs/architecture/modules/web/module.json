@@ -12,6 +12,10 @@
     {
       "module": "integration",
       "port": "HTTP/SSE"
+    },
+    {
+      "module": "lattice",
+      "port": "lattice-chart"
     }
   ],
   "source": [
