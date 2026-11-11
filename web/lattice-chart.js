@@ -3,7 +3,7 @@ import { parseFrames } from './work-graph.js?v=__ASSET_VERSION__'
 import { applyAvatar } from './view-format.js?v=__ASSET_VERSION__'
 import {
   MESSAGES, SCHEMA, UNASSIGNED, accent, backoffMs, bannerFor, chartCounts, coordinatorBotId, degradedPills, detailOf, diffSnapshots, edgeChipText, edgeGeometry,
-  flowPositions, highlightSets, layoutChart, chartName, listItems, listSignature, memberLookup, particleOpacity, pointOnEdge, railItems, stateInfo, waitRows, cardLabel, cardNote, minutesSince, RED,
+  flowPositions, highlightSets, layoutChart, chartName, listItems, listSignature, memberLookup, ownerLookup, particleOpacity, pointOnEdge, railItems, stateInfo, waitRows, cardLabel, cardNote, minutesSince, RED,
 } from './lattice-chart-model.js?v=__ASSET_VERSION__'
 
 const GLYPHS = {
@@ -141,7 +141,7 @@ export function createLatticeChart(dialog, {
     return avatars.get(url)
   }
   function avatar(member, size = 24) {
-    const unknown = member?.known === false
+    const unknown = member?.known === false && !member.authored
     const el = h('span', { class: `lattice-av${unknown ? ' unk' : ''}`, 'aria-hidden': 'true', style: { '--s': `${size}px`, '--c': colorOf(member) } })
     if (!member) el.append(glyph('person'))
     else el.textContent = unknown ? '?' : [...member.name][0] ?? ''
@@ -322,16 +322,16 @@ export function createLatticeChart(dialog, {
 
   // カードは id で持ち続け、位置は transform で動かす（同じ列・レーンの札は動かない）。
   function paintPlane(layout, diff) {
-    const members = lookup(), at = now(), animate = !diff.first && !reduceMotion()
+    const owners = ownerLookup(snapshot), at = now(), animate = !diff.first && !reduceMotion()
     places = layout.cards
     ui.plane.style.width = `${layout.width}px`; ui.plane.style.height = `${layout.height}px`
     for (const el of [ui.edgesSvg]) { el.setAttribute('width', layout.width); el.setAttribute('height', layout.height) }
     ui.lanes.replaceChildren(...layout.lanes.map((lane, i) => h('div', { class: `lattice-lane${i % 2 ? ' alt' : ''}`, style: { top: `${lane.y}px`, height: `${lane.h}px` } },
-      h('div', { class: 'lattice-lane-label' }, avatar(lane.botId ? lane.member : null, 30), h('b', {}, lane.botId && lane.botId === coordinatorBotId(list) && glyph('crown', 'lattice-crown'), lane.botId ? lane.member.name : UNASSIGNED)))))
+      h('div', { class: 'lattice-lane-label' }, avatar(lane.member, 30), h('b', {}, lane.botId && lane.botId === coordinatorBotId(list) && glyph('crown', 'lattice-crown'), lane.member ? lane.member.name : UNASSIGNED)))))
     const cards = new Map(snapshot.cards.map(card => [card.id, card]))
     for (const [id, el] of cardEls) if (!cards.has(id)) { cardEls.delete(id); entering.delete(id); if (animate) { el.classList.add('is-leaving'); after(() => el.remove(), 300) } else el.remove() }
     for (const id of layout.order) {
-      const card = cards.get(id), place = layout.cards.get(id), member = members(card.producer), info = stateInfo(card.state)
+      const card = cards.get(id), place = layout.cards.get(id), member = owners(card), info = stateInfo(card.state)
       let el = cardEls.get(id)
       if (!el) {
         el = h('button', { class: 'lattice-card', type: 'button', dataset: { cardId: id }, on: { click: () => openDetail(id, cardEls.get(id)) } })
@@ -365,11 +365,11 @@ export function createLatticeChart(dialog, {
       ui.cards.append(...wanted)
       if (active && wanted.includes(active)) active.focus?.()
     }
-    paintEdges(layout, diff, members)
+    paintEdges(layout, diff, owners)
   }
 
   // 辺：満たされた辺は細く淡く、待っている辺は太い勾配。待っている辺には粒を流し、「◯◯が待っています」の札を付ける。
-  function paintEdges(layout, diff, members) {
+  function paintEdges(layout, diff, owners) {
     const cards = new Map(snapshot.cards.map(card => [card.id, card]))
     ui.defs.replaceChildren(); ui.edgeLayer.replaceChildren(); ui.flowLayer.replaceChildren(); ui.chips.replaceChildren(); particles = []
     const edges = snapshot.edges ?? []
@@ -379,11 +379,11 @@ export function createLatticeChart(dialog, {
       const key = `${edge.from}>${edge.to}`, geometry = edgeGeometry(from, to)
       const fresh = !diff.first && !reduceMotion() && diff.addedEdges.includes(key)
       if (!edge.waiting) { ui.edgeLayer.append(svg('path', { d: geometry.d, class: `lattice-edge${fresh ? ' is-new' : ''}`, 'data-edge': key })); return }
-      const start = colorOf(members(cards.get(edge.from)?.producer)), end = colorOf(members(cards.get(edge.to)?.producer))
+      const start = colorOf(owners(cards.get(edge.from))), end = colorOf(owners(cards.get(edge.to)))
       ui.defs.append(svg('linearGradient', { id: `lattice-grad-${i}`, gradientUnits: 'userSpaceOnUse', x1: geometry.p0.x, y1: geometry.p0.y, x2: geometry.p3.x, y2: geometry.p3.y },
         svg('stop', { offset: 0, 'stop-color': start }), svg('stop', { offset: 1, 'stop-color': end })))
       ui.edgeLayer.append(svg('path', { d: geometry.d, class: `lattice-edge waiting${fresh ? ' is-new' : ''}`, style: `stroke: url(#lattice-grad-${i})`, 'data-edge': key }))
-      const mid = pointOnEdge(geometry, 0.5), waiter = members(cards.get(edge.to)?.producer)
+      const mid = pointOnEdge(geometry, 0.5), waiter = owners(cards.get(edge.to))
       ui.chips.append(h('div', { class: 'lattice-chip', dataset: { edge: key }, style: { transform: `translate(${mid.x}px, ${mid.y}px) translate(-50%, -50%)` } }, avatar(waiter, 18), edgeChipText(snapshot, edge)))
       const circles = [0, 1, 2].map(() => svg('circle', { r: 3.5, fill: end, opacity: 0, style: `filter: drop-shadow(0 0 4px ${end})` }))
       ui.flowLayer.append(...circles)

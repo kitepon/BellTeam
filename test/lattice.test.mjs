@@ -63,6 +63,12 @@ test('projection: a lane that is not a roster Bot is no producer; a deleting Bot
   assert.equal(byId(projectChart({ read, members: [{ ...roster(['bot-c'])[0], deleting: true }] }))['p1/t4'].producer, null)
 })
 
+test('projection: a lane naming a member (Bot id or name, Latin case-insensitive) is the producer before a start', () => {
+  const plan = planMember({ tasks: [{ task_id: 'a', lane: 'キロ' }, { task_id: 'b', lane: 'n102' }, { task_id: 'c', lane: 'kiro' }], states: [['a', 'pending'], ['b', 'pending'], ['c', 'pending']] })
+  const members = [{ id: 'bot-k', name: 'キロ', color: 'mint', avatarVersion: '', deleting: false }, { id: 'bot-n', name: 'N102', color: 'sky', avatarVersion: '', deleting: false }]
+  assert.deepEqual(projectChart({ read: readOf([plan]), members }).cards.map(card => [card.lane, card.producer]), [['キロ', 'bot-k'], ['n102', 'bot-n'], ['kiro', null]])
+})
+
 test('projection: cross-plan edges minus tombstones', () => {
   const p1 = planMember({ tasks: [{ task_id: 't1' }, { task_id: 't2' }], states: [['t1', 'in-progress'], ['t2', 'pending']] })
   const p2 = planMember({ plan: 'p2', tasks: [{ task_id: 't1' }], states: [['t1', 'pending']], scoped: [

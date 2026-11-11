@@ -2,13 +2,13 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   UNKNOWN_MEMBER, backoffMs, bannerFor, chartCounts, coordinatorBotId, degradedPills, detailOf, diffSnapshots, edgeChipText, edgeGeometry, flowPositions, formatJst, highlightSets,
-  layoutChart, listItems, memberLookup, pointOnEdge, railItems, sinceText, waitRows, cardLabel,
+  layoutChart, listItems, memberLookup, ownerLookup, pointOnEdge, railItems, sinceText, waitRows, cardLabel,
 } from '../web/lattice-chart-model.js'
 import { createChartStream, createLatticeChart } from '../web/lattice-chart.js'
 
 const BASE = Date.parse('2026-11-11T12:00:00Z'), minutesAgo = n => new Date(BASE - n * 60000).toISOString()
 const TRONY = 'bot-7b140b27', MOLLY = 'bot-39be7047', FLORA = 'bot-7e777fe5', GHOST = 'bot-ghost0001'
-const card = (id, state, producer, depth, extra = {}) => ({ id: `p1/${id}`, plan: 'p1', taskId: id, title: `工程${id}`, doneCondition: '', designMemo: '', state, lane: 'x', producer, startedAt: null, changedAt: minutesAgo(1), blockedReason: null, depth, ...extra })
+const card = (id, state, producer, depth, extra = {}) => ({ id: `p1/${id}`, plan: 'p1', taskId: id, title: `工程${id}`, doneCondition: '', designMemo: '', state, lane: null, producer, startedAt: null, changedAt: minutesAgo(1), blockedReason: null, depth, ...extra })
 const fixture = (extra = {}) => ({
   schema: 'bellteam.lattice-chart.v1', epoch: 'e1', version: 1, at: minutesAgo(0), projectId: 'bellteam', name: 'BellTeam開発', createdBy: TRONY, coordinator: true, state: 'verified', verifiedAt: minutesAgo(0), degraded: [],
   members: [{ botId: TRONY, name: 'トロニー', color: 'indigo', avatarVersion: 'v1' }, { botId: MOLLY, name: 'モリー', color: 'mint', avatarVersion: '' }, { botId: FLORA, name: 'フローラ', color: 'violet', avatarVersion: '' }],
@@ -31,6 +31,26 @@ const NAMES = { bellteam: 'BellTeam開発', gone: '消えた工程表', a: '設�
 const chartsList = (...ids) => ({ schema: 'bellteam.lattice-charts.v1', at: '', charts: ids.map((projectId, i) => ({ projectId, name: NAMES[projectId] ?? null, coordinator: i === 0, createdBy: TRONY, counts: { total: 6, done: 2, working: 1, waiting: 2, blocked: 1 }, activeMembers: [MOLLY, GHOST], updatedAt: minutesAgo(3), state: 'verified' })) })
 
 // ---- model ----
+test('担当：着手前でも工程表に書かれた担当（lane）の文字を出す。担当なしは lane が空の時だけ', () => {
+  const snap = fixture({
+    cards: [card('a', 'pending', null, 0, { lane: 'kiro', title: '上限明けの続き' }), card('b', 'pending', null, 1, { lane: 'kiro' }), card('c', 'pending', null, 0)],
+    edges: [{ from: 'p1/a', to: 'p1/b', waiting: true }, { from: 'p1/c', to: 'p1/b', waiting: true }],
+    waits: [{ waiter: null, waitingCard: 'p1/b', forCard: 'p1/a', producer: null, producerState: 'pending', since: minutesAgo(5) }],
+  })
+  const owner = ownerLookup(snap)(snap.cards[0])
+  assert.deepEqual([owner.name, owner.botId, owner.authored, owner.known], ['kiro', null, true, false])
+  assert.equal(ownerLookup(snap)(snap.cards[2]), null)
+  const layout = layoutChart(snap)
+  assert.deepEqual(layout.lanes.map(lane => lane.member?.name ?? null), ['kiro', null], '書かれた担当のレーン、担当なしは最後')
+  assert.equal(railItems(snap, layout).length, 0, 'レールは名簿のメンバーだけ')
+  const [row] = waitRows(snap, BASE)
+  assert.equal(row.headline, 'kiroが待っている'); assert.equal(row.producer.name, 'kiro'); assert.equal(row.canChat, false)
+  assert.match(row.state, /担当 kiro/)
+  assert.equal(edgeChipText(snap, snap.edges[0]), 'kiroが待っています')
+  assert.match(detailOf(snap, 'p1/a', BASE).stateText, /担当 kiro/)
+  assert.match(cardLabel(snap.cards[0], owner), /つくっている kiro/)
+})
+
 test('配置：担当ごとのレーン（担当なしは最後）、depth ごとの列、同じ担当・同じ列は縦に積む', () => {
   const layout = layoutChart(fixture())
   assert.deepEqual(layout.lanes.map(lane => lane.botId), [TRONY, FLORA, MOLLY, GHOST, null], '名簿の名前順、名簿にいない担当、担当なし')
@@ -38,10 +58,10 @@ test('配置：担当ごとのレーン（担当なしは最後）、depth ご�
   const t02 = layout.cards.get('p1/t02'), t03 = layout.cards.get('p1/t03'), t05 = layout.cards.get('p1/t05')
   assert.ok(t02.x < t03.x && t03.x < t05.x, '列は depth の順')
   assert.equal(t02.x, layout.cards.get('p1/t01').x)
-  assert.equal(t02.w, 136); assert.equal(t02.h, 92); assert.equal(layout.cards.get('p1/t01').h, 48, '完了は小さい札')
+  assert.equal(t02.w, 136); assert.equal(t02.h, 104); assert.equal(layout.cards.get('p1/t01').h, 48, '完了は小さい札')
   const stacked = layoutChart({ ...fixture(), cards: [card('a', 'pending', MOLLY, 0), card('b', 'pending', MOLLY, 0)], edges: [], waits: [] })
   const [a, b] = ['p1/a', 'p1/b'].map(id => stacked.cards.get(id))
-  assert.equal(a.x, b.x); assert.ok(b.y >= a.y + 92)
+  assert.equal(a.x, b.x); assert.ok(b.y >= a.y + 104)
   const lane = stacked.lanes[0]; assert.ok(a.y >= lane.y && b.y + b.h <= lane.y + lane.h)
   assert.equal(new Set(layout.order).size, 6)
   const moved = layoutChart({ ...fixture(), cards: fixture().cards.map(c => c.id === 'p1/t05' ? { ...c, producer: MOLLY } : c) })

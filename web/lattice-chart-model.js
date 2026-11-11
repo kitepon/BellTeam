@@ -62,22 +62,28 @@ export function memberLookup(snapshot) {
   }
 }
 export const nameOf = member => member ? member.name : UNASSIGNED
+// 札の担当：つくっている人（着手した人か、名簿にいる担当）。いなければ工程表に書かれた担当の文字（顔は頭文字、会話なし）。それも無ければ null（担当なし）。
+export function ownerLookup(snapshot) {
+  const lookup = memberLookup(snapshot)
+  return card => card?.producer ? lookup(card.producer) : card?.lane ? { botId: null, name: card.lane, color: 'unknown', avatarVersion: '', known: false, authored: true } : null
+}
 
 // 担当ごとのレーン、depth ごとの列。同じ担当・同じ depth の札は縦に積む。
-export const CARD_W = 136, CARD_H = 92, CARD_DONE_H = 48
+export const CARD_W = 136, CARD_H = 104, CARD_DONE_H = 48
 const COL_W = 232, LABEL_W = 116, TOP = 14, LANE_MIN = 108, LANE_GAP = 8, LANE_PAD = 8, STACK_GAP = 8
 export const cardHeight = card => finished(card.state) ? CARD_DONE_H : CARD_H
 
 export function layoutChart(snapshot) {
-  const lookup = memberLookup(snapshot), cards = snapshot.cards ?? []
-  const keys = new Map()
+  const ownerOf = ownerLookup(snapshot), cards = snapshot.cards ?? []
+  const keys = new Map(), owners = new Map([[null, null]])
   for (const card of cards) {
-    const key = card.producer ?? null
+    const owner = ownerOf(card), key = owner ? owner.botId ?? `lane:${owner.name}` : null
+    owners.set(key, owner)
     if (!keys.has(key)) keys.set(key, [])
     keys.get(key).push(card)
   }
-  const rank = key => key === null ? 2 : lookup(key).known ? 0 : 1
-  const laneOrder = [...keys.keys()].sort((a, b) => rank(a) - rank(b) || (rank(a) === 0 ? lookup(a).name.localeCompare(lookup(b).name, 'ja') : 0) || String(a).localeCompare(String(b)))
+  const rank = key => key === null ? 3 : owners.get(key).known ? 0 : owners.get(key).authored ? 1 : 2
+  const laneOrder = [...keys.keys()].sort((a, b) => rank(a) - rank(b) || (rank(a) < 2 ? owners.get(a).name.localeCompare(owners.get(b).name, 'ja') : 0) || String(a).localeCompare(String(b)))
   const lanes = [], placed = new Map()
   let y = TOP, maxDepth = 0
   for (const key of laneOrder) {
@@ -97,7 +103,7 @@ export function layoutChart(snapshot) {
         top += cardHeight(card) + STACK_GAP
       }
     }
-    lanes.push({ key: key ?? '', botId: key, member: lookup(key), y, h: height })
+    lanes.push({ key: key ?? '', botId: owners.get(key)?.botId ?? null, member: owners.get(key), y, h: height })
     y += height + LANE_GAP
   }
   // 読む順（レーンごとに左から）。キーボードの順もこれに合わせる。
@@ -158,9 +164,10 @@ export function cardNote(card, member) {
 }
 
 export function waitRows(snapshot, now) {
-  const lookup = memberLookup(snapshot), titles = new Map((snapshot.cards ?? []).map(card => [card.id, card]))
+  const lookup = memberLookup(snapshot), ownerOf = ownerLookup(snapshot), titles = new Map((snapshot.cards ?? []).map(card => [card.id, card]))
   return (snapshot.waits ?? []).map(wait => {
-    const waiter = lookup(wait.waiter), producer = lookup(wait.producer), awaited = titles.get(wait.forCard), waiting = titles.get(wait.waitingCard)
+    const awaited = titles.get(wait.forCard), waiting = titles.get(wait.waitingCard)
+    const waiter = wait.waiter ? lookup(wait.waiter) : ownerOf(waiting), producer = wait.producer ? lookup(wait.producer) : ownerOf(awaited)
     const title = awaited?.title ?? '', state = producerStateText({ ...awaited, state: wait.producerState ?? awaited?.state }, producer, now)
     return {
       key: `${wait.waitingCard}>${wait.forCard}`, waiter, producer, title, state, forCard: wait.forCard, waitingCard: wait.waitingCard,
@@ -177,7 +184,7 @@ export function waitRows(snapshot, now) {
 // 待っている辺ごとの札「◯◯が待っています」。待つ側 = 後ろの札の担当。
 export function edgeChipText(snapshot, edge) {
   const to = (snapshot.cards ?? []).find(card => card.id === edge.to)
-  return `${to?.producer ? memberLookup(snapshot)(to.producer).name : '担当未定'}が待っています`
+  return `${ownerLookup(snapshot)(to)?.name ?? '担当未定'}が待っています`
 }
 
 // 左のレール：担当ごとの顔と、作業中・止まり・待ちの数。
@@ -203,11 +210,11 @@ export function highlightSets(snapshot, botId) {
 export function detailOf(snapshot, cardId, now) {
   const cards = new Map((snapshot.cards ?? []).map(card => [card.id, card])), card = cards.get(cardId)
   if (!card) return null
-  const lookup = memberLookup(snapshot), link = id => { const other = cards.get(id); return other && { id, title: other.title, state: other.state, producer: lookup(other.producer), stateText: producerStateText(other, lookup(other.producer), now) } }
+  const ownerOf = ownerLookup(snapshot), link = id => { const other = cards.get(id); return other && { id, title: other.title, state: other.state, producer: ownerOf(other), stateText: producerStateText(other, ownerOf(other), now) } }
   const edges = snapshot.edges ?? []
   return {
-    id: cardId, card, producer: lookup(card.producer), info: stateInfo(card.state),
-    stateText: producerStateText(card, lookup(card.producer), now),
+    id: cardId, card, producer: ownerOf(card), info: stateInfo(card.state),
+    stateText: producerStateText(card, ownerOf(card), now),
     previous: edges.filter(edge => edge.to === cardId).map(edge => link(edge.from)).filter(Boolean),
     next: edges.filter(edge => edge.from === cardId).map(edge => link(edge.to)).filter(Boolean),
     startedText: card.startedAt ? `着手 ${formatJst(card.startedAt)} JST` : 'まだ着手されていません',
