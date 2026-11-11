@@ -344,3 +344,29 @@ test('配送側がonStatusで拒否を記録してからnotifyを拒否しても
   const rows = records.filter(record => record.schema === 'bellteam.room-delivery-status.v1' && record.target === bot.id)
   assert.deepEqual(rows.map(row => row.delivery), ['stopped'])
 })
+
+test('onStatusの拒否行の保存が失敗した時は、notifyの拒否で代わりの行が残る', async () => {
+  const bot = { id: 'bot-a', name: 'あかり', role: '担当' }
+  const room = { id: 'room-work', name: '開発室', purpose: '', representativeId: null, memberIds: [bot.id] }
+  const records = []
+  const rooms = new Map([[room.id, room]])
+  rooms.refresh = async () => rooms
+  let failNextStatus = true
+  rooms.appendMessage = async (_id, record) => {
+    if (record.schema === 'bellteam.room-delivery-status.v1' && failNextStatus) { failNextStatus = false; throw new Error('WRITE_FAILED') }
+    records.push(record)
+  }
+  rooms.messages = async () => records.filter(record => record.schema === 'bellteam.room-message.v1')
+  const messenger = new RoomMessenger({
+    rooms, bots: new Map([[bot.id, bot]]), messageId: () => 'post-1',
+    // AitermTransport awaits onStatus; when that write rejects, notify rejects with it.
+    transport: { async notify(_bot, _text, { onStatus }) {
+      await onStatus('stopped', Object.assign(new Error('BOT_STOPPED'), { code: 'BOT_STOPPED' }))
+    } },
+    roomTurns: async () => [{ speaker: 'オーナー', text: 'こんにちは' }], chooseResponder: async () => [bot.id],
+  })
+  await messenger.sendroommessage({ from: 'user', room: room.id, message: 'こんにちは' })
+  await new Promise(resolve => setImmediate(resolve))
+  const rows = records.filter(record => record.schema === 'bellteam.room-delivery-status.v1' && record.target === bot.id)
+  assert.deepEqual(rows.map(row => row.delivery), ['failed'], 'the fallback row is durable')
+})
