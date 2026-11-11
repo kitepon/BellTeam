@@ -26,13 +26,16 @@ reset()
 
 // lanes=1: authored lane texts that name no member (the server resolves only a member's Bot id or name into producer).
 const LANES = { t08: 'root', t10: 'web', t11: 'kiro' }
+// Process tree: three phases (one untitled), nested cards (parent) and t11 without a phase (hangs from the chart).
+const PHASES = [{ id: 'p1/ph1', title: '調べる' }, { id: 'p1/ph2', title: '部品とCLI' }, { id: 'p1/ph3', title: null }]
+const PLACE = { t01: ['ph1'], t02: ['ph1'], t03: ['ph1'], t04: ['ph2'], t05: ['ph2', 't04'], t06: ['ph2', 't04'], t07: ['ph2'], t08: ['ph2'], t09: ['ph3'], t10: ['ph3', 't09'] }
 function cards() {
   const authored = id => state.mode.lanes && LANES[id]
-  const card = (id, title, cardState, producer, depth, extra = {}) => ({ id: `p1/${id}`, plan: 'p1', taskId: id, title, state: state.done.has(`p1/${id}`) ? 'done' : cardState, lane: authored(id) || producer, producer: authored(id) ? null : producer, depth, doneCondition: '', designMemo: '', startedAt: null, changedAt: ago(60), blockedReason: null, ...extra })
+  const card = (id, title, cardState, producer, depth, extra = {}) => ({ id: `p1/${id}`, plan: 'p1', taskId: id, title, state: state.done.has(`p1/${id}`) ? 'done' : cardState, lane: authored(id) || producer, producer: authored(id) ? null : producer, depth, doneAt: null, archived: false, phase: PLACE[id] ? `p1/${PLACE[id][0]}` : null, parent: PLACE[id]?.[1] ? `p1/${PLACE[id][1]}` : null, doneCondition: '', designMemo: '', startedAt: null, changedAt: ago(60), blockedReason: null, ...extra })
   return [
-    card('t01', '決定済み仕様の確認', 'done', 'bot-flora', 0, { doneCondition: '仕様の要点を一覧にする' }),
-    card('t02', 'Latticeの読取口の確認', 'done', 'bot-flora', 0, { doneCondition: '読取の2つの入口を確かめる' }),
-    card('t03', '旧・組込案の比較', 'retired', 'bot-admi', 0),
+    card('t01', '決定済み仕様の確認', 'done', 'bot-flora', 0, { doneCondition: '仕様の要点を一覧にする', doneAt: ago(60 * 30), archived: true }),
+    card('t02', 'Latticeの読取口の確認', 'done', 'bot-flora', 0, { doneCondition: '読取の2つの入口を確かめる', doneAt: ago(90), archived: true }),
+    card('t03', '旧・組込案の比較', 'retired', 'bot-admi', 0, { doneAt: ago(60 * 5) }),
     card('t04', '部品の配置と保存場所', 'in-progress', 'bot-molly', 1, { doneCondition: '配置先と保存先を決定', startedAt: ago(12), designMemo: '部品の置き場と、工程表の保存先を決める。保存先は夜間の控えに入る場所にする。' }),
     card('t05', '席へのCLI配布', 'in-progress', 'bot-kiro', 1, { doneCondition: '全席でCLIが使える', startedAt: ago(4) }),
     card('t06', 'Web画面の組込口', 'blocked', 'bot-admi', 1, { doneCondition: 'Webから工程表を開ける', blockedReason: '組込の登録点が未定' }),
@@ -57,7 +60,7 @@ function snapshot(projectId) {
   return {
     schema: 'bellteam.lattice-chart.v1', epoch: 'fixture', version: state.version, at: new Date().toISOString(), projectId, ...NAMES[projectId], coordinator: projectId === 'lattice',
     state: state.mode.state, verifiedAt: ago(state.mode.state === 'last_verified' ? 46 : 0), degraded: state.mode.degraded,
-    members: MEMBERS.filter(member => referenced.has(member.botId)), cards: list, edges, waits,
+    members: MEMBERS.filter(member => referenced.has(member.botId)), phases: PHASES, cards: list, edges, waits,
   }
 }
 

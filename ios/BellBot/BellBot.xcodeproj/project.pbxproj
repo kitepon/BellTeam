@@ -80,6 +80,7 @@
 		67C076EDA84BC9E653993332 /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D505AA366C00647C21E6CE8 /* AppStore.swift */; };
 		69E9BC12563E9EB63A76D270 /* ConversationScrollUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3261621AD9FBA22C17AA737C /* ConversationScrollUITests.swift */; };
 		6DFD51FD8407166077C47F9D /* MemberActivityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4537AD2FAFC47BE3355B1516 /* MemberActivityTests.swift */; };
+		6E29E4258E2BDB0CC1ACD2DA /* LatticeTreeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DD1E02ACDCE28987E14A1A4 /* LatticeTreeView.swift */; };
 		7478597DA434249676C22797 /* AuthTypedUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52CFCF164610C6974008B7B2 /* AuthTypedUITests.swift */; };
 		771A7ABA1E4AF838428A675F /* MemberDeletionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9154D4ED3669583CD9042D73 /* MemberDeletionUITests.swift */; };
 		776C4FB3C181986EE157701D /* WorkGraphModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B54B3AB6DECD2FB86143374 /* WorkGraphModelTests.swift */; };
@@ -223,6 +224,7 @@
 		19964D1F37185563CBBACBFB /* BotStopTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotStopTests.swift; sourceTree = "<group>"; };
 		19FCB6739FF40249F7E3779F /* AppleSubscriptionAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSubscriptionAccess.swift; sourceTree = "<group>"; };
 		1A349EE234D1444D7643C961 /* BotScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotScreenView.swift; sourceTree = "<group>"; };
+		1DD1E02ACDCE28987E14A1A4 /* LatticeTreeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LatticeTreeView.swift; sourceTree = "<group>"; };
 		21479869FD1BC24B77D65313 /* BellTeam.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = BellTeam.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		219D6D25E6BA0B32D27F3918 /* BotSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotSettings.swift; sourceTree = "<group>"; };
 		235EF35980A7AB4299594E9F /* GoalsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalsUITests.swift; sourceTree = "<group>"; };
@@ -538,6 +540,7 @@
 				BCF13D35CB467E0F42AA835C /* HomeView.swift */,
 				9C73BE39705A7CEA2EA39465 /* LatticeChartView.swift */,
 				9A1550A683607F4290707784 /* LatticeListView.swift */,
+				1DD1E02ACDCE28987E14A1A4 /* LatticeTreeView.swift */,
 				968C505620C5EFB89B646624 /* LoginView.swift */,
 				ECCD1040205415978F63373C /* ManagementView.swift */,
 				424FB6935CBC2D5F63E80B20 /* MemoryKnowledgeView.swift */,
@@ -917,6 +920,7 @@
 				011F6DEEAF2D68C50248123E /* LatticeChartModel.swift in Sources */,
 				A1D52684ED7706BBBF0599FD /* LatticeChartView.swift in Sources */,
 				262669725F069CD9DF364C2A /* LatticeListView.swift in Sources */,
+				6E29E4258E2BDB0CC1ACD2DA /* LatticeTreeView.swift in Sources */,
 				9689FE6BEBE64717D15920F8 /* LoginView.swift in Sources */,
 				E418E88290AAD63C35E3A034 /* ManagementView.swift in Sources */,
 				C95071FD334BFAA5B0389060 /* MemoryKnowledge.swift in Sources */,
