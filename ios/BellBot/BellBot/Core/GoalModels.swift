@@ -243,6 +243,10 @@ struct GoalSnapshot: Decodable, Identifiable {
     let nativeHistory: GoalNativeHistory?
     let observedAt: String?
     let message: String?
+    /// unavailable only: "seat_idle" (the seat is not running; normal) or "read_failed". Absent on older bodies = read_failed.
+    let reason: String?
 
     var id: String { botId }
+    /// Not a failure: the seat is not running now, so there is no goal to read or act on.
+    var seatIdle: Bool { availability == .unavailable && reason == "seat_idle" }
 }

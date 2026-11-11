@@ -567,19 +567,28 @@ final class GoalsUITests: XCTestCase {
         let pill = app.buttons["chat-goal-pill"]
         XCTAssertTrue(pill.waitForExistence(timeout: 10))
         pill.tap()
-        for (mode, title, reason) in [
-            ("unavailable", "ゴールを取得できません", "現在ゴールを取得できません。"),
-            ("unsupported", "ゴール未対応", "このメンバーではゴール機能をまだ利用できません。"),
-        ] {
-            let change = try XCTUnwrap(URL(string: url + "/test/availability?bot=bot-one&mode=\(mode)"))
-            let (_, changed) = try await URLSession.shared.data(from: change)
-            XCTAssertEqual((changed as? HTTPURLResponse)?.statusCode, 200)
-            app.buttons["状態を更新"].tap()
-            let shown = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", title), object: pill)
-            XCTAssertEqual(XCTWaiter.wait(for: [shown], timeout: 5), .completed)
-            XCTAssertTrue(app.staticTexts[reason].exists)
-            XCTAssertFalse(app.staticTexts["ゴールなし"].exists)
-            XCTAssertFalse(app.buttons["goal-clear-bot-one"].exists)
+        // A real read failure: the pill says so and the card says it once, with 状態を更新.
+        let change = try XCTUnwrap(URL(string: url + "/test/availability?bot=bot-one&mode=unavailable"))
+        let (_, changed) = try await URLSession.shared.data(from: change)
+        XCTAssertEqual((changed as? HTTPURLResponse)?.statusCode, 200)
+        app.buttons["状態を更新"].tap()
+        let shown = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", "ゴールを確認できません"), object: pill)
+        XCTAssertEqual(XCTWaiter.wait(for: [shown], timeout: 5), .completed)
+        XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "現在ゴールを取得できません。")).count, 1)
+        XCTAssertFalse(app.staticTexts["ゴールなし"].exists)
+        XCTAssertFalse(app.buttons["goal-clear-bot-one"].exists)
+        app.terminate()
+        // An idle seat (reason seat_idle) and a bot without the goal feature are not failures: no pill at all.
+        for mode in ["idle", "unsupported"] {
+            let next = try XCTUnwrap(URL(string: url + "/test/availability?bot=bot-one&mode=\(mode)"))
+            let (_, done) = try await URLSession.shared.data(from: next)
+            XCTAssertEqual((done as? HTTPURLResponse)?.statusCode, 200)
+            app.launch()
+            XCTAssertTrue(app.textViews["message-input"].waitForExistence(timeout: 10), "会話の入力欄が出る")
+            try await Task.sleep(for: .seconds(3))
+            XCTAssertFalse(pill.exists, mode)
+            XCTAssertFalse(app.staticTexts["現在ゴールを取得できません。"].exists, mode)
+            app.terminate()
         }
     }
 
@@ -690,7 +699,7 @@ final class GoalsUITests: XCTestCase {
         let (_, setFailure) = try await URLSession.shared.data(from: fail)
         XCTAssertEqual((setFailure as? HTTPURLResponse)?.statusCode, 200)
         clickOrTap(app.buttons["状態を更新"])
-        let unavailable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", "ゴールを取得できません"), object: pill)
+        let unavailable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", "ゴールを確認できません"), object: pill)
         XCTAssertEqual(XCTWaiter.wait(for: [unavailable], timeout: 5), .completed)
         XCTAssertFalse(pill.label.contains("128秒"), "古い経過時間を現在値として表示しない")
         XCTAssertTrue(app.staticTexts["現在のゴールを確認できません。状態を更新してください。"].exists)

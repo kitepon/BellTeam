@@ -24,7 +24,9 @@ flowchart TD
 | GoalsView | ready時のゴールtab（selectedTab=3）。availableかつgoalありだけ一覧表示。goal無しでcreate/objective可のsnapshotは＋の候補。候補1人は直接、複数はMenu |
 | ChatGoalBar | ConversationContentのBot宛てcomposerだけに配置。status/経過時間のpill、展開したカード、更新ボタン、editorを所有。ルームにgoal barはない |
 | GoalViewModel | 一覧と会話で共有参照しない。loading/mutatingなら読取を開始しない。詳細はbotId一致検査。成功はsnapshots置換・loaded=true・needsRefresh/error解除。取消は保持してreturn、認証失敗はrequireLogin。他失敗はneedsRefresh=trueとerror/診断 |
-| 失敗表示 | snapshotsの配列自体は保持するがcurrentSnapshotsはneedsRefresh時に空。既存goalを最新として出さず、一覧は確認不可表示、chatは取得不可pill。unsupported/unavailableも未設定と分ける |
+| 失敗表示 | snapshotsの配列自体は保持するがcurrentSnapshotsはneedsRefresh時に空。既存goalを最新として出さず、一覧は確認不可表示、chatは取得不可pill。unsupported/unavailableも未設定と分ける。失敗の文は1か所だけ（`GoalFailureNotice`：アイコン・平易な1文・主ボタン「状態を更新」）。読取のerrorTextとsnapshotのmessageを重ねて出さない |
+| 休止中 | `GoalSnapshot.seatIdle`（availability=unavailableかつreason=seat_idle）は失敗ではない。chatはpillを出さない（席が動いていない間は読めるgoalも操作も無い）。一覧は失敗の数に入れない |
+| 未対応 | unsupportedのBotにはchatのpillを出さない |
 | GoalForegroundLoad | start時に前taskをcancelし、その終了を待って新load。view task取消を子taskへ伝える。非active/非表示でcancel |
 | 更新契機 | 一覧はtab task・active復帰（tab=3）・eventRevision（tab=3）・pull/手動更新。chatはbotId task・active復帰・active時eventRevision・手動更新。GoalViewModel.load自身にはscene検査がない。専用goal topic購読はない |
 | 診断 | GoalLoadCallContextはtrigger、viewPhase、連続時計、AppStore診断snapshotを順に採る。同時の原子的観測とは扱わない |
@@ -37,7 +39,7 @@ flowchart TD
 
 | 応答 | Appleが解釈するもの |
 | --- | --- |
-| GoalSnapshot | botId、availability（available/unsupported/unavailable）、capabilities、create/edit各fieldCapabilities、binding、goal、nativeHistory、observedAt、message |
+| GoalSnapshot | botId、availability（available/unsupported/unavailable）、reason（unavailableの時だけ：seat_idle＝席が今動いていない／read_failed＝読取の失敗。無い・未知の値はread_failedとして扱う。execution PR #1106で追加）、capabilities、create/edit各fieldCapabilities、binding、goal、nativeHistory、observedAt、message |
 | binding | sessionId/launchId/threadId。editorを開いた時のsnapshotと現在値を比較して、会話が変わった時の保存を拒否 |
 | Codex | kind無しまたはcodex-cli。objective/status/tokenBudget/tokensUsed/timeUsedSeconds。active/paused/blocked/usageLimited/budgetLimited/completeを文言へ |
 | Claude | kind=claude-code、phase=active、native.type=goal_statusかつmet=falseを検査。conditionを目的へ、tokens/durationMs/iterations/reportedTurnsを取得した分だけ表示 |

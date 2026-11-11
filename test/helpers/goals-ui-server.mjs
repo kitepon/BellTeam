@@ -83,14 +83,15 @@ const server = createServer(async (request, response) => {
   if (url.pathname === '/test/availability') {
     const snapshot = snapshots.get(url.searchParams.get('bot'))
     const mode = url.searchParams.get('mode')
-    if (!snapshot || !['unavailable', 'unsupported'].includes(mode)) return json(response, { error: 'INVALID_TEST_STATE' }, 400)
+    if (!snapshot || !['unavailable', 'idle', 'unsupported'].includes(mode)) return json(response, { error: 'INVALID_TEST_STATE' }, 400)
     delete snapshot.goal
-    snapshot.availability = mode
+    snapshot.availability = mode === 'idle' ? 'unavailable' : mode
+    snapshot.reason = mode === 'idle' ? 'seat_idle' : mode === 'unavailable' ? 'read_failed' : null
     snapshot.binding = null
     snapshot.capabilities = capabilities(null, false)
     snapshot.fieldCapabilities = fieldCapabilities(snapshot.capabilities)
     snapshot.message = mode === 'unsupported' ? 'このメンバーではゴール機能をまだ利用できません。'
-      : '現在ゴールを取得できません。'
+      : mode === 'idle' ? '休止中です。メッセージを送ると再開します。' : '現在ゴールを取得できません。'
     return json(response, { ok: true })
   }
   if (url.pathname === '/test/grok-null-phase') {
