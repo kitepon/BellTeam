@@ -116,6 +116,20 @@ export async function loadTerminalKey({ credentials, terminalId, memberId = null
 
 // Protects the wrong target: an engine without remote seats would start a terminal-bound member in the server folder.
 // Exit: selecting an engine that declares EXECUTION_REMOTE_SEATS (no wrap), or the member losing its terminalId.
+// fork-inquiry.md "Owed notice" trigger: at most one root fork.sweep in flight, released on its root result
+// (its completion lasts as long as the relayed delivery). An older child refuses the method (not_accepted): silent.
+export function createForkSweepTick(sweep, report = code => process.stderr.write(`${JSON.stringify({ code: 'FORK_SWEEP_FAILED', reason: code })}\n`)) {
+  let work = null, last = null
+  return Object.assign(() => {
+    work ??= new Promise(resolve => resolve(sweep())).then(() => { last = null }, error => {
+      if (error?.outcome === 'not_accepted') return
+      const code = /^[A-Z][A-Z0-9_]{0,99}$/u.test(error?.code ?? '') ? error.code : 'FORK_SWEEP_FAILED'
+      if (code !== last) { last = code; report(code) }
+    }).finally(() => { work = null })
+    return work
+  }, { inFlight: () => work })
+}
+
 export function refuseRemoteSeatLaunch({ native, bots, botsRoot, versionId = null, record = () => {} }) {
   const guard = call => (name, args, ...rest) => {
     const cwd = args?.cwd
@@ -377,9 +391,11 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
     }
     return pollWork
   }
+  const sweepForks = conversationAssembly ? createForkSweepTick(() => conversationAssembly.run({ kind: 'observer' }, () => conversationAssembly.facade.sweepForks())) : null
+  const tick = () => { void pollConversation().catch(() => {}); void sweepForks() }
   const conversationServices = conversationAssembly ? { rooms: conversation.rooms, roomMessenger: conversation.roomMessenger,
-    seatTurns: null, selfTurns: { start() { if (!pollTimer) { void pollConversation().catch(() => {}); pollTimer = setInterval(() => { void pollConversation().catch(() => {}) }, 5000) } },
-      async stop() { clearInterval(pollTimer); pollTimer = null; await pollWork } } } : await conversation.initialize()
+    seatTurns: null, selfTurns: { start() { if (!pollTimer) { tick(); pollTimer = setInterval(tick, 5000) } },
+      async stop() { clearInterval(pollTimer); pollTimer = null; await Promise.all([pollWork, sweepForks.inFlight()]) } } } : await conversation.initialize()
   rooms = conversationServices.rooms
   const { selfTurns, seatTurns, roomMessenger } = conversationServices
   const scheduler = new BotScheduler({ registry: bots, messenger, transport, rooms, roomMessenger,
