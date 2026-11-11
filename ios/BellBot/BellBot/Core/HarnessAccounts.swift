@@ -16,6 +16,8 @@ struct HarnessAccounts: Decodable, Equatable {
 struct AccountSlot: Decodable, Equatable, Identifiable {
     let slot: String
     let loggedIn: Bool?
+    /// 資格情報が失効した時刻。旧本体には無い。
+    var signedOutAt: String? = nil
     let label: String?
     let history: String?
     let limits: [AccountLimit]

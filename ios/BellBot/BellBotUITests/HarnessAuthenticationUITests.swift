@@ -56,7 +56,7 @@ final class HarnessAuthenticationUITests: XCTestCase {
         XCTAssertEqual(start.label, "認証する")
         XCTAssertFalse(app.staticTexts["harness-auth-unavailable"].exists)
         start.tap()
-        XCTAssertTrue(app.staticTexts["公式サイトでの認証を待っています。"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["公式の応答を待っています。終わるまでこの画面で待ってください。"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["harness-auth-cancel"].exists)
         XCTAssertEqual(try paths(base).filter { $0 == "POST /api/harness-auth/antigravity/start" }.count, 1)
     }
@@ -77,7 +77,7 @@ final class HarnessAuthenticationUITests: XCTestCase {
         app.buttons["settings-row-ai"].tap()
         let expected = [
             ("codex", "認証済み", "認証し直す"),
-            ("cursor", "未認証", "認証する"),
+            ("cursor", "ログインが必要", "認証する"),
             ("grok", "確認できません", "確認する"),
             ("antigravity", "認証済み", "詳しく見る"),
         ]
@@ -124,18 +124,18 @@ final class HarnessAuthenticationUITests: XCTestCase {
         XCTAssertFalse(try paths(base).contains("POST /api/harness-auth/codex/start"))
         app.buttons["harness-auth-start"].tap()
         warning.buttons["今の認証を手放して始める"].tap()
-        XCTAssertTrue(app.staticTexts["公式サイトでの認証を待っています。"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["公式の応答を待っています。終わるまでこの画面で待ってください。"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["harness-auth-code"].exists)
         XCTAssertFalse(app.links["harness-auth-link"].exists)
         XCTAssertFalse(app.secureTextFields["harness-auth-input"].exists,
                        "input_required=trueだけで認証コード欄を出さない")
         for key in ["Enter", "Up", "Down", "Tab"] { XCTAssertFalse(app.buttons[key].exists) }
         app.buttons["harness-auth-cancel"].tap()
-        XCTAssertTrue(app.staticTexts["認証に必要な操作を確認してください。"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["ログインし直してください。「認証する」から公式サイトで認証します。"].waitForExistence(timeout: 5))
 
         app.buttons["harness-auth-start"].tap()
         XCTAssertFalse(warning.exists, "未認証だと分かっている場合はWebと同じく確認せず始める")
-        XCTAssertTrue(app.staticTexts["公式サイトでの認証を待っています。"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["公式の応答を待っています。終わるまでこの画面で待ってください。"].waitForExistence(timeout: 5))
         _ = try request(base, "/test/fail-status")
         let error = app.staticTexts["harness-auth-error"]
         XCTAssertTrue(error.waitForExistence(timeout: 6))
@@ -150,7 +150,7 @@ final class HarnessAuthenticationUITests: XCTestCase {
         app.buttons["harness-auth-refresh"].tap()
         XCTAssertTrue(error.waitForNonExistence(timeout: 5))
         app.buttons["harness-auth-cancel"].tap()
-        XCTAssertTrue(app.staticTexts["認証に必要な操作を確認してください。"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["ログインし直してください。「認証する」から公式サイトで認証します。"].waitForExistence(timeout: 5))
         XCTAssertFalse(try paths(base).contains("POST /api/harness-auth/codex/input"))
     }
 

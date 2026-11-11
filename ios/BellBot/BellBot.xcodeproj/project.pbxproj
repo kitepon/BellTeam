@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		01B9F4FC0C70E3B3C7CA7788 /* BotScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A349EE234D1444D7643C961 /* BotScreenView.swift */; };
+		01EE1AAA3F62B64677CB85D4 /* AuthStatesUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9B4A337277F40F6EC5D3D1E /* AuthStatesUITests.swift */; };
 		0257818FD6EAD80113F01926 /* NotificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED0F4DFFFAE06E03111B358A /* NotificationTests.swift */; };
 		025B957E795ADEEBC3666BC7 /* SelectableTextLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C03043D84E81301281D2DAF1 /* SelectableTextLayoutTests.swift */; };
 		03E3600F0FF7D74A4DC99A1C /* HarnessAccounts.swift in Sources */ = {isa = PBXBuildFile; fileRef = E419904FFDE9D747772682A4 /* HarnessAccounts.swift */; };
@@ -16,6 +17,7 @@
 		058A119AEB52889040256F15 /* HarnessAuthenticationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71785B41220656576156BBC5 /* HarnessAuthenticationUITests.swift */; };
 		074D759AFDEEFF6FE840BD80 /* OwnerQuestionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3532F3AFA8FB5FAC79A9F73 /* OwnerQuestionView.swift */; };
 		07A0466675589959F1AD39F0 /* WorkGraphModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8700D379567AAFADB669AB4B /* WorkGraphModel.swift */; };
+		090D6F751B54F317C3BB7825 /* AuthenticationProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4834E37F4B591D8895261770 /* AuthenticationProgress.swift */; };
 		097BC2376E3C25FEBD28641E /* BotSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 219D6D25E6BA0B32D27F3918 /* BotSettings.swift */; };
 		09AA374DA8E6242762BF33A0 /* GoalsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 235EF35980A7AB4299594E9F /* GoalsUITests.swift */; };
 		0D4A7550D7A1CB322AF04B68 /* ConversationAppearanceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D91477F755E7B3FFAC049315 /* ConversationAppearanceUITests.swift */; };
@@ -236,6 +238,7 @@
 		424FB6935CBC2D5F63E80B20 /* MemoryKnowledgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryKnowledgeView.swift; sourceTree = "<group>"; };
 		43A258F77FFF85F8B7D633F6 /* HarnessAuthenticationFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessAuthenticationFlow.swift; sourceTree = "<group>"; };
 		4537AD2FAFC47BE3355B1516 /* MemberActivityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemberActivityTests.swift; sourceTree = "<group>"; };
+		4834E37F4B591D8895261770 /* AuthenticationProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationProgress.swift; sourceTree = "<group>"; };
 		490AA0A6D0C276CCC209A2DA /* UpdateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateView.swift; sourceTree = "<group>"; };
 		4BBC8C5C4354549F8CDE70F2 /* WorkGraphTapUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkGraphTapUITests.swift; sourceTree = "<group>"; };
 		4D9B17BC6A80949A87D72E6A /* ForegroundRefreshTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForegroundRefreshTests.swift; sourceTree = "<group>"; };
@@ -290,6 +293,7 @@
 		9F3616EB3EAB7A82477860FA /* FixtureLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixtureLink.swift; sourceTree = "<group>"; };
 		A16B891C02B4DF8B097EF304 /* ScreenKeyBarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenKeyBarTests.swift; sourceTree = "<group>"; };
 		A705FBAB6CC825EC30D4D015 /* SecretRequestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretRequestView.swift; sourceTree = "<group>"; };
+		A9B4A337277F40F6EC5D3D1E /* AuthStatesUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthStatesUITests.swift; sourceTree = "<group>"; };
 		AA28AC7BFD35A51CF55B3E60 /* SchedulesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchedulesView.swift; sourceTree = "<group>"; };
 		ABF09858FAA98BE09EEF4582 /* UpdateModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateModels.swift; sourceTree = "<group>"; };
 		AE1F4D4F8A710137E1543609 /* MemoryKnowledgeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryKnowledgeUITests.swift; sourceTree = "<group>"; };
@@ -418,6 +422,7 @@
 				19FCB6739FF40249F7E3779F /* AppleSubscriptionAccess.swift */,
 				9D505AA366C00647C21E6CE8 /* AppStore.swift */,
 				7B0E5A8B0B797AF624E5874E /* AppStore+Terminals.swift */,
+				4834E37F4B591D8895261770 /* AuthenticationProgress.swift */,
 				14A3883CF382AE17DAC3CE67 /* AvatarImage.swift */,
 				C9E67A016DC4094A638EB362 /* BackgroundMessageSend.swift */,
 				6CCAEDB62892A74233BDFCB0 /* BellAPI.swift */,
@@ -539,6 +544,7 @@
 		A84F0B573DCFC15FB2609D5F /* BellBotUITests */ = {
 			isa = PBXGroup;
 			children = (
+				A9B4A337277F40F6EC5D3D1E /* AuthStatesUITests.swift */,
 				52CFCF164610C6974008B7B2 /* AuthTypedUITests.swift */,
 				BE3EBBFD751613AF89CA54F1 /* AvatarCropUITests.swift */,
 				C4AF8080EA273CDB10D9D3F3 /* BotStopUITests.swift */,
@@ -785,6 +791,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				01EE1AAA3F62B64677CB85D4 /* AuthStatesUITests.swift in Sources */,
 				7478597DA434249676C22797 /* AuthTypedUITests.swift in Sources */,
 				8E48958F4556B7FE2DBE0EE9 /* AvatarCropUITests.swift in Sources */,
 				34365A7DB1D5F80135AF03A3 /* BotStopUITests.swift in Sources */,
@@ -830,6 +837,7 @@
 				67C076EDA84BC9E653993332 /* AppStore.swift in Sources */,
 				0EA4B14252327E5F858F1967 /* AppleSubscriptionAccess.swift in Sources */,
 				A5300355DA897C634FFB0DE8 /* AuthenticationInstructions.swift in Sources */,
+				090D6F751B54F317C3BB7825 /* AuthenticationProgress.swift in Sources */,
 				36DD4FD1C3B89B6C657A1BE1 /* AvatarCropEditor.swift in Sources */,
 				43BB09184EEC31FAF35EE52C /* AvatarImage.swift in Sources */,
 				64D7E924A3D4EEF6922D2304 /* AvatarImagePicker.swift in Sources */,

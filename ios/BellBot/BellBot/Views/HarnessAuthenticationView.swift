@@ -84,42 +84,10 @@ struct HarnessAuthenticationList: View {
     }
 }
 
-/// 一覧を開いた時に公式の状態を一度読み、状態と次の操作を並べる。読めない時は未認証と書かない。
+/// 一覧の1行。状態は`AuthenticationBadge`がサーバーの公式認証の状態から決める。
 private struct HarnessAuthenticationRow: View {
     @EnvironmentObject private var store: AppStore
     let harness: HarnessAuthenticationOption
-    @State private var state = RowState.checking
-
-    private enum RowState: Equatable {
-        case checking, unavailable, known(OfficialAuthenticationStatus)
-
-        var title: String {
-            switch self {
-            case .checking: "確認中"
-            case .unavailable, .known(.failed): "確認できません"
-            case .known(.authenticated): "認証済み"
-            case .known(.blocked): "未認証"
-            case .known(.waiting): "認証中"
-            }
-        }
-
-        var tint: Color {
-            switch self {
-            case .known(.authenticated): .green
-            case .known(.blocked), .known(.failed), .unavailable: .orange
-            case .checking, .known(.waiting): BellTheme.muted
-            }
-        }
-    }
-
-    private var actionTitle: String {
-        switch state {
-        case .known(.authenticated): return harness.reloginSupported == false ? "詳しく見る" : "認証し直す"
-        case .known(.waiting): return "続ける"
-        case .known(.blocked): return "認証する"
-        case .checking, .unavailable, .known(.failed): return "確認する"
-        }
-    }
 
     var body: some View {
         NavigationLink {
@@ -131,27 +99,60 @@ private struct HarnessAuthenticationRow: View {
                     Text(harness.usageText).font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
                 }
                 Spacer()
-                Text(state.title).font(.caption.weight(.semibold)).foregroundStyle(state.tint)
-                    .accessibilityIdentifier("harness-auth-state-\(harness.id)")
-                Text(actionTitle).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
-                    .padding(.horizontal, 12).padding(.vertical, 7)
-                    .background(BellTheme.violet, in: Capsule())
+                AuthenticationBadge(harness: harness, slot: nil, signedOut: false)
             }.padding(.vertical, 6)
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("harness-auth-\(harness.id)")
+    }
+}
+
+/// 行の札とボタン。開いた時とSSEの変化で読み、進行中（途中・コード待ち・確認中）の間はactiveなら3秒ごとに読み直す。
+/// 読めない時は未認証と書かない。読むだけで認証を始めない。
+private struct AuthenticationBadge: View {
+    @EnvironmentObject private var store: AppStore
+    @Environment(\.scenePhase) private var scenePhase
+    let harness: HarnessAuthenticationOption
+    /// Claudeのアカウント行は"1st"/"2nd"、他のAIはnil。1stは従来どおりslotを付けずに読む。
+    let slot: String?
+    let signedOut: Bool
+    @State private var auth: SetupAuthentication?
+    @State private var loaded = false
+
+    private var progress: AuthenticationProgress { AuthenticationProgress(auth, loaded: loaded, signedOut: signedOut) }
+    private var polling: Bool { scenePhase == .active && progress.inProgress }
+    private var identifier: String { slot.map { "\(harness.id)-\($0)" } ?? harness.id }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(progress.badge).font(.caption.weight(.semibold)).foregroundStyle(progress.tint)
+                .accessibilityIdentifier("harness-auth-state-\(identifier)")
+            Text(progress.action(reloginSupported: harness.reloginSupported))
+                .font(.subheadline.weight(.semibold)).foregroundStyle(.white).lineLimit(1).fixedSize()
+                .padding(.horizontal, 12).padding(.vertical, 7)
+                .background(BellTheme.violet, in: Capsule())
+        }
         .task { await load() }
+        .onChange(of: store.eventRevision) { _, _ in Task { await load() } }
+        .task(id: polling) {
+            while polling && !Task.isCancelled {
+                do { try await Task.sleep(for: .seconds(3)) } catch { return }
+                if polling && !Task.isCancelled { await load() }
+            }
+        }
     }
 
     private func load() async {
-        let path = "/api/harness-auth/\(harness.id)"
+        let path = "/api/harness-auth/\(harness.id)" + (slot == "2nd" ? "?slot=2nd" : "")
         do {
             let response: HarnessAuthenticationResponse = try await store.api.get(path)
-            state = response.auth.map { .known($0.status) } ?? .unavailable
+            auth = response.auth
+            loaded = true
         } catch is CancellationError { }
         catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
         catch {
-            state = .unavailable
+            auth = nil
+            loaded = true
             store.api.diagnostics.report(error, path: "/api/harness-auth", method: "GET", observation: .read(error, retainedData: false))
         }
     }
@@ -170,25 +171,30 @@ private struct HarnessAuthenticationView: View {
         _flow = StateObject(wrappedValue: HarnessAuthenticationFlow(harness: harness, api: api, slot: slot))
     }
 
+    private var progress: AuthenticationProgress {
+        flow.auth == nil && errorText != nil ? .unknown : flow.progress
+    }
+
     private var polling: Bool { scenePhase == .active && flow.auth?.status == .waiting && errorText == nil && !flow.busy }
 
     var body: some View {
         Form {
             Section {
                 Text(flow.harness.usageText).foregroundStyle(BellTheme.muted)
-                if let auth = flow.auth {
-                    Text(statusText(auth.status)).accessibilityIdentifier("harness-auth-status")
+                Text(progress.detail).foregroundStyle(progress.tint == .green ? BellTheme.ink : progress.tint)
+                    .accessibilityIdentifier("harness-auth-status")
+                // 状態を見ただけ（端末が開いていない）の時は、Aitermの「案内を取得できません」を出さない。理由は状態文が言う。
+                if let auth = flow.auth, flow.sessionOpen || auth.authUi?.stage != .unavailable {
                     AuthenticationInstructions(auth: auth, code: $input,
                                                busy: flow.busy || flow.needsRefresh || errorText != nil) { response, ui in
                         run { try await flow.respond(response, for: ui) }
                     }
-                } else if errorText == nil {
-                    Text("公式の状態を確認しています。")
                 }
             }
             Section {
                 if flow.harness.canStart(flow.auth) {
-                    Button(flow.auth?.status == .authenticated ? "認証し直す" : "認証する") {
+                    Button(flow.sessionOpen && flow.auth?.status == .waiting ? "最初からやり直す"
+                           : flow.auth?.status == .authenticated || flow.auth?.status == .failed ? "認証し直す" : "認証する") {
                         input = ""
                         if flow.needsStartConfirmation { confirming = true }
                         else { run { try await flow.start() } }
@@ -201,7 +207,7 @@ private struct HarnessAuthenticationView: View {
                 }
                 Button("状態を更新") { run(method: "GET") { try await flow.refresh() } }
                     .accessibilityIdentifier("harness-auth-refresh")
-                if flow.started {
+                if flow.sessionOpen {
                     Button("やめる") { run { try await flow.cancel() } }
                         .accessibilityIdentifier("harness-auth-cancel")
                         .disabled(flow.needsRefresh || errorText != nil)
@@ -231,15 +237,6 @@ private struct HarnessAuthenticationView: View {
         .onChange(of: scenePhase) { _, next in if next != .active { input = "" } }
         .onChange(of: flow.auth) { _, _ in input = "" }
         .onDisappear { input = "" }
-    }
-
-    private func statusText(_ status: OfficialAuthenticationStatus) -> String {
-        switch status {
-        case .waiting: "公式サイトでの認証を待っています。"
-        case .authenticated: "認証済みです。"
-        case .blocked: "認証に必要な操作を確認してください。"
-        case .failed: "認証できませんでした。"
-        }
     }
 
     private func run(method: String = "POST", _ action: @escaping () async throws -> Void) {
@@ -306,14 +303,8 @@ private struct ClaudeAccountsCard: View {
                 }
             }
             Spacer()
-            // 他のAIの行と同じ札と文言（認証済み／未認証／確認できません）。
-            Text(slot.loggedIn == true ? "認証済み" : slot.loggedIn == false ? "未認証" : "確認できません")
-                .font(.caption.weight(.semibold)).foregroundStyle(slot.loggedIn == true ? .green : .orange)
-                .accessibilityIdentifier("harness-auth-state-claude-\(slot.slot)")
-            Text(slot.loggedIn == true ? "認証し直す" : slot.loggedIn == false ? "認証する" : "確認する")
-                .font(.subheadline.weight(.semibold)).foregroundStyle(.white).lineLimit(1).fixedSize()
-                .padding(.horizontal, 12).padding(.vertical, 7)
-                .background(BellTheme.violet, in: Capsule())
+            // 他のAIの行と同じ札。loggedInでなく、そのslotの公式認証の状態から決める（コード待ちを認証済みと見せない）。
+            AuthenticationBadge(harness: harness, slot: slot.slot, signedOut: slot.signedOutAt != nil)
         }
         .padding(.vertical, 4)
     }

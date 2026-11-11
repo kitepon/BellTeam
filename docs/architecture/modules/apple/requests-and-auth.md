@@ -123,6 +123,51 @@ flowchart TD
 - viewのpollingはactive・waiting・error無し・非busyだけ。view task/scene変更でpoll taskが取消され、inputはscene非active/auth変更/終了/run開始で消える。画面を閉じるだけではcancel POSTを呼ばない。
 - 変更の結果不明はoperationFailureMessage。自動POST再送はない。公式のauthenticatedは取得応答の状態であり、AppleがCLIの認証を自ら判定した値ではない。
 
+### 表示する認証の段階（状態機械）
+
+一覧の行（`HarnessAuthenticationRow`・`ClaudeAccountsCard`の各slot行）と認証画面の状態文は、すべて`AuthenticationProgress`（`Core/AuthenticationProgress.swift`）1か所で決める。入力はサーバーの`GET /api/harness-auth/:harness[?slot=2nd]`の`auth`（`status`・`auth_ui.stage`・`session_id`・`message`）、Claudeのslotは`/api/accounts`の`signedOutAt`、画面ではコード送信中のローカル状態だけ。`/api/accounts`の`loggedIn`は段階の判定に使わない（期限切れの旧資格情報で真を返した実例 2026-11-11 20:0x JST：サーバーは`paste_code`で待っているのに行が「認証済み」）。
+
+```mermaid
+stateDiagram-v2
+  [*] --> checking: 行・画面を開く（GET）
+  checking --> unknown: GET失敗 / auth無し
+  checking --> done: status=authenticated かつ signedOutAt無し
+  checking --> needsLogin: status=blocked、または signedOutAt あり
+  checking --> failed: status=failed、または stage=failed
+  checking --> waitingSite: status=waiting、stage=open_url / device_code / select
+  checking --> waitingCode: status=waiting、stage=paste_code
+  checking --> confirming: status=waiting、上以外のstage（waiting・complete・unavailable）
+  needsLogin --> waitingCode: 「認証する」POST start
+  done --> waitingCode: 「認証し直す」POST start
+  failed --> waitingCode: 「認証し直す」POST start
+  waitingSite --> waitingCode: 公式サイトで承認（3秒poll）
+  waitingCode --> sendingCode: 「認証コードを送る」POST input（画面だけ）
+  sendingCode --> confirming: 応答 status=waiting
+  sendingCode --> done: 応答 status=authenticated
+  sendingCode --> failed: 応答 status=failed
+  sendingCode --> waitingCode: POST失敗（理由を表示、needsRefresh）
+  confirming --> done: poll
+  confirming --> failed: poll
+  waitingSite --> checking: 「やめる」POST cancel → GET
+  waitingCode --> checking: 「やめる」POST cancel → GET
+```
+
+| 段階 | 行の札 | 行のボタン | 画面の状態文（`detail`） |
+| --- | --- | --- | --- |
+| checking | 確認中 | 確認する | 公式の状態を確認しています。 |
+| unknown | 確認できません | 確認する | 状態を確認できませんでした。「状態を更新」で読み直してください。 |
+| waitingSite | 認証の途中 | 続ける | まだ終わっていません。「公式サイトを開く」から公式サイトで認証してください。 |
+| waitingCode | コード待ち | 続ける | まだ終わっていません。公式サイトに表示された認証コードを下に貼り付けて「認証コードを送る」を押してください。 |
+| sendingCode | （画面のみ） | — | 認証コードを送っています。 |
+| confirming | 確認中 | 続ける | 公式の応答を待っています。終わるまでこの画面で待ってください。 |
+| done | 認証済み | 認証し直す（reloginSupported=falseは詳しく見る） | 認証済みです。 |
+| failed | 失敗 | 認証し直す | 認証できませんでした。理由：サーバーの`message`（無ければ「理由は返されませんでした。」） |
+| needsLogin | ログインが必要 | 認証する | ログインし直してください。「認証する」から公式サイトで認証します。 |
+
+- 札の色：done=緑、waitingSite/waitingCode/confirming=紫（進行中）、needsLogin/failed/unknown=橙、checking=灰。完了の見た目（緑・「認証済み」）は`done`だけ。
+- 進行中の行（waitingSite/waitingCode/confirming）は画面がactiveの間3秒ごとに読み直す。SSEの`eventRevision`でも読み直す。
+- 認証画面：サーバーの`session_id`がある時は「やめる」を出し（ローカルの`started`と論理和。旧本体は`started`のみ）、開始ボタンの文を「最初からやり直す」にする。`session_id`が無く`stage=unavailable`の時（状態を見ただけ）はAitermの案内（`auth_ui`のtitle/message）を出さず、サーバーの`message`だけを出す。
+
 ## 整理候補
 
 - **A-R1**：`ios/BellBot/BellBot/Views/SecretRequestView.swift:97,98,105`。AI利用許可判定のcatchはerror表示とreturnで、後続の秘密POSTのcatchだけがrequireLoginへ接続する。
