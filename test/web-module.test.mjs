@@ -142,3 +142,10 @@ test('accepted send and failed display refresh keep acceptance and never issue a
   f.windowEvents.get('pagehide')({ persisted: false })
   assert.equal(f.calls.find(call => call.path === '/api/events').options.signal.aborted, true)
 })
+
+test('a failed first list read (not a refused session) still connects updates and leaves the error card in the list (W2)', async t => {
+  const f = fixture(t, { failList: true, errorStatus: 500 })
+  await f.app.start()
+  assert.equal(f.calls.filter(call => call.path === '/api/events').length, 1)
+  assert.equal(f.get('bot-list').children.length, 1)
+})

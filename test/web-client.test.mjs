@@ -82,3 +82,14 @@ test('images share the injected transport and closing during a pending read prev
   close(); pending.resolve(); await settle()
   assert.deepEqual(seen, []); assert.deepEqual(errors, []); assert.deepEqual(calls, ['/image', '/api/events'])
 })
+
+test('the connection state says reconnecting on a retryable drop and live once a stream opens (W3)', async () => {
+  const tasks = [], states = []; let calls = 0
+  const client = createWebClient({ fetch: async () => { calls++; if (calls === 1) throw new TypeError('offline'); return stream([]) },
+    setTimeout: run => { tasks.push(run); return 1 }, clearTimeout() {} })
+  const close = client.watchEvents(() => {}, () => {}, undefined, state => states.push(state))
+  await settle(); assert.deepEqual(states, ['reconnecting'])
+  await tasks[0](); await settle()
+  assert.equal(states[1], 'live')
+  close()
+})

@@ -583,6 +583,7 @@ test('update SSE bypasses a blocked ordinary view and refreshes current jobs ind
     loadBots: async () => { ordered.push('begin'); blocked = true; await ordinary.promise; ordered.push('end') },
     loadMessages: async () => {}, allSchedules: { refresh() {} }, scheduleEditor: { refresh() {} },
     conversationComposer: { showError: message => errors.push(message) },
+    reconnectPill: { hidden: true }, showBanner: message => { if (message) errors.push(message) },
   })
   vm.runInContext(eventFunctions, context)
   await context.connectEvents()

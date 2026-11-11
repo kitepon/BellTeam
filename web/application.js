@@ -46,6 +46,20 @@ export function createWebApp({ client = createWebClient() } = {}) {
   rosterRetry.addEventListener('click', () => loadBots().catch(() => {}))
   let rosterLoaded = false
   const setupNotice = document.querySelector('#setup-notice')
+  // W4: one top banner for app-level messages; an optional action button sits next to the sentence.
+  const appBanner = document.querySelector('#app-banner')
+  const reconnectPill = document.querySelector('#reconnect-pill')
+  let bannerAction = null
+  appBanner.querySelector('[data-banner-close]').addEventListener('click', () => showBanner(''))
+  appBanner.querySelector('[data-banner-action]').addEventListener('click', () => { const run = bannerAction; showBanner(''); run?.() })
+  function showBanner(message, action = null) {
+    appBanner.hidden = !message
+    appBanner.querySelector('[data-banner-text]').textContent = message
+    const button = appBanner.querySelector('[data-banner-action]')
+    bannerAction = action?.run ?? null
+    button.hidden = !action
+    button.textContent = action?.label ?? ''
+  }
   document.querySelector('#setup-resume').addEventListener('click', () => void resumeSetup())
   let conversationsStarted = false
   const rosterSearch = document.querySelector('#roster-search')
@@ -343,11 +357,11 @@ export function createWebApp({ client = createWebClient() } = {}) {
   function showOnboarding(setup) {
     setupNotice.hidden = true
     openOnboarding(setup, { api, onReady: startConversations,
-      onLater: next => startConversations(next).catch(error => conversationComposer.showError(error.message)) })
+      onLater: next => startConversations(next).catch(error => showBanner(`一覧を開けませんでした（${error.message}）。`, { label: 'もう一度', run: () => void resumeSetup() })) })
   }
 
   async function resumeSetup() {
-    const setup = await api('/api/setup').catch(error => { conversationComposer.showError(error.message); return null })
+    const setup = await api('/api/setup').catch(error => { showBanner(`初回設定の状態を読み込めませんでした（${error.message}）。`, { label: 'もう一度', run: () => void resumeSetup() }); return null })
     if (!setup) return
     if (setup.phase === 'ready') await startConversations(setup)
     else showOnboarding(setup)
@@ -359,7 +373,9 @@ export function createWebApp({ client = createWebClient() } = {}) {
     const first = !conversationsStarted
     conversationsStarted = true
     if (first) void updateCenter.start()
-    const loaded = await loadBots().catch(error => { if (error.status !== 503) throw error; return false })
+    // W2: a failed first list read leaves its error card in the list (with its own retry); boot still connects updates and routes.
+    // A refused session (401/403) still stops boot: nothing else can be read.
+    const loaded = await loadBots().catch(error => { if (error.status === 401 || error.status === 403) throw error; return false })
     if (loaded && setup.phase === 'ready' && !setup.complete && setup.guideBotId) {
       const guide = state.bots.find(bot => bot.id === setup.guideBotId)
       if (!guide) throw new Error('案内役が見つかりません。')
@@ -850,9 +866,18 @@ export function createWebApp({ client = createWebClient() } = {}) {
 
   async function connectEvents() {
     state.stopEvents?.()
-    state.stopEvents = watchEvents(refreshFromEvent, error => {
-      conversationComposer.showError(`更新の接続が止まりました: ${error.message}。ページを再読み込みして確認してください。`)
-    }, payload => { void updateCenter.refresh(payload) })
+    let reconnecting = false
+    reconnectPill.hidden = true
+    state.stopEvents = watchEvents(refreshFromEvent, () => {
+      // W3: stopped (refused) -> one banner with 「つなぎ直す」; never written into a conversation.
+      reconnectPill.hidden = true
+      showBanner('最新の状態が届かなくなりました。', { label: 'つなぎ直す', run: () => void connectEvents() })
+    }, payload => { void updateCenter.refresh(payload) }, connection => {
+      // W3: dropped -> a small 「再接続中…」 pill; back -> re-read the list once.
+      if (connection === 'reconnecting') { reconnecting = true; reconnectPill.hidden = false; return }
+      reconnectPill.hidden = true
+      if (reconnecting) { reconnecting = false; void loadBots().catch(() => {}) }
+    })
   }
 
   function conversationKey(type, id) { return `${type}:${id}` }
