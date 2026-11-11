@@ -132,6 +132,43 @@ class HostTest(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError): module.fetch_publication(opener, url, 100, sleep=lambda _: None, clock=lambda: next(clock))
         self.assertEqual(len(opener.urls), 2)
 
+    def test_stable_refresh_reads_latest_redirect_and_falls_back_to_release_list(self):
+        import urllib.error, email.message
+        tag = 'updates-20261111T023152Z'
+        def redirect(location):
+            headers = email.message.Message(); headers['Location'] = location
+            class Opener:
+                def open(self, request, timeout):
+                    self.url = request.full_url; raise urllib.error.HTTPError(request.full_url, 302, 'Found', headers, None)
+            return Opener()
+        opener = redirect(module.RELEASE_DOWNLOAD + tag + '/catalog.json')
+        self.assertEqual(module.latest_stable_tag(opener), tag)
+        self.assertTrue(opener.url.startswith(module.LATEST_CATALOG + '?fresh='))
+        for bad in ['https://github.com/other/BellTeam/releases/download/' + tag + '/catalog.json',
+                    module.RELEASE_DOWNLOAD + 'v1.0/catalog.json', module.RELEASE_DOWNLOAD + tag + '/x.json', None]:
+            with self.assertRaises(module.Failure): module.latest_stable_tag(redirect(bad))
+        seen = []
+        install = lambda updater, fetch, chosen: seen.append(chosen) or 'id-' + chosen
+        rows = [{'draft': False, 'prerelease': False, 'tag_name': 'updates-20261110T000000Z',
+                 'assets': [{'name': 'catalog.json'}, {'name': 'catalog.json.sigstore.json'}]}]
+        root = patch.object(type(self.updater), 'code_root', Path(__file__).resolve().parents[1]); root.start(); self.addCleanup(root.stop)
+        with patch.object(module, 'install_publication', install), patch.object(module, 'latest_stable_tag', return_value=tag), \
+             patch.object(module, 'fetch_publication', side_effect=AssertionError('no API on the stable path')), \
+             patch.object(module, 'trusted', lambda *a, **k: None):
+            self.assertEqual(module._refresh_catalog(self.updater), 'id-' + tag)
+        def flaky(updater, fetch, chosen):
+            seen.append(chosen)
+            if chosen == tag: raise module.Failure('HOST_UPDATE_CATALOG_ROLLBACK', 409)
+            return 'id-' + chosen
+        with patch.object(module, 'install_publication', flaky), patch.object(module, 'latest_stable_tag', return_value=tag), \
+             patch.object(module, 'fetch_publication', return_value=json.dumps(rows).encode()), patch.object(module, 'trusted', lambda *a, **k: None):
+            self.assertEqual(module._refresh_catalog(self.updater), 'id-updates-20261110T000000Z')
+        self.config['channel'] = 'candidate'
+        with patch.object(module, 'install_publication', install), patch.object(module, 'latest_stable_tag', side_effect=AssertionError('candidate never reads Latest')), \
+             patch.object(module, 'fetch_publication', return_value=json.dumps(rows).encode()), patch.object(module, 'trusted', lambda *a, **k: None):
+            self.assertEqual(module._refresh_catalog(self.updater), 'id-updates-20261110T000000Z')
+        self.assertEqual(seen, [tag, tag, 'updates-20261110T000000Z', 'updates-20261110T000000Z'])
+
     def test_catalog_monotonic_replay_expiry_and_durable_revocation(self):
         first=self.digest
         self.assertEqual(self.install_catalog(self.catalog),first)

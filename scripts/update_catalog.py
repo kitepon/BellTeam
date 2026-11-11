@@ -2,7 +2,6 @@
 from datetime import datetime, timezone
 import json
 import re
-from urllib.request import Request, urlopen
 
 MAX_CATALOG = 1024 * 1024
 MAX_LIFETIME = 7 * 24 * 60 * 60
@@ -289,12 +288,3 @@ def publication_candidates(records, channel='stable'):
     # GitHub's list order is not recency; pick the newest tags over all rows before the cut.
     return sorted(found, key=lambda value: value['tag'], reverse=True)[:10]
 
-
-def discover_publications():
-    # Release metadata is only an untrusted selector; callers must authenticate the returned bytes.
-    request = Request('https://api.github.com/repos/kitepon/BellTeam/releases?per_page=100',
-                      headers={'Accept': 'application/vnd.github+json', 'User-Agent': 'bellteam-update-catalog'})
-    with urlopen(request, timeout=30) as response:
-        raw = response.read(4 * MAX_CATALOG + 1)
-    require(len(raw) <= 4 * MAX_CATALOG, 'UPDATE_PUBLICATIONS_TOO_LARGE')
-    return publication_candidates(strict_json(raw))
