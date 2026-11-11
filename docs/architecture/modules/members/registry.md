@@ -31,7 +31,7 @@ flowchart TB
 | session対応 | transport callback → `updateSession` | profileのsessionだけ更新。通常編集fieldとして外部から受けない |
 | 起動指示 | `prepareStartupContext` → `ProjectFiles.prepareStartupContext/writeInstructions` | 引継ぎ文をprevious-sessionへ保存し、本人編集のAGENTS.local.mdを席writerで合成して指示を再生成。個別正本は上書きしない。[個別指示の契約](instructions.md#本人編集の個別指示と生成agents)を参照 |
 | Remote binding | HTTP/MCP create/update → `create/update` | `terminalId`/`projectRoot` saved in bot.json v8 as additive fields; pair rule and path validation. See [remote-seat.md](remote-seat.md) |
-| モデル一覧 | `LiveModelCatalog` → Aiterm | effort/fast検証に使用。保存値だけでnativeの変更成功を証明しない |
+| モデル一覧 | `LiveModelCatalog` → Aiterm | effort/fast検証に使用。保存値だけでnativeの変更成功を証明しない。Claudeは枠名`claudeLogin: '1st'`を渡す（a04、[boundary-details](../../boundary-details.md)。両枠が同じ一覧の間の暫定） |
 
 稼働反映の内部状態と実行結果の正本は[execution](../execution/README.md)。保存値と反映観測を同じ正本へまとめない。[bot-registry.mjs](../../../../src/bot-registry.mjs)、[project-files.mjs](../../../../src/project-files.mjs)を参照。
 

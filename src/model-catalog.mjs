@@ -24,7 +24,9 @@ export class LiveModelCatalog {
     // CLIの一覧取得で会話・配送用のMCP接続を待たせないよう、短命の接続を使う。
     const client = this.client()
     try {
-      const result = await client.call('agent_models', { harness: kind, cwd: this.cwd })
+      // boundary-details.md (a04): Claudeの一覧は席と同じ枠ログインで取る。渡すのは枠名だけ。
+      // shortcut: 有効枠でなく常に1st。両枠が同じ一覧を返す間だけ有効。枠で一覧が分かれたらHarnessAccounts.effectiveSlotを接続する。
+      const result = await client.call('agent_models', { harness: kind, cwd: this.cwd }, harness === 'claude' ? { claudeLogin: '1st' } : {})
       const value = result.structuredContent ?? JSON.parse(result.content.find(item => item.type === 'text')?.text)
       // 外部MCPの形式異常を空の候補として扱わない。
       if (value?.schema !== 'aiterm.agent-models.v1' || value.harness !== kind
