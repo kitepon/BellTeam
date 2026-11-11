@@ -46,7 +46,7 @@ public sealed class LatticeWindow : Window
         pill.HorizontalAlignment = HorizontalAlignment.Center; pill.VerticalAlignment = VerticalAlignment.Bottom; pill.Margin = new Thickness(0, 0, 0, 18); pill.Visibility = Visibility.Collapsed; pill.IsHitTestVisible = false;
         System.Windows.Automation.AutomationProperties.SetAutomationId(pillText, "lattice-list-status");
         root.Children.Add(page); root.Children.Add(pill); Content = root;
-        Resources.Add(typeof(System.Windows.Controls.Primitives.ScrollBar), ThinScrollBar);
+        Resources.Add(typeof(System.Windows.Controls.Primitives.ScrollBar), ThinScrollBar());
         ShowList();
         SourceInitialized += (_, _) => UseMica();
         IsVisibleChanged += (_, _) => Sync(); StateChanged += (_, _) => Sync();
@@ -220,7 +220,8 @@ public sealed class LatticeWindow : Window
     }
 
     // Fluent-style thin scroll bars: a rounded thumb on a clear track, no arrow buttons.
-    private static readonly Style ThinScrollBar = (Style)System.Windows.Markup.XamlReader.Parse("""
+    // One per window: a Style belongs to the thread that parsed it, so a shared static breaks a window on another dispatcher.
+    private static Style ThinScrollBar() => (Style)System.Windows.Markup.XamlReader.Parse("""
         <Style xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" TargetType="ScrollBar">
           <Setter Property="Width" Value="10"/><Setter Property="MinWidth" Value="10"/><Setter Property="Background" Value="Transparent"/>
           <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ScrollBar"><Grid Background="Transparent"><Track x:Name="PART_Track" IsDirectionReversed="True"><Track.Thumb><Thumb><Thumb.Template><ControlTemplate TargetType="Thumb"><Border CornerRadius="3" Background="#40212938" Margin="2"/></ControlTemplate></Thumb.Template></Thumb></Track.Thumb></Track></Grid></ControlTemplate></Setter.Value></Setter>
