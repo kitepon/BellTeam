@@ -82,7 +82,7 @@ final class ConversationScrollUITests: XCTestCase {
         for _ in 0..<3 { scroll.swipeDown() }
         Thread.sleep(forTimeInterval: 3)
         let before = oldest.frame.minY
-        XCTAssertTrue(app.buttons["最新へ ↓"].exists, "過去を読んでいる間は新着が無くても最新へ戻れる")
+        XCTAssertTrue(app.buttons["最新へ"].exists, "過去を読んでいる間は新着が無くても最新へ戻れる")
         let refreshesBeforeAppend = try requests().filter { $0.contains("after=m030") }.count
         _ = try data("/test/append")
         // 引き下げ更新の操作が取りこぼされることがあるため、更新の要求が出るまで引き直す（操作の再試行で、アプリの再試行ではない）。
@@ -91,13 +91,13 @@ final class ConversationScrollUITests: XCTestCase {
                 .press(forDuration: 0.1, thenDragTo: scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7)))
             Thread.sleep(forTimeInterval: 2)
         }
-        XCTAssertTrue(app.buttons["新着メッセージ ↓"].waitForExistence(timeout: 10), "新着ボタンが出る")
+        XCTAssertTrue(app.buttons["新着メッセージ"].waitForExistence(timeout: 10), "新着ボタンが出る")
         Thread.sleep(forTimeInterval: 2)
         print("新着前のm001 minY=\(before) 新着後=\(oldest.frame.minY)")
         XCTAssertTrue(try requests().contains(where: { $0.contains("after=m030") }), "更新で新着を取得した")
         XCTAssertEqual(oldest.frame.minY, before, accuracy: 2, "読んでいる位置が動かない")
         XCTAssertFalse(text("m031").exists && text("m031").isHittable, "末尾へ飛ばない")
-        app.buttons["新着メッセージ ↓"].tap()
+        app.buttons["新着メッセージ"].tap()
         XCTAssertTrue(text("m031").waitForExistence(timeout: 5))
         XCTAssertTrue(text("m031").isHittable, "新着ボタンから最新行へ戻る")
     }

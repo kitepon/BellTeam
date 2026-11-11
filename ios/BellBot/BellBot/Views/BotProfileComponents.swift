@@ -203,7 +203,8 @@ struct BotProfileHero: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             GeometryReader { area in
-                ZStack(alignment: .topLeading) {
+                // The small portrait sits at the bottom corner of the large one, like a badge, instead of covering its top.
+                ZStack(alignment: .bottomLeading) {
                     Button { images.openImageActions(.large) } label: {
                         Group {
                             if let backgroundImage {
@@ -225,10 +226,11 @@ struct BotProfileHero: View {
                         AvatarView(name: bot.name, avatar: bot.avatar,
                                    color: BellTheme.accent(bot.color), size: smallSize)
                         .overlay(RoundedRectangle(cornerRadius: smallSize * 0.31)
-                            .strokeBorder(.white, lineWidth: 2))
+                            .strokeBorder(.white, lineWidth: 3))
+                        .shadow(color: .black.opacity(0.25), radius: 8, y: 3)
                     }
                     .buttonStyle(.plain)
-                    .padding(16)
+                    .padding(14)
                     .zIndex(1)
                     .accessibilityLabel("小画像の操作")
                     .accessibilityIdentifier("profile-small-avatar")
@@ -261,12 +263,18 @@ struct BotProfileHero: View {
                     .disabled(images.savingImage)
                 }
             }
-            Text(bot.displayName)
+            // displayName is name + position from the server; the hero shows them on two lines.
+            Text(bot.name)
                 .font(BellTheme.profileTitleFont.bold())
                 .foregroundStyle(BellTheme.ink)
+            if !bot.position.isEmpty {
+                Text(bot.position).font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
+            }
             Label(bot.online ? "オンライン" : "オフライン", systemImage: "circle.fill")
-                .font(BellTheme.secondaryFont)
+                .font(BellTheme.secondaryFont.weight(.semibold))
                 .foregroundStyle(bot.online ? BellTheme.mint : BellTheme.muted)
+                .padding(.horizontal, 10).padding(.vertical, 4)
+                .background((bot.online ? BellTheme.mint : BellTheme.muted).opacity(0.12), in: Capsule())
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .task(id: bot.id) { images.loadDrafts(for: bot, store: store) }
@@ -539,22 +547,45 @@ struct BotProfileDetails: View {
     let bot: Bot
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            detail("役職", value: bot.position)
-            detail("背景・見た目・関係性", value: bot.profileText)
-            detail("性格・考え方", value: bot.personality)
-            detail("口調", value: bot.speechStyle)
-            detail("担当する仕事", value: bot.role)
+        VStack(alignment: .leading, spacing: 12) {
+            detail("担当する仕事", symbol: "briefcase.fill", tint: .blue, value: bot.role)
+            detail("性格・考え方", symbol: "brain.head.profile", tint: .pink, value: bot.personality)
+            detail("口調", symbol: "text.bubble.fill", tint: .teal, value: bot.speechStyle)
+            detail("背景・見た目・関係性", symbol: "person.text.rectangle.fill", tint: .orange, value: bot.profileText)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func detail(_ title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(BellTheme.secondaryFont.weight(.bold)).foregroundStyle(BellTheme.muted)
-            SelectableText(value.isEmpty ? "未設定" : value, font: BellTheme.profileBodyFont,
-                           color: value.isEmpty ? BellTheme.muted : BellTheme.ink)
+    /// One section as a card with its own icon; long text folds after a few lines (詳しく opens it).
+    private func detail(_ title: String, symbol: String, tint: Color, value: String) -> some View {
+        ProfileDetailCard(title: title, symbol: symbol, tint: tint, value: value)
+    }
+}
+
+private struct ProfileDetailCard: View {
+    let title: String
+    let symbol: String
+    let tint: Color
+    let value: String
+    @State private var expanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(title, systemImage: symbol)
+                .font(BellTheme.secondaryFont.weight(.bold)).foregroundStyle(tint)
+            if value.isEmpty {
+                Text("未設定").font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
+            } else if expanded || value.count <= 120 {
+                SelectableText(value, font: BellTheme.profileBodyFont, color: BellTheme.ink)
+            } else {
+                Text(value).font(Font(BellTheme.profileBodyFont)).foregroundStyle(BellTheme.ink).lineLimit(4)
+                Button("続きを読む") { withAnimation(.easeInOut(duration: 0.2)) { expanded = true } }
+                    .font(BellTheme.secondaryFont.weight(.semibold))
+            }
         }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(tint.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 

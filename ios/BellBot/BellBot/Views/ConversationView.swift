@@ -145,16 +145,22 @@ private struct ConversationContent: View {
         .overlay(alignment: .top) {
             if loadingOlder { ProgressView().padding(.top, 12) }
         }
-        .overlay(alignment: .bottom) {
-            // 過去を読んでいる間は、新着が無くても最新へ戻れるようにする。
+        // 過去を読んでいる間は、新着が無くても最新へ戻れるようにする。本文に重ねず、入力欄の上の帯に置く。
+        .safeAreaInset(edge: .bottom, spacing: 0) {
             if hasUnreadMessages || (!isAtBottom && !loading) {
-                Button(hasUnreadMessages ? "新着メッセージ ↓" : "最新へ ↓") {
+                Button {
                     hasUnreadMessages = false
                     scrollToBottomRevision += 1
+                } label: {
+                    Label(hasUnreadMessages ? "新着メッセージ" : "最新へ", systemImage: "arrow.down")
                 }
                 .font(BellTheme.messageHelperFont.weight(.semibold))
                 .buttonStyle(.borderedProminent)
-                .padding(.bottom, 12)
+                .controlSize(.small)
+                .padding(.vertical, 6)
+                .frame(maxWidth: .infinity)
+                .background(.regularMaterial)
+                .overlay(alignment: .top) { Divider() }
                 .accessibilityIdentifier("scroll-to-latest")
             }
         }

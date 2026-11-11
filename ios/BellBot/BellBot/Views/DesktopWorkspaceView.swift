@@ -301,7 +301,7 @@ private struct DesktopInspector: View {
 
     private var profileSmallImageSize: CGFloat {
         #if targetEnvironment(macCatalyst)
-        152
+        84
         #else
         76
         #endif
@@ -328,7 +328,18 @@ private struct DesktopInspector: View {
                     ForEach(room.memberIds, id: \.self) { id in
                         if let member = store.bots.first(where: { $0.id == id }) {
                             Button { store.chatPath = [.bot(id)] } label: {
-                                HStack { AvatarView(name: member.name, avatar: member.avatar, color: BellTheme.accent(member.color), size: 30); Text(member.displayName).font(BellTheme.profileMemberFont); Spacer() }
+                                HStack(spacing: 10) {
+                                    AvatarView(name: member.name, avatar: member.avatar, color: BellTheme.accent(member.color), size: 34)
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(member.name).font(BellTheme.profileMemberFont.weight(.semibold))
+                                        if !member.position.isEmpty {
+                                            Text(member.position).font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted).lineLimit(1)
+                                        }
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right").font(.footnote).foregroundStyle(BellTheme.muted)
+                                }
+                                .contentShape(Rectangle())
                             }.buttonStyle(.plain)
                         }
                     }
@@ -356,7 +367,8 @@ private struct DesktopInspector: View {
                     editing = true
                     #endif
                 }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.borderedProminent).tint(BellTheme.violet).controlSize(.large)
+                    .frame(maxWidth: .infinity)
             }
             .padding(23)
         }

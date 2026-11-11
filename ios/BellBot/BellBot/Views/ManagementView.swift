@@ -142,6 +142,20 @@ struct BotEditor: View {
     var body: some View {
         NavigationStack(path: $toolPath) {
             Form {
+                if let opened = liveBot {
+                    // Whose editor this is, at a glance (the window toolbar title is not enough on Mac).
+                    Section {
+                        HStack(spacing: 14) {
+                            AvatarView(name: opened.displayName, avatar: avatar.isEmpty ? opened.avatar : avatar,
+                                       color: BellTheme.accent(color), size: 64)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(name.isEmpty ? opened.displayName : name).font(.title2.bold()).foregroundStyle(BellTheme.ink)
+                                if !position.isEmpty { Text(position).font(.subheadline).foregroundStyle(BellTheme.muted) }
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
                 Section(header: BellSectionHeader("メンバー")) {
                     if initial == nil {
                         HStack {
@@ -158,8 +172,8 @@ struct BotEditor: View {
                             Spacer()
                         }
                     }
-                    TextField("名前", text: $name)
-                    TextField("役職", text: $position)
+                    LabeledField(label: "名前") { TextField("名前", text: $name, prompt: Text("呼び名")) }
+                    LabeledField(label: "役職") { TextField("役職", text: $position, prompt: Text("例：BellTeam Appleアプリ")) }
                     Picker("テーマ色", selection: $color) {
                         Text("紫").tag("violet")
                         Text("ローズ").tag("rose")
@@ -212,7 +226,10 @@ struct BotEditor: View {
                     // Macのポップアップでは、候補が届く前に作った選択欄が保存済みのモデルを「CLIの既定」と表示した。
                     // 候補を読み終えてから選択欄を作る。
                     if loadingModels {
-                        ProgressView("モデル候補を読み込んでいます…")
+                        HStack(spacing: 10) {
+                            ProgressView().controlSize(.small)
+                            Text("使えるモデルを確かめています…").foregroundStyle(BellTheme.muted)
+                        }
                     } else {
                         Picker("CLI", selection: Binding(get: { harness }, set: { next in
                             harness = next
@@ -291,8 +308,11 @@ struct BotEditor: View {
                             Button("削除結果を確認") { Task { await confirmDeletion() } }
                                 .accessibilityIdentifier("confirm-member-deletion")
                         } else {
-                            Button("メンバーを削除", role: .destructive) { confirmingDeletion = true }
-                                .accessibilityIdentifier("delete-member")
+                            Button(role: .destructive) { confirmingDeletion = true } label: {
+                                Label("メンバーを削除", systemImage: "trash").frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered).tint(.red)
+                            .accessibilityIdentifier("delete-member")
                         }
                     } footer: {
                         Text("このメンバーの会話・予定・記憶を含むプロジェクトを削除し、ルームから外します。元に戻せません。")
@@ -602,7 +622,8 @@ private struct RoomMemberRow: View {
             HStack(spacing: 12) {
                 AvatarView(name: bot.displayName, avatar: bot.avatar, color: BellTheme.accent(bot.color), size: 34)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(bot.displayName).foregroundStyle(BellTheme.ink)
+                    // displayName is name + position from the server; the row shows them on two lines.
+                    Text(bot.name).foregroundStyle(BellTheme.ink)
                     if !bot.position.isEmpty {
                         Text(bot.position).font(.caption).foregroundStyle(BellTheme.muted).lineLimit(1)
                     }
@@ -724,8 +745,11 @@ struct RoomEditor: View {
                 }
                 if initial != nil {
                     Section {
-                        Button("ルームを削除", role: .destructive) { confirmingDeletion = true }
-                            .accessibilityIdentifier("delete-room")
+                        Button(role: .destructive) { confirmingDeletion = true } label: {
+                            Label("ルームを削除", systemImage: "trash").frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered).tint(.red)
+                        .accessibilityIdentifier("delete-room")
                     } footer: {
                         Text("このルームの設定・会話履歴・予定を削除します。参加メンバーは削除されません。")
                     }
