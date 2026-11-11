@@ -22,9 +22,13 @@ function example(name = 'module_update') {
   }
   return { value, plan }
 }
+// Every admitted operation carries its stored job records (Root job ledger contract 2026-11-07); legacy unknown has none.
 const operation = (plan, id, phase = 'applying') => ({ requestId: id, plan, admission: 'accepted', phase,
   execution: phase === 'completed' ? 'succeeded' : phase === 'unknown' ? 'unknown' : 'pending',
-  verification: phase === 'completed' ? 'succeeded' : phase === 'unknown' ? 'unknown' : 'pending', error: null, reference: id })
+  verification: phase === 'completed' ? 'succeeded' : phase === 'unknown' ? 'unknown' : 'pending', error: null, reference: id,
+  ...(phase === 'unknown' ? {} : { jobs: plan.targets.map((target, index) => ({ schema: 'bellteam.update-job.v1', jobId: id.slice(0, -1) + index, idempotencyKey: id,
+    kind: target.componentId === 'container' ? 'container' : 'module', target: { catalogSha256: 'c'.repeat(64), moduleId: target.componentId, versionId: 'b'.repeat(64) },
+    state: phase === 'completed' ? 'ready' : 'swapping', reason: null, transitions: [], updatedAtNs: '1793999999999999999' })) }) })
 function fixture(t, api, saved = storage()) {
   const dom = webDOM(t), root = dom.get('update-center'), calls = []
   const center = createUpdateCenter({ root, buttons: [dom.get('update-open')], storage: saved, api: async (path, options) => {
@@ -61,7 +65,7 @@ test('module UI sends the explicit individual plan and one old-shape operation w
   assert.equal(input.confirmContainerRestart, false)
   assert.equal(JSON.parse(f.saved.getItem(key)).requestId, input.requestId)
   accepted.resolve({ operation: operation(plan, input.requestId) }); await settle()
-  assert.match(text(f.detail()), /受付済み/)
+  assert.match(text(f.detail()), /状態: 切り替え中/) // the stored job record, not a legacy phase word
   assert.ok(f.calls.some(call => call.path.endsWith(input.requestId)))
 })
 
@@ -82,11 +86,10 @@ test('module UI asks backend for rollback even without update capability and use
   f.control('rollback').handlers.click(); await settle()
   assert.match(text(f.detail()), /固定した戻し先.*内蔵版/)
   assert.match(text(f.detail()), /現在のデータ・設定・更新履歴は巻き戻しません/)
-  assert.equal(f.control('execute').textContent, 'この計画で戻す')
+  assert.equal(f.control('execute').textContent, '確認して戻す')
   assert.equal(f.control('execute').disabled, false)
   f.control('execute').handlers.click(); await settle()
-  assert.match(text(f.detail()), /戻し完了/)
-  assert.equal(f.saved.getItem(key), null)
+  assert.match(text(f.detail()), /状態: 完了/)
 })
 
 test('module UI displays all fixed targets in order and asks restart confirmation only when the plan requires it', async t => {
@@ -130,14 +133,15 @@ test('module UI keeps an unknown rollback UUID across reload and reads it despit
   const first = fixture(t, api, saved)
   await first.center.start(); first.select('notifications'); first.control('rollback').handlers.click(); await settle()
   first.control('execute').handlers.click(); await settle()
-  assert.ok(saved.getItem(key)); assert.match(text(first.detail()), /結果を確認できません/)
+  assert.ok(saved.getItem(key)); assert.match(text(first.detail()), /保存されたジョブの記録はありません/)
   await first.center.refresh(); assert.equal(first.calls.filter(call => call.path === '/api/updates/operations').length, 1)
   first.center.close()
   const reloaded = fixture(t, api, saved); await reloaded.center.start()
-  assert.ok(saved.getItem(key)); assert.equal(reloaded.control('execute').disabled, true)
+  // The kept ID is read again after reload; a legacy unknown result adds no browser admission guard (job ledger contract).
+  assert.ok(saved.getItem(key)); assert.ok(reloaded.calls.some(call => call.path.endsWith(input.requestId)))
   completed = true; await reloaded.center.refresh()
-  assert.match(text(reloaded.detail()), /戻し完了/)
-  assert.equal(saved.getItem(key), null)
+  assert.match(text(reloaded.detail()), /状態: 完了/)
+  assert.equal(JSON.parse(saved.getItem(key)).requestId, input.requestId) // same-ID recovery stays possible after a terminal record
   assert.ok(reloaded.calls.every(call => call.body === null))
 })
 
@@ -231,42 +235,43 @@ test('unknown UI retains old identities and results across explicit new executio
     assert.equal(requests.length, 0)
     f.control('execute').handlers.click(); await settle()
     assert.match(text(f.detail()), /表示中の計画はまだ実行していません/)
-    assert.equal(f.control('execute').textContent, 'この計画で更新')
+    assert.equal(f.control('execute').textContent, '確認して更新する')
     assert.equal(requests.length, 0)
     const submit = f.control('execute'); submit.handlers.click(); submit.handlers.click(); await settle()
     assert.equal(requests.length, 1)
     assert.equal(requests[0].planId, nextPlanId)
     assert.equal(requests[0].confirmContainerRestart, false)
-    assert.deepEqual(JSON.parse(saved.getItem(key)), { previous: [oldBefore] })
+    // The new request stays current and the old one is kept as a reference (job ledger contract: history keeps IDs only).
+    const kept = JSON.parse(saved.getItem(key))
+    assert.equal(kept.requestId, requests[0].requestId); assert.deepEqual(kept.previous.map(entry => entry.requestId), [oldId])
     assert.deepEqual(old, oldBefore)
     assert.match(text(f.detail()), /保持している操作結果/)
-    assert.match(text(f.detail()), /結果確認不能/)
     assert.match(text(f.detail()), new RegExp(oldId))
     f.center.close()
     const reloaded = fixture(t, api, saved)
     await reloaded.center.start()
     assert.ok(reloaded.calls.some(call => call.path.endsWith(oldId)))
-    assert.equal(reloaded.control('execute').disabled, true) // Whole-product update stays blocked.
     reloaded.select('notifications')
     assert.equal(reloaded.control('execute').disabled, false)
     reloaded.control(`read-${oldId}`).handlers.click(); await settle()
     assert.ok(reloaded.calls.filter(call => call.path.endsWith(oldId)).length >= 2)
     assert.equal(requests.length, 1)
-    assert.deepEqual(JSON.parse(saved.getItem(key)), { previous: [oldBefore] })
+    assert.deepEqual(JSON.parse(saved.getItem(key)).previous.map(entry => entry.requestId), [oldId])
     reloaded.center.close()
   }
 })
 
-test('unknown UI does not bypass active, disabled capability, whole-product or container conditions', async t => {
-  for (const condition of ['disabled', 'active', 'all', 'container']) {
+// A kept unknown or still-applying old request is not a browser guard for any target (module, whole product, container):
+// server capability and admission own concurrency (job ledger contract 2026-11-07). Only the server's capability blocks here.
+test('unknown UI does not bypass a disabled capability', async t => {
+  for (const condition of ['disabled']) {
     const { value, plan, old } = unknownExample(), saved = storage()
     if (condition === 'disabled') value.components[0].capability = { supported: false, reason: 'MODULE_EXCHANGE_BUSY' }
-    if (condition === 'active') { old.phase = 'applying'; old.execution = 'pending' }
     if (condition === 'container') { value.components[0].id = 'container'; old.plan.componentId = 'container'; old.plan.targets[0].componentId = 'container' }
     saved.setItem(key, JSON.stringify({ requestId: oldId, planId: old.plan.planId }))
     const before = saved.getItem(key)
     const f = fixture(t, async path => path === '/api/updates?runtime=1' ? value : { operation: old }, saved)
-    await f.center.start(); f.select(condition === 'container' ? 'container' : condition === 'all' ? 'all' : 'notifications')
+    await f.center.start(); f.select(condition === 'container' ? 'container' : 'notifications')
     assert.equal(f.control('execute').disabled, true, condition)
     f.control('execute').handlers.click(); await settle()
     assert.ok(f.calls.every(call => call.body === null), condition)
@@ -275,7 +280,8 @@ test('unknown UI does not bypass active, disabled capability, whole-product or c
   }
 })
 
-test('unknown UI blocks new plans after failed, mismatched or malformed old-result GET and preserves the saved request', async t => {
+// A failed or malformed read of the kept request is shown and keeps the request; it adds no browser admission guard.
+test('unknown UI shows a failed, mismatched or malformed old-result GET, keeps the saved request and sends nothing by itself', async t => {
   for (const response of ['503', '404', 'wrong-id', 'wrong-plan', 'malformed']) {
     const { value, old } = unknownExample(), saved = storage()
     saved.setItem(key, JSON.stringify({ requestId: oldId, planId: old.plan.planId }))
@@ -288,12 +294,11 @@ test('unknown UI blocks new plans after failed, mismatched or malformed old-resu
       if (response === 'wrong-plan') result.plan.planId = nextPlanId
       return { operation: response === 'malformed' ? {} : result }
     }, saved)
-    await f.center.start(); f.select('notifications')
-    assert.equal(f.control('execute').disabled, true, response)
-    f.control('execute').handlers.click(); await settle()
-    assert.equal(saved.getItem(key), before)
-    assert.match(text(f.detail()), /結果を確認できません/)
-    assert.ok(f.calls.every(call => call.body === null))
+    await f.center.start(); f.select('notifications'); await settle()
+    assert.equal(saved.getItem(key), before, response)
+    assert.ok(f.calls.some(call => call.path.endsWith(oldId)), response)
+    assert.match(text(f.detail()), /READ_FAILED|INVALID_OPERATION/, response)
+    assert.ok(f.calls.every(call => call.body === null), response)
     f.center.close()
   }
 })
@@ -323,7 +328,7 @@ test('unknown UI preserves old pending when a new plan is busy or saving the nex
   }
 })
 
-test('unknown UI keeps retained results when their GET fails and resumes only after a valid GET', async t => {
+test('unknown UI keeps retained results when their GET fails and reads them again on request', async t => {
   const { value, old } = unknownExample(), saved = storage()
   saved.setItem(key, JSON.stringify({ previous: [old] }))
   let unavailable = true
@@ -333,11 +338,12 @@ test('unknown UI keeps retained results when their GET fails and resumes only af
     return { operation: old }
   }, saved)
   await f.center.start(); f.select('notifications')
-  assert.equal(f.control('execute').disabled, true)
-  assert.match(text(f.detail()), /前回の結果を保持しています/)
+  assert.match(text(f.detail()), /保持している操作結果/)
   assert.deepEqual(JSON.parse(saved.getItem(key)).previous, [old])
+  const reads = f.calls.filter(call => call.path.endsWith(oldId)).length
   unavailable = false; f.control(`read-${oldId}`).handlers.click(); await settle()
-  assert.equal(f.control('execute').disabled, false)
+  assert.ok(f.calls.filter(call => call.path.endsWith(oldId)).length > reads)
+  assert.deepEqual(JSON.parse(saved.getItem(key)).previous, [old])
   assert.equal(f.calls.filter(call => call.body !== null).length, 0)
 })
 
@@ -348,11 +354,13 @@ test('unknown UI restores old history after a rejected new operation without res
     if (path === '/api/updates?runtime=1') return value
     if (path.endsWith('/plans')) return { plan }
     if (path === '/api/updates/operations') throw Object.assign(Error('MODULE_EXCHANGE_BUSY'), { status: 409 })
+    if (!path.endsWith(oldId)) throw Object.assign(Error('UPDATE_OPERATION_NOT_FOUND'), { status: 404, code: 'UPDATE_OPERATION_NOT_FOUND' })
     return { operation: old }
   }, saved)
   await f.center.start(); f.select('notifications'); f.control('execute').handlers.click(); await settle()
   f.control('execute').handlers.click(); await settle()
-  assert.deepEqual(JSON.parse(saved.getItem(key)), { previous: [old] })
+  // 409 and the lookup proves nothing stored (UPDATE_OPERATION_NOT_FOUND): the new ID is dropped; the old one stays as a reference.
+  assert.deepEqual(JSON.parse(saved.getItem(key)), { previous: [{ requestId: oldId, planId: old.plan.planId }] })
   assert.match(text(f.detail()), /受け付けられませんでした/)
   assert.equal(f.calls.filter(call => call.path === '/api/updates/operations').length, 1)
   assert.ok(f.calls.some(call => call.path.endsWith(oldId)))
@@ -377,7 +385,7 @@ test('unknown UI rejects reuse of the old plan and malformed retained storage', 
   }
 })
 
-test('unknown UI preserves multiple prior requests and blocks if an old request is observed applying', async t => {
+test('unknown UI preserves multiple prior requests as kept history across a new operation', async t => {
   const { value, plan, old } = unknownExample(), saved = storage()
   const earlier = structuredClone(old); earlier.requestId = '55555555-5555-4555-8555-555555555555'
   earlier.plan.planId = '66666666-6666-4666-8666-666666666666'
@@ -391,9 +399,43 @@ test('unknown UI preserves multiple prior requests and blocks if an old request 
   }, saved)
   await f.center.start(); f.select('notifications'); f.control('execute').handlers.click(); await settle()
   f.control('execute').handlers.click(); await settle()
-  assert.deepEqual(JSON.parse(saved.getItem(key)).previous, [earlier, old])
+  assert.deepEqual(JSON.parse(saved.getItem(key)).previous, [earlier, { requestId: oldId, planId: old.plan.planId }])
   applyEarlier = true; await f.center.refresh()
-  assert.equal(f.control('execute').disabled, true)
   assert.deepEqual(JSON.parse(saved.getItem(key)).previous.map(result => result.requestId), [earlier.requestId, oldId])
   assert.equal(f.calls.filter(call => call.path === '/api/updates/operations').length, 1)
+})
+
+test('a 4xx after a step was admitted keeps the request ID; the same-ID lookup shows the stored job (job ledger contract)', async t => {
+  const { value, plan } = example(), saved = storage()
+  let input
+  const f = fixture(t, async (path, options) => {
+    if (path === '/api/updates?runtime=1') return value
+    if (path.endsWith('/plans')) return { plan }
+    if (path === '/api/updates/operations') { input = JSON.parse(options.body); throw Object.assign(Error('MODULE_EXCHANGE_BUSY'), { status: 409, code: 'MODULE_EXCHANGE_BUSY' }) }
+    // The first step's receipt was persisted before the later step was refused.
+    return { operation: { ...operation(plan, input.requestId), admission: 'pending' } }
+  }, saved)
+  await f.center.start(); f.select('notifications'); f.control('execute').handlers.click(); await settle()
+  f.control('execute').handlers.click(); await settle()
+  assert.equal(JSON.parse(saved.getItem(key)).requestId, input.requestId)
+  assert.ok(f.calls.some(call => call.path === `/api/updates/operations/${input.requestId}`))
+  assert.match(text(f.detail()), /状態: 切り替え中/)
+  assert.equal(f.calls.filter(call => call.path === '/api/updates/operations').length, 1)
+})
+
+test('a 4xx whose lookup is not proof (5xx, a 404 without the not-found code) keeps the request ID', async t => {
+  for (const failure of [Object.assign(Error('down'), { status: 503 }), Object.assign(Error('NOT_FOUND'), { status: 404, code: 'NOT_FOUND' })]) {
+    const { value, plan } = example(), saved = storage()
+    let input
+    const f = fixture(t, async (path, options) => {
+      if (path === '/api/updates?runtime=1') return value
+      if (path.endsWith('/plans')) return { plan }
+      if (path === '/api/updates/operations') { input = JSON.parse(options.body); throw Object.assign(Error('PLAN_STALE'), { status: 409 }) }
+      throw failure
+    }, saved)
+    await f.center.start(); f.select('notifications'); f.control('execute').handlers.click(); await settle()
+    f.control('execute').handlers.click(); await settle()
+    assert.equal(JSON.parse(saved.getItem(key)).requestId, input.requestId, failure.message)
+    f.center.close()
+  }
 })

@@ -95,7 +95,8 @@ test('badges follow the newest job and the server status: running with progress,
   assert.deepEqual([cardState(row('update_available', true, running), running).badge, cardState(row('update_available', true, running), running).step], ['更新中', 2])
   const failed = [job(base.id, 'failed', 5, { code: 'HOST_UPDATE_INSTALL_FAILED', message: 'x' })]
   assert.equal(cardState(row('update_available', true, failed), failed).badge, '失敗')
-  assert.equal(cardState(row('up_to_date', true, failed), failed).badge, '最新')
+  // W60: the newest failed job reads 失敗 even on a serving, up-to-date part.
+  assert.equal(cardState(row('up_to_date', true, failed), failed).badge, '失敗')
   assert.equal(cardState(row('update_available', false, failed), failed).badge, '要対応')
   assert.equal(cardState(row('up_to_date')).badge, '最新')
   // Owner rule: runtime parts update only with the body, so their badge is neutral, never an error.

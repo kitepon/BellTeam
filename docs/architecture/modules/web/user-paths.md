@@ -6,7 +6,7 @@ Input for this document: the production capture and review by Trony (2026-11-11,
 
 Apple keeps the same structure for Settings in [apple/settings-user-flow.md](../apple/settings-user-flow.md) (Rapi, branch `rapi/apple-auth-states`). Where both apps show the same thing, the words, badges and order are the same (section 9).
 
-Marks: **⚠Wn** = broken today (main 1e835b36), to be fixed. **✓Wn** = fixed (W5-W18, W21 and W24 in step 2a, branch `feat/web-home-roster-20261112`; W19-W20, W22-W23 and W25-W28 in step 2b-1, branch `feat/web-member-chat-20261112`; W29-W36 in step 2b-2, branch `feat/web-cards-room-20261112`). **→** = target. A transition without ⚠ already works and stays.
+Marks: **⚠Wn** = broken today (main 1e835b36), to be fixed. **✓Wn** = fixed (W5-W18, W21 and W24 in step 2a, branch `feat/web-home-roster-20261112`; W19-W20, W22-W23 and W25-W28 in step 2b-1, branch `feat/web-member-chat-20261112`; W29-W36 in step 2b-2, branch `feat/web-cards-room-20261112`; W60-W63 in step 3, branch `feat/web-update-center-20261112`). **→** = target. A transition without ⚠ already works and stays.
 
 ## 0. Rules every screen follows (acceptance bar)
 
@@ -423,12 +423,13 @@ stateDiagram-v2
   UReadErr --> UChecking: 「再確認」
 ```
 
-- ⚠W60 (review §5, state problem 1) A failed body job (`HOST_UPDATE_STORAGE_BINDING`) appears only inside the collapsed 詳細 job list while the title says 「すべて最新です」; a serving, up-to-date component suppresses its 失敗 badge, and runtime failures never reach the title (`update-center.js:99-114, 393-428`). → Title priority puts 「前回の更新は失敗しました」 above 「最新」 whenever the newest operation of any component failed, with a red band above the cards: plain sentence 「本体の更新が始まる前に止まりました。本番は前の版のままです。」 + what to do. It clears when a later operation of that component succeeds.
-- ⚠W61 Runtime cards carry 「新しい版 11/11 19:24」 inside an all-latest state (`update-center.js:513`, not guarded by `isRuntime`). → Runtime cards say 「次回起動で反映」 with a clock icon and no 新しい版 chip.
-- ⚠W62 The plan text 「この更新で変わること」 stays after the operation ended. → Shown only in UPlan.
-- ⚠W63 Inside 詳細: hashes, UUIDs, English kickers (`PRODUCT UPDATE`), `状態: ready`, codes, text overflowing cards, a disabled 「更新を実行できません」 with a generic reason. → 詳細 reuses the card layout; ids and codes only under サポート用の詳細 with a copy button; the run control appears only in UPlan; a disabled control always carries its real reason.
+- ✓W60 (review §5, state problem 1) A failed body job (`HOST_UPDATE_STORAGE_BINDING`) appears only inside the collapsed 詳細 job list while the title says 「すべて最新です」; a serving, up-to-date component suppresses its 失敗 badge, and runtime failures never reach the title (`update-center.js:99-114, 393-428`). → Title priority puts 「前回の更新は失敗しました」 above 「最新」 whenever the newest operation of any component failed, with a red band above the cards: plain sentence 「本体の更新が始まる前に止まりました。本番は前の版のままです。」 + what to do. It clears when a later operation of that component succeeds. Built: `cardState` no longer hides a failed newest job on a serving, up-to-date part; the band says 「本体の更新は途中で止まりました。本番は前の版のまま動いています。」 for the body and 「前の版のまま動いています。」 for a part.
+- ✓W61 Runtime cards carry 「新しい版 11/11 19:24」 inside an all-latest state (`update-center.js:513`, not guarded by `isRuntime`). → Runtime cards say 「◷ 次回起動で反映」 and never carry a 新しい版 chip.
+- ✓W62 The plan text 「この更新で変わること」 stays after the operation ended. → Shown only in UPlan (`renderDetail` appends it only while a plan is shown).
+- ✓W63 Inside 詳細: hashes, UUIDs, English kickers (`PRODUCT UPDATE`), `状態: ready`, codes, text overflowing cards, a disabled 「更新を実行できません」 with a generic reason. → Built so far: no English kicker; a job row says 「状態: 切り替え中」 etc. (順番待ち / 取り込み中 / 確認中 / 切り替え中 / 完了 / 失敗) and the failure message, with job ID, raw state and code under its own サポート用の詳細. Target, still open: 詳細 reuses the card layout; ids and codes only under サポート用の詳細 with a copy button; the run control appears only in UPlan; a disabled control always carries its real reason.
 - Header pill and Settings row use the same title (section 2.1, 4.1).
-- The beige-green theme stays only if Trony accepts it as the update center's own look; otherwise the app tokens (open point O2).
+- Theme (O2, Trony): the update center uses the app tokens, the same values as the Settings cards (violet primary), light and dark.
+- Request identity (job ledger contract, Root 2026-11-07): a kept or unknown older request is never a browser guard; server capability and admission decide. A failed start POST (any status) keeps its new request ID, because the job ledger can persist a step before a later 4xx; the same-ID read drops it only on proof that nothing was stored (404 `UPDATE_OPERATION_NOT_FOUND`), and any other answer keeps it for later same-ID reads.
 
 ## 6. Schedules, goals, work graph
 

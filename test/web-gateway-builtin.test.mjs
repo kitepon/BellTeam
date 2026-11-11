@@ -170,7 +170,9 @@ test('builtin予約はcompletion/同時拒否/cancel/closeを保ち現在nullと
 test('実Owner HTTP builtinの202後に実子切替し完了GETへ反映、未認証/内部は拒否する', { timeout: 5000 }, async t => {
   let control, pending
   const options = { bots: {}, rooms: {}, store: {}, transport: {}, administration: {},
-    authorize: request => request.headers.authorization === 'Bearer synthetic-owner', writeLog: () => {},
+    // The page shell's session check (GET /api/session only) passes, as in production: the gateway's ready probe (module-ready-probe,
+    // 2026-11-06) reads / without a token and the gateway asks GET /api/session for it. Every other method and API still needs the owner token.
+    authorize: request => request.method === 'GET' && request.url === '/api/session' || request.headers.authorization === 'Bearer synthetic-owner', writeLog: () => {},
     webGatewayControl: { snapshot: () => control.snapshot(), reserve: id => { pending = control.reserve(id); return pending } } }
   const backend = createBellTeamServer(options), f = await fixture(t, backend), gateway = f.create()
   control = createWebGatewayControl({ gateway: () => gateway })
@@ -180,6 +182,8 @@ test('実Owner HTTP builtinの202後に実子切替し完了GETへ反映、未�
   const request = (body, authenticated = true) => fetch(base + '/api/web-gateway-release', {
     method: 'POST', headers: authenticated ? headers : {}, body: JSON.stringify(body),
   })
+  // Only GET /api/session is open without the token (the page shell check); other methods still need it.
+  assert.equal((await fetch(base + '/api/session', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })).status, 401)
   assert.equal((await request({ versionId: 'builtin' }, false)).status, 401)
   assert.equal((await request({ versionId: 'builtin', path: f.roots.signed })).status, 400)
   assert.equal(gateway.pid, pid)
