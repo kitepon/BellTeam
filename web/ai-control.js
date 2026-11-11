@@ -11,7 +11,14 @@ export function validAiControl(value) {
 }
 
 // The view never infers ON/OFF from a failed PATCH. Only the server's value is shown.
-export function aiControlView(root, api) {
+// 設定のホームの一行と札。
+export const aiControlSummary = control => !control ? { line: '確認できません', badge: '確認できません', tone: 'attention' }
+  : control.state === 'enabled' ? { line: '動作中', badge: '', tone: '' }
+  : control.state === 'stopped' ? { line: '停止中', badge: '停止中', tone: 'attention' }
+  : control.state === 'stopping' ? { line: '止めています', badge: '途中', tone: 'info' }
+  : { line: `止まったか確かめられないメンバーが${control.unconfirmedBotIds.length}人います`, badge: '要確認', tone: 'attention' }
+
+export function aiControlView(root, api, { onChange = () => {} } = {}) {
   const toggle = root.querySelector('input')
   const status = root.querySelector('[role="status"]')
   const refresh = root.querySelector('button')
@@ -22,7 +29,9 @@ export function aiControlView(root, api) {
     toggle.disabled = busy || !control
     toggle.checked = control?.paused ?? false
     refresh.disabled = busy
-    status.textContent = busy ? '停止設定を変更しています…' : control ? `${labels[control.state]}${message ? `。${message}` : ''}` : '状態を確認できません。更新してください。'
+    const unconfirmed = control?.state === 'unconfirmed' && control.unconfirmedBotIds.length ? `（${control.unconfirmedBotIds.length}人）` : ''
+    status.textContent = busy ? '停止設定を変更しています…' : control ? `${labels[control.state]}${unconfirmed}${message ? `。${message}` : ''}` : '状態を確認できません。「確認し直す」を押してください。'
+    onChange(aiControlSummary(busy ? { state: 'stopping', unconfirmedBotIds: [] } : control))
   }
   const read = async message => {
     const token = ++generation

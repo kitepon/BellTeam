@@ -110,6 +110,16 @@ public sealed class GoalTests
         Assert.Equal("サーバーの文", Parse(Snapshot(availability: "unavailable").Replace("\"message\":null", "\"message\":\"サーバーの文\"")).UnavailableMessage);
     }
 
+    [Fact]
+    public void UnavailableReasonSeparatesAnIdleSeatFromAReadFailure()
+    {
+        var idle = Parse(Snapshot(availability: "unavailable", extra: ",\"reason\":\"seat_idle\""));
+        Assert.True(idle.IsIdle); Assert.Equal("休止中です。メッセージを送ると再開します。", idle.UnavailableMessage);
+        Assert.False(Parse(Snapshot(availability: "unavailable", extra: ",\"reason\":\"read_failed\"")).IsIdle);
+        Assert.False(Parse(Snapshot(availability: "unavailable")).IsIdle); // no reason (older server) = read failure
+        Assert.False(Parse(Snapshot(extra: ",\"reason\":null")).IsIdle);
+    }
+
     private static readonly GoalFields Combined = new(true, true, true), Separate = new(true, true, false), None = new(false, false, false);
     private static GoalSnapshot Editing(GoalFields create, GoalFields edit, bool hasGoal = true, bool createCapable = true, bool editCapable = true)
         => new("bot-a", GoalAvailability.Available, new(true, createCapable, editCapable, true, false, true), new(create, edit), new("s", "l", "t"),
@@ -356,6 +366,8 @@ public sealed class GoalTests
         snapshot = Snapshot(availability: "unavailable"); await model.LoadDetailAsync("bot-a");
         Assert.Equal("ゴールを取得できません", GoalPill.Title(model, "bot-a"));
         Assert.Equal("ゴールを取得できません", GoalPill.Title(model, "someone-else")); // a snapshot of another Bot is not this Bot's
+        snapshot = Snapshot(availability: "unavailable", extra: ",\"reason\":\"seat_idle\""); await model.LoadDetailAsync("bot-a");
+        Assert.Equal("休止中", GoalPill.Title(model, "bot-a"));
         snapshot = Snapshot(goal: Codex("complete")); await model.LoadDetailAsync("bot-a");
         Assert.Equal("完了", GoalPill.Title(model, "bot-a"));
     }

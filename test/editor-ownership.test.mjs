@@ -59,20 +59,24 @@ function ownerAPI(path,options){
  if(path==='/api/harness-auth')return {harnesses:[]}
  return {}
 }
-test('Owner profile/rules partial success is explicit and submits only captured rules once',async t=>{
+test('Owner profile and team rules save separately; rules submit only the captured text once and keep later edits',async t=>{
  const f=editorDOM(t),pending=deferred(),writes=[],saved=[]
  const editor=createOwnerEditor(f.dialog,{api:async(path,options)=>{
   if(!options?.method)return ownerAPI(path)
   writes.push({path,body:JSON.parse(options.body)})
-  if(path==='/api/owner')return pending.promise
-  throw Error('RULES_FAILED')
+  if(path==='/api/owner')return {owner:{name:'Saved'}}
+  return pending.promise
  },onOwner:value=>saved.push(value),onSettings(){}})
  await editor.open({name:'Owner'})
- f.get('user-rules').value='captured rules';const saving=f.submit('owner-form');await f.submit('owner-form')
- f.get('user-rules').value='new unsaved rules';f.get('owner-form').handlers.input()
- pending.resolve({owner:{name:'Saved'}});await saving
- assert.deepEqual(writes.map(x=>x.path),['/api/owner','/api/user-rules']);assert.equal(writes[1].body.text,'captured rules');assert.equal(saved[0].name,'Saved')
- assert.equal(f.get('user-rules').value,'new unsaved rules');assert.match(f.get('owner-form-error').textContent,/プロフィールは保存しました。ユーザー規範を保存できません/);assert.equal(f.dialog.open,true)
+ await f.submit('owner-form')
+ assert.deepEqual(writes.map(x=>x.path),['/api/owner']);assert.equal(saved[0].name,'Saved')
+ assert.match(f.get('owner-form-status').textContent,/保存しました/);assert.equal(f.dialog.open,true)
+ f.get('rules-edit').handlers.click()
+ f.get('user-rules').value='captured rules';const saving=f.submit('rules-form');await f.submit('rules-form')
+ f.get('user-rules').value='new unsaved rules';f.get('rules-form').handlers.input()
+ pending.resolve({});await saving
+ assert.deepEqual(writes.map(x=>x.path),['/api/owner','/api/user-rules']);assert.equal(writes[1].body.text,'captured rules')
+ assert.equal(f.get('user-rules').value,'new unsaved rules');assert.match(f.get('rules-status').textContent,/あとから書いた内容は入力欄に残しています/);assert.equal(f.dialog.open,true)
 })
 test('Owner old read/old save cannot overwrite or close a reopened owner form',async t=>{
  const f=editorDOM(t),first=deferred(),write=deferred();let ruleReads=0
@@ -98,7 +102,7 @@ test('Owner profile save keeps a separate unsaved background-agent selection ope
  const root=f.get('background-agent-form'),harness=root.querySelector('[data-background-harness]')
  harness.value='codex';harness.handlers.change()
  await f.submit('owner-form')
- assert.deepEqual(writes,['/api/owner','/api/user-rules'])
+ assert.deepEqual(writes,['/api/owner'])
  assert.equal(f.dialog.open,true);assert.equal(harness.value,'codex')
- assert.match(f.get('owner-form-error').textContent,/保存しました/)
+ assert.match(f.get('owner-form-status').textContent,/保存しました/)
 })

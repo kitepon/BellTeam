@@ -1,5 +1,5 @@
-// Claudeの「1stアカウント」「2ndアカウント」。表示文と時刻はexecutionの契約どおり。枠の選択・上限の判定はサーバーが持つ。
-export const slotTitle = slot => ({ '1st': '1stアカウント', '2nd': '2ndアカウント' })[slot] ?? null
+// Claudeの「1つ目のアカウント」「2つ目のアカウント」（Appleと同じ名前）。時刻はexecutionの契約どおり。枠の選択・上限の判定はサーバーが持つ。
+export const slotTitle = slot => ({ '1st': '1つ目のアカウント', '2nd': '2つ目のアカウント' })[slot] ?? null
 
 const jst = (iso, part) => new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', ...part }).format(new Date(iso))
 
@@ -48,54 +48,62 @@ export function seatBadge(account) {
   return title ? { text: title, title: `${title}で動作中` } : null
 }
 
+// 上限の一行（Appleと同じ文）。「上限中・11/13 17:00 に戻ります（いまは2つ目で動いています）」。
+// 括弧は、この枠だけが上限でもう一方が使える時だけ。どちらへ動くかはサーバーが決めるので、使える方を言うだけにする。
+export function slotLimitLines(slot, other, now = Date.now()) {
+  const limits = Array.isArray(slot?.limits) ? slot.limits : []
+  const otherFree = other && other.loggedIn === true && !(Array.isArray(other.limits) && other.limits.length)
+  const moved = otherFree ? `（いまは${other.slot === '2nd' ? '2つ目' : '1つ目'}で動いています）` : ''
+  return limits.map(item => {
+    const scope = item?.scope, time = resetTime(item?.resetAt, now)
+    const family = typeof scope === 'string' && scope !== 'all' && scope ? `${scope[0].toUpperCase()}${scope.slice(1)}が` : ''
+    return `${family}上限中・${time ? `${time} に戻ります` : '戻る時刻は分かりません'}${moved}`
+  })
+}
+
 // 設定のClaude欄。renderSlotAuthは既存のharness-auth行（slot付き）を作る関数で、harness-auth.jsが渡す。
+// アカウントのメールアドレスは、どのアカウントでログインするかを見分けるため、この画面でだけ枠の名前の下に出す（トロニー裁定 2026-11-11）。
 export function renderClaudeAccounts(harness, list, { api, renderSlotAuth, now = () => Date.now() }) {
   const section = document.createElement('section')
   section.className = 'feature-setting harness-auth harness-accounts'
   section.dataset.harnessId = 'claude'
   const heading = document.createElement('h4')
-  const banner = document.createElement('p')
-  banner.className = 'accounts-banner'
-  banner.setAttribute('role', 'status')
   const rows = document.createElement('div')
   rows.className = 'account-slots'
-  section.append(heading, banner, rows)
-  const stops = []
+  section.append(heading, rows)
+  const stops = [], renders = []
   const slotRows = new Map()
   let current = list
   let stopped = false
+  const slots = () => claudeAccounts(current)?.slots ?? []
 
   function paint() {
     heading.textContent = harness.members > 0 ? `${harness.name} · ${harness.members}人が使用` : `${harness.name} · 使用していません`
-    const texts = bannerTexts(current, now())
-    banner.hidden = !texts.length
-    banner.textContent = texts.join(' / ')
-    for (const slot of claudeAccounts(current)?.slots ?? []) {
-      const view = slotView(slot, now())
-      if (!view.title) continue
-      let row = slotRows.get(view.slot)
+    for (const slot of slots()) {
+      const title = slotTitle(slot?.slot)
+      if (!title) continue
+      let row = slotRows.get(slot.slot)
       if (!row) {
-        row = { element: document.createElement('div'), info: document.createElement('dl') }
+        row = { element: document.createElement('div'), limit: document.createElement('p') }
         row.element.className = 'account-slot'
-        row.element.dataset.slot = view.slot
-        const title = Object.assign(document.createElement('h5'), { textContent: view.title })
-        const auth = renderSlotAuth(harness, { slot: view.slot, onAuthenticated: () => void refresh() })
+        row.element.dataset.slot = slot.slot
+        row.limit.className = 'account-limit'
+        const auth = renderSlotAuth(harness, { slot: slot.slot, title, label: slot.label || null,
+          signedOutAt: () => slots().find(item => item?.slot === slot.slot)?.signedOutAt ?? null, onAuthenticated: () => void refresh() })
         stops.push(auth.stop)
-        row.element.append(title, row.info, auth.element)
+        if (auth.render) renders.push(auth.render)
+        row.element.append(auth.element, row.limit)
         rows.append(row.element)
-        slotRows.set(view.slot, row)
+        slotRows.set(slot.slot, row)
       }
-      row.element.classList.toggle('limited', view.limited)
-      const items = [['アカウント', view.login], ['状態', view.state || '—'], ['使用中', view.seats === null ? '未確認' : `${view.seats}人`]]
-      if (view.separate) items.push(['会話の履歴', '1stアカウントと分かれています'])
-      row.info.replaceChildren(...items.flatMap(([term, value]) => [
-        Object.assign(document.createElement('dt'), { textContent: term }),
-        Object.assign(document.createElement('dd'), { textContent: value, className: term === '状態' && view.limited ? 'limited' : '' }),
-      ]))
+      const lines = slotLimitLines(slot, slots().find(item => item?.slot && item.slot !== slot.slot), now())
+      row.element.classList.toggle('limited', lines.length > 0)
+      row.limit.textContent = lines.join('\n')
+      row.limit.hidden = !lines.length
     }
   }
   async function refresh() {
-    try { const next = await api('/api/accounts'); if (!stopped && claudeAccounts(next)) { current = next; paint() } } catch { /* 前の表示を残す。読めない時に状態を作らない */ }
+    try { const next = await api('/api/accounts'); if (!stopped && claudeAccounts(next)) { current = next; paint(); for (const render of renders) render() } } catch { /* 前の表示を残す。読めない時に状態を作らない */ }
   }
   paint()
   return { element: section, refresh, stop() { stopped = true; for (const stop of stops) stop() } }

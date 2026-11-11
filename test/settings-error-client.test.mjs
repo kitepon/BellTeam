@@ -27,11 +27,14 @@ test('有効な機能でも反映エラーを表示し、秘密の値を表示�
       error: { code: 'RELAY_CONNECT_FAILED', message: '<通知送信サービスへ接続できませんでした。>', detail: 'DO_NOT_DISPLAY' },
     }, { id: 'routing', title: '自動選択', enabled: false, status: 'unconfigured', fields: [] }], { api() {}, onChange() {} })
     const failed = container.children[0]
-    assert.equal(failed.children[0].textContent, '通知 · 反映エラー')
-    assert.equal(failed.children[1].textContent, 'RELAY_CONNECT_FAILED: <通知送信サービスへ接続できませんでした。>')
-    assert.equal(failed.children[1].attributes.role, 'alert')
-    assert.equal(container.children[1].children[0].textContent, '自動選択 · 未設定')
     function descendants(element) { return [element, ...element.children.flatMap(descendants)] }
+    const texts = element => descendants(element).map(item => item.textContent).filter(Boolean)
+    // 名前・札・一文・「変更」。符号は閉じた「詳細」の中だけ。
+    assert.deepEqual(texts(failed.children[0]), ['通知', 'エラー', 'iPhoneアプリへ通知を送ります。', '変更'])
+    assert.deepEqual(texts(failed.children[1]), ['<通知送信サービスへ接続できませんでした。>', '詳細', 'RELAY_CONNECT_FAILED'])
+    assert.equal(failed.children[1].children[1].tag, 'details')
+    assert.equal(failed.children[1].attributes.role, 'alert')
+    assert.deepEqual(texts(container.children[1].children[0]), ['自動選択', '未設定', 'ルームで、誰が返事をするかをAIが選びます。', '設定する'])
     const elements = descendants(container)
     assert.equal(elements.find(item => item.type === 'password').value, '')
     assert.equal(elements.some(item => item.textContent.includes('DO_NOT_DISPLAY')), false)
@@ -42,8 +45,8 @@ test('有効な機能でも反映エラーを表示し、秘密の値を表示�
       fields: [{ key: 'token', secret: true, configured: false }],
       error: { code: 'RELAY_RESPONSE_FAILED', message: '送信サービスの応答が不正です。' },
     }])
-    assert.equal(failed.children[0].textContent, '通知 · 反映エラー')
-    assert.equal(failed.children[1].textContent, 'RELAY_RESPONSE_FAILED: 送信サービスの応答が不正です。')
+    assert.ok(texts(failed.children[0]).includes('エラー'))
+    assert.deepEqual(texts(failed.children[1]), ['送信サービスの応答が不正です。', '詳細', 'RELAY_RESPONSE_FAILED'])
     assert.equal(input.value, '編集中の新しい合言葉')
     assert.equal(input.placeholder, '未設定')
     refreshFeatureSettingsStatus(container, [{ id: 'notifications', title: '通知', status: 'enabled' }])
@@ -66,11 +69,12 @@ test('1Password連携: 押下中は確かめ中と示し、PATCH応答の結果�
       renderFeatureSettings(container, [item()], { onChange: async () => {}, api: () => new Promise((resolve, reject) => { release = () => answer instanceof Error ? reject(answer) : resolve(answer) }) })
       const form = container.children[0].children.find(child => child.tag === 'form')
       const result = form.children.find(child => child.className === 'feature-result'), save = form.children.at(-1)
-      form.children.find(child => child.tag === 'label' && child.className === 'field').children[1].value = 'ops_secret'
+      const token = form.children.find(child => child.tag === 'label' && child.className === 'field').children[1]
+      token.value = 'ops_secret'
       const submitted = form.handlers.submit({ preventDefault() {} })
       Object.assign(seen, { busy: save.textContent, aria: save.attributes['aria-busy'], disabled: save.disabled, checking: result.textContent, hidden: result.hidden })
       release(); await submitted
-      return { ...seen, after: save.textContent, afterAria: save.attributes['aria-busy'], result: result.hidden ? null : result.textContent, state: result.dataset.state, error: form.children.find(child => child.className === 'form-error').textContent }
+      return { ...seen, token: token.value, after: save.textContent, afterAria: save.attributes['aria-busy'], result: result.hidden ? null : result.textContent, state: result.dataset.state, error: [form.children.find(child => child.className === 'form-error')].flatMap(function all(item) { return [item.textContent, ...item.children.flatMap(all)] }).filter(Boolean).join('') }
     }
     const ok = await run({ setting: item({ enabled: true, status: 'enabled', connection: { vaults: ['開発工場'], sshKeys: 3 } }) })
     assert.deepEqual([ok.busy, ok.aria, ok.disabled, ok.checking, ok.hidden], ['連携を確かめています…', 'true', true, '1Passwordにつないで確かめています…', false])
@@ -81,7 +85,7 @@ test('1Password連携: 押下中は確かめ中と示し、PATCH応答の結果�
     const off = await run({ setting: item({ enabled: false, status: 'disabled' }) })
     assert.equal(off.result, '連携を解除しました。')
     const refused = await run(new Error('有効にするには必要な項目を登録してください。'))
-    assert.equal(refused.result, null); assert.equal(refused.error, '有効にするには必要な項目を登録してください。')
+    assert.equal(refused.result, null); assert.equal(refused.token, 'ops_secret'); assert.equal(ok.token, ''); assert.equal(refused.error, '保存できませんでした。有効にするには必要な項目を登録してください。')
   } finally { globalThis.document = previous }
 })
 
@@ -97,5 +101,43 @@ test('1Password連携: 失敗理由はカード内の結果行に一度だけ出
     const texts = descendants(container).map(item => item.textContent).filter(text => text.includes(message))
     assert.deepEqual(texts, [`連携できませんでした。${message}`])
     assert.equal(descendants(container).find(item => item.className === 'feature-result').hidden, false)
+  } finally { globalThis.document = previous }
+})
+
+test('機能の保存: 応答待ちの間に書いた入力と未保存の印は残り、保存中は閉じる時に聞ける', async () => {
+  const previous = globalThis.document
+  class Live extends Element {
+    constructor(tag) { super(tag); this.handlers = {} }
+    addEventListener(type, handler) { this.handlers[type] = handler }
+    removeAttribute(key) { delete this.attributes[key] }
+    querySelectorAll(selector) {
+      const [, tag, key] = selector.match(/^(\w+)\[data-(\w+)\]$/u) ?? []
+      return key ? super.querySelectorAll(tag).filter(item => Object.hasOwn(item.dataset, key)) : super.querySelectorAll(selector)
+    }
+  }
+  globalThis.document = { createElement: tag => new Live(tag), createTextNode: text => Object.assign(new Live('#text'), { textContent: text }) }
+  const { featureFormsDirty, featureFormsSaving } = await import('../web/onboarding.js')
+  try {
+    const setting = { id: 'discord', title: 'Discord', enabled: true, status: 'enabled', fields: [
+      { key: 'token', label: 'トークン', secret: true, value: '', configured: true },
+      { key: 'other', label: '鍵', secret: true, value: '', configured: true },
+    ] }
+    const container = new Live('div')
+    let release
+    renderFeatureSettings(container, [setting], { onChange: async () => {}, api: () => new Promise(resolve => { release = resolve }) })
+    const form = container.children[0].children.find(child => child.tag === 'form')
+    const [token, other] = form.children.filter(child => child.tag === 'label' && child.className === 'field').map(label => label.children[1])
+    token.value = 'sent'; other.value = 'sent-too'; form.handlers.input()
+    const submitted = form.handlers.submit({ preventDefault() {} })
+    assert.equal(featureFormsSaving(container), true)
+    other.value = 'typed-while-saving'; form.handlers.input()
+    release({}); await submitted
+    assert.equal(token.value, '')
+    assert.equal(other.value, 'typed-while-saving')
+    assert.equal(featureFormsDirty(container), true)
+    assert.equal(featureFormsSaving(container), false)
+    const again = form.handlers.submit({ preventDefault() {} })
+    release({}); await again
+    assert.equal(other.value, ''); assert.equal(featureFormsDirty(container), false)
   } finally { globalThis.document = previous }
 })

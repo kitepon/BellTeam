@@ -251,7 +251,7 @@ public sealed class GoalPill : StackPanel
         if (!goals.Loaded) return goals.ErrorText is null ? "ゴールを確認中" : "ゴールを取得できません";
         return goals.CurrentSnapshot(botId) is not { } snapshot ? "ゴールを取得できません" : snapshot.Availability switch
         {
-            GoalAvailability.Unsupported => "ゴール未対応", GoalAvailability.Unavailable => "ゴールを取得できません", _ => snapshot.StatusTitle
+            GoalAvailability.Unsupported => "ゴール未対応", GoalAvailability.Unavailable => snapshot.IsIdle ? "休止中" : "ゴールを取得できません", _ => snapshot.StatusTitle
         };
     }
 

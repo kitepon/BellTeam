@@ -1,5 +1,5 @@
 export class Element {
-  value = ''; files = []; children = []; handlers = {}; style = {}; disabled = false; open = false
+  value = ''; files = []; children = []; handlers = {}; style = {}; dataset = {}; disabled = false; open = false
   classList = { toggle() {}, add() {} }
   addEventListener(name, fn) { this.handlers[name] = fn }
   setAttribute() {}

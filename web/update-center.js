@@ -113,7 +113,9 @@ export function cardState(item, records = []) {
   return { badge, tone, job, step: 0 }
 }
 
-export function createUpdateCenter({ root, api, buttons, storage }) {
+export function createUpdateCenter({ root, api, buttons, storage, onSummary = () => {} }) {
+  // The header summary (title, tone) is also the Settings 「アップデート」 row line.
+  let lastSummary = null
   const get = selector => root.querySelector(selector)
   const list = get('[data-update-components]'), detail = get('[data-update-detail]')
   const product = get('[data-update-product]')
@@ -426,6 +428,8 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
     if (!selectedPlan && !readError && inventory) description = running.length ? '進み具合はこの画面で確認できます。閉じても更新は続きます。'
       : title === 'すべて最新です' ? `${product_.length}つの機能はどれも最新版です。`
       : title === '更新できるものはすべて最新です' ? `${waiting.map(item => item.name).join('・')}は、いまの本体に合う版がまだありません。合う版が出ると、ここで更新できます。` : updatable.length ? '更新したい機能の「更新」を押してください。' : ''
+    lastSummary = { title, tone }
+    onSummary(lastSummary)
     product.replaceChildren()
     product.dataset.tone = tone
     const header = element('header', 'update-summary')
@@ -721,5 +725,5 @@ export function createUpdateCenter({ root, api, buttons, storage }) {
   get('[data-update-close]').addEventListener('click', () => root.close())
   root.addEventListener('close', () => { confirmed = false; opener?.focus() })
   render()
-  return { start() { opened = true; return refresh() }, open, refresh, close() { disposed = true; generation++; planGeneration++ } }
+  return { start() { opened = true; return refresh() }, open, refresh, summary: () => lastSummary, close() { disposed = true; generation++; planGeneration++ } }
 }

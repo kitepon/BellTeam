@@ -31,8 +31,9 @@ export function createWebApp({ client = createWebClient() } = {}) {
   const READ_RECEIPTS_KEY = 'bellteam-read-receipts.v1'
 
   const app = document.querySelector('#app')
+  let updatesChanged = () => {}
   const updateCenter = createUpdateCenter({ root: document.querySelector('#update-center'), api,
-    buttons: [document.querySelector('#update-open'), document.querySelector('#update-open-mobile')] })
+    buttons: [document.querySelector('#update-open'), document.querySelector('#update-open-mobile')], onSummary: () => updatesChanged() })
   const goals = goalsView(document.querySelector('#goals-dialog'), api, () => state.bots, document.querySelector('#chat-goal'))
   document.querySelector('#goals-button').addEventListener('click', () => { void goals.open() })
   const terminals = createTerminalsView(document.querySelector('#terminals-dialog'), { api })
@@ -205,6 +206,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
   })
 
   const ownerEditor = createOwnerEditor(ownerDialog, { api,
+    onOpenUpdates: button => updateCenter.open(button), updateSummary: () => updateCenter.summary(),
     onOwner: owner => { catalogueRead++; state.owner = owner; renderOwner() },
     onSettings: (settings, authMode) => {
       state.settings = settings
@@ -212,6 +214,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
       if (state.selectedType === 'room') renderTargetPicker(state.selected)
     },
   })
+  updatesChanged = () => ownerEditor.refreshUpdates()
 
   const notificationNotice = document.querySelector('#notification-route-notice')
   const notifications = createNotificationNavigation({

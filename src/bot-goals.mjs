@@ -8,6 +8,9 @@ const fieldCapabilities = (capabilities, fields) => Object.fromEntries(['create'
   combined: capabilities[action] && (fields ? fields[action].objective && fields[action].token_budget && fields[action].combined !== false : true),
 }]))
 const failure = (code, status, message) => Object.assign(new Error(message), { code, status, publicMessage: message })
+const failedMessage = 'ゴールの状態を取得できません。更新して確認してください。'
+// The seat is not running now: a normal state, not a read failure. The next send resumes it.
+const idleMessage = '休止中です。メッセージを送ると再開します。'
 const validLaunch = id => typeof id === 'string' && /^[0-9a-f]{32}$/u.test(id)
 const validGoal = (goal, thread) => goal === null || goal && goal.threadId === thread
   && typeof goal.objective === 'string' && goal.objective.trim() && statuses.has(goal.status)
@@ -70,9 +73,10 @@ export class BotGoals {
   constructor({ transport, admitWork = () => () => {}, reportError = async () => {}, now = () => new Date().toISOString() }) {
     this.transport = transport; this.admitWork = admitWork; this.reportError = reportError; this.now = now
   }
-  unavailable(bot, message = 'ゴールの状態を取得できません。更新して確認してください。') {
+  unavailable(bot, reason = 'read_failed') {
     const capabilities = noCapabilities()
-    return { botId: bot.id, availability: 'unavailable', capabilities, fieldCapabilities: fieldCapabilities(capabilities), binding: null, observedAt: this.now(), message }
+    return { botId: bot.id, availability: 'unavailable', reason, capabilities, fieldCapabilities: fieldCapabilities(capabilities), binding: null,
+      observedAt: this.now(), message: reason === 'seat_idle' ? idleMessage : failedMessage }
   }
   async list(bots) {
     if (!bots.length) return []
@@ -81,7 +85,7 @@ export class BotGoals {
     catch (error) { await this.reportError(error); return bots.map(bot => this.unavailable(bot)) }
     return Promise.all(bots.map(bot => {
       const target = targets.get(bot.id)
-      if (!target) return this.unavailable(bot)
+      if (!target) return this.unavailable(bot, 'seat_idle')
       if (!Object.hasOwn(target, 'launch_id')) return this.inspect(bot)
       return validLaunch(target.launch_id) ? this.inspect(bot, target) : this.unavailable(bot)
     }))
@@ -91,8 +95,11 @@ export class BotGoals {
     const session = this.transport.session(bot)
     // Normal pty_observe reads an existing launch. It does not wake a Bot.
     const observation = await this.transport.observe(bot)
-    if (observation?.schema !== 'aiterm.pty-observe-result.v1' || observation.session_id !== session
-      || observation.exists !== true || !validLaunch(observation.launch_id)) throw failure('GOAL_UNAVAILABLE', 503, 'このメンバーのゴールを現在取得できません。')
+    const valid = observation?.schema === 'aiterm.pty-observe-result.v1' && observation.session_id === session
+    // shortcut: a dormant seat is read from Aiterm's reason "agent_<state>"; upgrade when pty_observe names dormancy itself.
+    const idle = valid && (observation.exists === false || observation.pane_alive === false || /^agent_/u.test(observation.reason ?? ''))
+    if (!valid || idle || observation.exists !== true || !validLaunch(observation.launch_id))
+      throw Object.assign(failure('GOAL_UNAVAILABLE', 503, 'このメンバーのゴールを現在取得できません。'), { seatIdle: idle })
     return { session_id: session, launch_id: observation.launch_id }
   }
   async call(args, ownerAction = false) {
@@ -143,13 +150,13 @@ export class BotGoals {
       capabilities.pause &&= goalStatus(result.goal) === 'active'
       capabilities.resume &&= goalStatus(result.goal) === 'paused'
     }
-    return { botId: bot.id, availability, capabilities, fieldCapabilities: fieldCapabilities(capabilities, result.field_capabilities),
+    return { botId: bot.id, availability, reason: availability === 'unavailable' ? 'read_failed' : null, capabilities, fieldCapabilities: fieldCapabilities(capabilities, result.field_capabilities),
       binding: result.binding ? { sessionId: result.binding.session_id, launchId: result.binding.launch_id, threadId: result.binding.thread_id } : null,
       ...(Object.hasOwn(result, 'goal') ? { goal: structuredClone(result.goal) } : {}),
       ...(Object.hasOwn(result, 'native_history') ? { nativeHistory: structuredClone(result.native_history) } : {}),
       observedAt: result.observed_at,
       message: availability === 'available' ? null : availability === 'unsupported'
-        ? 'このメンバーではゴール機能をまだ利用できません。' : 'ゴールの状態を取得できません。更新して確認してください。' }
+        ? 'このメンバーではゴール機能をまだ利用できません。' : failedMessage }
   }
   async inspect(bot, target = null) {
     try {
@@ -159,7 +166,7 @@ export class BotGoals {
     }
     catch (error) {
       if (error.code !== 'GOAL_UNAVAILABLE') await this.reportError(error)
-      return this.unavailable(bot)
+      return this.unavailable(bot, error.seatIdle ? 'seat_idle' : 'read_failed')
     }
   }
   async mutate(bot, input, { origin } = {}) {

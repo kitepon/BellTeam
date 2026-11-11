@@ -63,7 +63,7 @@ HTTPでは`healthz`だけ先に返し、`session`は認証判定を返す。そ�
 | GET `/schedules`、GET/POST `/{bots,rooms}/:id/schedules`、PUT/DELETE `/:schedule` | `members/schedules-http` → 各Registry | [予定正本](modules/members/schedules.md)の一覧・変更・削除。既http-schedule-api exportを保持 |
 | POST `/{bots,rooms}/:id/schedules/:schedule/run` | `BotScheduler.runBotSchedule/runRoomSchedule` | 手動発行。次回時刻・enabledは変えない |
 | GET `/{bots,rooms}/:id/export` | `createConversationApi` → `timeline/webMessage` | 履歴projectionを書き出す。実行・原本変更なし |
-| GET `/goals`、GET/POST `/bots/:bot/goal` | `BotGoals` → Aiterm | nativeが正本。内部HTTPからmutationを許さない |
+| GET `/goals`、GET/POST `/bots/:bot/goal` | `BotGoals` → Aiterm | nativeが正本。内部HTTPからmutationを許さない。unavailableの`reason`で休止中（`seat_idle`）と取得失敗（`read_failed`）を分ける（[Goal](control-details.md#goalは本体に複製せずnativeの対象を確認する)） |
 
 制御系は[利用支援詳細](support-details.md)、台帳と予定は[台帳・予定詳細](registry-details.md)、会話画面は[Web詳細](web-details.md)へ続く。
 

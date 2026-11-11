@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-11T18:38:04Z",
-  "expiresAt": "2026-11-18T18:38:04Z",
+  "publishedAt": "2026-11-11T19:43:13Z",
+  "expiresAt": "2026-11-18T19:43:13Z",
   "releases": [
     {
       "componentId": "usage",
@@ -427,8 +427,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "bfa089b9aafeac791df422d056bdef760d3f6b70",
-      "versionId": "73d484ca1cf3acda9adf9daa629a341b0df5a7f2de472c6fe1fc4768a743f982",
+      "sourceCommit": "4090bd51b6a1366051945456471ec782028e4c32",
+      "versionId": "edc406a89fb786eeff697d808bebf535fb244f16212459b918324a6c1edfccb7",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +436,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T143506Z/web-gateway-bfa089b9aafeac791df422d056bdef760d3f6b70-linux-amd64.tar.gz",
-          "bytes": 5240164,
-          "sha256": "73d484ca1cf3acda9adf9daa629a341b0df5a7f2de472c6fe1fc4768a743f982"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T194217Z/web-gateway-4090bd51b6a1366051945456471ec782028e4c32-linux-amd64.tar.gz",
+          "bytes": 5258890,
+          "sha256": "edc406a89fb786eeff697d808bebf535fb244f16212459b918324a6c1edfccb7"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T143506Z/web-gateway-bfa089b9aafeac791df422d056bdef760d3f6b70-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11287,
-          "sha256": "48f220c82be516af9b76b4a90f978685760ad568c8e85dabd8138ce4747a20d7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T194217Z/web-gateway-4090bd51b6a1366051945456471ec782028e4c32-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11209,
+          "sha256": "9a94d1b2c481a31928ee9015f75ec1a5705fc544563b424b030e5b1fbc326393"
         },
-        "signerCommit": "bfa089b9aafeac791df422d056bdef760d3f6b70"
+        "signerCommit": "4090bd51b6a1366051945456471ec782028e4c32"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,13 +454,15 @@
         "containerUpdate": null
       },
       "changes": [
-        "画面上部の「工程表」ボタンから、Botが作った工程表の一覧を開き、作業中・待ちの様子とその流れを見られるようになります。"
+        "画面上部の「工程表」ボタンから、Botが作った工程表の一覧を開き、作業中・待ちの様子とその流れを見られるようになります。",
+        "設定画面を作り直しました。",
+        "チャットのゴールの欄で、席が動いていないだけのときは「休止中」と表示します。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "bfa089b9aafeac791df422d056bdef760d3f6b70",
-      "versionId": "b96a715a7fd2b8f7de9ce51698d0403a28a1b9f57d5545e776a0abb6caf77157",
+      "sourceCommit": "4090bd51b6a1366051945456471ec782028e4c32",
+      "versionId": "965e716996f75ebf6fb94df3e5db0ff75e9da1319c6a30fd20fa7d3254b71b49",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -468,16 +470,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T143506Z/web-gateway-bfa089b9aafeac791df422d056bdef760d3f6b70-linux-arm64.tar.gz",
-          "bytes": 5240164,
-          "sha256": "b96a715a7fd2b8f7de9ce51698d0403a28a1b9f57d5545e776a0abb6caf77157"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T194217Z/web-gateway-4090bd51b6a1366051945456471ec782028e4c32-linux-arm64.tar.gz",
+          "bytes": 5258890,
+          "sha256": "965e716996f75ebf6fb94df3e5db0ff75e9da1319c6a30fd20fa7d3254b71b49"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T143506Z/web-gateway-bfa089b9aafeac791df422d056bdef760d3f6b70-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11287,
-          "sha256": "c46a2b650d2a566cac767faa437921fe265a15f160185679b7f506e5500fd4cd"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T194217Z/web-gateway-4090bd51b6a1366051945456471ec782028e4c32-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11162,
+          "sha256": "0a198535378fc358149e05abedd1e94c4461adda9287aa457e868c49cd287ca9"
         },
-        "signerCommit": "bfa089b9aafeac791df422d056bdef760d3f6b70"
+        "signerCommit": "4090bd51b6a1366051945456471ec782028e4c32"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -486,13 +488,15 @@
         "containerUpdate": null
       },
       "changes": [
-        "画面上部の「工程表」ボタンから、Botが作った工程表の一覧を開き、作業中・待ちの様子とその流れを見られるようになります。"
+        "画面上部の「工程表」ボタンから、Botが作った工程表の一覧を開き、作業中・待ちの様子とその流れを見られるようになります。",
+        "設定画面を作り直しました。",
+        "チャットのゴールの欄で、席が動いていないだけのときは「休止中」と表示します。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "e4180d5177fc7bd35f49132bf4e295a647f0e103",
-      "versionId": "d0acdcb76da3d206f81064db68e48ffd4ecd90438a3a4abd5d5c386c5429024d",
+      "sourceCommit": "89037fc540a643571cfd989b6fb3fdb5546275e6",
+      "versionId": "572932e1fb56d4a0f2064d4f8c4933753797cee763552a7d7bbbaa858a20c369",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +504,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T183603Z/execution-e4180d5177fc7bd35f49132bf4e295a647f0e103-linux-amd64.tar.gz",
-          "bytes": 3959550,
-          "sha256": "d0acdcb76da3d206f81064db68e48ffd4ecd90438a3a4abd5d5c386c5429024d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T193743Z/execution-89037fc540a643571cfd989b6fb3fdb5546275e6-linux-amd64.tar.gz",
+          "bytes": 3960054,
+          "sha256": "572932e1fb56d4a0f2064d4f8c4933753797cee763552a7d7bbbaa858a20c369"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T183603Z/execution-e4180d5177fc7bd35f49132bf4e295a647f0e103-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11020,
-          "sha256": "d0ab50cee791f133294331147571cf2273baefc9ebf3bcef1ebace4d29e12fd4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T193743Z/execution-89037fc540a643571cfd989b6fb3fdb5546275e6-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11083,
+          "sha256": "91cd02e09c0d2b25f01d7914b23154d79e13ce72cc5496eb727e6f16dc18d8de"
         },
-        "signerCommit": "e4180d5177fc7bd35f49132bf4e295a647f0e103"
+        "signerCommit": "89037fc540a643571cfd989b6fb3fdb5546275e6"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +523,14 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "作業が終わらないまま止まっているメンバー（ログインが切れたClaudeなど）も、削除できるようにしました。削除のときに席を閉じ、古い届け物を終わらせます。"
+        "作業が終わらないまま止まっているメンバー（ログインが切れたClaudeなど）も、削除できるようにしました。削除のときに席を閉じ、古い届け物を終わらせます。",
+        "席が動いていないだけのメンバーのゴールを、読み取りの失敗ではなく「休止中」と返すようにしました。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "e4180d5177fc7bd35f49132bf4e295a647f0e103",
-      "versionId": "4e95fa2a4976cf49aac16d41879f5bf0d6f5e50c5d9480be3547ad88ed00e1ee",
+      "sourceCommit": "89037fc540a643571cfd989b6fb3fdb5546275e6",
+      "versionId": "7b3d9fe596a89a76aa7fa84642d06c47ad5bebc2f36768ff11d3c762a434d0a6",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +538,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T183603Z/execution-e4180d5177fc7bd35f49132bf4e295a647f0e103-linux-arm64.tar.gz",
-          "bytes": 3959555,
-          "sha256": "4e95fa2a4976cf49aac16d41879f5bf0d6f5e50c5d9480be3547ad88ed00e1ee"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T193743Z/execution-89037fc540a643571cfd989b6fb3fdb5546275e6-linux-arm64.tar.gz",
+          "bytes": 3960056,
+          "sha256": "7b3d9fe596a89a76aa7fa84642d06c47ad5bebc2f36768ff11d3c762a434d0a6"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T183603Z/execution-e4180d5177fc7bd35f49132bf4e295a647f0e103-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11161,
-          "sha256": "b806b4c366216948d1845bbb1fb570b58d9919e174987b892b7c77408d26beea"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T193743Z/execution-89037fc540a643571cfd989b6fb3fdb5546275e6-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10942,
+          "sha256": "04003f313d401ee23e18e53b617eb715f8bf6195f8e215979997df5c2128f9dd"
         },
-        "signerCommit": "e4180d5177fc7bd35f49132bf4e295a647f0e103"
+        "signerCommit": "89037fc540a643571cfd989b6fb3fdb5546275e6"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,7 +557,8 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "作業が終わらないまま止まっているメンバー（ログインが切れたClaudeなど）も、削除できるようにしました。削除のときに席を閉じ、古い届け物を終わらせます。"
+        "作業が終わらないまま止まっているメンバー（ログインが切れたClaudeなど）も、削除できるようにしました。削除のときに席を閉じ、古い届け物を終わらせます。",
+        "席が動いていないだけのメンバーのゴールを、読み取りの失敗ではなく「休止中」と返すようにしました。"
       ]
     },
     {
