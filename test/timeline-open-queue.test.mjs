@@ -306,3 +306,36 @@ test('fork rows (seat.kind fork) carry the 分身 label; rows without seat stay 
   assert.deepEqual(labels(row('main')), [])
   assert.doesNotMatch(html(row('main-peer')), /seat-label/)
 })
+test('a failed older page is the retry target: 「もう一度読み込む」 re-reads that page and its success clears the error', async t => {
+  let olderFails = true
+  const f = fixture(t, path => {
+    if (path.includes('before=')) { if (olderFails) throw new Error('offline'); return { items: [{ id: 'old', message: 'old', direction: 'incoming' }], has_more: false } }
+    return { items: [{ id: 'new', message: 'new', direction: 'incoming' }], has_more: true }
+  })
+  await f.open('a'); f.queues[0].resolve({ items: [] }); await settle()
+  f.timeline.scrollTop = 0; f.timeline.listeners.scroll(); await settle()
+  const box = () => f.timeline.children[1].children.find(node => node.className === 'inline-error')
+  assert.ok(box(), 'the older-page failure is shown in place')
+  const before = f.requests.length
+  olderFails = false
+  box().children.find(node => node.textContent === 'もう一度読み込む').listeners.click(); await settle()
+  assert.deepEqual(f.requests.slice(before), ['/api/bots/a/messages?limit=20&before=new']) // the same older page, not the newest page
+  assert.equal(box(), undefined)
+  assert.deepEqual(f.ids(), ['old', 'new'])
+})
+
+test('an older page that fails and then succeeds by scrolling clears its error; a newest-page read does not settle it', async t => {
+  let olderFails = true
+  const f = fixture(t, path => {
+    if (path.includes('before=')) { if (olderFails) throw new Error('offline'); return { items: [{ id: 'old', message: 'old', direction: 'incoming' }], has_more: false } }
+    if (path.includes('after=')) return { items: [], has_more: false }
+    return { items: [{ id: 'new', message: 'new', direction: 'incoming' }], has_more: true }
+  })
+  await f.open('a'); f.queues[0].resolve({ items: [] }); await settle()
+  f.timeline.scrollTop = 0; f.timeline.listeners.scroll(); await settle()
+  await f.view.refresh(); f.queues.at(-1).resolve({ items: [] }); await settle()
+  assert.match(f.text(), /会話を読み込めませんでした/) // the newest page read does not settle the older page's failure
+  olderFails = false
+  f.timeline.scrollTop = 0; f.timeline.listeners.scroll(); await settle()
+  assert.doesNotMatch(f.text(), /会話を読み込めませんでした/)
+})

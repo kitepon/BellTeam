@@ -19,15 +19,25 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
   const cardSnapshots = new WeakMap()
   const state = { timelineMap: new Map(), timelineQueue: [], timelineQueueRequest: 0,
     timelineQueueError: '', timelineHasMore: false, timelineOldestId: null,
-    timelineLoadingOlder: false, timelineToken: 0, historyRequest: 0, historyError: '', stickToBottom: true, opening: false }
+    timelineLoadingOlder: false, timelineToken: 0, historyRequest: 0, historyError: '', historyRetry: null, stickToBottom: true, opening: false }
   async function readHistory(read) {
     const pending = read()
     const token = state.timelineToken
     const request = state.historyRequest
-    try { await pending; return true }
+    try {
+      await pending
+      // The read that failed (open, newest page or an older page) succeeded again, by 「もう一度読み込む」 or by scrolling: its error goes.
+      // A newest-page read also settles a failed open or newest-page read; only the older page's own read settles its failure.
+      if (token === state.timelineToken && state.historyRetry && (state.historyRetry === read || read !== loadOlderMessages && state.historyRetry !== loadOlderMessages)) {
+        state.historyRetry = null; state.historyError = ''
+        renderTail([...state.timelineMap.values()])
+      }
+      return true
+    }
     catch {
       if (token === state.timelineToken && request === state.historyRequest) {
         state.historyError = '会話を読み込めませんでした。通信を確かめて、もう一度読み込んでください。'
+        state.historyRetry = read // the retry repeats this same read (e.g. the older page with its cursor)
         state.opening = false
         timelineItems.replaceChildren()
         if (state.timelineMap.size) timelineItems.append(dayLabel(), ...[...state.timelineMap.values()].map(item => renderItem(item, queuedFor(item))))
@@ -91,6 +101,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     state.timelineQueue = []
     state.timelineQueueError = ''
     state.historyError = ''
+    state.historyRetry = null
     state.opening = true
     timelineItems.replaceChildren(loadingBubbles())
     timelineTail.replaceChildren()
@@ -152,7 +163,6 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
       rememberItems(newItems)
       timelineItems.append(...newItems.map(item => renderItem(item, queuedFor(item))))
     }
-    state.historyError = ''
     renderTail([...state.timelineMap.values()])
     if (state.stickToBottom) scrollToBottom()
     loadStoredMessageImages([...latestItems, ...newItems], item => rerenderItem(item.id, token))
@@ -178,8 +188,9 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
       timeline.scrollTo({ top: timeline.scrollTop + (timeline.scrollHeight - before), behavior: 'instant' })
       loadStoredMessageImages(items, item => rerenderItem(item.id, token))
     } finally {
-      spinner.remove()
+      // The flag is released first, so nothing in the clean-up can leave the older page unreadable.
       if (token === state.timelineToken) state.timelineLoadingOlder = false
+      spinner.remove?.()
     }
   }
 
@@ -222,7 +233,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     if (!state.opening && !state.historyError && !state.timelineMap.size && !tail.length) timelineTail.append(Object.assign(document.createElement('p'), { className: 'timeline-empty', textContent: 'まだ会話がありません。メッセージを送ってみてください。' }))
     // A failed read says so in place, with its own retry (user-paths.md 3.1 CError).
     const token = state.timelineToken
-    if (state.historyError) timelineTail.append(inlineError(state.historyError, () => readHistory(state.timelineMap.size ? refreshTimeline : openTimeline)))
+    if (state.historyError) timelineTail.append(inlineError(state.historyError, () => readHistory(state.historyRetry ?? (state.timelineMap.size ? refreshTimeline : openTimeline))))
     else if (state.timelineQueueError) timelineTail.append(inlineError(state.timelineQueueError, () => refreshTimelineQueue(token)))
     onQueueChange()
   }
