@@ -1395,17 +1395,35 @@ export class AitermTransport {
     }
   }
 
-  async forkInquiry(bot, envelope, { forkId, deliveryId = null, queue = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null } = {}) {
+  async forkInquiry(bot, envelope, { forkId, deliveryId = null, queue = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null,
+    conversationDelivery = null, membersLease = null, admissionCheck = null } = {}) {
     if (typeof forkId !== 'string' || !forkId || forkId.length > 200 || typeof envelope !== 'string' || !envelope.trim())
       throw Object.assign(new Error('FORK_INVALID'), { code: 'FORK_INVALID', effect: 'not_started', status: 400 })
-    this.assertWorkAllowed()
+    // fork.md B7: from the conversation child the callbacks and the lifetime are the registered delivery's, as for notify.
+    let finishDelivery = () => {}
+    if (conversationDelivery) {
+      if (!this.conversationAdmission || onStatus || onInterim || onAnswer || onTurnEnd)
+        throw Object.assign(new Error('CONVERSATION_NOT_ACCEPTED'), { code: 'CONVERSATION_NOT_ACCEPTED', status: 503, effect: 'not_started' })
+      this.conversationAdmission.claimNative(conversationDelivery, { deliveryId, target: bot.id, kind: 'notify' })
+      ;({ onStatus = null, onInterim = null, onAnswer = null } = this.conversationAdmission.callbacks(conversationDelivery))
+      finishDelivery = () => this.conversationAdmission.finish(conversationDelivery)
+    }
+    const check = () => {
+      this.assertWorkAllowed()
+      admissionCheck?.()
+      if (membersLease) this.membersAdmission.assertLease(membersLease)
+    }
+    try { check() } catch (error) { finishDelivery(); throw error }
     const harness = HARNESS.get(bot.harness)
     const main = this.session(bot)
     const sessionName = `${main}-fork-${createHash('sha256').update(forkId).digest('hex').slice(0, 12)}`
     const startedAt = this.now()
     const row = { id: sessionName, botId: bot.id, botName: bot.displayName ?? bot.name ?? bot.id, status: 'running', startedAt,
       context: 'direct', contextId: bot.id, groupId: deliveryId, target: bot.id, ...queue, steered: false, seat: { kind: 'fork', forkId } }
-    if (this.activity.forks.has(sessionName)) throw Object.assign(new Error('FORK_INVALID: fork_id is running'), { code: 'FORK_INVALID', effect: 'not_started', status: 409 })
+    if (this.activity.forks.has(sessionName)) {
+      finishDelivery()
+      throw Object.assign(new Error('FORK_INVALID: fork_id is running'), { code: 'FORK_INVALID', effect: 'not_started', status: 409 })
+    }
     // Registered before the launch: the fork's MCP calls in its first turn resolve as this Bot's fork (SK01).
     this.activity.forks.set(sessionName, { botId: bot.id, forkId, row })
     let remote = null, issued = false, receipt
@@ -1431,6 +1449,7 @@ export class AitermTransport {
         args = remote.args
         claudeLogin = remote.claudeLogin
       }
+      check()
       issued = true
       const launch = await this.client.call('agent_launch', args, { ...launchOptions,
         ...(claudeLogin ? { claudeLogin } : {}), ...(remote ? { privateEnv: remote.privateEnv } : {}) })
@@ -1442,6 +1461,7 @@ export class AitermTransport {
       // A receipt means a seat exists, whatever the error: it is closed.
       if (!receipt && (error?.effect === 'not_started' || error?.effect === 'not_issued')) issued = false
       await close()
+      finishDelivery()
       if (error?.code === 'FORK_UNAVAILABLE') throw error
       throw /READONLY_UNENFORCEABLE/u.test(`${error?.code} ${error?.aitermErrorCode} ${error?.message}`) ? forkUnavailable(error) : error
     }
@@ -1466,6 +1486,10 @@ export class AitermTransport {
       }
     })()
     this.trackCompletion(background)
+    if (conversationDelivery) {
+      this.conversationAdmission.trackCompletion(conversationDelivery, background)
+      background.then(finishDelivery, finishDelivery)
+    }
     this.activity.emit({ bot })
     return { delivery: 'running', forkId }
   }

@@ -10,6 +10,9 @@ Owner contract 2026-11-10 (via Root and Elegg): a fork may not write inside the 
 flowchart LR
   C[conversation askReadonly] -->|"forkInquiry(bot, envelope, {forkId, deliveryId, queue?, onStatus, onInterim, onAnswer, onTurnEnd})"| F[AitermTransport.forkInquiry]
   PF["parent facade transport.forkInquiry / forkSeat<br/>(EXECUTION_METHODS dispatch / project; update hold = input)"] --> F
+  CE["conversation child effect execution.fork (B6, Molly)"] -->|"{deliveryId, target, forkId, message, queue, kinds}"| EF["conversation-execution-effects (B7): check, assertDelivery, assertCurrentLease, fresh member"]
+  EF -->|"forkInquiry(bot, message, {forkId, deliveryId, queue, conversationDelivery, membersLease, admissionCheck, executionSource?})"| F
+  F -->|"conversationDelivery: claimNative(notify); callbacks = conversationAdmission.callbacks(delivery); trackCompletion(background); finish after close or on refusal"| CL[(conversation delivery lease)]
   F -->|"main = session(bot) at call time; no queue, stop version, steer or wake"| N["name = main + '-fork-' + sha256(forkId)[0..12]"]
   N -->|"forks.set(name, {botId, forkId, row}) before launch"| R[(activity.forks, shared across engine exchange)]
   N -->|local| L["args {harness, cwd = project, session_name, prompt, fork_from {session_id: main, fork_id}}; claudeLogin = main's slot"]
@@ -38,6 +41,7 @@ flowchart LR
 | Item | Contract |
 | --- | --- |
 | input | `bot` (target member), `envelope` (the fork's first input, non-empty), `forkId` (string, 1-200 chars), `deliveryId` (row `groupId`), optional `queue` (same row info as `notify`, e.g. `from`, `fromName`; overrides the defaults `context:'direct', contextId/target: bot.id`), `executionSource` accepted and unused, callbacks as `notify`. `FORK_INVALID` (400) for a bad input or a `forkId` already running |
+| conversation child (B7, 2026-11-11) | Effect `execution.fork` in `conversation-execution-effects`: same `check` / `assertDelivery({deliveryId, target})` / `assertCurrentLease` / fresh member read as `execution.notify`, then `forkInquiry(bot, message, {forkId, deliveryId, queue, conversationDelivery, membersLease, admissionCheck, executionSource?})`; result `{delivery:'running', forkId}`. With `conversationDelivery`, raw callbacks are refused (`CONVERSATION_NOT_ACCEPTED` 503, as `notify`); the delivery is claimed as `notify`, `onStatus`/`onInterim`/`onAnswer` come from `conversationAdmission.callbacks` (no `turn.end`: none registered), the lease tracks the background and is finished after the fork's close, or right after a refusal before accept. `admissionCheck` and the members lease are checked again just before `agent_launch`. A refusal before accept is rethrown with its own `code`/`status` (`FORK_INVALID` 400/409, `FORK_UNAVAILABLE` 503, launch errors) |
 | main ref | `session(bot)` at call time. Aiterm forks that seat's latest saved conversation. The main is not woken: a member that never had a seat gets Aiterm's `FORK_SOURCE_UNAVAILABLE` |
 | launch | One `agent_launch`, same client and seat launcher as a main launch. `cwd` is the main's folder (Aiterm accepts the same real path; the seat launcher requires it). No `write_scope`, `require_existing_resume`, `throughline_source_session`, `launch_operation_id`, `configuration_root`, `model`, `fast` |
 | local MCP | None passed: the user-level BellTeam MCP sends `X-Bellteam-Seat: ${AITERM_SESSION_ID}` = the fork name, which resolves through `forkSeat` (SK01) |

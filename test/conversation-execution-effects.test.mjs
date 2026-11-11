@@ -103,3 +103,21 @@ test('adapter uses real Transport once and registered callback reaches same pare
   assert.deepEqual(calls, [['delivery.status', 'running'], ['delivery.status', 'delivered']])
   await f.services.transport.close()
 })
+test('execution.fork (fork.md B7): same delivery binding and guard as notify, forkInquiry with the registered delivery, typed refusal kept', async () => {
+  const f = fixture(); let calls = 0
+  f.context.rootMethod = 'fork.ask'
+  f.context.conversationDelivery = f.admission.registerDelivery(f.lease, { deliveryId: 'delivery-a', target: f.bot.id, kinds: ['delivery.status'], dispatch() {} })
+  const params = { deliveryId: 'delivery-a', target: f.bot.id, forkId: 'fork-a', message: 'question', queue: f.params.queue, kinds: ['delivery.status'] }
+  f.services.transport.forkInquiry = async (bot, message, options) => {
+    calls++; assert.equal(bot, f.bot); assert.equal(message, 'question')
+    assert.deepEqual(Object.keys(options).sort(), ['admissionCheck', 'conversationDelivery', 'deliveryId', 'forkId', 'membersLease', 'queue'])
+    assert.equal(options.conversationDelivery, f.context.conversationDelivery); assert.equal(options.admissionCheck, f.context.admissionCheck)
+    assert.equal(options.membersLease, f.context.operationContext.membersLease); assert.equal(options.queue, params.queue)
+    assert.equal(options.forkId, 'fork-a'); assert.equal(options.deliveryId, 'delivery-a')
+    return { delivery: 'running', forkId: 'fork-a' }
+  }
+  assert.deepEqual(await f.effect('execution.fork', params, f.context), { delivery: 'running', forkId: 'fork-a' }); assert.equal(calls, 1)
+  await assert.rejects(f.effect('execution.fork', { ...params, target: 'other' }, f.context)); assert.equal(calls, 1)
+  f.services.transport.forkInquiry = async () => { throw Object.assign(new Error('FORK_UNAVAILABLE'), { code: 'FORK_UNAVAILABLE', status: 503, effect: 'not_started' }) }
+  await assert.rejects(f.effect('execution.fork', params, f.context), { code: 'FORK_UNAVAILABLE', status: 503 })
+})
