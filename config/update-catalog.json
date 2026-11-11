@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-11T22:56:15Z",
-  "expiresAt": "2026-11-18T22:56:15Z",
+  "publishedAt": "2026-11-11T23:30:00Z",
+  "expiresAt": "2026-11-18T23:30:00Z",
   "releases": [
     {
       "componentId": "usage",
@@ -185,8 +185,8 @@
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "655cad881bba58cc2f57939f19b6d3353b968f57",
-      "versionId": "d220f5df17d609e37f39966598abb1d6925e0c46a9ce6fd69cfcbc09adfb5964",
+      "sourceCommit": "faea2493124fe989730ca98a0ac098c5ef017aa2",
+      "versionId": "4be0aeae2d98cf3f9e376db3db783d6d815d24a51c9130a712243798bf734ba0",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -194,16 +194,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T222415Z/conversation-655cad881bba58cc2f57939f19b6d3353b968f57-linux-amd64.tar.gz",
-          "bytes": 3903649,
-          "sha256": "d220f5df17d609e37f39966598abb1d6925e0c46a9ce6fd69cfcbc09adfb5964"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T231043Z/conversation-faea2493124fe989730ca98a0ac098c5ef017aa2-linux-amd64.tar.gz",
+          "bytes": 3903861,
+          "sha256": "4be0aeae2d98cf3f9e376db3db783d6d815d24a51c9130a712243798bf734ba0"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T222415Z/conversation-655cad881bba58cc2f57939f19b6d3353b968f57-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11233,
-          "sha256": "6f011d50a5fa557242f36c76ad5b919ebde1dacf734b221ccb4653a9081db562"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T231043Z/conversation-faea2493124fe989730ca98a0ac098c5ef017aa2-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11237,
+          "sha256": "a00a117e0924aba4cbfda916b6619c8451439c2c9032292f2ef8bae3aee3a993"
         },
-        "signerCommit": "655cad881bba58cc2f57939f19b6d3353b968f57"
+        "signerCommit": "faea2493124fe989730ca98a0ac098c5ef017aa2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -234,15 +234,13 @@
         }
       },
       "changes": [
-        "ルームへの投稿と返信は、全員への配達を送り出した時点で結果を返すようになりました。",
-        "ルームの配達が断られた時の記録を、1件だけ確実に残すようになりました。",
-        "分身の返事が遅れて届いた時は「遅れて届いた」と分かる形で一度だけ伝え、引き継ぎの後には送り直しません。"
+        "配達中に差し込まれた入力を、「届いた」のまま「差し込まれた」と分かる印付きで受け取れるようになりました。"
       ]
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "655cad881bba58cc2f57939f19b6d3353b968f57",
-      "versionId": "6c7b99af60690a09a424237cdaad209ab2faad2d505e409d62b3a84c38d9e7b3",
+      "sourceCommit": "faea2493124fe989730ca98a0ac098c5ef017aa2",
+      "versionId": "6865615931c57e192d77ce773be9116d2a2f44b172c566264f6c5027b986cd84",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -250,16 +248,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T222415Z/conversation-655cad881bba58cc2f57939f19b6d3353b968f57-linux-arm64.tar.gz",
-          "bytes": 3903649,
-          "sha256": "6c7b99af60690a09a424237cdaad209ab2faad2d505e409d62b3a84c38d9e7b3"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T231043Z/conversation-faea2493124fe989730ca98a0ac098c5ef017aa2-linux-arm64.tar.gz",
+          "bytes": 3903861,
+          "sha256": "6865615931c57e192d77ce773be9116d2a2f44b172c566264f6c5027b986cd84"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T222415Z/conversation-655cad881bba58cc2f57939f19b6d3353b968f57-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10998,
-          "sha256": "685b3d7e8492a528aeb6a45c25c386ea6df90aaa307cf6df3d808cc77e2d2beb"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T231043Z/conversation-faea2493124fe989730ca98a0ac098c5ef017aa2-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11280,
+          "sha256": "c5ec9b3338924ca155c5b2f63192bbe970677ce237ce149f173bc03253765365"
         },
-        "signerCommit": "655cad881bba58cc2f57939f19b6d3353b968f57"
+        "signerCommit": "faea2493124fe989730ca98a0ac098c5ef017aa2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -290,9 +288,7 @@
         }
       },
       "changes": [
-        "ルームへの投稿と返信は、全員への配達を送り出した時点で結果を返すようになりました。",
-        "ルームの配達が断られた時の記録を、1件だけ確実に残すようになりました。",
-        "分身の返事が遅れて届いた時は「遅れて届いた」と分かる形で一度だけ伝え、引き継ぎの後には送り直しません。"
+        "配達中に差し込まれた入力を、「届いた」のまま「差し込まれた」と分かる印付きで受け取れるようになりました。"
       ]
     },
     {
@@ -497,8 +493,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "47085f138a15cd55ffd1e32fdd5ced8359289e12",
-      "versionId": "aa651e8957ad753c186edff720e81e37e419aed58be28c161c4e1fa9ccf1ef0e",
+      "sourceCommit": "faea2493124fe989730ca98a0ac098c5ef017aa2",
+      "versionId": "4fed1d3d06dc213d4a1a0cac5a3909763701d805fa84e7036fea0f9ba2094aff",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -506,16 +502,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T223109Z/execution-47085f138a15cd55ffd1e32fdd5ced8359289e12-linux-amd64.tar.gz",
-          "bytes": 3960640,
-          "sha256": "aa651e8957ad753c186edff720e81e37e419aed58be28c161c4e1fa9ccf1ef0e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T231149Z/execution-faea2493124fe989730ca98a0ac098c5ef017aa2-linux-amd64.tar.gz",
+          "bytes": 3960660,
+          "sha256": "4fed1d3d06dc213d4a1a0cac5a3909763701d805fa84e7036fea0f9ba2094aff"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T223109Z/execution-47085f138a15cd55ffd1e32fdd5ced8359289e12-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11036,
-          "sha256": "79451e97ab655899f10536f1dbcc1f2c6fea0956776e15f52e6d59cea012e4c6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T231149Z/execution-faea2493124fe989730ca98a0ac098c5ef017aa2-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11087,
+          "sha256": "9c55262002e2ad95ca63c0702304c68243feee40aadd0a610536f3d177d37981"
         },
-        "signerCommit": "47085f138a15cd55ffd1e32fdd5ced8359289e12"
+        "signerCommit": "faea2493124fe989730ca98a0ac098c5ef017aa2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -525,13 +521,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "上限で止まったメンバーが戻った後の続きの作業も、記録に受け付けられた時刻から判断するようになりました。"
+        "差し込まれた入力の最後の状態を「届いた」のままにして、「差し込まれた」印を付けるようになりました。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "47085f138a15cd55ffd1e32fdd5ced8359289e12",
-      "versionId": "82f616dd5e8d0e511b55602407d7cc42604d20830cd208aad9185947b31b907a",
+      "sourceCommit": "faea2493124fe989730ca98a0ac098c5ef017aa2",
+      "versionId": "0bed317424b8f9d9bb4587f872528e860300f95f5435c947dd27136f13ef7f2a",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -539,16 +535,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T223109Z/execution-47085f138a15cd55ffd1e32fdd5ced8359289e12-linux-arm64.tar.gz",
-          "bytes": 3960643,
-          "sha256": "82f616dd5e8d0e511b55602407d7cc42604d20830cd208aad9185947b31b907a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T231149Z/execution-faea2493124fe989730ca98a0ac098c5ef017aa2-linux-arm64.tar.gz",
+          "bytes": 3960661,
+          "sha256": "0bed317424b8f9d9bb4587f872528e860300f95f5435c947dd27136f13ef7f2a"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T223109Z/execution-47085f138a15cd55ffd1e32fdd5ced8359289e12-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11083,
-          "sha256": "3de5a95a17ef6f6015c98c0e11793f39ab551f55b553eb126cc80795d58c8a85"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T231149Z/execution-faea2493124fe989730ca98a0ac098c5ef017aa2-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11134,
+          "sha256": "9c551e46e558afc0f02b8916806158e3ce306e9231576c9922e737c81a7ec323"
         },
-        "signerCommit": "47085f138a15cd55ffd1e32fdd5ced8359289e12"
+        "signerCommit": "faea2493124fe989730ca98a0ac098c5ef017aa2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -558,7 +554,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "上限で止まったメンバーが戻った後の続きの作業も、記録に受け付けられた時刻から判断するようになりました。"
+        "差し込まれた入力の最後の状態を「届いた」のままにして、「差し込まれた」印を付けるようになりました。"
       ]
     },
     {
