@@ -283,7 +283,7 @@ Macの[settings-and-profile「1Password連携」](architecture/modules/apple/set
 ### 19. Claudeの2アカウントの照合 — S
 
 12のWindowsを、届いたApple版（`cadc40c0`・`f37b05a4`：アカウントごとの「認証済み」の札、共通のボタンの言い方）と並べて照合し、違いを直す。
-- 19 対応済み：Appleの`f37b05a4`に合わせ、1st・2ndの行の札とボタンを他のAIの行と同じ言い方にした（認証済み／未認証／確認できません、認証し直す／認証する／確認する。`HarnessRowState.FromSlot`）。「アカウント」の行は、本体がアカウント名を返した時だけ出す（「ログイン済み」「未ログイン」の文はやめた）。上限・使用中・両方上限の帯・メンバーの席のアカウントは`cadc40c0`と同じで変えない。写真：[2行・通常](assets/windows-mac-gaps/windows/pr19-accounts-normal.png)・[2ndが未認証](assets/windows-mac-gaps/windows/pr19-accounts-unlogged.png)。Macのこの画面の写真は、ラピに頼んだ（届いたら並べる）。
+- 19 対応済み：Appleの`f37b05a4`に合わせ、1st・2ndの行の札とボタンを他のAIの行と同じ言い方にした（認証済み／未認証／確認できません、認証し直す／認証する／確認する。`HarnessRowState.FromSlot`）。「アカウント」の行は、本体がアカウント名を返した時だけ出す（PR #1045）。Macの写真（ラピ、`16636730`）と並べて残りの違いも直した：灰色の箱をやめて平らな行にし、見出し「Claude」の右に使用人数、アカウント名は見出しなし、上限は1件ずつオレンジの行、「使用中: <メンバー名>」（使う席が無ければ出さない）、「状態」と人数の行はやめた。カード内の両方上限の帯はMacの「1stアカウントと2ndアカウントがどちらも…です（…）」。メンバー一覧の上の帯はWebと同じ文のまま（キロの回答）。会話の履歴が分かれている時の注記は、契約がオーナーに見せると決めているので残す（Macには無い）。写真（Windows ← Mac）：[両方とも認証済み](assets/windows-mac-gaps/windows/pr19-accounts-normal.png) ← [Mac](assets/windows-mac-gaps/mac/b3-01-claude-accounts-both-authenticated.png)・[2ndが未認証](assets/windows-mac-gaps/windows/pr19-accounts-unlogged.png) ← [Mac](assets/windows-mac-gaps/mac/b3-02-claude-accounts-second-unauthenticated.png)。12の写真（`pr12-accounts-*`）も今の画面で撮り直した。
 
 ### 追従の順と見積もり
 

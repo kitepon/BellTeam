@@ -100,14 +100,15 @@ public sealed class HarnessAccountsTests
     {
         var list = JsonSerializer.Deserialize<AccountsResponse>(Both, BellApi.Json)!;
         var first = list.Claude!.Slots[0]; var second = list.Claude.Slots[1];
-        Assert.Equal("first@example.com", AccountText.Login(first)); Assert.Equal("Fableのみ上限中 (23:00に解除)", AccountText.State(first, Now));
+        Assert.Equal("first@example.com", AccountText.Login(first)); Assert.Equal("Fableのみ上限中 (23:00に解除)", AccountText.LimitText(first.Limits[0].Scope, first.Limits[0].ResetAt, Now));
+        // Mac AccountText.seats: the members' names, nothing for an unused slot.
+        Assert.Equal("使用中: ベル、bot-two", AccountText.Seats(first, id => id == "bot-bell" ? "ベル" : null)); Assert.Null(AccountText.Seats(second, _ => "x"));
         // Mac f37b05a4: the name only when sent; the login state is the row's badge (認証済み／未認証／確認できません).
-        Assert.Null(AccountText.Login(second)); Assert.Equal("—", AccountText.State(second, Now));
+        Assert.Null(AccountText.Login(second));
         Assert.Null(AccountText.Login(new AccountSlot { Slot = "2nd", LoggedIn = true }));
         Assert.Equal(("認証済み", "認証し直す"), (HarnessRowState.FromSlot("authenticated").Title, HarnessRowState.FromSlot("authenticated").Action));
         Assert.Equal(("未認証", "認証する"), (HarnessRowState.FromSlot("blocked").Title, HarnessRowState.FromSlot("blocked").Action));
         Assert.Equal(("確認できません", "確認する"), (HarnessRowState.FromSlot(null).Title, HarnessRowState.FromSlot(null).Action));
-        Assert.Equal("利用できます", AccountText.State(new AccountSlot { Slot = "2nd", LoggedIn = true }, Now));
     }
 
     [Fact]
@@ -171,9 +172,10 @@ public sealed class HarnessAccountsTests
             using var workspace = Server((request, _) => Task.FromResult(request.Method == HttpMethod.Get ? StubHandler.Json(AllLimited) : StubHandler.Json("""{"rules":[]}""")), posts);
             var window = OpenCard(workspace); var texts = Texts(window);
             Assert.Contains("1stアカウント", texts); Assert.Contains("2ndアカウント", texts); Assert.DoesNotContain("Fableを2ndアカウントで使う", texts);   // Owner ruling 2026-11-09: limits alone pick the slot
-            Assert.Contains("アカウント　a@example.com", texts); Assert.Contains("使用中　1人", texts);
-            Assert.Contains(texts, text => text.StartsWith("両方のアカウントで上限中 ("));
-            Assert.Contains("状態　上限中 (解除時刻不明)", texts);
+            // Mac ClaudeAccountsCard: name, one orange line per limit, the members using the slot; no 状態/人数 lines.
+            Assert.Contains("a@example.com", texts); Assert.Contains(texts, text => text.StartsWith("使用中: ")); Assert.DoesNotContain(texts, text => text.StartsWith("状態"));
+            Assert.Contains(texts, text => text.StartsWith("⚠ 1stアカウントと2ndアカウントがどちらも上限中です（"));
+            Assert.Contains("上限中 (解除時刻不明)", texts);
             var buttons = Descendants<Button>(window).Select(button => button.Content as string).ToArray();
             Assert.Equal(3, buttons.Count(label => label == "認証し直す")); Assert.DoesNotContain("ログインし直す", buttons); // both slots and the Codex row share the wording
             Assert.Empty(posts); window.Close();

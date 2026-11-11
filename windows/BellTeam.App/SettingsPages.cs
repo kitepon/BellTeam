@@ -182,23 +182,28 @@ public sealed partial class SettingsWindow
         }
         if (list.Claude is not { } claude) { Failed("アカウントの一覧にClaudeの項目がありません。"); return; }
         var now = DateTimeOffset.Now;
-        var heading = new StackPanel { Margin = new Thickness(0, 10, 0, 0) }; heading.Children.Add(Text(harness.Name, 14, Ink)); heading.Children.Add(Text(harness.UsageText, 12, Muted, null, new Thickness(0, 2, 0, 0))); host.Children.Add(heading);
-        foreach (var text in AccountText.BannerTexts(list, now))
+        // Mac ClaudeAccountsCard: the harness name with its usage on the right, the both-limited lines, then the slots as plain rows like the other AI rows.
+        var heading = new Grid { Margin = new Thickness(0, 10, 0, 0) }; heading.ColumnDefinitions.Add(new ColumnDefinition()); heading.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var usage = Text(harness.UsageText, 12, Muted); usage.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(usage, 1);
+        heading.Children.Add(Text(harness.Name, 14, Ink)); heading.Children.Add(usage); host.Children.Add(heading);
+        foreach (var text in AccountText.CardBannerTexts(list, now))
         {
-            var bar = FillRow(Text(text, 13, Orange, FontWeights.SemiBold), null); System.Windows.Automation.AutomationProperties.SetName(bar, text); host.Children.Add(bar);
+            var bar = Text("⚠ " + text, 12, Orange, null, new Thickness(0, 6, 0, 0)); System.Windows.Automation.AutomationProperties.SetName(bar, text); host.Children.Add(bar);
         }
         var ready = new List<Task>();
         foreach (var slot in claude.Slots)
         {
             if (AccountText.SlotTitle(slot.Slot) is not { } slotTitle) continue;
-            var names = new StackPanel { VerticalAlignment = VerticalAlignment.Center }; names.Children.Add(Text(slotTitle, 14, Ink));
-            var lines = new List<(string Term, string Value, Brush Color)>();
-            if (AccountText.Login(slot) is { } account) lines.Add(("アカウント", account, Muted));
-            lines.AddRange([("状態", AccountText.State(slot, now), slot.Limits.Length != 0 ? Orange : Muted), ("使用中", slot.Seats.Length + "人", Muted)]);
-            if (slot.History == "separate") lines.Add(("会話の履歴", "1stアカウントと分かれています", Muted));
-            foreach (var (term, value, color) in lines) names.Children.Add(Text(term + "　" + value, 12, color, null, new Thickness(0, 2, 0, 0)));
-            var (row, state) = AuthRow(names, harness, auth, slot.Slot, Reload, token); row.Margin = new Thickness(0);
-            var card = FillRow(row, null); System.Windows.Automation.AutomationProperties.SetName(card, slotTitle); host.Children.Add(card); ready.Add(state);
+            var names = new StackPanel { VerticalAlignment = VerticalAlignment.Center }; names.Children.Add(Text(slotTitle, 14, Ink, FontWeights.SemiBold));
+            var lines = new List<(string Text, Brush Color)>();
+            if (AccountText.Login(slot) is { } account) lines.Add((account, Muted));
+            lines.AddRange(slot.Limits.Select(item => (AccountText.LimitText(item.Scope, item.ResetAt, now), (Brush)Orange)));
+            if (AccountText.Seats(slot, workspace.MemberName) is { } seats) lines.Add((seats, Muted));
+            // The contract asks that the Owner sees a slot whose history could not be shared (harness-accounts `history: separate`); the Mac has no line for it yet.
+            if (slot.History == "separate") lines.Add(("会話の履歴は1stアカウントと分かれています", Muted));
+            foreach (var (value, color) in lines) names.Children.Add(Text(value, 12, color, null, new Thickness(0, 2, 0, 0)));
+            var (row, state) = AuthRow(names, harness, auth, slot.Slot, Reload, token); row.Margin = new Thickness(0, 8, 0, 0);
+            System.Windows.Automation.AutomationProperties.SetName(row, slotTitle); host.Children.Add(row); ready.Add(state);
         }
         await Task.WhenAll(ready);
     }
