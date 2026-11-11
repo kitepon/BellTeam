@@ -5,7 +5,8 @@ import { dirname } from 'node:path'
 import { writeAtomic } from './json-file.mjs'
 import { performance } from 'node:perf_hooks'
 
-const NATIVE_MS = 15_000, SUMMARY_MS = 600_000
+// READ_MS: a read in flight younger than this holds the 15 s expiry; the read itself settles the row (current-work.md "read hold").
+const NATIVE_MS = 15_000, SUMMARY_MS = 600_000, READ_MS = 60_000
 const HARNESSES = new Set(['codex-cli', 'claude-code', 'grok-cli', 'cursor-cli', 'antigravity-cli'])
 const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u.test(value)
 const launch = value => typeof value === 'string' && /^[0-9a-f]{32}$/u.test(value)
@@ -51,7 +52,7 @@ export class CurrentWork {
   constructor({ now = () => new Date().toISOString(), monotonic = () => performance.now(), notify = () => {}, observed = () => {}, activityPath = null, reportActivity = () => {} } = {}) {
     this.now = now; this.monotonic = monotonic; this.notify = notify; this.observed = () => { try { observed() } catch {} }
     this.activityPath = activityPath; this.reportActivity = () => { try { Promise.resolve(reportActivity()).catch(() => {}) } catch {} }; this.restartActivity = new Map(); this.activityQueue = Promise.resolve(); this.activityPending = 0
-    this.records = new Map(); this.pending = new Map(); this.seq = 0; this.closed = false; this.timer = null
+    this.records = new Map(); this.pending = new Map(); this.reads = new Map(); this.seq = 0; this.closed = false; this.timer = null
   }
   saveActivity() {
     if (!this.activityPath) return this.activityQueue
@@ -129,9 +130,14 @@ export class CurrentWork {
     this.expire(record)
     return record
   }
+  // Start of the newest read still in flight and younger than READ_MS, else null.
+  holding(now = this.monotonic()) {
+    const starts = [...this.reads.values()].filter(start => now - start < READ_MS)
+    return starts.length ? Math.max(...starts) : null
+  }
   expire(record) {
     const now = this.monotonic()
-    if (record.state !== 'unknown' && now - record.observedMono >= NATIVE_MS) this.unknown(record)
+    if (record.state !== 'unknown' && now - record.observedMono >= NATIVE_MS) { if (this.holding(now) === null) this.unknown(record) }
     else if (record.summaryStatus === 'current' && now - record.summaryMono >= SUMMARY_MS) {
       record.summary = null; record.summaryStatus = 'stale'; this.changed(record)
     }
@@ -158,9 +164,12 @@ export class CurrentWork {
   }
   beginRead(targets) {
     for (const target of targets) this.sync(target.botId, target.sessionId, target.current())
-    return { seq: ++this.seq, targets }
+    const read = { seq: ++this.seq, targets }
+    this.reads.set(read.seq, this.monotonic())
+    return read
   }
   endRead(read, data) {
+    this.reads.delete(read.seq)
     if (this.closed) return
     const valid = data?.schema === 'aiterm.seat-turns.v1' && !Object.hasOwn(data, 'error') && Array.isArray(data.seats)
     const rows = valid ? data.seats : []
@@ -277,8 +286,9 @@ export class CurrentWork {
   schedule() {
     clearTimeout(this.timer); this.timer = null
     if (this.closed) return
+    const hold = this.holding(), held = hold === null ? -Infinity : hold + READ_MS
     const deadlines = [...this.records.values()].flatMap(record => [
-      ...(record.state !== 'unknown' ? [record.observedMono + NATIVE_MS] : []),
+      ...(record.state !== 'unknown' ? [Math.max(record.observedMono + NATIVE_MS, held)] : []),
       ...(record.summaryStatus === 'current' ? [record.summaryMono + SUMMARY_MS] : []),
     ])
     if (!deadlines.length) return

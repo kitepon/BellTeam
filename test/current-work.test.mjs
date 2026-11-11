@@ -84,6 +84,19 @@ test('native 15-second expiry hides summary, retains last observedAt, and change
   f.clock = 15_000; assert.equal(f.snapshot().state, 'unknown'); assert.equal(f.snapshot().summaryStatus, 'missing'); assert.equal(f.snapshot().observedAt, observed)
   f.observe(); assert.notEqual(f.binding().revision, before.revision); assert.equal(f.snapshot().summary, null)
 })
+test('read hold: a read in flight keeps the 15 s expiry until it settles; a read older than 60 s no longer holds (Trony N1)', async t => {
+  const f = fixture(t); f.observe(); await report(f)
+  // Production tick 15-32 s: the next read starts at 5 s and is still in flight at 20 s; the row and its summary stay.
+  f.clock = 5_000; const slow = f.read()
+  f.clock = 20_000; assert.equal(f.snapshot().state, 'working'); assert.equal(f.snapshot().summaryStatus, 'current')
+  f.work.endRead(slow, data(row())); assert.equal(f.snapshot().state, 'working'); assert.equal(f.snapshot().summaryStatus, 'current')
+  // No read in flight: the 15 s expiry fires as before.
+  f.clock = 35_000; assert.equal(f.snapshot().state, 'unknown')
+  // A hung read (no endRead) holds only 60 s from its start.
+  f.observe(); f.clock = 40_000; f.read()
+  f.clock = 99_000; assert.equal(f.snapshot().state, 'working')
+  f.clock = 100_000; assert.equal(f.snapshot().state, 'unknown')
+})
 test('ten-minute summary expiry is stale while native observations stay fresh; clear returns missing', async t => {
   const f = fixture(t); f.observe(); await report(f); const updated = f.snapshot().summaryUpdatedAt
   for (let time = 10_000; time <= 600_000; time += 10_000) { f.clock = time; f.observe() }
