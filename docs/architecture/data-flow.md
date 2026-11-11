@@ -222,7 +222,7 @@ flowchart LR
   P10 -->|RT16 target availability / reconnect-ready event| P3
   P3 -->|RT17 bound sudo request, no approval wait| P10
   App -->|RT18 Apple app on that Mac: host-key SHA256 read locally, Owner session| P10
-  P10 -->|RT19 trust-confirm on equal scan / authorize-key with one-time password on stdin / provision| Native
+  P10 -->|RT19 trust-confirm on equal scan, first-use scan when no trust is held / authorize-key with one-time password on stdin / provision| Native
   P5 -->|RT20 one-time Mac login password, consumed once, never stored| P10
   P4 -->|RT21 member folder inspect / create on that terminal| P10
   App -->|RT22 member editor folder picker: list a terminal folder's subfolders, create one| P10

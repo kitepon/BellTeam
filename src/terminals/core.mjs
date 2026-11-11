@@ -63,6 +63,25 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
     }
   }
 
+  // First-use trust, like OpenSSH accept-new (Owner ruling 2026-11-11): Aiterm's held trust for the binding wins (a held key is
+  // never overwritten, so a changed key still stops); none held -> scan once and let trust-confirm write on Aiterm's equal scan.
+  // null = nothing trusted yet (no binding, asleep, Aiterm refused); the next save / key / check tries again.
+  async function firstTrust(record) {
+    if (!(record.bindingRef || (record.sshKeyRef && record.keySource !== 'secret'))) return null
+    const held = await withBindingRef(record, ref => native().trust(ref)).catch(() => undefined)
+    if (held?.revision) return { provider: held.provider, revision: held.revision }
+    if (held === undefined) return null
+    const fingerprint = await Promise.resolve().then(() => native().scanHostKey({ host: record.host, port: record.port ?? 22 })).catch(() => null)
+    return fingerprint ? confirm(record, fingerprint).catch(() => null) : null
+  }
+  const sameTargetAs = record => stored => stored.host === record.host && stored.user === record.user && stored.port === record.port
+  async function adoptFirstTrust(terminalId) {
+    const record = await registry.target(terminalId)
+    if (!record || record.hostTrust) return
+    const hostTrust = await firstTrust(record)
+    if (hostTrust) await registry.update(terminalId, { hostTrust }, sameTargetAs(record))
+  }
+
   // Every read-then-write on one terminal (put, remove, key request/apply/remove) runs in this per-terminal order,
   // so no snapshot is applied after a later DELETE, replacement or target change. close() joins what is in flight.
   const queues = new Map()
@@ -101,10 +120,9 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
     }
     const next = { ...existing, ...input, terminalId: input.terminalId }
     if (confirmHostKey !== undefined) input.hostTrust = await confirm(next, confirmHostKey)
-    // Bind Aiterm's already-held trust (P1 pre-enrolled known_hosts); none held leaves hostTrust missing -> TARGET_MISMATCH until confirmed.
-    else if (!targetChanged && !input.hostTrust && !next.hostTrust && next.sshKeyRef && (next.keySource !== 'secret' || next.bindingRef)) {
-      const trust = await withBindingRef(next, ref => native().trust(ref)).catch(() => null)
-      if (trust?.revision) input.hostTrust = { provider: trust.provider, revision: trust.revision }
+    else if (!targetChanged && !input.hostTrust && !next.hostTrust) {
+      const trust = await firstTrust(next)
+      if (trust) input.hostTrust = trust
     }
     if (!existing) return registry.register(Object.fromEntries(Object.entries(input).filter(([, value]) => value !== null)))
     const { terminalId, ...patch } = input
@@ -172,8 +190,9 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
   async function applyKeyNow({ terminalId, purpose, handle, requestId } = {}) {
     const kind = Object.hasOwn(PURPOSES, purpose) ? PURPOSES[purpose] : null
     if (!kind || typeof handle !== 'string' || typeof requestId !== 'string') return
-    await registry.update(terminalId, { [kind.ref]: handle, [kind.source]: 'secret', [kind.request]: null }, stored => stored[kind.request] === requestId)
+    const saved = await registry.update(terminalId, { [kind.ref]: handle, [kind.source]: 'secret', [kind.request]: null }, stored => stored[kind.request] === requestId)
       .catch(error => { if (error?.code !== 'TERMINAL_NOT_FOUND') throw error })
+    if (saved && kind.purpose === 'terminal.ssh') await adoptFirstTrust(terminalId)
   }
 
   // S4 (Mika #855): one-time Mac login password -> Aiterm authorize-key. Pending requests and outcomes live in memory only:
@@ -234,6 +253,7 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
   }
 
   async function check(terminalId) {
+    await serial(terminalId, () => adoptFirstTrust(terminalId)).catch(() => {})
     const observation = await connection.check(terminalId)
     publish({ terminalId, reachable: observation.reachable, observedAt: observation.observedAt })
     return observation

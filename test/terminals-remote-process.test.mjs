@@ -65,3 +65,17 @@ test('trust-confirm exit 2 keeps only the Aiterm error code', async () => {
   const ok = createRemoteTerminalProcesses({ project: '/srv/bellteam', connectClient: async () => fakeClient({ remote_terminal_status: status }), run: reply(0) })
   assert.equal((await ok.confirmHostKey('owner-macbook', fingerprint)).revision, revision)
 })
+
+test('scanHostKey: ed25519 line -> OpenSSH SHA256 fingerprint; no line -> UNREACHABLE', async () => {
+  // fox's real public host key (2026-11-11) and the fingerprint ssh-keygen -lf printed for it.
+  const line = '192.168.1.11 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINikZxuNI2NSpUaC2knl5qz0MgW1Tg56uZJZczvcLElD'
+  const calls = []
+  const make = stdout => createRemoteTerminalProcesses({ run: async (command, args) => { calls.push(args); return { stdout, code: 0 } } })
+  assert.equal(await make(line).scanHostKey({ host: '192.168.1.11', port: 22 }), 'SHA256:qJ0Ez4Y1f/6d/3Xk16yCsal9+1BcNLjSZm8Hv3EJLBk')
+  const blob = Buffer.from('test-key-blob').toString('base64')
+  const { createHash } = await import('node:crypto')
+  const expected = `SHA256:${createHash('sha256').update('test-key-blob').digest('base64').replace(/=+$/, '')}`
+  assert.equal(await make(`# comment\n192.168.1.5 ssh-ed25519 ${blob}\n`).scanHostKey({ host: '192.168.1.5', port: 2222 }), expected)
+  assert.deepEqual(calls.at(-1), ['ssh-keyscan', '-T', '5', '-t', 'ed25519', '-p', '2222', '--', '192.168.1.5'])
+  await assert.rejects(make('').scanHostKey({ host: 'x', port: 22 }), { code: 'UNREACHABLE' })
+})

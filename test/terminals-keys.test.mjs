@@ -231,3 +231,44 @@ test('S2 trust attest: keyless binding first, trust only on Aiterm equality, key
   await core.keys.request('friend-mac', 'ssh')
   assert.equal(native.calls.filter(c => c.op === 'register').length, 1, 'key setting reuses the attest binding')
 })
+
+test('first-use trust (accept-new): no held trust -> scanned fingerprint goes to trust-confirm; a held trust is bound, never overwritten', async t => {
+  const stateRoot = await mkdtemp(join(tmpdir(), 'terminals-accept-new-'))
+  t.after(() => rm(stateRoot, { recursive: true, force: true }))
+  const native = fakeNative()
+  const scanned = `SHA256:${'Q'.repeat(43)}`
+  native.trust = async ref => { native.calls.push({ op: 'trust', ref }); return null }
+  native.scanHostKey = async target => { native.calls.push({ op: 'scan', target }); return scanned }
+  const credentials = fakeCredentials()
+  const core = createTerminalsCore({ stateRoot, credentials, adapter: native })
+  t.after(() => core.close())
+  await core.registry.put({ ...terminal, os: 'windows', host: '192.168.1.11', user: 'kite_' })
+  assert.equal(native.calls.some(call => call.op === 'scan'), false, 'no binding yet: nothing to trust')
+  await core.keys.request('friend-mac', 'ssh')
+  credentials.emit({ terminalId: 'friend-mac', purpose: 'terminal.ssh', handle, revision: 1, available: true, reason: 'revision', requestId })
+  await settle()
+  assert.deepEqual(native.calls.find(call => call.op === 'scan').target, { host: '192.168.1.11', port: 22 })
+  assert.equal(native.calls.find(call => call.op === 'confirmHostKey').fingerprint, scanned)
+  assert.equal((await core.registry.get('friend-mac')).hostTrust.revision, `sha256:${'b'.repeat(64)}`, 'trusted without the Owner typing a fingerprint')
+
+  // A key Aiterm already holds wins: bound as-is, no scan (a changed key keeps stopping at HOST_KEY_MISMATCH).
+  const held = fakeNative({ trustRevision: `sha256:${'c'.repeat(64)}` })
+  held.scanHostKey = async () => { held.calls.push({ op: 'scan' }); return scanned }
+  const root2 = await mkdtemp(join(tmpdir(), 'terminals-accept-held-'))
+  t.after(() => rm(root2, { recursive: true, force: true }))
+  const credentials2 = fakeCredentials()
+  const core2 = createTerminalsCore({ stateRoot: root2, credentials: credentials2, adapter: held })
+  t.after(() => core2.close())
+  await core2.registry.put(terminal)
+  await core2.keys.request('friend-mac', 'ssh')
+  assert.equal((await core2.reachability.check('friend-mac')).reachable !== undefined, true)
+  assert.equal((await core2.registry.get('friend-mac')).hostTrust.revision, `sha256:${'c'.repeat(64)}`)
+  assert.equal(held.calls.some(call => call.op === 'scan' || call.op === 'confirmHostKey'), false)
+
+  // Scan fails (asleep): nothing trusted, check still answers.
+  native.scanHostKey = async () => { throw Object.assign(new Error('x'), { code: 'UNREACHABLE' }) }
+  await core.registry.put({ terminalId: 'other-pc', host: '192.168.1.50', user: 'a', os: 'linux', accountOwner: 'terminal-owner' })
+  await core.keys.request('other-pc', 'ssh')
+  await core.reachability.check('other-pc')
+  assert.equal((await core.registry.get('other-pc')).hostTrust, undefined)
+})
