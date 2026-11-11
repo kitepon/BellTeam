@@ -1,12 +1,12 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-11T06:00:02Z",
-  "expiresAt": "2026-11-18T06:00:02Z",
+  "publishedAt": "2026-11-11T06:26:18Z",
+  "expiresAt": "2026-11-18T06:26:18Z",
   "releases": [
     {
       "componentId": "usage",
-      "sourceCommit": "27227d780a1648d247a15226a69607da2e4afd34",
-      "versionId": "f7decffe26072f1638f72f49b5eeda39cfcfd1bb73663b0b1cc7c2c45aea88fb",
+      "sourceCommit": "dbce389c427edbf1017c137fd974220b6625cd17",
+      "versionId": "b4d868fe61a9c7b0b08fccfb9a1b59d4757642d97dd3d5f32ee23137c9bd81fc",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -14,16 +14,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T032825Z/usage-27227d780a1648d247a15226a69607da2e4afd34-linux-amd64.tar.gz",
-          "bytes": 78229,
-          "sha256": "f7decffe26072f1638f72f49b5eeda39cfcfd1bb73663b0b1cc7c2c45aea88fb"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T062613Z/usage-dbce389c427edbf1017c137fd974220b6625cd17-linux-amd64.tar.gz",
+          "bytes": 78315,
+          "sha256": "b4d868fe61a9c7b0b08fccfb9a1b59d4757642d97dd3d5f32ee23137c9bd81fc"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T032825Z/usage-27227d780a1648d247a15226a69607da2e4afd34-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11050,
-          "sha256": "c67de45b10ed01ebb3b57c025222e9ded0e2a4233268b84aafcdd337302b0541"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T062613Z/usage-dbce389c427edbf1017c137fd974220b6625cd17-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11058,
+          "sha256": "1ac12b726f1d00f41cb3092fa3b670aa2865f61172e2f9fe87dc16569c76ca70"
         },
-        "signerCommit": "27227d780a1648d247a15226a69607da2e4afd34"
+        "signerCommit": "dbce389c427edbf1017c137fd974220b6625cd17"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -48,13 +48,13 @@
         }
       },
       "changes": [
-        "利用設定の部品が、いまの本体に合う版になり、『更新』で入れられるようになります。"
+        "Botが、ログインコードのように1回だけ使う値を頼めるようになりました。その値は保存せず、1回使うと消えます。"
       ]
     },
     {
       "componentId": "usage",
-      "sourceCommit": "27227d780a1648d247a15226a69607da2e4afd34",
-      "versionId": "461892850ba37ac6a01ba4c6572baf2031c2568af8b5d8512dd56747d8cde4da",
+      "sourceCommit": "dbce389c427edbf1017c137fd974220b6625cd17",
+      "versionId": "4b0476f578aa1b9f260faae1875070fdb606c203b1772754355df3bd0b5305b9",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -62,16 +62,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T032825Z/usage-27227d780a1648d247a15226a69607da2e4afd34-linux-arm64.tar.gz",
-          "bytes": 78229,
-          "sha256": "461892850ba37ac6a01ba4c6572baf2031c2568af8b5d8512dd56747d8cde4da"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T062613Z/usage-dbce389c427edbf1017c137fd974220b6625cd17-linux-arm64.tar.gz",
+          "bytes": 78315,
+          "sha256": "4b0476f578aa1b9f260faae1875070fdb606c203b1772754355df3bd0b5305b9"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T032825Z/usage-27227d780a1648d247a15226a69607da2e4afd34-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11093,
-          "sha256": "c03293160227c2c6bbf8e64221efdd1c1ab0ed6d9c5a3e6b7657b803ef963896"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T062613Z/usage-dbce389c427edbf1017c137fd974220b6625cd17-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11152,
+          "sha256": "229bb1ecba6da1d4f73572d8947f6f68e8c7a20f89f6bdcee0444a7b7c0dc6c4"
         },
-        "signerCommit": "27227d780a1648d247a15226a69607da2e4afd34"
+        "signerCommit": "dbce389c427edbf1017c137fd974220b6625cd17"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -96,7 +96,7 @@
         }
       },
       "changes": [
-        "利用設定の部品が、いまの本体に合う版になり、『更新』で入れられるようになります。"
+        "Botが、ログインコードのように1回だけ使う値を頼めるようになりました。その値は保存せず、1回使うと消えます。"
       ]
     },
     {
