@@ -39,7 +39,8 @@ const FOLDER_ACTIONS = {
     ? 'Macがこのフォルダを開かせてくれません。デスクトップ・書類・ダウンロードの外を選ぶか、リモートログインの「リモートユーザにフルディスクアクセスを許可」をオンにしてください'
     : `この${label(os)}のユーザーではこのフォルダを開けません。ほかのフォルダを選んでください`
 }
-const trustAction = target => target.os === 'macos' ? `${target.host} のMacを確かめてください。そのMacでBellTeamアプリを開くと、自動で確かめます`
+// The Mac app attests (S2) only an untrusted terminal, so a changed key gets the fingerprint step on every OS (Rapi #1019).
+const trustAction = (target, reason) => target.os === 'macos' && reason === 'HOST_TRUST_MISSING' ? `${target.host} のMacを確かめてください。そのMacでBellTeamアプリを開くと、自動で確かめます`
   : `${target.host} の${label(target.os)}を確かめてください。Webの「端末」でこの端末の指紋を確かめて「この指紋を信用する」を押すと使えます`
 const PROVISION_CODES = new Set(['REMOTE_AITERM_UNAVAILABLE', 'REMOTE_AITERM_TOO_OLD'])
 const CODE = /^[A-Z][A-Z0-9_]{0,63}$/
@@ -63,7 +64,7 @@ function classify(error, target) {
   const reason = NATIVE_CODES[error?.code] ? error.code : undefined
   const code = CONNECTION_CODES.includes(error?.code) ? error.code : NATIVE_CODES[error?.code] ?? 'TERMINAL_UNAVAILABLE'
   const action = code !== 'TARGET_MISMATCH' ? ACTIONS[reason]?.(target.os)
-    : reason === 'TERMINAL_OS_MISMATCH' ? `${target.host} は登録したOS（${label(target.os)}）と違うOSでした。Webの「端末」でOSを直してください` : trustAction(target)
+    : reason === 'TERMINAL_OS_MISMATCH' ? `${target.host} は登録したOS（${label(target.os)}）と違うOSでした。Webの「端末」でOSを直してください` : trustAction(target, reason)
   return failure(code, action, reason)
 }
 
@@ -118,7 +119,7 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
   // keySource 'secret': the key stays a Mika handle; Aiterm's UID1000 server resolves it, terminals never sees the value.
   async function resolveBinding(target, memberId) {
     if (!target.sshKeyRef) throw failure('CREDENTIAL_UNAVAILABLE', `端末 ${target.terminalId} のSSH鍵を設定してください`, 'SSH_KEY_UNSET')
-    if (!target.hostTrust) throw failure('TARGET_MISMATCH', trustAction(target), 'HOST_TRUST_MISSING')
+    if (!target.hostTrust) throw failure('TARGET_MISMATCH', trustAction(target, 'HOST_TRUST_MISSING'), 'HOST_TRUST_MISSING')
     const context = purpose => ({ terminalId: target.terminalId, memberId, purpose })
     let binding
     if (target.keySource === 'secret') {
