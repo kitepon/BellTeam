@@ -28,7 +28,7 @@ test('accepted Owner update invalidates catalogue reads already in progress',asy
  vm.runInNewContext('('+source.match(/onOwner: (owner => \{[^\n]+\})/u)[1]+')({name:"saved"})',ctx)
  reads[0].resolve({bots:[]});assert.equal(await old,null);assert.equal(state.owner.name,'saved')
 })
-for(const fail of [false,true])test(`unread rules cannot write profile or rules, failed=${fail}`,async t=>{
+for(const fail of [false,true])test(`unread rules cannot be saved, and the profile saves on its own, failed=${fail}`,async t=>{
  const f=editorDOM(t),rules=deferred(),writes=[]
  const editor=createOwnerEditor(f.dialog,{onOwner(){},onSettings(){},api:async(path,options)=>{
   if(options?.method){writes.push({path,body:JSON.parse(options.body)});return {owner:{name:'Owner'}}}
@@ -38,11 +38,13 @@ for(const fail of [false,true])test(`unread rules cannot write profile or rules,
   return {}
  }})
  const opening=editor.open({name:'Owner'})
- assert.equal(f.dialog.querySelector('button[form="owner-form"]').disabled,true);assert.equal(f.get('user-rules').disabled,true)
+ assert.equal(f.get('rules-save').disabled,true);assert.equal(f.get('user-rules').disabled,true)
+ await f.submit('rules-form');assert.equal(writes.length,0)
  if(fail){rules.reject(Error('read failed'));await opening}
- await f.submit('owner-form');assert.equal(writes.length,0)
+ await f.submit('rules-form');assert.equal(writes.length,0)
+ await f.submit('owner-form');assert.deepEqual(writes.map(x=>x.path),['/api/owner'])
  if(!fail){rules.resolve({text:'existing'});await opening;assert.equal(f.get('user-rules').disabled,false)
-  f.get('user-rules').value='';await f.submit('owner-form');assert.equal(writes[1].body.text,'')}
+  f.get('user-rules').value='';await f.submit('rules-form');assert.equal(writes[1].path,'/api/user-rules');assert.equal(writes[1].body.text,'')}
 })
 test('accepted Bot deletion invalidates older catalogue; stale response cannot clear the pending marker',async()=>{
  const {ctx,state,reads}=catalogue();state.bots=[{id:'gone'}]

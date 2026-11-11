@@ -26,9 +26,9 @@ test('unconfigured has no default; per-model candidates and exact CAS save are r
  f.choose('effort','high');await f.submit()
  assert.equal(calls.filter(call=>call.method==='PATCH').length,1)
  assert.equal(calls.filter(call=>call.path==='/api/settings').length,2)
- assert.match(f.node('status').textContent,/設定を保存しました/)
+ assert.match(f.node('status').textContent,/保存しました/)
  assert.equal(f.view.dirty(),false)
- assert.match(f.node('saved').textContent,/high/)
+ assert.match(f.node('saved').textContent,/高い/)
 })
 test('empty efforts permits only the empty CLI default and harness change never patches',async t=>{
  const calls=[];const f=fixture(t,async(path,options)=>{calls.push(options);return path==='/api/models'?{models}:{backgroundAgent:wire.unconfigured}})
@@ -44,11 +44,11 @@ test('old/malformed settings and missing saved candidates preserve read-only mea
  }
  result={backgroundAgent:{...wire.configured,selection:{...wire.configured.selection,model:'removed-model'}}}
  await f.view.open();assert.equal(f.node('model').value,'removed-model');assert.equal(f.node('save').disabled,true)
- assert.match(f.node('error').textContent,/現在の候補にない/)
+ assert.match(f.node('error').textContent,/いまは選べません/)
 })
 test('HTTP200 harness catalogue failure is visible and cannot save',async t=>{
  const f=fixture(t,async path=>path==='/api/models'?wire.modelCandidateFailureHTTP200:{backgroundAgent:wire.configured})
- await f.view.open();assert.equal(f.node('save').disabled,true);assert.match(f.node('error').textContent,/モデル候補を取得できません/)
+ await f.view.open();assert.equal(f.node('save').disabled,true);assert.match(f.node('error').textContent,/モデルの候補を読めませんでした/)
  assert.equal(f.node('model').value,wire.configured.selection.model)
 })
 test('malformed model entries and rejected writes retain inputs without an automatic retry',async t=>{
@@ -58,11 +58,11 @@ test('malformed model entries and rejected writes retain inputs without an autom
   if(options?.method){writes++;throw Object.assign(Error('設定を保存していません。'),{status:writes===1?400:503})}
   return {backgroundAgent:record}
  })
- await f.view.open();assert.equal(f.node('save').disabled,true);assert.match(f.node('error').textContent,/モデル候補を取得できません/)
+ await f.view.open();assert.equal(f.node('save').disabled,true);assert.match(f.node('error').textContent,/モデルの候補を読めませんでした/)
  catalog=models;record=wire.unconfigured;await f.view.open();select(f)
  await f.submit();assert.equal(writes,1);assert.equal(f.node('effort').value,'high')
  await f.submit();assert.equal(writes,2);assert.equal(f.node('model').value,wire.configured.selection.model)
- assert.equal(f.view.dirty(),true);assert.match(f.node('status').textContent,/保存していません/)
+ assert.equal(f.view.dirty(),true);assert.match(f.node('status').textContent,/設定を保存していません/)
 })
 test('conflict rereads saved values and keeps the draft without retrying PATCH',async t=>{
  let record=wire.unconfigured,writes=0;const f=fixture(t,async(path,options)=>{
@@ -71,7 +71,7 @@ test('conflict rereads saved values and keeps the draft without retrying PATCH',
   return {backgroundAgent:record}
  })
  await f.view.open();select(f);await f.submit()
- assert.equal(writes,1);assert.equal(f.node('harness').value,'codex');assert.match(f.node('saved').textContent,/grok/)
+ assert.equal(writes,1);assert.equal(f.node('harness').value,'codex');assert.match(f.node('saved').textContent,/Grok/)
  assert.match(f.node('status').textContent,/別の画面/);assert.equal(f.view.dirty(),true)
  await f.view.refresh();assert.equal(f.node('harness').value,'codex')
 })
@@ -82,7 +82,7 @@ test('apply failure retains saved setting without claiming generated summary or 
   return {backgroundAgent:record}
  })
  await f.view.open();select(f);await f.submit()
- assert.equal(writes,1);assert.match(f.node('saved').textContent,/high/);assert.match(f.node('status').textContent,/保存されています。要約の動作は未確認/)
+ assert.equal(writes,1);assert.match(f.node('saved').textContent,/高い/);assert.match(f.node('status').textContent,/選んだ設定は保存されています/)
 })
 test('save acknowledgement remains distinct from failed reread and later explicit read recovers',async t=>{
  let reads=0;const f=fixture(t,async(path,options)=>{
@@ -92,7 +92,7 @@ test('save acknowledgement remains distinct from failed reread and later explici
   return {backgroundAgent:reads===1?wire.unconfigured:wire.configured}
  })
  await f.view.open();select(f);await f.submit()
- assert.match(f.node('status').textContent,/設定を保存しました/);assert.match(f.node('error').textContent,/設定を取得できません/)
+ assert.match(f.node('status').textContent,/保存しました/);assert.match(f.node('error').textContent,/いまの設定を読めませんでした/)
  assert.equal(f.node('save').disabled,true);await f.view.refresh();assert.equal(f.node('save').disabled,false)
 })
 test('reopening discards old save/read completion and latest read preserves unsaved draft',async t=>{
@@ -106,5 +106,5 @@ test('reopening discards old save/read completion and latest read preserves unsa
  f.view.close();record={...wire.configured,selection:{harness:'grok',model:'no-effort',reasoningEffort:''}}
  await f.view.open();pending.resolve(wire.patchSuccess);await old
  assert.equal(f.node('harness').value,'grok');assert.equal(f.view.busy(),false)
- select(f);await f.view.refresh();assert.equal(f.node('harness').value,'codex');assert.match(f.node('saved').textContent,/grok/)
+ select(f);await f.view.refresh();assert.equal(f.node('harness').value,'codex');assert.match(f.node('saved').textContent,/Grok/)
 })

@@ -1,5 +1,6 @@
 // 設定の「AIの認証」。初期設定の後に、AIの公式認証をやり直す。
 // AIの認証が切れると、そのAIを使うメンバーは起動できず、入り直しを頼める相手も居なくなる。利用者がここから自分で戻す。
+// 段階と札・ボタンはAppleのAuthenticationProgressと同じ（docs/architecture/modules/web/user-paths.md 4.4）。
 import { authFlowView, renderAuthFlow } from './auth-flow.js?v=__ASSET_VERSION__'
 import { claudeAccounts, renderClaudeAccounts } from './harness-accounts.js?v=__ASSET_VERSION__'
 
@@ -13,45 +14,99 @@ export function harnessAuthView(auth) {
   return { ...view, poll: ['open_url', 'device_code', 'paste_code', 'select', 'waiting'].includes(view.stage) }
 }
 
-// 始める前の知らせが要るか。今の認証が消えうるAIで、認証が無い・切れているとは分かっていない時。
+// 始める前の知らせが要るか。今の認証が消えうるAIで、認証が無い・切れていると分かっている時を除く。
 export function needsStartConfirmation(harness, auth) {
   return harness.reloginSupported !== false && Boolean(harness.startWarning) && auth?.status !== 'blocked'
 }
 
-// AIの種類ごとの行を描く。返す stop は、設定を閉じる時に呼ぶ（見に行くのを止め、入力欄を空にする）。
-// Claudeは /api/accounts があれば1st/2ndの2行。無い旧本体では従来の1行のまま。
-export async function renderHarnessAuth(container, { api }) {
-  const stops = []
+// 行の段階。/api/accounts の loggedIn は使わない（期限切れの旧資格情報で真を返すことがある）。signedOutAt だけ見る。
+export function authStage({ auth, loaded, busy, signedOutAt = null }) {
+  if (!auth) return !loaded && busy ? 'checking' : 'unknown'
+  const stage = auth.auth_ui?.stage
+  if (auth.status === 'authenticated') return signedOutAt ? 'needsLogin' : 'done'
+  // 進行中のログインは、古い signedOutAt より先に見る。signedOutAt は枠の資格情報が替わるまで残るので、
+  // 先に見ると、その資格情報を替えるためのURLやコード欄が隠れてしまう。
+  if (auth.status === 'waiting') return ['open_url', 'device_code', 'select'].includes(stage) ? 'waitingSite' : stage === 'paste_code' ? 'waitingCode' : 'confirming'
+  if (auth.status === 'failed' || stage === 'failed') return 'failed'
+  if (auth.status === 'blocked' || signedOutAt) return 'needsLogin'
+  return 'unknown'
+}
+
+export const STAGES = {
+  checking: { badge: '確認中', tone: 'muted', text: '' },
+  unknown: { badge: '確認できません', tone: 'attention', text: '状態を確認できませんでした。「確認する」で読み直してください。' },
+  done: { badge: '認証済み', tone: 'ok', text: '' },
+  needsLogin: { badge: 'ログインが必要', tone: 'attention', text: 'ログインし直してください。「認証する」から公式サイトで認証します。' },
+  failed: { badge: '失敗', tone: 'attention', text: '認証できませんでした。「認証し直す」からやり直してください。' },
+  waitingSite: { badge: '認証の途中', tone: 'info', text: 'まだ終わっていません。公式サイトで認証してください。' },
+  waitingCode: { badge: 'コード待ち', tone: 'info', text: 'まだ終わっていません。公式サイトに表示された認証コードを下に貼り付けて「認証コードを送る」を押してください。' },
+  confirming: { badge: '確認中', tone: 'info', text: '公式の応答を待っています。' },
+}
+
+// サーバーの文はそのまま、符号だけの文は平易な文にして、符号は閉じた「詳細」へ。
+function failureNode(message) {
+  const box = Object.assign(document.createElement('p'), { className: 'form-error' })
+  box.setAttribute('role', 'alert')
+  const coded = /^[A-Z0-9_]+$/u.test(message ?? '')
+  box.append(Object.assign(document.createElement('span'), { textContent: coded || !message ? '通信がうまくいきませんでした。もう一度お試しください。' : message }))
+  if (coded) {
+    const more = document.createElement('details')
+    more.append(Object.assign(document.createElement('summary'), { textContent: '詳細' }), Object.assign(document.createElement('code'), { textContent: message }))
+    box.append(more)
+  }
+  return box
+}
+
+// AIの種類ごとの行を描く。onSummary は行の段階が変わるたびに、全行の段階の一覧を受け取る（設定のホームの一行と札）。
+// 返す stop は、設定を閉じる時に呼ぶ（見に行くのを止め、入力欄を空にする）。recheck は「すべて確認し直す」。
+// Claudeは /api/accounts があれば1つ目/2つ目の2行。無い旧本体では従来の1行のまま。
+export async function renderHarnessAuth(container, { api, onSummary = () => {} }) {
+  const stops = [], rechecks = [], sections = [], stages = new Map()
   container.replaceChildren()
   const { harnesses } = await api('/api/harness-auth')
   const accounts = harnesses.some(harness => harness.id === 'claude') ? await api('/api/accounts').catch(() => null) : null
-  const sections = []
+  const report = (key, value) => { stages.set(key, value); onSummary([...stages.values()]) }
   for (const harness of harnesses) {
     const item = harness.id === 'claude' && claudeAccounts(accounts)
-      ? renderClaudeAccounts(harness, accounts, { api, renderSlotAuth: (target, options) => harnessAuthItem(target, { api, ...options }) })
-      : harnessAuthItem(harness, { api })
+      ? renderClaudeAccounts(harness, accounts, { api, renderSlotAuth: (target, options) => {
+        const slotItem = harnessAuthItem(target, { api, ...options, onStage: stage => report(`claude:${options.slot}`, { name: harness.name, slot: options.slot, stage }) })
+        rechecks.push(slotItem.recheck)
+        return slotItem
+      } })
+      : harnessAuthItem(harness, { api, onStage: stage => report(harness.id, { name: harness.name, slot: null, stage }) })
+    if (item.recheck) rechecks.push(item.recheck)
     if (item.refresh) sections.push(item)
     stops.push(item.stop)
     container.append(item.element)
   }
-  return { refresh() { for (const section of sections) void section.refresh() }, stop() { for (const stop of stops) stop() } }
+  return {
+    refresh() { for (const section of sections) void section.refresh() },
+    recheck() { for (const recheck of rechecks) void recheck(); for (const section of sections) void section.refresh() },
+    stop() { for (const stop of stops) stop() },
+  }
 }
 
-// slotがあれば、その枠の公式ログイン。枠は ?slot= だけで渡し、入力の本文は変えない（1stは従来と同じ要求）。
-function harnessAuthItem(harness, { api, slot, onAuthenticated }) {
+// slotがあれば、その枠の公式ログイン。枠は ?slot= だけで渡し、入力の本文は変えない（1つ目は従来と同じ要求）。
+function harnessAuthItem(harness, { api, slot, title, label, signedOutAt = () => null, onAuthenticated, onStage = () => {} }) {
   const row = document.createElement(slot ? 'div' : 'section')
   row.className = slot ? 'harness-auth slot-auth' : 'feature-setting harness-auth'
   row.dataset.harnessId = harness.id
-  const body = document.createElement('div')
-  body.className = 'harness-auth-body'
+  const head = document.createElement('div')
+  head.className = 'harness-auth-head'
   const status = document.createElement('p')
   status.setAttribute('role', 'status')
-  if (!slot) row.append(Object.assign(document.createElement('h4'), { textContent: harnessAuthTitle(harness) }))
-  row.append(status, body)
+  const body = document.createElement('div')
+  body.className = 'harness-auth-body'
+  if (slot) {
+    const names = document.createElement('div')
+    names.append(Object.assign(document.createElement('h5'), { textContent: title ?? slot }))
+    if (label) names.append(Object.assign(document.createElement('p'), { className: 'slot-label', textContent: label }))
+    head.append(names, status)
+  } else head.append(Object.assign(document.createElement('h4'), { textContent: harnessAuthTitle(harness) }), status)
+  row.append(head, body)
   const base = `/api/harness-auth/${encodeURIComponent(harness.id)}`
   const query = slot && slot !== '1st' ? `?slot=${encodeURIComponent(slot)}` : ''
   const path = base + query
-  const login = slot ? ['ログイン', 'ログインし直す'] : ['認証する', '認証し直す']
   let auth = null
   let loaded = false
   let started = false
@@ -62,6 +117,7 @@ function harnessAuthItem(harness, { api, slot, onAuthenticated }) {
   let inputBlocked = false
   let stopped = false
   let errorText = ''
+  let lastStage = null
   let timer
   let password
   const clear = () => { if (password) password.value = '' }
@@ -102,61 +158,90 @@ function harnessAuthItem(harness, { api, slot, onAuthenticated }) {
     } catch (error) { errorText = error.message }
     finally { busy = false; if (!stopped) { render(); schedule() } }
   }
-  function button(label, action, className = 'setup-action') {
+  function button(text, action, className = 'setup-action') {
     const item = document.createElement('button')
     item.type = 'button'
     item.className = className
-    item.textContent = label
+    item.textContent = text
     item.disabled = busy
     item.addEventListener('click', () => void action())
     return item
   }
+  const read = () => perform(async () => { const next = await api(path); if (next.auth?.status === 'authenticated') started = false; return next })
+  const start = () => perform(async () => { confirming = false; const next = await post('start'); started = next.auth?.status !== 'authenticated'; return next })
+  const cancel = () => perform(async () => { await post('cancel'); started = false; return api(path) })
+  const begin = () => { if (needsStartConfirmation(harness, auth)) { confirming = true; render() } else return start() }
+  const sentence = text => Object.assign(document.createElement('p'), { className: 'auth-stage-text', textContent: text })
   function render() {
     clear()
     password = undefined
-    const view = harnessAuthView(auth)
-    const state = busy && !loaded ? 'checking' : errorText ? 'failed' : auth?.status ?? 'unknown'
-    status.className = `harness-auth-status ${state}`
-    status.textContent = ({ checking: '確認中', authenticated: '認証済み', blocked: '未認証', waiting: '認証中', failed: '確認できません' })[state] ?? '未確認'
-    const nodes = []
-    const flow = renderAuthFlow(inputBlocked ? { auth_ui: { stage: 'unavailable', title: '認証結果を確認してください', message: '同じ入力を繰り返さず、状態を更新してください。', binding: null } } : auth, { name: harness.name, busy,
-      respond: input => perform(async () => { try { return await post('input', input) } catch (error) { inputBlocked = true; throw error } }),
-    })
-    password = flow.password
-    // 認証済みの「認証が完了しました」は上の印（認証済み）と同じことなので出さない。初期設定の画面は印が無いので従来どおり。
-    if (loaded && !errorText && !(auth?.status === 'authenticated' && view.stage === 'complete')) nodes.push(...flow.elements)
-    if (harness.reloginSupported === false && auth?.status === 'authenticated' && harness.startWarning) nodes.push(Object.assign(document.createElement('p'), { textContent: harness.startWarning }))
-    const start = () => perform(async () => { confirming = false; const next = await post('start'); started = next.auth?.status !== 'authenticated'; return next })
-    const actions = document.createElement('div')
+    const stage = inputBlocked ? 'unknown' : authStage({ auth, loaded, busy, signedOutAt: signedOutAt() })
+    const meta = STAGES[stage]
+    status.className = `harness-auth-status ${stage} tone-${meta.tone}`
+    status.textContent = meta.badge
+    if (stage !== lastStage) { lastStage = stage; onStage(stage) }
+    const nodes = [], actions = document.createElement('div')
     actions.className = 'secret-actions'
+    const relogin = slot ? 'ログインし直す' : '認証し直す'
     if (confirming) {
       const warning = Object.assign(document.createElement('p'), { className: 'form-error', textContent: harness.startWarning })
       warning.setAttribute('role', 'alert')
       nodes.push(warning)
-      actions.append(button('今の認証を手放して始める', start), button('始めない', () => { confirming = false; render() }))
+      actions.append(button('今の認証を手放して始める', start, 'setup-action primary'), button('やめる', () => { confirming = false; render() }))
+    } else if (stage === 'checking') {
+      // 状態が分かるまで、何も押させない。
+    } else if (stage === 'unknown') {
+      nodes.push(sentence(inputBlocked ? '認証結果を確かめられませんでした。同じ入力を繰り返さず、「確認する」で読み直してください。' : meta.text))
+      actions.append(button('確認する', read, 'setup-action primary'))
+    } else if (stage === 'done') {
+      // 使える行に主ボタンは置かない。やり直しは閉じた中にだけある。
+      if (harness.reloginSupported === false) { if (harness.startWarning) nodes.push(sentence(harness.startWarning)) }
+      else {
+        const more = Object.assign(document.createElement('details'), { className: 'auth-more' })
+        more.append(Object.assign(document.createElement('summary'), { textContent: 'やり直す' }), button(relogin, begin))
+        nodes.push(more)
+      }
+    } else if (stage === 'needsLogin') {
+      nodes.push(sentence(slot ? 'ログインし直してください。「ログイン」から公式サイトでログインします。' : meta.text))
+      actions.append(button(slot ? 'ログイン' : '認証する', begin, 'setup-action primary'))
+    } else if (stage === 'failed') {
+      nodes.push(sentence(auth?.auth_ui?.message || meta.text))
+      actions.append(button(relogin, begin, 'setup-action primary'))
     } else {
-      if ((harness.reloginSupported !== false || auth && auth.status !== 'authenticated') && (!(auth?.session_id || view.binding) || view.stage === 'complete')) actions.append(button(auth?.status === 'authenticated' ? login[1] : login[0], () => {
-        if (needsStartConfirmation(harness, auth)) { confirming = true; render() } else return start()
-      }))
-      actions.append(button('状態を更新', () => perform(async () => { const next = await api(path); if (next.auth?.status === 'authenticated') started = false; return next })))
+      nodes.push(sentence(meta.text))
+      const flow = renderAuthFlow(auth, { name: harness.name, busy, plain: true, sendLabel: '認証コードを送る', sendClass: 'primary',
+        respond: input => perform(async () => { try { return await post('input', input) } catch (error) { inputBlocked = true; throw error } }),
+      })
+      password = flow.password
+      nodes.push(...flow.elements)
+      if (started || auth?.session_id) actions.append(button('やめる', cancel))
     }
-    if (started || auth?.session_id || view.binding && view.stage !== 'complete') actions.append(button('認証を中止する', () => perform(async () => { await post('cancel'); started = false; return api(path) })))
-    nodes.push(actions)
-    if (errorText) {
-      const error = Object.assign(document.createElement('p'), { className: 'form-error', textContent: errorText })
-      error.setAttribute('role', 'alert')
-      nodes.push(error)
-    }
+    if (actions.children.length) nodes.push(actions)
+    if (errorText && !inputBlocked) nodes.push(failureNode(errorText))
     body.replaceChildren(...nodes)
   }
   // 利用人数にかかわらず、設定を開いた時に一度だけ公式の状態を確認する。
   const visibility = () => { if (document.hidden) { clearTimeout(timer); clear() } else schedule() }
   document.addEventListener('visibilitychange', visibility)
   void perform(() => api(path))
-  return { element: row, stop() {
+  return { element: row, render, recheck: read, stop() {
     stopped = true
     clearTimeout(timer)
     clear()
     document.removeEventListener('visibilitychange', visibility)
   } }
+}
+
+// 設定のホームの一行と札。最も悪い段階を言う。
+export function authSummary(list) {
+  const name = item => item.slot ? `${item.name} ${item.slot === '2nd' ? '2つ目' : '1つ目'}` : item.name
+  if (!list.length) return { line: '確認しています', badge: '', tone: 'muted' }
+  for (const stage of ['needsLogin', 'failed', 'unknown']) {
+    const hit = list.find(item => item.stage === stage)
+    if (hit) return { line: stage === 'needsLogin' ? `${name(hit)}のログインが必要` : stage === 'failed' ? `${name(hit)}の認証に失敗` : `${name(hit)}の状態を確認できません`, badge: STAGES[stage].badge, tone: 'attention' }
+  }
+  const waiting = list.find(item => ['waitingSite', 'waitingCode', 'confirming'].includes(item.stage))
+  if (waiting) return { line: `${name(waiting)}の認証の途中`, badge: '途中', tone: 'info' }
+  if (list.some(item => item.stage === 'checking')) return { line: '確認しています', badge: '', tone: 'muted' }
+  return { line: 'すべて認証済み', badge: '認証済み', tone: 'ok' }
 }

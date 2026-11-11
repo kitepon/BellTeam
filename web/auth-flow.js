@@ -12,19 +12,30 @@ export function authFlowView(auth) {
 
 // Shared by initial setup and Settings. It renders only named native actions;
 // terminal navigation keys are not a user-facing authentication interface.
-export function renderAuthFlow(auth, { name, busy = false, respond }) {
+// plain: the caller says the stage in its own words, so the Aiterm title/message are not drawn twice (Settings).
+export function renderAuthFlow(auth, { name, busy = false, respond, plain = false, sendLabel = '認証を完了する', sendClass = '' }) {
   const view = authFlowView(auth), elements = []
-  const title = node('p', view.title); title.setAttribute('role', view.stage === 'unavailable' || view.stage === 'failed' ? 'alert' : 'status')
-  elements.push(title)
-  if (view.message) elements.push(node('p', view.message))
-  if (view.url) {
-    const link = node('a', `${name}のログイン画面を開く`)
-    link.href = view.url; link.target = '_blank'; link.rel = 'noopener noreferrer'
-    elements.push(link)
+  if (!plain) {
+    const title = node('p', view.title); title.setAttribute('role', view.stage === 'unavailable' || view.stage === 'failed' ? 'alert' : 'status')
+    elements.push(title)
+    if (view.message) elements.push(node('p', view.message))
   }
   if (view.stage === 'device_code') {
     elements.push(node('p', 'ログイン画面で、次のコードを入力してください。'))
-    elements.push(Object.assign(node('p', view.user_code), { className: 'auth-user-code' }))
+    const box = Object.assign(node('div'), { className: 'auth-code-box' })
+    box.append(Object.assign(node('p', view.user_code), { className: 'auth-user-code' }))
+    const clipboard = globalThis.navigator?.clipboard
+    if (clipboard?.writeText) {
+      const copy = node('button', 'コピー'); copy.type = 'button'
+      copy.addEventListener('click', () => { void clipboard.writeText(view.user_code).then(() => { copy.textContent = 'コピーしました' }, () => { copy.textContent = 'コピーできませんでした' }) })
+      box.append(copy)
+    }
+    elements.push(box)
+  }
+  if (view.url) {
+    const link = node('a', `${name}のログイン画面を開く`)
+    link.href = view.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.className = 'auth-open'
+    elements.push(link)
   }
   let password
   if (view.stage === 'paste_code') {
@@ -33,8 +44,8 @@ export function renderAuthFlow(auth, { name, busy = false, respond }) {
     password = node('input'); password.type = 'password'; password.autocomplete = 'off'
     password.autocapitalize = 'none'; password.spellcheck = false; password.disabled = busy
     label.append(password)
-    const field = password, send = node('button', '認証を完了する')
-    send.type = 'button'; send.disabled = true
+    const field = password, send = node('button', sendLabel)
+    send.type = 'button'; send.disabled = true; if (sendClass) send.className = sendClass
     field.addEventListener('input', () => { send.disabled = busy || !field.value })
     send.addEventListener('click', () => {
       if (send.disabled) return
