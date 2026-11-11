@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-11T07:09:41Z",
-  "expiresAt": "2026-11-18T07:09:41Z",
+  "publishedAt": "2026-11-11T07:28:13Z",
+  "expiresAt": "2026-11-18T07:28:13Z",
   "releases": [
     {
       "componentId": "usage",
@@ -427,8 +427,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "28d5bfbb6b67d7c1c11c86c4947c379ca0055c81",
-      "versionId": "e571fa9e4ca4c9ca9387009a2ceb1b181d0e12302858eb6299be2ff96e23eab7",
+      "sourceCommit": "eec7cab4cb4afb49c09b06d911105d887a620241",
+      "versionId": "843269f9457a5363764673d6ed802abd583deb9d4821d333ba075cce3613b302",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +436,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T050854Z/web-gateway-28d5bfbb6b67d7c1c11c86c4947c379ca0055c81-linux-amd64.tar.gz",
-          "bytes": 5194920,
-          "sha256": "e571fa9e4ca4c9ca9387009a2ceb1b181d0e12302858eb6299be2ff96e23eab7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T071502Z/web-gateway-eec7cab4cb4afb49c09b06d911105d887a620241-linux-amd64.tar.gz",
+          "bytes": 5195747,
+          "sha256": "843269f9457a5363764673d6ed802abd583deb9d4821d333ba075cce3613b302"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T050854Z/web-gateway-28d5bfbb6b67d7c1c11c86c4947c379ca0055c81-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10927,
-          "sha256": "10d786036bf7b55eeb077687bd34d8259251d29a40fdeaf3c18b33729341d025"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T071502Z/web-gateway-eec7cab4cb4afb49c09b06d911105d887a620241-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11158,
+          "sha256": "bbdc8b40c9ec4efec7c4cf0da4f2fe5f2fd4c011d24ca43925531fb83f627208"
         },
-        "signerCommit": "28d5bfbb6b67d7c1c11c86c4947c379ca0055c81"
+        "signerCommit": "eec7cab4cb4afb49c09b06d911105d887a620241"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,13 +454,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "端末にはつながったのにフォルダの操作に失敗した時、端末側の説明をそのまま出すようにしました。秘密入力カードの選択肢を『1Passwordから選ぶ』『ここに入力する』にそろえ、ログインコードのような一度きりの値では『保存』と言わず、1回だけ使って消すと書くようにしました。"
+        "端末の画面で、まだ確かめていないWindowsの端末に「このPCでBellTeamアプリを開くと、自動で確かめます。」と出て、指紋を手で入れる欄は「ほかの方法」の中に入りました。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "28d5bfbb6b67d7c1c11c86c4947c379ca0055c81",
-      "versionId": "fdbcc3c41348216095df264099689a4e2003a3fc10fe276b6e9f6c81125e9ac8",
+      "sourceCommit": "eec7cab4cb4afb49c09b06d911105d887a620241",
+      "versionId": "f35736bff7910f0db95732564d64212df1a7799dcd8cc753a31ca9144bf0cfe5",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -468,16 +468,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T050854Z/web-gateway-28d5bfbb6b67d7c1c11c86c4947c379ca0055c81-linux-arm64.tar.gz",
-          "bytes": 5194920,
-          "sha256": "fdbcc3c41348216095df264099689a4e2003a3fc10fe276b6e9f6c81125e9ac8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T071502Z/web-gateway-eec7cab4cb4afb49c09b06d911105d887a620241-linux-arm64.tar.gz",
+          "bytes": 5195747,
+          "sha256": "f35736bff7910f0db95732564d64212df1a7799dcd8cc753a31ca9144bf0cfe5"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T050854Z/web-gateway-28d5bfbb6b67d7c1c11c86c4947c379ca0055c81-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11068,
-          "sha256": "00b590c241e8f95829163cad6a65e6220924c53d58513fd2c379c3a2f4bb92f9"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T071502Z/web-gateway-eec7cab4cb4afb49c09b06d911105d887a620241-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11017,
+          "sha256": "4d2f8fbb478645899c07a417a04d19a4f9bbc332f61ffbe2c0991f255e5412b5"
         },
-        "signerCommit": "28d5bfbb6b67d7c1c11c86c4947c379ca0055c81"
+        "signerCommit": "eec7cab4cb4afb49c09b06d911105d887a620241"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -486,7 +486,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "端末にはつながったのにフォルダの操作に失敗した時、端末側の説明をそのまま出すようにしました。秘密入力カードの選択肢を『1Passwordから選ぶ』『ここに入力する』にそろえ、ログインコードのような一度きりの値では『保存』と言わず、1回だけ使って消すと書くようにしました。"
+        "端末の画面で、まだ確かめていないWindowsの端末に「このPCでBellTeamアプリを開くと、自動で確かめます。」と出て、指紋を手で入れる欄は「ほかの方法」の中に入りました。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "165a4d1e5b41977820cd4a1894626a71ae04fac2",
-      "versionId": "sha256:3485c10210fba5d15991b667faa046d83029302775a8c833470c9872700cfc50",
+      "sourceCommit": "eec7cab4cb4afb49c09b06d911105d887a620241",
+      "versionId": "sha256:efeadf0a2ad11f9934d7aace8db7cd808d2349d635b99bd94fde76621bb85990",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3485c10210fba5d15991b667faa046d83029302775a8c833470c9872700cfc50"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:efeadf0a2ad11f9934d7aace8db7cd808d2349d635b99bd94fde76621bb85990"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "2つ目のClaudeアカウントでログインした時、席が使うログイン情報（oauth-token）を作るようになります。外部の席で、起動の直後にBellTeamの道具がつながらなくなる問題を直します（Aiterm 0.70.21）。"
+        "2つ目のClaudeアカウントでログインした時、席が使うログイン情報（oauth-token）を作るようになります。外部の席で、起動の直後にBellTeamの道具がつながらなくなる問題を直します（Aiterm 0.70.21）。WindowsのBellTeamアプリが、自分のPCを端末として登録し、自分で確かめられるようになります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "165a4d1e5b41977820cd4a1894626a71ae04fac2",
-      "versionId": "sha256:3485c10210fba5d15991b667faa046d83029302775a8c833470c9872700cfc50",
+      "sourceCommit": "eec7cab4cb4afb49c09b06d911105d887a620241",
+      "versionId": "sha256:efeadf0a2ad11f9934d7aace8db7cd808d2349d635b99bd94fde76621bb85990",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3485c10210fba5d15991b667faa046d83029302775a8c833470c9872700cfc50"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:efeadf0a2ad11f9934d7aace8db7cd808d2349d635b99bd94fde76621bb85990"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "2つ目のClaudeアカウントでログインした時、席が使うログイン情報（oauth-token）を作るようになります。外部の席で、起動の直後にBellTeamの道具がつながらなくなる問題を直します（Aiterm 0.70.21）。"
+        "2つ目のClaudeアカウントでログインした時、席が使うログイン情報（oauth-token）を作るようになります。外部の席で、起動の直後にBellTeamの道具がつながらなくなる問題を直します（Aiterm 0.70.21）。WindowsのBellTeamアプリが、自分のPCを端末として登録し、自分で確かめられるようになります。"
       ]
     }
   ],
