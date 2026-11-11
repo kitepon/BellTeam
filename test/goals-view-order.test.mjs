@@ -330,6 +330,12 @@ test('chat shows an idle seat as 休止中, not a read failure; a missing reason
     await f.view.refreshSelected()
     assert.equal(f.summary.textContent, 'ゴール · 状態を取得できません')
   }
+  // seat_idle counts only together with availability=unavailable.
+  for (const availability of [undefined, 'bogus']) {
+    result = { snapshot: { botId: 'a', ...(availability ? { availability } : {}), reason: 'seat_idle', message: idle } }
+    await f.view.refreshSelected()
+    assert.equal(f.summary.textContent, 'ゴール · 状態を取得できません')
+  }
 })
 
 test('chat Grok status uses the current observation and explains unavailable mutations', async () => {

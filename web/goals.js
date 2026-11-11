@@ -62,7 +62,7 @@ export function goalsView(dialog, api, getBots, chat = null) {
           ? current ? [state, elapsed].filter(Boolean).join('  ') : '目標未設定'
           : selected?.availability === 'unsupported' ? 'ゴール · このメンバーは未対応です'
             // 席が止まっているだけ（seat_idle）は失敗ではない。reason が無い古い応答は読取失敗として扱う。
-            : selected?.reason === 'seat_idle' ? 'ゴール · 休止中' : 'ゴール · 状態を取得できません'
+            : selected?.availability === 'unavailable' && selected.reason === 'seat_idle' ? 'ゴール · 休止中' : 'ゴール · 状態を取得できません'
         chatSummary.title = current?.objective ?? chatSummary.textContent
         renderCards(chatBody, snapshots.filter(snapshot => snapshot.botId === selectedBotId), 'ゴールの状態を取得できません。更新して確認してください。')
       }
