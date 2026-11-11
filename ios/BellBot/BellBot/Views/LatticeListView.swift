@@ -177,6 +177,17 @@ struct LatticeEmptyState: View {
     }
 }
 
+extension AppStore {
+    /// 工程表の表示名。作った人の名前はアプリの名簿から引く。
+    func latticeChartName(_ chart: LatticeChartSummary) -> String {
+        latticeChartName(name: chart.name, createdBy: chart.createdBy)
+    }
+
+    func latticeChartName(name: String?, createdBy: String?) -> String {
+        LatticeChartName.of(name: name, createdBy: createdBy) { id in bots.first { $0.id == id }?.displayName }
+    }
+}
+
 // MARK: Open a member's chat
 
 /// 会話を開く。相関図の顔のタップと同じ経路（AppStore.openConversation）。
@@ -263,7 +274,7 @@ struct LatticeListView: View {
 
     private var visible: [LatticeChartSummary] {
         list.charts.filter { chart in
-            (filter == .all || chart.waiting > 0) && (search.isEmpty || chart.projectId.localizedCaseInsensitiveContains(search))
+            (filter == .all || chart.waiting > 0) && (search.isEmpty || store.latticeChartName(chart).localizedCaseInsensitiveContains(search))
         }
     }
 
@@ -374,7 +385,9 @@ struct LatticeChartCard: View {
     }
 
     var body: some View {
-        let creator = person(chart.createdBy)
+        let title = store.latticeChartName(chart)
+        // 統括の行は統括の工程表だけ（他の工程表に統括がいるように読めないように）。
+        let coordinator = chart.isCoordinator ? person(chart.createdBy) : nil
         let faces = (chart.activeMembers ?? []).prefix(pinned ? 6 : 4).compactMap(person)
         TimelineView(.periodic(from: .now, by: 30)) { timeline in
             VStack(alignment: .leading, spacing: 0) {
@@ -384,13 +397,13 @@ struct LatticeChartCard: View {
                             if chart.isCoordinator {
                                 Image(systemName: "crown.fill").font(.system(size: 13)).foregroundStyle(LatticePalette.amber)
                             }
-                            Text(chart.projectId).font(.system(size: 17, weight: .bold)).foregroundStyle(LatticePalette.ink).lineLimit(1)
+                            Text(title).font(.system(size: 17, weight: .bold)).foregroundStyle(LatticePalette.ink).lineLimit(1)
                         }
-                        if let creator {
+                        if let coordinator {
                             HStack(spacing: 5) {
                                 Text("統括").foregroundStyle(LatticePalette.muted)
-                                LatticeAvatar(person: creator, size: 15)
-                                Text(creator.name).foregroundStyle(LatticePalette.ink.opacity(0.8))
+                                LatticeAvatar(person: coordinator, size: 15)
+                                Text(coordinator.name).foregroundStyle(LatticePalette.ink.opacity(0.8))
                             }
                             .font(.system(size: 12))
                         }
@@ -419,7 +432,7 @@ struct LatticeChartCard: View {
             .strokeBorder(pinned ? BellTheme.violet.opacity(0.45) : LatticePalette.line.opacity(0.7), lineWidth: pinned ? 1.5 : 0.5))
         .shadow(color: (pinned ? BellTheme.violet : .black).opacity(pinned ? 0.12 : 0.05), radius: pinned ? 16 : 8, y: 4)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(chart.projectId)\(chart.isCoordinator ? "、統括の工程表" : "")、完了 \(chart.done)/\(chart.total)、待ち \(chart.waiting)\(faces.isEmpty ? "" : "、動いているのは\(faces.map(\.name).joined(separator: "、"))")")
+        .accessibilityLabel("\(title)\(chart.isCoordinator ? "、統括の工程表" : "")、完了 \(chart.done)/\(chart.total)、待ち \(chart.waiting)\(faces.isEmpty ? "" : "、動いているのは\(faces.map(\.name).joined(separator: "、"))")")
         .accessibilityAddTraits(.isButton)
     }
 }

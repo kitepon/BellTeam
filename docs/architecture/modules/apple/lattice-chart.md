@@ -18,7 +18,7 @@ flowchart LR
   Home --> ListModel["Core/LatticeChartModel.swift<br/>LatticeChartsModel（一覧・統括のBot）"]
   ListModel -->|"開いている間10秒ごと"| ListAPI["GET /api/lattice/charts<br/>bellteam.lattice-charts.v1"]
   ListAPI -->|"404（旧本体）→ unsupported / 認証 → failed / 503・切断 → reconnecting（一覧は残す）"| ListModel
-  Home --> List["LatticeListView<br/>ピン留め（統括）・すべての工程表・新しい工程表（説明だけ）<br/>絞り込み すべて/待ちあり・検索（projectId）"]
+  Home --> List["LatticeListView<br/>ピン留め（統括）・すべての工程表・新しい工程表（説明だけ）<br/>絞り込み すべて/待ちあり・検索（表示名）"]
   List -->|"札を押す"| Screen["Views/LatticeChartView.swift<br/>LatticeChartScreen(projectId)"]
   Screen --> Model["LatticeChartModel（参照型・projectId鍵）<br/>snapshot・layout・connection・completedAt"]
   Model -->|"SSE"| Stream["BellAPI.eventStream(path:)<br/>GET /api/lattice/charts/:id/events<br/>event: snapshot → 図を丸ごと置き換え（差分は動きで見せる）"]
@@ -27,7 +27,7 @@ flowchart LR
   Stream -->|"401/403"| Login["failed（ログインが必要です。）"]
   Model --> Calc["Core/LatticeChart.swift（純粋）<br/>LatticeLayout：レーン=担当（統括→動きの多い順→名前順→名簿にない→担当なし）、列=depth<br/>LatticeCounts・LatticeWaitRow・LatticeDetail・LatticeBanner<br/>LatticeCurve・LatticeFlow（粒）・LatticeChipPlacement・LatticeDiff（新しい完了）"]
   ListModel -->|"統括のBot（createdBy）"| Model
-  Calc --> Wide["広い面（Mac・iPad）<br/>上の帯：切り替え（popover）・ライブ・読み直し中・進み具合・数<br/>左：LatticeRail（担当の輪。押すとその担当だけ強調）<br/>中：名前の列（固定）＋横に送る盤（レーン・札・LatticeEdgesLayer・待ちの札）<br/>右：LatticeWaitPanel"]
+  Calc --> Wide["広い面（Mac・iPad）<br/>上の帯：切り替え（popover）・ライブ・読み直し中・進み具合・数<br/>左：LatticeRail（担当の輪。押すとその担当だけ強調）<br/>中：横に送る盤（レーン・札・LatticeEdgesLayer・待ちの札、右端に余白）の上に不透明な名前の列（固定。札はその下へ潜る）<br/>右：LatticeWaitPanel"]
   Calc --> Compact["iPhone<br/>切り替え・数・待ちの流れ（横に送る札）・工程（段ごと/担当ごと の縦の流れ）"]
   Wide -->|"札を押す"| Detail["LatticeDetailPanel<br/>Mac・iPad：盤の上のガラスの面（札からmatchedGeometryEffectで育つ）<br/>iPhone：sheet（160pt・中・大、背後も操作可）"]
   Compact -->|"札を押す"| Detail
@@ -37,6 +37,10 @@ flowchart LR
   Wide -->|"工程へ移動"| Go["その札へ送り（ScrollViewReader）、詳細を開く"]
   Compact -->|"工程へ移動"| Go
 ```
+
+## 工程表の名前
+
+一覧の札・切り替え・読み上げの名前は`LatticeChartName.of`（`AppStore.latticeChartName`）：`name`、無ければ「<作った人の名簿の名前>の工程表」（`createdBy`をアプリの名簿で引く）、それも分からなければ「名前のない工程表」。`projectId`はAPIの宛先と試験の識別子（`accessibilityIdentifier`）だけで、画面と読み上げに出さない（[Display name rule](../lattice/README.md#get-apilatticecharts)）。一覧の「統括 <顔> <名前>」の行は`coordinator: true`の工程表だけに出す。
 
 ## 状態の持ち主
 

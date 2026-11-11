@@ -48,6 +48,8 @@ struct LatticeChartSnapshot: Decodable, Equatable {
     let epoch: String
     let version: Int
     let projectId: String
+    var name: String?
+    var createdBy: String?
     var coordinator: Bool?
     /// verified | unverified | last_verified | unavailable（Latticeの表示状態そのまま）
     let state: String
@@ -77,6 +79,7 @@ struct LatticeChartSummary: Decodable, Equatable, Identifiable {
     }
 
     let projectId: String
+    var name: String?
     var coordinator: Bool?
     var createdBy: String?
     var counts: Counts?
@@ -89,6 +92,18 @@ struct LatticeChartSummary: Decodable, Equatable, Identifiable {
     var done: Int { counts?.done ?? 0 }
     var total: Int { counts?.total ?? 0 }
     var waiting: Int { counts?.waiting ?? 0 }
+}
+
+/// 工程表の表示名（lattice README「Display name rule」）：`name`、無ければ「<作った人の名簿の名前>の工程表」、
+/// それも分からなければ「名前のない工程表」。projectIdはAPIの宛先だけで、画面にも読み上げにも出さない。
+enum LatticeChartName {
+    static let unnamed = "名前のない工程表"
+
+    static func of(name: String?, createdBy: String?, roster: (String) -> String?) -> String {
+        if let name { return name }
+        if let createdBy, let member = roster(createdBy) { return "\(member)の工程表" }
+        return unnamed
+    }
 }
 
 // MARK: States

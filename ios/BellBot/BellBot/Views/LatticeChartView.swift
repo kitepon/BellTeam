@@ -23,6 +23,8 @@ struct LatticeChartScreen: View {
     @State private var page: String?
     @State private var detent: PresentationDetent = .medium
     @State private var switching = false
+    /// 広い面で札へ送る時の目印。段の境目を名前の列の縁にそろえ、札が列の下で字の途中から切れて見えないようにする。
+    @State private var columnAnchor = CGPoint.zero
     @Namespace private var namespace
 
     init(projectId: String, list: LatticeChartsModel, returnTab: Int, switchTo: @escaping (String?) -> Void) {
@@ -37,7 +39,12 @@ struct LatticeChartScreen: View {
 
     private var wide: Bool { sizeClass == .regular }
     private var summary: LatticeChartSummary? { list.charts.first { $0.projectId == model.projectId } }
-    private var coordinatorId: String? { summary?.createdBy ?? list.coordinatorBotId }
+    private var coordinatorId: String? { list.coordinatorBotId }
+    /// いま開いている工程表の名前。読めたsnapshotがあればその名前、無ければ一覧の名前。
+    private var title: String {
+        if let snapshot = model.snapshot { return store.latticeChartName(name: snapshot.name, createdBy: snapshot.createdBy) }
+        return summary.map(store.latticeChartName) ?? LatticeChartName.unnamed
+    }
     private var chat: LatticeChatOpener {
         #if targetEnvironment(macCatalyst)
         LatticeChatOpener(store: store, returnTab: returnTab, openWindow: openWindow)
@@ -111,8 +118,9 @@ struct LatticeChartScreen: View {
                 if summary?.isCoordinator ?? (model.snapshot?.coordinator == true) {
                     Image(systemName: "crown.fill").font(.system(size: 12)).foregroundStyle(LatticePalette.amber)
                 }
-                Text(model.projectId).font(.system(size: 15, weight: .bold)).foregroundStyle(LatticePalette.ink).lineLimit(1)
-                if let coordinator = person(summary?.createdBy) {
+                Text(title).font(.system(size: 15, weight: .bold)).foregroundStyle(LatticePalette.ink).lineLimit(1)
+                if summary?.isCoordinator ?? (model.snapshot?.coordinator == true),
+                   let coordinator = person(model.snapshot?.createdBy ?? summary?.createdBy) {
                     Rectangle().fill(LatticePalette.line).frame(width: 1, height: 14)
                     Text("統括").font(.system(size: 12)).foregroundStyle(LatticePalette.muted)
                     LatticeAvatar(person: coordinator, size: 18)
@@ -128,7 +136,7 @@ struct LatticeChartScreen: View {
         .popover(isPresented: $switching) {
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(list.charts) { chart in
-                    switchRow(chart.projectId, symbol: chart.isCoordinator ? "crown.fill" : "square.stack.3d.up",
+                    switchRow(store.latticeChartName(chart), symbol: chart.isCoordinator ? "crown.fill" : "square.stack.3d.up",
                               detail: "\(chart.done)/\(chart.total)", current: chart.projectId == model.projectId) {
                         switching = false
                         if chart.projectId != model.projectId { switchTo(chart.projectId) }
@@ -142,7 +150,7 @@ struct LatticeChartScreen: View {
             .presentationCompactAdaptation(.popover)
         }
         .accessibilityIdentifier("lattice-switcher")
-        .accessibilityLabel("工程表を切り替える、いまは\(model.projectId)")
+        .accessibilityLabel("工程表を切り替える、いまは\(title)")
     }
 
     private func switchRow(_ title: String, symbol: String, detail: String, current: Bool, action: @escaping () -> Void) -> some View {
@@ -266,18 +274,61 @@ struct LatticeChartScreen: View {
         }
     }
 
-    /// レーンと札と線。左の名前の列は横に送っても残る（note 04）：縦の送りの中に、固定の名前の列と横に送る盤を並べる。
+    /// レーンと札と線。左の名前の列は横に送っても残る（note 04）：横に送る盤の上に、不透明な名前の列を重ねる。
+    /// 盤の札は名前の列の下へ潜り、列の縁で字の途中から切れて見えない。右端は送りのつまみに掛からない余白を取る。
     private func board(_ snapshot: LatticeChartSnapshot, _ layout: LatticeLayout, now: Date) -> some View {
         let lookup = LatticePerson.lookup(snapshot)
         let cards = Dictionary(snapshot.cardList.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let highlighted: Set<String>? = focus.map { focus in Set(snapshot.cardList.filter { $0.producer == focus }.map(\.id)) }
         let chips = chipPlacements(snapshot, layout, lookup: lookup, cards: cards)
-        let labels = LatticeLayout.labelWidth + 8
+        let width = layout.size.width + 40
         let height = layout.size.height + 56
         return ScrollViewReader { proxy in
             ScrollView(.vertical) {
-                HStack(alignment: .top, spacing: 0) {
+                ZStack(alignment: .topLeading) {
+                    ScrollView(.horizontal) {
+                        ZStack(alignment: .topLeading) {
+                            Color.clear.contentShape(Rectangle())
+                                .onTapGesture { focus = nil; select(nil) }
+                            ForEach(0..<layout.columns, id: \.self) { depth in
+                                Text("\(depth + 1)段目").font(.system(size: 11, weight: .medium)).foregroundStyle(LatticePalette.muted)
+                                    .position(x: layout.columnCenter(depth), y: 16)
+                            }
+                            ForEach(layout.lanes) { lane in
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .fill(laneFill(lane))
+                                    .frame(width: layout.size.width - 16, height: lane.height)
+                                    .position(x: 8 + (layout.size.width - 16) / 2, y: lane.y + lane.height / 2)
+                            }
+                            LatticeEdgesLayer(snapshot: snapshot, layout: layout, lookup: lookup, highlighted: highlighted,
+                                              animate: !reduceMotion && model.connection == .live)
+                                .frame(width: layout.size.width, height: layout.size.height)
+                                .allowsHitTesting(false)
+                            ForEach(snapshot.cardList) { card in
+                                if let frame = layout.frames[card.id] {
+                                    cardButton(card, producer: lookup(card.producer), frame: frame, highlighted: highlighted, now: now)
+                                }
+                            }
+                            ForEach(chips, id: \.id) { chip in
+                                LatticeEdgeChip(person: chip.waiter, text: chip.text, blocked: chip.blocked)
+                                    .frame(width: chip.frame.width, height: chip.frame.height)
+                                    .position(x: chip.frame.midX, y: chip.frame.midY)
+                                    .opacity(highlighted == nil || chip.involves(focus) ? 1 : 0.25)
+                                    .allowsHitTesting(false)
+                            }
+                            Color.clear.frame(width: 1, height: 1).id(Self.columnAnchorID)
+                                .position(x: columnAnchor.x + 0.5, y: columnAnchor.y)
+                        }
+                        .frame(width: width, height: height)
+                    }
+                    // 窓より広い盤の右端は切り口でなく薄れて見せ、続きが右にあると分かるようにする（送りのつまみにも掛けない）。
+                    .mask(HStack(spacing: 0) {
+                        Color.black
+                        LinearGradient(colors: [.black, .black.opacity(0)], startPoint: .leading, endPoint: .trailing).frame(width: 36)
+                    })
+                    // 名前の列：画面の地の色で塗りつぶしてからレーンの色を重ねる（下を通る札を隠す）。
                     ZStack(alignment: .topLeading) {
+                        LatticePalette.canvas
                         ForEach(layout.lanes) { lane in
                             LatticeLaneLabel(person: lane.person, coordinator: lane.person?.botId == coordinatorId)
                                 .frame(width: LatticeLayout.labelWidth, height: lane.height)
@@ -286,50 +337,32 @@ struct LatticeChartScreen: View {
                                 .position(x: 8 + LatticeLayout.labelWidth / 2, y: lane.y + lane.height / 2)
                         }
                     }
-                    .frame(width: labels, height: height, alignment: .topLeading)
-                    ScrollView(.horizontal) {
-                        ZStack(alignment: .topLeading) {
-                            Color.clear.contentShape(Rectangle())
-                                .onTapGesture { focus = nil; select(nil) }
-                            ForEach(0..<layout.columns, id: \.self) { depth in
-                                Text("\(depth + 1)段目").font(.system(size: 11, weight: .medium)).foregroundStyle(LatticePalette.muted)
-                                    .position(x: layout.columnCenter(depth) - labels, y: 16)
-                            }
-                            ForEach(layout.lanes) { lane in
-                                UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 0, bottomTrailingRadius: 16, topTrailingRadius: 16, style: .continuous)
-                                    .fill(laneFill(lane))
-                                    .frame(width: layout.size.width - labels - 8, height: lane.height)
-                                    .position(x: (layout.size.width - labels - 8) / 2, y: lane.y + lane.height / 2)
-                            }
-                            LatticeEdgesLayer(snapshot: snapshot, layout: layout, lookup: lookup, highlighted: highlighted,
-                                              animate: !reduceMotion && model.connection == .live, shift: -labels)
-                                .frame(width: layout.size.width - labels, height: layout.size.height)
-                                .allowsHitTesting(false)
-                            ForEach(snapshot.cardList) { card in
-                                if let frame = layout.frames[card.id] {
-                                    cardButton(card, producer: lookup(card.producer), frame: frame.offsetBy(dx: -labels, dy: 0), highlighted: highlighted, now: now)
-                                }
-                            }
-                            ForEach(chips, id: \.id) { chip in
-                                LatticeEdgeChip(person: chip.waiter, text: chip.text, blocked: chip.blocked)
-                                    .frame(width: chip.frame.width, height: chip.frame.height)
-                                    .position(x: chip.frame.midX - labels, y: chip.frame.midY)
-                                    .opacity(highlighted == nil || chip.involves(focus) ? 1 : 0.25)
-                                    .allowsHitTesting(false)
-                            }
-                        }
-                        .frame(width: layout.size.width - labels, height: height)
-                    }
+                    .frame(width: LatticeLayout.labelWidth + 8, height: height, alignment: .topLeading)
+                    .shadow(color: .black.opacity(0.06), radius: 6, x: 3)
                 }
                 .animation(reduceMotion ? .easeInOut(duration: 0.2) : .spring(response: 0.45, dampingFraction: 0.82), value: snapshot)
             }
             .onChange(of: scrollTarget) { _, target in
                 guard let target else { return }
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) { proxy.scrollTo(target, anchor: .center) }
                 scrollTarget = nil
+                reveal(target, layout: layout, proxy: proxy, animated: true)
             }
             .onAppear {
-                if let selected { proxy.scrollTo(selected, anchor: .center) }
+                if let selected { reveal(selected, layout: layout, proxy: proxy, animated: false) }
+            }
+        }
+    }
+
+    private static let columnAnchorID = "lattice-column-anchor"
+
+    /// 札の一つ前の段を名前の列のすぐ右に置き（札は詳細の面より左に来る）、札の高さを縦の中央へ。
+    private func reveal(_ id: String, layout: LatticeLayout, proxy: ScrollViewProxy, animated: Bool) {
+        guard let frame = layout.frames[id] else { return }
+        let depth = Int(((frame.minX - LatticeLayout.labelWidth - 16) / LatticeLayout.column).rounded())
+        columnAnchor = CGPoint(x: CGFloat(max(0, depth - 1)) * LatticeLayout.column, y: frame.midY)
+        DispatchQueue.main.async {
+            withAnimation(animated ? .spring(response: 0.5, dampingFraction: 0.85) : nil) {
+                proxy.scrollTo(Self.columnAnchorID, anchor: UnitPoint(x: 0, y: 0.5))
             }
         }
     }
@@ -820,16 +853,11 @@ struct LatticeEdgesLayer: View {
     let lookup: (String?) -> LatticePerson?
     let highlighted: Set<String>?
     let animate: Bool
-    /// 盤の左端の位置（名前の列の幅だけ左へずらして描く）。
-    var shift: CGFloat = 0
 
     var body: some View {
         let hasWaiting = snapshot.edgeList.contains(where: \.waiting)
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !animate || !hasWaiting)) { timeline in
-            Canvas { context, _ in
-                context.translateBy(x: shift, y: 0)
-                draw(&context, now: timeline.date.timeIntervalSinceReferenceDate)
-            }
+            Canvas { context, _ in draw(&context, now: timeline.date.timeIntervalSinceReferenceDate) }
         }
     }
 

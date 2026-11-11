@@ -22,6 +22,10 @@ final class LatticeChartUITests: XCTestCase {
             let chart = element(app, "lattice-chart-lattice")
             XCTAssertTrue(chart.waitForExistence(timeout: 10), "一覧に統括の工程表が出る")
             XCTAssertTrue(element(app, "lattice-chart-guide").exists)
+            // 表示名の決まり：name、無ければ作った人の名前、それも無ければ名前のない工程表。projectIdは出さない。
+            XCTAssertTrue(chart.label.hasPrefix("Lattice組込、統括の工程表"), chart.label)
+            XCTAssertTrue(element(app, "lattice-chart-guide").label.hasPrefix("名前のない工程表"), element(app, "lattice-chart-guide").label)
+            XCTAssertFalse(app.staticTexts["lattice"].exists)
             settle()
             shot(app, "\(scheme)-01-list")
 

@@ -138,15 +138,27 @@ final class LatticeChartTests: XCTestCase {
         XCTAssertEqual(LatticeDiff.completed(from: nil, to: after), [], "最初の一枚では花を出さない")
     }
 
+    func testChartNameUsesNameThenCreatorThenUnnamedAndNeverTheProjectId() throws {
+        let roster = ["bot-flora": "フローラ"]
+        XCTAssertEqual(LatticeChartName.of(name: "Lattice組込", createdBy: "bot-flora") { roster[$0] }, "Lattice組込")
+        XCTAssertEqual(LatticeChartName.of(name: nil, createdBy: "bot-flora") { roster[$0] }, "フローラの工程表")
+        XCTAssertEqual(LatticeChartName.of(name: nil, createdBy: "bot-ghost") { roster[$0] }, "名前のない工程表")
+        XCTAssertEqual(LatticeChartName.of(name: nil, createdBy: nil) { roster[$0] }, "名前のない工程表")
+        let chart = try snapshot()
+        XCTAssertNil(chart.name, "name is optional on older snapshots")
+    }
+
     func testChartListDecodesAndNamesTheCoordinator() throws {
         let json = """
         {"schema":"bellteam.lattice-charts.v1","at":"x","charts":[
-          {"projectId":"lattice","coordinator":true,"createdBy":"bot-trony","counts":{"total":11,"done":3,"working":2,"waiting":4,"blocked":1},"activeMembers":["bot-molly"],"updatedAt":"2026-11-11T11:59:00Z","state":"verified"},
+          {"projectId":"lattice","name":"Lattice組込","coordinator":true,"createdBy":"bot-trony","counts":{"total":11,"done":3,"working":2,"waiting":4,"blocked":1},"activeMembers":["bot-molly"],"updatedAt":"2026-11-11T11:59:00Z","state":"verified"},
           {"projectId":"guide","coordinator":false,"createdBy":"bot-flora","counts":{},"activeMembers":[],"state":"unavailable"}]}
         """
         let list = try JSONDecoder().decode(LatticeChartsList.self, from: Data(json.utf8))
         XCTAssertEqual(list.charts.map(\.projectId), ["lattice", "guide"])
         XCTAssertEqual(list.charts[1].total, 0)
         XCTAssertTrue(list.charts[0].isCoordinator)
+        XCTAssertEqual(list.charts[0].name, "Lattice組込")
+        XCTAssertNil(list.charts[1].name)
     }
 }

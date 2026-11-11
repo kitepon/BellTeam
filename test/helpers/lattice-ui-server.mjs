@@ -51,21 +51,30 @@ function snapshot(projectId) {
     .sort((a, b) => a.since.localeCompare(b.since))
   const referenced = new Set([...list.map(card => card.producer), ...waits.map(wait => wait.waiter)])
   return {
-    schema: 'bellteam.lattice-chart.v1', epoch: 'fixture', version: state.version, at: new Date().toISOString(), projectId, coordinator: projectId === 'lattice',
+    schema: 'bellteam.lattice-chart.v1', epoch: 'fixture', version: state.version, at: new Date().toISOString(), projectId, ...NAMES[projectId], coordinator: projectId === 'lattice',
     state: state.mode.state, verifiedAt: ago(state.mode.state === 'last_verified' ? 46 : 0), degraded: state.mode.degraded,
     members: MEMBERS.filter(member => referenced.has(member.botId)), cards: list, edges, waits,
   }
+}
+
+// Display names: two named, one falling back to the creator's roster name, one with an unknown creator (名前のない工程表).
+const NAMES = {
+  lattice: { name: 'Lattice組込', createdBy: 'bot-trony' },
+  'nightly-care': { name: '夜間の整備', createdBy: 'bot-molly' },
+  'call-bridge': { name: '通話ブリッジの刷新', createdBy: 'bot-kiro' },
+  'web-polish': { name: null, createdBy: 'bot-admi' },
+  guide: { name: null, createdBy: 'bot-ghost' },
 }
 
 function charts() {
   if (state.mode.list === 'empty') return []
   const main = snapshot('lattice'), done = main.cards.filter(card => card.state === 'done' || card.state === 'retired').length
   return [
-    { projectId: 'lattice', coordinator: true, createdBy: 'bot-trony', counts: { total: main.cards.length, done, working: 2, waiting: 4, blocked: 1 }, activeMembers: ['bot-trony', 'bot-molly', 'bot-kiro', 'bot-admi', 'bot-rapi', 'bot-flora'], updatedAt: ago(1), state: state.mode.state },
-    { projectId: 'nightly-care', coordinator: false, createdBy: 'bot-molly', counts: { total: 12, done: 7, working: 2, waiting: 1, blocked: 0 }, activeMembers: ['bot-molly', 'bot-kiro', 'bot-admi'], updatedAt: ago(12), state: 'verified' },
-    { projectId: 'call-bridge', coordinator: false, createdBy: 'bot-kiro', counts: { total: 8, done: 3, working: 1, waiting: 2, blocked: 0 }, activeMembers: ['bot-kiro', 'bot-molly', 'bot-trony', 'bot-rapi'], updatedAt: ago(34), state: 'verified' },
-    { projectId: 'web-polish', coordinator: false, createdBy: 'bot-admi', counts: { total: 11, done: 9, working: 1, waiting: 0, blocked: 0 }, activeMembers: ['bot-admi', 'bot-flora'], updatedAt: ago(63), state: 'verified' },
-    { projectId: 'guide', coordinator: false, createdBy: 'bot-flora', counts: { total: 9, done: 4, working: 1, waiting: 2, blocked: 0 }, activeMembers: ['bot-flora', 'bot-rapi', 'bot-trony'], updatedAt: ago(14 * 60), state: 'verified' },
+    { projectId: 'lattice', ...NAMES.lattice, coordinator: true, counts: { total: main.cards.length, done, working: 2, waiting: 4, blocked: 1 }, activeMembers: ['bot-trony', 'bot-molly', 'bot-kiro', 'bot-admi', 'bot-rapi', 'bot-flora'], updatedAt: ago(1), state: state.mode.state },
+    { projectId: 'nightly-care', ...NAMES['nightly-care'], coordinator: false, counts: { total: 12, done: 7, working: 2, waiting: 1, blocked: 0 }, activeMembers: ['bot-molly', 'bot-kiro', 'bot-admi'], updatedAt: ago(12), state: 'verified' },
+    { projectId: 'call-bridge', ...NAMES['call-bridge'], coordinator: false, counts: { total: 8, done: 3, working: 1, waiting: 2, blocked: 0 }, activeMembers: ['bot-kiro', 'bot-molly', 'bot-trony', 'bot-rapi'], updatedAt: ago(34), state: 'verified' },
+    { projectId: 'web-polish', ...NAMES['web-polish'], coordinator: false, counts: { total: 11, done: 9, working: 1, waiting: 0, blocked: 0 }, activeMembers: ['bot-admi', 'bot-flora'], updatedAt: ago(63), state: 'verified' },
+    { projectId: 'guide', ...NAMES.guide, coordinator: false, counts: { total: 9, done: 4, working: 1, waiting: 2, blocked: 0 }, activeMembers: ['bot-flora', 'bot-rapi', 'bot-trony'], updatedAt: ago(14 * 60), state: 'verified' },
   ]
 }
 
