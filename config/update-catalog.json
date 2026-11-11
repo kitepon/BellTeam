@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-11T02:31:52Z",
-  "expiresAt": "2026-11-18T02:31:52Z",
+  "publishedAt": "2026-11-11T02:55:01Z",
+  "expiresAt": "2026-11-18T02:55:01Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "eec5473bb84941a768e41609eaa6973c480f61b0",
-      "versionId": "sha256:5db1a94a9e6d3d61a2710a9134b096dad5f5975621864e15ee0676574160d58a",
+      "sourceCommit": "a8cda46b43e2d5437e845205533881a9a15e3d3d",
+      "versionId": "sha256:daea0159d733310b653eeeb824b235adb2ae17286d30c364fd6414cec7101bfb",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:5db1a94a9e6d3d61a2710a9134b096dad5f5975621864e15ee0676574160d58a"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:daea0159d733310b653eeeb824b235adb2ae17286d30c364fd6414cec7101bfb"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Macなど外部の席で、作業の様子が30秒ほど遅れて届く問題を直します（Aiterm 0.70.16を入れます。動いている席だけを見回るようになります）。"
+        "更新の確認で、GitHubの問い合わせ回数の上限に引っかからなくなります。BellTeamが何度も再起動した時でも、更新の確認が止まりません。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "eec5473bb84941a768e41609eaa6973c480f61b0",
-      "versionId": "sha256:5db1a94a9e6d3d61a2710a9134b096dad5f5975621864e15ee0676574160d58a",
+      "sourceCommit": "a8cda46b43e2d5437e845205533881a9a15e3d3d",
+      "versionId": "sha256:daea0159d733310b653eeeb824b235adb2ae17286d30c364fd6414cec7101bfb",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:5db1a94a9e6d3d61a2710a9134b096dad5f5975621864e15ee0676574160d58a"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:daea0159d733310b653eeeb824b235adb2ae17286d30c364fd6414cec7101bfb"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Macなど外部の席で、作業の様子が30秒ほど遅れて届く問題を直します（Aiterm 0.70.16を入れます。動いている席だけを見回るようになります）。"
+        "更新の確認で、GitHubの問い合わせ回数の上限に引っかからなくなります。BellTeamが何度も再起動した時でも、更新の確認が止まりません。"
       ]
     }
   ],
