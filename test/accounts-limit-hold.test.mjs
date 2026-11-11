@@ -6,32 +6,12 @@ import { join } from 'node:path'
 import { AitermTransport } from '../src/aiterm-transport.mjs'
 import { CapacityContinuation } from '../src/capacity-continuation.mjs'
 import { HarnessAccounts } from '../src/harness-accounts.mjs'
-import { claudeLimitHold, isLimitText } from '../src/claude-limit-text.mjs'
+import { isLimitText } from '../src/claude-limit-text.mjs'
 
-// harness-accounts.md "All slots limited: limit hold and account recovery".
-const HELD = `● Usage limit reached · continuing automatically at 7pm · esc to cancel
-
-✻ Worked for 27s · done 12:51 PM
-
-────────────────────────────────────────────────────────────────────────────────
-❯
-────────────────────────────────────────────────────────────────────────────────
-  ⚠ Usage limit reached · limit resets 7pm
-    Continuing automatically at 7pm · Esc to cancel · /usage-credits to
-    continue now
-  ⏵⏵ bypass permissions on (shift+tab to cycle)`
-const CANCELLED = `                                      Automatic continue cancelled · /rate-limit-options to re-arm
-────────────────────────────────────────────────────────────────────────────────
-❯
-────────────────────────────────────────────────────────────────────────────────
-  ⏵⏵ auto mode on (shift+tab to cycle)`
+// harness-accounts.md "All slots limited: limit end and account recovery" (Aiterm 0.70.26 pty_list limit_end).
 const TOKEN = 'sk-ant-oat01-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 
-test('limit hold: only the footer of a turn Claude Code keeps for its reset', () => {
-  assert.match(claudeLimitHold(HELD), /Continuing automatically at 7pm/u)
-  assert.equal(claudeLimitHold(CANCELLED), null)
-  // The line above the composer alone is history, not a hold.
-  assert.equal(claudeLimitHold('● Usage limit reached · continuing automatically at 7pm\n───────────\n❯\n────────────\n  ⏵⏵ on'), null)
+test('limit text: the lines Claude Code prints for an account limit', () => {
   assert.equal(isLimitText("You've hit your weekly limit · resets 7pm (UTC)"), true)
   assert.equal(isLimitText("You've reached your Fable limit. Run /usage-credits"), true)
   assert.equal(isLimitText('API Error: 500'), false)
@@ -68,44 +48,57 @@ test('two reset timers firing together clear both entries and keep the other slo
     assert.deepEqual(limits.map(entry => [entry.slot, entry.scope]), [['2nd', 'all']])
 })
 
-function seats({ screens, bots }) {
-  const calls = [], hooks = { read: null, key: null }
+// A fake Aiterm 0.70.26: pty_list rows carry last_input_at / limit_end; pty_key Escape on an armed hold cancels it.
+function aiterm(rows) {
+  const calls = [], keys = { refuse: new Set(), ignore: new Set() }
   const client = { launchOptions: async () => ({}), async call(name, args, options = {}) {
     options.admissionCheck?.(); calls.push([name, args])
-    if (name === 'pty_list') return { structuredContent: { sessions: [...screens.keys()].map(session_id => ({ session_id, harness: 'claude-code', current_command: 'claude' })) } }
-    if (name === 'pty_read') return { content: [{ type: 'text', text: hooks.read?.(args.session_id) ?? screens.get(args.session_id) ?? '' }] }
-    // Aiterm 0.70.23 refuses pty_key Escape on a held Claude seat (its limited operation stays open); the stop key is agent_stop.
-    if (name === 'pty_key') throw Error('aiterm相関付きClaude agent sessionではturn相関を壊さないC-cだけをpty_keyで送れます。')
-    if (name === 'agent_stop') {
-      const status = hooks.stop?.(args.session_id) ?? 'sent'
-      if (status === 'sent' && !hooks.key?.(args.session_id)) screens.set(args.session_id, CANCELLED)
-      const targets = [{ session_id: args.session_id, status }]
-      return { structuredContent: { session_id: args.session_id, status, targets } }
+    if (name === 'pty_list') return { structuredContent: { sessions: [...rows.values()].map(row => ({ harness: 'claude-code', current_command: 'claude', ...structuredClone(row) })) } }
+    if (name === 'pty_key') {
+      if (keys.refuse.has(args.session_id)) throw Error('key refused')
+      const row = rows.get(args.session_id)
+      if (args.key === 'Escape' && row?.limit_end?.hold === 'armed' && !keys.ignore.has(args.session_id)) row.limit_end.hold = 'cancelled'
+      return {}
     }
     throw Error(`unexpected ${name}`)
   } }
-  return { client, calls, hooks }
+  return { client, calls, keys, rows }
 }
 
-async function recovery(t, { held, limited }) {
-  const now = { at: Date.UTC(2026, 10, 11, 14, 0) }
+const END = (at, hold = 'armed', continued = false) => ({ at, reset_at: '2026-11-11T19:00:00.000Z', continued, hold })
+const row = (session_id, last_input_at, limit_end = null) => [session_id, { session_id, last_input_at, limit_end }]
+
+async function recovery(t, { limited = ['2nd'], rows }) {
+  const now = { at: Date.UTC(2026, 10, 11, 16, 0) }
   const { accounts } = await registry(t, now)
   t.after(() => accounts.close())
   for (const slot of limited) await accounts.recordLimit({ harness: 'claude', slot, model: 'opus', text: "You've hit your weekly limit · resets 7pm (UTC)" })
   const bots = new Map([
     ['bot-elegg', { id: 'bot-elegg', session: 'bot-elegg', harness: 'claude', model: 'opus' }],
-    ['bot-n102', { id: 'bot-n102', session: 'bot-n102-1st-abc', harness: 'claude', model: 'opus' }],
+    ['bot-n102', { id: 'bot-n102', session: 'bot-n102-1st-new', harness: 'claude', model: 'opus' }],
   ])
   await accounts.setSeat('bot-elegg', '2nd'); await accounts.setSeat('bot-n102', '1st')
-  const screens = new Map([['bot-elegg', held ? HELD : CANCELLED], ['bot-n102', held ? HELD : CANCELLED], ['bot-n102-1st-abc', CANCELLED]])
-  const { client, calls, hooks } = seats({ screens, bots })
+  const { client, calls, keys, rows: listed } = aiterm(new Map(rows))
   const transport = new AitermTransport({ client, accounts, resolveBot: id => bots.get(id) })
-  transport.holdReleasePollMs = 1; transport.holdConfirmMs = 1
-  const switched = [], sent = []
-  transport.switchAccount = async bot => { switched.push(bot.id); const session = `${bot.id}-1st-new`; bots.set(bot.id, { ...bot, session }); transport.sessions.set(bot.id, session); await accounts.setSeat(bot.id, '1st') }
+  transport.holdReleasePollMs = 1
+  const switched = [], sent = [], hooks = { refuse: 0, input: true }
+  let deliveries = 0, clock = Date.UTC(2026, 10, 11, 16, 20)
+  transport.switchAccount = async bot => { switched.push(bot.id); await accounts.setSeat(bot.id, '1st') }
+  // The parent's direct delivery reaches the engine's input boundary (transport.claimContinuation) before any input; `sent`
+  // lists what passed it. With hooks.input the seat records the input, as Aiterm does at pty_send.
+  const deliver = async (input, id) => {
+    await transport.claimContinuation(bots.get(input.target), input.message, { from: input.from, groupId: id })
+    sent.push({ ...input, id })
+    if (hooks.input) listed.set(`${input.target}-cont-${id}`, { session_id: `${input.target}-1st-${id}`, last_input_at: new Date(clock += 1000).toISOString(), limit_end: null })
+  }
   const continuation = new CapacityContinuation({ bots, accounts, transport, assertEnabled: () => {},
-    messenger: { sendmessage: async (input, options) => { options.admissionCheck(); sent.push(input); return { delivery_id: `d-${sent.length}` } } } })
-  continuation.states.set('bot-n102', { deliveryId: 'n102-original' })
+    messenger: { sendmessage: async (input, options) => {
+      options.admissionCheck()
+      const id = `d-${++deliveries}`
+      if (hooks.refuse > 0) { hooks.refuse--; throw Object.assign(Error('PREFLIGHT_REFUSED'), { effect: 'not_started' }) }
+      await deliver(input, id)
+      return { delivery_id: id }
+    } } })
   transport.continuation = continuation
   // Settled: no move running, and the registry writes and reviews they caused are done.
   const review = async () => {
@@ -115,136 +108,166 @@ async function recovery(t, { held, limited }) {
       await accounts.writing; await transport.accountReview; await new Promise(resolve => setImmediate(resolve))
     } while (transport.accountMoves.size)
   }
-  return { accounts, calls, transport, switched, sent, review, screens, hooks }
+  const keyed = () => calls.filter(([name]) => name === 'pty_key').map(([, args]) => [args.session_id, args.key])
+  return { accounts, calls, keys, transport, switched, sent, review, keyed, hooks, deliver, bots }
 }
 
-// Production 2026-11-11: Elegg's self-started turn held on the 2nd and N102's old seat held after its move to the 1st.
-test('a free slot recovers held members at engine start: Esc each hold, a new seat only for a held current seat, one message each', async t => {
-  const { calls, switched, sent, review, accounts } = await recovery(t, { held: true, limited: ['2nd'] })
+// Production 2026-11-12 01:14 JST after eb8c94a5: N102's hold was cancelled (no continuation); Elegg already continued on a new seat.
+test('limit end: an un-continued last turn gets exactly one continuation; a continued member and a later review get none', async t => {
+  const { switched, sent, review, keyed, accounts } = await recovery(t, { rows: [
+    row('bot-n102', '2026-11-11T12:53:25.000Z', END('2026-11-11T12:53:29.000Z', 'cancelled')),
+    row('bot-elegg', '2026-11-11T12:51:33.000Z', END('2026-11-11T12:51:56.000Z', 'cancelled')),
+    row('bot-elegg-1st-mwcbl0hj', '2026-11-11T16:14:58.000Z'),
+  ] })
   await review()
-  assert.deepEqual(calls.filter(([name]) => name === 'agent_stop').map(([, args]) => args.session_id).sort(), ['bot-elegg', 'bot-n102'])
-  assert.deepEqual(switched, ['bot-elegg'], 'N102 already runs on the free slot')
-  assert.deepEqual(sent.map(input => [input.target, input.from]).sort(), [['bot-elegg', 'scheduler'], ['bot-n102', 'scheduler']])
-  assert.match(sent.find(input => input.target === 'bot-n102').message, /delivery_id=n102-original/u)
-  assert.doesNotMatch(sent.find(input => input.target === 'bot-elegg').message, /delivery_id/u)
+  assert.deepEqual(keyed(), [], 'no armed hold: nothing pressed')
+  assert.deepEqual(sent.map(input => [input.target, input.from]), [['bot-n102', 'scheduler']])
+  assert.equal(switched.includes('bot-n102'), false, 'N102 is recorded on the free 1st: its delivery launches the 1st seat')
+  assert.match(sent[0].message, /（継続キー: 2026-11-11T12:53:29.000Z）/u)
+  // The continuation's input is the member's newer last turn: a later review (or the next engine) sends nothing.
+  await accounts.load()
+  await review()
+  assert.equal(sent.length, 1)
+})
+
+test('limit end: armed holds are pressed once each, then one continuation on the free slot', async t => {
+  const { switched, sent, review, keyed, accounts } = await recovery(t, { rows: [
+    row('bot-elegg', '2026-11-11T12:51:33.000Z', END('2026-11-11T12:51:56.000Z')),
+  ] })
+  await review()
+  assert.deepEqual(keyed(), [['bot-elegg', 'Escape']])
+  assert.deepEqual(switched, ['bot-elegg'], 'its seat was on the limited 2nd')
+  assert.deepEqual(sent.map(input => input.target), ['bot-elegg'])
   assert.equal(accounts.seatSlot('bot-elegg'), '1st')
-  // Nothing is held any more: a later review sends nothing again.
+})
+
+test('limit end: every slot limited -> nothing pressed or sent; a freed slot then recovers once', async t => {
+  const { sent, review, keyed, accounts } = await recovery(t, { limited: ['1st', '2nd'], rows: [
+    row('bot-n102', '2026-11-11T12:53:25.000Z', END('2026-11-11T12:53:29.000Z')),
+  ] })
+  await review()
+  assert.deepEqual([keyed(), sent], [[], []])
+  await accounts.clear(accounts.limitFor('claude', '1st', 'opus')[0])
+  await review()
+  assert.deepEqual(keyed(), [['bot-n102', 'Escape']])
+  assert.deepEqual(sent.map(input => input.target), ['bot-n102'])
+})
+
+test('limit end: a hold still armed after its one Esc -> no second Esc and no continuation (two turns over one work)', async t => {
+  const { sent, review, keyed, keys } = await recovery(t, { rows: [
+    row('bot-elegg', '2026-11-11T12:51:33.000Z', END('2026-11-11T12:51:56.000Z')),
+  ] })
+  keys.ignore.add('bot-elegg')
+  await review(); await review()
+  assert.deepEqual(keyed(), [['bot-elegg', 'Escape']])
+  assert.deepEqual(sent, [])
+})
+
+test('limit end: continued by itself, or a stop after the limit end -> no continuation', async t => {
+  const { sent, review, accounts, transport } = await recovery(t, { rows: [
+    row('bot-elegg', '2026-11-11T12:51:33.000Z', END('2026-11-11T12:51:56.000Z', null, true)),
+    row('bot-n102', '2026-11-11T12:53:25.000Z', END('2026-11-11T12:53:29.000Z', 'cancelled')),
+  ] })
+  await accounts.setStopped('bot-n102')
+  await review()
+  assert.deepEqual(sent, [])
+  assert.ok(transport.accounts.stoppedAt('bot-n102'))
+})
+
+// Production 2026-11-12 01:14 JST: the handed-over dc4b63be engine launched a second Elegg seat from its stale registry copy.
+test('limit end: an engine that is not running (handed over) presses nothing and sends nothing', async t => {
+  const { sent, review, keyed, transport, switched } = await recovery(t, { rows: [
+    row('bot-elegg', '2026-11-11T12:51:33.000Z', END('2026-11-11T12:51:56.000Z')),
+  ] })
+  let running = true
+  transport.accountRecoveryAllowed = () => running
+  transport.limitEnds = (original => async () => { const ends = await original(); running = false; return ends })(transport.limitEnds.bind(transport))
+  await review()
+  assert.deepEqual([keyed(), switched, sent], [[], [], []])
+})
+
+test('limit end: an older Aiterm without the fields -> no recovery, no screen read', async t => {
+  const { sent, review, calls } = await recovery(t, { rows: [] })
+  calls.length = 0
+  await review()
+  assert.deepEqual(calls.map(([name]) => name).filter(name => name !== 'pty_list'), [])
+  assert.deepEqual(sent, [])
+})
+
+test('registry: a pending key from dc4b63be / eb8c94a5 is dropped on load', async t => {
+  const now = { at: Date.UTC(2026, 10, 11, 16, 0) }
+  const { accounts } = await registry(t, now)
+  t.after(() => accounts.close())
+  await writeFile(accounts.statePath, JSON.stringify({ schema: 'bellteam.harness-accounts.v1', seats: { 'bot-n102': '1st' },
+    pending: { 'bot-n102': { harness: 'claude', slot: '2nd', deliveryId: null, since: '2026-11-11T15:57:11.000Z', escaped: ['bot-n102'] } } }))
+  await accounts.load()
+  assert.equal(accounts.state.pending, undefined)
+  assert.equal(accounts.seatSlot('bot-n102'), '1st')
+})
+
+// Epinel #1100 (1): an intent never suppresses the send; only a claim at the input boundary does, and only while it is live.
+test('one continuation: an intent left by a crash or a quiesce before the send -> the next engine sends it once', async t => {
+  const { sent, review, accounts } = await recovery(t, { rows: [row('bot-n102', '2026-11-11T12:53:25.000Z', END('2026-11-11T12:53:29.000Z', 'cancelled'))] })
+  await accounts.intendResume('bot-n102', '2026-11-11T12:53:29.000Z')
+  await accounts.load()
+  await review(); await review()
+  assert.deepEqual(sent.map(input => input.target), ['bot-n102'])
+})
+
+test('one continuation: a preflight refusal (not started) consumes nothing; the next review sends it once', async t => {
+  const { sent, review, hooks, accounts } = await recovery(t, { rows: [row('bot-n102', '2026-11-11T12:53:25.000Z', END('2026-11-11T12:53:29.000Z', 'cancelled'))] })
+  hooks.refuse = 1
+  await review()
+  // d-1 was refused before any record; the review its intent write caused sent d-2, which claimed the limit end.
+  assert.deepEqual([sent.map(input => input.id), accounts.resumed('bot-n102')], [['d-2'], { at: '2026-11-11T12:53:29.000Z', deliveryId: 'd-2' }])
+  await accounts.recordLimit({ harness: 'claude', slot: '2nd', model: 'fable', text: "You've reached your Fable limit · resets 7pm (UTC)" })
+  await review()
+  assert.equal(sent.length, 1)
+})
+
+test('one continuation: the input boundary admits one delivery per limit end; a claim nobody carries is given back, its late redelivery refused', async t => {
+  const { sent, review, hooks, accounts, deliver, transport } = await recovery(t, { rows: [row('bot-n102', '2026-11-11T12:53:25.000Z', END('2026-11-11T12:53:29.000Z', 'cancelled'))] })
+  hooks.input = false // accepted, but the input never reaches the seat (the delivery died)
+  await review()
+  assert.equal(sent.length, 1)
+  const first = sent[0]
+  // While the first delivery is live, a second one for the same limit end is refused at the boundary.
+  transport.continuationClaims.add(first.id)
+  await assert.rejects(deliver(first, 'd-other'), error => error.effect === 'not_started')
+  transport.continuationClaims.delete(first.id)
+  // The first one is no longer live and Aiterm shows no newer input: the next review gives the claim back and sends once more.
+  hooks.input = true
   await accounts.recordLimit({ harness: 'claude', slot: '2nd', model: 'fable', text: "You've reached your Fable limit · resets 7pm (UTC)" })
   await review()
   assert.equal(sent.length, 2)
+  // The old delivery arriving late (the parent's redelivery) is refused: exactly one continuation reached the seat after it.
+  await assert.rejects(deliver(first, first.id), error => error.effect === 'not_started')
+  assert.equal(sent.length, 2)
 })
 
-test('every slot limited: holds and pending stay, nothing is pressed or sent; a freed slot then recovers once', async t => {
-  const { calls, switched, sent, review, accounts } = await recovery(t, { held: true, limited: ['1st', '2nd'] })
-  await accounts.setPending('bot-n102', { harness: 'claude', slot: '1st', deliveryId: 'n102-original' })
+// Epinel #1100 (2): quiescing during an await stops before the next effect and leaves an intent the successor completes.
+test('one continuation: quiesce during the move -> no send; the successor sends it once', async t => {
+  const { sent, review, transport, switched, accounts } = await recovery(t, { rows: [row('bot-elegg', '2026-11-11T12:51:33.000Z', END('2026-11-11T12:51:56.000Z', 'cancelled'))] })
+  let running = true
+  transport.accountRecoveryAllowed = () => running
+  const move = transport.switchAccount
+  transport.switchAccount = async bot => { await move(bot); running = false }
   await review()
-  assert.equal(calls.some(([name]) => name === 'agent_stop'), false)
-  assert.deepEqual([switched, sent], [[], []])
-  assert.equal(accounts.pendingFor('bot-n102').deliveryId, 'n102-original')
-  // The 1st frees: Elegg moves from its held 2nd seat; N102's own slot freed while its old seat held, so it gets the message.
-  await accounts.clear(accounts.limitFor('claude', '1st', 'opus')[0])
-  await review()
-  assert.deepEqual(switched, ['bot-elegg'])
-  assert.equal(sent.filter(input => input.target === 'bot-n102').length, 1)
-  assert.equal(sent.filter(input => input.target === 'bot-elegg').length, 1)
-  assert.equal(accounts.pendingFor('bot-n102'), null)
-})
-
-test('a held current seat whose own slot freed is left to continue by itself; no message', async t => {
-  const { calls, switched, sent, review, accounts, screens } = await recovery(t, { held: false, limited: ['1st'] })
-  screens.set('bot-n102-1st-abc', HELD)
-  await accounts.setPending('bot-n102', { harness: 'claude', slot: '1st', deliveryId: 'n102-original' })
-  await accounts.clear(accounts.limitFor('claude', '1st', 'opus')[0])
-  await review()
-  assert.equal(calls.some(([name, args]) => name === 'agent_stop' && args.session_id === 'bot-n102-1st-abc'), false)
-  // Elegg, not held, only returns to the freed 1st at its boundary (no message); N102 is neither moved nor told.
   assert.deepEqual([switched, sent], [['bot-elegg'], []])
-  assert.equal(accounts.pendingFor('bot-n102'), null)
+  assert.deepEqual(accounts.resumed('bot-elegg'), { at: '2026-11-11T12:51:56.000Z', deliveryId: null })
+  running = true
+  await review()
+  assert.deepEqual(sent.map(input => input.target), ['bot-elegg'])
 })
 
-// Epinel #1088: a known hold whose one Esc is not confirmed (still held, then unreadable) keeps pending; no second Esc,
-// no new seat and no message until the cancel notice is read, then exactly one continuation.
-test('unconfirmed cancellation: pending kept, one Esc only, recovery after the cancel notice with exactly one continuation', async t => {
-  const { calls, switched, sent, review, accounts, screens, hooks, transport } = await recovery(t, { held: false, limited: ['2nd'] })
-  screens.set('bot-elegg', HELD)
-  // The Esc's own reads keep showing the hold; the later confirmation reads are unreadable, held, then cancelled.
-  const after = ['unreadable', HELD, CANCELLED]
-  let confirming = false, cancelSeen = false, waiting = null
-  const release = transport.releaseLimitHold.bind(transport)
-  transport.releaseLimitHold = async session => { const outcome = await release(session); confirming = outcome === 'unconfirmed'; return outcome }
-  hooks.key = session => session === 'bot-elegg'
-  hooks.read = session => {
-    if (session !== 'bot-elegg' || !confirming) return null
-    const screen = after.length ? after.shift() : CANCELLED
-    if (screen === 'unreadable') { waiting = [accounts.pendingFor('bot-elegg'), [...switched], sent.length]; throw Error('AITERM_READ_FAILED') }
-    if (screen === CANCELLED) cancelSeen = true
-    return screen
-  }
+// Epinel #1100: a stop after the limit end wins at the serialized input boundary, also when it lands during the move.
+test('one continuation: a stop during the move -> no send; a keyed delivery after the stop is refused not_started', async t => {
+  const { sent, review, transport, accounts, deliver, switched } = await recovery(t, { rows: [row('bot-elegg', '2026-11-11T12:51:33.000Z', END('2026-11-11T12:51:56.000Z', 'cancelled'))] })
+  const move = transport.switchAccount
+  transport.switchAccount = async bot => { await move(bot); await accounts.setStopped(bot.id) }
   await review()
-  assert.deepEqual(waiting[0].stopped, ['bot-elegg'], 'the continuation and the pressed seat are kept while unconfirmed')
-  assert.deepEqual(waiting.slice(1), [[], 0], 'nothing moved or sent while unconfirmed')
-  assert.equal(cancelSeen, true)
-  assert.equal(calls.filter(([name, args]) => name === 'agent_stop' && args.session_id === 'bot-elegg').length, 1)
-  assert.deepEqual(switched, ['bot-elegg'])
-  assert.equal(sent.filter(input => input.target === 'bot-elegg').length, 1)
-  assert.equal(accounts.pendingFor('bot-elegg'), null)
-})
-
-test('unconfirmed cancellation: a hold that continued by itself at its reset gets no second turn', async t => {
-  const { sent, review, accounts, screens, hooks, transport } = await recovery(t, { held: false, limited: ['2nd'] })
-  screens.set('bot-elegg', HELD)
-  let confirming = false
-  const release = transport.releaseLimitHold.bind(transport)
-  transport.releaseLimitHold = async session => { const outcome = await release(session); confirming = outcome === 'unconfirmed'; return outcome }
-  hooks.key = session => session === 'bot-elegg'
-  // Still held through the Esc's reads, then running without hold or cancel notice: Claude Code continued the turn.
-  hooks.read = session => session === 'bot-elegg' && confirming ? '✻ Working… (esc to interrupt)\n────────\n❯\n────────\n  ⏵⏵ on' : null
-  await review()
-  // No continuation message. A later move back to the 1st is the ordinary idle-boundary return (it waits for a watched turn).
+  assert.deepEqual([switched, sent], [['bot-elegg'], []])
+  await assert.rejects(deliver({ from: 'scheduler', target: 'bot-elegg', message: '続けてください。（継続キー: 2026-11-11T12:51:56.000Z）' }, 'd-late'),
+    error => error.effect === 'not_started' && /stopped/u.test(error.message))
   assert.deepEqual(sent, [])
-  assert.equal(accounts.pendingFor('bot-elegg'), null)
-})
-
-// Epinel #1088: the Esc's own first re-read shows neither the hold nor the cancel notice: the turn went on by itself.
-test('first read after the Esc without hold and cancel notice: no continuation, pending dropped', async t => {
-  const { calls, sent, review, accounts, screens, hooks } = await recovery(t, { held: false, limited: ['2nd'] })
-  screens.set('bot-elegg', HELD)
-  await accounts.setPending('bot-elegg', { harness: 'claude', slot: '2nd', deliveryId: 'elegg-original' })
-  hooks.key = session => { if (session === 'bot-elegg') { screens.set(session, '✻ Working… (esc to interrupt)\n────────\n❯\n────────\n  ⏵⏵ on'); return true } }
-  await review()
-  assert.equal(calls.filter(([name, args]) => name === 'agent_stop' && args.session_id === 'bot-elegg').length, 1)
-  assert.equal(sent.filter(input => input.target === 'bot-elegg').length, 0)
-  assert.equal(accounts.pendingFor('bot-elegg'), null)
-})
-
-// Production 2026-11-12 00:57 JST: execution dc4b63be recorded `escaped` before a pty_key Esc that Aiterm refused on every
-// held seat. Those entries are dropped on load, so the next engine presses each held seat once and recovers it.
-test('a refused-key record from dc4b63be is dropped on load; the held member is stopped once and recovered', async t => {
-  const { calls, switched, sent, review, accounts, screens } = await recovery(t, { held: false, limited: ['2nd'] })
-  screens.set('bot-elegg', HELD)
-  const saved = JSON.parse(await readFile(accounts.statePath, 'utf8'))
-  saved.pending = { 'bot-elegg': { harness: 'claude', slot: '2nd', deliveryId: null, since: '2026-11-11T15:57:11.000Z', escaped: ['bot-elegg'] } }
-  await writeFile(accounts.statePath, JSON.stringify(saved))
-  await accounts.load()
-  assert.equal(accounts.pendingFor('bot-elegg').escaped, undefined)
-  await review()
-  assert.deepEqual(calls.filter(([name]) => name === 'agent_stop').map(([, args]) => args.session_id), ['bot-elegg'])
-  assert.deepEqual(switched, ['bot-elegg'])
-  assert.equal(sent.filter(input => input.target === 'bot-elegg').length, 1)
-  assert.equal(accounts.pendingFor('bot-elegg'), null)
-})
-
-test('a stop key Aiterm did not send is not recorded as pressed; nothing moves or is sent', async t => {
-  const { switched, sent, review, accounts, screens, hooks, transport } = await recovery(t, { held: false, limited: ['2nd'] })
-  screens.set('bot-elegg', HELD)
-  hooks.stop = () => 'failed'
-  // The re-reads hold the member until its hold resolves; here they wait until the record has been checked.
-  let reached, release
-  const atRereads = new Promise(resolve => { reached = resolve }), done = new Promise(resolve => { release = resolve })
-  transport.confirmRelease = async () => { reached(accounts.pendingFor('bot-elegg')); await done; return 'closed' }
-  void transport.reviewAccounts()
-  const snapshot = await atRereads
-  assert.equal(snapshot.stopped, undefined)
-  assert.deepEqual([switched, sent], [[], []])
-  transport.accountsClosed = true; transport.accountRecoveryAllowed = () => false; release(); await review()
 })

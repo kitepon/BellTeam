@@ -110,7 +110,7 @@ export class HarnessAccounts {
     timers = { set: setTimeout, clear: clearTimeout }, timeZone = process.env.TZ || 'UTC', log = line => process.stderr.write(`${line}\n`) }) {
     Object.assign(this, { home, statePath, seat, readUsage, now, timers, timeZone, log })
     this.labels = new Map()
-    this.state = { schema: SCHEMA, limits: [], seats: {}, logins: {}, signedOut: [], renew: [], pending: {} }
+    this.state = { schema: SCHEMA, limits: [], seats: {}, logins: {}, signedOut: [], renew: [], stops: {}, resumed: {} }
     this.listeners = new Set()
     this.resetTimers = new Map()
     this.reread = null
@@ -137,10 +137,10 @@ export class HarnessAccounts {
         logins: Object.fromEntries(Object.entries(value.logins ?? {}).filter(([, stamp]) => stamp === null || Number.isFinite(stamp))),
         signedOut: (value.signedOut ?? []).filter(entry => ACCOUNT_HARNESSES.includes(entry?.harness) && ACCOUNT_SLOTS.includes(entry.slot) && Number.isFinite(entry.stamp)),
         renew: (value.renew ?? []).filter(botId => typeof botId === 'string'),
-        pending: Object.fromEntries(Object.entries(value.pending ?? {}).filter(([, entry]) => ACCOUNT_HARNESSES.includes(entry?.harness)
-          && ACCOUNT_SLOTS.includes(entry.slot) && (entry.deliveryId === null || typeof entry.deliveryId === 'string')
-          && (entry.stopped === undefined || (Array.isArray(entry.stopped) && entry.stopped.every(session => typeof session === 'string'))))
-          .map(([botId, { escaped: _, ...entry }]) => [botId, entry])),
+        // A `pending` key (execution dc4b63be / eb8c94a5) is dropped: the continuation is derived from Aiterm's limit end.
+        stops: Object.fromEntries(Object.entries(value.stops ?? {}).filter(([, at]) => typeof at === 'string' && Number.isFinite(Date.parse(at)))),
+        resumed: Object.fromEntries(Object.entries(value.resumed ?? {}).filter(([, entry]) => typeof entry?.at === 'string' && Number.isFinite(Date.parse(entry.at))
+          && (entry.deliveryId === null || typeof entry.deliveryId === 'string'))),
       }
     } catch (error) { if (error.code !== 'ENOENT') this.log(`BellTeam accounts: registry unreadable, starting empty (${error.code ?? 'INVALID'})`) }
     // Re-arm after a restart or a body exchange; an entry whose time passed clears now.
@@ -197,26 +197,37 @@ export class HarnessAccounts {
     })
   }
 
-  // harness-accounts.md "account recovery": a member whose turn ended on a limit while no other slot was free.
-  pendingFor(botId) { return this.state.pending[botId] ?? null }
-  // stopped: held seats already given their one Esc (Aiterm's stop key) whose cancellation is not yet confirmed (never pressed
-  // again). `escaped` from execution dc4b63be is dropped on load: its pty_key Esc was refused on every held seat, nothing was pressed.
-  setPending(botId, { harness, slot, deliveryId = null, escaped }) {
-    return this.update(state => {
-      const kept = escaped ?? state.pending[botId]?.stopped
-      return { ...state, pending: { ...state.pending, [botId]: { harness, slot, deliveryId, since: new Date(this.now()).toISOString(), ...kept?.length ? { stopped: kept } : {} } } }
-    })
+  // harness-accounts.md "limit end": the member's last stop. A limit end before it gets no continuation (the stop ended that work).
+  stoppedAt(botId) { return this.state.stops[botId] ?? null }
+  setStopped(botId) {
+    return this.update(state => ({ ...state, stops: { ...state.stops, [botId]: new Date(this.now()).toISOString() } }))
   }
-  dropPending(botId) {
-    return this.update(state => {
-      if (!state.pending[botId]) return state
-      const { [botId]: _, ...pending } = state.pending
-      return { ...state, pending }
-    })
+  // harness-accounts.md "one continuation": {at, deliveryId|null} per member. The intent (deliveryId null) is written before the
+  // send and never suppresses a resend; the delivery that reaches the engine's input boundary first claims it (deliveryId),
+  // and any other delivery for the same limit end is refused there.
+  resumed(botId) { return this.state.resumed[botId] ?? null }
+  intendResume(botId, at) {
+    return this.update(state => state.resumed[botId]?.at === at ? state : { ...state, resumed: { ...state.resumed, [botId]: { at, deliveryId: null } } })
   }
-
-  // What can let a held or pending member move: limits, sign-outs and pending entries (not seat-only writes).
-  recoveryKey() { return JSON.stringify([this.state.limits, this.state.signedOut, this.state.pending]) }
+  // 'claimed' (this delivery owns the continuation), 'duplicate' (another delivery does), 'obsolete' (a newer limit end exists),
+  // 'stopped' (the member was stopped after that limit end: the stop ended that work).
+  async claimResume(botId, at, deliveryId) {
+    let outcome = 'claimed'
+    await this.update(state => {
+      const entry = state.resumed[botId]
+      if (Date.parse(state.stops[botId] ?? '') >= Date.parse(at)) { outcome = 'stopped'; return state }
+      if (entry && Date.parse(entry.at) > Date.parse(at)) { outcome = 'obsolete'; return state }
+      if (entry?.at === at && entry.deliveryId && entry.deliveryId !== deliveryId) { outcome = 'duplicate'; return state }
+      if (entry?.at === at && entry.deliveryId === deliveryId) return state
+      return { ...state, resumed: { ...state.resumed, [botId]: { at, deliveryId } } }
+    })
+    return outcome
+  }
+  // A claimed delivery that ended explicitly not started gives the continuation back (a later review resends it).
+  releaseResume(botId, at, deliveryId) {
+    return this.update(state => state.resumed[botId]?.at === at && state.resumed[botId].deliveryId === deliveryId
+      ? { ...state, resumed: { ...state.resumed, [botId]: { at, deliveryId: null } } } : state)
+  }
 
   // The effective slot when it is logged in and not limited for the model, else null (every usable slot limited).
   async freeSlot(harness, model) {

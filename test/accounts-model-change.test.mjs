@@ -45,8 +45,8 @@ test('switchAccount launches a new seat for a running member and only renames a 
 // Production 2026-11-09 07:37 JST: after a module exchange the session map is empty; recorded seats still move.
 test('reviewAccounts moves a recorded seat the engine did not launch', async () => {
   const moved = []
-  const accounts = { watch: () => () => {}, close: () => {}, state: { seats: { 'bot-a': '1st', 'bot-b': '1st' }, pending: {} },
-    seatSlot: () => '1st', effectiveSlot: async () => '2nd', recoveryKey: () => 'k', pendingFor: () => null }
+  const accounts = { watch: () => () => {}, close: () => {}, state: { seats: { 'bot-a': '1st', 'bot-b': '1st' } },
+    seatSlot: () => '1st', effectiveSlot: async () => '2nd' }
   const bots = { 'bot-a': { id: 'bot-a', harness: 'claude', model: 'fable' }, 'bot-b': { id: 'bot-b', harness: 'claude', model: 'fable' } }
   const transport = new AitermTransport({ client: { call: async () => ({}) }, accounts, resolveBot: id => bots[id] })
   transport.moveAtBoundary = botId => moved.push(botId)

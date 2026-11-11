@@ -21,4 +21,4 @@ flowchart TD
 
 設定保存と実適用の受付を混同しないため親内部waitForApplicationを使い、通常reconfigure Promiseを既configurationChangesへ登録して配送の発行順を保つ。親の同期admissionCheckだけを送信先へ閉包し、child DTO/履歴へ関数や内部設定を出さない。終了時はcoordinatorを閉じ、進行中の受付/設定終端を回収してからSDKを閉じる。既moduleのwriter/guardを再利用し新しい復旧UI/汎用queue/停止権限は作らない。
 
-Claudeのアカウント上限（`accountLimit`）は別harnessより先に同じharnessの別アカウントで続ける。`continue`は`pending`を登録簿へ書き、`transport.recoverAccount`へ渡すだけで、席の移動と一回だけの継続文（`resume`）は[harness-accounts.md](harness-accounts.md)の「account recovery」が持つ。空きアカウントが無く、Aitermの真正terminal証拠がある時だけ従来の別harness切替へ進む。
+Claudeのアカウント上限（`accountLimit`）は別harnessより先に同じharnessの別アカウントで続ける。`continue`は`transport.recoverAccount`へ渡すだけで、席の移動と一回だけの継続文（`resume`）は[harness-accounts.md](harness-accounts.md)の「account recovery」が持つ。空きアカウントが無く、Aitermの真正terminal証拠がある時だけ従来の別harness切替へ進む。
