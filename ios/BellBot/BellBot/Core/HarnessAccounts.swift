@@ -43,7 +43,8 @@ struct BotAccount: Decodable, Equatable {
 
 @MainActor
 enum AccountText {
-    static func slotName(_ slot: String) -> String { slot == "2nd" ? "2ndアカウント" : "1stアカウント" }
+    /// Web・Appleで同じ呼び名（Admi合意 2026-11-11）。AIの認証の行は名前の下に、そのアカウントのメールを出す（Root裁定）。
+    static func slotName(_ slot: String) -> String { slot == "2nd" ? "2つ目のアカウント" : "1つ目のアカウント" }
 
     static func scopeName(_ scope: String) -> String {
         ["fable": "Fable", "opus": "Opus", "sonnet": "Sonnet", "haiku": "Haiku"][scope] ?? scope
@@ -51,7 +52,12 @@ enum AccountText {
 
     /// 解除時刻は日本時間。今日なら時刻だけ、別の日なら日付も付ける。不明なら「解除時刻不明」。
     static func reset(_ iso: String?, now: Date = Date()) -> String {
-        guard let iso, let date = BellDate.parse(iso) else { return "解除時刻不明" }
+        time(iso, now: now).map { "\($0)に解除" } ?? "解除時刻不明"
+    }
+
+    /// 日本時間の「HH:mm」（今日以外は「M/d HH:mm」）。読めなければnil。
+    static func time(_ iso: String?, now: Date = Date()) -> String? {
+        guard let iso, let date = BellDate.parse(iso) else { return nil }
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "Asia/Tokyo")!
         let formatter = DateFormatter()
@@ -59,7 +65,7 @@ enum AccountText {
         formatter.timeZone = calendar.timeZone
         formatter.locale = Locale(identifier: "ja_JP")
         formatter.dateFormat = calendar.isDate(date, inSameDayAs: now) ? "HH:mm" : "M/d HH:mm"
-        return "\(formatter.string(from: date))に解除"
+        return formatter.string(from: date)
     }
 
     /// 「上限中 (HH:MMに解除)」または「Fableのみ上限中 (23:00に解除)」。
@@ -70,11 +76,21 @@ enum AccountText {
 
     static func bothLimited(_ scope: AllLimitedScope, now: Date = Date()) -> String {
         let what = scope.scope == "all" ? "上限中" : "\(scopeName(scope.scope))が上限中"
-        return "1stアカウントと2ndアカウントがどちらも\(what)です（\(reset(scope.earliestResetAt, now: now))）"
+        return "1つ目と2つ目のアカウントがどちらも\(what)です（\(reset(scope.earliestResetAt, now: now))）"
     }
 
-    /// 行の下に出す、そのアカウントで動いているメンバー。名簿に無いIDはそのまま出す。
-    static func seats(_ ids: [String], names: [String: String]) -> String {
-        "使用中: " + ids.map { names[$0] ?? $0 }.joined(separator: "、")
+    /// 行の下の一行：そのアカウントで動いているメンバーの数だけ（名前は並べない。Root review 2026-11-11）。
+    static func seats(_ ids: [String]) -> String { "\(ids.count)人が使用" }
+
+    /// ログインの札とは別に、上限を1行で。「上限中・11/13 17:00に戻ります（いまは2ndで動いています）」。
+    /// 全モデルの上限があればその時刻、モデル別だけなら「Fable・Opusが上限中」と最も早い時刻。
+    static func limitLine(_ limits: [AccountLimit], runningOnOther other: String? = nil, now: Date = Date()) -> String? {
+        guard !limits.isEmpty else { return nil }
+        let all = limits.first { $0.scope == "all" }
+        let what = all != nil ? "上限中" : limits.map { scopeName($0.scope) }.joined(separator: "・") + "が上限中"
+        let times = (all.map { [$0] } ?? limits).compactMap { limit in BellDate.parse(limit.resetAt ?? "").map { (limit, $0) } }
+        let earliest = times.min { $0.1 < $1.1 }?.0
+        let when = time(earliest?.resetAt, now: now).map { "・\($0)に戻ります" } ?? "・戻る時刻は分かりません"
+        return what + when + (other.map { "（いまは\($0)で動いています）" } ?? "")
     }
 }

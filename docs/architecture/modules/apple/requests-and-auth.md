@@ -101,7 +101,7 @@ flowchart TD
   Settings["設定のHarnessAuthenticationList"] --> List["GET /api/harness-auth"]
   Settings --> Accounts["GET /api/accounts<br/>404は旧本体で従来の1行<br/>失敗は理由を出し2〜60秒で読み直す"]
   List --> Row["各RowがGET /api/harness-auth/:harness<br/>checking / unavailable / known"]
-  Accounts --> Claude["ClaudeAccountsCard<br/>1st/2ndアカウントの行：認証の札（認証済み／未認証／確認できません）・アカウント名<br/>モデルごとの上限と解除時刻（日本時間）・使用中のメンバー<br/>allLimitedの帯（使い分けの切替は無い）"]
+  Accounts --> Claude["ClaudeAccountsCard<br/>1つ目/2つ目のアカウントの行（呼び名はWebと共通）：認証の札（AuthenticationProgress）・メール（この画面だけ、Root裁定）<br/>モデルごとの上限と解除時刻（日本時間）・使用中のメンバー<br/>allLimitedの帯（使い分けの切替は無い）"]
   Claude --> SlotView["HarnessAuthenticationView(slot)<br/>2ndは .../claude?slot=2nd"]
   SlotView --> View
   Row --> View["HarnessAuthenticationView<br/>StateObject HarnessAuthenticationFlow"]
@@ -154,16 +154,17 @@ stateDiagram-v2
 
 | 段階 | 行の札 | 行のボタン | 画面の状態文（`detail`） |
 | --- | --- | --- | --- |
-| checking | 確認中 | 確認する | 公式の状態を確認しています。 |
-| unknown | 確認できません | 確認する | 状態を確認できませんでした。「状態を更新」で読み直してください。 |
+| checking | 確認中 | なし | 公式の状態を確認しています。 |
+| unknown | 確認できません | なし（行を押すと画面で読み直す） | 状態を確認できませんでした。「状態を更新」で読み直してください。 |
 | waitingSite | 認証の途中 | 続ける | まだ終わっていません。「公式サイトを開く」から公式サイトで認証してください。 |
 | waitingCode | コード待ち | 続ける | まだ終わっていません。公式サイトに表示された認証コードを下に貼り付けて「認証コードを送る」を押してください。 |
 | sendingCode | （画面のみ） | — | 認証コードを送っています。 |
-| confirming | 確認中 | 続ける | 公式の応答を待っています。終わるまでこの画面で待ってください。 |
-| done | 認証済み | 認証し直す（reloginSupported=falseは詳しく見る） | 認証済みです。 |
+| confirming | 確認中 | なし | 公式の応答を待っています。終わるまでこの画面で待ってください。 |
+| done | 認証済み | なし（矢印だけ。入り直しは画面の中） | 認証済みです。 |
 | failed | 失敗 | 認証し直す | 認証できませんでした。理由：サーバーの`message`（無ければ「理由は返されませんでした。」） |
 | needsLogin | ログインが必要 | 認証する | ログインし直してください。「認証する」から公式サイトで認証します。 |
 
+- 行の主ボタン（紫の丸）は利用者の操作が要る段階（needsLogin・failed・waitingSite・waitingCode）だけ（Root review 2026-11-11 A）。Claudeの行はログインの札と別に、上限を1行（`AccountText.limitLine`：「上限中・11/13 17:00に戻ります（いまは2ndで動いています）」）、使用中は人数だけ（`AccountText.seats`：「52人が使用」）。
 - 札の色：done=緑、waitingSite/waitingCode/confirming=紫（進行中）、needsLogin/failed/unknown=橙、checking=灰。完了の見た目（緑・「認証済み」）は`done`だけ。
 - 進行中の行（waitingSite/waitingCode/confirming）は画面がactiveの間3秒ごとに読み直す。SSEの`eventRevision`でも読み直す。
 - 認証画面：サーバーの`session_id`がある時は「やめる」を出し（ローカルの`started`と論理和。旧本体は`started`のみ）、開始ボタンの文を「最初からやり直す」にする。`session_id`が無く`stage=unavailable`の時（状態を見ただけ）はAitermの案内（`auth_ui`のtitle/message）を出さず、サーバーの`message`だけを出す。

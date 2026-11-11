@@ -30,7 +30,7 @@ enum SettingsPage: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .profile: "名前・写真・紹介文と、チームが守るあなたの決まり"
         case .ai: "AIのアカウントと、仕事の要約を書くAI"
-        case .terminals: "メンバーの席を動かすMacと、その鍵"
+        case .terminals: "メンバーの席を動かすMac・Windows・Linuxと、その鍵"
         case .features: "通知の送信などを使うための設定"
         case .notifications: "メンバーからの連絡をこの端末に届ける"
         case .connection: "つないでいるサーバーとログイン方法"

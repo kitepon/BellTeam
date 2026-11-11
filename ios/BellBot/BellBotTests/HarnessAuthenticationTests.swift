@@ -169,6 +169,9 @@ final class HarnessAuthenticationTests: XCTestCase {
         XCTAssertEqual(AuthenticationProgress(nil), .unknown)
         let failed = SetupAuthentication(status: .failed, url: nil, userCode: nil, inputRequired: false, message: "通信できません。", authUi: nil)
         XCTAssertEqual(AuthenticationProgress(failed).detail, "認証できませんでした。理由：通信できません。")
+        XCTAssertNil(AuthenticationProgress.done.action, "使える行に主ボタンを出さない")
+        XCTAssertEqual(AuthenticationProgress.needsLogin.action, "認証する")
+        XCTAssertEqual(AuthenticationProgress.waitingCode.action, "続ける")
         for progress in [AuthenticationProgress.checking, .unknown, .waitingSite, .waitingCode, .sendingCode, .confirming, .failed(nil), .needsLogin] {
             XCTAssertNotEqual(progress.badge, "認証済み")
             XCTAssertNotEqual(progress.tint, .green)

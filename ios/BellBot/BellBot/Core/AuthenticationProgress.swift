@@ -47,13 +47,13 @@ enum AuthenticationProgress: Equatable {
         }
     }
 
-    func action(reloginSupported: Bool? = nil) -> String {
+    /// 行の主ボタン。利用者の操作が要る段階だけ。使える（done）・確認中・読めない間は出さない（行を押せば画面で読み直せる）。
+    var action: String? {
         switch self {
-        case .done: reloginSupported == false ? "詳しく見る" : "認証し直す"
         case .failed: "認証し直す"
         case .needsLogin: "認証する"
-        case .waitingSite, .waitingCode, .confirming, .sendingCode: "続ける"
-        case .checking, .unknown: "確認する"
+        case .waitingSite, .waitingCode: "続ける"
+        case .done, .confirming, .sendingCode, .checking, .unknown: nil
         }
     }
 

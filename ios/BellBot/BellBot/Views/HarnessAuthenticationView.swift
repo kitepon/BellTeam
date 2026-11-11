@@ -61,7 +61,7 @@ struct HarnessAuthenticationList: View {
             store.requireLogin(for: error)
         } catch {
             // 前に読めた行は残す。まだ無ければ従来の1行（1stのログイン）だけを出す。
-            accountsError = "1st・2ndアカウントの状態を読めませんでした（\(BellAPIError.operationFailureMessage(error))）。読み直しています…"
+            accountsError = "1つ目・2つ目のアカウントの状態を読めませんでした（\(BellAPIError.operationFailureMessage(error))）。読み直しています…"
             accountsFailures += 1
             store.api.diagnostics.report(error, path: "/api/accounts", method: "GET", observation: .read(error, retainedData: false))
         }
@@ -127,10 +127,16 @@ private struct AuthenticationBadge: View {
         HStack(spacing: 10) {
             Text(progress.badge).font(.caption.weight(.semibold)).foregroundStyle(progress.tint)
                 .accessibilityIdentifier("harness-auth-state-\(identifier)")
-            Text(progress.action(reloginSupported: harness.reloginSupported))
-                .font(.subheadline.weight(.semibold)).foregroundStyle(.white).lineLimit(1).fixedSize()
-                .padding(.horizontal, 12).padding(.vertical, 7)
-                .background(BellTheme.violet, in: Capsule())
+            // 主ボタンは、利用者の操作が要る段階（ログインが必要・失敗・途中）だけ。使える行は控えめな矢印だけ。
+            if let action = progress.action {
+                Text(action)
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(.white).lineLimit(1).fixedSize()
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .background(BellTheme.violet, in: Capsule())
+            } else {
+                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(BellTheme.muted)
+                    .accessibilityHidden(true)
+            }
         }
         .task { await load() }
         .onChange(of: store.eventRevision) { _, _ in Task { await load() } }
@@ -286,6 +292,10 @@ private struct ClaudeAccountsCard: View {
         .padding(.vertical, 6)
     }
 
+    private var secondAvailable: Bool {
+        accounts.slots.contains { $0.slot == "2nd" && $0.loggedIn == true && !$0.limits.contains { $0.scope == "all" } }
+    }
+
     private func row(_ slot: AccountSlot) -> some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 3) {
@@ -294,12 +304,12 @@ private struct ClaudeAccountsCard: View {
                 if let label = slot.label {
                     Text(label).font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
                 }
-                ForEach(slot.limits, id: \.scope) { limit in
-                    Text(AccountText.limit(limit)).font(BellTheme.secondaryFont).foregroundStyle(.orange)
+                // ログインの札とは別の1行。1stが上限で2ndが使える時は、いま2ndで動いていると添える。
+                if let line = AccountText.limitLine(slot.limits, runningOnOther: slot.slot == "1st" && secondAvailable ? "2つ目" : nil) {
+                    Text(line).font(BellTheme.secondaryFont).foregroundStyle(.orange)
                 }
                 if !slot.seats.isEmpty {
-                    Text(AccountText.seats(slot.seats, names: Dictionary(store.bots.map { ($0.id, $0.displayName) }, uniquingKeysWith: { a, _ in a })))
-                        .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted).lineLimit(2)
+                    Text(AccountText.seats(slot.seats)).font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
                 }
             }
             Spacer()

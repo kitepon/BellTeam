@@ -75,17 +75,19 @@ final class HarnessAuthenticationUITests: XCTestCase {
         settings.tap()
         XCTAssertTrue(app.buttons["settings-row-ai"].waitForExistence(timeout: 5))
         app.buttons["settings-row-ai"].tap()
-        let expected = [
-            ("codex", "認証済み", "認証し直す"),
+        let expected: [(String, String, String?)] = [
+            ("codex", "認証済み", nil),
             ("cursor", "ログインが必要", "認証する"),
-            ("grok", "確認できません", "確認する"),
-            ("antigravity", "認証済み", "詳しく見る"),
+            ("grok", "確認できません", nil),
+            ("antigravity", "認証済み", nil),
         ]
         for (id, state, action) in expected {
             let row = app.buttons["harness-auth-\(id)"]
             for _ in 0..<6 where !row.isHittable { app.scrollViews.firstMatch.swipeUp() }
             XCTAssertTrue(row.waitForExistence(timeout: 5))
-            let shown = NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@", state, action)
+            // 使える行・読めない行には主ボタンを出さない（Root review 2026-11-11 A）。
+            let shown = action.map { NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@", state, $0) }
+                ?? NSPredicate(format: "label CONTAINS %@ AND NOT label CONTAINS %@", state, "認証し直す")
             XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: shown, object: row)], timeout: 5), .completed, id)
         }
         XCTAssertFalse(try paths(base).contains { $0.hasPrefix("POST") })
