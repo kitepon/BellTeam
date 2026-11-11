@@ -313,8 +313,12 @@ private struct ScheduleCard: View {
                 Image(systemName: entry.schedule.kind == "once" ? "calendar" : "repeat")
                     .foregroundStyle(BellTheme.violet)
             }
-            if let action = entry.schedule.command ?? entry.schedule.prompt {
-                Text(action).font(.system(size: 14)).foregroundStyle(BellTheme.muted).lineLimit(3)
+            // A command is machine text (paths, IDs): the card names its kind; the command itself stays in the editor.
+            if entry.schedule.command != nil {
+                Label("AIを起こさずに動く自動の作業", systemImage: "gearshape.2.fill")
+                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(.teal)
+            } else if let prompt = entry.schedule.prompt {
+                Text(prompt).font(.system(size: 14)).foregroundStyle(BellTheme.muted).lineLimit(3)
             }
             HStack(spacing: 6) {
                 Image(systemName: "clock")
@@ -369,6 +373,7 @@ private struct ScheduleEditor: View {
     @State private var action = "prompt"
     @State private var prompt = ""
     @State private var command = ""
+    @State private var showCommand = false
     @State private var frequency = "once"
     @State private var date = Date().addingTimeInterval(3600)
     @State private var minute = 0
@@ -425,7 +430,14 @@ private struct ScheduleEditor: View {
                         }
                     }
                     if action == "command" && room == nil {
-                        TextField("実行するコマンド", text: $command, axis: .vertical).lineLimit(2...5)
+                        // Folded by default: the line carries paths and IDs that only matter when changing it.
+                        DisclosureGroup("コマンドを表示して編集", isExpanded: Binding(
+                            get: { showCommand || command.isEmpty }, set: { showCommand = $0 })) {
+                            TextField("実行するコマンド", text: $command, axis: .vertical).lineLimit(2...8)
+                                .font(.system(.footnote, design: .monospaced))
+                                .textInputAutocapitalization(.never).autocorrectionDisabled()
+                        }
+                        .accessibilityIdentifier("schedule-command-disclosure")
                     } else {
                         TextField("依頼する内容", text: $prompt, axis: .vertical).lineLimit(3...8)
                     }

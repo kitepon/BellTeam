@@ -196,17 +196,7 @@ private struct RootView: View {
                 readyView
                 #endif
             case .failure(let message):
-                ZStack {
-                    BellBackground()
-                    ContentUnavailableView {
-                        Label("接続できませんでした", systemImage: "wifi.exclamationmark")
-                    } description: {
-                        Text(message)
-                    } actions: {
-                        Button("もう一度試す") { Task { await store.bootstrap() } }
-                            .buttonStyle(.borderedProminent)
-                    }
-                }
+                ConnectionFailureView(detail: message)
             }
         }
         .sheet(isPresented: $store.updatePresented) { UpdateView(updates: store.updates).bellEditorSheet() }
@@ -222,6 +212,61 @@ private struct RootView: View {
             if ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("-bellbot-preview") }) { return }
             #endif
             store.sceneChanged(to: next)
+        }
+    }
+}
+
+/// The server could not be reached: what happened in plain words, where we tried, and the two ways out.
+private struct ConnectionFailureView: View {
+    let detail: String
+    @EnvironmentObject private var store: AppStore
+    @State private var showingDetail = false
+    @State private var confirmingChange = false
+    @State private var retrying = false
+
+    var body: some View {
+        ZStack {
+            BellBackground()
+            VStack(spacing: 18) {
+                SettingsIconTile(symbol: "wifi.exclamationmark", tint: .orange, side: 64)
+                VStack(spacing: 8) {
+                    Text("BellTeamにつながりません").font(.title2.bold()).foregroundStyle(BellTheme.ink)
+                    Text("サーバーが動いているか、この端末が同じネットワークにいるかを確かめてから、もう一度試してください。")
+                        .font(.subheadline).foregroundStyle(BellTheme.muted).multilineTextAlignment(.center)
+                    if let host = store.serverURL?.host() {
+                        Label("接続先 \(host)", systemImage: "server.rack")
+                            .font(.footnote).foregroundStyle(BellTheme.muted)
+                    }
+                }
+                VStack(spacing: 10) {
+                    Button {
+                        retrying = true
+                        Task { await store.bootstrap(); retrying = false }
+                    } label: {
+                        Text(retrying ? "接続しています…" : "もう一度試す").frame(maxWidth: 280)
+                    }
+                    .buttonStyle(.borderedProminent).controlSize(.large)
+                    .disabled(retrying)
+                    .accessibilityIdentifier("connection-retry")
+                    Button("接続先を変更") { confirmingChange = true }
+                        .buttonStyle(.bordered).disabled(retrying)
+                        .accessibilityIdentifier("connection-change-server")
+                }
+                DisclosureGroup("詳細", isExpanded: $showingDetail) {
+                    Text(detail).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .font(.footnote).frame(maxWidth: 360)
+            }
+            .padding(28)
+            .frame(maxWidth: 460)
+            .bellCard()
+            .padding(24)
+        }
+        .confirmationDialog("接続先を変更しますか？", isPresented: $confirmingChange, titleVisibility: .visible) {
+            Button("接続先を変更") { Task { await store.changeServer() } }
+        } message: {
+            Text("今のサーバーからログアウトして、接続先の入力に戻ります。")
         }
     }
 }

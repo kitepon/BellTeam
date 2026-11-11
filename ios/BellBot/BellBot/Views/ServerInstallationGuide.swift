@@ -18,19 +18,31 @@ struct ServerInstallationGuide: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("AIにセットアップを任せる").font(.headline)
-                        Button(copiedAIRequest ? "コピーしました" : "GitHubのURLと依頼文をコピー", systemImage: "doc.on.doc") {
-                            UIPasteboard.general.string = aiRequest
-                            copiedAIRequest = true
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack(spacing: 12) {
+                            SettingsIconTile(symbol: "sparkles", tint: BellTheme.violet, side: 40)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("AIにセットアップを任せる").font(.headline)
+                                Text("GitHubのURLと依頼文を、PCを操作できるAIへ渡します。").font(.subheadline).foregroundStyle(BellTheme.muted)
+                            }
                         }
-                        .buttonStyle(.borderedProminent)
-                        .accessibilityIdentifier("server-ai-request-copy")
-                        ShareLink(item: aiRequest) {
-                            Label("GitHubのURLと依頼文を共有", systemImage: "square.and.arrow.up")
+                        HStack(spacing: 10) {
+                            Button(copiedAIRequest ? "コピーしました" : "URLと依頼文をコピー",
+                                   systemImage: copiedAIRequest ? "checkmark" : "doc.on.doc") {
+                                UIPasteboard.general.string = aiRequest
+                                copiedAIRequest = true
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .accessibilityIdentifier("server-ai-request-copy")
+                            ShareLink(item: aiRequest) {
+                                Label("共有", systemImage: "square.and.arrow.up")
+                            }
+                            .buttonStyle(.bordered)
                         }
-                        .buttonStyle(.bordered)
                     }
+                    .padding(18)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .bellCard()
                     MessageText(source: Self.source, accessibilityIdentifier: "server-installation-content")
                         .markdownTheme { List().fontSize(BellTheme.messageFontSize) }
                     Link("PCで読む手順と配布ファイルを開く", destination: BillingStore.configuration.serverGuideUrl)
@@ -44,6 +56,8 @@ struct ServerInstallationGuide: View {
                 .padding(24)
                 .frame(maxWidth: .infinity)
             }
+            // Opaque: a Mac sheet otherwise shows the window's own (dark) material through the text.
+            .background(BellBackground())
             .navigationTitle("サーバーの導入ガイド")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
