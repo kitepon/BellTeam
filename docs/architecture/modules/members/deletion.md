@@ -8,7 +8,7 @@ flowchart TD
   Target -->|"不在"| Missing["404 / BOT_NOT_FOUND<br/>副作用なし"]
   Target -->|"active"| Accepted["202 / deleting:id<br/>受付のみ・背景で実行"]
   Target -->|"既pending"| Resume["202 / deleting:id<br/>同じ削除意図の再開"]
-  Accepted --> Stop["execution.stop<br/>席終了"]
+  Accepted --> Stop["execution.stop allSessions<br/>全端末の同メンバー席を終了（1st/2nd）"]
   Stop --> Rooms["conversation.membership-cleanup<br/>部屋・予定targetsから外す"]
   Rooms --> Gate["対象Bot画像の新save停止・旧save終端"]
   Gate --> Record["receipt保存・active Map退役<br/>stateを.deletingへrename"]
@@ -28,7 +28,7 @@ flowchart TD
 | --- | --- |
 | HTTP `createMemberDeletionApi({administration})` | DELETEだけを受け、`administration.remove(id)`の受付を202/{deleting:id}で返す。GET/PATCHの既pendingは従来どおり404 |
 | MCP `deleteBotTool/runDeleteBotTool` | schemaと説明もmembersが所有。botId省略時はfrom。callerはactiveな席として従来の共通認証を通る。既pendingは実行Map不在でも同じinternalApi.remove→HTTP入口へ送れる |
-| `startMemberRemoval` | activeはstop→rooms.removeBot→bots.remove。stop/部屋整理の失敗では後続を進めずwriteLog。pendingは既存削除意図だけを再開し、別のnative sessionを起動/停止しない |
+| `startMemberRemoval` | activeはstop(`allSessions:true`)→rooms.removeBot→bots.remove。stopは現在の席に加え、口座移動で残した旧席など同メンバーの全sessionを閉じる（Trony裁定2026-11-11：削除したメンバーのAIをOwnerの端末に残さない）。stop/部屋整理の失敗では後続を進めずwriteLog。pendingは既存削除意図だけを再開し、別のnative sessionを起動/停止しない |
 | `BotRegistry.hasPendingRemoval(id)` | IDを検証し、split stateの既pending directory又はreceiptの有無を返す。active/不在の分類のためだけに実行Mapへ再採用しない |
 | `BotRegistry.remove(id)` | 通常`{id}`。cleanup完了・CLI同期失敗時は`{id,configurationSync:{state:'failed',name,message,code?,status?}}`。同期はcleanup試行後に一回。共有writerの既onChange(bots) Promise/reject契約は変えない |
 | cleanup失敗 | `BOT_DELETE_PENDING`をthrowしpendingを残す。同期も失敗した場合は同じ例外の`configurationSync`へ独立した失敗を添える。背景moduleが同期失敗と削除失敗を別のlogへ各一回記録 |

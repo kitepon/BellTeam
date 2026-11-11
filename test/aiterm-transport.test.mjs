@@ -803,6 +803,30 @@ test('Bot削除前にAitermセッションを閉じる', async () => {
   assert.deepEqual(calls, [['pty_close', { session_id: 'bot-a' }]])
 })
 
+test('member DELETE closes every seat of the member on every terminal; a failed close does not stop it (Trony 2026-11-11)', async t => {
+  const { writeFile, rm } = await import('node:fs/promises')
+  const dir = await mkdtemp(join(tmpdir(), 'bellteam-delete-seats-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const runtimeLaunchesPath = join(dir, 'launches.json')
+  // The 1st seat an account move left on a terminal, the current 2nd seat, and another member's seat.
+  await writeFile(runtimeLaunchesPath, JSON.stringify({ launches: {
+    'bot-a': { botId: 'bot-a', target: 't\n/p' }, 'bot-a-2nd-x1': { botId: 'bot-a', target: 't\n/p' }, 'bot-b': { botId: 'bot-b' } } }))
+  const calls = []
+  const transport = new AitermTransport({ runtimeLaunchesPath, handoffContext: noMemory, client: { async call(name, args) {
+    calls.push([name, args])
+    if (name === 'pty_list') return { structuredContent: { sessions: [{ session_id: 'bot-a-1st-old' }, { session_id: 'bot-ab' }, { session_id: 'bot-b' }] } }
+    if (name === 'pty_close' && args.session_id === 'bot-a') throw Object.assign(new Error('gone'), { code: 'AGENT_SESSION_REQUIRED' })
+    return {}
+  } } })
+  const bot = { id: 'bot-a', session: 'bot-a-2nd-x1' }
+  await transport.stop(bot, undefined, { allSessions: true })
+  assert.deepEqual(calls.filter(([name]) => name === 'pty_close').map(([, args]) => args.session_id), ['bot-a-2nd-x1', 'bot-a', 'bot-a-1st-old'])
+  // Without the option (restart, configuration stop) only the current session closes.
+  calls.length = 0
+  await transport.stop(bot)
+  assert.deepEqual(calls, [['pty_close', { session_id: 'bot-a-2nd-x1' }]])
+})
+
 test('画面整形は起動コマンドの塊を落とし、空行をまとめ、末尾だけ返す', () => {
   const raw = [
     "bell@abc:/app$ cd '/srv/bellteam/bots/bot-a' && GROK_AUTH_PATH='x' '/usr/local/bin/grok' --rules '<aiterm_subagent_context>",

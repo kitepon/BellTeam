@@ -590,15 +590,30 @@ export class AitermTransport {
     })
   }
 
-  async stop(bot, version = this.captureStopVersion(bot), { membersLease, expected = this.membersAdmission.capture() } = {}) {
+  async stop(bot, version = this.captureStopVersion(bot), { membersLease, expected = this.membersAdmission.capture(), allSessions = false } = {}) {
     if (this.executionBridge) await this.awaitUnboundAdmission(bot, version)
     await this.idle(bot.id)
     return this.memberOperation(bot, async () => {
       this.requireStopVersion(bot.id, version)
-      const result = await this.changeSession(bot, 'pty_close', { session_id: this.session(bot) })
+      const current = this.session(bot)
+      const result = await this.changeSession(bot, 'pty_close', { session_id: current })
       await this.removeRetainedImages(bot.id)
+      if (allSessions) await this.closeMemberSessions(bot, current)
       return result
     }, { membersLease, expected })
+  }
+
+  // harness-accounts.md "Member DELETE": a deleted member leaves no seat on any terminal, also the one an account move left.
+  async closeMemberSessions(bot, closed) {
+    const own = id => typeof id === 'string' && id !== closed && (id === bot.id || id.startsWith(`${bot.id}-`))
+    const sessions = new Set(Object.entries(await this.readRuntimeLaunches()).filter(([, seat]) => seat?.botId === bot.id).map(([id]) => id))
+    try { for (const row of (await this.client.call('pty_list')).structuredContent?.sessions ?? []) sessions.add(row?.session_id) }
+    catch (error) { process.stderr.write(`BellTeam delete: local seats unreadable: ${bot.id}: ${error?.code ?? error?.message}\n`) }
+    for (const session_id of [...sessions].filter(own)) {
+      // A seat already gone also lands here; its exit is Aiterm's idle clock, and the deletion goes on.
+      try { await this.client.call('pty_close', { session_id }) }
+      catch (error) { process.stderr.write(`BellTeam delete: seat not closed: ${bot.id} ${session_id}: ${error?.code ?? error?.message}\n`) }
+    }
   }
 
   // 会話を残した現在処理の中断。通常の停止配送か旧追跡adapterを使う。
