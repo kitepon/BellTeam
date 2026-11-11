@@ -53,6 +53,9 @@ public sealed record LatticeCard
     public int Depth { get; init; }
     public string? Phase { get; init; }
     public string? Parent { get; init; }
+    public DateTimeOffset? DoneAt { get; init; }
+    /// <summary>Finished and none of its next cards is still unstarted: left out of the tree and lanes, kept for 詳細, links, 過去ログ and counts.</summary>
+    public bool Archived { get; init; }
 }
 public sealed record LatticePhase(string Id, string? Title);
 public sealed record LatticeEdge(string From, string To, bool Waiting);
@@ -76,6 +79,9 @@ public sealed record LatticeTreeNode(string Key, string Kind, string Label, Latt
 public sealed record LatticeTreeLink(string From, string To, double X0, double Y0, double X1, double Y1);
 /// <summary>A dependency drawn on the right of both boxes: from (X0,Y0) out to Bulge and back to (X1,Y1), the waiter's right edge.</summary>
 public sealed record LatticeTreeArc(string From, string To, bool Waiting, double X0, double Y0, double Bulge, double X1, double Y1);
+public sealed record LatticeHistoryRow(string Id, LatticeCard Card, LatticePerson? Owner, LatticeStateInfo Info, string Time, string Label);
+public sealed record LatticeHistoryGroup(string Heading, IReadOnlyList<LatticeHistoryRow> Rows);
+public sealed record LatticeHistory(int Count, IReadOnlyList<LatticeHistoryGroup> Groups);
 public sealed record LatticeTreeLayout(IReadOnlyList<LatticeTreeNode> Nodes, IReadOnlyList<LatticeTreeLink> Links, IReadOnlyList<LatticeTreeArc> Arcs, IReadOnlyDictionary<string, LatticeTreeNode> Cards, double Width, double Height);
 public sealed record LatticeDiff(bool First, IReadOnlyList<string> AddedCards, IReadOnlyList<string> ChangedCards, IReadOnlyList<string> CompletedCards);
 public sealed record LatticeListItem(string ProjectId, string Name, bool Coordinator, int Done, int Total, int Waiting, IReadOnlyList<LatticePerson> Members, double Fraction, string Updated, string Label);
@@ -136,7 +142,7 @@ public static class LatticeChart
     {
         var ownerOf = Owner(snapshot); var owners = new Dictionary<string, LatticePerson?>();
         string Key(LatticeCard card) { var owner = ownerOf(card); var key = owner is null ? "" : owner.Authored ? "lane:" + owner.Name : owner.BotId; owners[key] = owner; return key; }
-        var groups = snapshot.Cards.GroupBy(Key).ToDictionary(group => group.Key, group => group.ToList());
+        var groups = snapshot.Cards.Where(card => !card.Archived).GroupBy(Key).ToDictionary(group => group.Key, group => group.ToList());
         int Rank(string key) => owners[key] is not { } owner ? 3 : owner.Known ? 0 : owner.Authored ? 1 : 2;
         var order = groups.Keys.OrderBy(Rank).ThenBy(key => Rank(key) < 2 ? owners[key]!.Name : "", StringComparer.Create(CultureInfo.GetCultureInfo("ja-JP"), false)).ThenBy(key => key, StringComparer.Ordinal).ToList();
         var lanes = new List<LatticeLane>(); var placed = new Dictionary<string, LatticePlaced>();
@@ -174,9 +180,11 @@ public static class LatticeChart
     }
     public static LatticeTreeLayout Tree(LatticeSnapshot snapshot, string name)
     {
-        var byId = snapshot.Cards.GroupBy(card => card.Id).ToDictionary(group => group.Key, group => group.First());
+        // Archived cards are not drawn; a phase whose cards are all archived is not drawn; an archived parent's children hang from their phase.
+        var all = snapshot.Cards.GroupBy(card => card.Id).Select(group => group.First()).ToList();
+        var byId = all.Where(card => !card.Archived).ToDictionary(card => card.Id);
         var drafts = new Dictionary<string, Draft> { ["root"] = new("root", "root", name, null, TreeRootWidth) };
-        foreach (var phase in snapshot.Phases) drafts.TryAdd("phase:" + phase.Id, new("phase:" + phase.Id, "phase", phase.Title is { Length: > 0 } title ? title : UnnamedPhase, null, TreePhaseWidth));
+        foreach (var phase in snapshot.Phases.Where(phase => !all.Any(card => card.Phase == phase.Id) || byId.Values.Any(card => card.Phase == phase.Id))) drafts.TryAdd("phase:" + phase.Id, new("phase:" + phase.Id, "phase", phase.Title is { Length: > 0 } title ? title : UnnamedPhase, null, TreePhaseWidth));
         foreach (var card in byId.Values) drafts.TryAdd(card.Id, new(card.Id, "card", Title(card), card, TreeCardWidth));
         foreach (var draft in drafts.Values.Where(draft => draft.Kind == "phase").ToList()) drafts["root"].Children.Add(draft.Key);
         foreach (var card in byId.Values)
@@ -191,10 +199,10 @@ public static class LatticeChart
             draft.Y = kids.Count > 0 ? (drafts[kids[0]].Y + drafts[kids[^1]].Y) / 2 : TreeTop + row++ * TreeRow;
         }
         Place("root", TreeLeft);
-        IEnumerable<LatticeCard> Under(string key) { var draft = drafts[key]; var inside = draft.Children.Where(child => child != key).SelectMany(Under); return draft.Card is { } card ? inside.Prepend(card) : inside; }
         var nodes = drafts.Values.Where(draft => seen.Contains(draft.Key)).Select(draft =>
         {
-            var inside = draft.Kind == "card" ? new List<LatticeCard>() : Under(draft.Key).ToList();
+            // done/total count every card, archived included, like the ring: the chart all of them, a phase the cards of that phase.
+            var inside = draft.Kind switch { "card" => [], "root" => all, _ => all.Where(card => "phase:" + card.Phase == draft.Key).ToList() };
             return new LatticeTreeNode(draft.Key, draft.Kind, draft.Label, draft.Card, draft.X, draft.Y, draft.Width, TreeBoxHeight, inside.Count(card => Finished(card.State)), inside.Count, PhaseTone(inside));
         }).ToList();
         var placed = nodes.ToDictionary(node => node.Key);
@@ -209,6 +217,24 @@ public static class LatticeChart
             return new LatticeTreeArc(edge.From, edge.To, edge.Waiting, x0, Mid(a), bulge, x1 + 6, Mid(b));
         }).ToList();
         return new(nodes, links, arcs, nodes.Where(node => node.Kind == "card").ToDictionary(node => node.Key), reach + 24, TreeTop + Math.Max(1, row) * TreeRow + 16);
+    }
+
+    /// <summary>過去ログ: every finished card, newest doneAt first, under JST day headings 今日 / 昨日 / M月d日; cards without doneAt last under 日時の分からない工程.</summary>
+    public static LatticeHistory History(LatticeSnapshot snapshot, DateTimeOffset now)
+    {
+        var ownerOf = Owner(snapshot);
+        DateTimeOffset Local(DateTimeOffset at) => TimeZoneInfo.ConvertTime(at, Jst);
+        var today = Local(now).Date; var groups = new List<(string Heading, List<LatticeHistoryRow> Rows)>();
+        var rows = snapshot.Cards.Where(card => Finished(card.State)).OrderByDescending(card => card.DoneAt ?? DateTimeOffset.MinValue).ThenBy(card => card.Id, StringComparer.Ordinal).ToList();
+        foreach (var card in rows)
+        {
+            var day = card.DoneAt is { } at ? Local(at).Date : (DateTime?)null;
+            var heading = day is not { } date ? "日時の分からない工程" : date == today ? "今日" : date == today.AddDays(-1) ? "昨日" : date.ToString("M月d日", CultureInfo.InvariantCulture);
+            if (groups.Count == 0 || groups[^1].Heading != heading) groups.Add((heading, []));
+            var owner = ownerOf(card); var info = StateInfo(card.State); var time = card.DoneAt is { } done ? Local(done).ToString("HH:mm", CultureInfo.InvariantCulture) : "";
+            groups[^1].Rows.Add(new(card.Id, card, owner, info, time, $"{Title(card)}、{info.Badge}{(time.Length > 0 ? $"、{heading} {time}" : "")}、{NameOf(owner)}"));
+        }
+        return new(rows.Count, groups.Select(group => new LatticeHistoryGroup(group.Heading, group.Rows)).ToList());
     }
 
     /// <summary>An edge is a smooth curve from the right middle of the producer card to the left middle of the waiting card.</summary>

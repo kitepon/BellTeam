@@ -11,6 +11,7 @@ namespace BellTeam.App;
 /// (test/helpers/lattice-ui-server.mjs on Rapi's branch). Times are relative to now. Scenes pick the state, the list, the stream, an unknown producer and
 /// authored lanes (「authored」: cards nobody started carry the plan's lane text and no producer, as production plans write kiro / anis / root).
 /// Every scene carries phases (one untitled) and one nested card (t05 under t04) for the tree; t11 has no phase and hangs from the chart.
+/// Finished cards carry doneAt (t03 none) and archived per the server rule: t02 and t03 are archived, t01 (its next card t07 is unstarted) is not.
 /// </summary>
 internal sealed class LatticeFixture(string scene) : HttpMessageHandler
 {
@@ -24,12 +25,12 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
 
     private object[] Cards()
     {
-        object Card(string id, string title, string state, string? producer, int depth, string done = "", string memo = "", double? started = null, string? reason = null, string? authored = null)
-            => new { id = $"p1/{id}", plan = "p1", taskId = id, title, state, phase = Phases.FirstOrDefault(phase => phase.Tasks.Contains(id)).Id is { } ph ? $"p1/{ph}" : null, parent = id == "t05" ? "p1/t04" : null, lane = scene == "authored" && authored is not null ? authored : producer, producer = scene == "authored" && authored is not null ? null : producer, depth, doneCondition = done, designMemo = memo, startedAt = started is { } at ? Ago(at) : null, changedAt = Ago(60), blockedReason = reason };
+        object Card(string id, string title, string state, string? producer, int depth, string done = "", string memo = "", double? started = null, string? reason = null, string? authored = null, double? finished = null, bool archived = false)
+            => new { id = $"p1/{id}", plan = "p1", taskId = id, title, state, phase = Phases.FirstOrDefault(phase => phase.Tasks.Contains(id)).Id is { } ph ? $"p1/{ph}" : null, parent = id == "t05" ? "p1/t04" : null, lane = scene == "authored" && authored is not null ? authored : producer, producer = scene == "authored" && authored is not null ? null : producer, depth, doneCondition = done, designMemo = memo, startedAt = started is { } at ? Ago(at) : null, changedAt = Ago(60), blockedReason = reason, doneAt = finished is { } doneAgo ? Ago(doneAgo) : null, archived };
         return [
-            Card("t01", "決定済み仕様の確認", "done", "bot-flora", 0, "仕様の要点を一覧にする"),
-            Card("t02", "Latticeの読取口の確認", "done", "bot-flora", 0, "読取の2つの入口を確かめる"),
-            Card("t03", "旧・組込案の比較", "retired", "bot-admi", 0),
+            Card("t01", "決定済み仕様の確認", "done", "bot-flora", 0, "仕様の要点を一覧にする", finished: 95),
+            Card("t02", "Latticeの読取口の確認", "done", "bot-flora", 0, "読取の2つの入口を確かめる", finished: 60 * 27, archived: true),
+            Card("t03", "旧・組込案の比較", "retired", "bot-admi", 0, archived: true),
             Card("t04", "部品の配置と保存場所", "in-progress", "bot-molly", 1, "配置先と保存先を決定", "部品の置き場と、工程表の保存先を決める。保存先は夜間の控えに入る場所にする。", 12),
             Card("t05", "席へのCLI配布", "in-progress", "bot-kiro", 1, "全席でCLIが使える", started: 4),
             Card("t06", "Web画面の組込口", "blocked", "bot-admi", 1, "Webから工程表を開ける", reason: "組込の登録点が未定"),

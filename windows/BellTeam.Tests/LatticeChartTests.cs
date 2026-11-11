@@ -68,7 +68,7 @@ public sealed class LatticeChartTests
             [new("3", "2", false), new("1", "4", true)]) with { Phases = [new("ph", null), new("empty", "空")] };
         var tree = LatticeChart.Tree(snapshot, "工程表");
         var node = tree.Nodes.ToDictionary(item => item.Key);
-        Assert.Equal((LatticeChart.UnnamedPhase, 1, 3, "blocked"), (node["phase:ph"].Label, node["phase:ph"].Done, node["phase:ph"].Total, node["phase:ph"].Tone));
+        Assert.Equal((LatticeChart.UnnamedPhase, 1, 2, "blocked"), (node["phase:ph"].Label, node["phase:ph"].Done, node["phase:ph"].Total, node["phase:ph"].Tone));
         Assert.Equal(("pending", 0), (node["phase:empty"].Tone, node["phase:empty"].Total));
         Assert.Equal((1, 4), (node["root"].Done, node["root"].Total));
         Assert.Equal(node["1"].X + LatticeChart.TreeCardWidth + LatticeChart.TreeGap, node["2"].X);
@@ -77,6 +77,29 @@ public sealed class LatticeChartTests
         Assert.Equal([false, true], tree.Arcs.Select(arc => arc.Waiting));
         Assert.True(tree.Arcs.All(arc => arc.Bulge > Math.Max(arc.X0, arc.X1 - 6)));
         Assert.Equal(["1", "2", "3", "4"], tree.Cards.Keys.Order());
+    }
+
+    [Fact]
+    public void ArchivedCardsLeaveTheTreeAndLanesButStayCountedAndInTheHistory()
+    {
+        var snapshot = Snapshot([Card("1", "done", "bot-a") with { Phase = "old", Archived = true, DoneAt = Now.AddHours(-1) }, Card("2", "pending", "bot-k") with { Phase = "new", Parent = "3" },
+            Card("3", "retired", "bot-k") with { Phase = "new", Archived = true, DoneAt = Now.AddHours(-30) }, Card("4", "done", "bot-a") with { Phase = "new", DoneAt = Now.AddDays(-3) }, Card("5", "done", null)])
+            with { Phases = [new("old", "済んだ"), new("new", "今の")] };
+        var tree = LatticeChart.Tree(snapshot, "工程表");
+        Assert.Equal(["2", "4", "5"], tree.Cards.Keys.Order());
+        Assert.DoesNotContain(tree.Nodes, node => node.Key == "phase:old");
+        Assert.Contains(tree.Links, link => link.From == "phase:new" && link.To == "2");
+        var node = tree.Nodes.ToDictionary(item => item.Key);
+        Assert.Equal((4, 5), (node["root"].Done, node["root"].Total));
+        Assert.Equal((2, 3), (node["phase:new"].Done, node["phase:new"].Total));
+        Assert.Equal(["2", "4", "5"], LatticeChart.Layout(snapshot).Cards.Keys.Order());
+        Assert.Equal(5, LatticeChart.Counts(snapshot).Total);
+        var log = LatticeChart.History(snapshot, Now);
+        Assert.Equal(4, log.Count);
+        Assert.Equal(["今日", "昨日", "11月8日", "日時の分からない工程"], log.Groups.Select(group => group.Heading));
+        Assert.Equal(("1", "20:00", "工程1、完了、今日 20:00、アドミ"), (log.Groups[0].Rows[0].Id, log.Groups[0].Rows[0].Time, log.Groups[0].Rows[0].Label));
+        Assert.Equal(("5", "", "工程5、完了、担当なし"), (log.Groups[3].Rows[0].Id, log.Groups[3].Rows[0].Time, log.Groups[3].Rows[0].Label));
+        Assert.Equal(0, LatticeChart.History(Snapshot([Card("9", "pending", null)]), Now).Count);
     }
 
     [Fact]
