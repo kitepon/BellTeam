@@ -364,7 +364,7 @@ touch "$BELLTEAM_INSTALL_DIR/applied"
         mounts=[{'Type':'bind','Source':'/fixed/data','Destination':'/srv/bellteam','RW':True}]
         module.verify_model_mounts(normal,mounts,[],True)
         with self.assertRaises(module.Failure):module.verify_model_mounts(normal,mounts,[])
-        for target in ['/srv/bellteam/creds','/srv','/srv/bellteam/']:
+        for target in ['/srv/bellteam/creds','/srv','/srv/bellteam/','//srv','///srv/bellteam/creds']:
             normal['services']['bellteam']['volumes'][1]['target']=target
             with self.assertRaises(module.Failure):module.verify_model_mounts(normal,mounts,[],True)
         normal['services']['bellteam']['volumes'][1].update(target='/srv/bellteam-creds')

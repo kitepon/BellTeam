@@ -160,9 +160,10 @@ def new_bind(mount, mounts):
     target, source = mount.get('target'), mount.get('source')
     if mount['type'] != 'bind' or type(target) is not str or type(source) is not str or not target.startswith('/') or not source.startswith('/'):
         return False
-    target = os.path.normpath(target)
+    canonical = lambda path: os.path.normpath('/' + path.lstrip('/'))  # POSIX normpath keeps a leading '//'
+    target = canonical(target)
     for value in mounts:
-        other = os.path.normpath(str(value.get('Destination', '')))
+        other = canonical(str(value.get('Destination', '')))
         if os.path.commonpath([target, other]) in {target, other}:
             return False
     return True
