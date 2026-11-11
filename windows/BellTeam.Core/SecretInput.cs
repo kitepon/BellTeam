@@ -95,7 +95,8 @@ public sealed class SecretInputModel
     {
         get
         {
-            if (Request.IsLoginPassword) return SecretRequest.LoginPasswordText;
+            // The server words the login card per terminal OS (このMac／このPC／このLinux); the constant is only for a server that sends no message.
+            if (Request.IsLoginPassword) return Request.Message.Length != 0 ? Request.Message : SecretRequest.LoginPasswordText;
             if (Request.IsOneTime) return SecretRequest.OneTimeText;
             if (UseOnePassword) return Picker ? $"選んだ{Noun}は、使うときに1Passwordから読み出します。{Noun}は会話に送られません。" : "参照は会話に送信されません。値は1Passwordから読み出します。";
             if (Sudo) return "sudoのパスワードを入力してください。1Passwordを使っている場合は、設定の「1Password連携」を済ませると、ここで一覧から選べます。値は会話に送信されず、BellTeamの利用者領域へ保存します。";
