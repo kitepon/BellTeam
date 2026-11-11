@@ -16,7 +16,8 @@ try {
   // A terminal launch (one launch path) runs the CLI on the terminal: cwd is that folder and only named private env crosses.
   // cwd is the terminal's native absolute form (POSIX /... or Windows X:\...); terminals checks it against the real OS.
   const terminal = request.launch && Object.hasOwn(request.launch, 'terminal')
-  const names = request.privateEnvNames, privateEnv = request.privateEnv ?? {}
+  let names = request.privateEnvNames
+  const privateEnv = request.privateEnv ?? {}
   const name = key => typeof key === 'string' && /^[A-Za-z_][A-Za-z0-9_]{0,127}$/.test(key)
   if (!request.launch || Object.hasOwn(request.launch, 'env_vars')
     || (terminal ? !['macos', 'windows'].some(os => isTerminalPath(os, request.launch.cwd))
@@ -30,6 +31,8 @@ try {
   // harness-accounts.md: a 2nd seat differs only in its login; read here as the seat user, given only to this CLI's env.
   delete process.env.CLAUDE_CODE_OAUTH_TOKEN
   if (request.claudeLogin !== undefined) Object.assign(process.env, await accountLoginEnvironment(request.claudeLogin, process.env))
+  // A legacy 1st (no token file yet) adds no login: the terminal keeps its own, so the name is not forwarded.
+  if (terminal && process.env.CLAUDE_CODE_OAUTH_TOKEN === undefined) names = names.filter(key => key !== 'CLAUDE_CODE_OAUTH_TOKEN')
   // stdin only: never argv, disk or log. The login token still comes only from claudeLogin.
   Object.assign(process.env, privateEnv)
   if (terminal && !names.every(key => typeof process.env[key] === 'string' && process.env[key])) throw Error('SEAT_LAUNCH_ARGUMENTS')

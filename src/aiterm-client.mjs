@@ -17,13 +17,15 @@ import { captureMcpError } from './returned-mcp-error.mjs'
 import { configurationConnection, configurationError, markConfigurationNotIssued, CONFIGURATION_SCHEMA } from './configuration-request.mjs'
 
 // The seat-command path does not carry this.env; the parent's Aiterm needs the account roots here too (harness-accounts.md E1).
-// harness-accounts.md: a non-1st Claude seat gets only its login, CLAUDE_CODE_OAUTH_TOKEN, read as the seat user from
-// <BELLTEAM_HOME>/.bellteam-accounts/claude/<slot>/oauth-token (0600). Missing or malformed: the launch fails, never 1st.
-export const ACCOUNT_LOGINS = ['2nd']
+// harness-accounts.md (one login per slot): a Claude seat gets only its slot's login, CLAUDE_CODE_OAUTH_TOKEN, read as the seat
+// user from <BELLTEAM_HOME>/.bellteam-accounts/claude/<slot>/oauth-token (0600). Missing or malformed: the launch fails, except
+// a legacy 1st without its file, which adds nothing (the root's or the host's own login, until the Owner's first 1st login).
+export const ACCOUNT_LOGINS = ['1st', '2nd']
 export async function accountLoginEnvironment(slot, environment = process.env) {
   if (!ACCOUNT_LOGINS.includes(slot)) throw Object.assign(new Error('ACCOUNT_LOGIN_UNAVAILABLE'), { code: 'ACCOUNT_LOGIN_UNAVAILABLE' })
   let token
-  try { token = (await readFile(join(runtimeHome(environment), '.bellteam-accounts', 'claude', slot, 'oauth-token'), 'utf8')).trim() } catch { token = '' }
+  try { token = (await readFile(join(runtimeHome(environment), '.bellteam-accounts', 'claude', slot, 'oauth-token'), 'utf8')).trim() }
+  catch (error) { if (slot === '1st' && error?.code === 'ENOENT') return {}; token = '' }
   if (!/^sk-ant-oat01-[A-Za-z0-9_-]{20,}$/u.test(token)) throw Object.assign(new Error('ACCOUNT_LOGIN_UNAVAILABLE'), { code: 'ACCOUNT_LOGIN_UNAVAILABLE', effect: 'not_started' })
   return { CLAUDE_CODE_OAUTH_TOKEN: token }
 }

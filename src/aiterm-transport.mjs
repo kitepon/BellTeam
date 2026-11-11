@@ -321,7 +321,8 @@ export class AitermTransport {
       }
       // remote-seat.md (one launch path): a member bound to a terminal gets the terminal target, its folder, the launch context
       // and the seat MCP config on the same agent_launch; the existing checkpoint reruns after that async preparation.
-      let claudeLogin = account && account.slot !== '1st' ? account.slot : null
+      // One login per slot (harness-accounts.md 2026-11-11): every slot passes its login; legacy 1st adds nothing in the launcher.
+      let claudeLogin = account?.slot ?? null
       if (isRemoteBot(bot)) {
         remote = await this.remoteSeats.prepare(bot, launchArgs, { shortTermMemory, context: { membersLease }, slot: account?.slot ?? null, harness })
         launchArgs = remote.args
@@ -347,7 +348,7 @@ export class AitermTransport {
         launch = await launchWith({ ...launchArgs, terminal })
       }
       if (remote) this.remoteSeats.launched(bot, launch?.structuredContent)
-      if (account) void this.accounts.setSeat(bot.id, account.slot).catch(() => {})
+      if (account) void this.accounts.setSeat(bot.id, account.slot, account.stamp ?? null).catch(() => {})
     } catch (error) {
       // A credential issued for a launch that was never issued is revoked; a launch possibly running keeps its own.
       // Aiterm's connectivity codes keep the message queued and arm terminals' observer (remote-seat.md "Pending delivery").
@@ -411,8 +412,10 @@ export class AitermTransport {
       const runtime = await this.captureLaunchRuntime({ generation: await this.recordedRuntimeGeneration(reference.sessionId) })
       const options = this.client.launchOptions ? await this.client.launchOptions(bot.project, runtime) : { env: await loadBotEnvironment(bot.project) }
       this.requireStopVersion(bot.id, version)
+      // E7: the resume takes the slot's current token from this launch's env, never the recipe's older one.
+      const claudeLogin = reference.harness === 'claude-code' && this.claudeAccountBot(bot) ? this.accounts.seatSlot(bot.id) ?? '1st' : null
       const result = await this.changeSession(bot, 'agent_launch', { harness: reference.harness, cwd: bot.project,
-        session_name: reference.sessionId, require_existing_resume: true }, options)
+        session_name: reference.sessionId, require_existing_resume: true }, { ...options, ...(claudeLogin ? { claudeLogin } : {}) })
       this.membersAdmission.assertLease(membersLease)
       this.requireStopVersion(bot.id, version)
       const receipt = result?.structuredContent
@@ -1068,7 +1071,7 @@ export class AitermTransport {
       this.continuation?.succeeded(bot.id, info.groupId ?? job.id)
       this.accountTurnDone(bot)
     }, error => {
-      const accountLimit = this.recordAccountLimit(bot, error)
+      const accountLimit = this.recordAccountLimit(bot, error) ?? this.recordAccountSignedOut(bot, error)
       // An account limit continues on the other account even without Aiterm's terminal-failure proof (harness-accounts.md).
       if (!(error?.recoveryFailure || accountLimit) || job.stopped || job.stopRequested
         || job.conversationGeneration && job.conversationGeneration !== this.conversationAdmission?.capture().generation) return
@@ -1455,7 +1458,7 @@ export class AitermTransport {
         ? await this.client.launchOptions(bot.project, runtime) : { env: await loadBotEnvironment(bot.project) }
       // The main's account: a 2nd-slot seat gets the same login (harness-accounts.md); Aiterm keeps the main's root.
       const slot = this.claudeAccountBot(bot) ? this.accounts.seatSlot(bot.id) : null
-      let claudeLogin = slot && slot !== '1st' ? slot : null
+      let claudeLogin = slot ?? null
       // cwd = the main's folder: Aiterm accepts the same real path, the seat launcher requires it.
       let args = { harness, cwd: bot.project, session_name: sessionName, prompt: envelope, fork_from: { session_id: main, fork_id: forkId } }
       if (isRemoteBot(bot)) {
@@ -1739,6 +1742,16 @@ export class AitermTransport {
     return { slot, recorded }
   }
 
+  // E6: the seat's login failed. Marks the slot signed out (or only this seat, when it ran an older token) and continues
+  // like a limit: a new seat on a usable slot plus the continuation message (harness-accounts.md "Signed out").
+  recordAccountSignedOut(bot, error) {
+    if (!this.claudeAccountBot(bot) || !(error?.failureCategory === 'authentication' || error?.recoveryFailure?.category === 'authentication')) return null
+    const slot = this.accounts.seatSlot(bot.id) ?? '1st'
+    const recorded = this.accounts.recordSignedOut({ harness: 'claude', slot, botId: bot.id, text: error.limitText ?? error.message })
+    recorded.catch(() => {})
+    return { slot, recorded, kind: 'authentication' }
+  }
+
   accountTurnDone(bot) {
     if (!this.claudeAccountBot(bot)) return
     void this.accounts.turnSucceeded('claude', this.accounts.seatSlot(bot.id) ?? '1st', bot.model).catch(() => {})
@@ -1761,13 +1774,14 @@ export class AitermTransport {
     const run = () => this.memberOperation(bot, async membersLease => {
       admissionCheck?.()
       const account = await this.accounts.selection('claude', bot.model)
-      if ((this.accounts.seatSlot(bot.id) ?? '1st') === account.slot) return { botId: bot.id, session: this.session(bot), slot: account.slot }
+      if ((this.accounts.seatSlot(bot.id) ?? '1st') === account.slot && !await this.accounts.renewDue(bot.id, 'claude', bot.model))
+        return { botId: bot.id, session: this.session(bot), slot: account.slot }
       const running = await this.isRunning(bot)
       const session = `${bot.id}-${account.slot}-${Date.now().toString(36)}`
       // Running: launch the new seat now (wakeNow records the name after the launch). Not running: its next delivery does.
       if (running) await this.wakeNow(bot, { membersLease, sessionName: session, ...(admissionCheck ? { admissionCheck } : {}) })
       else { this.sessions.set(bot.id, session); await this.updateSession(bot.id, session, { membersLease }) }
-      await this.accounts.setSeat(bot.id, account.slot).catch(() => {})
+      await this.accounts.setSeat(bot.id, account.slot, account.stamp ?? null).catch(() => {})
       return { botId: bot.id, session, slot: account.slot }
     })
     const previous = this.activity.configurationChanges.get(bot.id) ?? Promise.resolve()
@@ -1781,7 +1795,7 @@ export class AitermTransport {
       const bot = this.resolveBot?.(botId)
       // Every recorded seat, also one launched by an earlier engine (the session map starts empty after an exchange).
       if (!this.claudeAccountBot(bot) || this.accountMoves.has(botId)) continue
-      if (slot !== await this.accounts.effectiveSlot('claude', bot.model)) this.moveAtBoundary(botId)
+      if (slot !== await this.accounts.effectiveSlot('claude', bot.model) || await this.accounts.renewDue(botId, 'claude', bot.model)) this.moveAtBoundary(botId)
     }
   }
 
@@ -1792,7 +1806,7 @@ export class AitermTransport {
         await this.activity.configurationChanges.get(botId)?.catch(() => {})
         const bot = this.resolveBot?.(botId)
         if (!this.claudeAccountBot(bot)
-          || this.accounts.seatSlot(botId) === await this.accounts.effectiveSlot('claude', bot.model)) return
+          || this.accounts.seatSlot(botId) === await this.accounts.effectiveSlot('claude', bot.model) && !await this.accounts.renewDue(botId, 'claude', bot.model)) return
         if (!this.isIdle(botId)) continue
         return await this.switchAccount(bot)
       }

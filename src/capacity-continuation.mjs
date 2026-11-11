@@ -72,7 +72,7 @@ export class CapacityContinuation {
       await context.accountLimit.recorded.catch(() => {})
       guard()
       const slot = await this.accounts.effectiveSlot('claude', context.bot.model)
-      if (slot !== context.accountLimit.slot) {
+      if (slot !== context.accountLimit.slot || await this.accounts.renewDue?.(context.bot.id, 'claude', context.bot.model)) {
         state.accountSwitched = true
         let switched = false
         try {
@@ -82,7 +82,8 @@ export class CapacityContinuation {
         if (switched) {
           context.reconfigured?.()
           guard()
-          const message = `利用上限で前の処理が終了したため、同じAIの${slot}アカウントで新しい席を起動しました。前の会話は短期記憶と手順書で引き継いでいます。` +
+          const cause = context.accountLimit.kind === 'authentication' ? 'ログインが切れて' : '利用上限で'
+          const message = `${cause}前の処理が終了したため、同じAIの${slot}アカウントで新しい席を起動しました。前の会話は短期記憶と手順書で引き継いでいます。` +
             `元の依頼は保存された会話履歴のdelivery_id=${context.deliveryId}です。` +
             '前の処理で実行済みの操作や結果不明の副作用を確認し、元の依頼本文や完了済みの操作を繰り返さずに続けてください。'
           const check = () => guard(message)

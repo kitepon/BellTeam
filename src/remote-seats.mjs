@@ -103,7 +103,8 @@ export class RemoteSeats {
       issued = true
       const headers = { Authorization: 'Bearer ${BELLTEAM_MCP_TOKEN}', 'X-Bellteam-Seat': '${AITERM_SESSION_ID}', 'X-Bellteam-Launch-Id': '${AITERM_AGENT_LAUNCH_ID}' }
       // Owner ruling: the Owner's 1st/2nd login applies only on the Owner's terminals; others use the terminal's own login.
-      const claudeLogin = accountOwner === 'owner' && slot && slot !== '1st' ? slot : null
+      // One login per slot (harness-accounts.md 2026-11-11): every slot, the 1st too, so no host login is needed.
+      const claudeLogin = accountOwner === 'owner' && slot ? slot : null
       return {
         args: { ...args, terminal, cwd, append_system_prompt: text,
           mcp_config: { mcpServers: { bellteam: { type: 'http', url, headers }, 'call-bridge': { type: 'http', url: `${url}/call-bridge`, headers } } } },
