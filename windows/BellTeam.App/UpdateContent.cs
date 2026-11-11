@@ -133,7 +133,7 @@ public sealed class UpdateContent : UserControl, IDisposable
     }
     private static FrameworkElement HeroIcon(UpdateKind kind)
     {
-        var tint = kind switch { UpdateKind.Updating or UpdateKind.Available => VioletColor, UpdateKind.Completed or UpdateKind.UpToDate => MintColor, _ => GreyColor };
+        var tint = kind switch { UpdateKind.Updating or UpdateKind.Available => VioletColor, UpdateKind.Completed or UpdateKind.UpToDate or UpdateKind.Waiting => MintColor, _ => GreyColor };
         var brush = Solid(tint);
         var grid = new Grid { Width = 52, Height = 52, VerticalAlignment = VerticalAlignment.Center };
         grid.Children.Add(new Ellipse { Fill = Tint(tint, .15) });
@@ -142,7 +142,7 @@ public sealed class UpdateContent : UserControl, IDisposable
             UpdateKind.Updating => Spinner(24, brush),
             UpdateKind.Available => FilledCircle(brush, "\uE74B", 28),
             UpdateKind.Completed => FilledCircle(brush, "\uE73E", 28),
-            UpdateKind.UpToDate => Seal(brush, 30),
+            UpdateKind.UpToDate or UpdateKind.Waiting => Seal(brush, 30),
             UpdateKind.Failed => Outlined("\uE711", brush),
             UpdateKind.Unreachable => SettingsUi.Glyph("\uE7BA", 22, brush),
             UpdateKind.Unconfirmed => SettingsUi.Glyph("\uE81C", 22, brush),

@@ -2,13 +2,13 @@ using System.Globalization;
 
 namespace BellTeam.Core;
 
-public enum UpdateKind { Loading, Unreachable, Updating, Unconfirmed, Failed, Completed, Available, UpToDate, Unknown }
-public enum UpdateBadge { UpToDate, Available, Updating, Failed, Unknown }
+public enum UpdateKind { Loading, Unreachable, Updating, Unconfirmed, Failed, Completed, Available, UpToDate, Waiting, Unknown }
+public enum UpdateBadge { UpToDate, Available, Updating, Failed, Incompatible, Unknown }
 
 // The Mac UpdateContent state and wording (ios/BellBot/BellBot/Views/UpdateView.swift), computed from the same inventory/operation data.
 public static class UpdateScreen
 {
-    public static string BadgeText(UpdateBadge badge) => badge switch { UpdateBadge.UpToDate => "最新", UpdateBadge.Available => "更新あり", UpdateBadge.Updating => "更新中", UpdateBadge.Failed => "失敗", _ => "確認できません" };
+    public static string BadgeText(UpdateBadge badge) => badge switch { UpdateBadge.UpToDate => "最新", UpdateBadge.Available => "更新あり", UpdateBadge.Updating => "更新中", UpdateBadge.Failed => "失敗", UpdateBadge.Incompatible => "使えない版", _ => "確認できません" };
 
     public static bool Completed(UpdateOperation value) => value is { Phase: "completed", Admission: "accepted", Execution: "succeeded", Verification: "succeeded" };
     public static bool Failure(UpdateOperation value) => value.Phase == "failed" || value.Execution == "failed" || value.Verification == "failed";
@@ -35,8 +35,12 @@ public static class UpdateScreen
         if (Candidates(inventory).Length > 0) return UpdateKind.Available;
         if (current is not null && Completed(current)) return UpdateKind.Completed;
         if (inventory.Components.Length > 0 && inventory.Components.All(item => item.Comparison.State == "up_to_date" && !Unverified(item))) return UpdateKind.UpToDate;
+        // Mac Status.waiting: everything else is current and these parts have no version for this body yet.
+        if (Waiting(inventory).Length > 0 && inventory.Components.All(item => item.Comparison.State == "incompatible" || item.Comparison.State == "up_to_date" && !Unverified(item))) return UpdateKind.Waiting;
         return UpdateKind.Unknown;
     }
+
+    public static UpdateComponent[] Waiting(UpdateInventory? inventory) => inventory?.Components.Where(item => item.Comparison.State == "incompatible").ToArray() ?? [];
 
     public static string PhaseText(string phase) => phase switch
     {
@@ -62,6 +66,7 @@ public static class UpdateScreen
             UpdateKind.Completed => ("更新しました", string.Join("、", (current?.Plan.Targets ?? []).Select(target => ComponentName(inventory, target.ComponentId))) + "を新しい版にしました。"),
             UpdateKind.Available => candidates.Length == 1 ? (candidates[0].Name + "を更新できます", "新しい版を使えます。") : (candidates.Length + "つ更新できます", string.Join("・", candidates.Select(item => item.Name)) + "に新しい版があります。"),
             UpdateKind.UpToDate => ("すべて最新です", "今のところ、新しい更新はありません。"),
+            UpdateKind.Waiting => ("更新できるものはすべて最新です", string.Join("・", Waiting(inventory).Select(item => item.Name)) + "は、いまの本体に合う版がまだありません。合う版が出ると、ここで更新できます。"),
             _ => ("更新を確認できませんでした", "時間をおいて、もう一度確認してください。")
         };
     }
@@ -71,7 +76,7 @@ public static class UpdateScreen
     {
         if (current is not null && !Settled(current) && current.Plan.Targets.Any(target => target.ComponentId == component.Id)) return UpdateBadge.Updating;
         switch (component.Part?.Tone) { case "updating": return UpdateBadge.Updating; case "attention": return UpdateBadge.Failed; }
-        return component.Comparison.State switch { "up_to_date" => UpdateBadge.UpToDate, "update_available" => UpdateBadge.Available, _ => UpdateBadge.Unknown };
+        return component.Comparison.State switch { "up_to_date" => UpdateBadge.UpToDate, "update_available" => UpdateBadge.Available, "incompatible" => UpdateBadge.Incompatible, _ => UpdateBadge.Unknown };
     }
 
     public static string? Moment(string? value) => DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var at) ? at.ToLocalTime().ToString("M月d日 H\\:mm", CultureInfo.InvariantCulture) : null;
