@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   UNKNOWN_MEMBER, backoffMs, bannerFor, chartCounts, coordinatorBotId, degradedPills, detailOf, diffSnapshots, edgeChipText, edgeGeometry, flowPositions, formatJst, highlightSets,
-  layoutChart, listItems, memberLookup, ownerLookup, pointOnEdge, railItems, sinceText, waitRows, cardLabel,
+  layoutChart, layoutTree, historyRows, listItems, memberLookup, ownerLookup, pointOnEdge, railItems, sinceText, waitRows, cardLabel,
 } from '../web/lattice-chart-model.js'
 import { createChartStream, createLatticeChart } from '../web/lattice-chart.js'
 
@@ -44,11 +44,46 @@ test('担当：着手前でも工程表に書かれた担当（lane）の文字�
   assert.deepEqual(layout.lanes.map(lane => lane.member?.name ?? null), ['kiro', null], '書かれた担当のレーン、担当なしは最後')
   assert.equal(railItems(snap, layout).length, 0, 'レールは名簿のメンバーだけ')
   const [row] = waitRows(snap, BASE)
-  assert.equal(row.headline, 'kiroが待っている'); assert.equal(row.producer.name, 'kiro'); assert.equal(row.canChat, false)
+  assert.equal(row.headline, '工程b'); assert.equal(row.ownerText, '担当 kiro'); assert.equal(row.producer.name, 'kiro'); assert.equal(row.canChat, false)
   assert.match(row.state, /担当 kiro/)
   assert.equal(edgeChipText(snap, snap.edges[0]), 'kiroが待っています')
   assert.match(detailOf(snap, 'p1/a', BASE).stateText, /担当 kiro/)
   assert.match(cardLabel(snap.cards[0], owner), /つくっている kiro/)
+})
+
+test('ツリー：工程表 -> まとまり -> 工程（親の下）、葉は一行ずつ、親は子の真ん中、依存は右の弧', () => {
+  const snap = fixture({ phases: [{ id: 'p1/a', title: '設計' }, { id: 'p1/b', title: null }],
+    cards: fixture().cards.map(c => ({ ...c, phase: ['p1/t01', 'p1/t02', 'p1/t03'].includes(c.id) ? 'p1/a' : c.id === 'p1/t04' ? 'p1/b' : null, parent: c.id === 'p1/t03' ? 'p1/t02' : null })) })
+  const tree = layoutTree(snap, 'BellTeam開発'), node = key => tree.nodes.find(n => n.key === key)
+  assert.deepEqual([node('root').label, node('phase:p1/a').label, node('phase:p1/b').label], ['BellTeam開発', '設計', '名前のないまとまり'])
+  assert.ok(node('phase:p1/a').x > node('root').x && node('p1/t01').x > node('phase:p1/a').x && node('p1/t03').x > node('p1/t02').x, '子は親の右')
+  assert.equal(node('p1/t05').x, node('phase:p1/a').x, 'まとまりの無い工程は工程表の直下')
+  const leaves = ['p1/t01', 'p1/t03', 'p1/t04', 'p1/t05', 'p1/t06'].map(id => node(id).y)
+  assert.deepEqual(leaves, [...leaves].sort((a, b) => a - b)); assert.equal(new Set(leaves).size, 5, '葉は一行ずつ')
+  assert.equal(node('p1/t02').y, node('p1/t03').y, '子が一つなら同じ高さ')
+  assert.equal(node('phase:p1/a').y, (node('p1/t01').y + node('p1/t02').y) / 2, '親は子の真ん中')
+  assert.deepEqual([node('phase:p1/a').done, node('phase:p1/a').total, node('phase:p1/a').tone, node('phase:p1/b').tone], [1, 3, 'in-progress', 'blocked'])
+  assert.deepEqual(tree.arcs.map(a => [a.key, a.waiting]), [['p1/t01>p1/t03', false], ['p1/t02>p1/t03', true], ['p1/t04>p1/t05', true]])
+  assert.equal(tree.links.length, tree.nodes.length - 1, '根以外はどれも一本の線で親につながる')
+  assert.ok(tree.width > node('p1/t03').x + node('p1/t03').w)
+  const old = layoutTree(fixture(), 'x')
+  assert.equal(old.nodes.filter(n => n.kind === 'card').every(n => n.x === old.nodes[0].x + old.nodes[0].w + 36), true, 'phases の無い古い一枚は工程表の直下に並ぶ')
+})
+
+test('消えた工程（archived）はツリーにも担当にも描かず、過去ログに新しい順・日ごとに並ぶ', () => {
+  const snap = fixture({ phases: [{ id: 'p1/a', title: '下調べ' }, { id: 'p1/b', title: '部品' }],
+    cards: fixture().cards.map(c => ({ ...c, phase: c.id === 'p1/t01' ? 'p1/a' : 'p1/b', parent: c.id === 'p1/t03' ? 'p1/t01' : null,
+      archived: c.id === 'p1/t01', doneAt: c.id === 'p1/t01' ? minutesAgo(30) : c.id === 'p1/t06' ? minutesAgo(60 * 30) : null })) })
+  const tree = layoutTree(snap, 'x'), keys = tree.nodes.map(n => n.key)
+  assert.equal(keys.includes('p1/t01'), false); assert.equal(keys.includes('phase:p1/a'), false, '中身が全部消えたまとまりは描かない')
+  assert.equal(tree.links.find(l => l.to === 'p1/t03').from, 'phase:p1/b', '消えた親の子は自分のまとまりへ')
+  assert.equal(layoutChart(snap).cards.has('p1/t01'), false)
+  assert.deepEqual(chartCounts(snap).total, 6, '数には残る')
+  assert.deepEqual([tree.nodes[0].done, tree.nodes[0].total, tree.nodes.find(n => n.key === 'phase:p1/b').total], [2, 6, 5], 'ツリーの完了数も消えた工程を数える')
+  const past = historyRows(snap, BASE)
+  assert.equal(past.count, 2)
+  assert.deepEqual(past.groups.map(g => [g.heading, g.rows.map(r => r.title)]), [['今日', ['公開契約の裁定']], ['昨日', ['古い案']]])
+  assert.match(past.groups[0].rows[0].label, /公開契約の裁定、完了、今日 \d\d:\d\d、トロニー/u)
 })
 
 test('配置：担当ごとのレーン（担当なしは最後）、depth ごとの列、同じ担当・同じ列は縦に積む', () => {
@@ -78,10 +113,10 @@ test('辺の曲線：右中央から左中央、粒は600msごと・1.4秒で進
 
 test('待ちの流れの文：作業中 N分 / 止まり: 理由 / 未着手: 担当 / 担当なし、待った長さ、名簿にないメンバー', () => {
   const rows = waitRows(fixture(), BASE)
-  assert.equal(rows[0].headline, 'フローラが待っている'); assert.equal(rows[0].title, '部品の配置と保存場所')
+  assert.equal(rows[0].headline, '部品の実装'); assert.equal(rows[0].ownerText, '担当 フローラ'); assert.equal(rows[0].title, '部品の配置と保存場所')
   assert.equal(rows[0].state, '作業中 12分'); assert.equal(rows[0].length, '12分'); assert.equal(rows[0].canChat, true); assert.equal(rows[0].emphasized, false)
-  assert.equal(rows[0].label, 'フローラが部品の配置と保存場所を待っています。つくっているのはモリー、作業中 12分')
-  assert.equal(rows[1].headline, '担当未定が待っている'); assert.equal(rows[1].state, '止まり: 組込の登録点が未定'); assert.equal(rows[1].length, '2時間10分')
+  assert.equal(rows[0].label, '「部品の実装」（担当 フローラ）は、「部品の配置と保存場所」が終わるのを待っています。つくっているのはモリー、作業中 12分')
+  assert.equal(rows[1].headline, 'iPhone/Mac画面'); assert.equal(rows[1].ownerText, '担当なし'); assert.equal(edgeChipText(fixture(), fixture().edges[2]), '次の工程が待っています'); assert.equal(rows[1].state, '止まり: 組込の登録点が未定'); assert.equal(rows[1].length, '2時間10分')
   assert.equal(rows[1].emphasized, true); assert.equal(rows[1].canChat, false); assert.equal(rows[1].producer.name, UNKNOWN_MEMBER)
   const pending = waitRows({ ...fixture(), waits: [{ waiter: TRONY, waitingCard: 'p1/t05', forCard: 'p1/t03', producer: FLORA, producerState: 'pending', since: minutesAgo(1) }] }, BASE)
   assert.equal(pending[0].state, '未着手: 担当 フローラ')
@@ -159,7 +194,7 @@ const textOf = el => el.textContent
 const byClass = (root, name) => all(root).filter(el => el.className.split(' ').includes(name))
 const buttonByText = (root, text) => all(root).find(el => el.tagName === 'button' && textOf(el).includes(text))
 
-function setup(t, { api, fetchImage, reduce = false, getMember = () => null } = {}) {
+function setup(t, { api, fetchImage, reduce = false, getMember = () => null, mode = 'lanes' } = {}) {
   const saved = Object.fromEntries(['document', 'matchMedia'].map(k => [k, Object.getOwnPropertyDescriptor(globalThis, k)]))
   globalThis.document = { createElement: tag => new El(tag), createElementNS: (ns, tag) => new El(tag), createTextNode: s => new Text(s), addEventListener() {}, removeEventListener() {}, activeElement: null, hidden: false }
   globalThis.matchMedia = () => ({ matches: reduce })
@@ -171,7 +206,7 @@ function setup(t, { api, fetchImage, reduce = false, getMember = () => null } = 
   const clock = { now: BASE, next: 1, timers: new Map() }
   const frames = [], opened = []
   const view = createLatticeChart(dialog, {
-    api, fetchImage, getMember, openChat: botId => opened.push(botId), now: () => clock.now,
+    api, fetchImage, getMember, mode, openChat: botId => opened.push(botId), now: () => clock.now,
     setTimeout: (fn, ms) => { const id = clock.next++; clock.timers.set(id, { fn, at: clock.now + ms }); return id }, clearTimeout: id => clock.timers.delete(id), random: () => 0.5,
     requestFrame: fn => { frames.push(fn); return frames.length }, cancelFrame() {},
   })
@@ -226,9 +261,9 @@ test('開く：一覧（統括が先頭）→ 工程表。札は状態の記号�
   assert.ok(cardEls.find(el => el.dataset.cardId === 'p1/t01').className.includes('is-done'))
   const rows = byClass(ui.body, 'wr')
   assert.equal(rows.length, 2)
-  assert.equal(rows[0].getAttribute('aria-label'), 'フローラが部品の配置と保存場所を待っています。つくっているのは、モリー、作業中 12分'.replace('つくっているのは、', 'つくっているのは'))
-  assert.match(textOf(rows[0]), /フローラが待っている.*待ち 12分.*部品の配置と保存場所.*つくっている.*モリー.*作業中 12分/su)
-  assert.match(textOf(rows[1]), /担当未定が待っている.*名簿にないメンバー.*止まり: 組込の登録点が未定/su)
+  assert.equal(rows[0].getAttribute('aria-label'), '「部品の実装」（担当 フローラ）は、「部品の配置と保存場所」が終わるのを待っています。つくっているのはモリー、作業中 12分')
+  assert.match(textOf(rows[0]), /部品の実装.*待ち 12分.*担当 フローラ.*この工程が終わるのを待っています.*部品の配置と保存場所.*つくっている.*モリー.*作業中 12分/su)
+  assert.match(textOf(rows[1]), /iPhone\/Mac画面.*担当なし.*Web画面の組込口.*名簿にないメンバー.*止まり: 組込の登録点が未定/su)
   assert.ok(rows[1].className.includes('em'), '止まりの担当を待つ行は強調')
   assert.equal(buttonByText(rows[1], '会話を開く'), undefined, '名簿にない担当には会話を開かない')
   assert.match(textOf(ui.body), /2\/6/u); assert.match(textOf(ui.body), /作業中 1/u); assert.match(textOf(ui.body), /待ち 2/u); assert.match(textOf(ui.body), /止まり 1/u)
@@ -251,6 +286,10 @@ test('工程表が一つだけなら、そのまま工程表へ。会話を開�
   assert.equal(byClass(ui.body, 'lattice-card').length, 6)
   buttonByText(ui.body, 'BellTeam開発').click(); await flush()
   assert.equal(byClass(ui.body, 'lattice-cc').filter(el => el.tagName === 'button').length, 1, '切替は一覧へ')
+  const back = byClass(ui.body, 'lattice-back')[0]
+  assert.equal(back.getAttribute('aria-label'), 'BellTeam開発へ戻る', '一覧から来た工程表へ戻れる')
+  back.click(); await flush()
+  assert.equal(byClass(ui.body, 'lattice-cc').length, 0); assert.equal(byClass(ui.body, 'lattice-back').length, 0)
   ui.view.close()
 })
 
@@ -309,6 +348,38 @@ test('工程表が見つからない（404 LATTICE_CHART_NOT_FOUND）は案内�
   old.view.open(); await flush(); buttonByText(old.body, '設計').click(); await flush()
   assert.equal(textOf(old.body).includes('このサーバーではまだ工程表を使えません。'), true)
   old.view.close()
+})
+
+test('ツリーが最初の表示：小さな箱をタップで詳細、ツリー / 担当 で切り替え', async t => {
+  const feed = sse(), net = router({ streams: [feed] })
+  const ui = setup(t, { api: async () => chartsList('bellteam'), fetchImage: net.fetchImage, mode: 'tree' })
+  ui.view.open(); await flush()
+  feed.snapshot(fixture({ phases: [{ id: 'p1/a', title: '設計' }], cards: fixture().cards.map(c => ({ ...c, phase: 'p1/a', parent: null })) })); await flush()
+  const boxes = byClass(ui.body, 'lattice-tbox')
+  assert.equal(boxes.length, 6); assert.equal(byClass(ui.body, 'lattice-card').length, 0)
+  assert.match(textOf(ui.body), /設計/u)
+  const t02 = boxes.find(el => el.dataset.cardId === 'p1/t02')
+  assert.equal(t02.getAttribute('aria-label'), '部品の配置と保存場所、作業中、つくっている モリー')
+  t02.click(); await flush()
+  assert.match(textOf(byClass(ui.body, 'lattice-sheet')[0]), /部品の配置と保存場所/u)
+  buttonByText(ui.body, '担当').click(); await flush()
+  assert.equal(byClass(ui.body, 'lattice-card').length, 6)
+  assert.equal(byClass(ui.body, 'lattice-tree')[0].hidden, true)
+  assert.match(textOf(byClass(ui.body, 'lattice-sheet')[0]), /部品の配置と保存場所/u, '詳細は切り替えても開いたまま')
+})
+
+test('過去ログ：切り替えで終わった工程を新しい順に出し、行のタップで詳細', async t => {
+  const feed = sse(), net = router({ streams: [feed] })
+  const ui = setup(t, { api: async () => chartsList('bellteam'), fetchImage: net.fetchImage, mode: 'tree' })
+  ui.view.open(); await flush()
+  feed.snapshot(fixture({ cards: fixture().cards.map(c => ({ ...c, archived: c.id === 'p1/t01', doneAt: c.id === 'p1/t01' ? minutesAgo(5) : null })) })); await flush()
+  assert.equal(byClass(ui.body, 'lattice-tbox').some(el => el.dataset.cardId === 'p1/t01'), false, '消えた工程はツリーに出ない')
+  const tab = buttonByText(ui.body, '過去ログ'); assert.equal(textOf(tab), '過去ログ 2')
+  tab.click(); await flush()
+  const rows = byClass(ui.body, 'lattice-hrow')
+  assert.deepEqual(rows.map(el => el.dataset.cardId), ['p1/t01', 'p1/t06'])
+  rows[0].click(); await flush()
+  assert.match(textOf(byClass(ui.body, 'lattice-sheet')[0]), /公開契約の裁定/u)
 })
 
 test('詳細：札で開く（設計メモ・終了条件・前の工程/次の工程）、前後をたどる、閉じる・Esc で戻る', async t => {

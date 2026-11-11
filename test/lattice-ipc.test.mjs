@@ -65,13 +65,14 @@ test('protocol: root results are exact', () => {
   validateLatticeResult('chart', snapshot)
   validateLatticeResult('chart', { ...snapshot, degraded: ['lattice-read', 'members'], state: 'last_verified', verifiedAt: 'x' })
   validateLatticeResult('charts', { schema: 'bellteam.lattice-charts.v1', at: 'x', charts: [summary] })
+  validateLatticeResult('chart', { ...snapshot, phases: [{ id: 'p1/ph1', title: null }], cards: [{ ...card, phase: 'p1/ph1', parent: null, doneAt: null, archived: false }] }) // tree and archive keys are optional
   validateLatticeResult('refresh', { snapshots: [snapshot], nextRefreshMs: 2000 })
   validateLatticeResult('refresh', { snapshots: [], nextRefreshMs: 0 })
   for (const result of [{ exitCode: 0, result: { a: 1 }, stdout: null, stderr: '' }, { exitCode: null, result: null, stdout: 'text', stderr: 'LATTICE_CLI_TIMEOUT' },
     { exitCode: 1, result: [1, 'x', null], stdout: null, stderr: 'e' }]) validateLatticeResult('run', result)
   for (const patch of [{ extra: 1 }, { schema: 'x' }, { version: 0 }, { epoch: '' }, { projectId: 'Bad' }, { state: 'weird' }, { degraded: ['codes'] }, { coordinator: 1 },
     { members: [{ botId: 'a' }] }, { cards: [{ ...card, state: 'weird' }] }, { cards: [{ ...card, depth: -1 }] }, { cards: [{ ...card, extra: 1 }] },
-    { edges: [{ from: 'a', to: 'b' }] }, { waits: [{ waiter: null }] }]) bad(() => validateLatticeResult('chart', { ...snapshot, ...patch }))
+    { edges: [{ from: 'a', to: 'b' }] }, { waits: [{ waiter: null }] }, { phases: [{ id: 'p1/ph1' }] }, { phases: 'x' }, { cards: [{ ...card, phase: 1 }] }, { cards: [{ ...card, archived: 'no' }] }, { cards: [{ ...card, doneAt: 3 }] }]) bad(() => validateLatticeResult('chart', { ...snapshot, ...patch }))
   bad(() => validateLatticeResult('charts', { schema: 'bellteam.lattice-charts.v1', at: 'x', charts: [{ ...summary, counts: { total: 1 } }] }))
   bad(() => validateLatticeResult('charts', { schema: 'bellteam.lattice-charts.v1', at: 'x', charts: [{ ...summary, createdBy: 1 }] }))
   bad(() => validateLatticeResult('refresh', { snapshots: [snapshot] }))

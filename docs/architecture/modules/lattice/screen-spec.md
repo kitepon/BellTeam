@@ -10,7 +10,9 @@ Units: `pt` = SwiftUI points = CSS px = WinUI effective pixels. Times in ms. Use
 | --- | --- |
 | **一覧** (chart list) | Cards: chart name (rule below; never the project id), crown + 統括 on coordinator charts (pinned first), mini progress ring `done/total`, active member avatars, 待ち N. A non-tappable card 新しい工程表 says: 工程表はメンバーがLatticeでつくります。権限も参加登録もなく、誰でも開けます。 |
 | **工程表** (chart) | Toolbar: chart switcher (chart name, 統括 badge), live pill, progress ring, counters 作業中 / 待ち / 止まり. Left: member rail (avatars; working = rotating accent arc; blocked = red dot; waiting = hourglass with count). Center: swimlanes per owner ([owner rule](README.md#projection-rules-projectionmjs): `producer`, else the authored `lane` text, else none; lane label = member avatar + name, or the lane text with its initial; unassigned lane 担当なし, last), cards in columns by `depth`, edges as smooth curves. Right (Mac/iPad/Web wide): 待ちの流れ panel. |
-| **待ちの流れ** | One row per `waits[]`, oldest first: waiter avatar + 「◯◯が待っている」, the awaited card title, 「つくっている」 producer avatar + name + state (作業中 N分 / 止まり: blockedReason / 未着手: 担当 ◯◯ / 担当なし; ◯◯ and 「◯◯が待っている」 follow the owner rule, so an authored lane is named even before anyone starts), wait length. Buttons: 会話を開く, 工程へ移動. A row whose producer is blocked is emphasized. iPhone: these rows come first, as a horizontal card pager above the chart. |
+| **ツリー** (Owner 2026-11-12; default view of 工程表) | Archived cards (`archived`: finished and every next card already started, or no next card) are not drawn in ツリー or 担当; a phase whose cards are all archived is not drawn; a card whose parent is archived hangs from the parent's phase. The ring and counters still count every card. Same toolbar, rail and 待ちの流れ as the lane view; a segmented control ツリー / 担当 in the toolbar switches the center (remembered while the app is open). Center: a left-to-right tree: the chart (name, ring done/total) -> its phases (`phases`: state glyph of the phase = 止まり if any card is blocked, 作業中 if any is working, 完了 if all are finished, else 未着手; title; done/total) -> cards under their phase, nested under `parent`; cards with no phase hang from the chart after the phases. Each card is a compact box (state glyph in its tone, one-line title with ellipsis, owner face) so the whole tree fits; tap opens 詳細. Tree links are soft elbows from parent to child. Dependencies (`edges`) are arcs on the right of the boxes: waiting = accent with an arrow toward the waiter, satisfied = faint. Member highlight dims boxes and arcs like the lane view. |
+| **過去ログ** (Owner 2026-11-12) | Third view of the ツリー / 担当 / 過去ログ switch. Every finished card (`done` / `retired`, archived or not), newest `doneAt` first, under JST day headings (今日 / 昨日 / M月D日): state glyph, title, owner face + name (owner rule), finish time HH:MM. Tap opens 詳細. Empty: まだ終わった工程はありません。 The switch shows the count (過去ログ N). |
+| **待ちの流れ** | One row per `waits[]`, oldest first. Each row reads on its own (Owner 2026-11-12: 「この1116って誰がやってんだ？何の表示なの」): the **waiting card's title** with its owner face and 待ち <length>; under it 「担当 ◯◯」 (or 担当なし); then 「この工程が終わるのを待っています」 over the **awaited card title**; then 「つくっている」 producer avatar + name + state (作業中 N分 / 止まり: blockedReason / 未着手: 担当 ◯◯ / 担当なし; ◯◯ and 「◯◯が待っている」 follow the owner rule, so an authored lane is named even before anyone starts), wait length. Buttons: 会話を開く, 工程へ移動. A row whose producer is blocked is emphasized. iPhone: these rows come first, as a horizontal card pager above the chart. |
 | **詳細** (card detail) | Sheet over the chart: title, state badge + producer, 設計メモ (`designMemo`, Markdown as plain text), 終了条件, 前の工程 / 次の工程 with their states (tappable), 着手 time. No notes in v1. |
 
 Chart name, everywhere a chart is named (list card, switcher, spoken labels): the snapshot/list `name`; if null, 「<作った人の名前>の工程表」 from `createdBy` and the app's own roster name; if that is unknown, 名前のない工程表. The project id is only an API address and never appears on screen or in a spoken label.
@@ -23,6 +25,53 @@ Colors: BellTheme (Apple `BellTheme`, Web `:root` tokens, Windows theme): member
 
 ## User path (state transitions)
 
+State diagram (canonical for all three apps; the table below gives each transition's trigger and detail; Owner 2026-11-12: function diagram, data flow and, for UI, a state diagram). Every state has a way out that the user can take, and every failure state also leaves on its own.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Loading: open (Apple nav / Web 工程表 button / Windows nav)
+  Loading --> List: list read, 0 or 2+ charts
+  Loading --> Chart: list read, exactly 1 chart (first open only)
+  Loading --> OldServer: list 404
+  Loading --> Reconnecting: 503 / network
+  Reconnecting --> Loading: backoff 1,2,4..30 s
+  OldServer --> [*]: 閉じる
+  List --> Chart: tap a chart card
+  List --> Chart: back (when 一覧 was opened from a chart)
+  List --> [*]: close / app navigation
+  state Chart {
+    [*] --> Tree
+    Tree --> Lanes: ツリー / 担当
+    Lanes --> Tree: ツリー / 担当
+    Tree --> History: 過去ログ
+    Lanes --> History: 過去ログ
+    History --> Tree: ツリー
+    History --> Lanes: 担当
+    History --> Detail: tap a row
+    Detail --> History: close / swipe / Esc (came from History)
+    Tree --> Detail: tap a box
+    Lanes --> Detail: tap a card
+    Detail --> Detail: 前の工程 / 次の工程
+    Detail --> Tree: close / swipe / Esc (came from Tree)
+    Detail --> Lanes: close / swipe / Esc (came from Lanes)
+    Lanes --> Lanes: member highlight on / off
+    Tree --> Tree: member highlight on / off
+  }
+  Chart --> Chart: 待ちの流れ 工程へ移動 (opens that card's 詳細)
+  Chart --> List: chart switcher / すべての工程表
+  Chart --> Conversation: 会話を開く / 統括と話す
+  Conversation --> Chart: back (Web: reopening 工程表 resumes this chart)
+  Chart --> ChartReconnecting: 503 / 35 s silence
+  ChartReconnecting --> Chart: next snapshot
+  Chart --> NotFound: 404 LATTICE_CHART_NOT_FOUND
+  NotFound --> List: 一覧へ戻る
+  Chart --> Unavailable: state unavailable / no cards
+  Unavailable --> Chart: readable snapshot
+  Unavailable --> List: 一覧へ戻る
+  Chart --> [*]: close
+```
+
+
 Every button leads to exactly one next view; every failure view says what happened, what happens next, and what the user can do, and is left without a code.
 
 | From | User action | Next |
@@ -30,7 +79,11 @@ Every button leads to exactly one next view; every failure view says what happen
 | App (Apple nav / Web header button `工程表` / Windows nav) | open | 一覧. If exactly one chart exists, 工程表 of that chart |
 | 一覧 | tap a chart card | 工程表 of that chart |
 | 一覧 | close (Web dialog ×, Mac window close) | back to the app |
+| 一覧 opened from a 工程表 (switcher or the iPhone すべての工程表 button) | back (top-left chevron with that chart's name, iOS edge swipe, Esc) | the 工程表 it came from, same scroll position. The app's own navigation (tab bar, 相関図 / 工程表 switch) stays visible on 一覧, so the user can always leave (Owner 2026-11-12: no way back after the iPhone overview button) |
 | 工程表 | chart switcher | 一覧 |
+| 工程表 | ツリー / 担当 / 過去ログ | the same chart in that view; 詳細 and highlight carry over |
+| 過去ログ | tap a row | 詳細 of that card |
+| ツリー | tap a box | 詳細 of that card |
 | 工程表 | tap a card | 詳細 of that card (card morphs into the sheet) |
 | 工程表 | tap a member in the rail | highlight that member's cards and waits, dim the rest; tap again or tap empty canvas -> clear |
 | 待ちの流れ row | 会話を開く | the producer's chat (existing chat screen); back returns to this 工程表 |
@@ -75,4 +128,4 @@ Failure and edge views (all leave on their own; the action is optional):
 
 ## Accessibility
 
-Each card is one accessibility element: 「<title>、<state>、つくっている <producer>」. 待ちの流れ rows read 「<waiter>が<title>を待っています。つくっているのは<producer>、<state>」. Colour never carries state alone: glyph + badge text always present.
+Each card is one accessibility element: 「<title>、<state>、つくっている <producer>」. 待ちの流れ rows read 「「<waiting title>」（担当 <waiter>）は、「<awaited title>」が終わるのを待っています。つくっているのは<producer>、<state>」. Edge chips say 「<waiter>が待っています」, or 「次の工程が待っています」 when the waiting card has no owner. Colour never carries state alone: glyph + badge text always present.

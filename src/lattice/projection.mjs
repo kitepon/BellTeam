@@ -16,11 +16,16 @@ export function projectChart({ read, members = [], previous = null }) {
   const named = new Map(live.map(member => [String(member.name).toLowerCase(), member.id]))
   // The authored lane names a member by Bot id or by name; anything else stays plain lane text for the screens.
   const assigned = lane => !lane ? null : bots.has(lane) ? lane : named.get(lane.toLowerCase()) ?? null
-  const cards = new Map(), deps = [], cross = [], removed = new Set()
+  const cards = new Map(), deps = [], cross = [], removed = new Set(), phases = [], parents = new Map()
   let first = null, updatedAt = null
   for (const member of list(read?.store?.members)) {
     const plan = member?.plan, key = text(plan?.plan_key)
     if (!key) continue
+    const phaseIds = new Set()
+    for (const phase of list(plan.phases)) {
+      const id = text(phase?.phase_id)
+      if (id && !phaseIds.has(id)) { phaseIds.add(id); phases.push({ id: `${key}/${id}`, title: text(phase.title) }) }
+    }
     const states = new Map(list((raw ? member.snapshot : member)?.tasks).map(task => [task?.task_id, task]))
     const starts = new Map(), changed = new Map()
     for (const event of raw ? [] : list(member.journal?.events)) {
@@ -38,8 +43,11 @@ export function projectChart({ read, members = [], previous = null }) {
       const lane = text(task.lane), start = starts.get(taskId)
       cards.set(`${key}/${taskId}`, { id: `${key}/${taskId}`, plan: key, taskId, title: text(task.title) ?? taskId,
         doneCondition: text(task.done_condition), designMemo: text(task.design_memo), state: status, lane,
-        producer: start?.agent ?? assigned(lane), startedAt: start?.at ?? null, changedAt: changed.get(taskId) ?? null,
-        blockedReason: status === 'blocked' ? text(entry.blocked_reason) : null, depth: 0 })
+        producer: (status === 'done' || status === 'retired') && lane ? assigned(lane) : start?.agent ?? assigned(lane), startedAt: start?.at ?? null, changedAt: changed.get(taskId) ?? null,
+        blockedReason: status === 'blocked' ? text(entry.blocked_reason) : null, depth: 0,
+        phase: phaseIds.has(task.phase_id) ? `${key}/${task.phase_id}` : null, parent: null,
+        doneAt: status === 'done' ? stamp(entry?.done_at) ?? changed.get(taskId) ?? null : status === 'retired' ? changed.get(taskId) ?? null : null, archived: false })
+      if (text(task.parent_task_id)) parents.set(`${key}/${taskId}`, `${key}/${task.parent_task_id}`)
     }
     for (const dep of list(plan.hard_dependencies)) deps.push([ref(dep?.from), ref(dep?.to)])
     for (const join of list(plan.joins)) for (const after of list(join?.after)) deps.push([ref(after), ref(join?.before)])
@@ -47,6 +55,12 @@ export function projectChart({ read, members = [], previous = null }) {
       if (event?.kind === 'cross_plan_dependency') cross.push({ digest: event.event_digest, edge: [ref(event.payload?.from), ref(event.payload?.to)] })
       else if (event?.kind === 'cross_plan_dependency_removed' && text(event.payload?.target_event_digest)) removed.add(event.payload.target_event_digest)
     }
+  }
+  // A parent must exist, differ from the card and not close a cycle; otherwise the card hangs from its phase.
+  for (const [id, parent] of parents) {
+    let up = parent
+    while (up && up !== id && cards.has(up)) up = cards.get(up).parent
+    if (cards.has(parent) && up !== id) cards.get(id).parent = parent
   }
   deps.push(...cross.filter(item => !removed.has(item.digest)).map(item => item.edge))
 
@@ -59,6 +73,10 @@ export function projectChart({ read, members = [], previous = null }) {
   }
   for (const card of cards.values()) {
     if (card.state === 'pending' && (before.get(card.id) ?? []).every(id => finished(cards.get(id)))) card.state = 'ready'
+  }
+  // Archived = finished and no next card is still unstarted (Owner 2026-11-12); the screens leave it to 過去ログ.
+  for (const card of cards.values()) {
+    card.archived = finished(card) && (next.get(card.id) ?? []).every(id => !['pending', 'ready'].includes(cards.get(id).state))
   }
   const open = new Map([...cards.keys()].map(id => [id, (before.get(id) ?? []).length]))
   for (const queue = [...open].filter(([, n]) => n === 0).map(([id]) => id); queue.length;) {
@@ -75,7 +93,7 @@ export function projectChart({ read, members = [], previous = null }) {
       since: later(maker.changedAt, waiter.changedAt) }
   }).sort((a, b) => (a.since ? Date.parse(a.since) : Infinity) - (b.since ? Date.parse(b.since) : Infinity) || (a.waitingCard + a.forCard).localeCompare(b.waitingCard + b.forCard))
   const all = [...cards.values()], count = state => all.filter(card => card.state === state).length
-  return { state, verifiedAt: stamp(read?.verified_at), cards: all, edges, waits,
+  return { state, verifiedAt: stamp(read?.verified_at), cards: all, edges, waits, phases,
     memberIds: [...new Set([...all.map(card => card.producer), ...waits.map(wait => wait.waiter)].filter(Boolean))].sort(),
     counts: { total: all.length, done: count('done') + count('retired'), working: count('in-progress'), blocked: count('blocked'),
       waiting: new Set(edges.filter(edge => edge.waiting).map(edge => edge.to)).size },

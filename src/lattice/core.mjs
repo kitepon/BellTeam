@@ -39,7 +39,7 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     try { [read, name] = await Promise.all([lattice(id, ['todo', 'display', 'read', '--json']), cli.name(id)]) } catch (error) {
       memo.dirty = true
       if (memo.logged !== error.code) { memo.logged = error.code; log(`lattice-read ${id} ${error.code ?? 'LATTICE_CLI_FAILED'}`) }
-      const base = memo.content ?? { name: null, createdBy: null, coordinator: false, state: 'unavailable', verifiedAt: null, members: [], cards: [], edges: [], waits: [] }
+      const base = memo.content ?? { name: null, createdBy: null, coordinator: false, state: 'unavailable', verifiedAt: null, members: [], cards: [], edges: [], waits: [], phases: [] }
       commit(id, memo, { ...base, degraded: [...new Set([...base.degraded ?? [], 'lattice-read'])].sort() })
       return memo
     }
@@ -51,7 +51,7 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
       degraded: rosterBad ? ['members'] : [],
       members: projection.memberIds.filter(botId => known.has(botId)).map(botId => ({ botId, name: known.get(botId).name, color: known.get(botId).color,
         avatarVersion: known.get(botId).avatarVersion })),
-      cards: projection.cards, edges: projection.edges, waits: projection.waits })
+      cards: projection.cards, edges: projection.edges, waits: projection.waits, phases: projection.phases })
     return memo
   }
 

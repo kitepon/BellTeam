@@ -74,7 +74,7 @@ const COL_W = 232, LABEL_W = 116, TOP = 14, LANE_MIN = 108, LANE_GAP = 8, LANE_P
 export const cardHeight = card => finished(card.state) ? CARD_DONE_H : CARD_H
 
 export function layoutChart(snapshot) {
-  const ownerOf = ownerLookup(snapshot), cards = snapshot.cards ?? []
+  const ownerOf = ownerLookup(snapshot), cards = (snapshot.cards ?? []).filter(card => !card.archived)
   const keys = new Map(), owners = new Map([[null, null]])
   for (const card of cards) {
     const owner = ownerOf(card), key = owner ? owner.botId ?? `lane:${owner.name}` : null
@@ -109,6 +109,80 @@ export function layoutChart(snapshot) {
   // 読む順（レーンごとに左から）。キーボードの順もこれに合わせる。
   const order = [...placed.keys()].sort((a, b) => placed.get(a).lane - placed.get(b).lane || placed.get(a).depth - placed.get(b).depth || placed.get(a).y - placed.get(b).y)
   return { lanes, cards: placed, order, width: LABEL_W + 16 + (maxDepth + 1) * COL_W + 24, height: y + 56 }
+}
+
+// ツリー：工程表 -> まとまり（phase）-> 工程（parent があればその下）。葉が一行ずつ、親は子の真ん中。依存は箱の右の弧。
+export const TREE = { ROW: 40, BOX_H: 32, GAP: 36, TOP: 16, LEFT: 16, ROOT_W: 168, PHASE_W: 196, CARD_W: 300 }
+export const UNNAMED_PHASE = '名前のないまとまり'
+export function phaseTone(cards) {
+  if (cards.some(card => card.state === 'blocked')) return 'blocked'
+  if (cards.some(card => card.state === 'in-progress')) return 'in-progress'
+  return cards.length && cards.every(card => finished(card.state)) ? 'done' : 'pending'
+}
+export function layoutTree(snapshot, name = '') {
+  // 消えた工程（archived）は描かない。中身が全部消えたまとまりも描かず、消えた親の子はそのまとまりへ。
+  const cards = (snapshot.cards ?? []).filter(card => !card.archived), byId = new Map(cards.map(card => [card.id, card]))
+  const phaseIds = new Set((snapshot.phases ?? []).map(phase => phase.id).filter(id => !(snapshot.cards ?? []).some(card => card.phase === id) || cards.some(card => card.phase === id)))
+  const nodes = new Map([['root', { key: 'root', kind: 'root', label: name, w: TREE.ROOT_W, children: [] }]])
+  for (const phase of (snapshot.phases ?? []).filter(phase => phaseIds.has(phase.id))) nodes.set(`phase:${phase.id}`, { key: `phase:${phase.id}`, kind: 'phase', id: phase.id, label: phase.title ?? UNNAMED_PHASE, w: TREE.PHASE_W, children: [] })
+  for (const card of cards) nodes.set(card.id, { key: card.id, kind: 'card', id: card.id, card, w: TREE.CARD_W, children: [] })
+  const parentOf = card => card.parent && byId.has(card.parent) ? card.parent : card.phase && phaseIds.has(card.phase) ? `phase:${card.phase}` : 'root'
+  for (const node of nodes.values()) if (node.kind === 'phase') nodes.get('root').children.push(node.key)
+  for (const card of cards) nodes.get(parentOf(card)).children.push(card.id)
+  let row = 0, right = 0
+  const place = (key, x, seen = new Set()) => {
+    const node = nodes.get(key)
+    seen.add(key)
+    node.x = x; right = Math.max(right, x + node.w)
+    const kids = node.children.filter(child => !seen.has(child))
+    for (const child of kids) place(child, x + node.w + TREE.GAP, seen)
+    node.y = kids.length ? (nodes.get(kids[0]).y + nodes.get(kids.at(-1)).y) / 2 : TREE.TOP + row++ * TREE.ROW
+    node.h = TREE.BOX_H
+    return node
+  }
+  place('root', TREE.LEFT)
+  // 完了数は消えた工程も数える（上の「◯/◯ 完了」と合わせる）。
+  const all = snapshot.cards ?? []
+  for (const node of nodes.values()) if (node.kind !== 'card') {
+    const inside = node.kind === 'root' ? all : all.filter(card => card.phase === node.id)
+    Object.assign(node, { done: inside.filter(card => finished(card.state)).length, total: inside.length, tone: phaseTone(inside) })
+  }
+  const mid = node => node.y + node.h / 2
+  const links = [...nodes.values()].flatMap(node => node.children.map(child => {
+    const to = nodes.get(child), x0 = node.x + node.w, x1 = to.x, bend = (x1 - x0) / 2
+    return { from: node.key, to: child, d: `M${x0} ${mid(node)}C${x0 + bend} ${mid(node)} ${x1 - bend} ${mid(to)} ${x1} ${mid(to)}` }
+  }))
+  let reach = right
+  const arcs = (snapshot.edges ?? []).filter(edge => nodes.has(edge.from) && nodes.has(edge.to) && nodes.get(edge.from).kind === 'card' && nodes.get(edge.to).kind === 'card').map(edge => {
+    const a = nodes.get(edge.from), b = nodes.get(edge.to), x0 = a.x + a.w, x1 = b.x + b.w
+    const bulge = Math.max(x0, x1) + 24 + Math.min(160, Math.abs(mid(b) - mid(a)) * 0.3)
+    reach = Math.max(reach, bulge)
+    return { key: `${edge.from}>${edge.to}`, from: edge.from, to: edge.to, waiting: edge.waiting,
+      d: `M${x0} ${mid(a)}C${bulge} ${mid(a)} ${bulge} ${mid(b)} ${x1 + 6} ${mid(b)}` }
+  })
+  const list = [...nodes.values()].map(({ children, ...node }) => node)
+  return { nodes: list, links, arcs, cards: new Map(list.filter(node => node.kind === 'card').map(node => [node.id, node])),
+    width: reach + 24, height: TREE.TOP + Math.max(1, row) * TREE.ROW + 16 }
+}
+
+// 過去ログ：終わった工程を新しい順に、JSTの日ごと（今日 / 昨日 / M月D日）。
+const JST_DAY = new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: 'numeric', day: 'numeric' })
+const JST_TIME = new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+export function historyRows(snapshot, now) {
+  const ownerOf = ownerLookup(snapshot), day = value => JST_DAY.format(new Date(value))
+  const today = day(now), yesterday = day(now - 86400000)
+  const rows = (snapshot.cards ?? []).filter(card => finished(card.state))
+    .toSorted((a, b) => (b.doneAt ? Date.parse(b.doneAt) : -Infinity) - (a.doneAt ? Date.parse(a.doneAt) : -Infinity) || a.id.localeCompare(b.id))
+  const groups = []
+  for (const card of rows) {
+    const at = card.doneAt && !Number.isNaN(Date.parse(card.doneAt)) ? card.doneAt : null, key = at ? day(at) : ''
+    const heading = !at ? '日時の分からない工程' : key === today ? '今日' : key === yesterday ? '昨日' : key.replace(/^\d+\/(\d+)\/(\d+)$/u, '$1月$2日')
+    if (groups.at(-1)?.heading !== heading) groups.push({ heading, rows: [] })
+    const owner = ownerOf(card), info = stateInfo(card.state), time = at ? JST_TIME.format(new Date(at)) : ''
+    groups.at(-1).rows.push({ id: card.id, title: card.title, owner, info, time,
+      label: `${card.title}、${info.badge}${time ? `、${heading} ${time}` : ''}、${nameOf(owner)}` })
+  }
+  return { count: rows.length, groups }
 }
 
 // 辺は右中央から左中央への滑らかな曲線。
@@ -171,11 +245,11 @@ export function waitRows(snapshot, now) {
     const title = awaited?.title ?? '', state = producerStateText({ ...awaited, state: wait.producerState ?? awaited?.state }, producer, now)
     return {
       key: `${wait.waitingCard}>${wait.forCard}`, waiter, producer, title, state, forCard: wait.forCard, waitingCard: wait.waitingCard,
-      headline: `${waiter ? waiter.name : '担当未定'}が待っている`,
+      headline: waiting?.title ?? '', ownerText: waiter ? `担当 ${waiter.name}` : UNASSIGNED,
       length: sinceText(wait.since, now),
       emphasized: wait.producerState === 'blocked', info: stateInfo(wait.producerState ?? awaited?.state),
       canChat: Boolean(producer?.known),
-      label: `${waiter ? waiter.name : '担当未定'}が${title}を待っています。つくっているのは${nameOf(producer)}、${state}`,
+      label: `「${waiting?.title ?? ''}」（${waiter ? `担当 ${waiter.name}` : UNASSIGNED}）は、「${title}」が終わるのを待っています。つくっているのは${nameOf(producer)}、${state}`,
       waitingTitle: waiting?.title ?? '',
     }
   })
@@ -184,7 +258,8 @@ export function waitRows(snapshot, now) {
 // 待っている辺ごとの札「◯◯が待っています」。待つ側 = 後ろの札の担当。
 export function edgeChipText(snapshot, edge) {
   const to = (snapshot.cards ?? []).find(card => card.id === edge.to)
-  return `${ownerLookup(snapshot)(to)?.name ?? '担当未定'}が待っています`
+  const owner = ownerLookup(snapshot)(to)
+  return owner ? `${owner.name}が待っています` : '次の工程が待っています'
 }
 
 // 左のレール：担当ごとの顔と、作業中・止まり・待ちの数。
