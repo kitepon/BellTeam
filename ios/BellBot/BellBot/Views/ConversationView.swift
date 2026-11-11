@@ -976,7 +976,7 @@ private struct MessageRow: View, Equatable {
                         if message.isFork { ForkSeatBadge() }
                         Text([BellDate.short(message.at), statusLabel].filter { !$0.isEmpty }.joined(separator: " · "))
                             .font(.system(size: BellTheme.listDetailFontSize))
-                            .foregroundStyle(message.status == "failed" ? .red : BellTheme.muted)
+                            .foregroundStyle(message.status == "failed" && !message.completionUnknown ? .red : BellTheme.muted)
                     }
                     .padding(.horizontal, 5)
                 }
@@ -994,7 +994,7 @@ private struct MessageRow: View, Equatable {
         case "running": "処理中"
         case "stopped": "中断"
         case "delivered": "配達済み"
-        case "failed": "配達失敗"
+        case "failed": message.completionUnknown ? (isRoom ? "完了未確認の宛先あり" : "受付済み・完了未確認") : "配達失敗"
         default: ""
         }
     }

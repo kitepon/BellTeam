@@ -105,6 +105,75 @@ final class ConversationAppearanceTests: XCTestCase {
         }
     }
 
+    func testDeliveryTrackingShowsAcceptedCompletionUnknownOnlyForTheExactTuple() throws {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        func decode(_ body: String) throws -> TimelineMessage {
+            try decoder.decode(TimelineMessage.self, from: Data("""
+            {"id":"r","at":"2026-11-02T00:00:00Z","kind":"message","direction":"outgoing","message":"m",\(body)}
+            """.utf8))
+        }
+        let tuple = #"{"schema":"bellteam.delivery-tracking.v1","admission":"accepted","completion":"unknown"}"#
+        // Direct: failed + exact tuple is neutral; failed without it, with a malformed or unknown tuple, stays failed.
+        let direct = try decode(#""delivery":"failed","deliveryTracking":\#(tuple)"#)
+        XCTAssertEqual(direct.status, "failed")
+        XCTAssertTrue(direct.completionUnknown)
+        for tracking in ["", #","deliveryTracking":null"#, #","deliveryTracking":"x""#, #","deliveryTracking":{}"#,
+                         #","deliveryTracking":{"schema":"bellteam.delivery-tracking.v2","admission":"accepted","completion":"unknown"}"#,
+                         #","deliveryTracking":{"schema":"bellteam.delivery-tracking.v1","admission":"accepted","completion":"done"}"#,
+                         #","deliveryTracking":{"schema":"bellteam.delivery-tracking.v1","admission":"accepted","completion":7}"#] {
+            let row = try decode(#""delivery":"failed""# + tracking)
+            XCTAssertEqual(row.status, "failed", tracking)
+            XCTAssertFalse(row.completionUnknown, tracking)
+        }
+        // The tuple alone never changes other states.
+        let delivered = try decode(#""delivery":"delivered","deliveryTracking":\#(tuple)"#)
+        XCTAssertEqual(delivered.status, "delivered")
+        XCTAssertFalse(delivered.completionUnknown)
+    }
+
+    func testRoomDeliveryTrackingNeedsEveryFailedParticipantAndIgnoresTopLevelEvidence() throws {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        func room(_ routing: String, _ deliveries: String, top: String = "") throws -> TimelineMessage {
+            try decoder.decode(TimelineMessage.self, from: Data("""
+            {"id":"room-message","at":"2026-11-02T00:00:00Z","kind":"message","sender":{"id":"user","name":"ユーザー"},"message":"m",\
+            "routing":{"status":"\(routing)","responders":["bot-a"]},"deliveries":[\(deliveries)]\(top)}
+            """.utf8))
+        }
+        let tracking = #","deliveryTracking":{"schema":"bellteam.delivery-tracking.v1","admission":"accepted","completion":"unknown"}"#
+        let a = #"{"target":"bot-a","delivery":"failed"\#(tracking)}"#
+        let aBare = #"{"target":"bot-a","delivery":"failed"}"#
+        let bBare = #"{"target":"bot-b","delivery":"failed"}"#
+        let bOK = #"{"target":"bot-b","delivery":"delivered"}"#
+        let bRunning = #"{"target":"bot-b","delivery":"running"}"#
+        // All failed participants carry the tuple: neutral (a delivered or running participant does not matter).
+        XCTAssertTrue(try room("ready", a).completionUnknown)
+        XCTAssertTrue(try room("ready", "\(a),\(bOK)").completionUnknown)
+        XCTAssertTrue(try room("ready", "\(a),\(bRunning)").completionUnknown)
+        XCTAssertEqual(try room("ready", "\(a),\(bOK)").status, "failed")
+        // A failed participant without evidence, routing failed, a bare failure and a top-level value stay failed.
+        XCTAssertFalse(try room("ready", "\(a),\(bBare)").completionUnknown)
+        XCTAssertFalse(try room("failed", a).completionUnknown)
+        XCTAssertFalse(try room("ready", aBare).completionUnknown)
+        XCTAssertFalse(try room("ready", aBare, top: tracking).completionUnknown)
+        XCTAssertFalse(try room("ready", "").completionUnknown)
+    }
+
+    func testMalformedDeliveryTrackingDecodesWithoutThrowing() throws {
+        let decoder = JSONDecoder()
+        for value in [#""text""#, "42", "[1]", "true", #"{"schema":1,"admission":[],"completion":{}}"#] {
+            let message = try decoder.decode(TimelineMessage.self, from: Data("""
+            {"id":"r","at":"2026-11-02T00:00:00Z","delivery":"failed","deliveryTracking":\(value),
+             "deliveries":[{"target":"bot-a","delivery":"failed","deliveryTracking":\(value)}]}
+            """.utf8))
+            XCTAssertEqual(message.id, "r", value)
+            XCTAssertEqual(message.deliveries?.count, 1, value)
+            XCTAssertFalse(message.completionUnknown, value)
+            XCTAssertEqual(message.status, "failed", value)
+        }
+    }
+
     func testSelectedPartCopiesWithoutTheRestOfTheMessage() async throws {
         // 試験用の内容を先に書き、別プロセスのクリップボードを読む許可ダイアログを避ける。
         UIPasteboard.general.items = []

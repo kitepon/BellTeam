@@ -247,6 +247,9 @@ BellBotTests 26ファイル、BellBotUITests 19ファイル、Tests 2ファイ�
 | [testTimelineDecodesAllImageURLsForDirectAndRoomMessages](../../../../ios/BellBot/BellBotTests/ConversationAppearanceTests.swift#L59) | DM/roomの複数image URLとoutgoing判定をdecode |
 | [testLegacyImageURLAndUnsavedImagesKeepTheirRepresentation](../../../../ios/BellBot/BellBotTests/ConversationAppearanceTests.swift#L73) | 旧imageUrlとURL無し画像枚数を保持 |
 | `testForkSeatDecodesLeniently`（`ConversationAppearanceTests.swift`） | `seat.kind==fork`（`in_reply_to`の有無とも）は`isFork`、キー無し・null・別のkind・`{}`・kindが数値・`seat`が文字列/数値/配列は`isFork`でなく本文を保持し、decodeは失敗しない |
+| `testDeliveryTrackingShowsAcceptedCompletionUnknownOnlyForTheExactTuple`（`ConversationAppearanceTests.swift`） | 直接のfailed＋3値一致だけ`completionUnknown`。field無し・null・文字列・`{}`・別schema・別completion・型違いはfailedのまま。deliveredは変えない |
+| `testRoomDeliveryTrackingNeedsEveryFailedParticipantAndIgnoresTopLevelEvidence`（同） | 部屋は全failed宛先がtupleを持つ時だけ真（deliveredやrunningの併存は影響なし）。根拠なしfailed混在・routing失敗・トップレベル値だけ・failed無しは偽 |
+| `testMalformedDeliveryTrackingDecodesWithoutThrowing`（同） | 文字列・数値・配列・真偽・型違いfieldの`deliveryTracking`でもdecodeが失敗せず、偽でstatusはfailed |
 | [testSelectedPartCopiesWithoutTheRestOfTheMessage](../../../../ios/BellBot/BellBotTests/ConversationAppearanceTests.swift#L87) | 選択範囲だけコピーし本文の残りを含めない |
 | [testSelectableMessageRetainsMarkdownAndLinks](../../../../ios/BellBot/BellBotTests/ConversationAppearanceTests.swift#L98) | 見出し/強調/斜体/link/改行を選択可本文へ描画 |
 | [testBareAndNamedLinksRemainTappable](../../../../ios/BellBot/BellBotTests/ConversationAppearanceTests.swift#L117) | 裸URLと名前付きURLのlink属性を保持 |

@@ -23,6 +23,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [Delivery](../../../../ios/BellBot/BellBot/Core/Models.swift#L61)、[RoomRouting](../../../../ios/BellBot/BellBot/Core/Models.swift#L115) | 配送とルームの返信者判定結果 |
 | [RecentMessage.preview](../../../../ios/BellBot/BellBot/Core/Models.swift#L74) | 一覧の副題用本文・画像表示 |
 | [TimelineMessage.isOutgoing / isPeer / displayedImageURLs / status](../../../../ios/BellBot/BellBot/Core/Models.swift#L100) | 発言の向き・種別・画像参照・配送状態の集約 |
+| `DeliveryTracking`、`Delivery.deliveryTracking`、`TimelineMessage.deliveryTracking` / `TimelineMessage.completionUnknown`（`Core/Models.swift`） | 受付済みで完了未確認の配達を中立表示するための任意根拠。復号は失敗せず、3値一致のときだけ`completionUnknown`が真（[図](conversation.md#受付後の追跡故障を未達へ読み替えない)） |
 | `MessageSeat`（`Core/Models.swift`）、`TimelineMessage.seat` / `TimelineMessage.isFork` | 直接会話の行の任意`seat`。`kind`だけを寛容に読み（不正な型は`kind`なし）、`kind=="fork"`の行に`MessageRow`が「分身」のバッジを出す（[図](conversation.md#分身の行の表示)、契約は[fork-inquiry](../conversation/fork-inquiry.md)） |
 | [QueueItem.displayItems](../../../../ios/BellBot/BellBot/Core/Models.swift#L128) | Bot IDとstatus単位で表示queueをまとめる。`steered:true`（実行中ターンへの差し込み）はrunningとして数え、Botの実行中ターンごとに「処理中」1行にする。steeredの無い旧形式はfalse扱い。botId無しは別項目 |
 | [Schedule.title](../../../../ios/BellBot/BellBot/Core/Models.swift#L159) | 予定の表示名 |
