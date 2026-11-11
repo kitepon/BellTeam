@@ -447,6 +447,7 @@ goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`tes
 | --- | --- |
 | testSeatLaunchDecodesAndReadsAsOneLine | Bot項目`seatLaunch`：欠落・`null`は無し、全項目ありは「Macで起動できません: <action>」、`action`が無い・`null`・空白だけは`code`、両方無しは行なし |
 | testConfigurationApplicationLineFollowsTheWebEditor | `configurationApplication`の1行：新規メンバーは行なし、pending・accepted・failed（サーバーのmessage、messageなしは行なし）、記録なし・`null`・知らないstateは稼働中／停止中の既定文 |
+| testConfigurationApplicationLineCarriesAStateMark | 状態の印：pending=clock、accepted=checkmark.circle.fill、failed=exclamationmark.triangle.fill、記録なし・`null`・知らないstateは印なし |
 | testMalformedConfigurationApplicationIsAbsentAndDoesNotBreakTheBot | 文字列・数・配列・真偽でもBotは読め記録は無し、型違いの項目だけ無いものとして読む |
 | testPickerRowsKeepOnlyPasswordReferencesForSudoAndSearchByNameOrVault | 一覧の行：sudoは`/password`だけ（SSH鍵の参照は残らない）、SSHは全行、名前・保管庫（前後空白除去）の大文字小文字を区別しない絞り込み、件数文（N件／「…」に合う…がありません） |
 | testMalformedSeatLaunchIsAbsentAndDoesNotBreakTheBot | 文字列・数・配列・真偽の`seatLaunch`でもBotは読め行は出ない、型違いの項目だけ無いものとして読む |

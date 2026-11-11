@@ -17,7 +17,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | 型・関数・算出値 | 機能 |
 | --- | --- |
 | [Bot](../../../../ios/BellBot/BellBot/Core/Models.swift#L3)（`seatLaunch`・`configurationApplication`は不正値を「無し」として読む）、[Room](../../../../ios/BellBot/BellBot/Core/Models.swift#L25)、[Owner](../../../../ios/BellBot/BellBot/Core/Models.swift#L36) | 名簿・OwnerのHTTP応答素材。画像版とBotのdeletingも保持 |
-| `ConfigurationApplication`（`Core/Models.swift`、Bot項目`configurationApplication`の`state`・`message`を省略可で読む）、`ConfigurationApplication.line(for:)` | メンバー編集画面「AI」節の適用状態の1行（新規は無し、記録なしは稼働中か停止中の既定文、[図](members-and-rooms.md)） |
+| `ConfigurationApplication`（`Core/Models.swift`、Bot項目`configurationApplication`の`state`・`message`を省略可で読む）、`ConfigurationApplication.line(for:)`・`symbol(for:)` | メンバー編集画面「AI」節の適用状態の1行と状態の印（新規は無し、記録なしは稼働中か停止中の既定文、[図](members-and-rooms.md)） |
 | `OnePasswordKey.choices(_:sudo:search:)`・`OnePasswordKey.countLine(shown:search:noun:)`（`Core/Models.swift`） | 秘密入力の一覧の行：sudoは`/password`で終わる参照だけ、名前か保管庫の大文字小文字を区別しない絞り込み、先頭の「N件から選んでください」（[図](requests-and-auth.md)） |
 | [OwnerLink.id](../../../../ios/BellBot/BellBot/Core/Models.swift#L49)、[Member.title](../../../../ios/BellBot/BellBot/Core/Models.swift#L58) | リンクの識別と返信者表示名 |
 | [Delivery](../../../../ios/BellBot/BellBot/Core/Models.swift#L61)、[RoomRouting](../../../../ios/BellBot/BellBot/Core/Models.swift#L115) | 配送とルームの返信者判定結果 |

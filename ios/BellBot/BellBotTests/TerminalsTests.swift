@@ -876,6 +876,15 @@ final class TerminalsTests: XCTestCase {
         }
     }
 
+    func testConfigurationApplicationLineCarriesAStateMark() throws {
+        XCTAssertEqual(ConfigurationApplication.symbol(for: try bot(application: #"{"state":"pending"}"#)), "clock")
+        XCTAssertEqual(ConfigurationApplication.symbol(for: try bot(application: #"{"state":"accepted"}"#)), "checkmark.circle.fill")
+        XCTAssertEqual(ConfigurationApplication.symbol(for: try bot(application: #"{"state":"failed","message":"m"}"#)), "exclamationmark.triangle.fill")
+        for application in [nil, "null", #"{"state":"later"}"#] {
+            XCTAssertNil(ConfigurationApplication.symbol(for: try bot(application: application)), application ?? "absent")
+        }
+    }
+
     func testMalformedConfigurationApplicationIsAbsentAndDoesNotBreakTheBot() throws {
         for malformed in ["\"boom\"", "7", "[1]", "true"] {
             let decoded = try bot(application: malformed)
