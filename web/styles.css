@@ -281,6 +281,12 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .goal-actions button:disabled { opacity: .5; cursor: default; }
 .goal-form { display: grid; gap: 12px; margin-top: 14px; }
 #goals-dialog [data-goals-refresh] { justify-self: end; }
+.goal-card.is-skeleton { display: grid; gap: 10px; border-radius: 14px; border: 0; margin-bottom: 10px; background: #f6f4fb; animation: skeleton-pulse 1.4s ease-in-out infinite; }
+.goal-card.is-skeleton span { display: block; height: 14px; border-radius: 7px; background: #e9e5f5; }
+.goal-card.is-skeleton span:first-child { width: 40%; }
+.goal-card.is-skeleton span:last-child { width: 80%; }
+@media (prefers-reduced-motion: reduce) { .goal-card.is-skeleton { animation: none; } }
+.goal-actions > p { flex-basis: 100%; margin: 0; }
 .send-button { display: grid; place-items: center; width: 36px; height: 36px; flex: none; border: 0; border-radius: 50%; background: #111; color: #fff; cursor: pointer; }
 .send-button svg { width: 19px; height: 19px; }
 .send-button:disabled { background: #dadadd; }
@@ -291,6 +297,10 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .sheet-dialog > form, .sheet-dialog > div { display: grid; grid-template-rows: auto minmax(0, 1fr); max-height: min(820px, calc(100dvh - 28px)); }
 .sheet-header { display: grid; grid-template-columns: minmax(80px, 1fr) auto minmax(80px, 1fr); align-items: center; min-height: 64px; padding: 10px 18px; border-bottom: 1px solid var(--line); }
 .sheet-header h2 { margin: 0; font-size: 17px; text-align: center; }
+/* W64: the right-hand header control sits at the right edge, never against the title. */
+.sheet-header { column-gap: 12px; }
+.sheet-header > :last-child:not(h2) { justify-self: end; }
+.schedule-source:first-child { border-top: 0; padding-top: 4px; }
 .text-button { justify-self: start; padding: 8px 0; border: 0; background: transparent; color: #77777d; cursor: pointer; }
 .text-button.primary { justify-self: end; color: #111; font-weight: 750; }
 .text-button:disabled { color: #aaaab0; cursor: default; }
@@ -351,12 +361,30 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .schedule-row strong { font-size: 14px; white-space: nowrap; }
 .schedule-row span { margin-top: 3px; color: #74747a; font-size: 12px; }
 .schedule-row small { margin-top: 4px; color: #a1a1a6; font-size: 11px; }
-.schedule-row button { flex: none; padding: 7px 10px; border: 0; border-radius: 10px; background: #fff; color: #c13d3d; cursor: pointer; }
+.schedule-row .schedule-actions button { flex: none; padding: 7px 10px; border: 0; border-radius: 10px; background: #fff; color: #c13d3d; cursor: pointer; }
 .schedule-row .schedule-actions { display: flex; flex: none; gap: 6px; }
 .schedule-row button.edit, .schedule-row button.run { color: #111; }
 .schedule-row button:disabled { color: #8d8d93; }
 .schedule-row .prompt { white-space: normal; color: #4a4a50; }
-.schedule-cancel { display: block; margin: 10px auto 0; }
+.schedule-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.schedule-toolbar .form-result { margin: 0; color: #1f7a46; font-size: 13px; font-weight: 700; }
+.schedule-form[hidden] { display: none; }
+.schedule-form-actions { display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin-top: 8px; }
+.schedule-state { margin-right: 6px; padding: 1px 7px; border-radius: 999px; font-weight: 750; }
+.schedule-state.is-active { background: #e1f3e8; color: #1f7a46; }
+.schedule-state.is-stopped { background: #ecebf0; color: #6a6874; }
+.schedule-state.is-done { background: #ecebf0; color: #6a6874; }
+.schedule-body { margin-top: 6px; font-size: 12px; }
+.schedule-body summary { color: #6851c4; cursor: pointer; }
+.schedule-body p { margin: 6px 0 0; color: #4a4a50; white-space: pre-wrap; overflow-wrap: anywhere; }
+.schedule-row .keep { color: #6a6874; }
+.schedule-row { flex-wrap: wrap; }
+.schedule-row > div:first-child { flex: 1 1 220px; }
+.schedule-open { width: 100%; margin-top: 8px; border: 0; text-align: left; font: inherit; cursor: pointer; }
+.schedule-open > i { flex: none; color: #9a9aa0; font-size: 20px; font-style: normal; }
+.schedule-done { margin-top: 10px; }
+.schedule-done summary { color: var(--muted); font-size: 13px; cursor: pointer; }
+.schedule-dialog .sheet-body, .schedule-dialog form { min-width: 0; max-width: 100%; }
 .character-sheet-note { margin: 0 0 16px; color: #74747a; font-size: 13px; line-height: 1.5; }
 .character-sheet-list { display: grid; gap: 18px; }
 .character-sheet-list figure { margin: 0; }
@@ -986,11 +1014,19 @@ body:has(dialog[open]) .scroll-latest { display: none; }
   .roster-header .tool-button { width: 50px; }
 }
 .work-graph-dialog { width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; background: linear-gradient(180deg, #ECE7FC 0%, #F6F4FD 40%, #FFFFFF 100%); color: #21293D; }
-.work-graph-dialog[open] { display: grid; grid-template-rows: auto 1fr; }
+.work-graph-dialog[open] { display: grid; grid-template-rows: auto auto 1fr auto; }
 .work-graph-dialog::backdrop { background: #fff; }
 .work-graph-header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: max(12px, env(safe-area-inset-top)) 16px 8px; }
 .work-graph-header h2 { margin: 0; font-size: 17px; }
 .work-graph-header .text-button { justify-self: start; }
+.work-graph-summary { margin: 0; padding: 0 16px 6px; color: #787D91; font-size: 13px; text-align: center; }
+.work-graph-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; margin: 0; padding: 8px 16px max(10px, env(safe-area-inset-bottom)); list-style: none; color: #787D91; font-size: 12px; line-height: 1.5; }
+.work-graph-legend li { display: flex; align-items: center; gap: 6px; }
+.work-graph-legend i { flex: none; width: 14px; height: 14px; border-radius: 5px; background: #6147D4; }
+.work-graph-legend .is-working { box-shadow: 0 0 0 2px rgba(97, 71, 212, .35); }
+.work-graph-legend .is-linked { opacity: .45; }
+.work-graph-legend .is-edge, .work-graph-legend .is-fork { height: 0; border-radius: 0; background: none; border-top: 2px solid #A99BE8; width: 20px; }
+.work-graph-legend .is-fork { border-top-style: dashed; }
 .work-graph-stage { position: relative; min-height: 0; overflow: hidden; padding-bottom: env(safe-area-inset-bottom); }
 .work-graph-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
 .work-graph-pill { position: absolute; top: 8px; left: 50%; margin: 0; padding: 6px 14px; border-radius: 12px; background: #E8E0FF; color: #787D91; font-size: 13px; white-space: nowrap; transform: translateX(-50%); }

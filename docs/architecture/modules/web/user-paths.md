@@ -6,7 +6,7 @@ Input for this document: the production capture and review by Trony (2026-11-11,
 
 Apple keeps the same structure for Settings in [apple/settings-user-flow.md](../apple/settings-user-flow.md) (Rapi, branch `rapi/apple-auth-states`). Where both apps show the same thing, the words, badges and order are the same (section 9).
 
-Marks: **⚠Wn** = broken today (main 1e835b36), to be fixed. **✓Wn** = fixed (W5-W18, W21 and W24 in step 2a, branch `feat/web-home-roster-20261112`; W19-W20, W22-W23 and W25-W28 in step 2b-1, branch `feat/web-member-chat-20261112`; W29-W36 in step 2b-2, branch `feat/web-cards-room-20261112`; W60-W63 in step 3, branch `feat/web-update-center-20261112`). **→** = target. A transition without ⚠ already works and stays.
+Marks: **⚠Wn** = broken today (main 1e835b36), to be fixed. **✓Wn** = fixed (W5-W18, W21 and W24 in step 2a, branch `feat/web-home-roster-20261112`; W19-W20, W22-W23 and W25-W28 in step 2b-1, branch `feat/web-member-chat-20261112`; W29-W36 in step 2b-2, branch `feat/web-cards-room-20261112`; W60-W63 in step 3, branch `feat/web-update-center-20261112`; W64-W72 in step 4a, branch `feat/web-schedules-editors-20261112`). **→** = target. A transition without ⚠ already works and stays.
 
 ## 0. Rules every screen follows (acceptance bar)
 
@@ -452,21 +452,21 @@ stateDiagram-v2
   EConfirm --> EList: 「削除する」 / 「やめる」
 ```
 
-- ⚠W64 Title and button collide (「すべての予定更新」); 管理 buttons are red; `無効 · 次回` with nothing after it; raw cron `0 2 * * * · Asia/Tokyo`; finished items first (review §6). → Plain schedule 「毎日 2:00」 (cron that cannot be put in words: 「詳しい指定」 + the expression under 詳細); state badge 有効 / 停止 / 済み; 「次回 11/12 2:00」 only when there is one; finished one-time items under a closed 「終わった予定」.
-- ⚠W65 The per-target dialog is cut off at the right edge, never names its target, shows raw shell commands and long prompts, leaves the previous target's rows while loading, has no delete confirmation, and saves silently (`schedule-editor.js:74-191`). → Fits the width; title names the target; body shown as a one-line summary, full text one tap away; loading clears; delete asks; save result next to the button.
-- ⚠W66 Room schedule: the empty box with the full add form under it, English native date `mm/dd/yyyy`, a long native checkbox list. → EEmpty card; the form opens on 「予定を追加」; Japanese date/time fields; responders picked with the same picker as 3.3.
-- ⚠W67 A weekly kind without a weekday shows the generic failure. → 「曜日を選んでください」 next to the weekday field.
+- ✓W64 Title and button collide (「すべての予定更新」); 管理 buttons are red; `無効 · 次回` with nothing after it; raw cron `0 2 * * * · Asia/Tokyo`; finished items first (review §6). → Plain schedule 「毎日 2:00」 (cron that cannot be put in words: 「詳しい指定」 + the expression under 詳細); state badge 有効 / 停止 / 済み; 「次回 11/12 2:00」 only when there is one; finished one-time items under a closed 「終わった予定」. Built: a whole row opens that target's 自動実行 (no red 管理 button); active first by next run; loading line and an amber error box with 「もう一度読み込む」; the add control sits under the list (「予定を追加する相手」 + 「予定を追加」); words come from `scheduleDescription` / `scheduleState` / `scheduleNext` in schedule-editor.js.
+- ✓W65 The per-target dialog is cut off at the right edge, never names its target, shows raw shell commands and long prompts, leaves the previous target's rows while loading, has no delete confirmation, and saves silently (`schedule-editor.js:74-191`). → Fits the width; title names the target; body shown as a one-line summary, full text one tap away; loading clears; delete asks; save result next to the button. Built: title 「トロニーの自動実行」; 「内容を見る」 opens the full instruction or command; 「削除」 -> 「削除する」 / 「やめる」 in the row; 「保存しました」 next to 「予定を追加」 at the top of the list.
+- ✓W66 Room schedule: the empty box with the full add form under it, English native date `mm/dd/yyyy`, a long native checkbox list. → EEmpty card; the form opens on 「予定を追加」; Japanese date/time fields; responders picked with the same picker as 3.3. Built: the form is hidden until 「予定を追加」 / 「編集」 and has 「やめる」 + 「保存」; responder rows use the 3.3 row style (name + check). Date and time fields stay native, so their format follows the browser's language (open).
+- ✓W67 A weekly kind without a weekday shows the generic failure. → 「曜日を選んでください」 next to the weekday field.
 
 ### 6.2 Goals
 
-- ⚠W68 The dialog body is empty while loading and when there are no goals (review §6, `goals.js:48, 221`). → GLoading skeleton; empty card 「ゴールはまだありません。」 + one sentence on what a goal is; error card with retry.
-- ⚠W69 Pause, resume and delete act with no confirmation; errors go to the top notice, away from the card. → Delete asks; results and errors stay in the card that was pressed.
-- ⚠W70 A card heading falls back to the raw bot id; Claude duration in raw milliseconds. → Name or 「（いないメンバー）」; 「3分20秒」.
+- ✓W68 The dialog body is empty while loading and when there are no goals (review §6, `goals.js:48, 221`). → GLoading skeleton; empty card 「ゴールはまだありません。」 + one sentence on what a goal is; error card with retry. Built: the loading skeleton has three cards plus reader text 「読み込んでいます」; the error card is the shared `.inline-error` with 「もう一度読み込む」, and a failed read with rows still on screen keeps the top notice instead (once per screen).
+- ✓W69 Pause, resume and delete act with no confirmation; errors go to the top notice, away from the card. → Delete asks; results and errors stay in the card that was pressed. Built: 「削除」 opens an inline 「削除する」 / 「やめる」 inside the card; pause, resume and edit show a short result (「一時停止しました。」) and every failure sentence in that card, also in the chat card. The pressed button does not yet change its label to 「…しています」 (it is only disabled).
+- ✓W70 A card heading falls back to the raw bot id; Claude duration in raw milliseconds. → Name or 「（いないメンバー）」; 「3分20秒」. Built: `durationText(ms)` (exported from `web/goals.js`) is used for the Claude run time, the Codex work time and the chat chip.
 
 ### 6.3 Work graph (相関図)
 
-- ⚠W71 Connecting shows a blank canvas; no legend, no summary (review §6). → 「つないでいます」 while connecting; one summary line 「いま 1件の依頼が進行中」; a legend for the edge style and faded nodes (「依頼を受けた側」).
-- ⚠W72 Phone: a node is off-screen at 390 px. → The layout bounds include the label width on phone (work-graph-model).
+- ✓W71 Connecting shows a blank canvas; no legend, no summary (review §6). → 「つないでいます」 while connecting; one summary line 「いま 1件の依頼が進行中」; a legend for the edge style and faded nodes (「依頼を受けた側」). Built: 「つないでいます」 is the empty-canvas overlay until the first snapshot; the summary line sits above the stage; the legend (static in `index.html`) names working members (glowing rim), requested members (faded), the arrow with moving dots (in progress) and the dashed line (分身 inquiry).
+- ✓W72 Phone: a node is off-screen at 390 px. → The layout bounds include the label width on phone (work-graph-model). Built: the model's bounds already keep the name width `S × 2.2` inside the area and a 390 px simulation (1-30 members, long names) found no face or name outside the screen; `rectOf` now also caps the layout width at `innerWidth`, and a test pins the 390 px guarantee.
 
 ## 7. Editors and dialogs
 

@@ -15,6 +15,13 @@ const element = (tag, text, className) => {
   return node
 }
 
+// 45秒 / 3分20秒 / 1時間2分: whole seconds as words, never raw milliseconds.
+export const durationText = ms => {
+  if (!Number.isFinite(ms) || ms < 0) return '—'
+  const total = Math.round(ms / 1000), hours = Math.floor(total / 3600), minutes = Math.floor(total % 3600 / 60), seconds = total % 60
+  return hours ? `${hours}時間${minutes ? `${minutes}分` : ''}` : minutes ? `${minutes}分${seconds ? `${seconds}秒` : ''}` : `${seconds}秒`
+}
+
 // The API owns native state. This view keeps only unsaved form text and the
 // latest observed snapshot, never a second goal ledger or a continuation loop.
 export function goalsView(dialog, api, getBots, chat = null) {
@@ -26,6 +33,10 @@ export function goalsView(dialog, api, getBots, chat = null) {
   const chatRefresh = chat?.querySelector('[data-goals-refresh]')
   const chatSummary = chat?.querySelector('[data-goal-summary]')
   const pending = new Set(), drafts = new Map()
+  // W69: a card's own result text and delete confirmation live in that card, never in the top notice.
+  const notes = new Map(), confirming = new Set()
+  const note = (botId, text) => { notes.set(botId, text); render() }
+  let listState = 'loading' // loading | ready | error: only the dialog list shows it (W68)
   const observations = new Map()
   const observed = id => observations.get(id) ?? 0
   const advance = id => { const next = observed(id) + 1; observations.set(id, next); return next }
@@ -41,12 +52,14 @@ export function goalsView(dialog, api, getBots, chat = null) {
     control.type = 'button'; control.addEventListener('click', run)
     return control
   }
-  const named = id => getBots().find(bot => bot.id === id)?.displayName ?? getBots().find(bot => bot.id === id)?.name ?? id
+  const named = id => { const bot = getBots().find(item => item.id === id); return bot?.displayName ?? bot?.name ?? '（いないメンバー）' }
   const amount = value => value === null || value === undefined ? '—' : new Intl.NumberFormat('ja-JP').format(value)
 
   function render() {
-    const configured = snapshots.filter(snapshot => isKnown(snapshot) && snapshot.goal !== null)
-    renderCards(body, configured, '表示できるゴールはありません。')
+    // A card whose action failed stays visible with its message even when the read after it is unknown.
+    const configured = snapshots.filter(snapshot => isKnown(snapshot) ? snapshot.goal !== null : notes.has(snapshot.botId))
+    if (configured.length) renderCards(body, configured, '')
+    else renderListState()
     if (chat) {
       // W23: the chip shows a goal or 休止中 only; loading, 目標未設定, unsupported and a failed read show nothing (the goals dialog says it).
       let chip = null
@@ -55,8 +68,8 @@ export function goalsView(dialog, api, getBots, chat = null) {
         const current = isKnown(selected) ? displayGoal(selected.goal) : null
         const original = selected?.goal
         const elapsed = original?.kind === 'grok-cli' ? original.current_status.elapsed_display
-          : original?.kind === 'claude-code' ? Object.hasOwn(original.native, 'durationMs') ? `${amount(original.native.durationMs / 1000)}秒` : null
-            : current?.timeUsedSeconds == null ? null : `${amount(current.timeUsedSeconds)}秒`
+          : original?.kind === 'claude-code' ? Object.hasOwn(original.native, 'durationMs') ? durationText(original.native.durationMs) : null
+            : current?.timeUsedSeconds == null ? null : durationText(current.timeUsedSeconds * 1000)
         const state = current?.status === 'active' ? '目標に取り組み中'
           : current?.status === 'paused' ? '目標を一時停止中' : `目標 · ${displayStatus(original)}`
         chip = isKnown(selected) ? current ? [state, elapsed].filter(Boolean).join('  ') : null
@@ -71,6 +84,22 @@ export function goalsView(dialog, api, getBots, chat = null) {
       chatRefresh.disabled = refreshing || selectedRead?.id === selectedBotId || pending.has(selectedBotId)
     }
   }
+  function renderListState() {
+    body.replaceChildren()
+    if (listState === 'loading') {
+      const status = element('p', '読み込んでいます', 'sr-only'); status.setAttribute('role', 'status')
+      body.append(status, ...[1, 2, 3].map(() => { const card = element('div', undefined, 'goal-card is-skeleton'); card.setAttribute('aria-hidden', 'true'); card.append(element('span'), element('span')); return card }))
+    } else if (listState === 'error') {
+      const card = element('div', undefined, 'inline-error')
+      const retry = button('もう一度読み込む', () => { void refresh() }); retry.disabled = refreshing
+      card.append(element('p', 'ゴールの一覧を読み込めませんでした。通信を確かめてから、もう一度読み込んでください。'), retry)
+      body.append(card)
+    } else {
+      const card = element('div', undefined, 'roster-card')
+      card.append(element('p', 'ゴールはまだありません。'), element('p', 'ゴールは、メンバーが一つの目的に向けて続けて取り組む仕事です。会話からメンバーに頼むと、ここに出ます。'))
+      body.append(card)
+    }
+  }
   function renderCards(body, items, emptyMessage) {
     body.replaceChildren()
     if (!items.length) { body.append(element('p', emptyMessage)); return }
@@ -81,6 +110,7 @@ export function goalsView(dialog, api, getBots, chat = null) {
       const available = isKnown(snapshot)
       if (!available) {
         card.append(element('p', snapshot.message || (snapshot.availability === 'unsupported' ? 'このメンバーではゴール機能を使えません。' : 'ゴールの状態を取得できません。更新して確認してください。'), 'goal-status'))
+        if (notes.has(snapshot.botId)) card.append(element('p', notes.get(snapshot.botId), 'goal-meta'))
         body.append(card); continue
       }
       const original = snapshot.goal
@@ -95,8 +125,8 @@ export function goalsView(dialog, api, getBots, chat = null) {
         const budgetText = !Object.hasOwn(goal, 'tokenBudget') ? '—' : goal.tokenBudget === null ? '指定なし' : amount(goal.tokenBudget)
         const metrics = []
         if (claude) {
-          for (const [key, label, suffix] of [['tokens', '使用トークン', ''], ['durationMs', '実行時間', 'ミリ秒'], ['iterations', '反復数', '']]) {
-            if (Object.hasOwn(original.native, key)) metrics.push(`${label} ${amount(original.native[key])}${suffix}`)
+          for (const [key, label] of [['tokens', '使用トークン'], ['durationMs', '実行時間'], ['iterations', '反復数']]) {
+            if (Object.hasOwn(original.native, key)) metrics.push(`${label} ${key === 'durationMs' ? durationText(original.native[key]) : amount(original.native[key])}`)
           }
           if (Object.hasOwn(original, 'reported_turns')) metrics.push(`CLI表示ターン数 ${amount(original.reported_turns)}`)
         }
@@ -105,7 +135,7 @@ export function goalsView(dialog, api, getBots, chat = null) {
           : grok
           ? `使用量 ${amount(original.current_status.tokens_used)} / 予算 ${budgetText} · 作業時間 ${original.current_status.elapsed_display} · ${grokPhases[original.current_status.phase]}`
           : claude ? metrics.join(' · ') || '使用量・作業時間はまだ取得していません。'
-          : `使用量 ${amount(goal.tokensUsed)} / 予算 ${budgetText} · 作業時間 ${amount(goal.timeUsedSeconds)}秒`, 'goal-meta')
+          : `使用量 ${amount(goal.tokensUsed)} / 予算 ${budgetText} · 作業時間 ${durationText(goal.timeUsedSeconds * 1000)}`, 'goal-meta')
         card.append(details)
       }
       if (snapshot.nativeHistory?.kind === 'claude-code') {
@@ -124,9 +154,16 @@ export function goalsView(dialog, api, getBots, chat = null) {
       if (goal && goal.status === 'active' && capabilities.pause) actions.append(button(titles.pause, () => mutate(snapshot, 'pause')))
       if (goal && goal.status === 'paused' && capabilities.resume)
         actions.append(button(titles.resume, () => mutate(snapshot, 'resume')))
-      if (goal && capabilities.clear) actions.append(button(titles.clear, () => mutate(snapshot, 'clear')))
+      if (goal && capabilities.clear) actions.append(button(titles.clear, () => { confirming.add(snapshot.botId); render() }))
       for (const control of actions.children) control.disabled = pending.has(snapshot.botId)
       card.append(actions)
+      if (goal && capabilities.clear && confirming.has(snapshot.botId)) {
+        const ask = element('div', undefined, 'goal-actions')
+        ask.append(element('p', 'このゴールを削除します。よろしいですか。', 'goal-meta'), button('削除する', () => mutate(snapshot, 'clear')), button('やめる', () => { confirming.delete(snapshot.botId); render() }))
+        for (const control of ask.children) if (control.tagName === 'button') control.disabled = pending.has(snapshot.botId)
+        card.append(ask)
+      }
+      if (notes.has(snapshot.botId)) { const result = element('p', notes.get(snapshot.botId), 'goal-meta'); result.setAttribute('role', 'status'); card.append(result) }
       const draft = drafts.get(snapshot.botId)
       if (draft) {
         const bindingChanged = ['sessionId', 'launchId', 'threadId'].some(key => draft.binding[key] !== snapshot.binding?.[key])
@@ -211,7 +248,7 @@ export function goalsView(dialog, api, getBots, chat = null) {
   async function select(botId) {
     selectedBotId = botId
     if (chat) chat.open = false
-    report('')
+    report(''); notes.clear(); confirming.clear()
     if (botId !== null) replaceSnapshot({ botId, availability: 'unavailable', message: 'ゴールの状態を確認しています。' })
     render()
     await refreshSelected()
@@ -221,8 +258,10 @@ export function goalsView(dialog, api, getBots, chat = null) {
     const expected = new Map([...new Set([...getBots().map(bot => bot.id), ...snapshots.map(item => item.botId)])].map(id => [id, advance(id)]))
     const stillCurrent = id => observed(id) === (expected.get(id) ?? 0)
     refreshing = true
-    report('')
+    report(''); notes.clear(); confirming.clear()
     refreshButton.disabled = true
+    if (listState === 'error') listState = 'loading'
+    render()
     try {
       const result = await api('/api/goals')
       if (current !== revision) return
@@ -233,14 +272,17 @@ export function goalsView(dialog, api, getBots, chat = null) {
       const received = new Set(result.goals.map(item => item.botId))
       const newer = snapshots.filter(item => !stillCurrent(item.botId) && !received.has(item.botId))
       snapshots = [...result.goals.map(item => stillCurrent(item.botId) ? item : previous.get(item.botId)).filter(Boolean), ...newer]
+      listState = 'ready'
       render()
     } catch (error) {
       if (current !== revision) return
       // A stale snapshot must not keep offering mutations after a failed read.
       snapshots = snapshots.filter(item => !stillCurrent(item.botId))
+      // With no list left the error card (with its retry) says it once; otherwise the notice does.
+      listState = snapshots.some(item => isKnown(item) && item.goal !== null) ? 'ready' : 'error'
+      if (listState === 'ready') report(error instanceof TypeError ? '接続できませんでした。更新して確認してください。' : error.message)
+      refreshing = false
       render()
-      if (!snapshots.length) body.replaceChildren(element('p', 'ゴールの状態を取得できません。更新して確認してください。'))
-      report(error instanceof TypeError ? '接続できませんでした。更新して確認してください。' : error.message)
     } finally { if (current === revision) {
       refreshing = false; refreshButton.disabled = false
       if (chatRefresh) chatRefresh.disabled = selectedRead?.id === selectedBotId || pending.has(selectedBotId)
@@ -250,7 +292,7 @@ export function goalsView(dialog, api, getBots, chat = null) {
     if (pending.has(snapshot.botId)) return
     const expected = advance(snapshot.botId)
     const stillCurrent = () => observed(snapshot.botId) === expected
-    pending.add(snapshot.botId); report('', snapshot.botId); render()
+    pending.add(snapshot.botId); notes.delete(snapshot.botId); confirming.delete(snapshot.botId); render()
     try {
       const result = await api(`/api/bots/${encodeURIComponent(snapshot.botId)}/goal`, {
         method: 'POST', headers: { 'content-type': 'application/json' },
@@ -260,22 +302,24 @@ export function goalsView(dialog, api, getBots, chat = null) {
       if (!['confirmed', 'unconfirmed'].includes(result?.outcome) || result.snapshot?.botId !== snapshot.botId)
         throw new Error('ゴールの変更結果を確認できませんでした')
       snapshots = snapshots.map(item => item.botId === snapshot.botId ? result.snapshot : item)
-      if (result.outcome === 'confirmed') drafts.delete(snapshot.botId)
-      else report('変更結果を確認できませんでした。現在の状態を確認してから操作してください。', snapshot.botId)
+      if (result.outcome === 'confirmed') {
+        drafts.delete(snapshot.botId)
+        if (action !== 'clear') notes.set(snapshot.botId, { create: 'ゴールを設定しました。', edit: '保存しました。', pause: '一時停止しました。', resume: '再開しました。' }[action])
+      } else notes.set(snapshot.botId, '変更結果を確認できませんでした。現在の状態を確認してから操作してください。')
     } catch (error) {
       if (!stillCurrent()) return
       // Never repeat a goal mutation after an unknown network outcome.
-      report('変更結果を確認できませんでした。現在の状態を確認しています。', snapshot.botId)
+      note(snapshot.botId, '変更結果を確認できませんでした。現在の状態を確認しています。')
       try {
         const result = await api(`/api/bots/${encodeURIComponent(snapshot.botId)}/goal`)
         if (!stillCurrent()) return
         if (result.snapshot?.botId !== snapshot.botId) throw new Error('ゴールを確認できませんでした')
         snapshots = snapshots.map(item => item.botId === snapshot.botId ? result.snapshot : item)
-        report('変更の応答を確認できませんでした。現在取得できた状態を表示しています。操作前に確認してください。', snapshot.botId)
+        notes.set(snapshot.botId, '変更の応答を確認できませんでした。現在取得できた状態を表示しています。操作前に確認してください。')
       } catch {
         if (!stillCurrent()) return
         snapshots = snapshots.map(item => item.botId === snapshot.botId ? { botId: item.botId, availability: 'unavailable', goal: null } : item)
-        report('変更結果と現在の状態を確認できませんでした。更新して確認してください。', snapshot.botId)
+        notes.set(snapshot.botId, '変更結果と現在の状態を確認できませんでした。更新して確認してください。')
       }
     } finally {
       // Invalidate pre-completion reads even when reselecting hid the binding.
@@ -295,7 +339,7 @@ export function goalsView(dialog, api, getBots, chat = null) {
         } catch {
           if (observed(snapshot.botId) === read) {
             snapshots = snapshots.map(item => item.botId === snapshot.botId ? { botId: item.botId, availability: 'unavailable', goal: null } : item)
-            report('変更後の現在の状態を確認できませんでした。更新して確認してください。', snapshot.botId)
+            notes.set(snapshot.botId, '変更後の現在の状態を確認できませんでした。更新して確認してください。')
           }
         }
       }

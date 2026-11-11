@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
-import { goalsView } from '../web/goals.js'
+import { goalsView, durationText } from '../web/goals.js'
 
 const grokNative=JSON.parse(readFileSync(new URL('./fixtures/grok-goal-paused-native.json',import.meta.url)))
 
@@ -13,10 +13,12 @@ class Node {
   replaceChildren(...nodes) { this.children = [...nodes] }
   addEventListener(name, fn) { (this.events[name] ??= []).push(fn) }
   focus() {}
+  setAttribute(name, value) { this.attrs = { ...this.attrs, [name]: value } }
   showModal() {}
   all() { return [this, ...this.children.flatMap(node => node.all())] }
   querySelector(selector) { return this.parts?.[selector] ?? this.all().find(node => selector === 'textarea' && node.tagName === 'textarea') ?? null }
 }
+const text = node => node.all().map(item => item.textContent).join('\n')
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no }); return { promise, resolve, reject } }
 const snapshot = (id, thread, status = 'active') => ({ botId: id, availability: 'available', binding: { sessionId: id, launchId: 'a'.repeat(32), threadId: thread }, capabilities: { edit: true, pause: true, resume: true, clear: true }, goal: { threadId: thread, objective: thread, status } })
 function fixture(api, bots = ['a'], withChat = false) {
@@ -126,7 +128,8 @@ test('failed same-binding reconciliation removes stale controls and releases pen
   })
   await f.view.open(); const changing = f.button('a', '一時停止').events.click[0](); await f.view.refresh()
   held.resolve({ outcome: 'confirmed', snapshot: snapshot('a', 'A', 'paused') }); await changing
-  assert.equal(writes, 1); assert.equal(f.button('a', '一時停止'), undefined); assert.match(f.notice.textContent, /確認できませんでした/)
+  assert.equal(writes, 1); assert.equal(f.button('a', '一時停止'), undefined)
+  assert.match(text(f.row('a')), /確認できませんでした/); assert.equal(f.notice.textContent, '')
   await f.view.refresh(); assert.equal(f.button('a', '一時停止').disabled, false)
 })
 
@@ -202,6 +205,7 @@ test('Claude clear removes the configured list row and preserves distinct histor
   const text = f.row('a').all().map(node => node.textContent).join('\n')
   assert.match(text, /使用量・作業時間はまだ取得/); assert.doesNotMatch(text, /予算|0秒|一時停止したゴールは再開/)
   await f.button('a', '削除').events.click[0]()
+  await f.button('a', '削除する').events.click[0]()
   assert.equal(f.row('a'), undefined)
   const after = f.chatRow().all().map(node => node.textContent).join('\n')
   assert.match(after, /ゴールなし/); assert.match(after, /前のゴール：取消/); assert.doesNotMatch(after, /前のゴール：達成/)
@@ -258,7 +262,7 @@ test('the dedicated list contains only confirmed configured goals and never call
   assert.doesNotMatch(f.body.all().map(node => node.textContent).join('\n'), /状態を取得できないメンバー/)
   const empty = fixture(async () => ({ goals: [{ botId: 'a', availability: 'unavailable' }] }))
   await empty.view.open()
-  assert.match(empty.body.all().map(node => node.textContent).join('\n'), /表示できるゴールはありません/)
+  assert.match(empty.body.all().map(node => node.textContent).join('\n'), /ゴールはまだありません。[\s\S]*メンバーが一つの目的/)
   assert.doesNotMatch(empty.body.all().map(node => node.textContent).join('\n'), /設定済みのゴールはありません/)
 })
 
@@ -289,6 +293,7 @@ test('chat and list share pause, resume, objective edit and clear results with e
   await new Promise(resolve => setImmediate(resolve))
   assert.equal(f.objective('a'), '新しい目的'); assert.equal(f.summary.title, '新しい目的')
   await f.button('a', '削除').events.click[0]()
+  await f.button('a', '削除する').events.click[0]()
   assert.equal(f.row('a'), undefined); assert.equal(f.summary.textContent, '')
   assert.deepEqual(writes.map(input => input.action), ['pause', 'resume', 'edit', 'clear'])
   assert.ok(writes.every(input => input.binding.threadId === 'A'))
@@ -388,4 +393,47 @@ test('reselecting during a mutation cannot apply a precommit read after confirme
     await f.view.refreshSelected()
     assert.ok(f.chatButton('再開')); assert.equal(f.chatRefresh.disabled, false)
   }
+})
+
+test('durationText writes seconds, minutes and hours as words', () => {
+  assert.equal(durationText(45000), '45秒'); assert.equal(durationText(200000), '3分20秒'); assert.equal(durationText(180000), '3分')
+  assert.equal(durationText(3720000), '1時間2分'); assert.equal(durationText(3600000), '1時間'); assert.equal(durationText(0), '0秒')
+  assert.equal(durationText(undefined), '—'); assert.equal(durationText(-1), '—')
+})
+
+test('W68 loading shows skeleton cards with reader text, an empty list explains goals, a failed read offers retry at that spot', async () => {
+  const held = deferred(); let mode = 'hold'
+  const f = fixture(async () => mode === 'hold' ? held.promise : mode === 'fail' ? Promise.reject(new TypeError('x')) : { goals: [] })
+  const opening = f.view.open()
+  assert.match(text(f.body), /読み込んでいます/); assert.equal(f.body.children.filter(node => node.className.includes('is-skeleton')).length, 3)
+  mode = 'fail'; held.reject(new TypeError('down')); await opening
+  assert.match(text(f.body), /読み込めませんでした/); assert.equal(f.notice.textContent, '')
+  mode = 'empty'; const retry = f.body.all().find(node => node.tagName === 'button' && node.textContent === 'もう一度読み込む')
+  await retry.events.click[0]()
+  assert.match(text(f.body), /ゴールはまだありません。/); assert.equal(f.body.all().some(node => node.textContent === 'もう一度読み込む'), false)
+})
+
+test('W69 delete asks inside the card first; cancel sends nothing; results and errors stay in the card', async () => {
+  let writes = 0, fail = false
+  const f = fixture(async (_path, options) => {
+    if (options?.method === 'POST') { writes++; if (fail) throw Error('lost'); return { outcome: 'confirmed', snapshot: snapshot('a', 'A', 'paused') } }
+    return fail ? { snapshot: snapshot('a', 'A') } : { goals: [snapshot('a', 'A')] }
+  })
+  await f.view.open()
+  await f.button('a', '削除').events.click[0]()
+  assert.match(text(f.row('a')), /削除します。よろしいですか/); assert.equal(writes, 0)
+  f.button('a', 'やめる').events.click[0](); assert.equal(f.button('a', '削除する'), undefined); assert.equal(writes, 0)
+  await f.button('a', '一時停止').events.click[0]()
+  assert.match(text(f.row('a')), /一時停止しました。/); assert.equal(f.notice.textContent, '')
+  fail = true
+  await f.button('a', '再開').events.click[0]()
+  assert.match(text(f.row('a')), /変更の応答を確認できませんでした/); assert.equal(f.notice.textContent, '')
+})
+
+test('W70 a heading never shows a raw bot id; Claude duration is in words', async () => {
+  const claude = { ...snapshot('ghost', 'A'), goal: { kind: 'claude-code', phase: 'active', native: { type: 'goal_status', condition: 'c', met: false, durationMs: 200000 } } }
+  const f = fixture(async () => ({ goals: [claude] }), ['a'])
+  await f.view.open()
+  assert.equal(f.row('ghost').children[0].textContent, '（いないメンバー）')
+  assert.match(text(f.row('ghost')), /実行時間 3分20秒/); assert.doesNotMatch(text(f.row('ghost')), /ミリ秒|ghost/)
 })

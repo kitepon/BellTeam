@@ -36,7 +36,7 @@ test('list preserves recurring, unrun, disabled and rescheduled rows while hidin
   assert.equal(schedules.length,5)
 })
 test('completed one-off rows alone produce the empty list',async t=>{
- const f=fixture(t,async()=>({schedules:[{kind:'once',enabled:false,lastRunAt:'2026-09-06T06:20:00Z',nextRunAt:null}]}));await f.editor.open({type:'bot',id:'a'});assert.match(f.list.innerHTML,/予定はありません/)
+ const f=fixture(t,async()=>({schedules:[{kind:'once',enabled:false,lastRunAt:'2026-09-06T06:20:00Z',nextRunAt:null}]}));await f.editor.open({type:'bot',id:'a'});assert.match(f.list.innerHTML,/予定はまだありません/)
 })
 test('save snapshots target and body; late accepted save cannot reset a reopened form',async t=>{
  const pending=deferred(),requests=[]
@@ -76,6 +76,9 @@ test('late list cannot replace a newly opened target; run/delete use the row own
  await f.editor.open({type:'room',id:'c',memberIds:[]})
  const timer=globalThis.setTimeout;globalThis.setTimeout=()=>0;t.after(()=>{globalThis.setTimeout=timer})
  await row.querySelector('button.run').listeners.click()
+ // Delete asks once in the row (W65): the first press only arms it.
+ await row.querySelector('button.remove').listeners.click()
+ assert.equal(requests.some(x=>x.request?.method==='DELETE'),false)
  await row.querySelector('button.remove').listeners.click()
  assert.equal(requests.some(x=>x.path==='/api/bots/b/schedules/row/run'&&x.request.method==='POST'),true)
  assert.equal(requests.some(x=>x.path==='/api/bots/b/schedules/row'&&x.request.method==='DELETE'),true)
@@ -102,4 +105,17 @@ test('selecting another schedule during save keeps that editor after the first s
  assert.equal(f.get('#schedule-name').value,'B edit')
  assert.equal(f.get('#schedule-prompt').value,'B prompt')
  assert.equal(f.get('#schedule-form-title').textContent,'予定を編集')
+})
+test('schedule words, state and next run are plain (W64)',async()=>{
+ const { scheduleDescription, scheduleState, scheduleNext } = await import('../web/schedule-editor.js')
+ assert.equal(scheduleDescription({kind:'cron',expression:'0 2 * * *',timezone:'Asia/Tokyo'}),'毎日 2:00')
+ assert.equal(scheduleDescription({kind:'cron',expression:'30 * * * *',timezone:'Asia/Tokyo'}),'毎時 30分')
+ assert.equal(scheduleDescription({kind:'cron',expression:'0 9 * * 1,3',timezone:'Asia/Tokyo'}),'毎週 月・水 9:00')
+ assert.equal(scheduleDescription({kind:'cron',expression:'0 9 * * 1-5',timezone:'Asia/Tokyo'}),'詳しい指定')
+ assert.equal(scheduleDescription({kind:'cron',expression:'0 2 * * *',timezone:'UTC'}),'毎日 2:00（UTC）')
+ assert.equal(scheduleState({kind:'once',enabled:false,lastRunAt:'2026-11-01T00:00:00Z',nextRunAt:null}).text,'済み')
+ assert.equal(scheduleState({kind:'cron',enabled:false}).text,'停止')
+ assert.equal(scheduleState({kind:'cron',enabled:true}).text,'有効')
+ assert.equal(scheduleNext({nextRunAt:null}),'')
+ assert.match(scheduleNext({nextRunAt:'2026-11-12T02:00:00Z'}),/^次回 /)
 })
