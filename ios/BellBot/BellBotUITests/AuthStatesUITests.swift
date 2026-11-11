@@ -1,6 +1,6 @@
 import XCTest
 
-/// iPhone: every stage of the AI login (docs/architecture/modules/apple/requests-and-auth.md 状態機械) against
+/// iPhone and iPad: every stage of the AI login (docs/architecture/modules/apple/requests-and-auth.md 状態機械) against
 /// test/helpers/harness-auth-server.mjs (BELLTEAM_AUTH_SMOKE_URL). Screenshots are kept as attachments (auth-*).
 @MainActor
 final class AuthStatesUITests: XCTestCase {
@@ -8,7 +8,6 @@ final class AuthStatesUITests: XCTestCase {
 
     override func setUp() async throws {
         continueAfterFailure = false
-        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .phone, "iPhoneの画面を確かめる試験です。")
         server = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_AUTH_SMOKE_URL"],
                                "test/helpers/harness-auth-server.mjsの起動が必要です。")
         _ = try await fixtureCall(server: server, path: "/test/reset?accounts=signedout")
@@ -85,7 +84,7 @@ final class AuthStatesUITests: XCTestCase {
 
     private func shot(_ app: XCUIApplication, _ name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
-        attachment.name = "auth-\(name)"
+        attachment.name = "\(UIDevice.current.userInterfaceIdiom == .pad ? "ipad" : "iphone")-auth-\(name)"
         attachment.lifetime = .keepAlways
         add(attachment)
     }
