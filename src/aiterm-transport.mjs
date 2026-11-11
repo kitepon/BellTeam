@@ -950,9 +950,14 @@ export class AitermTransport {
         await this.requireAccess({ setupTest, botId: bot.id })
         check()
         dispatchStarted = true
+        // harness-accounts.md "later turn, durable": taken before the input is typed, so this turn's own limit end is after it.
+        const inputFrom = this.claudeAccountBot(bot) ? new Date(this.accounts.now()).toISOString() : null
         delivery = await this.dispatchInOrder(bot, message, images, { setupTest, check, executionJob: job, membersLease })
         // 受理した。送信中に届いた停止の結果があれば、この受理と照らす。
         job.receipt = delivery.receipt
+        // harness-accounts.md "later turn, durable": survives the seat's row (a closed seat has none).
+        // Recorded only once Aiterm accepted it; a failed write is logged by the registry and stays visible to this engine.
+        if (inputFrom) void this.accounts.recordInput(bot.id, inputFrom).catch(() => {})
         job.restartActivity = this.workState.startedActivity(bot.id, HARNESS.get(bot.harness), delivery.session, delivery.receipt)
         job.nativeSession = delivery.session
         this.startWorkSummary(job, delivery, summaryAuthority, recoveryVersion)
@@ -1902,7 +1907,8 @@ export class AitermTransport {
   // reached the seat, or Aiterm would show a newer last_input_at). Giving such a claim back is safe: the input boundary admits
   // one delivery per limit end, so a late redelivery of the old one is refused.
   continuationDue(botId, end) {
-    if (!end || end.continued || Date.parse(this.accounts.stoppedAt(botId) ?? '') >= Date.parse(end.at)) return false
+    if (!end || end.continued || Date.parse(this.accounts.stoppedAt(botId) ?? '') >= Date.parse(end.at)
+      || Date.parse(this.accounts.inputAt(botId) ?? '') > Date.parse(end.at)) return false
     const resumed = this.accounts.resumed(botId)
     return !(resumed?.at === end.at && resumed.deliveryId && this.continuationLive(resumed.deliveryId))
   }

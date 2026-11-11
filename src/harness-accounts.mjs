@@ -110,11 +110,13 @@ export class HarnessAccounts {
     timers = { set: setTimeout, clear: clearTimeout }, timeZone = process.env.TZ || 'UTC', log = line => process.stderr.write(`${line}\n`) }) {
     Object.assign(this, { home, statePath, seat, readUsage, now, timers, timeZone, log })
     this.labels = new Map()
-    this.state = { schema: SCHEMA, limits: [], seats: {}, logins: {}, signedOut: [], renew: [], stops: {}, resumed: {} }
+    this.state = { schema: SCHEMA, limits: [], seats: {}, logins: {}, signedOut: [], renew: [], stops: {}, resumed: {}, inputs: {} }
     this.listeners = new Set()
     this.resetTimers = new Map()
     this.reread = null
     this.writing = Promise.resolve()
+    // Accepted inputs this engine saw, visible to its recovery before (or without) the registry write.
+    this.inputsSeen = new Map()
   }
 
   root(harness, slot) {
@@ -139,6 +141,7 @@ export class HarnessAccounts {
         renew: (value.renew ?? []).filter(botId => typeof botId === 'string'),
         // A `pending` key (execution dc4b63be / eb8c94a5) is dropped: the continuation is derived from Aiterm's limit end.
         stops: Object.fromEntries(Object.entries(value.stops ?? {}).filter(([, at]) => typeof at === 'string' && Number.isFinite(Date.parse(at)))),
+        inputs: Object.fromEntries(Object.entries(value.inputs ?? {}).filter(([, at]) => typeof at === 'string' && Number.isFinite(Date.parse(at)))),
         resumed: Object.fromEntries(Object.entries(value.resumed ?? {}).filter(([, entry]) => typeof entry?.at === 'string' && Number.isFinite(Date.parse(entry.at))
           && (entry.deliveryId === null || typeof entry.deliveryId === 'string'))),
       }
@@ -201,6 +204,22 @@ export class HarnessAccounts {
   stoppedAt(botId) { return this.state.stops[botId] ?? null }
   setStopped(botId) {
     return this.update(state => ({ ...state, stops: { ...state.stops, [botId]: new Date(this.now()).toISOString() } }))
+  }
+  // harness-accounts.md "later turn, durable": when the member's latest accepted input began (taken before it was typed). A limit
+  // end after that time ended a turn that is not later; one before it was followed by a later turn, also when that turn's seat
+  // has no pty_list row any more (a closed seat).
+  inputAt(botId) { return later(this.state.inputs[botId], this.inputsSeen.get(botId)) }
+  // Visible to this engine at once; written in the serialized registry write. A failed write is logged, stays visible here, and
+  // is written again with the next recorded input (every seen input newer than the registry's goes with each write).
+  recordInput(botId, at) {
+    this.inputsSeen.set(botId, later(this.inputsSeen.get(botId), at))
+    return this.update(state => {
+      const newer = [...this.inputsSeen].filter(([id, seen]) => later(state.inputs[id], seen) !== (state.inputs[id] ?? null))
+      return newer.length ? { ...state, inputs: { ...state.inputs, ...Object.fromEntries(newer) } } : state
+    }).catch(error => {
+      this.log(`BellTeam accounts: accepted input not written: ${botId} ${error?.code ?? error?.message ?? 'UNKNOWN'}`)
+      throw error
+    })
   }
   // harness-accounts.md "one continuation": {at, deliveryId|null} per member. The intent (deliveryId null) is written before the
   // send and never suppresses a resend; the delivery that reaches the engine's input boundary first claims it (deliveryId),
@@ -431,3 +450,7 @@ export class HarnessAccounts {
   }
 }
 
+function later(a, b) {
+  if (!a || !b) return a ?? b ?? null
+  return Date.parse(b) > Date.parse(a) ? b : a
+}
