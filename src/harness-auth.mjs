@@ -2,7 +2,7 @@
 // AIの認証が切れると、その種類のメンバーは全員止まり、入り直しを頼める席も無くなる。
 // 設置した人が設定の画面から自分で戻せるように、初期設定と同じ公式認証の進行をここでも渡す。
 // 認証の画面の出し方と資格情報は、Aitermと公式CLIが持つ。BellTeamは進行を中継するだけで、資格情報に触れない。
-import { isAbsolute } from 'node:path'
+import { isAbsolute, join } from 'node:path'
 import { runtimeEnvironment } from './runtime-home.mjs'
 import { HARNESS, HARNESSES } from './onboarding.mjs'
 import { authUi, authResponse, authReceipt } from './auth-ui.mjs'
@@ -118,7 +118,8 @@ export class HarnessAuth {
 
   async end(harness, slot) {
     const key = harnessAuthKey(harness, slot)
-    await this.call(harness, 'cancel', {}, slot)
+    // 2nd: a session from the older auth-login mode is refused by the token mode; forgetting it lets the next start run.
+    try { await this.call(harness, 'cancel', {}, slot) } catch (error) { if (slot !== '2nd') throw error }
     this.sessions.delete(key)
     this.receipts.delete(key)
   }
@@ -146,15 +147,20 @@ export class HarnessAuth {
         account = accounts?.harnesses?.find(value => value.harness === harness)?.slots?.find(value => value.slot === slot)
       } catch {}
     }
+    // 2nd seats log in only from <2nd root>/oauth-token (execution harness-accounts.md, Login per slot); Aiterm writes it via setup-token.
+    const tokenLogin = harness === 'claude' && slot === '2nd' ? { login: 'oauth_token', token_file: join(configurationRoot, 'oauth-token') } : {}
     const session = this.sessions.get(key)
     const cwd = [...this.bots.values()].find(bot => bot.harness === harness)?.project
     const result = await this.client.call('agent_auth', {
-      harness: HARNESS[harness], action, ...options,
+      harness: HARNESS[harness], action, ...options, ...tokenLogin,
       ...(configurationRoot ? { configuration_root: configurationRoot } : {}),
       ...(session ? { session_id: session } : {}),
       ...(cwd ? { cwd } : {}),
     }, this.client.authOptions?.() ?? { env: runtimeEnvironment() })
     const receipt = authReceipt(result, session, () => new HarnessAuthError('HARNESS_AUTH_RESPONSE_INVALID', 502, 'Aitermの公式認証の応答を読み取れません。'))
+    // An older Aiterm drops login/token_file and would run `claude auth login`, which never makes the 2nd usable.
+    if (tokenLogin.login && receipt.login !== 'oauth_token')
+      throw new HarnessAuthError('HARNESS_AUTH_LOGIN_UNSUPPORTED', 409, 'このサーバーのAitermは、2つ目のアカウントのログインに対応していません。BellTeamを更新してください。')
     if (harness === 'claude' && receipt.account_label !== undefined && receipt.account_label !== null && typeof receipt.account_label !== 'string')
       throw new HarnessAuthError('HARNESS_AUTH_RESPONSE_INVALID', 502, 'Aitermの公式認証の応答を読み取れません。')
     const active = action !== 'cancel' && receipt.status !== 'authenticated' && Boolean(session || receipt.session_id)

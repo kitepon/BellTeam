@@ -119,7 +119,7 @@ test('service handoff restores in-flight paste-code binding and private login ev
     calls.push({ method, params })
     if (method === 'auth.prepareAccount') return { configurationRoot: '/synthetic/' + params.slot }
     if (method === 'auth.listAccounts') return { harnesses: [{ harness: 'claude', slots: [{ slot: params.slot ?? '2nd', loggedIn: true, label: 'second@example.invalid' }] }] }
-    if (method === 'auth.call') return { structuredContent: { schema: 'aiterm.agent-auth-result.v1', status: 'blocked', session_id: 'second-session',
+    if (method === 'auth.call') return { structuredContent: { schema: 'aiterm.agent-auth-result.v1', login: 'oauth_token', status: 'blocked', session_id: 'second-session',
       account_label: null, input_required: true, auth_ui: pasteCode } }
   } }
   const service = createUsageServices(options)
@@ -136,7 +136,7 @@ test('service handoff restores in-flight paste-code binding and private login ev
     calls.push({ method, params })
     if (method === 'auth.prepareAccount') return { configurationRoot: '/synthetic/' + params.slot }
     if (method === 'auth.listAccounts') throw Object.assign(new Error('older account engine'), { code: 'EXECUTION_REQUEST_INVALID' })
-    if (method === 'auth.call') return { structuredContent: { schema: 'aiterm.agent-auth-result.v1', status: 'blocked', session_id: 'second-session',
+    if (method === 'auth.call') return { structuredContent: { schema: 'aiterm.agent-auth-result.v1', login: 'oauth_token', status: 'blocked', session_id: 'second-session',
       account_label: null, input_required: true, auth_ui: pasteCode } }
   } })
   await restored.initializeSettings({ restore: true })
@@ -157,12 +157,14 @@ test('usage handoff retains second-slot sessions and native label without replay
   const options = { root, bots: new Map(), rooms: new Map(), effect: async (method, params) => {
     calls.push({ method, params })
     if (method === 'auth.prepareAccount') return { configurationRoot: '/synthetic/' + params.slot }
-    if (method === 'auth.call') return { structuredContent: { schema: 'aiterm.agent-auth-result.v1', status: 'waiting', session_id: 'second-session', account_label: 'second@example.invalid' } }
+    if (method === 'auth.call') return { structuredContent: { schema: 'aiterm.agent-auth-result.v1', login: 'oauth_token', status: 'waiting', session_id: 'second-session', account_label: 'second@example.invalid' } }
   } }
   const service = createUsageServices(options)
   await service.initializeSettings(); await service.initialize()
   await service.request('auth.start', { harness: 'claude', slot: '2nd' }, owner)
   assert.equal(calls.at(-1).params.configuration_root, '/synthetic/2nd')
+  assert.equal(calls.at(-1).params.login, 'oauth_token')
+  assert.equal(calls.at(-1).params.token_file, '/synthetic/2nd/oauth-token')
   await service.quiesce(); const handoff = service.exportState(); service.close()
   assert.deepEqual(handoff.sessions, [['claude:2nd', 'second-session']])
   assert.equal(handoff.receipts[0][1].slot, '2nd')
@@ -178,4 +180,16 @@ test('usage handoff retains second-slot sessions and native label without replay
   assert.equal(calls.filter(item => item.method === 'auth.call' && item.params.action === 'start').length, 1)
   assert.doesNotMatch(JSON.stringify(value), /configuration_root|synthetic\/2nd/)
   await restored.quiesce(); restored.close()
+})
+
+test('auth.call carries login + token_file only together and only for a Claude 2nd root call', async () => {
+  const { usageEffectValid } = await import('../src/usage/channel-protocol.mjs')
+  const params = { harness: 'claude-code', action: 'start', relogin: true, configuration_root: '/s/2nd', login: 'oauth_token', token_file: '/s/2nd/oauth-token' }
+  const second = { harness: 'claude', slot: '2nd' }
+  assert.equal(usageEffectValid('auth.call', params, context, second), true)
+  const { token_file, ...noFile } = params
+  assert.equal(usageEffectValid('auth.call', noFile, context, second), false)
+  assert.equal(usageEffectValid('auth.call', params, context, { harness: 'claude' }), false)
+  assert.equal(usageEffectValid('auth.call', { ...params, token_file: 'oauth-token' }, context, second), false)
+  assert.equal(usageEffectValid('auth.call', { ...params, login: 'auth_login' }, context, second), false)
 })

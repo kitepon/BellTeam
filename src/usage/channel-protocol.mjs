@@ -45,7 +45,10 @@ export function usageEffectValid(method, params, context, rootParams = {}) {
     && ['auth.start', 'auth.status', 'auth.input', 'auth.cancel'].includes(context.method)
   if (method === 'auth.listAccounts') return exact(params, '')
     && ['auth.start', 'auth.status', 'auth.input'].includes(context.method) && rootParams.harness === 'claude'
-  if (method === 'auth.call') return named(params, ['harness', 'action'], ['session_id', 'relogin', 'expected_binding', 'expected_prompt_digest', 'response', 'configuration_root'])
+  if (method === 'auth.call') return named(params, ['harness', 'action'], ['session_id', 'relogin', 'expected_binding', 'expected_prompt_digest', 'response', 'configuration_root', 'login', 'token_file'])
+    && Object.hasOwn(params, 'login') === Object.hasOwn(params, 'token_file')
+    && (!Object.hasOwn(params, 'login') || params.login === 'oauth_token' && rootParams.harness === 'claude' && rootParams.slot === '2nd'
+      && params.harness === HARNESS.claude && typeof params.token_file === 'string' && isAbsolute(params.token_file) && !params.token_file.includes('\0'))
     && Object.values(HARNESS).includes(params.harness) && authActions[context.method]?.includes(params.action)
     && (!params.session_id || text(params.session_id)) && (!Object.hasOwn(params, 'relogin') || typeof params.relogin === 'boolean')
     && (!Object.hasOwn(params, 'configuration_root') || rootParams.harness === 'claude' && params.harness === HARNESS.claude

@@ -70,7 +70,7 @@ export function createUsageParentEffects({ getServices, getFeatures, seatRuntime
         break
       }
       case 'auth.call': {
-        const keys = ['harness', 'action', 'session_id', 'relogin', 'expected_binding', 'expected_prompt_digest', 'response', 'configuration_root']
+        const keys = ['harness', 'action', 'session_id', 'relogin', 'expected_binding', 'expected_prompt_digest', 'response', 'configuration_root', 'login', 'token_file']
         const harness = Object.keys(HARNESS).find(key => HARNESS[key] === params.harness)
         if (!harness || Object.keys(params).some(key => !keys.includes(key))) throw usageError('USAGE_EFFECT_INVALID')
         let bot

@@ -66,7 +66,8 @@ test('状態を見ただけの時は利用者向けの文を返し、認証が�
   assert.match(await message('claude'), /期限切れを見分けられない事があります/u)
   assert.equal(await message('codex'), null)
   // 進行中は、公式の画面の案内を落とさない。
-  assert.deepEqual(legacy(await auth.start('claude')).auth, { status: 'blocked', url: null, user_code: null, input_required: true, message: '公式の画面で入力してください。' })
+  // The last status was authenticated, so an open relogin shows waiting (harness-accounts.md, b69d9d7b).
+  assert.deepEqual(legacy(await auth.start('claude')).auth, { status: 'waiting', url: null, user_code: null, input_required: true, message: '公式の画面で入力してください。' })
   next = { status: 'blocked', session_id: 'auth-1', input_required: true, message: '公式の画面で入力してください。' }
   assert.equal(await message('claude'), '公式の画面で入力してください。')
 })
