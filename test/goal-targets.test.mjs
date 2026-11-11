@@ -37,3 +37,16 @@ test('休止状態名の一覧行は動いている席ではないのでGoal対�
   const targets = await transport.goalTargets(bots)
   assert.deepEqual([...targets.keys()], ['live'])
 })
+
+// control-details.md Goal (chart a05, Centi lab 2026-11-12): a terminal seat has no row in the body's pty_list, so a working
+// remote seat read seat_idle. It is now a target without launch_id, read one by one through pty_observe (forwarded to the terminal).
+test('端末の席は本体のpty_listに行が無くてもGoal対象にし、個別の観測へ回す', async () => {
+  const bots = [{ id: 'rapi', session: 'rapi', terminalId: 'mac', projectRoot: '/Users/x/rapi' }, { id: 'local', session: 'local' }]
+  const transport = new AitermTransport({ client: { async call() {
+    return { structuredContent: { schema: 'aiterm.pty-list-result.v1', observed_at: new Date().toISOString(), sessions: [] } }
+  } } })
+  const targets = await transport.goalTargets(bots)
+  assert.deepEqual(targets.get('rapi'), { session_id: 'rapi' })
+  assert.equal(Object.hasOwn(targets.get('rapi'), 'launch_id'), false, 'no launch_id: BotGoals reads it through generation (pty_observe)')
+  assert.equal(targets.has('local'), false, 'a local seat without a row stays seat_idle')
+})

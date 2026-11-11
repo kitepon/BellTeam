@@ -97,6 +97,9 @@ Guard（guards.self-exit）：占有はturnが動いている可能性のある�
 ```mermaid
 flowchart TD
   Read["一覧 / 個別取得"] --> Targets["既存のsessionとlaunchを読む"]
+  Targets -->|"端末の席（terminalId あり）"| Observe["本体pty_listに行が無いので個別にpty_observe<br/>（Aitermが端末へ転送）"]
+  Observe -->|"動いている"| Call
+  Observe -->|"動いていない"| Idle
   Targets -->|"動いている席なし<br/>（行なし・休止行・paneなし）"| Idle["unavailable + reason=seat_idle<br/>休止中の文言。診断なし"]
   Change["Ownerの変更操作"] --> Gate["操作権限と必要なAI受付を確認"]
   Gate --> Expected["現在launchと画面のbindingを照合"]
@@ -111,7 +114,7 @@ flowchart TD
 
 | 関数 | 正本と保持条件 |
 | --- | --- |
-| `list/goalTargets` | 一覧だけpty_listで既存対象をまとめて読む。launch_idなしの旧返却だけ個別generationへ。存在しない席を起こさない。行なしと、`current_command`がAitermの休止状態名（stopping/hibernated/resuming/failed/unknown/vanished）の行は動いている席ではないので対象にせず、agent_goalを呼ばない |
+| `list/goalTargets` | 一覧だけpty_listで既存対象をまとめて読む。端末の席（`isRemoteBot`、remote-seat.md）は本体のpty_listに行が出ない（Aitermは端末の席をsession名で端末へ転送するだけ）ので、行で判断せず、launch_idなしの対象として個別generation（pty_observe、端末へ転送）へ回す。作業中の端末の席を休止中と出さない（Centi lab 2026-11-12、chart a05）。agent_goalも端末へ転送されるまで（Aiterm、Elegg）は、動いている端末の席はread_failedになり得る。launch_idなしの旧返却だけ個別generationへ。存在しない席を起こさない。行なしと、`current_command`がAitermの休止状態名（stopping/hibernated/resuming/failed/unknown/vanished）の行は動いている席ではないので対象にせず、agent_goalを呼ばない |
 | `generation/inspect` | pty_observeのsession/exists/launchを検証。`exists=false`・`pane_alive=false`・休止行（reason `agent_*`）は席が動いていない状態としてseat_idle。指定対象を読む前後でsessionが変わればunavailable（read_failed） |
 | 公開snapshotの`reason`（2026-11-12追加） | 加算fieldだけで`availability`の値集合は変えない（Apple 1.0.6とWindows 0.4.7はavailabilityを閉じた列挙でdecodeする）。`seat_idle`＝席が今動いていない通常状態。messageは「休止中です。メッセージを送ると再開します。」で、診断を記録しない。`read_failed`＝本当の取得失敗で、従来のmessageと診断のまま。available/unsupportedは`null`。clientは`reason=seat_idle`だけを休止中表示にし、それ以外のunavailableは失敗表示を保つ |
 | `mutate` | origin=userのみ。create/edit/resumeはadmitWork、pause/clearは停止中も操作可能。expected session/launch/threadをnativeへ渡す |

@@ -730,6 +730,9 @@ export class AitermTransport {
     }
     return new Map(bots.flatMap(bot => {
       const session = this.session(bot), row = sessions.get(session)
+      // A terminal seat has no row in this Aiterm's pty_list (calls by its session name are forwarded to the terminal), so it is
+      // read one by one: pty_observe tells running from idle there (control-details.md Goal, chart a05).
+      if (isRemoteBot(bot)) return [[bot.id, { session_id: session }]]
       // A dormant row is a seat that is not running now (the next send resumes it), so it is no goal target.
       return row && !dormantSeats.has(row.current_command)
         ? [[bot.id, { session_id: session, ...(Object.hasOwn(row, 'launch_id') ? { launch_id: row.launch_id } : {}) }]] : []
