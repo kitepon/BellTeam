@@ -574,9 +574,10 @@ final class TerminalsTests: XCTestCase {
         let stale = #"{"terminalId":"this-mac","host":"192.168.1.101","user":"kite","keyAuthorizationPending":false,"keyAuthorization":{"requestId":"old","outcome":"PASSWORD_REJECTED"}}"#
         let done = #"{"terminalId":"this-mac","host":"192.168.1.101","user":"kite","keyAuthorizationPending":false,"keyAuthorization":{"requestId":"r2","outcome":"ALREADY_AUTHORIZED"}}"#
         let reachable = #"{"terminalId":"this-mac","reachable":true,"observedAt":"2026-11-10T01:00:00Z"}"#
-        TerminalsProtocol.respond([(200, pending), (200, stale), (200, done), (200, reachable)])
+        TerminalsProtocol.respond([(200, pending), (200, stale), (200, done), (200, reachable), (200, #"{"terminals":[\#(done)]}"#)])
         await store.awaitKeyAuthorization(id: "this-mac", requestId: "r2", interval: .milliseconds(5))
-        XCTAssertEqual(TerminalsProtocol.paths, ["/api/terminals/this-mac", "/api/terminals/this-mac", "/api/terminals/this-mac", "/api/terminals/this-mac/check"])
+        XCTAssertEqual(TerminalsProtocol.paths, ["/api/terminals/this-mac", "/api/terminals/this-mac", "/api/terminals/this-mac", "/api/terminals/this-mac/check", "/api/terminals"],
+                       "まだ信用の無い端末は確認の後に一覧を読み直す")
         XCTAssertNil(store.terminals.authorizations["this-mac"])
         XCTAssertEqual(store.terminals.checks["this-mac"]?.reachable, true, "古い AUTH_FAILED ではなく新しい確認が残る")
         XCTAssertEqual(store.terminals.terminal("this-mac")?.keyAuthorization?.outcome, "ALREADY_AUTHORIZED")
@@ -665,6 +666,21 @@ final class TerminalsTests: XCTestCase {
         XCTAssertEqual(store.terminals.terminal("this-mac")?.hostTrusted, true)
         XCTAssertNil(store.terminals.trustNotes["this-mac"])
         XCTAssertTrue(store.terminals.attesting.isEmpty)
+    }
+
+    func testCheckReadsTheListAgainOnlyWhileTheTerminalHasNoHostTrust() async throws {
+        let (store, session) = makeStore()
+        defer { session.invalidateAndCancel() }
+        store.terminals.state = .supported([try untrusted()])
+        let reachable = #"{"terminalId":"this-mac","reachable":true,"observedAt":"2026-11-11T01:00:00Z"}"#
+        TerminalsProtocol.respond([(200, reachable), (200, #"{"terminals":[{"terminalId":"this-mac","host":"192.168.1.101","user":"kite","port":22,"hostTrust":{"provider":"aiterm.known-hosts.v1","revision":"sha256:01"}}]}"#)])
+        try await store.checkTerminal(id: "this-mac")
+        XCTAssertEqual(TerminalsProtocol.paths, ["/api/terminals/this-mac/check", "/api/terminals"])
+        XCTAssertEqual(store.terminals.terminal("this-mac")?.hostTrusted, true, "サーバーが採用した最初のホスト鍵が見える")
+
+        TerminalsProtocol.respond([(200, reachable)])
+        try await store.checkTerminal(id: "this-mac")
+        XCTAssertEqual(TerminalsProtocol.paths, ["/api/terminals/this-mac/check"], "信用済みなら読み直さない")
     }
 
     func testAttestMismatchWritesNothingAndSaysItIsNotThisMac() async throws {

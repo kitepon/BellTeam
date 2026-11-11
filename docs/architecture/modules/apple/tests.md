@@ -475,7 +475,7 @@ goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`tes
 | testEveryAuthorizationOutcomeHasAPlainSentence | `AUTHORIZED`・`ALREADY_AUTHORIZED`は文なし（自動の確認）、`PASSWORD_REJECTED`・`AUTHORIZATION_UNCONFIRMED`の文とボタン、`PASSWORD_AUTH_DISABLED`・`CREDENTIAL_UNAVAILABLE`はボタンなし、他の符号・符号なしは一般の文＋ボタン |
 | testAuthorizeRefusalsGetWordsAndAnythingElseFallsThrough | 409 `HOST_TRUST_MISSING`・`SSH_KEY_UNSET`、503 `CREDENTIAL_UNAVAILABLE`、`TERMINAL_NOT_FOUND`以外の404の文。`TERMINAL_NOT_FOUND`・400・通信失敗は文にせず投げる |
 | testRequestingAuthorizationSendsAnEmptyBodyAndKeepsAWordedRefusal | `POST …/keys/ssh/authorize`の本文は`{}`、返ったカードはサーバーのlabelのまま、拒否は`authorizations`の文でカードなし、文の無い失敗は投げ、新しい依頼の前に古い文が消える |
-| testAuthorizedOutcomeEndsTheWaitAndRunsTheCheckByItself | 待ち中のGETで、古い依頼の結果と`pending`のままは終わらせず、一致した`ALREADY_AUTHORIZED`で終わり、古い確認結果を捨てて`POST …/check`を1回自動で行う |
+| testAuthorizedOutcomeEndsTheWaitAndRunsTheCheckByItself | 待ち中のGETで、古い依頼の結果と`pending`のままは終わらせず、一致した`ALREADY_AUTHORIZED`で終わり、古い確認結果を捨てて`POST …/check`を1回自動で行い、端末がまだ`hostTrust`を持たないので続けて`GET /api/terminals`で一覧を読み直す |
 | testRejectedOutcomeAsksAgainAndAFailedReadIsRetriedNotGivenUp | 読めない間は`readFailed`で待ち続け、次の読みで`PASSWORD_REJECTED`の文＋ボタン、確認は走らせない |
 | testANewerRequestOrACancelledPageEndsTheWaitQuietly | 同じ端末の新しい依頼が観測を置き換えると古い待ちは黙って終わり、キャンセルされた待ちは状態を触らない |
 | testMemberFolderDefaultAndPrefillFollowTheEditorRules | 既定のフォルダ（`/Users/<user>/BellTeam/<slug>`、`/`・`:`・NUL→`-`、空・`.`・`..`→`member`）、空・prefillのままの欄だけが名前・端末の変更に追従し、打ち込んだ値と保存済みの値は書き換えない |
@@ -495,6 +495,7 @@ goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`tes
 | testTrustResultsMapEachServerCode | 409 `HOST_KEY_FINGERPRINT_MISMATCH`（このMacではありません）・409 `TERMINAL_CHANGED`・503 `TERMINAL_UNAVAILABLE`・404 `TERMINAL_NOT_FOUND`・400 `INVALID_TERMINAL`（サーバーのmessage）・符号なし/`NOT_FOUND`の404=旧本体（一行も出さない）・通信失敗 |
 | testALocalFailureGivesANoteAndNeverAFingerprint | 拒否はリモートログインがオフ＋「共有設定を開く」、時間切れ・ed25519なし・署名不正・形の崩れは一行と「ほかの方法」 |
 | testAttestSendsTheReadFingerprintAndReplacesTheTerminal | 端末のポートで読んだ指紋を`/trust`へ`{fingerprint}`だけで送り、応答で一覧の端末を置換（信用済み）、`attesting`が空に戻る |
+| testCheckReadsTheListAgainOnlyWhileTheTerminalHasNoHostTrust | `hostTrust`の無い端末の確認が成功したら`/check`の後に一覧を読み直し、採用された信用が見える。信用済みなら読み直さない |
 | testAttestMismatchWritesNothingAndSaysItIsNotThisMac | 409 mismatchは端末を信用にせず、詳細の一行は「このアドレスで答えているのは、このMacではありません」 |
 | testAttestAfterTerminalChangedReadsTheListAndTriesOnceMore | 409 `TERMINAL_CHANGED`→一覧を読み直して指紋を読み直し1回だけやり直す。2回続けたら止めて「もう一度」の一行 |
 | testAttestOlderBodyAndUnavailableAndLocalFailure | 旧本体の404は一行なし、503は「あとでもう一度」、署名を確かめられない鍵はPOSTしない |
@@ -973,7 +974,7 @@ Macの端末表示中の照会と非表示後の停止、小画像保存の結�
 | testOnePasswordSettingBadgeGuideAndTokenCheck | 追加機能に1Password行（未連携）、案内が開いている、`ops_`でないtokenはPATCHせず止める、拒否されたtokenは失敗バッジと結果の一行「連携できませんでした。」+サーバーの文（符号なし）、受理で連携中・案内が畳まれ読める保管庫と鍵の数の一行、tokenを画面に返さない、PATCH2回・`values`は`token`だけ。鍵0件の次の一手、項目の無い旧本体は行が増えない |
 | testShotsOnePasswordResultLine | 画面写真だけ：未連携、確かめ中（PATCH応答を5秒保留）、失敗、成功（アプリはInfo.plistでLight固定のため暗い表示は無い）。fixtureの`/test/mode?patchdelay=<ms>` |
 | testShotUpdateWaiting | 画面写真だけ：全部最新＋`incompatible`1つのUpdate画面（見出し「更新できるものはすべて最新です」）。fixtureの`/test/mode?updates=waiting`と`GET /api/events`（readyだけ送る）、`GET /api/updates` |
-| testAttestHintAndOtherWaysOnAnUntrustedTerminal | iPhoneでは未信用の端末の詳細に「このMacでBellTeamアプリを開くと、自動で確かめます」を出し、「このMacを確かめる」は出さない。指紋を手で入れる操作は「ほかの方法」を開いた中にある |
+| testAttestHintAndOtherWaysAppearOnlyAfterACheckReportsAHostKeyReason | iPhoneの未信用の端末（`studio-mac`）は、確認する前は「このMacでBellTeamアプリを開くと、自動で確かめます」も「ほかの方法」も出さない。確認結果がホスト鍵の理由（`HOST_TRUST_MISSING`）になってから案内を出し、「このMacを確かめる」は出さない。指紋を手で入れる操作は「ほかの方法」を開いた中にある。確かめは送らない |
 | testLoginPasswordCardIsOneHiddenFieldWithNoOnePasswordChoice | `terminal.login`のカード：パスワード欄1つ、入力方法の選択も参照欄も無く、「このMacのログインパスワード（1回だけ使い、保存しません）」を出す |
 | testAddFormOnIPhoneStatesTheRemoteLoginPrecondition | iPhoneの追加画面に「リモートログイン」をオンにする一行（前提）があり、「このMacを追加」は無い |
 | testCheckReasonsRefusedAndAuthFailedOfferTheirLikelyFix | `closed-mac`（`CONNECTION_REFUSED`）の文はサーバーの案内を一度だけ出し、鍵を入れるボタンも共有設定も出さない。`locked-mac`（`AUTH_FAILED`）は「この鍵がまだMacに入っていないかもしれません」と「このMacにこの鍵を入れる」 |

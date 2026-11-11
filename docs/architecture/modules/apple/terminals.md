@@ -39,7 +39,7 @@ flowchart TD
   Store -->|"一覧を読んだ時、未信用でこのMacのホスト"| Attest
   Attest --> Probe["ThisMac.hostKeyFingerprint → SSHHostKey<br/>127.0.0.1:22のKEXをREPLYまで・署名検証"]
   Attest --> Trust["POST /api/terminals/:id/trust<br/>{fingerprint}だけ"]
-  Detail --> Other["「ほかの方法」<br/>HostKeyConfirmSheet（指紋を手で入れる）"]
+  Detail -->|"確認結果がホスト鍵の理由（problem == hostKey）の時だけ"| Other["「ほかの方法」<br/>HostKeyConfirmSheet（指紋を手で入れる）"]
   Form -->|"iPhone・iPad"| RLLine["リモートログインの一行（前提）"]
   Detail --> Reasons["TerminalCheck.problem<br/>CONNECTION_REFUSED / AUTH_FAILED / UNREACHABLE の文"]
   Reasons -->|"AUTH_FAILED"| Authorize["「このMacにこの鍵を入れる」（step 4）<br/>AppStore.requestKeyAuthorization / awaitKeyAuthorization"]
@@ -88,12 +88,14 @@ flowchart TD
   Post -->|"400 INVALID_TERMINAL・404 TERMINAL_NOT_FOUND"| Msg["符号の文、無ければサーバーのmessage"]
 ```
 
-他の端末・他のMacの詳細は、未信用のとき「このMacでBellTeamアプリを開くと、自動で確かめます」を出す。起動後の一覧の読み込みで、そのMacのアプリが自動で確かめる。手で指紋を入れる画面は「ほかの方法」（折りたたみ）の中へ移した。
+サーバーは端末の最初のホスト鍵を`ssh -o StrictHostKeyChecking=accept-new`と同じに自分で採用する（鍵の適用・保存・確認の時。止めるのは変わった鍵だけ）。そのため`hostTrust`が無いだけではオーナーに何も求めず、ホスト鍵の行はオレンジの感嘆符（Webの「ホスト鍵 未登録」と同じ注意）に留める。`checkTerminal`は成功後も端末に`hostTrust`が無ければ一覧を読み直し、採用された信用を見せる。
+
+他の端末・他のMacの詳細は、未信用で、かつ最新の確認結果がホスト鍵の理由（`TerminalCheck.problem == .hostKey`）の時だけ「このMacでBellTeamアプリを開くと、自動で確かめます」と「ほかの方法」を出す。起動後の一覧の読み込みで、そのMacのアプリが自動で確かめる。手で指紋を入れる画面は「ほかの方法」（折りたたみ）の中へ移した。
 
 | 部品 | 責任 |
 | --- | --- |
 | `Core/Terminals.swift` | `Terminal`・`TerminalCheck`・`TerminalMaintenance`（新しい項目はすべて省略可で読む）、`TerminalKeyKind`・`TerminalKeyState`（鍵の行）、`TerminalDraft`（登録の検査とbody）、`MemberBinding`（組の規則とフォルダの検査）、`HostKeyFingerprint`、`TerminalReachabilityText`（確認結果の文）、`TerminalErrorText`（HTTPの符号から文）、S2の`TerminalTrust`（結果の分類と一行）・`TerminalTrustBody`・`TerminalTrustNote`、step 4の`KeyAuthorization`・`TerminalAuthorize`（outcomeと拒否の文、待ちの状態）、step 5の`MemberFolder`（既定のフォルダ・prefillの規則・`FOLDER_*`の文）。`Terminal`は`keyAuthorizationPending`・`keyAuthorization`を省略可で読む。`TerminalCheck.problem`に`refused`・`authFailed`を足し、`explanation`はサーバーの`action`を文に使う |
-| `Core/AppStore+Terminals.swift` | `TerminalDirectory`（`state`・`checks`・`checking`・`attesting`・`trustNotes`・`attested`）を`AppStore.terminals`に保持。`refreshTerminals`・`saveTerminal`・`confirmHostKey`・`removeTerminal`・`checkTerminal`・`requestTerminalKey`・`removeTerminalKey`、S2の`attestThisMacOnce`・`attestThisMac`（結果は`trustNotes`の一行。投げない）、step 4の`authorizations`・`requestKeyAuthorization`・`awaitKeyAuthorization`（待ちと結果の文は`authorizations`。確認結果を消さずに端末だけ更新する）。サインアウトと接続先変更で空に戻す |
+| `Core/AppStore+Terminals.swift` | `TerminalDirectory`（`state`・`checks`・`checking`・`attesting`・`trustNotes`・`attested`）を`AppStore.terminals`に保持。`refreshTerminals`・`saveTerminal`・`confirmHostKey`・`removeTerminal`・`checkTerminal`（成功後も`hostTrust`が無い端末は一覧を読み直す）・`requestTerminalKey`・`removeTerminalKey`、S2の`attestThisMacOnce`・`attestThisMac`（結果は`trustNotes`の一行。投げない）、step 4の`authorizations`・`requestKeyAuthorization`・`awaitKeyAuthorization`（待ちと結果の文は`authorizations`。確認結果を消さずに端末だけ更新する）。サインアウトと接続先変更で空に戻す |
 | `Core/ThisMac.swift` | Mac専用の事実：`isThisMac`、`interfaces`・`primaryIPv4`・`userName`・`hostName`・`owns(host:)`、22番の`remoteLogin`、`hostKeyFingerprint`（ブロッキングの`LoopbackSocket`、全体の期限つき）。秘密は扱わない |
 | `Core/SSHHostKey.swift` | SSHの配線（`SSHWire`：string・mpint・packet・Reader）と交換ハッシュ・署名検証・指紋（`SSHHostKey.fingerprint`）。署名が有効なときだけ値を返し、他は`SSHHostKeyError` |
 | `Views/TerminalsView.swift` | 一覧・詳細・登録/編集・ホスト鍵の画面、鍵の行（`TerminalKeyRow`）と外す確認、メンバー編集の「端末とフォルダ」節。Macだけ：追加画面の「このMacを追加」、詳細の「このMacを確かめる」、ホスト鍵の節の「ほかの方法」、`CONNECTION_REFUSED`の「共有設定を開く」。Mac以外の追加画面：リモートログインの前提の一行。詳細：三つの理由の文、「このMacにこの鍵を入れる」と待ち・結果の文、メンバー編集のフォルダ（prefill・拒否の文・「このフォルダを作って保存」） |
