@@ -18,7 +18,8 @@ export function onePasswordKeyReader(root, { create = () => createOnePasswordSou
   return async references => {
     const source = create()
     // The token is the usage settings' own: read it for each op call and keep it nowhere.
-    source.setToken?.(async () => {
+    // Without root (the operator relay) op takes OP_SERVICE_ACCOUNT_TOKEN from the process env instead.
+    if (root) source.setToken?.(async () => {
       try {
         const { onePassword: entry } = JSON.parse(await readFile(join(root, 'shared/tools/bellteam-settings/settings.json'), 'utf8'))
         return entry?.enabled === true && typeof entry.token === 'string' && entry.token.trim() ? entry.token.trim() : null
