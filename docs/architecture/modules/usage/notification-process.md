@@ -244,4 +244,4 @@ flowchart LR
 | 秘密の扱い | 鍵の値・参照・tokenはDTO・診断・status・ログへ出さない。KeyObjectはメモリだけ |
 | 互換 | file設定は何も変えずに動く。外部relay（`services/notifications/index.mjs`）も `onePasswordKeyReader(null)` を渡し、鍵ごとにfileかreferenceを選べる。relayはsettings.jsonを持たないので、`op` は起動環境の `OP_SERVICE_ACCOUNT_TOKEN` を使う。relayの鍵の入れ替えはconfig.jsonの書き換えと再起動 |
 | file→1Password | `.p8` の全文を1Passwordのアイテムへ保存→config.jsonの該当keyの `file` を `reference` へ置き換え（keyIdはそのkeyのもの）→通知設定を保存し直す（または子の再起動）→実通知を確認→`.p8` を消す |
-| 配布 | 変更fileは `src/push-notifications.mjs`（notifications module archive、全src）。IPC・state・parentProtocolは不変なので、notifications moduleの更新だけで入れ替わり、本体の再起動は要らない |
+| 配布 | 通知子：変更fileは `src/push-notifications.mjs`（notifications module archive、全src）。IPC・state・parentProtocolは不変なので、notifications moduleの更新だけで入れ替わり、本体の再起動は要らない。外部relay：`services/notifications/index.mjs` はmodule archiveの外の独立サービスで、運営がリポジトリのsourceを更新して `npm ci` 後にサービスを再起動すると入れ替わる（[relay README](../../../../services/notifications/README.md)）。鍵だけを替える時はconfig.jsonの書き換えと再起動 |
