@@ -48,6 +48,11 @@ test('AI auth stage follows the server stage only; the worst row decides the set
   assert.equal(authStage({ auth: { status: 'waiting', auth_ui: { stage: 'paste_code' } }, loaded: true }), 'waitingCode')
   assert.equal(authStage({ auth: { status: 'waiting', auth_ui: { stage: 'device_code' } }, loaded: true }), 'waitingSite')
   assert.equal(authStage({ auth: { status: 'waiting', auth_ui: { stage: 'waiting' } }, loaded: true }), 'confirming')
+  // A new login on a signed-out slot shows its flow; the stale marker only matters when no login is running.
+  const signedOutAt = '2026-11-11T11:00:00Z'
+  assert.equal(authStage({ auth: { status: 'waiting', auth_ui: { stage: 'paste_code' } }, loaded: true, signedOutAt }), 'waitingCode')
+  assert.equal(authStage({ auth: { status: 'waiting', auth_ui: { stage: 'open_url' } }, loaded: true, signedOutAt }), 'waitingSite')
+  assert.equal(authStage({ auth: { status: 'blocked' }, loaded: true, signedOutAt }), 'needsLogin')
   assert.deepEqual(authSummary([{ name: 'Claude', slot: '1st', stage: 'done' }, { name: 'Claude', slot: '2nd', stage: 'needsLogin' }]),
     { line: 'Claude 2つ目のログインが必要', badge: 'ログインが必要', tone: 'attention' })
   assert.equal(authSummary([{ name: 'Codex', slot: null, stage: 'done' }]).line, 'すべて認証済み')

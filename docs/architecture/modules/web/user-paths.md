@@ -284,7 +284,7 @@ stateDiagram-v2
   [*] --> checking: page opens (one GET per row)
   checking --> unknown: GET failed
   checking --> done: authenticated
-  checking --> needsLogin: blocked or signedOutAt
+  checking --> needsLogin: blocked, or signedOutAt with no active login
   checking --> failed: failed
   checking --> waitingSite: waiting, open_url / device_code / select
   checking --> waitingCode: waiting, paste_code
@@ -304,6 +304,8 @@ stateDiagram-v2
   waitingSite --> checking: 「やめる」
   waitingCode --> checking: 「やめる」
 ```
+
+Priority: an active login (`status=waiting`) wins over a stale `signedOutAt`, which stays set until the slot's token changes. `signedOutAt` turns a row into needsLogin only when no login is running, so the URL and code field stay visible during the new login (Epinel review of #1085).
 
 | Stage | Badge | The only button(s) in the row |
 | --- | --- | --- |

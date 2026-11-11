@@ -103,3 +103,41 @@ test('1Password連携: 失敗理由はカード内の結果行に一度だけ出
     assert.equal(descendants(container).find(item => item.className === 'feature-result').hidden, false)
   } finally { globalThis.document = previous }
 })
+
+test('機能の保存: 応答待ちの間に書いた入力と未保存の印は残り、保存中は閉じる時に聞ける', async () => {
+  const previous = globalThis.document
+  class Live extends Element {
+    constructor(tag) { super(tag); this.handlers = {} }
+    addEventListener(type, handler) { this.handlers[type] = handler }
+    removeAttribute(key) { delete this.attributes[key] }
+    querySelectorAll(selector) {
+      const [, tag, key] = selector.match(/^(\w+)\[data-(\w+)\]$/u) ?? []
+      return key ? super.querySelectorAll(tag).filter(item => Object.hasOwn(item.dataset, key)) : super.querySelectorAll(selector)
+    }
+  }
+  globalThis.document = { createElement: tag => new Live(tag), createTextNode: text => Object.assign(new Live('#text'), { textContent: text }) }
+  const { featureFormsDirty, featureFormsSaving } = await import('../web/onboarding.js')
+  try {
+    const setting = { id: 'discord', title: 'Discord', enabled: true, status: 'enabled', fields: [
+      { key: 'token', label: 'トークン', secret: true, value: '', configured: true },
+      { key: 'other', label: '鍵', secret: true, value: '', configured: true },
+    ] }
+    const container = new Live('div')
+    let release
+    renderFeatureSettings(container, [setting], { onChange: async () => {}, api: () => new Promise(resolve => { release = resolve }) })
+    const form = container.children[0].children.find(child => child.tag === 'form')
+    const [token, other] = form.children.filter(child => child.tag === 'label' && child.className === 'field').map(label => label.children[1])
+    token.value = 'sent'; other.value = 'sent-too'; form.handlers.input()
+    const submitted = form.handlers.submit({ preventDefault() {} })
+    assert.equal(featureFormsSaving(container), true)
+    other.value = 'typed-while-saving'; form.handlers.input()
+    release({}); await submitted
+    assert.equal(token.value, '')
+    assert.equal(other.value, 'typed-while-saving')
+    assert.equal(featureFormsDirty(container), true)
+    assert.equal(featureFormsSaving(container), false)
+    const again = form.handlers.submit({ preventDefault() {} })
+    release({}); await again
+    assert.equal(other.value, ''); assert.equal(featureFormsDirty(container), false)
+  } finally { globalThis.document = previous }
+})

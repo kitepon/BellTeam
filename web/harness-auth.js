@@ -24,9 +24,11 @@ export function authStage({ auth, loaded, busy, signedOutAt = null }) {
   if (!auth) return !loaded && busy ? 'checking' : 'unknown'
   const stage = auth.auth_ui?.stage
   if (auth.status === 'authenticated') return signedOutAt ? 'needsLogin' : 'done'
-  if (auth.status === 'blocked' || signedOutAt) return 'needsLogin'
-  if (auth.status === 'failed' || stage === 'failed') return 'failed'
+  // 進行中のログインは、古い signedOutAt より先に見る。signedOutAt は枠の資格情報が替わるまで残るので、
+  // 先に見ると、その資格情報を替えるためのURLやコード欄が隠れてしまう。
   if (auth.status === 'waiting') return ['open_url', 'device_code', 'select'].includes(stage) ? 'waitingSite' : stage === 'paste_code' ? 'waitingCode' : 'confirming'
+  if (auth.status === 'failed' || stage === 'failed') return 'failed'
+  if (auth.status === 'blocked' || signedOutAt) return 'needsLogin'
   return 'unknown'
 }
 

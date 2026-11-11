@@ -6,7 +6,7 @@ import { readConversationMotion, conversationMotionKey } from './view-preference
 import { guardEditorClose } from './editor-close.js?v=__ASSET_VERSION__'
 import { createAvatarEditor } from './avatar-editor.js?v=__ASSET_VERSION__'
 import { applyAvatar, initials, escapeClass, escapeHtml } from './view-format.js?v=__ASSET_VERSION__'
-import { renderFeatureSettings, refreshFeatureSettingsStatus, featureFormsDirty, featureState } from './onboarding.js?v=__ASSET_VERSION__'
+import { renderFeatureSettings, refreshFeatureSettingsStatus, featureFormsDirty, featureFormsSaving, featureState } from './onboarding.js?v=__ASSET_VERSION__'
 import { renderHarnessAuth, authSummary } from './harness-auth.js?v=__ASSET_VERSION__'
 import { aiControlView } from './ai-control.js?v=__ASSET_VERSION__'
 import { createBackgroundAgentSettings } from './background-agent-settings.js?v=__ASSET_VERSION__'
@@ -73,11 +73,12 @@ export function createOwnerEditor(dialog, { api, onOwner, onSettings, onOpenUpda
   const profileDirty = () => Boolean(owner && (editRevision !== owner.initialRevision || avatar.changed()))
   const rulesDirty = () => Boolean(owner && owner.rulesEditing && rulesRevision !== owner.rulesRevision)
   const featuresDirty = () => featureFormsDirty(find('feature-settings')) || featureFormsDirty(find('onepassword-settings'))
+  const featuresSaving = () => featureFormsSaving(find('feature-settings')) || featureFormsSaving(find('onepassword-settings'))
   function pageDirty(page) {
     return page === 'profile' ? profileDirty() : page === 'rules' ? rulesDirty() : page === 'summary' ? backgroundAgent.dirty()
       : ['features', 'onePassword'].includes(page) ? featuresDirty() : false
   }
-  guardEditorClose(dialog, () => Boolean(owner && (profileDirty() || rulesDirty() || backgroundAgent.dirty() || featuresDirty())), () => Boolean(owner && (saving === owner || backgroundAgent.busy())))
+  guardEditorClose(dialog, () => Boolean(owner && (profileDirty() || rulesDirty() || backgroundAgent.dirty() || featuresDirty())), () => Boolean(owner && (saving === owner || backgroundAgent.busy() || featuresSaving())))
 
   find('conversation-motion').addEventListener('change', () => {
     try { localStorage.setItem(conversationMotionKey, find('conversation-motion').value); find('motion-status').textContent = 'このブラウザーに保存しました。会話を開き直すと反映します。' }

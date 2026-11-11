@@ -231,6 +231,8 @@ export function refreshFeatureSettingsStatus(container, settings) {
 
 // 入力したまま保存していない機能があるか（設定を閉じる・ほかの項目へ移る時に聞く）。
 export const featureFormsDirty = container => [...(container?.querySelectorAll?.('form[data-dirty]') ?? [])].length > 0
+// 保存の応答を待っている機能があるか（閉じる時に「保存処理中です」と聞く）。
+export const featureFormsSaving = container => [...(container?.querySelectorAll?.('form[data-saving]') ?? [])].length > 0
 
 export function renderFeatureSettings(container, settings, { api, onChange }) {
   container.replaceChildren()
@@ -283,13 +285,16 @@ export function renderFeatureSettings(container, settings, { api, onChange }) {
     save.textContent = onePassword ? '保存して連携を確かめる' : '保存'
     save.className = 'primary'
     const result = Object.assign(document.createElement('p'), { className: 'feature-result', hidden: true })
-    form.addEventListener('input', () => { form.dataset.dirty = '1' })
+    // 送った後に打った入力は、保存の応答で消さない。版の番号で、送った時から変わったかを見る。
+    let revision = 0
+    form.addEventListener('input', () => { revision++; form.dataset.dirty = '1' })
     result?.setAttribute('role', 'status')
     form.append(error, result, save)
     form.addEventListener('submit', async event => {
       event.preventDefault()
       if (save.disabled) return
       save.disabled = true
+      form.dataset.saving = '1'
       error.textContent = ''
       if (!onePassword) { save.textContent = '保存しています…'; result.hidden = true; result.dataset.state = '' }
       if (onePassword) {
@@ -300,6 +305,7 @@ export function renderFeatureSettings(container, settings, { api, onChange }) {
       }
       const values = Object.fromEntries(inputs.filter(({ field, input }) => !field.secret || input.value).map(({ field, input }) => [field.key, input.value]))
       const submittedEnabled = enabled.checked
+      const sentRevision = revision, sentValues = inputs.map(({ input }) => input.value)
       let saved = false
       try {
         const response = await api(`/api/settings/${encodeURIComponent(setting.id)}`, {
@@ -308,8 +314,8 @@ export function renderFeatureSettings(container, settings, { api, onChange }) {
         })
         saved = true
         // 秘密の値は、保存できたと分かってから消す。失敗した時は貼り直させない。
-        for (const { field, input } of inputs) if (field.secret) input.value = ''
-        delete form.dataset.dirty
+        inputs.forEach(({ field, input }, index) => { if (field.secret && input.value === sentValues[index]) input.value = '' })
+        if (revision === sentRevision) delete form.dataset.dirty
         if (onePassword && response?.setting) showOnePasswordResult(result, response.setting, { saved: true })
         else if (onePassword) { result.hidden = true; result.dataset.state = '' }
         else { Object.assign(result, { textContent: '保存しました。', hidden: false }); result.dataset.state = 'connected' }
@@ -327,6 +333,7 @@ export function renderFeatureSettings(container, settings, { api, onChange }) {
         if (!saved) { result.hidden = true; result.dataset.state = '' }
       } finally {
         save.disabled = false
+        delete form.dataset.saving
         if (onePassword) { save.textContent = '保存して連携を確かめる'; save.removeAttribute('aria-busy') } else save.textContent = '保存'
       }
     })

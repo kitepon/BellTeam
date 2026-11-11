@@ -25,7 +25,7 @@ flowchart TD
 | Botモデル・適用表示 / editor.open | 同上 `renderModelOptions/selectableEfforts/renderEffortOptions/renderBotConfigurationStatus` | models/AbortController。close/reopenで旧読取をabort。保存済み候補外effortは表示に残す。configurationApplicationと希望設定を区別。候補の表示名は`view-format.js` `modelChoices`（display_name、無ければid、同名はid併記）、保存値はid。`/api/models`応答前（models=null）は保存値だけを「読み込み中」と表示し、未対応と判定しない。読取失敗後は保存値をそのまま表示 |
 | Bot再起動・削除 / editorのbutton | 同上 `restart/remove` → appの`onRestarted/onDeleted/onStatus` | 操作時Botを固定。再起動202と削除202は背景受付。appが一覧・選択を更新する。表示更新失敗でも背景削除の受付と示す |
 | 部屋編集・削除 / `openRoomDialog` | [room-editor.js](../../../../web/room-editor.js) `open/saveRoom/remove/renderRoomRepresentativeOptions` | owner.room、参加者、代表、avatar。代表は選んだ参加者内。保存対象/bodyと再open後の結果所有を保持 |
-| Ownerプロフィール・規範 / `openOwnerDialog` | [owner-editor.js](../../../../web/owner-editor.js) `open/save/renderOwnerLinkRows/addOwnerLinkRow` | 開いたprofile、入力版、saving、avatar。profile PATCH→rules PUTは別要求。部分成功を表示し自動再発行しない |
+| Ownerプロフィール・規範 / `openOwnerDialog` | [owner-editor.js](../../../../web/owner-editor.js) `open/save/renderOwnerLinkRows/addOwnerLinkRow` | 開いたprofile、入力版、saving、avatar。プロフィールPATCHと規範PUTは別々のページの別々の「保存」。結果はそれぞれのボタンの隣に出し、自動再発行しない |
 | 任意機能・公式認証 / Owner.open | 同上 `refreshFeatures` → 既`renderFeatureSettings/renderHarnessAuth` | openごとの子DOM。closeでpassword欄を空にしauth pollを停止。閉じても公式認証状態そのものを取消さない。設定保存後callbackも開いたowner/read順を照合する。1Password連携の保存は、押下中ボタン「連携を確かめています…」＋カード内結果行（role=status）、結果はPATCH応答`{setting}`のstatus/error/connectionだけで書く（追加GET/新APIなし）。失敗理由はこの結果行に一度だけ（開いた時の失敗も同じ行、上の警告は出さない） |
 | 記憶・知識 / Bot editor→`onMemory` | [memory-view.js](../../../../web/memory-view.js) `open/write/search/renderResults` | 対象Bot、form別pending、resource別最新read。bodyとscopeを固定。保存後も新入力を消さず検索は同じ画面の最新結果だけ描く |
 | 予定 / `openScheduleDialog` | [schedule-editor.js](../../../../web/schedule-editor.js) `open/loadSchedules/saveSchedule/editSchedule/resetScheduleForm` | type/id/name/memberIds、editingSchedule、read/edit版。保存後GETと受付を分離。run/removeはrow作成時対象、2.5秒timerは表示だけ |
@@ -65,24 +65,27 @@ flowchart LR
 
 Source reach: `web/bot-read-views.js`, `web/index.html` (input container in the screen panel), `web/styles.css`, `test/bot-read-views.test.mjs`. `application.js` passes the new element only. No new guard: the busy state ends with the reply; hiding on 503 ends when the panel is reopened.
 
-## Ownerは二つの保存結果を区別する
+## Ownerのプロフィールと規範は別々に保存する
 
 ```mermaid
 flowchart TD
-  Read["同じ画面の規範GETが成功"] --> Input["プロフィールと規範の入力"]
-  Unread["規範GET待ち / 失敗"] --> Disabled["規範編集と保存は無効<br/>submitも発行しない"]
-  Input --> Snapshot["操作時の両方のbodyを固定"]
-  Snapshot --> Profile["プロフィールPATCH"]
-  Profile -->|"成功"| Header["appへ保存したプロフィールを返す"]
-  Header --> Rules["規範PUT"]
-  Rules -->|"成功"| Current{"同じ画面・同じ入力版か"}
-  Current -->|"はい"| Close["閉じる"]
-  Current -->|"いいえ"| Keep["新入力を残す"]
-  Rules -->|"失敗"| Partial["プロフィールは保存済み<br/>規範の失敗を表示"]
-  Profile -->|"失敗"| Failure["保存結果を確認できない<br/>再発行しない"]
+  Read["同じ画面の規範GETが成功"] --> RulesInput["規範の入力"]
+  Unread["規範GET待ち / 失敗"] --> Disabled["規範の編集と保存は無効<br/>submitも発行しない"]
+  ProfileInput["プロフィールの入力"] --> ProfileSave["プロフィールの「保存」<br/>bodyと入力版を固定"]
+  ProfileSave --> Profile["プロフィールPATCH"]
+  Profile -->|"成功"| Header["appへ保存したプロフィールを返す<br/>ボタンの隣に「保存しました。」"]
+  Header --> ProfileCurrent{"同じ画面・同じ入力版か"}
+  ProfileCurrent -->|"いいえ"| ProfileKeep["後から書いた入力を残す"]
+  Profile -->|"失敗"| ProfileFailure["カードの下に失敗を表示<br/>再発行しない"]
+  RulesInput --> RulesSave["規範の「保存」<br/>本文と入力版を固定"]
+  RulesSave --> Rules["規範PUT"]
+  Rules -->|"成功"| RulesCurrent{"同じ画面・同じ入力版か"}
+  RulesCurrent -->|"はい"| Reading["読む表示へ戻す"]
+  RulesCurrent -->|"いいえ"| RulesKeep["後から書いた入力を残す"]
+  Rules -->|"失敗"| RulesFailure["書いた内容を残して失敗を表示<br/>再発行しない"]
 ```
 
-`onOwner`はプロフィール保存応答を一覧ヘッダへ返す。後段の規範失敗をプロフィール未保存へ戻さない。HTTP応答が失われた場合は、サーバーに何も保存されていないとは断定しない。
+プロフィールと規範はそれぞれのページにあり、それぞれの「保存」が自分の要求を一つだけ出す。一方の成否は他方の表示に影響しない。どちらかの保存中は`saving`で両方の二重送信を止め、閉じる時は「保存処理中です」と聞く。`onOwner`はプロフィール保存応答を一覧ヘッダへ返す。HTTP応答が失われた場合は、サーバーに何も保存されていないとは断定しない。
 
 `open`は規範GET成功まで`rulesLoaded=false`。規範欄とform外の保存buttonを無効にし、`save`も未読なら発行しない。読取に成功した後で利用者が明示的に空にすることは許容する。close/reopen後の旧GETは適用しない。失敗後は利用者が閉じて開き直す。自動再送や別の規範storeは持たない。
 
@@ -93,8 +96,9 @@ flowchart TD
   Open["Owner編集を開く"] --> Initial["設定と接続状態を読む"]
   Initial --> Render["同じ画面なら初回フォーム描画"]
   Render --> Input["利用者が各機能を編集"]
-  Input --> Save["その機能の値と有効状態を固定<br/>秘密入力を消してPATCH一回"]
-  Save -->|"成功"| Read["開いた画面が同じなら設定GET"]
+  Input --> Save["その機能の値・有効状態・入力版を固定<br/>PATCH一回（応答まで閉じる時は保存処理中と聞く）"]
+  Save -->|"成功"| Clear["送った値のままの秘密入力だけ消す<br/>入力版が送った時のままなら未保存の印を消す"]
+  Clear --> Read["開いた画面が同じなら設定GET"]
   Read --> Check{"同じ画面で最新の読取か"}
   Check -->|"はい"| Status["状態・反映エラー・登録済み表示だけ更新<br/>新入力と他フォームは保持"]
   Check -->|"いいえ"| Ignore["旧結果と旧失敗を適用しない"]
@@ -105,7 +109,7 @@ flowchart TD
 
 `refreshFeatures(opened)`が同openの`featureRead`を持つ。`renderFeatureSettings`は初回だけ、以後は`refreshFeatureSettingsStatus`がタイトル・適用エラー・秘密の登録済みplaceholderだけを更新し、input.value/checkboxを変えない。SSEも同じ状態更新窓口へ入る。
 
-保存callbackは描いた時のopenedを捕まえる。古い画面の保存完了から新画面のGETを始めず、既に走ったGETも画面/read順を照合する。PATCHの成功後に表示取得だけ失敗した場合はその段階を表示する。Cloudflareの案内判断は送信時enabledを使い、後から変えたcheckboxには依存しない。秘密入力はsubmit/close/非表示で消し、自動再PATCHはしない。
+保存callbackは描いた時のopenedを捕まえる。古い画面の保存完了から新画面のGETを始めず、既に走ったGETも画面/read順を照合する。PATCHの成功後に表示取得だけ失敗した場合はその段階を表示する。Cloudflareの案内判断は送信時enabledを使い、後から変えたcheckboxには依存しない。秘密入力は保存の成功後（送った値のままの欄だけ）・close・非表示で消し、自動再PATCHはしない。応答を待つ間も入力欄は編集でき、送った後に書いた値と未保存の印は残る（`form[data-saving]`が保存中、`form[data-dirty]`が未保存）。
 
 ### 全体の仕事要約agent
 
