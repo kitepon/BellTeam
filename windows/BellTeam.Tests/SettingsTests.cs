@@ -87,8 +87,10 @@ public sealed class SettingsTests
     [Fact]
     public void CategoryListMatchesTheMacOrderAndWording()
     {
-        Assert.Equal(["AIの設定", "追加機能", "通知", "接続", "表示", "利用と課金", "アップデート", "このアプリについて", "全体停止"], SettingsPageInfo.Groups.SelectMany(group => group).Select(SettingsPageInfo.Title));
-        Assert.Equal([3, 2, 3, 1], SettingsPageInfo.Groups.Select(group => group.Length)); Assert.Equal("プロフィール", SettingsPageInfo.Title(SettingsPage.Profile));
+        Assert.Equal(["AIの設定", "端末", "追加機能", "通知", "接続", "表示", "利用と課金", "アップデート", "このアプリについて", "全体停止"], SettingsPageInfo.Groups.SelectMany(group => group).Select(SettingsPageInfo.Title));
+        Assert.Equal([4, 2, 3, 1], SettingsPageInfo.Groups.Select(group => group.Length)); Assert.Equal("プロフィール", SettingsPageInfo.Title(SettingsPage.Profile));
         Assert.Equal("全員のAIの動作をまとめて止める", SettingsPageInfo.Detail(SettingsPage.Stop));
+        // 端末 follows AIの設定 and names no OS (the Mac's line says Mac; terminals are Mac, Windows PC and Linux).
+        Assert.Equal(("端末", "メンバーの席を動かす端末と、その鍵"), (SettingsPageInfo.Title(SettingsPage.Terminals), SettingsPageInfo.Detail(SettingsPage.Terminals)));
     }
 }

@@ -38,7 +38,7 @@ public abstract class EditorFormView : Grid, ISheetSave, IDisposable
     public virtual bool CanClose => !busy;
     protected virtual bool SaveBlocked => false;
     public virtual string CloseLabel => "キャンセル";
-    public string SaveLabel => "保存";
+    public virtual string SaveLabel => "保存";
     public abstract Task SaveAsync();
     protected void Notify() => CanSaveChanged?.Invoke();
 

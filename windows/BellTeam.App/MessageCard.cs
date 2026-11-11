@@ -123,7 +123,7 @@ public sealed class MessageCard : ContentControl
         if (message.OwnerQuestion is { } ownerQuestion) question?.Update(ownerQuestion, BotName(ownerQuestion.BotId, message));
     }
     // Mac cards name the asking bot by its id, not by who the timeline says sent it.
-    private string BotName(string botId, TimelineMessage message) => Workspace.Bots.FirstOrDefault(bot => bot.Id == botId)?.Name ?? message.Sender?.Title ?? Author;
+    private string BotName(string? botId, TimelineMessage message) => Workspace.Bots.FirstOrDefault(bot => bot.Id == botId)?.Name ?? message.Sender?.Title ?? Author;
 
     private void BuildRow(TimelineMessage message)
     {

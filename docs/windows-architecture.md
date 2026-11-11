@@ -39,15 +39,19 @@ flowchart LR
   Detail --> Inspector[詳細パネル Ctrl+Shift+I<br/>メンバー: 大画像と小画像・AIと操作（再起動は待つ間「再起動しています…」）・プロフィール・メンバーを編集<br/>ルーム: 共有する仕事・参加メンバー・ルームを編集]
   Inspector --> Screen[Botの画面<br/>1秒ごと・キーバー・許可の帯]
   subgraph Settings[設定 項目一覧300＋ページ]
-    S1[プロフィール] --- S2[AIの設定<br/>AIの認証・仕事の要約を書くAI] --- S3[追加機能<br/>onePassword行はバッジ・平易な失敗の文<br/>1Password連携のページ] --- S4[通知<br/>起動中の通知の切替]
+    S1[プロフィール] --- S2[AIの設定<br/>AIの認証・仕事の要約を書くAI] --- ST[端末 16a<br/>一覧・追加・旧本体の一行・詳細（接続先・確認結果・ホスト鍵・鍵の行・C8・登録を消す）] --- S3[追加機能<br/>onePassword行はバッジ・平易な失敗の文<br/>1Password連携のページ] --- S4[通知<br/>起動中の通知の切替]
     S5[接続] --- S6[表示<br/>会話の開き方]
     S7[利用と課金<br/>案内とリンク] --- S8[アップデート] --- S9[このアプリについて]
     S10[全体停止]
   end
   subgraph Sheets[主窓に重ねるシート 720×540〜820×680]
     MemberSheet[メンバーを追加] --- RoomSheet[ルームを作る・編集] --- GoalSheet[ゴールの編集] --- ScheduleSheet[予定の追加・編集]
-    ImageSheet[小画像・大画像の操作] --- Crop[切り抜き 680×520] --- PeerSheet[メンバー間の連絡] --- SecretSheet[秘密の入力<br/>会話のカードから開くモーダル窓 720幅]
+    ImageSheet[小画像・大画像の操作] --- Crop[切り抜き 680×520] --- PeerSheet[メンバー間の連絡] --- SecretSheet[秘密の入力<br/>会話のカードと端末の鍵から開くモーダル窓 720幅]
+    TerminalSheet[端末を追加・編集 16a<br/>ID・ホスト・ユーザー・ポート・OS・持ち主] --- HostKeySheet[ホスト鍵 16a<br/>端末で読んだ指紋を入れる]
   end
+  ST -->|端末を追加・編集| TerminalSheet
+  ST -->|詳細「ほかの方法」| HostKeySheet
+  ST -->|鍵の「設定する」「設定し直す」・「この端末にこの鍵を入れる」| SecretSheet
   Inspector -->|メンバーを編集| MemberWindow[メンバー編集の別窓 1120×900]
   Conversation --> Gallery[画像の閲覧<br/>主窓いっぱいの黒い覆い・×・n / N・‹ ›・64のサムネイル]
   Conversation --> Corner[窓の右上の紫の丸いボタン<br/>詳細パネル・会話を書き出す]
@@ -88,6 +92,7 @@ flowchart LR
     A7[Update]
     A8[相関図の窓<br/>WorkGraphWindow・WorkGraphCanvas・WorkGraphText<br/>毎フレームの描画・入力・読み上げ。状態は持たない]
     A9[秘密の入力の窓 14<br/>SecretInputWindow（会話のカードから開くモーダル）<br/>1Passwordから選ぶ・読み出す / ここに入力する・貼り付ける<br/>一回だけの値（1Passwordを出さない・ログインは「パスワードを渡す」、ほかは「渡して続ける」）・検索欄・一覧<br/>欄は送信・閉じる・窓が非アクティブで消す]
+    A10[設定の「端末」 16a<br/>TerminalListView・TerminalDetailView・TerminalEditorView・HostKeyView<br/>描くだけ。状態はTerminalsModelが持つ]
   end
   subgraph Core[BellTeam.Core 通信とモデル]
     C1[Workspace・BellApi<br/>一覧・会話・送信・SSE<br/>メンバーのseatLaunch・configurationApplicationと行のseatは寛容に読む（不正な型は無しとして扱い、一覧・履歴を壊さない）]
@@ -101,6 +106,7 @@ flowchart LR
     C7[UpdateCenter]
     C8[LocalSettings<br/>接続先・窓・通知・会話の開き方・要求ID]
     C11[SecretRequestApi・SecretInputModel 14<br/>inputOptions・oneTimeは寛容に読む（型違いは無し）<br/>onepassword-items（404は旧本体）・検索と絞り込み・文言・送信の本文]
+    C12[TerminalsApi・TerminalsModel 16a<br/>端末は寛容に読む（新しい項目は省略可）・一覧の状態（未読込・対応・旧本体・失敗＋前の一覧）<br/>確かめ結果・鍵の導入の待ち（上限なし・1秒間隔）はこのアプリの中だけ<br/>理由の文・OSごとの文（Mac・Windows PC・Linuxマシン）・端末の入力の検査・指紋の形・エラー符号の文]
   end
   A1 --> C1
   A2 --> C1
@@ -115,6 +121,9 @@ flowchart LR
   A8 --> C10
   A2 -->|"秘密のカード「安全な入力欄を開く」"| A9
   A9 --> C11
+  A6 --> A10
+  A10 --> C12
+  A10 -->|"鍵の依頼（botId:null）を窓へ渡す"| A9
   A8 -->|"アバター（既存の画像キャッシュ）"| C1
   C1 -->|"/api/session・bots（currentWork・seatLaunch・configurationApplication）・rooms・messages（seat）・queue・events"| API[共通入口 HTTP API・SSE]
   C2 -->|"/api/bots・rooms・avatar・avatar-large・export・restart（応答は新しい席が立ってから。要求の待ちは180秒、再送しない）・stop・models（display_name。選ぶ値と保存する値はid）"| API
@@ -126,6 +135,7 @@ flowchart LR
   C9 -->|"GET /api/accounts（404は旧本体。上限だけで席のアカウントが決まり、設定する規則は無い）"| API
   C10 -->|"GET /api/work-graph/events（BellApi.WorkGraphEventsAsync。snapshot・changeの名前付きイベント。35秒無音・切断・読めない応答は再接続、404は60秒ごとに確かめ直す、ログインが必要なら止まる）"| API
   C11 -->|"GET /api/secret-requests/{id}/onepassword-items（{items:[{title,vault,reference}]}。404は旧本体で入力欄だけ）・POST …/submit（{value}か{source:onepassword,reference}。op://で始まらない参照は送らない）・POST …/cancel（{}）。値は専用POSTだけで、一般の欄・ログ・例外へ出さない"| API
+  C12 -->|"GET /api/terminals（404・405は旧本体、503 TERMINALS_UNAVAILABLEは失敗で前の一覧は残す）・GET・PUT・DELETE /api/terminals/{id}（PUTは登録・編集とconfirmHostKey）・POST …/check・POST・DELETE …/keys/{ssh,sudo}（本文は空）・POST …/keys/ssh/authorize（本文は空）。書き込みは自動で再送しない"| API
 ```
 
 - 状態の所有：会話・メンバー・予定・ゴール・追加機能・全体停止など本体の状態は、共通入口のAPIだけで読み書きする。Windowsが持つのは、このPCの設定（接続先・窓・起動中の通知・会話の開き方・Updateの要求ID）とログイン情報だけ。
@@ -135,25 +145,24 @@ flowchart LR
 - メンバーの状態の行（W-MAC 17）：Coreは`/api/bots`の`seatLaunch`・`configurationApplication`と`messages`の`seat`を、型の違う値を「無し」として読む（`MemberState.cs`）。画面は、サイドバーの行と会話の上端に赤い「端末で起動できません：…」、メンバー編集の「AI」の最後に状態の印付きの1行、時刻の前の「分身」の札を出す。モデル候補は`display_name`（空ならid）を見せ、選ぶ値と保存する値はid。再起動は1回だけ送り、待ちは180秒。新しい状態の保存は無い。
 - 1Password連携の設定（W-MAC 15）：追加機能の一覧の`onePassword`行に状態のバッジ（連携中・未連携・失敗）と平易な失敗の文を出し、開くと専用のページ（`SettingsOnePassword.cs`）になる。状態・結果の一行・`ops_`の検査・https限定の案内リンクはCoreの`OnePassword.cs`。`guide`・`connection`は型の違う値を「無し」として読み、旧本体・崩れた本体でも一覧を壊さない（`onePassword`項目が無ければ何も足さない）。tokenは`PasswordBox`で、保存後も戻さず、ページを離れる・窓が非アクティブになる時に消す。保存は`PATCH /api/settings/onePassword`を1回だけ送り（自動再送なし）、応答の`setting`だけで結果の一行を決め、成功後に一覧を読み直してバッジを更新する。
 - 秘密の入力の窓（W-MAC 14）：`inputOptions.onePasswordAvailable`の時だけ入力方法を出し、1Passwordを上・既定にする（`preferred:'stored'`なら入力側が既定）。言い方は値の出どころだけを言う（1Passwordから選ぶ／読み出す、ここに入力する／貼り付ける）。保存するかどうかは欄の下の注意文だけが言う。`terminal.login`と`oneTime`は1Passwordを出さず、送信はログインが「パスワードを渡す」（Macと同じ）、`oneTime`が「渡して続ける」。`terminal.ssh`・`terminal.sudo`は`onepassword-items`の一覧から選ぶ（sudoは`/password`で終わる参照だけ。検索欄は題名・保管庫名、選択が外れたら解除）。`terminal.ssh`の入力は改行を保つ複数行の欄。値の欄と選択は、送信の直前・閉じた時・窓が非アクティブになった時に消す。検索語は秘密でなく送らない。状態と文言は`SecretInputModel`（Core）、窓は描くだけ。
+- 設定の「端末」（W-MAC 16a。契約は[terminals](architecture/modules/terminals/README.md)、Macは[apple/terminals](architecture/modules/apple/terminals.md)）：一覧は`GET /api/terminals`で、404・405（旧本体）は一行の案内、503 `TERMINALS_UNAVAILABLE`などの失敗は理由と「もう一度読み込む」で、読めていた一覧がある間は一覧を残して一行の注意だけを足す。詳細は接続先・確認結果・ホスト鍵・鍵・Claude Codeの更新（C8）・登録を消す。確認結果の理由の文（`CONNECTION_REFUSED`・`AUTH_FAILED`・`UNREACHABLE`ほか）はサーバーの`action`があればそれを、無ければOSごとの文（Mac・Windows PC・Linuxマシン）を出す。「ホスト鍵を確かめる」は確認結果がホスト鍵の理由の時だけ「ほかの方法」の中に出し、指紋は`SHA256:`＋43文字で検査して`PUT /api/terminals/{id} {confirmHostKey}`（Macの手入力のシートと同じ。`POST …/trust`は16cの自分のホスト鍵の確かめ）で送る。鍵の行（SSH鍵・sudo鍵。sudo鍵は`os`がwindowsの端末では出さない）は`POST・DELETE …/keys/{ssh,sudo}`（本文は空）で、返った依頼（`botId:null`）を秘密の入力の窓で開く。`AUTH_FAILED`の「この端末にこの鍵を入れる」は`POST …/keys/ssh/authorize`（本文は空）→`terminal.login`の窓→`GET /api/terminals/{id}`を1秒ごと（上限なし。詳細を離れると止める）→結果の文、鍵が入ったら確かめを自動で1回。確かめ結果と導入の待ちはこのアプリの中だけで、`Workspace.Terminals`が接続ごとに持ち、つなぎ直し（接続先の変更を含む）とログアウトで空に戻す。書き込み（PUT・DELETE・POST）は自動で再送しない。
 
 ### Macの追従で足す部分（2026-11-11、作る前の図）
 
-[差分一覧](windows-mac-parity-gaps.md)の「Macの追従」14〜19の置き場所（14は上の図へ移した）。各PRがこの図に沿って足し、作り終えたら上の図へ移す。
+[差分一覧](windows-mac-parity-gaps.md)の「Macの追従」14〜19の置き場所（14・16aは上の図へ移した）。各PRがこの図に沿って足し、作り終えたら上の図へ移す。
 
 ```mermaid
 flowchart LR
   subgraph AppNew[BellTeam.App]
-    N4[設定 端末 16a<br/>一覧・詳細・編集・ホスト鍵・鍵の行・理由の文・鍵の導入<br/>鍵の設定は導入済みの秘密の入力の窓（14）を使う]
     N5[メンバー編集 端末とフォルダ 16b<br/>フォルダ選びのシート]
     N6[このPCを追加 16c<br/>S1・S2のWindows版。細部はクラストと決める]
   end
   subgraph CoreNew[BellTeam.Core]
-    W3[TerminalsApi 16<br/>端末・確かめ・鍵・フォルダ]
+    W3[TerminalsApiへ足す 16b・16c<br/>folders・folder（16b）・trust（16c）。一覧・登録・確かめ・鍵は16aで作った（上の図のC12）]
   end
-  N4 --> W3
   N5 --> W3
   N6 --> W3
-  W3 -->|"/api/terminals*（ingress RS09/RS12：一覧・登録・確かめ・trust・keys/{ssh,sudo}・keys/ssh/authorize・folders・folder）"| APIx
+  W3 -->|"/api/terminals*（ingress RS09/RS12：trust・folders・folder）"| APIx
 ```
 
 - 端末と鍵の値はこのPCに置かない。鍵・パスワードは秘密の入力カードから本体へ送るだけで、一般の欄やログへ書かない。

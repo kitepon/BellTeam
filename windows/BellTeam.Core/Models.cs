@@ -105,11 +105,13 @@ public sealed record TimelineMessage
 public sealed record SecretRequest
 {
     public required string Id { get; init; }
-    public required string BotId { get; init; }
-    public required string ToolId { get; init; }
+    // Null for an Owner terminal-key request (terminals #811), which has no Bot sender.
+    public string? BotId { get; init; }
+    // The keys route names only {id, label, inputOptions}; the rest defaults for that minimal body (as the Mac does).
+    public string ToolId { get; init; } = "";
     public required string Label { get; init; }
-    public required string Message { get; init; }
-    public required string Status { get; init; }
+    public string Message { get; init; } = "";
+    public string Status { get; init; } = "pending";
     public string? Notification { get; init; }
     // usage secret-credentials: `terminal.ssh` | `terminal.sudo` | `terminal.login` for a terminal key; absent for a Bot request.
     public string? Purpose { get; init; }

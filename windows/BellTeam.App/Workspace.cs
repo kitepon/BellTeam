@@ -85,6 +85,9 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     public ManagementApi Management => new(api ?? throw new BellApiException("接続先を設定してください。"));
     public PlanningApi Planning => new(api ?? throw new BellApiException("接続先を設定してください。"));
     public GoalsApi Goals => new(api ?? throw new BellApiException("接続先を設定してください。"));
+    // 端末 (16a): the registry as last read and the check results live for one connection, as on the Mac (empty after a reconnect and a sign-out).
+    private TerminalsModel? terminals;
+    public TerminalsModel Terminals => terminals ??= new(new TerminalsApi(api ?? throw new BellApiException("接続先を設定してください。")));
     public event Action? ServerChanged;
     // The member and room lists were just read again (an open editor checks whether its member is gone).
     public event Action? RosterChanged;
@@ -190,6 +193,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
         api?.Dispose();
         connection?.Dispose();
         api = apiFactory(origin);
+        terminals = null;
         avatars.Clear();
         connection = new CancellationTokenSource();
         selected = null; stoppingBotId = null; stopResult = null; loadFailed = false; routingEnabled = null;
@@ -657,7 +661,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     public async Task ReconnectAsync() { if (api is not null) await ConnectAsync(Server); }
     public void SignOut()
     {
-        connection?.Cancel(); selection?.Cancel(); ReturnToProfile(); ready = false; selected = null; stoppingBotId = null; stopResult = null; loadFailed = false; routingEnabled = null;
+        connection?.Cancel(); selection?.Cancel(); ReturnToProfile(); ready = false; selected = null; stoppingBotId = null; stopResult = null; loadFailed = false; routingEnabled = null; terminals = null;
         all.Clear(); queue = []; Entries.Clear(); Messages.Clear(); ReplyMembers.Clear(); drafts.Clear(); pendingSends.Clear(); attachmentPreviews.Clear(); avatars.Clear(); OwnerName = "あなた"; AccountsBanner = ""; Changed(nameof(AccountsBanner));
         HasMore = false; Loading = false; ConnectionError = ActionError = null; NeedsLogin = AuthMode == "cloudflare"; ConnectionStatus = "ログアウトしました。";
         foreach (var name in new[] { nameof(Connected), nameof(Selected), nameof(HasSelection), nameof(IsRoom), nameof(Title), nameof(Profile), nameof(OwnerName), nameof(OnlineSummary), nameof(ActivityText), nameof(HasActivity), nameof(ActivityRows), nameof(StopEnabled), nameof(CurrentBotCanStop), nameof(StopResult), nameof(LoadFailed), nameof(RoutingEnabled), nameof(ReplyTargetLabel), nameof(CanShowScreen) }) Changed(name);
