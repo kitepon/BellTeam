@@ -76,7 +76,7 @@ export function createConversationParentChannel(child, { generation, admission, 
     validateConversationEffect(method, params, record.context)
     const rootMethod = (record.root ?? record).method
     const allowed = {
-      'execution.notify': ['direct.post', 'room.post', 'room.reply', 'delivery.resume', 'call.receive', 'fork.ask'],
+      'execution.notify': ['direct.post', 'room.post', 'room.reply', 'delivery.resume', 'call.receive', 'fork.ask', 'fork.sweep'],
       'execution.fork': ['fork.ask'],
       'execution.turn': ['user.post', 'user.turn'],
       'execution.reconcile': ['delivery.resume'], 'execution.closeLaunch': ['delivery.closeLaunch'],

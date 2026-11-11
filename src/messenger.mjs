@@ -32,6 +32,8 @@ export class BellTeamMessenger extends ConversationWriter {
     this.requireAccess = requireAccess
     this.admitWork = admitWork
     this.store = store
+    // fork-inquiry.md "Owed notice": inquiries whose ONE notice this process holds (live) or still owes (owed).
+    this.forkNotices = { live: new Set(), owed: new Map(), scanned: false }
     this.claimedReplyIds = new Set()
   }
 
@@ -104,8 +106,9 @@ export class BellTeamMessenger extends ConversationWriter {
     const prepared = await this.prepareDirect({ from, target, message }, {}, { seat, ...(fromSeat ? { from_seat: fromSeat } : {}) })
     const { check, bot, deliveryId } = prepared
     const asker = memberIdentity(this.bots, from)
+    if (!fromSeat) this.forkNotices.live.add(deliveryId)
     try { check() }
-    catch (error) { await this.appendDeliveryStatus(deliveryId, 'stopped'); throw error }
+    catch (error) { this.forkNotices.live.delete(deliveryId); await this.appendDeliveryStatus(deliveryId, 'stopped'); throw error }
     const acceptance = Promise.withResolvers()
     const answered = Promise.withResolvers()
     let relayed = false
@@ -116,9 +119,15 @@ export class BellTeamMessenger extends ConversationWriter {
       if (relayed) return
       relayed = true
       if (fromSeat) return answered.resolve(text)
+      const notice = { from: bot.id, target: from, message: text, forkId, deliveryId }
       return acceptance.promise
-        .then(accepted => accepted && this.relayForkAnswer({ from: bot.id, target: from, message: text, forkId, deliveryId }))
-        .catch(error => process.stderr.write(`BellTeam fork relay error: ${error.stack ?? error.message}\n`))
+        .then(accepted => accepted && this.relayForkAnswer(notice))
+        .then(() => this.forkNotices.live.delete(deliveryId), error => {
+          // The notice stays owed; the next fork.sweep relays it.
+          this.forkNotices.live.delete(deliveryId)
+          this.forkNotices.owed.set(deliveryId, notice)
+          process.stderr.write(`BellTeam fork relay error: ${error.stack ?? error.message}\n`)
+        })
     }
     // turn-endは登録しない。報告依頼は本体の席へ届き、本体を中断するため。回答が無い時はdeliveredで知らせる（回答はdeliveredより先に届く）。
     // 分身の途中経過と回答も宛先の会話へ残し、分身の印を付ける。
@@ -143,9 +152,32 @@ export class BellTeamMessenger extends ConversationWriter {
       return { delivery: result?.delivery ?? 'running', ...receipt }
     } catch (error) {
       acceptance.resolve(false)
+      this.forkNotices.live.delete(deliveryId)
       await this.appendDeliveryStatus(deliveryId, ['BOT_STOPPED', 'AI_GLOBAL_PAUSED'].includes(error.code) ? 'stopped' : 'failed', error)
       throw error
     }
+  }
+
+  // fork-inquiry.md "Owed notice": relay each owed notice once; the first sweep of a process also scans the log.
+  async sweepForkNotices() {
+    const notices = this.forkNotices
+    if (!notices.scanned) {
+      for (const notice of owedForkNotices(await this.store.entries()))
+        if (!notices.live.has(notice.deliveryId) && !notices.owed.has(notice.deliveryId)) notices.owed.set(notice.deliveryId, notice)
+      notices.scanned = true
+    }
+    let relayed = 0
+    for (const [deliveryId, notice] of [...notices.owed]) {
+      try {
+        await this.relayForkAnswer(notice)
+        notices.owed.delete(deliveryId); relayed++
+      } catch (error) {
+        // A deleted Bot can never be told; any other refusal is retried on the next sweep.
+        if (/^(SENDER|BOT)_NOT_FOUND/u.test(error.message ?? '')) notices.owed.delete(deliveryId)
+        else process.stderr.write(`BellTeam fork sweep error: ${error.code ?? String(error.message).split(':')[0]}\n`)
+      }
+    }
+    return { relayed, owed: notices.owed.size }
   }
 
   async relayForkAnswer({ from, target, message, forkId, deliveryId }) {
@@ -353,4 +385,24 @@ function validateImage(image) {
   if (typeof image.path === 'string' && image.path.length > 0) return
   if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(image.mime)) throw new Error('IMAGE_INVALID')
   if (typeof image.data !== 'string' || !/^[a-z0-9+/=]+$/iu.test(image.data)) throw new Error('IMAGE_INVALID')
+}
+
+// An inquiry with a main asker and no relay row owes its notice. A post-accept failure keeps no FORK_FAILED code
+// in the log, so `failed`/`stopped` rows are left to the live process (they look like a refusal before accept).
+export function owedForkNotices(entries) {
+  const relayed = new Set(), answers = new Map(), owed = []
+  for (const entry of entries) {
+    if (entry.schema === 'bellteam.direct-message.v1' && typeof entry.in_reply_to === 'string') relayed.add(entry.in_reply_to)
+    if (entry.schema === 'bellteam.interim-word.v1' && entry.kind === 'answer' && entry.seat?.kind === 'fork') answers.set(entry.group_id, entry.text)
+  }
+  for (const entry of entries) {
+    if (entry.schema !== 'bellteam.direct-message.v1' || entry.seat?.kind !== 'fork' || entry.in_reply_to || entry.from_seat
+      || relayed.has(entry.delivery_id)) continue
+    const answer = answers.get(entry.delivery_id)
+    const message = answer !== undefined ? (answer.trim() ? answer : 'FORK_FAILED: NO_ANSWER')
+      : entry.delivery === 'delivered' ? 'FORK_FAILED: NO_ANSWER'
+        : ['running', 'steered'].includes(entry.delivery) ? 'FORK_FAILED: INTERRUPTED' : null
+    if (message) owed.push({ from: entry.target, target: entry.from, message, forkId: entry.seat.fork_id, deliveryId: entry.delivery_id })
+  }
+  return owed
 }

@@ -120,5 +120,6 @@ export function createConversationFacade({ getController, context }) {
       : invoke('room.post', { from: input.from, room: input.room, message: input.message, images: images(input), ...pick(input, ['targets', 'kind', 'schedule']) }, options) },
     assets: { save: (input, options) => invoke('assets.save', input, options), saveAll: (input, options) => invoke('assets.saveAll', input, options) },
     selfTurns: { poll: options => invoke('observation.poll', {}, options) },
+    sweepForks: options => invoke('fork.sweep', {}, options),
   }
 }

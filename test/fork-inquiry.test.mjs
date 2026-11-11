@@ -140,3 +140,50 @@ test('sendmessage from a fork seat keeps its receipt and labels the record and e
   assert.deepEqual(row.from_seat, { kind: 'fork', fork_id: 'f-asker' })
   assert.equal(row.seat, undefined)
 })
+
+test('a failed relay stays owed and the next fork.sweep relays it once (fork-inquiry Owed notice)', async t => {
+  let callbacks, refuse = true
+  const { messenger, notified } = await setup(t, async (bot, text, options) => { callbacks = options; return { delivery: 'running' } })
+  const notify = messenger.transport.notify
+  messenger.transport.notify = async (...args) => { if (refuse) throw Object.assign(new Error('AI_GLOBAL_PAUSED'), { code: 'AI_GLOBAL_PAUSED' }); return notify(...args) }
+  await messenger.askReadonly({ from: asker.id, target: owner.id, message: 'Q' })
+  await callbacks.onAnswer('A.')
+  await settle()
+  assert.equal(notified.length, 0)
+  assert.equal(messenger.forkNotices.owed.size, 1)
+  assert.deepEqual(await messenger.sweepForkNotices(), { relayed: 0, owed: 1 }, 'still refused: kept for the next sweep')
+  refuse = false
+  assert.deepEqual(await messenger.sweepForkNotices(), { relayed: 1, owed: 0 })
+  assert.deepEqual(await messenger.sweepForkNotices(), { relayed: 0, owed: 0 })
+  assert.equal(notified.length, 1)
+  assert.match(notified[0].text, /「Owner Bot（分身）」からあなたへ次のメッセージが届いています。\n\nA\.$/)
+})
+
+test('a new process sweeps inquiries the lost one left: saved answer, interrupted, never a refusal or a fork asker', async t => {
+  const callbacks = []
+  const first = await setup(t, async (bot, text, options) => { callbacks.push(options); return { delivery: 'running' } })
+  await first.messenger.askReadonly({ from: asker.id, target: owner.id, message: 'answered, relay lost' })
+  const access = first.messenger.requireAccess
+  first.messenger.requireAccess = async () => { throw new Error('AI_GLOBAL_PAUSED') } // the relay fails before its row; the process is then lost
+  await callbacks[0].onAnswer('Saved answer.')
+  await settle()
+  first.messenger.requireAccess = access
+  await first.messenger.askReadonly({ from: asker.id, target: owner.id, message: 'still running' })
+  void first.messenger.askReadonly({ from: asker.id, target: owner.id, message: 'fork asker', askerSeat: { kind: 'fork', forkId: 'f-1' } }) // waits for its answer (tool result)
+  await settle()
+  first.messenger.transport.forkInquiry = async () => { throw Object.assign(new Error('FORK_UNAVAILABLE'), { code: 'FORK_UNAVAILABLE', status: 503 }) }
+  await assert.rejects(first.messenger.askReadonly({ from: asker.id, target: owner.id, message: 'refused' }), { code: 'FORK_UNAVAILABLE' })
+  first.notified.length = 0
+  // Same log, new process: a fresh messenger knows nothing in memory.
+  const { BellTeamMessenger: Messenger } = await import('../src/messenger.mjs')
+  const notified = []
+  const second = new Messenger({ bots: first.messenger.bots, logPath: first.messenger.store.logPath, deliveryId: (() => { let n = 100; return () => `id-${++n}` })(),
+    transport: { async notify(bot, text) { notified.push({ bot: bot.id, text }); return { delivery: 'running' } } } })
+  assert.deepEqual(await second.sweepForkNotices(), { relayed: 2, owed: 0 })
+  assert.deepEqual(notified.map(item => item.text.split('\n\n').at(-1)).sort(), ['FORK_FAILED: INTERRUPTED', 'Saved answer.'])
+  assert.ok(notified.every(item => item.bot === asker.id))
+  assert.deepEqual(await second.sweepForkNotices(), { relayed: 0, owed: 0 })
+  // A third process sees the relay rows and owes nothing.
+  const third = new Messenger({ bots: first.messenger.bots, logPath: first.messenger.store.logPath, transport: { notify: () => assert.fail('nothing owed') } })
+  assert.deepEqual(await third.sweepForkNotices(), { relayed: 0, owed: 0 })
+})

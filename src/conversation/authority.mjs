@@ -11,7 +11,7 @@ export const CONVERSATION_ACTOR_METHODS = Object.freeze({
   bridge: Object.freeze(['call.receive']),
   onboarding: Object.freeze(['user.post', 'user.turn']),
   usage: Object.freeze(['user.post']),
-  observer: Object.freeze(['observation.poll', 'display.words']),
+  observer: Object.freeze(['observation.poll', 'fork.sweep', 'display.words']),
 })
 export const CONVERSATION_PARENT_METHODS = Object.freeze(['assets.open', 'history.export'])
 export const CONVERSATION_ROOT_METHODS = Object.freeze([...new Set(Object.values(CONVERSATION_ACTOR_METHODS).flat())]
