@@ -1003,7 +1003,7 @@ export class AitermTransport {
         if (!followed) {
           if (parent) await parent.completion
           await job.checkpoint()
-          await onStatus?.('delivered')
+          await onStatus?.('delivered', null, null, { steered: true })
           return { delivery: 'steered' }
         }
         const completion = await this.waitForTurnCompletion(job, delivery, onInterim, job.nativeCompletion)
@@ -1016,7 +1016,7 @@ export class AitermTransport {
         if (steered && completion.steer?.placement !== 'next_turn') {
           await follower?.completion.catch(() => {})
           await job.checkpoint()
-          await onStatus?.('delivered')
+          await onStatus?.('delivered', null, null, { steered: true })
           return { delivery: 'steered' }
         }
         // ここから先は、この文が始めたターン（前のターンが終わった後で新しいターンになった差し込みも含む）。
