@@ -201,6 +201,30 @@ struct Member: Decodable, Identifiable, Equatable {
 struct Delivery: Decodable, Equatable {
     let target: String
     let delivery: String
+    /// Optional per-participant evidence of an accepted-but-untracked delivery (conversation delivery.md "受付済みの追跡中断").
+    var deliveryTracking: DeliveryTracking? = nil
+}
+
+/// Optional `deliveryTracking` of a failed delivery. Decoding never throws: a wrong type or a missing field leaves the
+/// fields nil, so a malformed value can never break the timeline and never counts as `isAcceptedCompletionUnknown`.
+struct DeliveryTracking: Decodable, Equatable {
+    let schema: String?
+    let admission: String?
+    let completion: String?
+
+    private enum CodingKeys: String, CodingKey { case schema, admission, completion }
+
+    init(from decoder: Decoder) {
+        let container = try? decoder.container(keyedBy: CodingKeys.self)
+        schema = (try? container?.decodeIfPresent(String.self, forKey: .schema)) ?? nil
+        admission = (try? container?.decodeIfPresent(String.self, forKey: .admission)) ?? nil
+        completion = (try? container?.decodeIfPresent(String.self, forKey: .completion)) ?? nil
+    }
+
+    /// Only the exact known tuple counts; anything else keeps the ordinary failure display.
+    var isAcceptedCompletionUnknown: Bool {
+        schema == "bellteam.delivery-tracking.v1" && admission == "accepted" && completion == "unknown"
+    }
 }
 
 struct RecentMessage: Decodable, Equatable {
@@ -238,6 +262,8 @@ struct TimelineMessage: Decodable, Identifiable, Equatable {
     let ownerQuestion: OwnerQuestion?
     /// conversation fork-inquiry.md "Records and display". Absent on the main seat and on old bodies.
     var seat: MessageSeat? = nil
+    /// Direct rows only. A room row never reads a top-level value; its evidence is `deliveries[i].deliveryTracking`.
+    var deliveryTracking: DeliveryTracking? = nil
 
     var isOutgoing: Bool { direction == "outgoing" || sender?.id == "user" }
     var isFork: Bool { seat?.kind == "fork" }
@@ -252,6 +278,14 @@ struct TimelineMessage: Decodable, Identifiable, Equatable {
         if values.contains("queued") { return "queued" }
         if values.contains("stopped") { return "stopped" }
         return values.isEmpty ? nil : "delivered"
+    }
+    /// web conversation.md "受付後の追跡故障を未達へ読み替えない": a failed delivery the seat accepted whose completion is unknown.
+    /// Direct row: its own tuple. Room row: routing not failed and every failed participant carries the tuple.
+    var completionUnknown: Bool {
+        if routing?.status == "failed" { return false }
+        if let delivery { return delivery == "failed" && deliveryTracking?.isAcceptedCompletionUnknown == true }
+        let failures = deliveries?.filter { $0.delivery == "failed" } ?? []
+        return !failures.isEmpty && failures.allSatisfy { $0.deliveryTracking?.isAcceptedCompletionUnknown == true }
     }
 }
 

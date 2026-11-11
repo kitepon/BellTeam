@@ -120,7 +120,32 @@ flowchart TD
 
 [BackgroundMessageSend](../../../../ios/BellBot/BellBot/Core/BackgroundMessageSend.swift#L5)はOSの実行時間が取れなければoperation taskをcancelしbackgroundSendUnavailable。期限通知ではexpiredを立ててcancelし即時finish、エラーをbackgroundSendExpiredにする。caller取消も子taskへ伝える。通常終了・失敗のdeferもfinishを通り、identifierをinvalidにして二重終了を避ける。
 
-表示するstatusはoutgoingだけ：submitting=受付確認中、accepted=受付済み・反映待ち、queued=送信待ち、running=処理中、stopped=中断、delivered=配達済み、failed=配達失敗（赤）。これらの履歴値からAIの依頼全体の完了は判定しない。status集約はrouting.failedを最優先、直接deliveryがあればその値、複数deliveriesはfailed→running→queued→stoppedの順、それ以外の非空集合はdeliveredとなる。queueは`QueueItem.displayItems`の表示用整理を通し（差し込まれた配送`steered:true`は実行中ターンの「処理中」1行にまとめる）、ルームのrouting pending/failed/readyは返信者判定文言へ変換する。
+表示するstatusはoutgoingだけ：submitting=受付確認中、accepted=受付済み・反映待ち、queued=送信待ち、running=処理中、stopped=中断、delivered=配達済み、failed=配達失敗（赤）。ただし`TimelineMessage.completionUnknown`が真のfailedは中立表示（下の「受付後の追跡故障」）。これらの履歴値からAIの依頼全体の完了は判定しない。status集約はrouting.failedを最優先、直接deliveryがあればその値、複数deliveriesはfailed→running→queued→stoppedの順、それ以外の非空集合はdeliveredとなる。queueは`QueueItem.displayItems`の表示用整理を通し（差し込まれた配送`steered:true`は実行中ターンの「処理中」1行にまとめる）、ルームのrouting pending/failed/readyは返信者判定文言へ変換する。
+
+### 受付後の追跡故障を未達へ読み替えない
+
+契約は[Web](../web/conversation.md#受付後の追跡故障を未達へ読み替えない)と[配送](../conversation/delivery.md)に同じ。Appleは`Delivery.deliveryTracking`と直接行の`TimelineMessage.deliveryTracking`を任意で読む。`DeliveryTracking`の復号は失敗せず、型違い・欠落はfieldなしになる。
+
+```mermaid
+flowchart TD
+  Row["outgoing行のstatus == failed"] --> Routing{"routing.failed"}
+  Routing -->|"はい"| Failed["配達失敗（赤）"]
+  Routing -->|"いいえ"| Direct{"直接delivery あり"}
+  Direct -->|"はい"| Own{"自分のdeliveryTracking が<br/>schema・admission・completion全一致"}
+  Direct -->|"いいえ（部屋）"| Each{"failed宛先が1件以上で<br/>全failed宛先のdeliveries[i].deliveryTrackingが全一致"}
+  Own -->|"はい"| Neutral["中立表示（赤なし）<br/>直接「受付済み・完了未確認」<br/>部屋「完了未確認の宛先あり」"]
+  Each -->|"はい"| Neutral
+  Own -->|"いいえ"| Failed
+  Each -->|"いいえ"| Failed
+```
+
+| 関数 | 入力→出力 |
+| --- | --- |
+| `DeliveryTracking.init(from:)` / `isAcceptedCompletionUnknown`（`Core/Models.swift`） | 不正な値でも失敗せずnil fieldになる。3値が`bellteam.delivery-tracking.v1`・`accepted`・`unknown`のときだけ真 |
+| `TimelineMessage.completionUnknown`（同） | 上の図の判定。routing.failedは偽、直接は自分のtuple、部屋は`deliveries[]`のfailed宛先全員のtuple。部屋のトップレベル`deliveryTracking`は読まない。`status`は変えない |
+| `MessageRow.statusLabel`・時刻行の色（`Views/ConversationView.swift`） ← `ConversationContent` | statusがfailedで`completionUnknown`なら、`isRoom`（会話対象が部屋）に応じて上の文言にし、赤にしない。running/queued/delivered/stoppedの扱いは変えない |
+
+Appleには失敗理由の行がなく、他にfailedを配達失敗として読む所もない（Macも同じ`ConversationView`）。呼び出し元は`PendingSend.message`だけが`TimelineMessage`を直接組み、新fieldは既定nilのまま。
 
 ## 画像・gallery・cache
 
