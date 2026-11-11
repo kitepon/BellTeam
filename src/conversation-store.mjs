@@ -151,6 +151,7 @@ function messageItem(record, direction) {
     delivery: record.delivery ?? 'delivered',
     ...(deliveryError(record.delivery, record.delivery_error) ? { delivery_error: deliveryError(record.delivery, record.delivery_error) } : {}),
     ...(deliveryTracking(record.delivery, record.delivery_tracking) ? { deliveryTracking: deliveryTracking(record.delivery, record.delivery_tracking) } : {}),
+    ...(record.steered === true ? { steered: true } : {}),
   }
 }
 
@@ -192,6 +193,7 @@ function peerItem(record, direction, peer) {
     delivery: record.delivery ?? 'delivered',
     ...(deliveryError(record.delivery, record.delivery_error) ? { delivery_error: deliveryError(record.delivery, record.delivery_error) } : {}),
     ...(deliveryTracking(record.delivery, record.delivery_tracking) ? { deliveryTracking: deliveryTracking(record.delivery, record.delivery_tracking) } : {}),
+    ...(record.steered === true ? { steered: true } : {}),
   }
 }
 
@@ -204,10 +206,11 @@ function participants(record) {
 }
 function resolveStatus(record, statuses) {
   const status = statuses.get(record.delivery_id) ?? record
-  const { delivery_tracking: _tracking, delivery_error: _error, ...original } = record
+  const { delivery_tracking: _tracking, delivery_error: _error, steered: _steered, ...original } = record
   const tracking = deliveryTracking(status.delivery, status.delivery_tracking)
   const error = deliveryError(status.delivery, status.delivery_error)
-  return { ...original, delivery: status.delivery, ...(error ? { delivery_error: error } : {}), ...(tracking ? { delivery_tracking: tracking } : {}) }
+  return { ...original, delivery: status.delivery, ...(error ? { delivery_error: error } : {}), ...(tracking ? { delivery_tracking: tracking } : {}),
+    ...(status.delivery === 'delivered' && status.steered === true ? { steered: true } : {}) }
 }
 function display(record, bot, statuses) {
   if (record.schema === 'bellteam.interim-word.v1') return interimItem(record)

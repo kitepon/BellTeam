@@ -30,10 +30,11 @@ export function validateDirectLogRecord(record) {
   if (record?.schema !== 'bellteam.delivery-status.v1') fail()
   object(record, { schema: value => value === 'bellteam.delivery-status.v1', delivery_id: id, at: id,
     delivery: value => ['running', 'delivered', 'failed', 'stopped'].includes(value) }, {
-    mcp_error: () => true, native_launch: () => true, delivery_tracking: () => true, delivery_error: () => true,
+    mcp_error: () => true, native_launch: () => true, delivery_tracking: () => true, delivery_error: () => true, steered: () => true,
   })
   const { mcp_error, native_launch, delivery_tracking, delivery_error } = record
   validateConversationCallback('delivery.status', { delivery: record.delivery, tracking: delivery_tracking,
+    ...(Object.hasOwn(record, 'steered') ? { steered: record.steered } : {}),
     error: { code: 'CONVERSATION_CALLBACK_FAILED', ...(Object.hasOwn(record, 'delivery_error') ? { delivery_error } : {}), ...(Object.hasOwn(record, 'mcp_error') ? { mcp_error } : {}), ...(Object.hasOwn(record, 'native_launch') ? { native_launch } : {}) } })
   return true
 }

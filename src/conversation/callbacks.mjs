@@ -54,8 +54,9 @@ export function conversationCallbackFailureFields(error) {
 
 export function validateConversationCallback(method, params) {
   if (method === 'delivery.status') {
-    object(params, ['delivery'], ['error', 'tracking'])
+    object(params, ['delivery'], ['error', 'tracking', 'steered'])
     if (!statuses.has(params.delivery)) fail()
+    if (Object.hasOwn(params, 'steered') && (params.steered !== true || params.delivery !== 'delivered')) fail()
     conversationCallbackFailureFields(params.error)
     if (params.tracking != null && !isDeepStrictEqual(deliveryTracking(params.delivery, params.tracking), params.tracking)) fail()
   } else if (method === 'delivery.words') {
@@ -86,7 +87,7 @@ export function validateConversationCallback(method, params) {
 export function normalizeConversationCallback(method, params) {
   const normalized = method === 'delivery.status'
     ? { delivery: params.delivery, error: normalizeConversationCallbackError(params.error),
-      tracking: deliveryTracking(params.delivery, params.tracking) }
+      tracking: deliveryTracking(params.delivery, params.tracking), ...(params.steered === true ? { steered: true } : {}) }
     : method === 'delivery.words'
       ? { words: params.words.map(word => ({ text: word.text,
         ...(typeof word.kind === 'string' ? { kind: word.kind } : {}),

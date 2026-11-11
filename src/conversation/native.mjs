@@ -73,7 +73,7 @@ export class ConversationNative {
           entry.reply.resolve(params.reply)
           await entry.state.userSaved
           await this.awaitStarted(context)
-        } else if (method === 'delivery.status') await entry.options.onStatus(params.delivery, params.error, params.tracking)
+        } else if (method === 'delivery.status') await entry.options.onStatus(params.delivery, params.error, params.tracking, ...(params.steered ? [{ steered: true }] : []))
         else if (method === 'delivery.words') await entry.options.onInterim(params.words)
         else if (method === 'delivery.answer') await entry.options.onAnswer(params.text)
         else if (method === 'turn.end') await entry.options.onTurnEnd(params)

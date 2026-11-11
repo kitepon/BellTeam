@@ -124,11 +124,12 @@ export class RoomMessenger {
             context: 'room', contextId: room.id, groupId: record.id,
             from, fromName: sender.name, target: id, message,
           },
-          onStatus: async (delivery, error, tracking) => { await this.rooms.appendMessage(room.id, {
+          onStatus: async (delivery, error, tracking, { steered } = {}) => { await this.rooms.appendMessage(room.id, {
             schema: 'bellteam.room-delivery-status.v1', message_id: record.id,
             target: id, at: this.now(), delivery,
             ...this.failureFields(error),
             ...(deliveryTracking(delivery, tracking) ? { delivery_tracking: deliveryTracking(delivery, tracking) } : {}),
+            ...(steered === true && delivery === 'delivered' ? { steered: true } : {}),
           }); terminal ||= ['failed', 'stopped'].includes(delivery) }, // only once the row is durable
           // 合間の言葉と最後の回答は、そのBotの会話画面に出すだけ。ルームにも他のBotにも届けない。
           ...(this.onInterimWords ? {
