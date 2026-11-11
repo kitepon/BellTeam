@@ -68,9 +68,14 @@ final class LatticeChartUITests: XCTestCase {
         shot(app, "light-11-last-verified")
 
         _ = try await call("/test/mode?state=verified&unknown=1")
-        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "名簿にないメンバー")).firstMatch.waitForExistence(timeout: 5))
+        // 札の読み上げは「題名、状態、つくっている 担当」。名簿にない担当は「名簿にないメンバー」と読む。
+        let unknown = element(app, "lattice-card-p1/t09")
+        XCTAssertTrue(scrollTo(unknown, in: app))
+        let named = NSPredicate(format: "label CONTAINS %@", "つくっている 名簿にないメンバー")
+        XCTAssertTrue(waitFor(named, unknown), unknown.label)
         settle()
         shot(app, "light-12-unknown-member")
+        app.swipeDown(); app.swipeDown(); app.swipeDown()
 
         _ = try await call("/test/mode?unknown=0&stream=drop")
         XCTAssertTrue(element(app, "lattice-reconnecting").waitForExistence(timeout: 10))
@@ -103,6 +108,10 @@ final class LatticeChartUITests: XCTestCase {
             app.swipeUp()
         }
         return target.exists && target.isHittable
+    }
+
+    private func waitFor(_ predicate: NSPredicate, _ target: XCUIElement) -> Bool {
+        XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: predicate, object: target)], timeout: 5) == .completed
     }
 
     /// Lets springs settle and particles fly before a screenshot.

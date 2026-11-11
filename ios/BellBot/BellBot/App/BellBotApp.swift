@@ -232,20 +232,21 @@ private struct TeamBoardTab: View {
     @SceneStorage("team-board") private var board = Board.graph
 
     var body: some View {
-        ZStack {
-            switch board {
-            case .graph: WorkGraphView()
-            case .lattice: LatticeHomeView(returnTab: 4)
-            }
-        }
-        .safeAreaInset(edge: .top, spacing: 0) {
+        // 切り替えは上に縦に並べる（重ねると工程表のナビゲーションバーと重なる）。
+        VStack(spacing: 0) {
             Picker("表示", selection: $board) {
                 ForEach(Board.allCases, id: \.self) { Text($0.rawValue).tag($0) }
             }
             .pickerStyle(.segmented)
             .frame(width: 220)
             .padding(.vertical, 6)
+            .frame(maxWidth: .infinity)
+            .background(board == .lattice ? LatticePalette.canvas : BellTheme.canvas)
             .accessibilityIdentifier("team-board-picker")
+            switch board {
+            case .graph: WorkGraphView()
+            case .lattice: LatticeHomeView(returnTab: 4)
+            }
         }
         #if DEBUG
         .onAppear { if ProcessInfo.processInfo.arguments.contains("-bellbot-open-lattice") { board = .lattice } }

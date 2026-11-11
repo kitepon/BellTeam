@@ -51,10 +51,11 @@ struct LatticeChartScreen: View {
             LatticePalette.canvas.ignoresSafeArea()
             content
         }
+        .accessibilityIdentifier("lattice-chart")
         .overlay(alignment: .top) {
             if model.connection == .reconnecting {
                 LatticeNoticePill(text: LatticeText.reconnect)
-                    .padding(.top, wide ? 70 : 8)
+                    .padding(.top, wide ? 70 : 60)
                     .transition(.move(edge: .top).combined(with: .opacity))
                     .accessibilityIdentifier("lattice-reconnecting")
             }
@@ -69,7 +70,6 @@ struct LatticeChartScreen: View {
             await model.run(api: store.api)
         }
         .onChange(of: coordinatorId) { _, id in model.setCoordinator(id) }
-        .accessibilityIdentifier("lattice-chart")
     }
 
     @ViewBuilder private var content: some View {

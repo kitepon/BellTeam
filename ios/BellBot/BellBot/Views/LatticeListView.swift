@@ -146,6 +146,7 @@ struct LatticeNoticePill: View {
         .background(.regularMaterial, in: Capsule())
         .overlay(Capsule().stroke(LatticePalette.line.opacity(0.6), lineWidth: 0.5))
         .shadow(color: .black.opacity(0.08), radius: 10, y: 4)
+        .accessibilityElement(children: .combine)
     }
 }
 
