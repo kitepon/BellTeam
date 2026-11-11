@@ -82,3 +82,21 @@ test('Antigravityのeffortを含む不透明なmodel IDとfast非対応をその
   assert.equal(result.models[0].fast, false)
   assert.deepEqual(result.models[0].efforts, [])
 })
+
+// boundary-details.md (a04, 2026-11-12): the Claude list is read with the seat's slot login. Only the slot name crosses; an Aiterm
+// whose agent_models has no claude_login gets the old call (its own login), never a refused list.
+test('agent_models carries claude_login only for a slot and only to an Aiterm that declares it', async () => {
+  const { AitermClient } = await import('../src/aiterm-client.mjs')
+  for (const [declared, login, expected] of [[true, '1st', '1st'], [true, undefined, undefined], [true, 'other', undefined], [false, '2nd', undefined]]) {
+    const sent = []
+    const client = new AitermClient()
+    client.connect = async () => {}
+    client.client = {
+      listTools: async () => ({ tools: [{ name: 'agent_models', inputSchema: { properties: { harness: { type: 'string' }, ...(declared ? { claude_login: { type: 'string' } } : {}) } } }] }),
+      callTool: async ({ name, arguments: args }) => { sent.push([name, args]); return { structuredContent: {} } },
+    }
+    await client.call('agent_models', { harness: 'claude-code', cwd: '/x' }, login ? { claudeLogin: login } : {})
+    assert.equal(sent.length, 1)
+    assert.equal(sent[0][1].claude_login, expected, `declared=${declared} login=${login}`)
+  }
+})
