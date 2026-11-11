@@ -329,6 +329,7 @@ struct HarnessAuthenticationView: View {
 
     private var refreshButton: some View {
         Button(acting == .refresh ? "更新しています…" : "状態を更新") { run(.refresh, method: "GET") { try await flow.refresh() } }
+            .buttonStyle(.bordered)
             .accessibilityIdentifier("harness-auth-refresh")
     }
 
@@ -336,6 +337,7 @@ struct HarnessAuthenticationView: View {
         Group {
             if flow.sessionOpen {
                 Button(acting == .cancel ? "やめています…" : "やめる") { run(.cancel) { try await flow.cancel() } }
+                    .buttonStyle(.bordered)
                     .disabled(blocked)
                     .accessibilityIdentifier("harness-auth-cancel")
             }

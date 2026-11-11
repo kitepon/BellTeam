@@ -19,7 +19,10 @@ struct AuthenticationInstructions: View {
                     Text(ui.message).font(.subheadline)
                 }
                 if let url = ui.officialURL {
+                    // Every control here has its own style: in a Form row a default-style Link or Button answers a tap
+                    // anywhere in the row, so touching the code field opened the browser (134 on the real iPhone/iPad).
                     Link("公式サイトを開く", destination: url)
+                        .buttonStyle(.borderless)
                         .accessibilityIdentifier("harness-auth-link")
                 } else if ui.stage == .openUrl || ui.stage == .deviceCode || ui.stage == .pasteCode {
                     Text("公式サイトのURLを確認できません。状態を更新してください。")
@@ -41,6 +44,7 @@ struct AuthenticationInstructions: View {
                         Button(sending ? "送っています…" : "認証コードを送る") {
                             onRespond(.authorizationCode(code), ui)
                         }
+                        .buttonStyle(.bellPrimary)
                         .disabled(busy || code.isEmpty)
                         .accessibilityIdentifier("harness-auth-submit")
                     case .choice:

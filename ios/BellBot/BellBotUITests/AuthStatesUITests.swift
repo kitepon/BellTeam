@@ -24,8 +24,10 @@ final class AuthStatesUITests: XCTestCase {
         let settings = app.buttons["設定"].firstMatch
         XCTAssertTrue(settings.waitForExistence(timeout: 30))
         settings.tap()
-        XCTAssertTrue(app.buttons["settings-row-ai"].waitForExistence(timeout: 10))
-        app.buttons["settings-row-ai"].tap()
+        // iPhone shows the row as a button; the iPad split view shows it as a selectable cell.
+        let aiRow = app.descendants(matching: .any)["settings-row-ai"].firstMatch
+        XCTAssertTrue(aiRow.waitForExistence(timeout: 10))
+        aiRow.tap()
         let first = app.buttons["harness-auth-claude-1st"]
         XCTAssertTrue(scrollTo(first, in: app))
         XCTAssertTrue(waitLabel(first, contains: "コード待ち"), first.label)
