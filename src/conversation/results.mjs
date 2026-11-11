@@ -53,6 +53,12 @@ export function validateConversationResult(method, value) {
     case 'direct.post': case 'user.post': return fields(value, {
       delivery: oneOf('queued', 'running', 'steered', 'delivered'), delivery_id: nonempty, from: nonempty, target: id,
     })
+    case 'fork.ask': {
+      fields(value, { delivery: oneOf('running', 'steered', 'answered'), delivery_id: nonempty, fork_id: nonempty,
+        from: nonempty, target: id, seat: oneOf('fork') }, { answer: text })
+      if ((value.delivery === 'answered') !== Object.hasOwn(value, 'answer')) invalid()
+      return true
+    }
     case 'delivery.resume': return fields(value, {
       delivery, delivery_id: nonempty, from: nonempty, target: id,
     })

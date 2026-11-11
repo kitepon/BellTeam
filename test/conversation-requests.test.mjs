@@ -23,7 +23,8 @@ const examples = {
   'history.recentBatch': { botIds: ['bot-a'] },
   'history.deliveryAnchor': { deliveryId: 'delivery-a', target: 'bot-a', context: 'direct', contextId: 'bot-a' },
   'history.page': { kind: 'bots', id: 'bot-a', query: { limit: null, before: null, after: null }, cards: [[], []] },
-  'direct.post': { from: 'bot-a', target: 'user', ...post }, 'user.post': { target: 'bot-a', ...post },
+  'direct.post': { from: 'bot-a', target: 'user', ...post }, 'fork.ask': { from: 'bot-a', target: 'bot-b', message: 'Q' },
+  'history.workInput': { botId: 'bot-a', sessionId: 'session-a', launchId: 'launch-a', inputRevision: 'revision-a', deliveryId: 'delivery-a', context: 'direct', contextId: 'bot-a' }, 'user.post': { target: 'bot-a', ...post },
   'user.turn': { target: 'bot-a', ...post }, 'room.post': { from: 'bot-a', room: 'room-a', ...post },
   'room.reply': { roomId: 'room-a', messageId: 'message-a', ...post },
   'room.silent': { roomId: 'room-a', messageId: 'message-a' },
@@ -34,7 +35,7 @@ const examples = {
   'call.receive': { event: 'session.message', session_id: 'call-a', target_id: 'bot-a',
     source_system: 'local', source_id: 'source-a', source_label: 'Local', message: 'Call' },
 }
-const contextFor = method => method === 'history.deliveryAnchor' ? { ...root, actor: { kind: 'bot', botId: 'bot-a' } } : ({ ...root, actor: { kind: Object.keys(CONVERSATION_ACTOR_METHODS)
+const contextFor = method => ['history.deliveryAnchor', 'fork.ask'].includes(method) ? { ...root, actor: { kind: 'bot', botId: 'bot-a' } } : ({ ...root, actor: { kind: Object.keys(CONVERSATION_ACTOR_METHODS)
   .find(kind => CONVERSATION_ACTOR_METHODS[kind].includes(method)) } })
 
 test('every fixed root has closed payload keys and required fields', () => {

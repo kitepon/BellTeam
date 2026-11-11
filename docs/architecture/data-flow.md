@@ -259,7 +259,7 @@ flowchart LR
   O[Owner message] -->|unchanged: always main seat, never forked or counted as load| P3
 ```
 
-Remote forks launch like local ones; until Elegg 0.70.5 + Kiro #946 are live their in-turn words are missing exactly like a remote main seat's, and the answer still arrives. A failure after receipt reaches the asker as one `FORK_FAILED` message on F7, or as the tool result on F8 when the asker is itself a fork. A fork's `sendmessage` keeps today's edges, labelled `from_seat` fork. The only refusal is `FORK_UNAVAILABLE{readonly_unenforceable}`. No fallback into the main queue.
+Remote forks launch like local ones; until Elegg 0.70.5 + Kiro #946 are live their in-turn words are missing exactly like a remote main seat's, and the answer still arrives. A failure after receipt reaches the asker as one `FORK_FAILED` message on F7, or as the tool result on F8 when the asker is itself a fork. A fork's `sendmessage` keeps today's edges, labelled `from_seat` fork. In the module child assembly F2/F4/F6 cross the conversation facade (root `fork.ask`), `ConversationNative` (effect `execution.fork`) and the parent channel as a registered delivery, like `notify`; owners and contracts in [child boundary B1–B8](modules/conversation/fork-inquiry.md#module-child-boundary-production-defect-2026-11-11). The only refusal is `FORK_UNAVAILABLE{readonly_unenforceable}`. No fallback into the main queue.
 
 ## Coverage, inherited verification and concrete limits
 

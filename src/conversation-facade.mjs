@@ -106,7 +106,8 @@ export function createConversationFacade({ getController, context }) {
     enqueueUserTurn: (input, options) => user('user.post', input, options),
     userTurn: (input, options) => user('user.turn', input, options),
     sendmessage: (input, options) => input.from === 'user' ? user('user.post', input, options)
-      : invoke('direct.post', { from: input.from, target: input.target, message: input.message, images: images(input) }, options),
+      : invoke('direct.post', { from: input.from, target: input.target, message: input.message, images: images(input), ...pick(input, ['askerSeat']) }, options),
+    askReadonly: (input, options) => invoke('fork.ask', { from: input.from, target: input.target, message: input.message, ...pick(input, ['askerSeat']) }, options),
     receiveCallBridge: (input, options) => invoke('call.receive', input, options),
     resumeDelivery: (deliveryId, target, options) => invoke('delivery.resume', { deliveryId, target }, options),
     closeDeliveryLaunch: (deliveryId, target, options) => invoke('delivery.closeLaunch', { deliveryId, target }, options,

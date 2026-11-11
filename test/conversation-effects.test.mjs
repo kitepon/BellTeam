@@ -34,6 +34,12 @@ const samples = {
   'runtime.observer.read': [{ botId: 'bot-a', scope, afterCursor: null }, { status: 'projection_pending', throughCursor: null, turns: [] }],
   'execution.notify': [native, { delivery: 'running' }],
   'execution.turn': [{ ...native, kinds: ['delivery.status', 'delivery.words', 'user.complete'] }, { delivery: 'steered' }],
+  'execution.fork': [{ deliveryId: 'delivery-a', target: 'bot-a', forkId: 'fork-a', message: 'Q', queue,
+    kinds: ['delivery.status', 'delivery.words', 'delivery.answer'] }, { delivery: 'running', forkId: 'fork-a' }],
+  'direct.log.append': [{ record: { schema: 'bellteam.direct-message.v1', delivery_id: 'delivery-a', at: '2026-11-11T00:00:00.000Z',
+    from: 'bot-b', target: 'bot-a', from_identity: { id: 'bot-b', name: 'B', position: '', role: '' },
+    target_identity: { id: 'bot-a', name: 'A', position: '', role: '' }, message: 'Q', image: false, delivery: 'running',
+    seat: { kind: 'fork', fork_id: 'fork-a' } } }, { applied: true }],
   'execution.background.begin': [{ deliveryId: 'delivery-a', target: 'bot-a' }, { backgroundId: 'background-a' }],
   'execution.background.end': [{ backgroundId: 'background-a' }, { requested: true }],
   'execution.observation.source': [{ target: 'bot-a' }, { deliveryId: 'delivery-a', target: 'bot-a' }],
@@ -52,6 +58,16 @@ test('all fixed effects/results reject authority, path, secret and arbitrary res
   }
   assert.throws(() => validateConversationEffect('arbitrary.rpc', {}, context))
   assert.throws(() => validateConversationEffectResult('arbitrary.rpc', {}))
+})
+
+test('execution.fork is direct-shaped without images, recovery, call or turn-end; its forkId result matches', () => {
+  const fork = samples['execution.fork'][0]
+  for (const value of [{ ...fork, images: [] }, { ...fork, recoveryId: 'r' }, { ...fork, kinds: ['turn.end'] }, { ...fork, kinds: ['user.complete'] },
+    { ...fork, queue: { ...queue, context: 'room', contextId: 'room-a' } }, { ...fork, queue: { ...queue, call: { sessionId: 's', event: 'session.message', seq: null } } }])
+    assert.throws(() => validateConversationEffect('execution.fork', value, context))
+  assert.throws(() => validateConversationEffectResult('execution.fork', { delivery: 'running', forkId: 'other' }, fork))
+  assert.throws(() => validateConversationEffectResult('execution.fork', { delivery: 'steered' }, fork))
+  assert.throws(() => validateConversationEffect('direct.log.append', { record: { ...samples['direct.log.append'][0].record, seat: { kind: 'main', fork_id: 'x' } } }, context))
 })
 
 test('native source/target/callback subsets are closed and turn.end cannot double-open its background window', () => {

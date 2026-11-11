@@ -101,7 +101,7 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
           if (!completion?.accepted) throw Object.assign(new Error('DISPATCH_ACCEPTANCE_UNAVAILABLE'), { code: 'DISPATCH_ACCEPTANCE_UNAVAILABLE' })
           return await completion.accepted
         }
-        let envelope = directEnvelope(record.from_identity ?? record.from, record.message)
+        let envelope = directEnvelope(record.from_identity ?? record.from, record.message, { fork: record.from_seat?.kind === 'fork' })
         if (record.session_id) {
           const identity = record.from_identity, party = record.call_event === 'session.reply' ? 'local' : 'member'
           const hint = record.call_reply_required === false ? ''

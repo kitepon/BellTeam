@@ -38,6 +38,8 @@ const schedule = value => fields(value, { kind: oneOf('once', 'cron', 'interval_
 })
 const launch = value => fields(value, { session_id: nonempty, launch_id: value => text(value) && /^[a-f0-9]{32}$/u.test(value) })
 const post = { message: text, images: array(image) }
+// Bound by the parent seat MCP from the resolved fork seat only (fork-inquiry B1/B2).
+const askerSeat = value => fields(value, { kind: oneOf('fork'), forkId: identity })
 
 // These are the private normalized payloads; ingress adapters preserve public aliases/defaults.
 export function validateConversationRequest(method, params, context) {
@@ -83,7 +85,8 @@ export function validateConversationInput(method, params, actor) {
       })
       if (params.cards.length !== (params.kind === 'bots' ? 2 : 1) || (params.kind === 'rooms' && !roomId(params.id))) invalid()
       return true
-    case 'direct.post': return fields(params, { from: id, target: id, ...post })
+    case 'direct.post': return fields(params, { from: id, target: id, ...post }, { askerSeat })
+    case 'fork.ask': return fields(params, { from: id, target: id, message: text }, { askerSeat })
     case 'user.post': case 'user.turn':
       fields(params, { target: id, ...post }, { recordUser: bool })
       if (params.recordUser === false && actor.kind !== 'onboarding') invalid()

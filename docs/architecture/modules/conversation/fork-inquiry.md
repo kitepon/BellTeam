@@ -93,6 +93,37 @@ sequenceDiagram
 | conversation → asker | relay via existing `transport.notify(askerBot, …)` into the asker's own seat | Kiro, existing path |
 | target history → main seat | records and summaries the main reads on demand (`list_messages`, Throughline summaries); no notify, no injected full text | N102 records, Rivalin (Throughline) session labelling |
 
+## Module child boundary (production defect 2026-11-11)
+
+First live `ask_readonly` (Root seat, 2026-11-11 09:07 JST) returned a bare `INTERNAL_ERROR`. In the normal assembly the messenger runs in the conversation module child; the parent reaches it only through the conversation facade (root methods), and the child reaches execution only through `ConversationNative` (effects) and the parent channel. #954 added `askReadonly` to the in-process messenger only: the facade had no `askReadonly` (`messenger.askReadonly is not a function` in the parent), there was no root method, `ConversationNative` had no `forkInquiry`, and no effect carried a fork to execution. The same boundary dropped `askerSeat` from a fork's `sendmessage` (the closed `direct.post` and durable-receipt inputs reject the key). The edges below close that gap with the existing delivery mechanism; no new queue, lease, retry or guard.
+
+```mermaid
+flowchart LR
+  H["parent HTTP /api/deliveries/fork | direct<br/>askerSeat bound by seat MCP (SK08)"] --> B1["B1 facade (N102)<br/>askReadonly -> root fork.ask<br/>sendmessage -> direct.post (+askerSeat)"]
+  B1 --> B2["B2 authority / requests / results (N102)<br/>fork.ask: bot actor only, closed params and result"]
+  B2 --> B3["B3 child dispatcher (N102)<br/>fork.ask -> messenger.askReadonly<br/>from = actor.botId"]
+  B3 --> B4["B4 ConversationNative.forkInquiry (N102)<br/>effect execution.fork, closed schema"]
+  B4 --> B5["B5 parent effects (N102)<br/>execution.fork -> onExecution"]
+  B5 --> B6["B6 conversation-ipc (runtime / Molly)<br/>execution.fork = delivery effect like notify<br/>allowed only from root fork.ask"]
+  B6 --> B7["B7 execution adapter + transport.forkInquiry (Kiro)<br/>registered conversationDelivery callbacks,<br/>delivery ends with the fork background"]
+  B7 -->|delivery.status / words / answer| B4
+  H --> B8["B8 direct receipts (N102)<br/>askerSeat -> from_seat on the durable record,<br/>envelope 「名前（分身）」"]
+```
+
+| Edge | Contract | Owner |
+| --- | --- | --- |
+| B1 | `messenger.askReadonly({from, target, message, askerSeat?})` invokes root `fork.ask` with exactly those keys; `sendmessage` passes `askerSeat` on `direct.post` when present. `executionSource` stays in the parent context as for `direct.post` | N102 `src/conversation-facade.mjs` |
+| B2 | `fork.ask` is allowed for actor `bot` only. Params exact `{from:id, target:id, message:text}` + optional `askerSeat:{kind:'fork', forkId:identity}`; `direct.post` gains the same optional `askerSeat`. Result exact `{delivery:'running'|'steered'|'answered', delivery_id, fork_id, from, target, seat:'fork'}` + `answer:text` only with `answered` | N102 `src/conversation/{authority,requests,results}.mjs` |
+| B3 | `fork.ask` → `messenger.askReadonly(params)`; a bot actor may only ask as itself (same rule as `direct.post`) | N102 `src/conversation/dispatcher.mjs` |
+| B4 | `ConversationNative.forkInquiry(bot, envelope, {forkId, queue, onStatus, onInterim, onAnswer})` registers the delivery like `notify` and invokes effect `execution.fork` `{deliveryId, target, forkId:identity, message:text, queue, kinds}`; `queue` is the direct shape (`groupId = deliveryId`, `target`, `contextId = target`); `kinds ⊆ {delivery.status, delivery.words, delivery.answer}` (no `turn.end`, no `user.complete`, no images, no `recoveryId`). Result `{delivery:'running'}` + optional `forkId` equal to the param | N102 `src/conversation/{native,effects}.mjs` |
+| B5 | `execution.fork` goes to `onExecution` with the other execution effects | N102 `src/conversation-parent-effects.mjs` |
+| B6 | `execution.fork` is a delivery effect: same `register` (delivery lease with the child's `kinds`, release ACK) and same dependent binding as `execution.notify`; allowed only from root `fork.ask`. `execution.notify` is also allowed under root `fork.ask`: the answer relay to a main asker is issued from the fork's `delivery.answer`/`delivery.status` callback | Molly `src/conversation-ipc.mjs` |
+| B7 | `execution.fork` → same check / `assertDelivery` / `assertCurrentLease` / fresh member as `notify`, then `transport.forkInquiry(bot, message, {forkId, deliveryId, queue, conversationDelivery, membersLease, admissionCheck, executionSource?})`. Callbacks come from the registered `conversationDelivery` (status/words/answer); the delivery completes when the fork's background ends (after close). A refusal before accept keeps its `code`/`status` (`FORK_UNAVAILABLE` 503, `FORK_INVALID` 400/409, launch errors) so the asker gets the typed error, never `INTERNAL_ERROR` | Kiro `src/conversation-execution-effects.mjs`, `src/aiterm-transport.mjs` |
+| B4r | The child writes through effect `direct.log.append`; `validateDirectLogRecord` accepts the optional fork fields: `seat` / `from_seat` `{kind:'fork', fork_id}` and `in_reply_to` on direct messages, `seat` on interim words | N102 `src/direct-log-record.mjs` |
+| B8 | `captureReceipt('direct.post')` accepts `askerSeat`; `DurableMessageReceipts` stores `from_seat:{kind:'fork', fork_id}` on the receipt record; dispatch builds the 「（分身）」 envelope from the saved `from_seat` | N102 `src/direct-receipt-assembly.mjs`, `src/durable-message-receipts.mjs` |
+
+Conversation side, same diff: a fork's empty answer relays `FORK_FAILED: NO_ANSWER` on the `delivered` status (the transport reports the answer before `delivered`), so the fork registers no `turn.end` and never enters the child's turn-end report path. `FORK_TARGET_USER` is typed (400). `fork.ask` has no durable receipt: a fork is disposable, so after a body restart mid-inquiry nothing is replayed and no answer arrives (the asker can ask again).
+
 ## New MCP tool contract (N102)
 
 Separate tool. `sendmessage` gets no flag and no change of meaning (spec items 6, 9).
@@ -159,7 +190,7 @@ Canonical: [execution fork port](../execution/fork.md) (#975). Failure after acc
 | --- | --- |
 | open | `transport.forkInquiry(bot, envelope, opts)`: resolve the target's **main** session ref at call time (latest persisted state, including the running turn as far as the CLI has written it), ask Aiterm for a read-only fork, send `envelope` as its first input. Must not enter, reorder or wait on the main dispatch queue; must not steer or interrupt the main seat |
 | accept | Resolve with `{delivery:'running', forkId}` once the fork accepted its input; reject with `FORK_UNAVAILABLE{reason}` or existing launch errors |
-| observe | Same callback set as `notify` (`onStatus/onInterim/onAnswer/onTurnEnd`). Conversation reuses `notificationCallbacks` for status/interim/answer. A fork's `onTurnEnd` does not go to TurnReports: its report request would be sent to the main seat and interrupt it (spec item 2); conversation uses turn-end only to relay `FORK_FAILED: NO_ANSWER` when no answer came |
+| observe | `onStatus/onInterim/onAnswer` (the `notify` callbacks without turn-end). Conversation reuses `notificationCallbacks` for status/interim/answer. A fork registers no turn-end: its report request would be sent to the main seat and interrupt it (spec item 2); conversation relays `FORK_FAILED: NO_ANSWER` on `delivered` when no answer came. In the module child these arrive over the registered delivery ([child boundary](#module-child-boundary-production-defect-2026-11-11)) |
 | close | After turn-end (or failure) close the fork seat. No resume, no follow-up turn, no requeue |
 | read | Optional `seat:{kind:'fork',forkId}` on `queueItems()` rows for running forks, so `queue.read` (Molly) and 相関図 (Black) can label them. Rows without `seat` are main |
 | remote | Launches like a local fork. Until Elegg 0.70.5 relay fix + Kiro #946 are live, its in-turn words are missing exactly like a remote main seat's today; the final answer (or `FORK_FAILED`) still arrives. No refusal for this (Root change) |

@@ -30,7 +30,8 @@ export class ConversationNative {
     if (this.#deliveries.has(key(binding))) throw failure()
     this.#deliveries.set(key(binding), entry)
     const params = { deliveryId: binding.deliveryId, target: binding.target, message, queue, kinds,
-      ...(kind === 'report' ? { sourceDeliveryId: state.source?.deliveryId, reason } : { images: options.images ?? [] }),
+      ...(kind === 'report' ? { sourceDeliveryId: state.source?.deliveryId, reason }
+        : kind === 'fork' ? { forkId: options.forkId } : { images: options.images ?? [] }),
       ...(options.recoveredExecution ? { recoveryId: options.recoveredExecution.recoveryId } : {}),
     }
     const accepted = this.invoke(`execution.${kind}`, params, state.context)
@@ -39,6 +40,7 @@ export class ConversationNative {
 
   notify(bot, message, options) { return this.#register(bot, message, options, 'notify').accepted }
   report(bot, message, options, reason) { return this.#register(bot, message, options, 'report', reason).accepted }
+  forkInquiry(bot, message, options) { return this.#register(bot, message, options, 'fork').accepted }
 
   turn(bot, message, options) {
     const { entry, accepted } = this.#register(bot, message, options, 'turn')
