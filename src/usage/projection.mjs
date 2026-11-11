@@ -17,8 +17,8 @@ export function usageSettingValid(item) {
       && item.connection.vaults.every(name => typeof name === 'string') && Number.isSafeInteger(item.connection.sshKeys) && item.connection.sshKeys >= 0)
     && (!item.guide || keys(item.guide, ['steps', 'link']) && Array.isArray(item.guide.steps) && item.guide.steps.every(step => typeof step === 'string')
       && keys(item.guide.link, ['label', 'url']) && typeof item.guide.link.label === 'string' && /^https:\/\//u.test(item.guide.link.url))
-    && Array.isArray(item.fields) && item.fields.length === names.length && item.fields.every((field, index) => keys(field, ['key', 'label', 'secret', 'value', 'configured'])
-      && field.key === names[index] && typeof field.label === 'string' && field.secret === secretKeys.has(field.key) && typeof field.configured === 'boolean'
+    && Array.isArray(item.fields) && item.fields.length === names.length && item.fields.every((field, index) => keys(field, ['key', 'label', 'secret', 'value', 'configured'], ['required'])
+      && (!Object.hasOwn(field, 'required') || typeof field.required === 'boolean') && field.key === names[index] && typeof field.label === 'string' && field.secret === secretKeys.has(field.key) && typeof field.configured === 'boolean'
       && typeof field.value === 'string' && (!field.secret || field.value === ''))
 }
 export function usageConfigurationValid(id, configuration) {
