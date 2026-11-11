@@ -112,7 +112,7 @@
         },
         {
           "name": "Publish both native archives and bundles once",
-          "run": "tag=\"updates-$(date -u +%Y%m%dT%H%M%SZ)\"\nfor arch in amd64 arm64; do\n  test -s \"runtime/runtime/$COMPONENT-$SOURCE-linux-$arch.tar.gz\"\n  test -s \"runtime/runtime/$COMPONENT-$SOURCE-linux-$arch.tar.gz.sigstore.json\"\ndone\ngh release create \"$tag\" --repo kitepon/BellTeam --target \"$SOURCE\" --title \"BellTeam runtime $COMPONENT $tag\" --notes \"Signed Node26/glibc runtime closures. Activation and runtime catalog adoption are separate.\" runtime/runtime/*.tar.gz runtime/runtime/*.tar.gz.sigstore.json\ngh api \"repos/kitepon/BellTeam/releases/tags/$tag\" > runtime/runtime/release.json\n"
+          "run": "tag=\"updates-$(date -u +%Y%m%dT%H%M%SZ)\"\nfor arch in amd64 arm64; do\n  test -s \"runtime/runtime/$COMPONENT-$SOURCE-linux-$arch.tar.gz\"\n  test -s \"runtime/runtime/$COMPONENT-$SOURCE-linux-$arch.tar.gz.sigstore.json\"\ndone\ngh release create \"$tag\" --latest=false --repo kitepon/BellTeam --target \"$SOURCE\" --title \"BellTeam runtime $COMPONENT $tag\" --notes \"Signed Node26/glibc runtime closures. Activation and runtime catalog adoption are separate.\" runtime/runtime/*.tar.gz runtime/runtime/*.tar.gz.sigstore.json\ngh api \"repos/kitepon/BellTeam/releases/tags/$tag\" > runtime/runtime/release.json\n"
         },
         {
           "uses": "actions/upload-artifact@v7",

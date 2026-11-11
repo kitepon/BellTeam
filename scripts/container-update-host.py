@@ -1297,9 +1297,51 @@ def fetch_publication(opener, url, limit, sleep=time.sleep, clock=time.monotonic
         sleep(delay); delay = min(delay * 2, 15)
     check(len(raw) <= limit, 'HOST_UPDATE_PUBLICATION_LIMIT'); return raw
 
+LATEST_CATALOG = 'https://github.com/kitepon/BellTeam/releases/latest/download/catalog.json'
+
+def latest_stable_tag(opener=None):
+    """Stable catalog tag from the first redirect of the fixed Latest address (web, not the 60/h REST API).
+    The one-off query avoids github.com's minutes-stale cached redirect after a new stable release."""
+    import urllib.request, urllib.error
+    from urllib.parse import urlsplit
+    if opener is None:
+        class Stop(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, *args): return None
+        opener = urllib.request.build_opener(Stop())
+    try:
+        opener.open(urllib.request.Request(f'{LATEST_CATALOG}?fresh={time.time_ns()}', headers={'User-Agent':'BellTeam-Updater'}), timeout=15).close()
+    except urllib.error.HTTPError as error:
+        location = error.headers.get('Location') if error.code in {301, 302, 303, 307, 308} and error.headers else None
+        found = re.fullmatch(re.escape(RELEASE_DOWNLOAD) + r'(updates-\d{8}T\d{6}Z)/catalog\.json', urlsplit(location or '')._replace(query='').geturl())
+        check(found is not None, 'HOST_UPDATE_PUBLICATION_REDIRECT')
+        return found.group(1)
+    check(False, 'HOST_UPDATE_PUBLICATION_REDIRECT')
+
+def install_publication(updater, fetch, tag):
+    # Every asset comes from this one tag, so a Latest move mid-check never mixes releases.
+    with tempfile.TemporaryDirectory(prefix='catalog-fetch-', dir=updater.state) as staging:
+        for name, limit in [('catalog.json', CATALOG_LIMIT), ('catalog.json.sigstore.json', 16 * CATALOG_LIMIT)]:
+            raw = fetch(RELEASE_DOWNLOAD + tag + '/' + name, limit)
+            (Path(staging) / name).write_bytes(raw)
+        identifier = verify_and_install_catalog(updater, Path(staging)/'catalog.json', Path(staging)/'catalog.json.sigstore.json')
+        try:
+            for name, limit in [('runtime-catalog.json', CATALOG_LIMIT), ('runtime-catalog.json.sigstore.json', 16 * CATALOG_LIMIT)]:
+                raw = fetch(RELEASE_DOWNLOAD + tag + '/' + name, limit)
+                (Path(staging) / name).write_bytes(raw)
+            verify_and_install_catalog(updater, Path(staging)/'runtime-catalog.json', Path(staging)/'runtime-catalog.json.sigstore.json', runtime_for=identifier)
+        except Exception:
+            pass # Optional asset: absent or invalid leaves runtime targets unavailable; the accepted main catalog stands.
+        return identifier
+
 def _refresh_catalog(updater):
     opener = publication_opener()
     fetch = lambda url, limit: fetch_publication(opener, url, limit)
+    channel = updater.config.get('channel', 'stable')
+    if channel == 'stable':
+        try:
+            return install_publication(updater, fetch, latest_stable_tag())
+        except Exception:
+            pass # Latest unreadable, not a catalog, older than installed or unverifiable: fall back to the release list once.
     rows = decode(fetch('https://api.github.com/repos/kitepon/BellTeam/releases?per_page=100', 4 * CATALOG_LIMIT))
     # Distribution owns the formal publication selector; root still authenticates every selected byte.
     import importlib.util
@@ -1307,22 +1349,9 @@ def _refresh_catalog(updater):
     trusted(script, updater.uid)
     spec = importlib.util.spec_from_file_location('bellteam_catalog_discovery', script)
     discovery = importlib.util.module_from_spec(spec); spec.loader.exec_module(discovery)
-    candidates = sorted(discovery.publication_candidates(rows, updater.config.get('channel', 'stable')),key=lambda value:value['tag'],reverse=True)
+    candidates = sorted(discovery.publication_candidates(rows, channel),key=lambda value:value['tag'],reverse=True)
     check(bool(candidates), 'HOST_UPDATE_PUBLICATION_UNAVAILABLE')
-    tag = candidates[0]['tag']
-    with tempfile.TemporaryDirectory(prefix='catalog-fetch-', dir=updater.state) as staging:
-        for name, limit in [('catalog.json', CATALOG_LIMIT), ('catalog.json.sigstore.json', 16 * CATALOG_LIMIT)]:
-            raw = fetch('https://github.com/kitepon/BellTeam/releases/download/' + tag + '/' + name, limit)
-            (Path(staging) / name).write_bytes(raw)
-        identifier = verify_and_install_catalog(updater, Path(staging)/'catalog.json', Path(staging)/'catalog.json.sigstore.json')
-        try:
-            for name, limit in [('runtime-catalog.json', CATALOG_LIMIT), ('runtime-catalog.json.sigstore.json', 16 * CATALOG_LIMIT)]:
-                raw = fetch('https://github.com/kitepon/BellTeam/releases/download/' + tag + '/' + name, limit)
-                (Path(staging) / name).write_bytes(raw)
-            verify_and_install_catalog(updater, Path(staging)/'runtime-catalog.json', Path(staging)/'runtime-catalog.json.sigstore.json', runtime_for=identifier)
-        except Exception:
-            pass # Optional asset: absent or invalid leaves runtime targets unavailable; the accepted main catalog stands.
-        return identifier
+    return install_publication(updater, fetch, candidates[0]['tag'])
 REFRESH_LOCK = threading.Lock() # Serializes the background thread and on-demand checks so two catalog installs never overwrite each other.
 def refresh_catalog(updater):
     path = updater.prefix/'catalog/refresh.json'

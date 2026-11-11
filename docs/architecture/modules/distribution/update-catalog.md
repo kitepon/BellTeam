@@ -1,5 +1,35 @@
 # 正式Update catalogの信頼境界
 
+## Stable catalog discovery through the fixed Latest address (U-LATEST, Trony / Owner K-KECHCZ, 2026-11-11 JST)
+
+Why: the host updater listed releases through unauthenticated `api.github.com` (60 requests/h per IP). It checks once per service start, every 60 s while failing and every 900 s after success, plus the Owner's "状態を再取得". A lab restart loop on 2026-11-11 used up Rabbit's quota and blocked another lab's update check for 33 min. A user whose box restarts repeatedly loses update checks the same way.
+
+Contract (stable channel): the stable catalog is the release GitHub marks **Latest**. The catalog publisher sets Latest explicitly on every stable catalog release and reads it back; every other `updates-*` release (module formal releases, runtime closures) is created with `--latest=false`. Latest is therefore also the highest stable catalog tag, the selector the release list used and still uses as the fallback.
+
+```mermaid
+flowchart LR
+  Pub[publish-update-catalog prerelease=false] -->|gh release create --latest| Rel[stable catalog release]
+  Pub -->|read back: api releases/latest == tag AND fixed URL?fresh 302 -> tag| Gate{Latest is this tag?}
+  Gate -->|no| Fail[run fails: Owner/Molly re-mark Latest]
+  Others[module formal / publish-runtime releases] -->|--latest=false| NotLatest[never Latest]
+  Host[_refresh_catalog stable] -->|GET releases/latest/download/catalog.json?fresh=ns, first hop only| Loc[302 Location releases/download/TAG/catalog.json]
+  Loc --> DL[catalog + bundle + runtime-catalog from TAG, signature verification unchanged]
+  DL -->|verified + not older| Ok[refresh.json verified]
+  Host -.->|no redirect / bad Location / download, signature or ROLLBACK failure| API[fallback: api.github.com release list, highest tag]
+  API --> DL2[same download + verification] --> Ok
+  DL2 -.->|fails| Failed[refresh.json failed, accepted catalog keeps serving]
+```
+
+- Host (`scripts/container-update-host.py`): `latest_stable_tag()` reads only the first hop of `https://github.com/kitepon/BellTeam/releases/latest/download/catalog.json?fresh=<ns>` and takes the tag from the `Location` (`releases/download/updates-YYYYMMDDTHHMMSSZ/catalog.json`). All assets are then read from that one tag, so the catalog, bundle and runtime catalog always come from one release even if Latest moves mid-check. The one-off query is needed: on 2026-11-11 02:34Z the plain URL still redirected to the previous stable release 2.5 min after the new one was published, while the same URL with a query string redirected to the new one (a server-side cache, like the cached 504 in the retry section below).
+- (a) Latest serves an older catalog than the installed one: `install_catalog` keeps rejecting it (`HOST_UPDATE_CATALOG_ROLLBACK`; protection: never replace accepted state with an older catalog). The host then falls back to the release list once. If Latest is a release without `catalog.json`, the download 404s and the same fallback applies. The API is used only in these fault cases, not on every check.
+- (b) github.com release pages and downloads are web traffic, not the REST API: they are not counted against the 60/h REST quota and need no token. Our worst case is one check per minute while failing (1 redirect + up to 4 asset reads). Transient failures keep the existing 60 s retry of `fetch_publication`.
+- (c) Every service start still runs one check (`module-update-service.py serve`), and a failing check retries every 60 s. On the stable channel a check now costs no API request, so restart loops no longer use the quota.
+- Candidate channel: GitHub never marks a prerelease Latest, so the candidate channel keeps the release list (shortcut: labs on the candidate channel still use the REST quota; upgrade when a lab is blocked again: publish a fixed candidate pointer asset).
+- Installed updaters (bodies before this change) keep reading the release list; releases stay public and unchanged, so they keep working.
+- Selector `update_catalog.publication_candidates` is unchanged (fallback + candidate). The uncalled `update_catalog.discover_publications` is removed.
+
+Impact: `scripts/container-update-host.py` (`latest_stable_tag`, `_refresh_catalog`), `scripts/update_catalog.py` (dead `discover_publications` removed), `.github/workflows/publish-update-catalog.yml` (stable: `--latest` + read-back), `.github/workflows/publish-runtime.yml` (`--latest=false`), `test/container-update-host.test.py`. The host copy comes from the body image, so it applies from the next approved body swap. Refresh triggers, `refresh.json`, signature/verifier/pointer path, catalog schema and readers are unchanged.
+
 ## Candidate channel for app-path body tests (class fix, Trony 2026-11-09)
 
 Why: a body could reach the app update path only after it was in the stable catalog, so "update over production's adopted modules" ran first in production. Constraint (Trony): use the public mechanism only, and never offer an untested body to users.
