@@ -39,8 +39,8 @@ export function terminalStatus(observation, os = 'macos') {
 export function seatLaunchText(seatLaunch) {
   if (!seatLaunch || typeof seatLaunch !== 'object') return null
   const action = typeof seatLaunch.action === 'string' ? seatLaunch.action.trim() : ''
-  const code = typeof seatLaunch.code === 'string' ? seatLaunch.code.trim() : ''
-  return action || code ? `端末で起動できません：${action || code}` : '端末で起動できません。'
+  // The code is never shown (P2); only the server's action sentence is.
+  return action ? `端末で起動できません：${action}` : '端末で起動できません。'
 }
 
 // members C1: '' or an absolute POSIX path without empty / . / .. segments and no trailing slash.

@@ -6,7 +6,7 @@ Input for this document: the production capture and review by Trony (2026-11-11,
 
 Apple keeps the same structure for Settings in [apple/settings-user-flow.md](../apple/settings-user-flow.md) (Rapi, branch `rapi/apple-auth-states`). Where both apps show the same thing, the words, badges and order are the same (section 9).
 
-Marks: **⚠Wn** = broken today (main 1e835b36), to be fixed. **✓Wn** = fixed (W5-W18, W21 and W24 in step 2a, branch `feat/web-home-roster-20261112`). **→** = target. A transition without ⚠ already works and stays.
+Marks: **⚠Wn** = broken today (main 1e835b36), to be fixed. **✓Wn** = fixed (W5-W18, W21 and W24 in step 2a, branch `feat/web-home-roster-20261112`; W19-W20, W22-W23 and W25-W28 in step 2b-1, branch `feat/web-member-chat-20261112`). **→** = target. A transition without ⚠ already works and stays.
 
 ## 0. Rules every screen follows (acceptance bar)
 
@@ -133,14 +133,15 @@ stateDiagram-v2
 
 | Spot | Today | → Target |
 | --- | --- | --- |
-| CLoading | Blank pane on PC, no sign (review "member chat") ⚠W19 | Skeleton bubbles + 「会話を読み込んでいます」. |
-| CEmpty | Only the day label 「BellTeamでの会話」 | 「まだ会話がありません。メッセージを送ってみてください。」 above the input. |
-| CError | Red 「会話を読み込めませんでした。開き直して確認してください。」 with no button ⚠W20 | Same place, plain sentence + 「もう一度読み込む」. |
+| CLoading | Blank pane on PC, no sign (review "member chat") ✓W19 | Skeleton bubbles + 「会話を読み込んでいます」 (`conversation-timeline.js` `loadingBubbles`, replaced by the first page). |
+| CEmpty | Only the day label 「BellTeamでの会話」 | 「まだ会話がありません。メッセージを送ってみてください。」 above the input; gone as soon as anything (a message or a queued send) is shown. |
+| CError | Red 「会話を読み込めませんでした。開き直して確認してください。」 with no button ✓W20 | Amber box at the end of the conversation: 「会話を読み込めませんでした。通信を確かめて、もう一度読み込んでください。」 + 「もう一度読み込む」 (says 「読み込んでいます…」 while reading; re-opens when nothing was read, else re-reads the newest page). A failed send-queue read is the same box with 「送信待ちの状態を読み込めませんでした。」 and re-reads only the queue. Older page: 「前の会話を読み込んでいます…」 at the top while reading. |
 | Header subtitle | 「CLI接続あり」 / 「CLI接続なし · 送信時に起動」, never refreshed (C1, `app:482`, Trony 2026-11-12 (c)) ✓W21 | The role, plus the same state badge as the row (作業中 / 要対応, `memberState`). Refreshed on every list read. A room shows 「n人」. The header name is the member's name only. |
-| 「▶ 現在の仕事 · 仕事状況を未取得」 | Always shown; opens a table of 未取得 values (C2, `cw:49-57`) ⚠W22 | Shown only when there is a summary: one line 「いまの仕事: …（5分前）」 under the header; tap opens a small card with the summary and 「最終更新 n分前」. No internal field names. |
-| Goal chip | 「ゴール · 状態を取得できません」 on every chat; loading and failure read the same (C3, `goals.js:63, 211`) ⚠W23 | Shown only when a goal exists (「目標に取り組み中」 etc.). Loading shows nothing. A failed read shows nothing in the chip; the goals dialog shows it once. |
+| Seat launch line | 「端末で起動できません：SEAT_TERMINAL_UNREACHABLE」 shows the raw code (P2) ✓ | 「端末で起動できません。」, plus the server's `action` sentence when there is one; never the code. |
+| 「▶ 現在の仕事 · 仕事状況を未取得」 | Always shown; opens a table of 未取得 values (C2, `cw:49-57`) ✓W22 | Shown only when there is a current summary (`summaryStatus: current`): one line 「いまの仕事: …（5分前）」 under the header; tap opens a small card with the summary and 「最終更新 n分前」. No internal field names. A room shows 「いまの仕事: トロニー ほか1人」 and the card lists each participant with a current summary. |
+| Goal chip | 「ゴール · 状態を取得できません」 on every chat; loading and failure read the same (C3, `goals.js:63, 211`) ✓W23 | Shown only when a goal exists (「目標に取り組み中」 etc.) or the seat is idle (`availability: unavailable` + `reason: seat_idle` → 「ゴール · 休止中」, #1108). 目標未設定, 未対応, loading and a failed read hide the chip. Loading shows nothing. A failed read shows nothing in the chip; the goals dialog shows it once. |
 | Header tools | Edit, screen, export, schedule as icons; on phone they squeeze the name to 「トロニ…」 (C4) ✓W24 | Edit (tap on the name) and 画面 stay; 「自動実行」 and 「会話を書き出す」 move into a 「…」 menu (closes after a choice, outside click, Esc). The phone chat header drops the Update pill. Line 2 is one line: the state badge first, then the role, cut with 「…」. |
-| Errors in the conversation | One persistent red line above the input, no dismiss (`cc:25-28`) | Same line, with a 「×」 and cleared by the next success. |
+| Errors in the conversation | One persistent red line above the input, no dismiss (`cc:25-28`) | Same line, with a 「×」 (`#composer-error-close`) and cleared by the next success. |
 
 **Screen panel** (画面 button):
 
@@ -156,10 +157,10 @@ stateDiagram-v2
   SLive --> [*]: 「閉じる」, 戻る (phone) or another conversation
 ```
 
-- ⚠W25 PC: the panel opens black with an empty status line until the first read; the previous member's text stays when switching (`bot-read-views.js:119-129`). → SLoading text; clear on switch.
-- ⚠W26 The key bar shows while the member is not running, then every key fails. → No key bar in SOff.
-- ⚠W27 Phone text is about 7 px. → At least 11 px with horizontal scroll inside the panel only.
-- ⚠W28 Phone 戻る leaves the panel polling every second. → Closing the conversation closes the panel.
+- ✓W25 PC: the panel opens black with an empty status line until the first read; the previous member's text stays when switching (`bot-read-views.js:119-129`). → SLoading text; clear on switch.
+- ✓W26 The key bar shows while the member is not running, then every key fails. → No key bar in SOff.
+- ✓W27 Phone text is about 7 px. → At least 11 px with horizontal scroll inside the panel only.
+- ✓W28 Phone 戻る leaves the panel polling every second. → Closing the conversation closes the panel.
 
 ### 3.2 Cards in the conversation
 

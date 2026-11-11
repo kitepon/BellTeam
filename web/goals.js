@@ -48,7 +48,8 @@ export function goalsView(dialog, api, getBots, chat = null) {
     const configured = snapshots.filter(snapshot => isKnown(snapshot) && snapshot.goal !== null)
     renderCards(body, configured, '表示できるゴールはありません。')
     if (chat) {
-      chat.hidden = selectedBotId === null
+      // W23: the chip shows a goal or 休止中 only; loading, 目標未設定, unsupported and a failed read show nothing (the goals dialog says it).
+      let chip = null
       if (selectedBotId !== null) {
         const selected = snapshots.find(snapshot => snapshot.botId === selectedBotId)
         const current = isKnown(selected) ? displayGoal(selected.goal) : null
@@ -58,14 +59,15 @@ export function goalsView(dialog, api, getBots, chat = null) {
             : current?.timeUsedSeconds == null ? null : `${amount(current.timeUsedSeconds)}秒`
         const state = current?.status === 'active' ? '目標に取り組み中'
           : current?.status === 'paused' ? '目標を一時停止中' : `目標 · ${displayStatus(original)}`
-        chatSummary.textContent = isKnown(selected)
-          ? current ? [state, elapsed].filter(Boolean).join('  ') : '目標未設定'
-          : selected?.availability === 'unsupported' ? 'ゴール · このメンバーは未対応です'
-            // 席が止まっているだけ（seat_idle）は失敗ではない。reason が無い古い応答は読取失敗として扱う。
-            : selected?.availability === 'unavailable' && selected.reason === 'seat_idle' ? 'ゴール · 休止中' : 'ゴール · 状態を取得できません'
+        chip = isKnown(selected) ? current ? [state, elapsed].filter(Boolean).join('  ') : null
+          // 席が止まっているだけ（seat_idle）は失敗ではない。reason が無い古い応答は読取失敗として扱う。
+          : selected?.availability === 'unavailable' && selected.reason === 'seat_idle' ? 'ゴール · 休止中' : null
+        chatSummary.textContent = chip ?? ''
         chatSummary.title = current?.objective ?? chatSummary.textContent
         renderCards(chatBody, snapshots.filter(snapshot => snapshot.botId === selectedBotId), 'ゴールの状態を取得できません。更新して確認してください。')
       }
+      chat.hidden = !chip
+      if (!chip) chat.open = false
       chatRefresh.disabled = refreshing || selectedRead?.id === selectedBotId || pending.has(selectedBotId)
     }
   }

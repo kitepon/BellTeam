@@ -15,13 +15,6 @@ export function currentWork(value) {
   if (summarized && summaryStatus === 'stale') return summary === null && timestamp(summaryUpdatedAt) ? value : unknown
   return ['working','idle','unknown'].includes(state) && summaryStatus === 'missing' && summary === null && summaryUpdatedAt === null && source === null ? value : unknown
 }
-export function workLabel(value) {
-  const work = currentWork(value)
-  if (work.summaryStatus === 'current' && work.state !== 'working') return `${work.summary}（${stateLabel[work.state]}）`
-  if (work.summaryStatus === 'stale' && work.state !== 'working') return `${stateLabel[work.state]}・要約期限切れ`
-  return work.state === 'working' ? work.summary ?? (work.summaryStatus === 'stale' ? '作業中・要約期限切れ' : '作業中・要約未取得')
-    : work.state === 'idle' ? '待機中' : '仕事状況を未取得'
-}
 export function participantWork(room, bots) {
   const input = room.currentWork?.scope === 'participants' && Array.isArray(room.currentWork.members) ? room.currentWork.members : []
   return room.memberIds.flatMap(id => {
@@ -31,15 +24,21 @@ export function participantWork(room, bots) {
     return [{ name:bot.name ?? bot.displayName, work:currentWork(matches.length === 1 ? matches[0].currentWork : null) }]
   })
 }
-const time = value => value ? new Intl.DateTimeFormat('ja-JP',{timeZone:'Asia/Tokyo',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(new Date(value))+' JST' : '未取得'
-const sourceLabel = source => source === 'background_agent' ? '自動生成' : source === 'self_reported' ? '本人記載' : '未取得'
-const stateLabel = {working:'作業中',idle:'待機中',unknown:'実行状態未取得'}
+// 「たった今」「5分前」「2時間前」「3日前」.
+export function ago(value, now = Date.now()) {
+  const minutes = Math.max(0, Math.floor((now - Date.parse(value)) / 60_000))
+  return minutes < 1 ? 'たった今' : minutes < 60 ? `${minutes}分前` : minutes < 1440 ? `${Math.floor(minutes / 60)}時間前` : `${Math.floor(minutes / 1440)}日前`
+}
+// Chat header line (user-paths.md 3.1 W22): only a current summary is shown; absent, stale or unknown shows nothing (P4).
 export function renderCurrentWork(root, type, target, bots) {
-  root.hidden = !target
-  if (!target) return
-  const summary = root.querySelector('summary'), body = root.querySelector('[data-work-body]')
-  summary.textContent = type === 'room' ? '参加者の現在の仕事' : `現在の仕事 · ${workLabel(target.currentWork)}`
-  const members = type === 'room' ? participantWork(target,bots) : [{name:target.name ?? target.displayName,work:currentWork(target.currentWork)}]
-  body.innerHTML = `<p class="field-help">${type === 'room' ? '参加者それぞれの仕事です。このルームで行っている仕事への帰属は示しません。' : '仕事内容の短い要約です。作業の成功や完了を示す情報ではありません。'}</p>` + members.map(({name,work}) => `<section><h3>${escapeHtml(name)}</h3><p>${escapeHtml(workLabel(work))}</p><dl><dt>実行状態</dt><dd>${stateLabel[work.state]}</dd><dt>要約の生成元</dt><dd>${sourceLabel(work.source)}</dd><dt>最終観測</dt><dd>${escapeHtml(time(work.observedAt))}</dd><dt>要約の更新</dt><dd>${escapeHtml(time(work.summaryUpdatedAt))}</dd></dl></section>`).join('')
-  if (!members.length) body.insertAdjacentHTML('beforeend','<p>参加者の仕事要約を未取得</p>')
+  const members = !target ? [] : type === 'room' ? participantWork(target, bots) : [{ name: target.name ?? target.displayName, work: currentWork(target.currentWork) }]
+  const shown = members.filter(member => member.work.summaryStatus === 'current')
+  root.hidden = !shown.length
+  if (!shown.length) { root.open = false; return }
+  const [first] = shown
+  root.querySelector('summary').textContent = type === 'room'
+    ? `いまの仕事: ${first.name}${shown.length > 1 ? ` ほか${shown.length - 1}人` : ''}`
+    : `いまの仕事: ${first.work.summary}（${ago(first.work.summaryUpdatedAt)}）`
+  root.querySelector('[data-work-body]').innerHTML = shown.map(({ name, work }) =>
+    `<section>${type === 'room' ? `<h3>${escapeHtml(name)}</h3>` : ''}<p>${escapeHtml(work.summary)}</p><p class="current-work-time">最終更新 ${ago(work.summaryUpdatedAt)}</p></section>`).join('')
 }

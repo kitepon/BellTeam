@@ -19,7 +19,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
   const cardSnapshots = new WeakMap()
   const state = { timelineMap: new Map(), timelineQueue: [], timelineQueueRequest: 0,
     timelineQueueError: '', timelineHasMore: false, timelineOldestId: null,
-    timelineLoadingOlder: false, timelineToken: 0, historyRequest: 0, historyError: '', stickToBottom: true }
+    timelineLoadingOlder: false, timelineToken: 0, historyRequest: 0, historyError: '', stickToBottom: true, opening: false }
   async function readHistory(read) {
     const pending = read()
     const token = state.timelineToken
@@ -27,7 +27,10 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     try { await pending; return true }
     catch {
       if (token === state.timelineToken && request === state.historyRequest) {
-        state.historyError = '会話を読み込めませんでした。開き直して確認してください。'
+        state.historyError = '会話を読み込めませんでした。通信を確かめて、もう一度読み込んでください。'
+        state.opening = false
+        timelineItems.replaceChildren()
+        if (state.timelineMap.size) timelineItems.append(dayLabel(), ...[...state.timelineMap.values()].map(item => renderItem(item, queuedFor(item))))
         renderTail([...state.timelineMap.values()])
       }
       return false
@@ -88,11 +91,13 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     state.timelineQueue = []
     state.timelineQueueError = ''
     state.historyError = ''
-    timelineItems.replaceChildren()
+    state.opening = true
+    timelineItems.replaceChildren(loadingBubbles())
     timelineTail.replaceChildren()
     void refreshTimelineQueue(token)
     const result = await api(`${messagesPath()}?limit=${TIMELINE_FIRST_PAGE}`)
     if (token !== state.timelineToken || request !== state.historyRequest) return
+    state.opening = false
     const items = normalizeItems(result.items)
     rememberItems(items)
     state.timelineHasMore = result.has_more
@@ -114,7 +119,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
       for (const id of state.timelineMap.keys()) rerenderItem(id, token)
     } catch {
       if (token !== state.timelineToken || request !== state.timelineQueueRequest) return
-      state.timelineQueueError = '送信待ちの状態を取得できませんでした。更新して確認してください。'
+      state.timelineQueueError = '送信待ちの状態を読み込めませんでした。'
     }
     renderTail([...state.timelineMap.values()])
   }
@@ -158,6 +163,8 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     if (!state.timelineHasMore || state.timelineLoadingOlder || !state.timelineOldestId) return
     state.timelineLoadingOlder = true
     const token = state.timelineToken
+    const spinner = Object.assign(document.createElement('p'), { className: 'timeline-older', textContent: '前の会話を読み込んでいます…' })
+    timelineItems.firstChild?.after(spinner)
     try {
       const result = await api(`${messagesPath()}?limit=${TIMELINE_MORE_PAGE}&before=${encodeURIComponent(state.timelineOldestId)}`)
       if (token !== state.timelineToken) return
@@ -171,6 +178,7 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
       timeline.scrollTo({ top: timeline.scrollTop + (timeline.scrollHeight - before), behavior: 'instant' })
       loadStoredMessageImages(items, item => rerenderItem(item.id, token))
     } finally {
+      spinner.remove()
       if (token === state.timelineToken) state.timelineLoadingOlder = false
     }
   }
@@ -211,13 +219,38 @@ export function createConversationTimeline({ timeline, latestButton, api, messag
     const tail = state.timelineQueue.filter(entry => !renderedIds.has(entry.groupId)).map(renderQueuedItem)
     if (target?.type === 'bot' && state.timelineQueue.some(entry => entry.status === 'running')) tail.push(renderThinking(target.id))
     timelineTail.replaceChildren(...tail)
-    for (const message of [state.timelineQueueError, state.historyError].filter(Boolean)) {
-      const note = document.createElement('p')
-      note.className = 'form-error'
-      note.textContent = message
-      timelineTail.append(note)
-    }
+    if (!state.opening && !state.historyError && !state.timelineMap.size && !tail.length) timelineTail.append(Object.assign(document.createElement('p'), { className: 'timeline-empty', textContent: 'まだ会話がありません。メッセージを送ってみてください。' }))
+    // A failed read says so in place, with its own retry (user-paths.md 3.1 CError).
+    const token = state.timelineToken
+    if (state.historyError) timelineTail.append(inlineError(state.historyError, () => readHistory(state.timelineMap.size ? refreshTimeline : openTimeline)))
+    else if (state.timelineQueueError) timelineTail.append(inlineError(state.timelineQueueError, () => refreshTimelineQueue(token)))
     onQueueChange()
+  }
+
+  function inlineError(message, retry) {
+    const box = document.createElement('div')
+    box.className = 'inline-error'
+    box.setAttribute('role', 'alert')
+    const text = document.createElement('p')
+    text.textContent = message
+    const again = document.createElement('button')
+    again.type = 'button'
+    again.textContent = 'もう一度読み込む'
+    again.addEventListener('click', () => {
+      again.disabled = true
+      again.textContent = '読み込んでいます…'
+      state.historyError = ''
+      void retry()
+    })
+    box.append(text, again)
+    return box
+  }
+  function loadingBubbles() {
+    const box = document.createElement('div')
+    box.className = 'timeline-loading'
+    box.setAttribute('role', 'status')
+    box.innerHTML = '<span class="skeleton-bubble"></span><span class="skeleton-bubble is-right"></span><span class="skeleton-bubble"></span><p>会話を読み込んでいます</p>'
+    return box
   }
 
   timeline.addEventListener('scroll', () => {

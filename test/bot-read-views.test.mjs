@@ -24,7 +24,7 @@ test('closing an initial screen read cannot recreate its timer or apply a late r
  const pending=deferred(),panel=new Element(),status=new Element(),text=new Element()
  const view=createScreenView({panel,status,text,header:{offsetHeight:80},api:()=>pending.promise})
  const opened=view.open({id:'a',displayName:'A'});view.close();pending.resolve({online:true,screen:'old'});await opened
- assert.equal(timers,0);assert.equal(panel.hidden,true);assert.equal(text.textContent,undefined)
+ assert.equal(timers,0);assert.equal(panel.hidden,true);assert.equal(text.textContent,'')
 })
 test('screen reopening owns its result and only creates one current timer',async t=>{
  platform(t);let timers=0;t.mock.method(globalThis,'setTimeout',()=>{timers++;return 1});t.mock.method(globalThis,'clearTimeout',()=>{})
@@ -32,7 +32,7 @@ test('screen reopening owns its result and only creates one current timer',async
  const view=createScreenView({panel,status,text,header:{offsetHeight:80},api:path=>path.includes('/a/')?a.promise:b.promise})
  const first=view.open({id:'a',displayName:'A'}),second=view.open({id:'b',displayName:'B'})
  b.resolve({online:true,screen:'B screen  '});await second;a.reject(Error('A failure'));await first
- assert.equal(text.textContent,'B screen');assert.match(status.textContent,/B の画面/);assert.equal(timers,1)
+ assert.equal(text.textContent,'B screen');assert.match(status.textContent,/Bの画面/);assert.equal(timers,1)
 })
 test('late character sheet bytes after close create no URL and old list cannot populate a new dialog',async t=>{
  platform(t);let creates=0;t.mock.method(URL,'createObjectURL',()=>{creates++;return 'blob:a'});t.mock.method(URL,'revokeObjectURL',()=>{})
@@ -114,11 +114,18 @@ test('screen reads run every 1 s after the previous returns and never overlap',a
   if(path.endsWith('/approval'))return {status:'none'}
   screens++;open++;max=Math.max(max,open);if(screens===2)await gate.promise;open--;return {online:true,screen:'s'}}})
  await view.open({id:'a',displayName:'A'})
- assert.deepEqual(ticks.map(tick=>tick.ms),[1000]);assert.match(status.textContent,/1秒ごとに更新/)
+ assert.deepEqual(ticks.map(tick=>tick.ms),[1000]);assert.match(status.textContent,/1秒ごと/)
  const next=ticks[0].fn();await settle()
  assert.equal(screens,2);assert.equal(ticks.length,1)
  const key=all(input,node=>node.dataset?.screenKey==='Enter')[0];key.listeners.click();await settle();await settle()
  assert.equal(screens,2);assert.equal(max,1)
  gate.resolve();await next;await settle()
  assert.equal(screens,3);assert.equal(max,1);assert.deepEqual(ticks.map(tick=>tick.ms),[1000,1000])
+})
+test('a stopped member gets no key bar and the panel says it starts with the next message (W26)',async t=>{
+ platform(t);t.mock.method(globalThis,'setTimeout',()=>1);t.mock.method(globalThis,'clearTimeout',()=>{})
+ const panel=new Element(),status=new Element(),text=new Element(),input=new Element()
+ const view=createScreenView({panel,status,text,input,header:{offsetHeight:80},api:async path=>path.endsWith('/approval')?{status:'none'}:{online:false,screen:''}})
+ await view.open({id:'a',name:'トロニー',displayName:'トロニー 本番'})
+ assert.equal(input.hidden,true);assert.equal(status.textContent,'トロニーは止まっています。次のメッセージで起動します')
 })

@@ -17,7 +17,7 @@ const approvalValue = value => value?.status === 'approval_required' && typeof v
 export function createScreenView({ panel, status, text, header, api, input = null }) {
   let owner = null, timer = null, request = 0, reading = null, again = false
   // Per opened panel: the latest approval read, a hidden bar after 503, the key being sent and the last message.
-  let approval = null, unavailable = false, unsupported = false, busy = null, message = ''
+  let approval = null, unavailable = false, unsupported = false, busy = null, message = '', stopped = false
   const make = (tag, className, value) => { const node = document.createElement(tag); node.className = className; if (value !== undefined) node.textContent = value; return node }
   const card = input && make('section', 'screen-approval'), keys = input && make('div', 'screen-keys'), note = input && make('p', 'screen-input-note')
   const keyButtons = []
@@ -38,7 +38,8 @@ export function createScreenView({ panel, status, text, header, api, input = nul
   }
   function renderInput() {
     if (!input) return
-    input.hidden = !owner || unavailable
+    // No key bar while the member is not running (W26): every key would fail.
+    input.hidden = !owner || unavailable || stopped
     for (const button of keyButtons) button.disabled = Boolean(busy)
     note.textContent = message
     card.hidden = !approval
@@ -89,7 +90,9 @@ export function createScreenView({ panel, status, text, header, api, input = nul
     timer = null
     reading = null; again = false
     panel.hidden = true
-    approval = null; busy = null; message = ''
+    approval = null; busy = null; message = ''; stopped = false
+    // Never show the previous member's screen (W25).
+    status.textContent = ''; text.textContent = ''
     renderInput()
   }
   // One read at a time: a request during a read runs once after it (Owner: 1 s, no overlap).
@@ -108,12 +111,14 @@ export function createScreenView({ panel, status, text, header, api, input = nul
     try {
       const result = await api(`/api/bots/${bot.id}/screen`)
       if (owner !== bot || token !== request) return
-      status.textContent = result.online ? `${bot.displayName} の画面 · 1秒ごとに更新` : `${bot.displayName} は停止中（次のメッセージで起動）`
+      const name = bot.name ?? bot.displayName
+      if (stopped !== !result.online) { stopped = !result.online; renderInput() }
+      status.textContent = result.online ? `${name}の画面 · 1秒ごと` : `${name}は止まっています。次のメッセージで起動します`
       const stick = text.scrollHeight - text.scrollTop - text.clientHeight < 24
       text.textContent = result.screen.replace(/\s+$/u, '')
       fit(result.screen)
       if (stick) text.scrollTop = text.scrollHeight
-    } catch { if (owner === bot && token === request) status.textContent = '画面を読めませんでした' }
+    } catch { if (owner === bot && token === request) status.textContent = '画面を読めませんでした。自動でもう一度読みます' }
     await asked
   }
   async function open(bot) {
@@ -123,6 +128,7 @@ export function createScreenView({ panel, status, text, header, api, input = nul
     const opened = owner
     panel.style.top = `${header.offsetHeight}px`
     panel.hidden = false
+    status.textContent = '画面を読み込んでいます…'
     renderInput()
     await refresh()
     tick(opened)
@@ -142,7 +148,8 @@ export function createScreenView({ panel, status, text, header, api, input = nul
     const width = probe.getBoundingClientRect().width
     probe.remove()
     const available = text.clientWidth - 28
-    if (width > 0 && available > 0) text.style.fontSize = `${Math.min(12, 12 * available / width).toFixed(2)}px`
+    // At least 11 px; wider screens scroll sideways inside the panel (W27).
+    if (width > 0 && available > 0) text.style.fontSize = `${Math.max(11, Math.min(12, 12 * available / width)).toFixed(2)}px`
   }
   window.addEventListener('resize', () => { if (!panel.hidden) fit(text.textContent) })
   return { open, close }

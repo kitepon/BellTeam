@@ -85,7 +85,7 @@ test('queue failure keeps history and explicitly displays unknown work state', a
   const f = fixture(t)
   await f.open('a'); f.queues[0].reject(new Error('unavailable')); await settle()
   assert.deepEqual(f.ids(), ['a-message'])
-  assert.match(f.text(), /送信待ちの状態を取得できません/)
+  assert.match(f.text(), /送信待ちの状態を読み込めませんでした。 もう一度読み込む/)
 })
 test('old history success/failure and close cannot populate a different conversation', async t => {
   const pending = deferred()
