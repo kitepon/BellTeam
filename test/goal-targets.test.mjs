@@ -24,3 +24,16 @@ test('壊れた一覧や同名session重複はGoal対象へ採用しない', asy
     await assert.rejects(transport.goalTargets([{ id: 'same', session: 'same' }]), /GOAL_TARGETS_INVALID/)
   }
 })
+
+test('休止状態名の一覧行は動いている席ではないのでGoal対象にしない', async () => {
+  const dormant = ['stopping', 'hibernated', 'resuming', 'failed', 'unknown', 'vanished']
+  const bots = ['live', ...dormant].map(id => ({ id, session: id }))
+  const transport = new AitermTransport({ client: { async call() {
+    return { structuredContent: { schema: 'aiterm.pty-list-result.v1', observed_at: new Date().toISOString(), sessions: [
+      { session_id: 'live', current_command: 'node', launch_id: 'a'.repeat(32) },
+      ...dormant.map(name => ({ session_id: name, current_command: name, launch_id: 'b'.repeat(32) })),
+    ] } }
+  } } })
+  const targets = await transport.goalTargets(bots)
+  assert.deepEqual([...targets.keys()], ['live'])
+})

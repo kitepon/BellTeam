@@ -97,6 +97,7 @@ Guard（guards.self-exit）：占有はturnが動いている可能性のある�
 ```mermaid
 flowchart TD
   Read["一覧 / 個別取得"] --> Targets["既存のsessionとlaunchを読む"]
+  Targets -->|"動いている席なし<br/>（行なし・休止行・paneなし）"| Idle["unavailable + reason=seat_idle<br/>休止中の文言。診断なし"]
   Change["Ownerの変更操作"] --> Gate["操作権限と必要なAI受付を確認"]
   Gate --> Expected["現在launchと画面のbindingを照合"]
   Targets --> Call["Aiterm agent_goal"]
@@ -105,13 +106,14 @@ flowchart TD
   Validate --> Snapshot["表示snapshotへ変換"]
   Validate --> Outcome["変更受付とreadbackから<br/>confirmed / unconfirmed"]
   Call -->|"異常"| Report["安全な診断を記録"]
-  Report --> Unavailable["unavailable / unconfirmedを返す"]
+  Report --> Unavailable["unavailable + reason=read_failed / unconfirmedを返す"]
 ```
 
 | 関数 | 正本と保持条件 |
 | --- | --- |
-| `list/goalTargets` | 一覧だけpty_listで既存対象をまとめて読む。launch_idなしの旧返却だけ個別generationへ。存在しない席を起こさない |
-| `generation/inspect` | pty_observeのsession/exists/launchを検証。指定対象を読む前後でsessionが変わればunavailable |
+| `list/goalTargets` | 一覧だけpty_listで既存対象をまとめて読む。launch_idなしの旧返却だけ個別generationへ。存在しない席を起こさない。行なしと、`current_command`がAitermの休止状態名（stopping/hibernated/resuming/failed/unknown/vanished）の行は動いている席ではないので対象にせず、agent_goalを呼ばない |
+| `generation/inspect` | pty_observeのsession/exists/launchを検証。`exists=false`・`pane_alive=false`・休止行（reason `agent_*`）は席が動いていない状態としてseat_idle。指定対象を読む前後でsessionが変わればunavailable（read_failed） |
+| 公開snapshotの`reason`（2026-11-12追加） | 加算fieldだけで`availability`の値集合は変えない（Apple 1.0.6とWindows 0.4.7はavailabilityを閉じた列挙でdecodeする）。`seat_idle`＝席が今動いていない通常状態。messageは「休止中です。メッセージを送ると再開します。」で、診断を記録しない。`read_failed`＝本当の取得失敗で、従来のmessageと診断のまま。available/unsupportedは`null`。clientは`reason=seat_idle`だけを休止中表示にし、それ以外のunavailableは失敗表示を保つ |
 | `mutate` | origin=userのみ。create/edit/resumeはadmitWork、pause/clearは停止中も操作可能。expected session/launch/threadをnativeへ渡す |
 | `call` | v1/v2返却、mutation/readback、field capability、Codex/Claude/Grok別native形を検証。typedエラー結果も同じ検証に通す |
 | `snapshot` | availableでもbinding/goalなしはunavailable。create/edit/pause/resumeの表示可否は現在Goalと公開capabilityの両方から制限 |

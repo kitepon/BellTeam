@@ -238,3 +238,27 @@ test('V2 MCP isErrorのunknownを保持し、goal省略をnullや成功にしな
   assert.equal(result.outcome, 'unconfirmed'); assert.equal(result.snapshot.availability, 'unavailable')
   assert.equal(Object.hasOwn(result.snapshot, 'goal'), false); assert.equal(f.calls.length, 1)
 })
+
+test('動いていない席はseat_idleの休止中、本当の取得失敗はread_failedで分ける', async () => {
+  const closed = { ...bot, id: 'closed', session: 'closed-seat' }
+  const listed = await fixture({ runningBots: async () => new Set([bot.id]) }).service.list([bot, closed])
+  assert.equal(listed[0].reason, null)
+  assert.deepEqual([listed[1].availability, listed[1].reason, listed[1].message], ['unavailable', 'seat_idle', '休止中です。メッセージを送ると再開します。'])
+
+  const failedList = await fixture({ runningBots: async () => { throw Error('list unavailable') } }).service.list([bot])
+  assert.deepEqual([failedList[0].availability, failedList[0].reason], ['unavailable', 'read_failed'])
+
+  const observed = extra => async () => ({ schema: 'aiterm.pty-observe-result.v1', session_id: 'owned-seat', exists: true, launch_id: launch, ...extra })
+  for (const extra of [{ exists: false, launch_id: null }, { pane_alive: false }, { pane_alive: null, state: 'unknown', reason: 'agent_resuming' }]) {
+    const { service, calls, reports } = fixture({ observe: observed(extra) })
+    const snapshot = await service.inspect(bot)
+    assert.deepEqual([snapshot.availability, snapshot.reason, snapshot.message], ['unavailable', 'seat_idle', '休止中です。メッセージを送ると再開します。'])
+    assert.equal(calls.length, 0); assert.equal(reports.length, 0)
+  }
+  for (const observe of [observed({ session_id: 'other-seat', exists: false }), async () => { throw Error('observe failed') }]) {
+    const snapshot = await fixture({ observe }).service.inspect(bot)
+    assert.deepEqual([snapshot.availability, snapshot.reason], ['unavailable', 'read_failed'])
+  }
+  const nativeFailure = await fixture({ result: native({ availability: 'unavailable', outcome: 'unavailable', binding: null, reason: 'native_goal_connection_unavailable' }) }).service.inspect(bot)
+  assert.deepEqual([nativeFailure.availability, nativeFailure.reason], ['unavailable', 'read_failed'])
+})
