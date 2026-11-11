@@ -227,6 +227,25 @@ public partial class App : Application
                 WritePng(window, 1280, 820, startupOutput);
                 model.Dispose(); Shutdown(0); return;
             }
+            if (e.Args is ["--render-workgraph", var graphAddress, var graphOutput])
+            {
+                // The work graph read from the mock server (GET only): the real stream and model, with a virtual clock so 12 s of simulation is stepped at 60 Hz without waiting.
+                var model = new Workspace(); await model.ConnectAsync(graphAddress, listen: false);
+                if (model.ConnectionError is { } graphFailure) throw new BellApiException(graphFailure);
+                var graphNow = 0.0;
+                var graphWindow = new WorkGraphWindow(model, _ => Task.CompletedTask, () => graphNow);
+                var graphRoot = (FrameworkElement)graphWindow.Content;
+                const int graphWidth = 960, graphHeight = 640;
+                graphRoot.Measure(new Size(graphWidth, graphHeight)); graphRoot.Arrange(new Rect(0, 0, graphWidth, graphHeight)); graphRoot.UpdateLayout();
+                graphWindow.Graph.Run((onActivity, token) => model.Management.Api.WorkGraphEventsAsync(onActivity, token), model.ConnectionToken);
+                var until = DateTime.UtcNow.AddSeconds(10);
+                while (graphWindow.Graph.Model.Connection != WorkGraphConnection.Live) { if (DateTime.UtcNow > until) throw new BellApiException("相関図のsnapshotを受け取れませんでした。"); await Task.Delay(20); }
+                for (var frame = 0; frame < 12 * 60; frame++) { graphNow += 1.0 / 60; graphWindow.Graph.Frame(graphNow); }
+                graphWindow.Graph.Stop();
+                graphRoot.UpdateLayout();
+                WritePng(graphWindow, graphWidth, graphHeight, graphOutput);
+                model.Dispose(); Shutdown(0); return;
+            }
             if (e.Args is ["--render-preview", _] || e.Args is ["--render-url", _, _] || e.Args is ["--render-url", _, _, _])
             {
                 // HWNDを作らず、WPFの部品を画像へ描く。Show・Activateは呼ばない。
