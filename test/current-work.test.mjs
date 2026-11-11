@@ -59,7 +59,7 @@ test('a delayed older read cannot replace a newer generation; waiting writer rej
 })
 test('invalid schema, duplicate rows, absent launch and failed observation are unknown', t => {
   const f = fixture(t)
-  for (const invalid of [null, { schema: 'wrong', seats: [] }, data(row(), row()), data(row('a', { launch_id: null })), data(row('a', { turn: null })), data(), { ...data(row()), error: '' }, data(row('a', { turn: { state: 'idle', turn_id: 'contradiction' } }))]) {
+  for (const invalid of [null, { schema: 'wrong', seats: [] }, data(row(), row()), data(row('a', { launch_id: null })), data(row('a', { turn: null })), { ...data(row()), error: '' }, data(row('a', { turn: { state: 'idle', turn_id: 'contradiction' } }))]) {
     f.observe(); const last = f.snapshot().observedAt; f.clock = 100
     f.observe(invalid); assert.equal(f.snapshot().state, 'unknown'); assert.equal(f.snapshot().observedAt, last)
   }
@@ -141,6 +141,13 @@ test('expiry timer emits state invalidation without AI or a client read; same-ro
   const eventCount = f.events.length; f.observe(); assert.equal(f.events.length, eventCount)
   f.clock = 15_000; t.mock.timers.tick(15_000)
   assert.equal(f.events.length, eventCount + 1); assert.equal(f.snapshot().state, 'unknown')
+})
+test('no live seat (valid read without the row) reads idle in the DTO while fresh, then unknown (Trony 2026-11-11)', t => {
+  const f = fixture(t); f.observe(); f.clock = 1_000
+  f.observe(data()); assert.equal(f.snapshot().state, 'idle'); assert.equal(f.snapshot().summary, null)
+  assert.equal(f.snapshot().observedAt, new Date(1_800_000_001_000).toISOString()); assert.equal(f.work.turn(botId).state, 'idle')
+  f.clock = 16_000; assert.equal(f.snapshot().state, 'unknown'); assert.equal(f.work.turn(botId).state, 'idle')
+  f.observe(); assert.equal(f.snapshot().state, 'working')
 })
 test('Aiterm 0.70.7 unread: a seat whose terminal was not read keeps its observation, is never absent, then expires', t => {
   const f = fixture(t); f.observe(); assert.equal(f.snapshot().state, 'working')

@@ -100,7 +100,7 @@ export class CurrentWork {
     if (!this.records.has(botId)) this.records.set(botId, {
       botId, sessionId: null, launchId: null, turnId: null, startedAt: null, revision: randomUUID(), state: 'unknown',
       observedAt: null, observedMono: null, summary: null, summaryStatus: 'missing', summaryUpdatedAt: null,
-      summaryMono: null, lastRead: 0, barrier: 0, completed: null, settledSeq: 0,
+      summaryMono: null, lastRead: 0, barrier: 0, completed: null, settledSeq: 0, absentMono: null,
     })
     return this.records.get(botId)
   }
@@ -125,7 +125,7 @@ export class CurrentWork {
   invalidate(botId) { this.finishedActivity(botId, this.restartActivity.get(botId)); this.unknown(this.record(botId)); this.schedule() }
   sync(botId, sessionId, available = true) {
     const record = this.record(botId)
-    if (record.sessionId !== sessionId) { this.unknown(record); record.sessionId = sessionId; record.absent = false; record.settledSeq = 0 }
+    if (record.sessionId !== sessionId) { this.unknown(record); record.sessionId = sessionId; record.absent = false; record.absentMono = null; record.settledSeq = 0 }
     if (!available || this.closed) this.unknown(record)
     this.expire(record)
     return record
@@ -143,8 +143,11 @@ export class CurrentWork {
     }
   }
   snapshot(botId, sessionId, available = true) {
-    const record = this.sync(botId, sessionId, available)
-    return { state: record.state, summary: record.summary, summaryStatus: record.summaryStatus,
+    const record = this.sync(botId, sessionId, available), now = this.monotonic()
+    // Trony 2026-11-11: no live seat reads idle in the DTO too, while that read is fresh (same 15 s / read hold as a row).
+    const absentIdle = record.state === 'unknown' && record.absent && record.absentMono !== null
+      && (now - record.absentMono < NATIVE_MS || this.holding(now) !== null)
+    return { state: absentIdle ? 'idle' : record.state, summary: record.summary, summaryStatus: record.summaryStatus,
       summaryUpdatedAt: record.summaryUpdatedAt, observedAt: record.observedAt,
       source: record.summaryStatus === 'missing' ? null : 'self_reported' }
   }
@@ -184,6 +187,7 @@ export class CurrentWork {
       const matches = rows.filter(row => row?.session_id === target.sessionId)
       // A valid read without this seat proves no turn can run (after_turn reads it as idle; the DTO stays unknown).
       const absent = valid && matches.length === 0
+      if (absent) { record.observedAt = this.now(); record.absentMono = this.monotonic() } else record.absentMono = null
       if (record.absent !== absent) { record.absent = absent; try { this.notify(record.botId) } catch {} }
       if (absent) record.settledSeq = read.seq
       const row = matches.length === 1 ? matches[0] : null, turn = row?.turn
