@@ -4,8 +4,9 @@ import { AitermClient, accountLoginEnvironment, runtimeLaunchEnv } from './aiter
 import { authenticationPreflightFailure, launchRefusal } from './agent-launch-error.mjs'
 import { mcpRequestContext } from './mcp-request-context.mjs'
 import { returnedMcpError } from './returned-mcp-error.mjs'
+import { isTerminalPath } from './terminals/paths.mjs'
 
-let client
+let client, issued = false
 try {
   if (process.getuid() !== 1000 || process.geteuid() !== 1000 || process.getgid() !== 1000)
     throw Error('SEAT_LAUNCH_IDENTITY')
@@ -13,11 +14,12 @@ try {
   for await (const chunk of process.stdin) chunks.push(chunk)
   const request = JSON.parse(Buffer.concat(chunks).toString())
   // A terminal launch (one launch path) runs the CLI on the terminal: cwd is that folder and only named private env crosses.
+  // cwd is the terminal's native absolute form (POSIX /... or Windows X:\...); terminals checks it against the real OS.
   const terminal = request.launch && Object.hasOwn(request.launch, 'terminal')
   const names = request.privateEnvNames, privateEnv = request.privateEnv ?? {}
   const name = key => typeof key === 'string' && /^[A-Za-z_][A-Za-z0-9_]{0,127}$/.test(key)
   if (!request.launch || Object.hasOwn(request.launch, 'env_vars')
-    || (terminal ? typeof request.launch.cwd !== 'string' || !request.launch.cwd.startsWith('/')
+    || (terminal ? !['macos', 'windows'].some(os => isTerminalPath(os, request.launch.cwd))
       || !Array.isArray(names) || names.length < 1 || names.length > 16 || !names.every(name) || new Set(names).size !== names.length
       || !privateEnv || typeof privateEnv !== 'object' || Array.isArray(privateEnv)
       || !Object.entries(privateEnv).every(([key, value]) => names.includes(key) && key !== 'CLAUDE_CODE_OAUTH_TOKEN' && typeof value === 'string' && value.length > 0)
@@ -38,6 +40,7 @@ try {
   if (typeof request.claudeConfigRoots === 'string' && request.claudeConfigRoots) process.env.AITERM_CLAUDE_CONFIG_ROOTS = request.claudeConfigRoots
   let response
   try {
+    issued = true
     response = { result: await client.call('agent_launch', { ...request.launch, env_vars }, { meta: request.meta }) }
   } catch (error) {
     const agentLaunchError = authenticationPreflightFailure(error.agentLaunchError)
@@ -51,9 +54,14 @@ try {
   await client.close()
   client = null
   process.stdout.write(JSON.stringify(response))
-} catch {
-  process.stderr.write('BELLTEAM_SEAT_LAUNCH_FAILED\n')
-  process.exitCode = 1
+} catch (error) {
+  // A refusal before agent_launch was issued keeps its own code (remote-seat.md step 5); anything else stays an exit failure.
+  const code = /^SEAT_LAUNCH_[A-Z_]{1,40}$/u.test(error?.message) ? error.message : null
+  if (!issued && code) process.stdout.write(JSON.stringify({ error: { message: code, code, effect: 'not_started' } }))
+  else {
+    process.stderr.write('BELLTEAM_SEAT_LAUNCH_FAILED\n')
+    process.exitCode = 1
+  }
 } finally {
   await client?.close().catch(() => {})
 }
