@@ -45,8 +45,16 @@ struct BellUpdateRoute: Equatable {
 @MainActor
 final class BellNotifications: NSObject, ObservableObject, UNUserNotificationCenterDelegate {
     static let shared = BellNotifications()
+    static let registeringText = "通知を登録しています"
     @Published var statusText = "未設定"
     @Published var errorText: String?
+    /// What the OS says about this app's notifications; nil until first read (`refreshAuthorization`).
+    @Published private(set) var authorization: OSNotificationAuthorization?
+    /// True once this device's token was accepted by the server in this launch.
+    @Published private(set) var registered = false
+    /// The last registration failure in plain words (the raw reason stays in `errorText`); nil while fine.
+    @Published private(set) var failure: String?
+    var registering: Bool { statusText == Self.registeringText }
     var visibleConversation: ChatTarget?
     var onOpen: ((BellNotificationRoute) -> Void)? {
         didSet {
@@ -67,6 +75,10 @@ final class BellNotifications: NSObject, ObservableObject, UNUserNotificationCen
     private var activating = false
     private var registrationTask: Task<Void, Never>?
 
+    func refreshAuthorization() async {
+        authorization = OSNotificationAuthorization(await UNUserNotificationCenter.current().notificationSettings().authorizationStatus)
+    }
+
     func activate(api: BellAPI, signedTransaction: String?) async {
         guard !activating else { return }
         activating = true
@@ -75,6 +87,7 @@ final class BellNotifications: NSObject, ObservableObject, UNUserNotificationCen
         self.api = api
         self.signedTransaction = signedTransaction
         errorText = nil
+        failure = nil
         var stage = "server_status"
         var started = DispatchTime.now().uptimeNanoseconds
         do {
@@ -82,6 +95,7 @@ final class BellNotifications: NSObject, ObservableObject, UNUserNotificationCen
             guard attached else { return }
             guard server.configured, server.environments.contains(try Self.environment()) else {
                 statusText = "サーバーで通知が設定されていません"
+                failure = "サーバーに、この端末へ通知を送る設定がありません。"
                 return
             }
             let center = UNUserNotificationCenter.current()
@@ -92,16 +106,18 @@ final class BellNotifications: NSObject, ObservableObject, UNUserNotificationCen
                 _ = try await center.requestAuthorization(options: [.alert, .sound])
                 settings = await center.notificationSettings()
             }
-            guard [.authorized, .provisional, .ephemeral].contains(settings.authorizationStatus) else {
+            authorization = OSNotificationAuthorization(settings.authorizationStatus)
+            guard authorization == .authorized else {
                 statusText = "端末の設定で通知がオフです"
                 return
             }
             guard attached else { return }
-            statusText = "通知を登録しています"
+            statusText = Self.registeringText
             UIApplication.shared.registerForRemoteNotifications()
         } catch {
             statusText = "通知を登録できませんでした"
             errorText = error.localizedDescription
+            failure = "通知を登録できませんでした。通信と端末の通知設定を確かめて、もう一度試してください。"
             api.diagnostics.reportPush(error, stage: stage, elapsedMilliseconds: BellDiagnostics.elapsedMilliseconds(since: started))
         }
     }
@@ -127,9 +143,13 @@ final class BellNotifications: NSObject, ObservableObject, UNUserNotificationCen
             UserDefaults.standard.set(token, forKey: "bellbot.pushToken")
             statusText = "返信・入力要求を通知します"
             errorText = nil
+            failure = nil
+            registered = true
         } catch {
             statusText = "通知を登録できませんでした"
             errorText = error.localizedDescription
+            registered = false
+            failure = "通知を登録できませんでした。通信と端末の通知設定を確かめて、もう一度試してください。"
             api.diagnostics.reportPush(error, stage: "register_device", elapsedMilliseconds: BellDiagnostics.elapsedMilliseconds(since: started))
         }
     }
@@ -137,6 +157,8 @@ final class BellNotifications: NSObject, ObservableObject, UNUserNotificationCen
     func registrationFailed(_ error: Error) {
         statusText = "Appleの通知サービスへ登録できませんでした"
         errorText = "通信状態と端末の通知設定を確認してください。"
+        registered = false
+        failure = "Appleの通知サービスへ登録できませんでした。通信状態を確かめて、もう一度試してください。"
         BellDiagnostics.shared.reportPush(error, stage: "apns_token")
     }
 
@@ -159,6 +181,8 @@ final class BellNotifications: NSObject, ObservableObject, UNUserNotificationCen
         pendingUpdateRoute = nil
         visibleConversation = nil
         statusText = "未設定"
+        registered = false
+        failure = nil
     }
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,

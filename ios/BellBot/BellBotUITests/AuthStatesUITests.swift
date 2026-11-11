@@ -39,7 +39,8 @@ final class AuthStatesUITests: XCTestCase {
         let status = app.staticTexts["harness-auth-status"]
         XCTAssertTrue(waitLabel(status, contains: "まだ終わっていません。公式サイトに表示された認証コード"), status.label)
         XCTAssertTrue(app.buttons["harness-auth-cancel"].exists, "サーバーの端末が開いていれば、開き直した画面でもやめられる")
-        XCTAssertEqual(app.buttons["harness-auth-start"].label, "最初からやり直す")
+        XCTAssertFalse(app.buttons["harness-auth-start"].exists, "コード待ちの間は「やめる」だけ。始め直す入口は出さない")
+        XCTAssertFalse(app.buttons["harness-auth-refresh"].exists, "読めている間は「状態を更新」を出さない")
         shot(app, "1-waiting-code")
 
         let field = app.secureTextFields["harness-auth-input"]
@@ -58,12 +59,17 @@ final class AuthStatesUITests: XCTestCase {
         XCTAssertFalse(app.buttons["harness-auth-cancel"].exists)
         shot(app, "4-done")
 
+        // 認証済みの画面は読み直さず「状態を更新」も無い。開き直すと新しい状態を読む。
+        XCTAssertFalse(app.buttons["harness-auth-refresh"].exists)
         _ = try await fixtureCall(server: server, path: "/test/claude?slot=1st&state=failed")
-        app.buttons["harness-auth-refresh"].tap()
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(scrollTo(first, in: app))
+        first.tap()
         XCTAssertTrue(waitLabel(status, contains: "認証できませんでした。理由：認証の状態を確かめられませんでした"))
         XCTAssertFalse(app.staticTexts["ログインの案内を取得できません"].exists, "状態を見ただけの時はAitermの案内を出さない")
         shot(app, "5-failed")
 
+        // 失敗の画面には「状態を更新」がある。
         _ = try await fixtureCall(server: server, path: "/test/claude?slot=1st&state=blocked")
         app.buttons["harness-auth-refresh"].tap()
         XCTAssertTrue(waitLabel(status, contains: "ログインし直してください。"))

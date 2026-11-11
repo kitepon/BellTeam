@@ -25,11 +25,7 @@ final class HarnessAuthenticationUITests: XCTestCase {
         XCTAssertFalse(app.buttons["harness-auth-start"].exists)
         XCTAssertFalse(app.buttons["harness-auth-cancel"].exists)
         XCTAssertFalse(app.secureTextFields["harness-auth-input"].exists)
-        let reads = try paths(base).filter { $0 == "GET /api/harness-auth/antigravity" }.count
-        app.buttons["harness-auth-refresh"].tap()
-        XCTAssertTrue(app.staticTexts["harness-auth-status"].waitForExistence(timeout: 5))
-        Thread.sleep(forTimeInterval: 0.5)
-        XCTAssertEqual(try paths(base).filter { $0 == "GET /api/harness-auth/antigravity" }.count, reads + 1)
+        XCTAssertFalse(app.buttons["harness-auth-refresh"].exists, "認証済みの画面に「状態を更新」は出さない")
         XCTAssertFalse(try paths(base).contains { $0.hasPrefix("POST") })
     }
 

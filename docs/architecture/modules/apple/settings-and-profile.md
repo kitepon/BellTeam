@@ -9,12 +9,17 @@ flowchart TD
   Settings["SettingsView"] -->|"compact（iPhone）"| Phone["SettingsPhoneView<br/>NavigationStack + 項目一覧（insetGrouped）"]
   Settings -->|"regular（iPad・Mac）"| Split["SettingsSplitView<br/>左に項目（sidebar）、右に選んだページ"]
   Phone --> Page["SettingsPageView(page)"]
-  Split --> Page
-  Page --> Profile["プロフィール: ProfileEditor(embedded)<br/>Ownerとユーザー規範のdraft"]
-  Page --> AI["AIの設定: HarnessAuthenticationList<br/>+ BackgroundAgentSettingsCard"]
+  Split --> Pane["SettingsDetailPane<br/>右ページと、ページ内の行を積む自前のNavigator"] --> Page
+  Home["SettingsHomeState<br/>全項目の一行・札・要対応を読む"] -.-> Phone
+  Home -.-> Split
+  Page --> Profile["プロフィール: ProfileEditor<br/>Ownerだけのdraft"]
+  Page --> AI["AIの認証: HarnessAuthenticationList"]
+  Page --> Summary["仕事の要約を書くAI: BackgroundAgentEditor"]
   Page --> Terminals["端末: TerminalListPage<br/>terminals.md"]
-  Page --> Features["追加機能: FeatureSettingsList / Editor"]
-  Page --> Push["通知: BellNotifications.shared<br/>登録・OS設定を開く"]
+  Page --> OnePw["1Password: OnePasswordPage / OnePasswordSettingEditor"]
+  Page --> Rules["チームの決まり: UserRulesPage<br/>読む表示 + 全文編集のsheet"]
+  Page --> Features["追加機能: FeatureSettingsList / Editor（1Passwordを除く）"]
+  Page --> Push["通知: NotificationSettingsPage<br/>4状態と状態ごとの主ボタン1つ"]
   Page --> Session["接続: host・ログイン方法<br/>AppStore.changeServer / signOut"]
   Page --> Opening["表示: 会話の開き方Picker<br/>AppStorage conversationOpening"]
   Page --> Billing["利用と課金: SubscriptionCard / BillingStore"]
@@ -23,34 +28,36 @@ flowchart TD
   Page --> Control["全体停止: AppStoreのAI停止状態<br/>赤い別グループ"]
 ```
 
-項目は`SettingsPage`（題名・一行の説明・SF Symbol・色・`accessibilityID`）が一か所で持つ。一覧の各行はアイコン・題名・説明と、通知未設定・購読・停止状態の短い状態表示。各ページの先頭は`SettingsPageHeader`（大きいアイコン・題名・説明）。失敗は`SettingsBanner`で平易な文を出し、生の文は「詳細」の中だけに置く。全体停止は一覧の最下部の単独グループで赤く表示する。プロフィールはsheetでなくページとして開き、保存後は閉じずに「保存しました」を出す。通知のエラーはsingletonのerrorText。会話の開き方はrise/fadeの端末設定で、HTTPへ保存しない。Cloudflareの時だけ接続ページにログアウトを出す。UI試験は`settings-profile`と`settings-row-<page>`で入る。DEBUGの`-bellbot-preview-settings <page>`は試料データ（`AppStore.prepareSettingsPreview`）でそのページを開く。認証・購読・通知の実装全体は[全体図](overview.md)と[索引](function-index.md)へ接続する。
+札は`BellBadge`（`Design/BellTheme.swift`）、サブページの先頭は`SettingsSubHeader`、主ボタンは`SettingsMainButton`、枠は`settingsSubPage()`（[型](settings-user-flow.md#49b-サブページの型すべての設定のサブページ)）。追加機能の編集は、保存した値を「登録済み」＋「変更」で出し、通常の保存値は閉じた「詳細」にだけ出す。端末の詳細は先頭に札3つ（つながるか・SSH鍵・sudo鍵）。
+
+項目は`SettingsPage`（題名・旧来の一行・SF Symbol・色・`accessibilityID`）が一か所で持つ。一覧の各行はアイコン・題名・いまの状態の一行・札で、一行と札は`SettingsSummary`（純関数）が`SettingsHomeState`の読んだ値から決める（旧来の一行は、まだ読めていない時・データを返さない旧本体の時だけ）。一覧の最上段に要対応の帯（失敗・ログインし直す・確認できません・更新あり・停止中、`settings-attention-<項目>`）。各ページの先頭は`SettingsPageHeader`（札・状態の一文・主ボタン。Mac/iPadはページの題も）。Mac/iPadでページ内の行は右ページの`SettingsPageNavigator`へ積み（窓の詳細列の自前のNavigationStackへ積むと設定の列ごと置き換わるため）、iPhoneは従来のNavigationLink（`SettingsNavLink`が両方を受け持つ）。失敗は`SettingsBanner`で平易な文を出し、生の文は「詳細」の中だけに置く。全体停止は一覧の最下部の単独グループで赤く表示する。プロフィールはsheetでなくページとして開き、保存ボタンはフォームの中で、結果はそのすぐ下に出す。通知の状態は`BellNotifications`の`authorization`（OS）・`registered`・`failure`と、サーバーの機能設定から`NotificationState.decide`が決める。会話の開き方はrise/fadeの端末設定で、HTTPへ保存しない。Cloudflareの時だけ接続ページにログアウトを出す。UI試験は`settings-profile`と`settings-row-<page>`で入る。DEBUGの`-bellbot-preview-settings <page>`は試料データ（`AppStore.prepareSettingsPreview`）でそのページを開く。認証・購読・通知の実装全体は[全体図](overview.md)と[索引](function-index.md)へ接続する。
 
 ## Ownerと規範のdraft
 
 | 所有と操作 | 確認した処理 |
 | --- | --- |
-| ProfileEditorの@State | name/profile/xUrl/githubUrl/rules/avatar、links配列、cropSource、loading/saving/errorText |
-| load | name/profile/URL/avatar/linksをstore.ownerから複製。その後`GET /api/user-rules`のtextをrulesへ。Ownerを別GETする処理はここには無い |
+| ProfileEditorの@State | name/profile/xUrl/githubUrl/avatar、links配列、cropSource、saving/errorText/saved（決まりは持たない） |
+| load | name/profile/URL/avatar/linksをstore.ownerから複製。Ownerを別GETする処理はここには無い（決まりのGETは`SettingsHomeState.loadRules`） |
 | リンク | LinkDraftのlabel/urlを編集。追加は空の要素、削除は配列index。送信時OwnerLinkRequestへmap |
 | 画像 | AvatarImagePicker → AvatarCropEditorの既存形式callback → avatarへrender文字列。写真選択自体は本体へ保存しない |
-| 検査 | saveでnameの空白除去後が空ならerrorText。保存ボタンはloadingまたはsavingで無効 |
+| 検査 | saveでnameの空白除去後が空ならerrorText。保存ボタンはsavingで無効 |
 | 取消・未保存 | 明示キャンセルはdismiss。Owner/規範へ書き込まない。未保存変更を確認する状態・dialog、AppStoreへのdraft退避は定義されていない |
-| エラー | 読込失敗はerrorText、認証失敗はrequireLogin。loadingは最後にfalse。save失敗はoperationFailureMessageを表示してdraftを保持 |
+| エラー | 認証失敗はrequireLogin。Owner PATCHの失敗は「プロフィールを保存できませんでした。入力は残っています」＋operationFailureMessageでdraftを保持。PATCH成功後の一覧refreshの失敗は「プロフィールは保存しました。画面の表示を更新できませんでした」 |
 
 ```mermaid
 flowchart TD
   Draft["ProfileEditor.save<br/>名前を検査・draftから要求を作る"] --> OwnerPatch["PATCH /api/owner<br/>name・profile・画像・URL・links"]
-  OwnerPatch --> Rules["PUT /api/user-rules<br/>rulesのtext"]
-  Rules --> Refresh["AppStore.refresh<br/>共通一覧とOwnerを再取得"]
-  Refresh -->|"成功"| Done["AppStore.ownerが画面へ反映<br/>dismiss"]
-  OwnerPatch -->|"失敗"| Error["errorText・draftを保持<br/>認証失敗はrequireLogin"]
-  Rules -->|"失敗"| Partial["先のOwner更新を戻す処理なし"]
-  Partial --> Error
-  Refresh -->|"失敗"| Saved["2更新を戻す処理なし<br/>sheetを残してエラー"]
-  Saved --> Error
+  OwnerPatch --> Refresh["AppStore.refresh<br/>共通一覧とOwnerを再取得"]
+  Refresh -->|"成功"| Done["AppStore.ownerが画面へ反映<br/>「プロフィールを保存しました」"]
+  OwnerPatch -->|"失敗"| Error["「保存できませんでした」・draftを保持<br/>認証失敗はrequireLogin"]
+  Refresh -->|"失敗"| Saved["「プロフィールは保存しました。表示の更新だけ失敗」<br/>Ownerは戻さない"]
 ```
 
-OwnerResponseとUserRulesResponseを受けても、その戻り値を直接store.owner/rulesへ適用しない。通常の画面反映は後続refreshから。規範PUTやrefreshの失敗時にOwner PATCHを取り消す呼出しは無い。キャンセルボタンとフォームはsave中も全体disabledにはしていない。通信中の画面操作の実効結果は未調査。
+OwnerResponseを受けても、その戻り値を直接store.ownerへ適用しない。通常の画面反映は後続refreshから。refreshの失敗時にOwner PATCHを取り消す呼出しは無い。
+
+### チームの決まり（規範）
+
+`Views/UserRulesView.swift`。テキストの正本はサーバーの`/api/user-rules`で、`SettingsHomeState.rulesText`が一か所で持つ（ホームの行・ページ・編集sheetが共有）。ページは`UserRulesDocument.parse`（`Core/UserRules.swift`）でRULES形式を読む：`SECTION <topic>`の見出し、`RULE <id>`の項目、`PURPOSE/FACT/WHEN/DO/MAY/NEVER/WHY/DEFAULT/YOU ARE`の節の行（字下げした続きの行は直前の節へ連結、`FORMAT`の説明と`RULES … v1`の行は決まりでない）。形式でない行（普通の箇条書き）はそのまま出す。「編集する」は全文エディタのsheetを開き、保存は`PUT /api/user-rules`（診断pathは`/api/user-rules`、PUT）。失敗は「決まりを保存できませんでした。入力は残っています。プロフィールには影響しません」とボタンの下に出す。節の複数が1行に並ぶ書き方は1つの節として出す（形式が区切りを定めるまで）。
 
 ## AIControlCard
 
@@ -97,7 +104,7 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-  List["FeatureSettingsList<br/>onePassword行 = OnePasswordBadge + 平易なerror文"] --> Editor["OnePasswordSettingEditor<br/>Form（ヘッダ・案内・token・主ボタン）"]
+  List["設定のホーム: 1Passwordの行（札 = 連携中・未連携・失敗）<br/>→ OnePasswordPage（項目が無い旧本体は一行で言う）"] --> Editor["OnePasswordSettingEditor<br/>Form（ヘッダ・案内・token・主ボタン）"]
   Editor --> Load["load: GET /api/settings<br/>enabled初期値 = enabled または 未設定"]
   Load --> View["ヘッダ: バッジ（連携中/未連携/失敗）<br/>連携中: 読める保管庫と鍵の数の一行<br/>案内: 未連携は開く、連携中は「作り方を見る」の中<br/>開いた時に失敗済みなら、結果の一行に1回だけ出す"]
   Editor --> Save["保存して連携を確かめる"]
@@ -122,7 +129,7 @@ flowchart TD
 
 ## 仕事の要約を書くAI
 
-`Views/BackgroundAgentSettingsView.swift`。ミカの公開契約v1（`/srv/bellteam/bots/bot-203444ca/docs/background-agent-settings-20261105.md`）を使う。追加機能の`FeatureSetting`には混ぜず、設定画面の別カードにする。
+`Views/BackgroundAgentSettingsView.swift`。ミカの公開契約v1（`/srv/bellteam/bots/bot-203444ca/docs/background-agent-settings-20261105.md`）を使う。追加機能の`FeatureSetting`には混ぜず、設定画面の独立した項目「仕事の要約を書くAI」（`SettingsPage.summary`、ページ本体は`BackgroundAgentEditor`）にする。AIの認証ページのカードは無い。ホームの一行は選択（「Claude · haiku · CLIの既定」）か未設定。
 
 | 段階 | 入出力 |
 | --- | --- |
@@ -192,7 +199,7 @@ flowchart TD
 
 ## 整理候補
 
-- **A-P1**：`ios/BellBot/BellBot/Views/SettingsView.swift:277`。ProfileEditor.saveがOwner PATCH、規範PUT、共通一覧refresh、エラー表示と診断を一つの関数で持つ。loadはuser-rulesをGETするが診断pathには`/api/owner`を渡す（同:267,272）。
+- **A-P1（解消）**：ProfileEditor.saveはOwner PATCHと共通一覧refreshだけを持ち、規範は`UserRulesPage`が別のGET/PUTと診断path（`/api/user-rules`）で持つ。
 - **A-P2（PR4反映済み）**：`ios/BellBot/BellBot/Views/DesktopWorkspaceView.swift:323`と`ios/BellBot/BellBot/Views/ConversationDetailView.swift:43`。同じBotProfileAISectionの再起動callbackから`AppStore.restartConversation(target:)`を呼ぶ。成功・失敗後の画面処理は各callbackに残す。
 - **A-P3**：`ios/BellBot/BellBot/Views/BotProfileComponents.swift:16,22,34`と`ios/BellBot/BellBot/Core/AppStore.swift:86`。variant別の画像選択をBotProfileImageState.pendingSelectionsとAppStore.profileImageDraftsの両方で保持し、loadDrafts/persistImageSelectionsで受け渡す。
 
@@ -201,3 +208,7 @@ flowchart TD
 - Owner・規範・追加機能の本体保存と反映、画像schemaの本体での生成・migration、AI再起動の内部実行。
 - 実UIでの画像選択・前面復帰・切り抜き途中状態、未保存フォームのsheet/window終了、同時保存中の操作。PR4実装時の文書更新ではビルド・試験は未実行だった。後続のMacでの画像保存・再起動の確認結果は[親の確認記録](refactor-progress.md#次の作業)を参照し、その範囲外は未確認。
 - AvatarCrop/ProfileTerminal/NetworkLifecycleProbe/BotSave等のXCTest本文・fixture。試験との対応は宣言で確認した範囲。
+
+## 保存中の入力（Epinel #1114）
+
+チームの決まりの編集（`UserRulesView`）、追加機能の編集（`FeatureSettingEditor`）、1Password（`OnePasswordSettingEditor`）は、`saving`の間は入力欄と切替を`.disabled(saving)`で止める。`saving`は要求を送る前に立ち、`defer`で戻る。成功で閉じる・失敗で残す挙動とエラーの扱いは変えない。試験は`TerminalsUITests.testOnePasswordInputsAreLockedWhileTheSaveIsPending`（fixtureの`patchdelay`）。

@@ -5,16 +5,22 @@ struct AuthenticationInstructions: View {
     let auth: SetupAuthentication
     @Binding var code: String
     let busy: Bool
+    /// The settings login screen already says the state in its own words; it shows the server's title and message only when true (onboarding).
+    var showsServerText = true
+    /// The code is being sent: the send button says so.
+    var sending = false
     let onRespond: (AuthenticationReply.Response, AuthenticationUI) -> Void
 
     var body: some View {
         if let ui = auth.authUi {
             VStack(alignment: .leading, spacing: 12) {
-                Text(ui.title).font(.headline)
-                Text(ui.message).font(.subheadline)
+                if showsServerText {
+                    Text(ui.title).font(.headline)
+                    Text(ui.message).font(.subheadline)
+                }
                 if let url = ui.officialURL {
-                    // Borderless: in a Form row a default-style button or link answers a tap anywhere in the row,
-                    // so touching the code field opened the browser and sent the app to the background.
+                    // Every control here has its own style: in a Form row a default-style Link or Button answers a tap
+                    // anywhere in the row, so touching the code field opened the browser (134 on the real iPhone/iPad).
                     Link("公式サイトを開く", destination: url)
                         .buttonStyle(.borderless)
                         .accessibilityIdentifier("harness-auth-link")
@@ -35,10 +41,10 @@ struct AuthenticationInstructions: View {
                             .textContentType(.oneTimeCode)
                             .disabled(busy)
                             .accessibilityIdentifier("harness-auth-input")
-                        Button("認証コードを送る") {
+                        Button(sending ? "送っています…" : "認証コードを送る") {
                             onRespond(.authorizationCode(code), ui)
                         }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.bellPrimary)
                         .disabled(busy || code.isEmpty)
                         .accessibilityIdentifier("harness-auth-submit")
                     case .choice:
@@ -55,7 +61,7 @@ struct AuthenticationInstructions: View {
                         .font(.footnote).foregroundStyle(.red)
                 }
             }
-        } else if let message = auth.message, !message.isEmpty {
+        } else if showsServerText, let message = auth.message, !message.isEmpty {
             Text(message).font(.subheadline)
         }
     }

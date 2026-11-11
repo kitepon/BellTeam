@@ -11,9 +11,6 @@ struct HarnessAuthenticationList: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 13) {
-            Label("AIの認証", systemImage: "person.badge.key").font(.headline)
-            Text("AIの認証が切れたときや、別のアカウントで入り直すときに使います。")
-                .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
             ForEach(harnesses) { harness in
                 // 1st/2ndアカウントを返す本体ではClaudeを2行で出す。旧本体（/api/accountsが404）は従来の1行。
                 if harness.id == "claude", let accounts {
@@ -90,7 +87,7 @@ private struct HarnessAuthenticationRow: View {
     let harness: HarnessAuthenticationOption
 
     var body: some View {
-        NavigationLink {
+        SettingsNavLink(title: harness.name) {
             HarnessAuthenticationView(harness: harness, api: store.api)
         } label: {
             HStack(spacing: 10) {
@@ -125,7 +122,7 @@ private struct AuthenticationBadge: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Text(progress.badge).font(.caption.weight(.semibold)).foregroundStyle(progress.tint)
+            BellBadge(text: progress.badge, tone: progress.tone)
                 .accessibilityIdentifier("harness-auth-state-\(identifier)")
             // 主ボタンは、利用者の操作が要る段階（ログインが必要・失敗・途中）だけ。使える行は控えめな矢印だけ。
             if let action = progress.action {
@@ -164,21 +161,56 @@ private struct AuthenticationBadge: View {
     }
 }
 
+/// The login screen opened from an 要対応 row: the AI's option and its account line come from what the home read.
+struct HarnessAuthenticationDestination: View {
+    @EnvironmentObject private var store: AppStore
+    @EnvironmentObject private var home: SettingsHomeState
+    let harnessID: String
+    let slot: String?
+
+    var body: some View {
+        if let option = home.harnessOptions[harnessID] {
+            let entry = home.aiEntries?.first { $0.harnessID == harnessID && $0.slot == slot }
+            HarnessAuthenticationView(harness: option, api: store.api, slot: slot, title: entry?.name,
+                                      accountLabel: entry?.accountLabel, limitLine: entry?.limitLine, signedOut: entry?.signedOut ?? false)
+        } else {
+            ProgressView()
+        }
+    }
+}
+
+/// One card, top to bottom: the account, its badge and one sentence, then only the controls of the current stage.
+/// The result of a press shows on the pressed button, and a failure right under it.
 @MainActor
-private struct HarnessAuthenticationView: View {
+struct HarnessAuthenticationView: View {
+    private enum Acting { case start, refresh, cancel }
+
     @EnvironmentObject private var store: AppStore
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var flow: HarnessAuthenticationFlow
     @State private var input = ""
     @State private var confirming = false
     @State private var errorText: String?
+    @State private var acting: Acting?
+    /// A press changed the login here: the list's older "signed out" mark no longer applies to this screen.
+    @State private var acted = false
+    private let title: String
+    private let accountLabel: String?
+    private let limitLine: String?
+    private let signedOut: Bool
 
-    init(harness: HarnessAuthenticationOption, api: BellAPI, slot: String? = nil) {
+    init(harness: HarnessAuthenticationOption, api: BellAPI, slot: String? = nil, title: String? = nil, accountLabel: String? = nil,
+         limitLine: String? = nil, signedOut: Bool = false) {
         _flow = StateObject(wrappedValue: HarnessAuthenticationFlow(harness: harness, api: api, slot: slot))
+        self.title = title ?? harness.name
+        self.accountLabel = accountLabel
+        self.limitLine = limitLine
+        self.signedOut = signedOut
     }
 
     private var progress: AuthenticationProgress {
-        flow.auth == nil && errorText != nil ? .unknown : flow.progress
+        flow.auth == nil && errorText != nil ? .unknown
+            : AuthenticationProgress(flow.auth, loaded: flow.auth != nil, signedOut: signedOut && !acted, sending: flow.sendingCode)
     }
 
     // 段階と同じ判定で読み直す（status=waitingでもstage=failedは失敗で、読み直さない）。
@@ -186,51 +218,40 @@ private struct HarnessAuthenticationView: View {
 
     var body: some View {
         Form {
+            // Always present, also while the state is still being read: the account, its badge and one sentence.
             Section {
-                Text(flow.harness.usageText).foregroundStyle(BellTheme.muted)
-                Text(progress.detail).foregroundStyle(progress.tint == .green ? BellTheme.ink : progress.tint)
-                    .accessibilityIdentifier("harness-auth-status")
-                // 状態を見ただけ（端末が開いていない）の時は、Aitermの「案内を取得できません」を出さない。理由は状態文が言う。
-                if let auth = flow.auth, flow.sessionOpen || auth.authUi?.stage != .unavailable {
-                    AuthenticationInstructions(auth: auth, code: $input,
-                                               busy: flow.busy || flow.needsRefresh || errorText != nil) { response, ui in
-                        run { try await flow.respond(response, for: ui) }
-                    }
+                SettingsSubHeader(symbol: SettingsPage.ai.symbol, tint: SettingsPage.ai.tint, title: title, line: accountLabel) {
+                    BellBadge(text: progress.badge, tone: progress.tone)
                 }
             }
+            .listRowBackground(Color.clear)
             Section {
-                if flow.harness.canStart(flow.auth) {
-                    Button(flow.sessionOpen && flow.auth?.status == .waiting ? "最初からやり直す"
-                           : flow.auth?.status == .authenticated || flow.auth?.status == .failed ? "認証し直す" : "認証する") {
-                        input = ""
-                        if flow.needsStartConfirmation { confirming = true }
-                        else { run { try await flow.start() } }
-                    }.accessibilityIdentifier("harness-auth-start")
-                        .disabled(flow.needsRefresh || errorText != nil)
-                } else if flow.auth?.status == .authenticated {
-                    Text(flow.harness.startWarning.flatMap { $0.isEmpty ? nil : $0 } ?? "このAIは認証済みの間は入り直せません。")
-                        .foregroundStyle(BellTheme.muted)
-                        .accessibilityIdentifier("harness-auth-unavailable")
+                VStack(alignment: .leading, spacing: 12) {
+                    if let limitLine {
+                        Label(limitLine, systemImage: "exclamationmark.triangle.fill").font(BellTheme.detailFont).foregroundStyle(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Text(progress.detail).foregroundStyle(progress.tone == .green ? BellTheme.ink : progress.tint)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("harness-auth-status")
+                    if progress == .done {
+                        // 認証済みの画面で「いつ使うのか」を一文で。押す理由が無い時に押させない。
+                        Label(flow.slot == nil && flow.harness.id != "claude" ? "\(flow.harness.usageText)。メンバーが認証の誤りで止まった時や、別のアカウントに替える時に認証し直します。"
+                              : "メンバーが認証の誤りで止まった時や、別のアカウントに替える時に認証し直します。", systemImage: "info.circle")
+                            .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    controls
                 }
-                Button("状態を更新") { run(method: "GET") { try await flow.refresh() } }
-                    .accessibilityIdentifier("harness-auth-refresh")
-                if flow.sessionOpen {
-                    Button("やめる") { run { try await flow.cancel() } }
-                        .accessibilityIdentifier("harness-auth-cancel")
-                        .disabled(flow.needsRefresh || errorText != nil)
-                }
-            }.disabled(flow.busy)
-            if flow.busy { ProgressView() }
-            if let errorText {
-                Text(errorText).font(.footnote).foregroundStyle(.red)
-                    .accessibilityIdentifier("harness-auth-error")
+                .padding(.vertical, 4)
+                .disabled(flow.busy)
             }
         }
-        .navigationTitle(flow.slot.map { "\(flow.harness.name)（\(AccountText.slotName($0))）" } ?? flow.harness.name)
-        .scrollContentBackground(.hidden).background(BellBackground())
+        .navigationTitle(title)
+        .settingsSubPage()
         .alert("AIの認証をやり直しますか？", isPresented: $confirming) {
             Button("始めない", role: .cancel) { }
-            Button("今の認証を手放して始める", role: .destructive) { run { try await flow.start() } }
+            Button("今の認証を手放して始める", role: .destructive) { run(.start) { try await flow.start() } }
         } message: { Text(flow.harness.startWarning ?? "") }
         .task { await perform(method: "GET") { try await flow.refresh() } }
         .task(id: polling) {
@@ -246,9 +267,106 @@ private struct HarnessAuthenticationView: View {
         .onDisappear { input = "" }
     }
 
-    private func run(method: String = "POST", _ action: @escaping () async throws -> Void) {
+    /// Only what the current stage needs. 状態を更新 is for an unreadable or failed state, or after a press that failed.
+    @ViewBuilder private var controls: some View {
+        let blocked = flow.needsRefresh || errorText != nil
+        switch progress {
+        case .checking:
+            ProgressView()
+        case .unknown:
+            refreshButton
+            errorLine
+        case .needsLogin:
+            startButton("認証する", blocked: blocked)
+            errorLine
+            // 失敗の後は開始ボタンが止まるので、読み直す出口を同じ所に出す。
+            if blocked { refreshButton }
+        case .failed:
+            startButton("認証し直す", blocked: blocked)
+            refreshButton
+            errorLine
+        case .waitingSite, .waitingCode, .sendingCode:
+            if let auth = flow.auth {
+                AuthenticationInstructions(auth: auth, code: $input, busy: flow.busy || blocked,
+                                           showsServerText: false, sending: flow.sendingCode) { response, ui in
+                    run { try await flow.respond(response, for: ui) }
+                }
+            }
+            errorLine
+            if blocked { refreshButton }
+            cancelButton(blocked: blocked)
+        case .confirming:
+            errorLine
+            if blocked { refreshButton }
+            cancelButton(blocked: blocked)
+        case .done:
+            if flow.harness.canStart(flow.auth) {
+                startButton("認証し直す", blocked: blocked, quiet: true)
+            } else {
+                Text(flow.harness.startWarning.flatMap { $0.isEmpty ? nil : $0 } ?? "このAIは認証済みの間は入り直せません。")
+                    .foregroundStyle(BellTheme.muted)
+                    .accessibilityIdentifier("harness-auth-unavailable")
+            }
+            errorLine
+            if blocked { refreshButton }
+        }
+    }
+
+    @ViewBuilder private func startButton(_ title: String, blocked: Bool, quiet: Bool = false) -> some View {
+        if flow.harness.canStart(flow.auth) {
+            let label = acting == .start ? "始めています…" : title
+            let press = {
+                input = ""
+                if flow.needsStartConfirmation { confirming = true }
+                else { run(.start) { try await flow.start() } }
+            }
+            if quiet {
+                Button(label, action: press)
+                    .buttonStyle(.borderless)
+                    .disabled(blocked)
+                    .accessibilityIdentifier("harness-auth-start")
+            } else {
+                Button(action: press) { Text(label).frame(maxWidth: .infinity) }
+                    .buttonStyle(.bellPrimary)
+                    .disabled(blocked)
+                    .accessibilityIdentifier("harness-auth-start")
+            }
+        }
+    }
+
+    private var refreshButton: some View {
+        Button(acting == .refresh ? "更新しています…" : "状態を更新") { run(.refresh, method: "GET") { try await flow.refresh() } }
+            .buttonStyle(.bordered)
+            .accessibilityIdentifier("harness-auth-refresh")
+    }
+
+    private func cancelButton(blocked: Bool) -> some View {
+        Group {
+            if flow.sessionOpen {
+                Button(acting == .cancel ? "やめています…" : "やめる") { run(.cancel) { try await flow.cancel() } }
+                    .buttonStyle(.bordered)
+                    .disabled(blocked)
+                    .accessibilityIdentifier("harness-auth-cancel")
+            }
+        }
+    }
+
+    @ViewBuilder private var errorLine: some View {
+        if let errorText {
+            Text(errorText).font(.footnote).foregroundStyle(.red)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("harness-auth-error")
+        }
+    }
+
+    private func run(_ action: Acting? = nil, method: String = "POST", _ work: @escaping () async throws -> Void) {
         input = ""
-        Task { await perform(method: method, action) }
+        if method == "POST" { acted = true }
+        Task {
+            acting = action
+            await perform(method: method, work)
+            acting = nil
+        }
     }
 
     private func perform(method: String = "POST", _ action: () async throws -> Void) async {
@@ -283,18 +401,16 @@ private struct ClaudeAccountsCard: View {
                     .accessibilityIdentifier("accounts-both-limited")
             }
             ForEach(accounts.slots) { slot in
-                NavigationLink {
-                    HarnessAuthenticationView(harness: harness, api: store.api, slot: slot.slot == "1st" ? nil : slot.slot)
+                SettingsNavLink(title: "\(harness.name) \(AccountText.slotName(slot.slot))") {
+                    HarnessAuthenticationView(harness: harness, api: store.api, slot: slot.slot == "1st" ? nil : slot.slot,
+                                              title: "\(harness.name) \(AccountText.slotName(slot.slot))", accountLabel: slot.label,
+                                              limitLine: accounts.limitLine(for: slot), signedOut: slot.signedOutAt != nil)
                 } label: { row(slot) }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("harness-auth-claude-\(slot.slot)")
             }
         }
         .padding(.vertical, 6)
-    }
-
-    private var secondAvailable: Bool {
-        accounts.slots.contains { $0.slot == "2nd" && $0.loggedIn == true && !$0.limits.contains { $0.scope == "all" } }
     }
 
     private func row(_ slot: AccountSlot) -> some View {
@@ -306,7 +422,7 @@ private struct ClaudeAccountsCard: View {
                     Text(label).font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
                 }
                 // ログインの札とは別の1行。1stが上限で2ndが使える時は、いま2ndで動いていると添える。
-                if let line = AccountText.limitLine(slot.limits, runningOnOther: slot.slot == "1st" && secondAvailable ? "2つ目" : nil) {
+                if let line = accounts.limitLine(for: slot) {
                     Text(line).font(BellTheme.secondaryFont).foregroundStyle(.orange)
                 }
                 if !slot.seats.isEmpty {

@@ -296,7 +296,7 @@ struct TerminalDraft: Equatable {
     func problems(isNew: Bool) -> [Field: String] {
         var result: [Field: String] = [:]
         if isNew && terminalId.wholeMatch(of: /[a-z0-9][a-z0-9-]{0,62}/) == nil {
-            result[.terminalId] = "端末IDは英小文字・数字・ハイフンで、先頭は英小文字か数字です（例 owner-macbook）。"
+            result[.terminalId] = "端末の名前は英小文字・数字・ハイフンで、先頭は英小文字か数字です（例 owner-macbook）。"
         }
         if !Self.validHost(host) {
             result[.host] = "ホストはIPアドレスかホスト名だけを入れます（例 192.168.1.12）。user@・ポート・パスは含めません。"
@@ -772,12 +772,12 @@ enum TerminalErrorText {
             case "host"?: return "ホストの形が違います。IPアドレスかホスト名だけを入れてください。"
             case "user"?: return "ユーザーの形が違います。端末にログインする名前を入れてください。"
             case "port"?: return "ポートは1から65535の数字にしてください。"
-            case "terminalId"?: return "端末IDは英小文字・数字・ハイフンにしてください。"
+            case "terminalId"?: return "端末の名前は英小文字・数字・ハイフンにしてください。"
             case "accountOwner"?: return "端末の持ち主を選び直してください。"
             default: return "入力の形が違います。各欄を確かめてください。"
             }
         case "TERMINAL_NOT_FOUND": return "この端末の登録が見つかりません。一覧を読み直してください。"
-        case "TERMINAL_EXISTS": return "同じ端末IDがもう登録されています。別のIDにしてください。"
+        case "TERMINAL_EXISTS": return "同じ名前の端末がもう登録されています。別の名前にしてください。"
         case "HOST_KEY_FINGERPRINT_MISMATCH": return "入れた指紋が端末の今のホスト鍵と一致しませんでした。信用し直していません。端末で指紋をもう一度確かめてください。"
         case "INVALID_TERMINAL_STORE": return "BellTeamに保存された端末の一覧を読めませんでした。管理者に確かめてもらってください。"
         case "TERMINALS_UNAVAILABLE": return "端末の機能が、いま本体で動いていません。少し待ってから、もう一度読み込んでください。"

@@ -13,6 +13,14 @@ struct HarnessAccounts: Decodable, Equatable {
     let allLimited: [AllLimitedScope]?
 }
 
+extension HarnessAccounts {
+    /// The one limit line of an account ("上限中・11/13 17:00に戻ります（いまは2つ目で動いています）"), nil without a limit.
+    @MainActor func limitLine(for slot: AccountSlot) -> String? {
+        let secondAvailable = slots.contains { $0.slot == "2nd" && $0.loggedIn == true && !$0.limits.contains { $0.scope == "all" } }
+        return AccountText.limitLine(slot.limits, runningOnOther: slot.slot == "1st" && secondAvailable ? "2つ目" : nil)
+    }
+}
+
 struct AccountSlot: Decodable, Equatable, Identifiable {
     let slot: String
     let loggedIn: Bool?

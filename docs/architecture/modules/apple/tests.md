@@ -1005,7 +1005,7 @@ Macの端末表示中の照会と非表示後の停止、小画像保存の結�
 | testSudoPickerListsPasswordsSearchesAndFallsBack | sudoカードの一覧（`/password`の5件。旧本体がSSH鍵も返す`picker=sshkeys`でも鍵は数えない）、保管庫・名前で絞る、選択が見えなくなったら外れる、合わなければ「「…」に合うパスワードがありません」、選んで登録→submitは`source`/`reference`だけ。SSHカードにも検索欄。一覧404はパスワード入力だけ＋一行、503は「読めませんでした」と入力の選択を残す |
 | testShotsMemberConfigurationStatus | 画面写真だけ：メンバー編集の適用状態の1行（pending・accepted・failed。DEBUGの`-bellbot-preview-configuration <state>`が最初のメンバーへ入れる。記録なしは稼働中の既定文を確かめる） |
 | testSshKeyPickerSubmitsTheChosenReferenceAndFallsBack | SSH鍵カードの一覧（名前と保管庫、参照は出さない、選ぶまで送れない）→選んで登録→submitは`source`/`reference`だけ。未接続は貼り付けだけ＋設定の「1Password連携」への案内。一覧404は選択肢を隠して貼り付け＋一行。一覧503は「読めませんでした」と貼り付けの選択を残す |
-| testOnePasswordSettingBadgeGuideAndTokenCheck | 追加機能に1Password行（未連携）、案内が開いている、`ops_`でないtokenはPATCHせず止める、拒否されたtokenは失敗バッジと結果の一行「連携できませんでした。」+サーバーの文（符号なし）、受理で連携中・案内が畳まれ読める保管庫と鍵の数の一行、tokenを画面に返さない、PATCH2回・`values`は`token`だけ。鍵0件の次の一手、項目の無い旧本体は行が増えない |
+| testOnePasswordSettingBadgeGuideAndTokenCheck | 1Passwordの項目（`-bellbot-preview-settings onepassword`、札は未連携）、案内が開いている、`ops_`でないtokenはPATCHせず止める、拒否されたtokenは失敗バッジと結果の一行「連携できませんでした。」+サーバーの文（符号なし）、受理で連携中・案内が畳まれ読める保管庫と鍵の数の一行、tokenを画面に返さない、PATCH2回・`values`は`token`だけ。鍵0件の次の一手、項目の無い旧本体は行が増えない |
 | testShotsOnePasswordResultLine | 画面写真だけ：未連携、確かめ中（PATCH応答を5秒保留）、失敗、成功（アプリはInfo.plistでLight固定のため暗い表示は無い）。fixtureの`/test/mode?patchdelay=<ms>` |
 | testShotUpdateWaiting | 画面写真だけ：全部最新＋`incompatible`1つのUpdate画面（見出し「更新できるものはすべて最新です」）。fixtureの`/test/mode?updates=waiting`と`GET /api/events`（readyだけ送る）、`GET /api/updates` |
 | testAttestHintAndOtherWaysAppearOnlyAfterACheckReportsAHostKeyReason | iPhoneの未信用の端末（`studio-mac`）は、確認する前は「このMacでBellTeamアプリを開くと、自動で確かめます」も「ほかの方法」も出さない。確認結果がホスト鍵の理由（`HOST_TRUST_MISSING`）になってから案内を出し、「このMacを確かめる」は出さない。指紋を手で入れる操作は「ほかの方法」を開いた中にある。確かめは送らない |
@@ -1150,3 +1150,8 @@ TerminalsUITestsの`call(_:)`は`fixtureCall`へ委譲し、`launch(_:)`は`fixt
 - 初回調査（`afda9477bba4aaa7c8a6905100d3bacf26e47c90`）では試験は全て未実行。後続のMac実行結果は[親の確認記録](refactor-progress.md#次の作業)を参照し、その記録にない試験の現在の合否、実機/Simulatorの状態・写真library・言語/keyboard、実接続・OS権限・証明書・StoreKit/APNs環境は未確認。
 - ROOM_SMOKEのfixture実装、INSTALL_SMOKEのinstaller起動手順。これらのSwiftに指定されたURLの実環境は未確認。IMAGE_SMOKEは上表のfixtureとPR3手順で対応済み。Finderからの画像ファイルURLの貼付けは自動化していない。
 - fixtureがimportする`src/`・`web/`内部、Xcode生成projectの全登録照合、Mermaid描画結果。
+
+
+## SettingsStatusTests.swift
+
+設定ホームの一行と札（`SettingsSummary`の純関数：AIの最も悪い段階と行き先、通知の4状態、端末の台数と鍵、1Password、要約のAI、全体停止、規範、更新）と、`UserRulesDocument.parse`（SECTION/RULE/節・続きの行・FORMATの説明・形式でない箇条書き）。

@@ -102,7 +102,7 @@ final class TerminalsUITests: XCTestCase {
         XCTAssertTrue(id.waitForExistence(timeout: 5))
         id.tap(); id.typeText("Bad ID")
         app.buttons["save-terminal"].tap()
-        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH %@", "端末IDは英小文字")).firstMatch.waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH %@", "端末の名前は英小文字")).firstMatch.waitForExistence(timeout: 3))
         let putsBeforeAdd = try await call("/test/proof")["puts"] as? [Any]
         XCTAssertEqual(putsBeforeAdd?.count, 2, "形の違う登録は送らない（2件はホスト鍵の誤りと正しい指紋）")
         shot(app, "11-terminal-add-invalid")
@@ -129,7 +129,7 @@ final class TerminalsUITests: XCTestCase {
         // Edit keeps the ID fixed.
         app.buttons["edit-terminal"].tap()
         XCTAssertTrue(app.buttons["save-terminal"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.textFields["terminal-field-端末ID"].exists, "端末IDは変えられない")
+        XCTAssertFalse(app.textFields["terminal-field-端末ID"].exists, "端末の名前は変えられない")
         shot(app, "14-terminal-edit")
         app.buttons["キャンセル"].tap()
 
@@ -420,11 +420,10 @@ final class TerminalsUITests: XCTestCase {
     }
 
     func testOnePasswordSettingBadgeGuideAndTokenCheck() async throws {
-        var app = launch(["-bellbot-preview-settings", "features"])
-        XCTAssertTrue(app.buttons["feature-row-onePassword"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["feature-row-onePassword"].label.contains("未連携"))
-        shot(app, "50-settings-features-onepassword")
-        app.buttons["feature-row-onePassword"].tap()
+        // 1Password is its own settings item (settings-row-onepassword), no longer a row of 追加機能.
+        var app = launch(["-bellbot-preview-settings", "onepassword"])
+        XCTAssertTrue(app.descendants(matching: .any)["onepassword-badge"].firstMatch.waitForExistence(timeout: 10))
+        shot(app, "50-settings-onepassword")
         XCTAssertTrue(app.buttons["onepassword-guide-link"].waitForExistence(timeout: 5), "未連携の間は案内が開いている")
         XCTAssertEqual(app.descendants(matching: .any)["onepassword-badge"].firstMatch.label, "未連携")
         shot(app, "51-onepassword-not-connected-guide")
@@ -475,7 +474,7 @@ final class TerminalsUITests: XCTestCase {
 
         // Connected with no SSH keys: the next action.
         _ = try await call("/test/mode?setting=zero")
-        app = launch(["-bellbot-preview-settings", "features", "-bellbot-preview-feature", "onePassword"])
+        app = launch(["-bellbot-preview-settings", "onepassword"])
         let zero = app.staticTexts["onepassword-connection"]
         XCTAssertTrue(zero.waitForExistence(timeout: 10))
         XCTAssertTrue(zero.label.contains("SSH鍵が見つかりません"), zero.label)
@@ -528,7 +527,7 @@ final class TerminalsUITests: XCTestCase {
     /// Screenshots only (apple parity batch 1): the 1Password check's one result line in each state (the app is light-only: Info.plist UIUserInterfaceStyle=Light).
     func testShotsOnePasswordResultLine() async throws {
         func openEditor() -> XCUIApplication {
-            launch(["-bellbot-preview-settings", "features", "-bellbot-preview-feature", "onePassword"])
+            launch(["-bellbot-preview-settings", "onepassword"])
         }
         func check(_ app: XCUIApplication, token: String, shows prefix: String, shot name: String) {
             let field = app.secureTextFields["onepassword-token"]
@@ -931,6 +930,26 @@ final class TerminalsUITests: XCTestCase {
         XCTAssertEqual(folder.value as? String, "/Users/kite/work/app")
         XCTAssertFalse(app.buttons["choose-member-folder"].exists)
         shot(app, "47-member-editor-old-body-text-field")
+    }
+
+    /// Epinel #1114: while 保存 is pending the inputs are locked, so nothing typed after it can be lost when the screen settles.
+    func testOnePasswordInputsAreLockedWhileTheSaveIsPending() async throws {
+        _ = try await call("/test/mode?patchdelay=4000")
+        let app = launch(["-bellbot-preview-settings", "onepassword"])
+        defer { app.terminate() }
+        let token = app.secureTextFields["onepassword-token"]
+        XCTAssertTrue(scrollTo(token, in: app))
+        token.tap()
+        token.typeText("ops_good-token")
+        app.buttons["onepassword-save"].tap()
+        XCTAssertFalse(token.isEnabled, "送っている間はトークン欄を止める")
+        XCTAssertFalse(app.switches["1Passwordと連携する"].isEnabled, "送っている間は連携の切替も止める")
+        shot(app, "54-onepassword-saving-inputs-locked")
+        let line = app.staticTexts["onepassword-connection"]
+        XCTAssertTrue(line.waitForExistence(timeout: 12))
+        XCTAssertTrue(token.isEnabled, "結果が出たら入力欄を戻す")
+        let proof = try await call("/test/proof")
+        XCTAssertEqual((proof["settingPatches"] as? [Any])?.count, 1, "送ったのは1回だけ")
     }
 
     private func launch(_ arguments: [String]) -> XCUIApplication {
