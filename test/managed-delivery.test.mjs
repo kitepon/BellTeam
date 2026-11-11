@@ -85,13 +85,14 @@ test('a failed direct stop is reported without closing, tracking lookup or resen
 
 test('real room routing delivers to eleven members with one responder while one send is held', { timeout: 5000 }, async () => {
   const group = bots().map((bot, i) => ({ ...bot, name: `member ${i}` }))
-  const entered = deferred(), held = deferred(), tenDelivered = deferred(), calls = [], records = []
+  const entered = deferred(), held = deferred(), tenDelivered = deferred(), allDelivered = deferred(), calls = [], records = []
   const members = new Map(group.map(bot => [bot.id, bot]))
   const room = { id: 'fixture-room', name: 'fixture', purpose: 'fixture', memberIds: group.map(bot => bot.id) }
   const rooms = new Map([[room.id, room]])
   rooms.appendMessage = async (_id, record) => {
     records.push(record)
     if (records.filter(item => item.delivery === 'delivered' && item.target !== group[0].id).length === 10) tenDelivered.resolve()
+    if (records.filter(item => item.delivery === 'delivered').length === 11) allDelivered.resolve()
   }
   const transport = createManagedTransport({ client: { async call(name, args) {
     assert.equal(name, 'pty_send')
@@ -107,9 +108,12 @@ test('real room routing delivers to eleven members with one responder while one 
     assert.equal(calls.length, 11)
     assert.equal(records.some(item => item.target === group[0].id && item.delivery === 'delivered'), false)
   } finally { held.resolve() }
+  // flow.md: the post returns once every delivery is issued; outcomes land in the record afterwards.
   const result = await operation
   assert.deepEqual(result.targets, [group[0].id])
+  assert.equal(result.delivery, 'running')
   assert.equal(result.failedTargets, undefined)
+  await allDelivered.promise
   assert.equal(calls.length, 11)
   assert.equal(records.filter(item => item.delivery === 'delivered').length, 11)
   await transport.close()

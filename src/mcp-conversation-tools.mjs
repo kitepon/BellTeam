@@ -89,7 +89,7 @@ export const conversationTools = Object.freeze([
   },
   {
     name: 'respond_to_room',
-    description: '現在処理中のルーム発言への結果を返す。同時に複数のルーム発言を受けた時は、届いたメッセージIDをmessageIdへ指定する。返信者に指定されたBotはaction=replyと本文を指定する。返信も新しい発言として全メンバーへ届き、その発言に対する返信の要否と返信者を改めて決める。返信者以外は発言を把握してaction=silentを指定する。silentは表示されず、通常の最終回答もルームへ表示されない。posted_with_failed_deliveriesとalready_postedは投稿済みなので再送しない。',
+    description: '現在処理中のルーム発言への結果を返す。同時に複数のルーム発言を受けた時は、届いたメッセージIDをmessageIdへ指定する。返信者に指定されたBotはaction=replyと本文を指定する。返信も新しい発言として全メンバーへ届き、その発言に対する返信の要否と返信者を改めて決める。返信者以外は発言を把握してaction=silentを指定する。silentは表示されず、通常の最終回答もルームへ表示されない。返信は記録と全員への配送の発行が済んだ時点で返り、各メンバーの受付は待たない。各メンバーへの配送結果は部屋の記録に残る。running・posted・already_posted・posted_with_failed_deliveriesは投稿済みなので再送しない。',
     inputSchema: objectSchema({
       action: { type: 'string', enum: ['reply', 'silent'] },
       messageId: { type: 'string', minLength: 1, description: '同時に複数受信した場合の返信対象メッセージID' },
@@ -100,7 +100,7 @@ export const conversationTools = Object.freeze([
   },
   {
     name: 'sendroommessage',
-    description: '所属ルームへ新しい実質的なメッセージを投稿する。発言は全メンバーへ届く。targets省略時にJevが返信の要否と返信者を決めるのは、TypeSafeを設定して有効にした時だけ。未設定・無効の時は返信するメンバーをtargetsで指定する。省略または空配列では返信者の自動選択が未設定というエラーになり、投稿されない。targets指定時は指定した全員が返答し、それ以外のメンバーはサイレントに把握する。受信したルーム発言への返答にはrespond_to_roomを使う。',
+    description: '所属ルームへ新しい実質的なメッセージを投稿する。発言は全メンバーへ届く。targets省略時にJevが返信の要否と返信者を決めるのは、TypeSafeを設定して有効にした時だけ。未設定・無効の時は返信するメンバーをtargetsで指定する。省略または空配列では返信者の自動選択が未設定というエラーになり、投稿されない。targets指定時は指定した全員が返答し、それ以外のメンバーはサイレントに把握する。記録と全員への配送の発行が済んだ時点で返り、各メンバーの受付は待たない。各メンバーへの配送結果は部屋の記録に残る。結果のid・running・postedは投稿済みなので再送しない。受信したルーム発言への返答にはrespond_to_roomを使う。',
     inputSchema: objectSchema({
       room: { type: 'string', minLength: 1 },
       message: { type: 'string', minLength: 1 },

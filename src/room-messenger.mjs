@@ -109,38 +109,43 @@ export class RoomMessenger {
       throw error
     }
     try { check() } catch (error) { await failedRouting(error); throw error }
-    const deliveries = await Promise.allSettled(deliveryTargets.map(id => this.transport.notify(
-      this.bots.get(id), roomEnvelope(record, { silent: !responders.includes(id) }), {
-        ...(membersLease === undefined ? {} : { membersLease }),
-        ...(executionSource ? { executionSource } : {}),
-        images,
-        queue: {
-          context: 'room', contextId: room.id, groupId: record.id,
-          from, fromName: sender.name, target: id, message,
+    // flow.md: the post returns once every delivery is issued; each seat's outcome stays in the room record.
+    // notify is called synchronously so every reverse effect is issued while this root is still open.
+    const issue = run => { try { return Promise.resolve(run()) } catch (error) { return Promise.reject(error) } }
+    deliveryTargets.forEach(id => {
+      // A refusal the transport already reported through onStatus is not written again by the rejection fallback.
+      let terminal = false
+      void issue(() => this.transport.notify(
+        this.bots.get(id), roomEnvelope(record, { silent: !responders.includes(id) }), {
+          ...(membersLease === undefined ? {} : { membersLease }),
+          ...(executionSource ? { executionSource } : {}),
+          images,
+          queue: {
+            context: 'room', contextId: room.id, groupId: record.id,
+            from, fromName: sender.name, target: id, message,
+          },
+          onStatus: async (delivery, error, tracking) => { await this.rooms.appendMessage(room.id, {
+            schema: 'bellteam.room-delivery-status.v1', message_id: record.id,
+            target: id, at: this.now(), delivery,
+            ...this.failureFields(error),
+            ...(deliveryTracking(delivery, tracking) ? { delivery_tracking: deliveryTracking(delivery, tracking) } : {}),
+          }); terminal ||= ['failed', 'stopped'].includes(delivery) }, // only once the row is durable
+          // 合間の言葉と最後の回答は、そのBotの会話画面に出すだけ。ルームにも他のBotにも届けない。
+          ...(this.onInterimWords ? {
+            onInterim: words => this.onInterimWords(id, record.id, words),
+            onAnswer: text => this.onInterimWords(id, record.id, [{ text, kind: 'answer' }]),
+          } : {}),
+          onTurnEnd: window => this.onTurnEnd({ botId: id, context: 'room', ...window }),
         },
-        onStatus: (delivery, error, tracking) => this.rooms.appendMessage(room.id, {
-          schema: 'bellteam.room-delivery-status.v1', message_id: record.id,
-          target: id, at: this.now(), delivery,
-          ...this.failureFields(error),
-          ...(deliveryTracking(delivery, tracking) ? { delivery_tracking: deliveryTracking(delivery, tracking) } : {}),
-        }),
-        // 合間の言葉と最後の回答は、そのBotの会話画面に出すだけ。ルームにも他のBotにも届けない。
-        ...(this.onInterimWords ? {
-          onInterim: words => this.onInterimWords(id, record.id, words),
-          onAnswer: text => this.onInterimWords(id, record.id, [{ text, kind: 'answer' }]),
-        } : {}),
-        onTurnEnd: window => this.onTurnEnd({ botId: id, context: 'room', ...window }),
-      },
-    )))
-    const failedTargets = deliveries.flatMap((result, index) => result.status === 'rejected'
-      ? [{ id: deliveryTargets[index], error: result.reason?.message ?? String(result.reason) }] : [])
-    return {
-      id: record.id, room: room.id, targets: responders,
-      delivery: failedTargets.length ? 'posted_with_failed_deliveries'
-        : deliveries.length === 0 ? 'posted'
-          : deliveries.some(item => item.value.delivery === 'running') ? 'running' : 'steered',
-      ...(failedTargets.length ? { failedTargets } : {}),
-    }
+    )).catch(error => {
+        if (terminal) return
+        let fields = {}
+        try { fields = this.failureFields(error) } catch { /* a refusal shape the record cannot carry keeps only its status */ }
+        return this.rooms.appendMessage(room.id, { schema: 'bellteam.room-delivery-status.v1', message_id: record.id, target: id,
+          at: this.now(), delivery: ['BOT_STOPPED', 'AI_GLOBAL_PAUSED'].includes(error?.code) ? 'stopped' : 'failed', ...fields })
+      }).catch(() => {})
+    })
+    return { id: record.id, room: room.id, targets: responders, delivery: deliveryTargets.length ? 'running' : 'posted' }
   }
 }
 
