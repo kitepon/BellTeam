@@ -28,7 +28,7 @@ struct OwnerQuestionCard: View {
                     .foregroundStyle(BellTheme.violet)
                     .accessibilityIdentifier("owner-question-answer")
             } else {
-                FlowButtons(options: question.options, disabled: state.sending) { option in
+                ChoiceButtons(options: question.options, disabled: state.sending) { option in
                     Task { await answer(OwnerAnswerBody(choice: option, text: nil)) }
                 }
                 if question.allowOther {
@@ -39,11 +39,14 @@ struct OwnerQuestionCard: View {
                             .accessibilityIdentifier("owner-question-other")
                             .disabled(state.sending)
                         Button("送る") { Task { await answer(OwnerAnswerBody(choice: nil, text: state.other)) } }
+                            .buttonStyle(.bellPrimary).tint(BellTheme.violet)
                             .disabled(state.sending || state.other.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                 }
                 if state.sending { ProgressView() }
-                if let errorText = state.errorText { Text(errorText).font(.footnote).foregroundStyle(.red) }
+                if let errorText = state.errorText {
+                    Label(errorText, systemImage: "exclamationmark.triangle.fill").font(.footnote).foregroundStyle(.red)
+                }
             }
         }
         .foregroundStyle(BellTheme.ink)
@@ -71,56 +74,35 @@ struct OwnerQuestionCard: View {
     }
 }
 
-/// 選択肢のボタン。幅に収まらない分は次の行へ折り返す。
-private struct FlowButtons: View {
+/// 選択肢のボタン。1つずつ幅いっぱいに並べ、長い選択肢は折り返して全文を見せる。
+private struct ChoiceButtons: View {
     let options: [String]
     let disabled: Bool
     let onSelect: (String) -> Void
 
     var body: some View {
-        FlowLayout(spacing: 8) {
-            ForEach(options, id: \.self) { option in
-                Button(option) { onSelect(option) }
-                    .buttonStyle(.bordered)
-                    .tint(BellTheme.violet)
-                    .disabled(disabled)
+        VStack(spacing: 8) {
+            ForEach(Array(options.enumerated()), id: \.offset) { index, option in
+                Button { onSelect(option) } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        Image(systemName: index < 50 ? "\(index + 1).circle.fill" : "circle.fill")
+                            .foregroundStyle(BellTheme.violet)
+                        Text(option).multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .foregroundStyle(BellTheme.ink)
+                        Spacer(minLength: 0)
+                    }
+                    .font(.body.weight(.medium))
+                    .padding(.horizontal, 14).padding(.vertical, 11)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(BellTheme.violet.opacity(0.07), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(BellTheme.violet.opacity(0.22)))
+                    .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(disabled)
+                .accessibilityIdentifier("owner-question-choice-\(index)")
             }
         }
-    }
-}
-
-private struct FlowLayout: Layout {
-    let spacing: CGFloat
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let rows = arrange(width: proposal.width ?? .infinity, subviews: subviews)
-        return CGSize(width: proposal.width ?? rows.map(\.width).max() ?? 0,
-                      height: rows.map(\.height).reduce(0, +) + spacing * CGFloat(max(rows.count - 1, 0)))
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        var y = bounds.minY
-        for row in arrange(width: bounds.width, subviews: subviews) {
-            var x = bounds.minX
-            for index in row.indices {
-                let size = subviews[index].sizeThatFits(.unspecified)
-                subviews[index].place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
-                x += size.width + spacing
-            }
-            y += row.height + spacing
-        }
-    }
-
-    private func arrange(width: CGFloat, subviews: Subviews) -> [(indices: [Int], width: CGFloat, height: CGFloat)] {
-        var rows: [(indices: [Int], width: CGFloat, height: CGFloat)] = []
-        for index in subviews.indices {
-            let size = subviews[index].sizeThatFits(.unspecified)
-            if let last = rows.last, last.width + spacing + size.width <= width {
-                rows[rows.count - 1] = (last.indices + [index], last.width + spacing + size.width, max(last.height, size.height))
-            } else {
-                rows.append(([index], size.width, size.height))
-            }
-        }
-        return rows
     }
 }

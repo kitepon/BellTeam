@@ -12,7 +12,7 @@ flowchart TD
   Root --> Setup["setup: ServerSetupView<br/>URL入力・導入ガイド"]
   Root --> Login["signIn: LoginView<br/>CloudflareのWebログイン"]
   Root --> Onboarding["onboarding: OnboardingView<br/>公式AI認証・案内役"]
-  Root --> Failure["checking / failure<br/>待機・接続失敗・手動再開"]
+  Root --> Failure["checking / failure<br/>待機・接続失敗（ConnectionFailureView：もう一度試す＝bootstrap、接続先を変更＝確認の後changeServer、原因の原文は詳細の中）"]
   Root --> Ready["ready"]
   Ready --> Phone["iPhone: BellTabs<br/>会話・予定・ゴール・相関図（工程表との切り替え）・設定"]
   Ready --> Wide["iPad / Mac Catalyst<br/>DesktopWorkspaceView"]

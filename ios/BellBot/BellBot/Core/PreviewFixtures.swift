@@ -148,7 +148,7 @@ enum PreviewMessages {
     static let questionItems: [TimelineMessage] = {
         let source = """
         [
-          {"id":"q1","kind":"owner_question","direction":"incoming","at":"2026-09-26T00:14:00Z","message":"資料の公開範囲を決めてほしいです。","ownerQuestion":{"id":"q1","botId":"bot-three","question":"資料の公開範囲を決めてほしいです。","options":["チームだけ","全員に公開"],"allowOther":true,"status":"open"}}
+          {"id":"q1","kind":"owner_question","direction":"incoming","at":"2026-09-26T00:14:00Z","message":"資料の公開範囲を決めてほしいです。","ownerQuestion":{"id":"q1","botId":"bot-three","question":"資料の公開範囲を決めてほしいです。","options":["チームだけ","全員に公開","社外の協力者にも、確認が終わった章から順に読めるようにして、未確認の章は伏せておく"],"allowOther":true,"status":"open"}}
         ]
         """
         return try! JSONDecoder().decode([TimelineMessage].self, from: Data(source.utf8))

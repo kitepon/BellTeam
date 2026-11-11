@@ -146,7 +146,7 @@ private struct PanelButton: View {
             }
             .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(.bellPrimary)
         .disabled(busy || !enabled)
         .accessibilityIdentifier(id)
     }
@@ -311,9 +311,13 @@ struct CharacterSheetScreen: View {
                     Label(line, systemImage: "exclamationmark.triangle.fill").font(BellTheme.detailFont).foregroundStyle(.red)
                         .accessibilityIdentifier("character-sheet-error")
                 case .sheets(let entries) where entries.isEmpty:
-                    Label(CharacterSheetCaption.emptyNote, systemImage: "photo.on.rectangle.angled").font(BellTheme.controlsFont)
-                        .foregroundStyle(.secondary).padding(.top, 12)
-                        .accessibilityIdentifier("character-sheet-empty")
+                    VStack(spacing: 10) {
+                        Image(systemName: "photo.on.rectangle.angled").font(.system(size: 40)).foregroundStyle(BellTheme.violet.opacity(0.7))
+                        Text(CharacterSheetCaption.emptyNote).font(.headline).foregroundStyle(BellTheme.ink)
+                            .accessibilityIdentifier("character-sheet-empty")
+                        Text("オーナーが決めると、ここに表示されます。").font(BellTheme.secondaryFont).foregroundStyle(.secondary)
+                    }
+                    .padding(28).frame(maxWidth: .infinity).bellCard()
                 case .sheets(let entries):
                     ForEach(entries) { SheetCard(entry: $0) }
                 }

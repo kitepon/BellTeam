@@ -27,7 +27,7 @@ final class ProfileTerminalUITests: XCTestCase {
         let effort = app.descendants(matching: .any)
             .matching(NSPredicate(format: "label CONTAINS %@", "希望エフォート")).firstMatch
         XCTAssertTrue(effort.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["役職"].exists)
+        XCTAssertTrue(app.staticTexts["担当する仕事"].exists)
         XCTAssertTrue(app.buttons["Botの画面を見る"].exists)
         let profileImage = XCTAttachment(screenshot: app.screenshot())
         profileImage.name = "iPhoneのプロフィール"
@@ -627,7 +627,7 @@ final class ProfileTerminalUITests: XCTestCase {
         let effort = app.descendants(matching: .any)
             .matching(NSPredicate(format: "label CONTAINS %@", "希望エフォート")).firstMatch
         XCTAssertTrue(effort.exists)
-        XCTAssertTrue(app.staticTexts["役職"].exists)
+        XCTAssertTrue(app.staticTexts["担当する仕事"].exists)
         XCTAssertTrue(app.buttons["会話セッションを再起動"].exists)
     }
 

@@ -142,6 +142,20 @@ struct BotEditor: View {
     var body: some View {
         NavigationStack(path: $toolPath) {
             Form {
+                if let opened = liveBot {
+                    // Whose editor this is, at a glance (the window toolbar title is not enough on Mac).
+                    Section {
+                        HStack(spacing: 14) {
+                            AvatarView(name: opened.displayName, avatar: avatar.isEmpty ? opened.avatar : avatar,
+                                       color: BellTheme.accent(color), size: 64)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(name.isEmpty ? opened.displayName : name).font(.title2.bold()).foregroundStyle(BellTheme.ink)
+                                if !position.isEmpty { Text(position).font(.subheadline).foregroundStyle(BellTheme.muted) }
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
                 Section(header: BellSectionHeader("メンバー")) {
                     if initial == nil {
                         HStack {
@@ -158,8 +172,8 @@ struct BotEditor: View {
                             Spacer()
                         }
                     }
-                    TextField("名前", text: $name)
-                    TextField("役職", text: $position)
+                    LabeledField(label: "名前") { TextField("名前", text: $name, prompt: Text("呼び名")) }
+                    LabeledField(label: "役職") { TextField("役職", text: $position, prompt: Text("例：BellTeam Appleアプリ")) }
                     Picker("テーマ色", selection: $color) {
                         Text("紫").tag("violet")
                         Text("ローズ").tag("rose")
@@ -212,7 +226,10 @@ struct BotEditor: View {
                     // Macのポップアップでは、候補が届く前に作った選択欄が保存済みのモデルを「CLIの既定」と表示した。
                     // 候補を読み終えてから選択欄を作る。
                     if loadingModels {
-                        ProgressView("モデル候補を読み込んでいます…")
+                        HStack(spacing: 10) {
+                            ProgressView().controlSize(.small)
+                            Text("使えるモデルを確かめています…").foregroundStyle(BellTheme.muted)
+                        }
                     } else {
                         Picker("CLI", selection: Binding(get: { harness }, set: { next in
                             harness = next
@@ -291,8 +308,11 @@ struct BotEditor: View {
                             Button("削除結果を確認") { Task { await confirmDeletion() } }
                                 .accessibilityIdentifier("confirm-member-deletion")
                         } else {
-                            Button("メンバーを削除", role: .destructive) { confirmingDeletion = true }
-                                .accessibilityIdentifier("delete-member")
+                            Button(role: .destructive) { confirmingDeletion = true } label: {
+                                Label("メンバーを削除", systemImage: "trash").frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered).tint(.red)
+                            .accessibilityIdentifier("delete-member")
                         }
                     } footer: {
                         Text("このメンバーの会話・予定・記憶を含むプロジェクトを削除し、ルームから外します。元に戻せません。")
@@ -578,6 +598,48 @@ struct BotEditor: View {
     }
 }
 
+/// A field with its label always visible (a Form field otherwise shows only a fading placeholder).
+struct LabeledField<Field: View>: View {
+    let label: String
+    @ViewBuilder var field: Field
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label).font(.subheadline.weight(.semibold)).foregroundStyle(BellTheme.muted)
+            field
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+/// One member in the room editor: face, name, position, and add or remove.
+private struct RoomMemberRow: View {
+    let bot: Bot
+    let selected: Bool
+    let onToggle: () -> Void
+
+    var body: some View {
+        Button(action: onToggle) {
+            HStack(spacing: 12) {
+                AvatarView(name: bot.displayName, avatar: bot.avatar, color: BellTheme.accent(bot.color), size: 34)
+                VStack(alignment: .leading, spacing: 1) {
+                    // displayName is name + position from the server; the row shows them on two lines.
+                    Text(bot.name).foregroundStyle(BellTheme.ink)
+                    if !bot.position.isEmpty {
+                        Text(bot.position).font(.caption).foregroundStyle(BellTheme.muted).lineLimit(1)
+                    }
+                }
+                Spacer(minLength: 8)
+                Image(systemName: selected ? "minus.circle.fill" : "plus.circle.fill")
+                    .font(.title3).foregroundStyle(selected ? .red : BellTheme.violet)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(selected ? "\(bot.displayName)を外す" : "\(bot.displayName)を加える")
+        .accessibilityIdentifier("room-member-\(bot.id)")
+    }
+}
+
 private struct RoomRequest: Encodable {
     let name: String
     let purpose: String
@@ -599,6 +661,26 @@ struct RoomEditor: View {
     @State private var saving = false
     @State private var confirmingDeletion = false
     @State private var errorText: String?
+    @State private var memberQuery = ""
+    @State private var showingAllMembers = false
+
+    /// Not yet in the room, narrowed by the search text (name, display name, position).
+    private var candidates: [Bot] {
+        let query = memberQuery.trimmingCharacters(in: .whitespaces).lowercased()
+        return store.bots.filter { bot in
+            !members.contains(bot.id) && (query.isEmpty
+                || [bot.displayName, bot.name, bot.position].contains { $0.lowercased().contains(query) })
+        }
+    }
+
+    private func toggle(_ id: String) {
+        if members.contains(id) {
+            members.remove(id)
+            if representative == id { representative = "" }
+        } else {
+            members.insert(id)
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -616,16 +698,42 @@ struct RoomEditor: View {
                         }
                         Spacer()
                     }
-                    TextField("ルーム名", text: $name)
-                    TextField("この部屋で共有する仕事", text: $purpose, axis: .vertical).lineLimit(3...7)
-                }
-                Section(header: BellSectionHeader("メンバー")) {
-                    ForEach(store.bots) { bot in
-                        Toggle(bot.displayName, isOn: Binding(get: { members.contains(bot.id) }, set: { value in
-                            if value { members.insert(bot.id) }
-                            else { members.remove(bot.id); if representative == bot.id { representative = "" } }
-                        }))
+                    LabeledField(label: "ルーム名") { TextField("ルーム名", text: $name, prompt: Text("例：インフラ整備")) }
+                    LabeledField(label: "この部屋で共有する仕事") {
+                        TextField("この部屋で共有する仕事", text: $purpose, prompt: Text("この部屋で話し合うこと・進める仕事"), axis: .vertical)
+                            .lineLimit(3...7)
                     }
+                }
+                Section {
+                    if members.isEmpty {
+                        Label("まだ誰もいません。下から追加してください。", systemImage: "person.2.slash")
+                            .foregroundStyle(BellTheme.muted)
+                    }
+                    ForEach(store.bots.filter { members.contains($0.id) }) { bot in
+                        RoomMemberRow(bot: bot, selected: true) { toggle(bot.id) }
+                    }
+                } header: {
+                    BellSectionHeader("参加メンバー（\(members.count)人）")
+                }
+                Section {
+                    HStack(spacing: 8) {
+                        Image(systemName: "magnifyingglass").foregroundStyle(BellTheme.muted)
+                        TextField("名前や役職で探す", text: $memberQuery)
+                            .textInputAutocapitalization(.never).autocorrectionDisabled()
+                            .accessibilityIdentifier("room-member-search")
+                    }
+                    if memberQuery.isEmpty && !showingAllMembers {
+                        Button("すべてのメンバーから選ぶ（\(candidates.count)人）") { showingAllMembers = true }
+                            .accessibilityIdentifier("room-member-show-all")
+                    } else if candidates.isEmpty {
+                        Text("見つかりません").foregroundStyle(BellTheme.muted)
+                    } else {
+                        ForEach(candidates) { bot in
+                            RoomMemberRow(bot: bot, selected: false) { toggle(bot.id) }
+                        }
+                    }
+                } header: {
+                    BellSectionHeader("メンバーを追加")
                 }
                 Section(header: BellSectionHeader("代表")) {
                     Picker("代表Bot", selection: $representative) {
@@ -637,8 +745,11 @@ struct RoomEditor: View {
                 }
                 if initial != nil {
                     Section {
-                        Button("ルームを削除", role: .destructive) { confirmingDeletion = true }
-                            .accessibilityIdentifier("delete-room")
+                        Button(role: .destructive) { confirmingDeletion = true } label: {
+                            Label("ルームを削除", systemImage: "trash").frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered).tint(.red)
+                        .accessibilityIdentifier("delete-room")
                     } footer: {
                         Text("このルームの設定・会話履歴・予定を削除します。参加メンバーは削除されません。")
                     }

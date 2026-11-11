@@ -14,7 +14,7 @@ struct CharacterSheetListResponse: Decodable {
 
 enum CharacterSheetCaption {
     static let emptyNote = "まだ置かれていない。"
-    static let note = "メンバーのプロジェクトの assets/character-sheet/ 直下にある画像です。メンバーが自分を描く時の正本で、アイコンとは別です。"
+    static let note = "メンバーが自分を描く時に見る、オーナーが決めた絵です。アイコンとは別に置きます。"
 
     /// 「file（2026/11/10 9:05:03）」: Web's `toLocaleString('ja-JP')`. A date that cannot be read leaves the file name alone.
     @MainActor

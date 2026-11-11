@@ -184,13 +184,12 @@ struct DesktopWorkspaceView: View {
                 .padding(.horizontal, 10).padding(.bottom, 15)
             }
             Divider()
-            HStack(spacing: 4) {
+            // Five tiles share the width equally: icon over a one-line title (side-by-side labels wrapped one character per line).
+            HStack(spacing: 2) {
                 Button { store.selectedTab = 1; compactColumn = .detail } label: { Label("予定", systemImage: "calendar") }
                     .keyboardShortcut("2", modifiers: .command)
-                Spacer()
                 Button { store.selectedTab = 3; compactColumn = .detail } label: { Label("ゴール", systemImage: "target") }
                     .keyboardShortcut("3", modifiers: .command)
-                Spacer()
                 Button {
                     #if targetEnvironment(macCatalyst)
                     openWindow(id: "work-graph")
@@ -200,7 +199,6 @@ struct DesktopWorkspaceView: View {
                 } label: { Label("相関図", systemImage: "point.3.connected.trianglepath.dotted") }
                     .keyboardShortcut("4", modifiers: .command)
                     .accessibilityIdentifier("open-work-graph")
-                Spacer()
                 Button {
                     #if targetEnvironment(macCatalyst)
                     openWindow(id: "lattice")
@@ -210,12 +208,11 @@ struct DesktopWorkspaceView: View {
                 } label: { Label("工程表", systemImage: "list.bullet.indent") }
                     .keyboardShortcut("5", modifiers: .command)
                     .accessibilityIdentifier("open-lattice")
-                Spacer()
                 Button { store.selectedTab = 2; compactColumn = .detail } label: { Label("設定", systemImage: "gearshape") }
                     .keyboardShortcut(",", modifiers: .command)
             }
-            .font(BellTheme.controlsFont).buttonStyle(.borderless)
-            .padding(.horizontal, 10).padding(.vertical, 18)
+            .labelStyle(SidebarTileLabelStyle()).buttonStyle(.borderless)
+            .padding(.horizontal, 8).padding(.vertical, 12)
             HStack(spacing: 7) {
                 Circle().fill(BellTheme.mint).frame(width: 6, height: 6)
                 Text("\(store.bots.filter(\.online).count)人オンライン")
@@ -301,7 +298,7 @@ private struct DesktopInspector: View {
 
     private var profileSmallImageSize: CGFloat {
         #if targetEnvironment(macCatalyst)
-        152
+        84
         #else
         76
         #endif
@@ -328,7 +325,18 @@ private struct DesktopInspector: View {
                     ForEach(room.memberIds, id: \.self) { id in
                         if let member = store.bots.first(where: { $0.id == id }) {
                             Button { store.chatPath = [.bot(id)] } label: {
-                                HStack { AvatarView(name: member.name, avatar: member.avatar, color: BellTheme.accent(member.color), size: 30); Text(member.displayName).font(BellTheme.profileMemberFont); Spacer() }
+                                HStack(spacing: 10) {
+                                    AvatarView(name: member.name, avatar: member.avatar, color: BellTheme.accent(member.color), size: 34)
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(member.name).font(BellTheme.profileMemberFont.weight(.semibold))
+                                        if !member.position.isEmpty {
+                                            Text(member.position).font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted).lineLimit(1)
+                                        }
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right").font(.footnote).foregroundStyle(BellTheme.muted)
+                                }
+                                .contentShape(Rectangle())
                             }.buttonStyle(.plain)
                         }
                     }
@@ -356,7 +364,8 @@ private struct DesktopInspector: View {
                     editing = true
                     #endif
                 }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.bellPrimary).tint(BellTheme.violet).controlSize(.large)
+                    .frame(maxWidth: .infinity)
             }
             .padding(23)
         }
@@ -422,5 +431,17 @@ struct SidebarRowLabel: View {
         }
         .padding(.horizontal, metrics.horizontal).padding(.vertical, metrics.vertical)
         .background(selected ? .white : .clear, in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+/// A sidebar bar tile: icon above a title that never wraps.
+private struct SidebarTileLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        VStack(spacing: 4) {
+            configuration.icon.font(.system(size: 17, weight: .medium))
+            configuration.title.font(.system(size: 11, weight: .medium)).lineLimit(1).fixedSize()
+        }
+        .frame(maxWidth: .infinity, minHeight: 40)
+        .contentShape(Rectangle())
     }
 }

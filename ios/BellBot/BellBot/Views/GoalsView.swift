@@ -40,8 +40,9 @@ struct GoalsView: View {
                             .foregroundStyle(BellTheme.ink)
                         Text("設定済みのゴールと、現在取得できた状態。")
                             .foregroundStyle(BellTheme.muted)
+                        // What failed (an action whose outcome is unknown, a read): the state below says what to do next.
                         if let errorText = goals.errorText {
-                            Text(errorText).font(.footnote).foregroundStyle(.red)
+                            Label(errorText, systemImage: "exclamationmark.triangle.fill").font(.footnote).foregroundStyle(.red)
                                 .accessibilityIdentifier("goal-error")
                         }
                         if goals.loading && !goals.loaded {
@@ -158,30 +159,57 @@ struct ChatGoalBar: View {
 
     private var snapshot: GoalSnapshot? { goals.currentSnapshot(for: botId) }
     private var bot: Bot? { store.bots.first { $0.id == botId } }
-    private var pillTitle: String {
-        if goals.needsRefresh { return "ゴールを取得できません" }
-        guard goals.loaded else { return goals.errorText == nil ? "ゴールを確認中" : "ゴールを取得できません" }
-        guard let snapshot else { return "ゴールを取得できません" }
-        switch snapshot.availability {
-        case .unsupported: return "ゴール未対応"
-        case .unavailable: return "ゴールを取得できません"
-        case .available: return snapshot.goal?.statusTitle ?? "ゴール未設定"
+    /// The pill, always a whole sentence: the goal's state, that there is none, or that it could not be read.
+    /// An idle seat has no running goal, so it says 設定されていません. Only a bot without the goal feature has no pill.
+    private var pill: (title: String, symbol: String, tint: Color)? {
+        let unread = ("ゴールの状態を確認できません", "exclamationmark.triangle.fill", Color.orange)
+        let none = ("ゴールは設定されていません", "target", BellTheme.muted)
+        if goals.needsRefresh { return unread }
+        guard goals.loaded else {
+            return ("ゴールを確認しています", "hourglass", BellTheme.muted)
         }
+        guard let snapshot else { return unread }
+        if snapshot.seatIdle { return none }
+        switch snapshot.availability {
+        case .unsupported: return nil
+        case .unavailable: return unread
+        case .available: return snapshot.goal.map { ($0.statusTitle, "target", BellTheme.violet) } ?? none
+        }
+    }
+    /// The one failure sentence for the expanded card: a failed read is said plainly once, never twice.
+    private var failure: String? {
+        let unread = "現在のゴールを確認できません。状態を更新してください。"
+        // After a change whose outcome is unknown, its own sentence (do not resend) replaces the generic one.
+        if goals.needsRefresh { return goals.errorText ?? unread }
+        guard goals.loaded else { return nil }
+        guard let snapshot else { return unread }
+        if snapshot.availability == .unavailable && !snapshot.seatIdle { return snapshot.message ?? unread }
+        return nil
     }
     private var elapsed: String? {
         guard snapshot?.availability == .available, let goal = snapshot?.goal else { return nil }
         return goal.elapsedText ?? "時間未取得"
     }
 
+    private func refresh() {
+        let context = GoalLoadCallContext.capture(trigger: "chat_manual",
+            viewPhase: scenePhase, diagnostics: store.api.diagnostics)
+        Task { await goals.loadDetail(botId: botId, store: store, context: context) }
+    }
+
     var body: some View {
         VStack(spacing: 8) {
-            if expanded {
+            if expanded, pill != nil {
                 VStack(alignment: .leading, spacing: 8) {
-                    if let errorText = goals.errorText {
-                        Text(errorText).font(.footnote).foregroundStyle(.red)
-                            .accessibilityIdentifier("chat-goal-error")
-                    }
-                    if let snapshot {
+                    if let failure {
+                        GoalFailureNotice(text: failure, busy: goals.loading || goals.mutating) { refresh() }
+                    } else if let snapshot {
+                        // An action that failed (pause, clear…) says why above the card it belongs to.
+                        if let errorText = goals.errorText {
+                            Label(errorText, systemImage: "exclamationmark.triangle.fill")
+                                .font(.footnote).foregroundStyle(.red)
+                                .accessibilityIdentifier("chat-goal-action-error")
+                        }
                         GoalCard(snapshot: snapshot, name: bot?.displayName ?? botId,
                                  busy: goals.loading || goals.mutating || goals.needsRefresh,
                                  presentation: .chat, onEdit: { action in
@@ -190,37 +218,30 @@ struct ChatGoalBar: View {
                                  }, onAction: { action in
                                      Task { await goals.run(snapshot, action: action, store: store) }
                                  })
-                    } else {
-                        Text(goals.needsRefresh ? "現在のゴールを確認できません。状態を更新してください。"
-                                                : "ゴールの状態を取得できません。")
-                            .font(.footnote).padding(18).bellCard()
+                        Button("状態を更新", systemImage: "arrow.clockwise") { refresh() }
+                            .font(.footnote).disabled(goals.loading || goals.mutating)
                     }
-                    Button("状態を更新") {
-                        let context = GoalLoadCallContext.capture(trigger: "chat_manual",
-                            viewPhase: scenePhase, diagnostics: store.api.diagnostics)
-                        Task { await goals.loadDetail(botId: botId, store: store,
-                                                      context: context) }
-                    }
-                        .font(.footnote).disabled(goals.loading || goals.mutating)
                 }
                 .frame(maxWidth: 520)
                 .padding(.horizontal, 16)
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
-            Button { withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() } } label: {
-                HStack(spacing: 7) {
-                    Image(systemName: "target")
-                    Text(pillTitle).lineLimit(1)
-                    if let elapsed { Text(elapsed).lineLimit(1) }
+            if let pill {
+                Button { withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() } } label: {
+                    HStack(spacing: 7) {
+                        Image(systemName: pill.symbol).foregroundStyle(pill.tint)
+                        Text(pill.title).lineLimit(1)
+                        if let elapsed { Text(elapsed).lineLimit(1).foregroundStyle(BellTheme.muted) }
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(BellTheme.ink)
+                    .padding(.horizontal, 15).padding(.vertical, 8)
+                    .background(.regularMaterial, in: Capsule())
+                    .overlay(Capsule().strokeBorder(BellTheme.line))
                 }
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(BellTheme.ink)
-                .padding(.horizontal, 15).padding(.vertical, 8)
-                .background(.regularMaterial, in: Capsule())
-                .overlay(Capsule().strokeBorder(BellTheme.line))
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("chat-goal-pill")
             }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("chat-goal-pill")
         }
         .frame(maxWidth: .infinity)
         .zIndex(2)
@@ -257,6 +278,28 @@ struct ChatGoalBar: View {
             }
         }
         .onDisappear { foregroundLoad.cancel() }
+    }
+}
+
+/// One failure: icon, one plain sentence, and the action that can fix it.
+private struct GoalFailureNotice: View {
+    let text: String
+    let busy: Bool
+    let onRefresh: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label(text, systemImage: "exclamationmark.triangle.fill")
+                .font(.subheadline).foregroundStyle(BellTheme.ink)
+                .symbolRenderingMode(.multicolor)
+                .accessibilityIdentifier("chat-goal-error")
+            Button { onRefresh() } label: { Label("状態を更新", systemImage: "arrow.clockwise") }
+                .buttonStyle(.bellPrimary).tint(BellTheme.violet)
+                .disabled(busy)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .bellCard()
     }
 }
 
@@ -300,7 +343,7 @@ private struct GoalCard: View {
                     .foregroundStyle(BellTheme.muted)
             } else {
                 if presentation == .page || snapshot.goal == nil {
-                    Text(snapshot.goal?.statusTitle ?? "ゴール未設定")
+                    Text(snapshot.goal?.statusTitle ?? "ゴールは設定されていません")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(BellTheme.violet)
                 }
@@ -450,11 +493,26 @@ private struct GoalEditor: View {
                     }
                 }
                 if editsObjective {
-                    Section(header: BellSectionHeader("目的")) {
+                    Section {
                         TextEditor(text: $objective)
                             .frame(minHeight: 120)
+                            .overlay(alignment: .topLeading) {
+                                if objective.isEmpty {
+                                    Text("例：ログイン画面の改修を、実機の写真で受け入れてもらうところまで進める")
+                                        .foregroundStyle(BellTheme.muted.opacity(0.7))
+                                        .padding(.top, 8).padding(.leading, 5)
+                                        .allowsHitTesting(false).accessibilityHidden(true)
+                                }
+                            }
                             .accessibilityIdentifier("goal-objective-input")
-                        Text("\(objective.count) / 4000文字").font(.footnote).foregroundStyle(BellTheme.muted)
+                    } header: {
+                        BellSectionHeader("目的")
+                    } footer: {
+                        HStack {
+                            Text("終わったと言える状態を、一文で書きます。")
+                            Spacer()
+                            Text("\(objective.count) / 4000").monospacedDigit()
+                        }
                     }
                 }
                 if editsBudget {
@@ -469,8 +527,8 @@ private struct GoalEditor: View {
                     }
                 }
                 if selection.action == "edit" && selection.harness == "codex" && editsObjective {
-                    Text("目的を変えると使用量が初期化されます。")
-                        .font(.footnote).foregroundStyle(BellTheme.muted)
+                    Label("目的を変えると、使用量の数え直しが始まります。", systemImage: "exclamationmark.circle.fill")
+                        .font(.footnote).foregroundStyle(.orange)
                 }
                 if bindingChanged {
                     Text("会話が変わりました。この編集を閉じて、現在のゴールから編集し直してください。")
