@@ -10,7 +10,7 @@ const due = { roomId: 'room-a', scheduleId: 'schedule-a', expectedRevision: 0,
 const post = { message: '日本語', images: [] }
 const launch = { session_id: 'bot-a', launch_id: 'a'.repeat(32) }
 const examples = {
-  'rooms.list': {}, 'observation.poll': {}, 'room.read': { roomId: 'room-a' },
+  'rooms.list': {}, 'observation.poll': {}, 'fork.sweep': {}, 'room.read': { roomId: 'room-a' },
   'room.schedules.list': { roomId: 'room-a' }, 'room.remove': { roomId: 'room-a' },
   'history.listRoomMessages': { roomId: 'room-a' },
   'room.authorize': { roomId: 'room-a', requirement: 'member' },

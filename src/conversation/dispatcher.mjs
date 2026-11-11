@@ -271,6 +271,7 @@ export function createConversationDispatcher({ root, effect, event, trackBackgro
       }
       case 'direct.post': return messenger.sendmessage(params)
       case 'fork.ask': return messenger.askReadonly(params)
+      case 'fork.sweep': return messenger.sweepForkNotices()
       case 'user.post': case 'user.turn': {
         const state = current(), completion = messenger.userTurn(params)
         state.userSaved = track(completion.then(async result => { await background.awaitStarted(state.context); return result }))
