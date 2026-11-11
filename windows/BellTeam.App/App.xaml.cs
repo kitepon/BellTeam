@@ -155,8 +155,10 @@ public partial class App : Application
             if (e.Args is ["--render-terminals", var terminalScene, var terminalAddress, var terminalOutput])
             {
                 // 設定「端末」 in named states, read from the mock server (GET only). What follows a check or a write is set through render seams, never sent.
-                using var terminalWorkspace = new Workspace(); await terminalWorkspace.ConnectAsync(terminalAddress, listen: false);
+                // 16c: the PC's facts are the fixture's, and the fixture PC "fox" is marked as already tried, so the list read never sends a trust request.
+                using var terminalWorkspace = new Workspace { ThisPc = new RenderPc(terminalScene.EndsWith("refused", StringComparison.Ordinal) ? OpenSshState.Off : OpenSshState.On) }; await terminalWorkspace.ConnectAsync(terminalAddress, listen: false);
                 if (terminalWorkspace.ConnectionError is { } terminalFailure) throw new BellApiException(terminalFailure);
+                terminalWorkspace.Terminals.Attested.Add("fox");
                 var terminalWindow = new MainWindow(terminalWorkspace, persistPlacement: false);
                 terminalWindow.ShowSettings(SettingsPage.Terminals); await terminalWindow.PageReady;
                 var settingsPage = terminalWindow.SettingsPageWindow!; var terminals = terminalWorkspace.Terminals;
@@ -166,7 +168,7 @@ public partial class App : Application
                 if (terminalScene.StartsWith("editor", StringComparison.Ordinal))
                 {
                     var editor = new TerminalEditorView(terminalWorkspace, terminals, null) { Closer = terminalWindow.CloseUpdateSheet };
-                    editor.OsPicker.SelectedValue = terminalScene["editor-".Length..];
+                    if (terminalScene.StartsWith("editor-this-pc", StringComparison.Ordinal)) await editor.AddThisPcAsync(); else editor.OsPicker.SelectedValue = terminalScene["editor-".Length..];
                     terminalWindow.OpenSheet("端末を追加", editor);
                 }
                 else if (terminalScene != "list")
@@ -177,6 +179,7 @@ public partial class App : Application
                         case "detail-auth-failed": terminals.Checks[terminalId] = Failed("AUTH_FAILED", "この鍵がまだMacに入っていないかもしれません。「このMacにこの鍵を入れる」で、Macのログインパスワードを使って入れられます"); break;
                         case "detail-windows": terminals.Checks[terminalId] = Failed("CONNECTION_REFUSED", null); break;
                         case "detail-authorizing": terminals.Checks[terminalId] = Failed("AUTH_FAILED", null); terminals.Authorizations[terminalId] = new AuthorizeState.Waiting("r1", false); break;
+                        case "detail-this-pc-mismatch": terminals.TrustNotes[terminalId] = ThisPcTrust.Server(new BellApiException("x", System.Net.HttpStatusCode.Conflict, "HOST_KEY_FINGERPRINT_MISMATCH"))!; break;
                         case "detail-hostkey": case "hostkey-sheet": terminals.Checks[terminalId] = Failed("TARGET_MISMATCH", "confirm the new host key SHA256:nsffMHVAtGXV6+uEQqXTTMcNxrINQqErir/1ZI1Ch/Y on office-imac.local"); break;
                     }
                     terminals.Notify();
@@ -402,4 +405,15 @@ public partial class App : Application
         using var stream = File.Create(output); encoder.Save(stream);
     }
     protected override void OnExit(ExitEventArgs e) { instance?.Dispose(); base.OnExit(e); }
+}
+
+// Render seam (16c): this PC's facts for the fixture screens. Nothing here is read from the real PC, and the host key is never read.
+internal sealed class RenderPc(OpenSshState openSsh) : IThisPc
+{
+    public IReadOnlyList<PcInterface> Interfaces() => [new("vEthernet (WSL)", "172.24.0.1", false, false), new("Ethernet", "192.168.1.11", false, true), new("Loopback Pseudo-Interface 1", "127.0.0.1", false, false)];
+    public string MachineName => "FOX";
+    public string UserName => "kite_";
+    public string UserDomain => "FOX";
+    public Task<OpenSshState> OpenSshAsync(int port, CancellationToken token) => Task.FromResult(openSsh);
+    public Task<string> ReadHostKeyAsync(CancellationToken token) => throw new InvalidOperationException("The render never reads the host key.");
 }

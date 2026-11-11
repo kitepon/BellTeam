@@ -388,6 +388,8 @@ public sealed class TerminalsApi(BellApi api)
     public Task DeleteAsync(string id, CancellationToken token = default) => api.DeleteAsync(Path(id), token);
     // One transient SSH probe on the server; it never launches a seat.
     public Task<TerminalCheck> CheckAsync(string id, CancellationToken token = default) => api.PostAsync<TerminalCheck>(Path(id) + "/check", new { }, token);
+    // 16c S2: the host-key fingerprint read on this PC itself. The body has nothing else (the server refuses any other field).
+    public async Task<Terminal> TrustAsync(string id, string fingerprint, CancellationToken token = default) => (await api.PostAsync<TerminalTrustResponse>(Path(id) + "/trust", new { fingerprint }, token)).Terminal;
     // An empty POST; the key itself goes only into the returned secret card (KEY_IN_REQUEST_REFUSED otherwise).
     public async Task<SecretRequest> RequestKeyAsync(string id, TerminalKeyKind kind, CancellationToken token = default) => (await api.PostAsync<TerminalKeyRequestResponse>($"{Path(id)}/keys/{kind.Wire()}", new { }, token)).SecretRequest;
     public Task RemoveKeyAsync(string id, TerminalKeyKind kind, CancellationToken token = default) => api.DeleteAsync($"{Path(id)}/keys/{kind.Wire()}", token);
@@ -402,7 +404,7 @@ public sealed class TerminalsApi(BellApi api)
 public enum TerminalListState { NotLoaded, Supported, Unsupported, Failed }
 
 // The registry as this app last read it (apple/terminals.md AT01-AT05). Check results and the wait for a key authorization live only here.
-public sealed class TerminalsModel(TerminalsApi api)
+public sealed class TerminalsModel(TerminalsApi api, IThisPc? pc = null)
 {
     private int readSequence;
     public TerminalListState State { get; private set; }
@@ -431,6 +433,7 @@ public sealed class TerminalsModel(TerminalsApi api)
             var list = await api.ListAsync(token);
             if (sequence != readSequence) return;
             State = TerminalListState.Supported; Terminals = list; ReadError = null; FailedMessage = null;
+            foreach (var terminal in list) _ = AttestOnce(terminal);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception error)
@@ -467,7 +470,7 @@ public sealed class TerminalsModel(TerminalsApi api)
     public async Task RemoveAsync(string id, CancellationToken token = default)
     {
         await api.DeleteAsync(id, token);
-        Terminals = Terminals.Where(item => item.TerminalId != id).ToArray(); Checks.Remove(id); Authorizations.Remove(id); Notify();
+        Terminals = Terminals.Where(item => item.TerminalId != id).ToArray(); Checks.Remove(id); Authorizations.Remove(id); TrustNotes.Remove(id); Attested.Remove(id); Notify();
     }
 
     // The server stores the new request (the projection says pending) and answers the card to open.
@@ -479,6 +482,45 @@ public sealed class TerminalsModel(TerminalsApi api)
     }
     // The server unbinds the key (or cancels a pending card) and clears it; the list is read again.
     public async Task RemoveKeyAsync(string id, TerminalKeyKind kind, CancellationToken token = default) { await api.RemoveKeyAsync(id, kind, token); await RefreshAsync(token); }
+
+    // ---- 16c S2: this PC attests its own host key (App memory only) ----
+    public IThisPc? Pc => pc;
+    public HashSet<string> Attesting { get; } = [];
+    // The line to show per terminal after an attempt, and the terminals already tried (automatically) since this connection.
+    public Dictionary<string, TrustNote> TrustNotes { get; } = [];
+    public HashSet<string> Attested { get; } = [];
+    private Task attestations = Task.CompletedTask;
+    // Completes when every attestation started so far has ended.
+    public Task AttestationsDone => attestations;
+    public bool OwnsHost(Terminal terminal) => pc is not null && ThisPcFacts.Owns(terminal.Host, pc);
+
+    // The two automatic triggers (right after a new terminal was saved, and a list read): an untrusted terminal whose host is this PC is attested once per connection.
+    public Task AttestOnce(Terminal terminal)
+    {
+        if (terminal.HostTrusted || !OwnsHost(terminal) || !Attested.Add(terminal.TerminalId)) return Task.CompletedTask;
+        var run = AttestAsync(terminal.TerminalId);
+        attestations = Task.WhenAll(attestations, run);
+        return run;
+    }
+
+    // One attempt: read this PC's host key and send only the fingerprint; the server trusts it only when its own scan is equal. Every outcome becomes a line
+    // (TrustNotes), nothing is thrown, and nothing is resent (TERMINAL_CHANGED asks for another press).
+    public async Task AttestAsync(string id, CancellationToken token = default)
+    {
+        if (pc is null || !Attesting.Add(id)) return;
+        TrustNotes.Remove(id); Notify();
+        try
+        {
+            string fingerprint;
+            try { fingerprint = HostKeyFile.Fingerprint(await pc.ReadHostKeyAsync(token)); }
+            catch (Exception error) when (!token.IsCancellationRequested) { TrustNotes[id] = ThisPcTrust.Local(error); return; }
+            try { Replace(await api.TrustAsync(id, fingerprint, token)); }
+            catch (BellApiException error) when (error.RequiresLogin) { }
+            catch (Exception error) when (!token.IsCancellationRequested) { if (ThisPcTrust.Server(error) is { } note) TrustNotes[id] = note; }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        finally { Attesting.Remove(id); Notify(); }
+    }
 
     // One transient SSH probe on the server; it never launches a seat. Concurrent presses share the one in flight.
     public async Task CheckAsync(string id, CancellationToken token = default)

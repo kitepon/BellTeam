@@ -87,7 +87,9 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     public GoalsApi Goals => new(api ?? throw new BellApiException("接続先を設定してください。"));
     // 端末 (16a): the registry as last read and the check results live for one connection, as on the Mac (empty after a reconnect and a sign-out).
     private TerminalsModel? terminals;
-    public TerminalsModel Terminals => terminals ??= new(new TerminalsApi(api ?? throw new BellApiException("接続先を設定してください。")));
+    // 16c: this PC's facts; a render or a test sets another before Terminals is first used.
+    public IThisPc ThisPc { get; set; } = new ThisPcSystem();
+    public TerminalsModel Terminals => terminals ??= new(new TerminalsApi(api ?? throw new BellApiException("接続先を設定してください。")), ThisPc);
     public event Action? ServerChanged;
     // The member and room lists were just read again (an open editor checks whether its member is gone).
     public event Action? RosterChanged;
