@@ -19,9 +19,11 @@ const validEvent = value => {
   for (const key of ['botIds', 'roomIds']) check(Array.isArray(value[key]) && value[key].every(id => typeof id === 'string' && /^[a-z0-9][a-z0-9-]{0,127}$/u.test(id)))
 }
 const validDiagnostic = value => {
-  const corruption = value?.code === 'MESSAGE_LOG_INVALID'
-  check(exact(value, corruption ? 'code,line,offset,length,reason' : 'code')
+  const corruption = value?.code === 'MESSAGE_LOG_INVALID', observation = value?.code === 'CONVERSATION_OBSERVATION_FAILED'
+  // A retained child still sends the observation failure code-only.
+  check((exact(value, corruption ? 'code,line,offset,length,reason' : 'code') || observation && exact(value, 'code,reason'))
     && typeof value.code === 'string' && /^[A-Z][A-Z0-9_]{0,99}$/u.test(value.code))
+  if (observation && Object.hasOwn(value, 'reason')) check(typeof value.reason === 'string' && /^[A-Z][A-Z0-9_]{0,99}$/u.test(value.reason))
   if (corruption) check(Number.isSafeInteger(value.line) && value.line >= 1
     && Number.isSafeInteger(value.offset) && value.offset >= 0 && Number.isSafeInteger(value.length) && value.length >= 0
     && ['nul', 'syntax', 'schema'].includes(value.reason))

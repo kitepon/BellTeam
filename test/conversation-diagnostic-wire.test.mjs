@@ -14,6 +14,9 @@ const invalid = [
   ...['offset', 'length'].flatMap(key => [-1, 0.5, '0', NaN, Infinity, Number.MAX_SAFE_INTEGER + 1].map(value => ({ ...report, [key]: value }))),
   { ...report, reason: 'other' }, { ...report, body: 'private' }, { ...report, stack: 'private' },
   { ...report, code: 'OTHER_FAILURE' }, { code: 'OTHER_FAILURE', message: 'private' },
+  { code: 'OTHER_FAILURE', reason: 'OBSERVER_PROJECT_CHANGED' },
+  ...['free text', 'lower_case', '', 1, null].map(reason => ({ code: 'CONVERSATION_OBSERVATION_FAILED', reason })),
+  { code: 'CONVERSATION_OBSERVATION_FAILED', reason: 'OBSERVER_PROJECT_CHANGED', message: 'private' },
 ]
 function channels(t, raw = false) {
   const endpoints = [new EventEmitter(), new EventEmitter()], reports = []
@@ -44,9 +47,12 @@ test('diagnostic wire accepts only fixed corruption positions and preserves othe
   }
   await h.child.diagnostic(report)
   await h.child.diagnostic({ code: 'CONVERSATION_BACKGROUND_FAILED' })
+  await h.child.diagnostic({ code: 'CONVERSATION_OBSERVATION_FAILED', reason: 'OBSERVER_PROJECT_CHANGED' })
+  await h.child.diagnostic({ code: 'CONVERSATION_OBSERVATION_FAILED' })
   for (const value of [...invalid, null, {}, 'private'])
     assert.throws(() => h.child.diagnostic(value), { code: 'CONVERSATION_IPC_INVALID' })
-  assert.equal(h.reports.length, 5)
+  assert.equal(h.reports.length, 7)
+  assert.deepEqual(h.reports.at(-2), { code: 'CONVERSATION_OBSERVATION_FAILED', reason: 'OBSERVER_PROJECT_CHANGED' })
 })
 
 test('parent diagnostic wire rejects malformed corruption reports before the persistence callback', { timeout: 4000 }, async t => {

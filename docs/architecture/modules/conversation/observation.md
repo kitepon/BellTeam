@@ -39,7 +39,7 @@ flowchart TD
 
 公開checkはthroughline.observer_check_request.v1/result.v1、request順の結果全体を検証してから処理する。N0は起動0。unchangedは旧確認値と一致する時だけreadを省略する。check失効/errorでread cursorを消さず、resync_requiredはread成功後にcheck確認値だけnullへ戻す。errorのnullを新確認値として採用しない。check/read間の追加完了に対し、readが先まで進んでも採用するのはcheck時のtokenだけ。先行成功chunkは後続失敗で撤回しない。
 
-全対象のid一意/UTF8 bytes・絶対project/after bytesを検証し、件数と符号化後bytesの両方で分割する。単一項目超過は明示失敗、切捨て/空chunkなし。失敗時の例外本文/任意path/stdioを画面へ流さず固定分類だけをlogへ出す。
+全対象のid一意/UTF8 bytes・絶対project/after bytesを検証し、件数と符号化後bytesの両方で分割する。単一項目超過は明示失敗、切捨て/空chunkなし。失敗時の例外本文/任意path/stdioを画面へ流さず固定分類だけをlogへ出す。SelfTurnsの失敗報告はreport(message,{reason})で、reasonは例外のcode（無ければmessage先頭の符号、それも無ければ固定名）だけ。同じ対象（Bot/check/poll/state）の同じreasonは再試行のたびに報告せず、理由が変わった時と、成功で記録を消した後の失敗だけ報告する。子assemblyはこれをdiagnostic {code:CONVERSATION_OBSERVATION_FAILED,reason}へ渡す。
 
 checkは共通rootの既runnerをbase環境で使い、readは各projectの既接続を使う。stdinはJSON+EOF、AbortSignalはoptions、合計16MiB既上限/nonzero拒否/stdio close後回収はruntime契約を保持。停止後に次の起動をしない。runtimeの旧signature窓口除去は担当差分と同時結合した。製品契約/内部図はThroughline担当の正本へ辿り、正式package/公開/本番の成立は固定開発候補の受領とは分ける。
 

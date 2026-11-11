@@ -39,6 +39,12 @@ function withoutShownWords(text, shown, completedAt) {
   return rest || text
 }
 
+// A failure crosses only as a code-like token; free text and paths stay in the stderr message.
+const reasonOf = (error, fallback) => {
+  const candidate = error?.code ?? String(error?.message ?? '').split(':')[0]
+  return /^[A-Z][A-Z0-9_]{0,99}$/u.test(candidate) ? candidate : fallback
+}
+
 function startedOutsideDelivery(turn) {
   if (turn.turn_start === 'self') return true
   return turn.turn_start === 'prompt' && typeof turn.user === 'string' && turn.user.trimStart().startsWith(CHILD_RESULT_PREFACE)
@@ -60,6 +66,7 @@ export class SelfTurns {
     this.intervalMs = intervalMs
     this.state = {}
     this.pending = new Set()
+    this.failures = new Map() // key -> last reported reason: report once per reason change, not every retry
     this.timer = null
     this.running = null
     this.controller = null
@@ -70,7 +77,7 @@ export class SelfTurns {
     try {
       this.state = JSON.parse(await readFile(this.statePath, 'utf8')).bots ?? {}
     } catch (error) {
-      if (error.code !== 'ENOENT') this.report(`BellTeam self turns: 読んだ位置を読めませんでした（${error.message}）`)
+      if (error.code !== 'ENOENT') this.fail('state', reasonOf(error, 'SELF_TURNS_STATE_UNREADABLE'), `BellTeam self turns: 読んだ位置を読めませんでした（${error.message}）`)
       this.state = {}
     }
     return this
@@ -80,7 +87,8 @@ export class SelfTurns {
     if (this.timer) return
     this.stopped = false
     const tick = async () => {
-      await this.poll().catch(() => this.report('BellTeam self turns: OBSERVER_POLL_FAILED'))
+      await this.poll().then(() => this.failures.delete('poll'),
+        error => this.fail('poll', reasonOf(error, 'OBSERVER_POLL_FAILED'), 'BellTeam self turns: OBSERVER_POLL_FAILED'))
       if (!this.stopped) this.timer = setTimeout(tick, this.intervalMs)
     }
     this.timer = setTimeout(tick, 0)
@@ -106,6 +114,12 @@ export class SelfTurns {
     })
     this.running = running
     return running
+  }
+
+  fail(key, reason, message) {
+    if (this.failures.get(key) === reason) return
+    this.failures.set(key, reason)
+    this.report(message, { reason })
   }
 
   stateFor(bot) {
@@ -138,9 +152,10 @@ export class SelfTurns {
         const result = await (this.observer ? this.observer.check(request) : this.check(request, { signal }))
         signal.throwIfAborted()
         results = validateObserverCheckResult(result, request)
-      } catch {
+        this.failures.delete('check')
+      } catch (error) {
         for (const item of request.projects) this.pending.add(item.id)
-        if (!signal.aborted) this.report('BellTeam self turns: THROUGHLINE_OBSERVER_CHECK_FAILED')
+        if (!signal.aborted) this.fail('check', reasonOf(error, 'THROUGHLINE_OBSERVER_CHECK_FAILED'), 'BellTeam self turns: THROUGHLINE_OBSERVER_CHECK_FAILED')
         continue
       }
       for (const [index, result] of results.entries()) {
@@ -166,12 +181,12 @@ export class SelfTurns {
         if (token !== undefined) current.checkToken = token
       }
       await this.save(signal)
-      if (complete) this.pending.delete(bot.id)
-    } catch {
+      if (complete) { this.pending.delete(bot.id); this.failures.delete(bot.id) }
+    } catch (error) {
       current.cursor = cursor
       current.checkToken = checkToken
       current.project = project
-      if (!signal.aborted) this.report(`BellTeam self turns: ${bot.id} OBSERVER_CONSUME_FAILED`)
+      if (!signal.aborted) this.fail(bot.id, reasonOf(error, 'OBSERVER_CONSUME_FAILED'), `BellTeam self turns: ${bot.id} OBSERVER_CONSUME_FAILED`)
     }
   }
 
@@ -188,7 +203,7 @@ export class SelfTurns {
       if (result.status === 'resync_required') {
         // Legacy state has no project association; let the public cursor check it before binding.
         if (current.project === undefined) return this.reset(bot, signal)
-        this.report(`BellTeam self turns: ${bot.id} の読んだ位置が古くなったので、今の位置から読み直します`)
+        this.fail(bot.id, 'OBSERVER_RESYNC_REQUIRED', `BellTeam self turns: ${bot.id} の読んだ位置が古くなったので、今の位置から読み直します`)
         return this.resync(bot, current, signal)
       }
       if (result.status === 'projection_pending' || result.status === 'ambiguous_parent') {
