@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-11T17:50:03Z",
-  "expiresAt": "2026-11-18T17:50:03Z",
+  "publishedAt": "2026-11-11T18:38:04Z",
+  "expiresAt": "2026-11-18T18:38:04Z",
   "releases": [
     {
       "componentId": "usage",
@@ -491,8 +491,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "5049a5c64ebb85a9f6a84a4259fcc69f6df35c04",
-      "versionId": "57a3fedb5b6667c17d989dd56344d28ddf22641857aa1c55999c869d1275367c",
+      "sourceCommit": "e4180d5177fc7bd35f49132bf4e295a647f0e103",
+      "versionId": "d0acdcb76da3d206f81064db68e48ffd4ecd90438a3a4abd5d5c386c5429024d",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T165112Z/execution-5049a5c64ebb85a9f6a84a4259fcc69f6df35c04-linux-amd64.tar.gz",
-          "bytes": 3959375,
-          "sha256": "57a3fedb5b6667c17d989dd56344d28ddf22641857aa1c55999c869d1275367c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T183603Z/execution-e4180d5177fc7bd35f49132bf4e295a647f0e103-linux-amd64.tar.gz",
+          "bytes": 3959550,
+          "sha256": "d0acdcb76da3d206f81064db68e48ffd4ecd90438a3a4abd5d5c386c5429024d"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T165112Z/execution-5049a5c64ebb85a9f6a84a4259fcc69f6df35c04-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11083,
-          "sha256": "29bc87fafff1f5ca68b42e421b78ca48f5ba127bfc44367d907abfcbe1d0e9ff"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T183603Z/execution-e4180d5177fc7bd35f49132bf4e295a647f0e103-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11020,
+          "sha256": "d0ab50cee791f133294331147571cf2273baefc9ebf3bcef1ebace4d29e12fd4"
         },
-        "signerCommit": "5049a5c64ebb85a9f6a84a4259fcc69f6df35c04"
+        "signerCommit": "e4180d5177fc7bd35f49132bf4e295a647f0e103"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,16 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "上限で止まったメンバーの回復を、画面ではなくAitermの記録から判断するようにしました（Aiterm 0.70.26以降で動きます）。",
-        "続きの知らせは、上限ごとに1回だけ届きます。",
-        "入れ替え中の古い部品は、回復を止めます。",
-        "上限が解ける時刻の記録が同時に書かれた時、消したはずの上限が戻ってしまう競合を直しました。"
+        "作業が終わらないまま止まっているメンバー（ログインが切れたClaudeなど）も、削除できるようにしました。削除のときに席を閉じ、古い届け物を終わらせます。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "5049a5c64ebb85a9f6a84a4259fcc69f6df35c04",
-      "versionId": "9e77e0eda05e2ad5d63b5f7090d57badf09ee7e124b481837210391b035202ea",
+      "sourceCommit": "e4180d5177fc7bd35f49132bf4e295a647f0e103",
+      "versionId": "4e95fa2a4976cf49aac16d41879f5bf0d6f5e50c5d9480be3547ad88ed00e1ee",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -536,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T165112Z/execution-5049a5c64ebb85a9f6a84a4259fcc69f6df35c04-linux-arm64.tar.gz",
-          "bytes": 3959375,
-          "sha256": "9e77e0eda05e2ad5d63b5f7090d57badf09ee7e124b481837210391b035202ea"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T183603Z/execution-e4180d5177fc7bd35f49132bf4e295a647f0e103-linux-arm64.tar.gz",
+          "bytes": 3959555,
+          "sha256": "4e95fa2a4976cf49aac16d41879f5bf0d6f5e50c5d9480be3547ad88ed00e1ee"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T165112Z/execution-5049a5c64ebb85a9f6a84a4259fcc69f6df35c04-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11130,
-          "sha256": "70a426aa50325c0492e7d0f44e4d7a1bc4d30471235479b78220cd34b65f2978"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T183603Z/execution-e4180d5177fc7bd35f49132bf4e295a647f0e103-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11161,
+          "sha256": "b806b4c366216948d1845bbb1fb570b58d9919e174987b892b7c77408d26beea"
         },
-        "signerCommit": "5049a5c64ebb85a9f6a84a4259fcc69f6df35c04"
+        "signerCommit": "e4180d5177fc7bd35f49132bf4e295a647f0e103"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -555,10 +552,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "上限で止まったメンバーの回復を、画面ではなくAitermの記録から判断するようにしました（Aiterm 0.70.26以降で動きます）。",
-        "続きの知らせは、上限ごとに1回だけ届きます。",
-        "入れ替え中の古い部品は、回復を止めます。",
-        "上限が解ける時刻の記録が同時に書かれた時、消したはずの上限が戻ってしまう競合を直しました。"
+        "作業が終わらないまま止まっているメンバー（ログインが切れたClaudeなど）も、削除できるようにしました。削除のときに席を閉じ、古い届け物を終わらせます。"
       ]
     },
     {
