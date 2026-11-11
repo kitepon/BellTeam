@@ -1,12 +1,12 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-11T06:44:03Z",
-  "expiresAt": "2026-11-18T06:44:03Z",
+  "publishedAt": "2026-11-11T07:09:41Z",
+  "expiresAt": "2026-11-18T07:09:41Z",
   "releases": [
     {
       "componentId": "usage",
-      "sourceCommit": "dbce389c427edbf1017c137fd974220b6625cd17",
-      "versionId": "b4d868fe61a9c7b0b08fccfb9a1b59d4757642d97dd3d5f32ee23137c9bd81fc",
+      "sourceCommit": "165a4d1e5b41977820cd4a1894626a71ae04fac2",
+      "versionId": "dfa4291c96ccd671bbf21ea64926297e8cea25aedf9b55fc6c7667985c66d91f",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -14,16 +14,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T062613Z/usage-dbce389c427edbf1017c137fd974220b6625cd17-linux-amd64.tar.gz",
-          "bytes": 78315,
-          "sha256": "b4d868fe61a9c7b0b08fccfb9a1b59d4757642d97dd3d5f32ee23137c9bd81fc"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T065521Z/usage-165a4d1e5b41977820cd4a1894626a71ae04fac2-linux-amd64.tar.gz",
+          "bytes": 78679,
+          "sha256": "dfa4291c96ccd671bbf21ea64926297e8cea25aedf9b55fc6c7667985c66d91f"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T062613Z/usage-dbce389c427edbf1017c137fd974220b6625cd17-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11058,
-          "sha256": "1ac12b726f1d00f41cb3092fa3b670aa2865f61172e2f9fe87dc16569c76ca70"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T065521Z/usage-165a4d1e5b41977820cd4a1894626a71ae04fac2-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11097,
+          "sha256": "7a89dd73f0363f53cf975a71b04cb26d3b9b28e3f0292711b794b8f17a24c1f2"
         },
-        "signerCommit": "dbce389c427edbf1017c137fd974220b6625cd17"
+        "signerCommit": "165a4d1e5b41977820cd4a1894626a71ae04fac2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -48,13 +48,13 @@
         }
       },
       "changes": [
-        "Botが、ログインコードのように1回だけ使う値を頼めるようになりました。その値は保存せず、1回使うと消えます。"
+        "2つ目のClaudeアカウントのログインで、席が使うログイン情報（oauth-token）を作るようになりました。"
       ]
     },
     {
       "componentId": "usage",
-      "sourceCommit": "dbce389c427edbf1017c137fd974220b6625cd17",
-      "versionId": "4b0476f578aa1b9f260faae1875070fdb606c203b1772754355df3bd0b5305b9",
+      "sourceCommit": "165a4d1e5b41977820cd4a1894626a71ae04fac2",
+      "versionId": "cbb75e088e1e4cd42e2bee602a069b9c375bf9105e2b16aca1e308ad3b0fbc08",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -62,16 +62,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T062613Z/usage-dbce389c427edbf1017c137fd974220b6625cd17-linux-arm64.tar.gz",
-          "bytes": 78315,
-          "sha256": "4b0476f578aa1b9f260faae1875070fdb606c203b1772754355df3bd0b5305b9"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T065521Z/usage-165a4d1e5b41977820cd4a1894626a71ae04fac2-linux-arm64.tar.gz",
+          "bytes": 78679,
+          "sha256": "cbb75e088e1e4cd42e2bee602a069b9c375bf9105e2b16aca1e308ad3b0fbc08"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T062613Z/usage-dbce389c427edbf1017c137fd974220b6625cd17-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11152,
-          "sha256": "229bb1ecba6da1d4f73572d8947f6f68e8c7a20f89f6bdcee0444a7b7c0dc6c4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T065521Z/usage-165a4d1e5b41977820cd4a1894626a71ae04fac2-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11011,
+          "sha256": "88d1e5372a345d1599adc0a6d07e9d42c9e8aff0edee34d49f830c3a2f286da6"
         },
-        "signerCommit": "dbce389c427edbf1017c137fd974220b6625cd17"
+        "signerCommit": "165a4d1e5b41977820cd4a1894626a71ae04fac2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -96,7 +96,7 @@
         }
       },
       "changes": [
-        "Botが、ログインコードのように1回だけ使う値を頼めるようになりました。その値は保存せず、1回使うと消えます。"
+        "2つ目のClaudeアカウントのログインで、席が使うログイン情報（oauth-token）を作るようになりました。"
       ]
     },
     {
@@ -557,8 +557,8 @@
     },
     {
       "componentId": "members",
-      "sourceCommit": "35dbde51a063c493460fea6679887e1574776d21",
-      "versionId": "250987487ab008960a47d0e6e21a08660ff0fc7440861243844b2d9f56a299da",
+      "sourceCommit": "165a4d1e5b41977820cd4a1894626a71ae04fac2",
+      "versionId": "17f89158b79d0936cca8173e333bda66a2f902dbf94eef227d8d1c8e9cbeca5d",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -566,16 +566,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T143330Z/members-35dbde51a063c493460fea6679887e1574776d21-linux-amd64.tar.gz",
-          "bytes": 4436649,
-          "sha256": "250987487ab008960a47d0e6e21a08660ff0fc7440861243844b2d9f56a299da"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T065635Z/members-165a4d1e5b41977820cd4a1894626a71ae04fac2-linux-amd64.tar.gz",
+          "bytes": 4446749,
+          "sha256": "17f89158b79d0936cca8173e333bda66a2f902dbf94eef227d8d1c8e9cbeca5d"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T143330Z/members-35dbde51a063c493460fea6679887e1574776d21-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11239,
-          "sha256": "1576204bcdfde4d3825bc87dd9ee11e65eba60f6692ab4f498bfe45ce2208a41"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T065635Z/members-165a4d1e5b41977820cd4a1894626a71ae04fac2-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11090,
+          "sha256": "92d5959fcabedd2a16261a2ced672bfbd28728e84258fa0e722efab6ae62bf4f"
         },
-        "signerCommit": "35dbde51a063c493460fea6679887e1574776d21"
+        "signerCommit": "165a4d1e5b41977820cd4a1894626a71ae04fac2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -592,13 +592,13 @@
         }
       },
       "changes": [
-        "メンバーの作業フォルダの書き方と既定のフォルダが、端末のOS（Mac・Windows・Linux）に合うようになります。"
+        "共通規範に completion.fail-fast（待つ処理は最初の失敗で終わらせて知らせる）を加え、全CLIの共通指示へ反映する。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "35dbde51a063c493460fea6679887e1574776d21",
-      "versionId": "602369080ab9f8753f435b2059b73c224fa207e2a69fdc9d7c937a4b98ccafc8",
+      "sourceCommit": "165a4d1e5b41977820cd4a1894626a71ae04fac2",
+      "versionId": "f73dc5071bcb120fde3637aadaa68a2ad48a309ffff02e3ad4e86c4f1799a253",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -606,16 +606,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T143330Z/members-35dbde51a063c493460fea6679887e1574776d21-linux-arm64.tar.gz",
-          "bytes": 4436658,
-          "sha256": "602369080ab9f8753f435b2059b73c224fa207e2a69fdc9d7c937a4b98ccafc8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T065635Z/members-165a4d1e5b41977820cd4a1894626a71ae04fac2-linux-arm64.tar.gz",
+          "bytes": 4446746,
+          "sha256": "f73dc5071bcb120fde3637aadaa68a2ad48a309ffff02e3ad4e86c4f1799a253"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261110T143330Z/members-35dbde51a063c493460fea6679887e1574776d21-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11278,
-          "sha256": "73946351782eea156b721124f2da6f9ef8f9a7df7e3b62e1fc8da99e9ce3d403"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T065635Z/members-165a4d1e5b41977820cd4a1894626a71ae04fac2-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11141,
+          "sha256": "9f66dab678532993ea86a055e21b22411922a298833c29e488233f1c80e1e4e2"
         },
-        "signerCommit": "35dbde51a063c493460fea6679887e1574776d21"
+        "signerCommit": "165a4d1e5b41977820cd4a1894626a71ae04fac2"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -632,7 +632,7 @@
         }
       },
       "changes": [
-        "メンバーの作業フォルダの書き方と既定のフォルダが、端末のOS（Mac・Windows・Linux）に合うようになります。"
+        "共通規範に completion.fail-fast（待つ処理は最初の失敗で終わらせて知らせる）を加え、全CLIの共通指示へ反映する。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "966c6ea973e1e2096fabeda7fe29e8cf1a2d8c96",
-      "versionId": "sha256:4dfcb14d4321322d564cabccf2b3be62d3f5ec20576b73eb9b23f2019fd41254",
+      "sourceCommit": "165a4d1e5b41977820cd4a1894626a71ae04fac2",
+      "versionId": "sha256:3485c10210fba5d15991b667faa046d83029302775a8c833470c9872700cfc50",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:4dfcb14d4321322d564cabccf2b3be62d3f5ec20576b73eb9b23f2019fd41254"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3485c10210fba5d15991b667faa046d83029302775a8c833470c9872700cfc50"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "更新の確認で、GitHubの問い合わせ回数の上限に引っかからなくなります。BellTeamの再起動や会話のやり直しのあとでも、Macなど外部の席でBellTeamの道具が使えなくならないようにします。作業中の席へ送ったメッセージが「配達失敗」と記録される問題を直します（Aiterm 0.70.19）。端末にはつながったのにフォルダの操作に失敗した時、端末側の理由をそのまま返します。Windowsの席が起動できない問題を直します。一度きりの秘密の値を扱えるようにします。Throughline 0.18.0を入れます。"
+        "2つ目のClaudeアカウントでログインした時、席が使うログイン情報（oauth-token）を作るようになります。外部の席で、起動の直後にBellTeamの道具がつながらなくなる問題を直します（Aiterm 0.70.21）。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "966c6ea973e1e2096fabeda7fe29e8cf1a2d8c96",
-      "versionId": "sha256:4dfcb14d4321322d564cabccf2b3be62d3f5ec20576b73eb9b23f2019fd41254",
+      "sourceCommit": "165a4d1e5b41977820cd4a1894626a71ae04fac2",
+      "versionId": "sha256:3485c10210fba5d15991b667faa046d83029302775a8c833470c9872700cfc50",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:4dfcb14d4321322d564cabccf2b3be62d3f5ec20576b73eb9b23f2019fd41254"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3485c10210fba5d15991b667faa046d83029302775a8c833470c9872700cfc50"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "更新の確認で、GitHubの問い合わせ回数の上限に引っかからなくなります。BellTeamの再起動や会話のやり直しのあとでも、Macなど外部の席でBellTeamの道具が使えなくならないようにします。作業中の席へ送ったメッセージが「配達失敗」と記録される問題を直します（Aiterm 0.70.19）。端末にはつながったのにフォルダの操作に失敗した時、端末側の理由をそのまま返します。Windowsの席が起動できない問題を直します。一度きりの秘密の値を扱えるようにします。Throughline 0.18.0を入れます。"
+        "2つ目のClaudeアカウントでログインした時、席が使うログイン情報（oauth-token）を作るようになります。外部の席で、起動の直後にBellTeamの道具がつながらなくなる問題を直します（Aiterm 0.70.21）。"
       ]
     }
   ],
