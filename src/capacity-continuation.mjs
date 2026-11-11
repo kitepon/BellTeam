@@ -67,31 +67,17 @@ export class CapacityContinuation {
     guard()
     await this.bots.refresh?.()
     if (!sameSettings(this.bots.get(context.bot.id), context.bot)) throw superseded()
-    // harness-accounts.md: another account of the same harness comes before another harness.
-    if (context.accountLimit && this.accounts && this.transport?.switchAccount && !state.accountSwitched) {
+    // harness-accounts.md "account recovery": the pending entry first (it survives a restart or an exchange); the transport
+    // moves the member now when a usable slot is free, or when one frees. Another harness only with Aiterm's terminal proof
+    // and no free slot, as before.
+    if (context.accountLimit && this.accounts && this.transport?.recoverAccount) {
       await context.accountLimit.recorded.catch(() => {})
       guard()
-      const slot = await this.accounts.effectiveSlot('claude', context.bot.model)
-      if (slot !== context.accountLimit.slot || await this.accounts.renewDue?.(context.bot.id, 'claude', context.bot.model)) {
-        state.accountSwitched = true
-        let switched = false
-        try {
-          await this.transport.switchAccount(this.bots.get(context.bot.id) ?? context.bot, { admissionCheck: () => guard() })
-          switched = true
-        } catch { /* Not moved (paused, superseded, launch failed): the harness continuation below still applies. */ }
-        if (switched) {
-          context.reconfigured?.()
-          guard()
-          const cause = context.accountLimit.kind === 'authentication' ? 'ログインが切れて' : '利用上限で'
-          const message = `${cause}前の処理が終了したため、同じAIの${slot}アカウントで新しい席を起動しました。前の会話は短期記憶と手順書で引き継いでいます。` +
-            `元の依頼は保存された会話履歴のdelivery_id=${context.deliveryId}です。` +
-            '前の処理で実行済みの操作や結果不明の副作用を確認し、元の依頼本文や完了済みの操作を繰り返さずに続けてください。'
-          const check = () => guard(message)
-          check(); state.sent++
-          const result = await this.messenger.sendmessage({ from: 'scheduler', target: context.bot.id, message }, { admissionCheck: check })
-          state.deliveryId = result.delivery_id
-          return
-        }
+      if (!context.failure || await this.accounts.freeSlot('claude', context.bot.model)) {
+        await this.accounts.setPending(context.bot.id, { harness: 'claude', slot: context.accountLimit.slot, deliveryId: context.deliveryId })
+        guard()
+        this.transport.recoverAccount(context.bot.id)
+        return
       }
     }
     // Another harness only with Aiterm's terminal-failure proof; an account limit alone ends here.
@@ -131,6 +117,20 @@ export class CapacityContinuation {
       state.deliveryId = result.delivery_id
       return
     }
+  }
+
+  // The account recovery's one message to a member whose limited turn moves to a free slot (harness-accounts.md).
+  async resume(bot, { slot, deliveryId = null }) {
+    const check = () => { if (this.closed) throw superseded(); this.assertEnabled() }
+    check()
+    const message = `利用上限かログイン切れで止まっていた前の処理を、同じAIの${slot}アカウントの席で続けてください。前の会話は短期記憶と手順書で引き継いでいます。` +
+      (deliveryId ? `元の依頼は保存された会話履歴のdelivery_id=${deliveryId}です。` : '') +
+      '前の処理で実行済みの操作や結果不明の副作用を確認し、元の依頼本文や完了済みの操作を繰り返さずに続けてください。'
+    const result = await this.messenger.sendmessage({ from: 'scheduler', target: bot.id, message }, { admissionCheck: check })
+    // A failure of this message continues the same chain (failed() matches its delivery id).
+    const state = this.states.get(bot.id)
+    if (state && result?.delivery_id) state.deliveryId = result.delivery_id
+    return result
   }
 
   close() {

@@ -60,3 +60,21 @@ export function parseLimitText(text, { now = Date.now(), timeZone = 'UTC' } = {}
   const trusted = at !== null && at > now && at - now <= MAX_AHEAD
   return { scope, resetAt: trusted ? new Date(at).toISOString() : null, zone, parsedAt: at === null ? null : new Date(at).toISOString() }
 }
+
+// A Claude limit line as Aiterm classifies it (claudeFailureCategory), or Claude Code's own limit notice.
+export function isLimitText(text) {
+  return /^\s*(?:You've (?:reached your [^.\r\n]{1,80} limit\b|hit your (?:[a-z0-9-]+ ){0,3}limit\b)|Usage limit reached\b)/iu.test(String(text ?? ''))
+}
+
+// harness-accounts.md "limit hold": the footer below the composer while Claude Code keeps a limited turn and will continue it at
+// its own reset ("Continuing automatically at 7pm · Esc to cancel"). Returns that footer text, or null.
+export function claudeLimitHold(screen) {
+  const lines = String(screen ?? '').replace(/\x1b\[[0-?]*[ -/]*[@-~]/gu, '').split(/\r?\n/u)
+  let composer = lines.length - 1
+  while (composer >= 0 && !/^\s*❯/u.test(lines[composer])) composer--
+  if (composer < 0) return null
+  const rule = lines.findIndex((line, index) => index > composer && /^\s*─{8,}\s*$/u.test(line))
+  if (rule < 0) return null
+  const footer = lines.slice(rule + 1).join(' ').replace(/\s+/gu, ' ').trim()
+  return /\bContinuing automatically at\b/iu.test(footer) ? footer : null
+}

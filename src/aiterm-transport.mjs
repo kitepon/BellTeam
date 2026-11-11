@@ -18,6 +18,8 @@ import { DeliveryJob } from './delivery-job.mjs'
 import { SeatActivity, SeatTurnWatch } from './seat-activity.mjs'
 import { executionFailureReport, reportExecutionFailure } from './execution-failure-report.mjs'
 import { recoverableTurnFailure } from './capacity-continuation.mjs'
+import { claudeLimitHold, isLimitText } from './claude-limit-text.mjs'
+import { ACCOUNT_SLOTS } from './harness-accounts.mjs'
 import { returnedMcpError } from './returned-mcp-error.mjs'
 import { launchFailureDetails } from './agent-launch-error.mjs'
 import { captureRuntime as captureSelectedRuntime } from './runtime-selection.mjs'
@@ -135,6 +137,10 @@ export class AitermTransport {
     this.accounts = accounts
     this.remoteSeats = remoteSeats
     this.accountMoves = new Map()
+    // Members whose account recovery is sending their continuation: the observer keeps their old watch until it is sent.
+    this.accountRecoveries = new Set()
+    this.reviewedRecovery = null
+    this.holdReleasePollMs = 300
     this.accountsUnsubscribe = accounts?.watch(() => {
       this.activity.emitChange({ all: false, topics: ['accounts'], botIds: [], roomIds: [] })
       void this.reviewAccounts()
@@ -598,6 +604,8 @@ export class AitermTransport {
 
   async stop(bot, version = this.captureStopVersion(bot), { membersLease, expected = this.membersAdmission.capture(), allSessions = false } = {}) {
     if (this.executionBridge) await this.awaitUnboundAdmission(bot, version)
+    // harness-accounts.md: a stop ends the member's interrupted turn, so no continuation is sent for it later.
+    if (this.claudeAccountBot(bot)) await this.accounts.dropPending(bot.id).catch(() => {})
     await this.idle(bot.id)
     return this.memberOperation(bot, async () => {
       this.requireStopVersion(bot.id, version)
@@ -1256,7 +1264,7 @@ export class AitermTransport {
     const turns = await this.#seatTurns(bots, lease.client)
     if (!turns) return false
     for (const bot of bots) {
-      if (versions.get(bot.id) !== this.stopVersions.get(bot.id)) continue
+      if (versions.get(bot.id) !== this.stopVersions.get(bot.id) || this.accountRecoveries.has(bot.id)) continue
       const session = this.session(bot)
       const turn = turns.get(session)
       const watch = this.activity.watches.get(bot.id)
@@ -1314,6 +1322,9 @@ export class AitermTransport {
       // The observer's lifetime is registered before the first native waiter/interim read.
       await Promise.resolve()
       const say = words ? async value => {
+        // harness-accounts.md: a self-started turn's limit reaches BellTeam only as this word (no wait result).
+        const limit = this.claudeAccountBot(bot) ? value.find(word => word.kind === 'error' && isLimitText(word.text)) : null
+        if (limit) void this.accounts.recordLimit({ harness: 'claude', slot: this.accounts.seatSlot(bot.id) ?? '1st', model: bot.model, text: limit.text }).catch(() => {})
         await words(bot.id, watch.info.groupId, value)
         watch.shown.words.push(...value.filter(word => word.kind !== 'error').map(word => word.text.trim()).filter(Boolean))
       } : null
@@ -1792,30 +1803,121 @@ export class AitermTransport {
   }
 
   // After a registry change: seats whose effective slot differs move at their next idle boundary. A running turn is never stopped.
-  async reviewAccounts() {
-    if (!this.accounts) return
-    for (const [botId, slot] of Object.entries(this.accounts.state.seats)) {
+  // Held or pending members get the account recovery (harness-accounts.md); seats are read only when limits, sign-outs or
+  // pending entries changed since the last review, or at engine start (a module exchange recovers members already held).
+  reviewAccounts() {
+    // One review at a time: a second one started during a seat read would move a member without its old seats' holds.
+    const run = (this.accountReview ?? Promise.resolve()).then(() => this.reviewAccountsNow())
+    this.accountReview = run.catch(() => {})
+    return run
+  }
+
+  async reviewAccountsNow() {
+    // An engine that is not running (starting, quiescing, handed over) leaves moves to the running one.
+    if (!this.accounts || this.accountRecoveryAllowed?.() === false) return
+    const key = this.accounts.recoveryKey()
+    let held = null
+    if (key !== this.reviewedRecovery) {
+      this.reviewedRecovery = key
+      held = await this.limitHolds().catch(error => {
+        this.reviewedRecovery = null
+        process.stderr.write(`BellTeam accounts: limit hold review unavailable: ${error?.code ?? error?.message ?? 'UNKNOWN'}\n`)
+        return null
+      })
+    }
+    const ids = new Set([...Object.keys(this.accounts.state.seats), ...Object.keys(this.accounts.state.pending), ...(held?.keys() ?? [])])
+    for (const botId of ids) {
       const bot = this.resolveBot?.(botId)
       // Every recorded seat, also one launched by an earlier engine (the session map starts empty after an exchange).
       if (!this.claudeAccountBot(bot) || this.accountMoves.has(botId)) continue
-      if (slot !== await this.accounts.effectiveSlot('claude', bot.model) || await this.accounts.renewDue(botId, 'claude', bot.model)) this.moveAtBoundary(botId)
+      if (held?.has(botId) || this.accounts.pendingFor(botId) || (this.accounts.seatSlot(botId) ?? '1st') !== await this.accounts.effectiveSlot('claude', bot.model)
+        || await this.accounts.renewDue(botId, 'claude', bot.model)) this.moveAtBoundary(botId, held?.get(botId) ?? [])
     }
   }
 
-  moveAtBoundary(botId) {
+  // A member's turn ended on an account limit (CapacityContinuation): its recovery now or when a slot frees.
+  recoverAccount(botId) {
+    if (!this.accountMoves.has(botId)) this.moveAtBoundary(botId)
+  }
+
+  // harness-accounts.md "limit hold": held Claude seats of account members whose model has a free usable slot, by member.
+  // Seat names: <botId> or <botId>-<slot>-<base36>; current and old seats alike (an old seat would continue at its reset).
+  async limitHolds() {
+    const listed = (await this.client.call('pty_list', {}))?.structuredContent?.sessions
+    if (!Array.isArray(listed)) throw Object.assign(new Error('AITERM_SESSIONS_UNAVAILABLE'), { code: 'AITERM_SESSIONS_UNAVAILABLE' })
+    const held = new Map(), free = new Map(), suffix = new RegExp(`^(.+)-(?:${ACCOUNT_SLOTS.join('|')})-[a-z0-9]+$`, 'u')
+    for (const seat of listed) {
+      if (seat?.harness !== 'claude-code' || seat.current_command === 'hibernated' || typeof seat.session_id !== 'string') continue
+      const botId = suffix.exec(seat.session_id)?.[1] ?? seat.session_id, bot = this.resolveBot?.(botId)
+      if (!this.claudeAccountBot(bot)) continue
+      if (!free.has(bot.model)) free.set(bot.model, await this.accounts.freeSlot('claude', bot.model))
+      if (!free.get(bot.model) || !await this.limitHeld(seat.session_id)) continue
+      held.set(botId, [...(held.get(botId) ?? []), seat.session_id])
+    }
+    return held
+  }
+
+  // A screen capture (it does not move the shared read position); an unreadable seat is not held.
+  async limitHeld(session) {
+    try {
+      const result = await this.client.call('pty_read', { session_id: session, screen: true, raw: true, timeout: 0, lines: 40 })
+      return claudeLimitHold(textResult(result)) !== null
+    } catch { return false }
+  }
+
+  // One Esc cancels Claude Code's automatic continue (checked 2026-11-11). Never a second one: two open the rewind menu.
+  async releaseLimitHold(session) {
+    await this.client.call('pty_key', { session_id: session, key: 'Escape' })
+    for (let read = 0; read < 10; read++) {
+      await new Promise(resolve => setTimeout(resolve, this.holdReleasePollMs))
+      if (!await this.limitHeld(session)) return true
+    }
+    process.stderr.write(`BellTeam accounts: limit hold still shown after Esc: ${session}\n`)
+    return false
+  }
+
+  moveAtBoundary(botId, held = []) {
     const pending = (async () => {
       for (;;) {
+        const bot = this.resolveBot?.(botId)
+        if (!this.claudeAccountBot(bot)) return
+        // No usable slot is free: nothing moves. A hold continues at its own reset, a move would only leave it behind,
+        // and the next registry change reviews again.
+        const slot = await this.accounts.freeSlot('claude', bot.model), record = this.accounts.pendingFor(botId)
+        if (!slot) return
+        if (held.length || record) return await this.recoverMember(bot, slot, held, record)
+        if ((this.accounts.seatSlot(botId) ?? '1st') === slot && !await this.accounts.renewDue(botId, 'claude', bot.model)) return
+        if (this.isIdle(botId) && !this.activity.configurationChanges.has(botId)) return await this.switchAccount(bot)
         await Promise.all(this.activity.of(botId).map(turn => (turn.nativeCompletion ?? turn.completion)?.catch(() => {})))
         await this.activity.configurationChanges.get(botId)?.catch(() => {})
-        const bot = this.resolveBot?.(botId)
-        if (!this.claudeAccountBot(bot)
-          || this.accounts.seatSlot(botId) === await this.accounts.effectiveSlot('claude', bot.model) && !await this.accounts.renewDue(botId, 'claude', bot.model)) return
-        if (!this.isIdle(botId)) continue
-        return await this.switchAccount(bot)
       }
     })().catch(error => process.stderr.write(`BellTeam accounts: seat move unconfirmed: ${botId} ${error?.code ?? 'UNKNOWN'}\n`))
       .finally(() => this.accountMoves.delete(botId))
     this.accountMoves.set(botId, pending)
+  }
+
+  // harness-accounts.md "account recovery" with a free slot: a held seat is a boundary, so this never waits for its span.
+  async recoverMember(bot, slot, held, record) {
+    const current = this.session(bot), holding = []
+    for (const session of new Set([...held, current])) if (await this.limitHeld(session)) holding.push(session)
+    // A turn that just failed shows its hold a moment after the wait result; an old seat left held would continue at its reset.
+    if (record && !holding.includes(current)) {
+      await new Promise(resolve => setTimeout(resolve, this.holdReleasePollMs * 5))
+      if (await this.limitHeld(current)) holding.push(current)
+    }
+    const renew = await this.accounts.renewDue(bot.id, 'claude', bot.model)
+    // Its own slot freed first: Claude Code continues the held turn on the same seat; only old seats' holds are cancelled.
+    const ownTurn = holding.includes(current) && (this.accounts.seatSlot(bot.id) ?? '1st') === slot && !renew
+    if (!record && !holding.length) return
+    this.accountRecoveries.add(bot.id)
+    try {
+      for (const session of holding) if (!(ownTurn && session === current)) await this.releaseLimitHold(session)
+      if (!ownTurn) {
+        if (holding.includes(current) || (this.accounts.seatSlot(bot.id) ?? '1st') !== slot || renew) await this.switchAccount(bot)
+        await this.continuation?.resume(bot, { slot, deliveryId: record?.deliveryId ?? this.continuation.states.get(bot.id)?.deliveryId ?? null })
+      }
+      await this.accounts.dropPending(bot.id)
+    } finally { this.accountRecoveries.delete(bot.id) }
   }
 
   async close() {
