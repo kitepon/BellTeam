@@ -133,6 +133,28 @@ flowchart TD
 | Distributed default | None. `compose.yaml` keeps no `mem_limit`, because the right value depends on the machine; the README already tells installers to set it in the override. |
 | Not covered | Memory written on the host outside the box (for example host `/tmp` tmpfs files created over ssh) is Host-owned. A box that needs more than the bound loses seat-side processes until the value is raised. |
 
+## Host credential mount: host-delivered secrets reach the box without a restart (Molly, 2026-11-11)
+
+Request: Emma (host owner) for Sora's optional Plaud OAuth vault adapter (K-XQ4SMA, caller `bot-565a9f93/docs/plaud-oauth-writeback-design.md`): a read-only runtime credential and a private writable scratch, both on host ramfs, never in container env, argv or persistent disk. Every existing bind of the body container is `rprivate`, so a host mount made after the container starts is never visible inside. One parent bind with `rslave` propagation fixes that once; after it, the host adds and removes submounts live.
+
+```mermaid
+flowchart TD
+  HostUnit["host owner (Emma): ramfs submounts under<br/>/run/bellteam-host-credentials/&lt;bot-id&gt;/{credential,relogin}"] --> HostRoot["host /run/bellteam-host-credentials<br/>(host /run tmpfs, shared propagation; root 0755)"]
+  Normal["updater private installation/normal.json<br/>services.bellteam.volumes += parent bind"] --> AppUpdate["app Update body swap (recreate)"]
+  AppUpdate --> Box["bellteam container: /run/bellteam-host-credentials<br/>bind, propagation rslave, create_host_path true"]
+  HostRoot -->|"mount / umount propagate host -> box (rslave)"| Box
+  Box --> Consumer["consumer Bot tool (uid 1000) reads credential (ro),<br/>writes only its relogin ramfs (rw)"]
+  Box -.->|"never: box -> host propagation"| HostRoot
+```
+
+| Item | Contract |
+| --- | --- |
+| Carrier | Installation configuration, like the memory bound above: one entry in `installation/normal.json` `services.bellteam.volumes`: `{type: bind, source: /run/bellteam-host-credentials, target: /run/bellteam-host-credentials, bind: {propagation: rslave, create_host_path: true}}`. App Update keeps it (only `image` is replaced). Adding or changing it needs one recreate; production adds it with the next approved body swap, never a separate restart. Not in the public `compose.yaml` (no distributed default). |
+| Live after that | The host mounts or unmounts ramfs under the parent at any time; the box sees it at once (rslave). The box cannot propagate mounts back to the host. Host reboot: `/run` is empty again and `create_host_path` recreates an empty directory so the box still starts; the consumer sees no credential until the host owner remounts it. |
+| Paths | Per consumer `/run/bellteam-host-credentials/<bot-id>/credential` (ro ramfs, files 0400 uid 1000) and `/run/bellteam-host-credentials/<bot-id>/relogin` (rw ramfs, 0700 uid 1000). Same path inside and outside. The host owner owns ownership, modes, ramfs verification and teardown. |
+| UID limit | Every seat and Bot tool in the box runs as uid 1000 (`bell`); the server is uid 1001. The box has no per-Bot uid, so a file readable by one Bot's tool is readable by every Bot seat in the box. The mount keeps the secret out of env, argv, image and persistent disk; it does not isolate Bots from each other. |
+| Not a guard | Nothing is refused or stopped: an empty parent only means the credential is absent, which the consumer reports as its own unavailable state. |
+
 ## 設定保存へ管理済みstateだけを渡す
 
 ```mermaid
