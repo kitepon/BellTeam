@@ -42,14 +42,18 @@ flowchart LR
     Core["core.mjs: per-chart memo, epoch, version,<br/>source token, 30 s ceiling"]
     Cli["cli.mjs: spawn node on bundled lattice bin,<br/>seat-surface allowlist, bounded output"]
     Proj["projection.mjs: cards, edges, waits, producers"]
+    Code["code-chart.mjs: code charts (bellteam) =<br/>checkout of the product repo; before a seat run:<br/>fetch, fast-forward, sensor init/sync"]
   end
   Store["/srv/bellteam/state/lattice/&lt;project&gt;/.lattice/<br/>(one git repo per chart, Lattice format)"]
+  Repo["GitHub kitepon/BellTeam main<br/>(public, https, no credentials)"]
   Reg["members.registry"]
   Seats -->|tools/call lattice| MCP --> Facade
   Apps -->|JSON / SSE| API --> Facade
   Facade -->|root calls| PChan <-->|IPC| CChan --> Disp --> Core
   Core --> Cli -->|lattice CLI, cwd = chart| Store
   Core --> Proj
+  Core -->|before a seat run on a code chart| Code -->|git fetch / merge --ff-only| Repo
+  Code -->|lattice sensor init/sync . (module operation, not seat surface)| Store
   CChan -->|effect inside a root call| PChan --> Effects --> Reg
 ```
 
@@ -65,6 +69,18 @@ flowchart LR
 | L6 | apps -> body API -> facade -> child | `charts {}`, `chart {projectId}`; SSE: `refresh {projectIds}` every `nextRefreshMs` while subscribers exist | Snapshot pushed whole on each change |
 | L7 | child -> chart dir | `.bellteam-chart.json` `{name?, createdBy?}` merged and written atomically (temp + rename): `createdBy = from` by the `run` that first makes the store (no `.lattice` before, one after), or by a `run` with `name` on a chart that has no recorded creator (claiming an older chart, e.g. Trony renames 「BellTeam開発」 once); `name` by `run` with `name`. Read with every full read; never overwritten once set | Lattice has no project name or creator, so the module keeps both beside the store. A missing or malformed file or field is absent |
 
+| L8 | child -> GitHub -> code chart dir | `git fetch --filter=blob:none --no-tags origin main`, then `git merge --ff-only FETCH_HEAD` (first time: `git checkout -B main FETCH_HEAD`) | Only for code charts (`CODE_CHARTS` in `code-chart.mjs`: `bellteam` -> `https://github.com/kitepon/BellTeam.git` `main`; Trony assignment 2026-11-12). Runs inside the seat `run` on that chart, before the Lattice command, when the last attempt is 120 s or more ago (so a gate adoption is in the checkout at the next use; no timer of its own, no write in flight: runs on one chart are serialized by the per-chart lock) |
+| L9 | child -> Lattice CLI (module operation) | `lattice sensor init . --json` (no `.lattice/sensor` yet) else `lattice sensor sync . --json`, cwd = code chart | After a fast-forward or conversion. `sensor` stays off the seat surface (named protection above); the module runs it itself. Index under `.lattice/sensor/**` (~120 MB for BellTeam) |
+
+### Code charts (Trony assignment 2026-11-12; Owner: Lattice is not a plain table)
+
+A code chart's dir is a checkout of its product repo so that Lattice's conflict check (`todo independence witness scaffold|declare|compile`) and code graph (`todo structure input|compile|realize`) see the real source with a clean worktree:
+
+- `.git/info/exclude` lists `.lattice/`, `.bellteam-chart.json` and `.bellteam-chart.json.*.tmp`, so the store, the sensor index and the sidecar are never tracked and the worktree stays clean.
+- **Conversion of an existing chart** (the `bellteam` chart made before this): the first maintenance adds the exclude lines, `origin`, fetches, and checks out `main` into the unborn branch. `.lattice/` and the sidecar are untracked and excluded, so they are not touched; a tracked path that collides with an untracked file makes git refuse, and the chart is left as it was.
+- **Named protection** (overwriting existing state, wrong target): the module only fetches and fast-forwards. It never resets, cleans, forces or rebases; an `origin` that points elsewhere is not changed. **Self-exit**: a refused fast-forward (diverged, dirty, network down, timeout 60 s per git step, 120 s for sensor) logs one line with the code, the seat command still runs on the checkout as it is, and the next run 120 s later tries again; once the cause is repaired it catches up by itself.
+- Size: ~110 MB git (blob-less history) + ~25 MB worktree + ~120 MB sensor index under `/srv/bellteam/state/lattice/bellteam/`, inside the nightly backup (Molly/Trony informed).
+
 ## Seat tool `lattice` (public contract for seats)
 
 Input schema: `{ project: string, name?: string, args: string[], input?: object }`.
@@ -73,7 +89,7 @@ Input schema: `{ project: string, name?: string, args: string[], input?: object 
 - `name`: the chart's display name for every screen, 1-40 characters, no control characters or surrounding spaces (`LATTICE_NAME_INVALID` otherwise). Give it when making a chart; `args: []` with `name` only renames an existing chart (no Lattice command runs; result `{exitCode:0, result:{name}, stdout:null, stderr:''}`; a project with no chart yet is the tool error `LATTICE_CHART_NOT_FOUND` and nothing is written). To name a new chart, pass `name` with its `plan create`. Screens never show `project`.
 - `args`: Lattice CLI arguments after `lattice`, e.g. `["session-context"]`, `["plan","create","--template","--json"]` (prints the `plan create` input template; Lattice refuses `--template` without `--json`), `["todo","start","--plan","p1","--task","t01"]`, `["todo","note","--plan","p1","--task","t01","--message","..."]`, `["todo","dependency","connect","--from-plan",...]`. The first argument must be one of `plan`, `todo`, `status`, `session-context`, `help`, `--help`, `--version`.
   Named protection: the child runs as the server uid, so Lattice's host commands (`setup`, `hooks`, `bridge`, `dashboard`, `run`, `sensor`) would write host configuration or launch processes as the server (privilege escalation, overwriting host state). Self-exit: the refusal `LATTICE_COMMAND_NOT_SEAT_SURFACE` returns the allowed list; the seat calls again with a seat command.
-- `input`: a JSON object for commands that take `--input <file>` (`plan create`, `plan revise`, `plan backchain`). A task's `lane` is its assigned owner: write the member's Bot id or name there to show a face (see Owner on screen). The child writes it to a private temp file and appends `--input <file>`; `args` must then not contain `--input`.
+- `input`: a JSON object for commands that take a JSON file (`plan create`, `plan revise`, `plan backchain`, `todo independence witness scaffold --input`, `todo structure input|compile --input`, `todo structure realize --input`, and `todo structure realize --realized <file>`). A task's `lane` is its assigned owner: write the member's Bot id or name there to show a face (see Owner on screen). The child writes it to a private temp file (outside the chart, so the worktree stays clean). If `args` contains the token `@input` (e.g. `["todo","structure","realize","--plan","p","--task","t1","--realized","@input"]`), that token becomes the file path; otherwise `--input <file>` is appended. `args` must then not contain `--input`, and `@input` without `input` is refused (`LATTICE_INPUT_CONFLICT`).
 - Result: `{ exitCode, result, stdout, stderr }`. `result` is the parsed stdout JSON (null when stdout is not JSON; then `stdout` carries up to 64 KiB of text). `stderr` carries the last 4 KiB. A Lattice refusal is a normal result with its own `code` / `detail.next_action` inside `result`, never a tool error.
 - A run whose own `mkdir` created the chart dir (a plain, non-recursive mkdir, so an existing path is never claimed) and that leaves it without a Lattice store (`help`, `--version`, a refused first command) removes that dir again, so no empty, unlisted dirs pile up (Molly 2026-11-12). A dir that existed before the run, with or without `.lattice`, is never removed (Epinel gate 2026-11-12); the older `flora-scratch-check` stays for offline maintenance.
 - Named protection (storage boundary, Epinel gate 2026-11-12): a chart dir or sidecar that is a symlink would let the server uid write or run outside the charts root. Every run, read and sidecar write checks with `lstat` that the chart dir is a real directory; a linked chart dir fails `LATTICE_UNAVAILABLE` (detail `ELINK`) before any write, spawn or delete, and a linked sidecar reads as absent and is replaced by rename (never written through; the temp file is created with `wx`, and a save that fails after creating it removes that temp, never one it did not create, so the next save works once the fault is repaired). Self-exit: once the link is replaced by a real directory, the next call works.
@@ -159,6 +175,7 @@ Effect: `members.list {}` only, accepted only inside a pending root call. Contro
 | State | Where | Writer | Reader |
 | --- | --- | --- | --- |
 | Chart stores | `/srv/bellteam/state/lattice/<project>/` (git repo, `.lattice/**`) | Lattice CLI inside the child, only through `run` | child (`todo display read/source`) |
+| Code chart checkout and sensor index | the same dir: tracked files of the product repo (`main`), `.lattice/sensor/**` | child `code-chart.mjs` only (fetch, fast-forward, sensor init/sync) | Lattice CLI (independence, structure) |
 | Chart display name and creator | `/srv/bellteam/state/lattice/<project>/.bellteam-chart.json` `{name?, createdBy?}` | child, only through `run` (creator once: the store-making run, or the first naming run of an unclaimed chart) | child, with every full read |
 | Lattice HOME | `/srv/bellteam/state/lattice-home/` | Lattice CLI | Lattice CLI |
 | Memo, epoch, version, last snapshot and token per chart | child memory | child | child |
@@ -175,6 +192,7 @@ Effect: `members.list {}` only, accepted only inside a pending root call. Contro
 | `members.list` fails | keep the last roster, `degraded:['members']` | next read |
 | Producer not in the roster | omitted from `members`; apps draw 名簿にないメンバー | appears once the Bot exists |
 | Write conflict inside Lattice | Lattice's result says so; the seat calls again | Snow White's release makes writers wait |
+| Code chart fetch / fast-forward / sensor fails (network, diverged or dirty worktree, timeout) | one diagnostic log line with the code; the seat command runs on the checkout as it is | the next run on that chart 120 s later retries; never reset or forced |
 | Child down or exchanging | 503 `LATTICE_UNAVAILABLE`; apps keep the last drawing and reconnect; seat tool error | new child, new epoch, fresh snapshot |
 | Older server without the module | 404 on `/api/lattice/*`; apps say the feature is not on this server yet | server update |
 

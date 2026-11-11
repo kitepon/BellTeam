@@ -13,7 +13,10 @@ const STDOUT_LIMIT = 1024 * 1024, STDERR_LIMIT = 4096
 export function checkSeatArgs(args, input = null) {
   if (!SEAT_COMMANDS.includes(args[0])) throw Object.assign(latticeError('LATTICE_COMMAND_NOT_SEAT_SURFACE'), { detail: `allowed: ${SEAT_COMMANDS.join(', ')}` })
   if (input !== null && args.includes('--input')) throw latticeError('LATTICE_INPUT_CONFLICT')
+  if (input === null && args.includes(INPUT_TOKEN)) throw latticeError('LATTICE_INPUT_CONFLICT')
 }
+// `@input` in args marks where the input file goes (e.g. `todo structure realize --realized @input`); otherwise `--input <file>` is appended.
+export const INPUT_TOKEN = '@input'
 
 export function createLatticeCli({ bin, chartsRoot = '/srv/bellteam/state/lattice', home = '/srv/bellteam/state/lattice-home',
   spawnImpl = spawn, timeoutMs = 60000 } = {}) {
@@ -46,7 +49,7 @@ export function createLatticeCli({ bin, chartsRoot = '/srv/bellteam/state/lattic
     return { name: validLatticeName(value?.name) ? value.name : null, createdBy: typeof value?.createdBy === 'string' && /^[a-z0-9][a-z0-9-]{0,63}$/u.test(value.createdBy) ? value.createdBy : null }
   }
 
-  const spawnRun = (args, cwd, env) => new Promise((resolve, reject) => {
+  const spawnRun = (args, cwd, env, limitMs = timeoutMs) => new Promise((resolve, reject) => {
     const out = [], err = []
     let outBytes = 0, errBytes = 0, done = false
     let child
@@ -56,7 +59,7 @@ export function createLatticeCli({ bin, chartsRoot = '/srv/bellteam/state/lattic
       done = true; clearTimeout(timer)
       resolve({ exitCode, stdout: Buffer.concat(out).toString('utf8'), stderr: stderr ?? Buffer.concat(err).subarray(-STDERR_LIMIT).toString('utf8') })
     }
-    const timer = setTimeout(() => { child.kill('SIGKILL'); finish(null, 'LATTICE_CLI_TIMEOUT') }, timeoutMs)
+    const timer = setTimeout(() => { child.kill('SIGKILL'); finish(null, 'LATTICE_CLI_TIMEOUT') }, limitMs)
     child.stdout.on('data', chunk => { if (outBytes < STDOUT_LIMIT) out.push(chunk.subarray(0, STDOUT_LIMIT - outBytes)); outBytes += chunk.length })
     child.stderr.on('data', chunk => {
       err.push(chunk); errBytes += chunk.length
@@ -111,8 +114,29 @@ export function createLatticeCli({ bin, chartsRoot = '/srv/bellteam/state/lattic
       try {
         const file = join(temp, 'input.json')
         await writeFile(file, JSON.stringify(input), { mode: 0o600 })
-        return await spawnRun([...args, '--input', file], dir(id), full)
+        return await spawnRun(args.includes(INPUT_TOKEN) ? args.map(arg => arg === INPUT_TOKEN ? file : arg) : [...args, '--input', file], dir(id), full)
       } finally { await rm(temp, { recursive: true, force: true }) }
+    },
+    // Module operations on a code chart (code-chart.mjs): git and the bundled sensor. Never reachable from the seat surface.
+    async git(id, args, timeoutMs = 60000) {
+      if (!await realDir(id)) throw linkError()
+      const { stdout } = await promisify(execFile)('git', args, { cwd: dir(id), timeout: timeoutMs, maxBuffer: STDOUT_LIMIT,
+        env: { PATH: process.env.PATH, HOME: home, GIT_CONFIG_NOSYSTEM: '1', GIT_TERMINAL_PROMPT: '0' } })
+      return stdout.trim()
+    },
+    async sensor(id, command) {
+      if (!['init', 'sync'].includes(command) || !await realDir(id)) throw linkError()
+      return spawnRun(['sensor', command, '.', '--json'], dir(id), { PATH: process.env.PATH, HOME: home, LATTICE_DASHBOARD_AUTOSTART: '0', GIT_CONFIG_NOSYSTEM: '1' }, 120000)
+    },
+    hasSensorIndex: id => isDir(join(dir(id), '.lattice', 'sensor')),
+    exclude: async (id, lines) => {
+      if (!await realDir(id)) throw linkError()
+      const file = join(dir(id), '.git', 'info', 'exclude')
+      const text = await readFile(file, 'utf8').catch(error => failed(error) ?? '')
+      const missing = lines.filter(line => !text.split('\n').includes(line))
+      if (!missing.length) return
+      await mkdir(join(dir(id), '.git', 'info'), { recursive: true })
+      await writeFile(file, `${text}${text && !text.endsWith('\n') ? '\n' : ''}${missing.join('\n')}\n`, { mode: 0o600 })
     },
   }
 }

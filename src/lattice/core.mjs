@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { checkSeatArgs } from './cli.mjs'
 import { latticeError } from '../lattice-protocol.mjs'
 import { projectChart } from './projection.mjs'
+import { createCodeCharts } from './code-chart.mjs'
 
 const CHART_PARALLEL = 4, STDOUT_KEPT = 64 * 1024
 const iso = ms => new Date(ms).toISOString()
@@ -9,8 +10,14 @@ const parse = text => { try { return JSON.parse(text) } catch { return undefined
 
 // Chart state of one child generation: a memo per chart, refreshed only when Lattice's source token moves (or after a run, or at the ceiling).
 export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId = 'bot-7b140b27', ceilingMs = 30000, refreshMs = 2000,
-  log = line => process.stderr.write(line + '\n') }) {
-  const epoch = randomUUID(), memos = new Map()
+  log = line => process.stderr.write(line + '\n'), codeCharts = createCodeCharts({ cli, now, log }) }) {
+  const epoch = randomUUID(), memos = new Map(), locks = new Map()
+  // Seat runs on one chart run one at a time, so a code chart's fast-forward and sensor sync never overlap a write.
+  const locked = (id, fn) => {
+    const next = (locks.get(id) ?? Promise.resolve()).then(fn, fn)
+    locks.set(id, next.then(() => {}, () => {}))
+    return next
+  }
   let roster = []
 
   // Codes go to the diagnostic log only; the snapshot says just 'lattice-read'.
@@ -99,26 +106,28 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
       return { snapshots, nextRefreshMs: refreshMs }
     },
     // `name` alone (args []) only names the chart; with args it names it and then runs the command.
-    async run({ from, projectId, args, input, name }) {
-      const naming = name !== undefined
-      const renameOnly = naming && args.length === 0 && input === null
-      if (!renameOnly) checkSeatArgs(args, input)
-      // Renaming needs a chart; only a Lattice command (plan create) makes one.
-      else await mustExist(projectId)
-      const existed = await cli.exists(projectId)
-      const { created } = await cli.ensure(projectId)
-      // The creator is recorded once: by the run that makes the store, or by naming a chart that has none recorded.
-      if (naming) await cli.setMeta(projectId, { name, ...(existed && !(await cli.meta(projectId)).createdBy && { createdBy: from }) })
-      const memo = memos.get(projectId)
-      if (memo) memo.dirty = true
-      if (args.length === 0) return { exitCode: 0, result: { name }, stdout: null, stderr: '' }
-      let result
-      try { result = await cli.run({ id: projectId, args, env: { LATTICE_SEAT_ID: from }, input }) } finally {
-        // Only a dir this run created is removed; a pre-existing dir without a store is left as it was.
-        if (!existed) { if (await cli.exists(projectId)) await cli.setMeta(projectId, { createdBy: from }); else if (created) await cli.prune(projectId) }
-      }
-      const value = parse(result.stdout)
-      return { exitCode: result.exitCode, result: value === undefined ? null : value, stdout: value === undefined ? result.stdout.slice(0, STDOUT_KEPT) : null, stderr: result.stderr }
-    },
+    run: params => locked(params.projectId, () => runOnce(params)),
+  }
+  async function runOnce({ from, projectId, args, input, name }) {
+    const naming = name !== undefined
+    const renameOnly = naming && args.length === 0 && input === null
+    if (!renameOnly) checkSeatArgs(args, input)
+    // Renaming needs a chart; only a Lattice command (plan create) makes one.
+    else await mustExist(projectId)
+    const existed = await cli.exists(projectId)
+    const { created } = await cli.ensure(projectId)
+    // The creator is recorded once: by the run that makes the store, or by naming a chart that has none recorded.
+    if (naming) await cli.setMeta(projectId, { name, ...(existed && !(await cli.meta(projectId)).createdBy && { createdBy: from }) })
+    const memo = memos.get(projectId)
+    if (memo) memo.dirty = true
+    if (args.length === 0) return { exitCode: 0, result: { name }, stdout: null, stderr: '' }
+    await codeCharts.maintain(projectId)
+    let result
+    try { result = await cli.run({ id: projectId, args, env: { LATTICE_SEAT_ID: from }, input }) } finally {
+      // Only a dir this run created is removed; a pre-existing dir without a store is left as it was.
+      if (!existed) { if (await cli.exists(projectId)) await cli.setMeta(projectId, { createdBy: from }); else if (created) await cli.prune(projectId) }
+    }
+    const value = parse(result.stdout)
+    return { exitCode: result.exitCode, result: value === undefined ? null : value, stdout: value === undefined ? result.stdout.slice(0, STDOUT_KEPT) : null, stderr: result.stderr }
   }
 }
