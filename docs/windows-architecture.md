@@ -94,6 +94,7 @@ flowchart LR
     C5[PlanningApi]
     C6[SettingsApi<br/>所有者・規範・追加機能・AIの認証・仕事の要約・全体停止]
     C9[HarnessAccountsApi<br/>Claudeの1st・2ndアカウントの一覧]
+    C10[WorkGraphModel・WorkGraphSimulation<br/>相関図の図の状態・シミュレーション・札の置き場所・入れ替え・clearance・当たり判定<br/>永続状態なし。文字の測り方は画面から受け取る]
     C7[UpdateCenter]
     C8[LocalSettings<br/>接続先・窓・通知・会話の開き方・要求ID]
   end
@@ -115,6 +116,7 @@ flowchart LR
   C6 -->|"/api/owner・user-rules・settings・settings/backgroundAgent・harness-auth（Claudeは?slot=2nd）・ai-control"| API
   C7 -->|"/api/updates・plans・operations"| API
   C9 -->|"GET /api/accounts（404は旧本体。上限だけで席のアカウントが決まり、設定する規則は無い）"| API
+  C10 -->|"GET /api/work-graph/events（BellApi.WorkGraphEventsAsync。snapshot・changeの名前付きイベント。35秒無音・切断・読めない応答は再接続、404は60秒ごとに確かめ直す、ログインが必要なら止まる）"| API
 ```
 
 - 状態の所有：会話・メンバー・予定・ゴール・追加機能・全体停止など本体の状態は、共通入口のAPIだけで読み書きする。Windowsが持つのは、このPCの設定（接続先・窓・起動中の通知・会話の開き方・Updateの要求ID）とログイン情報だけ。
@@ -135,7 +137,7 @@ flowchart LR
     N7[状態の行 17<br/>起動できない理由・設定の適用・表示名・再起動の待ち・分身]
   end
   subgraph CoreNew[BellTeam.Core]
-    W1[WorkGraphModel 13a<br/>図の状態・シミュレーション・札の置き場所・入れ替え・clearance<br/>永続状態なし]
+    W1[WorkGraphModel<br/>13aで作成済み。上のC10]
     W2[SecretRequestApi 14<br/>onepassword-items・submit]
     W3[TerminalsApi 16<br/>端末・確かめ・鍵・フォルダ]
   end
