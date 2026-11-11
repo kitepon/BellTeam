@@ -318,6 +318,20 @@ test('chat read failure and omitted goal remain unknown without stale controls o
   assert.doesNotMatch(f.chatBody.all().map(node => node.textContent).join('\n'), /ゴールなし/)
 })
 
+test('chat shows an idle seat as 休止中, not a read failure; a missing reason stays a read failure', async () => {
+  const idle = '休止中です。メッセージを送ると再開します。'
+  let result = { snapshot: { botId: 'a', availability: 'unavailable', reason: 'seat_idle', message: idle } }
+  const f = fixture(async () => result, ['a'], true)
+  await f.view.select('a')
+  assert.equal(f.summary.textContent, 'ゴール · 休止中')
+  assert.match(f.chatBody.all().map(node => node.textContent).join('\n'), /休止中です。メッセージを送ると再開します。/)
+  for (const reason of ['read_failed', undefined]) {
+    result = { snapshot: { botId: 'a', availability: 'unavailable', ...(reason ? { reason } : {}), message: 'ゴールの状態を取得できません。' } }
+    await f.view.refreshSelected()
+    assert.equal(f.summary.textContent, 'ゴール · 状態を取得できません')
+  }
+})
+
 test('chat Grok status uses the current observation and explains unavailable mutations', async () => {
   const original = structuredClone(grokNative.goal)
   original.native.status = 'active'; original.native.phase = 'Executing'
