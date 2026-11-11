@@ -136,7 +136,7 @@ final class GoalViewModel: ObservableObject {
             guard !Task.isCancelled else { return }
             needsRefresh = true
             // A failed read is shown as the plain 確認できません state; its raw cause goes to diagnostics only.
-            errorText = nil
+            // errorText is left as it is: it can only hold a change's own sentence (outcome unknown), which must survive.
             store.api.diagnostics.report(error, path: path, method: "GET",
                                          observation: .read(error, retainedData: !snapshots.isEmpty),
                                          diagnosticContext: diagnosticContext)

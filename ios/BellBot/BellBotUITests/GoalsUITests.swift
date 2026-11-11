@@ -589,6 +589,36 @@ final class GoalsUITests: XCTestCase {
         }
     }
 
+    /// Device-ready. A change whose outcome is unknown says so; a later failed refresh must not replace that sentence.
+    func testChatUnknownChangeOutcomeSurvivesAFailedRefresh() async throws {
+        let url = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_GOALS_FIXTURE_URL"])
+        _ = try await fixtureCall(server: url, path: "/test/reset")
+        let app = XCUIApplication()
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", url, "-bellbot-preview-chat"] + fixtureLaunchArguments(server: url)
+        app.launch()
+        allowLocalNetworkAlertIfShown()
+        defer { app.terminate() }
+        let pill = app.buttons["chat-goal-pill"]
+        XCTAssertTrue(pill.waitForExistence(timeout: 10))
+        pill.tap()
+        let pause = app.buttons["goal-pause-bot-one"]
+        XCTAssertTrue(pause.waitForExistence(timeout: 5))
+        _ = try await fixtureCall(server: url, path: "/test/next?mode=unconfirmed")
+        pause.tap()
+        let unknown = NSPredicate(format: "label CONTAINS %@", "変更結果を確認できませんでした")
+        XCTAssertTrue(app.staticTexts.matching(unknown).firstMatch.waitForExistence(timeout: 8), "結果不明の文を出す")
+        shot(app, "goal-unknown-outcome")
+        _ = try await fixtureCall(server: url, path: "/test/fail-next-goal-get?mode=detail")
+        app.buttons["状態を更新"].tap()
+        try await Task.sleep(for: .seconds(3))
+        XCTAssertTrue(app.staticTexts.matching(unknown).firstMatch.exists, "読み直しの失敗で結果不明の文を消さない")
+        XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "現在のゴールを確認できません")).count, 0,
+                       "一般の読取失敗の文に置き換えない")
+        shot(app, "goal-unknown-outcome-after-failed-refresh")
+        let proof = try await fixtureCall(server: url, path: "/test/proof")
+        XCTAssertEqual((proof["writes"] as? [[String: Any]])?.count, 1, "結果不明の変更を再送しない")
+    }
+
     private func shot(_ app: XCUIApplication, _ name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "iphone-uiall-\(name)"

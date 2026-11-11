@@ -24,7 +24,7 @@ flowchart TD
 | GoalsView | ready時のゴールtab（selectedTab=3）。availableかつgoalありだけ一覧表示。goal無しでcreate/objective可のsnapshotは＋の候補。候補1人は直接、複数はMenu |
 | ChatGoalBar | ConversationContentのBot宛てcomposerだけに配置。status/経過時間のpill、展開したカード、更新ボタン、editorを所有。ルームにgoal barはない |
 | GoalViewModel | 一覧と会話で共有参照しない。loading/mutatingなら読取を開始しない。詳細はbotId一致検査。成功はsnapshots置換・loaded=true・needsRefresh/error解除。取消は保持してreturn、認証失敗はrequireLogin。他失敗はneedsRefresh=trueとerror/診断 |
-| 失敗表示 | snapshotsの配列自体は保持するがcurrentSnapshotsはneedsRefresh時に空。既存goalを最新として出さず、一覧は確認不可表示、chatは取得不可pill。unsupported/unavailableも未設定と分ける。失敗の文は1か所だけ（`GoalFailureNotice`：アイコン・平易な1文・主ボタン「状態を更新」）。読取のerrorTextとsnapshotのmessageを重ねて出さない |
+| 失敗表示 | snapshotsの配列自体は保持するがcurrentSnapshotsはneedsRefresh時に空。既存goalを最新として出さず、一覧は確認不可表示、chatは取得不可pill。unsupported/unavailableも未設定と分ける。失敗の文は1か所だけ（`GoalFailureNotice`：アイコン・平易な1文・主ボタン「状態を更新」）。読取のerrorTextとsnapshotのmessageを重ねて出さない。errorTextは変更（pause/resume/clear/作成/編集）の平易な文だけを持つ。読取の失敗はerrorTextに書かず（原因は診断だけ）、残っている変更の文（結果不明など）も消さない。読取の成功だけがerrorTextを消す |
 | 休止中 | `GoalSnapshot.seatIdle`（availability=unavailableかつreason=seat_idle）は失敗ではない。chatはpillを出さない（席が動いていない間は読めるgoalも操作も無い）。一覧は失敗の数に入れない |
 | 未対応 | unsupportedのBotにはchatのpillを出さない |
 | GoalForegroundLoad | start時に前taskをcancelし、その終了を待って新load。view task取消を子taskへ伝える。非active/非表示でcancel |
