@@ -33,6 +33,8 @@ public sealed class LatticeWindow : Window
     private bool autoOpened;
     private CancellationTokenSource? listLoop;
     internal LatticeChartPage? Chart { get; private set; }
+    // The chart 一覧 was opened from (switcher): back returns to that same page, scroll position included (screen-spec state diagram List --> Chart: back).
+    private LatticeChartPage? back;
     internal Task ListRead { get; private set; } = Task.CompletedTask;
 
     internal LatticeWindow(Workspace workspace, Func<string, Task> openChat)
@@ -49,7 +51,7 @@ public sealed class LatticeWindow : Window
         SourceInitialized += (_, _) => UseMica();
         IsVisibleChanged += (_, _) => Sync(); StateChanged += (_, _) => Sync();
         workspace.PropertyChanged += WorkspaceChanged;
-        PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape && Chart?.CloseDetail() == true) e.Handled = true; };
+        PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape && (Chart?.CloseDetail() == true || (Chart is null && ReturnToChart()))) e.Handled = true; };
         Closed += (_, _) => { workspace.PropertyChanged -= WorkspaceChanged; StopAll(); if (ReferenceEquals(Current, this)) Current = null; };
     }
 
@@ -72,7 +74,7 @@ public sealed class LatticeWindow : Window
     /// <summary>Starts or stops reading for what is on screen. Another server drops everything drawn and starts at its list.</summary>
     internal void Sync()
     {
-        if (origin != workspace.Server) { origin = workspace.Server; list = null; listProblem = null; autoOpened = false; ShowList(); }
+        if (origin != workspace.Server) { origin = workspace.Server; list = null; listProblem = null; autoOpened = false; back = null; ShowList(); }
         if (!Wanted) { StopAll(); return; }
         if (Chart is { } chart) { listLoop?.Cancel(); listLoop = null; if (!chart.Running) chart.Run(workspace.Management.Api, workspace.ConnectionToken); }
         else if (listLoop is null) { listLoop = CancellationTokenSource.CreateLinkedTokenSource(workspace.ConnectionToken); ListRead = ReadListAsync(listLoop); }
@@ -108,16 +110,32 @@ public sealed class LatticeWindow : Window
 
     // MARK: 一覧
 
-    internal void ShowList()
+    internal void ShowList(bool fromChart = false)
     {
+        back = fromChart ? Chart : null;
         Chart?.Stop(); Chart = null;
         RenderList(); Sync();
+    }
+    /// <summary>Back from 一覧 to the chart it was opened from (chevron + chart name, or Esc).</summary>
+    internal bool ReturnToChart()
+    {
+        if (back is null) return false;
+        listLoop?.Cancel(); listLoop = null; pill.Visibility = Visibility.Collapsed;
+        Chart = back; back = null; page.Content = Chart; Chart.Render();
+        Sync();
+        return true;
     }
     private void RenderList()
     {
         pill.Visibility = listProblem == LatticeChart.Reconnecting && list is not null ? Visibility.Visible : Visibility.Collapsed; pillText.Text = listProblem ?? "";
         var body = new StackPanel { Margin = new Thickness(40, 30, 40, 40), MaxWidth = 1180 };
         var header = new DockPanel { Margin = new Thickness(0, 0, 0, 22) };
+        if (back is not null)
+        {
+            var backButton = Plain(Glass(Row(Icon("", 12, Muted), Spaced(Text(back.ChartName, 15, Ink, FontWeights.SemiBold), 8)), 14, new Thickness(12, 8, 14, 8), 0xB3), $"{back.ChartName}へ戻る");
+            backButton.Margin = new Thickness(0, 0, 18, 0); backButton.Click += (_, _) => ReturnToChart(); DockPanel.SetDock(backButton, Dock.Left);
+            System.Windows.Automation.AutomationProperties.SetAutomationId(backButton, "lattice-back"); header.Children.Add(backButton);
+        }
         header.Children.Add(Text("工程表", 28, Ink, FontWeights.Bold));
         body.Children.Add(header);
         if (list is null && listProblem is { } problem && problem != LatticeChart.Reconnecting)
@@ -190,7 +208,7 @@ public sealed class LatticeWindow : Window
     internal void OpenChart(string projectId)
     {
         listLoop?.Cancel(); listLoop = null; pill.Visibility = Visibility.Collapsed;
-        Chart?.Stop();
+        Chart?.Stop(); back = null;
         Chart = new LatticeChartPage(this, projectId, list?.Charts.FirstOrDefault(chart => chart.ProjectId == projectId));
         page.Content = Chart;
         Sync();
@@ -228,7 +246,7 @@ public sealed class LatticeWindow : Window
     }
 }
 
-/// <summary>One open chart: toolbar, banner, member rail, swimlanes, 待ちの流れ and the detail sheet. Owns the feed while it is on screen.</summary>
+/// <summary>One open chart: toolbar, banner, member rail, the tree or the swimlanes, 待ちの流れ and the detail sheet. Owns the feed while it is on screen.</summary>
 internal sealed class LatticeChartPage : Grid
 {
     private readonly LatticeWindow window;
@@ -237,6 +255,9 @@ internal sealed class LatticeChartPage : Grid
     internal LatticeChartFeed Feed { get; } = new();
     private CancellationTokenSource? run;
     internal LatticeBoard Board { get; }
+    internal LatticeTreeView Tree { get; }
+    // ツリー / 担当: ツリー by default, remembered while the app is open (screen-spec "ツリー").
+    internal static bool ShowTree { get; set; } = true;
     private readonly ScrollViewer scroller;
     private readonly Grid stage = new();
     private readonly StackPanel toolbar = new() { Orientation = Orientation.Horizontal };
@@ -267,10 +288,12 @@ internal sealed class LatticeChartPage : Grid
         Board = new LatticeBoard(window.Avatar);
         if (window.Clock is { } clock) Board.Clock = clock;
         Board.CardOpened += id => OpenDetail(id);
-        scroller = new ScrollViewer { Content = Board, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, PanningMode = PanningMode.Both, Padding = new Thickness(0, 4, 0, 0) };
+        Tree = new LatticeTreeView(window.Avatar);
+        Tree.CardOpened += id => OpenDetail(id);
+        scroller = new ScrollViewer { Content = ShowTree ? Tree : Board, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, PanningMode = PanningMode.Both, Padding = new Thickness(0, 4, 0, 0) };
         scroller.ScrollChanged += (_, e) => Board.ScrolledTo(e.HorizontalOffset);
         // A click on empty canvas clears the member highlight (screen-spec user path).
-        scroller.PreviewMouseLeftButtonDown += (_, e) => { if (e.OriginalSource is ScrollViewer or LatticeBoard or ScrollContentPresenter && HighlightedMember is not null) Highlight(null); };
+        scroller.PreviewMouseLeftButtonDown += (_, e) => { if (e.OriginalSource is ScrollViewer or LatticeBoard or LatticeTreeView or ScrollContentPresenter && HighlightedMember is not null) Highlight(null); };
         board.Children.Add(scroller); board.Children.Add(fade);
         stage.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(92) }); stage.ColumnDefinitions.Add(new ColumnDefinition()); stage.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(360) });
         var railGlass = Glass(new ScrollViewer { Content = rail, VerticalScrollBarVisibility = ScrollBarVisibility.Hidden }, 22, new Thickness(8, 12, 8, 12)); railGlass.Margin = new Thickness(14, 4, 4, 16); railGlass.VerticalAlignment = VerticalAlignment.Top;
@@ -302,7 +325,7 @@ internal sealed class LatticeChartPage : Grid
     public void Stop() { Running = false; run?.Cancel(); run = null; }
     internal void Say(string text) { said = text; RenderPills(); }
 
-    private string ChartName => LatticeChart.ChartName(Feed.Snapshot?.Name ?? summary?.Name, Feed.Snapshot?.CreatedBy ?? summary?.CreatedBy, id => window.Roster(id)?.Name);
+    internal string ChartName => LatticeChart.ChartName(Feed.Snapshot?.Name ?? summary?.Name, Feed.Snapshot?.CreatedBy ?? summary?.CreatedBy, id => window.Roster(id)?.Name);
     private bool Coordinator => Feed.Snapshot?.Coordinator ?? summary?.Coordinator ?? false;
     private string? CoordinatorBotId => window.CoordinatorBotId ?? (Feed.Snapshot is { Coordinator: true, CreatedBy: { } creator } ? creator : null);
 
@@ -314,10 +337,10 @@ internal sealed class LatticeChartPage : Grid
         // Views that replace the chart: not found, not on this server, sign-in, not readable yet.
         FrameworkElement? replaced = Feed.Connection switch
         {
-            LatticeConnection.NotFound => LatticeWindow.Notice(LatticeChart.NotFound, null, ("一覧へ戻る", window.ShowList)),
+            LatticeConnection.NotFound => LatticeWindow.Notice(LatticeChart.NotFound, null, ("一覧へ戻る", () => window.ShowList())),
             LatticeConnection.Unsupported => LatticeWindow.Notice(LatticeChart.OldServer, LatticeChart.OldServerNext, ("閉じる", window.Close)),
             LatticeConnection.Login when snapshot is null => LatticeWindow.Notice(LatticeChart.LoginRequired, null, null),
-            _ when snapshot is { State: "unavailable" } => LatticeWindow.Notice(LatticeChart.Unavailable, LatticeChart.UnavailableNext, ("一覧へ戻る", window.ShowList), bud: true),
+            _ when snapshot is { State: "unavailable" } => LatticeWindow.Notice(LatticeChart.Unavailable, LatticeChart.UnavailableNext, ("一覧へ戻る", () => window.ShowList()), bud: true),
             _ when snapshot is null => LatticeWindow.Notice(Feed.Connection == LatticeConnection.Reconnecting ? LatticeChart.Reconnecting : "読み込んでいます…", null, null),
             _ => null
         };
@@ -328,7 +351,10 @@ internal sealed class LatticeChartPage : Grid
         else
         {
             if (!board.Children.Contains(scroller)) { board.Children.Clear(); board.Children.Add(scroller); board.Children.Add(fade); board.Children.Add(detailHost); }
+            // The lanes are laid out in both views: the rail reads its members from them.
             Board.Show(snapshot, Feed.LastDiff, now); Board.Highlight(HighlightedMember); Board.Select(SelectedCard);
+            if (ShowTree) { Tree.Show(snapshot, ChartName); Tree.Highlight(HighlightedMember); Tree.Select(SelectedCard); }
+            scroller.Content = ShowTree ? Tree : Board;
         }
         var live = Feed.Connection == LatticeConnection.Live;
         Board.Flowing = live;
@@ -364,7 +390,7 @@ internal sealed class LatticeChartPage : Grid
         if (Coordinator) switcherContent.Children.Add(Spaced(CoordinatorBadge(), 10));
         switcherContent.Children.Add(Spaced(Icon("", 11, Muted), 10));
         var switcher = Plain(Glass(switcherContent, 14, new Thickness(12, 8, 14, 8), 0xB3), $"{ChartName}{(Coordinator ? "、統括の工程表" : "")}。一覧へ戻る");
-        switcher.Click += (_, _) => window.ShowList();
+        switcher.Click += (_, _) => window.ShowList(fromChart: true);
         System.Windows.Automation.AutomationProperties.SetAutomationId(switcher, "lattice-switcher");
         toolbar.Children.Add(switcher);
         var live = Feed.Connection == LatticeConnection.Live;
@@ -373,6 +399,7 @@ internal sealed class LatticeChartPage : Grid
         var livePill = Pill(Row(dot, Spaced(Text(live ? "ライブ" : "再接続中", 12, live ? Color.FromRgb(0x1F, 0x86, 0x76) : Muted, FontWeights.SemiBold), 6)), live ? Color.FromRgb(0x2E, 0xB3, 0x9E) : Muted, 0x1F);
         livePill.Margin = new Thickness(14, 0, 0, 0); toolbar.Children.Add(livePill);
         if (snapshot is null or { State: "unavailable" }) return;
+        toolbar.Children.Add(ViewSwitch());
         var counts = LatticeChart.Counts(snapshot);
         var ring = new LatticeRing(counts.Done, counts.Total, 40) { Margin = new Thickness(26, 0, 0, 0) }; toolbar.Children.Add(ring);
         toolbar.Children.Add(Spaced(new StackPanel { Children = { Text("完了", 11, Muted), Text($"{counts.Done} / {counts.Total}", 14, Ink, FontWeights.SemiBold) }, VerticalAlignment = VerticalAlignment.Center }, 8));
@@ -380,6 +407,30 @@ internal sealed class LatticeChartPage : Grid
         toolbar.Children.Add(Counter(Shape(HourglassGeometry, 11, Violet), "待ち", counts.Waiting, Violet, 8));
         toolbar.Children.Add(Counter(Shape(OctagonGeometry, 13, Red), "止まり", counts.Blocked, Red, 8));
     }
+    /// <summary>The segmented control ツリー / 担当.</summary>
+    private Border ViewSwitch()
+    {
+        Button Segment(string label, bool tree)
+        {
+            var on = ShowTree == tree;
+            var face = new Border { Child = Text(label, 12.5, on ? Ink : Muted, on ? FontWeights.SemiBold : FontWeights.Normal), CornerRadius = new CornerRadius(8), Padding = new Thickness(14, 5, 14, 5), Background = on ? Brush(Colors.White) : Brushes.Transparent };
+            if (on) face.Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Ink, Opacity = .08, BlurRadius = 6, ShadowDepth = 1, Direction = 270 };
+            var button = Plain(face, label + (on ? "、表示中" : "で表示"));
+            System.Windows.Automation.AutomationProperties.SetAutomationId(button, tree ? "lattice-view-tree" : "lattice-view-lanes");
+            button.Click += (_, _) => SetView(tree);
+            return button;
+        }
+        var segments = new Border { Child = Row(Segment("ツリー", true), Segment("担当", false)), CornerRadius = new CornerRadius(10), Padding = new Thickness(3), Background = Brush(Muted, 0x1F), Margin = new Thickness(14, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        return segments;
+    }
+    /// <summary>Switches the center between the tree and the lanes; 詳細, highlight and the selected card's scroll position carry over.</summary>
+    internal void SetView(bool tree)
+    {
+        if (ShowTree == tree) return;
+        ShowTree = tree; Render();
+        if (SelectedCard is { } selected) { scroller.UpdateLayout(); ScrollToCard(selected); }
+    }
+
     private static Border Counter(UIElement glyph, string label, int count, Color color, double left)
     {
         var pill = Pill(Row(glyph, Spaced(Text(label, 12.5, Ink), 6), Spaced(Text(count.ToString(), 14, color, FontWeights.Bold), 6)), Colors.White, 0xB3, new Thickness(12, 6, 13, 6));
@@ -426,7 +477,7 @@ internal sealed class LatticeChartPage : Grid
             rail.Children.Add(button);
         }
     }
-    internal void Highlight(string? botId) { HighlightedMember = botId; Board.Highlight(botId); if (Feed.Snapshot is { } snapshot) { RenderRail(snapshot); RenderWaits(snapshot, window.Now()); } }
+    internal void Highlight(string? botId) { HighlightedMember = botId; Board.Highlight(botId); Tree.Highlight(botId); if (Feed.Snapshot is { } snapshot) { RenderRail(snapshot); RenderWaits(snapshot, window.Now()); } }
 
     private void RenderWaits(LatticeSnapshot snapshot, DateTimeOffset now)
     {
@@ -437,11 +488,18 @@ internal sealed class LatticeChartPage : Grid
         foreach (var row in rows)
         {
             var body = new StackPanel();
+            // Reads on its own: the waiting card + owner, then 「この工程が終わるのを待っています」 over the awaited card, then who makes it.
             var head = new DockPanel();
-            var length = Text(row.Length, 12, Muted); DockPanel.SetDock(length, Dock.Right); head.Children.Add(length);
-            head.Children.Add(Row(new LatticeAvatar(row.Waiter, 24, window.Avatar), Spaced(Text(row.Headline, 13, Ink, FontWeights.SemiBold), 8)));
+            var length = Text($"待ち {row.Length}", 12, Muted); length.Margin = new Thickness(8, 0, 0, 0); DockPanel.SetDock(length, Dock.Right); head.Children.Add(length);
+            var face = new LatticeAvatar(row.Waiter, 24, window.Avatar); DockPanel.SetDock(face, Dock.Left); head.Children.Add(face);
+            head.Children.Add(Spaced(Text(row.Headline, 14, Ink, FontWeights.Bold, TextWrapping.Wrap), 8));
             body.Children.Add(head);
-            var title = Text($"「{row.Title}」", 14.5, Ink, FontWeights.Bold, TextWrapping.Wrap); title.Margin = new Thickness(0, 8, 0, 6); body.Children.Add(title);
+            var owner = Text(row.OwnerText, 12, Muted); owner.Margin = new Thickness(32, 2, 0, 0); body.Children.Add(owner);
+            var marker = Text("この工程が終わるのを待っています", 12, Muted); marker.Margin = new Thickness(0, 10, 0, 4); body.Children.Add(marker);
+            var awaited = new DockPanel(); var awaitedGlyph = StateGlyph(row.Info.Tone switch { "working" => "in-progress", "blocked" => "blocked", "ready" => "ready", "done" => "done", "retired" => "retired", _ => "pending" }, 13, Violet);
+            awaitedGlyph.Margin = new Thickness(0, 0, 8, 0); DockPanel.SetDock(awaitedGlyph, Dock.Left); awaited.Children.Add(awaitedGlyph); awaited.Children.Add(Text(row.Title, 13.5, Ink, FontWeights.SemiBold, TextWrapping.Wrap));
+            var title = new Border { Child = awaited, CornerRadius = new CornerRadius(12), Padding = new Thickness(10, 7, 10, 7), Margin = new Thickness(0, 0, 0, 8), Background = Brush(Muted, 0x12), BorderBrush = Brush(LatticeLook.Line), BorderThickness = new Thickness(1) };
+            body.Children.Add(title);
             var producerLine = Row(Text("つくっている", 11.5, Muted), Spaced(new LatticeAvatar(row.Producer, 20, window.Avatar), 8), Spaced(Text(LatticeChart.NameOf(row.Producer), 13, row.Producer is { Known: true } ? Ink : Muted, FontWeights.SemiBold), 6));
             body.Children.Add(producerLine);
             var stateLine = Row(StateGlyph(row.Info.Tone switch { "working" => "in-progress", "blocked" => "blocked", "ready" => "ready", "done" => "done", "retired" => "retired", _ => "pending" }, 13, Violet), Spaced(Text(row.StateText, 12.5, row.Emphasized ? Red : Muted, row.Emphasized ? FontWeights.SemiBold : FontWeights.Normal, TextWrapping.Wrap), 6));
@@ -462,19 +520,28 @@ internal sealed class LatticeChartPage : Grid
     /// <summary>工程へ移動: the board scrolls to the awaited card and opens its detail.</summary>
     internal void GoTo(string cardId)
     {
-        var rect = Board.CardRect(cardId); if (rect.IsEmpty) return;
-        ScrollBoard(rect.X, rect.Y);
+        if (!ScrollToCard(cardId)) return;
         OpenDetail(cardId);
+    }
+    private Rect CardRect(string id) => ShowTree ? Tree.CardRect(id) : Board.CardRect(id);
+    private FrameworkElement? CardElement(string id) => ShowTree ? Tree.CardElement(id) : Board.CardElement(id);
+    private bool ScrollToCard(string cardId)
+    {
+        var rect = CardRect(cardId); if (rect.IsEmpty) return false;
+        // The lanes keep their names at the left edge; the tree has none.
+        if (ShowTree) { scroller.ScrollToHorizontalOffset(Math.Max(0, rect.X - 40)); scroller.ScrollToVerticalOffset(Math.Max(0, rect.Y - 60)); scroller.UpdateLayout(); }
+        else ScrollBoard(rect.X, rect.Y);
+        return true;
     }
     /// <summary>Brings a board point near the top left, clear of the lane names.</summary>
     internal void ScrollBoard(double x, double y) { scroller.ScrollToHorizontalOffset(Math.Max(0, x - LatticeChart.LabelWidth - 40)); scroller.ScrollToVerticalOffset(Math.Max(0, y - 60)); scroller.UpdateLayout(); }
 
-    internal void OpenDetail(string cardId, bool morph = true) { SelectedCard = cardId; Board.Select(cardId); ShowDetail(cardId, morph); }
+    internal void OpenDetail(string cardId, bool morph = true) { SelectedCard = cardId; Board.Select(cardId); Tree.Select(cardId); ShowDetail(cardId, morph); }
     internal bool CloseDetail()
     {
         if (SelectedCard is null) return false;
-        var card = SelectedCard; SelectedCard = null; detailHost.Content = null; Board.Select(null);
-        Board.CardElement(card)?.Focus();
+        var card = SelectedCard; SelectedCard = null; detailHost.Content = null; Board.Select(null); Tree.Select(null);
+        CardElement(card)?.Focus();
         return true;
     }
     private void ShowDetail(string cardId, bool morph)
@@ -500,7 +567,7 @@ internal sealed class LatticeChartPage : Grid
         detailHost.Content = panel;
         if (!morph || !Motion) return;
         // card -> 詳細: the sheet grows out of the card (FLIP: start at the card's place and size, settle on the spring curve).
-        var source = Board.CardElement(cardId);
+        var source = CardElement(cardId);
         detailHost.UpdateLayout();
         if (source is null || !source.IsVisible || panel.ActualWidth == 0) return;
         var from = source.TranslatePoint(new Point(), panel);

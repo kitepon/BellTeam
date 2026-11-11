@@ -33,6 +33,7 @@ public sealed record LatticeSnapshot
     public string[] Degraded { get; init; } = [];
     public LatticeMember[] Members { get; init; } = [];
     public LatticeCard[] Cards { get; init; } = [];
+    public LatticePhase[] Phases { get; init; } = [];
     public LatticeEdge[] Edges { get; init; } = [];
     public LatticeWait[] Waits { get; init; } = [];
 }
@@ -50,7 +51,10 @@ public sealed record LatticeCard
     public DateTimeOffset? ChangedAt { get; init; }
     public string? BlockedReason { get; init; }
     public int Depth { get; init; }
+    public string? Phase { get; init; }
+    public string? Parent { get; init; }
 }
+public sealed record LatticePhase(string Id, string? Title);
 public sealed record LatticeEdge(string From, string To, bool Waiting);
 public sealed record LatticeWait(string? Waiter, string WaitingCard, string ForCard, string? Producer, string? ProducerState, DateTimeOffset? Since);
 
@@ -61,11 +65,18 @@ public sealed record LatticeStateInfo(string Badge, string Tone);
 public sealed record LatticeLane(string? BotId, LatticePerson? Member, double Y, double Height);
 public sealed record LatticePlaced(double X, double Y, double Width, double Height, int Depth, int Lane);
 public sealed record LatticeLayout(IReadOnlyList<LatticeLane> Lanes, IReadOnlyDictionary<string, LatticePlaced> Cards, IReadOnlyList<string> Order, double Width, double Height);
-public sealed record LatticeWaitRow(string Key, LatticePerson? Waiter, LatticePerson? Producer, string Title, string StateText, string ForCard, string WaitingCard, string Headline, string Length, bool Emphasized, LatticeStateInfo Info, bool CanChat, string Label);
+public sealed record LatticeWaitRow(string Key, LatticePerson? Waiter, LatticePerson? Producer, string Title, string StateText, string ForCard, string WaitingCard, string Headline, string OwnerText, string Length, bool Emphasized, LatticeStateInfo Info, bool CanChat, string Label);
 public sealed record LatticeRailItem(string BotId, LatticePerson Member, bool Working, bool Blocked, int Waiting);
 public sealed record LatticeLink(string Id, string Title, string State, LatticePerson? Producer, string StateText);
 public sealed record LatticeDetail(LatticeCard Card, LatticePerson? Producer, LatticeStateInfo Info, string StateText, IReadOnlyList<LatticeLink> Previous, IReadOnlyList<LatticeLink> Next, string StartedText);
 public sealed record LatticeBanner(string Tone, string Text, string Next, bool Dim);
+/// <summary>A tree box: Kind root / phase / card. Root and phase carry done/total and the phase tone (blocked, in-progress, done, pending).</summary>
+public sealed record LatticeTreeNode(string Key, string Kind, string Label, LatticeCard? Card, double X, double Y, double Width, double Height, int Done, int Total, string Tone);
+/// <summary>A soft elbow from the right middle of the parent box to the left middle of the child box.</summary>
+public sealed record LatticeTreeLink(string From, string To, double X0, double Y0, double X1, double Y1);
+/// <summary>A dependency drawn on the right of both boxes: from (X0,Y0) out to Bulge and back to (X1,Y1), the waiter's right edge.</summary>
+public sealed record LatticeTreeArc(string From, string To, bool Waiting, double X0, double Y0, double Bulge, double X1, double Y1);
+public sealed record LatticeTreeLayout(IReadOnlyList<LatticeTreeNode> Nodes, IReadOnlyList<LatticeTreeLink> Links, IReadOnlyList<LatticeTreeArc> Arcs, IReadOnlyDictionary<string, LatticeTreeNode> Cards, double Width, double Height);
 public sealed record LatticeDiff(bool First, IReadOnlyList<string> AddedCards, IReadOnlyList<string> ChangedCards, IReadOnlyList<string> CompletedCards);
 public sealed record LatticeListItem(string ProjectId, string Name, bool Coordinator, int Done, int Total, int Waiting, IReadOnlyList<LatticePerson> Members, double Fraction, string Updated, string Label);
 
@@ -148,6 +159,58 @@ public static class LatticeChart
         return new(lanes, placed, reading, LabelWidth + 16 + (maxDepth + 1) * ColumnWidth + 24, y + 40);
     }
 
+    // ツリー (screen-spec "ツリー"): chart -> phases -> cards (under `parent`, else their phase, else the chart). Leaves take one row each, a parent sits at the
+    // middle of its children. Port of layoutTree in web/lattice-chart-model.js; sizes are the Web px.
+    public const double TreeRow = 40, TreeBoxHeight = 32, TreeGap = 36, TreeTop = 16, TreeLeft = 16, TreeRootWidth = 168, TreePhaseWidth = 196, TreeCardWidth = 300;
+    public const string UnnamedPhase = "名前のないまとまり";
+    public static string PhaseTone(IEnumerable<LatticeCard> cards)
+    {
+        var list = cards.ToList();
+        return list.Any(card => card.State == "blocked") ? "blocked" : list.Any(card => card.State == "in-progress") ? "in-progress" : list.Count > 0 && list.All(card => Finished(card.State)) ? "done" : "pending";
+    }
+    private sealed class Draft(string key, string kind, string label, LatticeCard? card, double width)
+    {
+        public string Key = key, Kind = kind, Label = label; public LatticeCard? Card = card; public double Width = width, X, Y; public List<string> Children = [];
+    }
+    public static LatticeTreeLayout Tree(LatticeSnapshot snapshot, string name)
+    {
+        var byId = snapshot.Cards.GroupBy(card => card.Id).ToDictionary(group => group.Key, group => group.First());
+        var drafts = new Dictionary<string, Draft> { ["root"] = new("root", "root", name, null, TreeRootWidth) };
+        foreach (var phase in snapshot.Phases) drafts.TryAdd("phase:" + phase.Id, new("phase:" + phase.Id, "phase", phase.Title is { Length: > 0 } title ? title : UnnamedPhase, null, TreePhaseWidth));
+        foreach (var card in byId.Values) drafts.TryAdd(card.Id, new(card.Id, "card", Title(card), card, TreeCardWidth));
+        foreach (var draft in drafts.Values.Where(draft => draft.Kind == "phase").ToList()) drafts["root"].Children.Add(draft.Key);
+        foreach (var card in byId.Values)
+            drafts[card.Parent is { } parent && byId.ContainsKey(parent) && parent != card.Id ? parent : card.Phase is { } phase && drafts.ContainsKey("phase:" + phase) ? "phase:" + phase : "root"].Children.Add(card.Id);
+        // seen guards a parent cycle the server did not drop: each box is placed once.
+        var row = 0; var right = 0.0; var seen = new HashSet<string>();
+        void Place(string key, double x)
+        {
+            var draft = drafts[key]; seen.Add(key); draft.X = x; right = Math.Max(right, x + draft.Width);
+            var kids = draft.Children.Where(child => !seen.Contains(child)).ToList();
+            foreach (var child in kids) Place(child, x + draft.Width + TreeGap);
+            draft.Y = kids.Count > 0 ? (drafts[kids[0]].Y + drafts[kids[^1]].Y) / 2 : TreeTop + row++ * TreeRow;
+        }
+        Place("root", TreeLeft);
+        IEnumerable<LatticeCard> Under(string key) { var draft = drafts[key]; var inside = draft.Children.Where(child => child != key).SelectMany(Under); return draft.Card is { } card ? inside.Prepend(card) : inside; }
+        var nodes = drafts.Values.Where(draft => seen.Contains(draft.Key)).Select(draft =>
+        {
+            var inside = draft.Kind == "card" ? new List<LatticeCard>() : Under(draft.Key).ToList();
+            return new LatticeTreeNode(draft.Key, draft.Kind, draft.Label, draft.Card, draft.X, draft.Y, draft.Width, TreeBoxHeight, inside.Count(card => Finished(card.State)), inside.Count, PhaseTone(inside));
+        }).ToList();
+        var placed = nodes.ToDictionary(node => node.Key);
+        double Mid(LatticeTreeNode node) => node.Y + node.Height / 2;
+        var links = drafts.Values.Where(draft => placed.ContainsKey(draft.Key)).SelectMany(draft => draft.Children.Where(placed.ContainsKey).Select(child =>
+            new LatticeTreeLink(draft.Key, child, placed[draft.Key].X + placed[draft.Key].Width, Mid(placed[draft.Key]), placed[child].X, Mid(placed[child])))).ToList();
+        var reach = right;
+        var arcs = snapshot.Edges.Where(edge => placed.TryGetValue(edge.From, out var a) && a.Kind == "card" && placed.TryGetValue(edge.To, out var b) && b.Kind == "card").Select(edge =>
+        {
+            var a = placed[edge.From]; var b = placed[edge.To]; double x0 = a.X + a.Width, x1 = b.X + b.Width;
+            var bulge = Math.Max(x0, x1) + 24 + Math.Min(160, Math.Abs(Mid(b) - Mid(a)) * .3); reach = Math.Max(reach, bulge);
+            return new LatticeTreeArc(edge.From, edge.To, edge.Waiting, x0, Mid(a), bulge, x1 + 6, Mid(b));
+        }).ToList();
+        return new(nodes, links, arcs, nodes.Where(node => node.Kind == "card").ToDictionary(node => node.Key), reach + 24, TreeTop + Math.Max(1, row) * TreeRow + 16);
+    }
+
     /// <summary>An edge is a smooth curve from the right middle of the producer card to the left middle of the waiting card.</summary>
     public static (double X0, double Y0, double X1, double Y1, double X2, double Y2, double X3, double Y3) EdgeCurve(LatticePlaced from, LatticePlaced to)
     {
@@ -205,14 +268,15 @@ public static class LatticeChart
             cards.TryGetValue(wait.ForCard, out var awaited); cards.TryGetValue(wait.WaitingCard, out var waiting);
             var waiter = wait.Waiter is { Length: > 0 } ? lookup(wait.Waiter) : ownerOf(waiting); var producer = wait.Producer is { Length: > 0 } ? lookup(wait.Producer) : ownerOf(awaited);
             var state = wait.ProducerState ?? awaited?.State; var title = Title(awaited); var stateText = ProducerStateText(awaited, state, producer, now);
-            var waiterName = waiter?.Name ?? "担当未定";
-            return new LatticeWaitRow($"{wait.WaitingCard}>{wait.ForCard}", waiter, producer, title, stateText, wait.ForCard, wait.WaitingCard, $"{waiterName}が待っている",
-                SinceText(wait.Since, now), state == "blocked", StateInfo(state), producer?.Known == true, $"{waiterName}が{title}を待っています。つくっているのは{NameOf(producer)}、{stateText}");
+            // The row reads on its own (screen-spec 待ちの流れ): the waiting card and its owner first, then what it waits for and who makes that.
+            var waitingTitle = Title(waiting); var ownerText = waiter is null ? Unassigned : $"担当 {waiter.Name}";
+            return new LatticeWaitRow($"{wait.WaitingCard}>{wait.ForCard}", waiter, producer, title, stateText, wait.ForCard, wait.WaitingCard, waitingTitle, ownerText,
+                SinceText(wait.Since, now), state == "blocked", StateInfo(state), producer?.Known == true, $"「{waitingTitle}」（{ownerText}）は、「{title}」が終わるのを待っています。つくっているのは{NameOf(producer)}、{stateText}");
         }).ToList();
     }
-    /// <summary>The chip on a waiting edge: 「◯◯が待っています」, the waiter being the owner of the later card.</summary>
+    /// <summary>The chip on a waiting edge: 「◯◯が待っています」, the waiter being the owner of the later card; 次の工程が待っています when it has no owner.</summary>
     public static string EdgeChip(LatticeSnapshot snapshot, LatticeEdge edge)
-        => $"{Owner(snapshot)(snapshot.Cards.FirstOrDefault(card => card.Id == edge.To))?.Name ?? "担当未定"}が待っています";
+        => Owner(snapshot)(snapshot.Cards.FirstOrDefault(card => card.Id == edge.To)) is { } owner ? $"{owner.Name}が待っています" : "次の工程が待っています";
 
     public static IReadOnlyList<LatticeRailItem> Rail(LatticeSnapshot snapshot, LatticeLayout layout)
         => layout.Lanes.Where(lane => lane.BotId is not null).Select(lane => new LatticeRailItem(lane.BotId!, lane.Member!,
