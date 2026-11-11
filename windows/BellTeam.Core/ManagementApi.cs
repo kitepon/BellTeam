@@ -29,7 +29,9 @@ public sealed class ManagementApi(BellApi api)
     }
     // DELETE /api/bots/{id}: 202 is an acceptance only (src/members/deletion.mjs:25). It is sent once; the outcome is read from the list afterwards.
     public Task DeleteBotAsync(string id, CancellationToken token = default) => Api.DeleteAsync(new ChatTarget(id, false).Path, token);
-    public Task<System.Text.Json.JsonElement> RestartBotAsync(string id, CancellationToken token = default) => Api.PostAsync<System.Text.Json.JsonElement>(new ChatTarget(id, false).Path + "/restart", new { }, token);
+    // The server answers 200 only after the new seat is up (a remote seat takes tens of seconds), so this one request waits 180 s (Mac restartConversation); it is never sent again.
+    public static readonly TimeSpan RestartTimeout = TimeSpan.FromSeconds(180);
+    public Task<System.Text.Json.JsonElement> RestartBotAsync(string id, CancellationToken token = default) => Api.PostAsync<System.Text.Json.JsonElement>(new ChatTarget(id, false).Path + "/restart", new { }, token, RestartTimeout);
     public async Task<bool> ConfirmBotAsync(string id, Dictionary<string, object?> changes, CancellationToken token = default) => (await GetBotAsync(id, token)).Bot.Matches(changes);
     public async Task<Room> CreateRoomAsync(RoomSettings settings, CancellationToken token = default) => (await Api.PostAsync<RoomResponse>("/api/rooms", settings with { Purpose = TextContent.Normalize(settings.Purpose) }, token)).Room;
     public async Task<Room> UpdateRoomAsync(string id, Dictionary<string, object?> changes, CancellationToken token = default) => (await Api.WriteAsync<RoomResponse>(HttpMethod.Patch, new ChatTarget(id, true).Path, changes, token)).Room;

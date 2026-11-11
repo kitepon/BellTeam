@@ -252,6 +252,12 @@ Macの[settings-and-profile「1Password連携」](architecture/modules/apple/set
 
 ### 17. メンバーの状態の行 — M
 
+対応済み（PR 17）：5件ともWindows（WPF）に入れた。画面：[設定の適用：保留](assets/windows-mac-gaps/windows/pr17-member-editor-configuration-pending.png)・[受付済み](assets/windows-mac-gaps/windows/pr17-member-editor-configuration-accepted.png)・[失敗](assets/windows-mac-gaps/windows/pr17-member-editor-configuration-failed.png)、[再起動：待ち](assets/windows-mac-gaps/windows/pr17-restart-in-progress.png)・[成功](assets/windows-mac-gaps/windows/pr17-restart-success.png)、[分身の行](assets/windows-mac-gaps/windows/pr17-fork-badge.png)、[起動できない理由：action付き](assets/windows-mac-gaps/windows/pr17-seat-launch.png)・[codeだけ](assets/windows-mac-gaps/windows/pr17-seat-launch-code.png)。Macの並べた写真（900px幅）：[保留](assets/windows-mac-gaps/mac/apple-parity-batch2-20261110--mac-member-editor-configuration-pending.png)・[受付済み](assets/windows-mac-gaps/mac/apple-parity-batch2-20261110--mac-member-editor-configuration-accepted.png)・[失敗](assets/windows-mac-gaps/mac/apple-parity-batch2-20261110--mac-member-editor-configuration-failed.png)、[再起動：待ち](assets/windows-mac-gaps/mac/apple-parity-batch1-20261110--mac-restart-in-progress.png)・[成功](assets/windows-mac-gaps/mac/apple-parity-batch1-20261110--mac-restart-success.png)、[分身](assets/windows-mac-gaps/mac/apple-fork-label-20261110--mac-fork.png)。Macの「起動できない理由」の写真は参照用の枝に無いので、並べていない（文言はMacのPreviewFixturesの値と同じ）。
+
+- 読み方：`seatLaunch`・`configurationApplication`・メッセージの`seat`は、型の違う値を「無し」として読む専用のコンバーター（`MemberState.cs`）で、名簿・履歴を壊さない。表示の置き場所は`ConversationEntry.SeatLaunchLine`（サイドバーの行）と`Selected.SeatLaunchLine`（会話の上端）、`ModelPicker.ShowConfiguration`（編集の「AI」の最後。開いた時のBotでなく名簿の今の項目を読み、保存後の再取得で書き換わる）、`MessageCard`の時刻の行。
+- 再起動の待ち180秒は`ManagementApi.RestartTimeout`で、`BellApi.PostAsync`の`limit`として渡す（他の要求は従来の30秒）。再起動の状態は、起動したメンバーのものとして`ProfileView`が持つ。
+- Macとの違い：(1) 状態の印は、SF Symbolsでなく`Segoe Fluent Icons`の時計・チェック付き丸・警告（Macの写真は印の追加前に撮られたので、Windowsの写真にだけ印がある）。(2) 分身の印の枝のマークは`arrow.triangle.branch`でなく、描いたY字の線。(3) 会話の上端の行は、Macのナビゲーションバー直下に当たる、上端の帯（高さ52）の直下に置き、背景は半透明の白（Macは`regularMaterial`）。(4) 再起動が時間切れになった時の文は従来の失敗表示のまま（HttpClientの取り消しの文。Macは`localizedDescription`）。
+
 - 起動できない理由（`seatLaunch`）：サイドバーの行の2行目と、会話の上端に赤い1行「端末で起動できません：<action>」（`action`が空なら`code`、両方空なら「端末で起動できません。」。会話の上端は最大3行で折り返す）。`null`・欠落・不正な値は出さず、名簿の読込を壊さない。
 - 設定の適用状態（`configurationApplication`）：既存メンバーの編集の「AI」の最後に、状態の印（時計・チェック・警告）付きの1行。Webの`renderBotConfigurationStatus`と同じ文。
 - モデルの表示名：メンバー編集と「仕事の要約を書くAI」の候補に`display_name`（空ならID）。選ぶ値・保存する値はID。

@@ -25,7 +25,7 @@ flowchart LR
 ```mermaid
 flowchart LR
   subgraph Main[主窓 1280×820・最小1100×640]
-    Sidebar[サイドバー 幅320〜420<br/>BellTeam・＋▾ メンバーを追加/ルームを作成<br/>Updateバッジ（更新がある時だけ）<br/>検索 Ctrl+K<br/>ルーム・メンバーの行: アバター57.6・2行の今の仕事・在席の点・ファスト<br/>予定 Ctrl+2・ゴール Ctrl+3・相関図 Ctrl+4・設定 Ctrl+,<br/>N人オンライン・利用者名]
+    Sidebar[サイドバー 幅320〜420<br/>BellTeam・＋▾ メンバーを追加/ルームを作成<br/>Updateバッジ（更新がある時だけ）<br/>検索 Ctrl+K<br/>ルーム・メンバーの行: アバター57.6・2行の今の仕事・起動できない理由の赤い行（メンバーだけ）・在席の点・ファスト<br/>予定 Ctrl+2・ゴール Ctrl+3・相関図 Ctrl+4・設定 Ctrl+,<br/>N人オンライン・利用者名]
     Detail[詳細の領域]
     Status[接続状態の帯]
   end
@@ -35,8 +35,8 @@ flowchart LR
   Sidebar -->|設定| Settings
   Sidebar -->|相関図 Ctrl+4| WorkGraphWindow[相関図の別窓 題名「相関図」・最小480×360・1つだけ（2回目は前へ出す）<br/>窓が見えている間だけ新着を受け取る・毎フレームの描画<br/>メンバーのクリック・Tabと矢印で選んでEnter・Spaceで本体の窓を前へ出してその会話を開く<br/>線へのホバーで待っている札・ホイールで箱の中の文を送る<br/>読み上げ: メンバーと依頼の要素]
   Sidebar -->|Updateバッジ| UpdateSheet[Updateシート]
-  Detail --> Conversation[会話<br/>帯・吹き出し・受付確認中の仮の吹き出し・配送状態・Bot間の連絡・画像<br/>秘密入力・問い・処理中の帯と止める<br/>返信先・ゴールのカプセル・入力欄]
-  Detail --> Inspector[詳細パネル Ctrl+Shift+I<br/>メンバー: 大画像と小画像・AIと操作・プロフィール・メンバーを編集<br/>ルーム: 共有する仕事・参加メンバー・ルームを編集]
+  Detail --> Conversation[会話<br/>帯・メンバーの起動できない理由の上端の行・吹き出し（分身の印）・受付確認中の仮の吹き出し・配送状態・Bot間の連絡・画像<br/>秘密入力・問い・処理中の帯と止める<br/>返信先・ゴールのカプセル・入力欄]
+  Detail --> Inspector[詳細パネル Ctrl+Shift+I<br/>メンバー: 大画像と小画像・AIと操作（再起動は待つ間「再起動しています…」）・プロフィール・メンバーを編集<br/>ルーム: 共有する仕事・参加メンバー・ルームを編集]
   Inspector --> Screen[Botの画面<br/>1秒ごと・キーバー・許可の帯]
   subgraph Settings[設定 項目一覧300＋ページ]
     S1[プロフィール] --- S2[AIの設定<br/>AIの認証・仕事の要約を書くAI] --- S3[追加機能] --- S4[通知<br/>起動中の通知の切替]
@@ -89,8 +89,8 @@ flowchart LR
     A8[相関図の窓<br/>WorkGraphWindow・WorkGraphCanvas・WorkGraphText<br/>毎フレームの描画・入力・読み上げ。状態は持たない]
   end
   subgraph Core[BellTeam.Core 通信とモデル]
-    C1[Workspace・BellApi<br/>一覧・会話・送信・SSE]
-    C2[ManagementApi<br/>メンバー・ルーム・画像・書き出し・再起動・停止]
+    C1[Workspace・BellApi<br/>一覧・会話・送信・SSE<br/>メンバーのseatLaunch・configurationApplicationと行のseatは寛容に読む（不正な型は無しとして扱い、一覧・履歴を壊さない）]
+    C2[ManagementApi<br/>メンバー・ルーム・画像・書き出し・再起動（待ち180秒）・停止・モデル候補（display_name）]
     C3[ScreenInputModel<br/>キー・許可の送信と確認]
     C4[GoalsApi]
     C5[PlanningApi]
@@ -112,8 +112,8 @@ flowchart LR
   A7 --> C7
   A8 --> C10
   A8 -->|"アバター（既存の画像キャッシュ）"| C1
-  C1 -->|"/api/session・bots・rooms（currentWork）・messages・queue・events"| API[共通入口 HTTP API・SSE]
-  C2 -->|"/api/bots・rooms・avatar・avatar-large・export・restart・stop・models"| API
+  C1 -->|"/api/session・bots（currentWork・seatLaunch・configurationApplication）・rooms・messages（seat）・queue・events"| API[共通入口 HTTP API・SSE]
+  C2 -->|"/api/bots・rooms・avatar・avatar-large・export・restart（応答は新しい席が立ってから。要求の待ちは180秒、再送しない）・stop・models（display_name。選ぶ値と保存する値はid）"| API
   C3 -->|"/api/bots/{id}/screen・screen/key・screen/approval"| API
   C4 -->|"/api/goals・/api/bots/{id}/goal"| API
   C5 -->|"/api/schedules"| API
@@ -127,6 +127,7 @@ flowchart LR
 - 新しいCoreの窓口（`ScreenInputApi`・`GoalsApi`・`SettingsApi`の追加分）は、Mac版が使う同じAPIを呼ぶ。サーバーの変更は要らない。
 - 相関図の窓はWindowsの状態を何も保存しない。描画中の図はWorkGraphModelだけが持ち、窓を閉じたら捨てる。窓を閉じるか最小化している間は新着を受け取らず、開き直すと新しいsnapshotを今の図と突き合わせて動かす。接続が替わる（ログインし直し・接続先の変更）と、その接続の新着へ取り直す。窓は描いている図の接続先（`WorkGraphWindow.Origin`）を持つ。同じ接続先へのつなぎ直しは図を残して新しいsnapshotと突き合わせ、別の接続先になったら図を捨てて空の図から始め、その接続先の最初のsnapshotで埋まる。接続先の違う図のメンバーを押しても会話は開かず、その時点で図を捨てて今の接続先の新着へ取り直す。
 - メンバーを開くと`MainWindow.OpenFromWorkGraphAsync`が、通知と同じ会話の開き方（`OpenConversationAsync`）で本体の窓の会話を開く。相関図の窓は残る。
+- メンバーの状態の行（W-MAC 17）：Coreは`/api/bots`の`seatLaunch`・`configurationApplication`と`messages`の`seat`を、型の違う値を「無し」として読む（`MemberState.cs`）。画面は、サイドバーの行と会話の上端に赤い「端末で起動できません：…」、メンバー編集の「AI」の最後に状態の印付きの1行、時刻の前の「分身」の札を出す。モデル候補は`display_name`（空ならid）を見せ、選ぶ値と保存する値はid。再起動は1回だけ送り、待ちは180秒。新しい状態の保存は無い。
 ### Macの追従で足す部分（2026-11-11、作る前の図）
 
 [差分一覧](windows-mac-parity-gaps.md)の「Macの追従」14〜19の置き場所。各PRがこの図に沿って足し、作り終えたら上の図へ移す。
@@ -139,7 +140,6 @@ flowchart LR
     N4[設定 端末 16a<br/>一覧・詳細・編集・ホスト鍵・鍵の行・理由の文・鍵の導入]
     N5[メンバー編集 端末とフォルダ 16b<br/>フォルダ選びのシート]
     N6[このPCを追加 16c<br/>S1・S2のWindows版。細部はクラストと決める]
-    N7[状態の行 17<br/>起動できない理由・設定の適用・表示名・再起動の待ち・分身]
   end
   subgraph CoreNew[BellTeam.Core]
     W2[SecretRequestApi 14<br/>onepassword-items・submit]
@@ -151,11 +151,9 @@ flowchart LR
   N4 --> N2
   N5 --> W3
   N6 --> W3
-  N7 --> C1x[Workspace・ManagementApi]
   W2 -->|"GET /api/secret-requests/{id}/onepassword-items・POST …/submit"| APIx
   W3 -->|"/api/terminals*（ingress RS09/RS12：一覧・登録・確かめ・trust・keys/{ssh,sudo}・keys/ssh/authorize・folders・folder）"| APIx
   C6x -->|"PATCH /api/settings/onePassword"| APIx
-  C1x -->|"/api/bots（seatLaunch・configurationApplication）・/api/models（display_name）・restart（180秒）・messages（seat）"| APIx
 ```
 
 - 端末と鍵の値はこのPCに置かない。鍵・パスワードは秘密の入力カードから本体へ送るだけで、一般の欄やログへ書かない。

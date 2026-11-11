@@ -16,7 +16,8 @@ public sealed class ModelPicker : Border
     private readonly GroupCard card = new();
     private readonly ComboBox harness, model, effort;
     private readonly TextBox custom;
-    private readonly Border cliRow, modelRow, customRow, effortRow, loadingRow, reasonRow;
+    private readonly Border cliRow, modelRow, customRow, effortRow, loadingRow, reasonRow, configRow;
+    private readonly StackPanel configLine = new() { Orientation = Orientation.Horizontal };
     private readonly CheckBox fast = new() { Content = "ファストモード", FontSize = 13, VerticalContentAlignment = VerticalAlignment.Center };
     private readonly TextBlock reason = Text("", 12, Red);
     private bool updating, loading = true;
@@ -33,8 +34,9 @@ public sealed class ModelPicker : Border
         var customField = Field("モデルID", ""); custom = customField.Box; custom.CharacterCasing = CharacterCasing.Normal;
         var spinner = new StackPanel { Orientation = Orientation.Horizontal }; spinner.Children.Add(new Spinner { Width = 16, Height = 16, Stroke = Muted, Margin = new Thickness(0, 0, 8, 0) }); spinner.Children.Add(Text(EditorText.LoadingModels, 13, Secondary));
         cliRow = Labeled("CLI", harness); modelRow = Labeled("モデル", model); customRow = Row(customField.Element); effortRow = Labeled("エフォート", effort); loadingRow = Row(spinner);
-        var fastRow = Row(fast); var noteRow = Row(Text(EditorText.FastModeNote, 12, Muted)); reasonRow = Row(reason);
-        foreach (var row in new UIElement[] { loadingRow, cliRow, modelRow, customRow, effortRow, fastRow, noteRow, reasonRow }) card.Add(row);
+        var fastRow = Row(fast); var noteRow = Row(Text(EditorText.FastModeNote, 12, Muted)); reasonRow = Row(reason); configRow = Row(configLine);
+        foreach (var row in new UIElement[] { loadingRow, cliRow, modelRow, customRow, effortRow, fastRow, noteRow, reasonRow, configRow }) card.Add(row);
+        card.SetVisible(configRow, false);
         Child = card; CornerRadius = new CornerRadius(10); Background = Brushes.White;
         fast.IsChecked = initial.FastMode; System.Windows.Automation.AutomationProperties.SetName(fast, "ファストモード");
         fast.Checked += (_, _) => { RenderFast(); Edited?.Invoke(); }; fast.Unchecked += (_, _) => { RenderFast(); Edited?.Invoke(); };
@@ -69,7 +71,7 @@ public sealed class ModelPicker : Border
         harness.SelectedValue = selection.Harness;
         var catalog = selection.Catalog.GetValueOrDefault(selection.Harness);
         var options = new List<FormOption> { new("", "CLIの既定") };
-        options.AddRange((catalog?.Models ?? []).Select(choice => new FormOption(choice.Id, choice.Id))); options.Add(new(Custom, "その他"));
+        options.AddRange((catalog?.Models ?? []).Select(choice => new FormOption(choice.Id, choice.Label))); options.Add(new(Custom, "その他"));
         model.ItemsSource = options;
         var known = options.Any(option => option.Id == selection.Model);
         model.SelectedValue = known ? selection.Model : Custom;
@@ -102,6 +104,23 @@ public sealed class ModelPicker : Border
         reason.Text = text ?? ""; reason.Visibility = text is null ? Visibility.Collapsed : Visibility.Visible; card.SetVisible(reasonRow, text is not null);
     }
     public void SetSavedFastMode(bool value) => fast.IsChecked = value;
+    // The last line of the AI section of an existing member (Web renderBotConfigurationStatus, Mac BotEditor), read from the live roster entry.
+    // A new member passes null and gets no line. The icon marks the three recorded states.
+    public void ShowConfiguration(Bot? bot)
+    {
+        configLine.Children.Clear();
+        var text = ConfigurationApplication.Line(bot);
+        card.SetVisible(configRow, text is not null);
+        if (text is null) return;
+        var state = ConfigurationApplication.Marked(bot);
+        var color = state switch { "failed" => Red, "accepted" => Green, _ => Muted };
+        if (state is not null)
+        {
+            var icon = Glyph(state switch { "pending" => "", "accepted" => "", _ => "" }, 12, color); icon.VerticalAlignment = VerticalAlignment.Top; icon.Margin = new Thickness(0, 2, 6, 0);
+            configLine.Children.Add(icon);
+        }
+        configLine.Children.Add(Text(text, 12, color));
+    }
     public BotSettings Apply(BotSettings settings)
     {
         if (CustomSelected && string.IsNullOrWhiteSpace(custom.Text)) throw new ArgumentException(EditorText.FastCustomEmpty);
@@ -184,7 +203,7 @@ public sealed class MemberEditorView : EditorFormView
         // 画像 (a new member only: an existing member's images are changed from the inspector)
         if (id is null) { canEditImages = workspace.Bots.Any(bot => bot.AvatarLargeVersion is not null); if (avatar is not null) avatar.IsEnabled = canEditImages; RenderImages(); Form.Children.Add(Section("画像", imageCard)); }
         // AI
-        models = new ModelPicker(original); models.Edited += edited; ModelLoad = models.LoadAsync(api, Token); InitialLoads.Add(ModelLoad);
+        models = new ModelPicker(original); models.Edited += edited; ModelLoad = models.LoadAsync(api, Token); InitialLoads.Add(ModelLoad); ShowConfiguration();
         Form.Children.Add(Section("AI", models));
         // プロフィール
         var profileCard = new GroupCard();
@@ -205,8 +224,10 @@ public sealed class MemberEditorView : EditorFormView
     {
         if (id is null || IsClosing) return;
         if (!workspace.HasBot(id)) { Close(); return; }
-        RenderDelete(); Lock();
+        RenderDelete(); Lock(); ShowConfiguration();
     }
+    // From the live roster entry, not the one the editor opened with: a save and the "bots" re-read rewrite the line (Mac reads store.bots). A new member has none.
+    private void ShowConfiguration() { if (id is not null && models is not null) models.ShowConfiguration(workspace.Bots.FirstOrDefault(bot => bot.Id == id)); }
 
     // ---- 画像 ----
     private void RenderImages()

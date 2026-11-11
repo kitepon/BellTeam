@@ -50,6 +50,9 @@ public sealed record Bot
     public CurrentWork? CurrentWork { get; init; }
     // The seat's Claude account slot (harness-accounts contract); absent on older servers.
     public SeatAccount? Account { get; init; }
+    // Both are read leniently (MemberState.cs): null, absent and a wrong type are "none" and never break the roster.
+    [JsonConverter(typeof(SeatLaunchReader))] public SeatLaunch? SeatLaunch { get; init; }
+    [JsonConverter(typeof(ConfigurationApplicationReader))] public ConfigurationApplication? ConfigurationApplication { get; init; }
 }
 // The member row's second line. Same wording as the Mac CurrentWork.label and the Web workLabel.
 public sealed record CurrentWork(string? State, string? Summary, string? SummaryStatus)
@@ -87,6 +90,9 @@ public sealed record TimelineMessage
     public JsonElement DeliveryTracking { get; init; }
     public JsonElement Deliveries { get; init; }
     public JsonElement Routing { get; init; }
+    // A row of the read-only fork inquiry: `seat.kind == "fork"`. A seat of another type or kind is a normal row.
+    [JsonConverter(typeof(MessageSeatReader))] public MessageSeat? Seat { get; init; }
+    public bool IsFork => Seat?.Kind == "fork";
     public bool? Image { get; init; }
     [JsonPropertyName("image_count")] public int? ImageCount { get; init; }
     [JsonPropertyName("image_url")] public string? ImageUrl { get; init; }

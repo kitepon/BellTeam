@@ -129,6 +129,26 @@ const goalScenes = {
   ]
 }
 for (const scene of Object.keys(goalScenes)) sceneMessages[`goals-${scene}`] = { 'bot-one': memberScene, 'bot-two': memberScene, 'bot-three': memberScene }
+// Member state scenes (PR 17): the first member carries a configurationApplication record or a seatLaunch notice; the fork scene mixes fork rows with rows that must read as normal.
+// Every route is a GET; the restart states are set through a render seam because the POST is never served.
+const forkScene = [
+  incoming('f1', longAgo, 'いまの進捗を一言で教えて', { seat: { kind: 'fork', fork_id: 'f1' } }),
+  incoming('f2', longAgo, '確認しています。', { seat: { kind: 'fork', fork_id: 'f1' } }),
+  incoming('f3', longAgo, '実装は7割です。残りはテストです。', { seat: { kind: 'fork', fork_id: 'f1' } }),
+  outgoing('f4', longAgo, 'ハルへ: 実装は7割です。', { delivery: 'delivered', seat: { kind: 'fork', fork_id: 'f1' } }),
+  incoming('f5', longAgo, '続けます。'),
+  incoming('f6', longAgo, 'seatが文字列の行（通常の行として表示）', { seat: 'fork' }),
+  incoming('f7', longAgo, '未知のkindの行（通常の行として表示）', { seat: { kind: 'future' } })
+]
+const memberStateBot = {
+  'memberstate-config-pending': { configurationApplication: { state: 'pending' } },
+  'memberstate-config-accepted': { configurationApplication: { state: 'accepted' } },
+  'memberstate-config-failed': { configurationApplication: { state: 'failed', message: '設定変更は反映されませんでした。席が応答しませんでした。保存した設定は、次に席を起こし直した時に使います。' } },
+  'memberstate-seat-launch': { seatLaunch: { code: 'TARGET_MISMATCH', action: 'Macの「システム設定 > 一般 > 共有」で「リモートログイン」をオンにしてください', terminalId: 'owner-macbook', at: '2026-11-10T02:00:00Z' } },
+  'memberstate-seat-launch-code': { seatLaunch: { code: 'TARGET_MISMATCH', action: null, terminalId: 'owner-macbook', at: '2026-11-10T02:00:00Z' } }
+}
+sceneMessages['memberstate-fork'] = { 'bot-one': forkScene }
+sceneMessages['memberstate-seat-launch'] = sceneMessages['memberstate-seat-launch-code'] = { 'bot-one': memberScene }
 let writes = 0
 let gallery = false
 const galleryAssets = { '/api/message-images/demo/one.png': 'ios/BellBot/BellBot/Assets.xcassets/AppIcon.appiconset/bellbot-icon.png', '/api/message-images/demo/two.png': 'docs/assets/mac-ui-reference-48/01-workspace.png', '/api/message-images/demo/three.png': 'docs/assets/conversation-images/iphone-stack.png' }
@@ -210,6 +230,7 @@ const server = createServer((request, response) => {
     if (path === '/api/bots') value = { bots: inspectorBots() }
     else if (botId) { const bot = inspectorBots().find(item => item.id === botId); value = { bot: botId === 'bot-one' ? { ...bot, avatar: dataUrl(icon), avatarLarge: dataUrl(portrait), avatarSource: dataUrl(portrait), avatarLargeSource: dataUrl(portrait), avatarCrop: { x: 0, y: 0, width: 1, height: 1 }, avatarLargeCrop: { x: 0, y: 0, width: 1, height: 1 } } : bot } }
   }
+  if (path === '/api/bots' && memberStateBot[conversationScene]) value = { bots: fixture.bots.map((bot, index) => index === 0 ? { ...bot, ...memberStateBot[conversationScene] } : bot) }
   response.writeHead(value ? 200 : 404, { 'content-type': 'application/json' }); response.end(JSON.stringify(value ?? { error: 'NOT_FOUND' }))
 })
 server.listen(0, '127.0.0.1', async () => {
@@ -230,7 +251,7 @@ server.listen(0, '127.0.0.1', async () => {
       ['09-gallery.png', ['--render-gallery', origin, 'bot-one']]
     ]
     const settingsPages = ['profile', 'ai', 'features', 'notifications', 'connection', 'display', 'billing', 'update', 'about', 'stop']
-    if (process.argv[4] && !['gallery', 'updates', 'settings', 'summary', 'conversation', 'inspector', 'screen', 'goals', 'editors', 'schedules', 'startup', 'polish', 'accounts', 'workgraph'].includes(process.argv[4])) throw new Error('WINDOWS_RENDER_SCENE_UNKNOWN')
+    if (process.argv[4] && !['gallery', 'updates', 'settings', 'summary', 'conversation', 'inspector', 'screen', 'goals', 'editors', 'schedules', 'startup', 'polish', 'accounts', 'workgraph', 'memberstate'].includes(process.argv[4])) throw new Error('WINDOWS_RENDER_SCENE_UNKNOWN')
     // Same three summaries as ios/BellBot/BellBotTests/SummaryLayoutTests.swift.
     if (process.argv[4] === 'summary') ['認証まわりの再試行処理を見直し、通知の表示崩れと画像の読み込み失敗も合わせて直す', 'ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴ', 'abcdefghij'.repeat(8)].forEach((summary, index) => { if (fixture.bots[index]) fixture.bots[index].currentWork = { state: 'working', summary, summaryStatus: 'current' } })
     // [file, scene, conversation id]: each renders the conversation in one named state.
@@ -259,7 +280,12 @@ server.listen(0, '127.0.0.1', async () => {
       ['accounts-old-server.png', ['--render-page', 'settings-ai', origin], 'accounts-old'], ['accounts-member-card.png', ['--render-inspector', 'member', origin, 'bot-one'], 'inspector-account']]
     // [file, render args, mock scene]: the 相関図 window (PR 13b) in three graphs and the empty state; the main window with its new sidebar entry is the plain workspace render.
     const workGraphFrames = [['workgraph-graph.png', ['--render-workgraph', origin], 'workgraph-graph'], ['workgraph-crowded.png', ['--render-workgraph', origin], 'workgraph-crowded'], ['workgraph-empty.png', ['--render-workgraph', origin], 'workgraph-empty'], ['workgraph-sidebar.png', ['--render-url', origin, 'bot-one']]]
-    const selectedFrames = process.argv[4] === 'workgraph' ? workGraphFrames : process.argv[4] === 'accounts' ? accountFrames : process.argv[4] === 'polish' ? polishFrames : process.argv[4] === 'startup' ? startupFrames.map(([name, scene]) => [name, ['--render-startup', scene, origin], `startup-${scene}`]) : process.argv[4] === 'schedules' ? scheduleFrames.map(([name, scene]) => [name, ['--render-schedules', scene, origin], ['empty', 'failed'].includes(scene) ? `schedules-${scene}` : 'schedules-list']) : process.argv[4] === 'editors' ? editorFrames.map(([name, scene, id]) => [name, ['--render-editors', scene, origin, id]]) : process.argv[4] === 'goals' ? goalFrames.map(([name, kind, scene, id]) => [name, kind === 'page' ? ['--render-page', 'goals', origin] : ['--render-goals', kind, origin, id], `goals-${scene}`]) : process.argv[4] === 'screen' ? screenFrames.map(([name, scene]) => [name, ['--render-screen', scene, origin, 'bot-one'], `screen-${scene}`]) : process.argv[4] === 'inspector' ? inspectorFrames.map(([name, scene, id]) => [name, ['--render-inspector', scene, origin, id], `inspector-${scene}`]) : process.argv[4] === 'conversation' ?conversationFrames.map(([name, scene, id]) => [name, ['--render-conversation', scene, origin, id], scene]) : process.argv[4] === 'summary' ? [['summary.png', ['--render-url', origin, 'bot-one']]] : process.argv[4] === 'settings' ? settingsPages.map(page => [`settings-${page}.png`, ['--render-page', `settings-${page}`, origin]]) : process.argv[4] === 'gallery' ? frames.filter(([name]) => name === '09-gallery.png') : process.argv[4] === 'updates' ? [['update.png', ['--render-page', 'updates', origin]], ['update-current.png', ['--render-page', 'updates-current', origin]], ['update-narrow.png', ['--render-page', 'updates-narrow', origin]], ['update-detail-narrow.png', ['--render-page', 'updates-detail-narrow', origin]], ['update-sheet.png', ['--render-page', 'update-sheet', origin]], ['update-waiting.png', ['--render-page', 'updates-current', origin]]] : frames
+    // [file, render args, mock scene]: the member state lines (PR 17). The restart scenes only set a render seam; no request is sent.
+    const memberStateFrames = [['pr17-member-editor-configuration-pending.png', ['--render-editor', 'member', origin, 'bot-one'], 'memberstate-config-pending'], ['pr17-member-editor-configuration-accepted.png', ['--render-editor', 'member', origin, 'bot-one'], 'memberstate-config-accepted'],
+      ['pr17-member-editor-configuration-failed.png', ['--render-editor', 'member', origin, 'bot-one'], 'memberstate-config-failed'], ['pr17-restart-in-progress.png', ['--render-inspector', 'restart-busy', origin, 'bot-one'], 'inspector-restart-busy'],
+      ['pr17-restart-success.png', ['--render-inspector', 'restart-success', origin, 'bot-one'], 'inspector-restart-success'], ['pr17-fork-badge.png', ['--render-conversation', 'fork', origin, 'bot-one'], 'memberstate-fork'],
+      ['pr17-seat-launch.png', ['--render-conversation', 'member', origin, 'bot-one'], 'memberstate-seat-launch'], ['pr17-seat-launch-code.png', ['--render-conversation', 'member', origin, 'bot-one'], 'memberstate-seat-launch-code']]
+    const selectedFrames = process.argv[4] === 'memberstate' ? memberStateFrames : process.argv[4] === 'workgraph' ? workGraphFrames : process.argv[4] === 'accounts' ? accountFrames : process.argv[4] === 'polish' ? polishFrames : process.argv[4] === 'startup' ? startupFrames.map(([name, scene]) => [name, ['--render-startup', scene, origin], `startup-${scene}`]) : process.argv[4] === 'schedules' ? scheduleFrames.map(([name, scene]) => [name, ['--render-schedules', scene, origin], ['empty', 'failed'].includes(scene) ? `schedules-${scene}` : 'schedules-list']) : process.argv[4] === 'editors' ? editorFrames.map(([name, scene, id]) => [name, ['--render-editors', scene, origin, id]]) : process.argv[4] === 'goals' ? goalFrames.map(([name, kind, scene, id]) => [name, kind === 'page' ? ['--render-page', 'goals', origin] : ['--render-goals', kind, origin, id], `goals-${scene}`]) : process.argv[4] === 'screen' ? screenFrames.map(([name, scene]) => [name, ['--render-screen', scene, origin, 'bot-one'], `screen-${scene}`]) : process.argv[4] === 'inspector' ? inspectorFrames.map(([name, scene, id]) => [name, ['--render-inspector', scene, origin, id], `inspector-${scene}`]) : process.argv[4] === 'conversation' ?conversationFrames.map(([name, scene, id]) => [name, ['--render-conversation', scene, origin, id], scene]) : process.argv[4] === 'summary' ? [['summary.png', ['--render-url', origin, 'bot-one']]] : process.argv[4] === 'settings' ? settingsPages.map(page => [`settings-${page}.png`, ['--render-page', `settings-${page}`, origin]]) : process.argv[4] === 'gallery' ? frames.filter(([name]) => name === '09-gallery.png') : process.argv[4] === 'updates' ? [['update.png', ['--render-page', 'updates', origin]], ['update-current.png', ['--render-page', 'updates-current', origin]], ['update-narrow.png', ['--render-page', 'updates-narrow', origin]], ['update-detail-narrow.png', ['--render-page', 'updates-detail-narrow', origin]], ['update-sheet.png', ['--render-page', 'update-sheet', origin]], ['update-waiting.png', ['--render-page', 'updates-current', origin]]] : frames
     for (const [name, args, scene] of selectedFrames) {
       conversationScene = scene ?? 'default'
       if (name === '07-settings-cloudflare.png') routes['/api/session'].authMode = 'cloudflare'

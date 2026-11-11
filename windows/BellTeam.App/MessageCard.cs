@@ -34,10 +34,23 @@ public sealed class MessageCard : ContentControl
     private QuestionCard? question;
     private Border? bubble;
     private string? accentName;
-    private readonly TextBlock delivery = new() { FontSize = 14, Foreground = Muted, Margin = new Thickness(5, 0, 5, 0) };
+    private readonly TextBlock delivery = new() { FontSize = 14, Foreground = Muted, VerticalAlignment = VerticalAlignment.Center };
+    // Mac MessageRow time line: HStack(spacing 6) { ForkSeatBadge, time and status }, padded 5 on both sides.
+    private readonly Border forkBadge = ForkBadge();
+    private readonly StackPanel timeLine = new() { Orientation = Orientation.Horizontal, Margin = new Thickness(5, 0, 5, 0) };
     private bool entered;
+    // 「分身」: a violet capsule with the branch mark (Mac ForkSeatBadge, arrow.triangle.branch). The screen reader reads the text 「分身」.
+    private static Border ForkBadge()
+    {
+        var violet = Frozen(Color.FromRgb(0x61, 0x47, 0xD4));
+        var mark = new System.Windows.Shapes.Path { Data = Geometry.Parse("M6,13 L6,7 L1.5,1.5 M6,7 L10.5,1.5"), Stroke = violet, StrokeThickness = 1.6, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, StrokeLineJoin = PenLineJoin.Round, Width = 12, Height = 14, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 5, 0) };
+        var label = new TextBlock { Text = "分身", FontSize = 14, FontWeight = FontWeights.SemiBold, Foreground = violet, VerticalAlignment = VerticalAlignment.Center };
+        System.Windows.Automation.AutomationProperties.SetName(label, "分身");
+        return new Border { Background = Frozen(Color.FromArgb(191, 0xE8, 0xE0, 0xFF)), CornerRadius = new CornerRadius(99), Padding = new Thickness(8, 2, 8, 2), Margin = new Thickness(0, 0, 6, 0), Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { mark, label } } };
+    }
     public MessageCard()
     {
+        timeLine.Children.Add(forkBadge); timeLine.Children.Add(delivery);
         Loaded += (_, _) =>
         {
             if (entered || Workspace is null || DataContext is not MessageItem item) return;
@@ -127,9 +140,9 @@ public sealed class MessageCard : ContentControl
         stack = new StackPanel { Children = { heading, images, imagePlaceholder, body, replyLabel } };
         bubble = new Border { Child = stack, Padding = new Thickness(16, 12, 16, 12), CornerRadius = new CornerRadius(21), BorderThickness = new Thickness(1) };
         accentName = null;
-        delivery.HorizontalAlignment = outgoing ? HorizontalAlignment.Right : HorizontalAlignment.Left;
-        if (delivery.Parent is Panel previousParent) previousParent.Children.Remove(delivery);
-        var column = new StackPanel { Children = { stackName, stackImages, bubble, delivery } };
+        timeLine.HorizontalAlignment = outgoing ? HorizontalAlignment.Right : HorizontalAlignment.Left;
+        if (timeLine.Parent is Panel previousParent) previousParent.Children.Remove(timeLine);
+        var column = new StackPanel { Children = { stackName, stackImages, bubble, timeLine } };
         // Mac: a room shows the sender's 30 avatar beside incoming rows; the free 45 on the opposite side is the Spacer(minLength: 45).
         layout = new Grid { Margin = outgoing ? new Thickness(45, 0, 0, 0) : new Thickness(0, 0, 45, 0) };
         layout.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); layout.ColumnDefinitions.Add(new ColumnDefinition());
@@ -176,6 +189,10 @@ public sealed class MessageCard : ContentControl
         delivery.Text = string.Join(" · ", new[] { Timeline.ShortTime(message.At, DateTimeOffset.Now), state }.Where(part => part.Length != 0));
         delivery.Foreground = state == "配達失敗" ? Failed : Muted;
         delivery.Visibility = delivery.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
-        if (hasBubble) delivery.Margin = new Thickness(5, 5, 5, 0);
+        // Only a member's own conversation labels fork rows (a room's rows carry no seat).
+        var fork = !isRoom && message.IsFork;
+        forkBadge.Visibility = fork ? Visibility.Visible : Visibility.Collapsed;
+        timeLine.Visibility = delivery.Text.Length == 0 && !fork ? Visibility.Collapsed : Visibility.Visible;
+        timeLine.Margin = new Thickness(5, hasBubble ? 5 : 0, 5, 0);
     }
 }
