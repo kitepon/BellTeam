@@ -39,8 +39,9 @@ const FOLDER_ACTIONS = {
     ? 'Macがこのフォルダを開かせてくれません。デスクトップ・書類・ダウンロードの外を選ぶか、リモートログインの「リモートユーザにフルディスクアクセスを許可」をオンにしてください'
     : `この${label(os)}のユーザーではこのフォルダを開けません。ほかのフォルダを選んでください`
 }
-// The Mac app attests (S2) only an untrusted terminal, so a changed key gets the fingerprint step on every OS (Rapi #1019).
-const trustAction = (target, reason) => target.os === 'macos' && reason === 'HOST_TRUST_MISSING' ? `${target.host} のMacを確かめてください。そのMacでBellTeamアプリを開くと、自動で確かめます`
+// The Mac and Windows apps attest (S2) only an untrusted terminal, so a changed key gets the fingerprint step on every OS (Rapi #1019).
+const APP_ATTESTS = new Set(['macos', 'windows'])
+const trustAction = (target, reason) => APP_ATTESTS.has(target.os) && reason === 'HOST_TRUST_MISSING' ? `${target.host} の${label(target.os)}を確かめてください。その${label(target.os)}でBellTeamアプリを開くと、自動で確かめます`
   : `${target.host} の${label(target.os)}を確かめてください。Webの「端末」でこの端末の指紋を確かめて「この指紋を信用する」を押すと使えます`
 const PROVISION_CODES = new Set(['REMOTE_AITERM_UNAVAILABLE', 'REMOTE_AITERM_TOO_OLD'])
 const CODE = /^[A-Z][A-Z0-9_]{0,63}$/

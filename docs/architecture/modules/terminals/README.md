@@ -282,14 +282,18 @@ stateDiagram-v2
 
 #### Self-service registration and assignment (Trony request 2026-11-10, design)
 
+Windows app added 2026-11-11 (Trony ruling: the Windows app reproduces the Mac app, Anis W-MAC 16c): it adds and attests its own PC through the same S1/S2/S4 routes; differences in the Windows app table below.
+
 Gap found on Apple 1.0.6 (122) and Web (Ziz `owner-steps.md`): a normal user cannot finish without internal knowledge. (1) Remote Login must already be on, unstated. (2) The chosen key's public key must already be in the Mac's `~/.ssh/authorized_keys`. (3) Host trust needs `ssh-keygen -lf` typed in Terminal. (4) The member folder must already exist, unchecked. Found while drawing this: (5) the Mac must already have Aiterm's remote side (`aiterm-mcp` and its runtime), else `REMOTE_AITERM_UNAVAILABLE`; (6) a folder under Desktop/Documents/Downloads is refused to SSH processes by macOS privacy (TCC) unless Remote Login's "full disk access for remote users" is on.
 
 Rule: the Owner finishes with only what the screens offer. No Terminal command, no key file or `op://` knowledge, no hidden precondition. Wrong-target protection stays (Aiterm writes trust only when its own scan equals a fingerprint obtained over an authenticated channel); the person no longer carries the fingerprint by hand. No secret value appears on a screen, in chat or in a terminals field. Key choice stays as ruled (K-R3VC55): pick from 1Password (Mika #836) or paste; no generated key, no pairing command.
 
 ```mermaid
 flowchart LR
-  MacApp[Apple app running on that Mac / Ziz] -->|S1 this-Mac facts: host, user, Remote Login on/off, default folder| Form[Add / edit terminal screen: Ziz, Admi]
+  MacApp[Apple app running on that Mac / Rapi] -->|S1 this-Mac facts: host, user, Remote Login on/off, default folder| Form[Add / edit terminal screen: Rapi, Admi, Anis]
   MacApp -->|S2 attest terminalId + host-key SHA256 read on the Mac itself| H[terminals HTTP]
+  WinApp[Windows app running on that PC / Anis] -->|S1 this-PC facts: host, user, OpenSSH Server listening on/off, default folder| Form
+  WinApp -->|S2 attest terminalId + host-key SHA256 read on the PC itself| H
   Form -->|PUT target| H
   H --> Reg[registry]
   H -->|trust attest| Conn[connection]
@@ -309,7 +313,7 @@ flowchart LR
   A --> Mac[(Registered Mac)]
 ```
 
-Screen flow (one path for Apple and Web; the Apple app on that Mac fills and confirms what it can):
+Screen flow (one path for Apple, Windows and Web; the app on that machine fills and confirms what it can). Everything below written for the Mac app holds for the Windows app on that PC, with the Windows differences in the table after the flows (os `windows`; the Owner text names the OS through `label(os)`):
 
 1. 端末を追加. On that Mac's Apple app, 「このMacを追加」 fills host (primary LAN IPv4), user, port 22, 自分の端末. If Remote Login is off (loopback port 22 refused), the screen says so and offers 「共有設定を開く」 (`x-apple.systempreferences:com.apple.Sharing-Settings.extension`). On Web/iPhone the form states the precondition in one line with the same words.
 2. 保存. The Mac app attests its host key at once (S2). Registered elsewhere, an untrusted terminal's detail says 「このMacでBellTeamアプリを開くと、自動で確かめます」 (only for `HOST_TRUST_MISSING`: S2 attests untrusted terminals only, so a changed key (`HOST_KEY_MISMATCH` / `HOST_TRUST_STALE`) gets the fingerprint step on a Mac too, action 「<host> のMacを確かめてください。Webの「端末」でこの端末の指紋を確かめて…」) and the Mac app offers 「このMacを確かめる」 (one press) for a terminal whose host is one of its own addresses. The manual fingerprint sheet stays only under 「ほかの方法」 for a Mac without the app.
@@ -319,11 +323,21 @@ Screen flow (one path for Apple and Web; the Apple app on that Mac fills and con
 
 | Flow | From -> to | Payload / protection |
 | --- | --- | --- |
-| S1 | Apple app on the Mac -> its own form | Local facts only (IPv4 list, `NSUserName`, loopback TCP 22). Nothing secret. Editable; the server stores only what is saved |
-| S2 | Apple app on the Mac -> `POST /api/terminals/:id/trust {fingerprint}` (Owner session) -> connection -> Aiterm `trust-confirm` | `SHA256:` of the Mac's ed25519 host key, read on the Mac itself (sandbox read of `/etc/ssh/ssh_host_ed25519_key.pub` or a loopback SSH handshake to 127.0.0.1:22, Ziz's choice). Same authority as today's manual sheet. Aiterm scans from the server and writes only on equality, so another machine answering that address gets `HOST_KEY_FINGERPRINT_MISMATCH` (「このアドレスで答えているのは、このMacではありません」) |
+| S1 | Apple app on the Mac (Windows app on the PC: see Windows app row) -> its own form | Local facts only (IPv4 list, `NSUserName`, loopback TCP 22). Nothing secret. Editable; the server stores only what is saved |
+| S2 | Apple app on the Mac, or Windows app on the PC -> `POST /api/terminals/:id/trust {fingerprint}` (Owner session) -> connection -> Aiterm `trust-confirm` | `SHA256:` of the Mac's ed25519 host key, read on the Mac itself (sandbox read of `/etc/ssh/ssh_host_ed25519_key.pub` or a loopback SSH handshake to 127.0.0.1:22, Ziz's choice). Same authority as today's manual sheet. Aiterm scans from the server and writes only on equality, so another machine answering that address gets `HOST_KEY_FINGERPRINT_MISMATCH` (「このアドレスで答えているのは、このMacではありません」) |
 | S3 | check -> Aiterm open / `provision` | Open signature unchanged. Evidence codes passed through as reasons: `CONNECTION_REFUSED` (new, distinct from `UNREACHABLE` timeout), `AUTH_FAILED`. `REMOTE_AITERM_UNAVAILABLE` / `TOO_OLD` -> `aiterm-remote-terminal provision --ref R`: a trusted, key-authenticated SSH bootstrap before any MCP open that installs a product-owned user-local runtime (macOS arm64/x86_64: Node + Aiterm + tmux with libraries; no Homebrew/npm/sudo on the Mac), staged and smoke-tested before activation, running seats and the previous install preserved -> `{schema:"aiterm.remote-provision.v1", ref, result:"PROVISIONED"/"ALREADY_CURRENT", version}`, then one reopen |
 | S4 | App -> `POST /api/terminals/:id/keys/ssh/authorize` -> Mika one-shot request -> terminals `withResolved` once -> Aiterm `authorize-key --ref` stdin | Requires current trust (refused with `HOST_TRUST_MISSING` before any password is asked) and a loaded key. Aiterm reads the password as raw UTF-8 stdin until EOF, uses one password-only attempt against the trusted host (strict binding known_hosts; no keyboard-interactive fallback), appends the public key of the key it holds for that ref when absent (`~/.ssh` 0700, `authorized_keys` 0600) -> `{schema:"aiterm.remote-key-authorization.v1", ref, result:"AUTHORIZED"/"ALREADY_AUTHORIZED"}`; failures exit 2 with `aiterm.remote-binding-error.v1` codes, including `PASSWORD_REJECTED` / `PASSWORD_AUTH_DISABLED` and distinct trust/key/network/write codes. The password is never stored, never in argv or logs; Mika discards it after the single consume |
 | S5 | Members save -> `terminals.folder({terminalId, path, create?})` -> Aiterm `path_status` / `make_dir` | Absolute path on that terminal. Aiterm `remote_terminal_command({op:"path_status"|"make_dir", path})` (absolute only; make_dir = mkdir -p then fresh status) -> `{op, exists, directory, writable}`; EPERM/EACCES (an inaccessible parent included) -> `FOLDER_NOT_PERMITTED`, never "missing". terminals maps to `FOLDER_MISSING` (false/false) / `FOLDER_NOT_DIRECTORY` (true/false) / `FOLDER_NOT_PERMITTED` / `TERMINAL_UNAVAILABLE`. `create` runs only on the Owner's press. An unreachable terminal does not block the save: members saves and marks the folder unchecked; launch keeps `CWD_UNAVAILABLE` as the final guard |
+
+Windows app on that PC (Anis, W-MAC 16c; same routes, no server or Aiterm change):
+
+| Step | Windows app (os `windows`) | Difference from the Mac app |
+| --- | --- | --- |
+| S1 「このPCを追加」 | host = primary LAN IPv4; user = `Environment.UserName` (the local account name OpenSSH logs in with, e.g. `kite_`; a Microsoft-account PC still uses this local name); port 22; os `windows`; 自分の端末 | Domain accounts (`DOMAIN\user`) are not prefilled: the field stays editable and empty, since the SSH user form is the domain admin's choice |
+| S1 server check | Loopback TCP 127.0.0.1:22 refused -> 「OpenSSH サーバーがオンになっていません」 + 「オプション機能を開く」 (`ms-settings:optionalfeatures`), text as `REMOTE_LOGIN.windows` (add OpenSSH Server, start the 「OpenSSH SSH Server」 service) | Loopback success does not prove LAN reach (Windows Firewall); step 4's check is the proof, and its `UNREACHABLE` action names Windows |
+| S2 attest | `SHA256:` of the PC's ed25519 host key, read on the PC itself: `C:\ProgramData\ssh\ssh_host_ed25519_key.pub` or a loopback SSH handshake to 127.0.0.1:22 (Anis's choice) -> `POST /api/terminals/:id/trust {fingerprint}` | Same route, same results table. Another device's detail for an untrusted `windows` terminal says 「<host> のWindowsを確かめてください。そのWindowsでBellTeamアプリを開くと、自動で確かめます」 (only `HOST_TRUST_MISSING`, like the Mac); the app offers 「このPCを確かめる」 for a terminal whose host is one of its own addresses |
+| S4 key authorize | Card 「このPCのログインパスワード（1回だけ使い、保存しません）」; a Microsoft-account PC takes the Microsoft account password (a Windows Hello PIN is not an SSH password) | Aiterm writes an Administrators member's key to `C:\ProgramData\ssh\administrators_authorized_keys`, others to `~\.ssh\authorized_keys` (Windows and Linux terminals row) |
+| Folder | Default `C:\Users\<user>\BellTeam\<member slug>`; the app may use its native folder dialog for 「このPC」 (same `X:\` paths) | No Full Disk Access text (macOS only) |
 
 S2 route (step 3, first part; Ziz builds against it): `POST /api/terminals/:id/trust {fingerprint: "SHA256:<43 base64>"}` (Owner session; any other body field is refused).
 
@@ -337,7 +351,7 @@ S2 route (step 3, first part; Ziz builds against it): `POST /api/terminals/:id/t
 | 409 `TERMINAL_CHANGED` | host/user/port changed meanwhile; attest again |
 | 503 `TERMINAL_UNAVAILABLE` | Aiterm could not bind or scan now (Mac asleep/unreachable once Aiterm reports an empty scan as `UNREACHABLE`); retry later |
 
-No MCP tool: only the app on that Mac can read the fingerprint, so an AI has nothing truthful to pass. `trust-confirm` exit 2 is read as its one JSON line and only `code` is kept (`UNREACHABLE` / `REMOTE_AITERM_UNAVAILABLE` -> 503, anything else -> 409); the existing `PUT confirmHostKey` shares this mapping.
+No MCP tool: only the app on that Mac or PC can read the fingerprint, so an AI has nothing truthful to pass. `trust-confirm` exit 2 is read as its one JSON line and only `code` is kept (`UNREACHABLE` / `REMOTE_AITERM_UNAVAILABLE` -> 503, anything else -> 409); the existing `PUT confirmHostKey` shares this mapping.
 
 Step 3 terminals contracts (rest; built against Elegg's accepted contract and Mika #855, runnable once Elegg's release is live):
 
@@ -410,7 +424,7 @@ flowchart LR
 | Aiterm (Elegg, released in aiterm-mcp 0.70.0) | `remote_terminal_command({op: "list_dirs", path?})` -> `{op, home, path, exists, directory, entries: [{name}] \| null, truncated}`; `home` = the SSH user's home; a missing folder or a file answers `exists` / `directory` false with `entries: null` (-> `FOLDER_MISSING` / `FOLDER_NOT_DIRECTORY`), never an empty list; permission refusals -> `FOLDER_NOT_PERMITTED` as for `path_status`. Needs 0.70.0 on both sides: a terminal on an older Aiterm answers `REMOTE_AITERM_TOO_OLD`, which runs the existing `provision` once (server >= 0.69.0) and reopens |
 | Create | Existing `POST /api/terminals/:id/folder {path: <current>/<name>, create: true}`, then list `<current>` again and select the new folder. The picker refuses an empty name, `/`, `.`, `..` and more than 255 bytes before sending |
 
-Screen rules (Admi Web, Ziz Apple; Windows later):
+Screen rules (Admi Web, Rapi Apple, Anis Windows):
 
 1. フォルダ shows the chosen path read-only with 「フォルダを選ぶ」. Typed input only under 「ほかの方法 > パスを入力」.
 2. The picker opens at the terminal user's home: current path on top, 「上へ」 (hidden at `/`), one row per subfolder (tap opens it), 「このフォルダにする」, 「新しいフォルダ」 (name field + 作る).
@@ -467,6 +481,6 @@ flowchart LR
 | Aiterm remote (Elegg, agreed 2026-11-10) | `serve` runs on the BellTeam side; on the terminal Aiterm runs `aiterm-mcp --private-env-stdin`, the folder/smoke subcommands, `aiterm-wait` and the provision/authorize scripts. **0.70.7 Linux**: portable provision + Linux x64/arm64 assets (same `PROVISION_*` codes), `os`/`platform`/`TERMINAL_OS_MISMATCH`, `claude_*` with the official `install.sh` + `~/.local/bin` PATH fix, `agent_launch` on tmux, R12 seat forward. **0.70.8 Windows** (Windows-specific owner per Root's assignment, Black by Elegg's role line): PowerShell bootstrap/assets, platform detection, native `X:\` paths for folder ops/home/cwd, `install.ps1`, Administrators key to `C:\ProgramData\ssh\administrators_authorized_keys` with its ACL, a Windows keeper for R12. `sudoCredential` is never read by Aiterm on any OS. |
 | Execution (Kiro, agreed 2026-11-10, #970) | Same agent_launch on every OS; reads `target.os` only for the login text (「Windows/Linux/Macのclaudeにログインが必要」, Mac when `os` is absent). |
 | Members (Belorta #966, agreed) | Own form check per the bound terminal's `os` (no import of `paths.mjs`; members is a separately released child), from `terminals.read` -> `{user, os?}` (`os` only when not `macos`); wrong form -> `BOT_PROJECT_ROOT_INVALID` before `terminals.folder`. Default folder: macos `/Users/u/BellTeam/s`, linux `/home/u/BellTeam/s`, windows `C:\\Users\\u\\BellTeam\\s`. Terminals rechecks its full rule at `folder` and at launch. |
-| Web (Admi) / Apple (Rapi) | OS choice at registration; texts from `action`; Apple must decode `os` linux/windows without breaking. |
+| Web (Admi) / Apple (Rapi) / Windows app (Anis) | OS choice at registration; texts from `action`; Apple must decode `os` linux/windows without breaking. The Windows app adds this PC itself and attests its host key ([Self-service registration](#self-service-registration-and-assignment-trony-request-2026-11-10-design)). |
 
 User steps (public, standard Docker/Host): Windows: enable OpenSSH Server and start `sshd` (Automatic); Linux: install `openssh-server`, `systemctl enable --now ssh`. Then in BellTeam Web 端末: add (OS, host, user, port) -> confirm the host key fingerprint -> 「この端末にこの鍵を入れる」 with the login password -> 確かめる -> member: this terminal, folder from 「フォルダを選ぶ」, harness Claude Code. Claude Code itself is installed and kept current by C8; the Owner's account login is supplied by execution's slot (accountOwner owner).
