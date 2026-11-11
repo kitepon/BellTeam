@@ -12,7 +12,7 @@ test('5ハーネスを正規APIで取得し、次の取得では新モデルと�
   let closed = 0
   let generation = 1
   const catalog = new LiveModelCatalog({ cwd: '/run/bellteam', client: () => ({
-    call: async (name, args) => { calls.push({ name, ...args }); return response(args.harness, `model-${generation}`) },
+    call: async (name, args, options) => { calls.push({ name, ...args, options }); return response(args.harness, `model-${generation}`) },
     close: async () => { closed++ },
   }) })
   const first = await catalog.list()
@@ -20,6 +20,8 @@ test('5ハーネスを正規APIで取得し、次の取得では新モデルと�
   assert.deepEqual(first.claude.efforts, ['new-effort'])
   assert.deepEqual(calls.map(call => call.harness).sort(), ['antigravity-cli', 'claude-code', 'codex-cli', 'cursor-cli', 'grok-cli'])
   assert.ok(calls.every(call => call.name === 'agent_models' && call.cwd === '/run/bellteam'))
+  // a04: only the Claude list carries the slot name; other harnesses get no login option.
+  assert.ok(calls.every(call => call.harness === 'claude-code' ? call.options.claudeLogin === '1st' : call.options.claudeLogin === undefined))
   generation = 2
   assert.equal((await catalog.list('codex')).codex.models[0].id, 'model-2')
   assert.equal(calls.length, 6)
