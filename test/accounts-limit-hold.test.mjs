@@ -174,6 +174,19 @@ test('limit end: continued by itself, or a stop after the limit end -> no contin
   assert.ok(transport.accounts.stoppedAt('bot-n102'))
 })
 
+// Production 2026-11-12 06:51 JST: Elegg's later seat (mwcbl0hj) was closed and had no pty_list row, so his old limit row looked
+// like his last turn and he got an unwanted continuation. The registry's accepted-input time is the durable later turn.
+test('limit end: a later input recorded after the limit end, its seat without a row -> no continuation', async t => {
+  const { sent, review, accounts } = await recovery(t, { rows: [
+    row('bot-elegg', '2026-11-11T12:51:33.000Z', END('2026-11-11T12:51:56.000Z', 'cancelled')),
+    row('bot-n102', '2026-11-11T12:53:25.000Z', END('2026-11-11T12:53:29.000Z', 'cancelled')),
+  ] })
+  await accounts.recordInput('bot-elegg')
+  await accounts.load()
+  await review()
+  assert.deepEqual(sent.map(input => input.target), ['bot-n102'], 'only the member with no later input is continued')
+})
+
 // Production 2026-11-12 01:14 JST: the handed-over dc4b63be engine launched a second Elegg seat from its stale registry copy.
 test('limit end: an engine that is not running (handed over) presses nothing and sends nothing', async t => {
   const { sent, review, keyed, transport, switched } = await recovery(t, { rows: [

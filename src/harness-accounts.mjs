@@ -110,7 +110,7 @@ export class HarnessAccounts {
     timers = { set: setTimeout, clear: clearTimeout }, timeZone = process.env.TZ || 'UTC', log = line => process.stderr.write(`${line}\n`) }) {
     Object.assign(this, { home, statePath, seat, readUsage, now, timers, timeZone, log })
     this.labels = new Map()
-    this.state = { schema: SCHEMA, limits: [], seats: {}, logins: {}, signedOut: [], renew: [], stops: {}, resumed: {} }
+    this.state = { schema: SCHEMA, limits: [], seats: {}, logins: {}, signedOut: [], renew: [], stops: {}, resumed: {}, inputs: {} }
     this.listeners = new Set()
     this.resetTimers = new Map()
     this.reread = null
@@ -139,6 +139,7 @@ export class HarnessAccounts {
         renew: (value.renew ?? []).filter(botId => typeof botId === 'string'),
         // A `pending` key (execution dc4b63be / eb8c94a5) is dropped: the continuation is derived from Aiterm's limit end.
         stops: Object.fromEntries(Object.entries(value.stops ?? {}).filter(([, at]) => typeof at === 'string' && Number.isFinite(Date.parse(at)))),
+        inputs: Object.fromEntries(Object.entries(value.inputs ?? {}).filter(([, at]) => typeof at === 'string' && Number.isFinite(Date.parse(at)))),
         resumed: Object.fromEntries(Object.entries(value.resumed ?? {}).filter(([, entry]) => typeof entry?.at === 'string' && Number.isFinite(Date.parse(entry.at))
           && (entry.deliveryId === null || typeof entry.deliveryId === 'string'))),
       }
@@ -201,6 +202,12 @@ export class HarnessAccounts {
   stoppedAt(botId) { return this.state.stops[botId] ?? null }
   setStopped(botId) {
     return this.update(state => ({ ...state, stops: { ...state.stops, [botId]: new Date(this.now()).toISOString() } }))
+  }
+  // harness-accounts.md "later turn, durable": the member's latest input accepted by Aiterm. A limit end before it was followed
+  // by a later turn even when that turn's seat has no pty_list row any more (a closed seat).
+  inputAt(botId) { return this.state.inputs[botId] ?? null }
+  recordInput(botId) {
+    return this.update(state => ({ ...state, inputs: { ...state.inputs, [botId]: new Date(this.now()).toISOString() } }))
   }
   // harness-accounts.md "one continuation": {at, deliveryId|null} per member. The intent (deliveryId null) is written before the
   // send and never suppresses a resend; the delivery that reaches the engine's input boundary first claims it (deliveryId),
