@@ -15,7 +15,7 @@ flowchart LR
   Term -->|terminal, cwd, accountOwner / not_started| Prep
   Prep -->|launchContext| Members[members.launchContext]
   Prep -->|issue botId, sessionName, terminalId| Ingress[ingress.seatCredential]
-  Prep -->|args + terminal, cwd, append_system_prompt, mcp_config; privateEnv names; claudeLogin if Owner terminal| Check[existing checkpoint again: lease, stop version, admission]
+  Prep -->|args + terminal, cwd, append_system_prompt, mcp_config; privateEnv names; claudeLogin (every slot) if Owner terminal| Check[existing checkpoint again: lease, stop version, admission]
   Check --> Launch
   Launch -->|reveal credentialRef inside the launch call| Ingress
   Launch -->|stdin: launch, privateEnvNames, privateEnv| Seat[run-seat-aiterm-launch: env_vars = exactly the names]
@@ -156,7 +156,7 @@ transport.seatLaunch(botId)   (sync project method, like seatAccount)
 
 ## Accounts (Owner rulings 2 and 4 of 13:38)
 
-- `accountOwner === 'owner'`: today's per-model selection; 2nd = `claudeLogin: '2nd'` read by the seat launcher as today, its name added to `privateEnvNames`.
+- `accountOwner === 'owner'`: today's per-model selection; every slot = `claudeLogin: <slot>` read by the seat launcher (one login per slot, `harness-accounts.md` 2026-11-11), `CLAUDE_CODE_OAUTH_TOKEN` added to `privateEnvNames`; the launcher drops that name for a legacy 1st without its token file (the host's own login, until the Owner's first 1st login in the card). No host login is needed otherwise.
 - Otherwise: the terminal's own Claude login; the Owner's slot tokens are never sent.
 - Switch = fresh seat on the other slot on the same terminal and projectRoot, old seat retained (`harness-accounts.md`). Limit detection is unchanged (same receipts).
 

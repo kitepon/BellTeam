@@ -1,9 +1,11 @@
 # Harness accounts: 1st/2nd slots, limit failover and return
 
-Owner: Kiro (execution). Requested by the Owner via Trony, 2026-11-08 20:1x JST. Status: implemented (execution #674). Limit-driven only (Owner ruling 2026-11-09 06:3x JST via Trony): there are no preference rules and no 「Fableを2ndアカウントで使う」 switch.
+Owner: Kiro (execution). Requested by the Owner via Trony, 2026-11-08 20:1x JST. Status: implemented (execution #674); one login per slot designed 2026-11-11 (this revision). Limit-driven only (Owner ruling 2026-11-09 06:3x JST via Trony): there are no preference rules and no 「Fableを2ndアカウントで使う」 switch.
 Scope: Claude only. The shape is keyed by harness, so another harness can add slots later without a new contract; nothing Codex-specific is built.
 
 Names in every UI and contract: 「1stアカウント」 (`slot: '1st'`, primary) and 「2ndアカウント」 (`slot: '2nd'`, fallback). No e-mail address is hard-coded. The Owner logs each slot in once from the app.
+
+One login per slot (Trony request 2026-11-11, Owner: 「何度も何度もログインしてる気がするけど何で？」; the Owner's Google password change signed out the host logins on rabbit and the Mac): a slot's only login is its token file, written by the app card. It serves every seat of that slot in the container and on every Owner terminal, 1st and 2nd alike. No host login is needed. A login can be lost at any time; one new login of that slot in the app is enough for every seat (Signed out and renewal below).
 
 ## Function map
 
@@ -12,9 +14,10 @@ Names in every UI and contract: 「1stアカウント」 (`slot: '1st'`, primary
 | Slot registry: harness × slot → config root, login label, limit state | execution (this doc) | `accounts.list()`, `transport.seatAccount(botId)` |
 | Slot directory preparation (shared history, separate credentials, the 1st root's first-run acknowledgement) | execution | inside `accounts.prepare(harness, slot)`; called before login and before a launch |
 | MCP registration in each slot's `.claude.json` | execution, reusing `mergeMcpConfig` of harness-config | same writer, one more target path per prepared slot |
-| Login per slot | usage (Mika) HarnessAuth → Aiterm `agent_auth` | HarnessAuth `start/input/status/cancel(harness, {slot})`. 1st: the CLI's own login. 2nd: `?slot=2nd` → Aiterm `agent_auth` with `login: "oauth_token"` + `token_file: <2nd root>/oauth-token` (Aiterm ≥ 0.70.20 runs `claude setup-token` and writes that file as the seat user, 0600; #1030). The launch side only reads that file (Login per slot row below) |
+| Login per slot | usage (Mika) HarnessAuth → Aiterm `agent_auth` | HarnessAuth `start/input/status/cancel(harness, {slot})`. Every slot (1st and 2nd): Aiterm `agent_auth` with `login: "oauth_token"` + `token_file` = `accounts.prepare(...).tokenFile` = `$BELLTEAM_HOME/.bellteam-accounts/claude/<slot>/oauth-token` (Aiterm ≥ 0.70.20 runs `claude setup-token` and writes that file as the seat user, 0600; #1030; it accepts only this path form). The launch side only reads that file (Login per slot row below) |
 | Limit detection | execution | wait result (trigger) + usage reading (reset time) |
-| Slot selection at launch / model change | execution | launch option `claudeLogin` (the slot); the seat-side launcher puts that slot's login into the CLI env |
+| Signed-out detection and renewal | execution | wait result `failure.category:'authentication'` (E6) → slot signed out until its token file changes |
+| Slot selection at launch / model change | execution | launch option `claudeLogin` (the slot, every slot, every launch incl. resume and fork); the seat-side launcher puts that slot's token into the CLI env |
 | Failover after a limit, return after reset | execution | existing reconfigure (apply at the next turn boundary) + capacity continuation message |
 | Account-card data and slot-aware login contacts | usage (Mika) | typed auth/account-card data built from `accounts.list()` |
 | Routes, private port injection, SSE, Bot DTO | Molly | `accounts.list` route, `account` in Bot items, SSE topic `settings` |
@@ -26,12 +29,19 @@ Names in every UI and contract: 「1stアカウント」 (`slot: '1st'`, primary
 ```mermaid
 flowchart TD
   Owner[Owner: 設定 → AIの認証 → Claude → 1st/2ndアカウント → ログイン] --> Auth[Mika HarnessAuth slot]
-  Auth -->|configuration_root of slot (login card only; seats use oauth-token)| AitermAuth[Aiterm agent_auth: claude auth login under that root]
-  AitermAuth --> Cred[(slot root/.credentials.json 0600 — written by the official CLI only)]
-  Registry[(execution accounts.json: limit state + seat slots, no secrets)] --> Select
-  Bot[Bot model / harness → model scope; launch or model change] --> Select[Select slot: 1st unless limited for the scope → 2nd → earliest reset]
-  Select -->|claudeLogin: 2nd -> seat launcher puts CLAUDE_CODE_OAUTH_TOKEN in the CLI env; same 1st root| Launch[Aiterm launch]
+  Auth -->|accounts.prepare → tokenFile of slot| AitermAuth[Aiterm agent_auth login:oauth_token: claude setup-token]
+  AitermAuth --> Token[(.bellteam-accounts/claude/slot/oauth-token 0600, seat user — the slot's only login)]
+  Token -->|presence + mtime| LoggedIn[loggedIn: token present and not signed out at this mtime; 1st without token = legacy root login]
+  LoggedIn --> Select
+  Registry[(execution accounts.json: limit state + signed-out slots + seat slots, no secrets)] --> Select
+  Bot[Bot model / harness → model scope; launch or model change] --> Select[Select slot among logged-in slots: 1st unless limited → 2nd → earliest reset; none logged in → 1st]
+  Select -->|claudeLogin: slot -> seat launcher reads that token, CLAUDE_CODE_OAUTH_TOKEN in the CLI env; same 1st root; container and Owner terminals| Launch[Aiterm launch / resume E7]
   Launch --> Seat[Claude seat]
+  Seat --> AuthFail[wait failure.category authentication E6]
+  AuthFail --> SignedOut[mark slot signed out at the token's mtime + seat]
+  SignedOut --> Registry
+  SignedOut --> Failover
+  Token -->|new mtime: a new login, seen by list / 10-min re-read| Renew[clear signed-out entry; its seats get a new seat at next idle boundary]
   Seat --> Wait[wait result rate_limited / failure.category rate_limited, incl. E5 rate_limit API-error records + the seat's limit text]
   Wait --> Parse[parse scope and reset time from the limit text]
   Parse --> Mark[mark slot × scope limited until resetAt]
@@ -49,12 +59,12 @@ flowchart TD
 
 | Item | Place | Notes |
 | --- | --- | --- |
-| 1st slot root | `$BELLTEAM_HOME/.claude` with `CLAUDE_CONFIG_DIR` unset (today's login) | unchanged; no migration |
+| 1st slot root | `$BELLTEAM_HOME/.claude` with `CLAUDE_CONFIG_DIR` unset | the config/history root of every seat; since one login per slot it is not the login of a seat that has a 1st token (its `.credentials.json` stays for the usage reading, the label, and legacy 1st below) |
 | 2nd slot root (login card and usage reading only) | `$BELLTEAM_HOME/.bellteam-accounts/claude/2nd/` (0711; `.bellteam-accounts/` and its `claude/` also 0711) | Used by HarnessAuth `?slot=2nd` and the usage reading under `CLAUDE_CONFIG_DIR` set to this path. Seats never run with it since 2026-11-09 (login-only, Login per slot row); it also holds the seats' `oauth-token`. Owned by the seat user; 0711 lets the engine `lstat` known names inside. |
 | Credentials | `<root>/.credentials.json` (0600) | written and refreshed only by the official CLI. Only the seat-user helper reads the token, for the usage reading; it returns the usage rows only. The token is never logged, never returned, and never put in env or argv |
-| Login per slot | 1st: the CLI's own login in `$BELLTEAM_HOME/.claude/.credentials.json`. 2nd: `$BELLTEAM_HOME/.bellteam-accounts/claude/2nd/oauth-token` (seat user, 0600), a long-lived `claude setup-token` token of the 2nd account, written only by the 2nd login card (function map row) | Only the login passed to the CLI differs (Owner 2026-11-09 09:2x JST, the promise from the start). Every seat runs on the 1st root with the 1st config; a 2nd seat gets `CLAUDE_CODE_OAUTH_TOKEN` in its env and nothing else differs: no `CLAUDE_CONFIG_DIR`, no `configuration_root`, no copy, no links. The token is read only by the seat-side launcher (`run-seat-aiterm-launch.mjs`, seat user) through `accountLoginEnvironment`; the engine passes only the slot name. A missing or malformed token fails that launch (`ACCOUNT_LOGIN_UNAVAILABLE`), never a launch on the 1st login; `loggedIn` for the 2nd is the token file's presence, so selection does not pick the 2nd without it. At rest the token is also in Aiterm's own resume recipe of that seat (seat user, 0600), the same protection as the CLI's credentials file. |
+| Login per slot | `$BELLTEAM_HOME/.bellteam-accounts/claude/<slot>/oauth-token` (seat user, 0600) for every slot (`1st/` and `2nd/`), a long-lived `claude setup-token` token of that slot's account, written only by that slot's login card (function map row). `1st/` holds only this file; it is not a config root | Only the login passed to the CLI differs (Owner 2026-11-09 09:2x JST, the promise from the start). Every seat runs on the 1st root with the 1st config and gets its slot's `CLAUDE_CODE_OAUTH_TOKEN` in its env, in the container and on every Owner terminal (remote-seat private env; a non-Owner terminal keeps its own login, Owner ruling); nothing else differs: no `CLAUDE_CONFIG_DIR`, no `configuration_root`, no copy, no links. The token is read only by the seat-side launcher (`run-seat-aiterm-launch.mjs`, seat user) through `accountLoginEnvironment`; the engine passes only the slot name. A missing or malformed 2nd token fails that launch (`ACCOUNT_LOGIN_UNAVAILABLE`); selection never picks a slot without its token. Legacy 1st: while `1st/oauth-token` does not exist yet, the 1st launches without the variable (the container root's own login; on a terminal the host's own login, as before) and `loggedIn` is the root's `.credentials.json`. It ends with the Owner's first 1st login in the card; nothing else uses it. At rest the token is also in Aiterm's own resume recipe of that seat (seat user, 0600), the same protection as the CLI's credentials file; E7 replaces it at each resume. |
 | 2nd root folder | `$BELLTEAM_HOME/.bellteam-accounts/claude/2nd/` | holds the 2nd `oauth-token`; seats no longer use it as a config root. Its older contents (own `.claude.json`, links from #754, `.credentials.json` of the earlier OAuth login) stay untouched; HarnessAuth/usage may still prepare it, which changes no seat. |
-| Registry | `/srv/bellteam/state/harness-accounts.json`, schema `bellteam.harness-accounts.v1` (a `rules` key from before 2026-11-09 is ignored on load and dropped at the next write) | `{ seats:{botId: slot}, limits:[{harness, slot, scope, since, resetAt|null, resetSource:'message'|'usage'|null, text}] }`; one entry per limited (slot, scope); an absent entry means available. `scope` is `'all'` or a model family (`'fable'`, `'opus'`, `'sonnet'`, `'haiku'`). `text` is the limit line the CLI showed (no secrets). No secrets |
+| Registry | `/srv/bellteam/state/harness-accounts.json`, schema `bellteam.harness-accounts.v1` (a `rules` key from before 2026-11-09 is ignored on load and dropped at the next write) | `{ seats:{botId: slot}, limits:[{harness, slot, scope, since, resetAt|null, resetSource:'message'|'usage'|null, text}], signedOut:[{harness, slot, since, stamp, seats:[botId], text}] }`; one entry per limited (slot, scope); an absent entry means available. `signedOut`: one entry per slot whose token failed authentication; `stamp` = the token file's mtimeMs at the failure; `seats` = the members whose seat failed there and could not move (renewed later). `scope` is `'all'` or a model family (`'fable'`, `'opus'`, `'sonnet'`, `'haiku'`). `text` is the limit line the CLI showed (no secrets). No secrets |
 
 ### Member DELETE closes every seat of the member (Trony ruling 2026-11-11)
 
@@ -69,7 +79,7 @@ The execution engine runs in the parent as the server user (`bellteam-server`, u
 | `prepare` (create the root, chmod 0711, link every 1st entry and the 1st `.claude.json`, move aside what the root made itself; at login and before every launch on that slot) | seat-user helper, op `prepare` |
 | `label` (the e-mail of the slot's own login, from the profile endpoint with that slot's token; the token never leaves the helper) | seat-user helper, op `label`; cached per slot until `.credentials.json`'s mtime changes (a new login) |
 | usage reading (needs the token) | seat-user helper, op `usage`; returns `[{kind, model, percent, resets_at}]` only |
-| `loggedIn` | engine `lstat` (needs only traverse permission: the 1st root is 0755, the 2nd chain is 0711); when the engine cannot traverse `$BELLTEAM_HOME` (an installed home is 0700: `install.sh` runs with umask 077), seat-user helper op `loggedIn`. A check that fails both ways is "not logged in", so selection still returns a slot and never refuses a launch (lab 2026-11-11: every Claude launch failed `BOT_LAUNCH_FAILED` before `agent_launch` on EACCES) |
+| `loggedIn` / token stamp | engine `lstat` of `<slot>/oauth-token` (mtimeMs is the stamp; the chain is 0711; legacy 1st: the root's `.credentials.json`, no stamp); when the engine cannot traverse `$BELLTEAM_HOME` (an installed home is 0700: `install.sh` runs with umask 077), seat-user helper op `stamp` (mtimeMs or null; no content). A check that fails both ways is "not logged in", so selection still returns a slot and never refuses a launch (lab 2026-11-11: every Claude launch failed `BOT_LAUNCH_FAILED` before `agent_launch` on EACCES) |
 | `history` | engine `lstat`; when it cannot see, `shared` (display only) |
 
 Seat-user helper = `seatFiles` in `src/harness-accounts.mjs`, a self-contained function run as `node -e` through the parent's existing seat runner `ports.seat.waitProcess` (sudo seat-exec, uid 1000; the same path the Aiterm wait process uses), and it prints one JSON result. No new parent port and no body swap. Without `ports.seat` (single-user development and tests), the same function runs in the engine's own process.
@@ -104,7 +114,7 @@ A seat's model scope is the first family name found in its model id (`fable`, `o
 
 There is no preference rule: every seat prefers the 1st (Owner ruling 2026-11-09). A family is matched on the Bot's model id or the CLI's bare alias (`fable`, `opus`, `sonnet`, `haiku`; the catalog lists Fable 5.1 as `fable`).
 
-Effective slot = the 1st if it is not limited for the seat's scope. Otherwise it is the 2nd if it is logged in and not limited for that scope not limited for that scope. If every slot is limited for the scope, it is the slot whose matching entry has the earliest `resetAt`, and an unknown reset sorts last. So a Fable-only limit on the 1st moves only Fable seats; Opus and Sonnet seats stay. A launch is never refused for limits: the seat starts, the native CLI shows the limit, and the status surfaces show it plainly.
+Usable slots = the slots that are logged in (token present and not signed out at its current stamp; legacy 1st above). Effective slot = the first usable slot (1st before 2nd) not limited for the seat's scope. If every usable slot is limited for the scope, it is the usable slot whose matching entry has the earliest `resetAt`, and an unknown reset sorts last. If no slot is usable, it is the 1st (the launch then shows the CLI's own login error; the card shows ログイン). So a signed-out 1st never keeps seats while the 2nd is logged in (Trony 2026-11-11). So a Fable-only limit on the 1st moves only Fable seats; Opus and Sonnet seats stay. A launch is never refused for limits: the seat starts, the native CLI shows the limit, and the status surfaces show it plainly.
 
 | Event | Action |
 | --- | --- |
@@ -113,11 +123,20 @@ Effective slot = the 1st if it is not limited for the seat's scope. Otherwise it
 | Seat starting while the 1st is limited for its scope | Launch directly on the effective slot. This holds for every launch, the delivery-bound (execution) launch included. A member whose slot became limited while it was not running already has its new account seat name (switch below), so its next delivery launches that seat on the effective slot instead of waking the old seat. |
 | Model change in place (`agent_configure`, same CLI) | Select again for the new model; if the slot differs, switch at the next idle boundary (`moveAtBoundary`). So a seat changed to Opus while the 1st is limited only for Fable goes back to the 1st, and a seat changed to Fable goes to the 2nd. |
 | An (S, scope) entry ends | Each seat whose effective slot changes because of it (back to the 1st) switches at its next idle boundary. |
+| A seat's turn ends `failure.category:'authentication'` (E6) on S with a token | Record `signedOut` for S at the token's current stamp (one stderr line with the text, never a token). S stops being usable at once: the failed seat moves exactly like a limit (new seat on the effective slot + continuation message) when another slot is usable; otherwise it stays and is added to the entry's `seats`. Other running seats on S move at their next idle boundary (same as a limit). Legacy 1st is not marked (no stamp; today's behaviour until the 1st token exists). |
+| S's token file gets a new stamp (a new login in the card) | The self-exit of `signedOut`: `accounts.list()` (the card's status call reads it) and the 10-minute re-read compare the stamp; a different stamp removes the entry and saves. Its `seats` then get a new seat on their effective slot at the next idle boundary, also when that slot is S (renewal: a running CLI keeps the old env token, so only a new launch reads the new one). Seats that are not running read the new token at their next launch or resume (E7). |
 | Both slots limited for a scope | `accounts.list()` lists that scope in `allLimited:[{scope, earliestResetAt}]`. Mika shows it on the AIの認証 card and in the status banner. Seats keep running as described above. |
 
 The switch starts a new seat; it never stops, hibernates or resumes the old one. The new seat has a new session name, `<botId>-<slot>-<base36 time>`, stored as the Bot's `session` (`updateSession`), and is an ordinary fresh launch (`wakeNow` with that name and `claudeLogin` of the selected slot). Like every fresh launch it gets the Throughline short-term memory of the previous conversation and the Bot's docs, so the work continues; the vendor conversation is a new one, because two CLIs must not write one conversation. A later fresh launch keeps an account seat's name (one that starts with `<botId>-`); any other fresh launch uses the Bot id as before. The old seat keeps its own name and is no longer the Bot's seat: deliveries, stops and observation follow the new name. Aiterm's idle clock hibernates it once its background processes end, so it leaves on its own.
 
 Seat name format (public contract with integration `seat-mcp`, #759): a Bot's seat is `<botId>` or `<botId>-<slot>-<base36>`, slot in `ACCOUNT_SLOTS` (`1st`, `2nd`), base36 `[a-z0-9]+`. The seat's `X-Bellteam-Seat` header is that name (`AITERM_SESSION_ID`); `seat-mcp` resolves the exact name first, then the account form to `<botId>`, and keeps the full name as `launch.session_id`. Any other suffixed name (child seats) stays unresolved. Adding a slot changes the `seat-mcp` pattern in the same release. Without this resolution an account seat has no BellTeam identity (production 2026-11-09 11:5x JST: Trony's and Black's 2nd seats got `BELLTEAM_SEAT_UNRESOLVED` on bellteam and call-bridge).
+
+## Deployment order (one login per slot, cross-cutting, 2026-11-11)
+
+1. Aiterm with E6 and E7, in the body and on every terminal (rabbit, Mac, fox; Elegg). Without E7 a hibernated seat whose recipe lacks the variable gets `AGENT_RESUME_CONFLICT` once the variable is named, and a renewed token would not reach a resumed seat.
+2. Body with the launcher change (`run-seat-aiterm-launch.mjs`: `claudeLogin:'1st'` without a token file adds nothing and drops the name from a terminal's private env names).
+3. Execution module (selection, signed out, `claudeLogin` for every slot, `prepare().tokenFile`), then usage (Mika: token login for the 1st card).
+4. The Owner logs in the 1st once in the card (and the 2nd only if its row shows ログイン). Running seats move to the token login at their next launch or resume; nothing is restarted for it.
 
 ## Deployment order (login-only, cross-cutting)
 
@@ -133,7 +152,8 @@ The link-based `prepare` (execution and usage modules, both ship `src/harness-ac
 | --- | --- |
 | Registry, prepare, selection, limits, timers, re-read, list | `src/harness-accounts.mjs` `HarnessAccounts`, one per execution engine; `load()` at engine initialize re-arms the timers |
 | Limit text parser, model family | `src/claude-limit-text.mjs` |
-| Launch with the selected login, seat slot record | `AitermTransport.wakeNow`, every launch including the execution-bound one: `claudeLogin` in the client options for a non-1st slot (`AitermClient.call` forwards it to the seat launcher, or reads the token itself on the local env path); no `configuration_root` |
+| Launch with the selected login, seat slot record | `AitermTransport.wakeNow`, the resume of a hibernated seat and the fork launch: `claudeLogin` = the seat's slot for every slot (`AitermClient.call` forwards it to the seat launcher, or reads the token itself on the local env path; `RemoteSeats.prepare` for an Owner terminal); no `configuration_root` |
+| Signed out, renewal | `AitermTransport.recordAccountSignedOut` from the delivery completion (`failure.category:'authentication'`, text = `error`) → `HarnessAccounts.recordSignedOut`; stamp check in `list()` and the re-read → `reviewAccounts` renews the entry's seats |
 | Limit signal → registry | `AitermTransport.recordAccountLimit` from the delivery completion (wait outcome `rate_limited` or `failure.category` `rate_limited`; text = `rate_limit` or `error`) |
 | Failover | `CapacityContinuation.continue`: an account switch of the same harness first (`transport.switchAccount` = a new seat on the selected slot, above), then the existing harness switch if the account switch is impossible |
 | Idle-boundary moves and return | `AitermTransport.reviewAccounts` / `moveAtBoundary` on every registry change and after a model change applied in place (`reconfigureNow`); it waits for the member's running turn to end, never stops it, then calls `switchAccount` (a new seat; nothing for Aiterm to refuse) |
@@ -145,7 +165,8 @@ The link-based `prepare` (execution and usage modules, both ship `src/harness-ac
 ## Public interfaces (execution)
 
 - `accounts.list()` → `{ harnesses:[{ harness:'claude', slots:[{ slot:'1st'|'2nd', loggedIn:boolean|null, label:string|null, history:'shared'|'separate', limits:[{scope, since, resetAt|null, resetSource}], seats:[botId] }], allLimited:[{scope, earliestResetAt|null}] }], rules: [] }`. `rules` is always empty (shortcut: kept for clients that still read it; dropped once Web, Apple and Windows remove the switch). An empty `limits` means available for every model. `label` is the e-mail the CLI itself recorded for that root's login (`oauthAccount.emailAddress` in its `.claude.json`); it is display text, not a credential. `seats` lists the Bots whose last launch used that slot (`seats` in the registry, written after each Claude launch).
-- `accounts.prepare(harness, slot)` → `{ configurationRoot }`. It is called by HarnessAuth before a login, and returns the root used for E3.
+- `accounts.prepare(harness, slot)` → `{ configurationRoot, history, tokenFile }`. It is called by HarnessAuth before a login, and returns the root used for E3 and the slot's token file for `agent_auth` `token_file` (an absolute path; HarnessAuth never builds it).
+- `accounts.list()` slot rows also carry `signedOutAt: string|null` (the time the slot's token failed; clients may show 「ログインし直してください」; absent on older engines). `loggedIn` is false while signed out.
 - `transport.seatAccount(botId)` → `{ harness, slot, preferredSlot } | null`; `preferredSlot` is always `'1st'` (same shortcut as `rules`).
 - `accounts.watch(listener)` → unsubscribe; called after every saved registry change (Molly maps it to the SSE type `settings`). Seats that move also appear on the existing `watchQueue` stream.
 - Module: `src/harness-accounts.mjs` (`HarnessAccounts`, `readClaudeUsage`, `preparedAccountRoots`) and `src/claude-limit-text.mjs` (`parseLimitText`, `modelScope`).
@@ -181,6 +202,9 @@ The link-based `prepare` (execution and usage modules, both ship `src/harness-ac
   - E5 (requested 2026-11-09): a Claude transcript record with `isApiErrorMessage:true` and `error:'rate_limit'` (the CLI's own field; seen with `apiError:'model_requires_usage_credits'` and no `apiErrorStatus`) gives `failure.category:'rate_limited'` with its text in `wait.error`, also when Stop fires after it (the turn is not `done`). E4's rate-limit exception covers this record too.
   - E3. `agent_auth` accepts `configuration_root` on `start`. The auth session keeps it, and `respond`, `cancel` or `status` for that session with a different root get `AGENT_CONFIGURATION_ROOT_REJECTED`. `status` returns `account_label`: the `email` field of `claude auth status --json`, or null when not logged in or absent. No tokens anywhere.
   - No reset-time parsing is needed; execution reads it from usage.
+  - E6 (requested 2026-11-11): a Claude API error with `apiErrorStatus` 401, `error:'authentication_failed'`, or the CLI's login line (`Please run /login`, `OAuth token revoked`, `Invalid API key`) gives `failure.category:'authentication'` with its text in `wait.error`, also when Stop fires after it. Elegg confirms the real record shapes.
+  - E7 (requested 2026-11-11): for claude-code, `CLAUDE_CODE_OAUTH_TOKEN` is the login, not a recipe setting. A resume through `agent_launch` (`session_name` of a hibernated seat, with or without `require_existing_resume`) takes that variable's value from the launching Aiterm process env when `env_vars` names it, and stores it in the new recipe; adding or removing only that name is not `AGENT_RESUME_CONFLICT`. Any other env difference still conflicts. Same on a terminal's Aiterm (`remote`).
+- Mika (usage), one login per slot (requested 2026-11-11): HarnessAuth uses the token login for every Claude slot: `login:'oauth_token'`, `token_file: prepared.tokenFile` (1st too; the 1st fallback without `accounts.prepare` keeps today's CLI login). The 「2つ目のアカウント」 wording of `HARNESS_AUTH_LOGIN_UNSUPPORTED` names the slot instead.
 - Mika (usage), agreed 2026-11-08:
   - During an open slot auth session with existing credentials (accounts.list loggedIn=true or the pre-start status authenticated), usage reports waiting (認証中) with the existing account label; blocked means no credentials, and execution seat selection is unchanged.
   - HarnessAuth sessions and receipts are keyed by `(harness, slot)`; no slot means 1st, and non-Claude behavior is unchanged.
@@ -204,6 +228,7 @@ A test member (Claude, Fable) is the subject. No quota is burned on purpose and 
 ## Not covered
 
 - The limit text and the usage endpoint are Claude Code's own output, not a documented API. If a new wording or a changed endpoint gives no time, `resetAt` is null, and the 10-minute re-read plus the successful-turn exit still return the slot. The parser keeps the observed forms above as fixtures.
-- A seat already running on a slot whose credentials the Owner logs out is not moved; its next launch selects again.
+- A token that stops working is seen only when a seat's turn fails (E6); there is no background probe. A slot nobody uses stays shown as logged in until then.
+- The label of a token slot is the root's recorded e-mail (`.credentials.json` login), not the token's account: a setup-token cannot read the profile endpoint (403, user:inference only). Display only.
 - A slot logged in again under running seats (production 2026-11-09 06:04 JST, 1st changed to another account): the running seats kept answering. Which account a running seat bills until its next launch is not observable without reading tokens, so it is unverified.
 - Codex and other harnesses: no slots now. Adding them means one more root kind (`CODEX_HOME`) in `prepare`, E1–E3 for that harness, and its own limit signal.
