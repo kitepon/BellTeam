@@ -140,13 +140,13 @@ export class BellTeamMessenger extends ConversationWriter {
         forkId, deliveryId, ...(executionSource ? { executionSource } : {}),
         queue: { context: 'direct', contextId: bot.id, groupId: deliveryId, from, fromName: asker.name, target: bot.id, message },
         onInterim,
-        onStatus: async (status, error, tracking) => {
+        onStatus: async (status, error, tracking, mark) => {
           const failure = ['failed', 'stopped'].includes(status) && !relayed
             ? `FORK_FAILED: ${error?.reason ?? error?.code ?? error?.message ?? status}` : null
           // The outcome row precedes the failed/stopped status and the relay: every durable boundary still owes the
           // notice, and failed/stopped without it means a refusal before accept (fork-inquiry.md "Owed notice").
           if (failure) await this.appendInterimWords(bot.id, deliveryId, [{ text: failure, kind: 'error' }], { seat })
-          await onStatus(status, error, tracking)
+          await onStatus(status, error, tracking, mark)
           if (failure) await relay(failure)
           if (status === 'delivered') await relay('FORK_FAILED: NO_ANSWER')
         },
@@ -282,7 +282,7 @@ export class BellTeamMessenger extends ConversationWriter {
 
   notificationCallbacks(botId, deliveryId, context) {
     return {
-      onStatus: (status, error, tracking) => this.appendDeliveryStatus(deliveryId, status, error, tracking),
+      onStatus: (status, error, tracking, mark) => this.appendDeliveryStatus(deliveryId, status, error, tracking, mark),
       onInterim: words => this.appendInterimWords(botId, deliveryId, words),
       onAnswer: text => this.appendInterimWords(botId, deliveryId, [{ text, kind: 'answer' }]),
       onTurnEnd: window => this.onTurnEnd({ botId, context, ...window }),
@@ -345,7 +345,7 @@ export class BellTeamMessenger extends ConversationWriter {
         context: 'direct', contextId: target, groupId: deliveryId,
         from: 'user', fromName: 'ユーザー', target, message,
       },
-      onStatus: (status, error, tracking) => this.appendDeliveryStatus(deliveryId, status, error, tracking),
+      onStatus: (status, error, tracking, mark) => this.appendDeliveryStatus(deliveryId, status, error, tracking, mark),
       onInterim: words => this.appendInterimWords(target, deliveryId, words),
     })
   }

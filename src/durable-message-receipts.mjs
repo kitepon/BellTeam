@@ -149,10 +149,10 @@ export class DurableMessageReceipts extends BellTeamMessenger {
           fromName: record.from_identity?.name ?? record.from, target: record.target, message: record.message,
           ...(record.session_id ? { call: { sessionId: record.session_id, event: record.call_event, seq: record.call_seq } } : {}) },
         callbacks: { ...callbacks,
-          onStatus: (status, error, tracking) => {
+          onStatus: (status, error, tracking, mark) => {
             observed ||= ['running', 'steered', 'delivered'].includes(status) || tracking?.admission === 'accepted'
             if (!['running', 'steered', 'delivered', 'failed', 'stopped'].includes(status)) fail('DISPATCH_STATUS_INVALID')
-            return callbacks.onStatus(status, error, tracking)
+            return callbacks.onStatus(status, error, tracking, mark)
           },
           onUserComplete: reply => this.finishUserTurn(prepared, reply),
         },

@@ -176,3 +176,16 @@ Conversation owner: N102. Observation/configuration/launch/send, callback-before
 Data flow: Kiro's actual observation/configuration/launch/send failure → existing failure callback → callback normalization and existing same-generation channel when used → shared deliveryFailureFields → existing direct/room status JSONL at original ID → latest-status selection → closed delivery_error on existing history/UI. Kiro saves the callback before rejecting acceptance. Accepted-but-unknown remains existing deliveryTracking and never becomes proof of no input. No queue, replay, HTTP route, schema family or lifecycle action is added.
 
 Only a new pure normalization/closed-validator assertion runs locally. Kiro's assigned unit covers the full writer/readback once; old tests, peer artifact comparisons and duplicate integrated cases are omitted.
+
+## Steered input stays delivered (Trony ruling 2026-11-12)
+
+An input taken into a running turn ends with final status `delivered`. Its record gains an additive `steered: true`. Execution owner: Kiro. Conversation owner: N102. No client change.
+
+| Function | Input / output | Rule |
+| --- | --- | --- |
+| `delivery.status` callback params (`callbacks.mjs` validate/normalize) | `{delivery, error, tracking, steered?}` | `steered` is optional, only `true`, and only with `delivery:'delivered'`; anything else is refused. Absent means not steered. Normalize keeps it only as `true` |
+| `native.mjs` → `onStatus(delivery, error, tracking, {steered})` | Fourth argument present only when steered | Every pass-through (`messenger` notificationCallbacks and fork onStatus, `direct-receipt-assembly`, `durable-message-receipts`, `room-messenger`) forwards it unchanged |
+| `ConversationWriter.appendDeliveryStatus` / room `room-delivery-status` | Existing `bellteam.delivery-status.v1` / `bellteam.room-delivery-status.v1` row + optional `steered: true` | Written only with `delivered`. Same schema names; old rows simply lack the key. `direct-log-record.mjs` accepts it under the same rule |
+| `ConversationStore` / `RoomHistory` | Latest same-ID status → direct item `steered: true` / room `deliveries[*].steered: true` | Exposed only while the latest status is `delivered` with the key; a later status clears it. Room top level never carries it. `list_messages` and history pages use these items |
+
+Deployment order: the conversation module child accepts the key before any body forwards it. A body built from this source normalizes the callback and validates `direct.log.append` in the parent, so it must not go live before a conversation module from the same or a later source. An older body drops the key in normalize, and nothing changes. Kiro's execution may go live first: today's normalize drops the key.

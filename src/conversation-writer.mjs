@@ -83,12 +83,13 @@ export class ConversationWriter {
     }
   }
 
-  appendDeliveryStatus(deliveryId, delivery, error = null, tracking = null) {
+  appendDeliveryStatus(deliveryId, delivery, error = null, tracking = null, { steered } = {}) {
     const detail = deliveryTracking(delivery, tracking)
     return this.append({
       schema: 'bellteam.delivery-status.v1', delivery_id: deliveryId, at: this.now(), delivery,
       ...this.failureFields(error),
       ...(detail ? { delivery_tracking: detail } : {}),
+      ...(steered === true && delivery === 'delivered' ? { steered: true } : {}),
     })
   }
 }

@@ -87,9 +87,9 @@ export function createDirectReceiptAssembly({ root, bots, assets, legacy, conver
         const summaryAuthority = record.session_id ? null
           : { context: Object.freeze({ actor: Object.freeze(actor), rootMethod: record.from === 'user' ? 'user.post' : 'direct.post' }), assertCurrent: () => true }
         const options = { images, queue, summaryAuthority, ...notificationCallbacks,
-          onStatus(status, error, tracking) {
+          onStatus(status, error, tracking, mark) {
             if (status === 'failed' && error) reportOnce(error, 'status')
-            return notificationCallbacks.onStatus(status, error, tracking)
+            return notificationCallbacks.onStatus(status, error, tracking, mark)
           }, membersLease, admissionCheck: check,
           ...(executionSource ? { executionSource } : {}) }
         if (record.from === 'user') {

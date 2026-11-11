@@ -85,10 +85,11 @@ function project(message, state) {
   return { ...message,
     ...(Array.isArray(message.deliveries) ? { deliveries: message.deliveries.map(item => {
       const status = state.statuses.get(`${message.id}\0${item.target}`) ?? item
-      const { delivery_tracking: _raw, deliveryTracking: _public, delivery_error: _error, ...original } = item
+      const { delivery_tracking: _raw, deliveryTracking: _public, delivery_error: _error, steered: _steered, ...original } = item
       const tracking = deliveryTracking(status.delivery, status.delivery_tracking)
       const error = deliveryError(status.delivery, status.delivery_error)
-      return { ...original, delivery: status.delivery, ...(error ? { delivery_error: error } : {}), ...(tracking ? { deliveryTracking: tracking } : {}) }
+      return { ...original, delivery: status.delivery, ...(error ? { delivery_error: error } : {}), ...(tracking ? { deliveryTracking: tracking } : {}),
+        ...(status.delivery === 'delivered' && status.steered === true ? { steered: true } : {}) }
     }) } : {}),
     routing: state.routing.get(message.id) ?? message.routing }
 }
