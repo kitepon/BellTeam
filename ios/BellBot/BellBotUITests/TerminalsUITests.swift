@@ -935,8 +935,9 @@ final class TerminalsUITests: XCTestCase {
 
     private func launch(_ arguments: [String]) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", server] + arguments
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", server] + fixtureLaunchArguments(server: server) + arguments
         app.launch()
+        allowLocalNetworkAlertIfShown()
         return app
     }
 
@@ -973,8 +974,7 @@ final class TerminalsUITests: XCTestCase {
     }
 
     private func call(_ path: String) async throws -> [String: Any] {
-        let (data, _) = try await URLSession.shared.data(from: try XCTUnwrap(URL(string: server + path)))
-        return try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
+        try await fixtureCall(server: server, path: path)
     }
 }
 

@@ -1068,6 +1068,23 @@ fixtureは起動していない。本体型のimport先は読まず、fixtureが
 | `BELLTEAM_IMAGE_SMOKE_URL` → [conversation-images-server.mjs](../../../../test/helpers/conversation-images-server.mjs) | `/test/reset?mode=fork`でbot-oneの履歴を分身の行（問い合わせ・途中・答え・中継）入りに差し替える（本席の行、`seat`が文字列の行、未知kindの行も含む。Mac/iPhoneの「分身」バッジの目視用で、自動UI試験は無い）。DM3枚・room2枚・旧単画像・URL無し枚数ラベル、PNG/JPEGのGET成功/503、添付POSTの保留/503と要求・診断のproof。起動とMac5件の操作は[PR3手順](#pr3のmac確認の補助試験)、通過結果は[親の確認記録](refactor-progress.md#次の作業)を参照 |
 | `BELLTEAM_ROOM_SMOKE_URL` / `BELLTEAM_INSTALL_SMOKE_URL` | Swift本文の利用route/期待値は確認。対応する独立fixture実装・installerの試験起動手順までは特定していない |
 
+### 実機でのfixture経路（TerminalsUITestsのみ）
+
+実機のXCUITest runnerはローカルネットワークの許可を得られず、LAN宛ての要求が全て`-1009`（Local network prohibited）で失敗する。アプリ本体は通常のforegroundアプリなので、システムの許可を一度出せばLANへ出られる。そこで[FixtureLink.swift](../../../../ios/BellBot/BellBotUITests/FixtureLink.swift)が実機だけ経路を変える。
+
+```text
+runner --HTTP--> 127.0.0.1:47999 --(アプリ内 PreviewFixtureRelay)--> Mac fixture（BELLTEAM_TERMINALS_FIXTURE_URL）
+```
+
+| 項目 | 内容 |
+| --- | --- |
+| [PreviewFixtureRelay.swift](../../../../ios/BellBot/BellBot/Core/PreviewFixtureRelay.swift) | DEBUGのみ。`-bellbot-preview-server`と`-bellbot-fixture-relay <port>`の両方がある時、`preparePreview()`から一度だけloopbackにNWListenerを立て、受けた接続ごとにfixtureのhost/portへNWConnectionを張って双方向にバイトを流す。どちらかが閉じれば両方閉じる |
+| `fixtureLaunchArguments(server:)` | 実機は`-bellbot-fixture-relay 47999`、Simulatorは空 |
+| `fixtureCall(server:path:)` | Simulatorは従来どおり`server + path`へ直接GET。実機は`127.0.0.1:47999`へGETし、拒否されたらアプリをpreview引数付きで起動して0.5秒間隔・最長20秒再試行する |
+| `allowLocalNetworkAlertIfShown()` | SpringBoardのシステム警告から「許可」/Allow/OKを押す。起動直後と再試行の各回で呼ぶ |
+
+TerminalsUITestsの`call(_:)`は`fixtureCall`へ委譲し、`launch(_:)`は`fixtureLaunchArguments`を足して起動後に許可警告を処理する。他のUI試験は未変換で、Simulatorの経路は変わらない。
+
 ### 単体試験内のfixtureと構成
 
 | 補助型・構成 | 対象と後始末 |
