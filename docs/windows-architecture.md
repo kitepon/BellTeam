@@ -25,7 +25,7 @@ flowchart LR
 ```mermaid
 flowchart LR
   subgraph Main[主窓 1280×820・最小1100×640]
-    Sidebar[サイドバー 幅320〜420<br/>BellTeam・＋▾ メンバーを追加/ルームを作成<br/>Updateバッジ（更新がある時だけ）<br/>検索 Ctrl+K<br/>ルーム・メンバーの行: アバター57.6・2行の今の仕事・起動できない理由の赤い行（メンバーだけ）・在席の点・ファスト<br/>予定 Ctrl+2・ゴール Ctrl+3・相関図 Ctrl+4・設定 Ctrl+,<br/>N人オンライン・利用者名]
+    Sidebar[サイドバー 幅320〜420<br/>BellTeam・＋▾ メンバーを追加/ルームを作成<br/>Updateバッジ（更新がある時だけ）<br/>検索 Ctrl+K<br/>ルーム・メンバーの行: アバター57.6・2行の今の仕事・起動できない理由の赤い行（メンバーだけ）・在席の点・ファスト<br/>予定 Ctrl+2・ゴール Ctrl+3・相関図 Ctrl+4・工程表 Ctrl+5・設定 Ctrl+,<br/>N人オンライン・利用者名]
     Detail[詳細の領域]
     Status[接続状態の帯]
   end
@@ -34,6 +34,7 @@ flowchart LR
   Sidebar -->|ゴール| Goals[ゴールのページ]
   Sidebar -->|設定| Settings
   Sidebar -->|相関図 Ctrl+4| WorkGraphWindow[相関図の別窓 題名「相関図」・最小480×360・1つだけ（2回目は前へ出す）<br/>窓が見えている間だけ新着を受け取る・毎フレームの描画<br/>メンバーのクリック・Tabと矢印で選んでEnter・Spaceで本体の窓を前へ出してその会話を開く<br/>線へのホバーで待っている札・ホイールで箱の中の文を送る<br/>読み上げ: メンバーと依頼の要素]
+  Sidebar -->|工程表 Ctrl+5| LatticeWindow[工程表の別窓 題名「工程表」1360×860・最小900×600・1つだけ・Windows 11ではMica<br/>一覧（統括をピン留め・進み具合の輪・動いているメンバー・待ちN・新しい工程表の説明）→ 工程表（1枚だけなら一覧を飛ばす）<br/>上の帯（切り替え→一覧・ライブ・進み具合・作業中/待ち/止まり）・帯（未検証・最後の確認＋統括と話す）・左のメンバーの列（押すと強調）<br/>担当ごとのレーン×depthの列・待ちの辺の粒と札・右の待ちの流れ（会話を開く・工程へ移動）・札から育つ詳細（Esc）<br/>窓が見えている間だけ読む。失敗の表示はscreen-specの表のまま]
   Sidebar -->|Updateバッジ| UpdateSheet[Updateシート]
   Detail --> Conversation[会話<br/>帯・メンバーの起動できない理由の上端の行・吹き出し（分身の印）・受付確認中の仮の吹き出し・配送状態・Bot間の連絡・画像<br/>秘密入力・問い・処理中の帯と止める<br/>返信先・ゴールのカプセル・入力欄]
   Detail --> Inspector[詳細パネル Ctrl+Shift+I<br/>メンバー: 大画像と小画像・AIと操作（再起動は待つ間「再起動しています…」）・プロフィール・メンバーを編集<br/>ルーム: 共有する仕事・参加メンバー・ルームを編集]
@@ -91,6 +92,7 @@ flowchart LR
     A6[設定の各ページ]
     A7[Update]
     A8[相関図の窓<br/>WorkGraphWindow・WorkGraphCanvas・WorkGraphText<br/>毎フレームの描画・入力・読み上げ。状態は持たない]
+    A12[工程表の窓<br/>LatticeWindow・LatticeChartPage・LatticeBoard・LatticeViews<br/>描画・入力・読み上げ・動き。図の状態はLatticeChartFeedが持つ<br/>LatticeFixtureは--render-latticeの描画用の模擬サーバー（本番では使わない）]
     A9[秘密の入力の窓 14<br/>SecretInputWindow（会話のカードから開くモーダル）<br/>1Passwordから選ぶ・読み出す / ここに入力する・貼り付ける<br/>一回だけの値（1Passwordを出さない・ログインは「パスワードを渡す」、ほかは「渡して続ける」）・検索欄・一覧<br/>欄は送信・閉じる・窓が非アクティブで消す]
     A10[設定の「端末」 16a・16c<br/>TerminalListView・TerminalDetailView・TerminalEditorView・HostKeyView<br/>描くだけ。状態はTerminalsModelが持つ<br/>16c：追加の「このPCを追加」、詳細の「このPCを確かめる」「オプション機能を開く」（ms-settings:optionalfeatures）]
     A11[メンバー編集の「端末とフォルダ」 16b<br/>MemberTerminalSection（動かす場所・フォルダの読み取り専用の表示・畳んだ「ほかの方法」の中の「パスを入力」・組の問題）<br/>FolderPickerView（編集の窓または追加のシートの中に重ねる。主窓のシートは使わない）<br/>保存の拒否の文と、FOLDER_MISSINGだけの「このフォルダを作って保存」はMemberEditorView]
@@ -104,6 +106,7 @@ flowchart LR
     C6[SettingsApi<br/>所有者・規範・追加機能（guide・connectionは寛容に読む）・AIの認証・仕事の要約・全体停止]
     C9[HarnessAccountsApi<br/>Claudeの1st・2ndアカウントの一覧]
     C10[WorkGraphModel・WorkGraphSimulation<br/>相関図の図の状態・シミュレーション・札の置き場所・入れ替え・clearance・当たり判定<br/>永続状態なし。文字の測り方は画面から受け取る]
+    C14[LatticeChart・LatticeChartFeed・LatticeApi<br/>工程表の計算（web/lattice-chart-model.jsの移植：名前・レーン・待ちの文・詳細・帯・粒・差分）<br/>開いている工程表1枚の最後のsnapshotと接続の状態。永続状態なし]
     C7[UpdateCenter]
     C8[LocalSettings<br/>接続先・窓・通知・会話の開き方・要求ID]
     C11[SecretRequestApi・SecretInputModel 14<br/>inputOptions・oneTimeは寛容に読む（型違いは無し）<br/>onepassword-items（404は旧本体）・検索と絞り込み・文言・送信の本文]
@@ -122,6 +125,9 @@ flowchart LR
   A6 --> C8
   A7 --> C7
   A8 --> C10
+  A12 --> C14
+  A12 -->|"アバター（既存の画像キャッシュ）・名簿の名前（作った人の工程表）"| C1
+  A12 -->|"会話を開く・統括と話す（MainWindow.OpenFromLatticeAsync）"| A2
   A2 -->|"秘密のカード「安全な入力欄を開く」"| A9
   A9 --> C11
   A6 --> A10
@@ -143,6 +149,7 @@ flowchart LR
   C7 -->|"/api/updates・plans・operations"| API
   C9 -->|"GET /api/accounts（404は旧本体。上限だけで席のアカウントが決まり、設定する規則は無い）"| API
   C10 -->|"GET /api/work-graph/events（BellApi.WorkGraphEventsAsync。snapshot・changeの名前付きイベント。35秒無音・切断・読めない応答は再接続、404は60秒ごとに確かめ直す、ログインが必要なら止まる）"| API
+  C14 -->|"GET /api/lattice/charts（開いている間10秒ごと。404は旧本体）・GET /api/lattice/charts/{id}/events（BellApi.EventStreamAsync。snapshotごとに置き換え。35秒無音・切断・503は図を残して1, 2, 4 … 30秒で再接続し続ける、404はLATTICE_CHART_NOT_FOUNDなら見つからない・それ以外は旧本体で60秒ごとに確かめ直す、ログインが必要なら止まる）"| API
   C11 -->|"GET /api/secret-requests/{id}/onepassword-items（{items:[{title,vault,reference}]}。404は旧本体で入力欄だけ）・POST …/submit（{value}か{source:onepassword,reference}。op://で始まらない参照は送らない）・POST …/cancel（{}）。値は専用POSTだけで、一般の欄・ログ・例外へ出さない"| API
   C12 -->|"GET /api/terminals（404・405は旧本体、503 TERMINALS_UNAVAILABLEは失敗で前の一覧は残す）・GET・PUT・DELETE /api/terminals/{id}（PUTは登録・編集とconfirmHostKey）・POST …/check・POST・DELETE …/keys/{ssh,sudo}（本文は空）・POST …/keys/ssh/authorize（本文は空）・GET …/folders[?path=]（pathなしは端末のユーザーのホーム。読むだけ。404はTERMINAL_NOT_FOUND以外・405が旧本体）・POST …/folder（{path, create:true}。1回だけ）・POST …/trust（本文は{fingerprint}だけ。16c）。書き込みは自動で再送しない"| API
 ```
@@ -150,6 +157,7 @@ flowchart LR
 - 状態の所有：会話・メンバー・予定・ゴール・追加機能・全体停止など本体の状態は、共通入口のAPIだけで読み書きする。Windowsが持つのは、このPCの設定（接続先・窓・起動中の通知・会話の開き方・Updateの要求ID）とログイン情報だけ。
 - 新しいCoreの窓口（`ScreenInputApi`・`GoalsApi`・`SettingsApi`の追加分）は、Mac版が使う同じAPIを呼ぶ。サーバーの変更は要らない。
 - 相関図の窓はWindowsの状態を何も保存しない。描画中の図はWorkGraphModelだけが持ち、窓を閉じたら捨てる。窓を閉じるか最小化している間は新着を受け取らず、開き直すと新しいsnapshotを今の図と突き合わせて動かす。接続が替わる（ログインし直し・接続先の変更）と、その接続の新着へ取り直す。窓は描いている図の接続先（`WorkGraphWindow.Origin`）を持つ。同じ接続先へのつなぎ直しは図を残して新しいsnapshotと突き合わせ、別の接続先になったら図を捨てて空の図から始め、その接続先の最初のsnapshotで埋まる。接続先の違う図のメンバーを押しても会話は開かず、その時点で図を捨てて今の接続先の新着へ取り直す。
+- 工程表の窓（[lattice screen-spec](architecture/modules/lattice/screen-spec.md)）はWindowsの状態を何も保存しない。一覧は`LatticeWindow`、開いた1枚の最後のsnapshotと接続は`LatticeChartFeed`だけが持ち、窓を閉じる・最小化する・一覧へ戻ると読むのを止める。接続先が替わると一覧から始め直す。画面の文字と読み上げに`projectId`・Bot ID・符号・パスを出さない（工程表の名前は`LatticeChart.ChartName`）。王冠と「統括」は`coordinator: true`の工程表だけ。名簿にない担当は「?」と「名簿にないメンバー」で、会話を開くは押せない。動きを減らす設定（Windowsのアニメーション効果オフ）では粒・回転・脈・花を出さない。色はライトだけ（アプリ全体と同じ）。
 - メンバーを開くと`MainWindow.OpenFromWorkGraphAsync`が、通知と同じ会話の開き方（`OpenConversationAsync`）で本体の窓の会話を開く。相関図の窓は残る。
 - メンバーの状態の行（W-MAC 17）：Coreは`/api/bots`の`seatLaunch`・`configurationApplication`と`messages`の`seat`を、型の違う値を「無し」として読む（`MemberState.cs`）。画面は、サイドバーの行と会話の上端に赤い「端末で起動できません：…」、メンバー編集の「AI」の最後に状態の印付きの1行、時刻の前の「分身」の札を出す。モデル候補は`display_name`（空ならid）を見せ、選ぶ値と保存する値はid。再起動は1回だけ送り、待ちは180秒。新しい状態の保存は無い。
 - 1Password連携の設定（W-MAC 15）：追加機能の一覧の`onePassword`行に状態のバッジ（連携中・未連携・失敗）と平易な失敗の文を出し、開くと専用のページ（`SettingsOnePassword.cs`）になる。状態・結果の一行・`ops_`の検査・https限定の案内リンクはCoreの`OnePassword.cs`。`guide`・`connection`は型の違う値を「無し」として読み、旧本体・崩れた本体でも一覧を壊さない（`onePassword`項目が無ければ何も足さない）。tokenは`PasswordBox`で、保存後も戻さず、ページを離れる・窓が非アクティブになる時に消す。保存は`PATCH /api/settings/onePassword`を1回だけ送り（自動再送なし）、応答の`setting`だけで結果の一行を決め、成功後に一覧を読み直してバッジを更新する。

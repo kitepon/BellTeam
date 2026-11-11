@@ -51,8 +51,8 @@ public static class UiChecks {
     window.ShowSettings(); await window.PageReady; await Layout();
     Check(((FrameworkElement)window.FindName("PageArea")).Visibility == Visibility.Visible,"設定から勝手に会話へ戻りました。");
     // 相関図 (W-MAC 13b): the sidebar entry sits between ゴール and 設定 like the Mac footer, and opening it twice shows one window.
-    var footerLeft = new[] { "SchedulesNav", "GoalsNav", "WorkGraphNav", "SettingsNav" }.Select(name => ((FrameworkElement)window.FindName(name)).TranslatePoint(new Point(), root).X).ToArray();
-    Check(footerLeft.SequenceEqual(footerLeft.Order()) && footerLeft.Distinct().Count() == 4 && ((Button)window.FindName("WorkGraphNav")).IsEnabled,"相関図の入口が予定・ゴール・相関図・設定の順に並びません。");
+    var footerLeft = new[] { "SchedulesNav", "GoalsNav", "WorkGraphNav", "LatticeNav", "SettingsNav" }.Select(name => ((FrameworkElement)window.FindName(name)).TranslatePoint(new Point(), root).X).ToArray();
+    Check(footerLeft.SequenceEqual(footerLeft.Order()) && footerLeft.Distinct().Count() == 5 && ((Button)window.FindName("WorkGraphNav")).IsEnabled && ((Button)window.FindName("LatticeNav")).IsEnabled,"相関図・工程表の入口が予定・ゴール・相関図・工程表・設定の順に並びません。");
     var graphWindow = window.ShowWorkGraph(); Check(graphWindow is { Title: "相関図" } && ReferenceEquals(graphWindow,window.ShowWorkGraph()),"相関図を2回開くと窓が2つになります。");
     graphWindow!.Close(); Check(WorkGraphWindow.Current is null,"閉じた相関図の窓が残っています。");
     var page = (EditorWindow)typeof(MainWindow).GetField("page",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(window)!;
