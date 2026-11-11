@@ -117,12 +117,14 @@ export class CapacityContinuation {
   }
 
   // The account recovery's one message to a member whose limited turn moves to a free slot (harness-accounts.md).
-  async resume(bot, { slot, deliveryId = null }) {
+  async resume(bot, { slot, deliveryId = null, limitEnd = null }) {
     const check = () => { if (this.closed) throw superseded(); this.assertEnabled() }
     check()
     const message = `利用上限かログイン切れで止まっていた前の処理を、同じAIの${slot}アカウントの席で続けてください。前の会話は短期記憶と手順書で引き継いでいます。` +
       (deliveryId ? `元の依頼は保存された会話履歴のdelivery_id=${deliveryId}です。` : '') +
-      '前の処理で実行済みの操作や結果不明の副作用を確認し、元の依頼本文や完了済みの操作を繰り返さずに続けてください。'
+      '前の処理で実行済みの操作や結果不明の副作用を確認し、元の依頼本文や完了済みの操作を繰り返さずに続けてください。' +
+      // harness-accounts.md "one continuation": the engine's input boundary admits one delivery per limit end by this key.
+      (limitEnd ? continuationKey(limitEnd) : '')
     const result = await this.messenger.sendmessage({ from: 'scheduler', target: bot.id, message }, { admissionCheck: check })
     // A failure of this message continues the same chain (failed() matches its delivery id).
     const state = this.states.get(bot.id)
@@ -135,3 +137,7 @@ export class CapacityContinuation {
     return Promise.allSettled([...this.pending])
   }
 }
+
+// The limit end a continuation answers, as its message carries it (harness-accounts.md "one continuation").
+export const continuationKey = at => `（継続キー: ${at}）`
+export const continuationKeyOf = text => /（継続キー: (\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z)）/u.exec(String(text ?? ''))?.[1] ?? null

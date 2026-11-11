@@ -62,7 +62,7 @@ function aiterm(rows) {
     }
     throw Error(`unexpected ${name}`)
   } }
-  return { client, calls, keys }
+  return { client, calls, keys, rows }
 }
 
 const END = (at, hold = 'armed', continued = false) => ({ at, reset_at: '2026-11-11T19:00:00.000Z', continued, hold })
@@ -78,13 +78,27 @@ async function recovery(t, { limited = ['2nd'], rows }) {
     ['bot-n102', { id: 'bot-n102', session: 'bot-n102-1st-new', harness: 'claude', model: 'opus' }],
   ])
   await accounts.setSeat('bot-elegg', '2nd'); await accounts.setSeat('bot-n102', '1st')
-  const { client, calls, keys } = aiterm(new Map(rows))
+  const { client, calls, keys, rows: listed } = aiterm(new Map(rows))
   const transport = new AitermTransport({ client, accounts, resolveBot: id => bots.get(id) })
   transport.holdReleasePollMs = 1
-  const switched = [], sent = []
+  const switched = [], sent = [], hooks = { refuse: 0, input: true }
+  let deliveries = 0, clock = Date.UTC(2026, 10, 11, 16, 20)
   transport.switchAccount = async bot => { switched.push(bot.id); await accounts.setSeat(bot.id, '1st') }
+  // The parent's direct delivery reaches the engine's input boundary (transport.claimContinuation) before any input; `sent`
+  // lists what passed it. With hooks.input the seat records the input, as Aiterm does at pty_send.
+  const deliver = async (input, id) => {
+    await transport.claimContinuation(bots.get(input.target), input.message, { from: input.from, groupId: id })
+    sent.push({ ...input, id })
+    if (hooks.input) listed.set(`${input.target}-cont-${id}`, { session_id: `${input.target}-1st-${id}`, last_input_at: new Date(clock += 1000).toISOString(), limit_end: null })
+  }
   const continuation = new CapacityContinuation({ bots, accounts, transport, assertEnabled: () => {},
-    messenger: { sendmessage: async (input, options) => { options.admissionCheck(); sent.push(input); return { delivery_id: `d-${sent.length}` } } } })
+    messenger: { sendmessage: async (input, options) => {
+      options.admissionCheck()
+      const id = `d-${++deliveries}`
+      if (hooks.refuse > 0) { hooks.refuse--; throw Object.assign(Error('PREFLIGHT_REFUSED'), { effect: 'not_started' }) }
+      await deliver(input, id)
+      return { delivery_id: id }
+    } } })
   transport.continuation = continuation
   // Settled: no move running, and the registry writes and reviews they caused are done.
   const review = async () => {
@@ -95,7 +109,7 @@ async function recovery(t, { limited = ['2nd'], rows }) {
     } while (transport.accountMoves.size)
   }
   const keyed = () => calls.filter(([name]) => name === 'pty_key').map(([, args]) => [args.session_id, args.key])
-  return { accounts, calls, keys, transport, switched, sent, review, keyed }
+  return { accounts, calls, keys, transport, switched, sent, review, keyed, hooks, deliver, bots }
 }
 
 // Production 2026-11-12 01:14 JST after eb8c94a5: N102's hold was cancelled (no continuation); Elegg already continued on a new seat.
@@ -109,7 +123,8 @@ test('limit end: an un-continued last turn gets exactly one continuation; a cont
   assert.deepEqual(keyed(), [], 'no armed hold: nothing pressed')
   assert.deepEqual(sent.map(input => [input.target, input.from]), [['bot-n102', 'scheduler']])
   assert.equal(switched.includes('bot-n102'), false, 'N102 is recorded on the free 1st: its delivery launches the 1st seat')
-  // Before Aiterm records the continuation's input, a later review (or the next engine) must not send it again.
+  assert.match(sent[0].message, /（継続キー: 2026-11-11T12:53:29.000Z）/u)
+  // The continuation's input is the member's newer last turn: a later review (or the next engine) sends nothing.
   await accounts.load()
   await review()
   assert.equal(sent.length, 1)
@@ -188,4 +203,59 @@ test('registry: a pending key from dc4b63be / eb8c94a5 is dropped on load', asyn
   await accounts.load()
   assert.equal(accounts.state.pending, undefined)
   assert.equal(accounts.seatSlot('bot-n102'), '1st')
+})
+
+// Epinel #1100 (1): an intent never suppresses the send; only a claim at the input boundary does, and only while it is live.
+test('one continuation: an intent left by a crash or a quiesce before the send -> the next engine sends it once', async t => {
+  const { sent, review, accounts } = await recovery(t, { rows: [row('bot-n102', '2026-11-11T12:53:25.000Z', END('2026-11-11T12:53:29.000Z', 'cancelled'))] })
+  await accounts.intendResume('bot-n102', '2026-11-11T12:53:29.000Z')
+  await accounts.load()
+  await review(); await review()
+  assert.deepEqual(sent.map(input => input.target), ['bot-n102'])
+})
+
+test('one continuation: a preflight refusal (not started) consumes nothing; the next review sends it once', async t => {
+  const { sent, review, hooks, accounts } = await recovery(t, { rows: [row('bot-n102', '2026-11-11T12:53:25.000Z', END('2026-11-11T12:53:29.000Z', 'cancelled'))] })
+  hooks.refuse = 1
+  await review()
+  // d-1 was refused before any record; the review its intent write caused sent d-2, which claimed the limit end.
+  assert.deepEqual([sent.map(input => input.id), accounts.resumed('bot-n102')], [['d-2'], { at: '2026-11-11T12:53:29.000Z', deliveryId: 'd-2' }])
+  await accounts.recordLimit({ harness: 'claude', slot: '2nd', model: 'fable', text: "You've reached your Fable limit · resets 7pm (UTC)" })
+  await review()
+  assert.equal(sent.length, 1)
+})
+
+test('one continuation: the input boundary admits one delivery per limit end; a claim nobody carries is given back, its late redelivery refused', async t => {
+  const { sent, review, hooks, accounts, deliver, transport } = await recovery(t, { rows: [row('bot-n102', '2026-11-11T12:53:25.000Z', END('2026-11-11T12:53:29.000Z', 'cancelled'))] })
+  hooks.input = false // accepted, but the input never reaches the seat (the delivery died)
+  await review()
+  assert.equal(sent.length, 1)
+  const first = sent[0]
+  // While the first delivery is live, a second one for the same limit end is refused at the boundary.
+  transport.continuationClaims.add(first.id)
+  await assert.rejects(deliver(first, 'd-other'), error => error.effect === 'not_started')
+  transport.continuationClaims.delete(first.id)
+  // The first one is no longer live and Aiterm shows no newer input: the next review gives the claim back and sends once more.
+  hooks.input = true
+  await accounts.recordLimit({ harness: 'claude', slot: '2nd', model: 'fable', text: "You've reached your Fable limit · resets 7pm (UTC)" })
+  await review()
+  assert.equal(sent.length, 2)
+  // The old delivery arriving late (the parent's redelivery) is refused: exactly one continuation reached the seat after it.
+  await assert.rejects(deliver(first, first.id), error => error.effect === 'not_started')
+  assert.equal(sent.length, 2)
+})
+
+// Epinel #1100 (2): quiescing during an await stops before the next effect and leaves an intent the successor completes.
+test('one continuation: quiesce during the move -> no send; the successor sends it once', async t => {
+  const { sent, review, transport, switched, accounts } = await recovery(t, { rows: [row('bot-elegg', '2026-11-11T12:51:33.000Z', END('2026-11-11T12:51:56.000Z', 'cancelled'))] })
+  let running = true
+  transport.accountRecoveryAllowed = () => running
+  const move = transport.switchAccount
+  transport.switchAccount = async bot => { await move(bot); running = false }
+  await review()
+  assert.deepEqual([switched, sent], [['bot-elegg'], []])
+  assert.deepEqual(accounts.resumed('bot-elegg'), { at: '2026-11-11T12:51:56.000Z', deliveryId: null })
+  running = true
+  await review()
+  assert.deepEqual(sent.map(input => input.target), ['bot-elegg'])
 })

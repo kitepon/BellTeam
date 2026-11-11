@@ -17,7 +17,7 @@ import { BotSessionState } from './bot-session-state.mjs'
 import { DeliveryJob } from './delivery-job.mjs'
 import { SeatActivity, SeatTurnWatch } from './seat-activity.mjs'
 import { executionFailureReport, reportExecutionFailure } from './execution-failure-report.mjs'
-import { recoverableTurnFailure } from './capacity-continuation.mjs'
+import { continuationKeyOf, recoverableTurnFailure } from './capacity-continuation.mjs'
 import { isLimitText } from './claude-limit-text.mjs'
 import { ACCOUNT_SLOTS } from './harness-accounts.mjs'
 import { returnedMcpError } from './returned-mcp-error.mjs'
@@ -143,6 +143,8 @@ export class AitermTransport {
     this.holdReleasePollMs = 300
     // Limit holds this engine pressed (`<session>@<limit_end.at>`): never a second Esc on one hold.
     this.pressedHolds = new Set()
+    // Continuation deliveries between their claim and the end of their job (harness-accounts.md "one continuation").
+    this.continuationClaims = new Set()
     this.accountsUnsubscribe = accounts?.watch(() => {
       this.activity.emitChange({ all: false, topics: ['accounts'], botIds: [], roomIds: [] })
       void this.reviewAccounts()
@@ -815,8 +817,15 @@ export class AitermTransport {
   notify(bot, message, options = {}) { return this.#notify(bot, message, options) }
 
   async #notify(bot, message, { images = [], queue = {}, onStatus = null, onInterim = null, onAnswer = null, onTurnEnd = null, executionSource, recoveredExecution, membersLease, conversationDelivery, admissionCheck, summaryAuthority } = {}, report = false) {
+    const claim = await this.claimContinuation(bot, message, queue)
     const completion = this.submit(bot, message, { summaryAuthority, images, info: queue, onStatus, onInterim, onAnswer, onTurnEnd, executionSource, recoveredExecution, membersLease, conversationDelivery, admissionCheck })
     completion.catch(error => process.stderr.write(`BellTeam Aiterm delivery error: ${error.stack ?? error.message}\n`))
+    if (claim) {
+      completion.then(() => {}, () => {}).finally(() => this.continuationClaims.delete(claim.deliveryId))
+      completion.accepted.catch(error => {
+        if (error?.effect === 'not_started') return this.accounts.releaseResume(bot.id, claim.at, claim.deliveryId).catch(() => {})
+      })
+    }
     if (!report) return completion.accepted
     return completion.accepted.catch(async error => {
       if (await completion.reportNotIssued) return { report: 'unavailable', reason: 'not_issued' }
@@ -1838,6 +1847,19 @@ export class AitermTransport {
     void run.then(seats => { this.accountMoves.delete(botId); this.moveAtBoundary(botId, seats) })
   }
 
+  // harness-accounts.md "one continuation": the input boundary of every delivery. A scheduler message carrying a continuation key
+  // claims that limit end durably before any effect; a second delivery for it (a resend after a crash or a refusal, or the
+  // parent's redelivery) is refused here, never input. Returns the claim, or null for any other delivery.
+  async claimContinuation(bot, message, queue) {
+    const at = queue?.from === 'scheduler' && this.claudeAccountBot(bot) ? continuationKeyOf(message) : null
+    if (!at || typeof queue.groupId !== 'string') return null
+    this.continuationClaims.add(queue.groupId)
+    const outcome = await this.accounts.claimResume(bot.id, at, queue.groupId).catch(error => { this.continuationClaims.delete(queue.groupId); throw error })
+    if (outcome !== 'claimed') this.continuationClaims.delete(queue.groupId)
+    if (outcome !== 'claimed') throw Object.assign(new Error(`CONTINUATION_DUPLICATE: ${outcome}`), { code: 'CONTINUATION_SUPERSEDED', effect: 'not_started' })
+    return { at, deliveryId: queue.groupId }
+  }
+
   // Aiterm 0.70.26 limit end (harness-accounts.md): the Claude rows of account members, current and old seats, by member.
   // Seat names: <botId> or <botId>-<slot>-<base36>. A row without the fields (older Aiterm) gives nothing: no screen inference.
   async limitEnds() {
@@ -1859,9 +1881,17 @@ export class AitermTransport {
     return this.continuationDue(botId, lastTurn(seats)?.end)
   }
 
+  // Due while the last turn is still that limit end: no claim yet, or a claim no live delivery carries any more (its input never
+  // reached the seat, or Aiterm would show a newer last_input_at). Giving such a claim back is safe: the input boundary admits
+  // one delivery per limit end, so a late redelivery of the old one is refused.
   continuationDue(botId, end) {
-    return Boolean(end && !end.continued && this.accounts.resumedAt(botId) !== end.at
-      && !(Date.parse(this.accounts.stoppedAt(botId) ?? '') >= Date.parse(end.at)))
+    if (!end || end.continued || Date.parse(this.accounts.stoppedAt(botId) ?? '') >= Date.parse(end.at)) return false
+    const resumed = this.accounts.resumed(botId)
+    return !(resumed?.at === end.at && resumed.deliveryId && this.continuationLive(resumed.deliveryId))
+  }
+
+  continuationLive(deliveryId) {
+    return this.continuationClaims.has(deliveryId) || [...this.activity.jobs].some(job => job.info?.groupId === deliveryId)
   }
 
   moveAtBoundary(botId, seats = []) {
@@ -1908,13 +1938,21 @@ export class AitermTransport {
       return
     }
     const end = lastTurn(rows)?.end
-    if (!this.continuationDue(bot.id, end) || !allowed()) return
+    if (!this.continuationDue(bot.id, end)) return
+    // Each effect is fenced right before it: a handed-over (quiescing) engine stops, and the intent left behind never
+    // suppresses the successor's send (only a claim at the input boundary does).
+    if (!allowed()) return
+    const resumed = this.accounts.resumed(bot.id)
+    if (resumed?.at === end.at && resumed.deliveryId) await this.accounts.releaseResume(bot.id, end.at, resumed.deliveryId)
+    if (!allowed()) return
+    await this.accounts.intendResume(bot.id, end.at)
     this.accountRecoveries.add(bot.id)
     try {
-      if ((this.accounts.seatSlot(bot.id) ?? '1st') !== slot || await this.accounts.renewDue(bot.id, 'claude', bot.model)) await this.switchAccount(bot)
+      const move = (this.accounts.seatSlot(bot.id) ?? '1st') !== slot || await this.accounts.renewDue(bot.id, 'claude', bot.model)
       if (!allowed()) return
-      await this.accounts.setResumed(bot.id, end.at)
-      await this.continuation?.resume(bot, { slot, deliveryId: this.continuation.states.get(bot.id)?.deliveryId ?? null })
+      if (move) await this.switchAccount(bot)
+      if (!allowed()) return
+      await this.continuation?.resume(bot, { slot, limitEnd: end.at, deliveryId: this.continuation.states.get(bot.id)?.deliveryId ?? null })
     } finally { this.accountRecoveries.delete(bot.id) }
   }
 

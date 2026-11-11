@@ -139,7 +139,8 @@ export class HarnessAccounts {
         renew: (value.renew ?? []).filter(botId => typeof botId === 'string'),
         // A `pending` key (execution dc4b63be / eb8c94a5) is dropped: the continuation is derived from Aiterm's limit end.
         stops: Object.fromEntries(Object.entries(value.stops ?? {}).filter(([, at]) => typeof at === 'string' && Number.isFinite(Date.parse(at)))),
-        resumed: Object.fromEntries(Object.entries(value.resumed ?? {}).filter(([, at]) => typeof at === 'string' && Number.isFinite(Date.parse(at)))),
+        resumed: Object.fromEntries(Object.entries(value.resumed ?? {}).filter(([, entry]) => typeof entry?.at === 'string' && Number.isFinite(Date.parse(entry.at))
+          && (entry.deliveryId === null || typeof entry.deliveryId === 'string'))),
       }
     } catch (error) { if (error.code !== 'ENOENT') this.log(`BellTeam accounts: registry unreadable, starting empty (${error.code ?? 'INVALID'})`) }
     // Re-arm after a restart or a body exchange; an entry whose time passed clears now.
@@ -201,11 +202,29 @@ export class HarnessAccounts {
   setStopped(botId) {
     return this.update(state => ({ ...state, stops: { ...state.stops, [botId]: new Date(this.now()).toISOString() } }))
   }
-  // The limit end (its `at`) whose one continuation was sent, written before the send: at most one per limit end, also across
-  // a restart or an exchange while the continuation's input has not reached Aiterm yet.
-  resumedAt(botId) { return this.state.resumed[botId] ?? null }
-  setResumed(botId, at) {
-    return this.update(state => ({ ...state, resumed: { ...state.resumed, [botId]: at } }))
+  // harness-accounts.md "one continuation": {at, deliveryId|null} per member. The intent (deliveryId null) is written before the
+  // send and never suppresses a resend; the delivery that reaches the engine's input boundary first claims it (deliveryId),
+  // and any other delivery for the same limit end is refused there.
+  resumed(botId) { return this.state.resumed[botId] ?? null }
+  intendResume(botId, at) {
+    return this.update(state => state.resumed[botId]?.at === at ? state : { ...state, resumed: { ...state.resumed, [botId]: { at, deliveryId: null } } })
+  }
+  // 'claimed' (this delivery owns the continuation), 'duplicate' (another delivery does), 'obsolete' (a newer limit end exists).
+  async claimResume(botId, at, deliveryId) {
+    let outcome = 'claimed'
+    await this.update(state => {
+      const entry = state.resumed[botId]
+      if (entry && Date.parse(entry.at) > Date.parse(at)) { outcome = 'obsolete'; return state }
+      if (entry?.at === at && entry.deliveryId && entry.deliveryId !== deliveryId) { outcome = 'duplicate'; return state }
+      if (entry?.at === at && entry.deliveryId === deliveryId) return state
+      return { ...state, resumed: { ...state.resumed, [botId]: { at, deliveryId } } }
+    })
+    return outcome
+  }
+  // A claimed delivery that ended explicitly not started gives the continuation back (a later review resends it).
+  releaseResume(botId, at, deliveryId) {
+    return this.update(state => state.resumed[botId]?.at === at && state.resumed[botId].deliveryId === deliveryId
+      ? { ...state, resumed: { ...state.resumed, [botId]: { at, deliveryId: null } } } : state)
   }
 
   // The effective slot when it is logged in and not limited for the model, else null (every usable slot limited).
