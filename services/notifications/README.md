@@ -8,7 +8,7 @@
 
 リポジトリ直下で `npm ci` し、`node services/notifications/index.mjs` で起動する。運営のHTTPS公開先からこのNode.jsサービスへ転送する。`HOST` と `PORT` はNode.jsの待受設定に使う。
 
-`BELLTEAM_APNS_DIRECTORY` は運営が保存した `config.json` と `.p8` ファイルのあるディレクトリを指定する。形式は既存の [APNs設定](../../docs/push-notifications.md) と同じ。購読確認には `APPLE_ENVIRONMENT`・`APPLE_ISSUER_ID`・`APPLE_KEY_ID`・`APPLE_PRIVATE_KEY` が必要で、意味と取得方法は [購読確認サービス](../subscriptions/README.md) に従う。ProductionとSandboxの購読確認はそれぞれ別の実行環境にする。鍵と環境変数の値をリポジトリや利用者向けイメージへ含めない。
+`BELLTEAM_APNS_DIRECTORY` は運営が保存した `config.json` と `.p8` ファイルのあるディレクトリを指定する。形式は既存の [APNs設定](../../docs/push-notifications.md) と同じ。鍵は鍵ごとに `{keyId, file}`（`.p8`）か `{keyId, reference}`（`op://<保管庫のID>/<アイテムのID>/<フィールド>`、値は `.p8` の全文）を選べる。referenceを使う時は `op`（PATH上か `OP_CLI_PATH`）と `OP_SERVICE_ACCOUNT_TOKEN` を起動環境に置く。鍵を替える時は `config.json` を書き換えてサービスを再起動する。購読確認には `APPLE_ENVIRONMENT`・`APPLE_ISSUER_ID`・`APPLE_KEY_ID`・`APPLE_PRIVATE_KEY` が必要で、意味と取得方法は [購読確認サービス](../subscriptions/README.md) に従う。ProductionとSandboxの購読確認はそれぞれ別の実行環境にする。鍵と環境変数の値をリポジトリや利用者向けイメージへ含めない。
 
 利用者は追加機能の通知設定へこのサービスのルートURLを登録する。通知設定の変更時は `GET /v1/notifications/status` で実接続とAPNsの設定済み環境を確認する。`POST /v1/notifications/send` は `{signedTransaction,device,payload,id}` を受け取る。`device` と `payload` は `src/push-notifications.mjs` の共通実装が生成する。
 

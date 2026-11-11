@@ -2,12 +2,12 @@ import { createServer } from 'node:http'
 import { Readable } from 'node:stream'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { APNsProvider } from '../../src/push-notifications.mjs'
+import { APNsProvider, onePasswordKeyReader } from '../../src/push-notifications.mjs'
 import { createNotificationRelay } from './relay.mjs'
 
 const directory = process.env.BELLTEAM_APNS_DIRECTORY
 if (!directory) throw new Error('APNS_DIRECTORY_REQUIRED')
-const provider = await APNsProvider.create(JSON.parse(await readFile(join(directory, 'config.json'), 'utf8')), directory)
+const provider = await APNsProvider.create(JSON.parse(await readFile(join(directory, 'config.json'), 'utf8')), directory, { readKeys: onePasswordKeyReader(null) })
 const relay = createNotificationRelay({ provider, subscriptionEnvironment: process.env })
 const server = createServer(async (request, response) => {
   try {

@@ -242,6 +242,6 @@ flowchart LR
 | 1Password接続 | `onePasswordKeyReader` は読む時だけ `createOnePasswordSource({autoRetry:false})` を作り、`resolve(reference)` だけを呼んでcloseする。tokenは呼ぶたびに `settings.json` の `onePassword`（enabled時のtokenだけ）を読み、その `op` 呼出しのenvだけに置く。FeatureSettingsが唯一writer |
 | 自力の出口 | 直送の `configure` は、子の起動直後の1回目を除き毎回config.jsonと鍵を読み直す。直した後は通知設定を保存し直すか、子の再起動（module更新を含む）で戻る |
 | 秘密の扱い | 鍵の値・参照・tokenはDTO・診断・status・ログへ出さない。KeyObjectはメモリだけ |
-| 互換 | file設定は何も変えずに動く。`APNsProvider.create(config, directory)` の外部呼出し（`services/notifications/index.mjs`）はfileで動く（referenceは `readKeys` を渡す呼出しだけ） |
+| 互換 | file設定は何も変えずに動く。外部relay（`services/notifications/index.mjs`）も `onePasswordKeyReader(null)` を渡し、鍵ごとにfileかreferenceを選べる。relayはsettings.jsonを持たないので、`op` は起動環境の `OP_SERVICE_ACCOUNT_TOKEN` を使う。relayの鍵の入れ替えはconfig.jsonの書き換えと再起動 |
 | file→1Password | `.p8` の全文を1Passwordのアイテムへ保存→config.jsonの該当keyの `file` を `reference` へ置き換え（keyIdはそのkeyのもの）→通知設定を保存し直す（または子の再起動）→実通知を確認→`.p8` を消す |
 | 配布 | 変更fileは `src/push-notifications.mjs`（notifications module archive、全src）。IPC・state・parentProtocolは不変なので、notifications moduleの更新だけで入れ替わり、本体の再起動は要らない |

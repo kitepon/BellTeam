@@ -415,3 +415,11 @@ test('APNs keys come per key from a .p8 file or a 1Password reference; an unread
   assert.deepEqual((await service.configure({ enabled: true, relayUrl: '' })).environments, ['development'])
   await service.close()
 })
+
+test('the operator relay reader leaves the token to the process env', async () => {
+  const { onePasswordKeyReader } = await import('../src/push-notifications.mjs')
+  let setToken = false, closed = false
+  const read = onePasswordKeyReader(null, { create: () => ({ setToken() { setToken = true }, close() { closed = true }, resolve: async () => 'PEM' }) })
+  assert.deepEqual([...await read(['op://x'])], [['op://x', 'PEM']])
+  assert.deepEqual([setToken, closed], [false, true])
+})
