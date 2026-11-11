@@ -22,7 +22,7 @@ function fakeCredentials() {
   return {
     calls,
     emit(event) { for (const listener of listeners) listener(event) },
-    async requestTerminalKey(input) { calls.push({ op: 'request', purpose: input.purpose }); return { secretRequest: { id: ids[next++ % ids.length], label: input.label, inputOptions: { preferred: 'stored' } } } },
+    async requestTerminalKey(input) { calls.push({ op: 'request', purpose: input.purpose, os: input.os }); return { secretRequest: { id: ids[next++ % ids.length], label: input.label, inputOptions: { preferred: 'stored' } } } },
     watchCredentials(listener) { listeners.add(listener); return () => listeners.delete(listener) },
     async unbind(ref, scope) { calls.push({ op: 'unbind', ref, purpose: scope.purpose }) },
     credential(ref) { return { handle: ref, revision: 1, available: true } },
@@ -105,7 +105,7 @@ test('authorize: no password before trust; one consume to authorize-key; stale o
 
   await core.registry.put({ ...mac, sshKeyRef: nativeHandle })
   const { secretRequest } = await core.keys.authorize('owner-macbook')
-  assert.equal(credentials.calls.at(-1).purpose, 'terminal.login')
+  assert.deepEqual(credentials.calls.at(-1), { op: 'request', purpose: 'terminal.login', os: 'macos' }, 'os picks the per-OS card (Mika #1060)')
   assert.equal((await core.registry.get('owner-macbook')).keyAuthorizationPending, true)
 
   // An event for another request is dropped (Mika value unbound), the pending one is consumed once.

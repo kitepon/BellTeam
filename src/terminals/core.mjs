@@ -207,7 +207,7 @@ export function createTerminalsCore({ stateRoot, credentials = null, report = nu
     if (!record.hostTrust) throw Object.assign(keyError('HOST_TRUST_MISSING', 409, 'Confirm this terminal first, then authorize the key'), { action: `先にこの${OS_LABEL[record.os] ?? '端末'}を確かめてください` })
     if (!record.sshKeyRef) throw Object.assign(keyError('SSH_KEY_UNSET', 409, 'Set the SSH key first, then authorize it'), { action: '先にSSH鍵を設定してください' })
     const generation = connection.generation(terminalId)
-    const { secretRequest } = await credentials.requestTerminalKey({ terminalId, purpose: 'terminal.login', label: `端末 ${terminalId} の${OS_LABEL[record.os] ?? '端末'}のログインパスワード` })
+    const { secretRequest } = await credentials.requestTerminalKey({ terminalId, purpose: 'terminal.login', label: `端末 ${terminalId} の${OS_LABEL[record.os] ?? '端末'}のログインパスワード`, os: record.os })
     logins.set(terminalId, { requestId: secretRequest.id, generation })
     return { secretRequest }
   })
