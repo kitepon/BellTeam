@@ -28,11 +28,12 @@ private struct SharingSettingsButton: View {
 /// One calm line for a BellTeam without the feature; never a red banner.
 struct TerminalsCalmLine: View {
     let text: String
+    var identifier = "terminals-unsupported"
     var body: some View {
         Label(text, systemImage: "info.circle")
             .font(BellTheme.detailFont)
             .foregroundStyle(.secondary)
-            .accessibilityIdentifier("terminals-unsupported")
+            .accessibilityIdentifier(identifier)
     }
 }
 

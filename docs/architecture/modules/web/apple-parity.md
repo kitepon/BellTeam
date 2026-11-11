@@ -23,7 +23,7 @@ Appleのpathは `ios/BellBot/BellBot/` 起点。Webは `web/` 起点。
 | 端末/動かす場所 | （未実装、Zizが担当） | terminals / bot-editor | F-SEAT-HOST P2。Webは端末一覧・登録・確認・ホスト鍵指紋・鍵の秘密入力と、メンバーの端末+フォルダ欄を持つ（README.md「Terminals and remote member binding」）。旧本体では隠す |
 | 通知 | BellNotifications / SettingsView → notifications、devices/unregister、APNs | eventsで画面内再同期 | APNs端末登録をbrowserへ転用不可。WebPush provider/APIは未供給。通知provider状態の表示は既GETで対応可能 |
 | 購読 | SubscriptionView / BillingStore / AppleSubscriptionAccess、StoreKit | 汎用feature設定のみ | native StoreKit購入をWeb完成機能として載せない。Apple原文でWeb無料。Web購入は不足機能に数えず、設定に無料/Apple専用購読を説明する |
-| 端末画面/設定画/記憶 | ConversationView screen、Appleにmemory/knowledge/character-sheet HTTP callerなし | bot-read-views/memory-view | Web既存機能を保持。Apple未実装部分をApple完成機能に数えない |
+| 端末画面/設定画/記憶 | ConversationView screen（端末画面）。メンバー編集の「記憶とキャラクターシート」節 → MemberMemoryScreen / CharacterSheetScreen → `POST|GET /api/bots/:id/memory`・`/knowledge`、`GET /api/bots/:id/character-sheet`と画像（[apple/memory-and-sheets.md](../apple/memory-and-sheets.md)） | bot-read-views/memory-view | 記憶・知識・キャラクターシートはAppleにも実装済み（Webと同じ経路・文言。固定/改訂/まとめはWebも呼ばないため未実装のまま）。旧本体の404/405は一行表示。Web既存機能を保持 |
 | 更新 | Appleに /api/updates callerなし | update-center | 既採用のinventory/container操作/同UUID復帰を保持。実Host/catalog/all-module未了を隠さない |
 
 ## 検索と編集の状態所有

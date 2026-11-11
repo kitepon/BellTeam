@@ -443,6 +443,26 @@ goalの直接4件は、`Core/GoalViewModel.swift:4`のGoalLoadCallContext（`tes
 | [testMeasurementsMatchNativeLayoutAndInvalidateWithContent](../../../../ios/BellBot/BellBotTests/SelectableTextLayoutTests.swift#L25) | 短文/長文/本文置換/幅変更でnative layoutと寸法一致 |
 | [testResizingRetainsIntrinsicProposalsAndMeasuresEachNewWidthOnce](../../../../ios/BellBot/BellBotTests/SelectableTextLayoutTests.swift#L43) | 0/自然幅をcache保持し20幅変更の実組版22回、再計測無し |
 
+### MemoryKnowledgeTests.swift
+
+対象：メンバーの記憶と知識・キャラクターシート（[図](memory-and-sheets.md)）。URLProtocolの人工応答（`memory-ui.test.invalid`）で要求の経路・本文・件数を記録する。
+
+| 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
+| --- | --- |
+| testNineKindsHaveTheWebLabelsAndAnUnknownKindKeepsTheServerWord | 種類9つがWebの選択肢と同じ順・同じ日本語（事実・好み・方針・継続中の仕事・設定・出来事・関係・思い出・成長）、種類ごとに別のアイコン、知らない種類はサーバーの語のまま、保存先の語（このBot・BellTeam共通） |
+| testResultRowTextUsesTheJapaneseKindAndDecodingReadsOnlyWhatWebReads | 結果の行は「[好み] 内容」、記憶の`id`・`importance`・`metadata`・`match`と知識の`path`・`tags`などは読まない、項目が欠けても空の文として読める、知識の行は題＋改行＋抜粋 |
+| testSearchPathsEscapeLikeEncodeURIComponent | 検索語は日本語・空白・`& = ? # / +`をエスケープし、`- _ . ! ~ * ' ( )`は残す。`scope`は`personal`/`shared` |
+| testOnlyARouteTheOlderBodyLacksCountsAsUnsupported | 404（`NOT_FOUND`・符号なし）と405だけが旧本体。`BOT_NOT_FOUND`・503・接続失敗は未対応にしない |
+| testRememberPostsOnceWhileSendingThenClearsTheContentAndSaysSo | 送信中は押せず2回目を送らない、POSTは1回で本文は`{kind, scope, content}`、成功で「記憶しました。」と内容を空に、送信中の記録が消える |
+| testEditingWhileSendingKeepsTheNewTextAndKnowledgeSaveResetsTheForm | 送った後に変えた文は消さない。知識の保存は「知識を保存しました。」とタイトル・内容・保存先を初期へ |
+| testRecallListsItemsOrSaysNothingWasFoundAndAnEmptyQueryIsNotSent | 検索語が空なら送らない、経路と`scope`、結果の項目、0件は`.empty`（「見つかりませんでした。」） |
+| testOnlyTheNewestSearchWritesTheResults | 遅い古い検索の答えが、速い新しい検索の結果を上書きしない |
+| testFailuresShowOneLineOnTheirPanelAndTheNextActionClearsIt | 503は「記憶できませんでした（…）」「検索できませんでした（…）」「保存できませんでした（…）」を押した節だけに1つ、失敗した入力は残す、次の操作で消える |
+| testARouteTheBodyLacksTurnsTheScreenIntoOneCalmLine | 旧本体は`unsupported`で赤字なし・送る操作が無効。`BOT_NOT_FOUND`は通常の失敗 |
+| testCaptionIsTheFileAndTheJapaneseDate | 「front.png（2026/11/10 12:04:05）」（月日は0埋めなし、時はJST指定）、読めない日時はfile名だけ、空の文「まだ置かれていない。」 |
+| testSheetsLoadEveryImageWithTheAppsAuthPathAndTheListDecodes | 一覧の`url`（%エスケープ済みの日本語名も）を順に取り、全部`UIImage`、2回目の表示で読み直さない |
+| testEmptyListFailureAndOlderBodyEachShowOneState | 空の一覧は空、画像の失敗は一覧ごと「キャラクターシートを読めませんでした（…）」、旧本体の404は`unsupported` |
+
 ### TerminalsTests.swift
 
 対象：端末の登録とメンバーの端末・フォルダ（[図](terminals.md)）。補助型も同じファイルを読んだ。
@@ -964,6 +984,16 @@ Macの端末表示中の照会と非表示後の停止、小画像保存の結�
 | [testLandscapeInspectorKeepsComposerAboveKeyboard](../../../../ios/BellBot/BellBotUITests/TabletWorkspaceUITests.swift#L65) | 詳細/keyboardの開閉と入力再開後もinput/send操作可・会話末尾が上 |
 | [testMemberAndRoomEditorsUseSharedSheets](../../../../ios/BellBot/BellBotUITests/TabletWorkspaceUITests.swift#L128) | 共通Bot/room editor sheetと削除確認取消でroom保持 |
 
+### MemoryKnowledgeUITests.swift
+
+対象：iPhoneのメンバー編集から開く記憶と知識・キャラクターシート（[図](memory-and-sheets.md)）。`BELLTEAM_MEMORY_FIXTURE_URL` → [memory-ui-server.mjs](../../../../test/helpers/memory-ui-server.mjs)。無ければ失敗、iPhone以外はskip。各状態の画面写真を`iphone17pro-*`の添付に残す。
+
+| 試験関数 | 本文で確認した入力・状態・失敗時の契約 |
+| --- | --- |
+| testMemoryScreenRememberRecallKnowledgeAndFailures | 編集画面の2行→題「ユキの記憶と知識」、内容が空の間は「記憶する」を押せない。種類「好み」で記憶→POST1件（kind・scope）と「記憶しました。」、内容が空に戻る。検索「。」で種類が違う結果が日本語の行（`[好み] 朝は紅茶を好む。…`）、Returnでも検索、「zzz」で「見つかりませんでした。」と前の結果が消える。知識の保存→「知識を保存しました。」と検索で題＋抜粋。503では押した節に失敗の行が1つだけ。画面を閉じて開き直すと結果・失敗・入力が残らない |
+| testCharacterSheetsListEmptyAndImageFailure | 題「ユキのキャラクターシート」、2枚の画像と「front.png（2026/11/…）」の見出し、画像は一覧の順に1枚ずつ取る。空は「まだ置かれていない。」。画像の失敗は一覧ごと「キャラクターシートを読めませんでした（…）」 |
+| testOlderBodyShowsOneCalmLineOnEachScreen | 旧本体の404で、シートは「このBellTeamはまだキャラクターシートに対応していません」、記憶と知識は検索の後に「…記憶と知識に対応していません」の1行。赤字なし、検索は押せない |
+
 ### TerminalsUITests.swift
 
 対象：iPhoneの端末画面とメンバー編集（[図](terminals.md)）。`BELLTEAM_TERMINALS_FIXTURE_URL` → [terminals-ui-server.mjs](../../../../test/helpers/terminals-ui-server.mjs)。無ければ失敗、iPhone以外はskip。各状態の画面写真を添付に残す。
@@ -1036,6 +1066,7 @@ flowchart TD
 | `-bellbot.serverURL URL` | UserDefaultsの`bellbot.serverURL`としてAppStore初期化が読む。preview-serverと別の受渡し。通知UI試験は両者の差を使う |
 | `-bellbot-preview-events` | BellBotAppのpreview起動taskからSSE開始 |
 | `-bellbot-preview-reporting` | 同taskからbilling.connect。HTTP fixtureのdeveloper応答を送信許可判定へ利用 |
+| `-bellbot-preview-member-screen memory\|sheets` | メンバー編集（既存メンバー）を開いた時に、その上へ「記憶と知識」または「キャラクターシート」を積む（画面写真用） |
 | `-bellbot-preview-chat` / `-bellbot-preview-markdown` | RootViewでBot one / twoのConversationViewを直接NavigationStackに表示 |
 | `-bellbot-preview-stop` | 初回履歴のローカル分岐でBot running、roomはone running/three queuedを表示 |
 | `-bellbot-preview-attachment` | preparePreviewで青い16px画像をBot one draftへ1枚追加 |
@@ -1063,6 +1094,7 @@ fixtureは起動していない。本体型のimport先は読まず、fixtureが
 | `BELLTEAM_SCROLL_FIXTURE_URL` → [conversation-scroll-server.mjs](../../../../test/helpers/conversation-scroll-server.mjs) | 60行の混合Markdown/短文、35短文、before/after/limit、旧remaining_before無し、過去GET500、短page。append/対象通知のSSE、要求queryと診断codeをproofへ |
 | `BELLTEAM_GOALS_FIXTURE_URL` → [goals-ui-server.mjs](../../../../test/helpers/goals-ui-server.mjs) | FULL/TAGGED/GROK/GROK_SIGNED_TOKENS/GROK_DETAIL/GROK_CLEAR/GROK_ACTIVE_NO_CLEAR/CHAT/CHAT_LONG（`GOALS_FIXTURE_`接頭辞、値1）で応答を選ぶ。binding/capability/単独項目を検査。unconfirmed/応答破棄/旧一覧保留/GET失敗/field変更、read/writeのproof |
 | `BELLTEAM_PROFILE_TERMINAL_URL` → [profile-terminal-ui-server.mjs](../../../../test/helpers/profile-terminal-ui-server.mjs) | BellPortraitのsmall/large/source/crop、旧schema、1万行端末、遅延profile/rules/models、Bot更新SSE、画像3項目PATCH、従来のread/write/完了数を保持。developer購読、再起動POSTの503/200切替、diagnostics POST受信と202応答を追加。proofのrestarts/diagnosticsへmethod/path/bodyを記録しresetで初期化 |
+| `BELLTEAM_MEMORY_FIXTURE_URL` → [memory-ui-server.mjs](../../../../test/helpers/memory-ui-server.mjs) | PreviewFixturesの名簿に、人工の記憶5件（種類が違う）・知識2件・キャラクターシート2枚（自前で描いたPNG）。`POST|GET /api/bots/:id/memory|knowledge`は本体と同じ形（検証は種類・保存先・本文）、`GET …/character-sheet`と画像。`/test/mode?memory=ok|error|old|slow&sheets=two|empty|error|old|imagefail`、`/test/proof`に書き込みと検索の記録 |
 | `BELLTEAM_TERMINALS_FIXTURE_URL` → [terminals-ui-server.mjs](../../../../test/helpers/terminals-ui-server.mjs) | PreviewFixturesの名簿に`terminalId`・`projectRoot`を付け、人工の端末4台（つながる/眠っている/信用なし/ホスト鍵変化）を返す。check・PUT（`confirmHostKey`は端末ごとの人工指紋と一致した時だけ信用）・DELETE・メンバーPATCHの組の規則。鍵の`POST|DELETE /api/terminals/:id/keys/{ssh|sudo}`（本文ありは400 `KEY_IN_REQUEST_REFUSED`）と秘密入力の`GET /api/secret-requests/:id`・`submit`・`cancel`（submitで設定待ちの依頼だけを設定済み・`secret`にする）。`POST /api/terminals/:id/trust`（本文が`{fingerprint}`だけで`SHA256:`＋43文字の時だけ受け、`/test/mode?trust=ok|mismatch|unavailable|changed|old`で200/409/503/409→200/旧本体404、`thismac=1`でホスト127.0.0.1の`this-mac`、`/test/proof.trusts`に本文）、`/test/mode`で一覧404・503、旧メンバー応答、`keys=old`（#811の項目なし・鍵の入口404）・`keys=unavailable`（503 `CREDENTIAL_UNAVAILABLE`）・`onepassword=0`、`/test/proof`へPUT/DELETE/check/保存body・鍵の要求/外す・submitの形（項目名・source・参照の先頭5文字だけ）、`/test/fingerprint`はオーナーが端末で読む指紋の代わり。SSH・鍵・実端末へ接続しない |
 | `BELLTEAM_NETWORK_PROBE_URL` → [network-lifecycle-server.mjs](../../../../test/helpers/network-lifecycle-server.mjs) | developer購読、20秒POST/8秒予定GET/fast1秒、開始/完了/close時刻・同時数/peak・全GET記録。HTTP受付IDを返すがGET履歴は空 |
 | `BELLTEAM_REPORTING_PROBE_URL` → [bughub-ui-probe.mjs](../../../../test/fixtures/bughub-ui-probe.mjs) | 設定初回/後続503、予定/会話/queue無応答、POST切断/500/503/保留受付、停止502/202、SSE502→ready、保存後応答喪失。要求時刻/closed/imageCount、受信診断をproofへ。人工本文は診断へ含めないassertを試験が持つ |
