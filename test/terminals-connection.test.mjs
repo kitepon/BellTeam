@@ -122,7 +122,7 @@ test('classifies failures as not_started without echoing native or secret text',
   const leaking = setup(t, { native: fakeNative({ connectError: new Error(`ssh: native-${sshKeyRef} key body`) }) })
   await assert.rejects(leaking.connection.target(request), error => error.code === 'TERMINAL_UNAVAILABLE' && error.effect === 'not_started' && !error.message.includes('native-'))
   const mismatch = setup(t, { native: fakeNative({ connectError: Object.assign(new Error('x'), { code: 'HOST_KEY_MISMATCH', action: 'confirm the new host key' }) }) })
-  await assert.rejects(mismatch.connection.target(request), { code: 'TARGET_MISMATCH', reason: 'HOST_KEY_MISMATCH', action: '192.168.1.12 のMacを確かめてください。そのMacでBellTeamアプリを開くと、自動で確かめます' })
+  await assert.rejects(mismatch.connection.target(request), { code: 'TARGET_MISMATCH', reason: 'HOST_KEY_MISMATCH', action: '192.168.1.12 のMacを確かめてください。Webの「端末」でこの端末の指紋を確かめて「この指紋を信用する」を押すと使えます' })
   const stale = setup(t, { native: fakeNative({ connectError: Object.assign(new Error('x'), { code: 'HOST_TRUST_STALE' }) }) })
   await assert.rejects(stale.connection.target(request), { code: 'TARGET_MISMATCH' })
   assert.deepEqual(stale.updates, [{ id: 'owner-macbook', patch: { hostTrust: { provider: 'aiterm.known-hosts.v1', revision: `sha256:${'b'.repeat(64)}` } } }])
@@ -192,7 +192,7 @@ test('core mounts registry put/enroll, watch and target-mismatch reporting', asy
 
   native.connectError = Object.assign(new Error('x'), { code: 'HOST_KEY_MISMATCH', action: 'confirm the new host key' })
   await assert.rejects(core.connection.target(request), { code: 'TARGET_MISMATCH' })
-  assert.deepEqual(reports, [{ module: 'terminals', code: 'TERMINAL_TARGET_MISMATCH', terminalId: 'owner-macbook', action: '192.168.1.12 のMacを確かめてください。そのMacでBellTeamアプリを開くと、自動で確かめます' }])
+  assert.deepEqual(reports, [{ module: 'terminals', code: 'TERMINAL_TARGET_MISMATCH', terminalId: 'owner-macbook', action: '192.168.1.12 のMacを確かめてください。Webの「端末」でこの端末の指紋を確かめて「この指紋を信用する」を押すと使えます' }])
   const noCredentials = createTerminalsCore({ stateRoot, adapter: native })
   t.after(() => noCredentials.close())
   native.connectError = undefined
