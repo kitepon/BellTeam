@@ -144,7 +144,7 @@ export function openSecretInput(request, api, onComplete) {
         : request.purpose === 'terminal.login'
           ? 'このMacに鍵を入れるときに1回だけ使い、すぐに消します。保存せず、会話にも送信されません。'
         : oneTime
-          ? '1回だけ使い、使い終わったら消します。会話には送られません。'
+          ? '1回だけ使い、使い終わったら消します。保存せず、会話にも送られません。'
           : '値は会話に送信されません。BellTeamの利用者領域へ保存します。'
   }
   select(onePassword && request.inputOptions.preferred !== 'stored' ? 'onepassword' : 'stored')
