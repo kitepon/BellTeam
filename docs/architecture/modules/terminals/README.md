@@ -172,7 +172,8 @@ flowchart LR
 | --- | --- | --- |
 | mount | `createTerminalsCore({stateRoot, credentials, report, seatProject?})`, exported from `src/bootstrap.mjs` | `{registry, reachability, connection, maintenance, watch, close}`; `credentials` may be null until Mika's facade lands (targets are then `CREDENTIAL_UNAVAILABLE`). An extra `seatCredentials` option from the mount is ignored (no secret passes through terminals any more) |
 | `registry` | `list()`, `get(id)` (null if absent), `put(input)`, `remove(id)`; `ingressUrl` removed (Molly #793: seat MCP target is the container origin Aiterm rewrites; a legacy stored value is dropped on read, an input value is rejected) | Nonsecret projection with `maintenance` (last `claude-code` C8 outcome or null, in memory; shape unchanged for Web/Apple); errors `{code, status, message}`: `INVALID_TERMINAL` 400, `TERMINAL_NOT_FOUND` 404, `TERMINAL_EXISTS` 409, `HOST_KEY_FINGERPRINT_MISMATCH` 409, `INVALID_TERMINAL_STORE` 500. Messages name the field, its expected form and the next action, and never echo the submitted value |
-| `registry` | `put({..., confirmHostKey: 'SHA256:...'})` | Owner's "confirm the new host key": Aiterm's `trust-confirm` scans once and writes only on an equal fingerprint, then the new trust revision is stored. Without it, a new record binds the trust Aiterm already holds (P1 pre-enrolled known_hosts) |
+| `registry` | `put({..., confirmHostKey: 'SHA256:...'})` | Owner's "confirm the new host key" (only after a changed key): Aiterm's `trust-confirm` scans once and writes only on an equal fingerprint, then the new trust revision is stored. Without it, a record with no trust gets first-use trust (below) |
+| first-use trust (accept-new) | save, SSH key applied, `check` — whenever the record has a binding and no `hostTrust` | Like OpenSSH `StrictHostKeyChecking accept-new` (Owner ruling 2026-11-11): bind the trust Aiterm already holds for the binding (never overwritten); if none, `ssh-keyscan -t ed25519` the target once, pass that fingerprint to `trust-confirm` (Aiterm's own scan must be equal) and store the revision. Scan or confirm failure leaves `hostTrust` missing (next save/check retries). Only a later key change stops (`HOST_KEY_MISMATCH` -> `TARGET_MISMATCH`, the Owner confirms the new key) |
 | `connection` | `target({terminalId, memberId, projectRoot, harness})` | `{terminal: {ref, target: {host, user, port}, trustRevision, credentialRevision}, cwd: projectRoot, accountOwner: 'owner' / 'terminal-owner'}`. Execution passes `terminal` + `cwd` unchanged to Aiterm's launch and applies the Owner's 1st/2nd slot login only when `accountOwner === 'owner'`. Or `{code, effect:'not_started', reason?, action?}` with code `TERMINAL_UNAVAILABLE` / `CREDENTIAL_UNAVAILABLE` / `TARGET_MISMATCH` / `AGENT_AUTH_REQUIRED` (C8 `cli_auth_status` answered logged-out for `codex-cli` / `grok-cli`; carries `launchRefusal` in Aiterm's own launch-refusal shape, phase `input`, so execution reads it like Aiterm's refusal; exit = the member's next drain, see C8) |
 | `connection` | `observe(terminalId)` (no result) | Execution calls it when Aiterm's launch, after a successful `target`, answers a connectivity code (`UNREACHABLE`, `SEAT_FORWARD_UNAVAILABLE`, `HOST_TRUST_STALE`, `CREDENTIAL_*`, `TERMINAL_UNAVAILABLE`). Arms the same non-AI observer as a failed `target` (same backoff, idempotent while armed, `TERMINAL_NOT_FOUND` ends it, inert after dispose); its exit is the `available` event. `HOST_KEY_MISMATCH` / `TARGET_MISMATCH` wait for the registry-change edge instead |
 | `connection` | `onAvailable(listener)` -> unsubscribe | `listener({terminalId})` when the terminal is usable again (core republishes it on `watch`) |
@@ -293,6 +294,7 @@ flowchart LR
   H --> Reg[registry]
   H -->|trust attest| Conn[connection]
   Conn -->|trust-confirm --ref --fingerprint: scan, write only on equal| A[Aiterm UID1000 / Elegg]
+  Conn -->|first use, no trust held: ssh-keyscan fingerprint -> trust-confirm| A
   Form -->|POST keys/ssh, card picker or paste| Mika[Mika credentials]
   H -->|POST check| Chk[reachability.check]
   Chk -->|open; refused / timeout / AUTH_FAILED / REMOTE_AITERM_*| A
@@ -385,7 +387,7 @@ Owner split and order:
 | 5 | Admi (Web), Ziz (Apple) | Screens: precondition line, reason actions, authorize button + card, trust auto-attest / 「このMacを確かめる」, folder prefill + create | 3, 4 (2c for Apple) |
 | 6 | Trony / Centi | Body cut, product acceptance on a Mac with Remote Login off and an unauthorized key, then the Owner's real run | 5 |
 
-Kiro (execution) and Molly (mount) need no change: launch already refuses a missing cwd, routes live in `http-terminals-api.mjs` / `terminals-mcp.mjs`. Skipped on purpose: Bonjour discovery of Macs, TOFU trust for Macs without the app (manual sheet stays as the fallback).
+Kiro (execution) and Molly (mount) need no change: launch already refuses a missing cwd, routes live in `http-terminals-api.mjs` / `terminals-mcp.mjs`. Skipped on purpose: Bonjour discovery of Macs. TOFU was skipped here at first; reversed by the Owner ruling 2026-11-11 (first-use trust row in the port table): the manual sheet is only for a changed key.
 
 #### Folder picker (S6, Owner request 2026-11-10 09:4x JST, design)
 

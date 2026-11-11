@@ -1,5 +1,6 @@
 // Elegg C3 (aiterm-mcp remote-terminal.md, f7022539): one UID1000 `aiterm-remote-terminal` stdio MCP process (`serve`) per
 // reachability check or C8 run, started through the seat command entry like the parent's Aiterm. Process exit = closed.
+import { createHash } from 'node:crypto'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { seatCommandSpec } from '../seat-command.mjs'
@@ -96,6 +97,14 @@ export function createRemoteTerminalProcesses({ project, connectClient = () => s
     async authorizeKey({ ref, password }) {
       if (typeof password !== 'string') throw Object.assign(new Error('Unsupported credential'), { code: 'CREDENTIAL_UNUSABLE' })
       return cli(['authorize-key', '--ref', ref], password)
+    },
+
+    // First-use trust (accept-new, Owner ruling 2026-11-11): the ed25519 host key the target answers with, as SHA256:<base64>.
+    async scanHostKey({ host, port }) {
+      const { stdout } = await run('/usr/bin/env', ['ssh-keyscan', '-T', '5', '-t', 'ed25519', '-p', String(port), '--', host], { acceptNonzero: true, maxBuffer: 65536 })
+      const blob = String(stdout).split('\n').map(line => line.trim().split(/\s+/)).find(fields => fields[1] === 'ssh-ed25519')?.[2]
+      if (!blob) throw Object.assign(new Error('No host key answered'), { code: 'UNREACHABLE' })
+      return `SHA256:${createHash('sha256').update(Buffer.from(blob, 'base64')).digest('base64').replace(/=+$/, '')}`
     },
 
     // The Owner's "confirm the new host key": the UID1000 holder scans once and writes only if the fingerprint matches.
