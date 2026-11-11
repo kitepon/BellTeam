@@ -248,6 +248,37 @@ public sealed class LatticeChartTests
         chart.Stop(); window.Close();
     });
 
+    [Fact]
+    public void HistoryKeepsTheSelectedCardTheHighlightAndThePositionAcrossViews() => RunSta(() =>
+    {
+        using var workspace = new Workspace(origin => new BellApi(origin, new LatticeFixture("chart")));
+        Await(workspace.ConnectAsync("http://localhost", listen: false));
+        var window = new LatticeWindow(workspace, _ => Task.CompletedTask) { Rendering = true };
+        try
+        {
+            LatticeChartPage.View = "lanes";
+            window.Sync(); Until(() => window.ListSettled);
+            window.OpenChart("lattice"); var chart = window.Chart!;
+            Until(() => chart.Feed.Snapshot is not null);
+            var root = (FrameworkElement)window.Content; root.Measure(new Size(1360, 860)); root.Arrange(new Rect(0, 0, 1360, 860)); root.UpdateLayout();
+            chart.Highlight("bot-admi"); chart.OpenDetail("p1/t03", morph: false);
+            chart.SetView("history"); root.UpdateLayout();
+            var rows = LogicalTree.Find<Button>(window.Content).Where(button => System.Windows.Automation.AutomationProperties.GetAutomationId(button) == "lattice-history-row").ToList();
+            Assert.Equal(3, rows.Count);
+            var selected = Assert.Single(rows, button => ((Border)button.Content).BorderThickness.Top == 2);
+            Assert.StartsWith("旧・組込案の比較", System.Windows.Automation.AutomationProperties.GetName(selected));
+            Assert.Equal([1d], rows.Where(button => button.Opacity == 1).Select(button => button.Opacity));   // only アドミ's card stays lit
+            Assert.Same(selected, rows.Single(button => button.Opacity == 1));
+            var at = chart.CardRect("p1/t03");
+            Assert.False(at.IsEmpty);
+            Assert.True(at.Y > chart.CardRect("p1/t01").Y);
+            chart.Highlight(null); chart.CloseDetail();
+            Assert.All(rows, button => Assert.Equal((1d, 1d), (button.Opacity, ((Border)button.Content).BorderThickness.Top)));
+            chart.Stop();
+        }
+        finally { LatticeChartPage.View = "tree"; window.Close(); }
+    });
+
     private static void Pump() { var frame = new DispatcherFrame(); Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => frame.Continue = false)); Dispatcher.PushFrame(frame); }
     private static void Await(Task task) { Until(() => task.IsCompleted); task.GetAwaiter().GetResult(); }
     private static void Until(Func<bool> done) { var until = DateTime.UtcNow.AddSeconds(10); while (!done()) { if (DateTime.UtcNow > until) throw new TimeoutException(); Pump(); Thread.Sleep(1); } }

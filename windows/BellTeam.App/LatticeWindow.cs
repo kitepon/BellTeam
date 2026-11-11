@@ -260,6 +260,7 @@ internal sealed class LatticeChartPage : Grid
     internal static string View { get; set; } = "tree";
     private readonly StackPanel history = new() { Margin = new Thickness(20, 14, 20, 24), Width = 680, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly Dictionary<string, FrameworkElement> historyRows = [];
+    private readonly Dictionary<string, Border> historyFrames = [];
     private readonly ScrollViewer scroller;
     private readonly Grid stage = new();
     private readonly StackPanel toolbar = new() { Orientation = Orientation.Horizontal };
@@ -437,7 +438,7 @@ internal sealed class LatticeChartPage : Grid
     /// <summary>過去ログ: finished cards under JST day headings, newest first; a row opens 詳細.</summary>
     private void RenderHistory(LatticeSnapshot snapshot, DateTimeOffset now)
     {
-        history.Children.Clear(); historyRows.Clear();
+        history.Children.Clear(); historyRows.Clear(); historyFrames.Clear();
         var log = LatticeChart.History(snapshot, now);
         if (log.Count == 0) { var none = Text("まだ終わった工程はありません。", 14, Muted); none.Margin = new Thickness(4, 10, 0, 0); history.Children.Add(none); return; }
         foreach (var group in log.Groups)
@@ -455,8 +456,20 @@ internal sealed class LatticeChartPage : Grid
                 var frame = new Border { Child = dock, CornerRadius = new CornerRadius(10), Padding = new Thickness(12, 8, 12, 8), Margin = new Thickness(0, 0, 0, 6), Background = Brush(Colors.White, 0xD9), BorderBrush = Brush(LatticeLook.Line), BorderThickness = new Thickness(1) };
                 var button = Plain(frame, row.Label); var id = row.Id; button.Click += (_, _) => OpenDetail(id);
                 System.Windows.Automation.AutomationProperties.SetAutomationId(button, "lattice-history-row");
-                historyRows[id] = button; history.Children.Add(button);
+                historyRows[id] = button; historyFrames[id] = frame; history.Children.Add(button);
             }
+        }
+        ApplyHistory();
+    }
+    /// <summary>The selected card's ring and the member highlight on 過去ログ rows, as the tree and the lanes show them.</summary>
+    private void ApplyHistory()
+    {
+        var on = HighlightedMember is { } member && Feed.Snapshot is { } snapshot ? LatticeChart.Highlight(snapshot, member).Cards : null;
+        foreach (var (id, row) in historyRows)
+        {
+            row.Opacity = on is not null && !on.Contains(id) ? .28 : 1;
+            var selected = id == SelectedCard; var frame = historyFrames[id];
+            frame.BorderBrush = Brush(selected ? Violet : LatticeLook.Line); frame.BorderThickness = new Thickness(selected ? 2 : 1); frame.Padding = selected ? new Thickness(11, 7, 11, 7) : new Thickness(12, 8, 12, 8);
         }
     }
 
@@ -506,7 +519,7 @@ internal sealed class LatticeChartPage : Grid
             rail.Children.Add(button);
         }
     }
-    internal void Highlight(string? botId) { HighlightedMember = botId; Board.Highlight(botId); Tree.Highlight(botId); if (Feed.Snapshot is { } snapshot) { RenderRail(snapshot); RenderWaits(snapshot, window.Now()); } }
+    internal void Highlight(string? botId) { HighlightedMember = botId; Board.Highlight(botId); Tree.Highlight(botId); ApplyHistory(); if (Feed.Snapshot is { } snapshot) { RenderRail(snapshot); RenderWaits(snapshot, window.Now()); } }
 
     private void RenderWaits(LatticeSnapshot snapshot, DateTimeOffset now)
     {
@@ -552,24 +565,31 @@ internal sealed class LatticeChartPage : Grid
         ScrollToCard(cardId);
         OpenDetail(cardId);
     }
-    private Rect CardRect(string id) => View switch { "tree" => Tree.CardRect(id), "lanes" => Board.CardRect(id), _ => Rect.Empty };
+    internal Rect CardRect(string id) => View switch { "tree" => Tree.CardRect(id), "lanes" => Board.CardRect(id), _ => HistoryRect(id) };
+    // A 過去ログ row's place in the scrolled content (the panel's margin included); empty before layout or for an unfinished card.
+    private Rect HistoryRect(string id)
+    {
+        if (!historyRows.TryGetValue(id, out var row) || row.ActualHeight == 0 || !row.IsDescendantOf(history)) return Rect.Empty;
+        var at = row.TranslatePoint(new Point(), history);
+        return new Rect(at.X + history.Margin.Left, at.Y + history.Margin.Top, row.ActualWidth, row.ActualHeight);
+    }
     private FrameworkElement? CardElement(string id) => View switch { "tree" => Tree.CardElement(id), "lanes" => Board.CardElement(id), _ => historyRows.GetValueOrDefault(id) };
     private bool ScrollToCard(string cardId)
     {
         var rect = CardRect(cardId); if (rect.IsEmpty) return false;
-        // The lanes keep their names at the left edge; the tree has none.
-        if (View == "tree") { scroller.ScrollToHorizontalOffset(Math.Max(0, rect.X - 40)); scroller.ScrollToVerticalOffset(Math.Max(0, rect.Y - 60)); scroller.UpdateLayout(); }
+        // The lanes keep their names at the left edge; the tree and 過去ログ have none.
+        if (View is "tree" or "history") { scroller.ScrollToHorizontalOffset(Math.Max(0, rect.X - 40)); scroller.ScrollToVerticalOffset(Math.Max(0, rect.Y - 60)); scroller.UpdateLayout(); }
         else ScrollBoard(rect.X, rect.Y);
         return true;
     }
     /// <summary>Brings a board point near the top left, clear of the lane names.</summary>
     internal void ScrollBoard(double x, double y) { scroller.ScrollToHorizontalOffset(Math.Max(0, x - LatticeChart.LabelWidth - 40)); scroller.ScrollToVerticalOffset(Math.Max(0, y - 60)); scroller.UpdateLayout(); }
 
-    internal void OpenDetail(string cardId, bool morph = true) { SelectedCard = cardId; Board.Select(cardId); Tree.Select(cardId); ShowDetail(cardId, morph); }
+    internal void OpenDetail(string cardId, bool morph = true) { SelectedCard = cardId; Board.Select(cardId); Tree.Select(cardId); ApplyHistory(); ShowDetail(cardId, morph); }
     internal bool CloseDetail()
     {
         if (SelectedCard is null) return false;
-        var card = SelectedCard; SelectedCard = null; detailHost.Content = null; Board.Select(null); Tree.Select(null);
+        var card = SelectedCard; SelectedCard = null; detailHost.Content = null; Board.Select(null); Tree.Select(null); ApplyHistory();
         CardElement(card)?.Focus();
         return true;
     }
