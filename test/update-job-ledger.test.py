@@ -18,7 +18,7 @@ class DurableJobs(unittest.TestCase):
         self.prefix = Path(self.temp.name); (self.prefix / 'state').mkdir(mode=0o700)
         self.current = {'sourceCommit': 'a' * 40}
         self.updater = host.HostUpdater(self.prefix, {}, uid=os.getuid(), inspect=lambda: self.current, launcher=self.launch, execute=self.execute)
-        self.updater.assert_model_binding = lambda *_: None
+        self.updater.assert_model_binding = lambda *_, **__: None
         self.updater.module_volume = lambda *_: {}
         self.threads = []; self.launches = []; self.ready_to_finish = threading.Event(); self.ready_to_finish.set()
         self.addCleanup(self.finish)

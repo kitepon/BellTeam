@@ -155,13 +155,27 @@ def birth(pid):
     except (OSError, IndexError):
         return None
 
-def verify_model_mounts(normal, mounts, specs):
+def new_bind(mount, mounts):
+    # A bind the running body lacks may be added only where it shadows or splits no running mount.
+    target, source = mount.get('target'), mount.get('source')
+    if mount['type'] != 'bind' or type(target) is not str or type(source) is not str or not target.startswith('/') or not source.startswith('/'):
+        return False
+    target = os.path.normpath(target)
+    for value in mounts:
+        other = os.path.normpath(str(value.get('Destination', '')))
+        if os.path.commonpath([target, other]) in {target, other}:
+            return False
+    return True
+
+def verify_model_mounts(normal, mounts, specs, new_binds=False):
     check(type(mounts) is list and type(specs) is list, 'HOST_UPDATE_STORAGE_BINDING')
     configured = normal.get('services', {}).get('bellteam', {}).get('volumes')
     check(type(configured) is list, 'HOST_UPDATE_STORAGE_BINDING')
     for mount in configured:
         check(type(mount) is dict and mount.get('type') in {'bind','volume'}, 'HOST_UPDATE_STORAGE_BINDING')
         actual = [value for value in mounts if value.get('Destination') == mount.get('target')]
+        if new_binds and not actual and new_bind(mount, mounts):
+            continue
         check(len(actual) == 1 and actual[0].get('Type') == mount['type'] and actual[0].get('RW') is (not mount.get('read_only', False)), 'HOST_UPDATE_STORAGE_BINDING')
         if mount['type'] == 'bind':
             check(actual[0].get('Source') == mount.get('source'), 'HOST_UPDATE_STORAGE_BINDING')
@@ -357,10 +371,10 @@ class HostUpdater:
         check(type(mounts) is list and type(specs) is list, 'HOST_UPDATE_STORAGE_BINDING')
         return {'mounts':sorted(mounts,key=lambda row:row['Destination']), 'specs':sorted(specs,key=lambda row:row['Target'])}
 
-    def assert_model_binding(self, current, normal=None):
+    def assert_model_binding(self, current, normal=None, new_binds=False):
         normal = normal or read_json(self.prefix / 'installation/normal.json', self.uid, CATALOG_LIMIT)
         storage = self.storage_metadata(current['containerId'])
-        verify_model_mounts(normal, storage['mounts'], storage['specs'])
+        verify_model_mounts(normal, storage['mounts'], storage['specs'], new_binds)
 
     def catalog(self, requested):
         pointer = read_json(self.prefix / 'catalog/state.json', self.uid, CATALOG_LIMIT)
@@ -621,7 +635,7 @@ class HostUpdater:
                     check(parse_time(plan['expiresAt']) > time.time(), 'HOST_UPDATE_PLAN_EXPIRED')
                     observed = self.inspect()
                     check(observed == plan['expected'], 'HOST_UPDATE_CURRENT_CHANGED')
-                    self.assert_model_binding(observed)
+                    self.assert_model_binding(observed, new_binds=True)
                     if plan['target']['componentId'] in MODULES:
                         atomic(directory / 'module-volume.json', self.module_volume(observed, directory))
                     check(birth(os.getpid()) is not None, 'HOST_UPDATE_WORKER_IDENTITY')

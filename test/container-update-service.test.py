@@ -62,7 +62,7 @@ class ContainerUpdaterTests(unittest.TestCase):
 
     def test_one_claim_durable_ack_same_id_get_and_lost_worker_never_relaunch(self):
         self.updater.command = lambda *_args, **_kwargs: json.dumps(self.record).encode()
-        self.updater.assert_model_binding = lambda *_args: None
+        self.updater.assert_model_binding = lambda *_args, **_: None
         target = dict(componentId='container', versionId='sha256:' + 'e' * 64)
         self.updater.planned_target = lambda _plan: target
         plan_id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
@@ -151,7 +151,7 @@ touch "$BELLTEAM_INSTALL_DIR/applied"
         self.updater.command = command
         self.updater.inspect_current = lambda: ({**self.current, 'imageId': selected, 'sourceCommit': 'e' * 40}
             if (install / 'applied').exists() else self.current)
-        self.updater.assert_model_binding = lambda *_args: None
+        self.updater.assert_model_binding = lambda *_args, **_: None
         plan = dict(target=dict(componentId='container', sourceCommit='e' * 40,
                     artifact=dict(reference='ghcr.io/kitepon/bellteam-server@sha256:' + 'e' * 64)),
                     expected=self.current, planId='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')

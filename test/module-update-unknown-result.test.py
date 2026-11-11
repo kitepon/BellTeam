@@ -28,7 +28,7 @@ class UnknownResultTests(unittest.TestCase):
 
         self.updater = service.ModuleUpdater(prefix, prefix, {'release': 'a' * 40, 'platform': current['platform']},
             uid=os.getuid(), inspect=lambda: current, execute=execute)
-        self.updater.assert_model_binding = lambda *_args: None
+        self.updater.assert_model_binding = lambda *_args, **_: None
         self.updater.module_volume = lambda *_args: current['privateVolume']
         target = {'componentId': 'execution', 'versionId': 'b' * 64}
         self.updater.planned_target = lambda _plan: target

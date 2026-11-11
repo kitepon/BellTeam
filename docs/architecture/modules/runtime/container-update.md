@@ -65,6 +65,29 @@ Rootコード公開はinstall-container-update-code.pyで固定14fileのimagePat
 
 Host planのexpectedには実mount/specをtarget順で正規化したstorageBinding hashを持つ。生のHostpathをAPIへ返さず、worker受領前/新起動後にprivate normalと実bind/volume名/RO/subpathを照合する。新imageのlocal ID/source/healthyと保存先本人性の確認までcompletedにしない。
 
+### New bind at worker admission (2026-11-11)
+
+`verify_model_mounts(normal, mounts, specs, new_binds=False)` is the one storage check. Callers:
+
+| Caller | When | `new_binds` | Why |
+| --- | --- | --- | --- |
+| `HostUpdater.worker` admission (`assert_model_binding(observed, new_binds=True)`) | before any stop, against the old body | True | The model may add a bind the old body does not have yet. |
+| `execute_installer` `verify()` | after the new body is healthy, against the saved generation `normal.json` | False | The new body must carry every model mount, the new bind included. |
+| `--probe`, `container-update-service.py --configure` | provisioning / after install | False | Model and running body must already agree. |
+
+With `new_binds=True`, a model mount that has no running mount at its target passes only when all of these hold: type `bind`; absolute target and source; the target is not equal to, under, or a parent of any running mount destination. Every other model mount still matches exactly (destination, type, RW, source; volume name/subpath/nocopy). Protection kept: the recreate reattaches every existing bind/volume to the same data, and a new bind cannot shadow or split an existing mount. New volumes, and a model that drops a running mount, are unchanged (still refused / not checked as today). No new guard: this narrows an existing refusal.
+
+```mermaid
+flowchart TD
+  Model["installation/normal.json mount"] --> Match{"running mount at target?"}
+  Match -->|yes| Exact["exact match required (as before)"]
+  Match -->|"no, admission (new_binds)"| New{"bind, absolute, no overlap with running destinations?"}
+  Match -->|"no, after start / probe / configure"| Refuse["HOST_UPDATE_STORAGE_BINDING"]
+  New -->|yes| Pass["admitted; swap recreates with the new bind"]
+  New -->|no| Refuse
+  Pass --> After["after start: verify() requires the bind on the new body"]
+```
+
 catalog(componentId)はHost nativeの選択1recordだけを64KiB以内で返す。publication status/checkedAt/errorはfeed取得確認を表し、catalog署名受入/期限と実稼働版から分ける。定期供給の失敗を更新なしへ置換しない。署名済失効unionを耐久保持、古いcatalog採用/同時刻別digestを拒否、catalog資材公開後にactivation保存が失敗した場合もplanを止めて同資材のrepairでだけ解消する。
 
 専用のtest/helpers/container-updater-systemd.pyは、disposable root/systemd環境で実peer1001/別service cgroup/受付停止後worker継続/同ID再照会/socket親inode保持を確認する入口。engine・署名は人工なのでその証明へ加算しない。本coding環境はUID1000/systemd tools無しで未実行、供給側native VMへ接続する。

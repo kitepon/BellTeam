@@ -23,7 +23,7 @@ class HostTest(unittest.TestCase):
         self.calls=[];self.threads=[];self.release=threading.Event();self.release.set()
         self.config={'platform':{'os':'linux','arch':'amd64'},'projectName':'bellteam'}
         self.updater=module.HostUpdater(self.prefix,self.config,uid=os.getuid(),inspect=lambda:dict(self.current),launcher=self.launch,execute=self.execute)
-        self.updater.assert_model_binding=lambda *args:None
+        self.updater.assert_model_binding=lambda *args,**_:None
         self.catalog=self.make_catalog();self.install_catalog(self.catalog)
         self.addCleanup(self.writable);self.addCleanup(self.join)
     def writable(self):
@@ -320,7 +320,7 @@ touch "$BELLTEAM_INSTALL_DIR/applied"
           "s=importlib.util.spec_from_file_location('worker',"+repr(str(Path(module.__file__)))+");m=importlib.util.module_from_spec(s);s.loader.exec_module(m)\n"+
           "p=Path(sys.argv[1]);config="+repr(self.config)+"\n"+
           "def execute(plan,directory):\n u.progress(directory,'verifying')\n while not (p/'release-worker').exists():time.sleep(.01)\n u.progress(directory,'swapping')\n return dict(execution='succeeded',verification='succeeded',cleanup='succeeded',rollback='not_needed',observed=None,error=None)\n"+
-          "u=m.HostUpdater(p,config,uid=os.getuid(),inspect=lambda:"+repr(self.current)+",execute=execute);u.assert_model_binding=lambda *args:None;u.worker(sys.argv[2])\n")
+          "u=m.HostUpdater(p,config,uid=os.getuid(),inspect=lambda:"+repr(self.current)+",execute=execute);u.assert_model_binding=lambda *args,**_:None;u.worker(sys.argv[2])\n")
         processes=[]
         def launch(identifier):processes.append(subprocess.Popen([sys.executable,'-I',str(code),str(self.prefix),identifier],start_new_session=True))
         self.updater.launcher=launch
@@ -358,6 +358,21 @@ touch "$BELLTEAM_INSTALL_DIR/applied"
         with self.assertRaises(module.Failure):module.verify_model_mounts(normal,mounts,specs)
         mounts[0]['Source']='/fixed/data';specs[0]['VolumeOptions']['Subpath']='rooms'
         with self.assertRaises(module.Failure):module.verify_model_mounts(normal,mounts,specs)
+    def test_new_bind_is_admitted_only_without_overlap_and_only_at_admission(self):
+        normal={'services':{'bellteam':{'volumes':[{'type':'bind','source':'/fixed/data','target':'/srv/bellteam'},
+          {'type':'bind','source':'/run/creds','target':'/run/creds','bind':{'propagation':'rslave','create_host_path':True}}]}}}
+        mounts=[{'Type':'bind','Source':'/fixed/data','Destination':'/srv/bellteam','RW':True}]
+        module.verify_model_mounts(normal,mounts,[],True)
+        with self.assertRaises(module.Failure):module.verify_model_mounts(normal,mounts,[])
+        for target in ['/srv/bellteam/creds','/srv','/srv/bellteam/']:
+            normal['services']['bellteam']['volumes'][1]['target']=target
+            with self.assertRaises(module.Failure):module.verify_model_mounts(normal,mounts,[],True)
+        normal['services']['bellteam']['volumes'][1].update(target='/srv/bellteam-creds')
+        module.verify_model_mounts(normal,mounts,[],True)
+        normal['services']['bellteam']['volumes'][1].update(type='volume',source='creds')
+        with self.assertRaises(module.Failure):module.verify_model_mounts(normal,mounts,[],True)
+        mounts[0]['Source']='/foreign/data';normal['services']['bellteam']['volumes'].pop()
+        with self.assertRaises(module.Failure):module.verify_model_mounts(normal,mounts,[],True)
     def test_verifier_isolated_sibling_import_and_publisher_argv(self):
         import sys
         scripts=self.prefix/'releases'/('a'*40)/'scripts';scripts.mkdir(parents=True)
