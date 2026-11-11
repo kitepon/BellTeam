@@ -164,7 +164,7 @@ stateDiagram-v2
 | failed | 失敗 | 認証し直す | 認証できませんでした。理由：サーバーの`message`（無ければ「理由は返されませんでした。」） |
 | needsLogin | ログインが必要 | 認証する | ログインし直してください。「認証する」から公式サイトで認証します。 |
 
-- 行の主ボタン（紫の丸）は利用者の操作が要る段階（needsLogin・failed・waitingSite・waitingCode）だけ（Root review 2026-11-11 A）。Claudeの行はログインの札と別に、上限を1行（`AccountText.limitLine`：「上限中・11/13 17:00に戻ります（いまは2ndで動いています）」）、使用中は人数だけ（`AccountText.seats`：「52人が使用」）。
+- 行の主ボタン（紫の丸）は利用者の操作が要る段階（needsLogin・failed・waitingSite・waitingCode）だけ（Root review 2026-11-11 A）。Claudeの行はログインの札と別に、上限を1行（`AccountText.limitLine`：「上限中・11/13 17:00に戻ります（いまは2ndで動いています）」）、使用中は人数だけ。数はBot項目の`account`（本体の`transport.seatAccount`）で、そのslotで今動いているメンバーを数える（`AccountText.slotUsers`：「いま51人がこのアカウントで動いています」）。見出しの「N人が使用」（そのAIのメンバー）と1つ目・2つ目の和が一致する（Root 2026-11-12）。`/api/accounts`の`seats`は最後に起動した記録で、今は別のAIのメンバーも含むため数に使わない（どのBotにも`account`が無い旧本体だけ従来の「N人が使用」）。
 - 札の色：done=緑、waitingSite/waitingCode/confirming=紫（進行中）、needsLogin/failed/unknown=橙、checking=灰。完了の見た目（緑・「認証済み」）は`done`だけ。
 - 進行中の行（waitingSite/waitingCode/confirming）は、行も認証画面も同じ`inProgress`で、画面がactiveの間3秒ごとに読み直す。SSEの`eventRevision`でも読み直す。
 - 認証画面：サーバーの`session_id`がある時は「やめる」を出し（ローカルの`started`と論理和。旧本体は`started`のみ）、開始ボタンの文を「最初からやり直す」にする。`session_id`が無く`stage=unavailable`の時（状態を見ただけ）はAitermの案内（`auth_ui`のtitle/message）を出さず、サーバーの`message`だけを出す。

@@ -14,6 +14,14 @@ final class HarnessAccountsTests: XCTestCase {
 
     func testSeatAndBannerTexts() {
         XCTAssertEqual(AccountText.seats(["b1", "gone"]), "2人が使用", "名前は並べない")
+        // 11-12 production: header 51, 1つ目 seats 55 (4 moved to another AI), 2つ目 seats 24 (none on Claude now).
+        // The slot lines count only the bots' current `account`, so 51 = 51 + 0.
+        let accounts: [BotAccount?] = Array(repeating: BotAccount(harness: "claude", slot: "1st"), count: 51) + Array(repeating: nil, count: 89)
+        XCTAssertEqual(AccountText.slotUsers(accounts, harness: "claude", slot: "1st"), 51)
+        XCTAssertEqual(AccountText.slotUsers(accounts, harness: "claude", slot: "2nd"), 0)
+        XCTAssertNil(AccountText.slotUsers([nil, nil], harness: "claude", slot: "1st"), "旧本体（accountが無い）は従来のseatsの行")
+        XCTAssertEqual(AccountText.slotUsersLine(0), "いまこのアカウントで動いているメンバーはいません")
+        XCTAssertEqual(AccountText.slotUsersLine(51), "いま51人がこのアカウントで動いています")
         let fable = AccountLimit(scope: "fable", resetAt: "2026-11-08T14:00:00.000Z"), all = AccountLimit(scope: "all", resetAt: "2026-11-08T13:30:00.000Z")
         XCTAssertNil(AccountText.limitLine([], now: now))
         XCTAssertEqual(AccountText.limitLine([fable, all], runningOnOther: "2つ目", now: now), "上限中・22:30に戻ります（いまは2つ目で動いています）", "上限は1行、全モデルの時刻")
