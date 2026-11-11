@@ -64,6 +64,7 @@ export async function seatFiles(op, ...args) {
       return typeof value === 'string' && value ? value : null
     } catch { return null }
   }
+  if (op === 'loggedIn') return Boolean((await present(args[0]))?.isFile())
   if (op === 'usage') {
     // The usage endpoint Claude Code itself uses (scripts/claude-usage.py). The token never leaves this process.
     let token
@@ -187,9 +188,11 @@ export class HarnessAccounts {
   }
 
   // A non-1st seat can start only with its long-lived login (oauth-token, passed to the CLI env; harness-accounts.md).
+  // An installed home is 0700 (install.sh umask 077): the engine cannot traverse it, so the seat user answers instead.
+  // A check that fails both ways counts as not logged in, so selection never refuses a launch (lab 2026-11-11).
   async loggedIn(harness, slot) {
-    const entry = await present(join(this.root(harness, slot), slot === '1st' ? '.credentials.json' : 'oauth-token'))
-    return Boolean(entry?.isFile())
+    const path = join(this.root(harness, slot), slot === '1st' ? '.credentials.json' : 'oauth-token')
+    try { return Boolean((await present(path))?.isFile()) } catch { return this.seat('loggedIn', path).then(Boolean, () => false) }
   }
 
   limitFor(harness, slot, model) {
