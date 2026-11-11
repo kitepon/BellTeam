@@ -186,3 +186,25 @@ test('parent Aiterm over the seat command carries the account roots (production 
   assert.deepEqual(seatConnectionEnvironment('g', client.claudeConfigRoots), ['BELLTEAM_RUNTIME_GENERATION=g', `AITERM_CLAUDE_CONFIG_ROOTS=${client.claudeConfigRoots}`])
   assert.deepEqual(seatConnectionEnvironment('g', null), ['BELLTEAM_RUNTIME_GENERATION=g'])
 })
+
+test('an installed 0700 home: loggedIn asks the seat user, and selection never refuses (lab 2026-11-11 BOT_LAUNCH_FAILED)', async t => {
+  const { execFile } = await import('node:child_process')
+  const { seatFilesOver } = await import('../src/harness-accounts.mjs')
+  const waitProcess = ({ executable, args }) => new Promise((resolve, reject) =>
+    execFile(executable, args, { cwd: tmpdir() }, (error, stdout) => { try { resolve(JSON.parse(stdout)) } catch { reject(error) } }))
+  const { home } = await setup(t)
+  await mkdir(join(home, '.bellteam-accounts/claude/2nd'), { recursive: true })
+  await writeFile(join(home, '.bellteam-accounts/claude/2nd/oauth-token'), 'x')
+  // The stringified helper knows the op (it runs as the seat user, who can traverse the home).
+  assert.equal(await seatFilesOver(waitProcess)('loggedIn', join(home, '.bellteam-accounts/claude/2nd/oauth-token')), true)
+  // The engine cannot traverse: the seat user answers; a failing seat user means not logged in, never a thrown launch.
+  let seatAnswer = async () => true
+  const accounts = new HarnessAccounts({ home, statePath: join(home, 'state.json'), seat: (...args) => seatAnswer(...args) })
+  await chmod(join(home, '.bellteam-accounts'), 0o000)
+  try {
+    assert.equal(await accounts.loggedIn('claude', '2nd'), true)
+    seatAnswer = async () => { throw Object.assign(new Error('ACCOUNT_SEAT_FAILED'), { code: 'ACCOUNT_SEAT_FAILED' }) }
+    assert.equal(await accounts.loggedIn('claude', '2nd'), false)
+    assert.equal((await accounts.selection('claude', 'sonnet')).slot, '1st')
+  } finally { await chmod(join(home, '.bellteam-accounts'), 0o700) }
+})
