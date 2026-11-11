@@ -78,3 +78,9 @@ export function claudeLimitHold(screen) {
   const footer = lines.slice(rule + 1).join(' ').replace(/\s+/gu, ' ').trim()
   return /\bContinuing automatically at\b/iu.test(footer) ? footer : null
 }
+
+// The notice one Esc leaves on a cancelled limit hold ("Automatic continue cancelled · /rate-limit-options to re-arm",
+// checked 2026-11-11): the positive sign that the held turn will not continue at its reset.
+export function claudeHoldCancelled(screen) {
+  return /\bAutomatic continue cancelled\b/iu.test(String(screen ?? '').replace(/\x1b\[[0-?]*[ -/]*[@-~]/gu, ''))
+}

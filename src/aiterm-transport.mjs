@@ -18,7 +18,7 @@ import { DeliveryJob } from './delivery-job.mjs'
 import { SeatActivity, SeatTurnWatch } from './seat-activity.mjs'
 import { executionFailureReport, reportExecutionFailure } from './execution-failure-report.mjs'
 import { recoverableTurnFailure } from './capacity-continuation.mjs'
-import { claudeLimitHold, isLimitText } from './claude-limit-text.mjs'
+import { claudeHoldCancelled, claudeLimitHold, isLimitText } from './claude-limit-text.mjs'
 import { ACCOUNT_SLOTS } from './harness-accounts.mjs'
 import { returnedMcpError } from './returned-mcp-error.mjs'
 import { launchFailureDetails } from './agent-launch-error.mjs'
@@ -39,6 +39,8 @@ const HARNESS = new Map([
 ])
 // 合間の言葉を取りに行く間隔。Aitermのpty_observeは画面本文を読まない軽い呼び出し。
 const INTERIM_INTERVAL_MS = 3000
+// A limit hold ends at its reset; a weekly limit resets within 7 days (claude-limit-text.mjs MAX_AHEAD).
+const HOLD_MAX = 8 * 86_400_000
 // 起こした直後の席へ同じ文を送る回数の上限（sendToWokenSession）。
 const WOKEN_SEND_ATTEMPTS = 3
 // Pre-input refusals of a live seat that clear by themselves (slow readiness, previous input still being taken).
@@ -141,6 +143,7 @@ export class AitermTransport {
     this.accountRecoveries = new Set()
     this.reviewedRecovery = null
     this.holdReleasePollMs = 300
+    this.holdConfirmMs = 60_000
     this.accountsUnsubscribe = accounts?.watch(() => {
       this.activity.emitChange({ all: false, topics: ['accounts'], botIds: [], roomIds: [] })
       void this.reviewAccounts()
@@ -1851,29 +1854,59 @@ export class AitermTransport {
       const botId = suffix.exec(seat.session_id)?.[1] ?? seat.session_id, bot = this.resolveBot?.(botId)
       if (!this.claudeAccountBot(bot)) continue
       if (!free.has(bot.model)) free.set(bot.model, await this.accounts.freeSlot('claude', bot.model))
-      if (!free.get(bot.model) || !await this.limitHeld(seat.session_id)) continue
+      if (!free.get(bot.model)) continue
+      const state = await this.limitHeld(seat.session_id)
+      // An unreadable seat is read again at the next review, whatever changed.
+      if (state === null) this.reviewedRecovery = null
+      if (!state) continue
       held.set(botId, [...(held.get(botId) ?? []), seat.session_id])
     }
     return held
   }
 
-  // A screen capture (it does not move the shared read position); an unreadable seat is not held.
+  // A screen capture (it does not move the shared read position): true held, false read and not held, null unreadable.
   async limitHeld(session) {
     try {
       const result = await this.client.call('pty_read', { session_id: session, screen: true, raw: true, timeout: 0, lines: 40 })
       return claudeLimitHold(textResult(result)) !== null
-    } catch { return false }
+    } catch { return null }
   }
 
   // One Esc cancels Claude Code's automatic continue (checked 2026-11-11). Never a second one: two open the rewind menu.
+  // true only when the screen is read without the hold afterwards; held or unreadable is unconfirmed.
   async releaseLimitHold(session) {
     await this.client.call('pty_key', { session_id: session, key: 'Escape' })
     for (let read = 0; read < 10; read++) {
       await new Promise(resolve => setTimeout(resolve, this.holdReleasePollMs))
-      if (!await this.limitHeld(session)) return true
+      if (await this.limitHeld(session) === false) return true
     }
-    process.stderr.write(`BellTeam accounts: limit hold still shown after Esc: ${session}\n`)
+    process.stderr.write(`BellTeam accounts: limit hold cancellation unconfirmed after Esc: ${session}\n`)
     return false
+  }
+
+  // harness-accounts.md "unconfirmed cancellation": seats whose one Esc is not confirmed. Re-read only, never a second Esc,
+  // until each one is gone (released), shows the cancel notice (released), or is read without hold and notice: Claude Code
+  // continued the held turn at its reset, so no second turn may start ('continued'). A hold ends at its reset (a weekly limit
+  // within HOLD_MAX), so the loop ends then at the latest. 'closed': the engine retires or the member is gone; pending stays.
+  async confirmRelease(bot, sessions) {
+    const open = new Set(sessions), clock = () => Date.parse(this.now()), until = clock() + HOLD_MAX
+    let continued = false
+    while (open.size) {
+      await new Promise(resolve => setTimeout(resolve, this.holdConfirmMs))
+      if (this.accountsClosed || !this.claudeAccountBot(this.resolveBot?.(bot.id))) return 'closed'
+      const listed = await this.client.call('pty_list', {}).then(result => result?.structuredContent?.sessions, () => null)
+      for (const session of [...open]) {
+        if (Array.isArray(listed) && !listed.some(seat => seat?.session_id === session && seat.current_command !== 'hibernated')) { open.delete(session); continue }
+        let screen = null
+        try { screen = textResult(await this.client.call('pty_read', { session_id: session, screen: true, raw: true, timeout: 0, lines: 40 })) } catch {}
+        if (screen === null || claudeLimitHold(screen) !== null) {
+          if (clock() < until) continue
+          process.stderr.write(`BellTeam accounts: limit hold past its longest reset, taken as continued: ${session}\n`)
+        } else if (claudeHoldCancelled(screen)) { open.delete(session); continue }
+        open.delete(session); continued = true
+      }
+    }
+    return continued ? 'continued' : 'released'
   }
 
   moveAtBoundary(botId, held = []) {
@@ -1898,20 +1931,39 @@ export class AitermTransport {
 
   // harness-accounts.md "account recovery" with a free slot: a held seat is a boundary, so this never waits for its span.
   async recoverMember(bot, slot, held, record) {
-    const current = this.session(bot), holding = []
-    for (const session of new Set([...held, current])) if (await this.limitHeld(session)) holding.push(session)
+    const current = this.session(bot), holding = [], pressed = new Set(record?.escaped ?? [])
+    // A known hold that cannot be read now still holds as far as anyone knows. A seat already pressed (by an earlier engine)
+    // goes to the confirmation as it is: its screen alone cannot tell a cancelled hold from a turn continued at its reset.
+    for (const session of new Set([...held, ...pressed, current])) {
+      const state = await this.limitHeld(session)
+      if (state || pressed.has(session) || (state === null && session !== current)) holding.push(session)
+    }
     // A turn that just failed shows its hold a moment after the wait result; an old seat left held would continue at its reset.
     if (record && !holding.includes(current)) {
       await new Promise(resolve => setTimeout(resolve, this.holdReleasePollMs * 5))
-      if (await this.limitHeld(current)) holding.push(current)
+      if (await this.limitHeld(current) !== false) holding.push(current)
     }
     const renew = await this.accounts.renewDue(bot.id, 'claude', bot.model)
     // Its own slot freed first: Claude Code continues the held turn on the same seat; only old seats' holds are cancelled.
-    const ownTurn = holding.includes(current) && (this.accounts.seatSlot(bot.id) ?? '1st') === slot && !renew
+    const ownTurn = holding.includes(current) && !pressed.has(current) && (this.accounts.seatSlot(bot.id) ?? '1st') === slot && !renew
     if (!record && !holding.length) return
     this.accountRecoveries.add(bot.id)
     try {
-      for (const session of holding) if (!(ownTurn && session === current)) await this.releaseLimitHold(session)
+      const release = holding.filter(session => !(ownTurn && session === current))
+      if (release.some(session => !pressed.has(session))) {
+        // Written before the Esc: the continuation and the one-Esc rule survive a restart or an exchange during the cancellation.
+        const escaped = [...new Set([...pressed, ...release])]
+        await this.accounts.setPending(bot.id, { harness: 'claude', slot: record?.slot ?? this.accounts.seatSlot(bot.id) ?? '1st',
+          deliveryId: record?.deliveryId ?? null, escaped })
+      }
+      const unconfirmed = []
+      for (const session of release) if (pressed.has(session) || !await this.releaseLimitHold(session)) unconfirmed.push(session)
+      if (unconfirmed.length) {
+        const outcome = await this.confirmRelease(bot, unconfirmed)
+        if (outcome === 'closed') return
+        // The held turn went on by itself on that seat: a continuation elsewhere would run a second turn over the same work.
+        if (outcome === 'continued') return await this.accounts.dropPending(bot.id)
+      }
       if (!ownTurn) {
         if (holding.includes(current) || (this.accounts.seatSlot(bot.id) ?? '1st') !== slot || renew) await this.switchAccount(bot)
         await this.continuation?.resume(bot, { slot, deliveryId: record?.deliveryId ?? this.continuation.states.get(bot.id)?.deliveryId ?? null })
@@ -1921,6 +1973,7 @@ export class AitermTransport {
   }
 
   async close() {
+    this.accountsClosed = true
     this.accountsUnsubscribe?.()
     this.accounts?.close()
     const recovery = this.continuation?.close()

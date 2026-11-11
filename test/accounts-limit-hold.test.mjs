@@ -69,15 +69,15 @@ test('two reset timers firing together clear both entries and keep the other slo
 })
 
 function seats({ screens, bots }) {
-  const calls = []
+  const calls = [], hooks = { read: null, key: null }
   const client = { launchOptions: async () => ({}), async call(name, args, options = {}) {
     options.admissionCheck?.(); calls.push([name, args])
     if (name === 'pty_list') return { structuredContent: { sessions: [...screens.keys()].map(session_id => ({ session_id, harness: 'claude-code', current_command: 'claude' })) } }
-    if (name === 'pty_read') return { content: [{ type: 'text', text: screens.get(args.session_id) ?? '' }] }
-    if (name === 'pty_key') { screens.set(args.session_id, CANCELLED); return {} }
+    if (name === 'pty_read') return { content: [{ type: 'text', text: hooks.read?.(args.session_id) ?? screens.get(args.session_id) ?? '' }] }
+    if (name === 'pty_key') { if (!hooks.key?.(args.session_id)) screens.set(args.session_id, CANCELLED); return {} }
     throw Error(`unexpected ${name}`)
   } }
-  return { client, calls }
+  return { client, calls, hooks }
 }
 
 async function recovery(t, { held, limited }) {
@@ -91,17 +91,24 @@ async function recovery(t, { held, limited }) {
   ])
   await accounts.setSeat('bot-elegg', '2nd'); await accounts.setSeat('bot-n102', '1st')
   const screens = new Map([['bot-elegg', held ? HELD : CANCELLED], ['bot-n102', held ? HELD : CANCELLED], ['bot-n102-1st-abc', CANCELLED]])
-  const { client, calls } = seats({ screens, bots })
+  const { client, calls, hooks } = seats({ screens, bots })
   const transport = new AitermTransport({ client, accounts, resolveBot: id => bots.get(id) })
-  transport.holdReleasePollMs = 1
+  transport.holdReleasePollMs = 1; transport.holdConfirmMs = 1
   const switched = [], sent = []
   transport.switchAccount = async bot => { switched.push(bot.id); const session = `${bot.id}-1st-new`; bots.set(bot.id, { ...bot, session }); transport.sessions.set(bot.id, session); await accounts.setSeat(bot.id, '1st') }
   const continuation = new CapacityContinuation({ bots, accounts, transport, assertEnabled: () => {},
     messenger: { sendmessage: async (input, options) => { options.admissionCheck(); sent.push(input); return { delivery_id: `d-${sent.length}` } } } })
   continuation.states.set('bot-n102', { deliveryId: 'n102-original' })
   transport.continuation = continuation
-  const review = async () => { await transport.reviewAccounts(); while (transport.accountMoves.size) await Promise.all(transport.accountMoves.values()) }
-  return { accounts, calls, transport, switched, sent, review, screens }
+  // Settled: no move running, and the registry writes and reviews they caused are done.
+  const review = async () => {
+    await transport.reviewAccounts()
+    do {
+      while (transport.accountMoves.size) await Promise.all(transport.accountMoves.values())
+      await accounts.writing; await transport.accountReview; await new Promise(resolve => setImmediate(resolve))
+    } while (transport.accountMoves.size)
+  }
+  return { accounts, calls, transport, switched, sent, review, screens, hooks }
 }
 
 // Production 2026-11-11: Elegg's self-started turn held on the 2nd and N102's old seat held after its move to the 1st.
@@ -147,4 +154,47 @@ test('a held current seat whose own slot freed is left to continue by itself; no
   // Elegg, not held, only returns to the freed 1st at its boundary (no message); N102 is neither moved nor told.
   assert.deepEqual([switched, sent], [['bot-elegg'], []])
   assert.equal(accounts.pendingFor('bot-n102'), null)
+})
+
+// Epinel #1088: a known hold whose one Esc is not confirmed (still held, then unreadable) keeps pending; no second Esc,
+// no new seat and no message until the cancel notice is read, then exactly one continuation.
+test('unconfirmed cancellation: pending kept, one Esc only, recovery after the cancel notice with exactly one continuation', async t => {
+  const { calls, switched, sent, review, accounts, screens, hooks, transport } = await recovery(t, { held: false, limited: ['2nd'] })
+  screens.set('bot-elegg', HELD)
+  // The Esc's own reads keep showing the hold; the later confirmation reads are unreadable, held, then cancelled.
+  const after = ['unreadable', HELD, CANCELLED]
+  let confirming = false, cancelSeen = false, waiting = null
+  const release = transport.releaseLimitHold.bind(transport)
+  transport.releaseLimitHold = async session => { const released = await release(session); confirming = !released; return released }
+  hooks.key = session => session === 'bot-elegg'
+  hooks.read = session => {
+    if (session !== 'bot-elegg' || !confirming) return null
+    const screen = after.length ? after.shift() : CANCELLED
+    if (screen === 'unreadable') { waiting = [accounts.pendingFor('bot-elegg'), [...switched], sent.length]; throw Error('AITERM_READ_FAILED') }
+    if (screen === CANCELLED) cancelSeen = true
+    return screen
+  }
+  await review()
+  assert.deepEqual(waiting[0].escaped, ['bot-elegg'], 'the continuation and the pressed seat are kept while unconfirmed')
+  assert.deepEqual(waiting.slice(1), [[], 0], 'nothing moved or sent while unconfirmed')
+  assert.equal(cancelSeen, true)
+  assert.equal(calls.filter(([name, args]) => name === 'pty_key' && args.session_id === 'bot-elegg').length, 1)
+  assert.deepEqual(switched, ['bot-elegg'])
+  assert.equal(sent.filter(input => input.target === 'bot-elegg').length, 1)
+  assert.equal(accounts.pendingFor('bot-elegg'), null)
+})
+
+test('unconfirmed cancellation: a hold that continued by itself at its reset gets no second turn', async t => {
+  const { sent, review, accounts, screens, hooks, transport } = await recovery(t, { held: false, limited: ['2nd'] })
+  screens.set('bot-elegg', HELD)
+  let confirming = false
+  const release = transport.releaseLimitHold.bind(transport)
+  transport.releaseLimitHold = async session => { const released = await release(session); confirming = !released; return released }
+  hooks.key = session => session === 'bot-elegg'
+  // Still held through the Esc's reads, then running without hold or cancel notice: Claude Code continued the turn.
+  hooks.read = session => session === 'bot-elegg' && confirming ? '✻ Working… (esc to interrupt)\n────────\n❯\n────────\n  ⏵⏵ on' : null
+  await review()
+  // No continuation message. A later move back to the 1st is the ordinary idle-boundary return (it waits for a watched turn).
+  assert.deepEqual(sent, [])
+  assert.equal(accounts.pendingFor('bot-elegg'), null)
 })
