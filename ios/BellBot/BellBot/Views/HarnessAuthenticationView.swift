@@ -122,7 +122,7 @@ private struct AuthenticationBadge: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Text(progress.badge).font(.caption.weight(.semibold)).foregroundStyle(progress.tint)
+            BellBadge(text: progress.badge, tone: progress.tone)
                 .accessibilityIdentifier("harness-auth-state-\(identifier)")
             // 主ボタンは、利用者の操作が要る段階（ログインが必要・失敗・途中）だけ。使える行は控えめな矢印だけ。
             if let action = progress.action {
@@ -215,22 +215,26 @@ struct HarnessAuthenticationView: View {
 
     var body: some View {
         Form {
+            // Always present, also while the state is still being read: the account, its badge and one sentence.
+            Section {
+                SettingsSubHeader(symbol: SettingsPage.ai.symbol, tint: SettingsPage.ai.tint, title: title, line: accountLabel) {
+                    BellBadge(text: progress.badge, tone: progress.tone)
+                }
+            }
+            .listRowBackground(Color.clear)
             Section {
                 VStack(alignment: .leading, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(title).font(.headline)
-                        if let accountLabel { Text(accountLabel).font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted) }
-                    }
-                    SettingsBadgeView(text: progress.badge, tone: progress.tone)
                     Text(progress.detail).foregroundStyle(progress.tone == .green ? BellTheme.ink : progress.tint)
+                        .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("harness-auth-status")
                     controls
                 }
+                .padding(.vertical, 4)
                 .disabled(flow.busy)
             }
         }
         .navigationTitle(title)
-        .scrollContentBackground(.hidden).background(BellBackground())
+        .settingsSubPage()
         .alert("AIの認証をやり直しますか？", isPresented: $confirming) {
             Button("始めない", role: .cancel) { }
             Button("今の認証を手放して始める", role: .destructive) { run(.start) { try await flow.start() } }
@@ -334,6 +338,7 @@ struct HarnessAuthenticationView: View {
     @ViewBuilder private var errorLine: some View {
         if let errorText {
             Text(errorText).font(.footnote).foregroundStyle(.red)
+                .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("harness-auth-error")
         }
     }

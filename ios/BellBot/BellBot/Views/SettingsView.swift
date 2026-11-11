@@ -225,21 +225,6 @@ struct SettingsIconTile: View {
     }
 }
 
-/// The state word of an item: a coloured capsule (colours from the one vocabulary, settings-user-flow.md §3).
-struct SettingsBadgeView: View {
-    let text: String
-    let tone: SettingsTone
-
-    var body: some View {
-        Text(text)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(tone.color)
-            .lineLimit(1).fixedSize()
-            .padding(.horizontal, 9).padding(.vertical, 3)
-            .background(tone.color.opacity(0.13), in: Capsule())
-    }
-}
-
 private struct SettingsProfileRow: View {
     @EnvironmentObject private var store: AppStore
     let large: Bool
@@ -283,13 +268,14 @@ private struct SettingsCategoryRow: View {
         HStack(spacing: 12) {
             SettingsIconTile(symbol: page.symbol, tint: page.tint)
             VStack(alignment: .leading, spacing: 2) {
-                Text(page.title).font(titleFont).foregroundStyle(page == .stop ? .red : .primary)
-                Text(status.line).font(detailFont).foregroundStyle(.secondary).lineLimit(2)
+                Text(page.title).font(titleFont).foregroundStyle(page == .stop ? .red : .primary).lineLimit(1)
+                // One line for every row, so the list rows are all the same height; a longer state is cut, the page head says it in full.
+                Text(status.line).font(detailFont).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
                     .accessibilityIdentifier("settings-state-\(page.rawValue)")
             }
             .layoutPriority(1)
             Spacer(minLength: 6)
-            if let badge = status.badge { SettingsBadgeView(text: badge, tone: status.tone) }
+            if let badge = status.badge { BellBadge(text: badge, tone: status.tone) }
         }
         .padding(.vertical, 3)
     }
@@ -310,12 +296,12 @@ private struct SettingsAttentionSection: View {
                         HStack(spacing: 12) {
                             SettingsIconTile(symbol: item.page.symbol, tint: item.page.tint)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(item.page.title).foregroundStyle(.primary)
-                                Text(item.status.line).font(.footnote).foregroundStyle(.secondary).lineLimit(2)
+                                Text(item.page.title).foregroundStyle(.primary).lineLimit(1)
+                                Text(item.status.line).font(.footnote).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
                             }
                             .layoutPriority(1)
                             Spacer(minLength: 6)
-                            if let badge = item.status.badge { SettingsBadgeView(text: badge, tone: item.status.tone) }
+                            if let badge = item.status.badge { BellBadge(text: badge, tone: item.status.tone) }
                         }
                         .padding(.vertical, 3)
                         .contentShape(Rectangle())
@@ -344,7 +330,7 @@ struct SettingsPageHeader<Actions: View>: View {
                 SettingsIconTile(symbol: page.symbol, tint: page.tint, side: 36)
                 if navigator != nil { Text(page.title).font(.title2.bold()) }
                 Spacer(minLength: 8)
-                if let badge = status.badge { SettingsBadgeView(text: badge, tone: status.tone) }
+                if let badge = status.badge { BellBadge(text: badge, tone: status.tone) }
             }
             Text(status.line).font(BellTheme.detailFont).foregroundStyle(.secondary)
                 .accessibilityIdentifier("settings-page-state")
@@ -380,16 +366,67 @@ struct SettingsBanner: View {
     }
 }
 
-/// The big prominent button of a page head.
+/// The ONE prominent button of a settings page or sub-page: filled, violet, full width. While `busy` it says `busyTitle` and cannot be pressed.
+/// Every other action on the page is quiet (bordered or plain); a destructive one is `role: .destructive` and asks first.
 struct SettingsMainButton: View {
     let title: String
+    var busyTitle: String? = nil
+    var busy = false
     var identifier: String
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) { Text(title).frame(maxWidth: .infinity) }
+        Button(action: action) { Text(busy ? (busyTitle ?? title) : title).frame(maxWidth: .infinity) }
             .buttonStyle(.borderedProminent).tint(BellTheme.violet).controlSize(.large)
+            .disabled(busy)
             .accessibilityIdentifier(identifier)
+    }
+}
+
+/// Header of every settings sub-page that is not a list item of its own (a feature, a terminal, an AI login): icon, title, one line, state.
+struct SettingsSubHeader<Trailing: View>: View {
+    let symbol: String
+    let tint: Color
+    let title: String
+    var line: String?
+    @ViewBuilder var trailing: Trailing
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            SettingsIconTile(symbol: symbol, tint: tint, side: 44)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).font(.title3.bold()).fixedSize(horizontal: false, vertical: true)
+                if let line {
+                    Text(line).font(BellTheme.detailFont).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Spacer(minLength: 8)
+            trailing
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+extension SettingsSubHeader where Trailing == EmptyView {
+    init(symbol: String, tint: Color, title: String, line: String? = nil) {
+        self.init(symbol: symbol, tint: tint, title: title, line: line, trailing: { EmptyView() })
+    }
+}
+
+extension View {
+    /// The one frame of a settings sub-page: content from the top, at most ~620 pt wide (like the update page), calm section spacing.
+    func settingsSubPage() -> some View {
+        self
+            .listSectionSpacing(.custom(20))
+            .scrollContentBackground(.hidden)
+            .frame(maxWidth: 620)
+            .frame(maxWidth: .infinity, alignment: .top)
+            .background(BellBackground())
+    }
+
+    /// A button row that sits on the page background instead of in a white section card (the prominent button of a Form).
+    func settingsButtonRow() -> some View {
+        self.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
     }
 }
 
@@ -438,7 +475,7 @@ struct SettingsCardPage<Actions: View, Content: View>: View {
                 SettingsPageHeader(page: page) { actions }
                 content
             }
-            .frame(maxWidth: 720)
+            .frame(maxWidth: 620)
             .padding(20)
             .frame(maxWidth: .infinity)
         }
@@ -474,6 +511,7 @@ private struct ConnectionSettingsPage: View {
                 }
             }
         }
+        .settingsSubPage()
         .confirmationDialog("接続先を変えますか？", isPresented: $confirmingChange, titleVisibility: .visible) {
             Button("接続先を変える", role: .destructive) { Task { await store.changeServer() } }
             Button("やめる", role: .cancel) { }
@@ -501,6 +539,7 @@ private struct DisplaySettingsPage: View {
                 Text("会話を開き直すと反映します。").font(BellTheme.secondaryFont)
             }
         }
+        .settingsSubPage()
     }
 }
 
@@ -552,6 +591,7 @@ private struct AboutSettingsPage: View {
             Section { SettingsPageHeader(page: .about) }.listRowBackground(Color.clear)
             Section { LabeledContent("アプリの版", value: SettingsPage.versionText) }
         }
+        .settingsSubPage()
     }
 }
 
@@ -597,6 +637,7 @@ private struct StopSettingsPage: View {
                 Text("ONにすると全メンバーへ停止の指示を送り、新しい依頼を受け付けなくなります。会話を読むことはできます。").font(BellTheme.secondaryFont)
             }
         }
+        .settingsSubPage()
         .task { await store.refreshAIControl() }
     }
 }
@@ -668,16 +709,13 @@ private struct ProfileEditor: View {
             }
             // The result of 保存 appears right under it.
             Section {
-                Button { Task { await save() } } label: {
-                    Text(saving ? "保存しています…" : "保存").frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent).tint(BellTheme.violet).controlSize(.large)
-                .disabled(saving)
-                .accessibilityIdentifier("profile-save")
+                SettingsMainButton(title: "保存", busyTitle: "保存しています…", busy: saving, identifier: "profile-save") { Task { await save() } }
+                    .settingsButtonRow()
                 if let errorText { SettingsBanner(message: errorText) }
                 if saved { Label("プロフィールを保存しました", systemImage: "checkmark.circle.fill").foregroundStyle(.green) }
             }
         }
+        .settingsSubPage()
         .navigationTitle("プロフィール")
         .navigationBarTitleDisplayMode(.inline)
         .task { load() }

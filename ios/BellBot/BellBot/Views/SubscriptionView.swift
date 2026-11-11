@@ -21,7 +21,7 @@ private struct SubscriptionContent: View {
             Text("Web版は無料です。iPhone・iPad・MacアプリのAI利用は、購入したApple Accountの月額購読で使えます。サーバーとAIはご自身の契約で利用します。")
                 .font(.subheadline).foregroundStyle(BellTheme.muted)
             if billing.isDeveloper {
-                Text("開発者として利用中").foregroundStyle(BellTheme.mint)
+                BellBadge(text: "開発者として利用中", tone: .green, symbol: "checkmark.seal.fill")
                 Text("このサーバーでは購読の購入は不要です。AIへの送信と予定操作を利用できます。")
                     .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
             } else if billing.presentation == .checking {
@@ -32,7 +32,7 @@ private struct SubscriptionContent: View {
                     .font(.subheadline)
             } else {
                 if billing.hasPaidAccess, let entitlement = billing.entitlement {
-                    Text("このApple Accountの購読は有効です").foregroundStyle(BellTheme.mint)
+                    BellBadge(text: "このApple Accountの購読は有効です", tone: .green, symbol: "checkmark.circle.fill")
                     Text("有効期限：\(entitlement.validUntil.formatted(date: .abbreviated, time: .shortened))").font(BellTheme.secondaryFont)
                     if entitlement.gracePeriodExpiresAt != nil {
                         Text("Appleの支払い猶予期間中です。購読を管理して支払い方法を確認してください。")
@@ -42,7 +42,7 @@ private struct SubscriptionContent: View {
                             .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
                     }
                 } else {
-                    Text("このApple Accountの有効な購読はありません")
+                    BellBadge(text: "このApple Accountの有効な購読はありません", tone: .gray, symbol: "circle.dashed")
                     Text("初期案内の会話、保存した会話の閲覧・書き出しは無料です。通常のAI送信と予定の作成・編集・実行は、購読が有効な間に使えます。Webで用意した予定は継続します。")
                         .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
                     if billing.status?.setupComplete != true {
@@ -71,6 +71,7 @@ private struct SubscriptionContent: View {
             HStack {
                 if !billing.isDeveloper {
                     Button("購入を復元") { Task { await billing.restore() } }
+                        .buttonStyle(.bordered)
                         .accessibilityIdentifier("subscription-restore")
                 }
                 Button("再確認") {
@@ -79,6 +80,7 @@ private struct SubscriptionContent: View {
                         else { await billing.recheck() }
                     }
                 }
+                .buttonStyle(.bordered)
             }
             .disabled(billing.checking)
             if !billing.isDeveloper {

@@ -22,6 +22,10 @@ final class NetworkLifecycleProbeUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["設定を読み込めませんでした"].exists)
         let first = XCTAttachment(screenshot: app.screenshot()); first.name = "設定取得失敗時"; first.lifetime = .keepAlways; add(first)
         app.buttons["再読み込み"].tap()
+        // 登録済みの値は画面に出さない。「変更」で入力欄が開く。
+        XCTAssertTrue(app.buttons["feature-change-label"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.textFields["試験の値"].exists)
+        app.buttons["feature-change-label"].tap()
         XCTAssertTrue(app.textFields["試験の値"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.textFields["試験の値"].value as? String, "保持する値")
         XCTAssertTrue(save.isEnabled)
@@ -42,6 +46,8 @@ final class NetworkLifecycleProbeUITests: XCTestCase {
         for _ in 0..<5 where !setting.isHittable { app.scrollViews.firstMatch.swipeUp() }
         XCTAssertTrue(setting.waitForExistence(timeout: 5))
         setting.tap()
+        XCTAssertTrue(app.buttons["feature-change-label"].waitForExistence(timeout: 5))
+        app.buttons["feature-change-label"].tap()
         let field = app.textFields["試験の値"]
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         XCTAssertEqual(field.value as? String, "保持する値")
@@ -55,7 +61,7 @@ final class NetworkLifecycleProbeUITests: XCTestCase {
         let image = XCTAttachment(screenshot: app.screenshot()); image.name = "既知設定の後続GET失敗"; image.lifetime = .keepAlways; add(image)
         app.navigationBars.buttons.element(boundBy: 0).tap()
         XCTAssertTrue(app.staticTexts["試験機能"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["有効"].exists, "失敗前に取得した一覧を保持する")
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "有効")).firstMatch.exists, "失敗前に取得した一覧を保持する")
     }
 
     func testKnownScheduleSurvivesBackgroundCancellationAndReloadsOnReturn() throws {

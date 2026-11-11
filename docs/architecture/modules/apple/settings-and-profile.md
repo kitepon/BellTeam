@@ -28,6 +28,8 @@ flowchart TD
   Page --> Control["全体停止: AppStoreのAI停止状態<br/>赤い別グループ"]
 ```
 
+札は`BellBadge`（`Design/BellTheme.swift`）、サブページの先頭は`SettingsSubHeader`、主ボタンは`SettingsMainButton`、枠は`settingsSubPage()`（[型](settings-user-flow.md#49b-サブページの型すべての設定のサブページ)）。追加機能の編集は、保存した値を「登録済み」＋「変更」で出し、通常の保存値は閉じた「詳細」にだけ出す。端末の詳細は先頭に札3つ（つながるか・SSH鍵・sudo鍵）。
+
 項目は`SettingsPage`（題名・旧来の一行・SF Symbol・色・`accessibilityID`）が一か所で持つ。一覧の各行はアイコン・題名・いまの状態の一行・札で、一行と札は`SettingsSummary`（純関数）が`SettingsHomeState`の読んだ値から決める（旧来の一行は、まだ読めていない時・データを返さない旧本体の時だけ）。一覧の最上段に要対応の帯（失敗・ログインし直す・確認できません・更新あり・停止中、`settings-attention-<項目>`）。各ページの先頭は`SettingsPageHeader`（札・状態の一文・主ボタン。Mac/iPadはページの題も）。Mac/iPadでページ内の行は右ページの`SettingsPageNavigator`へ積み（窓の詳細列の自前のNavigationStackへ積むと設定の列ごと置き換わるため）、iPhoneは従来のNavigationLink（`SettingsNavLink`が両方を受け持つ）。失敗は`SettingsBanner`で平易な文を出し、生の文は「詳細」の中だけに置く。全体停止は一覧の最下部の単独グループで赤く表示する。プロフィールはsheetでなくページとして開き、保存ボタンはフォームの中で、結果はそのすぐ下に出す。通知の状態は`BellNotifications`の`authorization`（OS）・`registered`・`failure`と、サーバーの機能設定から`NotificationState.decide`が決める。会話の開き方はrise/fadeの端末設定で、HTTPへ保存しない。Cloudflareの時だけ接続ページにログアウトを出す。UI試験は`settings-profile`と`settings-row-<page>`で入る。DEBUGの`-bellbot-preview-settings <page>`は試料データ（`AppStore.prepareSettingsPreview`）でそのページを開く。認証・購読・通知の実装全体は[全体図](overview.md)と[索引](function-index.md)へ接続する。
 
 ## Ownerと規範のdraft

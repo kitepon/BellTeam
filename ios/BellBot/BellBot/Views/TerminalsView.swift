@@ -82,6 +82,7 @@ struct TerminalListPage: View {
                 }
             }
         }
+        .settingsSubPage()
         .navigationTitle("端末")
         .navigationBarTitleDisplayMode(.inline)
         .task {
@@ -127,9 +128,7 @@ private struct KeyBadge: View {
     let terminal: Terminal
     var body: some View {
         let look = KeyLook(terminal.key(kind), configured: kind == .ssh ? terminal.sshKeyConfigured : terminal.sudoKeyConfigured)
-        Label("\(kind.title) \(look.text)", systemImage: look.symbol)
-            .font(.caption)
-            .foregroundStyle(look.color)
+        BellBadge(text: "\(kind.title) \(look.text)", tone: look.tone, symbol: look.symbol)
     }
 }
 
@@ -137,13 +136,14 @@ private struct KeyBadge: View {
 private struct KeyLook {
     let text: String
     let symbol: String
-    let color: Color
+    let tone: SettingsTone
+    /// 未設定 looks like every other 未設定 of the settings (gray with the dashed circle), not like a failure.
     init(_ state: TerminalKeyState, configured: Bool) {
         switch state {
-        case .pending: (text, symbol, color) = (state.status, "hourglass", .orange)
-        case .configured: (text, symbol, color) = (state.status, "checkmark.circle.fill", BellTheme.mint)
-        case .missing: (text, symbol, color) = (state.status, "circle.dashed", .orange)
-        case .unsupported: (text, symbol, color) = configured ? ("設定済み", "checkmark.circle.fill", BellTheme.mint) : ("未設定", "circle.dashed", .orange)
+        case .pending: (text, symbol, tone) = (state.status, "hourglass", .violet)
+        case .configured: (text, symbol, tone) = (state.status, "checkmark.circle.fill", .green)
+        case .missing: (text, symbol, tone) = (state.status, "circle.dashed", .gray)
+        case .unsupported: (text, symbol, tone) = configured ? ("設定済み", "checkmark.circle.fill", .green) : ("未設定", "circle.dashed", .gray)
         }
     }
 }
@@ -159,13 +159,17 @@ private struct LoginSheetItem: Identifiable {
     var id: String { request.id }
 }
 
+/// つながるか. `check` is the result of a check made in this app; without one the badge says it has not been checked.
+/// shortcut: no server-side last result until `lastCheck` (PR #1078) is returned; then read it here instead of showing 「まだ確かめていません」.
 private struct ReachabilityBadge: View {
-    let check: TerminalCheck
-    var font: Font = .caption
+    let check: TerminalCheck?
     var body: some View {
-        Label(check.summary, systemImage: check.reachable ? "bolt.horizontal.circle.fill" : "bolt.horizontal.circle")
-            .font(font)
-            .foregroundStyle(check.reachable ? BellTheme.mint : .red)
+        if let check {
+            BellBadge(text: check.summary, tone: check.reachable ? .green : .orange,
+                      symbol: check.reachable ? "bolt.horizontal.circle.fill" : "bolt.horizontal.circle")
+        } else {
+            BellBadge(text: "まだ確かめていません", tone: .gray, symbol: "bolt.horizontal.circle")
+        }
     }
 }
 
@@ -203,6 +207,7 @@ struct TerminalDetailPage: View {
                 Section { TerminalsCalmLine(text: "この端末の登録が見つかりません。一覧へ戻って読み直してください。") }
             }
         }
+        .settingsSubPage()
         .navigationTitle(terminalId)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -288,18 +293,30 @@ struct TerminalDetailPage: View {
 
     @ViewBuilder
     private func content(_ terminal: Terminal) -> some View {
+        // Hero: what the terminal is and its three states side by side.
+        Section {
+            SettingsSubHeader(symbol: "desktopcomputer", tint: .cyan, title: terminalId, line: "\(terminal.osLabel) · \(terminal.ownerLabel)")
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) { heroBadges(terminal) }
+                VStack(alignment: .leading, spacing: 6) { heroBadges(terminal) }
+            }
+        }
+        .listRowBackground(Color.clear)
         Section(header: BellSectionHeader("接続先")) {
-            LabeledContent("ホスト", value: terminal.host)
-            LabeledContent("ユーザー", value: terminal.user)
-            LabeledContent("ポート", value: String(terminal.port))
-            LabeledContent("OS", value: terminal.osLabel)
-            LabeledContent("持ち主", value: terminal.ownerLabel)
+            Label(terminal.address, systemImage: "network").textSelection(.enabled)
+            DisclosureGroup("詳細") {
+                LabeledContent("ホスト", value: terminal.host)
+                LabeledContent("ユーザー", value: terminal.user)
+                LabeledContent("ポート", value: String(terminal.port))
+                LabeledContent("OS", value: terminal.osLabel)
+                LabeledContent("持ち主", value: terminal.ownerLabel)
+            }
+            .font(BellTheme.detailFont)
         }
         Section {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
-                    if let check { ReachabilityBadge(check: check, font: .body.weight(.semibold)) }
-                    else { Text("まだ確かめていません").foregroundStyle(.secondary) }
+                    ReachabilityBadge(check: check)
                     Spacer()
                     if let at = check?.observedAt { Text(BellDate.short(at)).font(.caption).foregroundStyle(.secondary) }
                 }
@@ -313,16 +330,11 @@ struct TerminalDetailPage: View {
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("terminal-reachability")
             checkActions(terminal)
-            Button {
+            SettingsMainButton(title: "つながるか確かめる", busyTitle: "確かめています…", busy: checking, identifier: "check-terminal") {
                 Task { await runCheck() }
-            } label: {
-                HStack {
-                    Label("つながるか確かめる", systemImage: "bolt.horizontal.circle")
-                    if checking { Spacer(); ProgressView() }
-                }
             }
-            .disabled(checking || working)
-            .accessibilityIdentifier("check-terminal")
+            .disabled(working)
+            .settingsButtonRow()
         } header: {
             BellSectionHeader("つながるか")
         } footer: {
@@ -388,9 +400,21 @@ struct TerminalDetailPage: View {
         }
         if let maintenance = terminal.maintenance {
             Section(header: BellSectionHeader("Claude Codeの更新")) {
-                Text(maintenance.text).foregroundStyle(maintenance.outcome == "failed" ? .orange : .primary)
-                if let at = maintenance.observedAt {
-                    LabeledContent("確かめた日時", value: BellDate.short(at))
+                HStack(alignment: .top, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Claude Code")
+                        Text(maintenance.text).font(BellTheme.detailFont).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        if let at = maintenance.observedAt {
+                            Text("確かめた日時：\(BellDate.short(at))").font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    Spacer(minLength: 8)
+                    switch maintenance.outcome {
+                    case "failed": BellBadge(text: "更新できませんでした", tone: .orange, symbol: "exclamationmark.triangle.fill")
+                    case "updated": BellBadge(text: "更新しました", tone: .green, symbol: "arrow.down.circle.fill")
+                    case "current": BellBadge(text: "最新", tone: .green, symbol: "checkmark.circle.fill")
+                    default: BellBadge(text: "確認できません", tone: .gray, symbol: "questionmark.circle")
+                    }
                 }
             }
         }
@@ -400,6 +424,13 @@ struct TerminalDetailPage: View {
                 .accessibilityIdentifier("remove-terminal")
         }
         if let errorText { Section { SettingsBanner(message: errorText) } }
+    }
+
+    @ViewBuilder
+    private func heroBadges(_ terminal: Terminal) -> some View {
+        ReachabilityBadge(check: check)
+        KeyBadge(kind: .ssh, terminal: terminal)
+        if TerminalOS.usesSudoKey(terminal.os) { KeyBadge(kind: .sudo, terminal: terminal) }
     }
 
     /// Evidence is not a diagnosis, so each reason offers its likely fix as a button; the check below stays available.
@@ -504,9 +535,7 @@ private struct TerminalKeyRow: View {
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
-                    Label(look.text, systemImage: look.symbol)
-                        .font(BellTheme.detailFont)
-                        .foregroundStyle(look.color)
+                    BellBadge(text: look.text, tone: look.tone, symbol: look.symbol)
                     if let source = state.source { Text(source).font(.caption).foregroundStyle(.secondary) }
                 }
             }

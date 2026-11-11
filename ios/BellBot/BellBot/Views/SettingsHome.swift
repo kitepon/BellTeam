@@ -12,6 +12,8 @@ final class SettingsHomeState: ObservableObject {
     @Published private(set) var harnessOptions: [String: HarnessAuthenticationOption] = [:]
     @Published private(set) var rulesText: String?
     @Published private(set) var rulesUnreadable = false
+    /// Model names for the 仕事の要約を書くAI line; empty until read (the line then shows the saved id).
+    @Published private(set) var modelCatalog: [String: HarnessModels] = [:]
     private weak var store: AppStore?
     private var forwarding = Set<AnyCancellable>()
     private var reloading = false
@@ -50,8 +52,9 @@ final class SettingsHomeState: ObservableObject {
             async let updates: Void = store.updates.refresh()
             async let control: Void = store.refreshAIControl()
             async let rules: Void = loadRules()
+            async let models: Void = loadModels()
             async let authorization: Void = BellNotifications.shared.refreshAuthorization()
-            _ = await (settings, updates, control, rules, authorization)
+            _ = await (settings, updates, control, rules, models, authorization)
         }
         _ = await (ai, terminals)
     }
@@ -62,6 +65,17 @@ final class SettingsHomeState: ObservableObject {
         catch is CancellationError { }
         catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
         catch { store.api.diagnostics.report(error, path: "/api/settings", method: "GET", observation: .read(error, retainedData: !store.featureSettings.isEmpty)) }
+    }
+
+    /// Only for display names; a failure keeps the last names and is not shown (the editor reads the list itself and says so).
+    private func loadModels() async {
+        guard let store else { return }
+        do {
+            let response: ModelsResponse = try await store.api.get("/api/models")
+            modelCatalog = response.models
+        } catch is CancellationError { }
+        catch let error where BellAPIError.isAuthenticationError(error) { store.requireLogin(for: error) }
+        catch { store.api.diagnostics.report(error, path: "/api/models", method: "GET", observation: .read(error, retainedData: !modelCatalog.isEmpty)) }
     }
 
     func loadRules() async {
@@ -147,7 +161,7 @@ final class SettingsHomeState: ObservableObject {
         switch page {
         case .profile, .display: return nil
         case .ai: return aiAnswered ? SettingsSummary.ai(aiEntries) : SettingsStatus(line: page.detail)
-        case .summary: return SettingsSummary.summaryAgent(store.backgroundAgent)
+        case .summary: return SettingsSummary.summaryAgent(store.backgroundAgent, catalog: modelCatalog)
         case .terminals: return SettingsSummary.terminals(store.terminals.state)
         case .onepassword:
             return SettingsSummary.onePassword(store.featureSettings.first { $0.id == "onePassword" })

@@ -182,3 +182,37 @@ extension View {
             .shadow(color: BellTheme.ink.opacity(0.035), radius: 16, y: 8)
     }
 }
+
+/// The colour of a state in the one settings vocabulary (docs/architecture/modules/apple/settings-user-flow.md §3).
+enum SettingsTone: Equatable {
+    case gray, green, violet, orange
+
+    var color: Color {
+        switch self {
+        case .gray: BellTheme.muted
+        case .green: .green
+        case .violet: BellTheme.violet
+        case .orange: .orange
+        }
+    }
+}
+
+/// A state as a coloured capsule, optionally with an icon. The one badge of the app's settings: every state word
+/// (認証済み・未設定・失敗・つながる・動作中…) is shown with it, never as a bare coloured word.
+struct BellBadge: View {
+    let text: String
+    let tone: SettingsTone
+    var symbol: String? = nil
+
+    var body: some View {
+        Group {
+            if let symbol { Label(text, systemImage: symbol) } else { Text(text) }
+        }
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(tone.color)
+        .lineLimit(1).fixedSize()
+        .padding(.horizontal, 9).padding(.vertical, 3)
+        .background(tone.color.opacity(0.13), in: Capsule())
+        .accessibilityElement(children: .combine)
+    }
+}

@@ -106,6 +106,10 @@ final class SettingsStatusTests: XCTestCase {
         XCTAssertEqual(SettingsSummary.summaryAgent(BackgroundAgentRecord(revision: nil, selection: nil)).badge, "未設定")
         let chosen = BackgroundAgentRecord(revision: "r", selection: BackgroundAgentSelection(harness: "claude", model: "haiku", reasoningEffort: ""))
         XCTAssertEqual(SettingsSummary.summaryAgent(chosen).line, "Claude · haiku · CLIの既定")
+        let withNames = try? JSONDecoder().decode(ModelsResponse.self, from: Data(#"{"models":{"claude":{"efforts":[],"models":[{"id":"haiku","efforts":["low"],"fast":false,"displayName":"Claude Haiku"}]}}}"#.utf8))
+        XCTAssertEqual(SettingsSummary.summaryAgent(chosen, catalog: withNames?.models ?? [:]).line, "Claude · Claude Haiku · CLIの既定")
+        let low = BackgroundAgentRecord(revision: "r", selection: BackgroundAgentSelection(harness: "codex", model: "x", reasoningEffort: "low"))
+        XCTAssertEqual(SettingsSummary.summaryAgent(low).line, "Codex · x · 低")
     }
 
     func testStopAndRulesAndBillingLines() throws {
@@ -118,7 +122,18 @@ final class SettingsStatusTests: XCTestCase {
         XCTAssertEqual(SettingsSummary.rules("SECTION a\n  RULE a.x\n    DO: y\n  RULE a.z\n    DO: w", unreadable: false).line, "2件の決まり")
         XCTAssertEqual(SettingsSummary.rules("- 一つ目\n- 二つ目", unreadable: false).line, "2行の決まり")
         XCTAssertNil(SettingsSummary.billing(.unavailable, developer: false).badge, "読めない購読は旧来の1行")
-        XCTAssertEqual(SettingsSummary.billing(.inactive, developer: true).line, "開発者として利用中")
+        XCTAssertEqual(SettingsSummary.billing(.inactive, developer: true).badge, "開発者")
+        XCTAssertEqual(SettingsSummary.billing(.active, developer: false).badge, "有効")
+    }
+
+    func testFeaturesSummaryCountsUsedAndUnsetWithoutOnePassword() throws {
+        func setting(_ id: String, _ status: String, enabled: Bool) throws -> FeatureSetting {
+            try JSONDecoder().decode(FeatureSetting.self, from: Data(#"{"id":"\#(id)","title":"t","enabled":\#(enabled),"status":"\#(status)","fields":[]}"#.utf8))
+        }
+        let list = [try setting("routing", "enabled", enabled: true), try setting("callBridge", "enabled", enabled: true),
+                    try setting("webPush", "unconfigured", enabled: false), try setting("onePassword", "unconfigured", enabled: false)]
+        XCTAssertEqual(SettingsSummary.features(list).line, "2つ使用中・1つ未設定")
+        XCTAssertEqual(SettingsSummary.features([]).badge, nil, "機能の一覧が無い旧本体は旧来の1行")
     }
 
     func testUpdateBadgeAndAttention() {

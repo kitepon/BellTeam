@@ -80,6 +80,11 @@ private struct UserRulesEditor: View {
         NavigationStack {
             Form {
                 Section {
+                    SettingsSubHeader(symbol: SettingsPage.rules.symbol, tint: SettingsPage.rules.tint, title: "チームの決まり",
+                                      line: "全文を書き換えます。チーム全員が、あなたについて守る指示です。")
+                }
+                .listRowBackground(Color.clear)
+                Section {
                     TextEditor(text: $text).frame(minHeight: 260)
                         .accessibilityIdentifier("rules-text")
                 } header: {
@@ -88,10 +93,8 @@ private struct UserRulesEditor: View {
                     Text("チーム全員が、あなたについて守る指示です。").font(BellTheme.secondaryFont)
                 }
                 Section {
-                    Button { Task { await save() } } label: { Text(saving ? "保存しています…" : "保存").frame(maxWidth: .infinity) }
-                        .buttonStyle(.borderedProminent).tint(BellTheme.violet).controlSize(.large)
-                        .disabled(saving)
-                        .accessibilityIdentifier("rules-save")
+                    SettingsMainButton(title: "保存", busyTitle: "保存しています…", busy: saving, identifier: "rules-save") { Task { await save() } }
+                        .settingsButtonRow()
                     if let errorText { SettingsBanner(message: errorText) }
                 }
             }

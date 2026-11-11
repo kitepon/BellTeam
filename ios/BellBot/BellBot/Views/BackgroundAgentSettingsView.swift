@@ -2,6 +2,20 @@ import SwiftUI
 
 let backgroundAgentHarnesses = [("codex", "Codex"), ("claude", "Claude"), ("grok", "Grok"), ("cursor", "Cursor"), ("antigravity", "Antigravity")]
 
+/// The effort in plain words for the settings screens (an effort the app does not know is shown as sent).
+enum EffortText {
+    static func label(_ effort: String) -> String {
+        switch effort {
+        case "": "CLIの既定"
+        case "low": "低"
+        case "medium": "中"
+        case "high": "高"
+        case "xhigh": "最高"
+        default: effort
+        }
+    }
+}
+
 /// 保存できる組合せかを、モデル候補だけから判定する。候補に無い値を別の値で埋めない。
 struct BackgroundAgentChoices {
     let catalog: [String: HarnessModels]
@@ -41,6 +55,13 @@ struct BackgroundAgentEditor: View {
     private var draft: BackgroundAgentSelection { BackgroundAgentSelection(harness: harness, model: model, reasoningEffort: effort) }
     private var modelEfforts: [String] { choices.efforts(harness: harness, model: model) }
 
+    /// "Codex · GPT-6-Luna · 高": the CLI by name, the model by display name, the effort in words.
+    private func summary(_ selection: BackgroundAgentSelection) -> String {
+        let cli = backgroundAgentHarnesses.first { $0.0 == selection.harness }?.1 ?? selection.harness
+        let model = choices.models(for: selection.harness).first { $0.id == selection.model }?.label ?? selection.model
+        return [cli, model, EffortText.label(selection.reasoningEffort)].joined(separator: " · ")
+    }
+
     var body: some View {
         Form {
             Section { SettingsPageHeader(page: .summary) }.listRowBackground(Color.clear)
@@ -66,27 +87,33 @@ struct BackgroundAgentEditor: View {
                     Picker("エフォート", selection: $effort) {
                         if modelEfforts.isEmpty { Text("CLIの既定（エフォート指定なし）").tag("") }
                         else { Text("選んでください").tag("") }
-                        ForEach(modelEfforts, id: \.self) { Text($0).tag($0) }
+                        ForEach(modelEfforts, id: \.self) { Text(EffortText.label($0)).tag($0) }
                         if !effort.isEmpty && !modelEfforts.contains(effort) {
-                            Text("\(effort)（現在の候補にありません）").tag(effort)
+                            Text("\(EffortText.label(effort))（現在の候補にありません）").tag(effort)
                         }
                     }
                 } footer: {
-                    Text("保存しても、要約がすぐ作られるとは限りません。要約の状態はメンバー一覧で確かめてください。")
+                    Text("保存しても、要約がすぐ作られるとは限りません。要約の状態はメンバー一覧で確かめてください。").font(BellTheme.secondaryFont)
                 }
-                if let problem = choices.problem(for: draft) {
-                    Text(problem).font(.footnote).foregroundStyle(.red)
+                // The one prominent button; what happened to it is written right under it.
+                Section {
+                    SettingsMainButton(title: "保存", busyTitle: "保存しています…", busy: saving, identifier: "background-agent-save") { Task { await save() } }
+                        .disabled(choices.problem(for: draft) != nil)
+                        .settingsButtonRow()
+                    if let problem = choices.problem(for: draft) {
+                        Label(problem, systemImage: "exclamationmark.triangle.fill").font(.footnote).foregroundStyle(.orange)
+                    }
+                    if let saved = store.backgroundAgent?.selection, saved != draft {
+                        Text("保存されている設定：\(summary(saved))").font(.footnote).foregroundStyle(BellTheme.muted)
+                    }
+                    if let savedText { Label(savedText, systemImage: "checkmark.circle.fill").font(.footnote).foregroundStyle(.green) }
+                    if let errorText {
+                        Label(errorText, systemImage: "exclamationmark.triangle.fill").font(.footnote).foregroundStyle(.red)
+                        Button("再読み込み") { Task { await load() } }.disabled(loading)
+                    }
                 }
-                if let saved = store.backgroundAgent?.selection, saved != draft {
-                    Text("保存されている設定：\(saved.harness) · \(saved.model) · \(saved.reasoningEffort.isEmpty ? "CLIの既定" : saved.reasoningEffort)")
-                        .font(.footnote).foregroundStyle(BellTheme.muted)
-                }
-                Button("保存") { Task { await save() } }
-                    .disabled(saving || choices.problem(for: draft) != nil)
-                    .accessibilityIdentifier("background-agent-save")
             }
-            if let savedText { Text(savedText).font(.footnote).foregroundStyle(BellTheme.muted) }
-            if let errorText {
+            if !loading && store.backgroundAgent == nil, let errorText {
                 Section {
                     Text(errorText).font(.footnote).foregroundStyle(.red)
                     Button("再読み込み") { Task { await load() } }.disabled(loading)
@@ -94,7 +121,7 @@ struct BackgroundAgentEditor: View {
             }
         }
         .navigationTitle("仕事の要約を書くAI")
-        .scrollContentBackground(.hidden).background(BellBackground())
+        .settingsSubPage()
         .task { await load() }
     }
 

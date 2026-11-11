@@ -8,29 +8,25 @@ struct FeatureSettingsList: View {
     @State private var previewOpen: String?
     #endif
 
+    private var shown: [FeatureSetting] { store.featureSettings.filter { $0.id != "onePassword" } }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 13) {
-            Text("未設定の機能は無効です。案内役との会話でも設定できます。")
+        VStack(alignment: .leading, spacing: 4) {
+            Text("未設定の機能は使われません。案内役との会話でも設定できます。")
                 .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
+                .padding(.bottom, 8)
             // 1Password is its own settings item.
-            ForEach(store.featureSettings.filter { $0.id != "onePassword" }) { setting in
+            ForEach(shown) { setting in
                 SettingsNavLink(title: setting.title) {
                     FeatureSettingEditor(setting: setting)
                 } label: {
-                    VStack(alignment: .leading, spacing: 5) {
-                        HStack {
-                            Text(setting.title); Spacer()
-                            Text(setting.statusText).foregroundStyle(setting.error == nil ? BellTheme.muted : .red)
-                        }
-                        if let failure = setting.error {
-                            Text("\(failure.code): \(failure.message)")
-                                .font(BellTheme.secondaryFont).foregroundStyle(.red)
-                        }
-                    }.padding(.vertical, 6)
+                    FeatureRow(setting: setting)
                 }
+                .buttonStyle(.plain)
                 .accessibilityIdentifier("feature-row-\(setting.id)")
+                if setting.id != shown.last?.id { Divider().padding(.leading, 52) }
             }
-            if let errorText { Text(errorText).font(BellTheme.secondaryFont).foregroundStyle(.red) }
+            if let errorText { SettingsBanner(message: "機能の一覧を読み込めませんでした。", detail: errorText).padding(.top, 8) }
         }
         .padding(20).bellCard()
         #if DEBUG
@@ -55,6 +51,67 @@ struct FeatureSettingsList: View {
                 } else { previewOpen = id }
             }
             #endif
+        }
+    }
+}
+
+/// Icon, name, one plain line, a state badge and a chevron per feature.
+private struct FeatureRow: View {
+    let setting: FeatureSetting
+
+    var body: some View {
+        HStack(spacing: 14) {
+            SettingsIconTile(symbol: setting.look.symbol, tint: setting.look.tint, side: 38)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(setting.title).font(.headline).foregroundStyle(BellTheme.ink).lineLimit(1)
+                if let failure = setting.error {
+                    // The code stays out of sight; the server's plain sentence is enough to act on.
+                    Text(failure.message).font(BellTheme.secondaryFont).foregroundStyle(.orange).lineLimit(2)
+                } else if let summary = setting.look.summary {
+                    Text(summary).font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted).lineLimit(2)
+                }
+            }
+            Spacer(minLength: 12)
+            FeatureBadge(setting: setting)
+            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(BellTheme.muted)
+                .accessibilityHidden(true)
+        }
+        .padding(.vertical, 10)
+        .contentShape(Rectangle())
+    }
+}
+
+struct FeatureBadge: View {
+    let setting: FeatureSetting
+
+    var body: some View {
+        let state = setting.badge
+        BellBadge(text: state.text, tone: state.tone, symbol: state.symbol)
+            .accessibilityIdentifier("feature-badge-\(setting.id)")
+    }
+}
+
+extension FeatureSetting {
+    /// Client-side look per known feature; an unknown feature gets a generic icon and no summary.
+    var look: (symbol: String, tint: Color, summary: String?) {
+        switch id {
+        case "routing": ("arrow.triangle.branch", .indigo, "ルームで誰が答えるかをAIが選びます")
+        case "callBridge": ("phone.fill", .green, "メンバーや他のチームのAIと通話でつなぎます")
+        case "cloudflare": ("lock.shield.fill", .orange, "外からWeb画面に入る人をCloudflare Accessで確かめます")
+        case "diagnostics": ("stethoscope", .teal, "アプリの不具合の記録をBugHubへ送ります")
+        case "notifications": ("bell.badge.fill", .red, "メンバーからの連絡をiPhoneとMacへ通知します")
+        case "webPush": ("globe", .blue, "ブラウザーで開いたWeb画面にも通知を出します")
+        case "onePassword": ("key.fill", .blue, "1Passwordの保管庫の鍵をメンバーが使えるようにします")
+        default: ("puzzlepiece.extension.fill", .gray, nil)
+        }
+    }
+
+    var badge: (text: String, symbol: String, tone: SettingsTone) {
+        if error != nil { return ("反映エラー", "exclamationmark.triangle.fill", .orange) }
+        return switch status {
+        case "enabled": ("有効", "checkmark.circle.fill", .green)
+        case "disabled": ("オフ", "pause.circle.fill", .gray)
+        default: ("未設定", "circle.dashed", .gray)
         }
     }
 }
@@ -114,15 +171,10 @@ struct FeatureSettingSheet: View {
 
 struct OnePasswordBadge: View {
     let state: OnePasswordState
-    private var tint: Color { switch state { case .connected: .green; case .off: .gray; case .failed: .red } }
+    private var tone: SettingsTone { switch state { case .connected: .green; case .off: .gray; case .failed: .orange } }
 
     var body: some View {
-        Label(state.badgeText, systemImage: state.symbol)
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(tint)
-            .padding(.horizontal, 10).padding(.vertical, 4)
-            .background(tint.opacity(0.12), in: Capsule())
-            .accessibilityElement(children: .combine)
+        BellBadge(text: state.badgeText, tone: tone, symbol: state.symbol)
             .accessibilityIdentifier("onepassword-badge")
     }
 }
@@ -151,10 +203,7 @@ struct OnePasswordSettingEditor: View {
         Form {
             if loaded {
                 Section {
-                    HStack(spacing: 12) {
-                        Image(systemName: "key.fill").font(.title2).foregroundStyle(BellTheme.violet)
-                        Text(current.title).font(.headline)
-                        Spacer()
+                    SettingsSubHeader(symbol: current.look.symbol, tint: current.look.tint, title: current.title, line: current.look.summary) {
                         OnePasswordBadge(state: state)
                     }
                     if let line = OnePasswordState.connectionLine(current) {
@@ -197,7 +246,8 @@ struct OnePasswordSettingEditor: View {
                     Button { Task { await save() } } label: {
                         Text(saving ? "連携を確かめています…" : "保存して連携を確かめる").frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.borderedProminent).tint(BellTheme.violet).controlSize(.large)
+                    .settingsButtonRow()
                     .disabled(loading || saving)
                     .accessibilityIdentifier("onepassword-save")
                     if let errorText { Text(errorText).font(.footnote).foregroundStyle(.red).accessibilityIdentifier("onepassword-save-error") }
@@ -213,7 +263,7 @@ struct OnePasswordSettingEditor: View {
             }
         }
         .navigationTitle(setting.title)
-        .scrollContentBackground(.hidden).background(BellBackground())
+        .settingsSubPage()
         .task { await load() }
         // The guide opens while not connected and folds once connected; a reader's own toggle is kept between changes.
         .onChange(of: state == .connected) { _, connected in guideOpen = !connected }
@@ -280,50 +330,82 @@ struct FeatureSettingEditor: View {
     @State private var loading = true
     @State private var loaded = false
     @State private var errorText: String?
+    /// Saved fields the owner chose to change; a saved value is never printed back.
+    @State private var changing: Set<String> = []
 
     private var currentSetting: FeatureSetting { store.featureSettings.first { $0.id == setting.id } ?? setting }
 
+    /// Saved plain values (an address, a domain, an audience): shown only inside the closed 詳細.
+    private var savedDetails: [FeatureField] { fields.filter { $0.configured && !$0.secret && !$0.value.isEmpty } }
+
     var body: some View {
         Form {
+            Section {
+                SettingsSubHeader(symbol: currentSetting.look.symbol, tint: currentSetting.look.tint, title: currentSetting.title,
+                                  line: currentSetting.look.summary) { FeatureBadge(setting: currentSetting) }
+            }
+            .listRowBackground(Color.clear)
             if loaded {
-                Section {
+                Section(footer: Text("必要な項目を登録してから有効にしてください。秘密の値は会話へ送られません。").font(BellTheme.secondaryFont)) {
                     Toggle("有効にする", isOn: $enabled)
-                    Text("必要な項目を登録してから有効にしてください。秘密の値は会話へ送られません。")
-                        .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
                 }
                 if let failure = currentSetting.error {
-                    Section("反映エラー") {
-                        Text(failure.message).foregroundStyle(.red)
-                        Text(failure.code).font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
+                    // The code stays out of sight (closed 詳細 and diagnostics); the plain sentence is the action.
+                    Section { Label(failure.message, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange) }
+                }
+                Section(header: BellSectionHeader("設定")) {
+                    ForEach(fields) { field in
+                        if field.configured && !changing.contains(field.key) {
+                            HStack(spacing: 10) {
+                                Text(field.label)
+                                Spacer(minLength: 8)
+                                BellBadge(text: "登録済み", tone: .green, symbol: "checkmark.circle.fill")
+                                Button("変更") { changing.insert(field.key) }
+                                    .buttonStyle(.bordered).controlSize(.small)
+                                    .accessibilityIdentifier("feature-change-\(field.key)")
+                            }
+                        } else {
+                            VStack(alignment: .leading, spacing: 7) {
+                                Text(field.label).font(.subheadline.weight(.semibold))
+                                if field.secret {
+                                    SecureField(field.label, text: value(for: field.key),
+                                                prompt: Text(field.configured ? "変更するときだけ入力" : "ここに貼り付け"))
+                                        .textContentType(.password)
+                                } else {
+                                    TextField(field.label, text: value(for: field.key), prompt: Text("入力してください"))
+                                }
+                            }
+                            .textInputAutocapitalization(.never).autocorrectionDisabled()
+                        }
                     }
                 }
-                Section("設定") {
-                    ForEach(fields) { field in
-                        VStack(alignment: .leading, spacing: 7) {
-                            Text(field.label).font(.subheadline)
-                            if field.secret {
-                                SecureField(field.configured ? "登録済み・変更するときだけ入力" : "未設定", text: value(for: field.key))
-                                    .textContentType(.password)
-                            } else {
-                                TextField(field.label, text: value(for: field.key))
+                if !savedDetails.isEmpty || currentSetting.error != nil {
+                    Section {
+                        DisclosureGroup("詳細") {
+                            ForEach(savedDetails) { field in
+                                LabeledContent(field.label) { Text(field.value).textSelection(.enabled).multilineTextAlignment(.trailing) }
                             }
+                            if let failure = currentSetting.error { LabeledContent("符号") { Text(failure.code).textSelection(.enabled) } }
                         }
-                        .textInputAutocapitalization(.never).autocorrectionDisabled()
+                        .font(BellTheme.detailFont)
                     }
                 }
             }
-            if loading { ProgressView() }
-            if let errorText {
-                Section {
+            // The one prominent button; its failure line sits right under it.
+            Section {
+                SettingsMainButton(title: "保存", busyTitle: "保存しています…", busy: saving, identifier: "feature-save") { Task { await save() } }
+                    .disabled(loading || !loaded)
+                    .settingsButtonRow()
+                if let errorText {
                     if !loaded { Text("設定を読み込めませんでした").font(.headline) }
-                    Text(errorText).font(.footnote).foregroundStyle(.red)
+                    Label(errorText, systemImage: "exclamationmark.triangle.fill").font(.footnote).foregroundStyle(.red)
                     Button("再読み込み") { Task { await loadSettings() } }.disabled(loading)
                 }
             }
-            Button("保存") { Task { await save() } }.disabled(loading || saving || !loaded)
+            if loading && !loaded { HStack { Spacer(); ProgressView("読み込んでいます…"); Spacer() } }
         }
         .navigationTitle(setting.title)
-        .scrollContentBackground(.hidden).background(BellBackground())
+        .settingsSubPage()
         .task { await loadSettings() }
         .onChange(of: scenePhase) { _, next in if next != .active { clearSecrets() } }
         .onDisappear { clearSecrets() }
@@ -361,6 +443,7 @@ struct FeatureSettingEditor: View {
             return field.secret && text.isEmpty ? nil : (field.key, text)
         })
         clearSecrets()
+        errorText = nil
         do {
             _ = try await store.api.updateSetting(id: setting.id, body: FeatureSettingUpdate(enabled: enabled, values: submitted))
             let session: SessionResponse = try await store.api.get("/api/session")

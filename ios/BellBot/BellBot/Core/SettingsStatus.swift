@@ -4,19 +4,6 @@ import UserNotifications
 // Live state of every settings item, as one line and one badge (docs/architecture/modules/apple/settings-user-flow.md §3).
 // Pure functions from what the screens already loaded; no network and no view code here.
 
-enum SettingsTone: Equatable {
-    case gray, green, violet, orange
-
-    var color: Color {
-        switch self {
-        case .gray: BellTheme.muted
-        case .green: .green
-        case .violet: BellTheme.violet
-        case .orange: .orange
-        }
-    }
-}
-
 /// Where a tap on an 要対応 row, or a push inside the settings, goes.
 enum SettingsRoute: Hashable {
     case page(SettingsPage)
@@ -176,12 +163,13 @@ enum SettingsSummary {
 
     // MARK: 仕事の要約を書くAI
 
-    static func summaryAgent(_ record: BackgroundAgentRecord?) -> SettingsStatus {
+    /// - catalog: the model list (`GET /api/models`) so the line says the model's display name; an id not in it is shown as is.
+    static func summaryAgent(_ record: BackgroundAgentRecord?, catalog: [String: HarnessModels] = [:]) -> SettingsStatus {
         guard let record else { return SettingsStatus(line: SettingsPage.summary.detail) }
         guard let selection = record.selection else { return SettingsStatus(line: "まだ選んでいません", badge: "未設定", tone: .gray) }
         let name = backgroundAgentHarnesses.first { $0.0 == selection.harness }?.1 ?? selection.harness
-        let effort = selection.reasoningEffort.isEmpty ? "CLIの既定" : selection.reasoningEffort
-        return SettingsStatus(line: [name, selection.model, effort].joined(separator: " · "), badge: "設定済み", tone: .green)
+        let model = catalog[selection.harness]?.models.first { $0.id == selection.model }?.label ?? selection.model
+        return SettingsStatus(line: [name, model, EffortText.label(selection.reasoningEffort)].joined(separator: " · "), badge: "設定済み", tone: .green)
     }
 
     // MARK: アップデート
@@ -231,7 +219,7 @@ enum SettingsSummary {
     // MARK: 利用と課金
 
     static func billing(_ presentation: SubscriptionPresentation, developer: Bool) -> SettingsStatus {
-        if developer { return SettingsStatus(line: "開発者として利用中", badge: "開発者", tone: .green) }
+        if developer { return SettingsStatus(line: "このサーバーでは購読の購入は不要です", badge: "開発者", tone: .green) }
         switch presentation {
         case .checking: return SettingsStatus(line: "購読を確認しています", badge: "確認中", tone: .violet)
         case .active: return SettingsStatus(line: "購読中です", badge: "有効", tone: .green)
@@ -266,7 +254,11 @@ enum SettingsSummary {
                                   needsAttention: true, attentionRoute: .page(.features))
         }
         let enabled = rest.filter { $0.status == "enabled" }.count
-        return SettingsStatus(line: enabled > 0 ? "\(enabled)件の機能が有効です" : "有効な機能はありません", badge: enabled > 0 ? "設定済み" : "未設定",
+        let off = rest.filter { $0.status == "disabled" }.count
+        let unset = rest.count - enabled - off
+        let line = [enabled > 0 ? "\(enabled)つ使用中" : nil, unset > 0 ? "\(unset)つ未設定" : nil, off > 0 ? "\(off)つオフ" : nil]
+            .compactMap { $0 }.joined(separator: "・")
+        return SettingsStatus(line: line.isEmpty ? "使用中の機能はありません" : line, badge: enabled > 0 ? "設定済み" : "未設定",
                               tone: enabled > 0 ? .green : .gray)
     }
 }
