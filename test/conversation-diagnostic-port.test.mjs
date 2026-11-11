@@ -38,8 +38,13 @@ test('a Diagnostics refusal is acknowledged to the conversation child and kept o
     assert.deepEqual(await refused.completion, { acknowledged: true })
     const corruption = { code: 'MESSAGE_LOG_INVALID', line: 2, offset: 10, length: 3, reason: 'syntax' }
     assert.deepEqual(await child.diagnostic(corruption), { acknowledged: true })
+    assert.deepEqual(await child.diagnostic({ code: 'CONVERSATION_OBSERVATION_FAILED', reason: 'OBSERVER_PROJECT_CHANGED' }), { acknowledged: true })
   } finally { process.stderr.write = write }
   assert.deepEqual(lines.map(line => JSON.parse(line)),
     [{ code: 'CONVERSATION_DIAGNOSTIC_UNRECORDED', reportCode: 'CONVERSATION_BACKGROUND_FAILED', reason: 'DIAGNOSTIC_INVALID' }])
-  assert.deepEqual(diagnostics.list().map(row => [row.category, row.module]), [['MESSAGE_LOG_INVALID', 'conversation']])
+  assert.deepEqual(diagnostics.list().map(row => [row.category, row.module]).sort(),
+    [['CONVERSATION_OBSERVATION_FAILED', 'conversation'], ['MESSAGE_LOG_INVALID', 'conversation']])
+  // 2026-11-11 608a: the observer failure was refused ~28/s and its reason dropped; the row now keeps the child's reason.
+  assert.deepEqual(JSON.parse(diagnostics.list().find(row => row.category === 'CONVERSATION_OBSERVATION_FAILED').diagnostic_log),
+    { code: 'CONVERSATION_OBSERVATION_FAILED', reason: 'OBSERVER_PROJECT_CHANGED' })
 })

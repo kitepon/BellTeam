@@ -67,7 +67,7 @@ import { prepareOlrwManagement } from './olrw-management-loader.mjs'
 // Saving a report is observation; a store refusal must not fail the child's call, its quiesce or a module exchange.
 export const conversationDiagnosticPort = diagnostics => report => Promise.resolve()
   .then(() => diagnostics.record({ code: report.code, module: 'conversation',
-    ...(report.code === 'MESSAGE_LOG_INVALID' ? { diagnostic_log: JSON.stringify(report) } : {}) }))
+    ...(['MESSAGE_LOG_INVALID', 'CONVERSATION_OBSERVATION_FAILED'].includes(report.code) ? { diagnostic_log: JSON.stringify(report) } : {}) }))
   .catch(error => {
     const candidate = error?.code ?? error?.message
     const reason = /^[A-Z][A-Z0-9_]{0,99}$/u.test(candidate ?? '') ? candidate : 'DIAGNOSTICS_OPERATION_FAILED'
