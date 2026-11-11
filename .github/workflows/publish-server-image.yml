@@ -13,6 +13,8 @@ on:
       - web/**
       - integrations/**
       - distribution/server/**
+      - distribution/lattice/package.json
+      - distribution/lattice/package-lock.json
       - scripts/package-server.mjs
       - scripts/web_gateway_artifact.py
       - scripts/module-worker-termination.py

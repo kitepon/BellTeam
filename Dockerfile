@@ -71,6 +71,11 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --cache /root/.npm
 COPY . .
 COPY distribution/server/install-resume-state.sh distribution/server/compose.aiterm-checkpoint.yaml ./
+# The builtin lattice child runs the same pinned Lattice CLI as its signed asset (docs/architecture/modules/runtime/lattice-child.md).
+RUN mkdir /tmp/lattice-deps && cp distribution/lattice/package.json distribution/lattice/package-lock.json /tmp/lattice-deps/ \
+  && npm ci --omit=dev --cache /root/.npm --prefix /tmp/lattice-deps \
+  && mv /tmp/lattice-deps/node_modules src/lattice/node_modules && rm -rf /tmp/lattice-deps \
+  && node -e 'console.log(require("module").createRequire("/app/src/lattice/cli.mjs").resolve("@quolu/lattice/bin/lattice.mjs"))'
 RUN install -o root -g root -m 0755 scripts/cursor-update-entrypoint.sh /usr/local/bin/bellteam-update-cursor
 RUN /usr/sbin/groupadd -g 1001 bellteam-server \
   && /usr/sbin/useradd -u 1001 -g 1001 -d /run/bellteam-server -M -s /usr/sbin/nologin bellteam-server \
