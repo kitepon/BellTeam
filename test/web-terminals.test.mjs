@@ -243,6 +243,11 @@ test('self-service: precondition line, auto trust with the manual sheet under �
   dialog.querySelector('[data-terminals-add]').fire('click')
   assert.match(text(), /Macの「システム設定 > 一般 > 共有」で「リモートログイン」をオンにしてください。/)
 
+  // A changed key on a trusted Mac: the app attests only untrusted terminals (S2), so no auto line and the sheet shows directly.
+  list = [{ ...trusted, sshKeyConfigured: false }]; dialog.close(); await createTerminalsView(dialog, { api }).open()
+  click('届くか確かめる'); await settle(); await settle()
+  assert.doesNotMatch(text(), /自動で確かめます|ほかの方法/); assert.match(text(), /先にSSH鍵を設定してください/)
+
   list = [trusted]; checkReason = 'AUTH_FAILED'; dialog.close(); await createTerminalsView(dialog, { api }).open()
   assert.doesNotMatch(text(), /自動で確かめます|ほかの方法/)
   click('届くか確かめる'); await settle(); await settle()
