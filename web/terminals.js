@@ -93,6 +93,14 @@ export function folderRefusal(error, folder) {
   return `${FOLDER_REFUSALS[error.code] ?? 'このフォルダは使えません'}（${folder}）。`
 }
 export const FOLDER_UNCHECKED = '端末につながらなかったので、フォルダはまだ確かめていません。席を起こす時にもう一度確かめます。'
+// Connection reasons (terminals S6 screen rule 3); any other reason means the terminal was reached (e.g. COMMAND_FAILED, rabbit 2026-11-11).
+export const unreachableReason = reason => /^(TERMINAL_UNAVAILABLE$|TARGET_MISMATCH$|UNREACHABLE$|AUTH_FAILED$|SEAT_FORWARD_UNAVAILABLE$|CONNECTION_|CREDENTIAL_|HOST_TRUST_|HOST_KEY_)/u.test(reason ?? '')
+export const sentence = text => { const value = typeof text === 'string' ? text.trim() : ''; return value && !/[。！？]$/u.test(value) ? `${value}。` : value }
+// Saved unchecked (members S5 folderCheck): a reached terminal's failure shows its action instead of 「つながらなかった」.
+export function folderUncheckedText(check) {
+  if (!check?.reason || unreachableReason(check.reason)) return FOLDER_UNCHECKED
+  return `${sentence(check.action)}フォルダはまだ確かめていません。席を起こす時にもう一度確かめます。`
+}
 
 // GET /api/terminals with the tolerance every caller shares: older bodies (404) and an unmounted core (503).
 export async function readTerminals(api, options) {

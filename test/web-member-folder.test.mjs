@@ -51,6 +51,10 @@ test('member editor: prefill, FOLDER_MISSING -> create and save again, other ref
   assert.deepEqual([writes[1].createFolder, writes[1].terminalId, writes[1].projectRoot], [true, 'mac', '/Users/kite/BellTeam/a-b'])
   assert.equal(f.get('bot-remote-status').textContent, '端末につながらなかったので、フォルダはまだ確かめていません。席を起こす時にもう一度確かめます。')
   assert.equal(f.dialog.open, true); assert.equal(create.hidden, true)
+  // A reached terminal (Crust #1011) is not 「つながらなかった」: its action leads the note.
+  answer = () => ({ bot: { ...bot('a'), terminalId: 'mac', projectRoot: '/Users/kite/BellTeam/a-b', folderCheck: { checked: false, reason: 'COMMAND_FAILED', observedAt: 'x', action: 'Macにはつながりましたが、MacのAitermがフォルダの操作をできませんでした（COMMAND_FAILED）' } } })
+  await f.submit('bot-form')
+  assert.equal(f.get('bot-remote-status').textContent, 'Macにはつながりましたが、MacのAitermがフォルダの操作をできませんでした（COMMAND_FAILED）。フォルダはまだ確かめていません。席を起こす時にもう一度確かめます。')
 
   folder.value = '/Users/kite/Desktop/x'
   answer = () => { throw Object.assign(new Error('FOLDER_NOT_PERMITTED'), { code: 'FOLDER_NOT_PERMITTED', status: 409 }) }
