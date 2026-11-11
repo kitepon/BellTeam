@@ -35,6 +35,7 @@ test('Bot設定は作成後もモデルとエフォートを選べる', async ()
 test('チャット上部はBotの役割本文を表示しない', async () => {
   const app = await readFile(new URL('../web/application.js', import.meta.url), 'utf8')
 
-  assert.match(app, /chatStatus\.textContent = bot\.online \? 'CLI接続あり' : 'CLI接続なし · 送信時に起動'/u)
+  assert.doesNotMatch(app, /CLI接続/u)
+  assert.match(app, /chatStatus\.replaceChildren\([^\n]*state\.selected\.position \?\? ''\)/u)
   assert.doesNotMatch(app, /chatStatus\.textContent = \[[^\n]*bot\.role/u)
 })

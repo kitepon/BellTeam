@@ -652,13 +652,14 @@ test('entry label and part list count only non-runtime update_available rows', a
   const f = fixture(t, async () => value)
   await f.center.start()
   assert.equal(validUpdateInventory(value), true)
-  assert.equal(f.opener.textContent, 'Update')
+  assert.equal(f.opener.hidden, true)
   const rows = f.get('[data-update-components]').children.slice(1)
   assert.ok(rows.every(row => !text(row).includes('更新あり')))
   for (const row of rows.filter(row => row.dataset.component.startsWith('runtime-'))) assert.ok(text(row).includes('本体と一緒に更新'))
   product.comparison = { state: 'update_available', reason: null }
   await f.center.refresh()
-  assert.equal(f.opener.textContent, 'Update · 更新あり')
+  assert.equal(f.opener.hidden, false)
+  assert.equal(f.opener.textContent, '更新 1件')
 })
 
 test('incompatible usage with every other part latest is named and asks for no action', async t => {

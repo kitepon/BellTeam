@@ -6,7 +6,7 @@ Input for this document: the production capture and review by Trony (2026-11-11,
 
 Apple keeps the same structure for Settings in [apple/settings-user-flow.md](../apple/settings-user-flow.md) (Rapi, branch `rapi/apple-auth-states`). Where both apps show the same thing, the words, badges and order are the same (section 9).
 
-Marks: **⚠Wn** = broken today (main 1e835b36), to be fixed. **→** = target. A transition without ⚠ already works and stays.
+Marks: **⚠Wn** = broken today (main 1e835b36), to be fixed. **✓Wn** = fixed (W5-W18, W21 and W24 in step 2a, branch `feat/web-home-roster-20261112`). **→** = target. A transition without ⚠ already works and stays.
 
 ## 0. Rules every screen follows (acceptance bar)
 
@@ -56,11 +56,11 @@ stateDiagram-v2
 
 | Control (today) | Today | → Target |
 | --- | --- | --- |
-| Owner initial `O` (`#owner-profile-button`) | Opens 設定; silent no-op while the owner is not loaded (H5, review "Owner avatar") | Gear icon with the visible label 「設定」. Always opens Settings; Settings shows its own loading (section 4). |
-| Clock / target / graph icons | Icon-only; opens すべての予定 / ゴール一覧 / 相関図 (H5) ⚠W5 | Same three, each with a visible short label under or beside the icon (「予定」「ゴール」「相関図」), tooltip kept. |
-| Magnifier (`#search-button`) | Focuses the always-visible search box; does nothing visible ⚠W6 | Removed. The search box stays. |
-| `+` (`#add-button`) | Opens the add sheet | Same, plus icons for 「メンバーを追加」 and 「ルームを作る」. |
-| `Update` pill | English, no state; opens the update center even with nothing to do (H5) ⚠W7 | Hidden when everything is latest. Otherwise a badge with the state in Japanese: 「更新 1件」 (accent), 「更新に失敗」 (amber), 「更新中」 (purple). Same state as the update center title (section 5). Settings › アップデート is the always-present entry. |
+| Owner initial `O` (`#owner-profile-button`) | Opens 設定; silent no-op while the owner is not loaded; the avatar is squeezed and overlaps the clock (H5, Trony 2026-11-12 (a)) ✓W5 | Gear icon with the visible label 「設定」. Always opens Settings: when the list has not brought the owner yet, the button reads `GET /api/owner` itself (button disabled while reading); a failed read shows 「設定を開けませんでした…」 in the amber line under the header. |
+| Clock / target / graph / chart icons | Icon-only; opens すべての予定 / ゴール一覧 / 相関図 / 工程表 (H5) ✓W5 | Same four, each with a visible short label under the icon (「予定」「ゴール」「相関図」「工程表」), tooltip kept. All header tools share one shape (`.tool-button`: 40 px circle + 11 px label), so nothing overlaps at 360 px. |
+| Magnifier (`#search-button`) | Focuses the always-visible search box; does nothing visible ✓W6 | Removed. The search box stays. |
+| `+` (`#add-button`) | Opens the add sheet | Labelled 「追加」; the sheet rows have icons and say 「メンバーを追加」 and 「ルームを作る」. |
+| `Update` pill | English, no state; opens the update center even with nothing to do (H5, Trony (b)) ✓W7 | A badge beside the 「メンバー」 title, set by `update-center.js` in the same branch that sets the center title: 「更新 n件」 (accent), 「更新中」 (purple), 「更新に失敗」 / 「要対応」 / 「確認できません」 (amber, the last only for a failed read). Hidden when everything is latest, while the first read is running, and when only some rows are unknown (the center and the Settings row say that). Settings › アップデート is the always-present entry. The phone chat header has no update entry. |
 
 ### 2.2 Roster list
 
@@ -83,28 +83,30 @@ stateDiagram-v2
 
 | State | Today | → Target |
 | --- | --- | --- |
-| RLoading | Empty container, no text ⚠W8 | Three skeleton rows. |
-| RError | Gray 「一覧を取得できませんでした。取得済みの表示と入力は保持しています。」 but nothing is shown; 「一覧を再取得」 looks like text (review "roster 503") ⚠W9 | Error card: icon, 「メンバー一覧を読み込めませんでした。通信を確かめて、もう一度読み込んでください。」, button 「再読み込み」. |
-| RStale | Same gray notice above the old rows | Old rows stay; a thin amber line above them: 「最新の一覧を読み込めませんでした」 + 「再読み込み」. |
-| REmpty | Gray 「まだメンバーはいません。」, no action (review "roster empty") ⚠W10 | Empty card: icon, 「まだメンバーがいません。」, primary 「メンバーを追加」 (and 「初回設定を続ける」 while setup is not finished). |
-| RNoHit | Gray text only | Search icon + 「見つかりませんでした。名前や役職を変えて探してください。」. A bare 「ルーム」 heading with zero rooms is not drawn ⚠W11. |
+| RLoading | Empty container, no text ✓W8 | Three skeleton rows (static in index.html, replaced by the first render) + screen-reader text 「読み込んでいます」. |
+| RError | Gray 「一覧を取得できませんでした。取得済みの表示と入力は保持しています。」 but nothing is shown; 「一覧を再取得」 looks like text (review "roster 503") ✓W9 | Error card in the list: icon, 「メンバー一覧を読み込めませんでした。通信を確かめて、もう一度読み込んでください。」 (503 `MEMBERS_NOT_ACCEPTED`: 「メンバー機能がいま応答できません。少し待ってから、もう一度読み込んでください。」), button 「再読み込み」 that says 「読み込んでいます…」 while reading. An SSE `ready` re-read also leaves this state. |
+| RStale | Same gray notice above the old rows | Old rows stay; a thin amber line above them: 「最新の一覧を読み込めませんでした」 + 「再読み込み」. RError vs RStale = whether any list read has succeeded in this page. |
+| REmpty | Gray 「まだメンバーはいません。」, no action (review "roster empty") ✓W10 | Empty card: icon, 「まだメンバーがいません。」, primary 「メンバーを追加」 (and 「初回設定を続ける」 while setup is not finished). |
+| RNoHit | Gray text only | Search icon + 「見つかりませんでした。名前や役職を変えて探してください。」. A bare 「ルーム」 heading with zero rooms is not drawn ✓W11. |
 | Room match reason | A room matching only through a member shows no reason | Second line 「参加者: トロニー」 when the match is a participant. |
 
 **Member row** (H1-H4):
 
 | Part | Today | → Target |
 | --- | --- | --- |
-| Line 1 | Name with the role glued on and a `2ndアカウント` pill; names cut to 「スノ…」 ⚠W12 | Name only, never truncated before the time column. |
-| Line 2 | `仕事状況を未取得` / `作業中・要約未取得` / `実行状態未取得` for almost every row (`cw:18-24`; absent and failed are the same) ⚠W13 | The current work summary when there is one; otherwise the role. Never 「未取得」 (P4). |
-| State | `実行状態未取得` text in the time column, a green dot on every member, an unexplained black dot ⚠W14 | One colored badge on the avatar corner: 作業中 (purple), 要対応 (amber: 端末で起動できません, 削除の結果待ち), nothing when idle. The unread dot stays, and gets a legend through its tooltip 「未読」. |
-| Time | The refresh time on every row (H4); no date ⚠W15 | `recent.at` as 「12:10」 today, 「昨日」, 「11/9」 older. Nothing when there is no recent message. |
-| Account | `1stアカウント` / `2ndアカウント` pill on most rows ⚠W16 | Not on the row. Shown in the member editor's AI section only. |
+| Line 1 | Name with the role glued on and a `2ndアカウント` pill; names cut to 「スノ…」 ✓W12 | Name only, never truncated before the time column. |
+| Line 2 | `仕事状況を未取得` / `作業中・要約未取得` / `実行状態未取得` for almost every row (`cw:18-24`; absent and failed are the same) ✓W13 | The 要対応 reason when there is one; else the current work summary (`summaryStatus: current`); otherwise the role (`position`). Never 「未取得」 (P4). |
+| State | `実行状態未取得` text in the time column, a green dot on every member, an unexplained black dot ✓W14 | One colored badge on the avatar corner: 作業中 (purple, `currentWork.state: working`), 要対応 (amber: 端末で起動できません when `seatLaunch` is present, 削除の結果待ち; beats 作業中), nothing when idle. The online dot is gone. The unread dot stays, with the tooltip 「未読」. |
+| Time | The refresh time on every row (H4); no date ✓W15 | `recent.at` as 「12:10」 today, 「昨日」, 「11/9」 older. Nothing when there is no recent message. |
+| Account | `1stアカウント` / `2ndアカウント` pill on most rows ✓W16 | Not on the row. Shown in the member editor's AI section only. |
 
-**Room row** (H7): line 1 room name; line 2 the last message preview (sender: text) or the purpose; a small avatar stack of the members who are working. ⚠W17 today: the label 「参加者の現在の仕事」 on every row, 「参加者の仕事要約を未取得」 on 7 of 8 rooms, a tiny 「ほか16人」.
+**Room row** (H7): line 1 room name; line 2 the last message preview (「モリー: …」, the Owner's own as 「あなた: …」, an image-only one as 「画像」) or the purpose; a small avatar stack of up to 3 members who are working (+n beyond), tooltip 「作業中: …」. ✓W17 today: the label 「参加者の現在の仕事」 on every row, 「参加者の仕事要約を未取得」 on 7 of 8 rooms, a tiny 「ほか16人」.
+
+Row content rules live in `roster-view.js` (`memberRow`, `memberState`, `roomRow`, `rowTime`); `application.js` only draws them.
 
 ### 2.3 Nothing selected (PC right pane)
 
-- ⚠W18 Shows a black `B`, 「話す相手を選んでね」 and live but inert export and schedule buttons (H6, `app:248`, `app:551`). → Illustration + 「左の一覧から、話す相手を選んでください。」. The chat header tools (edit, export, schedule, screen) are hidden until something is selected.
+- ✓W18 Shows a black `B`, 「話す相手を選んでね」 and live but inert export and schedule buttons (H6, `app:248`, `app:551`). → Illustration + 「左の一覧から、話す相手を選んでください。」. The chat header tools (edit, export, schedule, screen) are hidden until something is selected.
 
 ## 3. Conversations
 
@@ -134,10 +136,10 @@ stateDiagram-v2
 | CLoading | Blank pane on PC, no sign (review "member chat") ⚠W19 | Skeleton bubbles + 「会話を読み込んでいます」. |
 | CEmpty | Only the day label 「BellTeamでの会話」 | 「まだ会話がありません。メッセージを送ってみてください。」 above the input. |
 | CError | Red 「会話を読み込めませんでした。開き直して確認してください。」 with no button ⚠W20 | Same place, plain sentence + 「もう一度読み込む」. |
-| Header subtitle | 「CLI接続あり」 / 「CLI接続なし · 送信時に起動」, never refreshed (C1, `app:482`) ⚠W21 | The role, plus the same state badge as the row (作業中 / 要対応). Refreshed on every list read. |
+| Header subtitle | 「CLI接続あり」 / 「CLI接続なし · 送信時に起動」, never refreshed (C1, `app:482`, Trony 2026-11-12 (c)) ✓W21 | The role, plus the same state badge as the row (作業中 / 要対応, `memberState`). Refreshed on every list read. A room shows 「n人」. The header name is the member's name only. |
 | 「▶ 現在の仕事 · 仕事状況を未取得」 | Always shown; opens a table of 未取得 values (C2, `cw:49-57`) ⚠W22 | Shown only when there is a summary: one line 「いまの仕事: …（5分前）」 under the header; tap opens a small card with the summary and 「最終更新 n分前」. No internal field names. |
 | Goal chip | 「ゴール · 状態を取得できません」 on every chat; loading and failure read the same (C3, `goals.js:63, 211`) ⚠W23 | Shown only when a goal exists (「目標に取り組み中」 etc.). Loading shows nothing. A failed read shows nothing in the chip; the goals dialog shows it once. |
-| Header tools | Edit, screen, export, schedule as icons; on phone they squeeze the name to 「トロニ…」 (C4) ⚠W24 | Edit (tap on the name) and 画面 stay; export and schedule move into a 「…」 menu. The phone chat header drops the Update pill. |
+| Header tools | Edit, screen, export, schedule as icons; on phone they squeeze the name to 「トロニ…」 (C4) ✓W24 | Edit (tap on the name) and 画面 stay; 「自動実行」 and 「会話を書き出す」 move into a 「…」 menu (closes after a choice, outside click, Esc). The phone chat header drops the Update pill. Line 2 is one line: the state badge first, then the role, cut with 「…」. |
 | Errors in the conversation | One persistent red line above the input, no dismiss (`cc:25-28`) | Same line, with a 「×」 and cleared by the next success. |
 
 **Screen panel** (画面 button):

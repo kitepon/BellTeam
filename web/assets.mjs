@@ -24,6 +24,7 @@ export const webAssetFiles = new Map([
   ['/conversation-composer.js', 'conversation-composer.js'],
   ['/avatar-editor.js', 'avatar-editor.js'],
   ['/roster-search.js', 'roster-search.js'],
+  ['/roster-view.js', 'roster-view.js'],
   ['/editor-close.js', 'editor-close.js'],
   ['/message-images.js', 'message-images.js'],
   ['/conversation-timeline.js', 'conversation-timeline.js'],

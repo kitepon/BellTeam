@@ -11,8 +11,8 @@ function catalogue(){
  const reads=[],state={selected:null,selectedType:'bot',readReceipts:{}},ctx={catalogueRead:0,state,rosterRetry:{disabled:false},rosterError:{textContent:''},rosterNotice:{hidden:true},conversationKey:(type,id)=>`${type}:${id}`,api:path=>{
   if(path.startsWith('/api/bots')){const pending=deferred();reads.push(pending);return pending.promise}
   return Promise.resolve(path==='/api/rooms'?{rooms:[]}:{owner:{name:'old'}})
- },renderCurrentWork(){},updateSendButton(){},document:{querySelector(){}},renderOwner(){},renderSeatLaunch(){},renderBots(){},clearSelection(){state.selected=null},conversationTimeline:{updateTarget(){}},app:{classList:{contains:()=>false}}}
- vm.runInNewContext(source.slice(source.indexOf('async function loadBots()'),source.indexOf('\n  function renderOwner()')),ctx)
+ },renderCurrentWork(){},updateSendButton(){},document:{querySelector(){}},rosterLoaded:false,renderRosterError(){},renderChatStatus(){},renderSeatLaunch(){},renderBots(){},clearSelection(){state.selected=null},conversationTimeline:{updateTarget(){}},app:{classList:{contains:()=>false}}}
+ vm.runInNewContext(source.slice(source.indexOf('async function loadBots()'),source.indexOf('\n  function renderSeatLaunch()')),ctx)
  return {ctx,state,reads}
 }
 test('catalogue latest response keeps selection; stale success and failure are superseded, latest failure rejects',async()=>{

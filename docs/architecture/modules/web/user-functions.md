@@ -9,8 +9,8 @@ flowchart LR
     Banner["App banner: reconnecting / stopped / app-level errors"]
   end
   subgraph Home["Home"]
-    Roster["Roster: members, rooms, search<br/>application.js, roster-search.js, current-work.js, activity-order.js"]
-    Header["Header: 設定 / 予定 / ゴール / 相関図 / 追加 / 更新<br/>index.html, application.js"]
+    Roster["Roster: members, rooms, search, loading / error / stale / empty<br/>application.js, roster-view.js, roster-search.js, activity-order.js"]
+    Header["Header: 設定 / 予定 / ゴール / 相関図 / 工程表 / 追加, 更新 badge<br/>index.html, application.js, update-center.js (badge)"]
   end
   subgraph Chat["Conversation"]
     Timeline["Timeline + cards<br/>conversation-timeline.js, owner-question.js, secret-input.js, message-images.js, image-gallery.js"]

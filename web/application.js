@@ -1,5 +1,6 @@
 import { createNotificationNavigation } from './notification-navigation.js?v=__ASSET_VERSION__'
-import { workLabel, workParts, roomWorkPreview, renderCurrentWork } from './current-work.js?v=__ASSET_VERSION__'
+import { renderCurrentWork } from './current-work.js?v=__ASSET_VERSION__'
+import { memberRow, memberState, roomRow, rowTime } from './roster-view.js?v=__ASSET_VERSION__'
 import { animateConversation } from './view-preferences.js?v=__ASSET_VERSION__'
 import { createSchedulesOverview } from './schedules-overview.js?v=__ASSET_VERSION__'
 import { matchesMemberQuery, matchesRoomQuery } from './roster-search.js?v=__ASSET_VERSION__'
@@ -12,9 +13,9 @@ import { createScreenView, createCharacterSheetView } from './bot-read-views.js?
 import { createScheduleEditor } from './schedule-editor.js?v=__ASSET_VERSION__'
 import { createWorkGraphView } from './work-graph.js?v=__ASSET_VERSION__'
 import { createLatticeChart } from './lattice-chart.js?v=__ASSET_VERSION__'
-import { bannerTexts, seatBadge } from './harness-accounts.js?v=__ASSET_VERSION__'
+import { bannerTexts } from './harness-accounts.js?v=__ASSET_VERSION__'
 import { createConversationTimeline } from './conversation-timeline.js?v=__ASSET_VERSION__'
-import { applyAvatar, initials, memberDisplay, formatTime, escapeClass, escapeHtml } from './view-format.js?v=__ASSET_VERSION__'
+import { applyAvatar, initials, escapeClass, escapeHtml } from './view-format.js?v=__ASSET_VERSION__'
 import { openOnboarding } from './onboarding.js?v=__ASSET_VERSION__'
 import { claimSingleFlight, releaseSingleFlight } from './chat-input.js?v=__ASSET_VERSION__'
 import { createMessageImageCache } from './message-images.js?v=__ASSET_VERSION__'
@@ -33,7 +34,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
   const app = document.querySelector('#app')
   let updatesChanged = () => {}
   const updateCenter = createUpdateCenter({ root: document.querySelector('#update-center'), api,
-    buttons: [document.querySelector('#update-open'), document.querySelector('#update-open-mobile')], onSummary: () => updatesChanged() })
+    buttons: [document.querySelector('#update-open')], onSummary: () => updatesChanged() })
   const goals = goalsView(document.querySelector('#goals-dialog'), api, () => state.bots, document.querySelector('#chat-goal'))
   document.querySelector('#goals-button').addEventListener('click', () => { void goals.open() })
   const terminals = createTerminalsView(document.querySelector('#terminals-dialog'), { api })
@@ -43,12 +44,12 @@ export function createWebApp({ client = createWebClient() } = {}) {
   const rosterError = document.querySelector('#roster-error')
   const rosterRetry = document.querySelector('#roster-retry')
   rosterRetry.addEventListener('click', () => loadBots().catch(() => {}))
+  let rosterLoaded = false
   const setupNotice = document.querySelector('#setup-notice')
   document.querySelector('#setup-resume').addEventListener('click', () => void resumeSetup())
   let conversationsStarted = false
   const rosterSearch = document.querySelector('#roster-search')
   rosterSearch.addEventListener('input', renderBots)
-  document.querySelector('#search-button').addEventListener('click', () => rosterSearch.focus())
   const ownerProfileButton = document.querySelector('#owner-profile-button')
   const ownerDialog = document.querySelector('#owner-dialog')
   const chat = document.querySelector('#chat')
@@ -207,7 +208,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
 
   const ownerEditor = createOwnerEditor(ownerDialog, { api,
     onOpenUpdates: button => updateCenter.open(button), updateSummary: () => updateCenter.summary(),
-    onOwner: owner => { catalogueRead++; state.owner = owner; renderOwner() },
+    onOwner: owner => { catalogueRead++; state.owner = owner },
     onSettings: (settings, authMode) => {
       state.settings = settings
       state.authMode = authMode
@@ -259,6 +260,11 @@ export function createWebApp({ client = createWebClient() } = {}) {
     if (state.selectedType === 'room') openRoomDialog(state.selected)
   })
   document.querySelector('#schedule-button').addEventListener('click', openScheduleDialog)
+  // 「…」 menu (W24): closes after a choice, on an outside click and on Esc.
+  const chatMore = document.querySelector('#chat-more')
+  chatMore.addEventListener('click', event => { if (event.target.closest('.chat-more-menu button')) chatMore.open = false })
+  document.addEventListener('click', event => { if (chatMore.open && !chatMore.contains(event.target)) chatMore.open = false })
+  document.addEventListener('keydown', event => { if (event.key === 'Escape' && chatMore.open) chatMore.open = false })
   document.querySelector('#export-button').addEventListener('click', async event => {
     if (!state.selected) return
     const button = event.currentTarget
@@ -378,20 +384,25 @@ export function createWebApp({ client = createWebClient() } = {}) {
   async function loadBots() {
     const read = ++catalogueRead
     rosterRetry.disabled = true
+    rosterRetry.textContent = '読み込んでいます…'
     let botResult, roomResult, ownerResult
     try {
       [botResult, roomResult, ownerResult] = await Promise.all([api('/api/bots?avatar=omit'), api('/api/rooms'), api('/api/owner')])
     } catch (error) {
       if (read !== catalogueRead) return null
       rosterRetry.disabled = false
-      rosterError.textContent = error.message === 'MEMBERS_NOT_ACCEPTED'
-        ? 'メンバー機能が一時的に新しい操作を受け付けられません。取得済みの表示と入力は保持しています。'
-        : '一覧を取得できませんでした。取得済みの表示と入力は保持しています。'
-      rosterNotice.hidden = false
+      rosterRetry.textContent = '再読み込み'
+      // Old rows stay under a thin line (RStale); with nothing read yet the list itself is the error card (RError).
+      if (rosterLoaded) { rosterError.textContent = '最新の一覧を読み込めませんでした'; rosterNotice.hidden = false }
+      else renderRosterError(error.message === 'MEMBERS_NOT_ACCEPTED'
+        ? 'メンバー機能がいま応答できません。少し待ってから、もう一度読み込んでください。'
+        : 'メンバー一覧を読み込めませんでした。通信を確かめて、もう一度読み込んでください。')
       throw error
     }
     if (read !== catalogueRead) return null
+    rosterLoaded = true
     rosterRetry.disabled = false
+    rosterRetry.textContent = '再読み込み'
     rosterNotice.hidden = true
     const listedIds = new Set(botResult.bots.map(bot => bot.id))
     for (const id of state.pendingDeletionIds ?? []) if (!listedIds.has(id)) state.pendingDeletionIds.delete(id)
@@ -415,17 +426,11 @@ export function createWebApp({ client = createWebClient() } = {}) {
       }
       else clearSelection()
     }
-    renderOwner()
+    renderChatStatus()
     renderBots()
     renderCurrentWork(document.querySelector('#current-work-detail'), state.selectedType, state.selected, state.bots)
     updateSendButton()
     return true
-  }
-
-  function renderOwner() {
-    const owner = state.owner
-    ownerProfileButton.textContent = initials(owner?.name || 'O')
-    applyAvatar(ownerProfileButton, owner ?? { avatar: '' })
   }
 
   function renderSeatLaunch() {
@@ -434,52 +439,119 @@ export function createWebApp({ client = createWebClient() } = {}) {
     chatSeatLaunch.hidden = !text
   }
 
-  function openOwnerDialog() { return ownerEditor.open(state.owner) }
+  // Settings always opens: the owner is read here when the list has not brought it yet.
+  async function openOwnerDialog() {
+    if (!state.owner) {
+      ownerProfileButton.disabled = true
+      try { state.owner = (await api('/api/owner')).owner } catch {}
+      finally { ownerProfileButton.disabled = false }
+    }
+    if (state.owner) return ownerEditor.open(state.owner)
+    rosterError.textContent = '設定を開けませんでした。通信を確かめて、もう一度押してください。'
+    rosterNotice.hidden = false
+  }
+
+  function renderRosterError(message) {
+    const card = document.createElement('div')
+    card.className = 'roster-card is-error'
+    card.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 20h20L12 3Z"/><path d="M12 10v4M12 17h.01"/></svg><p></p><button type="button" class="primary-button">再読み込み</button>'
+    card.querySelector('p').textContent = message
+    const retry = card.querySelector('button')
+    retry.addEventListener('click', () => {
+      retry.disabled = true
+      retry.textContent = '読み込んでいます…'
+      loadBots().catch(() => {})
+    })
+    botList.replaceChildren(card)
+  }
+
+  // Chat header line 2 (W21): the role and the same state badge as the roster row; a room shows its head count.
+  function renderChatStatus() {
+    if (!state.selected) { chatStatus.replaceChildren(); return }
+    if (state.selectedType === 'room') { chatStatus.textContent = `${state.selected.memberIds.length}人`; return }
+    const badge = memberState(state.selected)
+    chatStatus.replaceChildren(...(badge ? [stateBadge(badge)] : []), state.selected.position ?? '')
+  }
+
+  function stateBadge({ text, tone, reason }) {
+    const badge = document.createElement('span')
+    badge.className = `state-badge is-${tone}`
+    badge.textContent = text
+    if (reason) badge.title = reason
+    return badge
+  }
 
   function renderBots() {
-    const botRows = newestByRecent(state.bots).filter(bot => matchesMemberQuery(bot, rosterSearch.value)).map(bot => {
-      const button = document.createElement('button')
-      const unread = hasUnreadConversation(bot, 'bot', state.readReceipts[conversationKey('bot', bot.id)])
-      button.className = `bot-row${state.selectedType === 'bot' && state.selected?.id === bot.id ? ' active' : ''}${unread ? ' unread' : ''}`
-      button.dataset.conversation = conversationKey('bot', bot.id)
-      button.type = 'button'
-      button.addEventListener('click', () => selectBot(bot))
-      const preview = workLabel(bot.currentWork)
-      const parts = workParts(bot.currentWork)
-      const account = seatBadge(bot.account)
-      const seatLaunch = seatLaunchText(bot.seatLaunch)
+    const query = rosterSearch.value
+    const botRows = newestByRecent(state.bots).filter(bot => matchesMemberQuery(bot, query)).map(bot => {
+      const row = memberRow(bot)
+      const button = rosterButton('bot', bot, () => selectBot(bot))
       button.innerHTML = `
-        <span class="avatar ${escapeClass(bot.color)}" data-avatar>${initials(bot.name)}<i class="presence ${bot.online ? 'online' : ''}"></i></span>
-        <span class="bot-copy"><span class="bot-name">${escapeHtml(bot.displayName)}</span>${bot.deleting || bot.deletionRequested ? '<span class="deletion-state">削除を受付・完了未確認</span>' : ''}${seatLaunch ? `<span class="seat-launch">${escapeHtml(seatLaunch)}</span>` : ''}</span>
-        <span class="bot-meta"><time class="bot-time" title="最終会話の時刻">${formatTime(bot.recent?.at)}</time>${parts.state ? `<span class="work-state">${escapeHtml(parts.state)}</span>` : ''}${account ? `<span class="account-slot-badge" title="${escapeHtml(account.title)}">${escapeHtml(account.text)}</span>` : ''}${unread ? '<i class="unread-dot" aria-label="未読"></i>' : ''}</span>
-        <span class="bot-preview bot-work-preview" title="${escapeHtml(preview)}">${escapeHtml(parts.text)}</span>`
+        <span class="avatar ${escapeClass(bot.color)}" data-avatar>${initials(bot.name)}</span>
+        <span class="bot-copy"><span class="bot-name">${escapeHtml(row.name)}</span><span class="bot-preview">${escapeHtml(row.line)}</span></span>
+        <span class="bot-meta"><time class="bot-time">${rowTime(bot.recent?.at)}</time>${button.classList.contains('unread') ? '<i class="unread-dot" title="未読" aria-label="未読"></i>' : ''}</span>`
+      if (row.state) button.querySelector('[data-avatar]').append(stateBadge(row.state))
       applyAvatar(button.querySelector('[data-avatar]'), bot)
       return button
     })
-    const roomRows = newestByRecent(state.rooms).filter(room => matchesRoomQuery(room, state.bots, rosterSearch.value)).map(room => {
-      const button = document.createElement('button')
-      const unread = hasUnreadConversation(room, 'room', state.readReceipts[conversationKey('room', room.id)])
-      button.className = `bot-row${state.selectedType === 'room' && state.selected?.id === room.id ? ' active' : ''}${unread ? ' unread' : ''}`
-      button.dataset.conversation = conversationKey('room', room.id)
-      button.type = 'button'
-      button.addEventListener('click', () => selectRoom(room))
-      const recent = room.recent
-      const preview = roomWorkPreview(room, state.bots)
+    const roomRows = newestByRecent(state.rooms).filter(room => matchesRoomQuery(room, state.bots, query)).map(room => {
+      const row = roomRow(room, state.bots, query)
+      const button = rosterButton('room', room, () => selectRoom(room))
       button.innerHTML = `
         <span class="avatar room-avatar">${initials(room.name)}</span>
-        <span class="bot-copy"><span class="bot-name">${escapeHtml(room.name)}</span><span class="bot-preview room-work-preview">${preview}</span></span>
-        <span class="bot-meta"><time class="bot-time" title="最終会話の時刻">${formatTime(recent?.at)}</time>${unread ? '<i class="unread-dot" aria-label="未読"></i>' : ''}</span>`
+        <span class="bot-copy"><span class="bot-name">${escapeHtml(row.name)}</span><span class="bot-preview">${escapeHtml(row.line)}</span></span>
+        <span class="bot-meta"><time class="bot-time">${rowTime(room.recent?.at)}</time>${button.classList.contains('unread') ? '<i class="unread-dot" title="未読" aria-label="未読"></i>' : ''}</span>`
+      if (row.working.length) {
+        const stack = document.createElement('span')
+        stack.className = 'working-stack'
+        stack.title = `作業中: ${row.working.map(bot => bot.name).join('、')}`
+        for (const bot of row.working.slice(0, 3)) {
+          const face = document.createElement('span')
+          face.className = `mini-face ${escapeClass(bot.color)}`
+          face.textContent = bot.name.slice(0, 1)
+          applyAvatar(face, bot)
+          stack.append(face)
+        }
+        if (row.working.length > 3) stack.append(Object.assign(document.createElement('span'), { className: 'working-more', textContent: `+${row.working.length - 3}` }))
+        button.querySelector('.bot-copy').append(stack)
+      }
       applyAvatar(button.querySelector('.avatar'), room)
       return button
     })
-    const roomHeading = document.createElement('p')
-    roomHeading.className = 'list-heading'
-    roomHeading.textContent = 'ルーム'
-    const empty = document.createElement('p')
-    empty.className = 'search-empty'
-    empty.textContent = rosterSearch.value.trim() ? '該当するメンバー・ルームはありません。名前や役職を変えて検索してください。'
-      : state.setup && state.setup.phase !== 'ready' ? 'まだメンバーはいません。上の「初回設定を続ける」から始められます。' : 'まだメンバーはいません。'
-    botList.replaceChildren(...(botRows.length || roomRows.length ? [...botRows, roomHeading, ...roomRows] : [empty]))
+    const rows = [...botRows]
+    if (roomRows.length) rows.push(Object.assign(document.createElement('p'), { className: 'list-heading', textContent: 'ルーム' }), ...roomRows)
+    botList.replaceChildren(...(rows.length ? rows : [query.trim() ? rosterNoHit() : rosterEmpty()]))
+  }
+
+  function rosterButton(type, item, onSelect) {
+    const button = document.createElement('button')
+    const key = conversationKey(type, item.id)
+    const unread = hasUnreadConversation(item, type, state.readReceipts[key])
+    button.className = `bot-row${state.selectedType === type && state.selected?.id === item.id ? ' active' : ''}${unread ? ' unread' : ''}`
+    button.dataset.conversation = key
+    button.type = 'button'
+    button.addEventListener('click', onSelect)
+    return button
+  }
+
+  function rosterNoHit() {
+    const card = document.createElement('div')
+    card.className = 'roster-card'
+    card.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg><p>見つかりませんでした。名前や役職を変えて探してください。</p>'
+    return card
+  }
+
+  function rosterEmpty() {
+    const card = document.createElement('div')
+    card.className = 'roster-card'
+    card.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="8" r="4"/><path d="M3 20a7 7 0 0 1 14 0M19 8v6M16 11h6"/></svg><p>まだメンバーがいません。</p><button type="button" class="primary-button">メンバーを追加</button>'
+    card.querySelector('button').addEventListener('click', () => openBotDialog())
+    if (state.setup && state.setup.phase !== 'ready') {
+      const resume = Object.assign(document.createElement('button'), { type: 'button', className: 'text-button', textContent: '初回設定を続ける' })
+      resume.addEventListener('click', () => void resumeSetup())
+      card.append(resume)
+    }
+    return card
   }
 
   async function selectBot(bot) {
@@ -493,8 +565,8 @@ export function createWebApp({ client = createWebClient() } = {}) {
     chat.classList.remove('empty')
     app.classList.add('chat-open')
     renderCurrentWork(document.querySelector('#current-work-detail'), 'bot', bot, state.bots)
-    chatName.textContent = bot.displayName
-    chatStatus.textContent = bot.online ? 'CLI接続あり' : 'CLI接続なし · 送信時に起動'
+    chatName.textContent = bot.name ?? bot.displayName
+    renderChatStatus()
     renderSeatLaunch()
     headerAvatar.className = `mini-avatar ${escapeClass(bot.color)}`
     headerAvatar.textContent = initials(bot.name)
@@ -522,7 +594,7 @@ export function createWebApp({ client = createWebClient() } = {}) {
     app.classList.add('chat-open')
     renderCurrentWork(document.querySelector('#current-work-detail'), 'room', room, state.bots)
     chatName.textContent = room.name
-    chatStatus.textContent = `${room.memberIds.length}人`
+    renderChatStatus()
     renderSeatLaunch()
     headerAvatar.className = 'mini-avatar room-avatar'
     headerAvatar.textContent = initials(room.name)
@@ -548,8 +620,8 @@ export function createWebApp({ client = createWebClient() } = {}) {
     state.selectedType = null
     chat.classList.add('empty')
     app.classList.remove('chat-open')
-    chatName.textContent = 'メンバーを選択'
-    chatStatus.textContent = 'BellTeam'
+    chatName.textContent = ''
+    renderChatStatus()
     renderSeatLaunch()
     headerAvatar.className = 'mini-avatar'
     headerAvatar.textContent = ''
