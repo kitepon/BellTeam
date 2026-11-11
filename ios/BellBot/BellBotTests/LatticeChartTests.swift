@@ -83,6 +83,38 @@ final class LatticeChartTests: XCTestCase {
         XCTAssertEqual(rows[1].accessibilityLabel, "フローラが部品の配置を待っています。つくっているのはモリー、作業中 12分")
     }
 
+    /// README "Owner on screen": producer, else the authored lane text as written, else 担当なし — in lanes, rows and notes.
+    func testAuthoredLaneTextIsTheOwnerWhenNoOneHasStarted() throws {
+        let json = """
+        {"schema":"bellteam.lattice-chart.v1","epoch":"e1","version":1,"projectId":"p","state":"verified",
+         "members":[{"botId":"bot-molly","name":"モリー","color":"mint"}],
+         "cards":[
+          {"id":"p/a","title":"配置","state":"in-progress","producer":"bot-molly","lane":"molly","startedAt":"2026-11-11T11:50:00Z","depth":0},
+          {"id":"p/b","title":"実装","state":"pending","producer":null,"lane":"kiro","depth":1},
+          {"id":"p/c","title":"確認","state":"pending","producer":null,"lane":"  ","depth":2}],
+         "edges":[{"from":"p/a","to":"p/b","waiting":true},{"from":"p/b","to":"p/c","waiting":true}],
+         "waits":[{"waiter":null,"waitingCard":"p/b","forCard":"p/a","producer":"bot-molly","producerState":"in-progress","since":"2026-11-11T11:50:00Z"},
+                  {"waiter":null,"waitingCard":"p/c","forCard":"p/b","producer":null,"producerState":"pending","since":"2026-11-11T11:55:00Z"}]}
+        """
+        let snapshot = try JSONDecoder().decode(LatticeChartSnapshot.self, from: Data(json.utf8))
+        let layout = LatticeLayout(snapshot)
+        XCTAssertEqual(layout.lanes.map(\.id), ["bot-molly", "lane:kiro", ""], "書かれた担当はメンバーの後ろ、担当なしは最後")
+        let kiro = try XCTUnwrap(layout.lanes[1].person)
+        XCTAssertEqual(kiro.name, "kiro")
+        XCTAssertEqual(kiro.initial, "K")
+        XCTAssertTrue(kiro.lane)
+        XCTAssertFalse(kiro.known, "書かれた担当には会話を開けない")
+        let rows = LatticeWaitRow.rows(snapshot, now: now)
+        XCTAssertEqual(rows[0].headline, "kiroが待っている")
+        XCTAssertEqual(rows[1].headline, "担当未定が待っている")
+        XCTAssertEqual(rows[1].stateText, "未着手: 担当 kiro")
+        XCTAssertFalse(rows[1].canChat)
+        let cards = snapshot.cardList
+        XCTAssertEqual(LatticeText.cardNote(cards[0], owner: LatticePerson.lookup(snapshot)(cards[0].owner)), "モリーがつくっています")
+        XCTAssertEqual(LatticeText.cardNote(cards[1], owner: kiro), "担当 kiro")
+        XCTAssertEqual(LatticeText.cardNote(cards[2], owner: nil), LatticePerson.unassigned)
+    }
+
     func testDetailLinksAndPlainMemo() throws {
         let detail = try XCTUnwrap(LatticeDetail(try snapshot(), cardId: "p1/t08", now: now))
         XCTAssertEqual(detail.previous.map(\.id), ["p1/t04", "p1/t06", "p1/t07"])

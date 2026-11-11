@@ -264,8 +264,8 @@ struct LatticeChartScreen: View {
 
     private func railItems(_ snapshot: LatticeChartSnapshot, _ layout: LatticeLayout) -> [LatticeRail.Item] {
         layout.lanes.compactMap { lane in
-            guard let person = lane.person else { return nil }
-            let mine = snapshot.cardList.filter { $0.producer == person.botId }
+            guard let person = lane.person, !person.lane else { return nil }  // authored lanes are not members
+            let mine = snapshot.cardList.filter { $0.owner == person.botId }
             return LatticeRail.Item(person: person,
                                     working: mine.contains { $0.status == .inProgress },
                                     blocked: mine.contains { $0.status == .blocked },
@@ -279,7 +279,7 @@ struct LatticeChartScreen: View {
     private func board(_ snapshot: LatticeChartSnapshot, _ layout: LatticeLayout, now: Date) -> some View {
         let lookup = LatticePerson.lookup(snapshot)
         let cards = Dictionary(snapshot.cardList.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        let highlighted: Set<String>? = focus.map { focus in Set(snapshot.cardList.filter { $0.producer == focus }.map(\.id)) }
+        let highlighted: Set<String>? = focus.map { focus in Set(snapshot.cardList.filter { $0.owner == focus }.map(\.id)) }
         let chips = chipPlacements(snapshot, layout, lookup: lookup, cards: cards)
         let width = layout.size.width + 40
         let height = layout.size.height + 56
@@ -306,7 +306,7 @@ struct LatticeChartScreen: View {
                                 .allowsHitTesting(false)
                             ForEach(snapshot.cardList) { card in
                                 if let frame = layout.frames[card.id] {
-                                    cardButton(card, producer: lookup(card.producer), frame: frame, highlighted: highlighted, now: now)
+                                    cardButton(card, producer: lookup(card.owner), frame: frame, highlighted: highlighted, now: now)
                                 }
                             }
                             ForEach(chips, id: \.id) { chip in
@@ -415,12 +415,12 @@ struct LatticeChartScreen: View {
             guard let edges = waiting[to], let target = layout.frames[to] else { continue }
             let edge = edges.first { cards[$0.from]?.status == .blocked } ?? edges[0]
             guard let from = layout.frames[edge.from] else { continue }
-            let waiter = lookup(cards[to]?.producer)
+            let waiter = lookup(cards[to]?.owner)
             let text = "\(waiter?.name ?? "担当未定")が待っています"
             let size = CGSize(width: CGFloat(text.count) * 12.5 + 46, height: 26)
             guard let frame = LatticeChipPlacement.place(LatticeCurve(from: from, to: target), size: size, avoiding: boxes, within: bounds) else { continue }
             boxes.append(frame)
-            placed.append(ChipPlacement(id: edge.id, waiter: waiter, producer: cards[edge.from]?.producer, text: text,
+            placed.append(ChipPlacement(id: edge.id, waiter: waiter, producer: cards[edge.from]?.owner, text: text,
                                         blocked: cards[edge.from]?.status == .blocked, frame: frame))
         }
         return placed
@@ -548,11 +548,11 @@ struct LatticeChartScreen: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(group.title).font(.system(size: 12, weight: .semibold)).foregroundStyle(LatticePalette.muted).padding(.leading, 36)
                     ForEach(group.cards) { card in
-                        LatticeRailRow(card: card, producer: lookup(card.producer), selected: selected == card.id, now: now,
+                        LatticeRailRow(card: card, producer: lookup(card.owner), selected: selected == card.id, now: now,
                                        completedAt: model.completedAt[card.id], reduceMotion: reduceMotion)
                             .onTapGesture { select(card.id) }
                             .accessibilityElement(children: .ignore)
-                            .accessibilityLabel(LatticeText.cardLabel(card, producer: lookup(card.producer)))
+                            .accessibilityLabel(LatticeText.cardLabel(card, producer: lookup(card.owner)))
                             .accessibilityAddTraits(.isButton)
                             .accessibilityAction { select(card.id) }
                             .accessibilityIdentifier("lattice-card-\(card.id)")
@@ -595,7 +595,7 @@ enum LatticeGrouping: String, CaseIterable {
             return depths.map { depth in Group(title: "\(depth + 1)段目", cards: ordered.filter { max(0, $0.depth ?? 0) == depth }) }
         case .producer:
             return layout.lanes.map { lane in
-                Group(title: latticeName(lane.person), cards: ordered.filter { ($0.producer ?? "") == lane.id })
+                Group(title: latticeName(lane.person), cards: ordered.filter { ($0.owner ?? "") == lane.id })
             }
         }
     }
@@ -649,9 +649,10 @@ struct LatticeCardView: View {
             }
             .foregroundStyle(tone)
             Text(card.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(LatticePalette.ink)
-                .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                .lineLimit(2).truncationMode(.tail)
             Spacer(minLength: 0)
-            Text(LatticeText.cardNote(card)).font(.system(size: 11)).lineLimit(1)
+            Text(LatticeText.cardNote(card, owner: producer)).font(.system(size: 11)).lineLimit(1)
+                .layoutPriority(1)
                 .foregroundStyle(status == .blocked ? LatticePalette.red : LatticePalette.muted)
         }
         .padding(11)
@@ -874,8 +875,8 @@ struct LatticeEdgesLayer: View {
                 continue
             }
             let blocked = cards[edge.from]?.status == .blocked
-            let producer = blocked ? LatticePalette.red : LatticePalette.accent(lookup(cards[edge.from]?.producer))
-            let waiter = blocked ? LatticePalette.red.opacity(0.75) : LatticePalette.accent(lookup(cards[edge.to]?.producer))
+            let producer = blocked ? LatticePalette.red : LatticePalette.accent(lookup(cards[edge.from]?.owner))
+            let waiter = blocked ? LatticePalette.red.opacity(0.75) : LatticePalette.accent(lookup(cards[edge.to]?.owner))
             let gradient = Gradient(colors: [producer.opacity(0.85 * fade), waiter.opacity(0.85 * fade)])
             context.stroke(curve.path, with: .linearGradient(gradient, startPoint: curve.p0, endPoint: curve.p3),
                            style: StrokeStyle(lineWidth: 3, lineCap: .round))

@@ -62,7 +62,7 @@ struct LatticeAvatar: View {
                 RoundedRectangle(cornerRadius: size * 0.31, style: .continuous)
                     .fill(LinearGradient(colors: [LatticePalette.unknown.opacity(0.6), LatticePalette.unknown],
                                          startPoint: .topLeading, endPoint: .bottomTrailing))
-                Text(person == nil ? "–" : "?")
+                Text(person.map { $0.initial } ?? "–")
                     .font(.system(size: size * 0.46, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
             }
