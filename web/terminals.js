@@ -361,8 +361,9 @@ export function createTerminalsView(dialog, { api }) {
     // First use is trusted by the body like ssh accept-new (terminals #1000, Owner ruling 2026-11-11): the sheet is only for a check
     // that reports a trust reason (a changed key, or an older body that still needs the Owner's fingerprint).
     const needsTrust = Boolean(status.trust)
-    // Only a Mac runs the BellTeam app that confirms the host key by itself (S2).
-    if (needsTrust && os === 'macos') node.append(element('p', 'このMacでBellTeamアプリを開くと、自動で確かめます。', 'field-help'))
+    // The Mac app attests only a terminal without hostTrust (S2); a changed key on a trusted Mac needs the manual sheet (Crust #1020).
+    const appAttests = needsTrust && os === 'macos' && !terminal.hostTrust
+    if (appAttests) node.append(element('p', 'このMacでBellTeamアプリを開くと、自動で確かめます。', 'field-help'))
     if (status.help && !status.trust) node.append(element('p', status.help, 'field-help'))
     const authorizing = opened.authorizing.get(id)
     if (authorizing) node.append(element('p', authorizing.text, 'field-help'))
@@ -383,7 +384,7 @@ export function createTerminalsView(dialog, { api }) {
     if (needsTrust) {
       const manual = terminal.sshKeyConfigured === false
         ? element('p', '先にSSH鍵を設定してください。そのあと、ホスト鍵の指紋を確かめます。', 'field-help') : trustForm(terminal, os)
-      if (os === 'macos') {
+      if (appAttests) {
         const other = element('details', undefined, 'terminal-other')
         other.append(element('summary', 'ほかの方法'), manual)
         if (opened.trustDraft.get(id)) other.open = true
