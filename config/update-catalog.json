@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-11T15:54:36Z",
-  "expiresAt": "2026-11-18T15:54:36Z",
+  "publishedAt": "2026-11-11T16:12:35Z",
+  "expiresAt": "2026-11-18T16:12:35Z",
   "releases": [
     {
       "componentId": "usage",
@@ -491,8 +491,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "dc4b63be40db8764e0f1dab558c1800bb583841a",
-      "versionId": "e27e95bdff75c7bf3f0da30f82d485c0afe6b01a6561c9b5ef0531789c2fe9ac",
+      "sourceCommit": "eb8c94a553ca9d4524a98ae36e3b5896d19e4a58",
+      "versionId": "fe580eecdb837f5493d1ea8aafcbca9a8d4bd0b3c16fd223e38371e0e3c2284f",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T155155Z/execution-dc4b63be40db8764e0f1dab558c1800bb583841a-linux-amd64.tar.gz",
-          "bytes": 3959454,
-          "sha256": "e27e95bdff75c7bf3f0da30f82d485c0afe6b01a6561c9b5ef0531789c2fe9ac"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T161029Z/execution-eb8c94a553ca9d4524a98ae36e3b5896d19e4a58-linux-amd64.tar.gz",
+          "bytes": 3959865,
+          "sha256": "fe580eecdb837f5493d1ea8aafcbca9a8d4bd0b3c16fd223e38371e0e3c2284f"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T155155Z/execution-dc4b63be40db8764e0f1dab558c1800bb583841a-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10805,
-          "sha256": "0b09a28c275d904b2cb8d5662cbe1907bbc41c30a4945c2b496836f9ac1b4883"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T161029Z/execution-eb8c94a553ca9d4524a98ae36e3b5896d19e4a58-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10926,
+          "sha256": "25ef171c54cdc55411c67fecba6ae287d55ce5541e157c5adb3deaef64d20c07"
         },
-        "signerCommit": "dc4b63be40db8764e0f1dab558c1800bb583841a"
+        "signerCommit": "eb8c94a553ca9d4524a98ae36e3b5896d19e4a58"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -520,13 +520,14 @@
       },
       "changes": [
         "Claudeの全アカウントが上限の間に止まったメンバーが、どれかのアカウントが空いた時に自動で戻るようになりました（上限待ちの取り消し、必要なら新しい席、続きの知らせ1回）。",
+        "上限待ちの取り消しを、上限で止まったClaudeの席にも届く停止キーで送るようにしました。",
         "上限が解ける時刻の記録が同時に書かれた時、消したはずの上限が戻ってしまう競合を直しました。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "dc4b63be40db8764e0f1dab558c1800bb583841a",
-      "versionId": "d4d592d7fd02321426958b9aece458ae4c999043bb8ab0058bd9de5865db14b8",
+      "sourceCommit": "eb8c94a553ca9d4524a98ae36e3b5896d19e4a58",
+      "versionId": "2a0ea2946c6bbea73b591540a904c14435fa2f9824ecffb932735e6f0b6c5f99",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -534,16 +535,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T155155Z/execution-dc4b63be40db8764e0f1dab558c1800bb583841a-linux-arm64.tar.gz",
-          "bytes": 3959448,
-          "sha256": "d4d592d7fd02321426958b9aece458ae4c999043bb8ab0058bd9de5865db14b8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T161029Z/execution-eb8c94a553ca9d4524a98ae36e3b5896d19e4a58-linux-arm64.tar.gz",
+          "bytes": 3959864,
+          "sha256": "2a0ea2946c6bbea73b591540a904c14435fa2f9824ecffb932735e6f0b6c5f99"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T155155Z/execution-dc4b63be40db8764e0f1dab558c1800bb583841a-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11036,
-          "sha256": "78e96ce5ec30f17dee34658a14c4042d380b27694843db2dd841f18e8682cbdc"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T161029Z/execution-eb8c94a553ca9d4524a98ae36e3b5896d19e4a58-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10930,
+          "sha256": "a1632fe635b8b79ab96bd74fbe4ade7c7e4106299bb96149cbb18c1929e708f0"
         },
-        "signerCommit": "dc4b63be40db8764e0f1dab558c1800bb583841a"
+        "signerCommit": "eb8c94a553ca9d4524a98ae36e3b5896d19e4a58"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -554,6 +555,7 @@
       },
       "changes": [
         "Claudeの全アカウントが上限の間に止まったメンバーが、どれかのアカウントが空いた時に自動で戻るようになりました（上限待ちの取り消し、必要なら新しい席、続きの知らせ1回）。",
+        "上限待ちの取り消しを、上限で止まったClaudeの席にも届く停止キーで送るようにしました。",
         "上限が解ける時刻の記録が同時に書かれた時、消したはずの上限が戻ってしまう競合を直しました。"
       ]
     },
