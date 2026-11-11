@@ -56,7 +56,7 @@ stateDiagram-v2
 
 | Control (today) | Today | → Target |
 | --- | --- | --- |
-| Owner initial `O` (`#owner-profile-button`) | Opens 設定; silent no-op while the owner is not loaded; the avatar is squeezed and overlaps the clock (H5, Trony 2026-11-12 (a)) ✓W5 | Gear icon with the visible label 「設定」. Always opens Settings: when the list has not brought the owner yet, the button reads `GET /api/owner` itself (button disabled while reading); a failed read shows 「設定を開けませんでした…」 in the amber line under the header. |
+| Owner initial `O` (`#owner-profile-button`) | Opens 設定; silent no-op while the owner is not loaded; the avatar is squeezed and overlaps the clock (H5, Trony 2026-11-12 (a)) ✓W5 | Gear icon with the visible label 「設定」. Always opens Settings: when the list has not brought the owner yet, the button reads `GET /api/owner` itself (button disabled while reading). A list read or profile save that started meanwhile is newer and is never overwritten; Settings opens with the current owner (`catalogueRead`, test `web-owner-open`); a failed read shows 「設定を開けませんでした…」 in the amber line under the header. |
 | Clock / target / graph / chart icons | Icon-only; opens すべての予定 / ゴール一覧 / 相関図 / 工程表 (H5) ✓W5 | Same four, each with a visible short label under the icon (「予定」「ゴール」「相関図」「工程表」), tooltip kept. All header tools share one shape (`.tool-button`: 40 px circle + 11 px label), so nothing overlaps at 360 px. |
 | Magnifier (`#search-button`) | Focuses the always-visible search box; does nothing visible ✓W6 | Removed. The search box stays. |
 | `+` (`#add-button`) | Opens the add sheet | Labelled 「追加」; the sheet rows have icons and say 「メンバーを追加」 and 「ルームを作る」. |

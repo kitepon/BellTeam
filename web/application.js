@@ -441,12 +441,17 @@ export function createWebApp({ client = createWebClient() } = {}) {
 
   // Settings always opens: the owner is read here when the list has not brought it yet.
   async function openOwnerDialog() {
-    if (!state.owner) {
+    let owner = state.owner
+    if (!owner) {
+      const read = catalogueRead
       ownerProfileButton.disabled = true
-      try { state.owner = (await api('/api/owner')).owner } catch {}
+      try { owner = (await api('/api/owner')).owner ?? null } catch {}
       finally { ownerProfileButton.disabled = false }
+      // A list read or a profile save that started meanwhile is newer than this read: it is never overwritten.
+      if (!state.owner && read === catalogueRead) state.owner = owner
+      owner = state.owner ?? owner
     }
-    if (state.owner) return ownerEditor.open(state.owner)
+    if (owner) return ownerEditor.open(owner)
     rosterError.textContent = '設定を開けませんでした。通信を確かめて、もう一度押してください。'
     rosterNotice.hidden = false
   }
