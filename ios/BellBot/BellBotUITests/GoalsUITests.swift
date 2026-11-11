@@ -555,41 +555,45 @@ final class GoalsUITests: XCTestCase {
         XCTAssertTrue((proof["reads"] as? [String])?.contains("bot-one") == true)
     }
 
+    /// Device-ready: fixture calls go through the app's relay (fixtureCall), as the real-device runner cannot reach the LAN.
     func testChatGoalUnavailableAndUnsupportedShowReasons() async throws {
         let url = try XCTUnwrap(ProcessInfo.processInfo.environment["BELLTEAM_GOALS_FIXTURE_URL"])
-        let reset = try XCTUnwrap(URL(string: url + "/test/reset"))
-        let (_, response) = try await URLSession.shared.data(from: reset)
-        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+        _ = try await fixtureCall(server: url, path: "/test/reset")
         let app = XCUIApplication()
-        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", url, "-bellbot-preview-chat"]
+        app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", url, "-bellbot-preview-chat"] + fixtureLaunchArguments(server: url)
         app.launch()
+        allowLocalNetworkAlertIfShown()
         defer { app.terminate() }
         let pill = app.buttons["chat-goal-pill"]
         XCTAssertTrue(pill.waitForExistence(timeout: 10))
         pill.tap()
         // A real read failure: the pill says so and the card says it once, with 状態を更新.
-        let change = try XCTUnwrap(URL(string: url + "/test/availability?bot=bot-one&mode=unavailable"))
-        let (_, changed) = try await URLSession.shared.data(from: change)
-        XCTAssertEqual((changed as? HTTPURLResponse)?.statusCode, 200)
+        _ = try await fixtureCall(server: url, path: "/test/availability?bot=bot-one&mode=unavailable")
         app.buttons["状態を更新"].tap()
         let shown = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", "ゴールを確認できません"), object: pill)
         XCTAssertEqual(XCTWaiter.wait(for: [shown], timeout: 5), .completed)
         XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "現在ゴールを取得できません。")).count, 1)
         XCTAssertFalse(app.staticTexts["ゴールなし"].exists)
         XCTAssertFalse(app.buttons["goal-clear-bot-one"].exists)
-        app.terminate()
+        shot(app, "goal-failure-once")
         // An idle seat (reason seat_idle) and a bot without the goal feature are not failures: no pill at all.
         for mode in ["idle", "unsupported"] {
-            let next = try XCTUnwrap(URL(string: url + "/test/availability?bot=bot-one&mode=\(mode)"))
-            let (_, done) = try await URLSession.shared.data(from: next)
-            XCTAssertEqual((done as? HTTPURLResponse)?.statusCode, 200)
+            _ = try await fixtureCall(server: url, path: "/test/availability?bot=bot-one&mode=\(mode)")
+            app.terminate()
             app.launch()
             XCTAssertTrue(app.textViews["message-input"].waitForExistence(timeout: 10), "会話の入力欄が出る")
             try await Task.sleep(for: .seconds(3))
             XCTAssertFalse(pill.exists, mode)
             XCTAssertFalse(app.staticTexts["現在ゴールを取得できません。"].exists, mode)
-            app.terminate()
+            shot(app, "goal-\(mode)-no-pill")
         }
+    }
+
+    private func shot(_ app: XCUIApplication, _ name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "iphone-uiall-\(name)"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     func testChatLongGoalCanScrollWithoutHidingComposer() async throws {
