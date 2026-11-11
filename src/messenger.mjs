@@ -110,12 +110,13 @@ export class BellTeamMessenger extends ConversationWriter {
     const answered = Promise.withResolvers()
     let relayed = false
     // 回答か失敗のどちらかを一通だけ質問者へ返す。受付前の失敗は道具のエラーとして返すので中継しない。
-    // 受付の確定を待つので、実行側のcallbackからは待たずに呼ぶ。
+    // callbackの中で待つ。会話子ではcallbackのACK後にその文脈が閉じ、後から出す中継の作用は拒否されるため。
+    // 失敗/回答のcallbackは受付後にしか来ない（起動前の失敗は例外で返る）ので、受付待ちでcallbackが止まらない。
     const relay = text => {
       if (relayed) return
       relayed = true
       if (fromSeat) return answered.resolve(text)
-      acceptance.promise
+      return acceptance.promise
         .then(accepted => accepted && this.relayForkAnswer({ from: bot.id, target: from, message: text, forkId, deliveryId }))
         .catch(error => process.stderr.write(`BellTeam fork relay error: ${error.stack ?? error.message}\n`))
     }
@@ -131,10 +132,10 @@ export class BellTeamMessenger extends ConversationWriter {
         onInterim,
         onStatus: async (status, error, tracking) => {
           await onStatus(status, error, tracking)
-          if (['failed', 'stopped'].includes(status)) relay(`FORK_FAILED: ${error?.reason ?? error?.code ?? error?.message ?? status}`)
-          if (status === 'delivered') relay('FORK_FAILED: NO_ANSWER')
+          if (['failed', 'stopped'].includes(status)) await relay(`FORK_FAILED: ${error?.reason ?? error?.code ?? error?.message ?? status}`)
+          if (status === 'delivered') await relay('FORK_FAILED: NO_ANSWER')
         },
-        onAnswer: async text => { await onAnswer(text); relay(text?.trim() ? text : 'FORK_FAILED: NO_ANSWER') },
+        onAnswer: async text => { await onAnswer(text); await relay(text?.trim() ? text : 'FORK_FAILED: NO_ANSWER') },
       })
       acceptance.resolve(true)
       const receipt = { delivery_id: deliveryId, fork_id: forkId, from, target: bot.id, seat: 'fork' }
