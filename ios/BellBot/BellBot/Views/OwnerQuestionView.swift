@@ -39,7 +39,7 @@ struct OwnerQuestionCard: View {
                             .accessibilityIdentifier("owner-question-other")
                             .disabled(state.sending)
                         Button("送る") { Task { await answer(OwnerAnswerBody(choice: nil, text: state.other)) } }
-                            .buttonStyle(.borderedProminent).tint(BellTheme.violet)
+                            .buttonStyle(.bellPrimary).tint(BellTheme.violet)
                             .disabled(state.sending || state.other.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                 }

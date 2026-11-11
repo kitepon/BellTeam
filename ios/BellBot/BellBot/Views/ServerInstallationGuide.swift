@@ -32,7 +32,7 @@ struct ServerInstallationGuide: View {
                                 UIPasteboard.general.string = aiRequest
                                 copiedAIRequest = true
                             }
-                            .buttonStyle(.borderedProminent)
+                            .buttonStyle(.bellPrimary)
                             .accessibilityIdentifier("server-ai-request-copy")
                             ShareLink(item: aiRequest) {
                                 Label("共有", systemImage: "square.and.arrow.up")
@@ -46,7 +46,7 @@ struct ServerInstallationGuide: View {
                     MessageText(source: Self.source, accessibilityIdentifier: "server-installation-content")
                         .markdownTheme { List().fontSize(BellTheme.messageFontSize) }
                     Link("PCで読む手順と配布ファイルを開く", destination: BillingStore.configuration.serverGuideUrl)
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.bellPrimary)
                     ShareLink(item: BillingStore.configuration.serverGuideUrl) {
                         Label("この手順をPCへ共有", systemImage: "square.and.arrow.up")
                     }

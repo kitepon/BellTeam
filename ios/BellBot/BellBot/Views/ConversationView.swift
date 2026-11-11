@@ -155,7 +155,7 @@ private struct ConversationContent: View {
                     Label(hasUnreadMessages ? "新着メッセージ" : "最新へ", systemImage: "arrow.down")
                 }
                 .font(BellTheme.messageHelperFont.weight(.semibold))
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.bellPrimary)
                 .controlSize(.small)
                 .padding(.vertical, 6)
                 .frame(maxWidth: .infinity)

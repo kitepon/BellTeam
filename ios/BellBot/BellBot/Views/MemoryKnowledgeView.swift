@@ -146,7 +146,7 @@ private struct PanelButton: View {
             }
             .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(.bellPrimary)
         .disabled(busy || !enabled)
         .accessibilityIdentifier(id)
     }

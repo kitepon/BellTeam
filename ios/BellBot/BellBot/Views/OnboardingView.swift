@@ -40,7 +40,7 @@ struct OnboardingView: View {
                                 }
                             }
                             Button("認証を確認して始める") { perform { try await store.startGuide() } }
-                                .buttonStyle(.borderedProminent)
+                                .buttonStyle(.bellPrimary)
                                 .disabled(busy || store.setupAuthNeedsRefresh || errorText != nil
                                           || setup.auth?.status != .authenticated)
                             Button("認証の状態を更新") { perform(method: "GET") { try await store.refreshSetup(explicit: true) } }.disabled(busy)

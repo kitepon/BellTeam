@@ -245,7 +245,7 @@ private struct ConnectionFailureView: View {
                     } label: {
                         Text(retrying ? "接続しています…" : "もう一度試す").frame(maxWidth: 280)
                     }
-                    .buttonStyle(.borderedProminent).controlSize(.large)
+                    .buttonStyle(.bellPrimary).controlSize(.large)
                     .disabled(retrying)
                     .accessibilityIdentifier("connection-retry")
                     Button("接続先を変更") { confirmingChange = true }

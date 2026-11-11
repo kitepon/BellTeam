@@ -38,7 +38,7 @@ struct ConversationDetailView: View {
                                     .bellCard()
                             }
                             Button("ルームを編集") { editingProfile = true }
-                                .buttonStyle(.borderedProminent)
+                                .buttonStyle(.bellPrimary)
                         } else if let bot {
                             BotProfileAISection(bot: bot, errorText: errorText,
                                                 onScreen: { showingScreen = true }, onRestart: {
@@ -53,7 +53,7 @@ struct ConversationDetailView: View {
                             })
                             BotProfileDetails(bot: bot)
                             Button("メンバーを編集") { editingProfile = true }
-                                .buttonStyle(.borderedProminent)
+                                .buttonStyle(.bellPrimary)
                         }
                     }
                     .padding(25)

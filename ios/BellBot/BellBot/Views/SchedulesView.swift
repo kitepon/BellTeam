@@ -315,8 +315,7 @@ private struct ScheduleCard: View {
             }
             // A command is machine text (paths, IDs): the card names its kind; the command itself stays in the editor.
             if entry.schedule.command != nil {
-                Label("AIを起こさずに動く自動の作業", systemImage: "gearshape.2.fill")
-                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(.teal)
+                BellBadge(text: "AIを起こさずに動く自動の作業", tone: .violet, symbol: "gearshape.2.fill")
             } else if let prompt = entry.schedule.prompt {
                 Text(prompt).font(.system(size: 14)).foregroundStyle(BellTheme.muted).lineLimit(3)
             }

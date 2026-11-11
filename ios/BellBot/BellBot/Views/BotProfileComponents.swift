@@ -270,11 +270,7 @@ struct BotProfileHero: View {
             if !bot.position.isEmpty {
                 Text(bot.position).font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
             }
-            Label(bot.online ? "オンライン" : "オフライン", systemImage: "circle.fill")
-                .font(BellTheme.secondaryFont.weight(.semibold))
-                .foregroundStyle(bot.online ? BellTheme.mint : BellTheme.muted)
-                .padding(.horizontal, 10).padding(.vertical, 4)
-                .background((bot.online ? BellTheme.mint : BellTheme.muted).opacity(0.12), in: Capsule())
+            BellBadge(text: bot.online ? "オンライン" : "オフライン", tone: bot.online ? .green : .gray, symbol: "circle.fill")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .task(id: bot.id) { images.loadDrafts(for: bot, store: store) }
@@ -346,7 +342,7 @@ private struct BotProfileAvatarActions: View {
                         prepare: { await loadSettings() }) {
                             Text("画像変更").frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.bellPrimary)
                         .accessibilityIdentifier("profile-image-change")
                         .disabled(loading || unsupportedSchema || pendingSelection != nil)
                         Button {

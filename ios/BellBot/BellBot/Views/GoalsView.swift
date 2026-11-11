@@ -291,7 +291,7 @@ private struct GoalFailureNotice: View {
                 .symbolRenderingMode(.multicolor)
                 .accessibilityIdentifier("chat-goal-error")
             Button { onRefresh() } label: { Label("状態を更新", systemImage: "arrow.clockwise") }
-                .buttonStyle(.borderedProminent).tint(BellTheme.violet)
+                .buttonStyle(.bellPrimary).tint(BellTheme.violet)
                 .disabled(busy)
         }
         .padding(18)

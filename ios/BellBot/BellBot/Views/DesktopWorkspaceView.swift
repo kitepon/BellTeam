@@ -364,7 +364,7 @@ private struct DesktopInspector: View {
                     editing = true
                     #endif
                 }
-                    .buttonStyle(.borderedProminent).tint(BellTheme.violet).controlSize(.large)
+                    .buttonStyle(.bellPrimary).tint(BellTheme.violet).controlSize(.large)
                     .frame(maxWidth: .infinity)
             }
             .padding(23)

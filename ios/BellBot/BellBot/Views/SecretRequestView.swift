@@ -24,15 +24,11 @@ struct SecretRequestCard: View {
                 .font(.footnote).foregroundStyle(BellTheme.muted)
             if current.status == "pending" {
                 Button("安全な入力欄を開く", action: onOpenInput)
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.bellPrimary)
             } else {
                 let submitted = current.status == "submitted"
-                Label(submitted ? "登録済み" : "入力を取り消しました",
-                      systemImage: submitted ? "checkmark.circle.fill" : "xmark.circle.fill")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(submitted ? .green : BellTheme.muted)
-                    .padding(.horizontal, 10).padding(.vertical, 4)
-                    .background((submitted ? Color.green : BellTheme.muted).opacity(0.12), in: Capsule())
+                BellBadge(text: submitted ? "登録済み" : "入力を取り消しました", tone: submitted ? .green : .gray,
+                          symbol: submitted ? "checkmark.circle.fill" : "xmark.circle.fill")
                 if current.notification == "failed" {
                     Text("AIへの通知に失敗しました。チャットで完了を知らせてください。")
                         .font(.footnote).foregroundStyle(.red)
