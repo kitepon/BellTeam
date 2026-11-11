@@ -12,7 +12,10 @@ const finished = card => card.state === 'done' || card.state === 'retired'
 export function projectChart({ read, members = [], previous = null }) {
   const state = DISPLAY.includes(read?.state) ? read.state : 'unavailable'
   const raw = state === 'unverified'
-  const bots = new Set(members.filter(member => !member.deleting).map(member => member.id))
+  const live = members.filter(member => !member.deleting), bots = new Set(live.map(member => member.id))
+  const named = new Map(live.map(member => [String(member.name).toLowerCase(), member.id]))
+  // The authored lane names a member by Bot id or by name; anything else stays plain lane text for the screens.
+  const assigned = lane => !lane ? null : bots.has(lane) ? lane : named.get(lane.toLowerCase()) ?? null
   const cards = new Map(), deps = [], cross = [], removed = new Set()
   let first = null, updatedAt = null
   for (const member of list(read?.store?.members)) {
@@ -35,7 +38,7 @@ export function projectChart({ read, members = [], previous = null }) {
       const lane = text(task.lane), start = starts.get(taskId)
       cards.set(`${key}/${taskId}`, { id: `${key}/${taskId}`, plan: key, taskId, title: text(task.title) ?? taskId,
         doneCondition: text(task.done_condition), designMemo: text(task.design_memo), state: status, lane,
-        producer: start?.agent ?? (lane && bots.has(lane) ? lane : null), startedAt: start?.at ?? null, changedAt: changed.get(taskId) ?? null,
+        producer: start?.agent ?? assigned(lane), startedAt: start?.at ?? null, changedAt: changed.get(taskId) ?? null,
         blockedReason: status === 'blocked' ? text(entry.blocked_reason) : null, depth: 0 })
     }
     for (const dep of list(plan.hard_dependencies)) deps.push([ref(dep?.from), ref(dep?.to)])
