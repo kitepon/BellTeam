@@ -243,6 +243,9 @@ internal sealed class LatticeChartPage : Grid
     private readonly Grid board = new();
     private readonly Grid overlay = new();
     private readonly StackPanel pills = new() { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 10, 0, 0) };
+    // A short fade at the board's right edge: the next column reads as "more to the right", not as a cut card. Stops short of the vertical scroll bar.
+    private readonly System.Windows.Shapes.Rectangle fade = new() { Width = 36, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 0, 10, 10), IsHitTestVisible = false,
+        Fill = new LinearGradientBrush(Color.FromArgb(0, 0xF7, 0xF5, 0xFC), Color.FromArgb(0xF2, 0xF7, 0xF5, 0xFC), 0) };
     private readonly ContentControl detailHost = new() { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Stretch, Margin = new Thickness(0, 12, 12, 12) };
     private string? said;
     internal string? SelectedCard { get; private set; }
@@ -262,7 +265,7 @@ internal sealed class LatticeChartPage : Grid
         scroller.ScrollChanged += (_, e) => Board.ScrolledTo(e.HorizontalOffset);
         // A click on empty canvas clears the member highlight (screen-spec user path).
         scroller.PreviewMouseLeftButtonDown += (_, e) => { if (e.OriginalSource is ScrollViewer or LatticeBoard or ScrollContentPresenter && HighlightedMember is not null) Highlight(null); };
-        board.Children.Add(scroller);
+        board.Children.Add(scroller); board.Children.Add(fade);
         stage.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(92) }); stage.ColumnDefinitions.Add(new ColumnDefinition()); stage.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(360) });
         var railGlass = Glass(new ScrollViewer { Content = rail, VerticalScrollBarVisibility = ScrollBarVisibility.Hidden }, 22, new Thickness(8, 12, 8, 12)); railGlass.Margin = new Thickness(14, 4, 4, 16); railGlass.VerticalAlignment = VerticalAlignment.Top;
         stage.Children.Add(railGlass);
@@ -312,7 +315,7 @@ internal sealed class LatticeChartPage : Grid
         if (snapshot!.Cards.Length == 0) { board.Children.Clear(); board.Children.Add(LatticeWindow.Notice(LatticeChart.NoCards, null, null)); }
         else
         {
-            if (!board.Children.Contains(scroller)) { board.Children.Clear(); board.Children.Add(scroller); board.Children.Add(detailHost); }
+            if (!board.Children.Contains(scroller)) { board.Children.Clear(); board.Children.Add(scroller); board.Children.Add(fade); board.Children.Add(detailHost); }
             Board.Show(snapshot, Feed.LastDiff, now); Board.Highlight(HighlightedMember); Board.Select(SelectedCard);
         }
         var live = Feed.Connection == LatticeConnection.Live;

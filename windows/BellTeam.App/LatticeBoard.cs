@@ -43,7 +43,8 @@ internal sealed class LatticeBoard : Canvas
     {
         snapshot = next; Layout = LatticeChart.Layout(next);
         Children.Clear(); cards.Clear(); labels.Children.Clear();
-        Width = Math.Max(Layout.Width, 400); Height = Layout.Height;
+        // Trailing room so the last column ends clear of the right fade (the Mac board does the same).
+        Width = Math.Max(Layout.Width + 40, 400); Height = Layout.Height;
         foreach (var (lane, index) in Layout.Lanes.Select((lane, index) => (lane, index)))
         {
             var band = new Border { Width = Width - 8, Height = lane.Height, CornerRadius = new CornerRadius(16), Background = Brush(Colors.White, index % 2 == 0 ? (byte)0x8C : (byte)0x55), BorderBrush = Brush(Colors.White, 0xB0), BorderThickness = new Thickness(1), IsHitTestVisible = false };
