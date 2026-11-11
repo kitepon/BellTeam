@@ -6,12 +6,15 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { createConversationDispatcher } from '../src/conversation/dispatcher.mjs'
 import { CONVERSATION_STATE_COMPATIBILITY } from '../src/conversation/state-compatibility.mjs'
+import { validateConversationResult } from '../src/conversation/results.mjs'
+import { normalizeConversationCallback } from '../src/conversation/callbacks.mjs'
 
 const generation = 'generation-a'
 const controlContext = { generation, operationId: null }
 const owner = { kind: 'owner' }, observer = { kind: 'observer' }
 const deferred = () => Promise.withResolvers()
 const settle = () => new Promise(resolve => setImmediate(resolve))
+const until = async check => { for (let i = 0; i < 100 && !check(); i++) await settle() }
 async function fingerprint(root) {
   const result = {}
   for (const name of await readdir(root)) {
@@ -37,7 +40,7 @@ async function setup(t, override = () => {}, mutate = () => {}, diagnostic = asy
     trackBackground: (id, context, task) => { backgrounds.push({ id, context, task }); task.catch(() => {}) },
     effect: async (method, params, context) => {
       calls.push({ method, params, context })
-      if (['execution.turn', 'execution.notify', 'execution.report'].includes(method)) native.push({ method, params, context })
+      if (['execution.turn', 'execution.notify', 'execution.fork', 'execution.report'].includes(method)) native.push({ method, params, context })
       const result = await override(method, params, context)
       if (result !== undefined) return result
       if (method === 'direct.log.append') { await logWriter.append(params.record); return { applied: true } }
@@ -48,6 +51,7 @@ async function setup(t, override = () => {}, mutate = () => {}, diagnostic = asy
       if (['execution.turn', 'execution.notify', 'execution.report'].includes(method)) {
         return { delivery: 'running' }
       }
+      if (method === 'execution.fork') return { delivery: 'running', forkId: params.forkId }
       if (method === 'execution.background.begin') return { backgroundId: `background-${++serial}` }
       if (method === 'execution.background.end') return { requested: true }
       if (method === 'execution.observation.source') return { deliveryId: `observer-${++serial}`, target: params.target }
@@ -271,4 +275,69 @@ test('child recent/page use fresh profiles, one batch snapshot, room authorizati
   await assert.rejects(h.dispatch('history.recentBatch', { botIds: ['bot-missing'] }), /BOT_NOT_FOUND/)
   h.fixture.bots.length = 0
   await assert.rejects(h.dispatch('history.page', { kind: 'bots', id: botId, query, cards: [[], []] }), /BOT_NOT_FOUND/)
+})
+
+// fork-inquiry B1–B8: production 2026-11-11 returned INTERNAL_ERROR because the child had no fork path.
+test('fork.ask crosses the child as execution.fork, labels target rows and relays one answer to the asker', async t => {
+  const h = await setup(t, undefined, fixture => fixture.bots.push({ id: 'bot-asker', name: 'Asker' }))
+  await initialize(h)
+  const target = h.fixture.bots[0].id, asker = { kind: 'bot', botId: 'bot-asker' }
+  await assert.rejects(h.dispatch('fork.ask', { from: target, target, message: 'Q' }, asker), /CONVERSATION_SENDER_FORBIDDEN/)
+  const receipt = await h.dispatch('fork.ask', { from: 'bot-asker', target, message: 'What is X?' }, asker)
+  assert.equal(validateConversationResult('fork.ask', receipt), true)
+  assert.deepEqual({ ...receipt, delivery_id: 'd', fork_id: 'f' }, { delivery: 'running', delivery_id: 'd', fork_id: 'f', from: 'bot-asker', target, seat: 'fork' })
+  const [fork] = h.native
+  assert.equal(fork.method, 'execution.fork')
+  assert.equal(fork.params.forkId, receipt.fork_id)
+  assert.deepEqual(fork.params.kinds, ['delivery.status', 'delivery.words', 'delivery.answer'])
+  assert.deepEqual([fork.params.queue.context, fork.params.queue.groupId, fork.params.queue.target], ['direct', receipt.delivery_id, target])
+  assert.match(fork.params.message, /「Asker」からあなたへ/u)
+  await h.callback(fork, 'delivery.answer', { text: 'X is Y.' })
+  await h.callback(fork, 'delivery.status', normalizeConversationCallback('delivery.status', { delivery: 'delivered', error: null, tracking: null }))
+  await until(() => h.native.some(item => item.method === 'execution.notify'))
+  await settle()
+  const relays = h.native.filter(item => item.method === 'execution.notify')
+  assert.equal(relays.length, 1)
+  assert.equal(relays[0].params.target, 'bot-asker')
+  assert.match(relays[0].params.message, /X is Y\./u)
+  const rows = (await readFile(join(h.root, 'logs/direct-messages.jsonl'), 'utf8')).trim().split('\n').map(line => JSON.parse(line))
+  assert.deepEqual(rows.find(row => row.delivery_id === receipt.delivery_id && row.message).seat, { kind: 'fork', fork_id: receipt.fork_id })
+  assert.deepEqual(rows.find(row => row.kind === 'answer').seat, { kind: 'fork', fork_id: receipt.fork_id })
+  assert.equal(rows.find(row => row.target === 'bot-asker').in_reply_to, receipt.delivery_id)
+  h.native.forEach(h.release)
+  await h.d.control('quiesce', {}, controlContext)
+})
+
+test('fork.ask from a fork seat returns the answer; a failure reason token crosses the callback', async t => {
+  const h = await setup(t, undefined, fixture => fixture.bots.push({ id: 'bot-asker', name: 'Asker' }))
+  await initialize(h)
+  const target = h.fixture.bots[0].id, asker = { kind: 'bot', botId: 'bot-asker' }
+  const waiting = h.dispatch('fork.ask', { from: 'bot-asker', target, message: 'Q', askerSeat: { kind: 'fork', forkId: 'f-asker' } }, asker)
+  await until(() => h.native.length === 1)
+  await h.callback(h.native[0], 'delivery.answer', { text: 'A' })
+  const answered = await waiting
+  assert.equal(validateConversationResult('fork.ask', answered), true)
+  assert.deepEqual([answered.delivery, answered.answer], ['answered', 'A'])
+  const failed = h.dispatch('fork.ask', { from: 'bot-asker', target, message: 'Q', askerSeat: { kind: 'fork', forkId: 'f-asker' } }, asker)
+  await until(() => h.native.length === 2)
+  const error = normalizeConversationCallback('delivery.status', { delivery: 'failed', tracking: null,
+    error: { code: 'FORK_FAILED', delivery_error: { code: 'FORK_FAILED' }, reason: 'readonly_unenforceable', message: 'free text stays' } }).error
+  assert.equal(error.reason, 'readonly_unenforceable')
+  await h.callback(h.native[1], 'delivery.status', { delivery: 'failed', error, tracking: null })
+  assert.equal((await failed).answer, 'FORK_FAILED: readonly_unenforceable')
+  assert.equal(h.native.filter(item => item.method === 'execution.notify').length, 0)
+  h.native.forEach(h.release)
+  await h.d.control('quiesce', {}, controlContext)
+})
+
+test('direct.post from a fork seat keeps from_seat and the 分身 envelope through the child', async t => {
+  const h = await setup(t, undefined, fixture => fixture.bots.push({ id: 'bot-asker', name: 'Asker' }))
+  await initialize(h)
+  const target = h.fixture.bots[0].id
+  await h.dispatch('direct.post', { from: 'bot-asker', target, message: 'hi', images: [], askerSeat: { kind: 'fork', forkId: 'f-1' } }, { kind: 'bot', botId: 'bot-asker' })
+  assert.match(h.native[0].params.message, /「Asker（分身）」/u)
+  const rows = (await readFile(join(h.root, 'logs/direct-messages.jsonl'), 'utf8')).trim().split('\n').map(line => JSON.parse(line))
+  assert.deepEqual(rows.find(row => row.message === 'hi').from_seat, { kind: 'fork', fork_id: 'f-1' })
+  h.native.forEach(h.release)
+  await h.d.control('quiesce', {}, controlContext)
 })

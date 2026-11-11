@@ -81,7 +81,7 @@ export function createConversationParentEffects({ getServices, observerEffects, 
         if (typeof observerEffects !== 'function') unavailable()
         result = await observerEffects(method, params, context)
         break
-      case 'execution.notify': case 'execution.turn': case 'execution.report':
+      case 'execution.notify': case 'execution.turn': case 'execution.fork': case 'execution.report':
       case 'execution.background.begin': case 'execution.background.end': case 'execution.observation.source':
       case 'execution.assertAccess': case 'execution.reconcile': case 'execution.closeLaunch':
       case 'execution.shown.read': case 'execution.shown.consume':

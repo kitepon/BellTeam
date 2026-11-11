@@ -62,7 +62,7 @@ export function createConversationDispatcher({ root, effect, event, trackBackgro
   const invoke = async (method, params, context = current().context) => {
     validateConversationEffect(method, params, context)
     // Completing an admitted save cannot issue another native action after retirement starts.
-    if (writerSealed && ['execution.turn', 'execution.notify', 'execution.report', 'execution.reconcile', 'execution.closeLaunch'].includes(method))
+    if (writerSealed && ['execution.turn', 'execution.notify', 'execution.fork', 'execution.report', 'execution.reconcile', 'execution.closeLaunch'].includes(method))
       throw failure('CONVERSATION_WRITER_SEALED')
     const result = await write(context, () => effect(method, params, context))
     validateConversationEffectResult(method, result, params)
@@ -205,7 +205,7 @@ export function createConversationDispatcher({ root, effect, event, trackBackgro
   }
   function execute(method, params) {
     const actor = current().context.actor
-    if (actor.kind === 'bot' && ['direct.post', 'room.post'].includes(method) && params.from !== actor.botId)
+    if (actor.kind === 'bot' && ['direct.post', 'fork.ask', 'room.post'].includes(method) && params.from !== actor.botId)
       throw Object.assign(new Error('CONVERSATION_SENDER_FORBIDDEN'), { status: 403 })
     if (actor.kind === 'bot' && ['assets.save', 'assets.saveAll'].includes(method) && params.owner !== actor.botId)
       throw Object.assign(new Error('CONVERSATION_ASSET_OWNER_FORBIDDEN'), { status: 403 })
@@ -270,6 +270,7 @@ export function createConversationDispatcher({ root, effect, event, trackBackgro
         return store.timelineView(params.botId).then(index => ({ message: index.length ? index.at(-1) : null }))
       }
       case 'direct.post': return messenger.sendmessage(params)
+      case 'fork.ask': return messenger.askReadonly(params)
       case 'user.post': case 'user.turn': {
         const state = current(), completion = messenger.userTurn(params)
         state.userSaved = track(completion.then(async result => { await background.awaitStarted(state.context); return result }))

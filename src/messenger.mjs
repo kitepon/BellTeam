@@ -97,42 +97,45 @@ export class BellTeamMessenger extends ConversationWriter {
   // 読み取り専用の問い合わせ。宛先の本体の列には入れず、実行担当の分身へ渡す。受付をすぐ返し、回答は質問者へメッセージで届ける。
   // 質問者が分身の時は、分身は後から届くメッセージを受け取れないので、回答を待って道具の結果で返す。
   async askReadonly({ from, target, message, executionSource, askerSeat }) {
-    if (target === 'user') throw new Error('FORK_TARGET_USER')
+    if (target === 'user') throw Object.assign(new Error('FORK_TARGET_USER'), { code: 'FORK_TARGET_USER', status: 400 })
     const forkId = this.deliveryId()
     const seat = { kind: 'fork', fork_id: forkId }
     const fromSeat = forkSeatLabel(askerSeat)
     const prepared = await this.prepareDirect({ from, target, message }, {}, { seat, ...(fromSeat ? { from_seat: fromSeat } : {}) })
     const { check, bot, deliveryId } = prepared
+    const asker = memberIdentity(this.bots, from)
     try { check() }
     catch (error) { await this.appendDeliveryStatus(deliveryId, 'stopped'); throw error }
     const acceptance = Promise.withResolvers()
     const answered = Promise.withResolvers()
     let relayed = false
     // 回答か失敗のどちらかを一通だけ質問者へ返す。受付前の失敗は道具のエラーとして返すので中継しない。
-    // 受付の確定を待つので、実行側のcallbackからは待たずに呼ぶ。
+    // callbackの中で待つ。会話子ではcallbackのACK後にその文脈が閉じ、後から出す中継の作用は拒否されるため。
+    // 失敗/回答のcallbackは受付後にしか来ない（起動前の失敗は例外で返る）ので、受付待ちでcallbackが止まらない。
     const relay = text => {
       if (relayed) return
       relayed = true
       if (fromSeat) return answered.resolve(text)
-      acceptance.promise
+      return acceptance.promise
         .then(accepted => accepted && this.relayForkAnswer({ from: bot.id, target: from, message: text, forkId, deliveryId }))
         .catch(error => process.stderr.write(`BellTeam fork relay error: ${error.stack ?? error.message}\n`))
     }
-    // onTurnEndは報告確認へ渡さない。報告依頼は本体の席へ届き、本体を中断するため。
+    // turn-endは登録しない。報告依頼は本体の席へ届き、本体を中断するため。回答が無い時はdeliveredで知らせる（回答はdeliveredより先に届く）。
     // 分身の途中経過と回答も宛先の会話へ残し、分身の印を付ける。
     const { onStatus } = this.notificationCallbacks(bot.id, deliveryId, 'fork')
     const onInterim = words => this.appendInterimWords(bot.id, deliveryId, words, { seat })
     const onAnswer = text => this.appendInterimWords(bot.id, deliveryId, [{ text, kind: 'answer' }], { seat })
     try {
-      const result = await this.transport.forkInquiry(bot, directEnvelope(memberIdentity(this.bots, from), message, { fork: Boolean(fromSeat) }), {
+      const result = await this.transport.forkInquiry(bot, directEnvelope(asker, message, { fork: Boolean(fromSeat) }), {
         forkId, deliveryId, ...(executionSource ? { executionSource } : {}),
+        queue: { context: 'direct', contextId: bot.id, groupId: deliveryId, from, fromName: asker.name, target: bot.id, message },
         onInterim,
         onStatus: async (status, error, tracking) => {
           await onStatus(status, error, tracking)
-          if (['failed', 'stopped'].includes(status)) relay(`FORK_FAILED: ${error?.reason ?? error?.code ?? error?.message ?? status}`)
+          if (['failed', 'stopped'].includes(status)) await relay(`FORK_FAILED: ${error?.reason ?? error?.code ?? error?.message ?? status}`)
+          if (status === 'delivered') await relay('FORK_FAILED: NO_ANSWER')
         },
-        onAnswer: async text => { await onAnswer(text); relay(text?.trim() ? text : 'FORK_FAILED: NO_ANSWER') },
-        onTurnEnd: () => relay('FORK_FAILED: NO_ANSWER'),
+        onAnswer: async text => { await onAnswer(text); await relay(text?.trim() ? text : 'FORK_FAILED: NO_ANSWER') },
       })
       acceptance.resolve(true)
       const receipt = { delivery_id: deliveryId, fork_id: forkId, from, target: bot.id, seat: 'fork' }

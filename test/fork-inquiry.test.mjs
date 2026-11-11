@@ -41,7 +41,8 @@ test('ask_readonly returns the receipt at once, labels target rows and relays th
 
   await callbacks.onInterim([{ text: 'reading' }])
   await callbacks.onAnswer('X is Y.')
-  callbacks.onTurnEnd({ startedAt: 'a', endedAt: 'b' })
+  assert.equal(callbacks.onTurnEnd, undefined, 'a fork registers no turn-end (fork-inquiry B4)')
+  await callbacks.onStatus('delivered')
   callbacks.onStatus('failed', { code: 'LATE' })
   await settle(); await settle()
 
@@ -70,18 +71,18 @@ test('a failure after receipt relays ONE FORK_FAILED message with the reason', a
   const { messenger, notified } = await setup(t, async (bot, text, options) => { callbacks = options; return { delivery: 'running' } })
   await messenger.askReadonly({ from: asker.id, target: owner.id, message: 'Q' })
   await callbacks.onStatus('failed', { code: 'FORK_FAILED', delivery_error: { code: 'FORK_FAILED' }, reason: 'NATIVE_EXITED' })
-  callbacks.onTurnEnd({})
+  await callbacks.onStatus('delivered')
   await settle(); await settle()
   assert.equal(notified.length, 1)
   assert.match(notified[0].text, /FORK_FAILED: NATIVE_EXITED$/)
 })
 
-test('a turn end without an answer relays FORK_FAILED: NO_ANSWER', async t => {
+test('delivered without an answer relays FORK_FAILED: NO_ANSWER', async t => {
   let callbacks
   const { messenger, notified } = await setup(t, async (bot, text, options) => { callbacks = options; return { delivery: 'running' } })
   await messenger.askReadonly({ from: asker.id, target: owner.id, message: 'Q' })
   await callbacks.onAnswer('  ')
-  callbacks.onTurnEnd({})
+  await callbacks.onStatus('delivered')
   await settle(); await settle()
   assert.equal(notified.length, 1)
   assert.match(notified[0].text, /FORK_FAILED: NO_ANSWER$/)

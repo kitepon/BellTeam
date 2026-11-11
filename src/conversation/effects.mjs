@@ -8,7 +8,7 @@ import { validateObserverCheckResult } from '../observer-check.mjs'
 export const CONVERSATION_EFFECT_METHODS = Object.freeze([
   'direct.log.append', 'members.profiles.read', 'usage.routing.read', 'usage.notify.direct', 'usage.notify.room',
   'assets.beginSave', 'assets.endSave', 'runtime.image.read', 'runtime.room.context',
-  'runtime.observer.snapshot', 'runtime.observer.check', 'runtime.observer.read', 'execution.notify', 'execution.turn',
+  'runtime.observer.snapshot', 'runtime.observer.check', 'runtime.observer.read', 'execution.notify', 'execution.turn', 'execution.fork',
   'execution.background.begin', 'execution.background.end', 'execution.observation.source', 'execution.report',
   'execution.assertAccess', 'execution.reconcile', 'execution.closeLaunch',
   'execution.shown.read', 'execution.shown.consume',
@@ -95,6 +95,13 @@ export function validateConversationEffect(method, params, capturedContext) {
         : params.kinds.includes('user.complete'))) invalid()
       return true
     }
+    // fork-inquiry B4: a fork is a direct-shaped delivery without images, recovery or turn-end.
+    case 'execution.fork':
+      fields(params, { deliveryId: identity, target: id, forkId: identity, message: text, queue,
+        kinds: array(value => ['delivery.status', 'delivery.words', 'delivery.answer'].includes(value)) })
+      if (params.queue.groupId !== params.deliveryId || params.queue.target !== params.target || params.queue.context !== 'direct'
+        || params.queue.contextId !== params.target || params.queue.call || new Set(params.kinds).size !== params.kinds.length) invalid()
+      return true
     default: invalid()
   }
 }
@@ -147,6 +154,10 @@ export function validateConversationEffectResult(method, result, params) {
       if (result?.report === 'unavailable') return fields(result, { report: oneOf('unavailable'), reason: oneOf('not_issued') })
       return fields(result, { delivery: oneOf('running', 'steered') })
     case 'execution.notify': case 'execution.turn': return fields(result, { delivery: oneOf('running', 'steered') })
+    case 'execution.fork':
+      fields(result, { delivery: oneOf('running') }, { forkId: identity })
+      if (Object.hasOwn(result, 'forkId') && result.forkId !== params?.forkId) invalid()
+      return true
     case 'execution.background.begin': return fields(result, { backgroundId: identity })
     case 'execution.observation.source':
       fields(result, { deliveryId: identity, target: id })
