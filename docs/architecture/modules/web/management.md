@@ -169,7 +169,11 @@ flowchart TD
   Get["一覧取得 / 選択Bot取得"] --> Revision["Botごとの観測revisionを進める"]
   Revision --> Read["GETでsnapshotを取得"]
   Read --> Current{"まだ新しい観測か"}
-  Current -->|"はい"| Render["capabilityとbindingから表示"]
+  Current -->|"はい"| Avail{"availability"}
+  Avail -->|"available"| Render["capabilityとbindingから表示"]
+  Avail -->|"unsupported"| Unsupported["未対応です"]
+  Avail -->|"unavailable + reason=seat_idle"| Idle["休止中（失敗ではない）<br/>カードはサーバーのmessage"]
+  Avail -->|"unavailable + read_failed / reasonなし"| Failed["状態を取得できません<br/>操作ボタンを出さない"]
   Current -->|"いいえ"| Ignore["古い返却を適用しない"]
   Render --> Draft["編集文と元bindingを保持"]
   Draft --> Post["同じBotの変更は一件だけPOST"]
@@ -179,6 +183,8 @@ flowchart TD
 ```
 
 [goals.js](../../../../web/goals.js)の`goalsView`がsnapshots/pending/drafts/observationsを閉包に持つ。一覧revisionとBot別revisionは違う用途で、他Botの新しい変更結果を古い一覧で消さない。`refreshSelected/select/refreshOnEvent`がappの窓口。
+
+`reason`はGET `/api/goals`とGET `/api/bots/:id/goal`のsnapshotに足された任意のkey（正本は[execution](../execution/README.md)、PR #1106）。`unavailable`の時だけ意味を持ち、`seat_idle`は席が止まっているだけ（次のメッセージで再開する）なので会話の見出しを「ゴール · 休止中」にする。`read_failed`とkeyなし（古いサーバー）は読取失敗のまま。カード本文はどちらもサーバーの`message`を出す。Webが自分で作るunavailable（取得失敗・確認中）は`reason`を持たないので読取失敗の扱い。
 
 `mutate`はBotとbindingを固定し、失敗時は一回GETだけ。finallyも同bindingの場合だけ照合し、別thread/unknownを古い結果で置換しない。combined=falseなら目的と予算を別々に編集し、空予算を消去へ変換しない。Goal・秘密・質問・認証は既存専用部品をそのまま使う。
 
