@@ -22,12 +22,28 @@ function localDateTimeValue(iso) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
+// W64: when it runs, in words. A cron that has no plain form says 「詳しい指定」; the expression stays in the editor.
+const days = ['日', '月', '火', '水', '木', '金', '土']
+const clock = (hour, minute) => `${Number(hour)}:${String(minute).padStart(2, '0')}`
 export function scheduleDescription(schedule) {
-  if (schedule.kind === 'once') return formatDateTime(schedule.at)
-  if (schedule.kind === 'interval_days') return `${schedule.intervalDays}日おき · ${schedule.startDate}から ${schedule.time} · ${schedule.timezone}`
-  if (schedule.kind === 'interval_hours') return `${schedule.intervalHours}時間おき · ${schedule.startHour}時〜${schedule.endHour < schedule.startHour ? '翌' : ''}${schedule.endHour}時（${schedule.minute}分） · ${schedule.timezone}`
-  return `${schedule.expression} · ${schedule.timezone}`
+  const zone = schedule.timezone && schedule.timezone !== 'Asia/Tokyo' ? `（${schedule.timezone}）` : ''
+  if (schedule.kind === 'once') return `${formatDateTime(schedule.at)} に1回`
+  if (schedule.kind === 'interval_days') return `${schedule.intervalDays}日おき ${schedule.time}（${schedule.startDate.slice(5).replace('-', '/').replace(/^0/u, '')}から）${zone}`
+  if (schedule.kind === 'interval_hours') return `${schedule.intervalHours}時間おき ${schedule.startHour}時〜${schedule.endHour < schedule.startHour ? '翌' : ''}${schedule.endHour}時${schedule.minute ? `（${schedule.minute}分）` : ''}${zone}`
+  const form = scheduleFormValues(schedule)
+  if (form.type === 'hourly') return `毎時 ${Number(form.minute)}分${zone}`
+  if (form.type === 'daily') return `毎日 ${clock(...form.time.split(':'))}${zone}`
+  if (form.type === 'weekly') return `毎週 ${form.weekdays.map(day => days[day]).join('・')} ${clock(...form.time.split(':'))}${zone}`
+  return `詳しい指定${zone}`
 }
+// 有効 / 停止 / 済み (a one-time item that ran and has no next run).
+export const finishedSchedule = schedule => schedule.kind === 'once' && Boolean(schedule.lastRunAt) && !schedule.enabled && !schedule.nextRunAt
+export function scheduleState(schedule) {
+  return finishedSchedule(schedule) ? { text: '済み', tone: 'done' } : schedule.enabled === false ? { text: '停止', tone: 'stopped' } : { text: '有効', tone: 'active' }
+}
+// A nameless command item is called 「コマンドの予定」; the command itself is only under 「内容を見る」 (W65).
+export const scheduleTitle = schedule => schedule.name || (schedule.command ? 'コマンドの予定' : String(schedule.prompt ?? '').split('\n')[0])
+export const scheduleNext = schedule => schedule.nextRunAt ? `次回 ${formatDateTime(schedule.nextRunAt)}` : ''
 
 export function scheduleRequest(values, targetType, timezone) {
   const type = values.kind
@@ -65,6 +81,11 @@ export function createScheduleEditor(dialog, { api, getBot }) {
   const scheduleFormTitle = dialog.querySelector('#schedule-form-title')
   const scheduleSubmit = dialog.querySelector('#schedule-submit')
   const scheduleCancel = dialog.querySelector('#schedule-cancel')
+  const scheduleTitleNode = dialog.querySelector('#schedule-title')
+  const scheduleAdd = dialog.querySelector('#schedule-add')
+  const scheduleResult = dialog.querySelector('#schedule-result')
+  // W66: the form opens on 「予定を追加」 or 「編集」; the list stays the first thing in the sheet.
+  scheduleAdd.addEventListener('click', () => { resetScheduleForm(); scheduleResult.textContent = ''; scheduleForm.hidden = false; scheduleForm.scrollIntoView({ block: 'start' }) })
   scheduleKind.addEventListener('change', renderScheduleFields)
   scheduleAction.addEventListener('change', renderScheduleAction)
   scheduleForm.addEventListener('submit', saveSchedule)
@@ -77,9 +98,19 @@ export function createScheduleEditor(dialog, { api, getBot }) {
     const owner = target
     scheduleSubmit.disabled = false
     resetScheduleForm()
+    // W65: the title names the target and the previous target's rows never stay while loading.
+    scheduleTitleNode.textContent = `${target.name ?? target.displayName ?? ''}の自動実行`
+    scheduleResult.textContent = ''
+    scheduleList.replaceChildren(Object.assign(document.createElement('p'), { className: 'field-help', textContent: '予定を読み込んでいます…' }))
     if (!dialog.open) dialog.showModal()
     try { await loadSchedules() }
-    catch { if (owner === target) scheduleFormError.textContent = '予定を読み込めませんでした。開き直して確認してください。' }
+    catch {
+      if (owner !== target) return
+      const box = Object.assign(document.createElement('div'), { className: 'inline-error' })
+      box.innerHTML = '<p>予定を読み込めませんでした。通信を確かめて、もう一度読み込んでください。</p><button type="button">もう一度読み込む</button>'
+      box.querySelector('button').addEventListener('click', () => { void open(owner) })
+      scheduleList.replaceChildren(box)
+    }
   }
 
   function resetScheduleForm() {
@@ -88,8 +119,8 @@ export function createScheduleEditor(dialog, { api, getBot }) {
     scheduleForm.reset()
     scheduleFormError.textContent = ''
     scheduleFormTitle.textContent = '予定を追加'
-    scheduleSubmit.textContent = '予定を追加'
-    scheduleCancel.hidden = true
+    scheduleSubmit.textContent = '保存'
+    scheduleForm.hidden = true
     renderScheduleFields()
     renderScheduleAction()
     renderScheduleTargets()
@@ -109,8 +140,8 @@ export function createScheduleEditor(dialog, { api, getBot }) {
     resetScheduleForm()
     editingSchedule = schedule
     scheduleFormTitle.textContent = '予定を編集'
-    scheduleSubmit.textContent = '予定を更新'
-    scheduleCancel.hidden = false
+    scheduleSubmit.textContent = '保存'
+    scheduleForm.hidden = false
     dialog.querySelector('#schedule-name').value = schedule.name ?? ''
     dialog.querySelector('#schedule-prompt').value = schedule.prompt ?? ''
     dialog.querySelector('#schedule-command').value = schedule.command ?? ''
@@ -151,33 +182,40 @@ export function createScheduleEditor(dialog, { api, getBot }) {
     try { result = await api(schedulePath(owner)) }
     catch (error) { if (owner === target && reading === readVersion) throw error; return }
     if (owner !== target || reading !== readVersion) return
-    const schedules = result.schedules.filter(schedule =>
-      !(schedule.kind === 'once' && schedule.lastRunAt && !schedule.enabled && !schedule.nextRunAt))
+    const schedules = result.schedules.filter(schedule => !finishedSchedule(schedule))
     if (schedules.length === 0) {
-      scheduleList.innerHTML = '<p class="empty-schedules">予定はありません。</p>'
+      scheduleList.innerHTML = '<p class="empty-schedules">予定はまだありません。「予定を追加」から作れます。</p>'
       return
     }
     scheduleList.replaceChildren(...schedules.map(schedule => {
       const row = document.createElement('div')
       row.className = 'schedule-row'
-      const action = schedule.command ? `コマンド（AIを起こさない）: ${schedule.command}` : schedule.prompt
-      row.innerHTML = `<div><strong>${escapeHtml(schedule.name || schedule.command || schedule.prompt)}</strong><span>${escapeHtml(scheduleDescription(schedule))}</span><span class="prompt">${escapeHtml(action)}</span><small>次回 ${escapeHtml(formatDateTime(schedule.nextRunAt))}</small></div><div class="schedule-actions"><button class="run" type="button" aria-label="今すぐ実行">今すぐ実行</button><button class="edit" type="button" aria-label="予定を編集">編集</button><button class="remove" type="button" aria-label="予定を削除">削除</button></div>`
+      row.dataset ??= {}
+      row.dataset.scheduleId = schedule.id
+      // W65: one line per item; the full instruction or command is one tap away.
+      const body = schedule.command ? `コマンド（AIを起こさない）\n${schedule.command}` : schedule.prompt ?? ''
+      const state = scheduleState(schedule), next = scheduleNext(schedule)
+      row.innerHTML = `<div><strong>${escapeHtml(scheduleTitle(schedule))}</strong><span>${escapeHtml(scheduleDescription(schedule))}</span><small><b class="schedule-state is-${state.tone}">${state.text}</b>${next ? ` ${escapeHtml(next)}` : ''}</small>${body ? `<details class="schedule-body"><summary>内容を見る</summary><p>${escapeHtml(body)}</p></details>` : ''}</div><div class="schedule-actions"><button class="run" type="button">今すぐ実行</button><button class="edit" type="button">編集</button><button class="remove" type="button">削除</button><button class="keep" type="button" hidden>やめる</button></div>`
       const runButton = row.querySelector('button.run')
       runButton.addEventListener('click', async () => {
         runButton.disabled = true
         try {
           await api(`${schedulePath(owner)}/${encodeURIComponent(schedule.id)}/run`, { method: 'POST' })
-          runButton.textContent = '送信した'
+          runButton.textContent = '送りました'
         } catch {
-          runButton.textContent = '失敗'
+          runButton.textContent = '送れませんでした'
         }
         setTimeout(() => { runButton.textContent = '今すぐ実行'; runButton.disabled = false }, 2500)
       })
       row.querySelector('button.edit').addEventListener('click', () => { if (owner === target) editSchedule(schedule) })
-      const remove = row.querySelector('button.remove')
+      const remove = row.querySelector('button.remove'), keep = row.querySelector('button.keep')
+      // W65: delete asks once in the row: 「削除」 -> 「削除する」 / 「やめる」.
+      let confirming = false
+      keep.addEventListener('click', () => { confirming = false; remove.textContent = '削除'; keep.hidden = true })
       remove.addEventListener('click', async () => {
         if (remove.disabled) return
-        remove.disabled = true
+        if (!confirming) { confirming = true; remove.textContent = '削除する'; keep.hidden = false; return }
+        remove.disabled = true; keep.hidden = true
         let removed = false
         try {
           await api(`${schedulePath(owner)}/${encodeURIComponent(schedule.id)}`, { method: 'DELETE' })
@@ -186,8 +224,8 @@ export function createScheduleEditor(dialog, { api, getBot }) {
           if (editingSchedule?.id === schedule.id) resetScheduleForm()
           await loadSchedules()
         } catch {
-          if (owner === target) scheduleFormError.textContent = removed ? '削除しました。予定一覧を更新できませんでした。' : '予定を削除できませんでした。'
-        } finally { remove.disabled = false }
+          if (owner === target) scheduleResult.textContent = removed ? '削除しました。予定一覧を更新できませんでした。' : '予定を削除できませんでした。もう一度押してください。'
+        } finally { remove.disabled = false; confirming = false; remove.textContent = '削除' }
       })
       return row
     }))
@@ -196,10 +234,12 @@ export function createScheduleEditor(dialog, { api, getBot }) {
   function renderScheduleTargets() {
     scheduleTargetsField.hidden = target.type !== 'room'
     if (target.type !== 'room') return scheduleTargets.replaceChildren()
+    // W66: the same rows as the 返信する人 picker (name + check).
     scheduleTargets.replaceChildren(...target.memberIds.map(id => {
       const bot = getBot(id)
       const label = document.createElement('label')
-      label.innerHTML = `<input type="checkbox" value="${escapeHtml(id)}"><span>${escapeHtml(bot?.displayName ?? id)}</span>`
+      label.className = 'target-row'
+      label.innerHTML = `<input type="checkbox" value="${escapeHtml(id)}"><span>${escapeHtml(bot?.name ?? bot?.displayName ?? id)}</span><i class="target-check"></i>`
       return label
     }))
   }
@@ -217,8 +257,8 @@ export function createScheduleEditor(dialog, { api, getBot }) {
     if (type === 'daily') scheduleFields.innerHTML = '<label class="field"><span>時刻</span><input id="schedule-time" type="time" value="09:00" required></label>'
     if (type === 'interval_days') scheduleFields.innerHTML = `<label class="field"><span>何日おき</span><input id="schedule-interval-days" type="number" min="1" step="1" value="2" required></label><label class="field"><span>開始日</span><input id="schedule-start-date" type="date" value="${localDateTimeValue(new Date()).slice(0, 10)}" required></label><label class="field"><span>時刻</span><input id="schedule-time" type="time" value="09:00" required></label><small>開始日から数えます。2日おきなら、開始日・2日後・4日後に実行します。</small>`
     if (type === 'interval_hours') scheduleFields.innerHTML = '<label class="field"><span>何時間おき</span><input id="schedule-interval-hours" type="number" min="1" max="24" step="1" value="3" required></label><div class="field-row"><label class="field"><span>開始（時）</span><input id="schedule-start-hour" type="number" min="0" max="23" step="1" value="9" required></label><label class="field"><span>終了（時）</span><input id="schedule-end-hour" type="number" min="0" max="23" step="1" value="18" required></label></div><label class="field"><span>実行する分</span><input id="schedule-minute" type="number" min="0" max="59" step="1" value="0" required></label><small>9時〜18時・3時間おきなら9・12・15・18時に実行します。終了が開始より早ければ翌日まで、同じならその時刻に一回実行します。</small>'
-    if (type === 'weekly') scheduleFields.innerHTML = '<label class="field"><span>曜日</span><span class="weekday-picker">日 月 火 水 木 金 土</span><span class="weekday-checks">' + ['日','月','火','水','木','金','土'].map((day, index) => `<label><input type="checkbox" name="weekday" value="${index}" ${index === 1 ? 'checked' : ''}><b>${day}</b></label>`).join('') + '</span></label><label class="field"><span>時刻</span><input id="schedule-time" type="time" value="09:00" required></label>'
-    if (type === 'cron') scheduleFields.innerHTML = '<label class="field"><span>cron式</span><input id="schedule-cron" value="0 9 * * 1-5" required placeholder="0 9 * * 1-5"></label>'
+    if (type === 'weekly') scheduleFields.innerHTML = '<label class="field"><span>曜日</span><span class="weekday-checks">' + ['日','月','火','水','木','金','土'].map((day, index) => `<label><input type="checkbox" name="weekday" value="${index}" ${index === 1 ? 'checked' : ''}><b>${day}</b></label>`).join('') + '</span><small class="form-error" id="schedule-weekday-error" role="alert"></small></label><label class="field"><span>時刻</span><input id="schedule-time" type="time" value="09:00" required></label>'
+    if (type === 'cron') scheduleFields.innerHTML = '<label class="field"><span>詳しい指定（cron式）</span><input id="schedule-cron" value="0 9 * * 1-5" required placeholder="0 9 * * 1-5"><small>分 時 日 月 曜日 の順に書きます。例: 平日9時は「0 9 * * 1-5」。</small></label>'
   }
 
   async function saveSchedule(event) {
@@ -240,9 +280,14 @@ export function createScheduleEditor(dialog, { api, getBot }) {
       accepted = true
       if (owner !== target) return
       if (version === editVersion) resetScheduleForm()
+      // W65: the result sits by the list, where the saved row is.
+      scheduleResult.textContent = '保存しました'
       await loadSchedules()
-    } catch {
-      if (owner === target) scheduleFormError.textContent = accepted ? '保存しました。予定一覧を更新できませんでした。' : '予定を保存できませんでした。日時と実行内容を確認してね。'
+    } catch (error) {
+      if (owner !== target) return
+      // W67: a weekly item without a weekday says so next to the weekdays.
+      if (error?.message === 'WEEKDAY_REQUIRED') { dialog.querySelector('#schedule-weekday-error').textContent = '曜日を選んでください'; return }
+      scheduleFormError.textContent = accepted ? '保存しました。予定一覧を更新できませんでした。' : '予定を保存できませんでした。日時と実行内容を確かめて、もう一度保存してください。'
     } finally {
       if (saving === owner) saving = null
       if (owner === target) scheduleSubmit.disabled = false

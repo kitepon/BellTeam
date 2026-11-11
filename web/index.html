@@ -110,8 +110,8 @@
   </main>
 
   <dialog class="sheet-dialog" id="all-schedules-dialog">
-    <div><header class="sheet-header"><button class="text-button" type="button" data-close-dialog="all-schedules-dialog">閉じる</button><h2>すべての予定</h2><button class="text-button" type="button" data-schedules-refresh>更新</button></header>
-    <div class="sheet-body"><p data-schedules-notice role="status" class="field-help"></p><div class="schedule-create"><label class="field"><span>予定を追加・管理する対象</span><select data-schedules-target></select></label><button type="button" data-schedules-add>予定を管理</button></div><div data-schedules-list></div></div></div>
+    <div><header class="sheet-header"><button class="text-button" type="button" data-close-dialog="all-schedules-dialog">閉じる</button><h2>すべての予定</h2><button class="text-button" type="button" data-schedules-refresh>再読み込み</button></header>
+    <div class="sheet-body"><p data-schedules-notice role="status" class="field-help"></p><div data-schedules-list></div><div class="schedule-create"><label class="field"><span>予定を追加する相手</span><select data-schedules-target></select></label><button class="primary-button" type="button" data-schedules-add>予定を追加</button></div></div></div>
   </dialog>
 
   <dialog class="sheet-dialog" id="goals-dialog">
@@ -137,6 +137,7 @@
 
   <dialog class="work-graph-dialog" id="work-graph-dialog" aria-label="相関図">
     <header class="work-graph-header"><button class="text-button" type="button" data-close-dialog="work-graph-dialog">閉じる</button><h2>相関図</h2><span></span></header>
+    <p class="work-graph-summary" data-work-graph-summary role="status"></p>
     <div class="work-graph-stage" data-work-graph-stage>
       <canvas aria-hidden="true"></canvas>
       <p class="work-graph-pill" data-work-graph-pill role="status" hidden></p>
@@ -144,6 +145,12 @@
       <ul class="sr-only" data-work-graph-a11y aria-label="相関図のメンバーと依頼"></ul>
       <span class="sr-only" id="work-graph-open-hint" data-work-graph-hint>チャットを開く</span>
     </div>
+    <ul class="work-graph-legend" aria-label="図の見方">
+      <li><i class="is-working" aria-hidden="true"></i>作業中のメンバー（縁が光ります）</li>
+      <li><i class="is-linked" aria-hidden="true"></i>依頼を受けた側（薄く表示します）</li>
+      <li><i class="is-edge" aria-hidden="true"></i>頼んだ側から頼まれた側への矢印（流れる点は進行中）</li>
+      <li><i class="is-fork" aria-hidden="true"></i>点線は分身への問い合わせ</li>
+    </ul>
   </dialog>
   <!-- Lattice工程表 (web/lattice-chart.js) -->
   <dialog class="lattice-dialog" id="lattice-dialog" aria-label="工程表">
@@ -448,23 +455,23 @@
     <div>
       <header class="sheet-header">
         <button class="text-button" type="button" data-close-dialog="schedule-dialog">閉じる</button>
-        <h2>自動実行</h2>
+        <h2 id="schedule-title">自動実行</h2>
         <span class="header-spacer"></span>
       </header>
       <div class="sheet-body">
+        <div class="schedule-toolbar"><button class="primary-button" id="schedule-add" type="button">予定を追加</button><p class="form-result" id="schedule-result" role="status"></p></div>
         <div class="schedule-list" id="schedule-list"></div>
-        <form class="schedule-form" id="schedule-form">
+        <form class="schedule-form" id="schedule-form" hidden>
           <h3 id="schedule-form-title">予定を追加</h3>
           <label class="field"><span>名前</span><input id="schedule-name" maxlength="100" placeholder="朝の巡回"></label>
-          <label class="field"><span>実行頻度</span><select id="schedule-kind"><option value="once">指定日時に一回</option><option value="hourly">毎時</option><option value="daily">毎日</option><option value="weekly">曜日指定</option><option value="interval_days">○日おき</option><option value="interval_hours">○時間おき</option><option value="cron">cron式</option></select></label>
+          <label class="field"><span>実行頻度</span><select id="schedule-kind"><option value="once">指定日時に一回</option><option value="hourly">毎時</option><option value="daily">毎日</option><option value="weekly">曜日指定</option><option value="interval_days">○日おき</option><option value="interval_hours">○時間おき</option><option value="cron">詳しい指定（cron式）</option></select></label>
           <div id="schedule-fields"></div>
           <fieldset class="member-picker" id="schedule-targets-field" hidden><legend>返信するメンバー（未選択なら自動選択）</legend><div id="schedule-targets"></div></fieldset>
           <label class="field" id="schedule-action-field"><span>実行するもの</span><select id="schedule-action"><option value="prompt">AIへの指示</option><option value="command">コマンドだけ（AIを起こさない）</option></select></label>
           <label class="field" id="schedule-prompt-field"><span>実行する指示</span><textarea id="schedule-prompt" rows="4" maxlength="8000" required placeholder="状況を確認して、必要な作業を進めて"></textarea></label>
           <label class="field" id="schedule-command-field" hidden><span>実行するコマンド</span><textarea id="schedule-command" rows="3" maxlength="8000" placeholder="python3 -m news.export"></textarea><small>Botのプロジェクトフォルダで sh -c として実行する。失敗した時だけ会話に知らせる。</small></label>
           <p class="form-error" id="schedule-form-error" role="alert"></p>
-          <button class="solid-button" id="schedule-submit" type="submit">予定を追加</button>
-          <button class="text-button schedule-cancel" id="schedule-cancel" type="button" hidden>編集をやめる</button>
+          <div class="schedule-form-actions"><button class="text-button schedule-cancel" id="schedule-cancel" type="button">やめる</button><button class="solid-button" id="schedule-submit" type="submit">保存</button></div>
         </form>
       </div>
     </div>

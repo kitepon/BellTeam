@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { avatarSide, backoffMs, bestSwap, blinkOpacity, chipBoxAt, CHIP_SPOTS, clearanceForces, createGraphModel, intoRect, segmentHitsBox, createTap, edgeText, enterCurve, flowDots, nodeAt, nodeText, wrapLabel } from '../web/work-graph-model.js'
-import { createGraphStream, parseFrames } from '../web/work-graph.js'
+import { avatarSide, backoffMs, bestSwap, blinkOpacity, chipBoxAt, CHIP_SPOTS, clearanceForces, createGraphModel, intoRect, segmentHitsBox, createTap, edgeText, enterCurve, flowDots, nodeAt, nodeText, summaryText, wrapLabel } from '../web/work-graph-model.js'
+import { createGraphStream, createWorkGraphView, parseFrames } from '../web/work-graph.js'
 
 const rect = { x: 24, y: 24, w: 800, h: 600 }
 const node = (botId, state = 'working', name = botId) => ({ botId, name, color: 'mint', avatarVersion: '', state, activeSince: '2026-11-08T12:00:00Z' })
@@ -411,4 +411,44 @@ test('分身への線（seat.kind fork）：札は「分身：要約」、要約
   const names = new Map([['a', 'アン'], ['b', 'ベル']])
   assert.equal(edgeText({ ...edge('a', 'b'), ...fork }, names), 'アンからベル（分身）へ依頼: 依頼')
   assert.equal(edgeText({ ...edge('a', 'b', 'a:b', null), ...fork }, names), 'アンからベル（分身）へ依頼')
+})
+
+test('W71 summary line counts the live requests', () => {
+  assert.equal(summaryText(1), 'いま 1件の依頼が進行中'); assert.equal(summaryText(12), 'いま 12件の依頼が進行中'); assert.equal(summaryText(0), 'いま進行中の依頼はありません')
+})
+
+test('W72 on a 390 px phone every face, ring and name stays inside the screen', () => {
+  const phone = { x: 24, y: 24, w: 342, h: 652, width: 390, height: 700 }
+  for (const n of [1, 3, 6, 12, 30]) {
+    const model = createGraphModel(), ids = Array.from({ length: n }, (_, i) => `bot${i}`)
+    model.snapshot(snapshot(ids.map(id => node(id, 'working', `とても長いメンバーの名前${id}`)), ids.slice(1).map(id => edge('bot0', id))), 0, phone)
+    let t = 0
+    for (let i = 0; i < 400; i++) model.step(1 / 60, phone, t += 16, false)
+    const shown = model.frame(t, phone, { measure: text => text.length * 15 })
+    for (const { x, side } of shown.nodes) assert.ok(x - side / 2 - 8 >= 0 && x + side / 2 + 8 <= 390, `${n} members: face at x=${x}`)
+    for (const { box } of shown.names) assert.ok(box.x >= 0 && box.x + box.w <= 390, `${n} members: name at x=${box.x}`)
+  }
+})
+
+test('W71 the canvas says 「つないでいます」 until the first picture arrives, then shows the summary line', async () => {
+  const fakeNode = () => ({ textContent: '', hidden: false, children: [], dataset: {}, classList: { set: new Set(), contains(c) { return this.set.has(c) }, toggle(c, on) { on ? this.set.add(c) : this.set.delete(c) }, remove(c) { this.set.delete(c) } },
+    addEventListener() {}, setAttribute() {}, contains: () => false, replaceChildren() {}, append() {}, querySelector() { return emptyP } })
+  const emptyP = fakeNode()
+  const parts = { '[data-work-graph-stage]': Object.assign(fakeNode(), { getBoundingClientRect: () => ({ width: 390, height: 600 }) }),
+    canvas: Object.assign(fakeNode(), { getContext: () => ({ measureText: () => ({ width: 10 }) }), getBoundingClientRect: () => ({ left: 0, top: 0 }), style: {} }),
+    '[data-work-graph-pill]': fakeNode(), '[data-work-graph-empty]': fakeNode(), '[data-work-graph-a11y]': fakeNode(), '[data-work-graph-hint]': fakeNode(), '[data-work-graph-summary]': fakeNode() }
+  const dialog = { open: false, showModal() { this.open = true }, querySelector: selector => parts[selector], getBoundingClientRect: () => ({ top: 0, height: 700 }) }
+  const saved = { document: globalThis.document, requestAnimationFrame: globalThis.requestAnimationFrame, cancelAnimationFrame: globalThis.cancelAnimationFrame }
+  globalThis.document = { addEventListener() {}, removeEventListener() {}, hidden: false, activeElement: null, createElement: () => fakeNode() }
+  globalThis.requestAnimationFrame = () => 1; globalThis.cancelAnimationFrame = () => {}
+  let release
+  const body = `event: snapshot\ndata: ${JSON.stringify(snapshot([node('a'), node('b', 'linked')], [edge('a', 'b')]))}\n\n`
+  const fetch = async () => ({ ok: true, status: 200, body: { getReader: () => ({ read: () => new Promise(resolve => { release = () => resolve({ done: false, value: new TextEncoder().encode(body) }) }) }) } })
+  const view = createWorkGraphView(dialog, { fetch })
+  try {
+    view.open()
+    assert.equal(emptyP.textContent, 'つないでいます'); assert.ok(parts['[data-work-graph-empty]'].classList.contains('visible')); assert.equal(parts['[data-work-graph-summary]'].textContent, '')
+    await new Promise(resolve => setImmediate(resolve)); release(); await new Promise(resolve => setTimeout(resolve, 10))
+    assert.equal(parts['[data-work-graph-summary]'].textContent, 'いま 1件の依頼が進行中'); assert.ok(!parts['[data-work-graph-empty]'].classList.contains('visible'))
+  } finally { view.close(); Object.assign(globalThis, saved) }
 })

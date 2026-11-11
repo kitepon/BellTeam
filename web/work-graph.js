@@ -1,5 +1,5 @@
 // 相関図の画面。データは GET /api/work-graph/events、見た目と動きは behavior-spec.md のとおり。
-import { accent, backoffMs, blinkOpacity, createGraphModel, createTap, edgeText, flowDots, isFork, nodeAt, nodeText, pointAt } from './work-graph-model.js?v=__ASSET_VERSION__'
+import { accent, backoffMs, blinkOpacity, createGraphModel, createTap, edgeText, flowDots, isFork, nodeAt, nodeText, pointAt, summaryText } from './work-graph-model.js?v=__ASSET_VERSION__'
 
 const INK = '#21293D', MUTED = '#787D91', LINE = '#E6E3F0', CHIP = 'rgba(248, 248, 251, 0.92)'
 const NAME_FONT = '700 15px -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif'
@@ -79,6 +79,7 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch, onOpenMe
   const pill = dialog.querySelector('[data-work-graph-pill]')
   const empty = dialog.querySelector('[data-work-graph-empty]')
   const emptyText = empty.querySelector('p')
+  const summary = dialog.querySelector('[data-work-graph-summary]')
   const list = dialog.querySelector('[data-work-graph-a11y]')
   const hint = dialog.querySelector('[data-work-graph-hint]')
   const reduceMotion = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
@@ -94,8 +95,8 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch, onOpenMe
     return gradient
   }
   const rectOf = () => {
-    const box = stage.getBoundingClientRect()
-    return { x: 24, y: 24, w: Math.max(1, box.width - 48), h: Math.max(1, box.height - 48), width: box.width, height: box.height }
+    const box = stage.getBoundingClientRect(), usable = globalThis.innerWidth ? Math.min(box.width, globalThis.innerWidth) : box.width // W72: never lay nodes out wider than the screen
+    return { x: 24, y: 24, w: Math.max(1, usable - 48), h: Math.max(1, box.height - 48), width: box.width, height: box.height }
   }
   const wide = () => (globalThis.innerWidth ?? 0) >= 1024
   function measure(font) {
@@ -125,11 +126,15 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch, onOpenMe
   }
   function paintEmpty() {
     const missing = status === 'missing' && !model.nodes.size
+    // W71: before the first picture arrives the canvas is not blank, it says it is connecting.
+    const connecting = status === 'connecting' && model.epoch === null
     // 一度も一枚目を読めていない間は、誰も動いていないとは言わない。
     const none = !missing && model.epoch !== null && ![...model.nodes.values()].some(node => !node.leaveAt)
-    const text = missing ? '相関図はこのサーバーではまだ使えません' : 'いま動いているメンバーはいません'
+    const text = missing ? '相関図はこのサーバーではまだ使えません' : connecting ? 'つないでいます' : 'いま動いているメンバーはいません'
     if (emptyText.textContent !== text) emptyText.textContent = text
-    if (empty.classList.contains('visible') !== (missing || none)) empty.classList.toggle('visible', missing || none)
+    if (empty.classList.contains('visible') !== (missing || none || connecting)) empty.classList.toggle('visible', missing || none || connecting)
+    const line = model.epoch === null ? '' : summaryText([...model.edges.values()].filter(edge => !edge.endAt).length)
+    if (summary.textContent !== line) summary.textContent = line
     if (missing) pill.hidden = true
   }
   function describe() {
@@ -150,7 +155,7 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch, onOpenMe
   }
   const stream = createGraphStream({
     fetch,
-    onSnapshot(data) { model.snapshot(data, now(), rectOf()); describe() },
+    onSnapshot(data) { model.snapshot(data, now(), rectOf()); describe(); paintEmpty() },
     onChange(batch) { const applied = model.change(batch, now(), rectOf()); if (applied) { describe(); showStatus('live') } return applied },
     onStatus: showStatus,
   })
@@ -306,7 +311,8 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch, onOpenMe
       if (open) return
       open = true; status = 'connecting'; last = 0
       model = createGraphModel({ reduceMotion })
-      pill.hidden = true; empty.classList.remove('visible')
+      pill.hidden = true; empty.classList.remove('visible'); summary.textContent = ''
+      paintEmpty()
       document.addEventListener('visibilitychange', visibility)
       globalThis.addEventListener?.('resize', resize)
       if (!dialog.open) dialog.showModal()

@@ -59,6 +59,8 @@ export function wrapLabel(text, width, measure) {
 export const isFork = edge => edge.seat?.kind === 'fork'
 // 要約が無い線は分身でも札を出さない（behavior-spec Chip placement、#952）。
 export const chipText = edge => isFork(edge) && edge.label ? `分身：${edge.label}` : edge.label
+// 画面上部の一行。数は、いま終わっていない依頼の数。
+export const summaryText = count => count ? `いま ${count}件の依頼が進行中` : 'いま進行中の依頼はありません'
 export const edgeText = (edge, names) => `${names.get(edge.from) ?? edge.from}から${names.get(edge.to) ?? edge.to}${isFork(edge) ? '（分身）' : ''}へ依頼${edge.label ? `: ${edge.label}` : ''}`
 
 const validNode = node => node && typeof node.botId === 'string' && typeof node.name === 'string' && ['working', 'linked'].includes(node.state)
