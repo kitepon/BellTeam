@@ -232,11 +232,13 @@ struct OnePasswordSettingEditor: View {
                     }
                 }
                 Section(header: BellSectionHeader("サービスアカウントのトークン")) {
-                    Toggle("1Passwordと連携する", isOn: $enabled)
+                    // Inputs are locked while the PATCH is pending (an edit after 保存 is not in the sent request).
+                    Toggle("1Passwordと連携する", isOn: $enabled).disabled(saving)
                     if let tokenField {
                         SecureField(tokenField.configured ? "登録済み・変更するときだけ入力" : "ops_で始まるトークンを貼る", text: $token)
                             .textInputAutocapitalization(.never).autocorrectionDisabled()
                             .privacySensitive()
+                            .disabled(saving)
                             .accessibilityLabel(tokenField.label)
                             .accessibilityIdentifier("onepassword-token")
                     }
@@ -356,8 +358,10 @@ struct FeatureSettingEditor: View {
             .listRowBackground(Color.clear)
             if loaded {
                 Section(footer: Text("必要な項目を登録してから有効にしてください。秘密の値は会話へ送られません。").font(BellTheme.secondaryFont)) {
+                    // Inputs are locked while the PATCH is pending, then the screen closes: later edits would be lost.
                     Toggle("有効にする", isOn: $enabled)
                 }
+                .disabled(saving)
                 if let failure = currentSetting.error {
                     // The code stays out of sight (closed 詳細 and diagnostics); the plain sentence is the action.
                     Section { Label(failure.message, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange) }
@@ -388,6 +392,7 @@ struct FeatureSettingEditor: View {
                         }
                     }
                 }
+                .disabled(saving)
                 if !savedDetails.isEmpty || currentSetting.error != nil {
                     Section {
                         DisclosureGroup("詳細") {

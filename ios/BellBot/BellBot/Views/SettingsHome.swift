@@ -104,13 +104,17 @@ final class SettingsHomeState: ObservableObject {
         do {
             let list: HarnessAuthenticationsResponse = try await store.api.get("/api/harness-auth")
             var claude: HarnessAccounts?
+            var accounts = ClaudeAccountsRead.listed
             do {
                 let response: HarnessAccountsResponse = try await store.api.get("/api/accounts")
                 claude = response.harnesses.first { $0.harness == "claude" }
             } catch is CancellationError { throw CancellationError() }
-            catch BellAPIError.httpStatus(404, _, _) { /* an older server: Claude is one login */ }
             catch let error where BellAPIError.isAuthenticationError(error) { throw error }
-            catch { store.api.diagnostics.report(error, path: "/api/accounts", method: "GET", observation: .read(error, retainedData: false)) }
+            catch {
+                // 404 = an older server (Claude is one login). Anything else stays visible as 確認できません.
+                accounts = ClaudeAccountsRead.failure(error)
+                if accounts == .unreadable { store.api.diagnostics.report(error, path: "/api/accounts", method: "GET", observation: .read(error, retainedData: false)) }
+            }
             var targets: [Target] = []
             for option in list.harnesses {
                 if option.id == "claude", let claude {
@@ -135,6 +139,7 @@ final class SettingsHomeState: ObservableObject {
                 entries.append(AIAuthEntry(harnessID: target.option.id, name: target.name, slot: target.slot, progress: progress,
                                            accountLabel: target.label, limitLine: target.limitLine, signedOut: target.signedOut))
             }
+            if accounts == .unreadable && list.harnesses.contains(where: { $0.id == "claude" }) { entries.append(ClaudeAccountsRead.unreadableEntry) }
             harnessOptions = Dictionary(list.harnesses.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
             aiEntries = entries
             aiAnswered = true

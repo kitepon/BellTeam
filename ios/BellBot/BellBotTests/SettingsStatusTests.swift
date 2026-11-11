@@ -12,6 +12,23 @@ final class SettingsStatusTests: XCTestCase {
 
     // MARK: AIの認証
 
+    /// Epinel #1114: only 404 is an older server; a 5xx, a network failure or an undecodable body is unreadable,
+    /// and the home then says 確認できません instead of 「すべて認証済み」.
+    func testAccountsReadFailureIsUnreadableExceptFor404() {
+        XCTAssertEqual(ClaudeAccountsRead.failure(BellAPIError.httpStatus(404, nil)), .oldServer)
+        XCTAssertEqual(ClaudeAccountsRead.failure(BellAPIError.httpStatus(500, "障害")), .unreadable)
+        XCTAssertEqual(ClaudeAccountsRead.failure(BellAPIError.httpStatus(503, nil)), .unreadable)
+        XCTAssertEqual(ClaudeAccountsRead.failure(URLError(.timedOut)), .unreadable)
+        let decoding = DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "bad body"))
+        XCTAssertEqual(ClaudeAccountsRead.failure(decoding), .unreadable)
+        let unreadable = SettingsSummary.ai([entry("claude", "Claude", .done), entry("codex", "Codex", .done), ClaudeAccountsRead.unreadableEntry])
+        XCTAssertEqual(unreadable.badge, "確認できません")
+        XCTAssertNotEqual(unreadable.line, "すべて認証済み")
+        XCTAssertTrue(unreadable.needsAttention)
+        XCTAssertEqual(unreadable.attentionRoute, .page(.ai), "一覧を読めない時は認証の一覧へ（どの席かは分からない）")
+        XCTAssertEqual(SettingsSummary.ai([entry("claude", "Claude", .done), entry("codex", "Codex", .done)]).line, "すべて認証済み", "旧本体（404）は1行のClaudeで従来どおり")
+    }
+
     func testAllDoneSaysAllAuthenticatedWithoutAttention() {
         let status = SettingsSummary.ai([entry("claude", "Claude 1つ目のアカウント", .done), entry("codex", "Codex", .done)])
         XCTAssertEqual(status.line, "すべて認証済み")

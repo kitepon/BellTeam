@@ -22,6 +22,20 @@ struct SettingsStatus: Equatable {
 }
 
 /// One AI login the home reads: every harness, and Claude's accounts when the server lists them.
+/// How the settings home read /api/accounts. Only 404 means an older server (Claude is one login);
+/// any other failure (5xx, network, a body it cannot decode) is unreadable and must show 確認できません, never 「すべて認証済み」.
+enum ClaudeAccountsRead: Equatable {
+    case listed, oldServer, unreadable
+
+    static func failure(_ error: Error) -> ClaudeAccountsRead {
+        if case BellAPIError.httpStatus(404, _, _) = error { return .oldServer }
+        return .unreadable
+    }
+
+    /// The row the home adds when the account list could not be read; it opens the AIの認証 page.
+    static let unreadableEntry = AIAuthEntry(harnessID: "claude", name: "Claudeのアカウント", slot: nil, progress: .unknown)
+}
+
 struct AIAuthEntry: Equatable {
     let harnessID: String
     let name: String
@@ -99,7 +113,8 @@ enum SettingsSummary {
         default: attention = false
         }
         return SettingsStatus(line: line, badge: worst.progress.badge, tone: worst.progress.tone, needsAttention: attention,
-                              attentionRoute: attention ? .authentication(harness: worst.harnessID, slot: worst.slot) : nil)
+                              attentionRoute: !attention ? nil : worst == ClaudeAccountsRead.unreadableEntry ? .page(.ai)
+                                : .authentication(harness: worst.harnessID, slot: worst.slot))
     }
 
     // MARK: 1Password

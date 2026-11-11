@@ -83,7 +83,9 @@ private struct UserRulesEditor: View {
                 }
                 .listRowBackground(Color.clear)
                 Section {
+                    // Locked while the PUT is pending: an edit after 保存 would not be in the sent text and would be lost on dismiss.
                     TextEditor(text: $text).frame(minHeight: 260)
+                        .disabled(saving)
                         .accessibilityIdentifier("rules-text")
                 } header: {
                     BellSectionHeader("決まりの全文")

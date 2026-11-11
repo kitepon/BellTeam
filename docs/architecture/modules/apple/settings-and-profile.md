@@ -208,3 +208,7 @@ flowchart TD
 - Owner・規範・追加機能の本体保存と反映、画像schemaの本体での生成・migration、AI再起動の内部実行。
 - 実UIでの画像選択・前面復帰・切り抜き途中状態、未保存フォームのsheet/window終了、同時保存中の操作。PR4実装時の文書更新ではビルド・試験は未実行だった。後続のMacでの画像保存・再起動の確認結果は[親の確認記録](refactor-progress.md#次の作業)を参照し、その範囲外は未確認。
 - AvatarCrop/ProfileTerminal/NetworkLifecycleProbe/BotSave等のXCTest本文・fixture。試験との対応は宣言で確認した範囲。
+
+## 保存中の入力（Epinel #1114）
+
+チームの決まりの編集（`UserRulesView`）、追加機能の編集（`FeatureSettingEditor`）、1Password（`OnePasswordSettingEditor`）は、`saving`の間は入力欄と切替を`.disabled(saving)`で止める。`saving`は要求を送る前に立ち、`defer`で戻る。成功で閉じる・失敗で残す挙動とエラーの扱いは変えない。試験は`TerminalsUITests.testOnePasswordInputsAreLockedWhileTheSaveIsPending`（fixtureの`patchdelay`）。

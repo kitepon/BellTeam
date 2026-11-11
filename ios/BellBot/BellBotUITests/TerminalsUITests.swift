@@ -932,6 +932,26 @@ final class TerminalsUITests: XCTestCase {
         shot(app, "47-member-editor-old-body-text-field")
     }
 
+    /// Epinel #1114: while 保存 is pending the inputs are locked, so nothing typed after it can be lost when the screen settles.
+    func testOnePasswordInputsAreLockedWhileTheSaveIsPending() async throws {
+        _ = try await call("/test/mode?patchdelay=4000")
+        let app = launch(["-bellbot-preview-settings", "onepassword"])
+        defer { app.terminate() }
+        let token = app.secureTextFields["onepassword-token"]
+        XCTAssertTrue(scrollTo(token, in: app))
+        token.tap()
+        token.typeText("ops_good-token")
+        app.buttons["onepassword-save"].tap()
+        XCTAssertFalse(token.isEnabled, "送っている間はトークン欄を止める")
+        XCTAssertFalse(app.switches["1Passwordと連携する"].isEnabled, "送っている間は連携の切替も止める")
+        shot(app, "54-onepassword-saving-inputs-locked")
+        let line = app.staticTexts["onepassword-connection"]
+        XCTAssertTrue(line.waitForExistence(timeout: 12))
+        XCTAssertTrue(token.isEnabled, "結果が出たら入力欄を戻す")
+        let proof = try await call("/test/proof")
+        XCTAssertEqual((proof["settingPatches"] as? [Any])?.count, 1, "送ったのは1回だけ")
+    }
+
     private func launch(_ arguments: [String]) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-bellbot-preview", "-bellbot-preview-server", server] + fixtureLaunchArguments(server: server) + arguments
