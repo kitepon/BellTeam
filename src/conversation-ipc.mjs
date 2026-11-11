@@ -245,7 +245,8 @@ export function createConversationChildChannel({ dispatcher, endpoint = process,
   const contexts = new Map(), deliveries = new Map(), backgroundContexts = new Map(), waiters = new Set()
   const hold = record => { record.refs++; return () => { if (--record.refs === 0) { contexts.delete(record.context); for (const wake of waiters) wake(); waiters.clear() } } }
   const captured = context => { const record = contexts.get(context); check(record && context.generation === generation); return record }
-  const callbacks = () => [...peer.pending.values()].map(task => task.completion.promise)
+  // A refused diagnostic is observation only; it never fails quiesce or a module exchange (process.md).
+  const callbacks = () => [...peer.pending.values()].map(task => task.kind === 'diagnostic' ? task.completion.promise.catch(() => {}) : task.completion.promise)
   peer = createConversationPeer(endpoint, { side: 'child',
     validateResult: (kind, method, value, task) => {
       if (kind === 'accepted') return validateConversationResult('user.post', value)
