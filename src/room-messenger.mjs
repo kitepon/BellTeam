@@ -113,6 +113,8 @@ export class RoomMessenger {
     // notify is called synchronously so every reverse effect is issued while this root is still open.
     const issue = run => { try { return Promise.resolve(run()) } catch (error) { return Promise.reject(error) } }
     deliveryTargets.forEach(id => {
+      // A refusal the transport already reported through onStatus is not written again by the rejection fallback.
+      let terminal = false
       void issue(() => this.transport.notify(
         this.bots.get(id), roomEnvelope(record, { silent: !responders.includes(id) }), {
           ...(membersLease === undefined ? {} : { membersLease }),
@@ -122,12 +124,12 @@ export class RoomMessenger {
             context: 'room', contextId: room.id, groupId: record.id,
             from, fromName: sender.name, target: id, message,
           },
-          onStatus: (delivery, error, tracking) => this.rooms.appendMessage(room.id, {
+          onStatus: (delivery, error, tracking) => (terminal ||= ['failed', 'stopped'].includes(delivery), this.rooms.appendMessage(room.id, {
             schema: 'bellteam.room-delivery-status.v1', message_id: record.id,
             target: id, at: this.now(), delivery,
             ...this.failureFields(error),
             ...(deliveryTracking(delivery, tracking) ? { delivery_tracking: deliveryTracking(delivery, tracking) } : {}),
-          }),
+          })),
           // 合間の言葉と最後の回答は、そのBotの会話画面に出すだけ。ルームにも他のBotにも届けない。
           ...(this.onInterimWords ? {
             onInterim: words => this.onInterimWords(id, record.id, words),
@@ -136,6 +138,7 @@ export class RoomMessenger {
           onTurnEnd: window => this.onTurnEnd({ botId: id, context: 'room', ...window }),
         },
     )).catch(error => {
+        if (terminal) return
         let fields = {}
         try { fields = this.failureFields(error) } catch { /* a refusal shape the record cannot carry keeps only its status */ }
         return this.rooms.appendMessage(room.id, { schema: 'bellteam.room-delivery-status.v1', message_id: record.id, target: id,

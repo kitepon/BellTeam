@@ -321,3 +321,26 @@ test('部屋の投稿は全席への配送を発行した時点で返り、受�
   assert.deepEqual(issued, ['bot-a', 'bot-b'], 'both deliveries issued before the post returned')
   slow.resolve({ delivery: 'running' })
 })
+
+test('配送側がonStatusで拒否を記録してからnotifyを拒否しても、拒否の行は一つだけ残る', async () => {
+  const bot = { id: 'bot-a', name: 'あかり', role: '担当' }
+  const room = { id: 'room-work', name: '開発室', purpose: '', representativeId: null, memberIds: [bot.id] }
+  const records = []
+  const rooms = new Map([[room.id, room]])
+  rooms.refresh = async () => rooms
+  rooms.appendMessage = async (_id, record) => records.push(record)
+  rooms.messages = async () => records.filter(record => record.schema === 'bellteam.room-message.v1')
+  const messenger = new RoomMessenger({
+    rooms, bots: new Map([[bot.id, bot]]), messageId: () => 'post-1',
+    // AitermTransport's failure path: onStatus is awaited, then acceptance rejects.
+    transport: { async notify(_bot, _text, { onStatus }) {
+      const error = Object.assign(new Error('BOT_STOPPED'), { code: 'BOT_STOPPED' })
+      await onStatus('stopped', error); throw error
+    } },
+    roomTurns: async () => [{ speaker: 'オーナー', text: 'こんにちは' }], chooseResponder: async () => [bot.id],
+  })
+  await messenger.sendroommessage({ from: 'user', room: room.id, message: 'こんにちは' })
+  await new Promise(resolve => setImmediate(resolve))
+  const rows = records.filter(record => record.schema === 'bellteam.room-delivery-status.v1' && record.target === bot.id)
+  assert.deepEqual(rows.map(row => row.delivery), ['stopped'])
+})
