@@ -64,6 +64,8 @@ export function openSecretInput(request, api, onComplete) {
   note.className = 'secret-note'
   // An OpenSSH private key is multiline; a password input would drop its newlines. The value is sent as typed, never trimmed.
   const multiline = request.purpose === 'terminal.ssh'
+  // A value used once never says it is saved or registered.
+  const oneTime = request.purpose === 'terminal.login' || request.oneTime === true
   const input = document.createElement(multiline ? 'textarea' : 'input')
   if (multiline) { input.rows = 6; input.className = 'secret-multiline' } else input.type = 'password'
   input.autocomplete = 'off'
@@ -108,7 +110,8 @@ export function openSecretInput(request, api, onComplete) {
     const legend = document.createElement('legend')
     legend.textContent = '入力方法'
     fieldset.append(legend)
-    for (const [value, text] of [['onepassword', picker ? `1Passwordの${noun}から選ぶ` : '1Passwordの参照を使う'], ['stored', multiline ? '鍵を貼り付けて保存する' : picker ? 'パスワードを入力して保存する' : '値をBellTeamへ保存する']]) {
+    // Both choices say where the value comes from; whether it is kept is said only by the note (Owner 2026-11-11).
+    for (const [value, text] of [['onepassword', picker ? '1Passwordから選ぶ' : '1Passwordから読み出す'], ['stored', multiline ? 'ここに貼り付ける' : 'ここに入力する']]) {
       const choice = document.createElement('label')
       const radio = radios[value] = document.createElement('input')
       radio.type = 'radio'
@@ -140,6 +143,8 @@ export function openSecretInput(request, api, onComplete) {
           ? 'sudoのパスワードを入力してください。1Passwordを使っている場合は、設定の「1Password連携」を済ませると、ここで一覧から選べます。値は会話に送信されず、BellTeamの利用者領域へ保存します。'
         : request.purpose === 'terminal.login'
           ? 'このMacに鍵を入れるときに1回だけ使い、すぐに消します。保存せず、会話にも送信されません。'
+        : oneTime
+          ? '1回だけ使い、使い終わったら消します。会話には送られません。'
           : '値は会話に送信されません。BellTeamの利用者領域へ保存します。'
   }
   select(onePassword && request.inputOptions.preferred !== 'stored' ? 'onepassword' : 'stored')
@@ -178,7 +183,7 @@ export function openSecretInput(request, api, onComplete) {
   search.addEventListener('input', filter)
   const submit = document.createElement('button')
   submit.type = 'submit'
-  submit.textContent = '登録して続ける'
+  submit.textContent = oneTime ? '渡して続ける' : '登録して続ける'
   const decline = document.createElement('button')
   decline.type = 'button'
   decline.textContent = '入力を断る'

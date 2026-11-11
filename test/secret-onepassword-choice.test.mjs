@@ -137,7 +137,7 @@ test('sudo card picks a 1Password password like the SSH card; the search box nar
   const f = fixture(t, async (path, options) => options.method === 'GET' ? { items } : ok())
   const sudo = f.open({ ...pending, botId: null, terminalId: 'owner-macbook', purpose: 'terminal.sudo', inputOptions: { preferred: 'onepassword', onePasswordAvailable: true } })
   const p = f.parts(sudo), picker = sudo.querySelectorAll('select')[0], search = sudo.querySelectorAll('input').find(i => i.type === 'search')
-  assert.deepEqual(p.radios.map(r => r.parent.children[1].textContent), ['1Passwordのパスワードから選ぶ', 'パスワードを入力して保存する'])
+  assert.deepEqual(p.radios.map(r => r.parent.children[1].textContent), ['1Passwordから選ぶ', 'ここに入力する'])
   assert.equal(sudo.querySelectorAll('textarea').length, 0); assert.ok(p.value)
   await turn()
   assert.deepEqual(f.calls[0], { path: '/api/secret-requests/request-a/onepassword-items', body: undefined })
@@ -182,4 +182,15 @@ test('an older body that lists SSH keys for sudo leaves no selectable password; 
   items = [ssh, password]
   const fresh = f.open(sudo); await turn()
   assert.deepEqual(fresh.querySelectorAll('select')[0].children.slice(1).map(o => o.value), [password.reference])
+})
+
+test('both choices name where the value comes from; a one-time value never says saved or registered', async t => {
+  const f = fixture(t, ok)
+  const words = dialog => [f.parts(dialog).radios.map(r => r.parent.children[1].textContent), dialog.querySelector('.secret-note').textContent, dialog.querySelectorAll('button').find(b => b.type === 'submit').textContent]
+  const [choices, note, submit] = words(f.open({ ...pending, inputOptions: { preferred: 'stored', onePasswordAvailable: true } }))
+  assert.deepEqual(choices, ['1Passwordから読み出す', 'ここに入力する']); assert.match(note, /保存します/); assert.equal(submit, '登録して続ける')
+  for (const request of [{ ...pending, id: 'code', oneTime: true, inputOptions: { preferred: 'stored', onePasswordAvailable: false } }, { ...pending, id: 'login', purpose: 'terminal.login', inputOptions: { preferred: 'stored', onePasswordAvailable: false } }]) {
+    const [, once, go] = words(f.open(request))
+    assert.doesNotMatch(once + go, /保存します|登録/); assert.match(once, /1回だけ使い/); assert.equal(go, '渡して続ける')
+  }
 })
