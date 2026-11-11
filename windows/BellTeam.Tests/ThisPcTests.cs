@@ -204,7 +204,6 @@ public sealed class ThisPcTests
     // ---- every outcome is a line, and nothing is sent twice ----
     [Theory]
     [InlineData(409, "HOST_KEY_FINGERPRINT_MISMATCH", "このアドレスで答えているのは、このPCではありません。ホストの入力を確かめてください。信用は何も書いていません。")]
-    [InlineData(409, "TERMINAL_CHANGED", "確かめている間に、端末の接続先が変わりました。もう一度「このPCを確かめる」を押してください。")]
     [InlineData(503, "TERMINAL_UNAVAILABLE", "いまはBellTeamからこのPCを確かめられません。PCが起きていて同じネットワークにあるか確かめて、あとでもう一度押してください。")]
     [InlineData(404, "TERMINAL_NOT_FOUND", "この端末の登録が見つかりません。一覧を読み直してください。")]
     [InlineData(400, "INVALID_TERMINAL", "入力の形が違います。各欄を確かめてください。")]
@@ -217,6 +216,20 @@ public sealed class ThisPcTests
         Assert.Equal(1, wire.Trusts); Assert.Empty(model.Attesting);
         // The next press clears the line first and sends exactly one more.
         await model.AttestAsync("fox"); Assert.Equal(2, wire.Trusts);
+    }
+
+    // Mac attestThisMac: TERMINAL_CHANGED is sent once more; a second TERMINAL_CHANGED becomes the line.
+    [Fact]
+    public async Task TerminalChangedIsSentOnceMoreThenBecomesTheLine()
+    {
+        var changes = 1;
+        var wire = new Wire { Answer = (method, path) => method == "GET" ? StubHandler.Json(List(Fox())) : changes-- > 0 ? Error(HttpStatusCode.Conflict, "TERMINAL_CHANGED") : Written(path, true) };
+        using var api = wire.Api(); var model = new TerminalsModel(new TerminalsApi(api), new FakePc());
+        await model.RefreshAsync(); await model.AttestationsDone;
+        Assert.Equal(2, wire.Trusts); Assert.True(model.Find("fox")!.HostTrusted); Assert.Empty(model.TrustNotes);
+        changes = 5; wire.Calls.Clear();
+        await model.AttestAsync("fox");
+        Assert.Equal(2, wire.Trusts); Assert.Equal("確かめている間に、端末の接続先が変わりました。もう一度「このPCを確かめる」を押してください。", model.TrustNotes["fox"].Text);
     }
 
     [Fact]

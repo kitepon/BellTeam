@@ -503,8 +503,8 @@ public sealed class TerminalsModel(TerminalsApi api, IThisPc? pc = null)
         return run;
     }
 
-    // One attempt: read this PC's host key and send only the fingerprint; the server trusts it only when its own scan is equal. Every outcome becomes a line
-    // (TrustNotes), nothing is thrown, and nothing is resent (TERMINAL_CHANGED asks for another press).
+    // Read this PC's host key and send only the fingerprint; the server trusts it only when its own scan is equal. Every outcome becomes a line
+    // (TrustNotes) and nothing is thrown. TERMINAL_CHANGED is sent once more, as the Mac's attestThisMac does (the same fingerprint is harmless twice).
     public async Task AttestAsync(string id, CancellationToken token = default)
     {
         if (pc is null || !Attesting.Add(id)) return;
@@ -514,9 +514,13 @@ public sealed class TerminalsModel(TerminalsApi api, IThisPc? pc = null)
             string fingerprint;
             try { fingerprint = HostKeyFile.Fingerprint(await pc.ReadHostKeyAsync(token)); }
             catch (Exception error) when (!token.IsCancellationRequested) { TrustNotes[id] = ThisPcTrust.Local(error); return; }
-            try { Replace(await api.TrustAsync(id, fingerprint, token)); }
-            catch (BellApiException error) when (error.RequiresLogin) { }
-            catch (Exception error) when (!token.IsCancellationRequested) { if (ThisPcTrust.Server(error) is { } note) TrustNotes[id] = note; }
+            for (var attempt = 0; ; attempt++)
+            {
+                try { Replace(await api.TrustAsync(id, fingerprint, token)); break; }
+                catch (BellApiException error) when (error.RequiresLogin) { break; }
+                catch (Exception error) when (attempt == 0 && !token.IsCancellationRequested && TerminalErrorText.Code(error) == "TERMINAL_CHANGED") { }
+                catch (Exception error) when (!token.IsCancellationRequested) { if (ThisPcTrust.Server(error) is { } note) TrustNotes[id] = note; break; }
+            }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         finally { Attesting.Remove(id); Notify(); }
