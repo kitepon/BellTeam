@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-11T01:51:58Z",
-  "expiresAt": "2026-11-18T01:51:58Z",
+  "publishedAt": "2026-11-11T02:19:17Z",
+  "expiresAt": "2026-11-18T02:19:17Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "09f11556c14bed91ee94575b9e4f22b014423d51",
-      "versionId": "sha256:3ed669bbf9c4d542931d16c5d233823774ff95af5a4c1b75a2eecc113706930f",
+      "sourceCommit": "eec5473bb84941a768e41609eaa6973c480f61b0",
+      "versionId": "sha256:5db1a94a9e6d3d61a2710a9134b096dad5f5975621864e15ee0676574160d58a",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3ed669bbf9c4d542931d16c5d233823774ff95af5a4c1b75a2eecc113706930f"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:5db1a94a9e6d3d61a2710a9134b096dad5f5975621864e15ee0676574160d58a"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "端末を初めて登録する時に、指紋の確認が要らなくなります（sshのaccept-newと同じで、鍵が変わった時だけ止まります）。分身への問い合わせ（ask_readonly）が内部エラーで失敗する問題を直します。Aiterm 0.70.14を入れます。"
+        "Macなど外部の席で、作業の様子が30秒ほど遅れて届く問題を直します（Aiterm 0.70.16を入れます。動いている席だけを見回るようになります）。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "09f11556c14bed91ee94575b9e4f22b014423d51",
-      "versionId": "sha256:3ed669bbf9c4d542931d16c5d233823774ff95af5a4c1b75a2eecc113706930f",
+      "sourceCommit": "eec5473bb84941a768e41609eaa6973c480f61b0",
+      "versionId": "sha256:5db1a94a9e6d3d61a2710a9134b096dad5f5975621864e15ee0676574160d58a",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3ed669bbf9c4d542931d16c5d233823774ff95af5a4c1b75a2eecc113706930f"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:5db1a94a9e6d3d61a2710a9134b096dad5f5975621864e15ee0676574160d58a"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "端末を初めて登録する時に、指紋の確認が要らなくなります（sshのaccept-newと同じで、鍵が変わった時だけ止まります）。分身への問い合わせ（ask_readonly）が内部エラーで失敗する問題を直します。Aiterm 0.70.14を入れます。"
+        "Macなど外部の席で、作業の様子が30秒ほど遅れて届く問題を直します（Aiterm 0.70.16を入れます。動いている席だけを見回るようになります）。"
       ]
     }
   ],
