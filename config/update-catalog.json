@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-11T03:38:37Z",
-  "expiresAt": "2026-11-18T03:38:37Z",
+  "publishedAt": "2026-11-11T04:50:07Z",
+  "expiresAt": "2026-11-18T04:50:07Z",
   "releases": [
     {
       "componentId": "usage",
@@ -491,8 +491,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "09f11556c14bed91ee94575b9e4f22b014423d51",
-      "versionId": "731d9c2a8bad5a02c35180d0ccf606dd52cd3640354d70448047c91cc28a2316",
+      "sourceCommit": "2c1ae8a5ee19dab31112bc51643eab8665781b16",
+      "versionId": "b894f48c4cb466e91e749c38307da39a518748826570fe6199512805a14dca30",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T004142Z/execution-09f11556c14bed91ee94575b9e4f22b014423d51-linux-amd64.tar.gz",
-          "bytes": 3952022,
-          "sha256": "731d9c2a8bad5a02c35180d0ccf606dd52cd3640354d70448047c91cc28a2316"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T044931Z/execution-2c1ae8a5ee19dab31112bc51643eab8665781b16-linux-amd64.tar.gz",
+          "bytes": 3952171,
+          "sha256": "b894f48c4cb466e91e749c38307da39a518748826570fe6199512805a14dca30"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T004142Z/execution-09f11556c14bed91ee94575b9e4f22b014423d51-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11224,
-          "sha256": "b3b086a1d681a9d88b25b3cccf5bc074567b9a6d035cca115e1b5f19d1c60344"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T044931Z/execution-2c1ae8a5ee19dab31112bc51643eab8665781b16-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11302,
+          "sha256": "1ee5ebc9a71205beda599f95fcfeebdfd6ce2babbddf8c647d47d329ea93612d"
         },
-        "signerCommit": "09f11556c14bed91ee94575b9e4f22b014423d51"
+        "signerCommit": "2c1ae8a5ee19dab31112bc51643eab8665781b16"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "受け付けたあと完了が分からなくなった配送でも、席が空いたと確かめられたら席を手放します。分身への問い合わせを分身の席へ届け、断られた時は理由の分かるエラーを返します。"
+        "新しく入れたBellTeamで、Claudeの席が起動前に必ず失敗していた問題を直しました（ホームを本体から読めない時は、席の利用者に代わりに確かめてもらい、確かめられなくても1stアカウントで起動します）。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "09f11556c14bed91ee94575b9e4f22b014423d51",
-      "versionId": "42312c138cb30fda235515eb6585bf866bb99e026fd69cd43c87906071d2eddc",
+      "sourceCommit": "2c1ae8a5ee19dab31112bc51643eab8665781b16",
+      "versionId": "a2efb153c499943c5699f311d58636b1164dfb0afc0f0eeb721c4a128f6d8b6e",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T004142Z/execution-09f11556c14bed91ee94575b9e4f22b014423d51-linux-arm64.tar.gz",
-          "bytes": 3952023,
-          "sha256": "42312c138cb30fda235515eb6585bf866bb99e026fd69cd43c87906071d2eddc"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T044931Z/execution-2c1ae8a5ee19dab31112bc51643eab8665781b16-linux-arm64.tar.gz",
+          "bytes": 3952175,
+          "sha256": "a2efb153c499943c5699f311d58636b1164dfb0afc0f0eeb721c4a128f6d8b6e"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T004142Z/execution-09f11556c14bed91ee94575b9e4f22b014423d51-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10942,
-          "sha256": "e1b010358d1edbaf41371f5d9e6a4f0633261bee9a01fb6924d74761df36c0f1"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T044931Z/execution-2c1ae8a5ee19dab31112bc51643eab8665781b16-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11177,
+          "sha256": "b88a6cd24c5003fd40de3a2a7d5b780eaa92667c8cb263f11b6cc905eef4e221"
         },
-        "signerCommit": "09f11556c14bed91ee94575b9e4f22b014423d51"
+        "signerCommit": "2c1ae8a5ee19dab31112bc51643eab8665781b16"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,7 +552,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "受け付けたあと完了が分からなくなった配送でも、席が空いたと確かめられたら席を手放します。分身への問い合わせを分身の席へ届け、断られた時は理由の分かるエラーを返します。"
+        "新しく入れたBellTeamで、Claudeの席が起動前に必ず失敗していた問題を直しました（ホームを本体から読めない時は、席の利用者に代わりに確かめてもらい、確かめられなくても1stアカウントで起動します）。"
       ]
     },
     {
