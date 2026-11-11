@@ -25,7 +25,7 @@ flowchart LR
   Stream -->|"35秒無通信・切断・503"| Retry["reconnecting：最後の図を薄くして残し<br/>1, 2, 4 … 30秒（±20%）で開いている間ずっと"]
   Stream -->|"404"| Probe["GET /api/lattice/charts/:id で見分ける<br/>LATTICE_CHART_NOT_FOUND → notFound（止める）<br/>それ以外 → unsupported（60秒ごとに確かめ直す）"]
   Stream -->|"401/403"| Login["failed（ログインが必要です。）"]
-  Model --> Calc["Core/LatticeChart.swift（純粋）<br/>LatticeLayout：レーン=担当（統括→動きの多い順→名前順→名簿にない→担当なし）、列=depth<br/>LatticeCounts・LatticeWaitRow・LatticeDetail・LatticeBanner<br/>LatticeCurve・LatticeFlow（粒）・LatticeChipPlacement・LatticeDiff（新しい完了）"]
+  Model --> Calc["Core/LatticeChart.swift（純粋）<br/>LatticeLayout：レーン=担当（LatticeCard.owner：producer、無ければ書かれたlaneの文字、無ければ担当なし。統括→動きの多い順→名前順→名簿にない→書かれた担当→担当なし）、列=depth<br/>LatticeCounts・LatticeWaitRow・LatticeDetail・LatticeBanner<br/>LatticeCurve・LatticeFlow（粒）・LatticeChipPlacement・LatticeDiff（新しい完了）"]
   ListModel -->|"統括のBot（createdBy）"| Model
   Calc --> Wide["広い面（Mac・iPad）<br/>上の帯：切り替え（popover）・ライブ・読み直し中・進み具合・数<br/>左：LatticeRail（担当の輪。押すとその担当だけ強調）<br/>中：横に送る盤（レーン・札・LatticeEdgesLayer・待ちの札、右端に余白）の上に不透明な名前の列（固定。札はその下へ潜る）<br/>右：LatticeWaitPanel"]
   Calc --> Compact["iPhone<br/>切り替え・数・待ちの流れ（横に送る札）・工程（段ごと/担当ごと の縦の流れ）"]
@@ -64,7 +64,12 @@ screen-specの表をそのまま描く。図がある間は消さない（帯と
 | 切断・503・35秒無通信 | 「工程表に再接続しています…」・図を薄く | 上の再接続 |
 | 404（見つからない） | 「この工程表は見つかりません。」・「一覧へ戻る」 | 利用者が戻る |
 | 404（旧本体） | 「このサーバーではまだ工程表を使えません。」・「閉じる」 | 60秒ごとに確かめ直す（一覧は10秒ごと） |
+| 書かれた担当（producerが無くlaneがある） | lane の文字そのままと頭文字の顔。メンバーのレーンの後ろに自分のレーン。会話は開けない。左のレールには出さない。待ちの流れと待ちの札も同じ決まり（待つ側＝待っている札の担当、つくる側＝待たれている札の担当）。[Owner on screen](../lattice/README.md#projection-rules-projectionmjs) | 本人が着手すると producer になり顔へ変わる |
 | 名簿にない担当 | 「?」と「名簿にないメンバー」。線と状態は消さない。会話を開くは押せない（Webの`canChat`と同じ） | 名簿に入れば次のsnapshotで名前になる |
+
+## 札の中身
+
+上から状態の行、題（2行まで、続きは…）、1行の注記（止まり＝理由、作業中＝◯◯がつくっています、ほか＝担当 ◯◯／担当なし）。札の高さ（`LatticeLayout.cardHeight` 116）は3つが重ならない高さ（screen-spec「Card body」）。
 
 ## 動き
 

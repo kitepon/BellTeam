@@ -4,6 +4,7 @@
 //   GET /api/lattice/charts/:id/events -> SSE `snapshot` on connect, `: hb` every 15 s.
 // Prints {"url"} on start. /test/reset, /test/mode?state=verified|unverified|last_verified|unavailable &list=ok|old|empty
 //   &stream=ok|drop (drop answers 503 to every stream) &unknown=1 (a producer that is not in the roster) &degraded=lattice-read,members
+//   &lanes=1 (production today: some unstarted cards carry only an authored lane text such as root / kiro, no producer)
 // /test/complete?card=p1/t04 pushes a snapshot where that card is done (the completion bloom). Times are relative to now.
 import { createServer } from 'node:http'
 
@@ -19,12 +20,15 @@ const ago = minutes => new Date(Date.now() - minutes * 60000).toISOString()
 
 let state, subscribers = new Set()
 function reset() {
-  state = { mode: { state: 'verified', list: 'ok', stream: 'ok', unknown: false, degraded: [] }, version: 1, done: new Set() }
+  state = { mode: { state: 'verified', list: 'ok', stream: 'ok', unknown: false, lanes: false, degraded: [] }, version: 1, done: new Set() }
 }
 reset()
 
+// lanes=1: authored lane texts that name no member (the server resolves only a member's Bot id or name into producer).
+const LANES = { t08: 'root', t10: 'web', t11: 'kiro' }
 function cards() {
-  const card = (id, title, cardState, producer, depth, extra = {}) => ({ id: `p1/${id}`, plan: 'p1', taskId: id, title, state: state.done.has(`p1/${id}`) ? 'done' : cardState, lane: producer, producer, depth, doneCondition: '', designMemo: '', startedAt: null, changedAt: ago(60), blockedReason: null, ...extra })
+  const authored = id => state.mode.lanes && LANES[id]
+  const card = (id, title, cardState, producer, depth, extra = {}) => ({ id: `p1/${id}`, plan: 'p1', taskId: id, title, state: state.done.has(`p1/${id}`) ? 'done' : cardState, lane: authored(id) || producer, producer: authored(id) ? null : producer, depth, doneCondition: '', designMemo: '', startedAt: null, changedAt: ago(60), blockedReason: null, ...extra })
   return [
     card('t01', '決定済み仕様の確認', 'done', 'bot-flora', 0, { doneCondition: '仕様の要点を一覧にする' }),
     card('t02', 'Latticeの読取口の確認', 'done', 'bot-flora', 0, { doneCondition: '読取の2つの入口を確かめる' }),
@@ -87,6 +91,7 @@ const server = createServer((request, response) => {
   if (path === '/test/mode') {
     for (const key of ['state', 'list', 'stream']) if (url.searchParams.has(key)) state.mode[key] = url.searchParams.get(key)
     if (url.searchParams.has('unknown')) state.mode.unknown = url.searchParams.get('unknown') === '1'
+    if (url.searchParams.has('lanes')) state.mode.lanes = url.searchParams.get('lanes') === '1'
     if (url.searchParams.has('degraded')) state.mode.degraded = url.searchParams.get('degraded').split(',').filter(Boolean)
     if (state.mode.stream === 'drop') { for (const [subscriber] of subscribers) subscriber.end(); subscribers.clear() } else push()
     return send(200, state.mode)

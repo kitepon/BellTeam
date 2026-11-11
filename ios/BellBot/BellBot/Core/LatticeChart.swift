@@ -19,12 +19,20 @@ struct LatticeCard: Decodable, Equatable, Identifiable {
     var designMemo: String?
     var state: String
     var producer: String?
+    /// The plan author's assignment as written (Owner on screen: used when there is no producer).
+    var lane: String?
     var startedAt: String?
     var changedAt: String?
     var blockedReason: String?
     var depth: Int?
 
     var status: LatticeTaskState { LatticeTaskState(state) }
+    /// Owner key (README "Owner on screen"): the producer's Bot id, else "lane:<text>", else nil (担当なし).
+    var owner: String? {
+        if let producer, !producer.isEmpty { return producer }
+        if let lane = lane?.trimmingCharacters(in: .whitespacesAndNewlines), !lane.isEmpty { return LatticePerson.lanePrefix + lane }
+        return nil
+    }
 }
 
 struct LatticeEdge: Decodable, Equatable {
@@ -157,17 +165,24 @@ struct LatticePerson: Equatable, Hashable {
     static let unknownName = "名簿にないメンバー"
     static let unassigned = "担当なし"
 
+    static let lanePrefix = "lane:"
+
     let botId: String
     let name: String
     let color: String
     let known: Bool
+    /// An authored lane text, not a member: drawn as text with its initial, no chat, not in the rail.
+    var lane = false
 
-    var initial: String { known ? String(name.prefix(1)) : "?" }
+    var initial: String { known || lane ? String(name.prefix(1)).uppercased() : "?" }
 
     static func lookup(_ snapshot: LatticeChartSnapshot?) -> (String?) -> LatticePerson? {
         let roster = Dictionary((snapshot?.members ?? []).map { ($0.botId, $0) }, uniquingKeysWith: { first, _ in first })
         return { botId in
             guard let botId, !botId.isEmpty else { return nil }
+            if botId.hasPrefix(lanePrefix) {
+                return LatticePerson(botId: botId, name: String(botId.dropFirst(lanePrefix.count)), color: "unknown", known: false, lane: true)
+            }
             guard let member = roster[botId] else { return LatticePerson(botId: botId, name: unknownName, color: "unknown", known: false) }
             return LatticePerson(botId: botId, name: member.name, color: member.color, known: true)
         }
@@ -276,9 +291,11 @@ enum LatticeText {
     }
 
     /// 札の下の一行：止まりは理由、未着手と着手可は終了条件、作業中は終了条件。
-    static func cardNote(_ card: LatticeCard) -> String {
-        if card.status == .blocked, let reason = card.blockedReason, !reason.isEmpty { return reason }
-        return card.doneCondition ?? ""
+    /// The card's one note line (screen-spec "Card body"): 理由 when blocked, ◯◯がつくっています while working, else 担当 ◯◯.
+    static func cardNote(_ card: LatticeCard, owner: LatticePerson?) -> String {
+        if card.status == .blocked, let reason = card.blockedReason, !reason.isEmpty { return "理由: \(reason)" }
+        if card.status == .inProgress, let owner { return "\(owner.name)がつくっています" }
+        return owner.map { "担当 \($0.name)" } ?? LatticePerson.unassigned
     }
 
     static func cardLabel(_ card: LatticeCard, producer: LatticePerson?) -> String {
@@ -360,9 +377,11 @@ struct LatticeWaitRow: Identifiable, Equatable {
         return snapshot.waitList.map { wait in
             let awaited = cards[wait.forCard]
             let status = LatticeTaskState(wait.producerState ?? awaited?.state)
-            let producer = lookup(wait.producer)
+            // Owner rule: the waiter owns the waiting card, the producer owns the awaited card.
+            let producer = lookup(awaited?.owner ?? wait.producer)
+            let waiter = lookup(cards[wait.waitingCard]?.owner ?? wait.waiter)
             return LatticeWaitRow(
-                id: wait.id, waiter: lookup(wait.waiter), producer: producer, title: awaited?.title ?? "",
+                id: wait.id, waiter: waiter, producer: producer, title: awaited?.title ?? "",
                 producerStatus: status,
                 stateText: LatticeText.producerState(awaited, state: status, producer: producer, now: now),
                 length: LatticeTime.since(wait.since, now: now), minutes: LatticeTime.minutes(since: wait.since, now: now),
@@ -395,12 +414,12 @@ struct LatticeDetail: Equatable {
         let lookup = LatticePerson.lookup(snapshot)
         func link(_ id: String) -> Link? {
             guard let other = cards[id] else { return nil }
-            let person = lookup(other.producer)
+            let person = lookup(other.owner)
             return Link(id: id, title: other.title, status: other.status, producer: person,
                         stateText: LatticeText.producerState(other, producer: person, now: now))
         }
         self.card = card
-        producer = lookup(card.producer)
+        producer = lookup(card.owner)
         stateText = LatticeText.producerState(card, producer: producer, now: now)
         previous = snapshot.edgeList.filter { $0.to == cardId }.compactMap { link($0.from) }
         next = snapshot.edgeList.filter { $0.from == cardId }.compactMap { link($0.to) }
@@ -423,7 +442,8 @@ struct LatticeLayout: Equatable {
     static let labelWidth: CGFloat = 112
     static let column: CGFloat = 184
     static let cardWidth: CGFloat = 148
-    static let cardHeight: CGFloat = 100
+    /// Tall enough for the badge row, a two-line title and the note line without overlap (screen-spec "Card body").
+    static let cardHeight: CGFloat = 116
     static let doneHeight: CGFloat = 44
     static let top: CGFloat = 34
     static let laneMin: CGFloat = 120
@@ -440,18 +460,19 @@ struct LatticeLayout: Equatable {
 
     static func height(_ card: LatticeCard) -> CGFloat { card.status.finished ? doneHeight : cardHeight }
 
-    /// レーンの順：統括、動いている数の多い順、名前順。名簿にない担当、担当なしは後ろ。
+    /// レーンの順：統括、動いている数の多い順、名前順。名簿にない担当、書かれた担当（lane）、担当なしは後ろ。
     init(_ snapshot: LatticeChartSnapshot, coordinator: String? = nil) {
         let lookup = LatticePerson.lookup(snapshot)
         let cards = snapshot.cardList
         var groups: [String: [LatticeCard]] = [:]
-        for card in cards { groups[card.producer ?? "", default: []].append(card) }
+        for card in cards { groups[card.owner ?? "", default: []].append(card) }
         func activity(_ key: String) -> Int {
             groups[key, default: []].filter { $0.status == .inProgress || $0.status == .blocked || $0.status == .ready }.count
         }
         func rank(_ key: String) -> Int {
-            if key.isEmpty { return 3 }
+            if key.isEmpty { return 4 }
             if key == coordinator { return 0 }
+            if key.hasPrefix(LatticePerson.lanePrefix) { return 3 }  // authored lanes after the member lanes
             return lookup(key)?.known == true ? 1 : 2
         }
         let keys = groups.keys.sorted { a, b in
