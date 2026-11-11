@@ -256,7 +256,7 @@ A test member (Claude, Fable) is the subject. No quota is burned on purpose and 
 4. Change the member to Opus: it goes back to the 1st at the next idle boundary and answers there. Change it back to Fable: it goes to the 2nd.
 5. At `resetAt` the entry clears, and Fable seats go back to the 1st at their next idle boundary. Record the actual time against `resetAt`.
 
-Acceptance of the recovery (Owner 2026-11-11: 「エレグとN102は貴重な開発、試験素材。安易に回復させるなよ。」; Trony 2026-11-12: no manual continuation for anyone): after Aiterm 0.70.26 and this execution module are live, N102 and the four other members whose holds eb8c94a5 cancelled without a continuation (bot-1f622329, bot-39be7047, bot-f81920b8, bot-fc291ae4) each get exactly one continuation; Elegg (already continued at 2026-11-12 01:14 JST) gets none. History: dc4b63be refused Esc on every hold (pty_key guard); eb8c94a5 cancelled all six holds and continued only Elegg (screen frame read as "continued").
+Acceptance of the recovery (Owner 2026-11-11: 「エレグとN102は貴重な開発、試験素材。安易に回復させるなよ。」; Trony 2026-11-12: no manual continuation for anyone): after Aiterm 0.70.26 and this execution module are live, each member whose last turn is still the limit end eb8c94a5 cancelled without a continuation gets exactly one continuation: N102, bot-1f622329, bot-f81920b8, bot-fc291ae4 (their limit-ended seat is their only seat, 2026-11-12 01:15 JST). Molly (bot-39be7047) has worked on her 1st seat since, and Elegg was continued at 01:14 JST: their last turns have no limit end, so none. History: dc4b63be refused Esc on every hold (pty_key guard); eb8c94a5 cancelled all six holds and continued only Elegg (screen frame read as "continued").
 
 ## Not covered
 
