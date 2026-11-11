@@ -36,6 +36,9 @@ public sealed record LatticeSnapshot
     public LatticePhase[] Phases { get; init; } = [];
     public LatticeEdge[] Edges { get; init; } = [];
     public LatticeWait[] Waits { get; init; } = [];
+    /// <summary>The app's Owner profile put on the snapshot by the window (not on the wire): names the reserved owner value. Null while unknown.</summary>
+    public string? OwnerName { get; init; }
+    public string OwnerAvatarVersion { get; init; } = "";
 }
 public sealed record LatticeMember(string BotId, string Name, string? Color, string? AvatarVersion);
 public sealed record LatticeCard
@@ -62,8 +65,12 @@ public sealed record LatticeEdge(string From, string To, bool Waiting);
 public sealed record LatticeWait(string? Waiter, string WaitingCard, string ForCard, string? Producer, string? ProducerState, DateTimeOffset? Since);
 
 /// <summary>A member as drawn: the roster entry, or 名簿にないメンバー (Known false, drawn as 「?」 and never opened as a chat).
-/// Authored: the plan's written lane text with no member behind it (BotId "", drawn with its initial, never a chat, not in the member rail).</summary>
-public sealed record LatticePerson(string BotId, string Name, string? Color, string AvatarVersion, bool Known, bool Authored = false);
+/// Authored: the plan's written lane text with no member behind it (BotId "", drawn with its initial, never a chat, not in the member rail).
+/// IsOwner: the Owner (指揮官, reserved id "owner"): drawn from the Owner profile with a lane of its own, never a chat, not in the member rail.</summary>
+public sealed record LatticePerson(string BotId, string Name, string? Color, string AvatarVersion, bool Known, bool Authored = false, bool IsOwner = false)
+{
+    public bool CanChat => Known && !IsOwner;
+}
 public sealed record LatticeStateInfo(string Badge, string Tone);
 public sealed record LatticeLane(string? BotId, LatticePerson? Member, double Y, double Height);
 public sealed record LatticePlaced(double X, double Y, double Width, double Height, int Depth, int Lane);
@@ -88,7 +95,7 @@ public sealed record LatticeListItem(string ProjectId, string Name, bool Coordin
 
 public static class LatticeChart
 {
-    public const string UnknownMember = "名簿にないメンバー", Unassigned = "担当なし";
+    public const string UnknownMember = "名簿にないメンバー", Unassigned = "担当なし", OwnerId = "owner", OwnerFallback = "指揮官";
     public const string Reconnecting = "工程表に再接続しています…", ListEmpty = "工程表はまだありません。メンバーがLatticeで工程をつくると、ここに並びます。",
         NewChart = "工程表はメンバーがLatticeでつくります。権限も参加登録もなく、誰でも開けます。", OldServer = "このサーバーではまだ工程表を使えません。", OldServerNext = "サーバーが更新されると使えるようになります。",
         NotFound = "この工程表は見つかりません。", Unavailable = "この工程表はまだ読めません。", UnavailableNext = "記録が整うと自動で表示します。", NoCards = "この工程表にはまだ工程がありません。",
@@ -123,7 +130,9 @@ public static class LatticeChart
     public static Func<string?, LatticePerson?> Lookup(LatticeSnapshot snapshot)
     {
         var roster = snapshot.Members.GroupBy(member => member.BotId).ToDictionary(group => group.Key, group => group.First());
-        return botId => botId is not { Length: > 0 } ? null : roster.TryGetValue(botId, out var member)
+        // The reserved owner value is the Owner (指揮官), who has no Bot id: drawn from the Owner profile, never the raw word.
+        var owner = new LatticePerson(OwnerId, snapshot.OwnerName is { Length: > 0 } name ? name : OwnerFallback, "amber", snapshot.OwnerAvatarVersion, true, IsOwner: true);
+        return botId => botId is not { Length: > 0 } ? null : botId == OwnerId ? owner : roster.TryGetValue(botId, out var member)
             ? new LatticePerson(botId, member.Name, member.Color, member.AvatarVersion ?? "", true)
             : new LatticePerson(botId, UnknownMember, null, "", false);
     }
@@ -297,7 +306,7 @@ public static class LatticeChart
             // The row reads on its own (screen-spec 待ちの流れ): the waiting card and its owner first, then what it waits for and who makes that.
             var waitingTitle = Title(waiting); var ownerText = waiter is null ? Unassigned : $"担当 {waiter.Name}";
             return new LatticeWaitRow($"{wait.WaitingCard}>{wait.ForCard}", waiter, producer, title, stateText, wait.ForCard, wait.WaitingCard, waitingTitle, ownerText,
-                SinceText(wait.Since, now), state == "blocked", StateInfo(state), producer?.Known == true, $"「{waitingTitle}」（{ownerText}）は、「{title}」が終わるのを待っています。つくっているのは{NameOf(producer)}、{stateText}");
+                SinceText(wait.Since, now), state == "blocked", StateInfo(state), producer?.CanChat == true, $"「{waitingTitle}」（{ownerText}）は、「{title}」が終わるのを待っています。つくっているのは{NameOf(producer)}、{stateText}");
         }).ToList();
     }
     /// <summary>The chip on a waiting edge: 「◯◯が待っています」, the waiter being the owner of the later card; 次の工程が待っています when it has no owner.</summary>
@@ -305,7 +314,7 @@ public static class LatticeChart
         => Owner(snapshot)(snapshot.Cards.FirstOrDefault(card => card.Id == edge.To)) is { } owner ? $"{owner.Name}が待っています" : "次の工程が待っています";
 
     public static IReadOnlyList<LatticeRailItem> Rail(LatticeSnapshot snapshot, LatticeLayout layout)
-        => layout.Lanes.Where(lane => lane.BotId is not null).Select(lane => new LatticeRailItem(lane.BotId!, lane.Member!,
+        => layout.Lanes.Where(lane => lane.BotId is not null && lane.Member?.IsOwner != true).Select(lane => new LatticeRailItem(lane.BotId!, lane.Member!,
             snapshot.Cards.Any(card => card.Producer == lane.BotId && card.State == "in-progress"), snapshot.Cards.Any(card => card.Producer == lane.BotId && card.State == "blocked"),
             snapshot.Waits.Count(wait => wait.Waiter == lane.BotId))).ToList();
 

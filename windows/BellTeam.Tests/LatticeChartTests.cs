@@ -103,6 +103,23 @@ public sealed class LatticeChartTests
     }
 
     [Fact]
+    public void TheOwnerValueIsTheOwnerProfileWithItsOwnLaneNoChatAndNoRailFace()
+    {
+        var snapshot = Snapshot([Card("1", "in-progress", "bot-a"), Card("2", "pending", "owner", 1)], [new("1", "2", true)], [new("owner", "2", "1", "bot-a", "in-progress", Now.AddMinutes(-3)), new("bot-a", "1", "2", "owner", "pending", Now.AddMinutes(-1))]);
+        var unknown = LatticeChart.Lookup(snapshot)("owner")!;
+        Assert.Equal((LatticeChart.OwnerFallback, true, true, false), (unknown.Name, unknown.IsOwner, unknown.Known, unknown.CanChat));
+        var named = snapshot with { OwnerName = "クオ", OwnerAvatarVersion = "v1" };
+        var layout = LatticeChart.Layout(named);
+        Assert.Equal(["アドミ", "クオ"], layout.Lanes.Select(lane => LatticeChart.NameOf(lane.Member)));
+        Assert.Equal(["bot-a"], LatticeChart.Rail(named, layout).Select(item => item.BotId));
+        var rows = LatticeChart.WaitRows(named, Now);
+        Assert.Equal(("担当 クオ", true), (rows[0].OwnerText, rows[0].CanChat));
+        Assert.False(rows[1].CanChat);   // the Owner makes the awaited card: no 会話を開く
+        Assert.Equal("クオが待っています", LatticeChart.EdgeChip(named, new("1", "2", true)));
+        Assert.DoesNotContain(LatticeChart.Detail(named, "2", Now)!.StateText, "owner");
+    }
+
+    [Fact]
     public void WaitRowsAreOldestFirstEmphasizeABlockedProducerAndNeverChatWithAnUnknownMember()
     {
         var snapshot = Snapshot([Card("1", "blocked", "bot-a", reason: "登録点が未定"), Card("2", "pending", "bot-k", 1), Card("3", "in-progress", "bot-ghost"), Card("4", "pending", "bot-k", 1)],

@@ -56,6 +56,8 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     private bool needsLogin;
     private string connectionStatus = "接続先を設定してください。";
     public string OwnerName { get; private set; } = "あなた";
+    /// <summary>The Owner profile as last read (avatar body omitted), null until read on this connection.</summary>
+    public OwnerProfile? Owner { get; private set; }
     // Above the member list only while both Claude slots are limited (Kiro, same as Web loadAccountsBanner).
     public string AccountsBanner { get; private set; } = "";
     public string AuthMode { get; private set; } = "local";
@@ -199,7 +201,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
         avatars.Clear();
         connection = new CancellationTokenSource();
         selected = null; stoppingBotId = null; stopResult = null; loadFailed = false; routingEnabled = null;
-        all.Clear(); pendingBotDeletions.Clear(); pendingSends.Clear(); queue = []; OwnerName = "あなた"; AuthMode = "local"; Entries.Clear(); Messages.Clear(); ReplyMembers.Clear();
+        all.Clear(); pendingBotDeletions.Clear(); pendingSends.Clear(); queue = []; Owner = null; OwnerName = "あなた"; AuthMode = "local"; Entries.Clear(); Messages.Clear(); ReplyMembers.Clear();
         Changed(nameof(OwnerName)); Changed(nameof(AuthMode)); Changed(nameof(OnlineSummary));
         HasMore = false;
         Loading = false;
@@ -301,7 +303,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
                 catch (Exception error) { SetRouting(null); ActionError = "返信者の自動選択の設定を読み取れませんでした。" + error.Message; }
             }
             token.ThrowIfCancellationRequested();
-            OwnerName = owner.Owner.Name; Changed(nameof(OwnerName));
+            Owner = owner.Owner; OwnerName = owner.Owner.Name; Changed(nameof(OwnerName));
             if (AccountsBanner != accountsBanner) { AccountsBanner = accountsBanner; Changed(nameof(AccountsBanner)); }
             queue = activity.Items; var working = queue.Where(item => item.Status == "running").Select(item => item.BotId).ToHashSet();
             var previous = all.ToDictionary(entry => entry.Target);
@@ -664,7 +666,7 @@ public sealed class Workspace : INotifyPropertyChanged, IDisposable
     public void SignOut()
     {
         connection?.Cancel(); selection?.Cancel(); ReturnToProfile(); ready = false; selected = null; stoppingBotId = null; stopResult = null; loadFailed = false; routingEnabled = null; terminals = null;
-        all.Clear(); queue = []; Entries.Clear(); Messages.Clear(); ReplyMembers.Clear(); drafts.Clear(); pendingSends.Clear(); attachmentPreviews.Clear(); avatars.Clear(); OwnerName = "あなた"; AccountsBanner = ""; Changed(nameof(AccountsBanner));
+        all.Clear(); queue = []; Entries.Clear(); Messages.Clear(); ReplyMembers.Clear(); drafts.Clear(); pendingSends.Clear(); attachmentPreviews.Clear(); avatars.Clear(); Owner = null; OwnerName = "あなた"; AccountsBanner = ""; Changed(nameof(AccountsBanner));
         HasMore = false; Loading = false; ConnectionError = ActionError = null; NeedsLogin = AuthMode == "cloudflare"; ConnectionStatus = "ログアウトしました。";
         foreach (var name in new[] { nameof(Connected), nameof(Selected), nameof(HasSelection), nameof(IsRoom), nameof(Title), nameof(Profile), nameof(OwnerName), nameof(OnlineSummary), nameof(ActivityText), nameof(HasActivity), nameof(ActivityRows), nameof(StopEnabled), nameof(CurrentBotCanStop), nameof(StopResult), nameof(LoadFailed), nameof(RoutingEnabled), nameof(ReplyTargetLabel), nameof(CanShowScreen) }) Changed(name);
         DraftChanged();

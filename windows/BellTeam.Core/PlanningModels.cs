@@ -133,6 +133,7 @@ public sealed record OwnerProfile
     public required string Name { get; init; }
     public string Profile { get; init; } = "";
     public string Avatar { get; init; } = "";
+    public string AvatarVersion { get; init; } = "";
     public string XUrl { get; init; } = "";
     public string GithubUrl { get; init; } = "";
     public OwnerLink[] Links { get; init; } = [];
