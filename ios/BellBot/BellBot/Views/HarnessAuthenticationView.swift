@@ -261,6 +261,8 @@ struct HarnessAuthenticationView: View {
         case .needsLogin:
             startButton("認証する", blocked: blocked)
             errorLine
+            // 失敗の後は開始ボタンが止まるので、読み直す出口を同じ所に出す。
+            if blocked { refreshButton }
         case .failed:
             startButton("認証し直す", blocked: blocked)
             refreshButton
