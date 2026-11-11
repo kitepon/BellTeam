@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-11T04:50:07Z",
-  "expiresAt": "2026-11-18T04:50:07Z",
+  "publishedAt": "2026-11-11T06:00:02Z",
+  "expiresAt": "2026-11-18T06:00:02Z",
   "releases": [
     {
       "componentId": "usage",
@@ -427,8 +427,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "c98398fec741dd89f05e22d243e1181a43bee33e",
-      "versionId": "64832ec945a5868ef98f9e401f01f04bf0f7e9c135ac7d418cc504d1dbb1d2cc",
+      "sourceCommit": "28d5bfbb6b67d7c1c11c86c4947c379ca0055c81",
+      "versionId": "e571fa9e4ca4c9ca9387009a2ceb1b181d0e12302858eb6299be2ff96e23eab7",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +436,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T030107Z/web-gateway-c98398fec741dd89f05e22d243e1181a43bee33e-linux-amd64.tar.gz",
-          "bytes": 5193955,
-          "sha256": "64832ec945a5868ef98f9e401f01f04bf0f7e9c135ac7d418cc504d1dbb1d2cc"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T050854Z/web-gateway-28d5bfbb6b67d7c1c11c86c4947c379ca0055c81-linux-amd64.tar.gz",
+          "bytes": 5194920,
+          "sha256": "e571fa9e4ca4c9ca9387009a2ceb1b181d0e12302858eb6299be2ff96e23eab7"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T030107Z/web-gateway-c98398fec741dd89f05e22d243e1181a43bee33e-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11158,
-          "sha256": "6ddcc7486fdc5b9e8faa57eaaca09a91675bad35a1704638cb4e034994ff3cb8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T050854Z/web-gateway-28d5bfbb6b67d7c1c11c86c4947c379ca0055c81-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10927,
+          "sha256": "10d786036bf7b55eeb077687bd34d8259251d29a40fdeaf3c18b33729341d025"
         },
-        "signerCommit": "c98398fec741dd89f05e22d243e1181a43bee33e"
+        "signerCommit": "28d5bfbb6b67d7c1c11c86c4947c379ca0055c81"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,13 +454,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "端末にはつながったのにフォルダの操作に失敗した時、『いまは端末に届きません』と出さず、端末側の説明をそのまま出すようにしました（フォルダ選びと、保存後のお知らせ）。"
+        "端末にはつながったのにフォルダの操作に失敗した時、端末側の説明をそのまま出すようにしました。秘密入力カードの選択肢を『1Passwordから選ぶ』『ここに入力する』にそろえ、ログインコードのような一度きりの値では『保存』と言わず、1回だけ使って消すと書くようにしました。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "c98398fec741dd89f05e22d243e1181a43bee33e",
-      "versionId": "8cd32f22c28a9d3a1257a9fe6236c5e2ddc1700d665163a297e1813e84669875",
+      "sourceCommit": "28d5bfbb6b67d7c1c11c86c4947c379ca0055c81",
+      "versionId": "fdbcc3c41348216095df264099689a4e2003a3fc10fe276b6e9f6c81125e9ac8",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -468,16 +468,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T030107Z/web-gateway-c98398fec741dd89f05e22d243e1181a43bee33e-linux-arm64.tar.gz",
-          "bytes": 5193955,
-          "sha256": "8cd32f22c28a9d3a1257a9fe6236c5e2ddc1700d665163a297e1813e84669875"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T050854Z/web-gateway-28d5bfbb6b67d7c1c11c86c4947c379ca0055c81-linux-arm64.tar.gz",
+          "bytes": 5194920,
+          "sha256": "fdbcc3c41348216095df264099689a4e2003a3fc10fe276b6e9f6c81125e9ac8"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T030107Z/web-gateway-c98398fec741dd89f05e22d243e1181a43bee33e-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11064,
-          "sha256": "55f2148965a6547909d99feeb2b1a582ef0ca3c67cadaf94ab80ffb6a37ea409"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T050854Z/web-gateway-28d5bfbb6b67d7c1c11c86c4947c379ca0055c81-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11068,
+          "sha256": "00b590c241e8f95829163cad6a65e6220924c53d58513fd2c379c3a2f4bb92f9"
         },
-        "signerCommit": "c98398fec741dd89f05e22d243e1181a43bee33e"
+        "signerCommit": "28d5bfbb6b67d7c1c11c86c4947c379ca0055c81"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -486,13 +486,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "端末にはつながったのにフォルダの操作に失敗した時、『いまは端末に届きません』と出さず、端末側の説明をそのまま出すようにしました（フォルダ選びと、保存後のお知らせ）。"
+        "端末にはつながったのにフォルダの操作に失敗した時、端末側の説明をそのまま出すようにしました。秘密入力カードの選択肢を『1Passwordから選ぶ』『ここに入力する』にそろえ、ログインコードのような一度きりの値では『保存』と言わず、1回だけ使って消すと書くようにしました。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "2c1ae8a5ee19dab31112bc51643eab8665781b16",
-      "versionId": "b894f48c4cb466e91e749c38307da39a518748826570fe6199512805a14dca30",
+      "sourceCommit": "966c6ea973e1e2096fabeda7fe29e8cf1a2d8c96",
+      "versionId": "1b21ee8e42ff161fe85b90616132f107e62ae0ad8acac4a3a17cf475eca40b4e",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T044931Z/execution-2c1ae8a5ee19dab31112bc51643eab8665781b16-linux-amd64.tar.gz",
-          "bytes": 3952171,
-          "sha256": "b894f48c4cb466e91e749c38307da39a518748826570fe6199512805a14dca30"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T051856Z/execution-966c6ea973e1e2096fabeda7fe29e8cf1a2d8c96-linux-amd64.tar.gz",
+          "bytes": 3952531,
+          "sha256": "1b21ee8e42ff161fe85b90616132f107e62ae0ad8acac4a3a17cf475eca40b4e"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T044931Z/execution-2c1ae8a5ee19dab31112bc51643eab8665781b16-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11302,
-          "sha256": "1ee5ebc9a71205beda599f95fcfeebdfd6ce2babbddf8c647d47d329ea93612d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T051856Z/execution-966c6ea973e1e2096fabeda7fe29e8cf1a2d8c96-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11177,
+          "sha256": "42c8f24c14d0df2b6d62d2e97415e5fddbfe56f6ccf7ba54b60994c2ac9a1c1f"
         },
-        "signerCommit": "2c1ae8a5ee19dab31112bc51643eab8665781b16"
+        "signerCommit": "966c6ea973e1e2096fabeda7fe29e8cf1a2d8c96"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "新しく入れたBellTeamで、Claudeの席が起動前に必ず失敗していた問題を直しました（ホームを本体から読めない時は、席の利用者に代わりに確かめてもらい、確かめられなくても1stアカウントで起動します）。"
+        "新しく入れたBellTeamで、Claudeの席が起動前に必ず失敗していた問題を直しました。メンバーを削除した時、すべての端末に残っているそのメンバーのAIの席（アカウント移動で残った1stの席も含む）を閉じるようにしました。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "2c1ae8a5ee19dab31112bc51643eab8665781b16",
-      "versionId": "a2efb153c499943c5699f311d58636b1164dfb0afc0f0eeb721c4a128f6d8b6e",
+      "sourceCommit": "966c6ea973e1e2096fabeda7fe29e8cf1a2d8c96",
+      "versionId": "87668b6e943a2d779d4362e52201a6146e51fd72075a11f32a4f9c0ca8372db7",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +533,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T044931Z/execution-2c1ae8a5ee19dab31112bc51643eab8665781b16-linux-arm64.tar.gz",
-          "bytes": 3952175,
-          "sha256": "a2efb153c499943c5699f311d58636b1164dfb0afc0f0eeb721c4a128f6d8b6e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T051856Z/execution-966c6ea973e1e2096fabeda7fe29e8cf1a2d8c96-linux-arm64.tar.gz",
+          "bytes": 3952527,
+          "sha256": "87668b6e943a2d779d4362e52201a6146e51fd72075a11f32a4f9c0ca8372db7"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T044931Z/execution-2c1ae8a5ee19dab31112bc51643eab8665781b16-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11177,
-          "sha256": "b88a6cd24c5003fd40de3a2a7d5b780eaa92667c8cb263f11b6cc905eef4e221"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T051856Z/execution-966c6ea973e1e2096fabeda7fe29e8cf1a2d8c96-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10989,
+          "sha256": "b80f2d8ab07bc84fae65c81eaf1f823be86b17cde6fa5cacbf44b31857e398d1"
         },
-        "signerCommit": "2c1ae8a5ee19dab31112bc51643eab8665781b16"
+        "signerCommit": "966c6ea973e1e2096fabeda7fe29e8cf1a2d8c96"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,7 +552,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "新しく入れたBellTeamで、Claudeの席が起動前に必ず失敗していた問題を直しました（ホームを本体から読めない時は、席の利用者に代わりに確かめてもらい、確かめられなくても1stアカウントで起動します）。"
+        "新しく入れたBellTeamで、Claudeの席が起動前に必ず失敗していた問題を直しました。メンバーを削除した時、すべての端末に残っているそのメンバーのAIの席（アカウント移動で残った1stの席も含む）を閉じるようにしました。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "994eccc1b0dd622adb28ac43cc81da9787b547d2",
-      "versionId": "sha256:9f6994fc615dc579a7c8e08bffe8936042992136adc5bc5598583d1e25f38074",
+      "sourceCommit": "966c6ea973e1e2096fabeda7fe29e8cf1a2d8c96",
+      "versionId": "sha256:4dfcb14d4321322d564cabccf2b3be62d3f5ec20576b73eb9b23f2019fd41254",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:9f6994fc615dc579a7c8e08bffe8936042992136adc5bc5598583d1e25f38074"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:4dfcb14d4321322d564cabccf2b3be62d3f5ec20576b73eb9b23f2019fd41254"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "更新の確認で、GitHubの問い合わせ回数の上限に引っかからなくなります。BellTeamが何度も再起動した時でも、更新の確認が止まりません。端末にはつながったのにフォルダの操作に失敗した時、端末側の理由をそのまま返すようになります。BellTeamの再起動や会話のやり直しのあとでも、Macなど外部の席でBellTeamの道具が使えなくならないようにします（Aiterm 0.70.18）。Windowsの席が起動できない問題を直します。"
+        "更新の確認で、GitHubの問い合わせ回数の上限に引っかからなくなります。BellTeamの再起動や会話のやり直しのあとでも、Macなど外部の席でBellTeamの道具が使えなくならないようにします。作業中の席へ送ったメッセージが「配達失敗」と記録される問題を直します（Aiterm 0.70.19）。端末にはつながったのにフォルダの操作に失敗した時、端末側の理由をそのまま返します。Windowsの席が起動できない問題を直します。一度きりの秘密の値を扱えるようにします。Throughline 0.18.0を入れます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "994eccc1b0dd622adb28ac43cc81da9787b547d2",
-      "versionId": "sha256:9f6994fc615dc579a7c8e08bffe8936042992136adc5bc5598583d1e25f38074",
+      "sourceCommit": "966c6ea973e1e2096fabeda7fe29e8cf1a2d8c96",
+      "versionId": "sha256:4dfcb14d4321322d564cabccf2b3be62d3f5ec20576b73eb9b23f2019fd41254",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:9f6994fc615dc579a7c8e08bffe8936042992136adc5bc5598583d1e25f38074"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:4dfcb14d4321322d564cabccf2b3be62d3f5ec20576b73eb9b23f2019fd41254"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "更新の確認で、GitHubの問い合わせ回数の上限に引っかからなくなります。BellTeamが何度も再起動した時でも、更新の確認が止まりません。端末にはつながったのにフォルダの操作に失敗した時、端末側の理由をそのまま返すようになります。BellTeamの再起動や会話のやり直しのあとでも、Macなど外部の席でBellTeamの道具が使えなくならないようにします（Aiterm 0.70.18）。Windowsの席が起動できない問題を直します。"
+        "更新の確認で、GitHubの問い合わせ回数の上限に引っかからなくなります。BellTeamの再起動や会話のやり直しのあとでも、Macなど外部の席でBellTeamの道具が使えなくならないようにします。作業中の席へ送ったメッセージが「配達失敗」と記録される問題を直します（Aiterm 0.70.19）。端末にはつながったのにフォルダの操作に失敗した時、端末側の理由をそのまま返します。Windowsの席が起動できない問題を直します。一度きりの秘密の値を扱えるようにします。Throughline 0.18.0を入れます。"
       ]
     }
   ],
