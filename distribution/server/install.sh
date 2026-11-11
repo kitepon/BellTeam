@@ -288,7 +288,8 @@ capture_previous() {
       "$old_working/compose.yaml")
         docker run --pull never --rm --network none --read-only --entrypoint /bin/cat "$old_image" /app/compose.yaml > "$saved/previous-compose.yaml" || return 1
         old_files="$saved/previous-compose.yaml";;
-      */.bellteam-compose.*/normal.json|*/.bellteam-compose.*/previous-normal.json)
+      */.bellteam-compose.*/normal.json|*/.bellteam-compose.*/previous-normal.json|*/.bellteam-repair.*/normal.json)
+        # existing-install-repair.md leaves the live model in <install>/.bellteam-repair.*/normal.json.
         [ -f "$old_files" ] || return 1
         old_install=$(dirname "$(dirname "$old_files")")
         [ "$old_working" = "$old_install" ] || [ "$old_working" = "$(dirname "$old_files")" ] || return 1;;

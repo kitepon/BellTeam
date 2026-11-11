@@ -510,6 +510,22 @@ test('旧公開保存世代のworking_dirからno-op更新してもraw image・�
  }
 })
 
+test('公開修理手順の.bellteam-repair世代から更新しても旧設定を証明して保存する',async t=>{
+ const f=await fixture(t,{server:true}),previous=f.install+'/.bellteam-repair.8muHzp';await mkdir(previous,{mode:0o700})
+ const model=structuredClone(f.normal);model.services.bellteam.image=currentImage;
+ await writeFile(previous+'/normal.json',JSON.stringify(model),{mode:0o600})
+ const current=JSON.parse(await readFile(f.root+'/runtime.json'));
+ current.Image=currentImage;current.Config.Image=currentImage;
+ current.Config.Labels['com.docker.compose.project.config_files']=previous+'/normal.json';
+ current.Config.Labels['com.docker.compose.project.working_dir']=f.install;
+ await writeFile(f.root+'/runtime.json',JSON.stringify(current))
+ const result=await f.run(),saved=await f.saved();assert.doesNotMatch(result.stderr,/PREVIOUS_MODEL_UNVERIFIED/)
+ assert.equal(JSON.parse(await readFile(saved+'/previous-normal.json')).services.bellteam.image,currentImage)
+ assert.deepEqual(JSON.parse(await readFile(previous+'/normal.json')),model)
+ const render=(await f.calls()).find(c=>c.args.includes('--env-file')&&c.args.includes(previous+'/normal.json'))
+ assert.ok(render);assert.equal(render.args[render.args.indexOf('--project-directory')+1],f.install)
+})
+
 test('forwardは原本保存後に旧container objectを除去し、server世代への復旧は保持する',async t=>{
  const f=await fixture(t),extra={TEST_REUSE_CID:'1'};
  await f.run([],extra);const first=JSON.parse(await readFile(f.root+'/runtime.json'));
