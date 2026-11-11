@@ -86,7 +86,7 @@ on:
       - .github/workflows/publish-server-image.yml
 
 concurrency:
-  group: public-server-image
+  group: public-server-image-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
