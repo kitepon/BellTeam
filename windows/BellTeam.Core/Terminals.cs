@@ -332,6 +332,19 @@ public static class TerminalErrorText
     // A keys route that answers 404 without TERMINAL_NOT_FOUND is a BellTeam without it (older body).
     public static bool IsKeysUnsupported(Exception error) => error is BellApiException { Status: HttpStatusCode.NotFound } && Code(error) != "TERMINAL_NOT_FOUND";
 
+    // A folders route that answers 404 (no TERMINAL_NOT_FOUND) or 405 is a BellTeam without the picker (older body).
+    public static bool IsFoldersUnsupported(Exception error) => error is BellApiException { Status: HttpStatusCode.MethodNotAllowed } || error is BellApiException { Status: HttpStatusCode.NotFound } && Code(error) != "TERMINAL_NOT_FOUND";
+
+    // The member save's input refusals (members C1), worded for the terminal's OS.
+    public static string? Member(string code, string os = TerminalOS.Macos) => code switch
+    {
+        "BOT_TERMINAL_ID_INVALID" => "端末の指定が正しくありません。一覧から端末を選び直してください。",
+        "BOT_PROJECT_ROOT_INVALID" when os == TerminalOS.Windows => "フォルダはドライブから始まる端末上の絶対パスにします（例 C:\\Users\\kite\\work\\app）。区切りは「\\」だけで、「/」「.」「..」や空の区切り、末尾の「\\」は使えません。",
+        "BOT_PROJECT_ROOT_INVALID" => "フォルダは「/」で始まる端末上の絶対パスにします（例 /Users/kite/work/app）。「.」「..」や空の区切り、末尾の「/」は使えません。",
+        "BOT_REMOTE_BINDING_INVALID" => "端末とフォルダは両方を指定します。BellTeamの中で動かす時は、両方を空にします。",
+        _ => null
+    };
+
     // The server's message for INVALID_TERMINAL starts with the field name (registry.mjs); it is never echoed to the screen.
     public static string Message(Exception error)
     {
@@ -380,6 +393,10 @@ public sealed class TerminalsApi(BellApi api)
     public Task RemoveKeyAsync(string id, TerminalKeyKind kind, CancellationToken token = default) => api.DeleteAsync($"{Path(id)}/keys/{kind.Wire()}", token);
     // Step 4: an empty POST; the login password goes only into the returned terminal.login card.
     public async Task<SecretRequest> AuthorizeAsync(string id, CancellationToken token = default) => (await api.PostAsync<TerminalKeyRequestResponse>(Path(id) + "/keys/ssh/authorize", new { }, token)).SecretRequest;
+    // S6: the folders of a terminal; no path = its user's home. Writes nothing.
+    public Task<TerminalFolders> FoldersAsync(string id, string? path, CancellationToken token = default) => api.GetAsync<TerminalFolders>(Path(id) + "/folders" + (path is null ? "" : "?path=" + TerminalFolderPicker.Query(path)), token);
+    // S6 「新しいフォルダ」: the existing folder route with `create`. One POST; never resent by the app.
+    public Task<TerminalFolderStatus> CreateFolderAsync(string id, string path, CancellationToken token = default) => api.PostAsync<TerminalFolderStatus>(Path(id) + "/folder", new { path, create = true }, token);
 }
 
 public enum TerminalListState { NotLoaded, Supported, Unsupported, Failed }
@@ -394,6 +411,8 @@ public sealed class TerminalsModel(TerminalsApi api)
     // A later read failed while a list is shown: the list stays (last known registry) with this reason.
     public string? ReadError { get; private set; }
     public bool Loading { get; private set; }
+    // The folders route answered 404 (not TERMINAL_NOT_FOUND) or 405: the member editor shows the typed path from the start. The next read that works clears it.
+    public bool FoldersUnsupported { get; private set; }
     public Dictionary<string, TerminalCheck> Checks { get; } = [];
     public HashSet<string> Checking { get; } = [];
     // The wait for 「この端末にこの鍵を入れる」, or the sentence after it. App memory only.
@@ -474,6 +493,18 @@ public sealed class TerminalsModel(TerminalsApi api)
         }
         finally { Checking.Remove(id); Notify(); }
     }
+
+    public async Task<TerminalFolders> FoldersAsync(string id, string? path, CancellationToken token = default)
+    {
+        try
+        {
+            var result = await api.FoldersAsync(id, path, token);
+            if (FoldersUnsupported) { FoldersUnsupported = false; Notify(); }
+            return result;
+        }
+        catch (Exception error) when (TerminalErrorText.IsFoldersUnsupported(error)) { if (!FoldersUnsupported) { FoldersUnsupported = true; Notify(); } throw; }
+    }
+    public Task<TerminalFolderStatus> CreateFolderAsync(string id, string path, CancellationToken token = default) => api.CreateFolderAsync(id, path, token);
 
     // A note about a new check is stale; the check itself replaces it.
     public void ClearNote(string id) { if (Authorizations.TryGetValue(id, out var state) && state is AuthorizeState.Shown) { Authorizations.Remove(id); Notify(); } }

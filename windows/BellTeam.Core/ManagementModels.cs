@@ -16,14 +16,23 @@ public sealed record BotSettings
     public string Model { get; init; } = "";
     public string ReasoningEffort { get; init; } = "";
     public bool FastMode { get; init; }
+    // members C1: null = this BellTeam predates the fields (never sent); "" = this BellTeam's own seat.
+    public string? TerminalId { get; init; }
+    public string? ProjectRoot { get; init; }
     [JsonIgnore] public BotSettings Normalized => this with { Name = Name.Trim(), Position = Position.Trim(), Model = Model.Trim(), ReasoningEffort = ReasoningEffort.Trim(), ProfileText = TextContent.Normalize(ProfileText), Personality = TextContent.Normalize(Personality), SpeechStyle = TextContent.Normalize(SpeechStyle), Role = TextContent.Normalize(Role) };
-    public Dictionary<string, object?> Fields() => new() { ["name"] = Name, ["profileText"] = ProfileText, ["personality"] = Personality, ["speechStyle"] = SpeechStyle, ["position"] = Position, ["role"] = Role, ["avatar"] = Avatar, ["color"] = Color, ["harness"] = Harness, ["model"] = Model, ["reasoningEffort"] = ReasoningEffort, ["fastMode"] = FastMode };
+    public Dictionary<string, object?> Fields()
+    {
+        var fields = new Dictionary<string, object?> { ["name"] = Name, ["profileText"] = ProfileText, ["personality"] = Personality, ["speechStyle"] = SpeechStyle, ["position"] = Position, ["role"] = Role, ["avatar"] = Avatar, ["color"] = Color, ["harness"] = Harness, ["model"] = Model, ["reasoningEffort"] = ReasoningEffort, ["fastMode"] = FastMode };
+        if (TerminalId is not null) fields["terminalId"] = TerminalId;
+        if (ProjectRoot is not null) fields["projectRoot"] = ProjectRoot;
+        return fields;
+    }
     public Dictionary<string, object?> ChangesFrom(BotSettings before)
     {
         var previous = before.Normalized.Fields();
-        return Normalized.Fields().Where(field => !Equals(previous[field.Key], field.Value)).ToDictionary(field => field.Key, field => field.Value);
+        return Normalized.Fields().Where(field => !previous.TryGetValue(field.Key, out var old) || !Equals(old, field.Value)).ToDictionary(field => field.Key, field => field.Value);
     }
-    public bool Matches(Dictionary<string, object?> changes) { var fields = Normalized.Fields(); return changes.All(change => Equals(fields[change.Key], change.Value)); }
+    public bool Matches(Dictionary<string, object?> changes) { var fields = Normalized.Fields(); return changes.All(change => fields.TryGetValue(change.Key, out var value) && Equals(value, change.Value)); }
 }
 public sealed record BotSettingsResponse { public required BotSettings Bot { get; init; } public bool Applying { get; init; } }
 public sealed record ModelChoice

@@ -76,6 +76,29 @@ public partial class App : Application
                     if (editorScene is "member-delete-pending" or "member-delete-unconfirmed") { var memberRoot = (FrameworkElement)memberWindow.Content; memberRoot.Measure(new Size(1120, 900)); memberRoot.Arrange(new Rect(0, 0, 1120, 900)); memberRoot.UpdateLayout(); memberWindow.View.ScrollToEndForRender(); }
                     WritePng(memberWindow, 1120, 900, sceneOutput); memberWindow.Close(); model.Dispose(); Shutdown(0); return;
                 }
+                if (editorScene.StartsWith("folder-", StringComparison.Ordinal))
+                {
+                    // 16b 端末とフォルダ: the picker over an existing member's window, or the new-member sheet with a terminal chosen. Reads are GETs; the terminal choice,
+                    // the picker's place and a refused save are set through seams, never sent.
+                    var picking = editorScene.StartsWith("folder-picker", StringComparison.Ordinal);
+                    MemberEditorView folderView; Window folderWindow;
+                    if (picking) { var memberWindow = window.CreateMemberWindowForRender(sceneId); await memberWindow.InitializeAsync(); await memberWindow.View.ReadyTask; (folderWindow, folderView) = (memberWindow, memberWindow.View); }
+                    else { window.ShowMemberSheet(); await window.PageReady; (folderWindow, folderView) = (window, (MemberEditorView)window.OpenEditor!); await folderView.ImagesReady; }
+                    var (width, height) = picking ? (1120, 900) : (1280, 820);
+                    var folderRoot = (FrameworkElement)folderWindow.Content; folderRoot.Measure(new Size(width, height)); folderRoot.Arrange(new Rect(0, 0, width, height)); folderRoot.UpdateLayout();
+                    if (!picking)
+                    {
+                        folderView.ChooseTerminalForRender("ハル", editorScene == "folder-new-windows" ? "fox" : "owner-macbook");
+                        if (editorScene == "folder-new-typed") { await folderView.OpenPickerForRender(null); folderView.ClosePickerForRender(); }
+                        if (editorScene == "folder-new-missing") folderView.ShowFolderRefusalForRender("FOLDER_MISSING");
+                        folderRoot.UpdateLayout();
+                        if (editorScene == "folder-new-missing") folderView.ScrollToEndForRender(); else folderView.ShowTerminalSectionForRender();
+                    }
+                    else await folderView.OpenPickerForRender(editorScene switch { "folder-picker-sub" => "/Users/kite/work", "folder-picker-created" => "/Users/kite/work/scratch", _ => null });
+                    folderRoot.UpdateLayout();
+                    if (folderWindow == window) await window.PrepareRenderAsync();
+                    WritePng(folderWindow, width, height, sceneOutput); folderWindow.Close(); model.Dispose(); Shutdown(0); return;
+                }
                 if (editorScene is "new-member") window.ShowMemberSheet();
                 else if (editorScene is "new-room") window.ShowRoomSheet(null);
                 else if (editorScene is "room" or "room-delete-alert") window.ShowRoomSheet(sceneId);
@@ -318,7 +341,7 @@ public partial class App : Application
                 Shutdown(0);
                 return;
             }
-            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-inspector <member|member-small|restart-busy|restart-success|room|sheet-small|sheet-large|sheet-unsupported|pending|pending-sheet> <URL> <会話ID> <PNG>、--render-screen <keys|approval|digits|sent|empty|offline|failed> <URL> <会話ID> <PNG>、--render-conversation <member|room|fork|secret|echo|states|stop|stop-notice|stop-member|draft|peer-sheet|stack|empty|failed> <URL> <会話ID> <PNG>、--render-secret <ssh-search|sudo-list|sudo-vault|reference|onetime|login|old> <URL> <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|features|notifications|connection|display|billing|update|about|stop>|schedules|updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>、--render-terminals <list|detail-auth-failed|detail-hostkey|detail-windows|detail-authorizing|keys|keys-pending|hostkey-sheet|editor-macos|editor-windows|editor-linux> <URL> <PNG>、--render-startup <opening|setup|guide|failure|login|onboarding-choose|onboarding-waiting|banner> <URL> <PNG>、--render-editor <member|settings|profile|feature|schedules|new-schedule|authentication> <URL> <ID> <PNG>、--render-editors <new-member|new-room|room|room-delete-alert|crop|member|member-delete-alert|member-delete-pending|member-delete-unconfirmed> <URL> <ID> <PNG> のいずれかです。");
+            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-inspector <member|member-small|restart-busy|restart-success|room|sheet-small|sheet-large|sheet-unsupported|pending|pending-sheet> <URL> <会話ID> <PNG>、--render-screen <keys|approval|digits|sent|empty|offline|failed> <URL> <会話ID> <PNG>、--render-conversation <member|room|fork|secret|echo|states|stop|stop-notice|stop-member|draft|peer-sheet|stack|empty|failed> <URL> <会話ID> <PNG>、--render-secret <ssh-search|sudo-list|sudo-vault|reference|onetime|login|old> <URL> <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|features|notifications|connection|display|billing|update|about|stop>|schedules|updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>、--render-terminals <list|detail-auth-failed|detail-hostkey|detail-windows|detail-authorizing|keys|keys-pending|hostkey-sheet|editor-macos|editor-windows|editor-linux> <URL> <PNG>、--render-startup <opening|setup|guide|failure|login|onboarding-choose|onboarding-waiting|banner> <URL> <PNG>、--render-editor <member|settings|profile|feature|schedules|new-schedule|authentication> <URL> <ID> <PNG>、--render-editors <new-member|new-room|room|room-delete-alert|crop|member|member-delete-alert|member-delete-pending|member-delete-unconfirmed|folder-new|folder-new-windows|folder-new-missing|folder-new-typed|folder-picker|folder-picker-sub|folder-picker-created> <URL> <ID> <PNG> のいずれかです。");
 
             MainWindow? main = null;
             instance = new SingleInstance(() => Dispatcher.Invoke(() => { main!.WindowState = main.WindowState == WindowState.Minimized ? WindowState.Normal : main.WindowState; main.Show(); main.Activate(); }));

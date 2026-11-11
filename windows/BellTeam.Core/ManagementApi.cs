@@ -4,7 +4,9 @@ public sealed class ManagementApi(BellApi api)
 {
     public BellApi Api { get; } = api;
     public Task<BotSettingsResponse> GetBotAsync(string id, CancellationToken token = default) => Api.GetAsync<BotSettingsResponse>(new ChatTarget(id, false).Path, token);
-    public Task<BotSettingsResponse> SaveBotAsync(string id, Dictionary<string, object?> changes, CancellationToken token = default) => Api.WriteAsync<BotSettingsResponse>(HttpMethod.Patch, new ChatTarget(id, false).Path, changes, token);
+    // createFolder (members S5) rides on this one save only (the server never stores it), so it joins the body and not `changes`, which the read-back compares.
+    public Task<BotSettingsResponse> SaveBotAsync(string id, Dictionary<string, object?> changes, CancellationToken token = default, bool createFolder = false)
+        => Api.WriteAsync<BotSettingsResponse>(HttpMethod.Patch, new ChatTarget(id, false).Path, createFolder ? new Dictionary<string, object?>(changes) { ["createFolder"] = true } : changes, token);
     public async Task<AvatarProfile> GetAvatarProfileAsync(string id, CancellationToken token = default) => (await Api.GetAsync<AvatarProfileResponse>(new ChatTarget(id, false).Path, token)).Bot;
     public async Task<AvatarSaveResult> SaveAvatarAsync(string id, AvatarVariant variant, AvatarSelection selection, CancellationToken token = default)
     {
@@ -21,9 +23,10 @@ public sealed class ManagementApi(BellApi api)
     }
     // POST /api/bots (src/members/profiles-http.mjs:63, BotRegistry.create). Like the Mac body, the image fields are present only for a variant that was chosen or reset.
     public Task<BotSettingsResponse> CreateBotAsync(BotSettings settings, params BotImageFields[] images) => CreateBotAsync(settings, images, default);
-    public Task<BotSettingsResponse> CreateBotAsync(BotSettings settings, BotImageFields[] images, CancellationToken token)
+    public Task<BotSettingsResponse> CreateBotAsync(BotSettings settings, BotImageFields[] images, CancellationToken token, bool createFolder = false)
     {
         var body = settings.Normalized.Fields(); body.Remove("avatar");
+        if (createFolder) body["createFolder"] = true;
         foreach (var image in images) foreach (var field in image.Wire) body[field.Key] = field.Value;
         return Api.PostAsync<BotSettingsResponse>("/api/bots", body, token);
     }

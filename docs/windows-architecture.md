@@ -93,10 +93,11 @@ flowchart LR
     A8[相関図の窓<br/>WorkGraphWindow・WorkGraphCanvas・WorkGraphText<br/>毎フレームの描画・入力・読み上げ。状態は持たない]
     A9[秘密の入力の窓 14<br/>SecretInputWindow（会話のカードから開くモーダル）<br/>1Passwordから選ぶ・読み出す / ここに入力する・貼り付ける<br/>一回だけの値（1Passwordを出さない・ログインは「パスワードを渡す」、ほかは「渡して続ける」）・検索欄・一覧<br/>欄は送信・閉じる・窓が非アクティブで消す]
     A10[設定の「端末」 16a<br/>TerminalListView・TerminalDetailView・TerminalEditorView・HostKeyView<br/>描くだけ。状態はTerminalsModelが持つ]
+    A11[メンバー編集の「端末とフォルダ」 16b<br/>MemberTerminalSection（動かす場所・フォルダの読み取り専用の表示・畳んだ「ほかの方法」の中の「パスを入力」・組の問題）<br/>FolderPickerView（編集の窓または追加のシートの中に重ねる。主窓のシートは使わない）<br/>保存の拒否の文と、FOLDER_MISSINGだけの「このフォルダを作って保存」はMemberEditorView]
   end
   subgraph Core[BellTeam.Core 通信とモデル]
     C1[Workspace・BellApi<br/>一覧・会話・送信・SSE<br/>メンバーのseatLaunch・configurationApplicationと行のseatは寛容に読む（不正な型は無しとして扱い、一覧・履歴を壊さない）]
-    C2[ManagementApi<br/>メンバー・ルーム・画像・書き出し・再起動（待ち180秒）・停止・モデル候補（display_name）]
+    C2[ManagementApi<br/>メンバー・ルーム・画像・書き出し・再起動（待ち180秒）・停止・モデル候補（display_name）<br/>メンバーのterminalId・projectRoot（応答にある本体だけ送る）とcreateFolder（その保存の本文だけ。保存結果の照合には入れない）]
     C3[ScreenInputModel<br/>キー・許可の送信と確認]
     C4[GoalsApi]
     C5[PlanningApi]
@@ -106,7 +107,7 @@ flowchart LR
     C7[UpdateCenter]
     C8[LocalSettings<br/>接続先・窓・通知・会話の開き方・要求ID]
     C11[SecretRequestApi・SecretInputModel 14<br/>inputOptions・oneTimeは寛容に読む（型違いは無し）<br/>onepassword-items（404は旧本体）・検索と絞り込み・文言・送信の本文]
-    C12[TerminalsApi・TerminalsModel 16a<br/>端末は寛容に読む（新しい項目は省略可）・一覧の状態（未読込・対応・旧本体・失敗＋前の一覧）<br/>確かめ結果・鍵の導入の待ち（上限なし・1秒間隔）はこのアプリの中だけ<br/>理由の文・OSごとの文（Mac・Windows PC・Linuxマシン）・端末の入力の検査・指紋の形・エラー符号の文]
+    C12[TerminalsApi・TerminalsModel 16a<br/>端末は寛容に読む（新しい項目は省略可）・一覧の状態（未読込・対応・旧本体・失敗＋前の一覧）<br/>確かめ結果・鍵の導入の待ち（上限なし・1秒間隔）はこのアプリの中だけ<br/>理由の文・OSごとの文（Mac・Windows PC・Linuxマシン）・端末の入力の検査・指紋の形・エラー符号の文<br/>16b：フォルダ一覧の読み・作成（folders・folder）・旧本体の判定（FoldersUnsupported）<br/>MemberBinding（組の規則・OSごとの絶対パス）・MemberFolder（既定のフォルダ・OSごとのprefill・FOLDER_*の文）・TerminalFolderPicker（名前の規則・パスの結合・一文）・TerminalFolderPickerModel（読み込み中・一覧・失敗・旧本体。作成は1回だけ送る）]
   end
   A1 --> C1
   A2 --> C1
@@ -123,6 +124,9 @@ flowchart LR
   A9 --> C11
   A6 --> A10
   A10 --> C12
+  A2 -->|"メンバー編集（別の窓・追加のシート）"| A11
+  A11 --> C12
+  A11 -->|"保存の本文にterminalId・projectRoot"| C2
   A10 -->|"鍵の依頼（botId:null）を窓へ渡す"| A9
   A8 -->|"アバター（既存の画像キャッシュ）"| C1
   C1 -->|"/api/session・bots（currentWork・seatLaunch・configurationApplication）・rooms・messages（seat）・queue・events"| API[共通入口 HTTP API・SSE]
@@ -135,7 +139,7 @@ flowchart LR
   C9 -->|"GET /api/accounts（404は旧本体。上限だけで席のアカウントが決まり、設定する規則は無い）"| API
   C10 -->|"GET /api/work-graph/events（BellApi.WorkGraphEventsAsync。snapshot・changeの名前付きイベント。35秒無音・切断・読めない応答は再接続、404は60秒ごとに確かめ直す、ログインが必要なら止まる）"| API
   C11 -->|"GET /api/secret-requests/{id}/onepassword-items（{items:[{title,vault,reference}]}。404は旧本体で入力欄だけ）・POST …/submit（{value}か{source:onepassword,reference}。op://で始まらない参照は送らない）・POST …/cancel（{}）。値は専用POSTだけで、一般の欄・ログ・例外へ出さない"| API
-  C12 -->|"GET /api/terminals（404・405は旧本体、503 TERMINALS_UNAVAILABLEは失敗で前の一覧は残す）・GET・PUT・DELETE /api/terminals/{id}（PUTは登録・編集とconfirmHostKey）・POST …/check・POST・DELETE …/keys/{ssh,sudo}（本文は空）・POST …/keys/ssh/authorize（本文は空）。書き込みは自動で再送しない"| API
+  C12 -->|"GET /api/terminals（404・405は旧本体、503 TERMINALS_UNAVAILABLEは失敗で前の一覧は残す）・GET・PUT・DELETE /api/terminals/{id}（PUTは登録・編集とconfirmHostKey）・POST …/check・POST・DELETE …/keys/{ssh,sudo}（本文は空）・POST …/keys/ssh/authorize（本文は空）・GET …/folders[?path=]（pathなしは端末のユーザーのホーム。読むだけ。404はTERMINAL_NOT_FOUND以外・405が旧本体）・POST …/folder（{path, create:true}。1回だけ）。書き込みは自動で再送しない"| API
 ```
 
 - 状態の所有：会話・メンバー・予定・ゴール・追加機能・全体停止など本体の状態は、共通入口のAPIだけで読み書きする。Windowsが持つのは、このPCの設定（接続先・窓・起動中の通知・会話の開き方・Updateの要求ID）とログイン情報だけ。
@@ -146,23 +150,22 @@ flowchart LR
 - 1Password連携の設定（W-MAC 15）：追加機能の一覧の`onePassword`行に状態のバッジ（連携中・未連携・失敗）と平易な失敗の文を出し、開くと専用のページ（`SettingsOnePassword.cs`）になる。状態・結果の一行・`ops_`の検査・https限定の案内リンクはCoreの`OnePassword.cs`。`guide`・`connection`は型の違う値を「無し」として読み、旧本体・崩れた本体でも一覧を壊さない（`onePassword`項目が無ければ何も足さない）。tokenは`PasswordBox`で、保存後も戻さず、ページを離れる・窓が非アクティブになる時に消す。保存は`PATCH /api/settings/onePassword`を1回だけ送り（自動再送なし）、応答の`setting`だけで結果の一行を決め、成功後に一覧を読み直してバッジを更新する。
 - 秘密の入力の窓（W-MAC 14）：`inputOptions.onePasswordAvailable`の時だけ入力方法を出し、1Passwordを上・既定にする（`preferred:'stored'`なら入力側が既定）。言い方は値の出どころだけを言う（1Passwordから選ぶ／読み出す、ここに入力する／貼り付ける）。保存するかどうかは欄の下の注意文だけが言う。`terminal.login`と`oneTime`は1Passwordを出さず、送信はログインが「パスワードを渡す」（Macと同じ）、`oneTime`が「渡して続ける」。`terminal.ssh`・`terminal.sudo`は`onepassword-items`の一覧から選ぶ（sudoは`/password`で終わる参照だけ。検索欄は題名・保管庫名、選択が外れたら解除）。`terminal.ssh`の入力は改行を保つ複数行の欄。値の欄と選択は、送信の直前・閉じた時・窓が非アクティブになった時に消す。検索語は秘密でなく送らない。状態と文言は`SecretInputModel`（Core）、窓は描くだけ。
 - 設定の「端末」（W-MAC 16a。契約は[terminals](architecture/modules/terminals/README.md)、Macは[apple/terminals](architecture/modules/apple/terminals.md)）：一覧は`GET /api/terminals`で、404・405（旧本体）は一行の案内、503 `TERMINALS_UNAVAILABLE`などの失敗は理由と「もう一度読み込む」で、読めていた一覧がある間は一覧を残して一行の注意だけを足す。詳細は接続先・確認結果・ホスト鍵・鍵・Claude Codeの更新（C8）・登録を消す。確認結果の理由の文（`CONNECTION_REFUSED`・`AUTH_FAILED`・`UNREACHABLE`ほか）はサーバーの`action`があればそれを、無ければOSごとの文（Mac・Windows PC・Linuxマシン）を出す。「ホスト鍵を確かめる」は確認結果がホスト鍵の理由の時だけ「ほかの方法」の中に出し、指紋は`SHA256:`＋43文字で検査して`PUT /api/terminals/{id} {confirmHostKey}`（Macの手入力のシートと同じ。`POST …/trust`は16cの自分のホスト鍵の確かめ）で送る。鍵の行（SSH鍵・sudo鍵。sudo鍵は`os`がwindowsの端末では出さない）は`POST・DELETE …/keys/{ssh,sudo}`（本文は空）で、返った依頼（`botId:null`）を秘密の入力の窓で開く。`AUTH_FAILED`の「この端末にこの鍵を入れる」は`POST …/keys/ssh/authorize`（本文は空）→`terminal.login`の窓→`GET /api/terminals/{id}`を1秒ごと（上限なし。詳細を離れると止める）→結果の文、鍵が入ったら確かめを自動で1回。確かめ結果と導入の待ちはこのアプリの中だけで、`Workspace.Terminals`が接続ごとに持ち、つなぎ直し（接続先の変更を含む）とログアウトで空に戻す。書き込み（PUT・DELETE・POST）は自動で再送しない。
+- メンバー編集の「端末とフォルダ」（W-MAC 16b。契約は[members C1・S5](architecture/modules/members/remote-seat.md)と[terminals「Folder picker」](architecture/modules/terminals/README.md)、Macは[apple/terminals](architecture/modules/apple/terminals.md)の`MemberTerminalSection`）：端末の一覧が読めて（200）メンバーの応答に`terminalId`がある本体だけ、保存の本文に`terminalId`・`projectRoot`を載せる（このBellTeamは両方空。片方だけは保存しない）。旧本体・一覧が読めない時は一行の案内だけで、項目を送らない。端末を選ぶと、空の（または前回のprefillのままの）フォルダ欄をその端末のOSの形（macOS `/Users/<user>/BellTeam/<slug>`、Linux `/home/<user>/…`、Windows `C:\Users\<user>\BellTeam\<slug>`）で埋め、名前・端末の変更に追従する。打ち込んだ値・選んだ値・保存済みの値は書き換えない。フォルダは読み取り専用の文字で出し、その下の「フォルダを選ぶ」が、窓の中に重ねるシート（`GET /api/terminals/{id}/folders`。必ず端末のユーザーのホームから。上へ・サブフォルダ・「このフォルダにする」・新しいフォルダ）を開く。新しいフォルダの名前は前後の空白を除き、空・`.`・`..`・`/`・`\`・NUL・255バイト超（Windowsは`:`も）を送らずに止め、`POST …/folder {path, create:true}`を1回だけ送って（通信失敗は作れたか不明なので再送せず一覧を読み直す）、現在の場所を読み直して作ったフォルダを開く。文字入力は畳んだ「ほかの方法 > パスを入力」の中だけで、フォルダの一覧の経路が無い本体（404が`TERMINAL_NOT_FOUND`以外、または405）は最初から出す。保存は組の規則（端末のOSの絶対パス）を先に検査し、拒否の`FOLDER_*`はフォームのフォルダ入りの符号ごとの文にして、`FOLDER_MISSING`だけ「このフォルダを作って保存」（同じ保存＋`createFolder:true`。保存済みの設定にも照合にも入れず、フォームを編集すると消える）を出す。シートは主窓のシートでなく、編集の窓（または追加のシート）の中に重ねる。
 
 ### Macの追従で足す部分（2026-11-11、作る前の図）
 
-[差分一覧](windows-mac-parity-gaps.md)の「Macの追従」14〜19の置き場所（14・16aは上の図へ移した）。各PRがこの図に沿って足し、作り終えたら上の図へ移す。
+[差分一覧](windows-mac-parity-gaps.md)の「Macの追従」14〜19の置き場所（14・16a・16bは上の図へ移した）。各PRがこの図に沿って足し、作り終えたら上の図へ移す。
 
 ```mermaid
 flowchart LR
   subgraph AppNew[BellTeam.App]
-    N5[メンバー編集 端末とフォルダ 16b<br/>フォルダ選びのシート]
     N6[このPCを追加 16c<br/>S1・S2のWindows版。細部はクラストと決める]
   end
   subgraph CoreNew[BellTeam.Core]
-    W3[TerminalsApiへ足す 16b・16c<br/>folders・folder（16b）・trust（16c）。一覧・登録・確かめ・鍵は16aで作った（上の図のC12）]
+    W3[TerminalsApiへ足す 16c<br/>trust。一覧・登録・確かめ・鍵は16a、folders・folderは16bで作った（上の図のC12）]
   end
-  N5 --> W3
   N6 --> W3
-  W3 -->|"/api/terminals*（ingress RS09/RS12：trust・folders・folder）"| APIx
+  W3 -->|"/api/terminals*（ingress RS09/RS12：trust）"| APIx
 ```
 
 - 端末と鍵の値はこのPCに置かない。鍵・パスワードは秘密の入力カードから本体へ送るだけで、一般の欄やログへ書かない。

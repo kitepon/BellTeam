@@ -151,6 +151,12 @@ public sealed class MemberEditorView : EditorFormView
     private readonly StackPanel notices = new(), deleteHost = new();
     private readonly List<UIElement> lockable = [];
     private bool canEditImages;
+    // 端末とフォルダ (16b). The folder picker is a sheet over this editor, in the editor's own window or sheet: the editor window is not the main window.
+    private MemberTerminalSection terminal = null!;
+    private readonly Grid pickerLayer = new() { Background = new SolidColorBrush(Color.FromArgb(0x59, 0, 0, 0)), Visibility = Visibility.Collapsed };
+    private FolderPickerView? picker;
+    // Members S5: the last save was refused with FOLDER_MISSING; 「このフォルダを作って保存」 repeats it with createFolder. Editing the form drops it.
+    private bool offersCreate;
     public Task ModelLoad { get; private set; } = Task.CompletedTask;
     // The large preview in the 画像 section has been decoded (the render waits for it).
     public Task ImagesReady { get; private set; } = Task.CompletedTask;
@@ -158,8 +164,12 @@ public sealed class MemberEditorView : EditorFormView
     {
         this.workspace = workspace; this.id = id;
         workspace.RosterChanged += RosterChanged;
+        Children.Add(pickerLayer); Panel.SetZIndex(pickerLayer, 4);
     }
-    public override void Dispose() { workspace.RosterChanged -= RosterChanged; base.Dispose(); }
+    public override void Dispose() { workspace.RosterChanged -= RosterChanged; terminal?.Dispose(); picker?.Detach(); base.Dispose(); }
+    internal MemberTerminalSection Terminal => terminal;
+    internal FolderPickerView? Picker => picker;
+    internal bool OffersCreateFolder => offersCreate;
     private bool DeletionPending => id is not null && workspace.BotDeletionPending(id);
     private bool Locked => DeletionPending || deletionUnconfirmed;
     private bool HasSavedResult => outcome is Outcome.Saved or Outcome.Confirmed;
@@ -196,7 +206,7 @@ public sealed class MemberEditorView : EditorFormView
             member.Add(Row(avatar, 0));
         }
         member.Add(Row(nameField.Element)); member.Add(Row(positionField.Element)); member.Add(Labeled("テーマ色", color));
-        name.TextChanged += (_, _) => { avatar?.SetIdentity(name.Text, (string?)color.SelectedValue ?? "violet"); Edited(); }; position.TextChanged += (_, _) => Edited();
+        name.TextChanged += (_, _) => { avatar?.SetIdentity(name.Text, (string?)color.SelectedValue ?? "violet"); terminal?.NameChanged(); Edited(); }; position.TextChanged += (_, _) => Edited();
         color.SelectionChanged += (_, _) => { avatar?.SetIdentity(name.Text, (string?)color.SelectedValue ?? "violet"); Edited(); };
         Form.Children.Add(Section("メンバー", member));
         if (avatar is not null) InitialLoads.Add(avatar.LoadAsync());
@@ -205,6 +215,10 @@ public sealed class MemberEditorView : EditorFormView
         // AI
         models = new ModelPicker(original); models.Edited += edited; ModelLoad = models.LoadAsync(api, Token); InitialLoads.Add(ModelLoad); ShowConfiguration();
         Form.Children.Add(Section("AI", models));
+        // 端末とフォルダ: the terminal list is read when the editor opens (Mac .task refreshTerminals); fields are sent only when it answered and the member has them.
+        terminal = new MemberTerminalSection(workspace.Terminals, id is null || original.TerminalId is not null, original.TerminalId ?? "", original.ProjectRoot ?? "", () => name.Text, edited, OpenPicker);
+        var terminalSection = Section("端末とフォルダ", terminal.Card, "-"); terminal.Footer = (TextBlock)terminalSection.Children[^1]; terminal.Render();
+        Form.Children.Add(terminalSection); InitialLoads.Add(workspace.Terminals.RefreshAsync(Token));
         // プロフィール
         var profileCard = new GroupCard();
         var rows = new[] { Paragraph("背景・見た目・関係性", original.ProfileText), Paragraph("性格・考え方", original.Personality), Paragraph("口調", original.SpeechStyle), Paragraph("担当する仕事", original.Role) };
@@ -214,12 +228,13 @@ public sealed class MemberEditorView : EditorFormView
         Form.Children.Add(deleteHost); Form.Children.Add(notices);
         RenderDelete(); RenderNotices(); Lock();
     }
-    private StackPanel Section(string header, UIElement group) { var section = FormSection(header, group); lockable.Add(section); return section; }
+    private StackPanel Section(string header, UIElement group, string? footer = null) { var section = FormSection(header, group, footer); lockable.Add(section); return section; }
 
     // Mac .disabled(deletionPending || deletionResultUnconfirmed) on the メンバー, 画像, AI and プロフィール sections.
     private void Lock() { foreach (var section in lockable) section.IsEnabled = !Locked; Notify(); }
     // Mac onChange(of: settings): editing again drops the old save result and its 保存結果を確認 line.
-    private void Edited() { if (outcome is null) return; outcome = null; submitted = []; RenderNotices(); Notify(); }
+    // The 「このフォルダを作って保存」 offer named the folder as it was, so an edited form drops it too.
+    private void Edited() { if (outcome is null && !offersCreate) return; outcome = null; offersCreate = false; submitted = []; RenderNotices(); Notify(); }
     private void RosterChanged()
     {
         if (id is null || IsClosing) return;
@@ -332,37 +347,53 @@ public sealed class MemberEditorView : EditorFormView
     internal void ShowDeletionUnconfirmedForRender() { deletionUnconfirmed = true; errorText = EditorText.Failure(new BellApiException("接続が切れました。")); RenderDelete(); RenderNotices(); Lock(); }
 
     // ---- 保存 ----
-    public override async Task SaveAsync()
+    public override Task SaveAsync() => SaveAsync(createFolder: false);
+    // 「このフォルダを作って保存」: the same save with createFolder, sent for this one save only.
+    internal Task CreateFolderAndSaveAsync() => SaveAsync(createFolder: true);
+    private async Task SaveAsync(bool createFolder)
     {
         if (!CanSave) return;
         await RunAsync(async () =>
         {
             var api = workspace.Management;
-            errorText = null; outcome = null; outcomeError = null; submitted = []; RenderNotices();
+            errorText = null; outcome = null; outcomeError = null; submitted = []; offersCreate = false; RenderNotices();
             if (string.IsNullOrWhiteSpace(name.Text)) { errorText = EditorText.NameRequired; RenderNotices(); return; }
             BotSettings edited;
             try { edited = models.Apply(original with { Name = name.Text, Position = position.Text, ProfileText = profile.Text, Personality = personality.Text, SpeechStyle = speech.Text, Role = role.Text, Color = (string?)color.SelectedValue ?? original.Color }); }
             catch (ArgumentException invalid) { errorText = invalid.Message; RenderNotices(); return; }
-            if (id is null) { await CreateAsync(api, edited); return; }
+            // members C1: the binding travels only when the terminal list was read and this member has the fields; both empty (this BellTeam) or both set.
+            if (terminal.BindingAvailable)
+            {
+                if (MemberBinding.Problem(terminal.TerminalId, terminal.ProjectRoot, terminal.Os) is { } wrong) { errorText = wrong; RenderNotices(); return; }
+                edited = edited with { TerminalId = terminal.TerminalId, ProjectRoot = terminal.ProjectRoot };
+            }
+            if (id is null) { await CreateAsync(api, edited, createFolder); return; }
             submitted = edited.ChangesFrom(original); submittedSettings = edited;
             if (submitted.Count == 0) { Close(); return; }
             BotSettingsResponse saved;
-            try { saved = await api.SaveBotAsync(id, submitted, Token); }
+            try { saved = await api.SaveBotAsync(id, submitted, Token, createFolder); }
             catch (OperationCanceledException) when (Token.IsCancellationRequested) { throw; }
             // No answer, or a server error: it may have saved. Read it back (never send again); the read decides what the owner is told.
             catch (Exception error) when (BellApiException.IsResultUnconfirmed(error)) { await ReadBackAsync(api, edited); RenderNotices(); Notify(); return; }
-            catch (Exception error) { errorText = error.Message; RenderNotices(); return; }
+            catch (Exception error) { errorText = SaveRefusal(error) ?? error.Message; RenderNotices(); return; }
             models.SetSavedFastMode(saved.Bot.FastMode); original = edited with { FastMode = saved.Bot.FastMode };
             await workspace.RefreshManagementAsync();
             if (saved.Applying) { outcome = Outcome.Saved; RenderNotices(); Notify(); return; }
             Close();
         });
     }
-    private async Task CreateAsync(ManagementApi api, BotSettings edited)
+    // Mac save(): a refused binding is worded per code (the server sends only the code and the status); only FOLDER_MISSING offers 「このフォルダを作って保存」.
+    private string? SaveRefusal(Exception error)
     {
-        try { await api.CreateBotAsync(edited, new[] { small, large }.OfType<BotImageFields>().ToArray(), Token); }
+        if (TerminalErrorText.Code(error) is not { } code) return null;
+        if (terminal.BindingAvailable && MemberFolder.Refusal(code, terminal.ProjectRoot, terminal.Os) is { } refusal) { offersCreate = refusal.OffersCreate; return refusal.Text; }
+        return TerminalErrorText.Member(code, terminal.Os);
+    }
+    private async Task CreateAsync(ManagementApi api, BotSettings edited, bool createFolder)
+    {
+        try { await api.CreateBotAsync(edited, new[] { small, large }.OfType<BotImageFields>().ToArray(), Token, createFolder); }
         catch (OperationCanceledException) when (Token.IsCancellationRequested) { throw; }
-        catch (Exception error) { errorText = EditorText.Failure(error); RenderNotices(); return; }
+        catch (Exception error) { errorText = SaveRefusal(error) ?? EditorText.Failure(error); RenderNotices(); return; }
         await workspace.RefreshManagementAsync(); Close();
     }
     // A GET only: compares what the server holds with what was submitted. A failed read is "unconfirmed", never a reason to send again.
@@ -395,9 +426,34 @@ public sealed class MemberEditorView : EditorFormView
             case Outcome.Unconfirmed: group.Add(Row(Text(EditorText.SaveUnconfirmed(outcomeError ?? new BellApiException("")), 12, Red))); group.Add(Row(LinkButton("保存結果を確認", () => _ = ConfirmSaveAsync()))); break;
         }
         if (errorText is not null) group.Add(Row(Text(errorText, 12, Red)));
+        if (offersCreate) group.Add(Row(TerminalParts.IconRow("", MemberFolder.CreateTitle, Violet, () => _ = CreateFolderAndSaveAsync())));
         if (group.Count == 0) return;
         var holder = new StackPanel { Margin = new Thickness(0, 14, 0, 0) }; holder.Children.Add(group); notices.Children.Add(holder);
     }
+
+    // ---- 端末とフォルダ: the folder picker sheet, drawn over this editor ----
+    // It always opens at the terminal user's home (terminals "Folder picker"); 「このフォルダにする」 writes the path into the field and closes it.
+    private void OpenPicker()
+    {
+        if (terminal.TerminalId.Length == 0 || picker is not null) return;
+        var terminalId = terminal.TerminalId; var terminals = workspace.Terminals;
+        var model = new TerminalFolderPickerModel(terminal.Os, (path, token) => terminals.FoldersAsync(terminalId, path, token), (path, token) => terminals.CreateFolderAsync(terminalId, path, token), Token);
+        picker = new FolderPickerView(model, path => { terminal.Chosen(path); ClosePicker(); }, ClosePicker);
+        pickerLayer.Children.Add(picker); pickerLayer.Visibility = Visibility.Visible;
+        PickerLoad = model.OpenAsync(null);
+    }
+    private void ClosePicker()
+    {
+        if (picker is null) return;
+        picker.Detach(); pickerLayer.Children.Clear(); pickerLayer.Visibility = Visibility.Collapsed; picker = null;
+    }
+    internal Task PickerLoad { get; private set; } = Task.CompletedTask;
+    // Render seams: the section scrolled into view, the picker at a given place, and the state after a refused save (nothing is sent).
+    internal void ShowTerminalSectionForRender() => ScrollToForRender((UIElement)terminal.Card.Parent);
+    internal void ChooseTerminalForRender(string nameText, string terminalId) { name.Text = nameText; terminal.Picker.SelectedValue = terminalId; }
+    internal Task OpenPickerForRender(string? path) { OpenPicker(); return path is null ? PickerLoad : picker!.Model.OpenAsync(path); }
+    internal void ClosePickerForRender() => ClosePicker();
+    internal void ShowFolderRefusalForRender(string code) { errorText = SaveRefusal(new BellApiException("", System.Net.HttpStatusCode.Conflict, code)); RenderNotices(); }
 }
 
 // Mac RoomEditor: ルーム (photo, name, shared work), メンバー, 代表, and 削除 for an existing room. Failures open the 操作を完了できませんでした alert.
