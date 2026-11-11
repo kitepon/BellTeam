@@ -217,7 +217,7 @@ SECTION completion
   RULE completion.fail-fast
     WHEN: a test, build, release or helper runs without you (background, CI, schedule) and you wait for its result
     DO: make it end and wake you at the first failure of any step it waits on, not only on success or a timeout.
-    WHY: a failed step that only ends at a timeout leaves every waiting peer stopped (2026-11-11 Owner: 「途中で失敗したらAIが気付ける仕組みで試験をしようよ」).
+    WHY: a failed step that only ends at a timeout leaves every waiting peer stopped (2026-11-11).
 
 SECTION character-sheet
   RULE sheet.reference
