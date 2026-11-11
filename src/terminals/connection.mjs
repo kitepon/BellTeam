@@ -332,6 +332,9 @@ export function createTerminalConnection({ registry, secrets, native, now = () =
       return done(read(result, os))
     } catch (error) {
       if (error?.code === 'FOLDER_NOT_PERMITTED') return done('FOLDER_NOT_PERMITTED')
+      // The terminal was reached but its Aiterm failed the folder command (rabbit 2026-11-11: aiterm-remote-terminal missing, exit 127).
+      if (!error?.reason && !CONNECTION_CODES.includes(error?.code) && CODE.test(error?.code ?? ''))
+        return { ...observation, reason: error.code, action: `${label(os)}にはつながりましたが、${label(os)}のAitermがフォルダの操作をできませんでした（${error.code}）。${label(os)}のAitermが全部入っているか確かめてください` }
       const reason = error?.reason ?? (CONNECTION_CODES.includes(error?.code) ? error.code : 'TERMINAL_UNAVAILABLE')
       return { ...observation, reason, ...(error?.action ? { action: error.action } : {}) }
     }
