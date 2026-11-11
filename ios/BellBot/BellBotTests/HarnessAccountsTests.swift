@@ -13,9 +13,14 @@ final class HarnessAccountsTests: XCTestCase {
     }
 
     func testSeatAndBannerTexts() {
-        XCTAssertEqual(AccountText.seats(["b1", "gone"], names: ["b1": "キロ"]), "使用中: キロ、gone", "名簿に無いIDはそのまま")
+        XCTAssertEqual(AccountText.seats(["b1", "gone"]), "2人が使用", "名前は並べない")
+        let fable = AccountLimit(scope: "fable", resetAt: "2026-11-08T14:00:00.000Z"), all = AccountLimit(scope: "all", resetAt: "2026-11-08T13:30:00.000Z")
+        XCTAssertNil(AccountText.limitLine([], now: now))
+        XCTAssertEqual(AccountText.limitLine([fable, all], runningOnOther: "2つ目", now: now), "上限中・22:30に戻ります（いまは2つ目で動いています）", "上限は1行、全モデルの時刻")
+        XCTAssertEqual(AccountText.limitLine([fable], now: now), "Fableが上限中・23:00に戻ります")
+        XCTAssertEqual(AccountText.limitLine([AccountLimit(scope: "all", resetAt: nil)], now: now), "上限中・戻る時刻は分かりません")
         XCTAssertEqual(AccountText.bothLimited(AllLimitedScope(scope: "fable", earliestResetAt: nil), now: now),
-                       "1stアカウントと2ndアカウントがどちらもFableが上限中です（解除時刻不明）")
+                       "1つ目と2つ目のアカウントがどちらもFableが上限中です（解除時刻不明）")
     }
 
     func testDecodesAccountsAndBotWithOrWithoutAccount() throws {

@@ -152,6 +152,48 @@ final class HarnessAuthenticationTests: XCTestCase {
         XCTAssertEqual(log.paths.last, "GET /api/harness-auth/codex")
     }
 
+    /// 11-11 20:0x JST：サーバーはpaste_codeで待っていたのに、行は/api/accountsのloggedInで「認証済み」を出した。段階はサーバーの公式認証だけで決める。
+    func testProgressNeverLooksFinishedWhileTheServerWaits() throws {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let waiting = try decoder.decode(HarnessAuthenticationResponse.self, from: Data(response("waiting", input: true).utf8)).auth
+        XCTAssertEqual(AuthenticationProgress(waiting), .waitingCode)
+        XCTAssertEqual(AuthenticationProgress(waiting).badge, "コード待ち")
+        XCTAssertTrue(AuthenticationProgress(waiting).detail.hasPrefix("まだ終わっていません。"))
+        XCTAssertEqual(AuthenticationProgress(waiting, sending: true), .sendingCode)
+        XCTAssertEqual(AuthenticationProgress(auth(.waiting)), .confirming)
+        XCTAssertEqual(AuthenticationProgress(auth(.authenticated)), .done)
+        XCTAssertEqual(AuthenticationProgress(auth(.authenticated), signedOut: true), .needsLogin, "失効したslotを認証済みと見せない")
+        XCTAssertEqual(AuthenticationProgress(auth(.blocked)), .needsLogin)
+        XCTAssertEqual(AuthenticationProgress(nil, loaded: false), .checking)
+        XCTAssertEqual(AuthenticationProgress(nil), .unknown)
+        let failed = SetupAuthentication(status: .failed, url: nil, userCode: nil, inputRequired: false, message: "通信できません。", authUi: nil)
+        XCTAssertEqual(AuthenticationProgress(failed).detail, "認証できませんでした。理由：通信できません。")
+        let failedStage = SetupAuthentication(status: .waiting, url: nil, userCode: nil, inputRequired: false, message: nil,
+            authUi: try decoder.decode(AuthenticationUI.self, from: Data(#"{"schema":"aiterm.auth-ui.v1","stage":"failed","title":"失敗","message":"コードが違います。","binding":null,"url":null,"user_code":null,"input":null,"prompt_digest":null,"choices":[]}"#.utf8)))
+        XCTAssertEqual(AuthenticationProgress(failedStage), .failed("コードが違います。"))
+        XCTAssertFalse(AuthenticationProgress(failedStage).inProgress, "失敗を出した後は読み直さない（画面のpollingもこの判定）")
+        XCTAssertTrue(AuthenticationProgress(waiting).inProgress)
+        XCTAssertNil(AuthenticationProgress.done.action, "使える行に主ボタンを出さない")
+        XCTAssertEqual(AuthenticationProgress.needsLogin.action, "認証する")
+        XCTAssertEqual(AuthenticationProgress.waitingCode.action, "続ける")
+        for progress in [AuthenticationProgress.checking, .unknown, .waitingSite, .waitingCode, .sendingCode, .confirming, .failed(nil), .needsLogin] {
+            XCTAssertNotEqual(progress.badge, "認証済み")
+            XCTAssertNotEqual(progress.tint, .green)
+        }
+    }
+
+    /// 開き直した画面でも、サーバーに端末が開いていれば「やめる」を出せる。
+    func testSessionOpenFollowsTheServerSession() async throws {
+        let log = RequestLog()
+        let flow = makeFlow(log) { _, _ in
+            (200, #"{"harness":"codex","auth":{"status":"waiting","url":null,"user_code":null,"input_required":false,"message":null,"session_id":"s1"}}"#)
+        }
+        try await flow.refresh()
+        XCTAssertFalse(flow.started)
+        XCTAssertTrue(flow.sessionOpen)
+    }
+
     private func auth(_ status: OfficialAuthenticationStatus) -> SetupAuthentication {
         SetupAuthentication(status: status, url: nil, userCode: nil, inputRequired: false, message: nil, authUi: nil)
     }

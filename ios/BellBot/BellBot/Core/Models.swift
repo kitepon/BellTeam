@@ -484,6 +484,8 @@ struct SetupAuthentication: Decodable, Equatable {
     let inputRequired: Bool
     let message: String?
     let authUi: AuthenticationUI?
+    /// 進行中の公式認証。旧本体には無い（nil）。
+    var sessionId: String? = nil
 }
 
 struct AuthenticationBinding: Codable, Equatable {

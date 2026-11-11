@@ -1,6 +1,6 @@
 # 設定・Ownerプロフィール・メンバー画像
 
-[全体図](overview.md) / [状態と同期](state-and-sync.md) / [メンバー・ルーム編集](members-and-rooms.md) / [関数索引](function-index.md)。固定sourceは全体図に記載。以下のファイル名は`ios/BellBot/BellBot/`からの相対名。
+[全体図](overview.md) / [設定の機能図と利用者の導線（正本）](settings-user-flow.md) / [状態と同期](state-and-sync.md) / [メンバー・ルーム編集](members-and-rooms.md) / [関数索引](function-index.md)。固定sourceは全体図に記載。以下のファイル名は`ios/BellBot/BellBot/`からの相対名。
 
 ## 設定画面の責任
 

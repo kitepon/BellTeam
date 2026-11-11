@@ -12,6 +12,8 @@ final class HarnessAuthenticationFlow: ObservableObject {
     @Published private(set) var started = false
     @Published private(set) var busy = false
     @Published private(set) var needsRefresh = false
+    /// 認証コードを送っている間だけ真。画面の段階「送っています」に使う。
+    @Published private(set) var sendingCode = false
     private var requestSequence = 0
 
     init(harness: HarnessAuthenticationOption, api: BellAPI, slot: String? = nil) {
@@ -21,6 +23,9 @@ final class HarnessAuthenticationFlow: ObservableObject {
     }
 
     var needsStartConfirmation: Bool { harness.needsStartConfirmation(auth) }
+    /// サーバーに公式認証の端末が開いているか。旧本体はsession_idを返さないので、この画面で始めたかで補う。
+    var sessionOpen: Bool { started || auth?.sessionId != nil }
+    var progress: AuthenticationProgress { AuthenticationProgress(auth, loaded: auth != nil, sending: sendingCode) }
     private var path: String { route("") }
     private var query: String { slot.map { "?slot=\($0)" } ?? "" }
     private func route(_ suffix: String) -> String { "/api/harness-auth/\(harness.id)\(suffix)\(query)" }
@@ -59,6 +64,8 @@ final class HarnessAuthenticationFlow: ObservableObject {
         guard !needsRefresh, auth?.authUi == ui, let reply = ui.reply(response) else {
             throw BellAPIError.server("認証画面が更新されました。状態を確認してから操作してください。")
         }
+        sendingCode = true
+        defer { sendingCode = false }
         do {
             try await perform(mutation: true) {
                 try await api.submitHarnessAuthenticationInput(harness: harness.id, slot: slot, body: reply)
