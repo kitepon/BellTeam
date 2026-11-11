@@ -311,8 +311,12 @@ public sealed partial class SettingsWindow
             foreach (var feature in features)
             {
                 var grid = new Grid(); grid.ColumnDefinitions.Add(new ColumnDefinition()); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                grid.Children.Add(Text(feature.Title, 13)); var status = Text(feature.StatusText, 13, feature.ApplyFailed ? Red : Muted); status.Margin = new Thickness(12, 0, 0, 0); Grid.SetColumn(status, 1); grid.Children.Add(status);
-                var row = FillRow(grid, () => _ = OpenFeatureAsync(feature)); System.Windows.Automation.AutomationProperties.SetName(row, feature.Title); card.Children.Add(row);
+                grid.Children.Add(Text(feature.Title, 13));
+                // 1Password連携 shows its connection badge and the plain failure text instead of the generic state (Mac FeatureSettingsList).
+                var onePassword = feature.Id == OnePasswordItem.Id;
+                FrameworkElement status = onePassword ? OnePasswordView.Badge(OnePasswordItem.State(feature)) : Text(feature.StatusText, 13, feature.ApplyFailed ? Red : Muted); status.Margin = new Thickness(12, 0, 0, 0); Grid.SetColumn(status, 1); grid.Children.Add(status);
+                var content = new StackPanel { Children = { grid } }; if (onePassword && feature.ApplyFailed) content.Children.Add(Text(feature.ErrorMessage, 12, Red, null, new Thickness(0, 5, 0, 0)));
+                var row = FillRow(content, () => _ = OpenFeatureAsync(feature)); System.Windows.Automation.AutomationProperties.SetName(row, feature.Title); card.Children.Add(row);
             }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
@@ -322,11 +326,30 @@ public sealed partial class SettingsWindow
     // The existing FeatureEditor, hosted in the pane. Secrets are cleared when the app window loses focus and when the editor closes.
     private async Task OpenFeatureAsync(FeatureSetting feature)
     {
+        if (feature.Id == OnePasswordItem.Id) { await OpenOnePasswordAsync(feature); return; }
         var editor = new FeatureEditor(workspace, feature.Id, feature.Title); embedded = editor;
         var content = editor.AsPage(Reopen, keepActions: true);
         ShowSubPage(feature.Title, content, Reopen);
         if (Window.GetWindow(pane) is { } host) { EventHandler clear = (_, _) => editor.ClearSecrets(); host.Deactivated += clear; editor.Closed += (_, _) => host.Deactivated -= clear; }
         await editor.InitializeAsync();
+    }
+
+    // The 1Password連携 page (Mac OnePasswordSettingEditor). The token is cleared when the page goes away (lifetime) and when the app window loses focus.
+    private OnePasswordView? onePassword;
+    private async Task OpenOnePasswordAsync(FeatureSetting feature)
+    {
+        var token = lifetime?.Token ?? Token;
+        var form = NewPage(null, scroll: false); ShowSubPage(feature.Title, new ScrollViewer { Content = form, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }, Reopen);
+        var view = onePassword = new OnePasswordView(workspace, feature, form, token, busy => Busy = busy);
+        EventHandler clear = (_, _) => view.ClearToken(); Deactivated += clear; token.Register(() => Deactivated -= clear);
+        await view.Ready;
+    }
+    // Render seam: opens the page of the mock's onePassword item in a named state ("checking" and "success" need a PATCH the mock never serves).
+    internal async Task OpenOnePasswordForRender(string scene)
+    {
+        await SelectAsync(SettingsPage.Features);
+        var feature = (await workspace.Planning.FeaturesAsync(Token)).Single(item => item.Id == OnePasswordItem.Id);
+        await OpenOnePasswordAsync(feature); onePassword!.ShowForRender(scene);
     }
 
     // ---- 通知 ----

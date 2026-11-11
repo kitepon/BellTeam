@@ -291,6 +291,7 @@ public partial class MainWindow : Window, IInspectorHost
     public void ShowSchedules() { if (!model.Connected) return; var editor = new SchedulesWindow(model, this); if (ShowPage(editor)) PageReady = editor.InitializeAsync(); }
     // Render seam: the schedule page when it is the open page.
     internal SchedulesWindow? SchedulesPage => page as SchedulesWindow;
+    internal SettingsWindow? SettingsPageWindow => page as SettingsWindow;
     public void ShowSettings(SettingsPage page = SettingsPage.Profile) { if (!model.Connected) return; var editor = new SettingsWindow(model, OpenConnectionSettings, notifications, () => _ = SignOutAsync()); if (ShowPage(editor)) PageReady = editor.InitializeAsync(page); }
     private bool ShowPage(EditorWindow editor)
     {

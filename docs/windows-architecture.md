@@ -39,7 +39,7 @@ flowchart LR
   Detail --> Inspector[詳細パネル Ctrl+Shift+I<br/>メンバー: 大画像と小画像・AIと操作（再起動は待つ間「再起動しています…」）・プロフィール・メンバーを編集<br/>ルーム: 共有する仕事・参加メンバー・ルームを編集]
   Inspector --> Screen[Botの画面<br/>1秒ごと・キーバー・許可の帯]
   subgraph Settings[設定 項目一覧300＋ページ]
-    S1[プロフィール] --- S2[AIの設定<br/>AIの認証・仕事の要約を書くAI] --- S3[追加機能] --- S4[通知<br/>起動中の通知の切替]
+    S1[プロフィール] --- S2[AIの設定<br/>AIの認証・仕事の要約を書くAI] --- S3[追加機能<br/>onePassword行はバッジ・平易な失敗の文<br/>1Password連携のページ] --- S4[通知<br/>起動中の通知の切替]
     S5[接続] --- S6[表示<br/>会話の開き方]
     S7[利用と課金<br/>案内とリンク] --- S8[アップデート] --- S9[このアプリについて]
     S10[全体停止]
@@ -94,7 +94,7 @@ flowchart LR
     C3[ScreenInputModel<br/>キー・許可の送信と確認]
     C4[GoalsApi]
     C5[PlanningApi]
-    C6[SettingsApi<br/>所有者・規範・追加機能・AIの認証・仕事の要約・全体停止]
+    C6[SettingsApi<br/>所有者・規範・追加機能（guide・connectionは寛容に読む）・AIの認証・仕事の要約・全体停止]
     C9[HarnessAccountsApi<br/>Claudeの1st・2ndアカウントの一覧]
     C10[WorkGraphModel・WorkGraphSimulation<br/>相関図の図の状態・シミュレーション・札の置き場所・入れ替え・clearance・当たり判定<br/>永続状態なし。文字の測り方は画面から受け取る]
     C7[UpdateCenter]
@@ -117,7 +117,7 @@ flowchart LR
   C3 -->|"/api/bots/{id}/screen・screen/key・screen/approval"| API
   C4 -->|"/api/goals・/api/bots/{id}/goal"| API
   C5 -->|"/api/schedules"| API
-  C6 -->|"/api/owner・user-rules・settings・settings/backgroundAgent・harness-auth（Claudeは?slot=2nd）・ai-control"| API
+  C6 -->|"/api/owner・user-rules・settings・settings/{id}（onePasswordは{enabled, values:{token}}を1回だけ送る。応答のsettingで結果を決め、成功後に/api/settingsを読み直す。tokenは画面に戻さず、記録しない）・settings/backgroundAgent・harness-auth（Claudeは?slot=2nd）・ai-control"| API
   C7 -->|"/api/updates・plans・operations"| API
   C9 -->|"GET /api/accounts（404は旧本体。上限だけで席のアカウントが決まり、設定する規則は無い）"| API
   C10 -->|"GET /api/work-graph/events（BellApi.WorkGraphEventsAsync。snapshot・changeの名前付きイベント。35秒無音・切断・読めない応答は再接続、404は60秒ごとに確かめ直す、ログインが必要なら止まる）"| API
@@ -128,6 +128,7 @@ flowchart LR
 - 相関図の窓はWindowsの状態を何も保存しない。描画中の図はWorkGraphModelだけが持ち、窓を閉じたら捨てる。窓を閉じるか最小化している間は新着を受け取らず、開き直すと新しいsnapshotを今の図と突き合わせて動かす。接続が替わる（ログインし直し・接続先の変更）と、その接続の新着へ取り直す。窓は描いている図の接続先（`WorkGraphWindow.Origin`）を持つ。同じ接続先へのつなぎ直しは図を残して新しいsnapshotと突き合わせ、別の接続先になったら図を捨てて空の図から始め、その接続先の最初のsnapshotで埋まる。接続先の違う図のメンバーを押しても会話は開かず、その時点で図を捨てて今の接続先の新着へ取り直す。
 - メンバーを開くと`MainWindow.OpenFromWorkGraphAsync`が、通知と同じ会話の開き方（`OpenConversationAsync`）で本体の窓の会話を開く。相関図の窓は残る。
 - メンバーの状態の行（W-MAC 17）：Coreは`/api/bots`の`seatLaunch`・`configurationApplication`と`messages`の`seat`を、型の違う値を「無し」として読む（`MemberState.cs`）。画面は、サイドバーの行と会話の上端に赤い「端末で起動できません：…」、メンバー編集の「AI」の最後に状態の印付きの1行、時刻の前の「分身」の札を出す。モデル候補は`display_name`（空ならid）を見せ、選ぶ値と保存する値はid。再起動は1回だけ送り、待ちは180秒。新しい状態の保存は無い。
+- 1Password連携の設定（W-MAC 15）：追加機能の一覧の`onePassword`行に状態のバッジ（連携中・未連携・失敗）と平易な失敗の文を出し、開くと専用のページ（`SettingsOnePassword.cs`）になる。状態・結果の一行・`ops_`の検査・https限定の案内リンクはCoreの`OnePassword.cs`。`guide`・`connection`は型の違う値を「無し」として読み、旧本体・崩れた本体でも一覧を壊さない（`onePassword`項目が無ければ何も足さない）。tokenは`PasswordBox`で、保存後も戻さず、ページを離れる・窓が非アクティブになる時に消す。保存は`PATCH /api/settings/onePassword`を1回だけ送り（自動再送なし）、応答の`setting`だけで結果の一行を決め、成功後に一覧を読み直してバッジを更新する。
 ### Macの追従で足す部分（2026-11-11、作る前の図）
 
 [差分一覧](windows-mac-parity-gaps.md)の「Macの追従」14〜19の置き場所。各PRがこの図に沿って足し、作り終えたら上の図へ移す。
@@ -136,7 +137,6 @@ flowchart LR
 flowchart LR
   subgraph AppNew[BellTeam.App]
     N2[秘密の入力カード 14<br/>1Passwordから選ぶ・読み出す / ここに入力する・貼り付ける<br/>一回だけの値・検索欄]
-    N3[設定 追加機能 1Password連携 15]
     N4[設定 端末 16a<br/>一覧・詳細・編集・ホスト鍵・鍵の行・理由の文・鍵の導入]
     N5[メンバー編集 端末とフォルダ 16b<br/>フォルダ選びのシート]
     N6[このPCを追加 16c<br/>S1・S2のWindows版。細部はクラストと決める]
@@ -146,14 +146,12 @@ flowchart LR
     W3[TerminalsApi 16<br/>端末・確かめ・鍵・フォルダ]
   end
   N2 --> W2
-  N3 --> C6x[SettingsApi]
   N4 --> W3
   N4 --> N2
   N5 --> W3
   N6 --> W3
   W2 -->|"GET /api/secret-requests/{id}/onepassword-items・POST …/submit"| APIx
   W3 -->|"/api/terminals*（ingress RS09/RS12：一覧・登録・確かめ・trust・keys/{ssh,sudo}・keys/ssh/authorize・folders・folder）"| APIx
-  C6x -->|"PATCH /api/settings/onePassword"| APIx
 ```
 
 - 端末と鍵の値はこのPCに置かない。鍵・パスワードは秘密の入力カードから本体へ送るだけで、一般の欄やログへ書かない。

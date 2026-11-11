@@ -161,11 +161,17 @@ public sealed class FeatureSetting
     public required string Status { get; init; }
     public required FeatureField[] Fields { get; init; }
     public bool ApplyFailed { get; init; }
+    public string ErrorMessage { get; init; } = "";
+    // onePassword only. Read leniently (OnePasswordItem.Lenient): a body that does not match shows nothing new and never fails the list.
+    public FeatureGuide? Guide { get; init; }
+    public OnePasswordConnection? Connection { get; init; }
     public string StatusText => ApplyFailed ? "反映エラー" : Status switch { "enabled" => "有効", "disabled" => "無効", _ => "未設定" };
     public static FeatureSetting Read(JsonElement value) => new()
     {
         Id = value.GetProperty("id").GetString()!, Title = value.GetProperty("title").GetString()!, Enabled = value.GetProperty("enabled").GetBoolean(), Status = value.GetProperty("status").GetString()!,
         ApplyFailed = value.TryGetProperty("error", out var error) && error.ValueKind != JsonValueKind.Null,
+        ErrorMessage = error.ValueKind == JsonValueKind.Object && error.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.String ? message.GetString()! : "",
+        Guide = OnePasswordItem.ReadGuide(value), Connection = OnePasswordItem.ReadConnection(value),
         Fields = value.GetProperty("fields").EnumerateArray().Select(field => new FeatureField(field.GetProperty("key").GetString()!, field.GetProperty("label").GetString()!, field.GetProperty("secret").GetBoolean(), field.GetProperty("secret").GetBoolean() ? "" : field.GetProperty("value").GetString()!, field.GetProperty("configured").GetBoolean())).ToArray()
     };
 }
