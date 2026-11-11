@@ -195,14 +195,20 @@ public sealed class BellApi : IDisposable
     /// <summary>GET /api/work-graph/events: named snapshot/change events. Bad JSON throws <see cref="JsonException"/>, which the work graph shows and reconnects on.</summary>
     public async IAsyncEnumerable<WorkGraphEvent> WorkGraphEventsAsync(Action onActivity, [EnumeratorCancellation] CancellationToken token = default)
     {
-        using var response = await OpenEventStreamAsync("/api/work-graph/events", token);
-        onActivity();
-        await using var stream = await response.Content.ReadAsStreamAsync(token);
-        await foreach (var (name, data) in SseReader.ReadRawAsync(stream, onActivity, token))
+        await foreach (var (name, data) in EventStreamAsync("/api/work-graph/events", onActivity, token))
         {
             using var document = JsonDocument.Parse(data);
             yield return new WorkGraphEvent(name, document.RootElement.Clone());
         }
+    }
+
+    /// <summary>Named SSE events of one stream. <paramref name="onActivity"/> runs on open and for every line; the stream ending is an error (the caller reconnects).</summary>
+    public async IAsyncEnumerable<(string? Name, string Data)> EventStreamAsync(string path, Action onActivity, [EnumeratorCancellation] CancellationToken token = default)
+    {
+        using var response = await OpenEventStreamAsync(path, token);
+        onActivity();
+        await using var stream = await response.Content.ReadAsStreamAsync(token);
+        await foreach (var item in SseReader.ReadRawAsync(stream, onActivity, token)) yield return item;
         throw new BellApiException(BellApiException.StreamEndedMessage, code: BellApiException.StreamEndedCode);
     }
 
