@@ -69,6 +69,14 @@ test('projection: a lane naming a member (Bot id or name, Latin case-insensitive
   assert.deepEqual(projectChart({ read: readOf([plan]), members }).cards.map(card => [card.lane, card.producer]), [['キロ', 'bot-k'], ['n102', 'bot-n'], ['kiro', null]])
 })
 
+test('projection: a finished card with a lane shows the lane owner, not the coordinator who closed it', () => {
+  const start = id => ({ kind: 'start', task_id: id, actor: { agent: 'bot-co' }, recorded_at: at(5) })
+  const plan = planMember({ tasks: [{ task_id: 'a', lane: 'キロ' }, { task_id: 'b', lane: 'kiro' }, { task_id: 'c' }, { task_id: 'd', lane: 'キロ' }],
+    states: [['a', 'done'], ['b', 'done'], ['c', 'done'], ['d', 'in-progress']], events: ['a', 'b', 'c', 'd'].map(start) })
+  const members = [{ id: 'bot-k', name: 'キロ', color: 'mint', avatarVersion: '', deleting: false }, { id: 'bot-co', name: 'トロニー', color: 'indigo', avatarVersion: '', deleting: false }]
+  assert.deepEqual(projectChart({ read: readOf([plan]), members }).cards.map(card => card.producer), ['bot-k', null, 'bot-co', 'bot-co'])
+})
+
 test('projection: cross-plan edges minus tombstones', () => {
   const p1 = planMember({ tasks: [{ task_id: 't1' }, { task_id: 't2' }], states: [['t1', 'in-progress'], ['t2', 'pending']] })
   const p2 = planMember({ plan: 'p2', tasks: [{ task_id: 't1' }], states: [['t1', 'pending']], scoped: [
