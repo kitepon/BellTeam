@@ -173,6 +173,7 @@ export class FeatureSettings {
         fields: feature.fields.map(field => ({
           key: field.key, label: field.label, secret: field.secret === true,
           value: field.secret ? '' : values[field.key], configured: Boolean(values[field.key].trim()),
+          required: !field.optional && !(feature.id === 'notifications' && this.legacyAPNsConfigured),
         })),
       }
     })

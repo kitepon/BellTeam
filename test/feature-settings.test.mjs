@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { FeatureSettings, FeatureSettingsError } from '../src/feature-settings.mjs'
 import { SecretRequests } from '../src/secret-requests.mjs'
+import { usageSettingValid } from '../src/usage/projection.mjs'
 
 async function fixture(t, options = {}) {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-settings-'))
@@ -69,7 +70,7 @@ test('秘密の登録・無効化・読戻しとUIからの明示削除を扱う
   const { settings, root } = await fixture(t)
   const enabled = await settings.update('routing', { enabled: true, values: { apiKey: '  routing-secret  ' } }, { allowSecretValues: true })
   assert.equal(enabled.status, 'enabled')
-  assert.deepEqual(enabled.fields[0], { key: 'apiKey', label: 'TypeSafe APIキー', secret: true, value: '', configured: true })
+  assert.deepEqual(enabled.fields[0], { key: 'apiKey', label: 'TypeSafe APIキー', secret: true, value: '', configured: true, required: true })
   assert.equal((await settings.update('routing', { enabled: false })).status, 'disabled')
   const restored = new FeatureSettings({ root, environment: {} })
   await restored.initialize()
@@ -187,6 +188,19 @@ test('破損した保存設定と不正な移行入力を隠さずエラーに�
   await assert.rejects(new FeatureSettings({ root: separate, environment: {} }).initialize(), errorCode('FEATURE_VALUE_INVALID'))
 })
 
+test('各項目は有効化に必須かを返し、親の検証は新旧どちらの形も受ける', async t => {
+  const { settings } = await fixture(t)
+  const required = Object.fromEntries(settings.list().map(item => [item.id, item.fields.filter(field => field.required).map(field => field.key)]))
+  assert.deepEqual(required.cloudflare, ['teamDomain', 'audience'])
+  assert.deepEqual(required.notifications, ['relayUrl'])
+  for (const item of settings.list()) {
+    assert.ok(usageSettingValid(item))
+    assert.ok(usageSettingValid({ ...item, fields: item.fields.map(({ required, ...field }) => field) }))
+  }
+  const item = settings.list()[0]
+  assert.equal(usageSettingValid({ ...item, fields: item.fields.map(field => ({ ...field, required: 'yes' })) }), false)
+})
+
 test('旧APNs設定は初回だけ通知ONへ移行し、OFF保存を再起動でも保持する', async t => {
   const root = await mkdtemp(join(tmpdir(), 'bellteam-settings-apns-'))
   t.after(() => rm(root, { recursive: true, force: true }))
@@ -196,6 +210,7 @@ test('旧APNs設定は初回だけ通知ONへ移行し、OFF保存を再起動�
   const settings = new FeatureSettings({ root, environment: {} })
   await settings.initialize()
   assert.deepEqual(settings.configuration('notifications'), { enabled: true, relayUrl: '' })
+  assert.equal(settings.list().find(item => item.id === 'notifications').fields[0].required, false)
   assert.equal(settings.list().find(item => item.id === 'notifications').status, 'enabled')
   await settings.update('notifications', { enabled: false })
   const restored = new FeatureSettings({ root, environment: {} })
