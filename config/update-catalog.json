@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-11T03:24:58Z",
-  "expiresAt": "2026-11-18T03:24:58Z",
+  "publishedAt": "2026-11-11T03:38:37Z",
+  "expiresAt": "2026-11-18T03:38:37Z",
   "releases": [
     {
       "componentId": "usage",
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "7ff04a9538264c6c7ecee54e91a1f93b68cdd866",
-      "versionId": "sha256:3c43663196649ffec31d1fc39fe5411a1ad5d6e6bd0068dad666be573084fbc0",
+      "sourceCommit": "994eccc1b0dd622adb28ac43cc81da9787b547d2",
+      "versionId": "sha256:9f6994fc615dc579a7c8e08bffe8936042992136adc5bc5598583d1e25f38074",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3c43663196649ffec31d1fc39fe5411a1ad5d6e6bd0068dad666be573084fbc0"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:9f6994fc615dc579a7c8e08bffe8936042992136adc5bc5598583d1e25f38074"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "更新の確認で、GitHubの問い合わせ回数の上限に引っかからなくなります。BellTeamが何度も再起動した時でも、更新の確認が止まりません。端末にはつながったのにフォルダの操作に失敗した時、端末側の理由をそのまま返すようになります。BellTeamの再起動のあとでも、Macなど外部の席でBellTeamの道具が使えなくならないようにします（Aiterm 0.70.17）。Windowsの席が起動できない問題を直します。"
+        "更新の確認で、GitHubの問い合わせ回数の上限に引っかからなくなります。BellTeamが何度も再起動した時でも、更新の確認が止まりません。端末にはつながったのにフォルダの操作に失敗した時、端末側の理由をそのまま返すようになります。BellTeamの再起動や会話のやり直しのあとでも、Macなど外部の席でBellTeamの道具が使えなくならないようにします（Aiterm 0.70.18）。Windowsの席が起動できない問題を直します。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "7ff04a9538264c6c7ecee54e91a1f93b68cdd866",
-      "versionId": "sha256:3c43663196649ffec31d1fc39fe5411a1ad5d6e6bd0068dad666be573084fbc0",
+      "sourceCommit": "994eccc1b0dd622adb28ac43cc81da9787b547d2",
+      "versionId": "sha256:9f6994fc615dc579a7c8e08bffe8936042992136adc5bc5598583d1e25f38074",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:3c43663196649ffec31d1fc39fe5411a1ad5d6e6bd0068dad666be573084fbc0"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:9f6994fc615dc579a7c8e08bffe8936042992136adc5bc5598583d1e25f38074"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "更新の確認で、GitHubの問い合わせ回数の上限に引っかからなくなります。BellTeamが何度も再起動した時でも、更新の確認が止まりません。端末にはつながったのにフォルダの操作に失敗した時、端末側の理由をそのまま返すようになります。BellTeamの再起動のあとでも、Macなど外部の席でBellTeamの道具が使えなくならないようにします（Aiterm 0.70.17）。Windowsの席が起動できない問題を直します。"
+        "更新の確認で、GitHubの問い合わせ回数の上限に引っかからなくなります。BellTeamが何度も再起動した時でも、更新の確認が止まりません。端末にはつながったのにフォルダの操作に失敗した時、端末側の理由をそのまま返すようになります。BellTeamの再起動や会話のやり直しのあとでも、Macなど外部の席でBellTeamの道具が使えなくならないようにします（Aiterm 0.70.18）。Windowsの席が起動できない問題を直します。"
       ]
     }
   ],
