@@ -310,7 +310,8 @@ public sealed class WorkGraphModel(Func<string, double> measureName)
             // An answer we cannot read still reconnects; the next readable snapshot clears it.
             catch (JsonException) { Connection = WorkGraphConnection.Unreadable; }
             catch (StreamException error) when (error.Kind == StreamErrorKind.Resync) { attempt = 0; continue; }
-            catch (Exception) { if (Connection == WorkGraphConnection.Live) attempt = 0; }
+            // Transport failures (refused, reset, handshake timeout, other HTTP status, stream ended) reconnect; a bug in the model is not swallowed.
+            catch (Exception error) when (error is HttpRequestException or IOException or BellApiException or OperationCanceledException) { if (Connection == WorkGraphConnection.Live) attempt = 0; }
             finally
             {
                 silence.Cancel();

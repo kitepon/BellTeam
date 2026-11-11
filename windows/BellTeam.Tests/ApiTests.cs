@@ -87,4 +87,24 @@ public sealed class ApiTests
         await Assert.ThrowsAsync<BellApiException>(async () => { await foreach (var item in sse.EventsAsync()) count++; });
         Assert.Equal(1, count);
     }
+
+    [Fact]
+    public async Task WorkGraphEventsKeepNamesAndReportHeartbeats()
+    {
+        string? path = null;
+        using var api = new BellApi(new("http://localhost/"), new StubHandler((request, _) =>
+        {
+            path = request.RequestUri!.AbsolutePath;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("event: snapshot\nid: 1\ndata: {\"a\":1}\n\n: hb\n\nevent: change\ndata: {\"b\":2}\n\n", Encoding.UTF8, "text/event-stream") });
+        }));
+        var activity = 0;
+        var events = new List<WorkGraphEvent>();
+        await Assert.ThrowsAsync<BellApiException>(async () => { await foreach (var item in api.WorkGraphEventsAsync(() => activity++)) events.Add(item); });
+        Assert.Equal("/api/work-graph/events", path);
+        Assert.Equal(["snapshot", "change"], events.Select(item => item.Name));
+        Assert.Equal(2, events[1].Data.GetProperty("b").GetInt32());
+        Assert.True(activity >= 9); // the open plus every line, the heartbeat included
+        using var bad = new BellApi(new("http://localhost/"), new StubHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("event: change\ndata: {oops\n\n", Encoding.UTF8, "text/event-stream") })));
+        await Assert.ThrowsAnyAsync<JsonException>(async () => { await foreach (var item in bad.WorkGraphEventsAsync(() => { })) { } });
+    }
 }

@@ -186,18 +186,42 @@ public sealed class BellApi : IDisposable
 
     public async IAsyncEnumerable<JsonElement> EventsAsync([EnumeratorCancellation] CancellationToken token = default)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/events");
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
-        using var handshake = CancellationTokenSource.CreateLinkedTokenSource(token);
-        handshake.CancelAfter(TimeSpan.FromSeconds(30));
-        using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, handshake.Token);
-        await ValidateAsync(response, handshake.Token);
-        handshake.CancelAfter(Timeout.InfiniteTimeSpan);
-        if (response.Content.Headers.ContentType?.MediaType != "text/event-stream")
-            throw new BellApiException("新着の応答がSSEではありません。");
+        using var response = await OpenEventStreamAsync("/api/events", token);
         await using var stream = await response.Content.ReadAsStreamAsync(token);
         await foreach (var item in SseReader.ReadAsync(stream, token)) yield return item;
         throw new BellApiException(BellApiException.StreamEndedMessage, code: BellApiException.StreamEndedCode);
+    }
+
+    /// <summary>GET /api/work-graph/events: named snapshot/change events. Bad JSON throws <see cref="JsonException"/>, which the work graph shows and reconnects on.</summary>
+    public async IAsyncEnumerable<WorkGraphEvent> WorkGraphEventsAsync(Action onActivity, [EnumeratorCancellation] CancellationToken token = default)
+    {
+        using var response = await OpenEventStreamAsync("/api/work-graph/events", token);
+        onActivity();
+        await using var stream = await response.Content.ReadAsStreamAsync(token);
+        await foreach (var (name, data) in SseReader.ReadRawAsync(stream, onActivity, token))
+        {
+            using var document = JsonDocument.Parse(data);
+            yield return new WorkGraphEvent(name, document.RootElement.Clone());
+        }
+        throw new BellApiException(BellApiException.StreamEndedMessage, code: BellApiException.StreamEndedCode);
+    }
+
+    private async Task<HttpResponseMessage> OpenEventStreamAsync(string path, CancellationToken token)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
+        using var handshake = CancellationTokenSource.CreateLinkedTokenSource(token);
+        handshake.CancelAfter(TimeSpan.FromSeconds(30));
+        var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, handshake.Token);
+        try
+        {
+            await ValidateAsync(response, handshake.Token);
+            handshake.CancelAfter(Timeout.InfiniteTimeSpan);
+            if (response.Content.Headers.ContentType?.MediaType != "text/event-stream")
+                throw new BellApiException("新着の応答がSSEではありません。");
+            return response;
+        }
+        catch { response.Dispose(); throw; }
     }
 
     public void Dispose() => client.Dispose();
