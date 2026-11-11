@@ -188,17 +188,15 @@ export class BellTeamMessenger extends ConversationWriter {
     return { relayed, owed: notices.owed.size }
   }
 
-  // Throws only when the relay was refused before handover (no row, or the admission check stopped it): that notice
-  // is still owed. Once transport.notify was called the relay row is the issued notice; an unknown result is never resent.
+  // Every refusal (admission, access, unknown Bot) comes before the relay row, so it throws and the notice stays owed,
+  // durably too: a restart's scan finds no relay row. Once the row exists the relay is handed over and never resent.
   async relayForkAnswer({ from, target, message, forkId, deliveryId }) {
+    this.admitWork()()
     const label = { seat: { kind: 'fork', fork_id: forkId }, in_reply_to: deliveryId }
     const prepared = await this.prepareDirect({ from, target, message }, {}, label)
-    let refused = false
-    const check = prepared.check
-    prepared.check = () => { try { check() } catch (error) { refused = true; throw error } }
+    prepared.check = () => {} // admitted above; a check after the row would leave a stopped relay row that settles the inquiry
     try { return await this.notifyDirect(prepared) }
     catch (error) {
-      if (refused) throw error
       process.stderr.write(`BellTeam fork relay handed over with error: ${error.code ?? String(error.message).split(':')[0]}\n`)
       return { delivery: 'unknown', delivery_id: prepared.deliveryId }
     }

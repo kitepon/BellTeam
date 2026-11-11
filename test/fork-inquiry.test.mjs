@@ -159,6 +159,25 @@ test('a failed relay stays owed and the next fork.sweep relays it once (fork-inq
   assert.match(notified[0].text, /「Owner Bot（分身）」からあなたへ次のメッセージが届いています。\n\nFORK_LATE: asked .+ JST, answered .+ JST, relayed \d+m later\. It shows the target's state at that time, not now\.\n\nA\.$/)
 })
 
+test('an admission-refused relay leaves no relay row, so a restarted process still owes it and relays it once', async t => {
+  let callbacks
+  const first = await setup(t, async (bot, text, options) => { callbacks = options; return { delivery: 'running' } })
+  await first.messenger.askReadonly({ from: asker.id, target: owner.id, message: 'Q' })
+  first.messenger.admitWork = () => () => { throw Object.assign(new Error('AI_GLOBAL_PAUSED'), { code: 'AI_GLOBAL_PAUSED' }) }
+  await callbacks.onAnswer('A.')
+  await settle()
+  assert.deepEqual(await first.messenger.sweepForkNotices(), { relayed: 0, owed: 1 })
+  assert.ok(!(await first.rows()).some(row => row.in_reply_to), 'no relay row, stopped or otherwise')
+  const notified = []
+  const restarted = new BellTeamMessenger({ bots: first.messenger.bots, logPath: first.messenger.store.logPath,
+    transport: { async notify(bot, text) { notified.push(text); return { delivery: 'running' } } } })
+  assert.deepEqual(await restarted.sweepForkNotices(), { relayed: 1, owed: 0 })
+  assert.deepEqual(await restarted.sweepForkNotices(), { relayed: 0, owed: 0 })
+  assert.equal(notified.length, 1)
+  assert.match(notified[0], /\n\nA\.$/)
+  assert.equal((await first.rows()).filter(row => row.in_reply_to === 'id-2').length, 1)
+})
+
 test('a sweep relay says how old it is; overlapping sweeps relay it once; an error after handover is never resent', async t => {
   const clock = ['2026-11-11T11:30:00.000Z']
   let callbacks
