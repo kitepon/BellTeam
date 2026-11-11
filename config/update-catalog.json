@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-11T10:24:41Z",
-  "expiresAt": "2026-11-18T10:24:41Z",
+  "publishedAt": "2026-11-11T12:31:17Z",
+  "expiresAt": "2026-11-18T12:31:17Z",
   "releases": [
     {
       "componentId": "usage",
@@ -183,8 +183,8 @@
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "09f11556c14bed91ee94575b9e4f22b014423d51",
-      "versionId": "7a15fef9e547b6bb6f2efe863605a020673893cb34bf206ed9296e8132865037",
+      "sourceCommit": "3de2d504f72852d6f0ca12393950b17d5985a5fc",
+      "versionId": "6d47011bfaff715ee2082a54c40909872001cfc666656936745a80a84afce29b",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -192,16 +192,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T004340Z/conversation-09f11556c14bed91ee94575b9e4f22b014423d51-linux-amd64.tar.gz",
-          "bytes": 3900711,
-          "sha256": "7a15fef9e547b6bb6f2efe863605a020673893cb34bf206ed9296e8132865037"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T122945Z/conversation-3de2d504f72852d6f0ca12393950b17d5985a5fc-linux-amd64.tar.gz",
+          "bytes": 3902780,
+          "sha256": "6d47011bfaff715ee2082a54c40909872001cfc666656936745a80a84afce29b"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T004340Z/conversation-09f11556c14bed91ee94575b9e4f22b014423d51-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10955,
-          "sha256": "f2858e229e3744a98ad6ac081b1eee884b7213e96182c3c340447c1a949d39a4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T122945Z/conversation-3de2d504f72852d6f0ca12393950b17d5985a5fc-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11127,
+          "sha256": "129f5bea75b0fce2934bdcce8fc59f7c101ce2f78c19b3db5f62b789861d6330"
         },
-        "signerCommit": "09f11556c14bed91ee94575b9e4f22b014423d51"
+        "signerCommit": "3de2d504f72852d6f0ca12393950b17d5985a5fc"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -232,13 +232,13 @@
         }
       },
       "changes": [
-        "分身への問い合わせ（ask_readonly）が内部エラーで失敗していたのを直し、分身の答えが質問した人へメッセージで届くようにします。"
+        "人数の多いルームに投稿しても、会話の部品が止まらなくなりました。返事が届いているのに失敗と返ることもなくなります。"
       ]
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "09f11556c14bed91ee94575b9e4f22b014423d51",
-      "versionId": "ed13d50eac53dc881a73b147470c2a0c4506842c55cd833f172690bf4144ecac",
+      "sourceCommit": "3de2d504f72852d6f0ca12393950b17d5985a5fc",
+      "versionId": "13b4412263c48ae46a6086281e6aea9dc0c1a83b6584e8e4ba68da7244353b72",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -246,16 +246,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T004340Z/conversation-09f11556c14bed91ee94575b9e4f22b014423d51-linux-arm64.tar.gz",
-          "bytes": 3900711,
-          "sha256": "ed13d50eac53dc881a73b147470c2a0c4506842c55cd833f172690bf4144ecac"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T122945Z/conversation-3de2d504f72852d6f0ca12393950b17d5985a5fc-linux-arm64.tar.gz",
+          "bytes": 3902780,
+          "sha256": "13b4412263c48ae46a6086281e6aea9dc0c1a83b6584e8e4ba68da7244353b72"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T004340Z/conversation-09f11556c14bed91ee94575b9e4f22b014423d51-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11127,
-          "sha256": "d23d2dbf156a0344e53b3586c98830b2b6c8d6c49935f9908a8e5c699fcdf7d1"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T122945Z/conversation-3de2d504f72852d6f0ca12393950b17d5985a5fc-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11190,
+          "sha256": "d8c01a9eda7f93261c60b6d2cd34814f732e7bb4f490f7a263519495d9b368ac"
         },
-        "signerCommit": "09f11556c14bed91ee94575b9e4f22b014423d51"
+        "signerCommit": "3de2d504f72852d6f0ca12393950b17d5985a5fc"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -286,7 +286,7 @@
         }
       },
       "changes": [
-        "分身への問い合わせ（ask_readonly）が内部エラーで失敗していたのを直し、分身の答えが質問した人へメッセージで届くようにします。"
+        "人数の多いルームに投稿しても、会話の部品が止まらなくなりました。返事が届いているのに失敗と返ることもなくなります。"
       ]
     },
     {
@@ -491,8 +491,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "414a4c9e463d4ba7c11a6b256ba682737422f654",
-      "versionId": "c4c9eab4e26acd54f73561a1587a9cc86480b833b3785bd9ce32e2023eac0a31",
+      "sourceCommit": "548e9a766c216068c6a8c54e2aecb90ba5ffe018",
+      "versionId": "db8757c40e023310c4429a505c5577b47b67f5cb80e932cc19a626fe2625e6cb",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T090707Z/execution-414a4c9e463d4ba7c11a6b256ba682737422f654-linux-amd64.tar.gz",
-          "bytes": 3954458,
-          "sha256": "c4c9eab4e26acd54f73561a1587a9cc86480b833b3785bd9ce32e2023eac0a31"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T122519Z/execution-548e9a766c216068c6a8c54e2aecb90ba5ffe018-linux-amd64.tar.gz",
+          "bytes": 3954783,
+          "sha256": "db8757c40e023310c4429a505c5577b47b67f5cb80e932cc19a626fe2625e6cb"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T090707Z/execution-414a4c9e463d4ba7c11a6b256ba682737422f654-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10926,
-          "sha256": "3eee0393280464fc594a56b2edb7b19aab34363fc76f8fe8b7976c82e103c6bc"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T122519Z/execution-548e9a766c216068c6a8c54e2aecb90ba5ffe018-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11181,
+          "sha256": "cce6910b2143140d3b50ef1fec63bc671bbf93976baed8c31c0553e0c8648dd8"
         },
-        "signerCommit": "414a4c9e463d4ba7c11a6b256ba682737422f654"
+        "signerCommit": "548e9a766c216068c6a8c54e2aecb90ba5ffe018"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,14 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "1st・2nd とも、席はアカウントごとのログインで起動するようになりました。ログイン切れを検知すると、別のアカウントの新しい席で続きを進めます（Aiterm 0.70.23 以降）。"
+        "1つ目のClaudeアカウントは、ログインの鍵がない時にログイン済みと表示されなくなりました。",
+        "メンバーの作業中の様子が、読み込みの途中で消えなくなりました。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "414a4c9e463d4ba7c11a6b256ba682737422f654",
-      "versionId": "930edeaecff7eb1be07c88b580765a7ef095b7072633b178d259c2edc0984612",
+      "sourceCommit": "548e9a766c216068c6a8c54e2aecb90ba5ffe018",
+      "versionId": "84fde82a8041d0444f0dbe8e0b6a129d687d65adea7f95478467a6230d951f85",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +534,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T090707Z/execution-414a4c9e463d4ba7c11a6b256ba682737422f654-linux-arm64.tar.gz",
-          "bytes": 3954457,
-          "sha256": "930edeaecff7eb1be07c88b580765a7ef095b7072633b178d259c2edc0984612"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T122519Z/execution-548e9a766c216068c6a8c54e2aecb90ba5ffe018-linux-arm64.tar.gz",
+          "bytes": 3954784,
+          "sha256": "84fde82a8041d0444f0dbe8e0b6a129d687d65adea7f95478467a6230d951f85"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T090707Z/execution-414a4c9e463d4ba7c11a6b256ba682737422f654-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11012,
-          "sha256": "3d2eb8a5c1c001becb2c34d6f38fd391a0572396eba25203526e064022ffdb94"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T122519Z/execution-548e9a766c216068c6a8c54e2aecb90ba5ffe018-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11177,
+          "sha256": "443e1d27c191ed237f5280205ed4bba1ce34d9f1665e266a98ce08677c47332a"
         },
-        "signerCommit": "414a4c9e463d4ba7c11a6b256ba682737422f654"
+        "signerCommit": "548e9a766c216068c6a8c54e2aecb90ba5ffe018"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,7 +553,8 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "1st・2nd とも、席はアカウントごとのログインで起動するようになりました。ログイン切れを検知すると、別のアカウントの新しい席で続きを進めます（Aiterm 0.70.23 以降）。"
+        "1つ目のClaudeアカウントは、ログインの鍵がない時にログイン済みと表示されなくなりました。",
+        "メンバーの作業中の様子が、読み込みの途中で消えなくなりました。"
       ]
     },
     {
