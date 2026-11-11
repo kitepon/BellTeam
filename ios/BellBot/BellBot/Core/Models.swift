@@ -886,6 +886,7 @@ struct SecretRequest: Decodable, Identifiable, Equatable {
         notification = try c.decodeIfPresent(String.self, forKey: .notification)
         purpose = try c.decodeIfPresent(String.self, forKey: .purpose)
         inputOptions = try? c.decodeIfPresent(SecretInputOptions.self, forKey: .inputOptions)
+        oneTime = try? c.decodeIfPresent(Bool.self, forKey: .oneTime)
     }
 }
 
