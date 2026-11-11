@@ -61,6 +61,8 @@ public abstract class EditorFormView : Grid, ISheetSave, IDisposable
 
     // Render seam: the bottom of the form (the 削除 section and the result lines).
     public void ScrollToEndForRender() { scroller.UpdateLayout(); scroller.ScrollToEnd(); scroller.UpdateLayout(); }
+    // Render seam: a part of the form at the top of the view.
+    public void ScrollToForRender(UIElement target) { scroller.UpdateLayout(); scroller.ScrollToVerticalOffset(Math.Max(0, target.TranslatePoint(new Point(0, 0), Form).Y - 8)); scroller.UpdateLayout(); }
     public bool DismissPopup()
     {
         if (!AlertOpen) return false;
