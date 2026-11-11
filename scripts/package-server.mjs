@@ -24,7 +24,7 @@ try {
     'config/notifications-verification.json', 'config/members-verification.json', 'config/memory-verification.json', 'config/usage-verification.json', 'config/diagnostics-verification.json', 'config/work-graph-verification.json', 'config/lattice-verification.json', 'config/execution-verification.json', 'config/conversation-verification.json', 'config/update-catalog-verification.json',
     'docs/bot-environment.md', 'docs/onboarding.md',
     'services/subscriptions/product.json', 'services/subscriptions/endpoints.json',
-    'distribution/server',
+    'distribution/server', 'distribution/lattice/package.json', 'distribution/lattice/package-lock.json',
     'compose.cursor-update.yaml', 'compose.state-maintenance.json', 'scripts/update-cursor.sh', 'scripts/cursor-update-entrypoint.sh',
     'scripts/module-start.c', 'scripts/conversation-start.c', 'scripts/usage-start.c', 'scripts/diagnostics-start.c', 'scripts/work-graph-start.c', 'scripts/lattice-start.c',
     'scripts/seat-exec.c', 'scripts/server-start.c', 'scripts/notifications-start.c', 'scripts/members-start.c',
@@ -55,9 +55,12 @@ try {
   await chmod(join(output, 'install.sh'), 0o755)
   await chmod(join(output, 'bridge/install.sh'), 0o755)
   await rename(join(output, 'distribution/server/updater'), join(output, 'updater'))
+  await rename(join(output, 'distribution/lattice'), join(output, 'lattice-manifests'))
   await rm(join(output, 'distribution'), { recursive: true })
   await mkdir(join(output, 'distribution/server'), { recursive: true })
   await rename(join(output, 'updater'), join(output, 'distribution/server/updater'))
+  // Dockerfile installs the builtin lattice child's pinned CLI from these two manifests.
+  await rename(join(output, 'lattice-manifests'), join(output, 'distribution/lattice'))
   // Dockerfile uses the same two source paths in repository and public contexts.
   for (const name of ['install-resume-state.sh', 'compose.aiterm-checkpoint.yaml'])
     await copyFile(join(output, name), join(output, 'distribution/server', name))

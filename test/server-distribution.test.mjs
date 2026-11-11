@@ -37,6 +37,11 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
     'scripts/assert-state-writers-stopped.sh',
     'scripts/install-sce-headers.py',
     'distribution/server/install-resume-state.sh',
+    'distribution/lattice/package.json', 'distribution/lattice/package-lock.json',
+    'config/work-graph-verification.json', 'config/lattice-verification.json', 'config/execution-verification.json',
+    'scripts/work-graph-start.c', 'scripts/lattice-start.c', 'scripts/verify-work-graph.py', 'scripts/verify-lattice.py', 'scripts/verify-execution.py',
+    'scripts/install-work-graph-release.py', 'scripts/install-lattice-release.py', 'scripts/install-execution-release.py',
+    'scripts/module-worker-termination.py', 'scripts/body-preflight.mjs', 'scripts/container-update-service.py', 'scripts/container-update-compose.mjs', 'scripts/read-container-update-normal.mjs',
     'runtime/home/auth.json', '.env', 'config/bots.json', 'services/subscriptions/keys/private.p8',
     'distribution/server/bridge/bridge.env',
   ]
@@ -65,6 +70,7 @@ test('配布archiveはcommitから必要な公開ファイルを収録し個人�
     assert.equal(await readFile(join(output, name), 'utf8'),
       await readFile(join(output, 'distribution/server', name), 'utf8'))
   }
+  for (const name of ['package.json', 'package-lock.json']) assert.ok(pathsInArchive.includes('distribution/lattice/' + name))
   assert.ok(pathsInArchive.includes('config/setup-guide.json'))
   assert.ok(pathsInArchive.includes('config/ponytail-LICENSE'))
   assert.ok(pathsInArchive.includes('docs/onboarding.md'))
