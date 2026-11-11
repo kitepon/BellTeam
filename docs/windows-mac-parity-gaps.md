@@ -242,6 +242,11 @@ Macの[settings-and-profile「1Password連携」](architecture/modules/apple/set
 - 編集のページ：バッジ、連携中なら読める保管庫と鍵の数の一行、案内の手順（未連携は開く、連携中は「作り方を見る」の中。リンクはhttpsだけ開く）、tokenの欄（`ops_`で始まらなければ送らない。保存後も画面に戻さない）、「保存して連携を確かめる」（待つ間は「連携を確かめています…」）。
 - 結果の一行（主ボタンの上）：「連携できました。」＋保管庫の一行（緑）／「連携できませんでした。」＋理由（赤）／「連携を解除しました。」。読み直しだけ失敗したら「保存しました。表示を更新できませんでした」。
 
+対応済み（PR 15）：Windows（WPF）に入れた。画面：[連携していない（案内つき）](assets/windows-mac-gaps/windows/pr15-1password-not-linked.png)・[確かめている](assets/windows-mac-gaps/windows/pr15-1password-checking.png)・[連携できた](assets/windows-mac-gaps/windows/pr15-1password-success.png)・[連携できなかった](assets/windows-mac-gaps/windows/pr15-1password-failure.png)。Macの写真（900px幅）：[連携していない](assets/windows-mac-gaps/mac/apple-parity-batch1-20261110--mac-1password-not-linked.png)・[確かめている](assets/windows-mac-gaps/mac/apple-parity-batch1-20261110--mac-1password-checking.png)・[連携できた](assets/windows-mac-gaps/mac/apple-parity-batch1-20261110--mac-1password-success.png)・[連携できなかった](assets/windows-mac-gaps/mac/apple-parity-batch1-20261110--mac-1password-failure.png)。
+
+- 作り：状態・結果の一行・`ops_`の検査・https限定のリンクはCoreの`OnePassword.cs`（Macの`OnePasswordState`・`OnePasswordResult`と同じ規則）、画面は`OnePasswordView.cs`、一覧の行は`SettingsPages.cs`。`guide`・`connection`は型の違う値を「無し」として読む（`FeatureSetting.Read`）。保存は`PlanningApi.SaveFeatureAsync`で1回だけ`PATCH`し、再送しない。結果の一行は応答の`setting`で決め、成功後に`/api/settings`を読み直してバッジを更新する。
+- Macとの違い：(1) 印は`Segoe Fluent Icons`（鍵・チェック・警告・外部リンク・矢印）で、失敗の三角は塗りでなく線。切替は`CheckBox`の標準の見た目。(2) 主ボタンはアプリの紫のカプセル（Macの写真は灰色）。(3) 要求が拒否された時のフォームの文は、既存の`SaveFeatureAsync`が秘密を守るためにサーバーの文を捨てるので、固定の「設定の保存・反映結果を確認できませんでした。閉じて最新の状態を確認してください。」になる（Macはサーバーの文）。(4) 確かめている間は、設定の窓を閉じることも、主窓の別の画面へ替えることもできない（設定の中で項目を替えても要求は続き、結果はその画面には出ない）。(5) Windowsの写真は設定の窓全体（項目一覧つき）で、Macの写真はサイドバーと詳細。(6) 写真の「確かめている」「連携できた」は、GETだけのモックが`PATCH`を返せないので描画用の入口で状態を置いた。
+
 ### 16. 端末 — L＋M＋M（Windowsに無い）
 
 契約は[terminals](architecture/modules/terminals/README.md)（担当クラスト）、Macの部品は[apple/terminals](architecture/modules/apple/terminals.md)。「Screen rules (Admi Web, Ziz Apple; Windows later)」のWindows版にあたる。
