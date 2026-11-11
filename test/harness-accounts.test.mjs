@@ -67,7 +67,8 @@ test('prepare: every 1st entry and the 1st config are links, only the login is t
   // Idempotent: a second prepare changes nothing.
   await accounts.prepare('claude', '2nd')
   assert.equal((await readdir(join(root, '.bellteam-previous'))).length, 3)
-  assert.deepEqual(await accounts.prepare('claude', '1st'), { configurationRoot: join(home, '.claude'), history: 'shared' })
+  assert.deepEqual(await accounts.prepare('claude', '1st'), { configurationRoot: join(home, '.claude'), history: 'shared', tokenFile: join(home, '.bellteam-accounts/claude/1st/oauth-token') })
+  assert.equal((await accounts.prepare('claude', '2nd')).tokenFile, join(home, '.bellteam-accounts/claude/2nd/oauth-token'))
   await assert.rejects(accounts.prepare('claude', '3rd'), { code: 'ACCOUNT_SLOT_INVALID' })
 })
 
@@ -197,8 +198,9 @@ test('an installed 0700 home: loggedIn asks the seat user, and selection never r
   await writeFile(join(home, '.bellteam-accounts/claude/2nd/oauth-token'), 'x')
   // The stringified helper knows the op (it runs as the seat user, who can traverse the home).
   assert.equal(await seatFilesOver(waitProcess)('loggedIn', join(home, '.bellteam-accounts/claude/2nd/oauth-token')), true)
+  assert.equal(typeof await seatFilesOver(waitProcess)('stamp', join(home, '.bellteam-accounts/claude/2nd/oauth-token')), 'number')
   // The engine cannot traverse: the seat user answers; a failing seat user means not logged in, never a thrown launch.
-  let seatAnswer = async () => true
+  let seatAnswer = async () => 1
   const accounts = new HarnessAccounts({ home, statePath: join(home, 'state.json'), seat: (...args) => seatAnswer(...args) })
   await chmod(join(home, '.bellteam-accounts'), 0o000)
   try {
@@ -207,4 +209,45 @@ test('an installed 0700 home: loggedIn asks the seat user, and selection never r
     assert.equal(await accounts.loggedIn('claude', '2nd'), false)
     assert.equal((await accounts.selection('claude', 'sonnet')).slot, '1st')
   } finally { await chmod(join(home, '.bellteam-accounts'), 0o700) }
+})
+
+test('one login per slot: a signed-out slot is not usable until its token changes; stale seats renew; legacy 1st', async t => {
+  const { home, accounts } = await setup(t)
+  const token = slot => join(home, '.bellteam-accounts/claude', slot, 'oauth-token')
+  // Legacy 1st: no 1st token yet, the root login counts; nothing is marked for it.
+  assert.equal(await accounts.loggedIn('claude', '1st'), true)
+  assert.equal(await accounts.recordSignedOut({ harness: 'claude', slot: '1st', botId: 'b1', text: 'x' }), null)
+  for (const slot of ['1st', '2nd']) { await mkdir(join(home, '.bellteam-accounts/claude', slot), { recursive: true }); await writeFile(token(slot), 't') }
+  const first = (await accounts.selection('claude', 'opus'))
+  assert.equal(first.slot, '1st'); assert.equal(typeof first.stamp, 'number')
+  await accounts.setSeat('b1', '1st', first.stamp)
+  await accounts.setSeat('b2', '1st', first.stamp - 1)
+  // b2 ran an older token: only that seat renews, the slot stays usable.
+  assert.equal(await accounts.recordSignedOut({ harness: 'claude', slot: '1st', botId: 'b2', text: 'OAuth token revoked' }), 'stale')
+  assert.equal(await accounts.loggedIn('claude', '1st'), true)
+  assert.equal(await accounts.renewDue('b2', 'claude', 'opus'), true)
+  // b1 ran the current token: the 1st is signed out, selection takes the 2nd (a signed-out 1st never holds seats).
+  assert.equal(await accounts.recordSignedOut({ harness: 'claude', slot: '1st', botId: 'b1', text: 'Please run /login' }), 'signed_out')
+  assert.equal(await accounts.loggedIn('claude', '1st'), false)
+  assert.equal((await accounts.effectiveSlot('claude', 'opus')), '2nd')
+  const row = (await accounts.list()).harnesses[0].slots[0]
+  assert.equal(row.loggedIn, false); assert.equal(typeof row.signedOutAt, 'string')
+  await accounts.setSeat('b1', '2nd', (await accounts.selection('claude', 'opus')).stamp)
+  assert.equal(await accounts.renewDue('b1', 'claude', 'opus'), false)
+  // Both signed out: no renewal loop onto a signed-out slot.
+  await accounts.setSeat('b3', '2nd', (await accounts.selection('claude', 'opus')).stamp)
+  await accounts.recordSignedOut({ harness: 'claude', slot: '2nd', botId: 'b3', text: 'Invalid API key' })
+  assert.equal(await accounts.effectiveSlot('claude', 'opus'), '1st')
+  assert.equal(await accounts.renewDue('b3', 'claude', 'opus'), false)
+  // A new login (new mtime) is the self-exit: list() clears it and the waiting seat renews.
+  await new Promise(resolve => setTimeout(resolve, 20))
+  await writeFile(token('1st'), 'new')
+  const after = (await accounts.list()).harnesses[0].slots[0]
+  assert.equal(after.loggedIn, true); assert.equal(after.signedOutAt, null)
+  assert.equal(await accounts.effectiveSlot('claude', 'opus'), '1st')
+  assert.equal(await accounts.renewDue('b3', 'claude', 'opus'), true)
+  // The registry keeps it across a restart.
+  const again = new HarnessAccounts({ home, statePath: join(home, 'state.json'), log: () => {} })
+  await again.load(); again.close()
+  assert.deepEqual([again.state.signedOut.length, again.state.renew.sort()], [1, ['b2', 'b3']])
 })

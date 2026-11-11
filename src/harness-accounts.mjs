@@ -65,6 +65,8 @@ export async function seatFiles(op, ...args) {
     } catch { return null }
   }
   if (op === 'loggedIn') return Boolean((await present(args[0]))?.isFile())
+  // The token file's mtime only (one login per slot); never its content.
+  if (op === 'stamp') { const entry = await present(args[0]); return entry?.isFile() ? entry.mtimeMs : null }
   if (op === 'usage') {
     // The usage endpoint Claude Code itself uses (scripts/claude-usage.py). The token never leaves this process.
     let token
@@ -109,7 +111,7 @@ export class HarnessAccounts {
     timers = { set: setTimeout, clear: clearTimeout }, timeZone = process.env.TZ || 'UTC', log = line => process.stderr.write(`${line}\n`) }) {
     Object.assign(this, { home, statePath, seat, readUsage, now, timers, timeZone, log })
     this.labels = new Map()
-    this.state = { schema: SCHEMA, limits: [], seats: {} }
+    this.state = { schema: SCHEMA, limits: [], seats: {}, logins: {}, signedOut: [], renew: [] }
     this.listeners = new Set()
     this.resetTimers = new Map()
     this.reread = null
@@ -119,6 +121,9 @@ export class HarnessAccounts {
   root(harness, slot) {
     return slot === '1st' ? join(this.home, `.${harness}`) : join(this.home, '.bellteam-accounts', harness, slot)
   }
+
+  // One login per slot (harness-accounts.md 2026-11-11): the slot's setup-token file, 1st and 2nd alike (Aiterm's token_file form).
+  tokenFile(harness, slot) { return join(this.home, '.bellteam-accounts', harness, slot, 'oauth-token') }
 
   // Aiterm E1 allows only direct children of this parent besides the default root.
   configRootsParent(harness = 'claude') { return join(this.home, '.bellteam-accounts', harness) }
@@ -130,6 +135,9 @@ export class HarnessAccounts {
         schema: SCHEMA,
         limits: (value.limits ?? []).filter(entry => ACCOUNT_HARNESSES.includes(entry?.harness) && ACCOUNT_SLOTS.includes(entry.slot) && SCOPES.has(entry.scope)),
         seats: Object.fromEntries(Object.entries(value.seats ?? {}).filter(([, slot]) => ACCOUNT_SLOTS.includes(slot))),
+        logins: Object.fromEntries(Object.entries(value.logins ?? {}).filter(([, stamp]) => stamp === null || Number.isFinite(stamp))),
+        signedOut: (value.signedOut ?? []).filter(entry => ACCOUNT_HARNESSES.includes(entry?.harness) && ACCOUNT_SLOTS.includes(entry.slot) && Number.isFinite(entry.stamp)),
+        renew: (value.renew ?? []).filter(botId => typeof botId === 'string'),
       }
     } catch (error) { if (error.code !== 'ENOENT') this.log(`BellTeam accounts: registry unreadable, starting empty (${error.code ?? 'INVALID'})`) }
     // Re-arm after a restart or a body exchange; an entry whose time passed clears now.
@@ -160,11 +168,11 @@ export class HarnessAccounts {
 
   async prepare(harness, slot) {
     if (!ACCOUNT_HARNESSES.includes(harness) || !ACCOUNT_SLOTS.includes(slot)) throw fail('ACCOUNT_SLOT_INVALID')
-    if (slot === '1st') return { configurationRoot: this.root(harness, slot), history: 'shared' }
+    if (slot === '1st') return { configurationRoot: this.root(harness, slot), history: 'shared', tokenFile: this.tokenFile(harness, slot) }
     try {
       const prepared = await this.seat('prepare', this.home, harness, slot)
       if (prepared?.configurationRoot !== this.root(harness, slot) || !['shared', 'separate'].includes(prepared.history)) throw Object.assign(new Error(), { code: 'ACCOUNT_SEAT_INVALID' })
-      return prepared
+      return { ...prepared, tokenFile: this.tokenFile(harness, slot) }
     } catch (error) {
       this.log(`BellTeam accounts: prepare ${harness} ${slot} failed (${error?.code ?? 'FAILED'})`)
       throw Object.assign(new Error('ACCOUNT_ROOT_UNAVAILABLE'), { code: 'ACCOUNT_ROOT_UNAVAILABLE', status: 503 })
@@ -173,9 +181,11 @@ export class HarnessAccounts {
 
   // The slot each Claude seat was last launched on (kept across restarts and engine exchanges).
   seatSlot(botId) { return this.state.seats[botId] ?? null }
-  async setSeat(botId, slot) {
-    if (this.state.seats[botId] === slot) return
-    await this.save({ ...this.state, seats: { ...this.state.seats, [botId]: slot } })
+  // stamp: the token file's mtime the seat was launched with (null: legacy 1st), so a failure names the login it really used.
+  async setSeat(botId, slot, stamp = this.state.logins[botId] ?? null) {
+    const renew = this.state.renew.filter(id => id !== botId)
+    if (this.state.seats[botId] === slot && (this.state.logins[botId] ?? null) === stamp && renew.length === this.state.renew.length) return
+    await this.save({ ...this.state, seats: { ...this.state.seats, [botId]: slot }, logins: { ...this.state.logins, [botId]: stamp }, renew })
   }
 
   // Display label: the e-mail of the slot's own login (not a credential). Read as the seat user, cached until a new login.
@@ -187,12 +197,55 @@ export class HarnessAccounts {
     catch { return null }
   }
 
-  // A non-1st seat can start only with its long-lived login (oauth-token, passed to the CLI env; harness-accounts.md).
-  // An installed home is 0700 (install.sh umask 077): the engine cannot traverse it, so the seat user answers instead.
-  // A check that fails both ways counts as not logged in, so selection never refuses a launch (lab 2026-11-11).
+  // The slot's token file mtime, or null without one. An installed home is 0700 (install.sh umask 077): the engine cannot
+  // traverse it, so the seat user answers instead. A check that fails both ways is null (lab 2026-11-11).
+  async stamp(harness, slot) {
+    const path = this.tokenFile(harness, slot)
+    try { const entry = await present(path); return entry?.isFile() ? entry.mtimeMs : null }
+    catch { return this.seat('stamp', path).then(value => Number.isFinite(value) ? value : null, () => null) }
+  }
+
+  signedOutEntry(harness, slot, stamp) { return this.state.signedOut.find(entry => entry.harness === harness && entry.slot === slot && entry.stamp === stamp) ?? null }
+
+  // Logged in = the slot's token, unless it failed authentication at this very mtime. Legacy 1st (no token yet): the root's
+  // own login, as before one login per slot; it ends with the Owner's first 1st login in the card. Never refuses a launch.
   async loggedIn(harness, slot) {
-    const path = join(this.root(harness, slot), slot === '1st' ? '.credentials.json' : 'oauth-token')
+    const stamp = await this.stamp(harness, slot)
+    if (stamp !== null) return !this.signedOutEntry(harness, slot, stamp)
+    if (slot !== '1st') return false
+    const path = join(this.root(harness, slot), '.credentials.json')
     try { return Boolean((await present(path))?.isFile()) } catch { return this.seat('loggedIn', path).then(Boolean, () => false) }
+  }
+
+  // E6 on a seat of `slot`. Returns 'signed_out' (the slot is marked; move like a limit), 'stale' (the seat ran an older
+  // token than the file has now: renew only that seat) or null (legacy 1st: nothing to mark).
+  async recordSignedOut({ harness, slot, botId, text }) {
+    const stamp = await this.stamp(harness, slot)
+    if (stamp === null) return null
+    const renew = [...new Set([...this.state.renew, botId])]
+    if ((this.state.logins[botId] ?? null) !== stamp) { await this.save({ ...this.state, renew }); return 'stale' }
+    const previous = this.signedOutEntry(harness, slot, stamp)
+    const entry = previous ?? { harness, slot, since: new Date(this.now()).toISOString(), stamp, text: String(text ?? '').slice(0, 300) }
+    if (!previous) this.log(`BellTeam accounts: ${harness} ${slot} signed out: ${entry.text}`)
+    await this.save({ ...this.state, renew, signedOut: [...this.state.signedOut.filter(value => value !== previous), entry] })
+    this.syncReread()
+    return 'signed_out'
+  }
+
+  // The self-exit of signed out: a different token mtime is a new login. Called by list() and the 10-minute re-read.
+  async refreshSignedOut() {
+    const kept = []
+    for (const entry of this.state.signedOut) {
+      const stamp = await this.stamp(entry.harness, entry.slot)
+      if (stamp === null || stamp === entry.stamp) kept.push(entry)
+    }
+    if (kept.length !== this.state.signedOut.length) await this.save({ ...this.state, signedOut: kept }).then(() => this.syncReread(), () => {})
+  }
+
+  // Seats that must start again on their effective slot even when it is the same one (a running CLI keeps its env token).
+  // Only onto a logged-in slot: a seat whose every slot is signed out waits for a new login instead of relaunching in a loop.
+  async renewDue(botId, harness, model) {
+    return this.state.renew.includes(botId) && this.loggedIn(harness, await this.effectiveSlot(harness, model))
   }
 
   limitFor(harness, slot, model) {
@@ -201,9 +254,10 @@ export class HarnessAccounts {
   }
 
   // Never refuses: with every slot limited for this scope, the earliest known reset wins.
+  // Only logged-in slots are usable (a signed-out 1st never holds seats while the 2nd works); none: the 1st.
   async effectiveSlot(harness, model) {
     const usable = []
-    for (const slot of ACCOUNT_SLOTS) if (slot === '1st' || await this.loggedIn(harness, slot)) usable.push(slot)
+    for (const slot of ACCOUNT_SLOTS) if (await this.loggedIn(harness, slot)) usable.push(slot)
     const free = usable.find(slot => !this.limitFor(harness, slot, model).length)
     if (free) return free
     const reset = slot => Math.max(...this.limitFor(harness, slot, model).map(entry => entry.resetAt ? Date.parse(entry.resetAt) : Infinity))
@@ -212,7 +266,7 @@ export class HarnessAccounts {
 
   async selection(harness, model) {
     const slot = await this.effectiveSlot(harness, model)
-    return { slot, configurationRoot: this.root(harness, slot) }
+    return { slot, configurationRoot: this.root(harness, slot), stamp: await this.stamp(harness, slot) }
   }
 
   // A seat's own limit signal. The text decides scope and time first; the usage reading only fills what it lacks.
@@ -271,9 +325,9 @@ export class HarnessAccounts {
 
   // Only while some reset is unknown: re-read usage every 10 minutes.
   syncReread() {
-    const unknown = this.state.limits.some(entry => !entry.resetAt)
+    const unknown = this.state.limits.some(entry => !entry.resetAt) || this.state.signedOut.length > 0
     if (!unknown && this.reread) { this.timers.clear(this.reread); this.reread = null }
-    if (unknown && !this.reread) this.reread = this.timers.set(() => { this.reread = null; void this.rereadUnknown().finally(() => this.syncReread()) }, REREAD_MS)
+    if (unknown && !this.reread) this.reread = this.timers.set(() => { this.reread = null; void this.rereadUnknown().then(() => this.refreshSignedOut()).finally(() => this.syncReread()) }, REREAD_MS)
   }
 
   async rereadUnknown() {
@@ -295,6 +349,7 @@ export class HarnessAccounts {
   }
 
   async list() {
+    await this.refreshSignedOut()
     const seats = Object.entries(this.state.seats).map(([botId, slot]) => ({ botId, harness: 'claude', slot }))
     const harnesses = []
     for (const harness of ACCOUNT_HARNESSES) {
@@ -303,7 +358,8 @@ export class HarnessAccounts {
         const loggedIn = await this.loggedIn(harness, slot).catch(() => null)
         const history = slot === '1st' ? 'shared' : await present(join(this.root(harness, slot), 'projects'))
           .then(entry => !entry || entry.isSymbolicLink() ? 'shared' : 'separate', () => 'shared')
-        slots.push({ slot, loggedIn, label: loggedIn ? await this.label(harness, slot) : null, history,
+        const signedOutAt = this.state.signedOut.find(entry => entry.harness === harness && entry.slot === slot)?.since ?? null
+        slots.push({ slot, loggedIn, signedOutAt, label: loggedIn ? await this.label(harness, slot) : null, history,
           limits: this.state.limits.filter(entry => entry.harness === harness && entry.slot === slot)
             .map(({ scope, since, resetAt, resetSource }) => ({ scope, since, resetAt, resetSource })),
           seats: seats.filter(seat => seat.harness === harness && seat.slot === slot).map(seat => seat.botId) })
