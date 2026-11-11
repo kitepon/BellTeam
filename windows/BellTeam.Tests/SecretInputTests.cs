@@ -74,7 +74,7 @@ public sealed class SecretInputTests
         Assert.Equal("1回だけ使い、使い終わったら消します。保存せず、会話にも送られません。", oneTime.Note);
         var login = new SecretInputModel(Terminal("terminal.login"));
         Assert.False(login.ChoicesShown); Assert.False(login.UseOnePassword);
-        Assert.Equal("渡して続ける", login.SubmitLabel);
+        Assert.Equal("パスワードを渡す", login.SubmitLabel);
         Assert.Equal("このMacのログインパスワード（1回だけ使い、保存しません）", login.Note);
         Assert.DoesNotContain("登録", oneTime.SubmitLabel + login.SubmitLabel);
     }

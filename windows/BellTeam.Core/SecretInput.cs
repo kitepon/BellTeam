@@ -87,7 +87,8 @@ public sealed class SecretInputModel
     // Both choices say where the value comes from; only the note says whether it is kept (Owner 2026-11-11).
     public string OnePasswordChoice => Picker ? "1Passwordから選ぶ" : "1Passwordから読み出す";
     public string InputChoice => Multiline ? "ここに貼り付ける" : "ここに入力する";
-    public string SubmitLabel => Request.UsedOnce ? "渡して続ける" : "登録して続ける";
+    // Mac SecretInputSheet: the login password reads 「パスワードを渡す」, another one-time value 「渡して続ける」.
+    public string SubmitLabel => Request.IsLoginPassword ? "パスワードを渡す" : Request.UsedOnce ? "渡して続ける" : "登録して続ける";
     public bool Ready(string value) => UseOnePassword ? Reference.Trim().Length != 0 : value.Length != 0;
 
     public string Note
