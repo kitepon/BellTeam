@@ -77,6 +77,8 @@ struct LatticeRing: View {
     let total: Int
     var size: CGFloat = 36
     var line: CGFloat = 3.5
+    /// The `done/total` text inside; small rings leave it out and write it beside.
+    var showsText = true
 
     private var fraction: Double { total == 0 ? 0 : min(1, Double(done) / Double(total)) }
 
@@ -87,11 +89,13 @@ struct LatticeRing: View {
                 .stroke(AngularGradient(colors: [BellTheme.violet.opacity(0.7), BellTheme.violet], center: .center),
                         style: StrokeStyle(lineWidth: line, lineCap: .round))
                 .rotationEffect(.degrees(-90))
-            Text("\(done)/\(total)")
-                .font(.system(size: size * 0.27, weight: .semibold, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(LatticePalette.ink)
-                .minimumScaleFactor(0.6)
+            if showsText {
+                Text("\(done)/\(total)")
+                    .font(.system(size: size * 0.27, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(LatticePalette.ink)
+                    .minimumScaleFactor(0.6)
+            }
         }
         .frame(width: size, height: size)
         .animation(.spring(response: 0.45, dampingFraction: 0.82), value: fraction)
@@ -212,24 +216,39 @@ struct LatticeChatOpener {
 
 // MARK: Home
 
+/// The stack's destinations: a chart, and 一覧 pushed over the chart it was opened from (so the system back button
+/// with that chart's name and the edge swipe return to the chart, same scroll position).
+enum LatticeRoute: Hashable {
+    case chart(String)
+    case list
+}
+
 /// 工程表の入口：一覧 → 工程表。工程表が1枚だけなら、一覧を飛ばしてその工程表を開く。
 struct LatticeHomeView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var list = LatticeChartsModel()
-    @State private var path: [String] = []
+    @State private var path: [LatticeRoute] = []
     @State private var openedSingle = false
     /// iPhone/iPadで、開いた会話から戻る先のタブ。
     var returnTab = 4
 
     var body: some View {
         NavigationStack(path: $path) {
-            LatticeListView(list: list) { path = [$0] }
-                .navigationDestination(for: String.self) { id in
-                    LatticeChartScreen(projectId: id, list: list, returnTab: returnTab) { next in
-                        if let next { path = [next] } else { path = [] }
+            LatticeListView(list: list) { path = [.chart($0)] }
+                .navigationDestination(for: LatticeRoute.self) { route in
+                    switch route {
+                    case .chart(let id):
+                        LatticeChartScreen(projectId: id, list: list, returnTab: returnTab) { next in
+                            if let next { path = [.chart(next)] } else if path.last != .list { path.append(.list) }
+                        }
+                        .id(id)
+                    case .list:
+                        // Opening the chart we came from is the back button; another chart replaces the stack.
+                        LatticeListView(list: list) { id in
+                            if path.dropLast().last == .chart(id) { path.removeLast() } else { path = [.chart(id)] }
+                        }
                     }
-                    .id(id)
                 }
         }
         .tint(BellTheme.violet)
@@ -240,7 +259,7 @@ struct LatticeHomeView: View {
         .onChange(of: list.charts) { _, charts in
             guard !openedSingle, path.isEmpty, charts.count == 1, let only = charts.first else { return }
             openedSingle = true
-            path = [only.projectId]
+            path = [.chart(only.projectId)]
         }
         #if DEBUG
         .preferredColorScheme(LatticeDebug.colorScheme)

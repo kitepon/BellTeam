@@ -25,14 +25,27 @@ struct LatticeCard: Decodable, Equatable, Identifiable {
     var changedAt: String?
     var blockedReason: String?
     var depth: Int?
+    /// The phase id (`LatticePhase.id`) and the parent card id; both optional on the wire (missing = no phase / no parent).
+    var phase: String?
+    var parent: String?
+    /// When the card finished (done / retired), and whether the screens leave it out of the chart (it stays in 過去ログ and the counts).
+    var doneAt: String?
+    var archived: Bool?
 
     var status: LatticeTaskState { LatticeTaskState(state) }
+    var isArchived: Bool { archived == true }
     /// Owner key (README "Owner on screen"): the producer's Bot id, else "lane:<text>", else nil (担当なし).
     var owner: String? {
         if let producer, !producer.isEmpty { return producer }
         if let lane = lane?.trimmingCharacters(in: .whitespacesAndNewlines), !lane.isEmpty { return LatticePerson.lanePrefix + lane }
         return nil
     }
+}
+
+/// A plan phase (the tree's second level), in plan order. `title` may be null.
+struct LatticePhase: Decodable, Equatable {
+    let id: String
+    var title: String?
 }
 
 struct LatticeEdge: Decodable, Equatable {
@@ -67,10 +80,12 @@ struct LatticeChartSnapshot: Decodable, Equatable {
     var cards: [LatticeCard]?
     var edges: [LatticeEdge]?
     var waits: [LatticeWait]?
+    var phases: [LatticePhase]?
 
     var cardList: [LatticeCard] { cards ?? [] }
     var edgeList: [LatticeEdge] { edges ?? [] }
     var waitList: [LatticeWait] { waits ?? [] }
+    var phaseList: [LatticePhase] { phases ?? [] }
 }
 
 struct LatticeChartsList: Decodable {
@@ -215,6 +230,26 @@ enum LatticeTime {
         return formatter
     }()
 
+    private static let hhmm: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.timeZone = TimeZone(identifier: "Asia/Tokyo")
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
+    private static let dayTitle: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.timeZone = TimeZone(identifier: "Asia/Tokyo")
+        formatter.dateFormat = "M月d日"
+        return formatter
+    }()
+    static let tokyo: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Tokyo")!
+        return calendar
+    }()
+
     static func date(_ value: String?) -> Date? {
         guard let value else { return nil }
         return fractional.date(from: value) ?? plain.date(from: value)
@@ -229,6 +264,16 @@ enum LatticeTime {
     static func minutes(since value: String?, now: Date) -> Int {
         guard let date = date(value) else { return 0 }
         return max(0, Int(now.timeIntervalSince(date) / 60))
+    }
+
+    /// 「07:35」（JST）。読めない値は空。
+    static func clockText(_ value: String?) -> String { date(value).map(hhmm.string) ?? "" }
+
+    /// 過去ログの日の見出し（JST）：今日 / 昨日 / M月d日。
+    static func dayHeading(_ day: Date, now: Date) -> String {
+        if tokyo.isDate(day, inSameDayAs: now) { return "今日" }
+        if let yesterday = tokyo.date(byAdding: .day, value: -1, to: now), tokyo.isDate(day, inSameDayAs: yesterday) { return "昨日" }
+        return dayTitle.string(from: day)
     }
 
     /// 経過の長さ：1分未満 / N分 / N時間M分 / N日。
@@ -298,6 +343,9 @@ enum LatticeText {
         return owner.map { "担当 \($0.name)" } ?? LatticePerson.unassigned
     }
 
+    /// The edge chip over a waiting edge: the waiting card's owner, or 「次の工程」 when it has none.
+    static func chipText(waiter: LatticePerson?) -> String { "\(waiter?.name ?? "次の工程")が待っています" }
+
     static func cardLabel(_ card: LatticeCard, producer: LatticePerson?) -> String {
         "\(card.title)、\(card.status.badge)、つくっている \(latticeName(producer))"
     }
@@ -354,7 +402,10 @@ struct LatticeCounts: Equatable {
 
 struct LatticeWaitRow: Identifiable, Equatable {
     let id: String
+    /// The waiting card (what the row is about), its owner (owner rule) and 「担当 ◯◯」 / 担当なし.
+    let waitingTitle: String
     let waiter: LatticePerson?
+    /// The awaited card and its producer.
     let producer: LatticePerson?
     let title: String
     let producerStatus: LatticeTaskState
@@ -364,24 +415,26 @@ struct LatticeWaitRow: Identifiable, Equatable {
     let forCard: String
     let emphasized: Bool
 
-    var headline: String { "\(waiter?.name ?? "担当未定")が待っている" }
+    var waiterLine: String { waiter.map { "担当 \($0.name)" } ?? LatticePerson.unassigned }
     var canChat: Bool { producer?.known == true }
     var accessibilityLabel: String {
-        "\(waiter?.name ?? "担当未定")が\(title)を待っています。つくっているのは\(latticeName(producer))、\(stateText)"
+        "「\(waitingTitle)」（\(waiterLine)）は、「\(title)」が終わるのを待っています。つくっているのは\(latticeName(producer))、\(stateText)"
     }
 
     /// サーバーの並び（待ちの古い順）のまま。
     static func rows(_ snapshot: LatticeChartSnapshot, now: Date) -> [LatticeWaitRow] {
         let lookup = LatticePerson.lookup(snapshot)
         let cards = Dictionary(snapshot.cardList.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        return snapshot.waitList.map { wait in
+        // A wait that touches an archived card is not on screen.
+        return snapshot.waitList.filter { cards[$0.waitingCard]?.isArchived != true && cards[$0.forCard]?.isArchived != true }.map { wait in
             let awaited = cards[wait.forCard]
             let status = LatticeTaskState(wait.producerState ?? awaited?.state)
             // Owner rule: the waiter owns the waiting card, the producer owns the awaited card.
             let producer = lookup(awaited?.owner ?? wait.producer)
             let waiter = lookup(cards[wait.waitingCard]?.owner ?? wait.waiter)
             return LatticeWaitRow(
-                id: wait.id, waiter: waiter, producer: producer, title: awaited?.title ?? "",
+                id: wait.id, waitingTitle: cards[wait.waitingCard]?.title ?? "", waiter: waiter, producer: producer,
+                title: awaited?.title ?? "",
                 producerStatus: status,
                 stateText: LatticeText.producerState(awaited, state: status, producer: producer, now: now),
                 length: LatticeTime.since(wait.since, now: now), minutes: LatticeTime.minutes(since: wait.since, now: now),
@@ -463,7 +516,7 @@ struct LatticeLayout: Equatable {
     /// レーンの順：統括、動いている数の多い順、名前順。名簿にない担当、書かれた担当（lane）、担当なしは後ろ。
     init(_ snapshot: LatticeChartSnapshot, coordinator: String? = nil) {
         let lookup = LatticePerson.lookup(snapshot)
-        let cards = snapshot.cardList
+        let cards = snapshot.cardList.filter { !$0.isArchived }  // finished work that left the chart is not drawn
         var groups: [String: [LatticeCard]] = [:]
         for card in cards { groups[card.owner ?? "", default: []].append(card) }
         func activity(_ key: String) -> Int {
@@ -520,6 +573,230 @@ struct LatticeLayout: Equatable {
     }
 
     func columnCenter(_ depth: Int) -> CGFloat { Self.labelWidth + 16 + CGFloat(depth) * Self.column + Self.cardWidth / 2 }
+}
+
+// MARK: Tree
+
+/// The process tree (screen-spec "ツリー"): the chart -> its phases (plan order) -> cards nested under their `parent`;
+/// cards without a (known) phase hang from the chart after the phases. Left to right, one row per box. Coordinates in pt.
+struct LatticeTree: Equatable {
+    enum Kind: Equatable { case root, phase, card }
+
+    struct Node: Identifiable, Equatable {
+        /// A card's id is its card id; the root and phases use `LatticeTree.rootId` / `phaseId(_:)` so no id can collide.
+        let id: String
+        let kind: Kind
+        let title: String
+        /// A card: its own state. The root and a phase: the roll-up (止まり > 作業中 > 完了 > 未着手).
+        let status: LatticeTaskState
+        /// Progress like the toolbar ring: done cards over the cards that are not retired.
+        let done: Int
+        let total: Int
+        var frame: CGRect
+    }
+
+    struct Link: Equatable {
+        let parent: String
+        let child: String
+        /// A card nested under a card: drawn as a trunk down from the parent (see `LatticeTreeLink`).
+        let nested: Bool
+    }
+
+    static let rootId = "tree:root"
+    static func phaseId(_ id: String) -> String { "tree:phase:\(id)" }
+    static let untitledPhase = "名前のないまとまり"
+
+    static let margin: CGFloat = 16
+    static let rowHeight: CGFloat = 40
+    static let boxHeight: CGFloat = 34
+    static let groupGap: CGFloat = 8
+    static let rootWidth: CGFloat = 172
+    static let phaseWidth: CGFloat = 196
+    static let cardWidth: CGFloat = 260
+    static let columnGap: CGFloat = 44
+    static let indent: CGFloat = 24
+    /// Room right of the boxes for the dependency arcs.
+    static let arcRoom: CGFloat = 88
+
+    /// Reading order: the root, each phase followed by its cards (parent first), then the phase-less cards.
+    let nodes: [Node]
+    let links: [Link]
+    let frames: [String: CGRect]
+    /// Where the phase column starts (the phone's first view scrolls here, hiding only the root's left part).
+    let phaseX: CGFloat
+    let size: CGSize
+
+    static func rollup(_ cards: [LatticeCard]) -> LatticeTaskState {
+        if cards.contains(where: { $0.status == .blocked }) { return .blocked }
+        if cards.contains(where: { $0.status == .inProgress }) { return .inProgress }
+        if !cards.isEmpty && cards.allSatisfy({ $0.status.finished }) { return .done }
+        return .pending
+    }
+
+    /// Cards in parent-first depth-first order with their nesting level. A parent that is missing, outside the group
+    /// (another phase) or the card itself makes the card a top-level card; members of a parent cycle are never
+    /// reached from a top-level card, so the first of them in snapshot order becomes top-level (each card appears once).
+    static func order(_ group: [LatticeCard]) -> [(card: LatticeCard, level: Int)] {
+        let ids = Set(group.map(\.id))
+        var children: [String: [LatticeCard]] = [:]
+        var tops: [LatticeCard] = []
+        for card in group {
+            if let parent = card.parent, parent != card.id, ids.contains(parent) { children[parent, default: []].append(card) } else { tops.append(card) }
+        }
+        var seen = Set<String>()
+        var out: [(card: LatticeCard, level: Int)] = []
+        func visit(_ card: LatticeCard, _ level: Int) {
+            guard seen.insert(card.id).inserted else { return }
+            out.append((card, level))
+            for child in children[card.id] ?? [] { visit(child, level + 1) }
+        }
+        for card in tops { visit(card, 0) }
+        for card in group { visit(card, 0) }
+        return out
+    }
+
+    init(_ snapshot: LatticeChartSnapshot, rootTitle: String = "") {
+        let known = Set(snapshot.phaseList.map(\.id))
+        // Counts and states use every card; only the drawing leaves archived cards out (a child of an archived card hangs from its phase).
+        var byPhase: [String: [LatticeCard]] = [:], visibleByPhase: [String: [LatticeCard]] = [:], loose: [LatticeCard] = []
+        for card in snapshot.cardList {
+            if let phase = card.phase, known.contains(phase) {
+                byPhase[phase, default: []].append(card)
+                if !card.isArchived { visibleByPhase[phase, default: []].append(card) }
+            } else if !card.isArchived {
+                loose.append(card)
+            }
+        }
+        func progress(_ cards: [LatticeCard]) -> (done: Int, total: Int) {
+            (cards.filter { $0.status == .done }.count, cards.filter { $0.status != .retired }.count)
+        }
+        let phaseX = Self.margin + Self.rootWidth + Self.columnGap
+        let cardX = phaseX + Self.phaseWidth + Self.columnGap
+        var nodes: [Node] = [], links: [Link] = [], frames: [String: CGRect] = [:]
+        var rowTop = Self.margin
+        func box(x: CGFloat, centerY: CGFloat, width: CGFloat) -> CGRect {
+            CGRect(x: x, y: centerY - Self.boxHeight / 2, width: width, height: Self.boxHeight)
+        }
+        /// Lays the ordered cards in consecutive rows; returns the centres of the top-level rows (the parent's children).
+        func place(_ ordered: [(card: LatticeCard, level: Int)], x: CGFloat, parentId: String) -> [CGFloat] {
+            var parents: [Int: String] = [:], topCenters: [CGFloat] = []
+            for (card, level) in ordered {
+                let centerY = rowTop + Self.rowHeight / 2
+                rowTop += Self.rowHeight
+                let frame = box(x: x + CGFloat(level) * Self.indent, centerY: centerY, width: Self.cardWidth)
+                nodes.append(Node(id: card.id, kind: .card, title: card.title, status: card.status, done: card.status == .done ? 1 : 0,
+                                  total: card.status == .retired ? 0 : 1, frame: frame))
+                frames[card.id] = frame
+                links.append(Link(parent: level == 0 ? parentId : parents[level - 1] ?? parentId, child: card.id, nested: level > 0))
+                parents[level] = card.id
+                if level == 0 { topCenters.append(centerY) }
+            }
+            return topCenters
+        }
+        func middle(_ centers: [CGFloat]) -> CGFloat? { centers.min().flatMap { low in centers.max().map { (low + $0) / 2 } } }
+
+        let all = progress(snapshot.cardList)
+        nodes.append(Node(id: Self.rootId, kind: .root, title: rootTitle, status: Self.rollup(snapshot.cardList), done: all.done, total: all.total, frame: .zero))
+        var rootChildren: [CGFloat] = []
+        for phase in snapshot.phaseList {
+            let cards = byPhase[phase.id] ?? []
+            if !cards.isEmpty && visibleByPhase[phase.id] == nil { continue }  // every card archived: the phase is not drawn
+            let id = Self.phaseId(phase.id)
+            let title = phase.title?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let counts = progress(cards)
+            nodes.append(Node(id: id, kind: .phase, title: title?.isEmpty == false ? phase.title! : Self.untitledPhase,
+                              status: Self.rollup(cards), done: counts.done, total: counts.total, frame: .zero))
+            let phaseIndex = nodes.count - 1
+            let start = rowTop
+            let centers = place(Self.order(visibleByPhase[phase.id] ?? []), x: cardX, parentId: id)
+            if centers.isEmpty { rowTop += Self.rowHeight }  // a phase without cards still takes a row
+            let centerY = middle(centers) ?? start + Self.rowHeight / 2
+            nodes[phaseIndex].frame = box(x: phaseX, centerY: centerY, width: Self.phaseWidth)
+            frames[id] = nodes[phaseIndex].frame
+            links.append(Link(parent: Self.rootId, child: id, nested: false))
+            rootChildren.append(centerY)
+            rowTop += Self.groupGap
+        }
+        rootChildren += place(Self.order(loose), x: phaseX, parentId: Self.rootId)
+        nodes[0].frame = box(x: Self.margin, centerY: middle(rootChildren) ?? Self.margin + Self.rowHeight / 2, width: Self.rootWidth)
+        frames[Self.rootId] = nodes[0].frame
+
+        self.nodes = nodes
+        self.links = links
+        self.frames = frames
+        self.phaseX = phaseX
+        let right = frames.values.map(\.maxX).max() ?? 0
+        let bottom = frames.values.map(\.maxY).max() ?? 0
+        size = CGSize(width: right + Self.arcRoom + Self.margin, height: max(rowTop, bottom) + Self.margin)
+    }
+}
+
+/// A parent -> child link: a soft S-curve from the parent's right edge to the child's left edge, or, for a card nested
+/// under a card (it sits one indent right, one row group below), a trunk down from the parent's left side that turns
+/// into the child with a rounded corner.
+struct LatticeTreeLink: Equatable {
+    static let trunkInset: CGFloat = 14
+    static let corner: CGFloat = 10
+
+    let start: CGPoint
+    let end: CGPoint
+    private let curve: LatticeCurve?
+
+    init(parent: CGRect, child: CGRect, nested: Bool) {
+        if nested {
+            curve = nil
+            start = CGPoint(x: parent.minX + Self.trunkInset, y: parent.maxY)
+            end = CGPoint(x: child.minX, y: child.midY)
+        } else {
+            let curve = LatticeCurve(from: parent, to: child)
+            self.curve = curve
+            start = curve.p0
+            end = curve.p3
+        }
+    }
+
+    var path: Path {
+        if let curve { return curve.path }
+        let r = min(Self.corner, end.x - start.x, end.y - start.y)
+        var path = Path()
+        path.move(to: start)
+        path.addLine(to: CGPoint(x: start.x, y: end.y - r))
+        path.addQuadCurve(to: CGPoint(x: start.x + r, y: end.y), control: CGPoint(x: start.x, y: end.y))
+        path.addLine(to: end)
+        return path
+    }
+}
+
+/// A dependency (`edge`) drawn as an arc on the right of the boxes: from the awaited card's right edge, bulging right,
+/// into the waiting card's right edge. `p3` is where the arrowhead points (leftwards).
+struct LatticeTreeArc: Equatable {
+    let p0: CGPoint, p1: CGPoint, p2: CGPoint, p3: CGPoint
+
+    init(from: CGRect, to: CGRect) {
+        p0 = CGPoint(x: from.maxX, y: from.midY)
+        p3 = CGPoint(x: to.maxX, y: to.midY)
+        // A cubic with both controls at x reaches 3/4 of the way there, so scale to the wanted reach.
+        let reach = min(64, 16 + abs(p3.y - p0.y) * 0.06)
+        let x = max(p0.x, p3.x) + reach / 0.75
+        p1 = CGPoint(x: x, y: p0.y)
+        p2 = CGPoint(x: x, y: p3.y)
+    }
+
+    var path: Path {
+        var path = Path()
+        path.move(to: p0)
+        path.addCurve(to: p3, control1: p1, control2: p2)
+        return path
+    }
+
+    var head: Path {
+        var head = Path()
+        head.move(to: p3)
+        head.addLine(to: CGPoint(x: p3.x + 8, y: p3.y - 4.5))
+        head.addLine(to: CGPoint(x: p3.x + 8, y: p3.y + 4.5))
+        head.closeSubpath()
+        return head
+    }
 }
 
 // MARK: Edges
@@ -584,6 +861,45 @@ enum LatticeChipPlacement {
             }
         }
         return nil
+    }
+}
+
+// MARK: History
+
+/// 過去ログ：終わった工程（done / retired。archivedかどうかに関わらず）を、終わった時刻の新しい順に、JSTの日ごとの見出しの下へ。
+/// 時刻の分からない工程は「日時の分からない工程」として最後。
+struct LatticeHistory: Equatable {
+    struct Day: Identifiable, Equatable {
+        let id: String
+        let title: String
+        var cards: [LatticeCard]
+    }
+
+    static let unknownDay = "日時の分からない工程"
+    static let empty = "まだ終わった工程はありません。"
+
+    let days: [Day]
+    var count: Int { days.reduce(0) { $0 + $1.cards.count } }
+
+    static func count(_ snapshot: LatticeChartSnapshot?) -> Int { snapshot?.cardList.filter { $0.status.finished }.count ?? 0 }
+
+    init(_ snapshot: LatticeChartSnapshot, now: Date) {
+        let finished = snapshot.cardList.filter { $0.status.finished }
+        let timed = finished.compactMap { card in LatticeTime.date(card.doneAt).map { (card: card, at: $0) } }
+            .sorted { $0.at != $1.at ? $0.at > $1.at : $0.card.id < $1.card.id }
+        var days: [Day] = []
+        var current: Date?
+        for item in timed {
+            let start = LatticeTime.tokyo.startOfDay(for: item.at)
+            if start != current {
+                days.append(Day(id: "\(start.timeIntervalSince1970)", title: LatticeTime.dayHeading(start, now: now), cards: []))
+                current = start
+            }
+            days[days.count - 1].cards.append(item.card)
+        }
+        let unknown = finished.filter { LatticeTime.date($0.doneAt) == nil }.sorted { $0.id < $1.id }
+        if !unknown.isEmpty { days.append(Day(id: "unknown", title: Self.unknownDay, cards: unknown)) }
+        self.days = days
     }
 }
 

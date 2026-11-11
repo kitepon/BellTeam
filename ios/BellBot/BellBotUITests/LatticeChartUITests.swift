@@ -32,7 +32,7 @@ final class LatticeChartUITests: XCTestCase {
             chart.tap()
             let firstWait = element(app, "lattice-wait-row-0")
             XCTAssertTrue(firstWait.waitForExistence(timeout: 10))
-            XCTAssertTrue(firstWait.label.contains("フローラがWeb画面の組込口を待っています"), firstWait.label)
+            XCTAssertTrue(firstWait.label.contains("「部品の実装」（担当 フローラ）は、「Web画面の組込口」が終わるのを待っています"), firstWait.label)
             settle()
             shot(app, "\(scheme)-02-chart")
 
@@ -40,7 +40,12 @@ final class LatticeChartUITests: XCTestCase {
             settle()
             shot(app, "\(scheme)-03-wait-flow")
 
+            // ツリーが既定：写真に撮ってから担当に切り替える。
             app.swipeUp()
+            settle()
+            XCTAssertTrue(element(app, "lattice-view-tree").exists)
+            shot(app, "\(scheme)-04-tree")
+            selectCenter("担当", in: app)
             settle()
             shot(app, "\(scheme)-04-tasks")
 
@@ -52,6 +57,33 @@ final class LatticeChartUITests: XCTestCase {
             shot(app, "\(scheme)-05-detail")
             app.terminate()
         }
+    }
+
+    func testTreeBoxOpensDetailAndTheOverviewHasABackToTheChart() async throws {
+        let app = launch([])
+        defer { app.terminate() }
+        element(app, "lattice-chart-lattice").tap()
+        XCTAssertTrue(element(app, "lattice-wait-row-0").waitForExistence(timeout: 10))
+        // 一覧は工程表の上に重なり、戻るで同じ工程表へ。
+        element(app, "lattice-back-to-list").tap()
+        XCTAssertTrue(element(app, "lattice-chart-lattice").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars.buttons.firstMatch.exists, "戻るの矢印")
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(element(app, "lattice-wait-row-0").waitForExistence(timeout: 5), "同じ工程表に戻る")
+
+        // 過去ログ：終わった工程（図から消えたものも）が日ごとに並ぶ。
+        XCTAssertFalse(element(app, "lattice-tree-box-p1/t01").exists, "archivedな札はツリーに描かない")
+        selectCenter("過去ログ", in: app)
+        XCTAssertTrue(element(app, "lattice-history-row-p1/t01").waitForExistence(timeout: 5))
+        settle()
+        shot(app, "light-05-history")
+        selectCenter("ツリー", in: app)
+        let box = element(app, "lattice-tree-box-p1/t04")
+        XCTAssertTrue(scrollTo(box, in: app))
+        box.tap()
+        XCTAssertTrue(element(app, "lattice-detail").waitForExistence(timeout: 5))
+        settle()
+        shot(app, "light-06-tree-detail")
     }
 
     func testFailureViewsKeepTheChartAndSayWhatHappens() async throws {
@@ -72,6 +104,7 @@ final class LatticeChartUITests: XCTestCase {
         shot(app, "light-11-last-verified")
 
         _ = try await call("/test/mode?state=verified&unknown=1")
+        selectCenter("担当", in: app)
         // 札の読み上げは「題名、状態、つくっている 担当」。名簿にない担当は「名簿にないメンバー」と読む。
         let unknown = element(app, "lattice-card-p1/t09")
         XCTAssertTrue(scrollTo(unknown, in: app))
@@ -112,6 +145,14 @@ final class LatticeChartUITests: XCTestCase {
             app.swipeUp()
         }
         return target.exists && target.isHittable
+    }
+
+    /// The ツリー / 担当 switch sits in the 工程 header, below the wait pager.
+    private func selectCenter(_ name: String, in app: XCUIApplication) {
+        let picker = app.segmentedControls["lattice-center-picker"]
+        XCTAssertTrue(scrollTo(picker, in: app), "ツリー / 担当の切り替え")
+        // 過去ログの札は「過去ログ N」と数を持つ。
+        picker.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", name)).firstMatch.tap()
     }
 
     private func waitFor(_ predicate: NSPredicate, _ target: XCUIElement) -> Bool {

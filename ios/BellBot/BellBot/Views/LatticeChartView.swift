@@ -20,6 +20,8 @@ struct LatticeChartScreen: View {
     @State private var focus: String?
     @State private var scrollTarget: String?
     @State private var grouping = LatticeGrouping.depth
+    /// ツリー / 担当：アプリを開いている間は残す。詳細・強調・送り先（上の@State）は切り替えても引き継ぐ。
+    @SceneStorage("lattice-center") private var center = LatticeCenter.tree
     @State private var page: String?
     @State private var detent: PresentationDetent = .medium
     @State private var switching = false
@@ -69,6 +71,8 @@ struct LatticeChartScreen: View {
         }
         .animation(.spring(response: 0.45, dampingFraction: 0.82), value: model.connection)
         .toolbar(.hidden, for: .navigationBar)
+        // The bar is hidden, but the title is the label of the back button on the 一覧 pushed over this chart.
+        .navigationTitle(title)
         .task(id: scenePhase == .active) {
             // 背景へ回る・窓を閉じる時は接続を閉じ、戻ったら最新の一枚から描き直す。
             guard scenePhase == .active else { return }
@@ -180,6 +184,15 @@ struct LatticeChartScreen: View {
         .background((live ? LatticePalette.live : LatticePalette.muted).opacity(0.12), in: Capsule())
     }
 
+    private var centerPicker: some View {
+        Picker("表示", selection: $center) {
+            ForEach(LatticeCenter.allCases, id: \.self) { Text($0 == .history ? "\($0.rawValue) \(LatticeHistory.count(model.snapshot))" : $0.rawValue).tag($0) }
+        }
+        .pickerStyle(.segmented)
+        .frame(width: 240)
+        .accessibilityIdentifier("lattice-center-picker")
+    }
+
     @ViewBuilder private func notices(_ snapshot: LatticeChartSnapshot) -> some View {
         ForEach((snapshot.degraded ?? []).compactMap(LatticeText.degraded), id: \.self) { text in
             LatticeNoticePill(text: text).transition(.opacity)
@@ -215,6 +228,7 @@ struct LatticeChartScreen: View {
             HStack(spacing: 12) {
                 switcher
                 livePill
+                centerPicker
                 notices(snapshot)
                 Spacer(minLength: 12)
                 LatticeRing(done: counts.progressDone, total: counts.progressTotal, size: 34, line: 3.5)
@@ -235,8 +249,17 @@ struct LatticeChartScreen: View {
                     ZStack(alignment: .topTrailing) {
                         VStack(spacing: 0) {
                             banner(snapshot).padding([.horizontal, .top], 14)
-                            board(snapshot, layout, now: now)
-                                .opacity(dims(snapshot) ? 0.55 : 1).saturation(dims(snapshot) ? 0.55 : 1)
+                            Group {
+                                if center == .tree {
+                                    treeBoard(snapshot, axes: [.horizontal, .vertical], namespace: namespace).transition(.opacity)
+                                } else if center == .history {
+                                    historyBoard(snapshot, now: now).transition(.opacity)
+                                } else {
+                                    board(snapshot, layout, now: now).transition(.opacity)
+                                }
+                            }
+                            .animation(reduceMotion ? .easeInOut(duration: 0.2) : .spring(response: 0.45, dampingFraction: 0.82), value: center)
+                            .opacity(dims(snapshot) ? 0.55 : 1).saturation(dims(snapshot) ? 0.55 : 1)
                         }
                         .overlay(alignment: .bottomLeading) { LatticeLegend().padding(14) }
                         if let id = selected, let detail = LatticeDetail(snapshot, cardId: id, now: now) {
@@ -272,6 +295,34 @@ struct LatticeChartScreen: View {
                                     ready: mine.contains { $0.status == .ready },
                                     waiting: snapshot.waitList.filter { $0.waiter == person.botId }.count)
         }
+    }
+
+    /// 過去ログ（広い面）：縦に送る一覧。送り先の札へ送る。
+    private func historyBoard(_ snapshot: LatticeChartSnapshot, now: Date) -> some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                historyView(snapshot, now: now, namespace: namespace)
+                    .padding(20).frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+            .onChange(of: scrollTarget) { _, target in
+                guard let target else { return }
+                scrollTarget = nil
+                withAnimation(reduceMotion ? nil : .spring(response: 0.5, dampingFraction: 0.85)) { proxy.scrollTo(target, anchor: .center) }
+            }
+        }
+    }
+
+    private func historyView(_ snapshot: LatticeChartSnapshot, now: Date, namespace: Namespace.ID?) -> some View {
+        LatticeHistoryView(snapshot: snapshot, now: now, lookup: LatticePerson.lookup(snapshot), focus: focus, selected: selected,
+                           namespace: namespace, select: { select($0) })
+    }
+
+    /// ツリー。選択・強調・送り先は担当のレーンと同じ（切り替えても引き継ぐ）。
+    private func treeBoard(_ snapshot: LatticeChartSnapshot, axes: Axis.Set, namespace: Namespace.ID?) -> some View {
+        LatticeTreeBoard(snapshot: snapshot, tree: LatticeTree(snapshot, rootTitle: title), lookup: LatticePerson.lookup(snapshot),
+                         focus: focus, selected: selected, completedAt: model.completedAt, reduceMotion: reduceMotion,
+                         namespace: namespace, axes: axes, scrollTarget: $scrollTarget,
+                         select: { select($0) }, clear: { focus = nil; select(nil) })
     }
 
     /// レーンと札と線。左の名前の列は横に送っても残る（note 04）：横に送る盤の上に、不透明な名前の列を重ねる。
@@ -416,7 +467,7 @@ struct LatticeChartScreen: View {
             let edge = edges.first { cards[$0.from]?.status == .blocked } ?? edges[0]
             guard let from = layout.frames[edge.from] else { continue }
             let waiter = lookup(cards[to]?.owner)
-            let text = "\(waiter?.name ?? "担当未定")が待っています"
+            let text = LatticeText.chipText(waiter: waiter)
             let size = CGSize(width: CGFloat(text.count) * 12.5 + 46, height: 26)
             guard let frame = LatticeChipPlacement.place(LatticeCurve(from: from, to: target), size: size, avoiding: boxes, within: bounds) else { continue }
             boxes.append(frame)
@@ -536,15 +587,26 @@ struct LatticeChartScreen: View {
             HStack {
                 Text("工程").font(.system(size: 19, weight: .bold)).foregroundStyle(LatticePalette.ink)
                 Spacer()
+                centerPicker
+            }
+            if center == .lanes {
                 Picker("並べ方", selection: $grouping) {
                     ForEach(LatticeGrouping.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                 }
-                .pickerStyle(.segmented).frame(width: 160)
+                .pickerStyle(.segmented).frame(width: 160).frame(maxWidth: .infinity, alignment: .trailing)
             }
-            if snapshot.cardList.isEmpty {
+            if snapshot.cardList.isEmpty && center != .history {
                 Text(LatticeText.noCards).font(.system(size: 13)).foregroundStyle(LatticePalette.muted)
             }
-            ForEach(groups, id: \.title) { group in
+            if center == .history {
+                historyView(snapshot, now: now, namespace: nil)
+            }
+            if center == .tree {
+                // 縦は画面全体が送るので、木は横だけ送る。
+                treeBoard(snapshot, axes: .horizontal, namespace: nil)
+                    .frame(height: LatticeTree(snapshot).size.height)
+            }
+            ForEach(center == .lanes ? groups : [], id: \.title) { group in
                 VStack(alignment: .leading, spacing: 8) {
                     Text(group.title).font(.system(size: 12, weight: .semibold)).foregroundStyle(LatticePalette.muted).padding(.leading, 36)
                     ForEach(group.cards) { card in
@@ -1133,7 +1195,8 @@ struct LatticeWaitPanel: View {
     }
 }
 
-/// 待ちの流れの1行：誰が待っているか、何を、誰がつくっているか、待ちの長さ。止まりの作り手の行は強調する（動かさない）。
+/// 待ちの流れの1行（それだけで読める）：待っている工程の題・担当の顔・待ちの長さ、その担当、「この工程が終わるのを待っています」と
+/// 待たれている工程の題、つくっている人と状態。止まりの作り手の行は強調する（動かさない）。
 struct LatticeWaitRowView: View {
     let row: LatticeWaitRow
     let compact: Bool
@@ -1142,21 +1205,27 @@ struct LatticeWaitRowView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
-            HStack(spacing: 7) {
-                LatticeAvatar(person: row.waiter, size: 20)
-                Text(row.headline).font(.system(size: 13, weight: .semibold)).foregroundStyle(LatticePalette.ink).lineLimit(1)
-                Spacer(minLength: 4)
-                Text("待ち \(row.length)").font(.system(size: 12, weight: .semibold)).monospacedDigit()
-                    .foregroundStyle(row.emphasized ? LatticePalette.red : LatticePalette.muted)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .top, spacing: 7) {
+                    LatticeAvatar(person: row.waiter, size: 20)
+                    Text(row.waitingTitle).font(.system(size: compact ? 16 : 14, weight: .bold)).foregroundStyle(LatticePalette.ink).lineLimit(2)
+                    Spacer(minLength: 4)
+                    Text("待ち \(row.length)").font(.system(size: 12, weight: .semibold)).monospacedDigit()
+                        .foregroundStyle(row.emphasized ? LatticePalette.red : LatticePalette.muted)
+                }
+                Text(row.waiterLine).font(.system(size: 12)).foregroundStyle(LatticePalette.muted).lineLimit(1).padding(.leading, 27)
             }
-            HStack(spacing: 7) {
-                Image(systemName: row.producerStatus.symbol).font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(LatticePalette.tone(row.producerStatus, accent: LatticePalette.accent(row.producer)))
-                Text(row.title).font(.system(size: compact ? 16 : 14, weight: .bold)).foregroundStyle(LatticePalette.ink).lineLimit(2)
+            VStack(alignment: .leading, spacing: 5) {
+                Text("この工程が終わるのを待っています").font(.system(size: 11)).foregroundStyle(LatticePalette.muted)
+                HStack(spacing: 7) {
+                    Image(systemName: row.producerStatus.symbol).font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(LatticePalette.tone(row.producerStatus, accent: LatticePalette.accent(row.producer)))
+                    Text(row.title).font(.system(size: compact ? 15 : 13.5, weight: .semibold)).foregroundStyle(LatticePalette.ink).lineLimit(2)
+                }
+                .padding(.horizontal, 10).padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(LatticePalette.canvas.opacity(0.9), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
-            .padding(.horizontal, 10).padding(.vertical, 8)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(LatticePalette.canvas.opacity(0.9), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             HStack(spacing: 6) {
                 Text("つくっている").font(.system(size: 11)).foregroundStyle(LatticePalette.muted)
                 LatticeAvatar(person: row.producer, size: 18)
