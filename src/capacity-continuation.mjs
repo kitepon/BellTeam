@@ -67,15 +67,12 @@ export class CapacityContinuation {
     guard()
     await this.bots.refresh?.()
     if (!sameSettings(this.bots.get(context.bot.id), context.bot)) throw superseded()
-    // harness-accounts.md "account recovery": the pending entry first (it survives a restart or an exchange); the transport
-    // moves the member now when a usable slot is free, or when one frees. Another harness only with Aiterm's terminal proof
-    // and no free slot, as before.
+    // harness-accounts.md "account recovery": the transport moves the member now when a usable slot is free, or when one frees
+    // (Aiterm's limit end keeps the cut turn durably). Another harness only with Aiterm's terminal proof and no free slot, as before.
     if (context.accountLimit && this.accounts && this.transport?.recoverAccount) {
       await context.accountLimit.recorded.catch(() => {})
       guard()
       if (!context.failure || await this.accounts.freeSlot('claude', context.bot.model)) {
-        await this.accounts.setPending(context.bot.id, { harness: 'claude', slot: context.accountLimit.slot, deliveryId: context.deliveryId })
-        guard()
         this.transport.recoverAccount(context.bot.id)
         return
       }
