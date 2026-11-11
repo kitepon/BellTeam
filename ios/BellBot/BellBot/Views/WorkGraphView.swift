@@ -375,21 +375,21 @@ struct WorkGraphView: View {
 
     @ViewBuilder private var pill: some View {
         #if targetEnvironment(macCatalyst)
-        if let mainWindowError { pillText(mainWindowError) }
+        if let mainWindowError { pillText(mainWindowError, symbol: "exclamationmark.triangle.fill", tint: .red) }
         #endif
         if model.connection == .reconnecting {
-            pillText("再接続中…")
+            pillText("再接続中…", symbol: "arrow.triangle.2.circlepath", tint: BellTheme.muted)
         } else if model.connection == .unreadable {
-            pillText("相関図の応答を読めませんでした。再接続しています…")
+            pillText("相関図の応答を読めませんでした。再接続しています…", symbol: "arrow.triangle.2.circlepath", tint: BellTheme.muted)
         } else if model.degraded && model.connection == .live {
-            pillText("一部の情報を取得できていません")
+            pillText("一部の情報を取得できていません", symbol: "exclamationmark.circle.fill", tint: .orange)
         }
     }
 
-    private func pillText(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: BellTheme.listDetailFontSize))
-            .foregroundStyle(BellTheme.muted)
+    private func pillText(_ text: String, symbol: String, tint: Color) -> some View {
+        Label(text, systemImage: symbol)
+            .font(.system(size: BellTheme.listDetailFontSize, weight: .semibold))
+            .foregroundStyle(tint)
             .padding(.horizontal, 12).padding(.vertical, 6)
             .background(BellTheme.violetLight, in: RoundedRectangle(cornerRadius: 12))
             .accessibilityIdentifier("work-graph-status")

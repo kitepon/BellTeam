@@ -490,11 +490,26 @@ private struct GoalEditor: View {
                     }
                 }
                 if editsObjective {
-                    Section(header: BellSectionHeader("目的")) {
+                    Section {
                         TextEditor(text: $objective)
                             .frame(minHeight: 120)
+                            .overlay(alignment: .topLeading) {
+                                if objective.isEmpty {
+                                    Text("例：ログイン画面の改修を、実機の写真で受け入れてもらうところまで進める")
+                                        .foregroundStyle(BellTheme.muted.opacity(0.7))
+                                        .padding(.top, 8).padding(.leading, 5)
+                                        .allowsHitTesting(false).accessibilityHidden(true)
+                                }
+                            }
                             .accessibilityIdentifier("goal-objective-input")
-                        Text("\(objective.count) / 4000文字").font(.footnote).foregroundStyle(BellTheme.muted)
+                    } header: {
+                        BellSectionHeader("目的")
+                    } footer: {
+                        HStack {
+                            Text("終わったと言える状態を、一文で書きます。")
+                            Spacer()
+                            Text("\(objective.count) / 4000").monospacedDigit()
+                        }
                     }
                 }
                 if editsBudget {
@@ -509,8 +524,8 @@ private struct GoalEditor: View {
                     }
                 }
                 if selection.action == "edit" && selection.harness == "codex" && editsObjective {
-                    Text("目的を変えると使用量が初期化されます。")
-                        .font(.footnote).foregroundStyle(BellTheme.muted)
+                    Label("目的を変えると、使用量の数え直しが始まります。", systemImage: "exclamationmark.circle.fill")
+                        .font(.footnote).foregroundStyle(.orange)
                 }
                 if bindingChanged {
                     Text("会話が変わりました。この編集を閉じて、現在のゴールから編集し直してください。")

@@ -335,6 +335,10 @@ private struct BotProfileAvatarActions: View {
                 NavigationStack {
                     VStack(spacing: 20) {
                         avatarPreview
+                        Text(variant == .small ? "一覧や会話の横に出る小さな画像です。新しい画像を選ぶか、今の画像の切り抜きを調整します。"
+                                               : "プロフィールの上に大きく出る画像です。新しい画像を選ぶか、今の画像の切り抜きを調整します。")
+                            .font(BellTheme.secondaryFont).foregroundStyle(BellTheme.muted)
+                            .multilineTextAlignment(.center)
                         AvatarImagePicker(onSelect: { image in
                             cropSource = AvatarCropSource(image: image, variant: variant)
                         }, onFailure: { errorText = "画像を読み込めませんでした。" },
@@ -345,7 +349,7 @@ private struct BotProfileAvatarActions: View {
                         .buttonStyle(.borderedProminent)
                         .accessibilityIdentifier("profile-image-change")
                         .disabled(loading || unsupportedSchema || pendingSelection != nil)
-                        Button("画像調整") {
+                        Button {
                             let generation = lifetime.generation
                             adjustmentTask?.cancel()
                             adjustmentTask = Task {
@@ -353,9 +357,11 @@ private struct BotProfileAvatarActions: View {
                                       lifetime.accepts(generation), let settings else { return }
                                 adjust(settings)
                             }
+                        } label: {
+                            // Same width as 画像変更: the label fills, not the button frame.
+                            Text("画像調整").frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
-                        .frame(maxWidth: .infinity)
                         .accessibilityIdentifier("profile-image-adjust")
                         .disabled(loading || unsupportedSchema)
                         if loading { ProgressView("画像情報を確認しています…") }
