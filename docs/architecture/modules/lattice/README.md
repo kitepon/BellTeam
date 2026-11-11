@@ -63,7 +63,7 @@ flowchart LR
 | L4 | child -> Lattice CLI (read) | `lattice todo display source --json` (cheap token) and `lattice todo display read --json` -> `lattice.todo_display_read_result.v1` `{state, store, verified_at, source, inconsistency, dropped_members}` | Minimum Lattice version = `@quolu/lattice` 0.85.5 (first release with these two reads). With no store yet, `source` fails (STORE_INCONSISTENT) and `read` returns `state: "unavailable"`; a failed source counts as a probe failure, so a full read follows. Full read on token change, first observation, probe failure, after a run, or 30 s after the last full read |
 | L5 | child -> parent effect | `members.list {}` -> `{members:[{id,name,color,avatarVersion,deleting}]}` | Same effect and validator as work-graph. A failed read keeps the last roster (`degraded:['members']`) |
 | L6 | apps -> body API -> facade -> child | `charts {}`, `chart {projectId}`; SSE: `refresh {projectIds}` every `nextRefreshMs` while subscribers exist | Snapshot pushed whole on each change |
-| L7 | child -> chart dir | `.bellteam-chart.json` `{name}` written atomically (temp + rename) by `run` with `name`; read with every full read | Lattice has no project name, so the module keeps the display name beside the store. A missing file is no name; a malformed one is no name |
+| L7 | child -> chart dir | `.bellteam-chart.json` `{name?, createdBy?}` merged and written atomically (temp + rename): `createdBy = from` by the `run` that first makes the store (no `.lattice` before, one after), or by a `run` with `name` on a chart that has no recorded creator (claiming an older chart, e.g. Trony renames 「BellTeam開発」 once); `name` by `run` with `name`. Read with every full read; never overwritten once set | Lattice has no project name or creator, so the module keeps both beside the store. A missing or malformed file or field is absent |
 
 ## Seat tool `lattice` (public contract for seats)
 
@@ -75,6 +75,7 @@ Input schema: `{ project: string, name?: string, args: string[], input?: object 
   Named protection: the child runs as the server uid, so Lattice's host commands (`setup`, `hooks`, `bridge`, `dashboard`, `run`, `sensor`) would write host configuration or launch processes as the server (privilege escalation, overwriting host state). Self-exit: the refusal `LATTICE_COMMAND_NOT_SEAT_SURFACE` returns the allowed list; the seat calls again with a seat command.
 - `input`: a JSON object for commands that take `--input <file>` (`plan create`, `plan revise`, `plan backchain`). A task's `lane` is its assigned owner: write the member's Bot id or name there to show a face (see Owner on screen). The child writes it to a private temp file and appends `--input <file>`; `args` must then not contain `--input`.
 - Result: `{ exitCode, result, stdout, stderr }`. `result` is the parsed stdout JSON (null when stdout is not JSON; then `stdout` carries up to 64 KiB of text). `stderr` carries the last 4 KiB. A Lattice refusal is a normal result with its own `code` / `detail.next_action` inside `result`, never a tool error.
+- A run that leaves the chart dir without a Lattice store (`help`, `--version`, a refused first command) removes that dir again, so no empty, unlisted dirs pile up under the charts root (Molly 2026-11-12: `flora-scratch-check` stayed behind and only the server uid can remove it). A dir with `.lattice` is never removed.
 - The CLI run is bounded at 60 s (named protection: a hung CLI would hold the one call chain and stop every chart; self-exit: the process is killed, the result says `LATTICE_CLI_TIMEOUT`, the next call runs).
 - Tool errors (not Lattice results): `LATTICE_PROJECT_INVALID`, `LATTICE_NAME_INVALID`, `LATTICE_INPUT_CONFLICT`, `LATTICE_COMMAND_NOT_SEAT_SURFACE`, `LATTICE_UNAVAILABLE` (child not serving).
 
@@ -91,7 +92,7 @@ Common Owner-authenticated `/api`; internal callers 403; no permission checks of
                "activeMembers": ["bot-39be7047"], "updatedAt": "…", "state": "verified" }] }
 ```
 
-Order: coordinator charts first (`coordinator` = `createdBy` is the coordinator Bot; module default `bot-7b140b27`, Trony ruling 2026-11-11), then newest `updatedAt`. `createdBy` = `actor.agent` of the earliest journal event; `updatedAt` = the latest event time. `name` = the seat-given display name or null.
+Order: coordinator charts first (`coordinator` = `createdBy` is the coordinator Bot; module default `bot-7b140b27`, Trony ruling 2026-11-11), then newest `updatedAt`. `createdBy` = the chart's recorded creator (sidecar `createdBy`, below); for a chart made before the record existed and not yet claimed, `actor.agent` of the earliest journal event in the read. It never follows a later plan: Lattice's read holds only each plan's active version, so after the coordinator revised a plan, another member's newer plan had the earliest event and took the chart (Trony finding 2026-11-12: 「BellTeam開発」 lost 統括 when Flora added a plan). `updatedAt` = the latest event time. `name` = the seat-given display name or null.
 
 **Display name rule (all apps, list cards, chart switcher and spoken labels):** `name`; if null, 「<createdBy's member name>の工程表」 using the app's own roster name for that Bot; if that is unknown too, 名前のない工程表. `projectId` is an address for API paths only and is never put on screen or in a spoken label (Trony screen ruling: no raw ids).
 
@@ -138,7 +139,7 @@ Input: one `lattice.todo_display_read_result.v1`. For `verified` / `last_verifie
 
 ## Child protocol (`src/lattice-protocol.mjs`)
 
-`LATTICE_PROTOCOL_VERSION = 1`; `LATTICE_STATE_COMPATIBILITY = {state:'none'}`: the child's own memory (memos, epoch, versions) is not carried across a swap; chart repos are Lattice's format, which Lattice versions keep compatible; the optional `.bellteam-chart.json` sidecar is backward-compatible (missing or malformed reads as no name, older children ignore it), so it needs no state version or migration. Root methods and params:
+`LATTICE_PROTOCOL_VERSION = 1`; `LATTICE_STATE_COMPATIBILITY = {state:'none'}`: the child's own memory (memos, epoch, versions) is not carried across a swap; chart repos are Lattice's format, which Lattice versions keep compatible; the optional `.bellteam-chart.json` sidecar is backward-compatible (missing or malformed fields read as absent; older children read only `name`, and an older child's rename writes `{name}` alone, so after a rollback a renamed chart falls back to the earliest-event creator until it is named again), so it needs no state version or migration. Root methods and params:
 
 | Method | Params | Result |
 | --- | --- | --- |
@@ -156,7 +157,7 @@ Effect: `members.list {}` only, accepted only inside a pending root call. Contro
 | State | Where | Writer | Reader |
 | --- | --- | --- | --- |
 | Chart stores | `/srv/bellteam/state/lattice/<project>/` (git repo, `.lattice/**`) | Lattice CLI inside the child, only through `run` | child (`todo display read/source`) |
-| Chart display name | `/srv/bellteam/state/lattice/<project>/.bellteam-chart.json` `{name}` | child, only through `run` with `name` | child, with every full read |
+| Chart display name and creator | `/srv/bellteam/state/lattice/<project>/.bellteam-chart.json` `{name?, createdBy?}` | child, only through `run` (creator once: the store-making run, or the first naming run of an unclaimed chart) | child, with every full read |
 | Lattice HOME | `/srv/bellteam/state/lattice-home/` | Lattice CLI | Lattice CLI |
 | Memo, epoch, version, last snapshot and token per chart | child memory | child | child |
 

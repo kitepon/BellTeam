@@ -29,6 +29,12 @@ export function createLatticeCli({ bin, chartsRoot = '/srv/bellteam/state/lattic
   const failed = (error, missing = ['ENOENT', 'ENOTDIR']) => { if (missing.includes(error?.code)) return null; throw Object.assign(latticeError('LATTICE_UNAVAILABLE', 503), { detail: error?.code ?? 'EIO' }) }
   const isDir = path => stat(path).then(info => info.isDirectory(), error => failed(error) ?? false)
   const nameFile = id => join(dir(id), '.bellteam-chart.json')
+  const readMeta = async id => {
+    const text = await readFile(nameFile(id), 'utf8').catch(error => failed(error))
+    let value = null
+    try { value = text === null ? null : JSON.parse(text) } catch {}
+    return { name: validLatticeName(value?.name) ? value.name : null, createdBy: typeof value?.createdBy === 'string' && /^[a-z0-9][a-z0-9-]{0,63}$/u.test(value.createdBy) ? value.createdBy : null }
+  }
 
   const spawnRun = (args, cwd, env) => new Promise((resolve, reject) => {
     const out = [], err = []
@@ -58,16 +64,18 @@ export function createLatticeCli({ bin, chartsRoot = '/srv/bellteam/state/lattic
       return (await Promise.all(ids.map(async id => await isDir(join(dir(id), '.lattice')) ? id : null))).filter(Boolean).sort()
     },
     exists: async id => LATTICE_PROJECT_ID.test(id) && await isDir(join(dir(id), '.lattice')),
-    // The chart's display name, kept beside Lattice's store; Lattice has no project name of its own.
-    async name(id) {
-      const text = await readFile(nameFile(id), 'utf8').catch(error => failed(error))
-      if (text === null) return null
-      try { const value = JSON.parse(text)?.name; return validLatticeName(value) ? value : null } catch { return null }
-    },
-    async setName(id, name) {
+    // The chart's display name and creator, kept beside Lattice's store; Lattice has neither. A malformed field is absent.
+    meta: readMeta,
+    async setMeta(id, patch) {
+      const next = { ...await readMeta(id), ...patch }
       const temp = `${nameFile(id)}.${process.pid}.tmp`
-      await writeFile(temp, JSON.stringify({ name }) + '\n', { mode: 0o600 })
+      await writeFile(temp, JSON.stringify(Object.fromEntries(Object.entries(next).filter(([, item]) => item !== null))) + '\n', { mode: 0o600 })
       await rename(temp, nameFile(id))
+    },
+    // A dir that holds no Lattice store holds nothing (help, --version, a refused first command): remove it.
+    async prune(id) {
+      if (!LATTICE_PROJECT_ID.test(id) || await isDir(join(dir(id), '.lattice'))) return
+      await rm(dir(id), { recursive: true, force: true })
     },
     async ensure(id) {
       await mkdir(home, { recursive: true, mode: 0o700 })

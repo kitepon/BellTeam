@@ -35,8 +35,8 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     if (!memo) memos.set(id, memo = { token: null, readAt: 0, version: 0, key: null, content: null, projection: null, dirty: true, logged: null })
     const current = await token(id)
     if (memo.content && !memo.dirty && current !== null && current === memo.token && now() - memo.readAt < ceilingMs) return memo
-    let read, name
-    try { [read, name] = await Promise.all([lattice(id, ['todo', 'display', 'read', '--json']), cli.name(id)]) } catch (error) {
+    let read, meta
+    try { [read, meta] = await Promise.all([lattice(id, ['todo', 'display', 'read', '--json']), cli.meta(id)]) } catch (error) {
       memo.dirty = true
       if (memo.logged !== error.code) { memo.logged = error.code; log(`lattice-read ${id} ${error.code ?? 'LATTICE_CLI_FAILED'}`) }
       const base = memo.content ?? { name: null, createdBy: null, coordinator: false, state: 'unavailable', verifiedAt: null, members: [], cards: [], edges: [], waits: [], phases: [] }
@@ -47,7 +47,8 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     const projection = projectChart({ read, members: roster, previous: memo.projection })
     const known = new Map(roster.filter(member => !member.deleting).map(member => [member.id, member]))
     Object.assign(memo, { token: current, readAt: now(), dirty: false, logged: null, projection })
-    commit(id, memo, { name, createdBy: projection.createdBy, coordinator: projection.createdBy === coordinatorId, state: projection.state, verifiedAt: projection.verifiedAt,
+    const createdBy = meta.createdBy ?? projection.createdBy
+    commit(id, memo, { name: meta.name, createdBy, coordinator: createdBy === coordinatorId, state: projection.state, verifiedAt: projection.verifiedAt,
       degraded: rosterBad ? ['members'] : [],
       members: projection.memberIds.filter(botId => known.has(botId)).map(botId => ({ botId, name: known.get(botId).name, color: known.get(botId).color,
         avatarVersion: known.get(botId).avatarVersion })),
@@ -104,12 +105,17 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
       if (!renameOnly) checkSeatArgs(args, input)
       // Renaming needs a chart; only a Lattice command (plan create) makes one.
       else await mustExist(projectId)
+      const existed = await cli.exists(projectId)
       await cli.ensure(projectId)
-      if (naming) await cli.setName(projectId, name)
+      // The creator is recorded once: by the run that makes the store, or by naming a chart that has none recorded.
+      if (naming) await cli.setMeta(projectId, { name, ...(existed && !(await cli.meta(projectId)).createdBy && { createdBy: from }) })
       const memo = memos.get(projectId)
       if (memo) memo.dirty = true
       if (args.length === 0) return { exitCode: 0, result: { name }, stdout: null, stderr: '' }
-      const result = await cli.run({ id: projectId, args, env: { LATTICE_SEAT_ID: from }, input })
+      let result
+      try { result = await cli.run({ id: projectId, args, env: { LATTICE_SEAT_ID: from }, input }) } finally {
+        if (!existed) { if (await cli.exists(projectId)) await cli.setMeta(projectId, { createdBy: from }); else await cli.prune(projectId) }
+      }
       const value = parse(result.stdout)
       return { exitCode: result.exitCode, result: value === undefined ? null : value, stdout: value === undefined ? result.stdout.slice(0, STDOUT_KEPT) : null, stderr: result.stderr }
     },
