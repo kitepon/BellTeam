@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-11T18:38:04Z",
-  "expiresAt": "2026-11-18T18:38:04Z",
+  "publishedAt": "2026-11-11T19:38:36Z",
+  "expiresAt": "2026-11-18T19:38:36Z",
   "releases": [
     {
       "componentId": "usage",
@@ -491,8 +491,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "e4180d5177fc7bd35f49132bf4e295a647f0e103",
-      "versionId": "d0acdcb76da3d206f81064db68e48ffd4ecd90438a3a4abd5d5c386c5429024d",
+      "sourceCommit": "89037fc540a643571cfd989b6fb3fdb5546275e6",
+      "versionId": "572932e1fb56d4a0f2064d4f8c4933753797cee763552a7d7bbbaa858a20c369",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -500,16 +500,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T183603Z/execution-e4180d5177fc7bd35f49132bf4e295a647f0e103-linux-amd64.tar.gz",
-          "bytes": 3959550,
-          "sha256": "d0acdcb76da3d206f81064db68e48ffd4ecd90438a3a4abd5d5c386c5429024d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T193743Z/execution-89037fc540a643571cfd989b6fb3fdb5546275e6-linux-amd64.tar.gz",
+          "bytes": 3960054,
+          "sha256": "572932e1fb56d4a0f2064d4f8c4933753797cee763552a7d7bbbaa858a20c369"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T183603Z/execution-e4180d5177fc7bd35f49132bf4e295a647f0e103-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11020,
-          "sha256": "d0ab50cee791f133294331147571cf2273baefc9ebf3bcef1ebace4d29e12fd4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T193743Z/execution-89037fc540a643571cfd989b6fb3fdb5546275e6-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11083,
+          "sha256": "91cd02e09c0d2b25f01d7914b23154d79e13ce72cc5496eb727e6f16dc18d8de"
         },
-        "signerCommit": "e4180d5177fc7bd35f49132bf4e295a647f0e103"
+        "signerCommit": "89037fc540a643571cfd989b6fb3fdb5546275e6"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -519,13 +519,14 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "作業が終わらないまま止まっているメンバー（ログインが切れたClaudeなど）も、削除できるようにしました。削除のときに席を閉じ、古い届け物を終わらせます。"
+        "作業が終わらないまま止まっているメンバー（ログインが切れたClaudeなど）も、削除できるようにしました。削除のときに席を閉じ、古い届け物を終わらせます。",
+        "席が動いていないだけのメンバーのゴールを、読み取りの失敗ではなく「休止中」と返すようにしました。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "e4180d5177fc7bd35f49132bf4e295a647f0e103",
-      "versionId": "4e95fa2a4976cf49aac16d41879f5bf0d6f5e50c5d9480be3547ad88ed00e1ee",
+      "sourceCommit": "89037fc540a643571cfd989b6fb3fdb5546275e6",
+      "versionId": "7b3d9fe596a89a76aa7fa84642d06c47ad5bebc2f36768ff11d3c762a434d0a6",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -533,16 +534,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T183603Z/execution-e4180d5177fc7bd35f49132bf4e295a647f0e103-linux-arm64.tar.gz",
-          "bytes": 3959555,
-          "sha256": "4e95fa2a4976cf49aac16d41879f5bf0d6f5e50c5d9480be3547ad88ed00e1ee"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T193743Z/execution-89037fc540a643571cfd989b6fb3fdb5546275e6-linux-arm64.tar.gz",
+          "bytes": 3960056,
+          "sha256": "7b3d9fe596a89a76aa7fa84642d06c47ad5bebc2f36768ff11d3c762a434d0a6"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T183603Z/execution-e4180d5177fc7bd35f49132bf4e295a647f0e103-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11161,
-          "sha256": "b806b4c366216948d1845bbb1fb570b58d9919e174987b892b7c77408d26beea"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T193743Z/execution-89037fc540a643571cfd989b6fb3fdb5546275e6-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10942,
+          "sha256": "04003f313d401ee23e18e53b617eb715f8bf6195f8e215979997df5c2128f9dd"
         },
-        "signerCommit": "e4180d5177fc7bd35f49132bf4e295a647f0e103"
+        "signerCommit": "89037fc540a643571cfd989b6fb3fdb5546275e6"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -552,7 +553,8 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "作業が終わらないまま止まっているメンバー（ログインが切れたClaudeなど）も、削除できるようにしました。削除のときに席を閉じ、古い届け物を終わらせます。"
+        "作業が終わらないまま止まっているメンバー（ログインが切れたClaudeなど）も、削除できるようにしました。削除のときに席を閉じ、古い届け物を終わらせます。",
+        "席が動いていないだけのメンバーのゴールを、読み取りの失敗ではなく「休止中」と返すようにしました。"
       ]
     },
     {
