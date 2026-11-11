@@ -166,6 +166,8 @@ test('core: a chart name is set by a seat, read beside the store, and a failed n
   const named = await x.chart()
   assert.deepEqual([named.name, named.version, (await x.core.charts({}, x.effect)).charts[0].name], ['Lattice組込', 2, 'Lattice組込'])
   await assert.rejects(x.core.run({ from: 'bot-a', projectId: 'alpha', args: [], input: null }), { code: 'LATTICE_COMMAND_NOT_SEAT_SURFACE' })
+  await assert.rejects(x.core.run({ from: 'bot-a', projectId: 'nochart', args: [], input: null, name: '名前' }), { code: 'LATTICE_CHART_NOT_FOUND', status: 404 })
+  assert.deepEqual([x.cli.ensured.includes('nochart'), 'nochart' in x.cli.names], [false, false], 'a rename of a missing chart writes nothing')
   x.cli.fail.add('name'); x.clock.now += 31000
   const failed = await x.chart()
   assert.deepEqual([failed.name, failed.degraded], ['Lattice組込', ['lattice-read']])
@@ -339,6 +341,15 @@ test('cli: a missing charts root is no charts; a permission error is LATTICE_UNA
     await assert.rejects(cli.name('alpha'), { code: 'LATTICE_UNAVAILABLE' })
   } finally { await chmod(chartsRoot, 0o700) }
   assert.deepEqual([await cli.list(), await cli.exists('alpha')], [['alpha'], true])
+})
+
+test('cli: a file where the charts root should be is LATTICE_UNAVAILABLE, not "no charts", and recovers', async t => {
+  const { bin, chartsRoot, home } = await scratch(t)
+  const cli = createLatticeCli({ bin, chartsRoot, home })
+  await writeFile(chartsRoot, '')
+  await assert.rejects(cli.list(), { code: 'LATTICE_UNAVAILABLE', status: 503, detail: 'ENOTDIR' })
+  await rm(chartsRoot); await mkdir(join(chartsRoot, 'alpha', '.lattice'), { recursive: true })
+  assert.deepEqual(await cli.list(), ['alpha'])
 })
 
 test('cli: allowlist and input conflict', async t => {

@@ -25,8 +25,8 @@ export function createLatticeCli({ bin, chartsRoot = '/srv/bellteam/state/lattic
     catch { throw latticeError('LATTICE_UNAVAILABLE', 503) }
   }
   // Only a missing path means "no chart"; any other I/O error is LATTICE_UNAVAILABLE and nothing is cached, so the next call recovers.
-  const absent = error => error?.code === 'ENOENT' || error?.code === 'ENOTDIR'
-  const failed = error => { if (absent(error)) return null; throw Object.assign(latticeError('LATTICE_UNAVAILABLE', 503), { detail: error?.code ?? 'EIO' }) }
+  // The charts root itself must be a directory: a file there (ENOTDIR) is unavailable, not "no charts".
+  const failed = (error, missing = ['ENOENT', 'ENOTDIR']) => { if (missing.includes(error?.code)) return null; throw Object.assign(latticeError('LATTICE_UNAVAILABLE', 503), { detail: error?.code ?? 'EIO' }) }
   const isDir = path => stat(path).then(info => info.isDirectory(), error => failed(error) ?? false)
   const nameFile = id => join(dir(id), '.bellteam-chart.json')
 
@@ -52,7 +52,7 @@ export function createLatticeCli({ bin, chartsRoot = '/srv/bellteam/state/lattic
 
   return {
     async list() {
-      const entries = await readdir(chartsRoot, { withFileTypes: true }).catch(error => failed(error) ?? [])
+      const entries = await readdir(chartsRoot, { withFileTypes: true }).catch(error => failed(error, ['ENOENT']) ?? [])
       // A chart exists once Lattice wrote its store; a dir made by a help-only call is not a chart.
       const ids = entries.filter(entry => entry.isDirectory() && LATTICE_PROJECT_ID.test(entry.name)).map(entry => entry.name)
       return (await Promise.all(ids.map(async id => await isDir(join(dir(id), '.lattice')) ? id : null))).filter(Boolean).sort()

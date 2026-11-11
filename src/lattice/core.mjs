@@ -100,7 +100,10 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     // `name` alone (args []) only names the chart; with args it names it and then runs the command.
     async run({ from, projectId, args, input, name }) {
       const naming = name !== undefined
-      if (!(naming && args.length === 0 && input === null)) checkSeatArgs(args, input)
+      const renameOnly = naming && args.length === 0 && input === null
+      if (!renameOnly) checkSeatArgs(args, input)
+      // Renaming needs a chart; only a Lattice command (plan create) makes one.
+      else await mustExist(projectId)
       await cli.ensure(projectId)
       if (naming) await cli.setName(projectId, name)
       const memo = memos.get(projectId)

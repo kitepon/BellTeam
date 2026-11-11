@@ -70,7 +70,7 @@ flowchart LR
 Input schema: `{ project: string, name?: string, args: string[], input?: object }`.
 
 - `project`: chart id, `^[a-z0-9][a-z0-9-]{0,62}$`. Lattice's `project_id` is this directory name. A new id creates a new chart on its first write (Owner ruling 7: anyone may make a chart).
-- `name`: the chart's display name for every screen, 1-40 characters, no control characters or surrounding spaces (`LATTICE_NAME_INVALID` otherwise). Give it when making a chart; `args: []` with `name` only renames (no Lattice command runs; result `{exitCode:0, result:{name}, stdout:null, stderr:''}`). Screens never show `project`.
+- `name`: the chart's display name for every screen, 1-40 characters, no control characters or surrounding spaces (`LATTICE_NAME_INVALID` otherwise). Give it when making a chart; `args: []` with `name` only renames an existing chart (no Lattice command runs; result `{exitCode:0, result:{name}, stdout:null, stderr:''}`; a project with no chart yet is the tool error `LATTICE_CHART_NOT_FOUND` and nothing is written). To name a new chart, pass `name` with its `plan create`. Screens never show `project`.
 - `args`: Lattice CLI arguments after `lattice`, e.g. `["session-context"]`, `["plan","create","--template"]`, `["todo","start","--plan","p1","--task","t01"]`, `["todo","note","--plan","p1","--task","t01","--message","..."]`, `["todo","dependency","connect","--from-plan",...]`. The first argument must be one of `plan`, `todo`, `status`, `session-context`, `help`, `--help`, `--version`.
   Named protection: the child runs as the server uid, so Lattice's host commands (`setup`, `hooks`, `bridge`, `dashboard`, `run`, `sensor`) would write host configuration or launch processes as the server (privilege escalation, overwriting host state). Self-exit: the refusal `LATTICE_COMMAND_NOT_SEAT_SURFACE` returns the allowed list; the seat calls again with a seat command.
 - `input`: a JSON object for commands that take `--input <file>` (`plan create`, `plan revise`, `plan backchain`). The child writes it to a private temp file and appends `--input <file>`; `args` must then not contain `--input`.
@@ -131,7 +131,7 @@ Input: one `lattice.todo_display_read_result.v1`. For `verified` / `last_verifie
 
 ## Child protocol (`src/lattice-protocol.mjs`)
 
-`LATTICE_PROTOCOL_VERSION = 1`; `LATTICE_STATE_COMPATIBILITY = {state:'none'}` (the child keeps memory only; chart repos are Lattice's format, which Lattice versions keep compatible). Root methods and params:
+`LATTICE_PROTOCOL_VERSION = 1`; `LATTICE_STATE_COMPATIBILITY = {state:'none'}`: the child's own memory (memos, epoch, versions) is not carried across a swap; chart repos are Lattice's format, which Lattice versions keep compatible; the optional `.bellteam-chart.json` sidecar is backward-compatible (missing or malformed reads as no name, older children ignore it), so it needs no state version or migration. Root methods and params:
 
 | Method | Params | Result |
 | --- | --- | --- |
@@ -159,7 +159,7 @@ Effect: `members.list {}` only, accepted only inside a pending root call. Contro
 | --- | --- | --- |
 | Store inconsistent or partly unreadable | Lattice returns `unverified` / `last_verified` / `unavailable`; passed through; apps show a plain sentence and draw what they can | the next full read after repair returns `verified` |
 | CLI read or chart-name read fails (spawn error, crash, bad JSON, timeout, I/O error on the name file) | keep the last good snapshot, `degraded:['lattice-read']`, one diagnostic log line with the code | next token change or the 30 s ceiling |
-| Charts root or a chart dir unreadable (any error other than missing: EACCES, EIO, …) | `charts` and `chart` return 503 `LATTICE_UNAVAILABLE` (the code goes to the error's `detail`), never an empty list or `LATTICE_CHART_NOT_FOUND`; in `refresh` the chart stays in the round and its read reports `degraded:['lattice-read']`. A missing root or dir is the normal "no chart yet" | nothing is cached: the next call (apps retry 1, 2, 4 s; the refresh tick every 2 s) succeeds once the permission or disk is repaired |
+| Charts root not a directory, or the root or a chart dir unreadable (any error other than a missing path: ENOTDIR on the root, EACCES, EIO, …) | `charts` and `chart` return 503 `LATTICE_UNAVAILABLE` (the code goes to the error's `detail`), never an empty list or `LATTICE_CHART_NOT_FOUND`; in `refresh` the chart stays in the round and its read reports `degraded:['lattice-read']`. A missing root or dir is the normal "no chart yet" | nothing is cached: the next call (apps retry 1, 2, 4 s; the refresh tick every 2 s) succeeds once the permission or disk is repaired |
 | `members.list` fails | keep the last roster, `degraded:['members']` | next read |
 | Producer not in the roster | omitted from `members`; apps draw 名簿にないメンバー | appears once the Bot exists |
 | Write conflict inside Lattice | Lattice's result says so; the seat calls again | Snow White's release makes writers wait |
