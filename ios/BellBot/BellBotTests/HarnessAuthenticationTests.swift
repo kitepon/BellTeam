@@ -169,6 +169,11 @@ final class HarnessAuthenticationTests: XCTestCase {
         XCTAssertEqual(AuthenticationProgress(nil), .unknown)
         let failed = SetupAuthentication(status: .failed, url: nil, userCode: nil, inputRequired: false, message: "通信できません。", authUi: nil)
         XCTAssertEqual(AuthenticationProgress(failed).detail, "認証できませんでした。理由：通信できません。")
+        let failedStage = SetupAuthentication(status: .waiting, url: nil, userCode: nil, inputRequired: false, message: nil,
+            authUi: try decoder.decode(AuthenticationUI.self, from: Data(#"{"schema":"aiterm.auth-ui.v1","stage":"failed","title":"失敗","message":"コードが違います。","binding":null,"url":null,"user_code":null,"input":null,"prompt_digest":null,"choices":[]}"#.utf8)))
+        XCTAssertEqual(AuthenticationProgress(failedStage), .failed("コードが違います。"))
+        XCTAssertFalse(AuthenticationProgress(failedStage).inProgress, "失敗を出した後は読み直さない（画面のpollingもこの判定）")
+        XCTAssertTrue(AuthenticationProgress(waiting).inProgress)
         XCTAssertNil(AuthenticationProgress.done.action, "使える行に主ボタンを出さない")
         XCTAssertEqual(AuthenticationProgress.needsLogin.action, "認証する")
         XCTAssertEqual(AuthenticationProgress.waitingCode.action, "続ける")

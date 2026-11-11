@@ -181,7 +181,8 @@ private struct HarnessAuthenticationView: View {
         flow.auth == nil && errorText != nil ? .unknown : flow.progress
     }
 
-    private var polling: Bool { scenePhase == .active && flow.auth?.status == .waiting && errorText == nil && !flow.busy }
+    // 段階と同じ判定で読み直す（status=waitingでもstage=failedは失敗で、読み直さない）。
+    private var polling: Bool { scenePhase == .active && progress.inProgress && errorText == nil && !flow.busy }
 
     var body: some View {
         Form {
