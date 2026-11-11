@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-11T02:55:01Z",
-  "expiresAt": "2026-11-18T02:55:01Z",
+  "publishedAt": "2026-11-11T03:09:43Z",
+  "expiresAt": "2026-11-18T03:09:43Z",
   "releases": [
     {
       "componentId": "usage",
@@ -427,8 +427,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "7d701282630def8129babbf99daa4327d4685f12",
-      "versionId": "5010b5280b9e2693d7bcdebc4af920e890ea798df723f5753c406b10ae3c195a",
+      "sourceCommit": "c98398fec741dd89f05e22d243e1181a43bee33e",
+      "versionId": "64832ec945a5868ef98f9e401f01f04bf0f7e9c135ac7d418cc504d1dbb1d2cc",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -436,16 +436,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T003319Z/web-gateway-7d701282630def8129babbf99daa4327d4685f12-linux-amd64.tar.gz",
-          "bytes": 5191774,
-          "sha256": "5010b5280b9e2693d7bcdebc4af920e890ea798df723f5753c406b10ae3c195a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T030107Z/web-gateway-c98398fec741dd89f05e22d243e1181a43bee33e-linux-amd64.tar.gz",
+          "bytes": 5193955,
+          "sha256": "64832ec945a5868ef98f9e401f01f04bf0f7e9c135ac7d418cc504d1dbb1d2cc"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T003319Z/web-gateway-7d701282630def8129babbf99daa4327d4685f12-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11150,
-          "sha256": "cfa5853fe7893a2bf9b903b511b057b9f0e85d8bfb799d5c13f7f7a7bc910985"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T030107Z/web-gateway-c98398fec741dd89f05e22d243e1181a43bee33e-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11158,
+          "sha256": "6ddcc7486fdc5b9e8faa57eaaca09a91675bad35a1704638cb4e034994ff3cb8"
         },
-        "signerCommit": "7d701282630def8129babbf99daa4327d4685f12"
+        "signerCommit": "c98398fec741dd89f05e22d243e1181a43bee33e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -454,13 +454,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "端末の登録で、初めての端末の指紋の入力が要らなくなりました。指紋を入れる画面は、端末の鍵が変わった時だけ出ます。端末の画面で失敗した時は、押したボタンのすぐ下に理由が出ます。"
+        "端末にはつながったのにフォルダの操作に失敗した時、『いまは端末に届きません』と出さず、端末側の説明をそのまま出すようにしました（フォルダ選びと、保存後のお知らせ）。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "7d701282630def8129babbf99daa4327d4685f12",
-      "versionId": "c90e26dfd8a3ae4602aab6bea617747e94a2db654e2d72fa36739679996781ac",
+      "sourceCommit": "c98398fec741dd89f05e22d243e1181a43bee33e",
+      "versionId": "8cd32f22c28a9d3a1257a9fe6236c5e2ddc1700d665163a297e1813e84669875",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -468,16 +468,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T003319Z/web-gateway-7d701282630def8129babbf99daa4327d4685f12-linux-arm64.tar.gz",
-          "bytes": 5191774,
-          "sha256": "c90e26dfd8a3ae4602aab6bea617747e94a2db654e2d72fa36739679996781ac"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T030107Z/web-gateway-c98398fec741dd89f05e22d243e1181a43bee33e-linux-arm64.tar.gz",
+          "bytes": 5193955,
+          "sha256": "8cd32f22c28a9d3a1257a9fe6236c5e2ddc1700d665163a297e1813e84669875"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T003319Z/web-gateway-7d701282630def8129babbf99daa4327d4685f12-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11005,
-          "sha256": "5ed4535ad1eda52d3bf5b41a9a7469283db463e611b99762307e116e85fc9011"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T030107Z/web-gateway-c98398fec741dd89f05e22d243e1181a43bee33e-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11064,
+          "sha256": "55f2148965a6547909d99feeb2b1a582ef0ca3c67cadaf94ab80ffb6a37ea409"
         },
-        "signerCommit": "7d701282630def8129babbf99daa4327d4685f12"
+        "signerCommit": "c98398fec741dd89f05e22d243e1181a43bee33e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -486,7 +486,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "端末の登録で、初めての端末の指紋の入力が要らなくなりました。指紋を入れる画面は、端末の鍵が変わった時だけ出ます。端末の画面で失敗した時は、押したボタンのすぐ下に理由が出ます。"
+        "端末にはつながったのにフォルダの操作に失敗した時、『いまは端末に届きません』と出さず、端末側の説明をそのまま出すようにしました（フォルダ選びと、保存後のお知らせ）。"
       ]
     },
     {
@@ -707,15 +707,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "a8cda46b43e2d5437e845205533881a9a15e3d3d",
-      "versionId": "sha256:daea0159d733310b653eeeb824b235adb2ae17286d30c364fd6414cec7101bfb",
+      "sourceCommit": "c98398fec741dd89f05e22d243e1181a43bee33e",
+      "versionId": "sha256:33894b9f365e1cb0e332384d61503e3d72155e27db15fd1bcab0adbdebd0b1d4",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:daea0159d733310b653eeeb824b235adb2ae17286d30c364fd6414cec7101bfb"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:33894b9f365e1cb0e332384d61503e3d72155e27db15fd1bcab0adbdebd0b1d4"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -724,20 +724,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "更新の確認で、GitHubの問い合わせ回数の上限に引っかからなくなります。BellTeamが何度も再起動した時でも、更新の確認が止まりません。"
+        "更新の確認で、GitHubの問い合わせ回数の上限に引っかからなくなります。BellTeamが何度も再起動した時でも、更新の確認が止まりません。端末にはつながったのにフォルダの操作に失敗した時、端末側の理由をそのまま返すようになります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "a8cda46b43e2d5437e845205533881a9a15e3d3d",
-      "versionId": "sha256:daea0159d733310b653eeeb824b235adb2ae17286d30c364fd6414cec7101bfb",
+      "sourceCommit": "c98398fec741dd89f05e22d243e1181a43bee33e",
+      "versionId": "sha256:33894b9f365e1cb0e332384d61503e3d72155e27db15fd1bcab0adbdebd0b1d4",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:daea0159d733310b653eeeb824b235adb2ae17286d30c364fd6414cec7101bfb"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:33894b9f365e1cb0e332384d61503e3d72155e27db15fd1bcab0adbdebd0b1d4"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -746,7 +746,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "更新の確認で、GitHubの問い合わせ回数の上限に引っかからなくなります。BellTeamが何度も再起動した時でも、更新の確認が止まりません。"
+        "更新の確認で、GitHubの問い合わせ回数の上限に引っかからなくなります。BellTeamが何度も再起動した時でも、更新の確認が止まりません。端末にはつながったのにフォルダの操作に失敗した時、端末側の理由をそのまま返すようになります。"
       ]
     }
   ],
