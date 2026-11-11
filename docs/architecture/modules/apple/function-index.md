@@ -116,7 +116,7 @@ PR4の再起動操作と二つのcallback、直接試験は、固定source `22d5
 | [requireLogin()](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L787) | 通信停止・状態整理・認証画面へ |
 | [requireLogin(for:)](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L799) | Cloudflare判定と自動ログイン表示 |
 | [signOut](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L805) | draft/ページ/cookie/購読/通知の後始末 |
-| [openConversation](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L942) | 会話を開く経路（会話タブ・chatPath・eventRevision）。呼出元は通知のタップと相関図のメンバーのタップ。returningToを渡すと戻った時にそのタブへ帰る |
+| [openConversation](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L942) | 会話を開く経路（会話タブ・chatPath・eventRevision）。呼出元は通知のタップ、相関図のメンバーのタップ、工程表の「会話を開く」（[工程表](lattice-chart.md)）。returningToを渡すと戻った時にそのタブへ帰る |
 | [returnFromConversation](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L952) | 相関図から開いた会話を戻った時に帰り先のタブへ移る。呼出元はchatPathが空になった時（iPhone）と、縮んだiPadで一覧の列へ戻った時（DesktopWorkspaceView） |
 | [openPendingNotification](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L959) | server照合・openConversationで会話移動・秘密要求読取 |
 | [syncCookies](../../../../ios/BellBot/BellBot/Core/AppStore.swift#L848) | 対象serverのCF_Authorizationを同期 |
