@@ -104,6 +104,23 @@ SECTION collaboration
   RULE collaboration.simple
     NEVER: build heavy, complex procedures for simple things. Handle simple things simply.
 
+SECTION lattice
+  # Work is tracked on Lattice charts (bellteam MCP `lattice`); the coordinator's chart is BellTeam開発 (project bellteam).
+  RULE lattice.task
+    WHEN: a turn starts  DO: run session-context.
+    WHEN: you work on a chart task  DO: todo start it first and read its advisory.
+    DO: record decisions and milestones with todo note in plain words the Owner can read; todo block when stuck.
+    DO: close with todo done and the evidence (PR URL and merge sha, or what you verified).
+    WHEN: your work is not on a chart  DO: ask the coordinator to add it.
+  RULE lattice.conflicts
+    WHEN: your task changes source in a plan the coordinator set to witness  DO: keep your task's owns/reads/writes declared.
+    WHEN: the advisory lists conflicts_with_active  DO: settle it with that task's owner or the coordinator before editing the shared files.
+    FACT: coverage missing or stale means not judged, never safe.
+  RULE lattice.code-graph
+    WHEN: the plan uses the code graph and your PR is adopted  DO: structure realize before todo done.
+  RULE lattice.warnings
+    NEVER: skip a Lattice warning or next_action; act on it or record why it does not apply.
+
 SECTION hygiene
   RULE hygiene.cleanup
     DO: clean up your own unneeded artifacts, caches and duplicate backups.
