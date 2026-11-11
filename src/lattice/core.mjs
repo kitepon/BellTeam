@@ -106,7 +106,7 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
       // Renaming needs a chart; only a Lattice command (plan create) makes one.
       else await mustExist(projectId)
       const existed = await cli.exists(projectId)
-      await cli.ensure(projectId)
+      const { created } = await cli.ensure(projectId)
       // The creator is recorded once: by the run that makes the store, or by naming a chart that has none recorded.
       if (naming) await cli.setMeta(projectId, { name, ...(existed && !(await cli.meta(projectId)).createdBy && { createdBy: from }) })
       const memo = memos.get(projectId)
@@ -114,7 +114,8 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
       if (args.length === 0) return { exitCode: 0, result: { name }, stdout: null, stderr: '' }
       let result
       try { result = await cli.run({ id: projectId, args, env: { LATTICE_SEAT_ID: from }, input }) } finally {
-        if (!existed) { if (await cli.exists(projectId)) await cli.setMeta(projectId, { createdBy: from }); else await cli.prune(projectId) }
+        // Only a dir this run created is removed; a pre-existing dir without a store is left as it was.
+        if (!existed) { if (await cli.exists(projectId)) await cli.setMeta(projectId, { createdBy: from }); else if (created) await cli.prune(projectId) }
       }
       const value = parse(result.stdout)
       return { exitCode: result.exitCode, result: value === undefined ? null : value, stdout: value === undefined ? result.stdout.slice(0, STDOUT_KEPT) : null, stderr: result.stderr }

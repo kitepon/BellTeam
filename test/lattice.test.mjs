@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
 import { existsSync } from 'node:fs'
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -173,8 +173,9 @@ function rig(extra = {}) {
     list: async () => [...cli.charts], exists: async id => cli.charts.includes(id), metas: {}, pruned: [], noStore: false,
     meta: async id => { if (cli.fail.has('name')) throw Object.assign(new Error('x'), { code: 'LATTICE_UNAVAILABLE' }); return { name: null, createdBy: null, ...cli.metas[id] } },
     setMeta: async (id, patch) => { cli.metas[id] = { ...cli.metas[id], ...patch } },
-    prune: async id => { cli.pruned.push(id); delete cli.metas[id] },
-    ensure: async id => { cli.ensured.push(id) },
+    prune: async id => { cli.pruned.push(id); cli.dirs.delete(id); delete cli.metas[id] },
+    dirs: new Set(['alpha']),
+    ensure: async id => { cli.ensured.push(id); const created = !cli.dirs.has(id); cli.dirs.add(id); return { created } },
     async run({ id, args, env, input }) {
       const key = args.join(' ')
       cli.calls.push(key)
@@ -412,6 +413,33 @@ test('cli: real process runs in the chart dir with exactly the agreed env, then 
   await cli.ensure('gone'); await cli.prune('gone'); assert.equal(existsSync(join(chartsRoot, 'gone')), false, 'a dir without a store is removed')
 })
 
+test('storage: only a dir this run created is pruned; an existing store-less dir and a symlinked chart are never written or deleted (Epinel 2026-11-12)', async t => {
+  const { bin, root, chartsRoot, home } = await scratch(t)
+  const core = createLatticeCore({ cli: createLatticeCli({ bin, chartsRoot, home }), log: () => {} })
+  const run = (projectId, args = ['help'], name) => core.run({ from: 'bot-a', projectId, args, input: null, ...(name && { name }) })
+  // 1. pre-existing dir without a store keeps everything
+  await mkdir(join(chartsRoot, 'kept'), { recursive: true }); await writeFile(join(chartsRoot, 'kept', 'notes.txt'), 'mine')
+  await run('kept')
+  assert.equal(await readFile(join(chartsRoot, 'kept', 'notes.txt'), 'utf8'), 'mine', 'an existing dir is not pruned')
+  // 2. a dir this run made and left without a store is removed, sidecar included
+  await run('fresh', ['help'], '名前')
+  assert.equal(existsSync(join(chartsRoot, 'fresh')), false, 'the owned empty dir is cleaned up')
+  // 3. a symlinked chart dir: refused before any write or run, target untouched
+  const outside = join(root, 'outside'); await mkdir(outside); await writeFile(join(outside, 'keep.txt'), 'x')
+  await symlink(outside, join(chartsRoot, 'linked'))
+  await assert.rejects(run('linked'), { code: 'LATTICE_UNAVAILABLE', detail: 'ELINK' })
+  await assert.rejects(run('linked', ['plan', 'create'], '名前'), { code: 'LATTICE_UNAVAILABLE', detail: 'ELINK' })
+  assert.deepEqual((await readdir(outside)).sort(), ['keep.txt'], 'no .git, sidecar or deletion through the link')
+  assert.equal((await lstat(join(chartsRoot, 'linked'))).isSymbolicLink(), true, 'the link itself is kept')
+  // 4. a symlinked sidecar is read as absent and replaced, never written through
+  await mkdir(join(chartsRoot, 'side', '.lattice'), { recursive: true }); await writeFile(join(outside, 'meta.json'), '{"name":"外"}')
+  await symlink(join(outside, 'meta.json'), join(chartsRoot, 'side', '.bellteam-chart.json'))
+  const cli = createLatticeCli({ bin, chartsRoot, home })
+  assert.deepEqual(await cli.meta('side'), { name: null, createdBy: null })
+  await cli.setMeta('side', { name: '中' })
+  assert.deepEqual([await readFile(join(outside, 'meta.json'), 'utf8'), (await cli.meta('side')).name], ['{"name":"外"}', '中'])
+})
+
 test('cli: a missing charts root is no charts; a permission error is LATTICE_UNAVAILABLE, not "no charts", and recovers', async t => {
   const { bin, chartsRoot, home } = await scratch(t)
   const cli = createLatticeCli({ bin, chartsRoot, home })
@@ -458,25 +486,30 @@ function fakeSpawn(behave) {
   return { impl, calls }
 }
 
-test('cli: a hung process is killed at the timeout and the next call runs', async () => {
+// A real chart dir for spawn-only tests: run() refuses a missing or linked chart dir before it spawns.
+const chartsWithAlpha = async t => { const root = await mkdtemp(join(tmpdir(), 'lattice-charts-')); t.after(() => rm(root, { recursive: true, force: true })); await mkdir(join(root, 'alpha')); return root }
+
+test('cli: a hung process is killed at the timeout and the next call runs', async t => {
+  const chartsRoot = await chartsWithAlpha(t)
   const hung = fakeSpawn(child => child.stdout.emit('data', Buffer.from('partial')))
-  const cli = createLatticeCli({ bin: '/x/lattice.mjs', chartsRoot: '/nonexistent', home: '/h', spawnImpl: hung.impl, timeoutMs: 20 })
+  const cli = createLatticeCli({ bin: '/x/lattice.mjs', chartsRoot, home: '/h', spawnImpl: hung.impl, timeoutMs: 20 })
   assert.deepEqual(await cli.run({ id: 'alpha', args: ['status'] }), { exitCode: null, stdout: 'partial', stderr: 'LATTICE_CLI_TIMEOUT' })
-  assert.deepEqual([hung.calls[0].child.killed, hung.calls[0].command, hung.calls[0].args, hung.calls[0].options.cwd], [['SIGKILL'], process.execPath, ['/x/lattice.mjs', 'status'], '/nonexistent/alpha'])
+  assert.deepEqual([hung.calls[0].child.killed, hung.calls[0].command, hung.calls[0].args, hung.calls[0].options.cwd], [['SIGKILL'], process.execPath, ['/x/lattice.mjs', 'status'], join(chartsRoot, 'alpha')])
   const fine = fakeSpawn(child => child.emit('close', 3))
-  assert.deepEqual((await createLatticeCli({ bin: '/x', spawnImpl: fine.impl }).run({ id: 'alpha', args: ['status'] })).exitCode, 3)
+  assert.deepEqual((await createLatticeCli({ bin: '/x', chartsRoot, spawnImpl: fine.impl }).run({ id: 'alpha', args: ['status'] })).exitCode, 3)
 })
 
-test('cli: stdout keeps the first MiB, stderr the last 4 KiB, spawn errors are a result', async () => {
+test('cli: stdout keeps the first MiB, stderr the last 4 KiB, spawn errors are a result', async t => {
+  const chartsRoot = await chartsWithAlpha(t)
   const big = fakeSpawn(child => {
     for (let i = 0; i < 3; i++) child.stdout.emit('data', Buffer.alloc(700 * 1024, 'a'))
     child.stderr.emit('data', Buffer.from('x'.repeat(5000))); child.stderr.emit('data', Buffer.from('tail'))
     child.emit('close', 0)
   })
-  const result = await createLatticeCli({ bin: '/x', spawnImpl: big.impl }).run({ id: 'alpha', args: ['status'] })
+  const result = await createLatticeCli({ bin: '/x', chartsRoot, spawnImpl: big.impl }).run({ id: 'alpha', args: ['status'] })
   assert.deepEqual([result.stdout.length, result.stderr.length, result.stderr.endsWith('tail')], [1024 * 1024, 4096, true])
   const broken = fakeSpawn(child => child.emit('error', new Error('ENOENT')))
-  assert.deepEqual(await createLatticeCli({ bin: '/x', spawnImpl: broken.impl }).run({ id: 'alpha', args: ['status'] }), { exitCode: null, stdout: '', stderr: 'LATTICE_CLI_SPAWN_FAILED' })
+  assert.deepEqual(await createLatticeCli({ bin: '/x', chartsRoot, spawnImpl: broken.impl }).run({ id: 'alpha', args: ['status'] }), { exitCode: null, stdout: '', stderr: 'LATTICE_CLI_SPAWN_FAILED' })
 })
 
 test('cli: the bundled package is resolved at first use, not at creation', async () => {
