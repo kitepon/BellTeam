@@ -187,3 +187,22 @@ test('a new process sweeps inquiries the lost one left: saved answer, interrupte
   const third = new Messenger({ bots: first.messenger.bots, logPath: first.messenger.store.logPath, transport: { notify: () => assert.fail('nothing owed') } })
   assert.deepEqual(await third.sweepForkNotices(), { relayed: 0, owed: 0 })
 })
+
+test('a post-accept failure is saved before its relay, so a new process still owes it after the relay and process are lost', async t => {
+  let callbacks
+  const first = await setup(t, async (bot, text, options) => { callbacks = options; return { delivery: 'running' } })
+  await first.messenger.askReadonly({ from: asker.id, target: owner.id, message: 'Q' })
+  first.messenger.requireAccess = async () => { throw new Error('AI_GLOBAL_PAUSED') } // the relay fails before its row
+  await callbacks.onStatus('failed', { code: 'FORK_FAILED', delivery_error: { code: 'FORK_FAILED' }, reason: 'NATIVE_EXITED' })
+  await settle()
+  const saved = await first.rows()
+  assert.ok(saved.some(row => row.schema === 'bellteam.interim-word.v1' && row.kind === 'error' && row.seat?.kind === 'fork'
+    && row.group_id === 'id-2' && row.text === 'FORK_FAILED: NATIVE_EXITED'), 'the outcome row is written before the relay')
+  assert.ok(!saved.some(row => row.in_reply_to), 'no relay row yet')
+  const notified = []
+  const second = new BellTeamMessenger({ bots: first.messenger.bots, logPath: first.messenger.store.logPath,
+    transport: { async notify(bot, text) { notified.push({ bot: bot.id, text }); return { delivery: 'running' } } } })
+  assert.deepEqual(await second.sweepForkNotices(), { relayed: 1, owed: 0 })
+  assert.equal(notified[0].bot, asker.id)
+  assert.match(notified[0].text, /FORK_FAILED: NATIVE_EXITED$/)
+})

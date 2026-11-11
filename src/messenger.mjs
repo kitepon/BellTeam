@@ -141,7 +141,12 @@ export class BellTeamMessenger extends ConversationWriter {
         onInterim,
         onStatus: async (status, error, tracking) => {
           await onStatus(status, error, tracking)
-          if (['failed', 'stopped'].includes(status)) await relay(`FORK_FAILED: ${error?.reason ?? error?.code ?? error?.message ?? status}`)
+          if (['failed', 'stopped'].includes(status) && !relayed) {
+            const text = `FORK_FAILED: ${error?.reason ?? error?.code ?? error?.message ?? status}`
+            // Durable before the relay, so a lost relay or process still owes it (fork-inquiry.md "Owed notice").
+            await this.appendInterimWords(bot.id, deliveryId, [{ text, kind: 'error' }], { seat })
+            await relay(text)
+          }
           if (status === 'delivered') await relay('FORK_FAILED: NO_ANSWER')
         },
         onAnswer: async text => { await onAnswer(text); await relay(text?.trim() ? text : 'FORK_FAILED: NO_ANSWER') },
@@ -387,19 +392,21 @@ function validateImage(image) {
   if (typeof image.data !== 'string' || !/^[a-z0-9+/=]+$/iu.test(image.data)) throw new Error('IMAGE_INVALID')
 }
 
-// An inquiry with a main asker and no relay row owes its notice. A post-accept failure keeps no FORK_FAILED code
-// in the log, so `failed`/`stopped` rows are left to the live process (they look like a refusal before accept).
+// An inquiry with a main asker and no relay row owes its notice. A post-accept failure saved its text as a fork
+// `error` row first; a failed/stopped inquiry without one was refused before accept (already the tool error).
 export function owedForkNotices(entries) {
-  const relayed = new Set(), answers = new Map(), owed = []
+  const relayed = new Set(), answers = new Map(), failures = new Map(), owed = []
   for (const entry of entries) {
     if (entry.schema === 'bellteam.direct-message.v1' && typeof entry.in_reply_to === 'string') relayed.add(entry.in_reply_to)
-    if (entry.schema === 'bellteam.interim-word.v1' && entry.kind === 'answer' && entry.seat?.kind === 'fork') answers.set(entry.group_id, entry.text)
+    if (entry.schema === 'bellteam.interim-word.v1' && entry.seat?.kind === 'fork' && ['answer', 'error'].includes(entry.kind)
+      && !(entry.kind === 'error' ? failures : answers).has(entry.group_id)) (entry.kind === 'error' ? failures : answers).set(entry.group_id, entry.text)
   }
   for (const entry of entries) {
     if (entry.schema !== 'bellteam.direct-message.v1' || entry.seat?.kind !== 'fork' || entry.in_reply_to || entry.from_seat
       || relayed.has(entry.delivery_id)) continue
     const answer = answers.get(entry.delivery_id)
     const message = answer !== undefined ? (answer.trim() ? answer : 'FORK_FAILED: NO_ANSWER')
+      : failures.has(entry.delivery_id) ? failures.get(entry.delivery_id)
       : entry.delivery === 'delivered' ? 'FORK_FAILED: NO_ANSWER'
         : ['running', 'steered'].includes(entry.delivery) ? 'FORK_FAILED: INTERRUPTED' : null
     if (message) owed.push({ from: entry.target, target: entry.from, message, forkId: entry.seat.fork_id, deliveryId: entry.delivery_id })
