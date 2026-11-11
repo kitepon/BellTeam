@@ -4,12 +4,38 @@ import { join } from 'node:path'
 import { importPKCS8, SignJWT } from 'jose'
 import { isSupportedServerURL } from './server-address.mjs'
 import { UpdatePushAttempts, apnsReceipt, jstNow, updatePushReason } from './update-push-attempts.mjs'
+import { createOnePasswordSource, validateOnePasswordReference } from './usage/onepassword-source.mjs'
 
 export const APNS_IDLE_TIMEOUT_MS = 5 * 60 * 1000
+const keyErrors = {
+  APNS_KEY_REFERENCE_INVALID: 'APNsの鍵の1Password参照の形式が正しくありません。op://保管庫のID/アイテムのID/フィールド名 の形で書いてください。',
+  APNS_KEY_UNAVAILABLE: '1PasswordからAPNsの鍵を読めませんでした。設定の「1Password連携」がつながっているか、鍵の参照が正しいかを確かめてください。',
+  APNS_KEY_INVALID: '1Passwordから読んだ値がAPNsの鍵（.p8）ではありません。.p8ファイルの中身をそのまま保存し直してください。',
+}
+
+// Resolves op:// references through the usage 1Password source; one short-lived source per load.
+export function onePasswordKeyReader(root, { create = () => createOnePasswordSource({ autoRetry: false }) } = {}) {
+  return async references => {
+    const source = create()
+    // The token is the usage settings' own: read it for each op call and keep it nowhere.
+    source.setToken?.(async () => {
+      try {
+        const { onePassword: entry } = JSON.parse(await readFile(join(root, 'shared/tools/bellteam-settings/settings.json'), 'utf8'))
+        return entry?.enabled === true && typeof entry.token === 'string' && entry.token.trim() ? entry.token.trim() : null
+      } catch { return null }
+    })
+    try { return new Map(await Promise.all(references.map(async reference => [reference, await source.resolve(reference)]))) }
+    catch { throw pushError('APNS_KEY_UNAVAILABLE') }
+    finally { source.close() }
+  }
+}
 
 export class PushNotifications {
-  constructor({ root, bots, diagnostics, provider = null, fetch: request = fetch }) {
+  constructor({ root, bots, diagnostics, provider = null, fetch: request = fetch, readKeys = onePasswordKeyReader(root) }) {
     this.root = root
+    this.readKeys = readKeys
+    this.injected = Boolean(provider)
+    this.keyError = null
     this.bots = bots
     this.diagnostics = diagnostics
     this.provider = provider
@@ -21,15 +47,22 @@ export class PushNotifications {
     this.updateAttempts = new UpdatePushAttempts(root)
   }
 
-  async initialize() {
+  // A key that cannot be obtained leaves APNs unconfigured with keyError; a malformed config.json still fails.
+  async loadDirect() {
     const directory = join(this.root, 'shared/tools/apns')
-    if (!this.provider) {
-      let config
-      try { config = JSON.parse(await readFile(join(directory, 'config.json'), 'utf8')) }
-      catch (error) { if (error.code !== 'ENOENT') throw error }
-      if (config) this.provider = await APNsProvider.create(config, directory)
-    }
+    let config
+    try { config = JSON.parse(await readFile(join(directory, 'config.json'), 'utf8')) }
+    catch (error) { if (error.code !== 'ENOENT') throw error }
+    this.keyError = null
+    if (!config) return null
+    try { return await APNsProvider.create(config, directory, { readKeys: this.readKeys }) }
+    catch (error) { if (!Object.hasOwn(keyErrors, error.code)) throw error; this.keyError = error.code; return null }
+  }
+
+  async initialize() {
+    if (!this.provider) this.provider = await this.loadDirect()
     this.directProvider = this.provider
+    this.loaded = true
     this.file = join(this.root, 'state/push-devices.json')
     try {
       const devices = JSON.parse(await readFile(this.file, 'utf8'))
@@ -48,15 +81,21 @@ export class PushNotifications {
   }
 
   async configure({ enabled, relayUrl }) {
-    const previous = this.provider
+    const previous = this.provider, fresh = this.loaded
     this.provider = null
     this.error = null
+    this.loaded = false
     await Promise.all(this.inflight)
     previous?.close()
     if (!enabled) return this.status()
     try {
       if (!relayUrl?.trim()) {
-        if (!this.directProvider) throw pushError('PUSH_NOT_CONFIGURED')
+        // The first apply after initialize uses its fresh load; later ones re-read config.json so a re-entered key applies without a restart.
+        if (!this.injected && !fresh) {
+          if (this.directProvider !== previous) this.directProvider?.close()
+          this.directProvider = await this.loadDirect()
+        }
+        if (!this.directProvider) throw pushError(this.keyError ?? 'PUSH_NOT_CONFIGURED')
         this.provider = this.directProvider
         return this.status()
       }
@@ -179,7 +218,7 @@ export class PushNotifications {
   async recordFailure(error, report = 'SERVER_PUSH_SEND_FAILED') {
     // 接続URL・端末トークン・署名付き取引・秘密鍵は診断へ含めない。
     const code = /^[A-Z_0-9]+$/u.test(error.code ?? '') ? error.code : 'PUSH_SEND_FAILED'
-    this.error = { code, message: '通知の設定・送信を確認できませんでした。設定と診断情報を確認してください。' }
+    this.error = { code, message: keyErrors[code] ?? '通知の設定・送信を確認できませんでした。設定と診断情報を確認してください。' }
     await this.diagnostics.record({ code: report, module: 'notifications', diagnostic_log: code })
   }
 
@@ -269,18 +308,27 @@ export class NotificationRelayProvider {
 }
 
 export class APNsProvider {
-  static async create(config, directory) {
+  // keys.<env> is {keyId, file} (a .p8 beside config.json) or {keyId, reference} (an op:// 1Password reference); both are supported.
+  static async create(config, directory, { readKeys } = {}) {
     if (!/^[A-Z0-9]{10}$/u.test(config.teamId ?? '') || !/^[\w.-]+$/u.test(config.topic ?? ''))
       throw new Error('APNS_CONFIG_INVALID')
-    const keys = new Map()
-    for (const environment of ['development', 'production']) {
-      const item = config.keys?.[environment]
-      if (!item) continue
-      if (!/^[A-Z0-9]{10}$/u.test(item.keyId ?? '') || !/^[\w.-]+\.p8$/u.test(item.file ?? ''))
-        throw new Error('APNS_CONFIG_INVALID')
-      keys.set(environment, { keyId: item.keyId, key: await importPKCS8(await readFile(join(directory, item.file), 'utf8'), 'ES256') })
+    const entries = ['development', 'production'].filter(environment => config.keys?.[environment]).map(environment => [environment, config.keys[environment]])
+    for (const [, item] of entries) {
+      const file = Object.hasOwn(item, 'file')
+      if (!/^[A-Z0-9]{10}$/u.test(item.keyId ?? '') || file === Object.hasOwn(item, 'reference')
+        || (file ? !/^[\w.-]+\.p8$/u.test(item.file ?? '') : !readKeys)) throw new Error('APNS_CONFIG_INVALID')
     }
-    if (!keys.size) throw new Error('APNS_CONFIG_INVALID')
+    if (!entries.length) throw new Error('APNS_CONFIG_INVALID')
+    const references = entries.filter(([, item]) => !Object.hasOwn(item, 'file')).map(([, item]) => item.reference)
+    try { references.forEach(validateOnePasswordReference) } catch { throw pushError('APNS_KEY_REFERENCE_INVALID') }
+    const values = references.length ? await readKeys(references) : new Map()
+    const keys = new Map()
+    for (const [environment, item] of entries) {
+      if (Object.hasOwn(item, 'file')) { keys.set(environment, { keyId: item.keyId, key: await importPKCS8(await readFile(join(directory, item.file), 'utf8'), 'ES256') }); continue }
+      let key
+      try { key = await importPKCS8(values.get(item.reference).trim(), 'ES256') } catch { throw pushError('APNS_KEY_INVALID') }
+      keys.set(environment, { keyId: item.keyId, key })
+    }
     return new APNsProvider(config, keys)
   }
 

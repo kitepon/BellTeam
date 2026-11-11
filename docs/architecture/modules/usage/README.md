@@ -66,7 +66,7 @@ HTTP handlerは未一致の時だけfalseを返す。既存のstatus/JSON・pref
 | FeatureSettings | shared/tools/bellteam-settings/settings.json、適用errorsとpending Promise、親インスタンス内routingEpoch（永続化/公開listへ追加しない） |
 | SecretRequests | state/secret-requests/*.json、state/secret-values/<toolId>/secrets/<id>（0600、新規作成）、private secret-sources/secret-credentials、parent-only secret-native-credentials、busy、表示索引 |
 | OwnerQuestions | state/owner-questions/*.json、busy、表示索引。通知例外でも回答済み状態は残る |
-| PushNotifications | state/push-devices.json、provider/inflight/設定エラー。旧APNs設定の読取りを保持 |
+| PushNotifications | state/push-devices.json、provider/inflight/設定エラー。APNs設定を読み、鍵ごとに`.p8`ファイルか1Password参照から得る（[notification-process](notification-process.md#apns鍵の取得元fileか1password参照2026-11-11-セキュリティ事故)） |
 | Subscriptions | 通常shared/subscription.json、seatRuntimeではstate/subscription.json。検証結果/期限/保存失敗 |
 
 秘密値と依頼状態は単一transactionではない。値ファイル作成後の状態保存失敗は「値が無い」と判断しない。保存先・永続形式・再送方針は今回変更しない。
