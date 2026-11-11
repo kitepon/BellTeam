@@ -413,9 +413,12 @@ export class AitermTransport {
       const options = this.client.launchOptions ? await this.client.launchOptions(bot.project, runtime) : { env: await loadBotEnvironment(bot.project) }
       this.requireStopVersion(bot.id, version)
       // E7: the resume takes the slot's current token from this launch's env, never the recipe's older one.
+      // The seat's login proof follows the token this resume really carries, so a later E6 signs that token out (not 'stale').
       const claudeLogin = reference.harness === 'claude-code' && this.claudeAccountBot(bot) ? this.accounts.seatSlot(bot.id) ?? '1st' : null
+      const stamp = claudeLogin ? await this.accounts.stamp('claude', claudeLogin) : null
       const result = await this.changeSession(bot, 'agent_launch', { harness: reference.harness, cwd: bot.project,
         session_name: reference.sessionId, require_existing_resume: true }, { ...options, ...(claudeLogin ? { claudeLogin } : {}) })
+      if (claudeLogin) await this.accounts.setSeat(bot.id, claudeLogin, stamp).catch(() => {})
       this.membersAdmission.assertLease(membersLease)
       this.requireStopVersion(bot.id, version)
       const receipt = result?.structuredContent
