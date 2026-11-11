@@ -233,7 +233,7 @@ public sealed class SecretInputWindow : Window
     // Render seam: the text typed into the search box.
     internal void SearchForRender(string text) => Search.Text = text;
 
-    private static RadioButton ChoiceButton()
+    internal static RadioButton ChoiceButton()
     {
         var choice = new RadioButton { Template = ChoiceTemplate, FontSize = 16, Foreground = SettingsUi.Ink, Cursor = System.Windows.Input.Cursors.Hand, HorizontalContentAlignment = HorizontalAlignment.Stretch };
         return choice;

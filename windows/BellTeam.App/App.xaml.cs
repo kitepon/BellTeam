@@ -129,6 +129,40 @@ public partial class App : Application
                 if (pageKind == "updates-detail-narrow") { FindExpander(pageRoot).IsExpanded = true; pageRoot.UpdateLayout(); }
                 await pageWindow.PrepareRenderAsync(bottomOfPage: pageKind is "settings-lower" or "updates-detail-narrow"); WritePng(pageWindow, pageWidth, pageHeight, pageOutput); pageWindow.Close(); Shutdown(0); return;
             }
+            if (e.Args is ["--render-terminals", var terminalScene, var terminalAddress, var terminalOutput])
+            {
+                // 設定「端末」 in named states, read from the mock server (GET only). What follows a check or a write is set through render seams, never sent.
+                using var terminalWorkspace = new Workspace(); await terminalWorkspace.ConnectAsync(terminalAddress, listen: false);
+                if (terminalWorkspace.ConnectionError is { } terminalFailure) throw new BellApiException(terminalFailure);
+                var terminalWindow = new MainWindow(terminalWorkspace, persistPlacement: false);
+                terminalWindow.ShowSettings(SettingsPage.Terminals); await terminalWindow.PageReady;
+                var settingsPage = terminalWindow.SettingsPageWindow!; var terminals = terminalWorkspace.Terminals;
+                var terminalId = terminalScene.StartsWith("editor", StringComparison.Ordinal) ? "" : terminals.Terminals.First().TerminalId;
+                var observed = DateTimeOffset.Now.AddMinutes(-3).ToString("o");
+                TerminalCheck Failed(string reason, string? action) => new() { TerminalId = terminalId, Reachable = false, Reason = reason, Action = action, ObservedAt = observed };
+                if (terminalScene.StartsWith("editor", StringComparison.Ordinal))
+                {
+                    var editor = new TerminalEditorView(terminalWorkspace, terminals, null) { Closer = terminalWindow.CloseUpdateSheet };
+                    editor.OsPicker.SelectedValue = terminalScene["editor-".Length..];
+                    terminalWindow.OpenSheet("端末を追加", editor);
+                }
+                else if (terminalScene != "list")
+                {
+                    settingsPage.OpenTerminal(terminalId);
+                    switch (terminalScene)
+                    {
+                        case "detail-auth-failed": terminals.Checks[terminalId] = Failed("AUTH_FAILED", "この鍵がまだMacに入っていないかもしれません。「このMacにこの鍵を入れる」で、Macのログインパスワードを使って入れられます"); break;
+                        case "detail-windows": terminals.Checks[terminalId] = Failed("CONNECTION_REFUSED", null); break;
+                        case "detail-authorizing": terminals.Checks[terminalId] = Failed("AUTH_FAILED", null); terminals.Authorizations[terminalId] = new AuthorizeState.Waiting("r1", false); break;
+                        case "detail-hostkey": case "hostkey-sheet": terminals.Checks[terminalId] = Failed("TARGET_MISMATCH", "confirm the new host key SHA256:nsffMHVAtGXV6+uEQqXTTMcNxrINQqErir/1ZI1Ch/Y on office-imac.local"); break;
+                    }
+                    terminals.Notify();
+                    if (terminalScene == "detail-hostkey") settingsPage.TerminalDetail!.OtherWaysOpen = true;
+                    if (terminalScene == "hostkey-sheet") terminalWindow.OpenSheet("ホスト鍵", new HostKeyView(terminalWorkspace, terminals, terminals.Find(terminalId)!, terminals.Checks[terminalId]) { Closer = terminalWindow.CloseUpdateSheet });
+                }
+                var terminalRoot = (FrameworkElement)terminalWindow.Content; terminalRoot.Measure(new Size(1280, 820)); terminalRoot.Arrange(new Rect(0, 0, 1280, 820)); terminalRoot.UpdateLayout();
+                await terminalWindow.PrepareRenderAsync(bottomOfPage: terminalScene.StartsWith("keys", StringComparison.Ordinal)); WritePng(terminalWindow, 1280, 820, terminalOutput); terminalWindow.Close(); Shutdown(0); return;
+            }
             if (e.Args is ["--render-conversation", var scene, var conversationAddress, var sceneConversationId, var conversationOutput])
             {
                 // A conversation in a named state, read from the mock server (GET only). The failed scene is meant to fail its first read.
@@ -284,7 +318,7 @@ public partial class App : Application
                 Shutdown(0);
                 return;
             }
-            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-inspector <member|member-small|restart-busy|restart-success|room|sheet-small|sheet-large|sheet-unsupported|pending|pending-sheet> <URL> <会話ID> <PNG>、--render-screen <keys|approval|digits|sent|empty|offline|failed> <URL> <会話ID> <PNG>、--render-conversation <member|room|fork|secret|echo|states|stop|stop-notice|stop-member|draft|peer-sheet|stack|empty|failed> <URL> <会話ID> <PNG>、--render-secret <ssh-search|sudo-list|sudo-vault|reference|onetime|login|old> <URL> <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|features|notifications|connection|display|billing|update|about|stop>|schedules|updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>、--render-startup <opening|setup|guide|failure|login|onboarding-choose|onboarding-waiting|banner> <URL> <PNG>、--render-editor <member|settings|profile|feature|schedules|new-schedule|authentication> <URL> <ID> <PNG>、--render-editors <new-member|new-room|room|room-delete-alert|crop|member|member-delete-alert|member-delete-pending|member-delete-unconfirmed> <URL> <ID> <PNG> のいずれかです。");
+            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-inspector <member|member-small|restart-busy|restart-success|room|sheet-small|sheet-large|sheet-unsupported|pending|pending-sheet> <URL> <会話ID> <PNG>、--render-screen <keys|approval|digits|sent|empty|offline|failed> <URL> <会話ID> <PNG>、--render-conversation <member|room|fork|secret|echo|states|stop|stop-notice|stop-member|draft|peer-sheet|stack|empty|failed> <URL> <会話ID> <PNG>、--render-secret <ssh-search|sudo-list|sudo-vault|reference|onetime|login|old> <URL> <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|features|notifications|connection|display|billing|update|about|stop>|schedules|updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>、--render-terminals <list|detail-auth-failed|detail-hostkey|detail-windows|detail-authorizing|keys|keys-pending|hostkey-sheet|editor-macos|editor-windows|editor-linux> <URL> <PNG>、--render-startup <opening|setup|guide|failure|login|onboarding-choose|onboarding-waiting|banner> <URL> <PNG>、--render-editor <member|settings|profile|feature|schedules|new-schedule|authentication> <URL> <ID> <PNG>、--render-editors <new-member|new-room|room|room-delete-alert|crop|member|member-delete-alert|member-delete-pending|member-delete-unconfirmed> <URL> <ID> <PNG> のいずれかです。");
 
             MainWindow? main = null;
             instance = new SingleInstance(() => Dispatcher.Invoke(() => { main!.WindowState = main.WindowState == WindowState.Minimized ? WindowState.Normal : main.WindowState; main.Show(); main.Activate(); }));

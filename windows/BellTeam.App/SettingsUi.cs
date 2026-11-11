@@ -7,38 +7,38 @@ using System.Windows.Media.Effects;
 
 namespace BellTeam.App;
 
-public enum SettingsPage { Profile, Ai, Features, Notifications, Connection, Display, Billing, Update, About, Stop }
+public enum SettingsPage { Profile, Ai, Terminals, Features, Notifications, Connection, Display, Billing, Update, About, Stop }
 
 // Category list content of the Mac SettingsView (SettingsPage enum), copied verbatim.
 public static class SettingsPageInfo
 {
     public static readonly SettingsPage[][] Groups =
     [
-        [SettingsPage.Ai, SettingsPage.Features, SettingsPage.Notifications],
+        [SettingsPage.Ai, SettingsPage.Terminals, SettingsPage.Features, SettingsPage.Notifications],
         [SettingsPage.Connection, SettingsPage.Display],
         [SettingsPage.Billing, SettingsPage.Update, SettingsPage.About],
         [SettingsPage.Stop]
     ];
     public static string Title(SettingsPage page) => page switch
     {
-        SettingsPage.Profile => "プロフィール", SettingsPage.Ai => "AIの設定", SettingsPage.Features => "追加機能", SettingsPage.Notifications => "通知", SettingsPage.Connection => "接続",
+        SettingsPage.Profile => "プロフィール", SettingsPage.Ai => "AIの設定", SettingsPage.Terminals => "端末", SettingsPage.Features => "追加機能", SettingsPage.Notifications => "通知", SettingsPage.Connection => "接続",
         SettingsPage.Display => "表示", SettingsPage.Billing => "利用と課金", SettingsPage.Update => "アップデート", SettingsPage.About => "このアプリについて", _ => "全体停止"
     };
     public static string Detail(SettingsPage page) => page switch
     {
-        SettingsPage.Profile => "名前・写真・紹介文と、チームが守るあなたの決まり", SettingsPage.Ai => "AIのアカウントと、仕事の要約を書くAI", SettingsPage.Features => "通知の送信などを使うための設定",
+        SettingsPage.Profile => "名前・写真・紹介文と、チームが守るあなたの決まり", SettingsPage.Ai => "AIのアカウントと、仕事の要約を書くAI", SettingsPage.Terminals => "メンバーの席を動かす端末と、その鍵", SettingsPage.Features => "通知の送信などを使うための設定",
         SettingsPage.Notifications => "メンバーからの連絡をこの端末に届ける", SettingsPage.Connection => "つないでいるサーバーとログイン方法", SettingsPage.Display => "会話を開く時の動き",
         SettingsPage.Billing => "料金と、サーバーとAIの契約", SettingsPage.Update => "サーバーの部品を最新にする", SettingsPage.About => "アプリの版と接続先", _ => "全員のAIの動作をまとめて止める"
     };
     // Segoe Fluent Icons code points standing in for the Mac SF Symbols.
     public static string Glyph(SettingsPage page) => page switch
     {
-        SettingsPage.Profile => "", SettingsPage.Ai => "✦", SettingsPage.Features => "", SettingsPage.Notifications => "", SettingsPage.Connection => "",
+        SettingsPage.Profile => "", SettingsPage.Ai => "✦", SettingsPage.Terminals => "", SettingsPage.Features => "", SettingsPage.Notifications => "", SettingsPage.Connection => "",
         SettingsPage.Display => "", SettingsPage.Billing => "", SettingsPage.Update => "", SettingsPage.About => "", _ => ""
     };
     public static Color Tint(SettingsPage page) => page switch
     {
-        SettingsPage.Profile => Color.FromRgb(0x61, 0x47, 0xD4), SettingsPage.Ai => Color.FromRgb(0xAF, 0x52, 0xDE), SettingsPage.Features => Color.FromRgb(0xFF, 0x95, 0x00),
+        SettingsPage.Profile => Color.FromRgb(0x61, 0x47, 0xD4), SettingsPage.Ai => Color.FromRgb(0xAF, 0x52, 0xDE), SettingsPage.Terminals => Color.FromRgb(0x32, 0xAD, 0xE6), SettingsPage.Features => Color.FromRgb(0xFF, 0x95, 0x00),
         SettingsPage.Notifications => Color.FromRgb(0xFF, 0x3B, 0x30), SettingsPage.Connection => Color.FromRgb(0x00, 0x7A, 0xFF), SettingsPage.Display => Color.FromRgb(0x58, 0x56, 0xD6),
         SettingsPage.Billing => Color.FromRgb(0x34, 0xC7, 0x59), SettingsPage.Update => Color.FromRgb(0x30, 0xB0, 0xC7), SettingsPage.About => Color.FromRgb(0x8E, 0x8E, 0x93), _ => Color.FromRgb(0xFF, 0x3B, 0x30)
     };

@@ -52,7 +52,7 @@ public sealed partial class SettingsWindow : EditorWindow
 
     // Leaving the page is blocked while a save here, or an update running in the hosted pane, is still in progress.
     public override bool CanNavigateAway => base.CanNavigateAway && embedded?.CanNavigateAway != false && updateContent?.Busy != true;
-    public override void ScrollToEndForRender() { if (pane.Content is UpdateContent content) content.ScrollToEnd(); else if (pane.Content is ScrollViewer scroller) { scroller.ScrollToEnd(); scroller.UpdateLayout(); } }
+    public override void ScrollToEndForRender() { if (pane.Content is UpdateContent content) content.ScrollToEnd(); else if (pane.Content is TerminalDetailView detail) { detail.Scroller.UpdateLayout(); detail.Scroller.ScrollToEnd(); detail.Scroller.UpdateLayout(); } else if (pane.Content is ScrollViewer scroller) { scroller.ScrollToEnd(); scroller.UpdateLayout(); } }
     public SettingsPage Selected => selected;
 
     public async Task InitializeAsync(SettingsPage page = SettingsPage.Profile)
@@ -75,7 +75,7 @@ public sealed partial class SettingsWindow : EditorWindow
         {
             await (page switch
             {
-                SettingsPage.Profile => ProfilePageAsync(token), SettingsPage.Ai => AiPageAsync(token), SettingsPage.Features => FeaturesPageAsync(token),
+                SettingsPage.Profile => ProfilePageAsync(token), SettingsPage.Ai => AiPageAsync(token), SettingsPage.Terminals => TerminalsPageAsync(token), SettingsPage.Features => FeaturesPageAsync(token),
                 SettingsPage.Notifications => NotificationsPage(), SettingsPage.Connection => ConnectionPage(), SettingsPage.Display => DisplayPage(),
                 SettingsPage.Billing => BillingPage(), SettingsPage.Update => UpdatePageAsync(), SettingsPage.About => AboutPage(), _ => StopPageAsync(token)
             });
