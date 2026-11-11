@@ -71,7 +71,7 @@ public static class LatticeChart
 {
     public const string UnknownMember = "名簿にないメンバー", Unassigned = "担当なし";
     public const string Reconnecting = "工程表に再接続しています…", ListEmpty = "工程表はまだありません。メンバーがLatticeで工程をつくると、ここに並びます。",
-        NewChart = "工程表はメンバーがLatticeでつくります。権限も参加登録もなく、誰でも開けます。", OldServer = "このサーバーではまだ工程表を使えません。",
+        NewChart = "工程表はメンバーがLatticeでつくります。権限も参加登録もなく、誰でも開けます。", OldServer = "このサーバーではまだ工程表を使えません。", OldServerNext = "サーバーが更新されると使えるようになります。",
         NotFound = "この工程表は見つかりません。", Unavailable = "この工程表はまだ読めません。", UnavailableNext = "記録が整うと自動で表示します。", NoCards = "この工程表にはまだ工程がありません。",
         LoginRequired = "ログインが必要です。ログインし直すと、自動で表示します。";
 

@@ -75,10 +75,16 @@ public sealed class LatticeWindow : Window
         if (origin != workspace.Server) { origin = workspace.Server; list = null; listProblem = null; autoOpened = false; ShowList(); }
         if (!Wanted) { StopAll(); return; }
         if (Chart is { } chart) { listLoop?.Cancel(); listLoop = null; if (!chart.Running) chart.Run(workspace.Management.Api, workspace.ConnectionToken); }
-        else if (listLoop is null) { listLoop = CancellationTokenSource.CreateLinkedTokenSource(workspace.ConnectionToken); ListRead = PollListAsync(listLoop.Token); }
+        else if (listLoop is null) { listLoop = CancellationTokenSource.CreateLinkedTokenSource(workspace.ConnectionToken); ListRead = ReadListAsync(listLoop); }
     }
     private void StopAll() { listLoop?.Cancel(); listLoop = null; Chart?.Stop(); }
 
+    // The reader owns its source: released once it has finished, so hide/show and chart switches leave no registration on the connection token.
+    private async Task ReadListAsync(CancellationTokenSource source)
+    {
+        try { await PollListAsync(source.Token); }
+        finally { if (ReferenceEquals(listLoop, source)) listLoop = null; source.Dispose(); }
+    }
     private async Task PollListAsync(CancellationToken token)
     {
         while (!token.IsCancellationRequested)
@@ -116,7 +122,7 @@ public sealed class LatticeWindow : Window
         body.Children.Add(header);
         if (list is null && listProblem is { } problem && problem != LatticeChart.Reconnecting)
         {
-            body.Children.Add(Notice(problem, null, problem == LatticeChart.OldServer ? ("閉じる", Close) : null));
+            body.Children.Add(Notice(problem, problem == LatticeChart.OldServer ? LatticeChart.OldServerNext : null, problem == LatticeChart.OldServer ? ("閉じる", Close) : null));
         }
         else if (list is null) body.Children.Add(Notice(listProblem ?? "読み込んでいます…", null, null));
         else if (list.Charts.Length == 0) body.Children.Add(Notice(LatticeChart.ListEmpty, null, ("閉じる", Close)));
@@ -250,7 +256,7 @@ internal sealed class LatticeChartPage : Grid
     private string? said;
     internal string? SelectedCard { get; private set; }
     internal string? HighlightedMember { get; private set; }
-    public bool Running => run is not null;
+    public bool Running { get; private set; }
 
     public LatticeChartPage(LatticeWindow window, string projectId, LatticeChartSummary? summary)
     {
@@ -284,10 +290,16 @@ internal sealed class LatticeChartPage : Grid
 
     public void Run(BellApi api, CancellationToken connection)
     {
-        run = CancellationTokenSource.CreateLinkedTokenSource(connection); var token = run.Token;
-        _ = Feed.RunAsync((onActivity, cancel) => api.LatticeEventsAsync(projectId, onActivity, cancel), token).ContinueWith(_ => { }, TaskScheduler.Default);
+        Running = true; run = CancellationTokenSource.CreateLinkedTokenSource(connection);
+        _ = FollowAsync(api, run);
     }
-    public void Stop() { run?.Cancel(); run = null; }
+    // A feed that ended on its own (not found, sign-in) stays "running" until Stop, as before; only its token source is released.
+    private async Task FollowAsync(BellApi api, CancellationTokenSource source)
+    {
+        try { await Feed.RunAsync((onActivity, cancel) => api.LatticeEventsAsync(projectId, onActivity, cancel), source.Token); }
+        finally { if (ReferenceEquals(run, source)) run = null; source.Dispose(); }
+    }
+    public void Stop() { Running = false; run?.Cancel(); run = null; }
     internal void Say(string text) { said = text; RenderPills(); }
 
     private string ChartName => LatticeChart.ChartName(Feed.Snapshot?.Name ?? summary?.Name, Feed.Snapshot?.CreatedBy ?? summary?.CreatedBy, id => window.Roster(id)?.Name);
@@ -303,7 +315,7 @@ internal sealed class LatticeChartPage : Grid
         FrameworkElement? replaced = Feed.Connection switch
         {
             LatticeConnection.NotFound => LatticeWindow.Notice(LatticeChart.NotFound, null, ("一覧へ戻る", window.ShowList)),
-            LatticeConnection.Unsupported => LatticeWindow.Notice(LatticeChart.OldServer, "サーバーが更新されると使えるようになります。", ("閉じる", window.Close)),
+            LatticeConnection.Unsupported => LatticeWindow.Notice(LatticeChart.OldServer, LatticeChart.OldServerNext, ("閉じる", window.Close)),
             LatticeConnection.Login when snapshot is null => LatticeWindow.Notice(LatticeChart.LoginRequired, null, null),
             _ when snapshot is { State: "unavailable" } => LatticeWindow.Notice(LatticeChart.Unavailable, LatticeChart.UnavailableNext, ("一覧へ戻る", window.ShowList), bud: true),
             _ when snapshot is null => LatticeWindow.Notice(Feed.Connection == LatticeConnection.Reconnecting ? LatticeChart.Reconnecting : "読み込んでいます…", null, null),

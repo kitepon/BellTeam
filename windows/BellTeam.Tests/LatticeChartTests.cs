@@ -146,6 +146,46 @@ public sealed class LatticeChartTests
         chart.Stop(); window.Close();
     });
 
+    [Fact]
+    public void AnOlderServerListSaysWhatHappensNext() => RunSta(() =>
+    {
+        using var workspace = new Workspace(origin => new BellApi(origin, new LatticeFixture("old-server")));
+        Await(workspace.ConnectAsync("http://localhost", listen: false));
+        var window = new LatticeWindow(workspace, _ => Task.CompletedTask) { Rendering = true };
+        window.Sync(); Until(() => window.ListSettled);
+        var texts = LogicalTree.Find<TextBlock>(window.Content).Select(text => text.Text).ToList();
+        Assert.Contains(LatticeChart.OldServer, texts);
+        Assert.Contains(LatticeChart.OldServerNext, texts);
+        window.Close();
+    });
+
+    [Fact]
+    public void ReadersReleaseTheirTokenSourcesAndStillRestart() => RunSta(() =>
+    {
+        using var workspace = new Workspace(origin => new BellApi(origin, new LatticeFixture("chart")));
+        Await(workspace.ConnectAsync("http://localhost", listen: false));
+        var window = new LatticeWindow(workspace, _ => Task.CompletedTask) { Rendering = true };
+        var listField = typeof(LatticeWindow).GetField("listLoop", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        window.Sync(); Until(() => window.ListSettled);
+        var list = (CancellationTokenSource)listField.GetValue(window)!;
+        window.OpenChart("lattice");
+        Until(() => window.ListRead.IsCompleted);
+        Assert.Null(listField.GetValue(window));
+        Assert.Throws<ObjectDisposedException>(() => list.Token);   // released after its reader finished
+
+        var chart = window.Chart!; var runField = typeof(LatticeChartPage).GetField("run", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        Until(() => chart.Feed.Snapshot is not null);
+        var first = (CancellationTokenSource)runField.GetValue(chart)!;
+        chart.Stop();
+        Assert.False(chart.Running);
+        Until(() => { try { _ = first.Token; return false; } catch (ObjectDisposedException) { return true; } });
+        window.Sync();   // shown again: the chart reads again on a new source
+        Assert.True(chart.Running);
+        var second = (CancellationTokenSource)runField.GetValue(chart)!;
+        Assert.NotSame(first, second);
+        chart.Stop(); window.Close();
+    });
+
     private static void Pump() { var frame = new DispatcherFrame(); Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => frame.Continue = false)); Dispatcher.PushFrame(frame); }
     private static void Await(Task task) { Until(() => task.IsCompleted); task.GetAwaiter().GetResult(); }
     private static void Until(Func<bool> done) { var until = DateTime.UtcNow.AddSeconds(10); while (!done()) { if (DateTime.UtcNow > until) throw new TimeoutException(); Pump(); Thread.Sleep(1); } }
