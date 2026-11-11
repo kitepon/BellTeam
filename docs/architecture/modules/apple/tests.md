@@ -246,6 +246,7 @@ BellBotTests 26ファイル、BellBotUITests 19ファイル、Tests 2ファイ�
 | [testCodeBlockKeepsItsPaddingAndSmallFinalTerminator](../../../../ios/BellBot/BellBotTests/ConversationAppearanceTests.swift#L41) | code blockのpadding行と1ptの終端を保持 |
 | [testTimelineDecodesAllImageURLsForDirectAndRoomMessages](../../../../ios/BellBot/BellBotTests/ConversationAppearanceTests.swift#L59) | DM/roomの複数image URLとoutgoing判定をdecode |
 | [testLegacyImageURLAndUnsavedImagesKeepTheirRepresentation](../../../../ios/BellBot/BellBotTests/ConversationAppearanceTests.swift#L73) | 旧imageUrlとURL無し画像枚数を保持 |
+| `testForkSeatDecodesLeniently`（`ConversationAppearanceTests.swift`） | `seat.kind==fork`（`in_reply_to`の有無とも）は`isFork`、キー無し・null・別のkind・`{}`・kindが数値・`seat`が文字列/数値/配列は`isFork`でなく本文を保持し、decodeは失敗しない |
 | [testSelectedPartCopiesWithoutTheRestOfTheMessage](../../../../ios/BellBot/BellBotTests/ConversationAppearanceTests.swift#L87) | 選択範囲だけコピーし本文の残りを含めない |
 | [testSelectableMessageRetainsMarkdownAndLinks](../../../../ios/BellBot/BellBotTests/ConversationAppearanceTests.swift#L98) | 見出し/強調/斜体/link/改行を選択可本文へ描画 |
 | [testBareAndNamedLinksRemainTappable](../../../../ios/BellBot/BellBotTests/ConversationAppearanceTests.swift#L117) | 裸URLと名前付きURLのlink属性を保持 |
@@ -1062,7 +1063,7 @@ fixtureは起動していない。本体型のimport先は読まず、fixtureが
 | `BELLTEAM_APPLE_INTEGRATION_URL` → [apple-integration-server.mjs](../../../../test/helpers/apple-integration-server.mjs) | 人工Bot/認証/未来予定と製品HTTP/SSEを接続。新着/配送状態/room/queue/秘密/質問/予定の制御、旧/不正JSON/未知topic注入、再接続、sourceRevision/要求/frame/変更元/CLI記録。中継はGET/HEADとdiagnosticsだけ受理。終了でstream/2server/一時rootを整理 |
 | `BELLTEAM_SECRET_SMOKE=1` → [secret-input-smoke.mjs](../../../../scripts/secret-input-smoke.mjs) | 一時証明書のlocalhost HTTPS、秘密要求、307 routeを作る。SIGINT時にredirect未追跡、保存した合成値一致・通知本文へ値が無いことを検査しserver/一時root整理。UI試験だけのassertと、このscript終了時検査は別 |
 | `BELLTEAM_LIVE_URL` / `BELLTEAM_LIVE_SECONDS` | EventStreamLiveTestsが直接読む。既定330秒。fixtureの代わりに渡されたURLでSSEを接続 |
-| `BELLTEAM_IMAGE_SMOKE_URL` → [conversation-images-server.mjs](../../../../test/helpers/conversation-images-server.mjs) | DM3枚・room2枚・旧単画像・URL無し枚数ラベル、PNG/JPEGのGET成功/503、添付POSTの保留/503と要求・診断のproof。起動とMac5件の操作は[PR3手順](#pr3のmac確認の補助試験)、通過結果は[親の確認記録](refactor-progress.md#次の作業)を参照 |
+| `BELLTEAM_IMAGE_SMOKE_URL` → [conversation-images-server.mjs](../../../../test/helpers/conversation-images-server.mjs) | `/test/reset?mode=fork`でbot-oneの履歴を分身の行（問い合わせ・途中・答え・中継）入りに差し替える（本席の行、`seat`が文字列の行、未知kindの行も含む。Mac/iPhoneの「分身」バッジの目視用で、自動UI試験は無い）。DM3枚・room2枚・旧単画像・URL無し枚数ラベル、PNG/JPEGのGET成功/503、添付POSTの保留/503と要求・診断のproof。起動とMac5件の操作は[PR3手順](#pr3のmac確認の補助試験)、通過結果は[親の確認記録](refactor-progress.md#次の作業)を参照 |
 | `BELLTEAM_ROOM_SMOKE_URL` / `BELLTEAM_INSTALL_SMOKE_URL` | Swift本文の利用route/期待値は確認。対応する独立fixture実装・installerの試験起動手順までは特定していない |
 
 ### 単体試験内のfixtureと構成

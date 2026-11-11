@@ -236,8 +236,11 @@ struct TimelineMessage: Decodable, Identifiable, Equatable {
     let peerPosition: String?
     let secretRequest: SecretRequest?
     let ownerQuestion: OwnerQuestion?
+    /// conversation fork-inquiry.md "Records and display". Absent on the main seat and on old bodies.
+    var seat: MessageSeat? = nil
 
     var isOutgoing: Bool { direction == "outgoing" || sender?.id == "user" }
+    var isFork: Bool { seat?.kind == "fork" }
     var isPeer: Bool { kind == "peer" }
     var displayedImageURLs: [String] { imageUrls ?? imageUrl.map { [$0] } ?? [] }
     var status: String? {
@@ -249,6 +252,18 @@ struct TimelineMessage: Decodable, Identifiable, Equatable {
         if values.contains("queued") { return "queued" }
         if values.contains("stopped") { return "stopped" }
         return values.isEmpty ? nil : "delivered"
+    }
+}
+
+/// Optional `seat` of a direct-conversation row. Only `kind` is read; a wrong type or an unknown kind leaves
+/// `kind` nil (or unknown) so the row stays a main-seat row and never breaks the timeline.
+struct MessageSeat: Decodable, Equatable {
+    let kind: String?
+
+    private enum CodingKeys: String, CodingKey { case kind }
+
+    init(from decoder: Decoder) {
+        kind = try? decoder.container(keyedBy: CodingKeys.self).decodeIfPresent(String.self, forKey: .kind)
     }
 }
 

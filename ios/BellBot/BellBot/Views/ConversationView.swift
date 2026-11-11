@@ -972,10 +972,13 @@ private struct MessageRow: View, Equatable {
                         .overlay(RoundedRectangle(cornerRadius: 21).strokeBorder(
                             message.isOutgoing ? BellTheme.line : bubbleAccent.opacity(0.35)))
                     }
-                    Text([BellDate.short(message.at), statusLabel].filter { !$0.isEmpty }.joined(separator: " · "))
-                        .font(.system(size: BellTheme.listDetailFontSize))
-                        .foregroundStyle(message.status == "failed" ? .red : BellTheme.muted)
-                        .padding(.horizontal, 5)
+                    HStack(spacing: 6) {
+                        if message.isFork { ForkSeatBadge() }
+                        Text([BellDate.short(message.at), statusLabel].filter { !$0.isEmpty }.joined(separator: " · "))
+                            .font(.system(size: BellTheme.listDetailFontSize))
+                            .foregroundStyle(message.status == "failed" ? .red : BellTheme.muted)
+                    }
+                    .padding(.horizontal, 5)
                 }
                 if !message.isOutgoing { Spacer(minLength: 45) }
             }
@@ -994,6 +997,20 @@ private struct MessageRow: View, Equatable {
         case "failed": "配達失敗"
         default: ""
         }
+    }
+}
+
+/// 「分身」: a row of the read-only fork inquiry (conversation fork-inquiry.md "Records and display").
+private struct ForkSeatBadge: View {
+    var body: some View {
+        Label("分身", systemImage: "arrow.triangle.branch")
+            .font(.system(size: BellTheme.listDetailFontSize, weight: .semibold))
+            .foregroundStyle(BellTheme.violet)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 2)
+            .background(BellTheme.violetLight.opacity(0.75), in: Capsule())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("分身")
     }
 }
 

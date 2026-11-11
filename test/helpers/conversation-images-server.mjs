@@ -23,6 +23,21 @@ const histories = new Map([
     message('unsaved-two', { image: true, imageCount: 2 }),
   ]],
 ])
+// fork mode: direct rows of a read-only fork inquiry (conversation fork-inquiry.md "Records and display") among main rows,
+// plus a malformed and an unknown-kind seat that must render as main rows.
+const incoming = (id, fields) => ({ id, kind: 'message', direction: 'incoming', at: '2026-11-10T00:00:00Z', delivery: 'delivered', ...fields })
+const fork = { kind: 'fork', fork_id: 'fork-1' }
+const forkHistories = new Map([['/api/bots/bot-one/messages', [
+  message('main-q', { message: '今朝の状況を教えて' }),
+  incoming('main-a', { message: 'いま実装を進めています。' }),
+  incoming('fork-inquiry', { sender: { id: 'bot-two', name: 'ハル' }, seat: fork, message: 'いまの進捗を一言で教えて' }),
+  incoming('fork-interim', { seat: fork, message: '確認しています。' }),
+  incoming('fork-answer', { seat: fork, message: '実装は7割です。残りはテストです。' }),
+  message('fork-relay', { seat: fork, in_reply_to: 'fork-inquiry', message: 'ハルへ: 実装は7割です。' }),
+  incoming('main-next', { message: '続けます。' }),
+  incoming('bad-seat-type', { seat: 'bogus', message: 'seatが文字列の行（通常の行として表示）' }),
+  incoming('unknown-kind', { seat: { kind: 'future' }, message: '未知のkindの行（通常の行として表示）' }),
+]]])
 let mode = 'images', failImages = false, holdSend = false
 let reads = [], sends = [], diagnostics = [], heldSends = []
 const subscribers = new Set()
@@ -36,7 +51,7 @@ const server = createServer(async (request, response) => {
   const path = url.pathname
   if (path === '/test/reset') {
     const nextMode = url.searchParams.get('mode') ?? 'images'
-    if (!['images', 'attachments'].includes(nextMode)) return json(response, { error: 'UNKNOWN_MODE' }, 400)
+    if (!['images', 'attachments', 'fork'].includes(nextMode)) return json(response, { error: 'UNKNOWN_MODE' }, 400)
     for (const held of heldSends) sendFailure(held)
     for (const subscriber of subscribers) subscriber.end()
     subscribers.clear()
@@ -89,7 +104,7 @@ const server = createServer(async (request, response) => {
   }
   if (histories.has(path)) {
     reads.push({ method: 'GET', path, query: url.search })
-    const items = mode === 'attachments' ? [] : histories.get(path)
+    const items = mode === 'attachments' ? [] : mode === 'fork' && forkHistories.has(path) ? forkHistories.get(path) : histories.get(path)
     // 全件が初回limit=10以内。before/afterは既に返したID以降/以前だけを返す。
     const before = items.findIndex(item => item.id === url.searchParams.get('before'))
     const after = items.findIndex(item => item.id === url.searchParams.get('after'))

@@ -64,6 +64,25 @@ flowchart LR
 
 一覧はUICollectionViewと[ChatLayout](https://github.com/ekazaev/ChatLayout)（MIT、revision固定、ライセンスは`Resources/ChatLayout-LICENSE.txt`）の`CollectionViewChatLayout`。チャットの定番のスクロール・アンカリングで、読んでいる位置の補正はすべてレイアウトが行い、アプリは位置を計算しない（`keepContentOffsetAtBottomOnBatchUpdates`、`supportSelfSizingInvalidation`）。行の高さはセルが幅固定で中身から測る。初回は最後の行を下端に合わせる。下の余白（キーボード・入力欄）が変わった時だけ、末尾にいれば末尾へ寄せ直す。初回配置後にrise/fadeで1回表示し、後から入る行にも同じ方式を適用する。動きはセルのcontentViewに付ける（セル本体の位置・透明度はレイアウトが当て直すため）。行再利用時はcontentViewのalpha/transform/animationを戻す。Macの離散ホイールはWheelScrollSmoother、連続スクロールは標準処理。pull完了時にrefreshControlを終了する。表への反映とHTTPの取得完了は別段階である。
 
+## 分身の行の表示
+
+Botの直接会話の行は、読取専用の分身への問い合わせ（[契約](../conversation/fork-inquiry.md#records-and-display-spec-items-56)「Records and display」）の問い合わせ・途中の言葉・答え・中継のとき、任意の`seat:{kind:'fork',fork_id}`を持つ（中継行はさらに`in_reply_to`）。`seat`の無い行は本席の行で、表示は従来と同じ。旧本体は両方のキーを送らない。
+
+```mermaid
+flowchart LR
+  Body["GET T/messages・SSE後のGET<br/>行に seat?:{kind,fork_id}、中継行に in_reply_to?"] --> Decode["TimelineMessage<br/>seat: MessageSeat? を kind だけ読む<br/>不正な型・欠落・nullは kind=nil、行の取得は失敗しない"]
+  Decode --> IsFork["TimelineMessage.isFork<br/>seat.kind == fork"]
+  IsFork -->|true| Badge["MessageRow の時刻行の先頭に<br/>ForkSeatBadge「分身」（カプセル＋arrow.triangle.branch）"]
+  IsFork -->|false・無し・未知のkind| Plain["従来の行（変更なし）"]
+```
+
+| 項目 | 規則 |
+| --- | --- |
+| 読む値 | `seat.kind`だけ。`seat.fork_id`と`in_reply_to`は表示に使わないので読まない（キーは無視される）。`seat`が文字列・数値・配列、`kind`が文字列でない、は`kind`なしとして扱い、行を落とさない（`seatLaunch`と同じ寛容な読み方） |
+| 表示 | Bot会話の吹き出しの下の時刻行（`MessageRow`）の先頭に、紫のカプセル「分身」を出す。向き（左右）は時刻行に従う。VoiceOverは「分身」。ルーム行は`seat`を持たない |
+| 行の同一判定 | `MessageRow ==`は`TimelineMessage`全体を比べるので、`seat`の違いは再構成になる。履歴の併合・照合の規則は変わらない |
+| 対象外 | 一覧の副題（`RecentMessage`）、相関図の分身（Black担当）、スレッド表示 |
+
 ## 下書き・添付・宛先
 
 | 入口 | 受渡しと途中失敗・後始末 |
