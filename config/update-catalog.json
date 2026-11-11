@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-11T22:50:00Z",
-  "expiresAt": "2026-11-18T22:50:00Z",
+  "publishedAt": "2026-11-11T22:56:15Z",
+  "expiresAt": "2026-11-18T22:56:15Z",
   "releases": [
     {
       "componentId": "usage",
@@ -433,8 +433,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "a11c5b37091a1597b439c9bda6b11aa9040b155f",
-      "versionId": "3bb50bcc44949ccb6af268de68eecbd34280f8c8bd25968d91fdbe0dee394bd9",
+      "sourceCommit": "8b18241508f966ae3743fb45f8cfbd02e1561ee0",
+      "versionId": "20d790a8713d6df92162b877287e9f78cbe88dc59efb173f6ac8ef720c9e4162",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -442,16 +442,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T221523Z/web-gateway-a11c5b37091a1597b439c9bda6b11aa9040b155f-linux-amd64.tar.gz",
-          "bytes": 5259336,
-          "sha256": "3bb50bcc44949ccb6af268de68eecbd34280f8c8bd25968d91fdbe0dee394bd9"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T225322Z/web-gateway-8b18241508f966ae3743fb45f8cfbd02e1561ee0-linux-amd64.tar.gz",
+          "bytes": 5268025,
+          "sha256": "20d790a8713d6df92162b877287e9f78cbe88dc59efb173f6ac8ef720c9e4162"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T221523Z/web-gateway-a11c5b37091a1597b439c9bda6b11aa9040b155f-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10829,
-          "sha256": "228e42c8d7d150f9ef10ae06a94dd857999ba03e21a6698b1e51e73ef1954a74"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T225322Z/web-gateway-8b18241508f966ae3743fb45f8cfbd02e1561ee0-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11005,
+          "sha256": "fd59ba2bff461148a0ed3e4896b461673cdee1a1c5f2156aba3745a12a6b18fe"
         },
-        "signerCommit": "a11c5b37091a1597b439c9bda6b11aa9040b155f"
+        "signerCommit": "8b18241508f966ae3743fb45f8cfbd02e1561ee0"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -460,14 +460,13 @@
         "containerUpdate": null
       },
       "changes": [
-        "工程表のカードで「担当なし」が題名に重なっていたのを直しました。",
-        "工程表のレーンに書いた担当を、カード・待ちの流れ・詳細に表示するようになりました。"
+        "ホームのメンバー一覧を見やすくし、更新がある時は印を出すようになりました。会話の上に相手の今の状態を表示します。工程表を木の形で表示できるようになりました。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "a11c5b37091a1597b439c9bda6b11aa9040b155f",
-      "versionId": "4c06533d81afb2bc5cd1c64c38df07bfdb86d6fb24b31020b66e9cde18735252",
+      "sourceCommit": "8b18241508f966ae3743fb45f8cfbd02e1561ee0",
+      "versionId": "4cd5c1fd22c8542f72661b88a417c6af00ba4fdd55f2e31aa5c1bb7974d59866",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -475,16 +474,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T221523Z/web-gateway-a11c5b37091a1597b439c9bda6b11aa9040b155f-linux-arm64.tar.gz",
-          "bytes": 5259336,
-          "sha256": "4c06533d81afb2bc5cd1c64c38df07bfdb86d6fb24b31020b66e9cde18735252"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T225322Z/web-gateway-8b18241508f966ae3743fb45f8cfbd02e1561ee0-linux-arm64.tar.gz",
+          "bytes": 5268025,
+          "sha256": "4cd5c1fd22c8542f72661b88a417c6af00ba4fdd55f2e31aa5c1bb7974d59866"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T221523Z/web-gateway-a11c5b37091a1597b439c9bda6b11aa9040b155f-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10923,
-          "sha256": "5f5b08a7e708f2307472b1ad7e507b44a1f771bb13d144f2931b7d0e3abf4245"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T225322Z/web-gateway-8b18241508f966ae3743fb45f8cfbd02e1561ee0-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10974,
+          "sha256": "1d93f9d2b493490bdcab3f73462e3741b66ff30f4049fbc4578554b03a899fd2"
         },
-        "signerCommit": "a11c5b37091a1597b439c9bda6b11aa9040b155f"
+        "signerCommit": "8b18241508f966ae3743fb45f8cfbd02e1561ee0"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -493,8 +492,7 @@
         "containerUpdate": null
       },
       "changes": [
-        "工程表のカードで「担当なし」が題名に重なっていたのを直しました。",
-        "工程表のレーンに書いた担当を、カード・待ちの流れ・詳細に表示するようになりました。"
+        "ホームのメンバー一覧を見やすくし、更新がある時は印を出すようになりました。会話の上に相手の今の状態を表示します。工程表を木の形で表示できるようになりました。"
       ]
     },
     {
@@ -715,15 +713,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "401b1255206089370da6a17c81d7c8c8ec60617b",
-      "versionId": "sha256:b5a77dcbc2bcb3a24e3d5167e3fe2183a85f8f8c3e76431171ec1e53f48d4b0c",
+      "sourceCommit": "8b18241508f966ae3743fb45f8cfbd02e1561ee0",
+      "versionId": "sha256:53473c270383ee459011344d4213c9a5dee6ade9d932e4beee11d27b17a3bdda",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b5a77dcbc2bcb3a24e3d5167e3fe2183a85f8f8c3e76431171ec1e53f48d4b0c"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:53473c270383ee459011344d4213c9a5dee6ade9d932e4beee11d27b17a3bdda"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -732,20 +730,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "工程表（Lattice）の部品を受け入れられるようにします。会話の部品へ送る呼び出しを順番どおりに送り、分身への問い合わせの答えや失敗の知らせが途中で失われないようにします。端末の一覧に、最後に接続を確かめた結果を出します。設定の各項目で、有効にするのに必要かどうかを示せるようにします。Aiterm 0.70.27 に上げ、本体の再起動で端末が消えたClaudeの席も一覧に残し、次に送った時にその席を引き継ぎます。"
+        "工程表（Lattice）の新しい部品を受け入れられるようにします。目標の確認で、動いていない席を読めなかった失敗と区別して「休止中」と扱います。Aiterm 0.70.28 に上げ、Claude Code 2.1.322 の席でも目標を読めるようにします。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "401b1255206089370da6a17c81d7c8c8ec60617b",
-      "versionId": "sha256:b5a77dcbc2bcb3a24e3d5167e3fe2183a85f8f8c3e76431171ec1e53f48d4b0c",
+      "sourceCommit": "8b18241508f966ae3743fb45f8cfbd02e1561ee0",
+      "versionId": "sha256:53473c270383ee459011344d4213c9a5dee6ade9d932e4beee11d27b17a3bdda",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:b5a77dcbc2bcb3a24e3d5167e3fe2183a85f8f8c3e76431171ec1e53f48d4b0c"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:53473c270383ee459011344d4213c9a5dee6ade9d932e4beee11d27b17a3bdda"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -754,13 +752,13 @@
         "containerUpdate": 1
       },
       "changes": [
-        "工程表（Lattice）の部品を受け入れられるようにします。会話の部品へ送る呼び出しを順番どおりに送り、分身への問い合わせの答えや失敗の知らせが途中で失われないようにします。端末の一覧に、最後に接続を確かめた結果を出します。設定の各項目で、有効にするのに必要かどうかを示せるようにします。Aiterm 0.70.27 に上げ、本体の再起動で端末が消えたClaudeの席も一覧に残し、次に送った時にその席を引き継ぎます。"
+        "工程表（Lattice）の新しい部品を受け入れられるようにします。目標の確認で、動いていない席を読めなかった失敗と区別して「休止中」と扱います。Aiterm 0.70.28 に上げ、Claude Code 2.1.322 の席でも目標を読めるようにします。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "a11c5b37091a1597b439c9bda6b11aa9040b155f",
-      "versionId": "71992681e44b89db59ab10a54d83f8a5c5fa11c99af7e464bddad2200237b0aa",
+      "sourceCommit": "8b18241508f966ae3743fb45f8cfbd02e1561ee0",
+      "versionId": "32742fa419f725f4bcff250ef0d41286125e3691a2da6100c5e6a71194fee684",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -768,16 +766,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T221514Z/lattice-a11c5b37091a1597b439c9bda6b11aa9040b155f-linux-amd64.tar.gz",
-          "bytes": 15227995,
-          "sha256": "71992681e44b89db59ab10a54d83f8a5c5fa11c99af7e464bddad2200237b0aa"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T225307Z/lattice-8b18241508f966ae3743fb45f8cfbd02e1561ee0-linux-amd64.tar.gz",
+          "bytes": 15228550,
+          "sha256": "32742fa419f725f4bcff250ef0d41286125e3691a2da6100c5e6a71194fee684"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T221514Z/lattice-a11c5b37091a1597b439c9bda6b11aa9040b155f-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10996,
-          "sha256": "a579af9be149b1fee1fcbb6502f034640124865d6c59d6900e8f8c0d37fb7b65"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T225307Z/lattice-8b18241508f966ae3743fb45f8cfbd02e1561ee0-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10886,
+          "sha256": "a247e474e18483bb2c881297ca33e8733a770446495001354ac5a2f3aae0e877"
         },
-        "signerCommit": "a11c5b37091a1597b439c9bda6b11aa9040b155f"
+        "signerCommit": "8b18241508f966ae3743fb45f8cfbd02e1561ee0"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -789,13 +787,13 @@
         }
       },
       "changes": [
-        "工程表のレーンにBotの名前やIDを書くと、作業を始める前からそのBotが担当として表示されるようになりました。"
+        "工程表を、作業のつながりを木の形で見られるようになりました。終わったカードも、書いた担当のまま表示されます。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "a11c5b37091a1597b439c9bda6b11aa9040b155f",
-      "versionId": "ea88ea16d23527b9c8dffea34691be1fabfa3ca4f474a7021ab4ed4d6e411b11",
+      "sourceCommit": "8b18241508f966ae3743fb45f8cfbd02e1561ee0",
+      "versionId": "9b582a711f6576bc7bc4aa547c82f69dae97b2155e13148f8a09c39ebecdf114",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -803,16 +801,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T221514Z/lattice-a11c5b37091a1597b439c9bda6b11aa9040b155f-linux-arm64.tar.gz",
-          "bytes": 15228009,
-          "sha256": "ea88ea16d23527b9c8dffea34691be1fabfa3ca4f474a7021ab4ed4d6e411b11"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T225307Z/lattice-8b18241508f966ae3743fb45f8cfbd02e1561ee0-linux-arm64.tar.gz",
+          "bytes": 15228549,
+          "sha256": "9b582a711f6576bc7bc4aa547c82f69dae97b2155e13148f8a09c39ebecdf114"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T221514Z/lattice-a11c5b37091a1597b439c9bda6b11aa9040b155f-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10808,
-          "sha256": "717d42ba3251f4a15fa663aae6ae611bed5257d1daa52ad064fb7ed789af9df1"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T225307Z/lattice-8b18241508f966ae3743fb45f8cfbd02e1561ee0-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10902,
+          "sha256": "d7ddf4ac0c7ada25c8ee30e03cd65180de1e392f802dc3dd2c40be08ed31c93f"
         },
-        "signerCommit": "a11c5b37091a1597b439c9bda6b11aa9040b155f"
+        "signerCommit": "8b18241508f966ae3743fb45f8cfbd02e1561ee0"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -824,7 +822,7 @@
         }
       },
       "changes": [
-        "工程表のレーンにBotの名前やIDを書くと、作業を始める前からそのBotが担当として表示されるようになりました。"
+        "工程表を、作業のつながりを木の形で見られるようになりました。終わったカードも、書いた担当のまま表示されます。"
       ]
     }
   ],
