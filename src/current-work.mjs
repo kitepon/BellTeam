@@ -48,8 +48,8 @@ export function watchCurrentTurn(watchQueue, read, listener) {
 
 // UI state stays observation-based; restart references also use actual accepted native input.
 export class CurrentWork {
-  constructor({ now = () => new Date().toISOString(), monotonic = () => performance.now(), notify = () => {}, activityPath = null, reportActivity = () => {} } = {}) {
-    this.now = now; this.monotonic = monotonic; this.notify = notify
+  constructor({ now = () => new Date().toISOString(), monotonic = () => performance.now(), notify = () => {}, observed = () => {}, activityPath = null, reportActivity = () => {} } = {}) {
+    this.now = now; this.monotonic = monotonic; this.notify = notify; this.observed = () => { try { observed() } catch {} }
     this.activityPath = activityPath; this.reportActivity = () => { try { Promise.resolve(reportActivity()).catch(() => {}) } catch {} }; this.restartActivity = new Map(); this.activityQueue = Promise.resolve(); this.activityPending = 0
     this.records = new Map(); this.pending = new Map(); this.seq = 0; this.closed = false; this.timer = null
   }
@@ -99,7 +99,7 @@ export class CurrentWork {
     if (!this.records.has(botId)) this.records.set(botId, {
       botId, sessionId: null, launchId: null, turnId: null, startedAt: null, revision: randomUUID(), state: 'unknown',
       observedAt: null, observedMono: null, summary: null, summaryStatus: 'missing', summaryUpdatedAt: null,
-      summaryMono: null, lastRead: 0, barrier: 0, completed: null,
+      summaryMono: null, lastRead: 0, barrier: 0, completed: null, settledSeq: 0,
     })
     return this.records.get(botId)
   }
@@ -124,7 +124,7 @@ export class CurrentWork {
   invalidate(botId) { this.finishedActivity(botId, this.restartActivity.get(botId)); this.unknown(this.record(botId)); this.schedule() }
   sync(botId, sessionId, available = true) {
     const record = this.record(botId)
-    if (record.sessionId !== sessionId) { this.unknown(record); record.sessionId = sessionId; record.absent = false }
+    if (record.sessionId !== sessionId) { this.unknown(record); record.sessionId = sessionId; record.absent = false; record.settledSeq = 0 }
     if (!available || this.closed) this.unknown(record)
     this.expire(record)
     return record
@@ -176,6 +176,7 @@ export class CurrentWork {
       // A valid read without this seat proves no turn can run (after_turn reads it as idle; the DTO stays unknown).
       const absent = valid && matches.length === 0
       if (record.absent !== absent) { record.absent = absent; try { this.notify(record.botId) } catch {} }
+      if (absent) record.settledSeq = read.seq
       const row = matches.length === 1 ? matches[0] : null, turn = row?.turn
       const running = turn?.state === 'running' && text(turn.turn_id) && (row.harness === 'codex-cli'
         || keys(turn, ['state', 'turn_id', 'started_at', 'event_cursor', 'interim_from', 'wait_process'])
@@ -190,6 +191,7 @@ export class CurrentWork {
       const next = { sessionId: target.sessionId, launchId: row.launch_id, turnId: running ? turn.turn_id : null }
       if (running && record.completed === point(next)) { this.unknown(record); continue }
       const state = running ? 'working' : 'idle'
+      if (!running) record.settledSeq = read.seq
       const changed = record.state !== state || record.launchId !== next.launchId || record.turnId !== next.turnId
       if (changed) {
         const started = running && typeof turn.started_at === 'string' && Number.isFinite(Date.parse(turn.started_at))
@@ -207,7 +209,13 @@ export class CurrentWork {
       const pending = this.pending.get(target.botId)
       if (pending && read.seq > pending.seq) this.commit(pending, record)
     }
+    this.observed()
     this.schedule()
+  }
+  // control-details.md "受付後の追跡失敗の自己退役": a valid read begun after `seq` (or Aiterm's done) found no turn on this session.
+  settledAfter(botId, sessionId, seq) {
+    const record = this.records.get(botId)
+    return record?.sessionId === sessionId && record.settledSeq > seq
   }
   completedTurn(result) {
     if (result?.schema !== 'aiterm.agent-wait-result.v1' || result.outcome !== 'done'
@@ -218,9 +226,11 @@ export class CurrentWork {
     for (const record of this.records.values()) if (record.state === 'working' && point(record) === done) {
       record.completed = done; record.barrier = ++this.seq; this.clearSummary(record)
       Object.assign(record, { state: 'idle', turnId: null, startedAt: null, observedAt: this.now(), observedMono: this.monotonic() })
+      record.settledSeq = record.barrier
       if (this.pending.has(record.botId)) this.finish(this.pending.get(record.botId), failure('UNAVAILABLE', 503))
       this.changed(record)
     }
+    this.observed()
     this.schedule()
   }
   actor(record, source) {

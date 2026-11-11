@@ -82,6 +82,14 @@ flowchart TD
 
 現sourceはmarkStoppedのみでnativeUnconfirmedの占有が残る。直接反例でこの不足を固定し、closure証拠の必要形はAiterm公開契約と照合して実装する。公開Rootのrunning単独をこの条件の成立証拠にしない。
 
+### 受付後の追跡失敗の自己退役（2026-11-11）
+
+機能：受付済みjobの`waitUntilDone`が最終結果なしで失敗した時（`nativeUnconfirmed`）、明示restartを待たずに退役できる出口を足す。証拠は既CurrentWorkの観測だけ：失敗の記録より後に始まった有効な読み取り（`beginRead`の`seq`が失敗時の`workState.seq`より大きい）が、同じsessionを`idle`または`absent`と読んだこと、またはAitermのdone（`completedTurn`）でそのsessionがidleになったこと。そのsessionで動くturnが無いので、受付済みの入力のturnは終わっている。`running`・`unknown`・`unread`・失敗前に始まった読み取りは証拠にしない。
+
+データフロー：waitUntilDone例外（turnCompleted以外）→job.nativeUnconfirmed＋退役印{session, seq}→CurrentWork読み取り/done→`settledAfter(botId, session, seq)`→job.nativeSettled→activity/native解放・一時画像掃除→`conversationAdmission.confirmNativeSettled(delivery, receipt)`でnativeUnknownから除外・既pending後にrelease。履歴のaccepted/completion unknownと元failedは書き換えない（成功へ変えない）。明示restartのclosureが先なら印を捨てる。新timer・再送・待ちは無い。
+
+Guard（guards.self-exit）：占有はturnが動いている可能性のある席へ別の入力・設定を重ねないため（既存状態の上書き防止）。出口：次の有効な観測でidle/absent、またはdone。席が動き続ける間は占有が続き、それは正しい。
+
 発行済みsendのreceiptがcloseより後に返る場合も、発行前の実session記録→元jobのclosure保持→後着receipt/opaqueで消費する。元send返却を待つためにcloseを遅らせず、元送信は一回のまま保持する。
 
 ## Goalは本体に複製せずnativeの対象を確認する

@@ -64,7 +64,7 @@ export class ConversationLifetimes {
     completion.then(done, done)
   }
   #release(record) {
-    if (!record.live || !record.finishRequested || record.pending.size || record.nativeUnconfirmed && !record.nativeClosure) return
+    if (!record.live || !record.finishRequested || record.pending.size || record.nativeUnconfirmed && !record.nativeClosure && !record.nativeSettled) return
     record.live = false; this.#active.delete(record)
     if (record.kind === 'operation') this.#operations.delete(record.lease.correlation)
     else record.dispatch = null
@@ -143,6 +143,15 @@ export class ConversationLifetimes {
     record.nativeClosure = structuredClone(closure.structuredContent)
     this.#nativeUnknown.delete(record)
     this.#release(record)
+  }
+  // control-details.md "受付後の追跡失敗の自己退役": the seat was observed with no turn after the failure; history keeps unknown.
+  confirmNativeSettled(lease, receipt) {
+    const record = this.#records.get(lease), native = record?.nativeContinuation
+    if (!record?.live || record.kind !== 'delivery' || !native || native.receipt !== receipt || !record.nativeUnconfirmed) return false
+    record.nativeSettled = true
+    this.#nativeUnknown.delete(record)
+    this.#release(record)
+    return true
   }
   getNativeContinuation(lease, expectedBinding) {
     const record = this.#records.get(lease)
