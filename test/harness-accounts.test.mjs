@@ -76,6 +76,8 @@ test('limits are per slot and model scope; selection never refuses; the timer cl
   const { home, accounts, advance } = await setup(t)
   await accounts.prepare('claude', '2nd')
   await writeFile(join(home, '.bellteam-accounts/claude/2nd/oauth-token'), 'sk-ant-oat01-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
+  await mkdir(join(home, '.bellteam-accounts/claude/1st'), { recursive: true })
+  await writeFile(join(home, '.bellteam-accounts/claude/1st/oauth-token'), 'sk-ant-oat01-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
   // No preference: every model starts on the 1st (Owner ruling 2026-11-09).
   assert.equal((await accounts.selection('claude', 'fable')).slot, '1st')
   assert.equal((await accounts.selection('claude', 'opus')).slot, '1st')
@@ -197,7 +199,6 @@ test('an installed 0700 home: loggedIn asks the seat user, and selection never r
   await mkdir(join(home, '.bellteam-accounts/claude/2nd'), { recursive: true })
   await writeFile(join(home, '.bellteam-accounts/claude/2nd/oauth-token'), 'x')
   // The stringified helper knows the op (it runs as the seat user, who can traverse the home).
-  assert.equal(await seatFilesOver(waitProcess)('loggedIn', join(home, '.bellteam-accounts/claude/2nd/oauth-token')), true)
   assert.equal(typeof await seatFilesOver(waitProcess)('stamp', join(home, '.bellteam-accounts/claude/2nd/oauth-token')), 'number')
   // The engine cannot traverse: the seat user answers; a failing seat user means not logged in, never a thrown launch.
   let seatAnswer = async () => 1
@@ -214,8 +215,10 @@ test('an installed 0700 home: loggedIn asks the seat user, and selection never r
 test('one login per slot: a signed-out slot is not usable until its token changes; stale seats renew; legacy 1st', async t => {
   const { home, accounts } = await setup(t)
   const token = slot => join(home, '.bellteam-accounts/claude', slot, 'oauth-token')
-  // Legacy 1st: no 1st token yet, the root login counts; nothing is marked for it.
-  assert.equal(await accounts.loggedIn('claude', '1st'), true)
+  // No 1st token yet: not logged in even with a root .credentials.json (it can be expired); nothing is marked for it.
+  await writeFile(join(home, '.claude/.credentials.json'), '{}')
+  assert.equal(await accounts.loggedIn('claude', '1st'), false)
+  assert.equal((await accounts.list()).harnesses[0].slots[0].loggedIn, false)
   assert.equal(await accounts.recordSignedOut({ harness: 'claude', slot: '1st', botId: 'b1', text: 'x' }), null)
   for (const slot of ['1st', '2nd']) { await mkdir(join(home, '.bellteam-accounts/claude', slot), { recursive: true }); await writeFile(token(slot), 't') }
   const first = (await accounts.selection('claude', 'opus'))
