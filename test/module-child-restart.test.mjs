@@ -93,3 +93,17 @@ test('child stderr lines land masked and bounded in a readable per-component rec
   // An unwritable place never throws into the module.
   await createChildStderrLog('/proc/no/such/dir/x.log').flush()
 })
+
+// module-process.md ML02: escaped and unterminated quotes, and a line whose head was trimmed, never leak a body.
+test('escaped quotes, unclosed quotes and truncated long quoted lines leave no body in the record', async () => {
+  const body = 'private body words'
+  for (const line of [`x "a \\" ${body} \\" b" y`, `x '${body} \\' more' y`, `x "${body}`, `x "${body}\\`])
+    assert.equal(maskStderrLine(line).includes('body'), false, line)
+  assert.equal(maskStderrLine('x "a \\" b" y'), 'x "…" y')
+  const seen = []
+  const child = Object.assign(new EventEmitter(), { stderr: new PassThrough(), stdout: new PassThrough() })
+  observeModuleChild(child, line => seen.push(maskStderrLine(line)))
+  child.stderr.write(`error "${'p'.repeat(9000)} ${body}" tail\nnext "${body}"\n`)
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(seen, ['[line truncated]', 'next "…"'])
+})

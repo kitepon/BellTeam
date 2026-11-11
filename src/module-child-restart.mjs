@@ -127,7 +127,8 @@ export function observeModuleChild(child, onLine = () => {}) {
     if (!heap && heapMarkers.some(marker => line.includes(marker))) { heap = true; append({ kind: 'heap_oom' }) }
     if (complete) gc(line)
     // module-process.md ML01: complete lines also go to the readable, masked stderr record.
-    if (complete && line) { try { onLine(line) } catch {} }
+    // A truncated line lost its head (and maybe an opening quote), so only a marker reaches the record.
+    if (complete && line) { try { onLine(lineTruncated ? '[line truncated]' : line) } catch {} }
   }
   child.stderr?.on('data', chunk => {
     if (closed) return
@@ -189,7 +190,8 @@ export function reportModuleChildExit(component, { code, signal }, observation, 
 
 const STDERR_LOG_LINES = 200, STDERR_LOG_CHARS = 300
 // module-process.md ML02: quoted contents and long tokens never reach the record.
-export const maskStderrLine = line => line.replace(/'[^']*'|"[^"]*"|`[^`]*`/gu, match => `${match[0]}…${match[0]}`)
+// A quote runs to its unescaped closing delimiter, or to the end of the line when it never closes.
+export const maskStderrLine = line => line.replace(/'(?:\\[\s\S]?|[^'\\])*(?:'|$)|"(?:\\[\s\S]?|[^"\\])*(?:"|$)|`(?:\\[\s\S]?|[^`\\])*(?:`|$)/gu, match => `${match[0]}…${match[0]}`)
   .replace(/[A-Za-z0-9+=_-]{40,}/gu, '[redacted]').slice(0, STDERR_LOG_CHARS)
 
 // module-process.md ML03-ML05: the last 200 masked lines, rewritten at most once a second; failures are dropped.
