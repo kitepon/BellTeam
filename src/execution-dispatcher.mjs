@@ -18,6 +18,8 @@ export const EXECUTION_STATE_COMPATIBILITY = 'bellteam.execution-state.v1'
 export const EXECUTION_UPDATE_HOLD_GATE = true
 // This engine accepts ports.terminals and ports.ingress (remote-seat.md); a parent passes them only when this is true.
 export const EXECUTION_REMOTE_SEATS = true
+// remote-seat.md "Resume after the route came back": this engine accepts ports.ingress.seatMcp (SM10).
+export const EXECUTION_SEAT_MCP_SEEN = true
 const COMPATIBILITY = EXECUTION_STATE_COMPATIBILITY
 const failure = code => Object.assign(new Error(code), { code, effect: 'not_started', status: 503 })
 const asyncMethods = {
@@ -55,7 +57,7 @@ export function createExecutionDispatcher({ generation, ports, handoff = null, b
     seat: ['waitProcess', 'handoffContext', 'writeTemporaryImage', 'removeTemporaryImage', 'tempRoot'],
     observer: ['appendInterimWords', 'emitQueue', 'report'], diagnostics: ['record', 'goalError'],
     continuation: ['models', 'harnessAuth', 'messenger'],
-    terminals: ['connection', 'watch'], ingress: ['seatCredential'],
+    terminals: ['connection', 'watch'], ingress: ['seatCredential', 'seatMcp'],
   }
   for (const [name, allowed] of Object.entries(groups))
     if (ports[name] && Object.keys(ports[name]).some(key => !allowed.includes(key))) throw failure('EXECUTION_PORTS_INVALID')

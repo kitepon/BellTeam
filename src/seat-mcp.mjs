@@ -158,6 +158,8 @@ export function createSeatMcp({ bots, tools, toolsForSource = () => ({}), runToo
   const relays = new Set()
   // SM01: session id -> { transport, seat, lastSeen }; memory only, so a body restart empties it (SM03).
   const sessions = new Map()
+  // SM10: seat name -> last request that passed seat resolution (ms); memory only, so a body restart empties it.
+  const seen = new Map()
   const createServer = ({ from, fork, executionSource }) => {
     // SM08: the session keeps only the capability advertisement; each call re-selects the current execution generation.
     const scoped = () => ({ ...tools, ...toolsForSource(executionSource), fork: Boolean(fork) })
@@ -212,6 +214,9 @@ export function createSeatMcp({ bots, tools, toolsForSource = () => ({}), runToo
     }
     catch (error) { return reply(response, error.status ?? 503, { error: error.code ?? 'MEMBERS_UNAVAILABLE' }) }
     if (!from) return reply(response, 400, { error: 'BELLTEAM_SEAT_UNRESOLVED' })
+    // SM10: any resolved request (an SM03 404 included: that CLI re-initializes by itself) proves the seat's route works.
+    const seatName = request.headers[SEAT_HEADER.toLowerCase()]
+    if (typeof seatName === 'string') seen.set(seatName, now())
     if (url.pathname === CALL_BRIDGE_MCP_PATH) {
       let check
       try { check = admitWork(); check() }
@@ -248,6 +253,7 @@ export function createSeatMcp({ bots, tools, toolsForSource = () => ({}), runToo
     await transport.handleRequest(request, response, body)
   }
   // 応答が流れている途中の中継は自分からは終わらない。本体を止める時にここで終え、セッションも閉じる（SM07）。
+  handle.seen = name => seen.get(name) ?? null
   handle.close = () => {
     for (const end of relays) end()
     for (const [id, session] of sessions) { sessions.delete(id); session.transport.close().catch(() => {}) }
