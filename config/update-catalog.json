@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-12T10:42:58Z",
-  "expiresAt": "2026-11-19T10:42:58Z",
+  "publishedAt": "2026-11-12T12:07:40Z",
+  "expiresAt": "2026-11-19T12:07:40Z",
   "releases": [
     {
       "componentId": "usage",
@@ -753,8 +753,8 @@
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "bad6a6d7927574e4c03d16caab87eeb54b2dd33a",
-      "versionId": "9ccae9a3b2d876055b29c61bd1266e681a25552ad8f76d788525168f5c94de97",
+      "sourceCommit": "5966688a5330505373f7afc3f0cf40bd3ada098b",
+      "versionId": "b337fb498ba1888ea66ba897b6895c1134a9418be6df7cff616c7c27e09de29c",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -762,16 +762,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T104014Z/lattice-bad6a6d7927574e4c03d16caab87eeb54b2dd33a-linux-amd64.tar.gz",
-          "bytes": 15258067,
-          "sha256": "9ccae9a3b2d876055b29c61bd1266e681a25552ad8f76d788525168f5c94de97"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T120622Z/lattice-5966688a5330505373f7afc3f0cf40bd3ada098b-linux-amd64.tar.gz",
+          "bytes": 15258458,
+          "sha256": "b337fb498ba1888ea66ba897b6895c1134a9418be6df7cff616c7c27e09de29c"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T104014Z/lattice-bad6a6d7927574e4c03d16caab87eeb54b2dd33a-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10996,
-          "sha256": "9af9b3c67ef11146ffe7337cf700fe09662b3cd029aeebfdefff667d6bd3acbe"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T120622Z/lattice-5966688a5330505373f7afc3f0cf40bd3ada098b-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11137,
+          "sha256": "e0f8e564bca438321e397a47a267873a03c4a50cfea0a75dabe91ab70ffa201f"
         },
-        "signerCommit": "bad6a6d7927574e4c03d16caab87eeb54b2dd33a"
+        "signerCommit": "5966688a5330505373f7afc3f0cf40bd3ada098b"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -783,13 +783,13 @@
         }
       },
       "changes": [
-        "工程表（Lattice）を 0.93.0 にします。作業の証拠のデータを、Gitの掃除で消されないように守ります。前から残っている証拠も、一度だけの命令で守れるようになります。"
+        "工程表（Lattice）を 0.94.0 にします。中身がまだ無い工程表を開いた時に、壊れているとは言わず「まだ作られていない」と返します。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "bad6a6d7927574e4c03d16caab87eeb54b2dd33a",
-      "versionId": "2a1f62e68299a76263ba788ab34d676e19bd604791c15486134378ddd8d47b1c",
+      "sourceCommit": "5966688a5330505373f7afc3f0cf40bd3ada098b",
+      "versionId": "7be52aed4ae1c33607cb573eaf37282a0748d8f6d98ef176872a3dfa8cd0276d",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -797,16 +797,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T104014Z/lattice-bad6a6d7927574e4c03d16caab87eeb54b2dd33a-linux-arm64.tar.gz",
-          "bytes": 15258062,
-          "sha256": "2a1f62e68299a76263ba788ab34d676e19bd604791c15486134378ddd8d47b1c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T120622Z/lattice-5966688a5330505373f7afc3f0cf40bd3ada098b-linux-arm64.tar.gz",
+          "bytes": 15258456,
+          "sha256": "7be52aed4ae1c33607cb573eaf37282a0748d8f6d98ef176872a3dfa8cd0276d"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T104014Z/lattice-bad6a6d7927574e4c03d16caab87eeb54b2dd33a-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10996,
-          "sha256": "3c46aab99b8971222e07e98604e3c0b4ed75f6712ef3758b80939ffaaf917960"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T120622Z/lattice-5966688a5330505373f7afc3f0cf40bd3ada098b-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11047,
+          "sha256": "237059f68f5c260ab24b526eeab66dcde4b7c48d9e72570014e9a0dfbfc7ae29"
         },
-        "signerCommit": "bad6a6d7927574e4c03d16caab87eeb54b2dd33a"
+        "signerCommit": "5966688a5330505373f7afc3f0cf40bd3ada098b"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -818,7 +818,7 @@
         }
       },
       "changes": [
-        "工程表（Lattice）を 0.93.0 にします。作業の証拠のデータを、Gitの掃除で消されないように守ります。前から残っている証拠も、一度だけの命令で守れるようになります。"
+        "工程表（Lattice）を 0.94.0 にします。中身がまだ無い工程表を開いた時に、壊れているとは言わず「まだ作られていない」と返します。"
       ]
     }
   ],
