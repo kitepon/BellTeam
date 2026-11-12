@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-12T16:22:55Z",
-  "expiresAt": "2026-11-19T16:22:55Z",
+  "publishedAt": "2026-11-12T16:37:29Z",
+  "expiresAt": "2026-11-19T16:37:29Z",
   "releases": [
     {
       "componentId": "usage",
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "fdfb16072747861e07cb4511ebd2a5d568bb276e",
-      "versionId": "sha256:dbc171ba575a2fed7c1e9b275d9cc396dc0db16f259656afb737d91c19a696b3",
+      "sourceCommit": "dc9985ac0c2fa2f9b65648a9378a455902ed7a1d",
+      "versionId": "sha256:e0e9ca5a29ebb7c1e2b9de8b09edd49fcde61edd659d85e59294f898b6a46de6",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:dbc171ba575a2fed7c1e9b275d9cc396dc0db16f259656afb737d91c19a696b3"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:e0e9ca5a29ebb7c1e2b9de8b09edd49fcde61edd659d85e59294f898b6a46de6"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,20 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "本体に入っている工程表の控えを 0.97.0 にします。工程表の部品が読めずに控えへ切り替わっても、開き直した工程表を読めます。控えには、止まっている作業の一覧と、止まりを外す操作も入ります。共通の決まりごと（自分の担当の中だけの作業は自分の工程表に載せる）も、本体の起動時に各 AI の指示へ書き込みます。"
+        "裏で動く実行の部品を入れ替えたあと、席の道具が、開いたままの席でも新しい部品を使うようにします。これまでは、入れ替える前に開いた席は古い部品を使い続けることがありました。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "fdfb16072747861e07cb4511ebd2a5d568bb276e",
-      "versionId": "sha256:dbc171ba575a2fed7c1e9b275d9cc396dc0db16f259656afb737d91c19a696b3",
+      "sourceCommit": "dc9985ac0c2fa2f9b65648a9378a455902ed7a1d",
+      "versionId": "sha256:e0e9ca5a29ebb7c1e2b9de8b09edd49fcde61edd659d85e59294f898b6a46de6",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:dbc171ba575a2fed7c1e9b275d9cc396dc0db16f259656afb737d91c19a696b3"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:e0e9ca5a29ebb7c1e2b9de8b09edd49fcde61edd659d85e59294f898b6a46de6"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,7 +748,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "本体に入っている工程表の控えを 0.97.0 にします。工程表の部品が読めずに控えへ切り替わっても、開き直した工程表を読めます。控えには、止まっている作業の一覧と、止まりを外す操作も入ります。共通の決まりごと（自分の担当の中だけの作業は自分の工程表に載せる）も、本体の起動時に各 AI の指示へ書き込みます。"
+        "裏で動く実行の部品を入れ替えたあと、席の道具が、開いたままの席でも新しい部品を使うようにします。これまでは、入れ替える前に開いた席は古い部品を使い続けることがありました。"
       ]
     },
     {
