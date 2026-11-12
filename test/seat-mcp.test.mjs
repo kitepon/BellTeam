@@ -106,11 +106,11 @@ test('通話ブリッジへの中継は合言葉と席の名札を付け直し�
   assert.equal(seen[0].headers['x-other'], undefined)
   assert.equal(seen[0].headers['x-bellteam-seat'], undefined)
 
+  // SM09: a GET stream is never relayed; the upstream is not contacted.
   const stream = await fetch(`${base}/mcp/call-bridge`, { headers: { accept: 'text/event-stream', 'mcp-session-id': 's1', [SEAT_HEADER]: 'bot-b' } })
-  assert.equal(stream.headers.get('content-type'), 'text/event-stream')
-  assert.equal(await stream.text(), 'data: hello\n\n')
-  assert.equal(seen[1].headers['x-call-bridge-caller-id'], 'bot-b')
-  assert.equal(seen[1].headers['mcp-session-id'], 's1')
+  assert.equal(stream.status, 405)
+  assert.equal(stream.headers.get('allow'), 'POST, DELETE')
+  assert.equal(seen.length, 1)
 
   // 通話ブリッジが再起動した後の404は、CLIが初期化し直せるようそのまま返す。
   const gone = await fetch(`${base}/mcp/call-bridge`, { method: 'DELETE', headers: { 'mcp-session-id': 'old', [SEAT_HEADER]: 'bot-a' } })
@@ -171,7 +171,8 @@ test('中継の流れは届いた分からすぐ流し、本体を止める時�
     seatMcp: createSeatMcp({ bots, tools: { registry: bots }, callBridge: () => ({ url: `${upstream}/mcp`, headersFile }) }) })
   server.listen(0, '127.0.0.1')
   await once(server, 'listening')
-  const response = await fetch(`http://127.0.0.1:${server.address().port}/mcp/call-bridge`, { headers: { accept: 'text/event-stream', [SEAT_HEADER]: 'bot-a' } })
+  const response = await fetch(`http://127.0.0.1:${server.address().port}/mcp/call-bridge`, { method: 'POST', body: '{}',
+    headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', [SEAT_HEADER]: 'bot-a' } })
   const reader = response.body.getReader()
   assert.equal(new TextDecoder().decode((await reader.read()).value), 'data: first\n\n')
   const closed = new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
@@ -218,6 +219,11 @@ test('初期化した席はセッションを持ち、本体の再起動後と�
   assert.equal(JSON.parse((await client.callTool({ name: 'get_self', arguments: {} })).content[0].text).bot.id, 'bot-a')
   const post = (seat, id) => fetch(`${base}/mcp`, { method: 'POST', body: JSON.stringify({ jsonrpc: '2.0', id: 9, method: 'tools/list' }),
     headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2025-06-18', [SEAT_HEADER]: seat, ...(id ? { 'mcp-session-id': id } : {}) } })
+  assert.equal((await post('bot-a', sessionId)).status, 200)
+  // SM09: no standalone stream, with or without a session id; the session stays usable by POST.
+  const stream = await fetch(`${base}/mcp`, { headers: { accept: 'text/event-stream', 'mcp-session-id': sessionId, [SEAT_HEADER]: 'bot-a' } })
+  assert.equal(stream.status, 405)
+  assert.equal(stream.headers.get('allow'), 'POST, DELETE')
   assert.equal((await post('bot-a', sessionId)).status, 200)
   // Another seat cannot use the id.
   const foreign = await post('bot-b', sessionId)
