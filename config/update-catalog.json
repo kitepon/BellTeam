@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-12T03:15:05Z",
-  "expiresAt": "2026-11-19T03:15:05Z",
+  "publishedAt": "2026-11-12T04:21:54Z",
+  "expiresAt": "2026-11-19T04:21:54Z",
   "releases": [
     {
       "componentId": "usage",
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "7a9c5899a3ac6b5c7e426d5c51dd30c4450a6ca6",
-      "versionId": "sha256:e95a7487d192ec69940491ed634714d9ce3645662ba7f9340bcdb07607b4fbcf",
+      "sourceCommit": "22a8e92dd8a210d71fd775584cc8d5210b15da6d",
+      "versionId": "sha256:295ad76b5b0a4913b50719dc1598b0aed967a761acc2585ea55ce06f4ef7a1aa",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:e95a7487d192ec69940491ed634714d9ce3645662ba7f9340bcdb07607b4fbcf"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:295ad76b5b0a4913b50719dc1598b0aed967a761acc2585ea55ce06f4ef7a1aa"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,20 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "休止中の端末の席の目標を、画面の入力欄の案内文があっても「休止中」と読めるようにします（Aiterm 0.70.30）。工程表（Lattice）を 0.88.0 に上げます。"
+        "別の端末で動く席の目標も読めるようにします（Aiterm 0.70.29）。分身への問い合わせの答えが、問い合わせた席へ届くようにします。本体を再起動した後、席が道具の一覧を読み直します。モデル一覧を席のClaudeのログインで読み、ログインが無い時は今までどおりの一覧を出します。部品のエラー記録を、秘密を伏せた読めるファイルに残します。工程表でBellTeamのコードの図を作れるようにします。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "7a9c5899a3ac6b5c7e426d5c51dd30c4450a6ca6",
-      "versionId": "sha256:e95a7487d192ec69940491ed634714d9ce3645662ba7f9340bcdb07607b4fbcf",
+      "sourceCommit": "22a8e92dd8a210d71fd775584cc8d5210b15da6d",
+      "versionId": "sha256:295ad76b5b0a4913b50719dc1598b0aed967a761acc2585ea55ce06f4ef7a1aa",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:e95a7487d192ec69940491ed634714d9ce3645662ba7f9340bcdb07607b4fbcf"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:295ad76b5b0a4913b50719dc1598b0aed967a761acc2585ea55ce06f4ef7a1aa"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,13 +748,13 @@
         "containerUpdate": 1
       },
       "changes": [
-        "休止中の端末の席の目標を、画面の入力欄の案内文があっても「休止中」と読めるようにします（Aiterm 0.70.30）。工程表（Lattice）を 0.88.0 に上げます。"
+        "別の端末で動く席の目標も読めるようにします（Aiterm 0.70.29）。分身への問い合わせの答えが、問い合わせた席へ届くようにします。本体を再起動した後、席が道具の一覧を読み直します。モデル一覧を席のClaudeのログインで読み、ログインが無い時は今までどおりの一覧を出します。部品のエラー記録を、秘密を伏せた読めるファイルに残します。工程表でBellTeamのコードの図を作れるようにします。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "7a9c5899a3ac6b5c7e426d5c51dd30c4450a6ca6",
-      "versionId": "0c3d1689ad1512c4a30922de1d14c0fa949198810aea9eba64d96b2b44d42a6a",
+      "sourceCommit": "83e5949ad50859d723d21d8cc543a5594485d816",
+      "versionId": "503b98c3d7edcf6c0756899d12f7b6f1bc76a9667a70dea95a8f1978d890aa0e",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -762,16 +762,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T031054Z/lattice-7a9c5899a3ac6b5c7e426d5c51dd30c4450a6ca6-linux-amd64.tar.gz",
-          "bytes": 15239114,
-          "sha256": "0c3d1689ad1512c4a30922de1d14c0fa949198810aea9eba64d96b2b44d42a6a"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T041954Z/lattice-83e5949ad50859d723d21d8cc543a5594485d816-linux-amd64.tar.gz",
+          "bytes": 15239553,
+          "sha256": "503b98c3d7edcf6c0756899d12f7b6f1bc76a9667a70dea95a8f1978d890aa0e"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T031054Z/lattice-7a9c5899a3ac6b5c7e426d5c51dd30c4450a6ca6-linux-amd64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T041954Z/lattice-83e5949ad50859d723d21d8cc543a5594485d816-linux-amd64.tar.gz.sigstore.json",
           "bytes": 11000,
-          "sha256": "6ad0403999a0fd9fb1de28e221288f00889c0e389803bebc18e2f00e225ce20c"
+          "sha256": "6a0a7a0bc9babaf6202112b8541cf8c3988e373513686cb482f6996fa64a2586"
         },
-        "signerCommit": "7a9c5899a3ac6b5c7e426d5c51dd30c4450a6ca6"
+        "signerCommit": "83e5949ad50859d723d21d8cc543a5594485d816"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -783,13 +783,13 @@
         }
       },
       "changes": [
-        "工程表（Lattice）を 0.88.0 に上げました。Latticeが断った理由を、エラーではなく結果として返すようになりました。"
+        "工程表（Lattice）を 0.88.0 に上げました。工程表のコードの図が開かなくなっていたのを直しました。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "7a9c5899a3ac6b5c7e426d5c51dd30c4450a6ca6",
-      "versionId": "02695bbfab321277564fd7cbe54675ecc732832add46f87c8110c07f3ab0630e",
+      "sourceCommit": "83e5949ad50859d723d21d8cc543a5594485d816",
+      "versionId": "e3e5bfc27d41e3be747b6e35e786ab83a943cb0decf59020afb1e2bd8b322878",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -797,16 +797,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T031054Z/lattice-7a9c5899a3ac6b5c7e426d5c51dd30c4450a6ca6-linux-arm64.tar.gz",
-          "bytes": 15239114,
-          "sha256": "02695bbfab321277564fd7cbe54675ecc732832add46f87c8110c07f3ab0630e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T041954Z/lattice-83e5949ad50859d723d21d8cc543a5594485d816-linux-arm64.tar.gz",
+          "bytes": 15239540,
+          "sha256": "e3e5bfc27d41e3be747b6e35e786ab83a943cb0decf59020afb1e2bd8b322878"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T031054Z/lattice-7a9c5899a3ac6b5c7e426d5c51dd30c4450a6ca6-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11090,
-          "sha256": "782c042ce8f8d8652530a446956a489d19cd41274f114c91c4a1f2978ef3a250"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T041954Z/lattice-83e5949ad50859d723d21d8cc543a5594485d816-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10996,
+          "sha256": "c85303bc9dfa960a8ba5935d6f53a2cea7b5df6788ce3cea776b06b85f3196cf"
         },
-        "signerCommit": "7a9c5899a3ac6b5c7e426d5c51dd30c4450a6ca6"
+        "signerCommit": "83e5949ad50859d723d21d8cc543a5594485d816"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -818,7 +818,7 @@
         }
       },
       "changes": [
-        "工程表（Lattice）を 0.88.0 に上げました。Latticeが断った理由を、エラーではなく結果として返すようになりました。"
+        "工程表（Lattice）を 0.88.0 に上げました。工程表のコードの図が開かなくなっていたのを直しました。"
       ]
     }
   ],
