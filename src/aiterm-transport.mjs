@@ -205,13 +205,21 @@ export class AitermTransport {
 
   // 渡したBotのうち、席が動いているもののid。Aitermのpty_listは呼ぶたびにtmuxを1回起動するので、
   // 一覧のように何人も続けて調べる時は、Botごとに呼ばずこれを1回呼ぶ。
+  // A terminal seat has no row in this Aiterm's pty_list: it is answered from the latest seat-turns read (remote-seat.md "Seat liveness").
   async runningBots(bots) {
+    const remote = bots.filter(isRemoteBot), local = bots.filter(bot => !isRemoteBot(bot))
+    const listed = bot => this.workState.listed(bot.id, this.session(bot))
+    const unread = remote.filter(bot => listed(bot) === null)
+    const [sessions] = await Promise.all([local.length ? this.localSessions() : new Set(),
+      unread.length ? this.seatTurns(unread).catch(() => null) : null])
+    return new Set([...local.filter(bot => sessions.has(this.session(bot))), ...remote.filter(bot => listed(bot) === true)].map(bot => bot.id))
+  }
+
+  async localSessions() {
     const pending = this.runningSnapshot ??= Promise.resolve().then(() => this.client.call('pty_list'))
       .then(result => new Set(textResult(result).split('\n').map(line => line.split('\t', 1)[0])))
-    let sessions
-    try { sessions = await pending }
+    try { return await pending }
     finally { if (this.runningSnapshot === pending) this.runningSnapshot = null }
-    return new Set(bots.filter(bot => sessions.has(this.session(bot))).map(bot => bot.id))
   }
 
   // 履歴表示もscreen captureを使い、配送の共有読取位置を進めない。

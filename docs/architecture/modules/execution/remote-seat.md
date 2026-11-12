@@ -160,6 +160,30 @@ transport.seatLaunch(botId)   (sync project method, like seatAccount)
 - Otherwise: the terminal's own Claude login; the Owner's slot tokens are never sent.
 - Switch = fresh seat on the other slot on the same terminal and projectRoot, old seat retained (`harness-accounts.md`). Limit detection is unchanged (same receipts).
 
+## Seat liveness: `runningBots` / `isRunning` (2026-11-13, Trony)
+
+A remote seat has no row in this Aiterm's `pty_list` (its rows live on the terminal), so before this rule `runningBots` returned every remote member as not running: `/api/bots` showed `online:false` for all 6 terminal seats while Anis worked (02:3x JST), and every `isRunning` consumer (screen key/approval `SCREEN_SEAT_ABSENT`, administration `wasRunning`, nightly restart, account switch, call-settings restart) skipped them. Required meaning: the same as a container seat, wherever it runs.
+
+```mermaid
+flowchart LR
+  RB["transport.runningBots(bots)<br/>(isRunning = runningBots([bot]))"] -->|local members| List["one pty_list (text): session row present"]
+  RB -->|"remote members (isRemoteBot)"| Listed["CurrentWork.listed(botId, session)"]
+  Poll["SeatTurns poll (every Bot, 5 s + read): pty_list + seat_turns _meta,<br/>terminal rows relayed by Aiterm"] --> EndRead[CurrentWork.endRead]
+  EndRead -->|"valid read: row for the session, or session in data.unread"| T[listed = true]
+  EndRead -->|"valid read: neither"| F[listed = false]
+  Listed -->|"null: this session not yet read (fresh engine, new session)"| Fresh["one seat_turns read for those members only (transport.seatTurns)"] --> EndRead
+  T & F --> RB
+```
+
+| Contact | Contract |
+| --- | --- |
+| Meaning | Running = Aiterm holds the seat under its session name. Local: a row in the local `pty_list` (dormant rows such as `vanished`/`hibernated` included, as before). Remote: the terminal answered with a row for the session (its own list, dormant rows included), or Aiterm listed it in `unread` (`unread` names only sessions bound to a terminal, so the seat exists there; its terminal did not answer in time). |
+| Freshness | Remote answers come from the latest seat-turns read (5 s poll + read time); no SSH per request, so `/api/bots` latency is unchanged. A stale answer of one tick is accepted (local answers are a snapshot too). |
+| Unread first read | `listed` stays `null` until a valid read covers this session; `runningBots` then runs one `seatTurns` read for exactly those members and uses its result. A failed or invalid read leaves `null` = not running for this call; the next poll settles it (self-exit, no guard). |
+| Unchanged | `pty_list` text parsing for local members; the members `/api/bots` field `online = running.has(id)`; released clients read it unchanged. |
+
+Implementation: `AitermTransport.runningBots` (src/aiterm-transport.mjs), `CurrentWork.listed` / `endRead` (src/current-work.mjs). Test: `test/remote-seat-running.test.mjs`.
+
 ## Capture (C7)
 
 After a remote session's wait returns `done` / `error` / `rate_limited` (`RemoteSeats.waitProcess` wraps the same wait runner), `RemoteSeats.forward`: `aiterm-transcript-read --session S [--cursor-session ID --offset N] --max-bytes 1048576` as the seat user (`aiterm.transcript-read.v1`: whole lines through the latest Stop-recorded offset, `cursor = {claudeSessionId, offset}`) → `throughline remote-ingest --json` (stdin through a `node -e` bridge; argv pieces of at most 96 KiB UTF-8 bytes, cut only between code points; joined they are the exact JSON) → keep `ackedCursor` in memory. `E_REMOTE_GAP` / `E_REMOTE_CONFLICT` move to `expectedCursor`; other failures keep the cursor for the next completion. At most 64 pages per completion; one pass at a time per seat. Without a `launchId` nothing is forwarded. After a body restart the cursor starts at null; Throughline's replay is idempotent.
@@ -185,6 +209,7 @@ Local seats (no `terminalId`): today's path, including env forwarding. Delivery 
 | Distribution | `scripts/web_gateway_artifact.py` `EXECUTION_FILES` includes `src/remote-seats.mjs` (54, Molly's authorization) |
 | Credential release | `RemoteSeats.route` (successful `pty_close`) |
 | Queue edge | `RemoteSeats.wait` / `available` |
+| Liveness | `AitermTransport.runningBots` remote branch + `CurrentWork.listed` ("Seat liveness" above) |
 | C7 | `RemoteSeats.waitProcess` / `forward` / `handoffContext` |
 
 Test: `test/remote-seats.test.mjs`; `_meta` reading: `test/auth-launch-diagnostic.test.mjs`.
