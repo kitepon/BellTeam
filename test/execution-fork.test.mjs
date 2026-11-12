@@ -76,6 +76,16 @@ test('READONLY_UNENFORCEABLE and a receipt without write_ban are FORK_UNAVAILABL
   }
 })
 
+test('Aiterm text-only fork refusal (closed main seat) keeps its code, not_started, nothing to close', async () => {
+  const launch = () => { throw Object.assign(new Error('aiterm: FORK_SOURCE_UNAVAILABLE: bot-aaaa1111: no managed seat of this harness'), { aitermResponseReturned: true }) }
+  const { root, calls, transport, member } = await fixture({ launch })
+  try {
+    await assert.rejects(transport.forkInquiry(member, 'question', { forkId: 'f-5' }), { code: 'FORK_SOURCE_UNAVAILABLE', effect: 'not_started', status: 503 })
+    assert.equal(calls.some(call => call.name === 'pty_close'), false)
+    assert.equal(transport.queueItems({}).length, 0)
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
+
 test('remote fork: credential kind fork, same MCP config shape, no launch notice, credential revoked at close', async () => {
   const log = []
   const remoteSeats = new RemoteSeats({
