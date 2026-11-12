@@ -89,10 +89,11 @@ public static class UiChecks {
     var scroll = (ScrollViewer)window.FindName("MessageScroll");
     scroll.ScrollToEnd(); await Layout(); Check(scroll.ScrollableHeight > 1000,"長い会話を配置できません。");
     scroll.ScrollToVerticalOffset(scroll.ScrollableHeight / 2); await Layout(); var offset = scroll.VerticalOffset;
-    var latest = (Button)window.FindName("NewMessagesButton"); Check(latest.Visibility == Visibility.Visible && latest.Content as string == "最新へ ↓","読み返している間に「最新へ ↓」が出ません。");
+    var latest = (Button)window.FindName("NewMessagesButton"); var band = (FrameworkElement)window.FindName("NewMessagesBand"); string Shown() => ((TextBlock)window.FindName("NewMessagesLabel")).Text;
+    Check(band.Visibility == Visibility.Visible && Shown() == "最新へ","読み返している間に「最新へ」が出ません。");
     newMessage = true; await workspace.RefreshManagementAsync(); await Layout();
     Check(Math.Abs(scroll.VerticalOffset-offset) < 1,"新着で読んでいた位置が動きました。");
-    Check(latest.Visibility == Visibility.Visible && latest.Content as string == "新着メッセージ ↓","新着の入口が見えません。");
+    Check(band.Visibility == Visibility.Visible && Shown() == "新着メッセージ" && System.Windows.Automation.AutomationProperties.GetName(latest) == "新着メッセージ","新着の入口が見えません。");
     var oldHeight = scroll.ExtentHeight; var older = Descendants<Button>(root).Single(button => button.Content as string == "以前のメッセージを読む");
     older.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Layout();
     Check(workspace.Messages.Count == 41,"以前のメッセージが増えていません。");
@@ -103,7 +104,7 @@ public static class UiChecks {
     Check(Descendants<MessageCard>(root).All(card=>((FrameworkElement)card.Content).ActualWidth<=900),"横長の窓で吹き出しが伸びすぎます。");
     workspace.DraftText = "同じ接続先の下書き"; await (Task)typeof(MainWindow).GetMethod("ChangeServerAsync",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(window,[workspace.Server])!;
     await workspace.SelectAsync(workspace.Entries.Single()); Check(workspace.DraftText=="同じ接続先の下書き","同じ接続先の再入力でログアウトしています。"); workspace.DraftText="";
-    workspace.Messages.Clear(); typeof(Workspace).GetProperty(nameof(Workspace.Loading))!.SetValue(workspace,true);
+    workspace.Messages.Clear(); typeof(Workspace).BaseType!.GetProperty(nameof(Workspace.Loading))!.SetValue(workspace,true); // the private setter lives on the Core base (Workspace<TImage>)
     Check(((FrameworkElement)window.FindName("EmptyConversation")).Visibility==Visibility.Collapsed && ((FrameworkElement)window.FindName("LoadingSpinner")).Visibility==Visibility.Visible,"読込中に送信の案内が出ます。");
     Check(Application.Current.Windows.Cast<Window>().All(candidate => new WindowInteropHelper(candidate).Handle == IntPtr.Zero),"再接続の確認で窓を表示しました。");
     window.Close(); Console.WriteLine("画面内移動・新着・過去ログ位置・前面非表示の確認に成功しました。");
@@ -139,7 +140,7 @@ public static class UiChecks {
     again.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Settle(held.Window, () => held.Requests[0] == attempts + 1 && waits.Count == 3 && held.Window.Startup == StartupPhase.Failure);
     Check(waits.SequenceEqual([0, 1, 2]),"「もう一度試す」の後の待ち時間が進んでいません。");
     var manual = held.Requests[0]; await Task.Delay(300); Check(held.Requests[0] == manual,"「もう一度試す」が1回の接続になりません。");
-    Lay(held.Window); var change = Descendants<Button>(held.Window.StartupContent!).Single(button => System.Windows.Automation.AutomationProperties.GetName(button) == "接続先を変更");
+    held.Window.ConfirmServerChange = () => true; Lay(held.Window); var change = Descendants<Button>(held.Window.StartupContent!).Single(button => System.Windows.Automation.AutomationProperties.GetName(button) == "接続先を変更");
     change.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Check(held.Window.Startup == StartupPhase.Setup && held.Window.StartupContent is ServerSetupView,"失敗の画面から接続先の入力へ移れません。");
     Check(held.Requests[0] == manual,"接続先の入力を開いただけで通信しています。");
     held.Window.Close(); held.Model.Dispose();

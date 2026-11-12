@@ -35,23 +35,34 @@ internal static class MacUi
     public static readonly FontFamily Icons = new("Segoe Fluent Icons, Segoe MDL2 Assets");
     private const string Namespaces = "xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"";
     // A template belongs to the thread that parsed it, so each UI thread keeps its own.
-    [ThreadStatic] private static ControlTemplate? chromeTemplate, bareTemplate;
-    private static ControlTemplate ChromeTemplate => chromeTemplate ??= (ControlTemplate)XamlReader.Parse($"<ControlTemplate {Namespaces} TargetType=\"Button\"><Border x:Name=\"Chrome\" Background=\"{{TemplateBinding Background}}\" CornerRadius=\"6\" Padding=\"{{TemplateBinding Padding}}\"><ContentPresenter HorizontalAlignment=\"Center\" VerticalAlignment=\"Center\"/></Border><ControlTemplate.Triggers><Trigger Property=\"IsEnabled\" Value=\"False\"><Setter TargetName=\"Chrome\" Property=\"Opacity\" Value=\"0.4\"/></Trigger><Trigger Property=\"IsMouseOver\" Value=\"True\"><Setter TargetName=\"Chrome\" Property=\"Opacity\" Value=\"0.88\"/></Trigger></ControlTemplate.Triggers></ControlTemplate>");
+    [ThreadStatic] private static ControlTemplate? chromeTemplate, primaryTemplate, bareTemplate;
+    private static ControlTemplate Chrome(int radius) => (ControlTemplate)XamlReader.Parse($"<ControlTemplate {Namespaces} TargetType=\"Button\"><Border x:Name=\"Chrome\" Background=\"{{TemplateBinding Background}}\" CornerRadius=\"{radius}\" Padding=\"{{TemplateBinding Padding}}\"><ContentPresenter HorizontalAlignment=\"Center\" VerticalAlignment=\"Center\"/></Border><ControlTemplate.Triggers><Trigger Property=\"IsEnabled\" Value=\"False\"><Setter TargetName=\"Chrome\" Property=\"Opacity\" Value=\"0.4\"/></Trigger><Trigger Property=\"IsMouseOver\" Value=\"True\"><Setter TargetName=\"Chrome\" Property=\"Opacity\" Value=\"0.88\"/></Trigger></ControlTemplate.Triggers></ControlTemplate>");
+    private static ControlTemplate ChromeTemplate => chromeTemplate ??= Chrome(6);
+    private static ControlTemplate PrimaryTemplate => primaryTemplate ??= Chrome(12);
     private static ControlTemplate BareTemplate => bareTemplate ??= (ControlTemplate)XamlReader.Parse($"<ControlTemplate {Namespaces} TargetType=\"Button\"><Border x:Name=\"Chrome\" Background=\"Transparent\"><ContentPresenter/></Border><ControlTemplate.Triggers><Trigger Property=\"IsEnabled\" Value=\"False\"><Setter TargetName=\"Chrome\" Property=\"Opacity\" Value=\"0.4\"/></Trigger><Trigger Property=\"IsMouseOver\" Value=\"True\"><Setter TargetName=\"Chrome\" Property=\"Opacity\" Value=\"0.9\"/></Trigger></ControlTemplate.Triggers></ControlTemplate>");
 
     public static TextBlock Text(string text, double size, Brush? color = null, FontWeight? weight = null, Thickness? margin = null)
         => new() { Text = text, FontSize = size, Foreground = color ?? Ink, FontWeight = weight ?? FontWeights.Normal, TextWrapping = TextWrapping.Wrap, Margin = margin ?? new Thickness(0) };
     public static TextBlock Glyph(string glyph, double size, Brush? color = null) => new() { Text = glyph, FontFamily = Icons, FontSize = size, Foreground = color ?? Ink, VerticalAlignment = VerticalAlignment.Center };
-    private static UIElement Label(string text, string? glyph, Brush color)
+    private static UIElement Label(string text, string? glyph, Brush color, FontWeight weight)
     {
         var line = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
         if (glyph is not null) { var icon = Glyph(glyph, 13, color); icon.Margin = new Thickness(0, 0, 6, 0); line.Children.Add(icon); }
-        line.Children.Add(new TextBlock { Text = text, FontSize = 13, Foreground = color, VerticalAlignment = VerticalAlignment.Center }); return line;
+        line.Children.Add(new TextBlock { Text = text, FontSize = 13, FontWeight = weight, Foreground = color, VerticalAlignment = VerticalAlignment.Center }); return line;
     }
-    private static Button Chrome(string text, string? glyph, Brush fill, Brush foreground, Action click)
+    private static Button Chrome(string text, string? glyph, Brush fill, Brush foreground, Action click, bool primary = false)
     {
-        var button = new Button { Style = null, Template = ChromeTemplate, Background = fill, Foreground = foreground, Padding = new Thickness(14, 5, 14, 5), Margin = new Thickness(0), HorizontalAlignment = HorizontalAlignment.Left, Cursor = System.Windows.Input.Cursors.Hand, Content = Label(text, glyph, foreground) };
+        var button = new Button { Style = null, Template = primary ? PrimaryTemplate : ChromeTemplate, Background = fill, Foreground = foreground, Padding = primary ? new Thickness(16, 11, 16, 11) : new Thickness(14, 5, 14, 5), Margin = new Thickness(0), HorizontalAlignment = primary ? HorizontalAlignment.Stretch : HorizontalAlignment.Left, Cursor = System.Windows.Input.Cursors.Hand, Content = Label(text, glyph, foreground, primary ? FontWeights.SemiBold : FontWeights.Normal) };
         System.Windows.Automation.AutomationProperties.SetName(button, text); button.Click += (_, _) => click(); return button;
+    }
+    // bellPrimary: violet, semibold, 12 pt corners, as wide as its column.
+    public static Button Primary(string text, Action click, string? glyph = null) => Chrome(text, glyph, Violet, Brushes.White, click, primary: true);
+    // The label (and the icon, when given) of a Chrome button changes in place; its accessible name follows.
+    public static void Relabel(Button button, string text, string? glyph = null)
+    {
+        if (button.Content is StackPanel line && line.Children[^1] is TextBlock label) label.Text = text;
+        if (glyph is not null && button.Content is StackPanel { Children.Count: 2 } icon) ((TextBlock)icon.Children[0]).Text = glyph;
+        System.Windows.Automation.AutomationProperties.SetName(button, text);
     }
     // borderedProminent
     public static Button Prominent(string text, Action click, string? glyph = null) => Chrome(text, glyph, ProminentFill, Brushes.White, click);
@@ -84,9 +95,10 @@ internal class StartupBackdrop : Grid
     public StartupBackdrop()
     {
         ClipToBounds = true;
-        Background = new LinearGradientBrush([new GradientStop(Color.FromRgb(0xEC, 0xE6, 0xFE), 0), new GradientStop(Color.FromRgb(0xF8, 0xF8, 0xFB), 0.5), new GradientStop(Colors.White, 1)], new Point(0, 0), new Point(1, 1));
+        Background = Wash();
         Children.Add(new System.Windows.Shapes.Ellipse { Width = 380, Height = 380, Fill = new SolidColorBrush(Color.FromArgb(20, 0x61, 0x47, 0xD4)), Effect = new BlurEffect { Radius = 65 }, RenderTransform = new TranslateTransform(170, -330), IsHitTestVisible = false });
     }
+    public static Brush Wash() => new LinearGradientBrush([new GradientStop(Color.FromRgb(0xEC, 0xE6, 0xFE), 0), new GradientStop(Color.FromRgb(0xF8, 0xF8, 0xFB), 0.5), new GradientStop(Colors.White, 1)], new Point(0, 0), new Point(1, 1));
     protected static ScrollViewer Scroll(StackPanel column, double maxWidth, Thickness margin)
     {
         column.MaxWidth = maxWidth; column.Margin = margin; column.HorizontalAlignment = HorizontalAlignment.Center;
@@ -111,22 +123,47 @@ internal sealed class StartupOpeningView : StartupBackdrop
     }
 }
 
-// Mac RootView .failure(message): ContentUnavailableView with 「もう一度試す」. Windows adds 「接続先を変更」 because the saved address may be the problem.
+// Mac ConnectionFailureView: what happened in plain words, where we tried and the two ways out; the raw error is folded under 「詳細」.
+// 「もう一度試す」 keeps this page and reads 「接続しています…」 until the attempt ends; 「接続先を変更」 asks first (confirmChange).
 internal sealed class StartupFailureView : StartupBackdrop
 {
-    public StartupFailureView(string? message, Action retry, Action changeServer)
+    private readonly Func<Task> retry;
+    private readonly Action changeServer;
+    private readonly Func<bool> confirmChange;
+    private readonly Button again, change;
+    private bool retrying;
+    public StartupFailureView(string? message, string? host, Func<Task> retry, Action changeServer, Func<bool> confirmChange)
     {
-        var stack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, MaxWidth = 460, Margin = new Thickness(30) };
-        var icon = new Grid { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 10) };
-        icon.Children.Add(MacUi.Glyph("", 46, MacUi.Secondary));
-        icon.Children.Add(new TextBlock { Text = "!", FontSize = 19, FontWeight = FontWeights.Bold, Foreground = MacUi.Secondary, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, -4) });
-        stack.Children.Add(icon);
-        stack.Children.Add(MacUi.Text("接続できませんでした", 17, MacUi.Ink, FontWeights.Bold, new Thickness(0, 0, 0, 0)));
-        ((TextBlock)stack.Children[^1]).TextAlignment = TextAlignment.Center;
-        if (!string.IsNullOrEmpty(message)) { var detail = MacUi.Text(message, 13, MacUi.Secondary, margin: new Thickness(0, 6, 0, 0)); detail.TextAlignment = TextAlignment.Center; stack.Children.Add(detail); }
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 18, 0, 0) };
-        var again = MacUi.Prominent("もう一度試す", retry); var change = MacUi.Bordered("接続先を変更", changeServer); change.Margin = new Thickness(10, 0, 0, 0);
-        actions.Children.Add(again); actions.Children.Add(change); stack.Children.Add(actions); Children.Add(stack);
+        this.retry = retry; this.changeServer = changeServer; this.confirmChange = confirmChange;
+        var stack = new StackPanel();
+        var tile = new Grid { HorizontalAlignment = HorizontalAlignment.Center, Width = 64, Height = 64 };
+        tile.Children.Add(SettingsUi.Tile("\uE701", Color.FromRgb(0xFF, 0x95, 0x00), 64));
+        tile.Children.Add(new TextBlock { Text = "!", FontSize = 20, FontWeight = FontWeights.Bold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 14, 8) });
+        stack.Children.Add(tile);
+        var title = MacUi.Text("BellTeamにつながりません", 22, MacUi.Ink, FontWeights.Bold, new Thickness(0, 18, 0, 0)); title.TextAlignment = TextAlignment.Center; stack.Children.Add(title);
+        var hint = MacUi.Text("サーバーが動いているか、この端末が同じネットワークにいるかを確かめてから、もう一度試してください。", 14, MacUi.Muted, margin: new Thickness(0, 8, 0, 0)); hint.TextAlignment = TextAlignment.Center; stack.Children.Add(hint);
+        if (!string.IsNullOrEmpty(host))
+        {
+            var server = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 8, 0, 0) };
+            var icon = MacUi.Glyph("\uE774", 12, MacUi.Muted); icon.Margin = new Thickness(0, 0, 6, 0); server.Children.Add(icon);
+            server.Children.Add(new TextBlock { Text = "接続先 " + host, FontSize = 12, Foreground = MacUi.Muted, VerticalAlignment = VerticalAlignment.Center }); stack.Children.Add(server);
+        }
+        again = MacUi.Primary("もう一度試す", Retry); again.Margin = new Thickness(0, 18, 0, 0); stack.Children.Add(again);
+        change = MacUi.Bordered("接続先を変更", () => { if (confirmChange()) changeServer(); }); change.HorizontalAlignment = HorizontalAlignment.Center; change.Margin = new Thickness(0, 10, 0, 0); stack.Children.Add(change);
+        if (!string.IsNullOrEmpty(message))
+        {
+            var detail = new TextBox { Text = message, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, FontSize = 12, Foreground = MacUi.Secondary, BorderThickness = new Thickness(0), Background = Brushes.Transparent, Padding = new Thickness(0) };
+            var disclosure = TerminalParts.Disclosure("詳細", detail, false, _ => { }); disclosure.Margin = new Thickness(10, 14, 10, 0); stack.Children.Add(disclosure);
+        }
+        var card = MacUi.Card(stack, new Thickness(28)); card.MaxWidth = 460; card.Margin = new Thickness(24); card.HorizontalAlignment = HorizontalAlignment.Center; card.VerticalAlignment = VerticalAlignment.Center;
+        Children.Add(card);
+    }
+    private void Retry() { if (!retrying) _ = RetryAsync(); }
+    private async Task RetryAsync()
+    {
+        retrying = true; again.IsEnabled = change.IsEnabled = false; MacUi.Relabel(again, "接続しています…");
+        try { await retry(); }
+        finally { retrying = false; again.IsEnabled = change.IsEnabled = true; MacUi.Relabel(again, "もう一度試す"); }
     }
 }
 
@@ -180,7 +217,7 @@ internal sealed class ServerSetupView : StartupBackdrop
 }
 
 // Mac ServerInstallationGuide, shown in the shared sheet titled 「サーバーの導入ガイド」.
-// Windows has no share sheet: the Mac "share" buttons become "open the repository in the browser" and "copy the guide URL".
+// Windows has no share sheet: the Mac "share" buttons become "open the repository in the browser" and "copy the guide URL" (and the wash is the Mac BellBackground).
 internal sealed class ServerGuideView : ScrollViewer
 {
     public static string AiRequest => EmbeddedAsset.ProductUrl("repositoryUrl").AbsoluteUri + "\nこれセットアップしたい";
@@ -195,16 +232,25 @@ internal sealed class ServerGuideView : ScrollViewer
         this.copy = copy ?? (text => Clipboard.SetText(text)); this.open = open ?? (address => MacUi.OpenUrl(address, Fail));
         failure.Visibility = Visibility.Collapsed;
         VerticalScrollBarVisibility = ScrollBarVisibility.Auto; HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
+        Background = StartupBackdrop.Wash();
         var column = new StackPanel { MaxWidth = 720, Margin = new Thickness(24), HorizontalAlignment = HorizontalAlignment.Center };
-        column.Children.Add(MacUi.Text("AIにセットアップを任せる", 13, MacUi.Ink, FontWeights.Bold));
-        copyRequest = MacUi.Prominent("GitHubのURLと依頼文をコピー", () => Copy(AiRequest, copyRequest!), ""); copyRequest.Margin = new Thickness(0, 12, 0, 0);
-        System.Windows.Automation.AutomationProperties.SetAutomationId(copyRequest, "server-ai-request-copy"); column.Children.Add(copyRequest);
-        var repository = MacUi.Bordered("GitHubをブラウザーで開く", () => this.open(EmbeddedAsset.ProductUrl("repositoryUrl")), ""); repository.Margin = new Thickness(0, 12, 0, 0); column.Children.Add(repository);
+        // The card: icon tile and caption, then the copy button; Windows has no share sheet, so 「GitHubをブラウザーで開く」 stands where the Mac 「共有」 is.
+        var intro = new StackPanel();
+        var head = new Grid(); head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); head.ColumnDefinitions.Add(new ColumnDefinition());
+        head.Children.Add(SettingsUi.Tile("\u2726", Color.FromRgb(0x61, 0x47, 0xD4), 40, symbol: true));
+        var words = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) }; Grid.SetColumn(words, 1);
+        words.Children.Add(MacUi.Text("AIにセットアップを任せる", 15, MacUi.Ink, FontWeights.Bold)); words.Children.Add(MacUi.Text("GitHubのURLと依頼文を、PCを操作できるAIへ渡します。", 13, MacUi.Muted, margin: new Thickness(0, 2, 0, 0)));
+        head.Children.Add(words); intro.Children.Add(head);
+        var actions = new Grid { Margin = new Thickness(0, 14, 0, 0) }; actions.ColumnDefinitions.Add(new ColumnDefinition()); actions.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        copyRequest = MacUi.Primary("URLと依頼文をコピー", () => Copy(AiRequest, copyRequest!), "\uE8C8");
+        System.Windows.Automation.AutomationProperties.SetAutomationId(copyRequest, "server-ai-request-copy"); actions.Children.Add(copyRequest);
+        var repository = MacUi.Bordered("GitHubをブラウザーで開く", () => this.open(EmbeddedAsset.ProductUrl("repositoryUrl")), "\uE8A7"); repository.Margin = new Thickness(10, 0, 0, 0); repository.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(repository, 1); actions.Children.Add(repository);
+        intro.Children.Add(actions); column.Children.Add(MacUi.Card(intro, new Thickness(18)));
         column.Children.Add(failure);
         var body = new MarkdownView { FontSize = 18, Source = EmbeddedAsset.Text("server-installation.md"), Margin = new Thickness(0, 22, 0, 0) };
         System.Windows.Automation.AutomationProperties.SetAutomationId(body, "server-installation-content"); column.Children.Add(body);
-        var pc = MacUi.Prominent("PCで読む手順と配布ファイルを開く", () => this.open(EmbeddedAsset.ProductUrl("serverGuideUrl"))); pc.Margin = new Thickness(0, 22, 0, 0); column.Children.Add(pc);
-        copyGuide = MacUi.Bordered("この手順のURLをコピー", () => Copy(EmbeddedAsset.ProductUrl("serverGuideUrl").AbsoluteUri, copyGuide!), ""); copyGuide.Margin = new Thickness(0, 12, 0, 0); column.Children.Add(copyGuide);
+        var pc = MacUi.Primary("PCで読む手順と配布ファイルを開く", () => this.open(EmbeddedAsset.ProductUrl("serverGuideUrl"))); pc.Margin = new Thickness(0, 22, 0, 0); column.Children.Add(pc);
+        copyGuide = MacUi.Bordered("この手順のURLをコピー", () => Copy(EmbeddedAsset.ProductUrl("serverGuideUrl").AbsoluteUri, copyGuide!), "\uE8C8"); copyGuide.Margin = new Thickness(0, 12, 0, 0); column.Children.Add(copyGuide);
         Content = column;
     }
     private void Fail(string message) { failure.Text = message; failure.Visibility = Visibility.Visible; }
@@ -213,8 +259,7 @@ internal sealed class ServerGuideView : ScrollViewer
     {
         try { copy(text); failure.Visibility = Visibility.Collapsed; }
         catch (Exception error) { Fail("コピーできませんでした。" + error.Message); return; }
-        if (button.Content is StackPanel line && line.Children[^1] is TextBlock label) label.Text = "コピーしました";
-        System.Windows.Automation.AutomationProperties.SetName(button, "コピーしました");
+        MacUi.Relabel(button, "コピーしました", "\uE73E");
     }
 }
 

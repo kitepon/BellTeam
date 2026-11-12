@@ -216,8 +216,10 @@ public sealed class AccessSetupTests
             Assert.Equal("https://github.com/kitepon/BellTeam\nこれセットアップしたい", ServerGuideView.AiRequest);
             var copied = new List<string>(); var opened = new List<Uri>();
             var guide = new ServerGuideView(copied.Add, opened.Add);
-            Assert.Contains("AIにセットアップを任せる", Descendants<TextBlock>(guide).Select(text => text.Text));
-            Click(guide, "GitHubのURLと依頼文をコピー"); Assert.Equal(new[] { ServerGuideView.AiRequest }, copied.ToArray()); Assert.Equal("コピーしました", System.Windows.Automation.AutomationProperties.GetName(Descendants<Button>(guide).First()));
+            Assert.Contains("AIにセットアップを任せる", Descendants<TextBlock>(guide).Select(text => text.Text)); Assert.Contains("GitHubのURLと依頼文を、PCを操作できるAIへ渡します。", Descendants<TextBlock>(guide).Select(text => text.Text));
+            Click(guide, "URLと依頼文をコピー"); Assert.Equal(new[] { ServerGuideView.AiRequest }, copied.ToArray()); Assert.Equal("コピーしました", System.Windows.Automation.AutomationProperties.GetName(Descendants<Button>(guide).First()));
+            // The copy button then shows a check icon (E73E) in place of the copy icon (E8C8).
+            Assert.Equal("\uE73E", ((TextBlock)((StackPanel)Descendants<Button>(guide).First().Content).Children[0]).Text);
             Click(guide, "この手順のURLをコピー"); Assert.Equal("https://github.com/kitepon/BellTeam/blob/main/docs/server-installation.md", copied[1]);
             Click(guide, "GitHubをブラウザーで開く"); Click(guide, "PCで読む手順と配布ファイルを開く");
             Assert.Equal(new[] { "https://github.com/kitepon/BellTeam", "https://github.com/kitepon/BellTeam/blob/main/docs/server-installation.md" }, opened.Select(address => address.AbsoluteUri).ToArray());
@@ -231,7 +233,7 @@ public sealed class AccessSetupTests
         RunSta(() =>
         {
             var guide = new ServerGuideView(_ => throw new InvalidOperationException("クリップボードが使用中です。"), _ => { });
-            Click(guide, "GitHubのURLと依頼文をコピー");
+            Click(guide, "URLと依頼文をコピー");
             Assert.Contains(Descendants<TextBlock>(guide), text => text.Text.Contains("コピーできませんでした。") && text.Visibility == Visibility.Visible);
             Assert.DoesNotContain(Descendants<Button>(guide), button => System.Windows.Automation.AutomationProperties.GetName(button) == "コピーしました");
         });
@@ -245,10 +247,36 @@ public sealed class AccessSetupTests
             var signIn = new LoginView(() => login++);
             Click(signIn, "ログインして始める"); Assert.Equal(1, login);
             var texts = Descendants<TextBlock>(signIn).Select(text => text.Text).ToArray(); Assert.Contains("いつでも、あなたのチームと。", texts); Assert.Contains("Cloudflare Accessで安全に接続します", texts);
-            var failure = new StartupFailureView("サーバーが応答しません。", () => again++, () => change++);
+            var failure = new StartupFailureView("サーバーが応答しません。", "bell.example.com", () => { again++; return Task.CompletedTask; }, () => change++, () => true);
             Click(failure, "もう一度試す"); Click(failure, "接続先を変更"); Assert.Equal((1, 1), (again, change));
-            var shown = Descendants<TextBlock>(failure).Select(text => text.Text).ToArray(); Assert.Contains("接続できませんでした", shown); Assert.Contains("サーバーが応答しません。", shown);
+            var shown = Descendants<TextBlock>(failure).Select(text => text.Text).ToArray(); Assert.Contains("BellTeamにつながりません", shown); Assert.Contains("接続先 bell.example.com", shown);
+            // The raw error is folded under 「詳細」 (closed), not printed in the page.
+            var fold = Descendants<Expander>(failure).Single(); Assert.Equal("詳細", fold.Header); Assert.False(fold.IsExpanded); Assert.Equal("サーバーが応答しません。", ((TextBox)fold.Content).Text);
             Assert.Contains("BellTeamを開いています", Descendants<TextBlock>(new StartupOpeningView()).Select(text => text.Text));
+        });
+    }
+    [Fact]
+    public void ChangingTheServerFromTheFailureScreenAsksFirstAndCancelChangesNothing()
+    {
+        RunSta(() =>
+        {
+            var change = 0; var asked = 0; var answer = false;
+            var failure = new StartupFailureView("応答なし", "bell.example.com", () => Task.CompletedTask, () => change++, () => { asked++; return answer; });
+            Click(failure, "接続先を変更"); Assert.Equal((1, 0), (asked, change));
+            answer = true; Click(failure, "接続先を変更"); Assert.Equal((2, 1), (asked, change));
+        });
+    }
+    [Fact]
+    public void RetryOnTheFailureScreenReadsConnectingUntilTheAttemptEnds()
+    {
+        RunSta(() =>
+        {
+            var attempt = new TaskCompletionSource(); var tries = 0;
+            var failure = new StartupFailureView("応答なし", null, () => { tries++; return attempt.Task; }, () => { }, () => true);
+            Click(failure, "もう一度試す");
+            var button = Named(failure, "接続しています…"); Assert.False(button.IsEnabled); Assert.False(Named(failure, "接続先を変更").IsEnabled); Assert.Equal(1, tries);
+            attempt.SetResult(); Pump();
+            Assert.True(Named(failure, "もう一度試す").IsEnabled); Assert.DoesNotContain(Descendants<TextBlock>(failure), text => text.Text.StartsWith("接続先 "));
         });
     }
     [Theory]
