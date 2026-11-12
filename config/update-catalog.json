@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-12T15:26:23Z",
-  "expiresAt": "2026-11-19T15:26:23Z",
+  "publishedAt": "2026-11-12T15:41:45Z",
+  "expiresAt": "2026-11-19T15:41:45Z",
   "releases": [
     {
       "componentId": "usage",
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "f13dd38b9e35886504e80429d0b9d0bed9ef15ec",
-      "versionId": "sha256:2cbe256c2313a38854bc553d353173f16d8ec90aa8a68946769a4c2b5d739d04",
+      "sourceCommit": "738a8012344c9bd29cb1b5808e5352bf5a7f37e1",
+      "versionId": "sha256:177bdfb91c32884ed478eb80b2026aed2dabfaf2c621531cba72f424c3490b65",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:2cbe256c2313a38854bc553d353173f16d8ec90aa8a68946769a4c2b5d739d04"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:177bdfb91c32884ed478eb80b2026aed2dabfaf2c621531cba72f424c3490b65"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,20 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Aiterm を 0.70.39 にします。最初の画面で止まる席は理由を返して閉じ、Grok と Codex の席の読み取りを直します。工程表で準備ができたのにまだ始まっていない作業を、約5分ごとに、動いていない担当の Bot へ知らせます。本体の入れ替え後に、まだ届いていない作業の知らせも届くようになります。「結果を知らせる」コマンドの予定を待っている Bot は、作業中として表示し、知らせを送りません。"
+        "本体に入っている予備の工程表を 0.97.0 にします。工程表の部品が読めない時に予備へ戻っても、開き直した工程表を読めます。予備の工程表にも、止まっている作業の一覧と、止まりを外す操作が入ります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "f13dd38b9e35886504e80429d0b9d0bed9ef15ec",
-      "versionId": "sha256:2cbe256c2313a38854bc553d353173f16d8ec90aa8a68946769a4c2b5d739d04",
+      "sourceCommit": "738a8012344c9bd29cb1b5808e5352bf5a7f37e1",
+      "versionId": "sha256:177bdfb91c32884ed478eb80b2026aed2dabfaf2c621531cba72f424c3490b65",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:2cbe256c2313a38854bc553d353173f16d8ec90aa8a68946769a4c2b5d739d04"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:177bdfb91c32884ed478eb80b2026aed2dabfaf2c621531cba72f424c3490b65"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,7 +748,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Aiterm を 0.70.39 にします。最初の画面で止まる席は理由を返して閉じ、Grok と Codex の席の読み取りを直します。工程表で準備ができたのにまだ始まっていない作業を、約5分ごとに、動いていない担当の Bot へ知らせます。本体の入れ替え後に、まだ届いていない作業の知らせも届くようになります。「結果を知らせる」コマンドの予定を待っている Bot は、作業中として表示し、知らせを送りません。"
+        "本体に入っている予備の工程表を 0.97.0 にします。工程表の部品が読めない時に予備へ戻っても、開き直した工程表を読めます。予備の工程表にも、止まっている作業の一覧と、止まりを外す操作が入ります。"
       ]
     },
     {
