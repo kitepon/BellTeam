@@ -7,39 +7,25 @@ using System.Windows.Media.Effects;
 
 namespace BellTeam.App;
 
-public enum SettingsPage { Profile, Ai, Terminals, Features, Notifications, Connection, Display, Billing, Update, About, Stop }
-
-// Category list content of the Mac SettingsView (SettingsPage enum), copied verbatim.
+// The settings items live in Core (SettingsPages: titles, calm lines, groups); this adds the Windows icon and tint (Mac symbol / tint).
 public static class SettingsPageInfo
 {
-    public static readonly SettingsPage[][] Groups =
-    [
-        [SettingsPage.Ai, SettingsPage.Terminals, SettingsPage.Features, SettingsPage.Notifications],
-        [SettingsPage.Connection, SettingsPage.Display],
-        [SettingsPage.Billing, SettingsPage.Update, SettingsPage.About],
-        [SettingsPage.Stop]
-    ];
-    public static string Title(SettingsPage page) => page switch
-    {
-        SettingsPage.Profile => "プロフィール", SettingsPage.Ai => "AIの設定", SettingsPage.Terminals => "端末", SettingsPage.Features => "追加機能", SettingsPage.Notifications => "通知", SettingsPage.Connection => "接続",
-        SettingsPage.Display => "表示", SettingsPage.Billing => "利用と課金", SettingsPage.Update => "アップデート", SettingsPage.About => "このアプリについて", _ => "全体停止"
-    };
-    public static string Detail(SettingsPage page) => page switch
-    {
-        SettingsPage.Profile => "名前・写真・紹介文と、チームが守るあなたの決まり", SettingsPage.Ai => "AIのアカウントと、仕事の要約を書くAI", SettingsPage.Terminals => "メンバーの席を動かす端末と、その鍵", SettingsPage.Features => "通知の送信などを使うための設定",
-        SettingsPage.Notifications => "メンバーからの連絡をこの端末に届ける", SettingsPage.Connection => "つないでいるサーバーとログイン方法", SettingsPage.Display => "会話を開く時の動き",
-        SettingsPage.Billing => "料金と、サーバーとAIの契約", SettingsPage.Update => "サーバーの部品を最新にする", SettingsPage.About => "アプリの版と接続先", _ => "全員のAIの動作をまとめて止める"
-    };
+    public static IReadOnlyList<SettingsPage[]> Groups => SettingsPages.Groups;
+    public static string Title(SettingsPage page) => SettingsPages.Title(page);
+    // Windows sells nothing in the app (the Mac line is about the App Store subscription), so 利用と課金 keeps the Windows line.
+    public static string Detail(SettingsPage page) => page == SettingsPage.Billing ? "料金と、サーバーとAIの契約" : SettingsPages.Detail(page);
     // Segoe Fluent Icons code points standing in for the Mac SF Symbols.
     public static string Glyph(SettingsPage page) => page switch
     {
-        SettingsPage.Profile => "", SettingsPage.Ai => "✦", SettingsPage.Terminals => "", SettingsPage.Features => "", SettingsPage.Notifications => "", SettingsPage.Connection => "",
-        SettingsPage.Display => "", SettingsPage.Billing => "", SettingsPage.Update => "", SettingsPage.About => "", _ => ""
+        SettingsPage.Profile => "\uE77B", SettingsPage.Ai => "\u2726", SettingsPage.Summary => "\uE8FD", SettingsPage.Terminals => "\uE7F4", SettingsPage.OnePassword => "\uE8D7",
+        SettingsPage.Notifications => "\uEA8F", SettingsPage.Rules => "\uE8A4", SettingsPage.Features => "\uEA86", SettingsPage.Connection => "\uE774",
+        SettingsPage.Display => "\uE81E", SettingsPage.Billing => "\uE8C7", SettingsPage.Update => "\uE896", SettingsPage.About => "\uE946", _ => ""
     };
     public static Color Tint(SettingsPage page) => page switch
     {
-        SettingsPage.Profile => Color.FromRgb(0x61, 0x47, 0xD4), SettingsPage.Ai => Color.FromRgb(0xAF, 0x52, 0xDE), SettingsPage.Terminals => Color.FromRgb(0x32, 0xAD, 0xE6), SettingsPage.Features => Color.FromRgb(0xFF, 0x95, 0x00),
-        SettingsPage.Notifications => Color.FromRgb(0xFF, 0x3B, 0x30), SettingsPage.Connection => Color.FromRgb(0x00, 0x7A, 0xFF), SettingsPage.Display => Color.FromRgb(0x58, 0x56, 0xD6),
+        SettingsPage.Profile => Color.FromRgb(0x61, 0x47, 0xD4), SettingsPage.Ai => Color.FromRgb(0xAF, 0x52, 0xDE), SettingsPage.Summary => Color.FromRgb(0xFF, 0x2D, 0x55), SettingsPage.Terminals => Color.FromRgb(0x32, 0xAD, 0xE6),
+        SettingsPage.OnePassword => Color.FromRgb(0x00, 0x7A, 0xFF), SettingsPage.Notifications => Color.FromRgb(0xFF, 0x3B, 0x30), SettingsPage.Rules => Color.FromRgb(0xA2, 0x84, 0x5E), SettingsPage.Features => Color.FromRgb(0xFF, 0x95, 0x00),
+        SettingsPage.Connection => Color.FromRgb(0x00, 0x7A, 0xFF), SettingsPage.Display => Color.FromRgb(0x58, 0x56, 0xD6),
         SettingsPage.Billing => Color.FromRgb(0x34, 0xC7, 0x59), SettingsPage.Update => Color.FromRgb(0x30, 0xB0, 0xC7), SettingsPage.About => Color.FromRgb(0x8E, 0x8E, 0x93), _ => Color.FromRgb(0xFF, 0x3B, 0x30)
     };
 }
@@ -49,7 +35,7 @@ internal static class SettingsUi
 {
     private static SolidColorBrush Solid(string hex) { var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex)); brush.Freeze(); return brush; }
     public static readonly Brush Ink = Solid("#21293D"), Muted = Solid("#787D91"), Secondary = Solid("#8A8A8E"), Violet = Solid("#6147D4"), Red = Solid("#FF3B30"), Green = Solid("#34C759"), Orange = Solid("#FF9500");
-    public static readonly Brush Canvas = Solid("#F2F2F7"), Hairline = Solid("#E6E6EB"), Fill = Solid("#F0F0F4");
+    public static readonly Brush Canvas = Solid("#F2F2F7"), Hairline = Solid("#E6E6EB"), Fill = Solid("#F0F0F4"), Selection = Solid("#E3E3E8");
     public static readonly FontFamily Icons = new("Segoe Fluent Icons, Segoe MDL2 Assets");
 
     public static TextBlock Text(string text, double size = 13, Brush? color = null, FontWeight? weight = null, Thickness? margin = null)
@@ -77,14 +63,36 @@ internal static class SettingsUi
         return grid;
     }
 
-    // SettingsPageHeader: 56pt tile, title2 bold, one-line detail.
-    public static StackPanel Header(SettingsPage page)
+    // SettingsPageHeader: 36pt tile, title, the state badge on the right, the item's live line under it.
+    public static StackPanel Header(SettingsPage page, SettingsStatus? status = null)
     {
-        var stack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 10) };
-        var tile = Tile(page, 56); tile.HorizontalAlignment = HorizontalAlignment.Center; stack.Children.Add(tile);
-        var title = Text(SettingsPageInfo.Title(page), 22, Ink, FontWeights.Bold, new Thickness(0, 8, 0, 0)); title.HorizontalAlignment = HorizontalAlignment.Center; stack.Children.Add(title);
-        var detail = Text(SettingsPageInfo.Detail(page), 14, Secondary, null, new Thickness(0, 8, 0, 0)); detail.TextAlignment = TextAlignment.Center; detail.HorizontalAlignment = HorizontalAlignment.Center; stack.Children.Add(detail);
+        status ??= new SettingsStatus(SettingsPageInfo.Detail(page));
+        var stack = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
+        var top = new Grid(); top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); top.ColumnDefinitions.Add(new ColumnDefinition()); top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        top.Children.Add(Tile(page, 36));
+        var title = Text(SettingsPageInfo.Title(page), 20, Ink, FontWeights.Bold, new Thickness(12, 0, 8, 0)); title.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(title, 1); top.Children.Add(title);
+        if (status.Badge is { } text) { var badge = Badge(text, status.Tone); Grid.SetColumn(badge, 2); top.Children.Add(badge); }
+        stack.Children.Add(top);
+        var line = Text(status.Line, 14, Secondary, null, new Thickness(0, 10, 0, 0)); System.Windows.Automation.AutomationProperties.SetAutomationId(line, "settings-page-state"); stack.Children.Add(line);
         return stack;
+    }
+
+    public static Brush ToneBrush(SettingsTone tone) => tone switch { SettingsTone.Green => Green, SettingsTone.Violet => Violet, SettingsTone.Orange => Orange, _ => Muted };
+    // BellBadge: the one state badge of the settings, a tinted capsule; a state word is never a bare coloured word.
+    public static Border Badge(string text, SettingsTone tone)
+    {
+        var color = ((SolidColorBrush)ToneBrush(tone)).Color;
+        var label = new TextBlock { Text = text, FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = ToneBrush(tone), TextWrapping = TextWrapping.NoWrap };
+        var badge = new Border { Child = label, Background = new SolidColorBrush(Color.FromArgb(0x21, color.R, color.G, color.B)), CornerRadius = new CornerRadius(9), Padding = new Thickness(9, 3, 9, 3), VerticalAlignment = VerticalAlignment.Center };
+        System.Windows.Automation.AutomationProperties.SetName(badge, text);
+        return badge;
+    }
+
+    // SettingsMainButton: the one primary button of a page, filled violet with white text; while working its own label says so.
+    public static Button MainButton(string label)
+    {
+        var button = Capsule(label, Violet, Brushes.White, 10, 14, new Thickness(18, 9, 18, 9)); button.HorizontalAlignment = HorizontalAlignment.Stretch; button.Margin = new Thickness(0, 12, 0, 0);
+        return button;
     }
 
     // bellCard(): the white rounded card of the card-style pages.

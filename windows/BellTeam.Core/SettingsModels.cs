@@ -39,7 +39,6 @@ public sealed record BackgroundAgentSelection(string Harness, string Model, stri
 public sealed record BackgroundAgentRecord(string? Revision, BackgroundAgentSelection? Selection)
 {
     public static string Describe(BackgroundAgentSelection selection) => string.Join(" · ", selection.Harness, selection.Model, selection.ReasoningEffort.Length == 0 ? "CLIの既定" : selection.ReasoningEffort);
-    public string Summary => Selection is null ? "未設定" : Describe(Selection);
     // The first save must send expectedRevision: null explicitly; omitting the key is rejected by the server.
     public Dictionary<string, object?> UpdateBody(BackgroundAgentSelection draft) => new() { ["expectedRevision"] = Revision, ["harness"] = draft.Harness, ["model"] = draft.Model, ["reasoningEffort"] = draft.ReasoningEffort };
     public static BackgroundAgentRecord? Read(JsonElement settings)
@@ -71,21 +70,3 @@ public static class BackgroundAgentChoices
 // How a conversation's message cards enter when it is opened (Mac ConversationOpening).
 [JsonConverter(typeof(JsonStringEnumConverter<ConversationOpening>))]
 public enum ConversationOpening { [JsonStringEnumMemberName("rise")] Rise, [JsonStringEnumMemberName("fade")] Fade }
-
-public enum HarnessTone { Muted, Good, Warning }
-// State text and action label of one AI-authentication row in the AI settings card (Mac HarnessAuthenticationRow).
-public sealed record HarnessRowState(string Title, HarnessTone Tone, string Action)
-{
-    public static readonly HarnessRowState Checking = new("確認中", HarnessTone.Muted, "確認する");
-    public static readonly HarnessRowState Unavailable = new("確認できません", HarnessTone.Warning, "確認する");
-    // An unreadable status is shown as unavailable, never as 未認証.
-    public static HarnessRowState From(string? status, bool? reloginSupported) => status switch
-    {
-        "authenticated" => new("認証済み", HarnessTone.Good, reloginSupported == false ? "詳しく見る" : "認証し直す"),
-        "blocked" => new("未認証", HarnessTone.Warning, "認証する"),
-        "waiting" => new("認証中", HarnessTone.Muted, "続ける"),
-        _ => Unavailable
-    };
-    // One Claude account slot (「1stアカウント」/「2ndアカウント」): the same badge and button wording as the other AI rows (Mac f37b05a4).
-    public static HarnessRowState FromSlot(string? status) => From(status, reloginSupported: null);
-}

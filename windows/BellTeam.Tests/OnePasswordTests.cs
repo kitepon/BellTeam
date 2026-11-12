@@ -245,11 +245,15 @@ public sealed class OnePasswordTests
             var failed = Item("enabled", true, $$"""{"code":"ONEPASSWORD_TOKEN_REJECTED","message":"{{Rejected}}"}""");
             var plain = """{"id":"calendar","title":"カレンダー","enabled":false,"status":"disabled","fields":[]}""";
             var server = new Server { Settings = List(plain, failed) }; using var workspace = server.Workspace(); Await(workspace.ConnectAsync("http://localhost", listen: false));
+            // 1Password is its own settings item (settings-user-flow B8): 追加機能 lists the rest, the item's row and the 要対応 band carry its failure.
             var window = new SettingsWindow(workspace); Await(window.InitializeAsync(SettingsPage.Features)); Pump();
-            var texts = Texts(window); Assert.Contains("1Password連携", texts); Assert.Contains("失敗", texts); Assert.Contains(Rejected, texts); Assert.DoesNotContain("反映エラー", texts); Assert.Contains("無効", texts); window.Close();
+            var texts = Texts(window); Assert.DoesNotContain("1Password連携", texts); Assert.Contains("カレンダー", texts); Assert.Contains("オフ", texts);
+            Assert.Equal(SettingsTone.Orange, window.ItemStatus(SettingsPage.OnePassword).Tone); Assert.Equal(Rejected, window.ItemStatus(SettingsPage.OnePassword).Line); Assert.True(window.ItemStatus(SettingsPage.OnePassword).NeedsAttention);
+            Await(window.SelectAsync(SettingsPage.OnePassword)); Pump();
+            texts = Texts(window); Assert.Contains("失敗", texts); Assert.Contains(Rejected, texts); Assert.DoesNotContain("反映エラー", texts); window.Close();
             var old = new Server { Settings = List(plain) }; using var oldWorkspace = old.Workspace(); Await(oldWorkspace.ConnectAsync("http://localhost", listen: false));
-            var oldWindow = new SettingsWindow(oldWorkspace); Await(oldWindow.InitializeAsync(SettingsPage.Features)); Pump();
-            Assert.DoesNotContain("1Password連携", Texts(oldWindow)); Assert.Contains("カレンダー", Texts(oldWindow)); oldWindow.Close();
+            var oldWindow = new SettingsWindow(oldWorkspace); Await(oldWindow.InitializeAsync(SettingsPage.OnePassword)); Pump();
+            Assert.Contains("このサーバーの版では1Passwordと連携できません。", Texts(oldWindow)); Assert.Null(oldWindow.ItemStatus(SettingsPage.OnePassword).Badge); oldWindow.Close();
         });
     }
 

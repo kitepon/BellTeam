@@ -253,7 +253,39 @@ public sealed class PlanningTests
             var toggle = Descendants<System.Windows.Controls.Primitives.ToggleButton>(editor).Single(); Assert.False(toggle.IsChecked);
             toggle.IsChecked = true; toggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump(); Pump();
             Assert.Equal(["{\"paused\":true}"], patches);
-            Assert.Contains(Descendants<TextBlock>(editor), text => text.Text == "停止中"); editor.Close();
+            Assert.Contains(Descendants<TextBlock>(editor), text => text.Text == "停止中");
+            // settings-user-flow §3: a stopped team is listed in the 要対応 band on top of the item list.
+            Assert.Contains(Descendants<Border>(editor), row => System.Windows.Automation.AutomationProperties.GetAutomationId(row) == "settings-attention-stop"); editor.Close();
+        });
+    }
+
+    [Fact]
+    public void RulesPageShowsOneCardPerRuleAndTheEditorSavesTheFullText()
+    {
+        RunSta(() =>
+        {
+            const string Rules = "RULES owner.user v1\nSECTION voice\n  RULE voice.time\n    PURPOSE: keep times readable.\n    DO: state times in JST.\n";
+            var puts = new List<string>(); var stored = Rules;
+            using var workspace = new Workspace(origin => new BellApi(origin, new StubHandler(async (request, _) =>
+            {
+                if (request.Method == HttpMethod.Put) { var body = await request.Content!.ReadAsStringAsync(); puts.Add(body); stored = JsonDocument.Parse(body).RootElement.GetProperty("text").GetString()!; return StubHandler.Json(JsonSerializer.Serialize(new { text = stored })); }
+                return StubHandler.Json(request.RequestUri!.AbsolutePath switch
+                {
+                    "/api/session" => "{\"authenticated\":true,\"authMode\":\"local\"}", "/api/bots" => ApiTests.Bots, "/api/queue" => ApiTests.EmptyQueue, "/api/rooms" => ApiTests.Rooms, "/api/owner" => ApiTests.Owner,
+                    "/api/user-rules" => JsonSerializer.Serialize(new { text = stored }), _ => ApiTests.Page
+                });
+            })));
+            Await(workspace.ConnectAsync("http://localhost", listen: false));
+            var editor = new SettingsWindow(workspace); Await(editor.InitializeAsync(SettingsPage.Rules)); Pump();
+            var texts = Descendants<TextBlock>(editor).Select(text => text.Text).ToList();
+            Assert.Contains("keep times readable.", texts); Assert.Contains("state times in JST.", texts); Assert.Contains("する", texts); Assert.DoesNotContain(texts, text => text.Contains("voice.time"));
+            Assert.Equal("1件の決まり", editor.ItemStatus(SettingsPage.Rules).Line);
+            Descendants<Button>(editor).Single(button => button.Content as string == "編集する").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
+            var box = Descendants<TextBox>(editor).Single(text => text.AcceptsReturn); Assert.Equal(Rules, box.Text);
+            box.Text = Rules + "  RULE voice.plain\n    DO: write plainly.\n";
+            Descendants<Button>(editor).Single(button => button.Content as string == "保存").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump(); Pump();
+            Assert.Single(puts); Assert.Contains("write plainly.", puts[0]);
+            Assert.Equal("2件の決まり", editor.ItemStatus(SettingsPage.Rules).Line); editor.Close();
         });
     }
     private static Workspace WorkspaceWithFeatures(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>? write = null) => new(origin => new BellApi(origin, new StubHandler((request, token) =>
