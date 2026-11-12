@@ -113,13 +113,20 @@ public sealed partial class SettingsWindow : EditorWindow
         {
             var harness = (await new HarnessAuthenticationApi(workspace.Management.Api).ListAsync(Token)).Harnesses.FirstOrDefault(item => item.Id == id);
             if (harness is null) return;
-            var dialog = new HarnessAuthenticationWindow(workspace, harness, slot: route.Slot) { Owner = DialogOwner }; _ = dialog.InitializeAsync(); dialog.ShowDialog();
-            await Task.WhenAll(ReloadHomeAsync(), selected == SettingsPage.Ai ? SelectAgainAsync() : Task.CompletedTask);
+            var entry = aiEntries?.FirstOrDefault(item => item.HarnessId == id && item.Slot == route.Slot);
+            await OpenLoginAsync(harness, route.Slot, entry?.Name ?? harness.Name, entry?.AccountLabel, entry?.LimitLine, entry?.SignedOut ?? false);
         }
         catch (OperationCanceledException) when (Token.IsCancellationRequested) { }
         catch (Exception) { /* the AI page shows its own read failure; the band stays as read */ }
     }
-    private Task SelectAgainAsync() { inSubPage = true; return SelectAsync(selected); }
+    // The login of one AI as a page in the right pane; going back re-reads the AI rows and the home.
+    private async Task OpenLoginAsync(HarnessAuthenticationOption harness, string? slot, string name, string? accountLabel, string? limitLine, bool signedOut)
+    {
+        var login = new HarnessAuthenticationWindow(workspace, harness, slot: slot, name: name, accountLabel: accountLabel, limitLine: limitLine, signedOut: signedOut); embedded = login;
+        void Back() { Reopen(); _ = ReloadHomeAsync(); }
+        ShowSubPage(name, new ScrollViewer { Content = login.AsPage(Back), VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled }, Back);
+        await login.InitializeAsync();
+    }
 
     private UIElement BuildSidebar()
     {

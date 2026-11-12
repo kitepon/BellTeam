@@ -191,6 +191,26 @@ public sealed class HarnessAccountsTests
     }
 
     [Fact]
+    public void ASlotRowOpensItsLoginAsAPageInTheRightPaneAndBackReturnsToTheList()
+    {
+        RunSta(() =>
+        {
+            using var workspace = Server((_, _) => Task.FromResult(StubHandler.Json(AllLimited)), []);
+            var window = OpenCard(workspace);
+            // settings-user-flow B17 / S7: the item list stays, the login is one card under the account's name, its e-mail and its limit line.
+            var row = Descendants<Grid>(window).First(grid => System.Windows.Automation.AutomationProperties.GetName(grid) == "1つ目のアカウント");
+            row.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left) { RoutedEvent = UIElement.MouseLeftButtonUpEvent }); Pump(); Pump();
+            var texts = Texts(window);
+            Assert.Contains("Claude 1つ目のアカウント", texts); Assert.Contains("a@example.com", texts); Assert.Contains("認証済みです。", texts);
+            Assert.Contains(texts, text => text.StartsWith("⚠ 上限中・"));
+            Assert.Equal(SettingsPage.Ai, window.Selected); Assert.Contains("AIの認証", texts);   // the list is still there
+            var back = Descendants<Button>(window).Single(button => button.Content as string == "‹ AIの認証");
+            back.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent)); Pump(); Pump();
+            Assert.DoesNotContain("認証済みです。", Texts(window)); Assert.Contains("2つ目のアカウント", Texts(window)); window.Close();
+        });
+    }
+
+    [Fact]
     public void OlderServerKeepsTheSingleClaudeRow()
     {
         RunSta(() =>
