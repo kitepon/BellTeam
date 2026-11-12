@@ -11,11 +11,15 @@ export function normalizeSchedule(value, now) {
   if (prompt.length > 8_000) throw new Error('SCHEDULE_PROMPT_INVALID')
   if (command.length > 8_000) throw new Error('SCHEDULE_COMMAND_INVALID')
   const enabled = value.enabled !== false
+  // notify=result: the command's own completion is delivered to the owning Bot (not only failures).
+  if (![undefined, 'failure', 'result'].includes(value.notify) || (value.notify === 'result' && (!command || value.kind === 'after_turn')))
+    throw new Error('SCHEDULE_NOTIFY_INVALID')
   const base = {
     id: value.id,
     name: typeof value.name === 'string' ? value.name.slice(0, 100) : '',
     kind: value.kind,
     ...(command ? { command } : { prompt }),
+    ...(value.notify === 'result' ? { notify: 'result' } : {}),
     enabled,
     lastRunAt: value.lastRunAt ?? null,
     ...(Object.hasOwn(value, 'revision') ? { revision: scheduleRevision(value) } : {}),

@@ -39,7 +39,7 @@ const ownerChanges = value => object(value, {
   links: value => { if (!Array.isArray(value) || value.length > 20) fail(); value.forEach(item => object(item, { label: value => string(value, 100), url: value => string(value, 2048) })) },
 }, [])
 const schedule = value => {
-  object(value, Object.fromEntries(['id', 'name', 'kind', 'at', 'expression', 'timezone', 'prompt', 'command', 'enabled', 'intervalDays', 'startDate', 'time', 'intervalHours', 'startHour', 'endHour', 'minute', 'targets'].map(key => [key, () => {}])), ['kind'])
+  object(value, Object.fromEntries(['id', 'name', 'kind', 'at', 'expression', 'timezone', 'prompt', 'command', 'notify', 'enabled', 'intervalDays', 'startDate', 'time', 'intervalHours', 'startHour', 'endHour', 'minute', 'targets'].map(key => [key, () => {}])), ['kind'])
   if (value.targets !== undefined) ids(value.targets)
   normalizeSchedule({ ...value, id: value.id ?? 'validation' }, new Date())
 }

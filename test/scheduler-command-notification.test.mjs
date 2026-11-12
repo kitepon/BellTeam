@@ -73,3 +73,34 @@ test('healthy and interrupted commands produce no owner or user notification', a
   assert.equal(await operation, result)
   assert.deepEqual(sent, [])
 })
+
+test('notify=result delivers exit 0 to the owner Bot only, stays quiet on 75 and keeps the failure contract', async () => {
+  const resultSchedule = { ...schedule, notify: 'result' }
+  for (const [outcome, targets] of [
+    [{ code: 0, signal: null, stdout: 'a\nb\nc\nd\ne\nnpm has 0.89.0', stderr: 'noise' }, [bot.id]],
+    [{ code: 75, signal: null, stdout: 'pending', stderr: '' }, []],
+    [{ code: 1, signal: null, stdout: '', stderr: 'gh failed' }, [bot.id, 'user']],
+  ]) {
+    const sent = []
+    const scheduler = new BotScheduler({ registry: {}, messenger: { sendmessage(input) { sent.push(input) } }, runCommand: async () => outcome })
+    assert.equal(await scheduler.runCommandSchedule(bot, resultSchedule), outcome)
+    assert.deepEqual(sent.map(input => input.target), targets)
+    if (outcome.code === 0) {
+      assert.equal(sent[0].from, 'scheduler')
+      assert.ok(sent[0].message.includes('終了コード0'))
+      assert.ok(sent[0].message.endsWith('b\nc\nd\ne\nnpm has 0.89.0'))
+    }
+  }
+})
+
+test('notify is command-only, stored only as result, and kept by updates that omit it', async () => {
+  const { normalizeSchedule } = await import('../src/schedule-definition.mjs')
+  const now = new Date('2026-11-12T00:00:00Z')
+  const once = { id: 's', kind: 'once', at: '2026-11-12T01:00:00Z', command: 'true' }
+  assert.equal(normalizeSchedule({ ...once, notify: 'result' }, now).notify, 'result')
+  assert.equal(Object.hasOwn(normalizeSchedule({ ...once, notify: 'failure' }, now), 'notify'), false)
+  for (const bad of [{ ...once, notify: 'always' }, { id: 's', kind: 'once', at: once.at, prompt: 'p', notify: 'result' }])
+    assert.throws(() => normalizeSchedule(bad, now), /SCHEDULE_NOTIFY_INVALID/)
+  const { validateMembersResult } = await import('../src/members/protocol.mjs')
+  validateMembersResult('schedules.set', { schedule: { ...normalizeSchedule({ ...once, notify: 'result' }, now), revision: 1 } })
+})

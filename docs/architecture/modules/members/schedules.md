@@ -21,8 +21,11 @@ flowchart TD
   Claim -->|"成功の最新snapshotだけ"| Prompt["Bot/部屋へpromptを発行"]
   Claim --> Command["Bot projectでcommandを開始"]
   Claim --> NoGrant["null/応答不明は発行0・再送0"]
-  Command --> Finish["背景の終了<br/>成功/中断は通知0"]
-  Finish -->|"非0/実行例外だけ"| Failure["同じ失敗結果を既配送へ"]
+  Command --> Finish["背景の終了<br/>中断は通知0"]
+  Finish -->|"notify=result かつ 0"| Result["結果文を予定ownerBotだけへ<br/>既配送・Ownerへは出さない"]
+  Finish -->|"notify=result かつ 75"| Pending["未完: 通知0<br/>次回の確認を待つ"]
+  Finish -->|"既定の0"| Quiet["通知0"]
+  Finish -->|"非0(75を除くnotify=result)/実行例外"| Failure["同じ失敗結果を既配送へ"]
   Failure --> OwnerBot["scheduler → 予定ownerBot<br/>既配送で修理開始"]
   Failure --> Owner["予定ownerBot → Owner<br/>既通知を保持"]
   OwnerBot --> Delivery["両受付の成功/失敗を回収<br/>片方失敗でも他方を試す"]
@@ -39,7 +42,8 @@ flowchart TD
 | 更新の順序 | `mutateSchedules` | registry実体とownerごとの短命Promise。read→edit→write、finallyで解放。配送queueではない |
 | 自動発行 | `BotScheduler.runDue` → claimDue → dispatch | 同module leaseでfresh読取/消化保存/発行受付。claim前と発行前に停止世代を検証。null/不明は発行0、消化を戻さない |
 | 実行記録 | 各Registry.claimDue/skipDue | revision/nextRunAt/enabled/期限を照合し保存。成功時は消化前の最新snapshot、競合はnull。markScheduleRunは互換用に残し自動発行では使わない |
-| command | `runCommandSchedule/performCommandSchedule` | jobを登録しAbortSignalを渡す。発行と終了を分け、成功/中断では失敗通知を出さない |
+| command | `runCommandSchedule/performCommandSchedule` | jobを登録しAbortSignalを渡す。発行と終了を分け、成功/中断では失敗通知を出さない。`notify=result`の0は結果配送、75は未完で通知0 |
+| command結果配送 | `performCommandSchedule` → 既`Messenger.sendmessage` | `notify=result`かつ0の時だけ、終了コードと既末尾5行（stdout優先）を`from:scheduler,target:bot.id`で一回。Ownerへは送らない。配送失敗は元reportErrorへ。job再実行/再送はしない |
 | command失敗配送 | `performCommandSchedule` → 既`Messenger.sendmessage` | 元結果の非0/例外から同じ失敗文を予定所有BotとOwnerへ各一回。両方の受付完了/失敗を回収し、配送失敗を伝播。job再実行/通知再送はしない |
 | command停止 | AiControl → `interruptCommands` | 全jobへ先にabortし、completionを集めstopConfirmedを確認 |
 | 手動 | HTTP run → `runBotSchedule/runRoomSchedule` | 既存予定を読むがmarkScheduleRunしない。返却202は発行まで |
@@ -58,11 +62,13 @@ flowchart TD
 | --- | --- | --- |
 | SC1 | Registryの消化済snapshot → scheduler / bot.id・project、schedule.id・name・command | 予定定義/claimはmembers、親commandJobsはscheduler。消化を戻さない |
 | SC2 | scheduler → runtime.runShellCommand / command・cwd・AbortSignal | 実process、UID、環境、stdout/stderrの回収と実終了はruntime |
-| SC3 | runtime → scheduler / 元code・signal・stdout・stderr又は元実行例外 | 既結果を通知結果で上書きしない。正常code0とjob中断は配送0 |
+| SC3 | runtime → scheduler / 元code・signal・stdout・stderr又は元実行例外 | 既結果を通知結果で上書きしない。job中断は配送0。既定の正常code0は配送0。`notify=result`の0はSC8、75は配送0 |
 | SC4 | scheduler → conversation.messages / 既末尾5行と予定IDを含む失敗文 | `from:scheduler,target:bot.id`で修理担当へ、既`from:bot.id,target:user`でOwnerへ各一回。本文は同じで、新しいincident本文の読取/転送を足さない |
 | SC5 | conversation → scheduler / 各既配送の受付結果又は失敗 | `Promise.allSettled`で片方の失敗による短絡を避け、失敗は元のreportError経路へ返す。受付はAI修理完了の証明ではない |
 | SC6 | conversation → 既会話writer/通知・execution / 配送記録・Bot起動又は停止拒否 | 会話記録はconversation、Owner可視性/Pushはusage、実AI配送/全体停止はexecution。親の消化済leaseを再利用せず既sendmessageの新受付を使う |
 | SC7 | command/backup producer → 既私有incident / 元rc・error・詳細 | incidentはproducer所有のまま。schedulerに新daemon/queue/incident storeを増やさず、元commandも再送しない |
+
+| SC8 | scheduler → conversation.messages / 予定IDと終了コード0、既末尾5行を含む結果文 | `notify=result`のBot予定だけ。`from:scheduler,target:bot.id`で一回、Ownerへは送らない。受付/失敗はSC5と同じく元reportErrorへ。眠っている席を起こすのは既配送(execution)の所有 |
 
 配送が失敗した時は両宛先の試行を終えてから一つなら元例外、複数ならAggregateErrorを返す。元command結果は変更せず、別の成功結果へ置換しない。手動runも同じdispatch窓口を通る。予定schema/保存/claim/停止・runShellCommand/親assembly/通知内部に変更はない。
 
@@ -180,3 +186,24 @@ Execution agreement (Kiro): `transport.currentTurn(botId)` returns `{state:worki
 AI global pause defers after_turn dispatch. The parent subscribes to the existing AiControl change event and reconciles after enable; no timed wake is required. Native turn-change events reconcile only that Bot; startup and registry generation/change events reconcile the current owners.
 
 Released-client edit compatibility: existing Apple/Web editors map an unknown kind to cron. To prevent overwriting the saved continuation, BotRegistry rejects replacing an existing after_turn with another kind (`SCHEDULE_AFTER_TURN_REPLACE_REQUIRED`, 409); after_turn prompt/name/enabled updates remain valid. Clock fields on after_turn remain invalid. An intentional clock schedule is created after deleting the old continuation through the existing remove path. This validation protects the saved definition and adds no runtime waiting state. HTTP PUT checks this before members input normalization so released editors receive the explicit error even when their fallback cron expression is empty. POST/MCP replacement is also protected by the owning writer.
+
+## Command result delivery (`notify=result`)
+
+Owner ruling, 2026-11-12 14:45 JST (via Snow White, Trony a26). A Bot waiting on a script, background job or CI check must be told when it ends, without an in-session watcher and without a fake failure shown to the Owner.
+
+Bot command schedules accept an optional `notify`: `failure` (default, existing behavior) or `result`. `result` requires `command`; prompt, after_turn and room schedules reject it (`SCHEDULE_NOTIFY_INVALID`). The default is stored as absent, so existing documents are unchanged.
+
+| Exit of the command | Default (`failure`) | `notify=result` |
+| --- | --- | --- |
+| 0 | no message | result message to the owning Bot only (SC8) |
+| 75 (EX_TEMPFAIL, "not finished yet") | failure to Bot + Owner | no message; a repeating check runs again at its next time |
+| other non-zero, signal, runner exception | failure to Bot + Owner (SC4) | same failure to Bot + Owner (SC4) |
+| aborted by AI stop | no message | no message |
+
+Usage: a one-shot job is `kind=once` with `at` now and the job itself as the command. A repeating check is cron/interval whose command exits 75 while pending and 0 with the result text when the awaited thing has ended. The awaited thing's own failure (CI red) is a finished check: exit 0 and say it in the output. Non-zero means the check itself broke, which keeps the existing Owner-visible failure contract. The woken Bot removes its repeating check with remove_schedule.
+
+shortcut: the scheduler does not disable a repeating check after its result; a check still enabled at its next time runs again. Upgrade to a revision-CAS disable on the existing owner writer if Bots miss removals.
+
+Update compatibility: `setSchedule` keeps the stored `notify` when an update omits the key, so released Apple/Web editors that drop unknown fields do not silently turn result delivery off. `notify=failure` turns it off explicitly.
+
+Release order: the parent validates members results with its own `members/protocol.mjs`, so the body that accepts `notify` must be live before or with the members module that lets Bots save it. No new connection, queue, daemon, execution contract or runtime change: SC8 uses the same `Messenger.sendmessage` and scheduler actor as SC4 and prompt schedules.
