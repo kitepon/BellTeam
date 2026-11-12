@@ -43,7 +43,7 @@ export function createLatticeDecisions({ credentials, secretRequests, fetchImpl 
     async file(params) {
       // Nayuta 2026-11-13: session_label and client are required; lists carry the raw session_label; no route (polled). The requester is a display name, not identity.
       const same = item => item?.session_label === params.session_label && idOf(item)
-      // shortcut: the connector lists closed requests only while updated in the last 24 h; a lost record of an older answer files again. Upgrade if the body can be down that long.
+      // shortcut: duplicate-ask recovery covers only the connector's 24h window (open + updated within 24h); upgrade when Approval Box can look up by session_label without a time limit
       const listed = await call('GET', '/decisions')
       if (!listed.ok || !Array.isArray(listed.json?.items)) throw failedBy(listed.ok ? 502 : listed.status)
       const known = listed.json.items.find(same)
