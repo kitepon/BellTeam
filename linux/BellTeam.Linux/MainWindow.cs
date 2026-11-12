@@ -113,7 +113,8 @@ public sealed partial class MainWindow : Window, ISheetHost, IInspectorHost
         nav = navButtons.ToArray();
         WireModel(); UpdateAll();
         AddHandler(KeyDownEvent, WindowKeyDown, RoutingStrategies.Tunnel);
-        Closed += (_, _) => { CancelStartupRetry(); CloseGallery(); CloseSheet(); CloseMemberWindows(); (startupHost.Child as IDisposable)?.Dispose(); };
+        // The separate windows read through this workspace, so they end with the main window.
+        Closed += (_, _) => { CancelStartupRetry(); CloseGallery(); CloseSheet(); CloseMemberWindows(); LatticeWindow.Current?.Close(); WorkGraphWindow.Current?.Close(); (startupHost.Child as IDisposable)?.Dispose(); };
         // Mac scenePhase .active: coming back to the window reads the goals again.
         Activated += (_, _) => { goalPill.Reload(); (pageArea.Child as GoalsPage)?.Reload(); };
         if (persistPlacement) RestorePlacement();
@@ -206,12 +207,14 @@ public sealed partial class MainWindow : Window, ISheetHost, IInspectorHost
         var top = new StackPanel { Margin = new Thickness(18, 20, 18, 10), Children = { titleRow, searchBox, accountsBanner } };
         DockPanel.SetDock(top, Dock.Top);
 
-        // Footer: 予定 and 設定 at the ends, ゴール between. The three open an empty placeholder page in this stage.
-        var footerGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,*,Auto") };
+        // Footer: 予定 and 設定 at the ends, ゴール, 相関図 and 工程表 spaced between (Mac footer). 予定, ゴール and 設定 open an empty placeholder page in this stage.
+        var footerGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,*,Auto,*,Auto,*,Auto") };
         void Add(Button button, int column) { button.IsEnabled = false; Grid.SetColumn(button, column); footerGrid.Children.Add(button); navButtons.Add(button); }
         Add(NavButton(Icons.Calendar, "予定", "予定（Ctrl+2）", ShowSchedules), 0);
         Add(NavButton(Icons.Target, "ゴール", "ゴール（Ctrl+3）", ShowGoals), 2);
-        Add(NavButton(Icons.Gear, "設定", "設定（Ctrl+,）", () => ShowPage("設定")), 4);
+        Add(NavButton(GraphIcon.Draw(18, BellTheme.Ink), "相関図", "相関図（Ctrl+4）", () => ShowWorkGraph()), 4);
+        Add(NavButton(LatticeLook.Icon(LatticeLook.ListGlyph, 18, LatticeLook.Ink), "工程表", "工程表（Ctrl+5）", () => ShowLattice()), 6);
+        Add(NavButton(Icons.Gear, "設定", "設定（Ctrl+,）", () => ShowPage("設定")), 8);
         var summaryRow = new DockPanel { Margin = new Thickness(4, 0), Children = { ownerName, new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { new Avalonia.Controls.Shapes.Ellipse { Width = 6, Height = 6, Fill = BellTheme.Mint, Margin = new Thickness(0, 0, 7, 0) }, onlineSummary } } } };
         DockPanel.SetDock(ownerName, Dock.Right);
         var footer = new StackPanel { Margin = new Thickness(14), Children = { new Border { BorderBrush = BellTheme.Line, BorderThickness = new Thickness(0, 1, 0, 0), Padding = new Thickness(0, 8), Child = footerGrid }, summaryRow } };
@@ -222,9 +225,10 @@ public sealed partial class MainWindow : Window, ISheetHost, IInspectorHost
         AutomationProperties.SetName(list, "メンバーとルーム");
         return new Border { Background = BellTheme.SidebarFill, BorderBrush = BellTheme.Line, BorderThickness = new Thickness(0, 0, 1, 0), Child = new DockPanel { Children = { top, footer, listArea } } };
     }
-    private static Button NavButton(string icon, string text, string tip, Action click)
+    private static Button NavButton(string icon, string text, string tip, Action click) => NavButton(Icons.Draw(icon, 18, BellTheme.Ink, thickness: 1.6), text, tip, click);
+    private static Button NavButton(Control icon, string text, string tip, Action click)
     {
-        var button = new Button { Classes = { "plain" }, Background = Brushes.Transparent, Foreground = BellTheme.Ink, FontSize = 14, FontWeight = FontWeight.Normal, Padding = new Thickness(2, 9), Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5, Children = { Icons.Draw(icon, 18, BellTheme.Ink, thickness: 1.6), new TextBlock { Text = text, VerticalAlignment = VerticalAlignment.Center } } } };
+        var button = new Button { Classes = { "plain" }, Background = Brushes.Transparent, Foreground = BellTheme.Ink, FontSize = 14, FontWeight = FontWeight.Normal, Padding = new Thickness(2, 9), Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5, Children = { icon, new TextBlock { Text = text, VerticalAlignment = VerticalAlignment.Center } } } };
         AutomationProperties.SetName(button, text); ToolTip.SetTip(button, tip); button.Click += (_, _) => click(); return button;
     }
     private Button BuildExport()
@@ -531,6 +535,25 @@ public sealed partial class MainWindow : Window, ISheetHost, IInspectorHost
         menu.ShowAt(button);
     }
 
+    // ---- the 相関図 and 工程表 windows (Mac openWindow): one each; a second open brings the existing one forward ----
+    public WorkGraphWindow? ShowWorkGraph() => ShowSeparate(() => WorkGraphWindow.Open(model, botId => OpenConversationFromWindowAsync(botId, "相関図のメンバーの会話が見つかりません。メンバーとルームの一覧を更新してください。")));
+    public LatticeWindow? ShowLattice() => ShowSeparate(() => LatticeWindow.Open(model, botId => OpenConversationFromWindowAsync(botId, "工程表のメンバーの会話が見つかりません。メンバーとルームの一覧を更新してください。")));
+    private T? ShowSeparate<T>(Func<T> open) where T : Window
+    {
+        if (!model.Connected) return null;
+        var window = open();
+        if (window.WindowState == WindowState.Minimized) window.WindowState = WindowState.Normal;
+        window.Show(); window.Activate();
+        return window;
+    }
+    // A member's chat opens here, as from a notification; the separate window stays.
+    private async Task OpenConversationFromWindowAsync(string botId, string missing)
+    {
+        var entry = model.Conversations.FirstOrDefault(item => item.Target == new ChatTarget(botId, false));
+        if (entry is null) { model.ReportActionError(missing); return; }
+        ShowConversation(); Raise(); await model.SelectAsync(entry);
+    }
+
     // ---- pages (placeholders in this stage) ----
     // 予定 and ゴール are real pages; each reads its data when opened (Windows ShowSchedules / ShowGoals).
     public void ShowSchedules() { if (!model.Connected) return; var page = new SchedulesPage(model, this); ShowPageContent(page); PageReady = page.InitializeAsync(); }
@@ -750,6 +773,8 @@ public sealed partial class MainWindow : Window, ISheetHost, IInspectorHost
             {
                 case Key.D2: ShowSchedules(); e.Handled = true; break;
                 case Key.D3: ShowGoals(); e.Handled = true; break;
+                case Key.D4: ShowWorkGraph(); e.Handled = true; break;
+                case Key.D5: ShowLattice(); e.Handled = true; break;
                 case Key.OemComma: ShowPage("設定"); e.Handled = true; break;
                 case Key.K: search.Focus(); search.SelectAll(); e.Handled = true; break;
             }
