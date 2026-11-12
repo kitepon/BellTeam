@@ -95,7 +95,7 @@ public sealed class GoalTests
         Assert.False(limited.CanPause); Assert.False(limited.CanResume); // neither active nor paused
 
         var none = Parse(Snapshot(caps: "\"inspect\":true,\"create\":true,\"edit\":false,\"pause\":false,\"resume\":false,\"clear\":false"));
-        Assert.True(none.CanCreate); Assert.True(none.HasAction); Assert.Equal("ゴール未設定", none.StatusTitle); Assert.Null(none.PillElapsed);
+        Assert.True(none.CanCreate); Assert.True(none.HasAction); Assert.Equal("ゴールは設定されていません", none.StatusTitle); Assert.Null(none.PillElapsed);
         var closed = Parse(Snapshot(caps: "\"inspect\":true,\"create\":false,\"edit\":false,\"pause\":false,\"resume\":false,\"clear\":false"));
         Assert.False(closed.HasAction);
         var noField = Parse(Snapshot(caps: "\"inspect\":true,\"create\":true,\"edit\":false,\"pause\":false,\"resume\":false,\"clear\":false", fields: "{\"objective\":false,\"tokenBudget\":true,\"combined\":false}"));
@@ -155,9 +155,9 @@ public sealed class GoalTests
         Assert.False(editor.CanSave(snapshot with { Binding = new("s", "l", "other") }, false, false)); Assert.True(editor.BindingChanged(snapshot with { Binding = null }));
         Assert.False(editor.CanSave(snapshot with { Availability = GoalAvailability.Unavailable }, false, false));
         Assert.False(editor.CanSave(Editing(Combined, Combined, hasGoal: false, createCapable: false), false, false));
-        editor.Objective = new string('あ', 4000); Assert.True(editor.CanSave(snapshot, false, false)); Assert.Equal("4000 / 4000文字", editor.CountText);
+        editor.Objective = new string('あ', 4000); Assert.True(editor.CanSave(snapshot, false, false)); Assert.Equal("4000 / 4000", editor.CountText);
         editor.Objective = new string('あ', 4001); Assert.False(editor.CanSave(snapshot, false, false));
-        editor.Objective = "家族👨‍👩‍👧"; Assert.Equal("3 / 4000文字", editor.CountText); // characters, as Swift counts them
+        editor.Objective = "家族👨‍👩‍👧"; Assert.Equal("3 / 4000", editor.CountText); // characters, as Swift counts them
     }
 
     [Fact]
@@ -223,10 +223,12 @@ public sealed class GoalTests
         var server = new Server { Respond = (_, _) => fail ? StubHandler.Json("{\"error\":\"TEMPORARY\"}", HttpStatusCode.ServiceUnavailable) : List(Snapshot()) };
         var model = new GoalModel(server.Api());
         await model.LoadListAsync();
-        Assert.True(model.NeedsRefresh); Assert.False(model.Loaded); Assert.Equal("BellTeamが一時的に受付を止めています。少し待つと自動で読み直します。", model.ErrorText);
+        // Mac #1116: a failed read is the plain 確認できません state; ErrorText stays for a change's own sentence, the cause only in ReadError (folded 詳細).
+        Assert.True(model.NeedsRefresh); Assert.False(model.Loaded); Assert.Null(model.ErrorText); Assert.NotNull(model.ReadError);
+        Assert.Equal(GoalPillText.UnreadDetail, GoalPillText.Failure(model, "bot-a"));
         fail = false;
         await model.LoadListAsync(); // the next event or refresh reads again; nothing gave up
-        Assert.False(model.NeedsRefresh); Assert.True(model.Loaded); Assert.Null(model.ErrorText); Assert.Single(model.CurrentSnapshots);
+        Assert.False(model.NeedsRefresh); Assert.True(model.Loaded); Assert.Null(model.ErrorText); Assert.Null(model.ReadError); Assert.Single(model.CurrentSnapshots);
         fail = true;
         await model.LoadListAsync();
         Assert.True(model.NeedsRefresh); Assert.Empty(model.CurrentSnapshots); Assert.Single(model.Snapshots); // hidden, not forgotten
@@ -239,7 +241,7 @@ public sealed class GoalTests
         var server = new Server { Respond = (_, _) => Detail(Snapshot("bot-z")) };
         var model = new GoalModel(server.Api());
         await model.LoadDetailAsync("bot-a");
-        Assert.True(model.NeedsRefresh); Assert.Equal("ゴールの応答を確認できませんでした。更新して確認してください。", model.ErrorText);
+        Assert.True(model.NeedsRefresh); Assert.Null(model.ErrorText); Assert.Equal("ゴールの応答を確認できませんでした。更新して確認してください。", model.ReadError);
     }
 
     [Fact]
@@ -248,7 +250,22 @@ public sealed class GoalTests
         var server = new Server { Respond = (_, _) => StubHandler.Json("{\"goals\":[{\"botId\":\"x\"}]}") };
         var model = new GoalModel(server.Api());
         await model.LoadListAsync();
-        Assert.True(model.NeedsRefresh); Assert.StartsWith("BellTeamからの応答を読み取れませんでした。", model.ErrorText);
+        Assert.True(model.NeedsRefresh); Assert.Null(model.ErrorText); Assert.StartsWith("BellTeamからの応答を読み取れませんでした。", model.ReadError);
+    }
+
+    [Fact]
+    public async Task AChangesOwnSentenceSurvivesALaterFailedRead()
+    {
+        // apple/goals.md 失敗表示: errorText holds only a change's sentence; a failed read neither writes nor clears it, only a read that works does.
+        var phase = "list";
+        var server = new Server { Respond = (request, _) => phase == "list" ? List(Snapshot(goal: Codex("active"))) : request.Method == HttpMethod.Post ? StubHandler.Json("{\"error\":\"X\"}", HttpStatusCode.BadRequest) : StubHandler.Json("{}", HttpStatusCode.InternalServerError) };
+        var model = new GoalModel(server.Api());
+        await model.LoadListAsync(); phase = "fail";
+        await model.RunAsync(model.Snapshots[0], "pause"); var sentence = model.ErrorText; Assert.NotNull(sentence);
+        await model.LoadListAsync();
+        Assert.True(model.NeedsRefresh); Assert.Equal(sentence, model.ErrorText); Assert.Equal(sentence, GoalPillText.Failure(model, "bot-a"));
+        phase = "list"; await model.LoadListAsync();
+        Assert.Null(model.ErrorText); Assert.Null(GoalPillText.Failure(model, "bot-a"));
     }
 
     [Fact]
@@ -346,9 +363,9 @@ public sealed class GoalTests
     {
         var server = new Server { Respond = (_, _) => StubHandler.Json("{}", HttpStatusCode.InternalServerError) };
         var model = new GoalModel(server.Api());
-        Assert.Equal("ゴールを確認中", GoalPill.Title(model, "bot-a"));
+        Assert.Equal("ゴールを確認しています", GoalPill.Title(model, "bot-a"));
         await model.LoadDetailAsync("bot-a");
-        Assert.Equal("ゴールを取得できません", GoalPill.Title(model, "bot-a"));
+        Assert.Equal("ゴールの状態を確認できません", GoalPill.Title(model, "bot-a"));
     }
 
     [Fact]
@@ -358,16 +375,16 @@ public sealed class GoalTests
         var server = new Server { Respond = (_, _) => Detail(snapshot) };
         var model = new GoalModel(server.Api());
         await model.LoadDetailAsync("bot-a");
-        Assert.Equal("ゴール未設定", GoalPill.Title(model, "bot-a")); Assert.Null(model.CurrentSnapshot("bot-a")!.PillElapsed);
+        Assert.Equal("ゴールは設定されていません", GoalPill.Title(model, "bot-a")); Assert.Null(model.CurrentSnapshot("bot-a")!.PillElapsed);
         snapshot = Snapshot(goal: Codex("active")); await model.LoadDetailAsync("bot-a");
         Assert.Equal("進行中", GoalPill.Title(model, "bot-a")); Assert.Equal("61.5秒", model.CurrentSnapshot("bot-a")!.PillElapsed);
         snapshot = Snapshot(availability: "unsupported"); await model.LoadDetailAsync("bot-a");
-        Assert.Equal("ゴール未対応", GoalPill.Title(model, "bot-a"));
+        Assert.Null(GoalPill.Title(model, "bot-a")); // no pill for a bot without the goal feature
         snapshot = Snapshot(availability: "unavailable"); await model.LoadDetailAsync("bot-a");
-        Assert.Equal("ゴールを取得できません", GoalPill.Title(model, "bot-a"));
-        Assert.Equal("ゴールを取得できません", GoalPill.Title(model, "someone-else")); // a snapshot of another Bot is not this Bot's
+        Assert.Equal("ゴールの状態を確認できません", GoalPill.Title(model, "bot-a"));
+        Assert.Equal("ゴールの状態を確認できません", GoalPill.Title(model, "someone-else")); // a snapshot of another Bot is not this Bot's
         snapshot = Snapshot(availability: "unavailable", extra: ",\"reason\":\"seat_idle\""); await model.LoadDetailAsync("bot-a");
-        Assert.Equal("休止中", GoalPill.Title(model, "bot-a"));
+        Assert.Equal("ゴールは設定されていません", GoalPill.Title(model, "bot-a")); Assert.Null(GoalPillText.Failure(model, "bot-a")); // an idle seat is not a failure
         snapshot = Snapshot(goal: Codex("complete")); await model.LoadDetailAsync("bot-a");
         Assert.Equal("完了", GoalPill.Title(model, "bot-a"));
     }
@@ -394,16 +411,5 @@ public sealed class GoalTests
     {
         using var document = JsonDocument.Parse(json);
         Assert.Equal(reloads, GoalEvents.ShouldReload(document.RootElement, refreshFailing));
-    }
-
-    [Fact]
-    public void ErrorTextsFollowTheMac()
-    {
-        Assert.Equal("BellTeam: ゴールの入力を確認してください。", GoalErrors.Describe(new BellApiException("BellTeam: ゴールの入力を確認してください。", HttpStatusCode.BadRequest, "GOAL_INPUT_INVALID")));
-        Assert.Equal("BellTeamは全体停止中です。設定でOFFにしてから操作してください。", GoalErrors.Describe(new BellApiException("BellTeam: AI_GLOBAL_PAUSED", (HttpStatusCode)423, "AI_GLOBAL_PAUSED")));
-        Assert.Equal("状態が変わりました。読み直してからもう一度お試しください。", GoalErrors.Describe(new BellApiException("BellTeam: GOAL_BINDING_CHANGED", HttpStatusCode.Conflict, "GOAL_BINDING_CHANGED")));
-        Assert.Equal("BellTeamで問題が起きています。時間をおいてもう一度お試しください。", GoalErrors.Describe(new BellApiException("BellTeam: X", HttpStatusCode.BadGateway, "X")));
-        Assert.Equal("Cloudflare Accessへログインしてください。", GoalErrors.Describe(new BellApiException("Cloudflare Accessへログインしてください。", HttpStatusCode.Unauthorized)));
-        Assert.Equal("接続できません", GoalErrors.Describe(new HttpRequestException("接続できません")));
     }
 }
