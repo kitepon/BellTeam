@@ -10,7 +10,8 @@ export function createWebClient({ fetch = globalThis.fetch, setTimeout = globalT
     return readApiResponse(response)
   }
 
-  function watchEvents(onEvent, onError, onUpdates) {
+  // onConnection('live' | 'reconnecting') tells the shell whether updates are flowing (user-paths.md 1, W3).
+  function watchEvents(onEvent, onError, onUpdates, onConnection = () => {}) {
     const abort = new AbortController()
     let timer = null, notifications = Promise.resolve()
     async function connect() {
@@ -20,6 +21,7 @@ export function createWebClient({ fetch = globalThis.fetch, setTimeout = globalT
         const response = await fetch('/api/events', { signal: abort.signal })
         if (!response.ok) { const error = new Error(`HTTP_${response.status}`); error.status = response.status; throw error }
         reader = response.body.getReader()
+        onConnection('live')
         const decoder = new TextDecoder()
         let buffer = ''
         while (!abort.signal.aborted) {
@@ -43,9 +45,11 @@ export function createWebClient({ fetch = globalThis.fetch, setTimeout = globalT
             }
           }
         }
+        // A clean EOF (server restart, proxy close) is a drop, not a stop: reconnect the same way (W3).
+        if (!abort.signal.aborted) { onConnection('reconnecting'); timer = setTimeout(connect, 1500) }
       } catch (error) {
         if (abort.signal.aborted || error.name === 'AbortError') return
-        if (error instanceof TypeError || error.status === 429 || error.status >= 500) { timer = setTimeout(connect, 1500); return }
+        if (error instanceof TypeError || error.status === 429 || error.status >= 500) { onConnection('reconnecting'); timer = setTimeout(connect, 1500); return }
         onError(error)
       } finally { reader?.releaseLock() }
     }

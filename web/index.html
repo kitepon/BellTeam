@@ -15,6 +15,8 @@
 </head>
 <body>
   <div class="notification-route-notice" id="notification-route-notice" role="alert" hidden><span data-notification-notice></span><button type="button" id="notification-route-retry">再確認</button><button type="button" id="notification-route-dismiss" aria-label="通知の案内を閉じる">閉じる</button></div>
+  <!-- W3/W4: app-level messages (updates stopped, setup errors) live here, never in a conversation's composer. -->
+  <div class="app-banner" id="app-banner" role="alert" hidden><p data-banner-text></p><button type="button" data-banner-action hidden></button><button type="button" data-banner-close aria-label="この知らせを閉じる">×</button></div>
   <main class="app" id="app">
     <aside class="roster" id="roster">
       <header class="roster-header">
@@ -31,6 +33,7 @@
       <section class="roster-title">
         <h1>メンバー</h1>
         <button id="update-open" class="update-entry" type="button" hidden></button>
+        <span class="reconnect-pill" id="reconnect-pill" role="status" hidden>再接続中…</span>
       </section>
       <label class="roster-search"><span class="sr-only">メンバー・ルームを名前や役職で検索</span><input id="roster-search" type="search" placeholder="名前・役職で検索" autocomplete="off"></label>
       <div id="roster-notice" class="roster-notice" role="status" hidden><p id="roster-error">最新の一覧を読み込めませんでした</p><button id="roster-retry" class="text-button" type="button">再読み込み</button></div>

@@ -748,6 +748,17 @@ body:has(dialog[open]) .scroll-latest { display: none; }
 .web-push-actions button:disabled { opacity: .45; cursor: default; }
 .notification-route-notice { position: fixed; z-index: 100; top: 12px; left: 12px; right: 12px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; background: #fff7e9; color: #594524; padding: 14px 18px; border: 1px solid #e9d7b9; border-radius: 16px; font-size: 14px; }
 .notification-route-notice[hidden] { display: none; }
+/* User-paths 1 (W1-W4): app banner, reconnect pill, boot error card. */
+.app-banner { position: fixed; z-index: 99; top: 12px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; width: min(560px, calc(100vw - 24px)); padding: 10px 12px 10px 16px; border: 1px solid #e9d7b9; border-radius: 14px; background: #fcefd9; color: #6b4300; font-size: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.08); }
+.app-banner[hidden] { display: none; }
+.app-banner p { flex: 1; margin: 0; }
+.app-banner [data-banner-action] { min-height: 36px; padding: 6px 14px; border: 0; border-radius: 10px; background: #fff; color: #8a5200; font: inherit; font-weight: 750; cursor: pointer; }
+.app-banner [data-banner-action][hidden] { display: none; }
+.app-banner [data-banner-close] { width: 32px; height: 32px; border: 0; border-radius: 50%; background: transparent; color: #8a5200; font-size: 18px; cursor: pointer; }
+.reconnect-pill { padding: 3px 10px; border-radius: 999px; background: #ece8fb; color: #5b45b8; font-size: 12px; font-weight: 700; }
+.reconnect-pill[hidden] { display: none; }
+.boot-error { position: fixed; z-index: 98; inset: 0; display: grid; place-content: center; justify-items: center; gap: 16px; padding: 24px; background: #fff; text-align: center; }
+.boot-error p { max-width: 360px; margin: 0; color: #4f4f55; line-height: 1.7; }
 .notification-route-notice button { min-height: 40px; border: 0; background: transparent; cursor: pointer; font: inherit; font-weight: 650; }
 .notification-highlight { outline: 2px solid #87779c; outline-offset: 6px; border-radius: 16px; }
 @media(max-width: 640px) { .web-push-states { grid-template-columns: minmax(0,1fr); gap: 4px; padding: 16px; } .web-push-states dd { margin-bottom: 12px; } }
