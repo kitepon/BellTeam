@@ -11,10 +11,10 @@ function filing(chart, card, requester) {
   const context = [`工程表「${chart.name ?? chart.projectId}」で、担当があなた（owner）の工程です。`, `工程: ${card.title}`,
     `終わりの条件: ${card.doneCondition ?? '（書かれていません）'}`, card.designMemo ? `\n設計メモ:\n${card.designMemo}` : null,
     `\n答えは、この工程表を作った ${requester} に届き、${requester} が工程表に記録します。`].filter(Boolean).join('\n')
-  // session_label carries the task key, so the body can match an open request of this connection (decisions.file dedupe, L18);
+  // session_label = the record key from stable ids (never the chart name or creator name): the body's identity for this task's request (L18, Epinel gate);
   // the chart name in the title keeps titles apart (the server refuses a second open request with the same title).
   return { title: `${chart.name ?? chart.projectId}: ${card.title}`.slice(0, 120), context: context.slice(0, 20000), options: OPTIONS, requester,
-    session_label: `${chart.name ?? chart.projectId} / ${card.plan}/${card.taskId}` }
+    session_label: `${chart.projectId} / ${card.plan}/${card.taskId}` }
 }
 
 function answerMessage(chart, item, answer) {

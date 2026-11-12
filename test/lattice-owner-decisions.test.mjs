@@ -38,7 +38,7 @@ test('owner filing: an in-progress or startable Owner-lane task is filed once by
   const x = rig({ charts })
   assert.deepEqual(await x.go(), { filed: 2, routed: 0 })
   const files = x.calls.filter(([method]) => method === 'decisions.file').map(([, params]) => params)
-  assert.deepEqual(files.map(params => [params.title, params.requester, params.session_label]), [['Alpha: Task t1', 'Cee', 'Alpha / p1/t1'], ['Alpha: Task t2', 'Cee', 'Alpha / p1/t2']])
+  assert.deepEqual(files.map(params => [params.title, params.requester, params.session_label]), [['Alpha: Task t1', 'Cee', 'alpha / p1/t1'], ['Alpha: Task t2', 'Cee', 'alpha / p1/t2']])
   assert.deepEqual(files[0].options, OPTIONS)
   assert.ok(files[0].context.includes('終わりの条件: approved') && files[0].context.includes('Cee が工程表に記録します'))
   for (const params of files) validateLatticeEffect('decisions.file', params)

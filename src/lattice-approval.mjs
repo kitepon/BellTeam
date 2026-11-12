@@ -38,11 +38,11 @@ export function createLatticeDecisions({ credentials, secretRequests, fetchImpl 
     })
   }
   return {
-    // One request per Owner-lane task. The session_label (chart / plan/task) is its durable identity on this connection (Epinel gate):
+    // One request per Owner-lane task. The session_label (projectId / plan/task, stable ids) is its durable identity on this connection, which only Lattice uses (Epinel gate):
     // a request created earlier whose response or record was lost is adopted as existing, answered or not, so it is never filed twice.
     async file(params) {
-      // Nayuta 2026-11-13: session_label and client are required; lists carry the raw session_label and requester; no route (polled).
-      const same = item => item?.session_label === params.session_label && (item.requester ?? null) === params.requester && idOf(item)
+      // Nayuta 2026-11-13: session_label and client are required; lists carry the raw session_label; no route (polled). The requester is a display name, not identity.
+      const same = item => item?.session_label === params.session_label && idOf(item)
       // shortcut: the connector lists closed requests only while updated in the last 24 h; a lost record of an older answer files again. Upgrade if the body can be down that long.
       const listed = await call('GET', '/decisions')
       if (!listed.ok || !Array.isArray(listed.json?.items)) throw failedBy(listed.ok ? 502 : listed.status)
