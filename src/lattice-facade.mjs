@@ -77,6 +77,8 @@ export function createLatticeEffects({ bots, messenger }) {
   return async (method, params) => {
     // Startable notices go through the public send path, the same as the sendmessage tool (Trony 2026-11-12).
     if (method === 'messages.send') {
+      // 'user' would make the messenger an Owner turn (from) or an Owner-screen post (target); a notice is neither.
+      if (params.from === 'user' || params.target === 'user') return { delivery: 'refused', deliveryId: null, code: 'LATTICE_SEND_USER_NOT_ALLOWED' }
       try {
         const value = await messenger.sendmessage({ from: params.from, target: params.target, message: params.message })
         return { delivery: text(value?.delivery) || 'delivered', deliveryId: value?.delivery_id ?? null }

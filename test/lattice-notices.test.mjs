@@ -107,6 +107,10 @@ test('effects: messages.send goes through messenger.sendmessage; permanent refus
   assert.deepEqual(seen, [{ from: 'bot-a', target: 'bot-b', message: 'm' }])
   fail = 'BOT_NOT_FOUND: bot-b'
   assert.deepEqual(await effect('messages.send', { from: 'bot-a', target: 'bot-b', message: 'm' }), { delivery: 'refused', deliveryId: null, code: 'BOT_NOT_FOUND' })
+  const before = seen.length
+  for (const params of [{ from: 'user', target: 'bot-b', message: 'm' }, { from: 'bot-a', target: 'user', message: 'm' }])
+    assert.deepEqual(await effect('messages.send', params), { delivery: 'refused', deliveryId: null, code: 'LATTICE_SEND_USER_NOT_ALLOWED' })
+  assert.equal(seen.length, before, "'user' never reaches the messenger")
   fail = 'AI_PAUSED'
   await assert.rejects(effect('messages.send', { from: 'bot-a', target: 'bot-b', message: 'm' }), /AI_PAUSED/)
 })
