@@ -483,9 +483,9 @@ final class BellAPI {
               responseURL.port == baseURL.port else { throw BellAPIError.unauthorized }
         if http.statusCode == 401 || http.statusCode == 403 { throw BellAPIError.unauthorized }
         guard (200..<300).contains(http.statusCode) else {
-            struct ErrorBody: Decodable { let error: String; let message: String? }
+            struct ErrorBody: Decodable { let error: String; let message: String?; let reason: String? }
             let body = try? decoder.decode(ErrorBody.self, from: data)
-            throw BellAPIError.httpStatus(http.statusCode, body?.message ?? body?.error)
+            throw BellAPIError.httpStatus(http.statusCode, body?.message ?? body?.reason ?? body?.error)
         }
     }
 }

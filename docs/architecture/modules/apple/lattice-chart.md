@@ -18,7 +18,13 @@ flowchart LR
   Home --> ListModel["Core/LatticeChartModel.swift<br/>LatticeChartsModel（一覧・統括のBot）"]
   ListModel -->|"開いている間10秒ごと"| ListAPI["GET /api/lattice/charts<br/>bellteam.lattice-charts.v1"]
   ListAPI -->|"404（旧本体）→ unsupported / 認証 → failed / 503・切断 → reconnecting（一覧は残す）"| ListModel
-  Home --> List["LatticeListView<br/>ピン留め（統括）・すべての工程表・新しい工程表（説明だけ）<br/>絞り込み すべて/待ちあり・検索（表示名）"]
+  Home --> List["LatticeListView<br/>ピン留め（統括）・すべての工程表・新しい工程表（説明だけ）<br/>絞り込み すべて/待ちあり・検索（表示名）<br/>右上に「止め一覧」"]
+  List -->|"止め一覧（.stops を積む）"| Stops["LatticeStopsView＋LatticeStopsModel（画面の@StateObject）<br/>行＝LatticeStopRow（新しい止めが上）・行の中で2段の外す"]
+  Stops -->|"開いた時・引っぱって読み直す（Macは読み直すボタン）・外すの答えの後・前面へ戻った時"| StopsAPI["GET /api/lattice/blockers<br/>bellteam.lattice-blockers.v1"]
+  StopsAPI -->|"404 → old / 認証 → failed / 503・切断・形が違う → retry（1, 2, 4 … 30秒、開いている間ずっと）"| Stops
+  Stops -->|"外す → この止めを外しますか？ → 外す"| Unblock["POST /api/lattice/charts/:id/unblock {stopId}<br/>LatticeUnblockOutcome：200 removed/already-gone → 行を消す / 409 → 外せませんでした: reason / ほか → いまは外せませんでした"]
+  Unblock -->|"どの答えでも"| StopsAPI
+  Stops -->|"行を押す（.card を積む）"| Screen
   List -->|"札を押す"| Screen["Views/LatticeChartView.swift<br/>LatticeChartScreen(projectId)<br/>ツリー / 担当 / 過去ログ N の切り替え（@SceneStorage）"]
   Screen -->|"切り替え・すべての工程表"| Over["一覧を工程表の上へ積む<br/>戻る → 同じ工程表（送りの位置も同じ）"]
   Screen --> Model["LatticeChartModel（参照型・projectId鍵）<br/>snapshot・layout・connection・completedAt"]
@@ -43,6 +49,16 @@ flowchart LR
 
 一覧の札・切り替え・読み上げの名前は`LatticeChartName.of`（`AppStore.latticeChartName`）：`name`、無ければ「<作った人の名簿の名前>の工程表」（`createdBy`をアプリの名簿で引く）、それも分からなければ「名前のない工程表」。`projectId`はAPIの宛先と試験の識別子（`accessibilityIdentifier`）だけで、画面と読み上げに出さない（[Display name rule](../lattice/README.md#get-apilatticecharts)）。一覧の「統括 <顔> <名前>」の行は`coordinator: true`の工程表だけに出す。
 
+## 止め一覧
+
+[screen-spec「止め一覧」](../lattice/screen-spec.md)と[Stops契約](../lattice/README.md)をそのまま描く。入口は一覧の右上の「止め一覧」（Owner用のアプリなので常に出す）。戻るは端末の戻る（一覧の名前「工程表」の矢印と端のスワイプ）とEsc。
+
+- 行（`LatticeStopRow.rows`、純粋）：`blockedAt`の新しい順。止まりの赤の八角形・題（2行）・工程表の名前（`LatticeChartName`、`projectId`は出さない）・担当と止めた人（`LatticePerson.stopFace`：名簿のBot→顔と名前、`owner`→指揮官のプロフィール、`bot-…`で名簿に無い→名簿にないメンバー、ほかの文字→その文字と頭文字、無し→担当なし）・理由（3行、読み上げは全文）・止めた時刻（`LatticeTime.stopTime`：今日 HH:mm / 昨日 HH:mm / M月d日 HH:mm、JST）。
+- 行を押す（外す以外）：`.card(projectId, cardId)`を積み、その工程表をその札の詳細を開いた状態で出す（`LatticeChartScreen(initialCard:)`）。戻ると止め一覧。
+- 外す：行の中で「この止めを外しますか？」・外す（`.bellPrimary`）・やめる。やめる・Esc・行の外を押すと戻る。送信中は外すが回る印になり、行は残る。答え（`LatticeUnblockOutcome`）：外れた・もう無い→行を0.2秒で消す（動きを減らす設定では消すだけ）、409→行の下に「外せませんでした: <reason>」、それ以外→「いまは外せませんでした。…」。どの答えでもすぐ読み直す。409の`reason`は`BellAPI`の失敗の本文（`message`→`reason`→`error`の順）から取る。
+- 読み直しはタイマーで行わない（読める間）。読めない間だけ1, 2, 4 … 30秒（±20%）。読み直しは`readRequest`を変えて画面の読み取りtaskを入れ替えるので、同時に2本は走らない。
+- 表示：初回は「止めを読んでいます…」、空は「止まっている工程はありません。」、`unreadCharts`があれば琥珀の1行「一部の工程表を読めませんでした。…」、retryは行を薄くして「止め一覧を読み直しています…」と読み直すボタン、404は「このサーバーではまだ止め一覧を使えません。」。識別子は`lattice-open-stops`・`lattice-stops`・`lattice-stop-<stopId>`・`lattice-stop-remove-<stopId>`・`lattice-stop-confirm-<stopId>`。
+
 ## 状態の持ち主
 
 | 状態 | 持ち主 | 寿命 |
@@ -51,7 +67,8 @@ flowchart LR
 | 1枚の図（最後に読めたsnapshot）・配置・接続・新しい完了の時刻 | `LatticeChartModel`（`LatticeChartScreen`の`@StateObject`） | その工程表を開いている間。背景へ回ると接続を閉じ、戻ると最新の一枚から描く |
 | 選んだ札・強調した担当・送り先・iPhoneの並べ方と詳細の高さ | `LatticeChartScreen`の`@State`（ツリーと担当で同じものを使う＝切り替えても引き継ぐ） | 画面の間 |
 | ツリー / 担当 / 過去ログ | `LatticeChartScreen`の`@SceneStorage("lattice-center")`（既定はツリー） | アプリ（シーン）を開いている間 |
-| 一覧を工程表の上へ積んだか | `LatticeHomeView`の`path`（`LatticeRoute`の列） | 入口の画面がある間 |
+| 一覧を工程表の上へ積んだか・止め一覧と、そこから開いた工程表（`.stops`・`.card`） | `LatticeHomeView`の`path`（`LatticeRoute`の列） | 入口の画面がある間 |
+| 止め一覧の止め・読み取りの状態・確認中の行・送信中の行・行の下の知らせ | `LatticeStopsModel`（`LatticeStopsView`の`@StateObject`） | 止め一覧を開いている間。背景へ回ると止め、戻ると読み直す |
 | 担当の顔 | `AppStore.bots`の画像（`LatticeAvatar`）。名簿にないBotは「?」、担当なしは「–」 | アプリの名簿に従う |
 
 ## 過去ログ
@@ -103,7 +120,7 @@ screen-specの表をそのまま描く。図がある間は消さない（帯と
 
 ## 試験
 
-- `BellBotTests/LatticeChartTests.swift`：ツリーの配置（まとまりの状態の記号・done/total・入れ子の順・まとまりの無い工程・phases/parentが無い図・循環）・archived（描かないが数える）・過去ログの日ごとの並び・数（取り下げを母数から除く）・レーンの順・列・待ちの文・詳細・帯・粒・札の置き場所・時刻・新しい完了・一覧の読み取り。
+- `BellBotTests/LatticeChartTests.swift`：ツリーの配置（まとまりの状態の記号・done/total・入れ子の順・まとまりの無い工程・phases/parentが無い図・循環）・archived（描かないが数える）・過去ログの日ごとの並び・数（取り下げを母数から除く）・レーンの順・列・待ちの文・詳細・帯・粒・札の置き場所・時刻・新しい完了・一覧の読み取り・止め一覧の行（並び・時刻・担当の決まり・読み上げ）と外すの答え。
 - `BellBotUITests/LatticeChartUITests.swift`（iPhone実機、`test/helpers/lattice-ui-server.mjs`＝`BELLTEAM_LATTICE_FIXTURE_URL`）：一覧・工程表・待ちの流れ・詳細のライト/ダークの写真と、未検証・最後に確認できた状態・名簿にない担当・再接続・読めない工程表。
 - Macの写真は使い捨ての自己描画のコピーで撮る（repoに入れない）。
 

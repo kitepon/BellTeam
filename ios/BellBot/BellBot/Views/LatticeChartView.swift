@@ -31,15 +31,16 @@ struct LatticeChartScreen: View {
     @State private var columnAnchor = CGPoint.zero
     @Namespace private var namespace
 
-    init(projectId: String, list: LatticeChartsModel, returnTab: Int, switchTo: @escaping (String?) -> Void,
-         leave: @escaping () -> Void) {
+    init(projectId: String, list: LatticeChartsModel, returnTab: Int, initialCard: String? = nil,
+         switchTo: @escaping (String?) -> Void, leave: @escaping () -> Void) {
         _model = StateObject(wrappedValue: LatticeChartModel(projectId: projectId))
         self.list = list
         self.returnTab = returnTab
         self.switchTo = switchTo
         self.leave = leave
+        _selected = State(initialValue: initialCard)
         #if DEBUG
-        _selected = State(initialValue: LatticeDebugOpen.card)
+        if let card = LatticeDebugOpen.card { _selected = State(initialValue: card) }
         if let center = LatticeDebugOpen.center { _center = SceneStorage(wrappedValue: center, "lattice-center") }
         #endif
     }

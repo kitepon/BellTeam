@@ -144,3 +144,79 @@ final class LatticeChartModel: ObservableObject {
         }
     }
 }
+
+/// 止め一覧（screen-spec.md「止め一覧」）。読むのは開いた時・読み直す・外すの答えの後・前面へ戻った時だけ（契約にstreamは無い）。
+/// 読めない間だけ 1, 2, 4 … 30秒で読み直し続ける。
+@MainActor
+final class LatticeStopsModel: ObservableObject {
+    enum Phase: Equatable { case loading, ready, retry, old, failed(String) }
+
+    @Published private(set) var phase = Phase.loading
+    @Published private(set) var blockers: [LatticeBlocker] = []
+    @Published private(set) var unread = false
+    @Published private(set) var removing: Set<String> = []
+    @Published private(set) var notes: [String: String] = [:]
+    /// The row asking 「この止めを外しますか？」.
+    @Published var confirming: String?
+    /// The view's read task is keyed on this: a re-read replaces the running loop (and its backoff wait), never runs beside it.
+    @Published private(set) var readRequest = 0
+
+    static let path = "/api/lattice/blockers"
+
+    func reread() { readRequest &+= 1 }
+
+    func run(api: BellAPI) async {
+        var attempt = 0
+        while !Task.isCancelled, !(await read(api: api)) {
+            phase = .retry
+            try? await Task.sleep(for: .seconds(min(30, pow(2, Double(attempt))) * Double.random(in: 0.8...1.2)))
+            attempt += 1
+        }
+    }
+
+    /// true when the answer settles the screen (rows, empty, older server, login); false to read again after a wait.
+    private func read(api: BellAPI) async -> Bool {
+        do {
+            let list: LatticeBlockersList = try await api.get(Self.path)
+            guard list.schema == LatticeBlockersList.schema else { return false }
+            let ids = Set(list.blockers.map(\.stopId))
+            blockers = list.blockers
+            unread = !(list.unreadCharts ?? []).isEmpty
+            if let confirming, !ids.contains(confirming) { self.confirming = nil }
+            notes = notes.filter { ids.contains($0.key) }
+            phase = .ready
+            return true
+        } catch is CancellationError {
+            return true
+        } catch BellAPIError.httpStatus(404, _, _) {
+            phase = .old
+            return true
+        } catch let error where BellAPIError.isAuthenticationError(error) {
+            phase = .failed(LatticeText.login)
+            return true
+        } catch {
+            return (error as? URLError)?.code == .cancelled
+        }
+    }
+
+    /// 外す（確認の後）。送信中は行を残し、答えが何でもすぐ読み直す。届いたか分からない時の送り直しは already-gone になるだけ。
+    func remove(_ stop: LatticeBlocker, api: BellAPI, reduceMotion: Bool) async {
+        confirming = nil
+        notes[stop.stopId] = nil
+        removing.insert(stop.stopId)
+        let outcome: LatticeUnblockOutcome
+        do {
+            let result: LatticeUnblockResult = try await api.post("/api/lattice/charts/\(stop.projectId)/unblock", body: ["stopId": stop.stopId])
+            outcome = .of(result)
+        } catch {
+            outcome = .of(error)
+        }
+        removing.remove(stop.stopId)
+        if outcome == .drop {
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { blockers.removeAll { $0.stopId == stop.stopId } }
+        } else {
+            notes[stop.stopId] = outcome.note
+        }
+        reread()
+    }
+}

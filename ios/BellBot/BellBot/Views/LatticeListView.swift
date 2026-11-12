@@ -224,6 +224,10 @@ struct LatticeChatOpener {
 enum LatticeRoute: Hashable {
     case chart(String)
     case list
+    /// 止め一覧, pushed over the 一覧 it was opened from.
+    case stops
+    /// A chart opened from 止め一覧 with that card's 詳細 open (back returns to 止め一覧).
+    case card(String, String)
 }
 
 /// 工程表の入口：一覧 → 工程表。工程表が1枚だけなら、一覧を飛ばしてその工程表を開く。
@@ -238,19 +242,20 @@ struct LatticeHomeView: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            LatticeListView(list: list) { path = [.chart($0)] }
+            LatticeListView(list: list, open: { path = [.chart($0)] }, openStops: { path.append(.stops) })
                 .navigationDestination(for: LatticeRoute.self) { route in
                     switch route {
                     case .chart(let id):
-                        LatticeChartScreen(projectId: id, list: list, returnTab: returnTab, switchTo: { next in
-                            if let next { path = [.chart(next)] } else if path.last != .list { path.append(.list) }
-                        }, leave: { path = [] })
-                        .id(id)
+                        chart(id, card: nil)
+                    case .card(let id, let card):
+                        chart(id, card: card)
                     case .list:
                         // Opening the chart we came from is the back button; another chart replaces the stack.
-                        LatticeListView(list: list) { id in
+                        LatticeListView(list: list, open: { id in
                             if path.dropLast().last == .chart(id) { path.removeLast() } else { path = [.chart(id)] }
-                        }
+                        }, openStops: { path.append(.stops) })
+                    case .stops:
+                        LatticeStopsView { id, card in path.append(card.map { .card(id, $0) } ?? .chart(id)) }
                     }
                 }
         }
@@ -268,6 +273,13 @@ struct LatticeHomeView: View {
         .preferredColorScheme(LatticeDebug.colorScheme)
         #endif
         .accessibilityIdentifier("lattice-home")
+    }
+
+    private func chart(_ id: String, card: String?) -> some View {
+        LatticeChartScreen(projectId: id, list: list, returnTab: returnTab, initialCard: card, switchTo: { next in
+            if let next { path = [.chart(next)] } else if path.last != .list { path.append(.list) }
+        }, leave: { path = [] })
+        .id(card.map { "\(id)/\($0)" } ?? id)
     }
 }
 
@@ -291,6 +303,7 @@ struct LatticeListView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var list: LatticeChartsModel
     let open: (String) -> Void
+    let openStops: () -> Void
     @State private var filter = Filter.all
     @State private var search = ""
 
@@ -330,6 +343,11 @@ struct LatticeListView: View {
                 }
                 .pickerStyle(.segmented)
                 .frame(width: 200)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(action: openStops) { Label(LatticeText.stops, systemImage: LatticeTaskState.blocked.symbol) }
+                    .labelStyle(.titleAndIcon)
+                    .accessibilityIdentifier("lattice-open-stops")
             }
         }
     }
@@ -456,6 +474,185 @@ struct LatticeChartCard: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(title)\(chart.isCoordinator ? "、統括の工程表" : "")、完了 \(chart.done)/\(chart.total)、待ち \(chart.waiting)\(faces.isEmpty ? "" : "、動いているのは\(faces.map(\.name).joined(separator: "、"))")")
         .accessibilityAddTraits(.isButton)
+    }
+}
+
+// MARK: Stops
+
+/// 止め一覧：すべての工程表の止めと、1件ずつの外す（screen-spec.md「止め一覧」）。
+struct LatticeStopsView: View {
+    @EnvironmentObject private var store: AppStore
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var model = LatticeStopsModel()
+    /// Opens a chart (and that card's 詳細).
+    let open: (String, String?) -> Void
+
+    private struct ReadKey: Equatable { let active: Bool; let request: Int }
+
+    var body: some View {
+        ZStack {
+            LatticePalette.canvas.ignoresSafeArea()
+            switch model.phase {
+            case .old:
+                LatticeEmptyState(symbol: "camera.macro", title: LatticeText.stopsOld, detail: LatticeText.oldServerNext)
+            case .failed(let text):
+                LatticeEmptyState(symbol: "person.crop.circle.badge.exclamationmark", title: text, detail: "")
+            case .loading where model.blockers.isEmpty:
+                VStack(spacing: 12) {
+                    ProgressView().controlSize(.large)
+                    Text(LatticeText.stopsLoading).font(.system(size: 14)).foregroundStyle(LatticePalette.muted)
+                }
+            default:
+                rows
+            }
+        }
+        .overlay(alignment: .top) {
+            if model.phase == .retry {
+                HStack(spacing: 8) {
+                    LatticeNoticePill(text: LatticeText.stopsRetry)
+                    Button("読み直す") { model.reread() }.buttonStyle(.bordered).buttonBorderShape(.capsule)
+                }
+                .padding(.top, 8)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        // Esc closes the open confirm, else goes back to 一覧.
+        .background {
+            Button("") { if model.confirming != nil { model.confirming = nil } else { dismiss() } }
+                .keyboardShortcut(.cancelAction).opacity(0).accessibilityHidden(true)
+        }
+        .animation(.spring(response: 0.45, dampingFraction: 0.82), value: model.phase)
+        .navigationTitle(LatticeText.stops)
+        .navigationBarTitleDisplayMode(.inline)
+        #if targetEnvironment(macCatalyst)
+        .toolbar {
+            // No pull-to-refresh on the Mac.
+            ToolbarItem(placement: .primaryAction) {
+                Button { model.reread() } label: { Label("読み直す", systemImage: "arrow.clockwise") }.labelStyle(.titleAndIcon)
+            }
+        }
+        #endif
+        .onChange(of: store.owner?.name, initial: true) { _, name in LatticePerson.ownerName = name }
+        .task(id: ReadKey(active: scenePhase == .active, request: model.readRequest)) {
+            guard scenePhase == .active else { return }
+            await model.run(api: store.api)
+        }
+    }
+
+    private var rows: some View {
+        let list = LatticeStopRow.rows(model.blockers, now: Date(), face: face,
+                                       chartName: { store.latticeChartName(name: $0, createdBy: $1) })
+        let stops = Dictionary(model.blockers.map { ($0.stopId, $0) }, uniquingKeysWith: { first, _ in first })
+        return ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                if model.phase == .ready && model.unread {
+                    Label(LatticeText.stopsUnread, systemImage: "exclamationmark.triangle")
+                        .font(.system(size: 12.5, weight: .medium)).foregroundStyle(LatticePalette.amber)
+                }
+                if model.phase == .ready && list.isEmpty {
+                    Text(LatticeText.stopsEmpty)
+                        .font(.system(size: 14)).foregroundStyle(LatticePalette.muted)
+                        .frame(maxWidth: .infinity).padding(.vertical, 40)
+                }
+                ForEach(list) { row in
+                    LatticeStopRowView(row: row, model: model, open: { open(row.projectId, row.cardId) }, remove: {
+                        guard let stop = stops[row.stopId] else { return }
+                        Task { await model.remove(stop, api: store.api, reduceMotion: reduceMotion) }
+                    })
+                    .transition(.opacity)
+                }
+            }
+            .padding(20)
+            .frame(maxWidth: 900)
+            .frame(maxWidth: .infinity)
+        }
+        .opacity(model.phase == .retry ? 0.55 : 1)
+        .refreshable { model.reread() }
+        // Tapping outside a row's buttons closes its confirm.
+        .onTapGesture { model.confirming = nil }
+        .accessibilityIdentifier("lattice-stops")
+    }
+
+    private func face(_ value: String?) -> LatticePerson? {
+        LatticePerson.stopFace(value) { id in store.bots.first { $0.id == id }.map { ($0.displayName, $0.color) } }
+    }
+}
+
+/// 止め一覧の1行：押すとその工程表と詳細、外すは行の中で2段。
+struct LatticeStopRowView: View {
+    let row: LatticeStopRow
+    @ObservedObject var model: LatticeStopsModel
+    let open: () -> Void
+    let remove: () -> Void
+
+    var body: some View {
+        let busy = model.removing.contains(row.stopId)
+        let asking = model.confirming == row.stopId && !busy
+        VStack(alignment: .leading, spacing: 12) {
+            Button(action: open) {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: LatticeTaskState.blocked.symbol)
+                        .font(.system(size: 20, weight: .semibold)).foregroundStyle(LatticePalette.red)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(row.title).font(.system(size: 16, weight: .bold)).foregroundStyle(LatticePalette.ink).lineLimit(2)
+                        Text(row.chart).font(.system(size: 12)).foregroundStyle(LatticePalette.muted).lineLimit(1)
+                        person("担当", row.lane)
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            caption("理由")
+                            Text(row.reason).font(.system(size: 13)).foregroundStyle(LatticePalette.ink).lineLimit(3)
+                        }
+                        HStack(spacing: 8) {
+                            person("止めた人", row.by)
+                            if !row.time.isEmpty { Text(row.time).font(.system(size: 12)).foregroundStyle(LatticePalette.muted) }
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(row.label)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityIdentifier("lattice-stop-\(row.stopId)")
+            HStack(spacing: 10) {
+                Spacer(minLength: 0)
+                if busy {
+                    Button {} label: { HStack(spacing: 6) { ProgressView().controlSize(.small); Text("外す") } }
+                        .buttonStyle(.bordered).disabled(true)
+                } else if asking {
+                    Text(LatticeText.stopsAsk).font(.system(size: 13, weight: .medium)).foregroundStyle(LatticePalette.ink)
+                    Button("外す", action: remove).buttonStyle(.bellPrimary)
+                        .accessibilityIdentifier("lattice-stop-confirm-\(row.stopId)")
+                    Button("やめる") { model.confirming = nil }.buttonStyle(.bordered)
+                } else {
+                    Button("外す") { model.confirming = row.stopId }.buttonStyle(.bordered)
+                        .accessibilityLabel("外す、\(row.title)")
+                        .accessibilityIdentifier("lattice-stop-remove-\(row.stopId)")
+                }
+            }
+            if let note = model.notes[row.stopId] {
+                Text(note).font(.system(size: 12.5)).foregroundStyle(LatticePalette.red).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(16)
+        .background(LatticePalette.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(LatticePalette.red.opacity(0.25), lineWidth: 1))
+        .shadow(color: .black.opacity(0.05), radius: 8, y: 4)
+    }
+
+    private func caption(_ text: String) -> some View {
+        Text(text).font(.system(size: 11, weight: .semibold)).foregroundStyle(LatticePalette.muted)
+    }
+
+    private func person(_ title: String, _ person: LatticePerson?) -> some View {
+        HStack(spacing: 6) {
+            caption(title)
+            if let person { LatticeAvatar(person: person, size: 18) }
+            Text(latticeName(person)).font(.system(size: 13)).foregroundStyle(LatticePalette.ink).lineLimit(1)
+        }
     }
 }
 

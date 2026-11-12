@@ -198,14 +198,25 @@ struct LatticePerson: Equatable, Hashable {
 
     var initial: String { known || lane || isOwner ? String(name.prefix(1)).uppercased() : "?" }
 
+    static var owner: LatticePerson {
+        LatticePerson(botId: ownerKey, name: ownerName.flatMap { $0.isEmpty ? nil : $0 } ?? "指揮官", color: "violet", known: false, isOwner: true)
+    }
+
+    /// 止め一覧の担当・止めた人（Stops contract）：名簿のBot → 顔と名前、"owner" → 指揮官、`bot-…`で名簿に無い → 名簿にないメンバー、
+    /// ほかの文字 → 書かれたまま（頭文字の顔）、無し → nil（担当なし）。
+    static func stopFace(_ value: String?, roster: (String) -> (name: String, color: String)?) -> LatticePerson? {
+        guard let value, !value.isEmpty else { return nil }
+        if value == ownerKey { return owner }
+        if let member = roster(value) { return LatticePerson(botId: value, name: member.name, color: member.color, known: true) }
+        if value.wholeMatch(of: /bot-[0-9a-z]+/) != nil { return LatticePerson(botId: value, name: unknownName, color: "unknown", known: false) }
+        return LatticePerson(botId: lanePrefix + value, name: value, color: "unknown", known: false, lane: true)
+    }
+
     static func lookup(_ snapshot: LatticeChartSnapshot?) -> (String?) -> LatticePerson? {
         let roster = Dictionary((snapshot?.members ?? []).map { ($0.botId, $0) }, uniquingKeysWith: { first, _ in first })
         return { botId in
             guard let botId, !botId.isEmpty else { return nil }
-            if botId == ownerKey {
-                let name = ownerName.flatMap { $0.isEmpty ? nil : $0 } ?? "指揮官"
-                return LatticePerson(botId: botId, name: name, color: "violet", known: false, isOwner: true)
-            }
+            if botId == ownerKey { return owner }
             if botId.hasPrefix(lanePrefix) {
                 return LatticePerson(botId: botId, name: String(botId.dropFirst(lanePrefix.count)), color: "unknown", known: false, lane: true)
             }
@@ -296,6 +307,12 @@ enum LatticeTime {
         return "\(n / 1440)日"
     }
 
+    /// 止めた時刻（JST）：今日 HH:mm / 昨日 HH:mm / M月d日 HH:mm。読めない値は空。
+    static func stopTime(_ value: String?, now: Date) -> String {
+        guard let date = date(value) else { return "" }
+        return "\(dayHeading(date, now: now)) \(hhmm.string(from: date))"
+    }
+
     /// 一覧の更新時刻：N分前 / 今日 H:mm / M月d日 H:mm。
     static func updated(_ value: String?, now: Date) -> String {
         guard let date = date(value) else { return "" }
@@ -323,6 +340,15 @@ enum LatticeText {
     static let noCards = "この工程表にはまだ工程がありません。"
     static let unverified = "工程表の記録に食い違いがあります。読める分だけ表示しています。直り次第、自動で最新に戻ります。"
     static let login = "ログインが必要です。"
+    static let stops = "止め一覧"
+    static let stopsLoading = "止めを読んでいます…"
+    static let stopsEmpty = "止まっている工程はありません。"
+    static let stopsRetry = "止め一覧を読み直しています…"
+    static let stopsOld = "このサーバーではまだ止め一覧を使えません。"
+    static let stopsUnread = "一部の工程表を読めませんでした。読めた分だけ表示しています。"
+    static let stopsAsk = "この止めを外しますか？"
+    static let stopsLater = "いまは外せませんでした。少し待ってからもう一度お試しください。"
+    static func stopsRefused(_ reason: String) -> String { reason.isEmpty ? "外せませんでした" : "外せませんでした: \(reason)" }
 
     static func degraded(_ key: String) -> String? {
         switch key {
@@ -926,5 +952,86 @@ enum LatticeDiff {
             guard let old = before[card.id] else { return false }
             return card.status == .done && old != .done && old != .retired
         }.map(\.id)
+    }
+}
+
+// MARK: Stops (止め一覧; contract docs/architecture/modules/lattice/README.md "Stops")
+
+struct LatticeBlockersList: Decodable {
+    static let schema = "bellteam.lattice-blockers.v1"
+    let schema: String
+    let blockers: [LatticeBlocker]
+    let unreadCharts: [String]?
+}
+
+struct LatticeBlocker: Decodable, Equatable, Identifiable {
+    let stopId: String
+    let projectId: String
+    var chartName: String?
+    var chartCreatedBy: String?
+    var cardId: String?
+    var title: String?
+    var lane: String?
+    var reason: String?
+    var blockedAt: String?
+    var blockedBy: String?
+    var id: String { stopId }
+}
+
+/// 止め一覧の1行。新しい止めが上。
+struct LatticeStopRow: Equatable, Identifiable {
+    let stopId: String
+    let projectId: String
+    let cardId: String?
+    let title: String
+    let chart: String
+    let lane: LatticePerson?
+    let reason: String
+    let by: LatticePerson?
+    let time: String
+    var id: String { stopId }
+
+    /// 読み上げ：止まり、題、工程表、担当、理由（全文）、止めた人と時刻。
+    var label: String {
+        let reasonPart = reason.isEmpty ? "" : "、理由 \(reason)"
+        let timePart = time.isEmpty ? "" : "\(time)に"
+        return "止まり、\(title)、\(chart)、\(lane.map { "担当 \($0.name)" } ?? LatticePerson.unassigned)\(reasonPart)、\(latticeName(by))が\(timePart)止めました"
+    }
+
+    static func rows(_ blockers: [LatticeBlocker], now: Date, face: (String?) -> LatticePerson?,
+                     chartName: (_ name: String?, _ createdBy: String?) -> String) -> [LatticeStopRow] {
+        blockers
+            .sorted { (LatticeTime.date($0.blockedAt) ?? .distantPast) > (LatticeTime.date($1.blockedAt) ?? .distantPast) }
+            .map { item in
+                LatticeStopRow(stopId: item.stopId, projectId: item.projectId, cardId: item.cardId, title: item.title ?? "",
+                               chart: chartName(item.chartName, item.chartCreatedBy), lane: face(item.lane), reason: item.reason ?? "",
+                               by: face(item.blockedBy), time: LatticeTime.stopTime(item.blockedAt, now: now))
+            }
+    }
+}
+
+struct LatticeUnblockResult: Decodable { let outcome: String }
+
+/// 外すの答え：drop（外れた / もう無い）、refused（Latticeが断った。その文）、later（それ以外すべて）。
+enum LatticeUnblockOutcome: Equatable {
+    case drop, refused(String), later
+
+    static func of(_ result: LatticeUnblockResult) -> Self {
+        ["removed", "already-gone"].contains(result.outcome) ? .drop : .later
+    }
+
+    static func of(_ error: Error) -> Self {
+        // 409 carries Lattice's plain reason (BellAPI reads message, then reason, then the code).
+        guard case BellAPIError.httpStatus(409, let reason, _) = error else { return .later }
+        return .refused(reason.flatMap { $0.wholeMatch(of: /[A-Z0-9_]+/) == nil ? $0 : nil } ?? "")
+    }
+
+    /// 行の下に出す文。外れた時は無い。
+    var note: String? {
+        switch self {
+        case .drop: nil
+        case .refused(let reason): LatticeText.stopsRefused(reason)
+        case .later: LatticeText.stopsLater
+        }
     }
 }
