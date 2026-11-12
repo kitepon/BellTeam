@@ -80,7 +80,8 @@ export function createLatticeFacade({ controller, retryMs = 2000, nudgeMs = NUDG
 const PERMANENT = /^(SENDER_NOT_FOUND|BOT_NOT_FOUND|MESSAGE_REQUIRED)\b/u
 
 // The effects the child may call, inside a root call. Rows carry exactly the agreed keys and types.
-export function createLatticeEffects({ bots, messenger, transport }) {
+// runAs(actor, send): the conversation actor scope for a send; deliver and the nudge timer run outside any request scope.
+export function createLatticeEffects({ bots, messenger, transport, runAs = (actor, send) => send() }) {
   const text = value => value == null ? '' : String(value)
   return async (method, params) => {
     // Startable notices go through the public send path, the same as the sendmessage tool (Trony 2026-11-12).
@@ -88,7 +89,8 @@ export function createLatticeEffects({ bots, messenger, transport }) {
       // 'user' would make the messenger an Owner turn (from) or an Owner-screen post (target); a notice is neither.
       if (params.from === 'user' || params.target === 'user') return { delivery: 'refused', deliveryId: null, code: 'LATTICE_SEND_USER_NOT_ALLOWED' }
       try {
-        const value = await messenger.sendmessage({ from: params.from, target: params.target, message: params.message })
+        const actor = params.from === 'scheduler' ? { kind: 'scheduler' } : { kind: 'bot', botId: params.from }
+        const value = await runAs(actor, () => messenger.sendmessage({ from: params.from, target: params.target, message: params.message }))
         return { delivery: text(value?.delivery) || 'delivered', deliveryId: value?.delivery_id ?? null }
       } catch (error) {
         const code = PERMANENT.exec(error?.message ?? '')?.[1]
