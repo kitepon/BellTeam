@@ -27,8 +27,6 @@ export function createCodeCharts({ cli, charts = CODE_CHARTS, now = () => Date.n
     for (const key of ['remote.origin.promisor', 'remote.origin.partialclonefilter', 'extensions.partialclone']) {
       await cli.git(id, ['config', '--unset-all', key]).catch(() => null)
     }
-    // Lattice 0.91.0 keeps `--message` evidence of done/phase decisions as git objects no ref reaches; the fetch's auto gc must never prune them.
-    await cli.git(id, ['config', 'gc.pruneExpire', 'never'])
     // origin/<branch> = the last tip main was moved to (the accepted baseline); only a successful move advances it.
     const baseline = `refs/remotes/origin/${branch}`
     const accepted = await cli.git(id, ['rev-parse', '--verify', '--quiet', baseline]).catch(() => null)
