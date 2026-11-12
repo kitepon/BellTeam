@@ -12,6 +12,7 @@ Units: `pt` = SwiftUI points = CSS px = WinUI effective pixels. Times in ms. Use
 | **工程表** (chart) | Toolbar: chart switcher (chart name, 統括 badge), live pill, progress ring, counters 作業中 / 待ち / 止まり. Left: member rail (avatars; working = rotating accent arc; blocked = red dot; waiting = hourglass with count). Center: swimlanes per owner ([owner rule](README.md#projection-rules-projectionmjs): `producer`, else the authored `lane` text, else none; lane label = member avatar + name, or the lane text with its initial; unassigned lane 担当なし, last), cards in columns by `depth`, edges as smooth curves. Right (Mac/iPad/Web wide): 待ちの流れ panel. |
 | **ツリー** (Owner 2026-11-12; default view of 工程表) | Archived cards (`archived`: finished and every next card already started, or no next card) are not drawn in ツリー or 担当; a phase whose cards are all archived is not drawn; a card whose parent is archived hangs from the parent's phase. The ring and counters still count every card. Same toolbar, rail and 待ちの流れ as the lane view; a segmented control ツリー / 担当 in the toolbar switches the center (remembered while the app is open). Center: a left-to-right tree: the chart (name, ring done/total) -> its phases (`phases`: state glyph of the phase = 止まり if any card is blocked, 作業中 if any is working, 完了 if all are finished, else 未着手; title; done/total) -> cards under their phase, nested under `parent`; cards with no phase hang from the chart after the phases. Each card is a compact box (state glyph in its tone, one-line title with ellipsis, owner face) so the whole tree fits; tap opens 詳細. Tree links are soft elbows from parent to child. Dependencies (`edges`) are arcs on the right of the boxes: waiting = accent with an arrow toward the waiter, satisfied = faint. Member highlight dims boxes and arcs like the lane view. |
 | **過去ログ** (Owner 2026-11-12) | Third view of the ツリー / 担当 / 過去ログ switch. Every finished card (`done` / `retired`, archived or not), newest `doneAt` first, under JST day headings (今日 / 昨日 / M月D日): state glyph, title, owner face + name (owner rule), finish time HH:MM. Tap opens 詳細. Empty: まだ終わった工程はありません。 The switch shows the count (過去ログ N). |
+| **止め一覧** (stops) | Every stop on every chart with 外す (Owner only). Reached from 一覧. Detail in the section 止め一覧 below |
 | **待ちの流れ** | One row per `waits[]`, oldest first. Each row reads on its own (Owner 2026-11-12: 「この1116って誰がやってんだ？何の表示なの」): the **waiting card's title** with its owner face and 待ち <length>; under it 「担当 ◯◯」 (or 担当なし); then 「この工程が終わるのを待っています」 over the **awaited card title**; then 「つくっている」 producer avatar + name + state (作業中 N分 / 止まり: blockedReason / 未着手: 担当 ◯◯ / 担当なし; ◯◯ and 「◯◯が待っている」 follow the owner rule, so an authored lane is named even before anyone starts), wait length. Buttons: 会話を開く, 工程へ移動. A row whose producer is blocked is emphasized. iPhone: these rows come first, as a horizontal card pager above the chart. |
 | **詳細** (card detail) | Sheet over the chart: title, state badge + producer, 設計メモ (`designMemo`, Markdown as plain text), 終了条件, 前の工程 / 次の工程 with their states (tappable), 着手 time. No notes in v1. |
 
@@ -41,6 +42,9 @@ stateDiagram-v2
   List --> Chart: tap a chart card
   List --> Chart: back (when 一覧 was opened from a chart)
   List --> [*]: close / app navigation
+  List --> Stops: 止め一覧 (see 止め一覧 below)
+  Stops --> List: back
+  Stops --> Chart: tap a stop row (opens its 詳細)
   state Chart {
     [*] --> Tree
     Tree --> Lanes: ツリー / 担当
@@ -107,6 +111,59 @@ Failure and edge views (all leave on their own; the action is optional):
 | 503 or stream drop (35 s silence) | last drawing dimmed + top pill: 工程表に再接続しています… with spinner | reconnect with backoff 1, 2, 4 … 30 s, forever while open; a new snapshot redraws | close |
 | 404 `LATTICE_CHART_NOT_FOUND` | この工程表は見つかりません。 | — | 一覧へ戻る |
 | 404 on `/api/lattice/charts` (older server) | このサーバーではまだ工程表を使えません。 | appears after the server update | 閉じる |
+
+## 止め一覧 (stops; Owner 2026-11-12: 「ブロッカー（止め）一覧は作ってくれ。それを見て俺が解除する。」)
+
+Data only from the [Stops contract](README.md#stops-blockers--get-apilatticeblockers-and-post-apilatticechartsprojectidunblock). Order of the apps: Web (Flora) first, then Apple (Rapi) and Windows (Anis) from this section. The screen shows the stops and one 外す button per stop; nothing else is written.
+
+| Part | Content |
+| --- | --- |
+| Entry | 一覧 has a button 止め一覧 at the top (next to the list title). Only the Owner apps show it (the route is Owner-only) |
+| Header | 止め一覧, back (「← すべての工程表」, Esc / edge swipe) to 一覧, a 読み直す button (Web) / pull-to-refresh (Apple, Windows) |
+| Row (one per `blockers[]`, newest `blockedAt` first) | octagon glyph in the 止まり red; card `title` (2 lines, then ellipsis); chart name (name rule above, never `projectId`); 担当 = `lane` face + name (owner rule: Bot id -> member, `"owner"` -> the Owner, other text as written, null -> 担当なし); 理由 = `reason` as written (up to 3 lines, the whole text in the spoken label); 止めた人 = `blockedBy` face + name (same rule) and 止めた時刻 `blockedAt` in JST (今日 HH:MM / 昨日 HH:MM / M月D日 HH:MM); button 外す |
+| Row tap (not the button) | opens that chart (工程表) and the card's 詳細 (`cardId` = card `id`) |
+| 外す | two steps in the row, no modal: 外す -> the row shows 「この止めを外しますか？」 with 外す (accent) and やめる; やめる / Esc / tapping elsewhere returns. Confirmed: the button shows a spinner, the row stays |
+| `unreadCharts` non-empty | thin amber line above the rows: 一部の工程表を読めませんでした。読めた分だけ表示しています。 (no ids) |
+
+```mermaid
+stateDiagram-v2
+  [*] --> StopsLoading: 一覧 止め一覧
+  StopsLoading --> Stops: 200, 1+ stops
+  StopsLoading --> StopsEmpty: 200, no stops
+  StopsLoading --> StopsRetry: 503 / network / bad JSON
+  StopsLoading --> StopsOld: 404 (older server)
+  StopsRetry --> StopsLoading: backoff 1,2,4..30 s while open / 読み直す
+  StopsEmpty --> StopsLoading: 読み直す / back to the foreground
+  Stops --> StopsLoading: 読み直す / back to the foreground
+  Stops --> Confirm: 外す
+  Confirm --> Stops: やめる / Esc / tap elsewhere
+  Confirm --> Removing: 外す (POST unblock)
+  Removing --> StopsLoading: 200 removed / already-gone (row drops at once, then re-read)
+  Removing --> RowRefused: 409 refused (row stays)
+  Removing --> RowLater: 503 / network / 400 (row stays)
+  RowRefused --> StopsLoading: re-read at once (message stays on the row until the next 外す)
+  RowLater --> StopsLoading: re-read at once (message stays on the row until the next 外す)
+  Stops --> Chart: tap a row (opens 工程表 + 詳細)
+  Stops --> List: back
+  StopsEmpty --> List: back
+  StopsRetry --> List: back
+  StopsOld --> List: back
+```
+
+| State / answer | Shown (Japanese, plain) | What happens next | Action |
+| --- | --- | --- | --- |
+| StopsLoading (first read) | spinner 止めを読んでいます… (later reads keep the rows, no spinner) | the answer | back |
+| StopsEmpty | 止まっている工程はありません。 | 読み直す / foreground re-read | back |
+| StopsRetry | the last rows dimmed (or empty) + pill 止め一覧を読み直しています… | backoff 1, 2, 4 … 30 s forever while open | back, 読み直す (now) |
+| StopsOld (404) | このサーバーではまだ止め一覧を使えません。 | appears after the server update | back |
+| removed / already-gone | the row fades out (200 ms; Reduce Motion: none) | re-read | — |
+| 409 refused | under the row: 外せませんでした: `reason` (Lattice's text as is) | re-read; the stop stays | 外す again |
+| 503 / network | under the row: いまは外せませんでした。少し待ってからもう一度お試しください。 | re-read | 外す again |
+| 400 | same text as 503 (an app bug; nothing is shown about it) | re-read | 外す again |
+
+Re-reads: on open, 読み直す / pull-to-refresh, after every 外す answer (any outcome), and on coming back to the foreground; never on a timer while the list is readable (the contract has no stream). An open 工程表 sees a removal through its own chart stream. A re-send after an unknown answer is harmless (`already-gone`).
+
+Accessibility: each row is one element 「止まり、<title>、<chart name>、担当 <lane>、理由 <reason>、<止めた人>が<時刻>に止めました」 with the action 外す; the confirm step moves focus to its 外す, やめる returns focus to the row's 外す.
 
 ## Data handling
 
