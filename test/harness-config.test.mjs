@@ -454,3 +454,16 @@ test('Mac以外では、席で使えないCodexプラグインのMCPを起動さ
   await writeHarnessConfig(new Map(), home, { platform: 'darwin' })
   assert.doesNotMatch(await readFile(join(home, '.codex/config.toml'), 'utf8'), /xcodebuildmcp|openai-api-key-local-confirmation/u)
 })
+
+test('a15: 新しい環境の最初のClaude席が初回案内とBypass確認で止まらないよう、2つの答えを書き他の項目を保つ', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'bellteam-claude-first-run-'))
+  await writeHarnessConfig(new Map(), home, { aiterm: async () => null, relay: async () => null })
+  assert.equal(JSON.parse(await readFile(join(home, '.claude.json'), 'utf8')).hasCompletedOnboarding, true)
+  assert.deepEqual(JSON.parse(await readFile(join(home, '.claude/settings.json'), 'utf8')), { skipDangerousModePermissionPrompt: true })
+  await writeFile(join(home, '.claude/settings.json'), JSON.stringify({ hooks: { Stop: [] }, theme: 'dark', skipDangerousModePermissionPrompt: false }))
+  await writeFile(join(home, '.claude.json'), JSON.stringify({ hasCompletedOnboarding: false, oauthAccount: { emailAddress: 'a' } }))
+  await writeHarnessConfig(new Map(), home, { aiterm: async () => null, relay: async () => null })
+  assert.deepEqual(JSON.parse(await readFile(join(home, '.claude/settings.json'), 'utf8')), { hooks: { Stop: [] }, theme: 'dark', skipDangerousModePermissionPrompt: true })
+  const claude = JSON.parse(await readFile(join(home, '.claude.json'), 'utf8'))
+  assert.equal(claude.hasCompletedOnboarding, true); assert.deepEqual(claude.oauthAccount, { emailAddress: 'a' })
+})
