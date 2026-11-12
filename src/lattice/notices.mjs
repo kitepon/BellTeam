@@ -6,12 +6,14 @@ const FAILED = new Set(['failed', 'stopped'])
 const triggerText = trigger => `${trigger.kind ?? 'change'} of ${trigger.plan_key}/${trigger.task_id ?? trigger.phase_id}`
   + (trigger.actor?.agent ? ` by ${trigger.actor.agent}` : '')
 
+// Owner ruling 2026-11-12: a startable notice is information, never an order; the lane decides whether to start.
 export function noticeMessage(projectId, notice) {
+  const done = notice.triggers?.length ? ` (prerequisite ${notice.triggers.map(triggerText).join(', ')})` : ''
   return [
-    `Lattice: task ${notice.plan_key}/${notice.task_id} 「${notice.title}」 on chart ${projectId} can start now (lane ${notice.lane}).`,
-    notice.triggers?.length ? `Released by ${notice.triggers.map(triggerText).join(', ')}.` : null,
+    `Lattice notice (information, not a request): task ${notice.plan_key}/${notice.task_id} 「${notice.title}」 on chart ${projectId} (lane ${notice.lane}) can start now${done}.`,
+    'Whether and when to start is your call; keep your current work if it comes first.',
     notice.done_condition ? `Done condition: ${notice.done_condition}` : null,
-    `Next: ${notice.next_action} (lattice tool, project ${projectId}).`,
+    `For reference, if you start it: ${notice.next_action} (lattice tool, project ${projectId}).`,
   ].filter(Boolean).join('\n').slice(0, 4000)
 }
 

@@ -33,7 +33,8 @@ test('notices: a run result is sent to roster lanes from the releasing Bot and a
   const notices = [notice('n1', 'bot-b'), notice('n2', 'bot-b'), notice('n3', 'owner'), notice('n4', 'bot-a'), notice('n5', 'bot-gone')]
   await x.delivery.afterRun('alpha', { notices }, { from: 'bot-a', roster: roster(['bot-a', 'bot-b']), effect: x.effect })
   assert.deepEqual(x.sent.map(item => [item.from, item.target]), [['bot-a', 'bot-b'], ['bot-a', 'bot-b']])
-  assert.match(x.sent[0].message, /p1\/t-n1 「Task n1」 on chart alpha can start now[\s\S]*Released by done of p1\/t0 by bot-a[\s\S]*Next: lattice todo start/)
+  assert.match(x.sent[0].message, /information, not a request[\s\S]*p1\/t-n1 「Task n1」 on chart alpha \(lane bot-b\) can start now \(prerequisite done of p1\/t0 by bot-a\)\.\nWhether and when to start is your call[\s\S]*For reference, if you start it: lattice todo start/)
+  assert.doesNotMatch(x.sent[0].message, /^Next:/m, 'next_action is never phrased as an instruction')
   // the releasing Bot's own notice is acked without a message (it sees it in its tool result); owner / unknown lanes stay unacked
   assert.deepEqual(x.calls, ['alpha todo notice ack --lane bot-b --notice n1,n2', 'alpha todo notice ack --lane bot-a --notice n4'])
 })
