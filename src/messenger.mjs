@@ -5,6 +5,7 @@ import { memberIdentity } from './member-identity.mjs'
 import { ConversationStore } from './conversation-store.mjs'
 import { deliveryExecutionRef } from './execution-bridge.mjs'
 import { ConversationWriter } from './conversation-writer.mjs'
+import { normalizeConversationCallbackError } from './conversation/callbacks.mjs'
 import { readImageBytes } from './message-assets.mjs'
 
 export function directEnvelope(from, message, { fork = false } = {}) {
@@ -186,7 +187,8 @@ export class BellTeamMessenger extends ConversationWriter {
   // ifRow: a prepareDirect failure settles the inquiry row only if it is durable (an onMessage error after the write).
   async settleForkRefusal({ deliveryId, status, error, ifRow }) {
     if (!ifRow || (await this.store.entries()).some(row => row.schema === 'bellteam.direct-message.v1' && row.delivery_id === deliveryId))
-      await this.appendDeliveryStatus(deliveryId, status, error)
+      // Normalized like a callback error: the child's status fields accept only that shape (a raw effect error never settles).
+      await this.appendDeliveryStatus(deliveryId, status, normalizeConversationCallbackError(error))
     this.forkNotices.live.delete(deliveryId)
   }
 
