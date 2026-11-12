@@ -317,3 +317,20 @@ test('the first sweep settles inquiry rows a lost process left running; a live r
   await restarted.sweepForkNotices()
   assert.equal((await first.rows()).filter(row => row.schema === 'bellteam.delivery-status.v1').length, settled.length, 'settled once')
 })
+
+test('a first sweep in the gap right after the inquiry row is appended leaves the launching inquiry alone', async t => {
+  let launched = false
+  const { messenger, notified, rows } = await setup(t, async () => { launched = true; return { delivery: 'running' } })
+  const append = messenger.append
+  let swept = null
+  // The sweep runs right after the inquiry row is durable, before askReadonly resumes.
+  messenger.append = async function (row) {
+    await append.call(this, row)
+    if (!swept && row.seat?.kind === 'fork') swept = await this.sweepForkNotices()
+  }
+  const receipt = await messenger.askReadonly({ from: asker.id, target: owner.id, message: 'What is X?' })
+  assert.equal(receipt.delivery, 'running'); assert.ok(launched)
+  assert.deepEqual(swept, { relayed: 0, owed: 0 }, 'nothing owed for an inquiry still launching')
+  assert.equal(notified.length, 0, 'no interruption notice')
+  assert.equal((await rows()).filter(row => row.schema === 'bellteam.delivery-status.v1').length, 0, 'the row is not settled')
+})

@@ -54,7 +54,7 @@ export class BellTeamMessenger extends ConversationWriter {
 
   // sendmessage・ask_readonly・分身の回答中継が共有する、宛先の確認から記録の保存まで。
   // label（分身の印）は入力本文からは受け取らない。
-  async prepareDirect({ from, target, message, image = null, images = image ? [image] : [] }, { membersLease, admissionCheck } = {}, label = null) {
+  async prepareDirect({ from, target, message, image = null, images = image ? [image] : [] }, { membersLease, admissionCheck, deliveryId: presetId } = {}, label = null) {
     const check = target === 'user' ? () => {} : this.admitWork()
     await this.bots.refresh?.(membersLease === undefined ? undefined : { membersLease })
     if (!['user', 'scheduler'].includes(from) && !this.bots.has(from)) throw new Error(`SENDER_NOT_FOUND: ${from}`)
@@ -68,7 +68,7 @@ export class BellTeamMessenger extends ConversationWriter {
     if (bot) await this.requireAccess({ from, target })
     if (bot) admissionCheck?.()
 
-    const deliveryId = this.deliveryId()
+    const deliveryId = presetId ?? this.deliveryId()
     const imageAsset = images.length && target === 'user' && this.assets
       ? await this.assets.save({ owner: from, id: deliveryId, image: images[0] })
       : null
@@ -109,11 +109,15 @@ export class BellTeamMessenger extends ConversationWriter {
     const forkId = this.deliveryId()
     const seat = { kind: 'fork', fork_id: forkId }
     const fromSeat = forkSeatLabel(askerSeat)
-    const prepared = await this.prepareDirect({ from, target, message }, {}, { seat, ...(fromSeat ? { from_seat: fromSeat } : {}) })
-    const { check, bot, deliveryId } = prepared
+    // Live before the inquiry row is durable: a first sweep in between never settles or owes an inquiry still launching.
+    const deliveryId = this.deliveryId()
+    this.forkNotices.live.add(deliveryId)
+    let prepared
+    try { prepared = await this.prepareDirect({ from, target, message }, { deliveryId }, { seat, ...(fromSeat ? { from_seat: fromSeat } : {}) }) }
+    catch (error) { this.forkNotices.live.delete(deliveryId); throw error }
+    const { check, bot } = prepared
     const asker = memberIdentity(this.bots, from)
     const askedAt = this.now()
-    this.forkNotices.live.add(deliveryId)
     try { check() }
     catch (error) { this.forkNotices.live.delete(deliveryId); await this.appendDeliveryStatus(deliveryId, 'stopped'); throw error }
     const acceptance = Promise.withResolvers()
