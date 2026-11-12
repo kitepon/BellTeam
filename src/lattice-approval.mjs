@@ -4,7 +4,10 @@
 export const LATTICE_APPROVAL_SCOPE = Object.freeze({ terminalId: 'lattice', purpose: 'approval-box.connector' })
 export const LATTICE_APPROVAL_SECRET = Object.freeze({ botId: 'bot-7e777fe5', toolId: 'lattice-approval-box' })
 const ORIGIN = 'https://approval-box.kitepon.dev/connector/v1'
+// UNAVAILABLE (no token, timeout, network, 5xx) ends the child's filing for this tick; REFUSED (4xx) skips one card (README L18, Molly review).
 const unavailable = () => Object.assign(new Error('LATTICE_DECISIONS_UNAVAILABLE'), { code: 'LATTICE_DECISIONS_UNAVAILABLE', status: 503 })
+const refused = () => Object.assign(new Error('LATTICE_DECISIONS_REFUSED'), { code: 'LATTICE_DECISIONS_REFUSED', status: 409 })
+const failedBy = status => status >= 400 && status < 500 ? refused() : unavailable()
 const idOf = value => value?.id ?? value?.decision_id
 
 export function createLatticeDecisions({ credentials, secretRequests, fetchImpl = fetch }) {
@@ -26,10 +29,12 @@ export function createLatticeDecisions({ credentials, secretRequests, fetchImpl 
     const id = await handle()
     return credentials.withResolved(id, { ...LATTICE_APPROVAL_SCOPE, memberId: null }, async token => {
       if (typeof token !== 'string' || !token || /[\r\n]/u.test(token)) throw unavailable()
-      const response = await fetchImpl(ORIGIN + path, { method, redirect: 'error', signal: AbortSignal.timeout(15000),
+      // 5 s: the child's root chain is shared with every seat's lattice call (Molly review).
+      const response = await fetchImpl(ORIGIN + path, { method, redirect: 'error', signal: AbortSignal.timeout(5000),
         headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) })
+        .catch(() => { throw unavailable() })
       const json = await response.json().catch(() => ({}))
-      return { ok: response.ok, json }
+      return { ok: response.ok, status: response.status, json }
     })
   }
   return {
@@ -40,8 +45,10 @@ export function createLatticeDecisions({ credentials, secretRequests, fetchImpl 
       const label = `${params.requester} / ${params.session_label}`
       const body = { title: params.title, context: params.context, options: params.options, requester: params.requester,
         session_label: params.session_label, urgency: 'normal', client: 'other' }
+      let status = 0
       for (let round = 0; round < 2; round++) {
-        const { ok, json } = await call('POST', '/decisions', body)
+        const answer = await call('POST', '/decisions', body), { ok, json } = answer
+        status = answer.status
         if (ok && idOf(json)) return { decisionId: idOf(json), existing: false }
         const error = json?.error && typeof json.error === 'object' ? json.error : json ?? {}
         const open = [...error.decisions ?? [], ...error.existing ? [].concat(error.existing) : []]
@@ -50,11 +57,12 @@ export function createLatticeDecisions({ credentials, secretRequests, fetchImpl 
         if (error.code !== 'confirm_required' || !error.check_token) break
         body.check_token = String(error.check_token)
       }
-      throw unavailable()
+      throw failedBy(status)
     },
     async read({ decisionId }) {
-      const { ok, json } = await call('GET', `/decisions/${encodeURIComponent(decisionId)}`)
-      if (!ok || idOf(json) !== decisionId || !['pending', 'held', 'answered', 'cancelled'].includes(json.status)) throw unavailable()
+      const { ok, status, json } = await call('GET', `/decisions/${encodeURIComponent(decisionId)}`)
+      if (!ok) throw failedBy(status)
+      if (idOf(json) !== decisionId || !['pending', 'held', 'answered', 'cancelled'].includes(json.status)) throw unavailable()
       const answer = json.answer ? { ...(typeof json.answer.option_id === 'string' && { optionId: json.answer.option_id }),
         ...(typeof json.answer.text === 'string' && { text: json.answer.text }) } : undefined
       // Marks the answer collected (delivery stays 'waiting' otherwise); a failed mark changes nothing for the child.

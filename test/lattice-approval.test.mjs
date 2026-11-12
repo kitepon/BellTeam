@@ -16,8 +16,10 @@ function rig({ current = null, rows = [], responses = [] }) {
   const secretRequests = { timeline: target => rows.filter(row => row.secret_request.botId === target.botId) }
   const fetchImpl = async (url, init) => {
     fetches.push([init.method, url.replace('https://approval-box.kitepon.dev/connector/v1', ''), init.body ? JSON.parse(init.body) : null, init.headers.authorization])
-    const [status, json] = responses.shift() ?? [500, {}]
-    return { ok: status < 300, json: async () => json }
+    const next = responses.shift() ?? [500, {}]
+    if (next instanceof Error) throw next
+    const [status, json] = next
+    return { ok: status < 300, status, json: async () => json }
   }
   return { binds, fetches, resolved, decisions: createLatticeDecisions({ credentials, secretRequests, fetchImpl }) }
 }
@@ -45,7 +47,7 @@ test('decisions.file: an open request with the same session label is adopted, no
   assert.equal(x.fetches.length, 1)
   const dup = rig({ current: { handle: 'h', revision: 1, available: true, requestId: 's' }, responses: [[409, { error: { code: 'confirm_required', check_token: 'ct', decisions: [] } }],
     [409, { error: { code: 'duplicate_suspected', existing: [{ decision_id: 'K-OTHER1', status: 'pending', session_label: 'Aye / Beta / p1/t9' }] } }]] })
-  await assert.rejects(dup.decisions.file(params), { code: 'LATTICE_DECISIONS_UNAVAILABLE' }, 'another task with the same title is not adopted')
+  await assert.rejects(dup.decisions.file(params), { code: 'LATTICE_DECISIONS_REFUSED' }, 'another task with the same title is not adopted')
   await assert.rejects(rig({}).decisions.file(params), { code: 'LATTICE_DECISIONS_UNAVAILABLE' })
   await assert.rejects(rig({ current: { handle: 'h', revision: 1, available: false, requestId: 's' } }).decisions.read({ decisionId: 'K-ABC123' }), { code: 'LATTICE_DECISIONS_UNAVAILABLE' })
 })
@@ -61,4 +63,18 @@ test('decisions.read: answer mapped, collected mark posted once; effects route d
   const effect = createLatticeEffects({ bots: null, messenger: null, transport: null, decisions: { file: async () => ({ decisionId: 'K-X1Y2', existing: false }), read: async () => ({ status: 'held' }) } })
   assert.deepEqual(await effect('decisions.read', { decisionId: 'K-X1Y2' }), { status: 'held' })
   await assert.rejects(createLatticeEffects({ bots: null, messenger: null, transport: null })('decisions.file', params), { code: 'LATTICE_DECISIONS_UNAVAILABLE' })
+})
+
+test('decisions: 5 s per request; timeout, network or 5xx is unavailable, 4xx is refused', async () => {
+  const live = { handle: 'h', revision: 1, available: true, requestId: 's' }
+  const seen = []
+  const timed = createLatticeDecisions({ credentials: { current: async () => live, withResolved: async (handle, target, consume) => consume('tok') },
+    secretRequests: { timeline: () => [] }, fetchImpl: async (url, init) => { seen.push(init.signal); throw new DOMException('timed out', 'TimeoutError') } })
+  await assert.rejects(timed.file(params), { code: 'LATTICE_DECISIONS_UNAVAILABLE' })
+  assert.equal(seen.length, 1, 'no second POST after a connection failure')
+  assert.ok(seen[0] instanceof AbortSignal)
+  await assert.rejects(rig({ current: live, responses: [[503, {}]] }).decisions.read({ decisionId: 'K-ABC123' }), { code: 'LATTICE_DECISIONS_UNAVAILABLE' })
+  await assert.rejects(rig({ current: live, responses: [[404, { error: { code: 'not_found' } }]] }).decisions.read({ decisionId: 'K-ABC123' }), { code: 'LATTICE_DECISIONS_REFUSED' })
+  await assert.rejects(rig({ current: live, responses: [[400, { error: { code: 'invalid' } }]] }).decisions.file(params), { code: 'LATTICE_DECISIONS_REFUSED' })
+  await assert.rejects(rig({ current: live, responses: [[502, {}]] }).decisions.file(params), { code: 'LATTICE_DECISIONS_UNAVAILABLE' })
 })

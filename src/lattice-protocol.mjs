@@ -156,7 +156,7 @@ export function validateLatticeResult(method, value) {
 const knownErrors = new Map([
   ['LATTICE_INVALID', 400], ['LATTICE_CONTROL_INVALID', 400], ['LATTICE_CHART_NOT_FOUND', 404], ['LATTICE_PROJECT_INVALID', 400],
   ['LATTICE_INPUT_CONFLICT', 400], ['LATTICE_NAME_INVALID', 400], ['LATTICE_COMMAND_NOT_SEAT_SURFACE', 400], ['LATTICE_NOT_ACCEPTED', 503], ['LATTICE_UNAVAILABLE', 503],
-  ['LATTICE_NOT_QUIESCED', 503], ['LATTICE_EFFECT_FAILED', 503], ['LATTICE_DECISIONS_UNAVAILABLE', 503],
+  ['LATTICE_NOT_QUIESCED', 503], ['LATTICE_EFFECT_FAILED', 503], ['LATTICE_DECISIONS_UNAVAILABLE', 503], ['LATTICE_DECISIONS_REFUSED', 409],
 ])
 export function latticeWireError(error, outcome) {
   const code = knownErrors.has(error?.code) ? error.code : knownErrors.has(error?.message) ? error.message : 'LATTICE_OPERATION_FAILED'

@@ -11,12 +11,18 @@ import { validateLatticeEffect, validateLatticeEffectResult, validateLatticeResu
 const members = [{ id: 'bot-c', name: 'Cee', deleting: false }, { id: 'bot-a', name: 'Aye', deleting: false }]
 const card = (taskId, state, lane = 'owner') => ({ plan: 'p1', taskId, title: `Task ${taskId}`, state, lane, doneCondition: 'approved', designMemo: 'why' })
 
-function rig({ charts, decisions = {}, fileFails = false, sendDelivery = 'running', record = {} }) {
+const fail = code => Object.assign(new Error('x'), { code })
+function rig({ charts, decisions = {}, fileFails = false, readFails = null, sendDelivery = 'running', record = {} }) {
   const calls = [], logs = [], writes = []
   let stored = structuredClone(record), next = 1
   const effect = async (method, params) => {
     calls.push([method, params])
-    if (method === 'decisions.file') { if (fileFails) throw Object.assign(new Error('x'), { code: 'LATTICE_DECISIONS_UNAVAILABLE' }); return { decisionId: `K-AB${next++}CD`, existing: false } }
+    if (method === 'decisions.file') {
+      const code = typeof fileFails === 'function' ? fileFails(params) : fileFails && 'LATTICE_DECISIONS_UNAVAILABLE'
+      if (code) throw fail(code)
+      return { decisionId: `K-AB${next++}CD`, existing: false }
+    }
+    if (method === 'decisions.read' && readFails) throw fail(readFails)
     if (method === 'decisions.read') return decisions[params.decisionId] ?? { status: 'pending' }
     if (method === 'messages.send') return { delivery: sendDelivery, deliveryId: 'd' }
     throw new Error(method)
@@ -92,4 +98,22 @@ test('protocol: decisions effects and the nudge result with or without filed/rou
   assert.throws(() => validateLatticeEffectResult('decisions.read', { status: 'gone' }), { code: 'LATTICE_IPC_INVALID' })
   validateLatticeResult('nudge', { charts: 1, prompted: 0, skipped: 0, failed: 0 })
   validateLatticeResult('nudge', { charts: 1, prompted: 0, skipped: 0, failed: 0, filed: 1, routed: 0 })
+})
+
+test('owner filing: unavailable ends the tick at the first failure; a refusal skips only that card', async () => {
+  const two = () => [{ projectId: 'alpha', name: 'Alpha', createdBy: 'bot-c', cards: [card('t1', 'ready'), card('t2', 'ready')] }]
+  const down = rig({ charts: two(), fileFails: () => 'LATTICE_DECISIONS_UNAVAILABLE' })
+  assert.deepEqual(await down.go(), { filed: 0, routed: 0 })
+  assert.equal(down.calls.filter(([method]) => method === 'decisions.file').length, 1, 'a hung Approval Box costs one request per tick')
+  const old = rig({ charts: two(), fileFails: () => 'LATTICE_INVALID' })
+  await old.go()
+  assert.equal(old.calls.length, 1, 'an old body ends the tick too')
+  const refused = rig({ charts: two(), fileFails: params => params.session_label.endsWith('/t1') && 'LATTICE_DECISIONS_REFUSED' })
+  assert.deepEqual(await refused.go(), { filed: 1, routed: 0 })
+  assert.deepEqual(Object.keys(refused.stored()), ['alpha/p1/t2'])
+  assert.deepEqual(refused.logs, ['lattice-owner-file alpha/p1/t1 LATTICE_DECISIONS_REFUSED'])
+  const unread = rig({ charts: two(), readFails: 'LATTICE_DECISIONS_UNAVAILABLE',
+    record: { 'alpha/p1/t9': { projectId: 'alpha', plan: 'p1', taskId: 't9', title: 'x', decisionId: 'K-AAAA09', status: 'open', filedAt: 't' } } })
+  assert.deepEqual(await unread.go(), { filed: 0, routed: 0 })
+  assert.deepEqual(unread.calls.map(([method]) => method), ['decisions.read'], 'no filing after an unavailable read')
 })

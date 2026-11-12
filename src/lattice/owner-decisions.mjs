@@ -4,6 +4,8 @@ const SENT = ['running', 'steered', 'queued', 'delivered', 'answered']
 export const OPTIONS = Object.freeze([{ id: 'done', label: '済んだ' }, { id: 'not-yet', label: 'まだ（理由を書く）' }])
 
 const keyOf = (projectId, card) => `${projectId}/${card.plan}/${card.taskId}`
+// Only a refusal of one request lets the tick go on; anything else (unavailable, an old body) ends this tick's filing (README L18, Molly review).
+const goesOn = error => error?.code === 'LATTICE_DECISIONS_REFUSED'
 
 function filing(chart, card, requester) {
   const context = [`工程表「${chart.name ?? chart.projectId}」で、担当があなた（owner）の工程です。`, `工程: ${card.title}`,
@@ -34,7 +36,11 @@ export async function ownerDecisions(charts, { laneOf, names, bots, records, eff
     if (item.status !== 'open') continue
     const chart = byId.get(item.projectId)
     let value
-    try { value = await effect('decisions.read', { decisionId: item.decisionId }) } catch (error) { log(`lattice-owner-read ${key} ${error?.code ?? 'FAILED'}`); continue }
+    try { value = await effect('decisions.read', { decisionId: item.decisionId }) } catch (error) {
+      log(`lattice-owner-read ${key} ${error?.code ?? 'FAILED'}`)
+      if (goesOn(error)) continue
+      return out
+    }
     if (value.status === 'cancelled') { record[key] = { ...item, status: 'closed' }; await records.write(record); continue }
     if (value.status !== 'answered') continue
     const creator = chart?.createdBy
@@ -52,7 +58,11 @@ export async function ownerDecisions(charts, { laneOf, names, bots, records, eff
     if (record[key]) continue
     const requester = names.get(chart.createdBy) ?? chart.createdBy ?? 'Lattice'
     let value
-    try { value = await effect('decisions.file', filing(chart, card, requester)) } catch (error) { log(`lattice-owner-file ${key} ${error?.code ?? 'FAILED'}`); continue }
+    try { value = await effect('decisions.file', filing(chart, card, requester)) } catch (error) {
+      log(`lattice-owner-file ${key} ${error?.code ?? 'FAILED'}`)
+      if (goesOn(error)) continue
+      return out
+    }
     record[key] = { projectId: chart.projectId, plan: card.plan, taskId: card.taskId, title: card.title, decisionId: value.decisionId, status: 'open', filedAt: new Date().toISOString() }
     // Written before the next card: a crash after the file and before this write is caught by the body's open-request match (L18).
     await records.write(record)
