@@ -45,6 +45,8 @@ export function createWebClient({ fetch = globalThis.fetch, setTimeout = globalT
             }
           }
         }
+        // A clean EOF (server restart, proxy close) is a drop, not a stop: reconnect the same way (W3).
+        if (!abort.signal.aborted) { onConnection('reconnecting'); timer = setTimeout(connect, 1500) }
       } catch (error) {
         if (abort.signal.aborted || error.name === 'AbortError') return
         if (error instanceof TypeError || error.status === 429 || error.status >= 500) { onConnection('reconnecting'); timer = setTimeout(connect, 1500); return }

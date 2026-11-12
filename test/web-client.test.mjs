@@ -31,7 +31,7 @@ test('JSON requests preserve response status, 204, options and make no automatic
   assert.equal(calls[0].input, options)
 })
 
-test('SSE parses split UTF-8 and blocks, ignores keepalive and awaits notifications in order; EOF does not retry', async () => {
+test('SSE parses split UTF-8 and blocks, ignores keepalive and awaits notifications in order; EOF reconnects once (W3)', async () => {
   const first = deferred(), seen = [], errors = [], bytes = new TextEncoder().encode('data:{"message":"猫"}\n\ndata:{"message":"次"}\n\n')
   let retries = 0, requests = 0
   const client = createWebClient({ fetch: async () => { requests++; return new Response(new ReadableStream({ start(controller) {
@@ -42,7 +42,7 @@ test('SSE parses split UTF-8 and blocks, ignores keepalive and awaits notificati
   const close = client.watchEvents(async value => { seen.push(value.message); if (seen.length === 1) await first.promise }, error => errors.push(error))
   await settle(); assert.deepEqual(seen, ['猫'])
   first.resolve(); await settle()
-  assert.deepEqual(seen, ['猫', '次']); assert.equal(requests, 1); assert.equal(retries, 0); assert.deepEqual(errors, [])
+  assert.deepEqual(seen, ['猫', '次']); assert.equal(requests, 1); assert.equal(retries, 1); assert.deepEqual(errors, [])
   close()
 })
 

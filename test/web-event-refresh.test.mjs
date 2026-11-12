@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import vm from 'node:vm'
 import test from 'node:test'
+import { createWebClient } from '../web/client.js'
+const settle = () => new Promise(resolve => setImmediate(resolve))
 
 const source = await readFile(new URL('../web/application.js', import.meta.url), 'utf8')
 const functions = source.slice(source.indexOf('function eventAffectsTimeline('), source.indexOf('async function connectEvents()'))
@@ -68,12 +70,42 @@ test('表示取得の失敗をSSE接続の失敗として伝播しない', async
   const context = vm.createContext({ state: { selectedType: 'bot', selected: { id: 'a' } }, ownerDialog: { open: false },
     updateCenter: { refresh() {} },
     goals: { refreshOnEvent() {} }, loadBots: async () => { throw new TypeError('GET failed') }, loadMessages: async () => {},
-    conversationComposer: { showError: message => notices.push(message) },
+    conversationComposer: { showError: () => assert.fail('an app-level failure went to a conversation') },
+    showBanner: (message, action) => notices.push({ message, action }),
   })
   vm.runInContext(functions, context)
   await context.refreshFromEvent({ all: true })
   assert.equal(notices.length, 1)
-  assert.match(notices[0], /表示を更新できません/)
+  assert.match(notices[0].message, /表示を更新できませんでした/)
+  assert.equal(notices[0].action.label, 'もう一度')
+  // With nothing selected the failure still reaches the top banner (W4).
+  context.state.selectedType = null; context.state.selected = null
+  await context.refreshFromEvent({ type: 'settings' })
+  assert.equal(notices.length, 2)
+})
+
+test('a clean SSE end shows 再接続中…, reconnects and re-reads the list once; 401 still stops with the banner (W3)', async () => {
+  const shell = source.slice(source.indexOf('function eventAffectsTimeline('), source.indexOf('function conversationKey('))
+  const tasks = [], banners = [], reads = []; let calls = 0, refuse = false
+  const client = createWebClient({ fetch: async () => {
+    calls++
+    if (refuse) return new Response('', { status: 401 })
+    return new Response(new ReadableStream({ start(controller) { if (calls === 1) controller.close() } }))
+  }, setTimeout: run => { tasks.push(run); return tasks.length }, clearTimeout() {} })
+  const pill = { hidden: true }
+  const context = vm.createContext({ state: {}, watchEvents: client.watchEvents, updateCenter: { refresh() {} },
+    reconnectPill: pill, showBanner: (message, action) => { if (message) banners.push({ message, action }) },
+    loadBots: async () => reads.push('list'),
+  })
+  vm.runInContext(shell, context)
+  await context.connectEvents(); await settle(); await settle()
+  assert.equal(pill.hidden, false, 'EOF shows the reconnecting pill'); assert.equal(tasks.length, 1); assert.deepEqual(banners, [])
+  void tasks[0](); await settle(); await settle()
+  assert.equal(calls, 2); assert.equal(pill.hidden, true); assert.deepEqual(reads, ['list'], 'one resumed list read')
+  context.state.stopEvents()
+  refuse = true; await context.connectEvents(); await settle(); await settle()
+  assert.equal(banners.length, 1); assert.match(banners[0].message, /最新の状態が届かなくなりました/); assert.equal(tasks.length, 1, '401 does not retry')
+  context.state.stopEvents()
 })
 
 test('updates changes refresh the update view; unrelated conversation changes do not', async () => {

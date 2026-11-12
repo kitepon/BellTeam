@@ -860,7 +860,8 @@ export function createWebApp({ client = createWebClient() } = {}) {
         void allSchedules.refresh(); void scheduleEditor.refresh()
       }
     } catch {
-      conversationComposer.showError('表示を更新できませんでした。会話を開き直して確認してください。')
+      // W4: an app-level failure goes to the top banner, which shows even with no conversation selected.
+      showBanner('表示を更新できませんでした。', { label: 'もう一度', run: () => void refreshFromEvent(payload) })
     }
   }
 
