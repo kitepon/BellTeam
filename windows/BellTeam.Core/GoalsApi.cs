@@ -27,25 +27,6 @@ public sealed class GoalsApi(BellApi api)
 
 public sealed class GoalChangeException(string message) : Exception(message);
 
-// Mac BellAPIError.errorDescription for the reads a goal view shows: a server message wins, a bare code becomes a plain sentence.
-public static class GoalErrors
-{
-    public static string Describe(Exception error)
-    {
-        if (error is not BellApiException { Status: { } status } api) return error is OperationCanceledException ? "BellTeamから応答がありませんでした。" : error.Message;
-        if ((int)status == 423 && api.Code == "AI_GLOBAL_PAUSED") return "BellTeamは全体停止中です。設定でOFFにしてから操作してください。";
-        if (api.RequiresLogin || api.Code is null || api.Message != "BellTeam: " + api.Code) return api.Message;
-        return (int)status switch
-        {
-            503 => "BellTeamが一時的に受付を止めています。少し待つと自動で読み直します。",
-            >= 500 => "BellTeamで問題が起きています。時間をおいてもう一度お試しください。",
-            404 => "対象が見つかりませんでした。",
-            409 => "状態が変わりました。読み直してからもう一度お試しください。",
-            _ => "BellTeamがこの操作を受け付けませんでした。"
-        };
-    }
-}
-
 // Mac GoalViewModel: one per page and one per open member conversation. Reads never overlap a write; a write is sent once and never resent.
 public sealed class GoalModel(GoalsApi api)
 {
@@ -55,6 +36,8 @@ public sealed class GoalModel(GoalsApi api)
     public bool Mutating { get; private set; }
     public bool NeedsRefresh { get; private set; }
     public string? ErrorText { get; private set; }
+    // Why the last read failed, for the folded 詳細 only (the Mac sends it to diagnostics); a read that works clears it.
+    public string? ReadError { get; private set; }
     public event Action? Changed;
     public IReadOnlyList<GoalSnapshot> CurrentSnapshots => NeedsRefresh ? [] : Snapshots;
     public GoalSnapshot? CurrentSnapshot(string botId) => CurrentSnapshots.FirstOrDefault(item => item.BotId == botId);
@@ -78,14 +61,15 @@ public sealed class GoalModel(GoalsApi api)
                 Snapshots = [snapshot];
             }
             token.ThrowIfCancellationRequested();
-            Loaded = true; NeedsRefresh = false; ErrorText = null;
+            Loaded = true; NeedsRefresh = false; ErrorText = null; ReadError = null;
         }
         catch (Exception) when (token.IsCancellationRequested) { }
         catch (BellApiException login) when (login.RequiresLogin) { }
         catch (Exception error)
         {
             // A failed read hides the cards (they may be stale) until the next read succeeds; the next event or refresh reads again.
-            NeedsRefresh = true; ErrorText = GoalErrors.Describe(error);
+            // ErrorText keeps only a change's own sentence (an outcome not known must not be lost); the read failure is the plain 確認できません state (Mac #1116).
+            NeedsRefresh = true; ReadError = error.Message;
         }
         finally { Loading = false; Notify(); }
     }
@@ -152,7 +136,7 @@ public sealed class GoalEditorModel(GoalSnapshot selection, string action, strin
     public string BotId => selection.BotId;
     public GoalSnapshot Selection => selection;
     public int ObjectiveCount => new StringInfo(Objective).LengthInTextElements;
-    public string CountText => $"{ObjectiveCount} / {ObjectiveLimit}文字";
+    public string CountText => $"{ObjectiveCount} / {ObjectiveLimit}";
     public bool CodexResetNote(GoalSnapshot? current) => action == "edit" && harness == "codex" && EditsObjective(current);
     public GoalFields? Fields(GoalSnapshot? current) => current is null ? null : action == "create" ? current.FieldCapabilities.Create : current.FieldCapabilities.Edit;
     public bool BindingChanged(GoalSnapshot? current) => current?.Binding != selection.Binding;

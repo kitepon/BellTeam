@@ -41,6 +41,8 @@ public sealed class TargetIcon : FrameworkElement
 
 internal static class GoalUi
 {
+    // The raw cause of a failed read, only inside a folded 詳細 (settings-user-flow 4.9 rule for raw text).
+    public static Expander? Details(string? text) => string.IsNullOrEmpty(text) ? null : new Expander { Header = "詳細", Content = Text(text, 12, Brush("Muted")), Margin = new Thickness(0, 10, 0, 0), IsExpanded = false };
     public static Brush Brush(string key) => (Brush)Application.Current.FindResource(key);
     public static readonly Brush Red = Frozen(0xFF, 0x3B, 0x30);
     private static Brush Frozen(byte r, byte g, byte b) { var brush = new SolidColorBrush(Color.FromRgb(r, g, b)); brush.Freeze(); return brush; }
@@ -190,10 +192,15 @@ public sealed class GoalsWindow : EditorWindow
         DockPanel.SetDock(tools, Dock.Right); header.Children.Add(tools);
         var title = new StackPanel(); title.Children.Add(new TextBlock { Text = "ゴール", FontSize = 34, FontWeight = FontWeights.Bold }); title.Children.Add(GoalUi.Text("設定済みのゴールと、現在取得できた状態。", 14, GoalUi.Brush("Muted"), margin: new Thickness(0, 14, 0, 0)));
         header.Children.Add(title); Body.Children.Add(header);
-        if (goals.ErrorText is { } error) Body.Children.Add(GoalUi.Text(error, 13, GoalUi.Red, margin: new Thickness(0, 0, 0, 18)));
-        if (goals.Loading && !goals.Loaded) Body.Children.Add(new Spinner { Width = 20, Height = 20, Stroke = GoalUi.Brush("Muted"), Margin = new Thickness(0, 75, 0, 0), HorizontalAlignment = HorizontalAlignment.Center });
-        else if (!goals.Loaded) Body.Children.Add(GoalUi.Unavailable("ゴールを読み込めませんでした", "更新して確認してください。", target: false));
-        else if (goals.NeedsRefresh) Body.Children.Add(GoalUi.Unavailable("現在のゴールを確認できません", "状態を更新して確認してください。", target: false));
+        if (goals.ErrorText is { } error) Body.Children.Add(GoalUi.Text("\u26A0 " + error, 13, GoalUi.Red, margin: new Thickness(0, 0, 0, 18)));
+        // The empty 「設定済みのゴールはありません」 is only for a read that worked; an unread or unconfirmed state never falls through to it.
+        var state = GoalPillText.PageState(goals);
+        if (state == GoalPageState.Loading) Body.Children.Add(new Spinner { Width = 20, Height = 20, Stroke = GoalUi.Brush("Muted"), Margin = new Thickness(0, 75, 0, 0), HorizontalAlignment = HorizontalAlignment.Center });
+        else if (state != GoalPageState.List)
+        {
+            Body.Children.Add(state == GoalPageState.Unread ? GoalUi.Unavailable("ゴールを読み込めませんでした", "更新して確認してください。", target: false) : GoalUi.Unavailable("現在のゴールを確認できません", "状態を更新して確認してください。", target: false));
+            if (GoalUi.Details(goals.ReadError) is { } details) Body.Children.Add(details);
+        }
         else
         {
             var configured = goals.CurrentSnapshots.Where(snapshot => snapshot.Availability == GoalAvailability.Available && snapshot.Goal is not null).ToArray();
@@ -245,15 +252,8 @@ public sealed class GoalPill : StackPanel
     public void Reload() { LoadTask = LoadAsync(); }
     public void SetExpanded(bool value) { expanded = value; shown = null; Render(); }
 
-    public static string Title(GoalModel goals, string botId)
-    {
-        if (goals.NeedsRefresh) return "ゴールを取得できません";
-        if (!goals.Loaded) return goals.ErrorText is null ? "ゴールを確認中" : "ゴールを取得できません";
-        return goals.CurrentSnapshot(botId) is not { } snapshot ? "ゴールを取得できません" : snapshot.Availability switch
-        {
-            GoalAvailability.Unsupported => "ゴール未対応", GoalAvailability.Unavailable => snapshot.IsIdle ? "休止中" : "ゴールを取得できません", _ => snapshot.StatusTitle
-        };
-    }
+    // The pill's sentence (Core GoalPillText); null when the bot has no goal feature.
+    public static string? Title(GoalModel goals, string botId) => GoalPillText.Pill(goals, botId)?.Title;
 
     private void Render()
     {
@@ -263,35 +263,46 @@ public sealed class GoalPill : StackPanel
         if (shown is { } last && last.Equals(key)) return;
         shown = key; Children.Clear();
         var name = workspace?.Bots.FirstOrDefault(bot => bot.Id == botId)?.DisplayName ?? botId;
+        if (GoalPillText.Pill(goals, botId) is not { } pill) { Visibility = Visibility.Collapsed; return; }
+        Visibility = Visibility.Visible;
         if (expanded)
         {
             var details = new StackPanel { MaxWidth = 520, Margin = new Thickness(16, 0, 16, 8) };
-            if (goals.ErrorText is { } error) details.Children.Add(GoalUi.Text(error, 13, GoalUi.Red, margin: new Thickness(0, 0, 0, 8)));
-            if (snapshot is not null)
-                details.Children.Add(GoalCard.Build(snapshot, name, goals.Busy, chat: true, action => Edit(snapshot, action), action => _ = goals.RunAsync(snapshot, action)));
-            else
+            if (GoalPillText.Failure(goals, botId) is { } failure)
             {
-                var note = new Border { Padding = new Thickness(18), CornerRadius = new CornerRadius(24), Background = new SolidColorBrush(Color.FromArgb(0xE8, 255, 255, 255)), BorderBrush = GoalUi.Brush("Line"), BorderThickness = new Thickness(1) };
-                note.Child = GoalUi.Text(goals.NeedsRefresh ? "現在のゴールを確認できません。状態を更新してください。" : "ゴールの状態を取得できません。", 13);
-                details.Children.Add(note);
+                // Mac GoalFailureNotice: one plain sentence and the one action that can fix it.
+                var notice = new StackPanel();
+                var line = GoalUi.Text("\u26A0 " + failure, 14); System.Windows.Automation.AutomationProperties.SetAutomationId(line, "chat-goal-error"); notice.Children.Add(line);
+                var again = SettingsUi.MainButton("状態を更新"); again.IsEnabled = !goals.Loading && !goals.Mutating; again.Click += (_, _) => Reload(); notice.Children.Add(again);
+                if (GoalUi.Details(goals.ReadError) is { } details2) notice.Children.Add(details2);
+                details.Children.Add(new Border { Child = notice, Padding = new Thickness(18), CornerRadius = new CornerRadius(24), Background = new SolidColorBrush(Color.FromArgb(0xE8, 255, 255, 255)), BorderBrush = GoalUi.Brush("Line"), BorderThickness = new Thickness(1) });
             }
-            var update = new Button { Content = "状態を更新", HorizontalAlignment = HorizontalAlignment.Center, IsEnabled = !goals.Loading && !goals.Mutating, Margin = new Thickness(0, 6, 0, 0), FontSize = 13 };
-            update.SetResourceReference(StyleProperty, "QuietButton"); update.Click += (_, _) => Reload();
-            details.Children.Add(update); Children.Add(details);
+            else if (snapshot is not null)
+            {
+                // A change that failed (pause, clear…) says why above the card it belongs to.
+                if (goals.ErrorText is { } error) { var line = GoalUi.Text("\u26A0 " + error, 13, GoalUi.Red, margin: new Thickness(0, 0, 0, 8)); System.Windows.Automation.AutomationProperties.SetAutomationId(line, "chat-goal-action-error"); details.Children.Add(line); }
+                details.Children.Add(GoalCard.Build(snapshot, name, goals.Busy, chat: true, action => Edit(snapshot, action), action => _ = goals.RunAsync(snapshot, action)));
+                var update = new Button { Content = "\u21BB 状態を更新", HorizontalAlignment = HorizontalAlignment.Center, IsEnabled = !goals.Loading && !goals.Mutating, Margin = new Thickness(0, 6, 0, 0), FontSize = 13 };
+                update.SetResourceReference(StyleProperty, "QuietButton"); update.Click += (_, _) => Reload();
+                details.Children.Add(update);
+            }
+            Children.Add(details);
         }
         var label = new StackPanel { Orientation = Orientation.Horizontal };
-        label.Children.Add(new TargetIcon(14) { Stroke = GoalUi.Brush("Ink"), Margin = new Thickness(0, 0, 7, 0) });
-        label.Children.Add(new TextBlock { Text = Title(goals, botId), FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = GoalUi.Brush("Ink"), TextTrimming = TextTrimming.CharacterEllipsis });
+        var tint = pill.Tone switch { GoalPillTone.Violet => SettingsUi.Violet, GoalPillTone.Orange => SettingsUi.Orange, _ => GoalUi.Brush("Muted") };
+        if (pill.Tone == GoalPillTone.Orange) label.Children.Add(new TextBlock { Text = "\u26A0", FontSize = 13, Foreground = tint, Margin = new Thickness(0, 0, 7, 0), VerticalAlignment = VerticalAlignment.Center });
+        else label.Children.Add(new TargetIcon(14) { Stroke = tint, Margin = new Thickness(0, 0, 7, 0) });
+        label.Children.Add(new TextBlock { Text = pill.Title, FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = GoalUi.Brush("Ink"), TextTrimming = TextTrimming.CharacterEllipsis });
         if (snapshot is { Availability: GoalAvailability.Available, Goal: not null } && snapshot.PillElapsed is { } elapsed)
-            label.Children.Add(new TextBlock { Text = elapsed, FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = GoalUi.Brush("Ink"), Margin = new Thickness(7, 0, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis });
+            label.Children.Add(new TextBlock { Text = elapsed, FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = GoalUi.Brush("Muted"), Margin = new Thickness(7, 0, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis });
         var capsule = new Border { Child = label, CornerRadius = new CornerRadius(99), Padding = new Thickness(15, 8, 15, 8), Background = new SolidColorBrush(Color.FromArgb(0xE0, 0xF6, 0xF6, 0xF9)), BorderBrush = GoalUi.Brush("Line"), BorderThickness = new Thickness(1) };
-        var pill = new Button { Content = capsule, HorizontalAlignment = HorizontalAlignment.Center, Padding = new Thickness(0), Margin = new Thickness(0), BorderThickness = new Thickness(0), Background = Brushes.Transparent };
+        var button = new Button { Content = capsule, HorizontalAlignment = HorizontalAlignment.Center, Padding = new Thickness(0), Margin = new Thickness(0), BorderThickness = new Thickness(0), Background = Brushes.Transparent };
         var template = new ControlTemplate(typeof(Button)) { VisualTree = new FrameworkElementFactory(typeof(ContentPresenter)) };
-        pill.Template = template; pill.Cursor = Cursors.Hand;
-        System.Windows.Automation.AutomationProperties.SetAutomationId(pill, "chat-goal-pill");
-        System.Windows.Automation.AutomationProperties.SetName(pill, Title(goals, botId));
-        pill.Click += (_, _) => { expanded = !expanded; shown = null; Render(); };
-        Children.Add(pill);
+        button.Template = template; button.Cursor = Cursors.Hand;
+        System.Windows.Automation.AutomationProperties.SetAutomationId(button, "chat-goal-pill");
+        System.Windows.Automation.AutomationProperties.SetName(button, pill.Title);
+        button.Click += (_, _) => { expanded = !expanded; shown = null; Render(); };
+        Children.Add(button);
     }
     private GoalEditorView? Edit(GoalSnapshot snapshot, string action)
     {
@@ -340,8 +351,14 @@ public sealed class GoalEditorView : ScrollViewer, ISheetSave
         objective.Text = editor.Objective; objective.AcceptsReturn = true; objective.TextWrapping = TextWrapping.Wrap; objective.MinHeight = 120; objective.VerticalScrollBarVisibility = ScrollBarVisibility.Auto; objective.VerticalContentAlignment = VerticalAlignment.Top; objective.FontSize = 16;
         System.Windows.Automation.AutomationProperties.SetAutomationId(objective, "goal-objective-input"); System.Windows.Automation.AutomationProperties.SetName(objective, "目的");
         objective.TextChanged += (_, _) => { editor.Objective = objective.Text; Update(); };
-        objectiveSection.Children.Add(objective);
-        count.FontSize = 13; count.Foreground = muted; count.Margin = new Thickness(4, 6, 0, 0); objectiveSection.Children.Add(count);
+        var hint = new TextBlock { Text = "例：ログイン画面の改修を、実機の写真で受け入れてもらうところまで進める", Foreground = muted, FontSize = 16, IsHitTestVisible = false, Margin = new Thickness(6, 4, 6, 0), TextWrapping = TextWrapping.Wrap, Opacity = .7 };
+        void Hint() => hint.Visibility = objective.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+        objective.TextChanged += (_, _) => Hint(); Hint();
+        objectiveSection.Children.Add(new Grid { Children = { objective, hint } });
+        var footer = new DockPanel { Margin = new Thickness(4, 6, 0, 0) };
+        count.FontSize = 13; count.Foreground = muted; DockPanel.SetDock(count, Dock.Right); footer.Children.Add(count);
+        footer.Children.Add(GoalUi.Text("終わったと言える状態を、一文で書きます。", 13, muted));
+        objectiveSection.Children.Add(footer);
         form.Children.Add(objectiveSection);
         budgetSection.Children.Add(Header("トークン予算（任意）"));
         budget.Text = editor.Budget; budget.FontSize = 16;
@@ -351,7 +368,7 @@ public sealed class GoalEditorView : ScrollViewer, ISheetSave
         budgetSection.Children.Add(new Grid { Children = { budget, placeholder } });
         if (editor.Action == "edit") budgetSection.Children.Add(GoalUi.Text("予算を空にした場合、現在の指定は変更しません。", 13, muted, margin: new Thickness(4, 6, 0, 0)));
         form.Children.Add(budgetSection);
-        codexNote = GoalUi.Text("目的を変えると使用量が初期化されます。", 13, muted, margin: new Thickness(4, 14, 0, 0));
+        codexNote = GoalUi.Text("\u24D8 目的を変えると、使用量の数え直しが始まります。", 13, SettingsUi.Orange, margin: new Thickness(4, 14, 0, 0));
         staleNote = GoalUi.Text("会話が変わりました。この編集を閉じて、現在のゴールから編集し直してください。", 13, GoalUi.Red, margin: new Thickness(4, 14, 0, 0));
         errorText = GoalUi.Text("", 16, GoalUi.Red, margin: new Thickness(4, 14, 0, 0));
         form.Children.Add(codexNote); form.Children.Add(staleNote); form.Children.Add(errorText);

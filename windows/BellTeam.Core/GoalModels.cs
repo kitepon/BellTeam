@@ -105,7 +105,7 @@ public sealed record GoalSnapshot(string BotId, GoalAvailability Availability, G
     public bool CanResume => Goal?.IsPaused == true && Capabilities.Resume;
     public bool CanClear => Goal is not null && Capabilities.Clear;
     public bool HasAction => Goal is null ? CanCreate : CanEdit || CanPause || CanResume || Capabilities.Clear;
-    public string StatusTitle => Goal?.StatusTitle ?? "ゴール未設定";
+    public string StatusTitle => Goal?.StatusTitle ?? GoalPillText.None;
     // The note listing the actions the current goal does not allow; empty when there is no goal.
     public string[] UnavailableActions
     {
@@ -205,5 +205,38 @@ public static class GoalParser
                 }
             default: throw Bad("（kind）");
         }
+    }
+}
+
+public enum GoalPillTone { Muted, Violet, Orange }
+// What the goals page body shows: the list (and its empty state) only after a read that works and nothing left unconfirmed.
+public enum GoalPageState { Loading, Unread, Unconfirmed, List }
+// Mac ChatGoalBar (#1116, apple/goals.md 「pillの文」「未対応」「失敗表示」): whole sentences only, one failure sentence, no pill for an unsupported bot.
+public static class GoalPillText
+{
+    public const string Checking = "ゴールを確認しています", None = "ゴールは設定されていません", Unread = "ゴールの状態を確認できません";
+    public const string UnreadDetail = "現在のゴールを確認できません。状態を更新してください。";
+    // null: the bot has no goal feature, so there is no pill. An idle seat has no running goal, so it reads as none.
+    public static (string Title, GoalPillTone Tone)? Pill(GoalModel goals, string botId)
+    {
+        if (goals.NeedsRefresh) return (Unread, GoalPillTone.Orange);
+        if (!goals.Loaded) return (Checking, GoalPillTone.Muted);
+        if (goals.CurrentSnapshot(botId) is not { } snapshot) return (Unread, GoalPillTone.Orange);
+        if (snapshot.IsIdle) return (None, GoalPillTone.Muted);
+        return snapshot.Availability switch
+        {
+            GoalAvailability.Unsupported => null,
+            GoalAvailability.Unavailable => (Unread, GoalPillTone.Orange),
+            _ => snapshot.Goal is null ? (None, GoalPillTone.Muted) : (snapshot.StatusTitle, GoalPillTone.Violet)
+        };
+    }
+    public static GoalPageState PageState(GoalModel goals) => goals.Loading && !goals.Loaded ? GoalPageState.Loading : !goals.Loaded ? GoalPageState.Unread : goals.NeedsRefresh ? GoalPageState.Unconfirmed : GoalPageState.List;
+    // The one failure sentence of the expanded card; after a change whose outcome is unknown, its own sentence replaces the generic one.
+    public static string? Failure(GoalModel goals, string botId)
+    {
+        if (goals.NeedsRefresh) return goals.ErrorText ?? UnreadDetail;
+        if (!goals.Loaded) return null;
+        if (goals.CurrentSnapshot(botId) is not { } snapshot) return UnreadDetail;
+        return snapshot.Availability == GoalAvailability.Unavailable && !snapshot.IsIdle ? snapshot.Message ?? UnreadDetail : null;
     }
 }
