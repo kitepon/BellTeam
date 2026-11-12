@@ -4,6 +4,7 @@ import { latticeError } from '../lattice-protocol.mjs'
 import { projectChart } from './projection.mjs'
 import { createCodeCharts } from './code-chart.mjs'
 import { createNoticeDelivery } from './notices.mjs'
+import { nudgeSweep } from './nudge.mjs'
 
 const CHART_PARALLEL = 4, STDOUT_KEPT = 64 * 1024
 const iso = ms => new Date(ms).toISOString()
@@ -114,6 +115,12 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
       const ids = await cli.list()
       await rosterReader(effect)()
       return notices.deliverAll(ids, { roster, effect, lock: locked })
+    },
+    // About every 5 minutes (facade timer, README L13-L15): every chart's ready set -> prompts to lane Bots not running.
+    async nudge(params, effect) {
+      const ids = await cli.list()
+      await rosterReader(effect)()
+      return nudgeSweep(ids, { run: (id, args) => lattice(id, args), log, roster, effect, lock: locked })
     },
   }
   async function runOnce({ from, projectId, args, input, name }, effect) {

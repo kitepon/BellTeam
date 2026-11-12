@@ -178,6 +178,7 @@ BUSINESS_FILES = {
         'src/lattice/code-chart.mjs',
         'src/lattice/core.mjs',
         'src/lattice/notices.mjs',
+        'src/lattice/nudge.mjs',
         'src/lattice/projection.mjs',
         'src/module-ipc.mjs',
         'src/module-locks.mjs',
