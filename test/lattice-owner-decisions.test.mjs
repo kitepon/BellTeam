@@ -62,7 +62,9 @@ test('owner filing: the answer goes to the chart creator once; cancelled closes;
   assert.deepEqual(await x.go(), { filed: 0, routed: 1 })
   const sends = x.calls.filter(([method]) => method === 'messages.send').map(([, params]) => params)
   assert.deepEqual(sends.map(params => [params.from, params.target]), [['scheduler', 'bot-c']])
-  assert.ok(sends[0].message.includes('Answer: 済んだ / ok') && sends[0].message.includes('lattice todo done --plan p1 --task t1'))
+  assert.ok(sends[0].message.includes('Answer: 済んだ / ok') && sends[0].message.includes('lattice todo done --plan p1 --task t1')
+    && sends[0].message.indexOf('lattice todo start --plan p1 --task t1') < sends[0].message.indexOf('lattice todo done --plan p1 --task t1')
+    && sends[0].message.includes('lattice todo start --plan p1 --task t1'))
   assert.deepEqual(Object.fromEntries(Object.entries(x.stored()).map(([key, item]) => [key, item.status])), { 'alpha/p1/t1': 'routed', 'alpha/p1/t9': 'closed', 'beta/p1/t2': 'open' })
   assert.deepEqual(x.logs, ['lattice-owner-route beta no-creator'])
 

@@ -22,7 +22,8 @@ function answerMessage(chart, item, answer) {
   return `Lattice: the Owner answered the Approval Box request for an Owner-lane task on your chart ${chart.projectId}`
     + ` (lattice tool, project ${chart.projectId}): ${item.plan}/${item.taskId} 「${item.title}」.\n`
     + `Answer: ${option ? option.label : answer?.optionId ?? '(no option)'}${answer?.text ? ` / ${answer.text}` : ''}\n`
-    + `You created this chart, so record it: if it is done, \`lattice todo done --plan ${item.plan} --task ${item.taskId} --message "<the Owner's answer>"\`;`
+    // Lattice refuses `todo done` on a task never started, and an Owner task usually is (README L19).
+    + `You created this chart, so record it: if it is done, \`lattice todo start --plan ${item.plan} --task ${item.taskId}\` (skip if it is already in progress), then \`lattice todo done --plan ${item.plan} --task ${item.taskId} --message "<the Owner's answer>"\`;`
     + ` otherwise \`lattice todo note --plan ${item.plan} --task ${item.taskId} --message "<the Owner's answer>"\`.`
 }
 
