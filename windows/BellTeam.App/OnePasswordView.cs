@@ -7,15 +7,17 @@ using static BellTeam.App.SettingsUi;
 
 namespace BellTeam.App;
 
-// The 1Password連携 page of the settings (Mac OnePasswordSettingEditor): badge, guide, the service-account token and the one result line.
+// The body of the settings 1Password page (Mac OnePasswordSettingEditor): what is readable, the guide, the service-account token and the one result line.
+// The page head (settings-user-flow 4.9b) carries the title and the badge; changed tells it whenever the item was read again.
 // Wording and states come from OnePasswordItem / OnePasswordResult; the token is never shown back and is never resent.
 internal sealed class OnePasswordView
 {
-    private static readonly SolidColorBrush Grey = Freeze(new SolidColorBrush(Color.FromRgb(0x8E, 0x8E, 0x93)));
     private static SolidColorBrush Freeze(SolidColorBrush brush) { brush.Freeze(); return brush; }
     private readonly Workspace workspace;
     private readonly CancellationToken token;
     private readonly Action<bool> setBusy;
+    private readonly Action<FeatureSetting>? changed;
+    private readonly Border connectionCard = new() { Background = Brushes.White, CornerRadius = new CornerRadius(10), Padding = new Thickness(20, 14, 20, 14) };
     private FeatureSetting current;
     private OnePasswordResult result = OnePasswordResult.None;
     private bool enabled = true, guideOpen = true, loaded, loading = true, saving;
@@ -23,7 +25,6 @@ internal sealed class OnePasswordView
 
     private readonly PasswordBox password = new() { Style = null, FontSize = 13, Foreground = Ink, Background = Brushes.Transparent, BorderThickness = new Thickness(0), Padding = new Thickness(0), VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock hint = Text("", 13, Secondary);
-    private readonly ContentControl badgeHost = new() { HorizontalAlignment = HorizontalAlignment.Right };
     private readonly TextBlock connection = Text("", 12, Muted, null, new Thickness(0, 6, 0, 0));
     private readonly TextBlock chevron = Glyph("", 11, Muted);
     private readonly StackPanel steps = new() { Margin = new Thickness(18, 10, 0, 4) };
@@ -39,9 +40,9 @@ internal sealed class OnePasswordView
     private readonly TextBlock loadErrorLine = Text("", 12, Red, null, new Thickness(0, 6, 0, 0));
 
     public Task Ready { get; }
-    public OnePasswordView(Workspace workspace, FeatureSetting first, Panel form, CancellationToken token, Action<bool> setBusy)
+    public OnePasswordView(Workspace workspace, FeatureSetting first, Panel form, CancellationToken token, Action<bool> setBusy, Action<FeatureSetting>? changed = null)
     {
-        this.workspace = workspace; this.token = token; this.setBusy = setBusy; current = first;
+        this.workspace = workspace; this.token = token; this.setBusy = setBusy; this.changed = changed; current = first;
         token.Register(ClearToken);
         System.Windows.Automation.AutomationProperties.SetName(password, TokenField?.Label ?? "サービスアカウントのトークン");
         password.PasswordChanged += (_, _) => hint.Visibility = password.Password.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -49,10 +50,7 @@ internal sealed class OnePasswordView
         toggle.Checked += (_, _) => enabled = true; toggle.Unchecked += (_, _) => enabled = false;
         save.HorizontalAlignment = HorizontalAlignment.Stretch; save.Click += async (_, _) => await SaveAsync();
 
-        var header = new Grid(); header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); header.ColumnDefinitions.Add(new ColumnDefinition());
-        var title = Text(first.Title, 15, Ink, FontWeights.SemiBold, new Thickness(12, 0, 0, 0)); title.VerticalAlignment = VerticalAlignment.Center;
-        header.Children.Add(Glyph("", 18, Violet)); Grid.SetColumn(title, 1); header.Children.Add(title); Grid.SetColumn(badgeHost, 1); header.Children.Add(badgeHost);
-        var headerCard = new Border { Background = Brushes.White, CornerRadius = new CornerRadius(10), Padding = new Thickness(20, 14, 20, 14), Child = new StackPanel { Children = { header, connection } } };
+        connectionCard.Child = connection;
 
         var guideHead = new Grid { Background = Brushes.Transparent, Cursor = System.Windows.Input.Cursors.Hand };
         guideHead.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(18) }); guideHead.ColumnDefinitions.Add(new ColumnDefinition());
@@ -66,7 +64,7 @@ internal sealed class OnePasswordView
         resultRow = Row(resultLine, 36); errorRow = Row(errorLine, 30);
         saveGroup.Add(resultRow); saveGroup.Add(Row(save, 46)); saveGroup.Add(errorRow);
 
-        content.Children.Add(headerCard); content.Children.Add(guideSection);
+        content.Children.Add(connectionCard); content.Children.Add(guideSection);
         content.Children.Add(FormSection("サービスアカウントのトークン", group)); content.Children.Add(new StackPanel { Margin = new Thickness(0, 22, 0, 0), Children = { saveGroup } });
         var reload = Capsule("再読み込み", Fill, Ink, 8, 13, new Thickness(12, 6, 12, 6)); reload.HorizontalAlignment = HorizontalAlignment.Left; reload.Margin = new Thickness(0, 8, 0, 0); reload.FontWeight = FontWeights.Normal;
         reload.Click += async (_, _) => await LoadAsync();
@@ -88,7 +86,7 @@ internal sealed class OnePasswordView
             var item = (await workspace.Planning.FeaturesAsync(token)).FirstOrDefault(feature => feature.Id == OnePasswordItem.Id) ?? throw new BellApiException("1Password連携の設定が見つかりません。");
             token.ThrowIfCancellationRequested();
             current = item; enabled = item.Enabled || item.Status == "unconfigured"; guideOpen = OnePasswordItem.State(item) != OnePasswordState.Connected;
-            result = result.Refreshed(item); loaded = true; errorText = null;
+            result = result.Refreshed(item); loaded = true; errorText = null; changed?.Invoke(item);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
         catch (Exception error) { errorText = error.Message; }
@@ -115,7 +113,7 @@ internal sealed class OnePasswordView
             var item = (await workspace.Planning.FeaturesAsync(token)).FirstOrDefault(feature => feature.Id == OnePasswordItem.Id) ?? throw new BellApiException("1Password連携の設定が見つかりません。");
             // The badge follows the re-read item; the guide opens or folds only when the connection state changes.
             if ((OnePasswordItem.State(item) == OnePasswordState.Connected) != (OnePasswordItem.State(current) == OnePasswordState.Connected)) guideOpen = OnePasswordItem.State(item) != OnePasswordState.Connected;
-            current = item; result = result.Refreshed(item);
+            current = item; result = result.Refreshed(item); changed?.Invoke(item);
         }
         catch (Exception error) { errorText = "保存しました。表示を更新できませんでした（" + error.Message + "）"; }
         saving = false; setBusy(false); Refresh();
@@ -127,9 +125,7 @@ internal sealed class OnePasswordView
         loadingLine.Visibility = loading ? Visibility.Visible : Visibility.Collapsed;
         loadFailure.Visibility = !loaded && !loading && errorText is not null ? Visibility.Visible : Visibility.Collapsed; loadErrorLine.Text = loaded ? "" : errorText ?? "";
         if (!loaded) return;
-        var state = OnePasswordItem.State(current);
-        badgeHost.Content = Badge(state);
-        connection.Text = OnePasswordItem.ConnectionLine(current) ?? ""; connection.Visibility = connection.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+        connection.Text = OnePasswordItem.ConnectionLine(current) ?? ""; connectionCard.Visibility = connection.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
         guideSection.Visibility = current.Guide is null ? Visibility.Collapsed : Visibility.Visible;
         steps.Children.Clear(); chevron.Text = guideOpen ? "" : ""; steps.Visibility = guideOpen ? Visibility.Visible : Visibility.Collapsed;
         if (current.Guide is { } guide)
@@ -159,24 +155,6 @@ internal sealed class OnePasswordView
         };
         return button;
     }
-
-    // The tinted capsule of the list row and the page header: 連携中 green, 未連携 grey, 失敗 red.
-    public static FrameworkElement Badge(OnePasswordState state)
-    {
-        var tint = state switch { OnePasswordState.Connected => Green, OnePasswordState.Off => Grey, _ => Red };
-        var color = ((SolidColorBrush)tint).Color;
-        FrameworkElement icon = state switch
-        {
-            OnePasswordState.Failed => Glyph("", 14, tint),
-            _ => new Grid { Width = 15, Height = 15, Children = { new System.Windows.Shapes.Ellipse { Fill = tint }, state == OnePasswordState.Connected ? Centered(Glyph("", 9, Brushes.White)) : new Border { Width = 7, Height = 1.8, Background = Brushes.White, CornerRadius = new CornerRadius(1), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } } }
-        };
-        var line = new StackPanel { Orientation = Orientation.Horizontal }; line.Children.Add(icon); line.Children.Add(Text(OnePasswordItem.BadgeText(state), 13, tint, FontWeights.SemiBold, new Thickness(6, 0, 0, 0)));
-        ((TextBlock)line.Children[1]).VerticalAlignment = VerticalAlignment.Center;
-        var badge = new Border { Child = line, Background = new SolidColorBrush(Color.FromArgb(0x1F, color.R, color.G, color.B)), CornerRadius = new CornerRadius(13), Padding = new Thickness(10, 4, 12, 4), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
-        System.Windows.Automation.AutomationProperties.SetName(badge, OnePasswordItem.BadgeText(state));
-        return badge;
-    }
-    private static FrameworkElement Centered(TextBlock glyph) { glyph.HorizontalAlignment = HorizontalAlignment.Center; return glyph; }
 
     // Render seam (checking and success need a PATCH, which the GET-only mock never serves): the line and busy state the PATCH would have produced.
     public void ShowForRender(string scene)

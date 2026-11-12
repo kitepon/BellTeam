@@ -44,7 +44,9 @@ public sealed class HarnessAuthenticationTests
             Await(window.InitializeAsync());
             Assert.Equal(supported, Find<Button>(window).Any(button => button.Content as string == "認証し直す"));
             Await(window.StartAsync()); Assert.Equal(supported ? 1 : 0, posts);
-            Assert.Contains(Find<Button>(window), button => button.Content as string == "状態を更新");
+            // settings-user-flow 4.9: a working login shows no 状態を更新; a harness that cannot sign in again says why instead of a button.
+            Assert.DoesNotContain(Find<Button>(window), button => button.Content as string == "状態を更新");
+            Assert.Equal(!supported, Find<TextBlock>(window).Any(text => text.Text == Option.StartWarning));
             window.Close();
         });
     }
@@ -106,7 +108,7 @@ public sealed class HarnessAuthenticationTests
             var input = Find<PasswordBox>(window).Single(); input.Password = Secret;
             var poll = typeof(HarnessAuthenticationWindow).GetMethod("PollAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
             Await((Task)poll.Invoke(window, null)!); Assert.Equal(Secret, input.Password);
-            Find<Button>(window).Single(button => button.Content as string == "認証を完了する").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
+            Find<Button>(window).Single(button => button.Content as string == "認証コードを送る").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Pump();
             Assert.Equal(3, posts); Assert.Empty(input.Password); Assert.Empty(Find<PasswordBox>(window));
             Assert.All(Find<TextBlock>(window), text => Assert.DoesNotContain(Secret, text.Text));
             if (failInput) { Await(window.InitializeAsync()); Assert.Single(Find<PasswordBox>(window)); }

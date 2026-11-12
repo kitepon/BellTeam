@@ -136,7 +136,7 @@ public sealed class OnePasswordTests
         {
             var server = new Server { Settings = List(Item("unconfigured", false)) }; using var workspace = server.Workspace();
             var (view, form, busy) = Open(workspace); var texts = Texts(form);
-            Assert.Contains("未連携", texts); Assert.Contains("作り方を見る", texts); Assert.Contains("一つ目", texts); Assert.Contains("手順を開く", texts.Concat(Descendants<Button>(form).Select(button => AutomationName(button))));
+            Assert.Contains("作り方を見る", texts); Assert.Contains("一つ目", texts); Assert.Contains("手順を開く", texts.Concat(Descendants<Button>(form).Select(button => AutomationName(button))));
             Assert.Contains("ops_で始まるトークンを貼る", texts); Assert.DoesNotContain(texts, text => text.StartsWith("読める保管庫"));
             Assert.True(Descendants<CheckBox>(form).Single().IsChecked);       // unconfigured starts enabled (Mac)
             var box = Descendants<PasswordBox>(form).Single(); box.Password = "not-a-token"; Click(SaveButton(form)); Settle(busy);
@@ -153,7 +153,7 @@ public sealed class OnePasswordTests
             var server = new Server { Settings = List(Item("enabled", true, connection: Vaults)) };
             server.Patch = _ => Task.FromResult(StubHandler.Json("{\"setting\":" + Item("disabled", true) + "}")); using var workspace = server.Workspace();
             var (_, form, busy) = Open(workspace); var texts = Texts(form);
-            Assert.Contains("連携中", texts); Assert.Contains("読める保管庫：Infra、Team　SSH鍵：3件", texts); Assert.Contains("作り方を見る", texts); Assert.DoesNotContain("一つ目", texts); // folded inside 「作り方を見る」
+            Assert.Contains("読める保管庫：Infra、Team　SSH鍵：3件", texts); Assert.Contains("作り方を見る", texts); Assert.DoesNotContain("一つ目", texts); // folded inside 「作り方を見る」
             Assert.Contains("登録済み・変更するときだけ入力", texts);
             Descendants<CheckBox>(form).Single().IsChecked = false; Click(SaveButton(form)); Settle(busy);
             Assert.Equal(["/api/settings/onePassword {\"values\":{},\"enabled\":false}"], server.Patches);
@@ -175,7 +175,7 @@ public sealed class OnePasswordTests
             release.SetResult(); Settle(busy);
             Assert.Single(server.Patches); Assert.Equal("/api/settings/onePassword {\"values\":{\"token\":\"" + Token + "\"},\"enabled\":true}", server.Patches[0]);
             var texts = Texts(form);
-            Assert.Contains("連携できました。読める保管庫：Infra、Team　SSH鍵：3件", texts); Assert.Contains("連携中", texts); Assert.Equal("保存して連携を確かめる", (string)SaveButton(form).Content);
+            Assert.Contains("連携できました。読める保管庫：Infra、Team　SSH鍵：3件", texts); Assert.Equal("保存して連携を確かめる", (string)SaveButton(form).Content);
             Assert.Empty(Descendants<PasswordBox>(form).Single().Password); Assert.All(texts, text => Assert.DoesNotContain(Token, text));
             Assert.DoesNotContain("一つ目", texts);                            // folded once connected
         });
@@ -190,7 +190,7 @@ public sealed class OnePasswordTests
             var server = new Server { Settings = List(Item("unconfigured", false)) }; server.Patch = _ => { server.Settings = List(failed); return Task.FromResult(StubHandler.Json("{\"setting\":" + failed + "}")); };
             using var workspace = server.Workspace(); var (_, form, busy) = Open(workspace);
             Descendants<PasswordBox>(form).Single().Password = Token; Click(SaveButton(form)); Settle(busy);
-            var texts = Texts(form); Assert.Contains("失敗", texts); Assert.Contains("連携できませんでした。" + Rejected, texts); Assert.Equal(1, texts.Count(text => text.Contains(Rejected)));
+            var texts = Texts(form); Assert.Contains("連携できませんでした。" + Rejected, texts); Assert.Equal(1, texts.Count(text => text.Contains(Rejected)));
             Assert.DoesNotContain(texts, text => text.StartsWith("保存しました。表示を更新できませんでした"));
         });
     }
@@ -233,7 +233,6 @@ public sealed class OnePasswordTests
             Descendants<PasswordBox>(form).Single().Password = Token; Click(SaveButton(form)); Settle(busy);
             var texts = Texts(form); Assert.Single(server.Patches);
             Assert.Contains(texts, text => text.StartsWith("保存しました。表示を更新できませんでした")); Assert.Contains("連携できました。読める保管庫：Infra、Team　SSH鍵：3件", texts);
-            Assert.Contains("未連携", texts);                                  // the badge still follows the last item that could be read
         });
     }
 

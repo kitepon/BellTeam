@@ -177,7 +177,7 @@ internal sealed class TerminalDetailView : Grid, IDisposable
     private readonly StackPanel body = new() { Margin = new Thickness(20, 28, 20, 24), MaxWidth = 720 };
     private readonly Grid alertLayer = new() { Background = new SolidColorBrush(Color.FromArgb(0x59, 0, 0, 0)), Visibility = Visibility.Collapsed };
     private string? errorText;
-    private bool working, keysRouteMissing, otherWaysOpen, disposed, ownsPc;
+    private bool working, keysRouteMissing, otherWaysOpen, addressOpen, disposed, ownsPc;
     private CancellationTokenSource? awaiting;
     public Button EditButton { get; }
     // Render seams.
@@ -223,8 +223,16 @@ internal sealed class TerminalDetailView : Grid, IDisposable
         body.Children.Clear();
         if (Current is not { } terminal) { body.Children.Add(FormSection(null, new GroupCard(Row(TerminalParts.Calm("この端末の登録が見つかりません。一覧へ戻って読み直してください。"))))); return; }
         ownsPc = model.OwnsHost(terminal);
-        body.Children.Add(FormSection("接続先", new GroupCard(Row(LabeledRow("ホスト", terminal.Host)), Row(LabeledRow("ユーザー", terminal.User)), Row(LabeledRow("ポート", terminal.Port.ToString(CultureInfo.InvariantCulture))), Row(LabeledRow("OS", terminal.OsLabel)), Row(LabeledRow("持ち主", terminal.OwnerLabel)))));
-        body.Children.Add(FormSection("つながるか", ReachabilityGroup(terminal), "SSHで一度だけつないで、すぐに閉じます。メンバーの席は起動しません。"));
+        body.Children.Add(Head(terminal));
+        // settings-user-flow 4.9b: the address as one line; the separate fields stay in the folded 詳細.
+        var fields = new StackPanel();
+        foreach (var (label, value) in new[] { ("ホスト", terminal.Host), ("ユーザー", terminal.User), ("ポート", terminal.Port.ToString(CultureInfo.InvariantCulture)), ("OS", terminal.OsLabel), ("持ち主", terminal.OwnerLabel) })
+        { var line = LabeledRow(label, value); line.Margin = new Thickness(0, 6, 0, 0); fields.Children.Add(line); }
+        body.Children.Add(FormSection("接続先", new GroupCard(Row(TerminalParts.IconLabel("", terminal.Address, Ink, 13)), Row(TerminalParts.Disclosure("詳細", fields, addressOpen, open => addressOpen = open)))));
+        var check = SettingsUi.MainButton(Checking ? "確かめています…" : "つながるか確かめる"); check.IsEnabled = !Checking && !working; System.Windows.Automation.AutomationProperties.SetName(check, "つながるか確かめる");
+        check.Click += (_, _) => _ = RunCheckAsync(); body.Children.Add(check);
+        body.Children.Add(Text("SSHで一度だけつないで、すぐに閉じます。メンバーの席は起動しません。", 14, Secondary, null, new Thickness(20, 8, 20, 0)));
+        if (ReachabilityGroup(terminal) is { } reach) body.Children.Add(FormSection("つながるか", reach));
         body.Children.Add(FormSection("ホスト鍵", HostKeyGroup(terminal), "ホスト鍵は、つなぐ相手が本当にこの端末かを見分ける印です。端末で読んだ指紋と同じ時だけ信用します。"));
         body.Children.Add(FormSection("鍵", KeyGroup(terminal), terminal.KeysRouteAvailable && !keysRouteMissing ? "鍵は専用の入力欄だけに入れます。1Passwordの参照を先に選べます。中身や参照は、この画面にも会話にも出しません。" : null));
         if (terminal.Maintenance is { } maintenance)
@@ -237,9 +245,36 @@ internal sealed class TerminalDetailView : Grid, IDisposable
         if (errorText is not null) body.Children.Add(FormSection(null, new GroupCard(Row(Banner(errorText)))));
     }
 
-    private GroupCard ReachabilityGroup(Terminal terminal)
+    // The head of the page: tile, name, OS and owner, and the state badges in a wrapping row (every terminal shows them in the same order).
+    private UIElement Head(Terminal terminal)
+    {
+        var head = new StackPanel { Margin = new Thickness(0, 0, 0, 4) };
+        var top = new Grid(); top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); top.ColumnDefinitions.Add(new ColumnDefinition());
+        top.Children.Add(SettingsUi.Tile(SettingsPage.Terminals, 40));
+        var names = new StackPanel { Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        names.Children.Add(Text(terminal.TerminalId, 17, Ink, FontWeights.SemiBold)); names.Children.Add(Text($"{terminal.OsLabel} · {terminal.OwnerLabel}", 13, Secondary, null, new Thickness(0, 2, 0, 0)));
+        Grid.SetColumn(names, 1); top.Children.Add(names); head.Children.Add(top);
+        var badges = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
+        void Add(string text, SettingsTone tone, string glyph) { var badge = SettingsUi.Badge(text, tone, glyph); badge.Margin = new Thickness(0, 0, 6, 4); badges.Children.Add(badge); }
+        var check = Check;
+        // shortcut: reachability is this app's memory only until the server returns lastCheck per terminal (PR #1078); then read it from there.
+        if (check is null) Add("まだ確かめていません", SettingsTone.Gray, TerminalParts.Bolt);
+        else Add(check.Summary, check.Reachable ? SettingsTone.Green : SettingsTone.Orange, TerminalParts.Bolt);
+        foreach (var kind in TerminalOS.UsesSudoKey(terminal.Os) ? new[] { TerminalKeyKind.Ssh, TerminalKeyKind.Sudo } : [TerminalKeyKind.Ssh])
+        {
+            var look = TerminalParts.KeyLook(terminal.Key(kind), kind == TerminalKeyKind.Ssh ? terminal.SshKeyConfigured : terminal.SudoKeyConfigured);
+            Add($"{kind.Title()} {look.Text}", look.Color == TerminalParts.Mint ? SettingsTone.Green : look.Glyph == TerminalParts.Waiting ? SettingsTone.Violet : SettingsTone.Gray, look.Glyph);
+        }
+        head.Children.Add(badges);
+        return head;
+    }
+
+    // Shown only when there is something to say: a check result, or the key-authorization wait and its sentence.
+    private GroupCard? ReachabilityGroup(Terminal terminal)
     {
         var group = new GroupCard(); var check = Check;
+        model.Authorizations.TryGetValue(id, out var authorizing);
+        if (check is null && authorizing is null) return null;
         var block = new StackPanel();
         var head = new Grid(); head.ColumnDefinitions.Add(new ColumnDefinition()); head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         if (check is not null) head.Children.Add(TerminalParts.IconLabel(TerminalParts.Bolt, check.Summary, check.Reachable ? TerminalParts.Mint : Red, 14, FontWeights.SemiBold));
@@ -260,9 +295,6 @@ internal sealed class TerminalDetailView : Grid, IDisposable
         }
         if ((state is null && check?.OffersAuthorize == true) || state?.Retry == true)
             group.Add(Row(TerminalParts.IconRow(TerminalParts.KeyGlyph, $"この{TerminalOS.Machine(terminal.Os)}にこの鍵を入れる", Violet, working || Checking ? null : () => _ = AuthorizeKeyAsync())));
-        var press = TerminalParts.IconRow(TerminalParts.Bolt, "つながるか確かめる", Violet, Checking || working ? null : () => _ = RunCheckAsync());
-        if (Checking) { var busy = Text("確かめています…", 12, Secondary); busy.HorizontalAlignment = HorizontalAlignment.Right; Grid.SetColumn(busy, 1); press.Children.Add(busy); }
-        group.Add(Row(press));
         return group;
     }
 
@@ -277,7 +309,8 @@ internal sealed class TerminalDetailView : Grid, IDisposable
         group.Add(Row(line));
         // 16c S2: the terminal is this PC, so this app can read the host key itself. For another PC the server's own action (under 「つながるか」) says to open the app there.
         model.TrustNotes.TryGetValue(id, out var note);
-        if (ownsPc)
+        // A trusted host key needs no check of this PC (settings-user-flow 4.9b).
+        if (ownsPc && (!terminal.HostTrusted || HostKeyReported))
         {
             var attest = TerminalParts.IconRow(TerminalParts.ShieldOk, "このPCを確かめる", Violet, model.Attesting.Contains(id) || working ? null : () => _ = model.AttestAsync(id));
             if (model.Attesting.Contains(id)) { var busy = Text("確かめています…", 12, Secondary); busy.HorizontalAlignment = HorizontalAlignment.Right; Grid.SetColumn(busy, 1); attest.Children.Add(busy); }

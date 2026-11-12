@@ -175,7 +175,7 @@ public sealed partial class SettingsWindow
             foreach (var harness in harnesses)
             {
                 if (harness.Id == "claude") { var host = new StackPanel(); list.Children.Add(host); states.Add(LoadClaudeAsync(host, harness, api, token)); continue; }
-                var (row, ready) = AuthRow(harness.Name, [(harness.UsageText, Muted)], harness, api, null, false, null, token); list.Children.Add(row); states.Add(ready);
+                var (row, ready) = AuthRow(harness.Name, [(harness.UsageText, Muted)], harness, api, null, false, null, null, token); list.Children.Add(row); states.Add(ready);
             }
             await Task.WhenAll(states);
         }
@@ -188,9 +188,9 @@ public sealed partial class SettingsWindow
         }
     }
 
-    // One AI-authentication row: names and lines | badge | (button) | chevron. slot is the Claude account slot the row reads ("2nd"; the first reads without a slot) and starts.
-    // afterDialog replaces the row's own state re-read when the login window closes.
-    private (Grid Row, Task Ready) AuthRow(string name, IReadOnlyList<(string Text, Brush Color)> lines, HarnessAuthenticationOption harness, HarnessAuthenticationApi api, string? slot, bool signedOut, Func<Task>? afterDialog, CancellationToken token)
+    // One AI-authentication row: names and lines | badge | (button) | chevron. slot is the Claude account slot the row reads ("2nd"; the first reads without a slot).
+    // The row and its button open the login as a page in the right pane (settings-user-flow B17); label and limit go to its head.
+    private (Grid Row, Task Ready) AuthRow(string name, IReadOnlyList<(string Text, Brush Color)> lines, HarnessAuthenticationOption harness, HarnessAuthenticationApi api, string? slot, bool signedOut, string? accountLabel, string? limitLine, CancellationToken token)
     {
         var row = new Grid { Margin = new Thickness(0, 6, 0, 6), Background = Brushes.Transparent, Cursor = System.Windows.Input.Cursors.Hand };
         foreach (var width in new[] { new GridLength(1, GridUnitType.Star), GridLength.Auto, GridLength.Auto, GridLength.Auto }) row.ColumnDefinitions.Add(new ColumnDefinition { Width = width });
@@ -213,11 +213,7 @@ public sealed partial class SettingsWindow
             catch (OperationCanceledException) when (token.IsCancellationRequested) { }
             catch (Exception) { Show(AuthenticationProgress.Unknown); }
         }
-        async Task OpenAsync()
-        {
-            var dialog = new HarnessAuthenticationWindow(workspace, harness, slot: slot) { Owner = DialogOwner }; _ = dialog.InitializeAsync(); dialog.ShowDialog();
-            await (afterDialog?.Invoke() ?? ReadStateAsync()); _ = ReloadHomeAsync();
-        }
+        Task OpenAsync() => OpenLoginAsync(harness, slot, harness.Id == "claude" && name != harness.Name ? harness.Name + " " + name : name, accountLabel, limitLine, signedOut);
         action.Click += async (_, args) => { args.Handled = true; await OpenAsync(); };
         row.MouseLeftButtonUp += async (_, _) => await OpenAsync();
         return (row, ReadStateAsync());
@@ -242,7 +238,7 @@ public sealed partial class SettingsWindow
         catch (Exception error) { Failed(error.Message); return; }
         if (list is null)
         {
-            var (single, oldReady) = AuthRow(harness.Name, [(harness.UsageText, Muted)], harness, auth, null, false, null, token); host.Children.Add(single); await oldReady; return;
+            var (single, oldReady) = AuthRow(harness.Name, [(harness.UsageText, Muted)], harness, auth, null, false, null, null, token); host.Children.Add(single); await oldReady; return;
         }
         if (list.Claude is not { } claude) { Failed("アカウントの一覧にClaudeの項目がありません。"); return; }
         var now = DateTimeOffset.Now;
@@ -262,10 +258,10 @@ public sealed partial class SettingsWindow
             var lines = new List<(string Text, Brush Color)>();
             // #1117: the count of members running on this slot now, so 1つ目 + 2つ目 = the header; an older body without bot accounts says how many seats used it.
             lines.Add((AccountText.SlotUsers(seats, "claude", slot.Slot) is { } count ? AccountText.SlotUsersLine(count) : AccountText.SeatsCount(slot), Muted));
-            if (AccountText.LimitLine(claude, slot, now) is { } limit) lines.Add((limit, Orange));
+            var limit = AccountText.LimitLine(claude, slot, now); if (limit is not null) lines.Add((limit, Orange));
             // The contract asks that the Owner sees a slot whose history could not be shared (harness-accounts `history: separate`); the Mac has no line for it yet.
             if (slot.History == "separate") lines.Add(("会話の履歴は1つ目のアカウントと分かれています", Muted));
-            var (row, state) = AuthRow(AccountText.SlotName(slot.Slot), lines, harness, auth, slot.Slot == "1st" ? null : slot.Slot, slot.SignedOutAt is not null, Reload, token);
+            var (row, state) = AuthRow(AccountText.SlotName(slot.Slot), lines, harness, auth, slot.Slot == "1st" ? null : slot.Slot, slot.SignedOutAt is not null, AccountText.Login(slot), limit, token);
             host.Children.Add(row); ready.Add(state);
         }
         await Task.WhenAll(ready);
@@ -399,7 +395,7 @@ public sealed partial class SettingsWindow
         catch (Exception error) { form.Children.Add(Banner("1Passwordの設定を読み込めませんでした。" + error.Message)); return; }
         RefreshRows();
         if (feature is null) { form.Children.Add(Text("このサーバーの版では1Passwordと連携できません。", 14, Secondary, null, new Thickness(0, 10, 0, 0))); return; }
-        var view = onePassword = new OnePasswordView(workspace, feature, form, token, busy => Busy = busy);
+        var view = onePassword = new OnePasswordView(workspace, feature, form, token, busy => Busy = busy, item => { features = [.. (features ?? []).Where(other => other.Id != item.Id), item]; RefreshRows(); });
         EventHandler clear = (_, _) => view.ClearToken(); Deactivated += clear; token.Register(() => Deactivated -= clear);
         await view.Ready;
     }
