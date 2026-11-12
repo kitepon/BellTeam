@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-12T23:10:12Z",
-  "expiresAt": "2026-11-19T23:10:12Z",
+  "publishedAt": "2026-11-12T23:18:31Z",
+  "expiresAt": "2026-11-19T23:18:31Z",
   "releases": [
     {
       "componentId": "usage",
@@ -429,8 +429,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "22a8e92dd8a210d71fd775584cc8d5210b15da6d",
-      "versionId": "2778e608c9db4e8f52fa620da5bf93691881aa61c0397909a18d3d673e565b71",
+      "sourceCommit": "560c931aceccf7ac2df7197b5ed6fb2e8ab4d77d",
+      "versionId": "10bb544a43c63904c6e3fb18b3493c2ffbdf1f1596fed0b09619117357eeb370",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -438,16 +438,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T010858Z/web-gateway-22a8e92dd8a210d71fd775584cc8d5210b15da6d-linux-amd64.tar.gz",
-          "bytes": 5289128,
-          "sha256": "2778e608c9db4e8f52fa620da5bf93691881aa61c0397909a18d3d673e565b71"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T231807Z/web-gateway-560c931aceccf7ac2df7197b5ed6fb2e8ab4d77d-linux-amd64.tar.gz",
+          "bytes": 5313435,
+          "sha256": "10bb544a43c63904c6e3fb18b3493c2ffbdf1f1596fed0b09619117357eeb370"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T010858Z/web-gateway-22a8e92dd8a210d71fd775584cc8d5210b15da6d-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11193,
-          "sha256": "b52c8d4ffe56bfc87fd73bbe436d7670f66f065cd5cae4949859527884d33095"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T231807Z/web-gateway-560c931aceccf7ac2df7197b5ed6fb2e8ab4d77d-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11064,
+          "sha256": "d3623b1d1e0e380db51c18feeefa91ee9992514d66f9be1f72cd510dcd46c701"
         },
-        "signerCommit": "22a8e92dd8a210d71fd775584cc8d5210b15da6d"
+        "signerCommit": "560c931aceccf7ac2df7197b5ed6fb2e8ab4d77d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -456,13 +456,14 @@
         "containerUpdate": null
       },
       "changes": [
-        "起動に失敗した時の再試行、つながり直している間の表示、止まっている時のお知らせを出すようになりました。"
+        "Web の工程表の画面で、止まっている工程の一覧を見て、評価者様が止まりを解けるようにします。",
+        "Web の相関図が、動きのない時は描き直しを止めて、端末の負担を減らします。"
       ]
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "22a8e92dd8a210d71fd775584cc8d5210b15da6d",
-      "versionId": "80242736821edcfe8089c8d6fb9dc81c74056281a88da3efed34d7bcdac08140",
+      "sourceCommit": "560c931aceccf7ac2df7197b5ed6fb2e8ab4d77d",
+      "versionId": "a1b8f487308938ec0193e381985ef3543a542ff58dfca901e856e51a435f955d",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -470,16 +471,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T010858Z/web-gateway-22a8e92dd8a210d71fd775584cc8d5210b15da6d-linux-arm64.tar.gz",
-          "bytes": 5289128,
-          "sha256": "80242736821edcfe8089c8d6fb9dc81c74056281a88da3efed34d7bcdac08140"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T231807Z/web-gateway-560c931aceccf7ac2df7197b5ed6fb2e8ab4d77d-linux-arm64.tar.gz",
+          "bytes": 5313435,
+          "sha256": "a1b8f487308938ec0193e381985ef3543a542ff58dfca901e856e51a435f955d"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T010858Z/web-gateway-22a8e92dd8a210d71fd775584cc8d5210b15da6d-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11158,
-          "sha256": "d221c200ce015f5eed25aced4dd4c24b5c11f42cea4bcb1c3646d91386660db6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T231807Z/web-gateway-560c931aceccf7ac2df7197b5ed6fb2e8ab4d77d-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11205,
+          "sha256": "c965f5bdb1e9e5a827d1af7d1401e75615dfb02919fdc2f7327950b4af387622"
         },
-        "signerCommit": "22a8e92dd8a210d71fd775584cc8d5210b15da6d"
+        "signerCommit": "560c931aceccf7ac2df7197b5ed6fb2e8ab4d77d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -488,7 +489,8 @@
         "containerUpdate": null
       },
       "changes": [
-        "起動に失敗した時の再試行、つながり直している間の表示、止まっている時のお知らせを出すようになりました。"
+        "Web の工程表の画面で、止まっている工程の一覧を見て、評価者様が止まりを解けるようにします。",
+        "Web の相関図が、動きのない時は描き直しを止めて、端末の負担を減らします。"
       ]
     },
     {
@@ -709,15 +711,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "e25270fe6a7acf2e9c43c8a84f2c93e2c62ffedc",
-      "versionId": "sha256:4d20321061e7d48f8144ac8726c29f346733305481f2d600cad5c707489c2206",
+      "sourceCommit": "539aef6d6fdf6efaffe7f6550ad3d7ba26fbab2a",
+      "versionId": "sha256:1351064afdc411ce42128dc038f4bad4878e6555809a35ad39002f4abb926d0c",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:4d20321061e7d48f8144ac8726c29f346733305481f2d600cad5c707489c2206"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:1351064afdc411ce42128dc038f4bad4878e6555809a35ad39002f4abb926d0c"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,20 +728,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Web の工程表の画面で、止まっている工程の一覧を見て、評価者様が止まりを解けるようにします。"
+        "評価者様の工程のどれかが Approval Box に断られても、その工程だけを飛ばして、次の工程の申請に進むようにします。Approval Box につながらない時は、その回の見回りを止めて次の回にやり直します。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "e25270fe6a7acf2e9c43c8a84f2c93e2c62ffedc",
-      "versionId": "sha256:4d20321061e7d48f8144ac8726c29f346733305481f2d600cad5c707489c2206",
+      "sourceCommit": "539aef6d6fdf6efaffe7f6550ad3d7ba26fbab2a",
+      "versionId": "sha256:1351064afdc411ce42128dc038f4bad4878e6555809a35ad39002f4abb926d0c",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:4d20321061e7d48f8144ac8726c29f346733305481f2d600cad5c707489c2206"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:1351064afdc411ce42128dc038f4bad4878e6555809a35ad39002f4abb926d0c"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,7 +750,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Web の工程表の画面で、止まっている工程の一覧を見て、評価者様が止まりを解けるようにします。"
+        "評価者様の工程のどれかが Approval Box に断られても、その工程だけを飛ばして、次の工程の申請に進むようにします。Approval Box につながらない時は、その回の見回りを止めて次の回にやり直します。"
       ]
     },
     {
