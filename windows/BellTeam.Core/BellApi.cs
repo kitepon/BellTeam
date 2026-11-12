@@ -6,11 +6,13 @@ using System.Text.Json;
 
 namespace BellTeam.Core;
 
-public sealed class BellApiException(string message, HttpStatusCode? status = null, string? code = null) : Exception(message)
+public sealed class BellApiException(string message, HttpStatusCode? status = null, string? code = null, string? reason = null) : Exception(message)
 {
     public HttpStatusCode? Status { get; } = status;
     // The server's machine-readable "error" value (for example SCREEN_SEAT_ABSENT) when the answer carried one.
     public string? Code { get; } = code;
+    // The server's plain "reason" text when the refusal carried one (for example Lattice's LATTICE_UNBLOCK_REFUSED).
+    public string? Reason { get; } = reason;
     // The server may or may not have acted: no HTTP answer, an unreadable answer, or a server error.
     public static bool IsResultUnconfirmed(Exception error) => error is not BellApiException { Status: not null } || (int)((BellApiException)error).Status! >= 500;
     // The update stream closed after it had opened (Mac: 更新の接続が切れました。再接続しています。).
@@ -161,7 +163,7 @@ public sealed class BellApi : IDisposable
         }
         if (response.IsSuccessStatusCode) return;
         body ??= await response.Content.ReadAsStringAsync(token);
-        string detail = $"HTTP {status}"; string? code = null;
+        string detail = $"HTTP {status}"; string? code = null, reason = null;
         if (response.Content.Headers.ContentType?.MediaType == "application/json")
         {
             try
@@ -169,6 +171,7 @@ public sealed class BellApi : IDisposable
                 using var document = JsonDocument.Parse(body);
                 var root = document.RootElement;
                 if (root.TryGetProperty("error", out var codeValue) && codeValue.ValueKind == JsonValueKind.String) code = codeValue.GetString();
+                if (root.TryGetProperty("reason", out var reasonValue) && reasonValue.ValueKind == JsonValueKind.String) reason = reasonValue.GetString();
                 if (root.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.String)
                     detail = message.GetString()!;
                 else if (root.TryGetProperty("error", out var error) && error.ValueKind == JsonValueKind.String)
@@ -176,7 +179,7 @@ public sealed class BellApi : IDisposable
             }
             catch (JsonException) { detail += "（エラー応答のJSONを読み取れませんでした）"; }
         }
-        throw new BellApiException("BellTeam: " + detail, response.StatusCode, code);
+        throw new BellApiException("BellTeam: " + detail, response.StatusCode, code, reason);
     }
     private static string? ErrorCode(string body)
     {

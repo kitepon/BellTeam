@@ -331,12 +331,26 @@ public partial class App : Application
                 var model = new Workspace(origin => new BellApi(origin, new LatticeFixture(latticeScene))); await model.ConnectAsync("http://localhost", listen: false);
                 if (model.ConnectionError is { } latticeFailure) throw new BellApiException(latticeFailure);
                 var lattice = new LatticeWindow(model, _ => Task.CompletedTask) { Rendering = true, Clock = () => 2300 };
-                LatticeChartPage.View = latticeScene switch { "tree" or "tree-detail" or "owner" => "tree", "history" => "history", _ => "lanes" };
+                LatticeChartPage.View = latticeScene switch { "tree" or "tree-detail" or "owner" or "stops-open" => "tree", "history" => "history", _ => "lanes" };
                 const int latticeWidth = 1360, latticeHeight = 860;
                 var latticeRoot = (FrameworkElement)lattice.Content;
                 async Task Until(Func<bool> done, string what) { var until = DateTime.UtcNow.AddSeconds(10); while (!done()) { if (DateTime.UtcNow > until) throw new BellApiException(what); await Task.Delay(20); } }
                 lattice.Sync();
                 if (latticeScene is "list" or "list-empty" or "old-server") await Until(() => lattice.ListSettled, "工程表の一覧を読めませんでした。");
+                else if (latticeScene.StartsWith("stops", StringComparison.Ordinal))
+                {
+                    // 止め一覧 from 一覧. stops-confirm: the first row asks; stops-refused: the first row's 外す was refused; stops-open: the first row opened its chart and 詳細.
+                    await Until(() => lattice.ListSettled, "工程表の一覧を読めませんでした。");
+                    lattice.ShowStops(); var stops = lattice.Stops!;
+                    await Until(() => stops.State != LatticeStopsPage.Phase.Loading, "止め一覧を読めませんでした。");
+                    if (latticeScene == "stops-confirm") stops.Ask(stops.Rows[0].StopId);
+                    if (latticeScene == "stops-refused") { await stops.RemoveAsync(stops.Rows[0]); await stops.Reading; }
+                    if (latticeScene == "stops-open")
+                    {
+                        var first = stops.Rows[0]; lattice.OpenCard(first.ProjectId, first.CardId);
+                        await Until(() => lattice.Chart!.SelectedCard is not null, "止め一覧から工程を開けませんでした。");
+                    }
+                }
                 else if (latticeScene == "list-back")
                 {
                     // 一覧 opened from a chart through the switcher: the back button names that chart.
@@ -357,7 +371,7 @@ public partial class App : Application
                     if (latticeScene == "authored") chart.ScrollBoard(chart.Board.CardRect("p1/t07").X, chart.Board.CardRect("p1/t09").Y);
                 }
                 WritePng(lattice, latticeWidth, latticeHeight, latticeOutput);
-                lattice.Chart?.Stop(); model.Dispose(); Shutdown(0); return;
+                lattice.Chart?.Stop(); lattice.Stops?.Stop(); model.Dispose(); Shutdown(0); return;
             }
             if (e.Args is ["--render-preview", _] || e.Args is ["--render-url", _, _] || e.Args is ["--render-url", _, _, _])
             {
@@ -380,7 +394,7 @@ public partial class App : Application
                 Shutdown(0);
                 return;
             }
-            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-lattice <list|list-back|list-empty|old-server|single|chart|authored|tree|tree-detail|history|owner|owner-lanes|detail|highlight|unverified|last-verified|unknown|degraded|reconnecting|unavailable|not-found> <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-inspector <member|member-small|restart-busy|restart-success|room|sheet-small|sheet-large|sheet-unsupported|pending|pending-sheet> <URL> <会話ID> <PNG>、--render-screen <keys|approval|digits|sent|empty|offline|failed> <URL> <会話ID> <PNG>、--render-conversation <member|room|fork|secret|echo|states|stop|stop-notice|stop-member|draft|peer-sheet|stack|empty|failed> <URL> <会話ID> <PNG>、--render-secret <ssh-search|sudo-list|sudo-vault|reference|onetime|login|old> <URL> <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|features|notifications|connection|display|billing|update|about|stop>|schedules|updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>、--render-terminals <list|detail-auth-failed|detail-hostkey|detail-windows|detail-authorizing|keys|keys-pending|hostkey-sheet|editor-macos|editor-windows|editor-linux> <URL> <PNG>、--render-startup <opening|setup|guide|failure|login|onboarding-choose|onboarding-waiting|banner> <URL> <PNG>、--render-editor <member|settings|profile|feature|schedules|new-schedule|authentication> <URL> <ID> <PNG>、--render-editors <new-member|new-room|room|room-delete-alert|crop|member|member-delete-alert|member-delete-pending|member-delete-unconfirmed|folder-new|folder-new-windows|folder-new-missing|folder-new-typed|folder-picker|folder-picker-sub|folder-picker-created> <URL> <ID> <PNG> のいずれかです。");
+            if (e.Args.Length != 0) throw new ArgumentException("引数は --install-shortcut、--smoke-test <URL> <結果ファイル>、--configure <URL>、--render-preview <PNG>、--render-lattice <list|list-back|list-empty|old-server|stops|stops-confirm|stops-refused|stops-open|stops-empty|stops-unread|stops-retry|stops-old|single|chart|authored|tree|tree-detail|history|owner|owner-lanes|detail|highlight|unverified|last-verified|unknown|degraded|reconnecting|unavailable|not-found> <PNG>、--render-gallery <URL> <会話ID> <PNG>、--render-url <URL> [会話ID] <PNG>、--render-inspector <member|member-small|restart-busy|restart-success|room|sheet-small|sheet-large|sheet-unsupported|pending|pending-sheet> <URL> <会話ID> <PNG>、--render-screen <keys|approval|digits|sent|empty|offline|failed> <URL> <会話ID> <PNG>、--render-conversation <member|room|fork|secret|echo|states|stop|stop-notice|stop-member|draft|peer-sheet|stack|empty|failed> <URL> <会話ID> <PNG>、--render-secret <ssh-search|sudo-list|sudo-vault|reference|onetime|login|old> <URL> <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|features|notifications|connection|display|billing|update|about|stop>|schedules|updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>、--render-terminals <list|detail-auth-failed|detail-hostkey|detail-windows|detail-authorizing|keys|keys-pending|hostkey-sheet|editor-macos|editor-windows|editor-linux> <URL> <PNG>、--render-startup <opening|setup|guide|failure|login|onboarding-choose|onboarding-waiting|banner> <URL> <PNG>、--render-editor <member|settings|profile|feature|schedules|new-schedule|authentication> <URL> <ID> <PNG>、--render-editors <new-member|new-room|room|room-delete-alert|crop|member|member-delete-alert|member-delete-pending|member-delete-unconfirmed|folder-new|folder-new-windows|folder-new-missing|folder-new-typed|folder-picker|folder-picker-sub|folder-picker-created> <URL> <ID> <PNG> のいずれかです。");
 
             MainWindow? main = null;
             instance = new SingleInstance(() => Dispatcher.Invoke(() => { main!.WindowState = main.WindowState == WindowState.Minimized ? WindowState.Normal : main.WindowState; main.Show(); main.Activate(); }));

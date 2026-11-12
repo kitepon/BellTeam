@@ -35,6 +35,8 @@ public sealed class LatticeWindow : Window
     internal LatticeChartPage? Chart { get; private set; }
     // The chart 一覧 was opened from (switcher): back returns to that same page, scroll position included (screen-spec state diagram List --> Chart: back).
     private LatticeChartPage? back;
+    // 止め一覧, when it is the page on screen (screen-spec "止め一覧"; reached from 一覧).
+    internal LatticeStopsPage? Stops { get; private set; }
     internal Task ListRead { get; private set; } = Task.CompletedTask;
 
     internal LatticeWindow(Workspace workspace, Func<string, Task> openChat)
@@ -51,7 +53,12 @@ public sealed class LatticeWindow : Window
         SourceInitialized += (_, _) => UseMica();
         IsVisibleChanged += (_, _) => Sync(); StateChanged += (_, _) => Sync();
         workspace.PropertyChanged += WorkspaceChanged;
-        PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape && (Chart?.CloseDetail() == true || (Chart is null && ReturnToChart()))) e.Handled = true; };
+        PreviewKeyDown += (_, e) =>
+        {
+            if (Stops is { } stops && e.Key is Key.Escape or Key.F5) { if (e.Key == Key.F5) stops.Read(); else stops.Escape(); e.Handled = true; }
+            else if (e.Key == Key.Escape && (Chart?.CloseDetail() == true || (Chart is null && ReturnToChart()))) e.Handled = true;
+        };
+        Activated += (_, _) => Stops?.Foreground();
         Closed += (_, _) => { workspace.PropertyChanged -= WorkspaceChanged; StopAll(); if (ReferenceEquals(Current, this)) Current = null; };
     }
 
@@ -77,10 +84,11 @@ public sealed class LatticeWindow : Window
     {
         if (origin != workspace.Server) { origin = workspace.Server; list = null; listProblem = null; autoOpened = false; back = null; ShowList(); }
         if (!Wanted) { StopAll(); return; }
-        if (Chart is { } chart) { listLoop?.Cancel(); listLoop = null; if (!chart.Running) chart.Run(workspace.Management.Api, workspace.ConnectionToken); }
+        if (Stops is { } stops) { listLoop?.Cancel(); listLoop = null; if (!stops.Running) stops.Run(workspace.Management.Api, workspace.ConnectionToken); }
+        else if (Chart is { } chart) { listLoop?.Cancel(); listLoop = null; if (!chart.Running) chart.Run(workspace.Management.Api, workspace.ConnectionToken); }
         else if (listLoop is null) { listLoop = CancellationTokenSource.CreateLinkedTokenSource(workspace.ConnectionToken); ListRead = ReadListAsync(listLoop); }
     }
-    private void StopAll() { listLoop?.Cancel(); listLoop = null; Chart?.Stop(); }
+    private void StopAll() { listLoop?.Cancel(); listLoop = null; Chart?.Stop(); Stops?.Stop(); }
 
     // The reader owns its source: released once it has finished, so hide/show and chart switches leave no registration on the connection token.
     private async Task ReadListAsync(CancellationTokenSource source)
@@ -104,7 +112,7 @@ public sealed class LatticeWindow : Window
             catch (BellApiException error) when (error.RequiresLogin) { listProblem = LatticeChart.LoginRequired; }
             catch (BellApiException error) when (error.Status == System.Net.HttpStatusCode.NotFound) { listProblem = LatticeChart.OldServer; list = null; }
             catch (Exception) { listProblem = LatticeChart.Reconnecting; }
-            if (Chart is null) RenderList();
+            if (Chart is null && Stops is null) RenderList();
             try { await Task.Delay(TimeSpan.FromSeconds(10), token); } catch (OperationCanceledException) { return; }
         }
     }
@@ -114,7 +122,7 @@ public sealed class LatticeWindow : Window
     internal void ShowList(bool fromChart = false)
     {
         back = fromChart ? Chart : null;
-        Chart?.Stop(); Chart = null;
+        Chart?.Stop(); Chart = null; Stops?.Stop(); Stops = null;
         RenderList(); Sync();
     }
     /// <summary>Back from 一覧 to the chart it was opened from (chevron + chart name, or Esc).</summary>
@@ -137,7 +145,12 @@ public sealed class LatticeWindow : Window
             backButton.Margin = new Thickness(0, 0, 18, 0); backButton.Click += (_, _) => ReturnToChart(); DockPanel.SetDock(backButton, Dock.Left);
             System.Windows.Automation.AutomationProperties.SetAutomationId(backButton, "lattice-back"); header.Children.Add(backButton);
         }
-        header.Children.Add(Text("工程表", 28, Ink, FontWeights.Bold));
+        var title = Text("工程表", 28, Ink, FontWeights.Bold); DockPanel.SetDock(title, Dock.Left); header.Children.Add(title);
+        if (list is { Charts.Length: > 0 })
+        {
+            var stops = Action("止め一覧", ""); stops.Margin = new Thickness(18, 0, 0, 0); stops.VerticalAlignment = VerticalAlignment.Center; stops.HorizontalAlignment = HorizontalAlignment.Left; stops.Click += (_, _) => ShowStops();
+            System.Windows.Automation.AutomationProperties.SetAutomationId(stops, "lattice-stops"); header.Children.Add(stops);
+        }
         body.Children.Add(header);
         if (list is null && listProblem is { } problem && problem != LatticeChart.Reconnecting)
         {
@@ -204,12 +217,28 @@ public sealed class LatticeWindow : Window
         return stack;
     }
 
+    // MARK: 止め一覧
+
+    internal void ShowStops()
+    {
+        listLoop?.Cancel(); listLoop = null; pill.Visibility = Visibility.Collapsed;
+        Chart?.Stop(); Chart = null; back = null;
+        Stops = new LatticeStopsPage(this); page.Content = Stops;
+        Sync();
+    }
+    /// <summary>A 止め一覧 row: that chart, and the card's 詳細 once its first snapshot is drawn.</summary>
+    internal void OpenCard(string projectId, string? cardId)
+    {
+        OpenChart(projectId);
+        if (cardId is not null) Chart!.OpenWhenDrawn(cardId);
+    }
+
     // MARK: 工程表
 
     internal void OpenChart(string projectId)
     {
         listLoop?.Cancel(); listLoop = null; pill.Visibility = Visibility.Collapsed;
-        Chart?.Stop(); back = null;
+        Chart?.Stop(); back = null; Stops?.Stop(); Stops = null;
         Chart = new LatticeChartPage(this, projectId, list?.Charts.FirstOrDefault(chart => chart.ProjectId == projectId));
         page.Content = Chart;
         Sync();
@@ -280,6 +309,8 @@ internal sealed class LatticeChartPage : Grid
         Fill = new LinearGradientBrush(Color.FromArgb(0, 0xF7, 0xF5, 0xFC), Color.FromArgb(0xF2, 0xF7, 0xF5, 0xFC), 0) };
     private readonly ContentControl detailHost = new() { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Stretch, Margin = new Thickness(0, 12, 12, 12) };
     private string? said;
+    private string? pendingDetail;
+    internal void OpenWhenDrawn(string cardId) { pendingDetail = cardId; if (Feed.Snapshot is not null) Render(); }
     internal string? SelectedCard { get; private set; }
     internal string? HighlightedMember { get; private set; }
     public bool Running { get; private set; }
@@ -372,6 +403,7 @@ internal sealed class LatticeChartPage : Grid
         // Reconnecting keeps the last drawing, dimmed; last_verified is a little dimmed too.
         stage.Opacity = !live ? .5 : LatticeChart.Banner(snapshot) is { Dim: true } ? .78 : 1;
         RenderRail(snapshot); RenderWaits(snapshot, now);
+        if (pendingDetail is { } pending) { pendingDetail = null; if (LatticeChart.Detail(snapshot, pending, now) is not null) OpenDetail(pending, morph: false); }
         if (SelectedCard is { } selected) { if (LatticeChart.Detail(snapshot, selected, now) is null) CloseDetail(); else ShowDetail(selected, false); }
         RenderPills();
     }
