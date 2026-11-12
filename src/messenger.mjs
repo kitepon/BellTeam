@@ -109,17 +109,27 @@ export class BellTeamMessenger extends ConversationWriter {
     const forkId = this.deliveryId()
     const seat = { kind: 'fork', fork_id: forkId }
     const fromSeat = forkSeatLabel(askerSeat)
-    // Live before the inquiry row is durable: a first sweep in between never settles or owes an inquiry still launching.
+    // Live from before the inquiry row is durable until its terminal status is: no sweep ever sees it running and not live.
     const deliveryId = this.deliveryId()
     this.forkNotices.live.add(deliveryId)
+    const refused = async (status, error) => {
+      await this.appendDeliveryStatus(deliveryId, status, error)
+      this.forkNotices.live.delete(deliveryId)
+    }
     let prepared
     try { prepared = await this.prepareDirect({ from, target, message }, { deliveryId }, { seat, ...(fromSeat ? { from_seat: fromSeat } : {}) }) }
-    catch (error) { this.forkNotices.live.delete(deliveryId); throw error }
+    catch (error) {
+      // An onMessage error can follow the durable row; a refusal before it leaves no row to settle.
+      if ((await this.store.entries()).some(row => row.schema === 'bellteam.direct-message.v1' && row.delivery_id === deliveryId))
+        await this.appendDeliveryStatus(deliveryId, 'failed', error)
+      this.forkNotices.live.delete(deliveryId)
+      throw error
+    }
     const { check, bot } = prepared
     const asker = memberIdentity(this.bots, from)
     const askedAt = this.now()
     try { check() }
-    catch (error) { this.forkNotices.live.delete(deliveryId); await this.appendDeliveryStatus(deliveryId, 'stopped'); throw error }
+    catch (error) { await refused('stopped'); throw error }
     const acceptance = Promise.withResolvers()
     const answered = Promise.withResolvers()
     let relayed = false
@@ -168,8 +178,7 @@ export class BellTeamMessenger extends ConversationWriter {
       return { delivery: result?.delivery ?? 'running', ...receipt }
     } catch (error) {
       acceptance.resolve(false)
-      this.forkNotices.live.delete(deliveryId)
-      await this.appendDeliveryStatus(deliveryId, ['BOT_STOPPED', 'AI_GLOBAL_PAUSED'].includes(error.code) ? 'stopped' : 'failed', error)
+      await refused(['BOT_STOPPED', 'AI_GLOBAL_PAUSED'].includes(error.code) ? 'stopped' : 'failed', error)
       throw error
     }
   }

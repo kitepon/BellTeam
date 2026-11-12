@@ -334,3 +334,53 @@ test('a first sweep in the gap right after the inquiry row is appended leaves th
   assert.equal(notified.length, 0, 'no interruption notice')
   assert.equal((await rows()).filter(row => row.schema === 'bellteam.delivery-status.v1').length, 0, 'the row is not settled')
 })
+
+// A first sweep that runs while a pre-accept refusal writes its terminal status must not see running + not live.
+async function refusalOverlap(t, { forkInquiry, admit, onMessage }) {
+  const { messenger, notified, rows } = await setup(t, forkInquiry)
+  if (admit) messenger.admitWork = admit
+  if (onMessage) messenger.onMessage = onMessage
+  const appendStatus = messenger.appendDeliveryStatus
+  let swept = null, sweeping = false
+  messenger.appendDeliveryStatus = async function (...args) {
+    if (!sweeping) { sweeping = true; swept = await this.sweepForkNotices() } // during the terminal write
+    return appendStatus.apply(this, args)
+  }
+  await assert.rejects(messenger.askReadonly({ from: asker.id, target: owner.id, message: 'What is X?' }))
+  swept ??= await messenger.sweepForkNotices() // no terminal write happened: sweep right after the refusal
+  assert.deepEqual(swept, { relayed: 0, owed: 0 }, 'a pre-accept refusal owes no notice')
+  assert.equal(notified.length, 0, 'only the tool error, no interruption notice')
+  const statuses = (await rows()).filter(row => row.schema === 'bellteam.delivery-status.v1').map(row => row.delivery)
+  return { statuses, messenger }
+}
+
+test('a check() refusal keeps the inquiry live until its stopped status is durable', async t => {
+  const { statuses } = await refusalOverlap(t, {
+    forkInquiry: async () => assert.fail('never launched'),
+    admit: () => () => { throw Object.assign(new Error('AI_GLOBAL_PAUSED'), { code: 'AI_GLOBAL_PAUSED' }) },
+  })
+  assert.deepEqual(statuses, ['stopped'])
+})
+
+test('a forkInquiry refusal keeps the inquiry live until its failed status is durable', async t => {
+  const { statuses } = await refusalOverlap(t, {
+    forkInquiry: async () => { throw Object.assign(new Error('FORK_REFUSED'), { code: 'FORK_REFUSED' }) },
+  })
+  assert.deepEqual(statuses, ['failed'])
+})
+
+test('prepareDirect failing after the inquiry row is durable settles that row before live ends', async t => {
+  const { statuses, messenger } = await refusalOverlap(t, {
+    forkInquiry: async () => assert.fail('never launched'),
+    onMessage: async row => { if (row.seat?.kind === 'fork') throw new Error('ON_MESSAGE_FAILED') },
+  })
+  assert.deepEqual(statuses, ['failed'])
+  assert.equal(messenger.forkNotices.live.size, 0)
+})
+
+test('prepareDirect refusing before the inquiry row writes nothing and ends live', async t => {
+  const { messenger, rows } = await setup(t, async () => assert.fail('never launched'))
+  await assert.rejects(messenger.askReadonly({ from: 'bot-missing', target: owner.id, message: 'What is X?' }), /SENDER_NOT_FOUND/)
+  assert.equal(messenger.forkNotices.live.size, 0)
+  await assert.rejects(rows(), { code: 'ENOENT' }, 'no row at all')
+})
