@@ -100,3 +100,26 @@ test('agent_models carries claude_login only for a slot and only to an Aiterm th
     assert.equal(sent[0][1].claude_login, expected, `declared=${declared} login=${login}`)
   }
 })
+
+// boundary-details.md (a04, Trony B): a slot without its login lists once more without claude_login; no other error is retried.
+test('agent_models retries once without claude_login only on CLAUDE_LOGIN_UNAVAILABLE', async () => {
+  const { AitermClient } = await import('../src/aiterm-client.mjs')
+  for (const [refusal, calls, ok] of [['CLAUDE_LOGIN_UNAVAILABLE: claude_login \'1st\' のoauth-tokenを読めません。', 2, true], ['AGENT_MODELS_FAILED', 1, false]]) {
+    const sent = []
+    const client = new AitermClient()
+    client.connect = async () => {}
+    client.client = {
+      listTools: async () => ({ tools: [{ name: 'agent_models', inputSchema: { properties: { claude_login: { type: 'string' } } } }] }),
+      callTool: async ({ arguments: args }) => {
+        sent.push(args)
+        return Object.hasOwn(args, 'claude_login') || !ok ? { isError: true, content: [{ type: 'text', text: refusal }] } : { structuredContent: { models: ['opus'] } }
+      },
+    }
+    const call = client.call('agent_models', { harness: 'claude-code', cwd: '/x' }, { claudeLogin: '1st' })
+    if (ok) assert.deepEqual((await call).structuredContent, { models: ['opus'] })
+    else await assert.rejects(call)
+    assert.equal(sent.length, calls, refusal)
+    assert.equal(sent[0].claude_login, '1st')
+    if (ok) assert.equal(Object.hasOwn(sent[1], 'claude_login'), false)
+  }
+})

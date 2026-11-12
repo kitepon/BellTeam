@@ -225,12 +225,20 @@ export class AitermClient {
       } catch { /* No launch was issued by the capability read. */ }
       if (!supported) throw Object.assign(new Error('RESUME_CAPABILITY_UNAVAILABLE'), { code: 'RESUME_CAPABILITY_UNAVAILABLE', effect: 'not_started' })
     }
-    let result
     admissionCheck?.()
-    try { result = await callClient.callTool({ name, arguments: args, ...(meta ? { _meta: meta } : {}) }) }
-    catch (error) {
-      captureMcpRequest(error, 'call', name)
-      throw error
+    const issue = async () => {
+      try { return await callClient.callTool({ name, arguments: args, ...(meta ? { _meta: meta } : {}) }) }
+      catch (error) {
+        captureMcpRequest(error, 'call', name)
+        throw error
+      }
+    }
+    let result = await issue()
+    // boundary-details.md (a04): a slot with no login (fresh install) lists as before a04; exactly one retry, this error only.
+    if (name === 'agent_models' && result.isError && Object.hasOwn(args, 'claude_login') && /\bCLAUDE_LOGIN_UNAVAILABLE\b/u.test(textResult(result))) {
+      const { claude_login: _login, ...rest } = args
+      args = rest
+      result = await issue()
     }
     if (result.isError) {
       if (name === 'agent_configure' && expectedConfiguration && result.structuredContent?.schema === CONFIGURATION_SCHEMA) return result
