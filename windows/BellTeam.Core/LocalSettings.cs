@@ -14,7 +14,8 @@ public sealed record LocalSettings
 }
 public sealed class SettingsStore(string directory)
 {
-    public static string UserDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BellTeam");
+    // Create: on Linux an absent ~/.local/share would otherwise yield "" and a settings folder relative to the working directory.
+    public static string UserDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData, Environment.SpecialFolderOption.Create), "BellTeam");
     public string FilePath => Path.Combine(directory, "settings.json");
     public LocalSettings Load()
     {
