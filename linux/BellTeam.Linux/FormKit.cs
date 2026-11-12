@@ -11,7 +11,6 @@ using Avalonia.Media;
 
 namespace BellTeam.Linux;
 
-public sealed record FormOption(string Id, string Label);
 
 // The pieces of the Mac grouped Form that Windows keeps in SettingsUi and EditorFormView: caption, white group with hairlines, rows, fields, switch, pop-up.
 internal static class FormKit
@@ -104,7 +103,6 @@ internal static class FormKit
     }
 }
 
-public sealed record AlertChoice(string Label, Action? Click = null, bool Destructive = false, bool Bold = false);
 
 // A ComboBox over FormOption ids (Windows: SelectedValuePath Id).
 internal sealed class FormPopup : ComboBox
@@ -162,39 +160,3 @@ internal sealed class IosSwitch : ToggleButton
     }
 }
 
-// White rounded group whose rows are separated by hairlines; rows can be added, hidden and removed after creation.
-internal sealed class FormGroup : Border
-{
-    private readonly StackPanel rows = new();
-    private readonly List<(Control Row, StackPanel Holder, Border Line)> items = [];
-    public FormGroup() { Background = Brushes.White; CornerRadius = new CornerRadius(10); Child = rows; ClipToBounds = true; }
-    public FormGroup(params Control[] initial) : this() { foreach (var row in initial) Add(row); }
-    public int Count => items.Count;
-    public void Add(Control row) => Insert(items.Count, row);
-    public void Insert(int index, Control row)
-    {
-        var line = new Border { Height = 1, Background = FormKit.Hairline, Margin = new Thickness(20, 0, 0, 0) };
-        var holder = new StackPanel { Children = { line, row } };
-        rows.Children.Insert(index, holder); items.Insert(index, (row, holder, line)); Refresh();
-    }
-    public void Remove(Control row)
-    {
-        var index = items.FindIndex(item => item.Row == row); if (index < 0) return;
-        rows.Children.RemoveAt(index); items.RemoveAt(index); Refresh();
-    }
-    // A hidden row takes its separator with it; the first row shown never has one.
-    public void SetVisible(Control row, bool visible)
-    {
-        var index = items.FindIndex(item => item.Row == row); if (index < 0) return;
-        items[index].Holder.IsVisible = visible; Refresh();
-    }
-    private void Refresh()
-    {
-        var first = true;
-        foreach (var item in items)
-        {
-            if (!item.Holder.IsVisible) continue;
-            item.Line.IsVisible = !first; first = false;
-        }
-    }
-}

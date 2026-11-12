@@ -7,20 +7,6 @@ using BellTeam.Core;
 
 namespace BellTeam.Linux;
 
-// A sheet whose header carries a 保存 button (Mac goal editor toolbar); the host reads this to draw the header.
-public interface ISheetSave
-{
-    bool CanSave { get; }
-    event Action? CanSaveChanged;
-    Task SaveAsync();
-    // The header's two buttons: the left one closes (the editors say キャンセル until something is saved), the right one saves.
-    string CloseLabel => "閉じる";
-    string SaveLabel => "保存";
-    bool CanClose => true;
-    // Escape closes an open alert before it closes the sheet; true when something was closed.
-    bool DismissPopup() => false;
-}
-
 // The in-window sheet a page opens its editors in (MainWindow).
 public interface ISheetHost
 {

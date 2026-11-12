@@ -9,10 +9,10 @@ using BellTeam.Core;
 namespace BellTeam.Linux;
 
 // What windows/BellTeam.App/App.xaml.cs OnStartup does: the render modes, otherwise the single window.
-internal static class Launcher
+internal static partial class Launcher
 {
-    public const string Usage = "引数は --configure <URL>、--render-preview <PNG>、--render-url <URL> [会話ID] <PNG>、--render-startup <opening|setup|guide|failure|login> <PNG>、--render-startup <onboarding-choose|onboarding-waiting|banner> <URL> <PNG>、--render-page <updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>" + RequestsRender.Usage + " のいずれかです。";
-    public static bool IsKnown(string[] args) => args is [] or ["--configure", _] or ["--render-preview", _] or ["--render-url", _, _] or ["--render-url", _, _, _] or ["--render-startup", _, _] or ["--render-startup", _, _, _] or ["--render-page", _, _, _] || RequestsRender.IsKnown(args);
+    public const string Usage = "引数は --configure <URL>、--render-preview <PNG>、--render-url <URL> [会話ID] <PNG>、--render-startup <opening|setup|guide|failure|login> <PNG>、--render-startup <onboarding-choose|onboarding-waiting|banner> <URL> <PNG>、--render-page <updates|updates-current|updates-narrow|updates-detail-narrow|update-sheet> <URL> <PNG>、--render-inspector <場面> <URL> <会話ID> <PNG>、--render-screen <場面> <URL> <会話ID> <PNG>、--render-editors <場面> <URL> <会話ID> <PNG>、--render-editor member <URL> <メンバーID> <PNG>" + RequestsRender.Usage + " のいずれかです。";
+    public static bool IsKnown(string[] args) => args is [] or ["--configure", _] or ["--render-preview", _] or ["--render-url", _, _] or ["--render-url", _, _, _] or ["--render-startup", _, _] or ["--render-startup", _, _, _] or ["--render-page", _, _, _] or ["--render-inspector", _, _, _, _] or ["--render-screen", _, _, _, _] or ["--render-editors", _, _, _, _] or ["--render-editor", _, _, _, _] || RequestsRender.IsKnown(args);
     public static bool IsRender(string[] args) => args.Any(argument => argument.StartsWith("--render", StringComparison.Ordinal));
 
     public static void Start(IClassicDesktopStyleApplicationLifetime desktop)
@@ -39,6 +39,10 @@ internal static class Launcher
                 case ["--render-startup", var scene, var output]: await RenderStartupAsync(scene, output); break;
                 case ["--render-startup", var scene, var address, var output]: await UpdatesRender.StartupAsync(scene, address, output); break;
                 case ["--render-page", var kind, var address, var output]: await UpdatesRender.PageAsync(kind, address, output); break;
+                case ["--render-inspector", var scene, var address, var id, var output]: await RenderInspectorAsync(scene, address, id, output); break;
+                case ["--render-screen", var scene, var address, var id, var output]: await RenderScreenAsync(scene, address, id, output); break;
+                case ["--render-editors", var scene, var address, var id, var output]: await RenderEditorsAsync(scene, address, id, output); break;
+                case ["--render-editor", var kind, var address, var id, var output]: await RenderEditorAsync(kind, address, id, output); break;
                 case []: await RunWindowAsync(desktop); return;
                 default: throw new ArgumentException(Usage);
             }
