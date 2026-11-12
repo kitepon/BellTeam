@@ -384,7 +384,13 @@ public partial class MainWindow : Window, IInspectorHost
     public void HideInspectorForRender() { inspectorVisible = false; ProfileLayout(); }
     public async Task PrepareRenderAsync(bool bottomOfPage = false, bool readingOlder = false)
     {
-        await Task.WhenAll(Descendants<RemoteImage>(Root).Select(image => image.LoadTask).Append(ProfilePanel.LoadTask).Concat(Descendants<AvatarTile>(Root).Select(tile => tile.LoadTask)));
+        // A roster re-read during the wait replaces entries and starts new avatar loads; wait again until none is still running.
+        for (var round = 0; round < 20; round++)
+        {
+            var loads = Descendants<RemoteImage>(Root).Select(image => image.LoadTask).Append(ProfilePanel.LoadTask).Concat(Descendants<AvatarTile>(Root).Select(tile => tile.LoadTask)).ToArray();
+            if (loads.All(load => load.IsCompleted)) break;
+            await Task.WhenAll(loads); await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background); Root.UpdateLayout();
+        }
         if (bottomOfPage) page?.ScrollToEndForRender();
         Root.UpdateLayout();
         // images that finished loading changed the height; readingOlder keeps the top so the scroll-to-latest band shows

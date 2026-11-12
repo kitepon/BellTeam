@@ -18,6 +18,15 @@ public sealed class FastModeTests
         ["codex"] = new() { DefaultModel = "test-fast", Efforts = [], Models = [new() { Id = "test-fast", Efforts = [], Fast = true }, new() { Id = "test-normal", Efforts = [], Fast = false }] },
         ["claude"] = new() { DefaultModel = "test-fast", Efforts = [], Models = [new() { Id = "test-fast", Efforts = [], Fast = true }], FastUnavailable = new() { Code = "UNAVAILABLE", Message = "このアカウントでは利用できません。" } }
     } };
+    [Fact]
+    public void TheAccountRefusalIsOnePlainLineWithoutTheCodeOrTheClisEnglish()
+    {
+        // Trony's t08 return: the editor showed "FAST_MODE_UNAVAILABLE: …（preference: Fast mode has been disabled by your organization）".
+        var refused = new ApiFailure { Code = "FAST_MODE_UNAVAILABLE", Message = "FAST_MODE_UNAVAILABLE: Claude Codeが、このアカウントではファストを使えないと答えました（preference: Fast mode has been disabled by your organization）。" };
+        Assert.Equal("このアカウントではファストモードを使えません。", ModelSelection.FastUnavailableText(refused));
+        Assert.Equal("別の理由", ModelSelection.FastUnavailableText(new ApiFailure { Code = "OTHER", Message = "別の理由" }));
+    }
+
     [Theory]
     [InlineData(false, true)]
     [InlineData(true, false)]

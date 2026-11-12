@@ -73,10 +73,12 @@ public sealed class ModelSelection(string harness, string model, string effort)
     public void SelectHarness(string value) { Harness = value; Model = ""; Effort = ""; }
     public void SelectModel(string value) { Model = value; if (!Efforts.Contains(Effort)) Effort = ""; }
     public string[] Efforts => Catalog.TryGetValue(Harness, out var catalog) ? catalog.Models.FirstOrDefault(choice => choice.Id == (Model.Length == 0 ? catalog.DefaultModel : Model))?.Efforts ?? catalog.Efforts : [];
+    // The server's FAST_MODE_UNAVAILABLE message carries the code and the CLI's English; the editor says it in one plain line.
+    public static string FastUnavailableText(ApiFailure refused) => refused.Code == "FAST_MODE_UNAVAILABLE" ? "このアカウントではファストモードを使えません。" : refused.Message;
     // Mac HarnessModels.fastModeUnavailableReason: the catalog error, the account note, then the chosen (or default) model's own support.
     public string? FastUnavailableReason => !Catalog.TryGetValue(Harness, out var catalog) ? "モデル候補を読み込めませんでした。"
         : catalog.Error is not null ? catalog.Error.Message
-        : catalog.FastUnavailable is not null ? catalog.FastUnavailable.Message
+        : catalog.FastUnavailable is { } refused ? FastUnavailableText(refused)
         : Model.Trim().Length == 0 ? (catalog.DefaultModel is { } fallback && catalog.Models.FirstOrDefault(choice => choice.Id == fallback) is { } preferred ? preferred.Fast ? null : "このモデルはファストモードに対応していません。" : "既定モデルの対応を確認できません。")
         : catalog.Models.FirstOrDefault(choice => choice.Id == Model.Trim())?.Fast == false ? "このモデルはファストモードに対応していません。"
         : null;

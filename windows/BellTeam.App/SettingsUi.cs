@@ -159,6 +159,15 @@ internal static class SettingsUi
         return new ToggleButton { Template = template, Cursor = System.Windows.Input.Cursors.Hand, Margin = new Thickness(0), VerticalAlignment = VerticalAlignment.Center };
     }
 
+    // A labeled switch row, as the other settings toggles (全体停止): the label on the left, the switch on the right.
+    public static (Grid Row, ToggleButton Switch) SwitchRow(string label)
+    {
+        var toggle = Switch("#34C759"); System.Windows.Automation.AutomationProperties.SetName(toggle, label);
+        var row = new Grid { VerticalAlignment = VerticalAlignment.Center }; row.ColumnDefinitions.Add(new ColumnDefinition()); row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var text = Text(label, 13); text.VerticalAlignment = VerticalAlignment.Center; row.Children.Add(text); Grid.SetColumn(toggle, 1); row.Children.Add(toggle);
+        return (row, toggle);
+    }
+
     // Borderless text box whose hint is the field label, as in a Mac Form TextField.
     public static (Grid Element, TextBox Box) Field(string hint, string value, bool multiline = false, double minHeight = 0, string? placeholder = null)
     {

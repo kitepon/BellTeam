@@ -29,7 +29,8 @@ internal sealed class OnePasswordView
     private readonly TextBlock chevron = Glyph("", 11, Muted);
     private readonly StackPanel steps = new() { Margin = new Thickness(18, 10, 0, 4) };
     private readonly Border guideSection = new() { Background = Brushes.White, CornerRadius = new CornerRadius(10), Padding = new Thickness(20, 12, 20, 12), Margin = new Thickness(0, 14, 0, 0) };
-    private readonly CheckBox toggle = new() { Content = "1Passwordと連携する", FontSize = 13, VerticalContentAlignment = VerticalAlignment.Center };
+    private readonly (Grid Row, System.Windows.Controls.Primitives.ToggleButton Switch) toggleParts = SettingsUi.SwitchRow("1Passwordと連携する");
+    private System.Windows.Controls.Primitives.ToggleButton toggle => toggleParts.Switch;
     private readonly Border tokenRow;
     private readonly TextBlock resultLine = Text("", 13, Muted), errorLine = Text("", 12, Red);
     private readonly Button save = Capsule("保存して連携を確かめる", Violet, Brushes.White, 8, 13, new Thickness(18, 8, 18, 8));
@@ -60,7 +61,7 @@ internal sealed class OnePasswordView
         guideSection.Child = new StackPanel { Children = { guideHead, steps } };
 
         var tokenGrid = new Grid(); tokenGrid.Children.Add(password); tokenGrid.Children.Add(hint); tokenRow = Row(tokenGrid, 40);
-        var group = new GroupCard(Row(toggle, 40), tokenRow, Row(Text("貼ったトークンは保存後、画面には表示されません。会話にも送られません。", 12, Muted), 36));
+        var group = new GroupCard(Row(toggleParts.Row, 40), tokenRow, Row(Text("貼ったトークンは保存後、画面には表示されません。会話にも送られません。", 12, Muted), 36));
         resultRow = Row(resultLine, 36); errorRow = Row(errorLine, 30);
         saveGroup.Add(resultRow); saveGroup.Add(Row(save, 46)); saveGroup.Add(errorRow);
 
