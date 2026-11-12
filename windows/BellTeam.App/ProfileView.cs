@@ -238,23 +238,37 @@ public sealed class ProfileView : StackPanel
     {
         var card = new StackPanel();
         card.Children.Add(new TextBlock { Text = "AIと操作", FontSize = 14, FontWeight = FontWeights.Bold, Foreground = InspectorUi.Muted });
-        // The seat's Claude account slot; no row when the server sends none (older body, null, another harness).
-        var rows = new List<(string, string)> { ("ハーネス", bot.Harness), ("希望モデル", BotProfileText.OrDefault(bot.Model)), ("希望エフォート", BotProfileText.OrDefault(bot.ReasoningEffort)) };
-        if (AccountText.SeatText(bot.Account) is { } slotText) rows.Add(("アカウント", slotText));
-        foreach (var (label, value) in rows)
-        {
-            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0) };
-            row.Children.Add(new TextBlock { Text = label, FontSize = 14, Foreground = InspectorUi.Ink }); row.Children.Add(new TextBlock { Text = value, FontSize = 14, Foreground = InspectorUi.Ink, Margin = new Thickness(10, 0, 0, 0), TextWrapping = TextWrapping.Wrap });
-            System.Windows.Automation.AutomationProperties.SetName(row, label + "　" + value); card.Children.Add(row);
-        }
-        var screen = InspectorUi.Bordered("Botの画面を見る", ""); screen.Margin = new Thickness(0, 12, 0, 0); screen.Click += async (_, _) => await workspace.OpenScreenAsync(); card.Children.Add(screen);
-        restartButton = InspectorUi.Bordered("会話セッションを再起動"); restartButton.Margin = new Thickness(0, 12, 0, 0); card.Children.Add(restartButton);
-        restartNote = InspectorUi.Note("", InspectorUi.Muted); restartNote.Margin = new Thickness(0, 12, 0, 0); card.Children.Add(restartNote);
-        restartError = InspectorUi.Note("", InspectorUi.Red); restartError.Margin = new Thickness(0, 12, 0, 0); card.Children.Add(restartError);
+        // Mac #1124: the AI's tile, name and one line on what it runs with; the saved choices as badges (the CLI default is said once in the line, never as a badge).
+        var head = new Grid { Margin = new Thickness(0, 12, 0, 0) }; head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); head.ColumnDefinitions.Add(new ColumnDefinition());
+        var (glyph, tint, symbol) = HarnessLook(bot.Harness); head.Children.Add(SettingsUi.Tile(glyph, tint, 40, symbol));
+        var names = new StackPanel { Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        var summary = BotProfileText.AiSummary(bot.Model, bot.ReasoningEffort);
+        names.Children.Add(new TextBlock { Text = BotProfileText.HarnessName(bot.Harness), FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = InspectorUi.Ink });
+        names.Children.Add(new TextBlock { Text = summary, FontSize = 13, Foreground = InspectorUi.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) });
+        Grid.SetColumn(names, 1); head.Children.Add(names); System.Windows.Automation.AutomationProperties.SetName(head, BotProfileText.HarnessName(bot.Harness) + " " + summary); card.Children.Add(head);
+        var badges = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
+        void AddBadge(string text, SettingsTone tone, string badgeGlyph, string? id = null) { var badge = SettingsUi.Badge(text, tone, badgeGlyph); badge.Margin = new Thickness(0, 4, 6, 0); if (id is not null) System.Windows.Automation.AutomationProperties.SetAutomationId(badge, id); badges.Children.Add(badge); }
+        if (bot.Model.Length != 0) AddBadge(bot.Model, SettingsTone.Violet, "\uE950");
+        if (bot.ReasoningEffort.Length != 0) AddBadge("エフォート " + EffortText.Label(bot.ReasoningEffort), SettingsTone.Gray, "\uEC4A");
+        // Older bodies send no account; then no badge.
+        if (bot.Account is { Harness: "claude", Slot: { } slot }) AddBadge(AccountText.SlotName(slot), SettingsTone.Green, "\uE77B", "bot-account-slot");
+        if (bot.FastMode) AddBadge("ファスト", SettingsTone.Orange, "\uE945");
+        if (badges.Children.Count != 0) card.Children.Add(badges);
+        var screen = InspectorUi.Prominent("Botの画面を見る", "\uE756"); screen.Margin = new Thickness(0, 12, 0, 0); screen.Click += async (_, _) => await workspace.OpenScreenAsync(); card.Children.Add(screen);
+        restartButton = InspectorUi.Bordered("会話セッションを再起動", "\uE72C"); restartButton.Background = Brushes.Transparent; restartButton.HorizontalAlignment = HorizontalAlignment.Left; restartButton.Margin = new Thickness(0, 8, 0, 0); card.Children.Add(restartButton);
+        restartNote = InspectorUi.Note("", SettingsUi.Green); restartNote.Margin = new Thickness(0, 8, 0, 0); card.Children.Add(restartNote);
+        restartError = InspectorUi.Note("", InspectorUi.Red); restartError.Margin = new Thickness(0, 8, 0, 0); card.Children.Add(restartError);
         var id = entry.Target.Id; restartButton.Click += async (_, _) => await RestartAsync(workspace, id);
         RenderRestart(id);
         var frame = SettingsUi.Card(card); frame.Padding = new Thickness(16); return frame;
     }
+
+    // Mac BotProfileAISection look: icon and tint per AI; an unknown harness gets a chip icon in violet.
+    private static (string Glyph, Color Tint, bool Symbol) HarnessLook(string harness) => harness switch
+    {
+        "claude" => ("\u2726", Color.FromRgb(0xFF, 0x95, 0x00), true), "codex" => ("\uE943", Color.FromRgb(0x58, 0x56, 0xD6), false), "grok" => ("\uE945", Color.FromRgb(0x8E, 0x8E, 0x93), false),
+        "cursor" => ("\uE962", Color.FromRgb(0x30, 0xB0, 0xC7), false), "antigravity" => ("\uE909", Color.FromRgb(0x00, 0x7A, 0xFF), false), _ => ("\uE950", Color.FromRgb(0x61, 0x47, 0xD4), false)
+    };
 
     // Mac BotProfileAISection.onRestart: one POST that the server answers after the new seat is up (180 s). Meanwhile the button reads 「再起動しています…」 and is off;
     // a success is one line, a failure keeps the server's message. Never sent again, and the state belongs to the member it was started for.

@@ -56,6 +56,13 @@ public static class BotProfileText
 {
     public const string DefaultValue = "CLIの既定";
     public static string OrDefault(string value) => value.Length == 0 ? DefaultValue : value;
+    // Mac BotProfileAISection (#1124): the AI's name (an unknown harness shows its id) and one line on what it runs with.
+    public static string HarnessName(string harness) => harness switch { "claude" => "Claude", "codex" => "Codex", "grok" => "Grok", "cursor" => "Cursor", "antigravity" => "Antigravity", _ => harness };
+    public static string AiSummary(string model, string effort) => (model.Length == 0, effort.Length == 0) switch
+    {
+        (true, true) => "モデルとエフォートはCLIの既定で動きます", (true, false) => "モデルはCLIの既定で動きます",
+        (false, true) => "エフォートはCLIの既定で動きます", _ => "選んだモデルとエフォートで動きます"
+    };
     public const string UnsupportedServer = "画像の独立編集はサーバー更新後に利用できます。";
     public const string PendingKept = "保存結果を確認できていない画像の選択を保持しています。";
     public const string ChangeBlocked = "別の画像に変更するには、保持中の選択を破棄してください。";

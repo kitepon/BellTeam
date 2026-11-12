@@ -141,11 +141,13 @@ public sealed class HarnessAccountsTests
             })))));
             Await(workspace.ConnectAsync("http://localhost", listen: false)); var view = new ProfileView { Workspace = workspace };
             Await(workspace.SelectAsync(workspace.Entries[0]));
-            Assert.Contains(Descendants<TextBlock>(view), text => text.Text == "アカウント"); Assert.Contains(Descendants<TextBlock>(view), text => text.Text == "2ndアカウント");
+            // Mac #1124: the slot is a badge on the AI card (automation id bot-account-slot), named as on the settings rows.
+            string? Slot() => Descendants<Border>(view).Where(item => System.Windows.Automation.AutomationProperties.GetAutomationId(item) == "bot-account-slot").Select(item => System.Windows.Automation.AutomationProperties.GetName(item)).SingleOrDefault();
+            Assert.Equal("2つ目のアカウント", Slot());
             account = ""","account":{"harness":"claude","slot":"1st","preferredSlot":"2nd"}"""; Await(workspace.RefreshManagementAsync()); Pump();
-            Assert.Contains(Descendants<TextBlock>(view), text => text.Text == "1stアカウント"); Assert.DoesNotContain(Descendants<TextBlock>(view), text => text.Text == "2ndアカウント");
+            Assert.Equal("1つ目のアカウント", Slot());
             account = ""; Await(workspace.RefreshManagementAsync()); Pump();
-            Assert.DoesNotContain(Descendants<TextBlock>(view), text => text.Text is "アカウント" or "1stアカウント" or "2ndアカウント");
+            Assert.Null(Slot());
         });
     }
 
