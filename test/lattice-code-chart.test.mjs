@@ -63,6 +63,30 @@ test('code chart: an existing chart is converted to a checkout without touching 
   assert.equal(await w.codes.maintain('other'), null, 'not a code chart')
 })
 
+test('code chart: a chart left as a blob-less clone is turned into a depth-1 checkout; Lattice\'s object walk fetches nothing (production 2026-11-12)', async t => {
+  const w = await world(t)
+  git(w.origin, 'config', 'uploadpack.allowfilter', 'true')
+  for (const n of [2, 3]) { await writeFile(join(w.work, 'a.txt'), `v${n}`); git(w.work, 'commit', '-q', '-am', `c${n}`) }
+  git(w.work, 'push', '-q', w.origin, 'main')
+  // what the previous module left: promisor remote, history without blobs, main = last fetched tip
+  const url = `file://${w.origin}`
+  git(w.chart, 'remote', 'add', 'origin', url); git(w.chart, 'fetch', '-q', '--filter=blob:none', '--no-tags', 'origin', 'main'); git(w.chart, 'checkout', '-q', '-B', 'main', 'FETCH_HEAD')
+  assert.equal(git(w.chart, 'config', 'remote.origin.promisor'), 'true')
+  const codes = createCodeCharts({ cli: w.cli, charts: { code: { url, branch: 'main' } }, now: () => 0 })
+  assert.equal(await codes.maintain('code'), 'synced', 'same tip: grafted in place')
+  assert.throws(() => git(w.chart, 'config', 'remote.origin.promisor'), 'promisor dropped')
+  assert.equal(git(w.chart, 'rev-parse', '--is-shallow-repository'), 'true')
+  const walk = () => execFileSync('git', ['rev-list', '--objects', '--all'], { cwd: w.chart, env: { ...process.env, GIT_NO_LAZY_FETCH: '1' }, stdio: ['ignore', 'pipe', 'pipe'] })
+  assert.doesNotThrow(walk, 'every reachable object is local')
+  // upstream moves: main follows the grafted tip, the walk still needs nothing remote
+  await writeFile(join(w.work, 'a.txt'), 'v4'); git(w.work, 'commit', '-q', '-am', 'c4'); git(w.work, 'push', '-q', w.origin, 'main')
+  const later = createCodeCharts({ cli: w.cli, charts: { code: { url, branch: 'main' } }, now: () => 0 })
+  assert.equal(await later.maintain('code'), 'synced')
+  assert.deepEqual([git(w.chart, 'rev-parse', 'HEAD'), await readFile(join(w.chart, 'a.txt'), 'utf8')], [git(w.work, 'rev-parse', 'HEAD'), 'v4'])
+  assert.doesNotThrow(walk)
+  assert.equal(await readFile(join(w.chart, '.lattice', 'store.json'), 'utf8'), 'keep')
+})
+
 test('code chart: a diverged checkout or a foreign origin is never reset or repointed; the next due run retries', async t => {
   const w = await world(t)
   await w.codes.maintain('code')
@@ -70,9 +94,9 @@ test('code chart: a diverged checkout or a foreign origin is never reset or repo
   const local = git(w.chart, 'rev-parse', 'HEAD')
   await writeFile(join(w.work, 'c.txt'), 'three'); git(w.work, 'add', '.'); git(w.work, 'commit', '-q', '-m', 'c3'); git(w.work, 'push', '-q', w.origin, 'main')
   w.clock.now += 120000
-  assert.equal(await w.codes.maintain('code'), 'failed')
+  assert.equal(await w.codes.maintain('code'), 'diverged')
   assert.deepEqual([git(w.chart, 'rev-parse', 'HEAD'), existsSync(join(w.chart, 'local.txt'))], [local, true], 'no reset')
-  assert.match(w.logs.at(-1), /^lattice-code code /)
+  assert.equal(w.logs.at(-1), 'lattice-code code diverged')
   git(w.chart, 'remote', 'set-url', 'origin', join(w.root, 'elsewhere.git')); w.clock.now += 120000
   assert.equal(await w.codes.maintain('code'), 'origin-elsewhere')
   assert.equal(git(w.chart, 'remote', 'get-url', 'origin'), join(w.root, 'elsewhere.git'), 'origin not repointed')

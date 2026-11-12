@@ -4,7 +4,8 @@ export const CODE_CHARTS = Object.freeze({ bellteam: Object.freeze({ url: 'https
 export const CODE_CHART_EXCLUDE = Object.freeze(['.lattice/', '.bellteam-chart.json', '.bellteam-chart.json.*.tmp'])
 const DUE_MS = 120000
 
-// Named protection: fetch and fast-forward only; never reset, clean, force or repoint origin (the store and others' state stay).
+// Named protection: fetch and move main forward only from the last fetched tip; never reset, clean, force or repoint origin
+// (the store and others' state stay; local commits on main make it 'diverged').
 // Self-exit: any failed step logs one line and the next run 120 s later tries again.
 // Lattice 0.86.1 prints its typed cli_error JSON on stderr (one line); stdout is checked too in case that moves.
 const notInitialized = ({ stdout, stderr }) => `${stdout}\n${stderr}`.split('\n').some(line => {
@@ -21,13 +22,23 @@ export function createCodeCharts({ cli, charts = CODE_CHARTS, now = () => Date.n
     else if (origin !== url) return 'origin-elsewhere'
     // Someone's tracked edits: touch nothing (no fetch, merge or index of half-edited source).
     if (await cli.git(id, ['status', '--porcelain', '--untracked-files=no'])) return 'dirty'
-    await cli.git(id, ['fetch', '--quiet', '--filter=blob:none', '--no-tags', 'origin', branch])
+    // Lattice walks `rev-list --objects --all` on every read; in a blob-less clone git fetches each missing blob one by one
+    // (production 2026-11-12: the chart never opened). Drop the promisor first, so nothing is ever fetched lazily again.
+    for (const key of ['remote.origin.promisor', 'remote.origin.partialclonefilter', 'extensions.partialclone']) {
+      await cli.git(id, ['config', '--unset-all', key]).catch(() => null)
+    }
+    const fetched = await cli.git(id, ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${branch}`]).catch(() => null)
+    // Depth 1 grafts the tip, so every reachable object is present and the walk is one tree.
+    await cli.git(id, ['fetch', '--quiet', '--depth=1', '--no-tags', 'origin', branch])
     const target = await cli.git(id, ['rev-parse', 'FETCH_HEAD'])
     const head = await cli.git(id, ['rev-parse', '--verify', '--quiet', 'HEAD']).catch(() => null)
     // Unborn branch (a chart made before it was a code chart): .lattice/ and the sidecar are excluded, so checkout leaves them.
+    // A grafted tip has no parent, so --ff-only cannot see the link: main moves only when it holds nothing but the last fetch.
     if (head === null) await cli.git(id, ['checkout', '--quiet', '-B', branch, target])
-    else if (head !== target) await cli.git(id, ['merge', '--quiet', '--ff-only', target])
-    else if (indexed.get(id) === head) return 'current'
+    else if (head !== target) {
+      if (head !== fetched) return 'diverged'
+      await cli.git(id, ['checkout', '--quiet', '-B', branch, target])
+    } else if (indexed.get(id) === head) return 'current'
     indexed.delete(id)
     let sensor = await cli.sensor(id, 'sync')
     // Lattice's typed answer, not a directory check: an interrupted init leaves .lattice/sensor without an index.

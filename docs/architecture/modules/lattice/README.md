@@ -42,7 +42,7 @@ flowchart LR
     Core["core.mjs: per-chart memo, epoch, version,<br/>source token, 30 s ceiling"]
     Cli["cli.mjs: spawn node on bundled lattice bin,<br/>seat-surface allowlist, bounded output"]
     Proj["projection.mjs: cards, edges, waits, producers"]
-    Code["code-chart.mjs: code charts (bellteam) =<br/>checkout of the product repo; before a seat run:<br/>fetch, fast-forward, sensor init/sync"]
+    Code["code-chart.mjs: code charts (bellteam) =<br/>depth-1 checkout of the product repo; before a seat run:<br/>fetch, move main forward, sensor init/sync"]
   end
   Store["/srv/bellteam/state/lattice/&lt;project&gt;/.lattice/<br/>(one git repo per chart, Lattice format)"]
   Repo["GitHub kitepon/BellTeam main<br/>(public, https, no credentials)"]
@@ -52,7 +52,7 @@ flowchart LR
   Facade -->|root calls| PChan <-->|IPC| CChan --> Disp --> Core
   Core --> Cli -->|lattice CLI, cwd = chart| Store
   Core --> Proj
-  Core -->|before a seat run on a code chart| Code -->|git fetch / merge --ff-only| Repo
+  Core -->|before a seat run on a code chart| Code -->|git fetch --depth=1 / checkout -B| Repo
   Code -->|lattice sensor init/sync . (module operation, not seat surface)| Store
   CChan -->|effect inside a root call| PChan --> Effects --> Reg
 ```
@@ -69,7 +69,7 @@ flowchart LR
 | L6 | apps -> body API -> facade -> child | `charts {}`, `chart {projectId}`; SSE: `refresh {projectIds}` every `nextRefreshMs` while subscribers exist | Snapshot pushed whole on each change |
 | L7 | child -> chart dir | `.bellteam-chart.json` `{name?, createdBy?}` merged and written atomically (temp + rename): `createdBy = from` by the `run` that first makes the store (no `.lattice` before, one after), or by a `run` with `name` on a chart that has no recorded creator (claiming an older chart, e.g. Trony renames 「BellTeam開発」 once); `name` by `run` with `name`. Read with every full read; never overwritten once set | Lattice has no project name or creator, so the module keeps both beside the store. A missing or malformed file or field is absent |
 
-| L8 | child -> GitHub -> code chart dir | `git fetch --filter=blob:none --no-tags origin main`, then `git merge --ff-only FETCH_HEAD` (first time: `git checkout -B main FETCH_HEAD`) | Only for code charts (`CODE_CHARTS` in `code-chart.mjs`: `bellteam` -> `https://github.com/kitepon/BellTeam.git` `main`; Trony assignment 2026-11-12). Runs inside the seat `run` on that chart, before the Lattice command, when the last attempt is 120 s or more ago (so a gate adoption is in the checkout at the next use; no timer of its own, no write in flight: runs on one chart are serialized by the per-chart lock) |
+| L8 | child -> GitHub -> code chart dir | `git config --unset-all` of `remote.origin.promisor`, `remote.origin.partialclonefilter`, `extensions.partialclone`; `git fetch --depth=1 --no-tags origin main`; then `git checkout -B main FETCH_HEAD` only when HEAD is unborn or equals the previous `refs/remotes/origin/main` (else `diverged`) | Never a blob-less (promisor) clone: Lattice runs `git rev-list --objects --all` on every store read, and in a promisor repo git fetches each missing history blob one by one (production 2026-11-12: `todo display read` never answered). Depth 1 grafts the tip, so every reachable object is local and the walk is one tree (~6,000 objects, ~0.1 s). Only for code charts (`CODE_CHARTS` in `code-chart.mjs`: `bellteam` -> `https://github.com/kitepon/BellTeam.git` `main`; Trony assignment 2026-11-12). Runs inside the seat `run` on that chart, before the Lattice command, when the last attempt is 120 s or more ago (so a gate adoption is in the checkout at the next use; no timer of its own, no write in flight: runs on one chart are serialized by the per-chart lock) |
 | L9 | child -> Lattice CLI (module operation) | `lattice sensor sync . --json`; on Lattice's typed `LATTICE_SENSOR_NOT_INITIALIZED` (cli_error JSON on stderr; never initialized, or an interrupted init left `.lattice/sensor` without a usable index) `lattice sensor init . --json`; cwd = code chart | After a fast-forward or conversion, and whenever this child has no successful sensor run recorded for the current HEAD (in-memory `indexed` id -> HEAD; a child restart re-syncs once, ~1-2 s). A directory's presence is never taken as readiness. `sensor` stays off the seat surface (named protection above); the module runs it itself. Index under `.lattice/sensor/**` (~120 MB for BellTeam) |
 
 ### Code charts (Trony assignment 2026-11-12; Owner: Lattice is not a plain table)
@@ -80,8 +80,9 @@ A code chart's dir is a checkout of its product repo so that Lattice's conflict 
 - **Conversion of an existing chart** (the `bellteam` chart made before this): the first maintenance adds the exclude lines, `origin`, fetches, and checks out `main` into the unborn branch. `.lattice/` and the sidecar are untracked and excluded, so they are not touched; a tracked path that collides with an untracked file makes git refuse, and the chart is left as it was.
 - **Clean worktree first**: before fetching, `git status --porcelain --untracked-files=no` must be empty. Tracked modifications (staged or not) mean someone is editing the checkout: the module returns `dirty` (one log line), does not fetch, fast-forward or index, and preserves every local change; the seat command still runs. The next due run checks again, so once the edits are committed or removed elsewhere it catches up. (Untracked files never block; a fast-forward that would overwrite one is refused by git.)
 - **Index readiness**: `current` (no work) only when HEAD equals the fetched `main`, the worktree is clean, and this child's last successful sensor run indexed this HEAD. A failed sensor run records nothing, so the next due run retries sync -> init.
-- **Named protection** (overwriting existing state, wrong target): the module only fetches and fast-forwards. It never resets, cleans, forces or rebases; an `origin` that points elsewhere is not changed. **Self-exit**: a refused fast-forward (diverged, dirty, network down, timeout 60 s per git step, 120 s for sensor) logs one line with the code, the seat command still runs on the checkout as it is, and the next run 120 s later tries again; once the cause is repaired it catches up by itself.
-- Size: ~110 MB git (blob-less history) + ~25 MB worktree + ~120 MB sensor index under `/srv/bellteam/state/lattice/bellteam/`, inside the nightly backup (Molly/Trony informed).
+- **Depth-1, no promisor**: the checkout holds only the tip (grafted). A chart left as a blob-less clone by the first release is turned into this on its next maintenance: the promisor settings are removed before the fetch (from then on a missing object is an error Lattice reads as "cannot count", never a network fetch), and the depth-1 fetch grafts the tip even when it is already local. Old history objects stay in the pack until a later gc.
+- **Named protection** (overwriting existing state, wrong target): the module only fetches and moves `main` from the tip it fetched last time to the new tip (a grafted tip has no parent, so `merge --ff-only` cannot be used); a `main` with local commits is `diverged` and left alone. It never resets, cleans, forces or rebases; an `origin` that points elsewhere is not changed. **Self-exit**: a refused move (diverged, dirty, network down, timeout 60 s per git step, 120 s for sensor) logs one line with the code, the seat command still runs on the checkout as it is, and the next run 120 s later tries again; once the cause is repaired it catches up by itself.
+- Size: tip only (~25 MB git objects, older pack objects of the first release until gc) + ~25 MB worktree + ~120 MB sensor index under `/srv/bellteam/state/lattice/bellteam/`, inside the nightly backup (Molly/Trony informed).
 
 ## Seat tool `lattice` (public contract for seats)
 
@@ -179,7 +180,7 @@ Effect: `members.list {}` only, accepted only inside a pending root call. Contro
 | State | Where | Writer | Reader |
 | --- | --- | --- | --- |
 | Chart stores | `/srv/bellteam/state/lattice/<project>/` (git repo, `.lattice/**`) | Lattice CLI inside the child, only through `run` | child (`todo display read/source`) |
-| Code chart checkout and sensor index | the same dir: tracked files of the product repo (`main`), `.lattice/sensor/**` | child `code-chart.mjs` only (fetch, fast-forward, sensor init/sync) | Lattice CLI (independence, structure) |
+| Code chart checkout and sensor index | the same dir: tracked files of the product repo (`main`), `.lattice/sensor/**` | child `code-chart.mjs` only (depth-1 fetch, move main forward, sensor init/sync) | Lattice CLI (independence, structure) |
 | Chart display name and creator | `/srv/bellteam/state/lattice/<project>/.bellteam-chart.json` `{name?, createdBy?}` | child, only through `run` (creator once: the store-making run, or the first naming run of an unclaimed chart) | child, with every full read |
 | Lattice HOME | `/srv/bellteam/state/lattice-home/` | Lattice CLI | Lattice CLI |
 | Memo, epoch, version, last snapshot and token per chart | child memory | child | child |
@@ -196,7 +197,7 @@ Effect: `members.list {}` only, accepted only inside a pending root call. Contro
 | `members.list` fails | keep the last roster, `degraded:['members']` | next read |
 | Producer not in the roster | omitted from `members`; apps draw 名簿にないメンバー | appears once the Bot exists |
 | Write conflict inside Lattice | Lattice's result says so; the seat calls again | Snow White's release makes writers wait |
-| Code chart fetch / fast-forward / sensor fails (network, diverged or dirty worktree, timeout, sensor not initialized or interrupted init) | one diagnostic log line with the code (`dirty`, `sensor-failed`, `origin-elsewhere` or the git/sensor code); the seat command runs on the checkout as it is | the next run on that chart 120 s later retries (sensor: sync, then init on `LATTICE_SENSOR_NOT_INITIALIZED`); never reset, cleaned or forced |
+| Code chart fetch / fast-forward / sensor fails (network, diverged or dirty worktree, timeout, sensor not initialized or interrupted init) | one diagnostic log line with the code (`dirty`, `diverged`, `sensor-failed`, `origin-elsewhere` or the git/sensor code); the seat command runs on the checkout as it is | the next run on that chart 120 s later retries (sensor: sync, then init on `LATTICE_SENSOR_NOT_INITIALIZED`); never reset, cleaned or forced |
 | Child down or exchanging | 503 `LATTICE_UNAVAILABLE`; apps keep the last drawing and reconnect; seat tool error | new child, new epoch, fresh snapshot |
 | Older server without the module | 404 on `/api/lattice/*`; apps say the feature is not on this server yet | server update |
 
