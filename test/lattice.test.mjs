@@ -369,7 +369,11 @@ test('core: run passes the seat id, parses JSON, falls back to stdout, and refus
   x.cli.out = { exitCode: 1, stdout: 'Usage', stderr: JSON.stringify(refusal) }
   assert.deepEqual([(await run(['help'])).result, (await run(['help'])).stdout], [null, 'Usage'], 'stdout text wins over stderr')
   x.cli.out = { exitCode: 0, stdout: 'null', stderr: '' }
-  assert.deepEqual((await run(['status'])).result, null)
+  assert.deepEqual(await run(['status']), { exitCode: 0, result: null, stdout: null, stderr: '' }, 'JSON null on stdout is a parsed result')
+  x.cli.out = { exitCode: 1, stdout: 'null', stderr: JSON.stringify(refusal) }
+  assert.deepEqual([(await run(['status'])).result, (await run(['status'])).stdout], [null, null], 'JSON null on stdout wins over stderr')
+  x.cli.out = { exitCode: 1, stdout: '', stderr: 'plain text' }
+  assert.deepEqual(await run(['status']), { exitCode: 1, result: null, stdout: '', stderr: 'plain text' }, 'non-JSON stderr is not a result')
   const before = x.cli.ensured.length
   await assert.rejects(run(['setup'], null, 'other'), { code: 'LATTICE_COMMAND_NOT_SEAT_SURFACE', status: 400 })
   await assert.rejects(run(['plan', 'create', '--input', 'f'], { a: 1 }, 'other'), { code: 'LATTICE_INPUT_CONFLICT' })

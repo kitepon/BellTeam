@@ -128,7 +128,9 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
       if (!existed) { if (await cli.exists(projectId)) await cli.setMeta(projectId, { createdBy: from }); else if (created) await cli.prune(projectId) }
     }
     // Lattice prints refusals (lattice.cli_error.v2: code, detail.pointer, detail.next_action) on stderr; they reach the seat as result.
-    const value = parse(result.stdout) ?? (result.stdout.trim() === '' ? parse(result.stderr) : undefined)
+    // undefined = not JSON; a valid JSON null on stdout stays the result.
+    const out = parse(result.stdout)
+    const value = out !== undefined ? out : result.stdout.trim() === '' ? parse(result.stderr) : undefined
     return { exitCode: result.exitCode, result: value === undefined ? null : value, stdout: value === undefined ? result.stdout.slice(0, STDOUT_KEPT) : null, stderr: result.stderr }
   }
 }
