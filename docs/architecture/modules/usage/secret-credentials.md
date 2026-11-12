@@ -1,6 +1,6 @@
 # Secret credentials and 1Password (C5)
 
-Owner: Mika. Consumer: terminals (Crust), existing settings/auth consumers. Parent composition and authenticated capability capture: Molly. Web: Admi. 1Password deployment: Sakura.
+Owner: Mika. Consumer: terminals (Crust), existing settings/auth consumers, Lattice facade (Flora; scope `lattice` / `approval-box.connector`, below). Parent composition and authenticated capability capture: Molly. Web: Admi. 1Password deployment: Sakura.
 
 ## Function contract
 
@@ -13,6 +13,8 @@ Owner: Mika. Consumer: terminals (Crust), existing settings/auth consumers. Pare
 | Usage private IPC | System-only bind/resolve/credential/replace/refresh methods; facade captures value only inside trusted callback. No public HTTP/MCP value endpoint. Context DTO is validation data, never authority; authority is the parent-captured token. |
 
 Terminal handles bind terminalId and purpose (`terminal.ssh` / `terminal.sudo`). The authenticated parent/terminal owner authorizes each memberId (bot-ID for seat operations; null for Owner maintenance), so a handle may serve multiple authorized members without copying a secret. Wrong terminal/purpose is rejected before any read. Generic request resolution validates requester/tool/submitted state before reading and keeps existing downstream authorization/one-shot claims.
+
+Lattice consumer (Flora, contract agreed by Mika 2026-11-13): the body's Lattice effects `decisions.file` / `decisions.read` (`src/lattice-approval.mjs`, lattice README L18-L19) use the scope `{terminalId:'lattice', purpose:'approval-box.connector'}`. The value is Flora's `request_secret` (tool id `lattice-approval-box`, not oneTime) holding the body's own Approval Box connector token. The parent binds once: `credentials.current(scope)` is null -> the newest card with `botId` = Flora, `toolId` = `lattice-approval-box`, `status` = `submitted` from the public secret timeline -> `credentials.bind(requestId, scope)` (the parent is the authority on which request enters this scope). Per call: `current(scope)` -> `withResolved(handle, {terminalId:'lattice', memberId:null, purpose:'approval-box.connector'}, consume)`; the token lives only inside `consume` as the Bearer header. `available:false` or no binding -> `LATTICE_DECISIONS_UNAVAILABLE`, the Lattice child retries next minute.
 
 ## Data flow and private storage
 

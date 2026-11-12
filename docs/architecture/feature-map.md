@@ -66,6 +66,7 @@ flowchart LR
   m_integration -->|"lattice-chart"| m_lattice
   m_lattice -->|"registry"| m_members
   m_lattice -->|"messages"| m_conversation
+  m_lattice -->|"secrets"| m_usage
   m_members -->|"stop"| m_execution
   m_members -->|"project-files"| m_runtime
   m_members -->|"cli-registration"| m_runtime
@@ -113,6 +114,7 @@ flowchart LR
   m_conversation["会話・履歴 / N102"]
   m_execution["AI実行制御 / キロ"]
   m_integration["共通入口・結合実装 / モリー"]
+  m_lattice["Lattice工程表 / フローラ"]
   m_linux["Linuxアプリ / ネオン"]
   m_mcp_lazy["mcp-lazy / レオナ"]
   m_memory["記憶・知識 / ビスケット"]
@@ -131,6 +133,7 @@ flowchart LR
   m_execution -->|"native"| m_aiterm
   m_execution -->|"context"| m_throughline
   m_integration -->|"public"| m_approval_box
+  m_lattice -->|"public"| m_approval_box
   m_linux -->|"HTTP/SSE"| m_integration
   m_memory -->|"context"| m_throughline
   m_runtime -->|"native"| m_aiterm

@@ -87,7 +87,8 @@ const PERMANENT = /^(SENDER_NOT_FOUND|BOT_NOT_FOUND|MESSAGE_REQUIRED)\b/u
 
 // The effects the child may call, inside a root call. Rows carry exactly the agreed keys and types.
 // runAs(actor, send): the conversation actor scope for a send; deliver and the nudge timer run outside any request scope.
-export function createLatticeEffects({ bots, messenger, transport, runAs = (actor, send) => send() }) {
+// decisions: createLatticeDecisions (lattice-approval.mjs, README L18-L19); absent -> LATTICE_DECISIONS_UNAVAILABLE, the child retries next tick.
+export function createLatticeEffects({ bots, messenger, transport, decisions = null, runAs = (actor, send) => send() }) {
   const text = value => value == null ? '' : String(value)
   return async (method, params) => {
     // Startable notices go through the public send path, the same as the sendmessage tool (Trony 2026-11-12).
@@ -113,6 +114,10 @@ export function createLatticeEffects({ bots, messenger, transport, runAs = (acto
         : Promise.resolve(transport?.currentTurn?.(id)).then(turn => turn?.state)).then(state => state, () => null)
       return [id, ['working', 'idle'].includes(state) ? state : 'unknown']
     }))) }
+    if (method === 'decisions.file' || method === 'decisions.read') {
+      if (!decisions) throw Object.assign(new Error('LATTICE_DECISIONS_UNAVAILABLE'), { code: 'LATTICE_DECISIONS_UNAVAILABLE', status: 503 })
+      return method === 'decisions.file' ? decisions.file(params) : decisions.read(params)
+    }
     throw Object.assign(new Error('LATTICE_EFFECT_INVALID'), { code: 'LATTICE_EFFECT_INVALID', status: 400 })
   }
 }

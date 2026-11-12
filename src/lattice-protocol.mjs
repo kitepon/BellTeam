@@ -1,7 +1,9 @@
 export const LATTICE_PROTOCOL_VERSION = 1
 export const LATTICE_STATE_COMPATIBILITY = Object.freeze({ state: 'none' })
 export const LATTICE_METHODS = Object.freeze(['charts', 'chart', 'refresh', 'run', 'deliver', 'nudge', 'blockers', 'unblock'])
-export const LATTICE_EFFECTS = Object.freeze(['members.list', 'messages.send', 'turns.read'])
+export const LATTICE_EFFECTS = Object.freeze(['members.list', 'messages.send', 'turns.read', 'decisions.file', 'decisions.read'])
+// An Approval Box decision id (README L18-L19).
+export const LATTICE_DECISION_ID = /^K-[A-Z0-9]{4,16}$/u
 export const LATTICE_PROJECT_ID = /^[a-z0-9][a-z0-9-]{0,62}$/u
 // A stop's id in the Owner's stop list (README Stops): 24 hex of sha256(projectId, plan, task, blockedAt).
 export const LATTICE_STOP_ID = /^[a-f0-9]{24}$/u
@@ -46,6 +48,11 @@ const sendText = (value, max) => str(value) && value.length >= 1 && value.length
 export function validateLatticeEffect(method, params) {
   if (!LATTICE_EFFECTS.includes(method)) throw latticeError('LATTICE_INVALID')
   if (method === 'members.list' ? !latticeObject(params, [])
+    : method === 'decisions.file' ? !latticeObject(params, ['title', 'context', 'options', 'requester', 'session_label']) || !sendText(params.title, 120)
+      || !sendText(params.context, 20000) || !sendText(params.requester, 60) || !sendText(params.session_label, 200)
+      || !Array.isArray(params.options) || params.options.length < 2 || params.options.length > 6
+      || !params.options.every(option => latticeObject(option, ['id', 'label']) && sendText(option.id, 40) && sendText(option.label, 60))
+    : method === 'decisions.read' ? !latticeObject(params, ['decisionId']) || !str(params.decisionId) || !LATTICE_DECISION_ID.test(params.decisionId)
     : method === 'turns.read' ? !latticeObject(params, ['botIds']) || !Array.isArray(params.botIds) || params.botIds.length < 1 || params.botIds.length > 200
       || new Set(params.botIds).size !== params.botIds.length || !params.botIds.every(id => sendText(id, 128))
     : !latticeObject(params, ['from', 'target', 'message']) || !sendText(params.from, 128) || !sendText(params.target, 128) || !sendText(params.message, 4000))
@@ -61,6 +68,11 @@ export function validateLatticeEffectResult(method, value) {
     && strOrNull(value.deliveryId) && (value.code === undefined || sendText(value.code, 128)))
   else if (method === 'turns.read') need(latticeObject(value, ['turns']) && plain(value.turns)
     && Object.values(value.turns).every(state => ['working', 'idle', 'unknown'].includes(state)))
+  else if (method === 'decisions.file') need(latticeObject(value, ['decisionId', 'existing']) && str(value.decisionId)
+    && LATTICE_DECISION_ID.test(value.decisionId) && typeof value.existing === 'boolean')
+  else if (method === 'decisions.read') need(latticeObject(value, ['status'], ['answer']) && ['pending', 'held', 'answered', 'cancelled'].includes(value.status)
+    && (value.answer === undefined || latticeObject(value.answer, [], ['optionId', 'text']) && (value.answer.optionId === undefined || str(value.answer.optionId))
+      && (value.answer.text === undefined || str(value.answer.text))))
   else invalid()
 }
 
@@ -135,14 +147,16 @@ export function validateLatticeResult(method, value) {
   else if (method === 'unblock') need(latticeObject(value, ['schema', 'projectId', 'stopId', 'outcome'], ['code', 'reason']) && value.schema === 'bellteam.lattice-unblock.v1'
     && validId(value.projectId) && str(value.stopId) && LATTICE_STOP_ID.test(value.stopId) && ['removed', 'already-gone', 'refused'].includes(value.outcome)
     && (value.outcome === 'refused' ? str(value.code) && str(value.reason) : value.code === undefined && value.reason === undefined))
-  else if (method === 'nudge') need(latticeObject(value, ['charts', 'prompted', 'skipped', 'failed']) && [value.charts, value.prompted, value.skipped, value.failed].every(count))
+  // filed/routed are optional so a body with this validator also takes an older child (README L13, L18-L19).
+  else if (method === 'nudge') need(latticeObject(value, ['charts', 'prompted', 'skipped', 'failed'], ['filed', 'routed'])
+    && [value.charts, value.prompted, value.skipped, value.failed, value.filed ?? 0, value.routed ?? 0].every(count))
   else invalid()
 }
 
 const knownErrors = new Map([
   ['LATTICE_INVALID', 400], ['LATTICE_CONTROL_INVALID', 400], ['LATTICE_CHART_NOT_FOUND', 404], ['LATTICE_PROJECT_INVALID', 400],
   ['LATTICE_INPUT_CONFLICT', 400], ['LATTICE_NAME_INVALID', 400], ['LATTICE_COMMAND_NOT_SEAT_SURFACE', 400], ['LATTICE_NOT_ACCEPTED', 503], ['LATTICE_UNAVAILABLE', 503],
-  ['LATTICE_NOT_QUIESCED', 503], ['LATTICE_EFFECT_FAILED', 503],
+  ['LATTICE_NOT_QUIESCED', 503], ['LATTICE_EFFECT_FAILED', 503], ['LATTICE_DECISIONS_UNAVAILABLE', 503],
 ])
 export function latticeWireError(error, outcome) {
   const code = knownErrors.has(error?.code) ? error.code : knownErrors.has(error?.message) ? error.message : 'LATTICE_OPERATION_FAILED'
