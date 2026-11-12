@@ -174,6 +174,7 @@ BUSINESS_FILES = {
         'src/lattice-ipc.mjs',
         'src/lattice-locks.mjs',
         'src/lattice-protocol.mjs',
+        'src/lattice/blockers.mjs',
         'src/lattice/cli.mjs',
         'src/lattice/code-chart.mjs',
         'src/lattice/core.mjs',

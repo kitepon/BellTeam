@@ -1,8 +1,10 @@
 export const LATTICE_PROTOCOL_VERSION = 1
 export const LATTICE_STATE_COMPATIBILITY = Object.freeze({ state: 'none' })
-export const LATTICE_METHODS = Object.freeze(['charts', 'chart', 'refresh', 'run', 'deliver', 'nudge'])
+export const LATTICE_METHODS = Object.freeze(['charts', 'chart', 'refresh', 'run', 'deliver', 'nudge', 'blockers', 'unblock'])
 export const LATTICE_EFFECTS = Object.freeze(['members.list', 'messages.send', 'turns.read'])
 export const LATTICE_PROJECT_ID = /^[a-z0-9][a-z0-9-]{0,62}$/u
+// A stop's id in the Owner's stop list (README Stops): 24 hex of sha256(projectId, plan, task, blockedAt).
+export const LATTICE_STOP_ID = /^[a-f0-9]{24}$/u
 // A chart's display name: 1-40 characters of plain text, no control characters, no surrounding spaces.
 export const validLatticeName = value => typeof value === 'string' && value === value.trim() && [...value].length >= 1 && [...value].length <= 40 && !/\p{Cc}/u.test(value)
 export const latticeError = (code, status = 400) => Object.assign(new Error(code), { code, status, outcome: 'not_accepted' })
@@ -24,7 +26,8 @@ export function validateLatticeRequest(method, params, context) {
   const project = id => { if (!validId(id)) throw latticeError('LATTICE_PROJECT_INVALID') }
   check(latticeObject(context, ['generation']) && validLatticeGeneration(context.generation))
   check(LATTICE_METHODS.includes(method))
-  if (method === 'charts' || method === 'deliver' || method === 'nudge') check(latticeObject(params, []))
+  if (['charts', 'deliver', 'nudge', 'blockers'].includes(method)) check(latticeObject(params, []))
+  else if (method === 'unblock') { check(latticeObject(params, ['projectId', 'stopId']) && str(params.stopId) && LATTICE_STOP_ID.test(params.stopId)); project(params.projectId) }
   else if (method === 'chart') { check(latticeObject(params, ['projectId'])); project(params.projectId) }
   else if (method === 'refresh') {
     check(latticeObject(params, ['projectIds']) && Array.isArray(params.projectIds) && params.projectIds.length >= 1 && params.projectIds.length <= 50
@@ -112,6 +115,9 @@ const snapshot = value => latticeObject(value, ['schema', 'epoch', 'version', 'a
   && DISPLAY_STATES.includes(value.state) && strOrNull(value.verifiedAt) && list(value.degraded, item => ['lattice-read', 'members'].includes(item))
   && list(value.members, member) && list(value.cards, card) && list(value.edges, edge) && list(value.waits, wait)
   && (value.phases === undefined || list(value.phases, phase))
+const stop = value => latticeObject(value, ['stopId', 'projectId', 'chartName', 'chartCreatedBy', 'plan', 'taskId', 'cardId', 'title', 'lane', 'reason', 'blockedAt', 'blockedBy'])
+  && str(value.stopId) && LATTICE_STOP_ID.test(value.stopId) && validId(value.projectId) && ['plan', 'taskId', 'cardId'].every(key => str(value[key]))
+  && ['chartName', 'chartCreatedBy', 'title', 'lane', 'reason', 'blockedAt', 'blockedBy'].every(key => strOrNull(value[key]))
 const summary = value => latticeObject(value, ['projectId', 'name', 'coordinator', 'createdBy', 'counts', 'activeMembers', 'updatedAt', 'state'])
   && validId(value.projectId) && strOrNull(value.name) && typeof value.coordinator === 'boolean' && strOrNull(value.createdBy) && counts(value.counts)
   && list(value.activeMembers, str) && strOrNull(value.updatedAt) && DISPLAY_STATES.includes(value.state)
@@ -124,6 +130,11 @@ export function validateLatticeResult(method, value) {
   else if (method === 'run') need(latticeObject(value, ['exitCode', 'result', 'stdout', 'stderr'])
     && (value.exitCode === null || Number.isInteger(value.exitCode)) && strOrNull(value.stdout) && str(value.stderr))
   else if (method === 'deliver') need(latticeObject(value, ['delivered', 'failed']) && count(value.delivered) && count(value.failed))
+  else if (method === 'blockers') need(latticeObject(value, ['schema', 'at', 'blockers', 'unreadCharts']) && value.schema === 'bellteam.lattice-blockers.v1'
+    && str(value.at) && list(value.blockers, stop) && list(value.unreadCharts, validId))
+  else if (method === 'unblock') need(latticeObject(value, ['schema', 'projectId', 'stopId', 'outcome'], ['code', 'reason']) && value.schema === 'bellteam.lattice-unblock.v1'
+    && validId(value.projectId) && str(value.stopId) && LATTICE_STOP_ID.test(value.stopId) && ['removed', 'already-gone', 'refused'].includes(value.outcome)
+    && (value.outcome === 'refused' ? str(value.code) && str(value.reason) : value.code === undefined && value.reason === undefined))
   else if (method === 'nudge') need(latticeObject(value, ['charts', 'prompted', 'skipped', 'failed']) && [value.charts, value.prompted, value.skipped, value.failed].every(count))
   else invalid()
 }

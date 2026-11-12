@@ -7,7 +7,7 @@ Owner of this page: Molly (parent side). Child entry, protocol, channel factorie
 ```mermaid
 flowchart LR
   subgraph Parent["Body parent"]
-    Route["src/lattice/http-api.mjs (Flora, body-resident thin handler)<br/>auth / internal 403 / 405 / 404 / SSE framing + heartbeat"]
+    Route["src/lattice/http-api.mjs (Flora, body-resident thin handler)<br/>auth / internal 403 / 405 / 404 / SSE framing + heartbeat<br/>GET blockers, POST unblock (Owner, JSON only)"]
     Tool["src/lattice/mcp.mjs (Flora)<br/>tool lattice; registered in mcp-tools.mjs (Molly)<br/>from = authenticated calling seat"]
     Facade["src/lattice-facade.mjs (Molly)<br/>charts() / chart(id) / run(...) / subscribe(id, send)<br/>one serialized call chain"]
     Loop["refresh loop (Molly)<br/>only while >=1 subscriber; one timer from nextRefreshMs"]
@@ -18,7 +18,7 @@ flowchart LR
   end
   subgraph Child["lattice child (Flora)"]
     Entry["src/lattice-entry.mjs<br/>fixed C bellteam-lattice-start, UID 1001<br/>verifyLatticeLocks()"]
-    Disp["dispatcher + core + cli + projection<br/>charts / chart / refresh / run / deliver / nudge"]
+    Disp["dispatcher + core + cli + projection<br/>charts / chart / refresh / run / deliver / nudge / blockers / unblock"]
   end
   Route --> Facade
   Tool --> Facade
@@ -45,12 +45,14 @@ flowchart LR
 | 8 | module-process onGeneration → facade.deliver() → child root `deliver {}` | once per generation, held until ready; result `{delivered, failed}`; a refusal (old child) is swallowed | chart stores (notice acks, Lattice) |
 | 9 | facade nudge timer → child root `nudge {}` | every 300 s from facade creation (one unref'd timer, re-armed after each call, independent of subscribers); result `{charts, prompted, skipped, failed}`; any failure (child unavailable, old child `LATTICE_INVALID`) is swallowed | none (Lattice reads only) |
 | 10 | child → parent effect (only inside root `nudge`) | `turns.read {botIds}` (1-200 distinct non-empty strings) → `{turns: {<id>: 'working'\|'idle'\|'unknown'}}` from `transport.runningState(id)` (native turn state, `working` while the Bot waits on its notify=result command schedule; execution current-work.md 2026-11-12), falling back to `transport.currentTurn(id).state` when the method is missing (anything else, a throw or no method on both reads `unknown`); the child then sends with step 7, `from: 'scheduler'` | execution turn state (read only) |
+| 11 | Owner client → http-api → facade.blockers() → child root `blockers {}` | `GET /api/lattice/blockers` → `bellteam.lattice-blockers.v1` as is (an old child's `LATTICE_INVALID` → 503 `LATTICE_UNAVAILABLE`) | chart stores (read) |
+| 12 | Owner client → http-api → facade.unblock({projectId, stopId}) → child root `unblock` | `POST /api/lattice/charts/:id/unblock`, `Content-Type: application/json` (else 415 `LATTICE_JSON_REQUIRED`), body exactly `{stopId}` (24 hex, ≤ 1 KiB; else 400 `LATTICE_INVALID`) → 200 `removed`/`already-gone`, 409 `LATTICE_UNBLOCK_REFUSED` with `code`/`reason`; an old child → 503. When the chart has subscribers, one root `refresh` follows, as after `run` | chart stores (Lattice CLI in the child, actor `owner`) |
 
 The parent writes no lattice state and creates no directory for it. The child creates `/srv/bellteam/state/lattice/<project>/` and `/srv/bellteam/state/lattice-home/` itself, and keeps one writer lock `/srv/bellteam/state/lattice.lock` (the common fixed-C rule). Adoption record: `state/lattice-release.json` (the common `bellteam.<component>.adoption.v1`). A new child means a new epoch; its first refresh pushes every subscribed chart again.
 
 ## Seam (Flora 2026-11-11)
 
-- Child (Flora): `src/lattice-protocol.mjs` (`LATTICE_PROTOCOL_VERSION=1`, `LATTICE_STATE_COMPATIBILITY={state:'none'}`, `assertLatticeStateCompatibility`, root `charts`/`chart`/`refresh`/`run`/`deliver`/`nudge`, effects `members.list`/`messages.send`/`turns.read`, control validators, `validateLatticeReady`), `src/lattice-ipc.mjs` (`createLatticeParentChannel(child, {generation, onEffect})`, `createLatticeChildChannel({dispatcher})`), `src/lattice-dispatcher.mjs`, `src/lattice-entry.mjs`, `src/lattice/{core,cli,projection,notices,http-api,mcp}.mjs`.
+- Child (Flora): `src/lattice-protocol.mjs` (`LATTICE_PROTOCOL_VERSION=1`, `LATTICE_STATE_COMPATIBILITY={state:'none'}`, `assertLatticeStateCompatibility`, root `charts`/`chart`/`refresh`/`run`/`deliver`/`nudge`/`blockers`/`unblock`, effects `members.list`/`messages.send`/`turns.read`, control validators, `validateLatticeReady`), `src/lattice-ipc.mjs` (`createLatticeParentChannel(child, {generation, onEffect})`, `createLatticeChildChannel({dispatcher})`), `src/lattice-dispatcher.mjs`, `src/lattice-entry.mjs`, `src/lattice/{core,cli,projection,notices,http-api,mcp}.mjs`.
 - Parent (Molly): the files below. The parent channel validates every effect request before `onEffect(method, params)` and every root result. The lattice channel has no `drainIncoming`: its effect runs only inside root calls, which the common controller already drains.
 - Facade errors: `LATTICE_CHART_NOT_FOUND` (404), `LATTICE_PROJECT_INVALID`, `LATTICE_INPUT_CONFLICT`, `LATTICE_COMMAND_NOT_SEAT_SURFACE`, `LATTICE_INVALID` (400) pass through with their status; every other failure becomes 503 `LATTICE_UNAVAILABLE`.
 - Ready probe of a new child (common `probeCandidate`): root `refresh {projectIds:['bellteam-ready-probe']}`. An id with no chart answers `{snapshots:[], nextRefreshMs}` without spawning the Lattice CLI, so a slow chart cannot fail an exchange.
