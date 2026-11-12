@@ -10,6 +10,7 @@ const deferred = () => {
   const promise = new Promise((yes, no) => { resolve = yes; reject = no }); promise.catch(() => {})
   return { promise, resolve, reject }
 }
+const passed = new Map([['LATTICE_DECISIONS_REFUSED', 409], ['LATTICE_DECISIONS_UNAVAILABLE', 503]])
 const acknowledged = value => latticeObject(value, ['acknowledged']) && value.acknowledged === true
 
 export function createLatticeParentChannel(child, { generation, onEffect }) {
@@ -40,7 +41,10 @@ export function createLatticeParentChannel(child, { generation, onEffect }) {
           const value = await onEffect(message.method, message.params)
           validateLatticeEffectResult(message.method, value)
           return value
-        } catch { throw latticeError('LATTICE_EFFECT_FAILED', 503) }
+        } catch (error) {
+          // The child needs refused (skip one Owner card) apart from unavailable (end the tick); nothing else leaks (README L18).
+          throw passed.has(error?.code) ? latticeError(error.code, passed.get(error.code)) : latticeError('LATTICE_EFFECT_FAILED', 503)
+        }
       }
     },
   })
