@@ -92,13 +92,36 @@ stateDiagram-v2
 | 項目 | 契約 |
 | --- | --- |
 | SM01 | `initialize`は`sessionIdGenerator`付きのtransportで受け、idと席（名札の値・解決したBot・fork）を記憶の表に置く。応答の能力は`tools: {listChanged: true}`。 |
-| SM02 | idのある要求は、表にあり、かつ要求ごとに解決した席が初期化時と同じ時だけ、そのtransportへ渡す。GET（SSE）とDELETEもここで受ける。 |
+| SM02 | idのある要求は、表にあり、かつ要求ごとに解決した席が初期化時と同じ時だけ、そのtransportへ渡す。POSTとDELETEをここで受ける（GETはSM09）。 |
 | SM03 | 表に無いid・席の違うidは404（JSON-RPC `-32001 Session not found`）。仕様どおりのクライアントは初期化し直し、新しい本体の道具一覧を読む。本体の再起動で表は空になる。 |
 | SM04 | idの無い`initialize`以外のPOSTは従来の状態なしの受け口で答える。本版より前に接続した席の互換。この席は次の本体更新まで古い一覧のまま（初回だけ、席の再起動か予備策Bが要る）。idの無いGETは405。 |
 | SM05 | 道具一覧は`bellTeamTools`（freeze済み）で、プロセスの中では変わらない。一覧が変わるのは本体の再起動だけで、SM03で届く。`notifications/tools/list_changed`を送る契機はプロセス内に無い。 |
 | SM06 | 一覧のdigest（`SEAT_TOOLS_DIGEST`、道具一覧JSONのsha256）を`initialize`応答の`capabilities.experimental['ai.bellteam/tools.v1'].digest`に載せる。予備策B（executionが、digestの変わった席を待機中に休止・再開する）だけが読む。 |
-| SM07 | 6時間要求の無いセッションは、次の`initialize`の時に閉じる。開いたSSEも閉じ、CLIは再接続の404から初期化し直す。`handle.close()`は中継と全セッションを閉じる。 |
+| SM07 | 6時間要求の無いセッションは、次の`initialize`の時に閉じる。CLIは次の要求の404から初期化し直す。`handle.close()`は中継（応答が流れている途中のPOST）と全セッションを閉じる。 |
 | SM08 | セッションが初期化時に持つのは、能力の広告（`ai.aiterm/handoff.v1`）だけ。道具の呼出しは、要求ごとに`toolsForSource`を呼び直し、その時の実行世代を選ぶ（[model-handoff](model-handoff.md) 要求ごとのMCP closure）。実行の世代が変わっても、同じセッションの次の`update_self`は新しい世代で受け付ける。 |
+| SM09 | 席の入口は、要求と結び付かない流れ（GETのSSE）を出さない。`/mcp`と`/mcp/call-bridge`のGETは、idの有無によらず405（`Allow: POST, DELETE`）で、通話ブリッジへも流さない。応答はPOSTの返りだけで届く。理由と実測は下の「本体の再起動をまたぐ席」。 |
+
+### 本体の再起動をまたぐ席（SM09、2026-11-13）
+
+端末の席（リモート席）は、本体が再起動しても端末の上で動き続ける。本体が止まっている間、席のCLIから見た入口（端末側の転送口）は接続を断る。
+
+```mermaid
+stateDiagram-v2
+  [*] --> Connected: initialize（POST）
+  Connected --> Connected: POSTの道具呼出し
+  Connected --> Outage: 本体停止（入口が接続を断る）
+  Outage --> Outage: その間の呼出しは1回ずつ失敗で返る（道具は残る）
+  Outage --> Stale: 新しい本体と転送口が戻る
+  Stale --> Connected: 次のPOSTが404（SM03）→ CLIが初期化し直す
+```
+
+| 項目 | 契約 |
+| --- | --- |
+| 守るもの | 本体の再起動をまたいだ席が、手で起こし直さなくてもBellTeamと通話ブリッジの道具を使い続けられること。 |
+| 流れを持たない理由 | 開いたままのGETの流れは本体と一緒に切れる。CLIは切れた接続のつなぎ直しを自分の回数で打ち切り（Claude Codeは5回、待ちの合計は約31秒）、その会話が終わるまでサーバーを失敗扱いにして道具を外す。本体の入れ替えは入口が1分前後止まるので、流れを持つ席は必ずこの状態に落ちた（2026-11-12 15:33Z ネオン、23:03Z アニス）。流れで送る通知はもともと無い（SM05）。 |
+| 実測（Claude Code 2.1.323、対話、同じ入口の形） | 流れあり：140秒の停止の後、道具は会話から外れ、入口が戻っても要求は来ない。流れなし（405）：停止中の2回の呼出しは`ECONNREFUSED`で返り、入口が戻った後の呼出しは 404 → `initialize` → 成功。 |
+| 退出 | 上の図のStale → Connected。席の側の操作も、executionの起こし直しも要らない。 |
+| 残る窓 | 停止中の呼出しは失敗で返る（CLIが再試行を持たない道具は、席のAIがやり直す）。本版より前に流れを開いた席は、本版が入る再起動で一度だけ道具を失う（起こし直すか、席の入力欄で`/mcp reconnect all`）。 |
 
 失敗の扱い：席の解決の失敗（400/503）は従来どおりセッションより前で返す。セッションは記憶だけに置き、保存しない。
 shortcut: SM07の6時間は、席の数（数十）での記憶の上限が要らない値。席が数百を越えたら上限数を加える。

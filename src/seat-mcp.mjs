@@ -195,6 +195,9 @@ export function createSeatMcp({ bots, tools, toolsForSource = () => ({}), runToo
   // fork: {botId} from a remote fork credential (SK03); otherwise the local registry is asked first (SK01).
   const handle = async (request, response, url, fork = null) => {
     if (url.pathname !== BELLTEAM_MCP_PATH && url.pathname !== CALL_BRIDGE_MCP_PATH) return reply(response, 404, { error: 'NOT_FOUND' })
+    // SM09: no standalone stream on either path. A stream held across a body restart makes the seat's CLI drop the server
+    // for the rest of its conversation (its reconnect budget is shorter than the restart); POST alone recovers by SM03.
+    if (request.method === 'GET') return reply(response, 405, { error: 'METHOD_NOT_ALLOWED' }, { allow: 'POST, DELETE' })
     // 名札が無い・展開前の文字列のまま・台帳に無い要求は、どちらの入口でも席を決めずに拒む。
     // 403 は返さない。Claude Code は 403 を「認証が要る」と判定して、全席共有の ~/.claude/mcp-needs-auth-cache.json へ
     // サーバー名で記録し、その後しばらく本物の席の接続まで飛ばす（2026-10-04、試験用の席1つで2席が道具なしで起きた）。
@@ -244,7 +247,7 @@ export function createSeatMcp({ bots, tools, toolsForSource = () => ({}), runToo
     await server.connect(transport)
     await transport.handleRequest(request, response, body)
   }
-  // 中継の流れは自分からは終わらない。本体を止める時にここで終える（CLIは再接続する）。セッションのSSEも閉じる（SM07）。
+  // 応答が流れている途中の中継は自分からは終わらない。本体を止める時にここで終え、セッションも閉じる（SM07）。
   handle.close = () => {
     for (const end of relays) end()
     for (const [id, session] of sessions) { sessions.delete(id); session.transport.close().catch(() => {}) }
