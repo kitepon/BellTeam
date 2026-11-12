@@ -3,8 +3,8 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Child-only dependencies of the lattice module payload (docs/architecture/modules/runtime/lattice-child.md). @quolu/lattice 0.85.5 is the minimum: the first release with todo display read/source. 0.86.0 adds todo add (one task) for seats; 0.86.1 stops witness prompts on conversation plans; 0.87.0 adds todo independence witness declare (one task's row); 0.88.0 refuses a missing or blank design_memo (DESIGN_MEMO_REQUIRED) and adds opt-in enforced plans; 0.89.0 reports a value written by a newer Lattice as UNSUPPORTED_SCHEMA (newer_lattice_value) instead of STORE_CORRUPT and adds --message to done hints on enforced plans.",
+  "description": "Child-only dependencies of the lattice module payload (docs/architecture/modules/runtime/lattice-child.md). @quolu/lattice 0.85.5 is the minimum: the first release with todo display read/source. 0.86.0 adds todo add (one task) for seats; 0.86.1 stops witness prompts on conversation plans; 0.87.0 adds todo independence witness declare (one task's row); 0.88.0 refuses a missing or blank design_memo (DESIGN_MEMO_REQUIRED) and adds opt-in enforced plans; 0.89.0 reports a value written by a newer Lattice as UNSUPPORTED_SCHEMA (newer_lattice_value) instead of STORE_CORRUPT and adds --message to done hints on enforced plans; 0.90.0 lets witness declare record a row on a Store root with no commit (the chart dirs are git init without a commit), so enforced plans can start there, and adds startable notices (mutation result notices, todo notice list|ack).",
   "dependencies": {
-    "@quolu/lattice": "0.89.0"
+    "@quolu/lattice": "0.90.0"
   }
 }
