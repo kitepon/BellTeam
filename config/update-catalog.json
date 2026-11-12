@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-12T17:39:44Z",
-  "expiresAt": "2026-11-19T17:39:44Z",
+  "publishedAt": "2026-11-12T22:16:35Z",
+  "expiresAt": "2026-11-19T22:16:35Z",
   "releases": [
     {
       "componentId": "usage",
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "dc9985ac0c2fa2f9b65648a9378a455902ed7a1d",
-      "versionId": "sha256:e0e9ca5a29ebb7c1e2b9de8b09edd49fcde61edd659d85e59294f898b6a46de6",
+      "sourceCommit": "bd164ebf0e11c472ddc7fbe072c1c3cc9e509fcc",
+      "versionId": "sha256:fd1cd3817d29e45234cbc645b83d69187603a1b5a6e6b585d2f99fad297cd47c",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:e0e9ca5a29ebb7c1e2b9de8b09edd49fcde61edd659d85e59294f898b6a46de6"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:fd1cd3817d29e45234cbc645b83d69187603a1b5a6e6b585d2f99fad297cd47c"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,20 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "裏で動く実行の部品を入れ替えたあと、席の道具が、開いたままの席でも新しい部品を使うようにします。これまでは、入れ替える前に開いた席は古い部品を使い続けることがありました。"
+        "工程表の見回りと Approval Box への申請を、本体の側で行えるようにします。工程表の部品と一緒に入れ替えます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "dc9985ac0c2fa2f9b65648a9378a455902ed7a1d",
-      "versionId": "sha256:e0e9ca5a29ebb7c1e2b9de8b09edd49fcde61edd659d85e59294f898b6a46de6",
+      "sourceCommit": "bd164ebf0e11c472ddc7fbe072c1c3cc9e509fcc",
+      "versionId": "sha256:fd1cd3817d29e45234cbc645b83d69187603a1b5a6e6b585d2f99fad297cd47c",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:e0e9ca5a29ebb7c1e2b9de8b09edd49fcde61edd659d85e59294f898b6a46de6"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:fd1cd3817d29e45234cbc645b83d69187603a1b5a6e6b585d2f99fad297cd47c"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,13 +748,13 @@
         "containerUpdate": 1
       },
       "changes": [
-        "裏で動く実行の部品を入れ替えたあと、席の道具が、開いたままの席でも新しい部品を使うようにします。これまでは、入れ替える前に開いた席は古い部品を使い続けることがありました。"
+        "工程表の見回りと Approval Box への申請を、本体の側で行えるようにします。工程表の部品と一緒に入れ替えます。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "df789615306721fe81c8ddf018f5be0a2812db9d",
-      "versionId": "60a52219c0ad9c97353aef703ab77520c0223d5cfca627def0707e3414f4e5d8",
+      "sourceCommit": "bd164ebf0e11c472ddc7fbe072c1c3cc9e509fcc",
+      "versionId": "893d50ce4908e8f0682828a3f20511b467b2abbc1a72272809a6b3b0cd50eb6c",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -762,16 +762,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T161525Z/lattice-df789615306721fe81c8ddf018f5be0a2812db9d-linux-amd64.tar.gz",
-          "bytes": 15264674,
-          "sha256": "60a52219c0ad9c97353aef703ab77520c0223d5cfca627def0707e3414f4e5d8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T165712Z/lattice-bd164ebf0e11c472ddc7fbe072c1c3cc9e509fcc-linux-amd64.tar.gz",
+          "bytes": 15267874,
+          "sha256": "893d50ce4908e8f0682828a3f20511b467b2abbc1a72272809a6b3b0cd50eb6c"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T161525Z/lattice-df789615306721fe81c8ddf018f5be0a2812db9d-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11137,
-          "sha256": "92250c52778a91f5787f504c519b86f05894e0c7c613cfebf9c3e097edb0e611"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T165712Z/lattice-bd164ebf0e11c472ddc7fbe072c1c3cc9e509fcc-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11231,
+          "sha256": "28008d728cc4ec9461adbf6940979fa82ef9f1da2018dbb1052025047ce078de"
         },
-        "signerCommit": "df789615306721fe81c8ddf018f5be0a2812db9d"
+        "signerCommit": "bd164ebf0e11c472ddc7fbe072c1c3cc9e509fcc"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -783,13 +783,13 @@
         }
       },
       "changes": [
-        "工程表（Lattice）を 0.97.1 にします。計画を直しても、止まっている作業の「いつ・何で止まったか」が消えないようにします。"
+        "工程表の見回りを1分ごとにします。声かけは、1回の見回りで1人に1回までです。担当が評価者様の工程は、本体の接続で Approval Box に申請を出し、答えを読みます。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "df789615306721fe81c8ddf018f5be0a2812db9d",
-      "versionId": "d2a932d42f85986cf12b5ff640f1a54e08a50cb9dc9bb76607fce31704199a04",
+      "sourceCommit": "bd164ebf0e11c472ddc7fbe072c1c3cc9e509fcc",
+      "versionId": "0b62472d44b5de1581ce4b24f31ae7615e701518056eff41ad486b053a8b0889",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -797,16 +797,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T161525Z/lattice-df789615306721fe81c8ddf018f5be0a2812db9d-linux-arm64.tar.gz",
-          "bytes": 15264677,
-          "sha256": "d2a932d42f85986cf12b5ff640f1a54e08a50cb9dc9bb76607fce31704199a04"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T165712Z/lattice-bd164ebf0e11c472ddc7fbe072c1c3cc9e509fcc-linux-arm64.tar.gz",
+          "bytes": 15267869,
+          "sha256": "0b62472d44b5de1581ce4b24f31ae7615e701518056eff41ad486b053a8b0889"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T161525Z/lattice-df789615306721fe81c8ddf018f5be0a2812db9d-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11121,
-          "sha256": "96d22a6d44b3487b0be38d5543320d326ed087e9b0b8ff6dd026053e051cbec7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T165712Z/lattice-bd164ebf0e11c472ddc7fbe072c1c3cc9e509fcc-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10949,
+          "sha256": "71ebbb00d266b8c722b1350d423397ba3b7086b9ff407e24c3909f9d4bfd91e7"
         },
-        "signerCommit": "df789615306721fe81c8ddf018f5be0a2812db9d"
+        "signerCommit": "bd164ebf0e11c472ddc7fbe072c1c3cc9e509fcc"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -818,7 +818,7 @@
         }
       },
       "changes": [
-        "工程表（Lattice）を 0.97.1 にします。計画を直しても、止まっている作業の「いつ・何で止まったか」が消えないようにします。"
+        "工程表の見回りを1分ごとにします。声かけは、1回の見回りで1人に1回までです。担当が評価者様の工程は、本体の接続で Approval Box に申請を出し、答えを読みます。"
       ]
     }
   ],
