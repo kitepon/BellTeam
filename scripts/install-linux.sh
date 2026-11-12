@@ -1,15 +1,18 @@
 #!/bin/sh
-# Builds the Linux app with .NET bundled and installs it for the current user (no root needed).
-# Usage: scripts/install-linux.sh [--server-url URL] [--no-launch] | --uninstall
+# Installs or updates the BellTeam Linux app for the current user (no root needed): downloads the
+# published build (.NET bundled) and installs it. --from-source builds it from this checkout instead.
+# Usage: install-linux.sh [--server-url URL] [--no-launch] [--from-source] | --uninstall
+#   curl -fsSL https://github.com/kitepon/BellTeam/releases/download/linux-app/install-linux.sh | sh
 set -eu
-cd "$(dirname "$0")/.."
-server_url=""; launch=1; uninstall=0
+server_url=""; launch=1; uninstall=0; from_source=0
+release="${BELLTEAM_LINUX_RELEASE:-https://github.com/kitepon/BellTeam/releases/download/linux-app}"
 while [ $# -gt 0 ]; do
   case "$1" in
     --server-url) server_url="${2:?--server-url にURLを指定してください。}"; shift 2 ;;
     --no-launch) launch=0; shift ;;
     --uninstall) uninstall=1; shift ;;
-    *) echo "引数は --server-url <URL>・--no-launch・--uninstall です。" >&2; exit 2 ;;
+    --from-source) from_source=1; shift ;;
+    *) echo "引数は --server-url <URL>・--no-launch・--from-source・--uninstall です。" >&2; exit 2 ;;
   esac
 done
 data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
@@ -46,24 +49,36 @@ if [ "$uninstall" = 1 ]; then
   echo "BellTeamを削除しました。設定は $data_home/BellTeam に残しています。"
   exit 0
 fi
-command -v dotnet >/dev/null 2>&1 || [ -x "$HOME/.dotnet/dotnet" ] || { echo '.NET 10 SDKが見つかりません。https://dotnet.microsoft.com/download から導入してください。' >&2; exit 1; }
-dotnet_cmd="$(command -v dotnet || echo "$HOME/.dotnet/dotnet")"
 case "$(uname -m)" in
   x86_64|amd64) rid=linux-x64 ;;
   aarch64|arm64) rid=linux-arm64 ;;
   *) echo "このCPU（$(uname -m)）には対応していません。x64かarm64のLinuxで実行してください。" >&2; exit 1 ;;
 esac
-publish="$PWD/linux/artifacts/publish-$rid"
-rm -rf "$publish"
-"$dotnet_cmd" publish linux/BellTeam.Linux/BellTeam.Linux.csproj -c Release -r "$rid" --self-contained true -o "$publish" --nologo
+work="$(mktemp -d)"; trap 'rm -rf "$work"' EXIT
+staging="$work/app"; mkdir -p "$staging"
+if [ "$from_source" = 1 ]; then
+  repo="$(cd "$(dirname "$0")/.." && pwd)"
+  [ -f "$repo/linux/BellTeam.Linux/BellTeam.Linux.csproj" ] || { echo '--from-source はBellTeamのソースの scripts/install-linux.sh から実行してください。' >&2; exit 1; }
+  command -v dotnet >/dev/null 2>&1 || [ -x "$HOME/.dotnet/dotnet" ] || { echo '.NET 10 SDKが見つかりません。https://dotnet.microsoft.com/download から導入してください。' >&2; exit 1; }
+  dotnet_cmd="$(command -v dotnet || echo "$HOME/.dotnet/dotnet")"
+  "$dotnet_cmd" publish "$repo/linux/BellTeam.Linux/BellTeam.Linux.csproj" -c Release -r "$rid" --self-contained true -o "$staging" --nologo
+  cp "$repo/ios/BellBot/BellBot/Assets.xcassets/AppIcon.appiconset/bellbot-icon.png" "$staging/bellteam.png"
+else
+  fetch() { if command -v curl >/dev/null 2>&1; then curl -fsSL -o "$2" "$1"; else wget -q -O "$2" "$1"; fi; }
+  command -v curl >/dev/null 2>&1 || command -v wget >/dev/null 2>&1 || { echo 'curlかwgetが必要です。' >&2; exit 1; }
+  archive="BellTeam-$rid.tar.gz"
+  fetch "$release/$archive" "$work/$archive" && fetch "$release/SHA256SUMS" "$work/SHA256SUMS" || { echo "公開版を取得できませんでした: $release/$archive" >&2; exit 1; }
+  # A truncated or mismatched download is never installed.
+  (cd "$work" && grep -F "  $archive" SHA256SUMS | sha256sum -c --status) || { echo '取得した公開版の検査に失敗しました。もう一度実行してください。' >&2; exit 1; }
+  tar -xzf "$work/$archive" -C "$staging"
+fi
 if [ -n "$server_url" ]; then
-  "$publish/BellTeam" --configure "$server_url" || { echo '接続先を保存できませんでした。HTTPS、またはlocalhost・LANのHTTP接続先URLを指定してください。' >&2; exit 1; }
+  "$staging/BellTeam" --configure "$server_url" || { echo '接続先を保存できませんでした。HTTPS、またはlocalhost・LANのHTTP接続先URLを指定してください。' >&2; exit 1; }
 fi
 rm -rf "$install_dir"; mkdir -p "$install_dir" "$(dirname "$link")" "$(dirname "$desktop")"
-cp -a "$publish/." "$install_dir/"
+cp -a "$staging/." "$install_dir/"
 echo "scripts/install-linux.sh" > "$marker"
 ln -sf "$executable" "$link"
-cp ios/BellBot/BellBot/Assets.xcassets/AppIcon.appiconset/bellbot-icon.png "$install_dir/bellteam.png"
 cat > "$desktop" <<EOF
 [Desktop Entry]
 Type=Application

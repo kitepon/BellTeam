@@ -4,7 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <!-- Same assembly name as the Windows app: BellTeam.Core's InternalsVisibleTo("BellTeam") reaches the same render hooks. -->
     <AssemblyName>BellTeam</AssemblyName>
-    <Version>0.4.9</Version>
+    <Version>0.1.0</Version>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
   <ItemGroup>
