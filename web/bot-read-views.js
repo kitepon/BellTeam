@@ -155,6 +155,12 @@ export function createScreenView({ panel, status, text, header, api, input = nul
   return { open, close }
 }
 
+// Caption: the date the sheet was placed (JST), only when the data has one.
+const sheetDate = value => {
+  const at = new Date(value)
+  return value && !Number.isNaN(at.getTime()) ? at.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: 'numeric', day: 'numeric' }) : ''
+}
+
 export function createCharacterSheetView(dialog, list, { api, fetchImage = fetch }) {
   let owner = null
   const urls = new Set()
@@ -165,22 +171,29 @@ export function createCharacterSheetView(dialog, list, { api, fetchImage = fetch
     const opened = owner
     release()
     list.replaceChildren()
+    const title = dialog.querySelector?.('h2')
+    if (title) title.textContent = `${bot.name ?? bot.displayName ?? ''}のキャラクターシート`
     if (!dialog.open) dialog.showModal()
     try {
       const { sheets } = await api(`/api/bots/${bot.id}/character-sheet`)
       if (owner !== opened) return
       if (!sheets.length) {
-        const empty = document.createElement('p')
-        empty.className = 'character-sheet-note'
-        empty.textContent = 'まだ置かれていない。'
+        // P3: an empty state is an image placeholder and one sentence, never a path or a dead end.
+        const empty = document.createElement('div'), placeholder = document.createElement('span'), sentence = document.createElement('p')
+        empty.className = 'character-sheet-empty'
+        placeholder.className = 'character-sheet-placeholder'
+        placeholder.setAttribute('aria-hidden', 'true')
+        sentence.textContent = 'キャラクターシートはまだありません。オーナーが選んだ1枚がここに出ます。'
+        empty.append(placeholder, sentence)
         list.replaceChildren(empty)
       }
       for (const sheet of sheets) {
         if (owner !== opened) return
-        const figure = document.createElement('figure'), image = document.createElement('img'), caption = document.createElement('figcaption')
-        image.alt = sheet.file
-        caption.textContent = `${sheet.file}（${new Date(sheet.updatedAt).toLocaleString('ja-JP')}）`
-        figure.append(image, caption)
+        const figure = document.createElement('figure'), image = document.createElement('img')
+        image.alt = 'キャラクターシート'
+        figure.append(image)
+        const date = sheetDate(sheet.updatedAt)
+        if (date) { const caption = document.createElement('figcaption'); caption.textContent = date; figure.append(caption) }
         list.append(figure)
         const response = await fetchImage(sheet.url)
         if (!response.ok) throw new Error(`HTTP_${response.status}`)
@@ -194,10 +207,13 @@ export function createCharacterSheetView(dialog, list, { api, fetchImage = fetch
       if (owner !== opened) return
       release()
       list.replaceChildren()
-      const failed = document.createElement('p')
+      const failed = document.createElement('p'), retry = document.createElement('button')
       failed.className = 'form-error'
-      failed.textContent = `キャラクターシートを読めませんでした（${error.message}）`
-      list.append(failed)
+      failed.title = error.message
+      failed.textContent = 'キャラクターシートを読めませんでした。もう一度読み込んでください。'
+      retry.type = 'button'; retry.className = 'primary-button'; retry.textContent = 'もう一度読む'
+      retry.addEventListener('click', () => { void open(bot) })
+      list.append(failed, retry)
     }
   }
   return { open }

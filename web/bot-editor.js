@@ -1,5 +1,5 @@
 import { openImageViewer } from './image-gallery.js?v=__ASSET_VERSION__'
-import { guardEditorClose, requestEditorClose } from './editor-close.js?v=__ASSET_VERSION__'
+import { guardEditorClose } from './editor-close.js?v=__ASSET_VERSION__'
 import { createAvatarEditor } from './avatar-editor.js?v=__ASSET_VERSION__'
 import { applyAvatar, initials, escapeClass, modelChoices } from './view-format.js?v=__ASSET_VERSION__'
 import { folderRefusal, folderUncheckedText, memberFolder, osOf, readTerminals, remoteBindingBody } from './terminals.js?v=__ASSET_VERSION__'
@@ -13,16 +13,16 @@ const SAVE_REFUSALS = {
   BOT_PROJECT_EXISTS: '同じ名前の場所がもうあります。名前を変えてください。',
   BOT_NOT_FOUND: 'このメンバーはもういません。一覧を更新してください。',
   BOT_UPDATE_CONFLICT: 'ほかの画面で先に変更されました。開き直してから入力してください。',
-  BOT_HARNESS_INVALID: 'AIの設定（CLI・モデル・エフォート）を選び直してください。',
-  BOT_MODEL_INVALID: 'AIの設定（CLI・モデル・エフォート）を選び直してください。',
-  BOT_REASONING_EFFORT_INVALID: 'AIの設定（CLI・モデル・エフォート）を選び直してください。',
+  BOT_HARNESS_INVALID: 'AIの設定（AI・モデル・考える深さ）を選び直してください。',
+  BOT_MODEL_INVALID: 'AIの設定（AI・モデル・考える深さ）を選び直してください。',
+  BOT_REASONING_EFFORT_INVALID: 'AIの設定（AI・モデル・考える深さ）を選び直してください。',
   BOT_TERMINAL_ID_INVALID: '端末とフォルダを確かめてください。',
   BOT_PROJECT_ROOT_INVALID: '端末とフォルダを確かめてください。',
   BOT_REMOTE_BINDING_INVALID: '端末とフォルダを確かめてください。',
 }
 export const memberSaveRefusal = (error, folder) => folderRefusal(error, folder) ?? SAVE_REFUSALS[error?.code] ?? 'サーバーが入力を受け付けませんでした。入力を見直してから、もう一度保存してください。'
 
-export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, onStatus, onMemory, onSheets }) {
+export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, onStatus }) {
   let owner = null, models = {}, modelLoad = null, saving = null, editRevision = 0
   const botForm = dialog.querySelector('#bot-form')
   const botDialogTitle = dialog.querySelector('#bot-dialog-title')
@@ -55,8 +55,7 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
   const deletionStatus = dialog.querySelector('#bot-deletion-status')
   const deleteBotButton = dialog.querySelector('#delete-bot-button')
   const botManagementActions = dialog.querySelector('#bot-management-actions')
-  const characterSheetButton = dialog.querySelector('#character-sheet-button')
-  const memoryButton = dialog.querySelector('#memory-button')
+  const applyBadge = dialog.querySelector('#bot-apply-badge')
   const botRemote = dialog.querySelector('#bot-remote')
   const botTerminal = dialog.querySelector('#bot-terminal')
   const botProjectRoot = dialog.querySelector('#bot-project-root')
@@ -106,17 +105,18 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
   deleteBotButton.addEventListener('click', remove)
   verifyDeletionButton.addEventListener('click', verifyDeletion)
   verifySaveButton.addEventListener('click', verifySave)
-  memoryButton.addEventListener('click', () => { const bot = owner?.bot; if (bot) { requestEditorClose(dialog); if (!dialog.open) onMemory(bot) } })
-  characterSheetButton.addEventListener('click', () => { if (owner?.bot) onSheets(owner.bot) })
+  // W75: one badge next to 「AI」 for the applied state, and one plain sentence.
   function renderBotConfigurationStatus(bot) {
     const application = bot?.configurationApplication
-    botConfigurationStatus.setAttribute('data-state', application?.state === 'failed' ? 'error' : 'notice')
-    botConfigurationStatus.textContent = !bot ? ''
-      : application?.state === 'pending' ? '現在の作業が終わった後に設定を反映します。適用はまだ確認できていません。'
-      : application?.state === 'failed' ? application.message
-      : application?.state === 'accepted' ? 'CLIが設定変更を受け付けました。'
-      : bot.online ? '保存した希望設定です。稼働中のCLIへの適用は未確認です。'
-      : '次回の起動に使う希望設定です。'
+    const [badge, tone, sentence] = !bot ? ['', '', '使うAI・モデル・考える深さを選びます。']
+      : application?.state === 'failed' ? ['反映できませんでした', 'attention', application.message]
+      : application?.state === 'accepted' ? ['反映済み', 'ok', 'いま動いているAIが、この設定を受け付けました。']
+      : application?.state === 'pending' || bot.online ? ['反映待ち', 'working', 'いまの作業が終わったら、この設定で動きます。']
+      : ['', '', '次に動き出す時から、この設定で動きます。']
+    applyBadge.hidden = !badge
+    applyBadge.textContent = badge
+    applyBadge.className = `state-badge${tone ? ` is-${tone}` : ''}`
+    botConfigurationStatus.textContent = sentence
   }
 
   async function open(bot = null) {
@@ -144,9 +144,6 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
     botReasoningEffort.disabled = true
     saveBotButton.disabled = true
     botManagementActions.hidden = !bot
-    characterSheetButton.hidden = !bot
-    characterSheetButton.disabled = false
-    memoryButton.disabled = false
     if (bot) {
       botName.value = bot.name
       botHarness.value = bot.harness
@@ -190,7 +187,7 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
             appearanceStatus.textContent = largeFile.disabled ? 'この本体は大画像の独立編集に対応していません。' : '小画像と大画像は独立して保存します。変更しない画像は保持します。'
           }
         } catch {
-          if (!controller.signal.aborted) { botConfigurationStatus.textContent = '現在の適用状態を取得できません。'; appearanceStatus.textContent = '保存済みの写真を取得できません。写真の編集は開き直して確認してください。' }
+          if (!controller.signal.aborted) { botConfigurationStatus.textContent = 'いまの反映の状態を読み込めませんでした。'; appearanceStatus.textContent = '保存済みの写真を取得できません。写真の編集は開き直して確認してください。' }
         }
       }
     } catch (error) {
@@ -214,7 +211,7 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
     try { result = await readTerminals(api, { signal }) } catch { return }
     if (owner !== opened || signal.aborted || result.error) return
     const savedId = opened.bot?.terminalId ?? ''
-    const options = [['', 'BellTeamの中（通常の席）'], ...result.terminals.map(item => [item.terminalId, `${item.terminalId}（${item.user}@${item.host}）`])]
+    const options = [['', 'BellTeamの中'], ...result.terminals.map(item => [item.terminalId, item.name || item.terminalId])]
     // A saved binding whose terminal is gone stays visible instead of being silently replaced.
     if (savedId && !result.terminals.some(item => item.terminalId === savedId)) options.push([savedId, `${savedId}（登録がありません）`])
     selectOptions(botTerminal, options)
@@ -247,8 +244,8 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
     if (!models) {
       // Before /api/models answers, show only the saved values and say so; nothing is judged yet.
       botModelStatus.textContent = 'モデル一覧を読み込んでいます…'
-      selectOptions(botModel, [[current, `${current || 'CLIの既定'}（読み込み中…）`]])
-      selectOptions(botReasoningEffort, [[effort, `${effort || 'CLIの既定'}（読み込み中…）`]])
+      selectOptions(botModel, [[current, `${current || '標準'}（読み込み中…）`]])
+      selectOptions(botReasoningEffort, [[effort, `${effort || '標準'}（読み込み中…）`]])
       botModel.value = current
       botReasoningEffort.value = effort
       botModelCustomField.hidden = true
@@ -257,7 +254,7 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
     }
     botModelStatus.textContent = entry?.error?.message ?? ''
     const choices = modelChoices(entry?.models ?? [])
-    selectOptions(botModel, [['', 'CLIの既定'], ...choices, [CUSTOM_MODEL, 'その他（手入力）']])
+    selectOptions(botModel, [['', '標準'], ...choices, [CUSTOM_MODEL, 'その他（手入力）']])
     const listed = current === '' || choices.some(([id]) => id === current)
     botModel.value = listed ? current : CUSTOM_MODEL
     botModelCustom.value = listed ? '' : current
@@ -276,7 +273,7 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
   }
   function renderEffortOptions(current) {
     const efforts = selectableEfforts()
-    const options = [['', 'CLIの既定'], ...efforts.map(effort => [effort, effort])]
+    const options = [['', '標準'], ...efforts.map(effort => [effort, effort])]
     // 保存済みの値が候補から外れても黙って変えない。選び直すまで残す。
     if (current && !efforts.includes(current)) options.push([current, models?.[botHarness.value] ? `${current}（このモデルでは未対応）` : current])
     selectOptions(botReasoningEffort, options)
@@ -374,17 +371,21 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
     } catch { if (owner === opened) botFormError.textContent = '保存結果を取得できませんでした。入力を残しています。再確認してください。' }
     finally { if (owner === opened) verifySaveButton.disabled = false }
   }
+  // W74: 「会話をやり直す」 asks first; its result is written in the save bar, in front of the user.
   async function restart() {
     const opened = owner, bot = opened?.bot
     if (!bot || restartSessionButton.disabled || deletionPending()) return
+    if (!window.confirm(`${bot.name}との会話をやり直しますか？\nいまの作業は止まり、次のメッセージから新しく始まります。`)) return
     restartSessionButton.disabled = true
-    onStatus(bot, '再起動中')
+    restartSessionButton.textContent = 'やり直しています…'
+    botFormError.textContent = ''
     try {
       await api(`/api/bots/${bot.id}/restart`, { method: 'POST' })
+      onStatus(bot, '会話をやり直しました')
       if (owner === opened) dialog.close()
       onRestarted(bot)
-    } catch { onStatus(bot, '再起動できませんでした') }
-    finally { if (owner === opened) restartSessionButton.disabled = false }
+    } catch { if (owner === opened) botFormError.textContent = '会話をやり直せませんでした。もう一度押してください。' }
+    finally { if (owner === opened) { restartSessionButton.disabled = false; restartSessionButton.textContent = '会話をやり直す' } }
   }
   function deletionPending() { return Boolean(owner?.deletionRequested || owner?.deletionUnconfirmed || owner?.bot?.deleting || owner?.bot?.deletionRequested) }
   function renderDeletionState() {
@@ -395,8 +396,6 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
     restartSessionButton.disabled = true
     deleteBotButton.disabled = true
     appearanceStatus.textContent = '削除結果が未確認のため写真の編集はできません。'
-    memoryButton.disabled = true
-    characterSheetButton.disabled = true
     for (const input of botForm.querySelectorAll('input,textarea,select')) input.disabled = true
     deletionStatus.textContent = owner.deletionUnconfirmed ? '削除結果はまだ確認できません。一覧を確認するまで編集はできません。' : '削除操作を受け付けました。完了はまだ確認できていません。'
   }
@@ -414,7 +413,7 @@ export function createBotEditor(dialog, { api, onSaved, onDeleted, onRestarted, 
   }
   async function remove() {
     const opened = owner, bot = opened?.bot
-    if (!bot || deleteBotButton.disabled || deletionPending() || !window.confirm(`${bot.displayName}を削除しますか？`)) return
+    if (!bot || deleteBotButton.disabled || deletionPending() || !window.confirm(`${bot.name}を削除しますか？`)) return
     deleteBotButton.disabled = true
     let accepted = false
     try {

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { authorizeText, keySourceOf, memberFolder, projectRootProblem, readTerminals, remoteBindingBody, seatLaunchText, terminalStatus } from '../web/terminals.js'
+import { authorizeText, checkBadge, checkTime, friendlyName, keySourceOf, memberFolder, projectRootProblem, readTerminals, remoteBindingBody, seatLaunchText, terminalIdFromName, terminalStatus } from '../web/terminals.js'
 
 test('check observation -> plain words; host trust reasons ask for the fingerprint', () => {
   assert.equal(terminalStatus(null).label, '未確認')
@@ -100,13 +100,13 @@ test('key source is per purpose: native SSH never hides sudo removal', async t =
   assert.equal(keySourceOf({ ...mac, sshKeySource: 'secret', sudoKeySource: 'secret' }, 'ssh'), 'secret')
   const v = await view(t, [{ ...mac, hostTrust: { provider: 'p', revision: 'r' } }]); await v.open()
   const rows = v.all().filter(node => node.className === 'terminal-key').map(row => nodes(row).map(node => node.textContent))
-  assert.ok(!rows[0].includes('外す') && rows[0].includes('設定済み · 端末の鍵'))
-  assert.ok(rows[1].includes('外す') && rows[1].includes('設定済み · 秘密入力'))
+  assert.ok(!rows[0].includes('外す') && rows[0].includes('鍵: 設定済み'))
+  assert.ok(rows[1].includes('外す') && rows[1].includes('管理者の鍵: 設定済み'))
 })
 
 test('a suspended save keeps a newer edit; failure keeps the draft; an unchanged save closes its form', async t => {
   const v = await view(t, [{ ...mac, hostTrust: { provider: 'p', revision: 'r' } }]); await v.open()
-  v.add(); v.typed(v.form(), 'owner-macbook', 'new-mac'); v.typed(v.form(), '192.168.1.12', '10.0.0.2'); v.typed(v.form(), 'kite', 'kite')
+  v.add(); v.typed(v.form(), '例：自分のMac', 'new-mac'); v.typed(v.form(), '192.168.1.12', '10.0.0.2'); v.typed(v.form(), 'kite', 'kite')
   v.form().fire('submit'); await settle()
   v.click('編集') // newer intent while the PUT is pending
   v.puts[0].resolve({}); await settle(); await settle()
@@ -143,7 +143,7 @@ test('Windows / Linux: OS choice sends os and follows the precondition; card nam
   v.add()
   const select = nodes(v.form()).find(node => node.tagName === 'select' && node.children.some(option => option.value === 'windows'))
   assert.match(text(v.form()), /リモートログイン/)
-  select.value = 'windows'; v.typed(v.form(), 'owner-macbook', 'fox2')
+  select.value = 'windows'; v.typed(v.form(), '例：自分のMac', 'fox2')
   assert.match(text(v.form()), /オプション機能」で「OpenSSH サーバー」を追加/); assert.doesNotMatch(text(v.form()), /macOS だけ|リモートログイン/)
   select.value = 'linux'; v.form().fire('input'); assert.match(text(v.form()), /openssh-server/)
   v.typed(v.form(), '192.168.1.12', '192.168.1.5'); v.typed(v.form(), 'kite', 'kite'); v.form().fire('submit'); await settle()
@@ -283,4 +283,108 @@ test('seatLaunch -> one line; action first, else code; null/absent -> nothing', 
   assert.equal(seatLaunchText({ code: 'UNREACHABLE', action: '' }), '端末で起動できません。')
   assert.equal(seatLaunchText({}), '端末で起動できません。')
   for (const value of [null, undefined, 'x']) assert.equal(seatLaunchText(value), null)
+})
+
+test('badge from the last check: reachable with JST time, not reachable amber with the action, never checked', () => {
+  assert.equal(checkTime('2026-11-11T11:48:00Z'), '11/11 20:48')
+  assert.equal(checkTime('2026-01-05T15:05:00Z'), '1/6 00:05')
+  assert.deepEqual(checkBadge({ reachable: true, reason: null, checkedAt: '2026-11-11T11:48:00Z' }), { tone: 'ok', label: '11/11 20:48 につながりました' })
+  assert.deepEqual(checkBadge({ reachable: true, observedAt: '2026-11-11T11:48:00Z' }), { tone: 'ok', label: '11/11 20:48 につながりました' })
+  assert.deepEqual(checkBadge({ reachable: false, reason: 'UNREACHABLE', action: 'Macが起きているか確かめてください', checkedAt: 'x' }), { tone: 'attention', label: 'つながりません', action: 'Macが起きているか確かめてください。' })
+  assert.deepEqual(checkBadge({ reachable: false, reason: 'UNREACHABLE' }), { tone: 'attention', label: 'つながりません', action: '' })
+  assert.deepEqual(checkBadge({ reachable: false, reason: 'UNREACHABLE', checkedAt: '2026-11-11T11:00:00Z' }), { tone: 'attention', label: '11/11 20:00 につながりませんでした', action: '' })
+  assert.deepEqual(checkBadge({ reachable: false, reason: 'UNREACHABLE', observedAt: '2026-11-11T11:48:00Z' }), { tone: 'attention', label: '11/11 20:48 につながりませんでした', action: '' })
+  assert.deepEqual(checkBadge(null), { tone: 'muted', label: '未確認' })
+})
+
+test('card badges follow lastCheck; a press here wins; one help line on top; address closed under 詳細', async t => {
+  const checked = { ...mac, terminalId: 'ok-mac', lastCheck: { reachable: true, reason: null, checkedAt: '2026-11-11T11:48:00Z' } }
+  const failed = { ...mac, terminalId: 'bad-mac', lastCheck: { reachable: false, reason: 'UNREACHABLE', action: 'Macを起こしてください', checkedAt: '2026-11-11T11:00:00Z' } }
+  const never = { ...mac, terminalId: 'terminal-3', lastCheck: null }
+  const v = await view(t, [checked, failed, never]); await v.open()
+  const card = id => v.all().find(node => node.dataset?.terminalId === id)
+  const badges = id => nodes(card(id)).filter(node => /terminal-badge/.test(node.className ?? '')).map(node => [node.textContent, node.className])
+  assert.deepEqual(badges('ok-mac')[0], ['11/11 20:48 につながりました', 'terminal-badge ok'])
+  assert.deepEqual(badges('bad-mac')[0], ['11/11 20:00 につながりませんでした', 'terminal-badge attention'])
+  assert.deepEqual(badges('terminal-3')[0], ['未確認', 'terminal-badge muted'])
+  const text = node => nodes(node).map(item => item.textContent).join('|')
+  assert.match(text(card('bad-mac')), /Macを起こしてください。/)
+  assert.doesNotMatch(text(card('terminal-3')), /いまSSHで届くか/)
+  assert.equal(v.all().filter(node => node.className === 'terminals-help').length, 1)
+  const details = nodes(card('ok-mac')).find(node => node.className === 'terminal-details')
+  assert.deepEqual(details.children.map(node => node.textContent), ['詳細', 'u@h'])
+  assert.equal(text(card('ok-mac')).split('u@h').length, 2, 'the address appears once, inside 詳細')
+  assert.match(text(card('terminal-3')), /\|Mac（u）\|/)
+  assert.doesNotMatch(text(card('ok-mac')), /秘密入力/)
+  assert.equal(nodes(card('ok-mac')).find(node => node.textContent === '外す').className, 'terminal-quiet')
+  // The press result replaces the recorded one.
+  nodes(card('ok-mac')).find(node => node.tagName === 'button' && node.textContent === '届くか確かめる').fire('click'); await settle(); await settle()
+  assert.equal(badges('ok-mac')[0][1], 'terminal-badge attention')
+  assert.equal(friendlyName({ terminalId: 'owner-mac' }), 'owner-mac')
+})
+
+test('terminal id from the name: lowercase ascii/digits/hyphen, 63 max, terminal-<n> without ascii, never an id already taken', () => {
+  const valid = id => /^[a-z0-9][a-z0-9-]{0,62}$/.test(id)
+  for (const [name, id] of [['Owner MacBook', 'owner-macbook'], ['kiteのMac', 'kite-mac'], ['  --Fox_PC--  ', 'fox-pc'], ['ＭＡＣ１', 'mac1'], ['abc', 'abc']]) assert.equal(terminalIdFromName(name), id, name)
+  for (const name of ['自分', '', '!!!', '🙂']) assert.equal(terminalIdFromName(name), 'terminal-1', name)
+  assert.equal(terminalIdFromName('あ', ['terminal-1', 'terminal-2']), 'terminal-3')
+  assert.equal(terminalIdFromName('mac', ['mac']), 'mac-2')
+  assert.equal(terminalIdFromName('mac', ['mac', 'mac-2']), 'mac-3')
+  const long = terminalIdFromName(`${'a'.repeat(80)}-${'b'.repeat(10)}`)
+  assert.equal(long.length, 63); assert.ok(valid(long))
+  const crowded = terminalIdFromName('a'.repeat(70), ['a'.repeat(63)])
+  assert.ok(valid(crowded) && crowded.length <= 63 && crowded.endsWith('-2'), crowded)
+})
+
+test('add sheet: in front of the list, header 追加 hidden, steps for the OS, check registers then checks, id from the name, name locks, 完了 closes', async t => {
+  const previous = globalThis.document
+  globalThis.document = { createElement: tag => new E(tag) }
+  t.after(() => { globalThis.document = previous })
+  const { createTerminalsView } = await import('../web/terminals.js')
+  const dialog = new E('dialog'), calls = []
+  let list = [{ ...mac, terminalId: 'kite-mac' }], observation = { reachable: false, reason: 'SSH_KEY_UNSET', observedAt: '2026-11-11T11:48:00Z' }
+  const api = async (path, options = {}) => {
+    calls.push(`${options.method ?? 'GET'} ${path}${options.body ? ` ${options.body}` : ''}`)
+    if (options.method === 'PUT') { list = [...list.filter(item => item.terminalId !== path.split('/').pop()), { ...mac, terminalId: path.split('/').pop() }]; return {} }
+    if (path.endsWith('/check')) return observation
+    return { terminals: list }
+  }
+  await createTerminalsView(dialog, { api }).open()
+  const body = dialog.querySelector('[data-terminals-body]'), add = dialog.querySelector('[data-terminals-add]')
+  const text = node => nodes(node).map(item => item.textContent).join('|')
+  const form = () => nodes(body).find(node => node.className === 'terminal-form')
+  const typed = (placeholder, value) => { nodes(form()).find(node => node.placeholder === placeholder).value = value; form().fire('input') }
+  const nameInput = () => nodes(form()).find(node => node.placeholder === '例：自分のMac')
+  assert.ok(!add.hidden)
+  add.fire('click')
+  assert.ok(add.hidden)
+  assert.equal(body.children[0].className, 'terminal-sheet')
+  // Order: OS, the steps, address (host, user), the check button, then the name.
+  const marks = ['OS', 'この機械で、先にこれを済ませてください。', '機械のアドレス', 'ユーザー名', 'つながるか確かめる', '名前']
+  assert.deepEqual(nodes(form()).filter(node => marks.includes(node.textContent)).map(node => node.textContent), marks)
+  assert.match(text(form()), /Macの「システム設定 > 一般 > 共有」/)
+  assert.doesNotMatch(text(form()), /端末ID|ホスト/)
+  assert.equal(nodes(form()).find(node => node.className === 'terminal-advanced').children[0].textContent, 'くわしい設定')
+  typed('192.168.1.12', '192.168.1.5'); typed('kite', 'kite')
+  assert.equal(nameInput().value, 'kiteのMac')
+  typed('例：自分のMac', 'kite Mac'); typed('kite', 'kite2') // a typed name is not overwritten by the suggestion
+  assert.equal(nameInput().value, 'kite Mac')
+  form().fire('submit'); await settle(); await settle()
+  // kite-mac is taken, so the new one is kite-mac-2; the PUT body is unchanged, then the check.
+  assert.deepEqual(calls.filter(call => /^(PUT|POST)/.test(call)).map(call => call.split(' ').slice(0, 2).join(' ')), ['PUT /api/terminals/kite-mac-2', 'POST /api/terminals/kite-mac-2/check'])
+  assert.deepEqual(JSON.parse(calls.find(call => call.startsWith('PUT')).split(' ').slice(2).join(' ')), { host: '192.168.1.5', user: 'kite2', port: 22, os: 'macos', accountOwner: 'owner' })
+  // Result next to the button; a new terminal's first check asks for the key, which the card sets: 完了 is the real next step.
+  assert.match(text(form()), /登録しました。まだSSH鍵がありません。/)
+  assert.ok(nodes(form()).some(node => node.tagName === 'button' && node.textContent === '完了'))
+  assert.equal(nameInput().disabled, true)
+  nodes(form()).find(node => node.tagName === 'button' && node.textContent === '完了').fire('click')
+  assert.equal(form(), undefined); assert.ok(!add.hidden)
+  assert.ok(nodes(body).some(node => node.dataset?.terminalId === 'kite-mac-2'))
+  // Not reachable for another reason: the sheet stays with the sentence and a retry; the registration is kept.
+  list = [{ ...mac, terminalId: 'kite-mac' }]; observation = { reachable: false, reason: 'UNREACHABLE', observedAt: '2026-11-11T11:48:00Z' }
+  add.fire('click'); typed('192.168.1.12', '10.0.0.9'); typed('kite', 'kite'); typed('例：自分のMac', '書斎'); form().fire('submit'); await settle(); await settle()
+  assert.ok(calls.some(call => call.startsWith('PUT /api/terminals/terminal-1 ')))
+  assert.match(text(form()), /11\/11 20:48 につながりませんでした\|.*登録はできています/)
+  assert.ok(nodes(form()).some(node => node.tagName === 'button' && node.textContent === 'もう一度確かめる'))
+  assert.ok(nodes(form()).some(node => node.tagName === 'button' && node.textContent === '閉じる'))
 })

@@ -59,6 +59,8 @@
           <summary class="circle-button header-tool" aria-label="その他の操作" title="その他の操作"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg></summary>
           <div class="chat-more-menu">
             <button id="schedule-button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg>自動実行</button>
+            <button id="memory-button" class="bot-only" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3Z"/><path d="M8 4v13"/></svg>記憶と知識</button>
+            <button id="character-sheet-button" class="bot-only" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><circle cx="12" cy="10" r="3"/><path d="M7 18a5 5 0 0 1 10 0"/></svg>キャラクターシート</button>
             <button id="export-button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 15v5h16v-5"/></svg>会話を書き出す</button>
           </div>
         </details>
@@ -305,11 +307,11 @@
     <form id="bot-form">
       <header class="sheet-header">
         <button class="text-button" value="cancel" formmethod="dialog" type="button" data-close-dialog="bot-dialog">キャンセル</button>
-        <h2 id="bot-dialog-title">Botを追加</h2>
-        <button class="text-button primary" id="save-bot-button" type="submit">保存</button>
+        <h2 id="bot-dialog-title">メンバーを追加</h2>
+        <span class="header-spacer"></span>
       </header>
       <div class="sheet-body">
-        <div class="avatar-editor"><div class="avatar violet" id="bot-avatar-preview">B</div><label class="upload-button">画像を選ぶ<input id="bot-avatar-file" type="file" accept="image/*"></label><button class="upload-button" id="character-sheet-button" type="button" hidden>キャラクターシート</button></div>
+        <div class="avatar-editor"><div class="avatar violet" id="bot-avatar-preview">B</div><label class="upload-button">画像を選ぶ<input id="bot-avatar-file" type="file" accept="image/*"></label></div>
         <div class="crop-editor" id="crop-editor" hidden>
           <canvas id="avatar-crop" width="512" height="512" tabindex="0" aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight" aria-label="アバターの切り抜き位置"></canvas>
           <label class="zoom-field"><span>拡大・縮小</span><input id="avatar-zoom" type="range" min="1" max="3" step="0.01" value="1"></label>
@@ -318,18 +320,17 @@
         <details class="large-avatar-section"><summary>プロフィール用の大画像</summary><button class="text-button" id="bot-large-view" type="button">大きく表示</button><div class="avatar-editor"><div class="avatar" id="bot-large-preview">B</div><label class="upload-button">大画像を選ぶ<input id="bot-large-file" type="file" accept="image/*"></label><button class="upload-button" id="bot-large-recrop" type="button" disabled>切り抜きを調整</button></div><div class="crop-editor" id="bot-large-editor" hidden><canvas id="bot-large-crop" width="1024" height="1024" tabindex="0" aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight" aria-label="大画像の切り抜き位置"></canvas><label class="zoom-field"><span>拡大・縮小</span><input id="bot-large-zoom" type="range" min="1" max="6" step="0.01" value="1"></label></div></details>
         <button class="text-button" id="bot-small-recrop" type="button" disabled>小画像の切り抜きを調整</button><p class="field-help" id="bot-appearance-status" role="status"></p>
         <label class="field"><span>名前</span><input id="bot-name" name="name" required maxlength="100" placeholder="あかり"></label>
-        <div class="form-section-heading"><h3>AIの実行設定</h3><p>保存した希望設定と、稼働中の適用状態を区別して表示します。</p></div><label class="field"><span>CLI</span><select id="bot-harness" name="harness"><option value="grok">Grok</option><option value="codex">Codex</option><option value="claude">Claude</option><option value="cursor">Cursor</option><option value="antigravity">Antigravity</option></select></label>
-        <label class="field"><span>モデル（希望設定）</span><select id="bot-model" name="model"></select></label>
+        <div class="form-section-heading"><h3>AI <span class="state-badge" id="bot-apply-badge" hidden></span></h3><p id="bot-configuration-status" role="status">使うAI・モデル・考える深さを選びます。</p></div><label class="field"><span>AI</span><select id="bot-harness" name="harness"><option value="grok">Grok</option><option value="codex">Codex</option><option value="claude">Claude</option><option value="cursor">Cursor</option><option value="antigravity">Antigravity</option></select></label>
+        <label class="field"><span>モデル</span><select id="bot-model" name="model"></select></label>
         <label class="field" id="bot-model-custom-field" hidden><span>モデルID</span><input id="bot-model-custom" name="modelCustom" maxlength="200" placeholder="一覧に無いモデルIDを入力"></label>
-        <label class="field"><span>エフォート</span><select id="bot-reasoning-effort" name="reasoningEffort"></select></label>
+        <label class="field"><span>考える深さ</span><select id="bot-reasoning-effort" name="reasoningEffort"></select></label>
         <label class="toggle-field"><input id="bot-fast-mode" name="fastMode" type="checkbox"><span>ファストモード</span></label><p class="field-help" id="bot-fast-status" role="status"></p>
         <p class="form-error" id="bot-model-status" role="status"></p>
-        <p class="form-error" id="bot-configuration-status" role="status"></p>
-        <div class="form-section-heading"><h3>プロフィールと担当</h3><p>背景・考え方・話し方と、担当する仕事を設定します。</p></div><label class="field"><span>プロフィール</span><textarea id="bot-profile-text" name="profileText" rows="5" maxlength="8000" placeholder="背景・見た目・関係性"></textarea></label>
+        <div class="form-section-heading"><h3>人柄と担当</h3><p>背景・考え方・話し方と、担当する仕事です。</p></div><label class="field"><span>プロフィール</span><textarea id="bot-profile-text" name="profileText" rows="5" maxlength="8000" placeholder="背景・見た目・関係性"></textarea></label>
         <label class="field"><span>性格（考え方）</span><textarea id="bot-personality" name="personality" rows="4" maxlength="8000" placeholder="性格・価値観・好み・判断の傾向"></textarea></label>
         <label class="field"><span>口調</span><textarea id="bot-speech-style" name="speechStyle" rows="3" maxlength="8000" placeholder="一人称・語尾・話し方。表現の見本として使うのはこの欄だけ"></textarea></label>
         <label class="field"><span>役職</span><input id="bot-position" name="position" maxlength="100" placeholder="秘書"></label>
-        <label class="field"><span>役割</span><textarea id="bot-role" name="role" rows="5" maxlength="8000" placeholder="このBotが担当する仕事"></textarea></label>
+        <label class="field"><span>役割</span><textarea id="bot-role" name="role" rows="5" maxlength="8000" placeholder="このメンバーが担当する仕事"></textarea></label>
         <section id="bot-remote" hidden><div class="form-section-heading"><h3>動かす場所</h3><p>BellTeamの中で動かすか、登録した端末の決まったフォルダで動かすかを選びます。</p></div>
         <label class="field"><span>端末</span><select id="bot-terminal" name="terminalId"></select></label>
         <div class="field" id="bot-project-root-field"><span>フォルダ</span><div class="folder-choice"><p class="folder-chosen" id="bot-folder-path"></p><button class="upload-button" id="bot-folder-choose" type="button">フォルダを選ぶ</button></div>
@@ -338,62 +339,69 @@
         <details class="folder-other" id="bot-folder-other"><summary>ほかの方法</summary><label class="field"><span>パスを入力</span><input id="bot-project-root" name="projectRoot" maxlength="4096" placeholder="/Users/kite/work/app" autocapitalize="none" spellcheck="false"></label></details></div>
         <p class="field-help" id="bot-remote-status" role="status"></p></section>
         <label class="field"><span>テーマ色</span><select id="bot-color" name="color"><option value="violet">紫</option><option value="rose">ローズ</option><option value="indigo">インディゴ</option></select></label>
-        <p class="form-error" id="bot-form-error" role="alert"></p><button class="upload-button" id="bot-create-folder" type="button" hidden>このフォルダを作って保存</button><button class="text-button" id="verify-bot-save" type="button" hidden>保存結果を確認</button>
         <p class="field-help" id="bot-deletion-status" role="status"></p><button class="text-button" id="verify-bot-deletion" type="button" hidden>削除結果を確認</button>
         <div class="bot-management-actions" id="bot-management-actions" hidden>
-          <button id="memory-button" type="button">記憶と知識</button>
-          <button id="restart-session-button" type="button">セッションを再起動</button>
-          <button class="delete-button" id="delete-bot-button" type="button">Botを削除</button>
+          <button id="restart-session-button" type="button">会話をやり直す</button>
+          <button class="delete-button" id="delete-bot-button" type="button">メンバーを削除</button>
         </div>
       </div>
+      <!-- W73: one save bar at the bottom of the viewport, with its error line. -->
+      <div class="editor-savebar"><p class="form-error" id="bot-form-error" role="alert"></p><button class="upload-button" id="bot-create-folder" type="button" hidden>このフォルダを作って保存</button><button class="text-button" id="verify-bot-save" type="button" hidden>保存結果を確認</button><button class="primary-button" id="save-bot-button" type="submit">保存</button></div>
     </form>
   </dialog>
 
-  <dialog class="sheet-dialog" id="memory-dialog">
-    <div>
+  <dialog class="sheet-dialog memory-dialog" id="memory-dialog">
+    <div class="memory-layout">
       <header class="sheet-header">
         <button class="text-button" type="button" data-close-dialog="memory-dialog">閉じる</button>
         <h2 id="memory-dialog-title">記憶と知識</h2>
         <span class="header-spacer"></span>
       </header>
       <div class="sheet-body memory-stack">
-        <section class="memory-panel">
-          <h3>長期記憶を追加</h3>
-          <form id="remember-form">
-            <label class="field"><span>種類</span><select id="remember-kind"><option value="fact">事実</option><option value="preference">好み</option><option value="policy">方針</option><option value="task">継続中の仕事</option><option value="config">設定</option><option value="incident">出来事</option><option value="relationship">関係</option><option value="episode">思い出</option><option value="growth">成長</option></select></label>
-            <label class="field"><span>保存先</span><select id="remember-scope"><option value="personal">このBot</option><option value="shared">BellTeam共通</option></select></label>
-            <label class="field"><span>内容</span><textarea id="remember-content" rows="3" required></textarea></label>
-            <button type="submit">記憶する</button>
+        <div class="memory-tabs" role="tablist" aria-label="記憶と知識">
+          <button type="button" role="tab" id="memory-tab-memory" aria-selected="true" aria-controls="memory-panel-memory">記憶</button>
+          <button type="button" role="tab" id="memory-tab-knowledge" aria-selected="false" aria-controls="memory-panel-knowledge">知識</button>
+        </div>
+        <section class="memory-panel" id="memory-panel-memory" role="tabpanel" aria-labelledby="memory-tab-memory">
+          <form class="memory-search" id="recall-form">
+            <label class="field"><span>探す言葉</span><input id="recall-query" type="search" required placeholder="探したい言葉" autocomplete="off"></label>
+            <label class="field"><span>どこから</span><select id="recall-scope"><option value="personal">このメンバー</option><option value="shared">チーム共通</option></select></label>
+            <button class="primary-button" id="recall-submit" type="submit">検索</button>
           </form>
-        </section>
-        <section class="memory-panel">
-          <h3>長期記憶を検索</h3>
-          <form id="recall-form">
-            <label class="field"><span>保存先</span><select id="recall-scope"><option value="personal">このBot</option><option value="shared">BellTeam共通</option></select></label>
-            <label class="field"><span>検索語</span><input id="recall-query" required></label>
-            <button type="submit">検索</button>
-          </form>
+          <p class="form-error" id="recall-result" role="alert"></p>
+          <div class="memory-add-row"><button class="quiet-button" id="remember-open" type="button">追加</button><p class="form-result" id="remember-result" role="status"></p></div>
           <div class="memory-results" id="memory-results"></div>
         </section>
-        <section class="memory-panel">
-          <h3>知識を追加</h3>
-          <form id="knowledge-form">
-            <label class="field"><span>保存先</span><select id="knowledge-scope"><option value="personal">このBot</option><option value="shared">BellTeam共通</option></select></label>
-            <label class="field"><span>タイトル</span><input id="knowledge-title" required></label>
-            <label class="field"><span>内容</span><textarea id="knowledge-content" rows="4" required></textarea></label>
-            <button type="submit">知識を保存</button>
+        <section class="memory-panel" id="memory-panel-knowledge" role="tabpanel" aria-labelledby="memory-tab-knowledge" hidden>
+          <form class="memory-search" id="knowledge-search-form">
+            <label class="field"><span>探す言葉</span><input id="knowledge-query" type="search" required placeholder="探したい言葉" autocomplete="off"></label>
+            <label class="field"><span>どこから</span><select id="knowledge-search-scope"><option value="personal">このメンバー</option><option value="shared">チーム共通</option></select></label>
+            <button class="primary-button" id="knowledge-search-submit" type="submit">検索</button>
           </form>
-        </section>
-        <section class="memory-panel">
-          <h3>知識を検索</h3>
-          <form id="knowledge-search-form">
-            <label class="field"><span>保存先</span><select id="knowledge-search-scope"><option value="personal">このBot</option><option value="shared">BellTeam共通</option></select></label>
-            <label class="field"><span>検索語</span><input id="knowledge-query" required></label>
-            <button type="submit">検索</button>
-          </form>
+          <p class="form-error" id="knowledge-search-result" role="alert"></p>
+          <div class="memory-add-row"><button class="quiet-button" id="knowledge-open" type="button">追加</button><p class="form-result" id="knowledge-result" role="status"></p></div>
           <div class="memory-results" id="knowledge-results"></div>
         </section>
-        <p class="form-error" id="memory-form-error" role="alert"></p>
+      </div>
+      <div class="memory-sheet" id="remember-sheet" hidden>
+        <form id="remember-form">
+          <h3>記憶を追加</h3>
+          <label class="field"><span>種類</span><select id="remember-kind"><option value="fact">事実</option><option value="preference">好み</option><option value="policy">方針</option><option value="task">継続中の仕事</option><option value="config">設定</option><option value="incident">出来事</option><option value="relationship">関係</option><option value="episode">思い出</option><option value="growth">成長</option></select></label>
+          <label class="field"><span>残す場所</span><select id="remember-scope"><option value="personal">このメンバー</option><option value="shared">チーム共通</option></select></label>
+          <label class="field"><span>内容</span><textarea id="remember-content" rows="4" required></textarea></label>
+          <div class="memory-sheet-actions"><button class="primary-button" id="remember-submit" type="submit">記憶する</button><button class="quiet-button" id="remember-cancel" type="button">やめる</button></div>
+          <p class="form-error" id="remember-error" role="alert"></p>
+        </form>
+      </div>
+      <div class="memory-sheet" id="knowledge-sheet" hidden>
+        <form id="knowledge-form">
+          <h3>知識を追加</h3>
+          <label class="field"><span>残す場所</span><select id="knowledge-scope"><option value="personal">このメンバー</option><option value="shared">チーム共通</option></select></label>
+          <label class="field"><span>タイトル</span><input id="knowledge-title" required></label>
+          <label class="field"><span>内容</span><textarea id="knowledge-content" rows="5" required></textarea></label>
+          <div class="memory-sheet-actions"><button class="primary-button" id="knowledge-submit" type="submit">知識を保存</button><button class="quiet-button" id="knowledge-cancel" type="button">やめる</button></div>
+          <p class="form-error" id="knowledge-error" role="alert"></p>
+        </form>
       </div>
     </div>
   </dialog>
@@ -416,7 +424,7 @@
       <header class="sheet-header">
         <button class="text-button" type="button" data-close-dialog="room-dialog">キャンセル</button>
         <h2 id="room-dialog-title">ルームを作る</h2>
-        <button class="text-button primary" type="submit">保存</button>
+        <span class="header-spacer"></span>
       </header>
       <div class="sheet-body">
         <div class="avatar-editor"><div class="avatar room-avatar" id="room-avatar-preview">R</div><label class="upload-button">画像を選ぶ<input id="room-avatar-file" type="file" accept="image/*"></label></div>
@@ -427,13 +435,14 @@
         </div>
         <label class="field"><span>ルーム名</span><input id="room-name" required maxlength="100" placeholder="開発部"></label>
         <label class="field"><span>目的</span><textarea id="room-purpose" rows="4" maxlength="8000" placeholder="この部屋で共有する仕事"></textarea></label>
-        <fieldset class="member-picker"><legend>参加メンバー</legend><label class="field"><span>名前・役職で検索</span><input id="room-member-search" type="search" placeholder="名前や担当の役職" autocomplete="off"></label><p id="room-member-count" class="field-help" role="status"></p><div id="room-members"></div></fieldset>
-        <label class="field"><span>代表</span><select id="room-representative"><option value="">代表なし</option></select></label>
-        <p class="form-error" id="room-form-error" role="alert"></p>
+        <fieldset class="member-picker"><legend>参加メンバー</legend><div class="member-chips" id="room-member-chips"></div>
+        <label class="field"><span>代表（このルームの窓口になる人）</span><select id="room-representative"><option value="">代表なし</option></select></label>
+        <label class="field"><span>メンバーを探して加える</span><input id="room-member-search" type="search" placeholder="名前や役職" autocomplete="off"></label><p id="room-member-count" class="field-help" role="status"></p><div id="room-members"></div></fieldset>
         <div class="bot-management-actions" id="room-management-actions" hidden>
           <button class="delete-button" id="delete-room-button" type="button">ルームを削除</button>
         </div>
       </div>
+      <div class="editor-savebar"><p class="form-error" id="room-form-error" role="alert"></p><button class="primary-button" type="submit">保存</button></div>
     </form>
   </dialog>
 
@@ -445,7 +454,6 @@
         <span class="header-spacer"></span>
       </header>
       <div class="sheet-body">
-        <p class="character-sheet-note">Botのプロジェクトの<code>assets/character-sheet/</code>直下にある画像。Botが自分を描く時の正本で、アバターとは別。</p>
         <div class="character-sheet-list" id="character-sheet-list"></div>
       </div>
     </div>
