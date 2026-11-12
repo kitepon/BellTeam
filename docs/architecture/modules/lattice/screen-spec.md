@@ -119,7 +119,7 @@ Data only from the [Stops contract](README.md#stops-blockers--get-apilatticebloc
 | Part | Content |
 | --- | --- |
 | Entry | 一覧 has a button 止め一覧 at the top (next to the list title). Only the Owner apps show it (the route is Owner-only) |
-| Header | 止め一覧, back (「← すべての工程表」, Esc / edge swipe) to 一覧, a 読み直す button (Web) / pull-to-refresh (Apple, Windows) |
+| Header | 止め一覧, back (「← すべての工程表」, Esc / edge swipe) to 一覧, a 読み直す button (Web, Windows; F5 on Windows) / pull-to-refresh (Apple) |
 | Row (one per `blockers[]`, newest `blockedAt` first) | octagon glyph in the 止まり red; card `title` (2 lines, then ellipsis); chart name (name rule above, never `projectId`); 担当 = `lane` face + name (owner rule: Bot id -> member, `"owner"` -> the Owner, other text as written, null -> 担当なし); 理由 = `reason` as written (up to 3 lines, the whole text in the spoken label); 止めた人 = `blockedBy` face + name (same rule) and 止めた時刻 `blockedAt` in JST (今日 HH:MM / 昨日 HH:MM / M月D日 HH:MM); button 外す |
 | Row tap (not the button) | opens that chart (工程表) and the card's 詳細 (`cardId` = card `id`) |
 | 外す | two steps in the row, no modal: 外す -> the row shows 「この止めを外しますか？」 with 外す (accent) and やめる; やめる / Esc / tapping elsewhere returns. Confirmed: the button shows a spinner, the row stays |
@@ -132,6 +132,8 @@ stateDiagram-v2
   StopsLoading --> StopsEmpty: 200, no stops
   StopsLoading --> StopsRetry: 503 / network / bad JSON
   StopsLoading --> StopsOld: 404 (older server)
+  StopsLoading --> StopsLogin: 401 sign-in lost (Windows)
+  StopsLogin --> StopsLoading: reconnected (signed in again) / 読み直す / back to the foreground
   StopsRetry --> StopsLoading: backoff 1,2,4..30 s while open / 読み直す
   StopsEmpty --> StopsLoading: 読み直す / back to the foreground
   Stops --> StopsLoading: 読み直す / back to the foreground
@@ -148,6 +150,7 @@ stateDiagram-v2
   StopsEmpty --> List: back
   StopsRetry --> List: back
   StopsOld --> List: back
+  StopsLogin --> List: back
 ```
 
 | State / answer | Shown (Japanese, plain) | What happens next | Action |
@@ -156,6 +159,7 @@ stateDiagram-v2
 | StopsEmpty | 止まっている工程はありません。 | 読み直す / foreground re-read | back |
 | StopsRetry | the last rows dimmed (or empty) + pill 止め一覧を読み直しています… | backoff 1, 2, 4 … 30 s forever while open | back, 読み直す (now) |
 | StopsOld (404) | このサーバーではまだ止め一覧を使えません。 | appears after the server update | back |
+| StopsLogin (Windows; sign-in lost) | ログインが必要です。ログインし直すと、自動で表示します。 (same text as the 工程表) | no timer; reads again when the app reconnects after signing in, or on 読み直す / foreground | back, 読み直す |
 | removed / already-gone | the row fades out (200 ms; Reduce Motion: none) | re-read | — |
 | 409 refused | under the row: 外せませんでした: `reason` (Lattice's text as is) | re-read; the stop stays | 外す again |
 | 503 / network | under the row: いまは外せませんでした。少し待ってからもう一度お試しください。 | re-read | 外す again |

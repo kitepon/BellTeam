@@ -13,6 +13,8 @@ namespace BellTeam.App;
 /// Every scene carries phases (one untitled) and one nested card (t05 under t04) for the tree; t11 has no phase and hangs from the chart.
 /// 「owner」: t11 belongs to the Owner (producer = the reserved value owner, as the server resolves a lane 指揮官 / owner).
 /// Finished cards carry doneAt (t03 none) and archived per the server rule: t02 and t03 are archived, t01 (its next card t07 is unstarted) is not.
+/// 止め一覧 scenes (stops*): GET /api/lattice/blockers has five stops on four charts (a member, the Owner, an authored lane, an unknown Bot, no lane; today,
+/// yesterday, an older day); stops-unread names an unread chart, stops-empty none, stops-retry answers 503, stops-old 404; 外す removes, stops-refused answers 409.
 /// </summary>
 internal sealed class LatticeFixture(string scene) : HttpMessageHandler
 {
@@ -76,6 +78,23 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
     private object Summary(string id, bool coordinator, int total, int done, int working, int waiting, int blocked, string[] active, double updated)
         => new { projectId = id, name = Names[id].Name, coordinator, createdBy = Names[id].CreatedBy, counts = new { total, done, working, waiting, blocked }, activeMembers = active, updatedAt = Ago(updated), state = "verified" };
 
+    private object Blockers()
+    {
+        object Stop(string id, string projectId, string task, string title, string? lane, string reason, double ago, string? by)
+            => new { stopId = id, projectId, chartName = Names[projectId].Name, chartCreatedBy = Names[projectId].CreatedBy, plan = "p1", taskId = task, cardId = $"p1/{task}", title, lane, reason, blockedAt = Ago(ago), blockedBy = by };
+        // Times relative to 12:00 JST today so the rows read 今日 / 昨日 / an older day whenever the scene is drawn.
+        var noon = new DateTimeOffset(DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(9)).Date, TimeSpan.FromHours(9)).AddHours(12);
+        double Before(double hours) => (DateTimeOffset.UtcNow - noon.AddHours(-hours)).TotalMinutes;
+        object[] stops = scene == "stops-empty" ? [] : [
+            Stop("0a1b2c3d4e5f60718293a4b5", "lattice", "t06", "Web画面の組込口", "bot-admi", "組込の登録点が未定", Before(0), "bot-admi"),
+            Stop("1b2c3d4e5f60718293a4b5c6", "nightly-care", "t03", "夜間の控えの保存先を決める", "owner", "Waiting on the Owner: which disk keeps the nightly copy. Nothing the team can do moves it until then.", Before(3), "bot-molly"),
+            Stop("2c3d4e5f60718293a4b5c6d7", "call-bridge", "t02", "通話の受け口をBellTeamの席へつなぐ", "kiro", "相手側のトークンが届くまで待つ", Before(26), "owner"),
+            Stop("3d4e5f60718293a4b5c6d7e8", "web-polish", "t09", "古い画面の片付け", "bot-ghost", "本体の便の後で行う", Before(24 * 3 + 2), "bot-ghost"),
+            Stop("4e5f60718293a4b5c6d7e8f9", "web-polish", "t11", "受け取り確認", null, "担当が決まっていない", Before(24 * 5), null),
+        ];
+        return new { schema = "bellteam.lattice-blockers.v1", at = Ago(0), blockers = stops, unreadCharts = scene == "stops-unread" ? new[] { "guide" } : [] };
+    }
+
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
     {
         var path = request.RequestUri!.AbsolutePath;
@@ -88,6 +107,13 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
             "/api/bots" => Json(new { bots = Members.Select(member => new { id = member.Id, name = member.Name, displayName = member.Name, color = member.Color }) }),
             "/api/rooms" => Json(new { rooms = Array.Empty<object>() }), "/api/queue" => Json(new { items = Array.Empty<object>() }),
             "/api/owner" => Json(new { owner = new { name = "利用者" } }), "/api/settings" => Json(new { settings = Array.Empty<object>() }),
+            "/api/lattice/blockers" => scene switch
+            {
+                "stops-old" => Json(new { error = "NOT_FOUND" }, HttpStatusCode.NotFound), "stops-retry" => Json(new { error = "LATTICE_UNAVAILABLE" }, HttpStatusCode.ServiceUnavailable), _ => Json(Blockers())
+            },
+            _ when path.StartsWith("/api/lattice/charts/", StringComparison.Ordinal) && path.EndsWith("/unblock", StringComparison.Ordinal) && request.Method == HttpMethod.Post => scene == "stops-refused"
+                ? Json(new { error = "LATTICE_UNBLOCK_REFUSED", outcome = "refused", code = "TODO_TRANSITION_REFUSED", reason = "この工程はもう取り下げられています。" }, HttpStatusCode.Conflict)
+                : Json(new { schema = "bellteam.lattice-unblock.v1", projectId = Uri.UnescapeDataString(path["/api/lattice/charts/".Length..^"/unblock".Length]), stopId = "", outcome = "removed" }),
             "/api/lattice/charts" => Json(new { schema = "bellteam.lattice-charts.v1", at = Ago(0), charts = scene == "single" ? Charts().Take(1) : Charts() }),
             _ when path.EndsWith("/messages", StringComparison.Ordinal) => Json(new { items = Array.Empty<object>(), hasMore = false }),
             _ when path.StartsWith("/api/lattice/charts/", StringComparison.Ordinal) && path.EndsWith("/events", StringComparison.Ordinal) => Events(Uri.UnescapeDataString(path["/api/lattice/charts/".Length..^"/events".Length]), Json),
