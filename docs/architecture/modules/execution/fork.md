@@ -21,6 +21,7 @@ flowchart LR
   P --> A
   A -->|"receipt: fork_of.write_ban + wait_process"| OK["onStatus running; resolve {delivery: running, forkId}"]
   A -->|"READONLY_UNENFORCEABLE, or Aiterm without fork_from, or receipt without write_ban"| U["FORK_UNAVAILABLE {reason: readonly_unenforceable}"]
+  A -->|"text refusal aiterm: FORK_*: (e.g. FORK_SOURCE_UNAVAILABLE, closed main)"| FC["code = FORK_*, effect not_started, status 400/503"]
   A -->|other refusal| E[launch error as-is]
   OK --> W["background (tracked): followInterim, waitUntilDone, readTurnAnswer"]
   W -->|done| D["onAnswer(text), onStatus delivered, onTurnEnd"]
@@ -32,6 +33,7 @@ flowchart LR
   T -->|local: Aiterm seat env labels it| Z
   U --> Z
   E --> Z
+  FC --> Z
   Q[transport.queueItems] -->|"running forks as rows + seat {kind: fork, forkId}"| R
   S["transport.forkSeat(name)"] -->|"{botId, forkId} or null"| R
 ```
@@ -42,7 +44,7 @@ flowchart LR
 | --- | --- |
 | input | `bot` (target member), `envelope` (the fork's first input, non-empty), `forkId` (string, 1-200 chars), `deliveryId` (row `groupId`), optional `queue` (same row info as `notify`, e.g. `from`, `fromName`; overrides the defaults `context:'direct', contextId/target: bot.id`), `executionSource` accepted and unused, callbacks as `notify`. `FORK_INVALID` (400) for a bad input or a `forkId` already running |
 | conversation child (B7, 2026-11-11) | Effect `execution.fork` in `conversation-execution-effects`: same `check` / `assertDelivery({deliveryId, target})` / `assertCurrentLease` / fresh member read as `execution.notify`, then `forkInquiry(bot, message, {forkId, deliveryId, queue, conversationDelivery, membersLease, admissionCheck, executionSource?})`; result `{delivery:'running', forkId}`. With `conversationDelivery`, raw callbacks are refused (`CONVERSATION_NOT_ACCEPTED` 503, as `notify`); the delivery is claimed as `notify`, `onStatus`/`onInterim`/`onAnswer` come from `conversationAdmission.callbacks` (no `turn.end`: none registered), the lease tracks the background and is finished after the fork's close, or right after a refusal before accept. `admissionCheck` and the members lease are checked again just before `agent_launch`. A refusal before accept is rethrown with its own `code`/`status` (`FORK_INVALID` 400/409, `FORK_UNAVAILABLE` 503, launch errors) |
-| main ref | `session(bot)` at call time. Aiterm forks that seat's latest saved conversation. The main is not woken: a member that never had a seat gets Aiterm's `FORK_SOURCE_UNAVAILABLE` |
+| main ref | `session(bot)` at call time. Aiterm forks that seat's latest saved conversation. The main is not woken: a member without a current Aiterm launch record (never had a seat, or its seat was closed, e.g. idle close) gets Aiterm's `FORK_SOURCE_UNAVAILABLE` (Aiterm 0.70.29 keeps no record of a closed seat; forking a closed main is Elegg's open item, 2026-11-12) |
 | launch | One `agent_launch`, same client and seat launcher as a main launch. `cwd` is the main's folder (Aiterm accepts the same real path; the seat launcher requires it). No `write_scope`, `require_existing_resume`, `throughline_source_session`, `launch_operation_id`, `configuration_root`, `model`, `fast` |
 | local MCP | None passed: the user-level BellTeam MCP sends `X-Bellteam-Seat: ${AITERM_SESSION_ID}` = the fork name, which resolves through `forkSeat` (SK01) |
 | remote MCP | `RemoteSeats.prepare(..., kind:'fork')`: `seatCredential.issue({botId, sessionName: fork name, terminalId, kind:'fork'})`, same `mcp_config` shape and private env as a main remote seat. The fork is not added to `RemoteSeats.seats` (no Throughline remote ingest of a fork transcript) |
@@ -50,7 +52,7 @@ flowchart LR
 | accept | Receipt has `fork_of.write_ban` and `wait_process`: `onStatus('running')`, then resolve `{delivery:'running', forkId}` |
 | observe | `followInterim` -> `onInterim`; `waitUntilDone(receipt)`; `readTurnAnswer({session, receipt})` -> `onAnswer(text)` when non-empty; `onStatus('delivered')`; `onTurnEnd({startedAt, endedAt})` |
 | failure after accept | `onStatus('failed', {code:'FORK_FAILED', delivery_error:{code:'FORK_FAILED'}, reason})`. Conversation relays its one `FORK_FAILED` message |
-| failure before accept | Reject. `FORK_UNAVAILABLE{reason:'readonly_unenforceable'}` (`effect: not_started`) for Aiterm's `READONLY_UNENFORCEABLE`, an Aiterm whose `agent_launch` has no `fork_from`, or a receipt without `write_ban`; other errors as they are |
+| failure before accept | Reject. `FORK_UNAVAILABLE{reason:'readonly_unenforceable'}` (`effect: not_started`) for Aiterm's `READONLY_UNENFORCEABLE`, an Aiterm whose `agent_launch` has no `fork_from`, or a receipt without `write_ban`. An uncoded Aiterm refusal whose text is `aiterm: FORK_*: ...` (`FORK_SOURCE_UNAVAILABLE`, `FORK_INVALID`, `FORK_UNSUPPORTED`; Aiterm sends no `_meta` code for them) gets that `code`, `effect: not_started` (nothing to close) and `status` 400 for `FORK_INVALID`, else 503. Other errors as they are |
 | remote transcript | Once after the turn (answer or failure), before close: `RemoteSeats.forward` with the fork labels ([remote-seat C7](remote-seat.md#capture-c7)). Throughline 0.17.0 refuses the `--fork` argv and stores nothing. Local forks are labelled by Aiterm's seat env (`THROUGHLINE_SESSION_KIND` etc.) |
 | close | Always `pty_close(name)` after the turn end or any failure once a launch was issued; remote credential revoked; registry entry removed. No resume, no follow-up turn, no requeue |
 | read | `queueItems()` adds one row per running fork: `{id: name, botId, botName, status:'running', startedAt, ...queue, steered:false, seat:{kind:'fork', forkId}}`. `forkSeat(name)` -> `{botId, forkId}` while the entry exists, else `null` |
@@ -61,4 +63,4 @@ Guard (guards.named-protection): `FORK_UNAVAILABLE` protects the project folder 
 
 ## Tests
 
-`test/execution-fork.test.mjs`: local launch args and registry, accept/answer/close order, failure after accept, `READONLY_UNENFORCEABLE` mapping, remote fork credential kind.
+`test/execution-fork.test.mjs`: local launch args and registry, accept/answer/close order, failure after accept, `READONLY_UNENFORCEABLE` mapping, text-only `FORK_*` refusal code, remote fork credential kind.
