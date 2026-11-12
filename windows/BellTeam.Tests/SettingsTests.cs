@@ -35,9 +35,9 @@ public sealed class SettingsTests
     public void BackgroundAgentReadsSummaryAndFirstSaveSendsNullRevision()
     {
         Assert.Null(Record("""{"settings":[]}"""));
-        var unset = Record("""{"settings":[],"backgroundAgent":{"revision":null,"selection":null}}""")!; Assert.Null(unset.Selection);
+        var unset = Record("""{"settings":[],"backgroundAgent":{"revision":null,"selection":null}}""")!; Assert.Equal("未設定", unset.Summary);
         var set = Record("""{"backgroundAgent":{"revision":"6f1c1f0e-5d1b-4f43-9a54-0d3a4c2e8b11","selection":{"harness":"codex","model":"gpt-5","reasoningEffort":""}}}""")!;
-        Assert.Equal("codex · gpt-5 · CLIの既定", BackgroundAgentRecord.Describe(set.Selection!));
+        Assert.Equal("codex · gpt-5 · CLIの既定", set.Summary);
         Assert.Equal("""{"expectedRevision":null,"harness":"claude","model":"opus","reasoningEffort":"high"}""", JsonSerializer.Serialize(unset.UpdateBody(new("claude", "opus", "high")), BellApi.Json));
         Assert.Equal("6f1c1f0e-5d1b-4f43-9a54-0d3a4c2e8b11", set.UpdateBody(new("codex", "gpt-5", ""))["expectedRevision"]);
     }
@@ -75,11 +75,23 @@ public sealed class SettingsTests
     }
 
     [Fact]
+    public void HarnessRowStateNeverCallsAnUnreadableStatusUnauthenticated()
+    {
+        Assert.Equal(("認証済み", "認証し直す"), (HarnessRowState.From("authenticated", null).Title, HarnessRowState.From("authenticated", null).Action));
+        Assert.Equal("詳しく見る", HarnessRowState.From("authenticated", false).Action);
+        Assert.Equal(("未認証", "認証する"), (HarnessRowState.From("blocked", null).Title, HarnessRowState.From("blocked", null).Action));
+        Assert.Equal(("認証中", "続ける"), (HarnessRowState.From("waiting", null).Title, HarnessRowState.From("waiting", null).Action));
+        Assert.Equal(HarnessRowState.Unavailable, HarnessRowState.From("failed", null)); Assert.Equal(HarnessRowState.Unavailable, HarnessRowState.From(null, null));
+    }
+
+    [Fact]
     public void CategoryListMatchesTheMacOrderAndWording()
     {
         // apple/settings-user-flow.md §3 list order; the profile row sits above the groups.
         Assert.Equal(["AIの認証", "仕事の要約を書くAI", "端末", "1Password", "通知", "追加機能", "チームの決まり", "接続", "表示", "利用と課金", "アップデート", "このアプリについて", "全体停止"], SettingsPageInfo.Groups.SelectMany(group => group).Select(SettingsPageInfo.Title));
         Assert.Equal([6, 1, 2, 3, 1], SettingsPageInfo.Groups.Select(group => group.Length)); Assert.Equal("プロフィール", SettingsPageInfo.Title(SettingsPage.Profile));
         Assert.Equal(("端末", "メンバーの席を動かすMac・Windows・Linuxと、その鍵"), (SettingsPageInfo.Title(SettingsPage.Terminals), SettingsPageInfo.Detail(SettingsPage.Terminals)));
+        // Windows sells nothing in the app, so 利用と課金 keeps the Windows line.
+        Assert.Equal("料金と、サーバーとAIの契約", SettingsPageInfo.Detail(SettingsPage.Billing));
     }
 }

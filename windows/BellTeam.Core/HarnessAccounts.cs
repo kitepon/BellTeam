@@ -69,6 +69,8 @@ public static class AccountText
     // Mac AccountText.bothLimited: the card's own banner wording (the member-list banner keeps BannerTexts, same as Web).
     public static string[] CardBannerTexts(AccountsResponse? list, DateTimeOffset now)
         => (list?.Claude?.AllLimited ?? []).Select(item => $"1つ目と2つ目のアカウントがどちらも{(string.IsNullOrEmpty(item.Scope) || item.Scope == "all" ? "上限中" : ScopeName(item.Scope) + "が上限中")}です（{(ResetTime(item.EarliestResetAt, now) is { } time ? time + "に解除" : "解除時刻不明")}）").ToArray();
+    // The members' names (Linux settings); Windows says SlotUsersLine / SeatsCount instead (settings-user-flow B20).
+    public static string? Seats(AccountSlot slot, Func<string, string?> name) => slot.Seats.Length == 0 ? null : "使用中: " + string.Join("、", slot.Seats.Select(id => name(id) ?? id));
     // Mac AccountText.slotName / slotUsers / slotUsersLine / seats / limitLine (settings-user-flow B19/B20, #1117).
     public static string SlotName(string slot) => slot == "2nd" ? "2つ目のアカウント" : "1つ目のアカウント";
     // Members running on the slot now, from each bot's own account; null on an older body where no bot has an account (the row then says SeatsCount).
