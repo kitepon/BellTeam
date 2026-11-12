@@ -230,17 +230,3 @@ internal sealed class LoginView : StartupBackdrop
         frame.Children.Add(bottom); Children.Add(frame);
     }
 }
-
-// Placeholder for the first-setup screen (Mac/Windows OnboardingView): it is not ported yet.
-internal sealed class OnboardingPlaceholderView : StartupBackdrop
-{
-    public const string NotAvailableText = "初期設定はLinux版ではまだ使えません。MacかWindowsのアプリで初期設定を済ませてください。";
-    public OnboardingPlaceholderView(Action changeServer)
-    {
-        var stack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, MaxWidth = 460, Margin = new Thickness(30) };
-        var title = MacUi.Text("初期設定", 17, BellTheme.Ink, FontWeight.Bold); title.TextAlignment = TextAlignment.Center; stack.Children.Add(title);
-        var detail = MacUi.Text(NotAvailableText, 13, BellTheme.Secondary, margin: new Thickness(0, 6, 0, 0)); detail.TextAlignment = TextAlignment.Center; stack.Children.Add(detail);
-        var change = MacUi.Bordered("接続先を変更", changeServer); change.HorizontalAlignment = HorizontalAlignment.Center; change.Margin = new Thickness(0, 18, 0, 0); stack.Children.Add(change);
-        Children.Add(stack);
-    }
-}

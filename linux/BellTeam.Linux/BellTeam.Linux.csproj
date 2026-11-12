@@ -20,5 +20,7 @@
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.6" />
     <PackageReference Include="Avalonia.Headless" Version="12.1.6" />
     <PackageReference Include="Markdig" Version="1.4.0" />
+    <!-- Avalonia brings the same version; it is referenced explicitly because the notification sink uses it directly. -->
+    <PackageReference Include="Tmds.DBus.Protocol" Version="0.94.1" />
   </ItemGroup>
 </Project>

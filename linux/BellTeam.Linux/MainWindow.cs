@@ -18,6 +18,7 @@ public sealed class MainWindow : Window
 {
     private readonly LinuxWorkspace model;
     private readonly SettingsStore settingsStore;
+    private readonly DesktopNotifications? notifications;
     private StartupPhase startup = StartupPhase.Ready;
     private int connectGeneration;
     private bool connecting;
@@ -40,6 +41,7 @@ public sealed class MainWindow : Window
     private readonly TextBlock searchHint = new() { Text = "Ctrl+K", FontSize = 14, Foreground = BellTheme.Muted, VerticalAlignment = VerticalAlignment.Center };
     private readonly Button clearSearch;
     private readonly Button addMenu;
+    private readonly Button updateBadge;
     private readonly Border accountsBanner = new() { Background = new SolidColorBrush(Color.Parse("#1FFF9500")), CornerRadius = new CornerRadius(10), Padding = new Thickness(11, 7), Margin = new Thickness(0, 8, 0, 0), IsVisible = false };
     private readonly TextBlock accountsText = new() { Foreground = new SolidColorBrush(Color.Parse("#C77700")), FontSize = 13, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock notFound = BellTheme.Text("見つかりませんでした", 13, BellTheme.Muted, margin: new Thickness(24, 16));
@@ -87,12 +89,13 @@ public sealed class MainWindow : Window
     private readonly Grid galleryHost = new() { Background = Brushes.Black, IsVisible = false, Focusable = true };
     private IInputElement? focusBeforeGallery;
 
-    public MainWindow(LinuxWorkspace model, bool persistPlacement = true, SettingsStore? settings = null)
+    public MainWindow(LinuxWorkspace model, bool persistPlacement = true, SettingsStore? settings = null, DesktopNotifications? notifications = null)
     {
-        this.model = model; settingsStore = settings ?? new SettingsStore(SettingsStore.UserDirectory);
+        this.model = model; settingsStore = settings ?? new SettingsStore(SettingsStore.UserDirectory); this.notifications = notifications;
         Title = "BellTeam"; Width = 1280; Height = 820; MinWidth = 1100; MinHeight = 640;
         Icon = new WindowIcon(EmbeddedAsset.Open("BellTeam.png"));
         addMenu = BuildAddMenu();
+        updateBadge = BuildUpdateBadge();
         clearSearch = Flat(Icons.Close, 12, "検索を消去", () => { model.Search = ""; search.Text = ""; search.Focus(); }); clearSearch.IsVisible = false;
         exportButton = BuildExport();
         attach = CircleOrFlat(Icons.Paperclip, 22, BellTheme.Violet, "画像を添付", AttachAsync, "画像ファイルを添付。ここへドロップ、入力欄へ貼り付けもできます");
@@ -109,7 +112,7 @@ public sealed class MainWindow : Window
         nav = navButtons.ToArray();
         WireModel(); UpdateAll();
         AddHandler(KeyDownEvent, WindowKeyDown, RoutingStrategies.Tunnel);
-        Closed += (_, _) => { CancelStartupRetry(); CloseGallery(); };
+        Closed += (_, _) => { CancelStartupRetry(); CloseGallery(); CloseSheet(); (startupHost.Child as IDisposable)?.Dispose(); };
         if (persistPlacement) RestorePlacement();
     }
 
@@ -177,11 +180,21 @@ public sealed class MainWindow : Window
         return button;
     }
 
+    // Mac UpdateBadge: a violet arrow disc on a pale violet capsule, only while an update exists.
+    private Button BuildUpdateBadge()
+    {
+        var disc = new Grid { Width = 18, Height = 18, Children = { new Avalonia.Controls.Shapes.Ellipse { Fill = BellTheme.Violet }, Icons.Draw(UpdateIcons.ArrowDown, 10, Brushes.White, thickness: 3.2) } };
+        ((Control)disc.Children[1]).HorizontalAlignment = HorizontalAlignment.Center;
+        var button = new Button { Classes = { "plain" }, Background = new SolidColorBrush(Color.Parse("#E4DDFB")), Padding = new Thickness(6), CornerRadius = new CornerRadius(99), VerticalAlignment = VerticalAlignment.Center, IsVisible = false, Content = disc, Name = "update-badge" };
+        AutomationProperties.SetName(button, "更新があります。アップデートを開く"); ToolTip.SetTip(button, "アップデート"); button.Click += (_, _) => ShowUpdates();
+        return button;
+    }
+
     private Control BuildSidebar(List<Button> navButtons)
     {
         var titleRow = new DockPanel { Margin = new Thickness(2, 0, 0, 20) };
         DockPanel.SetDock(addMenu, Dock.Right); titleRow.Children.Add(addMenu);
-        titleRow.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, Children = { Icons.Draw(Icons.Sparkle, 26, BellTheme.Violet, filled: true, thickness: 0), new TextBlock { Text = "BellTeam", FontSize = 22, FontWeight = FontWeight.Bold, VerticalAlignment = VerticalAlignment.Center } } });
+        titleRow.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, Children = { Icons.Draw(Icons.Sparkle, 26, BellTheme.Violet, filled: true, thickness: 0), new TextBlock { Text = "BellTeam", FontSize = 22, FontWeight = FontWeight.Bold, VerticalAlignment = VerticalAlignment.Center }, updateBadge } });
         var searchRight = new Grid { Children = { searchHint, clearSearch } }; DockPanel.SetDock(searchRight, Dock.Right);
         var magnifier = Icons.Draw(Icons.Search, 18, BellTheme.Muted); magnifier.Margin = new Thickness(0, 0, 8, 0); DockPanel.SetDock(magnifier, Dock.Left);
         AutomationProperties.SetName(search, "メンバー・ルームを検索"); ToolTip.SetTip(search, "メンバー・ルームを検索（Ctrl+K）");
@@ -291,13 +304,22 @@ public sealed class MainWindow : Window
         model.Entries.CollectionChanged += (_, _) => QueueListRebuild();
         model.Messages.CollectionChanged += (_, _) => UpdateWelcome();
         MarkdownView.LinkFailed = message => model.ReportActionError(message);
+        // These events come from the connection's thread.
+        model.UpdatesChanged += () => Dispatcher.UIThread.Post(() => _ = RefreshUpdateNoticeAsync());
+        if (notifications is not null) notifications.PropertyChanged += (_, args) => { if (args.PropertyName == nameof(DesktopNotifications.Error) && notifications.Error is { } error) Dispatcher.UIThread.Post(() => model.ReportActionError(error)); };
+        model.MessageArrived += message => Dispatcher.UIThread.Post(async () =>
+        {
+            if (notifications?.Enabled != true || IsActive && conversationArea.IsVisible && model.Selected?.Target == message.Target) return;
+            await notifications.NotifyAsync(message);
+            if (!notifications.Enabled) model.ReportActionError(notifications.Status);
+        });
     }
     private void ModelChanged(string? name)
     {
         switch (name)
         {
             case nameof(LinuxWorkspace.NeedsLogin): if (model.NeedsLogin && !connecting) RouteToLogin(); break;
-            case nameof(LinuxWorkspace.Connected): UpdateNav(); break;
+            case nameof(LinuxWorkspace.Connected): UpdateNav(); if (model.Connected) _ = RefreshUpdateNoticeAsync(); else updateBadge.IsVisible = false; break;
             case nameof(LinuxWorkspace.Selected): UpdateSelection(); unreadNew = false; break;
             case nameof(LinuxWorkspace.IsRoom): UpdateComposerBand(); break;
             case nameof(LinuxWorkspace.Loading) or nameof(LinuxWorkspace.LoadFailed) or nameof(LinuxWorkspace.Title): UpdateWelcome(); break;
@@ -519,10 +541,11 @@ public sealed class MainWindow : Window
     // ---- startup: the Mac RootView phases ----
     public StartupPhase Startup => startup;
     public Control? StartupContent => startupHost.Child;
-    private void ShowStartup(StartupPhase phase, string? message = null)
+    private void ShowStartup(StartupPhase phase, string? message = null, SetupState? setup = null)
     {
         startup = phase;
         if (phase != StartupPhase.Failure) CancelStartupRetry();
+        (startupHost.Child as IDisposable)?.Dispose();
         if (phase != StartupPhase.Ready) CloseSheet();
         startupHost.Child = phase switch
         {
@@ -531,7 +554,7 @@ public sealed class MainWindow : Window
             StartupPhase.Failure => new StartupFailureView(message, () => _ = ConnectAsync(lastAddress ?? model.Server), OpenConnectionSettings),
             StartupPhase.Setup => new ServerSetupView(ConnectToAddress, ShowServerGuide, model.Server),
             StartupPhase.SignIn => new LoginView(OpenConnectionSettings),
-            _ => new OnboardingPlaceholderView(OpenConnectionSettings)
+            _ => new OnboardingView(new SetupApi(model.Management.Api), setup!, CompleteOnboardingAsync, OpenConnectionSettings, model.ConnectionToken)
         };
         startupHost.IsVisible = phase != StartupPhase.Ready;
     }
@@ -575,10 +598,10 @@ public sealed class MainWindow : Window
         catch (ArgumentException error) { if (generation == connectGeneration) ShowStartup(StartupPhase.Failure, error.Message); }
         finally { if (generation == connectGeneration) connecting = false; }
     }
-    private async Task EnterAsync(int generation)
+    private async Task EnterAsync(int generation, SetupState? known = null)
     {
-        SetupState? setup = null; var failure = model.ConnectionError;
-        if (model.Connected && !model.NeedsLogin)
+        var setup = known; var failure = model.ConnectionError;
+        if (setup is null && model.Connected && !model.NeedsLogin)
             try { setup = await new SetupApi(model.Management.Api).StatusAsync(model.ConnectionToken); }
             catch (OperationCanceledException) when (model.ConnectionToken.IsCancellationRequested) { return; }
             catch (Exception error) { failure = error.Message; }
@@ -588,7 +611,7 @@ public sealed class MainWindow : Window
         switch (route)
         {
             case StartupPhase.Ready: ShowStartup(StartupPhase.Ready); await FinishEntryAsync(setup!); break;
-            case StartupPhase.Onboarding: ShowStartup(StartupPhase.Onboarding); break;
+            case StartupPhase.Onboarding: ShowStartup(StartupPhase.Onboarding, setup: setup); break;
             case StartupPhase.SignIn: ShowStartup(StartupPhase.SignIn); break;
             default: ShowStartup(StartupPhase.Failure, failure); if (model.ConnectionRetryable) ScheduleStartupRetry(generation); break;
         }
@@ -609,14 +632,33 @@ public sealed class MainWindow : Window
             await ConnectAsync(lastAddress ?? model.Server, automatic: true);
         }
     }
+    // After the server reports the first setup done: reload the lists (the guide member exists now) and enter the conversations.
+    private async Task CompleteOnboardingAsync(SetupState ready)
+    {
+        var generation = ++connectGeneration; connecting = true;
+        try { await model.ReconnectAsync(); await EnterAsync(generation, ready); }
+        finally { if (generation == connectGeneration) connecting = false; }
+    }
     private async Task FinishEntryAsync(SetupState setup)
     {
         try
         {
             if (!setup.Complete && setup.GuideBotId is { } guide && model.Entries.FirstOrDefault(entry => entry.Target == new ChatTarget(guide, false)) is { } conversation) await model.SelectAsync(conversation);
+            if (notifications is not null) await notifications.InitializeAsync();
+            if (notifications is not null) await RefreshUpdateNoticeAsync();
         }
         catch (OperationCanceledException) when (model.ConnectionToken.IsCancellationRequested) { }
         catch (Exception error) { model.ReportActionError(error.Message); }
+    }
+    // A notification click: the update centre, or the conversation it came from. Only for the server this window is connected to.
+    public async Task OpenNotificationAsync(string server, ChatTarget? target)
+    {
+        if (server != model.Server || !model.Connected) { model.ReportActionError(target is null ? "通知の接続先へ接続してから、更新センターを開いてください。" : "通知の接続先へ接続してから、会話を開いてください。"); return; }
+        Raise();
+        if (target is null) { ShowUpdates(); return; }
+        var entry = model.Conversations.FirstOrDefault(item => item.Target == target);
+        if (entry is null) { model.ReportActionError("通知の会話が見つかりません。メンバーとルームの一覧を更新してください。"); return; }
+        ShowConversation(); await model.SelectAsync(entry);
     }
     // A second launch raises this window.
     public void Raise()
@@ -631,7 +673,36 @@ public sealed class MainWindow : Window
         sheetTitle.Text = title; AutomationProperties.SetName(sheetFrame, title);
         sheetHost.Content = content; sheet.IsVisible = true; sheet.Focus();
     }
-    private void CloseSheet() { sheetHost.Content = null; sheet.IsVisible = false; }
+    private void CloseSheet() { (sheetHost.Content as IDisposable)?.Dispose(); sheetContent = null; sheetHost.Content = null; sheet.IsVisible = false; }
+    // The sidebar Update badge (and an update notification) opens the Update sheet over the window, as on the Mac. It reads again every time it opens.
+    private UpdateContent? sheetContent;
+    private Task updateNotice = Task.CompletedTask;
+    public Task SheetReady { get; private set; } = Task.CompletedTask;
+    public Task UpdateNoticeReady => updateNotice;
+    public bool UpdateBadgeVisible => updateBadge.IsVisible;
+    public UpdateContent? UpdateSheet => sheetContent;
+    public void ShowUpdates() => ShowUpdateSheet();
+    public void ShowUpdateSheet()
+    {
+        if (!model.Connected) return;
+        if (sheetContent is null) { CloseSheet(); OpenSheet("アップデート", sheetContent = new UpdateContent(model, settingsStore)); }
+        SheetReady = sheetContent.RefreshAsync();
+    }
+    private Task RefreshUpdateNoticeAsync() => updateNotice = ReadUpdateNoticeAsync();
+    private async Task ReadUpdateNoticeAsync()
+    {
+        var server = model.Server;
+        try
+        {
+            var state = await new UpdateCenter(model.Management.Api, settingsStore).InventoryAsync(model.ConnectionToken);
+            if (model.Server != server) return;
+            if (notifications is not null) await notifications.NotifyUpdatesAsync(server, state.NotificationCandidates);
+            // Mac UpdateBadge: shown only while some component has update_available; other states live on the Update page.
+            updateBadge.IsVisible = state.Components.Any(item => item.Comparison.State == "update_available");
+        }
+        catch (OperationCanceledException) when (model.ConnectionToken.IsCancellationRequested) { }
+        catch (Exception) { if (model.Server == server) updateBadge.IsVisible = false; }
+    }
     // The image gallery covers the whole window (Mac fullScreenCover). Opening it again replaces the one that is open.
     public ImageGallery ShowGallery(string[] paths, int initial)
     {
