@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-12T04:22:07Z",
-  "expiresAt": "2026-11-19T04:22:07Z",
+  "publishedAt": "2026-11-12T04:36:58Z",
+  "expiresAt": "2026-11-19T04:36:58Z",
   "releases": [
     {
       "componentId": "usage",
@@ -185,8 +185,8 @@
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "faea2493124fe989730ca98a0ac098c5ef017aa2",
-      "versionId": "4be0aeae2d98cf3f9e376db3db783d6d815d24a51c9130a712243798bf734ba0",
+      "sourceCommit": "e297bd1112fdde21e919340e40ed9b1b97023892",
+      "versionId": "665d34ffb84bda28e454ead6e2de3362af36409d2281345ce07f4bf6997fd384",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -194,16 +194,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T231043Z/conversation-faea2493124fe989730ca98a0ac098c5ef017aa2-linux-amd64.tar.gz",
-          "bytes": 3903861,
-          "sha256": "4be0aeae2d98cf3f9e376db3db783d6d815d24a51c9130a712243798bf734ba0"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T043627Z/conversation-e297bd1112fdde21e919340e40ed9b1b97023892-linux-amd64.tar.gz",
+          "bytes": 3904692,
+          "sha256": "665d34ffb84bda28e454ead6e2de3362af36409d2281345ce07f4bf6997fd384"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T231043Z/conversation-faea2493124fe989730ca98a0ac098c5ef017aa2-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11237,
-          "sha256": "a00a117e0924aba4cbfda916b6619c8451439c2c9032292f2ef8bae3aee3a993"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T043627Z/conversation-e297bd1112fdde21e919340e40ed9b1b97023892-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11139,
+          "sha256": "f8489a9f8c19cc55c54703a489a0d3c01b20b5f0317bc0e43d42cfe8ea993fff"
         },
-        "signerCommit": "faea2493124fe989730ca98a0ac098c5ef017aa2"
+        "signerCommit": "e297bd1112fdde21e919340e40ed9b1b97023892"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -234,13 +234,13 @@
         }
       },
       "changes": [
-        "配達中に差し込まれた入力を、「届いた」のまま「差し込まれた」と分かる印付きで受け取れるようになりました。"
+        "分身への問い合わせの答えが、問い合わせた席へ1通だけ届くようになりました。止まった処理が残した「動いている途中」の問い合わせを片付けるようになりました。"
       ]
     },
     {
       "componentId": "conversation",
-      "sourceCommit": "faea2493124fe989730ca98a0ac098c5ef017aa2",
-      "versionId": "6865615931c57e192d77ce773be9116d2a2f44b172c566264f6c5027b986cd84",
+      "sourceCommit": "e297bd1112fdde21e919340e40ed9b1b97023892",
+      "versionId": "898477655fbf16c50391e4a4756e535a2013c6bd1f6e91d8cbd58ca0f99d868a",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -248,16 +248,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T231043Z/conversation-faea2493124fe989730ca98a0ac098c5ef017aa2-linux-arm64.tar.gz",
-          "bytes": 3903861,
-          "sha256": "6865615931c57e192d77ce773be9116d2a2f44b172c566264f6c5027b986cd84"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T043627Z/conversation-e297bd1112fdde21e919340e40ed9b1b97023892-linux-arm64.tar.gz",
+          "bytes": 3904692,
+          "sha256": "898477655fbf16c50391e4a4756e535a2013c6bd1f6e91d8cbd58ca0f99d868a"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261111T231043Z/conversation-faea2493124fe989730ca98a0ac098c5ef017aa2-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11280,
-          "sha256": "c5ec9b3338924ca155c5b2f63192bbe970677ce237ce149f173bc03253765365"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T043627Z/conversation-e297bd1112fdde21e919340e40ed9b1b97023892-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10998,
+          "sha256": "fbd25329df0d514563ddad5f518e00ecbe4822de7934a678f8835410b4e7a8c4"
         },
-        "signerCommit": "faea2493124fe989730ca98a0ac098c5ef017aa2"
+        "signerCommit": "e297bd1112fdde21e919340e40ed9b1b97023892"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -288,7 +288,7 @@
         }
       },
       "changes": [
-        "配達中に差し込まれた入力を、「届いた」のまま「差し込まれた」と分かる印付きで受け取れるようになりました。"
+        "分身への問い合わせの答えが、問い合わせた席へ1通だけ届くようになりました。止まった処理が残した「動いている途中」の問い合わせを片付けるようになりました。"
       ]
     },
     {
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "7a9c5899a3ac6b5c7e426d5c51dd30c4450a6ca6",
-      "versionId": "sha256:e95a7487d192ec69940491ed634714d9ce3645662ba7f9340bcdb07607b4fbcf",
+      "sourceCommit": "22a8e92dd8a210d71fd775584cc8d5210b15da6d",
+      "versionId": "sha256:295ad76b5b0a4913b50719dc1598b0aed967a761acc2585ea55ce06f4ef7a1aa",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:e95a7487d192ec69940491ed634714d9ce3645662ba7f9340bcdb07607b4fbcf"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:295ad76b5b0a4913b50719dc1598b0aed967a761acc2585ea55ce06f4ef7a1aa"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,20 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "休止中の端末の席の目標を、画面の入力欄の案内文があっても「休止中」と読めるようにします（Aiterm 0.70.30）。工程表（Lattice）を 0.88.0 に上げます。"
+        "別の端末で動く席の目標も読めるようにします（Aiterm 0.70.29）。分身への問い合わせの答えが、問い合わせた席へ届くようにします。本体を再起動した後、席が道具の一覧を読み直します。モデル一覧を席のClaudeのログインで読み、ログインが無い時は今までどおりの一覧を出します。部品のエラー記録を、秘密を伏せた読めるファイルに残します。工程表でBellTeamのコードの図を作れるようにします。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "7a9c5899a3ac6b5c7e426d5c51dd30c4450a6ca6",
-      "versionId": "sha256:e95a7487d192ec69940491ed634714d9ce3645662ba7f9340bcdb07607b4fbcf",
+      "sourceCommit": "22a8e92dd8a210d71fd775584cc8d5210b15da6d",
+      "versionId": "sha256:295ad76b5b0a4913b50719dc1598b0aed967a761acc2585ea55ce06f4ef7a1aa",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:e95a7487d192ec69940491ed634714d9ce3645662ba7f9340bcdb07607b4fbcf"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:295ad76b5b0a4913b50719dc1598b0aed967a761acc2585ea55ce06f4ef7a1aa"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,7 +748,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "休止中の端末の席の目標を、画面の入力欄の案内文があっても「休止中」と読めるようにします（Aiterm 0.70.30）。工程表（Lattice）を 0.88.0 に上げます。"
+        "別の端末で動く席の目標も読めるようにします（Aiterm 0.70.29）。分身への問い合わせの答えが、問い合わせた席へ届くようにします。本体を再起動した後、席が道具の一覧を読み直します。モデル一覧を席のClaudeのログインで読み、ログインが無い時は今までどおりの一覧を出します。部品のエラー記録を、秘密を伏せた読めるファイルに残します。工程表でBellTeamのコードの図を作れるようにします。"
       ]
     },
     {
@@ -783,8 +783,7 @@
         }
       },
       "changes": [
-        "工程表（Lattice）を 0.88.0 に上げました。Latticeが断った理由を、エラーではなく結果として返すようになりました。",
-        "コードの工程表（bellteam）が開かないまま止まる不具合を直しました。"
+        "工程表（Lattice）を 0.88.0 に上げました。工程表のコードの図が開かなくなっていたのを直しました。"
       ]
     },
     {
@@ -819,8 +818,7 @@
         }
       },
       "changes": [
-        "工程表（Lattice）を 0.88.0 に上げました。Latticeが断った理由を、エラーではなく結果として返すようになりました。",
-        "コードの工程表（bellteam）が開かないまま止まる不具合を直しました。"
+        "工程表（Lattice）を 0.88.0 に上げました。工程表のコードの図が開かなくなっていたのを直しました。"
       ]
     }
   ],
