@@ -128,7 +128,6 @@ export function createLatticeCli({ bin, chartsRoot = '/srv/bellteam/state/lattic
       if (!['init', 'sync'].includes(command) || !await realDir(id)) throw linkError()
       return spawnRun(['sensor', command, '.', '--json'], dir(id), { PATH: process.env.PATH, HOME: home, LATTICE_DASHBOARD_AUTOSTART: '0', GIT_CONFIG_NOSYSTEM: '1' }, 120000)
     },
-    hasSensorIndex: id => isDir(join(dir(id), '.lattice', 'sensor')),
     exclude: async (id, lines) => {
       if (!await realDir(id)) throw linkError()
       const file = join(dir(id), '.git', 'info', 'exclude')
