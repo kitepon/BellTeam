@@ -1,3 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>
+  <!-- Workspace moved here from BellTeam.App; its render and test hooks stay internal to the apps and their checks. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="BellTeam" />
+    <InternalsVisibleTo Include="BellTeam.Tests" />
+    <InternalsVisibleTo Include="BellTeam.UiChecks" />
+  </ItemGroup>
 </Project>

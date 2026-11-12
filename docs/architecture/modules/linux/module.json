@@ -1,0 +1,19 @@
+{
+  "title": "Linuxアプリ",
+  "owner": "ネオン",
+  "botId": "bot-208dcbab",
+  "scope": "Linuxクライアント",
+  "external": true,
+  "provides": [
+    "public"
+  ],
+  "uses": [
+    {
+      "module": "integration",
+      "port": "HTTP/SSE"
+    }
+  ],
+  "source": [
+    "linux/"
+  ]
+}

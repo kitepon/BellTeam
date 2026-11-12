@@ -98,7 +98,7 @@ flowchart LR
     A11[メンバー編集の「端末とフォルダ」 16b<br/>MemberTerminalSection（動かす場所・フォルダの読み取り専用の表示・畳んだ「ほかの方法」の中の「パスを入力」・組の問題）<br/>FolderPickerView（編集の窓または追加のシートの中に重ねる。主窓のシートは使わない）<br/>保存の拒否の文と、FOLDER_MISSINGだけの「このフォルダを作って保存」はMemberEditorView]
   end
   subgraph Core[BellTeam.Core 通信とモデル]
-    C1[Workspace・BellApi<br/>一覧・会話・送信・SSE<br/>メンバーのseatLaunch・configurationApplicationと行のseatは寛容に読む（不正な型は無しとして扱い、一覧・履歴を壊さない）]
+    C1[Workspace&lt;TImage&gt;・MessageItem・BellApi<br/>一覧・会話・送信・SSE・下書き<br/>画像はIImageCodec、最初のページの描画後はafterFirstRenderをアプリが渡す（WindowsはWorkspace : Workspace&lt;BitmapSource&gt;とContextIdle）<br/>メンバーのseatLaunch・configurationApplicationと行のseatは寛容に読む（不正な型は無しとして扱い、一覧・履歴を壊さない）]
     C2[ManagementApi<br/>メンバー・ルーム・画像・書き出し・再起動（待ち180秒）・停止・モデル候補（display_name）<br/>メンバーのterminalId・projectRoot（応答にある本体だけ送る）とcreateFolder（その保存の本文だけ。保存結果の照合には入れない）]
     C3[ScreenInputModel<br/>キー・許可の送信と確認]
     C4[GoalsApi]
@@ -156,6 +156,7 @@ flowchart LR
 
 - 状態の所有：会話・メンバー・予定・ゴール・追加機能・全体停止など本体の状態は、共通入口のAPIだけで読み書きする。Windowsが持つのは、このPCの設定（接続先・窓・起動中の通知・会話の開き方・Updateの要求ID）とログイン情報だけ。
 - 新しいCoreの窓口（`ScreenInputApi`・`GoalsApi`・`SettingsApi`の追加分）は、Mac版が使う同じAPIを呼ぶ。サーバーの変更は要らない。
+- `Workspace`（一覧・会話・送信・SSE・再接続・下書き）と`ConversationEntry`・`ActivityRow`・`MemberChoice`・`AttachmentPreview`・`MessageItem`はCoreに置き、WindowsとLinuxで共有する。Windowsは`BellTeam.App.Workspace : Workspace<BitmapSource>`で呼び出し側を変えず、画像は`WpfImageCodec`、最初のページの吹き出しの`Opening`はContextIdleで下ろす（`MessageCard`がLoadedで読むため、通常の優先度のPostでは足りない）。在席の点は`PresenceTone`をWindowsの`PresenceBrushConverter`が色にする。添付する画像ファイルの25MBの上限と形式の判定はCoreの`ImageFile`。Linuxの画面は[Linuxアーキテクチャ](linux-architecture.md)。
 - 相関図の窓はWindowsの状態を何も保存しない。描画中の図はWorkGraphModelだけが持ち、窓を閉じたら捨てる。窓を閉じるか最小化している間は新着を受け取らず、開き直すと新しいsnapshotを今の図と突き合わせて動かす。接続が替わる（ログインし直し・接続先の変更）と、その接続の新着へ取り直す。窓は描いている図の接続先（`WorkGraphWindow.Origin`）を持つ。同じ接続先へのつなぎ直しは図を残して新しいsnapshotと突き合わせ、別の接続先になったら図を捨てて空の図から始め、その接続先の最初のsnapshotで埋まる。接続先の違う図のメンバーを押しても会話は開かず、その時点で図を捨てて今の接続先の新着へ取り直す。
 - 工程表の窓（[lattice screen-spec](architecture/modules/lattice/screen-spec.md)）はWindowsの状態を何も保存しない。一覧は`LatticeWindow`、開いた1枚の最後のsnapshotと接続は`LatticeChartFeed`だけが持ち、窓を閉じる・最小化する・一覧へ戻ると読むのを止める。接続先が替わると一覧から始め直す。画面の文字と読み上げに`projectId`・Bot ID・符号・パスを出さない（工程表の名前は`LatticeChart.ChartName`）。王冠と「統括」は`coordinator: true`の工程表だけ。名簿にない担当は「?」と「名簿にないメンバー」で、会話を開くは押せない。担当は[lattice README](architecture/modules/lattice/README.md)の「Owner on screen」どおり`LatticeChart.Owner`一つで決める（レーン・待ちの流れ・辺の札・詳細が同じ規則）。書かれたlaneの文字は頭文字の顔と文字だけで、メンバーの後ろに自分のレーンを持ち、左の列に出ず、会話を開けない。札の本文は状態の行・題（2行まで）・一行の注記を縦に積み、注記は題に重ならない。ツリー／担当／過去ログはアプリを開いている間だけ覚え（保存しない）。archivedの工程は進み具合・数・まとまりの完了数には数える。工程へ移動・前後の工程は描かれていない工程でも詳細を開く。producer／waiterの予約値`owner`は指揮官で、窓が各snapshotへ載せたOwnerのプロフィール（Workspace.Ownerの名前と`/api/owner/avatar`、読めるまでは「指揮官」と頭文字）で描き、自分のレーンを持ち、左の列に出ず、会話を開けない、詳細・強調・選んだ工程の位置は切り替えても残る。待ちの流れの行は単独で読める形（待っている工程と担当→「この工程が終わるのを待っています」→待たれている工程→つくっている人と状態）。担当のない待ちの札は「次の工程が待っています」。画面の状態遷移は[lattice screen-spec](architecture/modules/lattice/screen-spec.md)の状態図に従う。動きを減らす設定（Windowsのアニメーション効果オフ）では粒・回転・脈・花を出さない。色はライトだけ（アプリ全体と同じ）。
 - メンバーを開くと`MainWindow.OpenFromWorkGraphAsync`が、通知と同じ会話の開き方（`OpenConversationAsync`）で本体の窓の会話を開く。相関図の窓は残る。

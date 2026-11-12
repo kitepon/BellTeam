@@ -29,7 +29,7 @@ Owner 2026-11-02指示による本体分担。機能を分離し、担当が自�
 | アークレンジャー・ブラック | 相関図 | 作業中メンバーとBot間依頼の現在グラフ（snapshot/SSE）と各アプリ共通の動き仕様。独立module子（protocol・両端channel・dispatcher・core・entry）として単独交換する。親facade・effect窓口・mountと起動/閉集合はモリー、署名・導入はセンチ、描画はApple/Web/Windowsの各担当。2026-11-08 Owner依頼・トロニー割当 |
 | フローラ | Lattice工程表 | Latticeの取り込み（Lattice本体の変更はスノーホワイトへ依頼）、プロジェクトごとの工程表の保管（server state）、全席のMCP道具 `lattice`、アプリ向け読取口（snapshot/SSE）と各アプリ共通の画面仕様。独立module子（protocol・両端channel・dispatcher・core・entry）とbody側の薄いHTTP/MCP handlerを持つ。facade・effect窓口・mount・MCP登録・起動/閉集合・包装/配布はモリー。Web画面 `web/lattice-*` はフローラ、Apple/Windowsの描画はラピ・アニスが画面仕様どおり作りフローラが受け取る（2026-11-11 Owner割当、トロニー裁定） |
 
-Apple/Windowsクライアントは各ベル、Aitermはエレグ、Throughlineはリヴァリン、Bridgeはリター、mcp-lazyはレオナ、RTKはドリリー、testgateはシラツル、BugHubはフラジャイル、Approval Boxはナユタ、Caveatはノア。各正本と公開接点は modules の索引へ接続する。OS・ホストはエマ等の既担当。
+Apple/Windowsクライアントは各ベル、Linuxクライアントはネオン、Aitermはエレグ、Throughlineはリヴァリン、Bridgeはリター、mcp-lazyはレオナ、RTKはドリリー、testgateはシラツル、BugHubはフラジャイル、Approval Boxはナユタ、Caveatはノア。各正本と公開接点は modules の索引へ接続する。OS・ホストはエマ等の既担当。
 
 ## 混在箇所の分離と単独更新
 

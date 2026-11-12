@@ -1,7 +1,6 @@
 using System.ComponentModel;
-using BellTeam.Core;
 
-namespace BellTeam.App;
+namespace BellTeam.Core;
 
 // 同じ会話行の部品を維持し、SSE更新中の入力と読込済み画像を残す。
 public sealed class MessageItem(TimelineMessage message) : INotifyPropertyChanged
