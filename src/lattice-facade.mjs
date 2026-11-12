@@ -4,8 +4,10 @@ const unavailable = () => Object.assign(new Error('LATTICE_UNAVAILABLE'), { code
 // Request errors the caller can act on keep their code; anything else means the child is not serving.
 const PASS = new Set(['LATTICE_CHART_NOT_FOUND', 'LATTICE_PROJECT_INVALID', 'LATTICE_INPUT_CONFLICT', 'LATTICE_COMMAND_NOT_SEAT_SURFACE', 'LATTICE_INVALID', 'LATTICE_NAME_INVALID'])
 const SLICE = 50
+// Owner 2026-11-12: about every 5 minutes (README L13).
+export const NUDGE_MS = 300_000
 
-export function createLatticeFacade({ controller, retryMs = 2000, setTimer = setTimeout, clearTimer = clearTimeout }) {
+export function createLatticeFacade({ controller, retryMs = 2000, nudgeMs = NUDGE_MS, setTimer = setTimeout, clearTimer = clearTimeout }) {
   const subscribers = new Map()
   let chain = Promise.resolve(), session = 0, timer = null
 
@@ -42,8 +44,14 @@ export function createLatticeFacade({ controller, retryMs = 2000, setTimer = set
     arm(mine, next)
   }
 
+  // One nudge timer for the facade's life, re-armed after each call; unref'd so it never holds the process open.
+  const nudge = () => call('nudge', {}).catch(() => null)
+  const armNudge = () => { setTimer(() => { void nudge().then(armNudge) }, nudgeMs)?.unref?.() }
+  armNudge()
+
   return {
     charts: () => call('charts', {}),
+    nudge,
     // Once per child generation (onGeneration; held until the child is ready). An old child refuses the method: swallowed, like refresh errors.
     deliver: () => call('deliver', {}).catch(() => null),
     chart: projectId => call('chart', { projectId }),
@@ -72,7 +80,7 @@ export function createLatticeFacade({ controller, retryMs = 2000, setTimer = set
 const PERMANENT = /^(SENDER_NOT_FOUND|BOT_NOT_FOUND|MESSAGE_REQUIRED)\b/u
 
 // The effects the child may call, inside a root call. Rows carry exactly the agreed keys and types.
-export function createLatticeEffects({ bots, messenger }) {
+export function createLatticeEffects({ bots, messenger, transport }) {
   const text = value => value == null ? '' : String(value)
   return async (method, params) => {
     // Startable notices go through the public send path, the same as the sendmessage tool (Trony 2026-11-12).
@@ -90,6 +98,11 @@ export function createLatticeEffects({ bots, messenger }) {
     }
     if (method === 'members.list') return { members: (await bots.listForClient()).map(item => ({ id: text(item.id), name: text(item.name),
       color: text(item.color), avatarVersion: text(item.avatarVersion), deleting: item.deleting === true })) }
+    // Nudge (README L15): only 'working' means running; anything else, or no turn port, reads 'unknown'.
+    if (method === 'turns.read') return { turns: Object.fromEntries(await Promise.all(params.botIds.map(async id => {
+      const state = await Promise.resolve().then(() => transport?.currentTurn?.(id)).then(turn => turn?.state, () => null)
+      return [id, ['working', 'idle'].includes(state) ? state : 'unknown']
+    }))) }
     throw Object.assign(new Error('LATTICE_EFFECT_INVALID'), { code: 'LATTICE_EFFECT_INVALID', status: 400 })
   }
 }
