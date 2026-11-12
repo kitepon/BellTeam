@@ -1,5 +1,5 @@
-// Startable notices (Lattice 0.90.0; waiting marks 0.92.0, Lattice docs/architecture/dfd-done-notice.md) to the lane's Bot and every
-// waiting Bot through the public send path (effect messages.send -> messenger.sendmessage; waking a sleeping seat stays the messenger's). README L10-L12.
+// Startable notices (Lattice 0.90.0; waiting marks 0.92.0, Lattice docs/architecture/dfd-done-notice.md) to every waiting Bot only
+// (plain lane notices abolished 2026-11-13: the 1-minute sweep in nudge.mjs prompts the idle lane) through the public send path (effect messages.send -> messenger.sendmessage; waking a sleeping seat stays the messenger's). README L10-L12.
 export const NOTICE_SLICE = 50
 // Messenger results that confirm the message was accepted; anything else (refused, unknown, failed, stopped, thrown) is retried later.
 const ACCEPTED = new Set(['running', 'steered', 'queued', 'delivered', 'answered'])
@@ -30,7 +30,7 @@ export function createNoticeDelivery({ run, log }) {
   // Recipients already covered per unacked (chart, notice_id, waiting_digest), so a retry wakes nobody twice; dropped on ack.
   const covered = new Map()
 
-  // Sends each notice to its roster recipients (lane + waiters), then acks per lane once all are covered.
+  // Sends each notice to its roster waiters, then acks per lane once all are covered.
   // sender = the Bot whose write released them; null = recovery.
   async function send(projectId, notices, { sender, roster, effect, budget }) {
     const bots = new Set(roster.filter(member => !member.deleting).map(member => member.id))
@@ -38,8 +38,8 @@ export function createNoticeDelivery({ run, log }) {
     const ack = (lane, id, key) => acks.set(lane, [...acks.get(lane) ?? [], [id, key]])
     for (const notice of notices) {
       if (notice.acked) continue
-      const recipients = [...new Set([notice.lane, ...(notice.waiting ?? []).map(entry => entry.agent)])].filter(id => bots.has(id))
-      if (!recipients.length) continue
+      // The lane is a recipient only through its own waiting mark; a notice with no roster waiter is acked with nothing sent.
+      const recipients = [...new Set((notice.waiting ?? []).map(entry => entry.agent))].filter(id => bots.has(id))
       const actor = notice.triggers?.at(-1)?.actor?.agent
       const from = sender ?? (bots.has(actor) ? actor : 'scheduler')
       const key = `${projectId}\0${notice.notice_id}\0${notice.waiting_digest ?? ''}`

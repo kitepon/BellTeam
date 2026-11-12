@@ -8,6 +8,8 @@ const roster = ids => ids.map(id => ({ id, name: id, color: 'sky', avatarVersion
 const notice = (id, lane, extra = {}) => ({ notice_id: id, plan_key: 'p1', plan_version: 'v1', task_id: `t-${id}`, title: `Task ${id}`, lane,
   done_condition: 'shipped', coordination_mode: 'conversation', next_action: `lattice todo start --plan p1 --task t-${id}`,
   triggers: [{ plan_key: 'p1', task_id: 't0', kind: 'done', actor: { agent: 'bot-a' } }], ...extra })
+// The Bots in `agents` ran `todo wait` on it (plain lane notices are abolished; only waiters are sent).
+const waits = (...agents) => ({ waiting: agents.map(agent => ({ agent, since: '2026-11-12T09:00:00.000Z', reason: null })), waiting_digest: 'w', acked_recipients: [] })
 
 function rig({ listed = [], ackFails = false } = {}) {
   const calls = [], sent = [], logs = []
@@ -28,31 +30,32 @@ function rig({ listed = [], ackFails = false } = {}) {
   return { delivery: createNoticeDelivery({ run, log: line => logs.push(line) }), calls, sent, logs, world, effect }
 }
 
-test('notices: a run result is sent to roster lanes from the releasing Bot and acked per lane; others are skipped', async () => {
+test('notices: a plain notice (no waiter) is acked with no message; a waiting lane is sent from the releasing Bot', async () => {
   const x = rig()
-  const notices = [notice('n1', 'bot-b'), notice('n2', 'bot-b'), notice('n3', 'owner'), notice('n4', 'bot-a'), notice('n5', 'bot-gone')]
+  const notices = [notice('n1', 'bot-b', waits('bot-b')), notice('n2', 'bot-b'), notice('n3', 'owner'), notice('n4', 'bot-a', waits('bot-a')), notice('n5', 'bot-gone')]
   await x.delivery.afterRun('alpha', { notices }, { from: 'bot-a', roster: roster(['bot-a', 'bot-b']), effect: x.effect })
-  assert.deepEqual(x.sent.map(item => [item.from, item.target]), [['bot-a', 'bot-b'], ['bot-a', 'bot-b']])
-  assert.match(x.sent[0].message, /information, not a request[\s\S]*p1\/t-n1 「Task n1」 on chart alpha \(lane bot-b\) can start now \(prerequisite done of p1\/t0 by bot-a\)\.\nWhether and when to start is your call[\s\S]*For reference, if you start it: lattice todo start/)
+  assert.deepEqual(x.sent.map(item => [item.from, item.target]), [['bot-a', 'bot-b']], 'the 1-minute sweep prompts the idle lane; only waiters get a notice')
+  assert.match(x.sent[0].message, /information, not a request[\s\S]*p1\/t-n1 「Task n1」 on chart alpha \(lane bot-b\), which you are waiting for [^\n]*can start now \(prerequisite done of p1\/t0 by bot-a\)\.\nWhether and when to start is your call[\s\S]*For reference, if you start it: lattice todo start/)
   assert.doesNotMatch(x.sent[0].message, /^Next:/m, 'next_action is never phrased as an instruction')
-  // the releasing Bot's own notice is acked without a message (it sees it in its tool result); owner / unknown lanes stay unacked
-  assert.deepEqual(x.calls, ['alpha todo notice ack --lane bot-b --notice n1,n2', 'alpha todo notice ack --lane bot-a --notice n4'])
+  // the releasing Bot's own notice is acked without a message (it sees it in its tool result); plain notices of any lane are acked unsent
+  assert.deepEqual(x.calls, ['alpha todo notice ack --lane bot-b --notice n1,n2', 'alpha todo notice ack --lane owner --notice n3',
+    'alpha todo notice ack --lane bot-a --notice n4', 'alpha todo notice ack --lane bot-gone --notice n5'])
 })
 
 test('notices: a failed or refused send stays unacked and is re-listed at the next run; notices:null re-lists at once', async () => {
   const x = rig()
   const context = { from: 'bot-a', roster: roster(['bot-a', 'bot-b', 'bot-c']), effect: x.effect }
   x.world.deliveries = { 'bot-b': 'failed', 'bot-c': 'refused' }
-  await x.delivery.afterRun('alpha', { notices: [notice('n1', 'bot-b'), notice('n2', 'bot-c')] }, context)
+  await x.delivery.afterRun('alpha', { notices: [notice('n1', 'bot-b', waits('bot-b')), notice('n2', 'bot-c', waits('bot-c'))] }, context)
   assert.deepEqual(x.calls, [], 'failed and refused are not acked, not retried in the same run')
-  x.world.deliveries = { 'bot-c': 'refused' }; x.world.listed = [notice('n1', 'bot-b')]; x.calls.length = 0; x.sent.length = 0
+  x.world.deliveries = { 'bot-c': 'refused' }; x.world.listed = [notice('n1', 'bot-b', waits('bot-b'))]; x.calls.length = 0; x.sent.length = 0
   await x.delivery.afterRun('alpha', { exitCode: 0 }, context)
   assert.deepEqual([x.calls, x.sent.map(item => item.from)], [['alpha todo notice list --json', 'alpha todo notice ack --lane bot-b --notice n1'], ['bot-a']],
     'recovery sends from the trigger actor when it is a roster Bot')
   x.calls.length = 0
   await x.delivery.afterRun('alpha', { exitCode: 0 }, context)
   assert.deepEqual(x.calls, [], 'nothing pending: no list')
-  x.world.listed = [notice('n9', 'bot-b', { triggers: [{ plan_key: 'p1', task_id: 't0', kind: 'done', actor: { agent: 'kite' } }] })]; x.sent.length = 0
+  x.world.listed = [notice('n9', 'bot-b', { ...waits('bot-b'), triggers: [{ plan_key: 'p1', task_id: 't0', kind: 'done', actor: { agent: 'kite' } }] })]; x.sent.length = 0
   await x.delivery.afterRun('alpha', { notices: null, notices_unavailable: 'x' }, context)
   assert.deepEqual([x.calls.at(-2), x.sent.map(item => item.from)], ['alpha todo notice list --json', ['scheduler']])
 })
@@ -60,16 +63,16 @@ test('notices: a failed or refused send stays unacked and is re-listed at the ne
 test('notices: old body (effect refused) keeps everything unacked; empty roster waits; ack failure keeps the chart pending', async () => {
   const x = rig()
   x.world.deliveries = { 'bot-b': 'throw' }
-  await x.delivery.afterRun('alpha', { notices: [notice('n1', 'bot-b')] }, { from: 'bot-a', roster: roster(['bot-b']), effect: x.effect })
+  await x.delivery.afterRun('alpha', { notices: [notice('n1', 'bot-b', waits('bot-b'))] }, { from: 'bot-a', roster: roster(['bot-b']), effect: x.effect })
   assert.deepEqual(x.calls, [])
   const y = rig()
-  await y.delivery.afterRun('alpha', { notices: [notice('n1', 'bot-b')] }, { from: 'bot-a', roster: [], effect: y.effect })
+  await y.delivery.afterRun('alpha', { notices: [notice('n1', 'bot-b', waits('bot-b'))] }, { from: 'bot-a', roster: [], effect: y.effect })
   assert.deepEqual([y.sent, y.calls], [[], []])
-  y.world.listed = [notice('n1', 'bot-b')]
+  y.world.listed = [notice('n1', 'bot-b', waits('bot-b'))]
   await y.delivery.afterRun('alpha', {}, { from: 'bot-a', roster: roster(['bot-b']), effect: y.effect })
   assert.equal(y.sent.length, 1, 'the next run with a roster recovers it')
   const z = rig({ ackFails: true })
-  await z.delivery.afterRun('alpha', { notices: [notice('n1', 'bot-b')] }, { from: 'bot-a', roster: roster(['bot-b']), effect: z.effect })
+  await z.delivery.afterRun('alpha', { notices: [notice('n1', 'bot-b', waits('bot-b'))] }, { from: 'bot-a', roster: roster(['bot-b']), effect: z.effect })
   assert.deepEqual(z.logs, ['lattice-notice-ack alpha LATTICE_CLI_EXIT_1'])
   z.world.listed = []
   await z.delivery.afterRun('alpha', {}, { from: 'bot-a', roster: roster(['bot-b']), effect: z.effect })
@@ -97,7 +100,7 @@ test('notices: a failed waiter keeps the notice unacked; the retry wakes only th
   const n1 = notice('n1', 'bot-b', { waiting: [{ agent: 'bot-c', since: '2026-11-12T09:01:00.000Z', reason: null }], waiting_digest: 'w1', acked_recipients: [] })
   x.world.deliveries = { 'bot-c': 'failed' }
   await x.delivery.afterRun('alpha', { notices: [n1] }, context)
-  assert.deepEqual([x.sent.map(item => item.target), x.calls], [['bot-b', 'bot-c'], []])
+  assert.deepEqual([x.sent.map(item => item.target), x.calls], [['bot-c'], []], 'the lane did not wait: not sent')
   x.world.deliveries = {}; x.world.listed = [n1]; x.sent.length = 0
   await x.delivery.afterRun('alpha', { exitCode: 0 }, context)
   assert.deepEqual([x.sent.map(item => item.target), x.calls], [['bot-c'], ['alpha todo notice list --json', 'alpha todo notice ack --lane bot-b --notice n1']])
@@ -110,11 +113,11 @@ test('notices: only a confirmed acceptance covers a recipient; refused / unknown
   const n1 = notice('n1', 'bot-b', { waiting, waiting_digest: 'w1', acked_recipients: [] })
   x.world.deliveries = { 'bot-c': 'refused', 'bot-d': 'unknown', 'bot-e': 'mystery' }
   await x.delivery.afterRun('alpha', { notices: [n1] }, context)
-  assert.deepEqual([x.sent.map(item => item.target), x.calls], [['bot-b', 'bot-c', 'bot-d', 'bot-e'], []], 'nothing acked')
+  assert.deepEqual([x.sent.map(item => item.target), x.calls], [['bot-c', 'bot-d', 'bot-e'], []], 'nothing acked')
   x.world.listed = [n1]; x.sent.length = 0
   x.world.deliveries = { 'bot-c': 'queued', 'bot-d': 'unknown', 'bot-e': 'steered' }
   await x.delivery.afterRun('alpha', { exitCode: 0 }, context)
-  assert.deepEqual([x.sent.map(item => item.target), x.calls], [['bot-c', 'bot-d', 'bot-e'], ['alpha todo notice list --json']], 'bot-b (running) is not woken again; unknown still unacked')
+  assert.deepEqual([x.sent.map(item => item.target), x.calls], [['bot-c', 'bot-d', 'bot-e'], ['alpha todo notice list --json']], 'every waiter retried; unknown still unacked')
   x.sent.length = 0; x.calls.length = 0; x.world.deliveries = { 'bot-d': 'delivered' }
   const out = await x.delivery.deliverAll(['alpha'], { roster: context.roster, effect: x.effect })
   assert.deepEqual([out, x.sent.map(item => item.target), x.calls], [{ delivered: 1, failed: 0 }, ['bot-d'], ['alpha todo notice list --json', 'alpha todo notice ack --lane bot-b --notice n1']],
@@ -122,7 +125,7 @@ test('notices: only a confirmed acceptance covers a recipient; refused / unknown
 })
 
 test('notices: deliverAll lists every chart under its lock and sends at most NOTICE_SLICE', async () => {
-  const x = rig({ listed: Array.from({ length: NOTICE_SLICE + 5 }, (_, i) => notice(`n${i}`, 'bot-b')) })
+  const x = rig({ listed: Array.from({ length: NOTICE_SLICE + 5 }, (_, i) => notice(`n${i}`, 'bot-b', waits('bot-b'))) })
   const locked = []
   const out = await x.delivery.deliverAll(['alpha', 'beta'], { roster: roster(['bot-b']), effect: x.effect, lock: (id, fn) => { locked.push(id); return fn() } })
   assert.deepEqual([out, x.sent.length, locked], [{ delivered: NOTICE_SLICE, failed: 0 }, NOTICE_SLICE, ['alpha']])
