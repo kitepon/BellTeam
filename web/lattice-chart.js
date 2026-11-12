@@ -5,6 +5,7 @@ import {
   MESSAGES, SCHEMA, UNASSIGNED, accent, backoffMs, bannerFor, chartCounts, coordinatorBotId, degradedPills, detailOf, diffSnapshots, edgeChipText, edgeGeometry,
   flowPositions, highlightSets, layoutChart, layoutTree, historyRows, chartName, listItems, listSignature, memberLookup, ownerLookup, particleOpacity, pointOnEdge, railItems, stateInfo, waitRows, cardLabel, cardNote, minutesSince, RED,
 } from './lattice-chart-model.js?v=__ASSET_VERSION__'
+import { createStopsView } from './lattice-stops.js?v=__ASSET_VERSION__'
 
 const GLYPHS = {
   crown: '<path d="M3.6 8.6l4.4 3.6L12 5.2l4 7 4.4-3.6-1.7 9.6H5.3z" fill="currentColor" fill-opacity=".18"/><path d="M5.6 20.8h12.8"/>',
@@ -126,6 +127,7 @@ export function createLatticeChart(dialog, {
   let resumeId = null, places = new Map(), chartId = null, snapshot = null, ui = null, stream = null, highlight = null, detailId = null, frameId = 0, tickTimer = null, particles = []
   const cardEls = new Map(), treeEls = new Map(), entering = new Set(), avatars = new Map(), timers = new Set()
   let cameFrom = null // 工程表から一覧へ来た時の戻り先 {id, name}。
+  let stops = null, pendingDetail = null // 止め一覧の画面、止め一覧の行から開いた工程の詳細（最初の一枚が来たら開く）。
   let mode = startMode, treePlaces = new Map() // ツリー / 担当。ページが生きている間だけ覚える。
   const after = (fn, ms) => { const id = later(() => { timers.delete(id); fn() }, ms); timers.add(id); return id }
   const lookup = () => memberLookup(snapshot)
@@ -195,6 +197,8 @@ export function createLatticeChart(dialog, {
       if (!items.length) return show('list', note(MESSAGES.listEmpty, 'close'))
       const back = cameFrom && (list?.charts ?? []).some(chart => chart.projectId === cameFrom.id)
       show('list', h('div', { class: 'lattice-list' },
+        h('div', { class: 'lattice-list-head' }, h('h3', { text: '工程表の一覧' }),
+          h('button', { class: 'lattice-btn', type: 'button', dataset: { focusKey: 'stops' }, on: { click: openStops } }, glyph('octagon'), '止め一覧')),
         back && h('button', { class: 'lattice-back', type: 'button', dataset: { focusKey: 'back' }, 'aria-label': `${cameFrom.name}へ戻る`, on: { click: () => openChart(cameFrom.id) } }, glyph('back'), h('span', { text: cameFrom.name })),
         h('div', { class: 'lattice-grid' },
           ...items.map(item => h('button', { class: `lattice-cc${item.coordinator ? ' pin' : ''}`, type: 'button', 'aria-label': item.label, dataset: { focusKey: item.projectId }, on: { click: () => openChart(item.projectId) } },
@@ -236,11 +240,23 @@ export function createLatticeChart(dialog, {
   // ---- 工程表：骨組みを一度つくり、スナップショットごとに差し替える。
   function goList() {
     cameFrom = chartId && snapshot ? { id: chartId, name: chartName(snapshot, getMember) } : null
-    stream?.stop(); stream = null; stopMotion(); clearChart()
+    stream?.stop(); stream = null; stopMotion(); clearChart(); pendingDetail = null
+    showList()
+  }
+  function showList() {
     status = 'connecting'; listShown = ''; listNote = null
     if (list) { view = 'list'; paintList() } else show('loading', loading())
     paintPills(); void loadList()
   }
+  // ---- 止め一覧：一覧から入り、同じダイアログの中に出す。戻ると一覧、行をタップするとその工程表と詳細。
+  function openStops() {
+    clear(listTimer); listToken++; stops?.close(); status = 'live'
+    const host = h('div', { class: 'lattice-stops-host' })
+    stops = createStopsView(host, { api, getMember, getOwner, glyph, avatar, now, setTimeout: later, clearTimeout: clear, random, back: leaveStops, openCard })
+    show('stops', host); paintPills(); stops.open()
+  }
+  function leaveStops() { stops?.close(); stops = null; showList() }
+  function openCard(projectId, cardId) { stops?.close(); stops = null; openChart(projectId); pendingDetail = cardId }
   function clearChart() { chartId = null; snapshot = null; highlight = null; detailId = null; cardEls.clear(); treeEls.clear(); entering.clear(); particles = []; ui = null }
   function openChart(id) {
     clear(listTimer); listToken++
@@ -253,6 +269,11 @@ export function createLatticeChart(dialog, {
         const before = snapshot
         snapshot = { ...data, owner: getOwner() } // the Owner profile names the reserved owner value
         paintChart(diffSnapshots(before, data))
+        if (pendingDetail) {
+          const id = pendingDetail
+          pendingDetail = null
+          if (ui && snapshot.cards?.some(item => item.id === id)) openDetail(id, (mode === 'lanes' ? cardEls : treeEls).get(id))
+        }
       },
       onStatus(kind) {
         if (!isOpen) return
@@ -580,13 +601,13 @@ export function createLatticeChart(dialog, {
   }
   // Esc は、詳細が開いていれば詳細だけを閉じる。
   dialog.addEventListener('cancel', event => {
-    if (detailId) { event.preventDefault(); closeDetail() } else if (view === 'list' && cameFrom) { event.preventDefault(); openChart(cameFrom.id) }
+    if (detailId) { event.preventDefault(); closeDetail() } else if (view === 'list' && cameFrom) { event.preventDefault(); openChart(cameFrom.id) } else if (view === 'stops') { event.preventDefault(); stops?.escape() }
   })
 
   return {
     open() {
       if (isOpen) return
-      isOpen = true; cameFrom = null; view = 'loading'; status = 'connecting'; list = null; listShown = ''; listNote = null; listAttempt = 0
+      isOpen = true; cameFrom = null; stops = null; pendingDetail = null; view = 'loading'; status = 'connecting'; list = null; listShown = ''; listNote = null; listAttempt = 0
       clearChart(); show('loading', loading()); pill.hidden = true
       document.addEventListener('visibilitychange', visibility)
       if (!dialog.open) dialog.showModal()
@@ -595,7 +616,7 @@ export function createLatticeChart(dialog, {
     close() {
       if (!isOpen) return
       isOpen = false
-      stream?.stop(); stream = null; listToken++; clear(listTimer); stopMotion(); clearChart()
+      stream?.stop(); stream = null; stops?.close(); stops = null; pendingDetail = null; listToken++; clear(listTimer); stopMotion(); clearChart()
       document.removeEventListener('visibilitychange', visibility)
       for (const entry of avatars.values()) if (entry.src) URL.revokeObjectURL(entry.src)
       avatars.clear(); body.replaceChildren(); pill.hidden = true
