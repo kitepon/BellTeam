@@ -3,6 +3,7 @@ import { checkSeatArgs } from './cli.mjs'
 import { latticeError } from '../lattice-protocol.mjs'
 import { projectChart } from './projection.mjs'
 import { createCodeCharts } from './code-chart.mjs'
+import { createNoticeDelivery } from './notices.mjs'
 
 const CHART_PARALLEL = 4, STDOUT_KEPT = 64 * 1024
 const iso = ms => new Date(ms).toISOString()
@@ -19,6 +20,7 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     return next
   }
   let roster = []
+  const notices = createNoticeDelivery({ run: (id, args) => lattice(id, args), log })
 
   // Codes go to the diagnostic log only; the snapshot says just 'lattice-read'.
   async function lattice(id, args) {
@@ -106,9 +108,15 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
       return { snapshots, nextRefreshMs: refreshMs }
     },
     // `name` alone (args []) only names the chart; with args it names it and then runs the command.
-    run: params => locked(params.projectId, () => runOnce(params)),
+    run: (params, effect) => locked(params.projectId, () => runOnce(params, effect)),
+    // Each new child generation (parent onGeneration): unacked notices of every chart, at most NOTICE_SLICE sends.
+    async deliver(params, effect) {
+      const ids = await cli.list()
+      await rosterReader(effect)()
+      return notices.deliverAll(ids, { roster, effect, lock: locked })
+    },
   }
-  async function runOnce({ from, projectId, args, input, name }) {
+  async function runOnce({ from, projectId, args, input, name }, effect) {
     const naming = name !== undefined
     const renameOnly = naming && args.length === 0 && input === null
     if (!renameOnly) checkSeatArgs(args, input)
@@ -131,6 +139,11 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
     // undefined = not JSON; a valid JSON null on stdout stays the result.
     const out = parse(result.stdout)
     const value = out !== undefined ? out : result.stdout.trim() === '' ? parse(result.stderr) : undefined
+    // Delivery never changes the seat's result; its failures stay unacked in Lattice and are re-listed later.
+    // A seat's own `todo notice list|ack` is not a release write: its notices are that seat's reading, never sent or acked here.
+    if (effect && result.exitCode === 0 && !(args[0] === 'todo' && args[1] === 'notice')) {
+      try { await rosterReader(effect)(); await notices.afterRun(projectId, value, { from, roster, effect }) } catch (error) { log(`lattice-notice ${projectId} ${error?.code ?? 'FAILED'}`) }
+    }
     return { exitCode: result.exitCode, result: value === undefined ? null : value, stdout: value === undefined ? result.stdout.slice(0, STDOUT_KEPT) : null, stderr: result.stderr }
   }
 }

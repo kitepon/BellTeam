@@ -44,6 +44,8 @@ export function createLatticeFacade({ controller, retryMs = 2000, setTimer = set
 
   return {
     charts: () => call('charts', {}),
+    // Once per child generation (onGeneration; held until the child is ready). An old child refuses the method: swallowed, like refresh errors.
+    deliver: () => call('deliver', {}).catch(() => null),
     chart: projectId => call('chart', { projectId }),
     async run({ from, projectId, args, input = null, name }) {
       const value = await call('run', { from, projectId, args, input, ...(name !== undefined && { name }) })
@@ -66,10 +68,24 @@ export function createLatticeFacade({ controller, retryMs = 2000, setTimer = set
   }
 }
 
-// The only effect the child may call, inside a root call. Rows carry exactly the agreed keys and types.
-export function createLatticeEffects({ bots }) {
+// Refusals that repeat for the same notice whatever happens later (deleted Bot, bad text): the child acks them instead of retrying forever.
+const PERMANENT = /^(SENDER_NOT_FOUND|BOT_NOT_FOUND|MESSAGE_REQUIRED)\b/u
+
+// The effects the child may call, inside a root call. Rows carry exactly the agreed keys and types.
+export function createLatticeEffects({ bots, messenger }) {
   const text = value => value == null ? '' : String(value)
-  return async method => {
+  return async (method, params) => {
+    // Startable notices go through the public send path, the same as the sendmessage tool (Trony 2026-11-12).
+    if (method === 'messages.send') {
+      try {
+        const value = await messenger.sendmessage({ from: params.from, target: params.target, message: params.message })
+        return { delivery: text(value?.delivery) || 'delivered', deliveryId: value?.delivery_id ?? null }
+      } catch (error) {
+        const code = PERMANENT.exec(error?.message ?? '')?.[1]
+        if (code) return { delivery: 'refused', deliveryId: null, code }
+        throw error
+      }
+    }
     if (method === 'members.list') return { members: (await bots.listForClient()).map(item => ({ id: text(item.id), name: text(item.name),
       color: text(item.color), avatarVersion: text(item.avatarVersion), deleting: item.deleting === true })) }
     throw Object.assign(new Error('LATTICE_EFFECT_INVALID'), { code: 'LATTICE_EFFECT_INVALID', status: 400 })

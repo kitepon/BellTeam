@@ -1,7 +1,7 @@
 export const LATTICE_PROTOCOL_VERSION = 1
 export const LATTICE_STATE_COMPATIBILITY = Object.freeze({ state: 'none' })
-export const LATTICE_METHODS = Object.freeze(['charts', 'chart', 'refresh', 'run'])
-export const LATTICE_EFFECTS = Object.freeze(['members.list'])
+export const LATTICE_METHODS = Object.freeze(['charts', 'chart', 'refresh', 'run', 'deliver'])
+export const LATTICE_EFFECTS = Object.freeze(['members.list', 'messages.send'])
 export const LATTICE_PROJECT_ID = /^[a-z0-9][a-z0-9-]{0,62}$/u
 // A chart's display name: 1-40 characters of plain text, no control characters, no surrounding spaces.
 export const validLatticeName = value => typeof value === 'string' && value === value.trim() && [...value].length >= 1 && [...value].length <= 40 && !/\p{Cc}/u.test(value)
@@ -24,7 +24,7 @@ export function validateLatticeRequest(method, params, context) {
   const project = id => { if (!validId(id)) throw latticeError('LATTICE_PROJECT_INVALID') }
   check(latticeObject(context, ['generation']) && validLatticeGeneration(context.generation))
   check(LATTICE_METHODS.includes(method))
-  if (method === 'charts') check(latticeObject(params, []))
+  if (method === 'charts' || method === 'deliver') check(latticeObject(params, []))
   else if (method === 'chart') { check(latticeObject(params, ['projectId'])); project(params.projectId) }
   else if (method === 'refresh') {
     check(latticeObject(params, ['projectIds']) && Array.isArray(params.projectIds) && params.projectIds.length >= 1 && params.projectIds.length <= 50
@@ -39,14 +39,21 @@ export function validateLatticeRequest(method, params, context) {
   }
 }
 
+const sendText = (value, max) => str(value) && value.length >= 1 && value.length <= max
 export function validateLatticeEffect(method, params) {
-  if (!LATTICE_EFFECTS.includes(method) || !latticeObject(params, [])) throw latticeError('LATTICE_INVALID')
+  if (!LATTICE_EFFECTS.includes(method)) throw latticeError('LATTICE_INVALID')
+  if (method === 'members.list' ? !latticeObject(params, [])
+    : !latticeObject(params, ['from', 'target', 'message']) || !sendText(params.from, 128) || !sendText(params.target, 128) || !sendText(params.message, 4000))
+    throw latticeError('LATTICE_INVALID')
 }
 
 export function validateLatticeEffectResult(method, value) {
   if (method === 'members.list') need(latticeObject(value, ['members']) && list(value.members, member =>
     latticeObject(member, ['id', 'name', 'color', 'avatarVersion', 'deleting']) && str(member.id) && str(member.name)
     && str(member.color) && str(member.avatarVersion) && typeof member.deleting === 'boolean'))
+  // delivery = the messenger's word (running, queued, steered, delivered, failed, ...) or 'refused' for a permanent refusal.
+  else if (method === 'messages.send') need(latticeObject(value, ['delivery', 'deliveryId'], ['code']) && sendText(value.delivery, 64)
+    && strOrNull(value.deliveryId) && (value.code === undefined || sendText(value.code, 128)))
   else invalid()
 }
 
@@ -112,6 +119,7 @@ export function validateLatticeResult(method, value) {
   else if (method === 'refresh') need(latticeObject(value, ['snapshots', 'nextRefreshMs']) && list(value.snapshots, snapshot) && count(value.nextRefreshMs))
   else if (method === 'run') need(latticeObject(value, ['exitCode', 'result', 'stdout', 'stderr'])
     && (value.exitCode === null || Number.isInteger(value.exitCode)) && strOrNull(value.stdout) && str(value.stderr))
+  else if (method === 'deliver') need(latticeObject(value, ['delivered', 'failed']) && count(value.delivered) && count(value.failed))
   else invalid()
 }
 
