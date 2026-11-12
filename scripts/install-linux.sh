@@ -21,6 +21,25 @@ executable="$install_dir/BellTeam"
 if pgrep -u "$(id -u)" -f -x "$executable" >/dev/null 2>&1; then
   echo 'BellTeamを閉じてから実行してください。' >&2; exit 1
 fi
+# Only paths this installer created are replaced or removed: the app folder carries a marker file
+# (or is the marker-less layout of the first version of this installer), the command is a symlink to
+# the installed app, and the menu entry runs the installed app. Anything else at those paths belongs
+# to someone else; the run stops before changing anything and names it, and the user moves it away and runs again.
+marker="$install_dir/.bellteam-installer"
+found_foreign=0
+foreign() { echo "このinstallerが置いた物ではないため変更しません: $1" >&2; found_foreign=1; }
+if [ -e "$install_dir" ] || [ -L "$install_dir" ]; then
+  [ -d "$install_dir" ] && [ ! -L "$install_dir" ] && { [ -f "$marker" ] || { [ -x "$executable" ] && [ -f "$install_dir/bellteam.png" ]; }; } || foreign "$install_dir"
+fi
+if [ -e "$link" ] || [ -L "$link" ]; then
+  [ -L "$link" ] && [ "$(readlink "$link")" = "$executable" ] || foreign "$link"
+fi
+if [ -e "$desktop" ] || [ -L "$desktop" ]; then
+  [ -f "$desktop" ] && [ ! -L "$desktop" ] && grep -qx "Exec=$executable" "$desktop" || foreign "$desktop"
+fi
+if [ "$found_foreign" = 1 ]; then
+  echo '別の場所へ移すか、不要なら削除してから、もう一度実行してください。' >&2; exit 1
+fi
 if [ "$uninstall" = 1 ]; then
   rm -rf "$install_dir"; rm -f "$link" "$desktop"
   command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$data_home/applications" || true
@@ -42,6 +61,7 @@ if [ -n "$server_url" ]; then
 fi
 rm -rf "$install_dir"; mkdir -p "$install_dir" "$(dirname "$link")" "$(dirname "$desktop")"
 cp -a "$publish/." "$install_dir/"
+echo "scripts/install-linux.sh" > "$marker"
 ln -sf "$executable" "$link"
 cp ios/BellBot/BellBot/Assets.xcassets/AppIcon.appiconset/bellbot-icon.png "$install_dir/bellteam.png"
 cat > "$desktop" <<EOF

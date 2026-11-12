@@ -71,6 +71,8 @@ scripts/install-linux.sh --uninstall
 
 .NET 10 SDKがあるLinux（x64・arm64）で、取り出してあるソースから通常の利用者として実行する。管理者権限は不要。.NETを同梱したビルドを`~/.local/lib/BellTeam`へ置き、`~/.local/bin/bellteam`、アプリ一覧の`~/.local/share/applications/bellteam.desktop`とアイコンを登録する。接続先を省略すると既存の設定を保持し、初回起動時に入力する。削除は本体・起動用リンク・登録だけを消し、`~/.local/share/BellTeam`の設定は残す。
 
+導入と削除が置き換え・削除するのは、このinstallerが置いた物だけとする（既存の別の物を上書き・削除しないため）。本体のフォルダは印のファイル`.bellteam-installer`を持つ（印が無い最初の版の配置`BellTeam`と`bellteam.png`も含む）こと、`~/.local/bin/bellteam`は導入した本体へのシンボリックリンクであること、`bellteam.desktop`は導入した本体を`Exec=`で起動することで見分ける。どれかが別の物なら、何も変えずにその場所を名指しして終了する。利用者がその物を別の場所へ移すか不要なら消して、もう一度実行すれば進む。
+
 ## 開発と確認
 
 ```sh
