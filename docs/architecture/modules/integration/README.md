@@ -98,6 +98,7 @@ stateDiagram-v2
 | SM05 | 道具一覧は`bellTeamTools`（freeze済み）で、プロセスの中では変わらない。一覧が変わるのは本体の再起動だけで、SM03で届く。`notifications/tools/list_changed`を送る契機はプロセス内に無い。 |
 | SM06 | 一覧のdigest（`SEAT_TOOLS_DIGEST`、道具一覧JSONのsha256）を`initialize`応答の`capabilities.experimental['ai.bellteam/tools.v1'].digest`に載せる。予備策B（executionが、digestの変わった席を待機中に休止・再開する）だけが読む。 |
 | SM07 | 6時間要求の無いセッションは、次の`initialize`の時に閉じる。開いたSSEも閉じ、CLIは再接続の404から初期化し直す。`handle.close()`は中継と全セッションを閉じる。 |
+| SM08 | セッションが初期化時に持つのは、能力の広告（`ai.aiterm/handoff.v1`）だけ。道具の呼出しは、要求ごとに`toolsForSource`を呼び直し、その時の実行世代を選ぶ（[model-handoff](model-handoff.md) 要求ごとのMCP closure）。実行の世代が変わっても、同じセッションの次の`update_self`は新しい世代で受け付ける。 |
 
 失敗の扱い：席の解決の失敗（400/503）は従来どおりセッションより前で返す。セッションは記憶だけに置き、保存しない。
 shortcut: SM07の6時間は、席の数（数十）での記憶の上限が要らない値。席が数百を越えたら上限数を加える。
