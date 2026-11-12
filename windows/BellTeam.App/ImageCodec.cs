@@ -30,24 +30,24 @@ public static class ImageCodec
         return image;
     }
 
-    public static string Mime(byte[] bytes)
-    {
-        if (bytes.AsSpan().StartsWith(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 })) return "image/png";
-        if (bytes.AsSpan().StartsWith(new byte[] { 255, 216, 255 })) return "image/jpeg";
-        if (bytes.AsSpan().StartsWith("GIF87a"u8) || bytes.AsSpan().StartsWith("GIF89a"u8)) return "image/gif";
-        if (bytes.Length >= 12 && bytes.AsSpan(0, 4).SequenceEqual("RIFF"u8) && bytes.AsSpan(8, 4).SequenceEqual("WEBP"u8)) return "image/webp";
-        throw new InvalidDataException("PNG・JPEG・WebP・GIFの画像を選んでください。");
-    }
+    public static string Mime(byte[] bytes) => ImageFile.Mime(bytes);
     public static async Task<(ImageAttachment Data, BitmapSource Preview)> ReadAsync(string path)
     {
-        if (new FileInfo(path).Length > 25 * 1024 * 1024) throw new InvalidDataException("画像1枚は25MBまでです。");
-        var bytes = await File.ReadAllBytesAsync(path);
-        var mime = Mime(bytes);
-        return (new(Path.GetFileName(path), mime, bytes), await DecodeAsync(bytes));
+        var data = await ImageFile.ReadAsync(path);
+        return (data, await DecodeAsync(data.Bytes));
     }
     public static byte[] Png(BitmapSource image)
     {
         var encoder = new PngBitmapEncoder(); encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(image));
         using var stream = new MemoryStream(); encoder.Save(stream); return stream.ToArray();
     }
+}
+
+// Workspace's image work on WPF: frozen BitmapSource previews.
+public sealed class WpfImageCodec : IImageCodec<BitmapSource>
+{
+    public static readonly WpfImageCodec Instance = new();
+    public Task<BitmapSource> DecodeAsync(byte[] bytes) => ImageCodec.DecodeAsync(bytes);
+    public Task<(ImageAttachment Data, BitmapSource Preview)> ReadAsync(string path) => ImageCodec.ReadAsync(path);
+    public (byte[] Png, BitmapSource Preview) Pasted(BitmapSource image) { var preview = image.Clone(); preview.Freeze(); return (ImageCodec.Png(image), preview); }
 }

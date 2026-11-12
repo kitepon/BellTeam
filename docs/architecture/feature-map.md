@@ -113,6 +113,7 @@ flowchart LR
   m_conversation["会話・履歴 / N102"]
   m_execution["AI実行制御 / キロ"]
   m_integration["共通入口・結合実装 / モリー"]
+  m_linux["Linuxアプリ / ネオン"]
   m_mcp_lazy["mcp-lazy / レオナ"]
   m_memory["記憶・知識 / ビスケット"]
   m_rtk["RTK / ドリリー"]
@@ -130,6 +131,7 @@ flowchart LR
   m_execution -->|"native"| m_aiterm
   m_execution -->|"context"| m_throughline
   m_integration -->|"public"| m_approval_box
+  m_linux -->|"HTTP/SSE"| m_integration
   m_memory -->|"context"| m_throughline
   m_runtime -->|"native"| m_aiterm
   m_runtime -->|"context"| m_throughline
@@ -157,6 +159,7 @@ flowchart LR
 | [AI実行制御](modules/execution/README.md) | キロ | turn / configuration / stop / observation / members-admission / accounts / fork |
 | [共通入口・結合実装](modules/integration/README.md) | モリー | HTTP/MCP / HTTP/SSE / diagnostics / remote-seat-port |
 | [Lattice工程表](modules/lattice/README.md) | フローラ | lattice-chart / lattice-seat |
+| [Linuxアプリ](modules/linux/README.md) | ネオン | public |
 | [mcp-lazy](modules/mcp-lazy/README.md) | レオナ | relay |
 | [メンバー・予定](modules/members/README.md) | ベロータ | registry / schedules / instructions / docs |
 | [記憶・知識](modules/memory/README.md) | ビスケット | memory |
