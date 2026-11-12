@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-12T13:29:18Z",
-  "expiresAt": "2026-11-19T13:29:18Z",
+  "publishedAt": "2026-11-12T14:02:13Z",
+  "expiresAt": "2026-11-19T14:02:13Z",
   "releases": [
     {
       "componentId": "usage",
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "5412ac2c1e6f392223f1da610bea861699a73720",
-      "versionId": "sha256:18ca69a13391418ba4fbb4d5fef5802b95b3b5a73078b4b25e9495a131850fc0",
+      "sourceCommit": "6f164af68a19bdf96d46360050cada5a71183ccb",
+      "versionId": "sha256:ea8111c1a0744cbfd9afaeaa6794f48988b85e41dbb77e1acf7faad893268cd0",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:18ca69a13391418ba4fbb4d5fef5802b95b3b5a73078b4b25e9495a131850fc0"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ea8111c1a0744cbfd9afaeaa6794f48988b85e41dbb77e1acf7faad893268cd0"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,20 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Aiterm を 0.70.39 にします。最初の画面で止まる席は理由を返して閉じ、Grok と Codex の席の読み取りを直します。工程表で準備ができたのにまだ始まっていない作業を、約5分ごとに、動いていない担当の Bot へ知らせます。"
+        "Aiterm を 0.70.39 にします。最初の画面で止まる席は理由を返して閉じ、Grok と Codex の席の読み取りを直します。工程表で準備ができたのにまだ始まっていない作業を、約5分ごとに、動いていない担当の Bot へ知らせます。本体の入れ替え後に、まだ届いていない作業の知らせも届くようになります。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "5412ac2c1e6f392223f1da610bea861699a73720",
-      "versionId": "sha256:18ca69a13391418ba4fbb4d5fef5802b95b3b5a73078b4b25e9495a131850fc0",
+      "sourceCommit": "6f164af68a19bdf96d46360050cada5a71183ccb",
+      "versionId": "sha256:ea8111c1a0744cbfd9afaeaa6794f48988b85e41dbb77e1acf7faad893268cd0",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:18ca69a13391418ba4fbb4d5fef5802b95b3b5a73078b4b25e9495a131850fc0"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:ea8111c1a0744cbfd9afaeaa6794f48988b85e41dbb77e1acf7faad893268cd0"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,7 +748,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Aiterm を 0.70.39 にします。最初の画面で止まる席は理由を返して閉じ、Grok と Codex の席の読み取りを直します。工程表で準備ができたのにまだ始まっていない作業を、約5分ごとに、動いていない担当の Bot へ知らせます。"
+        "Aiterm を 0.70.39 にします。最初の画面で止まる席は理由を返して閉じ、Grok と Codex の席の読み取りを直します。工程表で準備ができたのにまだ始まっていない作業を、約5分ごとに、動いていない担当の Bot へ知らせます。本体の入れ替え後に、まだ届いていない作業の知らせも届くようになります。"
       ]
     },
     {
