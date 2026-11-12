@@ -48,7 +48,7 @@ test('Grokのbusy typed拒否は現在goalを省略し、保存済みgoalやnull
 })
 
 test('Grok current_status欠測や型不正を保存snapshotだけの成功にしない',async()=>{
-  const cases=[r=>delete r.goal.current_status,r=>r.goal.current_status.source='file',
+  const cases=[r=>r.goal.current_status.source='file',
     r=>r.goal.current_status.status='unknown',r=>r.goal.current_status.phase='unknown',
     r=>r.goal.current_status.tokens_used=null,r=>r.goal.current_status.elapsed_display='unknown',
     r=>r.goal.native.token_budget=0,r=>r.goal.native.extra='unexpected',r=>r.harness='claude-code']
@@ -83,4 +83,21 @@ test('Grok detail型の混在・欠測を保存snapshot成功へ補わない',as
   for(const change of cases){const source=read('detail');change(source);const f=fixture(source),s=await f.goals.inspect(f.bot)
     assert.equal(s.availability,'unavailable');assert.equal('goal' in s,false)
     assert.equal(f.reports.length,1);assert.equal(f.calls(),1)}
+})
+
+test('a08: current_statusの無いGrok結果は保存状態をgoal detail形の公開current_statusで返す',async t=>{
+  const source=read('paused');delete source.goal.current_status
+  source.goal.native.status='user_paused';source.goal.native.tokens_used_high_water=4906;source.goal.native.token_budget=100000
+  source.goal.native.elapsed_ms=3725000;source.capabilities.resume=true
+  const f=fixture(source),get=await http(t,f),response=await get(),{snapshot}=await response.json()
+  assert.equal(response.status,200);assert.equal(snapshot.availability,'available');assert.deepEqual(f.reports,[])
+  assert.deepEqual(snapshot.goal.native,source.goal.native)
+  assert.deepEqual(snapshot.goal.current_status,{source:'goal detail',status:'Paused',phase:null,tokens_used:null,
+    status_display:'一時停止（保存時点）',phase_display:null,budget_display:'保存時点 4,906 / 100,000 tokens',elapsed_display:'1h02m'})
+  assert.equal(snapshot.capabilities.resume,true);assert.equal(snapshot.capabilities.pause,false)
+  assert.equal(snapshot.observedAt,source.observed_at)
+  const active=read('paused');delete active.goal.current_status;active.goal.native.status='active';active.goal.native.elapsed_ms=65000
+  f.set(active);const next=(await (await get()).json()).snapshot
+  assert.equal(next.goal.current_status.status,'Active');assert.equal(next.goal.current_status.status_display,'進行中（保存時点）')
+  assert.equal(next.goal.current_status.elapsed_display,'1m05s')
 })

@@ -64,10 +64,21 @@ const validNativeGoal = (goal, result) => goal === null || (
     && goal.phase === 'active' && claudeStatus(goal.native) && goal.native.met === false
     && (!Object.hasOwn(goal, 'reported_turns') || natural(goal.reported_turns))
   || goal?.kind === 'grok-cli' && result.harness === 'grok-cli' && keysOnly(goal, ['kind', 'native', 'current_status'])
-    && grokSnapshot(goal.native) && grokCurrent(goal.current_status)
+    && grokSnapshot(goal.native) && (!Object.hasOwn(goal, 'current_status') || grokCurrent(goal.current_status))
 )
 const goalStatus = goal => goal?.kind === 'codex-cli' ? goal.native.status : goal?.kind === 'claude-code' ? goal.phase
-  : goal?.kind === 'grok-cli' ? ['UserPaused', 'Paused'].includes(goal.current_status.status) ? 'paused' : 'active' : goal?.status
+  : goal?.kind === 'grok-cli' ? ['UserPaused', 'Paused'].includes(grokPublic(goal).current_status.status) ? 'paused' : 'active' : goal?.status
+const grokElapsedText = ms => {
+  const s = Math.floor(ms / 1000), m = Math.floor(s / 60), h = Math.floor(m / 60), pad = n => String(n).padStart(2, '0')
+  return h ? `${h}h${pad(m % 60)}m` : m ? `${m}m${pad(s % 60)}s` : `${s}s`
+}
+// Aiterm a09+ inspect returns the saved state only. The public shape the shipped clients decode stays (Trony a08):
+// current_status = the last saved state in the "goal detail" form (phase/tokens null), labelled as saved, never a fresh UI read.
+const grokPublic = goal => goal.current_status ? goal : { ...goal, current_status: {
+  source: 'goal detail', status: goal.native.status === 'user_paused' ? 'Paused' : 'Active', phase: null, tokens_used: null,
+  status_display: goal.native.status === 'user_paused' ? '一時停止（保存時点）' : '進行中（保存時点）', phase_display: null,
+  budget_display: `保存時点 ${goal.native.tokens_used_high_water.toLocaleString('en-US')} / ${goal.native.token_budget.toLocaleString('en-US')} tokens`,
+  elapsed_display: grokElapsedText(goal.native.elapsed_ms) } }
 
 export class BotGoals {
   constructor({ transport, admitWork = () => () => {}, reportError = async () => {}, now = () => new Date().toISOString() }) {
@@ -155,7 +166,7 @@ export class BotGoals {
     }
     return { botId: bot.id, availability, reason: availability === 'unavailable' ? 'read_failed' : null, capabilities, fieldCapabilities: fieldCapabilities(capabilities, result.field_capabilities),
       binding: result.binding ? { sessionId: result.binding.session_id, launchId: result.binding.launch_id, threadId: result.binding.thread_id } : null,
-      ...(Object.hasOwn(result, 'goal') ? { goal: structuredClone(result.goal) } : {}),
+      ...(Object.hasOwn(result, 'goal') ? { goal: structuredClone(result.goal?.kind === 'grok-cli' ? grokPublic(result.goal) : result.goal) } : {}),
       ...(Object.hasOwn(result, 'native_history') ? { nativeHistory: structuredClone(result.native_history) } : {}),
       observedAt: result.observed_at,
       message: availability === 'available' ? null : availability === 'unsupported'
