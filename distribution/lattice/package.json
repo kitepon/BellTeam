@@ -3,8 +3,8 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Child-only dependencies of the lattice module payload (docs/architecture/modules/runtime/lattice-child.md). @quolu/lattice 0.85.5 is the minimum: the first release with todo display read/source. 0.86.0 adds todo add (one task) for seats; 0.86.1 stops witness prompts on conversation plans.",
+  "description": "Child-only dependencies of the lattice module payload (docs/architecture/modules/runtime/lattice-child.md). @quolu/lattice 0.85.5 is the minimum: the first release with todo display read/source. 0.86.0 adds todo add (one task) for seats; 0.86.1 stops witness prompts on conversation plans; 0.87.0 adds todo independence witness declare (one task's row).",
   "dependencies": {
-    "@quolu/lattice": "0.86.1"
+    "@quolu/lattice": "0.87.0"
   }
 }
