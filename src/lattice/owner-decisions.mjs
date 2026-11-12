@@ -64,7 +64,7 @@ export async function ownerDecisions(charts, { laneOf, names, bots, records, eff
       return out
     }
     record[key] = { projectId: chart.projectId, plan: card.plan, taskId: card.taskId, title: card.title, decisionId: value.decisionId, status: 'open', filedAt: new Date().toISOString() }
-    // Written before the next card: a crash after the file and before this write is caught by the body's open-request match (L18).
+    // Written before the next card. A lost response or record is recovered by the body: the next file adopts the request by its session_label, answered or not (L18).
     await records.write(record)
     out.filed++
   }

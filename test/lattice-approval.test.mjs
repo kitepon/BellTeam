@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createLatticeDecisions, LATTICE_APPROVAL_SCOPE } from '../src/lattice-approval.mjs'
 import { createLatticeEffects } from '../src/lattice-facade.mjs'
+import { ownerDecisions } from '../src/lattice/owner-decisions.mjs'
+import { laneResolver } from '../src/lattice/projection.mjs'
 
 const params = { title: 'Alpha: Task t1', context: 'c', options: [{ id: 'done', label: '済んだ' }, { id: 'not-yet', label: 'まだ' }], requester: 'Cee', session_label: 'Alpha / p1/t1' }
 
@@ -28,11 +30,13 @@ const row = (id, status, at, botId = 'bot-7e777fe5', toolId = 'lattice-approval-
 test('decisions.file: binds the newest submitted Flora request once, confirms with check_token, no route, client other', async () => {
   const x = rig({ rows: [row('s1', 'submitted', '2026-11-13T00:00:00Z'), row('s2', 'submitted', '2026-11-13T01:00:00Z'), row('s3', 'pending', '2026-11-13T02:00:00Z'),
     row('s4', 'submitted', '2026-11-13T03:00:00Z', 'bot-other'), row('s5', 'submitted', '2026-11-13T03:00:00Z', 'bot-7e777fe5', 'other-tool')],
-  responses: [[409, { error: { code: 'confirm_required', check_token: 'ct1', decisions: [] } }], [201, { id: 'K-ABC123', status: 'pending' }]] })
+  responses: [[200, { items: [{ decision_id: 'K-ELSE01', status: 'answered', session_label: 'Alpha / p1/t2', requester: 'Cee' }] }],
+    [409, { error: { code: 'confirm_required', check_token: 'ct1', decisions: [] } }], [201, { id: 'K-ABC123', status: 'pending' }]] })
   assert.deepEqual(await x.decisions.file(params), { decisionId: 'K-ABC123', existing: false })
   assert.deepEqual(x.binds, [['s2', LATTICE_APPROVAL_SCOPE]])
   assert.deepEqual(x.resolved[0], ['h-s2', { ...LATTICE_APPROVAL_SCOPE, memberId: null }])
-  const [first, second] = x.fetches
+  const [list, first, second] = x.fetches
+  assert.deepEqual(list.slice(0, 2), ['GET', '/decisions'])
   assert.equal(first[3], 'Bearer tok-1')
   assert.deepEqual(first.slice(0, 2), ['POST', '/decisions'])
   assert.deepEqual(first[2], { ...params, urgency: 'normal', client: 'other' })
@@ -42,10 +46,10 @@ test('decisions.file: binds the newest submitted Flora request once, confirms wi
 
 test('decisions.file: an open request with the same session label is adopted, not filed again; no token -> unavailable', async () => {
   const x = rig({ current: { handle: 'h', revision: 1, available: true, requestId: 's' },
-    responses: [[409, { error: { code: 'confirm_required', check_token: 'ct', decisions: [{ decision_id: 'K-OLD001', status: 'pending', session_label: 'Cee / Alpha / p1/t1' }] } }]] })
+    responses: [[200, { items: [] }], [409, { error: { code: 'confirm_required', check_token: 'ct', decisions: [{ decision_id: 'K-OLD001', status: 'pending', session_label: 'Alpha / p1/t1', requester: 'Cee' }] } }]] })
   assert.deepEqual(await x.decisions.file(params), { decisionId: 'K-OLD001', existing: true })
-  assert.equal(x.fetches.length, 1)
-  const dup = rig({ current: { handle: 'h', revision: 1, available: true, requestId: 's' }, responses: [[409, { error: { code: 'confirm_required', check_token: 'ct', decisions: [] } }],
+  assert.equal(x.fetches.length, 2)
+  const dup = rig({ current: { handle: 'h', revision: 1, available: true, requestId: 's' }, responses: [[200, { items: [] }], [409, { error: { code: 'confirm_required', check_token: 'ct', decisions: [] } }],
     [409, { error: { code: 'duplicate_suspected', existing: [{ decision_id: 'K-OTHER1', status: 'pending', session_label: 'Aye / Beta / p1/t9' }] } }]] })
   await assert.rejects(dup.decisions.file(params), { code: 'LATTICE_DECISIONS_REFUSED' }, 'another task with the same title is not adopted')
   await assert.rejects(rig({}).decisions.file(params), { code: 'LATTICE_DECISIONS_UNAVAILABLE' })
@@ -77,4 +81,49 @@ test('decisions: 5 s per request; timeout, network or 5xx is unavailable, 4xx is
   await assert.rejects(rig({ current: live, responses: [[404, { error: { code: 'not_found' } }]] }).decisions.read({ decisionId: 'K-ABC123' }), { code: 'LATTICE_DECISIONS_REFUSED' })
   await assert.rejects(rig({ current: live, responses: [[400, { error: { code: 'invalid' } }]] }).decisions.file(params), { code: 'LATTICE_DECISIONS_REFUSED' })
   await assert.rejects(rig({ current: live, responses: [[502, {}]] }).decisions.file(params), { code: 'LATTICE_DECISIONS_UNAVAILABLE' })
+})
+
+test('file once: create succeeded, response and record lost, Owner answered before the retry -> no second filing, the answer routed once', async () => {
+  // A fake connector with this connection's rows, as the deployed server lists them (raw session_label + requester).
+  const rows = [], posts = []
+  let loseResponse = true
+  const fetchImpl = async (url, init) => {
+    const path = url.replace('https://approval-box.kitepon.dev/connector/v1', ''), body = init.body ? JSON.parse(init.body) : null
+    const reply = (status, json) => ({ ok: status < 300, status, json: async () => json })
+    if (init.method === 'GET' && path === '/decisions') return reply(200, { items: rows.map(({ answer, ...row }) => row) })
+    if (init.method === 'POST' && path === '/decisions') {
+      if (!body.check_token) return reply(409, { error: { code: 'confirm_required', check_token: 'ct', decisions: [] } })
+      posts.push(body)
+      rows.push({ decision_id: `K-NEW00${posts.length}`, status: 'pending', session_label: body.session_label, requester: body.requester })
+      if (loseResponse) { loseResponse = false; throw new TypeError('socket hang up') }
+      return reply(201, { id: rows.at(-1).decision_id, status: 'pending' })
+    }
+    const read = rows.find(row => path === `/decisions/${row.decision_id}`)
+    if (init.method === 'GET' && read) return reply(200, { id: read.decision_id, status: read.status, ...(read.answer && { answer: read.answer }) })
+    if (init.method === 'POST' && path.endsWith('/fetched')) return reply(200, { ok: true })
+    return reply(404, { error: { code: 'not_found' } })
+  }
+  const live = { handle: 'h', revision: 1, available: true, requestId: 's' }
+  const decisions = createLatticeDecisions({ credentials: { current: async () => live, withResolved: async (handle, target, consume) => consume('tok') },
+    secretRequests: { timeline: () => [] }, fetchImpl })
+  const sends = []
+  const effect = async (method, input) => method === 'decisions.file' ? decisions.file(input) : method === 'decisions.read' ? decisions.read(input)
+    : (sends.push(input), { delivery: 'running' })
+  let stored = {}
+  const members = [{ id: 'bot-c', name: 'Cee', deleting: false }]
+  const charts = [{ projectId: 'alpha', name: 'Alpha', createdBy: 'bot-c', cards: [{ plan: 'p1', taskId: 't1', title: 'Task t1', state: 'ready', lane: 'owner' }] }]
+  const tick = () => ownerDecisions(charts, { laneOf: laneResolver(members), names: new Map([['bot-c', 'Cee']]), bots: new Set(['bot-c']),
+    records: { read: async () => structuredClone(stored), write: async value => { stored = structuredClone(value) } }, effect, log: () => {} })
+
+  assert.deepEqual(await tick(), { filed: 0, routed: 0 }, 'created on the server, but the response was lost')
+  assert.deepEqual([posts.length, stored], [1, {}])
+  Object.assign(rows[0], { status: 'answered', has_answer: true, answer: { option_id: 'done', text: 'ok' } })
+  assert.deepEqual(await tick(), { filed: 1, routed: 0 }, 'the retry adopts the answered request')
+  assert.equal(posts.length, 1, 'no second filing')
+  assert.equal(stored['alpha/p1/t1'].decisionId, 'K-NEW001')
+  assert.deepEqual(await tick(), { filed: 0, routed: 1 })
+  assert.deepEqual(await tick(), { filed: 0, routed: 0 })
+  assert.equal(sends.length, 1, 'the original answer is routed once')
+  assert.ok(sends[0].target === 'bot-c' && sends[0].message.includes('Answer: 済んだ / ok'))
+  assert.equal(posts.length, 1)
 })

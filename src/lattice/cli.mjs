@@ -80,7 +80,7 @@ export function createLatticeCli({ bin, chartsRoot = '/srv/bellteam/state/lattic
     },
     exists: async id => LATTICE_PROJECT_ID.test(id) && await isDir(join(dir(id), '.lattice')),
     // Owner-lane filing record (README L18): one JSON object beside the charts. Missing = {}.
-    // A symlink or malformed file is moved aside (`.invalid-<ms>`) and starts empty; the body's open-request match keeps an open request from being filed twice.
+    // A symlink or malformed file is moved aside (`.invalid-<ms>`) and starts empty; the body adopts a request already filed for the task by its session_label (L18), so nothing is filed twice.
     async readOwnerRecord() {
       const link = await lstat(recordFile).catch(error => failed(error))
       let value = null
