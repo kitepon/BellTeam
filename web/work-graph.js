@@ -82,8 +82,12 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch, onOpenMe
   const summary = dialog.querySelector('[data-work-graph-summary]')
   const list = dialog.querySelector('[data-work-graph-a11y]')
   const hint = dialog.querySelector('[data-work-graph-hint]')
-  const reduceMotion = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+  const motion = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')
+  let reduceMotion = motion?.matches ?? false
   let model = createGraphModel({ reduceMotion }), frameId = 0, last = 0, status = 'connecting', hover = null, open = false
+  // 時計（behavior-spec "Clock and frame rate"）：still では次のコマを頼まない。絵だけ変わる出来事は1コマだけ頼む。
+  const animate = () => status === 'live' && !reduceMotion
+  const redraw = () => { if (open && !frameId) frameId = requestAnimationFrame(draw) }
   const images = new Map(), measures = new Map()
   const context = canvas.getContext('2d')
   const now = () => Date.now()
@@ -111,6 +115,7 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch, onOpenMe
     const key = `${node.botId}\n${node.avatarVersion}`
     if (!images.has(key)) {
       const item = new Image()
+      item.addEventListener?.('load', redraw)
       item.src = `/api/bots/${encodeURIComponent(node.botId)}/avatar?v=${encodeURIComponent(node.avatarVersion)}`
       images.set(key, item)
     }
@@ -123,6 +128,7 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch, onOpenMe
     pill.hidden = !text
     pill.textContent = text
     paintEmpty()
+    redraw()
   }
   function paintEmpty() {
     const missing = status === 'missing' && !model.nodes.size
@@ -155,8 +161,8 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch, onOpenMe
   }
   const stream = createGraphStream({
     fetch,
-    onSnapshot(data) { model.snapshot(data, now(), rectOf()); describe(); paintEmpty() },
-    onChange(batch) { const applied = model.change(batch, now(), rectOf()); if (applied) { describe(); showStatus('live') } return applied },
+    onSnapshot(data) { model.snapshot(data, now(), rectOf()); describe(); paintEmpty(); redraw() },
+    onChange(batch) { const applied = model.change(batch, now(), rectOf()); if (applied) { describe(); showStatus('live'); redraw() } return applied },
     onStatus: showStatus,
   })
   function roundRect(x, y, w, h, r) { context.beginPath(); context.roundRect ? context.roundRect(x, y, w, h, r) : context.rect(x, y, w, h) }
@@ -175,9 +181,14 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch, onOpenMe
   function draw(time) {
     frameId = 0
     if (!open) return
+    // moving は30コマ/秒まで、working は15コマ/秒まで（rAF のゆれ 4ms は許す）。still の1コマはすぐ描く。
+    const clock = model.clock(now(), { animate: animate() })
+    if (last && clock !== 'still' && time - last < 1000 / (clock === 'moving' ? 30 : 15) - 4) { frameId = requestAnimationFrame(draw); return }
     const dt = last ? (time - last) / 1000 : 0
     last = time
     const rect = rectOf(), ratio = globalThis.devicePixelRatio || 1, t = now()
+    // 流れる点は誰かが働いている間だけ。still の線は線と矢印だけで向きを見せる。
+    const flowing = animate() && [...model.nodes.values()].some(node => node.state === 'working')
     if (canvas.width !== Math.round(rect.width * ratio) || canvas.height !== Math.round(rect.height * ratio)) {
       canvas.width = Math.round(rect.width * ratio); canvas.height = Math.round(rect.height * ratio); model.heat()
     }
@@ -210,7 +221,7 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch, onOpenMe
         context.lineTo(end.x - 10 * Math.cos(angle - 0.45), end.y - 10 * Math.sin(angle - 0.45))
         context.lineTo(end.x - 10 * Math.cos(angle + 0.45), end.y - 10 * Math.sin(angle + 0.45))
         context.closePath(); context.fill()
-        if (!stale && !reduceMotion) for (const dot of flowDots(line, t)) {
+        if (flowing) for (const dot of flowDots(line, t)) {
           context.globalAlpha = line.opacity * dot.alpha * (line.edge.state === 'steered' ? 0.75 : 1)
           context.beginPath(); context.arc(dot.x, dot.y, 3.5, 0, Math.PI * 2); context.fill()
         }
@@ -254,7 +265,7 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch, onOpenMe
     chips(frame.labels)
     context.globalAlpha = 1; context.filter = 'none'
     if (model.firstSeen) paintEmpty()
-    frameId = requestAnimationFrame(draw)
+    if (model.clock(now(), { animate: animate() }) !== 'still') frameId = requestAnimationFrame(draw)
   }
   // 隠れた名前はポインターを近づけた時だけ出す。指した札は一番上に描く。
   const tap = createTap(botId => onOpenMember(botId))
@@ -279,7 +290,8 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch, onOpenMe
     const point = hit(event), next = hoverAt(point)
     canvas.style.cursor = point.botId ? 'pointer' : ''
     // 同じ札を指している間は送った位置を保つ。ほかへ移ると最初の行から。
-    hover = next?.edgeId && next.edgeId === hover?.edgeId ? hover : next
+    if (next?.botId === hover?.botId && next?.edgeId === hover?.edgeId) return
+    hover = next; redraw()
   })
   // D より高い札の peek：ホイール・トラックパッドで送る。指は peek の中から縦に動かして送る。
   const peekOf = () => hover?.edgeId ? model.frame(now(), rectOf(), { wide: wide(), hover, measure: measure(LABEL_FONT) }).labels.find(item => item.edge.id === hover.edgeId && item.scroll !== undefined) : null
@@ -289,23 +301,26 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch, onOpenMe
     if (!peek) return
     event.preventDefault()
     hover.scroll = Math.max(0, peek.scroll + event.deltaY * (event.deltaMode === 1 ? 16 : 1))
+    redraw()
   }, { passive: false })
   canvas.addEventListener('pointerdown', event => {
     const peek = event.pointerType === 'touch' ? peekOf() : null, box = canvas.getBoundingClientRect(), x = event.clientX - box.left, y = event.clientY - box.top
     drag = peek && x >= peek.box.x && x <= peek.box.x + peek.box.w && y >= peek.box.y && y <= peek.box.y + peek.box.h ? { id: event.pointerId, y: event.clientY, scroll: peek.scroll } : null
   })
-  canvas.addEventListener('pointermove', event => { if (drag?.id === event.pointerId && hover?.edgeId) hover.scroll = Math.max(0, drag.scroll + drag.y - event.clientY) })
-  canvas.addEventListener('pointerleave', event => { if (event.pointerType !== 'touch') hover = null })
+  canvas.addEventListener('pointermove', event => { if (drag?.id === event.pointerId && hover?.edgeId) { hover.scroll = Math.max(0, drag.scroll + drag.y - event.clientY); redraw() } })
+  canvas.addEventListener('pointerleave', event => { if (event.pointerType !== 'touch' && hover) { hover = null; redraw() } })
   // タップの決まりは createTap（押した時の相手で開く）。
   canvas.addEventListener('pointerdown', event => { const primary = event.isPrimary && event.button === 0; tap.down(event.pointerId, event.clientX, event.clientY, event.timeStamp, primary, primary ? hit(event).botId : null) })
   canvas.addEventListener('pointerup', event => {
     // 指の札の表示（peek）は、タップと認めた時だけ変える。
-    if (tap.up(event.pointerId, event.clientX, event.clientY, event.timeStamp) && event.pointerType === 'touch') hover = hoverAt(hit(event))
+    if (tap.up(event.pointerId, event.clientX, event.clientY, event.timeStamp) && event.pointerType === 'touch') { hover = hoverAt(hit(event)); redraw() }
   })
   canvas.addEventListener('pointercancel', () => { tap.cancel(); drag = null })
   canvas.addEventListener('pointerup', () => { drag = null })
   const visibility = () => { if (!open) return; if (document.hidden) stream.stop(); else stream.start() }
-  const resize = () => model.heat()
+  const resize = () => { model.heat(); redraw() }
+  // 動きを減らす設定が変わったら、点滅と点の有無を描き直す（still ⇄ working）。
+  motion?.addEventListener?.('change', () => { reduceMotion = motion.matches; redraw() })
   return {
     open() {
       if (open) return

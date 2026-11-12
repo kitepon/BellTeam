@@ -43,7 +43,37 @@ test('大きさ・力学・境界は仕様の数値。多い時は小さくな�
   }
   const near = Math.min(...list.flatMap((a, i) => list.slice(i + 1).map(b => Math.hypot(a.x - b.x, a.y - b.y))))
   assert.ok(near > S * 1.6, `nearest pair ${near}`)
-  assert.ok(model.alpha >= 0.04)
+  // 落ち着いた図は α = 0、速度 0。次の変化まで位置は変わらない（behavior-spec "Layout" α、2026-11-13）。
+  assert.equal(model.alpha, 0)
+  for (const item of list) assert.ok(item.vu === 0 && item.vv === 0)
+  const before = list.map(item => [item.x, item.y])
+  for (let i = 0; i < 60; i++) model.step(1 / 60, rect, 900 * 16 + i * 16)
+  assert.deepEqual(list.map(item => [item.x, item.y]), before)
+})
+
+test('α は 1 から 0.985 ずつ下がり、0.001 未満で 0（layout-sim.mjs の settle と同じコマ数）。時計は moving → working / still', async () => {
+  const { simulate, sampleEdges, LAYOUT } = await import('../docs/architecture/modules/work-graph/layout-sim.mjs')
+  const model = createGraphModel()
+  model.snapshot(snapshot([node('a'), node('b', 'linked')], [edge('a', 'b')]), 0, rect)
+  let frames = 0, t = 0
+  while (model.alpha > 0) { model.step(1 / 60, rect, t += 1000 / 60); frames++ }
+  assert.equal(frames, simulate({ W: 345, H: 640, n: 4, edges: sampleEdges(4) }).settled)
+  assert.equal(frames, Math.ceil(Math.log(LAYOUT.alphaMin) / Math.log(LAYOUT.alphaDecay)))
+  assert.equal(model.clock(t), 'working')
+  assert.equal(model.clock(t, { animate: false }), 'still')
+  // 変化があれば α = 1 で moving に戻る。誰も働いていなければ落ち着いた後は still。
+  assert.equal(model.change({ epoch: 'e1', version: 2, changes: [{ type: 'member-update', node: node('a', 'linked') }] }, t, rect), true)
+  assert.equal(model.clock(t), 'moving')
+  while (model.alpha > 0) model.step(1 / 60, rect, t += 1000 / 60)
+  assert.equal(model.clock(t), 'still')
+  // 時間で決まる動き（線の終わり 300ms、去る顔 600ms）の間は α = 0 でも moving。
+  model.change({ epoch: 'e1', version: 3, changes: [{ type: 'edge-end', edgeId: 'a:b' }] }, t, rect); model.step(1 / 60, rect, t)
+  while (model.alpha > 0) model.step(1 / 60, rect, t += 1000 / 60)
+  model.change({ epoch: 'e1', version: 4, changes: [{ type: 'member-leave', botId: 'b' }] }, t, rect)
+  for (let i = 0; i < 459; i++) model.step(1 / 60, rect, t)
+  assert.equal(model.alpha, 0); assert.equal(model.clock(t), 'moving')
+  model.step(1 / 60, rect, t += 600)
+  assert.equal(model.clock(t), 'still')
 })
 
 test('ラベルは円板に重ならず、混んでいても出し続ける。名前と点と点滅の位相', () => {
@@ -451,4 +481,58 @@ test('W71 the canvas says 「つないでいます」 until the first picture ar
     await new Promise(resolve => setImmediate(resolve)); release(); await new Promise(resolve => setTimeout(resolve, 10))
     assert.equal(parts['[data-work-graph-summary]'].textContent, 'いま 1件の依頼が進行中'); assert.ok(!parts['[data-work-graph-empty]'].classList.contains('visible'))
   } finally { view.close(); Object.assign(globalThis, saved) }
+})
+
+// 偽の画面で rAF を60Hzで回し、描いたコマ（clearRect）を数える。
+async function runView(nodes, edges) {
+  const fakeNode = () => ({ textContent: '', hidden: false, children: [], dataset: {}, style: {}, classList: { set: new Set(), contains(c) { return this.set.has(c) }, toggle(c, on) { on ? this.set.add(c) : this.set.delete(c) }, remove(c) { this.set.delete(c) } },
+    listeners: {}, addEventListener(type, fn) { this.listeners[type] = [...(this.listeners[type] ?? []), fn] }, setAttribute() {}, contains: () => false, replaceChildren() {}, append() {}, querySelector() { return emptyP } })
+  const emptyP = fakeNode()
+  let drawn = 0
+  const context = new Proxy({ measureText: () => ({ width: 10 }), clearRect() { drawn++ }, filter: 'none' }, { get: (target, key) => key in target ? target[key] : () => ({ addColorStop() {} }), set: (target, key, value) => { target[key] = value; return true } })
+  const canvas = Object.assign(fakeNode(), { getContext: () => context, getBoundingClientRect: () => ({ left: 0, top: 0 }) })
+  const parts = { '[data-work-graph-stage]': Object.assign(fakeNode(), { getBoundingClientRect: () => ({ width: 1000, height: 700 }) }), canvas,
+    '[data-work-graph-pill]': fakeNode(), '[data-work-graph-empty]': fakeNode(), '[data-work-graph-a11y]': fakeNode(), '[data-work-graph-hint]': fakeNode(), '[data-work-graph-summary]': fakeNode() }
+  const dialog = { open: false, showModal() { this.open = true }, querySelector: selector => parts[selector], getBoundingClientRect: () => ({ top: 0, height: 760 }) }
+  const saved = { document: globalThis.document, requestAnimationFrame: globalThis.requestAnimationFrame, cancelAnimationFrame: globalThis.cancelAnimationFrame, now: Date.now }
+  let clock = Date.parse('2026-11-13T00:00:00Z'), pending = null
+  globalThis.document = { addEventListener() {}, removeEventListener() {}, hidden: false, activeElement: null, createElement: () => fakeNode() }
+  globalThis.requestAnimationFrame = fn => { assert.equal(pending, null, 'one frame request at a time'); pending = fn; return 1 }
+  globalThis.cancelAnimationFrame = () => { pending = null }
+  Date.now = () => clock
+  const body = `event: snapshot\ndata: ${JSON.stringify(snapshot(nodes, edges))}\n\n`
+  let sent = false
+  const fetch = async () => ({ ok: true, status: 200, body: { getReader: () => ({ read: () => sent ? new Promise(() => {}) : (sent = true, Promise.resolve({ done: false, value: new TextEncoder().encode(body) })) }) } })
+  const view = createWorkGraphView(dialog, { fetch })
+  view.open()
+  await new Promise(resolve => setTimeout(resolve, 10))
+  // seconds 秒ぶん60Hzで回し、描いたコマ数と最後に次のコマを頼んでいるかを返す。
+  const run = seconds => {
+    const start = drawn
+    for (let i = 0; i < seconds * 60; i++) { clock += 1000 / 60; const fn = pending; pending = null; fn?.(clock) }
+    return { frames: drawn - start, pending: pending !== null }
+  }
+  const close = () => { view.close(); Date.now = saved.now; Object.assign(globalThis, { document: saved.document, requestAnimationFrame: saved.requestAnimationFrame, cancelAnimationFrame: saved.cancelAnimationFrame }) }
+  return { run, close, canvas, waiting: () => pending !== null }
+}
+
+test('時計：落ち着くまで30コマ/秒、誰か働いていれば15コマ/秒、誰も働いていなければ描かず、指した時だけ1コマ', async () => {
+  const working = await runView([node('a'), node('b', 'linked')], [edge('a', 'b')])
+  try {
+    const settle = working.run(8)
+    assert.ok(settle.frames >= 225 && settle.frames <= 241, `settling frames ${settle.frames}`)
+    const idle = working.run(10)
+    assert.ok(idle.frames >= 145 && idle.frames <= 151 && idle.pending, `working frames in 10 s: ${idle.frames}`)
+  } finally { working.close() }
+  const quiet = await runView([node('a', 'linked'), node('b', 'linked')], [])
+  try {
+    quiet.run(8)
+    const still = quiet.run(10)
+    assert.deepEqual(still, { frames: 0, pending: false })
+    // 顔に当たるまでマウスを動かす。当たった時に1コマだけ頼む。
+    const move = (x, y) => { for (const fn of quiet.canvas.listeners.pointermove) fn({ pointerId: 1, clientX: x, clientY: y, pointerType: 'mouse' }) }
+    for (let x = 0; x < 1000 && !quiet.waiting(); x += 10) for (let y = 0; y < 700 && !quiet.waiting(); y += 10) move(x, y)
+    assert.ok(quiet.waiting())
+    assert.deepEqual(quiet.run(1), { frames: 1, pending: false })
+  } finally { quiet.close() }
 })

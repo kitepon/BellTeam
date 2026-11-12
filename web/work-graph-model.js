@@ -257,7 +257,9 @@ export function createGraphModel({ reduceMotion = false } = {}) {
       for (const [id, edge] of edges) if (edge.endAt && now - edge.endAt >= END_MS) edges.delete(id)
       for (const [id, node] of nodes) if (node.leaveAt && now - node.leaveAt >= (reduceMotion ? REDUCED_MS : LEAVE_MS)) nodes.delete(id)
       const live = [...nodes.values()].filter(node => !node.leaveAt), n = live.length
-      if (!n) return
+      // 落ち着いた図（α = 0）は次の変化か大きさの変更まで動かさない（behavior-spec "Layout" α）。
+      if (!n) alpha = 0
+      if (!alpha) return
       // 力は D に正規化した座標 (u, v) で計算する。衝突と境界だけ点で測る（behavior-spec "Layout ... normalized"）。
       const { w: W, h: H } = rect, S = avatarSide(rect, n, wide), cx = rect.x + W / 2, cy = rect.y + H / 2
       const kr = 0.005 / n, ks = 0.02, L = Math.min(0.7, 1.4 / Math.sqrt(n))
@@ -316,7 +318,19 @@ export function createGraphModel({ reduceMotion = false } = {}) {
         node.y = H < top + bottom ? cy : Math.min(rect.y + H - bottom, Math.max(rect.y + top, node.y))
       }
       if (++steps % 30 === 0) uncross(live, now, S)
-      alpha = Math.max(0.04, alpha * 0.985 ** (dt * 60))
+      alpha *= 0.985 ** (dt * 60)
+      if (alpha < 0.001) { alpha = 0; for (const node of live) node.vu = node.vv = 0 }
+    },
+    // 時計（behavior-spec "Clock and frame rate"）：moving は30コマ/秒で力学を進め、working は15コマ/秒で点滅と点だけ、still は描かない。
+    // animate = 流れがつながっていて（再接続中の札なし）、動きを減らす設定が切れている。
+    clock(now, { animate = true } = {}) {
+      const within = (at, ms) => at != null && now - at < ms
+      const fade = reduceMotion ? REDUCED_MS : null
+      const moving = alpha > 0
+        || [...nodes.values()].some(node => node.leaveAt || within(node.enterAt, fade ?? ENTER_MS) || within(node.glide?.at, GLIDE_MS))
+        || [...edges.values()].some(edge => edge.endAt || within(edge.startAt, fade ?? GROW_MS) || within(edge.chip?.appearAt, 200) || within(edge.chip?.nullAt, END_MS))
+      if (moving) return 'moving'
+      return animate && [...nodes.values()].some(node => node.state === 'working') ? 'working' : 'still'
     },
     // 描く物の一覧。edges → nodes → labels の順に描く。
     frame(now, rect, { wide = false, hover = null, measure = text => text.length * 7 } = {}) {
