@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-12T00:17:43Z",
-  "expiresAt": "2026-11-19T00:17:43Z",
+  "publishedAt": "2026-11-12T01:10:28Z",
+  "expiresAt": "2026-11-19T01:10:28Z",
   "releases": [
     {
       "componentId": "usage",
@@ -429,8 +429,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "bf561e48eedb7cc80bc8ba1a8a9344e87c58e815",
-      "versionId": "ea4eebe7cc45624db9710bd8dc057db6997e30b7ba7fc36ea8c4d66a0cfc97b6",
+      "sourceCommit": "22a8e92dd8a210d71fd775584cc8d5210b15da6d",
+      "versionId": "2778e608c9db4e8f52fa620da5bf93691881aa61c0397909a18d3d673e565b71",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -438,16 +438,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T001521Z/web-gateway-bf561e48eedb7cc80bc8ba1a8a9344e87c58e815-linux-amd64.tar.gz",
-          "bytes": 5289011,
-          "sha256": "ea4eebe7cc45624db9710bd8dc057db6997e30b7ba7fc36ea8c4d66a0cfc97b6"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T010858Z/web-gateway-22a8e92dd8a210d71fd775584cc8d5210b15da6d-linux-amd64.tar.gz",
+          "bytes": 5289128,
+          "sha256": "2778e608c9db4e8f52fa620da5bf93691881aa61c0397909a18d3d673e565b71"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T001521Z/web-gateway-bf561e48eedb7cc80bc8ba1a8a9344e87c58e815-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11111,
-          "sha256": "c24a5a29de419fde15be86a6d3c880cf7478bbfe6ac9d1271f406c38509e9293"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T010858Z/web-gateway-22a8e92dd8a210d71fd775584cc8d5210b15da6d-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11193,
+          "sha256": "b52c8d4ffe56bfc87fd73bbe436d7670f66f065cd5cae4949859527884d33095"
         },
-        "signerCommit": "bf561e48eedb7cc80bc8ba1a8a9344e87c58e815"
+        "signerCommit": "22a8e92dd8a210d71fd775584cc8d5210b15da6d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -461,8 +461,8 @@
     },
     {
       "componentId": "web-gateway",
-      "sourceCommit": "bf561e48eedb7cc80bc8ba1a8a9344e87c58e815",
-      "versionId": "2f2207a296cf132f62ecf8d1d8c8d164d9216a8ac4fb51cfcc20f25db36b9557",
+      "sourceCommit": "22a8e92dd8a210d71fd775584cc8d5210b15da6d",
+      "versionId": "80242736821edcfe8089c8d6fb9dc81c74056281a88da3efed34d7bcdac08140",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -470,16 +470,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T001521Z/web-gateway-bf561e48eedb7cc80bc8ba1a8a9344e87c58e815-linux-arm64.tar.gz",
-          "bytes": 5289011,
-          "sha256": "2f2207a296cf132f62ecf8d1d8c8d164d9216a8ac4fb51cfcc20f25db36b9557"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T010858Z/web-gateway-22a8e92dd8a210d71fd775584cc8d5210b15da6d-linux-arm64.tar.gz",
+          "bytes": 5289128,
+          "sha256": "80242736821edcfe8089c8d6fb9dc81c74056281a88da3efed34d7bcdac08140"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T001521Z/web-gateway-bf561e48eedb7cc80bc8ba1a8a9344e87c58e815-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11056,
-          "sha256": "02eaea7c86702fc28a9ad0992bcf076cb07cad1cf681912171f664126c92f2e7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T010858Z/web-gateway-22a8e92dd8a210d71fd775584cc8d5210b15da6d-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11158,
+          "sha256": "d221c200ce015f5eed25aced4dd4c24b5c11f42cea4bcb1c3646d91386660db6"
         },
-        "signerCommit": "bf561e48eedb7cc80bc8ba1a8a9344e87c58e815"
+        "signerCommit": "22a8e92dd8a210d71fd775584cc8d5210b15da6d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -493,8 +493,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "367a5b5d84b11943b4b29b412165876baf429591",
-      "versionId": "5bad4870945b8fa755f82d74423c4af20df4a2a9b0b475318fd47f4aed0594ed",
+      "sourceCommit": "22a8e92dd8a210d71fd775584cc8d5210b15da6d",
+      "versionId": "a10f033d3f28af6b0e4609b73dce80b0a15062dd0599b2396cfc6befbe4db181",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -502,16 +502,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T000017Z/execution-367a5b5d84b11943b4b29b412165876baf429591-linux-amd64.tar.gz",
-          "bytes": 3961028,
-          "sha256": "5bad4870945b8fa755f82d74423c4af20df4a2a9b0b475318fd47f4aed0594ed"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T010907Z/execution-22a8e92dd8a210d71fd775584cc8d5210b15da6d-linux-amd64.tar.gz",
+          "bytes": 3961540,
+          "sha256": "a10f033d3f28af6b0e4609b73dce80b0a15062dd0599b2396cfc6befbe4db181"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T000017Z/execution-367a5b5d84b11943b4b29b412165876baf429591-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11134,
-          "sha256": "16a09a849ac1b49ba5092a810a60651f74fca3e39c2b6ef2092f04ac893094d8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T010907Z/execution-22a8e92dd8a210d71fd775584cc8d5210b15da6d-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11040,
+          "sha256": "39fe24733904d03302013212a12296526e36d15abe72fc64f6e429e808b2e576"
         },
-        "signerCommit": "367a5b5d84b11943b4b29b412165876baf429591"
+        "signerCommit": "22a8e92dd8a210d71fd775584cc8d5210b15da6d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -521,13 +521,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "分身への問い合わせの答えを、問い合わせた席へ届けるようになりました。端末の席の目標を画面から読めるようになりました。席のClaudeのログインでモデル一覧を読めるようになりました。"
+        "分身への問い合わせの答えを、問い合わせた席へ届けるようになりました。端末の席の目標を画面から読めるようになりました。モデル一覧を席のClaudeのログインで読み、ログインが無い時は今までどおりの一覧を出すようになりました。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "367a5b5d84b11943b4b29b412165876baf429591",
-      "versionId": "1cf516eb392445158981281ca96832ee49ff52b2893cf81a6281dfc19e3e778e",
+      "sourceCommit": "22a8e92dd8a210d71fd775584cc8d5210b15da6d",
+      "versionId": "0d27d6bd65ac58a50a77d3edcac74a129b55fa64602679ce1a2076b376b9a2d5",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -535,16 +535,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T000017Z/execution-367a5b5d84b11943b4b29b412165876baf429591-linux-arm64.tar.gz",
-          "bytes": 3961029,
-          "sha256": "1cf516eb392445158981281ca96832ee49ff52b2893cf81a6281dfc19e3e778e"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T010907Z/execution-22a8e92dd8a210d71fd775584cc8d5210b15da6d-linux-arm64.tar.gz",
+          "bytes": 3961542,
+          "sha256": "0d27d6bd65ac58a50a77d3edcac74a129b55fa64602679ce1a2076b376b9a2d5"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T000017Z/execution-367a5b5d84b11943b4b29b412165876baf429591-linux-arm64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T010907Z/execution-22a8e92dd8a210d71fd775584cc8d5210b15da6d-linux-arm64.tar.gz.sigstore.json",
           "bytes": 11177,
-          "sha256": "e659c5e7e8b4bde0c03cd543ff1c090377488cf05fa7b117c197c12224b887ed"
+          "sha256": "ee57aec5219ea6def345d4827fb72b1b023a9e015d35fb1a65f8b8120c29022a"
         },
-        "signerCommit": "367a5b5d84b11943b4b29b412165876baf429591"
+        "signerCommit": "22a8e92dd8a210d71fd775584cc8d5210b15da6d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -554,13 +554,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "分身への問い合わせの答えを、問い合わせた席へ届けるようになりました。端末の席の目標を画面から読めるようになりました。席のClaudeのログインでモデル一覧を読めるようになりました。"
+        "分身への問い合わせの答えを、問い合わせた席へ届けるようになりました。端末の席の目標を画面から読めるようになりました。モデル一覧を席のClaudeのログインで読み、ログインが無い時は今までどおりの一覧を出すようになりました。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "7c27382868f01dd980a30a2fd08a07ef6fc35b55",
-      "versionId": "c7d465132a1623a89cfd9b91f96341b076811108616f2be9c1a5445e75bbd707",
+      "sourceCommit": "22a8e92dd8a210d71fd775584cc8d5210b15da6d",
+      "versionId": "d290f66f9556466f4a2765dafffb53f360cc93709c833bd30f0bc2666ed314d3",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -568,16 +568,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T001528Z/members-7c27382868f01dd980a30a2fd08a07ef6fc35b55-linux-amd64.tar.gz",
-          "bytes": 4480218,
-          "sha256": "c7d465132a1623a89cfd9b91f96341b076811108616f2be9c1a5445e75bbd707"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T010914Z/members-22a8e92dd8a210d71fd775584cc8d5210b15da6d-linux-amd64.tar.gz",
+          "bytes": 4484118,
+          "sha256": "d290f66f9556466f4a2765dafffb53f360cc93709c833bd30f0bc2666ed314d3"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T001528Z/members-7c27382868f01dd980a30a2fd08a07ef6fc35b55-linux-amd64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T010914Z/members-22a8e92dd8a210d71fd775584cc8d5210b15da6d-linux-amd64.tar.gz.sigstore.json",
           "bytes": 11090,
-          "sha256": "5172bb77e831c73c9afa6b72f860814230c2988262a15949d104dd7778adbc70"
+          "sha256": "8fa987904fd4b68a6092a9d46bc596e679d4b98350067bbbe4ae94f6b76c911b"
         },
-        "signerCommit": "7c27382868f01dd980a30a2fd08a07ef6fc35b55"
+        "signerCommit": "22a8e92dd8a210d71fd775584cc8d5210b15da6d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -594,13 +594,13 @@
         }
       },
       "changes": [
-        "モデル一覧を、席のClaudeのログインで読むようになりました。"
+        "モデル一覧を、席のClaudeのログインで読むようになりました。共通規範に、工程表（Lattice）を自分の作業で使う決まりを加えました。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "7c27382868f01dd980a30a2fd08a07ef6fc35b55",
-      "versionId": "4d048c8676931577edc36300c9ab2500eeb708b6abb132c143b4f7d58f318588",
+      "sourceCommit": "22a8e92dd8a210d71fd775584cc8d5210b15da6d",
+      "versionId": "fd8e27b46e842cda953d90961c28bb184c45588e3013259cf8e21cb4789cc154",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -608,16 +608,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T001528Z/members-7c27382868f01dd980a30a2fd08a07ef6fc35b55-linux-arm64.tar.gz",
-          "bytes": 4480218,
-          "sha256": "4d048c8676931577edc36300c9ab2500eeb708b6abb132c143b4f7d58f318588"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T010914Z/members-22a8e92dd8a210d71fd775584cc8d5210b15da6d-linux-arm64.tar.gz",
+          "bytes": 4484122,
+          "sha256": "fd8e27b46e842cda953d90961c28bb184c45588e3013259cf8e21cb4789cc154"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T001528Z/members-7c27382868f01dd980a30a2fd08a07ef6fc35b55-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11051,
-          "sha256": "3527b9a29a6b9da5dbd80bb2e74120a939b773df4db49bcff72b5d17ef6fbdd8"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T010914Z/members-22a8e92dd8a210d71fd775584cc8d5210b15da6d-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10953,
+          "sha256": "f23ab5f8108f13b85a3a66eca83eb0d2c3383400346b2091bd312260f792f6be"
         },
-        "signerCommit": "7c27382868f01dd980a30a2fd08a07ef6fc35b55"
+        "signerCommit": "22a8e92dd8a210d71fd775584cc8d5210b15da6d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -634,7 +634,7 @@
         }
       },
       "changes": [
-        "モデル一覧を、席のClaudeのログインで読むようになりました。"
+        "モデル一覧を、席のClaudeのログインで読むようになりました。共通規範に、工程表（Lattice）を自分の作業で使う決まりを加えました。"
       ]
     },
     {
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "41b0ee790ee0005bf6cfff06e4c2f61b16abb8ee",
-      "versionId": "sha256:202af57ef594f89afe61c9682eeeaee23f4104085b47b939a1b3a9607c65d822",
+      "sourceCommit": "22a8e92dd8a210d71fd775584cc8d5210b15da6d",
+      "versionId": "sha256:295ad76b5b0a4913b50719dc1598b0aed967a761acc2585ea55ce06f4ef7a1aa",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:202af57ef594f89afe61c9682eeeaee23f4104085b47b939a1b3a9607c65d822"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:295ad76b5b0a4913b50719dc1598b0aed967a761acc2585ea55ce06f4ef7a1aa"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,20 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "別の端末で動く席の目標も、画面から読んで確かめられるようにします。分身への問い合わせの答えが、問い合わせた席へ届くようにします。本体を再起動した後、席が道具の一覧を読み直します。席のClaudeのログインでモデル一覧を読めるようにします。部品のエラー記録を、秘密を伏せた読めるファイルに残します。工程表でBellTeamのコードの図を作れるようにします。"
+        "別の端末で動く席の目標も読めるようにします（Aiterm 0.70.29）。分身への問い合わせの答えが、問い合わせた席へ届くようにします。本体を再起動した後、席が道具の一覧を読み直します。モデル一覧を席のClaudeのログインで読み、ログインが無い時は今までどおりの一覧を出します。部品のエラー記録を、秘密を伏せた読めるファイルに残します。工程表でBellTeamのコードの図を作れるようにします。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "41b0ee790ee0005bf6cfff06e4c2f61b16abb8ee",
-      "versionId": "sha256:202af57ef594f89afe61c9682eeeaee23f4104085b47b939a1b3a9607c65d822",
+      "sourceCommit": "22a8e92dd8a210d71fd775584cc8d5210b15da6d",
+      "versionId": "sha256:295ad76b5b0a4913b50719dc1598b0aed967a761acc2585ea55ce06f4ef7a1aa",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:202af57ef594f89afe61c9682eeeaee23f4104085b47b939a1b3a9607c65d822"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:295ad76b5b0a4913b50719dc1598b0aed967a761acc2585ea55ce06f4ef7a1aa"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,13 +748,13 @@
         "containerUpdate": 1
       },
       "changes": [
-        "別の端末で動く席の目標も、画面から読んで確かめられるようにします。分身への問い合わせの答えが、問い合わせた席へ届くようにします。本体を再起動した後、席が道具の一覧を読み直します。席のClaudeのログインでモデル一覧を読めるようにします。部品のエラー記録を、秘密を伏せた読めるファイルに残します。工程表でBellTeamのコードの図を作れるようにします。"
+        "別の端末で動く席の目標も読めるようにします（Aiterm 0.70.29）。分身への問い合わせの答えが、問い合わせた席へ届くようにします。本体を再起動した後、席が道具の一覧を読み直します。モデル一覧を席のClaudeのログインで読み、ログインが無い時は今までどおりの一覧を出します。部品のエラー記録を、秘密を伏せた読めるファイルに残します。工程表でBellTeamのコードの図を作れるようにします。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "41b0ee790ee0005bf6cfff06e4c2f61b16abb8ee",
-      "versionId": "6054e3f8f1c64a6f8ac7e20c843ba900ffc5d728b3066e7a979a0b62d03e2786",
+      "sourceCommit": "22a8e92dd8a210d71fd775584cc8d5210b15da6d",
+      "versionId": "0911da442a70971b0dd2ab32dd88207797da4eb4ea7bea2d86beadfe16bba7c6",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -762,16 +762,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T001511Z/lattice-41b0ee790ee0005bf6cfff06e4c2f61b16abb8ee-linux-amd64.tar.gz",
-          "bytes": 15234265,
-          "sha256": "6054e3f8f1c64a6f8ac7e20c843ba900ffc5d728b3066e7a979a0b62d03e2786"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T010848Z/lattice-22a8e92dd8a210d71fd775584cc8d5210b15da6d-linux-amd64.tar.gz",
+          "bytes": 15235614,
+          "sha256": "0911da442a70971b0dd2ab32dd88207797da4eb4ea7bea2d86beadfe16bba7c6"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T001511Z/lattice-41b0ee790ee0005bf6cfff06e4c2f61b16abb8ee-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11137,
-          "sha256": "a7ab4e93cab8af5fd07ffb1c5043b611a7088d15691757d40e06380a3ba89df4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T010848Z/lattice-22a8e92dd8a210d71fd775584cc8d5210b15da6d-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10996,
+          "sha256": "92271032e677795b43572a6244a1fe123fdc27833a1352f0a8b59d0566fc9255"
         },
-        "signerCommit": "41b0ee790ee0005bf6cfff06e4c2f61b16abb8ee"
+        "signerCommit": "22a8e92dd8a210d71fd775584cc8d5210b15da6d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -783,13 +783,13 @@
         }
       },
       "changes": [
-        "工程表に作業を1つずつ追加できるようになりました。BellTeamのコードの構造を図にできるようになりました。"
+        "工程表に作業を1つずつ追加できるようになりました。BellTeamのコードの構造を図にできるようになりました。並行作業の宣言を、各メンバーが自分の作業の分だけ書けるようになりました。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "41b0ee790ee0005bf6cfff06e4c2f61b16abb8ee",
-      "versionId": "3a20ccdac401a2889b8f9511de4ade0844b612d59aec44ec5620d1ec2129b113",
+      "sourceCommit": "22a8e92dd8a210d71fd775584cc8d5210b15da6d",
+      "versionId": "8bb4b301632346f148a5a48d89bd164159cd7bc119132bf0cd16246a78430ff3",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -797,16 +797,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T001511Z/lattice-41b0ee790ee0005bf6cfff06e4c2f61b16abb8ee-linux-arm64.tar.gz",
-          "bytes": 15234265,
-          "sha256": "3a20ccdac401a2889b8f9511de4ade0844b612d59aec44ec5620d1ec2129b113"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T010848Z/lattice-22a8e92dd8a210d71fd775584cc8d5210b15da6d-linux-arm64.tar.gz",
+          "bytes": 15235623,
+          "sha256": "8bb4b301632346f148a5a48d89bd164159cd7bc119132bf0cd16246a78430ff3"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T001511Z/lattice-41b0ee790ee0005bf6cfff06e4c2f61b16abb8ee-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11043,
-          "sha256": "2db2435e6c6e270af157c10ff9e80f72eb42dfa0b342a0f88adc430415afafc1"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T010848Z/lattice-22a8e92dd8a210d71fd775584cc8d5210b15da6d-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11031,
+          "sha256": "f5e2b1b5b2ea33e79c71135bc86bd46735e360144e2bf499fde2eec0cfe8e0ab"
         },
-        "signerCommit": "41b0ee790ee0005bf6cfff06e4c2f61b16abb8ee"
+        "signerCommit": "22a8e92dd8a210d71fd775584cc8d5210b15da6d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -818,7 +818,7 @@
         }
       },
       "changes": [
-        "工程表に作業を1つずつ追加できるようになりました。BellTeamのコードの構造を図にできるようになりました。"
+        "工程表に作業を1つずつ追加できるようになりました。BellTeamのコードの構造を図にできるようになりました。並行作業の宣言を、各メンバーが自分の作業の分だけ書けるようになりました。"
       ]
     }
   ],
