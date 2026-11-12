@@ -13,6 +13,12 @@ export function directEnvelope(from, message, { fork = false } = {}) {
   return `「${name}${fork ? '（分身）' : ''}」からあなたへ次のメッセージが届いています。\n\n${message}`
 }
 
+// fork-inquiry.md "Inquiry row and fork input": the fork answers in its last reply, which is relayed; a sendmessage would be a 2nd message.
+export function forkInquiryEnvelope(from, message, { fork = false } = {}) {
+  const name = `${from.name}${fork ? '（分身）' : ''}`
+  return `「${name}」から読み取り専用の問い合わせが届いています。あなたの最後の返答が、そのまま「${name}」へ届きます。答えはsendmessageなどの道具で送らず、最後の返答に書いてください。\n\n${message}`
+}
+
 function forkSeatLabel(seat) {
   return seat?.kind === 'fork' && typeof seat.forkId === 'string' && seat.forkId ? { kind: 'fork', fork_id: seat.forkId } : null
 }
@@ -33,7 +39,8 @@ export class BellTeamMessenger extends ConversationWriter {
     this.admitWork = admitWork
     this.store = store
     // fork-inquiry.md "Owed notice": inquiries whose ONE notice this process holds (live) or still owes (owed).
-    this.forkNotices = { live: new Set(), owed: new Map(), scanned: false }
+    // refused: pre-accept refusals whose terminal status write failed; each sweep retries them and they stay live until it succeeds.
+    this.forkNotices = { live: new Set(), owed: new Map(), refused: new Map(), scanned: false }
     this.claimedReplyIds = new Set()
   }
 
@@ -48,7 +55,7 @@ export class BellTeamMessenger extends ConversationWriter {
 
   // sendmessage・ask_readonly・分身の回答中継が共有する、宛先の確認から記録の保存まで。
   // label（分身の印）は入力本文からは受け取らない。
-  async prepareDirect({ from, target, message, image = null, images = image ? [image] : [] }, { membersLease, admissionCheck } = {}, label = null) {
+  async prepareDirect({ from, target, message, image = null, images = image ? [image] : [] }, { membersLease, admissionCheck, deliveryId: presetId } = {}, label = null) {
     const check = target === 'user' ? () => {} : this.admitWork()
     await this.bots.refresh?.(membersLease === undefined ? undefined : { membersLease })
     if (!['user', 'scheduler'].includes(from) && !this.bots.has(from)) throw new Error(`SENDER_NOT_FOUND: ${from}`)
@@ -62,7 +69,7 @@ export class BellTeamMessenger extends ConversationWriter {
     if (bot) await this.requireAccess({ from, target })
     if (bot) admissionCheck?.()
 
-    const deliveryId = this.deliveryId()
+    const deliveryId = presetId ?? this.deliveryId()
     const imageAsset = images.length && target === 'user' && this.assets
       ? await this.assets.save({ owner: from, id: deliveryId, image: images[0] })
       : null
@@ -103,13 +110,26 @@ export class BellTeamMessenger extends ConversationWriter {
     const forkId = this.deliveryId()
     const seat = { kind: 'fork', fork_id: forkId }
     const fromSeat = forkSeatLabel(askerSeat)
-    const prepared = await this.prepareDirect({ from, target, message }, {}, { seat, ...(fromSeat ? { from_seat: fromSeat } : {}) })
-    const { check, bot, deliveryId } = prepared
+    // Live from before the inquiry row is durable until its terminal status is: no sweep ever sees it running and not live.
+    const deliveryId = this.deliveryId()
+    this.forkNotices.live.add(deliveryId)
+    // A failed status write leaves the refusal to the next fork.sweep; the tool error stays the refusal.
+    const refused = async (status, error, ifRow = false) => {
+      const refusal = { deliveryId, status, error, ifRow }
+      try { await this.settleForkRefusal(refusal) }
+      catch (writeError) {
+        this.forkNotices.refused.set(deliveryId, refusal)
+        process.stderr.write(`BellTeam fork refusal status error: ${writeError.code ?? writeError.message}\n`)
+      }
+    }
+    let prepared
+    try { prepared = await this.prepareDirect({ from, target, message }, { deliveryId }, { seat, ...(fromSeat ? { from_seat: fromSeat } : {}) }) }
+    catch (error) { await refused('failed', error, true); throw error }
+    const { check, bot } = prepared
     const asker = memberIdentity(this.bots, from)
     const askedAt = this.now()
-    if (!fromSeat) this.forkNotices.live.add(deliveryId)
     try { check() }
-    catch (error) { this.forkNotices.live.delete(deliveryId); await this.appendDeliveryStatus(deliveryId, 'stopped'); throw error }
+    catch (error) { await refused('stopped'); throw error }
     const acceptance = Promise.withResolvers()
     const answered = Promise.withResolvers()
     let relayed = false
@@ -119,7 +139,7 @@ export class BellTeamMessenger extends ConversationWriter {
     const relay = text => {
       if (relayed) return
       relayed = true
-      if (fromSeat) return answered.resolve(text)
+      if (fromSeat) { this.forkNotices.live.delete(deliveryId); return answered.resolve(text) }
       const notice = { from: bot.id, target: from, message: text, forkId, deliveryId, askedAt, answeredAt: this.now() }
       return acceptance.promise
         .then(accepted => accepted && this.relayForkAnswer(notice))
@@ -136,7 +156,7 @@ export class BellTeamMessenger extends ConversationWriter {
     const onInterim = words => this.appendInterimWords(bot.id, deliveryId, words, { seat })
     const onAnswer = text => this.appendInterimWords(bot.id, deliveryId, [{ text, kind: 'answer' }], { seat })
     try {
-      const result = await this.transport.forkInquiry(bot, directEnvelope(asker, message, { fork: Boolean(fromSeat) }), {
+      const result = await this.transport.forkInquiry(bot, forkInquiryEnvelope(asker, message, { fork: Boolean(fromSeat) }), {
         forkId, deliveryId, ...(executionSource ? { executionSource } : {}),
         queue: { context: 'direct', contextId: bot.id, groupId: deliveryId, from, fromName: asker.name, target: bot.id, message },
         onInterim,
@@ -158,18 +178,32 @@ export class BellTeamMessenger extends ConversationWriter {
       return { delivery: result?.delivery ?? 'running', ...receipt }
     } catch (error) {
       acceptance.resolve(false)
-      this.forkNotices.live.delete(deliveryId)
-      await this.appendDeliveryStatus(deliveryId, ['BOT_STOPPED', 'AI_GLOBAL_PAUSED'].includes(error.code) ? 'stopped' : 'failed', error)
+      await refused(['BOT_STOPPED', 'AI_GLOBAL_PAUSED'].includes(error.code) ? 'stopped' : 'failed', error)
       throw error
     }
+  }
+
+  // ifRow: a prepareDirect failure settles the inquiry row only if it is durable (an onMessage error after the write).
+  async settleForkRefusal({ deliveryId, status, error, ifRow }) {
+    if (!ifRow || (await this.store.entries()).some(row => row.schema === 'bellteam.direct-message.v1' && row.delivery_id === deliveryId))
+      await this.appendDeliveryStatus(deliveryId, status, error)
+    this.forkNotices.live.delete(deliveryId)
   }
 
   // fork-inquiry.md "Owed notice": relay each owed notice once; the first sweep of a process also scans the log.
   async sweepForkNotices() {
     const notices = this.forkNotices
+    for (const [deliveryId, refusal] of [...notices.refused]) {
+      if (!notices.refused.delete(deliveryId)) continue // claimed, like an owed notice
+      try { await this.settleForkRefusal(refusal) } catch { notices.refused.set(deliveryId, refusal) }
+    }
     if (!notices.scanned) {
-      for (const notice of owedForkNotices(await this.store.entries()))
+      const entries = await this.store.entries()
+      for (const notice of owedForkNotices(entries))
         if (!notices.live.has(notice.deliveryId) && !notices.owed.has(notice.deliveryId)) notices.owed.set(notice.deliveryId, notice)
+      // A row left running by a lost process never gets its status from a callback.
+      for (const { deliveryId, delivery } of unsettledForkInquiries(entries)) if (!notices.live.has(deliveryId))
+        await this.appendDeliveryStatus(deliveryId, delivery, delivery === 'failed' ? { code: 'FORK_FAILED' } : null)
       notices.scanned = true
     }
     let relayed = 0
@@ -419,6 +453,14 @@ function jst(iso) {
 
 // An inquiry with a main asker and no relay row owes its notice. A post-accept failure saved its text as a fork
 // `error` row first; a failed/stopped inquiry without one was refused before accept (already the tool error).
+export function unsettledForkInquiries(entries) {
+  const answered = new Set(entries.filter(entry => entry.schema === 'bellteam.interim-word.v1' && entry.seat?.kind === 'fork' && entry.kind === 'answer')
+    .map(entry => entry.group_id))
+  return entries.filter(entry => entry.schema === 'bellteam.direct-message.v1' && entry.seat?.kind === 'fork' && !entry.in_reply_to
+    && ['running', 'steered'].includes(entry.delivery))
+    .map(entry => ({ deliveryId: entry.delivery_id, delivery: answered.has(entry.delivery_id) ? 'delivered' : 'failed' }))
+}
+
 export function owedForkNotices(entries) {
   const relayed = new Set(), answers = new Map(), failures = new Map(), owed = []
   for (const entry of entries) {

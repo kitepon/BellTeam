@@ -292,7 +292,7 @@ test('fork.ask crosses the child as execution.fork, labels target rows and relay
   assert.equal(fork.params.forkId, receipt.fork_id)
   assert.deepEqual(fork.params.kinds, ['delivery.status', 'delivery.words', 'delivery.answer'])
   assert.deepEqual([fork.params.queue.context, fork.params.queue.groupId, fork.params.queue.target], ['direct', receipt.delivery_id, target])
-  assert.match(fork.params.message, /「Asker」からあなたへ/u)
+  assert.match(fork.params.message, /^「Asker」から読み取り専用の問い合わせ/u)
   await h.callback(fork, 'delivery.answer', { text: 'X is Y.' })
   await h.callback(fork, 'delivery.status', normalizeConversationCallback('delivery.status', { delivery: 'delivered', error: null, tracking: null }))
   await until(() => h.native.some(item => item.method === 'execution.notify'))
