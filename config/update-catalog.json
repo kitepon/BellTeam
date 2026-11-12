@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-12T22:16:35Z",
-  "expiresAt": "2026-11-19T22:16:35Z",
+  "publishedAt": "2026-11-12T22:44:41Z",
+  "expiresAt": "2026-11-19T22:44:41Z",
   "releases": [
     {
       "componentId": "usage",
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "bd164ebf0e11c472ddc7fbe072c1c3cc9e509fcc",
-      "versionId": "sha256:fd1cd3817d29e45234cbc645b83d69187603a1b5a6e6b585d2f99fad297cd47c",
+      "sourceCommit": "539aef6d6fdf6efaffe7f6550ad3d7ba26fbab2a",
+      "versionId": "sha256:1351064afdc411ce42128dc038f4bad4878e6555809a35ad39002f4abb926d0c",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:fd1cd3817d29e45234cbc645b83d69187603a1b5a6e6b585d2f99fad297cd47c"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:1351064afdc411ce42128dc038f4bad4878e6555809a35ad39002f4abb926d0c"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,20 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "工程表の見回りと Approval Box への申請を、本体の側で行えるようにします。工程表の部品と一緒に入れ替えます。"
+        "評価者様の工程のどれかが Approval Box に断られても、その工程だけを飛ばして、次の工程の申請に進むようにします。Approval Box につながらない時は、その回の見回りを止めて次の回にやり直します。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "bd164ebf0e11c472ddc7fbe072c1c3cc9e509fcc",
-      "versionId": "sha256:fd1cd3817d29e45234cbc645b83d69187603a1b5a6e6b585d2f99fad297cd47c",
+      "sourceCommit": "539aef6d6fdf6efaffe7f6550ad3d7ba26fbab2a",
+      "versionId": "sha256:1351064afdc411ce42128dc038f4bad4878e6555809a35ad39002f4abb926d0c",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:fd1cd3817d29e45234cbc645b83d69187603a1b5a6e6b585d2f99fad297cd47c"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:1351064afdc411ce42128dc038f4bad4878e6555809a35ad39002f4abb926d0c"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,7 +748,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "工程表の見回りと Approval Box への申請を、本体の側で行えるようにします。工程表の部品と一緒に入れ替えます。"
+        "評価者様の工程のどれかが Approval Box に断られても、その工程だけを飛ばして、次の工程の申請に進むようにします。Approval Box につながらない時は、その回の見回りを止めて次の回にやり直します。"
       ]
     },
     {
