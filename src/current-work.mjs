@@ -100,7 +100,7 @@ export class CurrentWork {
     if (!this.records.has(botId)) this.records.set(botId, {
       botId, sessionId: null, launchId: null, turnId: null, startedAt: null, revision: randomUUID(), state: 'unknown',
       observedAt: null, observedMono: null, summary: null, summaryStatus: 'missing', summaryUpdatedAt: null,
-      summaryMono: null, lastRead: 0, barrier: 0, completed: null, settledSeq: 0, absentMono: null,
+      summaryMono: null, lastRead: 0, barrier: 0, completed: null, settledSeq: 0, absentMono: null, listed: null,
     })
     return this.records.get(botId)
   }
@@ -125,7 +125,7 @@ export class CurrentWork {
   invalidate(botId) { this.finishedActivity(botId, this.restartActivity.get(botId)); this.unknown(this.record(botId)); this.schedule() }
   sync(botId, sessionId, available = true) {
     const record = this.record(botId)
-    if (record.sessionId !== sessionId) { this.unknown(record); record.sessionId = sessionId; record.absent = false; record.settledSeq = 0 }
+    if (record.sessionId !== sessionId) { this.unknown(record); record.sessionId = sessionId; record.absent = false; record.settledSeq = 0; record.listed = null }
     if (!available || this.closed) this.unknown(record)
     this.expire(record)
     return record
@@ -183,6 +183,8 @@ export class CurrentWork {
       if (read.seq <= record.barrier || read.seq <= record.lastRead) continue
       record.lastRead = read.seq
       if (!target.current() || target.sessionId !== record.sessionId) { this.unknown(record); continue }
+      // remote-seat.md "Seat liveness": unread names only sessions Aiterm holds, so they count as present.
+      if (valid) record.listed = unread.has(target.sessionId) || rows.some(row => row?.session_id === target.sessionId)
       if (unread.has(target.sessionId)) continue
       const matches = rows.filter(row => row?.session_id === target.sessionId)
       // A valid read without this seat proves no turn can run (after_turn reads it as idle; the DTO stays unknown).
@@ -226,6 +228,11 @@ export class CurrentWork {
     }
     this.observed()
     this.schedule()
+  }
+  // Whether the latest valid read for this session found the seat (null = not read yet). runningBots for remote seats.
+  listed(botId, sessionId) {
+    const record = this.records.get(botId)
+    return record?.sessionId === sessionId ? record.listed ?? null : null
   }
   // control-details.md "受付後の追跡失敗の自己退役": a valid read begun after `seq` (or Aiterm's done) found no turn on this session.
   settledAfter(botId, sessionId, seq) {
