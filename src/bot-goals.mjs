@@ -33,7 +33,7 @@ const grokSnapshot = native => keysOnly(native, ['goal_id', 'objective', 'status
   'current_subagent_id', 'current_subagent_role', 'history', 'verifier_id', ...grokCounters])
   && typeof native.goal_id === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/iu.test(native.goal_id)
   && typeof native.objective === 'string' && native.objective.length > 0
-  && ['active', 'user_paused'].includes(native.status) && grokPhases.includes(native.phase)
+  && typeof native.status === 'string' && native.status.length > 0 && grokPhases.includes(native.phase)
   && Number.isSafeInteger(native.token_budget) && native.token_budget > 0
   && typeof native.created_at === 'string' && Number.isFinite(Date.parse(native.created_at))
   && ['current_subagent_id', 'current_subagent_role'].every(key => native[key] === null || typeof native[key] === 'string')
@@ -67,7 +67,11 @@ const validNativeGoal = (goal, result) => goal === null || (
     && grokSnapshot(goal.native) && (!Object.hasOwn(goal, 'current_status') || grokCurrent(goal.current_status))
 )
 const goalStatus = goal => goal?.kind === 'codex-cli' ? goal.native.status : goal?.kind === 'claude-code' ? goal.phase
-  : goal?.kind === 'grok-cli' ? ['UserPaused', 'Paused'].includes(grokPublic(goal).current_status.status) ? 'paused' : 'active' : goal?.status
+  : goal?.kind === 'grok-cli' ? goal.current_status ? ['UserPaused', 'Paused'].includes(goal.current_status.status) ? 'paused' : 'active'
+    // Saved status is open (Grok 1.0.77: budget_limited and more); only active/user_paused allow pause/resume.
+    : grokPhaseOf.get(goal.native.status) ?? goal.native.status : goal?.status
+const grokPhaseOf = new Map([['active', 'active'], ['user_paused', 'paused']])
+const grokStatusText = new Map([['active', '進行中'], ['user_paused', '一時停止'], ['budget_limited', '予算上限']])
 const grokElapsedText = ms => {
   const s = Math.floor(ms / 1000), m = Math.floor(s / 60), h = Math.floor(m / 60), pad = n => String(n).padStart(2, '0')
   return h ? `${h}h${pad(m % 60)}m` : m ? `${m}m${pad(s % 60)}s` : `${s}s`
@@ -75,8 +79,9 @@ const grokElapsedText = ms => {
 // Aiterm a09+ inspect returns the saved state only. The public shape the shipped clients decode stays (Trony a08):
 // current_status = the last saved state in the "goal detail" form (phase/tokens null), labelled as saved, never a fresh UI read.
 const grokPublic = goal => goal.current_status ? goal : { ...goal, current_status: {
-  source: 'goal detail', status: goal.native.status === 'user_paused' ? 'Paused' : 'Active', phase: null, tokens_used: null,
-  status_display: goal.native.status === 'user_paused' ? '一時停止（保存時点）' : '進行中（保存時点）', phase_display: null,
+  // Shipped clients decode status as Active/Paused only: anything not active shows as Paused, the real value in status_display.
+  source: 'goal detail', status: goal.native.status === 'active' ? 'Active' : 'Paused', phase: null, tokens_used: null,
+  status_display: `${grokStatusText.get(goal.native.status) ?? goal.native.status.slice(0, 64)}（保存時点）`, phase_display: null,
   budget_display: `保存時点 ${goal.native.tokens_used_high_water.toLocaleString('en-US')} / ${goal.native.token_budget.toLocaleString('en-US')} tokens`,
   elapsed_display: grokElapsedText(goal.native.elapsed_ms) } }
 

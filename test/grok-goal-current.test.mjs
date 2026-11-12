@@ -101,3 +101,22 @@ test('a08: current_statusの無いGrok結果は保存状態をgoal detail形の�
   assert.equal(next.goal.current_status.status,'Active');assert.equal(next.goal.current_status.status_display,'進行中（保存時点）')
   assert.equal(next.goal.current_status.elapsed_display,'1m05s')
 })
+
+test('a08: 保存statusは開いた文字列。budget_limitedや未知値はPaused表示でpause/resumeを出さない',async t=>{
+  const source=read('paused');delete source.goal.current_status
+  source.goal.native.status='budget_limited';source.capabilities.pause=true;source.capabilities.resume=true
+  const f=fixture(source),get=await http(t,f),{snapshot}=await (await get()).json()
+  assert.equal(snapshot.availability,'available');assert.deepEqual(f.reports,[])
+  assert.equal(snapshot.goal.native.status,'budget_limited')
+  assert.equal(snapshot.goal.current_status.status,'Paused');assert.equal(snapshot.goal.current_status.status_display,'予算上限（保存時点）')
+  assert.equal(snapshot.capabilities.pause,false);assert.equal(snapshot.capabilities.resume,false)
+  const unknown=structuredClone(source);unknown.goal.native.status='infra_paused';f.set(unknown)
+  const next=(await (await get()).json()).snapshot
+  assert.equal(next.availability,'available');assert.equal(next.goal.current_status.status_display,'infra_paused（保存時点）')
+  assert.equal(next.capabilities.resume,false)
+  for(const name of ['constructor','toString','__proto__']){const inherited=structuredClone(source);inherited.goal.native.status=name;f.set(inherited)
+    const s=(await (await get()).json()).snapshot
+    assert.equal(s.goal.current_status.status_display,`${name}（保存時点）`);assert.equal(s.capabilities.resume,false);assert.equal(s.capabilities.pause,false)}
+  const bad=structuredClone(source);bad.goal.native.status='';f.set(bad)
+  assert.equal((await (await get()).json()).snapshot.availability,'unavailable')
+})
