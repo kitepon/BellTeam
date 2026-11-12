@@ -23,6 +23,27 @@ class BusinessArtifacts(unittest.TestCase):
         _, manifest, _ = self.artifact('usage')
         self.assertTrue(required <= {row['path'] for row in manifest['files']})
 
+    def test_lattice_payload_holds_every_relative_import(self):
+        # #1187 added notices.mjs to core.mjs but not here: the signed child died on import (publish-lattice 2026-11-12).
+        files = sorted(name.removeprefix('payload/') for name in BUSINESS_FILES['lattice'])
+        script = """
+import { SourceTextModule } from 'node:vm';
+import { readFileSync } from 'node:fs';
+import { dirname, posix, resolve } from 'node:path';
+const files = JSON.parse(readFileSync(0, 'utf8')), selected = new Set(files), missing = [];
+for (const file of files.filter(name => name.endsWith('.mjs'))) {
+  const module = new SourceTextModule(readFileSync(resolve(process.argv[1], file), 'utf8'));
+  for (const specifier of module.dependencySpecifiers.filter(name => name.startsWith('.'))) {
+    const target = posix.normalize(posix.join(dirname(file), specifier));
+    if (!selected.has(target)) missing.push({ from: file, target });
+  }
+}
+process.stdout.write(JSON.stringify(missing));
+"""
+        missing = json.loads(subprocess.check_output(['node', '--experimental-vm-modules',
+            '--input-type=module', '-e', script, str(ROOT)], input=json.dumps(files), text=True))
+        self.assertEqual(missing, [])
+
     def test_usage_secret_reference_closure_and_encoding(self):
         _, manifest, _ = self.artifact('usage')
         paths = {row['path'] for row in manifest['files']}
