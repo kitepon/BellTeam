@@ -87,10 +87,11 @@ public sealed class SettingsTests
     [Fact]
     public void CategoryListMatchesTheMacOrderAndWording()
     {
-        Assert.Equal(["AIの設定", "端末", "追加機能", "通知", "接続", "表示", "利用と課金", "アップデート", "このアプリについて", "全体停止"], SettingsPageInfo.Groups.SelectMany(group => group).Select(SettingsPageInfo.Title));
-        Assert.Equal([4, 2, 3, 1], SettingsPageInfo.Groups.Select(group => group.Length)); Assert.Equal("プロフィール", SettingsPageInfo.Title(SettingsPage.Profile));
-        Assert.Equal("全員のAIの動作をまとめて止める", SettingsPageInfo.Detail(SettingsPage.Stop));
-        // 端末 follows AIの設定 and names no OS (the Mac's line says Mac; terminals are Mac, Windows PC and Linux).
-        Assert.Equal(("端末", "メンバーの席を動かす端末と、その鍵"), (SettingsPageInfo.Title(SettingsPage.Terminals), SettingsPageInfo.Detail(SettingsPage.Terminals)));
+        // apple/settings-user-flow.md §3 list order; the profile row sits above the groups.
+        Assert.Equal(["AIの認証", "仕事の要約を書くAI", "端末", "1Password", "通知", "追加機能", "チームの決まり", "接続", "表示", "利用と課金", "アップデート", "このアプリについて", "全体停止"], SettingsPageInfo.Groups.SelectMany(group => group).Select(SettingsPageInfo.Title));
+        Assert.Equal([6, 1, 2, 3, 1], SettingsPageInfo.Groups.Select(group => group.Length)); Assert.Equal("プロフィール", SettingsPageInfo.Title(SettingsPage.Profile));
+        Assert.Equal(("端末", "メンバーの席を動かすMac・Windows・Linuxと、その鍵"), (SettingsPageInfo.Title(SettingsPage.Terminals), SettingsPageInfo.Detail(SettingsPage.Terminals)));
+        // Windows sells nothing in the app, so 利用と課金 keeps the Windows line.
+        Assert.Equal("料金と、サーバーとAIの契約", SettingsPageInfo.Detail(SettingsPage.Billing));
     }
 }

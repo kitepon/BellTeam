@@ -318,7 +318,7 @@ server.listen(0, '127.0.0.1', async () => {
       ['08-settings-lower.png', ['--render-page', 'settings-lower', origin]],
       ['09-gallery.png', ['--render-gallery', origin, 'bot-one']]
     ]
-    const settingsPages = ['profile', 'ai', 'features', 'notifications', 'connection', 'display', 'billing', 'update', 'about', 'stop']
+    const settingsPages = ['profile', 'ai', 'summary', 'terminals', 'onepassword', 'notifications', 'rules', 'features', 'connection', 'display', 'billing', 'update', 'about', 'stop']
     if (process.argv[4] && !['gallery', 'updates', 'settings', 'summary', 'conversation', 'inspector', 'screen', 'goals', 'editors', 'schedules', 'startup', 'polish', 'accounts', 'workgraph', 'memberstate', 'onepassword', 'secret', 'terminals', 'memberfolder', 'thispc'].includes(process.argv[4])) throw new Error('WINDOWS_RENDER_SCENE_UNKNOWN')
     // Same three summaries as ios/BellBot/BellBotTests/SummaryLayoutTests.swift.
     if (process.argv[4] === 'summary') ['認証まわりの再試行処理を見直し、通知の表示崩れと画像の読み込み失敗も合わせて直す', 'ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴ', 'abcdefghij'.repeat(8)].forEach((summary, index) => { if (fixture.bots[index]) fixture.bots[index].currentWork = { state: 'working', summary, summaryStatus: 'current' } })

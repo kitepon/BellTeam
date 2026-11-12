@@ -14,6 +14,8 @@ public sealed record AccountSlot
     public string? History { get; init; }
     public AccountLimit[] Limits { get; init; } = [];
     public string[] Seats { get; init; } = [];
+    // Set when the slot's credentials were signed out; the login then needs doing again even if the CLI still answers authenticated.
+    public string? SignedOutAt { get; init; }
 }
 public sealed record AccountAllLimited(string Scope, string? EarliestResetAt);
 public sealed record AccountHarness
@@ -66,9 +68,32 @@ public static class AccountText
     public static string? Login(AccountSlot slot) => string.IsNullOrWhiteSpace(slot.Label) ? null : slot.Label;
     // Mac AccountText.bothLimited: the card's own banner wording (the member-list banner keeps BannerTexts, same as Web).
     public static string[] CardBannerTexts(AccountsResponse? list, DateTimeOffset now)
-        => (list?.Claude?.AllLimited ?? []).Select(item => $"1stアカウントと2ndアカウントがどちらも{(string.IsNullOrEmpty(item.Scope) || item.Scope == "all" ? "上限中" : char.ToUpperInvariant(item.Scope[0]) + item.Scope[1..] + "が上限中")}です（{(ResetTime(item.EarliestResetAt, now) is { } time ? time + "に解除" : "解除時刻不明")}）").ToArray();
-    // Mac AccountText.seats: the members' names; nothing when no seat uses the slot.
+        => (list?.Claude?.AllLimited ?? []).Select(item => $"1つ目と2つ目のアカウントがどちらも{(string.IsNullOrEmpty(item.Scope) || item.Scope == "all" ? "上限中" : ScopeName(item.Scope) + "が上限中")}です（{(ResetTime(item.EarliestResetAt, now) is { } time ? time + "に解除" : "解除時刻不明")}）").ToArray();
+    // The members' names (Linux settings); Windows says SlotUsersLine / SeatsCount instead (settings-user-flow B20).
     public static string? Seats(AccountSlot slot, Func<string, string?> name) => slot.Seats.Length == 0 ? null : "使用中: " + string.Join("、", slot.Seats.Select(id => name(id) ?? id));
+    // Mac AccountText.slotName / slotUsers / slotUsersLine / seats / limitLine (settings-user-flow B19/B20, #1117).
+    public static string SlotName(string slot) => slot == "2nd" ? "2つ目のアカウント" : "1つ目のアカウント";
+    // Members running on the slot now, from each bot's own account; null on an older body where no bot has an account (the row then says SeatsCount).
+    public static int? SlotUsers(IEnumerable<SeatAccount?> accounts, string harness, string slot)
+    {
+        var list = accounts.ToList();
+        return list.Any(item => item is not null) ? list.Count(item => item?.Harness == harness && item.Slot == slot) : null;
+    }
+    public static string SlotUsersLine(int count) => count == 0 ? "いまこのアカウントで動いているメンバーはいません" : $"いま{count}人がこのアカウントで動いています";
+    public static string SeatsCount(AccountSlot slot) => $"{slot.Seats.Length}人が使用";
+    private static string ScopeName(string scope) => scope switch { "fable" => "Fable", "opus" => "Opus", "sonnet" => "Sonnet", "haiku" => "Haiku", _ => scope };
+    // One limit line apart from the login badge: 「上限中・11/13 17:00に戻ります（いまは2つ目で動いています）」; null without a limit.
+    public static string? LimitLine(AccountHarness harness, AccountSlot slot, DateTimeOffset now)
+    {
+        if (slot.Limits.Length == 0) return null;
+        var all = slot.Limits.FirstOrDefault(item => item.Scope == "all");
+        var what = all is not null ? "上限中" : string.Join("・", slot.Limits.Select(item => ScopeName(item.Scope))) + "が上限中";
+        var earliest = (all is not null ? [all] : slot.Limits).Select(item => (Item: item, At: DateTimeOffset.TryParse(item.ResetAt, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var at) ? at : (DateTimeOffset?)null))
+            .Where(item => item.At is not null).OrderBy(item => item.At).Select(item => item.Item).FirstOrDefault();
+        var when = ResetTime(earliest?.ResetAt, now) is { } time ? $"・{time}に戻ります" : "・戻る時刻は分かりません";
+        var secondAvailable = harness.Slots.Any(item => item.Slot == "2nd" && item.LoggedIn == true && item.Limits.All(limit => limit.Scope != "all"));
+        return what + when + (slot.Slot == "1st" && secondAvailable ? "（いまは2つ目で動いています）" : "");
+    }
     // The seat's slot on the member card; nothing for an absent/null account or another harness.
     public static string? SeatText(SeatAccount? account) => account?.Harness == "claude" ? SlotTitle(account.Slot) : null;
 }

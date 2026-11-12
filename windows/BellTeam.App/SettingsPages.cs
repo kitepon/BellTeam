@@ -13,7 +13,6 @@ public sealed partial class SettingsWindow
     private const string PrivacyPolicyUrl = "https://bellteam-subscriptions.kitepon.workers.dev/privacy";
     private const string SupportUrl = "https://bellteam-subscriptions.kitepon.workers.dev/support";
 
-    private static Brush Tone(HarnessTone tone) => tone switch { HarnessTone.Good => Green, HarnessTone.Warning => Orange, _ => Muted };
     private static StackPanel CardTitle(string glyph, string title, double size = 13)
     {
         var line = new StackPanel { Orientation = Orientation.Horizontal };
@@ -35,16 +34,15 @@ public sealed partial class SettingsWindow
     private static TextBlock Loading(string text) => Text(text, 13, Secondary, null, new Thickness(0, 10, 0, 0));
 
     // ---- プロフィール ----
+    // Saves the Owner only; the team rules are their own item (settings-user-flow B13).
     private async Task ProfilePageAsync(CancellationToken token)
     {
         var page = NewPage(SettingsPage.Profile);
         var content = new StackPanel(); page.Children.Add(content); content.Children.Add(Loading("読み込んでいます…"));
-        var save = Capsule("保存", new SolidColorBrush(Color.FromRgb(0xE9, 0xE9, 0xEE)), Ink, 15, 13, new Thickness(14, 5, 14, 5)); save.IsEnabled = false;
-        SetToolbar(null, null, save);
         try
         {
             var api = workspace.Planning;
-            var original = (await api.OwnerAsync(token)).Owner; var originalRules = (await api.RulesAsync(token)).Text; token.ThrowIfCancellationRequested();
+            var original = (await api.OwnerAsync(token)).Owner; token.ThrowIfCancellationRequested();
             UpdateProfileRow(original); content.Children.Clear();
             var avatar = new AvatarPicker(original.Avatar, name: original.Name, quiet: true) { HorizontalAlignment = HorizontalAlignment.Center }; InitialLoads.Add(avatar.LoadAsync());
             var name = Field("名前", original.Name); var profile = Field("プロフィール", original.Profile, multiline: true);
@@ -52,13 +50,13 @@ public sealed partial class SettingsWindow
             var x = Field("XのURL", original.XUrl); var github = Field("GitHubのURL", original.GithubUrl);
             var group = new GroupCard(Row(x.Element), Row(github.Element));
             var links = new List<(TextBox Label, TextBox Url)>();
-            group.Add(Row(IconButtonRow("", "リンクを追加", Violet, () => AddLink(new("", "")))));
+            group.Add(Row(IconButtonRow("\uE710", "リンクを追加", Violet, () => AddLink(new("", "")))));
             void AddLink(OwnerLink value)
             {
                 var label = Field("名前", value.Label); var url = Field("URL", value.Url);
                 var fields = new StackPanel(); fields.Children.Add(label.Element); fields.Children.Add(new Border { Height = 1, Background = Hairline, Margin = new Thickness(0, 8, 0, 8) }); fields.Children.Add(url.Element);
                 var line = new Grid(); line.ColumnDefinitions.Add(new ColumnDefinition()); line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); line.Children.Add(fields);
-                var delete = Capsule("", Brushes.Transparent, Red, 8, 14, new Thickness(8, 4, 8, 4)); delete.FontFamily = Icons; delete.Margin = new Thickness(8, 0, 0, 0); delete.VerticalAlignment = VerticalAlignment.Center; System.Windows.Automation.AutomationProperties.SetName(delete, "リンクを削除");
+                var delete = Capsule("\uE74D", Brushes.Transparent, Red, 8, 14, new Thickness(8, 4, 8, 4)); delete.FontFamily = Icons; delete.Margin = new Thickness(8, 0, 0, 0); delete.VerticalAlignment = VerticalAlignment.Center; System.Windows.Automation.AutomationProperties.SetName(delete, "リンクを削除");
                 Grid.SetColumn(delete, 1); line.Children.Add(delete);
                 var holder = Row(line); links.Add((label.Box, url.Box));
                 delete.Click += (_, _) => { links.Remove((label.Box, url.Box)); group.Remove(holder); };
@@ -66,49 +64,104 @@ public sealed partial class SettingsWindow
             }
             foreach (var link in original.Links) AddLink(link);
             content.Children.Add(FormSection("リンク", group));
-            var rules = Field("あなたの決まり", originalRules, multiline: true, minHeight: 180);
-            content.Children.Add(FormSection("あなたの決まり", new GroupCard(Row(rules.Element)), "チーム全員が、あなたについて守る指示です。"));
+            var save = MainButton("保存"); content.Children.Add(save);
             var notice = new StackPanel(); content.Children.Add(notice);
-            save.IsEnabled = true;
             save.Click += async (_, _) =>
             {
                 if (Busy) return;
                 notice.Children.Clear();
                 if (string.IsNullOrWhiteSpace(name.Box.Text)) { notice.Children.Add(Banner("名前を入力してください。")); return; }
-                Busy = true; save.IsEnabled = false;
+                Busy = true; save.IsEnabled = false; save.Content = "保存しています…";
                 try
                 {
                     var edited = original with { Name = name.Box.Text, Profile = profile.Box.Text, Avatar = avatar.Value, XUrl = x.Box.Text, GithubUrl = github.Box.Text, Links = links.Select(link => new OwnerLink(link.Label.Text, link.Url.Text)).ToArray() };
                     var changes = edited.ChangesFrom(original);
                     if (changes.Count != 0) { await api.SaveOwnerAsync(changes, Token); original = edited; UpdateProfileRow(edited); }
-                    if (TextContent.Normalize(rules.Box.Text) != TextContent.Normalize(originalRules))
-                    {
-                        try { originalRules = (await api.SaveRulesAsync(rules.Box.Text, Token)).Text; }
-                        catch (Exception error) when (error is not OperationCanceledException) { notice.Children.Add(Banner("プロフィールの保存処理は完了しています。あなたの決まりの保存結果を確認できませんでした。\n" + error.Message)); return; }
-                    }
-                    var saved = Text("", 14, Green, null, new Thickness(0, 10, 0, 0)); saved.Inlines.Add(new System.Windows.Documents.Run(" ") { FontFamily = Icons }); saved.Inlines.Add("保存しました"); notice.Children.Add(saved);
+                    var saved = Text("", 14, Green, null, new Thickness(0, 10, 0, 0)); saved.Inlines.Add(new System.Windows.Documents.Run("\uE73E ") { FontFamily = Icons }); saved.Inlines.Add("保存しました"); notice.Children.Add(saved);
                 }
                 catch (OperationCanceledException) when (Token.IsCancellationRequested) { }
-                catch (Exception error) { notice.Children.Add(Banner(ErrorText(error))); }
-                finally { Busy = false; save.IsEnabled = true; }
+                catch (Exception error) { notice.Children.Add(Banner("プロフィールを保存できませんでした。入力は残っています。\n" + ErrorText(error))); }
+                finally { Busy = false; save.IsEnabled = true; save.Content = "保存"; }
             };
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception error) { content.Children.Clear(); content.Children.Add(Banner(error.Message)); }
     }
 
-    // ---- AIの設定 ----
+    // ---- チームの決まり ----
+    // One card per rule (headline = PURPOSE or the first clause, the id never shown), and 編集する opens the full text (Mac UserRulesView).
+    private async Task RulesPageAsync(CancellationToken token)
+    {
+        var page = NewPage(SettingsPage.Rules);
+        var edit = MainButton("編集する"); edit.IsEnabled = false; page.Children.Add(edit);
+        var content = new StackPanel(); page.Children.Add(content); content.Children.Add(Loading("読み込んでいます…"));
+        try
+        {
+            var text = (await workspace.Planning.RulesAsync(token)).Text; token.ThrowIfCancellationRequested();
+            // The head was drawn before the read; redraw it with the count just read.
+            RulesSaved(text);
+            content.Children.Clear();
+            var document = UserRulesDocument.Parse(text);
+            if (document.IsEmpty) content.Children.Add(Text("まだ決まりがありません。「編集する」から書き足せます。", 14, Secondary, null, new Thickness(0, 14, 0, 0)));
+            foreach (var section in document.Sections)
+                foreach (var rule in section.Rules)
+                {
+                    var card = new StackPanel();
+                    if (rule.Headline is { } headline) card.Children.Add(Text(headline.Text, 14, Ink, FontWeights.SemiBold));
+                    foreach (var clause in rule.Details)
+                    {
+                        var line = new Grid { Margin = new Thickness(0, 8, 0, 0) }; line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); line.ColumnDefinitions.Add(new ColumnDefinition());
+                        var kind = SettingsUi.Badge(clause.Label, clause.Keyword is "NEVER" ? SettingsTone.Orange : clause.Keyword is "FACT" or "WHY" or "PURPOSE" ? SettingsTone.Violet : SettingsTone.Gray); kind.VerticalAlignment = VerticalAlignment.Top; kind.Margin = new Thickness(0, 0, 10, 0);
+                        var body = Text(clause.Text, 14, Ink); Grid.SetColumn(body, 1);
+                        line.Children.Add(kind); line.Children.Add(body); card.Children.Add(line);
+                    }
+                    var holder = Card(card); holder.Margin = new Thickness(0, 14, 0, 0); content.Children.Add(holder);
+                }
+            if (document.PlainLines.Count != 0) { var plain = Card(Text(string.Join("\n", document.PlainLines), 13, Ink)); plain.Margin = new Thickness(0, 14, 0, 0); content.Children.Add(plain); }
+            edit.IsEnabled = true; edit.Click += (_, _) => OpenRulesEditor(text);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception error)
+        {
+            if (rulesText is null) { rulesUnreadable = true; RefreshRows(); }
+            content.Children.Clear(); content.Children.Add(Banner("決まりを読み込めませんでした。" + error.Message));
+            var again = Capsule("読み直す", Fill, Ink, 8, 13, new Thickness(12, 6, 12, 6)); again.HorizontalAlignment = HorizontalAlignment.Left; again.Margin = new Thickness(0, 10, 0, 0); again.FontWeight = FontWeights.Normal;
+            again.Click += (_, _) => Reopen(); content.Children.Add(again);
+        }
+    }
+
+    // The full text, as written; while the PUT is out the text box is locked so nothing typed after pressing is lost (settings-user-flow 5.1).
+    private void OpenRulesEditor(string original)
+    {
+        var form = NewPage(null, scroll: false);
+        var head = new Grid(); head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); head.ColumnDefinitions.Add(new ColumnDefinition());
+        head.Children.Add(Tile(SettingsPage.Rules, 36));
+        var words = new StackPanel { Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center }; words.Children.Add(Text("チームの決まり", 16, Ink, FontWeights.SemiBold)); words.Children.Add(Text("全文を書き換えます。チーム全員が、あなたについて守る指示です。", 13, Secondary, null, new Thickness(0, 2, 0, 0)));
+        Grid.SetColumn(words, 1); head.Children.Add(words); form.Children.Add(head);
+        var box = Field("決まりの全文", original, multiline: true, minHeight: 360);
+        form.Children.Add(FormSection("決まりの全文", new GroupCard(Row(box.Element))));
+        var save = MainButton("保存"); form.Children.Add(save);
+        var notice = new StackPanel(); form.Children.Add(notice);
+        save.Click += async (_, _) =>
+        {
+            if (Busy) return;
+            notice.Children.Clear(); Busy = true; save.IsEnabled = false; save.Content = "保存しています…"; box.Box.IsReadOnly = true;
+            try { RulesSaved((await workspace.Planning.SaveRulesAsync(box.Box.Text, Token)).Text); Busy = false; Reopen(); return; }
+            catch (OperationCanceledException) when (Token.IsCancellationRequested) { return; }
+            catch (Exception error) { notice.Children.Add(Banner("決まりを保存できませんでした。入力は残っています。プロフィールには影響しません。\n" + ErrorText(error))); }
+            Busy = false; save.IsEnabled = true; save.Content = "保存"; box.Box.IsReadOnly = false;
+        };
+        ShowSubPage("チームの決まり", new ScrollViewer { Content = form, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled }, Reopen);
+    }
+
+    // ---- AIの認証 ----
+    // One card of AI rows (Mac AIの認証 list). Each row: name, who runs on it, an optional limit line, the stage badge and a chevron;
+    // a filled button only where the Owner has something to do (ログインが必要・失敗・途中, settings-user-flow B18). The row opens the login window.
     private async Task AiPageAsync(CancellationToken token)
     {
         var page = NewPage(SettingsPage.Ai);
-        var auth = new StackPanel(); auth.Children.Add(CardTitle("", "AIの認証"));
-        auth.Children.Add(Text("AIの認証が切れたときや、別のアカウントで入り直すときに使います。", 14, Muted, null, new Thickness(0, 10, 0, 0)));
-        var list = new StackPanel(); auth.Children.Add(list);
-        var summary = new StackPanel(); summary.Children.Add(CardTitle("", "仕事の要約を書くAI"));
-        summary.Children.Add(Text("メンバー一覧に出る「今の仕事」を、チームで一人のAIがまとめます。", 14, Muted, null, new Thickness(0, 10, 0, 0)));
-        var authCard = Card(auth); authCard.Margin = new Thickness(0, 16, 0, 0); var summaryCard = Card(summary); summaryCard.Margin = new Thickness(0, 16, 0, 0);
-        page.Children.Add(authCard); page.Children.Add(summaryCard);
-        await Task.WhenAll(LoadHarnessesAsync(list, token), LoadSummaryAsync(summary, token));
+        var list = new StackPanel(); var card = Card(list); card.Margin = new Thickness(0, 6, 0, 0); page.Children.Add(card);
+        await LoadHarnessesAsync(list, token);
     }
 
     private async Task LoadHarnessesAsync(StackPanel list, CancellationToken token)
@@ -122,8 +175,7 @@ public sealed partial class SettingsWindow
             foreach (var harness in harnesses)
             {
                 if (harness.Id == "claude") { var host = new StackPanel(); list.Children.Add(host); states.Add(LoadClaudeAsync(host, harness, api, token)); continue; }
-                var names = new StackPanel { VerticalAlignment = VerticalAlignment.Center }; names.Children.Add(Text(harness.Name, 14, Ink)); names.Children.Add(Text(harness.UsageText, 12, Muted, null, new Thickness(0, 2, 0, 0)));
-                var (row, ready) = AuthRow(names, harness, api, null, null, token); list.Children.Add(row); states.Add(ready);
+                var (row, ready) = AuthRow(harness.Name, [(harness.UsageText, Muted)], harness, api, null, false, null, token); list.Children.Add(row); states.Add(ready);
             }
             await Task.WhenAll(states);
         }
@@ -136,25 +188,38 @@ public sealed partial class SettingsWindow
         }
     }
 
-    // One AI-authentication row: names | state | action. slot is the Claude account slot ("1st"/"2nd") whose login the row reads and starts; null is the single login.
+    // One AI-authentication row: names and lines | badge | (button) | chevron. slot is the Claude account slot the row reads ("2nd"; the first reads without a slot) and starts.
     // afterDialog replaces the row's own state re-read when the login window closes.
-    private (Grid Row, Task Ready) AuthRow(UIElement names, HarnessAuthenticationOption harness, HarnessAuthenticationApi api, string? slot, Func<Task>? afterDialog, CancellationToken token)
+    private (Grid Row, Task Ready) AuthRow(string name, IReadOnlyList<(string Text, Brush Color)> lines, HarnessAuthenticationOption harness, HarnessAuthenticationApi api, string? slot, bool signedOut, Func<Task>? afterDialog, CancellationToken token)
     {
-        var row = new Grid { Margin = new Thickness(0, 10, 0, 0) };
-        row.ColumnDefinitions.Add(new ColumnDefinition()); row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var state = Text("", 12, Muted, FontWeights.SemiBold, new Thickness(10, 0, 10, 0)); state.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(state, 1);
-        var action = Capsule("", Violet, Brushes.White); Grid.SetColumn(action, 2); action.VerticalAlignment = VerticalAlignment.Center;
-        row.Children.Add(names); row.Children.Add(state); row.Children.Add(action);
-        void Show(HarnessRowState value) { state.Text = value.Title; state.Foreground = Tone(value.Tone); action.Content = value.Action; }
+        var row = new Grid { Margin = new Thickness(0, 6, 0, 6), Background = Brushes.Transparent, Cursor = System.Windows.Input.Cursors.Hand };
+        foreach (var width in new[] { new GridLength(1, GridUnitType.Star), GridLength.Auto, GridLength.Auto, GridLength.Auto }) row.ColumnDefinitions.Add(new ColumnDefinition { Width = width });
+        var names = new StackPanel { VerticalAlignment = VerticalAlignment.Center }; names.Children.Add(Text(name, 14, Ink, FontWeights.SemiBold));
+        foreach (var (value, color) in lines) names.Children.Add(Text(value, 12, color, null, new Thickness(0, 2, 0, 0)));
+        var badge = new ContentControl { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0), Focusable = false }; Grid.SetColumn(badge, 1);
+        var action = Capsule("", Violet, Brushes.White); action.VerticalAlignment = VerticalAlignment.Center; action.Margin = new Thickness(10, 0, 0, 0); Grid.SetColumn(action, 2);
+        var chevron = Glyph("\uE76C", 12, Secondary); chevron.Margin = new Thickness(10, 0, 0, 0); Grid.SetColumn(chevron, 3);
+        row.Children.Add(names); row.Children.Add(badge); row.Children.Add(action); row.Children.Add(chevron);
+        System.Windows.Automation.AutomationProperties.SetName(row, name); System.Windows.Automation.AutomationProperties.SetName(action, name);
+        void Show(AuthenticationProgress value)
+        {
+            badge.Content = SettingsUi.Badge(value.Badge, value.Tone);
+            action.Content = value.Action; action.Visibility = value.Action is null ? Visibility.Collapsed : Visibility.Visible;
+        }
         async Task ReadStateAsync()
         {
-            Show(HarnessRowState.Checking);
-            try { var status = (await api.StatusAsync(harness.Id, token, slot)).Auth?.Status; Show(slot is null ? HarnessRowState.From(status, harness.ReloginSupported) : HarnessRowState.FromSlot(status)); }
+            Show(AuthenticationProgress.Checking);
+            try { Show(AuthenticationProgress.From((await api.StatusAsync(harness.Id, token, slot)).Auth, loaded: true, signedOut: signedOut)); }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-            catch (Exception) { Show(HarnessRowState.Unavailable); }
+            catch (Exception) { Show(AuthenticationProgress.Unknown); }
         }
-        action.Click += async (_, _) => { var dialog = new HarnessAuthenticationWindow(workspace, harness, slot: slot) { Owner = DialogOwner }; _ = dialog.InitializeAsync(); dialog.ShowDialog(); await (afterDialog?.Invoke() ?? ReadStateAsync()); };
-        System.Windows.Automation.AutomationProperties.SetName(action, slot is null ? harness.Name : harness.Name + " " + AccountText.SlotTitle(slot));
+        async Task OpenAsync()
+        {
+            var dialog = new HarnessAuthenticationWindow(workspace, harness, slot: slot) { Owner = DialogOwner }; _ = dialog.InitializeAsync(); dialog.ShowDialog();
+            await (afterDialog?.Invoke() ?? ReadStateAsync()); _ = ReloadHomeAsync();
+        }
+        action.Click += async (_, args) => { args.Handled = true; await OpenAsync(); };
+        row.MouseLeftButtonUp += async (_, _) => await OpenAsync();
         return (row, ReadStateAsync());
     }
 
@@ -177,59 +242,41 @@ public sealed partial class SettingsWindow
         catch (Exception error) { Failed(error.Message); return; }
         if (list is null)
         {
-            var oldNames = new StackPanel { VerticalAlignment = VerticalAlignment.Center }; oldNames.Children.Add(Text(harness.Name, 14, Ink)); oldNames.Children.Add(Text(harness.UsageText, 12, Muted, null, new Thickness(0, 2, 0, 0)));
-            var (single, oldReady) = AuthRow(oldNames, harness, auth, null, null, token); host.Children.Add(single); await oldReady; return;
+            var (single, oldReady) = AuthRow(harness.Name, [(harness.UsageText, Muted)], harness, auth, null, false, null, token); host.Children.Add(single); await oldReady; return;
         }
         if (list.Claude is not { } claude) { Failed("アカウントの一覧にClaudeの項目がありません。"); return; }
         var now = DateTimeOffset.Now;
-        // Mac ClaudeAccountsCard: the harness name with its usage on the right, the both-limited lines, then the slots as plain rows like the other AI rows.
-        var heading = new Grid { Margin = new Thickness(0, 10, 0, 0) }; heading.ColumnDefinitions.Add(new ColumnDefinition()); heading.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        // Mac ClaudeAccountsCard: the harness name with its member count on the right, the both-limited lines, then the slots as rows.
+        var heading = new Grid { Margin = new Thickness(0, 6, 0, 0) }; heading.ColumnDefinitions.Add(new ColumnDefinition()); heading.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var usage = Text(harness.UsageText, 12, Muted); usage.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(usage, 1);
         heading.Children.Add(Text(harness.Name, 14, Ink)); heading.Children.Add(usage); host.Children.Add(heading);
         foreach (var text in AccountText.CardBannerTexts(list, now))
         {
-            var bar = Text("⚠ " + text, 12, Orange, null, new Thickness(0, 6, 0, 0)); System.Windows.Automation.AutomationProperties.SetName(bar, text); host.Children.Add(bar);
+            var bar = Text("\u26A0 " + text, 12, Orange, null, new Thickness(0, 6, 0, 0)); System.Windows.Automation.AutomationProperties.SetName(bar, text); host.Children.Add(bar);
         }
+        var seats = workspace.Bots.Select(bot => bot.Account).ToList();
         var ready = new List<Task>();
         foreach (var slot in claude.Slots)
         {
-            if (AccountText.SlotTitle(slot.Slot) is not { } slotTitle) continue;
-            var names = new StackPanel { VerticalAlignment = VerticalAlignment.Center }; names.Children.Add(Text(slotTitle, 14, Ink, FontWeights.SemiBold));
+            if (slot.Slot is not ("1st" or "2nd")) continue;
             var lines = new List<(string Text, Brush Color)>();
-            if (AccountText.Login(slot) is { } account) lines.Add((account, Muted));
-            lines.AddRange(slot.Limits.Select(item => (AccountText.LimitText(item.Scope, item.ResetAt, now), (Brush)Orange)));
-            if (AccountText.Seats(slot, workspace.MemberName) is { } seats) lines.Add((seats, Muted));
+            // #1117: the count of members running on this slot now, so 1つ目 + 2つ目 = the header; an older body without bot accounts says how many seats used it.
+            lines.Add((AccountText.SlotUsers(seats, "claude", slot.Slot) is { } count ? AccountText.SlotUsersLine(count) : AccountText.SeatsCount(slot), Muted));
+            if (AccountText.LimitLine(claude, slot, now) is { } limit) lines.Add((limit, Orange));
             // The contract asks that the Owner sees a slot whose history could not be shared (harness-accounts `history: separate`); the Mac has no line for it yet.
-            if (slot.History == "separate") lines.Add(("会話の履歴は1stアカウントと分かれています", Muted));
-            foreach (var (value, color) in lines) names.Children.Add(Text(value, 12, color, null, new Thickness(0, 2, 0, 0)));
-            var (row, state) = AuthRow(names, harness, auth, slot.Slot, Reload, token); row.Margin = new Thickness(0, 8, 0, 0);
-            System.Windows.Automation.AutomationProperties.SetName(row, slotTitle); host.Children.Add(row); ready.Add(state);
+            if (slot.History == "separate") lines.Add(("会話の履歴は1つ目のアカウントと分かれています", Muted));
+            var (row, state) = AuthRow(AccountText.SlotName(slot.Slot), lines, harness, auth, slot.Slot == "1st" ? null : slot.Slot, slot.SignedOutAt is not null, Reload, token);
+            host.Children.Add(row); ready.Add(state);
         }
         await Task.WhenAll(ready);
     }
 
-    private async Task LoadSummaryAsync(StackPanel card, CancellationToken token)
-    {
-        var line = Loading("読み込んでいます…"); card.Children.Add(line);
-        try
-        {
-            var record = await workspace.Planning.BackgroundAgentAsync(token); token.ThrowIfCancellationRequested(); card.Children.Remove(line);
-            var text = Text(record?.Summary ?? "このサーバーの版では設定できません。", 13, Ink);
-            var row = FillRow(text, record is null ? null : () => _ = OpenBackgroundAgentAsync(record)); row.Margin = new Thickness(0, 12, 0, 0); row.Padding = new Thickness(12, 12, 12, 12);
-            if (record is null) text.Foreground = Muted;
-            System.Windows.Automation.AutomationProperties.SetName(row, "仕事の要約を書くAI");
-            card.Children.Add(row);
-        }
-        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-        catch (Exception error) { card.Children.Remove(line); card.Children.Add(Text(error.Message, 13, Red, null, new Thickness(0, 10, 0, 0))); }
-    }
-
+    // ---- 仕事の要約を書くAI ----
     // The summary-AI editor (Mac BackgroundAgentEditor): CLI, model and effort pickers drawn only from the model catalog.
-    private async Task OpenBackgroundAgentAsync(BackgroundAgentRecord first)
+    private async Task SummaryPageAsync(CancellationToken token)
     {
-        var token = lifetime?.Token ?? Token;
-        var form = NewPage(null, scroll: false); ShowSubPage("仕事の要約を書くAI", new ScrollViewer { Content = form, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }, Reopen);
-        var record = first; var catalog = new Dictionary<string, HarnessModels>();
+        var page = NewPage(SettingsPage.Summary); var form = new StackPanel(); page.Children.Add(form);
+        var record = backgroundAgent ?? new BackgroundAgentRecord(null, null); var catalog = new Dictionary<string, HarnessModels>();
         string harness = record.Selection?.Harness ?? "codex", model = record.Selection?.Model ?? "", effort = record.Selection?.ReasoningEffort ?? "";
         string? savedText = null, errorText = null; var loading = true; var saving = false;
         void Render()
@@ -242,13 +289,13 @@ public sealed partial class SettingsWindow
             var models = new List<FormOption> { new("", "選んでください") }; models.AddRange(BackgroundAgentChoices.Models(catalog, harness).Select(item => new FormOption(item.Id, item.Label)));
             if (model.Length != 0 && models.All(item => item.Id != model)) models.Add(new(model, $"{model}（現在の候補にありません）"));
             var modelPicker = Picker("モデル", models.ToArray(), model, value => { model = value; if (!BackgroundAgentChoices.Efforts(catalog, harness, value).Contains(effort)) effort = ""; Render(); });
-            var effortOptions = new List<FormOption> { new("", efforts.Length == 0 ? "CLIの既定（エフォート指定なし）" : "選んでください") }; effortOptions.AddRange(efforts.Select(item => new FormOption(item, item)));
+            var effortOptions = new List<FormOption> { new("", efforts.Length == 0 ? "CLIの既定（エフォート指定なし）" : "選んでください") }; effortOptions.AddRange(efforts.Select(item => new FormOption(item, EffortText.Label(item))));
             if (effort.Length != 0 && effortOptions.All(item => item.Id != effort)) effortOptions.Add(new(effort, $"{effort}（現在の候補にありません）"));
             var effortPicker = Picker("エフォート", effortOptions.ToArray(), effort, value => { effort = value; Render(); });
             form.Children.Add(FormSection(null, new GroupCard(cli, modelPicker, effortPicker), "保存しても、要約がすぐ作られるとは限りません。要約の状態はメンバー一覧で確かめてください。"));
             if (problem is not null) form.Children.Add(Text(problem, 13, Red, null, new Thickness(20, 10, 20, 0)));
             if (record.Selection is { } stored && stored != draft) form.Children.Add(Text("保存されている設定：" + BackgroundAgentRecord.Describe(stored), 13, Muted, null, new Thickness(20, 10, 20, 0)));
-            var save = Capsule("保存", Violet, Brushes.White, 8, 13, new Thickness(18, 7, 18, 7)); save.HorizontalAlignment = HorizontalAlignment.Left; save.Margin = new Thickness(20, 14, 0, 0); save.IsEnabled = !saving && problem is null;
+            var save = MainButton(saving ? "保存しています…" : "保存"); save.IsEnabled = !saving && problem is null;
             save.Click += async (_, _) => await SaveAsync(draft); form.Children.Add(save);
             if (savedText is not null) form.Children.Add(Text(savedText, 13, Muted, null, new Thickness(20, 10, 20, 0)));
             if (errorText is not null)
@@ -276,7 +323,7 @@ public sealed partial class SettingsWindow
         {
             if (saving || Busy) return;
             saving = true; Busy = true; errorText = null; savedText = null; Render();
-            try { record = await workspace.Planning.SaveBackgroundAgentAsync(record, draft, Token); savedText = "保存しました。"; }
+            try { record = await workspace.Planning.SaveBackgroundAgentAsync(record, draft, Token); savedText = "保存しました。"; backgroundAgent = record; RefreshRows(); }
             catch (OperationCanceledException) when (Token.IsCancellationRequested) { return; }
             catch (Exception error)
             {
@@ -303,25 +350,27 @@ public sealed partial class SettingsWindow
     }
 
     // ---- 追加機能 ----
+    // Every feature but 1Password (its own item, B8): name, one line, the state badge and a chevron.
     private async Task FeaturesPageAsync(CancellationToken token)
     {
         var page = NewPage(SettingsPage.Features);
-        var card = new StackPanel(); card.Children.Add(CardTitle("", "追加機能"));
-        card.Children.Add(Text("未設定の機能は無効です。案内役との会話でも設定できます。", 14, Muted, null, new Thickness(0, 10, 0, 0)));
-        var holder = Card(card); holder.Margin = new Thickness(0, 16, 0, 0); page.Children.Add(holder);
+        var card = new StackPanel(); card.Children.Add(Text("未設定の機能は無効です。案内役との会話でも設定できます。", 14, Muted));
+        var holder = Card(card); holder.Margin = new Thickness(0, 6, 0, 0); page.Children.Add(holder);
         var line = Loading("読み込んでいます…"); card.Children.Add(line);
         try
         {
-            var features = await workspace.Planning.FeaturesAsync(token); token.ThrowIfCancellationRequested(); card.Children.Remove(line);
-            foreach (var feature in features)
+            var list = await workspace.Planning.FeaturesAsync(token); token.ThrowIfCancellationRequested(); card.Children.Remove(line);
+            features = list; RefreshRows();
+            foreach (var feature in list.Where(item => item.Id != OnePasswordItem.Id))
             {
-                var grid = new Grid(); grid.ColumnDefinitions.Add(new ColumnDefinition()); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                grid.Children.Add(Text(feature.Title, 13));
-                // 1Password連携 shows its connection badge and the plain failure text instead of the generic state (Mac FeatureSettingsList).
-                var onePassword = feature.Id == OnePasswordItem.Id;
-                FrameworkElement status = onePassword ? OnePasswordView.Badge(OnePasswordItem.State(feature)) : Text(feature.StatusText, 13, feature.ApplyFailed ? Red : Muted); status.Margin = new Thickness(12, 0, 0, 0); Grid.SetColumn(status, 1); grid.Children.Add(status);
-                var content = new StackPanel { Children = { grid } }; if (onePassword && feature.ApplyFailed) content.Children.Add(Text(feature.ErrorMessage, 12, Red, null, new Thickness(0, 5, 0, 0)));
-                var row = FillRow(content, () => _ = OpenFeatureAsync(feature)); System.Windows.Automation.AutomationProperties.SetName(row, feature.Title); card.Children.Add(row);
+                var grid = new Grid(); grid.ColumnDefinitions.Add(new ColumnDefinition()); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                var names = new StackPanel { VerticalAlignment = VerticalAlignment.Center }; names.Children.Add(Text(feature.Title, 14, Ink));
+                if (feature.ApplyFailed) names.Children.Add(Text(feature.ErrorMessage, 12, Red, null, new Thickness(0, 3, 0, 0)));
+                grid.Children.Add(names);
+                var (badgeText, tone) = feature.ApplyFailed ? ("失敗", SettingsTone.Orange) : feature.Status == "enabled" ? ("使用中", SettingsTone.Green) : feature.Status == "disabled" ? ("オフ", SettingsTone.Gray) : ("未設定", SettingsTone.Gray);
+                var badge = SettingsUi.Badge(badgeText, tone); badge.Margin = new Thickness(10, 0, 0, 0); Grid.SetColumn(badge, 1); grid.Children.Add(badge);
+                var chevron = Glyph("\uE76C", 12, Secondary); chevron.Margin = new Thickness(10, 0, 0, 0); Grid.SetColumn(chevron, 2); grid.Children.Add(chevron);
+                var row = FillRow(grid, () => _ = OpenFeatureAsync(feature)); System.Windows.Automation.AutomationProperties.SetName(row, feature.Title); card.Children.Add(row);
             }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
@@ -331,7 +380,6 @@ public sealed partial class SettingsWindow
     // The existing FeatureEditor, hosted in the pane. Secrets are cleared when the app window loses focus and when the editor closes.
     private async Task OpenFeatureAsync(FeatureSetting feature)
     {
-        if (feature.Id == OnePasswordItem.Id) { await OpenOnePasswordAsync(feature); return; }
         var editor = new FeatureEditor(workspace, feature.Id, feature.Title); embedded = editor;
         var content = editor.AsPage(Reopen, keepActions: true);
         ShowSubPage(feature.Title, content, Reopen);
@@ -339,42 +387,53 @@ public sealed partial class SettingsWindow
         await editor.InitializeAsync();
     }
 
-    // The 1Password連携 page (Mac OnePasswordSettingEditor). The token is cleared when the page goes away (lifetime) and when the app window loses focus.
+    // ---- 1Password ----
+    // Its own item (B8). The token is cleared when the page goes away (lifetime) and when the app window loses focus.
     private OnePasswordView? onePassword;
-    private async Task OpenOnePasswordAsync(FeatureSetting feature)
+    private async Task OnePasswordPageAsync(CancellationToken token)
     {
-        var token = lifetime?.Token ?? Token;
-        var form = NewPage(null, scroll: false); ShowSubPage(feature.Title, new ScrollViewer { Content = form, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }, Reopen);
+        var page = NewPage(SettingsPage.OnePassword); var form = new StackPanel(); page.Children.Add(form);
+        FeatureSetting? feature;
+        try { features = await workspace.Planning.FeaturesAsync(token); feature = features.FirstOrDefault(item => item.Id == OnePasswordItem.Id); token.ThrowIfCancellationRequested(); }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
+        catch (Exception error) { form.Children.Add(Banner("1Passwordの設定を読み込めませんでした。" + error.Message)); return; }
+        RefreshRows();
+        if (feature is null) { form.Children.Add(Text("このサーバーの版では1Passwordと連携できません。", 14, Secondary, null, new Thickness(0, 10, 0, 0))); return; }
         var view = onePassword = new OnePasswordView(workspace, feature, form, token, busy => Busy = busy);
         EventHandler clear = (_, _) => view.ClearToken(); Deactivated += clear; token.Register(() => Deactivated -= clear);
         await view.Ready;
     }
-    // Render seam: opens the page of the mock's onePassword item in a named state ("checking" and "success" need a PATCH the mock never serves).
+    // Render seam: opens the 1Password page in a named state ("checking" and "success" need a PATCH the mock never serves).
     internal async Task OpenOnePasswordForRender(string scene)
     {
-        await SelectAsync(SettingsPage.Features);
-        var feature = (await workspace.Planning.FeaturesAsync(Token)).Single(item => item.Id == OnePasswordItem.Id);
-        await OpenOnePasswordAsync(feature); onePassword!.ShowForRender(scene);
+        await SelectAsync(SettingsPage.OnePassword);
+        onePassword!.ShowForRender(scene);
     }
 
     // ---- 通知 ----
+    // Windows has no push registration: this PC gets toasts while the app runs. So two of the Mac's four states apply (B9):
+    // 届きます with no button, or 届きません with the one main button 「この端末で受け取る」 (and its failure right under it).
     private Task NotificationsPage()
     {
         var page = NewPage(SettingsPage.Notifications);
-        var group = new GroupCard();
-        if (notifications is null) { group.Add(Row(LabeledRow("状態", "この画面では通知を設定できません。"))); page.Children.Add(FormSection("この端末", group)); return Task.CompletedTask; }
-        var status = LabeledRow("状態", notifications.Status, notifications.Error is null ? Secondary : Red); group.Add(Row(status));
-        var toggle = Switch("#34C759"); toggle.IsChecked = notifications.Enabled; System.Windows.Automation.AutomationProperties.SetName(toggle, "この端末で通知を受け取る");
-        var line = new Grid(); line.ColumnDefinitions.Add(new ColumnDefinition()); line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); line.Children.Add(Text("この端末で通知を受け取る", 13, Violet, null)); Grid.SetColumn(toggle, 1); line.Children.Add(toggle);
-        group.Add(Row(line));
-        toggle.Click += async (_, _) =>
+        if (notifications is null) { page.Children.Add(Text("この画面では通知を設定できません。", 14, Secondary, null, new Thickness(0, 6, 0, 0))); return Task.CompletedTask; }
+        var area = new StackPanel(); page.Children.Add(area);
+        void Render()
         {
-            var next = toggle.IsChecked == true; toggle.IsEnabled = false;
-            await notifications.SetEnabledAsync(next);
-            toggle.IsChecked = notifications.Enabled; toggle.IsEnabled = true;
-            var text = (TextBlock)status.Children[1]; text.Text = notifications.Status; text.Foreground = notifications.Error is null ? Secondary : Red;
-        };
-        page.Children.Add(FormSection("この端末", group));
+            RefreshRows(); area.Children.Clear();
+            if (notifications.Enabled)
+            {
+                area.Children.Add(Text("アプリが起きている間、メンバーからの連絡をこのPCの通知で知らせます。", 14, Secondary, null, new Thickness(0, 6, 0, 0)));
+                var off = Capsule("この端末で受け取るのをやめる", Brushes.Transparent, Red, 8, 13, new Thickness(0, 4, 0, 4)); off.HorizontalAlignment = HorizontalAlignment.Left; off.Margin = new Thickness(0, 10, 0, 0);
+                off.Click += async (_, _) => { off.IsEnabled = false; await notifications.SetEnabledAsync(false); Render(); };
+                area.Children.Add(off); return;
+            }
+            var receive = MainButton("この端末で受け取る");
+            receive.Click += async (_, _) => { receive.IsEnabled = false; receive.Content = "登録しています…"; await notifications.SetEnabledAsync(true); Render(); };
+            area.Children.Add(receive);
+            if (notifications.Error is { } error) area.Children.Add(Banner(error));
+        }
+        Render();
         return Task.CompletedTask;
     }
 
@@ -384,7 +443,9 @@ public sealed partial class SettingsWindow
         var page = NewPage(SettingsPage.Connection);
         var host = new Uri(workspace.Server).Host; var cloudflare = workspace.AuthMode == "cloudflare";
         page.Children.Add(FormSection("いまの接続", new GroupCard(Row(LabeledRow("サーバー", host.Length == 0 ? "未設定" : host)), Row(LabeledRow("ログイン方法", cloudflare ? "Cloudflare Access" : "同じネットワークから直接")))));
-        page.Children.Add(FormSection(null, new GroupCard(Row(IconButtonRow("", "別のサーバーにつなぎ直す", Violet, changeServer))), "接続先を選び直す画面に戻ります。サーバーにある会話や設定は消えません。"));
+        // B15: changing the server also stops this PC's notifications, so it asks first.
+        Action? change = changeServer is null ? null : () => { if (new ConfirmationWindow("接続", "接続先を変えますか？ この端末の通知も止まります。サーバーの会話や設定は消えません。", "接続先を変える") { Owner = DialogOwner }.ShowDialog() == true) changeServer(); };
+        page.Children.Add(FormSection(null, new GroupCard(Row(IconButtonRow("\uE895", "別のサーバーにつなぎ直す", Violet, change))), "接続先を選び直す画面に戻ります。サーバーにある会話や設定は消えません。"));
         if (cloudflare) page.Children.Add(FormSection(null, new GroupCard(Row(IconButtonRow("", "ログアウト", Red, signOut)))));
         return Task.CompletedTask;
     }
@@ -441,8 +502,8 @@ public sealed partial class SettingsWindow
     private Task AboutPage()
     {
         var page = NewPage(SettingsPage.About);
-        var host = new Uri(workspace.Server).Host;
-        page.Children.Add(FormSection(null, new GroupCard(Row(LabeledRow("アプリの版", typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? "-")), Row(LabeledRow("接続先", host.Length == 0 ? "未設定" : host)))));
+        // B16: the server is shown on 接続 only.
+        page.Children.Add(FormSection(null, new GroupCard(Row(LabeledRow("アプリの版", VersionText)))));
         return Task.CompletedTask;
     }
 
