@@ -140,6 +140,9 @@ export class BotGoals {
     return result
   }
   snapshot(bot, result) {
+    // A seat before its first turn has no conversation yet (Codex binds it on the first turn): idle, not a failed read.
+    if (result.availability === 'unavailable' && result.reason === 'thread_binding_unavailable' && !result.binding)
+      return { ...this.unavailable(bot, 'seat_idle'), observedAt: result.observed_at }
     const known = result.availability === 'available' && result.binding && Object.hasOwn(result, 'goal')
     const availability = known ? 'available' : result.availability === 'unsupported' ? 'unsupported' : 'unavailable'
     const capabilities = known ? { ...result.capabilities } : noCapabilities()

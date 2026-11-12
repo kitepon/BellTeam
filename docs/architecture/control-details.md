@@ -107,6 +107,7 @@ flowchart TD
   Expected --> Call
   Call --> Validate["schema・世代・thread<br/>capability・native値を検証"]
   Validate --> Snapshot["表示snapshotへ変換"]
+  Snapshot -->|"unavailable + Aiterm reason thread_binding_unavailable<br/>（起動直後で最初のターン前。会話がまだ無い）"| Idle
   Validate --> Outcome["変更受付とreadbackから<br/>confirmed / unconfirmed"]
   Call -->|"異常"| Report["安全な診断を記録"]
   Report --> Unavailable["unavailable + reason=read_failed / unconfirmedを返す"]
@@ -119,7 +120,7 @@ flowchart TD
 | 公開snapshotの`reason`（2026-11-12追加） | 加算fieldだけで`availability`の値集合は変えない（Apple 1.0.6とWindows 0.4.7はavailabilityを閉じた列挙でdecodeする）。`seat_idle`＝席が今動いていない通常状態。messageは「休止中です。メッセージを送ると再開します。」で、診断を記録しない。`read_failed`＝本当の取得失敗で、従来のmessageと診断のまま。available/unsupportedは`null`。clientは`reason=seat_idle`だけを休止中表示にし、それ以外のunavailableは失敗表示を保つ |
 | `mutate` | origin=userのみ。create/edit/resumeはadmitWork、pause/clearは停止中も操作可能。expected session/launch/threadをnativeへ渡す |
 | `call` | v1/v2返却、mutation/readback、field capability、Codex/Claude/Grok別native形を検証。typedエラー結果も同じ検証に通す |
-| `snapshot` | availableでもbinding/goalなしはunavailable。create/edit/pause/resumeの表示可否は現在Goalと公開capabilityの両方から制限 |
+| `snapshot` | Aitermの`reason=thread_binding_unavailable`（binding null）は、起動直後で最初のターン前の席（Codexは最初のターンで会話を作る）なので取得失敗ではなくseat_idle（休止中の文言、診断なし。Trony ruling 2026-11-12）。availableでもbinding/goalなしはunavailable。create/edit/pause/resumeの表示可否は現在Goalと公開capabilityの両方から制限 |
 | confirmed | `applied && acknowledged && confirmed`のみ。rejectedは409、unsupported/unavailableは503。unknownを成功へ変えない |
 | 診断接続 | `reportError`はawaitされる。既callerのGOAL_OPERATION_UNCONFIRMED / goalsをDiagnosticsへ登録し、組立て反例を修理した。安全な診断の後にunavailable/unconfirmedを返す。保存自体の失敗時に伝播する既例外は変更していない |
 
