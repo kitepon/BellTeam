@@ -12,6 +12,10 @@
     {
       "module": "members",
       "port": "registry"
+    },
+    {
+      "module": "conversation",
+      "port": "messages"
     }
   ],
   "source": [
@@ -21,6 +25,7 @@
     "src/lattice/cli.mjs",
     "src/lattice/code-chart.mjs",
     "src/lattice/projection.mjs",
+    "src/lattice/notices.mjs",
     "src/lattice-protocol.mjs",
     "src/lattice-ipc.mjs",
     "src/lattice-dispatcher.mjs",

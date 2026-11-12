@@ -65,6 +65,7 @@ flowchart LR
   m_integration -->|"lattice-seat"| m_lattice
   m_integration -->|"lattice-chart"| m_lattice
   m_lattice -->|"registry"| m_members
+  m_lattice -->|"messages"| m_conversation
   m_members -->|"stop"| m_execution
   m_members -->|"project-files"| m_runtime
   m_members -->|"cli-registration"| m_runtime

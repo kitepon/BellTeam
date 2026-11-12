@@ -448,7 +448,9 @@ export async function createApplicationServices({ root, moduleChildExitReporter 
   }
   if (latticeFactory) {
     // Optional module like work-graph: the routes and the seat tool answer LATTICE_UNAVAILABLE until the child is available.
-    latticeModule = latticeFactory({ root, exchangeMutex, prepareRelease: prepareLattice, onEffect: createLatticeEffects({ bots }),
+    // Each new child generation (start, restart, exchange) re-delivers unacked startable notices; the call waits until the child is ready.
+    latticeModule = latticeFactory({ root, exchangeMutex, prepareRelease: prepareLattice, onEffect: createLatticeEffects({ bots, messenger }),
+      onGeneration: () => { void lattice?.deliver() },
       onModuleChildExit: moduleChildExitReporter.observe, onModuleRestartLimit: moduleChildExitReporter.observeRestartLimit, onState: () => updateCenter?.notify() })
     lattice = createLatticeFacade({ controller: latticeModule })
     void latticeModule.start().catch(() => {})
