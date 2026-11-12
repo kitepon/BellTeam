@@ -1,8 +1,8 @@
-// Reference simulation of the 相関図 layout in behavior-spec.md. `node layout-sim.mjs` prints the per-axis fill, then crossings, edges through a member and blocked chips before and after uncrossing swaps and clearance, then chips without a clear spot before and after the chip spots.
+// Reference simulation of the 相関図 layout in behavior-spec.md. `node layout-sim.mjs` prints the per-axis fill, then crossings, edges through a member and blocked chips before and after uncrossing swaps and clearance, then chips without a clear spot before and after the chip spots. Each run stops when the layout settles (alpha below alphaMin), as the apps stop their clock.
 // Forces act on normalized coordinates (u = x/W, v = y/H), so every aspect ratio fills both axes alike.
 export const LAYOUT = Object.freeze({ repulsion: 0.005, spring: 0.02, springLength: 1.4, springMax: 0.7,
   gravity: 0.02, targetFill: 0.88, gravityExponent: 16, gravityMin: 0.001, gravityMax: 50, damping: 0.82, maxSpeed: 14, collision: 2.2,
-  uncrossEvery: 30, clearance: 0.003, clearGap: 6, chipGap: 4, nameWidth: 1.6, chipWidth: 120, chipHeight: 22 })
+  alphaDecay: 0.985, alphaMin: 0.001, uncrossEvery: 30, clearance: 0.003, clearGap: 6, chipGap: 4, nameWidth: 1.6, chipWidth: 120, chipHeight: 22 })
 
 export function nodeSize(W, H, n, base = 56) {
   const s12 = n > 12 ? base * Math.sqrt(12 / n) : base
@@ -127,7 +127,7 @@ export function bestSwap(P, edges, clear = null) {
   return best
 }
 
-export function simulate({ W, H, n, edges, frames = 900, seed = 1, nameHeight = 18, L = LAYOUT, uncross = true, clear = true, spots = chipSpots, keepOnScreen = true }) {
+export function simulate({ W, H, n, edges, frames = 900, seed = 1, nameHeight = 18, L = LAYOUT, uncross = true, clear = true, spots = chipSpots, keepOnScreen = true, settle = true }) {
   const screen = { W, H }, area = keepOnScreen ? screen : null
   let s = seed
   const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647
@@ -135,7 +135,7 @@ export function simulate({ W, H, n, edges, frames = 900, seed = 1, nameHeight = 
   const nodes = Array.from({ length: n }, () => ({ u: 0.5 + (rnd() - 0.5) * 0.05, v: 0.5 + (rnd() - 0.5) * 0.05, vu: 0, vv: 0 }))
   const span = (key, size) => Math.max(...nodes.map(nd => nd[key])) - Math.min(...nodes.map(nd => nd[key])) + size
   const gravity = fill => L.gravity * Math.min(L.gravityMax, Math.max(L.gravityMin, (fill / L.targetFill) ** L.gravityExponent))
-  let alpha = 1, swaps = 0
+  let alpha = 1, swaps = 0, settled = null
   for (let frame = 0; frame < frames; frame++) {
     const F = nodes.map(() => ({ u: 0, v: 0 }))
     const pull = (i, j, q) => {
@@ -195,11 +195,13 @@ export function simulate({ W, H, n, edges, frames = 900, seed = 1, nameHeight = 
         swaps++
       }
     }
-    alpha = Math.max(0.04, alpha * 0.985)
+    // settle: below alphaMin the heat is 0 and the layout stops (the app's clock may stop); !settle = the old 0.04 floor
+    alpha = settle ? alpha * L.alphaDecay : Math.max(0.04, alpha * L.alphaDecay)
+    if (alpha < L.alphaMin) { settled = frame + 1; break }
   }
   const xs = nodes.map(nd => nd.u * W), ys = nodes.map(nd => nd.v * H)
   const P = nodes.map(nd => ({ x: nd.u * W, y: nd.v * H }))
-  return { crossings: crossings(P, edges), ...clearanceFaults(P, edges, S, nameHeight, L, spots, area, screen), swaps, fillX: (Math.max(...xs) - Math.min(...xs) + S) / W, fillY: (Math.max(...ys) - Math.min(...ys) + S + nameHeight) / H, size: S }
+  return { crossings: crossings(P, edges), ...clearanceFaults(P, edges, S, nameHeight, L, spots, area, screen), swaps, settled, fillX: (Math.max(...xs) - Math.min(...xs) + S) / W, fillY: (Math.max(...ys) - Math.min(...ys) + S + nameHeight) / H, size: S }
 }
 
 // n distinct random edges: a denser, cyclic graph than sampleEdges, for the crossing table.
@@ -246,6 +248,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const old = run(false), now = run(true), col = (runs, key) => mean(runs.map(r => r[key]))
     console.log(`${name.padEnd(16)} n=${String(n).padStart(2)} chips off screen ${col(old, 'chipsOff')} -> ${col(now, 'chipsOff')}, chips without a clear spot ${col(old, 'chipFaults')} -> ${col(now, 'chipFaults')}`)
   }
+  // settle (2026-11-13): alpha 1 -> below alphaMin after ceil(log(alphaMin) / log(alphaDecay)) frames, then the run stops
+  const still = simulate({ W: 345, H: 640, n: 4, edges: sampleEdges(4) })
+  if (still.settled !== Math.ceil(Math.log(LAYOUT.alphaMin) / Math.log(LAYOUT.alphaDecay))) throw new Error(`settle at ${still.settled}`)
   // self-checks: segment/box test, and a swap's gain is exactly the drop in crossings
   const box = { x0: 0, x1: 10, y0: 0, y1: 10 }
   if (!segmentHitsBox({ x: -5, y: 5 }, { x: 15, y: 5 }, box) || segmentHitsBox({ x: -5, y: 15 }, { x: 15, y: 15 }, box) || !segmentHitsBox({ x: 5, y: 5 }, { x: 50, y: 50 }, box)) throw new Error('segmentHitsBox')

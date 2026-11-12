@@ -19,10 +19,42 @@ Units: `pt` = SwiftUI points = CSS px = WinUI effective pixels. Times in millise
 
 ## Rendering on SwiftUI
 
-- One `TimelineView(.animation)` drives one `Canvas`. Each frame: step the simulation by the real frame `dt` (clamped to 1/30 s), then draw edges, then nodes, then labels.
+- One `TimelineView(.animation(minimumInterval:paused:))` drives one `Canvas`; its interval and pause follow [Clock and frame rate](#clock-and-frame-rate). Each frame: step the simulation by the real frame `dt` (clamped to 1/30 s) while `α > 0`, then draw edges, then nodes, then labels.
 - Avatars as Canvas symbols: `Canvas { … } symbols: { ForEach(nodes) { AvatarView(…).tag(botId) } }`, drawn with `context.resolveSymbol(id:)`.
-- Simulation state lives in one reference model (`@Observable final class`) outside the view body, keyed by `botId`, so a SwiftUI re-render never resets positions.
+- Simulation state lives in one reference model (`@Observable final class`) outside the view body, keyed by `botId`, so a SwiftUI re-render never resets positions. The per-frame fields (positions, velocities, `α`, animation progress) are `@ObservationIgnored`, so stepping them redraws only the Canvas and invalidates no other view. Observed properties change only on data events, hover/tap and pill changes.
 - Web: one `<canvas>` + `requestAnimationFrame`. Windows: `CompositionTarget.Rendering` or a Win2D canvas. Same numbers below.
+
+## Clock and frame rate
+
+Added 2026-11-13 (Trony ruling). The Owner found the Mac app very slow: 20–28 % CPU with 相関図 open, because the graph redrew every frame at 30 fps for as long as any member was on screen (the old `α` floor 0.04 kept the layout drifting, and working members blinked with flow dots). Now an idle graph draws nothing, and a graph where someone works redraws at a reduced rate. Positions, colors, tap-to-open chat and the meaning of every mark stay as they were.
+
+The clock is in one of three states, decided after every drawn frame and on every event below:
+
+| State | When | Frames |
+| --- | --- | --- |
+| `moving` | `α > 0` (see Layout), or a timed transition is running: enter 700 ms, leave 600 ms, swap glide 700 ms, edge grow 350 ms, edge end fade 300 ms, chip fade-in or fade-out 200 ms, label-null fade 300 ms, empty-state text fade 300 ms, any Reduce Motion fade 200 ms | up to 30 per second (minimum interval 1/30 s). The simulation steps while `α > 0` |
+| `working` | not `moving`, at least one node is `working`, the stream is live (no `再接続中…` or `データを読み込めませんでした。再接続中…` pill), Reduce Motion off | 15 per second (minimum interval 1/15 s). The simulation does not step; only the blink and the flow dots change |
+| `still` | otherwise: nobody works, or the stream dropped, or Reduce Motion is on, and nothing is moving | none. The last drawn frame stays on screen |
+
+```mermaid
+stateDiagram-v2
+  [*] --> moving: snapshot drawn (α = 1)
+  moving --> working: α = 0 and no transition, someone working, stream live, motion allowed
+  moving --> still: α = 0 and no transition, otherwise
+  working --> moving: change batch or resize (α = 1)
+  still --> moving: change batch, resize, new snapshot after reconnect (α = 1)
+  working --> still: stream drop, or Reduce Motion turned on
+  still --> working: Reduce Motion turned off while someone works and the stream is live
+  still --> still: redraw once (hover, tap, peek scroll, avatar loaded, pill change, appearance change)
+  working --> working: redraw once (same events)
+```
+
+- A member starts or stops working only through a change batch, and every batch sets `α = 1`. So each change runs at most about 8 s at 30 fps (the settle time, Layout), then the clock drops to `working` or `still` by itself.
+- Redraw once: in `still` and `working`, an event that changes the picture without moving the layout draws exactly one frame and keeps the state: pointer hover entering or leaving a node, edge or chip (Mac/Web/Windows), a tap or long-press that shows or clears a peek or a hidden name, peek scrolling, an avatar image finishing loading, a status pill appearing, changing or going away, a light/dark or size-class change. A press that opens a chat needs no frame.
+- The blink phase and the flow-dot positions are functions of the current time, not of the frame count: blink as in Blink (`t` from `activeSince`), dots at `90 pt/s × elapsed time` along the path. At 15 fps they show the same phase and speed in coarser steps.
+- In `still`, edges are drawn without flow dots: the base line and the arrowhead show the direction, as with Reduce Motion. This happens only when no member is working, for example while the receiver's turn reads `unknown`.
+- App backgrounded or window hidden: the stream closes and nothing is drawn, as before (Stream drop and recovery).
+- Platforms. SwiftUI: `TimelineView(.animation(minimumInterval: moving ? 1/30 : 1/15, paused: still))`; a redraw-once bumps one observed value the Canvas reads. Web: the `requestAnimationFrame` loop is not re-requested in `still`; in `working` a frame draws only when 1/15 s has passed since the last draw; a redraw-once requests one frame if none is pending. Windows: unsubscribe `CompositionTarget.Rendering` in `still`; in `working` a 1/15 s timer invalidates the canvas.
 
 ## Colors
 
@@ -66,13 +98,13 @@ Every frame, each node `i`:
 
 Integration: `vu = (vu + Fu × α) × 0.82`, `vv = (vv + Fv × α) × 0.82`, then `u += vu × (dt × 60)`, `v += vv × (dt × 60)`. Cap the speed in points: if `hypot(vu × W, vv × H) > 14`, scale both down to 14 pt per frame-equivalent.
 
-`α` (heat): set to 1 on every applied change batch or window resize, then `α = max(0.04, α × 0.985)` each 1/60 s. The floor 0.04 keeps the layout drifting gently, so it re-arranges by itself and never freezes. Node pairs connected in both directions (A→B and B→A) count as one spring.
+`α` (heat): set to 1 on every applied change batch or window resize, then `α = α × 0.985` each 1/60 s (per frame `α × 0.985^(dt × 60)`). When `α` falls below `αmin = 0.001` it becomes 0: the layout has settled. Every velocity is set to 0, and forces, collision, bounds, clearance pushes and uncrossing checks stop, so no node moves until the next change batch or resize. From `α = 1` this takes about 7.6 s. (Revised 2026-11-13, Clock and frame rate: until then a floor of 0.04 kept the layout drifting forever, which redrew every frame.) Node pairs connected in both directions (A→B and B→A) count as one spring.
 
 ### Uncrossing swaps
 
 Added 2026-11-10 after the Owner asked whether lines between members can avoid crossing each other. The forces above do not see crossings, so a layout can settle with edges crossing.
 
-- Every 30 simulation frames (0.5 s), count the crossings of the current edges as straight segments between node centers in points. A→B and B→A count as one segment. Two segments that share a node never count as crossing. Leaving nodes and their (already gone) edges take no part.
+- Every 30 simulation frames (0.5 s), while `α > 0`, count the crossings of the current edges as straight segments between node centers in points. A→B and B→A count as one segment. Two segments that share a node never count as crossing. Leaving nodes and their (already gone) edges take no part.
 - For every pair of non-leaving nodes where at least one has an edge, compute how many crossings would disappear if the two nodes traded places. Only segments touching one of the two nodes change, so count only those (`bestSwap()` in the simulation).
 - If some pair removes at least one crossing, swap the simulated positions and velocities of the pair that removes the most (ties: the first pair in node order by `botId`). At most one swap per check. No swap when nothing improves, so a swap never adds a crossing at that moment. `α` is not changed.
 - Drawing: each swapped node glides from its current drawn position to its new simulated position over 700 ms with the enter curve `cubic-bezier(0.2, 0.8, 0.2, 1)`, like Enter. Its edges and chips follow the drawn positions. A node that is still in its enter animation keeps its enter interpolation toward the new target.
@@ -96,20 +128,20 @@ Reference, `node layout-sim.mjs` (5 runs each, `n` random edges among `n` member
 
 | Screen | n | Crossings | Edges through a member | Blocked chips |
 | --- | --- | --- | --- | --- |
-| Web 1440×900 | 16 | 12.2 → 1.0 | 2.2 → 0.0 | 0.0 → 0.0 |
-| Web 1440×900 | 24 | 28.4 → 2.0 | 6.8 → 0.0 | 0.0 → 0.0 |
-| iPhone portrait | 10 | 4.8 → 0.0 | 2.4 → 0.0 | 1.2 → 1.2 |
-| iPhone portrait | 16 | 14.0 → 0.8 | 9.0 → 0.2 | 3.4 → 3.4 |
+| Web 1440×900 | 16 | 12.8 → 1.6 | 2.2 → 0.0 | 0.0 → 0.0 |
+| Web 1440×900 | 24 | 31.8 → 2.0 | 8.6 → 0.2 | 0.0 → 0.0 |
+| iPhone portrait | 10 | 5.2 → 0.0 | 2.8 → 0.0 | 1.6 → 2.0 |
+| iPhone portrait | 16 | 14.8 → 0.8 | 9.6 → 0.4 | 3.0 → 3.0 |
 
-"Before" is the layout without uncrossing swaps and clearance; "after" has both. Both use the chip spots of Chip placement and keep chips inside `D` (values updated 2026-11-10 with the spots and the on-screen rule). Fill of each axis moves by at most 0.01.
+"Before" is the layout without uncrossing swaps and clearance; "after" has both. Both use the chip spots of Chip placement and keep chips inside `D` (values updated 2026-11-10 with the spots and the on-screen rule, and 2026-11-13 with the layout settling at `α = 0` instead of drifting at 0.04; the changes stay within the spread between runs). Fill of each axis moves by at most 0.01.
 
-Expected result, from the reference simulation [layout-sim.mjs](layout-sim.mjs) (`node layout-sim.mjs`; same constants as above, exported as `LAYOUT`):
+Expected result, from the reference simulation [layout-sim.mjs](layout-sim.mjs) (`node layout-sim.mjs`; same constants as above, exported as `LAYOUT`; the run stops when the layout settles at `α = 0`):
 
 | Members | Fill of each axis |
 | --- | --- |
-| 2 | 0.57–0.74 (the pair lies along a diagonal) |
-| 3–4 | 0.83–0.86 |
-| 8–30 | 0.89–0.94 |
+| 2 | 0.52–0.75 (the pair lies along a diagonal) |
+| 3–4 | 0.82–0.87 |
+| 8–30 | 0.90–0.94 |
 
 This holds for Web 1440×900, a Mac window, iPhone portrait, iPad portrait and square, within ±0.02 across them. When members cannot fit at `S × 2.2` spacing (about 30 on an iPhone), the graph reaches the edges and the crowded shrink of `S` applies. App builders can port `simulate()` to check their implementation against these numbers.
 
@@ -144,15 +176,15 @@ The earlier values (`kr = 0.00009 × m³ × min(1, 6/n)`, `L = 0.38 × m`, gravi
 - Edge start: the base line grows from requester to receiver over 350 ms ease-out, then dots start. Edge end: line and dots fade out over 300 ms.
 - Label: when `label` is null there is no chip (the line and flow show alone until the summary arrives by `edge-update`). Otherwise `label` in a chip (fill canvas 0.92, corner 8 pt, padding 6×3 pt, `listDetailFontSize`, muted, max width 180 pt, and never wider than `D` minus 8 pt) near the path midpoint. The whole label is always shown: it wraps onto as many lines as it needs and is never truncated (Owner ruling 2026-11-09). The chip height grows with the lines (line height 16 pt). A chip taller than `D` is shown whole through scrolling in its peek (Chip placement > Oversize chip).
 - Every chip that has obtained a placement slot stays visible for the whole life of its edge, in any graph, crowded ones (more than 10 open edges) and short paths included (Owner 2026-11-09: 「札はずっと出しておこう」). A chip that finds no free slot waits undrawn until one frees; no slot is forced or reserved for it, and its hover/tap peek on the edge line (see Chip placement) is temporary (Owner 2026-11-09: 「札を出す空間がない時は諦める今の仕様でいいよ」). There is no `brief` state and no "3 s, then hover/tap only" chip. Production Web 15:58 showed every chip in a crowded graph vanishing after about 3 s, which the Owner rejected.
-- Chip start is decided once per edge and then held, so a chip never blinks on and off (Owner 2026-11-09: 「依頼内容が表示されたり消えたりする」). The layout never stops drifting (α floor 0.04), so no per-frame check may hide a chip. The chip starts at the first frame where the edge has a non-null `label` AND both of its nodes have finished their enter animation (700 ms; Reduce Motion 200 ms; a leaving node counts as finished), so fly-in geometry never places it. Usually this is when the summary arrives, 10–30 s after `edge-start`; for edges in a snapshot, it is when their nodes have landed. Call that frame the latch frame. From then on the chip stays until the edge ends (300 ms fade with the line), whatever crowding or path length becomes.
+- Chip start is decided once per edge and then held, so a chip never blinks on and off (Owner 2026-11-09: 「依頼内容が表示されたり消えたりする」). The layout moves for several seconds after every change, so no per-frame check may hide a chip. The chip starts at the first frame where the edge has a non-null `label` AND both of its nodes have finished their enter animation (700 ms; Reduce Motion 200 ms; a leaving node counts as finished), so fly-in geometry never places it. Usually this is when the summary arrives, 10–30 s after `edge-start`; for edges in a snapshot, it is when their nodes have landed. Call that frame the latch frame. From then on the chip stays until the edge ends (300 ms fade with the line), whatever crowding or path length becomes.
   - A change of `label` text only re-wraps the chip. `label` back to null (not expected from the contract) removes the chip with a 300 ms fade.
 - Chip placement. Obstacles are every node disc grown by 4 pt, every drawn name (its text box) grown by 4 pt, and every earlier chip grown by 4 pt (earlier = older edge start, placed first). A hidden name (see below) is not an obstacle, and neither is the disc or name of a node in its leave animation (Leave, 600 ms): it is already moving off screen and fading. A chip is placed at a slot that covers no obstacle.
   - Slots (revised 2026-11-10, Owner: 「線のある場所なら自由に札を移動でき、線のポイントの上下左右自由な位置に配置できるようにしたい」, goal: chips cover other chips and member icons as little as possible). A slot is a path position `t` and a side. Positions run over the whole drawn path, nearest the middle first: `t = 0.5, 0.45, 0.55, 0.4, 0.6, … 0.1, 0.9` (17). At each position the sides are tried in this order: centered on the path point; above it (the chip's bottom edge on the point); below it (top edge on the point); left of it (right edge on the point); right of it (left edge on the point). Up, down, left and right are screen directions, on straight and curved paths alike. So 85 slots, tried position by position. Before this revision the slots were centered only, at `t = 0.3 … 0.7`.
   - On screen (2026-11-10, Owner approved 「相関図で、画面の端からはみ出す札の置き場所を使わないように直すか」 → 直す, after the iPhone SE 24-member shot showed side chips cut at the screen edge). Every chip whose box, grown by 4 pt, fits in the drawable rect `D` is drawn inside `D`. Before a slot is checked against the obstacles, its grown chip box is slid inward just enough to lie inside `D`, horizontally and vertically; a slot already inside does not move. The slid box still touches or covers its path point whenever that point is inside `D`. The slid box is then the slot's place for the obstacle check, for "keeps its current slot while free", and for drawing. The same slide applies to a blocked chip at its slot and to the hover/tap peek at `t = 0.5`. Edges, nodes, names and the clearance pushes are unchanged.
     - Oversize chip. A label is never truncated and wraps to any number of lines (Owner ruling 2026-11-09), and the chip is never wider than `D` minus 8 pt (see Label), so only the height can exceed `D`: a chip whose grown box is taller than `D`. No slide can fit it, so no slot of it is free: like any chip without a free slot it waits undrawn, or, when re-wrapping made an already drawn chip oversize, it stays blocked at its slot with its top edge (grown by 4 pt) on `D`'s top edge. Its full text is read through the hover/tap peek, which for an oversize chip is a box exactly as tall as `D` (grown by 4 pt), placed at `D`'s top, whose label scrolls inside it: it opens at the first line; the scroll wheel or trackpad scrolls it while hovered (Mac/Web/Windows), a vertical drag inside it scrolls it while the peek is open (iPhone). Every line can be scrolled into view, so the whole label stays readable and no text is shortened. Which edges have a chip, the latch frame, the fades and hit testing are unchanged; a press that starts inside a node's hit area still goes to the node.
-  - Reference for the on-screen rule (`node layout-sim.mjs`, same runs as below): chips drawn partly outside `D` → after: iPhone portrait n=10 2.2 → 0.0, n=16 4.4 → 0.0, n=24 5.8 → 0.0; Web 1440×900 0.0 → 0.0. Chips without a clear slot rise (n=10 1.6 → 3.0, n=16 6.0 → 7.6, n=24 16.4 → 21.8) because a cut chip used to count as placed; chips drawn whole and clear rise too (n=10 6.2 → 7.0, n=16 5.6 → 8.4, n=24 1.8 → 2.2). Skipping an outside slot instead of sliding it was measured and loses more chips (n=16 9.6, n=24 23.0 without a clear slot).
+  - Reference for the on-screen rule (`node layout-sim.mjs`, same runs as below): chips drawn partly outside `D` → after: iPhone portrait n=10 2.2 → 0.0, n=16 5.0 → 0.0, n=24 5.0 → 0.0; Web 1440×900 0.0 → 0.0. Chips without a clear slot rise (n=10 2.6 → 3.4, n=16 5.8 → 8.8, n=24 17.8 → 21.2) because a cut chip used to count as placed; chips drawn whole and clear rise too (measured 2026-11-10 with the drifting layout: n=10 6.2 → 7.0, n=16 5.6 → 8.4, n=24 1.8 → 2.2). Skipping an outside slot instead of sliding it was measured and loses more chips (n=16 9.6, n=24 23.0 without a clear slot).
   - Only the place changes. Which edges have a chip, the latch frame, the 200 ms fade-in and fade-out, the hover/tap peek at `t = 0.5`, the blocked chip's drawing order and the clearance pushes (which still use the chip box at `t = 0.5`) stay as they are. With more slots a chip waits undrawn less often, so it usually appears at its latch frame.
-  - Reference (`node layout-sim.mjs`, 5 runs, `n` random edges among `n` members, 120×22 pt chips, chips placed oldest first with earlier chips as obstacles): chips kept inside `D` (On screen), chips without a clear slot, centered `t = 0.3 … 0.7` → these slots: Web 1440×900 n=24 1.2 → 0.0; iPhone portrait n=10 4.2 → 3.0, n=16 10.8 → 7.6, n=24 22.4 → 21.8. A dense iPhone graph still has chips with no clear slot; they keep the rules below.
+  - Reference (`node layout-sim.mjs`, 5 runs, `n` random edges among `n` members, 120×22 pt chips, chips placed oldest first with earlier chips as obstacles): chips kept inside `D` (On screen), chips without a clear slot, centered `t = 0.3 … 0.7` → these slots: Web 1440×900 n=24 0.8 → 0.0; iPhone portrait n=10 4.4 → 3.4, n=16 10.6 → 8.8, n=24 22.6 → 21.2. A dense iPhone graph still has chips with no clear slot; they keep the rules below.
   - First slot: from the latch frame, the first free slot. Until one is free, the chip waits undrawn, then appears once with a 200 ms fade-in.
   - A waiting (undrawn) chip shows while its edge line is hovered (Mac/Web/Windows), or after a tap on its edge line until the next tap elsewhere (iPhone). It is drawn at `t = 0.5` above everything else, like any hovered chip, and goes back to waiting when the hover or tap ends (Owner 2026-11-09: 「線をタップしたら札が表示されるからそれでいいよ」).
   - Each frame a drawn chip keeps its current slot while that slot is free. When nodes, names or earlier chips drift into it, it moves to the first free slot.
@@ -167,7 +199,7 @@ No nodes: centered text `いま動いているメンバーはいません` in mu
 ## Stream drop and recovery
 
 - Drop = socket error/close, or 35 s without any byte (the server sends `: hb` every 15 s).
-- Keep the last graph on screen. Stop blinking and flow dots, desaturate nodes to 40%, keep the layout drifting. Show a status pill at top center: `再接続中…` (muted text on violetLight, corner 12 pt).
+- Keep the last graph on screen. Stop blinking and flow dots, desaturate nodes to 40%. The layout settles as usual, then the clock stops (Clock and frame rate). Show a status pill at top center: `再接続中…` (muted text on violetLight, corner 12 pt).
 - Reconnect immediately, then after 1, 2, 4, 8, 15, 15, … s (±20% jitter). Never give up while the page is open.
 - On the new snapshot: remove the pill, restore color, and animate the diff (Data handling step 3).
 - Non-empty `degraded`: keep the live graph and show the pill `一部の情報を取得できていません` until a batch arrives with empty `degraded`.
