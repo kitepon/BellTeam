@@ -11,6 +11,7 @@ namespace BellTeam.App;
 /// (test/helpers/lattice-ui-server.mjs on Rapi's branch). Times are relative to now. Scenes pick the state, the list, the stream, an unknown producer and
 /// authored lanes (「authored」: cards nobody started carry the plan's lane text and no producer, as production plans write kiro / anis / root).
 /// Every scene carries phases (one untitled) and one nested card (t05 under t04) for the tree; t11 has no phase and hangs from the chart.
+/// 「owner」: t11 belongs to the Owner (producer = the reserved value owner, as the server resolves a lane 指揮官 / owner).
 /// Finished cards carry doneAt (t03 none) and archived per the server rule: t02 and t03 are archived, t01 (its next card t07 is unstarted) is not.
 /// </summary>
 internal sealed class LatticeFixture(string scene) : HttpMessageHandler
@@ -38,7 +39,7 @@ internal sealed class LatticeFixture(string scene) : HttpMessageHandler
             Card("t08", "部品の実装", "pending", "bot-flora", 2, "契約どおりに動き、席から工程表を読める", "Lattice部品の本体をつくる。公開の入口は裁定済みの契約だけに限り、保存はモリーの配置先を使う。", authored: "kiro"),
             Card("t09", scene == "authored" ? "iPhone/Mac画面の工程表と、待ちの流れの横めくり" : "iPhone/Mac画面", "pending", scene == "unknown" ? "bot-ghost" : "bot-rapi", 3, "実画面で承認される", authored: "anis"),
             Card("t10", "Web画面", "pending", "bot-flora", 3, "Webで工程表が開く", authored: "kiro"),
-            Card("t11", "受け取り確認", "pending", null, 4, "3画面を実画面で承認"),
+            Card("t11", "受け取り確認", "pending", scene is "owner" or "owner-lanes" ? "owner" : null, 4, "3画面を実画面で承認"),
         ];
     }
 

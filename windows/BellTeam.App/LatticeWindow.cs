@@ -62,7 +62,8 @@ public sealed class LatticeWindow : Window
     }
 
     internal Func<string, string, Task<System.Windows.Media.Imaging.BitmapSource>> Avatar
-        => (id, version) => workspace.AvatarAsync($"{workspace.Server}api/bots/{Uri.EscapeDataString(id)}/avatar?v={Uri.EscapeDataString(version)}");
+        => (id, version) => workspace.AvatarAsync(id == LatticeChart.OwnerId ? $"{workspace.Server}api/owner/avatar?v={Uri.EscapeDataString(version)}" : $"{workspace.Server}api/bots/{Uri.EscapeDataString(id)}/avatar?v={Uri.EscapeDataString(version)}");
+    internal (string? Name, string AvatarVersion) OwnerProfile => (workspace.Owner?.Name, workspace.Owner?.AvatarVersion ?? "");
     internal LatticePerson? Roster(string botId)
         => workspace.Bots.FirstOrDefault(bot => bot.Id == botId) is { } bot ? new LatticePerson(bot.Id, bot.DisplayName, bot.Color, bot.AvatarVersion, true) : null;
     internal string? CoordinatorBotId => list is null ? null : LatticeChart.CoordinatorBotId(list);
@@ -323,10 +324,15 @@ internal sealed class LatticeChartPage : Grid
     // A feed that ended on its own (not found, sign-in) stays "running" until Stop, as before; only its token source is released.
     private async Task FollowAsync(BellApi api, CancellationTokenSource source)
     {
-        try { await Feed.RunAsync((onActivity, cancel) => api.LatticeEventsAsync(projectId, onActivity, cancel), source.Token); }
+        try { await Feed.RunAsync((onActivity, cancel) => WithOwner(api.LatticeEventsAsync(projectId, onActivity, cancel)), source.Token); }
         finally { if (ReferenceEquals(run, source)) run = null; source.Dispose(); }
     }
     public void Stop() { Running = false; run?.Cancel(); run = null; }
+    // Each snapshot carries the app's Owner profile, like Web's `owner` on its snapshot, so the reserved owner value is drawn by name and face.
+    private async IAsyncEnumerable<LatticeSnapshot> WithOwner(IAsyncEnumerable<LatticeSnapshot> snapshots)
+    {
+        await foreach (var snapshot in snapshots) { var (name, version) = window.OwnerProfile; yield return snapshot with { OwnerName = name, OwnerAvatarVersion = version }; }
+    }
     internal void Say(string text) { said = text; RenderPills(); }
 
     internal string ChartName => LatticeChart.ChartName(Feed.Snapshot?.Name ?? summary?.Name, Feed.Snapshot?.CreatedBy ?? summary?.CreatedBy, id => window.Roster(id)?.Name);
