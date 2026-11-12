@@ -384,3 +384,34 @@ test('prepareDirect refusing before the inquiry row writes nothing and ends live
   assert.equal(messenger.forkNotices.live.size, 0)
   await assert.rejects(rows(), { code: 'ENOENT' }, 'no row at all')
 })
+
+// A refusal whose terminal status write fails stays live; the next normal sweep after storage recovers settles it.
+async function transientStatusWrite(t, { forkInquiry, onMessage, refusal, status }) {
+  const { messenger, notified, rows } = await setup(t, forkInquiry)
+  if (onMessage) messenger.onMessage = onMessage
+  const appendStatus = messenger.appendDeliveryStatus
+  let broken = true
+  messenger.appendDeliveryStatus = async function (...args) {
+    if (broken) throw Object.assign(new Error('EIO'), { code: 'EIO' })
+    return appendStatus.apply(this, args)
+  }
+  await assert.rejects(messenger.askReadonly({ from: asker.id, target: owner.id, message: 'What is X?' }), refusal, 'the tool error is the refusal')
+  const statuses = async () => (await rows()).filter(row => row.schema === 'bellteam.delivery-status.v1').map(row => [row.delivery_id, row.delivery])
+  assert.deepEqual(await messenger.sweepForkNotices(), { relayed: 0, owed: 0 })
+  assert.deepEqual(await statuses(), [], 'storage still failing: nothing settled')
+  assert.ok(messenger.forkNotices.live.has('id-2'), 'still held live')
+  broken = false // storage recovers
+  assert.deepEqual(await messenger.sweepForkNotices(), { relayed: 0, owed: 0 })
+  assert.deepEqual(await statuses(), [['id-2', status]], 'the next normal sweep settles the same inquiry once')
+  assert.equal(messenger.forkNotices.live.size, 0)
+  await messenger.sweepForkNotices()
+  assert.deepEqual(await statuses(), [['id-2', status]])
+  assert.equal(notified.length, 0, 'never an interruption notice')
+}
+
+test('a forkInquiry refusal whose status write fails is settled by the next sweep after storage recovers', t =>
+  transientStatusWrite(t, { forkInquiry: async () => { throw Object.assign(new Error('FORK_REFUSED'), { code: 'FORK_REFUSED' }) }, refusal: /FORK_REFUSED/, status: 'failed' }))
+
+test('a durable row whose prepareDirect failed and whose status write fails is settled by the next sweep', t =>
+  transientStatusWrite(t, { forkInquiry: async () => assert.fail('never launched'),
+    onMessage: async row => { if (row.seat?.kind === 'fork') throw new Error('ON_MESSAGE_FAILED') }, refusal: /ON_MESSAGE_FAILED/, status: 'failed' }))

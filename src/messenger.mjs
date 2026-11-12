@@ -39,7 +39,8 @@ export class BellTeamMessenger extends ConversationWriter {
     this.admitWork = admitWork
     this.store = store
     // fork-inquiry.md "Owed notice": inquiries whose ONE notice this process holds (live) or still owes (owed).
-    this.forkNotices = { live: new Set(), owed: new Map(), scanned: false }
+    // refused: pre-accept refusals whose terminal status write failed; each sweep retries them and they stay live until it succeeds.
+    this.forkNotices = { live: new Set(), owed: new Map(), refused: new Map(), scanned: false }
     this.claimedReplyIds = new Set()
   }
 
@@ -112,19 +113,18 @@ export class BellTeamMessenger extends ConversationWriter {
     // Live from before the inquiry row is durable until its terminal status is: no sweep ever sees it running and not live.
     const deliveryId = this.deliveryId()
     this.forkNotices.live.add(deliveryId)
-    const refused = async (status, error) => {
-      await this.appendDeliveryStatus(deliveryId, status, error)
-      this.forkNotices.live.delete(deliveryId)
+    // A failed status write leaves the refusal to the next fork.sweep; the tool error stays the refusal.
+    const refused = async (status, error, ifRow = false) => {
+      const refusal = { deliveryId, status, error, ifRow }
+      try { await this.settleForkRefusal(refusal) }
+      catch (writeError) {
+        this.forkNotices.refused.set(deliveryId, refusal)
+        process.stderr.write(`BellTeam fork refusal status error: ${writeError.code ?? writeError.message}\n`)
+      }
     }
     let prepared
     try { prepared = await this.prepareDirect({ from, target, message }, { deliveryId }, { seat, ...(fromSeat ? { from_seat: fromSeat } : {}) }) }
-    catch (error) {
-      // An onMessage error can follow the durable row; a refusal before it leaves no row to settle.
-      if ((await this.store.entries()).some(row => row.schema === 'bellteam.direct-message.v1' && row.delivery_id === deliveryId))
-        await this.appendDeliveryStatus(deliveryId, 'failed', error)
-      this.forkNotices.live.delete(deliveryId)
-      throw error
-    }
+    catch (error) { await refused('failed', error, true); throw error }
     const { check, bot } = prepared
     const asker = memberIdentity(this.bots, from)
     const askedAt = this.now()
@@ -183,9 +183,20 @@ export class BellTeamMessenger extends ConversationWriter {
     }
   }
 
+  // ifRow: a prepareDirect failure settles the inquiry row only if it is durable (an onMessage error after the write).
+  async settleForkRefusal({ deliveryId, status, error, ifRow }) {
+    if (!ifRow || (await this.store.entries()).some(row => row.schema === 'bellteam.direct-message.v1' && row.delivery_id === deliveryId))
+      await this.appendDeliveryStatus(deliveryId, status, error)
+    this.forkNotices.live.delete(deliveryId)
+  }
+
   // fork-inquiry.md "Owed notice": relay each owed notice once; the first sweep of a process also scans the log.
   async sweepForkNotices() {
     const notices = this.forkNotices
+    for (const [deliveryId, refusal] of [...notices.refused]) {
+      if (!notices.refused.delete(deliveryId)) continue // claimed, like an owed notice
+      try { await this.settleForkRefusal(refusal) } catch { notices.refused.set(deliveryId, refusal) }
+    }
     if (!notices.scanned) {
       const entries = await this.store.entries()
       for (const notice of owedForkNotices(entries))
