@@ -415,3 +415,19 @@ test('a forkInquiry refusal whose status write fails is settled by the next swee
 test('a durable row whose prepareDirect failed and whose status write fails is settled by the next sweep', t =>
   transientStatusWrite(t, { forkInquiry: async () => assert.fail('never launched'),
     onMessage: async row => { if (row.seat?.kind === 'fork') throw new Error('ON_MESSAGE_FAILED') }, refusal: /ON_MESSAGE_FAILED/, status: 'failed' }))
+
+test('in the conversation child a forkInquiry refusal with an effect error code still writes its failed status', async t => {
+  const { conversationCallbackFailureFields } = await import('../src/conversation/callbacks.mjs')
+  const root = await mkdtemp(join(tmpdir(), 'fork-inquiry-')); t.after(() => rm(root, { recursive: true, force: true }))
+  let n = 0
+  const messenger = new BellTeamMessenger({
+    bots: new Map([[asker.id, asker], [owner.id, owner]]), logPath: join(root, 'direct.jsonl'), deliveryId: () => `id-${++n}`,
+    failureFields: conversationCallbackFailureFields, // the child's strict status fields
+    transport: { async forkInquiry() { throw Object.assign(new Error('CONVERSATION_OPERATION_FAILED'), { code: 'CONVERSATION_OPERATION_FAILED', outcome: 'unknown', status: 503 }) } },
+  })
+  await assert.rejects(messenger.askReadonly({ from: asker.id, target: owner.id, message: 'What is X?' }), /CONVERSATION_OPERATION_FAILED/)
+  const rows = (await readFile(join(root, 'direct.jsonl'), 'utf8')).trim().split('\n').map(line => JSON.parse(line))
+  assert.deepEqual(rows.filter(row => row.schema === 'bellteam.delivery-status.v1').map(row => [row.delivery_id, row.delivery]), [['id-2', 'failed']])
+  assert.equal(messenger.forkNotices.refused.size, 0, 'nothing left to retry')
+  assert.equal(messenger.forkNotices.live.size, 0)
+})
