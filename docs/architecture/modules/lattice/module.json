@@ -19,6 +19,7 @@
     "src/lattice/mcp.mjs",
     "src/lattice/core.mjs",
     "src/lattice/cli.mjs",
+    "src/lattice/code-chart.mjs",
     "src/lattice/projection.mjs",
     "src/lattice-protocol.mjs",
     "src/lattice-ipc.mjs",
