@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-12T15:41:45Z",
-  "expiresAt": "2026-11-19T15:41:45Z",
+  "publishedAt": "2026-11-12T16:03:01Z",
+  "expiresAt": "2026-11-19T16:03:01Z",
   "releases": [
     {
       "componentId": "usage",
@@ -493,8 +493,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "ccf4046c8352fb2933381cb7be983e1d912cc202",
-      "versionId": "dd2af1b2b4c8b1610c26bcbbe8d81f2e24c9ba1e0c02f5cc83ce8c13769dc378",
+      "sourceCommit": "fdfb16072747861e07cb4511ebd2a5d568bb276e",
+      "versionId": "302c7a49efa96916fa50ef277d82cd3b127393f91ab31024ca22f6dcd9134e83",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -502,16 +502,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T075632Z/execution-ccf4046c8352fb2933381cb7be983e1d912cc202-linux-amd64.tar.gz",
-          "bytes": 3962318,
-          "sha256": "dd2af1b2b4c8b1610c26bcbbe8d81f2e24c9ba1e0c02f5cc83ce8c13769dc378"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T160222Z/execution-fdfb16072747861e07cb4511ebd2a5d568bb276e-linux-amd64.tar.gz",
+          "bytes": 3962353,
+          "sha256": "302c7a49efa96916fa50ef277d82cd3b127393f91ab31024ca22f6dcd9134e83"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T075632Z/execution-ccf4046c8352fb2933381cb7be983e1d912cc202-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10989,
-          "sha256": "f2419e2f739c939c0d8553ef555fadd3d54c47d1d8adf7cdadeb60d00687f0e5"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T160222Z/execution-fdfb16072747861e07cb4511ebd2a5d568bb276e-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11177,
+          "sha256": "6a41c430414ab1354b5240572b1626c774a9b1f695564c6ef813335b227e15e4"
         },
-        "signerCommit": "ccf4046c8352fb2933381cb7be983e1d912cc202"
+        "signerCommit": "fdfb16072747861e07cb4511ebd2a5d568bb276e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -521,13 +521,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "Grokの席のゴールで「いまの状態」が来ない時も、保存してある状態から今までの形で返すようになりました。"
+        "共通規範の lattice.task を変えます。自分の担当の中だけで閉じる作業は、各 Bot が自分の工程表を作って自分で載せます。調整役の工程表に載せるべき作業が無い時だけ、調整役に追加を頼みます。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "ccf4046c8352fb2933381cb7be983e1d912cc202",
-      "versionId": "6ae801c78217d692983813e7df2ca2b6b4e7be7ff6c49a4100424dc0a060b5aa",
+      "sourceCommit": "fdfb16072747861e07cb4511ebd2a5d568bb276e",
+      "versionId": "5a3ac0e0a4f93fdabea900c21a0d94d1f29acc990a89b6fb1348ea11f7e19ee2",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -535,16 +535,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T075632Z/execution-ccf4046c8352fb2933381cb7be983e1d912cc202-linux-arm64.tar.gz",
-          "bytes": 3962324,
-          "sha256": "6ae801c78217d692983813e7df2ca2b6b4e7be7ff6c49a4100424dc0a060b5aa"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T160222Z/execution-fdfb16072747861e07cb4511ebd2a5d568bb276e-linux-arm64.tar.gz",
+          "bytes": 3962350,
+          "sha256": "5a3ac0e0a4f93fdabea900c21a0d94d1f29acc990a89b6fb1348ea11f7e19ee2"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T075632Z/execution-ccf4046c8352fb2933381cb7be983e1d912cc202-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10989,
-          "sha256": "9cbe2c074b2e5183512337772b6afa993e5808f1e88d56b0590dd573ceff4f33"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T160222Z/execution-fdfb16072747861e07cb4511ebd2a5d568bb276e-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11255,
+          "sha256": "9ae500e12b529b15656b51516a0494d049fc8c40b5fc40d0645f0d9cb4f84d97"
         },
-        "signerCommit": "ccf4046c8352fb2933381cb7be983e1d912cc202"
+        "signerCommit": "fdfb16072747861e07cb4511ebd2a5d568bb276e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -554,13 +554,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "Grokの席のゴールで「いまの状態」が来ない時も、保存してある状態から今までの形で返すようになりました。"
+        "共通規範の lattice.task を変えます。自分の担当の中だけで閉じる作業は、各 Bot が自分の工程表を作って自分で載せます。調整役の工程表に載せるべき作業が無い時だけ、調整役に追加を頼みます。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "efd1b5847a87a8fb74ab04ca5eb9e1891efeb71d",
-      "versionId": "b868f295cb268c80237547a0f4b1e0511664f1073ac938ee17bf2ce9d6cda6ed",
+      "sourceCommit": "fdfb16072747861e07cb4511ebd2a5d568bb276e",
+      "versionId": "562cc25845737746d8d65e577eb4355d271d7841e73bd305e3d32514addc9489",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -568,16 +568,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T084318Z/members-efd1b5847a87a8fb74ab04ca5eb9e1891efeb71d-linux-amd64.tar.gz",
-          "bytes": 4490276,
-          "sha256": "b868f295cb268c80237547a0f4b1e0511664f1073ac938ee17bf2ce9d6cda6ed"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T160213Z/members-fdfb16072747861e07cb4511ebd2a5d568bb276e-linux-amd64.tar.gz",
+          "bytes": 4496035,
+          "sha256": "562cc25845737746d8d65e577eb4355d271d7841e73bd305e3d32514addc9489"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T084318Z/members-efd1b5847a87a8fb74ab04ca5eb9e1891efeb71d-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 10996,
-          "sha256": "76b244db46d34e754338ce4cf15b357554d47433a846a6e7b89d4eb51c8fb9da"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T160213Z/members-fdfb16072747861e07cb4511ebd2a5d568bb276e-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11231,
+          "sha256": "027e9db07fde8a89fb1a379c684573aa06afda39249d003e8243c17d79f6c672"
         },
-        "signerCommit": "efd1b5847a87a8fb74ab04ca5eb9e1891efeb71d"
+        "signerCommit": "fdfb16072747861e07cb4511ebd2a5d568bb276e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -594,13 +594,13 @@
         }
       },
       "changes": [
-        "コマンドの予定に「結果も知らせる」設定を足しました。終了コード0で終わると、結果を予定を持つBotだけへ届けます。終了コード75は「まだ終わっていない」として何も届けません。"
+        "共通規範の lattice.task を変えます。自分の担当の中だけで閉じる作業は、各 Bot が自分の工程表を作って自分で載せます。調整役の工程表に載せるべき作業が無い時だけ、調整役に追加を頼みます。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "efd1b5847a87a8fb74ab04ca5eb9e1891efeb71d",
-      "versionId": "bb9f432c2c360e461d42e5d5729cd9e07784f2e47d53649089d2bd562ba46992",
+      "sourceCommit": "fdfb16072747861e07cb4511ebd2a5d568bb276e",
+      "versionId": "229544480235c5808a7eec69d2f80ab1629c59a7584b78b99ba0611feacd434e",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -608,16 +608,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T084318Z/members-efd1b5847a87a8fb74ab04ca5eb9e1891efeb71d-linux-arm64.tar.gz",
-          "bytes": 4490277,
-          "sha256": "bb9f432c2c360e461d42e5d5729cd9e07784f2e47d53649089d2bd562ba46992"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T160213Z/members-fdfb16072747861e07cb4511ebd2a5d568bb276e-linux-arm64.tar.gz",
+          "bytes": 4496035,
+          "sha256": "229544480235c5808a7eec69d2f80ab1629c59a7584b78b99ba0611feacd434e"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T084318Z/members-efd1b5847a87a8fb74ab04ca5eb9e1891efeb71d-linux-arm64.tar.gz.sigstore.json",
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T160213Z/members-fdfb16072747861e07cb4511ebd2a5d568bb276e-linux-arm64.tar.gz.sigstore.json",
           "bytes": 11090,
-          "sha256": "3046a7f7e9c52ed79622efb097e7a96f2d4e430c4415c8dd31530ab612fc4750"
+          "sha256": "fe6e8de426d9579c06780c5bcf9042df03ca3c640294c1a79ddc8a21473ec0dc"
         },
-        "signerCommit": "efd1b5847a87a8fb74ab04ca5eb9e1891efeb71d"
+        "signerCommit": "fdfb16072747861e07cb4511ebd2a5d568bb276e"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -634,7 +634,7 @@
         }
       },
       "changes": [
-        "コマンドの予定に「結果も知らせる」設定を足しました。終了コード0で終わると、結果を予定を持つBotだけへ届けます。終了コード75は「まだ終わっていない」として何も届けません。"
+        "共通規範の lattice.task を変えます。自分の担当の中だけで閉じる作業は、各 Bot が自分の工程表を作って自分で載せます。調整役の工程表に載せるべき作業が無い時だけ、調整役に追加を頼みます。"
       ]
     },
     {
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "738a8012344c9bd29cb1b5808e5352bf5a7f37e1",
-      "versionId": "sha256:177bdfb91c32884ed478eb80b2026aed2dabfaf2c621531cba72f424c3490b65",
+      "sourceCommit": "f13dd38b9e35886504e80429d0b9d0bed9ef15ec",
+      "versionId": "sha256:2cbe256c2313a38854bc553d353173f16d8ec90aa8a68946769a4c2b5d739d04",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:177bdfb91c32884ed478eb80b2026aed2dabfaf2c621531cba72f424c3490b65"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:2cbe256c2313a38854bc553d353173f16d8ec90aa8a68946769a4c2b5d739d04"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,20 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "本体に入っている予備の工程表を 0.97.0 にします。工程表の部品が読めない時に予備へ戻っても、開き直した工程表を読めます。予備の工程表にも、止まっている作業の一覧と、止まりを外す操作が入ります。"
+        "Aiterm を 0.70.39 にします。最初の画面で止まる席は理由を返して閉じ、Grok と Codex の席の読み取りを直します。工程表で準備ができたのにまだ始まっていない作業を、約5分ごとに、動いていない担当の Bot へ知らせます。本体の入れ替え後に、まだ届いていない作業の知らせも届くようになります。「結果を知らせる」コマンドの予定を待っている Bot は、作業中として表示し、知らせを送りません。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "738a8012344c9bd29cb1b5808e5352bf5a7f37e1",
-      "versionId": "sha256:177bdfb91c32884ed478eb80b2026aed2dabfaf2c621531cba72f424c3490b65",
+      "sourceCommit": "f13dd38b9e35886504e80429d0b9d0bed9ef15ec",
+      "versionId": "sha256:2cbe256c2313a38854bc553d353173f16d8ec90aa8a68946769a4c2b5d739d04",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:177bdfb91c32884ed478eb80b2026aed2dabfaf2c621531cba72f424c3490b65"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:2cbe256c2313a38854bc553d353173f16d8ec90aa8a68946769a4c2b5d739d04"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,7 +748,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "本体に入っている予備の工程表を 0.97.0 にします。工程表の部品が読めない時に予備へ戻っても、開き直した工程表を読めます。予備の工程表にも、止まっている作業の一覧と、止まりを外す操作が入ります。"
+        "Aiterm を 0.70.39 にします。最初の画面で止まる席は理由を返して閉じ、Grok と Codex の席の読み取りを直します。工程表で準備ができたのにまだ始まっていない作業を、約5分ごとに、動いていない担当の Bot へ知らせます。本体の入れ替え後に、まだ届いていない作業の知らせも届くようになります。「結果を知らせる」コマンドの予定を待っている Bot は、作業中として表示し、知らせを送りません。"
       ]
     },
     {
