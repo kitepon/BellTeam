@@ -59,6 +59,8 @@ Mac版と同じ構成で、[Windowsアーキテクチャ](windows-architecture.m
 | 購入（StoreKit） | 「利用と課金」は案内とリンクだけ |
 | Mac版の更新 | 設定の「アップデート」はBellTeam本体の更新（共通Update API）。アプリ自身の更新は導入手順の再実行 |
 
+- 設定の「端末」は、Windowsの「このPCを追加」「このPCを確かめる」（16c）とオプション機能の案内を出さない。Coreの`ThisPc`がWindowsのOpenSSH鍵の置き場を読むためで、Linuxでは`NoThisPc`で自端末を持たない扱いにする。「通知」のスイッチは`SettingsStore.NotificationsEnabled`を読み書きし、通知の配信は別に実装する。
+
 ## 導入
 
 ```sh

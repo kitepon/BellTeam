@@ -14,7 +14,7 @@ using BellTeam.Core;
 
 namespace BellTeam.Linux;
 
-public sealed class MainWindow : Window
+public sealed class MainWindow : Window, ISheetHost
 {
     private readonly LinuxWorkspace model;
     private readonly SettingsStore settingsStore;
@@ -86,12 +86,20 @@ public sealed class MainWindow : Window
     private readonly ContentControl sheetHost = new();
     private readonly Grid galleryHost = new() { Background = Brushes.Black, IsVisible = false, Focusable = true };
     private IInputElement? focusBeforeGallery;
+    private readonly Button sheetClose, sheetSaveButton;
+    private ISheetSave? sheetSave;
+    // The open settings page (hosted content of a never-shown EditorWindow) and its notification switch; the notification delivery port supplies its own switch.
+    private SettingsWindow? settingsPage;
+    private INotificationSwitch? notifications;
+    public Task PageReady { get; private set; } = Task.CompletedTask;
 
     public MainWindow(LinuxWorkspace model, bool persistPlacement = true, SettingsStore? settings = null)
     {
         this.model = model; settingsStore = settings ?? new SettingsStore(SettingsStore.UserDirectory);
+        model.ThisPc = new NoThisPc(); // 16c reads the Windows OpenSSH host-key path
         Title = "BellTeam"; Width = 1280; Height = 820; MinWidth = 1100; MinHeight = 640;
         Icon = new WindowIcon(EmbeddedAsset.Open("BellTeam.png"));
+        sheetClose = SheetPill("閉じる", HorizontalAlignment.Left); sheetSaveButton = SheetPill("保存", HorizontalAlignment.Right);
         addMenu = BuildAddMenu();
         clearSearch = Flat(Icons.Close, 12, "検索を消去", () => { model.Search = ""; search.Text = ""; search.Focus(); }); clearSearch.IsVisible = false;
         exportButton = BuildExport();
@@ -151,9 +159,9 @@ public sealed class MainWindow : Window
         errorStrip.Child = new StackPanel { Children = { stripTop, actionError } };
         Grid.SetRow(errorStrip, 1);
         // Sheet: Mac bellEditorSheet, min 720x540, ideal 820x680, shrinks to fit the window.
-        var closeSheet = new Button { Classes = { "plain" }, Content = "閉じる", Padding = new Thickness(16, 7), CornerRadius = new CornerRadius(99), FontWeight = FontWeight.Normal, Foreground = BellTheme.Ink, Background = new SolidColorBrush(Color.Parse("#80FFFFFF")), BorderBrush = new SolidColorBrush(Color.Parse("#C9C4DE")), BorderThickness = new Thickness(1), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
-        AutomationProperties.SetName(closeSheet, "閉じる"); closeSheet.Click += (_, _) => CloseSheet();
-        var header = new Grid { Height = 52, Background = new SolidColorBrush(Color.Parse("#F2F2F7")), Children = { closeSheet, sheetTitle } };
+        var closeSheet = sheetClose; AutomationProperties.SetName(closeSheet, "閉じる"); closeSheet.Click += (_, _) => { if (sheetSave is { CanClose: false }) return; CloseSheet(); };
+        sheetSaveButton.IsVisible = false; AutomationProperties.SetName(sheetSaveButton, "保存"); sheetSaveButton.Click += (_, _) => { if (sheetSave is { CanSave: true } save) _ = save.SaveAsync(); };
+        var header = new Grid { Height = 52, Background = new SolidColorBrush(Color.Parse("#F2F2F7")), Children = { closeSheet, sheetSaveButton, sheetTitle } };
         var line = new Border { Height = 1, Background = new SolidColorBrush(Color.Parse("#E6E6EB")) };
         DockPanel.SetDock(header, Dock.Top); DockPanel.SetDock(line, Dock.Top);
         sheetFrame.Margin = new Thickness(24); sheetFrame.MinWidth = 720; sheetFrame.MinHeight = 540; sheetFrame.MaxWidth = 820; sheetFrame.MaxHeight = 680; sheetFrame.Background = new SolidColorBrush(Color.Parse("#F2F2F7")); sheetFrame.CornerRadius = new CornerRadius(14); sheetFrame.ClipToBounds = true; sheetFrame.BoxShadow = BoxShadows.Parse("0 8 30 0 #40000000");
@@ -164,6 +172,8 @@ public sealed class MainWindow : Window
         root.Children.Add(main); root.Children.Add(errorStrip); root.Children.Add(startupHost); root.Children.Add(sheet); root.Children.Add(galleryHost);
         return root;
     }
+
+    private static Button SheetPill(string text, HorizontalAlignment side) => new() { Classes = { "plain" }, Content = text, Padding = new Thickness(16, 7), CornerRadius = new CornerRadius(99), FontWeight = FontWeight.Normal, Foreground = BellTheme.Ink, Background = new SolidColorBrush(Color.Parse("#80FFFFFF")), BorderBrush = new SolidColorBrush(Color.Parse("#C9C4DE")), BorderThickness = new Thickness(1), HorizontalAlignment = side, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0) };
 
     private Button BuildAddMenu()
     {
@@ -196,7 +206,7 @@ public sealed class MainWindow : Window
         void Add(Button button, int column) { button.IsEnabled = false; Grid.SetColumn(button, column); footerGrid.Children.Add(button); navButtons.Add(button); }
         Add(NavButton(Icons.Calendar, "予定", "予定（Ctrl+2）", () => ShowPage("予定")), 0);
         Add(NavButton(Icons.Target, "ゴール", "ゴール（Ctrl+3）", () => ShowPage("ゴール")), 2);
-        Add(NavButton(Icons.Gear, "設定", "設定（Ctrl+,）", () => ShowPage("設定")), 4);
+        Add(NavButton(Icons.Gear, "設定", "設定（Ctrl+,）", () => ShowSettings()), 4);
         var summaryRow = new DockPanel { Margin = new Thickness(4, 0), Children = { ownerName, new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { new Avalonia.Controls.Shapes.Ellipse { Width = 6, Height = 6, Fill = BellTheme.Mint, Margin = new Thickness(0, 0, 7, 0) }, onlineSummary } } } };
         DockPanel.SetDock(ownerName, Dock.Right);
         var footer = new StackPanel { Margin = new Thickness(14), Children = { new Border { BorderBrush = BellTheme.Line, BorderThickness = new Thickness(0, 1, 0, 0), Padding = new Thickness(0, 8), Child = footerGrid }, summaryRow } };
@@ -347,6 +357,7 @@ public sealed class MainWindow : Window
     private async void Select(ConversationEntry entry)
     {
         if (model.Selected?.Target == entry.Target && pageArea.IsVisible == false) return;
+        if (settingsPage is { CanNavigateAway: false }) { model.ReportActionError("操作が終わってから会話を開いてください。"); return; }
         ShowConversation();
         if (model.Selected?.Target != entry.Target) await model.SelectAsync(entry);
     }
@@ -507,14 +518,37 @@ public sealed class MainWindow : Window
     // ---- pages (placeholders in this stage) ----
     private void ShowPage(string title)
     {
-        if (!model.Connected) return;
+        if (!model.Connected || !LeavePage()) return;
         model.ReturnToProfile();
         var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, Spacing = 10 };
         stack.Children.Add(BellTheme.Text(title, 29, BellTheme.Ink, FontWeight.Bold)); ((TextBlock)stack.Children[0]).TextAlignment = TextAlignment.Center;
         stack.Children.Add(BellTheme.Text($"{title}はLinux版ではまだ使えません。", 16, BellTheme.Muted)); ((TextBlock)stack.Children[1]).TextAlignment = TextAlignment.Center;
         pageArea.Child = stack; pageArea.IsVisible = true; conversationArea.IsVisible = false; UpdateCorner();
     }
-    private void ShowConversation() { pageArea.Child = null; pageArea.IsVisible = false; conversationArea.IsVisible = true; UpdateCorner(); }
+    private void ShowConversation()
+    {
+        if (!LeavePage()) return;
+        pageArea.Child = null; pageArea.IsVisible = false; conversationArea.IsVisible = true; UpdateCorner();
+    }
+    // The settings page ends when another page or a conversation opens; a save still running keeps it open.
+    private bool LeavePage()
+    {
+        if (settingsPage is not { } open) return true;
+        if (!open.CanNavigateAway) { model.ReportActionError("操作が終わってから画面を切り替えてください。"); return false; }
+        settingsPage = null; open.ClosePage(); return true;
+    }
+
+    // ---- settings ----
+    internal SettingsWindow? SettingsPageWindow => settingsPage;
+    public void ShowSettings(SettingsPage page = SettingsPage.Profile)
+    {
+        if (!model.Connected || !LeavePage()) return;
+        notifications ??= new StoredNotificationSwitch(settingsStore);
+        var editor = new SettingsWindow(model, OpenConnectionSettings, notifications, () => { ShowConversation(); model.SignOut(); });
+        model.ReturnToProfile();
+        settingsPage = editor; pageArea.Child = editor.AsPage(ShowConversation); pageArea.IsVisible = true; conversationArea.IsVisible = false; UpdateCorner();
+        PageReady = editor.InitializeAsync(page);
+    }
 
     // ---- startup: the Mac RootView phases ----
     public StartupPhase Startup => startup;
@@ -540,7 +574,11 @@ public sealed class MainWindow : Window
     public void ShowStartupForRender(StartupPhase phase, string? message = null) => ShowStartup(phase, message);
     public void ShowServerGuide() { CloseSheet(); OpenSheet("サーバーの導入ガイド", new ServerGuideView()); }
     // Settings needs a live connection, so an unreachable saved server is changed from the connection strip.
-    public void OpenConnectionSettings() { ShowConversation(); ShowServerSetup(); }
+    public void OpenConnectionSettings()
+    {
+        if (settingsPage is { CanNavigateAway: false }) { model.ReportActionError("操作が終わってから接続先を変更してください。"); return; }
+        ShowConversation(); ShowServerSetup();
+    }
     private void RouteToLogin() { if (model.NeedsLogin && !connecting && startup != StartupPhase.SignIn) ShowStartup(StartupPhase.SignIn); }
 
     // Mac changeServer: the server entry screen replaces the window. The saved address stays until a new one is entered, so it is offered again.
@@ -626,12 +664,31 @@ public sealed class MainWindow : Window
     }
 
     // ---- sheet and gallery ----
-    private void OpenSheet(string title, Control content)
+    // A content that is ISheetSave puts its 保存 and its close label in the header (Mac editor sheets).
+    public void OpenSheet(string title, Control content)
     {
+        ReleaseSheetSave();
+        if (content is ISheetSave save) { sheetSave = save; save.CanSaveChanged += SheetSaveChanged; sheetSaveButton.IsVisible = true; SheetSaveChanged(); }
         sheetTitle.Text = title; AutomationProperties.SetName(sheetFrame, title);
         sheetHost.Content = content; sheet.IsVisible = true; sheet.Focus();
     }
-    private void CloseSheet() { sheetHost.Content = null; sheet.IsVisible = false; }
+    public void CloseSheet()
+    {
+        ReleaseSheetSave();
+        (sheetHost.Content as IDisposable)?.Dispose();
+        sheetHost.Content = null; sheet.IsVisible = false;
+    }
+    private void SheetSaveChanged()
+    {
+        if (sheetSave is null) return;
+        sheetSaveButton.IsEnabled = sheetSave.CanSave; sheetSaveButton.Content = sheetSave.SaveLabel; sheetClose.Content = sheetSave.CloseLabel; sheetClose.IsEnabled = sheetSave.CanClose;
+        AutomationProperties.SetName(sheetClose, sheetSave.CloseLabel); AutomationProperties.SetName(sheetSaveButton, sheetSave.SaveLabel);
+    }
+    private void ReleaseSheetSave()
+    {
+        if (sheetSave is not null) sheetSave.CanSaveChanged -= SheetSaveChanged;
+        sheetSave = null; sheetSaveButton.IsVisible = false; sheetClose.Content = "閉じる"; sheetClose.IsEnabled = true; sheetSaveButton.Content = "保存";
+    }
     // The image gallery covers the whole window (Mac fullScreenCover). Opening it again replaces the one that is open.
     public ImageGallery ShowGallery(string[] paths, int initial)
     {
@@ -650,7 +707,13 @@ public sealed class MainWindow : Window
     private void WindowKeyDown(object? sender, KeyEventArgs e)
     {
         if (Gallery is { } gallery) { if (e.KeyModifiers == KeyModifiers.None && gallery.HandleKey(e.Key)) e.Handled = true; return; }
-        if (sheet.IsVisible) { if (e.Key == Key.Escape) { CloseSheet(); e.Handled = true; } return; }
+        if (sheet.IsVisible)
+        {
+            // Escape closes an open alert before it closes the sheet.
+            if (e.Key == Key.Escape && !(sheetSave?.DismissPopup() ?? false) && sheetSave is not { CanClose: false }) CloseSheet();
+            if (e.Key == Key.Escape) e.Handled = true;
+            return;
+        }
         if (startupHost.IsVisible) return;
         if (e.KeyModifiers == KeyModifiers.Control)
         {
@@ -658,7 +721,7 @@ public sealed class MainWindow : Window
             {
                 case Key.D2: ShowPage("予定"); e.Handled = true; break;
                 case Key.D3: ShowPage("ゴール"); e.Handled = true; break;
-                case Key.OemComma: ShowPage("設定"); e.Handled = true; break;
+                case Key.OemComma: ShowSettings(); e.Handled = true; break;
                 case Key.K: search.Focus(); search.SelectAll(); e.Handled = true; break;
             }
         }
@@ -681,7 +744,7 @@ public sealed class MainWindow : Window
     }
 
     // Waits for the avatars and images that were just asked for, then lays the screen out.
-    public async Task PrepareRenderAsync()
+    public async Task PrepareRenderAsync(bool bottomOfPage = false)
     {
         for (var round = 0; round < 3; round++)
         {
@@ -691,6 +754,7 @@ public sealed class MainWindow : Window
         }
         UpdateLayout();
         if (conversationArea.IsVisible) { messageScroll.ScrollToEnd(); UpdateLayout(); } // images that finished loading changed the height
+        if (bottomOfPage && settingsPage is { } open) { open.ScrollToEndForRender(); UpdateLayout(); }
     }
 }
 

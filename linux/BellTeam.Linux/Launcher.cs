@@ -11,8 +11,9 @@ namespace BellTeam.Linux;
 // What windows/BellTeam.App/App.xaml.cs OnStartup does: the render modes, otherwise the single window.
 internal static class Launcher
 {
-    public const string Usage = "引数は --configure <URL>、--render-preview <PNG>、--render-url <URL> [会話ID] <PNG>、--render-startup <opening|setup|guide|failure|login|onboarding> <PNG> のいずれかです。";
-    public static bool IsKnown(string[] args) => args is [] or ["--configure", _] or ["--render-preview", _] or ["--render-url", _, _] or ["--render-url", _, _, _] or ["--render-startup", _, _];
+    public const string Usage = "引数は --configure <URL>、--render-preview <PNG>、--render-url <URL> [会話ID] <PNG>、--render-startup <opening|setup|guide|failure|login|onboarding> <PNG>、--render-page <settings|settings-lower|settings-<profile|ai|terminals|features|notifications|connection|display|billing|update|about|stop>|onepassword-<not-linked|checking|success|failure>> <URL> <PNG>、--render-terminals <list|detail-auth-failed|detail-hostkey|detail-windows|detail-authorizing|keys|keys-pending|hostkey-sheet|editor-macos|editor-windows|editor-linux> <URL> <PNG>、--render-editor <settings|profile|feature|authentication> <URL> <ID> <PNG> のいずれかです。";
+    public static bool IsKnown(string[] args) => args is [] or ["--configure", _] or ["--render-preview", _] or ["--render-url", _, _] or ["--render-url", _, _, _] or ["--render-startup", _, _]
+        or ["--render-page", _, _, _] or ["--render-terminals", _, _, _] or ["--render-editor", _, _, _, _];
     public static bool IsRender(string[] args) => args.Any(argument => argument.StartsWith("--render", StringComparison.Ordinal));
 
     public static void Start(IClassicDesktopStyleApplicationLifetime desktop)
@@ -36,6 +37,9 @@ internal static class Launcher
                 case ["--render-url", var address, var output]: await RenderAsync(address, null, output); break;
                 case ["--render-url", var address, var conversation, var output]: await RenderAsync(address, conversation, output); break;
                 case ["--render-startup", var scene, var output]: await RenderStartupAsync(scene, output); break;
+                case ["--render-page", var kind, var address, var output]: await SettingsRender.PageAsync(kind, address, output); break;
+                case ["--render-terminals", var scene, var address, var output]: await SettingsRender.TerminalsAsync(scene, address, output); break;
+                case ["--render-editor", var kind, var address, var id, var output]: await SettingsRender.EditorAsync(kind, address, id, output); break;
                 case []: await RunWindowAsync(desktop); return;
                 default: throw new ArgumentException(Usage);
             }
@@ -96,7 +100,7 @@ internal static class Launcher
         WritePng(window, output);
     }
 
-    private static void WritePng(Window window, string path)
+    internal static void WritePng(Window window, string path)
     {
         Dispatcher.UIThread.RunJobs();
         var frame = window.CaptureRenderedFrame() ?? throw new InvalidOperationException("画面を描画できませんでした。");
