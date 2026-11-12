@@ -39,13 +39,13 @@ test('notices: a run result is sent to roster lanes from the releasing Bot and a
   assert.deepEqual(x.calls, ['alpha todo notice ack --lane bot-b --notice n1,n2', 'alpha todo notice ack --lane bot-a --notice n4'])
 })
 
-test('notices: a failed send stays unacked and is re-listed at the next run; refused is acked; notices:null re-lists at once', async () => {
+test('notices: a failed or refused send stays unacked and is re-listed at the next run; notices:null re-lists at once', async () => {
   const x = rig()
   const context = { from: 'bot-a', roster: roster(['bot-a', 'bot-b', 'bot-c']), effect: x.effect }
   x.world.deliveries = { 'bot-b': 'failed', 'bot-c': 'refused' }
   await x.delivery.afterRun('alpha', { notices: [notice('n1', 'bot-b'), notice('n2', 'bot-c')] }, context)
-  assert.deepEqual(x.calls, ['alpha todo notice ack --lane bot-c --notice n2'], 'failed is not acked, not retried in the same run')
-  x.world.deliveries = {}; x.world.listed = [notice('n1', 'bot-b')]; x.calls.length = 0; x.sent.length = 0
+  assert.deepEqual(x.calls, [], 'failed and refused are not acked, not retried in the same run')
+  x.world.deliveries = { 'bot-c': 'refused' }; x.world.listed = [notice('n1', 'bot-b')]; x.calls.length = 0; x.sent.length = 0
   await x.delivery.afterRun('alpha', { exitCode: 0 }, context)
   assert.deepEqual([x.calls, x.sent.map(item => item.from)], [['alpha todo notice list --json', 'alpha todo notice ack --lane bot-b --notice n1'], ['bot-a']],
     'recovery sends from the trigger actor when it is a roster Bot')
@@ -101,6 +101,24 @@ test('notices: a failed waiter keeps the notice unacked; the retry wakes only th
   x.world.deliveries = {}; x.world.listed = [n1]; x.sent.length = 0
   await x.delivery.afterRun('alpha', { exitCode: 0 }, context)
   assert.deepEqual([x.sent.map(item => item.target), x.calls], [['bot-c'], ['alpha todo notice list --json', 'alpha todo notice ack --lane bot-b --notice n1']])
+})
+
+test('notices: only a confirmed acceptance covers a recipient; refused / unknown / unrecognized retry until accepted, accepted ones are not woken twice', async () => {
+  const x = rig()
+  const context = { from: 'bot-a', roster: roster(['bot-a', 'bot-b', 'bot-c', 'bot-d', 'bot-e']), effect: x.effect }
+  const waiting = ['bot-c', 'bot-d', 'bot-e'].map(agent => ({ agent, since: '2026-11-12T09:01:00.000Z', reason: null }))
+  const n1 = notice('n1', 'bot-b', { waiting, waiting_digest: 'w1', acked_recipients: [] })
+  x.world.deliveries = { 'bot-c': 'refused', 'bot-d': 'unknown', 'bot-e': 'mystery' }
+  await x.delivery.afterRun('alpha', { notices: [n1] }, context)
+  assert.deepEqual([x.sent.map(item => item.target), x.calls], [['bot-b', 'bot-c', 'bot-d', 'bot-e'], []], 'nothing acked')
+  x.world.listed = [n1]; x.sent.length = 0
+  x.world.deliveries = { 'bot-c': 'queued', 'bot-d': 'unknown', 'bot-e': 'steered' }
+  await x.delivery.afterRun('alpha', { exitCode: 0 }, context)
+  assert.deepEqual([x.sent.map(item => item.target), x.calls], [['bot-c', 'bot-d', 'bot-e'], ['alpha todo notice list --json']], 'bot-b (running) is not woken again; unknown still unacked')
+  x.sent.length = 0; x.calls.length = 0; x.world.deliveries = { 'bot-d': 'delivered' }
+  const out = await x.delivery.deliverAll(['alpha'], { roster: context.roster, effect: x.effect })
+  assert.deepEqual([out, x.sent.map(item => item.target), x.calls], [{ delivered: 1, failed: 0 }, ['bot-d'], ['alpha todo notice list --json', 'alpha todo notice ack --lane bot-b --notice n1']],
+    'the next generation retries only bot-d, then acks once')
 })
 
 test('notices: deliverAll lists every chart under its lock and sends at most NOTICE_SLICE', async () => {

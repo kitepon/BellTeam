@@ -1,7 +1,8 @@
 // Startable notices (Lattice 0.90.0; waiting marks 0.92.0, Lattice docs/architecture/dfd-done-notice.md) to the lane's Bot and every
 // waiting Bot through the public send path (effect messages.send -> messenger.sendmessage; waking a sleeping seat stays the messenger's). README L10-L12.
 export const NOTICE_SLICE = 50
-const FAILED = new Set(['failed', 'stopped'])
+// Messenger results that confirm the message was accepted; anything else (refused, unknown, failed, stopped, thrown) is retried later.
+const ACCEPTED = new Set(['running', 'steered', 'queued', 'delivered', 'answered'])
 
 const triggerText = trigger => `${trigger.kind ?? 'change'} of ${trigger.plan_key}/${trigger.task_id ?? trigger.phase_id}`
   + (trigger.actor?.agent ? ` by ${trigger.actor.agent}` : '')
@@ -51,10 +52,10 @@ export function createNoticeDelivery({ run, log }) {
         if (budget.left <= 0) { pending.add(projectId); complete = false; break }
         budget.left--
         const value = await effect('messages.send', { from, target, message: noticeMessage(projectId, notice, target) }).catch(() => null)
-        // A thrown effect (old body: LATTICE_INVALID, timeout) or a failed delivery stays unacked; 'refused' is permanent (deleted Bot), so it counts as covered.
-        if (value === null || FAILED.has(value.delivery)) { out.failed++; pending.add(projectId); complete = false; continue }
+        // Only a confirmed acceptance covers a recipient; the notice stays unacked and the chart is re-listed at the next run or generation.
+        if (!ACCEPTED.has(value?.delivery)) { out.failed++; pending.add(projectId); complete = false; continue }
         done.add(target)
-        if (value.delivery !== 'refused') out.delivered++
+        out.delivered++
       }
       // shortcut: a notice with no lane cannot be acked; only `covered` stops re-sends, so a new child generation sends it again. Upgrade if lane-less waited tasks appear.
       if (complete && typeof notice.lane === 'string') ack(notice.lane, notice.notice_id, key)
