@@ -127,7 +127,8 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
       // Only a dir this run created is removed; a pre-existing dir without a store is left as it was.
       if (!existed) { if (await cli.exists(projectId)) await cli.setMeta(projectId, { createdBy: from }); else if (created) await cli.prune(projectId) }
     }
-    const value = parse(result.stdout)
+    // Lattice prints refusals (lattice.cli_error.v2: code, detail.pointer, detail.next_action) on stderr; they reach the seat as result.
+    const value = parse(result.stdout) ?? (result.stdout.trim() === '' ? parse(result.stderr) : undefined)
     return { exitCode: result.exitCode, result: value === undefined ? null : value, stdout: value === undefined ? result.stdout.slice(0, STDOUT_KEPT) : null, stderr: result.stderr }
   }
 }

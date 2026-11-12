@@ -7,7 +7,8 @@ import { promisify } from 'node:util'
 import { LATTICE_PROJECT_ID, latticeError, validLatticeName } from '../lattice-protocol.mjs'
 
 const SEAT_COMMANDS = ['plan', 'todo', 'status', 'session-context', 'help', '--help', '--version']
-const STDOUT_LIMIT = 1024 * 1024, STDERR_LIMIT = 4096
+// stderr keeps 64 KiB: Lattice's JSON refusals (lattice.cli_error.v2) list every problem and run past 4 KiB on a 20-task plan.
+const STDOUT_LIMIT = 1024 * 1024, STDERR_LIMIT = 64 * 1024
 
 // Named protection: Lattice's host commands (setup, hooks, bridge, dashboard, run, sensor) would act as the server uid.
 export function checkSeatArgs(args, input = null) {
