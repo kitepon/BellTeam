@@ -114,6 +114,9 @@ test('a08: 保存statusは開いた文字列。budget_limitedや未知値はPaus
   const next=(await (await get()).json()).snapshot
   assert.equal(next.availability,'available');assert.equal(next.goal.current_status.status_display,'infra_paused（保存時点）')
   assert.equal(next.capabilities.resume,false)
+  for(const name of ['constructor','toString','__proto__']){const inherited=structuredClone(source);inherited.goal.native.status=name;f.set(inherited)
+    const s=(await (await get()).json()).snapshot
+    assert.equal(s.goal.current_status.status_display,`${name}（保存時点）`);assert.equal(s.capabilities.resume,false);assert.equal(s.capabilities.pause,false)}
   const bad=structuredClone(source);bad.goal.native.status='';f.set(bad)
   assert.equal((await (await get()).json()).snapshot.availability,'unavailable')
 })
