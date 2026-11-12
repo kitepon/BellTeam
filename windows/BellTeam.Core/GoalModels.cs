@@ -209,6 +209,8 @@ public static class GoalParser
 }
 
 public enum GoalPillTone { Muted, Violet, Orange }
+// What the goals page body shows: the list (and its empty state) only after a read that works and nothing left unconfirmed.
+public enum GoalPageState { Loading, Unread, Unconfirmed, List }
 // Mac ChatGoalBar (#1116, apple/goals.md 「pillの文」「未対応」「失敗表示」): whole sentences only, one failure sentence, no pill for an unsupported bot.
 public static class GoalPillText
 {
@@ -228,6 +230,7 @@ public static class GoalPillText
             _ => snapshot.Goal is null ? (None, GoalPillTone.Muted) : (snapshot.StatusTitle, GoalPillTone.Violet)
         };
     }
+    public static GoalPageState PageState(GoalModel goals) => goals.Loading && !goals.Loaded ? GoalPageState.Loading : !goals.Loaded ? GoalPageState.Unread : goals.NeedsRefresh ? GoalPageState.Unconfirmed : GoalPageState.List;
     // The one failure sentence of the expanded card; after a change whose outcome is unknown, its own sentence replaces the generic one.
     public static string? Failure(GoalModel goals, string botId)
     {

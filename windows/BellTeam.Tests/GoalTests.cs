@@ -269,6 +269,22 @@ public sealed class GoalTests
     }
 
     [Fact]
+    public async Task AnUnknownChangeWithAFailedFollowUpReadIsNeverTheEmptyList()
+    {
+        // Epinel #1239: the write's outcome is unknown and the read-back fails too. The page must say 確認できません with the change's sentence, not 「設定済みのゴールはありません」.
+        var phase = "list";
+        var server = new Server { Respond = (request, _) => phase == "list" ? List(Snapshot(goal: Codex("active"))) : StubHandler.Json("{}", HttpStatusCode.InternalServerError) };
+        var model = new GoalModel(server.Api());
+        await model.LoadListAsync(); Assert.Equal(GoalPageState.List, GoalPillText.PageState(model));
+        phase = "fail"; await model.RunAsync(model.Snapshots[0], "pause");
+        Assert.True(model.Loaded); Assert.True(model.NeedsRefresh); Assert.Null(model.ReadError); Assert.Empty(model.CurrentSnapshots);
+        Assert.Equal("変更結果と現在の状態を確認できませんでした。更新して確認してください。", model.ErrorText);
+        Assert.Equal(GoalPageState.Unconfirmed, GoalPillText.PageState(model));
+        Assert.Equal(model.ErrorText, GoalPillText.Failure(model, "bot-a"));
+        phase = "list"; await model.LoadListAsync(); Assert.Equal(GoalPageState.List, GoalPillText.PageState(model));
+    }
+
+    [Fact]
     public async Task APostSendsOneRequestWithTheMacBodyAndStoresTheAnswer()
     {
         var server = new Server();

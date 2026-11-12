@@ -193,10 +193,14 @@ public sealed class GoalsWindow : EditorWindow
         var title = new StackPanel(); title.Children.Add(new TextBlock { Text = "ゴール", FontSize = 34, FontWeight = FontWeights.Bold }); title.Children.Add(GoalUi.Text("設定済みのゴールと、現在取得できた状態。", 14, GoalUi.Brush("Muted"), margin: new Thickness(0, 14, 0, 0)));
         header.Children.Add(title); Body.Children.Add(header);
         if (goals.ErrorText is { } error) Body.Children.Add(GoalUi.Text("\u26A0 " + error, 13, GoalUi.Red, margin: new Thickness(0, 0, 0, 18)));
-        if (goals.Loading && !goals.Loaded) Body.Children.Add(new Spinner { Width = 20, Height = 20, Stroke = GoalUi.Brush("Muted"), Margin = new Thickness(0, 75, 0, 0), HorizontalAlignment = HorizontalAlignment.Center });
-        else if (!goals.Loaded) Body.Children.Add(GoalUi.Unavailable("ゴールを読み込めませんでした", "更新して確認してください。", target: false));
-        else if (goals.NeedsRefresh) Body.Children.Add(GoalUi.Unavailable("現在のゴールを確認できません", "状態を更新して確認してください。", target: false));
-        if (goals.NeedsRefresh && GoalUi.Details(goals.ReadError) is { } details) Body.Children.Add(details);
+        // The empty 「設定済みのゴールはありません」 is only for a read that worked; an unread or unconfirmed state never falls through to it.
+        var state = GoalPillText.PageState(goals);
+        if (state == GoalPageState.Loading) Body.Children.Add(new Spinner { Width = 20, Height = 20, Stroke = GoalUi.Brush("Muted"), Margin = new Thickness(0, 75, 0, 0), HorizontalAlignment = HorizontalAlignment.Center });
+        else if (state != GoalPageState.List)
+        {
+            Body.Children.Add(state == GoalPageState.Unread ? GoalUi.Unavailable("ゴールを読み込めませんでした", "更新して確認してください。", target: false) : GoalUi.Unavailable("現在のゴールを確認できません", "状態を更新して確認してください。", target: false));
+            if (GoalUi.Details(goals.ReadError) is { } details) Body.Children.Add(details);
+        }
         else
         {
             var configured = goals.CurrentSnapshots.Where(snapshot => snapshot.Availability == GoalAvailability.Available && snapshot.Goal is not null).ToArray();
