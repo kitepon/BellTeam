@@ -115,6 +115,10 @@ public sealed class AvatarInspectorTests
         Assert.True(JsonSerializer.Deserialize<Bot>("""{"id":"a","name":"a","displayName":"a","avatarVersion":"v1","avatarLargeVersion":"v1"}""", BellApi.Json)!.UsesSmallImage);
         Assert.False(JsonSerializer.Deserialize<Bot>("""{"id":"a","name":"a","displayName":"a","avatarVersion":"v1","avatarLargeVersion":"L1"}""", BellApi.Json)!.UsesSmallImage);
         Assert.Equal("CLIの既定", BotProfileText.OrDefault("")); Assert.Equal("gpt-6.1-sol", BotProfileText.OrDefault("gpt-6.1-sol"));
+        // Mac #1124 AI card: one line for the four default combinations, and an unknown harness keeps its id.
+        Assert.Equal(["モデルとエフォートはCLIの既定で動きます", "モデルはCLIの既定で動きます", "エフォートはCLIの既定で動きます", "選んだモデルとエフォートで動きます"],
+            [BotProfileText.AiSummary("", ""), BotProfileText.AiSummary("", "high"), BotProfileText.AiSummary("opus", ""), BotProfileText.AiSummary("opus", "high")]);
+        Assert.Equal(("Claude", "Antigravity", "kimi"), (BotProfileText.HarnessName("claude"), BotProfileText.HarnessName("antigravity"), BotProfileText.HarnessName("kimi")));
     }
 
     [Theory]

@@ -42,13 +42,14 @@ internal static class SettingsUi
         => new() { Text = text, FontSize = size, Foreground = color ?? Ink, FontWeight = weight ?? FontWeights.Normal, TextWrapping = TextWrapping.Wrap, Margin = margin ?? new Thickness(0) };
     public static TextBlock Glyph(string glyph, double size, Brush? color = null) => new() { Text = glyph, FontFamily = Icons, FontSize = size, Foreground = color ?? Ink, VerticalAlignment = VerticalAlignment.Center };
 
-    public static FrameworkElement Tile(SettingsPage page, double side)
+    public static FrameworkElement Tile(SettingsPage page, double side) => Tile(page == SettingsPage.Stop ? null : SettingsPageInfo.Glyph(page), SettingsPageInfo.Tint(page), side, page == SettingsPage.Ai);
+    // SettingsIconTile: a tinted rounded square with a white glyph; null glyph draws stop.circle.fill. symbol: the glyph is a Segoe UI Symbol character, not an icon-font one.
+    public static FrameworkElement Tile(string? glyphText, Color tint, double side, bool symbol = false)
     {
-        var tint = SettingsPageInfo.Tint(page);
         var light = Color.FromRgb((byte)(tint.R + (255 - tint.R) * .2), (byte)(tint.G + (255 - tint.G) * .2), (byte)(tint.B + (255 - tint.B) * .2));
         var grid = new Grid { Width = side, Height = side };
         grid.Children.Add(new Border { CornerRadius = new CornerRadius(side * .24), Background = new LinearGradientBrush(light, tint, 90) });
-        if (page == SettingsPage.Stop)
+        if (glyphText is null)
         {
             // stop.circle.fill: white disc with a tinted square.
             grid.Children.Add(new System.Windows.Shapes.Ellipse { Width = side * .62, Height = side * .62, Fill = Brushes.White });
@@ -56,8 +57,8 @@ internal static class SettingsUi
         }
         else
         {
-            var glyph = new TextBlock { Text = SettingsPageInfo.Glyph(page), FontSize = side * .52, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-            glyph.FontFamily = page == SettingsPage.Ai ? new FontFamily("Segoe UI Symbol") : Icons;
+            var glyph = new TextBlock { Text = glyphText, FontSize = side * .52, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            glyph.FontFamily = symbol ? new FontFamily("Segoe UI Symbol") : Icons;
             grid.Children.Add(glyph);
         }
         return grid;
@@ -79,10 +80,12 @@ internal static class SettingsUi
 
     public static Brush ToneBrush(SettingsTone tone) => tone switch { SettingsTone.Green => Green, SettingsTone.Violet => Violet, SettingsTone.Orange => Orange, _ => Muted };
     // BellBadge: the one state badge of the settings, a tinted capsule; a state word is never a bare coloured word.
-    public static Border Badge(string text, SettingsTone tone)
+    public static Border Badge(string text, SettingsTone tone, string? glyph = null)
     {
         var color = ((SolidColorBrush)ToneBrush(tone)).Color;
-        var label = new TextBlock { Text = text, FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = ToneBrush(tone), TextWrapping = TextWrapping.NoWrap };
+        var label = new TextBlock { FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = ToneBrush(tone), TextWrapping = TextWrapping.NoWrap };
+        if (glyph is not null) label.Inlines.Add(new System.Windows.Documents.Run(glyph + " ") { FontFamily = Icons });
+        label.Inlines.Add(text);
         var badge = new Border { Child = label, Background = new SolidColorBrush(Color.FromArgb(0x21, color.R, color.G, color.B)), CornerRadius = new CornerRadius(9), Padding = new Thickness(9, 3, 9, 3), VerticalAlignment = VerticalAlignment.Center };
         System.Windows.Automation.AutomationProperties.SetName(badge, text);
         return badge;
