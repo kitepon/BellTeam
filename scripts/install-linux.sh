@@ -35,7 +35,7 @@ if [ -e "$link" ] || [ -L "$link" ]; then
   [ -L "$link" ] && [ "$(readlink "$link")" = "$executable" ] || foreign "$link"
 fi
 if [ -e "$desktop" ] || [ -L "$desktop" ]; then
-  [ -f "$desktop" ] && [ ! -L "$desktop" ] && grep -qx "Exec=$executable" "$desktop" || foreign "$desktop"
+  [ -f "$desktop" ] && [ ! -L "$desktop" ] && grep -Fqx "Exec=$executable" "$desktop" || foreign "$desktop"
 fi
 if [ "$found_foreign" = 1 ]; then
   echo '別の場所へ移すか、不要なら削除してから、もう一度実行してください。' >&2; exit 1
