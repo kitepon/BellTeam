@@ -126,8 +126,10 @@ public sealed class ProfileView : StackPanel
             AddBlock(Divider());
             AddBlock(AiCard(workspace, entry, bot));
             AddBlock(Heading("プロフィール"));
+            // Mac BotProfileDetails: one tinted card per section, in this order; the position is in the hero.
             var details = new StackPanel();
-            foreach (var (title, value) in new[] { ("役職", bot.Position), ("背景・見た目・関係性", bot.ProfileText), ("性格・考え方", bot.Personality), ("口調", bot.SpeechStyle), ("担当する仕事", bot.Role) }) details.Children.Add(Detail(title, value, details.Children.Count != 0));
+            foreach (var (title, glyph, tint, value) in new[] { ("担当する仕事", "\uE821", Color.FromRgb(0x00, 0x7A, 0xFF), bot.Role), ("性格・考え方", "\uEB51", Color.FromRgb(0xFF, 0x2D, 0x55), bot.Personality), ("口調", "\uE8BD", Color.FromRgb(0x30, 0xB0, 0xC7), bot.SpeechStyle), ("背景・見た目・関係性", "\uE77B", Color.FromRgb(0xFF, 0x95, 0x00), bot.ProfileText) })
+            { var card = DetailCard(title, glyph, tint, value); card.Margin = new Thickness(0, details.Children.Count != 0 ? 12 : 0, 0, 0); details.Children.Add(card); }
             AddBlock(details);
         }
         else if (entry.Room is { } room)
@@ -144,11 +146,15 @@ public sealed class ProfileView : StackPanel
             foreach (var id in room.MemberIds)
             {
                 if (workspace.MemberEntry(id) is not { } member) continue;
-                var row = new Grid(); row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); row.ColumnDefinitions.Add(new ColumnDefinition());
-                row.Children.Add(new AvatarTile { Entry = member, Workspace = workspace, Width = 30, Height = 30, VerticalAlignment = VerticalAlignment.Center });
-                // member.Name is the display name (name and position), as on the Mac.
-                var name = new TextBlock { Text = member.Name, FontSize = 16, Foreground = InspectorUi.Ink, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) }; Grid.SetColumn(name, 1); row.Children.Add(name);
-                var button = InspectorUi.Plain(row, member.Name); button.Click += async (_, _) => await workspace.SelectAsync(member); AddBlock(button);
+                var row = new Grid(); row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); row.ColumnDefinitions.Add(new ColumnDefinition()); row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                row.Children.Add(new AvatarTile { Entry = member, Workspace = workspace, Width = 34, Height = 34, VerticalAlignment = VerticalAlignment.Center });
+                // Mac: the name and the position on two lines (member.Name is the display name, so the name comes from the Bot).
+                var names = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 8, 0) };
+                names.Children.Add(new TextBlock { Text = member.Bot?.Name ?? member.Name, FontSize = 16, FontWeight = FontWeights.SemiBold, Foreground = InspectorUi.Ink, TextTrimming = TextTrimming.CharacterEllipsis });
+                if (member.Bot is { Position.Length: > 0 } positioned) names.Children.Add(new TextBlock { Text = positioned.Position, FontSize = 13, Foreground = InspectorUi.Muted, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 1, 0, 0) });
+                Grid.SetColumn(names, 1); row.Children.Add(names);
+                var chevron = SettingsUi.Glyph("\uE76C", 12, InspectorUi.Muted); Grid.SetColumn(chevron, 2); row.Children.Add(chevron);
+                var button = InspectorUi.Plain(row, member.Name); button.Margin = new Thickness(0, Children[^1] is TextBlock ? 14 : 12, 0, 0); button.Click += async (_, _) => await workspace.SelectAsync(member); Children.Add(button);
             }
         }
         AddBlock(EditButton(workspace, entry));
@@ -167,17 +173,16 @@ public sealed class ProfileView : StackPanel
         largeImage = large;
         var largeButton = InspectorUi.Plain(large, "大画像の操作"); largeButton.Click += (_, _) => OpenActions(AvatarVariant.Large);
         System.Windows.Automation.AutomationProperties.SetAutomationId(largeButton, "profile-large-avatar"); area.Children.Add(largeButton);
-        var small = new AvatarTile { Entry = entry, Workspace = workspace, Width = 152, Height = 152, BorderBrush = Brushes.White, BorderThickness = new Thickness(2) };
-        var smallButton = InspectorUi.Plain(small, "小画像の操作"); smallButton.HorizontalAlignment = HorizontalAlignment.Left; smallButton.VerticalAlignment = VerticalAlignment.Top; smallButton.Margin = new Thickness(16); smallButton.Click += (_, _) => OpenActions(AvatarVariant.Small);
+        var small = new AvatarTile { Entry = entry, Workspace = workspace, Width = 84, Height = 84, BorderBrush = Brushes.White, BorderThickness = new Thickness(3) };
+        var smallButton = InspectorUi.Plain(small, "小画像の操作"); smallButton.HorizontalAlignment = HorizontalAlignment.Left; smallButton.VerticalAlignment = VerticalAlignment.Bottom; smallButton.Margin = new Thickness(14); smallButton.Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Colors.Black, Opacity = .25, BlurRadius = 8, ShadowDepth = 3, Direction = 270 }; smallButton.Click += (_, _) => OpenActions(AvatarVariant.Small);
         System.Windows.Automation.AutomationProperties.SetAutomationId(smallButton, "profile-small-avatar"); area.Children.Add(smallButton);
         heroButtons = [largeButton, smallButton];
         hero.Children.Add(area);
         status = new StackPanel(); hero.Children.Add(status);
-        hero.Children.Add(new TextBlock { Text = bot.DisplayName, FontSize = 20, FontWeight = FontWeights.Bold, Foreground = InspectorUi.Ink, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) });
-        var presence = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
-        var color = bot.Online ? InspectorUi.Mint : InspectorUi.Muted;
-        presence.Children.Add(new System.Windows.Shapes.Ellipse { Width = 11, Height = 11, Fill = color, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 7, 0) });
-        presence.Children.Add(new TextBlock { Text = bot.Online ? "オンライン" : "オフライン", FontSize = 14, Foreground = color, VerticalAlignment = VerticalAlignment.Center });
+        // DisplayName is name + position; the hero shows them on two lines, then the presence pill.
+        hero.Children.Add(new TextBlock { Text = bot.Name, FontSize = 20, FontWeight = FontWeights.Bold, Foreground = InspectorUi.Ink, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) });
+        if (bot.Position.Length != 0) hero.Children.Add(new TextBlock { Text = bot.Position, FontSize = 14, Foreground = InspectorUi.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
+        var presence = SettingsUi.Badge(bot.Online ? "オンライン" : "オフライン", bot.Online ? SettingsTone.Green : SettingsTone.Gray, "\uEA3B"); presence.HorizontalAlignment = HorizontalAlignment.Left; presence.Margin = new Thickness(0, 10, 0, 0);
         hero.Children.Add(presence);
         return hero;
     }
@@ -298,16 +303,29 @@ public sealed class ProfileView : StackPanel
 
     private UIElement EditButton(Workspace workspace, ConversationEntry entry)
     {
-        var edit = InspectorUi.Prominent(entry.Target.IsRoom ? "ルームを編集" : "メンバーを編集", ""); edit.HorizontalAlignment = HorizontalAlignment.Left; edit.Margin = new Thickness(0);
+        var edit = InspectorUi.Prominent(entry.Target.IsRoom ? "ルームを編集" : "メンバーを編集", ""); edit.Margin = new Thickness(0);
         edit.Click += (_, _) => { if (entry.Target.IsRoom) Host?.EditRoom(entry.Target.Id); else Host?.EditMember(entry.Target.Id); };
         return edit;
     }
-    private static UIElement Detail(string title, string value, bool spaced)
+    // Mac ProfileDetailCard: an icon and a title in the section's tint on a tinted card; text over 120 characters folds to 4 lines until 「続きを読む」.
+    internal const int FoldLength = 120;
+    private static Border DetailCard(string title, string glyph, Color tint, string value)
     {
-        var item = new StackPanel { Margin = new Thickness(0, spaced ? 18 : 0, 0, 0) };
-        var heading = Heading(title); heading.Margin = new Thickness(0, 0, 0, 6); item.Children.Add(heading);
-        item.Children.Add(Body(value.Length == 0 ? "未設定" : value, value.Length == 0 ? InspectorUi.Muted : InspectorUi.Ink, title));
-        return item;
+        var tone = new SolidColorBrush(tint); tone.Freeze();
+        var item = new StackPanel();
+        var heading = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+        heading.Children.Add(SettingsUi.Glyph(glyph, 14, tone));
+        heading.Children.Add(new TextBlock { Text = title, FontSize = 14, FontWeight = FontWeights.Bold, Foreground = tone, Margin = new Thickness(7, 0, 0, 0) });
+        item.Children.Add(heading);
+        var body = Body(value.Length == 0 ? "未設定" : value, value.Length == 0 ? InspectorUi.Muted : InspectorUi.Ink, title); item.Children.Add(body);
+        if (value.Length > FoldLength)
+        {
+            body.MaxLines = 4;
+            var more = InspectorUi.Plain(new TextBlock { Text = "続きを読む", FontSize = 14, FontWeight = FontWeights.SemiBold, Foreground = InspectorUi.Violet }, "続きを読む"); more.HorizontalAlignment = HorizontalAlignment.Left; more.Margin = new Thickness(0, 8, 0, 0);
+            more.Click += (_, _) => { body.ClearValue(TextBox.MaxLinesProperty); item.Children.Remove(more); };
+            item.Children.Add(more);
+        }
+        return new Border { Child = item, Padding = new Thickness(14), CornerRadius = new CornerRadius(14), Background = new SolidColorBrush(Color.FromArgb(0x0F, tint.R, tint.G, tint.B)) };
     }
     private static TextBox Body(string text, Brush color, string name)
     {

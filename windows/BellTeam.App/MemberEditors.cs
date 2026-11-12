@@ -197,7 +197,7 @@ public sealed class MemberEditorView : EditorFormView
         var edited = new Action(Edited);
         // メンバー
         var member = new GroupCard();
-        var nameField = Field("名前", original.Name); name = nameField.Box; var positionField = Field("役職", original.Position); position = positionField.Box;
+        var nameField = LabeledField("名前", original.Name, "呼び名"); name = nameField.Box; var positionField = LabeledField("役職", original.Position, "例：BellTeam Appleアプリ"); position = positionField.Box;
         color = Popup("テーマ色", [new("violet", "紫"), new("rose", "ローズ"), new("indigo", "インディゴ")], original.Color);
         if (id is null)
         {
@@ -205,8 +205,9 @@ public sealed class MemberEditorView : EditorFormView
             avatar.Chosen += chosen => { small = chosen.Selection is { } selection ? BotImageFields.From(AvatarVariant.Small, selection) : small; Edited(); RenderImages(); };
             member.Add(Row(avatar, 0));
         }
-        member.Add(Row(nameField.Element)); member.Add(Row(positionField.Element)); member.Add(Labeled("テーマ色", color));
-        name.TextChanged += (_, _) => { avatar?.SetIdentity(name.Text, (string?)color.SelectedValue ?? "violet"); terminal?.NameChanged(); Edited(); }; position.TextChanged += (_, _) => Edited();
+        member.Add(nameField.Row); member.Add(positionField.Row); member.Add(Labeled("テーマ色", color));
+        if (id is not null && workspace.MemberEntry(id) is { } opened) Form.Children.Add(Header(opened));
+        name.TextChanged += (_, _) => { avatar?.SetIdentity(name.Text, (string?)color.SelectedValue ?? "violet"); terminal?.NameChanged(); SyncHeader(); Edited(); }; position.TextChanged += (_, _) => { SyncHeader(); Edited(); };
         color.SelectionChanged += (_, _) => { avatar?.SetIdentity(name.Text, (string?)color.SelectedValue ?? "violet"); Edited(); };
         Form.Children.Add(Section("メンバー", member));
         if (avatar is not null) InitialLoads.Add(avatar.LoadAsync());
@@ -227,6 +228,24 @@ public sealed class MemberEditorView : EditorFormView
         Form.Children.Add(Section("プロフィール", profileCard));
         Form.Children.Add(deleteHost); Form.Children.Add(notices);
         RenderDelete(); RenderNotices(); Lock();
+    }
+    // Mac BotEditor: whose editor this is, at a glance; the name and the position follow what is typed below.
+    private TextBlock headerName = null!, headerPosition = null!;
+    private string openedName = "";
+    private Border Header(ConversationEntry opened)
+    {
+        openedName = opened.Name;
+        var row = new Grid(); row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); row.ColumnDefinitions.Add(new ColumnDefinition());
+        row.Children.Add(new AvatarTile { Entry = opened, Workspace = workspace, Width = 64, Height = 64, VerticalAlignment = VerticalAlignment.Center });
+        var names = new StackPanel { Margin = new Thickness(14, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center }; Grid.SetColumn(names, 1); row.Children.Add(names);
+        headerName = Text("", 22, Ink, FontWeights.Bold); headerPosition = Text("", 14, Muted, null, new Thickness(0, 3, 0, 0)); names.Children.Add(headerName); names.Children.Add(headerPosition);
+        SyncHeader();
+        return new Border { Child = row, Background = Brushes.White, CornerRadius = new CornerRadius(10), Padding = new Thickness(16, 12, 16, 12), Margin = new Thickness(0, 14, 0, 0) };
+    }
+    private void SyncHeader()
+    {
+        if (headerName is null) return;
+        headerName.Text = name.Text.Length == 0 ? openedName : name.Text; headerPosition.Text = position.Text; headerPosition.Visibility = position.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
     }
     private StackPanel Section(string header, UIElement group, string? footer = null) { var section = FormSection(header, group, footer); lockable.Add(section); return section; }
 
@@ -315,7 +334,8 @@ public sealed class MemberEditorView : EditorFormView
             group.Add(Row(Text(DeletionPending ? EditorText.DeletePending : EditorText.DeleteUnconfirmed, 12, Muted)));
             group.Add(Row(LinkButton("削除結果を確認", () => _ = ConfirmDeletionAsync())));
         }
-        else group.Add(Row(LinkButton("メンバーを削除", AskDelete, destructive: true)));
+        // Mac #1116: a bordered red button with the trash icon, as wide as the form.
+        else { var delete = InspectorUi.Bordered("メンバーを削除", "", wide: true, destructive: true); delete.HorizontalAlignment = HorizontalAlignment.Stretch; delete.Click += (_, _) => AskDelete(); group.Add(Row(delete)); }
         deleteHost.Children.Add(FormSection(null, group, EditorText.MemberDeleteFooter));
     }
     internal void AskDelete()
@@ -467,11 +487,13 @@ public sealed class RoomEditorView : EditorFormView
     private TextBox name = null!, purpose = null!;
     private AvatarPicker avatar = null!;
     private ComboBox picker = null!;
-    private readonly List<(Bot Bot, CheckBox Choice)> toggles = [];
-    private bool updating;
+    private readonly GroupCard joined = new(), adding = new();
+    private readonly List<UIElement> candidateRows = [];
+    private TextBlock joinedHeader = null!;
+    private TextBox search = null!;
+    private bool updating, showAll;
     public RoomEditorView(Workspace workspace, string? id) : base(workspace) { this.workspace = workspace; this.id = id; }
     internal ComboBox RepresentativePicker => picker;
-    internal IReadOnlyList<(Bot Bot, CheckBox Choice)> Members => toggles;
     public async Task InitializeAsync()
     {
         var loading = Text("読み込んでいます…", 13, Secondary, null, new Thickness(20, 16, 0, 0)); Form.Children.Add(loading);
@@ -489,31 +511,65 @@ public sealed class RoomEditorView : EditorFormView
     {
         members.UnionWith(original.MemberIds); representative = original.RepresentativeId ?? "";
         avatar = new AvatarPicker(original.Avatar, name: original.Name, isRoom: true) { HorizontalAlignment = HorizontalAlignment.Center }; InitialLoads.Add(avatar.LoadAsync());
-        var nameField = Field("ルーム名", original.Name); name = nameField.Box; var purposeField = Field("この部屋で共有する仕事", original.Purpose, multiline: true, minHeight: 48); purpose = purposeField.Box; purpose.MaxHeight = 150;
-        Form.Children.Add(FormSection("ルーム", new GroupCard(Row(avatar, 0), Row(nameField.Element), Row(purposeField.Element))));
-        var group = new GroupCard();
-        foreach (var bot in workspace.Bots)
-        {
-            var choice = new CheckBox { Content = bot.DisplayName, IsChecked = members.Contains(bot.Id), FontSize = 13, VerticalContentAlignment = VerticalAlignment.Center };
-            choice.Checked += (_, _) => Toggled(bot.Id, true); choice.Unchecked += (_, _) => Toggled(bot.Id, false);
-            toggles.Add((bot, choice)); group.Add(Row(choice));
-        }
-        Form.Children.Add(FormSection("メンバー", group));
+        var nameField = LabeledField("ルーム名", original.Name, "例：インフラ整備"); name = nameField.Box; var purposeField = LabeledField("この部屋で共有する仕事", original.Purpose, "この部屋で話し合うこと・進める仕事", multiline: true); purpose = purposeField.Box;
+        Form.Children.Add(FormSection("ルーム", new GroupCard(Row(avatar, 0), nameField.Row, purposeField.Row)));
+        // Mac RoomEditor: the members in the room (each with a remove row), then a search and the others to add.
+        var joinedSection = FormSection("参加メンバー", joined); joinedHeader = (TextBlock)joinedSection.Children[0]; Form.Children.Add(joinedSection);
+        var (searchField, searchBox) = Field("名前や役職で探す", ""); search = searchBox; searchBox.TextChanged += (_, _) => RenderCandidates();
+        var searchRow = new Grid(); searchRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(26) }); searchRow.ColumnDefinitions.Add(new ColumnDefinition());
+        searchRow.Children.Add(Glyph("\uE721", 13, Secondary)); Grid.SetColumn(searchField, 1); searchRow.Children.Add(searchField); adding.Add(Row(searchRow));
+        Form.Children.Add(FormSection("メンバーを追加", adding));
+        RenderJoined(); RenderCandidates();
         picker = Popup("代表Bot", [], representative); picker.MinWidth = 180;
         picker.SelectionChanged += (_, _) => { if (!updating && picker.SelectedValue is string value) representative = value; };
         Form.Children.Add(FormSection("代表", new GroupCard(Labeled("代表Bot", picker)))); ShowRepresentatives();
-        if (id is not null) Form.Children.Add(FormSection(null, new GroupCard(Row(LinkButton("ルームを削除", AskDelete, destructive: true))), EditorText.RoomDeleteFooter));
+        if (id is not null) { var delete = InspectorUi.Bordered("ルームを削除", "", wide: true, destructive: true); delete.HorizontalAlignment = HorizontalAlignment.Stretch; delete.Click += (_, _) => AskDelete(); Form.Children.Add(FormSection(null, new GroupCard(Row(delete)), EditorText.RoomDeleteFooter)); }
     }
-    // Mac: unchecking the representative clears the choice; the list offers only the members checked now.
-    private void Toggled(string botId, bool on)
+    // Mac: removing the representative clears the choice; the representative list offers only the members in the room now.
+    private void Toggle(string botId)
     {
-        if (on) members.Add(botId); else { members.Remove(botId); if (representative == botId) representative = ""; }
-        ShowRepresentatives();
+        if (!members.Add(botId)) { members.Remove(botId); if (representative == botId) representative = ""; }
+        RenderJoined(); RenderCandidates();
+    }
+    private void RenderJoined()
+    {
+        joinedHeader.Text = $"参加メンバー（{members.Count}人）"; joined.Clear();
+        if (members.Count == 0)
+        {
+            var empty = new StackPanel { Orientation = Orientation.Horizontal }; empty.Children.Add(Glyph("\uE716", 14, Secondary)); empty.Children.Add(Text("まだ誰もいません。下から追加してください。", 13, Secondary, null, new Thickness(8, 0, 0, 0)));
+            joined.Add(Row(empty));
+        }
+        foreach (var bot in workspace.Bots.Where(bot => members.Contains(bot.Id))) joined.Add(Row(MemberRow(bot, true)));
+        if (picker is not null) ShowRepresentatives();
+    }
+    // Not yet in the room, narrowed by the search text (name, display name, position); the whole list opens on 「すべてのメンバーから選ぶ」.
+    private void RenderCandidates()
+    {
+        foreach (var row in candidateRows) adding.Remove(row);
+        candidateRows.Clear();
+        var query = search.Text.Trim();
+        var found = workspace.Bots.Where(bot => !members.Contains(bot.Id) && (query.Length == 0 || new[] { bot.DisplayName, bot.Name, bot.Position }.Any(text => text.Contains(query, StringComparison.OrdinalIgnoreCase)))).ToArray();
+        if (query.Length == 0 && !showAll) candidateRows.Add(Row(LinkButton($"すべてのメンバーから選ぶ（{found.Length}人）", () => { showAll = true; RenderCandidates(); })));
+        else if (found.Length == 0) candidateRows.Add(Row(Text("見つかりません", 13, Secondary)));
+        else foreach (var bot in found) candidateRows.Add(Row(MemberRow(bot, false)));
+        foreach (var row in candidateRows) adding.Add(row);
+    }
+    // One member: face, name, position, and a red minus (remove) or a violet plus (add).
+    private Button MemberRow(Bot bot, bool selected)
+    {
+        var grid = new Grid(); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); grid.ColumnDefinitions.Add(new ColumnDefinition()); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.Children.Add(new AvatarTile { Entry = workspace.MemberEntry(bot.Id), Workspace = workspace, Width = 34, Height = 34, VerticalAlignment = VerticalAlignment.Center });
+        var names = new StackPanel { Margin = new Thickness(12, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center }; Grid.SetColumn(names, 1); grid.Children.Add(names);
+        names.Children.Add(Text(bot.Name, 13, Ink)); if (bot.Position.Length != 0) { var position = Text(bot.Position, 11, Muted, null, new Thickness(0, 1, 0, 0)); position.TextTrimming = TextTrimming.CharacterEllipsis; names.Children.Add(position); }
+        var mark = new Grid { Width = 22, Height = 22, VerticalAlignment = VerticalAlignment.Center }; Grid.SetColumn(mark, 2); grid.Children.Add(mark);
+        mark.Children.Add(new System.Windows.Shapes.Ellipse { Fill = selected ? Red : Violet }); var sign = Glyph(selected ? "\uE738" : "\uE710", 11, Brushes.White); sign.HorizontalAlignment = HorizontalAlignment.Center; mark.Children.Add(sign);
+        var button = InspectorUi.Plain(grid, selected ? bot.DisplayName + "を外す" : bot.DisplayName + "を加える"); button.Click += (_, _) => Toggle(bot.Id);
+        return button;
     }
     private void ShowRepresentatives()
     {
         updating = true;
-        picker.ItemsSource = new[] { new FormOption("", "代表なし") }.Concat(toggles.Where(item => members.Contains(item.Bot.Id)).Select(item => new FormOption(item.Bot.Id, item.Bot.DisplayName))).ToArray();
+        picker.ItemsSource = new[] { new FormOption("", "代表なし") }.Concat(workspace.Bots.Where(bot => members.Contains(bot.Id)).Select(bot => new FormOption(bot.Id, bot.DisplayName))).ToArray();
         picker.SelectedValue = representative; updating = false;
     }
     internal void AskDelete()
