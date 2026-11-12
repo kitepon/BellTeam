@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import { BellTeamMessenger } from '../src/messenger.mjs'
+import { BellTeamMessenger, unsettledForkInquiries } from '../src/messenger.mjs'
 import { callConversationTool, conversationTools } from '../src/mcp-conversation-tools.mjs'
 
 const asker = { id: 'bot-asker', name: 'Asker' }, owner = { id: 'bot-owner', name: 'Owner Bot' }
@@ -35,7 +35,7 @@ test('ask_readonly returns the receipt at once, labels target rows and relays th
   })
   const receipt = await messenger.askReadonly({ from: asker.id, target: owner.id, message: 'What is X?' })
   assert.deepEqual(receipt, { delivery: 'running', delivery_id: 'id-2', fork_id: 'id-1', from: asker.id, target: owner.id, seat: 'fork' })
-  assert.match(envelope, /「Asker」からあなたへ/)
+  assert.match(envelope, /^「Asker」から読み取り専用の問い合わせ.+最後の返答が、そのまま「Asker」へ届きます。答えはsendmessage.+送らず.+\n\nWhat is X\?$/s, 'the fork answers in its last reply, not by sendmessage')
   assert.equal(callbacks.forkId, 'id-1'); assert.equal(callbacks.deliveryId, 'id-2')
   assert.equal(notified.length, 0, 'nothing is sent to any main seat before the answer')
 
@@ -120,7 +120,7 @@ test('ask_readonly from a fork seat waits and returns the answer as its result, 
   })
   const result = await messenger.askReadonly({ from: asker.id, target: owner.id, message: 'What is X?', askerSeat: { kind: 'fork', forkId: 'f-asker' } })
   assert.deepEqual(result, { delivery: 'answered', answer: 'X is Y.', delivery_id: 'id-2', fork_id: 'id-1', from: asker.id, target: owner.id, seat: 'fork' })
-  assert.match(envelope, /「Asker（分身）」からあなたへ/)
+  assert.match(envelope, /^「Asker（分身）」から読み取り専用の問い合わせ/)
   await settle()
   assert.equal(notified.length, 0, 'the asking fork gets the answer itself; main is not notified')
   const inquiry = (await rows()).find(row => row.delivery_id === 'id-2' && row.schema === 'bellteam.direct-message.v1')
@@ -289,4 +289,31 @@ test('the failure outcome row is written before the failed status, so a loss bet
     transport: { async notify(bot, text) { notified.push(text); return { delivery: 'running' } } } })
   assert.deepEqual(await second.sweepForkNotices(), { relayed: 1, owed: 0 })
   assert.match(notified[0], /FORK_FAILED: NATIVE_EXITED$/, 'the saved failure wins over INTERRUPTED')
+})
+
+test('the first sweep settles inquiry rows a lost process left running; a live row is left to its callbacks', async t => {
+  let callbacks
+  const first = await setup(t, async (bot, text, options) => { callbacks = options; return { delivery: 'running' } })
+  await first.messenger.askReadonly({ from: asker.id, target: owner.id, message: 'answered' }) // id-2
+  await callbacks.onAnswer('A.') // relayed; the process is lost before delivered
+  await settle()
+  await first.messenger.askReadonly({ from: asker.id, target: owner.id, message: 'lost' }) // id-6, lost while running
+  void first.messenger.askReadonly({ from: asker.id, target: owner.id, message: 'fork asker', askerSeat: { kind: 'fork', forkId: 'f' } }) // id-8, never answered
+  await settle()
+  const entries = await first.messenger.store.entries()
+  assert.deepEqual(unsettledForkInquiries(entries).map(row => [row.deliveryId, row.delivery]),
+    [['id-2', 'delivered'], ['id-6', 'failed'], ['id-8', 'failed']])
+
+  const restarted = new BellTeamMessenger({ bots: first.messenger.bots, logPath: first.messenger.store.logPath,
+    transport: { async notify() { return { delivery: 'running' } } } })
+  restarted.forkNotices.live.add('id-8') // held live by this process
+  await restarted.sweepForkNotices()
+  const resolved = await restarted.store.entries()
+  const status = id => resolved.find(row => row.schema === 'bellteam.direct-message.v1' && row.delivery_id === id)
+  assert.equal(status('id-2').delivery, 'delivered')
+  assert.equal(status('id-6').delivery, 'failed')
+  assert.equal(status('id-8').delivery, 'running')
+  const settled = (await first.rows()).filter(row => row.schema === 'bellteam.delivery-status.v1')
+  await restarted.sweepForkNotices()
+  assert.equal((await first.rows()).filter(row => row.schema === 'bellteam.delivery-status.v1').length, settled.length, 'settled once')
 })

@@ -74,7 +74,7 @@ sequenceDiagram
   C-->>M: receipt {delivery:'running', delivery_id, fork_id, from, target, seat:'fork'}
   M-->>A: tool result = receipt (immediately)
   X->>N: fork(main session ref, read-only profile)
-  N->>F: launch forked session, first input = envelope
+  N->>F: launch forked session, first input = fork inquiry envelope (last reply is relayed; no sendmessage)
   F-->>X: interim / answer / turn-end
   X-->>C: onStatus / onInterim / onAnswer / onTurnEnd
   C->>H: interim words + answer under same delivery_id, seat fork
@@ -136,10 +136,10 @@ The relay row (`in_reply_to = inquiry delivery_id`) is the durable "notice issue
 
 | Step | Contract | Owner |
 | --- | --- | --- |
-| live | `askReadonly` (main asker) holds the inquiry in `forkNotices.live` until its relay settles. A refusal before accept is the tool error and owes nothing | N102 `messenger.mjs` |
+| live | `askReadonly` holds the inquiry in `forkNotices.live` until its relay settles (a fork asker: until its answer resolves). A refusal before accept is the tool error and owes nothing | N102 `messenger.mjs` |
 | outcome row | A post-accept `failed`/`stopped` first appends its notice text as the fork's interim row (`kind:'error'`, `seat` fork, `group_id` = inquiry), then its failed/stopped status, then relays. A loss after the outcome row (status still `running`) or after the status both leave the row, and the sweep prefers it. The answer row plays the same part for an answer. A refusal before accept writes no such row (it is the tool error) | N102 `messenger.mjs` |
 | relay failed | Only a relay refused before its handover is owed again. The admission check (captured at the relay start and run again after `prepareDirect`'s awaits, right before the append), access and Bot lookup all run before the relay row is written, so every refusal leaves no relay row and stays owed across a restart too (the scan finds none); no admission check runs after the row. The text (answer or `FORK_FAILED: …`) moves to `forkNotices.owed`; stderr keeps the error. Once `transport.notify` was called the relay row is the issued notice, whatever its outcome (an unknown result is never resent, like any message); stderr keeps the error | N102 |
-| sweep | Root `fork.sweep` (actor `observer`, params `{}`, result `{relayed, owed}`) runs `messenger.sweepForkNotices()`. The first sweep of a child process scans the direct log once and adds every inquiry without a relay row that this process does not hold live: saved answer row (`seat` fork, `kind:'answer'`) -> that answer (blank -> `FORK_FAILED: NO_ANSWER`); saved failure row (`seat` fork, `kind:'error'`) -> its text; status `delivered` -> `FORK_FAILED: NO_ANSWER`; `running`/`steered` -> `FORK_FAILED: INTERRUPTED` (its process is gone). Each owed notice keeps `asked_at` (inquiry row `at`) and `answered_at` (outcome row `at`; none for NO_ANSWER/INTERRUPTED). Then each owed notice is claimed (removed from `owed` before its relay, so an overlapping sweep never relays it again) and goes through `relayForkAnswer` once. A sweep relay is late by definition, so its text starts with one line `FORK_LATE: asked <JST>, answered <JST|never>, relayed <age> later. It shows the target's state at that time, not now.` and then the original text. A live relay has no such line. A refusal before handover (see relay failed) puts it back for the next sweep. `SENDER_NOT_FOUND`/`BOT_NOT_FOUND` (Bot deleted) drop it | N102 `messenger.mjs`, `conversation/{authority,requests,results,dispatcher}.mjs`, facade `sweepForks` |
+| sweep | Root `fork.sweep` (actor `observer`, params `{}`, result `{relayed, owed}`) runs `messenger.sweepForkNotices()`. The first sweep of a child process scans the direct log once and adds every inquiry without a relay row that this process does not hold live: saved answer row (`seat` fork, `kind:'answer'`) -> that answer (blank -> `FORK_FAILED: NO_ANSWER`); saved failure row (`seat` fork, `kind:'error'`) -> its text; status `delivered` -> `FORK_FAILED: NO_ANSWER`; `running`/`steered` -> `FORK_FAILED: INTERRUPTED` (its process is gone). The same scan settles every inquiry row (main or fork asker) still `running`/`steered` that this process does not hold live: status `delivered` if it has an answer row, else `failed` (stored like a live fork failure); see [Inquiry row and fork input](#inquiry-row-and-fork-input-lab-defect-2026-11-12). Each owed notice keeps `asked_at` (inquiry row `at`) and `answered_at` (outcome row `at`; none for NO_ANSWER/INTERRUPTED). Then each owed notice is claimed (removed from `owed` before its relay, so an overlapping sweep never relays it again) and goes through `relayForkAnswer` once. A sweep relay is late by definition, so its text starts with one line `FORK_LATE: asked <JST>, answered <JST|never>, relayed <age> later. It shows the target's state at that time, not now.` and then the original text. A live relay has no such line. A refusal before handover (see relay failed) puts it back for the next sweep. `SENDER_NOT_FOUND`/`BOT_NOT_FOUND` (Bot deleted) drop it | N102 `messenger.mjs`, `conversation/{authority,requests,results,dispatcher}.mjs`, facade `sweepForks` |
 | effects | `execution.notify` is allowed under root `fork.sweep` (the relay), with the same delivery registration as under `fork.ask` | N102 `src/conversation-ipc.mjs` |
 | trigger | The parent calls `facade.sweepForks()` on the existing 5 s conversation tick, in flight at most once, guarded on the root result (not its completion, which lasts as long as the relayed delivery). It never blocks `observation.poll`. A refusal with outcome `not_accepted` (older child) is silent; any other failure writes stderr `{code:'FORK_SWEEP_FAILED', reason}` once per reason change (a success resets it), and the next tick retries. Stop waits for the sweep in flight | Molly `src/application-services.mjs` `createForkSweepTick` |
 
@@ -161,6 +161,21 @@ Cause (code path, N102): the relay runs inside the fork's `delivery.answer` call
 | `execution.notify` | Re-enter members with a fresh lease, the same as `execution.report`: `transport.membersAdmission.withLease(membersLease => deliver({ membersLease }))` | Kiro `src/conversation-execution-effects.mjs` |
 
 The conversation child (`messenger.mjs`) is unchanged. No new method, field or guard. Proof (each owner, scoped): a `fork.ask` root whose result has returned, then a `delivery.answer` callback relays once through `members.profiles.read` + `execution.notify` and writes one relay row with no `FORK_LATE` line. Done when a live production `ask_readonly` answer arrives without `FORK_LATE`.
+
+## Inquiry row and fork input (lab defect 2026-11-12)
+
+Centi lab, train 22a8e92d (Trony, `bot-8bc1fb5d` docs/train-22a8-lab-20261112.md): Neon `ask_readonly` -> rapi fork `ce2542ab`. Neon got two peer messages: the fork's own `sendmessage` with the answer (`from_seat` fork, 02:53:55Z), then the live relay of the fork's last text, a closing remark about that send ("配信はqueued…"). Neon's inquiry row stayed `running`; the lab body was restarted at 02:54:15Z.
+
+Causes (N102):
+1. The fork's first input was the plain peer envelope 「X」からあなたへ…, the same as a `sendmessage`. A seat answers a peer by `sendmessage` (common rule), and the fork may message peers (Root ruling below), so it did; the relay then sent its last text as a second message.
+2. The inquiry row's final status comes only from the live `delivered`/`failed`/`stopped` callback. A process lost after the relay (or after the answer row) leaves the row `running` for good: the sweep relays an owed notice but never settled the row.
+
+| Item | Contract | Owner |
+| --- | --- | --- |
+| fork input | `forkInquiryEnvelope(asker, message, {fork})` replaces `directEnvelope` for `transport.forkInquiry`. It says this is a read-only inquiry from 「<名前>」 (「（分身）」 for a fork asker), that the fork's last reply is delivered to the asker as is, and that it must not send its answer with `sendmessage` or another tool. Relays, owed notices and the fork's own `sendmessage` keep `directEnvelope` | N102 `messenger.mjs` |
+| row settle | The first sweep scan of a process settles inquiry rows as in the sweep row above. A row this process holds live is left to its callbacks | N102 `messenger.mjs` `unsettledForkInquiries` |
+
+No new method, field or guard; SK04 and the relay are unchanged (a fork may still message others).
 
 ## New MCP tool contract (N102)
 

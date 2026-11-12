@@ -13,6 +13,12 @@ export function directEnvelope(from, message, { fork = false } = {}) {
   return `「${name}${fork ? '（分身）' : ''}」からあなたへ次のメッセージが届いています。\n\n${message}`
 }
 
+// fork-inquiry.md "Inquiry row and fork input": the fork answers in its last reply, which is relayed; a sendmessage would be a 2nd message.
+export function forkInquiryEnvelope(from, message, { fork = false } = {}) {
+  const name = `${from.name}${fork ? '（分身）' : ''}`
+  return `「${name}」から読み取り専用の問い合わせが届いています。あなたの最後の返答が、そのまま「${name}」へ届きます。答えはsendmessageなどの道具で送らず、最後の返答に書いてください。\n\n${message}`
+}
+
 function forkSeatLabel(seat) {
   return seat?.kind === 'fork' && typeof seat.forkId === 'string' && seat.forkId ? { kind: 'fork', fork_id: seat.forkId } : null
 }
@@ -107,7 +113,7 @@ export class BellTeamMessenger extends ConversationWriter {
     const { check, bot, deliveryId } = prepared
     const asker = memberIdentity(this.bots, from)
     const askedAt = this.now()
-    if (!fromSeat) this.forkNotices.live.add(deliveryId)
+    this.forkNotices.live.add(deliveryId)
     try { check() }
     catch (error) { this.forkNotices.live.delete(deliveryId); await this.appendDeliveryStatus(deliveryId, 'stopped'); throw error }
     const acceptance = Promise.withResolvers()
@@ -119,7 +125,7 @@ export class BellTeamMessenger extends ConversationWriter {
     const relay = text => {
       if (relayed) return
       relayed = true
-      if (fromSeat) return answered.resolve(text)
+      if (fromSeat) { this.forkNotices.live.delete(deliveryId); return answered.resolve(text) }
       const notice = { from: bot.id, target: from, message: text, forkId, deliveryId, askedAt, answeredAt: this.now() }
       return acceptance.promise
         .then(accepted => accepted && this.relayForkAnswer(notice))
@@ -136,7 +142,7 @@ export class BellTeamMessenger extends ConversationWriter {
     const onInterim = words => this.appendInterimWords(bot.id, deliveryId, words, { seat })
     const onAnswer = text => this.appendInterimWords(bot.id, deliveryId, [{ text, kind: 'answer' }], { seat })
     try {
-      const result = await this.transport.forkInquiry(bot, directEnvelope(asker, message, { fork: Boolean(fromSeat) }), {
+      const result = await this.transport.forkInquiry(bot, forkInquiryEnvelope(asker, message, { fork: Boolean(fromSeat) }), {
         forkId, deliveryId, ...(executionSource ? { executionSource } : {}),
         queue: { context: 'direct', contextId: bot.id, groupId: deliveryId, from, fromName: asker.name, target: bot.id, message },
         onInterim,
@@ -168,8 +174,12 @@ export class BellTeamMessenger extends ConversationWriter {
   async sweepForkNotices() {
     const notices = this.forkNotices
     if (!notices.scanned) {
-      for (const notice of owedForkNotices(await this.store.entries()))
+      const entries = await this.store.entries()
+      for (const notice of owedForkNotices(entries))
         if (!notices.live.has(notice.deliveryId) && !notices.owed.has(notice.deliveryId)) notices.owed.set(notice.deliveryId, notice)
+      // A row left running by a lost process never gets its status from a callback.
+      for (const { deliveryId, delivery } of unsettledForkInquiries(entries)) if (!notices.live.has(deliveryId))
+        await this.appendDeliveryStatus(deliveryId, delivery, delivery === 'failed' ? { code: 'FORK_FAILED' } : null)
       notices.scanned = true
     }
     let relayed = 0
@@ -419,6 +429,14 @@ function jst(iso) {
 
 // An inquiry with a main asker and no relay row owes its notice. A post-accept failure saved its text as a fork
 // `error` row first; a failed/stopped inquiry without one was refused before accept (already the tool error).
+export function unsettledForkInquiries(entries) {
+  const answered = new Set(entries.filter(entry => entry.schema === 'bellteam.interim-word.v1' && entry.seat?.kind === 'fork' && entry.kind === 'answer')
+    .map(entry => entry.group_id))
+  return entries.filter(entry => entry.schema === 'bellteam.direct-message.v1' && entry.seat?.kind === 'fork' && !entry.in_reply_to
+    && ['running', 'steered'].includes(entry.delivery))
+    .map(entry => ({ deliveryId: entry.delivery_id, delivery: answered.has(entry.delivery_id) ? 'delivered' : 'failed' }))
+}
+
 export function owedForkNotices(entries) {
   const relayed = new Set(), answers = new Map(), failures = new Map(), owed = []
   for (const entry of entries) {
