@@ -9,6 +9,9 @@ windows/**/bin/
 windows/**/obj/
 windows/TestResults/
 windows/artifacts/
+linux/**/bin/
+linux/**/obj/
+linux/artifacts/
 ios/BellBot/build/
 ios/BellBot/DerivedData/
 ios/BellBot/**/*.xcuserstate

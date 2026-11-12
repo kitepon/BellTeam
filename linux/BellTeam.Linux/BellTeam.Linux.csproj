@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- Same assembly name as the Windows app: BellTeam.Core's InternalsVisibleTo("BellTeam") reaches the same render hooks. -->
+    <AssemblyName>BellTeam</AssemblyName>
+    <Version>0.4.9</Version>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="../../ios/BellBot/BellBot/Assets.xcassets/AppIcon.appiconset/bellbot-icon.png" LogicalName="BellTeam.png" />
+    <!-- The Mac app bundles the same three files for its server setup screen. -->
+    <EmbeddedResource Include="../../ios/BellBot/BellBot/Assets.xcassets/BellPortrait.imageset/bell-portrait.png" LogicalName="BellPortrait.png" />
+    <EmbeddedResource Include="../../docs/server-installation.md" LogicalName="server-installation.md" />
+    <EmbeddedResource Include="../../services/subscriptions/product.json" LogicalName="product.json" />
+    <InternalsVisibleTo Include="BellTeam.Linux.Tests" />
+    <ProjectReference Include="../../windows/BellTeam.Core/BellTeam.Core.csproj" />
+    <PackageReference Include="Avalonia" Version="12.1.6" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.6" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.6" />
+    <PackageReference Include="Avalonia.Headless" Version="12.1.6" />
+    <PackageReference Include="Markdig" Version="1.4.0" />
+    <!-- Avalonia brings the same version; it is referenced explicitly because the notification sink uses it directly. -->
+    <PackageReference Include="Tmds.DBus.Protocol" Version="0.94.1" />
+  </ItemGroup>
+</Project>
