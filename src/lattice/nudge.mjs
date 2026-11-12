@@ -9,20 +9,20 @@ const line = card => card.state === 'ready'
   ? `- ${card.plan}/${card.taskId} 「${card.title}」: can start -> \`lattice todo start --plan ${card.plan} --task ${card.taskId}\``
   : `- ${card.plan}/${card.taskId} 「${card.title}」: in progress`
 
-// One message per Bot: the head once, then a header per chart and its task lines; split at line boundaries to stay within LIMIT.
-export function nudgeMessages(entries) {
-  const out = []
-  let text = HEAD, chart = null
+// ONE message per Bot per tick (Owner; Epinel gate): the head once, then a header per chart and its task lines, within LIMIT.
+// Lines that do not fit are left out and counted in the last line, so the Bot still gets exactly one prompt.
+const more = n => `\n... and ${n} more of your tasks are in progress or can start: see \`lattice status\` on each chart.`
+export function nudgeMessage(entries) {
+  const room = LIMIT - more(entries.length).length
+  let text = HEAD, chart = null, left = 0
   for (const { projectId, card } of entries) {
-    const header = `\nChart ${projectId} (lattice tool, project ${projectId}):`
-    let part = `${projectId === chart ? '' : header}\n${line(card)}`
-    if (text.length + part.length > LIMIT) { out.push(text); text = 'Lattice (continued):'; part = `${header}\n${line(card)}` }
-    // shortcut: a single task line over LIMIT is cut; titles are short. Upgrade if titles ever grow past a few hundred chars.
-    text = (text + part).slice(0, LIMIT)
+    // shortcut: a single task line over LIMIT is left out and counted; titles are short. Upgrade if titles ever grow past a few hundred chars.
+    const part = `${projectId === chart ? '' : `\nChart ${projectId} (lattice tool, project ${projectId}):`}\n${line(card)}`
+    if (left || text.length + part.length > room) { left++; continue }
+    text += part
     chart = projectId
   }
-  out.push(text)
-  return out
+  return left ? text + more(left) : text
 }
 
 // charts: [{projectId, cards}] from the memo (cards as projection.mjs makes them); laneOf(lane) -> roster Bot id | 'owner' | null.
@@ -38,12 +38,8 @@ export async function nudgeSweep(charts, { laneOf, log, effect }) {
   const turns = await effect('turns.read', { botIds: [...lanes.keys()] }).then(value => value.turns, () => ({}))
   for (const [bot, entries] of lanes) {
     if (turns[bot] === 'working') { out.skipped++; continue }
-    let sent = true
-    for (const message of nudgeMessages(entries)) {
-      const value = await effect('messages.send', { from: 'scheduler', target: bot, message }).catch(() => null)
-      if (!['running', 'steered', 'queued', 'delivered', 'answered'].includes(value?.delivery)) sent = false
-    }
-    if (sent) out.prompted++
+    const value = await effect('messages.send', { from: 'scheduler', target: bot, message: nudgeMessage(entries) }).catch(() => null)
+    if (['running', 'steered', 'queued', 'delivered', 'answered'].includes(value?.delivery)) out.prompted++
     else { out.failed++; log(`lattice-nudge-send ${bot} not accepted`) }
   }
   return out

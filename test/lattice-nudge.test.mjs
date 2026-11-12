@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { nudgeSweep, nudgeMessages } from '../src/lattice/nudge.mjs'
+import { nudgeSweep, nudgeMessage } from '../src/lattice/nudge.mjs'
 import { laneResolver } from '../src/lattice/projection.mjs'
 import { validateLatticeEffect, validateLatticeEffectResult, validateLatticeRequest, validateLatticeResult } from '../src/lattice-protocol.mjs'
 
@@ -50,14 +50,19 @@ test('nudge: a failed turns read prompts every Bot; a send not accepted counts f
   assert.deepEqual(quiet.reads, [], 'nothing actionable: no turn read')
 })
 
-test('nudge messages split at task lines within 4000 chars and repeat the chart header', () => {
-  const entries = Array.from({ length: 40 }, (_, i) => ({ projectId: 'a', card: card(`t${i}`, 'ready', 'bot-a') }))
-  entries.forEach(entry => { entry.card.title = 'x'.repeat(80) })
-  const parts = nudgeMessages(entries)
-  assert.equal(parts.length, 2)
-  assert.ok(parts.every(part => part.length <= 4000))
-  assert.ok(parts[1].startsWith('Lattice (continued):\nChart a (lattice tool, project a):\n- p1/t'))
-  assert.equal(parts.join('').split("「").length - 1, 40, 'every task once')
+test('nudge: a task list over 4000 chars is ONE send per Bot, bounded, the rest counted', async () => {
+  const cards = Array.from({ length: 40 }, (_, i) => ({ ...card(`t${i}`, 'ready', 'bot-a'), title: 'x'.repeat(80) }))
+  const sends = []
+  const effect = async (method, params) => method === 'turns.read' ? { turns: { 'bot-a': 'idle' } } : (sends.push(params), { delivery: 'running' })
+  const out = await nudgeSweep([{ projectId: 'a', cards }], { laneOf: lane => lane, log: () => {}, effect })
+  assert.equal(sends.length, 1, 'exactly one prompt')
+  assert.deepEqual([out.prompted, out.failed], [1, 0])
+  const text = sends[0].message
+  assert.ok(text.length <= 4000)
+  const shown = text.split('「').length - 1
+  assert.ok(shown > 0 && shown < 40)
+  assert.ok(text.endsWith(`... and ${40 - shown} more of your tasks are in progress or can start: see \`lattice status\` on each chart.`))
+  assert.equal(nudgeMessage(cards.slice(0, 2).map(c => ({ projectId: 'a', card: c }))).includes('more of your tasks'), false, 'a short list has no tail')
 })
 
 test('protocol: root nudge and effect turns.read', () => {
