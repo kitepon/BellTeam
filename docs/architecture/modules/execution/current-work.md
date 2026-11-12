@@ -135,3 +135,30 @@ flowchart LR
 | Lifetime | Kept while any job of that groupId is active in the queue. `SeatActivity.release` of the last one calls `forgetRequest(groupId)`. A run in flight whose `current()` turned false stores nothing. `close()` clears everything. |
 | Public row | With a worker that supports requests, every `transport.queueItems()` row has `requestSummary: string \| null` (failed rows `null`). Without one the rows are unchanged (no key). |
 | Compatibility | The worker and runner are parent-image source, the transport is execution. An older body (before 536e65f2) has no `requestSummary` method, so a new engine sends rows with no key, the same as an older engine; the consumer treats a missing key as null and the label falls back to 依頼を処理中. Production check: `GET /api/queue` rows have no `requestSummary` key until the body includes 536e65f2. The feature goes live only with both. |
+
+## Script and CI waits count as running (2026-11-12, Owner ruling via Trony; contract with Belota and Flora)
+
+Owner: 「AI以外のスクリプトやCIの待ちならば稼働中表示にする。」 A Bot whose AI turn ended but which waits on a command it started through BellTeam is running. The native observation above is unchanged; the parent facade composes it with the scheduler's wait read. `transport.currentTurn` stays native, because after_turn must fire at the native turn end.
+
+```mermaid
+flowchart LR
+  Sched["BotScheduler (members, body)<br/>lists runDue (each tick) and runAfterTurn (registry.watch botIds) already read"] --> Waits["waits: botId → ids of enabled command schedules with notify=result<br/>+ that Bot's running notify=result command jobs"]
+  Waits --> Read["scheduler.commandWait(botId) → ISO observedAt | null"]
+  Waits -->|flip| Notify["onCommandWaitChange → notify({type:'bots'}) → screens refetch"]
+  Native["engine transport.currentWork / currentTurn (native, unchanged)"] --> Facade["execution facade (body)"]
+  Read --> Facade
+  Facade --> Work["transport.currentWork(bot): state working while waiting<br/>(other keys kept; observedAt = native ?? wait)"]
+  Facade --> Running["transport.runningState(botId): currentTurn state, working while waiting"]
+  Work --> Screens["GET /api/bots, rooms, get_self → Web/Apple/Windows/相関図"]
+  Running --> Lattice["lattice turns.read (L15) → nudge skips the Bot"]
+  Native --> AfterTurn["transport.currentTurn → after_turn (native only)"]
+```
+
+| Contact | Contract |
+| --- | --- |
+| Wait | An enabled Bot schedule with `command` and `notify:'result'`, or a still-running notify=result command job of that Bot (a once schedule is consumed while its command runs). notify=failure commands and prompt schedules never count. A recurring wait left in place after its result keeps counting; it keeps waking the Bot anyway. Waits outside BellTeam (a CLI's own background shell) are not visible and are not guessed. |
+| `scheduler.commandWait(botId)` | Sync pure read: ISO time the wait was last observed, or null. Fed by the lists runDue (each tick) and runAfterTurn (the Bots a `registry.watch` event names) already read, before their filters; a per-read sequence keeps an older list from overwriting a newer one; Bots gone from the registry are dropped. Without watchCurrentTurn it updates per tick only; while AI is paused the last value is kept. Owner of the read: Belota (members schedules.md SC9). |
+| `transport.currentWork(bot)` | Native DTO; when native state is not `working` and commandWait is set, `state:'working'` and `observedAt` = native observedAt ?? the wait time. All six keys and their schema stay as they are (additive meaning only). |
+| `transport.runningState(botId)` | New facade read: `'working'|'idle'|'unknown'` = native `currentTurn(botId).state`, `'working'` while commandWait is set. Lattice turns.read uses it and falls back to currentTurn when it is missing (older body). |
+| Not changed | `currentTurn`, `watchCurrentTurn`, after_turn, the engine. The managed path without an execution factory gets no waits (not used in production). |
+| Self-exit | No guard is added. The wait ends when the schedule is removed, disabled or its once command finishes; the next list or the job end flips it and notifies. |

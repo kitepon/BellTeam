@@ -101,8 +101,10 @@ export function createLatticeEffects({ bots, messenger, transport, runAs = (acto
     if (method === 'members.list') return { members: (await bots.listForClient()).map(item => ({ id: text(item.id), name: text(item.name),
       color: text(item.color), avatarVersion: text(item.avatarVersion), deleting: item.deleting === true })) }
     // Nudge (README L15): only 'working' means running; anything else, or no turn port, reads 'unknown'.
+    // runningState also counts a script/CI wait (execution current-work.md 2026-11-12); older bodies fall back to currentTurn.
     if (method === 'turns.read') return { turns: Object.fromEntries(await Promise.all(params.botIds.map(async id => {
-      const state = await Promise.resolve().then(() => transport?.currentTurn?.(id)).then(turn => turn?.state, () => null)
+      const state = await Promise.resolve().then(() => transport?.runningState ? transport.runningState(id)
+        : Promise.resolve(transport?.currentTurn?.(id)).then(turn => turn?.state)).then(state => state, () => null)
       return [id, ['working', 'idle'].includes(state) ? state : 'unknown']
     }))) }
     throw Object.assign(new Error('LATTICE_EFFECT_INVALID'), { code: 'LATTICE_EFFECT_INVALID', status: 400 })
