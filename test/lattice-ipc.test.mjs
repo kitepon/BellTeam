@@ -125,7 +125,7 @@ test('parent: an effect outside a pending root call is rejected', async () => {
   channel.reaped()
 })
 
-test('parent: root calls validate first, run gets a longer timeout, effects map failures to a fixed code', async () => {
+test('parent: root calls validate first, run gets a longer timeout, effects map failures to a fixed code except the two decisions outcomes', async () => {
   const { endpoint, sent } = fakeEndpoint()
   const effects = []
   let answer = async () => ({ members: [] })
@@ -154,10 +154,18 @@ test('parent: root calls validate first, run gets a longer timeout, effects map 
   effect(3, 'members.list', {})
   await tick()
   assert.equal(sent.at(-1).error.code, 'LATTICE_EFFECT_FAILED')
-  effect(4, 'members.list', { x: 1 })
+  answer = async () => { throw Object.assign(new Error('LATTICE_DECISIONS_REFUSED'), { code: 'LATTICE_DECISIONS_REFUSED', status: 409 }) }
+  effect(4, 'members.list', {})
+  await tick()
+  assert.deepEqual(sent.at(-1).error, { code: 'LATTICE_DECISIONS_REFUSED', outcome: 'unknown', status: 409 })
+  answer = async () => { throw Object.assign(new Error('LATTICE_DECISIONS_UNAVAILABLE'), { code: 'LATTICE_DECISIONS_UNAVAILABLE', status: 418 }) }
+  effect(5, 'members.list', {})
+  await tick()
+  assert.deepEqual(sent.at(-1).error, { code: 'LATTICE_DECISIONS_UNAVAILABLE', outcome: 'unknown', status: 503 })
+  effect(8, 'members.list', { x: 1 })
   await tick()
   assert.equal(sent.at(-1).error.code, 'LATTICE_INVALID')
-  effect(5, 'turns.read', {})
+  effect(9, 'turns.read', {})
   await tick()
   assert.equal(sent.at(-1).error.code, 'LATTICE_INVALID')
   channel.reaped()
