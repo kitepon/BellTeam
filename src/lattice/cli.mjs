@@ -33,6 +33,7 @@ export function createLatticeCli({ bin, chartsRoot = '/srv/bellteam/state/lattic
   const failed = (error, missing = ['ENOENT', 'ENOTDIR']) => { if (missing.includes(error?.code)) return null; throw Object.assign(latticeError('LATTICE_UNAVAILABLE', 503), { detail: error?.code ?? 'EIO' }) }
   const isDir = path => stat(path).then(info => info.isDirectory(), error => failed(error) ?? false)
   const nameFile = id => join(dir(id), '.bellteam-chart.json')
+  const recordFile = join(chartsRoot, '.bellteam-owner-decisions.json')
   // Named protection: a chart dir or sidecar that is a symlink would let the server uid write or run outside the charts root.
   // Self-exit: the call fails LATTICE_UNAVAILABLE (detail ELINK) and writes nothing; once the link is replaced by a real dir, the next call works.
   const linkError = () => Object.assign(latticeError('LATTICE_UNAVAILABLE', 503), { detail: 'ELINK' })
@@ -78,6 +79,25 @@ export function createLatticeCli({ bin, chartsRoot = '/srv/bellteam/state/lattic
       return (await Promise.all(ids.map(async id => await isDir(join(dir(id), '.lattice')) ? id : null))).filter(Boolean).sort()
     },
     exists: async id => LATTICE_PROJECT_ID.test(id) && await isDir(join(dir(id), '.lattice')),
+    // Owner-lane filing record (README L18): one JSON object beside the charts. Missing = {}.
+    // A symlink or malformed file is moved aside (`.invalid-<ms>`) and starts empty; the body adopts a request already filed for the task by its session_label (L18), so nothing is filed twice.
+    async readOwnerRecord() {
+      const link = await lstat(recordFile).catch(error => failed(error))
+      let value = null
+      if (link && !link.isSymbolicLink()) try { value = JSON.parse(await readFile(recordFile, 'utf8')) } catch {}
+      if (!link) return {}
+      if (value && typeof value === 'object' && !Array.isArray(value)) return value
+      await rename(recordFile, `${recordFile}.invalid-${Date.now()}`)
+      return {}
+    },
+    async writeOwnerRecord(value) {
+      const temp = `${recordFile}.${process.pid}.tmp`
+      const file = await open(temp, 'wx', 0o600)
+      try {
+        try { await file.writeFile(JSON.stringify(value) + '\n') } finally { await file.close() }
+        await rename(temp, recordFile)
+      } catch (error) { await rm(temp, { force: true }); throw error }
+    },
     // The chart's display name and creator, kept beside Lattice's store; Lattice has neither. A malformed field is absent.
     meta: readMeta,
     async setMeta(id, patch) {

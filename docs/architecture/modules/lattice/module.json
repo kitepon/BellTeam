@@ -16,6 +16,14 @@
     {
       "module": "conversation",
       "port": "messages"
+    },
+    {
+      "module": "usage",
+      "port": "secrets"
+    },
+    {
+      "module": "approval-box",
+      "port": "public"
     }
   ],
   "source": [
@@ -28,6 +36,8 @@
     "src/lattice/projection.mjs",
     "src/lattice/notices.mjs",
     "src/lattice/nudge.mjs",
+    "src/lattice/owner-decisions.mjs",
+    "src/lattice-approval.mjs",
     "src/lattice-protocol.mjs",
     "src/lattice-ipc.mjs",
     "src/lattice-dispatcher.mjs",

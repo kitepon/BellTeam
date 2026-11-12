@@ -16,7 +16,7 @@ function fixture({ respond = () => null } = {}) {
     return value ?? (method === 'refresh' ? { snapshots: [], nextRefreshMs: 2000 } : { method, params })
   } }
   const facade = createLatticeFacade({ controller,
-    // The nudge timer (300 s, always armed) is kept apart from the refresh loop's timers.
+    // The nudge timer (60 s, always armed) is kept apart from the refresh loop's timers.
     setTimer: (run, ms) => { const timer = { run, ms }; (ms === NUDGE_MS ? nudges : timers).push(timer); return timer }, clearTimer: timer => { if (timer) timer.cleared = true } })
   const fire = async () => { for (const timer of timers.splice(0)) if (!timer.cleared) timer.run(); await tick(); await tick() }
   return { facade, calls, timers, nudges, fire, hold: () => { let open; gate = new Promise(resolve => { open = resolve }); return () => { gate = null; open() } } }
@@ -91,7 +91,7 @@ test('members.list returns exactly the agreed fields; other effects are refused'
   await assert.rejects(effect('queue.read', {}), { code: 'LATTICE_EFFECT_INVALID' })
 })
 
-test('nudge: one 300 s timer from creation, re-armed after each call, failures swallowed', async () => {
+test('nudge: one 60 s timer from creation, re-armed after each call, failures swallowed', async () => {
   let down = false
   const f = fixture({ respond: method => method === 'nudge' && down ? Object.assign(new Error('x'), { code: 'LATTICE_INVALID' }) : { charts: 1, prompted: 1, skipped: 0, failed: 0 } })
   assert.deepEqual(f.nudges.map(timer => timer.ms), [NUDGE_MS])

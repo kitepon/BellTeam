@@ -8,15 +8,19 @@ const list = value => Array.isArray(value) ? value : []
 const ref = value => text(value?.plan_key) && text(value?.task_id) ? `${value.plan_key}/${value.task_id}` : null
 const finished = card => card.state === 'done' || card.state === 'retired'
 
+// The authored lane names a member by Bot id or by name; anything else stays plain lane text for the screens.
+// `owner` is the reserved value for the Owner (指揮官), who has no Bot id. Shared with the prompt sweep (nudge.mjs).
+export function laneResolver(members) {
+  const live = members.filter(member => !member.deleting), bots = new Set(live.map(member => member.id))
+  const named = new Map(live.map(member => [String(member.name).toLowerCase(), member.id]))
+  return lane => !lane ? null : bots.has(lane) ? lane : ['owner', '指揮官'].includes(lane.toLowerCase()) ? 'owner' : named.get(lane.toLowerCase()) ?? null
+}
+
 // Malformed fields drop only the task or edge they belong to. An unverified read has no journal, so producers fall back to the lane.
 export function projectChart({ read, members = [], previous = null }) {
   const state = DISPLAY.includes(read?.state) ? read.state : 'unavailable'
   const raw = state === 'unverified'
-  const live = members.filter(member => !member.deleting), bots = new Set(live.map(member => member.id))
-  const named = new Map(live.map(member => [String(member.name).toLowerCase(), member.id]))
-  // The authored lane names a member by Bot id or by name; anything else stays plain lane text for the screens.
-  // `owner` is the reserved value for the Owner (指揮官), who has no Bot id.
-  const assigned = lane => !lane ? null : bots.has(lane) ? lane : ['owner', '指揮官'].includes(lane.toLowerCase()) ? 'owner' : named.get(lane.toLowerCase()) ?? null
+  const assigned = laneResolver(members)
   const cards = new Map(), deps = [], cross = [], removed = new Set(), phases = [], parents = new Map()
   let first = null, updatedAt = null
   for (const member of list(read?.store?.members)) {

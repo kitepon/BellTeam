@@ -1,55 +1,46 @@
-// Nudge sweep (README L13-L15; Owner 2026-11-12, the whole spec): every chart's ready set from `todo nudge` (Lattice decides the chart side),
-// and each ready task's prompt, as Lattice wrote it, to its lane Bot when that Bot is not running. No other condition.
+// Prompt sweep (README L13-L15; Owner 2026-11-12, the whole spec): every chart's cards from the memo projection (the screens' read,
+// no `todo nudge`) -> ONE prompt per lane Bot that is not running and has an in-progress or a startable task. No other condition.
 const LIMIT = 4000
+const HEAD = 'Lattice: you are not running, and you have tasks in progress or tasks that can start (every prerequisite is done). Start at least one now.\n'
+  + 'If a task can only start after another task is done, connect that task as its prerequisite (`lattice todo dependency connect --from-plan <P> --from-task <that task> --to-plan <P> --to-task <T> --reason <why>`) and return this task to unstarted (`lattice todo retract --plan <P> --task <T> --reason <why>`).\n'
+  + 'If it cannot start for any other reason, set a stop (`lattice todo block --plan <P> --task <T> --reason <why>`); a stopped task is not prompted.'
 
-// One message per lane: a header per chart, then its prompts; split at prompt boundaries to stay within LIMIT.
-export function nudgeMessages(entries) {
-  const out = []
-  let text = '', chart = null
-  for (const { projectId, prompt } of entries) {
-    const header = projectId === chart ? '' : `Lattice nudge, chart ${projectId} (lattice tool, project ${projectId}):\n`
-    const part = `${header}${prompt}`
-    if (text && text.length + 2 + part.length > LIMIT) { out.push(text); text = `Lattice nudge, chart ${projectId} (lattice tool, project ${projectId}):\n${prompt}` }
-    else text = text ? `${text}\n\n${part}` : part
+const line = card => card.state === 'ready'
+  ? `- ${card.plan}/${card.taskId} 「${card.title}」: can start -> \`lattice todo start --plan ${card.plan} --task ${card.taskId}\``
+  : `- ${card.plan}/${card.taskId} 「${card.title}」: in progress`
+
+// ONE message per Bot per tick (Owner; Epinel gate): the head once, then a header per chart and its task lines, within LIMIT.
+// Lines that do not fit are left out and counted in the last line, so the Bot still gets exactly one prompt.
+const more = n => `\n... and ${n} more of your tasks are in progress or can start: see \`lattice status\` on each chart.`
+export function nudgeMessage(entries) {
+  const room = LIMIT - more(entries.length).length
+  let text = HEAD, chart = null, left = 0
+  for (const { projectId, card } of entries) {
+    // shortcut: a single task line over LIMIT is left out and counted; titles are short. Upgrade if titles ever grow past a few hundred chars.
+    const part = `${projectId === chart ? '' : `\nChart ${projectId} (lattice tool, project ${projectId}):`}\n${line(card)}`
+    if (left || text.length + part.length > room) { left++; continue }
+    text += part
     chart = projectId
-    // shortcut: a single prompt over LIMIT is cut; Lattice prompts are a few hundred chars. Upgrade if Lattice ever sends longer ones.
-    if (text.length > LIMIT) { out.push(text.slice(0, LIMIT)); text = ''; chart = null }
   }
-  if (text) out.push(text)
-  return out
+  return left ? text + more(left) : text
 }
 
-// run(id, args) -> parsed Lattice JSON, throws on a failed CLI run.
-export async function nudgeSweep(ids, { run, log, roster, effect, lock = (id, fn) => fn() }) {
-  const bots = new Set(roster.filter(member => !member.deleting).map(member => member.id))
-  const lanes = new Map(), out = { charts: 0, prompted: 0, skipped: 0, failed: 0 }
-  for (const id of ids) {
-    let value
-    try { value = await lock(id, () => run(id, ['todo', 'nudge', '--json'])) } catch (error) {
-      out.failed++
-      log(`lattice-nudge ${id} ${error?.code ?? 'LATTICE_CLI_FAILED'}`)
-      continue
-    }
-    out.charts++
-    for (const lane of Array.isArray(value?.lanes) ? value.lanes : []) {
-      // A lane that is no roster Bot (e.g. owner) has no seat to deliver to.
-      if (!bots.has(lane?.lane)) continue
-      for (const task of Array.isArray(lane.tasks) ? lane.tasks : []) if (typeof task?.prompt === 'string' && task.prompt)
-        lanes.set(lane.lane, [...lanes.get(lane.lane) ?? [], { projectId: id, prompt: task.prompt }])
-    }
+// charts: [{projectId, cards}] from the memo (cards as projection.mjs makes them); laneOf(lane) -> roster Bot id | 'owner' | null.
+export async function nudgeSweep(charts, { laneOf, log, effect }) {
+  const lanes = new Map(), out = { charts: charts.length, prompted: 0, skipped: 0, failed: 0 }
+  for (const { projectId, cards } of charts) for (const card of cards) {
+    if (card.state !== 'in-progress' && card.state !== 'ready') continue
+    const bot = laneOf(card.lane)
+    if (bot && bot !== 'owner') lanes.set(bot, [...lanes.get(bot) ?? [], { projectId, card }])
   }
   if (!lanes.size) return out
-  // Only 'working' proves the Bot is running; unknown or a failed read is prompted.
+  // Only 'working' proves the Bot is running (script/CI waits included, bellteam-running); unknown or a failed read is prompted.
   const turns = await effect('turns.read', { botIds: [...lanes.keys()] }).then(value => value.turns, () => ({}))
-  for (const [lane, entries] of lanes) {
-    if (turns[lane] === 'working') { out.skipped += entries.length; continue }
-    let sent = true
-    for (const message of nudgeMessages(entries)) {
-      const value = await effect('messages.send', { from: 'scheduler', target: lane, message }).catch(() => null)
-      if (!['running', 'steered', 'queued', 'delivered', 'answered'].includes(value?.delivery)) sent = false
-    }
-    if (sent) out.prompted += entries.length
-    else { out.failed++; log(`lattice-nudge-send ${lane} not accepted`) }
+  for (const [bot, entries] of lanes) {
+    if (turns[bot] === 'working') { out.skipped++; continue }
+    const value = await effect('messages.send', { from: 'scheduler', target: bot, message: nudgeMessage(entries) }).catch(() => null)
+    if (['running', 'steered', 'queued', 'delivered', 'answered'].includes(value?.delivery)) out.prompted++
+    else { out.failed++; log(`lattice-nudge-send ${bot} not accepted`) }
   }
   return out
 }

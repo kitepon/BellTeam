@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import { checkSeatArgs } from './cli.mjs'
 import { latticeError } from '../lattice-protocol.mjs'
-import { projectChart } from './projection.mjs'
+import { laneResolver, projectChart } from './projection.mjs'
 import { createCodeCharts } from './code-chart.mjs'
 import { createNoticeDelivery } from './notices.mjs'
 import { nudgeSweep } from './nudge.mjs'
+import { ownerDecisions } from './owner-decisions.mjs'
 import { stopsOf, unblockOutcome } from './blockers.mjs'
 
 const CHART_PARALLEL = 4, STDOUT_KEPT = 64 * 1024
@@ -117,11 +118,20 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
       await rosterReader(effect)()
       return notices.deliverAll(ids, { roster, effect, lock: locked })
     },
-    // About every 5 minutes (facade timer, README L13-L15): every chart's ready set -> prompts to lane Bots not running.
+    // Every minute (facade timer, README L13-L15): every chart's cards from the memo -> ONE prompt per lane Bot not running.
     async nudge(params, effect) {
       const ids = await cli.list()
-      await rosterReader(effect)()
-      return nudgeSweep(ids, { run: (id, args) => lattice(id, args), log, roster, effect, lock: locked })
+      const memos = await syncAll(ids, effect)
+      const charts = ids.map((projectId, i) => ({ projectId, name: memos[i].content.name, createdBy: memos[i].content.createdBy, cards: memos[i].content.cards }))
+      const laneOf = laneResolver(roster), live = roster.filter(member => !member.deleting)
+      const out = await nudgeSweep(charts, { laneOf, log, effect })
+      // Owner-lane filing (L18-L19); a failed record read or write ends this part of the tick, the next tick retries.
+      let owner = { filed: 0, routed: 0 }
+      try {
+        owner = await ownerDecisions(charts, { laneOf, names: new Map(live.map(member => [member.id, member.name])), bots: new Set(live.map(member => member.id)),
+          records: { read: () => cli.readOwnerRecord(), write: value => cli.writeOwnerRecord(value) }, effect, log })
+      } catch (error) { log(`lattice-owner-record ${error?.code ?? 'FAILED'}`) }
+      return { ...out, ...owner, failed: out.failed + memos.filter(memo => memo.content.degraded?.includes('lattice-read')).length }
     },
     // Owner stop list (L16): a read, so no chart lock; a chart that fails is named in unreadCharts.
     async blockers() {

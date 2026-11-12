@@ -126,8 +126,8 @@ flowchart LR
   F -->|LT4 root run, charts, chart, refresh| C
   C -->|LT5 members.list effect inside a root call| F
   C -->|LT10 messages.send effect: startable notice to the lane Bot| F
-  F -->|LT11 root nudge every 5 min| C
-  C -->|LT12 turns.read effect; messages.send nudge prompt to a lane Bot not running| F
+  F -->|LT11 root nudge every 1 min| C
+  C -->|LT12 turns.read effect; messages.send ONE prompt per lane Bot not running| F
   Apps -->|LT13 GET blockers; POST charts/:id/unblock stopId (Owner only)| P1
   F -->|LT14 root blockers / unblock| C
   F -->|LT6 bots.listForClient| P4
