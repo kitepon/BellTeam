@@ -261,4 +261,12 @@ test('動いていない席はseat_idleの休止中、本当の取得失敗はre
   }
   const nativeFailure = await fixture({ result: native({ availability: 'unavailable', outcome: 'unavailable', binding: null, reason: 'native_goal_connection_unavailable' }) }).service.inspect(bot)
   assert.deepEqual([nativeFailure.availability, nativeFailure.reason], ['unavailable', 'read_failed'])
+
+  // Trony ruling 2026-11-12: a seat before its first turn has no conversation (Codex thread_binding_unavailable): idle, no diagnostic.
+  const freshResult = native({ availability: 'unavailable', outcome: 'unavailable', binding: null, reason: 'thread_binding_unavailable' }); delete freshResult.goal
+  const fresh = fixture({ result: freshResult })
+  const freshSnapshot = await fresh.service.inspect(bot)
+  assert.deepEqual([freshSnapshot.availability, freshSnapshot.reason, freshSnapshot.message, freshSnapshot.observedAt],
+    ['unavailable', 'seat_idle', '休止中です。メッセージを送ると再開します。', '2026-10-25T06:00:00Z'])
+  assert.equal(fresh.reports.length, 0)
 })
