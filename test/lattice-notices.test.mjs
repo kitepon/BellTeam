@@ -76,6 +76,33 @@ test('notices: old body (effect refused) keeps everything unacked; empty roster 
   assert.equal(z.calls.at(-1), 'alpha todo notice list --json')
 })
 
+test('notices: a waiting notice wakes every roster waiter, tells a non-lane waiter who starts it, and acks once under the lane', async () => {
+  const x = rig()
+  const waiting = [{ agent: 'bot-b', since: '2026-11-12T09:00:00.000Z', reason: null }, { agent: 'bot-c', since: '2026-11-12T09:01:00.000Z', reason: 'needs the API' },
+    { agent: 'owner', since: '2026-11-12T09:02:00.000Z', reason: null }]
+  const notices = [notice('n1', 'bot-b', { waiting, waiting_digest: 'w1', acked_recipients: [] }),
+    notice('n2', 'owner', { waiting: [waiting[1]], waiting_digest: 'w2', acked_recipients: [] }),
+    notice('n3', 'bot-b', { waiting: [waiting[1]], waiting_digest: 'w3', acked_recipients: ['bot-b'] })]
+  await x.delivery.afterRun('alpha', { notices }, { from: 'bot-a', roster: roster(['bot-a', 'bot-b', 'bot-c']), effect: x.effect })
+  assert.deepEqual(x.sent.map(item => item.target), ['bot-b', 'bot-c', 'bot-c', 'bot-c'], 'owner is never sent; n3 skips bot-b (already informed)')
+  assert.match(x.sent[0].message, /\(lane bot-b\), which you are waiting for \(todo wait since 2026-11-12T09:00:00.000Z\), can start now[\s\S]*Whether and when to start is your call[\s\S]*For reference, if you start it/)
+  assert.match(x.sent[1].message, /which you are waiting for \(todo wait since 2026-11-12T09:01:00.000Z: needs the API\)[\s\S]*\nThe lane bot-b starts it; your wait ends when it is started or retired/)
+  assert.doesNotMatch(x.sent[1].message, /For reference/, 'start command only for the lane')
+  assert.deepEqual(x.calls, ['alpha todo notice ack --lane bot-b --notice n1,n3', 'alpha todo notice ack --lane owner --notice n2'])
+})
+
+test('notices: a failed waiter keeps the notice unacked; the retry wakes only that waiter, then acks', async () => {
+  const x = rig()
+  const context = { from: 'bot-a', roster: roster(['bot-a', 'bot-b', 'bot-c']), effect: x.effect }
+  const n1 = notice('n1', 'bot-b', { waiting: [{ agent: 'bot-c', since: '2026-11-12T09:01:00.000Z', reason: null }], waiting_digest: 'w1', acked_recipients: [] })
+  x.world.deliveries = { 'bot-c': 'failed' }
+  await x.delivery.afterRun('alpha', { notices: [n1] }, context)
+  assert.deepEqual([x.sent.map(item => item.target), x.calls], [['bot-b', 'bot-c'], []])
+  x.world.deliveries = {}; x.world.listed = [n1]; x.sent.length = 0
+  await x.delivery.afterRun('alpha', { exitCode: 0 }, context)
+  assert.deepEqual([x.sent.map(item => item.target), x.calls], [['bot-c'], ['alpha todo notice list --json', 'alpha todo notice ack --lane bot-b --notice n1']])
+})
+
 test('notices: deliverAll lists every chart under its lock and sends at most NOTICE_SLICE', async () => {
   const x = rig({ listed: Array.from({ length: NOTICE_SLICE + 5 }, (_, i) => notice(`n${i}`, 'bot-b')) })
   const locked = []
