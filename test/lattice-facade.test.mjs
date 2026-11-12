@@ -111,3 +111,20 @@ test('turns.read: working and idle pass, anything else or a failed read is unkno
   assert.deepEqual(await effect('turns.read', { botIds: ['w', 'i', 'x', 'p'] }), { turns: { w: 'working', i: 'idle', x: 'unknown', p: 'unknown' } })
   assert.deepEqual(await createLatticeEffects({ bots: {} })('turns.read', { botIds: ['w'] }), { turns: { w: 'unknown' } })
 })
+
+test('messages.send runs the messenger in the actor scope named by from, outside any request scope', async () => {
+  const { AsyncLocalStorage } = await import('node:async_hooks')
+  const scope = new AsyncLocalStorage(), seen = []
+  // Like conversation-assembly: a send with no actor in scope is refused (CONVERSATION_CONTEXT_REQUIRED).
+  const messenger = { sendmessage: async input => {
+    const actor = scope.getStore()
+    if (!actor) throw new Error('CONVERSATION_CONTEXT_REQUIRED')
+    seen.push([input.from, actor]); return { delivery: 'queued', delivery_id: 'd1' }
+  } }
+  const effect = createLatticeEffects({ bots: {}, messenger, runAs: (actor, send) => scope.run(actor, send) })
+  assert.deepEqual(await effect('messages.send', { from: 'scheduler', target: 'p', message: 'm' }), { delivery: 'queued', deliveryId: 'd1' })
+  assert.deepEqual(await effect('messages.send', { from: 'bot-a', target: 'p', message: 'm' }), { delivery: 'queued', deliveryId: 'd1' })
+  assert.deepEqual(seen, [['scheduler', { kind: 'scheduler' }], ['bot-a', { kind: 'bot', botId: 'bot-a' }]])
+  // Without a scope port the old behavior stays: the error is thrown, the child keeps the notice unacked.
+  await assert.rejects(createLatticeEffects({ bots: {}, messenger })('messages.send', { from: 'scheduler', target: 'p', message: 'm' }), /CONVERSATION_CONTEXT_REQUIRED/)
+})
