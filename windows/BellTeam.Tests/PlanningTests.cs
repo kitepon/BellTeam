@@ -369,6 +369,27 @@ public sealed class PlanningTests
         });
     }
     [Fact]
+    public void ACommandScheduleNamesItsKindOnTheCardAndFoldsTheCommandInTheEditor()
+    {
+        RunSta(() =>
+        {
+            var requests = new List<(string, string)>();
+            using var workspace = ScheduleWorkspace(requests); Await(workspace.ConnectAsync("http://localhost", listen: false));
+            var withCommand = ScheduleJson.Replace("\"prompt\":\"確認\"", "\"command\":\"python3 monitoring/host_health.py\"");
+            ScheduledEntry Entry(string json) => new(new ChatTarget("bot-bell", false), "ベル", JsonSerializer.Deserialize<Schedule>(json, BellApi.Json)!);
+            // The card shows the kind, never the machine text; a prompt keeps its text.
+            var command = SchedulesWindow.ActionLine(Entry(withCommand).Schedule, System.Windows.Media.Brushes.Gray)!;
+            Assert.Equal("AIを起こさずに動く自動の作業", System.Windows.Automation.AutomationProperties.GetName(command)); Assert.DoesNotContain(Descendants<TextBlock>(command), text => text.Text.Contains("host_health"));
+            var prompt = SchedulesWindow.ActionLine(Entry(ScheduleJson).Schedule, System.Windows.Media.Brushes.Gray)!;
+            Assert.Equal("確認", ((TextBlock)prompt).Text);
+            // The editor folds the command; an empty one starts open.
+            var editor = new ScheduleEditorView(workspace, Entry(withCommand));
+            var fold = Descendants<Expander>(editor).Single(); Assert.Equal("コマンドを表示して編集", fold.Header); Assert.False(fold.IsExpanded);
+            Assert.True(Descendants<Expander>(new ScheduleEditorView(workspace, null)).Single().IsExpanded);
+            editor.Dispose();
+        });
+    }
+    [Fact]
     public void AnExistingRoomScheduleIsPutWholeWithItsRepliersAndNoCommand()
     {
         RunSta(() =>

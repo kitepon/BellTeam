@@ -30,7 +30,7 @@ Mac：[1.0.1(48)の3ペイン](assets/mac-ui-reference-48/01-workspace.png)（PR
 
 - 上部の帯：アバター34、名前（18pt）、ファスト、補足（「N人のルーム」または「オンライン」「オフライン」）、書き出しボタン（square.and.arrow.up、「会話を書き出す」）。Windowsは保存アイコンと詳細の切替が並ぶ。
 - 空の状態は「<名前>と話しましょう」「最初のメッセージを送ってみてね。」、読込失敗は「会話を読み込めませんでした」「再読み込み」。Windowsは「チームと、同じデスクで。」系の文言。
-- 新着ボタンは、未読の新着がある時「新着メッセージ ↓」、無い時「最新へ ↓」。
+- 新着の帯は入力欄の上にあり、未読の新着がある時「新着メッセージ」、無い時「最新へ」（矢印はアイコン。#1116）。
 - 配送状態：「受付確認中」「受付済み・反映待ち」「送信待ち」「処理中」「中断」「配達済み」「配達失敗」。Windowsは文言の一部が欠ける。
 - ルームの返信者の表示：「返信者を判定中」「返信者の判定に失敗」「返信: A、B」。
 - Bot同士の連絡は「<名前>との連絡 ›」のカプセルにまとめ、押すと「メンバー間の連絡」シートが開く。Windowsはその場で折り畳みを開く。
@@ -147,7 +147,7 @@ Mac：[48の詳細パネル](assets/mac-ui-reference-48/01-workspace.png)／Wind
 対応済み（PR 10）：Mac版のRootViewと同じ段階を主窓の中へ置いた。[起動中](assets/windows-mac-gaps/windows/pr10-opening.png)・[接続できませんでした](assets/windows-mac-gaps/windows/pr10-failure.png)・[接続先の入力](assets/windows-mac-gaps/windows/pr10-server-setup.png)（Macは`36-preview-login-server-setup-light.png`）・[導入ガイドのシート](assets/windows-mac-gaps/windows/pr10-guide.png)・[ログイン](assets/windows-mac-gaps/windows/pr10-login.png)・[初期設定：AIの選択](assets/windows-mac-gaps/windows/pr10-onboarding-choose.png)・[初期設定：認証待ち](assets/windows-mac-gaps/windows/pr10-onboarding-waiting.png)・[接続状態の帯](assets/windows-mac-gaps/windows/pr10-banner.png)（Macは`37-preview-error-connection-banner-light.png`、同じく下部の帯）。
 Macと違う点：(1) 帯に「再接続」「接続先」のボタンが付く（自動再接続はMac・Webと同じ段階で動くので、ボタンは止まった時と今すぐ試す時の入口）。(2) 接続先を変える時、入力欄に今の接続先が入っている（Macは空）。保存済みの接続先は、新しい接続先を入れるまで消さない。(3) 導入ガイドのMac共有ボタンは、Windowsに共有シートがないため「GitHubをブラウザーで開く」と「この手順のURLをコピー」にした。(4) 失敗の画面に「接続先を変更」を足した。(5) 初期設定の読み取り（3秒ごと）は、失敗しても止めず、失敗を表示して次の成功で消す。(6) 「BellTeam」の文字間（tracking −2.5）は再現していない（WPFにない）。(7) 窓の題名・左上の信号ボタンはOSの標準。
 
-- 起動中は「BellTeamを開いています」、失敗時は「接続できませんでした」と「もう一度試す」。
+- 起動中は「BellTeamを開いています」、失敗時は「BellTeamにつながりません」・「接続先 <host>」・「もう一度試す」（試している間は「接続しています…」）・確認つきの「接続先を変更」・畳んだ「詳細」（#1116）。
 - 再接続（トロニー裁定 11-08）：失敗の画面と新着のSSEは、Mac・Webと同じ段階（すぐ→1→2→4→8→15秒、各±20%、以後15秒）で自動に再接続する。「自動再試行は入れない」は取り下げ、常駐・タスクトレイ・自動起動は入れないまま。「もう一度試す」と帯の「再接続」はすぐ試す入口として残す。
 - 接続先の入力（ServerSetupView）：106の肖像画、「BellTeamを始める」、「はじめて使う」カード（導入ガイドのシート）、「BellTeamの接続先URL」「続ける」。
 - ログイン（LoginView）：182の肖像画、「BellTeam」（48pt）、「いつでも、あなたのチームと。」、「ログインして始める」。

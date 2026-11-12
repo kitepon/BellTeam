@@ -64,9 +64,15 @@
       <local:Spinner x:Name="LoadingSpinner" Grid.Row="1" Width="20" Height="20" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,90,0,0" Stroke="{StaticResource Muted}" Visibility="Collapsed"/>
       <StackPanel x:Name="EmptyConversation" Grid.Row="1" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="30,100,30,0" Visibility="Collapsed"><local:AvatarTile Entry="{Binding Selected}" Workspace="{Binding}" Width="72" Height="72" HorizontalAlignment="Center"/><TextBlock x:Name="EmptyTitle" FontSize="18" FontWeight="SemiBold" TextAlignment="Center" TextWrapping="Wrap" Margin="0,13,0,0"/><TextBlock Text="最初のメッセージを送ってみてね。" FontSize="15" Foreground="{StaticResource Muted}" TextAlignment="Center" Margin="0,13,0,0"/></StackPanel>
       <StackPanel x:Name="FailedConversation" Grid.Row="1" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="30,60,30,0" Visibility="Collapsed"><TextBlock Text="&#xE783;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="34" Foreground="{StaticResource Muted}" HorizontalAlignment="Center"/><TextBlock Text="会話を読み込めませんでした" FontSize="18" FontWeight="SemiBold" TextAlignment="Center" Margin="0,12,0,0"/><TextBlock Text="再読み込みしてください。" FontSize="15" Foreground="{StaticResource Muted}" TextAlignment="Center" Margin="0,8,0,0"/><Button Content="再読み込み" Click="Reload_Click" HorizontalAlignment="Center" Margin="0,16,0,0" AutomationProperties.Name="再読み込み"/></StackPanel>
-      <Button x:Name="NewMessagesButton" Grid.Row="1" Content="最新へ ↓" AutomationProperties.AutomationId="scroll-to-latest" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,12" Visibility="Collapsed" Style="{StaticResource PrimaryButton}" Click="NewMessages_Click"/>
       <!-- Composer band (Mac composer): notices and attachments sit above the reply target and the input. -->
-      <Border Grid.Row="2" Background="#E9E7E6"><StackPanel Margin="15,11,15,8">
+      <!-- Mac scroll-to-latest: a band above the composer (safeAreaInset), not a button over the messages. -->
+      <StackPanel Grid.Row="2">
+      <Border x:Name="NewMessagesBand" Background="#E9E7E6" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="0,6" Visibility="Collapsed">
+        <Button x:Name="NewMessagesButton" AutomationProperties.AutomationId="scroll-to-latest" HorizontalAlignment="Center" Padding="12,3" Style="{StaticResource PrimaryButton}" Click="NewMessages_Click">
+          <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE74B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0"/><TextBlock x:Name="NewMessagesLabel" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/></StackPanel>
+        </Button>
+      </Border>
+      <Border Background="#E9E7E6"><StackPanel Margin="15,11,15,8">
         <Border x:Name="StopNoticeBox" CornerRadius="16" Padding="14" Margin="0,0,0,8" Background="#A6E8E0FF" Visibility="Collapsed"><TextBlock x:Name="StopNoticeText" FontSize="14" TextWrapping="Wrap" AutomationProperties.Name="停止の結果"/></Border>
         <TextBlock Text="{Binding SendError}" Foreground="#FF3B30" FontSize="14" TextWrapping="Wrap" Margin="0,0,0,8" AutomationProperties.Name="送信の失敗"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
         <ScrollViewer VerticalScrollBarVisibility="Disabled" HorizontalScrollBarVisibility="Auto" AutomationProperties.Name="添付画像"><ItemsControl ItemsSource="{Binding Attachments}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate>
@@ -85,6 +91,7 @@
           </Grid>
         </Border>
       </StackPanel></Border>
+      </StackPanel>
     </Grid>
     <Border x:Name="Inspector" Grid.Column="2" Background="#99FFFFFF" BorderBrush="#E0DBE8" BorderThickness="1,0,0,0" Padding="0,52,0,0">
       <Grid>

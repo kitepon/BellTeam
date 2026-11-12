@@ -18,22 +18,30 @@ public sealed class SecretCard(Workspace workspace, string author) : StackPanel
         current = request; currentAuthor = sender; Children.Clear();
         Children.Add(CardTitle("\uE72E", currentAuthor + " · 秘密情報の入力"));
         Children.Add(CardBody(request.Message));
-        Children.Add(CardText(request.Label + " / " + request.ToolId, size: 14, muted: true));
+        // The label names what is asked; the tool ID is an internal key and stays out of sight.
+        Children.Add(KeyLine(request.Label));
         if (request.Status == "pending")
         {
-            var open = new Button { Content = "安全な入力欄を開く", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) };
-            open.SetResourceReference(StyleProperty, "MacBorderedButton");
+            var open = new Button { Content = "安全な入力欄を開く", FontWeight = FontWeights.SemiBold, Padding = new Thickness(16, 9, 16, 9), Margin = new Thickness(0, 12, 0, 0) };
+            open.SetResourceReference(StyleProperty, "PrimaryButton");
             open.Click += (_, _) => Open(request);
             Children.Add(open);
         }
-        else if (request.Status == "submitted") Children.Add(CardStatus("\uE73E", "登録済み"));
-        else if (request.Status == "cancelled") Children.Add(CardStatus("\uE711", "入力を取り消しました"));
+        else if (request.Status == "submitted") Children.Add(StatusBadge("登録済み", SettingsTone.Green, "\uEC61"));
+        else if (request.Status == "cancelled") Children.Add(StatusBadge("入力を取り消しました", SettingsTone.Gray, "\uEB90"));
         else Children.Add(CardText("不明な入力状態: " + request.Status, error: true));
         if (request.Notification == "failed") Children.Add(CardText("AIへの通知に失敗しました。チャットで完了を知らせてください。", size: 14, error: true));
     }
     internal SecretInputWindow CreateInput(SecretRequest request) => new(request, submission => workspace.FinishSecretAsync(request.Id, submission), () => workspace.SecretKeysAsync(request.Id), Update) { Owner = Window.GetWindow(this) };
     private void Open(SecretRequest request) => CreateInput(request).ShowDialog();
     private static readonly FontFamily Icons = new("Segoe Fluent Icons, Segoe MDL2 Assets");
+    // Mac BellBadge: the state is a tinted capsule, not a bare line.
+    private static FrameworkElement StatusBadge(string text, SettingsTone tone, string glyph) { var badge = SettingsUi.Badge(text, tone, glyph); badge.HorizontalAlignment = HorizontalAlignment.Left; badge.Margin = new Thickness(0, 12, 0, 0); return badge; }
+    private static FrameworkElement KeyLine(string label) => new StackPanel
+    {
+        Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0),
+        Children = { new TextBlock { Text = "\uE8D7", FontFamily = Icons, FontSize = 13, Foreground = MutedInk, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) }, new TextBlock { Text = label, FontSize = 14, Foreground = MutedInk, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap } }
+    };
     internal static FrameworkElement CardTitle(string glyph, string text) => new StackPanel
     {
         Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12),
@@ -45,7 +53,7 @@ public sealed class SecretCard(Workspace workspace, string author) : StackPanel
         Children = { new TextBlock { Text = glyph, FontFamily = Icons, FontSize = 14, Foreground = strong ? Violet : Ink, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) }, new TextBlock { Text = text, FontSize = 15, FontWeight = strong ? FontWeights.SemiBold : FontWeights.Normal, Foreground = strong ? Violet : Ink, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap } }
     };
     private static readonly Brush Violet = Frozen(Color.FromRgb(97, 71, 212)), Ink = Frozen(Color.FromRgb(33, 41, 61)), MutedInk = Frozen(Color.FromRgb(120, 125, 145)), Red = Frozen(Color.FromRgb(255, 59, 48));
-    private static Brush Frozen(Color color) { var brush = new SolidColorBrush(color); brush.Freeze(); return brush; }
+    internal static Brush Frozen(Color color) { var brush = new SolidColorBrush(color); brush.Freeze(); return brush; }
     internal static TextBlock CardText(string text, bool bold = false, bool error = false, double size = 16, bool muted = false) => new() { Text = text, TextWrapping = TextWrapping.Wrap, FontSize = size, FontWeight = bold ? FontWeights.SemiBold : FontWeights.Normal, Foreground = error ? Red : muted ? MutedInk : Ink, Margin = new Thickness(0, 12, 0, 0) };
     internal static TextBox CardBody(string text) => new() { Text = text, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, FontSize = 18, BorderThickness = new Thickness(0), Background = Brushes.Transparent, Padding = new Thickness(0), Margin = new Thickness(0) };
 }
@@ -258,7 +266,8 @@ public sealed class QuestionCard(Workspace workspace, string author) : StackPane
     private string currentAuthor = author;
     private bool sending;
     private readonly List<Control> inputs = [];
-    private readonly TextBlock error = SecretCard.CardText("", size: 14, error: true);
+    private readonly TextBlock error = new() { TextWrapping = TextWrapping.Wrap, FontSize = 14, Foreground = new SolidColorBrush(Color.FromRgb(255, 59, 48)), VerticalAlignment = VerticalAlignment.Center };
+    private readonly Grid errorLine = new() { Margin = new Thickness(0, 12, 0, 0) };
     private TextBlock? title;
     public void Update(OwnerQuestion question) => Update(question, currentAuthor);
     public void Update(OwnerQuestion question, string sender)
@@ -275,10 +284,13 @@ public sealed class QuestionCard(Workspace workspace, string author) : StackPane
         Children.Add(SecretCard.CardBody(question.Question));
         if (question.Status == "answered") { Children.Add(SecretCard.CardStatus("\uE73E", "回答: " + question.Answer, strong: true)); return; }
         if (question.Status != "open") { Children.Add(SecretCard.CardText("不明な回答状態: " + question.Status, error: true)); return; }
-        var choices = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
-        foreach (var option in question.Options)
+        // Mac ChoiceButtons: one choice per line, full width, its number icon first; a long choice wraps and shows in full.
+        var choices = new StackPanel { Margin = new Thickness(0, 12, 0, 0) }; var template = ChoiceTemplate();
+        for (var index = 0; index < question.Options.Length; index++)
         {
-            var button = new Button { Content = option, IsEnabled = !sending, Margin = new Thickness(0, 0, 8, 8) }; button.SetResourceReference(StyleProperty, "MacBorderedButton");
+            var option = question.Options[index];
+            var button = new Button { Content = ChoiceContent(index, option), Template = template, HorizontalContentAlignment = HorizontalAlignment.Stretch, IsEnabled = !sending, Margin = new Thickness(0, 0, 0, 8), Cursor = System.Windows.Input.Cursors.Hand };
+            System.Windows.Automation.AutomationProperties.SetName(button, option);
             button.Click += async (_, _) => await AnswerAsync(question.Id, option, null);
             choices.Children.Add(button); inputs.Add(button);
         }
@@ -287,7 +299,7 @@ public sealed class QuestionCard(Workspace workspace, string author) : StackPane
         {
             var other = new TextBox { AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MaxHeight = 110, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, IsEnabled = !sending, FontSize = 14, Padding = new Thickness(8, 6, 8, 6) };
             var placeholder = new TextBlock { Text = "その他（文章で答える）", FontSize = 14, Foreground = new SolidColorBrush(Color.FromRgb(120, 125, 145)), Margin = new Thickness(9, 7, 0, 0), IsHitTestVisible = false, VerticalAlignment = VerticalAlignment.Top };
-            var send = new Button { Content = "送る", VerticalAlignment = VerticalAlignment.Bottom, IsEnabled = false, Margin = new Thickness(8, 0, 0, 0) };
+            var send = new Button { Content = "送る", FontWeight = FontWeights.SemiBold, Padding = new Thickness(16, 6, 16, 6), VerticalAlignment = VerticalAlignment.Bottom, IsEnabled = false, Margin = new Thickness(8, 0, 0, 0) }; send.SetResourceReference(StyleProperty, "PrimaryButton");
             other.TextChanged += (_, _) => { placeholder.Visibility = other.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed; send.IsEnabled = !sending && !string.IsNullOrWhiteSpace(other.Text); };
             send.Click += async (_, _) => { if (!string.IsNullOrWhiteSpace(other.Text)) await AnswerAsync(question.Id, null, other.Text); };
             DockPanel.SetDock(send, Dock.Right);
@@ -297,16 +309,38 @@ public sealed class QuestionCard(Workspace workspace, string author) : StackPane
             SendOther = send; OtherInput = other;
         }
         else { SendOther = null; OtherInput = null; }
-        error.Visibility = error.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
-        Children.Add(error);
+        if (errorLine.Children.Count == 0)
+        {
+            // Mac: the error line carries a warning icon.
+            errorLine.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); errorLine.ColumnDefinitions.Add(new ColumnDefinition());
+            errorLine.Children.Add(new TextBlock { Text = "\uE7BA", FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), FontSize = 14, Foreground = error.Foreground, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 8, 0) });
+            Grid.SetColumn(error, 1); errorLine.Children.Add(error);
+        }
+        errorLine.Visibility = error.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+        Children.Add(errorLine);
     }
+    private static FrameworkElement ChoiceContent(int index, string option)
+    {
+        var row = new Grid(); row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); row.ColumnDefinitions.Add(new ColumnDefinition());
+        var number = new Grid { Width = 20, Height = 20, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 1, 10, 0) };
+        number.Children.Add(new System.Windows.Shapes.Ellipse { Fill = ChoiceViolet });
+        if (index < 50) number.Children.Add(new TextBlock { Text = (index + 1).ToString(System.Globalization.CultureInfo.InvariantCulture), FontSize = 11, FontWeight = FontWeights.Bold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
+        row.Children.Add(number);
+        var text = new TextBlock { Text = option, FontSize = 15, FontWeight = FontWeights.Medium, TextWrapping = TextWrapping.Wrap, Foreground = ChoiceInk }; Grid.SetColumn(text, 1); row.Children.Add(text);
+        return row;
+    }
+    private static readonly Brush ChoiceViolet = SecretCard.Frozen(Color.FromRgb(97, 71, 212)), ChoiceInk = SecretCard.Frozen(Color.FromRgb(33, 41, 61));
+    // A template belongs to the thread that parsed it, so each card parses its own.
+    private static ControlTemplate ChoiceTemplate() => (ControlTemplate)System.Windows.Markup.XamlReader.Parse(
+        "<ControlTemplate xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" TargetType=\"Button\"><Border x:Name=\"Chrome\" Background=\"#126147D4\" BorderBrush=\"#386147D4\" BorderThickness=\"1\" CornerRadius=\"12\" Padding=\"14,11\"><ContentPresenter/></Border>"
+        + "<ControlTemplate.Triggers><Trigger Property=\"IsMouseOver\" Value=\"True\"><Setter TargetName=\"Chrome\" Property=\"Background\" Value=\"#206147D4\"/></Trigger><Trigger Property=\"IsEnabled\" Value=\"False\"><Setter TargetName=\"Chrome\" Property=\"Opacity\" Value=\"0.5\"/></Trigger></ControlTemplate.Triggers></ControlTemplate>");
     private Button? SendOther; private TextBox? OtherInput;
     private async Task AnswerAsync(string id, string? choice, string? text)
     {
         if (sending) return;
-        sending = true; foreach (var control in inputs) control.IsEnabled = false; if (SendOther is not null) SendOther.IsEnabled = false; error.Text = ""; error.Visibility = Visibility.Collapsed;
+        sending = true; foreach (var control in inputs) control.IsEnabled = false; if (SendOther is not null) SendOther.IsEnabled = false; error.Text = ""; errorLine.Visibility = Visibility.Collapsed;
         try { Update(await workspace.AnswerAsync(id, choice, text)); }
-        catch (Exception exception) { error.Text = "操作の結果を確認できませんでした。現在の状態を更新して確認してください。\n" + exception.Message; error.Visibility = Visibility.Visible; }
+        catch (Exception exception) { error.Text = "操作の結果を確認できませんでした。現在の状態を更新して確認してください。\n" + exception.Message; errorLine.Visibility = Visibility.Visible; }
         finally { sending = false; foreach (var control in inputs) control.IsEnabled = true; if (SendOther is not null) SendOther.IsEnabled = !string.IsNullOrWhiteSpace(OtherInput?.Text); }
     }
 }

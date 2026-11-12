@@ -128,6 +128,7 @@ public partial class App : Application
                     case "editor-member": page.OpenEditorForRender().Prefill(nameText: "朝の確認", text: "今日の予定と優先事項を整理して、先に知らせてほしい。"); break;
                     case "editor-room": page.OpenEditorForRender().Prefill(ownerPath: new ChatTarget("planning", true).Path, nameText: "週のふり返り", text: "進んだ仕事をまとめる", frequencyId: "daily"); break;
                     case "editor-weekly-error": { var view = page.OpenEditorForRender("weekly"); view.Prefill(frequencyId: "weekly", weekdays: []); await view.SaveAsync(); break; }
+                    case "editor-command" or "editor-command-open": page.OpenEditorForRender("morning"); break;
                     case "editor-interval": page.OpenEditorForRender().Prefill(nameText: "巡回", text: "python3 tools/patrol.py", frequencyId: "interval_hours"); break;
                     default: throw new ArgumentException("未対応の予定の画面です。");
                 }
@@ -135,6 +136,7 @@ public partial class App : Application
                 var scheduleRoot = (FrameworkElement)window.Content;
                 scheduleRoot.Measure(new Size(1280, 820)); scheduleRoot.Arrange(new Rect(0, 0, 1280, 820)); scheduleRoot.UpdateLayout();
                 if (scheduleScene == "editor-weekly-error") page.Editor!.ScrollToEndForRender();
+                if (scheduleScene == "editor-command-open") { FindExpander(scheduleRoot).IsExpanded = true; scheduleRoot.UpdateLayout(); }
                 await window.PrepareRenderAsync();
                 WritePng(window, 1280, 820, scheduleOutput);
                 model.Dispose(); Shutdown(0); return;
@@ -205,7 +207,7 @@ public partial class App : Application
                 var conversationHeight = scene == "states" ? 1300 : scene == "stack" ? 1500 : 820;
                 var conversationRoot = (FrameworkElement)window.Content;
                 conversationRoot.Measure(new Size(1280, conversationHeight)); conversationRoot.Arrange(new Rect(0, 0, 1280, conversationHeight)); conversationRoot.UpdateLayout();
-                await window.PrepareRenderAsync();
+                await window.PrepareRenderAsync(readingOlder: scene == "scrolled");
                 WritePng(window, 1280, conversationHeight, conversationOutput);
                 model.Dispose(); Shutdown(0); return;
             }

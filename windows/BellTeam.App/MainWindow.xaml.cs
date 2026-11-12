@@ -23,6 +23,8 @@ public partial class MainWindow : Window, IInspectorHost
     private CancellationTokenSource? startupRetry;
     // Off for the render seams, which capture a screen and must not move on by themselves.
     public bool AutoRetry { get; set; } = true;
+    // Asked before the failure page leaves for the server entry; the checks answer without a dialog.
+    public Func<bool>? ConfirmServerChange { get; set; }
     private bool inspectorVisible = true;
     private EditorWindow? page;
     private bool loadingOlder;
@@ -350,15 +352,15 @@ public partial class MainWindow : Window, IInspectorHost
         StopNoticeText.Text = notice?.Message ?? "";
         StopNoticeText.Foreground = notice?.IsError == true ? new SolidColorBrush(Color.FromRgb(255, 59, 48)) : (Brush)FindResource("Violet");
     }
-    // Mac: "新着メッセージ ↓" once something new arrived while reading older messages, else "最新へ ↓"; hidden at the bottom.
+    // Mac: 「新着メッセージ」 once something new arrived while reading older messages, else 「最新へ」 (an arrow icon, no arrow character); the band is hidden at the bottom.
     private void ShowLatestButton()
     {
         var atBottom = MessageScroll.ScrollableHeight - MessageScroll.VerticalOffset < 80;
         if (atBottom) unreadNew = false;
-        NewMessagesButton.Content = unreadNew ? "新着メッセージ ↓" : "最新へ ↓";
-        NewMessagesButton.Visibility = atBottom && !unreadNew ? Visibility.Collapsed : Visibility.Visible;
+        NewMessagesLabel.Text = unreadNew ? "新着メッセージ" : "最新へ"; System.Windows.Automation.AutomationProperties.SetName(NewMessagesButton, NewMessagesLabel.Text);
+        NewMessagesBand.Visibility = atBottom && !unreadNew ? Visibility.Collapsed : Visibility.Visible;
     }
-    private void NewMessages_Click(object sender, RoutedEventArgs e) { unreadNew = false; MessageScroll.ScrollToEnd(); NewMessagesButton.Visibility = Visibility.Collapsed; }
+    private void NewMessages_Click(object sender, RoutedEventArgs e) { unreadNew = false; MessageScroll.ScrollToEnd(); NewMessagesBand.Visibility = Visibility.Collapsed; }
     private async void Reload_Click(object sender, RoutedEventArgs e) { if (model.Selected is { } entry) await model.SelectAsync(entry); }
     private async void StopBot_Click(object sender, RoutedEventArgs e) { if (sender is Button { Tag: ActivityRow { StopBotId: { } id } row }) await model.StopAsync(id, row.Name); }
     private async void StopCurrent_Click(object sender, RoutedEventArgs e) => await model.StopCurrentAsync();
@@ -380,12 +382,13 @@ public partial class MainWindow : Window, IInspectorHost
     // Render seam: the image sheet a tap on the hero image opens.
     public AvatarActionsView? ShowAvatarSheetForRender(AvatarVariant variant) => ProfilePanel.OpenActionsForRender(variant);
     public void HideInspectorForRender() { inspectorVisible = false; ProfileLayout(); }
-    public async Task PrepareRenderAsync(bool bottomOfPage = false)
+    public async Task PrepareRenderAsync(bool bottomOfPage = false, bool readingOlder = false)
     {
         await Task.WhenAll(Descendants<RemoteImage>(Root).Select(image => image.LoadTask).Append(ProfilePanel.LoadTask).Concat(Descendants<AvatarTile>(Root).Select(tile => tile.LoadTask)));
         if (bottomOfPage) page?.ScrollToEndForRender();
         Root.UpdateLayout();
-        if (ConversationArea.Visibility == Visibility.Visible) { MessageScroll.ScrollToEnd(); Root.UpdateLayout(); } // images that finished loading changed the height
+        // images that finished loading changed the height; readingOlder keeps the top so the scroll-to-latest band shows
+        if (ConversationArea.Visibility == Visibility.Visible) { if (readingOlder) MessageScroll.ScrollToTop(); else MessageScroll.ScrollToEnd(); Root.UpdateLayout(); }
     }
     private static IEnumerable<T> Descendants<T>(DependencyObject parent) where T : DependencyObject
     {
@@ -444,13 +447,15 @@ public partial class MainWindow : Window, IInspectorHost
         {
             StartupPhase.Ready => null,
             StartupPhase.Checking => new StartupOpeningView(),
-            StartupPhase.Failure => new StartupFailureView(message, () => _ = ConnectAsync(lastAddress ?? model.Server), OpenConnectionSettings),
+            // A manual retry keeps this page (the automatic path) so 「接続しています…」 shows instead of the opening view.
+            StartupPhase.Failure => new StartupFailureView(message, Uri.TryCreate(lastAddress ?? model.Server, UriKind.Absolute, out var server) ? server.Host : null, () => ConnectAsync(lastAddress ?? model.Server, true, true), OpenConnectionSettings, () => (ConfirmServerChange ?? AskServerChange)()),
             StartupPhase.Setup => new ServerSetupView(ConnectToAddress, ShowServerGuide, model.Server),
             StartupPhase.SignIn => new LoginView(OpenLoginSheet),
             _ => new OnboardingView(new SetupApi(model.Management.Api), setup!, CompleteOnboardingAsync, OpenConnectionSettings, model.ConnectionToken)
         };
         StartupHost.Visibility = phase == StartupPhase.Ready ? Visibility.Collapsed : Visibility.Visible;
     }
+    private bool AskServerChange() => new ConfirmationWindow("接続先を変更しますか？", "今のサーバーからログアウトして、接続先の入力に戻ります。", "接続先を変更") { Owner = this }.ShowDialog() == true;
     public void ShowServerGuide() { CloseUpdateSheet(); OpenSheet("サーバーの導入ガイド", new ServerGuideView()); }
     private void RouteToLogin() { if (model.NeedsLogin && !connecting && startup != StartupPhase.SignIn) ShowSignIn(!signingOut && model.AuthMode == "cloudflare"); }
     // Mac LoginView opens its login sheet by itself when the server just asked for a login (not after an explicit logout).

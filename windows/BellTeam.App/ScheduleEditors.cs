@@ -138,7 +138,7 @@ public sealed class SchedulesWindow : EditorWindow
         head.Children.Add(labels);
         var kind = Glyph(KindGlyph(schedule.Kind), 15, violet); kind.Margin = new Thickness(12, 0, 0, 0); Grid.SetColumn(kind, 2); head.Children.Add(kind);
         stack.Children.Add(head);
-        if ((schedule.Command ?? schedule.Prompt) is { } action) stack.Children.Add(Clamp(GoalUi.Text(action, 14, GoalUi.Brush("Muted"), margin: new Thickness(0, 14, 0, 0)), 3, 20));
+        if (ActionLine(schedule, GoalUi.Brush("Muted")) is { } action) stack.Children.Add(action);
         var next = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 14, 0, 0) };
         next.Children.Add(Glyph("", 12, violet)); var nextText = GoalUi.Text(ScheduleText.Next(schedule.NextRunAt), 12, violet, FontWeights.Medium, new Thickness(6, 0, 0, 0)); nextText.TextWrapping = TextWrapping.NoWrap; next.Children.Add(nextText);
         stack.Children.Add(next);
@@ -159,6 +159,12 @@ public sealed class SchedulesWindow : EditorWindow
         var card = Card(stack); card.Padding = new Thickness(18);
         System.Windows.Automation.AutomationProperties.SetName(card, entry.OwnerName + "の予定 " + schedule.Title);
         return card;
+    }
+    // A command is machine text (paths, IDs): the card names its kind and the command itself stays in the editor; a prompt keeps its text (three lines).
+    internal static UIElement? ActionLine(Schedule schedule, Brush muted)
+    {
+        if (schedule.Command is null) return schedule.Prompt is { } prompt ? Clamp(GoalUi.Text(prompt, 14, muted, margin: new Thickness(0, 14, 0, 0)), 3, 20) : null;
+        var badge = Badge("AIを起こさずに動く自動の作業", SettingsTone.Violet, ""); badge.HorizontalAlignment = HorizontalAlignment.Left; badge.Margin = new Thickness(0, 14, 0, 0); return badge;
     }
     // Mac lineLimit(n): n lines of a fixed height, the last one cut with an ellipsis.
     private static TextBlock Clamp(TextBlock text, int lines, double lineHeight)
@@ -226,8 +232,12 @@ public sealed class ScheduleEditorView : EditorFormView
         var nameField = Field("予定の名前", draft.Name); name = nameField.Box;
         action = Popup("種類", [new("prompt", "AIへの指示"), new("command", "コマンド")], draft.Action);
         var promptField = Field("依頼する内容", initial?.Schedule.Prompt ?? "", multiline: true, minHeight: 54); prompt = promptField.Box; prompt.MaxHeight = 136;
-        var commandField = Field("実行するコマンド", initial?.Schedule.Command ?? "", multiline: true, minHeight: 36); command = commandField.Box; command.MaxHeight = 85;
-        contentCard.Add(Row(nameField.Element)); contentCard.Add(kindRow = Labeled("種類", action)); contentCard.Add(promptRow = Row(promptField.Element)); contentCard.Add(commandRow = Row(commandField.Element));
+        var commandField = Field("実行するコマンド", initial?.Schedule.Command ?? "", multiline: true, minHeight: 36); command = commandField.Box; command.MaxHeight = 130; command.FontFamily = new FontFamily("Consolas, Yu Gothic UI"); command.FontSize = 12;
+        // Mac: folded by default (paths and IDs only matter when changing the line); an empty command stays open so there is somewhere to type.
+        var commandFold = TerminalParts.Disclosure("コマンドを表示して編集", commandField.Element, string.IsNullOrEmpty(command.Text), _ => { });
+        System.Windows.Automation.AutomationProperties.SetAutomationId(commandFold, "schedule-command-disclosure");
+        command.TextChanged += (_, _) => { if (command.Text.Length == 0) commandFold.IsExpanded = true; };
+        contentCard.Add(Row(nameField.Element)); contentCard.Add(kindRow = Labeled("種類", action)); contentCard.Add(promptRow = Row(promptField.Element)); contentCard.Add(commandRow = Row(commandFold));
 
         // タイミング
         frequency = Popup("繰り返し", Frequencies, draft.Frequency); timingCard.Add(Labeled("繰り返し", frequency));
