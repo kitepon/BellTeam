@@ -52,7 +52,8 @@ struct WorkGraphView: View {
 
     private func graph(insets: EdgeInsets) -> some View {
         // 1秒30回で十分に滑らか。毎表示フレームで描くとMacのCPUを使い続けた（115で実測94%）。
-        TimelineView(.animation(minimumInterval: 1.0 / 30)) { timeline in
+        // 描くものが無い時と、窓が背景に回った時（Macは最小化・隠す）は時計を止める。
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: model.still || scenePhase == .background)) { timeline in
             let now = timeline.date.timeIntervalSinceReferenceDate
             Canvas { context, size in
                 MainActor.assumeIsolated {
@@ -198,11 +199,20 @@ struct WorkGraphView: View {
     /// 札の大きさ。最大幅（既定180pt）で、文は切らずに折り返し、行の高さ16ptで行数ぶん伸びる（behavior-spec.md、Owner裁定 2026-11-09）。
     /// 行の高さを決めて描くため、CanvasのTextではなく段落指定付きの文字列で測る。
     static func chipSize(_ label: String, maxWidth: CGFloat = labelMaxWidth) -> CGSize {
+        // 札は毎コマ測られる。文と幅が同じなら大きさも同じなので、一度だけ測る。
+        let key = ChipSizeKey(label: label, maxWidth: maxWidth)
+        if let size = chipSizes[key] { return size }
         let iconSide = BellTheme.listDetailFontSize
         let textWidth = textColumn(maxWidth)
         let bounds = labelText(label).boundingRect(with: CGSize(width: textWidth, height: .greatestFiniteMagnitude), options: .usesLineFragmentOrigin, context: nil)
-        return CGSize(width: min(ceil(bounds.width), textWidth) + iconSide + 22, height: max(ceil(bounds.height), iconSide) + 10)
+        let size = CGSize(width: min(ceil(bounds.width), textWidth) + iconSide + 22, height: max(ceil(bounds.height), iconSide) + 10)
+        // shortcut: the cache is never trimmed; it holds one entry per label and width ever shown, fine for a session's few hundred requests.
+        chipSizes[key] = size
+        return size
     }
+
+    private struct ChipSizeKey: Hashable { let label: String; let maxWidth: CGFloat }
+    private static var chipSizes: [ChipSizeKey: CGSize] = [:]
 
     /// 札の文の欄の幅（札の幅 − アイコン − 左右の余白22pt）。測る（`chipSize`）のも描く（`drawTag`）のもこの欄。
     static func textColumn(_ tagWidth: CGFloat) -> CGFloat { tagWidth - BellTheme.listDetailFontSize - 22 }

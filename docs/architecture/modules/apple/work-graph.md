@@ -6,7 +6,7 @@
 
 ```mermaid
 flowchart LR
-  Nav["iPhone/iPad: タブ 相関図<br/>Mac: サイドバーの相関図 → openWindow(id: work-graph)"] --> View["Views/WorkGraphView.swift<br/>TimelineView(.animation) + Canvas<br/>空・再接続中・一部欠落・未対応の表示"]
+  Nav["iPhone/iPad: タブ 相関図<br/>Mac: サイドバーの相関図 → openWindow(id: work-graph)"] --> View["Views/WorkGraphView.swift<br/>TimelineView(.animation, paused: still または背景) + Canvas<br/>空・再接続中・一部欠落・未対応の表示"]
   View --> Model["Core/WorkGraphModel.swift<br/>WorkGraphModel（参照型・botId鍵）<br/>描画中の図・シミュレーション・接続状態"]
   Model --> Stream["BellAPI.eventStream(path:)<br/>GET /api/work-graph/events"]
   Stream --> Model
@@ -40,9 +40,9 @@ flowchart LR
 
 | 部品 | 持つもの | 持たないもの |
 | --- | --- | --- |
-| `WorkGraphModel` | 描画中のnodes/edges（botId・edge id鍵）、epoch/version、各nodeの位置・速度・入退場の開始時刻、熱α、接続状態（接続中・再接続中・degraded・未対応）、再接続の待ち時間。各edgeの札（`Line.chip`：置いたt・現れた時刻・nullへ戻った時刻・最後の文）と、最後のフレームの札の層（`chips`）と線（タップ判定用）、iPhone/iPadで線をタップして札を見せている辺（`tappedEdge`）。札の大きさ（`Chip.size`、`layoutChips`が毎コマ書く。clearanceが読む）。最前面にあるOversize chipの文の送り（`peekScroll`） | 永続状態（無い）。HTTPの再試行の判断以外の通信 |
+| `WorkGraphModel` | 描画中のnodes/edges（botId・edge id鍵）、epoch/version、各nodeの位置・速度・入退場の開始時刻、熱α、接続状態（接続中・再接続中・degraded・未対応）、再接続の待ち時間。各edgeの札（`Line.chip`：置いたt・現れた時刻・nullへ戻った時刻・最後の文）と、最後のフレームの札の層（`chips`）と線（タップ判定用）、iPhone/iPadで線をタップして札を見せている辺（`tappedEdge`）。札の大きさ（`Chip.size`、`layoutChips`が毎コマ書く。clearanceが読む）。最前面にあるOversize chipの文の送り（`peekScroll`）。描くものが無く退場・線の消える動きも終わった印（`still`、Published。`step`が次の回で立て、変化を当てる`finish`が倒す）。生きているメンバー数（`liveCount`、bodiesが変わるまで覚える）と名前の文字幅（`nameWidth`、名前ごとに一度測る） | 永続状態（無い）。HTTPの再試行の判断以外の通信 |
 | `WorkGraphSimulation` | 1フレームの力計算と積分、入退場の補間、点滅の不透明度、流れの点の位置 | 状態の保持（引数で受けて返す） |
-| `WorkGraphView` | 1つのTimelineViewと1つのCanvas。描画順は辺→blockedの札→node（名前を含む）→重ならない札→指している札。札の文の測定（`chipSize(_:maxWidth:)`、最大幅は`chipMaxWidth(in:)`）と描画（Oversize chipは箱の中で文を送って切る）。Macのスクロール受け（`PeekScrollCatcher`）。アクセシビリティ要素の一覧。押下中の`WorkGraphPress`（`@State`。押している間だけtrueの`@GestureState`が戻る時に消す）とMacのポインタ位置（hover） | 位置・札の置き場所の計算（モデルが持つ）。会話を開く画面遷移（`AppStore.openConversation`が持つ） |
+| `WorkGraphView` | 1つのTimelineViewと1つのCanvas。描画順は辺→blockedの札→node（名前を含む）→重ならない札→指している札。札の文の測定（`chipSize(_:maxWidth:)`、文と幅ごとに一度だけ測って覚える。最大幅は`chipMaxWidth(in:)`）と描画（Oversize chipは箱の中で文を送って切る）。Macのスクロール受け（`PeekScrollCatcher`）。アクセシビリティ要素の一覧。押下中の`WorkGraphPress`（`@State`。押している間だけtrueの`@GestureState`が戻る時に消す）とMacのポインタ位置（hover） | 位置・札の置き場所の計算（モデルが持つ）。会話を開く画面遷移（`AppStore.openConversation`が持つ） |
 | `WorkGraphPress` | 押した位置・時刻・押した時のbotId・10pt以上動いたか・今の指の位置（iPhone/iPadの札を出す位置）。タップの判定（`isTap`：10pt未満・500ms未満。メンバーも線も同じ） | 図の状態（押した後の変化を見ない） |
 
 ## 流れ
@@ -72,6 +72,8 @@ flowchart LR
 - 線とアイコンを重ねない：以前のApple独自の押し出し（`S/2+10pt`の円、位置を直接動かす）は、behavior-spec.md「Clearance」の力（`clearanceForces`）に置き換えた。
 - 演出（Owner）：線は依頼元の会話の窓の色（`AvatarTone`、アバター画像からの代表色）を濃くした電線（淡い被覆7pt＋導線2.5pt）。中を同じ色相の明るい筋（破線16/30pt）が90pt/sで依頼元から依頼先へ走る。光はぼかさず太さの違う2本で描く。依頼の文は封筒の印・依頼元の色の左帯と縁・線を指す尖りの付いた白い札。札は最大180pt幅で、文は切らずに折り返し、行の高さ16ptで行数ぶん伸びる（behavior-spec.md、Owner裁定 2026-11-09）。封筒は1行目の高さに置く。
 - 描画は1秒30回（TimelineViewのminimumInterval）。毎表示フレームと毎フレームのぼかしで、Mac 115の相関図がCPUを94%使った。
+- 時計を止めるのは、描くものが無い時（`still`：生きたメンバー・退場中のメンバー・消えかけの線がどれも無い。仕様「Empty state」No animation）と、窓が背景に回った時（`scenePhase == .background`。Macは最小化・隠す）だけ。メンバーがいる間は仕様どおり動き続ける（α下限0.04のゆるい漂い・点滅・流れの点）ので止めない。変化が届けば`finish`が`still`を倒し、そのコマから動かす。
+- 毎コマの重さ（Mac 137で相関図を開いたままCPU 20〜28%）：名前の文字幅と札の大きさを毎コマ測り直し、`liveCount`を名前の置き場所ごとに数え直していた。測った値は文が同じなら同じなので覚えて使い、描く絵は変えない（トロニー 2026-11-13）。
 - 札の表示と置き場所は仕様（「Edges」）どおりで、上の「札」の行に書いた。札の形（線の上に浮かせ、下の尖りで線を指す）だけがApple独自で、置き場所の判定は尖りを含む範囲で行う。`label`がnull（要約がまだ無い）の線は札を出さない（読み上げは`<依頼元>から<依頼先>へ依頼`）。
 - 応答を読めない時は`相関図の応答を読めませんでした。再接続しています…`を出したまま再接続を続け、読めるsnapshotで消える（止めるには保護の名前と自力の出口が要る、トロニー裁定）。欠番・新epochは仕様どおり取り直す。
 
@@ -84,6 +86,7 @@ flowchart LR
 ## 試験
 
 - `BellBotTests/WorkGraphModelTests.swift`: 変更の適用順・欠番での取り直し・snapshot差分で位置を保つ・leaveの猶予なし（サーバー側の責任）・力学1ステップの不変条件（境界・衝突）・札の文の折り返し（行の高さ16pt）・札を置く順（`startedAt`の古い順）。
+- 同ファイル（時計）: メンバーがいる間と退場0.6秒の間は`still`が立たず、退場と線の消える動きが終わったコマの次に立ち、変化が届くと倒れる（`testClockStopsOnlyAfterTheLastLeaveAndRestartsOnChange`）。
 - 同ファイル（分身の辺）: `seat`がforkの辺を読む（forkId文字列・null・無し）・`seat`なしは本体の席・型違い／未知のkind／文字列でないforkIdの`seat`は無しとして読み辺は壊れない（snapshotとedge-startの両方）・`chipText`が「分身：」＋labelで、本体の席は`label`のまま・labelがnull・空なら札なし（分身の辺でも）・分身の辺を含むsnapshotでメンバーの`working`が変わらない・`baseDash`が分身だけ6pt/4pt・札を測る文と描く文の欄の幅が同じ（`textColumn`で測った高さが`chipSize`の高さと一致する）。
 - 同ファイル（札）: latch frameは`label`と両端の入場の終わりを待つ（動きを減らす設定は200ms、退場中の端は終わった扱い）・混んだ図（11本）でも短い線（120pt未満）でも3秒後・60秒後も出続け、辺の終わりに300msで消える・空きが無い札は期限なく待ち、空いたコマで200msで現れる・文の変更は測り直しだけ、nullへ戻ると300msで消える・空いている間は今のspotを保ち、ふさがれた時だけ最初の空きへ移る・置き場所は85個で並びと側の寄せがlayout-sim.mjsの`chipSpots`/`chipBox`と一致し、中心がふさがれた時の行き先（上・下・左・右）と同じ線の5本の広がり方がsimと同じ手順の値に一致する・描いている名前とアイコンには重ならない・不透明度0の名前は障害物にならず、見えたらふさがれて移る・退場中のメンバーのアイコンも名前も障害物でない・空きが無ければ今のspotのままblocked、空けば戻る・タップの順（メンバー＞札＞blockedの札＞線、上に札があってもメンバー）。
 - 同ファイル（名前）: 下が他のアイコンに重なる名前は顔の上へ移る・上下とも重なる名前は隠れて障害物にならず、その欄の押下はメンバーへ行く・指している間だけ見えて札がよけ、ほかのメンバーを指しても見えない。

@@ -309,8 +309,12 @@ final class WorkGraphModel: ObservableObject {
     @Published private(set) var connection = Connection.connecting
     @Published private(set) var degraded = false
     @Published private(set) var isEmpty = true
+    /// 描くものが何も無く、退場と線の消える動きも終わった（behavior-spec.md「Empty state」No animation）。描画の時計を止める。
+    @Published private(set) var still = false
     /// 試験がメンバーを置けるよう、setは閉じない。
-    var bodies: [String: Body] = [:]
+    var bodies: [String: Body] = [:] { didSet { liveCountCache = nil } }
+    /// 1コマで何百回も読まれるので、bodiesが変わるまで数え直さない。
+    private var liveCountCache: Int?
     /// iPhone/iPadで線をタップして札を見せている辺（次の別のタップまで）。
     private(set) var tappedEdge: String?
     /// 名前が隠れていても見せるメンバー（Macはポインタ、iPhone/iPadは指が載った相手）。`layoutChips`が毎フレーム受ける。
@@ -459,6 +463,8 @@ final class WorkGraphModel: ObservableObject {
         let isDegraded = !(list ?? []).isEmpty
         if degraded != isDegraded { degraded = isDegraded }
         let empty = !bodies.values.contains { $0.leavingAt == nil }
+        // 変化が届いたら時計を動かす（退場・線の消える動きもこのコマから描く）。
+        if still && !(bodies.isEmpty && lines.isEmpty) { still = false }
         if isEmpty != empty {
             isEmpty = empty
             if empty { emptySince = now }
@@ -496,7 +502,12 @@ final class WorkGraphModel: ObservableObject {
 
     // MARK: Simulation
 
-    var liveCount: Int { bodies.values.filter { $0.leavingAt == nil }.count }
+    var liveCount: Int {
+        if let liveCountCache { return liveCountCache }
+        let count = bodies.values.filter { $0.leavingAt == nil }.count
+        liveCountCache = count
+        return count
+    }
 
     /// 人数が増えたら小さくする（Owner）。画面の面積を人数で割った広さに収まる大きさと、仕様の12人超の縮小の小さい方。最小36pt。
     func side(for count: Int) -> CGFloat {
@@ -517,6 +528,13 @@ final class WorkGraphModel: ObservableObject {
         lastStep = now
         for (id, body) in bodies where body.leavingAt.map({ now - $0 > 0.6 }) == true { bodies[id] = nil; order.removeAll { $0 == id } }
         for (id, line) in lines where line.endedAt.map({ now - $0 > 0.3 }) == true { lines[id] = nil }
+        // 描画の途中ではPublishedを変えられないので、次の回で止める。その間に変化が届いていれば止めない。
+        if isEmpty && bodies.isEmpty && lines.isEmpty && !still {
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.isEmpty, self.bodies.isEmpty, self.lines.isEmpty else { return }
+                self.still = true
+            }
+        }
         guard dt > 0 else { return }
         // behavior-spec.md「Layout: force-directed, normalized to the drawable rect」（layout-sim.mjsと同じ定数）。
         let ids = order.filter { bodies[$0]?.leavingAt == nil }
@@ -837,9 +855,18 @@ final class WorkGraphModel: ObservableObject {
     }
 
     private static func textBox(_ box: CGRect, _ name: String) -> CGRect {
-        let font = UIFont.systemFont(ofSize: BellTheme.listNameFontSize, weight: .semibold)
-        let width = min(box.width, ceil(NSAttributedString(string: name, attributes: [.font: font]).size().width))
+        let width = min(box.width, nameWidth(name))
         return CGRect(x: box.midX - width / 2, y: box.minY, width: width, height: box.height)
+    }
+
+    /// 名前の文字幅。字体は固定なので名前ごとに一度だけ測る（毎コマ測るとMacのCPUを使い続けた）。
+    private static var nameWidths: [String: CGFloat] = [:]
+    private static func nameWidth(_ name: String) -> CGFloat {
+        if let width = nameWidths[name] { return width }
+        let font = UIFont.systemFont(ofSize: BellTheme.listNameFontSize, weight: .semibold)
+        let width = ceil(NSAttributedString(string: name, attributes: [.font: font]).size().width)
+        nameWidths[name] = width
+        return width
     }
 
     /// 上へ移っても他のアイコンに重なる名前は隠す。ポインタ（Mac）か指（iPhone/iPad）が載ったメンバーの名前だけ見せる。
