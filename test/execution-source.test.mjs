@@ -106,3 +106,29 @@ test('roomの返信者以外を含む全fanoutへ同じsourceと既存message参
   assert.deepEqual(sent.map(item => item.bot.id), ['bot-a', 'bot-b'])
   for (const item of sent) { assert.deepEqual(item.options.executionSource, source); assert.equal(item.options.queue.groupId, 'message-1') }
 })
+
+test('SM08: 同じセッションでも、実行世代が変わった後のupdate_selfは新しい世代で受け付ける', async t => {
+  const registry = bots(), applied = []
+  let generation = 'g1'
+  const seatMcp = createSeatMcp({ bots: registry, tools: { registry }, toolsForSource: () => {
+    const captured = generation
+    return { configureFromMcp: async (botId, changes) => {
+      if (generation !== captured) throw Object.assign(new Error('EXECUTION_NOT_ACCEPTING'), { code: 'EXECUTION_NOT_ACCEPTING' })
+      applied.push({ botId, changes, captured })
+      return { value: { applying: false }, handoffMetadata: null }
+    } }
+  } })
+  const server = createBellTeamServer({ bots: registry, internal: true, authorize: () => true, seatMcp, messenger: {}, store: {}, transport: {}, writeLog: () => {} })
+  server.listen(0, '127.0.0.1'); await once(server, 'listening')
+  t.after(() => { server.closeAllConnections(); server.close() })
+  const client = new Client({ name: 'synthetic', version: '1' })
+  await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${server.address().port}/mcp`),
+    { requestInit: { headers: { [SEAT_HEADER]: 'bot-a', [LAUNCH_HEADER]: 'a'.repeat(32) } } }))
+  t.after(() => client.close())
+  assert.ok(client.getServerCapabilities().experimental['ai.aiterm/handoff.v1'])
+  await client.callTool({ name: 'update_self', arguments: { model: 'opus' } })
+  generation = 'g2'
+  const result = await client.callTool({ name: 'update_self', arguments: { model: 'opus', reasoningEffort: 'high' } })
+  assert.notEqual(result.isError, true)
+  assert.deepEqual(applied.map(item => item.captured), ['g1', 'g2'])
+})

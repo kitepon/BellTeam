@@ -159,16 +159,18 @@ export function createSeatMcp({ bots, tools, toolsForSource = () => ({}), runToo
   // SM01: session id -> { transport, seat, lastSeen }; memory only, so a body restart empties it (SM03).
   const sessions = new Map()
   const createServer = ({ from, fork, executionSource }) => {
-    const scopedTools = { ...tools, ...toolsForSource(executionSource), fork: Boolean(fork) }
+    // SM08: the session keeps only the capability advertisement; each call re-selects the current execution generation.
+    const scoped = () => ({ ...tools, ...toolsForSource(executionSource), fork: Boolean(fork) })
     const server = new Server({ name: 'bellteam', version: '0.1.0' }, { capabilities: { tools: { listChanged: true },
       experimental: { 'ai.bellteam/tools.v1': { digest: SEAT_TOOLS_DIGEST },
-        ...(scopedTools.configureFromMcp ? { 'ai.aiterm/handoff.v1': { version: 1, tools: ['update_self'] } } : {}) },
+        ...(scoped().configureFromMcp ? { 'ai.aiterm/handoff.v1': { version: 1, tools: ['update_self'] } } : {}) },
     }, instructions: INSTRUCTIONS })
     // SK04: a fork lists every tool; only a call that writes inside a Bot project folder is refused.
     server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: bellTeamTools }))
     server.setRequestHandler(CallToolRequestSchema, async (call, fullExtra) => {
       if (fork && forkWritesProject(call.params.name, call.params.arguments)) throw new Error(`FORK_PROJECT_WRITE_REFUSED: ${call.params.name}`)
       let handoffMetadata = null
+      const scopedTools = scoped()
       const configure = scopedTools.configureFromMcp ? async (botId, changes) => {
         const result = await scopedTools.configureFromMcp(botId, changes, {
           schema: 'bellteam.mcp-configuration-ingress.v1', actor: { kind: 'bot', botId: from },
