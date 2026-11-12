@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { checkSeatArgs } from './cli.mjs'
 import { latticeError } from '../lattice-protocol.mjs'
-import { projectChart } from './projection.mjs'
+import { laneResolver, projectChart } from './projection.mjs'
 import { createCodeCharts } from './code-chart.mjs'
 import { createNoticeDelivery } from './notices.mjs'
 import { nudgeSweep } from './nudge.mjs'
@@ -117,11 +117,13 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
       await rosterReader(effect)()
       return notices.deliverAll(ids, { roster, effect, lock: locked })
     },
-    // About every 5 minutes (facade timer, README L13-L15): every chart's ready set -> prompts to lane Bots not running.
+    // Every minute (facade timer, README L13-L15): every chart's cards from the memo -> ONE prompt per lane Bot not running.
     async nudge(params, effect) {
       const ids = await cli.list()
-      await rosterReader(effect)()
-      return nudgeSweep(ids, { run: (id, args) => lattice(id, args), log, roster, effect, lock: locked })
+      const memos = await syncAll(ids, effect)
+      const charts = ids.map((projectId, i) => ({ projectId, cards: memos[i].content.cards }))
+      const out = await nudgeSweep(charts, { laneOf: laneResolver(roster), log, effect })
+      return { ...out, failed: out.failed + memos.filter(memo => memo.content.degraded?.includes('lattice-read')).length }
     },
     // Owner stop list (L16): a read, so no chart lock; a chart that fails is named in unreadCharts.
     async blockers() {

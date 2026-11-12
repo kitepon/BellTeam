@@ -1,64 +1,63 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { nudgeSweep, nudgeMessages } from '../src/lattice/nudge.mjs'
+import { laneResolver } from '../src/lattice/projection.mjs'
 import { validateLatticeEffect, validateLatticeEffectResult, validateLatticeRequest, validateLatticeResult } from '../src/lattice-protocol.mjs'
 
-const roster = ids => ids.map(id => ({ id, name: id, color: 'sky', avatarVersion: 'v1', deleting: id === 'bot-del' }))
-const task = (id, prompt = `p1/${id}: fire it, or set a stop.`) => ({ plan_key: 'p1', plan_version: 'v1', task_id: id, title: id, done_condition: null,
-  fire_actions: [`lattice todo start --plan p1 --task ${id}`], stop_action: `lattice todo block --plan p1 --task ${id} --reason <why it cannot move>`, prompt })
+const members = ['bot-a', 'bot-b', 'bot-c', 'bot-del'].map(id => ({ id, name: id === 'bot-c' ? 'Cee' : id, color: 'sky', avatarVersion: 'v1', deleting: id === 'bot-del' }))
+const card = (taskId, state, lane) => ({ plan: 'p1', taskId, title: taskId.toUpperCase(), state, lane })
 
 function rig({ charts, turns = {}, deliveries = {}, turnsFail = false }) {
-  const runs = [], sent = [], logs = [], reads = []
-  const run = async (id, args) => {
-    runs.push([id, ...args].join(' '))
-    const value = charts[id]
-    if (value instanceof Error) throw value
-    return { schema: 'lattice.todo_nudge_result.v1', project_id: id, lanes: value, result_digest: 'x' }
-  }
+  const sent = [], logs = [], reads = []
   const effect = async (method, params) => {
     if (method === 'turns.read') { reads.push(params.botIds); if (turnsFail) throw new Error('down'); return { turns } }
     assert.equal(method, 'messages.send')
     sent.push(params)
     return { delivery: deliveries[params.target] ?? 'running', deliveryId: 'd' }
   }
-  return { runs, sent, logs, reads, go: ids => nudgeSweep(ids, { run, log: line => logs.push(line), roster: roster(['bot-a', 'bot-b', 'bot-c', 'bot-del']), effect }) }
+  return { sent, logs, reads, go: () => nudgeSweep(charts, { laneOf: laneResolver(members), log: line => logs.push(line), effect }) }
 }
 
-test('nudge: every chart is read; prompts go as is to lane Bots that are not working, one message per lane', async () => {
+test('nudge: in-progress and startable cards, ONE prompt per lane Bot that is not working; no todo nudge, no other condition', async () => {
   const x = rig({
-    charts: {
-      alpha: [{ lane: 'bot-a', tasks: [task('t1'), task('t2')] }, { lane: 'bot-b', tasks: [task('t3')] }, { lane: 'owner', tasks: [task('t4')] }],
-      beta: [{ lane: 'bot-a', tasks: [task('t5')] }, { lane: 'bot-c', tasks: [task('t6')] }, { lane: 'bot-del', tasks: [task('t7')] }],
-      empty: [],
-      broken: Object.assign(new Error('read'), { code: 'LATTICE_CLI_EXIT_1' }),
-    },
+    charts: [
+      { projectId: 'alpha', cards: [card('t1', 'ready', 'bot-a'), card('t2', 'in-progress', 'bot-a'), card('t3', 'ready', 'bot-b'), card('t4', 'ready', 'owner'),
+        card('t5', 'blocked', 'bot-a'), card('t6', 'pending', 'bot-a'), card('t7', 'done', 'bot-a'), card('t8', 'retired', 'bot-a'), card('t9', 'ready', 'stranger')] },
+      { projectId: 'beta', cards: [card('t1', 'ready', 'bot-a'), card('t2', 'in-progress', 'Cee'), card('t3', 'ready', 'bot-del')] },
+      { projectId: 'empty', cards: [] },
+    ],
     turns: { 'bot-a': 'idle', 'bot-b': 'working', 'bot-c': 'unknown' },
   })
-  const out = await x.go(['alpha', 'beta', 'empty', 'broken'])
-  assert.deepEqual(x.runs, ['alpha todo nudge --json', 'beta todo nudge --json', 'empty todo nudge --json', 'broken todo nudge --json'])
-  assert.deepEqual(x.reads, [['bot-a', 'bot-b', 'bot-c']], 'owner and deleting lanes have no seat')
+  const out = await x.go()
+  assert.deepEqual(x.reads, [['bot-a', 'bot-b', 'bot-c']], 'owner, deleting and non-roster lanes have no seat; a lane by name resolves')
   assert.deepEqual(x.sent.map(item => [item.from, item.target]), [['scheduler', 'bot-a'], ['scheduler', 'bot-c']], 'a working Bot is not prompted')
-  assert.equal(x.sent[0].message, 'Lattice nudge, chart alpha (lattice tool, project alpha):\np1/t1: fire it, or set a stop.\n\np1/t2: fire it, or set a stop.'
-    + '\n\nLattice nudge, chart beta (lattice tool, project beta):\np1/t5: fire it, or set a stop.')
-  assert.deepEqual(out, { charts: 3, prompted: 4, skipped: 1, failed: 1 })
-  assert.deepEqual(x.logs, ['lattice-nudge broken LATTICE_CLI_EXIT_1'])
+  const text = x.sent[0].message
+  assert.ok(text.startsWith('Lattice: you are not running') && text.includes('Start at least one now.'))
+  assert.ok(text.includes('lattice todo dependency connect') && text.includes('lattice todo retract') && text.includes('lattice todo block'))
+  assert.ok(text.endsWith('\nChart alpha (lattice tool, project alpha):\n- p1/t1 「T1」: can start -> `lattice todo start --plan p1 --task t1`\n- p1/t2 「T2」: in progress'
+    + '\nChart beta (lattice tool, project beta):\n- p1/t1 「T1」: can start -> `lattice todo start --plan p1 --task t1`'))
+  assert.ok(!text.includes('t5') && !text.includes('t6') && !text.includes('t7') && !text.includes('t8'), 'stopped, waiting on prerequisites and finished cards are not prompted')
+  assert.deepEqual(out, { charts: 3, prompted: 2, skipped: 1, failed: 0 })
 })
 
-test('nudge: a failed turns read prompts every lane; a send not accepted counts failed and the next tick sends again', async () => {
-  const x = rig({ charts: { alpha: [{ lane: 'bot-a', tasks: [task('t1')] }, { lane: 'bot-b', tasks: [task('t2')] }] }, turnsFail: true, deliveries: { 'bot-b': 'refused' } })
-  assert.deepEqual(await x.go(['alpha']), { charts: 1, prompted: 1, skipped: 0, failed: 1 })
+test('nudge: a failed turns read prompts every Bot; a send not accepted counts failed and the next tick sends again', async () => {
+  const x = rig({ charts: [{ projectId: 'alpha', cards: [card('t1', 'ready', 'bot-a'), card('t2', 'ready', 'bot-b')] }], turnsFail: true, deliveries: { 'bot-b': 'refused' } })
+  assert.deepEqual(await x.go(), { charts: 1, prompted: 1, skipped: 0, failed: 1 })
   assert.deepEqual(x.sent.map(item => item.target), ['bot-a', 'bot-b'])
-  const quiet = rig({ charts: { alpha: [] } })
-  assert.deepEqual(await quiet.go(['alpha']), { charts: 1, prompted: 0, skipped: 0, failed: 0 })
-  assert.deepEqual(quiet.reads, [], 'nothing ready: no turn read')
+  assert.deepEqual(x.logs, ['lattice-nudge-send bot-b not accepted'])
+  const quiet = rig({ charts: [{ projectId: 'alpha', cards: [card('t1', 'done', 'bot-a')] }] })
+  assert.deepEqual(await quiet.go(), { charts: 1, prompted: 0, skipped: 0, failed: 0 })
+  assert.deepEqual(quiet.reads, [], 'nothing actionable: no turn read')
 })
 
-test('nudge messages split at prompt boundaries within 4000 chars and repeat the chart header', () => {
-  const long = 'x'.repeat(1500)
-  const parts = nudgeMessages([{ projectId: 'a', prompt: long }, { projectId: 'a', prompt: long }, { projectId: 'a', prompt: long }])
+test('nudge messages split at task lines within 4000 chars and repeat the chart header', () => {
+  const entries = Array.from({ length: 40 }, (_, i) => ({ projectId: 'a', card: card(`t${i}`, 'ready', 'bot-a') }))
+  entries.forEach(entry => { entry.card.title = 'x'.repeat(80) })
+  const parts = nudgeMessages(entries)
   assert.equal(parts.length, 2)
-  assert.ok(parts.every(part => part.length <= 4000 && part.startsWith('Lattice nudge, chart a ')))
-  assert.equal(parts.join('').split(long).length - 1, 3)
+  assert.ok(parts.every(part => part.length <= 4000))
+  assert.ok(parts[1].startsWith('Lattice (continued):\nChart a (lattice tool, project a):\n- p1/t'))
+  assert.equal(parts.join('').split("「").length - 1, 40, 'every task once')
 })
 
 test('protocol: root nudge and effect turns.read', () => {

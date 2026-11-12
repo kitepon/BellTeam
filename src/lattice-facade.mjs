@@ -4,8 +4,8 @@ const unavailable = () => Object.assign(new Error('LATTICE_UNAVAILABLE'), { code
 // Request errors the caller can act on keep their code; anything else means the child is not serving.
 const PASS = new Set(['LATTICE_CHART_NOT_FOUND', 'LATTICE_PROJECT_INVALID', 'LATTICE_INPUT_CONFLICT', 'LATTICE_COMMAND_NOT_SEAT_SURFACE', 'LATTICE_INVALID', 'LATTICE_NAME_INVALID'])
 const SLICE = 50
-// Owner 2026-11-12: about every 5 minutes (README L13).
-export const NUDGE_MS = 300_000
+// Owner 2026-11-12: 「では、1分で。」 (README L13).
+export const NUDGE_MS = 60_000
 
 export function createLatticeFacade({ controller, retryMs = 2000, nudgeMs = NUDGE_MS, setTimer = setTimeout, clearTimer = clearTimeout }) {
   const subscribers = new Map()
