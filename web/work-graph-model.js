@@ -183,10 +183,11 @@ export function bestSwap(P, edges, clear = null) {
 export function createGraphModel({ reduceMotion = false } = {}) {
   const nodes = new Map(), edges = new Map()
   let epoch = null, version = -1, degraded = [], alpha = 1, firstSeen = false, steps = 0
-  const GLIDE_MS = reduceMotion ? REDUCED_MS : ENTER_MS
+  // 動きを減らす設定は開いている間も変わる（reduceMotion の setter）。時間はいつも今の設定で読む。
+  const glideMs = () => reduceMotion ? REDUCED_MS : ENTER_MS
   // 入れ替えた顔の描く位置：from から今の位置へ enter の曲線で700ms。Reduce Motion は前半 from で消え、後半新しい場所で現れる。
   function drawnAt(node, now) {
-    const g = node.glide, t = g ? (now - g.at) / GLIDE_MS : 1
+    const g = node.glide, t = g ? (now - g.at) / glideMs() : 1
     if (t >= 1) return { x: node.x, y: node.y, opacity: 1 }
     if (reduceMotion) return t < 0.5 ? { ...g.from, opacity: 1 - 2 * t } : { x: node.x, y: node.y, opacity: 2 * t - 1 }
     const k = enterCurve(t)
@@ -250,6 +251,9 @@ export function createGraphModel({ reduceMotion = false } = {}) {
       return true
     },
     heat() { alpha = 1 },
+    // 図（位置・速度・α・出入りの時刻）はそのまま、これからのコマを新しい設定の動きと時間で描く。
+    get reduceMotion() { return reduceMotion },
+    set reduceMotion(on) { reduceMotion = Boolean(on) },
     get alpha() { return alpha },
     // 1コマ分の力学。dtは秒。
     step(dt, rect, now, wide) {
@@ -327,7 +331,7 @@ export function createGraphModel({ reduceMotion = false } = {}) {
       const within = (at, ms) => at != null && now - at < ms
       const fade = reduceMotion ? REDUCED_MS : null
       const moving = alpha > 0
-        || [...nodes.values()].some(node => node.leaveAt || within(node.enterAt, fade ?? ENTER_MS) || within(node.glide?.at, GLIDE_MS))
+        || [...nodes.values()].some(node => node.leaveAt || within(node.enterAt, fade ?? ENTER_MS) || within(node.glide?.at, glideMs()))
         || [...edges.values()].some(edge => edge.endAt || within(edge.startAt, fade ?? GROW_MS) || within(edge.chip?.appearAt, 200) || within(edge.chip?.nullAt, END_MS))
       if (moving) return 'moving'
       return animate && [...nodes.values()].some(node => node.state === 'working') ? 'working' : 'still'

@@ -484,17 +484,19 @@ test('W71 the canvas says 「つないでいます」 until the first picture ar
 })
 
 // 偽の画面で rAF を60Hzで回し、描いたコマ（clearRect）を数える。
-async function runView(nodes, edges) {
+async function runView(nodes, edges, { motion = null } = {}) {
   const fakeNode = () => ({ textContent: '', hidden: false, children: [], dataset: {}, style: {}, classList: { set: new Set(), contains(c) { return this.set.has(c) }, toggle(c, on) { on ? this.set.add(c) : this.set.delete(c) }, remove(c) { this.set.delete(c) } },
     listeners: {}, addEventListener(type, fn) { this.listeners[type] = [...(this.listeners[type] ?? []), fn] }, setAttribute() {}, contains: () => false, replaceChildren() {}, append() {}, querySelector() { return emptyP } })
   const emptyP = fakeNode()
   let drawn = 0
-  const context = new Proxy({ measureText: () => ({ width: 10 }), clearRect() { drawn++ }, filter: 'none' }, { get: (target, key) => key in target ? target[key] : () => ({ addColorStop() {} }), set: (target, key, value) => { target[key] = value; return true } })
+  const faces = []
+  const context = new Proxy({ measureText: () => ({ width: 10 }), clearRect() { drawn++ }, fillRect(x, y, w) { faces.push(w) }, filter: 'none' }, { get: (target, key) => key in target ? target[key] : () => ({ addColorStop() {} }), set: (target, key, value) => { target[key] = value; return true } })
   const canvas = Object.assign(fakeNode(), { getContext: () => context, getBoundingClientRect: () => ({ left: 0, top: 0 }) })
   const parts = { '[data-work-graph-stage]': Object.assign(fakeNode(), { getBoundingClientRect: () => ({ width: 1000, height: 700 }) }), canvas,
     '[data-work-graph-pill]': fakeNode(), '[data-work-graph-empty]': fakeNode(), '[data-work-graph-a11y]': fakeNode(), '[data-work-graph-hint]': fakeNode(), '[data-work-graph-summary]': fakeNode() }
   const dialog = { open: false, showModal() { this.open = true }, querySelector: selector => parts[selector], getBoundingClientRect: () => ({ top: 0, height: 760 }) }
-  const saved = { document: globalThis.document, requestAnimationFrame: globalThis.requestAnimationFrame, cancelAnimationFrame: globalThis.cancelAnimationFrame, now: Date.now }
+  const saved = { document: globalThis.document, requestAnimationFrame: globalThis.requestAnimationFrame, cancelAnimationFrame: globalThis.cancelAnimationFrame, matchMedia: globalThis.matchMedia, now: Date.now }
+  globalThis.matchMedia = motion ? () => motion : undefined
   let clock = Date.parse('2026-11-13T00:00:00Z'), pending = null
   globalThis.document = { addEventListener() {}, removeEventListener() {}, hidden: false, activeElement: null, createElement: () => fakeNode() }
   globalThis.requestAnimationFrame = fn => { assert.equal(pending, null, 'one frame request at a time'); pending = fn; return 1 }
@@ -512,8 +514,8 @@ async function runView(nodes, edges) {
     for (let i = 0; i < seconds * 60; i++) { clock += 1000 / 60; const fn = pending; pending = null; fn?.(clock) }
     return { frames: drawn - start, pending: pending !== null }
   }
-  const close = () => { view.close(); Date.now = saved.now; Object.assign(globalThis, { document: saved.document, requestAnimationFrame: saved.requestAnimationFrame, cancelAnimationFrame: saved.cancelAnimationFrame }) }
-  return { run, close, canvas, waiting: () => pending !== null }
+  const close = () => { view.close(); Date.now = saved.now; Object.assign(globalThis, { document: saved.document, requestAnimationFrame: saved.requestAnimationFrame, cancelAnimationFrame: saved.cancelAnimationFrame, matchMedia: saved.matchMedia }) }
+  return { run, close, canvas, faces, waiting: () => pending !== null }
 }
 
 test('時計：落ち着くまで30コマ/秒、誰か働いていれば15コマ/秒、誰も働いていなければ描かず、指した時だけ1コマ', async () => {
@@ -535,4 +537,26 @@ test('時計：落ち着くまで30コマ/秒、誰か働いていれば15コマ
     assert.ok(quiet.waiting())
     assert.deepEqual(quiet.run(1), { frames: 1, pending: false })
   } finally { quiet.close() }
+})
+
+test('開いている間に「動きを減らす」を切り替えると、今の図のまま次のコマから新しい動きで描く', async () => {
+  // 入ってくる顔：ふつうは外から縮んで飛んでくる（最初のコマは S より小さい）。動きを減らすと、その場で大きさ S のまま薄く現れる。
+  const media = () => ({ matches: false, listeners: [], addEventListener(type, fn) { this.listeners.push(fn) } })
+  const plain = await runView([node('a'), node('b', 'linked')], [edge('a', 'b')], { motion: media() })
+  try { plain.run(1 / 60); assert.ok(plain.faces.length && plain.faces.every(w => w < 56), `normal enter ${plain.faces}`) } finally { plain.close() }
+  const motion = media()
+  const view = await runView([node('a'), node('b', 'linked')], [edge('a', 'b')], { motion })
+  try {
+    motion.matches = true
+    for (const fn of motion.listeners) fn()
+    view.run(1 / 60)
+    assert.ok(view.faces.length && view.faces.every(w => w === 56), `reduced enter ${view.faces}`)
+    // 落ち着いた後、働いている人がいても still（点滅も点も動かさない）。戻すと working の15コマ/秒。
+    view.run(8)
+    assert.deepEqual(view.run(2), { frames: 0, pending: false })
+    motion.matches = false
+    for (const fn of motion.listeners) fn()
+    const back = view.run(2)
+    assert.ok(back.pending && back.frames >= 29 && back.frames <= 31, `working again ${back.frames}`)
+  } finally { view.close() }
 })

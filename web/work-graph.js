@@ -319,8 +319,8 @@ export function createWorkGraphView(dialog, { fetch = globalThis.fetch, onOpenMe
   canvas.addEventListener('pointerup', () => { drag = null })
   const visibility = () => { if (!open) return; if (document.hidden) stream.stop(); else stream.start() }
   const resize = () => { model.heat(); redraw() }
-  // 動きを減らす設定が変わったら、点滅と点の有無を描き直す（still ⇄ working）。
-  motion?.addEventListener?.('change', () => { reduceMotion = motion.matches; redraw() })
+  // 動きを減らす設定が変わったら、開いている図のモデルにも渡し、点滅と点の有無を描き直す（still ⇄ working）。
+  motion?.addEventListener?.('change', () => { reduceMotion = motion.matches; model.reduceMotion = reduceMotion; redraw() })
   return {
     open() {
       if (open) return
