@@ -589,6 +589,8 @@ export class BotRegistry extends Map {
       if (existing?.kind === 'after_turn' && input.kind !== 'after_turn') throw registryError('SCHEDULE_AFTER_TURN_REPLACE_REQUIRED')
       const schedule = normalizeSchedule({
         ...input,
+        // Released editors drop unknown fields; an update without notify keeps the stored command result delivery.
+        ...(!Object.hasOwn(input, 'notify') && input.command && existing?.notify ? { notify: existing.notify } : {}),
         id: input.id ?? this.id(),
         lastRunAt: null,
         revision: nextScheduleRevision(existing),

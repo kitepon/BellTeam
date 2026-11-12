@@ -94,3 +94,11 @@ test('a skipped old generation cannot consume a newly updated overdue request', 
   await f.registry.markScheduleRun(f.owner, old.id, now, { skipped: true, expectedRevision: old.revision ?? 0 })
   assert.deepEqual((await f.registry.listSchedules(f.owner))[0], latest)
 })
+
+test('bot command update without notify keeps result delivery; explicit failure turns it off', async t => {
+  const f = await fixture(t)
+  const check = { id: 'once-id', kind: 'cron', expression: '*/5 * * * *', command: 'tools/check.sh' }
+  assert.equal((await f.registry.setSchedule(f.owner, { ...check, notify: 'result' })).notify, 'result')
+  assert.equal((await f.registry.setSchedule(f.owner, { ...check, name: 'edited' })).notify, 'result')
+  assert.equal(Object.hasOwn(await f.registry.setSchedule(f.owner, { ...check, notify: 'failure' }), 'notify'), false)
+})

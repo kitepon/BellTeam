@@ -176,7 +176,7 @@ export class BotScheduler {
   async dispatchBotSchedule(bot, schedule, options = {}) {
     this.assertWorkAllowed()
     if (schedule.command) {
-      // 正常commandはAIを起こさず、失敗だけ予定所有BotとOwnerへ届ける。
+      // 正常commandはAIを起こさず、失敗だけ予定所有BotとOwnerへ届ける。notify=resultは成功も予定所有Botへ届ける。
       this.runCommandSchedule(bot, schedule).catch(reportError)
       return
     }
@@ -204,7 +204,15 @@ export class BotScheduler {
     } catch (error) {
       result = { code: null, signal: null, stdout: '', stderr: error.message }
     }
-    if (job.controller.signal.aborted || result.code === 0) return result
+    if (job.controller.signal.aborted) return result
+    if (schedule.notify === 'result' && result.code === 75) return result
+    if (result.code === 0) {
+      if (schedule.notify !== 'result') return result
+      const tail = (result.stdout.trim() || result.stderr.trim()).split('\n').slice(-5).join('\n')
+      await this.messenger.sendmessage({ from: 'scheduler', target: bot.id,
+        message: `[BellTeam schedule ${schedule.id}] 予定「${schedule.name || schedule.command}」のコマンドが終了コード0で終わった。\n${tail}` })
+      return result
+    }
     const outcome = result.code === null ? `シグナル${result.signal ?? '不明'}` : `終了コード${result.code}`
     const tail = (result.stderr.trim() || result.stdout.trim()).split('\n').slice(-5).join('\n')
     const message = `[BellTeam schedule ${schedule.id}] 予定「${schedule.name || schedule.command}」のコマンドが${outcome}で失敗した。\n${tail}`
