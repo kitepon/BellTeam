@@ -65,6 +65,7 @@ flowchart TD
 | CLI差異 | `tomlSeat/jsonSeat/aitermFor`等の局所関数 | Codex env_http_headers、Grok/Claude展開header、Cursor env参照、AGYはstdio中継。形式差を各機能serviceへ広げない |
 | native遅延起動 | `relayedAiterm` | mcp-lazyは起動後idle停止なし。nativeでは旧profile/旧tool cache/wakeを使用しない。独立製品の実装は変えない |
 | 管理節の置換 | `writeCodexConfig/writeGrokConfig/mergeMcpConfig` | BellTeam管理MCPと対象project trustを更新、他MCPを保持。無効MCPの扱いはplatform条件を維持 |
+| Claude初回画面の省略（2026-11-12 a15） | `mergeMcpConfig`（`~/.claude.json`の`hasCompletedOnboarding: true`）、`acceptBypassPrompt`（`~/.claude/settings.json`の`skipDangerousModePermissionPrompt: true`） | Webでログインしただけの新しい環境では、Claude Codeを一度も手で起動していない。最初の席が初回案内（テーマ・Security notes）と「Bypass Permissions」の確認画面で止まり、配送が終わらない（Centi 95a8 lab）。BellTeamは全Claude席を`--dangerously-skip-permissions`で起こし、容器が隔離の境界なので、この2つをBellTeamが答える。他の項目は保持。利用規約の更新への回答は書かない（アカウントの持ち主が選ぶ。Aitermの`vendor_onboarding_required`案内のまま） |
 | hook登録 | `configureHarnesses` | Throughline install後、Cursor instructions/RTK/Aiterm hookを個別登録。後三者の失敗は報告し続行。Throughline installまで成功扱いに広げない |
 
 全体指示はOwner/profile/rulesと製品規範、個別指示はBotのプロフィールと短期記憶という別の元データを持つ。CLI設定文書が変わったことと、既に起きているCLIが読み直したことを分ける。任意機能からの再設定は[利用支援](../../support-details.md)の背景反映へ接続する。

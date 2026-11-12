@@ -63,6 +63,8 @@ PCのネットワーク設定でIPアドレスを確認します。たとえばP
 
 接続後、Claude・Codex・Grok・Cursorから最初に使うAIを選び、案内された公式サイトで認証します。その後、案内役との会話でメンバーや追加機能を設定できます。
 
+BellTeamのメンバーは、コンテナの中で、Claude Codeの「Bypass Permissions」（操作のたびに許可を求めない）モードで動きます。そのため、BellTeamはメンバー用のClaude Codeの初回案内と、このモードの確認画面に、自分で答えます（`~/.claude.json`の`hasCompletedOnboarding`と`~/.claude/settings.json`の`skipDangerousModePermissionPrompt`を書きます）。利用規約の更新への同意は書きません。
+
 Webとサーバーは無料です。Appleアプリの通常のAI利用はアプリ内の購読案内に従います。案内役との初期設定、閲覧・書き出し・管理は無料で使えます。AI各社や外部サービスの契約は自分で用意してください。
 
 ## 使い続けるとき

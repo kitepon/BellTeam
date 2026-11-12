@@ -8,7 +8,7 @@ Docker Engine 26以降とvolume subpathに対応したDocker Composeを使い、
 
 1. 設置用ファイルを展開し、そのフォルダで`sh install.sh`を実行します。イメージの取得、空の保存先の所有権設定、起動と正常稼働の確認まで行います。`.env`の作成や追加機能の設定は不要です。
 2. installerが表示するURLをブラウザで開きます。同じマシンでは`http://localhost:18891`、iPhone・iPadや別のMacでは`http://このマシンのLANアドレス:18891`へ接続できます。アプリの接続先にも同じURLを指定します。
-3. 最初に使うClaude・Codex・Grok・Cursorを画面で選び、表示される公式サイトで認証します。公式CLIの初回設定も画面の案内に従って完了します。
+3. 最初に使うClaude・Codex・Grok・Cursorを画面で選び、表示される公式サイトで認証します。公式CLIの初回設定も画面の案内に従って完了します。BellTeamのメンバーは、コンテナの中で、Claude Codeの「Bypass Permissions」（操作のたびに許可を求めない）モードで動きます。そのため、BellTeamはメンバー用のClaude Codeの初回案内と、このモードの確認画面に、自分で答えます（`~/.claude.json`の`hasCompletedOnboarding`と`~/.claude/settings.json`の`skipDangerousModePermissionPrompt`を書きます）。利用規約の更新への同意は書きません。
 4. 認証後、案内役との会話が始まります。メンバーや追加機能など、希望する使い方を案内役へ伝えて設定します。
 
 Webアプリとサーバーは無料です。初期設定の後も、すべてのメンバーとの会話、メンバー間の配送、予定の実行を購読なしで使えます。AI各社や追加機能に使う外部サービスの契約は自分で用意します。

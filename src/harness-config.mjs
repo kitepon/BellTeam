@@ -123,6 +123,7 @@ export async function writeHarnessConfig(bots, home = runtimeHome(), { callBridg
     writeCodexConfig(join(home, '.codex/config.toml'), bots, `approval_policy = "never"\nsandbox_mode = "danger-full-access"\n\n${codexMcp}${codexUnusableMcp}${codexProjects}`),
     writeGrokConfig(join(home, '.grok/config.toml'), `[ui]\npermission_mode = "always-approve"\n\n${grokMcp}`),
     mergeMcpConfig(join(home, '.claude.json'), claudeMcp, [...bots.values()].map(bot => bot.project)),
+    acceptBypassPrompt(join(home, '.claude/settings.json')),
     mergeMcpConfig(join(home, '.cursor/mcp.json'), cursorMcp),
     mergeMcpConfig(join(home, '.gemini/config/mcp_config.json'), antigravityMcp),
   ])
@@ -220,6 +221,18 @@ function splitToml(text) {
   }
 }
 
+// Every Claude seat starts with --dangerously-skip-permissions inside the container; its one-time accept screen would stop the
+// first seat of a new install (a15). Other settings (hooks, theme...) are kept.
+async function acceptBypassPrompt(path) {
+  let current = {}
+  try {
+    current = JSON.parse(await readFile(path, 'utf8'))
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error
+  }
+  if (current.skipDangerousModePermissionPrompt !== true) await writeAtomic(path, { ...current, skipDangerousModePermissionPrompt: true })
+}
+
 // Claude Codeは初めて開くフォルダで信頼確認の画面を出し、Botの起動がそこで止まる。
 // Codexの[projects]と同じく、BellTeamが所有するBotのフォルダは信頼済みとして書く。
 async function mergeMcpConfig(path, servers, trustedProjects = []) {
@@ -233,6 +246,8 @@ async function mergeMcpConfig(path, servers, trustedProjects = []) {
   for (const project of trustedProjects) projects[project] = { ...(projects[project] ?? {}), hasTrustDialogAccepted: true }
   await writeAtomic(path, {
     ...current,
+    // A Web-only login never ran claude by hand; without this the first seat stops at the first-run screens (a15).
+    hasCompletedOnboarding: true,
     mcpServers: { ...Object.fromEntries(Object.entries(current.mcpServers ?? {}).filter(([id]) => !['bellteam', 'aiterm', 'call-bridge'].includes(id))), ...servers },
     ...(trustedProjects.length ? { projects } : {}),
   })
