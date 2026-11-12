@@ -132,6 +132,8 @@ stateDiagram-v2
   StopsLoading --> StopsEmpty: 200, no stops
   StopsLoading --> StopsRetry: 503 / network / bad JSON
   StopsLoading --> StopsOld: 404 (older server)
+  StopsLoading --> StopsLogin: 401 sign-in lost (Windows)
+  StopsLogin --> StopsLoading: reconnected (signed in again) / 読み直す / back to the foreground
   StopsRetry --> StopsLoading: backoff 1,2,4..30 s while open / 読み直す
   StopsEmpty --> StopsLoading: 読み直す / back to the foreground
   Stops --> StopsLoading: 読み直す / back to the foreground
@@ -148,6 +150,7 @@ stateDiagram-v2
   StopsEmpty --> List: back
   StopsRetry --> List: back
   StopsOld --> List: back
+  StopsLogin --> List: back
 ```
 
 | State / answer | Shown (Japanese, plain) | What happens next | Action |
@@ -156,6 +159,7 @@ stateDiagram-v2
 | StopsEmpty | 止まっている工程はありません。 | 読み直す / foreground re-read | back |
 | StopsRetry | the last rows dimmed (or empty) + pill 止め一覧を読み直しています… | backoff 1, 2, 4 … 30 s forever while open | back, 読み直す (now) |
 | StopsOld (404) | このサーバーではまだ止め一覧を使えません。 | appears after the server update | back |
+| StopsLogin (Windows; sign-in lost) | ログインが必要です。ログインし直すと、自動で表示します。 (same text as the 工程表) | no timer; reads again when the app reconnects after signing in, or on 読み直す / foreground | back, 読み直す |
 | removed / already-gone | the row fades out (200 ms; Reduce Motion: none) | re-read | — |
 | 409 refused | under the row: 外せませんでした: `reason` (Lattice's text as is) | re-read; the stop stays | 外す again |
 | 503 / network | under the row: いまは外せませんでした。少し待ってからもう一度お試しください。 | re-read | 外す again |
