@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-12T13:20:13Z",
-  "expiresAt": "2026-11-19T13:20:13Z",
+  "publishedAt": "2026-11-12T13:29:18Z",
+  "expiresAt": "2026-11-19T13:29:18Z",
   "releases": [
     {
       "componentId": "usage",
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "efd1b5847a87a8fb74ab04ca5eb9e1891efeb71d",
-      "versionId": "sha256:91638b314e83de7b3de4457fab986b037ae3833acbb7f15d66ce74652ca101fc",
+      "sourceCommit": "5412ac2c1e6f392223f1da610bea861699a73720",
+      "versionId": "sha256:18ca69a13391418ba4fbb4d5fef5802b95b3b5a73078b4b25e9495a131850fc0",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:91638b314e83de7b3de4457fab986b037ae3833acbb7f15d66ce74652ca101fc"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:18ca69a13391418ba4fbb4d5fef5802b95b3b5a73078b4b25e9495a131850fc0"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,20 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Aiterm を 0.70.36 にします。Claudeの席のゴールを会話の記録から読み、Aiterm全体を止めなくなります。静かな席が予定どおり閉じます。最初の確認画面で止まる席は理由を返して閉じます。初めてのローカルの席が手を出さずに答えます。コマンドの予定の結果を届けられるようにします。"
+        "Aiterm を 0.70.39 にします。最初の画面で止まる席は理由を返して閉じ、Grok と Codex の席の読み取りを直します。工程表で準備ができたのにまだ始まっていない作業を、約5分ごとに、動いていない担当の Bot へ知らせます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "efd1b5847a87a8fb74ab04ca5eb9e1891efeb71d",
-      "versionId": "sha256:91638b314e83de7b3de4457fab986b037ae3833acbb7f15d66ce74652ca101fc",
+      "sourceCommit": "5412ac2c1e6f392223f1da610bea861699a73720",
+      "versionId": "sha256:18ca69a13391418ba4fbb4d5fef5802b95b3b5a73078b4b25e9495a131850fc0",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:91638b314e83de7b3de4457fab986b037ae3833acbb7f15d66ce74652ca101fc"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:18ca69a13391418ba4fbb4d5fef5802b95b3b5a73078b4b25e9495a131850fc0"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,7 +748,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Aiterm を 0.70.36 にします。Claudeの席のゴールを会話の記録から読み、Aiterm全体を止めなくなります。静かな席が予定どおり閉じます。最初の確認画面で止まる席は理由を返して閉じます。初めてのローカルの席が手を出さずに答えます。コマンドの予定の結果を届けられるようにします。"
+        "Aiterm を 0.70.39 にします。最初の画面で止まる席は理由を返して閉じ、Grok と Codex の席の読み取りを直します。工程表で準備ができたのにまだ始まっていない作業を、約5分ごとに、動いていない担当の Bot へ知らせます。"
       ]
     },
     {
