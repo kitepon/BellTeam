@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-12T08:15:46Z",
-  "expiresAt": "2026-11-19T08:15:46Z",
+  "publishedAt": "2026-11-12T08:52:08Z",
+  "expiresAt": "2026-11-19T08:52:08Z",
   "releases": [
     {
       "componentId": "usage",
@@ -559,8 +559,8 @@
     },
     {
       "componentId": "members",
-      "sourceCommit": "22a8e92dd8a210d71fd775584cc8d5210b15da6d",
-      "versionId": "d290f66f9556466f4a2765dafffb53f360cc93709c833bd30f0bc2666ed314d3",
+      "sourceCommit": "efd1b5847a87a8fb74ab04ca5eb9e1891efeb71d",
+      "versionId": "b868f295cb268c80237547a0f4b1e0511664f1073ac938ee17bf2ce9d6cda6ed",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -568,16 +568,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T010914Z/members-22a8e92dd8a210d71fd775584cc8d5210b15da6d-linux-amd64.tar.gz",
-          "bytes": 4484118,
-          "sha256": "d290f66f9556466f4a2765dafffb53f360cc93709c833bd30f0bc2666ed314d3"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T084318Z/members-efd1b5847a87a8fb74ab04ca5eb9e1891efeb71d-linux-amd64.tar.gz",
+          "bytes": 4490276,
+          "sha256": "b868f295cb268c80237547a0f4b1e0511664f1073ac938ee17bf2ce9d6cda6ed"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T010914Z/members-22a8e92dd8a210d71fd775584cc8d5210b15da6d-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11090,
-          "sha256": "8fa987904fd4b68a6092a9d46bc596e679d4b98350067bbbe4ae94f6b76c911b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T084318Z/members-efd1b5847a87a8fb74ab04ca5eb9e1891efeb71d-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10996,
+          "sha256": "76b244db46d34e754338ce4cf15b357554d47433a846a6e7b89d4eb51c8fb9da"
         },
-        "signerCommit": "22a8e92dd8a210d71fd775584cc8d5210b15da6d"
+        "signerCommit": "efd1b5847a87a8fb74ab04ca5eb9e1891efeb71d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -594,13 +594,13 @@
         }
       },
       "changes": [
-        "モデル一覧を、席のClaudeのログインで読むようになりました。共通規範に、工程表（Lattice）を自分の作業で使う決まりを加えました。"
+        "コマンドの予定に「結果も知らせる」設定を足しました。終了コード0で終わると、結果を予定を持つBotだけへ届けます。終了コード75は「まだ終わっていない」として何も届けません。"
       ]
     },
     {
       "componentId": "members",
-      "sourceCommit": "22a8e92dd8a210d71fd775584cc8d5210b15da6d",
-      "versionId": "fd8e27b46e842cda953d90961c28bb184c45588e3013259cf8e21cb4789cc154",
+      "sourceCommit": "efd1b5847a87a8fb74ab04ca5eb9e1891efeb71d",
+      "versionId": "bb9f432c2c360e461d42e5d5729cd9e07784f2e47d53649089d2bd562ba46992",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -608,16 +608,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T010914Z/members-22a8e92dd8a210d71fd775584cc8d5210b15da6d-linux-arm64.tar.gz",
-          "bytes": 4484122,
-          "sha256": "fd8e27b46e842cda953d90961c28bb184c45588e3013259cf8e21cb4789cc154"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T084318Z/members-efd1b5847a87a8fb74ab04ca5eb9e1891efeb71d-linux-arm64.tar.gz",
+          "bytes": 4490277,
+          "sha256": "bb9f432c2c360e461d42e5d5729cd9e07784f2e47d53649089d2bd562ba46992"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T010914Z/members-22a8e92dd8a210d71fd775584cc8d5210b15da6d-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10953,
-          "sha256": "f23ab5f8108f13b85a3a66eca83eb0d2c3383400346b2091bd312260f792f6be"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T084318Z/members-efd1b5847a87a8fb74ab04ca5eb9e1891efeb71d-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11090,
+          "sha256": "3046a7f7e9c52ed79622efb097e7a96f2d4e430c4415c8dd31530ab612fc4750"
         },
-        "signerCommit": "22a8e92dd8a210d71fd775584cc8d5210b15da6d"
+        "signerCommit": "efd1b5847a87a8fb74ab04ca5eb9e1891efeb71d"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -634,7 +634,7 @@
         }
       },
       "changes": [
-        "モデル一覧を、席のClaudeのログインで読むようになりました。共通規範に、工程表（Lattice）を自分の作業で使う決まりを加えました。"
+        "コマンドの予定に「結果も知らせる」設定を足しました。終了コード0で終わると、結果を予定を持つBotだけへ届けます。終了コード75は「まだ終わっていない」として何も届けません。"
       ]
     },
     {
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "95a871f13eed957c27ff559bf51577248d24422a",
-      "versionId": "sha256:0c4867cc0cf18337979866d0677483528bf897aadac5242dc646ed95bbde87fb",
+      "sourceCommit": "efd1b5847a87a8fb74ab04ca5eb9e1891efeb71d",
+      "versionId": "sha256:91638b314e83de7b3de4457fab986b037ae3833acbb7f15d66ce74652ca101fc",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:0c4867cc0cf18337979866d0677483528bf897aadac5242dc646ed95bbde87fb"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:91638b314e83de7b3de4457fab986b037ae3833acbb7f15d66ce74652ca101fc"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,20 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "休んでいるBotにも、読むだけの問い合わせ（ask_readonly）ができるようにします（Aiterm 0.70.33）。端末の席を起こすのを断られた時に、理由のコードが返るようにします。"
+        "Aiterm を 0.70.36 にします。Claudeの席のゴールを会話の記録から読み、Aiterm全体を止めなくなります。静かな席が予定どおり閉じます。最初の確認画面で止まる席は理由を返して閉じます。初めてのローカルの席が手を出さずに答えます。コマンドの予定の結果を届けられるようにします。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "95a871f13eed957c27ff559bf51577248d24422a",
-      "versionId": "sha256:0c4867cc0cf18337979866d0677483528bf897aadac5242dc646ed95bbde87fb",
+      "sourceCommit": "efd1b5847a87a8fb74ab04ca5eb9e1891efeb71d",
+      "versionId": "sha256:91638b314e83de7b3de4457fab986b037ae3833acbb7f15d66ce74652ca101fc",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:0c4867cc0cf18337979866d0677483528bf897aadac5242dc646ed95bbde87fb"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:91638b314e83de7b3de4457fab986b037ae3833acbb7f15d66ce74652ca101fc"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,7 +748,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "休んでいるBotにも、読むだけの問い合わせ（ask_readonly）ができるようにします（Aiterm 0.70.33）。端末の席を起こすのを断られた時に、理由のコードが返るようにします。"
+        "Aiterm を 0.70.36 にします。Claudeの席のゴールを会話の記録から読み、Aiterm全体を止めなくなります。静かな席が予定どおり閉じます。最初の確認画面で止まる席は理由を返して閉じます。初めてのローカルの席が手を出さずに答えます。コマンドの予定の結果を届けられるようにします。"
       ]
     },
     {
