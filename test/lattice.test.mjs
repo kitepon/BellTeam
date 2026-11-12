@@ -363,8 +363,17 @@ test('core: run passes the seat id, parses JSON, falls back to stdout, and refus
   x.cli.out = { exitCode: 2, stdout: 'x'.repeat(100000), stderr: 'bad' }
   const text = await run(['help'])
   assert.deepEqual([text.exitCode, text.result, text.stdout.length, text.stderr], [2, null, 65536, 'bad'])
+  const refusal = { schema: 'lattice.cli_error.v2', code: 'DESIGN_MEMO_REQUIRED', detail: { pointer: '/tasks/0/design_memo', next_action: 'lattice plan create --json' } }
+  x.cli.out = { exitCode: 1, stdout: '', stderr: JSON.stringify(refusal) }
+  assert.deepEqual((await run(['plan', 'create', '--json'], { a: 1 })).result, refusal, 'a refusal on stderr is the result')
+  x.cli.out = { exitCode: 1, stdout: 'Usage', stderr: JSON.stringify(refusal) }
+  assert.deepEqual([(await run(['help'])).result, (await run(['help'])).stdout], [null, 'Usage'], 'stdout text wins over stderr')
   x.cli.out = { exitCode: 0, stdout: 'null', stderr: '' }
-  assert.deepEqual((await run(['status'])).result, null)
+  assert.deepEqual(await run(['status']), { exitCode: 0, result: null, stdout: null, stderr: '' }, 'JSON null on stdout is a parsed result')
+  x.cli.out = { exitCode: 1, stdout: 'null', stderr: JSON.stringify(refusal) }
+  assert.deepEqual([(await run(['status'])).result, (await run(['status'])).stdout], [null, null], 'JSON null on stdout wins over stderr')
+  x.cli.out = { exitCode: 1, stdout: '', stderr: 'plain text' }
+  assert.deepEqual(await run(['status']), { exitCode: 1, result: null, stdout: '', stderr: 'plain text' }, 'non-JSON stderr is not a result')
   const before = x.cli.ensured.length
   await assert.rejects(run(['setup'], null, 'other'), { code: 'LATTICE_COMMAND_NOT_SEAT_SURFACE', status: 400 })
   await assert.rejects(run(['plan', 'create', '--input', 'f'], { a: 1 }, 'other'), { code: 'LATTICE_INPUT_CONFLICT' })
@@ -381,7 +390,7 @@ async function scratch(t) {
 const argv = process.argv.slice(2), i = argv.indexOf('--input')
 console.log(JSON.stringify({ argv, env: process.env, cwd: process.cwd(), input: i < 0 ? null : JSON.parse(readFileSync(argv[i + 1], 'utf8')),
   mode: i < 0 ? null : statSync(argv[i + 1]).mode & 0o777 }))
-if (argv[0] === 'help') console.error('e'.repeat(10000))`)
+if (argv[0] === 'help') console.error('e'.repeat(70000))`)
   return { root, bin, chartsRoot: join(root, 'charts'), home: join(root, 'home') }
 }
 
@@ -404,7 +413,7 @@ test('cli: real process runs in the chart dir with exactly the agreed env, then 
   assert.deepEqual([withInput.argv[0], withInput.argv[1], withInput.argv[2], withInput.input, withInput.mode], ['plan', 'create', '--input', { title: '日本語' }, 0o600])
   assert.equal(existsSync(withInput.argv[3]), false)
   const loud = await cli.run({ id: 'alpha', args: ['help'] })
-  assert.equal(loud.stderr.length, 4096)
+  assert.equal(loud.stderr.length, 64 * 1024)
   assert.deepEqual(await cli.meta('alpha'), { name: null, createdBy: null })
   await cli.setMeta('alpha', { name: '工程表' }); await cli.setMeta('alpha', { createdBy: 'bot-a' })
   assert.deepEqual(await cli.meta('alpha'), { name: '工程表', createdBy: 'bot-a' }, 'fields merge')
@@ -519,15 +528,15 @@ test('cli: a hung process is killed at the timeout and the next call runs', asyn
   assert.deepEqual((await createLatticeCli({ bin: '/x', chartsRoot, spawnImpl: fine.impl }).run({ id: 'alpha', args: ['status'] })).exitCode, 3)
 })
 
-test('cli: stdout keeps the first MiB, stderr the last 4 KiB, spawn errors are a result', async t => {
+test('cli: stdout keeps the first MiB, stderr the last 64 KiB, spawn errors are a result', async t => {
   const chartsRoot = await chartsWithAlpha(t)
   const big = fakeSpawn(child => {
     for (let i = 0; i < 3; i++) child.stdout.emit('data', Buffer.alloc(700 * 1024, 'a'))
-    child.stderr.emit('data', Buffer.from('x'.repeat(5000))); child.stderr.emit('data', Buffer.from('tail'))
+    child.stderr.emit('data', Buffer.from('x'.repeat(70000))); child.stderr.emit('data', Buffer.from('tail'))
     child.emit('close', 0)
   })
   const result = await createLatticeCli({ bin: '/x', chartsRoot, spawnImpl: big.impl }).run({ id: 'alpha', args: ['status'] })
-  assert.deepEqual([result.stdout.length, result.stderr.length, result.stderr.endsWith('tail')], [1024 * 1024, 4096, true])
+  assert.deepEqual([result.stdout.length, result.stderr.length, result.stderr.endsWith('tail')], [1024 * 1024, 64 * 1024, true])
   const broken = fakeSpawn(child => child.emit('error', new Error('ENOENT')))
   assert.deepEqual(await createLatticeCli({ bin: '/x', chartsRoot, spawnImpl: broken.impl }).run({ id: 'alpha', args: ['status'] }), { exitCode: null, stdout: '', stderr: 'LATTICE_CLI_SPAWN_FAILED' })
 })
