@@ -10,6 +10,7 @@ export const latticeTools = [
       '例: ["session-context"]、["status"]、["plan","create","--template","--json"]（plan create の input のひな形。--json が要る）、["todo","start","--plan","p1","--task","t01"]、' +
       '["todo","note","--plan","p1","--task","t01","--message","..."]。' +
       '工程を1件足す: ["todo","add","--plan","p1","--task","t23","--title","...","--lane","<担当のBot ID>","--after","t10"]（計画全体を送り直さない）。1件取り下げる: ["todo","retire","--plan","p1","--task","t23","--reason","..."]。' +
+      '作業がぶつからないかの確かめ（witness の計画）で自分の工程が触るファイルを申告する: ["todo","independence","witness","declare","--plan","p1","--task","t23","--owns","src/a.mjs,src/b.mjs","--reads","docs/x.md"]（自分の行だけ書く。全員がそろうと自動で判定し、そろうまでは waiting_for に未申告の工程が出る）。' +
       '迷ったら ["help"] を呼ぶ。着手は todo start のように、誰が何を作っているかが工程表に残る。' +
       'input は JSON ファイルを受け取るコマンド（plan create / plan revise / plan backchain）に渡す JSON オブジェクト。args に --input を書かない（自動で付く）。工程の lane は担当で、メンバーのBot IDか名前（例: bot-09e6225c、キロ）を書くと画面に顔と名前が出る。それ以外の文字はそのまま担当として出る。' +
       '結果は {exitCode, result, stdout, stderr}。result は Lattice 自身の JSON で、断られた時も通常の結果として code と next_action（次にすること）が入るので、その指示に従って呼び直す。result が null の時は stdout の文章を読む。',
