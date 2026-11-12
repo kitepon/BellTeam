@@ -14,7 +14,7 @@ using BellTeam.Core;
 
 namespace BellTeam.Linux;
 
-public sealed class MainWindow : Window
+public sealed partial class MainWindow : Window, IInspectorHost
 {
     private readonly LinuxWorkspace model;
     private readonly SettingsStore settingsStore;
@@ -109,7 +109,7 @@ public sealed class MainWindow : Window
         nav = navButtons.ToArray();
         WireModel(); UpdateAll();
         AddHandler(KeyDownEvent, WindowKeyDown, RoutingStrategies.Tunnel);
-        Closed += (_, _) => { CancelStartupRetry(); CloseGallery(); };
+        Closed += (_, _) => { CancelStartupRetry(); CloseGallery(); CloseSheet(); CloseMemberWindows(); };
         if (persistPlacement) RestorePlacement();
     }
 
@@ -137,31 +137,31 @@ public sealed class MainWindow : Window
 
     private Control BuildRoot(List<Button> navButtons)
     {
-        var main = new Grid { ColumnDefinitions = new ColumnDefinitions("340,5,*") };
+        var main = new Grid { ColumnDefinitions = new ColumnDefinitions("340,5,*,0") };
         var sidebar = BuildSidebar(navButtons);
         main.ColumnDefinitions[0].MinWidth = 320; main.ColumnDefinitions[0].MaxWidth = 420;
         main.Children.Add(sidebar);
         var splitter = new GridSplitter { Width = 5, Background = Brushes.Transparent, ResizeDirection = GridResizeDirection.Columns, ResizeBehavior = GridResizeBehavior.PreviousAndNext }; AutomationProperties.SetName(splitter, "サイドバーの幅");
         Grid.SetColumn(splitter, 1); main.Children.Add(splitter);
         BuildConversation();
-        Grid.SetColumn(conversationArea, 2); Grid.SetColumn(pageArea, 2); main.Children.Add(conversationArea); main.Children.Add(pageArea);
+        Grid.SetColumn(conversationArea, 2); Grid.SetColumn(pageArea, 2); Grid.SetColumnSpan(pageArea, 2); main.Children.Add(conversationArea); main.Children.Add(pageArea);
+        AddInspector(main);
         // Mac bottom banner (safeAreaInset): a centred red caption on material. Linux keeps 再接続 and 接続先 next to it.
         var buttons = new StackPanel { Orientation = Orientation.Horizontal }; DockPanel.SetDock(buttons, Dock.Right); buttons.Children.Add(changeServer); buttons.Children.Add(reconnect);
         var stripTop = new DockPanel { Children = { buttons, connectionError } };
         errorStrip.Child = new StackPanel { Children = { stripTop, actionError } };
         Grid.SetRow(errorStrip, 1);
         // Sheet: Mac bellEditorSheet, min 720x540, ideal 820x680, shrinks to fit the window.
-        var closeSheet = new Button { Classes = { "plain" }, Content = "閉じる", Padding = new Thickness(16, 7), CornerRadius = new CornerRadius(99), FontWeight = FontWeight.Normal, Foreground = BellTheme.Ink, Background = new SolidColorBrush(Color.Parse("#80FFFFFF")), BorderBrush = new SolidColorBrush(Color.Parse("#C9C4DE")), BorderThickness = new Thickness(1), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
-        AutomationProperties.SetName(closeSheet, "閉じる"); closeSheet.Click += (_, _) => CloseSheet();
-        var header = new Grid { Height = 52, Background = new SolidColorBrush(Color.Parse("#F2F2F7")), Children = { closeSheet, sheetTitle } };
+        sheetClose.Click += (_, _) => CloseFromSheetHeader(); sheetSaveButton.Click += (_, _) => { if (sheetSave is { CanSave: true } save) _ = save.SaveAsync(); };
+        var header = new Grid { Height = 52, Background = new SolidColorBrush(Color.Parse("#F2F2F7")), Children = { sheetClose, sheetSaveButton, sheetTitle } };
         var line = new Border { Height = 1, Background = new SolidColorBrush(Color.Parse("#E6E6EB")) };
         DockPanel.SetDock(header, Dock.Top); DockPanel.SetDock(line, Dock.Top);
         sheetFrame.Margin = new Thickness(24); sheetFrame.MinWidth = 720; sheetFrame.MinHeight = 540; sheetFrame.MaxWidth = 820; sheetFrame.MaxHeight = 680; sheetFrame.Background = new SolidColorBrush(Color.Parse("#F2F2F7")); sheetFrame.CornerRadius = new CornerRadius(14); sheetFrame.ClipToBounds = true; sheetFrame.BoxShadow = BoxShadows.Parse("0 8 30 0 #40000000");
         sheetFrame.Child = new DockPanel { Children = { header, line, sheetHost } };
         sheet.Children.Add(sheetFrame);
         var root = new Grid { RowDefinitions = new RowDefinitions("*,Auto"), Background = BellTheme.Canvas };
-        Grid.SetRowSpan(startupHost, 2); Grid.SetRowSpan(sheet, 2); Grid.SetRowSpan(galleryHost, 2);
-        root.Children.Add(main); root.Children.Add(errorStrip); root.Children.Add(startupHost); root.Children.Add(sheet); root.Children.Add(galleryHost);
+        Grid.SetRowSpan(startupHost, 2); Grid.SetRowSpan(sheet, 2); Grid.SetRowSpan(galleryHost, 2); Grid.SetRowSpan(cropSheet, 2);
+        root.Children.Add(main); root.Children.Add(errorStrip); root.Children.Add(startupHost); root.Children.Add(sheet); root.Children.Add(cropSheet); root.Children.Add(galleryHost);
         return root;
     }
 
@@ -170,9 +170,8 @@ public sealed class MainWindow : Window
         var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12, Children = { Icons.Draw(Icons.PlusCircle, 20, BellTheme.Ink), Icons.Draw(Icons.ChevronDown, 12, BellTheme.Ink) } };
         var button = new Button { Classes = { "plain" }, Background = new SolidColorBrush(Color.Parse("#1F767680")), Padding = new Thickness(12, 6), Foreground = BellTheme.Ink, VerticalAlignment = VerticalAlignment.Center, Content = content };
         AutomationProperties.SetName(button, "追加"); ToolTip.SetTip(button, "追加");
-        // Placeholders: the member and room sheets are not ported yet.
-        var addMember = new MenuItem { Header = "メンバーを追加" }; addMember.Click += (_, _) => model.ReportActionError("メンバーの追加はLinux版ではまだ使えません。");
-        var addRoom = new MenuItem { Header = "ルームを作成" }; addRoom.Click += (_, _) => model.ReportActionError("ルームの作成はLinux版ではまだ使えません。");
+        var addMember = new MenuItem { Header = "メンバーを追加" }; addMember.Click += (_, _) => ShowMemberSheet();
+        var addRoom = new MenuItem { Header = "ルームを作成" }; addRoom.Click += (_, _) => ShowRoomSheet(null);
         button.Flyout = new MenuFlyout { Items = { addMember, addRoom }, Placement = PlacementMode.BottomEdgeAlignedRight };
         return button;
     }
@@ -215,7 +214,7 @@ public sealed class MainWindow : Window
     private Button BuildExport()
     {
         // Mac window toolbar button: a violet filled circle with a white glyph.
-        var button = new Button { Classes = { "plain" }, Width = 38, Height = 38, Padding = default, CornerRadius = new CornerRadius(19), Background = BellTheme.Violet, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 7, 10, 0), HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center, Content = Icons.Draw(Icons.Export, 20, Brushes.White), IsVisible = false, ZIndex = 5 };
+        var button = new Button { Classes = { "plain" }, Width = 38, Height = 38, Padding = default, CornerRadius = new CornerRadius(19), Background = BellTheme.Violet, HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center, Content = Icons.Draw(Icons.Export, 20, Brushes.White) };
         AutomationProperties.SetName(button, "会話を書き出す"); ToolTip.SetTip(button, "会話を書き出す"); button.Click += async (_, _) => await ExportAsync(); return button;
     }
     private Button BuildReplyTarget()
@@ -280,8 +279,7 @@ public sealed class MainWindow : Window
         var pill = new Border { Background = BellTheme.Canvas, BorderBrush = BellTheme.Line, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(24), Padding = new Thickness(8, 5), Child = input };
         var band = new Border { Background = BellTheme.BandFill, Child = new StackPanel { Margin = new Thickness(15, 11, 15, 8), Children = { stopNoticeBox, sendError, attachmentScroll, replyTarget, pill } } };
         Grid.SetRow(band, 2);
-        conversationArea.Children.Add(seatLaunchBar); conversationArea.Children.Add(messageScroll); conversationArea.Children.Add(welcome); conversationArea.Children.Add(loadingSpinner); conversationArea.Children.Add(emptyConversation); conversationArea.Children.Add(failedConversation); conversationArea.Children.Add(latest); conversationArea.Children.Add(band); conversationArea.Children.Add(exportButton);
-        Grid.SetColumnSpan(exportButton, 1);
+        conversationArea.Children.Add(seatLaunchBar); conversationArea.Children.Add(messageScroll); conversationArea.Children.Add(welcome); conversationArea.Children.Add(loadingSpinner); conversationArea.Children.Add(emptyConversation); conversationArea.Children.Add(failedConversation); conversationArea.Children.Add(latest); conversationArea.Children.Add(band);
     }
 
     // ---- model wiring ----
@@ -297,9 +295,10 @@ public sealed class MainWindow : Window
         switch (name)
         {
             case nameof(LinuxWorkspace.NeedsLogin): if (model.NeedsLogin && !connecting) RouteToLogin(); break;
-            case nameof(LinuxWorkspace.Connected): UpdateNav(); break;
+            case nameof(LinuxWorkspace.Connected): UpdateNav(); if (!model.Connected) CloseMemberWindows(); break;
             case nameof(LinuxWorkspace.Selected): UpdateSelection(); unreadNew = false; break;
-            case nameof(LinuxWorkspace.IsRoom): UpdateComposerBand(); break;
+            case nameof(LinuxWorkspace.IsRoom): UpdateComposerBand(); ProfileLayout(); break;
+            case nameof(LinuxWorkspace.ScreenVisible): UpdateInspectorPanels(); break;
             case nameof(LinuxWorkspace.Loading) or nameof(LinuxWorkspace.LoadFailed) or nameof(LinuxWorkspace.Title): UpdateWelcome(); break;
             case nameof(LinuxWorkspace.HasActivity) or nameof(LinuxWorkspace.ActivityRows) or nameof(LinuxWorkspace.StopEnabled): UpdateQueue(); UpdateWelcome(); UpdateComposerBand(); break;
             case nameof(LinuxWorkspace.CurrentBotCanStop): UpdateComposerBand(); break;
@@ -358,7 +357,8 @@ public sealed class MainWindow : Window
         UpdateWelcome(); UpdateComposerBand(); UpdateCorner();
     }
     // Mac toolbar: the export belongs to the conversation, so a page or an empty window shows none.
-    private void UpdateCorner() => exportButton.IsVisible = conversationArea.IsVisible && model.HasSelection;
+    // The inspector follows the same rule: it belongs to the conversation and to a selection.
+    private void UpdateCorner() { cornerButtons.IsVisible = conversationArea.IsVisible && model.HasSelection; ProfileLayout(); }
 
     // Mac ConversationContent: spinner while the first read runs, then the empty or failed state when there is nothing (not even a queue line) to show.
     private void UpdateWelcome()
@@ -626,12 +626,13 @@ public sealed class MainWindow : Window
     }
 
     // ---- sheet and gallery ----
-    private void OpenSheet(string title, Control content)
+    public void OpenSheet(string title, Control content)
     {
+        BeforeSheetOpens(content);
         sheetTitle.Text = title; AutomationProperties.SetName(sheetFrame, title);
         sheetHost.Content = content; sheet.IsVisible = true; sheet.Focus();
     }
-    private void CloseSheet() { sheetHost.Content = null; sheet.IsVisible = false; }
+    private void CloseSheet() { AfterSheetCloses(); sheetHost.Content = null; sheet.IsVisible = false; }
     // The image gallery covers the whole window (Mac fullScreenCover). Opening it again replaces the one that is open.
     public ImageGallery ShowGallery(string[] paths, int initial)
     {
@@ -650,8 +651,10 @@ public sealed class MainWindow : Window
     private void WindowKeyDown(object? sender, KeyEventArgs e)
     {
         if (Gallery is { } gallery) { if (e.KeyModifiers == KeyModifiers.None && gallery.HandleKey(e.Key)) e.Handled = true; return; }
-        if (sheet.IsVisible) { if (e.Key == Key.Escape) { CloseSheet(); e.Handled = true; } return; }
+        if (cropSheet.IsVisible) { if (e.Key == Key.Escape) { CloseCropSheet(null); e.Handled = true; } return; }
+        if (sheet.IsVisible) { if (e.Key == Key.Escape) { EscapeSheet(); e.Handled = true; } return; }
         if (startupHost.IsVisible) return;
+        if (e.Key == Key.I && e.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Shift)) { ToggleInspector(); e.Handled = true; return; }
         if (e.KeyModifiers == KeyModifiers.Control)
         {
             switch (e.Key)
@@ -686,7 +689,7 @@ public sealed class MainWindow : Window
         for (var round = 0; round < 3; round++)
         {
             Dispatcher.UIThread.RunJobs();
-            var loads = this.GetVisualDescendants().SelectMany(item => item switch { AvatarTile tile => [tile.LoadTask], RemoteImage image => [image.LoadTask], _ => Array.Empty<Task>() }).ToArray();
+            var loads = this.GetVisualDescendants().SelectMany(item => item switch { AvatarTile tile => [tile.LoadTask], RemoteImage image => [image.LoadTask], ProfileView profile => [profile.LoadTask], _ => Array.Empty<Task>() }).ToArray();
             await Task.WhenAll(loads); await Task.Yield();
         }
         UpdateLayout();

@@ -51,5 +51,5 @@ public sealed class AvatarTile : Border
         }
     }
     // Mac person.3.fill: three heads over three rounded bodies.
-    private static readonly Geometry RoomSymbol = StreamGeometry.Parse(Icons.Disc(12, 9, 3.5) + Icons.Disc(22, 7, 4) + Icons.Disc(32, 9, 3.5) + Icons.RoundedRect(6, 15, 12, 10, 4) + Icons.RoundedRect(14, 14, 16, 12, 5) + Icons.RoundedRect(26, 15, 12, 10, 4));
+    internal static readonly Geometry RoomSymbol = StreamGeometry.Parse(Icons.Disc(12, 9, 3.5) + Icons.Disc(22, 7, 4) + Icons.Disc(32, 9, 3.5) + Icons.RoundedRect(6, 15, 12, 10, 4) + Icons.RoundedRect(14, 14, 16, 12, 5) + Icons.RoundedRect(26, 15, 12, 10, 4));
 }
