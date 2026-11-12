@@ -6,7 +6,7 @@ Input for this document: the production capture and review by Trony (2026-11-11,
 
 Apple keeps the same structure for Settings in [apple/settings-user-flow.md](../apple/settings-user-flow.md) (Rapi, branch `rapi/apple-auth-states`). Where both apps show the same thing, the words, badges and order are the same (section 9).
 
-Marks: **⚠Wn** = broken today (main 1e835b36), to be fixed. **✓Wn** = fixed (W5-W18, W21 and W24 in step 2a, branch `feat/web-home-roster-20261112`; W19-W20, W22-W23 and W25-W28 in step 2b-1, branch `feat/web-member-chat-20261112`; W29-W36 in step 2b-2, branch `feat/web-cards-room-20261112`; W60-W63 in step 3, branch `feat/web-update-center-20261112`; W64-W72 in step 4a, branch `feat/web-schedules-editors-20261112`; W73-W83 in step 4b, branch `feat/web-editors-20261112`). **→** = target. A transition without ⚠ already works and stays.
+Marks: **⚠Wn** = broken today (main 1e835b36), to be fixed. **✓Wn** = fixed (W5-W18, W21 and W24 in step 2a, branch `feat/web-home-roster-20261112`; W19-W20, W22-W23 and W25-W28 in step 2b-1, branch `feat/web-member-chat-20261112`; W29-W36 in step 2b-2, branch `feat/web-cards-room-20261112`; W60-W63 in step 3, branch `feat/web-update-center-20261112`; W64-W72 in step 4a, branch `feat/web-schedules-editors-20261112`; W73-W83 in step 4b, branch `feat/web-editors-20261112`; W84-W86 in step 4c, branch `feat/web-onboarding-20261112`). Settings W37-W59 (section 4) were built in #1085 (live 2026-11-12, accepted by Trony on production shots); their marks are kept as written before that build. **→** = target. A transition without ⚠ already works and stays.
 
 ## 0. Rules every screen follows (acceptance bar)
 
@@ -491,7 +491,7 @@ stateDiagram-v2
 - ✓W74 「セッションを再起動」 has no confirmation and its failure is written only to the chat header behind the modal (`bot-editor.js:377-386`). → Label 「会話をやり直す」, confirmation, result in the bar. Built: asks with the member's name; the button says 「やり直しています…」; a failure is written in the save bar; success closes the editor and the chat header says 「会話をやり直しました」.
 - ✓W75 Help texts in system words (「保存した希望設定と、稼働中の適用状態を区別して表示します」, 「CLIの既定（読み込み中…）」); no badge for the applied state. → A badge 「反映済み」 / 「反映待ち」 / 「反映できませんでした」 next to the AI section title, one plain sentence. Built: labels 「AI」 / 「モデル」 / 「考える深さ」, 「標準」 instead of 「CLIの既定」; an offline member with no pending change has no badge and 「次に動き出す時から、この設定で動きます。」; the 端末 choice shows the terminal name only.
 - ✓W76 The add form on PC has no 動かす場所 section while the phone has one. → The section shows whenever `GET /api/terminals` works, on every width (check the PC read path). Checked: the read path has no width condition; the step 4b Chromium review shows the section on the PC add form when `/api/terminals` answers. Not reproduced; if it recurs, the cause is the terminals read, not the layout.
-- ⚠W77 Mojibake 「電��」 in a stored profile text. → Report to the members owner with the bot id (server data), Web shows the text as served. Reported to ベロータ 2026-11-12: bot-7b140b27 profileText, bot-12338c15 speechStyle, bot-7696018a speechStyle contain U+FFFD.
+- ✓W77 Mojibake 「電��」 in a stored profile text. → Report to the members owner with the bot id (server data), Web shows the text as served. Reported to ベロータ 2026-11-12: bot-7b140b27 profileText, bot-12338c15 speechStyle, bot-7696018a speechStyle contained U+FFFD. Repaired by ベロータ the same day from each writer's original input (電気 / 指揮官、 / 呼びかける); the damage came from a 2026-09 save path that split a 3-byte character at a chunk boundary, and the current members read/write paths decode whole buffers.
 - ✓ 記憶と知識 and キャラクターシート moved to the member's 「…」 menu in the chat (hidden in rooms); the form no longer has them.
 
 ### 7.2 Room editor and add room
@@ -538,9 +538,9 @@ stateDiagram-v2
   Login --> HomeLater: 「あとで設定する」
 ```
 
-- ⚠W84 (O1-O3, review §9) Every stage shows the same primary 「認証を確認して始める」 plus 「認証の状態を更新」; the real next step is a link or a native button elsewhere; no step indicator; 「使う AI を変更」 is a ▶ fold; `not_started` says 「認証ボタンを押すと…」 but no such button exists (`onboarding.js`, `auth-flow.js:4-6`). → Stepper 1 AIを選ぶ / 2 ログイン / 3 始める; one primary per stage as in the diagram.
-- ⚠W85 After a poll error, polling stops until a button is pressed (`onboarding.js:46-70`). → The error sentence carries 「もう一度試す」 which restarts polling.
-- ⚠W86 (O5) paste_code: a black outline around the dialog; phone 「あとで設定する」 cut off at the bottom. → Sheet fits or scrolls.
+- ✓W84 (O1-O3, review §9) Every stage shows the same primary 「認証を確認して始める」 plus 「認証の状態を更新」; the real next step is a link or a native button elsewhere; no step indicator; 「使う AI を変更」 is a ▶ fold; `not_started` says 「認証ボタンを押すと…」 but no such button exists (`onboarding.js`, `auth-flow.js:4-6`). → Stepper 1 AIを選ぶ / 2 ログイン / 3 始める; one primary per stage as in the diagram. Built: 「ログインを始める」 (not_started) re-selects the same AI, which starts a new login (`POST /api/setup/harness`); open_url / device_code show the site link as the primary and a quiet 「ログインを確かめる」 (`GET /api/setup`); paste_code has 「ログインを完了」; complete has 「始める」 (`POST /api/setup/start`); a failed or unknown stage has 「もう一度試す」. 「別のAIを選ぶ」 shows the tiles again with 「〜のまま進める」.
+- ✓W85 After a poll error, polling stops until a button is pressed (`onboarding.js:46-70`). → The error sentence carries 「もう一度試す」 which restarts polling. Built: an amber box with the sentence and 「もう一度試す」 (reads `/api/setup`, then the 3 s checks resume).
+- ✓W86 (O5) paste_code: a black outline around the dialog; phone 「あとで設定する」 cut off at the bottom. → Sheet fits or scrolls. Built: max height = viewport − 16 px with scrolling, no focus outline on the dialog, 「あとで設定する」 centred at the end.
 
 ## 9. Same as Apple
 
