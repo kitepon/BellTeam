@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-12T12:07:40Z",
-  "expiresAt": "2026-11-19T12:07:40Z",
+  "publishedAt": "2026-11-12T13:14:39Z",
+  "expiresAt": "2026-11-19T13:14:39Z",
   "releases": [
     {
       "componentId": "usage",
@@ -753,8 +753,8 @@
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "5966688a5330505373f7afc3f0cf40bd3ada098b",
-      "versionId": "b337fb498ba1888ea66ba897b6895c1134a9418be6df7cff616c7c27e09de29c",
+      "sourceCommit": "3cf28d8264ce542602b4c93a5c640321e5787d80",
+      "versionId": "97c218556a0772d5333e06dcc26379eb7c39a55bc2c810832a6f65dfb1e10eb5",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -762,16 +762,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T120622Z/lattice-5966688a5330505373f7afc3f0cf40bd3ada098b-linux-amd64.tar.gz",
-          "bytes": 15258458,
-          "sha256": "b337fb498ba1888ea66ba897b6895c1134a9418be6df7cff616c7c27e09de29c"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T131240Z/lattice-3cf28d8264ce542602b4c93a5c640321e5787d80-linux-amd64.tar.gz",
+          "bytes": 15260600,
+          "sha256": "97c218556a0772d5333e06dcc26379eb7c39a55bc2c810832a6f65dfb1e10eb5"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T120622Z/lattice-5966688a5330505373f7afc3f0cf40bd3ada098b-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11137,
-          "sha256": "e0f8e564bca438321e397a47a267873a03c4a50cfea0a75dabe91ab70ffa201f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T131240Z/lattice-3cf28d8264ce542602b4c93a5c640321e5787d80-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10949,
+          "sha256": "f0cf4b2cea71a2eaf6905e1d9d57229d4d931481c1a4fe10ca8b6ce79f6b3faf"
         },
-        "signerCommit": "5966688a5330505373f7afc3f0cf40bd3ada098b"
+        "signerCommit": "3cf28d8264ce542602b4c93a5c640321e5787d80"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -783,13 +783,13 @@
         }
       },
       "changes": [
-        "工程表（Lattice）を 0.94.0 にします。中身がまだ無い工程表を開いた時に、壊れているとは言わず「まだ作られていない」と返します。"
+        "工程表（Lattice）を 0.95.0 にします。中身がまだ無い工程表でも表示がエラーで止まらず、工程表ができたら自動で読み直します。準備ができた作業を読み出す「声かけ」の読み取りが入ります（自動で声をかける仕組みは後の更新です）。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "5966688a5330505373f7afc3f0cf40bd3ada098b",
-      "versionId": "7be52aed4ae1c33607cb573eaf37282a0748d8f6d98ef176872a3dfa8cd0276d",
+      "sourceCommit": "3cf28d8264ce542602b4c93a5c640321e5787d80",
+      "versionId": "2110aae778dc20ff56dcc95f8a397739bfdeb5414953b8f1f547a6b726fad00b",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -797,16 +797,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T120622Z/lattice-5966688a5330505373f7afc3f0cf40bd3ada098b-linux-arm64.tar.gz",
-          "bytes": 15258456,
-          "sha256": "7be52aed4ae1c33607cb573eaf37282a0748d8f6d98ef176872a3dfa8cd0276d"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T131240Z/lattice-3cf28d8264ce542602b4c93a5c640321e5787d80-linux-arm64.tar.gz",
+          "bytes": 15260593,
+          "sha256": "2110aae778dc20ff56dcc95f8a397739bfdeb5414953b8f1f547a6b726fad00b"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T120622Z/lattice-5966688a5330505373f7afc3f0cf40bd3ada098b-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11047,
-          "sha256": "237059f68f5c260ab24b526eeab66dcde4b7c48d9e72570014e9a0dfbfc7ae29"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T131240Z/lattice-3cf28d8264ce542602b4c93a5c640321e5787d80-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10996,
+          "sha256": "dd5cd8407b4844f9e2ea28e3846562ec601d201fb170805060b2d177b7b63d11"
         },
-        "signerCommit": "5966688a5330505373f7afc3f0cf40bd3ada098b"
+        "signerCommit": "3cf28d8264ce542602b4c93a5c640321e5787d80"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -818,7 +818,7 @@
         }
       },
       "changes": [
-        "工程表（Lattice）を 0.94.0 にします。中身がまだ無い工程表を開いた時に、壊れているとは言わず「まだ作られていない」と返します。"
+        "工程表（Lattice）を 0.95.0 にします。中身がまだ無い工程表でも表示がエラーで止まらず、工程表ができたら自動で読み直します。準備ができた作業を読み出す「声かけ」の読み取りが入ります（自動で声をかける仕組みは後の更新です）。"
       ]
     }
   ],
