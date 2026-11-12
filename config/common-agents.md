@@ -111,7 +111,8 @@ SECTION lattice
     WHEN: you work on a chart task  DO: todo start it first and read its advisory.
     DO: record decisions and milestones with todo note in plain words the Owner can read; todo block when stuck.
     DO: close with todo done and the evidence (PR URL and merge sha, or what you verified).
-    WHEN: your work is not on a chart  DO: ask the coordinator to add it.
+    WHEN: your work belongs on the coordinator's chart but is not on it  DO: ask the coordinator to add it.
+    WHEN: your work is closed within your own scope  DO: create your own chart and add it yourself.
   RULE lattice.conflicts
     WHEN: your task changes source in a plan the coordinator set to witness  DO: keep your task's owns/reads/writes declared.
     WHEN: the advisory lists conflicts_with_active  DO: settle it with that task's owner or the coordinator before editing the shared files.
