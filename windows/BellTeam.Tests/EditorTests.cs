@@ -89,7 +89,7 @@ public sealed class EditorTests
             Assert.Equal(1, deletes); Assert.Contains(EditorText.DeleteUnconfirmed, Texts(editor).Select(text => text.Text));
             Assert.Contains(Texts(editor), text => text.Text.StartsWith("操作の結果を確認できませんでした。再操作する前に、現在の状態を更新して確認してください。"));
             Assert.False(editor.CanSave); Assert.Equal("閉じる", editor.CloseLabel);
-            Assert.DoesNotContain(Buttons(editor), button => button.Content as string == "メンバーを削除"); Assert.Contains(Buttons(editor), button => button.Content as string == "削除結果を確認");
+            Assert.DoesNotContain(Buttons(editor), button => System.Windows.Automation.AutomationProperties.GetName(button) == "メンバーを削除"); Assert.Contains(Buttons(editor), button => button.Content as string == "削除結果を確認");
             Await(editor.DeleteAsync()); Assert.Equal(1, deletes);
             Await(editor.ConfirmDeletionAsync());
             Assert.Contains(EditorText.DeleteStillListed, Texts(editor).Select(text => text.Text)); Assert.Equal(1, deletes);
@@ -172,7 +172,7 @@ public sealed class EditorTests
             Assert.Contains(EditorText.ImagesNeedServerUpdate, Texts(created).Select(text => text.Text)); Assert.DoesNotContain("メンバーを削除", labels);
             Assert.All(new[] { "小画像を再調整", "大画像を再調整" }, label => Assert.False(Buttons(created).Single(button => button.Content as string == label).IsEnabled));
             var edited = new MemberEditorView(workspace, "bot-bell"); Await(edited.InitializeAsync());
-            Assert.DoesNotContain(Buttons(edited), button => button.Content as string == "小画像を再調整"); Assert.Contains(Buttons(edited), button => button.Content as string == "メンバーを削除");
+            Assert.DoesNotContain(Buttons(edited), button => button.Content as string == "小画像を再調整"); Assert.Contains(Buttons(edited), button => System.Windows.Automation.AutomationProperties.GetName(button) == "メンバーを削除");
             Assert.Equal("キャンセル", edited.CloseLabel); Assert.Equal("保存", edited.SaveLabel);
             created.Dispose(); edited.Dispose();
         });
@@ -222,12 +222,67 @@ public sealed class EditorTests
             var editor = new RoomEditorView(workspace, "room-work"); Await(editor.InitializeAsync());
             string[] Offered() => editor.RepresentativePicker.ItemsSource.Cast<FormOption>().Select(option => option.Id).ToArray();
             Assert.Equal(new[] { "", "bot-bell" }, Offered()); Assert.Equal("bot-bell", editor.RepresentativePicker.SelectedValue);
-            Assert.Equal(new[] { "ベル 開発", "ミカ" }, editor.Members.Select(item => (string)item.Choice.Content).ToArray());
-            editor.Members[1].Choice.IsChecked = true; Assert.Equal(new[] { "", "bot-bell", "bot-two" }, Offered());
+            Tap(editor, "すべてのメンバーから選ぶ（1人）"); Tap(editor, "ミカを加える"); Assert.Equal(new[] { "", "bot-bell", "bot-two" }, Offered());
             Assert.Equal(new[] { "代表なし", "ベル 開発", "ミカ" }, editor.RepresentativePicker.ItemsSource.Cast<FormOption>().Select(option => option.Label).ToArray());
-            editor.Members[0].Choice.IsChecked = false; Assert.Equal(new[] { "", "bot-two" }, Offered()); Assert.Equal("", editor.RepresentativePicker.SelectedValue);
-            Assert.Contains(Buttons(editor), button => button.Content as string == "ルームを削除"); Assert.Contains(EditorText.RoomDeleteFooter, Texts(editor).Select(text => text.Text));
+            Tap(editor, "ベル 開発を外す"); Assert.Equal(new[] { "", "bot-two" }, Offered()); Assert.Equal("", editor.RepresentativePicker.SelectedValue);
+            Assert.Contains(Buttons(editor), button => System.Windows.Automation.AutomationProperties.GetName(button) == "ルームを削除"); Assert.Contains(EditorText.RoomDeleteFooter, Texts(editor).Select(text => text.Text));
             editor.Dispose();
+        });
+    }
+
+    private static void Tap(DependencyObject root, string name) => Buttons(root).Single(button => System.Windows.Automation.AutomationProperties.GetName(button) == name).RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+
+    // Mac RoomEditor: the room's members with a remove row each, a search over the others, and a plus row each; the saved ids are the same as before.
+    [Fact]
+    public void RoomMembersAreSearchedAddedAndRemovedAndSaveTheSameIds()
+    {
+        RunSta(() =>
+        {
+            const string Bots = """{"bots":[{"id":"bot-bell","name":"ベル","position":"開発","displayName":"ベル 開発"},{"id":"bot-two","name":"ミカ","position":"調査担当","displayName":"ミカ 調査担当"},{"id":"bot-three","name":"ナナ","position":"資料集め","displayName":"ナナ 資料集め"}]}""";
+            string? body = null;
+            using var workspace = Stubbed((request, _) =>
+            {
+                if (request.RequestUri!.AbsolutePath == "/api/rooms/room-work" && request.Method == HttpMethod.Get) return StubHandler.Json("""{"room":{"id":"room-work","name":"作業部屋","purpose":"開発","memberIds":["bot-bell"],"representativeId":"bot-bell"}}""");
+                if (request.Method == HttpMethod.Patch) { body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult(); return StubHandler.Json("""{"room":{"id":"room-work","name":"作業部屋","purpose":"開発","memberIds":["bot-two"]}}"""); }
+                return null;
+            }, () => Bots);
+            Await(workspace.ConnectAsync("http://localhost", listen: false));
+            var editor = new RoomEditorView(workspace, "room-work"); Await(editor.InitializeAsync());
+            string[] Tapped() => Buttons(editor).Select(button => System.Windows.Automation.AutomationProperties.GetName(button)).Where(name => name.EndsWith("を外す") || name.EndsWith("を加える")).ToArray();
+            Assert.Contains(Texts(editor), text => text.Text == "参加メンバー（1人）"); Assert.Equal(new[] { "ベル 開発を外す" }, Tapped());
+            // The others stay folded until the owner opens the list or searches (the count is the others only).
+            Assert.Contains(Buttons(editor), button => System.Windows.Automation.AutomationProperties.GetName(button) == "すべてのメンバーから選ぶ（2人）");
+            var search = Named<TextBox>(editor, "名前や役職で探す");
+            search.Text = "調査"; Assert.Equal(new[] { "ベル 開発を外す", "ミカ 調査担当を加える" }, Tapped());
+            search.Text = "ZZZ"; Assert.Equal(new[] { "ベル 開発を外す" }, Tapped()); Assert.Contains(Texts(editor), text => text.Text == "見つかりません");
+            search.Text = ""; Assert.Contains(Buttons(editor), button => System.Windows.Automation.AutomationProperties.GetName(button) == "すべてのメンバーから選ぶ（2人）");
+            Tap(editor, "すべてのメンバーから選ぶ（2人）"); Assert.Equal(new[] { "ベル 開発を外す", "ミカ 調査担当を加える", "ナナ 資料集めを加える" }, Tapped());
+            Tap(editor, "ミカ 調査担当を加える"); Assert.Contains(Texts(editor), text => text.Text == "参加メンバー（2人）"); Assert.Equal(new[] { "ベル 開発を外す", "ミカ 調査担当を外す", "ナナ 資料集めを加える" }, Tapped());
+            // Removing the representative clears it; the saved ids are the members in the room.
+            Tap(editor, "ベル 開発を外す"); Assert.Equal("", editor.RepresentativePicker.SelectedValue);
+            Await(editor.SaveAsync());
+            Assert.Equal("""{"memberIds":["bot-two"],"representativeId":null}""", body);
+            editor.Dispose();
+            var empty = new RoomEditorView(workspace, null); Await(empty.InitializeAsync());
+            Assert.Contains(Texts(empty), text => text.Text == "参加メンバー（0人）"); Assert.Contains(Texts(empty), text => text.Text == "まだ誰もいません。下から追加してください。"); empty.Dispose();
+        });
+    }
+
+    // Mac ProfileDetailCard: text over 120 characters folds to 4 lines until 「続きを読む」; 120 characters and fewer stay whole.
+    [Fact]
+    public void ProfileTextOverOneHundredTwentyCharactersFoldsUntilReadOn()
+    {
+        RunSta(() =>
+        {
+            var bots = $$"""{"bots":[{"id":"bot-bell","name":"ベル","displayName":"ベル 開発","position":"開発","role":"{{new string('あ', 121)}}","personality":"{{new string('い', 120)}}"}]}""";
+            using var workspace = Stubbed((_, _) => null, () => bots);
+            Await(workspace.ConnectAsync("http://localhost", listen: false)); var view = new ProfileView { Workspace = workspace };
+            Await(workspace.SelectAsync(workspace.Entries.Single(entry => !entry.Target.IsRoom)));
+            var role = Named<TextBox>(view, "担当する仕事"); Assert.Equal(4, role.MaxLines); Assert.Equal(int.MaxValue, Named<TextBox>(view, "性格・考え方").MaxLines);
+            Assert.Single(Buttons(view), button => System.Windows.Automation.AutomationProperties.GetName(button) == "続きを読む");
+            Tap(view, "続きを読む"); Assert.Equal(int.MaxValue, role.MaxLines); Assert.DoesNotContain(Buttons(view), button => System.Windows.Automation.AutomationProperties.GetName(button) == "続きを読む");
+            // The position is in the hero, on its own line under the name; the sections no longer carry it.
+            Assert.Contains(Texts(view), text => text.Text == "ベル"); Assert.Contains(Texts(view), text => text.Text == "開発"); Assert.DoesNotContain(Texts(view), text => text.Text == "役職");
         });
     }
 

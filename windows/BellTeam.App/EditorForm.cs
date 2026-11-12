@@ -116,12 +116,13 @@ public abstract class EditorFormView : Grid, ISheetSave, IDisposable
         var combo = new ComboBox { ItemsSource = options.ToArray(), DisplayMemberPath = nameof(FormOption.Label), SelectedValuePath = nameof(FormOption.Id), SelectedValue = selected, FontSize = 13, Padding = new Thickness(10, 5, 10, 5), MinWidth = 140, MaxWidth = 360 };
         System.Windows.Automation.AutomationProperties.SetName(combo, label); return combo;
     }
-    // Mac Form multi-line field: the caption above, up to seven lines of text.
-    internal static (Border Row, TextBox Box) Paragraph(string caption, string value, bool captionShown = true)
+    // Mac LabeledField: the label stays above the field (a placeholder alone fades), a multi-line field grows to seven lines.
+    internal static (Border Row, TextBox Box) LabeledField(string label, string value, string? placeholder = null, bool multiline = false)
     {
-        var (element, box) = Field(caption, value, multiline: true, minHeight: 48); box.MaxHeight = 150;
+        var (element, box) = Field(label, value, multiline, multiline ? 48 : 0, placeholder); if (multiline) box.MaxHeight = 150;
         var stack = new StackPanel();
-        if (captionShown) stack.Children.Add(Text(caption, 11, Muted, FontWeights.SemiBold, new Thickness(0, 0, 0, 6)));
+        stack.Children.Add(Text(label, 11, Muted, FontWeights.SemiBold, new Thickness(0, 0, 0, 6)));
         stack.Children.Add(element); return (Row(stack), box);
     }
+    internal static (Border Row, TextBox Box) Paragraph(string caption, string value) => LabeledField(caption, value, multiline: true);
 }

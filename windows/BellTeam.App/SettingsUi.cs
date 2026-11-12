@@ -160,7 +160,7 @@ internal static class SettingsUi
     }
 
     // Borderless text box whose hint is the field label, as in a Mac Form TextField.
-    public static (Grid Element, TextBox Box) Field(string hint, string value, bool multiline = false, double minHeight = 0)
+    public static (Grid Element, TextBox Box) Field(string hint, string value, bool multiline = false, double minHeight = 0, string? placeholder = null)
     {
         var box = new TextBox
         {
@@ -170,9 +170,9 @@ internal static class SettingsUi
         if (multiline) box.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
         System.Windows.Automation.AutomationProperties.SetName(box, hint);
         var grid = new Grid(); grid.Children.Add(box);
-        var placeholder = new TextBlock { Text = hint, FontSize = 13, Foreground = Secondary, IsHitTestVisible = false, VerticalAlignment = box.VerticalAlignment };
-        void Sync() => placeholder.Visibility = box.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
-        box.TextChanged += (_, _) => Sync(); Sync(); grid.Children.Add(placeholder);
+        var hintText = new TextBlock { Text = placeholder ?? hint, FontSize = 13, Foreground = Secondary, IsHitTestVisible = false, VerticalAlignment = multiline ? VerticalAlignment.Top : box.VerticalAlignment };
+        void Sync() => hintText.Visibility = box.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+        box.TextChanged += (_, _) => Sync(); Sync(); grid.Children.Add(hintText);
         return (grid, box);
     }
 }

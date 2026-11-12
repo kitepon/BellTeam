@@ -85,7 +85,7 @@ public sealed class ModelSelection(string harness, string model, string effort)
 // The wording of the Mac member and room editors (ManagementView.swift), kept in one place so the flows and the tests read the same text.
 public static class EditorText
 {
-    public const string LoadingModels = "モデル候補を読み込んでいます…";
+    public const string LoadingModels = "使えるモデルを確かめています…";
     public const string FastModeNote = "オンにすると利用枠を多く使います。";
     public const string FastLoading = "モデル候補を読み込んでいます。";
     public const string FastCustomEmpty = "モデルIDを入力してください。";
