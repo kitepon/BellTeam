@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-12T14:53:13Z",
-  "expiresAt": "2026-11-19T14:53:13Z",
+  "publishedAt": "2026-11-12T15:24:45Z",
+  "expiresAt": "2026-11-19T15:24:45Z",
   "releases": [
     {
       "componentId": "usage",
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "f13dd38b9e35886504e80429d0b9d0bed9ef15ec",
-      "versionId": "sha256:2cbe256c2313a38854bc553d353173f16d8ec90aa8a68946769a4c2b5d739d04",
+      "sourceCommit": "efd1b5847a87a8fb74ab04ca5eb9e1891efeb71d",
+      "versionId": "sha256:91638b314e83de7b3de4457fab986b037ae3833acbb7f15d66ce74652ca101fc",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:2cbe256c2313a38854bc553d353173f16d8ec90aa8a68946769a4c2b5d739d04"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:91638b314e83de7b3de4457fab986b037ae3833acbb7f15d66ce74652ca101fc"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,20 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Aiterm を 0.70.39 にします。最初の画面で止まる席は理由を返して閉じ、Grok と Codex の席の読み取りを直します。工程表で準備ができたのにまだ始まっていない作業を、約5分ごとに、動いていない担当の Bot へ知らせます。本体の入れ替え後に、まだ届いていない作業の知らせも届くようになります。「結果を知らせる」コマンドの予定を待っている Bot は、作業中として表示し、知らせを送りません。"
+        "Aiterm を 0.70.36 にします。Claudeの席のゴールを会話の記録から読み、Aiterm全体を止めなくなります。静かな席が予定どおり閉じます。最初の確認画面で止まる席は理由を返して閉じます。初めてのローカルの席が手を出さずに答えます。コマンドの予定の結果を届けられるようにします。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "f13dd38b9e35886504e80429d0b9d0bed9ef15ec",
-      "versionId": "sha256:2cbe256c2313a38854bc553d353173f16d8ec90aa8a68946769a4c2b5d739d04",
+      "sourceCommit": "efd1b5847a87a8fb74ab04ca5eb9e1891efeb71d",
+      "versionId": "sha256:91638b314e83de7b3de4457fab986b037ae3833acbb7f15d66ce74652ca101fc",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:2cbe256c2313a38854bc553d353173f16d8ec90aa8a68946769a4c2b5d739d04"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:91638b314e83de7b3de4457fab986b037ae3833acbb7f15d66ce74652ca101fc"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,13 +748,13 @@
         "containerUpdate": 1
       },
       "changes": [
-        "Aiterm を 0.70.39 にします。最初の画面で止まる席は理由を返して閉じ、Grok と Codex の席の読み取りを直します。工程表で準備ができたのにまだ始まっていない作業を、約5分ごとに、動いていない担当の Bot へ知らせます。本体の入れ替え後に、まだ届いていない作業の知らせも届くようになります。「結果を知らせる」コマンドの予定を待っている Bot は、作業中として表示し、知らせを送りません。"
+        "Aiterm を 0.70.36 にします。Claudeの席のゴールを会話の記録から読み、Aiterm全体を止めなくなります。静かな席が予定どおり閉じます。最初の確認画面で止まる席は理由を返して閉じます。初めてのローカルの席が手を出さずに答えます。コマンドの予定の結果を届けられるようにします。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "b1735438faef94ef2165052a8406bf226de2e934",
-      "versionId": "8f04770317688f11087f8c04f7c45f5288e88b549ec69c06d68947a33b98298f",
+      "sourceCommit": "738a8012344c9bd29cb1b5808e5352bf5a7f37e1",
+      "versionId": "b898e98cbb1cd8f59960e587f92bcfa33a5ca4410a28750577b1050a9cdd6153",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -762,16 +762,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T145111Z/lattice-b1735438faef94ef2165052a8406bf226de2e934-linux-amd64.tar.gz",
-          "bytes": 15264414,
-          "sha256": "8f04770317688f11087f8c04f7c45f5288e88b549ec69c06d68947a33b98298f"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T152400Z/lattice-738a8012344c9bd29cb1b5808e5352bf5a7f37e1-linux-amd64.tar.gz",
+          "bytes": 15264693,
+          "sha256": "b898e98cbb1cd8f59960e587f92bcfa33a5ca4410a28750577b1050a9cdd6153"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T145111Z/lattice-b1735438faef94ef2165052a8406bf226de2e934-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11141,
-          "sha256": "c730c4b763638c55e3980cdb9a5fa5e1a4d3bb2ef9117fe57c9f595d257981eb"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T152400Z/lattice-738a8012344c9bd29cb1b5808e5352bf5a7f37e1-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 11184,
+          "sha256": "56e883314831df15a041dab1fc7f624ae2b9d9bb7ab4ef20b27e20bdc9fc014a"
         },
-        "signerCommit": "b1735438faef94ef2165052a8406bf226de2e934"
+        "signerCommit": "738a8012344c9bd29cb1b5808e5352bf5a7f37e1"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -783,13 +783,13 @@
         }
       },
       "changes": [
-        "工程表（Lattice）の部品に、止まっている作業の一覧と、止まりを外す仕組みを入れます。画面から使えるようになるのは、本体の更新が入ってからです。"
+        "工程表（Lattice）を 0.97.0 にします。0.97.0 で開き直した計画は、古い版では読めなくなります。このため、古い工程表の部品には戻しません。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "b1735438faef94ef2165052a8406bf226de2e934",
-      "versionId": "cbb33029738d26a843568023955209b72eea95e2a74dc5e889915a77fdab6b1b",
+      "sourceCommit": "738a8012344c9bd29cb1b5808e5352bf5a7f37e1",
+      "versionId": "ad4e86933ab82043ff2508db2ed944f320de2633cf42dcc15ab38a441cdecd7d",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -797,16 +797,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T145111Z/lattice-b1735438faef94ef2165052a8406bf226de2e934-linux-arm64.tar.gz",
-          "bytes": 15264424,
-          "sha256": "cbb33029738d26a843568023955209b72eea95e2a74dc5e889915a77fdab6b1b"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T152400Z/lattice-738a8012344c9bd29cb1b5808e5352bf5a7f37e1-linux-arm64.tar.gz",
+          "bytes": 15264691,
+          "sha256": "ad4e86933ab82043ff2508db2ed944f320de2633cf42dcc15ab38a441cdecd7d"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T145111Z/lattice-b1735438faef94ef2165052a8406bf226de2e934-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11141,
-          "sha256": "c07da719e1a6710235955903f35fc79e92ca02868f37cf3d85c847c58ae6d275"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T152400Z/lattice-738a8012344c9bd29cb1b5808e5352bf5a7f37e1-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 11125,
+          "sha256": "f3b734ae5118b07777a03e0a8d7ffb9b3a0522dacc31a1475ca5998b79728ea4"
         },
-        "signerCommit": "b1735438faef94ef2165052a8406bf226de2e934"
+        "signerCommit": "738a8012344c9bd29cb1b5808e5352bf5a7f37e1"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -818,7 +818,7 @@
         }
       },
       "changes": [
-        "工程表（Lattice）の部品に、止まっている作業の一覧と、止まりを外す仕組みを入れます。画面から使えるようになるのは、本体の更新が入ってからです。"
+        "工程表（Lattice）を 0.97.0 にします。0.97.0 で開き直した計画は、古い版では読めなくなります。このため、古い工程表の部品には戻しません。"
       ]
     }
   ],
