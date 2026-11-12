@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path'
 
 // The parent supplies durable selection and owns shared native resources.
 export function createExecutionAssembly({ ports, loadFactory, onAdopt, backgroundSummary = null, requestRestartSummary = null,
-  currentVersionId = null, previousVersionId = null, requestStop, watchQueue, exchangeMutex, onModuleRestartLimit, onState }) {
+  currentVersionId = null, previousVersionId = null, requestStop, watchQueue, exchangeMutex, onModuleRestartLimit, onState, commandWait }) {
   // Z-c: the update hold outlives engine exchanges, so it lives here (update-hold.md).
   let controller
   const hold = new UpdateHold({ path: join(dirname(ports.configurationStorage.root), 'execution-update-hold.json'),
@@ -21,7 +21,7 @@ export function createExecutionAssembly({ ports, loadFactory, onAdopt, backgroun
   controller = createExecutionGeneration({ ports, loadFactory: gatedFactory, onAdopt, backgroundSummary, requestRestartSummary,
     currentVersionId, previousVersionId, exchangeMutex, onModuleRestartLimit, onState })
   const facade = createExecutionFacade({ getController: () => controller, client: ports.native,
-    membersAdmission: ports.membersAdmission, requestStop, watchQueue, hold })
+    membersAdmission: ports.membersAdmission, requestStop, watchQueue, hold, commandWait })
   const lifecycle = Object.freeze({
     quiesce: input => hold.quiesce(input),
     // The controller started (and R-resume reconnected) before listen; a hold saved by the replaced box ends here.

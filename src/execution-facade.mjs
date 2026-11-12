@@ -8,7 +8,7 @@ const failure = code => Object.assign(new Error(code), { code, status: 503, effe
 // Input methods are refused while a body update hold exists, also for a selected engine without its own gate.
 const INPUT_METHODS = new Set(['transport.turn', 'transport.notify', 'transport.notifyReport', 'transport.forkInquiry'])
 
-export function createExecutionFacade({ getController, client, membersAdmission, requestStop, watchQueue, hold = null }) {
+export function createExecutionFacade({ getController, client, membersAdmission, requestStop, watchQueue, hold = null, commandWait = () => null }) {
   if (typeof getController !== 'function' || !client || !membersAdmission
     || typeof requestStop !== 'function' || typeof watchQueue !== 'function') throw failure('EXECUTION_FACADE_OPTIONS_INVALID')
   const current = () => {
@@ -28,6 +28,16 @@ export function createExecutionFacade({ getController, client, membersAdmission,
       if (hold?.held && INPUT_METHODS.has(method)) return Promise.reject(updateHoldError())
       try { return current().dispatch({ method, args }) } catch (error) { return Promise.reject(error) }
     }
+  }
+  // Script waits (current-work.md 2026-11-12): a Bot waiting on its notify=result command reads working; currentTurn stays native for after_turn.
+  const work = result.transport.currentWork
+  result.transport.currentWork = bot => {
+    const value = work(bot), waited = value?.state !== 'working' && bot ? commandWait(bot.id) : null
+    return waited ? { ...value, state: 'working', observedAt: value.observedAt ?? waited } : value
+  }
+  result.transport.runningState = botId => {
+    const state = current().project({ method: 'transport.currentTurn', args: [botId] })?.state
+    return state !== 'working' && commandWait(botId) ? 'working' : state
   }
   // after_turn (current-work.md): every currentTurn change per listener, over the exchange-surviving queue stream.
   result.transport.watchCurrentTurn = listener => watchCurrentTurn(watchQueue,

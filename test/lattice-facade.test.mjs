@@ -112,6 +112,15 @@ test('turns.read: working and idle pass, anything else or a failed read is unkno
   assert.deepEqual(await createLatticeEffects({ bots: {} })('turns.read', { botIds: ['w'] }), { turns: { w: 'unknown' } })
 })
 
+test('turns.read: runningState counts a command wait; a missing method falls back to currentTurn', async () => {
+  // The scheduler reports a command wait while the native turn is idle.
+  const transport = { runningState: id => id === 'c' ? 'working' : id === 'x' ? (() => { throw new Error('down') })() : id === 'a' ? Promise.reject(new Error('down')) : 'idle',
+    currentTurn: () => ({ state: 'idle' }) }
+  assert.deepEqual(await createLatticeEffects({ bots: {}, transport })('turns.read', { botIds: ['c', 'i', 'x', 'a'] }),
+    { turns: { c: 'working', i: 'idle', x: 'unknown', a: 'unknown' } })
+  assert.deepEqual(await createLatticeEffects({ bots: {}, transport: { currentTurn: () => ({ state: 'working' }) } })('turns.read', { botIds: ['w'] }), { turns: { w: 'working' } })
+})
+
 test('messages.send runs the messenger in the actor scope named by from, outside any request scope', async () => {
   const { AsyncLocalStorage } = await import('node:async_hooks')
   const scope = new AsyncLocalStorage(), seen = []
