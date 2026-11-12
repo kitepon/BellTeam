@@ -14,7 +14,7 @@ using BellTeam.Core;
 
 namespace BellTeam.Linux;
 
-public sealed class MainWindow : Window
+public sealed class MainWindow : Window, ISheetHost
 {
     private readonly LinuxWorkspace model;
     private readonly SettingsStore settingsStore;
@@ -84,6 +84,9 @@ public sealed class MainWindow : Window
     private readonly Border sheetFrame = new();
     private readonly TextBlock sheetTitle = new() { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, FontSize = 15, FontWeight = FontWeight.SemiBold, Foreground = BellTheme.Ink };
     private readonly ContentControl sheetHost = new();
+    private Button? closeSheetButton, saveSheetButton;
+    private ISheetSave? sheetSave;
+    private readonly GoalPill goalPill = new();
     private readonly Grid galleryHost = new() { Background = Brushes.Black, IsVisible = false, Focusable = true };
     private IInputElement? focusBeforeGallery;
 
@@ -110,6 +113,8 @@ public sealed class MainWindow : Window
         WireModel(); UpdateAll();
         AddHandler(KeyDownEvent, WindowKeyDown, RoutingStrategies.Tunnel);
         Closed += (_, _) => { CancelStartupRetry(); CloseGallery(); };
+        // Mac scenePhase .active: coming back to the window reads the goals again.
+        Activated += (_, _) => { goalPill.Reload(); (pageArea.Child as GoalsPage)?.Reload(); };
         if (persistPlacement) RestorePlacement();
     }
 
@@ -151,9 +156,12 @@ public sealed class MainWindow : Window
         errorStrip.Child = new StackPanel { Children = { stripTop, actionError } };
         Grid.SetRow(errorStrip, 1);
         // Sheet: Mac bellEditorSheet, min 720x540, ideal 820x680, shrinks to fit the window.
-        var closeSheet = new Button { Classes = { "plain" }, Content = "閉じる", Padding = new Thickness(16, 7), CornerRadius = new CornerRadius(99), FontWeight = FontWeight.Normal, Foreground = BellTheme.Ink, Background = new SolidColorBrush(Color.Parse("#80FFFFFF")), BorderBrush = new SolidColorBrush(Color.Parse("#C9C4DE")), BorderThickness = new Thickness(1), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
-        AutomationProperties.SetName(closeSheet, "閉じる"); closeSheet.Click += (_, _) => CloseSheet();
-        var header = new Grid { Height = 52, Background = new SolidColorBrush(Color.Parse("#F2F2F7")), Children = { closeSheet, sheetTitle } };
+        var closeSheet = closeSheetButton = new Button { Classes = { "plain" }, Content = "閉じる", Padding = new Thickness(16, 7), CornerRadius = new CornerRadius(99), FontWeight = FontWeight.Normal, Foreground = BellTheme.Ink, Background = new SolidColorBrush(Color.Parse("#80FFFFFF")), BorderBrush = new SolidColorBrush(Color.Parse("#C9C4DE")), BorderThickness = new Thickness(1), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
+        AutomationProperties.SetName(closeSheet, "閉じる"); closeSheet.Click += (_, _) => { if (sheetSave is { CanClose: false }) return; CloseSheet(); };
+        // The save button of a sheet that is an ISheetSave (Windows UpdateSheetSave): the same pill as 閉じる, on the right.
+        var saveSheet = saveSheetButton = new Button { Classes = { "plain" }, Content = "保存", Padding = new Thickness(16, 7), CornerRadius = new CornerRadius(99), FontWeight = FontWeight.Normal, Foreground = BellTheme.Ink, Background = new SolidColorBrush(Color.Parse("#80FFFFFF")), BorderBrush = new SolidColorBrush(Color.Parse("#C9C4DE")), BorderThickness = new Thickness(1), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0), IsVisible = false };
+        AutomationProperties.SetName(saveSheet, "保存"); saveSheet.Click += (_, _) => { if (sheetSave is { CanSave: true } save) _ = save.SaveAsync(); };
+        var header = new Grid { Height = 52, Background = new SolidColorBrush(Color.Parse("#F2F2F7")), Children = { closeSheet, saveSheet, sheetTitle } };
         var line = new Border { Height = 1, Background = new SolidColorBrush(Color.Parse("#E6E6EB")) };
         DockPanel.SetDock(header, Dock.Top); DockPanel.SetDock(line, Dock.Top);
         sheetFrame.Margin = new Thickness(24); sheetFrame.MinWidth = 720; sheetFrame.MinHeight = 540; sheetFrame.MaxWidth = 820; sheetFrame.MaxHeight = 680; sheetFrame.Background = new SolidColorBrush(Color.Parse("#F2F2F7")); sheetFrame.CornerRadius = new CornerRadius(14); sheetFrame.ClipToBounds = true; sheetFrame.BoxShadow = BoxShadows.Parse("0 8 30 0 #40000000");
@@ -194,8 +202,8 @@ public sealed class MainWindow : Window
         // Footer: 予定 and 設定 at the ends, ゴール between. The three open an empty placeholder page in this stage.
         var footerGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,*,Auto") };
         void Add(Button button, int column) { button.IsEnabled = false; Grid.SetColumn(button, column); footerGrid.Children.Add(button); navButtons.Add(button); }
-        Add(NavButton(Icons.Calendar, "予定", "予定（Ctrl+2）", () => ShowPage("予定")), 0);
-        Add(NavButton(Icons.Target, "ゴール", "ゴール（Ctrl+3）", () => ShowPage("ゴール")), 2);
+        Add(NavButton(Icons.Calendar, "予定", "予定（Ctrl+2）", ShowSchedules), 0);
+        Add(NavButton(Icons.Target, "ゴール", "ゴール（Ctrl+3）", ShowGoals), 2);
         Add(NavButton(Icons.Gear, "設定", "設定（Ctrl+,）", () => ShowPage("設定")), 4);
         var summaryRow = new DockPanel { Margin = new Thickness(4, 0), Children = { ownerName, new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { new Avalonia.Controls.Shapes.Ellipse { Width = 6, Height = 6, Fill = BellTheme.Mint, Margin = new Thickness(0, 0, 7, 0) }, onlineSummary } } } };
         DockPanel.SetDock(ownerName, Dock.Right);
@@ -278,7 +286,7 @@ public sealed class MainWindow : Window
         Grid.SetColumn(composer, 1); Grid.SetColumn(stopCurrent, 2); Grid.SetColumn(send, 3); stopCurrent.Margin = new Thickness(0, 0, 12, 1);
         input.Children.Add(attach); input.Children.Add(composer); input.Children.Add(stopCurrent); input.Children.Add(send);
         var pill = new Border { Background = BellTheme.Canvas, BorderBrush = BellTheme.Line, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(24), Padding = new Thickness(8, 5), Child = input };
-        var band = new Border { Background = BellTheme.BandFill, Child = new StackPanel { Margin = new Thickness(15, 11, 15, 8), Children = { stopNoticeBox, sendError, attachmentScroll, replyTarget, pill } } };
+        var band = new Border { Background = BellTheme.BandFill, Child = new StackPanel { Margin = new Thickness(15, 11, 15, 8), Children = { stopNoticeBox, sendError, attachmentScroll, replyTarget, goalPill, pill } } };
         Grid.SetRow(band, 2);
         conversationArea.Children.Add(seatLaunchBar); conversationArea.Children.Add(messageScroll); conversationArea.Children.Add(welcome); conversationArea.Children.Add(loadingSpinner); conversationArea.Children.Add(emptyConversation); conversationArea.Children.Add(failedConversation); conversationArea.Children.Add(latest); conversationArea.Children.Add(band); conversationArea.Children.Add(exportButton);
         Grid.SetColumnSpan(exportButton, 1);
@@ -297,7 +305,7 @@ public sealed class MainWindow : Window
         switch (name)
         {
             case nameof(LinuxWorkspace.NeedsLogin): if (model.NeedsLogin && !connecting) RouteToLogin(); break;
-            case nameof(LinuxWorkspace.Connected): UpdateNav(); break;
+            case nameof(LinuxWorkspace.Connected): UpdateNav(); UpdateGoalBar(); break;
             case nameof(LinuxWorkspace.Selected): UpdateSelection(); unreadNew = false; break;
             case nameof(LinuxWorkspace.IsRoom): UpdateComposerBand(); break;
             case nameof(LinuxWorkspace.Loading) or nameof(LinuxWorkspace.LoadFailed) or nameof(LinuxWorkspace.Title): UpdateWelcome(); break;
@@ -355,8 +363,10 @@ public sealed class MainWindow : Window
         foreach (var (target, row) in rows) row.Classes.Set("selected", model.Selected?.Target == target);
         seatLaunchBar.Show(model.Selected?.SeatLaunchLine);
         emptyAvatar.Workspace = model; emptyAvatar.Entry = model.Selected;
-        UpdateWelcome(); UpdateComposerBand(); UpdateCorner();
+        UpdateWelcome(); UpdateComposerBand(); UpdateCorner(); UpdateGoalBar();
     }
+    // Mac ChatGoalBar: only a member conversation has the goal capsule.
+    private void UpdateGoalBar() => goalPill.Attach(model, model.Connected && model.Selected is { Target: { IsRoom: false } target } ? target.Id : null, this);
     // Mac toolbar: the export belongs to the conversation, so a page or an empty window shows none.
     private void UpdateCorner() => exportButton.IsVisible = conversationArea.IsVisible && model.HasSelection;
 
@@ -505,6 +515,17 @@ public sealed class MainWindow : Window
     }
 
     // ---- pages (placeholders in this stage) ----
+    // 予定 and ゴール are real pages; each reads its data when opened (Windows ShowSchedules / ShowGoals).
+    public void ShowSchedules() { if (!model.Connected) return; var page = new SchedulesPage(model, this); ShowPageContent(page); PageReady = page.InitializeAsync(); }
+    public void ShowGoals() { if (!model.Connected) return; var page = new GoalsPage(model, this); ShowPageContent(page); PageReady = page.InitializeAsync(); }
+    public Task PageReady { get; private set; } = Task.CompletedTask;
+    public Control? CurrentPage => pageArea.Child;
+    internal GoalPill GoalBar => goalPill;
+    private void ShowPageContent(Control page)
+    {
+        model.ReturnToProfile(); (pageArea.Child as IDisposable)?.Dispose();
+        pageArea.Child = page; pageArea.IsVisible = true; conversationArea.IsVisible = false; UpdateCorner();
+    }
     private void ShowPage(string title)
     {
         if (!model.Connected) return;
@@ -514,7 +535,7 @@ public sealed class MainWindow : Window
         stack.Children.Add(BellTheme.Text($"{title}はLinux版ではまだ使えません。", 16, BellTheme.Muted)); ((TextBlock)stack.Children[1]).TextAlignment = TextAlignment.Center;
         pageArea.Child = stack; pageArea.IsVisible = true; conversationArea.IsVisible = false; UpdateCorner();
     }
-    private void ShowConversation() { pageArea.Child = null; pageArea.IsVisible = false; conversationArea.IsVisible = true; UpdateCorner(); }
+    private void ShowConversation() { (pageArea.Child as IDisposable)?.Dispose(); pageArea.Child = null; pageArea.IsVisible = false; conversationArea.IsVisible = true; UpdateCorner(); }
 
     // ---- startup: the Mac RootView phases ----
     public StartupPhase Startup => startup;
@@ -626,12 +647,37 @@ public sealed class MainWindow : Window
     }
 
     // ---- sheet and gallery ----
-    private void OpenSheet(string title, Control content)
+    public void OpenSheet(string title, Control content)
     {
+        ReleaseSheetSave();
+        if (content is ISheetSave save) { sheetSave = save; save.CanSaveChanged += SheetSaveChanged; saveSheetButton!.IsVisible = true; SheetSaveChanged(); }
         sheetTitle.Text = title; AutomationProperties.SetName(sheetFrame, title);
         sheetHost.Content = content; sheet.IsVisible = true; sheet.Focus();
     }
-    private void CloseSheet() { sheetHost.Content = null; sheet.IsVisible = false; }
+    public void CloseSheet()
+    {
+        ReleaseSheetSave();
+        (sheetHost.Content as IDisposable)?.Dispose();
+        sheetHost.Content = null; sheet.IsVisible = false;
+    }
+    private void SheetSaveChanged()
+    {
+        if (sheetSave is null) return;
+        GoalUi.OnUi(() =>
+        {
+            if (sheetSave is null) return;
+            saveSheetButton!.IsEnabled = sheetSave.CanSave; saveSheetButton.Content = sheetSave.SaveLabel; closeSheetButton!.Content = sheetSave.CloseLabel; closeSheetButton.IsEnabled = sheetSave.CanClose;
+            AutomationProperties.SetName(closeSheetButton, sheetSave.CloseLabel); AutomationProperties.SetName(saveSheetButton, sheetSave.SaveLabel);
+        });
+    }
+    private void ReleaseSheetSave()
+    {
+        if (sheetSave is not null) sheetSave.CanSaveChanged -= SheetSaveChanged;
+        sheetSave = null; saveSheetButton!.IsVisible = false; closeSheetButton!.Content = "閉じる"; closeSheetButton.IsEnabled = true;
+        AutomationProperties.SetName(closeSheetButton, "閉じる");
+    }
+    // Mac PeerMessageSheet in the shared in-window sheet.
+    public void ShowPeerSheet(TimelineMessage message) { CloseSheet(); OpenSheet("メンバー間の連絡", new PeerMessageView(model, message)); }
     // The image gallery covers the whole window (Mac fullScreenCover). Opening it again replaces the one that is open.
     public ImageGallery ShowGallery(string[] paths, int initial)
     {
@@ -650,14 +696,14 @@ public sealed class MainWindow : Window
     private void WindowKeyDown(object? sender, KeyEventArgs e)
     {
         if (Gallery is { } gallery) { if (e.KeyModifiers == KeyModifiers.None && gallery.HandleKey(e.Key)) e.Handled = true; return; }
-        if (sheet.IsVisible) { if (e.Key == Key.Escape) { CloseSheet(); e.Handled = true; } return; }
+        if (sheet.IsVisible) { if (e.Key == Key.Escape) { if (sheetSave?.DismissPopup() != true) CloseSheet(); e.Handled = true; } return; }
         if (startupHost.IsVisible) return;
         if (e.KeyModifiers == KeyModifiers.Control)
         {
             switch (e.Key)
             {
-                case Key.D2: ShowPage("予定"); e.Handled = true; break;
-                case Key.D3: ShowPage("ゴール"); e.Handled = true; break;
+                case Key.D2: ShowSchedules(); e.Handled = true; break;
+                case Key.D3: ShowGoals(); e.Handled = true; break;
                 case Key.OemComma: ShowPage("設定"); e.Handled = true; break;
                 case Key.K: search.Focus(); search.SelectAll(); e.Handled = true; break;
             }

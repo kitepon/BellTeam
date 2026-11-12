@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -26,6 +27,8 @@ public sealed class MessageCard : ContentControl
     private TextBlock? imageLabel;
     private TextBlock? replyLabel;
     private TextBlock? peerLabel;
+    private SecretCard? secret;
+    private QuestionCard? question;
     private Border? bubble;
     private string? accentName;
     private readonly TextBlock delivery = new() { FontSize = 14, Foreground = BellTheme.Muted, VerticalAlignment = VerticalAlignment.Center };
@@ -88,40 +91,39 @@ public sealed class MessageCard : ContentControl
             else BuildRow(message);
         }
         if (layout is not null) UpdateRow(message);
+        else if (secret is not null || question is not null) UpdateRequest(message);
         else if (peerLabel is not null) peerLabel.Text = $"{message.PeerName ?? "メンバー"}との連絡";
     }
 
-    // Placeholder: "<name>との連絡" as a capsule; the 「メンバー間の連絡」 sheet is not ported yet, so it does not open.
+    // "<name>との連絡 ›": the message itself opens in the 「メンバー間の連絡」 sheet.
     private void BuildPeer(TimelineMessage message)
     {
         var label = new TextBlock { FontSize = 14, Foreground = BellTheme.Muted, VerticalAlignment = VerticalAlignment.Center, Text = $"{message.PeerName ?? "メンバー"}との連絡" };
-        Content = new Border
+        var capsule = new Border
         {
-            Background = new SolidColorBrush(Color.FromArgb(191, 255, 255, 255)), CornerRadius = new CornerRadius(99), Padding = new Thickness(15, 9, 15, 9), HorizontalAlignment = HorizontalAlignment.Center,
-            Child = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { Icons.Draw(Icons.Link, 14, BellTheme.Muted, thickness: 1.6), label } }
+            Background = new SolidColorBrush(Color.FromArgb(191, 255, 255, 255)), CornerRadius = new CornerRadius(99), Padding = new Thickness(15, 9, 15, 9),
+            Child = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { Icons.Draw(Icons.Link, 14, BellTheme.Muted, thickness: 1.6), label, Icons.Draw(Icons.ChevronRight, 10, BellTheme.Muted, thickness: 2.4) } }
         };
-        peerLabel = label;
+        var button = new Button { Classes = { "plain" }, Content = capsule, Background = Brushes.Transparent, Padding = default, Margin = default, CornerRadius = new CornerRadius(99), HorizontalAlignment = HorizontalAlignment.Center };
+        AutomationProperties.SetName(button, label.Text);
+        button.Click += (_, _) => (TopLevel.GetTopLevel(this) as MainWindow)?.ShowPeerSheet(Message);
+        Content = button; peerLabel = label;
     }
 
-    // Placeholder: the request card names what is asked and says the input is not available on Linux yet.
     private void BuildRequest(TimelineMessage message)
     {
-        var column = new StackPanel { Spacing = 10 };
-        if (message.SecretRequest is { } secret)
-        {
-            column.Children.Add(BellTheme.Text(secret.Label, 17, BellTheme.Ink, FontWeight.Bold));
-            if (secret.Message.Length != 0) column.Children.Add(BellTheme.Text(secret.Message, 15, BellTheme.Ink));
-            column.Children.Add(BellTheme.Text("秘密の入力はLinux版ではまだ使えません。", 13, BellTheme.Muted));
-        }
-        else if (message.OwnerQuestion is { } question)
-        {
-            column.Children.Add(BellTheme.Text(question.Question, 17, BellTheme.Ink, FontWeight.Bold));
-            foreach (var option in question.Options) column.Children.Add(BellTheme.Text("・" + option, 15, BellTheme.Ink));
-            column.Children.Add(BellTheme.Text("問いへの回答はLinux版ではまだ使えません。", 13, BellTheme.Muted));
-        }
-        var card = new Border { Background = new SolidColorBrush(Color.FromArgb(230, 255, 255, 255)), CornerRadius = new CornerRadius(20), BorderBrush = new SolidColorBrush(Color.FromArgb(51, 97, 71, 212)), BorderThickness = new Thickness(1), Padding = new Thickness(20), Child = column };
+        var card = new Border { Background = new SolidColorBrush(Color.FromArgb(230, 255, 255, 255)), CornerRadius = new CornerRadius(20), BorderBrush = new SolidColorBrush(Color.FromArgb(51, 97, 71, 212)), BorderThickness = new Thickness(1), Padding = new Thickness(20) };
+        if (message.SecretRequest is not null) { secret = new SecretCard(workspace, workspace.Title); card.Child = secret; }
+        else { question = new QuestionCard(workspace, workspace.Title); card.Child = question; }
         Content = new CappedRow { Child = card, HorizontalAlignment = HorizontalAlignment.Left };
     }
+    private void UpdateRequest(TimelineMessage message)
+    {
+        if (message.SecretRequest is { } request) secret?.Update(request, BotName(request.BotId, message));
+        if (message.OwnerQuestion is { } ownerQuestion) question?.Update(ownerQuestion, BotName(ownerQuestion.BotId, message));
+    }
+    // Mac cards name the asking bot by its id, not by who the timeline says sent it.
+    private string BotName(string? botId, TimelineMessage message) => workspace.Bots.FirstOrDefault(bot => bot.Id == botId)?.Name ?? message.Sender?.Title ?? workspace.Title;
 
     private void BuildRow(TimelineMessage message)
     {

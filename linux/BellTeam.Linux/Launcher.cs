@@ -11,8 +11,8 @@ namespace BellTeam.Linux;
 // What windows/BellTeam.App/App.xaml.cs OnStartup does: the render modes, otherwise the single window.
 internal static class Launcher
 {
-    public const string Usage = "引数は --configure <URL>、--render-preview <PNG>、--render-url <URL> [会話ID] <PNG>、--render-startup <opening|setup|guide|failure|login|onboarding> <PNG> のいずれかです。";
-    public static bool IsKnown(string[] args) => args is [] or ["--configure", _] or ["--render-preview", _] or ["--render-url", _, _] or ["--render-url", _, _, _] or ["--render-startup", _, _];
+    public const string Usage = "引数は --configure <URL>、--render-preview <PNG>、--render-url <URL> [会話ID] <PNG>、--render-startup <opening|setup|guide|failure|login|onboarding> <PNG>" + RequestsRender.Usage + " のいずれかです。";
+    public static bool IsKnown(string[] args) => args is [] or ["--configure", _] or ["--render-preview", _] or ["--render-url", _, _] or ["--render-url", _, _, _] or ["--render-startup", _, _] || RequestsRender.IsKnown(args);
     public static bool IsRender(string[] args) => args.Any(argument => argument.StartsWith("--render", StringComparison.Ordinal));
 
     public static void Start(IClassicDesktopStyleApplicationLifetime desktop)
@@ -30,6 +30,7 @@ internal static class Launcher
         {
             // Renders are screenshots taken right after layout; the card entrance animation would leave cards transparent.
             if (IsRender(args)) MessageEntrance.Enabled = false;
+            if (await RequestsRender.TryRunAsync(args)) { desktop.Shutdown(0); return; }
             switch (args)
             {
                 case ["--render-preview", var output]: await RenderAsync(null, null, output); break;
@@ -96,7 +97,7 @@ internal static class Launcher
         WritePng(window, output);
     }
 
-    private static void WritePng(Window window, string path)
+    internal static void WritePng(Window window, string path)
     {
         Dispatcher.UIThread.RunJobs();
         var frame = window.CaptureRenderedFrame() ?? throw new InvalidOperationException("画面を描画できませんでした。");
