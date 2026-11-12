@@ -314,3 +314,20 @@ test('each generation renders the global instructions from its own template once
   assert.deepEqual(reports.map(report => report.code), ['MEMBERS_GLOBAL_INSTRUCTIONS_FAILED'])
   assert.equal(attempts, 2)
 })
+
+test('a refused read-pinned owner.read in flight does not satisfy the leased probe; the probe renders once under its lease', async t => {
+  const pinned = Object.freeze({ ...context, leaseId: 'pin', rootId: 'pin-root' })
+  const gate = deferred(), writes = []
+  const f = await fixture(t, async (method, params, ctx) => {
+    if (method !== 'global.writeInstructions') return method === 'project.readPreviousSession' ? '' : undefined
+    if (ctx.leaseId === 'pin') { await gate.promise; throw Object.assign(new Error('MEMBERS_EFFECT_UNSUPPORTED'), { code: 'MEMBERS_EFFECT_UNSUPPORTED' }) }
+    writes.push(ctx.leaseId)
+  })
+  const pinRead = f.request('owner.read', {}, pinned)
+  const probe = f.request('owner.read', {})
+  gate.resolve()
+  await Promise.all([pinRead, probe])
+  assert.deepEqual(writes, ['lease'])
+  await f.request('owner.read', {}, pinned); await f.request('owner.read', {})
+  assert.deepEqual(writes, ['lease'])
+})

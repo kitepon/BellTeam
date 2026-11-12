@@ -77,15 +77,19 @@ export function createMembersDispatcher({ root, effect, projection, diagnostic =
     ownerSaving = task.catch(() => {})
     return task
   }
-  function refreshGlobalInstructions() {
-    const task = globalWriting.catch(() => {}).then(writeGlobal)
+  function refreshGlobalInstructions(operation = writeGlobal) {
+    const task = globalWriting.catch(() => {}).then(operation)
     globalWriting = task
     return task
   }
   // A new generation may carry a new common template; parent's ready probe (owner.read) is its first leased request.
-  let generationRender = null, renderReported = false
-  const renderForGeneration = () => generationRender ??= refreshGlobalInstructions().catch(async error => {
-    generationRender = null // Retry on the next owner.read; a read-pinned one may precede the leased probe.
+  // Each owner.read queues its own attempt in its own context: a read-pinned attempt the parent refuses must not satisfy the leased probe.
+  let generationRendered = false, renderReported = false
+  const renderForGeneration = () => refreshGlobalInstructions(async () => {
+    if (generationRendered) return
+    await writeGlobal()
+    generationRendered = true
+  }).catch(async error => {
     const code = error?.code
     if (renderReported || code === 'MEMBERS_EFFECT_UNSUPPORTED') return
     renderReported = true
