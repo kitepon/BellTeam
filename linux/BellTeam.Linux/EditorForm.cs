@@ -25,7 +25,7 @@ public interface ISheetSave
 
 // The shared body of the Mac member and room editors: a scrolling grouped form, one status line, the Mac alert, and the busy state that locks everything.
 // The header (キャンセル / 保存) belongs to the host: a sheet header or the member window's own bar, both reading ISheetSave.
-public abstract class EditorFormView : Grid, ISheetSave, IDisposable
+public abstract partial class EditorFormView : Grid, ISheetSave, IDisposable
 {
     private readonly ScrollViewer scroller = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
     private readonly Grid alertLayer = new() { Background = new SolidColorBrush(Color.FromArgb(0x59, 0, 0, 0)), IsVisible = false, ZIndex = 5 };

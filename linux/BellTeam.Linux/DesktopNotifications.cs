@@ -125,8 +125,9 @@ internal sealed class DBusNotificationBus : INotificationBus
 }
 
 // The platform-neutral half of windows/BellTeam.App/DesktopNotifications.cs: default off, only while the app runs, and a sink failure turns it off with the reason shown.
-public sealed class DesktopNotifications(INotificationSink sink, SettingsStore settings, Action<string, ChatTarget?> activated) : INotifyPropertyChanged, IAsyncDisposable
+public sealed class DesktopNotifications(INotificationSink sink, SettingsStore settings, Action<string, ChatTarget?> activated) : INotifyPropertyChanged, IAsyncDisposable, INotificationSwitch
 {
+    Task INotificationSwitch.SetEnabledAsync(bool enabled) => SetEnabledAsync(enabled);
     public bool Enabled { get; private set; }
     public string? Error { get; private set; }
     public string Status => Error ?? (Enabled ? "アプリが起きている間だけ通知します。" : "通知はオフです。");

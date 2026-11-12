@@ -122,7 +122,7 @@ public sealed partial class MainWindow
     // Render seam: the open editor sheet.
     public EditorFormView? OpenEditor => sheetHost.Content as EditorFormView;
     // The member editor's 端末を管理: the main window shows 設定 and comes forward.
-    private void ShowTerminalSettings() { ShowPage("設定"); Raise(); }
+    private void ShowTerminalSettings() { ShowSettings(SettingsPage.Terminals); Raise(); }
 
     private readonly Dictionary<string, MemberEditorWindow> memberWindows = [];
     public void EditMember(string id)

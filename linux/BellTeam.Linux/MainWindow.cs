@@ -89,10 +89,13 @@ public sealed partial class MainWindow : Window, ISheetHost, IInspectorHost
     private readonly GoalPill goalPill = new();
     private readonly Grid galleryHost = new() { Background = Brushes.Black, IsVisible = false, Focusable = true };
     private IInputElement? focusBeforeGallery;
+    // The open settings page (hosted content of a never-shown EditorWindow) and its notification switch; the notification delivery port supplies its own switch.
+    private SettingsWindow? settingsPage;
 
     public MainWindow(LinuxWorkspace model, bool persistPlacement = true, SettingsStore? settings = null, DesktopNotifications? notifications = null)
     {
         this.model = model; settingsStore = settings ?? new SettingsStore(SettingsStore.UserDirectory); this.notifications = notifications;
+        model.ThisPc = new NoThisPc(); // 16c reads the Windows OpenSSH host-key path
         Title = "BellTeam"; Width = 1280; Height = 820; MinWidth = 1100; MinHeight = 640;
         Icon = new WindowIcon(EmbeddedAsset.Open("BellTeam.png"));
         addMenu = BuildAddMenu();
@@ -172,6 +175,7 @@ public sealed partial class MainWindow : Window, ISheetHost, IInspectorHost
         return root;
     }
 
+
     private Button BuildAddMenu()
     {
         var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12, Children = { Icons.Draw(Icons.PlusCircle, 20, BellTheme.Ink), Icons.Draw(Icons.ChevronDown, 12, BellTheme.Ink) } };
@@ -214,7 +218,7 @@ public sealed partial class MainWindow : Window, ISheetHost, IInspectorHost
         Add(NavButton(Icons.Target, "ゴール", "ゴール（Ctrl+3）", ShowGoals), 2);
         Add(NavButton(GraphIcon.Draw(18, BellTheme.Ink), "相関図", "相関図（Ctrl+4）", () => ShowWorkGraph()), 4);
         Add(NavButton(LatticeLook.Icon(LatticeLook.ListGlyph, 18, LatticeLook.Ink), "工程表", "工程表（Ctrl+5）", () => ShowLattice()), 6);
-        Add(NavButton(Icons.Gear, "設定", "設定（Ctrl+,）", () => ShowPage("設定")), 8);
+        Add(NavButton(Icons.Gear, "設定", "設定（Ctrl+,）", () => ShowSettings()), 8);
         var summaryRow = new DockPanel { Margin = new Thickness(4, 0), Children = { ownerName, new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { new Avalonia.Controls.Shapes.Ellipse { Width = 6, Height = 6, Fill = BellTheme.Mint, Margin = new Thickness(0, 0, 7, 0) }, onlineSummary } } } };
         DockPanel.SetDock(ownerName, Dock.Right);
         var footer = new StackPanel { Margin = new Thickness(14), Children = { new Border { BorderBrush = BellTheme.Line, BorderThickness = new Thickness(0, 1, 0, 0), Padding = new Thickness(0, 8), Child = footerGrid }, summaryRow } };
@@ -375,6 +379,7 @@ public sealed partial class MainWindow : Window, ISheetHost, IInspectorHost
     private async void Select(ConversationEntry entry)
     {
         if (model.Selected?.Target == entry.Target && pageArea.IsVisible == false) return;
+        if (settingsPage is { CanNavigateAway: false }) { model.ReportActionError("操作が終わってから会話を開いてください。"); return; }
         ShowConversation();
         if (model.Selected?.Target != entry.Target) await model.SelectAsync(entry);
     }
@@ -563,19 +568,43 @@ public sealed partial class MainWindow : Window, ISheetHost, IInspectorHost
     internal GoalPill GoalBar => goalPill;
     private void ShowPageContent(Control page)
     {
+        if (!LeavePage()) { (page as IDisposable)?.Dispose(); return; }
         model.ReturnToProfile(); (pageArea.Child as IDisposable)?.Dispose();
         pageArea.Child = page; pageArea.IsVisible = true; conversationArea.IsVisible = false; UpdateCorner();
     }
     private void ShowPage(string title)
     {
-        if (!model.Connected) return;
+        if (!model.Connected || !LeavePage()) return;
         model.ReturnToProfile();
         var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, Spacing = 10 };
         stack.Children.Add(BellTheme.Text(title, 29, BellTheme.Ink, FontWeight.Bold)); ((TextBlock)stack.Children[0]).TextAlignment = TextAlignment.Center;
         stack.Children.Add(BellTheme.Text($"{title}はLinux版ではまだ使えません。", 16, BellTheme.Muted)); ((TextBlock)stack.Children[1]).TextAlignment = TextAlignment.Center;
         pageArea.Child = stack; pageArea.IsVisible = true; conversationArea.IsVisible = false; UpdateCorner();
     }
-    private void ShowConversation() { (pageArea.Child as IDisposable)?.Dispose(); pageArea.Child = null; pageArea.IsVisible = false; conversationArea.IsVisible = true; UpdateCorner(); }
+    private void ShowConversation()
+    {
+        if (!LeavePage()) return;
+        (pageArea.Child as IDisposable)?.Dispose(); pageArea.Child = null; pageArea.IsVisible = false; conversationArea.IsVisible = true; UpdateCorner();
+    }
+    // The settings page ends when another page or a conversation opens; a save still running keeps it open.
+    private bool LeavePage()
+    {
+        if (settingsPage is not { } open) return true;
+        if (!open.CanNavigateAway) { model.ReportActionError("操作が終わってから画面を切り替えてください。"); return false; }
+        settingsPage = null; open.ClosePage(); return true;
+    }
+
+    // ---- settings ----
+    internal SettingsWindow? SettingsPageWindow => settingsPage;
+    public void ShowSettings(SettingsPage page = SettingsPage.Profile)
+    {
+        if (!model.Connected || !LeavePage()) return;
+        INotificationSwitch toggle = (INotificationSwitch?)notifications ?? new StoredNotificationSwitch(settingsStore);
+        var editor = new SettingsWindow(model, OpenConnectionSettings, toggle, () => { ShowConversation(); model.SignOut(); });
+        model.ReturnToProfile();
+        settingsPage = editor; pageArea.Child = editor.AsPage(ShowConversation); pageArea.IsVisible = true; conversationArea.IsVisible = false; UpdateCorner();
+        PageReady = editor.InitializeAsync(page);
+    }
 
     // ---- startup: the Mac RootView phases ----
     public StartupPhase Startup => startup;
@@ -602,7 +631,11 @@ public sealed partial class MainWindow : Window, ISheetHost, IInspectorHost
     public void ShowStartupForRender(StartupPhase phase, string? message = null) => ShowStartup(phase, message);
     public void ShowServerGuide() { CloseSheet(); OpenSheet("サーバーの導入ガイド", new ServerGuideView()); }
     // Settings needs a live connection, so an unreachable saved server is changed from the connection strip.
-    public void OpenConnectionSettings() { ShowConversation(); ShowServerSetup(); }
+    public void OpenConnectionSettings()
+    {
+        if (settingsPage is { CanNavigateAway: false }) { model.ReportActionError("操作が終わってから接続先を変更してください。"); return; }
+        ShowConversation(); ShowServerSetup();
+    }
     private void RouteToLogin() { if (model.NeedsLogin && !connecting && startup != StartupPhase.SignIn) ShowStartup(StartupPhase.SignIn); }
 
     // Mac changeServer: the server entry screen replaces the window. The saved address stays until a new one is entered, so it is offered again.
@@ -775,7 +808,7 @@ public sealed partial class MainWindow : Window, ISheetHost, IInspectorHost
                 case Key.D3: ShowGoals(); e.Handled = true; break;
                 case Key.D4: ShowWorkGraph(); e.Handled = true; break;
                 case Key.D5: ShowLattice(); e.Handled = true; break;
-                case Key.OemComma: ShowPage("設定"); e.Handled = true; break;
+                case Key.OemComma: ShowSettings(); e.Handled = true; break;
                 case Key.K: search.Focus(); search.SelectAll(); e.Handled = true; break;
             }
         }
@@ -798,7 +831,7 @@ public sealed partial class MainWindow : Window, ISheetHost, IInspectorHost
     }
 
     // Waits for the avatars and images that were just asked for, then lays the screen out.
-    public async Task PrepareRenderAsync()
+    public async Task PrepareRenderAsync(bool bottomOfPage = false)
     {
         for (var round = 0; round < 3; round++)
         {
@@ -808,6 +841,7 @@ public sealed partial class MainWindow : Window, ISheetHost, IInspectorHost
         }
         UpdateLayout();
         if (conversationArea.IsVisible) { messageScroll.ScrollToEnd(); UpdateLayout(); } // images that finished loading changed the height
+        if (bottomOfPage && settingsPage is { } open) { open.ScrollToEndForRender(); UpdateLayout(); }
     }
 }
 
