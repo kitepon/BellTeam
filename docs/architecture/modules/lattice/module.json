@@ -22,6 +22,7 @@
     "src/lattice/http-api.mjs",
     "src/lattice/mcp.mjs",
     "src/lattice/core.mjs",
+    "src/lattice/blockers.mjs",
     "src/lattice/cli.mjs",
     "src/lattice/code-chart.mjs",
     "src/lattice/projection.mjs",

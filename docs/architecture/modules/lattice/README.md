@@ -31,7 +31,7 @@ flowchart LR
   Apps["Apple (Rapi) / Web (Flora) / Windows (Anis)"]
   subgraph Body[body process, stable]
     MCP["bellteam MCP: tool lattice<br/>src/lattice/mcp.mjs (Flora)<br/>registered by Molly"]
-    API["src/lattice/http-api.mjs (Flora)<br/>GET /api/lattice/charts<br/>GET /api/lattice/charts/:id<br/>GET /api/lattice/charts/:id/events"]
+    API["src/lattice/http-api.mjs (Flora)<br/>GET /api/lattice/charts<br/>GET /api/lattice/charts/:id<br/>GET /api/lattice/charts/:id/events<br/>GET /api/lattice/blockers<br/>POST /api/lattice/charts/:id/unblock (Owner, unblock only)"]
     Facade["lattice facade (Molly)<br/>SSE subscribers per chart,<br/>refresh timer, one call chain"]
     Effects["effect handlers (Molly):<br/>members.list, messages.send, turns.read"]
     Msg["messenger.sendmessage<br/>(public send path; wakes the seat)"]
@@ -45,6 +45,7 @@ flowchart LR
     Proj["projection.mjs: cards, edges, waits, producers"]
     Notices["notices.mjs: startable notices<br/>-> lane + waiting Bots, ack, re-list"]
     Nudge["nudge.mjs: every chart todo nudge<br/>-> prompts to lane Bots not running"]
+    Stops["blockers.mjs: every chart todo blockers -> stop list;<br/>Owner unblock (stopId -> todo unblock as owner)"]
     Code["code-chart.mjs: code charts (bellteam) =<br/>depth-1 checkout of the product repo; before a seat run:<br/>fetch, move main forward, sensor init/sync"]
   end
   Store["/srv/bellteam/state/lattice/&lt;project&gt;/.lattice/<br/>(one git repo per chart, Lattice format)"]
@@ -63,6 +64,7 @@ flowchart LR
   Core -->|after a release write / on deliver| Notices -->|"todo notice list|ack"| Cli
   Facade -->|"nudge every 5 min (L13)"| PChan
   Core -->|on nudge| Nudge -->|"todo nudge --json (L14)"| Cli
+  Core -->|"on blockers / unblock (L16-L17)"| Stops -->|"todo blockers --json; todo unblock (LATTICE_SEAT_ID=owner)"| Cli
   Nudge -->|"turns.read, messages.send (L15)"| CChan
 ```
 
@@ -86,6 +88,8 @@ flowchart LR
 | L13 | facade timer -> child root `nudge {}` | Owner (Quo 2026-11-12, the whole spec): about every 5 minutes look at every chart; a task that can start (predecessors finished) but is not started, whose lane Bot is not running, gets a prompt to start, and to set a stop (`todo block`) if it cannot move once started; a blocked task is not prompted. No other condition. The facade arms one 300 s timer at creation (unref'd, independent of subscribers), calls `nudge` on its serialized chain and re-arms after each call; a failure (child unavailable, old child refusing `nudge` with `LATTICE_INVALID`) is swallowed and the next tick tries again. Result `{charts, prompted, skipped, failed}` | Self-exit: nothing is held; every tick starts fresh |
 | L14 | child -> Lattice CLI | `lattice todo nudge --json` (Lattice 0.95.0) per chart (`cli.list()`), under that chart's run lock -> `lattice.todo_nudge_result.v1` `{project_id, lanes: [{lane, tasks: [{plan_key, task_id, title, prompt, ...}]}]}`. Lattice decides the chart side (ready, not started, not blocked, not waiting); the module adds nothing. No Store -> `lanes: []`. A failed chart logs `lattice-nudge <id> <code>` once per tick and is skipped | Read-only; nothing is recorded, so nothing needs repair |
 | L15 | child -> parent effects | `turns.read {botIds}` (lane ids that are roster Bots, not deleting) -> `{turns: {<id>: 'working'|'idle'|'unknown'}}` (`transport.runningState(id)`: the native turn state, `working` while the Bot waits on its notify=result command schedule (execution current-work.md, 2026-11-12); falls back to `transport.currentTurn(id).state` when missing); then for each lane whose state is not `working` (the Bot side: not running; `unknown` or a failed read is not proof of running, so it is prompted), `messages.send {from: 'scheduler', target: lane, message}` with each task's `prompt` as Lattice wrote it, under one header line per chart (`Lattice nudge, chart <id> (lattice tool, project <id>):`), all of the lane's prompts in one message, split at prompt boundaries to stay <= 4000 chars. A lane that is not a roster Bot (e.g. `owner`) is skipped: there is no seat to deliver to. A send that is not accepted counts as `failed`; the next tick sends again | Information each tick while the task stays ready and the Bot idle; it ends when the Bot starts it (not listed) or blocks it (not listed) |
+| L16 | Owner app -> body API -> facade -> child root `blockers {}` | per chart (`cli.list()`, 4 at a time, no lock: a read) `lattice todo blockers --json` (Lattice 0.96.0) -> `bellteam.lattice-blockers.v1` (contract: Public contract, Stops). Chart name and creator from the sidecar (L7). A chart whose read fails is listed in `unreadCharts` and logged `lattice-blockers <id> <code>` | Read-only; nothing cached |
+| L17 | Owner app -> body API -> facade -> child root `unblock {projectId, stopId}` | under the chart's run lock: `todo blockers --json` again, find `stopId`; absent -> `already-gone`; present -> `lattice todo unblock --plan P --task T` with env `LATTICE_SEAT_ID=owner` (no other args, no input) -> exit 0 = `removed` (`unchanged: true` -> `already-gone`, `TASK_NOT_FOUND` / `PLAN_NOT_FOUND` / no chart -> `already-gone`), any other refusal -> `refused {code, reason}`. The result's notices go out as L10 with `from: 'scheduler'` (the messenger refuses `owner` as a sender). The chart's memo is marked dirty, so its subscribers get the new snapshot | Named protection (privilege escalation: an Owner-named write): `owner` reaches `LATTICE_SEAT_ID` only from this route; a seat's `from` is always its Bot id (L1) |
 
 ### Code charts (Trony assignment 2026-11-12; Owner: Lattice is not a plain table)
 
@@ -127,7 +131,7 @@ Input schema: `{ project: string, name?: string, args: string[], input?: object 
 
 ## Public contract (apps)
 
-Common Owner-authenticated `/api`; internal callers 403; no permission checks of its own (Owner rulings 4-5).
+Common Owner-authenticated `/api`; internal callers 403; no permission checks of its own (Owner rulings 4-5). The stops routes state their callers explicitly in their own section below. The only Owner write is the stops unblock.
 
 ### `GET /api/lattice/charts`
 
@@ -170,6 +174,55 @@ Order: coordinator charts first (`coordinator` = `createdBy` is the coordinator 
 
 `event: snapshot` with the snapshot on connect and again whenever `version` changes; `: hb` every 15 s; a client treats 35 s of silence as a drop and reconnects; no replay; a new `epoch` means the child restarted.
 
+### Stops (blockers) — `GET /api/lattice/blockers` and `POST /api/lattice/charts/:projectId/unblock`
+
+Owner ruling 2026-11-12: 「ブロッカー（止め）一覧は作ってくれ。それを見て俺が解除する。AIも解除できる。」 Boundary agreed by Trony with Flora, Rapi, Anis and Admi (task lattice-blockers-20261112/blockers-module). **This section is the single contract the apps (Web Flora, Apple Rapi, Windows Anis) build against.** Apps read only these routes; no app reads Lattice files or runs the CLI. Fields are only ever added; apps ignore unknown fields and treat a missing optional field as absent.
+
+**Who may call (stated, not inherited).**
+
+| Caller | Gets |
+| --- | --- |
+| Owner apps through the web-gateway's existing `/api/lattice/*` mount, same-origin Owner session (Cloudflare Access on the public host) | the route |
+| A request on the main server whose `Host` is a local name (`localhost`, `*.local`, a private IPv4, a single-label name such as `main-server`), with any or no `Authorization` header | the route, as the Owner. This is the product-wide rule of the common authorizer (`usage/application-features.mjs` `authMode` -> `local`), the same for every Owner route; the module adds no check of its own on top of it. Recorded as BugHub **SEC-049** (open, high; Trony 2026-11-12: the common authorizer stays unchanged here and SEC-049 is handled separately, not as a gate of these routes): any process that reaches the main server by a local name is the Owner on every Owner route, including this unblock |
+| Any other request on the main server with Cloudflare enabled and no valid Access token (empty or absent) | 401 `UNAUTHORIZED` (common authorizer, before the route) |
+| The internal (seat) server, i.e. every Bot | 403 `LATTICE_OWNER_REQUIRED`. Bots read and remove stops through the seat tool (`todo blockers`, `todo unblock`), recorded under their own Bot id |
+
+`POST` needs `Content-Type: application/json` (415 `LATTICE_JSON_REQUIRED` otherwise), so a cross-site form cannot send it.
+
+#### `GET /api/lattice/blockers`
+
+Every stop on every chart, read from `lattice todo blockers --json` per chart at request time (no cache).
+
+```json
+{ "schema": "bellteam.lattice-blockers.v1", "at": "…",
+  "blockers": [{ "stopId": "3f9c1e0a7b2d4c5e6f708192", "projectId": "bellteam", "chartName": "BellTeam開発", "chartCreatedBy": "bot-7b140b27",
+                 "plan": "p1", "taskId": "t07", "cardId": "p1/t07", "title": "…", "lane": "bot-39be7047",
+                 "reason": "CI is red on main", "blockedAt": "…", "blockedBy": "bot-39be7047" }],
+  "unreadCharts": ["peertable"] }
+```
+
+- Order: charts by `projectId`, then Lattice's order (`plan`, `taskId`). Apps may sort as they like.
+- `stopId`: 24 lowercase hex, stable for one stop: derived from (`projectId`, `plan`, `taskId`, `blockedAt`). The same task blocked again later is a new stop with a new `stopId`, so an unblock aimed at an old stop never removes a newer one.
+- `chartName` / `chartCreatedBy`: for the display name rule above (`chartName` null -> 「<creator's name>の工程表」 -> 名前のない工程表); `cardId` matches the card `id` in the chart snapshot.
+- `lane`, `blockedBy`: a Bot id, the reserved `"owner"` (draw as the Owner, like `producer`), or null; `blockedBy` = the agent of the last block event. A Bot id not in the app's roster is drawn as 名簿にないメンバー.
+- `reason`: Lattice's full `blocked_reason` text as written by whoever set the stop (may be English or Japanese; shown as is).
+- `unreadCharts`: charts whose read failed this time (their stops are missing from the list). Apps say 「一部の工程表を読めませんでした」 when it is non-empty; never show the ids.
+- Errors: 503 `LATTICE_UNAVAILABLE` (child down, or a child older than this route), 405 other methods.
+
+#### `POST /api/lattice/charts/:projectId/unblock`
+
+Body `{"stopId": "<24 hex>"}` and nothing else (400 `LATTICE_INVALID` for any other shape; at most 1 KiB). The child takes the chart's run lock, re-reads that chart's stops, and if `stopId` is still there runs `lattice todo unblock --plan <plan> --task <taskId>` with `LATTICE_SEAT_ID=owner`, so the chart records the Owner as the actor. Nothing else can be written through this route.
+
+| HTTP | Body | Meaning; what the app does with the row |
+| --- | --- | --- |
+| 200 | `{"schema":"bellteam.lattice-unblock.v1","projectId":"…","stopId":"…","outcome":"removed"}` | the Owner removed it; drop the row |
+| 200 | same with `"outcome":"already-gone"` | the stop is not there any more (removed by someone else, re-blocked as a new stop, task or chart gone); drop the row. A re-send after an unknown result lands here, so re-sending is harmless |
+| 409 | `{"error":"LATTICE_UNBLOCK_REFUSED","outcome":"refused","code":"…","reason":"…"}` | Lattice refused (`code` from Lattice, `reason` = its plain message or next action); keep the row and show 「外せませんでした」 with `reason` |
+| 400 | `LATTICE_INVALID` / `LATTICE_PROJECT_INVALID` | malformed request; an app bug |
+| 503 | `LATTICE_UNAVAILABLE` | try again later; the row stays |
+
+**How apps learn about changes.** There is no blockers stream. Apps read `GET /api/lattice/blockers` when the list opens, on pull-to-refresh, after every unblock answer (any outcome), and when they come back to the foreground. An open chart screen already sees the change through its chart SSE (`card.state` leaves `blocked`, `blockedReason` becomes null). Startable notices released by an Owner unblock go to the lane Bots from `scheduler` (L10).
+
 ## Projection rules (`projection.mjs`)
 
 Input: one `lattice.todo_display_read_result.v1`. For `verified` / `last_verified` the store is `lattice.todo_store_read.v1` (members with `plan`, `tasks`, `journal.events`, `plan_scoped.events`); for `unverified` it is raw `{members:[{descriptor, plan, snapshot}]}` and task states come from `snapshot.tasks`. Missing or malformed fields drop only that task or edge.
@@ -194,6 +247,10 @@ Input: one `lattice.todo_display_read_result.v1`. For `verified` / `last_verifie
 | `chart` | `{projectId}` | `bellteam.lattice-chart.v1` (or error `LATTICE_CHART_NOT_FOUND`, 404) |
 | `refresh` | `{projectIds}` (1-50) | `{snapshots:[chart snapshots whose version changed], nextRefreshMs}` (2000 while any chart is asked) |
 | `run` | `{from, projectId, args, input, name?}` (`input` object or null; `name` 1-40 plain characters, `args` may be `[]` only with `name`) | `{exitCode, result, stdout, stderr}` |
+| `deliver` | `{}` | `{delivered, failed}` |
+| `nudge` | `{}` | `{charts, prompted, skipped, failed}` |
+| `blockers` | `{}` | `bellteam.lattice-blockers.v1` |
+| `unblock` | `{projectId, stopId}` (24 hex) | `{schema:'bellteam.lattice-unblock.v1', projectId, stopId, outcome:'removed'\|'already-gone'\|'refused', code?, reason?}` |
 
 Snapshot validation (`validateLatticeResult`, both ends) accepts `phases` and card `phase` / `parent` / `doneAt` / `archived` as optional keys, so a body with this validator takes both older and newer children. A child that sends them needs a body with this validator: they ship together in one body train (the builtin child follows the body image), never as a module-only exchange onto an older body.
 
