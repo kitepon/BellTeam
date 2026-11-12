@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-12T04:36:58Z",
-  "expiresAt": "2026-11-19T04:36:58Z",
+  "publishedAt": "2026-11-12T04:39:45Z",
+  "expiresAt": "2026-11-19T04:39:45Z",
   "releases": [
     {
       "componentId": "usage",
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "22a8e92dd8a210d71fd775584cc8d5210b15da6d",
-      "versionId": "sha256:295ad76b5b0a4913b50719dc1598b0aed967a761acc2585ea55ce06f4ef7a1aa",
+      "sourceCommit": "7a9c5899a3ac6b5c7e426d5c51dd30c4450a6ca6",
+      "versionId": "sha256:e95a7487d192ec69940491ed634714d9ce3645662ba7f9340bcdb07607b4fbcf",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:295ad76b5b0a4913b50719dc1598b0aed967a761acc2585ea55ce06f4ef7a1aa"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:e95a7487d192ec69940491ed634714d9ce3645662ba7f9340bcdb07607b4fbcf"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,20 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "別の端末で動く席の目標も読めるようにします（Aiterm 0.70.29）。分身への問い合わせの答えが、問い合わせた席へ届くようにします。本体を再起動した後、席が道具の一覧を読み直します。モデル一覧を席のClaudeのログインで読み、ログインが無い時は今までどおりの一覧を出します。部品のエラー記録を、秘密を伏せた読めるファイルに残します。工程表でBellTeamのコードの図を作れるようにします。"
+        "休止中の端末の席の目標を、画面の入力欄の案内文があっても「休止中」と読めるようにします（Aiterm 0.70.30）。工程表（Lattice）を 0.88.0 に上げます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "22a8e92dd8a210d71fd775584cc8d5210b15da6d",
-      "versionId": "sha256:295ad76b5b0a4913b50719dc1598b0aed967a761acc2585ea55ce06f4ef7a1aa",
+      "sourceCommit": "7a9c5899a3ac6b5c7e426d5c51dd30c4450a6ca6",
+      "versionId": "sha256:e95a7487d192ec69940491ed634714d9ce3645662ba7f9340bcdb07607b4fbcf",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:295ad76b5b0a4913b50719dc1598b0aed967a761acc2585ea55ce06f4ef7a1aa"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:e95a7487d192ec69940491ed634714d9ce3645662ba7f9340bcdb07607b4fbcf"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,7 +748,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "別の端末で動く席の目標も読めるようにします（Aiterm 0.70.29）。分身への問い合わせの答えが、問い合わせた席へ届くようにします。本体を再起動した後、席が道具の一覧を読み直します。モデル一覧を席のClaudeのログインで読み、ログインが無い時は今までどおりの一覧を出します。部品のエラー記録を、秘密を伏せた読めるファイルに残します。工程表でBellTeamのコードの図を作れるようにします。"
+        "休止中の端末の席の目標を、画面の入力欄の案内文があっても「休止中」と読めるようにします（Aiterm 0.70.30）。工程表（Lattice）を 0.88.0 に上げます。"
       ]
     },
     {
