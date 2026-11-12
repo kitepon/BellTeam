@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-12T16:37:29Z",
-  "expiresAt": "2026-11-19T16:37:29Z",
+  "publishedAt": "2026-11-12T17:38:26Z",
+  "expiresAt": "2026-11-19T17:38:26Z",
   "releases": [
     {
       "componentId": "usage",
@@ -493,8 +493,8 @@
     },
     {
       "componentId": "execution",
-      "sourceCommit": "fdfb16072747861e07cb4511ebd2a5d568bb276e",
-      "versionId": "302c7a49efa96916fa50ef277d82cd3b127393f91ab31024ca22f6dcd9134e83",
+      "sourceCommit": "512acffc8f440822406e3a3249190b0826d2f299",
+      "versionId": "322c54ed5eefb3b0b3d0e0252a303ae1446ab055e3c67b4cb1bd7fbd67861f44",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -502,16 +502,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T160222Z/execution-fdfb16072747861e07cb4511ebd2a5d568bb276e-linux-amd64.tar.gz",
-          "bytes": 3962353,
-          "sha256": "302c7a49efa96916fa50ef277d82cd3b127393f91ab31024ca22f6dcd9134e83"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T173800Z/execution-512acffc8f440822406e3a3249190b0826d2f299-linux-amd64.tar.gz",
+          "bytes": 3962675,
+          "sha256": "322c54ed5eefb3b0b3d0e0252a303ae1446ab055e3c67b4cb1bd7fbd67861f44"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T160222Z/execution-fdfb16072747861e07cb4511ebd2a5d568bb276e-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11177,
-          "sha256": "6a41c430414ab1354b5240572b1626c774a9b1f695564c6ef813335b227e15e4"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T173800Z/execution-512acffc8f440822406e3a3249190b0826d2f299-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10989,
+          "sha256": "f8450a0090232e3880d18d344e2fd6cd4f77f0b8f977de3a8e2f56c61abef820"
         },
-        "signerCommit": "fdfb16072747861e07cb4511ebd2a5d568bb276e"
+        "signerCommit": "512acffc8f440822406e3a3249190b0826d2f299"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -521,13 +521,13 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "共通規範の lattice.task を変えます。自分の担当の中だけで閉じる作業は、各 Bot が自分の工程表を作って自分で載せます。調整役の工程表に載せるべき作業が無い時だけ、調整役に追加を頼みます。"
+        "端末の席（Windows や Mac の席）が動いているかを正しく答えます。これまでは、端末の席は作業中でも「オフライン」と出ていました。"
       ]
     },
     {
       "componentId": "execution",
-      "sourceCommit": "fdfb16072747861e07cb4511ebd2a5d568bb276e",
-      "versionId": "5a3ac0e0a4f93fdabea900c21a0d94d1f29acc990a89b6fb1348ea11f7e19ee2",
+      "sourceCommit": "512acffc8f440822406e3a3249190b0826d2f299",
+      "versionId": "5c0e81a172285eb17f14076a8b8b458f78ef985a0d6689692a5a4cef23a7942f",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -535,16 +535,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T160222Z/execution-fdfb16072747861e07cb4511ebd2a5d568bb276e-linux-arm64.tar.gz",
-          "bytes": 3962350,
-          "sha256": "5a3ac0e0a4f93fdabea900c21a0d94d1f29acc990a89b6fb1348ea11f7e19ee2"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T173800Z/execution-512acffc8f440822406e3a3249190b0826d2f299-linux-arm64.tar.gz",
+          "bytes": 3962676,
+          "sha256": "5c0e81a172285eb17f14076a8b8b458f78ef985a0d6689692a5a4cef23a7942f"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T160222Z/execution-fdfb16072747861e07cb4511ebd2a5d568bb276e-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 11255,
-          "sha256": "9ae500e12b529b15656b51516a0494d049fc8c40b5fc40d0645f0d9cb4f84d97"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T173800Z/execution-512acffc8f440822406e3a3249190b0826d2f299-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10989,
+          "sha256": "bbe7c15dc22c41d46865a4d9d161df351038071e580a4a6e3ec4a5d14f6d9204"
         },
-        "signerCommit": "fdfb16072747861e07cb4511ebd2a5d568bb276e"
+        "signerCommit": "512acffc8f440822406e3a3249190b0826d2f299"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -554,7 +554,7 @@
         "stateCompatibility": "bellteam.execution-state.v1"
       },
       "changes": [
-        "共通規範の lattice.task を変えます。自分の担当の中だけで閉じる作業は、各 Bot が自分の工程表を作って自分で載せます。調整役の工程表に載せるべき作業が無い時だけ、調整役に追加を頼みます。"
+        "端末の席（Windows や Mac の席）が動いているかを正しく答えます。これまでは、端末の席は作業中でも「オフライン」と出ていました。"
       ]
     },
     {
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "dc9985ac0c2fa2f9b65648a9378a455902ed7a1d",
-      "versionId": "sha256:e0e9ca5a29ebb7c1e2b9de8b09edd49fcde61edd659d85e59294f898b6a46de6",
+      "sourceCommit": "fdfb16072747861e07cb4511ebd2a5d568bb276e",
+      "versionId": "sha256:dbc171ba575a2fed7c1e9b275d9cc396dc0db16f259656afb737d91c19a696b3",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:e0e9ca5a29ebb7c1e2b9de8b09edd49fcde61edd659d85e59294f898b6a46de6"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:dbc171ba575a2fed7c1e9b275d9cc396dc0db16f259656afb737d91c19a696b3"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,20 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "裏で動く実行の部品を入れ替えたあと、席の道具が、開いたままの席でも新しい部品を使うようにします。これまでは、入れ替える前に開いた席は古い部品を使い続けることがありました。"
+        "本体に入っている工程表の控えを 0.97.0 にします。工程表の部品が読めずに控えへ切り替わっても、開き直した工程表を読めます。控えには、止まっている作業の一覧と、止まりを外す操作も入ります。共通の決まりごと（自分の担当の中だけの作業は自分の工程表に載せる）も、本体の起動時に各 AI の指示へ書き込みます。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "dc9985ac0c2fa2f9b65648a9378a455902ed7a1d",
-      "versionId": "sha256:e0e9ca5a29ebb7c1e2b9de8b09edd49fcde61edd659d85e59294f898b6a46de6",
+      "sourceCommit": "fdfb16072747861e07cb4511ebd2a5d568bb276e",
+      "versionId": "sha256:dbc171ba575a2fed7c1e9b275d9cc396dc0db16f259656afb737d91c19a696b3",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:e0e9ca5a29ebb7c1e2b9de8b09edd49fcde61edd659d85e59294f898b6a46de6"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:dbc171ba575a2fed7c1e9b275d9cc396dc0db16f259656afb737d91c19a696b3"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,7 +748,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "裏で動く実行の部品を入れ替えたあと、席の道具が、開いたままの席でも新しい部品を使うようにします。これまでは、入れ替える前に開いた席は古い部品を使い続けることがありました。"
+        "本体に入っている工程表の控えを 0.97.0 にします。工程表の部品が読めずに控えへ切り替わっても、開き直した工程表を読めます。控えには、止まっている作業の一覧と、止まりを外す操作も入ります。共通の決まりごと（自分の担当の中だけの作業は自分の工程表に載せる）も、本体の起動時に各 AI の指示へ書き込みます。"
       ]
     },
     {
