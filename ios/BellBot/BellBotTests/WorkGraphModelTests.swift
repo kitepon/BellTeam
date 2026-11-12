@@ -34,6 +34,25 @@ final class WorkGraphModelTests: XCTestCase {
         XCTAssertNotNil(model.lines["c>a"]?.endedAt)
     }
 
+    func testClockStopsOnlyAfterTheLastLeaveAndRestartsOnChange() async {
+        let model = WorkGraphModel()
+        let size = CGSize(width: 800, height: 600)
+        func settle() async { await Task.yield(); await MainActor.run {} }
+        model.apply(WorkGraphSnapshot(epoch: "e", version: 1, degraded: [], nodes: [node("a"), node("b")], edges: [edge("a", "b")]), at: 0)
+        model.step(now: 0, size: size, insets: EdgeInsets())
+        await settle()
+        XCTAssertFalse(model.still, "メンバーがいる間は動き続ける")
+        model.apply(WorkGraphBatch(epoch: "e", version: 2, degraded: [], changes: [.edgeEnd("a>b"), .memberLeave("a"), .memberLeave("b")]), at: 1)
+        model.step(now: 1.3, size: size, insets: EdgeInsets())
+        await settle()
+        XCTAssertFalse(model.still, "退場の0.6秒の間は止めない")
+        model.step(now: 1.7, size: size, insets: EdgeInsets())
+        await settle()
+        XCTAssertTrue(model.still, "退場と線の消える動きが終われば止める")
+        model.apply(WorkGraphBatch(epoch: "e", version: 3, degraded: [], changes: [.memberEnter(node("c"))]), at: 2)
+        XCTAssertFalse(model.still, "変化が届いたらすぐ動かす")
+    }
+
     func testLayoutStaysInsideAndApartWithManyMembers() {
         let model = WorkGraphModel()
         let size = CGSize(width: 390, height: 760)
