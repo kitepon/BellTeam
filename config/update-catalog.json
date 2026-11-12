@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-12T23:24:44Z",
-  "expiresAt": "2026-11-19T23:24:44Z",
+  "publishedAt": "2026-11-12T23:30:26Z",
+  "expiresAt": "2026-11-19T23:30:26Z",
   "releases": [
     {
       "componentId": "usage",
@@ -755,8 +755,8 @@
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "0fae4fc1dea34212cc4079788cafa6671e891e74",
-      "versionId": "bcdedd00440d97090d6a59566199232cafcc2fb17837a288e97aa65f1c239bdd",
+      "sourceCommit": "3ed8c037af5e2f46966aeb6633ebf69bc8edd8e7",
+      "versionId": "cbf4dddadbb6e95cbfc6c8ea80001d889c7ab4bbebbaad8d6a3b375987f93560",
       "platform": {
         "os": "linux",
         "arch": "amd64"
@@ -764,16 +764,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T224821Z/lattice-0fae4fc1dea34212cc4079788cafa6671e891e74-linux-amd64.tar.gz",
-          "bytes": 15268007,
-          "sha256": "bcdedd00440d97090d6a59566199232cafcc2fb17837a288e97aa65f1c239bdd"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T232919Z/lattice-3ed8c037af5e2f46966aeb6633ebf69bc8edd8e7-linux-amd64.tar.gz",
+          "bytes": 15268065,
+          "sha256": "cbf4dddadbb6e95cbfc6c8ea80001d889c7ab4bbebbaad8d6a3b375987f93560"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T224821Z/lattice-0fae4fc1dea34212cc4079788cafa6671e891e74-linux-amd64.tar.gz.sigstore.json",
-          "bytes": 11376,
-          "sha256": "26a147c80721908a34462593f6a253c49be97ee5e3bc6646237014a2d8938ff7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T232919Z/lattice-3ed8c037af5e2f46966aeb6633ebf69bc8edd8e7-linux-amd64.tar.gz.sigstore.json",
+          "bytes": 10949,
+          "sha256": "3aaf02567daaf88464bd4866423fb3f2301fb14793c96dea941092c378b58de3"
         },
-        "signerCommit": "0fae4fc1dea34212cc4079788cafa6671e891e74"
+        "signerCommit": "3ed8c037af5e2f46966aeb6633ebf69bc8edd8e7"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -785,13 +785,13 @@
         }
       },
       "changes": [
-        "工程を始めていいと知らせる相手を、名簿にいて、その工程を待っている Bot だけにします。待っている Bot がいない時は知らせを送らず、済んだ扱いにします。"
+        "評価者様が工程の完了に答えた時、Bot がまず工程を始めた印を付けてから完了にするよう案内します。"
       ]
     },
     {
       "componentId": "lattice",
-      "sourceCommit": "0fae4fc1dea34212cc4079788cafa6671e891e74",
-      "versionId": "f2d02963de7200f9eca54b0baac62c78c6912a8abc3adcd4bae51133e58b7ebf",
+      "sourceCommit": "3ed8c037af5e2f46966aeb6633ebf69bc8edd8e7",
+      "versionId": "db8e859237250240f553702a97f373733ac02136158b395d492f61122c06cf79",
       "platform": {
         "os": "linux",
         "arch": "arm64"
@@ -799,16 +799,16 @@
       "artifact": {
         "kind": "archive",
         "archive": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T224821Z/lattice-0fae4fc1dea34212cc4079788cafa6671e891e74-linux-arm64.tar.gz",
-          "bytes": 15268014,
-          "sha256": "f2d02963de7200f9eca54b0baac62c78c6912a8abc3adcd4bae51133e58b7ebf"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T232919Z/lattice-3ed8c037af5e2f46966aeb6633ebf69bc8edd8e7-linux-arm64.tar.gz",
+          "bytes": 15268083,
+          "sha256": "db8e859237250240f553702a97f373733ac02136158b395d492f61122c06cf79"
         },
         "bundle": {
-          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T224821Z/lattice-0fae4fc1dea34212cc4079788cafa6671e891e74-linux-arm64.tar.gz.sigstore.json",
-          "bytes": 10937,
-          "sha256": "0083135c173bd082d8a6937e3cd389eb0f9046a6a631fd4cbe4243efd59e02e7"
+          "url": "https://github.com/kitepon/BellTeam/releases/download/updates-20261112T232919Z/lattice-3ed8c037af5e2f46966aeb6633ebf69bc8edd8e7-linux-arm64.tar.gz.sigstore.json",
+          "bytes": 10914,
+          "sha256": "ee0c883958cf018e481cd8c3994ec96d270e26aa40d9e662905f3e58f25ed537"
         },
-        "signerCommit": "0fae4fc1dea34212cc4079788cafa6671e891e74"
+        "signerCommit": "3ed8c037af5e2f46966aeb6633ebf69bc8edd8e7"
       },
       "compatibility": {
         "nodeMajor": 26,
@@ -820,7 +820,7 @@
         }
       },
       "changes": [
-        "工程を始めていいと知らせる相手を、名簿にいて、その工程を待っている Bot だけにします。待っている Bot がいない時は知らせを送らず、済んだ扱いにします。"
+        "評価者様が工程の完了に答えた時、Bot がまず工程を始めた印を付けてから完了にするよう案内します。"
       ]
     }
   ],
