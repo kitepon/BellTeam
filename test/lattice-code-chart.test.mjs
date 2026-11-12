@@ -97,6 +97,15 @@ test('code chart: a diverged checkout or a foreign origin is never reset or repo
   assert.equal(await w.codes.maintain('code'), 'diverged')
   assert.deepEqual([git(w.chart, 'rev-parse', 'HEAD'), existsSync(join(w.chart, 'local.txt'))], [local, true], 'no reset')
   assert.equal(w.logs.at(-1), 'lattice-code code diverged')
+  // upstream moves again while diverged: the baseline stays, so restoring main to it recovers by itself (Epinel 2026-11-12)
+  await writeFile(join(w.work, 'e.txt'), 'five'); git(w.work, 'add', '.'); git(w.work, 'commit', '-q', '-m', 'c5'); git(w.work, 'push', '-q', w.origin, 'main')
+  w.clock.now += 120000
+  assert.equal(await w.codes.maintain('code'), 'diverged')
+  git(w.chart, 'reset', '-q', '--hard', 'HEAD~1')
+  w.clock.now += 120000
+  assert.equal(await w.codes.maintain('code'), 'synced', 'restored to the accepted tip: moves to the newest')
+  assert.equal(git(w.chart, 'rev-parse', 'HEAD'), git(w.work, 'rev-parse', 'HEAD'))
+  await writeFile(join(w.chart, 'local.txt'), 'mine'); git(w.chart, 'add', 'local.txt'); git(w.chart, 'commit', '-q', '-m', 'local again')
   git(w.chart, 'remote', 'set-url', 'origin', join(w.root, 'elsewhere.git')); w.clock.now += 120000
   assert.equal(await w.codes.maintain('code'), 'origin-elsewhere')
   assert.equal(git(w.chart, 'remote', 'get-url', 'origin'), join(w.root, 'elsewhere.git'), 'origin not repointed')

@@ -27,18 +27,22 @@ export function createCodeCharts({ cli, charts = CODE_CHARTS, now = () => Date.n
     for (const key of ['remote.origin.promisor', 'remote.origin.partialclonefilter', 'extensions.partialclone']) {
       await cli.git(id, ['config', '--unset-all', key]).catch(() => null)
     }
-    const fetched = await cli.git(id, ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${branch}`]).catch(() => null)
-    // Depth 1 grafts the tip, so every reachable object is present and the walk is one tree.
-    await cli.git(id, ['fetch', '--quiet', '--depth=1', '--no-tags', 'origin', branch])
+    // origin/<branch> = the last tip main was moved to (the accepted baseline); only a successful move advances it.
+    const baseline = `refs/remotes/origin/${branch}`
+    const accepted = await cli.git(id, ['rev-parse', '--verify', '--quiet', baseline]).catch(() => null)
+    // Depth 1 grafts the tip, so every reachable object is present and the walk is one tree. Empty --refmap: FETCH_HEAD only.
+    await cli.git(id, ['fetch', '--quiet', '--depth=1', '--no-tags', '--refmap=', 'origin', branch])
     const target = await cli.git(id, ['rev-parse', 'FETCH_HEAD'])
     const head = await cli.git(id, ['rev-parse', '--verify', '--quiet', 'HEAD']).catch(() => null)
     // Unborn branch (a chart made before it was a code chart): .lattice/ and the sidecar are excluded, so checkout leaves them.
-    // A grafted tip has no parent, so --ff-only cannot see the link: main moves only when it holds nothing but the last fetch.
+    // A grafted tip has no parent, so --ff-only cannot see the link: main moves only when it holds nothing but the baseline.
     if (head === null) await cli.git(id, ['checkout', '--quiet', '-B', branch, target])
     else if (head !== target) {
-      if (head !== fetched) return 'diverged'
+      if (head !== accepted) return 'diverged'
       await cli.git(id, ['checkout', '--quiet', '-B', branch, target])
-    } else if (indexed.get(id) === head) return 'current'
+    }
+    if (accepted !== target) await cli.git(id, ['update-ref', baseline, target])
+    if (head === target && indexed.get(id) === head) return 'current'
     indexed.delete(id)
     let sensor = await cli.sensor(id, 'sync')
     // Lattice's typed answer, not a directory check: an interrupted init leaves .lattice/sensor without an index.
