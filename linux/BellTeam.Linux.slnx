@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="BellTeam.Linux/BellTeam.Linux.csproj" />
+  <Project Path="BellTeam.Linux.Tests/BellTeam.Linux.Tests.csproj" />
+</Solution>
