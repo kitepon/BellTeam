@@ -1,7 +1,7 @@
 {
   "schema": "bellteam.update-catalog.v1",
-  "publishedAt": "2026-11-12T22:50:57Z",
-  "expiresAt": "2026-11-19T22:50:57Z",
+  "publishedAt": "2026-11-12T23:10:12Z",
+  "expiresAt": "2026-11-19T23:10:12Z",
   "releases": [
     {
       "componentId": "usage",
@@ -709,15 +709,15 @@
     },
     {
       "componentId": "container",
-      "sourceCommit": "539aef6d6fdf6efaffe7f6550ad3d7ba26fbab2a",
-      "versionId": "sha256:1351064afdc411ce42128dc038f4bad4878e6555809a35ad39002f4abb926d0c",
+      "sourceCommit": "e25270fe6a7acf2e9c43c8a84f2c93e2c62ffedc",
+      "versionId": "sha256:4d20321061e7d48f8144ac8726c29f346733305481f2d600cad5c707489c2206",
       "platform": {
         "os": "linux",
         "arch": "amd64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:1351064afdc411ce42128dc038f4bad4878e6555809a35ad39002f4abb926d0c"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:4d20321061e7d48f8144ac8726c29f346733305481f2d600cad5c707489c2206"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -726,20 +726,20 @@
         "containerUpdate": 1
       },
       "changes": [
-        "評価者様の工程のどれかが Approval Box に断られても、その工程だけを飛ばして、次の工程の申請に進むようにします。Approval Box につながらない時は、その回の見回りを止めて次の回にやり直します。"
+        "Web の工程表の画面で、止まっている工程の一覧を見て、評価者様が止まりを解けるようにします。"
       ]
     },
     {
       "componentId": "container",
-      "sourceCommit": "539aef6d6fdf6efaffe7f6550ad3d7ba26fbab2a",
-      "versionId": "sha256:1351064afdc411ce42128dc038f4bad4878e6555809a35ad39002f4abb926d0c",
+      "sourceCommit": "e25270fe6a7acf2e9c43c8a84f2c93e2c62ffedc",
+      "versionId": "sha256:4d20321061e7d48f8144ac8726c29f346733305481f2d600cad5c707489c2206",
       "platform": {
         "os": "linux",
         "arch": "arm64"
       },
       "artifact": {
         "kind": "oci-index",
-        "reference": "ghcr.io/kitepon/bellteam-server@sha256:1351064afdc411ce42128dc038f4bad4878e6555809a35ad39002f4abb926d0c"
+        "reference": "ghcr.io/kitepon/bellteam-server@sha256:4d20321061e7d48f8144ac8726c29f346733305481f2d600cad5c707489c2206"
       },
       "compatibility": {
         "nodeMajor": null,
@@ -748,7 +748,7 @@
         "containerUpdate": 1
       },
       "changes": [
-        "評価者様の工程のどれかが Approval Box に断られても、その工程だけを飛ばして、次の工程の申請に進むようにします。Approval Box につながらない時は、その回の見回りを止めて次の回にやり直します。"
+        "Web の工程表の画面で、止まっている工程の一覧を見て、評価者様が止まりを解けるようにします。"
       ]
     },
     {
