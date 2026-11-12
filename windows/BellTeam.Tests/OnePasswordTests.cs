@@ -138,7 +138,7 @@ public sealed class OnePasswordTests
             var (view, form, busy) = Open(workspace); var texts = Texts(form);
             Assert.Contains("作り方を見る", texts); Assert.Contains("一つ目", texts); Assert.Contains("手順を開く", texts.Concat(Descendants<Button>(form).Select(button => AutomationName(button))));
             Assert.Contains("ops_で始まるトークンを貼る", texts); Assert.DoesNotContain(texts, text => text.StartsWith("読める保管庫"));
-            Assert.True(Descendants<CheckBox>(form).Single().IsChecked);       // unconfigured starts enabled (Mac)
+            Assert.True(Descendants<System.Windows.Controls.Primitives.ToggleButton>(form).Single().IsChecked);       // unconfigured starts enabled (Mac)
             var box = Descendants<PasswordBox>(form).Single(); box.Password = "not-a-token"; Click(SaveButton(form)); Settle(busy);
             Assert.Contains("サービスアカウントのトークン（ops_で始まる文字）を貼ってください。", Texts(form)); Assert.Empty(server.Patches);
             view.ClearToken(); Assert.Empty(box.Password);
@@ -155,7 +155,7 @@ public sealed class OnePasswordTests
             var (_, form, busy) = Open(workspace); var texts = Texts(form);
             Assert.Contains("読める保管庫：Infra、Team　SSH鍵：3件", texts); Assert.Contains("作り方を見る", texts); Assert.DoesNotContain("一つ目", texts); // folded inside 「作り方を見る」
             Assert.Contains("登録済み・変更するときだけ入力", texts);
-            Descendants<CheckBox>(form).Single().IsChecked = false; Click(SaveButton(form)); Settle(busy);
+            Descendants<System.Windows.Controls.Primitives.ToggleButton>(form).Single().IsChecked = false; Click(SaveButton(form)); Settle(busy);
             Assert.Equal(["/api/settings/onePassword {\"values\":{},\"enabled\":false}"], server.Patches);
             Assert.Contains("連携を解除しました。", Texts(form));
         });

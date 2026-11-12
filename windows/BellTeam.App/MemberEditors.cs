@@ -18,12 +18,13 @@ public sealed class ModelPicker : Border
     private readonly TextBox custom;
     private readonly Border cliRow, modelRow, customRow, effortRow, loadingRow, reasonRow, configRow;
     private readonly StackPanel configLine = new() { Orientation = Orientation.Horizontal };
-    private readonly CheckBox fast = new() { Content = "ファストモード", FontSize = 13, VerticalContentAlignment = VerticalAlignment.Center };
+    private readonly (Grid Row, System.Windows.Controls.Primitives.ToggleButton Switch) fastRowParts = SettingsUi.SwitchRow("ファストモード");
+    private System.Windows.Controls.Primitives.ToggleButton fast => fastRowParts.Switch;
     private readonly TextBlock reason = Text("", 12, Red);
     private bool updating, loading = true;
     private string? loadError;
     public event Action? Edited;
-    internal CheckBox FastToggle => fast;
+    internal System.Windows.Controls.Primitives.ToggleButton FastToggle => fast;
     internal TextBlock FastReason => reason;
     public ModelPicker(BotSettings initial)
     {
@@ -34,11 +35,11 @@ public sealed class ModelPicker : Border
         var customField = Field("モデルID", ""); custom = customField.Box; custom.CharacterCasing = CharacterCasing.Normal;
         var spinner = new StackPanel { Orientation = Orientation.Horizontal }; spinner.Children.Add(new Spinner { Width = 16, Height = 16, Stroke = Muted, Margin = new Thickness(0, 0, 8, 0) }); spinner.Children.Add(Text(EditorText.LoadingModels, 13, Secondary));
         cliRow = Labeled("CLI", harness); modelRow = Labeled("モデル", model); customRow = Row(customField.Element); effortRow = Labeled("エフォート", effort); loadingRow = Row(spinner);
-        var fastRow = Row(fast); var noteRow = Row(Text(EditorText.FastModeNote, 12, Muted)); reasonRow = Row(reason); configRow = Row(configLine);
+        var fastRow = Row(fastRowParts.Row); var noteRow = Row(Text(EditorText.FastModeNote, 12, Muted)); reasonRow = Row(reason); configRow = Row(configLine);
         foreach (var row in new UIElement[] { loadingRow, cliRow, modelRow, customRow, effortRow, fastRow, noteRow, reasonRow, configRow }) card.Add(row);
         card.SetVisible(configRow, false);
         Child = card; CornerRadius = new CornerRadius(10); Background = Brushes.White;
-        fast.IsChecked = initial.FastMode; System.Windows.Automation.AutomationProperties.SetName(fast, "ファストモード");
+        fast.IsChecked = initial.FastMode;
         fast.Checked += (_, _) => { RenderFast(); Edited?.Invoke(); }; fast.Unchecked += (_, _) => { RenderFast(); Edited?.Invoke(); };
         harness.SelectionChanged += (_, _) => { if (updating || harness.SelectedValue is not string id) return; selection.SelectHarness(id); Render(); Edited?.Invoke(); };
         model.SelectionChanged += (_, _) =>
