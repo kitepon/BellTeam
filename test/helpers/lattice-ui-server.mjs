@@ -4,6 +4,7 @@
 //   GET /api/lattice/charts/:id/events -> SSE `snapshot` on connect, `: hb` every 15 s.
 // Prints {"url"} on start. /test/reset, /test/mode?state=verified|unverified|last_verified|unavailable &list=ok|old|empty
 //   &stream=ok|drop (drop answers 503 to every stream) &unknown=1 (a producer that is not in the roster) &degraded=lattice-read,members
+//   &owner=1 (t07 is owned by the Owner: the reserved producer "owner")
 //   &lanes=1 (production today: some unstarted cards carry only an authored lane text such as root / kiro, no producer)
 // /test/complete?card=p1/t04 pushes a snapshot where that card is done (the completion bloom). Times are relative to now.
 import { createServer } from 'node:http'
@@ -20,7 +21,7 @@ const ago = minutes => new Date(Date.now() - minutes * 60000).toISOString()
 
 let state, subscribers = new Set()
 function reset() {
-  state = { mode: { state: 'verified', list: 'ok', stream: 'ok', unknown: false, lanes: false, degraded: [] }, version: 1, done: new Set() }
+  state = { mode: { state: 'verified', list: 'ok', stream: 'ok', unknown: false, lanes: false, owner: false, degraded: [] }, version: 1, done: new Set() }
 }
 reset()
 
@@ -31,7 +32,8 @@ const PHASES = [{ id: 'p1/ph1', title: '調べる' }, { id: 'p1/ph2', title: '�
 const PLACE = { t01: ['ph1'], t02: ['ph1'], t03: ['ph1'], t04: ['ph2'], t05: ['ph2', 't04'], t06: ['ph2', 't04'], t07: ['ph2'], t08: ['ph2'], t09: ['ph3'], t10: ['ph3', 't09'] }
 function cards() {
   const authored = id => state.mode.lanes && LANES[id]
-  const card = (id, title, cardState, producer, depth, extra = {}) => ({ id: `p1/${id}`, plan: 'p1', taskId: id, title, state: state.done.has(`p1/${id}`) ? 'done' : cardState, lane: authored(id) || producer, producer: authored(id) ? null : producer, depth, doneAt: null, archived: false, phase: PLACE[id] ? `p1/${PLACE[id][0]}` : null, parent: PLACE[id]?.[1] ? `p1/${PLACE[id][1]}` : null, doneCondition: '', designMemo: '', startedAt: null, changedAt: ago(60), blockedReason: null, ...extra })
+  const owned = id => state.mode.owner && id === 't07'
+  const card = (id, title, cardState, producer, depth, extra = {}) => ({ id: `p1/${id}`, plan: 'p1', taskId: id, title, state: state.done.has(`p1/${id}`) ? 'done' : cardState, lane: owned(id) ? 'owner' : authored(id) || producer, producer: owned(id) ? 'owner' : authored(id) ? null : producer, depth, doneAt: null, archived: false, phase: PLACE[id] ? `p1/${PLACE[id][0]}` : null, parent: PLACE[id]?.[1] ? `p1/${PLACE[id][1]}` : null, doneCondition: '', designMemo: '', startedAt: null, changedAt: ago(60), blockedReason: null, ...extra })
   return [
     card('t01', '決定済み仕様の確認', 'done', 'bot-flora', 0, { doneCondition: '仕様の要点を一覧にする', doneAt: ago(60 * 30), archived: true }),
     card('t02', 'Latticeの読取口の確認', 'done', 'bot-flora', 0, { doneCondition: '読取の2つの入口を確かめる', doneAt: ago(90), archived: true }),
@@ -95,6 +97,7 @@ const server = createServer((request, response) => {
     for (const key of ['state', 'list', 'stream']) if (url.searchParams.has(key)) state.mode[key] = url.searchParams.get(key)
     if (url.searchParams.has('unknown')) state.mode.unknown = url.searchParams.get('unknown') === '1'
     if (url.searchParams.has('lanes')) state.mode.lanes = url.searchParams.get('lanes') === '1'
+    if (url.searchParams.has('owner')) state.mode.owner = url.searchParams.get('owner') === '1'
     if (url.searchParams.has('degraded')) state.mode.degraded = url.searchParams.get('degraded').split(',').filter(Boolean)
     if (state.mode.stream === 'drop') { for (const [subscriber] of subscribers) subscriber.end(); subscribers.clear() } else push()
     return send(200, state.mode)

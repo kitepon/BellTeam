@@ -78,6 +78,7 @@ struct LatticeChartScreen: View {
         .toolbar(.hidden, for: .navigationBar)
         // The bar is hidden, but the title is the label of the back button on the 一覧 pushed over this chart.
         .navigationTitle(title)
+        .onChange(of: store.owner?.name, initial: true) { _, name in LatticePerson.ownerName = name }
         .task(id: scenePhase == .active) {
             // 背景へ回る・窓を閉じる時は接続を閉じ、戻ったら最新の一枚から描き直す。
             guard scenePhase == .active else { return }
@@ -292,7 +293,7 @@ struct LatticeChartScreen: View {
 
     private func railItems(_ snapshot: LatticeChartSnapshot, _ layout: LatticeLayout) -> [LatticeRail.Item] {
         layout.lanes.compactMap { lane in
-            guard let person = lane.person, !person.lane else { return nil }  // authored lanes are not members
+            guard let person = lane.person, !person.lane, !person.isOwner else { return nil }  // only members are in the rail
             let mine = snapshot.cardList.filter { $0.owner == person.botId }
             return LatticeRail.Item(person: person,
                                     working: mine.contains { $0.status == .inProgress },

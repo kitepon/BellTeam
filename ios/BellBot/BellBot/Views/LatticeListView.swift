@@ -25,7 +25,7 @@ enum LatticePalette {
 
     static func accent(_ person: LatticePerson?) -> Color {
         guard let person else { return unknown }
-        return person.known ? BellTheme.accent(person.color) : unknown
+        return person.known || person.isOwner ? BellTheme.accent(person.color) : unknown
     }
 
     /// 状態の色の系統。色だけでは伝えない（記号と文字が必ず付く）。
@@ -54,7 +54,10 @@ struct LatticeAvatar: View {
     let size: CGFloat
 
     var body: some View {
-        if let person, person.known {
+        if let person, person.isOwner {
+            // The Owner's own profile photo (initial while it has none).
+            AvatarView(name: person.name, avatar: store.owner?.avatar ?? "", color: LatticePalette.accent(person), size: size)
+        } else if let person, person.known {
             AvatarView(name: person.name, avatar: store.bots.first { $0.id == person.botId }?.avatar ?? "",
                        color: LatticePalette.accent(person), size: size)
         } else {

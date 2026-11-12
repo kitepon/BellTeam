@@ -188,13 +188,24 @@ struct LatticePerson: Equatable, Hashable {
     let known: Bool
     /// An authored lane text, not a member: drawn as text with its initial, no chat, not in the rail.
     var lane = false
+    /// The reserved owner value "owner" (screen-spec "Owner as an owner"): the app's Owner profile, no chat, not in the rail.
+    var isOwner = false
 
-    var initial: String { known || lane ? String(name.prefix(1)).uppercased() : "?" }
+    static let ownerKey = "owner"
+    /// shortcut: the Owner's display name is set by the chart screen from AppStore.owner (one Owner per app); pass it
+    /// through lookup if a second owner source ever appears.
+    nonisolated(unsafe) static var ownerName: String?
+
+    var initial: String { known || lane || isOwner ? String(name.prefix(1)).uppercased() : "?" }
 
     static func lookup(_ snapshot: LatticeChartSnapshot?) -> (String?) -> LatticePerson? {
         let roster = Dictionary((snapshot?.members ?? []).map { ($0.botId, $0) }, uniquingKeysWith: { first, _ in first })
         return { botId in
             guard let botId, !botId.isEmpty else { return nil }
+            if botId == ownerKey {
+                let name = ownerName.flatMap { $0.isEmpty ? nil : $0 } ?? "指揮官"
+                return LatticePerson(botId: botId, name: name, color: "violet", known: false, isOwner: true)
+            }
             if botId.hasPrefix(lanePrefix) {
                 return LatticePerson(botId: botId, name: String(botId.dropFirst(lanePrefix.count)), color: "unknown", known: false, lane: true)
             }
@@ -526,6 +537,7 @@ struct LatticeLayout: Equatable {
             if key.isEmpty { return 4 }
             if key == coordinator { return 0 }
             if key.hasPrefix(LatticePerson.lanePrefix) { return 3 }  // authored lanes after the member lanes
+            if key == LatticePerson.ownerKey { return 1 }  // the Owner has a lane like a member
             return lookup(key)?.known == true ? 1 : 2
         }
         let keys = groups.keys.sorted { a, b in
