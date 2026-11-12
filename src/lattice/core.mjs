@@ -5,6 +5,7 @@ import { projectChart } from './projection.mjs'
 import { createCodeCharts } from './code-chart.mjs'
 import { createNoticeDelivery } from './notices.mjs'
 import { nudgeSweep } from './nudge.mjs'
+import { stopsOf, unblockOutcome } from './blockers.mjs'
 
 const CHART_PARALLEL = 4, STDOUT_KEPT = 64 * 1024
 const iso = ms => new Date(ms).toISOString()
@@ -122,6 +123,35 @@ export function createLatticeCore({ cli, now = () => Date.now(), coordinatorId =
       await rosterReader(effect)()
       return nudgeSweep(ids, { run: (id, args) => lattice(id, args), log, roster, effect, lock: locked })
     },
+    // Owner stop list (L16): a read, so no chart lock; a chart that fails is named in unreadCharts.
+    async blockers() {
+      const ids = await cli.list(), rows = [], unreadCharts = []
+      for (let i = 0; i < ids.length; i += CHART_PARALLEL) await Promise.all(ids.slice(i, i + CHART_PARALLEL).map(async id => {
+        try {
+          const [value, meta] = await Promise.all([lattice(id, ['todo', 'blockers', '--json']), cli.meta(id)])
+          rows.push(...stopsOf(id, value, meta))
+        } catch (error) { unreadCharts.push(id); log(`lattice-blockers ${id} ${error?.code ?? 'LATTICE_CLI_FAILED'}`) }
+      }))
+      const order = row => [row.projectId, row.plan, row.taskId]
+      rows.sort((a, b) => order(a).join('\0').localeCompare(order(b).join('\0')))
+      return { schema: 'bellteam.lattice-blockers.v1', at: iso(now()), blockers: rows, unreadCharts: unreadCharts.sort() }
+    },
+    // Owner unblock (L17): the only Owner write; actor 'owner' reaches LATTICE_SEAT_ID only here (named protection, README L17).
+    unblock: ({ projectId, stopId }, effect) => locked(projectId, async () => {
+      const answer = outcome => ({ schema: 'bellteam.lattice-unblock.v1', projectId, stopId, ...outcome })
+      if (!await cli.exists(projectId)) return answer({ outcome: 'already-gone' })
+      const stop = stopsOf(projectId, await lattice(projectId, ['todo', 'blockers', '--json'])).find(row => row.stopId === stopId)
+      if (!stop) return answer({ outcome: 'already-gone' })
+      const result = await cli.run({ id: projectId, args: ['todo', 'unblock', '--plan', stop.plan, '--task', stop.taskId, '--json'], env: { LATTICE_SEAT_ID: 'owner' }, input: null })
+      const memo = memos.get(projectId)
+      if (memo) memo.dirty = true
+      const out = parse(result.stdout)
+      if (result.exitCode === 0 && effect) {
+        // The messenger refuses 'owner' as a sender, so released notices go out from 'scheduler'.
+        try { await rosterReader(effect)(); await notices.afterRun(projectId, out, { from: 'scheduler', roster, effect }) } catch (error) { log(`lattice-notice ${projectId} ${error?.code ?? 'FAILED'}`) }
+      }
+      return answer(unblockOutcome({ exitCode: result.exitCode, out, err: parse(result.stderr) }))
+    }),
   }
   async function runOnce({ from, projectId, args, input, name }, effect) {
     const naming = name !== undefined

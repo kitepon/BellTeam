@@ -52,6 +52,12 @@ export function createLatticeFacade({ controller, retryMs = 2000, nudgeMs = NUDG
   return {
     charts: () => call('charts', {}),
     nudge,
+    blockers: () => call('blockers', {}),
+    async unblock({ projectId, stopId }) {
+      const value = await call('unblock', { projectId, stopId })
+      if (subscribers.has(projectId)) void call('refresh', { projectIds: [projectId] }).then(result => publish(result?.snapshots), () => {})
+      return value
+    },
     // Once per child generation (onGeneration; held until the child is ready). An old child refuses the method: swallowed, like refresh errors.
     deliver: () => call('deliver', {}).catch(() => null),
     chart: projectId => call('chart', { projectId }),
