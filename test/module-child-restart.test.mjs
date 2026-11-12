@@ -1,7 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
-import { createModuleChildRestart, observeModuleChild } from '../src/module-child-restart.mjs'
+import { createChildStderrLog, createModuleChildRestart, maskStderrLine, observeModuleChild } from '../src/module-child-restart.mjs'
+import { mkdtemp, readFile, stat } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { PassThrough } from 'node:stream'
 
 const settle = async () => { for (let i = 0; i < 8; i++) await Promise.resolve() }
 
@@ -63,4 +67,43 @@ test('a hold that timed out never runs its retry on a later running', async t =>
   await assert.rejects(held, { code: 'X_NOT_ACCEPTING' })
   recovery.running(); await new Promise(resolve => setImmediate(resolve))
   assert.equal(runs, 0)
+})
+
+// module-process.md ML01-ML05
+test('child stderr lines land masked and bounded in a readable per-component record', async () => {
+  const token = 'sk-' + 'a'.repeat(48)
+  assert.equal(maskStderrLine(`BellTeam fork relay error: Error: MEMBERS_LEASE_INVALID body "hello secret" key ${token}`),
+    'BellTeam fork relay error: Error: MEMBERS_LEASE_INVALID body "…" key [redacted]')
+  assert.equal(maskStderrLine('    at file:///app/src/members-facade.mjs:17:30 delivery 3b7c1d2e-0a4f-4c1e-9d3a-8b2f6e1a0c55').includes('3b7c1d2e-0a4f-4c1e-9d3a-8b2f6e1a0c55'), true)
+  assert.equal(maskStderrLine('x'.repeat(39) + ' ' + 'y '.repeat(400)).length, 300)
+  const file = join(await mkdtemp(join(tmpdir(), 'bellteam-stderr-')), 'logs/module-stderr/conversation.log')
+  const log = createChildStderrLog(file, { now: () => new Date('2026-11-12T00:00:00Z'), delayMs: 60_000 })
+  const child = Object.assign(new EventEmitter(), { stderr: new PassThrough(), stdout: new PassThrough() })
+  observeModuleChild(child, line => log.append(3, line))
+  child.stderr.write('BellTeam fork relay error: Error: X\n    at a (f.mjs:1:1)\n\npartial')
+  await new Promise(resolve => setImmediate(resolve))
+  await log.flush()
+  assert.deepEqual((await readFile(file, 'utf8')).trim().split('\n').map(row => JSON.parse(row).line), ['BellTeam fork relay error: Error: X', '    at a (f.mjs:1:1)'])
+  for (let i = 0; i < 205; i += 1) log.append(4, `line ${i}`)
+  await log.flush()
+  const rows = (await readFile(file, 'utf8')).trim().split('\n').map(row => JSON.parse(row))
+  assert.equal(rows.length, 200)
+  assert.deepEqual(rows.at(-1), { at: '2026-11-12T00:00:00.000Z', child: 4, line: 'line 204' })
+  assert.equal((await stat(file)).mode & 0o777, 0o644)
+  // An unwritable place never throws into the module.
+  await createChildStderrLog('/proc/no/such/dir/x.log').flush()
+})
+
+// module-process.md ML02: escaped and unterminated quotes, and a line whose head was trimmed, never leak a body.
+test('escaped quotes, unclosed quotes and truncated long quoted lines leave no body in the record', async () => {
+  const body = 'private body words'
+  for (const line of [`x "a \\" ${body} \\" b" y`, `x '${body} \\' more' y`, `x "${body}`, `x "${body}\\`])
+    assert.equal(maskStderrLine(line).includes('body'), false, line)
+  assert.equal(maskStderrLine('x "a \\" b" y'), 'x "…" y')
+  const seen = []
+  const child = Object.assign(new EventEmitter(), { stderr: new PassThrough(), stdout: new PassThrough() })
+  observeModuleChild(child, line => seen.push(maskStderrLine(line)))
+  child.stderr.write(`error "${'p'.repeat(9000)} ${body}" tail\nnext "${body}"\n`)
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(seen, ['[line truncated]', 'next "…"'])
 })

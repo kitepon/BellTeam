@@ -1,3 +1,6 @@
+import { mkdir, rename, writeFile } from 'node:fs/promises'
+import { dirname } from 'node:path'
+
 // Only lifecycle recovery is retried; accepted business requests are never replayed.
 // A request arriving between children waits for the next usable state instead of being refused (Owner 2026-11-08).
 // Self-exits: running() (exchange success, rollback, recovery) or close(); the bound covers a module that stays down.
@@ -95,7 +98,7 @@ const heapMarkers = ['FATAL ERROR: Reached heap limit Allocation failed - JavaSc
   'FATAL ERROR: CALL_AND_RETRY_LAST Allocation failed - JavaScript heap out of memory']
 const gcLine = /\b(?:Mark-Compact|Mark-sweep|Scavenge)(?: \(reduce\))?\s+(\d+(?:\.\d+)?)\s+\((\d+(?:\.\d+)?)\)\s+->\s+(\d+(?:\.\d+)?)\s+\((\d+(?:\.\d+)?)\)\s+MB,\s+(?:pooled:\s+\d+(?:\.\d+)?\s+MB,\s+)?(\d+(?:\.\d+)?)\s*\/\s*\d+(?:\.\d+)?\s+ms\b/
 
-export function observeModuleChild(child) {
+export function observeModuleChild(child, onLine = () => {}) {
   let pending = Buffer.alloc(0), stderrBytes = 0, stderrTruncated = false, heap = false, closed = false
   let childExitOrigin = null, lineTruncated = false
   const codes = new Set(), evidence = []
@@ -123,6 +126,9 @@ export function observeModuleChild(child) {
     for (const code of childCodes) if (line.includes(code)) codes.add(code)
     if (!heap && heapMarkers.some(marker => line.includes(marker))) { heap = true; append({ kind: 'heap_oom' }) }
     if (complete) gc(line)
+    // module-process.md ML01: complete lines also go to the readable, masked stderr record.
+    // A truncated line lost its head (and maybe an opening quote), so only a marker reaches the record.
+    if (complete && line) { try { onLine(lineTruncated ? '[line truncated]' : line) } catch {} }
   }
   child.stderr?.on('data', chunk => {
     if (closed) return
@@ -180,4 +186,35 @@ export function reportModuleChildExit(component, { code, signal }, observation, 
       ...(component === 'conversation' && observation.childExitOrigin ? { childExitOrigin: { ...observation.childExitOrigin } } : {}) }
     Promise.resolve(onModuleChildExit(value)).catch(() => {})
   } catch {}
+}
+
+const STDERR_LOG_LINES = 200, STDERR_LOG_CHARS = 300
+// module-process.md ML02: quoted contents and long tokens never reach the record.
+// A quote runs to its unescaped closing delimiter, or to the end of the line when it never closes.
+export const maskStderrLine = line => line.replace(/'(?:\\[\s\S]?|[^'\\])*(?:'|$)|"(?:\\[\s\S]?|[^"\\])*(?:"|$)|`(?:\\[\s\S]?|[^`\\])*(?:`|$)/gu, match => `${match[0]}…${match[0]}`)
+  .replace(/[A-Za-z0-9+=_-]{40,}/gu, '[redacted]').slice(0, STDERR_LOG_CHARS)
+
+// module-process.md ML03-ML05: the last 200 masked lines, rewritten at most once a second; failures are dropped.
+export function createChildStderrLog(file, { fs = { mkdir, writeFile, rename }, now = () => new Date(), delayMs = 1000 } = {}) {
+  const lines = []
+  let timer = null, writing = Promise.resolve()
+  const flush = () => {
+    timer = null
+    const body = lines.join('\n') + '\n', tmp = `${file}.tmp`
+    writing = writing.then(async () => {
+      await fs.mkdir(dirname(file), { recursive: true, mode: 0o755 })
+      await fs.writeFile(tmp, body, { mode: 0o644 })
+      await fs.rename(tmp, file)
+    }).catch(() => {})
+    return writing
+  }
+  return {
+    append(child, line) {
+      lines.push(JSON.stringify({ at: now().toISOString(), child, line: maskStderrLine(line) }))
+      if (lines.length > STDERR_LOG_LINES) lines.splice(0, lines.length - STDERR_LOG_LINES)
+      timer ??= setTimeout(flush, delayMs)
+      timer.unref?.()
+    },
+    flush: () => { if (timer) clearTimeout(timer); return flush() },
+  }
 }
