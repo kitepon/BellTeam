@@ -1,0 +1,9 @@
+connected=True server=http://192.168.1.2:18891/
+chart=bellteam name=BellTeam開発 version=50 cards=48 archived=30
+f1 tapped=bellteam-dev-added/a08 "Grokの席のゴールの新しい返し方を、先に読めるようにする（実行側）" selected=bellteam-dev-added/a08 detail="Grokの席のゴールの新しい返し方を、先に読めるようにする（実行側）、作業中、つくっている キロ" -> PASS
+f3 list shown chartNull=True back="BellTeam開発へ戻る"
+f3 back -> sameChart=True -> PASS
+f5 tree: drawn=18 archivedDrawn=[] liveMissing=[] ruleMismatch=[]
+f5 finished still in tree (with unstarted next): [bellteam-dev/t06->bellteam-dev/t08:ready/bellteam-dev/t10:done]
+f5 history: rows drawn=31 finished=31 newestFirst=True first=[Lattice 0.90.0を入れる工程表の部品の直し（PR #1185）を通常mainへ採用する、完了、今日 17:02、エピネル | 待ちの流れの札を、それだけで読めるようにする、完了、今日 16:59、フローラ | Latticeを本番で確かめる・各アプリに出す、完了、今日 16:59、フローラ | Grokのゴールの新しい状態（予算上限など）を読むAI実行の直し（PR #1184）を通常mainへ採用する、完了、今日 16:57、エピネル | Macに残っている古いiPhone通知の鍵の写しを消す、完了、今日 16:55、ブリッド]
+f5 -> PASS
