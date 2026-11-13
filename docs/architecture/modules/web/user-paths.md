@@ -196,6 +196,7 @@ flowchart TD
   Home --> AI["AIの認証"]
   Home --> SUM["仕事の要約を書くAI"]
   Home --> S["全体停止"]
+  Home --> X["稼働中に数えない処理"]
   Home --> T["端末"]
   Home --> OP["1Password"]
   Home --> N["通知"]
@@ -217,6 +218,7 @@ flowchart TD
 | AIの認証 | Worst state: 「すべて使えます」 / 「Claude 2つ目のログインが必要」 / 「Claude 上限中（21:30まで）」 | `GET /api/harness-auth`, `GET /api/harness-auth/:h[?slot=2nd]`, `GET /api/accounts` | `POST /api/harness-auth/:h/{start,input,cancel}[?slot=2nd]` | harness-auth.js, harness-accounts.js, auth-flow.js |
 | 仕事の要約を書くAI | 「Claude Code · Haiku · 低」 (display names) | `GET /api/settings` `backgroundAgent`, `GET /api/models` | `PATCH /api/settings/backgroundAgent` | background-agent-settings.js |
 | 全体停止 | 「動作中」 / 「停止中」 | `GET /api/ai-control` | `PATCH /api/ai-control` | ai-control.js |
+| 稼働中に数えない処理 | 「なし」 / 「2件」 / 「2件・答え待ち1件」 | `GET /api/running-exclusions` | `DELETE /api/running-exclusions/:id` | running-exclusions.js |
 | 端末 | 「Mac・Windows・Linux」 when none; 「3台」 / 「3台・1台つながりません」 | `GET /api/terminals` | (terminals dialog) | terminals.js |
 | 1Password | 「連携中」 / 「未連携」 / 「失敗」 | `GET /api/settings` `onePassword` | `PATCH /api/settings/onePassword` | onboarding.js feature renderer |
 | 通知 | 「このブラウザーに届きます」 / 「このブラウザーは未登録」 / 「通知の送り先が未設定」 | `GET /api/web-push/status`, `POST /api/web-push/status`, `GET /api/notifications`, browser permission | `POST /api/web-push/subscriptions`, `POST /api/web-push/unregister` | web-push.js, owner-editor.js |
@@ -404,6 +406,26 @@ stateDiagram-v2
 - 表示: the conversation motion select stays (it works, saves at once with the result next to it).
 - 端末: the row shows the count and the worst state; tap opens the terminals dialog (section 7.6) in front.
 - アップデート: the row shows the update state; tap opens the update center (section 5).
+
+### 4.10 稼働中に数えない処理 (a63)
+
+Contract: execution [current work](../execution/current-work.md) "Owner read and remove (a62)". No push event: the page reads `GET /api/running-exclusions` when the settings dialog opens (row line) and each time the page is shown, and again after a removal.
+
+```mermaid
+flowchart TD
+  Open["設定を開く / ページを開く"] --> Read["GET /api/running-exclusions"]
+  Read -->|200 valid| List["承認済み: card per entry<br/>答え待ち: card per pending"]
+  Read -->|200 empty| Empty["いまは何もありません。メンバーの処理は、すべて作業中に数えます。"]
+  Read -->|404/405 older body| Old["本体を更新すると使えます"]
+  Read -->|503 / other / invalid| Fail["一覧を読めませんでした + もう一度読み込む"]
+  List -->|一覧から外す + confirm| Del["DELETE /api/running-exclusions/:id"]
+  Del -->|200 / 404 already gone| Read
+  Del -->|503 / other| DelFail["外せませんでした (sentence) + list kept"] --> Read
+```
+
+- Entry card: icon (process = terminal icon, child = member icon), the words of the entry (process 「<exe> <args>」, the same words the card reason shows; child 「<AI名> の子の席「<session>」」 or 「（どの席でも）」), 対象 (「全員」 or member names from the list read; an unknown id is shown as is), 承認 (`approvedAt`, month/day time), 理由 (`reason`), 提案 (`from` when the body sends it), 「一覧から外す」.
+- Pending card: 「追加の提案」 / 「外す提案」, the same words (a removal names the listed entry by `id`), 対象 for additions, 提案 (`from` name), 出した日時 (`filedAt`); `approved: true` -> 「承認済み。一覧に空きができたら載ります」, else 「Approval Boxであなたの答えを待っています」. No answer button here: answers stay in Approval Box.
+- Removal: browser confirm, button 外しています… while it runs; 404 `RUNNING_EXCLUSION_NOT_FOUND` -> 「もう一覧にありませんでした」; 503 -> 「一覧を読めないため、外せませんでした」; other -> 「外せませんでした。もう一度お試しください」; then the list is read again. No guard and no retry loop; nothing is written by the Web on its own.
 
 ## 5. Update center
 

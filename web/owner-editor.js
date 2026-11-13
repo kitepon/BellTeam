@@ -11,6 +11,7 @@ import { renderHarnessAuth, authSummary } from './harness-auth.js?v=__ASSET_VERS
 import { aiControlView } from './ai-control.js?v=__ASSET_VERSION__'
 import { createBackgroundAgentSettings } from './background-agent-settings.js?v=__ASSET_VERSION__'
 import { createSettingsHome } from './settings-home.js?v=__ASSET_VERSION__'
+import { runningExclusionsView } from './running-exclusions.js?v=__ASSET_VERSION__'
 import { renderRules, ruleCount, parseRules } from './user-rules-view.js?v=__ASSET_VERSION__'
 
 // 読めなかった時の一枚。平易な一文と、その場の「もう一度読み込む」。符号は閉じた「詳細」の中だけ。
@@ -53,7 +54,7 @@ export function onePasswordItem(setting) {
   return setting.status === 'enabled' ? { line: '連携中', badge: '連携中', tone: 'ok' } : { line: '未連携', badge: '', tone: '' }
 }
 
-export function createOwnerEditor(dialog, { api, onOwner, onSettings, onOpenUpdates = () => {}, updateSummary = () => null }) {
+export function createOwnerEditor(dialog, { api, onOwner, onSettings, onOpenUpdates = () => {}, updateSummary = () => null, memberName = () => null }) {
   const find = id => dialog.querySelector(`#${id}`)
   const form = find('owner-form'), name = find('owner-name'), description = find('owner-description')
   const xUrl = find('owner-x-url'), githubUrl = find('owner-github-url'), ownerLinks = find('owner-links')
@@ -63,9 +64,11 @@ export function createOwnerEditor(dialog, { api, onOwner, onSettings, onOpenUpda
   let owner = null, saving = null, editRevision = 0, rulesRevision = 0, harnessAuthSection = null
   const home = createSettingsHome(dialog, { canLeave: page => !pageDirty(page) || confirm('入力した内容はまだ保存していません。ほかの項目へ移りますか？'), onShow: page => {
     if (page === 'updates') home.set('updates', updateItem(updateSummary()))
+    if (page === 'exclusions') void exclusions.refresh()
   } })
   const webPush = createWebPushSettings(find('web-push-settings'), api, globalThis, { onChange: value => home.set('notifications', value) })
   const aiControl = aiControlView(find('ai-control'), api, { onChange: value => home.set('stop', value) })
+  const exclusions = runningExclusionsView(find('running-exclusions'), api, { nameOf: memberName, onChange: value => home.set('exclusions', value) })
   const backgroundAgent = createBackgroundAgentSettings(find('background-agent-form'), api, { onChange: line => home.set('summary', { line }) })
   const avatar = createAvatarEditor({ onChange: () => { editRevision++ }, applyAvatar, initials, escapeClass,
     fileInput: find('owner-avatar-file'), preview: find('owner-avatar-preview'), cropEditor: find('owner-crop-editor'),
@@ -269,6 +272,7 @@ export function createOwnerEditor(dialog, { api, onOwner, onSettings, onOpenUpda
     home.set('billing', { line: 'Web版は無料' })
     home.set('updates', updateItem(updateSummary()))
     void aiControl.refresh()
+    void exclusions.refresh()
     void backgroundAgent.open()
     form.reset()
     find('conversation-motion').value = readConversationMotion()

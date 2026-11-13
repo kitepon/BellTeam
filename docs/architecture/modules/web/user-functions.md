@@ -22,6 +22,7 @@ flowchart LR
     SAI["AIの認証<br/>harness-auth.js, harness-accounts.js, auth-flow.js"]
     SSum["仕事の要約を書くAI<br/>background-agent-settings.js"]
     SStop["全体停止<br/>ai-control.js"]
+    SExcl["稼働中に数えない処理<br/>running-exclusions.js"]
     SFeat["1Password / 追加機能<br/>onboarding.js (feature renderer)"]
     SNotif["通知<br/>web-push.js, sw.js, notification-*.js"]
     SConn["接続 / 表示 / 利用と購読<br/>owner-editor.js, server-origin.js, view-preferences.js"]
@@ -75,6 +76,7 @@ flowchart LR
 | AI auth | settings, onboarding | `GET /api/harness-auth[/:h]`, `GET /api/accounts` | `POST /api/harness-auth/:h/{start,input,cancel}[?slot=2nd]`, `POST /api/setup/{harness,start,auth/input}` | usage (HarnessAuth), execution |
 | Summary AI | settings | `GET /api/settings`, `GET /api/models` | `PATCH /api/settings/backgroundAgent` | settings |
 | Whole stop | settings | `GET /api/ai-control` | `PATCH /api/ai-control` | execution |
+| Processes not counted as working (a63) | settings | `GET /api/running-exclusions`, member names from the list read | `DELETE /api/running-exclusions/:id` | execution ([current work](../execution/current-work.md) "Owner read and remove (a62)") |
 | Features, 1Password | settings | `GET /api/settings` | `PATCH /api/settings/:id` | settings |
 | Notifications | settings | `GET /api/web-push/status`, `POST /api/web-push/status`, `GET /api/notifications` | `POST /api/web-push/subscriptions`, `POST /api/web-push/unregister` | notifications |
 | Connection, display | settings | `location.origin`, localStorage | localStorage, a new tab | this browser |
